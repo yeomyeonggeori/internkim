@@ -164,11 +164,10 @@ func runBlueclawPayloadHTTPUpdate(arguments []string) error {
 	}
 	printCommandTargetEvidence(target)
 	fmt.Print("  blueclaw runtime payload via HTTPS... ")
-	result, errorValue := state.installBlueclawPayloadHTTPS(artifactDirectoryPath, manifest)
+	outcome, errorValue := state.installBlueclawPayloadHTTPS(artifactDirectoryPath, manifest)
 	if errorValue != nil {
 		fmt.Println("failed")
 		return errorValue
 	}
-	fmt.Println(result)
-	return nil
+	return state.reportBlueclawPayloadHTTPSOutcome(outcome)
 }

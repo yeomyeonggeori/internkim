@@ -297,6 +297,45 @@ func writeBlueclawTaskDrainResponse(t *testing.T, responseWriter http.ResponseWr
 	}
 }
 
+func TestSyncBlueclawWorkspaceImageForTargetStopsSyncsAndRestarts(t *testing.T) {
+	_ = captureBlueclawTaskDrainLogs(t)
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
+		http.Error(responseWriter, "unavailable", http.StatusBadGateway)
+	}))
+	server.Close()
+	service := NewService(Configuration{BlueclawBaseURL: server.URL})
+	service.HTTPClient = server.Client()
+	commands := []string{}
+	service.RunCommand = func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
+		return []byte("Inode: 2   Type: directory    Mode:  0755"), nil
+	}
+	target := canonicalBlueclawPayloadInstallTarget()
+	jobID := service.newJob("blueclaw-update").JobID
+
+	if errorValue := service.syncBlueclawWorkspaceImageForTarget(context.Background(), jobID, target); errorValue != nil {
+		t.Fatalf("expected workspace image sync to succeed: %v", errorValue)
+	}
+
+	commandIndex := func(expectedText string) int {
+		for index, command := range commands {
+			if strings.Contains(command, expectedText) {
+				return index
+			}
+		}
+		return -1
+	}
+	stopIndex := commandIndex("systemctl stop ")
+	syncIndex := commandIndex("sync-workspace --atomic --preserve-guest-state")
+	startIndex := commandIndex("systemctl start ")
+	if stopIndex == -1 || syncIndex == -1 || startIndex == -1 {
+		t.Fatalf("expected stop, sync, and start commands, got:\n%s", strings.Join(commands, "\n"))
+	}
+	if stopIndex > syncIndex || syncIndex > startIndex {
+		t.Fatalf("expected stop before sync before start, got:\n%s", strings.Join(commands, "\n"))
+	}
+}
+
 func captureBlueclawTaskDrainLogs(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var output bytes.Buffer

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -129,8 +130,12 @@ func (service *Service) startReleaseUpdate(responseWriter http.ResponseWriter, r
 	}
 	current := service.readCurrentReleaseManifest()
 	if current != nil && current.ReleaseID == manifest.ReleaseID {
+		log.Printf("release update %s already current: component install and blueclaw workspace image sync skipped", manifest.ReleaseID)
 		job := service.newJob("release-update")
-		service.finishReleaseUpdateJob(job.JobID, "already_current", manifest)
+		service.finishReleaseUpdateJob(job.JobID, "already_current", map[string]string{
+			"releaseID": manifest.ReleaseID,
+			"skipped":   "component install and blueclaw workspace image sync",
+		})
 		service.writeJSON(responseWriter, job)
 		return
 	}
@@ -193,7 +198,7 @@ func (service *Service) runReleaseUpdateJobWithProvider(ctx context.Context, job
 		service.updateJob(jobID, "failed", "installing", errorValue.Error())
 		return
 	}
-	service.finishReleaseUpdateJob(jobID, "completed", manifest)
+	service.finishReleaseUpdateJob(jobID, "completed", map[string]string{"releaseID": manifest.ReleaseID})
 	service.restartAdmindAfterReleaseUpdate(ctx, manifest)
 }
 
@@ -315,8 +320,19 @@ type releaseBlueclawHealth struct {
 }
 
 type releaseProtocolIdentityResult struct {
-	Passed   bool                                `json:"passed"`
-	Expected capabilityprotocol.ProtocolIdentity `json:"expected"`
+	Passed         bool                                `json:"passed"`
+	Expected       capabilityprotocol.ProtocolIdentity `json:"expected"`
+	Capabilityd    releaseProtocolEndpointStatus       `json:"capabilityd"`
+	LLMD           releaseProtocolEndpointStatus       `json:"llmd"`
+	FailureReasons []string                            `json:"failureReasons"`
+}
+
+type releaseProtocolEndpointStatus struct {
+	Status                string `json:"status"`
+	Passed                bool   `json:"passed"`
+	ProtocolVersion       string `json:"protocolVersion"`
+	AggregateProtocolHash string `json:"aggregateProtocolHash"`
+	Error                 string `json:"error"`
 }
 
 func releaseProtocolIdentityComponentsPresent(manifest *releaseset.Manifest) bool {
@@ -401,16 +417,55 @@ func (service *Service) checkReleaseProtocolIdentity(ctx context.Context, expect
 		return fmt.Errorf("capabilityd registry: %w", errorValue)
 	}
 	if registry.ProtocolIdentity != expected {
-		return fmt.Errorf("capabilityd protocol identity mismatch")
+		return capabilitydReleaseProtocolIdentityMismatchError(expected, registry.ProtocolIdentity)
 	}
 	health := releaseBlueclawHealth{}
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, blueclawruntime.BlueclawHealthCheckPath, nil, &health); errorValue != nil {
 		return errorValue
 	}
 	if health.Status != "ok" || !health.ProtocolIdentity.Passed || health.ProtocolIdentity.Expected != expected {
-		return fmt.Errorf("Blueclaw protocol identity mismatch")
+		return blueclawReleaseProtocolIdentityMismatchError(expected, health)
 	}
 	return nil
+}
+
+func capabilitydReleaseProtocolIdentityMismatchError(expected capabilityprotocol.ProtocolIdentity, received capabilityprotocol.ProtocolIdentity) error {
+	return fmt.Errorf(
+		"capabilityd protocol identity mismatch: expected %s, received %s",
+		describeReleaseProtocolIdentity(expected),
+		describeReleaseProtocolIdentity(received),
+	)
+}
+
+func blueclawReleaseProtocolIdentityMismatchError(expected capabilityprotocol.ProtocolIdentity, health releaseBlueclawHealth) error {
+	return fmt.Errorf(
+		"Blueclaw protocol identity mismatch: health status %s, expected %s, blueclaw expected %s, capabilityd reported %s, llmd reported %s%s",
+		health.Status,
+		describeReleaseProtocolIdentity(expected),
+		describeReleaseProtocolIdentity(health.ProtocolIdentity.Expected),
+		describeReleaseProtocolEndpoint(health.ProtocolIdentity.Capabilityd),
+		describeReleaseProtocolEndpoint(health.ProtocolIdentity.LLMD),
+		describeReleaseProtocolFailureReasons(health.ProtocolIdentity.FailureReasons),
+	)
+}
+
+func describeReleaseProtocolIdentity(identity capabilityprotocol.ProtocolIdentity) string {
+	return fmt.Sprintf("version %s hash %s", identity.ProtocolVersion, identity.AggregateProtocolHash)
+}
+
+func describeReleaseProtocolEndpoint(endpoint releaseProtocolEndpointStatus) string {
+	description := fmt.Sprintf("version %s hash %s", endpoint.ProtocolVersion, endpoint.AggregateProtocolHash)
+	if endpoint.Error == "" {
+		return description
+	}
+	return description + " (" + endpoint.Error + ")"
+}
+
+func describeReleaseProtocolFailureReasons(failureReasons []string) string {
+	if len(failureReasons) == 0 {
+		return ""
+	}
+	return ", failure reasons: " + strings.Join(failureReasons, "; ")
 }
 
 func (service *Service) restartReleaseBlueclawServices(ctx context.Context) error {
@@ -1118,14 +1173,14 @@ func (service *Service) activeReleaseUpdateJob() *Job {
 	return nil
 }
 
-func (service *Service) finishReleaseUpdateJob(jobID string, status string, manifest *releaseset.Manifest) {
+func (service *Service) finishReleaseUpdateJob(jobID string, status string, result map[string]string) {
 	service.mutex.Lock()
 	job := service.jobs[jobID]
 	if job != nil {
 		job.Status = status
 		job.Phase = status
 		job.UpdatedAt = time.Now().UTC()
-		job.Result = map[string]string{"releaseID": manifest.ReleaseID}
+		job.Result = result
 	}
 	service.mutex.Unlock()
 }

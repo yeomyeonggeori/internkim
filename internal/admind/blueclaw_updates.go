@@ -290,7 +290,12 @@ func (service *Service) runBlueclawUpdateJob(ctx context.Context, jobID string, 
 		return
 	}
 	if service.isBlueclawPayloadAlreadyCurrent(artifactPath) {
-		service.finishBlueclawUpdateJob(jobID, "already_current", metadata)
+		if errorValue := service.syncBlueclawWorkspaceImages(ctx, jobID); errorValue != nil {
+			_, _ = service.runCommand(ctx, "sh", "-lc", blueclawruntime.StartAfterPayloadSyncCommand())
+			service.updateJob(jobID, "failed", "workspace_sync", errorValue.Error())
+			return
+		}
+		service.finishBlueclawUpdateJob(jobID, "already_current", alreadyCurrentBlueclawUpdateJobResult(metadata))
 		return
 	}
 	if errorValue := service.installBlueclawPayloadArtifact(ctx, jobID, artifactPath); errorValue != nil {
@@ -298,22 +303,70 @@ func (service *Service) runBlueclawUpdateJob(ctx context.Context, jobID string, 
 		service.updateJob(jobID, "failed", "installing", errorValue.Error())
 		return
 	}
-	service.finishBlueclawUpdateJob(jobID, "completed", metadata)
+	service.finishBlueclawUpdateJob(jobID, "completed", blueclawUpdateJobResult(metadata))
 }
 
-func (service *Service) finishBlueclawUpdateJob(jobID string, status string, metadata *blueclawUpdateArtifactMetadata) {
+func (service *Service) finishBlueclawUpdateJob(jobID string, status string, result map[string]string) {
 	service.mutex.Lock()
 	job := service.jobs[jobID]
 	if job != nil {
 		job.Status = status
 		job.Phase = status
 		job.UpdatedAt = time.Now().UTC()
-		job.Result = map[string]string{
-			"blueclawRevision": metadata.BlueclawRevision,
-			"version":          metadata.Version,
-		}
+		job.Result = result
 	}
 	service.mutex.Unlock()
+}
+
+func blueclawUpdateJobResult(metadata *blueclawUpdateArtifactMetadata) map[string]string {
+	return map[string]string{
+		"blueclawRevision": metadata.BlueclawRevision,
+		"version":          metadata.Version,
+	}
+}
+
+func alreadyCurrentBlueclawUpdateJobResult(metadata *blueclawUpdateArtifactMetadata) map[string]string {
+	result := blueclawUpdateJobResult(metadata)
+	result["workspaceImageSynced"] = "true"
+	return result
+}
+
+func (service *Service) syncBlueclawWorkspaceImages(ctx context.Context, jobID string) error {
+	targets := service.blueclawPayloadInstallTargets()
+	if len(targets) == 0 {
+		targets = []blueclawPayloadInstallTarget{canonicalBlueclawPayloadInstallTarget()}
+	}
+	for _, target := range targets {
+		if service.tenantServiceIsDisabled(ctx, target.ServiceName) {
+			continue
+		}
+		if errorValue := service.syncBlueclawWorkspaceImageForTarget(ctx, jobID, target); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func (service *Service) syncBlueclawWorkspaceImageForTarget(ctx context.Context, jobID string, target blueclawPayloadInstallTarget) error {
+	log.Printf("Blueclaw payload already current for %s: re-syncing workspace image", target.Name)
+	service.updateJob(jobID, "running", "stopping", "")
+	service.drainBlueclawTasksBeforeStop(ctx, target, drainTimeoutDefault)
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", stopBlueclawPayloadTargetCommand(target)); errorValue != nil {
+		return fmt.Errorf("%s: stop blueclaw before workspace sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
+	}
+	if errorValue := service.repairWorkspaceImageIfUnhealthy(ctx, jobID, target); errorValue != nil {
+		return errorValue
+	}
+	service.updateJob(jobID, "running", "workspace_sync", "")
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawPayloadWorkspaceSyncCommand(target)); errorValue != nil {
+		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
+		return fmt.Errorf("%s: sync blueclaw workspace image: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
+	}
+	service.updateJob(jobID, "running", "restarting", "")
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target)); errorValue != nil {
+		return fmt.Errorf("%s: start blueclaw after workspace sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
+	}
+	return nil
 }
 
 func (service *Service) installBlueclawPayloadArtifact(ctx context.Context, jobID string, artifactPath string) error {

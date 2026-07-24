@@ -1296,12 +1296,18 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 	if errorValue := state.sshClient.scp(temporaryManifestName, filepath.Join(blueclaw.BlueclawWorkspacePath, "skills", ".internkim-skills-manifest.json")); errorValue != nil {
 		return errorValue
 	}
-	state.sshClient.run(`chown -R root:root /root/.blueclaw/workspace/skills 2>/dev/null || true
-chmod -R a+rX,go-w /root/.blueclaw/workspace/skills 2>/dev/null || true
-chown -R root:root /root/.blueclaw/workspace/tools 2>/dev/null || true
-chmod -R a+rX,go-w /root/.blueclaw/workspace/tools 2>/dev/null || true
-chown root:root /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true
-chmod 644 /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true`)
+	permissionsCommand := strings.Join([]string{
+		"chown -R root:root /root/.blueclaw/workspace/skills",
+		"chmod -R a+rX,go-w /root/.blueclaw/workspace/skills",
+		"chown -R root:root /root/.blueclaw/workspace/tools",
+		"chmod -R a+rX,go-w /root/.blueclaw/workspace/tools",
+		"chown root:root /root/.blueclaw/workspace/AGENTS.md",
+		"chmod 644 /root/.blueclaw/workspace/AGENTS.md",
+	}, " && ")
+	output, errorValue := state.sshClient.runResult(permissionsCommand)
+	if errorValue != nil {
+		return fmt.Errorf("set skills workspace ownership and permissions: %s: %w", strings.TrimSpace(output), errorValue)
+	}
 	return nil
 }
 
@@ -1570,9 +1576,8 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 	}
 
 	fmt.Print("  blueclaw runtime payload... ")
-	if result, errorValue := state.installBlueclawPayloadHTTPS(artifactDirectoryPath, manifest); errorValue == nil {
-		fmt.Println(result)
-		return nil
+	if outcome, errorValue := state.installBlueclawPayloadHTTPS(artifactDirectoryPath, manifest); errorValue == nil {
+		return state.reportBlueclawPayloadHTTPSOutcome(outcome)
 	} else {
 		fmt.Printf("https self-update unavailable (%s); falling back to SSH... ", strings.TrimSpace(errorValue.Error()))
 		if state.sshClient == nil {
@@ -1647,12 +1652,29 @@ func (state *setupFlowState) installBlueclawPayloadDirectHTTPS() error {
 		return fmt.Errorf("blueclaw payload artifact invalid: %w", errorValue)
 	}
 	fmt.Print("  blueclaw runtime payload... ")
-	result, errorValue := state.installBlueclawPayloadHTTPS(artifactDirectoryPath, manifest)
+	outcome, errorValue := state.installBlueclawPayloadHTTPS(artifactDirectoryPath, manifest)
 	if errorValue != nil {
 		fmt.Println("failed")
 		return errorValue
 	}
-	fmt.Println(result)
+	return state.reportBlueclawPayloadHTTPSOutcome(outcome)
+}
+
+func (state *setupFlowState) reportBlueclawPayloadHTTPSOutcome(outcome blueclawPayloadInstallOutcome) error {
+	if !outcome.AlreadyCurrent || outcome.WorkspaceImageSynced {
+		fmt.Println(outcome.Summary)
+		return nil
+	}
+	if state.sshClient == nil {
+		fmt.Println(outcome.Summary)
+		fmt.Println("  WARNING: the device did not re-sync the blueclaw workspace image; skills and workspace assets inside the image may be stale until the device admind is updated or an SSH deploy runs")
+		return nil
+	}
+	if errorValue := state.syncBlueclawWorkspaceImage(); errorValue != nil {
+		fmt.Println("failed")
+		return fmt.Errorf("sync workspace image for the current payload: %w", errorValue)
+	}
+	fmt.Println("already current (workspace image synced)")
 	return nil
 }
 
