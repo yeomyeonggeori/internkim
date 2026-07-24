@@ -102,10 +102,13 @@ def build_quality_failures(source_root: pathlib.Path) -> list:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: validate.py <project-root>")
+    arguments = [value for value in sys.argv[1:] if value != "--structure-unchanged"]
+    if len(arguments) != 1:
+        print("usage: validate.py [--structure-unchanged] <project-root>")
         return 2
-    source_root = pathlib.Path(sys.argv[1])
+    if "--structure-unchanged" in sys.argv:
+        return 0 if matches_scaffold_manifest(pathlib.Path(arguments[0])) else 1
+    source_root = pathlib.Path(arguments[0])
     if not (source_root / "app").is_dir():
         print(f"Error: {source_root}/app not found; pass the site project root created by scaffold.sh.")
         return 2
