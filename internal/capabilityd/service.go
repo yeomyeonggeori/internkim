@@ -1856,35 +1856,65 @@ func (service Service) forwardMattermostEvent(ctx context.Context, event platfor
 	return errorValue
 }
 
+const backupDeferredForwardRetryLimit = 8
+
+var backupDeferredForwardRetryDelay = 30 * time.Second
+
 func (service Service) forwardPlatformEvent(ctx context.Context, platform string, event platformInboundEvent) error {
 	lockName := platform + ":" + event.ConversationID
 	return service.eventLocker().WithLock(lockName, func() error {
-		return service.forwardPlatformEventWithoutLock(ctx, platform, event)
+		return service.forwardPlatformEventWithRetry(ctx, platform, event)
 	})
 }
 
-func (service Service) forwardPlatformEventWithoutLock(ctx context.Context, platform string, event platformInboundEvent) error {
+func (service Service) forwardPlatformEventWithRetry(ctx context.Context, platform string, event platformInboundEvent) error {
+	for attempt := 0; ; attempt++ {
+		isDeferred, errorValue := service.forwardPlatformEventWithoutLock(ctx, platform, event)
+		if errorValue != nil || !isDeferred {
+			return errorValue
+		}
+		if attempt >= backupDeferredForwardRetryLimit {
+			return errors.New("platform event stayed deferred through the whole backup retry window: " + event.MessageID)
+		}
+		log.Printf("platform event deferred by backup; retrying: platform=%s messageID=%s attempt=%d", platform, event.MessageID, attempt+1)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backupDeferredForwardRetryDelay):
+		}
+	}
+}
+
+func (service Service) forwardPlatformEventWithoutLock(ctx context.Context, platform string, event platformInboundEvent) (bool, error) {
 	document, errorValue := json.Marshal(event)
 	if errorValue != nil {
-		return errorValue
+		return false, errorValue
 	}
 	requestURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/connectors/" + url.PathEscape(platform) + "/events"
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(document))
 	if errorValue != nil {
-		return errorValue
+		return false, errorValue
 	}
 	request.Header.Set("Content-Type", "application/json")
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
-		return errorValue
+		return false, errorValue
 	}
 	defer response.Body.Close()
 	responseDocument, _ := io.ReadAll(response.Body)
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return errors.New(string(responseDocument))
+		return false, errors.New(string(responseDocument))
 	}
 	log.Printf("platform event forward result: platform=%s messageID=%s response=%s", platform, event.MessageID, strings.TrimSpace(string(responseDocument)))
-	return nil
+	var forwardResult struct {
+		Ignored bool   `json:"ignored"`
+		Reason  string `json:"reason"`
+	}
+	if json.Unmarshal(responseDocument, &forwardResult) == nil &&
+		forwardResult.Ignored && forwardResult.Reason == "backup_prepare_active" {
+		return true, nil
+	}
+	return false, nil
 }
 
 func deriveMattermostWebSocketURL(baseURL string) string {
