@@ -1583,7 +1583,11 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 	remoteManifestDocument := state.sshClient.run("cat " + blueclaw.BlueclawPayloadManifestPath + " 2>/dev/null || true")
 	remoteWorkspaceManifestDocument := state.sshClient.run(blueclawWorkspaceManifestCommand())
 	if manifestDocument == remoteManifestDocument && manifestDocument == remoteWorkspaceManifestDocument {
-		fmt.Println("already current")
+		if errorValue := state.syncBlueclawWorkspaceImage(); errorValue != nil {
+			fmt.Println("failed")
+			return fmt.Errorf("sync workspace image for the current payload: %w", errorValue)
+		}
+		fmt.Println("already current (workspace image synced)")
 		return nil
 	}
 
@@ -1609,18 +1613,9 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 		return fmt.Errorf("sync blueclaw payload host workspace: %s: %w", strings.TrimSpace(output), errorValue)
 	}
 
-	syncCommand := strings.Join([]string{
-		blueclaw.BlueclawSupervisorBinaryPath,
-		"sync-workspace",
-		"--atomic",
-		"--preserve-guest-state",
-		"--workspace-image", quoteShellValue(blueclaw.BlueclawWorkspaceImagePath),
-		"--source", quoteShellValue(blueclaw.BlueclawWorkspacePath),
-	}, " ")
-	output, errorValue = state.sshClient.runResult(syncCommand)
-	if errorValue != nil {
+	if errorValue := state.syncBlueclawWorkspaceImage(); errorValue != nil {
 		fmt.Println("failed")
-		return fmt.Errorf("sync blueclaw payload workspace: %s: %w", strings.TrimSpace(output), errorValue)
+		return fmt.Errorf("sync blueclaw payload workspace: %w", errorValue)
 	}
 	remoteWorkspaceManifestDocument = state.sshClient.run(blueclawWorkspaceManifestCommand())
 	if manifestDocument != remoteWorkspaceManifestDocument {
@@ -1671,6 +1666,25 @@ func blueclawStopForPayloadSyncCommand() string {
 
 func blueclawStartAfterPayloadSyncCommand() string {
 	return blueclaw.StartAfterPayloadSyncCommand()
+}
+
+func (state *setupFlowState) syncBlueclawWorkspaceImage() error {
+	if stopOutput, errorValue := state.sshClient.runResult(blueclawStopForPayloadSyncCommand()); errorValue != nil {
+		return fmt.Errorf("stop blueclaw before workspace sync: %s: %w", strings.TrimSpace(stopOutput), errorValue)
+	}
+	syncCommand := strings.Join([]string{
+		blueclaw.BlueclawSupervisorBinaryPath,
+		"sync-workspace",
+		"--atomic",
+		"--preserve-guest-state",
+		"--workspace-image", quoteShellValue(blueclaw.BlueclawWorkspaceImagePath),
+		"--source", quoteShellValue(blueclaw.BlueclawWorkspacePath),
+	}, " ")
+	syncOutput, errorValue := state.sshClient.runResult(syncCommand)
+	if errorValue != nil {
+		return fmt.Errorf("%s: %w", strings.TrimSpace(syncOutput), errorValue)
+	}
+	return nil
 }
 
 func blueclawWorkspaceManifestCommand() string {
