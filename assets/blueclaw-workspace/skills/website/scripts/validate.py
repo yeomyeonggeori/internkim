@@ -52,7 +52,7 @@ def rebuild_relevant_source_files(app_directory: pathlib.Path):
 
 
 def matches_scaffold_manifest(source_root: pathlib.Path) -> bool:
-    manifest_path = source_root / ".internkim" / "scaffold-manifest.json"
+    manifest_path = source_root / ".internkim" / "scaffold-app-manifest.json"
     if not manifest_path.exists():
         return False
     try:
@@ -62,8 +62,22 @@ def matches_scaffold_manifest(source_root: pathlib.Path) -> bool:
     app_directory = source_root / "app"
     current = {}
     for path in rebuild_relevant_source_files(app_directory):
-        current[str(path.relative_to(app_directory))] = hashlib.sha256(path.read_bytes()).hexdigest()
+        relative = path.relative_to(app_directory)
+        current["app/" + "/".join(relative.parts)] = hashlib.sha256(path.read_bytes()).hexdigest()
     return current == recorded
+
+
+def content_failures(source_root: pathlib.Path) -> list:
+    content_path = source_root / "app" / "public" / "site-content.json"
+    if not content_path.exists():
+        return [f"{content_path} not found; the scaffold creates it and all site text lives there"]
+    try:
+        content = json.loads(content_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        return [f"site-content.json is not valid JSON: {error}"]
+    if not str(content.get("siteName") or "").strip():
+        return ["site-content.json must keep a non-empty siteName"]
+    return []
 
 
 def dist_failures(source_root: pathlib.Path) -> list:
@@ -112,7 +126,7 @@ def main() -> int:
     if not (source_root / "app").is_dir():
         print(f"Error: {source_root}/app not found; pass the site project root created by scaffold.sh.")
         return 2
-    failures = design_failures(source_root) + dist_failures(source_root) + build_quality_failures(source_root)
+    failures = design_failures(source_root) + content_failures(source_root) + dist_failures(source_root) + build_quality_failures(source_root)
     if failures:
         print(f"Pre-serve validation FAILED for {source_root}. Fix these before site.serve:")
         for failure in failures:
