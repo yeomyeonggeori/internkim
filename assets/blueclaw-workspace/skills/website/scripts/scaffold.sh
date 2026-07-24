@@ -64,5 +64,29 @@ find "$TARGET_PROJECT_ROOT" -type f -print0 | while IFS= read -r -d '' template_
 	fi
 done
 
+record_structural_manifest() {
+	python3 - "$TARGET_PROJECT_ROOT" <<'PYEOF'
+import hashlib, json, pathlib, sys
+
+project_root = pathlib.Path(sys.argv[1])
+app_directory = project_root / "app"
+excluded_parts = {"public", "dist", "node_modules", ".internkim"}
+manifest = {}
+for path in sorted(app_directory.rglob("*")):
+    if not path.is_file():
+        continue
+    relative = path.relative_to(app_directory)
+    if excluded_parts.intersection(relative.parts):
+        continue
+    manifest[str(relative)] = hashlib.sha256(path.read_bytes()).hexdigest()
+
+state_directory = project_root / ".internkim"
+state_directory.mkdir(parents=True, exist_ok=True)
+manifest_path = state_directory / "scaffold-manifest.json"
+manifest_path.write_text(json.dumps(manifest, indent=1, sort_keys=True) + "\n")
+PYEOF
+}
+record_structural_manifest
+
 echo "Scaffolded site project at $TARGET_PROJECT_ROOT (title: $SITE_TITLE, package: $PACKAGE_NAME)."
-echo "Next: fill app/public/site-content.json, rewrite DESIGN.md (remove the TODO(design) marker), then run build.sh and validate.py."
+echo "Next: fill app/public/site-content.json, rewrite DESIGN.md (remove the TODO(design) marker), then run validate.py. Content-only sites need no build; run build.sh only after changing app/src/**."

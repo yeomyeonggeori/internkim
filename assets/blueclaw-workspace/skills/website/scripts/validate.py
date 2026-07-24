@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import hashlib
 import json
 import pathlib
 import re
@@ -50,7 +51,24 @@ def rebuild_relevant_source_files(app_directory: pathlib.Path):
         yield path
 
 
+def matches_scaffold_manifest(source_root: pathlib.Path) -> bool:
+    manifest_path = source_root / ".internkim" / "scaffold-manifest.json"
+    if not manifest_path.exists():
+        return False
+    try:
+        recorded = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    app_directory = source_root / "app"
+    current = {}
+    for path in rebuild_relevant_source_files(app_directory):
+        current[str(path.relative_to(app_directory))] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return current == recorded
+
+
 def dist_failures(source_root: pathlib.Path) -> list:
+    if matches_scaffold_manifest(source_root):
+        return []
     app_directory = source_root / "app"
     dist_directory = app_directory / "dist"
     if not dist_directory.is_dir() or not any(dist_directory.iterdir()):
@@ -69,6 +87,8 @@ def dist_failures(source_root: pathlib.Path) -> list:
 def build_quality_failures(source_root: pathlib.Path) -> list:
     quality_path = source_root / ".internkim" / "build-quality.json"
     if not quality_path.exists():
+        if matches_scaffold_manifest(source_root):
+            return []
         return [f"{quality_path} not found; run build.sh so the scaffold records its quality verdict"]
     try:
         quality = json.loads(quality_path.read_text(encoding="utf-8"))
