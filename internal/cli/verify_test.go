@@ -102,7 +102,7 @@ func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
-	script := verifyMattermostPromptScript(defaultVerifySitePrompt, false, 90, false, true, []string{"site.create", "terminal.run", "site.publish"}, nil, false, false, false)
+	script := verifyMattermostPromptScript(defaultVerifySitePrompt, false, 90, false, true, []string{"terminal.run", "site.serve"}, nil, false, false, false)
 	requiredFragments := []string{
 		"expect_public_url=true",
 		"wait for final site reply",
@@ -146,7 +146,7 @@ func TestVerifyMattermostSitePromptRequiresExplicitTarget(t *testing.T) {
 		"--prompt",
 		"웹사이트 하나 만들어서 배포해줘",
 		"--expect-tool",
-		"site.create",
+		"site.serve",
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "saved physical board") {
 		t.Fatalf("expected Mattermost site verification to reject implicit physical target, got %v", errorValue)
@@ -154,7 +154,7 @@ func TestVerifyMattermostSitePromptRequiresExplicitTarget(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
-	script := verifyMattermostPromptScript(defaultVerifySitePrompt, false, 90, false, true, []string{"site.create", "terminal.run", "site.publish"}, nil, false, false, false)
+	script := verifyMattermostPromptScript(defaultVerifySitePrompt, false, 90, false, true, []string{"terminal.run", "site.serve"}, nil, false, false, false)
 	scriptPath := filepath.Join(t.TempDir(), "verify-site.sh")
 	if errorValue := os.WriteFile(scriptPath, []byte(script), 0o600); errorValue != nil {
 		t.Fatal(errorValue)

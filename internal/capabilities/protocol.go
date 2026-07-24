@@ -183,11 +183,9 @@ func MailDescriptors() []Descriptor {
 
 func SiteAppDescriptors() []Descriptor {
 	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
-		"site.create",
-		"site.status",
-		"site.preview",
-		"site.publish",
-		"site.delete",
+		"site.serve",
+		"site.list",
+		"site.unserve",
 	))
 }
 

@@ -3,6 +3,7 @@ package capabilityprotocol
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 )
 
@@ -16,6 +17,9 @@ func ProjectResourceEffects(contract *ToolResultContract, result json.RawMessage
 	}
 	effects := []ResourceEffect{}
 	for _, effectContract := range contract.Effects {
+		if !effectConditionMatches(effectContract.When, document) {
+			continue
+		}
 		identities, errorValue := resultEffectIdentities(document[effectContract.ResultField])
 		if errorValue != nil {
 			return nil, errorValue
@@ -29,6 +33,21 @@ func ProjectResourceEffects(contract *ToolResultContract, result json.RawMessage
 		}
 	}
 	return effects, nil
+}
+
+func effectConditionMatches(condition *EvidenceCondition, document map[string]any) bool {
+	if condition == nil {
+		return true
+	}
+	value, isPresent := document[condition.ResultField]
+	if !isPresent {
+		return false
+	}
+	var expectedValue any
+	if json.Unmarshal(condition.Equals, &expectedValue) != nil {
+		return false
+	}
+	return reflect.DeepEqual(value, expectedValue)
 }
 
 func resultEffectIdentities(value any) ([]string, error) {

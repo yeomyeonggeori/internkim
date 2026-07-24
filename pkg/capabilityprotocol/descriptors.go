@@ -175,9 +175,18 @@ func canonicalResultContract(contract *ToolResultContract) *ToolResultContract {
 	}
 	return &ToolResultContract{
 		Schema:            strictSchema(contract.Schema),
-		Effects:           append([]ResourceEffectContract{}, contract.Effects...),
+		Effects:           canonicalResourceEffectContracts(contract.Effects),
 		EvidenceCondition: canonicalEvidenceCondition(contract.EvidenceCondition),
 	}
+}
+
+func canonicalResourceEffectContracts(effects []ResourceEffectContract) []ResourceEffectContract {
+	canonicalEffects := make([]ResourceEffectContract, len(effects))
+	for index, effect := range effects {
+		effect.When = canonicalEvidenceCondition(effect.When)
+		canonicalEffects[index] = effect
+	}
+	return canonicalEffects
 }
 
 func canonicalEvidenceCondition(condition *EvidenceCondition) *EvidenceCondition {
@@ -399,8 +408,17 @@ func validateResultContract(contract *ToolResultContract) error {
 			effectContract.EffectIdentity != ResourceEffectIdentityURL {
 			return fmt.Errorf("resultContract effectIdentity is invalid")
 		}
-		if !schemaRequiresEffectIdentityField(contract.Schema, resultField) {
-			return fmt.Errorf("resultContract resultField must name a required string or nonempty unique string array property")
+		if effectContract.When == nil {
+			if !schemaRequiresEffectIdentityField(contract.Schema, resultField) {
+				return fmt.Errorf("resultContract resultField must name a required string or nonempty unique string array property")
+			}
+		} else {
+			if !schemaDefinesEffectIdentityField(contract.Schema, resultField) {
+				return fmt.Errorf("resultContract conditional effect resultField must name a string or nonempty unique string array property")
+			}
+			if errorValue := validateEvidenceCondition(contract.Schema, effectContract.When); errorValue != nil {
+				return fmt.Errorf("resultContract effect when condition is invalid: %w", errorValue)
+			}
 		}
 		effectKey := objectType + "\x00" + effect + "\x00" + string(effectContract.EffectIdentity)
 		if seenEffects[effectKey] {
@@ -453,8 +471,17 @@ func resolveDescriptorSchema(document json.RawMessage) error {
 
 func schemaRequiresEffectIdentityField(document json.RawMessage, fieldName string) bool {
 	var schema struct {
+		Required []string `json:"required"`
+	}
+	if json.Unmarshal(document, &schema) != nil || !slices.Contains(schema.Required, fieldName) {
+		return false
+	}
+	return schemaDefinesEffectIdentityField(document, fieldName)
+}
+
+func schemaDefinesEffectIdentityField(document json.RawMessage, fieldName string) bool {
+	var schema struct {
 		Properties map[string]json.RawMessage `json:"properties"`
-		Required   []string                   `json:"required"`
 	}
 	if json.Unmarshal(document, &schema) != nil {
 		return false
@@ -468,9 +495,6 @@ func schemaRequiresEffectIdentityField(document json.RawMessage, fieldName strin
 		} `json:"items"`
 	}
 	if json.Unmarshal(schema.Properties[fieldName], &property) != nil {
-		return false
-	}
-	if !slices.Contains(schema.Required, fieldName) {
 		return false
 	}
 	return property.Type == "string" ||

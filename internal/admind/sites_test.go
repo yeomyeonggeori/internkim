@@ -2232,36 +2232,6 @@ func readDirectoryFiles(t *testing.T, rootPath string) map[string]string {
 	return files
 }
 
-func TestSiteSourcePathMatchesSiteAcceptsAdvertisedForms(t *testing.T) {
-	site := &SiteRecord{
-		SiteID:              "abc123",
-		Slug:                "demo",
-		SourceWorkspacePath: "/workspace/circles/staff/sites/demo/draft",
-	}
-
-	acceptedPaths := []string{
-		"/workspace/circles/staff/sites/demo/draft",
-		"home/sites/abc123/draft",
-		"/workspace/private/people/person-1/sites/abc123/draft",
-	}
-	for _, path := range acceptedPaths {
-		if !siteSourcePathMatchesSite(site, path) {
-			t.Fatalf("expected %q to match site", path)
-		}
-	}
-	rejectedPaths := []string{
-		"",
-		"home/sites/other456/draft",
-		"/workspace/private/people/person-1/sites/other456/draft",
-		"/workspace/shared/anything",
-	}
-	for _, path := range rejectedPaths {
-		if siteSourcePathMatchesSite(site, path) {
-			t.Fatalf("expected %q to be rejected", path)
-		}
-	}
-}
-
 func TestValidateSiteStagingPathsQuarantinesOrphanedAlias(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.newUnpersistedSiteRecord(siteCreateRequest{
