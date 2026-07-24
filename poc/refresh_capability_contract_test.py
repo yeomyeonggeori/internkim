@@ -70,7 +70,7 @@ class CapabilityContractRefreshTest(unittest.TestCase):
                 'tool:message.send',
                 'tool:channel.update',
                 'tool:calendar.list',
-                'tool:site.publish',
+                'tool:site.serve',
                 'tool:site.repair',
                 'custom:tenant-15',
             ]:
@@ -131,7 +131,7 @@ class CapabilityContractRefreshTest(unittest.TestCase):
             'message.send',
             'channel.update',
             'calendar.list',
-            'site.publish',
+            'site.serve',
         ]
         return {
             'version': 3,
@@ -147,7 +147,7 @@ class CapabilityContractRefreshTest(unittest.TestCase):
                 'tool:platform.message.send': 'tool:message.send',
                 'tool:mattermost.channel.update': 'tool:channel.update',
                 'tool:calendar.event.list': 'tool:calendar.list',
-                'tool:site.app.publish': 'tool:site.publish',
+                'tool:site.app.publish': 'tool:site.serve',
             },
             'policyResourceDefaults': [
                 {

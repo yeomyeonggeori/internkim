@@ -954,6 +954,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.listSites(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/sites":
 		service.createSite(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/sites/serve":
+		service.serveSiteFromRequest(responseWriter, request)
 	case strings.HasPrefix(path, "/sites/"):
 		service.handleSite(responseWriter, request, strings.TrimPrefix(path, "/sites/"))
 	case request.Method == http.MethodPost && path == "/backups":

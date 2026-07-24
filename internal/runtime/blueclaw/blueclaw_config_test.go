@@ -707,12 +707,12 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "tool:mail.message.search", "staff") {
 		t.Fatalf("expected staff mail search tool rule, got %+v", resourceAccess)
 	}
-	for _, toolName := range []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete"} {
+	for _, toolName := range []string{"site.serve", "site.list", "site.unserve"} {
 		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
 			t.Fatalf("expected staff %s tool rule, got %+v", toolName, resourceAccess)
 		}
 	}
-	for _, toolName := range []string{"site.history", "site.diff", "site.logs", "site.restore", "site.repair", "site.rollback", "site.unpublish"} {
+	for _, toolName := range []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete", "site.history", "site.diff", "site.logs", "site.restore", "site.repair", "site.rollback", "site.unpublish"} {
 		if containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
 			t.Fatalf("expected removed %s policy to be absent, got %+v", toolName, resourceAccess)
 		}

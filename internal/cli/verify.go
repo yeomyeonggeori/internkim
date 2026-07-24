@@ -149,7 +149,7 @@ func runVerifySite(arguments []string) error {
 		return errorValue
 	}
 	fmt.Printf("verify site: %s@%s\n", verifyTarget.user, verifyTarget.host)
-	expectedTools := []string{"site.create", "terminal.run", "site.publish"}
+	expectedTools := []string{"terminal.run", "site.serve"}
 	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil, false, false, false), mattermostPromptScriptSSHTimeout(*timeoutSeconds, true))
 }
 

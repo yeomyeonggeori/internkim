@@ -131,6 +131,7 @@ type ResourceEffectContract struct {
 	Effect         string                 `json:"effect"`
 	ResultField    string                 `json:"resultField"`
 	EffectIdentity ResourceEffectIdentity `json:"effectIdentity"`
+	When           *EvidenceCondition     `json:"when,omitempty"`
 }
 
 type ResourceEffect struct {

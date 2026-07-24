@@ -166,7 +166,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_publish","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\"}"}}]}}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_serve","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\"}"}}]}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -181,7 +181,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected native action response: %v", errorValue)
 	}
-	if response.Content != `{"action":"continue","message":"publishing","toolInput":{"siteID":"site-1"},"toolName":"site.publish"}` {
+	if response.Content != `{"action":"continue","message":"publishing","toolInput":{"siteID":"site-1"},"toolName":"site.serve"}` {
 		t.Fatalf("expected action JSON, got %s", response.Content)
 	}
 	if response.ConstraintMode != ConstraintModeNativeToolCall {
@@ -200,7 +200,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if !openRouterRequestHasTool(tools, "finish") {
 		t.Fatalf("expected finish control tool, got %+v", tools)
 	}
-	parameters := openRouterRequestToolParameters(t, tools, "continue__site_publish")
+	parameters := openRouterRequestToolParameters(t, tools, "continue__site_serve")
 	if _, isFound := parameters["additionalProperties"]; isFound {
 		t.Fatalf("expected OpenRouter native tool parameters to omit additionalProperties, got %+v", parameters)
 	}
@@ -567,9 +567,9 @@ func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	maxTokens := 2048
 	request := openAIActionToolRequest("local-model", []Message{{Role: "user", Content: "publish"}}, []nativeActionTool{{
 		FunctionName: "continue__site_app_publish",
-		Description:  "Call site.publish",
+		Description:  "Call site.serve",
 		Action:       "continue",
-		ToolName:     "site.publish",
+		ToolName:     "site.serve",
 		Parameters:   json.RawMessage(`{"type":"object","properties":{}}`),
 	}}, GenerationOptions{Seed: &seed, Temperature: &temperature, MaxTokens: &maxTokens})
 
@@ -1545,7 +1545,7 @@ func testAgentActionSchema() StructuredOutputSchema {
 		Name: "blueclaw_agent_turn_action",
 		Document: json.RawMessage(`{"oneOf":[
 			{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"message":{"type":"string"},"goalStatus":{"type":"string","enum":["satisfied"]},"goalSatisfied":{"type":"boolean"},"completionEvidence":{"type":"array"},"qualityReview":{"type":"array"},"executionStateUpdate":{"type":"object"}},"required":["action","message","goalStatus","goalSatisfied","completionEvidence","qualityReview","executionStateUpdate"]},
-			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["site.publish"]},"toolInput":{"type":"object","properties":{"siteID":{"type":"string"}},"required":["siteID"]},"message":{"type":"string"},"executionStateUpdate":{"type":"object"},"nextStepPlan":{"type":"object","properties":{"objective":{"type":"string"},"expectedTools":{"type":"array","items":{"type":"string"}},"doneCriteria":{"type":"array","items":{"type":"string"}},"risk":{"type":"string"},"workingSetReason":{"type":"string"}},"required":["objective","expectedTools","doneCriteria","risk","workingSetReason"]}},"required":["action","toolName","toolInput","executionStateUpdate","nextStepPlan"]}
+			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["site.serve"]},"toolInput":{"type":"object","properties":{"siteID":{"type":"string"}},"required":["siteID"]},"message":{"type":"string"},"executionStateUpdate":{"type":"object"},"nextStepPlan":{"type":"object","properties":{"objective":{"type":"string"},"expectedTools":{"type":"array","items":{"type":"string"}},"doneCriteria":{"type":"array","items":{"type":"string"}},"risk":{"type":"string"},"workingSetReason":{"type":"string"}},"required":["objective","expectedTools","doneCriteria","risk","workingSetReason"]}},"required":["action","toolName","toolInput","executionStateUpdate","nextStepPlan"]}
 		]}`),
 		IsStrictlyEnforced: true,
 	}
@@ -2021,7 +2021,7 @@ func TestOpenRouterBackendPopulatesUsageFromNativeActionResponse(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_publish","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\",\"blueclawExecutionStateUpdate\":{},\"blueclawNextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28}}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_serve","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\",\"blueclawExecutionStateUpdate\":{},\"blueclawNextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28}}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},

@@ -300,8 +300,8 @@ func TestMattermostScenarioCleanupAggregatesFailuresAndVerifiesRemainingResource
 		ChannelID:      "channel",
 		ConversationID: "thread:channel:root",
 		Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
-			Name: "tool.site.create.requested",
-			Body: `{"operation":"site.create"}`,
+			Name: "tool.site.serve.requested",
+			Body: `{"operation":"site.serve"}`,
 		}}}},
 	}
 
@@ -330,7 +330,7 @@ func TestMattermostScenarioCleanupSkipsSitesWithoutSiteEvidence(t *testing.T) {
 		ConversationID: "thread:channel:root",
 		Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
 			Name: "tool.capability.invoke.result",
-			Body: `{"operation":"site.create","siteID":"site-1"}`,
+			Body: `{"operation":"site.serve","siteID":"site-1"}`,
 		}}}},
 	}
 

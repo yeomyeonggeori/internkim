@@ -254,7 +254,7 @@ func cloneDescriptor(descriptor Descriptor) Descriptor {
 	if descriptor.ResultContract != nil {
 		descriptor.ResultContract = &ToolResultContract{
 			Schema:            append(json.RawMessage{}, descriptor.ResultContract.Schema...),
-			Effects:           append([]ResourceEffectContract{}, descriptor.ResultContract.Effects...),
+			Effects:           canonicalResourceEffectContracts(descriptor.ResultContract.Effects),
 			EvidenceCondition: canonicalEvidenceCondition(descriptor.ResultContract.EvidenceCondition),
 		}
 	}

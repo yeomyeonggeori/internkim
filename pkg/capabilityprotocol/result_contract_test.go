@@ -41,3 +41,32 @@ func TestProjectResourceEffectsFailsClosed(t *testing.T) {
 		}
 	}
 }
+
+func TestProjectResourceEffectsHonorsWhenConditions(t *testing.T) {
+	contract := &ToolResultContract{
+		Effects: []ResourceEffectContract{
+			{ObjectType: "website", Effect: "previewed", ResultField: "previewURL", EffectIdentity: ResourceEffectIdentityURL, When: &EvidenceCondition{ResultField: "mode", Equals: json.RawMessage(`"preview"`)}},
+			{ObjectType: "website", Effect: "published", ResultField: "publishedURL", EffectIdentity: ResourceEffectIdentityURL, When: &EvidenceCondition{ResultField: "mode", Equals: json.RawMessage(`"publish"`)}},
+		},
+	}
+
+	previewEffects, errorValue := ProjectResourceEffects(contract, json.RawMessage(`{"mode":"preview","previewURL":"https://example.com/__preview/p-1"}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(previewEffects) != 1 || previewEffects[0].Effect != "previewed" || previewEffects[0].URL != "https://example.com/__preview/p-1" {
+		t.Fatalf("unexpected preview effects: %+v", previewEffects)
+	}
+
+	publishEffects, errorValue := ProjectResourceEffects(contract, json.RawMessage(`{"mode":"publish","publishedURL":"https://example.com"}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(publishEffects) != 1 || publishEffects[0].Effect != "published" || publishEffects[0].URL != "https://example.com" {
+		t.Fatalf("unexpected publish effects: %+v", publishEffects)
+	}
+
+	if _, errorValue := ProjectResourceEffects(contract, json.RawMessage(`{"mode":"publish"}`)); errorValue == nil {
+		t.Fatal("expected a matched conditional effect with a missing identity to fail closed")
+	}
+}
