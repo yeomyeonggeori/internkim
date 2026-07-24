@@ -284,12 +284,16 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 	adminHostPort := flagSet.Int("admin-port", 0, "Host port for the local admind tunnel")
 	mattermostHostPort := flagSet.Int("mattermost-port", 0, "Host port for the local Mattermost tunnel")
 	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
+	upgradeGate := flagSet.Bool("upgrade-gate", false, "Regress persisted fleet state to the previous generation, apply the current release over OTA, then run the scenario")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return devFleetRunConfiguration{}, errorValue
 	}
 	trimmedScenario := strings.TrimSpace(*scenario)
 	if *withoutMattermost && trimmedScenario == "" {
 		return devFleetRunConfiguration{}, errors.New("without-mattermost mode requires --scenario")
+	}
+	if *upgradeGate && trimmedScenario == "" {
+		return devFleetRunConfiguration{}, errors.New("upgrade gate requires --scenario")
 	}
 	if *ephemeral && *reuseFleet {
 		return devFleetRunConfiguration{}, errors.New("use either --ephemeral or --reuse, not both")
@@ -308,10 +312,14 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 		KeepArtifacts:     *keepArtifacts,
 		WithoutMattermost: *withoutMattermost,
 	}
-	if trimmedScenario != "" {
+	switch {
+	case *upgradeGate:
+		request.Action = localfleet.ActionUpgradeGate
+		request.Scenario = trimmedScenario
+	case trimmedScenario != "":
 		request.Action = localfleet.ActionRunScenario
 		request.Scenario = trimmedScenario
-	} else {
+	default:
 		request.Action = localfleet.ActionRunRecipe
 		request.Recipe = firstNonEmptyLocalFleetValue(*recipe, localfleet.DefaultRecipe)
 	}

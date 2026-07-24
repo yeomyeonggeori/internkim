@@ -96,7 +96,7 @@ func resolveCommandTarget(arguments []string) commandTarget {
 		host:           commandArgumentValue(arguments, "--host", ""),
 		sshUser:        sshUser,
 		sshPassword:    sshPassword,
-		deviceURL:      loadState(stateDir, "device_url"),
+		deviceURL:      firstNonEmptyString(commandArgumentValue(arguments, "--device-url", ""), loadState(stateDir, "device_url")),
 		sshHostname:    loadState(stateDir, "ssh_hostname"),
 		useRemoteSSH:   hasCommandArgument(arguments, "--cloudflare-ssh"),
 	}
