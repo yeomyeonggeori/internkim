@@ -39,11 +39,11 @@ func TestServeSiteAllocatesSlugFromTitleWithDedup(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	sourcePath := stagedSiteSourceForServe(t, service)
 
-	serveOnce := func() map[string]any {
+	serveOnce := func(sourceWorkspacePath string) map[string]any {
 		response := serveSiteViaHTTP(t, service, map[string]any{
 			"title":               "Fleet Status Board",
 			"mode":                "publish",
-			"sourceWorkspacePath": "~/sites/fleet-status-board",
+			"sourceWorkspacePath": sourceWorkspacePath,
 			"sourceBundleBase64":  testSourceBundleBase64(t, sourcePath),
 			"sourceBundleFormat":  "tar.gz",
 			"requestedBy":         "owner@example.com",
@@ -58,7 +58,7 @@ func TestServeSiteAllocatesSlugFromTitleWithDedup(t *testing.T) {
 		return record
 	}
 
-	firstRecord := serveOnce()
+	firstRecord := serveOnce("~/sites/fleet-status-board")
 	if firstRecord["slug"] != "fleet-status-board" || firstRecord["status"] != SiteStatusPublished {
 		t.Fatalf("unexpected first serve record: %+v", firstRecord)
 	}
@@ -66,12 +66,47 @@ func TestServeSiteAllocatesSlugFromTitleWithDedup(t *testing.T) {
 		t.Fatalf("unexpected published URL: %+v", firstRecord)
 	}
 
-	secondRecord := serveOnce()
+	secondRecord := serveOnce("~/sites/fleet-status-board-rebuild")
 	if secondRecord["slug"] != "fleet-status-board-2" {
 		t.Fatalf("expected deduplicated slug, got %+v", secondRecord)
 	}
 	if secondRecord["siteID"] == firstRecord["siteID"] {
-		t.Fatalf("expected a new site record for a referenceless serve, got %+v", secondRecord)
+		t.Fatalf("expected a new site record for a serve from a new source path, got %+v", secondRecord)
+	}
+}
+
+func TestServeSiteWithoutReferenceReusesSiteServedFromSamePath(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	sourcePath := stagedSiteSourceForServe(t, service)
+
+	serveFromPath := func(requestedBy string) map[string]any {
+		response := serveSiteViaHTTP(t, service, map[string]any{
+			"title":               "Bridge Works Guide",
+			"mode":                "preview",
+			"sourceWorkspacePath": "~/sites/bridgeworks",
+			"sourceBundleBase64":  testSourceBundleBase64(t, sourcePath),
+			"sourceBundleFormat":  "tar.gz",
+			"requestedBy":         requestedBy,
+		})
+		if response.Code != http.StatusOK {
+			t.Fatalf("serve status = %d body = %q", response.Code, response.Body.String())
+		}
+		record := map[string]any{}
+		if errorValue := json.Unmarshal(response.Body.Bytes(), &record); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		return record
+	}
+
+	firstRecord := serveFromPath("owner@example.com")
+	secondRecord := serveFromPath("owner@example.com")
+	if secondRecord["siteID"] != firstRecord["siteID"] || secondRecord["slug"] != firstRecord["slug"] {
+		t.Fatalf("expected the same site for a repeat serve from the same source path, got %+v then %+v", firstRecord, secondRecord)
+	}
+
+	otherOwnerRecord := serveFromPath("other@example.com")
+	if otherOwnerRecord["siteID"] == firstRecord["siteID"] {
+		t.Fatalf("expected a separate site for another requester's same-named path, got %+v", otherOwnerRecord)
 	}
 }
 
