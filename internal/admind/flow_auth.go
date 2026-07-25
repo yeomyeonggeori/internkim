@@ -120,7 +120,7 @@ func (service *Service) webActorEmail(request *http.Request) string {
 	if hasWebLogoutMarker(request) {
 		return ""
 	}
-	if actorEmail := authenticatedCallerEmail(request); actorEmail != "" {
+	if actorEmail := service.authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail
 	}
 	if actorEmail := service.mattermostSessionActorEmail(request); actorEmail != "" {

@@ -14,6 +14,7 @@
 	import { adminSessionRole, canViewAdminSection, firstVisibleAdminSection } from './admin/admin-role-policy';
 	import BackupSection from './admin/backup-section.svelte';
 	import BotSection from './admin/bot-section.svelte';
+	import BuzzSection from './admin/buzz-section.svelte';
 	import CredentialsSection from './admin/credentials-section.svelte';
 	import CompanyShareSection from './admin/company-share-section.svelte';
 	import DeviceSection from './admin/device-section.svelte';
@@ -36,7 +37,8 @@
 		{ value: 'bot', isDeviceManagedOnly: false },
 		{ value: 'settings', isDeviceManagedOnly: false },
 		{ value: 'sharing', isDeviceManagedOnly: false },
-		{ value: 'network', isDeviceManagedOnly: true }
+		{ value: 'network', isDeviceManagedOnly: true },
+		{ value: 'buzz', isDeviceManagedOnly: false }
 	];
 
 	let fleetIdInput = $state('');
@@ -252,6 +254,8 @@
 					<CompanyShareSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
 				{:else if activeAdminSection === 'network'}
 					<NetworkSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+				{:else if activeAdminSection === 'buzz'}
+					<BuzzSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
 				{/if}
 			</section>
 		{/if}

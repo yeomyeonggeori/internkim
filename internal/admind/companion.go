@@ -294,7 +294,7 @@ func (service *Service) writeCompanionStatus(responseWriter http.ResponseWriter,
 
 func (service *Service) companionPairingOwnerEmail(request *http.Request) string {
 	return firstNonEmpty(
-		authenticatedCallerEmail(request),
+		service.authenticatedCallerEmail(request),
 		service.claimedAdminEmail(),
 		service.seedAdminEmail(),
 	)

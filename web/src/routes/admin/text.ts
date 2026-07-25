@@ -18,7 +18,28 @@ export const adminText = {
 			bot: '봇',
 			settings: '설정',
 			sharing: '회사 페이지',
-			network: '네트워크'
+			network: '네트워크',
+			buzz: 'Buzz'
+		},
+		buzz: {
+			title: 'Buzz 워크스페이스',
+			description: '직원별 초대 링크를 만들면 클릭 한 번으로 Buzz 앱에 합류하고 계정이 자동으로 연결됩니다.',
+			open: 'Buzz 열기',
+			namePlaceholder: '이름',
+			emailPlaceholder: '회사 이메일',
+			createInvite: '초대 링크 생성',
+			invitesTitle: '발급된 초대',
+			statusPending: '대기 중',
+			statusJoined: '합류함',
+			statusExpired: '만료됨',
+			unlinkedTitle: '미연결 멤버',
+			unlinkedDescription: '동시에 여러 명이 합류해 자동 연결이 보류된 멤버입니다. 이메일을 지정해 직접 연결하세요.',
+			identityKeyLabel: '아이덴티티 키',
+			identityKeyNotice: '초대 링크와 함께 본인에게만 안전한 채널로 전달하세요. 이 키는 다시 표시되지 않습니다.',
+			link: '연결',
+			loadError: 'Buzz 상태를 불러오지 못했습니다.',
+			createError: '초대 생성에 실패했습니다.',
+			linkError: '계정 연결에 실패했습니다.'
 		},
 		messages: {
 			adminAuthRequired: '관리자 인증이 필요합니다.',
@@ -305,7 +326,28 @@ export const adminText = {
 			bot: 'Bot',
 			settings: 'Settings',
 			sharing: 'Company page',
-			network: 'Network'
+			network: 'Network',
+			buzz: 'Buzz'
+		},
+		buzz: {
+			title: 'Buzz workspace',
+			description: 'Create a per-employee invite link: one click joins the Buzz app and links the account automatically.',
+			open: 'Open Buzz',
+			namePlaceholder: 'name',
+			emailPlaceholder: 'company email',
+			createInvite: 'Create invite link',
+			invitesTitle: 'Issued invites',
+			statusPending: 'pending',
+			statusJoined: 'joined',
+			statusExpired: 'expired',
+			unlinkedTitle: 'Unlinked members',
+			unlinkedDescription: 'Members whose automatic link was deferred because several joined at once. Assign an email to link them.',
+			identityKeyLabel: 'identity key',
+			identityKeyNotice: 'Hand it to the invitee over a safe channel together with the invite link. The key is shown only once.',
+			link: 'Link',
+			loadError: 'Failed to load Buzz state.',
+			createError: 'Failed to create the invite.',
+			linkError: 'Failed to link the account.'
 		},
 		messages: {
 			adminAuthRequired: 'Admin authentication is required.',

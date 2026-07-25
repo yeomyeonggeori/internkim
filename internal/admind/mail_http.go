@@ -132,7 +132,7 @@ func (service *Service) readMailAccountForRequest(request *http.Request) (mailAc
 }
 
 func (service *Service) mailActorEmail(request *http.Request) string {
-	if actorEmail := authenticatedCallerEmail(request); actorEmail != "" {
+	if actorEmail := service.authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail
 	}
 	if actorEmail := service.webStaffActorEmail(request); actorEmail != "" {
