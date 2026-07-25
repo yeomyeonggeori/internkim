@@ -1,13 +1,8 @@
 package admind
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +10,6 @@ import (
 
 const (
 	calendarTokenEncryptionKeyFileName  = "calendar-token.key"
-	calendarTokenEncryptionKeyByteSize  = 32
 	calendarSecretsDirectoryEnvironment = "INTERNKIM_CALENDAR_SECRETS_DIR"
 	calendarTokenFileExtension          = ".token.enc"
 )
@@ -46,73 +40,19 @@ func (service *Service) calendarTokenEncryptionKeyPath() string {
 }
 
 func (service *Service) loadOrCreateCalendarTokenEncryptionKey() ([]byte, error) {
-	keyPath := service.calendarTokenEncryptionKeyPath()
-	existing, errorValue := os.ReadFile(keyPath)
-	if errorValue == nil {
-		if len(existing) != calendarTokenEncryptionKeyByteSize {
-			return nil, fmt.Errorf("calendar token key at %s has wrong size %d", keyPath, len(existing))
-		}
-		return existing, nil
-	}
-	if !errors.Is(errorValue, os.ErrNotExist) {
-		return nil, errorValue
-	}
-	if errorValue := os.MkdirAll(filepath.Dir(keyPath), 0o700); errorValue != nil {
-		return nil, errorValue
-	}
-	generated := make([]byte, calendarTokenEncryptionKeyByteSize)
-	if _, errorValue := io.ReadFull(rand.Reader, generated); errorValue != nil {
-		return nil, errorValue
-	}
-	if errorValue := writeFileAtomically(keyPath, generated, 0o600); errorValue != nil {
-		return nil, errorValue
-	}
-	return generated, nil
+	return loadOrCreateSecretEncryptionKey(service.calendarTokenEncryptionKeyPath())
 }
 
 func encryptCalendarTokenPayload(key []byte, payload oauthTokenPayload) ([]byte, error) {
-	if len(key) != calendarTokenEncryptionKeyByteSize {
-		return nil, fmt.Errorf("calendar token key must be %d bytes, got %d", calendarTokenEncryptionKeyByteSize, len(key))
-	}
 	plaintext, errorValue := json.Marshal(payload)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	block, errorValue := aes.NewCipher(key)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	aead, errorValue := cipher.NewGCM(block)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	nonce := make([]byte, aead.NonceSize())
-	if _, errorValue := io.ReadFull(rand.Reader, nonce); errorValue != nil {
-		return nil, errorValue
-	}
-	ciphertext := aead.Seal(nil, nonce, plaintext, nil)
-	return append(nonce, ciphertext...), nil
+	return sealSecret(key, plaintext, nil)
 }
 
 func decryptCalendarTokenPayload(key []byte, blob []byte) (oauthTokenPayload, error) {
-	if len(key) != calendarTokenEncryptionKeyByteSize {
-		return oauthTokenPayload{}, fmt.Errorf("calendar token key must be %d bytes, got %d", calendarTokenEncryptionKeyByteSize, len(key))
-	}
-	block, errorValue := aes.NewCipher(key)
-	if errorValue != nil {
-		return oauthTokenPayload{}, errorValue
-	}
-	aead, errorValue := cipher.NewGCM(block)
-	if errorValue != nil {
-		return oauthTokenPayload{}, errorValue
-	}
-	nonceSize := aead.NonceSize()
-	if len(blob) < nonceSize+1 {
-		return oauthTokenPayload{}, errors.New("calendar token blob too short")
-	}
-	nonce := blob[:nonceSize]
-	ciphertext := blob[nonceSize:]
-	plaintext, errorValue := aead.Open(nil, nonce, ciphertext, nil)
+	plaintext, errorValue := openSecret(key, blob, nil)
 	if errorValue != nil {
 		return oauthTokenPayload{}, errorValue
 	}

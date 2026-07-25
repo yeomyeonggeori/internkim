@@ -31,7 +31,7 @@ func (service *Service) flowRequesterEmail(request *http.Request, payload flowQu
 	if isLocalRequest(request) && strings.TrimSpace(payload.RequesterEmail) != "" {
 		return strings.ToLower(strings.TrimSpace(payload.RequesterEmail))
 	}
-	return strings.ToLower(strings.TrimSpace(authenticatedCallerEmail(request)))
+	return strings.ToLower(strings.TrimSpace(service.authenticatedCallerEmail(request)))
 }
 
 func shouldForceQuickTaskRequest(owner flowMember, requesterEmail string) bool {

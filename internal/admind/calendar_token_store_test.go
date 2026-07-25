@@ -94,8 +94,8 @@ func TestLoadOrCreateCalendarTokenEncryptionKeyIsStable(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("first load: %v", errorValue)
 	}
-	if length := len(first); length != calendarTokenEncryptionKeyByteSize {
-		t.Fatalf("key length: got %d, want %d", length, calendarTokenEncryptionKeyByteSize)
+	if length := len(first); length != secretEncryptionKeyByteSize {
+		t.Fatalf("key length: got %d, want %d", length, secretEncryptionKeyByteSize)
 	}
 	info, errorValue := os.Stat(service.calendarTokenEncryptionKeyPath())
 	if errorValue != nil {
@@ -159,7 +159,7 @@ func TestSanitizeCalendarSecretComponentFallsBackOnEmpty(t *testing.T) {
 
 func makeRandomCalendarTokenKey(t *testing.T) []byte {
 	t.Helper()
-	key := make([]byte, calendarTokenEncryptionKeyByteSize)
+	key := make([]byte, secretEncryptionKeyByteSize)
 	if _, errorValue := io.ReadFull(rand.Reader, key); errorValue != nil {
 		t.Fatalf("rand: %v", errorValue)
 	}

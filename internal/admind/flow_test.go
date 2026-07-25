@@ -56,7 +56,12 @@ func TestFlowDuplicateLLMRequestConstrainsDuplicateTaskIDToExistingTasks(t *test
 }
 
 func TestFlowMembersWithoutFleetCredentialsDoesNotReturnSeedMembers(t *testing.T) {
-	service := NewService(Configuration{})
+	emptyPolicyServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		responseWriter.Write([]byte(`{"people":[]}`))
+	}))
+	defer emptyPolicyServer.Close()
+	service := NewService(Configuration{BlueclawBaseURL: emptyPolicyServer.URL})
 	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil)
 
 	members := service.flowMembers(request)

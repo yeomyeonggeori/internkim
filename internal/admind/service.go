@@ -39,6 +39,8 @@ var GitRevision = "unknown"
 type Configuration struct {
 	ListenAddress                  string
 	MattermostBaseURL              string
+	ChatdEndpoint                  string
+	ChatdPlatform                  string
 	MattermostTeamName             string
 	BotUsername                    string
 	MattermostPublicURL            string
@@ -83,6 +85,13 @@ type Configuration struct {
 	BlueclawWorkspacePath          string
 	BlueclawRuntimeConfigPath      string
 	CalendarSyncDisabled           bool
+	BuzzInviteKeyPath              string
+	BuzzCommunityID                string
+	BuzzRelayURL                   string
+	BuzzLandingBaseURL             string
+	BuzzAdminCommandPath           string
+	BuzzDatabaseURL                string
+	BuzzAccountLinksPath           string
 }
 
 type Service struct {
@@ -100,6 +109,8 @@ type Service struct {
 	companionJobs              map[string]*CompanionJob
 	companionFileUploads       map[string]*CompanionFileUpload
 	companionMounts            map[string]*CompanionMountRecord
+	buzzInviteStore            *buzzInviteStore
+	buzzInviteStoreOnce        sync.Once
 	sites                      map[string]*SiteRecord
 	siteRuntimeMutex           sync.Mutex
 	siteRuntimeActivities      map[string]*siteRuntimeActivity
@@ -359,6 +370,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startSoftDeletedMattermostPostPurge(ctx)
 	service.startSiteRuntimeJanitor(ctx)
 	service.startScheduledBackups(ctx)
+	service.startBuzzMemberLinker(ctx)
 	service.warnWhenFontAssetsMissing()
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
@@ -480,6 +492,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/flow/", service.serveFlowPage)
 	multiplexer.HandleFunc("/memory", service.serveMemoryPage)
 	multiplexer.HandleFunc("/memory/api/", service.handleMemory)
+	multiplexer.HandleFunc("/agent/api/dm", service.handleAgentDirectMessage)
 	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
@@ -503,6 +516,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/orgchart", service.serveOrgchartPage)
 	multiplexer.HandleFunc("/orgchart/api/", service.handleOrgchart)
 	multiplexer.HandleFunc("/orgchart/", service.serveOrgchartPage)
+	multiplexer.HandleFunc("/buzz/api/", service.handleBuzz)
 	multiplexer.HandleFunc("/files", service.serveFilesPage)
 	multiplexer.HandleFunc("/files/api/", service.handleFiles)
 	multiplexer.HandleFunc("/files/", service.serveFilesPage)
@@ -737,7 +751,7 @@ func mattermostDeletedPostID(request *http.Request) (string, bool) {
 
 func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
 	if !isLocalRequest(request) {
-		service.ensureFirstAdminClaim(request.Context(), authenticatedCallerEmail(request))
+		service.ensureFirstAdminClaim(request.Context(), service.authenticatedCallerEmail(request))
 	}
 	if request.URL.Path == "/admin" {
 		http.Redirect(responseWriter, request, "/admin/", http.StatusFound)
@@ -984,7 +998,7 @@ func (service *Service) writeCompanionReleases(responseWriter http.ResponseWrite
 }
 
 func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, request *http.Request) {
-	callerEmail := authenticatedCallerEmail(request)
+	callerEmail := service.authenticatedCallerEmail(request)
 	bootstrapResult := service.ensureFirstAdminClaim(request.Context(), callerEmail)
 	claimedAdminEmail := service.claimedAdminEmail()
 	isClaimedAdmin := callerEmail != "" && strings.EqualFold(callerEmail, claimedAdminEmail)
@@ -1881,17 +1895,33 @@ func (service *Service) isAuthorized(request *http.Request) bool {
 
 func (service *Service) adminConsoleActorEmail(request *http.Request) string {
 	if service.hasDeviceAuth() {
-		return authenticatedCallerEmail(request)
+		return service.authenticatedCallerEmail(request)
 	}
 	return service.webActorEmail(request)
 }
 
-func authenticatedCallerEmail(request *http.Request) string {
+func (service *Service) authenticatedCallerEmail(request *http.Request) string {
+	if !trustsForwardedIdentity(service.Configuration.ListenAddress) {
+		return ""
+	}
 	return strings.ToLower(strings.TrimSpace(firstNonEmpty(
 		request.Header.Get("Cf-Access-Authenticated-User-Email"),
 		request.Header.Get("CF-Access-Authenticated-User-Email"),
 		request.Header.Get("X-Forwarded-Email"),
 	)))
+}
+
+func trustsForwardedIdentity(listenAddress string) bool {
+	host, _, splitError := net.SplitHostPort(strings.TrimSpace(listenAddress))
+	if splitError != nil {
+		host = strings.TrimSpace(listenAddress)
+	}
+	switch host {
+	case "127.0.0.1", "::1", "localhost":
+		return true
+	default:
+		return false
+	}
 }
 
 func (service *Service) hasDeviceAuth() bool {

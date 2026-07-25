@@ -67,7 +67,7 @@ func (service *Service) authorizeMattermostPostMaintenance(request *http.Request
 	if isLocalRequest(request) {
 		return true
 	}
-	callerEmail := authenticatedCallerEmail(request)
+	callerEmail := service.authenticatedCallerEmail(request)
 	if callerEmail == "" {
 		return false
 	}

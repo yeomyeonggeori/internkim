@@ -23,7 +23,8 @@ const (
 	webLogoutMarkerCookieName = "internkim_logged_out"
 	webLogoutMarkerDuration   = 365 * 24 * time.Hour
 	webSessionCookieName      = "internkim_session"
-	webSessionDuration        = 7 * 24 * time.Hour
+	webSessionDuration        = 30 * 24 * time.Hour
+	webSessionRenewalWindow   = 7 * 24 * time.Hour
 	webSessionSecretName      = "web-session-secret"
 )
 
@@ -68,6 +69,7 @@ func (service *Service) handleWebSession(responseWriter http.ResponseWriter, req
 		})
 		return
 	}
+	service.renewWebSessionCookieIfExpiringSoon(responseWriter, request)
 	isTaskRunAdmin := service.canManageTaskRuns(request.Context(), email)
 	isPoCSuperAdmin := service.isMattermostHumanSystemAdmin(request.Context(), email)
 	service.writeJSON(responseWriter, webSessionResponse{
@@ -117,7 +119,7 @@ func (service *Service) handleCloudflareAuthCallback(responseWriter http.Respons
 		logAuditEvent("cloudflare auth callback denied: unsafe return")
 		return
 	}
-	email := authenticatedCallerEmail(request)
+	email := service.authenticatedCallerEmail(request)
 	if email == "" {
 		respondMattermostAuthError(responseWriter, http.StatusUnauthorized, "Cloudflare Access 인증 정보가 없습니다.")
 		logAuditEvent("cloudflare auth callback denied: missing identity")
@@ -136,6 +138,27 @@ func (service *Service) handleCloudflareAuthCallback(responseWriter http.Respons
 	}
 	http.Redirect(responseWriter, request, returnPath, http.StatusFound)
 	logAuditEvent("cloudflare auth callback success")
+}
+
+func (service *Service) renewWebSessionCookieIfExpiringSoon(responseWriter http.ResponseWriter, request *http.Request) {
+	cookie, errorValue := request.Cookie(webSessionCookieName)
+	if errorValue != nil {
+		return
+	}
+	now := time.Now().UTC()
+	payload, errorValue := service.verifyWebSessionPayload(request.Context(), cookie.Value, now)
+	if errorValue != nil {
+		return
+	}
+	if time.Unix(payload.ExpiresAt, 0).UTC().Sub(now) > webSessionRenewalWindow {
+		return
+	}
+	userRecord := mattermostUserRecord{Email: payload.Email, ID: payload.MattermostUserID}
+	if errorValue := service.issueWebSessionCookie(responseWriter, request, userRecord); errorValue != nil {
+		logAuditEvent("web session renewal failed: " + errorValue.Error())
+		return
+	}
+	logAuditEvent("web session renewed")
 }
 
 func (service *Service) webSessionActorEmail(request *http.Request) string {

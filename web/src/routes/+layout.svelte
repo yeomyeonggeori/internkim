@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { page } from '$app/state';
+	import AgentDmSheet from '$lib/components/agent-dm/agent-dm-sheet.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
@@ -27,7 +28,7 @@
 
 	function usesAppShell(pathname: string) {
 		if (pathname === '/calendar/embed' || pathname.startsWith('/calendar/embed/')) return false;
-		return ['/admin/', '/poc-admin/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/'].some(
+		return ['/admin/', '/poc-admin/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/', '/assistant/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}
@@ -42,11 +43,12 @@
 		if (pathname.startsWith('/attendance')) return text.attendance;
 		if (pathname.startsWith('/orgchart')) return text.orgchart;
 		if (pathname.startsWith('/files')) return text.files;
+		if (pathname.startsWith('/assistant')) return text.assistant;
 		return text.flow;
 	}
 
 	function usesWebAuthGate(pathname: string) {
-		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/', '/poc-admin/'].some(
+		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/', '/assistant/', '/poc-admin/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}
@@ -100,6 +102,7 @@
 							</Breadcrumb.Root>
 						</div>
 						<div class="flex items-center gap-2">
+							<AgentDmSheet />
 							<LanguageSwitcher
 								variant="ghost"
 								languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))}
