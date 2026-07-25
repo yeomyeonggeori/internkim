@@ -102,7 +102,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		upsertedEmail = payload.Email
 		upsertedName = payload.Name
 		upsertedNote = payload.Note
-		if payload.Role != "admin" && strings.EqualFold(payload.Email, authenticatedCallerEmail(request)) {
+		if payload.Role != "admin" && strings.EqualFold(payload.Email, service.authenticatedCallerEmail(request)) {
 			records, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret)
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)

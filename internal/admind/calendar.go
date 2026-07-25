@@ -646,7 +646,7 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 }
 
 func (service *Service) webStaffActorIdentity(request *http.Request) (string, string) {
-	if actorEmail := authenticatedCallerEmail(request); actorEmail != "" {
+	if actorEmail := service.authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail, actorEmail
 	}
 	cookieHeader := mattermostSessionCookieHeader(request)

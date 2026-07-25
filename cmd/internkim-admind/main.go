@@ -13,6 +13,8 @@ func main() {
 	configuration := admind.DefaultConfiguration()
 	flag.StringVar(&configuration.ListenAddress, "listen", configuration.ListenAddress, "HTTP listen address")
 	flag.StringVar(&configuration.MattermostBaseURL, "mattermost-url", configuration.MattermostBaseURL, "Mattermost upstream URL")
+	flag.StringVar(&configuration.ChatdEndpoint, "chatd-endpoint", configuration.ChatdEndpoint, "chatd platform capability endpoint")
+	flag.StringVar(&configuration.ChatdPlatform, "chatd-platform", configuration.ChatdPlatform, "chatd platform name")
 	flag.StringVar(&configuration.MattermostTeamName, "mattermost-team", configuration.MattermostTeamName, "Mattermost team name this admind manages")
 	flag.StringVar(&configuration.BotUsername, "bot-username", configuration.BotUsername, "Mattermost bot username this admind manages")
 	flag.StringVar(&configuration.MattermostPublicURL, "mattermost-public-url", configuration.MattermostPublicURL, "public Mattermost URL for cross-host OAuth authorize (defaults to the request host)")
@@ -44,6 +46,13 @@ func main() {
 	flag.StringVar(&configuration.SiteSystemdDirectory, "site-systemd-dir", configuration.SiteSystemdDirectory, "dynamic site systemd directory")
 	flag.StringVar(&configuration.BotProfileImagePath, "bot-profile-image", configuration.BotProfileImagePath, "bot profile image path")
 	flag.StringVar(&configuration.BlueclawWorkspacePath, "blueclaw-workspace", configuration.BlueclawWorkspacePath, "Blueclaw host workspace path")
+	flag.StringVar(&configuration.BuzzInviteKeyPath, "buzz-invite-key", configuration.BuzzInviteKeyPath, "Buzz derived invite HMAC key path (hex)")
+	flag.StringVar(&configuration.BuzzCommunityID, "buzz-community-id", configuration.BuzzCommunityID, "Buzz community UUID invites admit into")
+	flag.StringVar(&configuration.BuzzRelayURL, "buzz-relay-url", configuration.BuzzRelayURL, "Buzz relay WebSocket URL for deep links")
+	flag.StringVar(&configuration.BuzzLandingBaseURL, "buzz-landing-url", configuration.BuzzLandingBaseURL, "Buzz invite landing page base URL")
+	flag.StringVar(&configuration.BuzzAdminCommandPath, "buzz-admin-command", configuration.BuzzAdminCommandPath, "buzz-admin binary path for member polling")
+	flag.StringVar(&configuration.BuzzDatabaseURL, "buzz-database-url", configuration.BuzzDatabaseURL, "Buzz relay postgres URL for member polling")
+	flag.StringVar(&configuration.BuzzAccountLinksPath, "buzz-account-links", configuration.BuzzAccountLinksPath, "account links JSON file consumed by acpd")
 	flag.Parse()
 
 	if errorValue := admind.Run(configuration); errorValue != nil {
