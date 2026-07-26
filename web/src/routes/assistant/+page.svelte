@@ -1,10 +1,10 @@
 <script lang="ts">
-	import AgentDmConversation from '$lib/components/agent-dm/agent-dm-conversation.svelte';
+	import Channel from '$lib/components/channel/channel.svelte';
 	import * as Card from '$lib/components/ui/card/index.js';
-	import { agentDmText } from '$lib/i18n/agent-dm-text';
+	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 
-	const text = createPageText(agentDmText);
+	const text = createPageText(channelText);
 </script>
 
 <svelte:head>
@@ -17,6 +17,6 @@
 			<Card.Title>{text.title}</Card.Title>
 			<Card.Description>{text.description}</Card.Description>
 		</Card.Header>
-		<AgentDmConversation />
+		<Channel />
 	</Card.Root>
 </div>
