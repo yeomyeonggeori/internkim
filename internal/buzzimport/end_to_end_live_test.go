@@ -95,6 +95,10 @@ func TestMattermostChannelImportsIntoBuzz(t *testing.T) {
 		injectedEventIDs = append(injectedEventIDs, event.ID)
 	}
 	t.Cleanup(func() {
+		if os.Getenv("BUZZ_IMPORT_KEEP") == "1" {
+			t.Logf("kept %d imported events in channel %s", len(injectedEventIDs), buzzChannelID)
+			return
+		}
 		for _, eventID := range injectedEventIDs {
 			buzzDatabase.Exec(`DELETE FROM event_mentions WHERE community_id = $1 AND event_id = decode($2,'hex')`, communityID, eventID)
 			buzzDatabase.Exec(`DELETE FROM thread_metadata WHERE community_id = $1 AND event_id = decode($2,'hex')`, communityID, eventID)

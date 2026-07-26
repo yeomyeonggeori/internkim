@@ -20,6 +20,7 @@
 	import CogIcon from '@lucide/svelte/icons/cog';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
+	import MessagesSquareIcon from '@lucide/svelte/icons/messages-square';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import NetworkIcon from '@lucide/svelte/icons/network';
 	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
@@ -39,6 +40,7 @@
 	const canViewAdminNavigation = $derived(adminRole === 'admin' || adminRole === 'operationsAdmin');
 
 	const apps = $derived<AppRailItem[]>([
+		{ href: '/messenger/', label: text.messenger, icon: MessagesSquareIcon },
 		{ href: '/flow/', label: text.flow, icon: ListChecksIcon },
 		{ href: '/memory/', label: text.memory, icon: NetworkIcon },
 		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon },

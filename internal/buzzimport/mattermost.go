@@ -3,6 +3,7 @@ package buzzimport
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 )
 
@@ -28,7 +29,8 @@ type MattermostPost struct {
 	RootID    string
 	Message   string
 	CreatedAt time.Time
-	FileIDs   string
+	FileIDs   []string
+	HasReactions bool
 }
 
 type MattermostSource struct {
@@ -122,14 +124,27 @@ func (source MattermostSource) Posts(ctx context.Context, channelID string) ([]M
 	for rows.Next() {
 		var post MattermostPost
 		var createdAtMilliseconds int64
+		var fileIDsJSON string
 		if errorValue := rows.Scan(
 			&post.ID, &post.ChannelID, &post.UserID, &post.RootID,
-			&post.Message, &createdAtMilliseconds, &post.FileIDs,
+			&post.Message, &createdAtMilliseconds, &fileIDsJSON,
 		); errorValue != nil {
 			return nil, errorValue
 		}
 		post.CreatedAt = time.UnixMilli(createdAtMilliseconds).UTC()
+		post.FileIDs = parseFileIDs(fileIDsJSON)
 		posts = append(posts, post)
 	}
 	return posts, rows.Err()
+}
+
+func parseFileIDs(raw string) []string {
+	if raw == "" || raw == "[]" {
+		return nil
+	}
+	var fileIDs []string
+	if errorValue := json.Unmarshal([]byte(raw), &fileIDs); errorValue != nil {
+		return nil
+	}
+	return fileIDs
 }

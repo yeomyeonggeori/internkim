@@ -53,6 +53,43 @@
 		return fleetIDFromHost();
 	}
 
+	let buzzDeepLink = $state('');
+
+	async function loadBuzzDeepLink() {
+		const baseURL = adminBaseURL();
+		if (!baseURL) return;
+		try {
+			const response = await fetch(baseURL.replace(/\/admin\/api$/, '') + '/buzz/api/config', {
+				credentials: 'include'
+			});
+			if (!response.ok) return;
+			const configuration = (await response.json()) as { deepLink?: string };
+			buzzDeepLink = configuration.deepLink ?? '';
+		} catch {
+			buzzDeepLink = '';
+		}
+	}
+
+	function messengerLink() {
+		return buzzDeepLink || mattermostURL();
+	}
+
+	function messengerLabel() {
+		return buzzDeepLink ? text.openBuzz : text.openMattermost;
+	}
+
+	function messengerSubtitle() {
+		return buzzDeepLink ? text.buzzSubtitle : text.subtitle;
+	}
+
+	function messengerHeroTitle() {
+		return buzzDeepLink ? text.buzzHeroTitle : text.heroTitle;
+	}
+
+	function messengerHeroDescription() {
+		return buzzDeepLink ? text.buzzHeroDescription : text.heroDescription;
+	}
+
 	function mattermostURL() {
 		const providedURL = adminSession?.mattermostURL?.trim();
 		if (providedURL) return providedURL;
@@ -98,6 +135,7 @@
 		fleetIdInput = queryFleetID || fleetIDFromHost() || localStorage.getItem(storedFleetIdKey) || '';
 		if (fleetIdInput) localStorage.setItem(storedFleetIdKey, fleetIdInput);
 		loadAdminSession();
+		loadBuzzDeepLink();
 	});
 
 	function isAdminSection(section: string): section is AdminSection {
@@ -156,7 +194,7 @@
 				<img src={logoSrc} alt={text.title} class="size-9" />
 				<div>
 					<h1 class="text-lg font-semibold leading-tight">{text.title}</h1>
-					<p class="text-muted-foreground text-sm">{text.subtitle}</p>
+					<p class="text-muted-foreground text-sm">{messengerSubtitle()}</p>
 				</div>
 			</div>
 			<div class="flex items-center gap-2">
@@ -169,26 +207,26 @@
 
 		<section class="grid gap-4 py-8 sm:grid-cols-[190px_1fr]">
 			<div class="flex items-center justify-center rounded-lg border bg-muted/30 p-4">
-				{#if mattermostURL()}
-					<QrCode value={mattermostURL()} size="150" />
+				{#if messengerLink()}
+					<QrCode value={messengerLink()} size="150" />
 				{:else}
 					<MessageSquareIcon class="text-muted-foreground size-16" strokeWidth={1.5} />
 				{/if}
 			</div>
 			<div class="flex min-w-0 flex-col justify-center gap-4">
 				<div>
-					<h2 class="text-2xl font-semibold">{text.heroTitle}</h2>
+					<h2 class="text-2xl font-semibold">{messengerHeroTitle()}</h2>
 					<p class="text-muted-foreground mt-2 text-sm leading-6">
-						{text.heroDescription}
+						{messengerHeroDescription()}
 					</p>
 				</div>
-				{#if mattermostURL()}
+				{#if messengerLink()}
 					<div class="flex flex-wrap items-center gap-2">
-						<Button href={mattermostURL()} data-sveltekit-reload class="gap-2">
+						<Button href={messengerLink()} data-sveltekit-reload class="gap-2">
 							<ExternalLinkIcon class="size-4" />
-							{text.openMattermost}
+							{messengerLabel()}
 						</Button>
-						<CopyButton text={mattermostURL()} variant="outline" />
+						<CopyButton text={messengerLink()} variant="outline" />
 					</div>
 				{:else}
 					<p class="text-muted-foreground rounded-md border bg-muted/30 px-3 py-2 text-sm">
