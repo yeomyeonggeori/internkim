@@ -8,6 +8,10 @@ export const adminText = {
 		heroTitle: '대화는 Mattermost에서 시작하세요.',
 		heroDescription: '초대받은 팀원은 Mattermost에서 김인턴에게 바로 일을 맡길 수 있습니다.',
 		openMattermost: 'Mattermost 열기',
+		openBuzz: 'Buzz 열기',
+		buzzSubtitle: 'Buzz에서 사용하는 사내 AI 하드웨어',
+		buzzHeroTitle: '대화는 Buzz에서 시작하세요.',
+		buzzHeroDescription: '초대받은 팀원은 Buzz에서 김인턴에게 바로 일을 맡길 수 있습니다.',
 		devicePending: '기기 등록이 끝나면 전용 Mattermost 주소와 초대 관리가 표시됩니다.',
 		sections: {
 			device: '기기',
@@ -316,6 +320,10 @@ export const adminText = {
 		heroTitle: 'Start conversations in Mattermost.',
 		heroDescription: 'Invited teammates can assign work to Intern Kim directly from Mattermost and Slack.',
 		openMattermost: 'Open Mattermost',
+		openBuzz: 'Open Buzz',
+		buzzSubtitle: 'Internal AI hardware for Buzz',
+		buzzHeroTitle: 'Start conversations in Buzz.',
+		buzzHeroDescription: 'Invited teammates can hand work to InternKim straight from Buzz.',
 		devicePending: 'After device registration, the dedicated Mattermost address and invite controls will appear here.',
 		sections: {
 			device: 'Device',

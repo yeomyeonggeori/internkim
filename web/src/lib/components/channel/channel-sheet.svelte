@@ -1,13 +1,13 @@
 <script lang="ts">
-	import AgentDmConversation from './agent-dm-conversation.svelte';
+	import Channel from './channel.svelte';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { agentDmText } from '$lib/i18n/agent-dm-text';
+	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import MessageCircleIcon from '@lucide/svelte/icons/message-circle';
 
-	const text = createPageText(agentDmText);
+	const text = createPageText(channelText);
 	let isOpen = $state(false);
 </script>
 
@@ -37,7 +37,7 @@
 			<Sheet.Title>{text.title}</Sheet.Title>
 			<Sheet.Description>{text.description}</Sheet.Description>
 		</Sheet.Header>
-		<AgentDmConversation isActive={isOpen} />
+		<Channel isActive={isOpen} />
 		<div class="border-t px-4 py-2 text-center">
 			<a href="/assistant/" class="text-muted-foreground hover:text-foreground text-xs">
 				{text.openFullConversation}

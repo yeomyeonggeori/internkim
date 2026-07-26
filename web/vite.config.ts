@@ -19,11 +19,19 @@ function devUserRoleFromEnv(value: string | undefined): DevAdminMockUserRole {
 	return devUserRoles.has(value ?? '') ? (value as DevAdminMockUserRole) : 'admin';
 }
 
-function admindProxy(target: string): ProxyOptions {
-	return {
+function admindProxy(target: string, devUserEmail?: string): ProxyOptions {
+	const options: ProxyOptions = {
 		target,
 		xfwd: true
 	};
+	if (devUserEmail) {
+		options.configure = (proxy) => {
+			proxy.on('proxyReq', (proxyRequest) => {
+				proxyRequest.setHeader('X-Forwarded-Email', devUserEmail);
+			});
+		};
+	}
+	return options;
 }
 
 export default defineConfig(({ mode }) => {
@@ -32,6 +40,7 @@ export default defineConfig(({ mode }) => {
 	const devUserRole = devUserRoleFromEnv(env.VITE_DEV_USER_ROLE);
 	const isAttendanceMockEnabled = env.VITE_MOCK_ATTENDANCE === '1';
 	const isFlowMockEnabled = env.VITE_MOCK_FLOW === '1';
+		const devUserEmail = env.VITE_DEV_USER_EMAIL;
 	return {
 		plugins: [
 			devAdminUsersMockPlugin({
@@ -80,8 +89,10 @@ export default defineConfig(({ mode }) => {
 				'/.well-known/caldav': admindProxy(admindTarget),
 				'/api/v1': admindProxy(admindTarget),
 				'/admin/api': admindProxy(admindTarget),
+				'/agent/api': admindProxy(admindTarget, devUserEmail),
+				'/buzz/api': admindProxy(admindTarget, devUserEmail),
 				'/attendance/api': admindProxy(admindTarget),
-				'/auth': admindProxy(admindTarget),
+				'/auth': admindProxy(admindTarget, devUserEmail),
 				'/calendar/api': admindProxy(admindTarget),
 				'/calendar/dav': admindProxy(admindTarget),
 				'/calendar/ics': admindProxy(admindTarget),
@@ -89,7 +100,8 @@ export default defineConfig(({ mode }) => {
 				'/flow/api': admindProxy(admindTarget),
 				'/mail/api': admindProxy(admindTarget),
 				'/memory/api': admindProxy(admindTarget),
-				'/orgchart/api': admindProxy(admindTarget)
+				'/orgchart/api': admindProxy(admindTarget),
+				'/tasks/api': admindProxy(admindTarget, devUserEmail)
 			}
 		},
 		build: {
