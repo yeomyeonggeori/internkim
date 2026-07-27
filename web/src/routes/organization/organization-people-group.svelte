@@ -80,7 +80,7 @@
 		</OrganizationCountBadge>
 	</div>
 	<Item.Group
-		class="grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-2 pr-2"
+		class="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2 pr-2"
 		style={`padding-left: ${depth * 16 + 36}px`}
 		data-testid={`organization-members-${section.id || 'root'}`}
 	>
@@ -88,42 +88,13 @@
 			{@const leadership = responsibility(record)}
 			<Item.Root
 				variant="outline"
-				class={['bg-card hover:bg-accent/40 relative items-start gap-3 p-3', selectedUserID === record.userID && 'ring-ring ring-1']}
+				class={[
+					'bg-card hover:bg-accent/40 relative flex-col items-center gap-2 p-4 text-center',
+					selectedUserID === record.userID && 'ring-ring ring-1'
+				]}
 			>
-				<Item.Media class="mt-0.5">
-					<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-10" />
-				</Item.Media>
-				<Item.Content class="gap-0.5">
-					<button
-						type="button"
-						class="min-w-0 text-left"
-						onclick={() => selectRecord(record)}
-						data-testid={`organization-person-node-${record.userID}`}
-					>
-						<Item.Title class={['truncate', leadership && 'pr-20']}>{personLabel(record)}</Item.Title>
-						<Item.Description class="truncate">{record.jobTitle || text.noTitle}</Item.Description>
-					</button>
-					<div class="mt-2 flex items-center justify-between gap-2">
-						{#if tenureLabel(record.hireDate)}
-							<Tooltip.Root>
-								<Tooltip.Trigger>
-									{#snippet child({ props })}
-										<Badge {...props} variant="outline" class="h-5 shrink-0 gap-1 rounded-full px-1.5 font-normal tabular-nums">
-											<TimerIcon class="size-3" />
-											{tenureLabel(record.hireDate)}
-										</Badge>
-									{/snippet}
-								</Tooltip.Trigger>
-								<Tooltip.Content side="top">{tenureDetail(record.hireDate)}</Tooltip.Content>
-							</Tooltip.Root>
-						{:else}
-							<span></span>
-						{/if}
-						<OrganizationPersonContactActions email={record.email} phoneNumber={record.phoneNumber ?? ''} {text} />
-					</div>
-				</Item.Content>
 				{#if leadership}
-					<Badge variant="secondary" class={['absolute top-2 right-2', leadership.class]}>
+					<Badge variant="secondary" class={['absolute top-2 right-2 z-10', leadership.class]}>
 						{#if leadership.isCompanyWide}
 							<CrownIcon />
 						{:else}
@@ -132,6 +103,32 @@
 						{leadership.label}
 					</Badge>
 				{/if}
+				<button
+					type="button"
+					class="grid w-full justify-items-center gap-2"
+					onclick={() => selectRecord(record)}
+					data-testid={`organization-person-node-${record.userID}`}
+				>
+					<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="mt-2 size-20" />
+					<span class="grid w-full gap-0.5">
+						<Item.Title class="truncate">{personLabel(record)}</Item.Title>
+						<Item.Description class="truncate">{record.jobTitle || text.noTitle}</Item.Description>
+					</span>
+				</button>
+				{#if tenureLabel(record.hireDate)}
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							{#snippet child({ props })}
+								<Badge {...props} variant="outline" class="h-5 shrink-0 gap-1 rounded-full px-1.5 font-normal tabular-nums">
+									<TimerIcon class="size-3" />
+									{tenureLabel(record.hireDate)}
+								</Badge>
+							{/snippet}
+						</Tooltip.Trigger>
+						<Tooltip.Content side="top">{tenureDetail(record.hireDate)}</Tooltip.Content>
+					</Tooltip.Root>
+				{/if}
+				<OrganizationPersonContactActions email={record.email} phoneNumber={record.phoneNumber ?? ''} {text} />
 			</Item.Root>
 		{/each}
 	</Item.Group>
