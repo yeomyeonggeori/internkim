@@ -8,8 +8,11 @@ set -euo pipefail
 # already running from the normal messenger dev loop.
 #
 # Required environment:
-#   INTERNKIM_BUZZ_KEY_SEED         seed used by the history importer (-key-seed)
-#   INTERNKIM_MM_ADMIN_PASSWORD_PATH file holding the local MM admin password
+#   INTERNKIM_BUZZ_KEY_SEED   seed used by the history importer (-key-seed)
+#
+# Optional:
+#   INTERNKIM_MM_ADMIN_PASSWORD_PATH  override the MM admin password file;
+#                                     defaults to admind's own default path.
 #
 # After this prints OK, restart chatd from its own shell with the two extra
 # mirror variables it prints, then post a message and watch it cross over.
@@ -18,7 +21,6 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 : "${INTERNKIM_BUZZ_KEY_SEED:?set INTERNKIM_BUZZ_KEY_SEED to the importer key-seed}"
-: "${INTERNKIM_MM_ADMIN_PASSWORD_PATH:?set INTERNKIM_MM_ADMIN_PASSWORD_PATH to the local MM admin password file}"
 
 listen="127.0.0.1:18080"
 work_dir="${TMPDIR:-/tmp}/internkim-mirror-local"
@@ -37,17 +39,21 @@ if [[ -f "$admind_pid_file" ]] && kill -0 "$(cat "$admind_pid_file")" 2>/dev/nul
   sleep 1
 fi
 
+admind_flags=(
+  -listen "$listen"
+  -mattermost-url "http://127.0.0.1:8065"
+  -mattermost-team "internkim"
+  -blueclaw-url "http://127.0.0.1:8080"
+  -state-dir "$state_dir"
+  -bridge-map-db "$bridge_db"
+  -buzz-key-seed "$INTERNKIM_BUZZ_KEY_SEED"
+)
+if [[ -n "${INTERNKIM_MM_ADMIN_PASSWORD_PATH:-}" ]]; then
+  admind_flags+=(-mattermost-admin-password "$INTERNKIM_MM_ADMIN_PASSWORD_PATH")
+fi
+
 echo "==> starting local admind on $listen (log: $admind_log)"
-"$work_dir/internkim-admind" \
-  -listen "$listen" \
-  -mattermost-url "http://127.0.0.1:8065" \
-  -mattermost-team "internkim" \
-  -blueclaw-url "http://127.0.0.1:8080" \
-  -state-dir "$state_dir" \
-  -bridge-map-db "$bridge_db" \
-  -mattermost-admin-password "$INTERNKIM_MM_ADMIN_PASSWORD_PATH" \
-  -buzz-key-seed "$INTERNKIM_BUZZ_KEY_SEED" \
-  >"$admind_log" 2>&1 &
+"$work_dir/internkim-admind" "${admind_flags[@]}" >"$admind_log" 2>&1 &
 admind_pid=$!
 echo "$admind_pid" >"$admind_pid_file"
 
