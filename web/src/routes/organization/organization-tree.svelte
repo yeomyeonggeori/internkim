@@ -18,7 +18,6 @@
 
 	let {
 		tree,
-		selectedOrganizationID,
 		canManage,
 		isEditing,
 		isSaving,
@@ -30,7 +29,6 @@
 		onMove
 	}: {
 		tree: OrganizationOrganizationTree;
-		selectedOrganizationID: string;
 		canManage: boolean;
 		isEditing: boolean;
 		isSaving: boolean;
@@ -130,7 +128,7 @@
 	<div class="min-h-0 flex-1 overflow-y-auto px-2 pb-4" bind:this={treeElement} data-testid="organization-tree">
 		<button
 			type="button"
-			class={['flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm', selectedOrganizationID === '' ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-accent/50']}
+			class="hover:bg-accent/50 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm"
 			onclick={() => !isEditing && onSelect('')}
 			data-testid="organization-root"
 		>
@@ -149,7 +147,7 @@
 				</div>
 			{/if}
 			<div
-				class={['relative flex h-9 items-center gap-1 rounded-md pr-2', selectedOrganizationID === node.id && !isEditing ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50', draggedSubtreeGroupIDs.has(node.id) && 'opacity-40']}
+				class={['relative flex h-9 items-center gap-1 rounded-md pr-2 hover:bg-accent/50', draggedSubtreeGroupIDs.has(node.id) && 'opacity-40']}
 				style={`padding-left: ${(node.depth + 1) * 16 + 8}px`}
 				data-organization-row={node.id}
 				data-testid={`organization-row-${node.id}`}

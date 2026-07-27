@@ -7,6 +7,7 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
+	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { onMount } from 'svelte';
 	import { adminText } from '../admin/text';
 	import OrganizationAddOrganizationPopover from './organization-add-organization-popover.svelte';
@@ -33,6 +34,13 @@
 	);
 	const isDetailSheetOpen = $derived(detailSheetViewport.current && Boolean(controller.selectedRecord));
 	let isOrganizationSheetOpen = $state(false);
+
+	$effect(() => {
+		breadcrumbMeta.value = controller.selectedOrganizationName;
+		return () => {
+			breadcrumbMeta.value = '';
+		};
+	});
 
 	onMount(() => {
 		void controller.load();
@@ -131,7 +139,6 @@
 					<div class="hidden min-h-0 lg:block">
 						<OrganizationOrganizationTree
 							tree={controller.organizationTree}
-							selectedOrganizationID={controller.groupID}
 							canManage={controller.canManage}
 							isEditing={controller.organizationEdit.isEditing}
 							isSaving={controller.isSavingGroups}
@@ -194,7 +201,6 @@
 			<Sheet.Header class="sr-only"><Sheet.Title>{text.openOrganizations}</Sheet.Title><Sheet.Description>{text.allOrganizations}</Sheet.Description></Sheet.Header>
 			<OrganizationOrganizationTree
 				tree={controller.organizationTree}
-				selectedOrganizationID={controller.groupID}
 				canManage={controller.canManage}
 				isEditing={controller.organizationEdit.isEditing}
 				isSaving={controller.isSavingGroups}
