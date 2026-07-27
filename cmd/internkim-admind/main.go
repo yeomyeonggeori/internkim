@@ -54,7 +54,7 @@ func main() {
 	flag.StringVar(&configuration.BuzzAdminCommandPath, "buzz-admin-command", configuration.BuzzAdminCommandPath, "buzz-admin binary path for member polling")
 	flag.StringVar(&configuration.BuzzDatabaseURL, "buzz-database-url", configuration.BuzzDatabaseURL, "Buzz relay postgres URL for member polling")
 	flag.StringVar(&configuration.BuzzAccountLinksPath, "buzz-account-links", configuration.BuzzAccountLinksPath, "account links JSON file consumed by acpd")
-	flag.StringVar(&configuration.BuzzKeySeed, "buzz-key-seed", configuration.BuzzKeySeed, "seed for deterministic Buzz identity derivation (must match the history importer)")
+	flag.StringVar(&configuration.BuzzKeySeedPath, "buzz-key-seed-path", configuration.BuzzKeySeedPath, "file holding the Buzz identity derivation seed (must match the history importer)")
 	flag.Parse()
 
 	if errorValue := admind.Run(configuration); errorValue != nil {

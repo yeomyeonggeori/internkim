@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"os"
 	"strings"
 
 	nostr "github.com/nbd-wtf/go-nostr"
@@ -11,6 +12,21 @@ import (
 )
 
 var errBuzzKeySeedMissing = errors.New("buzz key seed is not configured")
+
+func (service *Service) buzzKeySeed() string {
+	service.buzzKeySeedOnce.Do(func() {
+		path := strings.TrimSpace(service.Configuration.BuzzKeySeedPath)
+		if path == "" {
+			return
+		}
+		contents, errorValue := os.ReadFile(path)
+		if errorValue != nil {
+			return
+		}
+		service.buzzKeySeedValue = strings.TrimSpace(string(contents))
+	})
+	return service.buzzKeySeedValue
+}
 
 // personBuzzSecret resolves the caller's stable Buzz secret. The secret is a
 // deterministic function of the person's email (matching the history importer,
@@ -26,7 +42,7 @@ func (service *Service) personBuzzSecret(ctx context.Context, email string) (str
 	if !errors.Is(errorValue, errBuzzIdentitySecretMissing) {
 		return "", errorValue
 	}
-	seed := strings.TrimSpace(service.Configuration.BuzzKeySeed)
+	seed := service.buzzKeySeed()
 	if seed == "" {
 		return "", errBuzzKeySeedMissing
 	}
