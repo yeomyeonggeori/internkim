@@ -7,6 +7,7 @@ export type UserRecord = {
 	hireDate?: string;
 	jobTitle?: string;
 	groupID?: string;
+	phoneNumber?: string;
 	supervisorID?: string;
 };
 

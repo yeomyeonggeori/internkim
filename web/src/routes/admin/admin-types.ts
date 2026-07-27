@@ -17,6 +17,7 @@ export type UserRecord = {
 	circles?: string[];
 	jobTitle?: string;
 	groupID?: string;
+	phoneNumber?: string;
 	supervisorID?: string;
 	mattermostUserID?: string;
 	mattermostUsername?: string;
@@ -133,6 +134,7 @@ export type CredentialProvidersResponse = {
 export type WorkspaceSettings = {
 	timeZone: string;
 	language: WorkspaceLanguage;
+	callingCode: string;
 	updatedAt?: string;
 };
 

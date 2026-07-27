@@ -66,5 +66,6 @@ func applyOrganizationProfile(record *adminUserMutation, profile organizationPro
 	record.UserID = firstNonEmpty(record.UserID, profile.UserID)
 	record.JobTitle = profile.JobTitle
 	record.GroupID = profile.GroupID
+	record.PhoneNumber = profile.PhoneNumber
 	record.SupervisorID = profile.SupervisorID
 }

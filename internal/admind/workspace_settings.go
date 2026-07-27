@@ -15,21 +15,32 @@ import (
 )
 
 type workspaceSettings struct {
-	TimeZone  string `json:"timeZone"`
-	Language  string `json:"language"`
-	UpdatedAt string `json:"updatedAt,omitempty"`
+	TimeZone    string `json:"timeZone"`
+	Language    string `json:"language"`
+	CallingCode string `json:"callingCode"`
+	UpdatedAt   string `json:"updatedAt,omitempty"`
 }
 
 const (
-	workspaceLanguageKorean  = "ko"
-	workspaceLanguageEnglish = "en"
+	workspaceLanguageKorean     = "ko"
+	workspaceLanguageEnglish    = "en"
+	workspaceDefaultCallingCode = "82"
 )
 
 func defaultWorkspaceSettings() workspaceSettings {
 	return workspaceSettings{
-		TimeZone: workspaceBusinessTimeZone,
-		Language: workspaceLanguageKorean,
+		TimeZone:    workspaceBusinessTimeZone,
+		Language:    workspaceLanguageKorean,
+		CallingCode: workspaceDefaultCallingCode,
 	}
+}
+
+func (service *Service) workspaceCallingCode() string {
+	settings, errorValue := service.readWorkspaceSettings()
+	if errorValue != nil {
+		return workspaceDefaultCallingCode
+	}
+	return normalizeWorkspaceSettingsWithoutValidation(settings).CallingCode
 }
 
 func (service *Service) writeWorkspaceSettings(responseWriter http.ResponseWriter) {
@@ -134,10 +145,15 @@ func normalizeWorkspaceSettingsWithoutValidation(settings workspaceSettings) wor
 	if language != workspaceLanguageKorean && language != workspaceLanguageEnglish {
 		language = defaults.Language
 	}
+	callingCode := normalizeCallingCode(settings.CallingCode)
+	if callingCode == "" {
+		callingCode = defaults.CallingCode
+	}
 	return workspaceSettings{
-		TimeZone:  timeZone,
-		Language:  language,
-		UpdatedAt: strings.TrimSpace(settings.UpdatedAt),
+		TimeZone:    timeZone,
+		Language:    language,
+		CallingCode: callingCode,
+		UpdatedAt:   strings.TrimSpace(settings.UpdatedAt),
 	}
 }
 
