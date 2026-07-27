@@ -17,7 +17,7 @@
 	} = $props();
 </script>
 
-<div class="grid gap-3 pb-6" data-testid="organization-people-layer">
+<div class="grid pb-6" data-testid="organization-people-layer">
 	{#each sections as section (section.id)}
 		<OrganizationPeopleGroup {section} {selectedUserID} {text} {selectRecord} />
 	{/each}

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import FolderIcon from '@lucide/svelte/icons/folder';
-	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
+	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import LockKeyholeIcon from '@lucide/svelte/icons/lock-keyhole';
 	import OrganizationAvatarStack from './organization-avatar-stack.svelte';
@@ -72,6 +73,12 @@
 		return treeIndex.groupIDsWithChildren.has(groupID);
 	}
 
+	function selectNode(groupID: string): void {
+		if (isEditing) return;
+		onSelect(groupID);
+		if (hasChildren(groupID)) toggleExpanded(groupID);
+	}
+
 	function toggleExpanded(groupID: string): void {
 		expandedGroupIDs = { ...expandedGroupIDs, [groupID]: !isExpanded(groupID) };
 	}
@@ -136,7 +143,7 @@
 			data-testid="organization-root"
 		>
 			<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
-				{#if isEditing}<LockKeyholeIcon class="size-4" />{:else}<FolderOpenIcon class="size-4" />{/if}
+				{#if isEditing}<LockKeyholeIcon class="size-4" />{:else}<ChevronDownIcon class="size-4" />{/if}
 			</span>
 			<span class="min-w-0 flex-1 truncate">{tree.root.name}</span>
 			{#if !isEditing}<OrganizationAvatarStack records={tree.root.aggregateRecords} memberCountUnit={text.memberCountUnit} />{/if}
@@ -167,19 +174,27 @@
 					>
 						<GripVerticalIcon class="size-4" />
 					</span>
-				{:else if hasChildren(node.id)}
-					<button
-						type="button"
-						class="text-muted-foreground grid size-6 shrink-0 place-items-center rounded-md"
-						aria-label={`${node.name} ${isExpanded(node.id) ? text.collapseOrganization : text.expandOrganization}`}
-						onclick={() => toggleExpanded(node.id)}
-					>
-						{#if isExpanded(node.id)}<FolderOpenIcon class="size-4" />{:else}<FolderIcon class="size-4" />{/if}
-					</button>
-				{:else}
-					<span class="text-muted-foreground grid size-6 shrink-0 place-items-center"><FolderIcon class="size-4" /></span>
 				{/if}
-				<button type="button" class="min-w-0 flex-1 truncate text-left text-sm" onclick={() => !isEditing && onSelect(node.id)}>{node.name}</button>
+				<button
+					type="button"
+					class="flex min-w-0 flex-1 items-center gap-1 text-left text-sm"
+					aria-expanded={hasChildren(node.id) ? isExpanded(node.id) : undefined}
+					aria-label={hasChildren(node.id)
+						? `${node.name} ${isExpanded(node.id) ? text.collapseOrganization : text.expandOrganization}`
+						: node.name}
+					onclick={() => selectNode(node.id)}
+				>
+					<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
+						{#if !hasChildren(node.id)}
+							<UsersRoundIcon class="size-4" />
+						{:else if isExpanded(node.id)}
+							<ChevronDownIcon class="size-4" />
+						{:else}
+							<ChevronRightIcon class="size-4" />
+						{/if}
+					</span>
+					<span class="min-w-0 flex-1 truncate">{node.name}</span>
+				</button>
 				{#if !isEditing}<OrganizationAvatarStack records={node.aggregateRecords} memberCountUnit={text.memberCountUnit} />{/if}
 			</div>
 		{/each}
