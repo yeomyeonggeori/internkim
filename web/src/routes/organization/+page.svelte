@@ -128,6 +128,7 @@
 									<OrganizationPeopleLayer
 										sections={controller.organizationSections}
 										selectedUserID={controller.selectedUserID}
+										hidesEmptySections={Boolean(controller.query.trim())}
 										{text}
 										selectRecord={(record) => controller.selectRecord(record)}
 									/>
