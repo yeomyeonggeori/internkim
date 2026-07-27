@@ -27,13 +27,6 @@
 
 	const page = createFlowTasksController();
 	let taskViewTab = $state('board');
-	const taskViewTabTriggerClass = [
-		'h-8 min-w-16 flex-none rounded-full px-4 after:hidden',
-		'aria-selected:bg-primary aria-selected:font-semibold',
-		'aria-selected:text-primary-foreground',
-		'data-active:bg-primary data-active:font-semibold data-active:text-primary-foreground'
-	].join(' ');
-
 	$effect(() => {
 		const nextSummary = summary;
 		const nextText = text;
@@ -65,15 +58,12 @@
 <div class={taskViewTab === 'board' ? 'flex flex-col gap-4 pb-0' : 'flex flex-col gap-4 pb-36 md:pb-16'}>
 	<Tabs.Root bind:value={taskViewTab} class="flex flex-col gap-4" data-flow-task-results>
 		<div class="flex flex-wrap items-center gap-2">
-			<Tabs.List class="h-10 rounded-full border bg-muted/50 p-1">
-				<Tabs.Trigger value="board" class={taskViewTabTriggerClass}>
-					{text.task.viewTabs.board}
-				</Tabs.Trigger>
-				<Tabs.Trigger value="list" class={taskViewTabTriggerClass}>
-					{text.task.viewTabs.list}
-				</Tabs.Trigger>
+			<Tabs.List>
+				<Tabs.Trigger value="board">{text.task.viewTabs.board}</Tabs.Trigger>
+				<Tabs.Trigger value="list">{text.task.viewTabs.list}</Tabs.Trigger>
 			</Tabs.List>
 			<FlowTaskFilters
+				class="ml-auto justify-end"
 				bind:searchText={page.filters.searchText}
 				bind:statusFilter={page.filters.statusFilter}
 				bind:businessFilter={page.filters.businessFilter}
@@ -94,7 +84,6 @@
 				<Button
 					type="button"
 					size="icon"
-					class="ml-auto bg-primary text-primary-foreground hover:bg-primary/90"
 					aria-label={text.filters.addTask}
 					title={text.filters.addTask}
 					onclick={() => page.createTask()}

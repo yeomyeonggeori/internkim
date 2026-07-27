@@ -5,7 +5,6 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { ViewType } from '@dayflow/svelte';
 	import { onMount } from 'svelte';
-	import '@dayflow/core/dist/styles.css';
 	import { calendarText } from '../text';
 	import {
 		normalizedVisibleDate
@@ -27,8 +26,7 @@
 	} from './calendar-visible-events';
 	import {
 		broadcastCalendarVisibleDate,
-		requestCalendarRefresh,
-		requestCalendarSettingsOpen
+				requestCalendarSettingsOpen
 	} from '../refresh-signal.svelte';
 	import { createCalendarPageController } from './calendar-page-controller.svelte';
 	import { installCalendarPageEffects } from './calendar-page-effects.svelte';
@@ -213,9 +211,6 @@
 		requestCalendarSettingsOpen();
 	}
 
-	function refreshParentCalendar(): void {
-		requestCalendarRefresh();
-	}
 
 	async function loadParticipantCandidates(): Promise<void> {
 		try {
@@ -250,7 +245,6 @@
 	navigateToSearchResult={pageNavigation.navigateToSearchResult}
 	{createQuickEvent}
 	openSettings={openCalendarSettings}
-	refreshCalendar={refreshParentCalendar}
 	clearSelectedEvent={eventSelection.clearSelectedEvent}
 	stageEvents={stageEvents}
 	{localeCode}

@@ -8,6 +8,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SearchIcon from '@lucide/svelte/icons/search';
+	import { cn } from '$lib/utils';
 	import { flowText } from './text';
 
 	type FlowPageText = typeof flowText.ko;
@@ -35,6 +36,7 @@
 		resetFilters: () => void;
 		createTask: () => void;
 		setParticipantFilterIDs: (memberIDs: string[]) => void;
+		class?: string;
 	};
 
 	let {
@@ -52,7 +54,8 @@
 		text,
 		resetFilters,
 		createTask,
-		setParticipantFilterIDs
+		setParticipantFilterIDs,
+		class: className
 	}: Props = $props();
 
 	let participantChoices = $derived(participantOptions.filter((option) => option.value !== 'all'));
@@ -79,7 +82,7 @@
 	}
 </script>
 
-<div class="flex min-w-0 flex-wrap items-center gap-2">
+<div class={cn('flex min-w-0 flex-wrap items-center gap-2', className)}>
 	<DropdownMenu.Root>
 		<DropdownMenu.Trigger>
 			{#snippet child({ props })}
