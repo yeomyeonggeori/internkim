@@ -1,5 +1,7 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import Building2Icon from '@lucide/svelte/icons/building-2';
+	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Item from '$lib/components/ui/item';
 	import type { UserRecord } from '$lib/organization/types';
@@ -31,19 +33,22 @@
 	}
 </script>
 
-<section
-	class="relative min-w-0 pb-3"
-	style={`padding-left: ${depth * 16 + 8}px`}
-	data-testid={`organization-section-${section.id || 'root'}`}
->
+<section class="relative min-w-0 pb-3" data-testid={`organization-section-${section.id || 'root'}`}>
 	{#each { length: depth } as _, level (level)}
 		<span class="bg-border absolute inset-y-0 w-px" style={`left: ${level * 16 + 20}px`} aria-hidden="true"></span>
 	{/each}
-	<div class="flex h-9 items-center gap-2 pr-2">
+	<div class="flex h-9 items-center gap-1 pr-2" style={`padding-left: ${depth * 16 + 8}px`}>
+		<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
+			{#if section.id}
+				<UsersRoundIcon class="size-4" />
+			{:else}
+				<Building2Icon class="size-4" />
+			{/if}
+		</span>
 		<h3 class="min-w-0 flex-1 truncate text-sm font-medium">{section.name}</h3>
 		<span class="text-muted-foreground shrink-0 text-xs tabular-nums">{section.memberCount}{text.memberCountUnit}</span>
 	</div>
-	<Item.Group class="gap-2" data-testid={`organization-members-${section.id || 'root'}`}>
+	<Item.Group class="gap-2 pr-2" style={`padding-left: ${depth * 16 + 36}px`} data-testid={`organization-members-${section.id || 'root'}`}>
 		{#each section.records as record (record.userID)}
 			{@const responsibility = responsibilityLabel(record)}
 			<Item.Root variant="outline" class={selectedUserID === record.userID ? 'ring-ring ring-1' : ''}>
