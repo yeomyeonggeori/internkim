@@ -18,3 +18,9 @@ export function organizationSectionTree(sections: OrganizationOrganizationSectio
 	}
 	return roots;
 }
+
+export function organizationSectionsWithRecords(nodes: OrganizationSectionNode[]): OrganizationSectionNode[] {
+	return nodes
+		.map((node) => ({ section: node.section, children: organizationSectionsWithRecords(node.children) }))
+		.filter((node) => node.section.records.length > 0 || node.children.length > 0);
+}
