@@ -61,7 +61,7 @@
 
 <section class="relative min-w-0 pb-3" data-testid={`organization-section-${section.id || 'root'}`}>
 	{#if section.records.length > 0 || node.children.length > 0}
-		<span class="bg-border absolute bottom-0 top-9 w-px" style={`left: ${depth * 16 + 20}px; z-index: ${41 - depth * 2}`} aria-hidden="true"></span>
+		<span class="bg-border absolute bottom-0 top-9 w-px" style={`left: ${depth * 16 + 20}px; z-index: ${39 - depth * 2}`} aria-hidden="true"></span>
 	{/if}
 	<div
 		class="bg-background sticky flex h-9 items-center gap-1 pr-2"
