@@ -68,7 +68,7 @@
 			isCommandPaletteOpen = true;
 			return;
 		}
-		if (!pageActions.refreshHandler || !isPlainShortcut(event, 'KeyR')) return;
+		if (!isPlainShortcut(event, 'KeyR')) return;
 		event.preventDefault();
 		pageActions.refresh();
 	}
@@ -142,8 +142,7 @@
 								{text.search}
 								<Kbd class="ml-auto">/</Kbd>
 							</Button>
-							{#if pageActions.refreshHandler}
-								<Tooltip.Root>
+							<Tooltip.Root>
 									<Tooltip.Trigger>
 										{#snippet child({ props })}
 											<Button
@@ -161,8 +160,7 @@
 										{text.refresh}
 										<Kbd>r</Kbd>
 									</Tooltip.Content>
-								</Tooltip.Root>
-							{/if}
+							</Tooltip.Root>
 							<LanguageSwitcher
 								variant="ghost"
 								languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))}
