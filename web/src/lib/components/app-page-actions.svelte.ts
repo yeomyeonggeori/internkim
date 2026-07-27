@@ -14,8 +14,12 @@ class PageActions {
 	};
 
 	refresh = async () => {
+		if (this.isRefreshing) return;
 		const handler = this.refreshHandler;
-		if (!handler || this.isRefreshing) return;
+		if (!handler) {
+			location.reload();
+			return;
+		}
 		this.isRefreshing = true;
 		try {
 			await handler();
