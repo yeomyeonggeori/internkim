@@ -4,7 +4,7 @@ import {
 	expectDetailPanelStableWhileListScrolls,
 	expectPersonDetailPanelContent,
 	mockOrganizationDirectory,
-	openFilterPopover
+	selectOrganizationInTree
 } from './organization-directory-helpers';
 
 type SavedGroup = { id: string; name: string; parentID?: string };
@@ -125,11 +125,8 @@ test.describe('employee organization directory editing', () => {
 		const detailPanel = page.getByTestId('organization-person-detail-panel');
 		await detailPanel.getByRole('button', { name: '수정하기' }).click();
 		await detailPanel.getByLabel('직책', { exact: true }).fill('저장 전 직책');
-		await openFilterPopover(page);
-		await page.getByRole('button', { name: '조직', exact: true }).click();
-		await page.getByRole('option', { name: '디자인팀' }).click();
+		await selectOrganizationInTree(page, 'design');
 
-		await expect(page.getByTestId('organization-filter-popover')).toHaveCount(0);
 		await expect(page.getByText('저장하지 않은 조직도 변경사항이 있습니다.')).toBeVisible();
 		await expect(detailPanel.getByLabel('직책', { exact: true })).toHaveValue('저장 전 직책');
 		await expect(page.getByTestId('organization-person-node-user-dabin')).toBeVisible();
