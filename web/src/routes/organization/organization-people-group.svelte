@@ -4,6 +4,7 @@
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import MailIcon from '@lucide/svelte/icons/mail';
+	import UserIcon from '@lucide/svelte/icons/user';
 	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Item from '$lib/components/ui/item';
@@ -54,7 +55,10 @@
 			{/if}
 		</span>
 		<h3 class="min-w-0 flex-1 truncate text-sm font-medium">{section.name}</h3>
-		<span class="text-muted-foreground shrink-0 text-xs tabular-nums">{section.memberCount}{text.memberCountUnit}</span>
+		<Badge variant="outline" class="h-5 shrink-0 gap-1 rounded-full px-1.5 font-mono tabular-nums" aria-label={`${section.memberCount}${text.memberCountUnit}`}>
+			<UserIcon class="size-3" />
+			{section.memberCount}
+		</Badge>
 	</div>
 	<Item.Group
 		class="grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-2 pr-2"
