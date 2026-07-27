@@ -6,9 +6,7 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -22,6 +20,7 @@ import (
 	_ "github.com/lib/pq"
 	nostr "github.com/nbd-wtf/go-nostr"
 
+	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 	"gitlab.com/eastriver/internkim/internal/buzzimport"
 	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostrest"
 	"gitlab.com/eastriver/internkim/internal/buzzimport/media"
@@ -408,13 +407,11 @@ func channelDisplayName(channel buzzimport.MattermostChannel) string {
 }
 
 func deriveSecret(seed, email string) string {
-	digest := sha256.Sum256([]byte(seed + "|secret|" + strings.ToLower(strings.TrimSpace(email))))
-	return hex.EncodeToString(digest[:])
+	return buzzidentity.Secret(seed, email)
 }
 
 func deriveChannelID(seed, mattermostChannelID string) string {
-	digest := sha256.Sum256([]byte(seed + "|channel|" + mattermostChannelID))
-	return fmt.Sprintf("%x-%x-%x-%x-%x", digest[0:4], digest[4:6], digest[6:8], digest[8:10], digest[10:16])
+	return buzzidentity.ChannelID(seed, mattermostChannelID)
 }
 
 func waitForChannelRow(ctx context.Context, database *sql.DB, communityID, channelID string) error {
