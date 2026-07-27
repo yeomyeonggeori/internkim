@@ -6,7 +6,7 @@
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
+	import NetworkIcon from '@lucide/svelte/icons/network';
 	import UserRoundIcon from '@lucide/svelte/icons/user-round';
 	import ComponentIcon from '@lucide/svelte/icons/component';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
@@ -99,18 +99,17 @@
 						<div class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
 							<div class="flex items-center gap-2 px-4 py-3 sm:px-6">
 								{#if detailSheetViewport.current}
-									<Button type="button" size="sm" variant="outline" onclick={() => (isOrganizationSheetOpen = true)}>
-										<PanelLeftIcon class="size-4" />
-										{text.openOrganizations}
+									<Button type="button" size="icon" variant="outline" aria-label={text.openOrganizations} onclick={() => (isOrganizationSheetOpen = true)}>
+										<NetworkIcon />
 									</Button>
 								{/if}
 								<FilterCombobox
 									value={controller.groupID || ''}
 									onSelect={(groupID) => controller.selectGroup(groupID)}
 									options={organizationOptions}
-									label={text.organization}
+									label={text.selectOrganization}
 									searchPlaceholder={text.organization}
-									class="ml-auto w-full sm:w-52"
+									class="min-w-0 flex-1 sm:ml-auto sm:w-52 sm:flex-none"
 								>
 									{#snippet icon()}
 										<ComponentIcon class="size-4 shrink-0 opacity-60" />
@@ -121,7 +120,7 @@
 									options={personOptions}
 									label={text.selectEmployee}
 									searchPlaceholder={text.searchPlaceholder}
-									class="w-full sm:w-72"
+									class="min-w-0 flex-1 sm:w-72 sm:flex-none"
 								>
 									{#snippet icon()}
 										<UserRoundIcon class="size-4 shrink-0 opacity-60" />
@@ -162,8 +161,11 @@
 	</div>
 
 	<Sheet.Root bind:open={isOrganizationSheetOpen}>
-		<Sheet.Content side="left" class="w-[min(20rem,90vw)] p-0 lg:hidden" showCloseButton={false}>
-			<Sheet.Header class="sr-only"><Sheet.Title>{text.openOrganizations}</Sheet.Title><Sheet.Description>{text.allOrganizations}</Sheet.Description></Sheet.Header>
+		<Sheet.Content side="left" class="grid w-[min(20rem,90vw)] grid-rows-[auto_minmax(0,1fr)] gap-0 p-0 pt-12 lg:hidden" closeLabel={text.closeDetail}>
+			<Sheet.Header class="sr-only">
+				<Sheet.Title>{text.openOrganizations}</Sheet.Title>
+				<Sheet.Description>{text.allOrganizations}</Sheet.Description>
+			</Sheet.Header>
 			<OrganizationOrganizationTree
 				tree={controller.organizationTree}
 				canManage={controller.canManage}
