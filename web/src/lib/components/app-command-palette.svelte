@@ -72,7 +72,11 @@
 
 		<Command.Group heading={text.suggestions}>
 			{#if attendanceClock.isClockedIn}
-				<Command.Item keywords={[attendanceLabels.clockOut]} onSelect={runClockOut}>
+				<Command.Item
+					value="suggested-clock-out"
+					keywords={[attendanceLabels.clockOut]}
+					onSelect={runClockOut}
+				>
 					<LogOutIcon />
 					{attendanceLabels.clockOut}
 					<Command.Shortcut>{clockOutShortcut}</Command.Shortcut>
@@ -80,6 +84,7 @@
 			{:else if attendanceClock.defaultLocation}
 				{@const defaultLocation = attendanceClock.defaultLocation}
 				<Command.Item
+					value="suggested-clock-in"
 					keywords={[attendanceLabels.clockIn, defaultLocation.name]}
 					onSelect={() => runClockIn(defaultLocation.id)}
 				>
@@ -123,6 +128,7 @@
 		<Command.Group heading={text.attendance}>
 			{#each attendanceClock.locations as location (location.id)}
 				<Command.Item
+					value="clock-in-{location.id}"
 					keywords={[attendanceLabels.clockIn, location.name]}
 					onSelect={() => runClockIn(location.id)}
 				>
@@ -132,6 +138,7 @@
 				</Command.Item>
 			{/each}
 			<Command.Item
+				value="clock-out"
 				keywords={[attendanceLabels.clockOut]}
 				disabled={!attendanceClock.isClockedIn}
 				onSelect={runClockOut}
