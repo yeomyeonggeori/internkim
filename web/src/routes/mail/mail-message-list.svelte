@@ -8,7 +8,6 @@
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import MailOpenIcon from '@lucide/svelte/icons/mail-open';
 	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import type { MailAccount, MailMessage } from './mail-types';
@@ -32,7 +31,6 @@
 		selectedMessage: MailMessage | null;
 		text: (typeof mailText)['ko'];
 		openSettings: () => void;
-		loadMail: () => void | Promise<void>;
 		loadMessages: () => void | Promise<void>;
 		loadPreviousMessages: () => void | Promise<void>;
 		loadNextMessages: () => void | Promise<void>;
@@ -58,7 +56,6 @@
 		selectedMessage,
 		text,
 		openSettings,
-		loadMail,
 		loadMessages,
 		loadPreviousMessages,
 		loadNextMessages,
@@ -83,9 +80,6 @@
 				<p class="truncate text-xs text-muted-foreground">{selectedMailboxCountText}</p>
 			{/if}
 		</div>
-		<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={loadMail} disabled={isLoading || isSyncing}>
-			<RefreshCwIcon class={isSyncing || isLoading || isLoadingMessages ? 'animate-spin' : ''} />
-		</Button>
 	</header>
 
 	<div class="border-b bg-background p-3">

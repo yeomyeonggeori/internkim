@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { replaceState } from '$app/navigation';
@@ -105,8 +106,10 @@
 	}
 
 	function refreshCurrentWeek() {
-		loadFlow(currentWeek(), { reloadState: true });
+		return loadFlow(currentWeek(), { reloadState: true });
 	}
+
+	$effect(() => pageActions.setRefresh(async () => { await refreshCurrentWeek(); }));
 
 	async function fetchCachedFlowWeeklySummary(week: string): Promise<FlowWeeklySummary> {
 		const cachedSummary = week ? weeklySummaryCache.get(week) : undefined;
@@ -130,7 +133,6 @@
 			{isLoading}
 			{selectWeek}
 			{selectCurrentWeek}
-			{refreshCurrentWeek}
 		/>
 
 		{#if errorMessage}

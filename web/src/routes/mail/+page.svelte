@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount } from 'svelte';
 	import MailComposeSheet from './mail-compose-sheet.svelte';
@@ -12,7 +13,10 @@
 	const text = createPageText(mailText);
 	const page = createMailPageController(text);
 
-	onMount(page.loadMail);
+	onMount(() => {
+		void page.loadMail();
+		return pageActions.setRefresh(page.loadMail);
+	});
 </script>
 
 <svelte:head>
@@ -50,7 +54,6 @@
 		selectedMessage={page.selectedMessage}
 		{text}
 		openSettings={page.openSettings}
-		loadMail={page.loadMail}
 		loadMessages={page.loadMessages}
 		loadPreviousMessages={page.loadPreviousMessages}
 		loadNextMessages={page.loadNextMessages}

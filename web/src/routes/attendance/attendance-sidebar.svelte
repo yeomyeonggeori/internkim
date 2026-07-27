@@ -2,7 +2,6 @@
 	import { Button } from '$lib/components/ui/button';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { getAttendanceState } from './attendance-context.svelte';
 	import PersonalToolsPanel from './personal/personal-tools-panel.svelte';
 	import { timeZoneDisplayLabel } from './shared/attendance-date';
@@ -21,9 +20,6 @@
 				{attendance.summary ? timeZoneDisplayLabel(attendance.summary.timeZone) : '-'}
 			</p>
 		</div>
-		<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={() => attendance.load()}>
-			<RefreshCwIcon class={attendance.isLoading ? 'animate-spin' : ''} />
-		</Button>
 	</div>
 
 	<PersonalToolsPanel containerClass="flex-1 p-4" />
