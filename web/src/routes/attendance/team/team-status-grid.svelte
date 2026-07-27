@@ -1,5 +1,6 @@
 <script lang="ts">
-	import FilterCombobox, { type FilterComboboxOption } from '$lib/components/filter-combobox.svelte';
+	import FilterCombobox from '$lib/components/filter-combobox.svelte';
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import AttendanceMonthPicker from '../attendance-month-picker.svelte';
@@ -31,7 +32,9 @@
 			: []
 	);
 	const filteredRows = $derived(filterRows(rows, searchText));
-	const memberOptions = $derived<FilterComboboxOption[]>(rows.map((row) => ({ value: row.displayName, label: row.displayName })));
+	const memberOptions = $derived(
+		rows.map((row) => ({ value: row.displayName, label: row.displayName, email: row.email, image: row.image ?? '' }))
+	);
 
 	function selectMonth(month: string) {
 		attendance.selectedMonth = month;
@@ -63,7 +66,12 @@
 				label={text.teamMemberSelectLabel}
 				searchPlaceholder={text.teamMemberSearchPlaceholder}
 				class="w-full min-w-0 sm:w-48"
-			/>
+			>
+				{#snippet optionContent(option)}
+					<PersonAvatar name={option.label} email={option.email} image={option.image} class="size-6" />
+					<span class="min-w-0 truncate">{option.label}</span>
+				{/snippet}
+			</FilterCombobox>
 		</div>
 	</Card.Header>
 	<Card.Content class="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">
