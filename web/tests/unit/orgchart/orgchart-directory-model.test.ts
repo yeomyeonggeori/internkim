@@ -24,16 +24,14 @@ describe('organization directory model', () => {
 				name: 'Ada Kim',
 				email: 'ada@example.com',
 				jobTitle: 'Engineering Lead',
-				primaryGroupID: 'engineering',
-				groupIDs: ['engineering']
+				groupID: 'engineering'
 			}),
 			userRecord({
 				userID: 'grace',
 				name: 'Grace Lee',
 				email: 'grace@example.com',
 				jobTitle: 'Operations Manager',
-				primaryGroupID: 'operations',
-				groupIDs: ['operations']
+				groupID: 'operations'
 			})
 		];
 
@@ -52,9 +50,9 @@ describe('organization directory model', () => {
 			{ id: 'empty', name: '미배정' }
 		];
 		const records = [
-			userRecord({ userID: 'ada', groupIDs: ['engineering'] }),
+			userRecord({ userID: 'ada', groupID: 'engineering' }),
 			userRecord({ userID: 'unassigned' }),
-			userRecord({ userID: 'operations', groupIDs: ['operations'] })
+			userRecord({ userID: 'operations', groupID: 'operations' })
 		];
 
 		const options = organizationFilterOptions(records, groups);
@@ -63,12 +61,12 @@ describe('organization directory model', () => {
 		expect(options.hasUnassigned).toBe(true);
 	});
 
-	test('normalizes legacy memberships consistently for filters and assignment state', () => {
+	test('normalizes a whitespace-padded group id consistently for filters and assignment state', () => {
 		const groups: OrgGroup[] = [{ id: 'engineering', name: '엔지니어링' }];
 		const records = [
 			userRecord({
 				userID: 'ada',
-				groupIDs: [' engineering ', 'engineering']
+				groupID: ' engineering '
 			})
 		];
 

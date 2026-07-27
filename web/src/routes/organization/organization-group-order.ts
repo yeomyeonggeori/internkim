@@ -1,5 +1,4 @@
 import type { Locale } from '../../lib/i18n/locale.svelte';
-import { organizationGroupMembership } from '../../lib/organization/group-membership';
 import type { UserRecord } from '../../lib/organization/types';
 
 export type OrganizationGroupOrderItem = {
@@ -50,10 +49,9 @@ export function compareOrganizationGroups(records: UserRecord[], locale: Locale)
 function organizationGroupPriorities(records: UserRecord[]): Map<string, number> {
 	const priorities = new Map<string, number>();
 	for (const record of records) {
-		const priority = organizationGroupPriority(record.jobTitle);
-		for (const groupID of organizationGroupMembership(record).groupIDs) {
-			priorities.set(groupID, Math.min(priorities.get(groupID) ?? generalGroupPriority, priority));
-		}
+		const groupID = (record.groupID ?? '').trim();
+		if (!groupID) continue;
+		priorities.set(groupID, Math.min(priorities.get(groupID) ?? generalGroupPriority, organizationGroupPriority(record.jobTitle)));
 	}
 	return priorities;
 }

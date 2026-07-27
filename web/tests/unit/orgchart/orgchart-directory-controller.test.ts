@@ -34,9 +34,9 @@ describe('organization directory controller', () => {
 			{ id: 'sales', name: '세일즈' }
 		];
 		controller.records = [
-			userRecord({ userID: 'lead', primaryGroupID: 'product' }),
-			userRecord({ userID: 'engineer', primaryGroupID: 'engineering' }),
-			userRecord({ userID: 'sales', primaryGroupID: 'sales' })
+			userRecord({ userID: 'lead', groupID: 'product' }),
+			userRecord({ userID: 'engineer', groupID: 'engineering' }),
+			userRecord({ userID: 'sales', groupID: 'sales' })
 		];
 
 		expect(controller.organizationSections.map((section) => section.id)).toEqual(['', 'sales', 'product', 'engineering']);
@@ -51,7 +51,7 @@ describe('organization directory controller', () => {
 		const controller = new OrganizationDirectoryController('/admin/api', organizationDirectoryText.ko, adminText.ko);
 		controller.groups = [{ id: 'product', name: '프로덕트 본부' }];
 		controller.records = [
-			userRecord({ userID: 'assigned', primaryGroupID: 'product' }),
+			userRecord({ userID: 'assigned', groupID: 'product' }),
 			userRecord({ userID: 'unassigned' })
 		];
 		controller.groupID = unassignedGroupID;

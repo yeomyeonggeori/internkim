@@ -177,9 +177,7 @@ function normalizeUserRecord(parsed: Record<string, unknown>, existingRecord: Us
 		role,
 		circles: normalizeCircles(circles, role),
 		jobTitle: existingRecord?.jobTitle,
-		group: existingRecord?.group,
-		primaryGroupID: existingRecord?.primaryGroupID,
-		groupIDs: existingRecord?.groupIDs,
+		groupID: existingRecord?.groupID,
 		mattermostUserID: stringField(parsed, 'mattermostUserID') || existingRecord?.mattermostUserID,
 		mattermostUsername: stringField(parsed, 'mattermostUsername') || existingRecord?.mattermostUsername,
 		status: stringField(parsed, 'status') || existingRecord?.status
@@ -198,9 +196,7 @@ function createDevUserRecords(): UserRecord[] {
 			role: 'admin',
 			circles: ['staff', 'admin', 'c-level', 'representative', 'hr-compensation'],
 			jobTitle: 'Representative',
-			group: 'C-Level',
-			primaryGroupID: 'c-level',
-			groupIDs: ['c-level'],
+			groupID: 'c-level',
 			mattermostUserID: 'dev-mm-mohyeong',
 			mattermostUsername: 'mohyeong',
 			status: 'active'

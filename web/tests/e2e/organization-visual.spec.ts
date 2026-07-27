@@ -17,8 +17,7 @@ const visualUsersResponse: UsersResponse = {
 			hireDate: '2026-01-01',
 			role: 'member',
 			jobTitle: 'CEO',
-			primaryGroupID: 'leadership',
-			groupIDs: ['leadership']
+			groupID: 'leadership'
 		},
 		{
 			userID: 'user-lee-second',
@@ -28,8 +27,7 @@ const visualUsersResponse: UsersResponse = {
 			hireDate: '2026-01-01',
 			role: 'member',
 			jobTitle: 'CTO',
-			primaryGroupID: 'leadership',
-			groupIDs: ['leadership']
+			groupID: 'leadership'
 		},
 		{
 			userID: 'user-pptx',
@@ -39,8 +37,7 @@ const visualUsersResponse: UsersResponse = {
 			hireDate: '2026-01-01',
 			role: 'member',
 			jobTitle: '깍두기',
-			primaryGroupID: 'skill',
-			groupIDs: ['skill']
+			groupID: 'skill'
 		},
 		{
 			userID: 'user-park-staff',
@@ -50,8 +47,7 @@ const visualUsersResponse: UsersResponse = {
 			hireDate: '2026-02-01',
 			role: 'member',
 			jobTitle: '엔지니어',
-			primaryGroupID: 'shared',
-			groupIDs: ['shared'],
+			groupID: 'shared',
 			supervisorID: 'user-kim-first'
 		},
 		{
@@ -62,8 +58,7 @@ const visualUsersResponse: UsersResponse = {
 			hireDate: '2026-02-01',
 			role: 'member',
 			jobTitle: '엔지니어',
-			primaryGroupID: 'shared',
-			groupIDs: ['shared'],
+			groupID: 'shared',
 			supervisorID: 'user-lee-second'
 		},
 		{
@@ -74,8 +69,7 @@ const visualUsersResponse: UsersResponse = {
 			hireDate: '2026-02-02',
 			role: 'member',
 			jobTitle: '엔지니어',
-			primaryGroupID: 'shared',
-			groupIDs: ['shared'],
+			groupID: 'shared',
 			supervisorID: 'user-lee-second'
 		}
 	]

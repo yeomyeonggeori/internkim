@@ -118,8 +118,7 @@ describe('dev admin organization mock plugin', () => {
 						userID: 'dev-user-dabin',
 						email: 'dabin@example.com',
 						jobTitle: 'Operations Lead',
-						primaryGroupID: 'group-operations',
-						groupIDs: ['group-operations'],
+						groupID: 'group-operations',
 						supervisorID: 'dev-user-sujin'
 					}
 				]
@@ -131,8 +130,7 @@ describe('dev admin organization mock plugin', () => {
 		const updatedUser = body.records?.find((record) => record.userID === 'dev-user-dabin');
 		expect(updatedUser).toMatchObject({
 			jobTitle: 'Operations Lead',
-			primaryGroupID: 'group-operations',
-			groupIDs: ['group-operations'],
+			groupID: 'group-operations',
 			supervisorID: 'dev-user-sujin'
 		});
 	});

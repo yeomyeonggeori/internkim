@@ -12,8 +12,7 @@ test.describe('admin org chart ordering', () => {
 				name: 'Aaron Analyst',
 				hireDate: '2026-04-01',
 				supervisorID: 'user-ada',
-				primaryGroupID: 'engineering',
-				groupIDs: ['engineering']
+				groupID: 'engineering'
 			},
 			{
 				userID: 'user-zara',
@@ -24,8 +23,7 @@ test.describe('admin org chart ordering', () => {
 				role: 'member',
 				jobTitle: 'Lead',
 				supervisorID: 'user-ada',
-				primaryGroupID: 'engineering',
-				groupIDs: ['engineering']
+				groupID: 'engineering'
 			}
 		];
 		await mockAdminOrganization(page, {
@@ -44,15 +42,13 @@ test.describe('admin org chart ordering', () => {
 				...usersResponse.records[0],
 				hireDate: '2026-03-10',
 				supervisorID: '',
-				primaryGroupID: '',
-				groupIDs: []
+				groupID: ''
 			},
 			{
 				...usersResponse.records[1],
 				hireDate: '2026-02-01',
 				supervisorID: '',
-				primaryGroupID: '',
-				groupIDs: []
+				groupID: ''
 			}
 		];
 		await mockAdminOrganization(page, {
@@ -78,8 +74,7 @@ test.describe('admin org chart ordering', () => {
 				userID: 'user-grace',
 				name: 'Grace Lee',
 				supervisorID: 'user-ada',
-				primaryGroupID: 'engineering',
-				groupIDs: ['engineering']
+				groupID: 'engineering'
 			},
 			{
 				userID: 'user-linus',
@@ -90,8 +85,7 @@ test.describe('admin org chart ordering', () => {
 				role: 'member',
 				jobTitle: 'Engineer',
 				supervisorID: 'user-grace',
-				primaryGroupID: 'engineering',
-				groupIDs: ['engineering']
+				groupID: 'engineering'
 			},
 			{
 				userID: 'user-dan',
@@ -102,8 +96,7 @@ test.describe('admin org chart ordering', () => {
 				role: 'member',
 				jobTitle: 'Lead',
 				supervisorID: '',
-				primaryGroupID: 'operations',
-				groupIDs: ['operations']
+				groupID: 'operations'
 			}
 		];
 		await mockAdminOrganization(page, {

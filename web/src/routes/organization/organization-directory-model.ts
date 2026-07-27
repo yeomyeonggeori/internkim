@@ -1,4 +1,3 @@
-import { organizationGroupMembership } from '../../lib/organization/group-membership';
 import type { OrgGroup, UserRecord } from '../../lib/organization/types';
 
 export type OrganizationDirectoryFilters = {
@@ -16,27 +15,23 @@ export const unassignedGroupID = '__unassigned__';
 export function filterOrganizationRecords(records: UserRecord[], filters: OrganizationDirectoryFilters): UserRecord[] {
 	const query = normalizedSearch(filters.query);
 	return records.filter((record) => {
-		if (filters.groupID === unassignedGroupID && recordPrimaryGroupID(record)) return false;
-		if (filters.groupID && filters.groupID !== unassignedGroupID && !recordGroupIDs(record).includes(filters.groupID)) return false;
+		if (filters.groupID === unassignedGroupID && recordGroupID(record)) return false;
+		if (filters.groupID && filters.groupID !== unassignedGroupID && recordGroupID(record) !== filters.groupID) return false;
 		if (query && !searchableText(record).includes(query)) return false;
 		return true;
 	});
 }
 
 export function organizationFilterOptions(records: UserRecord[], groups: OrgGroup[]): OrganizationDirectoryOptions {
-	const visibleGroupIDs = new Set(records.flatMap(recordGroupIDs));
+	const visibleGroupIDs = new Set(records.map(recordGroupID));
 	return {
 		groups: groups.filter((group) => visibleGroupIDs.has(group.id)),
-		hasUnassigned: records.some((record) => recordPrimaryGroupID(record) === '')
+		hasUnassigned: records.some((record) => recordGroupID(record) === '')
 	};
 }
 
-function recordGroupIDs(record: UserRecord): string[] {
-	return organizationGroupMembership(record).groupIDs;
-}
-
-function recordPrimaryGroupID(record: UserRecord): string {
-	return organizationGroupMembership(record).primaryGroupID;
+function recordGroupID(record: UserRecord): string {
+	return (record.groupID ?? '').trim();
 }
 
 function searchableText(record: UserRecord): string {

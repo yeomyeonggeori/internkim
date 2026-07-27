@@ -2,7 +2,6 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
-	import { replaceOrganizationPrimaryGroup } from '../../lib/organization/group-membership';
 	import type { OrgGroup, UserRecord } from '../../lib/organization/types';
 	import type { AdminPageText } from './admin-types';
 	import { supervisorCandidatesForRecord } from './organization-tree';
@@ -38,8 +37,8 @@
 		return userRecord.name || userRecord.email;
 	}
 
-	function primaryGroupLabel() {
-		return record.primaryGroupID ? groupName(record.primaryGroupID) || text.organization.none : text.organization.none;
+	function organizationLabel() {
+		return record.groupID ? groupName(record.groupID) || text.organization.none : text.organization.none;
 	}
 
 	function supervisorLabel() {
@@ -47,15 +46,8 @@
 		return supervisor ? personLabel(supervisor) : text.organization.none;
 	}
 
-	function selectPrimaryGroup(groupID: string) {
-		const membership = replaceOrganizationPrimaryGroup(record, groupID);
-		record.primaryGroupID = membership.primaryGroupID;
-		record.group = membership.primaryGroupID;
-		record.groupIDs = membership.groupIDs;
-	}
-
-	function selectPrimaryGroupValue(groupID: string) {
-		selectPrimaryGroup(groupID === noSelectionValue ? '' : groupID);
+	function selectOrganizationValue(groupID: string) {
+		record.groupID = groupID === noSelectionValue ? '' : groupID;
 	}
 
 	function selectSupervisorValue(supervisorID: string) {
@@ -74,9 +66,9 @@
 	</label>
 	<div class={fieldClass}>
 		<Label class="text-xs">{text.organization.organization}</Label>
-		<Select.Root type="single" value={record.primaryGroupID || noSelectionValue} onValueChange={selectPrimaryGroupValue} disabled={isSaving}>
+		<Select.Root type="single" value={record.groupID || noSelectionValue} onValueChange={selectOrganizationValue} disabled={isSaving}>
 			<Select.Trigger class={selectTriggerClass} aria-label={text.organization.organization}>
-				{primaryGroupLabel()}
+				{organizationLabel()}
 			</Select.Trigger>
 			<Select.Content>
 				<Select.Item value={noSelectionValue} label={text.organization.none}>{text.organization.none}</Select.Item>
