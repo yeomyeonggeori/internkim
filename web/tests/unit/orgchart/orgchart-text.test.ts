@@ -1,17 +1,17 @@
 import { describe, expect, test } from 'bun:test';
-import { orgchartDirectoryText } from '../../../src/routes/orgchart/text';
+import { organizationDirectoryText } from '../../../src/routes/organization/text';
 
 type TextTree = { readonly [key: string]: TextNode };
 type TextNode = string | readonly string[] | TextTree;
 
-describe('orgchart directory text', () => {
+describe('organization directory text', () => {
 	test('keeps Korean and English key shapes aligned', () => {
-		expect(collectTextShape(orgchartDirectoryText.en).sort()).toEqual(collectTextShape(orgchartDirectoryText.ko).sort());
+		expect(collectTextShape(organizationDirectoryText.en).sort()).toEqual(collectTextShape(organizationDirectoryText.ko).sort());
 	});
 
 	test('names the directory and synthetic root organization explicitly', () => {
-		expect(orgchartDirectoryText.ko.title).toBe('조직도');
-		expect(orgchartDirectoryText.ko.allOrganizations).toBe('전체 조직');
+		expect(organizationDirectoryText.ko.title).toBe('조직도');
+		expect(organizationDirectoryText.ko.allOrganizations).toBe('전체 조직');
 	});
 });
 

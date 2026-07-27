@@ -18,7 +18,7 @@ describe('appShellText', () => {
 				appShellText.ko.memory,
 				appShellText.ko.mail,
 				appShellText.ko.attendance,
-				appShellText.ko.orgchart,
+				appShellText.ko.organization,
 				appShellText.ko.files
 			],
 			en: [
@@ -27,7 +27,7 @@ describe('appShellText', () => {
 				appShellText.en.memory,
 				appShellText.en.mail,
 				appShellText.en.attendance,
-				appShellText.en.orgchart,
+				appShellText.en.organization,
 				appShellText.en.files
 			]
 		};
