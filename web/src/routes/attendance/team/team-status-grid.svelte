@@ -60,7 +60,8 @@
 			<FilterCombobox
 				bind:value={searchText}
 				options={memberOptions}
-				label={text.teamMemberSearchPlaceholder}
+				label={text.teamMemberSelectLabel}
+				searchPlaceholder={text.teamMemberSearchPlaceholder}
 				class="w-full min-w-0 sm:w-48"
 			/>
 		</div>

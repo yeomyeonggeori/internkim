@@ -12,7 +12,6 @@
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { cn } from '$lib/utils.js';
-	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import { tick } from 'svelte';
 
@@ -20,12 +19,14 @@
 		value = $bindable(''),
 		options,
 		label,
+		searchPlaceholder,
 		clearValue = '',
 		class: className
 	}: {
 		value?: string;
 		options: FilterComboboxOption[];
 		label: string;
+		searchPlaceholder?: string;
 		clearValue?: string;
 		class?: string;
 	} = $props();
@@ -61,13 +62,17 @@
 	</Popover.Trigger>
 	<Popover.Content class="w-[200px] p-0">
 		<Command.Root>
-			<Command.Input placeholder={label} />
+			<Command.Input placeholder={searchPlaceholder ?? text.search} />
 			<Command.List>
 				<Command.Empty>{text.searchNoResults}</Command.Empty>
 				<Command.Group value="options">
 					{#each options as option (option.value)}
-						<Command.Item value={option.value} keywords={[option.label]} onSelect={() => selectOption(option.value)}>
-							<CheckIcon class={cn(value !== option.value && 'opacity-0')} />
+						<Command.Item
+							value={option.value}
+							keywords={[option.label]}
+							data-checked={value === option.value}
+							onSelect={() => selectOption(option.value)}
+						>
 							{option.label}
 						</Command.Item>
 					{/each}
