@@ -36,7 +36,7 @@
 	let isOrganizationSheetOpen = $state(false);
 
 	$effect(() => {
-		breadcrumbMeta.value = controller.selectedOrganizationName;
+		breadcrumbMeta.value = controller.groupID ? controller.selectedOrganizationName : '';
 		return () => {
 			breadcrumbMeta.value = '';
 		};
