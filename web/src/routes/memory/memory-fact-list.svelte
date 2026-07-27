@@ -1,11 +1,10 @@
 <script lang="ts">
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { Badge } from '$lib/components/ui/badge';
+	import FilterCombobox from '$lib/components/filter-combobox.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { Input } from '$lib/components/ui/input';
-	import * as Select from '$lib/components/ui/select';
-	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -149,21 +148,16 @@
 			<SearchIcon class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 			<Input bind:value={filters.searchText} placeholder={text.factFilterPlaceholder} autocomplete="off" class="pl-8" />
 		</div>
-		{@render FilterSelect(sourceKindOptions, filters.sourceKind, (value: string) => (filters.sourceKind = value))}
-		{@render FilterSelect(scopeOptions, filters.scope, (value: string) => (filters.scope = value))}
+		<FilterCombobox bind:value={filters.sourceKind} options={sourceKindOptions} label={text.factFilterKindAll} clearValue="all" class="w-36" />
+		<FilterCombobox bind:value={filters.scope} options={scopeOptions} label={text.factFilterScopeAll} clearValue="all" class="w-36" />
 		{#if hasActiveFilters}
 			<Button type="button" variant="ghost" size="sm" onclick={resetFilters} class="gap-2">
 				<RotateCcwIcon class="size-4" />
 				{text.factFilterReset}
 			</Button>
 		{/if}
-		<Button type="button" variant="outline" size="sm" disabled={isLoading} onclick={loadMemoryGraph} class="gap-2">
-			{#if isLoading}
-				<LoaderIcon class="size-4 animate-spin" />
-			{:else}
-				<RefreshCwIcon class="size-4" />
-			{/if}
-			{text.refresh}
+		<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={loadMemoryGraph} aria-label={text.refresh} title={text.refresh}>
+			<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
 		</Button>
 	</div>
 
@@ -211,18 +205,6 @@
 	{/if}
 </section>
 
-{#snippet FilterSelect(options: { value: string; label: string }[], value: string, onchange: (value: string) => void)}
-	<Select.Root type="single" {value} onValueChange={onchange}>
-		<Select.Trigger class="w-36" size="sm">
-			{options.find((option) => option.value === value)?.label ?? '-'}
-		</Select.Trigger>
-		<Select.Content>
-			{#each options as option (option.value)}
-				<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
-			{/each}
-		</Select.Content>
-	</Select.Root>
-{/snippet}
 
 <style>
 	.memory-fact-markdown :global(h1) {

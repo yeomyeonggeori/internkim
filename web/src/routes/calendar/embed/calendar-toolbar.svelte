@@ -7,23 +7,18 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { calendarText } from '../text';
 	import { dateKeyFromDate } from './calendar-month-selection';
-	import type { CalendarSearchResult } from './calendar-search';
-	import CalendarSearchBox from './calendar-search-box.svelte';
 	import CalendarToolbarDatePicker from './calendar-toolbar-date-picker.svelte';
 	import CalendarViewSwitcher from './calendar-view-switcher.svelte';
 
 	type CalendarToolbarProps = {
 		currentMonthTitle: string;
 		toolbarDate: Date;
-		searchText: string;
-		searchResults: CalendarSearchResult[];
 		toolbarView: ViewType;
 		localeCode: string;
 		changeCalendarView: (viewType: ViewType) => void;
 		goToPrevious: () => void;
 		goToNext: () => void;
 		navigateToDateKey: (dateKey: string) => void;
-		navigateToSearchResult: (result: CalendarSearchResult) => void;
 		createQuickEvent: (event: MouseEvent) => void;
 		openSettings: () => void;
 	};
@@ -31,15 +26,12 @@
 	let {
 		currentMonthTitle,
 		toolbarDate,
-		searchText = $bindable(''),
-		searchResults,
 		toolbarView,
 		localeCode,
 		changeCalendarView,
 		goToPrevious,
 		goToNext,
 		navigateToDateKey,
-		navigateToSearchResult,
 		createQuickEvent,
 		openSettings
 	}: CalendarToolbarProps = $props();
@@ -121,7 +113,6 @@
 		</Button>
 	</div>
 	<div class="calendar-toolbar-search-row">
-		<CalendarSearchBox bind:searchText {searchResults} {navigateToSearchResult} />
 		<Button size="sm" class="mobile-new-event-button shrink-0" aria-label={text.new} onclick={(event) => createQuickEvent(event)}>
 			<PlusIcon />
 			{text.new}
