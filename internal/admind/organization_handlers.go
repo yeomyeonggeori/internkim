@@ -25,6 +25,7 @@ type organizationProfileRequest struct {
 	Email        string  `json:"email"`
 	JobTitle     *string `json:"jobTitle"`
 	GroupID      *string `json:"groupID"`
+	PhoneNumber  *string `json:"phoneNumber"`
 	SupervisorID *string `json:"supervisorID"`
 }
 
@@ -81,10 +82,16 @@ func (service *Service) organizationProfilesFromRequest(ctx context.Context, req
 		return nil, errorValue
 	}
 	profilesByUserID, profilesByEmail := organizationProfileIndexes(existingProfiles)
+	callingCode := service.workspaceCallingCode()
 	profiles := make([]organizationProfile, 0, len(requestProfiles))
 	for _, requestProfile := range requestProfiles {
 		profile := organizationProfileForRequest(requestProfile, profilesByUserID, profilesByEmail)
 		profile = applyOrganizationProfileRequest(profile, requestProfile)
+		phoneNumber, errorValue := normalizeInternationalPhoneNumber(profile.PhoneNumber, callingCode)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		profile.PhoneNumber = phoneNumber
 		profiles = append(profiles, profile)
 	}
 	if errorValue := validateOrganizationSupervisorGraph(existingProfiles, profiles); errorValue != nil {
@@ -158,6 +165,9 @@ func applyOrganizationProfileRequest(profile organizationProfile, requestProfile
 	}
 	if requestProfile.GroupID != nil {
 		profile.GroupID = *requestProfile.GroupID
+	}
+	if requestProfile.PhoneNumber != nil {
+		profile.PhoneNumber = *requestProfile.PhoneNumber
 	}
 	if requestProfile.SupervisorID != nil {
 		profile.SupervisorID = *requestProfile.SupervisorID

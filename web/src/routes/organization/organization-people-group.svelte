@@ -94,7 +94,7 @@
 								{record.hireDate}
 							{/if}
 						</span>
-						<OrganizationPersonContactActions email={record.email} {text} />
+						<OrganizationPersonContactActions email={record.email} phoneNumber={record.phoneNumber ?? ''} {text} />
 					</div>
 				</Item.Content>
 				{#if leadership}

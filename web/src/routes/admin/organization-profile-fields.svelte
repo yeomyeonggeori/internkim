@@ -78,6 +78,17 @@
 			</Select.Content>
 		</Select.Root>
 	</div>
+	<label class={fieldClass}>
+		<Label class="text-xs">{text.organization.phoneNumber}</Label>
+		<Input
+			class={controlClass}
+			bind:value={record.phoneNumber}
+			placeholder={text.organization.phoneNumberPlaceholder}
+			autocomplete="off"
+			inputmode="tel"
+			disabled={isSaving}
+		/>
+	</label>
 	<div class={fieldClass}>
 		<Label class="text-xs">{text.organization.supervisor}</Label>
 		<Select.Root type="single" value={record.supervisorID || noSelectionValue} onValueChange={selectSupervisorValue} disabled={isSaving}>

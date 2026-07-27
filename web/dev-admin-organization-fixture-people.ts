@@ -53,6 +53,12 @@ function userRecord(person: DevAdminOrganizationPerson, userEmail: string, userR
 		status: 'active',
 		jobTitle: person.jobTitle,
 		groupID: person.groupID,
+		phoneNumber: devPhoneNumber(person.userID),
 		supervisorID: person.supervisorID
 	};
+}
+
+function devPhoneNumber(userID: string): string {
+	const digits = Array.from(userID).reduce((total, character) => (total * 31 + character.charCodeAt(0)) % 100000000, 7);
+	return `+8210${String(digits).padStart(8, '0')}`;
 }

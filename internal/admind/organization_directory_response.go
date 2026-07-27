@@ -14,6 +14,7 @@ type organizationDirectoryRecord struct {
 	HireDate     string `json:"hireDate,omitempty"`
 	JobTitle     string `json:"jobTitle,omitempty"`
 	GroupID      string `json:"groupID,omitempty"`
+	PhoneNumber  string `json:"phoneNumber,omitempty"`
 	SupervisorID string `json:"supervisorID,omitempty"`
 }
 
@@ -38,6 +39,7 @@ func newOrganizationDirectoryRecord(record adminUserMutation) organizationDirect
 		HireDate:     record.HireDate,
 		JobTitle:     record.JobTitle,
 		GroupID:      record.GroupID,
+		PhoneNumber:  record.PhoneNumber,
 		SupervisorID: record.SupervisorID,
 	}
 }

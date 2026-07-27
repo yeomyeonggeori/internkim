@@ -6,7 +6,7 @@ const (
 	organizationPeopleCacheList         organizationPeopleCacheKind = "list"
 	organizationPeopleCachePerson       organizationPeopleCacheKind = "person"
 	organizationPeopleCacheGroups       organizationPeopleCacheKind = "groups"
-	organizationPeopleCacheSingletonKey                         = "all"
+	organizationPeopleCacheSingletonKey                             = "all"
 )
 
 type organizationPeopleCacheKey struct {
