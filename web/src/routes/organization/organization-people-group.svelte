@@ -37,6 +37,9 @@
 	{#each { length: depth } as _, level (level)}
 		<span class="bg-border absolute inset-y-0 w-px" style={`left: ${level * 16 + 20}px`} aria-hidden="true"></span>
 	{/each}
+	{#if section.records.length > 0}
+		<span class="bg-border absolute bottom-0 top-9 w-px" style={`left: ${depth * 16 + 20}px`} aria-hidden="true"></span>
+	{/if}
 	<div class="flex h-9 items-center gap-1 pr-2" style={`padding-left: ${depth * 16 + 8}px`}>
 		<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
 			{#if section.id}
