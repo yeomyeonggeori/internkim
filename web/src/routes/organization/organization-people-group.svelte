@@ -51,7 +51,11 @@
 		<h3 class="min-w-0 flex-1 truncate text-sm font-medium">{section.name}</h3>
 		<span class="text-muted-foreground shrink-0 text-xs tabular-nums">{section.memberCount}{text.memberCountUnit}</span>
 	</div>
-	<Item.Group class="gap-2 pr-2" style={`padding-left: ${depth * 16 + 36}px`} data-testid={`organization-members-${section.id || 'root'}`}>
+	<Item.Group
+		class="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-2 pr-2"
+		style={`padding-left: ${depth * 16 + 36}px`}
+		data-testid={`organization-members-${section.id || 'root'}`}
+	>
 		{#each section.records as record (record.userID)}
 			{@const responsibility = responsibilityLabel(record)}
 			<Item.Root variant="outline" class={selectedUserID === record.userID ? 'ring-ring ring-1' : ''}>
