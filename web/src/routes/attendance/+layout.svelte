@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount } from 'svelte';
 	import { AttendanceState, setAttendanceState } from './attendance-context.svelte';
@@ -22,6 +23,7 @@
 
 	onMount(() => {
 		void attendance.load();
+		const releaseRefresh = pageActions.setRefresh(() => attendance.load());
 		window.addEventListener('focus', refreshServerClock);
 		window.addEventListener('pageshow', refreshServerClock);
 		document.addEventListener('visibilitychange', refreshVisibleServerClock);
@@ -29,6 +31,7 @@
 			window.removeEventListener('focus', refreshServerClock);
 			window.removeEventListener('pageshow', refreshServerClock);
 			document.removeEventListener('visibilitychange', refreshVisibleServerClock);
+			releaseRefresh();
 		};
 	});
 

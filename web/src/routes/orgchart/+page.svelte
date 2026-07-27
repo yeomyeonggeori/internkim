@@ -49,7 +49,6 @@
 		<header class="border-b bg-background px-4 py-3 sm:px-6">
 			<div class="grid gap-3 lg:flex lg:items-center lg:justify-between">
 				<div class="flex min-h-10 items-center justify-between gap-3">
-					<h1 class="text-xl font-semibold">{text.title}</h1>
 					{#if detailSheetViewport.current}
 						<div class="flex shrink-0 items-center gap-2">
 							<Button type="button" size="sm" variant="outline" onclick={() => (isOrganizationSheetOpen = true)}>
