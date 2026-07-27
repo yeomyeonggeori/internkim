@@ -30,19 +30,27 @@
 	} = $props();
 
 	const section = $derived(node.section);
+	let sectionElement = $state<HTMLElement>();
 	let headerElement = $state<HTMLElement>();
 	let isHeaderStuck = $state(false);
+	let isNestedHeaderStuck = $state(false);
 	const depth = $derived(Math.min(section.depth, 8));
 	const today = new Date();
 
 	$effect(() => {
 		const header = headerElement;
-		if (!header) return;
+		const sectionBox = sectionElement;
+		if (!header || !sectionBox) return;
 		const scrollElement = header.closest('[data-organization-scroll]');
 		if (!scrollElement) return;
 		const stickyOffset = depth * 36;
+		const isStuck = (element: HTMLElement, offset: number) =>
+			element.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top <= offset + 0.5;
 		const updateStuckState = () => {
-			isHeaderStuck = header.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top <= stickyOffset + 0.5;
+			isHeaderStuck = isStuck(header, stickyOffset);
+			isNestedHeaderStuck = Array.from(sectionBox.querySelectorAll<HTMLElement>('[data-organization-header]')).some(
+				(nestedHeader) => nestedHeader !== header && isStuck(nestedHeader, Number(nestedHeader.dataset.stickyOffset ?? 0))
+			);
 		};
 		updateStuckState();
 		scrollElement.addEventListener('scroll', updateStuckState, { passive: true });
@@ -75,13 +83,19 @@
 	}
 </script>
 
-<section class={['relative min-w-0 pb-3', depth > 0 && 'mt-4']} data-testid={`organization-section-${section.id || 'root'}`}>
+<section
+	class={['relative min-w-0 pb-3', depth > 0 && 'mt-4']}
+	bind:this={sectionElement}
+	data-testid={`organization-section-${section.id || 'root'}`}
+>
 	{#if section.records.length > 0 || node.children.length > 0}
 		<span class="bg-border absolute bottom-0 top-9 w-px" style={`left: ${depth * 16 + 20}px; z-index: ${39 - depth * 2}`} aria-hidden="true"></span>
 	{/if}
 	<div
 		class="bg-background sticky flex h-9 items-center gap-1 pr-2"
 		style={`padding-left: ${depth * 16 + 8}px; top: ${depth * 36}px; z-index: ${40 - depth * 2}`}
+		data-organization-header
+		data-sticky-offset={depth * 36}
 		bind:this={headerElement}
 	>
 		<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
@@ -100,7 +114,7 @@
 		<span
 			class={[
 				'from-foreground/12 pointer-events-none absolute top-full right-0 h-2 bg-gradient-to-b to-transparent transition-opacity duration-200 [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]',
-				isHeaderStuck ? 'opacity-100' : 'opacity-0'
+				isHeaderStuck && !isNestedHeaderStuck ? 'opacity-100' : 'opacity-0'
 			]}
 			style={`left: ${depth * 16 + 8}px`}
 			aria-hidden="true"
