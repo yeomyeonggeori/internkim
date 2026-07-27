@@ -8,6 +8,10 @@ declare module 'bun:test' {
 		toEqual(expected: unknown): void;
 		toMatchObject(expected: unknown): void;
 		toThrow(expected?: unknown): void;
+		toContain(expected: unknown): void;
+		toHaveLength(expected: number): void;
+		toBeNull(): void;
+		toBeInstanceOf(expected: unknown): void;
 	};
 
 	export function beforeEach(callback: () => void | Promise<void>): void;
