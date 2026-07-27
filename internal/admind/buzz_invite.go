@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
 	"net/url"
@@ -137,7 +136,14 @@ func (service *Service) handleBuzzInviteCreate(responseWriter http.ResponseWrite
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	identity, identityError := service.generateBuzzIdentity(request.Context())
+	secretHex, identityError := service.personBuzzSecret(request.Context(), email)
+	var identityPubkey string
+	if identityError == nil {
+		identityPubkey, identityError = buzzPublicKey(secretHex)
+	}
+	if identityError != nil {
+		log.Printf("buzz identity derivation failed for %s: %v", email, identityError)
+	}
 	store := service.buzzStore()
 	store.mutex.Lock()
 	invite := buzzInvite{
@@ -148,11 +154,8 @@ func (service *Service) handleBuzzInviteCreate(responseWriter http.ResponseWrite
 		ExpiresAt: expiresAt,
 	}
 	if identityError == nil {
-		invite.IdentityPubkey = identity.publicKey
-		store.state.Links[identity.publicKey] = email
-		if vaultError := service.storeBuzzIdentitySecret(email, identity.secretKey); vaultError != nil {
-			log.Printf("buzz identity vault write failed for %s: %v", email, vaultError)
-		}
+		invite.IdentityPubkey = identityPubkey
+		store.state.Links[identityPubkey] = email
 	}
 	store.state.Invites = append(store.state.Invites, invite)
 	store.save()
@@ -166,58 +169,14 @@ func (service *Service) handleBuzzInviteCreate(responseWriter http.ResponseWrite
 		"expiresAt": expiresAt.Format(time.RFC3339),
 	}
 	if identityError == nil {
-		response["identityPubkey"] = identity.publicKey
-		if nsec, nsecError := encodeBuzzNsec(identity.secretKey); nsecError == nil {
+		response["identityPubkey"] = identityPubkey
+		if nsec, nsecError := encodeBuzzNsec(secretHex); nsecError == nil {
 			response["identityPrivateKey"] = nsec
 		} else {
-			response["identityPrivateKey"] = identity.secretKey
+			response["identityPrivateKey"] = secretHex
 		}
 	}
 	service.writeJSON(responseWriter, response)
-}
-
-type buzzGeneratedIdentity struct {
-	publicKey string
-	secretKey string
-}
-
-func (service *Service) generateBuzzIdentity(ctx context.Context) (buzzGeneratedIdentity, error) {
-	commandPath := strings.TrimSpace(service.Configuration.BuzzAdminCommandPath)
-	if commandPath == "" {
-		return buzzGeneratedIdentity{}, errNoBuzzAdminCommand
-	}
-	output, errorValue := exec.CommandContext(ctx, commandPath, "generate-key").Output()
-	if errorValue != nil {
-		return buzzGeneratedIdentity{}, errorValue
-	}
-	return parseBuzzGeneratedIdentity(string(output))
-}
-
-var errNoBuzzAdminCommand = errors.New("buzz admin command is not configured")
-var errUnparsableGeneratedIdentity = errors.New("generate-key output has no key pair")
-
-func parseBuzzGeneratedIdentity(output string) (buzzGeneratedIdentity, error) {
-	identity := buzzGeneratedIdentity{}
-	for _, line := range strings.Split(output, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 3 {
-			continue
-		}
-		value := strings.ToLower(fields[len(fields)-1])
-		if len(value) != 64 || !isLowercaseHexString(value) {
-			continue
-		}
-		switch {
-		case strings.HasPrefix(line, "Public key:"):
-			identity.publicKey = value
-		case strings.HasPrefix(line, "Secret key:"):
-			identity.secretKey = value
-		}
-	}
-	if identity.publicKey == "" || identity.secretKey == "" {
-		return buzzGeneratedIdentity{}, errUnparsableGeneratedIdentity
-	}
-	return identity, nil
 }
 
 func (service *Service) buzzInviteURL(code string) string {
