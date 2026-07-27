@@ -10,8 +10,8 @@ describe('organization directory text', () => {
 	});
 
 	test('names the directory and synthetic root organization explicitly', () => {
-		expect(organizationDirectoryText.ko.title).toBe('조직도');
-		expect(organizationDirectoryText.ko.allOrganizations).toBe('회사');
+		expect(organizationDirectoryText.ko.title).toBe('조직');
+		expect(organizationDirectoryText.ko.allOrganizations).toBe('전체');
 	});
 });
 

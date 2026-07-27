@@ -8,11 +8,13 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
 	import UserRoundIcon from '@lucide/svelte/icons/user-round';
+	import ComponentIcon from '@lucide/svelte/icons/component';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { onMount } from 'svelte';
 	import { adminText } from '../admin/text';
 	import OrganizationAddOrganizationDialog from './organization-add-organization-dialog.svelte';
 	import { OrganizationDirectoryController } from './organization-directory-controller.svelte';
+	import { unassignedGroupID } from './organization-directory-model';
 	import OrganizationOrganizationTree from './organization-tree.svelte';
 	import OrganizationPeopleLayer from './organization-people-layer.svelte';
 	import OrganizationPersonDetailPanel from './organization-person-detail-panel.svelte';
@@ -34,6 +36,11 @@
 			image: record.image ?? ''
 		}))
 	);
+	const organizationOptions = $derived([
+		{ value: '', label: text.allOrganizations },
+		...controller.options.groups.map((group) => ({ value: group.id, label: group.name })),
+		...(controller.options.hasUnassigned ? [{ value: unassignedGroupID, label: text.unassignedTeam }] : [])
+	]);
 	const isDetailSheetOpen = $derived(Boolean(controller.selectedRecord));
 	let isOrganizationSheetOpen = $state(false);
 
@@ -98,11 +105,23 @@
 									</Button>
 								{/if}
 								<FilterCombobox
+									value={controller.groupID || ''}
+									onSelect={(groupID) => controller.selectGroup(groupID)}
+									options={organizationOptions}
+									label={text.organization}
+									searchPlaceholder={text.organization}
+									class="ml-auto w-full sm:w-52"
+								>
+									{#snippet icon()}
+										<ComponentIcon class="size-4 shrink-0 opacity-60" />
+									{/snippet}
+								</FilterCombobox>
+								<FilterCombobox
 									bind:value={controller.query}
 									options={personOptions}
 									label={text.selectEmployee}
 									searchPlaceholder={text.searchPlaceholder}
-									class="ml-auto w-full sm:w-72"
+									class="w-full sm:w-72"
 								>
 									{#snippet icon()}
 										<UserRoundIcon class="size-4 shrink-0 opacity-60" />

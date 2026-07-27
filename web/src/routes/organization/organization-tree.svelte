@@ -84,7 +84,11 @@
 	function selectNode(groupID: string): void {
 		if (isEditing) return;
 		onSelect(groupID);
-		if (hasChildren(groupID)) toggleExpanded(groupID);
+		if (hasChildren(groupID)) expandGroup(groupID);
+	}
+
+	function expandGroup(groupID: string): void {
+		expandedGroupIDs = { ...expandedGroupIDs, [groupID]: true };
 	}
 
 	function toggleExpanded(groupID: string): void {
@@ -199,26 +203,33 @@
 						<GripVerticalIcon class="size-4" />
 					</span>
 				{/if}
-				<button
-					type="button"
-					class="flex min-w-0 flex-1 items-center gap-1 text-left text-sm"
-					aria-expanded={hasChildren(node.id) ? isExpanded(node.id) : undefined}
-					aria-label={hasChildren(node.id)
-						? `${node.name} ${isExpanded(node.id) ? text.collapseOrganization : text.expandOrganization}`
-						: node.name}
-					onclick={() => selectNode(node.id)}
-				>
-					{#if !isEditing}
-						<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
-							{#if !hasChildren(node.id)}
-								<ComponentIcon class="size-4" />
-							{:else if isExpanded(node.id)}
+				{#if !isEditing}
+					{#if hasChildren(node.id)}
+						<button
+							type="button"
+							class="text-muted-foreground hover:bg-accent grid size-6 shrink-0 place-items-center rounded-md"
+							aria-expanded={isExpanded(node.id)}
+							aria-label={`${node.name} ${isExpanded(node.id) ? text.collapseOrganization : text.expandOrganization}`}
+							onclick={() => toggleExpanded(node.id)}
+						>
+							{#if isExpanded(node.id)}
 								<ChevronDownIcon class="size-4" />
 							{:else}
 								<ChevronRightIcon class="size-4" />
 							{/if}
+						</button>
+					{:else}
+						<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
+							<ComponentIcon class="size-4" />
 						</span>
 					{/if}
+				{/if}
+				<button
+					type="button"
+					class="flex min-w-0 flex-1 items-center gap-1 text-left text-sm"
+					aria-label={node.name}
+					onclick={() => selectNode(node.id)}
+				>
 					<span class="min-w-0 truncate">{node.name}</span>
 					{#if hasChildren(node.id)}
 						<OrganizationCountBadge count={childCount(node.id)} label={text.organization}>
