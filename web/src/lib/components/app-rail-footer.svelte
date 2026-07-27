@@ -6,37 +6,30 @@
 
 	let {
 		contactItem,
-		profileMenuOpen = $bindable(false),
 		displayUserName,
 		userEmail,
 		userImage,
 		labels,
-		openAPITokenSheet,
 		logOut
 	}: {
 		contactItem: AppRailItem;
-		profileMenuOpen?: boolean;
 		displayUserName: string;
 		userEmail: string;
 		userImage?: string;
 		labels: AppRailProfileMenuLabels;
-		openAPITokenSheet: () => void;
 		logOut: () => void | Promise<void>;
 	} = $props();
 </script>
 
-<Sidebar.Footer class="gap-1 p-0">
-	<Sidebar.Menu class="gap-1">
+<Sidebar.Footer>
+	<Sidebar.Menu>
 		<AppRailNavItem item={contactItem} isExternal />
+		<AppRailProfileMenu
+			{displayUserName}
+			{userEmail}
+			{userImage}
+			{labels}
+			{logOut}
+		/>
 	</Sidebar.Menu>
-
-	<AppRailProfileMenu
-		bind:open={profileMenuOpen}
-		{displayUserName}
-		{userEmail}
-		{userImage}
-		{labels}
-		{openAPITokenSheet}
-		{logOut}
-	/>
 </Sidebar.Footer>

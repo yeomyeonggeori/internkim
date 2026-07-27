@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { adminApiFetch } from '$lib/admin-api';
-	import AccountAPITokenSheet from '$lib/components/account-api-token-sheet.svelte';
 	import { feedbackFormURL } from '$lib/components/app-rail-config';
 	import AppRailContent from '$lib/components/app-rail-content.svelte';
 	import AppRailFooter from '$lib/components/app-rail-footer.svelte';
-	import AppRailHeader from '$lib/components/app-rail-header.svelte';
 	import AppRailShell from '$lib/components/app-rail-shell.svelte';
+	import { attendanceClock } from '$lib/components/attendance-clock.svelte';
+	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
+	import { isPlainShortcut } from '$lib/keyboard-shortcut';
+	import { ConfirmDeleteDialog, confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import type { AppRailItem } from '$lib/components/app-rail-types';
 	import AppMobileNavigation from '$lib/components/app-mobile-navigation.svelte';
 	import type { AppMobileNavigationItem } from '$lib/components/app-mobile-navigation.svelte';
@@ -28,15 +30,13 @@
 	let userEmail = $state('');
 	let userImage = $state('');
 	const text = createPageText(appShellText);
-	let isProfileMenuOpen = $state(false);
-	let isAPITokenSheetOpen = $state(false);
+	const sidebar = useSidebar();
 	let adminRole = $state<UserRole>('member');
 	let canViewTasks = $state(false);
 	let isPocSuperAdmin = $state(false);
 	let userName = $state('');
 	const currentPath = $derived(page.url.pathname);
 	const displayUserName = $derived(userName || text.workspace);
-	const canViewAdminNavigation = $derived(adminRole === 'admin' || adminRole === 'operationsAdmin');
 
 	const apps = $derived<AppRailItem[]>([
 		{ href: '/flow/', label: text.flow, icon: ListChecksIcon },
@@ -60,7 +60,7 @@
 
 	const workspace = $derived<AppRailItem[]>([
 		...(taskRunsItem ? [taskRunsItem] : []),
-		...(canViewAdminNavigation ? [{ href: '/admin/', label: text.admin, icon: CogIcon }] : [])
+		{ href: '/settings/', label: text.settings, icon: CogIcon }
 	]);
 
 	const mobilePrimaryItems = $derived<AppMobileNavigationItem[]>([
@@ -80,13 +80,18 @@
 	const contactItem = $derived<AppRailItem>({ href: feedbackFormURL, label: text.contact, icon: CircleHelpIcon });
 	const profileMenuLabels = $derived({
 		account: text.account,
-		apiTokens: text.apiTokens,
-		activity: text.activity,
 		logOut: text.logOut,
 		activeWorkspace: text.activeWorkspace
 	});
 
 	onMount(loadUser);
+
+	function handleKeydown(event: KeyboardEvent) {
+		attendanceClock.handleShortcut(event);
+		if (!isPlainShortcut(event, 'Comma')) return;
+		event.preventDefault();
+		sidebar.toggle();
+	}
 
 	function isActive(href: string) {
 		const base = href.replace(/\/$/, '');
@@ -100,15 +105,13 @@
 	}
 
 	async function loadUser() {
-		if (!currentPath.startsWith('/admin')) {
-			const hasWebUser = await loadWebUser();
-			if (!hasWebUser) {
-				adminRole = 'member';
-				canViewTasks = false;
-				isPocSuperAdmin = false;
-				userImage = '';
-				return;
-			}
+		const hasWebUser = await loadWebUser();
+		if (!hasWebUser) {
+			adminRole = 'member';
+			canViewTasks = false;
+			isPocSuperAdmin = false;
+			userImage = '';
+			return;
 		}
 		try {
 			const response = await adminApiFetch('/admin/api/session');
@@ -183,6 +186,16 @@
 		}
 	}
 
+	function requestLogOut() {
+		confirmDelete({
+			title: text.logOutConfirmTitle,
+			description: text.logOutConfirmDescription,
+			confirm: { text: text.logOut },
+			cancel: { text: text.cancel },
+			onConfirm: logOut
+		});
+	}
+
 	async function logOut() {
 		let redirectURL = '/flow/';
 		try {
@@ -195,38 +208,31 @@
 			location.replace(redirectURL);
 		}
 	}
-
-	function openAPITokenSheet() {
-		isAPITokenSheetOpen = true;
-	}
 </script>
 
-<AppRailShell {isProfileMenuOpen}>
-	<AppRailHeader />
-	<AppRailContent {apps} {workspace} {currentPath} />
+<svelte:window onkeydown={handleKeydown} />
+
+<AppRailShell>
+	<AppRailContent {apps} appsLabel={text.apps} {workspace} workspaceLabel={text.workspace} {currentPath} />
 	<AppRailFooter
 		contactItem={contactItem}
-		bind:profileMenuOpen={isProfileMenuOpen}
 		{displayUserName}
 		{userEmail}
 		{userImage}
 		labels={profileMenuLabels}
-		{openAPITokenSheet}
-		{logOut}
+		logOut={requestLogOut}
 	/>
 </AppRailShell>
 
 <AppMobileNavigation
-	{canViewAdminNavigation}
 	displayUserName={displayUserName}
 	{isActive}
-	{logOut}
+	logOut={requestLogOut}
 	moreItems={mobileMoreItems}
-	{openAPITokenSheet}
 	primaryItems={mobilePrimaryItems}
 	{text}
 	{userEmail}
 	{userImage}
 />
 
-<AccountAPITokenSheet bind:open={isAPITokenSheetOpen} />
+<ConfirmDeleteDialog />

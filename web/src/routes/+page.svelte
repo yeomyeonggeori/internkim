@@ -12,6 +12,7 @@
 	import { onMount } from 'svelte';
 	import { fetchAdminSession } from './admin/admin-api';
 	import { adminSessionRole, canViewAdminSection, firstVisibleAdminSection } from './admin/admin-role-policy';
+	import APITokenSection from './admin/api-token-section.svelte';
 	import BackupSection from './admin/backup-section.svelte';
 	import BotSection from './admin/bot-section.svelte';
 	import CredentialsSection from './admin/credentials-section.svelte';
@@ -36,7 +37,8 @@
 		{ value: 'bot', isDeviceManagedOnly: false },
 		{ value: 'settings', isDeviceManagedOnly: false },
 		{ value: 'sharing', isDeviceManagedOnly: false },
-		{ value: 'network', isDeviceManagedOnly: true }
+		{ value: 'network', isDeviceManagedOnly: true },
+		{ value: 'apiTokens', isDeviceManagedOnly: false }
 	];
 
 	let fleetIdInput = $state('');
@@ -165,38 +167,40 @@
 			</div>
 		</header>
 
-		<section class="grid gap-4 py-8 sm:grid-cols-[190px_1fr]">
-			<div class="flex items-center justify-center rounded-lg border bg-muted/30 p-4">
-				{#if mattermostURL()}
-					<QrCode value={mattermostURL()} size="150" />
-				{:else}
-					<MessageSquareIcon class="text-muted-foreground size-16" strokeWidth={1.5} />
-				{/if}
-			</div>
-			<div class="flex min-w-0 flex-col justify-center gap-4">
-				<div>
-					<h2 class="text-2xl font-semibold">{text.heroTitle}</h2>
-					<p class="text-muted-foreground mt-2 text-sm leading-6">
-						{text.heroDescription}
-					</p>
+		{#if currentAdminRole !== 'member'}
+			<section class="grid gap-4 py-8 sm:grid-cols-[190px_1fr]">
+				<div class="flex items-center justify-center rounded-lg border bg-muted/30 p-4">
+					{#if mattermostURL()}
+						<QrCode value={mattermostURL()} size="150" />
+					{:else}
+						<MessageSquareIcon class="text-muted-foreground size-16" strokeWidth={1.5} />
+					{/if}
 				</div>
-				{#if mattermostURL()}
-					<div class="flex flex-wrap items-center gap-2">
-						<Button href={mattermostURL()} data-sveltekit-reload class="gap-2">
-							<ExternalLinkIcon class="size-4" />
-							{text.openMattermost}
-						</Button>
-						<CopyButton text={mattermostURL()} variant="outline" />
+				<div class="flex min-w-0 flex-col justify-center gap-4">
+					<div>
+						<h2 class="text-2xl font-semibold">{text.heroTitle}</h2>
+						<p class="text-muted-foreground mt-2 text-sm leading-6">
+							{text.heroDescription}
+						</p>
 					</div>
-				{:else}
-					<p class="text-muted-foreground rounded-md border bg-muted/30 px-3 py-2 text-sm">
-						{text.devicePending}
-					</p>
-				{/if}
-			</div>
-		</section>
+					{#if mattermostURL()}
+						<div class="flex flex-wrap items-center gap-2">
+							<Button href={mattermostURL()} data-sveltekit-reload class="gap-2">
+								<ExternalLinkIcon class="size-4" />
+								{text.openMattermost}
+							</Button>
+							<CopyButton text={mattermostURL()} variant="outline" />
+						</div>
+					{:else}
+						<p class="text-muted-foreground rounded-md border bg-muted/30 px-3 py-2 text-sm">
+							{text.devicePending}
+						</p>
+					{/if}
+				</div>
+			</section>
 
-		<Separator />
+			<Separator />
+		{/if}
 
 		<nav class="flex w-full min-w-0 gap-1 overflow-x-auto py-4">
 			{#each adminSections() as section}
@@ -252,6 +256,8 @@
 					<CompanyShareSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
 				{:else if activeAdminSection === 'network'}
 					<NetworkSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+				{:else if activeAdminSection === 'apiTokens'}
+					<APITokenSection />
 				{/if}
 			</section>
 		{/if}
