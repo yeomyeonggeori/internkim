@@ -1,15 +1,16 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import CrownIcon from '@lucide/svelte/icons/crown';
+	import TimerIcon from '@lucide/svelte/icons/timer';
 	import FlagTriangleRightIcon from '@lucide/svelte/icons/flag-triangle-right';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
-	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import ComponentIcon from '@lucide/svelte/icons/component';
 	import { Badge } from '$lib/components/ui/badge';
 	import OrganizationCountBadge from './organization-count-badge.svelte';
 	import OrganizationPersonContactActions from './organization-person-contact-actions.svelte';
 	import * as Item from '$lib/components/ui/item';
+	import * as Tooltip from '$lib/components/ui/tooltip';
 	import type { UserRecord } from '$lib/organization/types';
 	import { organizationTenure } from './organization-tenure';
 	import type { OrganizationOrganizationSection } from './organization-model';
@@ -33,8 +34,13 @@
 	function tenureLabel(hireDate: string | undefined): string {
 		const tenure = organizationTenure(hireDate, today);
 		if (!tenure) return '';
-		if (!tenure.years) return `${tenure.months}${text.tenureMonthUnit}`;
-		return `${tenure.years}${text.tenureYearUnit} ${tenure.months}${text.tenureMonthUnit}`;
+		return `${text.tenureOrdinalPrefix}${tenure.years + 1}${text.tenureOrdinalSuffix}`;
+	}
+
+	function tenureDetail(hireDate: string | undefined): string {
+		const tenure = organizationTenure(hireDate, today);
+		if (!tenure) return '';
+		return `${hireDate} · ${tenure.years}${text.tenureYearUnit} ${tenure.months}${text.tenureMonthUnit}`;
 	}
 
 	function personLabel(record: UserRecord): string {
@@ -98,10 +104,17 @@
 					</button>
 					<div class="mt-2 flex items-center justify-between gap-2">
 						{#if tenureLabel(record.hireDate)}
-							<Badge variant="outline" class="h-5 shrink-0 gap-1 rounded-full px-1.5 font-normal tabular-nums" title={record.hireDate}>
-								<CalendarDaysIcon class="size-3" />
-								{tenureLabel(record.hireDate)}
-							</Badge>
+							<Tooltip.Root>
+								<Tooltip.Trigger>
+									{#snippet child({ props })}
+										<Badge {...props} variant="outline" class="h-5 shrink-0 gap-1 rounded-full px-1.5 font-normal tabular-nums">
+											<TimerIcon class="size-3" />
+											{tenureLabel(record.hireDate)}
+										</Badge>
+									{/snippet}
+								</Tooltip.Trigger>
+								<Tooltip.Content side="top">{tenureDetail(record.hireDate)}</Tooltip.Content>
+							</Tooltip.Root>
 						{:else}
 							<span></span>
 						{/if}
