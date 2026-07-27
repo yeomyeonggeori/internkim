@@ -56,6 +56,10 @@
 		return text.flow;
 	}
 
+	function currentAppPath(pathname: string) {
+		return `/${pathname.split('/')[1] ?? ''}/`;
+	}
+
 	function usesWebAuthGate(pathname: string) {
 		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/organization/', '/files/', '/tasks/', '/poc-admin/', '/settings/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
@@ -131,13 +135,20 @@
 							<Breadcrumb.Root>
 								<Breadcrumb.List>
 									<Breadcrumb.Item>
-										<Breadcrumb.Page>
-											<span>{currentApp(page.url.pathname)}</span>
-											{#if breadcrumbMeta.value}
-												<span class="ml-1.5 font-normal text-muted-foreground">· {breadcrumbMeta.value}</span>
-											{/if}
-										</Breadcrumb.Page>
+										{#if breadcrumbMeta.value}
+											<Breadcrumb.Link href={currentAppPath(page.url.pathname)} data-sveltekit-preload-data="off">
+												{currentApp(page.url.pathname)}
+											</Breadcrumb.Link>
+										{:else}
+											<Breadcrumb.Page>{currentApp(page.url.pathname)}</Breadcrumb.Page>
+										{/if}
 									</Breadcrumb.Item>
+									{#if breadcrumbMeta.value}
+										<Breadcrumb.Separator />
+										<Breadcrumb.Item>
+											<Breadcrumb.Page>{breadcrumbMeta.value}</Breadcrumb.Page>
+										</Breadcrumb.Item>
+									{/if}
 								</Breadcrumb.List>
 							</Breadcrumb.Root>
 						</div>
