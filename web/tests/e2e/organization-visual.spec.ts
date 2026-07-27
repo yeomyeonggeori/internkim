@@ -98,7 +98,7 @@ test.describe('employee organization visual layout geometry', () => {
 		const sidebar = page.getByTestId('organization-sidebar');
 		await expect(sidebar).toBeVisible();
 		await expect(sidebar.getByText('조직', { exact: true })).toBeVisible();
-		await expect(sidebar.getByTestId('organization-root')).toContainText('전체 조직');
+		await expect(sidebar.getByTestId('organization-root')).toContainText('회사');
 		await expect(sidebar.getByTestId('organization-row-leadership')).toBeVisible();
 		await expect(sidebar.getByTestId('organization-row-shared')).toBeVisible();
 		await expect(sidebar.getByTestId('organization-avatar-stack').first()).toBeVisible();
