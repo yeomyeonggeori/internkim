@@ -35,7 +35,7 @@ function recordGroupID(record: UserRecord): string {
 }
 
 function searchableText(record: UserRecord): string {
-	return normalizedSearch([record.name, record.email, record.handle, record.jobTitle].filter(Boolean).join(' '));
+	return normalizedSearch([record.name, record.jobTitle].filter(Boolean).join(' '));
 }
 
 function normalizedSearch(value: string): string {

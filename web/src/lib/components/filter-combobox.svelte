@@ -2,6 +2,7 @@
 	export type FilterComboboxOption = {
 		value: string;
 		label: string;
+		keywords?: string[];
 	};
 </script>
 
@@ -23,6 +24,7 @@
 		searchPlaceholder,
 		clearValue = '',
 		class: className,
+		icon,
 		optionContent
 	}: {
 		value?: string;
@@ -31,6 +33,7 @@
 		searchPlaceholder?: string;
 		clearValue?: string;
 		class?: string;
+		icon?: Snippet;
 		optionContent?: Snippet<[Option]>;
 	} = $props();
 
@@ -72,7 +75,7 @@
 					{#each options as option (option.value)}
 						<Command.Item
 							value={option.value}
-							keywords={[option.label]}
+							keywords={[option.label, ...(option.keywords ?? [])]}
 							data-checked={value === option.value}
 							onSelect={() => selectOption(option.value)}
 						>
