@@ -55,7 +55,7 @@
 		"@dayflow/plugin-sidebar": "^1.5.1",
 		"@dayflow/svelte": "^3.6.1",
 		"@humanspeak/svelte-markdown": "^1.6.0",
-		"@lucide/svelte": "^1.24.0",
+		"@lucide/svelte": "^1.27.0",
 		"@tailwindcss/typography": "^0.5.19",
 		"@tanstack/table-core": "^8.21.3",
 		"bits-ui": "^2.16.5",

@@ -3,7 +3,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import LogInIcon from '@lucide/svelte/icons/log-in';
+	import PowerIcon from '@lucide/svelte/icons/power';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import type { Snippet } from 'svelte';
 
@@ -79,11 +79,11 @@
 			</Card.Header>
 			<Card.Content class="space-y-3">
 				<Button href={mattermostLoginURL} class="w-full gap-2">
-					<LogInIcon class="size-4" />
+					<PowerIcon class="size-4" />
 					<span>{text.continueWithMattermost}</span>
 				</Button>
 				<Button href={cloudflareLoginURL} variant="outline" class="w-full gap-2">
-					<LogInIcon class="size-4" />
+					<PowerIcon class="size-4" />
 					<span>{text.continueWithCloudflare}</span>
 				</Button>
 				{#if loadErrorMessage}

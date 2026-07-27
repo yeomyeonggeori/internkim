@@ -8,8 +8,6 @@ export type AppRailItem = {
 
 export type AppRailProfileMenuLabels = {
 	account: string;
-	apiTokens: string;
-	activity: string;
 	logOut: string;
 	activeWorkspace: string;
 };
