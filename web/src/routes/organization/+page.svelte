@@ -37,8 +37,10 @@
 
 	$effect(() => {
 		breadcrumbMeta.value = controller.groupID ? controller.selectedOrganizationName : '';
+		breadcrumbMeta.clear = () => controller.selectGroup('');
 		return () => {
 			breadcrumbMeta.value = '';
+			breadcrumbMeta.clear = undefined;
 		};
 	});
 
