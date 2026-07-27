@@ -1,6 +1,8 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
+	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
+	import MailIcon from '@lucide/svelte/icons/mail';
 	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Item from '$lib/components/ui/item';
@@ -52,7 +54,7 @@
 		<span class="text-muted-foreground shrink-0 text-xs tabular-nums">{section.memberCount}{text.memberCountUnit}</span>
 	</div>
 	<Item.Group
-		class="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-2 pr-2"
+		class="grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-2 pr-2"
 		style={`padding-left: ${depth * 16 + 36}px`}
 		data-testid={`organization-members-${section.id || 'root'}`}
 	>
@@ -78,6 +80,18 @@
 								<Badge variant="secondary">{responsibility}</Badge>
 							</Item.Actions>
 						{/if}
+						<Item.Footer class="text-muted-foreground border-t pt-2 text-xs">
+							<span class="flex min-w-0 items-center gap-1.5">
+								<MailIcon class="size-3.5 shrink-0" />
+								<span class="truncate">{record.email}</span>
+							</span>
+							{#if record.hireDate}
+								<span class="flex shrink-0 items-center gap-1.5 tabular-nums">
+									<CalendarDaysIcon class="size-3.5 shrink-0" />
+									{record.hireDate}
+								</span>
+							{/if}
+						</Item.Footer>
 					</button>
 				{/snippet}
 			</Item.Root>
