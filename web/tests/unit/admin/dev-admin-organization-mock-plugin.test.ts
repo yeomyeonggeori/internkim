@@ -54,7 +54,6 @@ describe('dev admin organization mock plugin', () => {
 		expect(userIDs?.includes('dev-user-dabin')).toBe(true);
 		expect(userIDs?.includes('dev-user-nam')).toBe(true);
 		expect(body.availableGroups?.map((group) => group.id)).toEqual([
-			'group-leadership',
 			'group-operations',
 			'group-product',
 			'group-design',
