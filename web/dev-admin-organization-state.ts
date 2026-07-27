@@ -139,6 +139,7 @@ function profilesFromBody(body: string | undefined): OrgProfileUpdate[] {
 				email,
 				jobTitle: stringFromUnknown(record.jobTitle),
 				groupID: optionalStringFromUnknown(record.groupID),
+				phoneNumber: optionalStringFromUnknown(record.phoneNumber),
 				supervisorID: optionalStringFromUnknown(record.supervisorID)
 			}
 		];
@@ -153,6 +154,7 @@ function applyOrgProfileUpdates(users: UserRecord[], profiles: OrgProfileUpdate[
 			...user,
 			jobTitle: profile.jobTitle,
 			groupID: profile.groupID ?? user.groupID,
+			phoneNumber: profile.phoneNumber ?? user.phoneNumber,
 			supervisorID: profile.supervisorID ?? user.supervisorID
 		};
 	});

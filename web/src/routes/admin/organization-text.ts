@@ -2,6 +2,8 @@ export const organizationText = {
 	ko: {
 		title: '조직도',
 		jobTitle: '직책',
+		phoneNumber: '전화번호',
+		phoneNumberPlaceholder: '010-1234-5678',
 		jobTitlePlaceholder: '백엔드 엔지니어',
 		organization: '소속 조직',
 		groupPlaceholder: '엔지니어링',
@@ -20,6 +22,8 @@ export const organizationText = {
 	en: {
 		title: 'Org chart',
 		jobTitle: 'Job title',
+		phoneNumber: 'Phone',
+		phoneNumberPlaceholder: '+1 415 555 0132',
 		jobTitlePlaceholder: 'Backend engineer',
 		organization: 'Organization',
 		groupPlaceholder: 'Engineering',

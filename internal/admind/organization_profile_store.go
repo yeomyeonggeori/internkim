@@ -52,19 +52,21 @@ INSERT INTO organization_profiles(
 	job_title,
 	position_level,
 	group_id,
+	phone_number,
 	supervisor_id,
 	project_ids,
 	team_role,
 	employment_status,
 	is_organization_visible,
 	updated_at
-) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(profile_key) DO UPDATE SET
 	user_id = excluded.user_id,
 	email = excluded.email,
 	job_title = excluded.job_title,
 	position_level = excluded.position_level,
 	group_id = excluded.group_id,
+	phone_number = excluded.phone_number,
 	supervisor_id = excluded.supervisor_id,
 	project_ids = excluded.project_ids,
 	team_role = excluded.team_role,
@@ -77,6 +79,7 @@ ON CONFLICT(profile_key) DO UPDATE SET
 			normalizedProfile.JobTitle,
 			normalizedProfile.PositionLevel,
 			normalizedProfile.GroupID,
+			normalizedProfile.PhoneNumber,
 			normalizedProfile.SupervisorID,
 			projectIDs,
 			normalizedProfile.TeamRole,
@@ -131,7 +134,7 @@ func (service *Service) readOrganizationProfiles(ctx context.Context) ([]organiz
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT user_id, email, job_title, position_level, group_id, supervisor_id, project_ids, team_role, employment_status, is_organization_visible
+SELECT user_id, email, job_title, position_level, group_id, phone_number, supervisor_id, project_ids, team_role, employment_status, is_organization_visible
 FROM organization_profiles
 ORDER BY position_level, email`)
 	if errorValue != nil {
@@ -149,6 +152,7 @@ ORDER BY position_level, email`)
 			&profile.JobTitle,
 			&profile.PositionLevel,
 			&profile.GroupID,
+			&profile.PhoneNumber,
 			&profile.SupervisorID,
 			&projectIDs,
 			&profile.TeamRole,

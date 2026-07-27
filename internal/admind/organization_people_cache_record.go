@@ -10,6 +10,7 @@ type organizationCachedUserRecord struct {
 	JobTitle              string   `json:"jobTitle,omitempty"`
 	PositionLevel         int      `json:"positionLevel,omitempty"`
 	GroupID               string   `json:"groupID,omitempty"`
+	PhoneNumber           string   `json:"phoneNumber,omitempty"`
 	SupervisorID          string   `json:"supervisorID,omitempty"`
 	ProjectIDs            []string `json:"projectIDs,omitempty"`
 	TeamRole              string   `json:"teamRole,omitempty"`
@@ -28,6 +29,7 @@ func newOrganizationCachedUserRecord(record adminUserMutation) organizationCache
 		JobTitle:              record.JobTitle,
 		PositionLevel:         record.PositionLevel,
 		GroupID:               record.GroupID,
+		PhoneNumber:           record.PhoneNumber,
 		SupervisorID:          record.SupervisorID,
 		ProjectIDs:            append([]string(nil), record.ProjectIDs...),
 		TeamRole:              record.TeamRole,
@@ -46,6 +48,7 @@ func applyOrganizationCachedUserRecord(record adminUserMutation, cachedRecord or
 	record.JobTitle = cachedRecord.JobTitle
 	record.PositionLevel = cachedRecord.PositionLevel
 	record.GroupID = cachedRecord.GroupID
+	record.PhoneNumber = cachedRecord.PhoneNumber
 	record.SupervisorID = cachedRecord.SupervisorID
 	record.ProjectIDs = append([]string(nil), cachedRecord.ProjectIDs...)
 	record.TeamRole = cachedRecord.TeamRole

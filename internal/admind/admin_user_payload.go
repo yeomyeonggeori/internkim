@@ -20,6 +20,7 @@ type adminUserMutation struct {
 	JobTitle               string   `json:"jobTitle,omitempty"`
 	PositionLevel          int      `json:"positionLevel,omitempty"`
 	GroupID                string   `json:"groupID,omitempty"`
+	PhoneNumber            string   `json:"phoneNumber,omitempty"`
 	SupervisorID           string   `json:"supervisorID,omitempty"`
 	ProjectIDs             []string `json:"projectIDs,omitempty"`
 	TeamRole               string   `json:"teamRole,omitempty"`
