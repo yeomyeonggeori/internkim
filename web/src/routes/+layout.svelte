@@ -5,7 +5,10 @@
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
 	import { LightSwitch } from '$lib/components/ui/light-switch';
+	import { Kbd } from '$lib/components/ui/kbd';
 	import { LanguageSwitcher } from '$lib/components/ui/language-switcher';
+	import { Separator } from '$lib/components/ui/separator/index.js';
+	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { appShellText } from '$lib/i18n/app-shell-text';
@@ -27,13 +30,13 @@
 
 	function usesAppShell(pathname: string) {
 		if (pathname === '/calendar/embed' || pathname.startsWith('/calendar/embed/')) return false;
-		return ['/admin/', '/poc-admin/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/'].some(
+		return ['/settings/', '/poc-admin/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}
 
 	function currentApp(pathname: string) {
-		if (pathname.startsWith('/admin')) return text.admin;
+		if (pathname.startsWith('/settings')) return text.settings;
 		if (pathname.startsWith('/poc-admin')) return text.pocAdmin;
 		if (pathname.startsWith('/tasks')) return text.tasks;
 		if (pathname.startsWith('/memory')) return text.memory;
@@ -46,7 +49,7 @@
 	}
 
 	function usesWebAuthGate(pathname: string) {
-		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/', '/poc-admin/'].some(
+		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/orgchart/', '/files/', '/tasks/', '/poc-admin/', '/settings/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}
@@ -65,7 +68,7 @@
 
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>
-		<div class="flex h-svh w-full bg-background text-foreground">
+		<Sidebar.Provider class="flex h-svh w-full bg-background text-foreground">
 			{#if !isEmbeddedFrame()}
 				<AppRail />
 			{/if}
@@ -73,7 +76,7 @@
 				{#if !isEmbeddedFrame()}
 					<header data-app-chrome class="internkim-app-header">
 						<a
-							href="/admin/"
+							href="/settings/"
 							aria-label="Blueclaw"
 							class="internkim-app-mobile-brand"
 							data-sveltekit-preload-data="off"
@@ -81,11 +84,23 @@
 						>
 							<img src="/logo.svg" alt="" />
 						</a>
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Sidebar.Trigger {...props} class="-ml-1 max-md:hidden" />
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content side="bottom">
+								{text.sidebar}
+								<Kbd>,</Kbd>
+							</Tooltip.Content>
+						</Tooltip.Root>
+						<Separator orientation="vertical" class="mr-2 !h-4 max-md:hidden" />
 						<div class="internkim-app-crumbs flex-1">
 							<Breadcrumb.Root>
 								<Breadcrumb.List>
 									<Breadcrumb.Item class="hidden md:block">
-										<Breadcrumb.Link href="/admin/" data-sveltekit-preload-data="off" data-sveltekit-preload-code="off">Blueclaw</Breadcrumb.Link>
+										<Breadcrumb.Link href="/settings/" data-sveltekit-preload-data="off" data-sveltekit-preload-code="off">Blueclaw</Breadcrumb.Link>
 									</Breadcrumb.Item>
 									<Breadcrumb.Separator class="hidden md:block" />
 									<Breadcrumb.Item>
@@ -121,7 +136,7 @@
 					{/if}
 				</div>
 			</div>
-		</div>
+		</Sidebar.Provider>
 	</Tooltip.Provider>
 {:else}
 	{@render children()}

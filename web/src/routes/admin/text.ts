@@ -16,9 +16,10 @@ export const adminText = {
 			credentials: '인증 정보',
 			backup: '백업',
 			bot: '봇',
-			settings: '설정',
+			settings: '일반',
 			sharing: '회사 페이지',
-			network: '네트워크'
+			network: '네트워크',
+			apiTokens: 'API 토큰'
 		},
 		messages: {
 			adminAuthRequired: '관리자 인증이 필요합니다.',
@@ -303,9 +304,10 @@ export const adminText = {
 			credentials: 'Credentials',
 			backup: 'Backup',
 			bot: 'Bot',
-			settings: 'Settings',
+			settings: 'General',
 			sharing: 'Company page',
-			network: 'Network'
+			network: 'Network',
+			apiTokens: 'API tokens'
 		},
 		messages: {
 			adminAuthRequired: 'Admin authentication is required.',

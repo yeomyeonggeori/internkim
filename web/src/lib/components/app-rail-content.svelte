@@ -1,24 +1,36 @@
 <script lang="ts">
-	import AppRailDivider from '$lib/components/app-rail-divider.svelte';
 	import AppRailNavSection from '$lib/components/app-rail-nav-section.svelte';
 	import type { AppRailItem } from '$lib/components/app-rail-types';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 
 	let {
 		apps,
+		appsLabel,
 		workspace,
+		workspaceLabel,
 		currentPath
 	}: {
 		apps: AppRailItem[];
+		appsLabel: string;
 		workspace: AppRailItem[];
+		workspaceLabel: string;
 		currentPath: string;
 	} = $props();
 </script>
 
-<Sidebar.Content class="overflow-visible">
-	<nav class="flex min-h-0 flex-1 flex-col">
-		<AppRailNavSection items={apps} {currentPath} />
-		<AppRailDivider />
-		<AppRailNavSection items={workspace} {currentPath} />
-	</nav>
+<Sidebar.Content class="pt-2">
+	<Sidebar.Group>
+		<Sidebar.GroupLabel class="group-data-[collapsible=icon]:pointer-events-none">{appsLabel}</Sidebar.GroupLabel>
+		<Sidebar.GroupContent>
+			<AppRailNavSection items={apps} {currentPath} />
+		</Sidebar.GroupContent>
+	</Sidebar.Group>
+	{#if workspace.length > 0}
+		<Sidebar.Group>
+			<Sidebar.GroupLabel class="group-data-[collapsible=icon]:pointer-events-none">{workspaceLabel}</Sidebar.GroupLabel>
+			<Sidebar.GroupContent>
+				<AppRailNavSection items={workspace} {currentPath} />
+			</Sidebar.GroupContent>
+		</Sidebar.Group>
+	{/if}
 </Sidebar.Content>
