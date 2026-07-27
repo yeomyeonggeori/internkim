@@ -93,7 +93,7 @@ type Configuration struct {
 	BuzzAdminCommandPath           string
 	BuzzDatabaseURL                string
 	BuzzAccountLinksPath           string
-	BuzzKeySeed                    string
+	BuzzKeySeedPath                string
 }
 
 type Service struct {
@@ -113,6 +113,8 @@ type Service struct {
 	companionMounts            map[string]*CompanionMountRecord
 	buzzInviteStore            *buzzInviteStore
 	buzzInviteStoreOnce        sync.Once
+	buzzKeySeedOnce            sync.Once
+	buzzKeySeedValue           string
 	sites                      map[string]*SiteRecord
 	siteRuntimeMutex           sync.Mutex
 	siteRuntimeActivities      map[string]*siteRuntimeActivity
@@ -280,6 +282,7 @@ func DefaultConfiguration() Configuration {
 		MailDatabasePath:               "/root/.internkim/state/mail.sqlite",
 		AttendanceDatabasePath:         "/root/.internkim/state/attendance.sqlite",
 		BridgeMapDatabasePath:          "/root/.internkim/state/bridge-map.sqlite",
+		BuzzKeySeedPath:                "/root/.internkim/secrets/buzz-key-seed",
 		MattermostAdminPasswordPath:    "/root/.internkim/secrets/mm-admin-pass",
 		MattermostTokenPath:            "/root/.internkim/secrets/mattermost-bot-token",
 		MattermostInteractiveTokenPath: "/root/.internkim/state/admin/mattermost-interactive-token",
