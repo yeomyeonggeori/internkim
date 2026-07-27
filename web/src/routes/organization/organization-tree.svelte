@@ -3,6 +3,7 @@
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import LockKeyholeIcon from '@lucide/svelte/icons/lock-keyhole';
 	import OrganizationAvatarStack from './organization-avatar-stack.svelte';
 	import { organizationTreeDrag } from './organization-tree-drag-action';
@@ -120,7 +121,9 @@
 					<Button type="button" size="sm" disabled={isSaving} onclick={() => void onSaveEdit()}>{text.saveOrganizations}</Button>
 				</div>
 			{:else}
-				<Button type="button" variant="ghost" size="sm" onclick={onBeginEdit}>{text.editOrganizations}</Button>
+				<Button type="button" variant="ghost" size="icon-sm" aria-label={text.editOrganizations} title={text.editOrganizations} onclick={onBeginEdit}>
+					<PencilIcon class="size-4" />
+				</Button>
 			{/if}
 		{/if}
 	</div>
