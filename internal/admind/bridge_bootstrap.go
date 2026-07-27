@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 )
@@ -14,7 +13,7 @@ import (
 var errBridgeSeedMissing = errors.New("buzz key seed is not configured")
 
 func (service *Service) bridgeBuzzChannelID(externalChannelID string) (string, error) {
-	seed := strings.TrimSpace(service.Configuration.BuzzKeySeed)
+	seed := service.buzzKeySeed()
 	if seed == "" {
 		return "", errBridgeSeedMissing
 	}

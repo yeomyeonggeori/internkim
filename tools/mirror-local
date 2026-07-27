@@ -7,8 +7,9 @@ set -euo pipefail
 # (Mattermost 8065, Buzz relay, chatd 18090, blueclaw 8080) is expected to be
 # already running from the normal messenger dev loop.
 #
-# Required environment:
-#   INTERNKIM_BUZZ_KEY_SEED   seed used by the history importer (-key-seed)
+# Seed (must match the history importer -key-seed): provide it once, either as
+# INTERNKIM_BUZZ_KEY_SEED in the environment or in the repo .env. It is written
+# to a local seed file and reused on later runs, so no env is needed after that.
 #
 # Optional:
 #   INTERNKIM_MM_ADMIN_PASSWORD_PATH  override the MM admin password file;
@@ -20,7 +21,9 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-: "${INTERNKIM_BUZZ_KEY_SEED:?set INTERNKIM_BUZZ_KEY_SEED to the importer key-seed}"
+if [[ -f "$repo_root/.env" ]]; then
+  set -a; . "$repo_root/.env"; set +a
+fi
 
 listen="127.0.0.1:18080"
 work_dir="${TMPDIR:-/tmp}/internkim-mirror-local"
@@ -28,7 +31,17 @@ state_dir="$work_dir/state"
 bridge_db="$work_dir/bridge-map.sqlite"
 admind_log="$work_dir/admind.log"
 admind_pid_file="$work_dir/admind.pid"
-mkdir -p "$state_dir"
+seed_file="$work_dir/secrets/buzz-key-seed"
+mkdir -p "$state_dir" "$work_dir/secrets"
+
+if [[ -n "${INTERNKIM_BUZZ_KEY_SEED:-}" ]]; then
+  printf '%s' "$INTERNKIM_BUZZ_KEY_SEED" >"$seed_file"
+  chmod 600 "$seed_file"
+fi
+if [[ ! -s "$seed_file" ]]; then
+  echo "no Buzz key seed: set INTERNKIM_BUZZ_KEY_SEED (environment or repo .env) once" >&2
+  exit 1
+fi
 
 echo "==> building admind"
 go build -o "$work_dir/internkim-admind" ./cmd/internkim-admind
@@ -46,7 +59,7 @@ admind_flags=(
   -blueclaw-url "http://127.0.0.1:8080"
   -state-dir "$state_dir"
   -bridge-map-db "$bridge_db"
-  -buzz-key-seed "$INTERNKIM_BUZZ_KEY_SEED"
+  -buzz-key-seed-path "$seed_file"
 )
 if [[ -n "${INTERNKIM_MM_ADMIN_PASSWORD_PATH:-}" ]]; then
   admind_flags+=(-mattermost-admin-password "$INTERNKIM_MM_ADMIN_PASSWORD_PATH")
