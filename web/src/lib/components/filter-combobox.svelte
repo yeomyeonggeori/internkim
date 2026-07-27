@@ -5,7 +5,8 @@
 	};
 </script>
 
-<script lang="ts">
+<script lang="ts" generics="Option extends FilterComboboxOption">
+	import type { Snippet } from 'svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Command from '$lib/components/ui/command/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
@@ -21,14 +22,16 @@
 		label,
 		searchPlaceholder,
 		clearValue = '',
-		class: className
+		class: className,
+		optionContent
 	}: {
 		value?: string;
-		options: FilterComboboxOption[];
+		options: Option[];
 		label: string;
 		searchPlaceholder?: string;
 		clearValue?: string;
 		class?: string;
+		optionContent?: Snippet<[Option]>;
 	} = $props();
 
 	const text = createPageText(appShellText);
@@ -73,7 +76,11 @@
 							data-checked={value === option.value}
 							onSelect={() => selectOption(option.value)}
 						>
-							{option.label}
+							{#if optionContent}
+								{@render optionContent(option)}
+							{:else}
+								{option.label}
+							{/if}
 						</Command.Item>
 					{/each}
 				</Command.Group>
