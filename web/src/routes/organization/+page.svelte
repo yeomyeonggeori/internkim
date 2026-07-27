@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
+	import FilterCombobox from '$lib/components/filter-combobox.svelte';
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
-	import SearchIcon from '@lucide/svelte/icons/search';
 	import { onMount } from 'svelte';
 	import { adminText } from '../admin/text';
 	import OrganizationAddOrganizationPopover from './organization-add-organization-popover.svelte';
@@ -22,6 +22,15 @@
 	const adminBaseURL = '/admin/api';
 	const detailSheetViewport = new IsMobile(1024);
 	const controller = new OrganizationDirectoryController(adminBaseURL, text, adminPageText, () => currentLocale.value);
+
+	const personOptions = $derived(
+		controller.records.map((record) => ({
+			value: record.name || record.email,
+			label: record.name || record.email,
+			email: record.email,
+			image: record.image ?? ''
+		}))
+	);
 	const isDetailSheetOpen = $derived(detailSheetViewport.current && Boolean(controller.selectedRecord));
 	let isOrganizationSheetOpen = $state(false);
 
@@ -75,10 +84,18 @@
 				</div>
 
 				<div class="flex w-full flex-wrap items-center justify-end gap-2 lg:w-auto">
-					<div class="relative w-full sm:w-72">
-						<SearchIcon class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-						<Input id="organization-search" class="pl-9" bind:value={controller.query} placeholder={text.searchPlaceholder} autocomplete="off" aria-label={text.search} />
-					</div>
+					<FilterCombobox
+						bind:value={controller.query}
+						options={personOptions}
+						label={text.search}
+						searchPlaceholder={text.searchPlaceholder}
+						class="w-full sm:w-72"
+					>
+						{#snippet optionContent(option)}
+							<PersonAvatar name={option.label} email={option.email} image={option.image} class="size-6" />
+							<span class="min-w-0 truncate">{option.label}</span>
+						{/snippet}
+					</FilterCombobox>
 					{#if !detailSheetViewport.current}
 						<OrganizationFilterPopover
 							bind:isOpen={controller.isFilterOpen}

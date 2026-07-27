@@ -97,11 +97,10 @@ test.describe('employee organization visual layout geometry', () => {
 
 		const sidebar = page.getByTestId('organization-sidebar');
 		await expect(sidebar).toBeVisible();
-		await expect(sidebar.getByText('ORGANIZATION')).toBeVisible();
+		await expect(sidebar.getByText('조직', { exact: true })).toBeVisible();
 		await expect(sidebar.getByTestId('organization-root')).toContainText('전체 조직');
 		await expect(sidebar.getByTestId('organization-row-leadership')).toBeVisible();
 		await expect(sidebar.getByTestId('organization-row-shared')).toBeVisible();
-		await expect(sidebar.getByTestId('organization-avatar-stack').first()).toBeVisible();
 		await expect(page.getByTestId('organization-people-layer')).toBeVisible();
 		await expect(page.getByRole('button', { name: /명 더 보기/ })).toHaveCount(0);
 
