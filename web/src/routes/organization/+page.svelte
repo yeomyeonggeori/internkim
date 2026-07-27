@@ -128,10 +128,7 @@
 					</div>
 
 					<div class={['grid min-h-0 min-w-0', controller.selectedRecord && !detailSheetViewport.current ? 'grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]' : 'grid-cols-1']}>
-						<div class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
-							<div class="flex min-h-20 items-center justify-between border-b px-4 sm:px-6">
-								<h2 class="truncate text-2xl font-semibold">{controller.selectedOrganizationName}</h2>
-							</div>
+						<div class="grid min-h-0 min-w-0 overflow-hidden">
 							<div class="min-h-0 overflow-y-auto px-4 py-4 sm:px-6" data-testid="organization-list-scroll">
 								{#if controller.errorMessage}
 									<p class="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{controller.errorMessage}</p>
