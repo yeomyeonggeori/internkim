@@ -44,8 +44,7 @@
 		openSettings: () => void;
 		popover: DraftPopoverState | null;
 		refreshConflicts: () => void;
-		refreshCalendar: () => void;
-		repositionPopover: (size: { width: number; height: number }) => void;
+			repositionPopover: (size: { width: number; height: number }) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
 		savePopover: () => void;
 		cancelPopover: () => void;
@@ -95,8 +94,7 @@
 		openSettings,
 		popover,
 		refreshConflicts,
-		refreshCalendar,
-		repositionPopover,
+			repositionPopover,
 		saveMovedEvent,
 		savePopover,
 		searchResults,
@@ -134,7 +132,6 @@
 		{navigateToSearchResult}
 		createQuickEvent={createQuickEvent}
 		{openSettings}
-		{refreshCalendar}
 	/>
 	<CalendarStage
 		{activeMobileEditorEventID}

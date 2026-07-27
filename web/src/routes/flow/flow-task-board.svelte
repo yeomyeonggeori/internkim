@@ -112,7 +112,7 @@
 							type="button"
 							variant="ghost"
 							size="icon-xs"
-							class="shrink-0 text-muted-foreground hover:text-foreground"
+							class="shrink-0"
 							aria-label={addTaskLabel(column.status)}
 							title={addTaskLabel(column.status)}
 							onclick={() => createTaskInColumn(column.status)}

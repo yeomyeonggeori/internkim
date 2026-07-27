@@ -8,7 +8,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { Switch } from '$lib/components/ui/switch';
-	import * as Tabs from '$lib/components/ui/tabs';
+	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import SendIcon from '@lucide/svelte/icons/send';
@@ -370,13 +370,13 @@
 			<Card.Description>{text.companyShare.localizationDescription}</Card.Description>
 		</Card.Header>
 		<Card.Content class="grid gap-5">
-			<Tabs.Root value={editingLanguage} onValueChange={(value) => editingLanguage = value}>
-				<Tabs.List class="h-auto flex-wrap justify-start">
+			<UnderlineTabs.Root value={editingLanguage} onValueChange={(value) => editingLanguage = value}>
+				<UnderlineTabs.List class="h-auto flex-wrap justify-start">
 					{#each draft.languages as language}
-						<Tabs.Trigger value={language}>{languageLabel(language)}{#if language === 'en'} <span class="text-muted-foreground ml-1 text-xs">{text.companyShare.defaultLanguage}</span>{/if}</Tabs.Trigger>
+						<UnderlineTabs.Trigger value={language}>{languageLabel(language)}{#if language === 'en'} <span class="text-muted-foreground ml-1 text-xs">{text.companyShare.defaultLanguage}</span>{/if}</UnderlineTabs.Trigger>
 					{/each}
-				</Tabs.List>
-			</Tabs.Root>
+				</UnderlineTabs.List>
+			</UnderlineTabs.Root>
 			<div class="flex flex-wrap items-end gap-3">
 				<Field.Field class="min-w-56 flex-1 sm:max-w-xs">
 					<Field.Label for="company-share-add-language">{text.companyShare.addLocalization}</Field.Label>
