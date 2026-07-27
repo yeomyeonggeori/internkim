@@ -360,9 +360,6 @@ func (service *Service) writeLocalUsersResponse(responseWriter http.ResponseWrit
 
 func (service *Service) localUsersResponseBody(ctx context.Context, response pagesUsersResponse) ([]byte, error) {
 	response.Records = adminUserRecordsWithProfileImages(response.Records)
-	for index := range response.Records {
-		applyDefaultOrganizationMetadata(&response.Records[index])
-	}
 	responseBody, errorValue := json.Marshal(response)
 	if errorValue != nil {
 		return nil, errorValue

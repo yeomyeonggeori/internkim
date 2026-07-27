@@ -52,36 +52,34 @@ func TestOrganizationDirectoryListsVisibleProfilesForStaff(t *testing.T) {
 	}
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{
 		{
-			UserID:            "user-ada",
-			Email:             "ada@example.com",
-			JobTitle:          "Engineering Lead",
-			PrimaryGroupID:    "engineering",
-			GroupIDs:          []string{"engineering"},
-			ProjectIDs:        []string{"platform"},
-			EmploymentStatus:  organizationEmploymentStatusActive,
+			UserID:                "user-ada",
+			Email:                 "ada@example.com",
+			JobTitle:              "Engineering Lead",
+			GroupID:               "engineering",
+			ProjectIDs:            []string{"platform"},
+			EmploymentStatus:      organizationEmploymentStatusActive,
 			IsOrganizationVisible: true,
 		},
 		{
-			UserID:            "user-grace",
-			Email:             "grace@example.com",
-			JobTitle:          "Backend Engineer",
-			PrimaryGroupID:    "engineering",
-			GroupIDs:          []string{"engineering", "operations"},
-			SupervisorID:      "user-ada",
-			ProjectIDs:        []string{"platform", "hiring"},
-			EmploymentStatus:  organizationEmploymentStatusActive,
+			UserID:                "user-grace",
+			Email:                 "grace@example.com",
+			JobTitle:              "Backend Engineer",
+			GroupID:               "engineering",
+			SupervisorID:          "user-ada",
+			ProjectIDs:            []string{"platform", "hiring"},
+			EmploymentStatus:      organizationEmploymentStatusActive,
 			IsOrganizationVisible: true,
 		},
 		{
-			UserID:            "user-hidden",
-			Email:             "hidden@example.com",
-			EmploymentStatus:  organizationEmploymentStatusActive,
+			UserID:                "user-hidden",
+			Email:                 "hidden@example.com",
+			EmploymentStatus:      organizationEmploymentStatusActive,
 			IsOrganizationVisible: false,
 		},
 		{
-			UserID:            "user-resigned",
-			Email:             "resigned@example.com",
-			EmploymentStatus:  organizationEmploymentStatusResigned,
+			UserID:                "user-resigned",
+			Email:                 "resigned@example.com",
+			EmploymentStatus:      organizationEmploymentStatusResigned,
 			IsOrganizationVisible: true,
 		},
 	}); errorValue != nil {
@@ -134,7 +132,7 @@ func TestOrganizationDirectoryListsVisibleProfilesForStaff(t *testing.T) {
 	if response.Records[0].UserID != "user-ada" || response.Records[1].UserID != "user-grace" {
 		t.Fatalf("record order = %#v; want ada then grace", response.Records)
 	}
-	if len(response.AvailableGroups) != 2 {
+	if len(response.AvailableGroups) != 1 || response.AvailableGroups[0].ID != "engineering" {
 		t.Fatalf("available groups = %#v; want connected groups only", response.AvailableGroups)
 	}
 }
@@ -152,7 +150,7 @@ func assertOrganizationDirectoryContract(t *testing.T, responseBody []byte) {
 	}
 	allowedRecordKeys := map[string]bool{
 		"userID": true, "handle": true, "name": true, "email": true, "image": true,
-		"hireDate": true, "jobTitle": true, "group": true, "primaryGroupID": true,
+		"hireDate": true, "jobTitle": true, "groupID": true,
 		"groupIDs": true, "supervisorID": true,
 	}
 	for _, record := range records {

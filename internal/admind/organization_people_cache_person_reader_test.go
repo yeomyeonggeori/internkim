@@ -11,10 +11,10 @@ func TestOrganizationPeopleCacheReusesPersonEntry(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		UserID:            "user-1",
-		Email:             "one@example.com",
-		JobTitle:          "Designer",
-		EmploymentStatus:  organizationEmploymentStatusActive,
+		UserID:                "user-1",
+		Email:                 "one@example.com",
+		JobTitle:              "Designer",
+		EmploymentStatus:      organizationEmploymentStatusActive,
 		IsOrganizationVisible: true,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -137,10 +137,10 @@ func TestOrganizationPeopleCacheRejectsSemanticCorruption(t *testing.T) {
 			service := newLocalUsersTestService(t)
 			ctx := context.Background()
 			if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-				UserID:            "user-1",
-				Email:             "one@example.com",
-				JobTitle:          "Authoritative",
-				EmploymentStatus:  organizationEmploymentStatusActive,
+				UserID:                "user-1",
+				Email:                 "one@example.com",
+				JobTitle:              "Authoritative",
+				EmploymentStatus:      organizationEmploymentStatusActive,
 				IsOrganizationVisible: true,
 			}}); errorValue != nil {
 				t.Fatal(errorValue)
@@ -201,10 +201,10 @@ func TestOrganizationPeopleCacheHasNoTTL(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		UserID:            "user-1",
-		Email:             "one@example.com",
-		JobTitle:          "Designer",
-		EmploymentStatus:  organizationEmploymentStatusActive,
+		UserID:                "user-1",
+		Email:                 "one@example.com",
+		JobTitle:              "Designer",
+		EmploymentStatus:      organizationEmploymentStatusActive,
 		IsOrganizationVisible: true,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)

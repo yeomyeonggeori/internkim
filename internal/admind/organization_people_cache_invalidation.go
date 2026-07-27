@@ -144,7 +144,7 @@ func changedOrganizationGroupIDs(previous []orgGroupRecord, next []orgGroupRecor
 }
 
 func organizationProfileIdentitiesForGroups(ctx context.Context, transaction *sql.Tx, groupIDs []string) ([]organizationPersonIdentity, error) {
-	rows, errorValue := transaction.QueryContext(ctx, `SELECT user_id, email, primary_group_id, group_ids FROM organization_profiles`)
+	rows, errorValue := transaction.QueryContext(ctx, `SELECT user_id, email, group_id FROM organization_profiles`)
 	if errorValue != nil {
 		return nil, fmt.Errorf("read organization profiles for cache invalidation: %w", errorValue)
 	}
@@ -156,13 +156,11 @@ func organizationProfileIdentitiesForGroups(ctx context.Context, transaction *sq
 	identities := []organizationPersonIdentity{}
 	for rows.Next() {
 		var identity organizationPersonIdentity
-		var primaryGroupID string
-		var groupIDsDocument string
-		if errorValue := rows.Scan(&identity.UserID, &identity.Email, &primaryGroupID, &groupIDsDocument); errorValue != nil {
+		var groupID string
+		if errorValue := rows.Scan(&identity.UserID, &identity.Email, &groupID); errorValue != nil {
 			return nil, fmt.Errorf("scan organization profile for cache invalidation: %w", errorValue)
 		}
-		profileGroupIDs := append(decodeOrganizationStringList(groupIDsDocument), primaryGroupID)
-		if organizationGroupIDsIntersect(profileGroupIDs, changedGroupIDs) {
+		if _, found := changedGroupIDs[groupID]; found {
 			identities = append(identities, identity)
 		}
 	}
@@ -170,13 +168,4 @@ func organizationProfileIdentitiesForGroups(ctx context.Context, transaction *sq
 		return nil, fmt.Errorf("iterate organization profiles for cache invalidation: %w", errorValue)
 	}
 	return identities, nil
-}
-
-func organizationGroupIDsIntersect(groupIDs []string, changedGroupIDs map[string]struct{}) bool {
-	for _, groupID := range groupIDs {
-		if _, found := changedGroupIDs[groupID]; found {
-			return true
-		}
-	}
-	return false
 }

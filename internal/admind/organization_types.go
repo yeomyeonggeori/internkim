@@ -7,16 +7,15 @@ const (
 )
 
 type organizationProfile struct {
-	UserID            string   `json:"userID,omitempty"`
-	Email             string   `json:"email,omitempty"`
-	JobTitle          string   `json:"jobTitle,omitempty"`
-	PositionLevel     int      `json:"positionLevel,omitempty"`
-	PrimaryGroupID    string   `json:"primaryGroupID,omitempty"`
-	GroupIDs          []string `json:"groupIDs,omitempty"`
-	SupervisorID      string   `json:"supervisorID,omitempty"`
-	ProjectIDs        []string `json:"projectIDs,omitempty"`
-	TeamRole          string   `json:"teamRole,omitempty"`
-	EmploymentStatus  string   `json:"employmentStatus,omitempty"`
+	UserID                string   `json:"userID,omitempty"`
+	Email                 string   `json:"email,omitempty"`
+	JobTitle              string   `json:"jobTitle,omitempty"`
+	PositionLevel         int      `json:"positionLevel,omitempty"`
+	GroupID               string   `json:"groupID,omitempty"`
+	SupervisorID          string   `json:"supervisorID,omitempty"`
+	ProjectIDs            []string `json:"projectIDs,omitempty"`
+	TeamRole              string   `json:"teamRole,omitempty"`
+	EmploymentStatus      string   `json:"employmentStatus,omitempty"`
 	IsOrganizationVisible bool     `json:"isOrganizationVisible"`
 }
 

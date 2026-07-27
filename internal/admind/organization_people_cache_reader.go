@@ -59,7 +59,6 @@ func (service *Service) applyOrganizationPeople(ctx context.Context, usersRespon
 				}
 			}
 		}
-		applyDefaultOrganizationMetadata(&record)
 		profile, found := organizationProfileForUser(record, profilesByUserID, profilesByEmail)
 		var cachedProfile *organizationProfile
 		if found {

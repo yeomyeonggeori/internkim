@@ -2,21 +2,19 @@ package admind
 
 type organizationDirectoryResponse struct {
 	Records         []organizationDirectoryRecord `json:"records"`
-	AvailableGroups []orgGroupRecord          `json:"availableGroups,omitempty"`
+	AvailableGroups []orgGroupRecord              `json:"availableGroups,omitempty"`
 }
 
 type organizationDirectoryRecord struct {
-	UserID         string   `json:"userID,omitempty"`
-	Handle         string   `json:"handle,omitempty"`
-	Name           string   `json:"name,omitempty"`
-	Email          string   `json:"email"`
-	Image          string   `json:"image,omitempty"`
-	HireDate       string   `json:"hireDate,omitempty"`
-	JobTitle       string   `json:"jobTitle,omitempty"`
-	Group          string   `json:"group,omitempty"`
-	PrimaryGroupID string   `json:"primaryGroupID,omitempty"`
-	GroupIDs       []string `json:"groupIDs,omitempty"`
-	SupervisorID   string   `json:"supervisorID,omitempty"`
+	UserID       string `json:"userID,omitempty"`
+	Handle       string `json:"handle,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Email        string `json:"email"`
+	Image        string `json:"image,omitempty"`
+	HireDate     string `json:"hireDate,omitempty"`
+	JobTitle     string `json:"jobTitle,omitempty"`
+	GroupID      string `json:"groupID,omitempty"`
+	SupervisorID string `json:"supervisorID,omitempty"`
 }
 
 func newOrganizationDirectoryResponse(response pagesUsersResponse) organizationDirectoryResponse {
@@ -32,16 +30,14 @@ func newOrganizationDirectoryResponse(response pagesUsersResponse) organizationD
 
 func newOrganizationDirectoryRecord(record adminUserMutation) organizationDirectoryRecord {
 	return organizationDirectoryRecord{
-		UserID:         record.UserID,
-		Handle:         record.Handle,
-		Name:           record.Name,
-		Email:          record.Email,
-		Image:          record.Image,
-		HireDate:       record.HireDate,
-		JobTitle:       record.JobTitle,
-		Group:          record.Group,
-		PrimaryGroupID: record.PrimaryGroupID,
-		GroupIDs:       record.GroupIDs,
-		SupervisorID:   record.SupervisorID,
+		UserID:       record.UserID,
+		Handle:       record.Handle,
+		Name:         record.Name,
+		Email:        record.Email,
+		Image:        record.Image,
+		HireDate:     record.HireDate,
+		JobTitle:     record.JobTitle,
+		GroupID:      record.GroupID,
+		SupervisorID: record.SupervisorID,
 	}
 }

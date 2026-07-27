@@ -9,8 +9,7 @@ func normalizeOrganizationProfile(profile organizationProfile) organizationProfi
 	profile.UserID = strings.TrimSpace(profile.UserID)
 	profile.Email = strings.ToLower(strings.TrimSpace(profile.Email))
 	profile.JobTitle = strings.TrimSpace(profile.JobTitle)
-	profile.PrimaryGroupID = strings.TrimSpace(profile.PrimaryGroupID)
-	profile.GroupIDs = organizationGroupIDsWithPrimary(profile.GroupIDs, profile.PrimaryGroupID)
+	profile.GroupID = strings.TrimSpace(profile.GroupID)
 	profile.SupervisorID = strings.TrimSpace(profile.SupervisorID)
 	profile.ProjectIDs = normalizeOrganizationStringList(profile.ProjectIDs)
 	profile.TeamRole = strings.TrimSpace(profile.TeamRole)
@@ -58,25 +57,6 @@ func normalizeOrganizationStringList(values []string) []string {
 		}
 		seen[normalizedValue] = true
 		result = append(result, normalizedValue)
-	}
-	return result
-}
-
-func organizationGroupIDsWithPrimary(groupIDs []string, primaryGroupID string) []string {
-	normalizedGroupIDs := normalizeOrganizationStringList(groupIDs)
-	normalizedPrimaryGroupID := strings.TrimSpace(primaryGroupID)
-	result := []string{}
-	seenGroupIDs := map[string]bool{}
-	appendGroupID := func(groupID string) {
-		if groupID == "" || seenGroupIDs[groupID] {
-			return
-		}
-		seenGroupIDs[groupID] = true
-		result = append(result, groupID)
-	}
-	appendGroupID(normalizedPrimaryGroupID)
-	for _, groupID := range normalizedGroupIDs {
-		appendGroupID(groupID)
 	}
 	return result
 }
