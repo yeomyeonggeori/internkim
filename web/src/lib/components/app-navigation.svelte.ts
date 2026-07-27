@@ -13,8 +13,8 @@ import CogIcon from '@lucide/svelte/icons/cog';
 import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 import MailIcon from '@lucide/svelte/icons/mail';
+import BrainIcon from '@lucide/svelte/icons/brain';
 import NetworkIcon from '@lucide/svelte/icons/network';
-import ComponentIcon from '@lucide/svelte/icons/component';
 
 type WebSession = {
 	authenticated?: boolean;
@@ -49,11 +49,11 @@ class AppNavigation {
 
 	apps = $derived<AppRailItem[]>([
 		{ href: '/flow/', label: text.flow, icon: ListChecksIcon },
-		{ href: '/memory/', label: text.memory, icon: NetworkIcon },
+		{ href: '/memory/', label: text.memory, icon: BrainIcon },
 		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon },
 		{ href: '/mail/', label: text.mail, icon: MailIcon },
 		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon },
-		{ href: '/organization/', label: text.organization, icon: ComponentIcon },
+		{ href: '/organization/', label: text.organization, icon: NetworkIcon },
 		{ href: '/files/', label: text.files, icon: FolderOpenIcon }
 	]);
 
