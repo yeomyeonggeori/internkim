@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Local Buzz-mirror runner. Brings up a local admind with the buzz/bridge flags
+# (mirroring the production DefaultConfiguration localhost values), then seeds
+# the channel map so the mirror can route. Everything else in the local stack
+# (Mattermost 8065, Buzz relay, chatd 18090, blueclaw 8080) is expected to be
+# already running from the normal messenger dev loop.
+#
+# Required environment:
+#   INTERNKIM_BUZZ_KEY_SEED         seed used by the history importer (-key-seed)
+#   INTERNKIM_MM_ADMIN_PASSWORD_PATH file holding the local MM admin password
+#
+# After this prints OK, restart chatd from its own shell with the two extra
+# mirror variables it prints, then post a message and watch it cross over.
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+: "${INTERNKIM_BUZZ_KEY_SEED:?set INTERNKIM_BUZZ_KEY_SEED to the importer key-seed}"
+: "${INTERNKIM_MM_ADMIN_PASSWORD_PATH:?set INTERNKIM_MM_ADMIN_PASSWORD_PATH to the local MM admin password file}"
+
+listen="127.0.0.1:18080"
+work_dir="${TMPDIR:-/tmp}/internkim-mirror-local"
+state_dir="$work_dir/state"
+bridge_db="$work_dir/bridge-map.sqlite"
+admind_log="$work_dir/admind.log"
+admind_pid_file="$work_dir/admind.pid"
+mkdir -p "$state_dir"
+
+echo "==> building admind"
+go build -o "$work_dir/internkim-admind" ./cmd/internkim-admind
+
+if [[ -f "$admind_pid_file" ]] && kill -0 "$(cat "$admind_pid_file")" 2>/dev/null; then
+  echo "==> stopping previous local admind ($(cat "$admind_pid_file"))"
+  kill "$(cat "$admind_pid_file")" 2>/dev/null || true
+  sleep 1
+fi
+
+echo "==> starting local admind on $listen (log: $admind_log)"
+"$work_dir/internkim-admind" \
+  -listen "$listen" \
+  -mattermost-url "http://127.0.0.1:8065" \
+  -mattermost-team "internkim" \
+  -blueclaw-url "http://127.0.0.1:8080" \
+  -state-dir "$state_dir" \
+  -bridge-map-db "$bridge_db" \
+  -mattermost-admin-password "$INTERNKIM_MM_ADMIN_PASSWORD_PATH" \
+  -buzz-key-seed "$INTERNKIM_BUZZ_KEY_SEED" \
+  >"$admind_log" 2>&1 &
+admind_pid=$!
+echo "$admind_pid" >"$admind_pid_file"
+
+echo "==> waiting for admind to listen"
+for _ in $(seq 1 40); do
+  if nc -z 127.0.0.1 18080 2>/dev/null; then break; fi
+  if ! kill -0 "$admind_pid" 2>/dev/null; then
+    echo "admind exited early; tail of $admind_log:" >&2
+    tail -20 "$admind_log" >&2
+    exit 1
+  fi
+  sleep 0.5
+done
+
+echo "==> seeding channel map (POST /bridge/api/bootstrap)"
+bootstrap_response="$(curl -sS -X POST "http://$listen/bridge/api/bootstrap")"
+echo "    $bootstrap_response"
+
+cat <<EOF
+
+==> local admind is up (pid $admind_pid). Next, in the shell that runs chatd:
+
+    export CHATD_ADMIND_BASE_URL=http://127.0.0.1:18080
+    export CHATD_MATTERMOST_ADMIN_TOKEN=<local MM admin personal access token>
+    # then restart chatd (bun run src/main.ts) from .dependency/blueclaw/chatd
+
+Verify:
+  - post in a Mattermost channel  -> the message appears in the mapped Buzz channel
+  - post in the Buzz channel       -> it appears in Mattermost as the real author
+
+Teardown:
+  kill \$(cat "$admind_pid_file")
+EOF
