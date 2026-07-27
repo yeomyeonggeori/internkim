@@ -60,7 +60,10 @@
 	>
 		{#each section.records as record (record.userID)}
 			{@const responsibility = responsibilityLabel(record)}
-			<Item.Root variant="outline" class={selectedUserID === record.userID ? 'ring-ring ring-1' : ''}>
+			<Item.Root
+				variant="outline"
+				class={['bg-card hover:bg-accent/40 relative items-start gap-3 p-3', selectedUserID === record.userID && 'ring-ring ring-1']}
+			>
 				{#snippet child({ props })}
 					<button
 						{...props}
@@ -68,30 +71,28 @@
 						onclick={() => selectRecord(record)}
 						data-testid={`organization-person-node-${record.userID}`}
 					>
-						<Item.Media>
-							<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-9" />
+						<Item.Media class="mt-0.5">
+							<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-10" />
 						</Item.Media>
-						<Item.Content>
-							<Item.Title>{personLabel(record)}</Item.Title>
-							<Item.Description>{record.jobTitle || text.noTitle}</Item.Description>
+						<Item.Content class="gap-0.5 text-left">
+							<Item.Title class={['truncate', responsibility && 'pr-16']}>{personLabel(record)}</Item.Title>
+							<Item.Description class="truncate">{record.jobTitle || text.noTitle}</Item.Description>
+							<div class="text-muted-foreground mt-2 grid gap-1 text-xs">
+								<span class="flex min-w-0 items-center gap-1.5">
+									<MailIcon class="size-3.5 shrink-0" />
+									<span class="truncate">{record.email}</span>
+								</span>
+								{#if record.hireDate}
+									<span class="flex items-center gap-1.5 tabular-nums">
+										<CalendarDaysIcon class="size-3.5 shrink-0" />
+										{record.hireDate}
+									</span>
+								{/if}
+							</div>
 						</Item.Content>
 						{#if responsibility}
-							<Item.Actions>
-								<Badge variant="secondary">{responsibility}</Badge>
-							</Item.Actions>
+							<Badge variant="secondary" class="absolute top-2 right-2">{responsibility}</Badge>
 						{/if}
-						<Item.Footer class="text-muted-foreground border-t pt-2 text-xs">
-							<span class="flex min-w-0 items-center gap-1.5">
-								<MailIcon class="size-3.5 shrink-0" />
-								<span class="truncate">{record.email}</span>
-							</span>
-							{#if record.hireDate}
-								<span class="flex shrink-0 items-center gap-1.5 tabular-nums">
-									<CalendarDaysIcon class="size-3.5 shrink-0" />
-									{record.hireDate}
-								</span>
-							{/if}
-						</Item.Footer>
 					</button>
 				{/snippet}
 			</Item.Root>
