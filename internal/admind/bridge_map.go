@@ -2,6 +2,7 @@ package admind
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 )
@@ -31,6 +32,12 @@ func (service *Service) handleBridgeMap(responseWriter http.ResponseWriter, requ
 		service.handleBridgeChannelRecord(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/channel":
 		service.handleBridgeChannelLookup(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/channel/resolve":
+		service.handleBridgeChannelResolve(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/bootstrap":
+		service.handleBridgeBootstrap(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/identity":
+		service.handleBridgeIdentity(responseWriter, request)
 	default:
 		http.NotFound(responseWriter, request)
 	}
@@ -132,4 +139,62 @@ func (service *Service) handleBridgeChannelLookup(responseWriter http.ResponseWr
 		return
 	}
 	service.writeJSON(responseWriter, bridgeChannelLookupResponse{Found: found, Mapping: mapping})
+}
+
+type bridgeChannelResolveRequest struct {
+	Platform          string `json:"platform"`
+	ExternalChannelID string `json:"externalChannelId"`
+}
+
+func (service *Service) handleBridgeChannelResolve(responseWriter http.ResponseWriter, request *http.Request) {
+	var payload bridgeChannelResolveRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		http.Error(responseWriter, "invalid request", http.StatusBadRequest)
+		return
+	}
+	if payload.Platform == "" || payload.ExternalChannelID == "" {
+		http.Error(responseWriter, "platform and externalChannelId are required", http.StatusBadRequest)
+		return
+	}
+	buzzChannelID, errorValue := service.resolveBridgeChannel(request.Context(), payload.Platform, payload.ExternalChannelID)
+	if errors.Is(errorValue, errBridgeSeedMissing) {
+		http.Error(responseWriter, "buzz key seed is not configured", http.StatusNotImplemented)
+		return
+	}
+	if errorValue != nil {
+		http.Error(responseWriter, "bridge_channel_resolve_failed", http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]string{"buzzChannelId": buzzChannelID})
+}
+
+func (service *Service) handleBridgeBootstrap(responseWriter http.ResponseWriter, request *http.Request) {
+	count, errorValue := service.bootstrapBridgeChannels(request.Context())
+	if errors.Is(errorValue, errBridgeSeedMissing) {
+		http.Error(responseWriter, "buzz key seed is not configured", http.StatusNotImplemented)
+		return
+	}
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]int{"channels": count})
+}
+
+func (service *Service) handleBridgeIdentity(responseWriter http.ResponseWriter, request *http.Request) {
+	email := strings.TrimSpace(request.URL.Query().Get("email"))
+	if email == "" {
+		http.Error(responseWriter, "email is required", http.StatusBadRequest)
+		return
+	}
+	secretHex, errorValue := service.personBuzzSecret(request.Context(), email)
+	if errors.Is(errorValue, errBuzzKeySeedMissing) {
+		http.Error(responseWriter, "buzz key seed is not configured", http.StatusNotImplemented)
+		return
+	}
+	if errorValue != nil {
+		http.Error(responseWriter, "bridge_identity_failed", http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]string{"secretHex": secretHex})
 }
