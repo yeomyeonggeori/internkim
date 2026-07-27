@@ -30,8 +30,24 @@
 	} = $props();
 
 	const section = $derived(node.section);
+	let headerElement = $state<HTMLElement>();
+	let isHeaderStuck = $state(false);
 	const depth = $derived(Math.min(section.depth, 8));
 	const today = new Date();
+
+	$effect(() => {
+		const header = headerElement;
+		if (!header) return;
+		const scrollElement = header.closest('[data-organization-scroll]');
+		if (!scrollElement) return;
+		const stickyOffset = depth * 36;
+		const updateStuckState = () => {
+			isHeaderStuck = header.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top <= stickyOffset + 0.5;
+		};
+		updateStuckState();
+		scrollElement.addEventListener('scroll', updateStuckState, { passive: true });
+		return () => scrollElement.removeEventListener('scroll', updateStuckState);
+	});
 
 	function tenureLabel(hireDate: string | undefined): string {
 		const tenure = organizationTenure(hireDate, today);
@@ -66,6 +82,7 @@
 	<div
 		class="bg-background sticky flex h-9 items-center gap-1 pr-2"
 		style={`padding-left: ${depth * 16 + 8}px; top: ${depth * 36}px; z-index: ${40 - depth * 2}`}
+		bind:this={headerElement}
 	>
 		<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
 			{#if section.id}
@@ -80,6 +97,14 @@
 				<UserIcon class="size-3" />
 			{/snippet}
 		</OrganizationCountBadge>
+		<span
+			class={[
+				'from-foreground/12 pointer-events-none absolute top-full right-0 h-2 bg-gradient-to-b to-transparent transition-opacity duration-200 [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]',
+				isHeaderStuck ? 'opacity-100' : 'opacity-0'
+			]}
+			style={`left: ${depth * 16 + 8}px`}
+			aria-hidden="true"
+		></span>
 	</div>
 	<Item.Group
 		class="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2 pr-2"
