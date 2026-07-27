@@ -93,6 +93,7 @@ type Configuration struct {
 	BuzzAdminCommandPath           string
 	BuzzDatabaseURL                string
 	BuzzAccountLinksPath           string
+	BuzzKeySeed                    string
 }
 
 type Service struct {

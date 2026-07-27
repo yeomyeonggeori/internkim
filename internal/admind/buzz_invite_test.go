@@ -132,21 +132,6 @@ func TestBuzzStorePersistsLinksForAcpd(t *testing.T) {
 	}
 }
 
-func TestParseBuzzGeneratedIdentity(t *testing.T) {
-	output := "Public key:  " + strings.Repeat("a", 64) + "\nSecret key:  " + strings.Repeat("b", 64) + "\n\nSet BUZZ_PRIVATE_KEY to the secret key to use this identity."
-
-	identity, errorValue := parseBuzzGeneratedIdentity(output)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if identity.publicKey != strings.Repeat("a", 64) || identity.secretKey != strings.Repeat("b", 64) {
-		t.Fatalf("unexpected identity: %+v", identity)
-	}
-
-	if _, errorValue := parseBuzzGeneratedIdentity("no keys here"); errorValue == nil {
-		t.Fatal("expected parse failure for missing keys")
-	}
-}
 
 func TestLinkerPrefersPregeneratedIdentityAndExcludesItFromCorrelation(t *testing.T) {
 	future := time.Now().UTC().Add(time.Hour)
