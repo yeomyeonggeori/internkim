@@ -15,7 +15,7 @@
 	} = $props();
 
 	const normalizedSeed = $derived((seed ?? '').trim().toLowerCase() || '?');
-	const svg = $derived(minidenticon(normalizedSeed, saturation, lightness));
+	const svg = $derived(minidenticon(normalizedSeed, saturation, lightness).replace('<svg', '<svg class="size-full"'));
 </script>
 
 <div
