@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { OrgGroup, UserRecord } from '../../../src/lib/orgchart/types';
-import { orgchartOrganizationSections } from '../../../src/routes/orgchart/orgchart-organization-model';
+import type { OrgGroup, UserRecord } from '../../../src/lib/organization/types';
+import { organizationOrganizationSections } from '../../../src/routes/organization/organization-model';
 
 function record(userID: string, primaryGroupID = ''): UserRecord {
 	return {
@@ -13,7 +13,7 @@ function record(userID: string, primaryGroupID = ''): UserRecord {
 	};
 }
 
-describe('orgchart organization model', () => {
+describe('organization organization model', () => {
 	test('renders the synthetic root and every organization in hierarchy and priority order', () => {
 		const groups: OrgGroup[] = [
 			{ id: 'product', name: '프로덕트 본부' },
@@ -23,7 +23,7 @@ describe('orgchart organization model', () => {
 		];
 		const records = [record('ceo'), record('product-lead', 'product'), record('engineer', 'engineering'), record('designer', 'design'), record('sales', 'sales')];
 
-		const sections = orgchartOrganizationSections(records, groups, '전체 조직');
+		const sections = organizationOrganizationSections(records, groups, '전체 조직');
 
 		expect(sections.map((section) => [section.id, section.depth, section.memberCount, section.records.map((item) => item.userID)])).toEqual([
 			['', 0, 5, ['ceo']],
@@ -49,7 +49,7 @@ describe('orgchart organization model', () => {
 		];
 		const visibleRecords = allRecords.filter((item) => item.userID !== 'ceo');
 
-		const sections = orgchartOrganizationSections(visibleRecords, groups, '전체 조직', '', allRecords);
+		const sections = organizationOrganizationSections(visibleRecords, groups, '전체 조직', '', allRecords);
 
 		expect(sections.map((section) => section.id)).toEqual(['', 'management', 'development', 'otok', 'taskforce']);
 	});
@@ -57,7 +57,7 @@ describe('orgchart organization model', () => {
 	test('places people with unknown organizations in the root without creating a group', () => {
 		const records = [record('known', 'product'), record('unknown', 'missing')];
 
-		const sections = orgchartOrganizationSections(records, [{ id: 'product', name: '제품' }], '전체 조직');
+		const sections = organizationOrganizationSections(records, [{ id: 'product', name: '제품' }], '전체 조직');
 
 		expect(sections.map((section) => section.id)).toEqual(['', 'product']);
 		expect(sections[0]?.records.map((item) => item.userID)).toEqual(['unknown']);
@@ -71,7 +71,7 @@ describe('orgchart organization model', () => {
 			{ id: 'sales', name: '세일즈' }
 		];
 
-		const sections = orgchartOrganizationSections([], groups, '전체 조직', 'engineering');
+		const sections = organizationOrganizationSections([], groups, '전체 조직', 'engineering');
 
 		expect(sections.map((section) => [section.id, section.depth])).toEqual([
 			['engineering', 0],
@@ -83,7 +83,7 @@ describe('orgchart organization model', () => {
 		const groups: OrgGroup[] = [{ id: 'product', name: '제품팀' }];
 		const allRecords = [record('lead', 'product'), record('engineer', 'product')];
 
-		const sections = orgchartOrganizationSections([allRecords[1]], groups, '전체 조직', '', allRecords);
+		const sections = organizationOrganizationSections([allRecords[1]], groups, '전체 조직', '', allRecords);
 
 		expect(sections.map((section) => [section.id, section.memberCount, section.records.map((item) => item.userID)])).toEqual([
 			['', 2, []],
@@ -95,7 +95,7 @@ describe('orgchart organization model', () => {
 		const leader = { ...record('leader', 'product'), hireDate: '2026-02-01' };
 		const employee = { ...record('employee', 'product'), hireDate: '2026-01-01', supervisorID: 'leader' };
 
-		const sections = orgchartOrganizationSections([leader, employee], [{ id: 'product', name: '제품팀' }], '전체 조직');
+		const sections = organizationOrganizationSections([leader, employee], [{ id: 'product', name: '제품팀' }], '전체 조직');
 		const productSection = sections.find((section) => section.id === 'product');
 
 		expect(productSection?.records.map((item) => item.userID)).toEqual(['leader', 'employee']);
@@ -111,7 +111,7 @@ describe('orgchart organization model', () => {
 			{ id: 'product', name: '제품팀' }
 		];
 
-		const sections = orgchartOrganizationSections([companyLeader, productLeader, employee], groups, '전체 조직');
+		const sections = organizationOrganizationSections([companyLeader, productLeader, employee], groups, '전체 조직');
 		const leadershipSection = sections.find((section) => section.id === 'leadership');
 		const productSection = sections.find((section) => section.id === 'product');
 
@@ -125,7 +125,7 @@ describe('orgchart organization model', () => {
 		const firstRoot = record('first-root', 'product');
 		const secondRoot = record('second-root', 'product');
 
-		const sections = orgchartOrganizationSections([firstRoot, secondRoot], [{ id: 'product', name: '제품팀' }], '전체 조직');
+		const sections = organizationOrganizationSections([firstRoot, secondRoot], [{ id: 'product', name: '제품팀' }], '전체 조직');
 		const productSection = sections.find((section) => section.id === 'product');
 
 		expect(productSection?.responsibleUserID).toBe(undefined);

@@ -32,7 +32,7 @@
 
 	const mobileMoreItems = $derived<AppMobileNavigationItem[]>([
 		{ href: '/memory/', label: text.memory, icon: NetworkIcon },
-		{ href: '/orgchart/', label: text.orgchart, icon: UsersRoundIcon },
+		{ href: '/organization/', label: text.organization, icon: UsersRoundIcon },
 		{ href: '/files/', label: text.files, icon: FolderOpenIcon },
 		...appNavigation.workspace
 	]);

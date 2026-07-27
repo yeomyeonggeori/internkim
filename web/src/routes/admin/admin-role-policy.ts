@@ -16,7 +16,7 @@ export function canViewAdminSection(role: UserRole, section: AdminSection): bool
 	return memberSections.includes(section);
 }
 
-export function canManageOrgchart(role: UserRole): boolean {
+export function canManageOrganization(role: UserRole): boolean {
 	return role === 'admin' || role === 'operationsAdmin';
 }
 

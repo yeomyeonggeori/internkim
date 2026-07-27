@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func TestAdminUserProxyGetMergesOrgchartMetadata(t *testing.T) {
+func TestAdminUserProxyGetMergesOrganizationMetadata(t *testing.T) {
 	service := newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
 		if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
 			return response, nil
@@ -28,15 +28,15 @@ func TestAdminUserProxyGetMergesOrgchartMetadata(t *testing.T) {
 			return nil, nil
 		}
 	})
-	if errorValue := service.writeOrgchartProfiles(context.Background(), []orgchartProfile{{
+	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{{
 		UserID:            "user-member",
 		Email:             "member@example.com",
 		JobTitle:          "Design Lead",
 		PrimaryGroupID:    "design",
 		GroupIDs:          []string{"design"},
 		SupervisorID:      "user-admin",
-		EmploymentStatus:  orgchartEmploymentStatusActive,
-		IsOrgchartVisible: true,
+		EmploymentStatus:  organizationEmploymentStatusActive,
+		IsOrganizationVisible: true,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -58,7 +58,7 @@ func TestAdminUserProxyGetMergesOrgchartMetadata(t *testing.T) {
 	}
 	record := usersResponse.Records[0]
 	if record.JobTitle != "Design Lead" || record.PrimaryGroupID != "design" || record.SupervisorID != "user-admin" {
-		t.Fatalf("record orgchart metadata = %#v", record)
+		t.Fatalf("record organization metadata = %#v", record)
 	}
 	expectedImage := calendarParticipantImagePath(stableFlowID("member@example.com"))
 	if record.Image != expectedImage {
@@ -148,10 +148,10 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"oldhandle","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch" && request.Method == http.MethodPut:
-			listKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCacheList, Key: orgchartPeopleCacheSingletonKey}
-			personKey := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "user-member"}
-			keys := []orgchartPeopleCacheKey{listKey, personKey}
-			snapshots, errorValue := service.readOrgchartPeopleCacheSnapshots(request.Context(), keys)
+			listKey := organizationPeopleCacheKey{Kind: organizationPeopleCacheList, Key: organizationPeopleCacheSingletonKey}
+			personKey := organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "user-member"}
+			keys := []organizationPeopleCacheKey{listKey, personKey}
+			snapshots, errorValue := service.readOrganizationPeopleCacheSnapshots(request.Context(), keys)
 			if errorValue != nil {
 				t.Fatal(errorValue)
 			}
@@ -257,7 +257,7 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 	}
 }
 
-func TestOrgchartUserMutationCleanupFailurePreservesSuccessProxy(t *testing.T) {
+func TestOrganizationUserMutationCleanupFailurePreservesSuccessProxy(t *testing.T) {
 	sourceResponseBody := `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}],"source":"pages"}`
 	service := newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
 		if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
@@ -281,7 +281,7 @@ func TestOrgchartUserMutationCleanupFailurePreservesSuccessProxy(t *testing.T) {
 			return nil, nil
 		}
 	})
-	failOrgchartUserMutationCompletion(t, service)
+	failOrganizationUserMutationCompletion(t, service)
 
 	requestBody := strings.NewReader(`{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}`)
 	responseRecorder := httptest.NewRecorder()

@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { replaceOrgchartPrimaryGroup } from '../../../src/lib/orgchart/group-membership';
+import { replaceOrganizationPrimaryGroup } from '../../../src/lib/organization/group-membership';
 
-describe('orgchart group membership', () => {
+describe('organization group membership', () => {
 	test('clears every organization membership when primary becomes unassigned', () => {
-		const membership = replaceOrgchartPrimaryGroup(
+		const membership = replaceOrganizationPrimaryGroup(
 			{
 				primaryGroupID: 'product',
 				group: 'product',
@@ -16,7 +16,7 @@ describe('orgchart group membership', () => {
 	});
 
 	test('replaces only the previous primary and preserves secondary organizations', () => {
-		const membership = replaceOrgchartPrimaryGroup(
+		const membership = replaceOrganizationPrimaryGroup(
 			{
 				primaryGroupID: 'product',
 				group: 'product',

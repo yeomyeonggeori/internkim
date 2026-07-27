@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { compareOrgchartPeople, orderOrgchartPeopleByHierarchy } from '../../../src/lib/orgchart/person-order';
+import { compareOrganizationPeople, orderOrganizationPeopleByHierarchy } from '../../../src/lib/organization/person-order';
 
-describe('orgchart person ordering', () => {
+describe('organization person ordering', () => {
 	test('orders by hire date before name and puts missing dates after dated people', () => {
 		const people = [
 			{ userID: 'missing-zara', name: 'Zara' },
@@ -11,7 +11,7 @@ describe('orgchart person ordering', () => {
 			{ userID: 'newer-bora', name: 'Bora', hireDate: '2026-04-01' }
 		];
 
-		expect([...people].sort(compareOrgchartPeople).map((person) => person.userID)).toEqual([
+		expect([...people].sort(compareOrganizationPeople).map((person) => person.userID)).toEqual([
 			'older-min',
 			'newer-aaron',
 			'newer-bora',
@@ -28,7 +28,7 @@ describe('orgchart person ordering', () => {
 			{ userID: 'aaron', name: 'Aaron', hireDate: '2026-04-01' }
 		];
 
-		expect([...people].sort(compareOrgchartPeople).map((person) => person.userID)).toEqual([
+		expect([...people].sort(compareOrganizationPeople).map((person) => person.userID)).toEqual([
 			'pyobon',
 			'gamyeong',
 			'aaron',
@@ -44,7 +44,7 @@ describe('orgchart person ordering', () => {
 			{ userID: 'aaron', name: 'Aaron' }
 		];
 
-		expect([...people].sort(compareOrgchartPeople).map((person) => person.userID)).toEqual([
+		expect([...people].sort(compareOrganizationPeople).map((person) => person.userID)).toEqual([
 			'pyobon',
 			'gamyeong',
 			'aaron',
@@ -61,7 +61,7 @@ describe('orgchart person ordering', () => {
 			{ userID: 'senior', name: 'Senior', hireDate: '2026-02-01', supervisorID: 'manager' }
 		];
 
-		expect(orderOrgchartPeopleByHierarchy(people).map((person) => person.userID)).toEqual([
+		expect(orderOrganizationPeopleByHierarchy(people).map((person) => person.userID)).toEqual([
 			'leader',
 			'peer',
 			'manager',
@@ -77,7 +77,7 @@ describe('orgchart person ordering', () => {
 			{ userID: 'external-root', name: 'External Root', hireDate: '2026-01-01', supervisorID: 'outside-group' }
 		];
 
-		expect(orderOrgchartPeopleByHierarchy(people).map((person) => person.userID)).toEqual(['external-root', 'internal-root']);
+		expect(orderOrganizationPeopleByHierarchy(people).map((person) => person.userID)).toEqual(['external-root', 'internal-root']);
 	});
 
 	test('keeps cyclic records exactly once', () => {
@@ -87,6 +87,6 @@ describe('orgchart person ordering', () => {
 			{ userID: 'cycle-a', name: 'Cycle A', hireDate: '2026-03-01', supervisorID: 'cycle-b' }
 		];
 
-		expect(orderOrgchartPeopleByHierarchy(people).map((person) => person.userID)).toEqual(['root', 'cycle-a', 'cycle-b']);
+		expect(orderOrganizationPeopleByHierarchy(people).map((person) => person.userID)).toEqual(['root', 'cycle-a', 'cycle-b']);
 	});
 });
