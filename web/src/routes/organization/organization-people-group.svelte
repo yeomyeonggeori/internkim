@@ -93,8 +93,25 @@
 					selectedUserID === record.userID && 'ring-ring ring-1'
 				]}
 			>
+				{#if tenureLabel(record.hireDate)}
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							{#snippet child({ props })}
+								<Badge
+									{...props}
+									variant="outline"
+									class="bg-background absolute top-2 right-2 z-10 h-5 gap-1 rounded-full px-1.5 font-normal tabular-nums"
+								>
+									<TimerIcon class="size-3" />
+									{tenureLabel(record.hireDate)}
+								</Badge>
+							{/snippet}
+						</Tooltip.Trigger>
+						<Tooltip.Content side="top">{tenureDetail(record.hireDate)}</Tooltip.Content>
+					</Tooltip.Root>
+				{/if}
 				{#if leadership}
-					<Badge variant="secondary" class={['absolute top-2 right-2 z-10', leadership.class]}>
+					<Badge variant="secondary" class={['absolute top-2 left-2 z-10', leadership.class]}>
 						{#if leadership.isCompanyWide}
 							<CrownIcon />
 						{:else}
@@ -115,19 +132,6 @@
 						<Item.Description class="truncate">{record.jobTitle || text.noTitle}</Item.Description>
 					</span>
 				</button>
-				{#if tenureLabel(record.hireDate)}
-					<Tooltip.Root>
-						<Tooltip.Trigger>
-							{#snippet child({ props })}
-								<Badge {...props} variant="outline" class="h-5 shrink-0 gap-1 rounded-full px-1.5 font-normal tabular-nums">
-									<TimerIcon class="size-3" />
-									{tenureLabel(record.hireDate)}
-								</Badge>
-							{/snippet}
-						</Tooltip.Trigger>
-						<Tooltip.Content side="top">{tenureDetail(record.hireDate)}</Tooltip.Content>
-					</Tooltip.Root>
-				{/if}
 				<OrganizationPersonContactActions email={record.email} phoneNumber={record.phoneNumber ?? ''} {text} />
 			</Item.Root>
 		{/each}
