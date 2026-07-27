@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import FilterCombobox from '$lib/components/filter-combobox.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
@@ -137,6 +138,19 @@
 								</FilterCombobox>
 							</div>
 							<div class="min-h-0 overflow-y-auto px-4 sm:px-6" data-organization-scroll data-testid="organization-list-scroll">
+								{#if controller.hasExpiredAdminSession}
+									<div class="border-primary/30 bg-primary/5 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm">
+										<span>{text.adminSessionExpired}</span>
+										<Button
+											type="button"
+											size="sm"
+											href={`/auth/cloudflare/start?return=${encodeURIComponent(page.url.pathname)}`}
+											data-sveltekit-reload
+										>
+											{text.reauthenticate}
+										</Button>
+									</div>
+								{/if}
 								{#if controller.errorMessage}
 									<p class="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{controller.errorMessage}</p>
 								{/if}
@@ -200,6 +214,9 @@
 					{text}
 					adminText={adminPageText}
 					canEdit={controller.canManage}
+					canEditOwnPhoneNumber={controller.isOwnRecord(controller.selectedRecord)}
+					isSavingOwnPhoneNumber={controller.isSavingOwnPhoneNumber}
+					onSaveOwnPhoneNumber={(phoneNumber) => controller.saveOwnPhoneNumber(phoneNumber)}
 					isEditing={controller.selectedRecordIsEditing}
 					editingRecord={controller.selectedEditingRecord}
 					userRecords={controller.records}

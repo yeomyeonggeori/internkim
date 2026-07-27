@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
 	import * as Item from '$lib/components/ui/item';
 	import BriefcaseBusinessIcon from '@lucide/svelte/icons/briefcase-business';
 	import ComponentIcon from '@lucide/svelte/icons/component';
@@ -15,6 +16,9 @@
 
 	type OrganizationPersonDetailPanelProps = {
 		record: UserRecord | undefined;
+		canEditOwnPhoneNumber?: boolean;
+		isSavingOwnPhoneNumber?: boolean;
+		onSaveOwnPhoneNumber?: (phoneNumber: string) => void | Promise<void>;
 		groups: OrgGroup[];
 		text: typeof organizationDirectoryText.ko;
 		canEdit?: boolean;
@@ -33,6 +37,9 @@
 		record,
 		groups,
 		text,
+		canEditOwnPhoneNumber = false,
+		isSavingOwnPhoneNumber = false,
+		onSaveOwnPhoneNumber = () => {},
 		canEdit = false,
 		isEditing = false,
 		editingRecord,
@@ -46,6 +53,7 @@
 	}: OrganizationPersonDetailPanelProps = $props();
 
 	let localEditingRecord = $state<UserRecord | undefined>(undefined);
+	let ownPhoneNumberDraft = $state<string | undefined>(undefined);
 
 	$effect(() => {
 		localEditingRecord = editingRecord;
@@ -88,7 +96,14 @@
 
 		<div class="min-h-0 overflow-y-auto overscroll-contain px-6 py-5">
 			{#if isEditing && localEditingRecord && adminText}
-				<div data-testid={`organization-profile-${localEditingRecord.userID}`}>
+				<div class="grid gap-4" data-testid={`organization-profile-${localEditingRecord.userID}`}>
+					<Item.Root variant="muted" size="sm">
+						<Item.Media variant="icon"><MailIcon /></Item.Media>
+						<Item.Content>
+							<Item.Description>{text.email}</Item.Description>
+							<Item.Title class="w-full truncate">{record.email}</Item.Title>
+						</Item.Content>
+					</Item.Root>
 					<OrganizationProfileFields
 						bind:record={localEditingRecord}
 						{userRecords}

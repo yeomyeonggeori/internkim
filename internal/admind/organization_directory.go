@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -50,6 +51,8 @@ func (service *Service) handleOrganization(responseWriter http.ResponseWriter, r
 	switch {
 	case request.Method == http.MethodGet && path == "/people":
 		service.writeOrganizationDirectory(responseWriter, request)
+	case request.Method == http.MethodPut && path == "/me/phone-number":
+		service.updateOwnPhoneNumber(responseWriter, request)
 	default:
 		http.NotFound(responseWriter, request)
 	}
@@ -111,4 +114,42 @@ func isVisibleOrganizationRecord(record adminUserMutation, profilesByUserID map[
 		return true
 	}
 	return profile.IsOrganizationVisible && profile.EmploymentStatus != organizationEmploymentStatusResigned
+}
+
+func (service *Service) updateOwnPhoneNumber(responseWriter http.ResponseWriter, request *http.Request) {
+	actorEmail := service.webActorEmail(request)
+	if actorEmail == "" {
+		http.Error(responseWriter, "organization access required", http.StatusForbidden)
+		return
+	}
+	var payload struct {
+		PhoneNumber string `json:"phoneNumber"`
+	}
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	phoneNumber, errorValue := normalizeInternationalPhoneNumber(payload.PhoneNumber, service.workspaceCallingCode())
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	profiles, errorValue := service.readOrganizationProfiles(request.Context())
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, profilesByEmail := organizationProfileIndexes(profiles)
+	profile := profilesByEmail[actorEmail]
+	profile.Email = actorEmail
+	profile.PhoneNumber = phoneNumber
+	if profile.EmploymentStatus == "" {
+		profile.EmploymentStatus = organizationEmploymentStatusActive
+		profile.IsOrganizationVisible = true
+	}
+	if errorValue := service.writeOrganizationProfiles(request.Context(), []organizationProfile{profile}); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]string{"phoneNumber": phoneNumber})
 }
