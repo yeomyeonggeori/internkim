@@ -92,7 +92,7 @@
 				variant="outline"
 				class={[
 					'bg-card hover:bg-accent/40 relative flex-col items-center gap-2 px-4 pt-7 pb-2 text-center',
-					selectedUserID === record.userID && 'ring-ring ring-1'
+					selectedUserID === record.userID && 'border-primary bg-accent/40'
 				]}
 			>
 				<div class="absolute top-2 left-2 z-10 grid justify-items-start gap-1">

@@ -173,12 +173,14 @@
 		<Sheet.Root open={isDetailSheetOpen} onOpenChange={handleDetailSheetOpenChange}>
 			<Sheet.Content
 				side="right"
-				class="w-[min(26rem,92vw)] overflow-hidden p-0"
-				showCloseButton={false}
+				class="grid w-[min(26rem,92vw)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
 				closeLabel={text.closeDetail}
 				data-testid="organization-detail-sheet"
 			>
-				<Sheet.Header class="sr-only"><Sheet.Title>{text.personDetail}</Sheet.Title><Sheet.Description>{controller.selectedRecord.name || controller.selectedRecord.email}</Sheet.Description></Sheet.Header>
+				<Sheet.Header class="border-b px-6 py-4">
+					<Sheet.Title>{text.personDetail}</Sheet.Title>
+					<Sheet.Description class="sr-only">{controller.selectedRecord.name || controller.selectedRecord.email}</Sheet.Description>
+				</Sheet.Header>
 				<OrganizationPersonDetailPanel
 					record={controller.selectedRecord}
 					groups={controller.groups}
@@ -190,11 +192,9 @@
 					userRecords={controller.records}
 					isSaving={controller.isSavingSelectedProfile}
 					hasInvalidSupervisor={controller.hasInvalidSelectedSupervisor}
-					variant="sheet"
 					onEdit={() => controller.selectedRecord && controller.editRecord(controller.selectedRecord)}
 					onSave={() => controller.selectedRecord && controller.saveProfile(controller.selectedRecord.userID)}
 					onCancel={() => controller.selectedRecord && controller.cancelProfileEdit(controller.selectedRecord.userID)}
-					clearSelection={() => controller.clearSelection()}
 				/>
 			</Sheet.Content>
 		</Sheet.Root>
