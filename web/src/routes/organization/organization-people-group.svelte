@@ -4,11 +4,11 @@
 	import FlagTriangleRightIcon from '@lucide/svelte/icons/flag-triangle-right';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
-	import MailIcon from '@lucide/svelte/icons/mail';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import ComponentIcon from '@lucide/svelte/icons/component';
 	import { Badge } from '$lib/components/ui/badge';
 	import OrganizationCountBadge from './organization-count-badge.svelte';
+	import OrganizationPersonContactActions from './organization-person-contact-actions.svelte';
 	import * as Item from '$lib/components/ui/item';
 	import type { UserRecord } from '$lib/organization/types';
 	import type { OrganizationOrganizationSection } from './organization-model';
@@ -74,44 +74,39 @@
 				variant="outline"
 				class={['bg-card hover:bg-accent/40 relative items-start gap-3 p-3', selectedUserID === record.userID && 'ring-ring ring-1']}
 			>
-				{#snippet child({ props })}
+				<Item.Media class="mt-0.5">
+					<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-10" />
+				</Item.Media>
+				<Item.Content class="gap-0.5">
 					<button
-						{...props}
 						type="button"
+						class="min-w-0 text-left"
 						onclick={() => selectRecord(record)}
 						data-testid={`organization-person-node-${record.userID}`}
 					>
-						<Item.Media class="mt-0.5">
-							<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-10" />
-						</Item.Media>
-						<Item.Content class="gap-0.5 text-left">
-							<Item.Title class={['truncate', leadership && 'pr-20']}>{personLabel(record)}</Item.Title>
-							<Item.Description class="truncate">{record.jobTitle || text.noTitle}</Item.Description>
-							<div class="text-muted-foreground mt-2 grid gap-1 text-xs">
-								<span class="flex min-w-0 items-center gap-1.5">
-									<MailIcon class="size-3.5 shrink-0" />
-									<span class="truncate">{record.email}</span>
-								</span>
-								{#if record.hireDate}
-									<span class="flex items-center gap-1.5 tabular-nums">
-										<CalendarDaysIcon class="size-3.5 shrink-0" />
-										{record.hireDate}
-									</span>
-								{/if}
-							</div>
-						</Item.Content>
-						{#if leadership}
-							<Badge variant="secondary" class={['absolute top-2 right-2', leadership.class]}>
-								{#if leadership.isCompanyWide}
-									<CrownIcon />
-								{:else}
-									<FlagTriangleRightIcon />
-								{/if}
-								{leadership.label}
-							</Badge>
-						{/if}
+						<Item.Title class={['truncate', leadership && 'pr-20']}>{personLabel(record)}</Item.Title>
+						<Item.Description class="truncate">{record.jobTitle || text.noTitle}</Item.Description>
 					</button>
-				{/snippet}
+					<div class="mt-2 flex items-center justify-between gap-2">
+						<span class="text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums">
+							{#if record.hireDate}
+								<CalendarDaysIcon class="size-3.5 shrink-0" />
+								{record.hireDate}
+							{/if}
+						</span>
+						<OrganizationPersonContactActions email={record.email} {text} />
+					</div>
+				</Item.Content>
+				{#if leadership}
+					<Badge variant="secondary" class={['absolute top-2 right-2', leadership.class]}>
+						{#if leadership.isCompanyWide}
+							<CrownIcon />
+						{:else}
+							<FlagTriangleRightIcon />
+						{/if}
+						{leadership.label}
+					</Badge>
+				{/if}
 			</Item.Root>
 		{/each}
 	</Item.Group>
