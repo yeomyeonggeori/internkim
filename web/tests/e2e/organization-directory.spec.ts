@@ -146,7 +146,7 @@ test.describe('employee organization directory', () => {
 		await mockOrganizationDirectory(page, { canManage: true, locale: 'en' });
 		await page.goto('/organization/');
 
-		await expect(page.getByTestId('organization-root').getByTestId('organization-avatar-stack')).toHaveAttribute('aria-label', '7 people');
+		await expect(page.getByTestId('organization-root')).toContainText('7 people');
 		await expect(page.getByRole('button', { name: '제품팀 Collapse' })).toBeVisible();
 
 		await page.getByRole('button', { name: 'Edit', exact: true }).click();

@@ -4,7 +4,6 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
 	import LockKeyholeIcon from '@lucide/svelte/icons/lock-keyhole';
-	import OrganizationAvatarStack from './organization-avatar-stack.svelte';
 	import { organizationTreeDrag } from './organization-tree-drag-action';
 	import {
 		organizationOrganizationMovePreview,
@@ -136,7 +135,7 @@
 		>
 			{#if isEditing}<LockKeyholeIcon class="text-muted-foreground size-4" />{:else}<ChevronDownIcon class="text-muted-foreground size-4" />{/if}
 			<span class="min-w-0 flex-1 truncate">{tree.root.name}</span>
-			{#if !isEditing}<OrganizationAvatarStack records={tree.root.aggregateRecords} memberCountUnit={text.memberCountUnit} />{/if}
+			{#if !isEditing}<span class="text-muted-foreground shrink-0 text-xs tabular-nums">{tree.root.aggregateRecords.length}{text.memberCountUnit}</span>{/if}
 		</button>
 
 		{#each visibleNodes as node (node.id)}
@@ -169,7 +168,7 @@
 					<span class="size-6 shrink-0"></span>
 				{/if}
 				<button type="button" class="min-w-0 flex-1 truncate text-left text-sm" onclick={() => !isEditing && onSelect(node.id)}>{node.name}</button>
-				{#if !isEditing}<OrganizationAvatarStack records={node.aggregateRecords} memberCountUnit={text.memberCountUnit} />{/if}
+				{#if !isEditing}<span class="text-muted-foreground shrink-0 text-xs tabular-nums">{node.aggregateRecords.length}{text.memberCountUnit}</span>{/if}
 			</div>
 		{/each}
 
