@@ -2,14 +2,13 @@ import { describe, expect, test } from 'bun:test';
 import type { OrgGroup, UserRecord } from '../../../src/lib/organization/types';
 import { organizationOrganizationSections } from '../../../src/routes/organization/organization-model';
 
-function record(userID: string, primaryGroupID = ''): UserRecord {
+function record(userID: string, groupID = ''): UserRecord {
 	return {
 		userID,
 		handle: userID,
 		name: userID,
 		email: `${userID}@example.com`,
-		primaryGroupID,
-		groupIDs: primaryGroupID ? [primaryGroupID] : []
+		groupID
 	};
 }
 

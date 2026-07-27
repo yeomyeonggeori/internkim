@@ -146,7 +146,7 @@ function normalizedParentID(group: OrgGroup, knownGroupIDs: Set<string>): string
 function recordsByPrimaryGroupID(records: UserRecord[], knownGroupIDs: Set<string>): Map<string, UserRecord[]> {
 	const result = new Map<string, UserRecord[]>();
 	for (const record of records) {
-		const groupID = record.primaryGroupID?.trim() ?? '';
+		const groupID = record.groupID?.trim() ?? '';
 		const resolvedGroupID = knownGroupIDs.has(groupID) ? groupID : '';
 		result.set(resolvedGroupID, [...(result.get(resolvedGroupID) ?? []), record]);
 	}

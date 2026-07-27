@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge';
+	import OrganizationCountBadge from './organization-count-badge.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
-	import CirclePileIcon from '@lucide/svelte/icons/circle-pile';
+	import ComponentIcon from '@lucide/svelte/icons/component';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import OrganizationAvatarStack from './organization-avatar-stack.svelte';
@@ -149,7 +149,11 @@
 				{/if}
 				<span class="min-w-0 truncate">{tree.root.name}</span>
 				{#if childCount('') > 0}
-					<Badge variant="outline" class="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums">{childCount('')}</Badge>
+					<OrganizationCountBadge count={childCount('')} label={text.organization}>
+						{#snippet icon()}
+							<ComponentIcon class="size-3" />
+						{/snippet}
+					</OrganizationCountBadge>
 				{/if}
 			</button>
 			{#if canManage && !isEditing}
@@ -207,7 +211,7 @@
 					{#if !isEditing}
 						<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
 							{#if !hasChildren(node.id)}
-								<CirclePileIcon class="size-4" />
+								<ComponentIcon class="size-4" />
 							{:else if isExpanded(node.id)}
 								<ChevronDownIcon class="size-4" />
 							{:else}
@@ -217,7 +221,11 @@
 					{/if}
 					<span class="min-w-0 truncate">{node.name}</span>
 					{#if hasChildren(node.id)}
-						<Badge variant="outline" class="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums">{childCount(node.id)}</Badge>
+						<OrganizationCountBadge count={childCount(node.id)} label={text.organization}>
+							{#snippet icon()}
+								<ComponentIcon class="size-3" />
+							{/snippet}
+						</OrganizationCountBadge>
 					{/if}
 				</button>
 				{#if !isEditing && !hasChildren(node.id)}

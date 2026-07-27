@@ -72,8 +72,7 @@ test.describe('admin org chart profile editing', () => {
 				userID: 'user-grace',
 				email: 'grace@example.com',
 				jobTitle: 'Product Designer',
-				primaryGroupID: 'engineering',
-				groupIDs: ['engineering'],
+				groupID: 'engineering',
 				supervisorID: 'user-ada'
 			})
 		]);
@@ -103,8 +102,7 @@ test.describe('admin org chart profile editing', () => {
 				role: 'member',
 				jobTitle: 'Engineer',
 				supervisorID: 'user-grace',
-				primaryGroupID: 'engineering',
-				groupIDs: ['engineering']
+				groupID: 'engineering'
 			},
 			{
 				userID: 'user-dan',
@@ -115,8 +113,7 @@ test.describe('admin org chart profile editing', () => {
 				role: 'member',
 				jobTitle: 'Lead',
 				supervisorID: '',
-				primaryGroupID: 'operations',
-				groupIDs: ['operations']
+				groupID: 'operations'
 			}
 		];
 		await mockAdminOrganization(page, {
@@ -159,7 +156,7 @@ test.describe('admin org chart profile editing', () => {
 		const usersResponse = cloneUsersResponse(initialUsersResponse);
 		usersResponse.records = usersResponse.records.map((record) =>
 			record.userID === 'user-grace'
-				? { ...record, primaryGroupID: 'operations', groupIDs: ['operations'] }
+				? { ...record, groupID: 'operations' }
 				: record
 		);
 		await mockAdminOrganization(page, {

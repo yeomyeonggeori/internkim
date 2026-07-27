@@ -91,8 +91,7 @@ test.describe('employee organization directory', () => {
 						email: 'company-leader@example.com',
 						hireDate: '2025-01-01',
 						role: 'member',
-						primaryGroupID: 'leadership',
-						groupIDs: ['leadership']
+						groupID: 'leadership'
 					},
 					{
 						userID: 'employee',
@@ -101,8 +100,7 @@ test.describe('employee organization directory', () => {
 						email: 'employee@example.com',
 						hireDate: '2026-01-01',
 						role: 'member',
-						primaryGroupID: 'product',
-						groupIDs: ['product'],
+						groupID: 'product',
 						supervisorID: 'leader'
 					},
 					{
@@ -112,8 +110,7 @@ test.describe('employee organization directory', () => {
 						email: 'leader@example.com',
 						hireDate: '2026-02-01',
 						role: 'member',
-						primaryGroupID: 'product',
-						groupIDs: ['product'],
+						groupID: 'product',
 						supervisorID: 'company-leader'
 					}
 				]

@@ -42,7 +42,6 @@ export function createDevAdminOrganizationUsers(userEmail: string, userRole: Dev
 function userRecord(person: DevAdminOrganizationPerson, userEmail: string, userRole: DevAdminMockUserRole): UserRecord {
 	const email = person.userID === 'dev-user-ceo' ? userEmail : person.email;
 	const role = person.userID === 'dev-user-ceo' ? userRole : 'member';
-	const groupIDs = person.groupID ? [person.groupID] : [];
 
 	return {
 		userID: person.userID,
@@ -53,9 +52,7 @@ function userRecord(person: DevAdminOrganizationPerson, userEmail: string, userR
 		role,
 		status: 'active',
 		jobTitle: person.jobTitle,
-		group: person.groupID,
-		primaryGroupID: person.groupID,
-		groupIDs,
+		groupID: person.groupID,
 		supervisorID: person.supervisorID
 	};
 }
