@@ -24,3 +24,8 @@ export function organizationSectionsWithRecords(nodes: OrganizationSectionNode[]
 		.map((node) => ({ section: node.section, children: organizationSectionsWithRecords(node.children) }))
 		.filter((node) => node.section.records.length > 0 || node.children.length > 0);
 }
+
+export function organizationSectionTrailingGap(node: OrganizationSectionNode, sectionPadding: number): number {
+	const lastChild = node.children[node.children.length - 1];
+	return sectionPadding + (lastChild ? organizationSectionTrailingGap(lastChild, sectionPadding) : 0);
+}

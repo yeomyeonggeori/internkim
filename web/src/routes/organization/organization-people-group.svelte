@@ -12,6 +12,7 @@
 	import * as Item from '$lib/components/ui/item';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import type { UserRecord } from '$lib/organization/types';
+	import { organizationSectionTrailingGap } from './organization-section-tree';
 	import { organizationTenure } from './organization-tenure';
 	import OrganizationPeopleGroup from './organization-people-group.svelte';
 	import type { OrganizationSectionNode } from './organization-section-tree';
@@ -35,6 +36,7 @@
 	let isHeaderStuck = $state(false);
 	let isNestedHeaderStuck = $state(false);
 	const depth = $derived(Math.min(section.depth, 8));
+	const railBottom = $derived(organizationSectionTrailingGap(node, 12));
 	const today = new Date();
 
 	$effect(() => {
@@ -44,12 +46,14 @@
 		const scrollElement = header.closest('[data-organization-scroll]');
 		if (!scrollElement) return;
 		const stickyOffset = depth * 36;
-		const isStuck = (element: HTMLElement, offset: number) =>
-			element.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top <= offset + 0.5;
+		const isPinned = (element: HTMLElement, offset: number) => {
+			const distance = element.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top;
+			return Math.abs(distance - offset) <= 0.5;
+		};
 		const updateStuckState = () => {
-			isHeaderStuck = isStuck(header, stickyOffset);
+			isHeaderStuck = isPinned(header, stickyOffset);
 			isNestedHeaderStuck = Array.from(sectionBox.querySelectorAll<HTMLElement>('[data-organization-header]')).some(
-				(nestedHeader) => nestedHeader !== header && isStuck(nestedHeader, Number(nestedHeader.dataset.stickyOffset ?? 0))
+				(nestedHeader) => nestedHeader !== header && isPinned(nestedHeader, Number(nestedHeader.dataset.stickyOffset ?? 0))
 			);
 		};
 		updateStuckState();
@@ -89,7 +93,11 @@
 	data-testid={`organization-section-${section.id || 'root'}`}
 >
 	{#if section.records.length > 0 || node.children.length > 0}
-		<span class="bg-border absolute bottom-0 top-9 w-px" style={`left: ${depth * 16 + 20}px; z-index: ${39 - depth * 2}`} aria-hidden="true"></span>
+		<span
+			class="bg-border absolute top-9 w-px"
+			style={`left: ${depth * 16 + 20}px; bottom: ${railBottom}px; z-index: ${39 - depth * 2}`}
+			aria-hidden="true"
+		></span>
 	{/if}
 	<div
 		class="bg-background sticky flex h-9 items-center gap-1 pr-2"
