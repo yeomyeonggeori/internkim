@@ -55,6 +55,7 @@ type Configuration struct {
 	CalendarSecretsDirectory       string
 	MailDatabasePath               string
 	AttendanceDatabasePath         string
+	BridgeMapDatabasePath          string
 	MattermostAdminPasswordPath    string
 	MattermostTokenPath            string
 	MattermostInteractiveTokenPath string
@@ -277,6 +278,7 @@ func DefaultConfiguration() Configuration {
 		CalendarSecretsDirectory:       "/root/.internkim/secrets/google-oauth",
 		MailDatabasePath:               "/root/.internkim/state/mail.sqlite",
 		AttendanceDatabasePath:         "/root/.internkim/state/attendance.sqlite",
+		BridgeMapDatabasePath:          "/root/.internkim/state/bridge-map.sqlite",
 		MattermostAdminPasswordPath:    "/root/.internkim/secrets/mm-admin-pass",
 		MattermostTokenPath:            "/root/.internkim/secrets/mattermost-bot-token",
 		MattermostInteractiveTokenPath: "/root/.internkim/state/admin/mattermost-interactive-token",
@@ -520,6 +522,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/orgchart/api/", service.handleOrgchart)
 	multiplexer.HandleFunc("/orgchart/", service.serveOrgchartPage)
 	multiplexer.HandleFunc("/buzz/api/", service.handleBuzz)
+	multiplexer.HandleFunc("/bridge/api/", service.handleBridgeMap)
 	multiplexer.HandleFunc("/files", service.serveFilesPage)
 	multiplexer.HandleFunc("/files/api/", service.handleFiles)
 	multiplexer.HandleFunc("/files/", service.serveFilesPage)
@@ -2602,6 +2605,13 @@ func (configuration Configuration) withDefaults() Configuration {
 			configuration.AttendanceDatabasePath = defaultConfiguration.AttendanceDatabasePath
 		} else {
 			configuration.AttendanceDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "attendance.sqlite")
+		}
+	}
+	if configuration.BridgeMapDatabasePath == "" {
+		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
+			configuration.BridgeMapDatabasePath = defaultConfiguration.BridgeMapDatabasePath
+		} else {
+			configuration.BridgeMapDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "bridge-map.sqlite")
 		}
 	}
 	if configuration.MattermostAdminPasswordPath == "" {

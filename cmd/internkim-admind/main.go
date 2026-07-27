@@ -30,6 +30,7 @@ func main() {
 	flag.StringVar(&configuration.CalendarSecretsDirectory, "calendar-secrets-dir", configuration.CalendarSecretsDirectory, "calendar OAuth secrets directory (contains Google client.json and token store)")
 	flag.StringVar(&configuration.MailDatabasePath, "mail-db", configuration.MailDatabasePath, "mail SQLite database path")
 	flag.StringVar(&configuration.AttendanceDatabasePath, "attendance-db", configuration.AttendanceDatabasePath, "attendance SQLite database path")
+	flag.StringVar(&configuration.BridgeMapDatabasePath, "bridge-map-db", configuration.BridgeMapDatabasePath, "bridge message/channel mapping SQLite database path")
 	flag.StringVar(&configuration.AdminEmailPath, "admin-email-path", configuration.AdminEmailPath, "initial admin email file")
 	flag.StringVar(&configuration.ClaimedAdminEmailPath, "claimed-admin-email-path", configuration.ClaimedAdminEmailPath, "claimed admin email file")
 	flag.StringVar(&configuration.FleetIDPath, "fleet-id-path", configuration.FleetIDPath, "fleet ID file")
