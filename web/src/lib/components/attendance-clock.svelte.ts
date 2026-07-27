@@ -13,6 +13,7 @@ class AttendanceClock {
 	isSubmitting = $state(false);
 
 	locations = $derived(this.summary?.locations ?? []);
+	defaultLocation = $derived(this.locations.find((location) => location.isDefault) ?? this.locations[0]);
 
 	activeSegment = $derived.by(() => {
 		const summary = this.summary;
