@@ -4,8 +4,8 @@
 	import TimerIcon from '@lucide/svelte/icons/timer';
 	import FlagTriangleRightIcon from '@lucide/svelte/icons/flag-triangle-right';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
-	import UserIcon from '@lucide/svelte/icons/user';
 	import ComponentIcon from '@lucide/svelte/icons/component';
+	import UserIcon from '@lucide/svelte/icons/user';
 	import { Badge } from '$lib/components/ui/badge';
 	import OrganizationCountBadge from './organization-count-badge.svelte';
 	import OrganizationPersonContactActions from './organization-person-contact-actions.svelte';
