@@ -13,21 +13,23 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import type { UserRecord } from '$lib/organization/types';
 	import { organizationTenure } from './organization-tenure';
-	import type { OrganizationOrganizationSection } from './organization-model';
+	import OrganizationPeopleGroup from './organization-people-group.svelte';
+	import type { OrganizationSectionNode } from './organization-section-tree';
 	import type { organizationDirectoryText } from './text';
 
 	let {
-		section,
+		node,
 		selectedUserID,
 		text,
 		selectRecord
 	}: {
-		section: OrganizationOrganizationSection;
+		node: OrganizationSectionNode;
 		selectedUserID: string;
 		text: typeof organizationDirectoryText.ko;
 		selectRecord: (record: UserRecord) => void;
 	} = $props();
 
+	const section = $derived(node.section);
 	const depth = $derived(Math.min(section.depth, 8));
 	const today = new Date();
 
@@ -58,13 +60,13 @@
 </script>
 
 <section class="relative min-w-0 pb-3" data-testid={`organization-section-${section.id || 'root'}`}>
-	{#each { length: depth } as _, level (level)}
-		<span class="bg-border absolute inset-y-0 w-px" style={`left: ${level * 16 + 20}px`} aria-hidden="true"></span>
-	{/each}
-	{#if section.records.length > 0}
+	{#if section.records.length > 0 || node.children.length > 0}
 		<span class="bg-border absolute bottom-0 top-9 w-px" style={`left: ${depth * 16 + 20}px`} aria-hidden="true"></span>
 	{/if}
-	<div class="flex h-9 items-center gap-1 pr-2" style={`padding-left: ${depth * 16 + 8}px`}>
+	<div
+		class="bg-background sticky flex h-9 items-center gap-1 pr-2"
+		style={`padding-left: ${depth * 16 + 8}px; top: ${depth * 36}px; z-index: ${20 - depth}`}
+	>
 		<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
 			{#if section.id}
 				<ComponentIcon class="size-4" />
@@ -134,4 +136,7 @@
 			</Item.Root>
 		{/each}
 	</Item.Group>
+	{#each node.children as childNode (childNode.section.id)}
+		<OrganizationPeopleGroup node={childNode} {selectedUserID} {text} {selectRecord} />
+	{/each}
 </section>
