@@ -127,7 +127,7 @@
 
 					<div class="grid min-h-0 min-w-0 grid-cols-1">
 						<div class="grid min-h-0 min-w-0 overflow-hidden">
-							<div class="min-h-0 overflow-y-auto px-4 sm:px-6" data-testid="organization-list-scroll">
+							<div class="min-h-0 overflow-y-auto px-4 sm:px-6" data-organization-scroll data-testid="organization-list-scroll">
 								{#if controller.errorMessage}
 									<p class="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{controller.errorMessage}</p>
 								{/if}
