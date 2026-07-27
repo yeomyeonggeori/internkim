@@ -3,7 +3,7 @@ import {
 	expectDetailPanelInRightColumn,
 	expectPersonDetailPanelContent,
 	mockOrganizationDirectory,
-	openFilterPopover,
+	selectOrganizationInTree,
 	organizationDirectoryUsersResponse
 } from './organization-directory-helpers';
 
@@ -43,10 +43,7 @@ test.describe('employee organization directory', () => {
 		await expect(page.getByTestId('organization-person-node-user-ceo')).toHaveCount(0);
 		await expect(page.getByTestId('organization-person-node-user-dabin')).toBeVisible();
 
-		await openFilterPopover(page);
-		await page.getByRole('button', { name: '조직', exact: true }).click();
-		await page.getByRole('option', { name: '제품팀' }).click();
-		await expect(page.getByTestId('organization-filter-popover')).toHaveCount(0);
+		await selectOrganizationInTree(page, 'product');
 		await expect(page.getByTestId('organization-person-node-user-dabin')).toBeVisible();
 	});
 
@@ -124,19 +121,13 @@ test.describe('employee organization directory', () => {
 		await expect(productSection.getByTestId('organization-person-node-leader').getByText('책임자')).toBeVisible();
 	});
 
-	test('labels the unassigned organization consistently', async ({ page }) => {
+	test('labels a person without an organization as unassigned', async ({ page }) => {
 		await mockOrganizationDirectory(page);
 		await page.goto('/organization/');
 
-		await openFilterPopover(page);
-		await page.getByRole('button', { name: '조직', exact: true }).click();
-		await page.getByRole('option', { name: '팀 미지정' }).click();
+		await page.getByTestId('organization-person-node-user-nam').click();
 
-		await expect(page.getByRole('heading', { name: '팀 미지정' })).toBeVisible();
-		await expect(page.getByTestId('organization-section-root')).toContainText('팀 미지정');
-		await expect(page.getByTestId('organization-section-root')).toContainText('1명');
-		await expect(page.getByTestId('organization-person-node-user-nam')).toBeVisible();
-		await expect(page.getByTestId('organization-person-node-user-dabin')).toHaveCount(0);
+		await expect(page.getByTestId('organization-person-detail-panel')).toContainText('팀 미지정');
 	});
 
 	test('localizes organization tree accessibility labels in English', async ({ page }) => {

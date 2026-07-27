@@ -203,16 +203,8 @@ export async function expectMobileHeaderControlsInTitleRow(page: Page): Promise<
 	expect(searchBox.y).toBeGreaterThan(titleBox.y + titleBox.height);
 }
 
-export async function openFilterPopover(page: Page): Promise<void> {
-	const filterButton = page.getByRole('button', { name: '필터' });
-	await filterButton.click();
-	const filterPopover = page.getByTestId('organization-filter-popover');
-	await expect(filterPopover).toBeVisible();
-	await expect(filterPopover.getByRole('button', { name: '조직', exact: true })).toBeVisible();
-	const buttonBox = await filterButton.boundingBox();
-	const popoverBox = await filterPopover.boundingBox();
-	if (!buttonBox || !popoverBox) throw new Error('필터 popover 위치를 확인할 수 없습니다.');
-	expect(popoverBox.y).toBeGreaterThanOrEqual(buttonBox.y + buttonBox.height - 1);
+export async function selectOrganizationInTree(page: Page, groupID: string): Promise<void> {
+	await page.getByTestId(`organization-row-${groupID}`).getByRole('button').first().click();
 }
 
 export async function expectMobileDetailPanelScrollsToBottom(detailPanel: Locator): Promise<void> {

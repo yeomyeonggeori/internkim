@@ -2,7 +2,8 @@ export const organizationDirectoryText = {
 	ko: {
 		title: '조직도',
 		search: '검색',
-		searchPlaceholder: '이름, 직책, 이메일 검색',
+		selectEmployee: '직원 선택',
+		searchPlaceholder: '이름 또는 직책 검색',
 		filter: '필터',
 		organization: '조직',
 		allOrganizations: '회사',
@@ -46,7 +47,8 @@ export const organizationDirectoryText = {
 	en: {
 		title: 'Org chart',
 		search: 'Search',
-		searchPlaceholder: 'Search name, title, email',
+		selectEmployee: 'Select employee',
+		searchPlaceholder: 'Search name or title',
 		filter: 'Filter',
 		organization: 'Organization',
 		allOrganizations: 'Company',
