@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { organizationSectionsWithRecords, organizationSectionTree } from '../../../src/routes/organization/organization-section-tree';
+import { organizationSectionsWithRecords, organizationSectionTrailingGap, organizationSectionTree } from '../../../src/routes/organization/organization-section-tree';
 import type { OrganizationOrganizationSection } from '../../../src/routes/organization/organization-model';
 
 function section(id: string, depth: number, records: OrganizationOrganizationSection['records'] = []): OrganizationOrganizationSection {
@@ -36,5 +36,13 @@ describe('organization section tree', () => {
 		expect(pruned.map((node) => node.section.id)).toEqual(['root']);
 		expect(pruned[0].children.map((node) => node.section.id)).toEqual(['product']);
 		expect(pruned[0].children[0].children.map((node) => node.section.id)).toEqual(['design']);
+	});
+
+	test('adds up the trailing padding of the deepest last branch', () => {
+		const tree = organizationSectionTree([section('root', 0), section('product', 1), section('design', 2)]);
+
+		expect(organizationSectionTrailingGap(tree[0], 12)).toBe(36);
+		expect(organizationSectionTrailingGap(tree[0].children[0], 12)).toBe(24);
+		expect(organizationSectionTrailingGap(tree[0].children[0].children[0], 12)).toBe(12);
 	});
 });
