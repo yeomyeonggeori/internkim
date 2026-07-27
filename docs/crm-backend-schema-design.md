@@ -26,27 +26,29 @@ CRM은 `crm.sqlite`를 단독으로 사용하므로 테이블 이름에 `crm_` �
 | `FK` | `crm.sqlite` 내부의 다른 테이블을 참조하는 외래키 |
 | `논리 FK` | 다른 서비스가 관리하는 ID를 저장하지만 DB 외래키 제약은 걸지 않는 컬럼 |
 | `UNIQUE` | 같은 값의 중복 저장을 금지하는 제약 |
-| `CHECK` | enum, 시각, 금액, 연결 조건 등 허용 범위를 검증하는 제약 |
+| `CHECK` | enum, 날짜, 시각, 금액, 연결 조건 등 허용 범위를 검증하는 제약 |
 
-## 시각 형식
+## 날짜와 시각 형식
 
-시간 값은 SQLite에 `TEXT`로 저장하되 형식을 하나로 고정한다. 날짜만 저장하는 컬럼은 두지 않으며 모든 시간 컬럼 이름은 `_at`으로 끝난다.
+날짜와 시각 값은 SQLite에 `TEXT`로 저장하되 의미에 따라 형식을 구분한다.
 
-| 형식 | 예시 | 사용하는 컬럼 |
-|:---|:---|:---|
-| `YYYY-MM-DDTHH:MM:SSZ` | `2026-07-27T09:15:00Z` | 모든 시간 컬럼 |
+| 종류 | 형식 | 예시 | 사용하는 컬럼 |
+|:---|:---|:---|:---|
+| 날짜 | `YYYY-MM-DD` | `2026-07-27` | `target_date` |
+| 시각 | `YYYY-MM-DDTHH:MM:SSZ` | `2026-07-27T09:15:00Z` | 이름이 `_at`으로 끝나는 시각 컬럼 |
 
-- RFC 3339 형식이며 항상 UTC로 저장한다. `Z` 이외의 오프셋은 저장하지 않는다.
-- 소수점 이하 초는 저장하지 않는다. 자릿수가 고정되어야 문자열 정렬이 곧 시간 순서가 되고 `BETWEEN` 범위 조회가 정확해진다.
-- 목표일처럼 사용자가 날짜만 입력하는 값도 시각으로 저장한다. 시간대 없는 `YYYY-MM-DD`는 어느 시간대의 하루인지 정해지지 않아 마감 판정과 기간 집계가 하루씩 어긋난다. 입력 시점 사용자 시간대의 그날 마지막 순간을 UTC로 변환해 저장한다.
+- 목표일은 사용자가 달력에서 선택하고 월·분기 리포트에서 사용하는 날짜이므로 `target_date`에 `YYYY-MM-DD`로 저장한다.
+- 실제 시각은 RFC 3339 형식이며 항상 UTC로 저장한다. `Z` 이외의 오프셋과 소수점 이하 초는 저장하지 않는다.
+- 시각 문자열의 자릿수를 고정해 문자열 정렬이 시간 순서와 같도록 한다.
 - 사용자 표시 시각의 시간대 변환은 조회 계층에서 처리한다.
 - 저장 값에 `CHECK`를 걸어 형식을 강제한다.
 
 ```sql
+CHECK (target_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')
 CHECK (created_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z')
 ```
 
-이 형식은 SQLite의 `datetime()`, `julianday()`, `strftime()`이 그대로 인식한다.
+시각 형식은 SQLite의 `datetime()`, `julianday()`, `strftime()`이 그대로 인식한다.
 
 금액은 부동소수점 대신 최소 화폐 단위의 정수로 저장한다.
 
@@ -138,7 +140,7 @@ CREATE INDEX contact_phone_lookup ON contact (replace(replace(replace(phone, '-'
 | `expected_amount_minor` | `INTEGER` | X | CHECK | 예상 금액의 최소 화폐 단위 |
 | `currency_code` | `TEXT` | O | CHECK | `KRW`, `USD`, `JPY`, `EUR` |
 | `importance` | `TEXT` | O | CHECK | `high`, `medium`, `low` |
-| `target_at` | `TEXT` | X | CHECK | 목표 마감 시각 |
+| `target_date` | `TEXT` | X | CHECK | 목표일 |
 | `description` | `TEXT` | X |  | 진행 건 설명 |
 | 공통 컬럼 |  |  |  | 생성·수정·보관 정보 |
 
@@ -158,13 +160,14 @@ CREATE INDEX contact_phone_lookup ON contact (replace(replace(replace(phone, '-'
 | `account_id` | `TEXT` | X | FK | 관련 관계처 ID |
 | `contact_id` | `TEXT` | X | FK | 관련 연락처 ID |
 | `opportunity_id` | `TEXT` | X | FK | 관련 진행 건 ID |
+| `business_key` | `TEXT` | O | 논리 FK | 사업 식별자 |
 | `kind` | `TEXT` | O | CHECK | `note`, `email`, `meeting`, `call`, `task`, `file`, `event`, `stage_change` |
 | `title` | `TEXT` | O |  | 활동 제목 |
 | `occurred_at` | `TEXT` | O | CHECK | 활동 발생 시각 |
 | `summary` | `TEXT` | X |  | 활동 내용 |
 | 공통 컬럼 |  |  |  | 생성·수정·보관 정보 |
 
-활동은 관계처·연락처·진행 건 중 하나 이상에 연결해야 한다. 진행 건에 연결하면 `account_id`, `contact_id`는 진행 건의 값을 따르며 서로 충돌하는 값을 저장할 수 없다.
+활동은 관계처·연락처·진행 건 중 하나 이상에 연결해야 한다. 진행 건에 연결하면 `account_id`, `contact_id`, `business_key`는 진행 건의 값을 따르며 서로 충돌하는 값을 저장할 수 없다. 진행 건에 연결되지 않은 활동은 사용자가 사업을 직접 선택한다.
 
 Calendar 행사 참여는 `kind = 'event'` 활동과 `resource_link`의 Calendar 연결로 표현한다.
 
@@ -188,7 +191,7 @@ CRM 레코드 하나에 연결할 수 있는 외부 자원 개수에는 제한�
 | `removed_at` | `TEXT` | X | CHECK | 연결 해제 시각 |
 | `removed_by_person_id` | `TEXT` | X | 논리 FK | 연결 해제 사용자 ID |
 
-외부 자원 생성은 요청 시점에 동기로 호출하고 실패하면 사용자에게 오류를 표시한다. v1에 outbox 큐, 워커 lease, 재시도 스케줄러는 두지 않는다.
+CRM 레코드를 먼저 저장한 뒤 외부 자원 생성을 동기로 호출한다. 성공하면 `resource_link`를 저장하고, 실패하면 CRM 레코드는 유지한 채 사용자에게 오류와 수동 재시도를 제공한다. v1에 outbox 큐, 워커 lease, 재시도 스케줄러는 두지 않는다.
 
 ## CSV 가져오기와 내보내기
 
@@ -240,14 +243,15 @@ CSV 원본은 어느 단계에서도 CRM DB에 보관하지 않는다.
 
 | 테이블 | 제약조건 |
 |:---|:---|
-| 모든 테이블 | 모든 시간 컬럼은 이름이 `_at`으로 끝나고 `YYYY-MM-DDTHH:MM:SSZ` 형식을 `CHECK`로 강제 |
+| 모든 테이블 | 시각 컬럼은 `_at`으로 끝나고 `YYYY-MM-DDTHH:MM:SSZ` 형식을 `CHECK`로 강제 |
 | `contact` | 이름·이메일·전화번호 필수, 이메일·전화번호 표현식 인덱스 |
 | `contact` | 관계처별 보관되지 않은 주 담당자는 최대 한 명 |
 | `opportunity` | 관계처·연락처 중 하나 이상 필수, 둘 다 있으면 연락처의 `account_id`와 일치 |
+| `opportunity` | `target_date`는 `YYYY-MM-DD` 형식을 `CHECK`로 강제 |
 | `opportunity` | `(stage, stage_position)` 인덱스, 단계 이동 시 `stage_changed_at` 갱신과 활동 기록 생성 |
-| `activity` | 관계처·연락처·진행 건 중 하나 이상 필수, 진행 건 연결 값과 불일치 금지 |
+| `activity` | 관계처·연락처·진행 건 중 하나 이상과 `business_key` 필수, 진행 건 연결 값과 불일치 금지 |
 | `resource_link` | 연결 개수는 무제한, 같은 CRM 레코드와 외부 자원의 활성 중복 연결 금지 |
-| 주요 테이블 | enum, 금액, 시각, 불리언 값에 `CHECK` 적용 |
+| 주요 테이블 | enum, 금액, 날짜, 시각, 불리언 값에 `CHECK` 적용 |
 
 ## v1에서 제외한 것과 도입 시점
 
