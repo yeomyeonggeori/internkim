@@ -1,11 +1,16 @@
 <script lang="ts">
 	import { appNavigation } from '$lib/components/app-navigation.svelte';
 	import { attendanceClock } from '$lib/components/attendance-clock.svelte';
+	import { calendarEventSearch } from '$lib/components/calendar-event-search.svelte';
 	import * as Command from '$lib/components/ui/command/index.js';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../../routes/attendance/text';
+	import { goto } from '$app/navigation';
+	import { calendarNavigation } from '../../routes/calendar/refresh-signal.svelte';
+	import { dateKeyFromDate } from '../../routes/calendar/embed/calendar-month-selection';
+	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import CircleIcon from '@lucide/svelte/icons/circle';
 	import LogInIcon from '@lucide/svelte/icons/log-in';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
@@ -19,9 +24,12 @@
 	const locationShortcuts = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 	let searchValue = $state('');
 
+	const calendarResults = $derived(calendarEventSearch.search(searchValue));
+
 	$effect(() => {
 		if (!open) return;
 		attendanceClock.load();
+		calendarEventSearch.load();
 	});
 
 	function runClockIn(locationID: string) {
@@ -43,6 +51,12 @@
 			cancel: { text: text.cancel },
 			onConfirm: appNavigation.logOut
 		});
+	}
+
+	async function openCalendarEvent(startDate: Date) {
+		open = false;
+		calendarNavigation.dateKey = dateKeyFromDate(startDate);
+		if (!appNavigation.currentPath.startsWith('/calendar')) await goto('/calendar');
 	}
 
 	function locationShortcut(locationID: string) {
@@ -94,6 +108,20 @@
 				</Command.Item>
 			{/if}
 		</Command.Group>
+
+		{#if calendarResults.length > 0}
+			<Command.Separator />
+
+			<Command.Group heading={text.calendar}>
+				{#each calendarResults as result (result.id)}
+					<Command.Item value="calendar-event-{result.id}" keywords={[result.title]} onSelect={() => openCalendarEvent(result.startDate)}>
+						<CalendarDaysIcon />
+						{result.title}
+						<Command.Shortcut>{result.dateLabel}</Command.Shortcut>
+					</Command.Item>
+				{/each}
+			</Command.Group>
+		{/if}
 
 		<Command.Separator />
 

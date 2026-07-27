@@ -154,12 +154,8 @@
 					{text.scheduleIncludeExpired}
 				</Label>
 			</div>
-			<Button type="button" variant="outline" size="icon-sm" disabled={isLoading} onclick={refreshSchedules} aria-label={text.refresh} title={text.refresh}>
-				{#if isLoading}
-					<LoaderIcon class="size-4 animate-spin" />
-				{:else}
-					<RefreshCwIcon class="size-4" />
-				{/if}
+			<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={refreshSchedules} aria-label={text.refresh} title={text.refresh}>
+				<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
 			</Button>
 		</div>
 	</div>
