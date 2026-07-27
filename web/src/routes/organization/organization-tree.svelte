@@ -2,6 +2,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import FolderIcon from '@lucide/svelte/icons/folder';
+	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
 	import LockKeyholeIcon from '@lucide/svelte/icons/lock-keyhole';
 	import OrganizationAvatarStack from './organization-avatar-stack.svelte';
@@ -134,7 +136,12 @@
 			onclick={() => !isEditing && onSelect('')}
 			data-testid="organization-root"
 		>
-			{#if isEditing}<LockKeyholeIcon class="text-muted-foreground size-4" />{:else}<ChevronDownIcon class="text-muted-foreground size-4" />{/if}
+			{#if isEditing}
+				<LockKeyholeIcon class="text-muted-foreground size-4 shrink-0" />
+			{:else}
+				<ChevronDownIcon class="text-muted-foreground size-4 shrink-0" />
+			{/if}
+			<FolderOpenIcon class="text-muted-foreground size-4 shrink-0" />
 			<span class="min-w-0 flex-1 truncate">{tree.root.name}</span>
 			{#if !isEditing}<OrganizationAvatarStack records={tree.root.aggregateRecords} memberCountUnit={text.memberCountUnit} />{/if}
 		</button>
@@ -147,11 +154,14 @@
 				</div>
 			{/if}
 			<div
-				class={['flex h-9 items-center gap-1 rounded-md px-2', selectedOrganizationID === node.id && !isEditing ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50', draggedSubtreeGroupIDs.has(node.id) && 'opacity-40']}
-				style={`margin-left: ${node.depth * 16 + 8}px`}
+				class={['relative flex h-9 items-center gap-1 rounded-md pr-2', selectedOrganizationID === node.id && !isEditing ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50', draggedSubtreeGroupIDs.has(node.id) && 'opacity-40']}
+				style={`padding-left: ${node.depth * 16 + 8}px`}
 				data-organization-row={node.id}
 				data-testid={`organization-row-${node.id}`}
 			>
+				{#each { length: node.depth } as _, level (level)}
+					<span class="bg-border absolute inset-y-0 w-px" style={`left: ${level * 16 + 20}px`} aria-hidden="true"></span>
+				{/each}
 				{#if isEditing}
 					<span
 						class="text-muted-foreground hover:bg-accent grid size-6 shrink-0 touch-none place-items-center rounded-md"
@@ -167,6 +177,11 @@
 					</button>
 				{:else}
 					<span class="size-6 shrink-0"></span>
+				{/if}
+				{#if isExpanded(node.id) && hasChildren(node.id)}
+					<FolderOpenIcon class="text-muted-foreground size-4 shrink-0" />
+				{:else}
+					<FolderIcon class="text-muted-foreground size-4 shrink-0" />
 				{/if}
 				<button type="button" class="min-w-0 flex-1 truncate text-left text-sm" onclick={() => !isEditing && onSelect(node.id)}>{node.name}</button>
 				{#if !isEditing}<OrganizationAvatarStack records={node.aggregateRecords} memberCountUnit={text.memberCountUnit} />{/if}
