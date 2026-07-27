@@ -1,4 +1,4 @@
-import { orgchartText } from './orgchart-text';
+import { organizationText } from './organization-text';
 
 export const adminText = {
 	ko: {
@@ -12,7 +12,7 @@ export const adminText = {
 		sections: {
 			device: '기기',
 			users: '사용자',
-			orgchart: '조직도',
+			organization: '조직도',
 			credentials: '인증 정보',
 			backup: '백업',
 			bot: '봇',
@@ -287,7 +287,7 @@ export const adminText = {
 			makeAdmin: '관리자로 변경',
 			remove: '삭제'
 		},
-		orgchart: orgchartText.ko
+		organization: organizationText.ko
 	},
 	en: {
 		title: 'intern kim',
@@ -300,7 +300,7 @@ export const adminText = {
 		sections: {
 			device: 'Device',
 			users: 'Users',
-			orgchart: 'Org chart',
+			organization: 'Org chart',
 			credentials: 'Credentials',
 			backup: 'Backup',
 			bot: 'Bot',
@@ -575,6 +575,6 @@ export const adminText = {
 			makeAdmin: 'Make admin',
 			remove: 'Remove'
 		},
-		orgchart: orgchartText.en
+		organization: organizationText.en
 	}
 } as const;

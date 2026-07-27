@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	adminSessionRole,
-	canManageOrgchart,
+	canManageOrganization,
 	canViewAdminSection,
 	firstVisibleAdminSection
 } from '../../src/routes/admin/admin-role-policy';
@@ -34,10 +34,10 @@ describe('admin role policy', () => {
 		expect(visibleSections('operationsAdmin')).toEqual(['users', 'settings']);
 	});
 
-	test('allows operations admins and full admins to manage orgchart from the employee page', () => {
-		expect(canManageOrgchart('admin')).toBe(true);
-		expect(canManageOrgchart('operationsAdmin')).toBe(true);
-		expect(canManageOrgchart('member')).toBe(false);
+	test('allows operations admins and full admins to manage organization from the employee page', () => {
+		expect(canManageOrganization('admin')).toBe(true);
+		expect(canManageOrganization('operationsAdmin')).toBe(true);
+		expect(canManageOrganization('member')).toBe(false);
 	});
 
 	test('does not expose admin sections to members', () => {

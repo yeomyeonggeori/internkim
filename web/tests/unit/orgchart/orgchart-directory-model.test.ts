@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import type { OrgGroup, UserRecord } from '../../../src/lib/orgchart/types';
+import type { OrgGroup, UserRecord } from '../../../src/lib/organization/types';
 import {
-	filterOrgchartRecords,
-	orgchartFilterOptions,
-	type OrgchartDirectoryFilters
-} from '../../../src/routes/orgchart/orgchart-directory-model';
+	filterOrganizationRecords,
+	organizationFilterOptions,
+	type OrganizationDirectoryFilters
+} from '../../../src/routes/organization/organization-directory-model';
 
 function userRecord(overrides: Partial<UserRecord>): UserRecord {
 	return {
@@ -16,7 +16,7 @@ function userRecord(overrides: Partial<UserRecord>): UserRecord {
 	};
 }
 
-describe('orgchart directory model', () => {
+describe('organization directory model', () => {
 	test('filters by search and organization', () => {
 		const records = [
 			userRecord({
@@ -37,12 +37,12 @@ describe('orgchart directory model', () => {
 			})
 		];
 
-		const filters: OrgchartDirectoryFilters = {
+		const filters: OrganizationDirectoryFilters = {
 			query: 'engineer',
 			groupID: 'engineering'
 		};
 
-		expect(filterOrgchartRecords(records, filters).map((record) => record.userID)).toEqual(['ada']);
+		expect(filterOrganizationRecords(records, filters).map((record) => record.userID)).toEqual(['ada']);
 	});
 
 	test('returns only organizations and assignment state connected to people', () => {
@@ -57,7 +57,7 @@ describe('orgchart directory model', () => {
 			userRecord({ userID: 'operations', groupIDs: ['operations'] })
 		];
 
-		const options = orgchartFilterOptions(records, groups);
+		const options = organizationFilterOptions(records, groups);
 
 		expect(options.groups.map((group) => group.id)).toEqual(['engineering', 'operations']);
 		expect(options.hasUnassigned).toBe(true);
@@ -72,8 +72,8 @@ describe('orgchart directory model', () => {
 			})
 		];
 
-		expect(filterOrgchartRecords(records, { query: '', groupID: 'engineering' }).map((record) => record.userID)).toEqual(['ada']);
-		expect(filterOrgchartRecords(records, { query: '', groupID: '__unassigned__' })).toEqual([]);
-		expect(orgchartFilterOptions(records, groups)).toEqual({ groups, hasUnassigned: false });
+		expect(filterOrganizationRecords(records, { query: '', groupID: 'engineering' }).map((record) => record.userID)).toEqual(['ada']);
+		expect(filterOrganizationRecords(records, { query: '', groupID: '__unassigned__' })).toEqual([]);
+		expect(organizationFilterOptions(records, groups)).toEqual({ groups, hasUnassigned: false });
 	});
 });

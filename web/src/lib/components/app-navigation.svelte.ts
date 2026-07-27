@@ -53,7 +53,7 @@ class AppNavigation {
 		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon },
 		{ href: '/mail/', label: text.mail, icon: MailIcon },
 		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon },
-		{ href: '/orgchart/', label: text.orgchart, icon: UsersRoundIcon },
+		{ href: '/organization/', label: text.organization, icon: UsersRoundIcon },
 		{ href: '/files/', label: text.files, icon: FolderOpenIcon }
 	]);
 

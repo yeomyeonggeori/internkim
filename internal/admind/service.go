@@ -501,9 +501,9 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/attendance", service.serveAttendancePage)
 	multiplexer.HandleFunc("/attendance/api/", service.handleAttendance)
 	multiplexer.HandleFunc("/attendance/", service.serveAttendancePage)
-	multiplexer.HandleFunc("/orgchart", service.serveOrgchartPage)
-	multiplexer.HandleFunc("/orgchart/api/", service.handleOrgchart)
-	multiplexer.HandleFunc("/orgchart/", service.serveOrgchartPage)
+	multiplexer.HandleFunc("/organization", service.serveOrganizationPage)
+	multiplexer.HandleFunc("/organization/api/", service.handleOrganization)
+	multiplexer.HandleFunc("/organization/", service.serveOrganizationPage)
 	multiplexer.HandleFunc("/files", service.serveFilesPage)
 	multiplexer.HandleFunc("/files/api/", service.handleFiles)
 	multiplexer.HandleFunc("/files/", service.serveFilesPage)
@@ -2113,11 +2113,11 @@ func blueclawPersonEmailsExcept(person map[string]any, excludedEmail string) []s
 }
 
 func (service *Service) localUpdateOrgProfiles(responseWriter http.ResponseWriter, request *http.Request) {
-	service.handleOrgchartProfileUpdate(responseWriter, request)
+	service.handleOrganizationProfileUpdate(responseWriter, request)
 }
 
 func (service *Service) localSetOrgGroups(responseWriter http.ResponseWriter, request *http.Request) {
-	service.handleOrgchartGroupsUpdate(responseWriter, request)
+	service.handleOrganizationGroupsUpdate(responseWriter, request)
 }
 
 func (service *Service) writeFullLocalUsersResponse(responseWriter http.ResponseWriter, request *http.Request) {

@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import type { OrgGroup, UserRecord } from '../../../src/lib/orgchart/types';
+import type { OrgGroup, UserRecord } from '../../../src/lib/organization/types';
 import {
-	moveOrgchartOrganization,
-	orgchartOrganizationMovePreview,
-	orgchartOrganizationSubtreeIDs,
-	orgchartOrganizationTree,
-	orgchartOrganizationTreeIndex
-} from '../../../src/routes/orgchart/orgchart-organization-tree-model';
+	moveOrganizationOrganization,
+	organizationOrganizationMovePreview,
+	organizationOrganizationSubtreeIDs,
+	organizationOrganizationTree,
+	organizationOrganizationTreeIndex
+} from '../../../src/routes/organization/organization-tree-model';
 
 function record(userID: string, primaryGroupID = '', fields: Partial<UserRecord> = {}): UserRecord {
 	return {
@@ -20,7 +20,7 @@ function record(userID: string, primaryGroupID = '', fields: Partial<UserRecord>
 	};
 }
 
-describe('orgchart organization tree model', () => {
+describe('organization organization tree model', () => {
 	test('builds nested nodes with descendant member totals', () => {
 		const groups: OrgGroup[] = [
 			{ id: 'product', name: '프로덕트 본부' },
@@ -30,7 +30,7 @@ describe('orgchart organization tree model', () => {
 		];
 		const records = [record('ceo'), record('product-lead', 'product'), record('engineer', 'engineering'), record('designer', 'design'), record('sales', 'sales')];
 
-		const tree = orgchartOrganizationTree(groups, records, '전체 조직');
+		const tree = organizationOrganizationTree(groups, records, '전체 조직');
 
 		expect(tree.root.memberCount).toBe(5);
 		expect(tree.root.directRecords.map((item) => item.userID)).toEqual(['ceo']);
@@ -51,7 +51,7 @@ describe('orgchart organization tree model', () => {
 			record('leader', 'engineering', { hireDate: '2026-01-01' })
 		];
 
-		const tree = orgchartOrganizationTree(groups, records, '전체 조직');
+		const tree = organizationOrganizationTree(groups, records, '전체 조직');
 		const engineering = tree.nodes.find((node) => node.id === 'engineering');
 
 		expect(engineering?.directRecords.map((item) => item.userID)).toEqual(['leader', 'member', 'manager', 'report']);
@@ -68,7 +68,7 @@ describe('orgchart organization tree model', () => {
 			record('manager', 'product', { hireDate: '2026-01-01' })
 		];
 
-		const tree = orgchartOrganizationTree(groups, records, '전체 조직');
+		const tree = organizationOrganizationTree(groups, records, '전체 조직');
 		const product = tree.nodes.find((node) => node.id === 'product');
 
 		expect(product?.aggregateRecords.map((item) => item.userID)).toEqual(['manager', 'report']);
@@ -82,7 +82,7 @@ describe('orgchart organization tree model', () => {
 			{ id: 'sales', name: '세일즈' }
 		];
 
-		const moved = moveOrgchartOrganization(groups, 'engineering', 2, 0);
+		const moved = moveOrganizationOrganization(groups, 'engineering', 2, 0);
 
 		expect(moved).toEqual([
 			{ id: 'product', name: '프로덕트 본부' },
@@ -98,7 +98,7 @@ describe('orgchart organization tree model', () => {
 			{ id: 'sales', name: '세일즈' }
 		];
 
-		const moved = moveOrgchartOrganization(groups, 'sales', 1, 5);
+		const moved = moveOrganizationOrganization(groups, 'sales', 1, 5);
 
 		expect(moved).toEqual([
 			{ id: 'product', name: '프로덕트 본부' },
@@ -113,7 +113,7 @@ describe('orgchart organization tree model', () => {
 			{ id: 'sales', name: '세일즈' }
 		];
 
-		const preview = orgchartOrganizationMovePreview(groups, 'sales', 2, 3);
+		const preview = organizationOrganizationMovePreview(groups, 'sales', 2, 3);
 
 		expect(preview).toEqual({ insertionIndex: 2, depth: 2, parentID: 'engineering' });
 	});
@@ -125,8 +125,8 @@ describe('orgchart organization tree model', () => {
 			{ id: 'sales', name: '세일즈' }
 		];
 
-		const preview = orgchartOrganizationMovePreview(groups, 'sales', 1, 0);
-		const moved = moveOrgchartOrganization(groups, 'sales', 1, 0);
+		const preview = organizationOrganizationMovePreview(groups, 'sales', 1, 0);
+		const moved = moveOrganizationOrganization(groups, 'sales', 1, 0);
 
 		expect(preview).toEqual({ insertionIndex: 2, depth: 0, parentID: '' });
 		expect(moved.map((group) => group.id)).toEqual(['product', 'engineering', 'sales']);
@@ -139,12 +139,12 @@ describe('orgchart organization tree model', () => {
 			{ id: 'platform', name: '플랫폼팀', parentID: 'engineering' },
 			{ id: 'sales', name: '세일즈' }
 		];
-		const tree = orgchartOrganizationTree(groups, [], '');
+		const tree = organizationOrganizationTree(groups, [], '');
 
-		const index = orgchartOrganizationTreeIndex(tree.nodes);
+		const index = organizationOrganizationTreeIndex(tree.nodes);
 
 		expect(index.nodeByID.get('platform')?.parentID).toBe('engineering');
 		expect(index.groupIDsWithChildren).toEqual(new Set(['product', 'engineering']));
-		expect(orgchartOrganizationSubtreeIDs(tree.nodes, 'engineering')).toEqual(new Set(['engineering', 'platform']));
+		expect(organizationOrganizationSubtreeIDs(tree.nodes, 'engineering')).toEqual(new Set(['engineering', 'platform']));
 	});
 });

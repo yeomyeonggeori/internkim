@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { OrgGroup } from '../../../src/lib/orgchart/types';
+import type { OrgGroup } from '../../../src/lib/organization/types';
 
 Object.assign(globalThis, {
 	$state<Value>(value: Value): Value {
@@ -7,16 +7,16 @@ Object.assign(globalThis, {
 	}
 });
 
-const { OrgchartOrganizationEditController } = await import('../../../src/routes/orgchart/orgchart-organization-edit-controller.svelte');
+const { OrganizationOrganizationEditController } = await import('../../../src/routes/organization/organization-edit-controller.svelte');
 
-describe('orgchart organization edit controller', () => {
+describe('organization organization edit controller', () => {
 	test('keeps hierarchy moves in a draft until editing ends', () => {
 		const groups: OrgGroup[] = [
 			{ id: 'product', name: '프로덕트 본부' },
 			{ id: 'engineering', name: '개발팀', parentID: 'product' },
 			{ id: 'sales', name: '세일즈' }
 		];
-		const controller = new OrgchartOrganizationEditController();
+		const controller = new OrganizationOrganizationEditController();
 
 		controller.begin(groups);
 		controller.move('engineering', 2, 0);
@@ -31,7 +31,7 @@ describe('orgchart organization edit controller', () => {
 	});
 
 	test('cancels the hierarchy draft', () => {
-		const controller = new OrgchartOrganizationEditController();
+		const controller = new OrganizationOrganizationEditController();
 		controller.begin([{ id: 'product', name: '프로덕트 본부' }]);
 
 		controller.cancel();

@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import type { UserRecord } from '../../../src/lib/orgchart/types';
+import type { UserRecord } from '../../../src/lib/organization/types';
 import {
-	beginOrgchartProfileEdit,
-	clearOrgchartProfileSaving,
-	hasUnsavedOrgchartProfileEdits,
-	markOrgchartProfileSaving,
-	normalizedOrgchartRecords,
-	orgchartProfileSavePayload,
-	orgchartProfileSnapshots,
-	removeOrgchartProfileEdit
-} from '../../../src/routes/orgchart/orgchart-profile-edit-controller';
+	beginOrganizationProfileEdit,
+	clearOrganizationProfileSaving,
+	hasUnsavedOrganizationProfileEdits,
+	markOrganizationProfileSaving,
+	normalizedOrganizationRecords,
+	organizationProfileSavePayload,
+	organizationProfileSnapshots,
+	removeOrganizationProfileEdit
+} from '../../../src/routes/organization/organization-profile-edit-controller';
 
 function userRecord(overrides: Partial<UserRecord>): UserRecord {
 	return {
@@ -21,9 +21,9 @@ function userRecord(overrides: Partial<UserRecord>): UserRecord {
 	};
 }
 
-describe('orgchart profile edit controller', () => {
+describe('organization profile edit controller', () => {
 	test('preserves every organization membership while normalizing directory records', () => {
-		const [record] = normalizedOrgchartRecords([
+		const [record] = normalizedOrganizationRecords([
 			userRecord({
 				userID: 'ceo',
 				primaryGroupID: 'leadership',
@@ -42,14 +42,14 @@ describe('orgchart profile edit controller', () => {
 			primaryGroupID: 'product',
 			groupIDs: ['product']
 		});
-		const originalProfiles = orgchartProfileSnapshots([record]);
-		const editingRecords = beginOrgchartProfileEdit({}, record);
+		const originalProfiles = organizationProfileSnapshots([record]);
+		const editingRecords = beginOrganizationProfileEdit({}, record);
 
 		editingRecords.dabin.jobTitle = '제품 개발자';
 
 		expect(record.jobTitle).toBe('프론트엔드 개발자');
-		expect(hasUnsavedOrgchartProfileEdits(editingRecords, originalProfiles)).toBe(true);
-		expect(orgchartProfileSavePayload(editingRecords.dabin)).toEqual({
+		expect(hasUnsavedOrganizationProfileEdits(editingRecords, originalProfiles)).toBe(true);
+		expect(organizationProfileSavePayload(editingRecords.dabin)).toEqual({
 			userID: 'dabin',
 			email: 'dabin@example.com',
 			jobTitle: '제품 개발자',
@@ -69,11 +69,11 @@ describe('orgchart profile edit controller', () => {
 			group: 'product',
 			groupIDs: ['product', 'platform']
 		});
-		const editingRecord = beginOrgchartProfileEdit({}, record).dabin;
+		const editingRecord = beginOrganizationProfileEdit({}, record).dabin;
 
 		editingRecord.jobTitle = '제품 개발자';
 
-		expect(orgchartProfileSavePayload(editingRecord).groupIDs).toEqual(['product', 'platform']);
+		expect(organizationProfileSavePayload(editingRecord).groupIDs).toEqual(['product', 'platform']);
 	});
 
 	test('removes editing and saving entries by user id', () => {
@@ -81,11 +81,11 @@ describe('orgchart profile edit controller', () => {
 			dabin: userRecord({ userID: 'dabin' }),
 			junho: userRecord({ userID: 'junho' })
 		};
-		const savingRecords = markOrgchartProfileSaving({}, 'dabin');
+		const savingRecords = markOrganizationProfileSaving({}, 'dabin');
 
-		expect(removeOrgchartProfileEdit(editingRecords, 'dabin')).toEqual({
+		expect(removeOrganizationProfileEdit(editingRecords, 'dabin')).toEqual({
 			junho: editingRecords.junho
 		});
-		expect(clearOrgchartProfileSaving(savingRecords, 'dabin')).toEqual({});
+		expect(clearOrganizationProfileSaving(savingRecords, 'dabin')).toEqual({});
 	});
 });
