@@ -2,6 +2,7 @@
 	import '../app.css';
 	import { page } from '$app/state';
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
+	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
@@ -19,6 +20,7 @@
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { isEmbeddedFrame } from '$lib/embedded';
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
@@ -60,9 +62,15 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
-		if (isCommandPaletteOpen || !isPlainShortcut(event, 'Slash')) return;
+		if (isCommandPaletteOpen) return;
+		if (isPlainShortcut(event, 'Slash')) {
+			event.preventDefault();
+			isCommandPaletteOpen = true;
+			return;
+		}
+		if (!pageActions.refreshHandler || !isPlainShortcut(event, 'KeyR')) return;
 		event.preventDefault();
-		isCommandPaletteOpen = true;
+		pageActions.refresh();
 	}
 
 	function currentReturnPath() {
@@ -134,6 +142,27 @@
 								{text.search}
 								<Kbd class="ml-auto">/</Kbd>
 							</Button>
+							{#if pageActions.refreshHandler}
+								<Tooltip.Root>
+									<Tooltip.Trigger>
+										{#snippet child({ props })}
+											<Button
+												{...props}
+												variant="ghost"
+												size="icon-sm"
+												aria-label={text.refresh}
+												onclick={pageActions.refresh}
+											>
+												<RefreshCwIcon class={pageActions.isRefreshing ? 'animate-spin' : ''} />
+											</Button>
+										{/snippet}
+									</Tooltip.Trigger>
+									<Tooltip.Content side="bottom">
+										{text.refresh}
+										<Kbd>r</Kbd>
+									</Tooltip.Content>
+								</Tooltip.Root>
+							{/if}
 							<LanguageSwitcher
 								variant="ghost"
 								languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))}

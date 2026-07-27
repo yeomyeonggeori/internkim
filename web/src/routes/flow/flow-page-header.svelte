@@ -2,7 +2,6 @@
 	import { Button } from '$lib/components/ui/button';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import FlowWeekSelector from './flow-week-selector.svelte';
 	import { flowText } from './text';
 	import type { FlowSummary } from './flow-types';
@@ -15,7 +14,6 @@
 		isLoading: boolean;
 		selectWeek: (week: string) => void;
 		selectCurrentWeek: () => void;
-		refreshCurrentWeek: () => void;
 	};
 
 	let {
@@ -23,17 +21,11 @@
 		text,
 		isLoading,
 		selectWeek,
-		selectCurrentWeek,
-		refreshCurrentWeek
+		selectCurrentWeek
 	}: Props = $props();
 </script>
 
-<header class="flex min-w-0 flex-col gap-4 md:flex-row md:items-end md:justify-between">
-	<div class="min-w-0 space-y-1">
-		<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.product}</p>
-		<h1 class="text-2xl font-semibold">{text.title}</h1>
-		<p class="text-sm text-muted-foreground">{text.description}</p>
-	</div>
+<header class="flex min-w-0 flex-col gap-4 md:flex-row md:items-center md:justify-end">
 	<div class="flex flex-wrap items-center gap-2">
 		<Button variant="outline" size="sm" onclick={() => selectWeek(summary?.week.previous ?? '')} disabled={!summary || isLoading}>
 			<ChevronLeftIcon />
@@ -50,9 +42,6 @@
 		<Button variant="outline" size="sm" onclick={() => selectWeek(summary?.week.next ?? '')} disabled={!summary || isLoading}>
 			{text.nextWeek}
 			<ChevronRightIcon />
-		</Button>
-		<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={refreshCurrentWeek} disabled={isLoading}>
-			<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
 		</Button>
 	</div>
 </header>
