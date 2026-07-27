@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { forwardAppShortcut } from '$lib/app-shortcut-message';
+	import { isPlainShortcut } from '$lib/keyboard-shortcut';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -12,8 +14,7 @@
 	import {
 		createCalendarLocale
 	} from './calendar-config';
-	import { searchCalendarEvents } from './calendar-search';
-	import {
+		import {
 		calendarSearchParams,
 		initialCalendarDate as createInitialCalendarDate,
 		initialCalendarEventID as createInitialCalendarEventID,
@@ -175,7 +176,6 @@
 			month: 'long'
 		})
 	);
-	const searchResults = $derived(searchCalendarEvents(state.searchText, state.visibleEvents));
 
 	function setVisibleDate(date: Date) {
 		const visibleDate = normalizedVisibleDate(date);
@@ -219,7 +219,20 @@
 			state.participantCandidates = [];
 		}
 	}
+	function handleShortcut(event: KeyboardEvent) {
+		if (isPlainShortcut(event, 'Slash')) {
+			event.preventDefault();
+			forwardAppShortcut('Slash');
+			return;
+		}
+		if (!isPlainShortcut(event, 'KeyR')) return;
+		event.preventDefault();
+		forwardAppShortcut('KeyR');
+	}
 </script>
+
+<svelte:window onkeydown={handleShortcut} />
+
 <svelte:head>
 	<title>{text.pageTitle}</title>
 </svelte:head>
@@ -234,15 +247,12 @@
 	dismissConflict={conflictActions.dismissCalendarConflict}
 	refreshConflicts={conflictActions.dismissAllConflictsAndRefresh}
 	{currentMonthTitle}
-	bind:searchText={state.searchText}
-	{searchResults}
 	toolbarDate={state.toolbarDate}
 	toolbarView={state.toolbarView}
 	changeCalendarView={pageNavigation.changeCalendarView}
 	goToPrevious={pageNavigation.goToPrevious}
 	goToNext={pageNavigation.goToNext}
 	navigateToDateKey={pageNavigation.navigateToDateKey}
-	navigateToSearchResult={pageNavigation.navigateToSearchResult}
 	{createQuickEvent}
 	openSettings={openCalendarSettings}
 	clearSelectedEvent={eventSelection.clearSelectedEvent}

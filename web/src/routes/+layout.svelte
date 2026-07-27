@@ -19,6 +19,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { isEmbeddedFrame } from '$lib/embedded';
+	import { isAppShortcutMessage } from '$lib/app-shortcut-message';
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -73,6 +74,15 @@
 		pageActions.refresh();
 	}
 
+	function handleFrameShortcut(event: MessageEvent<unknown>) {
+		if (event.origin !== window.location.origin || !isAppShortcutMessage(event.data)) return;
+		if (event.data.code === 'Slash') {
+			isCommandPaletteOpen = true;
+			return;
+		}
+		pageActions.refresh();
+	}
+
 	function currentReturnPath() {
 		return page.url.pathname + page.url.search;
 	}
@@ -82,7 +92,7 @@
 	<link rel="icon" href="/logo.svg" />
 </svelte:head>
 
-<svelte:window onkeydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} onmessage={handleFrameShortcut} />
 
 <ModeWatcher />
 <Toaster position="bottom-center" visibleToasts={3} containerAriaLabel={text.notifications} />
