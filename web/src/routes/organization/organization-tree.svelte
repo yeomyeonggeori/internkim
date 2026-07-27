@@ -1,7 +1,5 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
-	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
@@ -139,9 +137,8 @@
 			{#if isEditing}
 				<LockKeyholeIcon class="text-muted-foreground size-4 shrink-0" />
 			{:else}
-				<ChevronDownIcon class="text-muted-foreground size-4 shrink-0" />
+				<FolderOpenIcon class="text-muted-foreground size-4 shrink-0" />
 			{/if}
-			<FolderOpenIcon class="text-muted-foreground size-4 shrink-0" />
 			<span class="min-w-0 flex-1 truncate">{tree.root.name}</span>
 			{#if !isEditing}<OrganizationAvatarStack records={tree.root.aggregateRecords} memberCountUnit={text.memberCountUnit} />{/if}
 		</button>
@@ -172,16 +169,16 @@
 						<GripVerticalIcon class="size-4" />
 					</span>
 				{:else if hasChildren(node.id)}
-					<button type="button" class="text-muted-foreground grid size-6 shrink-0 place-items-center rounded-md" aria-label={`${node.name} ${isExpanded(node.id) ? text.collapseOrganization : text.expandOrganization}`} onclick={() => toggleExpanded(node.id)}>
-						{#if isExpanded(node.id)}<ChevronDownIcon class="size-4" />{:else}<ChevronRightIcon class="size-4" />{/if}
+					<button
+						type="button"
+						class="text-muted-foreground grid size-6 shrink-0 place-items-center rounded-md"
+						aria-label={`${node.name} ${isExpanded(node.id) ? text.collapseOrganization : text.expandOrganization}`}
+						onclick={() => toggleExpanded(node.id)}
+					>
+						{#if isExpanded(node.id)}<FolderOpenIcon class="size-4" />{:else}<FolderIcon class="size-4" />{/if}
 					</button>
 				{:else}
-					<span class="size-6 shrink-0"></span>
-				{/if}
-				{#if isExpanded(node.id) && hasChildren(node.id)}
-					<FolderOpenIcon class="text-muted-foreground size-4 shrink-0" />
-				{:else}
-					<FolderIcon class="text-muted-foreground size-4 shrink-0" />
+					<span class="text-muted-foreground grid size-6 shrink-0 place-items-center"><FolderIcon class="size-4" /></span>
 				{/if}
 				<button type="button" class="min-w-0 flex-1 truncate text-left text-sm" onclick={() => !isEditing && onSelect(node.id)}>{node.name}</button>
 				{#if !isEditing}<OrganizationAvatarStack records={node.aggregateRecords} memberCountUnit={text.memberCountUnit} />{/if}
