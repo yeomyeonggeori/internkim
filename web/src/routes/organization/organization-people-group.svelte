@@ -93,33 +93,31 @@
 					selectedUserID === record.userID && 'ring-ring ring-1'
 				]}
 			>
-				{#if tenureLabel(record.hireDate)}
-					<Tooltip.Root>
-						<Tooltip.Trigger>
-							{#snippet child({ props })}
-								<Badge
-									{...props}
-									variant="outline"
-									class="bg-background absolute top-2 right-2 z-10 h-5 gap-1 rounded-full px-1.5 font-normal tabular-nums"
-								>
-									<TimerIcon class="size-3" />
-									{tenureLabel(record.hireDate)}
-								</Badge>
-							{/snippet}
-						</Tooltip.Trigger>
-						<Tooltip.Content side="top">{tenureDetail(record.hireDate)}</Tooltip.Content>
-					</Tooltip.Root>
-				{/if}
-				{#if leadership}
-					<Badge variant="secondary" class={['absolute top-2 left-2 z-10', leadership.class]}>
-						{#if leadership.isCompanyWide}
-							<CrownIcon />
-						{:else}
-							<FlagTriangleRightIcon />
-						{/if}
-						{leadership.label}
-					</Badge>
-				{/if}
+				<div class="absolute top-2 left-2 z-10 grid justify-items-start gap-1">
+					{#if leadership}
+						<Badge variant="secondary" class={leadership.class}>
+							{#if leadership.isCompanyWide}
+								<CrownIcon />
+							{:else}
+								<FlagTriangleRightIcon />
+							{/if}
+							{leadership.label}
+						</Badge>
+					{/if}
+					{#if tenureLabel(record.hireDate)}
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Badge {...props} variant="outline" class="bg-background h-5 gap-1 rounded-full px-1.5 font-normal tabular-nums">
+										<TimerIcon class="size-3" />
+										{tenureLabel(record.hireDate)}
+									</Badge>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content side="top">{tenureDetail(record.hireDate)}</Tooltip.Content>
+						</Tooltip.Root>
+					{/if}
+				</div>
 				<button
 					type="button"
 					class="grid w-full justify-items-center gap-2"
