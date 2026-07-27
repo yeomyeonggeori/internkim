@@ -34,7 +34,8 @@
 	function tenureLabel(hireDate: string | undefined): string {
 		const tenure = organizationTenure(hireDate, today);
 		if (!tenure) return '';
-		return `${text.tenureOrdinalPrefix}${tenure.years + 1}${text.tenureOrdinalSuffix}`;
+		if (!tenure.years) return `${tenure.months}${text.tenureMonthUnit}`;
+		return `${tenure.years}${text.tenureYearUnit}+`;
 	}
 
 	function tenureDetail(hireDate: string | undefined): string {
