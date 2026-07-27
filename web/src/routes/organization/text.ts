@@ -59,7 +59,7 @@ export const organizationDirectoryText = {
 		cancelOrganizationEdit: 'Cancel',
 		expandOrganization: 'Expand',
 		collapseOrganization: 'Collapse',
-		companyRepresentative: 'Representative',
+		companyRepresentative: 'Owner',
 		responsible: 'Head',
 		sendEmail: 'Send email',
 		callPhone: 'Call',
