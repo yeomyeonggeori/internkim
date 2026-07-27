@@ -75,7 +75,7 @@
 	}
 </script>
 
-<section class="relative min-w-0 pb-3" data-testid={`organization-section-${section.id || 'root'}`}>
+<section class={['relative min-w-0 pb-3', depth > 0 && 'mt-4']} data-testid={`organization-section-${section.id || 'root'}`}>
 	{#if section.records.length > 0 || node.children.length > 0}
 		<span class="bg-border absolute bottom-0 top-9 w-px" style={`left: ${depth * 16 + 20}px; z-index: ${39 - depth * 2}`} aria-hidden="true"></span>
 	{/if}
