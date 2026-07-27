@@ -31,18 +31,18 @@
 </script>
 
 <ButtonGroup.Root class="shrink-0">
-	<Button variant="outline" size="icon-sm" href={`mailto:${email}`} aria-label={text.sendEmail} title={email}>
+	<Button variant="outline" size="icon-xs" href={`mailto:${email}`} aria-label={text.sendEmail} title={email}>
 		<MailIcon />
 	</Button>
 	{#if phoneNumber}
-		<Button variant="outline" size="icon-sm" href={`tel:${phoneNumber}`} aria-label={text.callPhone} title={phoneNumber}>
+		<Button variant="outline" size="icon-xs" href={`tel:${phoneNumber}`} aria-label={text.callPhone} title={phoneNumber}>
 			<PhoneIcon />
 		</Button>
 	{/if}
 	<DropdownMenu.Root>
 		<DropdownMenu.Trigger>
 			{#snippet child({ props })}
-				<Button {...props} variant="outline" size="icon-sm" aria-label={text.contactActions}>
+				<Button {...props} variant="outline" size="icon-xs" aria-label={text.contactActions}>
 					<ChevronDownIcon />
 				</Button>
 			{/snippet}

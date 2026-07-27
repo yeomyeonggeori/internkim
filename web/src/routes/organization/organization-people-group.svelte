@@ -11,6 +11,7 @@
 	import OrganizationPersonContactActions from './organization-person-contact-actions.svelte';
 	import * as Item from '$lib/components/ui/item';
 	import type { UserRecord } from '$lib/organization/types';
+	import { organizationTenure } from './organization-tenure';
 	import type { OrganizationOrganizationSection } from './organization-model';
 	import type { organizationDirectoryText } from './text';
 
@@ -27,6 +28,14 @@
 	} = $props();
 
 	const depth = $derived(Math.min(section.depth, 8));
+	const today = new Date();
+
+	function tenureLabel(hireDate: string | undefined): string {
+		const tenure = organizationTenure(hireDate, today);
+		if (!tenure) return '';
+		if (!tenure.years) return `${tenure.months}${text.tenureMonthUnit}`;
+		return `${tenure.years}${text.tenureYearUnit} ${tenure.months}${text.tenureMonthUnit}`;
+	}
 
 	function personLabel(record: UserRecord): string {
 		return record.name || record.email;
@@ -88,12 +97,14 @@
 						<Item.Description class="truncate">{record.jobTitle || text.noTitle}</Item.Description>
 					</button>
 					<div class="mt-2 flex items-center justify-between gap-2">
-						<span class="text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums">
-							{#if record.hireDate}
-								<CalendarDaysIcon class="size-3.5 shrink-0" />
-								{record.hireDate}
-							{/if}
-						</span>
+						{#if tenureLabel(record.hireDate)}
+							<Badge variant="outline" class="h-5 shrink-0 gap-1 rounded-full px-1.5 font-normal tabular-nums" title={record.hireDate}>
+								<CalendarDaysIcon class="size-3" />
+								{tenureLabel(record.hireDate)}
+							</Badge>
+						{:else}
+							<span></span>
+						{/if}
 						<OrganizationPersonContactActions email={record.email} phoneNumber={record.phoneNumber ?? ''} {text} />
 					</div>
 				</Item.Content>
