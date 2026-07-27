@@ -2,7 +2,6 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Item from '$lib/components/ui/item';
-	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import type { UserRecord } from '$lib/organization/types';
 	import type { OrganizationOrganizationSection } from './organization-model';
 	import type { organizationDirectoryText } from './text';
@@ -19,7 +18,7 @@
 		selectRecord: (record: UserRecord) => void;
 	} = $props();
 
-	const indentation = $derived(Math.min(section.depth, 8) * 16);
+	const depth = $derived(Math.min(section.depth, 8));
 
 	function personLabel(record: UserRecord): string {
 		return record.name || record.email;
@@ -33,16 +32,18 @@
 </script>
 
 <section
-	class={['relative min-w-0', section.depth > 0 && 'border-border border-l pl-5']}
-	style={`margin-left: ${indentation}px`}
+	class="relative min-w-0 pb-3"
+	style={`padding-left: ${depth * 16 + 8}px`}
 	data-testid={`organization-section-${section.id || 'root'}`}
 >
-	<div class="flex h-9 items-center gap-2 pr-2 pl-2">
-		<FolderOpenIcon class="text-muted-foreground size-4 shrink-0" />
+	{#each { length: depth } as _, level (level)}
+		<span class="bg-border absolute inset-y-0 w-px" style={`left: ${level * 16 + 20}px`} aria-hidden="true"></span>
+	{/each}
+	<div class="flex h-9 items-center gap-2 pr-2">
 		<h3 class="min-w-0 flex-1 truncate text-sm font-medium">{section.name}</h3>
 		<span class="text-muted-foreground shrink-0 text-xs tabular-nums">{section.memberCount}{text.memberCountUnit}</span>
 	</div>
-	<Item.Group class="gap-2 pl-5" data-testid={`organization-members-${section.id || 'root'}`}>
+	<Item.Group class="gap-2" data-testid={`organization-members-${section.id || 'root'}`}>
 		{#each section.records as record (record.userID)}
 			{@const responsibility = responsibilityLabel(record)}
 			<Item.Root variant="outline" class={selectedUserID === record.userID ? 'ring-ring ring-1' : ''}>
