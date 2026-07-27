@@ -7,12 +7,9 @@ import (
 
 func TestIssuedBuzzIdentityIsSealedIntoTheVault(t *testing.T) {
 	service := newIdentityVaultService(t)
-	identity := buzzGeneratedIdentity{
-		publicKey: strings.Repeat("ab", 32),
-		secretKey: strings.Repeat("cd", 32),
-	}
+	secretKey := strings.Repeat("cd", 32)
 
-	if errorValue := service.storeBuzzIdentitySecret("newcomer@example.com", identity.secretKey); errorValue != nil {
+	if errorValue := service.storeBuzzIdentitySecret("newcomer@example.com", secretKey); errorValue != nil {
 		t.Fatalf("seal issued identity: %v", errorValue)
 	}
 
@@ -20,7 +17,7 @@ func TestIssuedBuzzIdentityIsSealedIntoTheVault(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("read issued identity: %v", errorValue)
 	}
-	if sealedSecret != identity.secretKey {
+	if sealedSecret != secretKey {
 		t.Fatalf("expected the issued secret back, got %q", sealedSecret)
 	}
 }

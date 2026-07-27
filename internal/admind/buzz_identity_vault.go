@@ -29,22 +29,22 @@ func (service *Service) buzzIdentityVaultKeyPath() string {
 	return filepath.Join(service.buzzIdentityVaultDirectory(), buzzIdentityVaultKeyFileName)
 }
 
-func normalizedIdentityEmail(email string) string {
-	return strings.ToLower(strings.TrimSpace(email))
+func normalizedVaultSubject(subject string) string {
+	return strings.ToLower(strings.TrimSpace(subject))
 }
 
-func (service *Service) buzzIdentitySecretPath(encryptionKey []byte, email string) string {
+func (service *Service) buzzIdentitySecretPath(encryptionKey []byte, subject string) string {
 	nameMAC := hmac.New(sha256.New, encryptionKey)
 	nameMAC.Write([]byte(buzzIdentityNameDomain))
-	nameMAC.Write([]byte(normalizedIdentityEmail(email)))
+	nameMAC.Write([]byte(normalizedVaultSubject(subject)))
 	return filepath.Join(service.buzzIdentityVaultDirectory(), hex.EncodeToString(nameMAC.Sum(nil))+buzzIdentitySecretFileExtension)
 }
 
-func (service *Service) storeBuzzIdentitySecret(email string, secretHex string) error {
-	normalizedEmail := normalizedIdentityEmail(email)
+func (service *Service) storeBuzzIdentitySecret(subject string, secretHex string) error {
+	normalizedSubject := normalizedVaultSubject(subject)
 	secretHex = strings.ToLower(strings.TrimSpace(secretHex))
-	if normalizedEmail == "" {
-		return errors.New("identity email is required")
+	if normalizedSubject == "" {
+		return errors.New("identity subject is required")
 	}
 	if len(secretHex) != buzzIdentitySecretHexLength {
 		return fmt.Errorf("identity secret must be %d hex characters", buzzIdentitySecretHexLength)
@@ -56,48 +56,48 @@ func (service *Service) storeBuzzIdentitySecret(email string, secretHex string) 
 	if errorValue != nil {
 		return errorValue
 	}
-	sealed, errorValue := sealSecret(encryptionKey, []byte(secretHex), []byte(normalizedEmail))
+	sealed, errorValue := sealSecret(encryptionKey, []byte(secretHex), []byte(normalizedSubject))
 	if errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(service.buzzIdentitySecretPath(encryptionKey, normalizedEmail), sealed, 0o600)
+	return writeFileAtomically(service.buzzIdentitySecretPath(encryptionKey, normalizedSubject), sealed, 0o600)
 }
 
-func (service *Service) readBuzzIdentitySecret(email string) (string, error) {
-	normalizedEmail := normalizedIdentityEmail(email)
+func (service *Service) readBuzzIdentitySecret(subject string) (string, error) {
+	normalizedSubject := normalizedVaultSubject(subject)
 	encryptionKey, errorValue := loadOrCreateSecretEncryptionKey(service.buzzIdentityVaultKeyPath())
 	if errorValue != nil {
 		return "", errorValue
 	}
-	sealed, errorValue := os.ReadFile(service.buzzIdentitySecretPath(encryptionKey, normalizedEmail))
+	sealed, errorValue := os.ReadFile(service.buzzIdentitySecretPath(encryptionKey, normalizedSubject))
 	if errors.Is(errorValue, os.ErrNotExist) {
 		return "", errBuzzIdentitySecretMissing
 	}
 	if errorValue != nil {
 		return "", errorValue
 	}
-	plaintext, errorValue := openSecret(encryptionKey, sealed, []byte(normalizedEmail))
+	plaintext, errorValue := openSecret(encryptionKey, sealed, []byte(normalizedSubject))
 	if errorValue != nil {
 		return "", errorValue
 	}
 	return string(plaintext), nil
 }
 
-func (service *Service) hasBuzzIdentitySecret(email string) bool {
+func (service *Service) hasBuzzIdentitySecret(subject string) bool {
 	encryptionKey, errorValue := loadOrCreateSecretEncryptionKey(service.buzzIdentityVaultKeyPath())
 	if errorValue != nil {
 		return false
 	}
-	_, errorValue = os.Stat(service.buzzIdentitySecretPath(encryptionKey, email))
+	_, errorValue = os.Stat(service.buzzIdentitySecretPath(encryptionKey, subject))
 	return errorValue == nil
 }
 
-func (service *Service) deleteBuzzIdentitySecret(email string) error {
+func (service *Service) deleteBuzzIdentitySecret(subject string) error {
 	encryptionKey, errorValue := loadOrCreateSecretEncryptionKey(service.buzzIdentityVaultKeyPath())
 	if errorValue != nil {
 		return errorValue
 	}
-	errorValue = os.Remove(service.buzzIdentitySecretPath(encryptionKey, email))
+	errorValue = os.Remove(service.buzzIdentitySecretPath(encryptionKey, subject))
 	if errorValue != nil && !errors.Is(errorValue, os.ErrNotExist) {
 		return errorValue
 	}

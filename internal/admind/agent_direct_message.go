@@ -134,7 +134,7 @@ func (service *Service) sendAgentDirectMessage(responseWriter http.ResponseWrite
 		http.Error(responseWriter, "message is required", http.StatusBadRequest)
 		return
 	}
-	userSecretHex, errorValue := service.readBuzzIdentitySecret(actorEmail)
+	userSecretHex, errorValue := service.personBuzzSecret(request.Context(), actorEmail)
 	if errorValue != nil {
 		service.writeAgentDirectMessageError(responseWriter, errorValue)
 		return
@@ -158,7 +158,7 @@ func (service *Service) sendAgentDirectMessage(responseWriter http.ResponseWrite
 }
 
 func (service *Service) ensureAgentDirectMessageChannel(ctx context.Context, actorEmail string, channelID string) (chatdDirectMessageChannel, error) {
-	userSecretHex, errorValue := service.readBuzzIdentitySecret(actorEmail)
+	userSecretHex, errorValue := service.personBuzzSecret(ctx, actorEmail)
 	if errorValue != nil {
 		return chatdDirectMessageChannel{}, errorValue
 	}
@@ -200,7 +200,7 @@ func (service *Service) handleAgentPeople(responseWriter http.ResponseWriter, re
 		http.Error(responseWriter, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	userSecretHex, errorValue := service.readBuzzIdentitySecret(actorEmail)
+	userSecretHex, errorValue := service.personBuzzSecret(request.Context(), actorEmail)
 	if errorValue != nil {
 		service.writeAgentDirectMessageError(responseWriter, errorValue)
 		return
@@ -233,7 +233,7 @@ func (service *Service) handleEnsureDirectMessage(responseWriter http.ResponseWr
 		http.Error(responseWriter, "personId is required", http.StatusBadRequest)
 		return
 	}
-	userSecretHex, errorValue := service.readBuzzIdentitySecret(actorEmail)
+	userSecretHex, errorValue := service.personBuzzSecret(request.Context(), actorEmail)
 	if errorValue != nil {
 		service.writeAgentDirectMessageError(responseWriter, errorValue)
 		return
@@ -256,7 +256,7 @@ func (service *Service) handleAgentChannels(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	userSecretHex, errorValue := service.readBuzzIdentitySecret(actorEmail)
+	userSecretHex, errorValue := service.personBuzzSecret(request.Context(), actorEmail)
 	if errorValue != nil {
 		service.writeAgentDirectMessageError(responseWriter, errorValue)
 		return
