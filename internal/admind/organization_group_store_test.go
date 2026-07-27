@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"testing"
 )
 
@@ -38,11 +37,10 @@ func TestOrganizationStoreRewritesDuplicateGroupReferences(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		UserID:            "user-member",
-		Email:             "member@example.com",
-		PrimaryGroupID:    "engineering-duplicate",
-		GroupIDs:          []string{"engineering-duplicate", "operations-duplicate", "external"},
-		EmploymentStatus:  organizationEmploymentStatusActive,
+		UserID:                "user-member",
+		Email:                 "member@example.com",
+		GroupID:               "engineering-duplicate",
+		EmploymentStatus:      organizationEmploymentStatusActive,
 		IsOrganizationVisible: true,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -61,11 +59,8 @@ func TestOrganizationStoreRewritesDuplicateGroupReferences(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	profile := profilesByEmail["member@example.com"]
-	if profile.PrimaryGroupID != "engineering" {
-		t.Fatalf("primary group ID = %q; want engineering", profile.PrimaryGroupID)
-	}
-	if strings.Join(profile.GroupIDs, ",") != "engineering,operations,external" {
-		t.Fatalf("group IDs = %#v; want canonical groups with external preserved", profile.GroupIDs)
+	if profile.GroupID != "engineering" {
+		t.Fatalf("primary group ID = %q; want engineering", profile.GroupID)
 	}
 }
 

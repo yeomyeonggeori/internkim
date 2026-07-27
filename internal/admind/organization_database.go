@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -13,8 +14,7 @@ const organizationProfilesColumnsSQL = `(
 	email TEXT NOT NULL,
 	job_title TEXT NOT NULL,
 	position_level INTEGER NOT NULL CHECK(position_level >= 0),
-	primary_group_id TEXT NOT NULL,
-	group_ids TEXT NOT NULL,
+	group_id TEXT NOT NULL,
 	supervisor_id TEXT NOT NULL,
 	project_ids TEXT NOT NULL,
 	team_role TEXT NOT NULL,
@@ -109,7 +109,9 @@ WHERE type = 'table'
 
 func hasOrganizationProfileConstraints(schema string) bool {
 	normalizedSchema := strings.ReplaceAll(strings.ToLower(schema), " ", "")
-	return strings.Contains(normalizedSchema, "check(position_level>=0)") &&
+	return strings.Contains(normalizedSchema, "group_idtextnotnull") &&
+		!strings.Contains(normalizedSchema, "group_idstextnotnull") &&
+		strings.Contains(normalizedSchema, "check(position_level>=0)") &&
 		strings.Contains(normalizedSchema, "check(employment_statusin('active','leave','resigned'))") &&
 		strings.Contains(normalizedSchema, "check(is_organization_visiblein(0,1))")
 }
@@ -147,15 +149,18 @@ func renameLegacyOrganizationProfiles(ctx context.Context, transaction *sql.Tx) 
 }
 
 func copyLegacyOrganizationProfiles(ctx context.Context, transaction *sql.Tx) error {
-	_, errorValue := transaction.ExecContext(ctx, `
+	legacySchema, errorValue := readSQLiteTransactionTableSchema(ctx, transaction, "organization_profiles_legacy")
+	if errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = transaction.ExecContext(ctx, fmt.Sprintf(`
 INSERT INTO organization_profiles(
 	profile_key,
 	user_id,
 	email,
 	job_title,
 	position_level,
-	primary_group_id,
-	group_ids,
+	group_id,
 	supervisor_id,
 	project_ids,
 	team_role,
@@ -172,8 +177,7 @@ SELECT
 		WHEN COALESCE(position_level, 0) < 0 THEN 0
 		ELSE COALESCE(position_level, 0)
 	END,
-	trim(COALESCE(primary_group_id, '')),
-	COALESCE(group_ids, '[]'),
+	%s,
 	trim(COALESCE(supervisor_id, '')),
 	COALESCE(project_ids, '[]'),
 	trim(COALESCE(team_role, '')),
@@ -187,6 +191,30 @@ SELECT
 	END,
 	trim(COALESCE(updated_at, ''))
 FROM organization_profiles_legacy
-WHERE trim(COALESCE(profile_key, '')) != ''`)
+WHERE trim(COALESCE(profile_key, '')) != ''`, legacyOrganizationGroupIDExpression(legacySchema)))
 	return errorValue
+}
+
+func legacyOrganizationGroupIDExpression(legacySchema string) string {
+	normalizedSchema := strings.ReplaceAll(strings.ToLower(legacySchema), " ", "")
+	if strings.Contains(normalizedSchema, "primary_group_id") {
+		return "trim(COALESCE(primary_group_id, ''))"
+	}
+	if strings.Contains(normalizedSchema, "group_idtext") {
+		return "trim(COALESCE(group_id, ''))"
+	}
+	return "''"
+}
+
+func readSQLiteTransactionTableSchema(ctx context.Context, transaction *sql.Tx, tableName string) (string, error) {
+	var schema string
+	errorValue := transaction.QueryRowContext(ctx, `
+SELECT sql
+FROM sqlite_master
+WHERE type = 'table'
+	AND name = ?`, tableName).Scan(&schema)
+	if errorValue == sql.ErrNoRows {
+		return "", nil
+	}
+	return schema, errorValue
 }

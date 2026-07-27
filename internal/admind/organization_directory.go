@@ -89,13 +89,8 @@ func visibleOrganizationUsersResponse(response pagesUsersResponse, profilesByUse
 			continue
 		}
 		visibleRecords = append(visibleRecords, record)
-		for _, groupID := range record.GroupIDs {
-			if strings.TrimSpace(groupID) != "" {
-				visibleGroupIDs[groupID] = true
-			}
-		}
-		if strings.TrimSpace(record.PrimaryGroupID) != "" {
-			visibleGroupIDs[record.PrimaryGroupID] = true
+		if strings.TrimSpace(record.GroupID) != "" {
+			visibleGroupIDs[record.GroupID] = true
 		}
 	}
 	visibleGroups := make([]orgGroupRecord, 0, len(response.AvailableGroups))

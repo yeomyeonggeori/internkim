@@ -12,7 +12,7 @@ import (
 
 type organizationCachedUsersResponse struct {
 	Records         []organizationCachedUserRecord `json:"records"`
-	AvailableGroups []orgGroupRecord           `json:"availableGroups,omitempty"`
+	AvailableGroups []orgGroupRecord               `json:"availableGroups,omitempty"`
 }
 
 func (service *Service) readCachedOrganizationUserList(ctx context.Context, loadSource func(context.Context) (pagesUsersResponse, error)) (pagesUsersResponse, organizationPeopleCachePolicy, error) {
@@ -160,9 +160,6 @@ func (service *Service) loadOrganizationUserListSource(ctx context.Context) (pag
 	response, errorValue := service.buildLocalUsersResponse(ctx)
 	if errorValue != nil {
 		return pagesUsersResponse{}, errorValue
-	}
-	for index := range response.Records {
-		applyDefaultOrganizationMetadata(&response.Records[index])
 	}
 	responseBody, errorValue := json.Marshal(response)
 	if errorValue != nil {

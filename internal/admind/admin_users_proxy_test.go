@@ -29,13 +29,12 @@ func TestAdminUserProxyGetMergesOrganizationMetadata(t *testing.T) {
 		}
 	})
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{{
-		UserID:            "user-member",
-		Email:             "member@example.com",
-		JobTitle:          "Design Lead",
-		PrimaryGroupID:    "design",
-		GroupIDs:          []string{"design"},
-		SupervisorID:      "user-admin",
-		EmploymentStatus:  organizationEmploymentStatusActive,
+		UserID:                "user-member",
+		Email:                 "member@example.com",
+		JobTitle:              "Design Lead",
+		GroupID:               "design",
+		SupervisorID:          "user-admin",
+		EmploymentStatus:      organizationEmploymentStatusActive,
 		IsOrganizationVisible: true,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -57,7 +56,7 @@ func TestAdminUserProxyGetMergesOrganizationMetadata(t *testing.T) {
 		t.Fatalf("records = %d; want 1", len(usersResponse.Records))
 	}
 	record := usersResponse.Records[0]
-	if record.JobTitle != "Design Lead" || record.PrimaryGroupID != "design" || record.SupervisorID != "user-admin" {
+	if record.JobTitle != "Design Lead" || record.GroupID != "design" || record.SupervisorID != "user-admin" {
 		t.Fatalf("record organization metadata = %#v", record)
 	}
 	expectedImage := calendarParticipantImagePath(stableFlowID("member@example.com"))
