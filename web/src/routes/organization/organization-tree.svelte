@@ -1,11 +1,13 @@
 <script lang="ts">
+	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
 	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
-	import PencilIcon from '@lucide/svelte/icons/pencil';
-	import LockKeyholeIcon from '@lucide/svelte/icons/lock-keyhole';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import OrganizationAvatarStack from './organization-avatar-stack.svelte';
 	import { organizationTreeDrag } from './organization-tree-drag-action';
 	import {
@@ -25,6 +27,7 @@
 		isSaving,
 		text,
 		onSelect,
+		onAddOrganization,
 		onBeginEdit,
 		onCancelEdit,
 		onSaveEdit,
@@ -36,6 +39,7 @@
 		isSaving: boolean;
 		text: typeof organizationDirectoryText.ko;
 		onSelect: (organizationID: string) => void;
+		onAddOrganization: () => void;
 		onBeginEdit: () => void;
 		onCancelEdit: () => void;
 		onSaveEdit: () => void | Promise<void>;
@@ -71,6 +75,10 @@
 
 	function hasChildren(groupID: string): boolean {
 		return treeIndex.groupIDsWithChildren.has(groupID);
+	}
+
+	function childCount(groupID: string): number {
+		return tree.nodes.filter((node) => node.parentID === groupID).length;
 	}
 
 	function selectNode(groupID: string): void {
@@ -119,35 +127,44 @@
 </script>
 
 <div class="flex h-full min-h-0 flex-col border-r bg-background" data-testid="organization-sidebar">
-	<div class="flex h-14 shrink-0 items-center justify-between px-4">
-		<span class="text-muted-foreground text-xs font-medium">{text.organizationNavigation}</span>
-		{#if canManage}
-			{#if isEditing}
-				<div class="flex items-center gap-1">
-					<Button type="button" variant="ghost" size="sm" disabled={isSaving} onclick={onCancelEdit}>{text.cancelOrganizationEdit}</Button>
-					<Button type="button" size="sm" disabled={isSaving} onclick={() => void onSaveEdit()}>{text.saveOrganizations}</Button>
-				</div>
-			{:else}
-				<Button type="button" variant="ghost" size="icon-sm" aria-label={text.editOrganizations} title={text.editOrganizations} onclick={onBeginEdit}>
-					<PencilIcon class="size-4" />
-				</Button>
-			{/if}
-		{/if}
-	</div>
+	{#if canManage && isEditing}
+		<div class="flex h-14 shrink-0 items-center justify-end gap-1 px-4">
+			<Button type="button" variant="ghost" size="sm" disabled={isSaving} onclick={onCancelEdit}>{text.cancelOrganizationEdit}</Button>
+			<Button type="button" size="sm" disabled={isSaving} onclick={() => void onSaveEdit()}>{text.saveOrganizations}</Button>
+		</div>
+	{/if}
 
-	<div class="min-h-0 flex-1 overflow-y-auto px-2 pb-4" bind:this={treeElement} data-testid="organization-tree">
-		<button
-			type="button"
-			class="hover:bg-accent/50 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm"
-			onclick={() => !isEditing && onSelect('')}
-			data-testid="organization-root"
-		>
-			<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
-				{#if isEditing}<LockKeyholeIcon class="size-4" />{:else}<ChevronDownIcon class="size-4" />{/if}
-			</span>
-			<span class="min-w-0 flex-1 truncate">{tree.root.name}</span>
-			{#if !isEditing}<OrganizationAvatarStack records={tree.root.aggregateRecords} memberCountUnit={text.memberCountUnit} />{/if}
-		</button>
+	<div class="min-h-0 flex-1 overflow-y-auto px-2 pt-3 pb-4" bind:this={treeElement} data-testid="organization-tree">
+		<div class="hover:bg-accent/50 flex h-9 items-center gap-1 rounded-md pr-1 pl-2">
+			<button
+				type="button"
+				class="flex min-w-0 flex-1 items-center gap-1 text-left text-sm"
+				onclick={() => !isEditing && onSelect('')}
+				data-testid="organization-root"
+			>
+				{#if !isEditing}
+					<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
+						<Building2Icon class="size-4" />
+					</span>
+				{/if}
+				<span class="min-w-0 flex-1 truncate">{tree.root.name}</span>
+			</button>
+			{#if canManage && !isEditing}
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger>
+						{#snippet child({ props })}
+							<Button {...props} type="button" variant="ghost" size="icon-sm" aria-label={text.organizationActions}>
+								<EllipsisVerticalIcon class="size-4" />
+							</Button>
+						{/snippet}
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="end">
+						<DropdownMenu.Item onSelect={onAddOrganization}>{text.addOrganization}</DropdownMenu.Item>
+						<DropdownMenu.Item onSelect={onBeginEdit}>{text.editOrganizations}</DropdownMenu.Item>
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
+			{/if}
+		</div>
 
 		{#each visibleNodes as node (node.id)}
 			{#if movePreview && previewBeforeGroupID === node.id}
@@ -184,18 +201,29 @@
 						: node.name}
 					onclick={() => selectNode(node.id)}
 				>
-					<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
-						{#if !hasChildren(node.id)}
-							<UsersRoundIcon class="size-4" />
-						{:else if isExpanded(node.id)}
-							<ChevronDownIcon class="size-4" />
-						{:else}
-							<ChevronRightIcon class="size-4" />
-						{/if}
-					</span>
+					{#if !isEditing}
+						<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
+							{#if !hasChildren(node.id)}
+								<UsersRoundIcon class="size-4" />
+							{:else if isExpanded(node.id)}
+								<ChevronDownIcon class="size-4" />
+							{:else}
+								<ChevronRightIcon class="size-4" />
+							{/if}
+						</span>
+					{/if}
 					<span class="min-w-0 flex-1 truncate">{node.name}</span>
 				</button>
-				{#if !isEditing}<OrganizationAvatarStack records={node.aggregateRecords} memberCountUnit={text.memberCountUnit} />{/if}
+				{#if !isEditing}
+					{#if hasChildren(node.id)}
+						<Badge variant="outline" class="h-5 min-w-5 gap-1 rounded-full px-1.5 font-mono tabular-nums">
+							<UsersRoundIcon class="size-3" />
+							{childCount(node.id)}
+						</Badge>
+					{:else}
+						<OrganizationAvatarStack records={node.aggregateRecords} memberCountUnit={text.memberCountUnit} />
+					{/if}
+				{/if}
 			</div>
 		{/each}
 

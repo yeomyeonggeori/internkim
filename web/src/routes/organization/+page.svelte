@@ -10,7 +10,7 @@
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { onMount } from 'svelte';
 	import { adminText } from '../admin/text';
-	import OrganizationAddOrganizationPopover from './organization-add-organization-popover.svelte';
+	import OrganizationAddOrganizationDialog from './organization-add-organization-dialog.svelte';
 	import { OrganizationDirectoryController } from './organization-directory-controller.svelte';
 	import OrganizationFilterPopover from './organization-filter-popover.svelte';
 	import OrganizationOrganizationTree from './organization-tree.svelte';
@@ -72,21 +72,6 @@
 								<PanelLeftIcon class="size-4" />
 								{text.openOrganizations}
 							</Button>
-							{#if controller.canManage && !controller.organizationEdit.isEditing}
-								<OrganizationAddOrganizationPopover
-									bind:isOpen={controller.isAddingGroup}
-									bind:newGroupName={controller.newGroupName}
-									bind:newGroupParentID={controller.newGroupParentID}
-									groups={controller.groups}
-									isSaving={controller.isSavingGroups}
-									text={adminPageText.organization}
-									inputID="new-organization-group-mobile"
-									buttonSize="sm"
-									onAdd={() => controller.addGlobalGroup()}
-									onCancel={() => controller.cancelAddGroup()}
-									onOpenChange={(nextOpen) => controller.handleAddGroupOpenChange(nextOpen)}
-								/>
-							{/if}
 						</div>
 					{/if}
 				</div>
@@ -112,20 +97,6 @@
 							{text}
 							onSelectGroup={(groupID) => controller.selectGroup(groupID)}
 						/>
-						{#if controller.canManage && !controller.organizationEdit.isEditing}
-							<OrganizationAddOrganizationPopover
-								bind:isOpen={controller.isAddingGroup}
-								bind:newGroupName={controller.newGroupName}
-								bind:newGroupParentID={controller.newGroupParentID}
-								groups={controller.groups}
-								isSaving={controller.isSavingGroups}
-								text={adminPageText.organization}
-								inputID="new-organization-group"
-								onAdd={() => controller.addGlobalGroup()}
-								onCancel={() => controller.cancelAddGroup()}
-								onOpenChange={(nextOpen) => controller.handleAddGroupOpenChange(nextOpen)}
-							/>
-						{/if}
 					{/if}
 				</div>
 			</div>
@@ -144,6 +115,7 @@
 							isSaving={controller.isSavingGroups}
 							{text}
 							onSelect={selectOrganization}
+							onAddOrganization={() => (controller.isAddingGroup = true)}
 							onBeginEdit={() => controller.beginOrganizationEdit()}
 							onCancelEdit={() => controller.cancelOrganizationEdit()}
 							onSaveEdit={() => controller.saveOrganizationEdit()}
@@ -206,6 +178,7 @@
 				isSaving={controller.isSavingGroups}
 				{text}
 				onSelect={selectOrganization}
+				onAddOrganization={() => (controller.isAddingGroup = true)}
 				onBeginEdit={() => controller.beginOrganizationEdit()}
 				onCancelEdit={() => controller.cancelOrganizationEdit()}
 				onSaveEdit={() => controller.saveOrganizationEdit()}
@@ -239,3 +212,16 @@
 		</Sheet.Root>
 	{/if}
 </main>
+
+<OrganizationAddOrganizationDialog
+	bind:isOpen={controller.isAddingGroup}
+	bind:newGroupName={controller.newGroupName}
+	bind:newGroupParentID={controller.newGroupParentID}
+	groups={controller.groups}
+	isSaving={controller.isSavingGroups}
+	text={adminPageText.organization}
+	inputID="new-organization-group"
+	onAdd={() => controller.addGlobalGroup()}
+	onCancel={() => controller.cancelAddGroup()}
+	onOpenChange={(nextOpen) => controller.handleAddGroupOpenChange(nextOpen)}
+/>
