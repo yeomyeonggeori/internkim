@@ -134,11 +134,9 @@
 			onclick={() => !isEditing && onSelect('')}
 			data-testid="organization-root"
 		>
-			{#if isEditing}
-				<LockKeyholeIcon class="text-muted-foreground size-4 shrink-0" />
-			{:else}
-				<FolderOpenIcon class="text-muted-foreground size-4 shrink-0" />
-			{/if}
+			<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
+				{#if isEditing}<LockKeyholeIcon class="size-4" />{:else}<FolderOpenIcon class="size-4" />{/if}
+			</span>
 			<span class="min-w-0 flex-1 truncate">{tree.root.name}</span>
 			{#if !isEditing}<OrganizationAvatarStack records={tree.root.aggregateRecords} memberCountUnit={text.memberCountUnit} />{/if}
 		</button>
@@ -152,11 +150,11 @@
 			{/if}
 			<div
 				class={['relative flex h-9 items-center gap-1 rounded-md pr-2', selectedOrganizationID === node.id && !isEditing ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50', draggedSubtreeGroupIDs.has(node.id) && 'opacity-40']}
-				style={`padding-left: ${node.depth * 16 + 8}px`}
+				style={`padding-left: ${(node.depth + 1) * 16 + 8}px`}
 				data-organization-row={node.id}
 				data-testid={`organization-row-${node.id}`}
 			>
-				{#each { length: node.depth } as _, level (level)}
+				{#each { length: node.depth + 1 } as _, level (level)}
 					<span class="bg-border absolute inset-y-0 w-px" style={`left: ${level * 16 + 20}px`} aria-hidden="true"></span>
 				{/each}
 				{#if isEditing}
