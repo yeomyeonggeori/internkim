@@ -72,8 +72,8 @@ test.describe('employee organization directory', () => {
 		const leadershipSection = page.getByTestId('organization-section-leadership');
 		const companyLeader = leadershipSection.getByTestId('organization-person-node-user-ceo');
 
-		await expect(companyLeader.getByText('회사 책임자')).toBeVisible();
-		await expect(companyLeader.getByText('조직 책임자')).toHaveCount(0);
+		await expect(companyLeader.getByText('대표')).toBeVisible();
+		await expect(companyLeader.getByText('책임자')).toHaveCount(0);
 	});
 
 	test('shows responsibility on the hierarchy leader instead of the earliest employee', async ({ page }) => {
@@ -120,8 +120,8 @@ test.describe('employee organization directory', () => {
 
 		const productSection = page.getByTestId('organization-section-product');
 		await expect(productSection.getByTestId('organization-person-node-employee')).toBeVisible();
-		await expect(productSection.getByTestId('organization-person-node-employee').getByText('조직 책임자')).toHaveCount(0);
-		await expect(productSection.getByTestId('organization-person-node-leader').getByText('조직 책임자')).toBeVisible();
+		await expect(productSection.getByTestId('organization-person-node-employee').getByText('책임자')).toHaveCount(0);
+		await expect(productSection.getByTestId('organization-person-node-leader').getByText('책임자')).toBeVisible();
 	});
 
 	test('labels the unassigned organization consistently', async ({ page }) => {

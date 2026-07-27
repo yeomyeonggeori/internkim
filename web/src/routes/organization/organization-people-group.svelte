@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
-	import BadgeCheckIcon from '@lucide/svelte/icons/badge-check';
+	import CrownIcon from '@lucide/svelte/icons/crown';
+	import FlagTriangleRightIcon from '@lucide/svelte/icons/flag-triangle-right';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import MailIcon from '@lucide/svelte/icons/mail';
@@ -31,11 +32,11 @@
 		return record.name || record.email;
 	}
 
-	function responsibility(record: UserRecord): { label: string; class: string } | undefined {
+	function responsibility(record: UserRecord): { isCompanyWide: boolean; label: string; class: string } | undefined {
 		if (record.userID === section.companyResponsibleUserID)
-			return { label: text.companyResponsible, class: 'bg-blue-500 text-white dark:bg-blue-600' };
+			return { isCompanyWide: true, label: text.companyRepresentative, class: 'bg-blue-500 text-white dark:bg-blue-600' };
 		if (record.userID === section.responsibleUserID)
-			return { label: text.organizationResponsible, class: 'bg-emerald-500 text-white dark:bg-emerald-600' };
+			return { isCompanyWide: false, label: text.responsible, class: 'bg-emerald-500 text-white dark:bg-emerald-600' };
 		return undefined;
 	}
 </script>
@@ -84,7 +85,7 @@
 							<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-10" />
 						</Item.Media>
 						<Item.Content class="gap-0.5 text-left">
-							<Item.Title class={['truncate', leadership && 'pr-24']}>{personLabel(record)}</Item.Title>
+							<Item.Title class={['truncate', leadership && 'pr-20']}>{personLabel(record)}</Item.Title>
 							<Item.Description class="truncate">{record.jobTitle || text.noTitle}</Item.Description>
 							<div class="text-muted-foreground mt-2 grid gap-1 text-xs">
 								<span class="flex min-w-0 items-center gap-1.5">
@@ -101,7 +102,11 @@
 						</Item.Content>
 						{#if leadership}
 							<Badge variant="secondary" class={['absolute top-2 right-2', leadership.class]}>
-								<BadgeCheckIcon />
+								{#if leadership.isCompanyWide}
+									<CrownIcon />
+								{:else}
+									<FlagTriangleRightIcon />
+								{/if}
 								{leadership.label}
 							</Badge>
 						{/if}
