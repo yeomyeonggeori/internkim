@@ -4,6 +4,7 @@ import type { OrgProfileUpdate } from './admin-api';
 export type OrgProfileSnapshot = {
 	jobTitle: string;
 	groupID: string;
+	hireDate: string;
 	phoneNumber: string;
 	supervisorID: string;
 };
@@ -14,6 +15,7 @@ export function normalizeOrgProfileRecord(record: UserRecord): UserRecord {
 		name: record.name ?? '',
 		jobTitle: record.jobTitle?.trim() ?? '',
 		groupID: record.groupID ?? '',
+		hireDate: record.hireDate ?? '',
 		phoneNumber: record.phoneNumber ?? '',
 		supervisorID: record.supervisorID ?? ''
 	};
@@ -23,6 +25,7 @@ export function orgProfileSnapshot(record: UserRecord): OrgProfileSnapshot {
 	return {
 		jobTitle: record.jobTitle?.trim() ?? '',
 		groupID: record.groupID ?? '',
+		hireDate: record.hireDate?.trim() ?? '',
 		phoneNumber: record.phoneNumber?.trim() ?? '',
 		supervisorID: record.supervisorID ?? ''
 	};
@@ -40,6 +43,7 @@ export function orgProfileUpdate(record: UserRecord): OrgProfileUpdate {
 		email: record.email,
 		jobTitle: snapshot.jobTitle,
 		groupID: snapshot.groupID,
+		hireDate: snapshot.hireDate,
 		phoneNumber: snapshot.phoneNumber,
 		supervisorID: snapshot.supervisorID
 	};

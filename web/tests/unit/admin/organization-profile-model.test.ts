@@ -74,6 +74,7 @@ describe('organization profile model', () => {
 			email: 'user@example.com',
 			jobTitle: 'Lead',
 			groupID: 'leadership',
+			hireDate: '',
 			phoneNumber: '',
 			supervisorID: 'manager-1'
 		});

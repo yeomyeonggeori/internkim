@@ -10,6 +10,7 @@ func normalizeOrganizationProfile(profile organizationProfile) organizationProfi
 	profile.Email = strings.ToLower(strings.TrimSpace(profile.Email))
 	profile.JobTitle = strings.TrimSpace(profile.JobTitle)
 	profile.GroupID = strings.TrimSpace(profile.GroupID)
+	profile.HireDate = strings.TrimSpace(profile.HireDate)
 	profile.SupervisorID = strings.TrimSpace(profile.SupervisorID)
 	profile.ProjectIDs = normalizeOrganizationStringList(profile.ProjectIDs)
 	profile.TeamRole = strings.TrimSpace(profile.TeamRole)

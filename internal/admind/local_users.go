@@ -69,6 +69,7 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 		return
 	}
 	mutation.completeAfterSourceMutation(request.Context())
+	service.persistOrganizationHireDate(request.Context(), payload.UserID, payload.Email, payload.HireDate)
 	service.triggerUsersSync(request.Context())
 	response := pagesUsersResponse{Records: []adminUserMutation{payload}}
 	responseBody, errorValue := service.localUsersResponseBody(request.Context(), response)

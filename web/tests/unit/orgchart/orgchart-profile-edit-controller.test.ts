@@ -52,6 +52,7 @@ describe('organization profile edit controller', () => {
 			email: 'dabin@example.com',
 			jobTitle: '제품 개발자',
 			groupID: 'product',
+			hireDate: '',
 			phoneNumber: '',
 			supervisorID: ''
 		});
