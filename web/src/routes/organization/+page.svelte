@@ -32,7 +32,7 @@
 			image: record.image ?? ''
 		}))
 	);
-	const isDetailSheetOpen = $derived(detailSheetViewport.current && Boolean(controller.selectedRecord));
+	const isDetailSheetOpen = $derived(Boolean(controller.selectedRecord));
 	let isOrganizationSheetOpen = $state(false);
 
 	$effect(() => {
@@ -49,7 +49,7 @@
 	});
 
 	function handleDetailSheetOpenChange(nextOpen: boolean): void {
-		if (nextOpen || !detailSheetViewport.current) return;
+		if (nextOpen) return;
 		controller.clearSelection();
 	}
 
@@ -125,9 +125,9 @@
 						/>
 					</div>
 
-					<div class={['grid min-h-0 min-w-0', controller.selectedRecord && !detailSheetViewport.current ? 'grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]' : 'grid-cols-1']}>
+					<div class="grid min-h-0 min-w-0 grid-cols-1">
 						<div class="grid min-h-0 min-w-0 overflow-hidden">
-							<div class="min-h-0 overflow-y-auto px-4 py-4 sm:px-6" data-testid="organization-list-scroll">
+							<div class="min-h-0 overflow-y-auto px-4 sm:px-6" data-testid="organization-list-scroll">
 								{#if controller.errorMessage}
 									<p class="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{controller.errorMessage}</p>
 								{/if}
@@ -144,26 +144,6 @@
 							</div>
 						</div>
 
-						{#if controller.selectedRecord && !detailSheetViewport.current}
-							<div class="min-h-0 border-l p-3" data-testid="organization-detail-column">
-								<OrganizationPersonDetailPanel
-									record={controller.selectedRecord}
-									groups={controller.groups}
-									{text}
-									adminText={adminPageText}
-									canEdit={controller.canManage}
-									isEditing={controller.selectedRecordIsEditing}
-									editingRecord={controller.selectedEditingRecord}
-									userRecords={controller.records}
-									isSaving={controller.isSavingSelectedProfile}
-									hasInvalidSupervisor={controller.hasInvalidSelectedSupervisor}
-									onEdit={() => controller.selectedRecord && controller.editRecord(controller.selectedRecord)}
-									onSave={() => controller.selectedRecord && controller.saveProfile(controller.selectedRecord.userID)}
-									onCancel={() => controller.selectedRecord && controller.cancelProfileEdit(controller.selectedRecord.userID)}
-									clearSelection={() => controller.clearSelection()}
-								/>
-							</div>
-						{/if}
 					</div>
 				</div>
 			{/if}
@@ -189,9 +169,15 @@
 		</Sheet.Content>
 	</Sheet.Root>
 
-	{#if controller.selectedRecord && detailSheetViewport.current}
+	{#if controller.selectedRecord}
 		<Sheet.Root open={isDetailSheetOpen} onOpenChange={handleDetailSheetOpenChange}>
-			<Sheet.Content side="bottom" class="max-h-[85svh] overflow-hidden rounded-t-xl p-0 lg:hidden" showCloseButton={false} closeLabel={text.closeDetail} data-testid="organization-mobile-detail-sheet">
+			<Sheet.Content
+				side="right"
+				class="w-[min(26rem,92vw)] overflow-hidden p-0"
+				showCloseButton={false}
+				closeLabel={text.closeDetail}
+				data-testid="organization-detail-sheet"
+			>
 				<Sheet.Header class="sr-only"><Sheet.Title>{text.personDetail}</Sheet.Title><Sheet.Description>{controller.selectedRecord.name || controller.selectedRecord.email}</Sheet.Description></Sheet.Header>
 				<OrganizationPersonDetailPanel
 					record={controller.selectedRecord}
