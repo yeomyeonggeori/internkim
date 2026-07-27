@@ -28,7 +28,7 @@ export function organizationOrganizationSections(
 		['', countTree.root.memberCount],
 		...countTree.nodes.map((node) => [node.id, node.memberCount] as const)
 	]);
-	const companyResponsibleUserID = organizationResponsibleUserID(countTree.root.aggregateRecords);
+	const companyResponsibleUserID = organizationCompanyResponsibleUserID(countTree.root.aggregateRecords);
 	const responsibleUserIDByOrganizationID = new Map([
 		['', undefined],
 		...countTree.nodes.map((node) => [node.id, organizationResponsibleUserID(node.directRecords)] as const)
@@ -65,6 +65,11 @@ function sectionFromNode(
 		companyResponsibleUserID,
 		responsibleUserID: responsibleUserIDByOrganizationID.get(node.id)
 	};
+}
+
+function organizationCompanyResponsibleUserID(records: UserRecord[]): string | undefined {
+	const candidates = records.filter((record) => !(record.supervisorID?.trim() ?? ''));
+	return candidates.length === 1 ? candidates[0].userID : undefined;
 }
 
 function organizationResponsibleUserID(records: UserRecord[]): string | undefined {
