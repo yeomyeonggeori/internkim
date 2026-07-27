@@ -1,11 +1,7 @@
-import { organizationGroupMembership, replaceOrganizationPrimaryGroup } from '../../lib/organization/group-membership';
 import type { OrgGroup, UserRecord } from '../../lib/organization/types';
 
 export function copyUserRecord(record: UserRecord): UserRecord {
-	return {
-		...record,
-		groupIDs: [...(record.groupIDs ?? [])]
-	};
+	return { ...record };
 }
 
 export function reconcileEditingRecords(editingRecords: Record<string, UserRecord>, responseRecords: UserRecord[], availableGroups: OrgGroup[]): Record<string, UserRecord> {
@@ -15,20 +11,13 @@ export function reconcileEditingRecords(editingRecords: Record<string, UserRecor
 		Object.entries(editingRecords).map(([userID, editingRecord]) => {
 			const responseRecord = responseRecordsByUserID.get(userID);
 			if (!responseRecord) return [userID, editingRecord];
-			return [userID, reconcileEditingRecordGroups(editingRecord, responseRecord, availableGroupIDs)];
+			return [userID, reconcileEditingRecordGroup(editingRecord, responseRecord, availableGroupIDs)];
 		})
 	);
 }
 
-function reconcileEditingRecordGroups(editingRecord: UserRecord, responseRecord: UserRecord, availableGroupIDs: Set<string>): UserRecord {
-	const editingMembership = organizationGroupMembership(editingRecord);
-	const responseMembership = organizationGroupMembership(responseRecord);
-	const primaryGroupID = availableGroupIDs.has(editingMembership.primaryGroupID) ? editingMembership.primaryGroupID : responseMembership.primaryGroupID;
-	const membership = replaceOrganizationPrimaryGroup(editingRecord, primaryGroupID);
-	return {
-		...editingRecord,
-		group: primaryGroupID,
-		primaryGroupID,
-		groupIDs: membership.groupIDs
-	};
+function reconcileEditingRecordGroup(editingRecord: UserRecord, responseRecord: UserRecord, availableGroupIDs: Set<string>): UserRecord {
+	const editingGroupID = editingRecord.groupID ?? '';
+	const groupID = availableGroupIDs.has(editingGroupID) ? editingGroupID : responseRecord.groupID ?? '';
+	return { ...editingRecord, groupID };
 }

@@ -5,8 +5,9 @@
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import UserIcon from '@lucide/svelte/icons/user';
-	import CirclePileIcon from '@lucide/svelte/icons/circle-pile';
+	import ComponentIcon from '@lucide/svelte/icons/component';
 	import { Badge } from '$lib/components/ui/badge';
+	import OrganizationCountBadge from './organization-count-badge.svelte';
 	import * as Item from '$lib/components/ui/item';
 	import type { UserRecord } from '$lib/organization/types';
 	import type { OrganizationOrganizationSection } from './organization-model';
@@ -49,16 +50,17 @@
 	<div class="flex h-9 items-center gap-1 pr-2" style={`padding-left: ${depth * 16 + 8}px`}>
 		<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
 			{#if section.id}
-				<CirclePileIcon class="size-4" />
+				<ComponentIcon class="size-4" />
 			{:else}
 				<Building2Icon class="size-4" />
 			{/if}
 		</span>
-		<h3 class="min-w-0 flex-1 truncate text-sm font-medium">{section.name}</h3>
-		<Badge variant="outline" class="h-5 shrink-0 gap-1 rounded-full px-1.5 font-mono tabular-nums" aria-label={`${section.memberCount}${text.memberCountUnit}`}>
-			<UserIcon class="size-3" />
-			{section.memberCount}
-		</Badge>
+		<h3 class="min-w-0 truncate text-sm font-medium">{section.name}</h3>
+		<OrganizationCountBadge count={section.memberCount} label={`${section.memberCount}${text.memberCountUnit}`}>
+			{#snippet icon()}
+				<UserIcon class="size-3" />
+			{/snippet}
+		</OrganizationCountBadge>
 	</div>
 	<Item.Group
 		class="grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-2 pr-2"

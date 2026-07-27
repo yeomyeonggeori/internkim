@@ -19,69 +19,29 @@ function userRecord(overrides: Partial<UserRecord> = {}): UserRecord {
 }
 
 describe('organization profile model', () => {
-	test('normalizes legacy group metadata and editable strings', () => {
+	test('normalizes group metadata and editable strings', () => {
 		const record = normalizeOrgProfileRecord(
 			userRecord({
 				jobTitle: '  Engineer  ',
-				group: 'engineering',
-				groupIDs: [' operations ', 'engineering', 'operations']
+				groupID: 'engineering'
 			})
 		);
 
 		expect(record.jobTitle).toBe('Engineer');
-		expect(record.primaryGroupID).toBe('engineering');
-		expect(record.group).toBe('engineering');
-		expect(record.groupIDs).toEqual(['engineering', 'operations']);
+		expect(record.groupID).toBe('engineering');
 	});
 
-	test('falls back to legacy group metadata when primary group is empty', () => {
-		const record = normalizeOrgProfileRecord(
-			userRecord({
-				primaryGroupID: '',
-				group: 'operations',
-				groupIDs: ['engineering']
-			})
-		);
+	test('falls back to an empty group when none is set', () => {
+		const record = normalizeOrgProfileRecord(userRecord());
 
-		expect(record.primaryGroupID).toBe('operations');
-		expect(record.group).toBe('operations');
-		expect(record.groupIDs).toEqual(['operations', 'engineering']);
-	});
-
-	test('falls back to the first legacy group id when primary and group are empty', () => {
-		const record = normalizeOrgProfileRecord(
-			userRecord({
-				primaryGroupID: '',
-				group: '',
-				groupIDs: ['engineering', 'operations']
-			})
-		);
-
-		expect(record.primaryGroupID).toBe('engineering');
-		expect(record.group).toBe('engineering');
-		expect(record.groupIDs).toEqual(['engineering', 'operations']);
-	});
-
-	test('replaces only the previous primary organization when primary changes', () => {
-		const record = normalizeOrgProfileRecord(
-			userRecord({
-				primaryGroupID: 'operations',
-				group: 'engineering',
-				groupIDs: ['engineering', 'platform', 'platform']
-			})
-		);
-
-		expect(record.primaryGroupID).toBe('operations');
-		expect(record.group).toBe('operations');
-		expect(record.groupIDs).toEqual(['operations', 'platform']);
+		expect(record.groupID).toBe('');
 	});
 
 	test('compares snapshots with minimal editable values', () => {
 		const original = orgProfileSnapshot(
 			userRecord({
 				jobTitle: 'Designer',
-				primaryGroupID: 'design',
-				groupIDs: ['design'],
+				groupID: 'design',
 				handle: 'designer',
 				name: 'Designer'
 			})
@@ -91,8 +51,7 @@ describe('organization profile model', () => {
 			isOrgProfileChanged(
 				userRecord({
 					jobTitle: '  Designer  ',
-					primaryGroupID: 'design',
-					groupIDs: ['design'],
+					groupID: 'design',
 					handle: 'designer-next',
 					name: 'Designer Next'
 				}),
@@ -105,8 +64,7 @@ describe('organization profile model', () => {
 		const update = orgProfileUpdate(
 			userRecord({
 				jobTitle: ' Lead ',
-				primaryGroupID: 'leadership',
-				groupIDs: ['engineering', 'leadership', 'engineering'],
+				groupID: 'leadership',
 				supervisorID: 'manager-1'
 			})
 		);
@@ -115,9 +73,7 @@ describe('organization profile model', () => {
 			userID: 'user-1',
 			email: 'user@example.com',
 			jobTitle: 'Lead',
-			group: 'leadership',
-			primaryGroupID: 'leadership',
-			groupIDs: ['leadership', 'engineering'],
+			groupID: 'leadership',
 			supervisorID: 'manager-1'
 		});
 	});

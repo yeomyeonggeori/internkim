@@ -16,9 +16,7 @@ export type UserRecord = {
 	role: UserRole;
 	circles?: string[];
 	jobTitle?: string;
-	group?: string;
-	primaryGroupID?: string;
-	groupIDs?: string[];
+	groupID?: string;
 	supervisorID?: string;
 	mattermostUserID?: string;
 	mattermostUsername?: string;

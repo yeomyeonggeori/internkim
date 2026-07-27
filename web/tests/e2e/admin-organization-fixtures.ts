@@ -7,9 +7,7 @@ export type UserRecord = {
 	hireDate: string;
 	role: 'admin' | 'operationsAdmin' | 'member';
 	jobTitle?: string;
-	group?: string;
-	primaryGroupID?: string;
-	groupIDs?: string[];
+	groupID?: string;
 	supervisorID?: string;
 };
 
@@ -22,9 +20,7 @@ export type OrgProfileUpdate = {
 	userID: string;
 	email: string;
 	jobTitle: string;
-	group?: string;
-	primaryGroupID?: string;
-	groupIDs?: string[];
+	groupID?: string;
 	supervisorID?: string;
 };
 
@@ -42,8 +38,7 @@ export const initialUsersResponse: UsersResponse = {
 			hireDate: '2026-01-02',
 			role: 'admin',
 			jobTitle: 'Founder',
-			primaryGroupID: 'engineering',
-			groupIDs: ['engineering']
+			groupID: 'engineering'
 		},
 		{
 			userID: 'user-grace',
@@ -53,8 +48,7 @@ export const initialUsersResponse: UsersResponse = {
 			hireDate: '2026-02-03',
 			role: 'member',
 			jobTitle: '',
-			primaryGroupID: '',
-			groupIDs: []
+			groupID: ''
 		}
 	]
 };

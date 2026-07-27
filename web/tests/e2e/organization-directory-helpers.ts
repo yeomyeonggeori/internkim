@@ -23,8 +23,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			hireDate: '2026-01-03',
 			role: 'member',
 			jobTitle: '  FoUn-Der  ',
-			primaryGroupID: 'leadership',
-			groupIDs: ['leadership', 'product']
+			groupID: 'leadership'
 		},
 		{
 			userID: 'user-junho',
@@ -34,8 +33,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			hireDate: '2026-02-10',
 			role: 'member',
 			jobTitle: '제품팀 리드',
-			primaryGroupID: 'product',
-			groupIDs: ['product'],
+			groupID: 'product',
 			supervisorID: 'user-ceo'
 		},
 		{
@@ -47,8 +45,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			hireDate: '2026-03-11',
 			role: 'member',
 			jobTitle: '프론트엔드 개발자',
-			primaryGroupID: 'product',
-			groupIDs: ['product'],
+			groupID: 'product',
 			supervisorID: 'user-junho'
 		},
 		{
@@ -59,8 +56,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			hireDate: '2026-03-13',
 			role: 'member',
 			jobTitle: '백엔드 개발자',
-			primaryGroupID: 'product',
-			groupIDs: ['product'],
+			groupID: 'product',
 			supervisorID: 'user-junho'
 		},
 		{
@@ -71,8 +67,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			hireDate: '2026-03-20',
 			role: 'member',
 			jobTitle: 'QA 엔지니어',
-			primaryGroupID: 'product',
-			groupIDs: ['product'],
+			groupID: 'product',
 			supervisorID: 'user-dabin'
 		},
 		{
@@ -83,8 +78,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			hireDate: '2026-02-12',
 			role: 'member',
 			jobTitle: '디자인 리드',
-			primaryGroupID: 'design',
-			groupIDs: ['design'],
+			groupID: 'design',
 			supervisorID: 'user-ceo'
 		},
 		{
@@ -95,7 +89,6 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			hireDate: '2026-04-01',
 			role: 'member',
 			jobTitle: '사업 개발',
-			groupIDs: [],
 			supervisorID: 'user-ceo'
 		}
 	]

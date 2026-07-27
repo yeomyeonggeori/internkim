@@ -22,16 +22,15 @@ function userRecord(overrides: Partial<UserRecord>): UserRecord {
 }
 
 describe('organization profile edit controller', () => {
-	test('preserves every organization membership while normalizing directory records', () => {
+	test('preserves the organization membership while normalizing directory records', () => {
 		const [record] = normalizedOrganizationRecords([
 			userRecord({
 				userID: 'ceo',
-				primaryGroupID: 'leadership',
-				groupIDs: ['leadership', 'product', 'product']
+				groupID: 'leadership'
 			})
 		]) ?? [];
 
-		expect(record.groupIDs).toEqual(['leadership', 'product']);
+		expect(record.groupID).toBe('leadership');
 	});
 
 	test('tracks a copied editing draft against original profile snapshots', () => {
@@ -39,8 +38,7 @@ describe('organization profile edit controller', () => {
 			userID: 'dabin',
 			email: 'dabin@example.com',
 			jobTitle: '프론트엔드 개발자',
-			primaryGroupID: 'product',
-			groupIDs: ['product']
+			groupID: 'product'
 		});
 		const originalProfiles = organizationProfileSnapshots([record]);
 		const editingRecords = beginOrganizationProfileEdit({}, record);
@@ -53,27 +51,9 @@ describe('organization profile edit controller', () => {
 			userID: 'dabin',
 			email: 'dabin@example.com',
 			jobTitle: '제품 개발자',
-			group: 'product',
-			primaryGroupID: 'product',
-			groupIDs: ['product'],
+			groupID: 'product',
 			supervisorID: ''
 		});
-	});
-
-	test('keeps secondary organizations when only the job title changes', () => {
-		const record = userRecord({
-			userID: 'dabin',
-			email: 'dabin@example.com',
-			jobTitle: '프론트엔드 개발자',
-			primaryGroupID: 'product',
-			group: 'product',
-			groupIDs: ['product', 'platform']
-		});
-		const editingRecord = beginOrganizationProfileEdit({}, record).dabin;
-
-		editingRecord.jobTitle = '제품 개발자';
-
-		expect(organizationProfileSavePayload(editingRecord).groupIDs).toEqual(['product', 'platform']);
 	});
 
 	test('removes editing and saving entries by user id', () => {

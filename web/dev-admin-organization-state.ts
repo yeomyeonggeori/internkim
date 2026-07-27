@@ -75,7 +75,7 @@ export function shouldHandleDevAdminOrganizationMockRequest(method: string, path
 function usersResponse(state: DevAdminOrganizationMockState): UsersResponse {
 	return {
 		users: state.users.map((user) => user.email),
-		records: state.users.map((user) => ({ ...user, groupIDs: [...(user.groupIDs ?? [])] })),
+		records: state.users.map((user) => ({ ...user })),
 		availableGroups: state.groups.map((group) => ({ ...group })),
 		availableCircles: []
 	};
@@ -84,7 +84,7 @@ function usersResponse(state: DevAdminOrganizationMockState): UsersResponse {
 function publicOrganizationUsersResponse(state: DevAdminOrganizationMockState): UsersResponse {
 	return {
 		users: state.users.map((user) => user.email),
-		records: state.users.map((user) => ({ ...user, groupIDs: [...(user.groupIDs ?? [])] })),
+		records: state.users.map((user) => ({ ...user })),
 		availableGroups: state.groups.map((group) => ({ ...group })),
 		availableCircles: []
 	};
@@ -138,9 +138,7 @@ function profilesFromBody(body: string | undefined): OrgProfileUpdate[] {
 				userID,
 				email,
 				jobTitle: stringFromUnknown(record.jobTitle),
-				group: optionalStringFromUnknown(record.group),
-				primaryGroupID: optionalStringFromUnknown(record.primaryGroupID),
-				groupIDs: stringArrayFromUnknown(record.groupIDs),
+				groupID: optionalStringFromUnknown(record.groupID),
 				supervisorID: optionalStringFromUnknown(record.supervisorID)
 			}
 		];
@@ -151,13 +149,10 @@ function applyOrgProfileUpdates(users: UserRecord[], profiles: OrgProfileUpdate[
 	return users.map((user) => {
 		const profile = profiles.find((candidate) => candidate.userID === user.userID || candidate.email === user.email);
 		if (!profile) return user;
-		const primaryGroupID = profile.primaryGroupID ?? profile.group ?? user.primaryGroupID ?? user.group ?? '';
 		return {
 			...user,
 			jobTitle: profile.jobTitle,
-			group: primaryGroupID,
-			primaryGroupID,
-			groupIDs: profile.groupIDs ?? (primaryGroupID ? [primaryGroupID] : []),
+			groupID: profile.groupID ?? user.groupID,
 			supervisorID: profile.supervisorID ?? user.supervisorID
 		};
 	});
@@ -174,9 +169,4 @@ function stringFromUnknown(value: unknown): string {
 
 function optionalStringFromUnknown(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
-}
-
-function stringArrayFromUnknown(value: unknown): string[] | undefined {
-	if (!Array.isArray(value)) return undefined;
-	return [...new Set(value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean))];
 }

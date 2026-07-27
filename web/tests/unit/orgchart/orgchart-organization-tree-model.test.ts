@@ -8,14 +8,13 @@ import {
 	organizationOrganizationTreeIndex
 } from '../../../src/routes/organization/organization-tree-model';
 
-function record(userID: string, primaryGroupID = '', fields: Partial<UserRecord> = {}): UserRecord {
+function record(userID: string, groupID = '', fields: Partial<UserRecord> = {}): UserRecord {
 	return {
 		userID,
 		handle: userID,
 		name: userID,
 		email: `${userID}@example.com`,
-		primaryGroupID,
-		groupIDs: primaryGroupID ? [primaryGroupID] : [],
+		groupID,
 		...fields
 	};
 }

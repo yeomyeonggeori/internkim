@@ -6,9 +6,7 @@ export type UserRecord = {
 	image?: string;
 	hireDate?: string;
 	jobTitle?: string;
-	group?: string;
-	primaryGroupID?: string;
-	groupIDs?: string[];
+	groupID?: string;
 	supervisorID?: string;
 };
 

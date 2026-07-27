@@ -110,7 +110,7 @@
 					</div>
 					<div class={['grid border-b py-3', isCompact ? 'grid-cols-[72px_minmax(0,1fr)]' : 'grid-cols-[86px_minmax(0,1fr)]']}>
 						<dt class="text-muted-foreground">{text.primaryOrganization}</dt>
-						<dd>{groupName(record.primaryGroupID ?? record.group)}</dd>
+						<dd>{groupName(record.groupID)}</dd>
 					</div>
 					<div class={['grid border-b py-3', isCompact ? 'grid-cols-[72px_minmax(0,1fr)]' : 'grid-cols-[86px_minmax(0,1fr)]']}>
 						<dt class="text-muted-foreground">{text.position}</dt>
