@@ -5,7 +5,7 @@
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
-	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
+	import CirclePileIcon from '@lucide/svelte/icons/circle-pile';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import OrganizationAvatarStack from './organization-avatar-stack.svelte';
@@ -207,7 +207,7 @@
 					{#if !isEditing}
 						<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
 							{#if !hasChildren(node.id)}
-								<UsersRoundIcon class="size-4" />
+								<CirclePileIcon class="size-4" />
 							{:else if isExpanded(node.id)}
 								<ChevronDownIcon class="size-4" />
 							{:else}

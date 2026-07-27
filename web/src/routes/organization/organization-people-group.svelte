@@ -5,7 +5,7 @@
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import UserIcon from '@lucide/svelte/icons/user';
-	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
+	import CirclePileIcon from '@lucide/svelte/icons/circle-pile';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Item from '$lib/components/ui/item';
 	import type { UserRecord } from '$lib/organization/types';
@@ -49,7 +49,7 @@
 	<div class="flex h-9 items-center gap-1 pr-2" style={`padding-left: ${depth * 16 + 8}px`}>
 		<span class="text-muted-foreground grid size-6 shrink-0 place-items-center">
 			{#if section.id}
-				<UsersRoundIcon class="size-4" />
+				<CirclePileIcon class="size-4" />
 			{:else}
 				<Building2Icon class="size-4" />
 			{/if}
