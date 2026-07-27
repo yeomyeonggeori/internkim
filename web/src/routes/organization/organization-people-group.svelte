@@ -89,7 +89,7 @@
 			<Item.Root
 				variant="outline"
 				class={[
-					'bg-card hover:bg-accent/40 relative flex-col items-center gap-2 p-4 text-center',
+					'bg-card hover:bg-accent/40 relative flex-col items-center gap-2 px-4 pt-7 pb-2 text-center',
 					selectedUserID === record.userID && 'ring-ring ring-1'
 				]}
 			>
@@ -124,10 +124,10 @@
 					onclick={() => selectRecord(record)}
 					data-testid={`organization-person-node-${record.userID}`}
 				>
-					<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="mt-2 size-20" />
-					<span class="grid w-full gap-0.5">
-						<Item.Title class="truncate">{personLabel(record)}</Item.Title>
-						<Item.Description class="truncate">{record.jobTitle || text.noTitle}</Item.Description>
+					<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-20" />
+					<span class="grid w-full gap-0.5 text-center">
+						<span class="truncate text-sm leading-snug font-medium">{personLabel(record)}</span>
+						<span class="text-muted-foreground truncate text-xs leading-normal">{record.jobTitle || text.noTitle}</span>
 					</span>
 				</button>
 				<OrganizationPersonContactActions email={record.email} phoneNumber={record.phoneNumber ?? ''} {text} />
