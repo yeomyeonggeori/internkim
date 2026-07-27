@@ -1,10 +1,12 @@
 <script lang="ts">
 	import '../app.css';
 	import { page } from '$app/state';
+	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
 	import { LightSwitch } from '$lib/components/ui/light-switch';
+	import { Button } from '$lib/components/ui/button';
 	import { Kbd } from '$lib/components/ui/kbd';
 	import { LanguageSwitcher } from '$lib/components/ui/language-switcher';
 	import { Separator } from '$lib/components/ui/separator/index.js';
@@ -16,11 +18,14 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { isEmbeddedFrame } from '$lib/embedded';
+	import { isPlainShortcut } from '$lib/keyboard-shortcut';
+	import SearchIcon from '@lucide/svelte/icons/search';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
 
 	let { children } = $props();
 	const text = createPageText(appShellText);
+	let isCommandPaletteOpen = $state(false);
 
 	onMount(initializeLocale);
 
@@ -54,6 +59,12 @@
 		);
 	}
 
+	function handleKeydown(event: KeyboardEvent) {
+		if (isCommandPaletteOpen || !isPlainShortcut(event, 'Slash')) return;
+		event.preventDefault();
+		isCommandPaletteOpen = true;
+	}
+
 	function currentReturnPath() {
 		return page.url.pathname + page.url.search;
 	}
@@ -62,6 +73,8 @@
 <svelte:head>
 	<link rel="icon" href="/logo.svg" />
 </svelte:head>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <ModeWatcher />
 <Toaster position="bottom-center" visibleToasts={3} containerAriaLabel={text.notifications} />
@@ -99,10 +112,6 @@
 						<div class="internkim-app-crumbs flex-1">
 							<Breadcrumb.Root>
 								<Breadcrumb.List>
-									<Breadcrumb.Item class="hidden md:block">
-										<Breadcrumb.Link href="/settings/" data-sveltekit-preload-data="off" data-sveltekit-preload-code="off">Blueclaw</Breadcrumb.Link>
-									</Breadcrumb.Item>
-									<Breadcrumb.Separator class="hidden md:block" />
 									<Breadcrumb.Item>
 										<Breadcrumb.Page>
 											<span>{currentApp(page.url.pathname)}</span>
@@ -115,6 +124,16 @@
 							</Breadcrumb.Root>
 						</div>
 						<div class="flex items-center gap-2">
+							<Button
+								variant="outline"
+								size="sm"
+								class="text-muted-foreground hidden w-48 justify-start gap-2 font-normal sm:flex"
+								onclick={() => (isCommandPaletteOpen = true)}
+							>
+								<SearchIcon class="size-4" />
+								{text.search}
+								<Kbd class="ml-auto">/</Kbd>
+							</Button>
 							<LanguageSwitcher
 								variant="ghost"
 								languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))}
@@ -137,6 +156,7 @@
 				</div>
 			</div>
 		</Sidebar.Provider>
+		<AppCommandPalette bind:open={isCommandPaletteOpen} />
 	</Tooltip.Provider>
 {:else}
 	{@render children()}
