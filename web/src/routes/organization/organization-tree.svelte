@@ -147,7 +147,10 @@
 						<Building2Icon class="size-4" />
 					</span>
 				{/if}
-				<span class="min-w-0 flex-1 truncate">{tree.root.name}</span>
+				<span class="min-w-0 truncate">{tree.root.name}</span>
+				{#if childCount('') > 0}
+					<Badge variant="outline" class="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums">{childCount('')}</Badge>
+				{/if}
 			</button>
 			{#if canManage && !isEditing}
 				<DropdownMenu.Root>
@@ -212,17 +215,13 @@
 							{/if}
 						</span>
 					{/if}
-					<span class="min-w-0 flex-1 truncate">{node.name}</span>
-				</button>
-				{#if !isEditing}
+					<span class="min-w-0 truncate">{node.name}</span>
 					{#if hasChildren(node.id)}
-						<Badge variant="outline" class="h-5 min-w-5 gap-1 rounded-full px-1.5 font-mono tabular-nums">
-							<UsersRoundIcon class="size-3" />
-							{childCount(node.id)}
-						</Badge>
-					{:else}
-						<OrganizationAvatarStack records={node.aggregateRecords} memberCountUnit={text.memberCountUnit} />
+						<Badge variant="outline" class="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums">{childCount(node.id)}</Badge>
 					{/if}
+				</button>
+				{#if !isEditing && !hasChildren(node.id)}
+					<OrganizationAvatarStack records={node.aggregateRecords} memberCountUnit={text.memberCountUnit} />
 				{/if}
 			</div>
 		{/each}
