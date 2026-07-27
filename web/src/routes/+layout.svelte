@@ -136,7 +136,11 @@
 								<Breadcrumb.List>
 									<Breadcrumb.Item>
 										{#if breadcrumbMeta.value}
-											<Breadcrumb.Link href={currentAppPath(page.url.pathname)} data-sveltekit-preload-data="off">
+											<Breadcrumb.Link
+												href={currentAppPath(page.url.pathname)}
+												data-sveltekit-preload-data="off"
+												onclick={breadcrumbMeta.clear}
+											>
 												{currentApp(page.url.pathname)}
 											</Breadcrumb.Link>
 										{:else}
