@@ -21,13 +21,11 @@ func (errorValue organizationProfileInvalidRequestError) Is(target error) bool {
 }
 
 type organizationProfileRequest struct {
-	UserID         string    `json:"userID"`
-	Email          string    `json:"email"`
-	JobTitle       *string   `json:"jobTitle"`
-	Group          *string   `json:"group"`
-	PrimaryGroupID *string   `json:"primaryGroupID"`
-	GroupIDs       *[]string `json:"groupIDs"`
-	SupervisorID   *string   `json:"supervisorID"`
+	UserID       string  `json:"userID"`
+	Email        string  `json:"email"`
+	JobTitle     *string `json:"jobTitle"`
+	GroupID      *string `json:"groupID"`
+	SupervisorID *string `json:"supervisorID"`
 }
 
 func (service *Service) handleOrganizationProfileUpdate(responseWriter http.ResponseWriter, request *http.Request) {
@@ -141,7 +139,7 @@ func organizationProfileForRequest(requestProfile organizationProfileRequest, pr
 	profile, found := organizationProfileForUser(adminUserMutation{UserID: requestProfile.UserID, Email: requestProfile.Email}, profilesByUserID, profilesByEmail)
 	if !found {
 		profile = organizationProfile{
-			EmploymentStatus:  organizationEmploymentStatusActive,
+			EmploymentStatus:      organizationEmploymentStatusActive,
 			IsOrganizationVisible: true,
 		}
 	}
@@ -155,47 +153,14 @@ func organizationProfileForRequest(requestProfile organizationProfileRequest, pr
 }
 
 func applyOrganizationProfileRequest(profile organizationProfile, requestProfile organizationProfileRequest) organizationProfile {
-	previousPrimaryGroupID := profile.PrimaryGroupID
 	if requestProfile.JobTitle != nil {
 		profile.JobTitle = *requestProfile.JobTitle
 	}
-	if requestProfile.Group != nil {
-		profile.PrimaryGroupID = *requestProfile.Group
-	}
-	if requestProfile.PrimaryGroupID != nil {
-		profile.PrimaryGroupID = *requestProfile.PrimaryGroupID
-	}
-	if requestProfile.GroupIDs != nil {
-		profile.GroupIDs = *requestProfile.GroupIDs
-	}
-	if requestProfile.GroupIDs == nil && (requestProfile.Group != nil || requestProfile.PrimaryGroupID != nil) {
-		profile.GroupIDs = organizationGroupIDsReplacingPrimary(profile.GroupIDs, previousPrimaryGroupID, profile.PrimaryGroupID)
+	if requestProfile.GroupID != nil {
+		profile.GroupID = *requestProfile.GroupID
 	}
 	if requestProfile.SupervisorID != nil {
 		profile.SupervisorID = *requestProfile.SupervisorID
 	}
 	return profile
-}
-
-func organizationGroupIDsReplacingPrimary(groupIDs []string, previousPrimaryGroupID string, nextPrimaryGroupID string) []string {
-	normalizedGroupIDs := normalizeOrganizationStringList(groupIDs)
-	normalizedPreviousPrimaryGroupID := strings.TrimSpace(previousPrimaryGroupID)
-	normalizedNextPrimaryGroupID := strings.TrimSpace(nextPrimaryGroupID)
-	result := []string{}
-	seenGroupIDs := map[string]bool{}
-	appendGroupID := func(groupID string) {
-		if groupID == "" || seenGroupIDs[groupID] {
-			return
-		}
-		seenGroupIDs[groupID] = true
-		result = append(result, groupID)
-	}
-	appendGroupID(normalizedNextPrimaryGroupID)
-	for _, groupID := range normalizedGroupIDs {
-		if groupID == normalizedPreviousPrimaryGroupID || groupID == normalizedNextPrimaryGroupID {
-			continue
-		}
-		appendGroupID(groupID)
-	}
-	return result
 }

@@ -62,20 +62,9 @@ func organizationProfileForUser(record adminUserMutation, profilesByUserID map[s
 	return organizationProfile{}, false
 }
 
-func applyDefaultOrganizationMetadata(record *adminUserMutation) {
-	if record.PrimaryGroupID == "" && record.Group != "" {
-		record.PrimaryGroupID = record.Group
-	}
-	if len(record.GroupIDs) == 0 && record.PrimaryGroupID != "" {
-		record.GroupIDs = []string{record.PrimaryGroupID}
-	}
-}
-
 func applyOrganizationProfile(record *adminUserMutation, profile organizationProfile) {
 	record.UserID = firstNonEmpty(record.UserID, profile.UserID)
 	record.JobTitle = profile.JobTitle
-	record.Group = profile.PrimaryGroupID
-	record.PrimaryGroupID = profile.PrimaryGroupID
-	record.GroupIDs = profile.GroupIDs
+	record.GroupID = profile.GroupID
 	record.SupervisorID = profile.SupervisorID
 }

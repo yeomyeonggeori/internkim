@@ -130,7 +130,7 @@ func rewriteOrganizationProfileGroupReferences(ctx context.Context, queryRunner 
 	if len(groupAliases) == 0 {
 		return nil
 	}
-	rows, errorValue := queryRunner.QueryContext(ctx, "SELECT profile_key, primary_group_id, group_ids FROM organization_profiles")
+	rows, errorValue := queryRunner.QueryContext(ctx, "SELECT profile_key, group_id FROM organization_profiles")
 	if errorValue != nil {
 		return errorValue
 	}
@@ -143,26 +143,15 @@ func rewriteOrganizationProfileGroupReferences(ctx context.Context, queryRunner 
 	updates := []organizationProfileGroupReferenceUpdate{}
 	for rows.Next() {
 		var profileKey string
-		var primaryGroupID string
-		var groupIDsDocument string
-		if errorValue := rows.Scan(&profileKey, &primaryGroupID, &groupIDsDocument); errorValue != nil {
+		var groupID string
+		if errorValue := rows.Scan(&profileKey, &groupID); errorValue != nil {
 			return errorValue
 		}
-		groupIDs := decodeOrganizationStringList(groupIDsDocument)
-		nextPrimaryGroupID := canonicalOrganizationGroupID(primaryGroupID, groupAliases)
-		nextGroupIDs := organizationGroupIDsWithPrimary(canonicalOrganizationGroupIDs(groupIDs, groupAliases), nextPrimaryGroupID)
-		if primaryGroupID == nextPrimaryGroupID && organizationStringListsEqual(groupIDs, nextGroupIDs) {
+		nextGroupID := canonicalOrganizationGroupID(groupID, groupAliases)
+		if groupID == nextGroupID {
 			continue
 		}
-		nextGroupIDsDocument, errorValue := encodeOrganizationStringList(nextGroupIDs)
-		if errorValue != nil {
-			return errorValue
-		}
-		updates = append(updates, organizationProfileGroupReferenceUpdate{
-			ProfileKey:     profileKey,
-			PrimaryGroupID: nextPrimaryGroupID,
-			GroupIDs:       nextGroupIDsDocument,
-		})
+		updates = append(updates, organizationProfileGroupReferenceUpdate{ProfileKey: profileKey, GroupID: nextGroupID})
 	}
 	if errorValue := rows.Err(); errorValue != nil {
 		_ = rows.Close()
@@ -174,7 +163,7 @@ func rewriteOrganizationProfileGroupReferences(ctx context.Context, queryRunner 
 	}
 	isRowsClosed = true
 	for _, update := range updates {
-		if _, errorValue := queryRunner.ExecContext(ctx, "UPDATE organization_profiles SET primary_group_id = ?, group_ids = ? WHERE profile_key = ?", update.PrimaryGroupID, update.GroupIDs, update.ProfileKey); errorValue != nil {
+		if _, errorValue := queryRunner.ExecContext(ctx, "UPDATE organization_profiles SET group_id = ? WHERE profile_key = ?", update.GroupID, update.ProfileKey); errorValue != nil {
 			return errorValue
 		}
 	}
@@ -182,9 +171,8 @@ func rewriteOrganizationProfileGroupReferences(ctx context.Context, queryRunner 
 }
 
 type organizationProfileGroupReferenceUpdate struct {
-	ProfileKey     string
-	PrimaryGroupID string
-	GroupIDs       string
+	ProfileKey string
+	GroupID    string
 }
 
 func canonicalOrganizationGroupIDs(groupIDs []string, groupAliases map[string]string) []string {

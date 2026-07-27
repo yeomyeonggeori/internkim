@@ -25,11 +25,6 @@ func (service *Service) writeOrganizationProfiles(ctx context.Context, profiles 
 		if profileKey == "" {
 			continue
 		}
-		groupIDs, errorValue := encodeOrganizationStringList(normalizedProfile.GroupIDs)
-		if errorValue != nil {
-			_ = transaction.Rollback()
-			return errorValue
-		}
 		projectIDs, errorValue := encodeOrganizationStringList(normalizedProfile.ProjectIDs)
 		if errorValue != nil {
 			_ = transaction.Rollback()
@@ -56,22 +51,20 @@ INSERT INTO organization_profiles(
 	email,
 	job_title,
 	position_level,
-	primary_group_id,
-	group_ids,
+	group_id,
 	supervisor_id,
 	project_ids,
 	team_role,
 	employment_status,
 	is_organization_visible,
 	updated_at
-) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(profile_key) DO UPDATE SET
 	user_id = excluded.user_id,
 	email = excluded.email,
 	job_title = excluded.job_title,
 	position_level = excluded.position_level,
-	primary_group_id = excluded.primary_group_id,
-	group_ids = excluded.group_ids,
+	group_id = excluded.group_id,
 	supervisor_id = excluded.supervisor_id,
 	project_ids = excluded.project_ids,
 	team_role = excluded.team_role,
@@ -83,8 +76,7 @@ ON CONFLICT(profile_key) DO UPDATE SET
 			normalizedProfile.Email,
 			normalizedProfile.JobTitle,
 			normalizedProfile.PositionLevel,
-			normalizedProfile.PrimaryGroupID,
-			groupIDs,
+			normalizedProfile.GroupID,
 			normalizedProfile.SupervisorID,
 			projectIDs,
 			normalizedProfile.TeamRole,
@@ -139,7 +131,7 @@ func (service *Service) readOrganizationProfiles(ctx context.Context) ([]organiz
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT user_id, email, job_title, position_level, primary_group_id, group_ids, supervisor_id, project_ids, team_role, employment_status, is_organization_visible
+SELECT user_id, email, job_title, position_level, group_id, supervisor_id, project_ids, team_role, employment_status, is_organization_visible
 FROM organization_profiles
 ORDER BY position_level, email`)
 	if errorValue != nil {
@@ -149,7 +141,6 @@ ORDER BY position_level, email`)
 	profiles := []organizationProfile{}
 	for rows.Next() {
 		var profile organizationProfile
-		var groupIDs string
 		var projectIDs string
 		var isOrganizationVisible int
 		if errorValue := rows.Scan(
@@ -157,8 +148,7 @@ ORDER BY position_level, email`)
 			&profile.Email,
 			&profile.JobTitle,
 			&profile.PositionLevel,
-			&profile.PrimaryGroupID,
-			&groupIDs,
+			&profile.GroupID,
 			&profile.SupervisorID,
 			&projectIDs,
 			&profile.TeamRole,
@@ -167,7 +157,6 @@ ORDER BY position_level, email`)
 		); errorValue != nil {
 			return nil, errorValue
 		}
-		profile.GroupIDs = decodeOrganizationStringList(groupIDs)
 		profile.ProjectIDs = decodeOrganizationStringList(projectIDs)
 		profile.IsOrganizationVisible = isOrganizationVisible == 1
 		profiles = append(profiles, normalizeOrganizationProfile(profile))

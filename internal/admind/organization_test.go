@@ -15,16 +15,15 @@ func TestLocalListUsersMergesOrganizationMetadata(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		UserID:            "user-member",
-		Email:             "member@example.com",
-		JobTitle:          "Product Manager",
-		PositionLevel:     2,
-		PrimaryGroupID:    "product",
-		GroupIDs:          []string{"product"},
-		SupervisorID:      "user-admin",
-		ProjectIDs:        []string{"new-business"},
-		TeamRole:          "제품 일정 관리",
-		EmploymentStatus:  organizationEmploymentStatusActive,
+		UserID:                "user-member",
+		Email:                 "member@example.com",
+		JobTitle:              "Product Manager",
+		PositionLevel:         2,
+		GroupID:               "product",
+		SupervisorID:          "user-admin",
+		ProjectIDs:            []string{"new-business"},
+		TeamRole:              "제품 일정 관리",
+		EmploymentStatus:      organizationEmploymentStatusActive,
 		IsOrganizationVisible: true,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -67,7 +66,7 @@ func TestLocalListUsersMergesOrganizationMetadata(t *testing.T) {
 		t.Fatalf("available groups = %#v; want product", response.AvailableGroups)
 	}
 	member := response.Records[1]
-	if member.JobTitle != "Product Manager" || member.PrimaryGroupID != "product" || member.SupervisorID != "user-admin" {
+	if member.JobTitle != "Product Manager" || member.GroupID != "product" || member.SupervisorID != "user-admin" {
 		t.Fatalf("member org fields = %#v", member)
 	}
 	if member.PositionLevel != 0 || len(member.ProjectIDs) != 0 || member.TeamRole != "" || member.EmploymentStatus != "" || member.IsOrganizationVisible {

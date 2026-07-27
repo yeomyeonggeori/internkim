@@ -84,10 +84,10 @@ func TestOrganizationPeopleCacheInvalidatesOnlyUpdatedProfile(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		UserID:            "user-1",
-		Email:             "one@example.com",
-		JobTitle:          "Engineer",
-		EmploymentStatus:  organizationEmploymentStatusActive,
+		UserID:                "user-1",
+		Email:                 "one@example.com",
+		JobTitle:              "Engineer",
+		EmploymentStatus:      organizationEmploymentStatusActive,
 		IsOrganizationVisible: true,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -104,8 +104,8 @@ func TestOrganizationPeopleCacheInvalidatesChangedGroupAndAffectedProfile(t *tes
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{
-		{UserID: "user-1", Email: "one@example.com", PrimaryGroupID: "design", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
-		{UserID: "user-2", Email: "two@example.com", PrimaryGroupID: "engineering", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
+		{UserID: "user-1", Email: "one@example.com", GroupID: "design", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
+		{UserID: "user-2", Email: "two@example.com", GroupID: "engineering", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -136,8 +136,8 @@ func TestOrganizationPeopleCacheInvalidatesMergedDeletedGroupsAndRewrittenProfil
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{
-		{UserID: "user-1", Email: "one@example.com", PrimaryGroupID: "engineering-duplicate", GroupIDs: []string{"engineering-duplicate"}, EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
-		{UserID: "user-2", Email: "two@example.com", PrimaryGroupID: "operations", GroupIDs: []string{"operations"}, EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
+		{UserID: "user-1", Email: "one@example.com", GroupID: "engineering-duplicate", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
+		{UserID: "user-2", Email: "two@example.com", GroupID: "operations", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -162,7 +162,7 @@ func TestOrganizationPeopleCacheInvalidatesMergedDeletedGroupsAndRewrittenProfil
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if profilesByEmail["one@example.com"].PrimaryGroupID != "engineering" {
+	if profilesByEmail["one@example.com"].GroupID != "engineering" {
 		t.Fatalf("rewritten profile = %#v", profilesByEmail["one@example.com"])
 	}
 }
