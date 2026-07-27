@@ -16,16 +16,21 @@ async function responseErrorMessage(response: Response, fallbackMessage: string)
 	return text.trim() || fallbackMessage;
 }
 
-export async function saveOwnPhoneNumber(phoneNumber: string): Promise<string> {
-	const response = await fetch('/organization/api/me/phone-number', {
+export type OwnOrganizationProfile = {
+	phoneNumber: string;
+	hireDate: string;
+};
+
+export async function saveOwnOrganizationProfile(profile: OwnOrganizationProfile): Promise<OwnOrganizationProfile> {
+	const response = await fetch('/organization/api/me/profile', {
 		method: 'PUT',
 		headers: { 'content-type': 'application/json' },
 		credentials: 'include',
-		body: JSON.stringify({ phoneNumber })
+		body: JSON.stringify(profile)
 	});
-	if (!response.ok) throw new Error((await response.text()).trim() || `phone number update returned ${response.status}`);
-	const saved = (await response.json()) as { phoneNumber?: string };
-	return saved.phoneNumber ?? '';
+	if (!response.ok) throw new Error((await response.text()).trim() || `profile update returned ${response.status}`);
+	const saved = (await response.json()) as Partial<OwnOrganizationProfile>;
+	return { phoneNumber: saved.phoneNumber ?? '', hireDate: saved.hireDate ?? '' };
 }
 
 export async function fetchWebSessionEmail(): Promise<string> {

@@ -16,9 +16,9 @@
 
 	type OrganizationPersonDetailPanelProps = {
 		record: UserRecord | undefined;
-		canEditOwnPhoneNumber?: boolean;
-		isSavingOwnPhoneNumber?: boolean;
-		onSaveOwnPhoneNumber?: (phoneNumber: string) => void | Promise<void>;
+		canEditOwnProfile?: boolean;
+		isSavingOwnProfile?: boolean;
+		onSaveOwnProfile?: (profile: { phoneNumber: string; hireDate: string }) => void | Promise<void>;
 		groups: OrgGroup[];
 		text: typeof organizationDirectoryText.ko;
 		canEdit?: boolean;
@@ -37,9 +37,9 @@
 		record,
 		groups,
 		text,
-		canEditOwnPhoneNumber = false,
-		isSavingOwnPhoneNumber = false,
-		onSaveOwnPhoneNumber = () => {},
+		canEditOwnProfile = false,
+		isSavingOwnProfile = false,
+		onSaveOwnProfile = () => {},
 		canEdit = false,
 		isEditing = false,
 		editingRecord,
@@ -53,7 +53,7 @@
 	}: OrganizationPersonDetailPanelProps = $props();
 
 	let localEditingRecord = $state<UserRecord | undefined>(undefined);
-	let ownPhoneNumberDraft = $state<string | undefined>(undefined);
+	let ownProfileDraft = $state<{ phoneNumber: string; hireDate: string } | undefined>(undefined);
 
 	$effect(() => {
 		localEditingRecord = editingRecord;
@@ -161,9 +161,34 @@
 			{/if}
 		</div>
 
-		{#if canEdit}
+		{#if canEdit || canEditOwnProfile}
 			<div class="grid gap-2 border-t px-6 py-4">
-				{#if isEditing && adminText}
+				{#if !canEdit && canEditOwnProfile}
+					{#if ownProfileDraft === undefined}
+						<Button
+							type="button"
+							onclick={() => (ownProfileDraft = { phoneNumber: record.phoneNumber ?? '', hireDate: record.hireDate ?? '' })}
+						>
+							{text.editPerson}
+						</Button>
+					{:else}
+						<div class="grid grid-cols-2 gap-2">
+							<Button type="button" variant="outline" disabled={isSavingOwnProfile} onclick={() => (ownProfileDraft = undefined)}>
+								{adminText?.organization.cancel}
+							</Button>
+							<Button
+								type="button"
+								disabled={isSavingOwnProfile}
+								onclick={async () => {
+									if (ownProfileDraft) await onSaveOwnProfile(ownProfileDraft);
+									ownProfileDraft = undefined;
+								}}
+							>
+								{adminText?.organization.save}
+							</Button>
+						</div>
+					{/if}
+				{:else if isEditing && adminText}
 					<div class="grid grid-cols-2 gap-2">
 						<Button type="button" variant="outline" disabled={isSaving} onclick={onCancel}>
 							{adminText.organization.cancel}

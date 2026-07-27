@@ -13,6 +13,7 @@ type organizationProfile struct {
 	PositionLevel         int      `json:"positionLevel,omitempty"`
 	GroupID               string   `json:"groupID,omitempty"`
 	PhoneNumber           string   `json:"phoneNumber,omitempty"`
+	HireDate              string   `json:"hireDate,omitempty"`
 	SupervisorID          string   `json:"supervisorID,omitempty"`
 	ProjectIDs            []string `json:"projectIDs,omitempty"`
 	TeamRole              string   `json:"teamRole,omitempty"`

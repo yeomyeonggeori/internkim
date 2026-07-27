@@ -16,6 +16,7 @@ const organizationProfilesColumnsSQL = `(
 	position_level INTEGER NOT NULL CHECK(position_level >= 0),
 	group_id TEXT NOT NULL,
 	phone_number TEXT NOT NULL,
+	hire_date TEXT NOT NULL,
 	supervisor_id TEXT NOT NULL,
 	project_ids TEXT NOT NULL,
 	team_role TEXT NOT NULL,
@@ -112,6 +113,7 @@ func hasOrganizationProfileConstraints(schema string) bool {
 	normalizedSchema := strings.ReplaceAll(strings.ToLower(schema), " ", "")
 	return strings.Contains(normalizedSchema, "group_idtextnotnull") &&
 		strings.Contains(normalizedSchema, "phone_numbertextnotnull") &&
+		strings.Contains(normalizedSchema, "hire_datetextnotnull") &&
 		!strings.Contains(normalizedSchema, "group_idstextnotnull") &&
 		strings.Contains(normalizedSchema, "check(position_level>=0)") &&
 		strings.Contains(normalizedSchema, "check(employment_statusin('active','leave','resigned'))") &&
@@ -164,6 +166,7 @@ INSERT INTO organization_profiles(
 	position_level,
 	group_id,
 	phone_number,
+	hire_date,
 	supervisor_id,
 	project_ids,
 	team_role,
@@ -182,6 +185,7 @@ SELECT
 	END,
 	%s,
 	%s,
+	%s,
 	trim(COALESCE(supervisor_id, '')),
 	COALESCE(project_ids, '[]'),
 	trim(COALESCE(team_role, '')),
@@ -195,7 +199,7 @@ SELECT
 	END,
 	trim(COALESCE(updated_at, ''))
 FROM organization_profiles_legacy
-WHERE trim(COALESCE(profile_key, '')) != ''`, legacyOrganizationGroupIDExpression(legacySchema), legacyOrganizationColumnExpression(legacySchema, "phone_number")))
+WHERE trim(COALESCE(profile_key, '')) != ''`, legacyOrganizationGroupIDExpression(legacySchema), legacyOrganizationColumnExpression(legacySchema, "phone_number"), legacyOrganizationColumnExpression(legacySchema, "hire_date")))
 	return errorValue
 }
 

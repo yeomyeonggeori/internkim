@@ -26,6 +26,7 @@ type organizationProfileRequest struct {
 	JobTitle     *string `json:"jobTitle"`
 	GroupID      *string `json:"groupID"`
 	PhoneNumber  *string `json:"phoneNumber"`
+	HireDate     *string `json:"hireDate"`
 	SupervisorID *string `json:"supervisorID"`
 }
 
@@ -168,6 +169,9 @@ func applyOrganizationProfileRequest(profile organizationProfile, requestProfile
 	}
 	if requestProfile.PhoneNumber != nil {
 		profile.PhoneNumber = *requestProfile.PhoneNumber
+	}
+	if requestProfile.HireDate != nil {
+		profile.HireDate = *requestProfile.HireDate
 	}
 	if requestProfile.SupervisorID != nil {
 		profile.SupervisorID = *requestProfile.SupervisorID
