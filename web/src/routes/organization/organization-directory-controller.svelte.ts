@@ -2,7 +2,7 @@ import type { AdminPageText } from '../admin/admin-types';
 import type { Locale } from '../../lib/i18n/locale.svelte';
 import { apiErrorMessage, fetchAdminSession, saveOrgGroups, saveOrgProfiles } from '../admin/admin-api';
 import { adminSessionRole, canManageOrganization } from '../admin/admin-role-policy';
-import { fetchOrganizationDirectory, fetchWebSessionEmail, organizationApiErrorMessage, saveOwnPhoneNumber } from './organization-api';
+import { fetchOrganizationDirectory, fetchWebSessionEmail, organizationApiErrorMessage, saveOwnOrganizationProfile, type OwnOrganizationProfile } from './organization-api';
 import { filterOrganizationRecords, organizationFilterOptions, unassignedGroupID } from './organization-directory-model';
 import { organizationGroupSavePlan } from './organization-group-controller';
 import { OrganizationOrganizationEditController } from './organization-edit-controller.svelte';
@@ -40,9 +40,8 @@ export class OrganizationDirectoryController {
 	isLoading = $state(true);
 	isSavingGroups = $state(false);
 	canManage = $state(false);
-	hasExpiredAdminSession = $state(false);
 	sessionEmail = $state('');
-	isSavingOwnPhoneNumber = $state(false);
+	isSavingOwnProfile = $state(false);
 	errorMessage = $state('');
 	newGroupName = $state('');
 	newGroupParentID = $state('');
@@ -113,11 +112,9 @@ export class OrganizationDirectoryController {
 		try {
 			const session = await fetchAdminSession(this.adminBaseURL, '');
 			this.canManage = canManageOrganization(adminSessionRole(session));
-			this.hasExpiredAdminSession = false;
 		} catch {
 			this.canManage = false;
 			this.isAddingGroup = false;
-			this.hasExpiredAdminSession = Boolean(this.sessionEmail);
 		}
 	}
 
@@ -126,20 +123,20 @@ export class OrganizationDirectoryController {
 		return record.email.trim().toLowerCase() === this.sessionEmail;
 	}
 
-	async saveOwnPhoneNumber(phoneNumber: string): Promise<void> {
+	async saveOwnProfile(profile: OwnOrganizationProfile): Promise<void> {
 		const record = this.selectedRecord;
 		if (!record || !this.isOwnRecord(record)) return;
-		this.isSavingOwnPhoneNumber = true;
+		this.isSavingOwnProfile = true;
 		try {
-			const savedPhoneNumber = await saveOwnPhoneNumber(phoneNumber);
+			const saved = await saveOwnOrganizationProfile(profile);
 			this.records = this.records.map((candidate) =>
-				candidate.userID === record.userID ? { ...candidate, phoneNumber: savedPhoneNumber } : candidate
+				candidate.userID === record.userID ? { ...candidate, ...saved } : candidate
 			);
 			this.errorMessage = '';
 		} catch (error) {
 			this.errorMessage = organizationApiErrorMessage(error, this.text.loadError);
 		} finally {
-			this.isSavingOwnPhoneNumber = false;
+			this.isSavingOwnProfile = false;
 		}
 	}
 

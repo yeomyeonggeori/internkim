@@ -372,6 +372,7 @@ export type OrgProfileUpdate = {
 	email: string;
 	jobTitle: string;
 	groupID?: string;
+	hireDate?: string;
 	phoneNumber?: string;
 	supervisorID?: string;
 };

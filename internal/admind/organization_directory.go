@@ -51,8 +51,8 @@ func (service *Service) handleOrganization(responseWriter http.ResponseWriter, r
 	switch {
 	case request.Method == http.MethodGet && path == "/people":
 		service.writeOrganizationDirectory(responseWriter, request)
-	case request.Method == http.MethodPut && path == "/me/phone-number":
-		service.updateOwnPhoneNumber(responseWriter, request)
+	case request.Method == http.MethodPut && path == "/me/profile":
+		service.updateOwnOrganizationProfile(responseWriter, request)
 	default:
 		http.NotFound(responseWriter, request)
 	}
@@ -116,7 +116,7 @@ func isVisibleOrganizationRecord(record adminUserMutation, profilesByUserID map[
 	return profile.IsOrganizationVisible && profile.EmploymentStatus != organizationEmploymentStatusResigned
 }
 
-func (service *Service) updateOwnPhoneNumber(responseWriter http.ResponseWriter, request *http.Request) {
+func (service *Service) updateOwnOrganizationProfile(responseWriter http.ResponseWriter, request *http.Request) {
 	actorEmail := service.webActorEmail(request)
 	if actorEmail == "" {
 		http.Error(responseWriter, "organization access required", http.StatusForbidden)
@@ -124,6 +124,7 @@ func (service *Service) updateOwnPhoneNumber(responseWriter http.ResponseWriter,
 	}
 	var payload struct {
 		PhoneNumber string `json:"phoneNumber"`
+		HireDate    string `json:"hireDate"`
 	}
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
@@ -143,6 +144,7 @@ func (service *Service) updateOwnPhoneNumber(responseWriter http.ResponseWriter,
 	profile := profilesByEmail[actorEmail]
 	profile.Email = actorEmail
 	profile.PhoneNumber = phoneNumber
+	profile.HireDate = strings.TrimSpace(payload.HireDate)
 	if profile.EmploymentStatus == "" {
 		profile.EmploymentStatus = organizationEmploymentStatusActive
 		profile.IsOrganizationVisible = true
@@ -151,5 +153,5 @@ func (service *Service) updateOwnPhoneNumber(responseWriter http.ResponseWriter,
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	service.writeJSON(responseWriter, map[string]string{"phoneNumber": phoneNumber})
+	service.writeJSON(responseWriter, map[string]string{"phoneNumber": phoneNumber, "hireDate": profile.HireDate})
 }

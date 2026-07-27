@@ -67,6 +67,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	var temporaryPassword string
 	var temporaryPasswordEmail string
 	var upsertedName string
+	var upsertedHireDate string
 	var upsertedNote string
 	var upsertedRole string
 	var upsertedCircles []string
@@ -101,6 +102,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		upsertedBlueclawUserID = identity.UserID
 		upsertedEmail = payload.Email
 		upsertedName = payload.Name
+		upsertedHireDate = payload.HireDate
 		upsertedNote = payload.Note
 		if payload.Role != "admin" && strings.EqualFold(payload.Email, authenticatedCallerEmail(request)) {
 			records, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret)
@@ -147,19 +149,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		upsertedMattermostUserID = payload.MattermostUserID
 		temporaryPassword = provisionResult.TemporaryPassword
 		temporaryPasswordEmail = payload.Email
-		proxyPayload := map[string]any{
-			"userID":             payload.UserID,
-			"handle":             payload.Handle,
-			"name":               payload.Name,
-			"hireDate":           payload.HireDate,
-			"note":               payload.Note,
-			"fleet_id":           fleetID,
-			"email":              payload.Email,
-			"role":               payload.Role,
-			"mattermostUserID":   payload.MattermostUserID,
-			"mattermostUsername": payload.MattermostUsername,
-			"status":             payload.Status,
-		}
+		proxyPayload := fleetAccountUpsertPayload(payload, fleetID)
 		document, errorValue := json.Marshal(proxyPayload)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -206,6 +196,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			}
 		}
 		if upsertedEmail != "" {
+			service.persistOrganizationHireDate(request.Context(), upsertedUserID, upsertedEmail, upsertedHireDate)
 			var errorValue error
 			if hasExplicitCircleMutation {
 				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedBlueclawUserID, upsertedEmail, upsertedName, upsertedRole, upsertedCircles, &upsertedNote)
@@ -280,4 +271,19 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	}
 	responseWriter.WriteHeader(response.StatusCode)
 	_, _ = responseWriter.Write(responseBody)
+}
+
+func fleetAccountUpsertPayload(payload adminUserMutation, fleetID string) map[string]any {
+	return map[string]any{
+		"userID":             payload.UserID,
+		"handle":             payload.Handle,
+		"name":               payload.Name,
+		"note":               payload.Note,
+		"fleet_id":           fleetID,
+		"email":              payload.Email,
+		"role":               payload.Role,
+		"mattermostUserID":   payload.MattermostUserID,
+		"mattermostUsername": payload.MattermostUsername,
+		"status":             payload.Status,
+	}
 }

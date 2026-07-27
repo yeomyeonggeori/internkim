@@ -79,6 +79,10 @@
 		</Select.Root>
 	</div>
 	<label class={fieldClass}>
+		<Label class="text-xs">{text.organization.hireDate}</Label>
+		<Input class={controlClass} type="date" bind:value={record.hireDate} disabled={isSaving} />
+	</label>
+	<label class={fieldClass}>
 		<Label class="text-xs">{text.organization.phoneNumber}</Label>
 		<Input
 			class={controlClass}

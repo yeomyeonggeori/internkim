@@ -347,6 +347,7 @@ func (service *Service) Run(ctx context.Context) error {
 	if errorValue := service.recoverGoogleOAuthTokenResetState(ctx); errorValue != nil {
 		return fmt.Errorf("recover google calendar OAuth token reset state: %w", errorValue)
 	}
+	service.adoptAccountHireDates(ctx)
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)
@@ -1881,9 +1882,6 @@ func (service *Service) isAuthorized(request *http.Request) bool {
 }
 
 func (service *Service) adminConsoleActorEmail(request *http.Request) string {
-	if service.hasDeviceAuth() {
-		return authenticatedCallerEmail(request)
-	}
 	return service.webActorEmail(request)
 }
 
