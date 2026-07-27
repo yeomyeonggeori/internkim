@@ -1,5 +1,7 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { Badge } from '$lib/components/ui/badge';
+	import * as Item from '$lib/components/ui/item';
 	import type { UserRecord } from '$lib/organization/types';
 	import type { OrganizationOrganizationSection } from './organization-model';
 	import type { organizationDirectoryText } from './text';
@@ -21,44 +23,49 @@
 	function personLabel(record: UserRecord): string {
 		return record.name || record.email;
 	}
+
+	function responsibilityLabel(record: UserRecord): string {
+		if (record.userID === section.companyResponsibleUserID) return text.companyResponsible;
+		if (record.userID === section.responsibleUserID) return text.organizationResponsible;
+		return '';
+	}
 </script>
 
 <section
-	class={['relative min-w-0', section.depth > 0 && 'border-l border-border pl-4']}
+	class={['relative min-w-0', section.depth > 0 && 'border-border border-l pl-4']}
 	style={`margin-left: ${indentation}px`}
 	data-testid={`organization-section-${section.id || 'root'}`}
 >
-	<div class="flex h-11 items-center justify-between rounded-lg bg-muted px-3 text-sm font-semibold">
-		<span class="truncate">{section.name}</span>
-		<span class="shrink-0 text-muted-foreground">{section.memberCount}{text.memberCountUnit}</span>
+	<div class="flex items-center justify-between gap-2 px-1 pb-2">
+		<h3 class="truncate text-sm font-medium">{section.name}</h3>
+		<span class="text-muted-foreground shrink-0 text-xs tabular-nums">{section.memberCount}{text.memberCountUnit}</span>
 	</div>
-	<div class="grid gap-2 pt-2" data-testid={`organization-members-${section.id || 'root'}`}>
+	<Item.Group class="gap-2" data-testid={`organization-members-${section.id || 'root'}`}>
 		{#each section.records as record (record.userID)}
-			<button
-				type="button"
-				class={[
-					'grid min-h-16 w-full min-w-0 grid-cols-[minmax(0,1fr)_minmax(96px,0.45fr)_7rem] items-center gap-3 rounded-xl border bg-card px-4 py-3 text-left text-sm transition hover:bg-muted/30',
-					selectedUserID === record.userID && 'ring-1 ring-primary'
-				]}
-				onclick={() => selectRecord(record)}
-				data-testid={`organization-person-node-${record.userID}`}
-			>
-				<span class="flex min-w-0 items-center gap-3">
-					<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-9 shrink-0" />
-					<span class="min-w-0">
-						<span class="block truncate font-semibold">{personLabel(record)}</span>
-						<span class="block truncate text-muted-foreground">{record.jobTitle || text.noTitle}</span>
-					</span>
-				</span>
-				<span class="truncate text-muted-foreground">{section.name}</span>
-				{#if record.userID === section.companyResponsibleUserID}
-					<span class="justify-self-end rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{text.companyResponsible}</span>
-				{:else if record.userID === section.responsibleUserID}
-					<span class="justify-self-end rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{text.organizationResponsible}</span>
-				{:else}
-					<span></span>
-				{/if}
-			</button>
+			{@const responsibility = responsibilityLabel(record)}
+			<Item.Root variant="outline" class={selectedUserID === record.userID ? 'ring-ring ring-1' : ''}>
+				{#snippet child({ props })}
+					<button
+						{...props}
+						type="button"
+						onclick={() => selectRecord(record)}
+						data-testid={`organization-person-node-${record.userID}`}
+					>
+						<Item.Media>
+							<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-9" />
+						</Item.Media>
+						<Item.Content>
+							<Item.Title>{personLabel(record)}</Item.Title>
+							<Item.Description>{record.jobTitle || text.noTitle}</Item.Description>
+						</Item.Content>
+						{#if responsibility}
+							<Item.Actions>
+								<Badge variant="secondary">{responsibility}</Badge>
+							</Item.Actions>
+						{/if}
+					</button>
+				{/snippet}
+			</Item.Root>
 		{/each}
-	</div>
+	</Item.Group>
 </section>

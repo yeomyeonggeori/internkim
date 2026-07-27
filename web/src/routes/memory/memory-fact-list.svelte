@@ -3,6 +3,9 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import FilterCombobox from '$lib/components/filter-combobox.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import * as Empty from '$lib/components/ui/empty';
+	import * as Item from '$lib/components/ui/item';
+	import NetworkIcon from '@lucide/svelte/icons/network';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { Input } from '$lib/components/ui/input';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -171,18 +174,30 @@
 	{/if}
 
 	{#if visibleFacts.length === 0 && !isLoading}
-		<p class="rounded-md border bg-muted/30 px-3 py-12 text-center text-sm text-muted-foreground">
-			{facts.length === 0 ? text.noVisibleMemory : text.factListEmpty}
-		</p>
+		<Empty.Root class="border">
+			<Empty.Header>
+				<Empty.Media variant="icon">
+					<NetworkIcon />
+				</Empty.Media>
+				<Empty.Title>{facts.length === 0 ? text.noVisibleMemory : text.factListEmpty}</Empty.Title>
+			</Empty.Header>
+		</Empty.Root>
 	{:else}
-		<div class="overflow-hidden rounded-lg border">
+		<Item.Group class="gap-2">
 			{#each visibleFacts as fact (`${fact.namespaceID}:${fact.factID}`)}
-				<article class="grid gap-2 border-b px-3 py-3 last:border-b-0">
-					<div class="flex min-w-0 flex-wrap items-center gap-2">
-						<Badge variant="outline">{sourceKindLabel(fact.sourceKind ?? '') || text.source}</Badge>
-						<span class="truncate text-xs text-muted-foreground">{scopeDisplayName(fact)}</span>
-						<span class="text-xs tabular-nums text-muted-foreground">{validAtText(fact)}</span>
-						<span class="ml-auto text-xs tabular-nums text-muted-foreground">{factScoreText(fact.score)}</span>
+				<Item.Root variant="outline" class="items-start">
+					<Item.Content>
+						<Item.Title class="text-muted-foreground gap-2 font-normal">
+							<Badge variant="outline">{sourceKindLabel(fact.sourceKind ?? '') || text.source}</Badge>
+							<span class="truncate text-xs">{scopeDisplayName(fact)}</span>
+							<span class="text-xs tabular-nums">{validAtText(fact)}</span>
+						</Item.Title>
+						<div class="memory-fact-markdown text-sm leading-5">
+							<SvelteMarkdown source={fact.content} />
+						</div>
+					</Item.Content>
+					<Item.Actions class="self-start">
+						<span class="text-muted-foreground text-xs tabular-nums">{factScoreText(fact.score)}</span>
 						{#if canDeleteFact(fact)}
 							<Button
 								type="button"
@@ -195,13 +210,10 @@
 								<TrashIcon class="size-4" />
 							</Button>
 						{/if}
-					</div>
-					<div class="memory-fact-markdown text-sm leading-5">
-						<SvelteMarkdown source={fact.content} />
-					</div>
-				</article>
+					</Item.Actions>
+				</Item.Root>
 			{/each}
-		</div>
+		</Item.Group>
 	{/if}
 </section>
 
