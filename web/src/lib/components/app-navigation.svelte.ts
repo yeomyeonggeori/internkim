@@ -14,7 +14,7 @@ import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 import MailIcon from '@lucide/svelte/icons/mail';
 import NetworkIcon from '@lucide/svelte/icons/network';
-import UsersRoundIcon from '@lucide/svelte/icons/users-round';
+import ComponentIcon from '@lucide/svelte/icons/component';
 
 type WebSession = {
 	authenticated?: boolean;
@@ -53,7 +53,7 @@ class AppNavigation {
 		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon },
 		{ href: '/mail/', label: text.mail, icon: MailIcon },
 		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon },
-		{ href: '/organization/', label: text.organization, icon: UsersRoundIcon },
+		{ href: '/organization/', label: text.organization, icon: ComponentIcon },
 		{ href: '/files/', label: text.files, icon: FolderOpenIcon }
 	]);
 

@@ -52,7 +52,7 @@ test.describe('employee organization directory editing', () => {
 		await page.mouse.down();
 		await page.mouse.move(sidebarBox.x + 28, fieldBox.y + fieldBox.height + 8, { steps: 8 });
 
-		await expect(page.getByTestId('organization-drop-preview')).toContainText('회사 바로 아래');
+		await expect(page.getByTestId('organization-drop-preview')).toContainText('전체 바로 아래');
 		await page.mouse.up();
 		await page.getByRole('button', { name: '저장', exact: true }).click();
 

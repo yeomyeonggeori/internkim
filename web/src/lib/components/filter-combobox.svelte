@@ -25,6 +25,7 @@
 		clearValue = '',
 		class: className,
 		icon,
+		onSelect,
 		optionContent
 	}: {
 		value?: string;
@@ -34,6 +35,7 @@
 		clearValue?: string;
 		class?: string;
 		icon?: Snippet;
+		onSelect?: (value: string) => void;
 		optionContent?: Snippet<[Option]>;
 	} = $props();
 
@@ -45,7 +47,9 @@
 	const selectedLabel = $derived(options.find((option) => option.value === value && option.value !== clearValue)?.label);
 
 	function selectOption(optionValue: string) {
-		value = value === optionValue ? clearValue : optionValue;
+		const nextValue = value === optionValue ? clearValue : optionValue;
+		value = nextValue;
+		onSelect?.(nextValue);
 		closeAndFocusTrigger();
 	}
 
