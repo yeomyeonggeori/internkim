@@ -5,6 +5,7 @@
 	import { cn } from '$lib/utils';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import AbsenceForm from '../absence-form.svelte';
+	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
 	import QuickActions from '../quick-actions.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { formatHoursMinutes } from '../shared/attendance-format';
@@ -38,23 +39,27 @@
 	class={`min-h-0 space-y-4 overflow-auto ${containerClass}`}
 	data-testid="personal-tools-panel"
 >
-	<QuickActions />
-	<WorkTimeChart
-		title={text.myWorkTime}
-		{dailyValues}
-		locations={chartLocations}
-		formatValue={(value) => formatHoursMinutes(value, text)}
-		compact
-	/>
-	<Dialog.Root>
-		<Dialog.Trigger class={cn(buttonVariants({ variant: 'outline' }), 'w-full')}>
-			{text.absenceFormTitle}
-		</Dialog.Trigger>
-		<Dialog.Content class="max-w-md">
-			<Dialog.Header>
-				<Dialog.Title>{text.absenceFormTitle}</Dialog.Title>
-			</Dialog.Header>
-			<AbsenceForm />
-		</Dialog.Content>
-	</Dialog.Root>
+	{#if !attendance.summary}
+		<AttendanceLoadingSkeleton rowCount={3} />
+	{:else}
+		<QuickActions />
+		<WorkTimeChart
+			title={text.myWorkTime}
+			{dailyValues}
+			locations={chartLocations}
+			formatValue={(value) => formatHoursMinutes(value, text)}
+			compact
+		/>
+		<Dialog.Root>
+			<Dialog.Trigger class={cn(buttonVariants({ variant: 'outline' }), 'w-full')}>
+				{text.absenceFormTitle}
+			</Dialog.Trigger>
+			<Dialog.Content class="max-w-md">
+				<Dialog.Header>
+					<Dialog.Title>{text.absenceFormTitle}</Dialog.Title>
+				</Dialog.Header>
+				<AbsenceForm />
+			</Dialog.Content>
+		</Dialog.Root>
+	{/if}
 </div>
