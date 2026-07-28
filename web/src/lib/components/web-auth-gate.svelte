@@ -10,8 +10,8 @@
 	type SessionResponse = {
 		authenticated: boolean;
 		email?: string;
-		loginURL?: string;
-		mattermostLoginURL?: string;
+		identityEmail?: string;
+		notInvited?: boolean;
 		cloudflareLoginURL?: string;
 	};
 
@@ -19,7 +19,8 @@
 	const text = createPageText(appShellText);
 	let isLoading = $state(true);
 	let isAuthenticated = $state(false);
-	let mattermostLoginURL = $state('');
+	let notInvited = $state(false);
+	let identityEmail = $state('');
 	let cloudflareLoginURL = $state('');
 	let loadErrorMessage = $state('');
 	let lastReturnPath = '';
@@ -40,11 +41,11 @@
 			}
 			const session = (await response.json()) as SessionResponse;
 			isAuthenticated = session.authenticated;
-			mattermostLoginURL = session.mattermostLoginURL || session.loginURL || mattermostLoginURLForReturnPath();
+			notInvited = session.notInvited ?? false;
+			identityEmail = session.identityEmail ?? '';
 			cloudflareLoginURL = session.cloudflareLoginURL || cloudflareLoginURLForReturnPath();
 		} catch {
 			isAuthenticated = false;
-			mattermostLoginURL = mattermostLoginURLForReturnPath();
 			cloudflareLoginURL = cloudflareLoginURLForReturnPath();
 			loadErrorMessage = text.webSessionUnavailable;
 		} finally {
@@ -52,12 +53,21 @@
 		}
 	}
 
-	function mattermostLoginURLForReturnPath() {
-		return `/auth/mattermost/start?return=${encodeURIComponent(returnPath)}`;
-	}
-
 	function cloudflareLoginURLForReturnPath() {
 		return `/auth/cloudflare/start?return=${encodeURIComponent(returnPath)}`;
+	}
+
+	async function logOut() {
+		try {
+			const response = await fetch(`/auth/logout?return=${encodeURIComponent(returnPath)}`, {
+				method: 'POST',
+				credentials: 'include'
+			});
+			const body = (await response.json()) as { redirectURL?: string };
+			location.replace(body.redirectURL ?? '/');
+		} catch {
+			location.replace('/');
+		}
 	}
 </script>
 
@@ -70,6 +80,21 @@
 	</div>
 {:else if isAuthenticated}
 	{@render children?.()}
+{:else if notInvited}
+	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
+		<Card.Root class="w-full max-w-sm">
+			<Card.Header>
+				<Card.Title>{text.notInvitedTitle}</Card.Title>
+				<Card.Description>{text.notInvitedDescription.replace('{email}', identityEmail)}</Card.Description>
+			</Card.Header>
+			<Card.Content class="space-y-3">
+				<Button variant="outline" class="w-full gap-2" onclick={logOut}>
+					<PowerIcon class="size-4" />
+					<span>{text.signOutTryAnother}</span>
+				</Button>
+			</Card.Content>
+		</Card.Root>
+	</div>
 {:else}
 	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
 		<Card.Root class="w-full max-w-sm">
@@ -78,11 +103,7 @@
 				<Card.Description>{text.signInDescription}</Card.Description>
 			</Card.Header>
 			<Card.Content class="space-y-3">
-				<Button href={mattermostLoginURL} class="w-full gap-2">
-					<PowerIcon class="size-4" />
-					<span>{text.continueWithMattermost}</span>
-				</Button>
-				<Button href={cloudflareLoginURL} variant="outline" class="w-full gap-2">
+				<Button href={cloudflareLoginURL} class="w-full gap-2">
 					<PowerIcon class="size-4" />
 					<span>{text.continueWithCloudflare}</span>
 				</Button>

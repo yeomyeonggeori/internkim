@@ -36,6 +36,9 @@ export const appShellText = {
 		signInTitle: '김인턴 구성원 인증이 필요합니다',
 		signInDescription: '업무, 일정, 기억, 메일, 근태, 조직, 파일 화면은 김인턴 구성원만 열 수 있습니다.',
 		continueWithCloudflare: '로그인',
+		notInvitedTitle: '초대되지 않은 계정입니다',
+		notInvitedDescription: '{email} 은(는) 아직 구성원으로 초대되지 않았습니다. 관리자에게 초대를 요청하세요.',
+		signOutTryAnother: '로그아웃하고 다른 계정으로',
 		webSessionUnavailable: '로그인 상태 확인에 실패했습니다. 다시 로그인해 주세요.',
 		apiTokenSheet: {
 			title: 'API 토큰',
@@ -98,6 +101,9 @@ export const appShellText = {
 		signInTitle: 'InternKim member sign-in required',
 		signInDescription: 'Flow, Calendar, Memory, Mail, Attendance, Organization, and Files are available to InternKim members only.',
 		continueWithCloudflare: 'Sign in',
+		notInvitedTitle: 'Account not invited',
+		notInvitedDescription: '{email} has not been invited as a member yet. Ask an administrator for an invite.',
+		signOutTryAnother: 'Sign out and use another account',
 		webSessionUnavailable: 'Could not check your session. Please sign in again.',
 		apiTokenSheet: {
 			title: 'API Tokens',

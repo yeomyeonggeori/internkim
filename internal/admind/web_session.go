@@ -39,6 +39,8 @@ type webSessionPayload struct {
 type webSessionResponse struct {
 	Authenticated      bool   `json:"authenticated"`
 	Email              string `json:"email,omitempty"`
+	IdentityEmail      string `json:"identityEmail,omitempty"`
+	NotInvited         bool   `json:"notInvited,omitempty"`
 	Image              string `json:"image,omitempty"`
 	CloudflareLoginURL string `json:"cloudflareLoginURL,omitempty"`
 	IsAdmin            bool   `json:"isAdmin"`
@@ -58,9 +60,18 @@ func (service *Service) handleWebSession(responseWriter http.ResponseWriter, req
 	}
 	returnPath := loginReturnPathForRequest(request)
 	email := service.webActorEmail(request)
-	if email == "" || !service.canAuthenticateWebReturnPath(request.Context(), email, returnPath) {
+	if email == "" {
 		service.writeJSON(responseWriter, webSessionResponse{
 			Authenticated:      false,
+			CloudflareLoginURL: service.cloudflareLoginURLForReturnPath(returnPath),
+		})
+		return
+	}
+	if !service.canAuthenticateWebReturnPath(request.Context(), email, returnPath) {
+		service.writeJSON(responseWriter, webSessionResponse{
+			Authenticated:      false,
+			IdentityEmail:      email,
+			NotInvited:         true,
 			CloudflareLoginURL: service.cloudflareLoginURLForReturnPath(returnPath),
 		})
 		return
