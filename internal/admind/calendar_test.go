@@ -142,7 +142,7 @@ func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy":
-			return jsonResponse(http.StatusOK, `{"people":[{"emails":["creator@example.com"]},{"emails":["editor@example.com"]}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"people":[{"emails":["creator@example.com"],"displayName":"등록자"},{"emails":["editor@example.com"],"displayName":"수정자"}]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token"):
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"creator@example.com","username":"creator","nickname":"등록자"}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=editor-token"):
@@ -174,7 +174,7 @@ func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
 		"color":"#2563eb"
 	}`))
 	createRequest.Header.Set("Content-Type", "application/json")
-	createRequest.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	createRequest.Header.Set("Cf-Access-Authenticated-User-Email", "creator@example.com")
 	createResponse := httptest.NewRecorder()
 	service.router().ServeHTTP(createResponse, createRequest)
 	if createResponse.Code != http.StatusCreated {
@@ -202,7 +202,7 @@ func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
 	}`, createdEvent.UpdatedAt)
 	updateRequest := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+createdEvent.ID, strings.NewReader(updatePayload))
 	updateRequest.Header.Set("Content-Type", "application/json")
-	updateRequest.Header.Set("Cookie", "MMAUTHTOKEN=editor-token")
+	updateRequest.Header.Set("Cf-Access-Authenticated-User-Email", "editor@example.com")
 	updateResponse := httptest.NewRecorder()
 	service.router().ServeHTTP(updateResponse, updateRequest)
 	if updateResponse.Code != http.StatusOK {
