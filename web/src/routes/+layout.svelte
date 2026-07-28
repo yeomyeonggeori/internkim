@@ -23,6 +23,7 @@
 	import { isAppShortcutMessage } from '$lib/app-shortcut-message';
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
 	import { webAuthSessionDependency } from '$lib/web-auth-session';
+	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { ModeWatcher } from 'mode-watcher';
@@ -34,6 +35,7 @@
 	let isAppSidebarOpen = $state(false);
 	onMount(() => {
 		initializeLocale();
+		preloadWorkTimeChartPlot();
 		const revalidateSession = () => {
 			if (document.visibilityState !== 'visible') return;
 			void invalidate(webAuthSessionDependency);
