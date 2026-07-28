@@ -21,6 +21,7 @@
 
 	type Mode = 'loading' | 'enroll' | 'unlock' | 'recover' | 'showRecovery' | 'error';
 	let mode = $state<Mode>('loading');
+	let authenticated = $state(false);
 	let email = $state('');
 	let displayName = $state('');
 	let password = $state('');
@@ -31,14 +32,16 @@
 	let busy = $state(false);
 	let errorMessage = $state('');
 
-	const open = $derived(buzzIdentity.secretHex === null && mode !== 'loading');
+	const open = $derived(authenticated && buzzIdentity.secretHex === null && mode !== 'loading');
 
 	onMount(async () => {
 		try {
-			const session: { email?: string } = await fetch('/auth/session', {
+			const session: { authenticated?: boolean; email?: string } = await fetch('/auth/session', {
 				credentials: 'include'
 			}).then((response) => response.json());
-			email = session.email ?? '';
+			if (!session.authenticated || !session.email) return;
+			authenticated = true;
+			email = session.email;
 			displayName = email;
 			mode = (await hasEnrolledBuzzIdentity(transport)) ? 'unlock' : 'enroll';
 		} catch (error) {
@@ -46,6 +49,19 @@
 			errorMessage = describe(error);
 		}
 	});
+
+	async function logOut() {
+		try {
+			const response = await fetch(`/auth/logout?return=${encodeURIComponent(location.pathname)}`, {
+				method: 'POST',
+				credentials: 'include'
+			});
+			const body = (await response.json()) as { redirectURL?: string };
+			location.replace(body.redirectURL ?? '/');
+		} catch {
+			location.replace('/');
+		}
+	}
 
 	function describe(error: unknown): string {
 		return error instanceof Error ? error.message : text.genericError;
@@ -150,7 +166,8 @@
 		saved: '저장했습니다',
 		passwordTooShort: '비밀번호는 8자 이상이어야 합니다',
 		passwordMismatch: '비밀번호가 일치하지 않습니다',
-		genericError: '문제가 발생했습니다'
+		genericError: '문제가 발생했습니다',
+		logOut: '로그아웃'
 	};
 </script>
 
@@ -231,6 +248,10 @@
 						{text.forgot}
 					</button>
 				{/if}
+
+				<button type="button" class="text-left text-xs text-muted-foreground underline" onclick={logOut} disabled={busy}>
+					{text.logOut}
+				</button>
 			</div>
 
 			<Dialog.Footer>
