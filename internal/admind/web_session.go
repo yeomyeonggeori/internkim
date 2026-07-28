@@ -96,18 +96,7 @@ func (service *Service) handleWebLogout(responseWriter http.ResponseWriter, requ
 	http.SetCookie(responseWriter, expiredWebSessionCookie())
 	http.SetCookie(responseWriter, webLogoutMarkerCookie())
 	logAuditEvent("web session logout")
-	service.writeJSON(responseWriter, webLogoutResponse{OK: true, RedirectURL: service.logoutRedirectURL(request)})
-}
-
-// logoutRedirectURL sends the browser to Cloudflare Access's logout endpoint when
-// Access fronts the app, so the CF_Authorization session is cleared too and the
-// user is not silently re-authenticated. Without Access it returns to the app.
-func (service *Service) logoutRedirectURL(request *http.Request) string {
-	teamDomain := strings.TrimSuffix(strings.TrimSpace(service.Configuration.CloudflareAccessTeamDomain), "/")
-	if teamDomain != "" {
-		return "https://" + teamDomain + "/cdn-cgi/access/logout"
-	}
-	return logoutRedirectURLForRequest(request)
+	service.writeJSON(responseWriter, webLogoutResponse{OK: true, RedirectURL: logoutRedirectURLForRequest(request)})
 }
 
 func (service *Service) handleCloudflareAuthStart(responseWriter http.ResponseWriter, request *http.Request) {
