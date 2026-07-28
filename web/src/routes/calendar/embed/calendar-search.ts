@@ -1,3 +1,4 @@
+import { matchesKoreanSearch } from '$lib/korean-search';
 import type { Event as DayFlowEvent } from '@dayflow/core';
 import { eventStartDate } from './calendar-event-mapping';
 
@@ -21,7 +22,7 @@ export function searchCalendarEvents(query: string, events: DayFlowEvent[]): Cal
 	if (!trimmedQuery) return [];
 	const normalizedQuery = trimmedQuery.toLocaleLowerCase();
 	return events
-		.filter((event) => event.title.toLocaleLowerCase().includes(normalizedQuery))
+		.filter((event) => matchesKoreanSearch(event.title, normalizedQuery))
 		.sort((leftEvent, rightEvent) => eventStartDate(leftEvent).getTime() - eventStartDate(rightEvent).getTime())
 		.slice(0, 8)
 		.map((event) => {
