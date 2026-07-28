@@ -28,7 +28,7 @@
 					href={item.href}
 					aria-label={item.label}
 					data-sveltekit-preload-data="off"
-					data-sveltekit-preload-code="off"
+					data-sveltekit-preload-code="viewport"
 					{...props}
 				>
 					<Icon />

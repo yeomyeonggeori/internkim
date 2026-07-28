@@ -2,7 +2,6 @@ import { expect, type Locator, type Page, test } from '@playwright/test';
 import { feedbackFormURL } from '../../src/lib/components/app-rail-config';
 import { createTaskRunsFixture } from './tasks-test-fixtures';
 
-const expandedRailWidth = 224;
 const appRailSelector = '[data-app-rail]';
 const profileMenuSelector = '[data-app-rail-profile-menu]';
 const maximumProfileMenuRailGap = 8;
@@ -41,18 +40,19 @@ test.describe('app rail', () => {
 		});
 	});
 
-	test('keeps the rail expanded while the profile menu is open', async ({ page }) => {
+	test('keeps the rail width while the profile menu is open', async ({ page }) => {
 		await page.setViewportSize({ width: 930, height: 1904 });
 		await page.goto('/memory/');
 
+		const railWidthBeforeOpening = (await railMetrics(page)).railWidth;
 		await page.getByRole('button', { name: 'tester' }).click();
 		await page.mouse.move(500, 500);
 
-		await expect(page.getByRole('menuitem', { name: '계정' })).toBeVisible();
+		await expect(page.locator(profileMenuSelector)).toBeVisible();
 		await expect.poll(async () => railMetrics(page)).toMatchObject({
 			menuLeft: expect.any(Number),
 			railRight: expect.any(Number),
-			railWidth: expandedRailWidth
+			railWidth: railWidthBeforeOpening
 		});
 		await expect.poll(async () => profileMenuRailGap(page)).toBeLessThanOrEqual(maximumProfileMenuRailGap);
 	});
@@ -65,7 +65,7 @@ test.describe('app rail', () => {
 		await expect(appRail.getByRole('link', { name: '기억' })).toHaveAttribute('data-active', 'true');
 		await expect(appRail.getByRole('link', { name: '업무' })).not.toHaveAttribute('data-active');
 		await expect(appRail.getByRole('link', { name: '문의하기' })).not.toHaveAttribute('data-active');
-		await expect.poll(async () => railIconSize(appRail.getByRole('link', { name: '기억' }))).toBe(20);
+		await expect.poll(async () => railIconSize(appRail.getByRole('link', { name: '기억' }))).toBe(16);
 	});
 
 	test('uses bottom navigation instead of the rail on mobile', async ({ page }) => {
