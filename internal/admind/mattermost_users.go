@@ -314,8 +314,7 @@ func (service *Service) ensureMattermostProvisionerDefaults(ctx context.Context)
 	botMembershipError := service.ensureMattermostBotDefaultChannelMembership(ctx, adminToken, teamRecord.ID, channelIDs)
 	userMembershipError := service.ensureMattermostDefaultChannelMemberships(ctx, adminToken, teamRecord.ID, channelIDs)
 	connectCommandError := service.ensureMattermostConnectCommand(ctx, adminToken)
-	oauthAppError := service.ensureMattermostWebOAuthApp(ctx, adminToken)
-	return errors.Join(channelError, adminMembershipError, botMembershipError, userMembershipError, connectCommandError, oauthAppError)
+	return errors.Join(channelError, adminMembershipError, botMembershipError, userMembershipError, connectCommandError)
 }
 
 func (service *Service) ensureMattermostProvisionerIdentity(ctx context.Context) (string, mattermostUserRecord, error) {

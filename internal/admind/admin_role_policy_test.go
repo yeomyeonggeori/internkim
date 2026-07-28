@@ -78,25 +78,7 @@ func TestAdminSessionPreservesClaimedAdminRole(t *testing.T) {
 	}
 }
 
-func TestProofOfConceptAdminSessionHidesTasksForTenantAdmin(t *testing.T) {
-	service := newProofOfConceptTaskAccessTestService(t, "admin01@intern.kim", `{"id":"tenant-admin","email":"admin01@intern.kim","username":"admin01","roles":"system_user","delete_at":0}`)
 
-	responseDocument := requestAdminSession(t, service, "admin01@intern.kim")
-
-	if responseDocument["role"] != "admin" || responseDocument["canViewTasks"] != false || responseDocument["isPocSuperAdmin"] != false {
-		t.Fatalf("admin session = %#v", responseDocument)
-	}
-}
-
-func TestProofOfConceptAdminSessionShowsTasksForMattermostSystemAdmin(t *testing.T) {
-	service := newProofOfConceptTaskAccessTestService(t, "admin@localhost", `{"id":"admin","email":"admin@localhost","username":"admin","roles":"system_admin system_user","delete_at":0}`)
-
-	responseDocument := requestAdminSession(t, service, "admin@localhost")
-
-	if responseDocument["canViewTasks"] != true || responseDocument["isPocSuperAdmin"] != true {
-		t.Fatalf("admin session = %#v", responseDocument)
-	}
-}
 
 func TestOperationsAdminCanUseAllowedAdminEndpoint(t *testing.T) {
 	service := newOperationsAdminAuthorizationTestService(t)

@@ -67,18 +67,12 @@ func (service *Service) canViewTaskRuns(ctx context.Context, actorEmail string) 
 	if strings.TrimSpace(actorEmail) == "" {
 		return false
 	}
-	if service.isProofOfConceptTenantMode() {
-		return service.isMattermostHumanSystemAdmin(ctx, actorEmail)
-	}
 	return service.isFlowStaffActor(ctx, actorEmail)
 }
 
 func (service *Service) canManageTaskRuns(ctx context.Context, actorEmail string) bool {
 	if strings.TrimSpace(actorEmail) == "" {
 		return false
-	}
-	if service.isProofOfConceptTenantMode() {
-		return service.isMattermostHumanSystemAdmin(ctx, actorEmail)
 	}
 	return service.isFlowAdminEmail(ctx, actorEmail)
 }
@@ -123,27 +117,12 @@ func (service *Service) webActorEmail(request *http.Request) string {
 	if actorEmail := service.authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail
 	}
-	if actorEmail := service.mattermostSessionActorEmail(request); actorEmail != "" {
-		return strings.ToLower(strings.TrimSpace(actorEmail))
-	}
 	return strings.ToLower(strings.TrimSpace(service.webSessionActorEmail(request)))
 }
 
 func hasWebLogoutMarker(request *http.Request) bool {
 	cookie, errorValue := request.Cookie(webLogoutMarkerCookieName)
 	return errorValue == nil && strings.TrimSpace(cookie.Value) != ""
-}
-
-func (service *Service) mattermostSessionActorEmail(request *http.Request) string {
-	cookieHeader := mattermostSessionCookieHeader(request)
-	if cookieHeader == "" {
-		return ""
-	}
-	userRecord, ok := service.mattermostSessionUser(request, cookieHeader)
-	if !ok {
-		return ""
-	}
-	return strings.ToLower(strings.TrimSpace(userRecord.Email))
 }
 
 func mattermostSessionCookieHeader(request *http.Request) string {
@@ -270,55 +249,6 @@ func (service *Service) isFlowAdminEmail(ctx context.Context, actorEmail string)
 	}
 	adminEmail := service.seedAdminEmail()
 	return adminEmail != "" && strings.EqualFold(actorEmail, adminEmail)
-}
-
-func (service *Service) isMattermostHumanSystemAdmin(ctx context.Context, actorEmail string) bool {
-	if strings.TrimSpace(actorEmail) == "" {
-		return false
-	}
-	if !service.isProofOfConceptTenantMode() {
-		return false
-	}
-	token, errorValue := service.mattermostAdminToken(ctx)
-	if errorValue != nil {
-		return false
-	}
-	userRecord, found, errorValue := service.findMattermostUserByEmail(ctx, token, actorEmail)
-	if errorValue != nil || !found {
-		return false
-	}
-	return isMattermostHumanSystemAdminRecord(userRecord)
-}
-
-func isMattermostHumanSystemAdminRecord(userRecord mattermostUserRecord) bool {
-	if userRecord.DeleteAt != 0 || userRecord.IsBot {
-		return false
-	}
-	return strings.Contains(" "+userRecord.Roles+" ", " system_admin ")
-}
-
-func (service *Service) isProofOfConceptTenantMode() bool {
-	if service.hasDeviceAuth() {
-		return false
-	}
-	return isProofOfConceptTenantName(service.Configuration.MattermostTeamName)
-}
-
-func isProofOfConceptTenantName(teamName string) bool {
-	normalizedTeamName := strings.ToLower(strings.TrimSpace(teamName))
-	if !strings.HasPrefix(normalizedTeamName, "tenant") {
-		return false
-	}
-	suffix := strings.TrimPrefix(normalizedTeamName, "tenant")
-	if suffix == "" {
-		return false
-	}
-	for _, character := range suffix {
-		if character < '0' || character > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 func isActiveFlowUser(record adminUserMutation) bool {
