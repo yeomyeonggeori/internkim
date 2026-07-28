@@ -1,3 +1,6 @@
+import { publishBuzzMessage } from '$lib/buzz-relay-client';
+import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
+
 export type ChannelParticipant = {
 	id: string;
 	name: string;
@@ -137,9 +140,23 @@ export type ChannelOutgoingAttachment = {
 	contentBase64: string;
 };
 
-export async function sendChannelMessage(
+let cachedRelayURL: string | null | undefined;
+
+async function buzzRelayURL(): Promise<string | null> {
+	if (cachedRelayURL !== undefined) return cachedRelayURL;
+	try {
+		const response = await fetch('/agent/api/buzz-relay-config', { credentials: 'include' });
+		const document: { relayURL?: string } = await response.json();
+		cachedRelayURL = document.relayURL?.trim() || null;
+	} catch {
+		cachedRelayURL = null;
+	}
+	return cachedRelayURL;
+}
+
+async function sendServerSignedMessage(
 	message: string,
-	attachments: ChannelOutgoingAttachment[] = [],
+	attachments: ChannelOutgoingAttachment[],
 	channelID?: string,
 	replyToRootID?: string
 ): Promise<void> {
@@ -150,4 +167,28 @@ export async function sendChannelMessage(
 		body: JSON.stringify({ message, attachments, replyToRootId: replyToRootID })
 	});
 	if (!response.ok) throw new Error(await response.text());
+}
+
+// Text messages are signed in the browser with the person's own key and
+// published straight to the Buzz relay, so nothing is signed server-side on
+// their behalf. Attachments still take the server path until browser-side
+// Blossom upload lands; the same holds before the identity is unlocked.
+export async function sendChannelMessage(
+	message: string,
+	attachments: ChannelOutgoingAttachment[] = [],
+	channelID?: string,
+	replyToRootID?: string
+): Promise<void> {
+	if (buzzIdentity.secretHex && channelID && attachments.length === 0) {
+		const relayURL = await buzzRelayURL();
+		if (relayURL) {
+			await publishBuzzMessage(relayURL, buzzIdentity.secretHex, {
+				channelId: channelID,
+				content: message,
+				replyToRootId: replyToRootID
+			});
+			return;
+		}
+	}
+	await sendServerSignedMessage(message, attachments, channelID, replyToRootID);
 }

@@ -505,6 +505,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/buzz-vault", service.handleBuzzClientVault)
 	multiplexer.HandleFunc("/agent/api/buzz-claim", service.handleBuzzClaim)
 	multiplexer.HandleFunc("/agent/api/buzz-invite", service.handleBuzzInviteEmail)
+	multiplexer.HandleFunc("/agent/api/buzz-relay-config", service.handleBuzzRelayConfig)
 	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
