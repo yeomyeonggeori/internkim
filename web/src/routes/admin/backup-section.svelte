@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
+	import * as Item from '$lib/components/ui/item';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import UploadIcon from '@lucide/svelte/icons/upload';
@@ -108,82 +111,97 @@
 	}
 </script>
 
-{#if adminErrorMessage}
-	<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{adminErrorMessage}</p>
-{/if}
+{#snippet jobStatus(job: AdminJob, fallbackFleetID: string)}
+	<Item.Root variant="muted" class="items-start">
+		<Item.Content>
+			<Item.Title>{job.status} · {job.phase}</Item.Title>
+			{#if job.manifest}
+				<Item.Description>
+					{job.manifest.fleetID || fallbackFleetID} · {job.manifest.components?.join(', ') || text.backup.manifestReady}
+				</Item.Description>
+			{/if}
+			{#if job.error}
+				<Item.Description class="text-destructive">{job.error}</Item.Description>
+			{/if}
+		</Item.Content>
+	</Item.Root>
+{/snippet}
 
-<div class="grid gap-4 md:grid-cols-2">
-	<div class="rounded-lg border p-4">
-		<div class="mb-4">
-			<h3 class="text-sm font-semibold">{text.backup.title}</h3>
-			<p class="text-muted-foreground mt-1 text-sm">{text.backup.description}</p>
-		</div>
-		<div class="grid gap-3">
-			<Input bind:value={backupPassphrase} type="password" placeholder={text.backup.passphrasePlaceholder} autocomplete="new-password" />
-			<Button disabled={!isDeviceReachable || isCreatingBackup || !backupPassphrase.trim()} onclick={createEncryptedBackup} class="gap-2">
+<div class="grid items-start gap-5 lg:grid-cols-2">
+	<Card.Root>
+		<Card.Header class="border-b pb-4">
+			<Card.Title>{text.backup.title}</Card.Title>
+			<Card.Description>{text.backup.description}</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			<Field.Group>
+				<Field.Field>
+					<Field.Label for="backup-passphrase">{text.backup.passphrasePlaceholder}</Field.Label>
+					<Input id="backup-passphrase" bind:value={backupPassphrase} type="password" autocomplete="new-password" />
+				</Field.Field>
+				{#if backupJob}
+					{@render jobStatus(backupJob, fleetID)}
+				{/if}
+			</Field.Group>
+		</Card.Content>
+		<Card.Footer class="gap-2">
+			<Button disabled={!isDeviceReachable || isCreatingBackup || !backupPassphrase.trim()} onclick={createEncryptedBackup}>
 				{#if isCreatingBackup}
 					<LoaderIcon class="size-4 animate-spin" />
 				{:else}
-					<DownloadIcon class="size-4" />
+					<DownloadIcon />
 				{/if}
 				{text.backup.create}
 			</Button>
-			{#if backupJob}
-				<div class="rounded-md bg-muted/40 p-3 text-sm">
-					<p class="font-medium">{backupJob.status} · {backupJob.phase}</p>
-					{#if backupJob.error}
-						<p class="mt-1 text-destructive">{backupJob.error}</p>
-					{/if}
-					{#if backupJob.manifest}
-						<p class="text-muted-foreground mt-2">
-							{backupJob.manifest.fleetID || fleetID} · {backupJob.manifest.components?.join(', ') || text.backup.manifestReady}
-						</p>
-					{/if}
-				</div>
-			{/if}
 			{#if backupDownloadURL()}
-				<Button href={backupDownloadURL()} variant="outline" class="gap-2">
-					<DownloadIcon class="size-4" />
+				<Button href={backupDownloadURL()} variant="outline">
+					<DownloadIcon />
 					{text.backup.download}
 				</Button>
 			{/if}
-		</div>
-	</div>
+		</Card.Footer>
+	</Card.Root>
 
-	<div class="rounded-lg border p-4">
-		<div class="mb-4">
-			<h3 class="text-sm font-semibold">{text.backup.restoreTitle}</h3>
-			<p class="text-muted-foreground mt-1 text-sm">{text.backup.restoreDescription}</p>
-		</div>
-		<div class="grid gap-3">
-			<Input type="file" accept=".ikbak,application/octet-stream" onchange={handleRestoreFile} />
-			<Input bind:value={restorePassphrase} type="password" placeholder={text.backup.passphrasePlaceholder} autocomplete="new-password" />
-			<Input bind:value={restoreConfirm} placeholder={text.backup.restoreConfirmPlaceholder} autocomplete="off" />
+	<Card.Root>
+		<Card.Header class="border-b pb-4">
+			<Card.Title>{text.backup.restoreTitle}</Card.Title>
+			<Card.Description>{text.backup.restoreDescription}</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			<Field.Group>
+				<Field.Field>
+					<Field.Label for="restore-bundle">{text.backup.bundleLabel}</Field.Label>
+					<Input id="restore-bundle" type="file" accept=".ikbak,application/octet-stream" onchange={handleRestoreFile} />
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="restore-passphrase">{text.backup.passphrasePlaceholder}</Field.Label>
+					<Input id="restore-passphrase" bind:value={restorePassphrase} type="password" autocomplete="new-password" />
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="restore-confirm">{text.backup.restoreConfirmLabel}</Field.Label>
+					<Input id="restore-confirm" bind:value={restoreConfirm} placeholder={text.backup.restoreConfirmPlaceholder} autocomplete="off" />
+				</Field.Field>
+				{#if restoreJob}
+					{@render jobStatus(restoreJob, text.backup.backupFallback)}
+				{/if}
+			</Field.Group>
+		</Card.Content>
+		<Card.Footer>
 			<Button
 				disabled={!isDeviceReachable || isRestoring || !restoreBundle || !restorePassphrase.trim() || restoreConfirm.trim() !== 'RESTORE'}
 				onclick={restoreBackup}
-				class="gap-2"
 			>
 				{#if isRestoring}
 					<LoaderIcon class="size-4 animate-spin" />
 				{:else}
-					<UploadIcon class="size-4" />
+					<UploadIcon />
 				{/if}
 				{text.backup.restore}
 			</Button>
-			{#if restoreJob}
-				<div class="rounded-md bg-muted/40 p-3 text-sm">
-					<p class="font-medium">{restoreJob.status} · {restoreJob.phase}</p>
-					{#if restoreJob.error}
-						<p class="mt-1 text-destructive">{restoreJob.error}</p>
-					{/if}
-					{#if restoreJob.manifest}
-						<p class="text-muted-foreground mt-2">
-							{restoreJob.manifest.fleetID || text.backup.backupFallback} · {restoreJob.manifest.components?.join(', ') || text.backup.manifestReady}
-						</p>
-					{/if}
-				</div>
-			{/if}
-		</div>
-	</div>
+		</Card.Footer>
+	</Card.Root>
 </div>
+
+{#if adminErrorMessage}
+	<Field.Error>{adminErrorMessage}</Field.Error>
+{/if}

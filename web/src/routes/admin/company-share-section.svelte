@@ -298,7 +298,7 @@
 
 <div class="grid gap-5">
 	<Card.Root>
-		<Card.Header>
+		<Card.Header class="border-b pb-4">
 			<div class="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<Card.Title>{text.companyShare.title}</Card.Title>
@@ -343,7 +343,7 @@
 	</Card.Root>
 
 	<Card.Root>
-		<Card.Header>
+		<Card.Header class="border-b pb-4">
 			<Card.Title>{text.companyShare.profileFields}</Card.Title>
 			<Card.Description>{text.companyShare.profileFieldsDescription}</Card.Description>
 		</Card.Header>
@@ -365,7 +365,7 @@
 	</Card.Root>
 
 	<Card.Root>
-		<Card.Header>
+		<Card.Header class="border-b pb-4">
 			<Card.Title>{text.companyShare.localization}</Card.Title>
 			<Card.Description>{text.companyShare.localizationDescription}</Card.Description>
 		</Card.Header>
@@ -401,7 +401,7 @@
 	</Card.Root>
 
 	<Card.Root>
-		<Card.Header>
+		<Card.Header class="border-b pb-4">
 			<Card.Title>{text.companyShare.narrative}</Card.Title>
 			<Card.Description>{text.companyShare.narrativeDescription}</Card.Description>
 		</Card.Header>
@@ -435,7 +435,7 @@
 
 	<div class="grid gap-5 lg:grid-cols-2">
 		<Card.Root>
-			<Card.Header>
+			<Card.Header class="border-b pb-4">
 				<Card.Title>{text.companyShare.metrics}</Card.Title>
 				<Card.Description>{text.companyShare.metricsDescription}</Card.Description>
 			</Card.Header>
@@ -454,7 +454,7 @@
 		</Card.Root>
 
 		<Card.Root>
-			<Card.Header>
+			<Card.Header class="border-b pb-4">
 				<Card.Title>{text.companyShare.records}</Card.Title>
 				<Card.Description>{text.companyShare.recordsDescription}</Card.Description>
 			</Card.Header>
@@ -477,7 +477,7 @@
 	</div>
 
 	<Card.Root>
-		<Card.Header>
+		<Card.Header class="border-b pb-4">
 			<Card.Title>{text.companyShare.documents}</Card.Title>
 			<Card.Description>{text.companyShare.documentsDescription}</Card.Description>
 		</Card.Header>
@@ -501,7 +501,7 @@
 
 	{#if draft.recordIDs.length > 0}
 		<Card.Root>
-			<Card.Header>
+			<Card.Header class="border-b pb-4">
 				<Card.Title>{text.companyShare.recordPresentation}</Card.Title>
 				<Card.Description>{text.companyShare.recordPresentationDescription}</Card.Description>
 			</Card.Header>
@@ -541,7 +541,7 @@
 
 	{#if draft.metricNames.length > 0}
 		<Card.Root>
-			<Card.Header>
+			<Card.Header class="border-b pb-4">
 				<Card.Title>{text.companyShare.metricPresentation}</Card.Title>
 				<Card.Description>{text.companyShare.metricPresentationDescription}</Card.Description>
 			</Card.Header>
@@ -605,7 +605,7 @@
 	{/if}
 
 	<Card.Root>
-		<Card.Header>
+		<Card.Header class="border-b pb-4">
 			<Card.Title>{publicationLabel()}</Card.Title>
 			<Card.Description>{text.companyShare.description}</Card.Description>
 		</Card.Header>
