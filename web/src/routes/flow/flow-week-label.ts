@@ -10,6 +10,32 @@ export function formatFlowWeekDateRange(week: FlowWeekDateRange | null | undefin
 	return `${formatMonthDay(week.startISO)} - ${formatMonthDay(week.endISO)}`;
 }
 
+export type FlowWeekOption = {
+	value: string;
+	label: string;
+	isCurrent: boolean;
+};
+
+export function flowWeekOptions(
+	currentWeekStartISO: string,
+	weeksBefore: number,
+	weeksAfter: number
+): FlowWeekOption[] {
+	const currentMonday = dateFromDateISO(currentWeekStartISO);
+	if (!currentMonday) return [];
+	const options: FlowWeekOption[] = [];
+	for (let offset = weeksBefore; offset >= -weeksAfter; offset -= 1) {
+		const monday = addUTCDate(currentMonday, -offset * 7);
+		const sunday = addUTCDate(monday, 6);
+		options.push({
+			value: weekCodeForMonday(monday),
+			label: formatFlowWeekDateRange({ startISO: dateISOFromDate(monday), endISO: dateISOFromDate(sunday) }),
+			isCurrent: offset === 0
+		});
+	}
+	return options;
+}
+
 export function flowWeekCodeForDateISO(dateISO: string): string {
 	const date = dateFromDateISO(dateISO);
 	if (!date) return '';
@@ -22,6 +48,10 @@ function formatMonthDay(dateISO: string): string {
 	const day = Number(dateISO.slice(8, 10));
 	if (!month || !day) return dateISO;
 	return `${month}/${day}`;
+}
+
+function dateISOFromDate(date: Date): string {
+	return date.toISOString().slice(0, 10);
 }
 
 function dateFromDateISO(dateISO: string): Date | null {
