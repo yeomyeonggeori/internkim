@@ -1,13 +1,14 @@
 <script lang="ts">
+	import FilterCombobox from '$lib/components/filter-combobox.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Input } from '$lib/components/ui/input';
-	import * as Select from '$lib/components/ui/select';
 	import FilterIcon from '@lucide/svelte/icons/sliders-horizontal';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SearchIcon from '@lucide/svelte/icons/search';
+	import { cn } from '$lib/utils';
 	import { flowText } from './text';
 
 	type FlowPageText = typeof flowText.ko;
@@ -35,6 +36,7 @@
 		resetFilters: () => void;
 		createTask: () => void;
 		setParticipantFilterIDs: (memberIDs: string[]) => void;
+		class?: string;
 	};
 
 	let {
@@ -52,7 +54,8 @@
 		text,
 		resetFilters,
 		createTask,
-		setParticipantFilterIDs
+		setParticipantFilterIDs,
+		class: className
 	}: Props = $props();
 
 	let participantChoices = $derived(participantOptions.filter((option) => option.value !== 'all'));
@@ -79,7 +82,7 @@
 	}
 </script>
 
-<div class="flex min-w-0 flex-wrap items-center gap-2">
+<div class={cn('flex min-w-0 flex-wrap items-center gap-2', className)}>
 	<DropdownMenu.Root>
 		<DropdownMenu.Trigger>
 			{#snippet child({ props })}
@@ -94,11 +97,11 @@
 				<SearchIcon class="absolute left-2 top-2.5 size-4 text-muted-foreground" />
 				<Input class="pl-8" placeholder={text.searchPlaceholder} bind:value={searchText} />
 			</div>
-			<div class="grid gap-3 sm:grid-cols-2">
-				{@render SelectControl(text.status, statusOptions, statusFilter, (value: string) => (statusFilter = value))}
-				{@render SelectControl(text.type, typeOptions, typeFilter, (value: string) => (typeFilter = value))}
+			<div class="flex flex-wrap gap-2">
+				<FilterCombobox bind:value={statusFilter} options={statusOptions} label={text.status} clearValue="all" class="w-full sm:w-[calc(50%-0.25rem)]" />
+				<FilterCombobox bind:value={typeFilter} options={typeOptions} label={text.type} clearValue="all" class="w-full sm:w-[calc(50%-0.25rem)]" />
 				{#if hasBusinessFilter}
-					{@render SelectControl(text.business, businessOptions, businessFilter, (value: string) => (businessFilter = value))}
+					<FilterCombobox bind:value={businessFilter} options={businessOptions} label={text.business} clearValue="all" class="w-full sm:w-[calc(50%-0.25rem)]" />
 				{/if}
 			</div>
 			<div class="space-y-2">
@@ -136,19 +139,3 @@
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
 </div>
-
-{#snippet SelectControl(label: string, options: Option[], value: string, onchange: (value: string) => void)}
-	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-		{label}
-		<Select.Root type="single" {value} onValueChange={onchange}>
-			<Select.Trigger class="w-full">
-				{options.find((option) => option.value === value)?.label ?? '-'}
-			</Select.Trigger>
-			<Select.Content>
-				{#each options as option (option.value)}
-					<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
-				{/each}
-			</Select.Content>
-		</Select.Root>
-	</label>
-{/snippet}

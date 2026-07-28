@@ -28,8 +28,8 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	}
 	var removedUser *adminUserMutation
 	var upsertedEmail string
-	var orgchartMutationIdentities []orgchartPersonIdentity
-	var orgchartMutation *orgchartUserMutation
+	var organizationMutationIdentities []organizationPersonIdentity
+	var organizationMutation *organizationUserMutation
 	if request.Method == http.MethodDelete {
 		userRecord, errorValue := service.lookupRemovableUser(request.Context(), fleetID, fleetSecret, targetPath)
 		if errorValue != nil {
@@ -38,18 +38,18 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		}
 		removedUser = userRecord
 		if removedUser != nil {
-			identity, errorValue := service.resolveLocalOrgchartRemovalIdentity(request.Context(), removedUser.Email, removedUser.UserID)
+			identity, errorValue := service.resolveLocalOrganizationRemovalIdentity(request.Context(), removedUser.Email, removedUser.UserID)
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 				return
 			}
-			orgchartMutationIdentities = orgchartProxyMutationIdentities(removedUser.UserID, identity)
-			orgchartMutation, errorValue = service.startOrgchartUserMutation(request.Context(), orgchartMutationIdentities)
+			organizationMutationIdentities = organizationProxyMutationIdentities(removedUser.UserID, identity)
+			organizationMutation, errorValue = service.startOrganizationUserMutation(request.Context(), organizationMutationIdentities)
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 				return
 			}
-			defer orgchartMutation.completeAfterRequest(request.Context())
+			defer organizationMutation.completeAfterRequest(request.Context())
 		}
 		if removedUser != nil && strings.TrimSpace(removedUser.MattermostUserID) != "" {
 			if errorValue := service.deactivateMattermostUserByID(request.Context(), removedUser.MattermostUserID); errorValue != nil {
@@ -67,6 +67,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	var temporaryPassword string
 	var temporaryPasswordEmail string
 	var upsertedName string
+	var upsertedHireDate string
 	var upsertedNote string
 	var upsertedRole string
 	var upsertedCircles []string
@@ -93,7 +94,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			return
 		}
 		payload.UserID = userID
-		_, identity, errorValue := service.resolveLocalOrgchartMutationIdentity(request.Context(), payload)
+		_, identity, errorValue := service.resolveLocalOrganizationMutationIdentity(request.Context(), payload)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
@@ -101,6 +102,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		upsertedBlueclawUserID = identity.UserID
 		upsertedEmail = payload.Email
 		upsertedName = payload.Name
+		upsertedHireDate = payload.HireDate
 		upsertedNote = payload.Note
 		if payload.Role != "admin" && strings.EqualFold(payload.Email, service.authenticatedCallerEmail(request)) {
 			records, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret)
@@ -128,13 +130,13 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			http.Error(responseWriter, "cannot demote the last admin user", http.StatusBadRequest)
 			return
 		}
-		orgchartMutationIdentities = orgchartProxyMutationIdentities(payload.UserID, identity)
-		orgchartMutation, errorValue = service.startOrgchartUserMutation(request.Context(), orgchartMutationIdentities)
+		organizationMutationIdentities = organizationProxyMutationIdentities(payload.UserID, identity)
+		organizationMutation, errorValue = service.startOrganizationUserMutation(request.Context(), organizationMutationIdentities)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer orgchartMutation.completeAfterRequest(request.Context())
+		defer organizationMutation.completeAfterRequest(request.Context())
 		provisionResult, errorValue := service.provisionMattermostUserWithPassword(request.Context(), payload, "")
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -147,19 +149,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		upsertedMattermostUserID = payload.MattermostUserID
 		temporaryPassword = provisionResult.TemporaryPassword
 		temporaryPasswordEmail = payload.Email
-		proxyPayload := map[string]any{
-			"userID":             payload.UserID,
-			"handle":             payload.Handle,
-			"name":               payload.Name,
-			"hireDate":           payload.HireDate,
-			"note":               payload.Note,
-			"fleet_id":           fleetID,
-			"email":              payload.Email,
-			"role":               payload.Role,
-			"mattermostUserID":   payload.MattermostUserID,
-			"mattermostUsername": payload.MattermostUsername,
-			"status":             payload.Status,
-		}
+		proxyPayload := fleetAccountUpsertPayload(payload, fleetID)
 		document, errorValue := json.Marshal(proxyPayload)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -206,6 +196,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			}
 		}
 		if upsertedEmail != "" {
+			service.persistOrganizationHireDate(request.Context(), upsertedUserID, upsertedEmail, upsertedHireDate)
 			var errorValue error
 			if hasExplicitCircleMutation {
 				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedBlueclawUserID, upsertedEmail, upsertedName, upsertedRole, upsertedCircles, &upsertedNote)
@@ -236,8 +227,8 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			}
 			service.triggerUsersSync(request.Context())
 		}
-		if len(orgchartMutationIdentities) > 0 {
-			orgchartMutation.completeAfterSourceMutation(request.Context())
+		if len(organizationMutationIdentities) > 0 {
+			organizationMutation.completeAfterSourceMutation(request.Context())
 		}
 		if request.Method == http.MethodPost && shouldIncludeBlueclawPolicy(request) {
 			if enhancedBody, errorValue := service.withBlueclawCircles(request.Context(), responseBody); errorValue == nil {
@@ -257,16 +248,16 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		}
 		var usersResponse pagesUsersResponse
 		if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue == nil && usersResponse.Records != nil {
-			if metadataResponse, errorValue := service.orgchartMetadataUsersResponse(request.Context(), usersResponse); errorValue == nil {
+			if metadataResponse, errorValue := service.organizationMetadataUsersResponse(request.Context(), usersResponse); errorValue == nil {
 				usersResponse = metadataResponse.response
 				usersResponse.Records = adminUserRecordsWithProfileImages(usersResponse.Records)
 				if enhancedBody, errorValue := json.Marshal(usersResponse); errorValue == nil {
 					responseBody = enhancedBody
 				} else {
-					log.Printf("Orgchart metadata response marshal failed: %v", errorValue)
+					log.Printf("Organization metadata response marshal failed: %v", errorValue)
 				}
 			} else {
-				log.Printf("Orgchart metadata merge failed: %v", errorValue)
+				log.Printf("Organization metadata merge failed: %v", errorValue)
 			}
 			if len(usersResponse.Records) > 0 {
 				if errorValue := service.ensureMattermostBotDirectChannelsForRecords(request.Context(), usersResponse.Records); errorValue != nil {
@@ -280,4 +271,19 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	}
 	responseWriter.WriteHeader(response.StatusCode)
 	_, _ = responseWriter.Write(responseBody)
+}
+
+func fleetAccountUpsertPayload(payload adminUserMutation, fleetID string) map[string]any {
+	return map[string]any{
+		"userID":             payload.UserID,
+		"handle":             payload.Handle,
+		"name":               payload.Name,
+		"note":               payload.Note,
+		"fleet_id":           fleetID,
+		"email":              payload.Email,
+		"role":               payload.Role,
+		"mattermostUserID":   payload.MattermostUserID,
+		"mattermostUsername": payload.MattermostUsername,
+		"status":             payload.Status,
+	}
 }

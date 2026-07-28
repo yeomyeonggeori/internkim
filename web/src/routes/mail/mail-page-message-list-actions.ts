@@ -6,6 +6,7 @@ import {
 	mailMessagePageCacheKey,
 	mailMessagePageCursor,
 	mailMessagePageSize,
+	messagesThroughPage,
 	normalizeMailMessagePageCacheActorEmail
 } from './mail-message-page-cache';
 import type { MailMessagePageCacheEntry, MailPageControllerState, MailPageText } from './mail-page-controller-types';
@@ -107,7 +108,7 @@ function resolvedMessagePageIndex(controller: MailPageControllerState, searchTex
 }
 
 function prepareMessagePageLoading(controller: MailPageControllerState, mailbox: string, searchText: string, pageIndex: number, cachedPage: MailMessagePageCacheEntry | undefined) {
-	const shouldKeepMessages = Boolean(cachedPage) || isCurrentVisiblePage(controller, mailbox, searchText, pageIndex);
+	const shouldKeepMessages = pageIndex > 0 || Boolean(cachedPage) || isCurrentVisiblePage(controller, mailbox, searchText, pageIndex);
 	controller.activeSearchText = searchText;
 	controller.messagePageIndex = pageIndex;
 	controller.nextCursor = cachedPage?.nextCursor ?? '';
@@ -131,8 +132,8 @@ async function applyMessagePage(controller: MailPageControllerState, text: MailP
 	controller.nextCursor = page.nextCursor;
 	controller.hasMoreMessages = page.nextCursor !== '';
 	mergeMessageDetailCache(controller.messageDetailCache, page.messages);
-	controller.messages = page.messages;
-	controller.selectedMessage = selectedVisibleMessage(controller.visibleMessages(), controller.selectedMessage);
+	controller.messages = messagesThroughPage(controller.messageListCache, page.actorEmail, page.mailbox, page.searchText, page.pageIndex);
+	controller.selectedMessage = selectedVisibleMessage(controller.visibleMessages(), controller.selectedMessage, controller.canSelectFirstMessage);
 	controller.errorMessage = '';
 	controller.isLoadingMessages = false;
 	if (!controller.selectedMessage) return;

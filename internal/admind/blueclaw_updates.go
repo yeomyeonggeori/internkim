@@ -331,6 +331,38 @@ func alreadyCurrentBlueclawUpdateJobResult(metadata *blueclawUpdateArtifactMetad
 	return result
 }
 
+func (service *Service) reconcileBlueclawRuntimeConfiguration(ctx context.Context) {
+	targets := service.blueclawPayloadInstallTargets()
+	if len(targets) == 0 {
+		targets = []blueclawPayloadInstallTarget{canonicalBlueclawPayloadInstallTarget()}
+	}
+	for _, target := range targets {
+		if service.tenantServiceIsDisabled(ctx, target.ServiceName) {
+			continue
+		}
+		service.reconcileBlueclawRuntimeConfigurationForTarget(ctx, target)
+	}
+}
+
+func (service *Service) reconcileBlueclawRuntimeConfigurationForTarget(ctx context.Context, target blueclawPayloadInstallTarget) {
+	if isBlueclawRuntimeConfigurationCurrentForTarget(target) {
+		return
+	}
+	log.Printf("Blueclaw runtime configuration for %s is stale: restamping with this admind's capability contract", target.Name)
+	if errorValue := syncBlueclawRuntimeConfigurationForTarget(target); errorValue != nil {
+		log.Printf("Blueclaw runtime configuration restamp for %s failed: %v", target.Name, errorValue)
+		return
+	}
+	job := service.newJob("blueclaw-runtime-reconcile")
+	if errorValue := service.syncBlueclawWorkspaceImageForTarget(ctx, job.JobID, target); errorValue != nil {
+		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
+		service.updateJob(job.JobID, "failed", "workspace_sync", errorValue.Error())
+		log.Printf("Blueclaw workspace image sync after runtime configuration restamp for %s failed: %v", target.Name, errorValue)
+		return
+	}
+	service.finishBlueclawUpdateJob(job.JobID, "completed", map[string]string{"runtimeConfigurationRestamped": "true"})
+}
+
 func (service *Service) syncBlueclawWorkspaceImages(ctx context.Context, jobID string) error {
 	targets := service.blueclawPayloadInstallTargets()
 	if len(targets) == 0 {

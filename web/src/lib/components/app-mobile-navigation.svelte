@@ -10,19 +10,14 @@
 
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { floatingAction } from '$lib/stores/floating-action.svelte';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
-	import BadgeCheckIcon from '@lucide/svelte/icons/badge-check';
-	import BellIcon from '@lucide/svelte/icons/bell';
-	import LogOutIcon from '@lucide/svelte/icons/log-out';
+	import PowerOffIcon from '@lucide/svelte/icons/power-off';
 	import MoreHorizontalIcon from '@lucide/svelte/icons/more-horizontal';
-	import SettingsIcon from '@lucide/svelte/icons/settings';
 
 	type AppMobileNavigationText = {
 		activeWorkspace: string;
-		account: string;
-		activity: string;
-		apiTokens: string;
 		apps: string;
 		close: string;
 		logOut: string;
@@ -31,23 +26,19 @@
 	};
 
 	let {
-		canViewAdminNavigation,
 		displayUserName,
 		isActive,
 		logOut,
 		moreItems,
-		openAPITokenSheet,
 		primaryItems,
 		text,
 		userEmail,
 		userImage
 	}: {
-		canViewAdminNavigation: boolean;
 		displayUserName: string;
 		isActive: (href: string) => boolean;
-		logOut: () => Promise<void>;
+		logOut: () => void | Promise<void>;
 		moreItems: AppMobileNavigationItem[];
-		openAPITokenSheet: () => void;
 		primaryItems: AppMobileNavigationItem[];
 		text: AppMobileNavigationText;
 		userEmail: string;
@@ -65,11 +56,6 @@
 
 	function closeMoreSheet() {
 		isMoreSheetOpen = false;
-	}
-
-	function openMobileAPITokenSheet() {
-		closeMoreSheet();
-		openAPITokenSheet();
 	}
 
 	async function logOutFromMobile() {
@@ -118,38 +104,12 @@
 			</div>
 		</div>
 		<div class="mt-2 grid gap-1">
-			{#if canViewAdminNavigation}
-				<a
-					href="/admin/"
-					onclick={closeMoreSheet}
-					class="flex min-h-10 items-center gap-3 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-				>
-					<BadgeCheckIcon class="size-4" />
-					<span>{text.account}</span>
-				</a>
-			{/if}
-			<button
-				type="button"
-				onclick={openMobileAPITokenSheet}
-				class="flex min-h-10 items-center gap-3 rounded-md px-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-			>
-				<SettingsIcon class="size-4" />
-				<span>{text.apiTokens}</span>
-			</button>
-			<a
-				href="/flow/"
-				onclick={closeMoreSheet}
-				class="flex min-h-10 items-center gap-3 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-			>
-				<BellIcon class="size-4" />
-				<span>{text.activity}</span>
-			</a>
 			<button
 				type="button"
 				onclick={logOutFromMobile}
 				class="flex min-h-10 items-center gap-3 rounded-md px-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 			>
-				<LogOutIcon class="size-4" />
+				<PowerOffIcon class="size-4" />
 				<span>{text.logOut}</span>
 			</button>
 		</div>
@@ -176,7 +136,8 @@
 
 <nav
 	data-app-chrome
-	class="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 grid h-[4.25rem] w-[min(calc(100vw-1.5rem),30rem)] -translate-x-1/2 grid-cols-5 gap-1 rounded-full border border-sidebar-border/70 bg-background/[0.82] p-1.5 shadow-[0_18px_45px_rgb(15_23_42_/_0.16)] backdrop-blur-md supports-backdrop-filter:bg-background/[0.78] md:hidden"
+	class="internkim-app-mobile-navigation grid grid-cols-5 gap-1 rounded-full border border-sidebar-border/70 bg-background/[0.82] shadow-[0_18px_45px_rgb(15_23_42_/_0.16)] backdrop-blur-md supports-backdrop-filter:bg-background/[0.78] sm:hidden"
+	data-has-floating-action={floatingAction.isPresent}
 	aria-label={text.apps}
 >
 	{#each primaryItems as item (item.href)}

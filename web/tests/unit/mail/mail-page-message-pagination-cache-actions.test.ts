@@ -46,6 +46,36 @@ describe('mail page message pagination cache actions', () => {
 		expect(controller.messages).toEqual([olderInboxMessage]);
 	});
 
+	test('appends the next page onto the messages already shown', async () => {
+		const olderInboxMessage = { ...inboxMessage, uid: 3, subject: 'Older inbox' };
+		const controller = createController({
+			messages: [inboxMessage],
+			nextCursor: 'next-page',
+			hasMoreMessages: true,
+			messageListCache: new Map([
+				[
+					messagePageCacheKey('staff@example.com', 'INBOX', '', 0),
+					{
+						actorEmail: 'staff@example.com',
+						mailbox: 'INBOX',
+						searchText: '',
+						pageIndex: 0,
+						cursor: '',
+						messages: [inboxMessage],
+						nextCursor: 'next-page',
+						fetchedAt: Date.now()
+					}
+				]
+			])
+		});
+		mailMessageListResponses.push(Promise.resolve({ messages: [olderInboxMessage], nextCursor: '' }));
+
+		await loadMessagesPage(controller, mailText.ko, { mode: 'cache-first', pageIndex: 1 });
+
+		expect(controller.messages).toEqual([inboxMessage, olderInboxMessage]);
+		expect(controller.hasMoreMessages).toBe(false);
+	});
+
 	test('keeps cached message detail while refreshing the list envelope', async () => {
 		const cachedMessage = { ...inboxMessage, body: 'Cached detail' };
 		const freshMessage = { ...inboxMessage, subject: 'Fresh inbox' };

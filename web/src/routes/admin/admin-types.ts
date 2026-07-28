@@ -2,7 +2,7 @@ import type { adminText } from './text';
 
 export type UserRole = 'admin' | 'operationsAdmin' | 'member';
 export type WorkspaceLanguage = 'ko' | 'en';
-export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'settings' | 'sharing' | 'network' | 'buzz';
+export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'settings' | 'sharing' | 'network' | 'buzz' | 'apiTokens';
 
 export type BuzzInviteRecord = {
 	code: string;
@@ -25,9 +25,8 @@ export type UserRecord = {
 	role: UserRole;
 	circles?: string[];
 	jobTitle?: string;
-	group?: string;
-	primaryGroupID?: string;
-	groupIDs?: string[];
+	groupID?: string;
+	phoneNumber?: string;
 	supervisorID?: string;
 	mattermostUserID?: string;
 	mattermostUsername?: string;
@@ -144,6 +143,7 @@ export type CredentialProvidersResponse = {
 export type WorkspaceSettings = {
 	timeZone: string;
 	language: WorkspaceLanguage;
+	callingCode: string;
 	updatedAt?: string;
 };
 

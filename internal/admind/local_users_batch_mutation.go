@@ -47,7 +47,7 @@ func (service *Service) localUpsertUsersBatch(responseWriter http.ResponseWriter
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	mutation, errorValue := service.startOrgchartUserMutation(request.Context(), identities)
+	mutation, errorValue := service.startOrganizationUserMutation(request.Context(), identities)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -89,11 +89,11 @@ func normalizeLocalBatchUsers(users []adminUserMutation) ([]normalizedLocalBatch
 	return normalizedUsers, nil
 }
 
-func (service *Service) resolveLocalBatchUserIdentities(ctx context.Context, users []normalizedLocalBatchUser) ([]normalizedLocalBatchUser, []orgchartPersonIdentity, error) {
+func (service *Service) resolveLocalBatchUserIdentities(ctx context.Context, users []normalizedLocalBatchUser) ([]normalizedLocalBatchUser, []organizationPersonIdentity, error) {
 	resolvedUsers := append([]normalizedLocalBatchUser(nil), users...)
-	identities := make([]orgchartPersonIdentity, 0, len(users))
+	identities := make([]organizationPersonIdentity, 0, len(users))
 	for index, normalizedUser := range users {
-		payload, identity, errorValue := service.resolveLocalOrgchartMutationIdentity(ctx, normalizedUser.payload)
+		payload, identity, errorValue := service.resolveLocalOrganizationMutationIdentity(ctx, normalizedUser.payload)
 		if errorValue != nil {
 			return nil, nil, errorValue
 		}

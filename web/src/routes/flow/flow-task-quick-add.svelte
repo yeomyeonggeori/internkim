@@ -1,14 +1,11 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import AppFloatingActionButton from '$lib/components/app-floating-action-button.svelte';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import XIcon from '@lucide/svelte/icons/x';
 	import { FlowTaskQuickAddController } from './flow-task-quick-add-controller.svelte';
-	import FlowTaskQuickAddLauncher from './flow-task-quick-add-launcher.svelte';
 	import FlowTaskQuickAddPanel from './flow-task-quick-add-panel.svelte';
-	import {
-		quickAddLauncherClass,
-		quickAddLauncherContentClass,
-		quickAddOverlayClass,
-		quickAddPanelClass
-	} from './flow-task-quick-add-style';
+	import { quickAddOverlayClass, quickAddPanelClass } from './flow-task-quick-add-style';
 	import type { FlowQuickTaskCreateResult } from './flow-types';
 	import { flowText } from './text';
 
@@ -38,10 +35,7 @@
 
 	const quickAddPanel = new FlowTaskQuickAddController();
 
-	let launcherClass = $derived(quickAddLauncherClass(quickAddPanel.isOpen));
 	let launcherLabel = $derived(quickAddPanel.isOpen ? text.quickAddClose : text.quickAdd);
-	let closedLauncherContentClass = $derived(quickAddLauncherContentClass(!quickAddPanel.isOpen));
-	let openLauncherContentClass = $derived(quickAddLauncherContentClass(quickAddPanel.isOpen));
 	let panelClass = $derived(quickAddPanelClass(quickAddPanel.isPanelVisible));
 	let overlayClass = $derived(quickAddOverlayClass(quickAddPanel.isPanelVisible));
 
@@ -102,17 +96,21 @@
 	</div>
 {/if}
 
-<FlowTaskQuickAddLauncher
-	isOpen={quickAddPanel.isOpen}
-	{hasMembers}
-	{launcherClass}
-	closedContentClass={closedLauncherContentClass}
-	openContentClass={openLauncherContentClass}
-	{launcherLabel}
-	quickAddLabel={text.quickAdd}
-	bind:launcherElement={quickAddPanel.launcherElement}
-	{toggleQuickAddPanel}
-/>
+<AppFloatingActionButton
+	bind:ref={quickAddPanel.launcherElement}
+	label={launcherLabel}
+	data-flow-quick-add-launcher
+	aria-controls="flow-ai-quick-add-panel"
+	aria-expanded={quickAddPanel.isOpen}
+	disabled={!hasMembers && !quickAddPanel.isOpen}
+	onclick={toggleQuickAddPanel}
+>
+	{#if quickAddPanel.isOpen}
+		<XIcon />
+	{:else}
+		<PlusIcon />
+	{/if}
+</AppFloatingActionButton>
 
 <style>
 	:global(body:has([data-slot='sheet-content'][data-state='open']) [data-flow-quick-add-launcher][aria-expanded='false']),

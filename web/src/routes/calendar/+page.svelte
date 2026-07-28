@@ -2,10 +2,11 @@
 	import { browser } from '$app/environment';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { onMount } from 'svelte';
 	import type { CalendarNavigationMessage } from './calendar-navigation-message';
 	import { calendarText } from './text';
-	import { calendarNavigation, calendarRefresh } from './refresh-signal.svelte';
+	import { bumpCalendarRefresh, calendarNavigation, calendarRefresh } from './refresh-signal.svelte';
 
 	const text = createPageText(calendarText);
 	const iframeKey = $derived(`${calendarRefresh.ticks}-${currentLocale.value}`);
@@ -26,6 +27,7 @@
 
 	onMount(() => {
 		embedQuery = window.location.search;
+		return pageActions.setRefresh(bumpCalendarRefresh);
 	});
 
 	function handleCalendarFrameLoad() {

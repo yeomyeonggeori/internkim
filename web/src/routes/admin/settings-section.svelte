@@ -25,8 +25,8 @@
 	let { adminBaseURL, isDeviceReachable, text }: SettingsSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
-	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko' });
-	let workspaceSettingsDraft = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko' });
+	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko', callingCode: '82' });
+	let workspaceSettingsDraft = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko', callingCode: '82' });
 	let workspaceSettingsMessage = $state('');
 	let isLoadingWorkspaceSettings = $state(false);
 	let isSavingWorkspaceSettings = $state(false);
@@ -53,6 +53,7 @@
 		return {
 			timeZone: settings.timeZone?.trim() || 'system',
 			language: settings.language === 'en' ? 'en' : 'ko',
+			callingCode: settings.callingCode?.replace(/[^0-9]/g, '') || '82',
 			updatedAt: settings.updatedAt
 		};
 	}
@@ -160,7 +161,7 @@
 			<Badge variant="outline">{workspaceLanguageOptions().find((option) => option.value === workspaceSettings.language)?.label}</Badge>
 		</div>
 	</div>
-	<div class="grid gap-3 md:grid-cols-[1fr_220px_auto] md:items-end">
+	<div class="grid gap-3 md:grid-cols-[1fr_160px_220px_auto] md:items-end">
 		<div>
 			<label class="text-xs font-medium text-muted-foreground" for="workspace-time-zone">{text.settings.timeZone}</label>
 			<Input
@@ -172,6 +173,19 @@
 				class="mt-1"
 			/>
 			<p class="mt-2 text-xs text-muted-foreground">{text.settings.timeZoneHint}</p>
+		</div>
+		<div>
+			<label class="text-xs font-medium text-muted-foreground" for="workspace-calling-code">{text.settings.callingCode}</label>
+			<Input
+				id="workspace-calling-code"
+				bind:value={workspaceSettingsDraft.callingCode}
+				placeholder={text.settings.callingCodePlaceholder}
+				disabled={isLoadingWorkspaceSettings}
+				autocomplete="off"
+				inputmode="numeric"
+				class="mt-1"
+			/>
+			<p class="mt-2 text-xs text-muted-foreground">{text.settings.callingCodeHint}</p>
 		</div>
 		<label class="grid gap-1.5">
 			<span class="text-xs font-medium text-muted-foreground">{text.settings.workspaceLanguageTitle}</span>

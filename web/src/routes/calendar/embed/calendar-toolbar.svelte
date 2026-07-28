@@ -1,49 +1,39 @@
 <script lang="ts">
+	import { Button } from '$lib/components/ui/button';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { ViewType } from '@dayflow/svelte';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { calendarText } from '../text';
 	import { dateKeyFromDate } from './calendar-month-selection';
-	import type { CalendarSearchResult } from './calendar-search';
-	import CalendarSearchBox from './calendar-search-box.svelte';
 	import CalendarToolbarDatePicker from './calendar-toolbar-date-picker.svelte';
 	import CalendarViewSwitcher from './calendar-view-switcher.svelte';
 
 	type CalendarToolbarProps = {
 		currentMonthTitle: string;
 		toolbarDate: Date;
-		searchText: string;
-		searchResults: CalendarSearchResult[];
 		toolbarView: ViewType;
 		localeCode: string;
 		changeCalendarView: (viewType: ViewType) => void;
 		goToPrevious: () => void;
 		goToNext: () => void;
 		navigateToDateKey: (dateKey: string) => void;
-		navigateToSearchResult: (result: CalendarSearchResult) => void;
 		createQuickEvent: (event: MouseEvent) => void;
 		openSettings: () => void;
-		refreshCalendar: () => void;
 	};
 
 	let {
 		currentMonthTitle,
 		toolbarDate,
-		searchText = $bindable(''),
-		searchResults,
 		toolbarView,
 		localeCode,
 		changeCalendarView,
 		goToPrevious,
 		goToNext,
 		navigateToDateKey,
-		navigateToSearchResult,
 		createQuickEvent,
-		openSettings,
-		refreshCalendar
+		openSettings
 	}: CalendarToolbarProps = $props();
 
 	const text = createPageText(calendarText);
@@ -91,21 +81,21 @@
 <header class="calendar-toolbar">
 	<div class="calendar-toolbar-left">
 		<div class="calendar-date-navigation">
-			<button type="button" class="toolbar-icon-button" aria-label={text.previous} onclick={navigatePrevious}>
-				<ChevronLeftIcon class="size-4" />
-			</button>
-			<button
-				type="button"
+			<Button variant="ghost" size="icon-sm" aria-label={text.previous} onclick={navigatePrevious}>
+				<ChevronLeftIcon />
+			</Button>
+			<Button
+				variant="ghost"
 				class="calendar-toolbar-title"
 				aria-haspopup="dialog"
 				aria-expanded={isDatePickerOpen}
 				onclick={toggleDatePicker}
 			>
 				{currentMonthTitle}
-			</button>
-			<button type="button" class="toolbar-icon-button" aria-label={text.next} onclick={navigateNext}>
-				<ChevronRightIcon class="size-4" />
-			</button>
+			</Button>
+			<Button variant="ghost" size="icon-sm" aria-label={text.next} onclick={navigateNext}>
+				<ChevronRightIcon />
+			</Button>
 			{#if isDatePickerOpen}
 				<CalendarToolbarDatePicker
 					selectedDate={toolbarDate}
@@ -118,30 +108,21 @@
 		</div>
 	</div>
 	<div class="calendar-toolbar-actions">
-		<button type="button" class="toolbar-icon-button" aria-label={text.refresh} onclick={refreshCalendar}>
-			<RefreshCwIcon class="size-4" />
-		</button>
-		<button type="button" class="toolbar-button settings-button" onclick={openSettings}>
+		<Button variant="outline" size="sm" class="shrink-0" onclick={openSettings}>
 			{text.settings}
-		</button>
+		</Button>
 	</div>
 	<div class="calendar-toolbar-search-row">
-		<CalendarSearchBox bind:searchText {searchResults} {navigateToSearchResult} />
-		<button
-			type="button"
-			class="new-event-button mobile-new-event-button"
-			aria-label={text.new}
-			onclick={(event) => createQuickEvent(event)}
-		>
-			<PlusIcon class="size-4" />
-			<span>{text.new}</span>
-		</button>
+		<Button size="sm" class="mobile-new-event-button shrink-0" aria-label={text.new} onclick={(event) => createQuickEvent(event)}>
+			<PlusIcon />
+			{text.new}
+		</Button>
 	</div>
 	<CalendarViewSwitcher {toolbarView} {changeCalendarView} />
-	<button type="button" class="new-event-button desktop-new-event-button" onclick={(event) => createQuickEvent(event)}>
-		<PlusIcon class="size-4" />
-		<span>{text.new}</span>
-	</button>
+	<Button size="sm" class="desktop-new-event-button shrink-0" onclick={(event) => createQuickEvent(event)}>
+		<PlusIcon />
+		{text.new}
+	</Button>
 </header>
 
 <style>
@@ -151,8 +132,8 @@
 		flex-shrink: 0;
 		align-items: center;
 		gap: 8px;
-		border-bottom: 1px solid #e1e5eb;
-		background: #ffffff;
+		border-bottom: 1px solid var(--color-border);
+		background: var(--color-background);
 		padding: 0 16px;
 	}
 
@@ -167,68 +148,12 @@
 		position: relative;
 		display: inline-flex;
 		align-items: center;
-		gap: 12px;
+		gap: 4px;
 	}
 
-	.toolbar-button,
-	.toolbar-icon-button,
-	.new-event-button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-		border: 1px solid #e5e7eb;
-		background: #ffffff;
-		color: #111827;
-		font-weight: 600;
-		white-space: nowrap;
-		transition:
-			background-color 120ms ease,
-			border-color 120ms ease,
-			color 120ms ease,
-			box-shadow 120ms ease;
-	}
-
-	.toolbar-button:hover,
-	.toolbar-icon-button:hover {
-		background: #f4f4f5;
-	}
-
-	.settings-button {
-		height: 36px;
-		min-width: 56px;
-		border-radius: 8px;
-		padding: 0 12px;
-		font-size: 14px;
-	}
-
-	.toolbar-icon-button {
-		width: 32px;
-		height: 32px;
-		border-color: transparent;
-		border-radius: 8px;
-	}
-
-	.calendar-toolbar-title {
-		display: inline-flex;
-		height: 36px;
-		align-items: center;
-		justify-content: center;
-		margin: 0;
-		border: 0;
-		border-radius: 8px;
-		background: transparent;
-		padding: 0 8px;
-		color: #111827;
-		white-space: nowrap;
+	:global(.calendar-toolbar-title) {
 		font-size: 20px;
-		font-weight: 800;
-		line-height: 1;
-		letter-spacing: 0;
-	}
-
-	.calendar-toolbar-title:hover {
-		background: #f4f4f5;
+		font-weight: 700;
 	}
 
 	.calendar-toolbar-actions {
@@ -239,46 +164,16 @@
 		margin-left: auto;
 	}
 
+	.calendar-toolbar-left {
+		flex-shrink: 0;
+	}
+
 	.calendar-toolbar-search-row {
 		display: contents;
 	}
 
-	.mobile-new-event-button {
+	:global(.mobile-new-event-button) {
 		display: none;
-	}
-
-	.new-event-button {
-		height: 36px;
-		gap: 8px;
-		border-color: transparent;
-		border-radius: 8px;
-		background: oklch(0.55 0.19 255);
-		padding: 0 14px;
-		color: #ffffff;
-		font-size: 14px;
-	}
-
-	.new-event-button:hover {
-		background: color-mix(in oklch, oklch(0.55 0.19 255) 88%, black);
-	}
-
-	:global(html.dark) .calendar-toolbar {
-		border-bottom-color: #27272a;
-		background: #09090b;
-	}
-
-	:global(html.dark) .toolbar-button,
-	:global(html.dark) .toolbar-icon-button,
-	:global(html.dark) .calendar-toolbar-title {
-		border-color: #27272a;
-		background: #09090b;
-		color: #f4f4f5;
-	}
-
-	:global(html.dark) .toolbar-button:hover,
-	:global(html.dark) .toolbar-icon-button:hover,
-	:global(html.dark) .calendar-toolbar-title:hover {
-		background: #18181b;
 	}
 
 	@media (max-width: 767px) {
@@ -289,7 +184,7 @@
 			padding: 10px;
 		}
 
-		.calendar-toolbar-title {
+		:global(.calendar-toolbar-title) {
 			font-size: 16px;
 		}
 
@@ -314,20 +209,13 @@
 			margin-left: 0;
 		}
 
-		.desktop-new-event-button {
+		:global(.desktop-new-event-button) {
 			display: none;
 		}
 
-		.mobile-new-event-button {
+		:global(.mobile-new-event-button) {
 			display: inline-flex;
-			width: 40px;
 			margin-left: auto;
-			gap: 0;
-			padding: 0;
-		}
-
-		.mobile-new-event-button span {
-			display: none;
 		}
 	}
 </style>

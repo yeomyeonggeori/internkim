@@ -1,4 +1,5 @@
 import type { AttendanceSummary } from './src/routes/attendance/attendance-context.svelte';
+import { statusForDay } from './src/routes/attendance/shared/attendance-aggregation';
 import { todayDateInTimeZone } from './src/routes/attendance/shared/attendance-date';
 import { buildAttendanceAbsenceFixtures } from './dev-attendance-absence-fixtures';
 import { devAttendanceLocations, devAttendancePeople, devAttendancePresences } from './dev-attendance-fixture-data';
@@ -49,11 +50,12 @@ function buildSummary(
 	absences: AttendanceSummary['absences'],
 	serverTime: Date
 ): AttendanceSummary {
+	const currentUserEmail = devAttendancePeople[0].email;
 	return {
 		month,
 		serverTime: serverTime.toISOString(),
 		timeZoneAuthoritative: true,
-		currentUserEmail: 'kim@example.com',
+		currentUserEmail,
 		isAdmin: true,
 		timeZone: 'Asia/Seoul',
 		events,
@@ -63,10 +65,25 @@ function buildSummary(
 			displayName: person.name,
 			mattermostUsername: person.mattermostUsername,
 		})),
-		todayStatus: '근무 중',
+		todayStatus: attendanceStatusForToday(events, absences, currentUserEmail, serverTime),
 		locations: devAttendanceLocations,
 		teamViewVisibleToAll: true,
 		teamViewBlocked: false,
 		presences: devAttendancePresences,
 	};
+}
+
+function attendanceStatusForToday(
+	events: AttendanceSummary['events'],
+	absences: AttendanceSummary['absences'],
+	email: string,
+	serverTime: Date
+): string {
+	const todayDate = todayDateInTimeZone('Asia/Seoul', serverTime);
+	const myEvents = events.filter((event) => event.email === email);
+	const myAbsences = absences.filter((absence) => absence.email === email);
+	const status = statusForDay(todayDate, myEvents, myAbsences, todayDate);
+	if (status === 'working') return 'clocked_in';
+	if (status === 'finished') return 'clocked_out';
+	return 'not_clocked_in';
 }

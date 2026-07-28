@@ -1,1 +1,0 @@
-<div class="mx-[18px] my-1 h-px w-6 bg-sidebar-border transition-[width,margin] duration-150 ease-out group-hover:mx-4 group-hover:w-48 group-focus-within:mx-4 group-focus-within:w-48 group-data-[profile-open=true]:mx-4 group-data-[profile-open=true]:w-48" aria-hidden="true"></div>
