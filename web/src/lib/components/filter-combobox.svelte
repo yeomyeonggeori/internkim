@@ -44,7 +44,7 @@
 	let open = $state(false);
 	let triggerRef = $state<HTMLButtonElement>(null!);
 
-	const selectedLabel = $derived(options.find((option) => option.value === value && option.value !== clearValue)?.label);
+	const selectedOption = $derived(options.find((option) => option.value === value && option.value !== clearValue));
 
 	function selectOption(optionValue: string) {
 		const nextValue = value === optionValue ? clearValue : optionValue;
@@ -65,7 +65,16 @@
 	<Popover.Trigger bind:ref={triggerRef}>
 		{#snippet child({ props })}
 			<Button {...props} variant="outline" class={cn('w-[200px] justify-between', className)} role="combobox" aria-expanded={open}>
-				{selectedLabel || label}
+				<span class="flex min-w-0 items-center gap-2">
+					{@render icon?.()}
+					{#if !selectedOption}
+						{label}
+					{:else if optionContent}
+						{@render optionContent(selectedOption)}
+					{:else}
+						{selectedOption.label}
+					{/if}
+				</span>
 				<ChevronsUpDownIcon class="opacity-50" />
 			</Button>
 		{/snippet}
