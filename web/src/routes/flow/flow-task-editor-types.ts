@@ -5,6 +5,7 @@ export type FlowTaskEditorOption = {
 
 export type FlowTaskEditorText = {
 	editTitle: string;
+	detailTitle: string;
 	createTitle: string;
 	content: string;
 	contentPlaceholder: string;
