@@ -1,16 +1,14 @@
 <script lang="ts">
 	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import { floatingAction } from '$lib/stores/floating-action.svelte';
-	import type { Snippet } from 'svelte';
+	import type { ComponentProps, Snippet } from 'svelte';
 
-	type Props = {
+	type Props = ComponentProps<typeof TooltipIconButton> & {
 		label: string;
-		disabled?: boolean;
-		onclick: () => void;
 		children: Snippet;
 	};
 
-	let { label, disabled = false, onclick, children }: Props = $props();
+	let { label, children, ref = $bindable(null), ...buttonProps }: Props = $props();
 
 	$effect(() => {
 		floatingAction.isPresent = true;
@@ -21,12 +19,12 @@
 </script>
 
 <TooltipIconButton
+	bind:ref
 	{label}
 	side="left"
 	class="internkim-app-floating-action size-14 rounded-full shadow-lg [&_svg:not([class*='size-'])]:size-5"
 	size="icon"
-	{disabled}
-	{onclick}
+	{...buttonProps}
 >
 	{@render children()}
 </TooltipIconButton>
