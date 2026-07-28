@@ -13,7 +13,8 @@ import {
 	canDeleteFlowTask,
 	canManageFlowTaskAssignment,
 	canRemoveFlowTaskParticipant,
-	canUpdateFlowTask
+	canUpdateFlowTask,
+	currentFlowMember
 } from './flow-task-workspace-model';
 import { flowText } from './text';
 import type { FlowMember, FlowSummary, FlowTask } from './flow-types';
@@ -133,6 +134,7 @@ export class FlowTaskEditorController {
 		this.isEditingTask = false;
 	};
 
+	isOwnTask = (task: FlowTask): boolean => currentFlowMember(this.summary)?.id === task.ownerID;
 	canUpdateTask = (task: FlowTask): boolean => canUpdateFlowTask(this.summary, task);
 	canDeleteTask = (task: FlowTask): boolean => canDeleteFlowTask(this.summary, task);
 	canManageTaskAssignment = (task: FlowTask): boolean => canManageFlowTaskAssignment(this.summary, task);

@@ -160,6 +160,7 @@
 	canUpdateTask={page.canUpdateTask}
 	canDeleteTask={page.canDeleteTask}
 	canManageTaskAssignment={page.canManageTaskAssignment}
+	isOwnTask={page.editor.isOwnTask}
 	startEditingTask={page.editor.startEditingTask}
 	closeEditor={page.closeEditor}
 />
