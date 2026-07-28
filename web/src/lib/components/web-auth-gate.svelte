@@ -65,11 +65,9 @@
 		errorMessage = '';
 		try {
 			buzzIdentity.secretHex = await work();
-			password = '';
-			isAuthenticated = true;
+			location.reload();
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.webSessionUnavailable;
-		} finally {
 			busy = false;
 		}
 	}
