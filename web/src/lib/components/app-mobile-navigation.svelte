@@ -10,6 +10,7 @@
 
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { floatingAction } from '$lib/stores/floating-action.svelte';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import PowerOffIcon from '@lucide/svelte/icons/power-off';
@@ -135,7 +136,8 @@
 
 <nav
 	data-app-chrome
-	class="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 grid h-[4.25rem] w-[min(calc(100vw-1.5rem),30rem)] -translate-x-1/2 grid-cols-5 gap-1 rounded-full border border-sidebar-border/70 bg-background/[0.82] p-1.5 shadow-[0_18px_45px_rgb(15_23_42_/_0.16)] backdrop-blur-md supports-backdrop-filter:bg-background/[0.78] md:hidden"
+	class="internkim-app-mobile-navigation grid grid-cols-5 gap-1 rounded-full border border-sidebar-border/70 bg-background/[0.82] shadow-[0_18px_45px_rgb(15_23_42_/_0.16)] backdrop-blur-md supports-backdrop-filter:bg-background/[0.78] sm:hidden"
+	data-has-floating-action={floatingAction.isPresent}
 	aria-label={text.apps}
 >
 	{#each primaryItems as item (item.href)}

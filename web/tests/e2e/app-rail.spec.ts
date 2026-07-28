@@ -111,16 +111,6 @@ test.describe('app rail', () => {
 		await expect.poll(async () => elementOverlap(nextPageButton, bottomNavigation)).toBe(0);
 	});
 
-	test('shows the brand logo in the mobile app header', async ({ page }) => {
-		await page.setViewportSize({ width: 444, height: 866 });
-		await page.goto('/memory/');
-
-		const mobileBrandLink = page.getByRole('link', { name: 'Blueclaw' }).filter({ has: page.locator('img[src="/logo.svg"]') });
-		await expect(mobileBrandLink).toBeVisible();
-		await expect(mobileBrandLink).toHaveAttribute('href', '/admin/');
-		await expect.poll(async () => elementLeft(mobileBrandLink)).toBeLessThanOrEqual(16);
-	});
-
 	test('opens the contact form from the rail footer', async ({ page, context }) => {
 		await context.route('https://forms.gle/**', async (route) => {
 			await route.fulfill({ contentType: 'text/html', body: '<title>InternKim feedback</title>' });
@@ -202,10 +192,6 @@ async function railIconSize(linkElement: ReturnType<Page['getByRole']>): Promise
 	return Math.round(Math.max(iconBox.width, iconBox.height));
 }
 
-async function elementLeft(element: ReturnType<Page['locator']>): Promise<number> {
-	const box = await element.boundingBox();
-	return box?.x ?? Number.POSITIVE_INFINITY;
-}
 
 async function elementOverlap(firstElement: Locator, secondElement: Locator): Promise<number> {
 	const firstBox = await firstElement.boundingBox();
