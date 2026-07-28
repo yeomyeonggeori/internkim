@@ -46,7 +46,8 @@ func (service *Service) personBuzzSecret(ctx context.Context, email string) (str
 	if seed == "" {
 		return "", errBuzzKeySeedMissing
 	}
-	secretHex := buzzidentity.Secret(seed, email)
+	version := service.buzzIdentityVersion(subject)
+	secretHex := buzzidentity.Secret(seed, versionedSubject(email, version))
 	if errorValue := service.storeBuzzIdentitySecret(subject, secretHex); errorValue != nil {
 		log.Printf("buzz identity vault pin failed for %s: %v", subject, errorValue)
 	}
