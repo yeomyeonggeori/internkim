@@ -1,6 +1,12 @@
 <script lang="ts">
+	import AppFloatingActionButton from '$lib/components/app-floating-action-button.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
+	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import * as Sidebar from '$lib/components/ui/sidebar';
+	import { page as navigationPage } from '$app/state';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { onMount } from 'svelte';
 	import MailComposeSheet from './mail-compose-sheet.svelte';
 	import MailMessageDetail from './mail-message-detail.svelte';
@@ -12,6 +18,47 @@
 
 	const text = createPageText(mailText);
 	const page = createMailPageController(text);
+	const requestedMessage = $derived(requestedMailboxMessage(navigationPage.url.searchParams));
+	let appliedMessageKey = '';
+
+	function requestedMailboxMessage(searchParams: URLSearchParams) {
+		const mailbox = searchParams.get('mailbox') ?? '';
+		const uid = Number(searchParams.get('uid'));
+		if (!mailbox || !Number.isFinite(uid) || uid <= 0) return null;
+		return { mailbox, uid };
+	}
+
+	const fitsWideSidebar = new MediaQuery('min-width: 1280px');
+	const fitsTwoPanes = new MediaQuery('min-width: 1024px');
+	const fitsSidebarRail = new MediaQuery('min-width: 640px');
+	const isDetailInline = $derived(fitsTwoPanes.current);
+	const isStackedDetail = $derived(!isDetailInline && page.selectedMessage !== null);
+	const paneColumns = $derived(isDetailInline ? 'grid-cols-[minmax(300px,380px)_minmax(0,1fr)]' : 'grid-cols-1');
+
+	let isMailboxSidebarOpen = $state(true);
+
+	$effect(() => {
+		isMailboxSidebarOpen = fitsWideSidebar.current;
+	});
+
+	$effect(() => {
+		page.canSelectFirstMessage = isDetailInline;
+	});
+
+	$effect(() => {
+		breadcrumbMeta.value = page.selectedMailboxLabel();
+		return () => {
+			breadcrumbMeta.value = '';
+		};
+	});
+
+	$effect(() => {
+		if (!page.hasLoadedAccount || !requestedMessage) return;
+		const messageKey = `${requestedMessage.mailbox}:${requestedMessage.uid}`;
+		if (messageKey === appliedMessageKey) return;
+		appliedMessageKey = messageKey;
+		void page.openMailboxMessage(requestedMessage.mailbox, requestedMessage.uid);
+	});
 
 	onMount(() => {
 		void page.loadMail();
@@ -23,7 +70,52 @@
 	<title>{text.title}</title>
 </svelte:head>
 
-<main class="grid h-[calc(100svh-48px)] min-h-0 w-full flex-1 grid-cols-[240px_minmax(320px,380px)_minmax(0,1fr)] overflow-hidden bg-background text-foreground max-lg:grid-cols-[260px_minmax(0,1fr)] max-md:grid-cols-1">
+<Sidebar.Provider
+	bind:open={isMailboxSidebarOpen}
+	class="relative h-[calc(100svh-48px)] min-h-0 w-full transform-gpu overflow-hidden bg-background text-foreground"
+>
+	{@render mailboxSidebar()}
+
+	<main class="grid min-w-0 flex-1 overflow-hidden {paneColumns}">
+		{#if !isStackedDetail}
+			<MailMessageList
+				account={page.account}
+				selectedMailboxCountText={page.selectedMailboxCountText()}
+				isLoading={page.isLoading}
+				isSyncing={page.isSyncing}
+				hasLoadedAccount={page.hasLoadedAccount}
+				isLoadingMessages={page.isLoadingMessages}
+				isUnreadOnly={page.isUnreadOnly}
+				canLoadMoreMessages={page.canLoadMoreMessages()}
+				errorMessage={page.errorMessage}
+				messages={page.visibleMessages()}
+				selectedMessage={page.selectedMessage}
+				hasMailboxTrigger={!fitsSidebarRail.current}
+				{text}
+				openSettings={page.openSettings}
+				loadMoreMessages={page.loadMoreMessages}
+				setUnreadOnly={page.setUnreadOnly}
+				selectMessage={page.selectMessage}
+			/>
+		{/if}
+
+		{#if isDetailInline}
+			{@render messageDetail()}
+		{:else if isStackedDetail}
+			{@render messageDetail(page.clearSelectedMessage)}
+		{/if}
+	</main>
+
+	<AppFloatingActionButton
+		label={text.compose}
+		disabled={!page.hasLoadedAccount || !page.account.isConfigured}
+		onclick={page.openCompose}
+	>
+		<PencilIcon />
+	</AppFloatingActionButton>
+</Sidebar.Provider>
+
+{#snippet mailboxSidebar()}
 	<MailSidebar
 		account={page.account}
 		mailboxes={page.pageMailboxes()}
@@ -32,38 +124,16 @@
 		isLoadingMailboxes={page.isLoadingMailboxes}
 		{text}
 		openSettings={page.openSettings}
-		openCompose={page.openCompose}
-		selectMailbox={page.selectMailbox}
+		selectMailbox={(mailboxName) => {
+			if (!isDetailInline) page.clearSelectedMessage();
+			page.selectMailbox(mailboxName);
+		}}
 	/>
+{/snippet}
 
-	<MailMessageList
-		account={page.account}
-		selectedMailbox={page.selectedMailbox}
-		selectedMailboxCountText={page.selectedMailboxCountText()}
-		isLoading={page.isLoading}
-		isSyncing={page.isSyncing}
-		hasLoadedAccount={page.hasLoadedAccount}
-		isLoadingMessages={page.isLoadingMessages}
-		bind:searchText={page.searchText}
-		isUnreadOnly={page.isUnreadOnly}
-		messagePageIndex={page.messagePageIndex}
-		canPreviousMessagePage={page.canPreviousMessagePage()}
-		canNextMessagePage={page.canNextMessagePage()}
-		errorMessage={page.errorMessage}
-		messages={page.visibleMessages()}
-		selectedMessage={page.selectedMessage}
-		{text}
-		openSettings={page.openSettings}
-		loadMessages={page.loadMessages}
-		loadPreviousMessages={page.loadPreviousMessages}
-		loadNextMessages={page.loadNextMessages}
-		setUnreadOnly={page.setUnreadOnly}
-		selectMessage={page.selectMessage}
-	/>
-
+{#snippet messageDetail(goBack?: () => void)}
 	<MailMessageDetail
 		account={page.account}
-		selectedMailbox={page.selectedMailbox}
 		selectedMessage={page.selectedMessage}
 		hasLoadedAccount={page.hasLoadedAccount}
 		isLoadingMessage={page.isLoadingMessage}
@@ -71,12 +141,13 @@
 		messageBodyHTML={page.selectedMessageBodyHTML()}
 		{text}
 		moveSelectedMessage={page.moveSelectedMessage}
-		toggleSelectedMessageRead={page.toggleSelectedMessageRead}
 		openReply={page.openReply}
+		openForward={page.openForward}
 		openCompose={page.openCompose}
 		openSettings={page.openSettings}
+		{goBack}
 	/>
-</main>
+{/snippet}
 
 <MailSettingsSheet
 	bind:open={page.isSettingsOpen}
@@ -96,6 +167,7 @@
 	composeMessage={page.composeMessage}
 	isSending={page.isSending}
 	fromAddress={page.account.fromAddress || page.account.email}
+	focusField={page.composeFocusField}
 	{text}
 	sendMessage={page.sendMessage}
 />

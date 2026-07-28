@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { emptyMailAccount } from '../../../src/routes/mail/mail-account-draft';
 import {
+	createMailForwardDraft,
 	createMailReplyDraft,
 	defaultMailboxes,
 	displayedMailboxes,
@@ -76,6 +77,16 @@ describe('mail page utils', () => {
 		expect(mailMessageBodyHTML(message)).toBe('<p>html</p>');
 		expect(createMailReplyDraft(message)).toEqual({ to: 'sender@example.com', cc: '', bcc: '', subject: 'Re: Subject', body: '' });
 		expect(createMailReplyDraft({ ...message, subject: 're: Subject' }).subject).toBe('re: Subject');
+	});
+
+	test('forward drafts keep the recipient empty and quote the original message', () => {
+		const message = { ...baseMessage, subject: 'Subject', body: 'Original body' };
+		const forwardDraft = createMailForwardDraft(message, 'Header line');
+
+		expect(forwardDraft.to).toBe('');
+		expect(forwardDraft.subject).toBe('Fwd: Subject');
+		expect(forwardDraft.body).toBe('\n\nHeader line\nOriginal body');
+		expect(createMailForwardDraft({ ...message, subject: 'fwd: Subject' }, 'Header line').subject).toBe('fwd: Subject');
 	});
 
 	test('finds mailbox names by hint and builds api error messages', () => {

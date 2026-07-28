@@ -94,6 +94,7 @@ function createController() {
 		nextCursor: '',
 		hasMoreMessages: false,
 		isUnreadOnly: false,
+		canSelectFirstMessage: true,
 		hasLoadedAccount: true,
 		isLoading: false,
 		isSyncing: false,
@@ -105,6 +106,7 @@ function createController() {
 		isSending: false,
 		isSettingsOpen: true,
 		isComposeOpen: false,
+		composeFocusField: 'to',
 		errorMessage: '',
 		settingsMessage: '',
 		composeMessage: '',
@@ -112,8 +114,7 @@ function createController() {
 		messageDetailRequestID: 0,
 		pageMailboxes: () => controller.mailboxes,
 		visibleMessages: () => controller.messages,
-		canPreviousMessagePage: () => false,
-		canNextMessagePage: () => false,
+		canLoadMoreMessages: () => false,
 		mailActorEmail: () => controller.account.email,
 		mailErrors: (fallback: string) => ({ fallback, serviceUnavailable: 'service unavailable' }),
 		resetMessageList: () => {
@@ -132,8 +133,7 @@ function createController() {
 			return Promise.resolve();
 		},
 		loadMessages: () => Promise.resolve(),
-		loadPreviousMessages: () => Promise.resolve(),
-		loadNextMessages: () => Promise.resolve(),
+		loadMoreMessages: () => Promise.resolve(),
 		setUnreadOnly: () => Promise.resolve()
 	};
 	return controller;

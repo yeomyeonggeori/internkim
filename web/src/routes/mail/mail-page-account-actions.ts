@@ -1,5 +1,6 @@
 import { fetchMailAccount, fetchMailBootstrap, saveMailAccount, testMailAccount } from './mail-api';
 import { createMailAccountDraft, emptyMailAccount, mailAccountDraftPayload } from './mail-account-draft';
+import { selectedVisibleMessage } from './mail-message-detail-cache';
 import { mailMessagePageSize } from './mail-message-page-cache';
 import { rememberLocalMailActorEmail, resolveMailAccountSaveActorEmail } from './mail-request-actor';
 import type { MailPageControllerState, MailPageText } from './mail-page-controller-types';
@@ -20,7 +21,7 @@ export async function loadMailBootstrap(controller: MailPageControllerState, tex
 		controller.messages = bootstrap.messages;
 		controller.nextCursor = bootstrap.nextCursor;
 		controller.hasMoreMessages = bootstrap.nextCursor !== '';
-		controller.selectedMessage = controller.visibleMessages()[0] ?? null;
+		controller.selectedMessage = selectedVisibleMessage(controller.visibleMessages(), controller.selectedMessage, controller.canSelectFirstMessage);
 	}
 	if (!controller.account.isConfigured) {
 		controller.mailboxes = [];

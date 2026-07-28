@@ -32,6 +32,7 @@ export let fetchMailMessagesCallCount: number;
 export let fetchMailMessageCallCount: number;
 export let saveMailAccountCallCount: number;
 export let moveMailMessageCallCount: number;
+export let updateMailMessageFlagsCallCount: number;
 export let savedMailAccountActorEmail: string;
 
 const defaultBootstrapResult: MailBootstrapResult = {
@@ -64,7 +65,10 @@ const saveMailAccountMock = mock((actorEmail: string) => {
 });
 const sendMailMessageMock = mock(() => sendMailMessageResponses.shift() ?? Promise.resolve());
 const testMailAccountMock = mock(() => testMailAccountResponses.shift() ?? Promise.resolve());
-const updateMailMessageFlagsMock = mock(() => updateMessageFlagResponses.shift() ?? Promise.resolve());
+const updateMailMessageFlagsMock = mock(() => {
+	updateMailMessageFlagsCallCount += 1;
+	return updateMessageFlagResponses.shift() ?? Promise.resolve();
+});
 const moveMailMessageMock = mock(() => {
 	moveMailMessageCallCount += 1;
 	return moveMessageResponses.shift() ?? Promise.resolve();
@@ -93,6 +97,7 @@ export function resetMailApiTestMockState() {
 	sendMailMessageResponses = [];
 	testMailAccountResponses = [];
 	updateMessageFlagResponses = [];
+	updateMailMessageFlagsCallCount = 0;
 	moveMessageResponses = [];
 	fetchMailboxesCallCount = 0;
 	fetchMailMessagesCallCount = 0;
