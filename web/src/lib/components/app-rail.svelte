@@ -18,7 +18,9 @@
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import NetworkIcon from '@lucide/svelte/icons/network';
 	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
-	import { onMount } from 'svelte';
+	import type { WebAuthSession } from '$lib/web-auth-session';
+
+	let { session }: { session: WebAuthSession | null } = $props();
 
 	const text = createPageText(appShellText);
 	const sidebar = useSidebar();
@@ -43,7 +45,14 @@
 		activeWorkspace: text.activeWorkspace
 	});
 
-	onMount(appNavigation.load);
+	let appliedSessionKey = '';
+
+	$effect(() => {
+		const sessionKey = `${session?.authenticated ?? false}:${session?.email ?? ''}`;
+		if (sessionKey === appliedSessionKey) return;
+		appliedSessionKey = sessionKey;
+		void appNavigation.load(session);
+	});
 
 	function handleKeydown(event: KeyboardEvent) {
 		attendanceClock.handleShortcut(event);
