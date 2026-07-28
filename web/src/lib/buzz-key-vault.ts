@@ -1,4 +1,4 @@
-export type WrappedSecretKind = "password" | "passkey";
+export type WrappedSecretKind = "password" | "passkey" | "recovery";
 
 export type WrappedSecret = {
 	version: 1;
@@ -100,13 +100,13 @@ async function openSecret(wrapped: WrappedSecret, unlockKey: CryptoKey): Promise
 // The server stores WrappedSecret as an opaque blob it cannot open. Only the
 // user's password or passkey-derived unlock key decrypts the Buzz secret key,
 // and only transiently in the browser at signing time.
-export async function wrapSecretWithPassword(secretKeyHex: string, password: string): Promise<WrappedSecret> {
+async function wrapWithPassphrase(secretKeyHex: string, passphrase: string, kind: WrappedSecretKind): Promise<WrappedSecret> {
 	const salt = crypto.getRandomValues(new Uint8Array(PASSWORD_SALT_LENGTH_BYTES));
-	const unlockKey = await deriveUnlockKeyFromPassword(password, salt, PASSWORD_DERIVATION_ITERATIONS);
+	const unlockKey = await deriveUnlockKeyFromPassword(passphrase, salt, PASSWORD_DERIVATION_ITERATIONS);
 	const sealed = await sealSecret(secretKeyHex, unlockKey);
 	return {
 		version: 1,
-		kind: "password",
+		kind,
 		ciphertext: sealed.ciphertext,
 		initializationVector: sealed.initializationVector,
 		salt: encodeBase64(salt),
@@ -114,12 +114,50 @@ export async function wrapSecretWithPassword(secretKeyHex: string, password: str
 	};
 }
 
-export async function unwrapSecretWithPassword(wrapped: WrappedSecret, password: string): Promise<string> {
-	if (wrapped.kind !== "password" || !wrapped.salt || !wrapped.iterations) {
-		throw new Error("wrapped secret was not sealed with a password");
+async function unwrapWithPassphrase(wrapped: WrappedSecret, passphrase: string, kind: WrappedSecretKind): Promise<string> {
+	if (wrapped.kind !== kind || !wrapped.salt || !wrapped.iterations) {
+		throw new Error(`wrapped secret was not sealed with a ${kind}`);
 	}
-	const unlockKey = await deriveUnlockKeyFromPassword(password, decodeBase64(wrapped.salt), wrapped.iterations);
+	const unlockKey = await deriveUnlockKeyFromPassword(passphrase, decodeBase64(wrapped.salt), wrapped.iterations);
 	return openSecret(wrapped, unlockKey);
+}
+
+export async function wrapSecretWithPassword(secretKeyHex: string, password: string): Promise<WrappedSecret> {
+	return wrapWithPassphrase(secretKeyHex, password, "password");
+}
+
+export async function unwrapSecretWithPassword(wrapped: WrappedSecret, password: string): Promise<string> {
+	return unwrapWithPassphrase(wrapped, password, "password");
+}
+
+export async function wrapSecretWithRecoveryCode(secretKeyHex: string, recoveryCode: string): Promise<WrappedSecret> {
+	return wrapWithPassphrase(secretKeyHex, normalizeRecoveryCode(recoveryCode), "recovery");
+}
+
+export async function unwrapSecretWithRecoveryCode(wrapped: WrappedSecret, recoveryCode: string): Promise<string> {
+	return unwrapWithPassphrase(wrapped, normalizeRecoveryCode(recoveryCode), "recovery");
+}
+
+const RECOVERY_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const RECOVERY_GROUPS = 6;
+const RECOVERY_GROUP_LENGTH = 4;
+
+// A high-entropy, human-transcribable recovery code (Crockford-ish alphabet, no
+// ambiguous characters). The user stores it; it seals a second copy of the key
+// so a lost passkey and password can still be recovered without the server.
+export function generateRecoveryCode(): string {
+	const groups: string[] = [];
+	for (let group = 0; group < RECOVERY_GROUPS; group++) {
+		let block = "";
+		const randomValues = crypto.getRandomValues(new Uint8Array(RECOVERY_GROUP_LENGTH));
+		for (const value of randomValues) block += RECOVERY_ALPHABET[value % RECOVERY_ALPHABET.length];
+		groups.push(block);
+	}
+	return groups.join("-");
+}
+
+export function normalizeRecoveryCode(recoveryCode: string): string {
+	return recoveryCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
 export async function wrapSecretWithPasskey(secretKeyHex: string, passkeyOutput: Uint8Array): Promise<WrappedSecret> {
