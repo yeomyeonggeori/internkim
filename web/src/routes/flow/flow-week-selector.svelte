@@ -13,6 +13,7 @@
 		disabled: boolean;
 		selectWeekLabel: string;
 		currentWeekLabel: string;
+		lastWeekLabel: string;
 		previousWeekLabel: string;
 		nextWeekLabel: string;
 		onSelectWeek: (weekCode: string) => void;
@@ -25,6 +26,7 @@
 		disabled,
 		selectWeekLabel,
 		currentWeekLabel,
+		lastWeekLabel,
 		previousWeekLabel,
 		nextWeekLabel,
 		onSelectWeek,
@@ -46,7 +48,7 @@
 
 	function weekChoiceLabel(offsetFromCurrent: number, dateRangeLabel: string): string {
 		if (offsetFromCurrent === 0) return currentWeekLabel;
-		if (offsetFromCurrent === -1) return previousWeekLabel;
+		if (offsetFromCurrent === -1) return lastWeekLabel;
 		if (offsetFromCurrent === 1) return nextWeekLabel;
 		return dateRangeLabel;
 	}
@@ -57,7 +59,7 @@
 		<ChevronLeftIcon />
 	</TooltipIconButton>
 	<Select.Root type="single" bind:value={selectedWeekCode} {disabled} onValueChange={(weekCode) => weekCode && onSelectWeek(weekCode)}>
-		<Select.Trigger size="sm" class="w-[9.5rem] justify-between tabular-nums" aria-label={selectWeekLabel}>
+		<Select.Trigger class="h-8 w-[9.5rem] justify-between rounded-[min(var(--radius-md),10px)] tabular-nums" aria-label={selectWeekLabel}>
 			{selectedWeekLabel}
 		</Select.Trigger>
 		<Select.Content>
