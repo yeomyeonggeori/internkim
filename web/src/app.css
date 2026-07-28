@@ -318,6 +318,36 @@
     }
   }
 
+  .internkim-navigation-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 60;
+    height: 2px;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  .internkim-navigation-progress::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    border-radius: 9999px;
+    background: hsl(var(--primary));
+    animation: internkim-navigation-progress-slide 900ms ease-in-out infinite;
+  }
+
+  @keyframes internkim-navigation-progress-slide {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(320%);
+    }
+  }
+
   .internkim-app-header {
     position: sticky;
     top: 0;
