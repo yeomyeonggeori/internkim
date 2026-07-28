@@ -13,6 +13,7 @@ export {
 	mailMessageListResponses,
 	moveMailMessageCallCount,
 	moveMessageResponses,
+	updateMailMessageFlagsCallCount,
 	updateMessageFlagResponses
 } from './mail-api-test-mock';
 
@@ -26,9 +27,10 @@ export const {
 	loadMessageDetail,
 	loadMessagesPage,
 	loadPageMailboxes,
+	markMailMessageRead,
 	moveSelectedMailMessage,
-	selectMailPageMailbox,
-	toggleSelectedMailMessageRead
+	selectMailPageMessage,
+	selectMailPageMailbox
 } = await import('../../../src/routes/mail/mail-page-message-actions');
 
 export function resetMailPageMessageActionTestState() {
@@ -73,6 +75,7 @@ export function createController(overrides: Partial<MailPageControllerState> = {
 		nextCursor: '',
 		hasMoreMessages: false,
 		isUnreadOnly: false,
+		canSelectFirstMessage: true,
 		hasLoadedAccount: true,
 		isLoading: false,
 		isSyncing: false,
@@ -84,6 +87,7 @@ export function createController(overrides: Partial<MailPageControllerState> = {
 		isSending: false,
 		isSettingsOpen: false,
 		isComposeOpen: false,
+		composeFocusField: 'to',
 		errorMessage: '',
 		settingsMessage: '',
 		composeMessage: '',
@@ -91,8 +95,7 @@ export function createController(overrides: Partial<MailPageControllerState> = {
 		messageDetailRequestID: 0,
 		pageMailboxes: () => [],
 		visibleMessages: () => controller.messages,
-		canPreviousMessagePage: () => controller.messagePageIndex > 0,
-		canNextMessagePage: () => controller.hasMoreMessages,
+		canLoadMoreMessages: () => controller.hasMoreMessages,
 		mailActorEmail: () => 'staff@example.com',
 		mailErrors: (fallback: string) => ({ fallback, serviceUnavailable: 'service unavailable' }),
 		resetMessageList: () => {
@@ -107,8 +110,7 @@ export function createController(overrides: Partial<MailPageControllerState> = {
 		},
 		loadMail: () => Promise.resolve(),
 		loadMessages: () => loadMessagesPage(controller, mailText.ko, false),
-		loadPreviousMessages: () => loadMessagesPage(controller, mailText.ko, { mode: 'cache-first', pageIndex: controller.messagePageIndex - 1 }),
-		loadNextMessages: () => loadMessagesPage(controller, mailText.ko, { mode: 'cache-first', pageIndex: controller.messagePageIndex + 1 }),
+		loadMoreMessages: () => loadMessagesPage(controller, mailText.ko, { mode: 'cache-first', pageIndex: controller.messagePageIndex + 1 }),
 		setUnreadOnly: (isUnreadOnly: boolean) => {
 			controller.isUnreadOnly = isUnreadOnly;
 			return Promise.resolve();

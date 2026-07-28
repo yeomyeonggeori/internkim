@@ -8,7 +8,7 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Table from '$lib/components/ui/table';
-	import * as Tabs from '$lib/components/ui/tabs';
+	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import BotIcon from '@lucide/svelte/icons/bot';
@@ -237,23 +237,23 @@
 			{/if}
 		</section>
 
-		<Tabs.Root bind:value={selectedTab} class="min-w-0">
-			<Tabs.List>
-				<Tabs.Trigger value="timeline">
+		<UnderlineTabs.Root bind:value={selectedTab} class="min-w-0">
+			<UnderlineTabs.List>
+				<UnderlineTabs.Trigger value="timeline">
 					<ClipboardListIcon data-icon="inline-start" />
 					{text.timelineTab}
-				</Tabs.Trigger>
-				<Tabs.Trigger value="brief">
+				</UnderlineTabs.Trigger>
+				<UnderlineTabs.Trigger value="brief">
 					<FileTextIcon data-icon="inline-start" />
 					{text.briefTab}
-				</Tabs.Trigger>
-				<Tabs.Trigger value="logs">
+				</UnderlineTabs.Trigger>
+				<UnderlineTabs.Trigger value="logs">
 					<TerminalIcon data-icon="inline-start" />
 					{text.logsTab}
-				</Tabs.Trigger>
-			</Tabs.List>
+				</UnderlineTabs.Trigger>
+			</UnderlineTabs.List>
 
-			<Tabs.Content value="timeline" class="min-w-0">
+			<UnderlineTabs.Content value="timeline" class="min-w-0">
 				<Card.Root>
 					<Card.Header class="gap-3">
 						<div class="flex min-w-0 flex-wrap items-start justify-between gap-3">
@@ -268,16 +268,16 @@
 							</CopyButton>
 						</div>
 						<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-							<Tabs.Root bind:value={selectedEventLane} class="min-w-0">
-								<Tabs.List variant="line" class="max-w-full overflow-x-auto">
+							<UnderlineTabs.Root bind:value={selectedEventLane} class="min-w-0">
+								<UnderlineTabs.List class="max-w-full overflow-x-auto">
 									{#each eventLaneFilters as filter (filter.value)}
-										<Tabs.Trigger value={filter.value} class="gap-1">
+										<UnderlineTabs.Trigger value={filter.value} class="gap-1">
 											{filter.label}
 											<Badge variant="secondary" class="h-4 px-1.5 text-[10px]">{filter.count}</Badge>
-										</Tabs.Trigger>
+										</UnderlineTabs.Trigger>
 									{/each}
-								</Tabs.List>
-							</Tabs.Root>
+								</UnderlineTabs.List>
+							</UnderlineTabs.Root>
 							<label class="relative min-w-0 lg:w-80">
 								<SearchIcon class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 								<Input bind:value={eventSearchQuery} placeholder={text.searchEvents} class="pl-8" />
@@ -312,9 +312,9 @@
 						{/if}
 					</Card.Content>
 				</Card.Root>
-			</Tabs.Content>
+			</UnderlineTabs.Content>
 
-			<Tabs.Content value="brief">
+			<UnderlineTabs.Content value="brief">
 				<div class="grid gap-4 lg:grid-cols-2">
 					<Card.Root>
 						<Card.Header>
@@ -344,9 +344,9 @@
 						</Card.Content>
 					</Card.Root>
 				</div>
-			</Tabs.Content>
+			</UnderlineTabs.Content>
 
-			<Tabs.Content value="logs">
+			<UnderlineTabs.Content value="logs">
 				<Card.Root>
 					<Card.Header>
 						<Card.Title>{text.serviceLogsTitle}</Card.Title>
@@ -378,7 +378,7 @@
 						{/if}
 					</Card.Content>
 				</Card.Root>
-			</Tabs.Content>
-		</Tabs.Root>
+			</UnderlineTabs.Content>
+		</UnderlineTabs.Root>
 	{/if}
 </main>

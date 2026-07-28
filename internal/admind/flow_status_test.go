@@ -4,18 +4,18 @@ import "testing"
 
 func TestCleanFlowStatusNormalizesNaturalVariants(t *testing.T) {
 	cases := map[string]string{
-		"진행 중":       flowStatusInProgress,
-		"진행중":        flowStatusInProgress,
+		"진행 중":        flowStatusInProgress,
+		"진행중":         flowStatusInProgress,
 		"in progress": flowStatusInProgress,
 		"in_progress": flowStatusInProgress,
-		"진행":         flowStatusInProgress,
-		"완료":         flowStatusCompleted,
-		"done":       flowStatusCompleted,
-		"예정":         flowStatusPlanned,
-		"planned":    flowStatusPlanned,
-		"보류":         flowStatusPaused,
-		"취소":         flowStatusStopped,
-		"cancelled":  flowStatusStopped,
+		"진행":          flowStatusInProgress,
+		"완료":          flowStatusCompleted,
+		"done":        flowStatusCompleted,
+		"예정":          flowStatusPlanned,
+		"planned":     flowStatusPlanned,
+		"보류":          flowStatusPaused,
+		"취소":          flowStatusStopped,
+		"cancelled":   flowStatusStopped,
 	}
 	for input, want := range cases {
 		if got := cleanFlowStatus(input); got != want {

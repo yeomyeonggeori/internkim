@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import { Badge } from '$lib/components/ui/badge';
+	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { ConfirmDeleteDialog, confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
@@ -199,6 +200,7 @@
 	onMount(() => {
 		void loadViewerRole();
 		void loadTaskRuns(0);
+		return pageActions.setRefresh(() => loadTaskRuns(taskPageIndex));
 	});
 </script>
 
@@ -207,17 +209,6 @@
 </svelte:head>
 
 <main class="grid min-h-[calc(100svh-48px)] w-full self-start content-start gap-5 px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
-	<section class="flex min-w-0 flex-wrap items-start justify-between gap-4">
-		<div class="min-w-0 space-y-1">
-			<h1 class="text-xl font-semibold tracking-tight">{text.title}</h1>
-			<p class="max-w-2xl text-sm text-muted-foreground">{text.description}</p>
-		</div>
-		<Button variant="outline" size="sm" onclick={() => void loadTaskRuns(taskPageIndex)} disabled={isLoading}>
-			<RefreshCwIcon data-icon="inline-start" class={isLoading ? 'animate-spin' : ''} />
-			{text.refresh}
-		</Button>
-	</section>
-
 	<section class="flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
 		<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 			<Badge variant="secondary">{totalTaskRunCount.toLocaleString()} {text.taskCount}</Badge>

@@ -3,7 +3,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
 import { devAttendanceMockPlugin } from './dev-attendance-mock-plugin';
 import { devCalendarMockPlugin } from './dev-calendar-mock-plugin';
-import { devAdminOrgchartMockPlugin } from './dev-admin-orgchart-mock-plugin';
+import { devAdminOrganizationMockPlugin } from './dev-admin-organization-mock-plugin';
 import { devAdminUsersMockPlugin } from './dev-admin-users-mock-plugin';
 import { devFilesMockPlugin } from './dev-files-mock-plugin';
 import { devFlowMockPlugin } from './dev-flow-mock-plugin';
@@ -47,7 +47,7 @@ export default defineConfig(({ mode }) => {
 				isEnabled: env.VITE_MOCK_ADMIN === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
 			}),
-			devAdminOrgchartMockPlugin({
+			devAdminOrganizationMockPlugin({
 				isEnabled: env.VITE_MOCK_ADMIN === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com',
 				userRole: devUserRole
@@ -100,8 +100,7 @@ export default defineConfig(({ mode }) => {
 				'/flow/api': admindProxy(admindTarget),
 				'/mail/api': admindProxy(admindTarget),
 				'/memory/api': admindProxy(admindTarget),
-				'/orgchart/api': admindProxy(admindTarget),
-				'/tasks/api': admindProxy(admindTarget, devUserEmail)
+				'/organization/api': admindProxy(admindTarget)
 			}
 		},
 		build: {

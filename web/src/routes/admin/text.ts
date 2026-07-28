@@ -1,4 +1,4 @@
-import { orgchartText } from './orgchart-text';
+import { organizationText } from './organization-text';
 
 export const adminText = {
 	ko: {
@@ -16,14 +16,15 @@ export const adminText = {
 		sections: {
 			device: '기기',
 			users: '사용자',
-			orgchart: '조직도',
+			organization: '조직도',
 			credentials: '인증 정보',
 			backup: '백업',
 			bot: '봇',
-			settings: '설정',
+			settings: '일반',
 			sharing: '회사 페이지',
 			network: '네트워크',
-			buzz: 'Buzz'
+			buzz: 'Buzz',
+			apiTokens: 'API 토큰'
 		},
 		buzz: {
 			title: 'Buzz 워크스페이스',
@@ -141,6 +142,9 @@ export const adminText = {
 			timeZone: '시간대',
 			timeZonePlaceholder: 'system 또는 Asia/Seoul',
 			timeZoneHint: '비워두거나 system으로 두면 기기 설정을 사용합니다. IANA timezone만 저장됩니다.',
+			callingCode: '기본 국가번호',
+			callingCodePlaceholder: '82',
+			callingCodeHint: '국가번호 없이 입력한 전화번호를 이 번호로 국제표기(E.164)로 저장합니다.',
 			workspaceLanguageTitle: '작업공간 언어',
 			workspaceLanguageDescription: 'Mattermost 채널 표시명을 이 언어로 일괄 업데이트합니다.',
 			workspaceLanguageKorean: '한국어',
@@ -311,7 +315,7 @@ export const adminText = {
 			makeAdmin: '관리자로 변경',
 			remove: '삭제'
 		},
-		orgchart: orgchartText.ko
+		organization: organizationText.ko
 	},
 	en: {
 		title: 'intern kim',
@@ -328,14 +332,15 @@ export const adminText = {
 		sections: {
 			device: 'Device',
 			users: 'Users',
-			orgchart: 'Org chart',
+			organization: 'Org chart',
 			credentials: 'Credentials',
 			backup: 'Backup',
 			bot: 'Bot',
-			settings: 'Settings',
+			settings: 'General',
 			sharing: 'Company page',
 			network: 'Network',
-			buzz: 'Buzz'
+			buzz: 'Buzz',
+			apiTokens: 'API tokens'
 		},
 		buzz: {
 			title: 'Buzz workspace',
@@ -453,6 +458,9 @@ export const adminText = {
 			timeZone: 'Time zone',
 			timeZonePlaceholder: 'system or Asia/Seoul',
 			timeZoneHint: 'Leave empty or set system to use the device setting. Only IANA time zones are saved.',
+			callingCode: 'Default calling code',
+			callingCodePlaceholder: '82',
+			callingCodeHint: 'Phone numbers typed without a country code are stored in E.164 form with this code.',
 			workspaceLanguageTitle: 'Workspace language',
 			workspaceLanguageDescription: 'Update Mattermost channel display names in this language.',
 			workspaceLanguageKorean: '한국어',
@@ -623,6 +631,6 @@ export const adminText = {
 			makeAdmin: 'Make admin',
 			remove: 'Remove'
 		},
-		orgchart: orgchartText.en
+		organization: organizationText.en
 	}
 } as const;

@@ -13,7 +13,8 @@ import {
 	canDeleteFlowTask,
 	canManageFlowTaskAssignment,
 	canRemoveFlowTaskParticipant,
-	canUpdateFlowTask
+	canUpdateFlowTask,
+	currentFlowMember
 } from './flow-task-workspace-model';
 import { flowText } from './text';
 import type { FlowMember, FlowSummary, FlowTask } from './flow-types';
@@ -31,6 +32,7 @@ type FlowTaskEditorControllerInput = {
 
 export class FlowTaskEditorController {
 	taskDraft = $state<FlowTask | null>(null);
+	isEditingTask = $state(false);
 	taskErrorMessage = $state('');
 	isSavingTask = $state(false);
 	isDeletingTask = $state(false);
@@ -61,13 +63,20 @@ export class FlowTaskEditorController {
 	openTask = (task: FlowTask, isTaskPending: (taskID: string) => boolean): void => {
 		if (isTaskPending(task.id)) return;
 		this.taskDraft = cloneFlowTask(task);
+		this.isEditingTask = false;
 		this.taskErrorMessage = '';
+	};
+
+	startEditingTask = (): void => {
+		if (!this.taskDraft || !this.canUpdateTask(this.taskDraft)) return;
+		this.isEditingTask = true;
 	};
 
 	createTask = (status?: string): void => {
 		const owner = this.defaultTaskOwner();
 		if (!owner || !this.summary) return;
 		this.taskDraft = createFlowTaskDraft(owner, definitionsFromSummary(this.summary), this.taskWeek());
+		this.isEditingTask = true;
 		if (typeof status === 'string' && status) this.taskDraft.status = status;
 		this.taskErrorMessage = '';
 	};
@@ -122,8 +131,10 @@ export class FlowTaskEditorController {
 
 	closeEditor = (): void => {
 		this.taskDraft = null;
+		this.isEditingTask = false;
 	};
 
+	isOwnTask = (task: FlowTask): boolean => currentFlowMember(this.summary)?.id === task.ownerID;
 	canUpdateTask = (task: FlowTask): boolean => canUpdateFlowTask(this.summary, task);
 	canDeleteTask = (task: FlowTask): boolean => canDeleteFlowTask(this.summary, task);
 	canManageTaskAssignment = (task: FlowTask): boolean => canManageFlowTaskAssignment(this.summary, task);

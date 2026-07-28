@@ -17,7 +17,7 @@
 	}
 </script>
 
-<Sidebar.Menu class="gap-1">
+<Sidebar.Menu>
 	{#each items as item (item.href)}
 		<AppRailNavItem {item} isActive={isActivePath(item.href)} />
 	{/each}

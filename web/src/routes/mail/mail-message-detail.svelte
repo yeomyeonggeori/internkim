@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
+	import * as ButtonGroup from '$lib/components/ui/button-group';
 	import { Separator } from '$lib/components/ui/separator';
 	import ArchiveIcon from '@lucide/svelte/icons/archive';
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import MailIcon from '@lucide/svelte/icons/mail';
-	import MailOpenIcon from '@lucide/svelte/icons/mail-open';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
-	import SendIcon from '@lucide/svelte/icons/send';
+	import ForwardIcon from '@lucide/svelte/icons/forward';
+	import ReplyIcon from '@lucide/svelte/icons/reply';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { MAIL_MESSAGE_IFRAME_SANDBOX, mailHTMLDocument } from './mail-message-utils';
@@ -14,7 +17,6 @@
 
 	type Props = {
 		account: MailAccount;
-		selectedMailbox: string;
 		selectedMessage: MailMessage | null;
 		hasLoadedAccount: boolean;
 		isLoadingMessage: boolean;
@@ -22,15 +24,15 @@
 		messageBodyHTML: string;
 		text: (typeof mailText)['ko'];
 		moveSelectedMessage: (targetHint: string) => void | Promise<void>;
-		toggleSelectedMessageRead: () => void | Promise<void>;
 		openReply: () => void;
+		openForward: () => void;
 		openCompose: () => void;
 		openSettings: () => void;
+		goBack?: () => void;
 	};
 
 	let {
 		account,
-		selectedMailbox,
 		selectedMessage,
 		hasLoadedAccount,
 		isLoadingMessage,
@@ -38,36 +40,38 @@
 		messageBodyHTML,
 		text,
 		moveSelectedMessage,
-		toggleSelectedMessageRead,
 		openReply,
+		openForward,
 		openCompose,
-		openSettings
+		openSettings,
+		goBack
 	}: Props = $props();
 </script>
 
-<section class="flex min-h-0 flex-col bg-background max-lg:hidden">
-	<header class="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-		<div class="min-w-0 flex-1">
-			<p class="truncate text-sm text-muted-foreground">{text.allInboxes} / {selectedMailbox}</p>
-			<p class="truncate text-sm font-medium">{selectedMessage?.subject || text.selectMessage}</p>
-		</div>
-		<div class="flex items-center gap-1">
-			<Button variant="ghost" size="icon-sm" aria-label={text.archive} onclick={() => moveSelectedMessage('archive')} disabled={!selectedMessage}>
-				<ArchiveIcon />
-			</Button>
-			<Button variant="ghost" size="icon-sm" aria-label={text.trash} onclick={() => moveSelectedMessage('trash')} disabled={!selectedMessage}>
-				<Trash2Icon />
-			</Button>
-			<Button variant="ghost" size="icon-sm" aria-label={text.markRead} onclick={toggleSelectedMessageRead} disabled={!selectedMessage}>
-				{#if selectedMessage?.isRead}
-					<MailIcon />
-				{:else}
-					<MailOpenIcon />
-				{/if}
-			</Button>
-			<Button variant="ghost" size="icon-sm" aria-label={text.reply} onclick={openReply} disabled={!selectedMessage}>
-				<SendIcon />
-			</Button>
+<section class="flex min-h-0 flex-1 flex-col bg-background">
+	<header class="flex h-14 shrink-0 items-center gap-2 border-b px-3">
+		{#if goBack}
+			<TooltipIconButton label={text.backToList} variant="ghost" size="icon-sm" onclick={goBack}>
+				<ArrowLeftIcon />
+			</TooltipIconButton>
+		{/if}
+		<div class="flex flex-1 items-center justify-end gap-2">
+			<ButtonGroup.Root>
+				<TooltipIconButton label={text.archive} variant="outline" size="icon-sm" onclick={() => moveSelectedMessage('archive')} disabled={!selectedMessage}>
+					<ArchiveIcon />
+				</TooltipIconButton>
+				<TooltipIconButton label={text.trash} variant="outline" size="icon-sm" onclick={() => moveSelectedMessage('trash')} disabled={!selectedMessage}>
+					<Trash2Icon />
+				</TooltipIconButton>
+			</ButtonGroup.Root>
+			<ButtonGroup.Root>
+				<TooltipIconButton label={text.reply} variant="outline" size="icon-sm" onclick={openReply} disabled={!selectedMessage}>
+					<ReplyIcon />
+				</TooltipIconButton>
+				<TooltipIconButton label={text.forward} variant="outline" size="icon-sm" onclick={openForward} disabled={!selectedMessage}>
+					<ForwardIcon />
+				</TooltipIconButton>
+			</ButtonGroup.Root>
 		</div>
 	</header>
 
@@ -121,12 +125,5 @@
 				</div>
 			</div>
 		{/if}
-	</div>
-
-	<div class="border-t p-4">
-		<Button class="w-full justify-start gap-2" variant="outline" onclick={selectedMessage ? openReply : openCompose} disabled={!account.isConfigured}>
-			<PencilIcon />
-			{selectedMessage ? text.replyAction : text.composeAction}
-		</Button>
 	</div>
 </section>

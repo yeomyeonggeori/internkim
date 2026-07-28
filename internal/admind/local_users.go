@@ -51,13 +51,13 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 	if !isValid {
 		return
 	}
-	payload, identity, errorValue := service.resolveLocalOrgchartMutationIdentity(request.Context(), payload)
+	payload, identity, errorValue := service.resolveLocalOrganizationMutationIdentity(request.Context(), payload)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	identities := []orgchartPersonIdentity{identity}
-	mutation, errorValue := service.startOrgchartUserMutation(request.Context(), identities)
+	identities := []organizationPersonIdentity{identity}
+	mutation, errorValue := service.startOrganizationUserMutation(request.Context(), identities)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -69,6 +69,7 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 		return
 	}
 	mutation.completeAfterSourceMutation(request.Context())
+	service.persistOrganizationHireDate(request.Context(), payload.UserID, payload.Email, payload.HireDate)
 	service.triggerUsersSync(request.Context())
 	response := pagesUsersResponse{Records: []adminUserMutation{payload}}
 	responseBody, errorValue := service.localUsersResponseBody(request.Context(), response)
@@ -152,13 +153,13 @@ func (service *Service) localRemoveUser(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, "cannot remove the last admin user", http.StatusConflict)
 		return
 	}
-	identity, errorValue := service.resolveLocalOrgchartRemovalIdentity(request.Context(), userRecord.Email, "")
+	identity, errorValue := service.resolveLocalOrganizationRemovalIdentity(request.Context(), userRecord.Email, "")
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	identities := []orgchartPersonIdentity{identity}
-	mutation, errorValue := service.startOrgchartUserMutation(request.Context(), identities)
+	identities := []organizationPersonIdentity{identity}
+	mutation, errorValue := service.startOrganizationUserMutation(request.Context(), identities)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -360,9 +361,6 @@ func (service *Service) writeLocalUsersResponse(responseWriter http.ResponseWrit
 
 func (service *Service) localUsersResponseBody(ctx context.Context, response pagesUsersResponse) ([]byte, error) {
 	response.Records = adminUserRecordsWithProfileImages(response.Records)
-	for index := range response.Records {
-		applyDefaultOrgchartMetadata(&response.Records[index])
-	}
 	responseBody, errorValue := json.Marshal(response)
 	if errorValue != nil {
 		return nil, errorValue
@@ -373,9 +371,9 @@ func (service *Service) localUsersResponseBody(ctx context.Context, response pag
 		enhancedBody = responseBody
 	}
 	bodyWithCircles := enhancedBody
-	enhancedBody, errorValue = service.withOrgchartMetadata(ctx, bodyWithCircles)
+	enhancedBody, errorValue = service.withOrganizationMetadata(ctx, bodyWithCircles)
 	if errorValue != nil {
-		log.Printf("Orgchart metadata merge failed: %v", errorValue)
+		log.Printf("Organization metadata merge failed: %v", errorValue)
 		return bodyWithCircles, nil
 	}
 	return enhancedBody, nil
