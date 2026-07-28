@@ -508,6 +508,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/buzz-relay-config", service.handleBuzzRelayConfig)
 	multiplexer.HandleFunc("/agent/api/buzz-mm-pending", service.handleBuzzMMPending)
 	multiplexer.HandleFunc("/agent/api/buzz-mm-mirrored", service.handleBuzzMMMirrored)
+	multiplexer.HandleFunc("/agent/api/buzz-admin-wipe", service.handleBuzzAdminWipe)
 	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
