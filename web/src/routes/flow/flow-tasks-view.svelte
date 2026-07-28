@@ -72,6 +72,7 @@
 				disabled={!summary || isLoading}
 				selectWeekLabel={text.selectWeekDate}
 				currentWeekLabel={text.currentWeek}
+				lastWeekLabel={text.lastWeek}
 				previousWeekLabel={text.previousWeek}
 				nextWeekLabel={text.nextWeek}
 				onSelectWeek={selectWeek}
