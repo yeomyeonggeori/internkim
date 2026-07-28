@@ -6,6 +6,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import { getAttendanceState, type ChartMode } from '../attendance-context.svelte';
+	import { loadedWorkTimeChartPlot, loadWorkTimeChartPlot } from './work-time-chart-plot-loader';
 	import { attendanceText } from '../text';
 	import { todayDateInTimeZone } from './attendance-date';
 	import DurationText from './duration-text.svelte';
@@ -40,8 +41,12 @@
 		compact = false,
 	}: Props = $props();
 
-	const plotComponent = import('./work-time-chart-plot.svelte').then((module) => module.default);
 	const attendance = getAttendanceState();
+	let plotComponent = $state(loadedWorkTimeChartPlot());
+
+	void loadWorkTimeChartPlot().then((plot) => {
+		plotComponent = plot;
+	});
 	const text = createPageText(attendanceText);
 	const modes = $derived<ChartModeOption[]>([
 		{ value: 'day', label: text.day },
@@ -150,9 +155,10 @@
 		</div>
 	</Card.Header>
 	<Card.Content class={compact ? 'px-3 pb-3 pt-1' : undefined}>
-		{#await plotComponent}
+		{#if !plotComponent}
 			<Skeleton class={compact ? 'h-24 w-full' : 'h-72 w-full'} />
-		{:then WorkTimeChartPlot}
+		{:else}
+			{@const WorkTimeChartPlot = plotComponent}
 			<WorkTimeChartPlot
 				{title}
 				{compact}
@@ -167,7 +173,7 @@
 				{tooltipLabelFormatter}
 				{formatChartValue}
 			/>
-		{/await}
+		{/if}
 		{#if pointsSummary}
 			<div class={compact ? 'mt-2 grid gap-1 border-t pt-2 text-[11px]' : 'mt-3 flex items-center gap-6 text-xs'}>
 				<div class="flex items-baseline justify-between gap-2">
