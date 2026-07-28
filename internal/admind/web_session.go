@@ -40,8 +40,6 @@ type webSessionResponse struct {
 	Authenticated      bool   `json:"authenticated"`
 	Email              string `json:"email,omitempty"`
 	Image              string `json:"image,omitempty"`
-	LoginURL           string `json:"loginURL,omitempty"`
-	MattermostLoginURL string `json:"mattermostLoginURL,omitempty"`
 	CloudflareLoginURL string `json:"cloudflareLoginURL,omitempty"`
 	IsAdmin            bool   `json:"isAdmin"`
 	CanViewTasks       bool   `json:"canViewTasks"`
@@ -63,22 +61,19 @@ func (service *Service) handleWebSession(responseWriter http.ResponseWriter, req
 	if email == "" || !service.canAuthenticateWebReturnPath(request.Context(), email, returnPath) {
 		service.writeJSON(responseWriter, webSessionResponse{
 			Authenticated:      false,
-			LoginURL:           service.mattermostLoginURLForReturnPath(returnPath),
-			MattermostLoginURL: service.mattermostLoginURLForReturnPath(returnPath),
 			CloudflareLoginURL: service.cloudflareLoginURLForReturnPath(returnPath),
 		})
 		return
 	}
 	service.renewWebSessionCookieIfExpiringSoon(responseWriter, request)
 	isTaskRunAdmin := service.canManageTaskRuns(request.Context(), email)
-	isPoCSuperAdmin := service.isMattermostHumanSystemAdmin(request.Context(), email)
 	service.writeJSON(responseWriter, webSessionResponse{
 		Authenticated:   true,
 		Email:           email,
 		Image:           profileImagePathForEmail(email),
 		IsAdmin:         isTaskRunAdmin || service.isFlowAdminEmail(request.Context(), email),
 		CanViewTasks:    service.canViewTaskRuns(request.Context(), email),
-		IsPoCSuperAdmin: isPoCSuperAdmin,
+		IsPoCSuperAdmin: service.isFlowAdminEmail(request.Context(), email),
 	})
 }
 
@@ -90,7 +85,18 @@ func (service *Service) handleWebLogout(responseWriter http.ResponseWriter, requ
 	http.SetCookie(responseWriter, expiredWebSessionCookie())
 	http.SetCookie(responseWriter, webLogoutMarkerCookie())
 	logAuditEvent("web session logout")
-	service.writeJSON(responseWriter, webLogoutResponse{OK: true, RedirectURL: logoutRedirectURLForRequest(request)})
+	service.writeJSON(responseWriter, webLogoutResponse{OK: true, RedirectURL: service.logoutRedirectURL(request)})
+}
+
+// logoutRedirectURL sends the browser to Cloudflare Access's logout endpoint when
+// Access fronts the app, so the CF_Authorization session is cleared too and the
+// user is not silently re-authenticated. Without Access it returns to the app.
+func (service *Service) logoutRedirectURL(request *http.Request) string {
+	teamDomain := strings.TrimSuffix(strings.TrimSpace(service.Configuration.CloudflareAccessTeamDomain), "/")
+	if teamDomain != "" {
+		return "https://" + teamDomain + "/cdn-cgi/access/logout"
+	}
+	return logoutRedirectURLForRequest(request)
 }
 
 func (service *Service) handleCloudflareAuthStart(responseWriter http.ResponseWriter, request *http.Request) {
@@ -100,7 +106,7 @@ func (service *Service) handleCloudflareAuthStart(responseWriter http.ResponseWr
 	}
 	returnPath := safeWebReturnPath(request.URL.Query().Get("return"))
 	if returnPath == "" {
-		respondMattermostAuthError(responseWriter, http.StatusBadRequest, "잘못된 이동 경로입니다.")
+		respondWebAuthError(responseWriter, http.StatusBadRequest, "잘못된 이동 경로입니다.")
 		logAuditEvent("cloudflare auth start denied: unsafe return")
 		return
 	}
@@ -115,24 +121,24 @@ func (service *Service) handleCloudflareAuthCallback(responseWriter http.Respons
 	}
 	returnPath := safeWebReturnPath(request.URL.Query().Get("return"))
 	if returnPath == "" {
-		respondMattermostAuthError(responseWriter, http.StatusBadRequest, "잘못된 이동 경로입니다.")
+		respondWebAuthError(responseWriter, http.StatusBadRequest, "잘못된 이동 경로입니다.")
 		logAuditEvent("cloudflare auth callback denied: unsafe return")
 		return
 	}
 	email := service.authenticatedCallerEmail(request)
 	if email == "" {
-		respondMattermostAuthError(responseWriter, http.StatusUnauthorized, "Cloudflare Access 인증 정보가 없습니다.")
+		respondWebAuthError(responseWriter, http.StatusUnauthorized, "Cloudflare Access 인증 정보가 없습니다.")
 		logAuditEvent("cloudflare auth callback denied: missing identity")
 		return
 	}
 	if !service.canAuthenticateWebReturnPath(request.Context(), email, returnPath) {
-		respondMattermostAuthError(responseWriter, http.StatusForbidden, "InternKim 사용 권한이 없습니다.")
+		respondWebAuthError(responseWriter, http.StatusForbidden, "InternKim 사용 권한이 없습니다.")
 		logAuditEvent("cloudflare auth callback denied: non_staff")
 		return
 	}
 	userRecord := mattermostUserRecord{Email: email}
 	if errorValue := service.issueWebSessionCookie(responseWriter, request, userRecord); errorValue != nil {
-		respondMattermostAuthError(responseWriter, http.StatusInternalServerError, "웹 세션을 만들지 못했습니다.")
+		respondWebAuthError(responseWriter, http.StatusInternalServerError, "웹 세션을 만들지 못했습니다.")
 		logAuditEvent("cloudflare auth callback failed: session")
 		return
 	}
@@ -357,10 +363,6 @@ func hashWebPolicyRecords(values []string) string {
 	return hex.EncodeToString(digest[:])
 }
 
-func (service *Service) mattermostLoginURLForReturnPath(returnPath string) string {
-	return "/auth/mattermost/start?return=" + url.QueryEscape(returnPath)
-}
-
 func (service *Service) cloudflareLoginURLForReturnPath(returnPath string) string {
 	return "/auth/cloudflare/start?return=" + url.QueryEscape(returnPath)
 }
@@ -420,4 +422,8 @@ func webAuthBaseURLFromRequest(request *http.Request) string {
 
 func logAuditEvent(message string) {
 	log.Printf("auth audit: %s", message)
+}
+
+func respondWebAuthError(responseWriter http.ResponseWriter, status int, message string) {
+	http.Error(responseWriter, message, status)
 }
