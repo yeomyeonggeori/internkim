@@ -1,65 +1,62 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
-	import { Popover } from 'bits-ui';
-	import { flowWeekCodeForDateISO, formatFlowWeekDateRange, type FlowWeekDateRange } from './flow-week-label';
+	import FilterCombobox from '$lib/components/filter-combobox.svelte';
+	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
+	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import { cn } from '$lib/utils';
+	import { flowWeekOptions } from './flow-week-label';
+	import type { FlowWeek } from './flow-types';
 
 	type Props = {
-		week: FlowWeekDateRange | null | undefined;
+		week: FlowWeek | null | undefined;
+		currentWeekStartISO: string;
 		disabled: boolean;
-		selectDateLabel: string;
+		selectWeekLabel: string;
 		currentWeekLabel: string;
+		previousWeekLabel: string;
+		nextWeekLabel: string;
 		onSelectWeek: (weekCode: string) => void;
-		onSelectCurrentWeek: () => void;
+		class?: string;
 	};
 
-	let { week, disabled, selectDateLabel, currentWeekLabel, onSelectWeek, onSelectCurrentWeek }: Props = $props();
-	let isOpen = $state(false);
+	let {
+		week,
+		currentWeekStartISO,
+		disabled,
+		selectWeekLabel,
+		currentWeekLabel,
+		previousWeekLabel,
+		nextWeekLabel,
+		onSelectWeek,
+		class: className
+	}: Props = $props();
 
-	const dateInputValue = () => week?.startISO || '';
+	const weekChoices = $derived(
+		flowWeekOptions(currentWeekStartISO || week?.startISO || '', 12, 4).map((option) => ({
+			value: option.value,
+			label: option.isCurrent ? `${option.label} · ${currentWeekLabel}` : option.label
+		}))
+	);
+	let selectedWeekCode = $state('');
 
-	function selectDate(dateISO: string) {
-		const weekCode = flowWeekCodeForDateISO(dateISO);
-		if (!weekCode) return;
-		onSelectWeek(weekCode);
-		isOpen = false;
-	}
-
-	function handleDateInputChange(event: Event) {
-		if (!(event.currentTarget instanceof HTMLInputElement)) return;
-		selectDate(event.currentTarget.value);
-	}
-
-	function moveToCurrentWeek() {
-		onSelectCurrentWeek();
-		isOpen = false;
-	}
+	$effect(() => {
+		selectedWeekCode = week?.code ?? '';
+	});
 </script>
 
-<Popover.Root bind:open={isOpen}>
-	<Popover.Trigger
-		{disabled}
-		aria-label={selectDateLabel}
-		class="inline-flex h-8 w-[7.5rem] shrink-0 items-center justify-center rounded-[min(var(--radius-md),10px)] border border-border bg-card px-2.5 text-sm font-medium tabular-nums shadow-xs outline-none transition-all hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
-	>
-		{formatFlowWeekDateRange(week)}
-	</Popover.Trigger>
-	<Popover.Portal>
-		<Popover.Content
-			sideOffset={8}
-			class="z-50 w-64 rounded-lg border bg-popover p-3 text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
-		>
-			<div class="space-y-3">
-				<div class="flex items-center gap-2 text-sm font-medium">
-					<CalendarDaysIcon class="size-4 text-muted-foreground" />
-					<span>{selectDateLabel}</span>
-				</div>
-				<Input type="date" value={dateInputValue()} onchange={handleDateInputChange} />
-				<Button variant="secondary" size="sm" class="w-full" onclick={moveToCurrentWeek}>
-					{currentWeekLabel}
-				</Button>
-			</div>
-		</Popover.Content>
-	</Popover.Portal>
-</Popover.Root>
+<div class={cn('flex shrink-0 items-center gap-1', className)}>
+	<TooltipIconButton label={previousWeekLabel} variant="outline" size="icon-sm" {disabled} onclick={() => onSelectWeek(week?.previous ?? '')}>
+		<ChevronLeftIcon />
+	</TooltipIconButton>
+	<FilterCombobox
+		bind:value={selectedWeekCode}
+		options={weekChoices}
+		label={selectWeekLabel}
+		clearValue=""
+		onSelect={(weekCode) => weekCode && onSelectWeek(weekCode)}
+		class="h-8 w-[11rem] tabular-nums"
+	/>
+	<TooltipIconButton label={nextWeekLabel} variant="outline" size="icon-sm" {disabled} onclick={() => onSelectWeek(week?.next ?? '')}>
+		<ChevronRightIcon />
+	</TooltipIconButton>
+</div>

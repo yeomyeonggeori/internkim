@@ -6,7 +6,6 @@
 	import { onMount } from 'svelte';
 	import FlowDefinitionsEditor from './flow-definitions-editor.svelte';
 	import FlowMembersView from './flow-members-view.svelte';
-	import FlowPageHeader from './flow-page-header.svelte';
 	import FlowReportView from './flow-report-view.svelte';
 	import FlowTabRow from './flow-tab-row.svelte';
 	import FlowTasksView from './flow-tasks-view.svelte';
@@ -127,14 +126,6 @@
 
 <main class="min-h-screen min-w-0 flex-1 bg-background text-foreground">
 	<div class="flex w-full min-w-0 flex-col gap-6 px-4 py-6 md:px-8">
-		<FlowPageHeader
-			{summary}
-			{text}
-			{isLoading}
-			{selectWeek}
-			{selectCurrentWeek}
-		/>
-
 		{#if errorMessage}
 			<div class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
 				{errorMessage}
@@ -148,7 +139,9 @@
 				{summary}
 				{focusedTaskID}
 				{text}
+				{isLoading}
 				{loadFlow}
+				{selectWeek}
 				setPageErrorMessage={(message) => {
 					errorMessage = message;
 				}}
