@@ -93,13 +93,28 @@ export function isoWeekStart(date: string): string {
 	return utcDateKey(d);
 }
 
+const dateFormatterByTimeZone = new Map<string, Intl.DateTimeFormat>();
+const timeFormatterByTimeZone = new Map<string, Intl.DateTimeFormat>();
+const normalizedTimeZoneByInput = new Map<string, string>();
+
+function dateFormatterFor(timeZone: string): Intl.DateTimeFormat {
+	const formatter = dateFormatterByTimeZone.get(timeZone);
+	if (formatter) return formatter;
+	const createdFormatter = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
+	dateFormatterByTimeZone.set(timeZone, createdFormatter);
+	return createdFormatter;
+}
+
+function timeFormatterFor(timeZone: string): Intl.DateTimeFormat {
+	const formatter = timeFormatterByTimeZone.get(timeZone);
+	if (formatter) return formatter;
+	const createdFormatter = new Intl.DateTimeFormat('en-US', { timeZone, hour: '2-digit', minute: '2-digit', hour12: false });
+	timeFormatterByTimeZone.set(timeZone, createdFormatter);
+	return createdFormatter;
+}
+
 function datePartsInTimeZone(timeZone: string | undefined, date: Date): { year: string; month: string; day: string } {
-	const parts = new Intl.DateTimeFormat('en-US', {
-		timeZone: normalizeTimeZone(timeZone),
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-	}).formatToParts(date);
+	const parts = dateFormatterFor(normalizeTimeZone(timeZone)).formatToParts(date);
 	return {
 		year: partValue(parts, 'year'),
 		month: partValue(parts, 'month'),
@@ -108,12 +123,7 @@ function datePartsInTimeZone(timeZone: string | undefined, date: Date): { year: 
 }
 
 function timePartsInTimeZone(timeZone: string | undefined, date: Date): { hour: string; minute: string } {
-	const parts = new Intl.DateTimeFormat('en-US', {
-		timeZone: normalizeTimeZone(timeZone),
-		hour: '2-digit',
-		minute: '2-digit',
-		hour12: false,
-	}).formatToParts(date);
+	const parts = timeFormatterFor(normalizeTimeZone(timeZone)).formatToParts(date);
 	return {
 		hour: partValue(parts, 'hour'),
 		minute: partValue(parts, 'minute'),
@@ -121,7 +131,15 @@ function timePartsInTimeZone(timeZone: string | undefined, date: Date): { hour: 
 }
 
 function normalizeTimeZone(timeZone: string | undefined): string {
-	const trimmedTimeZone = timeZone?.trim();
+	const trimmedTimeZone = timeZone?.trim() ?? '';
+	const cachedTimeZone = normalizedTimeZoneByInput.get(trimmedTimeZone);
+	if (cachedTimeZone) return cachedTimeZone;
+	const normalizedTimeZone = resolveTimeZone(trimmedTimeZone);
+	normalizedTimeZoneByInput.set(trimmedTimeZone, normalizedTimeZone);
+	return normalizedTimeZone;
+}
+
+function resolveTimeZone(trimmedTimeZone: string): string {
 	if (!trimmedTimeZone || trimmedTimeZone === 'Local') return browserTimeZone();
 	if (isValidTimeZone(trimmedTimeZone)) return trimmedTimeZone;
 	return browserTimeZone();
