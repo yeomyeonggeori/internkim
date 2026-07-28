@@ -64,6 +64,7 @@
 		"force-graph": "^1.51.4",
 		"marked": "^17.0.5",
 		"minidenticons": "^4.2.1",
+		"nostr-tools": "^2.24.1",
 		"runed": "^0.37.1",
 		"shiki": "^4.0.2",
 		"svelte-qrcode": "^1.0.1",
