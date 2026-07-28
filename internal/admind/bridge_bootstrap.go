@@ -21,15 +21,30 @@ func (service *Service) bridgeBuzzChannelID(externalChannelID string) (string, e
 }
 
 func (service *Service) resolveBridgeChannel(ctx context.Context, platform string, externalChannelID string) (string, error) {
-	buzzChannelID, errorValue := service.bridgeBuzzChannelID(externalChannelID)
-	if errorValue != nil {
-		return "", errorValue
-	}
+	buzzChannelID, deriveError := service.bridgeBuzzChannelID(externalChannelID)
 	database, errorValue := service.openBridgeMapDatabase(ctx)
 	if errorValue != nil {
 		return "", errorValue
 	}
 	defer database.Close()
+	// After seed retirement the channel can no longer be derived; serve the
+	// mapping recorded while the seed still existed (bootstrap runs before
+	// retirement). Channel derivation and key derivation share the seed, so
+	// retiring it — deleting the seed file — stops both, and stored mappings
+	// carry the channel space forward.
+	if errors.Is(deriveError, errBridgeSeedMissing) {
+		mapping, found, lookupError := service.bridgeChannelByExternal(ctx, database, platform, externalChannelID)
+		if lookupError != nil {
+			return "", lookupError
+		}
+		if !found {
+			return "", errBridgeSeedMissing
+		}
+		return mapping.BuzzChannelID, nil
+	}
+	if deriveError != nil {
+		return "", deriveError
+	}
 	mapping := bridgeChannelMapping{BuzzChannelID: buzzChannelID, Platform: platform, ExternalChannelID: externalChannelID}
 	if errorValue := service.recordBridgeChannel(ctx, database, mapping); errorValue != nil {
 		return "", errorValue
