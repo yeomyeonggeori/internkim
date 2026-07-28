@@ -37,15 +37,15 @@ type webSessionPayload struct {
 }
 
 type webSessionResponse struct {
-	Authenticated      bool   `json:"authenticated"`
-	Email              string `json:"email,omitempty"`
-	IdentityEmail      string `json:"identityEmail,omitempty"`
-	NotInvited         bool   `json:"notInvited,omitempty"`
-	Image              string `json:"image,omitempty"`
-	CloudflareLoginURL string `json:"cloudflareLoginURL,omitempty"`
-	IsAdmin            bool   `json:"isAdmin"`
-	CanViewTasks       bool   `json:"canViewTasks"`
-	IsPoCSuperAdmin    bool   `json:"isPocSuperAdmin"`
+	Authenticated   bool   `json:"authenticated"`
+	Email           string `json:"email,omitempty"`
+	IdentityEmail   string `json:"identityEmail,omitempty"`
+	NotInvited      bool   `json:"notInvited,omitempty"`
+	Image           string `json:"image,omitempty"`
+	SignupURL       string `json:"signupURL,omitempty"`
+	IsAdmin         bool   `json:"isAdmin"`
+	CanViewTasks    bool   `json:"canViewTasks"`
+	IsPoCSuperAdmin bool   `json:"isPocSuperAdmin"`
 }
 
 type webLogoutResponse struct {
@@ -62,17 +62,17 @@ func (service *Service) handleWebSession(responseWriter http.ResponseWriter, req
 	email := service.webActorEmail(request)
 	if email == "" {
 		service.writeJSON(responseWriter, webSessionResponse{
-			Authenticated:      false,
-			CloudflareLoginURL: service.cloudflareLoginURLForReturnPath(returnPath),
+			Authenticated: false,
+			SignupURL:     service.emailVerifyStartURL(returnPath),
 		})
 		return
 	}
 	if !service.canAuthenticateWebReturnPath(request.Context(), email, returnPath) {
 		service.writeJSON(responseWriter, webSessionResponse{
-			Authenticated:      false,
-			IdentityEmail:      email,
-			NotInvited:         true,
-			CloudflareLoginURL: service.cloudflareLoginURLForReturnPath(returnPath),
+			Authenticated: false,
+			IdentityEmail: email,
+			NotInvited:    true,
+			SignupURL:     service.emailVerifyStartURL(returnPath),
 		})
 		return
 	}
@@ -99,7 +99,7 @@ func (service *Service) handleWebLogout(responseWriter http.ResponseWriter, requ
 	service.writeJSON(responseWriter, webLogoutResponse{OK: true, RedirectURL: logoutRedirectURLForRequest(request)})
 }
 
-func (service *Service) handleCloudflareAuthStart(responseWriter http.ResponseWriter, request *http.Request) {
+func (service *Service) handleEmailVerifyStart(responseWriter http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodGet {
 		http.NotFound(responseWriter, request)
 		return
@@ -110,11 +110,11 @@ func (service *Service) handleCloudflareAuthStart(responseWriter http.ResponseWr
 		logAuditEvent("cloudflare auth start denied: unsafe return")
 		return
 	}
-	http.Redirect(responseWriter, request, "/auth/cloudflare/callback?return="+url.QueryEscape(returnPath), http.StatusFound)
+	http.Redirect(responseWriter, request, "/auth/verify/callback?return="+url.QueryEscape(returnPath), http.StatusFound)
 	logAuditEvent("cloudflare auth start")
 }
 
-func (service *Service) handleCloudflareAuthCallback(responseWriter http.ResponseWriter, request *http.Request) {
+func (service *Service) handleEmailVerifyCallback(responseWriter http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodGet {
 		http.NotFound(responseWriter, request)
 		return
@@ -363,8 +363,8 @@ func hashWebPolicyRecords(values []string) string {
 	return hex.EncodeToString(digest[:])
 }
 
-func (service *Service) cloudflareLoginURLForReturnPath(returnPath string) string {
-	return "/auth/cloudflare/start?return=" + url.QueryEscape(returnPath)
+func (service *Service) emailVerifyStartURL(returnPath string) string {
+	return "/auth/verify/start?return=" + url.QueryEscape(returnPath)
 }
 
 func loginReturnPathForRequest(request *http.Request) string {
