@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { afterNavigate, beforeNavigate } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
@@ -23,12 +23,13 @@
 	import { isEmbeddedFrame } from '$lib/embedded';
 	import { isAppShortcutMessage } from '$lib/app-shortcut-message';
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
+	import { webAuthSessionDependency } from '$lib/web-auth-session';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
 
-	let { children } = $props();
+	let { children, data } = $props();
 	const text = createPageText(appShellText);
 	let isCommandPaletteOpen = $state(false);
 	let isAppSidebarOpen = $state(false);
@@ -43,7 +44,19 @@
 		isRouteChangeVisible = false;
 	});
 
-	onMount(initializeLocale);
+	onMount(() => {
+		initializeLocale();
+		const revalidateSession = () => {
+			if (document.visibilityState !== 'visible') return;
+			void invalidate(webAuthSessionDependency);
+		};
+		window.addEventListener('focus', revalidateSession);
+		document.addEventListener('visibilitychange', revalidateSession);
+		return () => {
+			window.removeEventListener('focus', revalidateSession);
+			document.removeEventListener('visibilitychange', revalidateSession);
+		};
+	});
 
 	function selectLocale(code: string) {
 		if (code === 'ko' || code === 'en') setLocale(code);
@@ -205,7 +218,7 @@
 					{#if isRouteChangeVisible}
 						<AppRouteSkeleton />
 					{:else if usesWebAuthGate(page.url.pathname)}
-						<WebAuthGate returnPath={currentReturnPath()}>
+						<WebAuthGate session={data.session} returnPath={currentReturnPath()}>
 							{@render children()}
 						</WebAuthGate>
 					{:else}
