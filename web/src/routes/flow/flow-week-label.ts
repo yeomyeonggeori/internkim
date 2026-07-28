@@ -13,7 +13,7 @@ export function formatFlowWeekDateRange(week: FlowWeekDateRange | null | undefin
 export type FlowWeekOption = {
 	value: string;
 	label: string;
-	isCurrent: boolean;
+	offsetFromCurrent: number;
 };
 
 export function flowWeekOptions(
@@ -30,7 +30,7 @@ export function flowWeekOptions(
 		options.push({
 			value: weekCodeForMonday(monday),
 			label: formatFlowWeekDateRange({ startISO: dateISOFromDate(monday), endISO: dateISOFromDate(sunday) }),
-			isCurrent: offset === 0
+			offsetFromCurrent: offset === 0 ? 0 : -offset
 		});
 	}
 	return options;

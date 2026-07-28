@@ -31,17 +31,26 @@ func (service *Service) readFlowDefinitions(ctx context.Context) (flowDefinition
 	if len(definitions.Types) == 0 {
 		definitions.Types = defaultFlowTypes()
 	}
+	locale := service.adminLocale()
 	if len(definitions.Sizes) == 0 {
-		definitions.Sizes = defaultFlowSizeDefinitions()
+		definitions.Sizes = defaultFlowSizeDefinitionsForLocale(locale)
 	} else {
-		definitions.Sizes = restoreFlowSizeDefaults(definitions.Sizes)
+		definitions.Sizes = localizedFlowSizeDefinitions(definitions.Sizes, locale)
 	}
 	return definitions, nil
 }
 
 func restoreFlowSizeDefaults(sizes []flowSizeDefinition) []flowSizeDefinition {
-	defaultByName := map[string]flowSizeDefinition{}
+	return localizedFlowSizeDefinitions(sizes, "ko")
+}
+
+func localizedFlowSizeDefinitions(sizes []flowSizeDefinition, locale string) []flowSizeDefinition {
+	koreanDefaultByName := map[string]flowSizeDefinition{}
 	for _, definition := range defaultFlowSizeDefinitions() {
+		koreanDefaultByName[strings.ToUpper(strings.TrimSpace(definition.Name))] = definition
+	}
+	defaultByName := map[string]flowSizeDefinition{}
+	for _, definition := range defaultFlowSizeDefinitionsForLocale(locale) {
 		defaultByName[strings.ToUpper(strings.TrimSpace(definition.Name))] = definition
 	}
 	result := make([]flowSizeDefinition, 0, len(sizes))
@@ -54,21 +63,24 @@ func restoreFlowSizeDefaults(sizes []flowSizeDefinition) []flowSizeDefinition {
 			if size.MaxHours <= 0 {
 				size.MaxHours = fallback.MaxHours
 			}
-			if strings.TrimSpace(size.DevelopmentExample) == "" {
-				size.DevelopmentExample = fallback.DevelopmentExample
-			}
-			if strings.TrimSpace(size.OtherExample) == "" {
-				size.OtherExample = fallback.OtherExample
-			}
-			if strings.TrimSpace(size.Note) == "" {
-				size.Note = fallback.Note
-			}
+			koreanDefault := koreanDefaultByName[strings.ToUpper(strings.TrimSpace(size.Name))]
+			size.DevelopmentExample = localizedSizeText(size.DevelopmentExample, koreanDefault.DevelopmentExample, fallback.DevelopmentExample)
+			size.OtherExample = localizedSizeText(size.OtherExample, koreanDefault.OtherExample, fallback.OtherExample)
+			size.Note = localizedSizeText(size.Note, koreanDefault.Note, fallback.Note)
 		}
 		size.Score = size.DistanceKM
-		size.Label = flowSizeLabel(size)
+		size.Label = flowSizeLabelForLocale(size, locale)
 		result = append(result, size)
 	}
 	return result
+}
+
+func localizedSizeText(storedText string, koreanDefaultText string, localizedDefaultText string) string {
+	trimmedText := strings.TrimSpace(storedText)
+	if trimmedText == "" || trimmedText == strings.TrimSpace(koreanDefaultText) {
+		return localizedDefaultText
+	}
+	return trimmedText
 }
 
 func readFlowDefinitionValues(ctx context.Context, database *sql.DB, kind string) ([]string, error) {
