@@ -132,7 +132,7 @@ func (service *Service) handleEmailVerifyCallback(responseWriter http.ResponseWr
 		return
 	}
 	if !service.canAuthenticateWebReturnPath(request.Context(), email, returnPath) {
-		respondWebAuthError(responseWriter, http.StatusForbidden, "InternKim 사용 권한이 없습니다.")
+		respondWebAuthError(responseWriter, http.StatusForbidden, "김인턴 사용 권한이 없습니다. 관리자에게 초대를 요청하세요.")
 		logAuditEvent("cloudflare auth callback denied: non_staff")
 		return
 	}
