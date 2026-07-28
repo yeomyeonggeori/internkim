@@ -646,19 +646,20 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 }
 
 func (service *Service) webStaffActorIdentity(request *http.Request) (string, string) {
-	if actorEmail := service.authenticatedCallerEmail(request); actorEmail != "" {
-		return actorEmail, actorEmail
-	}
-	cookieHeader := mattermostSessionCookieHeader(request)
-	if cookieHeader == "" {
+	actorEmail := service.webActorEmail(request)
+	if actorEmail == "" {
 		return "", ""
 	}
-	userRecord, ok := service.mattermostSessionUser(request, cookieHeader)
-	if !ok {
-		return "", ""
+	return actorEmail, service.displayNameForEmail(request.Context(), actorEmail)
+}
+
+func (service *Service) displayNameForEmail(ctx context.Context, email string) string {
+	for _, record := range service.blueclawPolicyUserRecords(ctx) {
+		if strings.EqualFold(strings.TrimSpace(record.Email), email) && strings.TrimSpace(record.Name) != "" {
+			return strings.TrimSpace(record.Name)
+		}
 	}
-	actorEmail := strings.ToLower(strings.TrimSpace(userRecord.Email))
-	return actorEmail, firstNonEmpty(mattermostDisplayName(userRecord), actorEmail)
+	return email
 }
 
 func (people *calendarPeopleInput) UnmarshalJSON(document []byte) error {

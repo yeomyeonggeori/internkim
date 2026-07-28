@@ -36,7 +36,7 @@ func TestMemoryAPIUsesMattermostSessionUserGraph(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/memory/api/graph?limit=10", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -92,7 +92,7 @@ func TestMemoryAPIUsesMattermostSessionUserSchedules(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/memory/api/schedules?creatorPersonID=other-person&limit=200&page=3&pageSize=25", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -187,7 +187,7 @@ func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodPost, "/memory/api/schedules/cancel", strings.NewReader(`{"taskScheduleID":"schedule-1","creatorPersonID":"spoofed-person"}`))
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -234,7 +234,7 @@ func TestMemoryAPIDeleteScheduleInjectsResolvedPersonID(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodPost, "/memory/api/schedules/delete", strings.NewReader(`{"taskScheduleID":"schedule-1","creatorPersonID":"spoofed-person"}`))
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -287,7 +287,7 @@ func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodPost, "/memory/api/schedules/update", strings.NewReader(`{"taskScheduleID":"schedule-1","creatorPersonID":"spoofed-person","name":"새 이름","intervalSecond":1800,"repeatPolicy":"unbounded"}`))
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -365,7 +365,7 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/memory/api/schedules", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -406,7 +406,7 @@ func TestMemoryAPIGraphHidesUpstreamFailureDetails(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/memory/api/graph", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
