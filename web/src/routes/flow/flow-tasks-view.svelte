@@ -74,10 +74,8 @@
 				businessOptions={page.categoryFilterOptions()}
 				typeOptions={page.typeFilterOptions()}
 				hasBusinessFilter={page.definitions().categories.length > 0}
-				hasMembers={page.members().length > 0}
 				text={text.filters}
 				resetFilters={page.resetFilters}
-				createTask={page.createTask}
 				setParticipantFilterIDs={page.setParticipantFilterIDs}
 			/>
 			{#if taskViewTab === 'list'}
