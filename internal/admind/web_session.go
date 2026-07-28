@@ -93,8 +93,8 @@ func (service *Service) handleWebLogout(responseWriter http.ResponseWriter, requ
 		http.NotFound(responseWriter, request)
 		return
 	}
-	http.SetCookie(responseWriter, expiredWebSessionCookie())
-	http.SetCookie(responseWriter, webLogoutMarkerCookie())
+	http.SetCookie(responseWriter, expiredWebSessionCookie(requestPrefersSecureCookie(request)))
+	http.SetCookie(responseWriter, webLogoutMarkerCookie(requestPrefersSecureCookie(request)))
 	logAuditEvent("web session logout")
 	service.writeJSON(responseWriter, webLogoutResponse{OK: true, RedirectURL: logoutRedirectURLForRequest(request)})
 }
@@ -204,14 +204,24 @@ func (service *Service) issueWebSessionCookie(responseWriter http.ResponseWriter
 		Expires:  time.Unix(payload.ExpiresAt, 0).UTC(),
 		MaxAge:   int(webSessionDuration.Seconds()),
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   requestPrefersSecureCookie(request),
 		SameSite: http.SameSiteLaxMode,
 	})
-	http.SetCookie(responseWriter, expiredWebLogoutMarkerCookie())
+	http.SetCookie(responseWriter, expiredWebLogoutMarkerCookie(requestPrefersSecureCookie(request)))
 	return nil
 }
 
-func expiredWebSessionCookie() *http.Cookie {
+// requestPrefersSecureCookie marks session cookies Secure only when the request
+// actually arrived over HTTPS. Browsers drop Secure cookies on plain http, so
+// local http development (http://localhost) needs them cleared.
+func requestPrefersSecureCookie(request *http.Request) bool {
+	if forwardedProto := strings.TrimSpace(request.Header.Get("X-Forwarded-Proto")); forwardedProto != "" {
+		return strings.EqualFold(forwardedProto, "https")
+	}
+	return request.TLS != nil
+}
+
+func expiredWebSessionCookie(secure bool) *http.Cookie {
 	return &http.Cookie{
 		Name:     webSessionCookieName,
 		Value:    "",
@@ -219,12 +229,12 @@ func expiredWebSessionCookie() *http.Cookie {
 		Expires:  time.Unix(0, 0).UTC(),
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	}
 }
 
-func webLogoutMarkerCookie() *http.Cookie {
+func webLogoutMarkerCookie(secure bool) *http.Cookie {
 	return &http.Cookie{
 		Name:     webLogoutMarkerCookieName,
 		Value:    "1",
@@ -232,12 +242,12 @@ func webLogoutMarkerCookie() *http.Cookie {
 		Expires:  time.Now().UTC().Add(webLogoutMarkerDuration),
 		MaxAge:   int(webLogoutMarkerDuration.Seconds()),
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	}
 }
 
-func expiredWebLogoutMarkerCookie() *http.Cookie {
+func expiredWebLogoutMarkerCookie(secure bool) *http.Cookie {
 	return &http.Cookie{
 		Name:     webLogoutMarkerCookieName,
 		Value:    "",
@@ -245,7 +255,7 @@ func expiredWebLogoutMarkerCookie() *http.Cookie {
 		Expires:  time.Unix(0, 0).UTC(),
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	}
 }
