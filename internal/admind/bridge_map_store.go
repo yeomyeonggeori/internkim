@@ -86,6 +86,25 @@ FROM bridge_channel_map WHERE buzz_channel_id = ? AND platform = ?`, buzzChannel
 	return scanBridgeChannel(row)
 }
 
+func (service *Service) listBridgeChannels(ctx context.Context, database *sql.DB, platform string) ([]bridgeChannelMapping, error) {
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT buzz_channel_id, platform, external_channel_id
+FROM bridge_channel_map WHERE platform = ?`, platform)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	mappings := []bridgeChannelMapping{}
+	for rows.Next() {
+		var mapping bridgeChannelMapping
+		if errorValue := rows.Scan(&mapping.BuzzChannelID, &mapping.Platform, &mapping.ExternalChannelID); errorValue != nil {
+			return nil, errorValue
+		}
+		mappings = append(mappings, mapping)
+	}
+	return mappings, rows.Err()
+}
+
 func scanBridgeChannel(row *sql.Row) (bridgeChannelMapping, bool, error) {
 	var mapping bridgeChannelMapping
 	errorValue := row.Scan(&mapping.BuzzChannelID, &mapping.Platform, &mapping.ExternalChannelID)
