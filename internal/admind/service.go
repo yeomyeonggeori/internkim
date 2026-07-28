@@ -94,6 +94,9 @@ type Configuration struct {
 	BuzzDatabaseURL                string
 	BuzzAccountLinksPath           string
 	BuzzKeySeedPath                string
+	CloudflareAccessTeamDomain string
+	CloudflareAccessAUDs       string
+	TrustProxyForwardedEmail   bool
 }
 
 type Service struct {
@@ -115,12 +118,13 @@ type Service struct {
 	buzzInviteStoreOnce        sync.Once
 	buzzKeySeedOnce            sync.Once
 	buzzKeySeedValue           string
+	cloudflareAccessOnce       sync.Once
+	cloudflareAccessCheck      *cloudflareAccessVerifier
 	sites                      map[string]*SiteRecord
 	siteRuntimeMutex           sync.Mutex
 	siteRuntimeActivities      map[string]*siteRuntimeActivity
 	mailBackend                mailBackend
 	googleOAuthStates          sync.Map
-	webOAuthStates             sync.Map
 	calendarSyncWakeUp         chan struct{}
 	calendarDeleteIntentWakeUp chan struct{}
 	calendarSyncCycleMutex     sync.Mutex
@@ -521,10 +525,11 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/calendar/oauth/google/callback", service.handleGoogleOAuthCallback)
 	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
 	multiplexer.HandleFunc("/auth/session", service.handleWebSession)
+	multiplexer.HandleFunc("/auth/vault", service.handleAuthVault)
+	multiplexer.HandleFunc("/auth/challenge", service.handleKeyLoginChallenge)
+	multiplexer.HandleFunc("/auth/key-login", service.handleKeyLogin)
 	multiplexer.HandleFunc("/auth/cloudflare/start", service.handleCloudflareAuthStart)
 	multiplexer.HandleFunc("/auth/cloudflare/callback", service.handleCloudflareAuthCallback)
-	multiplexer.HandleFunc("/auth/mattermost/start", service.handleMattermostOAuthStart)
-	multiplexer.HandleFunc("/auth/mattermost/callback", service.handleMattermostOAuthCallback)
 	multiplexer.HandleFunc("/auth/logout", service.handleWebLogout)
 	multiplexer.HandleFunc("/mail", service.serveMailPage)
 	multiplexer.HandleFunc("/mail/api/", service.handleMail)
@@ -1024,11 +1029,8 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 	isClaimedAdmin := callerEmail != "" && strings.EqualFold(callerEmail, claimedAdminEmail)
 	consoleEmail := service.adminConsoleActorEmail(request)
 	role := service.adminSessionRole(request.Context(), consoleEmail)
-	isPoCSuperAdmin := service.isMattermostHumanSystemAdmin(request.Context(), consoleEmail)
+	isPoCSuperAdmin := service.isFlowAdminEmail(request.Context(), consoleEmail)
 	canViewTasks := role == adminUserRoleAdmin || role == adminUserRoleOperationsAdmin
-	if service.isProofOfConceptTenantMode() {
-		canViewTasks = isPoCSuperAdmin
-	}
 	sessionImageEmail := firstNonEmpty(consoleEmail, claimedAdminEmail)
 	response := adminSessionResponse{
 		Email:             consoleEmail,
@@ -1918,14 +1920,46 @@ func (service *Service) adminConsoleActorEmail(request *http.Request) string {
 }
 
 func (service *Service) authenticatedCallerEmail(request *http.Request) string {
+	if email := service.cloudflareAccessVerifier().verifiedEmail(request.Context(), request); email != "" {
+		return email
+	}
+	// Deployments that do not use Cloudflare front the app with their own
+	// identity-aware reverse proxy (oauth2-proxy, Authelia, Authentik, Pomerium)
+	// that authenticates the user and injects a trusted email header. The
+	// operator opts in with TrustProxyForwardedEmail, asserting the proxy is the
+	// only ingress. Absent that, a verified Cloudflare Access JWT is required,
+	// except on loopback for local development and tests.
+	if service.Configuration.TrustProxyForwardedEmail {
+		return forwardedProxyEmail(request)
+	}
+	if service.cloudflareAccessVerifier().isConfigured() {
+		return ""
+	}
 	if !trustsForwardedIdentity(service.Configuration.ListenAddress) {
 		return ""
 	}
+	return forwardedProxyEmail(request)
+}
+
+func forwardedProxyEmail(request *http.Request) string {
 	return strings.ToLower(strings.TrimSpace(firstNonEmpty(
 		request.Header.Get("Cf-Access-Authenticated-User-Email"),
 		request.Header.Get("CF-Access-Authenticated-User-Email"),
 		request.Header.Get("X-Forwarded-Email"),
+		request.Header.Get("X-Auth-Request-Email"),
 	)))
+}
+
+func (service *Service) cloudflareAccessVerifier() *cloudflareAccessVerifier {
+	service.cloudflareAccessOnce.Do(func() {
+		audiences := strings.Split(service.Configuration.CloudflareAccessAUDs, ",")
+		service.cloudflareAccessCheck = newCloudflareAccessVerifier(
+			service.Configuration.CloudflareAccessTeamDomain,
+			audiences,
+			service.httpClient(),
+		)
+	})
+	return service.cloudflareAccessCheck
 }
 
 func trustsForwardedIdentity(listenAddress string) bool {
