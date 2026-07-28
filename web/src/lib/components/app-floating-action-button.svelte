@@ -22,7 +22,7 @@
 	bind:ref
 	{label}
 	side="left"
-	class="internkim-app-floating-action size-14 rounded-full shadow-lg [&_svg:not([class*='size-'])]:size-5"
+	class="internkim-app-floating-action size-14 rounded-full shadow-lg transition-shadow hover:bg-primary hover:shadow-xl [&_svg:not([class*='size-'])]:size-5"
 	size="icon"
 	{...buttonProps}
 >
