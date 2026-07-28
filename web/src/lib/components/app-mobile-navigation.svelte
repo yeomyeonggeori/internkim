@@ -71,7 +71,7 @@
 		aria-label={item.label}
 		data-active={isActive(item.href)}
 		data-sveltekit-preload-data="off"
-		data-sveltekit-preload-code="off"
+		data-sveltekit-preload-code="viewport"
 		class="flex min-w-0 flex-col items-center justify-center gap-1 rounded-full px-1 py-1 text-[10.5px] font-semibold leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:bg-foreground data-[active=true]:text-background"
 	>
 		<Icon class="size-5 shrink-0" />
@@ -85,7 +85,7 @@
 		href={item.href}
 		data-active={isActive(item.href)}
 		data-sveltekit-preload-data="off"
-		data-sveltekit-preload-code="off"
+		data-sveltekit-preload-code="viewport"
 		onclick={closeMoreSheet}
 		class="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
 	>
