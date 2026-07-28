@@ -174,6 +174,7 @@
 <Dialog.Root {open}>
 	<Dialog.Content
 		class="sm:max-w-md"
+		showCloseButton={false}
 		onEscapeKeydown={(event) => event.preventDefault()}
 		onInteractOutside={(event) => event.preventDefault()}
 	>
