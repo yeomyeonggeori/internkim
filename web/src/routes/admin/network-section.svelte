@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
+	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
+	import * as Item from '$lib/components/ui/item';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -102,97 +106,91 @@
 	}
 </script>
 
-<div class="rounded-lg border p-4">
-	<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-		<div>
-			<h3 class="flex items-center gap-2 text-sm font-semibold">
-				<WifiIcon class="size-4 text-blue-500" />
-				{text.wifiProfiles.title}
-			</h3>
-			<p class="mt-1 text-sm text-muted-foreground">{text.wifiProfiles.description}</p>
-		</div>
-	</div>
-
-	{#if isLoading}
-		<div class="flex items-center gap-2 text-sm text-muted-foreground">
-			<LoaderIcon class="size-4 animate-spin" />
-		</div>
-	{:else if profiles.length === 0}
-		<p class="text-sm text-muted-foreground">{text.wifiProfiles.empty}</p>
-	{:else}
-		<div class="grid gap-2">
-			{#each profiles as profile (profile.name)}
-				<div class="grid gap-2 rounded-md border p-3 md:grid-cols-[1fr_auto_1fr_auto_auto] md:items-center">
-					<div class="min-w-0">
-						<p class="truncate text-sm font-medium">{profile.ssid}</p>
-						{#if profile.ssid !== profile.name}
-							<p class="truncate text-xs text-muted-foreground">{profile.name}</p>
-						{/if}
-					</div>
-					<div>
-						{#if profile.isActive}
-							<Badge variant="secondary" class="text-xs text-green-600">{text.wifiProfiles.active}</Badge>
-						{/if}
-					</div>
-					<Input
-						type="password"
-						value={editingPasswords[profile.name] ?? ''}
-						placeholder={text.wifiProfiles.passwordPlaceholder}
-						autocomplete="off"
-						disabled={savingProfile === profile.name}
-						oninput={(event) => {
-							editingPasswords = { ...editingPasswords, [profile.name]: event.currentTarget.value };
-						}}
-					/>
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={!isDeviceReachable || savingProfile === profile.name || !(editingPasswords[profile.name] ?? '').trim()}
-						onclick={() => handleUpdatePassword(profile)}
-					>
-						{#if savingProfile === profile.name}
-							<LoaderIcon class="size-4 animate-spin" />
-						{/if}
-						{text.wifiProfiles.save}
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						aria-label={text.wifiProfiles.remove}
-						disabled={!isDeviceReachable || savingProfile === profile.name}
-						onclick={() => handleRemove(profile)}
-					>
-						<Trash2Icon class="size-4" />
-					</Button>
-				</div>
-			{/each}
-		</div>
-	{/if}
-
-	{#if message}
-		<p class="mt-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">{message}</p>
-	{/if}
-</div>
-
-<div class="rounded-lg border p-4">
-	<h3 class="mb-3 flex items-center gap-2 text-sm font-semibold">
-		<PlusIcon class="size-4" />
-		{text.wifiProfiles.addTitle}
-	</h3>
-	<div class="grid gap-2 md:grid-cols-[1fr_1fr_auto] md:items-end">
-		<div>
-			<label class="text-xs font-medium text-muted-foreground" for="wifi-ssid">{text.wifiProfiles.ssidLabel}</label>
-			<Input
-				id="wifi-ssid"
-				bind:value={newSSID}
-				placeholder={text.wifiProfiles.ssidPlaceholder}
-				autocomplete="off"
-				disabled={isAdding}
-				class="mt-1"
-			/>
-		</div>
-		<div>
-			<label class="text-xs font-medium text-muted-foreground" for="wifi-password">{text.wifiProfiles.passwordLabel}</label>
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.wifiProfiles.title}</Card.Title>
+		<Card.Description>{text.wifiProfiles.description}</Card.Description>
+	</Card.Header>
+	<Card.Content>
+		{#if isLoading}
+			<div class="text-muted-foreground flex items-center gap-2 text-sm">
+				<LoaderIcon class="size-4 animate-spin" />
+			</div>
+		{:else if profiles.length === 0}
+			<Empty.Root class="border border-dashed">
+				<Empty.Header>
+					<Empty.Media variant="icon">
+						<WifiIcon />
+					</Empty.Media>
+					<Empty.Title>{text.wifiProfiles.empty}</Empty.Title>
+				</Empty.Header>
+			</Empty.Root>
+		{:else}
+			<Item.Group class="gap-2">
+				{#each profiles as profile (profile.name)}
+					<Item.Root variant="outline">
+						<Item.Media variant="icon">
+							<WifiIcon />
+						</Item.Media>
+						<Item.Content>
+							<Item.Title>
+								{profile.ssid}
+								{#if profile.isActive}
+									<Badge variant="secondary">{text.wifiProfiles.active}</Badge>
+								{/if}
+							</Item.Title>
+							{#if profile.ssid !== profile.name}
+								<Item.Description>{profile.name}</Item.Description>
+							{/if}
+						</Item.Content>
+						<Item.Actions>
+							<Input
+								class="w-48"
+								type="password"
+								value={editingPasswords[profile.name] ?? ''}
+								placeholder={text.wifiProfiles.passwordPlaceholder}
+								autocomplete="off"
+								disabled={savingProfile === profile.name}
+								oninput={(event) => {
+									editingPasswords = { ...editingPasswords, [profile.name]: event.currentTarget.value };
+								}}
+							/>
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={!isDeviceReachable || savingProfile === profile.name || !(editingPasswords[profile.name] ?? '').trim()}
+								onclick={() => handleUpdatePassword(profile)}
+							>
+								{#if savingProfile === profile.name}
+									<LoaderIcon class="size-4 animate-spin" />
+								{/if}
+								{text.wifiProfiles.save}
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								aria-label={text.wifiProfiles.remove}
+								disabled={!isDeviceReachable || savingProfile === profile.name}
+								onclick={() => handleRemove(profile)}
+							>
+								<Trash2Icon />
+							</Button>
+						</Item.Actions>
+					</Item.Root>
+				{/each}
+			</Item.Group>
+		{/if}
+		{#if message}
+			<Field.Error class="mt-4">{message}</Field.Error>
+		{/if}
+	</Card.Content>
+	<Card.Footer class="flex-wrap items-end gap-3">
+		<Field.Field class="min-w-48 flex-1">
+			<Field.Label for="wifi-ssid">{text.wifiProfiles.ssidLabel}</Field.Label>
+			<Input id="wifi-ssid" bind:value={newSSID} placeholder={text.wifiProfiles.ssidPlaceholder} autocomplete="off" disabled={isAdding} />
+		</Field.Field>
+		<Field.Field class="min-w-48 flex-1">
+			<Field.Label for="wifi-password">{text.wifiProfiles.passwordLabel}</Field.Label>
 			<Input
 				id="wifi-password"
 				type="password"
@@ -200,14 +198,15 @@
 				placeholder={text.wifiProfiles.passwordPlaceholder}
 				autocomplete="off"
 				disabled={isAdding}
-				class="mt-1"
 			/>
-		</div>
+		</Field.Field>
 		<Button disabled={!isDeviceReachable || isAdding || !newSSID.trim()} onclick={handleAdd}>
 			{#if isAdding}
 				<LoaderIcon class="size-4 animate-spin" />
+			{:else}
+				<PlusIcon />
 			{/if}
 			{text.wifiProfiles.add}
 		</Button>
-	</div>
-</div>
+	</Card.Footer>
+</Card.Root>
