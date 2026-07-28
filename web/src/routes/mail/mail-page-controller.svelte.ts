@@ -4,7 +4,7 @@ import {
 	saveMailAccountDraft,
 	testMailAccountDraft
 } from './mail-page-account-actions';
-import { openMailCompose, openMailReply, sendMailComposeDraft } from './mail-page-compose-actions';
+import { openMailCompose, openMailForward, openMailReply, sendMailComposeDraft } from './mail-page-compose-actions';
 import {
 	hasCachedNextMessagePage,
 	loadMessagesPage,
@@ -12,8 +12,7 @@ import {
 	moveSelectedMailMessage,
 	selectMailPageMailbox,
 	selectMailPageMessage,
-	setMailPageUnreadOnly,
-	toggleSelectedMailMessageRead
+	setMailPageUnreadOnly
 } from './mail-page-message-actions';
 import { emptyComposeDraft, emptyMailAccount } from './mail-account-draft';
 import { resolveMailActorEmail } from './mail-request-actor';
@@ -24,10 +23,11 @@ import {
 	mailMessageBody,
 	mailMessageBodyHTML,
 	selectedMailboxCountText,
+	selectedMailboxLabel,
 	visibleMailMessages
 } from './mail-page-utils';
 import type { ComposeDraft, MailAccount, MailAccountDraft, Mailbox, MailMessage } from './mail-types';
-import type { MailMessagePageCacheEntry, MailPageText } from './mail-page-controller-types';
+import type { MailComposeFocusField, MailMessagePageCacheEntry, MailPageText } from './mail-page-controller-types';
 
 export function createMailPageController(text: MailPageText) {
 	return new MailPageController(text);
@@ -49,6 +49,7 @@ class MailPageController {
 	nextCursor = $state('');
 	hasMoreMessages = $state(false);
 	isUnreadOnly = $state(false);
+	canSelectFirstMessage = $state(true);
 	hasLoadedAccount = $state(false);
 	isLoading = $state(false);
 	isSyncing = $state(false);
@@ -60,6 +61,7 @@ class MailPageController {
 	isSending = $state(false);
 	isSettingsOpen = $state(false);
 	isComposeOpen = $state(false);
+	composeFocusField = $state<MailComposeFocusField>('to');
 	errorMessage = $state('');
 	settingsMessage = $state('');
 	composeMessage = $state('');
@@ -70,11 +72,11 @@ class MailPageController {
 
 	pageMailboxes = () => displayedMailboxes(this.account, this.mailboxes, defaultMailboxes(this.text));
 	visibleMessages = () => visibleMailMessages(this.messages, this.isUnreadOnly);
-	canPreviousMessagePage = () => this.messagePageIndex > 0;
-	canNextMessagePage = () => this.hasMoreMessages || hasCachedNextMessagePage(this);
+	canLoadMoreMessages = () => this.hasMoreMessages || hasCachedNextMessagePage(this);
 	selectedMessageBody = () => mailMessageBody(this.selectedMessage);
 	selectedMessageBodyHTML = () => mailMessageBodyHTML(this.selectedMessage);
 	selectedMailboxCountText = () => selectedMailboxCountText(this.pageMailboxes(), this.selectedMailbox, this.text);
+	selectedMailboxLabel = () => selectedMailboxLabel(this.pageMailboxes(), this.selectedMailbox);
 
 	loadMail = async () => {
 		this.isLoading = !this.hasLoadedAccount && this.messages.length === 0;
@@ -101,9 +103,15 @@ class MailPageController {
 
 	loadMessages = () => loadMessagesPage(this, this.text, false);
 
-	loadPreviousMessages = () => loadMessagesPage(this, this.text, { mode: 'cache-first', pageIndex: this.messagePageIndex - 1 });
+	openMailboxMessage = async (mailbox: string, uid: number) => {
+		this.selectedMailbox = mailbox;
+		await loadMessagesPage(this, this.text, { mode: 'cache-first', pageIndex: 0 });
+		const message = this.messages.find((candidate) => candidate.mailbox === mailbox && candidate.uid === uid);
+		if (!message) return;
+		this.selectMessage(message);
+	};
 
-	loadNextMessages = () => loadMessagesPage(this, this.text, { mode: 'cache-first', pageIndex: this.messagePageIndex + 1 });
+	loadMoreMessages = () => loadMessagesPage(this, this.text, { mode: 'cache-first', pageIndex: this.messagePageIndex + 1 });
 
 	setUnreadOnly = (isUnreadOnly: boolean) => setMailPageUnreadOnly(this, this.text, isUnreadOnly);
 
@@ -111,11 +119,17 @@ class MailPageController {
 
 	selectMessage = (message: MailMessage) => selectMailPageMessage(this, this.text, message);
 
+	clearSelectedMessage = () => {
+		this.selectedMessage = null;
+	};
+
 	openSettings = () => openMailSettings(this);
 
 	openCompose = () => openMailCompose(this);
 
 	openReply = () => openMailReply(this);
+
+	openForward = () => openMailForward(this, this.text);
 
 	saveAccount = () => saveMailAccountDraft(this, this.text);
 
@@ -124,8 +138,6 @@ class MailPageController {
 	sendMessage = () => sendMailComposeDraft(this, this.text);
 
 	moveSelectedMessage = (targetHint: string) => moveSelectedMailMessage(this, this.text, targetHint);
-
-	toggleSelectedMessageRead = () => toggleSelectedMailMessageRead(this, this.text);
 
 	mailActorEmail() {
 		return resolveMailActorEmail(this.account.email, this.accountDraft.email);

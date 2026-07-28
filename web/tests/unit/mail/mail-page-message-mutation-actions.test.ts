@@ -6,66 +6,41 @@ import {
 	createController,
 	createDeferred,
 	fetchMailboxesCallCount,
-	fetchMailMessageCallCount,
 	fetchMailMessagesCallCount,
 	inboxMessage,
-	loadMessageDetail,
 	mailboxListResponses,
 	moveMailMessageCallCount,
 	moveMessageResponses,
 	moveSelectedMailMessage,
 	resetMailPageMessageActionTestState,
-	toggleSelectedMailMessageRead,
-	updateMessageFlagResponses
+	selectMailPageMessage,
+	updateMailMessageFlagsCallCount
 } from './mail-page-message-actions-test-helpers';
 
 describe('mail page message mutation actions', () => {
 	beforeEach(resetMailPageMessageActionTestState);
 
-	test('does not overwrite the current selected message after a stale read toggle', async () => {
-		const controller = createController({ messages: [inboxMessage, archiveMessage], selectedMessage: inboxMessage });
-		const updateResponse = createDeferred<void>();
-		updateMessageFlagResponses.push(updateResponse.promise);
-
-		const updateReadState = toggleSelectedMailMessageRead(controller, mailText.ko);
-		controller.selectedMessage = archiveMessage;
-		updateResponse.resolve();
-		await updateReadState;
-
-		expect(controller.selectedMessage).toEqual(archiveMessage);
-		expect(controller.messages).toEqual([{ ...inboxMessage, isRead: true }, archiveMessage]);
-	});
-
-	test('updates cached message detail when toggling read state', async () => {
-		const detailedMessage = { ...inboxMessage, body: 'Inbox detail' };
-		const controller = createController({
-			messages: [inboxMessage],
-			selectedMessage: detailedMessage,
-			messageDetailCache: new Map([['INBOX:1', detailedMessage]])
-		});
-		updateMessageFlagResponses.push(Promise.resolve());
-
-		await toggleSelectedMailMessageRead(controller, mailText.ko);
-		await loadMessageDetail(controller, mailText.ko, inboxMessage);
-
-		expect(fetchMailMessageCallCount).toBe(0);
-		expect(controller.selectedMessage).toEqual({ ...detailedMessage, isRead: true });
-		expect(controller.messageDetailCache.get('INBOX:1')).toEqual({ ...detailedMessage, isRead: true });
-	});
-
-	test('refreshes mailbox counts after toggling read state', async () => {
-		const controller = createController({
-			messages: [inboxMessage],
-			selectedMessage: inboxMessage,
-			mailboxes: [{ name: 'INBOX', displayName: 'INBOX', unseen: 1, total: 3 }]
-		});
-		updateMessageFlagResponses.push(Promise.resolve());
+	test('marks an unread message read when it is opened', async () => {
+		const unreadMessage = { ...inboxMessage, isRead: false };
+		const controller = createController({ messages: [unreadMessage] });
 		mailboxListResponses.push(Promise.resolve([{ name: 'INBOX', displayName: 'INBOX', unseen: 0, total: 3 }]));
 
-		await toggleSelectedMailMessageRead(controller, mailText.ko);
+		selectMailPageMessage(controller, mailText.ko, unreadMessage);
+		await Promise.resolve();
+		await Promise.resolve();
 
-		expect(fetchMailboxesCallCount).toBe(1);
-		expect(controller.mailboxes).toEqual([{ name: 'INBOX', displayName: 'INBOX', unseen: 0, total: 3 }]);
+		expect(updateMailMessageFlagsCallCount).toBe(1);
+		expect(controller.messages).toEqual([{ ...unreadMessage, isRead: true }]);
+	});
+
+	test('does not re-mark a message that is already read', async () => {
+		const readMessage = { ...inboxMessage, isRead: true };
+		const controller = createController({ messages: [readMessage] });
+
+		selectMailPageMessage(controller, mailText.ko, readMessage);
+		await Promise.resolve();
+
+		expect(updateMailMessageFlagsCallCount).toBe(0);
 	});
 
 	test('removes moved messages locally and refreshes mailbox counts', async () => {
