@@ -9,13 +9,13 @@
 		children: Snippet;
 	};
 
-	let { label, side = 'bottom', children, ...buttonProps }: Props = $props();
+	let { label, side = 'bottom', children, ref = $bindable(null), ...buttonProps }: Props = $props();
 </script>
 
 <Tooltip.Root>
 	<Tooltip.Trigger>
 		{#snippet child({ props })}
-			<Button {...props} {...buttonProps} aria-label={label}>
+			<Button bind:ref {...props} {...buttonProps} aria-label={label}>
 				{@render children()}
 			</Button>
 		{/snippet}
