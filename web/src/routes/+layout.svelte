@@ -1,9 +1,11 @@
 <script lang="ts">
 	import '../app.css';
+	import { afterNavigate, beforeNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
+	import AppRouteSkeleton from '$lib/components/app-route-skeleton.svelte';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
 	import { LightSwitch } from '$lib/components/ui/light-switch';
@@ -30,6 +32,16 @@
 	const text = createPageText(appShellText);
 	let isCommandPaletteOpen = $state(false);
 	let isAppSidebarOpen = $state(false);
+	let isRouteChangeVisible = $state(false);
+
+	beforeNavigate((navigation) => {
+		if (!navigation.to || navigation.to.url.pathname === navigation.from?.url.pathname) return;
+		isRouteChangeVisible = true;
+	});
+
+	afterNavigate(() => {
+		isRouteChangeVisible = false;
+	});
 
 	onMount(initializeLocale);
 
@@ -190,7 +202,9 @@
 					</header>
 				{/if}
 				<div data-app-shell-scroll class="flex min-h-0 flex-1 overflow-y-auto max-sm:pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-0">
-					{#if usesWebAuthGate(page.url.pathname)}
+					{#if isRouteChangeVisible}
+						<AppRouteSkeleton />
+					{:else if usesWebAuthGate(page.url.pathname)}
 						<WebAuthGate returnPath={currentReturnPath()}>
 							{@render children()}
 						</WebAuthGate>
