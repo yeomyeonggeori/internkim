@@ -5,6 +5,7 @@
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
+	import BuzzIdentityGate from '$lib/components/buzz/buzz-identity-gate.svelte';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
 	import { LightSwitch } from '$lib/components/ui/light-switch';
@@ -104,6 +105,7 @@
 
 <ModeWatcher />
 <Toaster position="bottom-center" visibleToasts={3} containerAriaLabel={text.notifications} />
+<BuzzIdentityGate />
 
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>

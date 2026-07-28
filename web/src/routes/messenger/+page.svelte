@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Channel from '$lib/components/channel/channel.svelte';
-	import BuzzIdentityGate from '$lib/components/buzz/buzz-identity-gate.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
@@ -82,7 +81,6 @@
 	<title>{text.messenger}</title>
 </svelte:head>
 
-<BuzzIdentityGate />
 
 <div class="flex min-h-0 w-full flex-1 p-4">
 	<Card.Root class="flex min-h-0 w-full flex-row gap-0 overflow-hidden p-0">
