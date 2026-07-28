@@ -1,4 +1,5 @@
 import { publishBuzzMessage } from '$lib/buzz-relay-client';
+import { imetaTag, uploadBlob } from '$lib/buzz-blossom';
 import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 
 export type ChannelParticipant = {
@@ -169,24 +170,56 @@ async function sendServerSignedMessage(
 	if (!response.ok) throw new Error(await response.text());
 }
 
-// Text messages are signed in the browser with the person's own key and
-// published straight to the Buzz relay, so nothing is signed server-side on
-// their behalf. Attachments still take the server path until browser-side
-// Blossom upload lands; the same holds before the identity is unlocked.
+function isImageType(contentType: string): boolean {
+	return contentType.startsWith('image/');
+}
+
+function base64ToBytes(value: string): Uint8Array {
+	const binary = atob(value);
+	const bytes = new Uint8Array(binary.length);
+	for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+	return bytes;
+}
+
+async function clientSignChannelMessage(
+	relayURL: string,
+	secretHex: string,
+	channelID: string,
+	message: string,
+	attachments: ChannelOutgoingAttachment[],
+	replyToRootID?: string
+): Promise<void> {
+	const bodyParts = message.trim() === '' ? [] : [message];
+	const imetaTags: string[][] = [];
+	for (const attachment of attachments) {
+		const blob = await uploadBlob(relayURL, secretHex, base64ToBytes(attachment.contentBase64), attachment.contentType);
+		const label = attachment.filename.trim() || (isImageType(attachment.contentType) ? 'image' : 'file');
+		bodyParts.push(isImageType(attachment.contentType) ? `![${label}](${blob.url})` : `[${label}](${blob.url})`);
+		imetaTags.push(imetaTag(blob));
+	}
+	await publishBuzzMessage(relayURL, secretHex, {
+		channelId: channelID,
+		content: bodyParts.join('\n'),
+		replyToRootId: replyToRootID,
+		extraTags: imetaTags
+	});
+}
+
+// Text and attachments are both authored in the browser with the person's own
+// key: attachments upload to the relay's Blossom store (client-signed) and the
+// message publishes straight to Buzz with their imeta tags, so nothing is signed
+// server-side on their behalf. The server path is only a fallback before the
+// identity is unlocked or when the relay is unknown.
 export async function sendChannelMessage(
 	message: string,
 	attachments: ChannelOutgoingAttachment[] = [],
 	channelID?: string,
 	replyToRootID?: string
 ): Promise<void> {
-	if (buzzIdentity.secretHex && channelID && attachments.length === 0) {
+	if (buzzIdentity.secretHex && channelID) {
 		const relayURL = await buzzRelayURL();
 		if (relayURL) {
-			await publishBuzzMessage(relayURL, buzzIdentity.secretHex, {
-				channelId: channelID,
-				content: message,
-				replyToRootId: replyToRootID
-			});
+			await clientSignChannelMessage(relayURL, buzzIdentity.secretHex, channelID, message, attachments, replyToRootID);
 			return;
 		}
 	}
