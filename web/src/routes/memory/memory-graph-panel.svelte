@@ -247,9 +247,8 @@
 		{/if}
 		{text.search}
 	</Button>
-	<Button type="button" variant="outline" disabled={isLoading} onclick={loadMemoryGraph} class="gap-2">
-		<RefreshCwIcon class="size-4" />
-		{text.refresh}
+	<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={loadMemoryGraph} aria-label={text.refresh} title={text.refresh}>
+		<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
 	</Button>
 </form>
 

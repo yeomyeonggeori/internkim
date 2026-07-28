@@ -47,6 +47,22 @@ export function mailMessagePageCursor(
 	return previousPage?.nextCursor ?? '';
 }
 
+export function messagesThroughPage(pages: Map<string, MailMessagePageCacheEntry>, actorEmail: string, mailbox: string, searchText: string, pageIndex: number) {
+	const messages: MailMessage[] = [];
+	const seenKeys = new Set<string>();
+	for (let index = 0; index <= pageIndex; index += 1) {
+		const page = pages.get(mailMessagePageCacheKey(actorEmail, mailbox, searchText, index));
+		if (!page) continue;
+		for (const message of page.messages) {
+			const key = mailMessageKey(message);
+			if (seenKeys.has(key)) continue;
+			seenKeys.add(key);
+			messages.push(message);
+		}
+	}
+	return messages;
+}
+
 export function removeMessageFromPageCache(pages: Map<string, MailMessagePageCacheEntry>, messageKey: string) {
 	for (const [cacheKey, page] of pages) {
 		const messages = page.messages.filter((message) => mailMessageKey(message) !== messageKey);

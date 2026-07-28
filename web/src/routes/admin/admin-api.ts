@@ -371,9 +371,9 @@ export type OrgProfileUpdate = {
 	userID: string;
 	email: string;
 	jobTitle: string;
-	group?: string;
-	primaryGroupID?: string;
-	groupIDs?: string[];
+	groupID?: string;
+	hireDate?: string;
+	phoneNumber?: string;
 	supervisorID?: string;
 };
 

@@ -22,6 +22,11 @@ export function visibleMailMessages(messages: MailMessage[], isUnreadOnly: boole
 	return messages.filter((message) => !isUnreadOnly || !message.isRead);
 }
 
+export function selectedMailboxLabel(mailboxes: Mailbox[], selectedMailbox: string) {
+	const mailbox = mailboxes.find((candidateMailbox) => candidateMailbox.name === selectedMailbox);
+	return mailbox?.displayName || selectedMailbox;
+}
+
 export function selectedMailboxCountText(mailboxes: Mailbox[], selectedMailbox: string, text: MailPageText) {
 	const mailbox = mailboxes.find((candidateMailbox) => candidateMailbox.name === selectedMailbox);
 	if (!mailbox) return '';
@@ -56,6 +61,16 @@ export function createMailReplyDraft(message: MailMessage): ComposeDraft {
 		bcc: '',
 		subject: message.subject.toLowerCase().startsWith('re:') ? message.subject : `Re: ${message.subject}`,
 		body: ''
+	};
+}
+
+export function createMailForwardDraft(message: MailMessage, quotedHeader: string): ComposeDraft {
+	return {
+		to: '',
+		cc: '',
+		bcc: '',
+		subject: message.subject.toLowerCase().startsWith('fwd:') ? message.subject : `Fwd: ${message.subject}`,
+		body: `\n\n${quotedHeader}\n${mailMessageBody(message)}`
 	};
 }
 

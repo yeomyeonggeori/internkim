@@ -3,10 +3,12 @@ import { mailPageMessageKey, mergeMessageDetailEnvelope } from './mail-message-d
 import { normalizeMailMessagePageCacheActorEmail } from './mail-message-page-cache';
 import type { MailPageControllerState, MailPageText } from './mail-page-controller-types';
 import type { MailMessage } from './mail-types';
+import { markMailMessageRead } from './mail-page-message-mutation-actions';
 
 export function selectMailPageMessage(controller: MailPageControllerState, text: MailPageText, message: MailMessage) {
 	controller.selectedMessage = message;
 	loadMessageDetail(controller, text, message);
+	markMailMessageRead(controller, text, message);
 }
 
 export async function loadMessageDetail(controller: MailPageControllerState, text: MailPageText, message: MailMessage) {

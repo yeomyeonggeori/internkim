@@ -336,6 +336,63 @@ func TestSyncBlueclawWorkspaceImageForTargetStopsSyncsAndRestarts(t *testing.T) 
 	}
 }
 
+func TestReconcileBlueclawRuntimeConfigurationForTargetRestampsStaleIdentityAndRestarts(t *testing.T) {
+	_ = captureBlueclawTaskDrainLogs(t)
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
+		http.Error(responseWriter, "unavailable", http.StatusBadGateway)
+	}))
+	server.Close()
+	directoryPath := t.TempDir()
+	runtimeConfigurationPath := filepath.Join(directoryPath, "config", "runtime.json")
+	workspaceRuntimeConfigurationPath := filepath.Join(directoryPath, "workspace", ".blueclaw", "config", "runtime.json")
+	for _, path := range []string{runtimeConfigurationPath, workspaceRuntimeConfigurationPath} {
+		if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		writeFile(t, path, `{"capabilities":{"protocolVersion":"0.1.0","aggregateProtocolHash":"stale"}}`)
+	}
+	target := blueclawPayloadInstallTarget{
+		Name:                              "blueclaw",
+		ServiceName:                       "blueclaw.service",
+		HostWorkspacePath:                 filepath.Join(directoryPath, "workspace"),
+		WorkspaceImagePath:                filepath.Join(directoryPath, "workspace.ext4"),
+		RuntimeConfigurationPath:          runtimeConfigurationPath,
+		WorkspaceRuntimeConfigurationPath: workspaceRuntimeConfigurationPath,
+	}
+	service := NewService(Configuration{BlueclawBaseURL: server.URL})
+	service.HTTPClient = server.Client()
+	commands := []string{}
+	service.RunCommand = func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
+		return []byte("Inode: 2   Type: directory    Mode:  0755"), nil
+	}
+
+	service.reconcileBlueclawRuntimeConfigurationForTarget(context.Background(), target)
+
+	if !isBlueclawRuntimeConfigurationCurrentForTarget(target) {
+		t.Fatal("expected stale runtime configuration to be restamped")
+	}
+	contract := blueclawruntime.CurrentCapabilityContract()
+	for _, path := range []string{runtimeConfigurationPath, workspaceRuntimeConfigurationPath} {
+		document, errorValue := os.ReadFile(path)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if !strings.Contains(string(document), contract.AggregateProtocolHash) {
+			t.Fatalf("expected current aggregate protocol hash in %s: %s", path, string(document))
+		}
+	}
+	if !strings.Contains(strings.Join(commands, "\n"), "sync-workspace --atomic --preserve-guest-state") {
+		t.Fatalf("expected workspace image sync after restamp, got:\n%s", strings.Join(commands, "\n"))
+	}
+
+	commandsBeforeSecondRun := len(commands)
+	service.reconcileBlueclawRuntimeConfigurationForTarget(context.Background(), target)
+	if len(commands) != commandsBeforeSecondRun {
+		t.Fatalf("expected a current runtime configuration to restart nothing, got:\n%s", strings.Join(commands[commandsBeforeSecondRun:], "\n"))
+	}
+}
+
 func captureBlueclawTaskDrainLogs(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var output bytes.Buffer

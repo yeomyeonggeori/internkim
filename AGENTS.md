@@ -97,6 +97,15 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   an explicit request instead of tuning it. No behavior beats a wrong
   automatic behavior. A new automatic behavior must state its trigger
   evidence, its blast radius, and how it is turned off.
+- People data has three homes and exactly one owner per concern. Accounts and
+  sign-in (email, handle, Mattermost account, invite status, role) belong to the
+  account directory (Mattermost plus the fleet users index). Organization and HR
+  attributes (job title, organization, supervisor, phone number, hire date,
+  employment status) belong to admind's `organization_profiles`. Blueclaw's
+  `person` table is a read-only projection of policy.json, never an editing
+  surface. Never add an HR attribute to the account payload:
+  `TestFleetAccountUpsertPayloadCarriesNoOrganizationFields` fails when the
+  account upsert starts carrying one.
 - One source of truth per shared vocabulary or contract. A value list
   (emoji names, enum options, capability names, component sets) consumed by
   more than one role, package, or service is defined exactly once and derived
@@ -279,6 +288,30 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   <component> --yes`. Do not hand-roll the component wrapper unless the CLI
   cannot install it; if installation fails because of sandbox tempdir or network
   restrictions, rerun the same CLI command with approval.
+- `web/src/app.css` must keep the CLI's setup block verbatim: the eight
+  `@custom-variant` declarations (`data-open`, `data-closed`, `data-checked`,
+  `data-unchecked`, `data-disabled`, `data-active`, `data-horizontal`,
+  `data-vertical`), `@utility no-scrollbar`, and the accordion keyframes.
+  Registry components style their states through those variants while bits-ui
+  emits `data-state="..."`, so a missing declaration silently disables every
+  active/open/checked style with no error anywhere. `bun test
+  tests/unit/components/shadcn-setup.test.ts` guards this; when the CLI adds a
+  variant, copy the canonical block instead of writing a shorter one by hand.
+  Read it from the CLI package itself (`npm pack shadcn-svelte@<version>`, then
+  `package/dist/tailwind.css`) rather than reconstructing it.
+- When a registry component looks wrong, first prove where the difference is:
+  rerun `add <component> --overwrite` and read `git status`. An empty diff means
+  the vendored file matches the registry and the problem is the call site or the
+  missing setup above. Revert any unrelated components the CLI overwrites in the
+  same run.
+- Do not restyle a registry component from the call site. Overriding its base
+  classes (pill shapes, `after:` underlines, colors, `:global()` blocks in a
+  route) is how the app ends up with five tab bars that share no styling. Use
+  the component's own variant props, or a different component: section switchers
+  use `underline-tabs`, view switchers use `tabs`.
+- Fix an inconsistency between two registry components in the vendored file, not
+  at each call site — for example `command-item` lacking the muted-icon rule
+  that `command-link-item` has.
 
 ## Deployment Hygiene
 

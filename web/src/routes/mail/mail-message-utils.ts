@@ -18,6 +18,17 @@ export function mailMessageKey(message: MailMessage) {
 	return `${message.mailbox}:${message.uid}`;
 }
 
+export function mailMessageTimeLabel(date: string, yesterdayLabel: string, now = new Date(), locale?: string) {
+	const receivedAt = new Date(date);
+	if (!date || Number.isNaN(receivedAt.getTime())) return '';
+	const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	if (receivedAt >= startOfToday) return new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(receivedAt);
+	const startOfYesterday = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), startOfToday.getDate() - 1);
+	if (receivedAt >= startOfYesterday) return yesterdayLabel;
+	const isSameYear = receivedAt.getFullYear() === now.getFullYear();
+	return new Intl.DateTimeFormat(locale, isSameYear ? { month: 'numeric', day: 'numeric' } : { year: 'numeric', month: 'numeric', day: 'numeric' }).format(receivedAt);
+}
+
 export function mailHTMLDocument(bodyHTML: string) {
 	return `<!doctype html>
 <html>

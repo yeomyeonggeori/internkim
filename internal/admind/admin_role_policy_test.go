@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestAdminSessionReportsOperationsAdminRoleDespiteOrgchartCache(t *testing.T) {
+func TestAdminSessionReportsOperationsAdminRoleDespiteOrganizationCache(t *testing.T) {
 	deviceDirectory := t.TempDir()
 	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
 	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
@@ -33,13 +33,13 @@ func TestAdminSessionReportsOperationsAdminRoleDespiteOrgchartCache(t *testing.T
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
-	personPayload, errorValue := json.Marshal(orgchartCachedPerson{Record: newOrgchartCachedUserRecord(adminUserMutation{Email: "operator@example.com", Role: "admin"})})
+	personPayload, errorValue := json.Marshal(organizationCachedPerson{Record: newOrganizationCachedUserRecord(adminUserMutation{Email: "operator@example.com", Role: "admin"})})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	key := orgchartPeopleCacheKey{Kind: orgchartPeopleCachePerson, Key: "email:operator@example.com"}
-	if written, errorValue := service.writeOrgchartPeopleCachePayloadIfCurrent(context.Background(), key, 0, "", personPayload); errorValue != nil || !written {
-		t.Fatalf("write orgchart person cache: written = %t error = %v", written, errorValue)
+	key := organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "email:operator@example.com"}
+	if written, errorValue := service.writeOrganizationPeopleCachePayloadIfCurrent(context.Background(), key, 0, "", personPayload); errorValue != nil || !written {
+		t.Fatalf("write organization person cache: written = %t error = %v", written, errorValue)
 	}
 
 	responseDocument := requestAdminSession(t, service, "operator@example.com")

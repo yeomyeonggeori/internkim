@@ -9,7 +9,7 @@ export class FlowTaskQuickAddController {
 	isPanelVisible = $state(false);
 	textareaElement = $state<HTMLTextAreaElement | null>(null);
 	submitButtonElement = $state<HTMLElement | null>(null);
-	launcherElement = $state<HTMLElement | null>(null);
+	launcherElement = $state<HTMLButtonElement | null>(null);
 
 	private closeAnimationTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
 

@@ -350,6 +350,7 @@ func (service *Service) Run(ctx context.Context) error {
 	if errorValue := service.reconcileReleaseLLMDBootstrap(ctx); errorValue != nil {
 		return fmt.Errorf("reconcile LLMD release bootstrap: %w", errorValue)
 	}
+	go service.reconcileBlueclawRuntimeConfiguration(ctx)
 	service.reconcileSiteSourcesToStaffCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
@@ -363,6 +364,7 @@ func (service *Service) Run(ctx context.Context) error {
 	if errorValue := service.recoverGoogleOAuthTokenResetState(ctx); errorValue != nil {
 		return fmt.Errorf("recover google calendar OAuth token reset state: %w", errorValue)
 	}
+	service.adoptAccountHireDates(ctx)
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)
@@ -530,9 +532,9 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/attendance", service.serveAttendancePage)
 	multiplexer.HandleFunc("/attendance/api/", service.handleAttendance)
 	multiplexer.HandleFunc("/attendance/", service.serveAttendancePage)
-	multiplexer.HandleFunc("/orgchart", service.serveOrgchartPage)
-	multiplexer.HandleFunc("/orgchart/api/", service.handleOrgchart)
-	multiplexer.HandleFunc("/orgchart/", service.serveOrgchartPage)
+	multiplexer.HandleFunc("/organization", service.serveOrganizationPage)
+	multiplexer.HandleFunc("/organization/api/", service.handleOrganization)
+	multiplexer.HandleFunc("/organization/", service.serveOrganizationPage)
 	multiplexer.HandleFunc("/buzz/api/", service.handleBuzz)
 	multiplexer.HandleFunc("/bridge/api/", service.handleBridgeMap)
 	multiplexer.HandleFunc("/files", service.serveFilesPage)
@@ -1912,9 +1914,6 @@ func (service *Service) isAuthorized(request *http.Request) bool {
 }
 
 func (service *Service) adminConsoleActorEmail(request *http.Request) string {
-	if service.hasDeviceAuth() {
-		return service.authenticatedCallerEmail(request)
-	}
 	return service.webActorEmail(request)
 }
 
@@ -2160,11 +2159,11 @@ func blueclawPersonEmailsExcept(person map[string]any, excludedEmail string) []s
 }
 
 func (service *Service) localUpdateOrgProfiles(responseWriter http.ResponseWriter, request *http.Request) {
-	service.handleOrgchartProfileUpdate(responseWriter, request)
+	service.handleOrganizationProfileUpdate(responseWriter, request)
 }
 
 func (service *Service) localSetOrgGroups(responseWriter http.ResponseWriter, request *http.Request) {
-	service.handleOrgchartGroupsUpdate(responseWriter, request)
+	service.handleOrganizationGroupsUpdate(responseWriter, request)
 }
 
 func (service *Service) writeFullLocalUsersResponse(responseWriter http.ResponseWriter, request *http.Request) {

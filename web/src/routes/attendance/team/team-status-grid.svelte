@@ -1,7 +1,7 @@
 <script lang="ts">
+	import FilterCombobox from '$lib/components/filter-combobox.svelte';
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as Card from '$lib/components/ui/card';
-	import { Input } from '$lib/components/ui/input';
-	import SearchIcon from '@lucide/svelte/icons/search';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import AttendanceMonthPicker from '../attendance-month-picker.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
@@ -32,6 +32,9 @@
 			: []
 	);
 	const filteredRows = $derived(filterRows(rows, searchText));
+	const memberOptions = $derived(
+		rows.map((row) => ({ value: row.displayName, label: row.displayName, email: row.email, image: row.image ?? '' }))
+	);
 
 	function selectMonth(month: string) {
 		attendance.selectedMonth = month;
@@ -57,10 +60,18 @@
 			<div class="hidden min-w-0 max-w-full overflow-hidden sm:block">
 				<AttendanceMonthPicker selectedMonth={calendarMonth} onSelectMonth={selectMonth} />
 			</div>
-			<div class="relative w-full min-w-0 max-w-full sm:w-48">
-				<SearchIcon class="pointer-events-none absolute left-2 top-2.5 size-4 text-muted-foreground" />
-				<Input class="h-9 min-w-0 pl-8 focus-visible:border-input focus-visible:ring-0" placeholder={text.teamMemberSearchPlaceholder} bind:value={searchText} />
-			</div>
+			<FilterCombobox
+				bind:value={searchText}
+				options={memberOptions}
+				label={text.teamMemberSelectLabel}
+				searchPlaceholder={text.teamMemberSearchPlaceholder}
+				class="w-full min-w-0 sm:w-48"
+			>
+				{#snippet optionContent(option)}
+					<PersonAvatar name={option.label} email={option.email} image={option.image} class="size-6" />
+					<span class="min-w-0 truncate">{option.label}</span>
+				{/snippet}
+			</FilterCombobox>
 		</div>
 	</Card.Header>
 	<Card.Content class="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">

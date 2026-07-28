@@ -39,17 +39,14 @@
 		monthRangePreviewTitle: string;
 		monthScrollOverlayLabels: VisibleMonthScrollLabel[];
 		navigateToDateKey: (dateKey: string) => void;
-		navigateToSearchResult: (result: CalendarSearchResult) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		openSettings: () => void;
 		popover: DraftPopoverState | null;
 		refreshConflicts: () => void;
-		refreshCalendar: () => void;
-		repositionPopover: (size: { width: number; height: number }) => void;
+			repositionPopover: (size: { width: number; height: number }) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
 		savePopover: () => void;
 		cancelPopover: () => void;
-		searchResults: CalendarSearchResult[];
 		selectDate: (dateKey: string) => void;
 		selectedEventID: string | null;
 		stageEvents: DayFlowEvent[];
@@ -62,7 +59,6 @@
 		changeCalendarView: (view: ViewType) => void;
 		clearSelectedEvent: () => void;
 		clearActiveMobileEditorEvent: (eventID: string) => void;
-		searchText?: string;
 		stageElement?: HTMLElement | null;
 	};
 
@@ -90,16 +86,13 @@
 		monthRangePreviewTitle,
 		monthScrollOverlayLabels,
 		navigateToDateKey,
-		navigateToSearchResult,
 		openEvent,
 		openSettings,
 		popover,
 		refreshConflicts,
-		refreshCalendar,
-		repositionPopover,
+			repositionPopover,
 		saveMovedEvent,
 		savePopover,
-		searchResults,
 		selectDate,
 		selectedEventID,
 		stageEvents,
@@ -109,7 +102,6 @@
 		toolbarDate,
 		toolbarView,
 		updatePopover,
-		searchText = $bindable(''),
 		stageElement = $bindable<HTMLElement | null>(null)
 	}: CalendarPageContentProps = $props();
 </script>
@@ -123,18 +115,14 @@
 	<CalendarToolbar
 		{currentMonthTitle}
 		{toolbarDate}
-		bind:searchText
-		{searchResults}
 		{toolbarView}
 		{localeCode}
 		{changeCalendarView}
 		{goToPrevious}
 		{goToNext}
 		{navigateToDateKey}
-		{navigateToSearchResult}
 		createQuickEvent={createQuickEvent}
 		{openSettings}
-		{refreshCalendar}
 	/>
 	<CalendarStage
 		{activeMobileEditorEventID}

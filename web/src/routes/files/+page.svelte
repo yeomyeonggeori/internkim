@@ -3,6 +3,7 @@
 	import * as FileDropZone from '$lib/components/ui/file-drop-zone';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
+	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
@@ -10,6 +11,7 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import UploadIcon from '@lucide/svelte/icons/upload';
 	import FileDetail from './file-detail.svelte';
 	import { getFilesState } from './files-context.svelte';
@@ -86,14 +88,19 @@
 					</Breadcrumb.Root>
 				{/if}
 
-				<FileDropZone.Trigger class={buttonVariants({ size: 'sm', variant: 'default' })}>
-					{#if files.isUploading}
-						<Spinner class="size-4" />
-					{:else}
-						<UploadIcon class="size-4" />
-					{/if}
-					{files.isUploading ? text.uploading : text.upload}
-				</FileDropZone.Trigger>
+				<div class="flex shrink-0 items-center gap-2">
+					<TooltipIconButton label={text.refresh} variant="ghost" size="icon-sm" onclick={() => files.reload()}>
+						<RefreshCwIcon class={files.isLoading ? 'animate-spin' : ''} />
+					</TooltipIconButton>
+					<FileDropZone.Trigger class={buttonVariants({ size: 'sm', variant: 'default' })}>
+						{#if files.isUploading}
+							<Spinner class="size-4" />
+						{:else}
+							<UploadIcon class="size-4" />
+						{/if}
+						{files.isUploading ? text.uploading : text.upload}
+					</FileDropZone.Trigger>
+				</div>
 			</div>
 
 			<div class="flex items-start gap-4">

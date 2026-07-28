@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import type { UserRecord } from '../../../src/lib/orgchart/types';
+import type { UserRecord } from '../../../src/lib/organization/types';
 import { adminText } from '../../../src/routes/admin/text';
-import { unassignedGroupID } from '../../../src/routes/orgchart/orgchart-directory-model';
-import { orgchartDirectoryText } from '../../../src/routes/orgchart/text';
+import { unassignedGroupID } from '../../../src/routes/organization/organization-directory-model';
+import { organizationDirectoryText } from '../../../src/routes/organization/text';
 
 Object.assign(globalThis, {
 	$state<Value>(value: Value): Value {
@@ -13,7 +13,7 @@ Object.assign(globalThis, {
 	}
 });
 
-const { OrgchartDirectoryController } = await import('../../../src/routes/orgchart/orgchart-directory-controller.svelte');
+const { OrganizationDirectoryController } = await import('../../../src/routes/organization/organization-directory-controller.svelte');
 
 function userRecord(overrides: Partial<UserRecord>): UserRecord {
 	return {
@@ -25,18 +25,18 @@ function userRecord(overrides: Partial<UserRecord>): UserRecord {
 	};
 }
 
-describe('orgchart directory controller', () => {
+describe('organization directory controller', () => {
 	test('exposes the root and selected organization subtree in priority order', () => {
-		const controller = new OrgchartDirectoryController('/admin/api', orgchartDirectoryText.ko, adminText.ko);
+		const controller = new OrganizationDirectoryController('/admin/api', organizationDirectoryText.ko, adminText.ko);
 		controller.groups = [
 			{ id: 'product', name: '프로덕트 본부' },
 			{ id: 'engineering', name: '개발팀', parentID: 'product' },
 			{ id: 'sales', name: '세일즈' }
 		];
 		controller.records = [
-			userRecord({ userID: 'lead', primaryGroupID: 'product' }),
-			userRecord({ userID: 'engineer', primaryGroupID: 'engineering' }),
-			userRecord({ userID: 'sales', primaryGroupID: 'sales' })
+			userRecord({ userID: 'lead', groupID: 'product' }),
+			userRecord({ userID: 'engineer', groupID: 'engineering' }),
+			userRecord({ userID: 'sales', groupID: 'sales' })
 		];
 
 		expect(controller.organizationSections.map((section) => section.id)).toEqual(['', 'sales', 'product', 'engineering']);
@@ -48,10 +48,10 @@ describe('orgchart directory controller', () => {
 	});
 
 	test('labels and counts unassigned members separately from all organizations', () => {
-		const controller = new OrgchartDirectoryController('/admin/api', orgchartDirectoryText.ko, adminText.ko);
+		const controller = new OrganizationDirectoryController('/admin/api', organizationDirectoryText.ko, adminText.ko);
 		controller.groups = [{ id: 'product', name: '프로덕트 본부' }];
 		controller.records = [
-			userRecord({ userID: 'assigned', primaryGroupID: 'product' }),
+			userRecord({ userID: 'assigned', groupID: 'product' }),
 			userRecord({ userID: 'unassigned' })
 		];
 		controller.groupID = unassignedGroupID;
