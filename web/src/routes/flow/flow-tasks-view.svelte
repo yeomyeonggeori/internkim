@@ -139,6 +139,7 @@
 
 <FlowTaskEditor
 	bind:taskDraft={page.editor.taskDraft}
+	isEditingTask={page.editor.isEditingTask}
 	members={page.members()}
 	memberOptions={page.memberSelectOptions()}
 	categoryOptions={page.categoryOptions()}
@@ -159,5 +160,6 @@
 	canUpdateTask={page.canUpdateTask}
 	canDeleteTask={page.canDeleteTask}
 	canManageTaskAssignment={page.canManageTaskAssignment}
+	startEditingTask={page.editor.startEditingTask}
 	closeEditor={page.closeEditor}
 />
