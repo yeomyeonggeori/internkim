@@ -4,31 +4,31 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
+	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import {
+		addBuzzPasskeyCopy,
 		createBuzzIdentityTransport,
 		enrollBuzzIdentity,
+		hasBuzzPasskeyCopy,
 		hasEnrolledBuzzIdentity,
-		recoverBuzzIdentity,
 		unlockBuzzIdentity,
 		type BuzzUnlockFactor
 	} from '$lib/buzz-identity-session';
-	import { generateRecoveryCode } from '$lib/buzz-key-vault';
 	import { deriveBuzzPasskeyOutput, isPasskeySupported, registerBuzzPasskey } from '$lib/buzz-passkey';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 
 	const transport = createBuzzIdentityTransport();
 	const passkeyAvailable = isPasskeySupported();
 
-	type Mode = 'loading' | 'enroll' | 'unlock' | 'recover' | 'showRecovery' | 'error';
+	type Mode = 'loading' | 'enroll' | 'addPasskey' | 'unlock' | 'error';
 	let mode = $state<Mode>('loading');
 	let authenticated = $state(false);
 	let email = $state('');
 	let displayName = $state('');
 	let password = $state('');
 	let confirmPassword = $state('');
-	let recoveryInput = $state('');
-	let recoveryCodeToShow = $state('');
 	let pendingSecret = $state('');
+	let hasPasskey = $state(false);
 	let busy = $state(false);
 	let errorMessage = $state('');
 
@@ -43,12 +43,81 @@
 			authenticated = true;
 			email = session.email;
 			displayName = email;
-			mode = (await hasEnrolledBuzzIdentity(transport)) ? 'unlock' : 'enroll';
+			if (await hasEnrolledBuzzIdentity(transport)) {
+				hasPasskey = await hasBuzzPasskeyCopy(transport);
+				mode = 'unlock';
+			} else {
+				mode = 'enroll';
+			}
 		} catch (error) {
 			mode = 'error';
 			errorMessage = describe(error);
 		}
 	});
+
+	function describe(error: unknown): string {
+		return error instanceof Error ? error.message : text.genericError;
+	}
+
+	async function run(work: () => Promise<void>) {
+		busy = true;
+		errorMessage = '';
+		try {
+			await work();
+		} catch (error) {
+			errorMessage = describe(error);
+		} finally {
+			busy = false;
+		}
+	}
+
+	function finish(secretHex: string) {
+		buzzIdentity.secretHex = secretHex;
+		password = '';
+		confirmPassword = '';
+	}
+
+	function enrollWithPassword() {
+		if (password.length < 8) {
+			errorMessage = text.passwordTooShort;
+			return;
+		}
+		if (password !== confirmPassword) {
+			errorMessage = text.passwordMismatch;
+			return;
+		}
+		const factor: BuzzUnlockFactor = { kind: 'password', password };
+		return run(async () => {
+			pendingSecret = await enrollBuzzIdentity(transport, factor);
+			mode = passkeyAvailable ? 'addPasskey' : 'unlock';
+			if (mode === 'unlock') finish(pendingSecret);
+		});
+	}
+
+	function addPasskeyNow() {
+		return run(async () => {
+			await registerBuzzPasskey(email, displayName);
+			const output = await deriveBuzzPasskeyOutput();
+			await addBuzzPasskeyCopy(transport, pendingSecret, output);
+			finish(pendingSecret);
+		});
+	}
+
+	function skipPasskey() {
+		finish(pendingSecret);
+	}
+
+	function unlockWithPasskey() {
+		return run(async () => {
+			const output = await deriveBuzzPasskeyOutput();
+			finish(await unlockBuzzIdentity(transport, { kind: 'passkey', output }));
+		});
+	}
+
+	function unlockWithPassword() {
+		const factor: BuzzUnlockFactor = { kind: 'password', password };
+		return run(async () => finish(await unlockBuzzIdentity(transport, factor)));
+	}
 
 	async function logOut() {
 		try {
@@ -63,111 +132,26 @@
 		}
 	}
 
-	function describe(error: unknown): string {
-		return error instanceof Error ? error.message : text.genericError;
-	}
-
-	async function run(work: () => Promise<{ secretHex: string; recoveryCode?: string }>) {
-		busy = true;
-		errorMessage = '';
-		try {
-			const result = await work();
-			if (result.recoveryCode) {
-				pendingSecret = result.secretHex;
-				recoveryCodeToShow = result.recoveryCode;
-				mode = 'showRecovery';
-			} else {
-				buzzIdentity.secretHex = result.secretHex;
-			}
-			password = '';
-			confirmPassword = '';
-			recoveryInput = '';
-		} catch (error) {
-			errorMessage = describe(error);
-		} finally {
-			busy = false;
-		}
-	}
-
-	function enrollWithPasskey() {
-		const recoveryCode = generateRecoveryCode();
-		return run(async () => {
-			await registerBuzzPasskey(email, displayName);
-			const output = await deriveBuzzPasskeyOutput();
-			return { secretHex: await enrollBuzzIdentity(transport, { kind: 'passkey', output }, recoveryCode), recoveryCode };
-		});
-	}
-
-	function unlockWithPasskey() {
-		return run(async () => {
-			const output = await deriveBuzzPasskeyOutput();
-			return { secretHex: await unlockBuzzIdentity(transport, { kind: 'passkey', output }) };
-		});
-	}
-
-	function enrollWithPassword() {
-		if (password.length < 8) {
-			errorMessage = text.passwordTooShort;
-			return;
-		}
-		if (password !== confirmPassword) {
-			errorMessage = text.passwordMismatch;
-			return;
-		}
-		const recoveryCode = generateRecoveryCode();
-		const factor: BuzzUnlockFactor = { kind: 'password', password };
-		return run(async () => ({
-			secretHex: await enrollBuzzIdentity(transport, factor, recoveryCode),
-			recoveryCode
-		}));
-	}
-
-	function unlockWithPassword() {
-		const factor: BuzzUnlockFactor = { kind: 'password', password };
-		return run(async () => ({ secretHex: await unlockBuzzIdentity(transport, factor) }));
-	}
-
-	function recoverWithCode() {
-		if (password.length < 8) {
-			errorMessage = text.passwordTooShort;
-			return;
-		}
-		const recoveryCode = generateRecoveryCode();
-		const factor: BuzzUnlockFactor = { kind: 'password', password };
-		return run(async () => ({
-			secretHex: await recoverBuzzIdentity(transport, recoveryInput, factor, recoveryCode),
-			recoveryCode
-		}));
-	}
-
-	function acknowledgeRecovery() {
-		buzzIdentity.secretHex = pendingSecret;
-	}
-
 	const text = {
 		enrollTitle: '보안 신원 설정',
-		enrollDescription: '메시지를 이 브라우저에서 직접 서명합니다. 키는 서버가 아니라 당신만 열 수 있게 보호됩니다.',
+		enrollDescription:
+			'메시지를 이 브라우저에서 직접 서명합니다. 이메일과 비밀번호로 어디서나 로그인하고, 키는 서버가 아니라 당신만 열 수 있게 보호됩니다.',
+		addPasskeyTitle: '이 기기에 패스키 추가',
+		addPasskeyDescription: '다음부턴 비밀번호 없이 지문·얼굴로 원터치 로그인합니다. 선택 사항이에요.',
 		unlockTitle: '신원 잠금 해제',
 		unlockDescription: '이 계정의 서명 키를 잠금 해제하세요.',
-		recoverTitle: '복구코드로 복구',
-		recoverDescription: '저장해 둔 복구코드와 새 비밀번호를 입력하세요.',
-		showRecoveryTitle: '복구코드를 저장하세요',
-		showRecoveryDescription: '기기·비밀번호를 모두 잃었을 때 이 코드로만 복구할 수 있습니다. 안전한 곳에 보관하세요. 다시 볼 수 없습니다.',
-		usePasskey: '패스키로',
-		orPassword: '비밀번호로',
+		usePasskey: '패스키로 로그인',
+		addPasskey: '패스키 추가',
+		later: '나중에',
 		password: '비밀번호',
-		newPassword: '새 비밀번호',
+		newPassword: '비밀번호 (이메일 + 비밀번호로 로그인)',
 		confirmPassword: '비밀번호 확인',
-		recoveryCode: '복구코드',
-		enroll: '설정하기',
+		setPassword: '설정하기',
 		unlock: '잠금 해제',
-		recover: '복구하기',
-		forgot: '잠금 해제를 못 하시나요? 복구코드로 복구',
-		saved: '저장했습니다',
+		logOut: '로그아웃',
 		passwordTooShort: '비밀번호는 8자 이상이어야 합니다',
 		passwordMismatch: '비밀번호가 일치하지 않습니다',
-		genericError: '문제가 발생했습니다',
-		logOut: '로그아웃'
+		genericError: '문제가 발생했습니다'
 	};
 </script>
 
@@ -178,91 +162,71 @@
 		onEscapeKeydown={(event) => event.preventDefault()}
 		onInteractOutside={(event) => event.preventDefault()}
 	>
-		{#if mode === 'showRecovery'}
+		{#if mode === 'addPasskey'}
 			<Dialog.Header>
-				<Dialog.Title>{text.showRecoveryTitle}</Dialog.Title>
-				<Dialog.Description>{text.showRecoveryDescription}</Dialog.Description>
+				<Dialog.Title>{text.addPasskeyTitle}</Dialog.Title>
+				<Dialog.Description>{text.addPasskeyDescription}</Dialog.Description>
 			</Dialog.Header>
-			<div class="my-4 rounded-md border bg-muted p-4 text-center font-mono text-lg tracking-widest select-all">
-				{recoveryCodeToShow}
-			</div>
-			<Dialog.Footer>
-				<Button onclick={acknowledgeRecovery}>{text.saved}</Button>
-			</Dialog.Footer>
-		{:else if mode === 'recover'}
-			<Dialog.Header>
-				<Dialog.Title>{text.recoverTitle}</Dialog.Title>
-				<Dialog.Description>{text.recoverDescription}</Dialog.Description>
-			</Dialog.Header>
-			<div class="flex flex-col gap-4 py-2">
-				<div class="flex flex-col gap-2">
-					<Label for="buzz-recovery">{text.recoveryCode}</Label>
-					<Input id="buzz-recovery" bind:value={recoveryInput} disabled={busy} />
-				</div>
-				<div class="flex flex-col gap-2">
-					<Label for="buzz-new-password">{text.newPassword}</Label>
-					<Input id="buzz-new-password" type="password" bind:value={password} disabled={busy} />
-				</div>
+			<div class="flex flex-col gap-3 py-2">
+				<Button onclick={addPasskeyNow} disabled={busy} class="gap-2">
+					<FingerprintIcon class="size-4" />
+					{text.addPasskey}
+				</Button>
+				<Button variant="ghost" onclick={skipPasskey} disabled={busy}>{text.later}</Button>
 				{#if errorMessage}
 					<p class="text-sm text-destructive">{errorMessage}</p>
 				{/if}
 			</div>
-			<Dialog.Footer>
-				<Button onclick={recoverWithCode} disabled={busy || recoveryInput.length === 0 || password.length === 0}>
-					{text.recover}
-				</Button>
-			</Dialog.Footer>
-		{:else}
+		{:else if mode === 'unlock'}
 			<Dialog.Header>
-				<Dialog.Title>{mode === 'unlock' ? text.unlockTitle : text.enrollTitle}</Dialog.Title>
-				<Dialog.Description>
-					{mode === 'unlock' ? text.unlockDescription : text.enrollDescription}
-				</Dialog.Description>
+				<Dialog.Title>{text.unlockTitle}</Dialog.Title>
+				<Dialog.Description>{text.unlockDescription}</Dialog.Description>
 			</Dialog.Header>
-
 			<div class="flex flex-col gap-4 py-2">
-				{#if passkeyAvailable}
-					<Button onclick={mode === 'unlock' ? unlockWithPasskey : enrollWithPasskey} disabled={busy}>
+				{#if hasPasskey && passkeyAvailable}
+					<Button onclick={unlockWithPasskey} disabled={busy} class="gap-2">
+						<FingerprintIcon class="size-4" />
 						{text.usePasskey}
 					</Button>
-					<div class="text-center text-xs text-muted-foreground">{text.orPassword}</div>
 				{/if}
-
 				<div class="flex flex-col gap-2">
 					<Label for="buzz-password">{text.password}</Label>
 					<Input id="buzz-password" type="password" bind:value={password} disabled={busy} />
 				</div>
-
-				{#if mode === 'enroll'}
-					<div class="flex flex-col gap-2">
-						<Label for="buzz-confirm">{text.confirmPassword}</Label>
-						<Input id="buzz-confirm" type="password" bind:value={confirmPassword} disabled={busy} />
-					</div>
-				{/if}
-
 				{#if errorMessage}
 					<p class="text-sm text-destructive">{errorMessage}</p>
 				{/if}
-
-				{#if mode === 'unlock'}
-					<button type="button" class="text-left text-xs text-muted-foreground underline" onclick={() => (mode = 'recover')}>
-						{text.forgot}
+				<div class="flex items-center justify-between gap-2">
+					<button type="button" class="text-xs text-muted-foreground underline" onclick={logOut} disabled={busy}>
+						{text.logOut}
 					</button>
-				{/if}
-
-				<button type="button" class="text-left text-xs text-muted-foreground underline" onclick={logOut} disabled={busy}>
-					{text.logOut}
-				</button>
+					<Button onclick={unlockWithPassword} disabled={busy || password.length === 0}>{text.unlock}</Button>
+				</div>
 			</div>
-
-			<Dialog.Footer>
-				<Button
-					onclick={mode === 'unlock' ? unlockWithPassword : enrollWithPassword}
-					disabled={busy || password.length === 0}
-				>
-					{mode === 'unlock' ? text.unlock : text.enroll}
-				</Button>
-			</Dialog.Footer>
+		{:else}
+			<Dialog.Header>
+				<Dialog.Title>{text.enrollTitle}</Dialog.Title>
+				<Dialog.Description>{text.enrollDescription}</Dialog.Description>
+			</Dialog.Header>
+			<div class="flex flex-col gap-4 py-2">
+				<div class="flex flex-col gap-2">
+					<Label for="buzz-new-password">{text.newPassword}</Label>
+					<Input id="buzz-new-password" type="password" bind:value={password} disabled={busy} />
+				</div>
+				<div class="flex flex-col gap-2">
+					<Label for="buzz-confirm">{text.confirmPassword}</Label>
+					<Input id="buzz-confirm" type="password" bind:value={confirmPassword} disabled={busy} />
+				</div>
+				{#if errorMessage}
+					<p class="text-sm text-destructive">{errorMessage}</p>
+				{/if}
+				<div class="flex items-center justify-between gap-2">
+					<button type="button" class="text-xs text-muted-foreground underline" onclick={logOut} disabled={busy}>
+						{text.logOut}
+					</button>
+					<Button onclick={enrollWithPassword} disabled={busy || password.length === 0}>{text.setPassword}</Button>
+				</div>
+			</div>
 		{/if}
 	</Dialog.Content>
 </Dialog.Root>

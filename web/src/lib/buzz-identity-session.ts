@@ -84,6 +84,23 @@ export async function unlockBuzzIdentity(transport: BuzzIdentityTransport, facto
 	return openPrimary(copy, factor);
 }
 
+// Optionally add (or replace) this device's passkey copy after enrollment so
+// future logins are a one-touch unlock. The password copy stays the base login.
+export async function addBuzzPasskeyCopy(
+	transport: BuzzIdentityTransport,
+	secretHex: string,
+	output: Uint8Array,
+): Promise<void> {
+	const vault = await transport.fetchVault();
+	const copies = (vault.document?.copies ?? []).filter((copy) => copy.kind !== "passkey");
+	copies.push(await sealPrimary(secretHex, { kind: "passkey", output }));
+	await transport.storeVault({ copies });
+}
+
+export async function hasBuzzPasskeyCopy(transport: BuzzIdentityTransport): Promise<boolean> {
+	return copyOfKind((await transport.fetchVault()).document, "passkey") !== undefined;
+}
+
 // Recovery: open the recovery-sealed copy with the user's recovery code, then
 // re-seal under a fresh primary factor (and a fresh recovery code) so the lost
 // device is replaced without changing the identity or losing history.
