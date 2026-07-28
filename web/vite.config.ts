@@ -85,6 +85,7 @@ export default defineConfig(({ mode }) => {
 			sveltekit()
 		],
 		server: {
+			allowedHosts: env.VITE_ALLOWED_HOSTS ? env.VITE_ALLOWED_HOSTS.split(',') : undefined,
 			proxy: {
 				'/.well-known/caldav': admindProxy(admindTarget),
 				'/api/v1': admindProxy(admindTarget),
