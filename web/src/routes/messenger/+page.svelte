@@ -17,6 +17,8 @@
 		type Person
 	} from '$lib/components/channel/channel-api';
 	import { onMount } from 'svelte';
+	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
+	import { syncMattermostToBuzz } from '$lib/buzz-mm-sync';
 
 	const text = createPageText(channelText);
 
@@ -24,10 +26,19 @@
 	let activeID = $state<string | undefined>(undefined);
 	let isNewDirectMessageOpen = $state(false);
 	let people = $state<Person[]>([]);
+	let hasSyncedMattermost = false;
 
 	async function loadConversationList() {
 		conversations = await fetchConversations();
 	}
+
+	$effect(() => {
+		if (!buzzIdentity.secretHex || hasSyncedMattermost) return;
+		hasSyncedMattermost = true;
+		syncMattermostToBuzz(buzzIdentity.secretHex)
+			.then(() => loadConversationList())
+			.catch(() => {});
+	});
 
 	async function openNewDirectMessage() {
 		isNewDirectMessageOpen = true;
