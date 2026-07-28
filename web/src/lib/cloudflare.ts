@@ -489,7 +489,7 @@ function webSessionAccessApplicationBody(env: CFEnv, fleetId: string, identityPr
 
 export function webSessionAccessApplicationDomains(env: CFEnv, fleetId: string) {
 	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
-	return [`${hostname}/auth/cloudflare/*`];
+	return [`${hostname}/auth/verify/*`];
 }
 
 function sshAccessApplicationBody(env: CFEnv, fleetId: string, identityProviderId: string) {
