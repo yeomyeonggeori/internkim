@@ -2294,7 +2294,7 @@ func TestWebLogoutSuppressesMattermostSessionCookie(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/auth/session?return=/flow/", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.AddCookie(&http.Cookie{Name: "MMAUTHTOKEN", Value: "session-token"})
-	request.AddCookie(webLogoutMarkerCookie())
+	request.AddCookie(webLogoutMarkerCookie(true))
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
