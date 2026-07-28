@@ -11,8 +11,8 @@ export const flowTaskBoardViewportHeight: Action<HTMLElement> = (node) => {
 		if (animationFrameID) cancelAnimationFrame(animationFrameID);
 		animationFrameID = requestAnimationFrame(() => {
 			const viewport = visibleViewportBounds(scrollTarget);
-			const top = Math.max(node.getBoundingClientRect().top, viewport.top);
-			const height = Math.max(minimumBoardHeight, viewport.bottom - top - bottomSpacing);
+			const unscrolledTop = viewport.top + boardOffsetWithinScrollTarget(node, scrollTarget);
+			const height = Math.max(minimumBoardHeight, viewport.bottom - unscrolledTop - bottomSpacing);
 			node.style.setProperty('--flow-task-board-height', `${Math.floor(height)}px`);
 			animationFrameID = 0;
 		});
@@ -37,6 +37,14 @@ export const flowTaskBoardViewportHeight: Action<HTMLElement> = (node) => {
 		}
 	};
 };
+
+function boardOffsetWithinScrollTarget(node: HTMLElement, scrollTarget: Window | HTMLElement): number {
+	const nodeTop = node.getBoundingClientRect().top;
+	if (scrollTarget instanceof HTMLElement) {
+		return nodeTop - scrollTarget.getBoundingClientRect().top + scrollTarget.scrollTop;
+	}
+	return nodeTop + window.scrollY;
+}
 
 function findVerticalScrollTarget(node: HTMLElement): Window | HTMLElement {
 	let element = node.parentElement;
