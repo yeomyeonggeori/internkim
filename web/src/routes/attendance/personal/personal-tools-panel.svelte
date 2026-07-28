@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { buttonVariants } from '$lib/components/ui/button';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { cn } from '$lib/utils';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import AbsenceForm from '../absence-form.svelte';
 	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
+	import DeferredSection from '$lib/components/deferred-section.svelte';
 	import QuickActions from '../quick-actions.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { formatHoursMinutes } from '../shared/attendance-format';
@@ -43,13 +45,18 @@
 		<AttendanceLoadingSkeleton rowCount={3} />
 	{:else}
 		<QuickActions />
-		<WorkTimeChart
-			title={text.myWorkTime}
-			{dailyValues}
-			locations={chartLocations}
-			formatValue={(value) => formatHoursMinutes(value, text)}
-			compact
-		/>
+		<DeferredSection>
+			<WorkTimeChart
+				title={text.myWorkTime}
+				{dailyValues}
+				locations={chartLocations}
+				formatValue={(value) => formatHoursMinutes(value, text)}
+				compact
+			/>
+			{#snippet placeholder()}
+				<Skeleton class="h-40 w-full rounded-xl" />
+			{/snippet}
+		</DeferredSection>
 		<Dialog.Root>
 			<Dialog.Trigger class={cn(buttonVariants({ variant: 'outline' }), 'w-full')}>
 				{text.absenceFormTitle}

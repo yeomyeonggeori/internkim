@@ -20,6 +20,23 @@
 	};
 
 	let { rows, statusDates, selectedDate, today, text }: Props = $props();
+	const initialRenderedDateCount = 6;
+	const renderedDateChunkSize = 6;
+	let renderedDateCount = $state(initialRenderedDateCount);
+	const renderedDates = $derived(statusDates.slice(0, renderedDateCount));
+
+	$effect(() => {
+		if (renderedDateCount >= statusDates.length) return;
+		const growTimer = setTimeout(() => {
+			renderedDateCount = Math.min(renderedDateCount + renderedDateChunkSize, statusDates.length);
+		});
+		return () => clearTimeout(growTimer);
+	});
+
+	$effect(() => {
+		statusDates.length;
+		renderedDateCount = initialRenderedDateCount;
+	});
 	let scrollContainer: HTMLDivElement | undefined = $state();
 	let headerRow: HTMLDivElement | undefined = $state();
 	let scrollContainerWidth = $state(0);
@@ -242,7 +259,7 @@
 		</div>
 		<div role="rowgroup">
 			{#if rows.length > 0}
-				{#each statusDates as date, dateIndex (date)}
+				{#each renderedDates as date, dateIndex (date)}
 					<div
 						class={dateRowClass(date)}
 						style:grid-template-columns={gridTemplateColumns}

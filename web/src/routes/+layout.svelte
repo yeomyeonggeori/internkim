@@ -1,10 +1,9 @@
 <script lang="ts">
 	import '../app.css';
-	import { afterNavigate, beforeNavigate, invalidate } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
-	import AppNavigationProgress from '$lib/components/app-navigation-progress.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
@@ -34,16 +33,6 @@
 	const text = createPageText(appShellText);
 	let isCommandPaletteOpen = $state(false);
 	let isAppSidebarOpen = $state(false);
-	let isNavigating = $state(false);
-
-	beforeNavigate((navigation) => {
-		if (!navigation.to || navigation.to.url.pathname === navigation.from?.url.pathname) return;
-		isNavigating = true;
-	});
-
-	afterNavigate(() => {
-		isNavigating = false;
-	});
 	onMount(() => {
 		initializeLocale();
 		preloadWorkTimeChartPlot();
@@ -125,7 +114,6 @@
 
 <svelte:window onkeydown={handleKeydown} onmessage={handleFrameShortcut} />
 
-<AppNavigationProgress {isNavigating} />
 <ModeWatcher />
 <Toaster position="bottom-center" visibleToasts={3} containerAriaLabel={text.notifications} />
 
