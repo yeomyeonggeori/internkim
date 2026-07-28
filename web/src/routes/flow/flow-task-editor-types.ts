@@ -7,6 +7,7 @@ export type FlowTaskEditorText = {
 	editTitle: string;
 	detailTitle: string;
 	createTitle: string;
+	requestTitle: string;
 	content: string;
 	contentPlaceholder: string;
 	goal: string;
