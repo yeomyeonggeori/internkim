@@ -4,6 +4,8 @@ import type { mailText } from './text';
 
 export type MailPageText = (typeof mailText)[keyof typeof mailText];
 
+export type MailComposeFocusField = 'to' | 'body';
+
 export type MailMessagePageCacheEntry = {
 	actorEmail: string;
 	mailbox: string;
@@ -31,6 +33,7 @@ export type MailPageControllerState = {
 	nextCursor: string;
 	hasMoreMessages: boolean;
 	isUnreadOnly: boolean;
+	canSelectFirstMessage: boolean;
 	hasLoadedAccount: boolean;
 	isLoading: boolean;
 	isSyncing: boolean;
@@ -42,6 +45,7 @@ export type MailPageControllerState = {
 	isSending: boolean;
 	isSettingsOpen: boolean;
 	isComposeOpen: boolean;
+	composeFocusField: MailComposeFocusField;
 	errorMessage: string;
 	settingsMessage: string;
 	composeMessage: string;
@@ -49,14 +53,12 @@ export type MailPageControllerState = {
 	messageDetailRequestID: number;
 	pageMailboxes: () => Mailbox[];
 	visibleMessages: () => MailMessage[];
-	canPreviousMessagePage: () => boolean;
-	canNextMessagePage: () => boolean;
+	canLoadMoreMessages: () => boolean;
 	mailActorEmail: () => string;
 	mailErrors: (fallback: string) => MailErrorMessages;
 	resetMessageList: () => void;
 	loadMail: () => Promise<void>;
 	loadMessages: () => Promise<void>;
-	loadPreviousMessages: () => Promise<void>;
-	loadNextMessages: () => Promise<void>;
+	loadMoreMessages: () => Promise<void>;
 	setUnreadOnly: (isUnreadOnly: boolean) => Promise<void>;
 };

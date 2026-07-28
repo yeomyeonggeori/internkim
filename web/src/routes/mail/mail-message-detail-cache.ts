@@ -6,9 +6,11 @@ export function mailPageMessageKey(message: MailMessage | null) {
 	return mailMessageKey(message);
 }
 
-export function selectedVisibleMessage(messages: MailMessage[], selectedMessage: MailMessage | null) {
+export function selectedVisibleMessage(messages: MailMessage[], selectedMessage: MailMessage | null, canSelectFirstMessage = true) {
 	const selectedMessageKey = mailPageMessageKey(selectedMessage);
-	return messages.find((message) => mailPageMessageKey(message) === selectedMessageKey) ?? messages[0] ?? null;
+	const visibleMessage = messages.find((message) => mailPageMessageKey(message) === selectedMessageKey);
+	if (visibleMessage) return visibleMessage;
+	return canSelectFirstMessage ? messages[0] ?? null : null;
 }
 
 export function mergeMessageDetailCache(messageDetailCache: Map<string, MailMessage>, messages: MailMessage[]) {
