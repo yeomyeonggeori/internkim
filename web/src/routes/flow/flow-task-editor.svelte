@@ -34,6 +34,7 @@
 		canUpdateTask: (task: FlowTask) => boolean;
 		canDeleteTask: (task: FlowTask) => boolean;
 		canManageTaskAssignment: (task: FlowTask) => boolean;
+		isOwnTask: (task: FlowTask) => boolean;
 		startEditingTask: () => void;
 		closeEditor: () => void;
 	};
@@ -61,6 +62,7 @@
 		canUpdateTask,
 		canDeleteTask,
 		canManageTaskAssignment,
+		isOwnTask,
 		startEditingTask,
 		closeEditor
 	}: Props = $props();
@@ -68,6 +70,12 @@
 	let canEditTask = $derived(taskDraft ? canUpdateTask(taskDraft) : false);
 	let canRemoveTask = $derived(taskDraft ? Boolean(taskDraft.id) && canDeleteTask(taskDraft) : false);
 	let canEditTaskAssignment = $derived(taskDraft ? canManageTaskAssignment(taskDraft) : false);
+
+	function sheetTitle(): string {
+		if (!taskDraft) return text.createTitle;
+		if (taskDraft.id) return isEditingTask ? text.editTitle : text.detailTitle;
+		return isOwnTask(taskDraft) ? text.createTitle : text.requestTitle;
+	}
 
 	function confirmTaskDelete(task: FlowTask): void {
 		confirmDelete({
@@ -85,7 +93,7 @@
 }}>
 	<Sheet.Content class="w-full overflow-y-auto sm:max-w-xl">
 		<Sheet.Header>
-			<Sheet.Title>{taskDraft?.id ? (isEditingTask ? text.editTitle : text.detailTitle) : text.createTitle}</Sheet.Title>
+			<Sheet.Title>{sheetTitle()}</Sheet.Title>
 			<Sheet.Description>{taskDraft?.weekCode} · {pageTitle}</Sheet.Description>
 		</Sheet.Header>
 		{#if taskDraft}
