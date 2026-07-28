@@ -10,6 +10,7 @@ declare module 'bun:test' {
 		toThrow(expected?: unknown): void;
 		toContain(expected: unknown): void;
 		toHaveLength(expected: number): void;
+		toMatch(expected: RegExp | string): void;
 		toBeNull(): void;
 		toBeInstanceOf(expected: unknown): void;
 	};
