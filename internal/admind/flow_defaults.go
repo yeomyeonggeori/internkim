@@ -10,6 +10,20 @@ func defaultFlowTypes() []string {
 }
 
 func defaultFlowSizeDefinitions() []flowSizeDefinition {
+	return defaultFlowSizeDefinitionsForLocale("ko")
+}
+
+func defaultFlowSizeDefinitionsForLocale(locale string) []flowSizeDefinition {
+	if normalizeAdminLocale(locale) == "en" {
+		return []flowSizeDefinition{
+			sizeDefinitionForLocale("en", "XS", 1, 1, "Trivial change", "Call / 10 minute meeting / handoff / tidy-up / scheduling", "Done in a moment"),
+			sizeDefinitionForLocale("en", "S", 2, 2, "Low risk change with a narrow blast radius", "Half hour meeting / short draft / customer or partner reply / briefing", "Several fit in a day"),
+			sizeDefinitionForLocale("en", "M", 3, 8, "Small feature / change with real impact", "Report / meeting under two hours / external meeting / cross-team alignment / document", "Takes a dedicated day"),
+			sizeDefinitionForLocale("en", "L", 5, 16, "Mid-size feature / change touching many areas", "Important external meeting / mid-size research / proposal draft / policy change", "Takes about two days"),
+			sizeDefinitionForLocale("en", "XL", 8, 32, "Large feature / complex change / external integration", "Restructuring / negotiation / long meeting / workshop", "Takes about a week"),
+			sizeDefinitionForLocale("en", "XXL", 13, 128, "Milestone", "Partnership design / contract structure / service planning / policy overhaul", "Must be split into smaller items"),
+		}
+	}
 	return []flowSizeDefinition{
 		sizeDefinition("XS", 1, 1, "아주 사소한 변경", "전화 / 10분 회의 / 전달 / 정리 / 일정 조율", "잠깐이면 끝낼 것"),
 		sizeDefinition("S", 2, 2, "난이도 낮고 영향 범위 좁은 변경", "30분 내외 회의 / 간단 문서 초안 / 고객 및 파트너 대응 / 브리핑", "하루 여러 번도 처리 가능한 것"),
@@ -21,6 +35,10 @@ func defaultFlowSizeDefinitions() []flowSizeDefinition {
 }
 
 func sizeDefinition(name string, distanceKM int, maxHours int, developmentExample string, otherExample string, note string) flowSizeDefinition {
+	return sizeDefinitionForLocale("ko", name, distanceKM, maxHours, developmentExample, otherExample, note)
+}
+
+func sizeDefinitionForLocale(locale string, name string, distanceKM int, maxHours int, developmentExample string, otherExample string, note string) flowSizeDefinition {
 	size := flowSizeDefinition{
 		Name:               name,
 		DistanceKM:         distanceKM,
@@ -30,11 +48,18 @@ func sizeDefinition(name string, distanceKM int, maxHours int, developmentExampl
 		Note:               note,
 		Score:              distanceKM,
 	}
-	size.Label = flowSizeLabel(size)
+	size.Label = flowSizeLabelForLocale(size, locale)
 	return size
 }
 
 func flowSizeLabel(size flowSizeDefinition) string {
+	return flowSizeLabelForLocale(size, "ko")
+}
+
+func flowSizeLabelForLocale(size flowSizeDefinition, locale string) string {
+	if normalizeAdminLocale(locale) == "en" {
+		return fmt.Sprintf("%dkm · max %dh", size.DistanceKM, size.MaxHours)
+	}
 	return fmt.Sprintf("%dkm · 최대 %dh", size.DistanceKM, size.MaxHours)
 }
 
