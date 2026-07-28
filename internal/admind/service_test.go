@@ -2008,26 +2008,6 @@ func TestFlowAPIRejectsDeletingOtherUserTask(t *testing.T) {
 	}
 }
 
-func TestFlowAPIAllowsMattermostSessionStaffSummary(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("state status = %d body = %s", response.Code, response.Body.String())
-	}
-	var state flowStateResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if state.CurrentUserEmail != "staff@example.com" || state.IsAdmin {
-		t.Fatalf("state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
-	}
-}
 
 func TestFlowAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
@@ -2258,47 +2238,7 @@ func TestWebSessionDoesNotAuthorizeAdminAPI(t *testing.T) {
 	}
 }
 
-func TestProofOfConceptTaskWebSessionRejectsTenantAdmin(t *testing.T) {
-	service := newProofOfConceptTaskAccessTestService(t, "admin01@intern.kim", `{"id":"tenant-admin","email":"admin01@intern.kim","username":"admin01","roles":"system_user","delete_at":0}`)
-	request := httptest.NewRequest(http.MethodGet, "/auth/session?return=/tasks/", nil)
-	request.RemoteAddr = "203.0.113.10:12345"
-	request.Header.Set("X-Forwarded-Email", "admin01@intern.kim")
-	response := httptest.NewRecorder()
 
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("session status = %d body = %s", response.Code, response.Body.String())
-	}
-	var session webSessionResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&session); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if session.Authenticated || session.CanViewTasks || session.IsPoCSuperAdmin {
-		t.Fatalf("session = %+v", session)
-	}
-}
-
-func TestProofOfConceptTaskWebSessionAllowsMattermostSystemAdmin(t *testing.T) {
-	service := newProofOfConceptTaskAccessTestService(t, "admin@localhost", `{"id":"admin","email":"admin@localhost","username":"admin","roles":"system_admin system_user","delete_at":0}`)
-	request := httptest.NewRequest(http.MethodGet, "/auth/session?return=/poc-admin/", nil)
-	request.RemoteAddr = "203.0.113.10:12345"
-	request.Header.Set("X-Forwarded-Email", "admin@localhost")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("session status = %d body = %s", response.Code, response.Body.String())
-	}
-	var session webSessionResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&session); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !session.Authenticated || !session.CanViewTasks || !session.IsPoCSuperAdmin || !session.IsAdmin {
-		t.Fatalf("session = %+v", session)
-	}
-}
 
 func TestWebLogoutSuppressesImplicitCloudflareSession(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
@@ -2344,7 +2284,7 @@ func TestWebLogoutSuppressesImplicitCloudflareSession(t *testing.T) {
 	if errorValue := json.NewDecoder(sessionResponse.Body).Decode(&session); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if session.Authenticated || session.MattermostLoginURL != "/auth/mattermost/start?return=%2Ftasks%2F" {
+	if session.Authenticated || session.SignupURL != "/auth/verify/start?return=%2Ftasks%2F" {
 		t.Fatalf("session = %+v", session)
 	}
 }
@@ -2402,210 +2342,14 @@ func TestTasksPageRedirectsBarePath(t *testing.T) {
 	}
 }
 
-func TestMattermostOAuthStartRejectsUnsafeReturn(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
-	for _, returnPath := range []string{"https://example.com/flow/", "//example.com/flow/", "/admin/", "/flow/api/summary", "/tasks/api/runs"} {
-		request := httptest.NewRequest(http.MethodGet, "/auth/mattermost/start?return="+url.QueryEscape(returnPath), nil)
-		response := httptest.NewRecorder()
 
-		service.router().ServeHTTP(response, request)
 
-		if response.Code != http.StatusBadRequest {
-			t.Fatalf("return %q status = %d", returnPath, response.Code)
-		}
-	}
-}
 
-func TestMattermostOAuthStartUsesPublicAuthorizeURL(t *testing.T) {
-	rootPath := t.TempDir()
-	clientPath := filepath.Join(rootPath, "secrets", "mattermost-oauth.json")
-	deviceURLPath := filepath.Join(rootPath, "device-url")
-	writeFile(t, deviceURLPath, "https://device.example")
-	service := NewService(Configuration{
-		StateDirectory:            filepath.Join(rootPath, "state"),
-		MattermostBaseURL:         "http://mattermost.local",
-		MattermostOAuthClientPath: clientPath,
-		DeviceURLPath:             deviceURLPath,
-	})
-	if errorValue := service.writeMattermostOAuthClient(mattermostOAuthClientFile{
-		ClientID:     "client-1",
-		ClientSecret: "secret-1",
-		CallbackURL:  "https://device.example/auth/mattermost/callback",
-		Homepage:     "https://device.example",
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	request := httptest.NewRequest(http.MethodGet, "https://device.example/auth/mattermost/start?return=/flow/", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	response := httptest.NewRecorder()
 
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusFound {
-		t.Fatalf("start status = %d body = %s", response.Code, response.Body.String())
-	}
-	location, errorValue := url.Parse(response.Header().Get("Location"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if location.String() == "" || location.Scheme != "https" || location.Host != "device.example" || location.Path != "/oauth/authorize" {
-		t.Fatalf("authorize location = %q", response.Header().Get("Location"))
-	}
-	if location.Query().Get("redirect_uri") != "https://device.example/auth/mattermost/callback" {
-		t.Fatalf("redirect uri = %q", location.Query().Get("redirect_uri"))
-	}
-}
-
-func TestMattermostOAuthStartUsesRequestHostForPublicAlias(t *testing.T) {
-	rootPath := t.TempDir()
-	clientPath := filepath.Join(rootPath, "secrets", "mattermost-oauth.json")
-	deviceURLPath := filepath.Join(rootPath, "device-url")
-	writeFile(t, deviceURLPath, "https://device.example")
-	service := NewService(Configuration{
-		StateDirectory:            filepath.Join(rootPath, "state"),
-		MattermostBaseURL:         "http://mattermost.local",
-		MattermostOAuthClientPath: clientPath,
-		DeviceURLPath:             deviceURLPath,
-	})
-	if errorValue := service.writeMattermostOAuthClientForHomepage("https://pilot-01.intern.kim", mattermostOAuthClientFile{
-		ClientID:     "pilot-client",
-		ClientSecret: "pilot-secret",
-		CallbackURL:  "https://pilot-01.intern.kim/auth/mattermost/callback",
-		Homepage:     "https://pilot-01.intern.kim",
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	request := httptest.NewRequest(http.MethodGet, "https://pilot-01.intern.kim/auth/mattermost/start?return=/flow/", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusFound {
-		t.Fatalf("start status = %d body = %s", response.Code, response.Body.String())
-	}
-	location, errorValue := url.Parse(response.Header().Get("Location"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if location.Host != "pilot-01.intern.kim" || location.Path != "/oauth/authorize" {
-		t.Fatalf("authorize location = %q", response.Header().Get("Location"))
-	}
-	if location.Query().Get("client_id") != "pilot-client" {
-		t.Fatalf("client id = %q", location.Query().Get("client_id"))
-	}
-	if location.Query().Get("redirect_uri") != "https://pilot-01.intern.kim/auth/mattermost/callback" {
-		t.Fatalf("redirect uri = %q", location.Query().Get("redirect_uri"))
-	}
-}
-
-func TestMattermostOAuthStartUsesPublicRedirectWhenRequestLooksLocal(t *testing.T) {
-	rootPath := t.TempDir()
-	clientPath := filepath.Join(rootPath, "secrets", "mattermost-oauth.json")
-	deviceURLPath := filepath.Join(rootPath, "device-url")
-	writeFile(t, deviceURLPath, "https://device.example")
-	service := NewService(Configuration{
-		StateDirectory:            filepath.Join(rootPath, "state"),
-		MattermostBaseURL:         "http://mattermost.local",
-		MattermostOAuthClientPath: clientPath,
-		DeviceURLPath:             deviceURLPath,
-	})
-	if errorValue := service.writeMattermostOAuthClient(mattermostOAuthClientFile{
-		ClientID:     "client-1",
-		ClientSecret: "secret-1",
-		CallbackURL:  "https://device.example/auth/mattermost/callback",
-		Homepage:     "https://device.example",
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/auth/mattermost/start?return=/flow/", nil)
-	request.RemoteAddr = "127.0.0.1:18080"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusFound {
-		t.Fatalf("start status = %d body = %s", response.Code, response.Body.String())
-	}
-	location, errorValue := url.Parse(response.Header().Get("Location"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if location.Query().Get("redirect_uri") != "https://device.example/auth/mattermost/callback" {
-		t.Fatalf("redirect uri = %q", location.Query().Get("redirect_uri"))
-	}
-}
-
-func TestMattermostOAuthCallbackIssuesWebSession(t *testing.T) {
-	rootPath := t.TempDir()
-	clientPath := filepath.Join(rootPath, "secrets", "mattermost-oauth.json")
-	deviceURLPath := filepath.Join(rootPath, "device-url")
-	writeFile(t, deviceURLPath, "https://device.example")
-	service := NewService(Configuration{
-		StateDirectory:            filepath.Join(rootPath, "state"),
-		APIBaseURL:                "https://api.intern.kim",
-		AdminEmailPath:            writeTestFile(t, "admin@example.com"),
-		ClaimedAdminEmailPath:     writeTestFile(t, "admin@example.com"),
-		FleetIDPath:               writeTestFile(t, "device-1"),
-		FleetSecretPath:           writeTestFile(t, "secret-1"),
-		FlowDatabasePath:          filepath.Join(rootPath, "flow.sqlite"),
-		MattermostBaseURL:         "http://mattermost.local",
-		MattermostOAuthClientPath: clientPath,
-		DeviceURLPath:             deviceURLPath,
-	})
-	if errorValue := service.writeMattermostOAuthClient(mattermostOAuthClientFile{
-		ClientID:     "client-1",
-		ClientSecret: "secret-1",
-		CallbackURL:  "https://device.example/auth/mattermost/callback",
-		Homepage:     "https://device.example",
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=device-1":
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"staff@example.com","name":"Staff","role":"member","status":"active"}]}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/oauth/access_token" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusOK, `{"access_token":"access-1","token_type":"bearer"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Header.Get("Authorization") == "Bearer access-1":
-			return jsonResponse(http.StatusOK, `{"id":"staff-mm","email":"staff@example.com","username":"staff"}`, nil), nil
-		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
-	})}
-	state := "state-1"
-	service.webOAuthStates.Store(state, &mattermostOAuthStateRecord{
-		CreatedAt:   time.Now().UTC(),
-		RedirectURI: "https://device.example/auth/mattermost/callback",
-		ReturnPath:  "/flow/",
-	})
-	request := httptest.NewRequest(http.MethodGet, "/auth/mattermost/callback?state="+state+"&code=code-1", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusFound {
-		t.Fatalf("callback status = %d body = %s", response.Code, response.Body.String())
-	}
-	if response.Header().Get("Location") != "/flow/" {
-		t.Fatalf("location = %q", response.Header().Get("Location"))
-	}
-	cookies := response.Result().Cookies()
-	sessionCookie := responseCookieByNameForTest(t, cookies, webSessionCookieName)
-	if !sessionCookie.HttpOnly || !sessionCookie.Secure || sessionCookie.SameSite != http.SameSiteLaxMode {
-		t.Fatalf("session cookie = %#v", sessionCookie)
-	}
-	logoutMarkerCookie := responseCookieByNameForTest(t, cookies, webLogoutMarkerCookieName)
-	if logoutMarkerCookie.MaxAge != -1 {
-		t.Fatalf("logout marker cookie = %#v", logoutMarkerCookie)
-	}
-}
 
 func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodGet, "/auth/cloudflare/callback?return=/calendar/", nil)
+	request := httptest.NewRequest(http.MethodGet, "/auth/verify/callback?return=/calendar/", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
 	response := httptest.NewRecorder()
@@ -2631,7 +2375,7 @@ func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
 
 func TestCloudflareAuthCallbackRejectsNonStaff(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodGet, "/auth/cloudflare/callback?return=/calendar/", nil)
+	request := httptest.NewRequest(http.MethodGet, "/auth/verify/callback?return=/calendar/", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "outsider@example.com")
 	response := httptest.NewRecorder()
@@ -2646,143 +2390,8 @@ func TestCloudflareAuthCallbackRejectsNonStaff(t *testing.T) {
 	}
 }
 
-func TestMattermostOAuthProvisioningCreatesClientFile(t *testing.T) {
-	rootPath := t.TempDir()
-	clientPath := filepath.Join(rootPath, "secrets", "mattermost-oauth.json")
-	deviceURLPath := filepath.Join(rootPath, "device-url")
-	writeFile(t, deviceURLPath, "https://device.example")
-	createRequestCount := 0
-	readRequestCount := 0
-	service := NewService(Configuration{
-		StateDirectory:            filepath.Join(rootPath, "state"),
-		MattermostBaseURL:         "http://mattermost.local",
-		MattermostOAuthClientPath: clientPath,
-		DeviceURLPath:             deviceURLPath,
-	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.URL.String() == "http://mattermost.local/api/v4/oauth/apps" && request.Method == http.MethodPost:
-			createRequestCount++
-			var payload map[string]any
-			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			callbackURLs, ok := payload["callback_urls"].([]any)
-			if !ok || len(callbackURLs) != 1 || callbackURLs[0] != "https://device.example/auth/mattermost/callback" {
-				t.Fatalf("callback urls = %#v", payload["callback_urls"])
-			}
-			if payload["is_trusted"] != true {
-				t.Fatalf("is trusted = %#v", payload["is_trusted"])
-			}
-			return jsonResponse(http.StatusCreated, `{"id":"oauth-app-1","client_id":"client-1","client_secret":"secret-1"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/oauth/apps/oauth-app-1" && request.Method == http.MethodGet:
-			readRequestCount++
-			return jsonResponse(http.StatusOK, `{"id":"oauth-app-1","client_id":"client-1","callback_urls":["https://device.example/auth/mattermost/callback"],"homepage":"https://device.example","is_trusted":true}`, nil), nil
-		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
-	})}
 
-	if errorValue := service.ensureMattermostWebOAuthApp(context.Background(), "admin-token"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	clientFile, errorValue := service.loadMattermostOAuthClient()
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if clientFile.AppID != "oauth-app-1" || clientFile.ClientID != "client-1" || clientFile.ClientSecret != "secret-1" || clientFile.CallbackURL != "https://device.example/auth/mattermost/callback" {
-		t.Fatalf("client file = %#v", clientFile)
-	}
-	if errorValue := service.ensureMattermostWebOAuthApp(context.Background(), "admin-token"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if createRequestCount != 1 || readRequestCount != 1 {
-		t.Fatalf("request count create=%d read=%d", createRequestCount, readRequestCount)
-	}
-}
 
-func TestMattermostOAuthProvisioningReplacesLegacyClientFile(t *testing.T) {
-	rootPath := t.TempDir()
-	clientPath := filepath.Join(rootPath, "secrets", "mattermost-oauth.json")
-	deviceURLPath := filepath.Join(rootPath, "device-url")
-	writeFile(t, deviceURLPath, "https://device.example")
-	service := NewService(Configuration{
-		StateDirectory:            filepath.Join(rootPath, "state"),
-		MattermostBaseURL:         "http://mattermost.local",
-		MattermostOAuthClientPath: clientPath,
-		DeviceURLPath:             deviceURLPath,
-	})
-	if errorValue := service.writeMattermostOAuthClient(mattermostOAuthClientFile{
-		ClientID:     "legacy-client",
-		ClientSecret: "legacy-secret",
-		CallbackURL:  "https://device.example/auth/mattermost/callback",
-		Homepage:     "https://device.example",
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() != "http://mattermost.local/api/v4/oauth/apps" || request.Method != http.MethodPost {
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-		}
-		return jsonResponse(http.StatusCreated, `{"id":"oauth-app-2","client_id":"client-2","client_secret":"secret-2"}`, nil), nil
-	})}
-
-	if errorValue := service.ensureMattermostWebOAuthApp(context.Background(), "admin-token"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	clientFile, errorValue := service.loadMattermostOAuthClient()
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if clientFile.AppID != "oauth-app-2" || clientFile.ClientID != "client-2" {
-		t.Fatalf("client file = %#v", clientFile)
-	}
-}
-
-func TestMattermostOAuthProvisioningReplacesRemoteCallbackMismatch(t *testing.T) {
-	rootPath := t.TempDir()
-	clientPath := filepath.Join(rootPath, "secrets", "mattermost-oauth.json")
-	deviceURLPath := filepath.Join(rootPath, "device-url")
-	writeFile(t, deviceURLPath, "https://device.example")
-	service := NewService(Configuration{
-		StateDirectory:            filepath.Join(rootPath, "state"),
-		MattermostBaseURL:         "http://mattermost.local",
-		MattermostOAuthClientPath: clientPath,
-		DeviceURLPath:             deviceURLPath,
-	})
-	if errorValue := service.writeMattermostOAuthClient(mattermostOAuthClientFile{
-		AppID:        "oauth-app-1",
-		ClientID:     "client-1",
-		ClientSecret: "secret-1",
-		CallbackURL:  "https://device.example/auth/mattermost/callback",
-		Homepage:     "https://device.example",
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.URL.String() == "http://mattermost.local/api/v4/oauth/apps/oauth-app-1" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"id":"oauth-app-1","client_id":"client-1","callback_urls":["https://old.example/auth/mattermost/callback"],"homepage":"https://device.example","is_trusted":true}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/oauth/apps" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusCreated, `{"id":"oauth-app-2","client_id":"client-2","client_secret":"secret-2"}`, nil), nil
-		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
-	})}
-
-	if errorValue := service.ensureMattermostWebOAuthApp(context.Background(), "admin-token"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	clientFile, errorValue := service.loadMattermostOAuthClient()
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if clientFile.AppID != "oauth-app-2" || clientFile.ClientID != "client-2" || clientFile.CallbackURL != "https://device.example/auth/mattermost/callback" {
-		t.Fatalf("client file = %#v", clientFile)
-	}
-}
 
 func responseCookieByNameForTest(t *testing.T, cookies []*http.Cookie, name string) *http.Cookie {
 	t.Helper()
@@ -4391,7 +4000,6 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	calendarChannelPatched := false
 	adminJoinedCalendarChannel := false
 	adminJoinedAttendanceChannel := false
-	oauthAppCreated := false
 	staffJoinedDefaultChannels := map[string]bool{}
 	botTokenPath := filepath.Join(stateDirectory, "bot-token")
 	writeFile(t, botTokenPath, "bot-token")
@@ -4548,18 +4156,6 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case isMattermostConnectCommandSetupRequest(request):
 			return mattermostConnectCommandSetupResponse(t, request), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/oauth/apps" && request.Method == http.MethodPost:
-			assertMattermostBearerToken(t, request, "admin-token")
-			var payload map[string]any
-			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			callbackURLs, ok := payload["callback_urls"].([]any)
-			if !ok || len(callbackURLs) != 1 || callbackURLs[0] != "https://device-1.intern.kim/auth/mattermost/callback" {
-				t.Fatalf("callback urls = %#v", payload["callback_urls"])
-			}
-			oauthAppCreated = true
-			return jsonResponse(http.StatusCreated, `{"id":"oauth-app-1","client_id":"client-1","client_secret":"secret-1"}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -4571,9 +4167,6 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	}
 	if !flowChannelCreated || !flowChannelPatched || !adminJoinedFlowChannel || !calendarChannelCreated || !calendarChannelPatched || !adminJoinedCalendarChannel || !adminJoinedAttendanceChannel {
 		t.Fatalf("default channel setup flags flow=%v/%v/%v calendar=%v/%v/%v attendance=%v", flowChannelCreated, flowChannelPatched, adminJoinedFlowChannel, calendarChannelCreated, calendarChannelPatched, adminJoinedCalendarChannel, adminJoinedAttendanceChannel)
-	}
-	if !oauthAppCreated {
-		t.Fatal("oauth app was not created")
 	}
 	for _, channelID := range []string{"town-square-channel", "off-topic-channel", "flow-channel", "calendar-channel", "attendance-channel"} {
 		if !staffJoinedDefaultChannels[channelID] {

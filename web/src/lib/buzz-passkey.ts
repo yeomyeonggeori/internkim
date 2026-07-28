@@ -55,10 +55,7 @@ export async function registerBuzzPasskey(email: string, displayName: string): P
 	window.localStorage.setItem(CREDENTIAL_STORAGE_KEY, bytesToBase64url(new Uint8Array(credential.rawId)));
 }
 
-// Derives the passkey PRF output that seals/opens the Buzz key. Targets the
-// stored credential when known, else lets the platform discover a synced
-// passkey — so a new browser unlocks with no device-local state.
-export async function deriveBuzzPasskeyOutput(): Promise<Uint8Array> {
+async function assertBuzzPasskey(): Promise<PublicKeyCredential> {
 	const stored = window.localStorage.getItem(CREDENTIAL_STORAGE_KEY);
 	const allowCredentials = stored
 		? [{ id: base64urlToBytes(stored) as BufferSource, type: "public-key" as const }]
@@ -73,8 +70,29 @@ export async function deriveBuzzPasskeyOutput(): Promise<Uint8Array> {
 		},
 	})) as PublicKeyCredential | null;
 	if (!assertion) throw new Error("passkey unlock was cancelled");
+	return assertion;
+}
+
+function passkeyPrfOutput(assertion: PublicKeyCredential): Uint8Array {
 	const results = assertion.getClientExtensionResults() as PrfExtensionOutput;
 	const first = results.prf?.results?.first;
 	if (!first) throw new Error("this authenticator does not support the PRF extension");
 	return new Uint8Array(first);
+}
+
+// Derives the passkey PRF output that seals/opens the Buzz key. Targets the
+// stored credential when known, else lets the platform discover a synced
+// passkey — so a new browser unlocks with no device-local state.
+export async function deriveBuzzPasskeyOutput(): Promise<Uint8Array> {
+	return passkeyPrfOutput(await assertBuzzPasskey());
+}
+
+// Usernameless login: a discoverable passkey identifies the person (its user
+// handle is their email) and yields the unlock output in one gesture, so the
+// login screen needs no typed email.
+export async function loginWithBuzzPasskey(): Promise<{ email: string; output: Uint8Array }> {
+	const assertion = await assertBuzzPasskey();
+	const userHandle = (assertion.response as AuthenticatorAssertionResponse).userHandle;
+	if (!userHandle) throw new Error("이 패스키에는 계정 정보가 없습니다. 이메일로 로그인하세요.");
+	return { email: new TextDecoder().decode(userHandle), output: passkeyPrfOutput(assertion) };
 }
