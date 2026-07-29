@@ -159,7 +159,7 @@
 				type="button"
 				class={cn(
 					'flex flex-1 gap-2 text-sm',
-					dayCount === 1 ? 'items-end justify-start pt-2 pr-2 pb-1 pl-2' : 'items-center justify-center gap-1.5 px-2 py-2'
+					dayCount === 1 ? 'items-end justify-start pt-2 pr-2 pb-1 pl-[22px]' : 'items-center justify-center gap-1.5 px-2 py-2'
 				)}
 				onclick={() => selectDay(day)}
 			>
@@ -260,14 +260,8 @@
 	</div>
 </div>
 	{#if dayCount === 1}
-		<aside class="border-border/70 hidden w-72 shrink-0 border-l p-3 lg:block">
-			<MiniCalendar
-				type="single"
-				value={miniCalendarValue}
-				onValueChange={selectMiniCalendarDate}
-				locale={localeCode}
-				class="w-full"
-			/>
+		<aside class="border-border/70 hidden w-fit shrink-0 border-l p-2 lg:block">
+			<MiniCalendar type="single" value={miniCalendarValue} onValueChange={selectMiniCalendarDate} locale={localeCode} />
 		</aside>
 	{/if}
 </div>
