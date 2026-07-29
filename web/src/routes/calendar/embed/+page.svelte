@@ -256,6 +256,15 @@
 	selectedMonthDateKey={state.selectedMonthDateKey}
 	visibleMonthChanged={(month) => pageNavigation.setVisibleDate(month)}
 	addEventOnDay={(dateKey) => draftPopoverActions.openMonthSingleDayDraftPopover(dateKey)}
+	addEventOnRange={(startDateKey, endDateKey) =>
+		draftPopoverActions.openMonthRangeDraftPopover({
+			pointerID: 0,
+			startDateKey,
+			endDateKey,
+			startClientX: 0,
+			startClientY: 0,
+			hasMoved: true
+		})}
 	deleteEvent={(eventID) => void eventActions.deleteEvent(eventID)}
 	{createQuickEvent}
 	openSettings={openCalendarSettings}
