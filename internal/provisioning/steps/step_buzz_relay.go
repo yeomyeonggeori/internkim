@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"errors"
 	"fmt"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
@@ -8,7 +9,7 @@ import (
 
 var StepBuzzRelay = Step{
 	Name: "buzz-relay",
-	Deps: []string{"binaries", "buzz-relay-key", "mattermost"},
+	Deps: []string{"buzz-relay-key"},
 	Title: func(context *Context) string {
 		return context.T("Buzz 릴레이 설치 중...", "Installing Buzz relay...")
 	},
@@ -23,8 +24,14 @@ var StepBuzzRelay = Step{
 		if context.Backend != BackendSSH {
 			return nil
 		}
-		connection := context.SSH
+		if context.Callbacks.InstallBuzzRelayBinariesSSH == nil {
+			return errors.New("buzz relay binaries callback missing")
+		}
+		if errorValue := context.Callbacks.InstallBuzzRelayBinariesSSH(context); errorValue != nil {
+			return errorValue
+		}
 
+		connection := context.SSH
 		connection.Run("DEBIAN_FRONTEND=noninteractive apt-get install -y -qq redis-server >/dev/null 2>&1; systemctl enable --now redis-server 2>/dev/null")
 		connection.Run("systemctl start postgresql 2>/dev/null; sleep 1")
 		connection.Run(buzzDatabaseProvisionCommand())
