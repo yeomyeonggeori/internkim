@@ -281,6 +281,67 @@ func (service *Service) startBuzzMemberLinker(ctx context.Context) {
 	}()
 }
 
+func (service *Service) startBuzzAccountLinkSync(ctx context.Context) {
+	if strings.TrimSpace(service.Configuration.BuzzAccountLinksPath) == "" || service.buzzKeySeed() == "" {
+		return
+	}
+	go func() {
+		service.linkDeterministicBuzzPeople(ctx)
+		ticker := time.NewTicker(buzzMemberPollInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				service.linkDeterministicBuzzPeople(ctx)
+			}
+		}
+	}()
+}
+
+func (service *Service) linkDeterministicBuzzPeople(ctx context.Context) {
+	if service.buzzKeySeed() == "" {
+		return
+	}
+	derivedLinks := map[string]string{}
+	for _, record := range service.blueclawPolicyUserRecords(ctx) {
+		email := strings.ToLower(strings.TrimSpace(record.Email))
+		if email == "" {
+			continue
+		}
+		secretHex := service.buzzSecretForEmail(ctx, email)
+		if secretHex == "" {
+			continue
+		}
+		pubkey, errorValue := buzzPublicKey(secretHex)
+		if errorValue != nil {
+			continue
+		}
+		derivedLinks[pubkey] = email
+	}
+	if len(derivedLinks) == 0 {
+		return
+	}
+	store := service.buzzStore()
+	store.mutex.Lock()
+	changed := false
+	for pubkey, email := range derivedLinks {
+		if store.state.Links[pubkey] == email {
+			continue
+		}
+		store.state.Links[pubkey] = email
+		changed = true
+	}
+	if changed {
+		store.save()
+	}
+	store.mutex.Unlock()
+	if changed {
+		service.writeBuzzAccountLinksFile()
+	}
+}
+
 func (service *Service) linkClaimedBuzzMembers(ctx context.Context) {
 	members, errorValue := service.listBuzzMembers(ctx)
 	if errorValue != nil {

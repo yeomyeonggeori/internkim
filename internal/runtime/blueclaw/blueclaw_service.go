@@ -200,13 +200,13 @@ Wants=network-online.target time-sync.target
 
 [Service]
 User=root
-ExecStart=%s -buzz-relay-url %s -buzz-database-url-path %s -buzz-admin-command %s -buzz-key-seed-path %s
+ExecStart=%s -buzz-relay-url %s -buzz-database-url-path %s -buzz-admin-command %s -buzz-key-seed-path %s -buzz-account-links %s
 Restart=on-failure
 RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
-`, AdmindBinaryPath, BuzzRelayLocalURL, BuzzRelayDatabaseEnvironmentFilePath, BuzzAdminBinaryPath, "/root/.internkim/secrets/buzz-key-seed")
+`, AdmindBinaryPath, BuzzRelayLocalURL, BuzzRelayDatabaseEnvironmentFilePath, BuzzAdminBinaryPath, "/root/.internkim/secrets/buzz-key-seed", BuzzAccountLinksPath)
 }
 
 func BuzzRelayServiceUnit() string {
