@@ -673,7 +673,7 @@
 					<MiniCalendarDay>
 						{day.day}
 						{#if hasEventsOnDate(day)}
-							<span class="size-1 rounded-full" style={`background: ${defaultCalendarEventColor}`}></span>
+							<span class="size-1 rounded-full !opacity-100" style={`background: ${defaultCalendarEventColor}`}></span>
 						{/if}
 					</MiniCalendarDay>
 				{/snippet}
