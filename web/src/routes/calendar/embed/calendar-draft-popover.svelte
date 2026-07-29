@@ -92,7 +92,7 @@
 			<Input
 				value={popover.title}
 				aria-label={text.title}
-				placeholder={text.title}
+				placeholder={text.titlePlaceholder}
 				autocomplete="off"
 				class="h-10 rounded-none border-0 px-3 text-sm font-semibold shadow-none focus-visible:ring-0"
 				oninput={(event) => updatePopover({ title: event.currentTarget.value })}
@@ -167,17 +167,14 @@
 				oninput={(event) => updatePopover({ description: event.currentTarget.value })}
 			/>
 
-			<div class="flex px-1">
-				<CalendarParticipantSelector
-					participants={popover.participants}
-					candidates={participantCandidates}
-					label={text.participants}
-					placeholder={text.participantsPlaceholder}
-					emptyText={text.participantsEmpty}
-					removeLabel={text.removeParticipantAction}
-					onChange={(participants) => updatePopover({ participants })}
-				/>
-			</div>
+			<CalendarParticipantSelector
+				participants={popover.participants}
+				candidates={participantCandidates}
+				label={text.participants}
+				placeholder={text.participantsPlaceholder}
+				emptyText={text.participantsEmpty}
+				onChange={(participants) => updatePopover({ participants })}
+			/>
 
 			{#if calendarOptions.length > 1}
 			<div class="flex">

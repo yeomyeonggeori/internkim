@@ -2,13 +2,13 @@ import type { DraftDateTimePickerLocaleText } from './calendar-draft-date-time-f
 
 export type DraftPopoverText = {
 	title: string;
+	titlePlaceholder: string;
 	allDay: string;
 	location: string;
 	description: string;
 	participants: string;
 	participantsPlaceholder: string;
 	participantsEmpty: string;
-	removeParticipantAction: string;
 	calendar: string;
 	cancel: string;
 	complete: string;
