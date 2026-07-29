@@ -200,13 +200,13 @@ Wants=network-online.target time-sync.target
 
 [Service]
 User=root
-ExecStart=%s -buzz-relay-url %s -buzz-database-url-path %s -buzz-admin-command %s -buzz-key-seed-path %s -buzz-account-links %s
+ExecStart=%s -buzz-relay-url %s -buzz-database-url-path %s -buzz-admin-command %s -buzz-key-seed-path %s -buzz-account-links %s -chatd-endpoint %s -chatd-platform buzz
 Restart=on-failure
 RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
-`, AdmindBinaryPath, BuzzRelayLocalURL, BuzzRelayDatabaseEnvironmentFilePath, BuzzAdminBinaryPath, "/root/.internkim/secrets/buzz-key-seed", BuzzAccountLinksPath)
+`, AdmindBinaryPath, BuzzRelayLocalURL, BuzzRelayDatabaseEnvironmentFilePath, BuzzAdminBinaryPath, "/root/.internkim/secrets/buzz-key-seed", BuzzAccountLinksPath, ChatdEndpoint)
 }
 
 func BuzzRelayServiceUnit() string {
@@ -242,6 +242,33 @@ WantedBy=multi-user.target
 
 func BuzzRelayHealthCheckCommand() string {
 	return "curl --max-time 5 -fsS http://" + BuzzRelayBindAddress + "/_readiness >/dev/null && echo ok || echo no"
+}
+
+func ChatdServiceUnit() string {
+	return fmt.Sprintf(`[Unit]
+Description=Buzz chatd bridge
+After=network-online.target buzz-relay.service internkim-admind.service
+Wants=network-online.target
+
+[Service]
+User=root
+EnvironmentFile=%s
+Environment=CHATD_BOT_USER_NAME=%s
+Environment=CHATD_BUZZ_RELAY_URL=ws://%s
+Environment=CHATD_BUZZ_ACCOUNT_LINKS_PATH=%s
+Environment=CHATD_LISTEN_PORT=%s
+Environment=CHATD_ADMIND_BASE_URL=%s
+ExecStart=%s
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+`, ChatdEnvironmentFilePath, ChatdBotUserName, BuzzRelayBindAddress, BuzzAccountLinksPath, ChatdListenPort, AdmindBaseURL, ChatdBinaryPath)
+}
+
+func ChatdHealthCheckCommand() string {
+	return "curl --max-time 5 -fsS " + ChatdEndpoint + "/health >/dev/null && echo ok || echo no"
 }
 
 func MinioServiceUnit() string {
