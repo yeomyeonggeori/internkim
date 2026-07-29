@@ -17,6 +17,7 @@ func DefaultRegistry() Registry {
 		StepBlueclawPayloadDirect,
 		StepOpenRouter,
 		StepBuzzSeed,
+		StepBuzzRelayKey,
 		StepLocalLLM,
 		StepTunnel,
 		StepGoogle,
