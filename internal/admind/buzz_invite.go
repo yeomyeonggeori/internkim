@@ -305,11 +305,7 @@ func (service *Service) linkDeterministicBuzzPeople(ctx context.Context) {
 		return
 	}
 	derivedLinks := map[string]string{}
-	for _, record := range service.blueclawPolicyUserRecords(ctx) {
-		email := strings.ToLower(strings.TrimSpace(record.Email))
-		if email == "" {
-			continue
-		}
+	for _, email := range service.allStaffEmails(ctx) {
 		secretHex := service.buzzSecretForEmail(ctx, email)
 		if secretHex == "" {
 			continue
