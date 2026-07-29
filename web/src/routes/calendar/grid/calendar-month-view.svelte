@@ -217,6 +217,7 @@
 	function handlePointerDown(pointerEvent: PointerEvent): void {
 		if (pointerEvent.button !== 0 || !(pointerEvent.target instanceof Element)) return;
 		if (pointerEvent.target.closest('button')) return;
+		pointerEvent.preventDefault();
 		const dateKey = dateKeyFromPoint(pointerEvent.clientX, pointerEvent.clientY);
 		if (!dateKey) return;
 		rangeStartDateKey = dateKey;
@@ -303,7 +304,7 @@
 		onpointermove={handlePointerMove}
 		onpointerup={handlePointerUp}
 		onpointercancel={clearRangeSelection}
-		onpointerleave={clearRangeSelection} class="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
+		onpointerleave={clearRangeSelection} class="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain select-none">
 		{#each weeks as week (week.startDateKey)}
 			{@const layout = weekLayouts.get(week.startDateKey) ?? { spans: [], timedEntries: [], laneCount: 0 }}
 			{@const monthStartDay = monthStartDayInWeek(week)}
