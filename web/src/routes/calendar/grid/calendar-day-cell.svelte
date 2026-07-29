@@ -51,6 +51,7 @@
 	<span
 		class={cn(
 			'flex size-6 shrink-0 items-center justify-center self-start rounded-full text-xs font-medium tabular-nums',
+			isOutsideMonth && !isToday && 'opacity-40',
 			isToday && 'bg-primary text-primary-foreground'
 		)}
 	>
