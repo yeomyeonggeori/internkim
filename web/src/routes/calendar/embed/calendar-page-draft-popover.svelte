@@ -39,6 +39,11 @@
 		updatePopover
 	}: Props = $props();
 
+	let lastPopover: DraftPopoverState | null = null;
+	const renderedPopover = $derived.by(() => {
+		if (popover) lastPopover = popover;
+		return lastPopover;
+	});
 	const auditRows = $derived(
 		calendarAuditRows(auditEvent, localeCode, {
 			created: text.eventAuditCreated,
@@ -66,14 +71,14 @@
 	});
 </script>
 
-{#if popover}
+{#if popover && renderedPopover}
 	<CalendarDraftPopover
-		{popover}
+		popover={renderedPopover}
 		{calendarOptions}
 		{participantCandidates}
 		{auditRows}
 		auditLabel={text.eventAudit}
-		dialogLabel={popover.mode === 'edit' ? text.editEvent : text.newEvent}
+		dialogLabel={renderedPopover.mode === 'edit' ? text.editEvent : text.newEvent}
 		{isSaving}
 		text={popoverText}
 		{updatePopover}
