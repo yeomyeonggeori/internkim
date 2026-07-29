@@ -16,7 +16,7 @@ export const dayFlowSelector = {
 
 export function dayFlowEventSelectorForID(eventID: string): string {
 	const escapedEventID = cssEscape(eventID);
-	return `[data-event-id="${escapedEventID}"], [data-event-id^="${escapedEventID}::"]`;
+	return `[data-calendar-event-id="${escapedEventID}"], [data-event-id="${escapedEventID}"], [data-event-id^="${escapedEventID}::"]`;
 }
 
 export function visibleDayFlowElements(rootElement: HTMLElement, selector: string): HTMLElement[] {
