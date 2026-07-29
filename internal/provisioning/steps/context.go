@@ -43,6 +43,7 @@ type Callbacks struct {
 
 	GetOpenRouterKey   func(force bool) (string, error)
 	GetLiteRTModelPath func(force bool) (string, error)
+	GetBuzzKeySeed     func(force bool) (string, error)
 
 	GetGasWebhookURL func(accessToken string) (string, error)
 
