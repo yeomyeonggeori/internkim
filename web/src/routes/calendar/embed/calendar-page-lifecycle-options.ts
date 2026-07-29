@@ -19,6 +19,7 @@ type CalendarPageLifecycleOptionsContext = {
 	clearDraftPopover: () => void;
 	clearMonthRangePreview: () => void;
 	deleteEvent: CalendarEventActions['deleteEvent'];
+	undoLastDelete: CalendarEventActions['undoLastDelete'];
 	draftPopoverActions: CalendarDraftPopoverActions;
 	eventActions: CalendarEventActions;
 	eventLoader: CalendarEventLoader;
@@ -85,6 +86,7 @@ export function createCalendarPageLifecycleOptions(
 			clearSelectedEvent: context.eventSelection.clearSelectedEvent
 		},
 		keyboardDelete: keyboardDelete(context),
+		keyboardUndo: { undoLastDelete: context.undoLastDelete },
 		miniCalendarMonthPicker: miniCalendarMonthPicker(context),
 		navigateToDateKey: context.pageNavigation.navigateToDateKey
 	};

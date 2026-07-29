@@ -21,6 +21,7 @@ type CalendarPageLifecycleInstallContext = {
 	clearDraftPopover: () => void;
 	clearMonthRangePreview: () => void;
 	deleteEvent: (eventID: string) => Promise<void>;
+	undoLastDelete: () => boolean;
 	draftPopoverActions: CalendarDraftPopoverActions;
 	eventActions: CalendarEventActions;
 	eventLoader: CalendarEventLoader;
