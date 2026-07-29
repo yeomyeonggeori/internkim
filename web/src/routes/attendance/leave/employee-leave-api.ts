@@ -28,9 +28,13 @@ export async function fetchEmployeeLeave(): Promise<EmployeeLeavePayload> {
 	const payload = await readJSON<EmployeeLeavePayload>(response);
 	return {
 		...payload,
-		leaveTypes: payload.leaveTypes ?? [],
+		leaveTypes: (payload.leaveTypes ?? []).map((leaveType) => ({
+			...leaveType,
+			requiresHireDate: leaveType.requiresHireDate === true
+		})),
 		requests: (payload.requests ?? []).map(normalizeEmployeeLeaveRequest),
-		ledgerEntries: payload.ledgerEntries ?? []
+		ledgerEntries: payload.ledgerEntries ?? [],
+		hireDateRequired: payload.hireDateRequired === true
 	};
 }
 

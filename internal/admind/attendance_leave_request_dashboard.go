@@ -28,6 +28,8 @@ func (service *Service) readAttendanceLeaveDashboard(
 		LeaveTypes:    attendanceLeaveTypeViews(policy),
 		Requests:      []attendanceLeaveRequestView{},
 		LedgerEntries: []attendanceLeaveLedgerView{},
+		HireDateRequired: strings.TrimSpace(employee.HireDate) == "" &&
+			attendanceLeavePolicyRequiresHireDate(policy),
 	}
 	for _, leaveType := range policy.LeaveTypes {
 		if leaveType.BalanceMode == "none" {
@@ -81,11 +83,12 @@ func attendanceLeaveTypeViews(policy attendanceLeavePolicy) []attendanceLeaveTyp
 	views := make([]attendanceLeaveTypeView, 0, len(policy.LeaveTypes))
 	for _, leaveType := range policy.LeaveTypes {
 		views = append(views, attendanceLeaveTypeView{
-			ID:           leaveType.ID,
-			Name:         leaveType.Name,
-			BalanceMode:  leaveType.BalanceMode,
-			AllowedUnits: append([]string{}, leaveType.AllowedUnits...),
-			IsActive:     leaveType.IsActive,
+			ID:               leaveType.ID,
+			Name:             leaveType.Name,
+			BalanceMode:      leaveType.BalanceMode,
+			AllowedUnits:     append([]string{}, leaveType.AllowedUnits...),
+			IsActive:         leaveType.IsActive,
+			RequiresHireDate: attendanceLeaveTypeRequiresHireDate(leaveType),
 		})
 	}
 	return views

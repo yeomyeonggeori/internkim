@@ -12,6 +12,7 @@ export const employeeLeaveErrorCodes = [
 	'leaveConflict',
 	'workConflict',
 	'insufficientBalance',
+	'hireDateRequired',
 	'invalidAttachment',
 	'requestNotFound',
 	'invalidStatus',
@@ -31,6 +32,7 @@ export type EmployeeLeaveType = {
 	balanceMode: EmployeeLeaveBalanceMode;
 	allowedUnits: EmployeeLeaveUnit[];
 	isActive: boolean;
+	requiresHireDate: boolean;
 };
 
 export type EmployeeLeaveSummary = {
@@ -88,6 +90,7 @@ export type EmployeeLeavePayload = {
 	summary: EmployeeLeaveSummary;
 	requests: EmployeeLeaveRequest[];
 	ledgerEntries: EmployeeLeaveLedgerEntry[];
+	hireDateRequired: boolean;
 };
 
 export type EmployeeLeavePreviewRequest = {
