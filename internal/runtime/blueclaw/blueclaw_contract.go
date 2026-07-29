@@ -96,6 +96,21 @@ const (
 	BlueclawBridgeAuthorizedKeysPath      = "/var/lib/blueclaw/authorized_companions"
 	BlueclawBridgeListenAddress           = "127.0.0.1:7778"
 	BlueclawSlackAPIBaseURL               = "https://slack.com/api"
+	BuzzRelayName                         = "buzz-relay"
+	BuzzAdminName                         = "buzz-admin"
+	BuzzRelayServiceName                  = "buzz-relay"
+	BuzzRelayServicePath                  = "/etc/systemd/system/buzz-relay.service"
+	BuzzRelayBinaryPath                   = "/usr/local/bin/buzz-relay"
+	BuzzAdminBinaryPath                   = "/usr/local/bin/buzz-admin"
+	BuzzRelayDatabaseName                 = "buzz"
+	BuzzRelayDatabaseUser                 = "buzz"
+	BuzzRelayDatabasePasswordPath         = "/root/.internkim/secrets/buzz-db-pass"
+	BuzzRelayKeyEnvironmentFilePath       = "/root/.internkim/secrets/buzz-relay-env"
+	BuzzRelayDatabaseEnvironmentFilePath  = "/root/.internkim/secrets/buzz-relay-db"
+	BuzzRelayBindAddress                  = "127.0.0.1:3000"
+	BuzzRelayLocalURL                     = "ws://127.0.0.1:3000"
+	BuzzRelayRedisURL                     = "redis://127.0.0.1:6379"
+	BuzzRelayArtifactPath                 = ".dependency/buzz-relay"
 )
 
 func BlueclawHealthCheckURL() string {

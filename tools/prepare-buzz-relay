@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository_root="$(cd "$(dirname "$0")/.." && pwd)"
+artifact_directory="$repository_root/.dependency/buzz-relay"
+source_directory="$artifact_directory/src"
+pinned_revision="485d03a358b6d695aaf97879f3fbaf2f308d0755"
+source_repository="https://github.com/block/buzz"
+
+relay_binary="$artifact_directory/buzz-relay"
+admin_binary="$artifact_directory/buzz-admin"
+revision_file="$artifact_directory/REVISION"
+
+if [ -x "$relay_binary" ] && [ -x "$admin_binary" ] && [ "$(cat "$revision_file" 2>/dev/null)" = "$pinned_revision" ]; then
+  echo "buzz-relay artifact already up to date at $pinned_revision"
+  exit 0
+fi
+
+mkdir -p "$artifact_directory"
+if [ ! -d "$source_directory/.git" ]; then
+  rm -rf "$source_directory"
+  git clone "$source_repository" "$source_directory"
+fi
+git -C "$source_directory" fetch --depth 1 origin "$pinned_revision"
+git -C "$source_directory" checkout --detach "$pinned_revision"
+
+container run --rm --platform linux/arm64 --memory 8G \
+  -v "$source_directory:/build" -w /build rust:1.95-bookworm \
+  bash -c '
+    set -euo pipefail
+    export PATH=/usr/local/cargo/bin:$PATH
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential pkg-config libssl-dev git >/dev/null
+    cargo build --release --locked -p buzz-relay --bin buzz-relay -p buzz-admin --bin buzz-admin
+  '
+
+cp "$source_directory/target/release/buzz-relay" "$relay_binary"
+cp "$source_directory/target/release/buzz-admin" "$admin_binary"
+chmod +x "$relay_binary" "$admin_binary"
+printf '%s\n' "$pinned_revision" > "$revision_file"
+echo "buzz-relay artifact prepared at $pinned_revision"

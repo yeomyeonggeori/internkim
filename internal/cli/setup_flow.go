@@ -441,6 +441,16 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			localPath:  filepath.Join(state.boardBinDir, blueclaw.LocalLLMRunnerName),
 			remotePath: blueclaw.LocalLLMRunnerBinaryPath,
 		},
+		{
+			name:       blueclaw.BuzzRelayName,
+			localPath:  filepath.Join(state.scriptDir, blueclaw.BuzzRelayArtifactPath, blueclaw.BuzzRelayName),
+			remotePath: blueclaw.BuzzRelayBinaryPath,
+		},
+		{
+			name:       blueclaw.BuzzAdminName,
+			localPath:  filepath.Join(state.scriptDir, blueclaw.BuzzRelayArtifactPath, blueclaw.BuzzAdminName),
+			remotePath: blueclaw.BuzzAdminBinaryPath,
+		},
 	}
 }
 
