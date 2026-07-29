@@ -22,6 +22,7 @@ export const adminText = {
 			backup: '백업',
 			bot: '봇',
 			settings: '일반',
+			attendanceSettings: '근태 설정',
 			sharing: '회사 페이지',
 			network: '네트워크',
 			buzz: 'Buzz',
@@ -138,7 +139,7 @@ export const adminText = {
 			openRouterApiKeyPlaceholder: 'OpenRouter API 키',
 			notice: '키는 저장 전에 검증되고, LLM이나 도구 결과에는 노출되지 않습니다.'
 		},
-		settings: {
+			settings: {
 			title: '작업공간 설정',
 			description: '근태와 운영 화면에서 사용할 작업공간 설정입니다.',
 			timeZone: '시간대',
@@ -155,6 +156,9 @@ export const adminText = {
 			loadError: '설정을 불러오지 못했습니다.',
 			saveSuccess: '저장되었습니다.',
 			saveError: '설정을 저장하지 못했습니다.'
+		},
+		attendanceSettings: {
+			title: '근태 설정', description: '기본 휴가와 회사 사용자 정의 휴가 종류를 관리합니다.', editorTitle: '휴가 종류 설정', systemBadge: '기본 휴가', add: '휴가 종류 추가', active: '활성', activeDescription: '비활성화하면 기존 내역은 유지되고 새 신청에서만 숨겨집니다.', inactive: '비활성', paid: '유급', paidDescription: '이 휴가를 유급으로 처리할지 설정합니다.', unpaid: '무급', balanceMode: '차감 방식', allowedUnits: '허용 단위', allowedUnitsDescription: '직원이 신청할 수 있는 단위를 하나 이상 선택합니다.', fullDay: '1일', halfDay: '반일', quarterDay: '반반차', name: '이름', namePlaceholder: '예: 가족돌봄 휴가', systemKind: '시스템 종류', balanceModeAnnual: '연차 통합', balanceModeSeparate: '별도 잔액', balanceModeNone: '차감 없음', grantCadence: '부여 주기', grantCadenceLabels: { statutory: '법정', annual: '매년', monthly: '매월', manual: '수동', none: '없음' }, amount: '부여 일수', expiryMode: '소멸 방식', expiryModeLabels: { fiscalYearEnd: '회계연도 말', monthsAfterGrant: '부여 후 개월', none: '없음' }, expiryMonths: '소멸 개월', carryover: '이월 허용', carryoverDescription: '남은 잔여량을 다음 기간으로 넘길 수 있게 합니다.', carryoverLimit: '이월 한도', carryoverLimitDescription: '비워 두면 한도를 두지 않습니다.', cancelChanges: '변경 취소', save: '저장', loading: '불러오는 중...', loadError: '근태 설정을 불러오지 못했습니다.', saveError: '근태 설정을 저장하지 못했습니다.', saveSuccess: '근태 설정을 저장했습니다.', atLeastOneUnit: '허용 단위를 하나 이상 선택하세요.', requiredName: '이름을 입력하세요.', invalidPolicy: '정책 값을 다시 확인하세요.'
 		},
 		companyShare: {
 			title: '공유 회사 페이지',
@@ -342,6 +346,7 @@ export const adminText = {
 			backup: 'Backup',
 			bot: 'Bot',
 			settings: 'General',
+			attendanceSettings: 'Attendance settings',
 			sharing: 'Company page',
 			network: 'Network',
 			buzz: 'Buzz',
@@ -475,6 +480,9 @@ export const adminText = {
 			loadError: 'Could not load settings.',
 			saveSuccess: 'Saved.',
 			saveError: 'Could not save settings.'
+		},
+		attendanceSettings: {
+			title: 'Attendance settings', description: 'Manage default and custom leave types for your company.', editorTitle: 'Leave type settings', systemBadge: 'Default leave', add: 'Add leave type', active: 'Active', activeDescription: 'Inactive types remain in history and are hidden only from new requests.', inactive: 'Inactive', paid: 'Paid', paidDescription: 'Choose whether this leave type is paid.', unpaid: 'Unpaid', balanceMode: 'Balance mode', allowedUnits: 'Allowed units', allowedUnitsDescription: 'Select at least one unit employees may request.', fullDay: 'Full day', halfDay: 'Half day', quarterDay: 'Quarter day', name: 'Name', namePlaceholder: 'e.g. Family care leave', systemKind: 'System kind', balanceModeAnnual: 'Annual balance', balanceModeSeparate: 'Separate balance', balanceModeNone: 'No balance', grantCadence: 'Grant cadence', grantCadenceLabels: { statutory: 'Statutory', annual: 'Annual', monthly: 'Monthly', manual: 'Manual', none: 'None' }, amount: 'Grant days', expiryMode: 'Expiry mode', expiryModeLabels: { fiscalYearEnd: 'Fiscal year end', monthsAfterGrant: 'Months after grant', none: 'None' }, expiryMonths: 'Expiry months', carryover: 'Allow carryover', carryoverDescription: 'Carry remaining balance into the next period.', carryoverLimit: 'Carryover limit', carryoverLimitDescription: 'Leave blank for no limit.', cancelChanges: 'Cancel changes', save: 'Save', loading: 'Loading...', loadError: 'Could not load attendance settings.', saveError: 'Could not save attendance settings.', saveSuccess: 'Attendance settings saved.', atLeastOneUnit: 'Select at least one allowed unit.', requiredName: 'Enter a name.', invalidPolicy: 'Review the policy values.'
 		},
 		companyShare: {
 			title: 'Shared company page',

@@ -7,6 +7,21 @@ import type {
 } from './src/routes/attendance/attendance-context.svelte';
 import { isWeekday, todayDateInTimeZone } from './src/routes/attendance/shared/attendance-date';
 import { buildAttendanceSummaryFixture } from './dev-attendance-summary-fixture';
+import {
+	createDevEmployeeLeaveMockResponse,
+	createDevEmployeeLeaveMockState,
+	type DevEmployeeLeaveMockState
+} from './dev-attendance-leave-mock';
+import {
+	createDevLeaveApprovalMockResponse,
+	createDevLeaveApprovalMockState,
+	type DevLeaveApprovalMockState
+} from './dev-attendance-leave-approval-mock';
+import {
+	createDevLeaveManagementMockResponse,
+	createDevLeaveManagementMockState,
+	type DevLeaveManagementMockState
+} from './dev-attendance-leave-management-mock';
 
 type DevAttendanceMockPluginOptions = {
 	isEnabled: boolean;
@@ -20,6 +35,9 @@ type DevAttendanceMockState = {
 	canceledAbsenceIDs: Set<string>;
 	eventOverrides: Record<string, DevAttendanceEventOverride[]>;
 	nextAbsenceID: number;
+	leave: DevEmployeeLeaveMockState;
+	leaveApproval: DevLeaveApprovalMockState;
+	leaveManagement: DevLeaveManagementMockState;
 };
 
 type DevAttendanceMockRequest = {
@@ -27,6 +45,7 @@ type DevAttendanceMockRequest = {
 	pathname: string;
 	searchParams: URLSearchParams;
 	body?: string;
+	contentType?: string;
 };
 
 type DevAttendanceMockResponse = {
@@ -69,7 +88,8 @@ export function devAttendanceMockPlugin(options: DevAttendanceMockPluginOptions)
 						method: request.method ?? 'GET',
 						pathname: requestURL.pathname,
 						searchParams: requestURL.searchParams,
-						body
+						body,
+						contentType: request.headers['content-type']
 					});
 					if (!mockResponse) {
 						next();
@@ -83,13 +103,17 @@ export function devAttendanceMockPlugin(options: DevAttendanceMockPluginOptions)
 }
 
 export function createDevAttendanceMockState(userEmail: string): DevAttendanceMockState {
+	const leave = createDevEmployeeLeaveMockState();
 	return {
 		userEmail,
 		locale: 'ko',
 		createdAbsences: [],
 		canceledAbsenceIDs: new Set(),
 		eventOverrides: {},
-		nextAbsenceID: 1
+		nextAbsenceID: 1,
+		leave,
+		leaveApproval: createDevLeaveApprovalMockState(leave),
+		leaveManagement: createDevLeaveManagementMockState(leave)
 	};
 }
 
@@ -119,6 +143,15 @@ export async function createDevAttendanceMockResponse(
 		state.locale = localeFromBody(request.body);
 		return { status: 200, body: { locale: state.locale } };
 	}
+	const leaveResponse = createDevEmployeeLeaveMockResponse(state.leave, request);
+	if (leaveResponse) return leaveResponse;
+	const leaveApprovalResponse = createDevLeaveApprovalMockResponse(state.leaveApproval, request);
+	if (leaveApprovalResponse) return leaveApprovalResponse;
+	const leaveManagementResponse = createDevLeaveManagementMockResponse(
+		state.leaveManagement,
+		request
+	);
+	if (leaveManagementResponse) return leaveManagementResponse;
 	if (request.method === 'GET' && request.pathname === '/attendance/api/summary') {
 		const month = request.searchParams.get('month') || currentMonth();
 		const summary = buildAttendanceSummaryFixture(month);

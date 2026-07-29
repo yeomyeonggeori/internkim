@@ -62,6 +62,33 @@ describe('dev attendance mock plugin', () => {
 		expect(personalLeave?.date).toBe('2026-07-02');
 	});
 
+	test('includes work, partial leave, and resumed work in the July fixture', () => {
+		const summary = buildAttendanceSummaryFixture(
+			'2026-07',
+			new Date('2026-07-29T10:00:00+09:00')
+		);
+		const partialLeave = summary.absences.find(
+			(absence) => absence.id === 'absence-lee-partial-leave'
+		);
+		const events = summary.events
+			.filter(
+				(event) => event.email === 'lee@example.com' && event.localDate === '2026-07-17'
+			)
+			.map((event) => ({ kind: event.kind, localTime: event.localTime }));
+
+		expect(partialLeave).toMatchObject({
+			kind: 'leave',
+			startTime: '13:00',
+			endTime: '15:00'
+		});
+		expect(events).toEqual([
+			{ kind: 'clock_in', localTime: '09:00' },
+			{ kind: 'clock_out', localTime: '12:00' },
+			{ kind: 'clock_in', localTime: '15:00' },
+			{ kind: 'clock_out', localTime: '18:00' }
+		]);
+	});
+
 	test('includes a multiple-location current-day scenario for the development user', async () => {
 		const today = todayDateInTimeZone('Asia/Seoul', new Date());
 		const state = createDevAttendanceMockState('kim@example.com');

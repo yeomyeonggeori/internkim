@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { adminApiFetch } from '../../src/lib/admin-api';
-import { AdminApiError, apiErrorMessage } from '../../src/routes/admin/admin-api';
+import {
+	AdminApiError,
+	apiErrorMessage,
+	fetchAttendanceLeavePolicy,
+	updateAttendanceLeavePolicy
+} from '../../src/routes/admin/admin-api';
 
 const originalFetch = globalThis.fetch;
 const originalWindow = (globalThis as { window?: unknown }).window;
@@ -73,5 +78,21 @@ describe('apiErrorMessage', () => {
 	test('falls back instead of showing raw network fetch failures', () => {
 		expect(apiErrorMessage(new TypeError('Failed to fetch'), '사용자를 불러오지 못했습니다.')).toBe('사용자를 불러오지 못했습니다.');
 		expect(apiErrorMessage(new TypeError('Load failed'), '사용자를 불러오지 못했습니다.')).toBe('사용자를 불러오지 못했습니다.');
+	});
+});
+
+describe('attendance leave policy API', () => {
+	test('uses the attendance leave policy GET endpoint', async () => {
+		const policy = { version: 1, fiscalYearStartMonth: 1, fiscalYearStartDay: 1, leaveTypes: [], updatedAt: '' };
+		globalThis.fetch = (async (input) => { expect(input).toBe('/admin/api/attendance-leave-policy'); return new Response(JSON.stringify(policy)); }) as typeof fetch;
+		expect(await fetchAttendanceLeavePolicy('/admin/api', 'load failed')).toEqual(policy);
+		restoreGlobals();
+	});
+
+	test('sends the complete policy to the attendance leave policy PUT endpoint', async () => {
+		const policy = { version: 1 as const, fiscalYearStartMonth: 1, fiscalYearStartDay: 1, leaveTypes: [], updatedAt: '' };
+		globalThis.fetch = (async (input, init) => { expect(input).toBe('/admin/api/attendance-leave-policy'); expect(init?.method).toBe('PUT'); expect(init?.body).toBe(JSON.stringify(policy)); return new Response(JSON.stringify(policy)); }) as typeof fetch;
+		expect(await updateAttendanceLeavePolicy('/admin/api', policy, 'save failed')).toEqual(policy);
+		restoreGlobals();
 	});
 });

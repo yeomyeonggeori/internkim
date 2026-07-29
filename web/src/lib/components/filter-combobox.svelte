@@ -66,7 +66,14 @@
 <Popover.Root bind:open>
 	<Popover.Trigger bind:ref={triggerRef}>
 		{#snippet child({ props })}
-			<Button {...props} variant="outline" class={cn('w-[200px] justify-between', className)} role="combobox" aria-expanded={open}>
+			<Button
+				{...props}
+				variant="outline"
+				class={cn('w-[200px] justify-between', className)}
+				role="combobox"
+				aria-label={label}
+				aria-expanded={open}
+			>
 				<span class="flex min-w-0 items-center gap-2">
 					{#if !(selectedOption && selectedContent)}
 						{@render icon?.()}
