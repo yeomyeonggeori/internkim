@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -148,6 +149,7 @@ func (service *Service) handleKeyLogin(responseWriter http.ResponseWriter, reque
 		return
 	}
 	logAuditEvent("key login success")
+	go service.ensureUserChannelMembership(context.Background(), email)
 	service.writeJSON(responseWriter, map[string]bool{"ok": true})
 }
 
