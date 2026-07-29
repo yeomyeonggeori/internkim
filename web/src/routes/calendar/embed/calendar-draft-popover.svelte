@@ -49,16 +49,12 @@
 		deletePopover
 	}: Props = $props();
 
+	const anchor = $derived(popover?.anchor ?? null);
 	const anchorElement = $derived({
 		getBoundingClientRect: () => {
-			const originElement = popover.anchor?.originElement;
+			const originElement = anchor?.originElement;
 			if (originElement?.isConnected) return originElement.getBoundingClientRect();
-			return new DOMRect(
-				popover.anchor?.clientX ?? window.innerWidth / 2,
-				popover.anchor?.clientY ?? window.innerHeight / 3,
-				1,
-				1
-			);
+			return new DOMRect(anchor?.clientX ?? window.innerWidth / 2, anchor?.clientY ?? window.innerHeight / 3, 1, 1);
 		}
 	});
 	const canSavePopover = $derived(isDraftPopoverValid(popover));
@@ -95,8 +91,8 @@
 <Popover.Root open onOpenChange={(isOpen) => !isOpen && cancelPopover()}>
 	<Popover.Content
 		customAnchor={anchorElement}
-		side={popover.anchor?.originElement ? 'bottom' : 'right'}
-		align={popover.anchor?.originElement ? 'end' : 'start'}
+		side={anchor?.originElement ? 'bottom' : 'right'}
+		align={anchor?.originElement ? 'end' : 'start'}
 		collisionPadding={12}
 		interactOutsideBehavior="ignore"
 		aria-label={dialogLabel}

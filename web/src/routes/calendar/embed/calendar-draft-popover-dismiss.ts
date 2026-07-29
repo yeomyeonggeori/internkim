@@ -11,15 +11,10 @@ export type CalendarDraftPopoverDismissOptions = {
 
 export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopoverDismissOptions): () => void {
 	let shouldSuppressNextClick = false;
-	let isDismissing = false;
 
 	const dismissPopover = (popover: DraftPopoverState): void => {
-		if (isDismissing) return;
-		isDismissing = true;
 		const dismissAction = isDraftPopoverValid(popover) ? options.saveDraftPopover : options.cancelDraftPopover;
-		void dismissAction().finally(() => {
-			isDismissing = false;
-		});
+		void dismissAction();
 	};
 
 	const handlePointerDown = (event: PointerEvent): void => {
@@ -27,7 +22,7 @@ export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopover
 		if (!popover || !(event.target instanceof Element)) return;
 		if (event.target.closest('[data-slot="popover-content"]')) return;
 		const isInsideCalendarStage = options.stageElement.contains(event.target);
-		const isCalendarEvent = Boolean(event.target.closest('.df-event, .df-month-segment-event'));
+		const isCalendarEvent = Boolean(event.target.closest('[data-calendar-event-id]'));
 		dismissPopover(popover);
 		if (!isCalendarEvent) options.clearSelectedEvent();
 		if (!isInsideCalendarStage || isCalendarEvent) return;
