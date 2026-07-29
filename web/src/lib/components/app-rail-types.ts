@@ -10,4 +10,5 @@ export type AppRailProfileMenuLabels = {
 	account: string;
 	logOut: string;
 	activeWorkspace: string;
+	buzzConnect: string;
 };

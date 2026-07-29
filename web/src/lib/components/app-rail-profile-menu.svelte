@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AppRailAttendanceItem from '$lib/components/app-rail-attendance-item.svelte';
+	import BuzzConnectDialog from '$lib/components/buzz/buzz-connect-dialog.svelte';
 	import { attendanceClock } from '$lib/components/attendance-clock.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import type { AppRailProfileMenuLabels } from '$lib/components/app-rail-types';
@@ -9,6 +10,9 @@
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { mergeProps } from 'bits-ui';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
+	import SmartphoneIcon from '@lucide/svelte/icons/smartphone';
+
+	let buzzConnectOpen = $state(false);
 
 	let {
 		displayUserName,
@@ -73,9 +77,16 @@
 			<DropdownMenu.Separator />
 			<AppRailAttendanceItem />
 			<DropdownMenu.Separator />
+			<DropdownMenu.Item onclick={() => (buzzConnectOpen = true)}>
+				<SmartphoneIcon class="size-4" />
+				{labels.buzzConnect}
+			</DropdownMenu.Item>
+			<DropdownMenu.Separator />
 			<DropdownMenu.Item variant="destructive" onclick={logOut}>
 				{labels.logOut}
 			</DropdownMenu.Item>
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
+
+	<BuzzConnectDialog bind:open={buzzConnectOpen} />
 </Sidebar.MenuItem>
