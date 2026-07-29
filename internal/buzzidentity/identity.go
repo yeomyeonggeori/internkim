@@ -4,6 +4,10 @@
 // channel id for the same source channel, so imported history and live traffic
 // share one identity. The TypeScript mirror mirrors these exact formulas
 // (chatd src/mirror/identity.ts) and is anchored by a cross-language test.
+//
+// The seed is a critical root secret: losing it makes every derived key and
+// imported message unrecoverable. Persist and back it up; never pass it as a
+// throwaway env var. See docs/buzz-identity-seed.md.
 package buzzidentity
 
 import (
