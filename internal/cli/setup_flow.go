@@ -174,6 +174,7 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		SaveState:                 func(key, value string) { saveState(state.stateDir, key, value) },
 		GetOpenRouterKey:          buildOpenRouterKeyCallback(state.stateDir, state.messenger, state.parameters.OpenRouterAPIKey, state.nonInteractive),
 		GetLiteRTModelPath:        buildLiteRTModelPathCallback(state.parameters.LiteRTModelPath),
+		GetBuzzKeySeed:            buildBuzzKeySeedCallback(),
 		GetGasWebhookURL:          state.provisionGasWebhook,
 		BinariesVersion:           state.binariesVersion,
 		InstallBinariesSSH:        state.installBinariesSSH,
