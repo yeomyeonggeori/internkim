@@ -117,11 +117,11 @@ func (service *Service) writeAgentConversation(responseWriter http.ResponseWrite
 		service.writeAgentDirectMessageError(responseWriter, errorValue)
 		return
 	}
-	service.writeJSON(responseWriter, agentConversationResponse{
+	service.writeJSON(responseWriter, service.rewriteConversationMedia(agentConversationResponse{
 		ConversationID: channel.ChannelID,
 		CurrentUserID:  channel.UserPubkeyHex,
 		Messages:       agentDirectMessagesFromHistory(history.Messages, channel),
-	})
+	}))
 }
 
 func (service *Service) sendAgentDirectMessage(responseWriter http.ResponseWriter, request *http.Request, actorEmail string, channelID string) {
@@ -211,6 +211,9 @@ func (service *Service) handleAgentPeople(responseWriter http.ResponseWriter, re
 		service.writeAgentDirectMessageError(responseWriter, errorValue)
 		return
 	}
+	for index := range response.People {
+		response.People[index].AvatarURL = service.rewriteBuzzMedia(response.People[index].AvatarURL)
+	}
 	service.writeJSON(responseWriter, response)
 }
 
@@ -266,6 +269,9 @@ func (service *Service) handleAgentChannels(responseWriter http.ResponseWriter, 
 	if errorValue := service.chatdPlatformRequest(request.Context(), "conversations.list", listRequest, &response); errorValue != nil {
 		service.writeAgentDirectMessageError(responseWriter, errorValue)
 		return
+	}
+	for index := range response.Conversations {
+		response.Conversations[index].AvatarURL = service.rewriteBuzzMedia(response.Conversations[index].AvatarURL)
 	}
 	service.writeJSON(responseWriter, response)
 }

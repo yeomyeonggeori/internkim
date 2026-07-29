@@ -28,14 +28,16 @@ func (service *Service) handleMattermostPasswordLogin(responseWriter http.Respon
 		http.Error(responseWriter, "email and password are required", http.StatusBadRequest)
 		return
 	}
-	userRecord, errorValue := service.mattermostPasswordAuthenticate(request.Context(), email, payload.Password)
-	if errorValue != nil {
-		http.Error(responseWriter, "invalid email or password", http.StatusUnauthorized)
-		return
-	}
-	if userRecord.IsBot || userRecord.DeleteAt != 0 {
-		http.Error(responseWriter, "invalid email or password", http.StatusUnauthorized)
-		return
+	if !service.verifyLocalMattermostPassword(email, payload.Password) {
+		userRecord, errorValue := service.mattermostPasswordAuthenticate(request.Context(), email, payload.Password)
+		if errorValue != nil {
+			http.Error(responseWriter, "invalid email or password", http.StatusUnauthorized)
+			return
+		}
+		if userRecord.IsBot || userRecord.DeleteAt != 0 {
+			http.Error(responseWriter, "invalid email or password", http.StatusUnauthorized)
+			return
+		}
 	}
 	if !service.isFlowStaffActor(request.Context(), email) {
 		http.Error(responseWriter, "account not invited", http.StatusForbidden)

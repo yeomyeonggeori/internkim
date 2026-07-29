@@ -386,6 +386,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startBuzzMemberLinker(ctx)
 	service.startBuzzAccountLinkSync(ctx)
 	service.startStaffChannelMembershipSync(ctx)
+	service.startMattermostPasswordHashSync(ctx)
 	service.warnWhenFontAssetsMissing()
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
@@ -515,6 +516,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/buzz-claim", service.handleBuzzClaim)
 	multiplexer.HandleFunc("/agent/api/buzz-invite", service.handleBuzzInviteEmail)
 	multiplexer.HandleFunc("/agent/api/buzz-relay-config", service.handleBuzzRelayConfig)
+	multiplexer.HandleFunc(buzzMediaProxyPrefix, service.handleBuzzMediaProxy)
 	multiplexer.HandleFunc("/agent/api/buzz-mm-pending", service.handleBuzzMMPending)
 	multiplexer.HandleFunc("/agent/api/buzz-mm-mirrored", service.handleBuzzMMMirrored)
 	multiplexer.HandleFunc("/agent/api/buzz-admin-wipe", service.handleBuzzAdminWipe)
