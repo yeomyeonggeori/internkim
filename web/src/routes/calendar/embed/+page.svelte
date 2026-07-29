@@ -141,6 +141,7 @@
 				state.monthRangePreviewSegments = [];
 			},
 			deleteEvent: eventActions.deleteEvent,
+			undoLastDelete: eventActions.undoLastDelete,
 			draftPopoverActions,
 			eventActions,
 			eventLoader,
