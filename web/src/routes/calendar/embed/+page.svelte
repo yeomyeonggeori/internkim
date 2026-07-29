@@ -106,20 +106,14 @@
 		isBrowser: () => browser,
 		calendar,
 		getCalendarLocale: () => calendarLocale,
-		getCurrentLocale: () => currentLocale.value,
 		getStageElement: () => state.calendarStageElement,
 		getToolbarDate: () => state.toolbarDate,
 		getToolbarView: () => state.toolbarView,
 		getVisibleEvents: () => state.visibleEvents,
-		getLocaleCode: () => localeCode,
-		getSelectedMonthDateKey: () => state.selectedMonthDateKey,
-		getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
 		getMonthRangeSelection: () => state.monthRangeSelection,
 		getTimelineRangeSelection: () => state.timelineRangeSelection,
 		rangePreview,
 		renderSync,
-		selectedMonthDate,
-		pageNavigation,
 		text
 	});
 
