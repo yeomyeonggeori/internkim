@@ -43,7 +43,7 @@ type CalendarPageControllerContext = {
 
 export function createCalendarPageController(context: CalendarPageControllerContext) {
 	const draftEventPlaceholderTitle = () => context.text.newEvent;
-	const draftEvents = new CalendarDraftEventState(draftEventPlaceholderTitle, () => context.text.newEvent);
+	const draftEvents = new CalendarDraftEventState();
 	const programmaticUpdates = new CalendarProgrammaticUpdateState();
 	const selectedMonthDate = createCalendarSelectedMonthDateActions({
 		isBrowser: context.isBrowser,
@@ -200,6 +200,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 
 	const draftPopoverActions: CalendarDraftPopoverActions = createCalendarDraftPopoverActions({
 		eventActions,
+		untitledEventTitle: draftEventPlaceholderTitle,
 		getDraftPopover: () => context.state.draftPopover,
 		setDraftPopover: (popover) => {
 			context.state.draftPopover = popover;
