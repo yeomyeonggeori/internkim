@@ -275,6 +275,7 @@
 								selectDay={(day) => navigateToDateKey(calendarGridDateKey(day))}
 								openEvent={openGridEvent}
 								addEventOnTimeRange={(start, end) => addEventOnTimeRange(start, end)}
+								addEventOnDayRange={(startDateKey, endDateKey) => addEventOnRange(startDateKey, endDateKey)}
 							/>
 						</div>
 					{/if}
