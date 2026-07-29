@@ -7,6 +7,10 @@ export type CalendarLocaleText = {
 	work: string;
 	previousMonth: string;
 	nextMonth: string;
+	previousWeek: string;
+	nextWeek: string;
+	previousDay: string;
+	nextDay: string;
 	pickMonthAndYear: string;
 	previousYear: string;
 	nextYear: string;
@@ -189,6 +193,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		work: '팀 일정',
 		previousMonth: '이전 달',
 		nextMonth: '다음 달',
+		previousWeek: '지난 주',
+		nextWeek: '다음 주',
+		previousDay: '어제',
+		nextDay: '내일',
 		pickMonthAndYear: '월과 연도 선택',
 		previousYear: '이전 해',
 		nextYear: '다음 해',
@@ -340,6 +348,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		work: 'Work',
 		previousMonth: 'Previous month',
 		nextMonth: 'Next month',
+		previousWeek: 'Previous week',
+		nextWeek: 'Next week',
+		previousDay: 'Previous day',
+		nextDay: 'Next day',
 		pickMonthAndYear: 'Pick month and year',
 		previousYear: 'Previous year',
 		nextYear: 'Next year',
