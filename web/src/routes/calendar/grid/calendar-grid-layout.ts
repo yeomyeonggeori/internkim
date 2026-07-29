@@ -45,6 +45,31 @@ export type CalendarGridTimedBlock = {
 
 const minimumTimedBlockMinutes = 15;
 
+export function calendarGridAllDaySpans(days: Date[], events: CalendarGridEvent[]): CalendarGridSpan[] {
+	if (days.length === 0) return [];
+	const rangeStart = startOfCalendarGridDay(days[0]);
+	const rangeEnd = addCalendarGridDays(rangeStart, days.length);
+	const laneEnds: number[] = [];
+	return events
+		.filter((event) => event.isAllDay && event.end > rangeStart && event.start < rangeEnd)
+		.sort(compareSpanEvents)
+		.map((event) => {
+			const startColumn = Math.max(0, dayDifference(rangeStart, event.start));
+			const endColumn = Math.min(days.length - 1, dayDifference(rangeStart, lastCoveredDay(event)));
+			const columnCount = Math.max(1, endColumn - startColumn + 1);
+			const lane = firstFreeLane(laneEnds, startColumn);
+			laneEnds[lane] = startColumn + columnCount;
+			return {
+				event,
+				startColumn,
+				columnCount,
+				lane,
+				continuesBefore: event.start < rangeStart,
+				continuesAfter: lastCoveredDay(event) >= rangeEnd
+			};
+		});
+}
+
 export function calendarGridWeekLayout(week: CalendarGridWeek, events: CalendarGridEvent[]): CalendarGridWeekLayout {
 	const weekStart = week.days[0];
 	const weekEnd = addCalendarGridDays(weekStart, 7);
