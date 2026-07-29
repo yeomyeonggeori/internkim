@@ -4,7 +4,10 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
+	import * as Card from '$lib/components/ui/card';
+	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
+	import * as Item from '$lib/components/ui/item';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
@@ -220,56 +223,46 @@
 	}
 </script>
 
-{#if hasMemoryHealth()}
-	<div class="flex flex-wrap gap-2">
-		<Badge variant={memoryGraph?.health?.configured ? 'secondary' : 'outline'}>
-			{memoryGraph?.health?.configured ? text.configured : text.unconfigured}
-		</Badge>
-		{#if healthStatusText()}
-			<Badge variant={healthStatusVariant()}>{healthStatusText()}</Badge>
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.graphTab}</Card.Title>
+		<Card.Description>{namespaces().length} {text.namespaces} · {episodes().length} {text.episodes} · {facts().length} {text.facts}</Card.Description>
+		<Card.Action class="flex items-center gap-2">
+			{#if hasMemoryHealth()}
+				<Badge variant={memoryGraph?.health?.configured ? 'secondary' : 'outline'}>
+					{memoryGraph?.health?.configured ? text.configured : text.unconfigured}
+				</Badge>
+				{#if healthStatusText()}
+					<Badge variant={healthStatusVariant()}>{healthStatusText()}</Badge>
+				{/if}
+			{/if}
+			<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={loadMemoryGraph} aria-label={text.refresh} title={text.refresh}>
+				<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
+			</Button>
+		</Card.Action>
+	</Card.Header>
+	<Card.Content class="grid min-w-0 gap-5">
+		<form
+			class="flex flex-wrap items-center gap-2"
+			onsubmit={(event) => {
+				event.preventDefault();
+				loadMemoryGraph();
+			}}
+		>
+			<Input class="min-w-64 flex-1" bind:value={memoryGraphQuery} placeholder={text.searchPlaceholder} autocomplete="off" />
+			<Button type="submit" disabled={isLoading}>
+				{#if isLoading}
+					<LoaderIcon class="size-4 animate-spin" />
+				{:else}
+					<SearchIcon class="size-4" />
+				{/if}
+				{text.search}
+			</Button>
+		</form>
+
+		{#if errorMessage}
+			<Field.Error>{errorMessage}</Field.Error>
 		{/if}
-	</div>
-{/if}
-
-<form
-	class="grid gap-2 md:grid-cols-[1fr_auto_auto]"
-	onsubmit={(event) => {
-		event.preventDefault();
-		loadMemoryGraph();
-	}}
->
-	<Input bind:value={memoryGraphQuery} placeholder={text.searchPlaceholder} autocomplete="off" />
-	<Button type="submit" disabled={isLoading} class="gap-2">
-		{#if isLoading}
-			<LoaderIcon class="size-4 animate-spin" />
-		{:else}
-			<SearchIcon class="size-4" />
-		{/if}
-		{text.search}
-	</Button>
-	<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={loadMemoryGraph} aria-label={text.refresh} title={text.refresh}>
-		<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
-	</Button>
-</form>
-
-<section class="grid min-w-0 gap-2 sm:grid-cols-3">
-	<div class="rounded-md bg-muted/30 p-3">
-		<p class="text-2xl font-semibold">{namespaces().length}</p>
-		<p class="text-xs text-muted-foreground">{text.namespaces}</p>
-	</div>
-	<div class="rounded-md bg-muted/30 p-3">
-		<p class="text-2xl font-semibold">{episodes().length}</p>
-		<p class="text-xs text-muted-foreground">{text.episodes}</p>
-	</div>
-	<div class="rounded-md bg-muted/30 p-3">
-		<p class="text-2xl font-semibold">{facts().length}</p>
-		<p class="text-xs text-muted-foreground">{text.facts}</p>
-	</div>
-</section>
-
-{#if errorMessage}
-	<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorMessage}</p>
-{/if}
 
 {#if hasMemoryGraph() && nodes().length === 0}
 	<p class="rounded-md border bg-muted/30 px-3 py-12 text-center text-sm text-muted-foreground">{text.noVisibleMemory}</p>
@@ -380,27 +373,39 @@
 	</section>
 {/if}
 
+	</Card.Content>
+</Card.Root>
+
 {#if namespaces().length > 0}
-	<section class="overflow-hidden rounded-lg border">
-		{#each visibleNamespaces() as namespace}
-			<div class="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0">
-				<div class="min-w-0">
-					<p class="truncate text-sm font-medium">{scopeDisplayName(namespace.scopeType, namespace.namespaceID)}</p>
-					<p class="text-xs text-muted-foreground">{namespace.scopeType} · {namespace.episodeCount ?? 0} {text.episodes}</p>
-				</div>
-				{#if !isPersonalScope(namespace.scopeType)}
-					<Badge variant="outline">{namespace.scopeCircleID || namespace.scopeConversationID || text.workspace}</Badge>
-				{/if}
-			</div>
-		{/each}
+	<Card.Root>
+		<Card.Header class="border-b pb-4">
+			<Card.Title>{text.namespaces}</Card.Title>
+		</Card.Header>
+		<Card.Content>
+			<Item.Group class="gap-2">
+				{#each visibleNamespaces() as namespace}
+					<Item.Root variant="outline">
+						<Item.Content>
+							<Item.Title>{scopeDisplayName(namespace.scopeType, namespace.namespaceID)}</Item.Title>
+							<Item.Description>{namespace.scopeType} · {namespace.episodeCount ?? 0} {text.episodes}</Item.Description>
+						</Item.Content>
+						{#if !isPersonalScope(namespace.scopeType)}
+							<Item.Actions>
+								<Badge variant="outline">{namespace.scopeCircleID || namespace.scopeConversationID || text.workspace}</Badge>
+							</Item.Actions>
+						{/if}
+					</Item.Root>
+				{/each}
+			</Item.Group>
+		</Card.Content>
 		{#if namespaces().length > 10}
-			<div class="flex justify-center border-t px-3 py-2">
+			<Card.Footer class="justify-center">
 				<Button type="button" variant="ghost" size="sm" onclick={() => (showAllNamespaces = !showAllNamespaces)}>
 					{showAllNamespaces ? text.namespacesShowLess : namespacesShowAllText()}
 				</Button>
-			</div>
+			</Card.Footer>
 		{/if}
-	</section>
+	</Card.Root>
 {/if}
 
 <style>
