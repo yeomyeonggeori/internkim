@@ -13,6 +13,7 @@
 		startOfCalendarGridWeek
 	} from './calendar-grid-dates';
 	import { calendarGridTimedBlocks, type CalendarGridEvent } from './calendar-grid-layout';
+	import { createCalendarScrollSnap } from './calendar-grid-scroll-snap.svelte';
 
 	type CalendarTimeViewProps = {
 		visibleDate: Date;
@@ -75,9 +76,19 @@
 		selectDay(new Date(dateValue.year, dateValue.month - 1, dateValue.day, 12, 0, 0, 0));
 	}
 
+	const scrollSnap = createCalendarScrollSnap({
+		getScrollElement: () => gridElement,
+		getSnapOffsets: hourScrollOffsets
+	});
+
+	function hourScrollOffsets(): number[] {
+		return Array.from({ length: 24 }, (_, hour) => hour * hourHeightPixels);
+	}
+
 	$effect(() => {
 		return () => {
 			if (longPressTimer !== null) clearTimeout(longPressTimer);
+			scrollSnap.destroy();
 		};
 	});
 
@@ -199,7 +210,16 @@
 		{/each}
 	</div>
 
-	<div bind:this={gridElement} class="min-h-0 flex-1 overflow-y-auto">
+	<div
+		bind:this={gridElement}
+		role="grid"
+		tabindex="-1"
+		aria-label={days.length === 1 ? weekdayFormatter.format(days[0]) : ''}
+		class="min-h-0 flex-1 overflow-y-auto"
+		onwheel={scrollSnap.handleWheel}
+		ontouchend={scrollSnap.handleGestureEnd}
+		onscrollend={scrollSnap.handleScrollEnd}
+	>
 		<div class="flex" style={`height: ${24 * hourHeightPixels}px`}>
 			<div class="w-16 shrink-0">
 				{#each Array.from({ length: 24 }, (_, hour) => hour) as hour (hour)}
