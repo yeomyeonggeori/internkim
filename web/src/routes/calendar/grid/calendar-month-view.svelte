@@ -295,7 +295,7 @@
 		onpointermove={handlePointerMove}
 		onpointerup={handlePointerUp}
 		onpointercancel={clearRangeSelection}
-		onpointerleave={clearRangeSelection} class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+		onpointerleave={clearRangeSelection} class="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
 		{#each weeks as week (week.startDateKey)}
 			{@const layout = weekLayouts.get(week.startDateKey) ?? { spans: [], timedEntries: [], laneCount: 0 }}
 			{@const monthStartDay = monthStartDayInWeek(week)}
