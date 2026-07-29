@@ -228,6 +228,8 @@ Environment=RELAY_URL=%s
 Environment=BUZZ_AUTO_MIGRATE=1
 Environment=BUZZ_REQUIRE_RELAY_MEMBERSHIP=true
 Environment=BUZZ_GIT_CONFORMANCE_PROBE=false
+Environment=BUZZ_RATE_LIMIT_HUMAN_MESSAGES_PER_MIN=1200
+Environment=BUZZ_RATE_LIMIT_HUMAN_WS_EVENTS_PER_SEC=100
 EnvironmentFile=-%s
 ExecStart=%s
 Restart=on-failure

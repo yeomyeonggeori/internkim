@@ -384,6 +384,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startScheduledBackups(ctx)
 	service.startBuzzMemberLinker(ctx)
 	service.startBuzzAccountLinkSync(ctx)
+	service.startStaffChannelMembershipSync(ctx)
 	service.warnWhenFontAssetsMissing()
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,

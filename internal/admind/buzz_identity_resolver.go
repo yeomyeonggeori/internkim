@@ -34,22 +34,17 @@ func (service *Service) buzzKeySeed() string {
 // the vault under the person's personID. Pinning by personID means a later email
 // change keeps the same Buzz identity and message history.
 func (service *Service) personBuzzSecret(ctx context.Context, email string) (string, error) {
-	subject := service.buzzVaultSubject(ctx, email)
-	stored, errorValue := service.readBuzzIdentitySecret(subject)
-	if errorValue == nil {
-		return stored, nil
-	}
-	if !errors.Is(errorValue, errBuzzIdentitySecretMissing) {
-		return "", errorValue
-	}
 	seed := service.buzzKeySeed()
 	if seed == "" {
 		return "", errBuzzKeySeedMissing
 	}
+	subject := service.buzzVaultSubject(ctx, email)
 	version := service.buzzIdentityVersion(subject)
 	secretHex := buzzidentity.Secret(seed, versionedSubject(email, version))
-	if errorValue := service.storeBuzzIdentitySecret(subject, secretHex); errorValue != nil {
-		log.Printf("buzz identity vault pin failed for %s: %v", subject, errorValue)
+	if stored, errorValue := service.readBuzzIdentitySecret(subject); errorValue != nil || stored != secretHex {
+		if errorValue := service.storeBuzzIdentitySecret(subject, secretHex); errorValue != nil {
+			log.Printf("buzz identity vault pin failed for %s: %v", subject, errorValue)
+		}
 	}
 	return secretHex, nil
 }

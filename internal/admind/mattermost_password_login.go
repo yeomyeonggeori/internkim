@@ -37,16 +37,16 @@ func (service *Service) handleMattermostPasswordLogin(responseWriter http.Respon
 		http.Error(responseWriter, "invalid email or password", http.StatusUnauthorized)
 		return
 	}
-	if !service.isFlowStaffActor(request.Context(), userRecord.Email) {
+	if !service.isFlowStaffActor(request.Context(), email) {
 		http.Error(responseWriter, "account not invited", http.StatusForbidden)
 		return
 	}
-	if errorValue := service.issueWebSessionCookie(responseWriter, request, userRecord); errorValue != nil {
+	if errorValue := service.issueWebSessionCookie(responseWriter, request, mattermostUserRecord{Email: email}); errorValue != nil {
 		http.Error(responseWriter, "session_failed", http.StatusInternalServerError)
 		return
 	}
 	logAuditEvent("mattermost password login success")
-	service.writeJSON(responseWriter, map[string]string{"ok": "true", "secretHex": service.buzzSecretForEmail(request.Context(), userRecord.Email)})
+	service.writeJSON(responseWriter, map[string]string{"ok": "true", "secretHex": service.buzzSecretForEmail(request.Context(), email)})
 }
 
 func (service *Service) buzzSecretForEmail(ctx context.Context, email string) string {
