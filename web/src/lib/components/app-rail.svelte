@@ -40,7 +40,8 @@
 	const profileMenuLabels = $derived({
 		account: text.account,
 		logOut: text.logOut,
-		activeWorkspace: text.activeWorkspace
+		activeWorkspace: text.activeWorkspace,
+		buzzConnect: text.buzzConnect
 	});
 
 	onMount(appNavigation.load);
