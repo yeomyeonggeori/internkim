@@ -15,7 +15,7 @@ describe('calendar grid weeks', () => {
 	test('starts weeks on sunday around the anchor date', () => {
 		const weeks = calendarGridWeeks(new Date(2026, 6, 29), 1, 1);
 
-		expect(weeks).toHaveLength(3);
+		expect(weeks.length).toBe(3);
 		expect(weeks[1].startDateKey).toBe('2026-07-26');
 		expect(weeks[0].startDateKey).toBe('2026-07-19');
 		expect(weeks[2].startDateKey).toBe('2026-08-02');
@@ -67,8 +67,8 @@ describe('calendar grid week layout', () => {
 			event({ id: 'standup', start: new Date(2026, 6, 29, 9), end: new Date(2026, 6, 29, 9, 30) })
 		]);
 
-		expect(layout.spans).toHaveLength(0);
-		expect(layout.timedEntries).toEqual([{ event: expect.objectContaining({ id: 'standup' }), dayIndex: 3 }]);
+		expect(layout.spans.length).toBe(0);
+		expect(layout.timedEntries.map((entry) => [entry.event.id, entry.dayIndex])).toEqual([['standup', 3]]);
 	});
 });
 
