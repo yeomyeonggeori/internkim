@@ -43,7 +43,7 @@
 	const dragSnapMinutes = 15;
 	const longPressMilliseconds = 450;
 	const defaultDurationMinutes = 60;
-	const flickVelocityPixelsPerMillisecond = 0.45;
+	const flickVelocityPixelsPerMillisecond = 0.25;
 	const flickTravelPixels = 8;
 
 	let gridElement = $state<HTMLElement | null>(null);
@@ -155,7 +155,10 @@
 
 	function weekAlignedColumnIndex(startColumnIndex: number, direction: number): number {
 		const leadingDay = stripDays[Math.min(stripDays.length - 1, Math.max(0, startColumnIndex))] ?? weekWindowStart;
-		const targetDay = addCalendarGridDays(startOfCalendarGridWeek(leadingDay), direction * 7);
+		const leadingWeekStart = startOfCalendarGridWeek(leadingDay);
+		const isWeekAligned = isSameCalendarGridDay(leadingDay, leadingWeekStart);
+		const targetDay =
+			direction < 0 && !isWeekAligned ? leadingWeekStart : addCalendarGridDays(leadingWeekStart, direction * 7);
 		const dayOffset = Math.round((targetDay.getTime() - weekWindowStart.getTime()) / 86400000);
 		return 7 + dayOffset;
 	}
