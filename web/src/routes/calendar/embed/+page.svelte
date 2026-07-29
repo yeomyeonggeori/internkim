@@ -256,6 +256,8 @@
 	selectedMonthDateKey={state.selectedMonthDateKey}
 	visibleMonthChanged={(month) => pageNavigation.setVisibleDate(month)}
 	addEventOnDay={(dateKey) => draftPopoverActions.openMonthSingleDayDraftPopover(dateKey)}
+	addEventOnTimeRange={(start, end) =>
+		draftPopoverActions.openTimelineRangeDraftPopover(start, end, { clientX: 0, clientY: 0 })}
 	addEventOnRange={(startDateKey, endDateKey) =>
 		draftPopoverActions.openMonthRangeDraftPopover({
 			pointerID: 0,
