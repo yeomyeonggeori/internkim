@@ -11,7 +11,6 @@
 	import CalendarDayFlowEventActivator from './calendar-dayflow-event-activator.svelte';
 	import { installCalendarDayFlowEventActivation } from './calendar-dayflow-event-activation';
 	import CalendarMobileEventEditor from './calendar-mobile-event-editor.svelte';
-	import CalendarMonthEventLayer from './calendar-month-event-layer.svelte';
 	import CalendarMonthView from '../grid/calendar-month-view.svelte';
 	import CalendarTimeView from '../grid/calendar-time-view.svelte';
 	import { calendarGridEventsFromDayFlowEvents } from '../grid/calendar-grid-events';
