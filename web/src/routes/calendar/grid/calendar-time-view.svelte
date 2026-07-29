@@ -370,6 +370,7 @@
 					size={blockHeightPixels < 44 ? 'compact' : 'block'}
 					timeLabel={timeFormatter.format(block.event.start)}
 					isSelected={selectedEventID === block.event.id}
+					placeholder={draftPreviewTitle}
 					class="h-full"
 					{openEvent}
 				/>
@@ -435,7 +436,7 @@
 {#snippet allDayCell(day: Date)}
 	<div class="border-border/50 flex min-h-8 flex-1 flex-col gap-0.5 border-l p-0.5">
 		{#each events.filter((event) => event.isAllDay && event.end > startOfCalendarGridDay(day) && event.start < addCalendarGridDays(day, 1)) as event (event.id)}
-			<CalendarEventChip {event} isSelected={selectedEventID === event.id} {openEvent} />
+			<CalendarEventChip {event} isSelected={selectedEventID === event.id} placeholder={draftPreviewTitle} {openEvent} />
 		{/each}
 	</div>
 {/snippet}

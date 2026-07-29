@@ -349,6 +349,7 @@
 								event={entry.event}
 								timeLabel={entry.event.isAllDay ? '' : timeFormatter.format(entry.event.start)}
 								isSelected={selectedEventID === entry.event.id}
+								placeholder={draftPreviewTitle}
 								{openEvent}
 							/>
 						{/each}
@@ -383,6 +384,7 @@
 							<CalendarEventChip
 								event={span.event}
 								isSelected={selectedEventID === span.event.id}
+								placeholder={draftPreviewTitle}
 								continuesBefore={span.continuesBefore}
 								continuesAfter={span.continuesAfter}
 								{openEvent}
