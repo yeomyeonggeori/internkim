@@ -38,6 +38,8 @@ type DevCalendarMockResponse = {
 export type DevCalendarMockState = {
 	userEmail: string;
 	locale: 'ko' | 'en';
+	events: CalendarEvent[];
+	deleteIntents: Map<string, number>;
 };
 
 export function devCalendarMockPlugin(options: DevCalendarMockPluginOptions): Plugin {
@@ -73,7 +75,7 @@ export function devCalendarMockPlugin(options: DevCalendarMockPluginOptions): Pl
 }
 
 export function createDevCalendarMockState(userEmail: string): DevCalendarMockState {
-	return { userEmail, locale: 'ko' };
+	return { userEmail, locale: 'ko', events: createDevCalendarEvents(userEmail), deleteIntents: new Map() };
 }
 
 export function createDevCalendarMockResponse(
@@ -108,17 +110,114 @@ export function createDevCalendarMockResponse(
 	if (request.method === 'GET' && request.pathname === '/calendar/api/conflicts') {
 		return { status: 200, body: { conflicts: [] } };
 	}
+	const deleteIntentEventID = deleteIntentEventIDFromPath(request.pathname);
+	if (deleteIntentEventID) {
+		if (request.method === 'PUT') {
+			const intent = deleteIntentResponse(request.pathname);
+			state.deleteIntents.set(deleteIntentEventID, new Date(intent.executeAt).getTime());
+			return { status: 200, body: intent };
+		}
+		if (request.method === 'DELETE') {
+			state.deleteIntents.delete(deleteIntentEventID);
+			return { status: 200, body: {} };
+		}
+	}
+	const eventID = eventIDFromPath(request.pathname);
+	if (eventID && request.method === 'PUT') {
+		const updatedEvent = storeDevCalendarEvent(state, eventID, request.body);
+		return { status: 200, body: { ...updatedEvent } };
+	}
+	if (eventID && request.method === 'DELETE') {
+		state.events = state.events.filter((event) => event.id !== eventID);
+		return { status: 200, body: {} };
+	}
+	if (request.method === 'POST' && request.pathname === '/calendar/api/events') {
+		const createdEvent = storeDevCalendarEvent(state, parseJSONRecord(request.body).eventID, request.body);
+		return { status: 200, body: { ...createdEvent } };
+	}
 	if (request.method !== 'GET' || request.pathname !== '/calendar/api/events') return undefined;
 	const startTime = timestampFromISO(request.searchParams.get('startISO'), Number.NEGATIVE_INFINITY);
 	const endTime = timestampFromISO(request.searchParams.get('endISO'), Number.POSITIVE_INFINITY);
-	const events = createDevCalendarEvents(state.userEmail).filter((event) => {
+	applyDueDevCalendarDeleteIntents(state);
+	const events = state.events.filter((event) => {
 		const eventStartTime = new Date(event.startISO).getTime();
 		return eventStartTime >= startTime && eventStartTime <= endTime;
 	});
 	return { status: 200, body: { events } };
 }
 
+function applyDueDevCalendarDeleteIntents(state: DevCalendarMockState): void {
+	const now = Date.now();
+	for (const [eventID, executeTime] of state.deleteIntents) {
+		if (executeTime > now) continue;
+		state.events = state.events.filter((event) => event.id !== eventID);
+		state.deleteIntents.delete(eventID);
+	}
+}
+
+function eventIDFromPath(pathname: string): string | undefined {
+	const match = /^\/calendar\/api\/events\/([^/]+)$/.exec(pathname);
+	return match ? decodeURIComponent(match[1]) : undefined;
+}
+
+function deleteIntentEventIDFromPath(pathname: string): string | undefined {
+	const match = /^\/calendar\/api\/events\/([^/]+)\/delete-intents\/[^/]+$/.exec(pathname);
+	return match ? decodeURIComponent(match[1]) : undefined;
+}
+
+function deleteIntentResponse(pathname: string): { operationID: string; executeAt: string } {
+	const operationID = decodeURIComponent(pathname.slice(pathname.lastIndexOf('/') + 1));
+	return { operationID, executeAt: new Date(Date.now() + 5000).toISOString() };
+}
+
+function storeDevCalendarEvent(state: DevCalendarMockState, eventID: unknown, body: string | undefined): CalendarEvent {
+	const payload = parseJSONRecord(body);
+	const id = typeof eventID === 'string' && eventID ? eventID : `dev-${Date.now()}`;
+	const existingEvent = state.events.find((event) => event.id === id);
+	const savedEvent: CalendarEvent = {
+		...(existingEvent ?? emptyDevCalendarEvent(id, state.userEmail)),
+		id,
+		uid: id,
+		title: textField(payload.title),
+		description: textField(payload.description),
+		location: textField(payload.location),
+		startISO: textField(payload.startISO),
+		endISO: textField(payload.endISO),
+		timeZone: textField(payload.timeZone) || 'Asia/Seoul',
+		isAllDay: payload.isAllDay === true,
+		color: textField(payload.color) || '#2563eb',
+		updatedAt: new Date().toISOString()
+	};
+	state.events = [...state.events.filter((event) => event.id !== id), savedEvent];
+	return savedEvent;
+}
+
+function emptyDevCalendarEvent(id: string, userEmail: string): CalendarEvent {
+	return {
+		id,
+		uid: id,
+		title: '',
+		description: '',
+		location: '',
+		startISO: '',
+		endISO: '',
+		timeZone: 'Asia/Seoul',
+		isAllDay: false,
+		color: '#2563eb',
+		participants: [],
+		createdByEmail: userEmail,
+		createdByName: userEmail,
+		updatedAt: new Date().toISOString()
+	};
+}
+
+function textField(value: unknown): string {
+	return typeof value === 'string' ? value : '';
+}
+
 function shouldHandleDevCalendarMockRequest(method: string, pathname: string): boolean {
+	if (pathname.startsWith('/calendar/api/events/')) return true;
+	if (method === 'POST' && pathname === '/calendar/api/events') return true;
 	if (method === 'GET' && pathname === '/auth/session') return true;
 	if (method === 'GET' && pathname === '/admin/api/session') return true;
 	if ((method === 'GET' || method === 'PUT') && pathname === '/admin/api/locale') return true;

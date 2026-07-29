@@ -299,7 +299,6 @@
 	auditEvent={selectedAuditEvent}
 	{calendarOptions}
 	participantCandidates={state.participantCandidates}
-	isSaving={state.isSaving}
 	{text}
 	updatePopover={draftPopoverActions.updateDraftPopover}
 	savePopover={draftPopoverActions.saveDraftPopover}
