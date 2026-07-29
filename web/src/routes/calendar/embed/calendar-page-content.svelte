@@ -5,7 +5,14 @@
 	import type { CalendarConflict } from './calendar-conflicts';
 	import type { CalendarParticipant } from './calendar-participants';
 	import CalendarConflictBanner from './calendar-conflict-banner.svelte';
-	import type { DraftPopoverAnchor, DraftPopoverState } from './calendar-draft-popover-state';
+	import {
+		draftPopoverEndDate,
+		draftPopoverStartDate,
+		type DraftPopoverAnchor,
+		type DraftPopoverState
+	} from './calendar-draft-popover-state';
+	import { addCalendarGridDays } from '../grid/calendar-grid-dates';
+	import type { CalendarGridEvent } from '../grid/calendar-grid-layout';
 	import type { MonthRangePreviewSegment } from './calendar-month-range-action';
 	import CalendarPageDraftPopover from './calendar-page-draft-popover.svelte';
 	import type { CalendarSearchResult } from './calendar-search';
@@ -109,6 +116,20 @@
 		updatePopover,
 		stageElement = $bindable<HTMLElement | null>(null)
 	}: CalendarPageContentProps = $props();
+
+	const editingEvent = $derived<Pick<CalendarGridEvent, 'id' | 'title' | 'start' | 'end' | 'isAllDay'> | null>(
+		popover
+			? {
+					id: popover.eventID,
+					title: popover.title,
+					start: draftPopoverStartDate(popover),
+					end: popover.allDay
+						? addCalendarGridDays(draftPopoverEndDate(popover), 1)
+						: draftPopoverEndDate(popover),
+					isAllDay: popover.allDay
+				}
+			: null
+	);
 </script>
 
 <main class="calendar-page flex min-h-screen flex-col">
@@ -153,8 +174,7 @@
 		bind:stageElement
 		{monthRangePreviewSegments}
 		{monthRangePreviewTitle}
-		editingEventID={popover?.eventID ?? null}
-		editingTitle={popover?.title ?? ''}
+		{editingEvent}
 		{timelineRangePreviewSegments}
 		{timelineRangePreviewTitle}
 		{navigateToDateKey}

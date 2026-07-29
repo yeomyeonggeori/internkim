@@ -87,6 +87,10 @@ export function createCalendarPageLifecycleOptions(
 		},
 		keyboardDelete: keyboardDelete(context),
 		keyboardUndo: { undoLastDelete: context.undoLastDelete },
+		keyboardSave: {
+			getDraftPopover: context.getDraftPopover,
+			saveDraftPopover: context.draftPopoverActions.saveDraftPopover
+		},
 		miniCalendarMonthPicker: miniCalendarMonthPicker(context),
 		navigateToDateKey: context.pageNavigation.navigateToDateKey
 	};
