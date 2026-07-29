@@ -7,23 +7,12 @@ import {
 } from './calendar-navigation-message';
 import { calendarDateStorageKey } from './calendar-storage-keys';
 
-export type CalendarLayoutStoredState = {
-	visibleDate: Date | null;
-};
-
 export type CalendarLayoutMessageSyncOptions = {
 	selectedDateKey: () => string;
 	applyVisibleDate: (date: Date) => void;
 	openSettings: () => void;
 	refreshCalendar: () => void;
 };
-
-export function loadCalendarLayoutStoredState(): CalendarLayoutStoredState {
-	const visibleDate = storedVisibleDate();
-	return {
-		visibleDate
-	};
-}
 
 export function installCalendarLayoutMessageSync(options: CalendarLayoutMessageSyncOptions): () => void {
 	const handleCalendarFrameMessage = (event: MessageEvent<unknown>) => {
@@ -60,11 +49,4 @@ export function installCalendarLayoutMessageSync(options: CalendarLayoutMessageS
 		window.removeEventListener('message', handleCalendarFrameMessage);
 		window.removeEventListener('storage', handleCalendarStorageChange);
 	};
-}
-
-function storedVisibleDate(): Date | null {
-	const savedVisibleDate = window.localStorage.getItem(calendarDateStorageKey);
-	if (!savedVisibleDate) return null;
-	const visibleDate = new Date(savedVisibleDate);
-	return Number.isNaN(visibleDate.getTime()) ? null : visibleDate;
 }
