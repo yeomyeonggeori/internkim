@@ -60,8 +60,8 @@
 	const controller = createCalendarPageController({
 		isBrowser: () => browser,
 		getCalendarLocale: () => calendarLocale,
-		getLocaleCode: () => localeCode,
 		getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
+		getLocaleCode: () => localeCode,
 		initialCalendarDate,
 		initialCalendarView,
 		setVisibleDate,
@@ -107,8 +107,6 @@
 		calendar,
 		getCalendarLocale: () => calendarLocale,
 		getCurrentLocale: () => currentLocale.value,
-		getMonthRangeSelection: () => state.monthRangeSelection,
-		getTimelineRangeSelection: () => state.timelineRangeSelection,
 		getStageElement: () => state.calendarStageElement,
 		getToolbarDate: () => state.toolbarDate,
 		getToolbarView: () => state.toolbarView,
@@ -116,6 +114,8 @@
 		getLocaleCode: () => localeCode,
 		getSelectedMonthDateKey: () => state.selectedMonthDateKey,
 		getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
+		getMonthRangeSelection: () => state.monthRangeSelection,
+		getTimelineRangeSelection: () => state.timelineRangeSelection,
 		rangePreview,
 		renderSync,
 		selectedMonthDate,
@@ -133,9 +133,6 @@
 			clearDraftPopover: () => {
 				state.draftPopover = null;
 			},
-			clearMonthRangePreview: () => {
-				state.monthRangePreviewSegments = [];
-			},
 			deleteEvent: eventActions.deleteEvent,
 			undoLastDelete: eventActions.undoLastDelete,
 			draftPopoverActions,
@@ -144,24 +141,15 @@
 			eventSelection,
 			getCurrentView: currentCalendarView,
 			getDraftPopover: () => state.draftPopover,
-			getLocaleCode: () => localeCode,
-			getMonthRangeSelection: () => state.monthRangeSelection,
 			getSelectedAuditEventID: () => state.selectedAuditEventID,
 			getStageElement: () => state.calendarStageElement,
-			getTimelineRangeSelection: () => state.timelineRangeSelection,
 			getToolbarDate: () => state.toolbarDate,
-			getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
 			initialCalendarDate,
 			initialCalendarView,
-			openEventEditor: openCalendarEvent,
 			pageMessages,
 			pageNavigation,
-			rangePreview,
 			renderSync,
 			selectedMonthDate,
-			setMonthRangeSelection: (selection) => {
-				state.monthRangeSelection = selection;
-			},
 			setSelectedAuditEventID: (eventID) => {
 				state.selectedAuditEventID = eventID;
 			},
