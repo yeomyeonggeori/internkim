@@ -19,6 +19,7 @@ const defaultDamping = 0.3;
 const defaultAnimationMilliseconds = 220;
 const momentumDecaySteps = 3;
 const gestureGapMilliseconds = 140;
+const wheelFollowFactor = 0.28;
 
 export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): CalendarScrollSnap {
 	const axis = options.axis ?? 'vertical';
@@ -31,6 +32,8 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 	let previousWheelTime = 0;
 	let isIgnoringMomentum = false;
 	let gestureStartOffset = 0;
+	let wheelTargetOffset = 0;
+	let wheelFrame: number | null = null;
 
 	function wheelDelta(wheelEvent: WheelEvent): number {
 		return axis === 'horizontal' ? wheelEvent.deltaX : wheelEvent.deltaY;
@@ -73,12 +76,46 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 			return;
 		}
 
-		applyOffset(scrollElement, currentOffset(scrollElement) + wheelDeltaPixels(wheelEvent, scrollElement) * damping);
+		queueWheelScroll(scrollElement, wheelDeltaPixels(wheelEvent, scrollElement) * damping, isNewGesture);
 		decayingSteps = magnitude < previousMagnitude - 0.5 ? decayingSteps + 1 : 0;
 		previousMagnitude = magnitude;
 		if (decayingSteps < momentumDecaySteps) return;
 		isIgnoringMomentum = true;
 		snapToNearestOffset();
+	}
+
+	function queueWheelScroll(scrollElement: HTMLElement, deltaPixels: number, isNewGesture: boolean): void {
+		const maximumOffset =
+			axis === 'horizontal'
+				? scrollElement.scrollWidth - scrollElement.clientWidth
+				: scrollElement.scrollHeight - scrollElement.clientHeight;
+		const baseOffset = isNewGesture || wheelFrame === null ? currentOffset(scrollElement) : wheelTargetOffset;
+		wheelTargetOffset = Math.max(0, Math.min(maximumOffset, baseOffset + deltaPixels));
+		if (wheelFrame !== null) return;
+		wheelFrame = requestAnimationFrame(stepWheelScroll);
+	}
+
+	function stepWheelScroll(): void {
+		const scrollElement = options.getScrollElement();
+		if (!scrollElement) {
+			wheelFrame = null;
+			return;
+		}
+		const offset = currentOffset(scrollElement);
+		const remainingDistance = wheelTargetOffset - offset;
+		if (Math.abs(remainingDistance) < 0.5) {
+			applyOffset(scrollElement, wheelTargetOffset);
+			wheelFrame = null;
+			return;
+		}
+		applyOffset(scrollElement, offset + remainingDistance * wheelFollowFactor);
+		wheelFrame = requestAnimationFrame(stepWheelScroll);
+	}
+
+	function cancelWheelScroll(): void {
+		if (wheelFrame === null) return;
+		cancelAnimationFrame(wheelFrame);
+		wheelFrame = null;
 	}
 
 	function handleGestureEnd(): void {
@@ -94,6 +131,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 	function snapToNearestOffset(): void {
 		const scrollElement = options.getScrollElement();
 		if (!scrollElement) return;
+		cancelWheelScroll();
 		const offsets = options.getSnapOffsets();
 		if (offsets.length === 0) return;
 		const offset = currentOffset(scrollElement);
@@ -139,6 +177,9 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 		handleWheel,
 		handleGestureEnd,
 		handleScrollEnd,
-		destroy: cancelAnimation
+		destroy: () => {
+			cancelWheelScroll();
+			cancelAnimation();
+		}
 	};
 }
