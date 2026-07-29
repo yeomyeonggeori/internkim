@@ -75,6 +75,7 @@ func main() {
 	buzzDatabaseURLPath := flag.String("buzz-database-url-path", "", "file holding the Buzz relay postgres URL (EnvironmentFile format); read when -buzz-database-url is empty")
 	flag.StringVar(&configuration.BuzzAccountLinksPath, "buzz-account-links", configuration.BuzzAccountLinksPath, "account links JSON file consumed by acpd")
 	flag.StringVar(&configuration.BuzzKeySeedPath, "buzz-key-seed-path", configuration.BuzzKeySeedPath, "file holding the Buzz identity derivation seed (must match the history importer)")
+	flag.StringVar(&configuration.BuzzRelayKeyPath, "buzz-relay-key-path", configuration.BuzzRelayKeyPath, "EnvironmentFile holding BUZZ_RELAY_PRIVATE_KEY for buzz-admin relay membership grants")
 	flag.StringVar(&configuration.CloudflareAccessTeamDomain, "cloudflare-access-team-domain", configuration.CloudflareAccessTeamDomain, "Cloudflare Access team domain (e.g. example.cloudflareaccess.com) whose JWT the web trusts")
 	flag.StringVar(&configuration.CloudflareAccessAUDs, "cloudflare-access-aud", configuration.CloudflareAccessAUDs, "comma-separated Cloudflare Access application AUD tags the web session accepts")
 	flag.BoolVar(&configuration.TrustProxyForwardedEmail, "trust-proxy-forwarded-email", configuration.TrustProxyForwardedEmail, "trust the X-Forwarded-Email/X-Auth-Request-Email header from a fronting identity proxy (oauth2-proxy, Authelia); enable only when such a proxy is the sole ingress")
