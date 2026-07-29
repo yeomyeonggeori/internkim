@@ -38,6 +38,8 @@
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
 		navigateToDateKey: (dateKey: string) => void;
+		selectedMonthDateKey: string | null;
+		visibleMonthChanged: (month: Date) => void;
 		addEventOnDay: (dateKey: string) => void;
 		deleteEvent: (eventID: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
@@ -86,6 +88,8 @@
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
 		navigateToDateKey,
+		selectedMonthDateKey,
+		visibleMonthChanged,
 		addEventOnDay,
 		deleteEvent,
 		openEvent,
@@ -152,6 +156,8 @@
 		{timelineRangePreviewSegments}
 		{timelineRangePreviewTitle}
 		{navigateToDateKey}
+		{selectedMonthDateKey}
+		{visibleMonthChanged}
 		{addEventOnDay}
 		{deleteEvent}
 	/>
