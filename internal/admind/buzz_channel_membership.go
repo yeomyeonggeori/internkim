@@ -169,7 +169,13 @@ func (service *Service) allStaffEmails(ctx context.Context) []string {
 	for _, email := range service.usersSyncCacheEmails() {
 		add(email)
 	}
+	if records, errorValue := service.currentUserRecords(ctx); errorValue == nil {
+		for _, record := range records {
+			add(record.Email)
+		}
+	}
 	add(service.seedAdminEmail())
+	add(service.claimedAdminEmail())
 	return emails
 }
 
