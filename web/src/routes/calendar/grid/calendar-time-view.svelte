@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { Calendar as MiniCalendar } from '$lib/components/ui/calendar';
+	import { Calendar as MiniCalendar, Day as MiniCalendarDay } from '$lib/components/ui/calendar';
 	import { cn } from '$lib/utils';
 	import { CalendarDate, type DateValue } from '@internationalized/date';
 	import { tick } from 'svelte';
 	import CalendarEventChip from './calendar-event-chip.svelte';
+	import CalendarEventListCard from '../embed/calendar-event-list-card.svelte';
 	import {
 		addCalendarGridDays,
 		calendarGridDateAtMinutes,
@@ -99,6 +100,36 @@
 	function selectMiniCalendarDate(dateValue: DateValue | undefined): void {
 		if (!dateValue) return;
 		selectDay(new Date(dateValue.year, dateValue.month - 1, dateValue.day, 12, 0, 0, 0));
+	}
+
+	const eventDateKeys = $derived(new Set(events.flatMap(calendarGridEventDateKeys)));
+
+	function calendarGridEventDateKeys(event: CalendarGridEvent): string[] {
+		const lastDay = startOfCalendarGridDay(new Date(Math.max(event.end.getTime() - 1, event.start.getTime())));
+		const dateKeys: string[] = [];
+		for (let day = startOfCalendarGridDay(event.start); day <= lastDay; day = addCalendarGridDays(day, 1)) {
+			dateKeys.push(calendarGridDateKey(day));
+		}
+		return dateKeys;
+	}
+
+	const selectedDayEvents = $derived(
+		events
+			.filter((event) => event.end > startOfCalendarGridDay(visibleDate) && event.start < addCalendarGridDays(startOfCalendarGridDay(visibleDate), 1))
+			.sort((first, second) => Number(second.isAllDay) - Number(first.isAllDay) || first.start.getTime() - second.start.getTime())
+	);
+
+	function eventTimeLabel(event: CalendarGridEvent): string {
+		if (event.isAllDay) return '';
+		return `${clockLabel(event.start)}-${clockLabel(event.end)}`;
+	}
+
+	function clockLabel(date: Date): string {
+		return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+	}
+
+	function hasEventsOnDate(dateValue: DateValue): boolean {
+		return eventDateKeys.has(calendarGridDateKey(new Date(dateValue.year, dateValue.month - 1, dateValue.day)));
 	}
 
 	const scrollSnap = createCalendarScrollSnap({
@@ -543,7 +574,29 @@
 
 	{#if dayCount === 1}
 		<aside class="border-border/50 hidden w-fit shrink-0 border-l p-2 lg:block">
-			<MiniCalendar type="single" value={miniCalendarValue} onValueChange={selectMiniCalendarDate} locale={localeCode} />
+			<MiniCalendar type="single" value={miniCalendarValue} onValueChange={selectMiniCalendarDate} locale={localeCode}>
+				{#snippet day({ day })}
+					<MiniCalendarDay>
+						{day.day}
+						{#if hasEventsOnDate(day)}
+							<span class="bg-foreground size-1 rounded-full"></span>
+						{/if}
+					</MiniCalendarDay>
+				{/snippet}
+			</MiniCalendar>
+			{#if selectedDayEvents.length > 0}
+				<div class="mt-3 grid gap-2">
+					{#each selectedDayEvents as event (event.id)}
+						<CalendarEventListCard
+							title={event.title}
+							start={event.start}
+							isAllDay={event.isAllDay}
+							timeLabel={eventTimeLabel(event)}
+							openEvent={(originElement) => openEvent(event, originElement)}
+						/>
+					{/each}
+				</div>
+			{/if}
 		</aside>
 	{/if}
 </div>
