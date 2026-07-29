@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import CalendarDayCell from './calendar-day-cell.svelte';
 	import CalendarEventChip from './calendar-event-chip.svelte';
 	import {
@@ -48,7 +48,10 @@
 	const visibleChipCount = 3;
 	const scrollOverlayHideDelayMilliseconds = 700;
 	const wheelScrollDamping = 0.3;
-	const rowSnapIdleMilliseconds = 140;
+	const rowSnapIdleMilliseconds = 90;
+	const rowSnapAnimationMilliseconds = 220;
+	const windowExtendWeeks = 26;
+	const windowExtendMarginPixels = 1200;
 
 	let scrollElement = $state<HTMLElement | null>(null);
 	let anchorWeekStartKey = $state('');
@@ -58,11 +61,15 @@
 	let scrollFrame: number | null = null;
 	let scrollOverlayTimer: number | null = null;
 	let rowSnapTimer: number | null = null;
+	let snapAnimationFrame: number | null = null;
 	let isSnappingToRow = false;
+	let isExtendingWindow = false;
 
 	let windowAnchorDateKey = $state(untrack(() => calendarGridDateKey(visibleDate)));
+	let weeksBeforeAnchor = $state(weeksBeforeVisibleDate);
+	let weeksAfterAnchor = $state(weeksAfterVisibleDate);
 
-	const weeks = $derived(calendarGridWeeks(calendarGridDateFromKey(windowAnchorDateKey), weeksBeforeVisibleDate, weeksAfterVisibleDate));
+	const weeks = $derived(calendarGridWeeks(calendarGridDateFromKey(windowAnchorDateKey), weeksBeforeAnchor, weeksAfterAnchor));
 	const weekLayouts = $derived(
 		new Map<string, CalendarGridWeekLayout>(weeks.map((week) => [week.startDateKey, calendarGridWeekLayout(week, events)]))
 	);
@@ -91,6 +98,7 @@
 			if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
 			if (scrollOverlayTimer !== null) clearTimeout(scrollOverlayTimer);
 			if (rowSnapTimer !== null) clearTimeout(rowSnapTimer);
+			if (snapAnimationFrame !== null) cancelAnimationFrame(snapAnimationFrame);
 		};
 	});
 
@@ -112,17 +120,30 @@
 	function handleWheel(wheelEvent: WheelEvent): void {
 		if (!scrollElement || wheelEvent.ctrlKey) return;
 		wheelEvent.preventDefault();
-		isSnappingToRow = false;
+		cancelRowSnapAnimation();
 		scrollElement.scrollTop += wheelDeltaPixels(wheelEvent) * wheelScrollDamping;
 		scheduleRowSnap();
 	}
 
 	function scheduleRowSnap(): void {
 		if (rowSnapTimer !== null) clearTimeout(rowSnapTimer);
+		if (supportsScrollEnd()) return;
 		rowSnapTimer = window.setTimeout(() => {
 			rowSnapTimer = null;
 			snapToNearestRow();
 		}, rowSnapIdleMilliseconds);
+	}
+
+	function supportsScrollEnd(): boolean {
+		return typeof window !== 'undefined' && 'onscrollend' in window;
+	}
+
+	function handleScrollEnd(): void {
+		if (isSnappingToRow || isScrollingToWeek) {
+			isSnappingToRow = false;
+			return;
+		}
+		snapToNearestRow();
 	}
 
 	function snapToNearestRow(): void {
@@ -133,7 +154,33 @@
 			.reduce((closest, offset) => (Math.abs(offset) < Math.abs(closest) ? offset : closest), Number.POSITIVE_INFINITY);
 		if (!Number.isFinite(nearestOffset) || Math.abs(nearestOffset) < 1) return;
 		isSnappingToRow = true;
-		scrollElement.scrollTo({ top: scrollElement.scrollTop + nearestOffset, behavior: 'smooth' });
+		animateScrollTo(scrollElement.scrollTop + nearestOffset);
+	}
+
+	function animateScrollTo(targetScrollTop: number): void {
+		if (snapAnimationFrame !== null) cancelAnimationFrame(snapAnimationFrame);
+		const startScrollTop = scrollElement?.scrollTop ?? 0;
+		const scrollDistance = targetScrollTop - startScrollTop;
+		const startTime = performance.now();
+		const step = (now: number) => {
+			if (!scrollElement) return;
+			const progress = Math.min(1, (now - startTime) / rowSnapAnimationMilliseconds);
+			const easedProgress = 1 - (1 - progress) ** 3;
+			scrollElement.scrollTop = startScrollTop + scrollDistance * easedProgress;
+			if (progress < 1) {
+				snapAnimationFrame = requestAnimationFrame(step);
+				return;
+			}
+			snapAnimationFrame = null;
+			isSnappingToRow = false;
+		};
+		snapAnimationFrame = requestAnimationFrame(step);
+	}
+
+	function cancelRowSnapAnimation(): void {
+		if (snapAnimationFrame !== null) cancelAnimationFrame(snapAnimationFrame);
+		snapAnimationFrame = null;
+		isSnappingToRow = false;
 	}
 
 	function wheelDeltaPixels(wheelEvent: WheelEvent): number {
@@ -149,7 +196,23 @@
 		scrollFrame = requestAnimationFrame(() => {
 			scrollFrame = null;
 			updateVisibleWeek();
+			void extendWindowNearEdges();
 		});
+	}
+
+	async function extendWindowNearEdges(): Promise<void> {
+		if (!scrollElement || isExtendingWindow) return;
+		const distanceToTop = scrollElement.scrollTop;
+		const distanceToBottom = scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight;
+		if (distanceToTop > windowExtendMarginPixels && distanceToBottom > windowExtendMarginPixels) return;
+		isExtendingWindow = true;
+		const isNearTop = distanceToTop <= windowExtendMarginPixels;
+		const scrollHeightBefore = scrollElement.scrollHeight;
+		if (isNearTop) weeksBeforeAnchor += windowExtendWeeks;
+		else weeksAfterAnchor += windowExtendWeeks;
+		await tick();
+		if (scrollElement && isNearTop) scrollElement.scrollTop += scrollElement.scrollHeight - scrollHeightBefore;
+		isExtendingWindow = false;
 	}
 
 	function updateVisibleWeek(): void {
@@ -206,7 +269,7 @@
 			</div>
 		{/each}
 	</div>
-	<div bind:this={scrollElement} onscroll={handleScroll} onwheel={handleWheel} class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+	<div bind:this={scrollElement} onscroll={handleScroll} onscrollend={handleScrollEnd} onwheel={handleWheel} class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 		{#each weeks as week (week.startDateKey)}
 			{@const layout = weekLayouts.get(week.startDateKey) ?? { spans: [], timedEntries: [], laneCount: 0 }}
 			{@const monthStartDay = monthStartDayInWeek(week)}
