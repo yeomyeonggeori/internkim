@@ -44,8 +44,9 @@
 	const dragSnapMinutes = 15;
 	const longPressMilliseconds = 450;
 	const defaultDurationMinutes = 60;
-	const flickVelocityPixelsPerMillisecond = 0.4;
+	const flickVelocityPixelsPerMillisecond = 0.3;
 	const flickTravelPixels = 8;
+	const minimumColumnTravelRatio = 0.25;
 
 	let gridElement = $state<HTMLElement | null>(null);
 	let draftStartMinutes = $state<number | null>(null);
@@ -149,9 +150,21 @@
 		const targetColumnIndex =
 			gestureVelocity >= flickVelocityPixelsPerMillisecond
 				? weekAlignedColumnIndex(startColumnIndex, direction)
-				: Math.round(currentOffset / columnWidth);
+				: nearestColumnIndexForTravel(currentOffset, travel, columnWidth, startColumnIndex);
 		const boundedIndex = Math.min(offsets.length - 1, Math.max(0, targetColumnIndex));
 		return boundedIndex * columnWidth;
+	}
+
+	function nearestColumnIndexForTravel(
+		currentOffset: number,
+		travel: number,
+		columnWidth: number,
+		startColumnIndex: number
+	): number {
+		const nearestIndex = Math.round(currentOffset / columnWidth);
+		if (Math.abs(travel) < columnWidth * minimumColumnTravelRatio) return nearestIndex;
+		const steppedIndex = startColumnIndex + (travel > 0 ? 1 : -1);
+		return travel > 0 ? Math.max(nearestIndex, steppedIndex) : Math.min(nearestIndex, steppedIndex);
 	}
 
 	function weekAlignedColumnIndex(startColumnIndex: number, direction: number): number {
