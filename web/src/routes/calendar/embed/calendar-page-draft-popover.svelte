@@ -17,7 +17,6 @@
 		participantCandidates: CalendarParticipant[];
 		cancelPopover: () => void;
 		deletePopover: () => void;
-		isSaving: boolean;
 		localeCode: string;
 		popover: DraftPopoverState | null;
 		savePopover: () => void;
@@ -31,7 +30,6 @@
 		participantCandidates,
 		cancelPopover,
 		deletePopover,
-		isSaving,
 		localeCode,
 		popover,
 		savePopover,
@@ -79,7 +77,6 @@
 		{auditRows}
 		auditLabel={text.eventAudit}
 		dialogLabel={renderedPopover.mode === 'edit' ? text.editEvent : text.newEvent}
-		{isSaving}
 		text={popoverText}
 		{updatePopover}
 		{savePopover}
