@@ -32,6 +32,13 @@ func (service *Service) grantRelayMembership(ctx context.Context, pubkey string)
 	}
 	execution := exec.CommandContext(ctx, command, "add-member", "--pubkey", pubkey)
 	execution.Env = append(os.Environ(), "DATABASE_URL="+databaseURL)
+	if content, errorValue := os.ReadFile(strings.TrimSpace(service.Configuration.BuzzRelayKeyPath)); errorValue == nil {
+		for _, line := range strings.Split(string(content), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "BUZZ_RELAY_PRIVATE_KEY=") {
+				execution.Env = append(execution.Env, strings.TrimSpace(line))
+			}
+		}
+	}
 	if output, errorValue := execution.CombinedOutput(); errorValue != nil && !strings.Contains(string(output), "already") {
 		log.Printf("buzz relay membership grant for %s failed: %v (%s)", pubkey, errorValue, strings.TrimSpace(string(output)))
 	}

@@ -94,6 +94,7 @@ type Configuration struct {
 	BuzzDatabaseURL                string
 	BuzzAccountLinksPath           string
 	BuzzKeySeedPath                string
+	BuzzRelayKeyPath               string
 	CloudflareAccessTeamDomain string
 	CloudflareAccessAUDs       string
 	TrustProxyForwardedEmail   bool
