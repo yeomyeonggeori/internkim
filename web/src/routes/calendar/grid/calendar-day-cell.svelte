@@ -9,12 +9,23 @@
 		isToday: boolean;
 		isOutsideMonth: boolean;
 		isSelected: boolean;
+		isInSelectedRange?: boolean;
 		addEventOnDay: (day: Date) => void;
 		selectDay: (day: Date) => void;
 		children: Snippet;
 	};
 
-	let { day, dayLabel, isToday, isOutsideMonth, isSelected, addEventOnDay, selectDay, children }: CalendarDayCellProps = $props();
+	let {
+		day,
+		dayLabel,
+		isToday,
+		isOutsideMonth,
+		isSelected,
+		isInSelectedRange = false,
+		addEventOnDay,
+		selectDay,
+		children
+	}: CalendarDayCellProps = $props();
 </script>
 
 <div
@@ -26,7 +37,8 @@
 		'border-border/70 flex min-h-24 min-w-0 flex-col gap-1 border-r border-b px-1.5 pt-1 pb-1.5 last:border-r-0',
 		'focus-visible:ring-ring/50 outline-none focus-visible:ring-2 focus-visible:ring-inset',
 		isOutsideMonth && 'text-muted-foreground',
-		isSelected && 'bg-accent/40'
+		isSelected && 'bg-accent/40',
+		isInSelectedRange && 'bg-primary/10'
 	)}
 	onclick={() => selectDay(day)}
 	ondblclick={() => addEventOnDay(day)}

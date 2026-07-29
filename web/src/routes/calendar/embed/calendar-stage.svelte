@@ -62,6 +62,7 @@
 		selectedMonthDateKey: string | null;
 		visibleMonthChanged: (month: Date) => void;
 		addEventOnDay: (dateKey: string) => void;
+		addEventOnRange: (startDateKey: string, endDateKey: string) => void;
 		deleteEvent: (eventID: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
@@ -91,6 +92,7 @@
 		selectedMonthDateKey,
 		visibleMonthChanged,
 		addEventOnDay,
+		addEventOnRange,
 		deleteEvent,
 		openEvent,
 		saveMovedEvent,
@@ -246,6 +248,7 @@
 							selectDay={(day) => selectDate(calendarGridDateKey(day))}
 							openDay={(day) => navigateToDateKey(calendarGridDateKey(day))}
 							addEventOnDay={(day) => addEventOnDay(calendarGridDateKey(day))}
+							addEventOnRange={(startDateKey, endDateKey) => addEventOnRange(startDateKey, endDateKey)}
 							openEvent={openGridEvent}
 							visibleMonthChanged={(month) => visibleMonthChanged(month)}
 						/>
