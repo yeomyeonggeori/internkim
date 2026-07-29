@@ -38,6 +38,8 @@
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
 		navigateToDateKey: (dateKey: string) => void;
+		addEventOnDay: (dateKey: string) => void;
+		deleteEvent: (eventID: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		openSettings: () => void;
 		popover: DraftPopoverState | null;
@@ -84,6 +86,8 @@
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
 		navigateToDateKey,
+		addEventOnDay,
+		deleteEvent,
 		openEvent,
 		openSettings,
 		popover,
@@ -148,6 +152,8 @@
 		{timelineRangePreviewSegments}
 		{timelineRangePreviewTitle}
 		{navigateToDateKey}
+		{addEventOnDay}
+		{deleteEvent}
 	/>
 	<CalendarPageDraftPopover
 		{popover}

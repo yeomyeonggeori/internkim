@@ -253,6 +253,8 @@
 	goToToday={pageNavigation.goToToday}
 	goToNext={pageNavigation.goToNext}
 	navigateToDateKey={pageNavigation.navigateToDateKey}
+	addEventOnDay={(dateKey) => draftPopoverActions.openMonthSingleDayDraftPopover(dateKey)}
+	deleteEvent={(eventID) => void eventActions.deleteEvent(eventID)}
 	{createQuickEvent}
 	openSettings={openCalendarSettings}
 	clearSelectedEvent={eventSelection.clearSelectedEvent}
