@@ -42,7 +42,6 @@ export type CalendarEmbedLifecycleOptions = {
 	scheduleDraftTitleInputPlaceholderUpdates: () => void;
 	scheduleDraftEventVisibilitySync: () => void;
 	refreshSelectedMonthDateCellAfterRender: () => void;
-	clearMonthScrollOverlays: () => void;
 	monthRangeAction: Omit<MonthRangeActionOptions, 'stageElement'>;
 	allDayCellAction: Omit<CalendarAllDayCellActionOptions, 'stageElement'>;
 	timelineRangeAction: Omit<TimelineRangeActionOptions, 'stageElement'>;
@@ -89,7 +88,6 @@ export function installCalendarEmbedLifecycle(options: CalendarEmbedLifecycleOpt
 		stopMiniCalendarDateSelection();
 		stopMiniCalendarMonthPicker();
 		clearCalendarAllDayLayout(options.stageElement);
-		options.clearMonthScrollOverlays();
 	};
 }
 

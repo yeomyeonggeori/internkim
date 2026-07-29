@@ -61,11 +61,11 @@
 </script>
 
 <Tooltip.Provider delayDuration={120}>
-<header class="bg-background flex min-h-14 flex-wrap items-center gap-2 border-b px-4 py-2">
+<header class="bg-background sticky top-0 z-20 flex min-h-14 flex-wrap items-center gap-2 border-b py-2 pr-4 pl-6">
 	<Popover.Root bind:open={isDatePickerOpen}>
 		<Popover.Trigger>
 			{#snippet child({ props })}
-				<Button {...props} variant="ghost" class="-ml-2 gap-1.5 px-2 text-lg font-semibold tabular-nums">
+				<Button {...props} variant="ghost" class="-ml-2 gap-1.5 px-2 text-[22px] leading-none font-extrabold tabular-nums">
 					{currentMonthTitle}
 					<ChevronDownIcon class="text-muted-foreground size-4" />
 				</Button>

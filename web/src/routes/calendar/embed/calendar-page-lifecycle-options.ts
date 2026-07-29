@@ -13,7 +13,6 @@ import type { CalendarPageMessageActions } from './calendar-page-messages';
 import type { CalendarPageNavigation } from './calendar-page-navigation';
 import type { CalendarPageRangePreviewActions } from './calendar-page-range-preview';
 import type { CalendarPageRenderSyncActions } from './calendar-page-render-sync';
-import type { CalendarPageScrollOverlayActions } from './calendar-page-scroll-overlays';
 
 type CalendarPageLifecycleOptionsContext = {
 	applyCalendarView: (view: ViewType) => void;
@@ -40,7 +39,6 @@ type CalendarPageLifecycleOptionsContext = {
 	pageNavigation: CalendarPageNavigation;
 	rangePreview: CalendarPageRangePreviewActions;
 	renderSync: CalendarPageRenderSyncActions;
-	scrollOverlays: CalendarPageScrollOverlayActions;
 	selectedMonthDate: CalendarSelectedMonthDateActions;
 	setMonthRangeSelection: (selection: MonthRangeSelection | null) => void;
 	setSelectedAuditEventID: (eventID: string | null) => void;
@@ -68,7 +66,6 @@ export function createCalendarPageLifecycleOptions(
 		scheduleDraftTitleInputPlaceholderUpdates: context.eventActions.scheduleDraftTitleInputPlaceholderUpdates,
 		scheduleDraftEventVisibilitySync: context.eventActions.scheduleDraftEventVisibilitySync,
 		refreshSelectedMonthDateCellAfterRender: context.selectedMonthDate.refreshSelectedMonthDateCellAfterRender,
-		clearMonthScrollOverlays: context.scrollOverlays.clearMonthScrollOverlays,
 		monthRangeAction: monthRangeAction(context),
 		allDayCellAction: allDayCellAction(context),
 		timelineRangeAction: timelineRangeAction(context),
@@ -131,8 +128,6 @@ function timelineRangeAction(context: CalendarPageLifecycleOptionsContext): Cale
 function wheelNavigation(context: CalendarPageLifecycleOptionsContext): CalendarEmbedLifecycleOptions['wheelNavigation'] {
 	return {
 		currentView: context.getCurrentView,
-		showMonthLabels: context.scrollOverlays.showMonthScrollOverlays,
-		hideMonthLabels: context.scrollOverlays.clearMonthScrollOverlays,
 		selectVisibleDate: context.pageNavigation.setVisibleDate
 	};
 }
