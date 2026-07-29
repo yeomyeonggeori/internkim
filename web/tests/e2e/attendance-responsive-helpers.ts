@@ -19,14 +19,14 @@ type MobileTeamStatusTableLayout = {
 };
 
 type MobileMonthPickerLayoutOptions = {
-	searchPlaceholder: string;
+	employeeFilterLabel: string;
 	previousMonthLabel: string;
 	monthTriggerName: RegExp;
 	nextMonthLabel: string;
 };
 
 const koreanMonthPickerLayoutOptions: MobileMonthPickerLayoutOptions = {
-	searchPlaceholder: '직원 검색',
+	employeeFilterLabel: '직원 선택',
 	previousMonthLabel: '이전 달',
 	monthTriggerName: /\d{4}년 \d+월/,
 	nextMonthLabel: '다음 달'
@@ -44,12 +44,18 @@ export async function measureMobileTeamStatusTable(
 		if (!employeeHeader || !dateRowHeader || !targetCell) {
 			throw new Error(`Missing monthly attendance table cells: employeeHeader=${!!employeeHeader}, dateRowHeader=${!!dateRowHeader}, targetCell=${!!targetCell}`);
 		}
+		const scrollProbeCell =
+			Array.from(
+				table.querySelectorAll<HTMLElement>(
+					'[data-testid^="team-status-cell-kim@example.com-"]'
+				)
+			).find((cell) => cell !== targetCell) ?? targetCell;
 
 		table.scrollTop = 0;
 		table.scrollLeft = 0;
 		const initialEmployeeHeaderTop = Math.round(employeeHeader.getBoundingClientRect().top);
 		const initialDateRowHeaderLeft = Math.round(dateRowHeader.getBoundingClientRect().left);
-		const initialTargetTop = Math.round(targetCell.getBoundingClientRect().top);
+		const initialTargetTop = Math.round(scrollProbeCell.getBoundingClientRect().top);
 		const employeeColumnWidth = Math.round(employeeHeader.getBoundingClientRect().width);
 		const dateRowHeight = Math.round(dateRowHeader.getBoundingClientRect().height);
 		const canScrollDates = table.scrollHeight > table.clientHeight;
@@ -57,7 +63,7 @@ export async function measureMobileTeamStatusTable(
 
 		table.scrollTop = 480;
 		const scrolledEmployeeHeaderTop = Math.round(employeeHeader.getBoundingClientRect().top);
-		const scrolledTargetTop = Math.round(targetCell.getBoundingClientRect().top);
+		const scrolledTargetTop = Math.round(scrollProbeCell.getBoundingClientRect().top);
 
 		table.scrollLeft = canScrollEmployees ? 80 : 0;
 		const scrolledDateRowHeaderLeft = Math.round(dateRowHeader.getBoundingClientRect().left);
@@ -130,12 +136,15 @@ export async function mobileTabStyle(
 	return { recordsBackground, statusBackground };
 }
 
-export async function mobileTabListLayout(tabList: Locator): Promise<{ left: number; width: number }> {
+export async function mobileTabListLayout(
+	tabList: Locator
+): Promise<{ left: number; right: number; viewportWidth: number }> {
 	return tabList.evaluate((element) => {
 		const rect = element.getBoundingClientRect();
 		return {
 			left: Math.round(rect.left),
-			width: Math.round(rect.width)
+			right: Math.round(rect.right),
+			viewportWidth: window.innerWidth
 		};
 	});
 }
@@ -144,26 +153,26 @@ export async function mobileMonthPickerLayout(
 	page: Page,
 	options = koreanMonthPickerLayoutOptions
 ): Promise<{
-	searchRight: number;
+	filterRight: number;
 	previousGap: number;
 	nextGap: number;
 	nextButtonRight: number;
 }> {
-	const searchInput = page.getByPlaceholder(options.searchPlaceholder);
+	const employeeFilter = page.getByRole('combobox', { name: options.employeeFilterLabel });
 	const previousMonthButton = page.getByRole('button', { name: options.previousMonthLabel });
 	const monthTrigger = page.getByRole('button', { name: options.monthTriggerName });
 	const nextMonthButton = page.getByRole('button', { name: options.nextMonthLabel });
-	const [searchBox, previousBox, triggerBox, nextBox] = await Promise.all([
-		searchInput.boundingBox(),
+	const [filterBox, previousBox, triggerBox, nextBox] = await Promise.all([
+		employeeFilter.boundingBox(),
 		previousMonthButton.boundingBox(),
 		monthTrigger.boundingBox(),
 		nextMonthButton.boundingBox()
 	]);
-	if (!searchBox || !previousBox || !triggerBox || !nextBox) {
+	if (!filterBox || !previousBox || !triggerBox || !nextBox) {
 		throw new Error('Mobile month picker layout could not be measured');
 	}
 	return {
-		searchRight: Math.round(searchBox.x + searchBox.width),
+		filterRight: Math.round(filterBox.x + filterBox.width),
 		previousGap: Math.round(triggerBox.x - (previousBox.x + previousBox.width)),
 		nextGap: Math.round(nextBox.x - (triggerBox.x + triggerBox.width)),
 		nextButtonRight: Math.round(nextBox.x + nextBox.width)
