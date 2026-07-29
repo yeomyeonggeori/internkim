@@ -48,6 +48,8 @@
 	const visibleChipCount = 3;
 	const scrollOverlayHideDelayMilliseconds = 700;
 	const wheelScrollDamping = 0.3;
+	const rowStepThresholdPixels = 24;
+	const rowStepCooldownMilliseconds = 240;
 
 	let scrollElement = $state<HTMLElement | null>(null);
 	let anchorWeekStartKey = $state('');
@@ -56,6 +58,8 @@
 	let selfReportedMonthKey = '';
 	let scrollFrame: number | null = null;
 	let scrollOverlayTimer: number | null = null;
+	let accumulatedWheelDelta = 0;
+	let isSteppingRow = false;
 
 	let windowAnchorDateKey = $state(untrack(() => calendarGridDateKey(visibleDate)));
 
@@ -107,16 +111,37 @@
 
 	function handleWheel(wheelEvent: WheelEvent): void {
 		if (!scrollElement || wheelEvent.ctrlKey) return;
-		const lineHeightPixels = 16;
-		const pageHeightPixels = scrollElement.clientHeight;
-		const deltaPixels =
-			wheelEvent.deltaMode === 1
-				? wheelEvent.deltaY * lineHeightPixels
-				: wheelEvent.deltaMode === 2
-					? wheelEvent.deltaY * pageHeightPixels
-					: wheelEvent.deltaY;
 		wheelEvent.preventDefault();
-		scrollElement.scrollTop += deltaPixels * wheelScrollDamping;
+		if (isSteppingRow) return;
+		accumulatedWheelDelta += wheelDeltaPixels(wheelEvent) * wheelScrollDamping;
+		if (Math.abs(accumulatedWheelDelta) < rowStepThresholdPixels) return;
+		const direction = accumulatedWheelDelta > 0 ? 1 : -1;
+		accumulatedWheelDelta = 0;
+		scrollToAdjacentRow(direction);
+	}
+
+	function wheelDeltaPixels(wheelEvent: WheelEvent): number {
+		const lineHeightPixels = 16;
+		if (wheelEvent.deltaMode === 1) return wheelEvent.deltaY * lineHeightPixels;
+		if (wheelEvent.deltaMode === 2) return wheelEvent.deltaY * (scrollElement?.clientHeight ?? 0);
+		return wheelEvent.deltaY;
+	}
+
+	function scrollToAdjacentRow(direction: 1 | -1): void {
+		if (!scrollElement) return;
+		const viewportTop = scrollElement.getBoundingClientRect().top;
+		const rowElements = [...scrollElement.querySelectorAll<HTMLElement>('[data-week-start]')];
+		const currentRowIndex = rowElements.findIndex((rowElement) => rowElement.getBoundingClientRect().bottom > viewportTop + 2);
+		const targetRow = rowElements[Math.min(rowElements.length - 1, Math.max(0, currentRowIndex + direction))];
+		if (!targetRow) return;
+		isSteppingRow = true;
+		scrollElement.scrollTo({
+			top: scrollElement.scrollTop + targetRow.getBoundingClientRect().top - viewportTop,
+			behavior: 'smooth'
+		});
+		window.setTimeout(() => {
+			isSteppingRow = false;
+		}, rowStepCooldownMilliseconds);
 	}
 
 	function handleScroll(): void {
