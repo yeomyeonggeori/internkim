@@ -20,6 +20,8 @@ import (
 // Secret derives a person's Buzz secret key from a seed and their email.
 // Email is lowercased and trimmed so the same person always resolves to the
 // same key regardless of casing or surrounding whitespace.
+const BootstrapSubject = "__bootstrap__"
+
 func Secret(seed, email string) string {
 	digest := sha256.Sum256([]byte(seed + "|secret|" + strings.ToLower(strings.TrimSpace(email))))
 	return hex.EncodeToString(digest[:])

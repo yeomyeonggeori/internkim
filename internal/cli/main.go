@@ -26,9 +26,11 @@ import (
 	"sync"
 	"time"
 
+	nostr "github.com/nbd-wtf/go-nostr"
 	"golang.org/x/term"
 
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
+	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
@@ -5546,6 +5548,19 @@ func buildBuzzKeySeedCallback() func(force bool) (string, error) {
 			return "", nil
 		}
 		return strings.TrimSpace(string(seedBytes)), nil
+	}
+}
+
+func buildBuzzRelayOwnerPubkeyCallback() func() (string, error) {
+	return func() (string, error) {
+		seed, errorValue := buildBuzzKeySeedCallback()(false)
+		if errorValue != nil {
+			return "", errorValue
+		}
+		if strings.TrimSpace(seed) == "" {
+			return "", errors.New("buzz key seed unavailable; cannot derive relay owner pubkey")
+		}
+		return nostr.GetPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
 	}
 }
 

@@ -24,8 +24,12 @@ var StepBuzzRelay = Step{
 		if context.Backend != BackendSSH {
 			return nil
 		}
-		if context.Callbacks.InstallBuzzRelayBinariesSSH == nil {
-			return errors.New("buzz relay binaries callback missing")
+		if context.Callbacks.InstallBuzzRelayBinariesSSH == nil || context.Callbacks.GetBuzzRelayOwnerPubkey == nil {
+			return errors.New("buzz relay callbacks missing")
+		}
+		ownerPubkey, errorValue := context.Callbacks.GetBuzzRelayOwnerPubkey()
+		if errorValue != nil {
+			return errorValue
 		}
 		if errorValue := context.Callbacks.InstallBuzzRelayBinariesSSH(context); errorValue != nil {
 			return errorValue
@@ -34,7 +38,7 @@ var StepBuzzRelay = Step{
 		connection := context.SSH
 		connection.Run("DEBIAN_FRONTEND=noninteractive apt-get install -y -qq redis-server >/dev/null 2>&1; systemctl enable --now redis-server 2>/dev/null")
 		connection.Run("systemctl start postgresql 2>/dev/null; sleep 1")
-		connection.Run(buzzDatabaseProvisionCommand())
+		connection.Run(buzzDatabaseProvisionCommand(ownerPubkey))
 		connection.Run(buzzRelayUnitInstallCommand())
 
 		fmt.Println("  " + context.T("Buzz 릴레이 설치 완료", "Buzz relay installed"))
@@ -45,7 +49,7 @@ var StepBuzzRelay = Step{
 	},
 }
 
-func buzzDatabaseProvisionCommand() string {
+func buzzDatabaseProvisionCommand(ownerPubkey string) string {
 	return `set -e
 BUZZ_DB_PASS=$(cat ` + blueclaw.BuzzRelayDatabasePasswordPath + ` 2>/dev/null || echo "")
 if [ -z "$BUZZ_DB_PASS" ]; then
@@ -56,7 +60,10 @@ fi
 su - postgres -c "psql -c \"SELECT 1 FROM pg_roles WHERE rolname='` + blueclaw.BuzzRelayDatabaseUser + `'\" | grep -q 1 || psql -c \"CREATE USER ` + blueclaw.BuzzRelayDatabaseUser + ` WITH PASSWORD '$BUZZ_DB_PASS'\""
 su - postgres -c "psql -c \"ALTER USER ` + blueclaw.BuzzRelayDatabaseUser + ` WITH PASSWORD '$BUZZ_DB_PASS'\""
 su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='` + blueclaw.BuzzRelayDatabaseName + `'\" | grep -q 1 || psql -c \"CREATE DATABASE ` + blueclaw.BuzzRelayDatabaseName + ` OWNER ` + blueclaw.BuzzRelayDatabaseUser + `\""
-printf 'DATABASE_URL=postgres://` + blueclaw.BuzzRelayDatabaseUser + `:%s@localhost/` + blueclaw.BuzzRelayDatabaseName + `?sslmode=disable\n' "$BUZZ_DB_PASS" > ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + `
+{
+  printf 'DATABASE_URL=postgres://` + blueclaw.BuzzRelayDatabaseUser + `:%s@localhost/` + blueclaw.BuzzRelayDatabaseName + `?sslmode=disable\n' "$BUZZ_DB_PASS"
+  printf 'RELAY_OWNER_PUBKEY=%s\n' '` + ownerPubkey + `'
+} > ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + `
 chmod 600 ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath
 }
 

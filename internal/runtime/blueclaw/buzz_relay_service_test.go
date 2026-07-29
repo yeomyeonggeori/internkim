@@ -13,9 +13,11 @@ func TestBuzzRelayServiceUnitCarriesRequiredContract(t *testing.T) {
 		"EnvironmentFile=" + BuzzRelayKeyEnvironmentFilePath,
 		"EnvironmentFile=" + BuzzRelayDatabaseEnvironmentFilePath,
 		"Environment=BUZZ_BIND_ADDR=" + BuzzRelayBindAddress,
+		"Environment=BUZZ_HEALTH_PORT=" + BuzzRelayHealthPort,
 		"Environment=REDIS_URL=" + BuzzRelayRedisURL,
 		"Environment=BUZZ_AUTO_MIGRATE=1",
 		"Environment=BUZZ_REQUIRE_RELAY_MEMBERSHIP=true",
+		"Environment=BUZZ_GIT_CONFORMANCE_PROBE=false",
 		"ExecStart=" + BuzzRelayBinaryPath,
 	} {
 		if !strings.Contains(unit, expected) {
