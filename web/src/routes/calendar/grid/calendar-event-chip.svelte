@@ -18,7 +18,7 @@
 			duplicateEvent: string;
 			deleteEvent: string;
 		};
-		openEvent: (event: CalendarGridEvent) => void;
+		openEvent: (event: CalendarGridEvent, originElement: HTMLElement) => void;
 		duplicateEvent: (event: CalendarGridEvent) => void;
 		deleteEvent: (event: CalendarGridEvent) => void;
 		class?: string;
@@ -37,6 +37,8 @@
 		deleteEvent,
 		class: className
 	}: CalendarEventChipProps = $props();
+
+	let triggerElement = $state<HTMLElement | null>(null);
 </script>
 
 <ContextMenu.Root>
@@ -44,6 +46,7 @@
 		{#snippet child({ props })}
 			<button
 				{...props}
+				bind:this={triggerElement}
 				type="button"
 				data-calendar-event-id={event.id}
 				data-selected={isSelected ? '' : undefined}
@@ -59,7 +62,7 @@
 					isSelected && 'ring-(--calendar-event-color) ring-2',
 					className
 				)}
-				onclick={() => openEvent(event)}
+				onclick={(clickEvent) => openEvent(event, clickEvent.currentTarget)}
 			>
 				{#if variant === 'timed'}
 					<span class="size-1.5 shrink-0 rounded-full bg-(--calendar-event-color)"></span>
@@ -72,7 +75,7 @@
 		{/snippet}
 	</ContextMenu.Trigger>
 	<ContextMenu.Content class="w-44">
-		<ContextMenu.Item onclick={() => openEvent(event)}>
+		<ContextMenu.Item onclick={() => triggerElement && openEvent(event, triggerElement)}>
 			<PencilIcon />
 			{text.editEvent}
 		</ContextMenu.Item>
