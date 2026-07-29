@@ -112,23 +112,19 @@
 		});
 	}
 
-	function toggleDateRangePicker(isOpen: boolean): void {
-		if (isOpen) {
-			pickedDateRange = { start: startCalendarDate, end: endCalendarDate };
-			return;
-		}
-		if (!pickedDateRange.start || pickedDateRange.end) return;
-		const singleDayKey = dateKeyFromCalendarDate(pickedDateRange.start);
-		updatePopover({ dateKey: singleDayKey, endDateKey: singleDayKey });
+	function openDateRangePicker(isOpen: boolean): void {
+		if (!isOpen) return;
+		pickedDateRange = { start: startCalendarDate, end: endCalendarDate };
 	}
 
 	function changeDateRange(range: DateRange | undefined): void {
-		if (!range?.start || !range.end) return;
+		if (!range?.start) return;
+		const startKey = dateKeyFromCalendarDate(range.start);
 		updatePopover({
-			dateKey: dateKeyFromCalendarDate(range.start),
-			endDateKey: dateKeyFromCalendarDate(range.end)
+			dateKey: startKey,
+			endDateKey: range.end ? dateKeyFromCalendarDate(range.end) : startKey
 		});
-		isRangePickerOpen = false;
+		if (range.end) isRangePickerOpen = false;
 	}
 
 	function changeStartDate(value: DateValue | undefined): void {
@@ -144,7 +140,8 @@
 	}
 
 	function saveOnEnter(event: KeyboardEvent): void {
-		if (event.key !== 'Enter' || !canSavePopover) return;
+		if (event.key !== 'Enter' || event.isComposing || !canSavePopover) return;
+		event.preventDefault();
 		savePopover();
 	}
 </script>
@@ -186,7 +183,7 @@
 			</div>
 
 			{#if popover.allDay}
-				<Popover.Root bind:open={isRangePickerOpen} onOpenChange={toggleDateRangePicker}>
+				<Popover.Root bind:open={isRangePickerOpen} onOpenChange={openDateRangePicker}>
 					<Popover.Trigger>
 						{#snippet child({ props })}
 							<Button
