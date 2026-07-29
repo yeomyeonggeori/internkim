@@ -6,6 +6,7 @@
 	import {
 		addCalendarGridDays,
 		calendarGridDateAtMinutes,
+		calendarGridDateFromKey,
 		calendarGridDateKey,
 		calendarGridMinutesFromMidnight,
 		isSameCalendarGridDay,
@@ -42,7 +43,8 @@
 	const dragSnapMinutes = 15;
 	const longPressMilliseconds = 450;
 	const defaultDurationMinutes = 60;
-	const weekSwipeThresholdPixels = 60;
+	const daySwipeThresholdPixels = 60;
+	const weekSwipeThresholdPixels = 200;
 	const weekSwipeGapMilliseconds = 150;
 
 	let gridElement = $state<HTMLElement | null>(null);
@@ -53,15 +55,22 @@
 	let horizontalTravel = 0;
 	let lastHorizontalWheelTime = 0;
 	let hasSwipedThisGesture = false;
+	let horizontalSwipeTimer: number | null = null;
 	let pendingSlideDirection = 0;
+	let pendingSlideSteps = 0;
+	let weekWindowStartKey = $state('');
+	let selfReportedWindowStartKey = '';
 	let weekSlidePercent = $state(0);
 	let isWeekSlideAnimated = $state(false);
 	let slideFrame: number | null = null;
 
+	const weekWindowStart = $derived(
+		weekWindowStartKey ? calendarGridDateFromKey(weekWindowStartKey) : startOfCalendarGridWeek(visibleDate)
+	);
 	const days = $derived(
 		dayCount === 1
 			? [startOfCalendarGridDay(visibleDate)]
-			: Array.from({ length: dayCount }, (_, dayOffset) => addCalendarGridDays(startOfCalendarGridWeek(visibleDate), dayOffset))
+			: Array.from({ length: dayCount }, (_, dayOffset) => addCalendarGridDays(weekWindowStart, dayOffset))
 	);
 	const canSwipeWeeks = $derived(dayCount === 7);
 	const allDayEvents = $derived(
@@ -105,16 +114,52 @@
 		}
 		wheelEvent.preventDefault();
 		const now = performance.now();
-		if (now - lastHorizontalWheelTime > weekSwipeGapMilliseconds) horizontalTravel = 0;
+		if (now - lastHorizontalWheelTime > weekSwipeGapMilliseconds) {
+			horizontalTravel = 0;
+			hasSwipedThisGesture = false;
+		}
 		lastHorizontalWheelTime = now;
 		if (hasSwipedThisGesture) return;
 		horizontalTravel += wheelEvent.deltaX;
-		if (Math.abs(horizontalTravel) < weekSwipeThresholdPixels) return;
-		const weekDirection = horizontalTravel > 0 ? 7 : -7;
-		hasSwipedThisGesture = true;
+		if (Math.abs(horizontalTravel) >= weekSwipeThresholdPixels) {
+			commitHorizontalSwipe(7);
+			return;
+		}
+		scheduleHorizontalSwipeCommit();
+	}
+
+	function scheduleHorizontalSwipeCommit(): void {
+		if (horizontalSwipeTimer !== null) clearTimeout(horizontalSwipeTimer);
+		horizontalSwipeTimer = window.setTimeout(() => {
+			horizontalSwipeTimer = null;
+			if (Math.abs(horizontalTravel) < daySwipeThresholdPixels) {
+				horizontalTravel = 0;
+				return;
+			}
+			commitHorizontalSwipe(1);
+		}, weekSwipeGapMilliseconds);
+	}
+
+	function commitHorizontalSwipe(dayStep: number): void {
+		if (horizontalSwipeTimer !== null) clearTimeout(horizontalSwipeTimer);
+		horizontalSwipeTimer = null;
+		const direction = horizontalTravel > 0 ? 1 : -1;
 		horizontalTravel = 0;
-		pendingSlideDirection = weekDirection > 0 ? 1 : -1;
-		selectDay(addCalendarGridDays(startOfCalendarGridWeek(visibleDate), weekDirection));
+		hasSwipedThisGesture = true;
+		shiftWeekWindow(direction, dayStep);
+	}
+
+	function shiftWeekWindow(direction: number, dayStep: number): void {
+		const shiftedStart =
+			dayStep === 7
+				? startOfCalendarGridWeek(addCalendarGridDays(weekWindowStart, direction * 7))
+				: addCalendarGridDays(weekWindowStart, direction);
+		const shiftedStartKey = calendarGridDateKey(shiftedStart);
+		pendingSlideDirection = direction;
+		pendingSlideSteps = dayStep;
+		weekWindowStartKey = shiftedStartKey;
+		selfReportedWindowStartKey = shiftedStartKey;
+		selectDay(shiftedStart);
 	}
 
 	function hourScrollOffsets(): number[] {
@@ -122,18 +167,21 @@
 	}
 
 	$effect(() => {
-		visibleDate;
+		const visibleWeekStartKey = calendarGridDateKey(startOfCalendarGridWeek(visibleDate));
+		if (calendarGridDateKey(visibleDate) !== selfReportedWindowStartKey && weekWindowStartKey !== visibleWeekStartKey) {
+			weekWindowStartKey = visibleWeekStartKey;
+		}
 		hasSwipedThisGesture = false;
 		horizontalTravel = 0;
 		if (pendingSlideDirection === 0) return;
-		startWeekSlide(pendingSlideDirection);
+		startWeekSlide(pendingSlideDirection, pendingSlideSteps);
 		pendingSlideDirection = 0;
 	});
 
-	function startWeekSlide(direction: number): void {
+	function startWeekSlide(direction: number, dayStep: number): void {
 		if (slideFrame !== null) cancelAnimationFrame(slideFrame);
 		isWeekSlideAnimated = false;
-		weekSlidePercent = direction * 100;
+		weekSlidePercent = (direction * 100 * dayStep) / 7;
 		slideFrame = requestAnimationFrame(() => {
 			slideFrame = requestAnimationFrame(() => {
 				slideFrame = null;
@@ -146,6 +194,7 @@
 	$effect(() => {
 		return () => {
 			if (longPressTimer !== null) clearTimeout(longPressTimer);
+			if (horizontalSwipeTimer !== null) clearTimeout(horizontalSwipeTimer);
 			if (slideFrame !== null) cancelAnimationFrame(slideFrame);
 			scrollSnap.destroy();
 		};
