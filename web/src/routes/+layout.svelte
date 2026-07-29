@@ -154,7 +154,8 @@
 							</Breadcrumb.Root>
 						</div>
 						<div class="flex items-center gap-2">
-							{#if page.url.pathname.startsWith('/messenger')}
+							<!-- ponytail: 김인턴과 대화 버튼 임시 비활성화 (되돌리려면 false 제거) -->
+							{#if false && page.url.pathname.startsWith('/messenger')}
 								<ChannelSheet />
 							{/if}
 							<Button
