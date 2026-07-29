@@ -313,7 +313,7 @@
 			class="flex min-h-0 flex-1 flex-col"
 			style={`transform: translateX(${weekSlidePercent}%); transition: transform ${isWeekSlideAnimated ? '220ms cubic-bezier(0.22, 1, 0.36, 1)' : '0ms'}`}
 		>
-			<div class="border-border/70 flex items-end border-b">
+			<div class="border-border/50 flex items-end border-b">
 				{#if dayCount > 1}
 					<div class="w-16 shrink-0"></div>
 				{/if}
@@ -321,7 +321,7 @@
 					{@render dayHeader(day)}
 				{/each}
 			</div>
-			<div class="border-border/70 flex border-b">
+			<div class="border-border/50 flex border-b-2">
 				<div class="text-muted-foreground w-16 shrink-0 px-2 py-1 text-right text-xs whitespace-nowrap">종일</div>
 				{#each days as day (day.getTime())}
 					{@render allDayCell(day)}
