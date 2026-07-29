@@ -9,7 +9,7 @@ type CalendarScrollSnapOptions = {
 		currentOffset: number;
 		gestureStartOffset: number;
 		offsets: number[];
-		gestureMilliseconds: number;
+		gestureVelocity: number;
 	}) => number;
 };
 
@@ -41,6 +41,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 	let gestureStartOffset = 0;
 	let gestureStartTime = 0;
 	let gestureLiftTime = 0;
+	let gestureLiftOffset = 0;
 	let wheelTargetOffset = 0;
 	let wheelFrame: number | null = null;
 	let idleSnapTimer: number | null = null;
@@ -82,6 +83,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 			gestureStartOffset = currentOffset(scrollElement);
 			gestureStartTime = now;
 			gestureLiftTime = now;
+			gestureLiftOffset = gestureStartOffset;
 			cancelAnimation();
 		} else if (isAcceleratingAgain) {
 			isIgnoringMomentum = false;
@@ -96,7 +98,10 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 		scheduleIdleSnap();
 		const isDecaying = magnitude < previousMagnitude - 0.5;
 		decayingSteps = isDecaying ? decayingSteps + 1 : 0;
-		if (!isDecaying) gestureLiftTime = now;
+		if (!isDecaying) {
+			gestureLiftTime = now;
+			gestureLiftOffset = wheelTargetOffset;
+		}
 		previousMagnitude = magnitude;
 		if (decayingSteps < momentumDecaySteps) return;
 		isIgnoringMomentum = true;
@@ -149,6 +154,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 
 	function handleGestureEnd(): void {
 		gestureLiftTime = performance.now();
+		gestureLiftOffset = wheelTargetOffset;
 		isIgnoringMomentum = true;
 		snapToNearestOffset();
 	}
@@ -170,7 +176,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 					currentOffset: offset,
 					gestureStartOffset,
 					offsets,
-					gestureMilliseconds: Math.max(0, gestureLiftTime - gestureStartTime)
+					gestureVelocity: gestureVelocityPixelsPerMillisecond()
 				})
 			: snapOffsetForTravel(offset, offsets);
 		cancelWheelScroll();
@@ -179,6 +185,12 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 			return;
 		}
 		animateScrollTo(nearestOffset);
+	}
+
+	function gestureVelocityPixelsPerMillisecond(): number {
+		const elapsedMilliseconds = gestureLiftTime - gestureStartTime;
+		if (elapsedMilliseconds <= 0) return 0;
+		return Math.abs(gestureLiftOffset - gestureStartOffset) / elapsedMilliseconds;
 	}
 
 	function snapOffsetForTravel(offset: number, offsets: number[]): number {
