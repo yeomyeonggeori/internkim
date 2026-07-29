@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,6 +24,19 @@ func (service *Service) startStaffChannelMembershipSync(ctx context.Context) {
 	go service.ensureStaffChannelMembership(ctx)
 }
 
+func (service *Service) grantRelayMembership(ctx context.Context, pubkey string) {
+	command := strings.TrimSpace(service.Configuration.BuzzAdminCommandPath)
+	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
+	if command == "" || databaseURL == "" {
+		return
+	}
+	execution := exec.CommandContext(ctx, command, "add-member", "--pubkey", pubkey)
+	execution.Env = append(os.Environ(), "DATABASE_URL="+databaseURL)
+	if output, errorValue := execution.CombinedOutput(); errorValue != nil && !strings.Contains(string(output), "already") {
+		log.Printf("buzz relay membership grant for %s failed: %v (%s)", pubkey, errorValue, strings.TrimSpace(string(output)))
+	}
+}
+
 func (service *Service) ensureUserChannelMembership(ctx context.Context, email string) {
 	seed := service.buzzKeySeed()
 	if seed == "" || strings.TrimSpace(service.Configuration.BuzzRelayURL) == "" {
@@ -36,6 +50,7 @@ func (service *Service) ensureUserChannelMembership(ctx context.Context, email s
 	if errorValue != nil {
 		return
 	}
+	service.grantRelayMembership(ctx, pubkey)
 	channelIDs, errorValue := service.buzzStreamChannelIDs(ctx)
 	if errorValue != nil || len(channelIDs) == 0 {
 		return
@@ -74,6 +89,9 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 		return
 	}
 	defer publisher.Close()
+	for _, pubkey := range staffPubkeys {
+		service.grantRelayMembership(ctx, pubkey)
+	}
 	granted, failed := 0, 0
 	for _, channelID := range channelIDs {
 		for _, pubkey := range staffPubkeys {
