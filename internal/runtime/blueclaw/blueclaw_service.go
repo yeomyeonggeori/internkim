@@ -220,6 +220,7 @@ BindsTo=postgresql.service
 User=root
 EnvironmentFile=%s
 EnvironmentFile=%s
+EnvironmentFile=-%s
 Environment=BUZZ_BIND_ADDR=%s
 Environment=BUZZ_HEALTH_PORT=%s
 Environment=REDIS_URL=%s
@@ -235,11 +236,33 @@ TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
-`, BuzzRelayKeyEnvironmentFilePath, BuzzRelayDatabaseEnvironmentFilePath, BuzzRelayBindAddress, BuzzRelayHealthPort, BuzzRelayRedisURL, BuzzRelayLocalURL, BuzzRelayBinaryPath)
+`, BuzzRelayKeyEnvironmentFilePath, BuzzRelayDatabaseEnvironmentFilePath, BuzzRelayS3EnvironmentFilePath, BuzzRelayBindAddress, BuzzRelayHealthPort, BuzzRelayRedisURL, BuzzRelayLocalURL, BuzzRelayBinaryPath)
 }
 
 func BuzzRelayHealthCheckCommand() string {
 	return "curl --max-time 5 -fsS http://" + BuzzRelayBindAddress + "/_readiness >/dev/null && echo ok || echo no"
+}
+
+func MinioServiceUnit() string {
+	return fmt.Sprintf(`[Unit]
+Description=Buzz MinIO Object Store
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=root
+EnvironmentFile=%s
+ExecStart=%s server %s --address %s --console-address %s
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+`, MinioEnvironmentFilePath, MinioBinaryPath, MinioDataPath, MinioAddress, MinioConsoleAddress)
+}
+
+func MinioHealthCheckCommand() string {
+	return "curl --max-time 5 -fsS http://" + MinioAddress + "/minio/health/ready >/dev/null && echo ok || echo no"
 }
 
 func LlamaCppServiceUnit() string {

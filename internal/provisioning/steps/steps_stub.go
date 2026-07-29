@@ -24,6 +24,7 @@ func DefaultRegistry() Registry {
 		StepStaging,
 		StepMattermost,
 		StepBuzzRelay,
+		StepBuzzMedia,
 		StepSlackToken,
 		StepServices,
 		StepUsersSync,
