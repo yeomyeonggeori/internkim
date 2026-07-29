@@ -4,7 +4,6 @@ import type { CalendarConflict } from './calendar-conflicts';
 import type { DraftPopoverState } from './calendar-draft-popover-state';
 import type { CalendarParticipant } from './calendar-participants';
 import type { MonthRangePreviewSegment, MonthRangeSelection } from './calendar-month-range-action';
-import type { VisibleMonthScrollLabel } from './calendar-month-scroll-overlay-state';
 import type { TimelineRangeSelection } from './calendar-timeline-range-action';
 import type { TimelineRangePreviewSegment } from './calendar-timeline-preview';
 
@@ -22,7 +21,6 @@ export class CalendarEmbedPageState {
 	monthRangePreviewSegments = $state<MonthRangePreviewSegment[]>([]);
 	timelineRangeSelection = $state<TimelineRangeSelection | null>(null);
 	timelineRangePreviewSegments = $state<TimelineRangePreviewSegment[]>([]);
-	monthScrollOverlayLabels = $state<VisibleMonthScrollLabel[]>([]);
 	selectedMonthDateKey = $state<string | null>(null);
 	searchText = $state('');
 	toolbarDate: Date;

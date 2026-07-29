@@ -255,7 +255,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		pageNavigation: interactionServices.pageNavigation,
 		rangePreview: interactionServices.rangePreview,
 		renderSync,
-		scrollOverlays: interactionServices.scrollOverlays,
 		selectedMonthDate
 	};
 }
