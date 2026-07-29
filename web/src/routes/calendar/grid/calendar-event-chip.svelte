@@ -2,9 +2,11 @@
 	import { cn } from '$lib/utils';
 	import type { CalendarGridEvent } from './calendar-grid-layout';
 
+	type CalendarEventChipSize = 'compact' | 'block';
+
 	type CalendarEventChipProps = {
 		event: CalendarGridEvent;
-		variant?: 'timed' | 'span';
+		size?: CalendarEventChipSize;
 		timeLabel?: string;
 		isSelected?: boolean;
 		continuesBefore?: boolean;
@@ -15,7 +17,7 @@
 
 	let {
 		event,
-		variant = 'timed',
+		size = 'compact',
 		timeLabel = '',
 		isSelected = false,
 		continuesBefore = false,
@@ -31,23 +33,19 @@
 	data-selected={isSelected ? '' : undefined}
 	style={`--calendar-event-color: ${event.color}`}
 	class={cn(
-		'flex w-full min-w-0 items-center gap-1.5 overflow-hidden text-left text-xs leading-4 transition-colors',
+		'bg-(--calendar-event-color)/12 hover:bg-(--calendar-event-color)/22 text-foreground flex w-full min-w-0 overflow-hidden rounded-sm border-l-2 border-(--calendar-event-color) text-left text-xs leading-4 transition-colors',
 		'focus-visible:ring-ring/50 outline-none focus-visible:ring-2',
-		variant === 'timed' && 'rounded-sm px-1.5 py-0.5 hover:bg-(--calendar-event-color)/15',
-		variant === 'span' &&
-			'bg-(--calendar-event-color)/15 text-foreground h-5 rounded-sm px-1.5 font-medium hover:bg-(--calendar-event-color)/25',
-		continuesBefore && 'rounded-l-none',
+		size === 'compact' && 'h-5 items-center gap-1.5 px-1.5',
+		size === 'block' && 'h-full flex-col gap-0.5 px-1.5 py-1',
+		continuesBefore && 'rounded-l-none border-l-0',
 		continuesAfter && 'rounded-r-none',
 		isSelected && 'ring-(--calendar-event-color) ring-2',
 		className
 	)}
 	onclick={(clickEvent) => openEvent(event, clickEvent.currentTarget)}
 >
-	{#if variant === 'timed'}
-		<span class="size-1.5 shrink-0 rounded-full bg-(--calendar-event-color)"></span>
-	{/if}
 	<span class="truncate font-medium">{event.title}</span>
 	{#if timeLabel}
-		<span class="text-muted-foreground ml-auto shrink-0 tabular-nums">{timeLabel}</span>
+		<span class={cn('text-muted-foreground shrink-0 tabular-nums', size === 'compact' && 'ml-auto')}>{timeLabel}</span>
 	{/if}
 </button>

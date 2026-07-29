@@ -413,7 +413,6 @@
 						>
 							<CalendarEventChip
 								event={span.event}
-								variant="span"
 								isSelected={selectedEventID === span.event.id}
 								continuesBefore={span.continuesBefore}
 								continuesAfter={span.continuesAfter}
