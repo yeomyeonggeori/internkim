@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { Event as DayFlowEvent } from '@dayflow/core';
 	import type { CalendarLocaleText } from '../text';
-	import { calendarAuditRows } from './calendar-audit';
 	import CalendarDraftPopover from './calendar-draft-popover.svelte';
 	import type { DraftPopoverState } from './calendar-draft-popover-state';
 	import type { CalendarParticipant } from './calendar-participants';
@@ -12,7 +11,6 @@
 	};
 
 	type Props = {
-		auditEvent: Pick<DayFlowEvent, 'meta'> | null;
 		calendarOptions: CalendarOption[];
 		participantCandidates: CalendarParticipant[];
 		cancelPopover: () => void;
@@ -25,7 +23,6 @@
 	};
 
 	let {
-		auditEvent,
 		calendarOptions,
 		participantCandidates,
 		cancelPopover,
@@ -42,12 +39,6 @@
 		if (popover) lastPopover = popover;
 		return lastPopover;
 	});
-	const auditRows = $derived(
-		calendarAuditRows(auditEvent, localeCode, {
-			created: text.eventAuditCreated,
-			updated: text.eventAuditUpdated
-		})
-	);
 	const popoverText = $derived({
 		title: text.conflictField.title,
 		allDay: text.allDay,
@@ -64,7 +55,6 @@
 		endDate: text.draftPopover.endDate,
 		startTime: text.draftPopover.startTime,
 		endTime: text.draftPopover.endTime,
-		auditEmpty: text.draftPopover.auditEmpty,
 		dateTimePicker: text.draftPopover.dateTimePicker
 	});
 </script>
@@ -74,8 +64,6 @@
 		popover={renderedPopover}
 		{calendarOptions}
 		{participantCandidates}
-		{auditRows}
-		auditLabel={text.eventAudit}
 		dialogLabel={renderedPopover.mode === 'edit' ? text.editEvent : text.newEvent}
 		text={popoverText}
 		{updatePopover}

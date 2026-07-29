@@ -115,7 +115,6 @@ export type CalendarLocaleText = {
 		endDate: string;
 		startTime: string;
 		endTime: string;
-		auditEmpty: string;
 		dateTimePicker: {
 			previousMonth: string;
 			nextMonth: string;
@@ -132,9 +131,6 @@ export type CalendarLocaleText = {
 			editEndDateTime: string;
 		};
 	};
-	eventAudit: string;
-	eventAuditCreated: string;
-	eventAuditUpdated: string;
 	conflictBannerTitle: string;
 	conflictBannerDescription: string;
 	conflictDismiss: string;
@@ -309,7 +305,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			endDate: '종료 날짜',
 			startTime: '시작 시간',
 			endTime: '종료 시간',
-			auditEmpty: '등록·수정 정보 없음',
 			dateTimePicker: {
 				previousMonth: '이전 달',
 				nextMonth: '다음 달',
@@ -326,9 +321,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 				editEndDateTime: '종료 날짜 및 시간 수정'
 			}
 		},
-		eventAudit: '일정 변경 이력',
-		eventAuditCreated: '등록',
-		eventAuditUpdated: '수정',
 		conflictBannerTitle: '외부에서 변경된 일정이 있습니다',
 		conflictBannerDescription:
 			'다른 위치(Google 캘린더 등)에서 같은 일정이 동시에 수정되었습니다. 내 변경은 보존되었지만 외부 변경 사항을 확인해주세요.',
@@ -468,7 +460,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			endDate: 'End date',
 			startTime: 'Start time',
 			endTime: 'End time',
-			auditEmpty: 'No creation or edit details',
 			dateTimePicker: {
 				previousMonth: 'Previous month',
 				nextMonth: 'Next month',
@@ -485,9 +476,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 				editEndDateTime: 'Edit end date and time'
 			}
 		},
-		eventAudit: 'Event audit',
-		eventAuditCreated: 'Created',
-		eventAuditUpdated: 'Updated',
 		conflictBannerTitle: 'External changes detected',
 		conflictBannerDescription:
 			'The same events were modified elsewhere (e.g. Google Calendar) at the same time. Your changes are preserved, but please review the external edits.',

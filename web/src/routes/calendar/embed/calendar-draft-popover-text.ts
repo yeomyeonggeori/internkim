@@ -16,6 +16,5 @@ export type DraftPopoverText = {
 	endDate: string;
 	startTime: string;
 	endTime: string;
-	auditEmpty: string;
 	dateTimePicker: DraftDateTimePickerLocaleText;
 };
