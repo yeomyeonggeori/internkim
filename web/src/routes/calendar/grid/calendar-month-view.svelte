@@ -12,6 +12,7 @@
 		startOfCalendarGridWeek,
 		type CalendarGridWeek
 	} from './calendar-grid-dates';
+	import { defaultCalendarEventColor } from './calendar-grid-events';
 	import { calendarGridWeekLayout, type CalendarGridEvent, type CalendarGridWeekLayout } from './calendar-grid-layout';
 	import { createCalendarScrollSnap } from './calendar-grid-scroll-snap.svelte';
 
@@ -22,6 +23,7 @@
 		events: CalendarGridEvent[];
 		localeCode: string;
 		moreEventsText: string;
+		draftPreviewTitle: string;
 		selectDay: (day: Date) => void;
 		openDay: (day: Date) => void;
 		addEventOnDay: (day: Date) => void;
@@ -37,6 +39,7 @@
 		events,
 		localeCode,
 		moreEventsText,
+		draftPreviewTitle,
 		selectDay,
 		openDay,
 		addEventOnDay,
@@ -89,6 +92,14 @@
 	const timeFormatter = $derived(new Intl.DateTimeFormat(localeCode, { hour: 'numeric', minute: '2-digit' }));
 	const activeMonth = $derived(weekMonths.get(anchorWeekStartKey) ?? new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1));
 	const today = new Date();
+	const draftEventPreview = $derived<CalendarGridEvent>({
+		id: 'calendar-draft-preview',
+		title: draftPreviewTitle,
+		start: today,
+		end: today,
+		isAllDay: true,
+		color: defaultCalendarEventColor
+	});
 
 	$effect(() => {
 		const requestedDateKey = calendarGridDateKey(visibleDate);
@@ -356,9 +367,11 @@
 					{@const draftRange = draftRangeForWeek(week)}
 					<div class="pointer-events-none absolute inset-x-0 top-8 grid grid-cols-7">
 						<div
-							class="bg-primary/20 border-primary mx-1 h-5 rounded-md border"
+							class="px-1"
 							style={`grid-column: ${(draftRange?.startColumn ?? 0) + 1} / span ${draftRange?.columnCount ?? 1}; grid-row: 1; margin-top: ${layout.laneCount * laneHeightPixels}px`}
-						></div>
+						>
+							<CalendarEventChip event={draftEventPreview} isSelected openEvent={() => {}} />
+						</div>
 					</div>
 				{/if}
 				<div class="pointer-events-none absolute inset-x-0 top-8 grid grid-cols-7">
