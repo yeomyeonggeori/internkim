@@ -200,13 +200,44 @@ Wants=network-online.target time-sync.target
 
 [Service]
 User=root
-ExecStart=%s
+ExecStart=%s -buzz-relay-url %s -buzz-database-url-path %s -buzz-admin-command %s -buzz-key-seed-path %s
 Restart=on-failure
 RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
-`, AdmindBinaryPath)
+`, AdmindBinaryPath, BuzzRelayLocalURL, BuzzRelayDatabaseEnvironmentFilePath, BuzzAdminBinaryPath, "/root/.internkim/secrets/buzz-key-seed")
+}
+
+func BuzzRelayServiceUnit() string {
+	return fmt.Sprintf(`[Unit]
+Description=Buzz Relay
+After=network-online.target time-sync.target postgresql.service redis-server.service
+Wants=network-online.target time-sync.target redis-server.service
+BindsTo=postgresql.service
+
+[Service]
+User=root
+EnvironmentFile=%s
+EnvironmentFile=%s
+Environment=BUZZ_BIND_ADDR=%s
+Environment=REDIS_URL=%s
+Environment=RELAY_URL=%s
+Environment=BUZZ_AUTO_MIGRATE=1
+Environment=BUZZ_REQUIRE_RELAY_MEMBERSHIP=true
+ExecStart=%s
+Restart=on-failure
+RestartSec=2
+KillMode=mixed
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+`, BuzzRelayKeyEnvironmentFilePath, BuzzRelayDatabaseEnvironmentFilePath, BuzzRelayBindAddress, BuzzRelayRedisURL, BuzzRelayLocalURL, BuzzRelayBinaryPath)
+}
+
+func BuzzRelayHealthCheckCommand() string {
+	return "curl --max-time 5 -fsS http://" + BuzzRelayBindAddress + "/_readiness >/dev/null && echo ok || echo no"
 }
 
 func LlamaCppServiceUnit() string {

@@ -2,6 +2,8 @@ package setup
 
 import (
 	"errors"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 var StepBinaries = Step{
@@ -24,7 +26,9 @@ var StepBinaries = Step{
 				!sshFileExists(context, "/usr/local/bin/internkim-admind") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-local-llm-runner") ||
 				!sshFileExists(context, "/usr/local/bin/pocketbase") ||
-				!sshFileExists(context, "/usr/local/bin/graphiti-memoryd") {
+				!sshFileExists(context, "/usr/local/bin/graphiti-memoryd") ||
+				!sshFileExists(context, blueclaw.BuzzRelayBinaryPath) ||
+				!sshFileExists(context, blueclaw.BuzzAdminBinaryPath) {
 				return false
 			}
 			if version == "" {
