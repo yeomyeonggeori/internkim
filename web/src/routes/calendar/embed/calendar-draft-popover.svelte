@@ -27,7 +27,6 @@
 		auditLabel: string;
 		dialogLabel: string;
 		text: DraftPopoverText;
-		isSaving: boolean;
 		updatePopover: (changes: Partial<DraftPopoverState>) => void;
 		savePopover: () => void;
 		cancelPopover: () => void;
@@ -42,7 +41,6 @@
 		auditLabel,
 		dialogLabel,
 		text,
-		isSaving,
 		updatePopover,
 		savePopover,
 		cancelPopover,
@@ -209,7 +207,7 @@
 
 		{#if popover.mode === 'edit'}
 			<footer class="bg-popover sticky bottom-0 flex items-center border-t p-3">
-				<Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" disabled={isSaving} onclick={deletePopover}>
+				<Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" onclick={deletePopover}>
 					{text.delete}
 				</Button>
 			</footer>

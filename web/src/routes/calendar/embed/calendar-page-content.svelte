@@ -32,7 +32,6 @@
 		goToNext: () => void;
 		goToPrevious: () => void;
 		goToToday: () => void;
-		isSaving: boolean;
 		isMobileTwoDayWeekView: boolean;
 		localeCode: string;
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
@@ -84,7 +83,6 @@
 		goToNext,
 		goToPrevious,
 		goToToday,
-		isSaving,
 		isMobileTwoDayWeekView,
 		localeCode,
 		monthRangePreviewSegments,
@@ -174,7 +172,6 @@
 		{auditEvent}
 		{calendarOptions}
 		{participantCandidates}
-		{isSaving}
 		{localeCode}
 		{text}
 		{updatePopover}
