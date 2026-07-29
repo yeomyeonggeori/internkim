@@ -994,6 +994,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeAttendanceLocations(responseWriter)
 	case request.Method == http.MethodPut && path == "/attendance-locations":
 		service.updateAttendanceLocations(responseWriter, request)
+	case (request.Method == http.MethodGet || request.Method == http.MethodPut) && path == "/attendance-leave-policy":
+		service.handleAttendanceLeavePolicy(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/wifi-profiles":
 		service.writeWifiProfiles(responseWriter)
 	case request.Method == http.MethodPost && path == "/wifi-profiles":
