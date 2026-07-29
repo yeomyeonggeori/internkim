@@ -1,8 +1,4 @@
-import {
-	type DraftPopoverAnchor,
-	type DraftPopoverMode,
-	type DraftPopoverState
-} from './calendar-draft-popover-state';
+import { type DraftPopoverAnchor, type DraftPopoverMode } from './calendar-draft-popover-state';
 import {
 	calendarEventAnchorFromElement,
 	canonicalCalendarEventAnchorForID
@@ -11,20 +7,6 @@ import { calendarEventElementsByID, isVisibleCalendarEventElement } from './cale
 
 export function shouldShowInitialPopover(mode: DraftPopoverMode, anchor: DraftPopoverAnchor | null): boolean {
 	return mode === 'edit' || isEventBlockAnchor(anchor);
-}
-
-export function areSamePopoverPositions(
-	firstPosition: DraftPopoverState['position'],
-	secondPosition: DraftPopoverState['position']
-): boolean {
-	return (
-		Math.abs(firstPosition.left - secondPosition.left) < 1 &&
-		Math.abs(firstPosition.top - secondPosition.top) < 1 &&
-		Math.abs(firstPosition.width - secondPosition.width) < 1 &&
-		Math.abs(firstPosition.arrowTop - secondPosition.arrowTop) < 1 &&
-		firstPosition.arrowSide === secondPosition.arrowSide &&
-		firstPosition.isReady === secondPosition.isReady
-	);
 }
 
 export function clearDraftPopoverElementMotion(): void {

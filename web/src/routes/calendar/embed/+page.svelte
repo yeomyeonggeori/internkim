@@ -80,7 +80,6 @@
 		pageNavigation,
 		rangePreview,
 		renderSync,
-		scrollOverlays,
 		selectedMonthDate
 	} = controller;
 
@@ -151,7 +150,6 @@
 			pageNavigation,
 			rangePreview,
 			renderSync,
-			scrollOverlays,
 			selectedMonthDate,
 			setMonthRangeSelection: (selection) => {
 				state.monthRangeSelection = selection;
@@ -269,7 +267,6 @@
 	monthRangePreviewTitle={draftEventPlaceholderTitle()}
 	timelineRangePreviewSegments={state.timelineRangePreviewSegments}
 	timelineRangePreviewTitle={draftEventPlaceholderTitle()}
-	monthScrollOverlayLabels={state.monthScrollOverlayLabels}
 	isMobileTwoDayWeekView={isMobileTwoDayWeekView}
 	popover={state.draftPopover}
 	auditEvent={selectedAuditEvent}
@@ -278,7 +275,6 @@
 	isSaving={state.isSaving}
 	{text}
 	updatePopover={draftPopoverActions.updateDraftPopover}
-	repositionPopover={draftPopoverActions.repositionDraftPopover}
 	savePopover={draftPopoverActions.saveDraftPopover}
 	cancelPopover={draftPopoverActions.cancelDraftPopover}
 	deletePopover={draftPopoverActions.deleteDraftPopover}

@@ -239,15 +239,7 @@
 			description,
 			participants,
 			calendarID,
-			anchor: null,
-			position: {
-				left: 0,
-				top: 0,
-				width: 0,
-				arrowTop: 0,
-				arrowSide: 'left',
-				isReady: false
-			}
+			anchor: null
 		};
 	}
 

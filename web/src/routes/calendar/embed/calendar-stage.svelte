@@ -12,7 +12,6 @@
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 	import type { MonthRangePreviewSegment } from './calendar-month-range-action';
 	import { dateKeyFromWeekHeaderTarget } from './calendar-month-selection';
-	import CalendarMonthScrollOverlay from './calendar-month-scroll-overlay.svelte';
 	import { calendarMobileTwoDayWeekDateKeyForColumn } from './calendar-mobile-two-day-week';
 	import {
 		mobileEventEditorActivationContextKey,
@@ -51,7 +50,6 @@
 		};
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
-		monthScrollOverlayLabels: MonthScrollOverlayLabel[];
 		navigateToDateKey: (dateKey: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
@@ -77,7 +75,6 @@
 		monthMoreText,
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
-		monthScrollOverlayLabels,
 		navigateToDateKey,
 		openEvent,
 		saveMovedEvent,
@@ -183,7 +180,4 @@
 	/>
 	<CalendarMonthRangePreview segments={monthRangePreviewSegments} title={monthRangePreviewTitle} />
 	<CalendarTimelineRangePreview segments={timelineRangePreviewSegments} title={timelineRangePreviewTitle} />
-	{#if toolbarView === ViewType.MONTH}
-		<CalendarMonthScrollOverlay labels={monthScrollOverlayLabels} />
-	{/if}
 </div>

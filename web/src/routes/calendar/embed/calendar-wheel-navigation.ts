@@ -4,29 +4,16 @@ import { ViewType } from '@dayflow/svelte';
 export type CalendarWheelNavigationOptions = {
 	stageElement: HTMLElement;
 	currentView: () => string;
-	showMonthLabels: (labels: CalendarMonthScrollLabel[]) => void;
-	hideMonthLabels: () => void;
 	selectVisibleDate: (date: Date) => void;
 };
 
-export type CalendarMonthScrollLabel = {
-	id: string;
-	date: Date;
-	top: number;
-	direction: 1 | -1;
-};
-
 const scrollIdleMs = 140;
-const monthLabelHideDelayMs = 320;
-const monthStartLabelTopOffsetPx = 18;
 
 export function installCalendarWheelNavigation(options: CalendarWheelNavigationOptions): () => void {
 	let scroller: HTMLElement | null = null;
 	let lastScrollTop = 0;
 	let snapTimer: number | null = null;
-	let hideLabelTimer: number | null = null;
 	let animationFrame: number | null = null;
-	let labelFrame: number | null = null;
 
 	const scheduleConnect = () => {
 		if (animationFrame) window.cancelAnimationFrame(animationFrame);
@@ -58,39 +45,11 @@ export function installCalendarWheelNavigation(options: CalendarWheelNavigationO
 		if (!scroller || options.currentView() !== ViewType.MONTH) return;
 		const direction: 1 | -1 = scroller.scrollTop >= lastScrollTop ? 1 : -1;
 		lastScrollTop = scroller.scrollTop;
-		scheduleVisibleMonthLabel(direction);
 		if (snapTimer) window.clearTimeout(snapTimer);
 		snapTimer = window.setTimeout(() => {
 			snapTimer = null;
 			snapToNearestWeek();
 		}, scrollIdleMs);
-	};
-
-	const scheduleVisibleMonthLabel = (direction: 1 | -1) => {
-		if (labelFrame) window.cancelAnimationFrame(labelFrame);
-		labelFrame = window.requestAnimationFrame(() => {
-			labelFrame = null;
-			showVisibleMonthLabels(direction);
-		});
-	};
-
-	const showVisibleMonthLabels = (direction: 1 | -1) => {
-		if (!scroller) return;
-		const stageRectangle = options.stageElement.getBoundingClientRect();
-		const labels = visibleMonthStartCells().flatMap((cell) => {
-			const cellDate = dateFromCell(cell);
-			if (!cellDate) return [];
-			const cellRectangle = cell.getBoundingClientRect();
-			return [
-				{
-					id: `${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2, '0')}`,
-					date: cellDate,
-					top: Math.max(16, cellRectangle.top - stageRectangle.top + monthStartLabelTopOffsetPx),
-					direction
-				}
-			];
-		});
-		options.showMonthLabels(labels);
 	};
 
 	const closestVisibleMonthStartCell = () => {
@@ -116,10 +75,7 @@ export function installCalendarWheelNavigation(options: CalendarWheelNavigationO
 	const snapToNearestWeek = () => {
 		if (!scroller || options.currentView() !== ViewType.MONTH) return;
 		const targetWeek = nearestWeekToScrollerTop();
-		if (!targetWeek) {
-			hideMonthLabelAfterDelay();
-			return;
-		}
+		if (!targetWeek) return;
 		const scrollerRectangle = scroller.getBoundingClientRect();
 		const weekRectangle = targetWeek.getBoundingClientRect();
 		const scrollOffset = weekRectangle.top - scrollerRectangle.top;
@@ -127,7 +83,6 @@ export function installCalendarWheelNavigation(options: CalendarWheelNavigationO
 		const targetDateCell = closestVisibleMonthStartCell() ?? targetWeek.querySelector<HTMLElement>('.df-month-day-cell[data-date]');
 		const targetDate = targetDateCell ? dateFromCell(targetDateCell) : null;
 		if (targetDate) options.selectVisibleDate(targetDate);
-		hideMonthLabelAfterDelay();
 	};
 
 	const nearestWeekToScrollerTop = () => {
@@ -155,20 +110,10 @@ export function installCalendarWheelNavigation(options: CalendarWheelNavigationO
 		return new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0, 0);
 	};
 
-	const hideMonthLabelAfterDelay = () => {
-		if (hideLabelTimer) window.clearTimeout(hideLabelTimer);
-		hideLabelTimer = window.setTimeout(() => {
-			hideLabelTimer = null;
-			options.hideMonthLabels();
-		}, monthLabelHideDelayMs);
-	};
-
 	return () => {
 		observer.disconnect();
 		if (animationFrame) window.cancelAnimationFrame(animationFrame);
-		if (labelFrame) window.cancelAnimationFrame(labelFrame);
 		if (snapTimer) window.clearTimeout(snapTimer);
-		if (hideLabelTimer) window.clearTimeout(hideLabelTimer);
 		scroller?.removeEventListener('scroll', onScroll);
 	};
 }

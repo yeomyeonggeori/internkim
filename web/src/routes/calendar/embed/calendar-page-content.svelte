@@ -7,7 +7,6 @@
 	import CalendarConflictBanner from './calendar-conflict-banner.svelte';
 	import type { DraftPopoverAnchor, DraftPopoverState } from './calendar-draft-popover-state';
 	import type { MonthRangePreviewSegment } from './calendar-month-range-action';
-	import type { VisibleMonthScrollLabel } from './calendar-month-scroll-overlay-state';
 	import CalendarPageDraftPopover from './calendar-page-draft-popover.svelte';
 	import type { CalendarSearchResult } from './calendar-search';
 	import CalendarStage from './calendar-stage.svelte';
@@ -38,13 +37,11 @@
 		localeCode: string;
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
-		monthScrollOverlayLabels: VisibleMonthScrollLabel[];
 		navigateToDateKey: (dateKey: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		openSettings: () => void;
 		popover: DraftPopoverState | null;
 		refreshConflicts: () => void;
-			repositionPopover: (size: { width: number; height: number }) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
 		savePopover: () => void;
 		cancelPopover: () => void;
@@ -86,13 +83,11 @@
 		localeCode,
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
-		monthScrollOverlayLabels,
 		navigateToDateKey,
 		openEvent,
 		openSettings,
 		popover,
 		refreshConflicts,
-			repositionPopover,
 		saveMovedEvent,
 		savePopover,
 		selectDate,
@@ -152,7 +147,6 @@
 		{monthRangePreviewTitle}
 		{timelineRangePreviewSegments}
 		{timelineRangePreviewTitle}
-		{monthScrollOverlayLabels}
 		{navigateToDateKey}
 	/>
 	<CalendarPageDraftPopover
@@ -164,10 +158,8 @@
 		{localeCode}
 		{text}
 		{updatePopover}
-		{repositionPopover}
 		{savePopover}
 		{cancelPopover}
 		{deletePopover}
-		{stageElement}
 	/>
 </main>
