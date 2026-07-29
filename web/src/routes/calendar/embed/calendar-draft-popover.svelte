@@ -192,6 +192,7 @@
 					candidates={participantCandidates}
 					label={text.participants}
 					placeholder={text.participantsPlaceholder}
+					emptyText={text.participantsEmpty}
 					removeLabel={text.removeParticipantAction}
 					onChange={(participants) => updatePopover({ participants })}
 				/>

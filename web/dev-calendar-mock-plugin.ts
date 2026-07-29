@@ -102,7 +102,7 @@ export function createDevCalendarMockResponse(
 		return { status: 200, body: { connected: false, needsReauth: false, googleOAuthConfigured: true, canManageGoogleOAuth: false } };
 	}
 	if (request.method === 'GET' && request.pathname === '/calendar/api/participants') {
-		return { status: 200, body: { participants: [] } };
+		return { status: 200, body: { participants: devCalendarParticipants() } };
 	}
 	if (request.method === 'POST' && request.pathname === '/calendar/api/remote-sync') {
 		return { status: 200, body: { synced: false } };
@@ -227,6 +227,14 @@ function shouldHandleDevCalendarMockRequest(method: string, pathname: string): b
 	if (method === 'POST' && pathname === '/calendar/api/remote-sync') return true;
 	if (method === 'GET' && pathname === '/calendar/api/conflicts') return true;
 	return method === 'GET' && pathname === '/calendar/api/events';
+}
+
+function devCalendarParticipants(): { personID: string; name: string; email: string }[] {
+	return devAttendancePeople.map((person) => ({
+		personID: person.mattermostUsername,
+		name: person.name,
+		email: person.email
+	}));
 }
 
 function createDevCalendarEvents(userEmail: string): CalendarEvent[] {

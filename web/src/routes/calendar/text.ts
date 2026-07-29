@@ -107,6 +107,7 @@ export type CalendarLocaleText = {
 		calendar: string;
 		participants: string;
 		participantsPlaceholder: string;
+		participantsEmpty: string;
 		removeParticipantAction: string;
 		cancel: string;
 		complete: string;
@@ -296,7 +297,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		draftPopover: {
 			calendar: '캘린더',
 			participants: '참여자',
-			participantsPlaceholder: '이름으로 검색해 추가',
+			participantsPlaceholder: '이름 검색',
+			participantsEmpty: '검색 결과 없음',
 			removeParticipantAction: '{name} 제거',
 			cancel: '취소',
 			complete: '완료',
@@ -451,7 +453,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		draftPopover: {
 			calendar: 'Calendar',
 			participants: 'Participants',
-			participantsPlaceholder: 'Search by name to add',
+			participantsPlaceholder: 'Search by name',
+			participantsEmpty: 'No matches',
 			removeParticipantAction: 'Remove {name}',
 			cancel: 'Cancel',
 			complete: 'Done',
