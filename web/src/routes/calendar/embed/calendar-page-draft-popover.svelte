@@ -46,6 +46,7 @@
 		description: text.conflictField.description,
 		participants: text.draftPopover.participants,
 		participantsPlaceholder: text.draftPopover.participantsPlaceholder,
+		participantsEmpty: text.draftPopover.participantsEmpty,
 		removeParticipantAction: text.draftPopover.removeParticipantAction,
 		calendar: text.draftPopover.calendar,
 		cancel: text.draftPopover.cancel,
