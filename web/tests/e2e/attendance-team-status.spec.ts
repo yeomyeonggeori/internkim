@@ -17,7 +17,7 @@ test.describe('attendance team status', () => {
 		const registeredMemberWithoutRecords = {
 			email: 'no-record@example.com',
 			displayName: '무기록',
-			mattermostUsername: 'no-record',
+			mattermostUsername: 'no-record'
 		};
 
 		await page.unroute('**/attendance/api/summary**');
@@ -25,18 +25,30 @@ test.describe('attendance team status', () => {
 			const requestURL = new URL(route.request().url());
 			const month = requestURL.searchParams.get('month') ?? summary.month;
 			await route.fulfill({
-				json: month === summary.month
-					? { ...summary, members: [...summary.members, registeredMemberWithoutRecords] }
-					: buildAttendanceSummaryFixture(month)
+				json:
+					month === summary.month
+						? {
+								...summary,
+								members: [...summary.members, registeredMemberWithoutRecords]
+							}
+						: buildAttendanceSummaryFixture(month)
 			});
 		});
 
 		await page.goto('/attendance');
 		await selectKorean(page);
+		await page.getByRole('combobox', { name: '직원 선택' }).click();
 		await page.getByPlaceholder('직원 검색').fill(registeredMemberWithoutRecords.displayName);
+		await page.getByRole('option', { name: new RegExp(registeredMemberWithoutRecords.displayName) }).click();
 
-		await expect(page.getByText(registeredMemberWithoutRecords.displayName)).toBeVisible();
-		await expect(page.getByTestId(`team-status-cell-${registeredMemberWithoutRecords.email}-2026-06-16`)).toBeVisible();
+		await expect(
+			page
+				.getByTestId(`team-status-person-header-${registeredMemberWithoutRecords.email}`)
+				.getByText(registeredMemberWithoutRecords.displayName)
+		).toBeVisible();
+		await expect(
+			page.getByTestId(`team-status-cell-${registeredMemberWithoutRecords.email}-2026-06-16`)
+		).toBeVisible();
 	});
 
 	test('marks the today row header with an inverted color treatment', async ({ page }) => {
@@ -48,7 +60,9 @@ test.describe('attendance team status', () => {
 		});
 
 		const todayDate = todayDateInSeoul();
-		const otherDate = todayDate.endsWith('-01') ? `${todayDate.slice(0, 8)}02` : `${todayDate.slice(0, 8)}01`;
+		const otherDate = todayDate.endsWith('-01')
+			? `${todayDate.slice(0, 8)}02`
+			: `${todayDate.slice(0, 8)}01`;
 		await page.goto('/attendance');
 		await selectKorean(page);
 
@@ -64,7 +78,9 @@ test.describe('attendance team status', () => {
 		expect(todayStyle).not.toBe(otherStyle);
 	});
 
-	test('keeps the today row visible while scrolling past it in both directions', async ({ page }) => {
+	test('keeps the today row visible while scrolling past it in both directions', async ({
+		page
+	}) => {
 		await page.clock.setFixedTime(new Date('2026-06-25T09:00:00+09:00'));
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
@@ -83,18 +99,24 @@ test.describe('attendance team status', () => {
 		});
 		const containerBoxNearTop = await statusTable.boundingBox();
 		const rowBoxNearTop = await todayRowHeader.boundingBox();
-		if (!containerBoxNearTop || !rowBoxNearTop) throw new Error('Expected the status table and today row to be measurable');
+		if (!containerBoxNearTop || !rowBoxNearTop)
+			throw new Error('Expected the status table and today row to be measurable');
 		expect(rowBoxNearTop.y).toBeGreaterThanOrEqual(containerBoxNearTop.y - 1);
-		expect(rowBoxNearTop.y + rowBoxNearTop.height).toBeLessThanOrEqual(containerBoxNearTop.y + containerBoxNearTop.height + 1);
+		expect(rowBoxNearTop.y + rowBoxNearTop.height).toBeLessThanOrEqual(
+			containerBoxNearTop.y + containerBoxNearTop.height + 1
+		);
 
 		await statusTable.evaluate((table) => {
 			table.scrollTop = table.scrollHeight;
 		});
 		const containerBoxNearBottom = await statusTable.boundingBox();
 		const rowBoxNearBottom = await todayRowHeader.boundingBox();
-		if (!containerBoxNearBottom || !rowBoxNearBottom) throw new Error('Expected the status table and today row to be measurable');
+		if (!containerBoxNearBottom || !rowBoxNearBottom)
+			throw new Error('Expected the status table and today row to be measurable');
 		expect(rowBoxNearBottom.y).toBeGreaterThanOrEqual(containerBoxNearBottom.y - 1);
-		expect(rowBoxNearBottom.y + rowBoxNearBottom.height).toBeLessThanOrEqual(containerBoxNearBottom.y + containerBoxNearBottom.height + 1);
+		expect(rowBoxNearBottom.y + rowBoxNearBottom.height).toBeLessThanOrEqual(
+			containerBoxNearBottom.y + containerBoxNearBottom.height + 1
+		);
 
 		const otherVisibleRowHeader = page.getByTestId('team-status-day-2026-06-30');
 		await expect(otherVisibleRowHeader).toBeVisible();
@@ -129,6 +151,91 @@ test.describe('attendance team status', () => {
 		await expect(page.getByTestId('team-status-day-detail-dialog')).toBeVisible();
 	});
 
+	test('shows partial leave between completed work segments without exposing its reason', async ({
+		page
+	}) => {
+		const summary = buildAttendanceSummaryFixture('2026-06');
+		const sourceEvent = summary.events[0];
+		const sourceAbsence = summary.absences[0];
+		if (!sourceEvent || !sourceAbsence) throw new Error('Expected attendance fixture records');
+		const email = 'seohee@example.com';
+		const date = '2026-06-17';
+		const event = (id: string, kind: 'clock_in' | 'clock_out', localTime: string) => ({
+			...sourceEvent,
+			id,
+			mattermostUserID: 'seohee',
+			mattermostUsername: 'seohee',
+			email,
+			displayName: '이서희',
+			kind,
+			occurredAt: `${date}T${localTime}:00+09:00`,
+			localDate: date,
+			localTime,
+			locationID: 'office',
+			locationName: '사무실',
+			canceledAt: undefined
+		});
+		const mixedSummary = {
+			...summary,
+			events: [
+				...summary.events,
+				event('seohee-morning-in', 'clock_in', '09:00'),
+				event('seohee-morning-out', 'clock_out', '12:00'),
+				event('seohee-afternoon-in', 'clock_in', '15:00'),
+				event('seohee-afternoon-out', 'clock_out', '18:00')
+			],
+			absences: [
+				...summary.absences,
+				{
+					...sourceAbsence,
+					id: 'seohee-quarter-leave',
+					rangeID: 'seohee-quarter-leave-range',
+					email,
+					kind: 'leave' as const,
+					labelKey: 'leave' as const,
+					date,
+					startDate: date,
+					endDate: date,
+					startTime: '13:00',
+					endTime: '15:00',
+					reason: '비공개 은행 방문',
+					createdAt: `${date}T08:00:00+09:00`,
+					canceledAt: undefined
+				}
+			],
+			members: [...summary.members, { email, displayName: '이서희', mattermostUsername: 'seohee' }]
+		};
+		await page.unroute('**/attendance/api/summary**');
+		await page.route('**/attendance/api/summary**', async (route) => {
+			await route.fulfill({ json: mixedSummary });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		const cell = page.getByTestId(`team-status-cell-${email}-${date}`);
+		await cell.hover();
+
+		const tooltip = page.locator('[data-slot="tooltip-content"]');
+		await expect(tooltip.getByText('사무실')).toHaveCount(2);
+		await expect(tooltip.getByText('휴가', { exact: true })).toBeVisible();
+		await expect(tooltip.getByLabel('09:00-12:00')).toBeVisible();
+		await expect(tooltip.getByLabel('13:00-15:00')).toBeVisible();
+		await expect(tooltip.getByLabel('15:00-18:00')).toBeVisible();
+		await expect(tooltip.getByText('비공개 은행 방문')).toHaveCount(0);
+		await expect(tooltip.locator('[data-slot="leave-segment-marker"]')).toHaveCount(1);
+
+		await cell.click();
+		const detail = page.getByTestId('team-status-day-detail-dialog');
+		await expect(
+			detail.getByTestId('team-status-work-record-header').getByTestId('section-count-badge')
+		).toHaveText('3구간');
+		await expect(detail.getByTestId('team-status-day-segment')).toHaveCount(2);
+		await expect(detail.getByTestId('team-status-day-leave-segment')).toHaveCount(1);
+		await expect(detail.getByText('휴가', { exact: true })).toBeVisible();
+		await expect(detail.getByLabel('13:00-15:00')).toBeVisible();
+		await expect(detail.getByText('비공개 은행 방문')).toHaveCount(0);
+	});
+
 	test('shows an employee work time chart in the employee header hover card', async ({ page }) => {
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
@@ -160,7 +267,9 @@ test.describe('attendance team status', () => {
 		await page.route('**/attendance/api/summary**', async (route) => {
 			const requestURL = new URL(route.request().url());
 			const month = requestURL.searchParams.get('month') ?? todayDate.slice(0, 7);
-			await route.fulfill({ json: buildAttendanceSummaryFixture(month, summaryTime) });
+			await route.fulfill({
+				json: buildAttendanceSummaryFixture(month, summaryTime)
+			});
 		});
 		await page.unroute('**/calendar/api/events?**');
 		await page.route('**/calendar/api/events?**', async (route) => {
@@ -183,7 +292,9 @@ test.describe('attendance team status', () => {
 		await expect(dialog).toBeVisible();
 		await expect(dialog).toHaveCSS('z-index', '51');
 		const segments = dialog.getByTestId('team-status-day-segment');
-		await expect(dialog.locator('[data-slot="sheet-header"]').getByText('김철수', { exact: true })).toBeVisible();
+		await expect(
+			dialog.locator('[data-slot="sheet-header"]').getByText('김철수', { exact: true })
+		).toBeVisible();
 		await expect(dialog.getByRole('heading', { name: /2026/ })).toBeVisible();
 		await expect(dialog.getByText('상태')).toHaveCount(0);
 		await expect(dialog.getByText('근무 구간')).toHaveCount(0);
@@ -206,7 +317,9 @@ test.describe('attendance team status', () => {
 		await expect(activeDuration).toHaveClass(/text-info/);
 		await expect(activeDuration.locator(':scope > span').first()).toHaveClass(/gap-0.5/);
 		const durationToneStyles = await activeDuration.evaluate((element) => {
-			const leadingZero = element.querySelector<HTMLElement>('[data-slot="duration-digit"].opacity-40');
+			const leadingZero = element.querySelector<HTMLElement>(
+				'[data-slot="duration-digit"].opacity-40'
+			);
 			const unit = element.querySelector<HTMLElement>('[data-slot="duration-unit"]');
 			if (!leadingZero || !unit) throw new Error('Expected a leading zero and duration unit');
 			return {
@@ -224,12 +337,21 @@ test.describe('attendance team status', () => {
 		await expect(dialog.getByLabel('08:30-10:20')).toBeVisible();
 		await expect(dialog.getByLabel('10:45-12:20')).toBeVisible();
 		await expect(dialog.getByTestId('calendar-empty-state')).toHaveAttribute('data-slot', 'empty');
-		await expect(dialog.getByTestId('calendar-empty-state').getByText('해당 일정 없음')).toBeVisible();
-		await expect(dialog.getByTestId('completed-work-empty-state')).toHaveAttribute('data-slot', 'empty');
-		await expect(dialog.getByTestId('completed-work-empty-state').getByText('완료된 업무 없음')).toBeVisible();
+		await expect(
+			dialog.getByTestId('calendar-empty-state').getByText('해당 일정 없음')
+		).toBeVisible();
+		await expect(dialog.getByTestId('completed-work-empty-state')).toHaveAttribute(
+			'data-slot',
+			'empty'
+		);
+		await expect(
+			dialog.getByTestId('completed-work-empty-state').getByText('완료된 업무 없음')
+		).toBeVisible();
 	});
 
-	test('shows personal calendar events and completed work in status day details', async ({ page }) => {
+	test('shows personal calendar events and completed work in status day details', async ({
+		page
+	}) => {
 		await page.setViewportSize({ width: 1280, height: 720 });
 		const targetDate = '2026-06-17';
 		const summary = buildAttendanceSummaryFixture('2026-06');
@@ -263,7 +385,10 @@ test.describe('attendance team status', () => {
 			flowRequests += 1;
 			await route.fulfill({
 				json: flowStateFixture([
-					flowTask('completed-personal-task', '월간 현황 팝업 구현', '완료', targetDate, 'kim', ['kim', 'park']),
+					flowTask('completed-personal-task', '월간 현황 팝업 구현', '완료', targetDate, 'kim', [
+						'kim',
+						'park'
+					]),
 					flowTask('planned-personal-task', '아직 예정 업무', '예정', targetDate, 'kim', ['kim']),
 					flowTask('other-person-task', '다른 사람 완료 업무', '완료', targetDate, 'park', ['park'])
 				])
@@ -278,11 +403,20 @@ test.describe('attendance team status', () => {
 		await expect(dialog.getByText('근무 기록', { exact: true })).toBeVisible();
 		await expect(dialog.getByText('일정', { exact: true })).toBeVisible();
 		await expect(dialog.getByText('완료된 업무', { exact: true })).toBeVisible();
-		await expect(dialog.getByTestId('team-status-calendar-header').getByTestId('section-count-badge')).toHaveText('1');
-		await expect(dialog.getByTestId('team-status-completed-work-header').getByTestId('section-count-badge')).toHaveText('1');
-		await expect(dialog.locator('[data-slot="completed-work-section-icon"]')).toHaveClass(/text-muted-foreground/);
+		await expect(
+			dialog.getByTestId('team-status-calendar-header').getByTestId('section-count-badge')
+		).toHaveText('1');
+		await expect(
+			dialog.getByTestId('team-status-completed-work-header').getByTestId('section-count-badge')
+		).toHaveText('1');
+		await expect(dialog.locator('[data-slot="completed-work-section-icon"]')).toHaveClass(
+			/text-muted-foreground/
+		);
 		await expect(dialog.getByText('개인 캘린더 일정')).toBeVisible();
-		await expect(dialog.getByTestId('team-status-calendar-event-card')).toHaveAttribute('data-slot', 'card');
+		await expect(dialog.getByTestId('team-status-calendar-event-card')).toHaveAttribute(
+			'data-slot',
+			'card'
+		);
 		const calendarEventItem = dialog.getByTestId('team-status-calendar-event');
 		await expect(calendarEventItem.locator('.calendar-event-content')).toBeVisible();
 		await expect(calendarEventItem).toHaveCount(1);
@@ -292,19 +426,35 @@ test.describe('attendance team status', () => {
 		await expect(calendarTimeRange).toHaveAccessibleName('10:00-11:00');
 		await expect(calendarTimeRange).toHaveClass(/font-mono/);
 		await expect(calendarTimeRange.locator('[data-slot="time-value-separator"]')).toHaveCount(2);
-		await expect(calendarTimeRange.locator('[data-slot="time-value-separator"]').first()).toHaveCSS('opacity', '0.4');
-		await expect(calendarTimeRange.locator('[data-slot="time-range-separator"]')).toHaveClass(/mx-0.5/);
-		await expect(calendarTimeRange.locator('[data-slot="time-range-separator"]')).toHaveCSS('opacity', '0.4');
+		await expect(calendarTimeRange.locator('[data-slot="time-value-separator"]').first()).toHaveCSS(
+			'opacity',
+			'0.4'
+		);
+		await expect(calendarTimeRange.locator('[data-slot="time-range-separator"]')).toHaveClass(
+			/mx-0.5/
+		);
+		await expect(calendarTimeRange.locator('[data-slot="time-range-separator"]')).toHaveCSS(
+			'opacity',
+			'0.4'
+		);
 		await expect(dialog.getByText('전체 캘린더 일정')).toHaveCount(0);
 		await expect(dialog.getByText('다른 사람 일정')).toHaveCount(0);
 		await expect(dialog.getByText('월간 현황 팝업 구현')).toBeVisible();
 		await expect(dialog.locator('[data-flow-board-card="completed-personal-task"]')).toBeVisible();
-		const taskDateRange = dialog.locator('[data-flow-board-card="completed-personal-task"] [data-slot="flow-task-date-range"]');
+		const taskDateRange = dialog.locator(
+			'[data-flow-board-card="completed-personal-task"] [data-slot="flow-task-date-range"]'
+		);
 		await expect(taskDateRange).toHaveAccessibleName('06/15 - 06/17');
 		await expect(taskDateRange).toHaveClass(/font-mono/);
 		await expect(taskDateRange.locator('[data-slot="flow-task-date-separator"]')).toHaveCount(2);
-		await expect(taskDateRange.locator('[data-slot="flow-task-date-separator"]').first()).toHaveCSS('opacity', '0.4');
-		await expect(taskDateRange.locator('[data-slot="flow-task-date-range-separator"]')).toHaveCSS('opacity', '0.4');
+		await expect(taskDateRange.locator('[data-slot="flow-task-date-separator"]').first()).toHaveCSS(
+			'opacity',
+			'0.4'
+		);
+		await expect(taskDateRange.locator('[data-slot="flow-task-date-range-separator"]')).toHaveCSS(
+			'opacity',
+			'0.4'
+		);
 		await expect(dialog.getByText('박지민')).toBeVisible();
 		await expect(dialog.getByText('아직 예정 업무')).toHaveCount(0);
 		await expect(dialog.getByText('다른 사람 완료 업무')).toHaveCount(0);
@@ -330,15 +480,37 @@ test.describe('attendance team status', () => {
 		const calendarItems = dialog.getByTestId('team-status-calendar-event');
 		const completedTaskItems = dialog.getByTestId('team-status-completed-task');
 		await expect(calendarItems.filter({ hasText: '완료 업무처럼 보이는 캘린더' })).toBeVisible();
-		await expect(calendarItems.filter({ hasText: '캘린더 일정처럼 보이는 완료 업무' })).toHaveCount(0);
-		await expect(calendarItems.filter({ hasText: '다른 사람 완료 업무처럼 보이는 캘린더' })).toHaveCount(0);
-		await expect(completedTaskItems.filter({ hasText: '캘린더 일정처럼 보이는 완료 업무' })).toBeVisible();
-		await expect(completedTaskItems.filter({ hasText: '완료 업무처럼 보이는 캘린더' })).toHaveCount(0);
-		await expect(completedTaskItems.filter({ hasText: '캘린더 일정처럼 보이는 예정 업무' })).toHaveCount(0);
-		await expect(completedTaskItems.filter({ hasText: '다른 사람 캘린더 일정처럼 보이는 완료 업무' })).toHaveCount(0);
+		await expect(calendarItems.filter({ hasText: '캘린더 일정처럼 보이는 완료 업무' })).toHaveCount(
+			0
+		);
+		await expect(
+			calendarItems.filter({
+				hasText: '다른 사람 완료 업무처럼 보이는 캘린더'
+			})
+		).toHaveCount(0);
+		await expect(
+			completedTaskItems.filter({
+				hasText: '캘린더 일정처럼 보이는 완료 업무'
+			})
+		).toBeVisible();
+		await expect(completedTaskItems.filter({ hasText: '완료 업무처럼 보이는 캘린더' })).toHaveCount(
+			0
+		);
+		await expect(
+			completedTaskItems.filter({
+				hasText: '캘린더 일정처럼 보이는 예정 업무'
+			})
+		).toHaveCount(0);
+		await expect(
+			completedTaskItems.filter({
+				hasText: '다른 사람 캘린더 일정처럼 보이는 완료 업무'
+			})
+		).toHaveCount(0);
 	});
 
-	test('uses the desktop side sheet as the only scroll area for long status day details', async ({ page }) => {
+	test('uses the desktop side sheet as the only scroll area for long status day details', async ({
+		page
+	}) => {
 		await page.setViewportSize({ width: 1280, height: 720 });
 		await routeOverflowStatusDay(page);
 
@@ -369,25 +541,31 @@ test.describe('attendance team status', () => {
 			expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
 		}
 
-		const workRecordCardStyle = await sheet.getByTestId('team-status-day-segment').first().evaluate((element) => {
-			const style = getComputedStyle(element);
-			return {
-				backgroundColor: style.backgroundColor,
-				borderWidth: style.borderWidth,
-				boxShadow: style.boxShadow
-			};
-		});
+		const workRecordCardStyle = await sheet
+			.getByTestId('team-status-day-segment')
+			.first()
+			.evaluate((element) => {
+				const style = getComputedStyle(element);
+				return {
+					backgroundColor: style.backgroundColor,
+					borderWidth: style.borderWidth,
+					boxShadow: style.boxShadow
+				};
+			});
 		expect(workRecordCardStyle.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
 		expect(workRecordCardStyle.borderWidth).toBe('1px');
 		expect(workRecordCardStyle.boxShadow).not.toBe('none');
-		const segmentMarkerStyle = await sheet.locator('[data-slot="work-segment-marker"]').first().evaluate((element) => {
-			const style = getComputedStyle(element);
-			return {
-				backgroundColor: style.backgroundColor,
-				height: style.height,
-				width: style.width
-			};
-		});
+		const segmentMarkerStyle = await sheet
+			.locator('[data-slot="work-segment-marker"]')
+			.first()
+			.evaluate((element) => {
+				const style = getComputedStyle(element);
+				return {
+					backgroundColor: style.backgroundColor,
+					height: style.height,
+					width: style.width
+				};
+			});
 		expect(segmentMarkerStyle.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
 		expect(segmentMarkerStyle.height).toBe('12px');
 		expect(segmentMarkerStyle.width).toBe('4px');
@@ -400,23 +578,27 @@ test.describe('attendance team status', () => {
 				paddingBlockEnd: style.paddingBlockEnd
 			};
 		});
-		const eventContentStyle = await calendarEventCard.locator('[data-slot="card-content"]').evaluate((element) => {
-			const style = getComputedStyle(element);
-			return {
-				paddingInlineStart: style.paddingInlineStart,
-				paddingInlineEnd: style.paddingInlineEnd
-			};
-		});
-		const eventRowStyle = await calendarEventCard.getByTestId('team-status-calendar-event').evaluate((element) => {
-			const style = getComputedStyle(element);
-			return {
-				backgroundColor: style.backgroundColor,
-				boxShadow: style.boxShadow,
-				borderRadius: style.borderRadius,
-				paddingBlockStart: style.paddingBlockStart,
-				paddingBlockEnd: style.paddingBlockEnd
-			};
-		});
+		const eventContentStyle = await calendarEventCard
+			.locator('[data-slot="card-content"]')
+			.evaluate((element) => {
+				const style = getComputedStyle(element);
+				return {
+					paddingInlineStart: style.paddingInlineStart,
+					paddingInlineEnd: style.paddingInlineEnd
+				};
+			});
+		const eventRowStyle = await calendarEventCard
+			.getByTestId('team-status-calendar-event')
+			.evaluate((element) => {
+				const style = getComputedStyle(element);
+				return {
+					backgroundColor: style.backgroundColor,
+					boxShadow: style.boxShadow,
+					borderRadius: style.borderRadius,
+					paddingBlockStart: style.paddingBlockStart,
+					paddingBlockEnd: style.paddingBlockEnd
+				};
+			});
 		expect(eventCardStyle.paddingBlockStart).toBe('0px');
 		expect(eventCardStyle.paddingBlockEnd).toBe('0px');
 		expect(eventContentStyle.paddingInlineStart).toBe('0px');
@@ -428,7 +610,9 @@ test.describe('attendance team status', () => {
 		expect(eventRowStyle.paddingBlockEnd).toBe('8px');
 	});
 
-	test('uses the bottom sheet as the only mobile scroll area for long status day details', async ({ page }) => {
+	test('uses the bottom sheet as the only mobile scroll area for long status day details', async ({
+		page
+	}) => {
 		await page.setViewportSize({ width: 390, height: 640 });
 		await routeOverflowStatusDay(page);
 
@@ -509,16 +693,24 @@ test.describe('attendance team status', () => {
 		const sheet = page.getByTestId('team-status-day-detail-sheet');
 		const segments = sheet.getByTestId('team-status-day-segment');
 		await expect(sheet).toBeVisible();
-		await expect(sheet.locator('[data-slot="sheet-header"]').getByText('김철수', { exact: true })).toBeVisible();
-		await expect(sheet.getByRole('heading', { name: new RegExp(todayDate.slice(0, 4)) })).toBeVisible();
-		await expect(sheet.getByTestId('team-status-work-record-header').getByLabel(/\d{2}시간 \d{2}분/)).toBeVisible();
+		await expect(
+			sheet.locator('[data-slot="sheet-header"]').getByText('김철수', { exact: true })
+		).toBeVisible();
+		await expect(
+			sheet.getByRole('heading', { name: new RegExp(todayDate.slice(0, 4)) })
+		).toBeVisible();
+		await expect(
+			sheet.getByTestId('team-status-work-record-header').getByLabel(/\d{2}시간 \d{2}분/)
+		).toBeVisible();
 		await expect(segments.filter({ hasText: '재택' })).toBeVisible();
 		await expect(segments.filter({ hasText: '사무실' })).toBeVisible();
 		await expect(segments.filter({ hasText: '외부' })).toBeVisible();
 		await expect(sheet.getByLabel('08:30-10:20')).toBeVisible();
 		await expect(sheet.getByLabel('10:45-12:20')).toBeVisible();
 		await expect(segments.filter({ hasText: '외부' }).getByLabel(/^12:45-/)).toBeVisible();
-		await expect(segments.filter({ hasText: '외부' }).locator('[data-slot="time-range-end"]')).toHaveClass(/text-info/);
+		await expect(
+			segments.filter({ hasText: '외부' }).locator('[data-slot="time-range-end"]')
+		).toHaveClass(/text-info/);
 		await expect(sheet.getByText('개인 캘린더 일정')).toBeVisible();
 		await expect(sheet.getByText('월간 현황 팝업 구현')).toBeVisible();
 		await expect(sheet.getByTestId('work-record-edit-button')).toBeVisible();
@@ -526,11 +718,12 @@ test.describe('attendance team status', () => {
 		await expect(page.getByTestId('team-status-day-detail-dialog')).toHaveCount(0);
 	});
 
-	test('shows a cancel action for an own absence in mobile status day details', async ({ page }) => {
+	test('keeps an own absence read-only in mobile status day details', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		const summary = buildAttendanceSummaryFixture('2026-06');
 		const targetAbsence = summary.absences.find(
-			(absence) => absence.email === summary.currentUserEmail && absence.rangeID === 'absence-june-kim-leave'
+			(absence) =>
+				absence.email === summary.currentUserEmail && absence.rangeID === 'absence-june-kim-leave'
 		);
 		if (!targetAbsence) throw new Error('Expected a current user team absence fixture');
 
@@ -538,7 +731,9 @@ test.describe('attendance team status', () => {
 		await page.route('**/attendance/api/summary**', async (route) => {
 			const requestURL = new URL(route.request().url());
 			const month = requestURL.searchParams.get('month') ?? summary.month;
-			await route.fulfill({ json: month === summary.month ? summary : buildAttendanceSummaryFixture(month) });
+			await route.fulfill({
+				json: month === summary.month ? summary : buildAttendanceSummaryFixture(month)
+			});
 		});
 
 		await page.goto('/attendance');
@@ -547,9 +742,9 @@ test.describe('attendance team status', () => {
 		await page.getByTestId(`team-status-cell-kim@example.com-${targetAbsence.date}`).click();
 
 		const sheet = page.getByTestId('team-status-day-detail-sheet');
-		await expect(sheet.getByText('휴가').first()).toBeVisible();
-		await expect(sheet.getByText('sample overlap leave').first()).toBeVisible();
+		await expect(sheet.getByText('휴가', { exact: true })).toHaveCount(1);
+		await expect(sheet.getByText('sample overlap leave', { exact: true })).toHaveCount(1);
 		await expect(sheet.getByRole('button', { name: '수정' })).toHaveCount(0);
-		await expect(sheet.getByTestId('personal-day-detail-panel').getByRole('button', { name: '취소' })).toBeVisible();
+		await expect(sheet.getByRole('button', { name: '취소' })).toHaveCount(0);
 	});
 });

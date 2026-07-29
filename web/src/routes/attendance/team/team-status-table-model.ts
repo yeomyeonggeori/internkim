@@ -24,6 +24,29 @@ export type TeamStatusPersonDaySegment = {
 	isOpen: boolean;
 };
 
+export type TeamStatusPersonDayTimelineSegment =
+	| {
+			kind: 'work';
+			id: string;
+			locationName: string;
+			locationColor?: string;
+			startTime: string;
+			endTime: string;
+			durationMinutes?: number;
+			widthPercent: number;
+			isOpen: boolean;
+	  }
+	| {
+			kind: 'leave';
+			id: string;
+			label: string;
+			startTime: string;
+			endTime: string;
+			durationMinutes: number;
+			widthPercent: number;
+			isOpen: false;
+	  };
+
 export type TeamStatusPersonDayAbsenceDetail = {
 	label: string;
 	periodLabel: string;
@@ -44,6 +67,7 @@ export type TeamStatusPersonDay = {
 	durationMinutes?: number;
 	totalDurationLabel?: string;
 	segments: TeamStatusPersonDaySegment[];
+	timelineSegments: TeamStatusPersonDayTimelineSegment[];
 };
 
 export type TeamStatusPersonRow = Pick<PersonToday, 'email' | 'displayName' | 'image' | 'mattermostUsername'> & {
@@ -171,6 +195,12 @@ function buildTeamStatusPersonDay(
 		const durationMinutes = person.workedMinutes + openElapsedMinutes;
 		const visibleDurationMinutes = durationMinutes > 0 ? durationMinutes : undefined;
 		const totalDurationLabel = visibleDurationMinutes ? formatHoursMinutes(visibleDurationMinutes, text) : undefined;
+		const segments = buildTeamStatusPersonDaySegments(
+			person.segments,
+			text,
+			locationColors,
+			nowLocalTime
+		);
 		return {
 			date,
 			label: totalDurationLabel ?? '-',
@@ -181,19 +211,35 @@ function buildTeamStatusPersonDay(
 			detailLabel: person.activeSegment?.startTime,
 			durationMinutes: visibleDurationMinutes,
 			totalDurationLabel,
-			segments: buildTeamStatusPersonDaySegments(person.segments, text, locationColors, nowLocalTime),
+			segments,
+			timelineSegments: buildTeamStatusPersonDayTimelineSegments(
+				segments,
+				person.absence,
+				text
+			),
 		};
 	}
 	if (person.status === 'finished') {
 		const durationMinutes = person.workedMinutes > 0 ? person.workedMinutes : undefined;
 		const totalDurationLabel = durationMinutes ? formatHoursMinutes(durationMinutes, text) : undefined;
+		const segments = buildTeamStatusPersonDaySegments(
+			person.segments,
+			text,
+			locationColors,
+			nowLocalTime
+		);
 		return {
 			date,
 			label: totalDurationLabel ?? '-',
 			tone: 'finished',
 			durationMinutes,
 			totalDurationLabel,
-			segments: buildTeamStatusPersonDaySegments(person.segments, text, locationColors, nowLocalTime),
+			segments,
+			timelineSegments: buildTeamStatusPersonDayTimelineSegments(
+				segments,
+				person.absence,
+				text
+			),
 		};
 	}
 	if (person.status === 'absence' && person.absence) {
@@ -210,18 +256,23 @@ function buildTeamStatusPersonDay(
 				createdBy: person.absence.createdBy,
 			},
 			segments: [],
+			timelineSegments: [],
 		};
 	}
-	if (person.status === 'absent') return { date, label: '-', tone: 'absent', segments: [] };
+	if (person.status === 'absent') {
+		return { date, label: '-', tone: 'absent', segments: [], timelineSegments: [] };
+	}
 	return emptyTeamStatusPersonDay(date);
 }
 
 function emptyTeamStatusPersonDay(date: string): TeamStatusPersonDay {
-	return { date, label: '-', tone: 'empty', segments: [] };
+	return { date, label: '-', tone: 'empty', segments: [], timelineSegments: [] };
 }
 
 function fallbackTeamStatusPersonDay(date: string, today: string): TeamStatusPersonDay {
-	if (!isWeekend(date) && date <= today) return { date, label: '-', tone: 'absent', segments: [] };
+	if (!isWeekend(date) && date <= today) {
+		return { date, label: '-', tone: 'absent', segments: [], timelineSegments: [] };
+	}
 	return emptyTeamStatusPersonDay(date);
 }
 
@@ -255,6 +306,42 @@ function buildTeamStatusPersonDaySegments(
 			isOpen: segment.isOpen,
 		};
 	});
+}
+
+function buildTeamStatusPersonDayTimelineSegments(
+	workSegments: TeamStatusPersonDaySegment[],
+	absence: AttendanceAbsence | undefined,
+	text: AttendanceText
+): TeamStatusPersonDayTimelineSegment[] {
+	const timelineSegments: TeamStatusPersonDayTimelineSegment[] = workSegments.map((segment) => ({
+		kind: 'work',
+		id: segment.id,
+		locationName: segment.locationName,
+		locationColor: segment.locationColor,
+		startTime: segment.startTime,
+		endTime: segment.endTime,
+		durationMinutes: segment.durationMinutes,
+		widthPercent: segment.widthPercent,
+		isOpen: segment.isOpen
+	}));
+	if (absence?.startTime && absence.endTime) {
+		timelineSegments.push({
+			kind: 'leave',
+			id: `leave:${absence.id}`,
+			label: teamStatusAbsenceLabel(absence, text),
+			startTime: absence.startTime,
+			endTime: absence.endTime,
+			durationMinutes: Math.max(
+				0,
+				localTimeMinutes(absence.endTime) - localTimeMinutes(absence.startTime)
+			),
+			widthPercent: dayWidthPercent(absence.startTime, absence.endTime),
+			isOpen: false
+		});
+	}
+	return timelineSegments.sort((first, second) =>
+		first.startTime.localeCompare(second.startTime)
+	);
 }
 
 function buildLocationColors(locations: AttendanceLocation[]): LocationColorLookup {
