@@ -2,8 +2,6 @@
 	import { page } from '$app/state';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
-	import { calendarDateFromKey } from './calendar-layout-date';
 	import { onMount } from 'svelte';
 	import {
 		fetchCalendarAccountStatus,
@@ -32,21 +30,6 @@
 	const isEmbed = $derived(page.url.pathname.startsWith('/calendar/embed'));
 	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
 	const layoutState = new CalendarLayoutState();
-
-	const visibleMonthLabel = $derived(
-		(layoutState.selectedDateKey ? calendarDateFromKey(layoutState.selectedDateKey) : layoutState.today).toLocaleDateString(localeCode, {
-			year: 'numeric',
-			month: 'long'
-		})
-	);
-
-	$effect(() => {
-		if (isEmbed) return;
-		breadcrumbMeta.value = visibleMonthLabel;
-		return () => {
-			breadcrumbMeta.value = '';
-		};
-	});
 
 	onMount(() => {
 		if (isEmbed) return;

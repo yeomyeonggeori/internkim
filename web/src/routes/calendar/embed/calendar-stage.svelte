@@ -183,5 +183,7 @@
 	/>
 	<CalendarMonthRangePreview segments={monthRangePreviewSegments} title={monthRangePreviewTitle} />
 	<CalendarTimelineRangePreview segments={timelineRangePreviewSegments} title={timelineRangePreviewTitle} />
-	<CalendarMonthScrollOverlay labels={monthScrollOverlayLabels} />
+	{#if toolbarView === ViewType.MONTH}
+		<CalendarMonthScrollOverlay labels={monthScrollOverlayLabels} />
+	{/if}
 </div>
