@@ -46,6 +46,7 @@ func (service *Service) handleMattermostPasswordLogin(responseWriter http.Respon
 		return
 	}
 	logAuditEvent("mattermost password login success")
+	go service.ensureUserChannelMembership(context.Background(), email)
 	service.writeJSON(responseWriter, map[string]string{"ok": "true", "secretHex": service.buzzSecretForEmail(request.Context(), email)})
 }
 
