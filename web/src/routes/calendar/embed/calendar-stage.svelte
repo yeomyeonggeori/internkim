@@ -141,15 +141,6 @@
 	const replayedContextMenuEventKey = 'calendarStageReplayedContextMenu';
 
 	const gridEvents = $derived(calendarGridEventsFromDayFlowEvents(events));
-	const monthViewText = $derived({
-		addEventOnDay: text.addEventOnDay,
-		openDay: text.openDay,
-		editEvent: text.editEvent,
-		duplicateEvent: text.duplicateEvent,
-		deleteEvent: text.deleteEvent,
-		moreEvents: monthMoreText.button
-	});
-
 	function openGridEvent(event: CalendarGridEvent, originElement: HTMLElement): void {
 		const rectangle = originElement.getBoundingClientRect();
 		openEvent(event.id, {
@@ -173,11 +164,11 @@
 
 	function captureContextTarget(event: MouseEvent): void {
 		if (!(event.target instanceof Element) || isReplayedContextMenuEvent(event)) return;
-		const eventElement = event.target.closest<HTMLElement>('[data-event-id], .df-event, .df-month-segment-event');
-		const dayElement = event.target.closest<HTMLElement>('[data-date]');
+		const eventElement = event.target.closest<HTMLElement>('[data-calendar-event-id], [data-event-id], .df-event, .df-month-segment-event');
+		const dayElement = event.target.closest<HTMLElement>('[data-calendar-date], [data-date]');
 		contextTarget = {
-			eventID: eventElement?.dataset.eventId ?? '',
-			dateKey: dayElement?.dataset.date ?? '',
+			eventID: eventElement?.dataset.calendarEventId ?? eventElement?.dataset.eventId ?? '',
+			dateKey: dayElement?.dataset.calendarDate ?? dayElement?.dataset.date ?? '',
 			anchor: { clientX: event.clientX, clientY: event.clientY }
 		};
 		if (!contextTarget.eventID && !contextTarget.dateKey) return;
@@ -251,13 +242,11 @@
 							selectedEventID={selectedEventID ?? ''}
 							events={gridEvents}
 							{localeCode}
-							text={monthViewText}
+							moreEventsText={monthMoreText.button}
 							selectDay={(day) => selectDate(calendarGridDateKey(day))}
 							openDay={(day) => navigateToDateKey(calendarGridDateKey(day))}
 							addEventOnDay={(day) => addEventOnDay(calendarGridDateKey(day))}
 							openEvent={openGridEvent}
-							duplicateEvent={(event) => addEventOnDay(calendarGridDateKey(event.start))}
-							deleteEvent={(event) => deleteEvent(event.id)}
 							visibleMonthChanged={(month) => visibleMonthChanged(month)}
 						/>
 						</div>

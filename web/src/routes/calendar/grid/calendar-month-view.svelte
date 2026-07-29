@@ -3,7 +3,7 @@
 	import CalendarDayCell from './calendar-day-cell.svelte';
 	import CalendarEventChip from './calendar-event-chip.svelte';
 	import {
-		addCalendarGridDays,
+		calendarGridDateFromKey,
 		calendarGridDateKey,
 		calendarGridDominantMonth,
 		calendarGridWeeks,
@@ -11,7 +11,7 @@
 		startOfCalendarGridWeek,
 		type CalendarGridWeek
 	} from './calendar-grid-dates';
-	import { calendarGridWeekLayout, type CalendarGridEvent } from './calendar-grid-layout';
+	import { calendarGridWeekLayout, type CalendarGridEvent, type CalendarGridWeekLayout } from './calendar-grid-layout';
 
 	type CalendarMonthViewProps = {
 		visibleDate: Date;
@@ -19,20 +19,11 @@
 		selectedEventID: string;
 		events: CalendarGridEvent[];
 		localeCode: string;
-		text: {
-			addEventOnDay: string;
-			openDay: string;
-			editEvent: string;
-			duplicateEvent: string;
-			deleteEvent: string;
-			moreEvents: string;
-		};
+		moreEventsText: string;
 		selectDay: (day: Date) => void;
 		openDay: (day: Date) => void;
 		addEventOnDay: (day: Date) => void;
 		openEvent: (event: CalendarGridEvent, originElement: HTMLElement) => void;
-		duplicateEvent: (event: CalendarGridEvent) => void;
-		deleteEvent: (event: CalendarGridEvent) => void;
 		visibleMonthChanged: (month: Date) => void;
 	};
 
@@ -42,13 +33,11 @@
 		selectedEventID,
 		events,
 		localeCode,
-		text,
+		moreEventsText,
 		selectDay,
 		openDay,
 		addEventOnDay,
 		openEvent,
-		duplicateEvent,
-		deleteEvent,
 		visibleMonthChanged
 	}: CalendarMonthViewProps = $props();
 
@@ -56,24 +45,63 @@
 	const weeksAfterVisibleDate = 26;
 	const laneHeightPixels = 22;
 	const visibleChipCount = 3;
+	const scrollOverlayHideDelayMilliseconds = 700;
 
 	let scrollElement = $state<HTMLElement | null>(null);
 	let anchorWeekStartKey = $state('');
+	let isScrollOverlayVisible = $state(false);
 	let isScrollingToWeek = false;
+	let selfReportedMonthKey = '';
+	let scrollFrame: number | null = null;
+	let scrollOverlayTimer: number | null = null;
 
-	const weeks = $derived(calendarGridWeeks(visibleDate, weeksBeforeVisibleDate, weeksAfterVisibleDate));
+	let windowAnchorDateKey = $state('');
+
+	const weeks = $derived(
+		calendarGridWeeks(
+			windowAnchorDateKey ? calendarGridDateFromKey(windowAnchorDateKey) : visibleDate,
+			weeksBeforeVisibleDate,
+			weeksAfterVisibleDate
+		)
+	);
+	const weekLayouts = $derived(
+		new Map<string, CalendarGridWeekLayout>(weeks.map((week) => [week.startDateKey, calendarGridWeekLayout(week, events)]))
+	);
+	const weekMonths = $derived(new Map<string, Date>(weeks.map((week) => [week.startDateKey, calendarGridDominantMonth(week)])));
 	const weekdayLabels = $derived(
 		Array.from({ length: 7 }, (_, weekdayIndex) =>
 			new Date(2026, 2, 1 + weekdayIndex).toLocaleDateString(localeCode, { weekday: 'short' })
 		)
 	);
+	const monthLabelFormatter = $derived(new Intl.DateTimeFormat(localeCode, { year: 'numeric', month: 'long' }));
 	const timeFormatter = $derived(new Intl.DateTimeFormat(localeCode, { hour: 'numeric', minute: '2-digit' }));
+	const today = new Date();
 
 	$effect(() => {
 		const visibleWeekStartKey = calendarGridDateKey(startOfCalendarGridWeek(visibleDate));
 		if (visibleWeekStartKey === anchorWeekStartKey) return;
+		if (calendarGridDateKey(visibleDate) === selfReportedMonthKey || isWeekInsideViewport(visibleWeekStartKey)) {
+			anchorWeekStartKey = visibleWeekStartKey;
+			return;
+		}
 		anchorWeekStartKey = visibleWeekStartKey;
+		if (!weeks.some((week) => week.startDateKey === visibleWeekStartKey)) windowAnchorDateKey = calendarGridDateKey(visibleDate);
 		scrollWeekIntoView(visibleWeekStartKey);
+	});
+
+	function isWeekInsideViewport(weekStartKey: string): boolean {
+		const weekElement = scrollElement?.querySelector<HTMLElement>(`[data-week-start="${weekStartKey}"]`);
+		if (!weekElement || !scrollElement) return false;
+		const viewport = scrollElement.getBoundingClientRect();
+		const week = weekElement.getBoundingClientRect();
+		return week.bottom > viewport.top && week.top < viewport.bottom;
+	}
+
+	$effect(() => {
+		return () => {
+			if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
+			if (scrollOverlayTimer !== null) clearTimeout(scrollOverlayTimer);
+		};
 	});
 
 	function scrollWeekIntoView(weekStartKey: string, attempt = 0): void {
@@ -92,24 +120,44 @@
 	}
 
 	function handleScroll(): void {
-		if (!scrollElement || isScrollingToWeek) return;
-		const weekElements = Array.from(scrollElement.querySelectorAll<HTMLElement>('[data-week-start]'));
-		const topWeekElement = weekElements.find((element) => element.offsetTop + element.offsetHeight > scrollElement!.scrollTop + 8);
-		const weekStartKey = topWeekElement?.dataset.weekStart;
-		if (!weekStartKey || weekStartKey === anchorWeekStartKey) return;
-		anchorWeekStartKey = weekStartKey;
-		const week = weeks.find((candidate) => candidate.startDateKey === weekStartKey);
-		if (week) visibleMonthChanged(calendarGridDominantMonth(week));
+		if (isScrollingToWeek || scrollFrame !== null) return;
+		scrollFrame = requestAnimationFrame(() => {
+			scrollFrame = null;
+			updateVisibleWeek();
+		});
 	}
 
-	function weekEvents(week: CalendarGridWeek) {
-		return calendarGridWeekLayout(week, events);
+	function updateVisibleWeek(): void {
+		if (!scrollElement) return;
+		const scrollTop = scrollElement.getBoundingClientRect().top;
+		const weekElements = scrollElement.querySelectorAll<HTMLElement>('[data-week-start]');
+		let topWeekStartKey = '';
+		for (const weekElement of weekElements) {
+			if (weekElement.getBoundingClientRect().bottom <= scrollTop + 8) continue;
+			topWeekStartKey = weekElement.dataset.weekStart ?? '';
+			break;
+		}
+		if (!topWeekStartKey || topWeekStartKey === anchorWeekStartKey) return;
+		anchorWeekStartKey = topWeekStartKey;
+		const month = weekMonths.get(topWeekStartKey);
+		if (!month) return;
+		showScrollOverlay();
+		selfReportedMonthKey = calendarGridDateKey(month);
+		visibleMonthChanged(month);
 	}
 
-	function timedEventsForDay(week: CalendarGridWeek, dayIndex: number, laneCount: number) {
-		const layout = weekEvents(week);
+	function showScrollOverlay(): void {
+		isScrollOverlayVisible = true;
+		if (scrollOverlayTimer !== null) clearTimeout(scrollOverlayTimer);
+		scrollOverlayTimer = window.setTimeout(() => {
+			scrollOverlayTimer = null;
+			isScrollOverlayVisible = false;
+		}, scrollOverlayHideDelayMilliseconds);
+	}
+
+	function timedEventsForDay(layout: CalendarGridWeekLayout, dayIndex: number) {
 		const entries = layout.timedEntries.filter((entry) => entry.dayIndex === dayIndex);
-		const availableChipCount = Math.max(1, visibleChipCount - laneCount);
+		const availableChipCount = Math.max(1, visibleChipCount - layout.laneCount);
 		return {
 			visible: entries.slice(0, availableChipCount),
 			hiddenCount: Math.max(0, entries.length - availableChipCount)
@@ -117,11 +165,15 @@
 	}
 
 	function isOutsideVisibleMonth(day: Date, week: CalendarGridWeek): boolean {
-		return day.getMonth() !== calendarGridDominantMonth(week).getMonth();
+		return day.getMonth() !== (weekMonths.get(week.startDateKey)?.getMonth() ?? day.getMonth());
+	}
+
+	function monthStartDayInWeek(week: CalendarGridWeek): Date | undefined {
+		return week.days.find((day) => day.getDate() === 1);
 	}
 </script>
 
-<div class="flex min-h-0 flex-1 flex-col">
+<div class="relative flex min-h-0 flex-1 flex-col">
 	<div class="border-border/70 text-muted-foreground grid grid-cols-7 border-b text-xs font-medium">
 		{#each weekdayLabels as weekdayLabel, weekdayIndex (weekdayLabel)}
 			<div class={cn('px-2 py-1.5', weekdayIndex === 0 && 'text-destructive', weekdayIndex === 6 && 'text-primary')}>
@@ -129,19 +181,31 @@
 			</div>
 		{/each}
 	</div>
-	<div bind:this={scrollElement} onscroll={handleScroll} class="min-h-0 flex-1 overflow-y-auto">
+	<div bind:this={scrollElement} onscroll={handleScroll} class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 		{#each weeks as week (week.startDateKey)}
-			{@const layout = weekEvents(week)}
+			{@const layout = weekLayouts.get(week.startDateKey) ?? { spans: [], timedEntries: [], laneCount: 0 }}
+			{@const monthStartDay = monthStartDayInWeek(week)}
 			<div data-week-start={week.startDateKey} class="relative grid grid-cols-7">
+				{#if monthStartDay}
+					<div
+						aria-hidden="true"
+						class={cn(
+							'text-foreground/75 pointer-events-none absolute top-1.5 left-6 z-10 text-[22px] leading-none font-extrabold tabular-nums transition-opacity duration-200',
+							isScrollOverlayVisible ? 'opacity-100' : 'opacity-0'
+						)}
+						style="text-shadow: 0 4px 16px var(--color-background)"
+					>
+						{monthLabelFormatter.format(monthStartDay)}
+					</div>
+				{/if}
 				{#each week.days as day, dayIndex (day.getTime())}
-					{@const timed = timedEventsForDay(week, dayIndex, layout.laneCount)}
+					{@const timed = timedEventsForDay(layout, dayIndex)}
 					<CalendarDayCell
 						{day}
 						dayLabel={String(day.getDate())}
-						isToday={isSameCalendarGridDay(day, new Date())}
+						isToday={isSameCalendarGridDay(day, today)}
 						isOutsideMonth={isOutsideVisibleMonth(day, week)}
 						isSelected={selectedDateKey === calendarGridDateKey(day)}
-						text={{ addEventOnDay: text.addEventOnDay }}
 						addEventOnDay={(selectedDay) => addEventOnDay(selectedDay)}
 						selectDay={(selectedDay) => selectDay(selectedDay)}
 					>
@@ -151,10 +215,7 @@
 								event={entry.event}
 								timeLabel={entry.event.isAllDay ? '' : timeFormatter.format(entry.event.start)}
 								isSelected={selectedEventID === entry.event.id}
-								text={{ editEvent: text.editEvent, duplicateEvent: text.duplicateEvent, deleteEvent: text.deleteEvent }}
 								{openEvent}
-								{duplicateEvent}
-								{deleteEvent}
 							/>
 						{/each}
 						{#if timed.hiddenCount > 0}
@@ -163,12 +224,12 @@
 								class="text-muted-foreground hover:text-foreground px-1.5 text-left text-xs"
 								onclick={() => openDay(day)}
 							>
-								{text.moreEvents.replace('{count}', String(timed.hiddenCount))}
+								{moreEventsText.replace('{count}', String(timed.hiddenCount))}
 							</button>
 						{/if}
 					</CalendarDayCell>
 				{/each}
-				<div class="pointer-events-none absolute inset-x-0 top-8 grid grid-cols-7 gap-x-0 px-0">
+				<div class="pointer-events-none absolute inset-x-0 top-8 grid grid-cols-7">
 					{#each layout.spans as span (span.event.id)}
 						<div
 							class="pointer-events-auto px-1"
@@ -180,10 +241,7 @@
 								isSelected={selectedEventID === span.event.id}
 								continuesBefore={span.continuesBefore}
 								continuesAfter={span.continuesAfter}
-								text={{ editEvent: text.editEvent, duplicateEvent: text.duplicateEvent, deleteEvent: text.deleteEvent }}
 								{openEvent}
-								{duplicateEvent}
-								{deleteEvent}
 							/>
 						</div>
 					{/each}
