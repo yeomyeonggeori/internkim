@@ -63,6 +63,7 @@
 {#if popover && renderedPopover}
 	<CalendarDraftPopover
 		popover={renderedPopover}
+		{localeCode}
 		{calendarOptions}
 		{participantCandidates}
 		dialogLabel={renderedPopover.mode === 'edit' ? text.editEvent : text.newEvent}
