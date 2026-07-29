@@ -38,13 +38,6 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 	if errorValue := ensureAttendanceColumn(ctx, database, "location_name", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
-	if _, errorValue := database.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS attendance_settings (
-		key TEXT PRIMARY KEY,
-		value TEXT NOT NULL,
-		updated_at TEXT NOT NULL
-	)`); errorValue != nil {
-		return errorValue
-	}
 	if _, errorValue := database.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS attendance_absence_ranges (
 		id TEXT PRIMARY KEY,
 		email TEXT NOT NULL,
@@ -116,7 +109,13 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 	if _, errorValue = database.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS attendance_absence_occurrences_active_user_date ON attendance_absence_occurrences(email, date) WHERE canceled_at = ''"); errorValue != nil {
 		return errorValue
 	}
-	return ensureAttendanceSummaryCacheSchema(ctx, database)
+	if errorValue := ensureAttendanceSummaryCacheSchema(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureAttendanceLeaveLedgerSchema(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	return ensureAttendanceLeaveRequestSchema(ctx, database)
 }
 
 func ensureAttendanceColumn(ctx context.Context, database *sql.DB, columnName string, columnDefinition string) error {
