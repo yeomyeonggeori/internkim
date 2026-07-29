@@ -13,6 +13,7 @@
 	import CalendarMobileEventEditor from './calendar-mobile-event-editor.svelte';
 	import CalendarMonthEventLayer from './calendar-month-event-layer.svelte';
 	import CalendarMonthView from '../grid/calendar-month-view.svelte';
+	import CalendarTimeView from '../grid/calendar-time-view.svelte';
 	import { calendarGridEventsFromDayFlowEvents } from '../grid/calendar-grid-events';
 	import { calendarGridDateKey } from '../grid/calendar-grid-dates';
 	import type { CalendarGridEvent } from '../grid/calendar-grid-layout';
@@ -63,6 +64,7 @@
 		visibleMonthChanged: (month: Date) => void;
 		addEventOnDay: (dateKey: string) => void;
 		addEventOnRange: (startDateKey: string, endDateKey: string) => void;
+		addEventOnTimeRange: (start: Date, end: Date) => void;
 		deleteEvent: (eventID: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
@@ -93,6 +95,7 @@
 		visibleMonthChanged,
 		addEventOnDay,
 		addEventOnRange,
+		addEventOnTimeRange,
 		deleteEvent,
 		openEvent,
 		saveMovedEvent,
@@ -254,26 +257,18 @@
 						/>
 						</div>
 					{:else}
-						<DayFlowCalendar
-							{calendar}
-							eventContentDay={CalendarDayFlowEventActivator}
-							eventContentWeek={CalendarDayFlowEventActivator}
-							eventContentAllDayDay={CalendarDayFlowEventActivator}
-							eventContentAllDayWeek={CalendarDayFlowEventActivator}
-							mobileEventDetail={CalendarMobileEventEditor}
-						/>
-						<CalendarMonthEventLayer
-							{clearSelectedEvent}
-							{events}
-							{localeCode}
-							{monthMoreText}
-							{openEvent}
-							{saveMovedEvent}
-							{selectDate}
-							{selectedEventID}
-							{stageElement}
-							{toolbarView}
-						/>
+						<div class="absolute inset-0 flex min-h-0 flex-col">
+							<CalendarTimeView
+								visibleDate={toolbarDate}
+								dayCount={toolbarView === ViewType.DAY ? 1 : 7}
+								selectedEventID={selectedEventID ?? ''}
+								events={gridEvents}
+								{localeCode}
+								selectDay={(day) => navigateToDateKey(calendarGridDateKey(day))}
+								openEvent={openGridEvent}
+								addEventOnTimeRange={(start, end) => addEventOnTimeRange(start, end)}
+							/>
+						</div>
 					{/if}
 					<CalendarMonthRangePreview segments={monthRangePreviewSegments} title={monthRangePreviewTitle} />
 				<CalendarTimelineRangePreview segments={timelineRangePreviewSegments} title={timelineRangePreviewTitle} />
