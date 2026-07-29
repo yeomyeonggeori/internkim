@@ -1,16 +1,21 @@
 <script lang="ts">
+	import AlignLeftIcon from '@lucide/svelte/icons/align-left';
+	import CalendarIcon from '@lucide/svelte/icons/calendar';
+	import ClockIcon from '@lucide/svelte/icons/clock';
+	import MapPinIcon from '@lucide/svelte/icons/map-pin';
+	import TrashIcon from '@lucide/svelte/icons/trash';
+	import UsersIcon from '@lucide/svelte/icons/users';
 	import { Button } from '$lib/components/ui/button';
-	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
+	import * as InputGroup from '$lib/components/ui/input-group';
+	import { Label } from '$lib/components/ui/label';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
-	import { Textarea } from '$lib/components/ui/textarea';
 	import type { CalendarAuditRow } from './calendar-audit';
 	import { calendarDateTimeRangeChangesForStart } from './calendar-date-time-range';
 	import { isDraftPopoverValid, type DraftPopoverState } from './calendar-draft-popover-state';
 	import type { DraftPopoverText } from './calendar-draft-popover-text';
-	import CalendarEventAuditCard from './calendar-event-audit-card.svelte';
 	import CalendarParticipantSelector from './calendar-participant-selector.svelte';
 	import type { CalendarParticipant } from './calendar-participants';
 
@@ -59,7 +64,6 @@
 	const selectedCalendarName = $derived(
 		calendarOptions.find((option) => option.id === popover.calendarID)?.name ?? popover.calendarID
 	);
-	const auditEmptyText = $derived(popover.mode === 'edit' ? text.auditEmpty : '');
 
 	function changeStart(changes: { startDateKey?: string; startTime?: string }): void {
 		const range = calendarDateTimeRangeChangesForStart(
@@ -94,92 +98,100 @@
 		collisionPadding={12}
 		interactOutsideBehavior="ignore"
 		aria-label={dialogLabel}
-		class="max-h-[min(34rem,var(--bits-popover-content-available-height))] w-96 gap-0 overflow-y-auto p-0"
+		class="max-h-[min(30rem,var(--bits-popover-content-available-height))] w-80 gap-0 overflow-y-auto p-0"
 	>
-		<div class="bg-popover sticky top-0 z-10 border-b p-3">
+		<div class="border-border/50 border-b">
 			<Input
 				value={popover.title}
 				aria-label={text.title}
 				placeholder={text.title}
 				autocomplete="off"
-				class="h-9 border-0 px-0 text-base font-semibold shadow-none focus-visible:ring-0"
+				class="h-10 rounded-none border-0 px-3 text-sm font-semibold shadow-none focus-visible:ring-0"
 				oninput={(event) => updatePopover({ title: event.currentTarget.value })}
 				onkeydown={saveOnEnter}
 			/>
 		</div>
 
-		<Field.Group class="p-3">
-			<Field.Field orientation="horizontal">
-				<Field.Label for="draft-all-day">{text.allDay}</Field.Label>
-				<Switch id="draft-all-day" checked={popover.allDay} onCheckedChange={(allDay) => updatePopover({ allDay })} />
-			</Field.Field>
+		<div class="grid gap-1.5 p-2">
+			<div class="flex items-center gap-2 pl-1">
+				<ClockIcon class="text-muted-foreground size-4 shrink-0" />
+				<Label for="draft-all-day" class="text-muted-foreground text-xs font-normal">{text.allDay}</Label>
+				<Switch
+					id="draft-all-day"
+					class="ml-auto"
+					checked={popover.allDay}
+					onCheckedChange={(allDay) => updatePopover({ allDay })}
+				/>
+			</div>
 
-			<Field.Field>
-				<Field.Label for="draft-start-date">{text.startDate}</Field.Label>
-				<div class="flex gap-2">
-					<Input
-						id="draft-start-date"
-						type="date"
-						class="flex-1 tabular-nums"
-						value={popover.dateKey}
-						onchange={(event) => changeStart({ startDateKey: event.currentTarget.value })}
-					/>
-					{#if !popover.allDay}
-						<Input
-							type="time"
-							aria-label={text.startTime}
-							class="w-28 tabular-nums"
-							value={popover.startTime}
-							onchange={(event) => changeStart({ startTime: event.currentTarget.value })}
-						/>
-					{/if}
-				</div>
-			</Field.Field>
-
-			<Field.Field>
-				<Field.Label for="draft-end-date">{text.endDate}</Field.Label>
-				<div class="flex gap-2">
-					<Input
-						id="draft-end-date"
-						type="date"
-						class="flex-1 tabular-nums"
-						value={popover.endDateKey}
-						onchange={(event) => updatePopover({ endDateKey: event.currentTarget.value })}
-					/>
-					{#if !popover.allDay}
-						<Input
-							type="time"
-							aria-label={text.endTime}
-							class="w-28 tabular-nums"
-							value={popover.endTime}
-							onchange={(event) => updatePopover({ endTime: event.currentTarget.value })}
-						/>
-					{/if}
-				</div>
-			</Field.Field>
-
-			<Field.Field>
-				<Field.Label for="draft-location">{text.location}</Field.Label>
+			<div class="flex gap-1 pl-7">
 				<Input
-					id="draft-location"
-					value={popover.location}
+					type="date"
+					aria-label={text.startDate}
+					class="h-8 flex-1 px-2 text-xs tabular-nums"
+					value={popover.dateKey}
+					onchange={(event) => changeStart({ startDateKey: event.currentTarget.value })}
+				/>
+				{#if !popover.allDay}
+					<Input
+						type="time"
+						aria-label={text.startTime}
+						class="h-8 w-24 px-2 text-xs tabular-nums"
+						value={popover.startTime}
+						onchange={(event) => changeStart({ startTime: event.currentTarget.value })}
+					/>
+				{/if}
+			</div>
+
+			<div class="flex gap-1 pl-7">
+				<Input
+					type="date"
+					aria-label={text.endDate}
+					class="h-8 flex-1 px-2 text-xs tabular-nums"
+					value={popover.endDateKey}
+					onchange={(event) => updatePopover({ endDateKey: event.currentTarget.value })}
+				/>
+				{#if !popover.allDay}
+					<Input
+						type="time"
+						aria-label={text.endTime}
+						class="h-8 w-24 px-2 text-xs tabular-nums"
+						value={popover.endTime}
+						onchange={(event) => updatePopover({ endTime: event.currentTarget.value })}
+					/>
+				{/if}
+			</div>
+
+			<InputGroup.Root class="h-8">
+				<InputGroup.Addon>
+					<MapPinIcon />
+				</InputGroup.Addon>
+				<InputGroup.Input
+					aria-label={text.location}
+					placeholder={text.location}
 					autocomplete="off"
+					class="text-xs"
+					value={popover.location}
 					oninput={(event) => updatePopover({ location: event.currentTarget.value })}
 				/>
-			</Field.Field>
+			</InputGroup.Root>
 
-			<Field.Field>
-				<Field.Label for="draft-description">{text.description}</Field.Label>
-				<Textarea
-					id="draft-description"
-					rows={3}
+			<InputGroup.Root class="h-8">
+				<InputGroup.Addon>
+					<AlignLeftIcon />
+				</InputGroup.Addon>
+				<InputGroup.Input
+					aria-label={text.description}
+					placeholder={text.description}
+					autocomplete="off"
+					class="text-xs"
 					value={popover.description}
 					oninput={(event) => updatePopover({ description: event.currentTarget.value })}
 				/>
-			</Field.Field>
+			</InputGroup.Root>
 
-			<Field.Field>
-				<Field.Label>{text.participants}</Field.Label>
+			<div class="flex items-start gap-2 pl-1">
+				<UsersIcon class="text-muted-foreground mt-1.5 size-4 shrink-0" />
 				<CalendarParticipantSelector
 					participants={popover.participants}
 					candidates={participantCandidates}
@@ -188,26 +200,39 @@
 					removeLabel={text.removeParticipantAction}
 					onChange={(participants) => updatePopover({ participants })}
 				/>
-			</Field.Field>
+			</div>
 
-			<Field.Field>
-				<Field.Label for="draft-calendar">{text.calendar}</Field.Label>
+			{#if calendarOptions.length > 1}
+			<div class="flex items-center gap-2 pl-1">
+				<CalendarIcon class="text-muted-foreground size-4 shrink-0" />
 				<Select.Root type="single" value={popover.calendarID} onValueChange={(calendarID) => updatePopover({ calendarID })}>
-					<Select.Trigger id="draft-calendar" class="w-full">{selectedCalendarName}</Select.Trigger>
+					<Select.Trigger size="sm" aria-label={text.calendar} class="h-8 flex-1 text-xs">
+						{selectedCalendarName}
+					</Select.Trigger>
 					<Select.Content>
 						{#each calendarOptions as option (option.id)}
 							<Select.Item value={option.id} label={option.name}>{option.name}</Select.Item>
 						{/each}
 					</Select.Content>
 				</Select.Root>
-			</Field.Field>
-
-			<CalendarEventAuditCard rows={auditRows} label={auditLabel} emptyText={auditEmptyText} />
-		</Field.Group>
+			</div>
+			{/if}
+		</div>
 
 		{#if popover.mode === 'edit'}
-			<footer class="bg-popover sticky bottom-0 flex items-center border-t p-3">
-				<Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" onclick={deletePopover}>
+			<footer class="border-border/50 flex items-center gap-2 border-t px-2 py-1.5">
+				<ul class="text-muted-foreground min-w-0 flex-1 text-[11px] leading-4" aria-label={auditLabel}>
+					{#each auditRows as row (`${row.label}:${row.actor.email}:${row.actor.name}`)}
+						<li class="truncate">{row.label} {row.actor.name}{row.time ? ` · ${row.time}` : ''}</li>
+					{/each}
+				</ul>
+				<Button
+					variant="ghost"
+					size="sm"
+					class="text-destructive hover:text-destructive h-7 shrink-0 px-2"
+					onclick={deletePopover}
+				>
+					<TrashIcon />
 					{text.delete}
 				</Button>
 			</footer>
