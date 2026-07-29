@@ -12,6 +12,7 @@ func TestBuzzRelayServiceUnitCarriesRequiredContract(t *testing.T) {
 		"BindsTo=postgresql.service",
 		"EnvironmentFile=" + BuzzRelayKeyEnvironmentFilePath,
 		"EnvironmentFile=" + BuzzRelayDatabaseEnvironmentFilePath,
+		"EnvironmentFile=-" + BuzzRelayS3EnvironmentFilePath,
 		"Environment=BUZZ_BIND_ADDR=" + BuzzRelayBindAddress,
 		"Environment=BUZZ_HEALTH_PORT=" + BuzzRelayHealthPort,
 		"Environment=REDIS_URL=" + BuzzRelayRedisURL,
@@ -22,6 +23,19 @@ func TestBuzzRelayServiceUnitCarriesRequiredContract(t *testing.T) {
 	} {
 		if !strings.Contains(unit, expected) {
 			t.Fatalf("buzz relay unit missing %q, got:\n%s", expected, unit)
+		}
+	}
+}
+
+func TestMinioServiceUnitServesMediaBucketBackend(t *testing.T) {
+	unit := MinioServiceUnit()
+	for _, expected := range []string{
+		"EnvironmentFile=" + MinioEnvironmentFilePath,
+		MinioBinaryPath + " server " + MinioDataPath,
+		"--address " + MinioAddress,
+	} {
+		if !strings.Contains(unit, expected) {
+			t.Fatalf("minio unit missing %q, got:\n%s", expected, unit)
 		}
 	}
 }
