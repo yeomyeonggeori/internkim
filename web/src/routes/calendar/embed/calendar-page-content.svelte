@@ -157,6 +157,8 @@
 		bind:stageElement
 		{monthRangePreviewSegments}
 		{monthRangePreviewTitle}
+		editingEventID={popover?.eventID ?? null}
+		editingTitle={popover?.title ?? ''}
 		{timelineRangePreviewSegments}
 		{timelineRangePreviewTitle}
 		{navigateToDateKey}

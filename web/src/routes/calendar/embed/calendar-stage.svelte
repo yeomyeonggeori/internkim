@@ -59,6 +59,8 @@
 		};
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
+		editingEventID: string | null;
+		editingTitle: string;
 		navigateToDateKey: (dateKey: string) => void;
 		selectedMonthDateKey: string | null;
 		visibleMonthChanged: (month: Date) => void;
@@ -90,6 +92,8 @@
 		monthMoreText,
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
+		editingEventID,
+		editingTitle,
 		navigateToDateKey,
 		selectedMonthDateKey,
 		visibleMonthChanged,
@@ -145,7 +149,11 @@
 
 	const replayedContextMenuEventKey = 'calendarStageReplayedContextMenu';
 
-	const gridEvents = $derived(calendarGridEventsFromDayFlowEvents(events));
+	const gridEvents = $derived(
+		calendarGridEventsFromDayFlowEvents(events).map((event) =>
+			event.id === editingEventID ? { ...event, title: editingTitle } : event
+		)
+	);
 	function openGridEvent(event: CalendarGridEvent, originElement: HTMLElement): void {
 		const rectangle = originElement.getBoundingClientRect();
 		openEvent(event.id, {
