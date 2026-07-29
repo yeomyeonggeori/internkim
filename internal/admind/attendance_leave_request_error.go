@@ -10,6 +10,7 @@ import (
 
 const (
 	attendanceLeaveErrorInvalidInput        = "invalidInput"
+	attendanceLeaveErrorHireDateRequired    = "hireDateRequired"
 	attendanceLeaveErrorLeaveConflict       = "leaveConflict"
 	attendanceLeaveErrorWorkConflict        = "workConflict"
 	attendanceLeaveErrorInsufficientBalance = "insufficientBalance"
@@ -21,6 +22,7 @@ const (
 )
 
 var errAttendanceLeaveInvalidInput = errors.New("invalid leave request input")
+var errAttendanceLeaveHireDateRequired = errors.New("employee hire date is required for this leave type")
 var errAttendanceLeaveRequestTooLarge = errors.New("leave request payload is too large")
 var errAttendanceLeaveMethodNotAllowed = errors.New("leave request method is not allowed")
 var errAttendanceLeaveWorkConflict = errors.New("leave request conflicts with confirmed work")
@@ -58,6 +60,8 @@ func attendanceLeaveErrorCodeAndStatus(errorValue error) (string, int) {
 		return attendanceLeaveErrorInvalidInput, http.StatusMethodNotAllowed
 	case errors.Is(errorValue, errAttendanceLeaveInvalidInput):
 		return attendanceLeaveErrorInvalidInput, http.StatusBadRequest
+	case errors.Is(errorValue, errAttendanceLeaveHireDateRequired):
+		return attendanceLeaveErrorHireDateRequired, http.StatusConflict
 	case errors.Is(errorValue, errAttendanceLeaveRequestConflict):
 		return attendanceLeaveErrorLeaveConflict, http.StatusConflict
 	case errors.Is(errorValue, errAttendanceLeaveWorkConflict):

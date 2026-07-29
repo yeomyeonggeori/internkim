@@ -42,6 +42,18 @@ func (service *Service) updateAttendanceLeaveRequestResponse(
 		)
 		return
 	}
+	employee, errorValue := service.attendanceLeaveEmployeeWithHireDateForRequest(
+		request,
+		service.webStaffActorEmail(request),
+	)
+	if errorValue != nil {
+		writeAttendanceLeaveRequestError(responseWriter, errorValue)
+		return
+	}
+	if errorValue := ensureAttendanceLeaveEmployeeCanUseType(employee, leaveType); errorValue != nil {
+		writeAttendanceLeaveRequestError(responseWriter, errorValue)
+		return
+	}
 	attachments, errorValue := service.storeAttendanceLeaveRequestAttachments(uploads)
 	keepAttachments := false
 	defer func() {
@@ -57,10 +69,6 @@ func (service *Service) updateAttendanceLeaveRequestResponse(
 		writeAttendanceLeaveRequestError(responseWriter, errorValue)
 		return
 	}
-	employee := service.attendanceLeaveEmployeeForRequest(
-		request,
-		service.webStaffActorEmail(request),
-	)
 	if errorValue := service.synchronizeAttendanceLeaveAccruals(
 		request.Context(),
 		employee,

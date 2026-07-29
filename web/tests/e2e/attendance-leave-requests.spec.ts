@@ -13,6 +13,23 @@ import { expect, test } from './attendance-page-test-fixture';
 import { selectKorean } from './attendance-test-helpers';
 
 test.describe('employee leave requests', () => {
+	test('blocks accrued leave with a clear message when the hire date is missing', async ({
+		page
+	}) => {
+		const leaveState = await installLeaveMock(page);
+		leaveState.payload.hireDateRequired = true;
+		await page.clock.setFixedTime(new Date('2026-08-01T10:00:00+09:00'));
+		await page.goto('/attendance');
+		await selectKorean(page);
+
+		await page.getByRole('button', { name: '휴가 등록' }).click();
+		const dialog = page.getByTestId('leave-request-dialog');
+		const notice = dialog.getByTestId('leave-hire-date-required');
+		await expect(notice).toContainText('입사일 등록 필요');
+		await expect(notice).toContainText('조직도에서 입사일을 등록해 주세요.');
+		await expect(dialog.getByRole('button', { name: '승인 요청' })).toBeDisabled();
+	});
+
 	test('submits a full-day request from the desktop dialog without changing attendance records', async ({
 		page
 	}) => {

@@ -104,11 +104,12 @@ type attendanceLeaveDashboardSummary struct {
 }
 
 type attendanceLeaveTypeView struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	BalanceMode  string   `json:"balanceMode"`
-	AllowedUnits []string `json:"allowedUnits"`
-	IsActive     bool     `json:"isActive"`
+	ID               string   `json:"id"`
+	Name             string   `json:"name"`
+	BalanceMode      string   `json:"balanceMode"`
+	AllowedUnits     []string `json:"allowedUnits"`
+	IsActive         bool     `json:"isActive"`
+	RequiresHireDate bool     `json:"requiresHireDate"`
 }
 
 type attendanceLeaveLedgerView struct {
@@ -125,10 +126,11 @@ type attendanceLeaveLedgerView struct {
 }
 
 type attendanceLeaveDashboard struct {
-	LeaveTypes    []attendanceLeaveTypeView       `json:"leaveTypes"`
-	Summary       attendanceLeaveDashboardSummary `json:"summary"`
-	Requests      []attendanceLeaveRequestView    `json:"requests"`
-	LedgerEntries []attendanceLeaveLedgerView     `json:"ledgerEntries"`
+	LeaveTypes       []attendanceLeaveTypeView       `json:"leaveTypes"`
+	Summary          attendanceLeaveDashboardSummary `json:"summary"`
+	Requests         []attendanceLeaveRequestView    `json:"requests"`
+	LedgerEntries    []attendanceLeaveLedgerView     `json:"ledgerEntries"`
+	HireDateRequired bool                            `json:"hireDateRequired"`
 }
 
 type attendanceLeaveRequestOccurrence struct {

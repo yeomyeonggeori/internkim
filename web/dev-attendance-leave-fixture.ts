@@ -8,23 +8,27 @@ export function buildEmployeeLeaveFixture(): EmployeeLeavePayload {
 				name: '연차',
 				balanceMode: 'annual',
 				allowedUnits: ['fullDay', 'halfDay', 'quarterDay'],
-				isActive: true
+				isActive: true,
+				requiresHireDate: true
 			},
 			{
 				id: 'sick',
 				name: '병가',
 				balanceMode: 'none',
 				allowedUnits: ['fullDay', 'halfDay'],
-				isActive: true
+				isActive: true,
+				requiresHireDate: false
 			},
 			{
 				id: 'family-event',
 				name: '경조 휴가',
 				balanceMode: 'separate',
 				allowedUnits: ['fullDay'],
-				isActive: true
+				isActive: true,
+				requiresHireDate: false
 			}
 		],
+		hireDateRequired: false,
 		summary: {
 			usedMilliDays: 1000,
 			reservedMilliDays: 500,

@@ -65,6 +65,18 @@ func (service *Service) writeAttendanceLeaveRequest(responseWriter http.Response
 		writeAttendanceLeaveRequestError(responseWriter, attendanceLeaveInvalidInputErrorf("leave type is not active"))
 		return
 	}
+	employee, errorValue := service.attendanceLeaveEmployeeWithHireDateForRequest(
+		request,
+		service.webStaffActorEmail(request),
+	)
+	if errorValue != nil {
+		writeAttendanceLeaveRequestError(responseWriter, errorValue)
+		return
+	}
+	if errorValue := ensureAttendanceLeaveEmployeeCanUseType(employee, leaveType); errorValue != nil {
+		writeAttendanceLeaveRequestError(responseWriter, errorValue)
+		return
+	}
 	attachments, errorValue := service.storeAttendanceLeaveRequestAttachments(uploads)
 	keepAttachments := false
 	defer func() {
@@ -80,10 +92,6 @@ func (service *Service) writeAttendanceLeaveRequest(responseWriter http.Response
 		writeAttendanceLeaveRequestError(responseWriter, errorValue)
 		return
 	}
-	employee := service.attendanceLeaveEmployeeForRequest(
-		request,
-		service.webStaffActorEmail(request),
-	)
 	if errorValue := service.synchronizeAttendanceLeaveAccruals(
 		request.Context(),
 		employee,
@@ -114,10 +122,14 @@ func (service *Service) writeAttendanceLeaveRequest(responseWriter http.Response
 }
 
 func (service *Service) writeAttendanceLeaveDashboard(responseWriter http.ResponseWriter, request *http.Request) {
-	employee := service.attendanceLeaveEmployeeForRequest(
+	employee, errorValue := service.attendanceLeaveEmployeeWithHireDateForRequest(
 		request,
 		service.webStaffActorEmail(request),
 	)
+	if errorValue != nil {
+		writeAttendanceLeaveRequestError(responseWriter, errorValue)
+		return
+	}
 	dashboard, errorValue := service.readAttendanceLeaveDashboard(request.Context(), employee, time.Now())
 	if errorValue != nil {
 		writeAttendanceLeaveRequestError(responseWriter, errorValue)
@@ -172,6 +184,18 @@ func (service *Service) resubmitAttendanceLeaveRequestResponse(
 		writeAttendanceLeaveRequestError(responseWriter, attendanceLeaveInvalidInputErrorf("leave type is not active"))
 		return
 	}
+	employee, errorValue := service.attendanceLeaveEmployeeWithHireDateForRequest(
+		request,
+		service.webStaffActorEmail(request),
+	)
+	if errorValue != nil {
+		writeAttendanceLeaveRequestError(responseWriter, errorValue)
+		return
+	}
+	if errorValue := ensureAttendanceLeaveEmployeeCanUseType(employee, leaveType); errorValue != nil {
+		writeAttendanceLeaveRequestError(responseWriter, errorValue)
+		return
+	}
 	attachments, errorValue := service.storeAttendanceLeaveRequestAttachments(uploads)
 	keepAttachments := false
 	defer func() {
@@ -187,10 +211,6 @@ func (service *Service) resubmitAttendanceLeaveRequestResponse(
 		writeAttendanceLeaveRequestError(responseWriter, errorValue)
 		return
 	}
-	employee := service.attendanceLeaveEmployeeForRequest(
-		request,
-		service.webStaffActorEmail(request),
-	)
 	if errorValue := service.synchronizeAttendanceLeaveAccruals(
 		request.Context(),
 		employee,
