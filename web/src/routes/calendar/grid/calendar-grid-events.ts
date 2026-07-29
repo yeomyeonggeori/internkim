@@ -3,7 +3,7 @@ import { eventEndDate, eventStartDate } from '../embed/calendar-event-mapping';
 import { addCalendarGridDays, startOfCalendarGridDay } from './calendar-grid-dates';
 import type { CalendarGridEvent } from './calendar-grid-layout';
 
-const defaultCalendarEventColor = '#3b82f6';
+export const defaultCalendarEventColor = '#3b82f6';
 
 export function calendarGridEventFromDayFlowEvent(event: DayFlowEvent): CalendarGridEvent {
 	const isAllDay = event.allDay ?? false;
