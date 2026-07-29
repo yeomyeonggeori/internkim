@@ -44,7 +44,7 @@ export function createPersistenceScenario(
 	const notifications: string[] = [];
 	const restoredEventTitles: string[] = [];
 	const savingStates: boolean[] = [];
-	const draftEvents = new CalendarDraftEventState(() => 'New Event', () => 'New Event');
+	const draftEvents = new CalendarDraftEventState();
 	const context: CalendarEventActionsContext = {
 		isBrowser: () => false,
 		getCurrentDate: () => new Date('2026-07-16T00:00:00Z'),

@@ -9,6 +9,7 @@ import {
 
 type CalendarDraftPopoverPersistenceContext = {
 	eventActions: CalendarEventActions;
+	untitledEventTitle: () => string;
 	getCalendarEvents: () => DayFlowEvent[];
 	getDraftPopover: () => DraftPopoverState | null;
 	replaceLocalEvent: (event: DayFlowEvent) => void;
@@ -36,7 +37,7 @@ export function createCalendarDraftPopoverPersistence(
 		const changes = draftPopoverChanges(popover);
 		const updatedEvent = createEvent({
 			id: event.id,
-			title: changes.title,
+			title: changes.title || context.untitledEventTitle(),
 			description: changes.description,
 			start: changes.start,
 			end: changes.end,

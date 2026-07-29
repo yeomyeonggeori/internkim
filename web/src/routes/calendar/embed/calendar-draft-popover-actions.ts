@@ -36,6 +36,7 @@ export type CalendarDraftPopoverActions = {
 
 type CalendarDraftPopoverActionsContext = {
 	eventActions: CalendarEventActions;
+	untitledEventTitle: () => string;
 	getDraftPopover: () => DraftPopoverState | null;
 	setDraftPopover: (popover: DraftPopoverState | null) => void;
 	getCalendarEvents: () => DayFlowEvent[];
