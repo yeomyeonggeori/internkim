@@ -169,37 +169,38 @@ func newSetupFlowState(
 
 func (state *setupFlowState) callbacks() setup.Callbacks {
 	return setup.Callbacks{
-		Translate:                 func(korean, english string) string { return state.messenger.t(korean, english) },
-		LoadState:                 func(key string) string { return loadState(state.stateDir, key) },
-		SaveState:                 func(key, value string) { saveState(state.stateDir, key, value) },
-		GetOpenRouterKey:          buildOpenRouterKeyCallback(state.stateDir, state.messenger, state.parameters.OpenRouterAPIKey, state.nonInteractive),
-		GetLiteRTModelPath:        buildLiteRTModelPathCallback(state.parameters.LiteRTModelPath),
-		GetBuzzKeySeed:            buildBuzzKeySeedCallback(),
-		GetGasWebhookURL:          state.provisionGasWebhook,
-		BinariesVersion:           state.binariesVersion,
-		InstallBinariesSSH:        state.installBinariesSSH,
-		InstallAdmindSSH:          state.installAdmindSSH,
-		InstallCapabilitydSSH:     state.installCapabilitydSSH,
-		StageBinariesSD:           state.stageBinariesSD,
-		SkillsManifest:            state.skillsManifest,
-		InstallSkillsSSH:          state.installSkillsSSH,
-		StageSkillsSD:             state.stageSkillsSD,
-		BlueclawRuntimeManifest:   state.blueclawRuntimeManifest,
-		InstallBlueclawRuntimeSSH: state.installBlueclawRuntimeSSH,
-		BlueclawPayloadManifest:   state.blueclawPayloadManifest,
-		InstallBlueclawPayloadSSH: state.installBlueclawPayloadSSH,
-		AdminWebVersion:           state.adminWebVersion,
-		DeployAdminWeb:            state.deployAdminWeb,
-		SyncCloudflareAccess:      state.syncCloudflareAccess,
-		ConfigureWifiSSH:          state.configureWifiSSH,
-		StageWifiSD:               state.stageWifiSD,
-		ProvisionTunnelSSH:        state.provisionTunnelSSH,
-		StageTunnelSD:             state.stageTunnelSD,
-		ConfigureSlackTokenSSH:    state.configureSlackTokenSSH,
-		StageSlackTokenSD:         state.stageSlackTokenSD,
-		InstallUsersSyncSSH:       state.installUsersSyncSSH,
-		StageUsersSyncSD:          state.stageUsersSyncSD,
-		StageBootstrapSD:          state.stageBootstrapSD,
+		Translate:                   func(korean, english string) string { return state.messenger.t(korean, english) },
+		LoadState:                   func(key string) string { return loadState(state.stateDir, key) },
+		SaveState:                   func(key, value string) { saveState(state.stateDir, key, value) },
+		GetOpenRouterKey:            buildOpenRouterKeyCallback(state.stateDir, state.messenger, state.parameters.OpenRouterAPIKey, state.nonInteractive),
+		GetLiteRTModelPath:          buildLiteRTModelPathCallback(state.parameters.LiteRTModelPath),
+		GetBuzzKeySeed:              buildBuzzKeySeedCallback(),
+		GetGasWebhookURL:            state.provisionGasWebhook,
+		BinariesVersion:             state.binariesVersion,
+		InstallBinariesSSH:          state.installBinariesSSH,
+		InstallBuzzRelayBinariesSSH: state.installBuzzRelayBinariesSSH,
+		InstallAdmindSSH:            state.installAdmindSSH,
+		InstallCapabilitydSSH:       state.installCapabilitydSSH,
+		StageBinariesSD:             state.stageBinariesSD,
+		SkillsManifest:              state.skillsManifest,
+		InstallSkillsSSH:            state.installSkillsSSH,
+		StageSkillsSD:               state.stageSkillsSD,
+		BlueclawRuntimeManifest:     state.blueclawRuntimeManifest,
+		InstallBlueclawRuntimeSSH:   state.installBlueclawRuntimeSSH,
+		BlueclawPayloadManifest:     state.blueclawPayloadManifest,
+		InstallBlueclawPayloadSSH:   state.installBlueclawPayloadSSH,
+		AdminWebVersion:             state.adminWebVersion,
+		DeployAdminWeb:              state.deployAdminWeb,
+		SyncCloudflareAccess:        state.syncCloudflareAccess,
+		ConfigureWifiSSH:            state.configureWifiSSH,
+		StageWifiSD:                 state.stageWifiSD,
+		ProvisionTunnelSSH:          state.provisionTunnelSSH,
+		StageTunnelSD:               state.stageTunnelSD,
+		ConfigureSlackTokenSSH:      state.configureSlackTokenSSH,
+		StageSlackTokenSD:           state.stageSlackTokenSD,
+		InstallUsersSyncSSH:         state.installUsersSyncSSH,
+		StageUsersSyncSD:            state.stageUsersSyncSD,
+		StageBootstrapSD:            state.stageBootstrapSD,
 		InstallMattermost: func(context *setup.Context) error {
 			if state.sshClient == nil {
 				return nil
@@ -441,6 +442,11 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			localPath:  filepath.Join(state.boardBinDir, blueclaw.LocalLLMRunnerName),
 			remotePath: blueclaw.LocalLLMRunnerBinaryPath,
 		},
+	}
+}
+
+func (state *setupFlowState) buzzRelayBinaryAssets() []localBinaryAsset {
+	return []localBinaryAsset{
 		{
 			name:       blueclaw.BuzzRelayName,
 			localPath:  filepath.Join(state.scriptDir, blueclaw.BuzzRelayArtifactPath, blueclaw.BuzzRelayName),
@@ -452,6 +458,29 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			remotePath: blueclaw.BuzzAdminBinaryPath,
 		},
 	}
+}
+
+func (state *setupFlowState) installBuzzRelayBinariesSSH(context *setup.Context) error {
+	for _, asset := range state.buzzRelayBinaryAssets() {
+		if _, errorValue := os.Stat(asset.localPath); errorValue != nil {
+			return fmt.Errorf("buzz relay artifact missing at %s; run make prepare-buzz-relay: %w", asset.localPath, errorValue)
+		}
+		existingHash := strings.TrimSpace(state.sshClient.run(
+			fmt.Sprintf("md5sum %s 2>/dev/null | awk '{print $1}'", asset.remotePath),
+		))
+		localHash := strings.TrimSpace(runCmd("md5", "-q", asset.localPath))
+		if existingHash != "" && existingHash == localHash {
+			fmt.Printf("  %s %s\n", asset.name, state.messenger.t("이미 최신", "up to date"))
+			continue
+		}
+		state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Dir(asset.remotePath)))
+		if errorValue := state.sshClient.scp(asset.localPath, asset.remotePath); errorValue != nil {
+			return errorValue
+		}
+		state.sshClient.run("chmod +x " + quoteShellValue(asset.remotePath))
+		fmt.Printf("  %s %s\n", asset.name, state.messenger.t("설치 완료", "installed"))
+	}
+	return nil
 }
 
 func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, error) {
