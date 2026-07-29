@@ -60,6 +60,24 @@ func (service *Service) buzzSecretForEmail(ctx context.Context, email string) st
 	return buzzKeyForVersion(seed, email, version)
 }
 
+// handleAuthIdentity hands an already-signed-in session its own deterministic
+// Buzz key so the browser can establish the messaging identity without a
+// separate vault-setup dialog. The session is the gate; the key is a function
+// of the session email, so this exposes nothing the account does not already own.
+func (service *Service) handleAuthIdentity(responseWriter http.ResponseWriter, request *http.Request) {
+	email := service.webActorEmail(request)
+	if email == "" {
+		http.Error(responseWriter, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	secretHex := service.buzzSecretForEmail(request.Context(), email)
+	if secretHex == "" {
+		http.Error(responseWriter, "buzz identity unavailable", http.StatusNotImplemented)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]string{"secretHex": secretHex})
+}
+
 func (service *Service) mattermostPasswordAuthenticate(ctx context.Context, email string, password string) (mattermostUserRecord, error) {
 	requestBody, errorValue := json.Marshal(map[string]string{"login_id": email, "password": password})
 	if errorValue != nil {

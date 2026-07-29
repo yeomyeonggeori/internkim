@@ -532,6 +532,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/auth/challenge", service.handleKeyLoginChallenge)
 	multiplexer.HandleFunc("/auth/key-login", service.handleKeyLogin)
 	multiplexer.HandleFunc("/auth/password-login", service.handleMattermostPasswordLogin)
+	multiplexer.HandleFunc("/auth/identity", service.handleAuthIdentity)
 	multiplexer.HandleFunc("/auth/verify/start", service.handleEmailVerifyStart)
 	multiplexer.HandleFunc("/auth/verify/callback", service.handleEmailVerifyCallback)
 	multiplexer.HandleFunc("/auth/logout", service.handleWebLogout)
