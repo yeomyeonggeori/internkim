@@ -1,5 +1,10 @@
 <script lang="ts">
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import { CalendarDate, getLocalTimeZone, type DateValue } from '@internationalized/date';
+	import type { DateRange } from 'bits-ui';
 	import { Button } from '$lib/components/ui/button';
+	import { Calendar } from '$lib/components/ui/calendar';
+	import { RangeCalendar } from '$lib/components/ui/range-calendar';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Popover from '$lib/components/ui/popover';
@@ -21,6 +26,7 @@
 		calendarOptions: CalendarOption[];
 		participantCandidates: CalendarParticipant[];
 		dialogLabel: string;
+		localeCode: string;
 		text: DraftPopoverText;
 		updatePopover: (changes: Partial<DraftPopoverState>) => void;
 		savePopover: () => void;
@@ -33,6 +39,7 @@
 		calendarOptions,
 		participantCandidates,
 		dialogLabel,
+		localeCode,
 		text,
 		updatePopover,
 		savePopover,
@@ -70,6 +77,60 @@
 			startTime: range.startTime,
 			endTime: range.endTime
 		});
+	}
+
+	let isStartDatePickerOpen = $state(false);
+	let isEndDatePickerOpen = $state(false);
+	let isRangePickerOpen = $state(false);
+
+	const startCalendarDate = $derived(calendarDateFromDateKey(popover.dateKey));
+	const endCalendarDate = $derived(calendarDateFromDateKey(popover.endDateKey));
+	const selectedDateRange = $derived<DateRange>({ start: startCalendarDate, end: endCalendarDate });
+	const dateRangeLabel = $derived(
+		popover.dateKey === popover.endDateKey
+			? formatDateKey(popover.dateKey)
+			: `${formatDateKey(popover.dateKey)} – ${formatDateKey(popover.endDateKey)}`
+	);
+
+	function calendarDateFromDateKey(value: string): CalendarDate | undefined {
+		const [year, month, day] = value.split('-').map(Number);
+		if (!year || !month || !day) return undefined;
+		return new CalendarDate(year, month, day);
+	}
+
+	function dateKeyFromCalendarDate(value: DateValue): string {
+		return `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
+	}
+
+	function formatDateKey(value: string): string {
+		const calendarDate = calendarDateFromDateKey(value);
+		if (!calendarDate) return value;
+		return calendarDate.toDate(getLocalTimeZone()).toLocaleDateString(localeCode, {
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric'
+		});
+	}
+
+	function changeDateRange(range: DateRange | undefined): void {
+		if (!range?.start) return;
+		updatePopover({
+			dateKey: dateKeyFromCalendarDate(range.start),
+			endDateKey: dateKeyFromCalendarDate(range.end ?? range.start)
+		});
+		if (range.end) isRangePickerOpen = false;
+	}
+
+	function changeStartDate(value: DateValue | undefined): void {
+		if (!value) return;
+		changeStart({ startDateKey: dateKeyFromCalendarDate(value) });
+		isStartDatePickerOpen = false;
+	}
+
+	function changeEndDate(value: DateValue | undefined): void {
+		if (!value) return;
+		updatePopover({ endDateKey: dateKeyFromCalendarDate(value) });
+		isEndDatePickerOpen = false;
 	}
 
 	function saveOnEnter(event: KeyboardEvent): void {
@@ -111,43 +172,96 @@
 				/>
 			</div>
 
-			<div class="flex gap-1">
-				<Input
-					type="date"
-					aria-label={text.startDate}
-					class="h-8 flex-1 px-2 text-sm tabular-nums"
-					value={popover.dateKey}
-					onchange={(event) => changeStart({ startDateKey: event.currentTarget.value })}
-				/>
-				{#if !popover.allDay}
+			{#if popover.allDay}
+				<Popover.Root bind:open={isRangePickerOpen}>
+					<Popover.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="outline"
+								aria-label={text.startDate}
+								class="h-8 w-full justify-between px-2 text-sm font-normal"
+							>
+								{dateRangeLabel}
+								<ChevronDownIcon class="size-3.5 opacity-50" />
+							</Button>
+						{/snippet}
+					</Popover.Trigger>
+					<Popover.Content class="w-auto overflow-hidden p-0" align="start">
+						<RangeCalendar
+							value={selectedDateRange}
+							onValueChange={changeDateRange}
+							captionLayout="dropdown"
+						/>
+					</Popover.Content>
+				</Popover.Root>
+			{:else}
+				<div class="flex gap-1">
+					<Popover.Root bind:open={isStartDatePickerOpen}>
+						<Popover.Trigger>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									variant="outline"
+									aria-label={text.startDate}
+									class="h-8 flex-1 justify-between px-2 text-sm font-normal"
+								>
+									{formatDateKey(popover.dateKey)}
+									<ChevronDownIcon class="size-3.5 opacity-50" />
+								</Button>
+							{/snippet}
+						</Popover.Trigger>
+						<Popover.Content class="w-auto overflow-hidden p-0" align="start">
+							<Calendar
+								type="single"
+								value={startCalendarDate}
+								onValueChange={changeStartDate}
+								captionLayout="dropdown"
+							/>
+						</Popover.Content>
+					</Popover.Root>
 					<Input
 						type="time"
 						aria-label={text.startTime}
-						class="h-8 w-24 px-2 text-sm tabular-nums"
+						class="bg-background h-8 w-24 appearance-none px-2 text-sm tabular-nums [&::-webkit-calendar-picker-indicator]:hidden"
 						value={popover.startTime}
 						onchange={(event) => changeStart({ startTime: event.currentTarget.value })}
 					/>
-				{/if}
-			</div>
+				</div>
 
-			<div class="flex gap-1">
-				<Input
-					type="date"
-					aria-label={text.endDate}
-					class="h-8 flex-1 px-2 text-sm tabular-nums"
-					value={popover.endDateKey}
-					onchange={(event) => updatePopover({ endDateKey: event.currentTarget.value })}
-				/>
-				{#if !popover.allDay}
+				<div class="flex gap-1">
+					<Popover.Root bind:open={isEndDatePickerOpen}>
+						<Popover.Trigger>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									variant="outline"
+									aria-label={text.endDate}
+									class="h-8 flex-1 justify-between px-2 text-sm font-normal"
+								>
+									{formatDateKey(popover.endDateKey)}
+									<ChevronDownIcon class="size-3.5 opacity-50" />
+								</Button>
+							{/snippet}
+						</Popover.Trigger>
+						<Popover.Content class="w-auto overflow-hidden p-0" align="start">
+							<Calendar
+								type="single"
+								value={endCalendarDate}
+								onValueChange={changeEndDate}
+								captionLayout="dropdown"
+							/>
+						</Popover.Content>
+					</Popover.Root>
 					<Input
 						type="time"
 						aria-label={text.endTime}
-						class="h-8 w-24 px-2 text-sm tabular-nums"
+						class="bg-background h-8 w-24 appearance-none px-2 text-sm tabular-nums [&::-webkit-calendar-picker-indicator]:hidden"
 						value={popover.endTime}
 						onchange={(event) => updatePopover({ endTime: event.currentTarget.value })}
 					/>
-				{/if}
-			</div>
+				</div>
+			{/if}
 
 			<Input
 				aria-label={text.location}
