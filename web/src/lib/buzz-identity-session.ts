@@ -67,6 +67,18 @@ export async function enrollBuzzIdentity(
 	return claim.secretHex;
 }
 
+// Enroll an identity whose secret we already hold (e.g. after a Mattermost
+// password sign-in, where the server handed us the derived key). Seals it with
+// the same password and stores the copy so the setup gate never appears.
+export async function enrollKnownBuzzIdentity(
+	transport: BuzzIdentityTransport,
+	secretHex: string,
+	factor: BuzzUnlockFactor,
+): Promise<void> {
+	const copies: WrappedSecret[] = [await sealPrimary(secretHex, factor)];
+	await transport.storeVault({ copies });
+}
+
 function copyOfKind(document: BuzzVaultDocument | undefined, kind: WrappedSecret["kind"]): WrappedSecret | undefined {
 	return document?.copies.find((copy) => copy.kind === kind);
 }
