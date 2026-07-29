@@ -27,6 +27,8 @@ const gestureGapMilliseconds = 140;
 const wheelFollowFactor = 0.28;
 const minimumTravelRatio = 0.25;
 const idleSnapMilliseconds = 90;
+const millisecondsPerSnapPixel = 0.45;
+const maximumSnapMilliseconds = 420;
 
 export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): CalendarScrollSnap {
 	const axis = options.axis ?? 'vertical';
@@ -85,7 +87,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 			gestureLiftTime = now;
 			gestureLiftOffset = gestureStartOffset;
 			cancelAnimation();
-		} else if (isAcceleratingAgain) {
+		} else if (isAcceleratingAgain && animationFrame === null) {
 			isIgnoringMomentum = false;
 			decayingSteps = 0;
 		}
@@ -221,10 +223,14 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 		const startOffset = currentOffset(scrollElement);
 		const scrollDistance = targetScrollTop - startOffset;
 		const startTime = performance.now();
+		const durationMilliseconds = Math.min(
+			maximumSnapMilliseconds,
+			Math.max(animationMilliseconds, Math.abs(scrollDistance) * millisecondsPerSnapPixel)
+		);
 		const step = (now: number) => {
 			const currentScrollElement = options.getScrollElement();
 			if (!currentScrollElement) return;
-			const progress = Math.min(1, (now - startTime) / animationMilliseconds);
+			const progress = Math.min(1, (now - startTime) / durationMilliseconds);
 			applyOffset(currentScrollElement, startOffset + scrollDistance * (1 - (1 - progress) ** 3));
 			if (progress < 1) {
 				animationFrame = requestAnimationFrame(step);

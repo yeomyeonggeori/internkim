@@ -2,6 +2,7 @@
 	import { Calendar as MiniCalendar } from '$lib/components/ui/calendar';
 	import { cn } from '$lib/utils';
 	import { CalendarDate, type DateValue } from '@internationalized/date';
+	import { tick } from 'svelte';
 	import CalendarEventChip from './calendar-event-chip.svelte';
 	import {
 		addCalendarGridDays,
@@ -116,7 +117,7 @@
 		const weekStartKey = calendarGridDateKey(startOfCalendarGridWeek(visibleDate));
 		if (weekWindowStartKey === weekStartKey) return;
 		weekWindowStartKey = weekStartKey;
-		recenterColumns();
+		void recenterColumns();
 	});
 
 	const columnSnap = createCalendarScrollSnap({
@@ -191,8 +192,8 @@
 		if (!leadingDay) return;
 		selfReportedLeadingDayKey = calendarGridDateKey(leadingDay);
 		weekWindowStartKey = calendarGridDateKey(leadingDay);
-		recenterColumns();
 		selectDay(leadingDay);
+		void recenterColumns();
 	}
 
 	function syncHeaderStripScroll(): void {
@@ -200,21 +201,20 @@
 		headerStripElement.scrollLeft = columnsElement.scrollLeft;
 	}
 
-	function recenterColumns(): void {
+	async function recenterColumns(): Promise<void> {
 		isRecenteringColumns = true;
+		await tick();
+		if (columnsElement) columnsElement.scrollLeft = columnWidthPixels() * 7;
+		syncHeaderStripScroll();
 		requestAnimationFrame(() => {
-			if (columnsElement) columnsElement.scrollLeft = columnWidthPixels() * 7;
-			syncHeaderStripScroll();
-			requestAnimationFrame(() => {
-				isRecenteringColumns = false;
-			});
+			isRecenteringColumns = false;
 		});
 	}
 
 	$effect(() => {
 		if (!canSwipeWeeks || !columnsElement) return;
 		weekWindowStartKey;
-		recenterColumns();
+		void recenterColumns();
 	});
 
 
