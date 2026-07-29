@@ -32,10 +32,14 @@ export function openCalendarEventDetailPanel(stageElement: HTMLElement | null, e
 }
 
 export function focusCalendarEventElement(stageElement: HTMLElement | null, eventID: string): void {
-	const eventElements = calendarEventElementsByID(stageElement, eventID).filter(isVisibleCalendarEventElement);
-	const eventElement = eventElements[0] ?? calendarEventElementByID(stageElement, eventID);
-	if (!eventElement) return;
-	const focusedElements = eventElements.length > 0 ? eventElements : [eventElement];
+	const eventElements = calendarEventElementsByID(stageElement, eventID)
+		.filter(isVisibleCalendarEventElement)
+		.filter((element) => !element.hasAttribute('data-calendar-event-id'));
+	if (eventElements.length === 0) {
+		clearFocusedCalendarEventElements(stageElement);
+		return;
+	}
+	const focusedElements = eventElements;
 	const focusedElementSet = new Set(focusedElements);
 	for (const element of stageElement?.querySelectorAll<HTMLElement>('.internkim-calendar-event-focused') ?? []) {
 		if (focusedElementSet.has(element)) continue;
