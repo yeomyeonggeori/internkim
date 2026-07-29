@@ -100,7 +100,7 @@
 		collisionPadding={12}
 		interactOutsideBehavior="ignore"
 		aria-label={dialogLabel}
-		class="max-h-[min(34rem,80svh)] w-96 gap-0 overflow-y-auto p-0"
+		class="max-h-[min(34rem,var(--bits-popover-content-available-height))] w-96 gap-0 overflow-y-auto p-0"
 	>
 		<div class="bg-popover sticky top-0 z-10 border-b p-3">
 			<Input
