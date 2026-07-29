@@ -252,6 +252,7 @@
 	toolbarView={state.toolbarView}
 	changeCalendarView={pageNavigation.changeCalendarView}
 	goToPrevious={pageNavigation.goToPrevious}
+	goToToday={pageNavigation.goToToday}
 	goToNext={pageNavigation.goToNext}
 	navigateToDateKey={pageNavigation.navigateToDateKey}
 	{createQuickEvent}

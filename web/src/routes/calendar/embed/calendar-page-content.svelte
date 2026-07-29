@@ -32,6 +32,7 @@
 		dismissConflict: (conflictID: number) => void | Promise<void>;
 		goToNext: () => void;
 		goToPrevious: () => void;
+		goToToday: () => void;
 		isSaving: boolean;
 		isMobileTwoDayWeekView: boolean;
 		localeCode: string;
@@ -79,6 +80,7 @@
 		dismissConflict,
 		goToNext,
 		goToPrevious,
+		goToToday,
 		isSaving,
 		isMobileTwoDayWeekView,
 		localeCode,
@@ -119,6 +121,7 @@
 		{localeCode}
 		{changeCalendarView}
 		{goToPrevious}
+		{goToToday}
 		{goToNext}
 		{navigateToDateKey}
 		createQuickEvent={createQuickEvent}

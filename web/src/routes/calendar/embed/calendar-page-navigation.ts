@@ -41,6 +41,15 @@ export type CalendarPageNavigation = {
 };
 
 export function createCalendarPageNavigation(context: CalendarPageNavigationContext): CalendarPageNavigation {
+	function shiftedVisibleDate(direction: -1 | 1): Date {
+		return shiftedCalendarToolbarDate(
+			context.getToolbarDate(),
+			context.getToolbarView(),
+			direction,
+			context.isMobileTwoDayWeekView()
+		);
+	}
+
 	function selectCalendarDate(date: Date) {
 		context.setVisibleDate(date);
 		context.calendar.app.setCurrentDate(date);
@@ -59,12 +68,7 @@ export function createCalendarPageNavigation(context: CalendarPageNavigationCont
 			context.calendar.goToToday();
 		},
 		goToPrevious: () => {
-			const visibleDate = shiftedCalendarToolbarDate(
-				context.getToolbarDate(),
-				context.getToolbarView(),
-				-1,
-				context.isMobileTwoDayWeekView()
-			);
+			const visibleDate = shiftedVisibleDate(-1);
 			if (context.isMobileTwoDayWeekView()) {
 				selectCalendarDate(visibleDate);
 				return;
@@ -73,12 +77,7 @@ export function createCalendarPageNavigation(context: CalendarPageNavigationCont
 			context.calendar.goToPrevious();
 		},
 		goToNext: () => {
-			const visibleDate = shiftedCalendarToolbarDate(
-				context.getToolbarDate(),
-				context.getToolbarView(),
-				1,
-				context.isMobileTwoDayWeekView()
-			);
+			const visibleDate = shiftedVisibleDate(1);
 			if (context.isMobileTwoDayWeekView()) {
 				selectCalendarDate(visibleDate);
 				return;
