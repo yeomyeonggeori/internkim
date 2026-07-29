@@ -1,13 +1,6 @@
 <script lang="ts">
-	import AlignLeftIcon from '@lucide/svelte/icons/align-left';
-	import CalendarIcon from '@lucide/svelte/icons/calendar';
-	import ClockIcon from '@lucide/svelte/icons/clock';
-	import MapPinIcon from '@lucide/svelte/icons/map-pin';
-	import TrashIcon from '@lucide/svelte/icons/trash';
-	import UsersIcon from '@lucide/svelte/icons/users';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import * as InputGroup from '$lib/components/ui/input-group';
 	import { Label } from '$lib/components/ui/label';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
@@ -108,8 +101,7 @@
 		</div>
 
 		<div class="grid gap-1.5 p-2">
-			<div class="flex items-center gap-2 pl-1">
-				<ClockIcon class="text-muted-foreground size-4 shrink-0" />
+			<div class="flex items-center gap-2 px-1">
 				<Label for="draft-all-day" class="text-muted-foreground text-xs font-normal">{text.allDay}</Label>
 				<Switch
 					id="draft-all-day"
@@ -119,7 +111,7 @@
 				/>
 			</div>
 
-			<div class="flex gap-1 pl-7">
+			<div class="flex gap-1">
 				<Input
 					type="date"
 					aria-label={text.startDate}
@@ -138,7 +130,7 @@
 				{/if}
 			</div>
 
-			<div class="flex gap-1 pl-7">
+			<div class="flex gap-1">
 				<Input
 					type="date"
 					aria-label={text.endDate}
@@ -157,36 +149,25 @@
 				{/if}
 			</div>
 
-			<InputGroup.Root class="h-8">
-				<InputGroup.Addon>
-					<MapPinIcon />
-				</InputGroup.Addon>
-				<InputGroup.Input
-					aria-label={text.location}
-					placeholder={text.location}
-					autocomplete="off"
-					class="text-xs"
-					value={popover.location}
-					oninput={(event) => updatePopover({ location: event.currentTarget.value })}
-				/>
-			</InputGroup.Root>
+			<Input
+				aria-label={text.location}
+				placeholder={text.location}
+				autocomplete="off"
+				class="h-8 px-2 text-xs"
+				value={popover.location}
+				oninput={(event) => updatePopover({ location: event.currentTarget.value })}
+			/>
 
-			<InputGroup.Root class="h-8">
-				<InputGroup.Addon>
-					<AlignLeftIcon />
-				</InputGroup.Addon>
-				<InputGroup.Input
-					aria-label={text.description}
-					placeholder={text.description}
-					autocomplete="off"
-					class="text-xs"
-					value={popover.description}
-					oninput={(event) => updatePopover({ description: event.currentTarget.value })}
-				/>
-			</InputGroup.Root>
+			<Input
+				aria-label={text.description}
+				placeholder={text.description}
+				autocomplete="off"
+				class="h-8 px-2 text-xs"
+				value={popover.description}
+				oninput={(event) => updatePopover({ description: event.currentTarget.value })}
+			/>
 
-			<div class="flex items-start gap-2 pl-1">
-				<UsersIcon class="text-muted-foreground mt-1.5 size-4 shrink-0" />
+			<div class="flex px-1">
 				<CalendarParticipantSelector
 					participants={popover.participants}
 					candidates={participantCandidates}
@@ -199,8 +180,7 @@
 			</div>
 
 			{#if calendarOptions.length > 1}
-			<div class="flex items-center gap-2 pl-1">
-				<CalendarIcon class="text-muted-foreground size-4 shrink-0" />
+			<div class="flex">
 				<Select.Root type="single" value={popover.calendarID} onValueChange={(calendarID) => updatePopover({ calendarID })}>
 					<Select.Trigger size="sm" aria-label={text.calendar} class="h-8 flex-1 text-xs">
 						{selectedCalendarName}
@@ -223,7 +203,6 @@
 					class="text-destructive hover:text-destructive h-7 px-2"
 					onclick={deletePopover}
 				>
-					<TrashIcon />
 					{text.delete}
 				</Button>
 			</footer>

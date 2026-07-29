@@ -1,6 +1,5 @@
 <script lang="ts">
 	import CheckIcon from '@lucide/svelte/icons/check';
-	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
@@ -84,7 +83,6 @@
 					class="text-muted-foreground h-6 gap-1 px-1.5 text-xs"
 					disabled={!canAddParticipants}
 				>
-					<PlusIcon class="size-3.5" />
 					{label}
 				</Button>
 			{/snippet}
