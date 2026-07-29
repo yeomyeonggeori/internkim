@@ -64,7 +64,6 @@ export function createCalendarPageAppOptions(context: CalendarPageAppOptionsCont
 				if (!event) context.closeMobileEventEditor();
 			},
 			onVisibleRangeChange: (startDate, endDate) => {
-				context.loadEvents(startDate, endDate);
 				const middle = new Date((startDate.getTime() + endDate.getTime()) / 2);
 				const visibleDate = isDateInVisibleRange(context.getToolbarDate(), startDate, endDate)
 					? context.getToolbarDate()
