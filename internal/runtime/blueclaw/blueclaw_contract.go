@@ -130,6 +130,7 @@ const (
 	BuzzMigrateName                       = "buzz-migrate"
 	BuzzMigrateBinaryPath                 = "/usr/local/bin/buzz-migrate"
 	BuzzMigrateMarkerPath                 = "/root/.internkim/state/buzz-migrated"
+	BuzzAccountLinksPath                  = "/root/.internkim/state/admin/buzz-account-links.json"
 	BuzzPremigrateSnapshotPath            = "/root/.internkim/state/buzz-premigrate.sql"
 )
 
