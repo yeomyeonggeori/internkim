@@ -86,14 +86,36 @@ func (service *Service) buzzStreamChannelIDs(ctx context.Context) ([]string, err
 	return channelIDs, rows.Err()
 }
 
+func (service *Service) allStaffEmails(ctx context.Context) []string {
+	seen := map[string]bool{}
+	var emails []string
+	add := func(email string) {
+		email = strings.ToLower(strings.TrimSpace(email))
+		if email == "" || seen[email] {
+			return
+		}
+		seen[email] = true
+		emails = append(emails, email)
+	}
+	for _, record := range service.blueclawPolicyUserRecords(ctx) {
+		add(record.Email)
+	}
+	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	if fleetID != "" && fleetSecret != "" {
+		if records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret); errorValue == nil {
+			for _, record := range records {
+				add(record.Email)
+			}
+		}
+	}
+	return emails
+}
+
 func (service *Service) staffBuzzPubkeys(ctx context.Context) []string {
 	seen := map[string]bool{}
 	var pubkeys []string
-	for _, record := range service.blueclawPolicyUserRecords(ctx) {
-		email := strings.ToLower(strings.TrimSpace(record.Email))
-		if email == "" {
-			continue
-		}
+	for _, email := range service.allStaffEmails(ctx) {
 		secretHex := service.buzzSecretForEmail(ctx, email)
 		if secretHex == "" {
 			continue
