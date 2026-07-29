@@ -61,7 +61,7 @@
 </script>
 
 <Tooltip.Provider delayDuration={120}>
-<header class="bg-background sticky top-0 z-20 flex min-h-14 flex-wrap items-center gap-2 border-b py-2 pr-4 pl-6">
+<header class="bg-background border-border/50 sticky top-0 z-20 flex min-h-14 flex-wrap items-center gap-2 border-b py-2 pr-4 pl-6">
 	<Popover.Root bind:open={isDatePickerOpen}>
 		<Popover.Trigger>
 			{#snippet child({ props })}

@@ -275,7 +275,7 @@
 </script>
 
 <div class="relative flex min-h-0 flex-1 flex-col">
-	<div class="border-border/70 text-muted-foreground grid grid-cols-7 border-b text-xs font-medium">
+	<div class="border-border/50 text-muted-foreground grid grid-cols-7 border-b text-xs font-medium">
 		{#each weekdayLabels as weekdayLabel, weekdayIndex (weekdayLabel)}
 			<div class={cn('px-2 py-1.5', weekdayIndex === 0 && 'text-destructive', weekdayIndex === 6 && 'text-primary')}>
 				{weekdayLabel}
