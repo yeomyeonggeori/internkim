@@ -49,9 +49,8 @@
 	const minimumColumnTravelRatio = 0.25;
 
 	let gridElement = $state<HTMLElement | null>(null);
-	let draftStartMinutes = $state<number | null>(null);
-	let draftEndMinutes = $state<number | null>(null);
-	let draftDay = $state<Date | null>(null);
+	let draftStart = $state<{ day: Date; minutes: number } | null>(null);
+	let draftEnd = $state<{ day: Date; minutes: number } | null>(null);
 	let longPressTimer: number | null = null;
 	let weekWindowStartKey = $state('');
 	let selfReportedLeadingDayKey = '';
@@ -246,40 +245,60 @@
 		return Math.max(0, Math.min(minutesPerDay, snappedMinutes));
 	}
 
+	function draftPointFromEvent(pointerEvent: PointerEvent): { day: Date; minutes: number } | null {
+		const element = columnsElement?.ownerDocument.elementFromPoint(pointerEvent.clientX, pointerEvent.clientY);
+		const dayColumn = element?.closest<HTMLElement>('[data-calendar-date]');
+		const dateKey = dayColumn?.dataset.calendarDate;
+		if (!dayColumn || !dateKey) return null;
+		return { day: calendarGridDateFromKey(dateKey), minutes: minutesFromPoint(dayColumn, pointerEvent.clientY) };
+	}
+
 	function handleColumnPointerDown(pointerEvent: PointerEvent, day: Date): void {
 		if (pointerEvent.button !== 0 || !(pointerEvent.currentTarget instanceof HTMLElement)) return;
 		if (pointerEvent.target instanceof Element && pointerEvent.target.closest('button')) return;
 		const startMinutes = minutesFromPoint(pointerEvent.currentTarget, pointerEvent.clientY);
-		draftDay = day;
-		draftStartMinutes = startMinutes;
-		draftEndMinutes = startMinutes;
-		pointerEvent.currentTarget.setPointerCapture(pointerEvent.pointerId);
+		draftStart = { day, minutes: startMinutes };
+		draftEnd = { day, minutes: startMinutes };
+		capturePointer(pointerEvent);
 		longPressTimer = window.setTimeout(() => {
 			longPressTimer = null;
-			if (draftStartMinutes === null || draftEndMinutes !== draftStartMinutes) return;
-			commitDraft(draftStartMinutes + defaultDurationMinutes);
+			if (!draftStart || !draftEnd) return;
+			if (draftEnd.minutes !== draftStart.minutes || !isSameCalendarGridDay(draftEnd.day, draftStart.day)) return;
+			commitDraft({ day: draftStart.day, minutes: draftStart.minutes + defaultDurationMinutes });
 		}, longPressMilliseconds);
 	}
 
+	function capturePointer(pointerEvent: PointerEvent): void {
+		if (!(pointerEvent.currentTarget instanceof HTMLElement)) return;
+		if (!pointerEvent.isTrusted) return;
+		pointerEvent.currentTarget.setPointerCapture(pointerEvent.pointerId);
+	}
+
 	function handleColumnPointerMove(pointerEvent: PointerEvent): void {
-		if (draftStartMinutes === null || !(pointerEvent.currentTarget instanceof HTMLElement)) return;
-		draftEndMinutes = minutesFromPoint(pointerEvent.currentTarget, pointerEvent.clientY);
+		if (!draftStart) return;
+		const draftPoint = draftPointFromEvent(pointerEvent);
+		if (!draftPoint) return;
+		draftEnd = draftPoint;
 	}
 
 	function handleColumnPointerUp(): void {
-		if (draftStartMinutes === null || draftEndMinutes === null) return;
-		commitDraft(draftEndMinutes);
+		if (!draftStart || !draftEnd) return;
+		commitDraft(draftEnd);
 	}
 
-	function commitDraft(endMinutes: number): void {
+	function commitDraft(endPoint: { day: Date; minutes: number }): void {
 		cancelLongPress();
-		const day = draftDay;
-		const startMinutes = draftStartMinutes;
+		const startPoint = draftStart;
 		clearDraft();
-		if (!day || startMinutes === null) return;
-		const [firstMinutes, lastMinutes] = [startMinutes, endMinutes].sort((first, second) => first - second);
-		const rangeEndMinutes = lastMinutes - firstMinutes < dragSnapMinutes ? firstMinutes + defaultDurationMinutes : lastMinutes;
-		addEventOnTimeRange(calendarGridDateAtMinutes(day, firstMinutes), calendarGridDateAtMinutes(day, rangeEndMinutes));
+		if (!startPoint) return;
+		const startDate = calendarGridDateAtMinutes(startPoint.day, startPoint.minutes);
+		const endDate = calendarGridDateAtMinutes(endPoint.day, endPoint.minutes);
+		const [firstDate, lastDate] = [startDate, endDate].sort((first, second) => first.getTime() - second.getTime());
+		const rangeEndDate =
+			lastDate.getTime() - firstDate.getTime() < dragSnapMinutes * 60000
+				? new Date(firstDate.getTime() + defaultDurationMinutes * 60000)
+				: lastDate;
+		addEventOnTimeRange(firstDate, rangeEndDate);
 	}
 
 	function cancelLongPress(): void {
@@ -290,18 +309,23 @@
 
 	function clearDraft(): void {
 		cancelLongPress();
-		draftDay = null;
-		draftStartMinutes = null;
-		draftEndMinutes = null;
+		draftStart = null;
+		draftEnd = null;
 	}
 
 	function draftRangeForDay(day: Date): { topPixels: number; heightPixels: number } | null {
-		if (!draftDay || draftStartMinutes === null || draftEndMinutes === null) return null;
-		if (!isSameCalendarGridDay(draftDay, day)) return null;
-		const [firstMinutes, lastMinutes] = [draftStartMinutes, draftEndMinutes].sort((first, second) => first - second);
+		if (!draftStart || !draftEnd) return null;
+		const startDate = calendarGridDateAtMinutes(draftStart.day, draftStart.minutes);
+		const endDate = calendarGridDateAtMinutes(draftEnd.day, draftEnd.minutes);
+		const [firstDate, lastDate] = [startDate, endDate].sort((first, second) => first.getTime() - second.getTime());
+		const dayStart = startOfCalendarGridDay(day);
+		const dayEnd = addCalendarGridDays(dayStart, 1);
+		if (lastDate <= dayStart || firstDate >= dayEnd) return null;
+		const startMinutes = firstDate <= dayStart ? 0 : calendarGridMinutesFromMidnight(firstDate);
+		const endMinutes = lastDate >= dayEnd ? minutesPerDay : calendarGridMinutesFromMidnight(lastDate);
 		return {
-			topPixels: (firstMinutes / 60) * hourHeightPixels,
-			heightPixels: Math.max(hourHeightPixels / 4, ((lastMinutes - firstMinutes) / 60) * hourHeightPixels)
+			topPixels: (startMinutes / 60) * hourHeightPixels,
+			heightPixels: Math.max(hourHeightPixels / 4, ((endMinutes - startMinutes) / 60) * hourHeightPixels)
 		};
 	}
 </script>
