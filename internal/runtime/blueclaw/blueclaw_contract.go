@@ -108,6 +108,7 @@ const (
 	BuzzRelayKeyEnvironmentFilePath       = "/root/.internkim/secrets/buzz-relay-env"
 	BuzzRelayDatabaseEnvironmentFilePath  = "/root/.internkim/secrets/buzz-relay-db"
 	BuzzRelayBindAddress                  = "127.0.0.1:3000"
+	BuzzRelayHealthPort                   = "3001"
 	BuzzRelayLocalURL                     = "ws://127.0.0.1:3000"
 	BuzzRelayRedisURL                     = "redis://127.0.0.1:6379"
 	BuzzRelayArtifactPath                 = ".dependency/buzz-relay"

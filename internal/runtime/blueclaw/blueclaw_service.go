@@ -221,10 +221,12 @@ User=root
 EnvironmentFile=%s
 EnvironmentFile=%s
 Environment=BUZZ_BIND_ADDR=%s
+Environment=BUZZ_HEALTH_PORT=%s
 Environment=REDIS_URL=%s
 Environment=RELAY_URL=%s
 Environment=BUZZ_AUTO_MIGRATE=1
 Environment=BUZZ_REQUIRE_RELAY_MEMBERSHIP=true
+Environment=BUZZ_GIT_CONFORMANCE_PROBE=false
 ExecStart=%s
 Restart=on-failure
 RestartSec=2
@@ -233,7 +235,7 @@ TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
-`, BuzzRelayKeyEnvironmentFilePath, BuzzRelayDatabaseEnvironmentFilePath, BuzzRelayBindAddress, BuzzRelayRedisURL, BuzzRelayLocalURL, BuzzRelayBinaryPath)
+`, BuzzRelayKeyEnvironmentFilePath, BuzzRelayDatabaseEnvironmentFilePath, BuzzRelayBindAddress, BuzzRelayHealthPort, BuzzRelayRedisURL, BuzzRelayLocalURL, BuzzRelayBinaryPath)
 }
 
 func BuzzRelayHealthCheckCommand() string {
