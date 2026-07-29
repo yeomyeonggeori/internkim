@@ -2,7 +2,6 @@
 	import { setContext } from 'svelte';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
-	import CalendarSearchIcon from '@lucide/svelte/icons/calendar-search';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import TrashIcon from '@lucide/svelte/icons/trash';
 	import { DayFlowCalendar, useCalendarApp, ViewType } from '@dayflow/svelte';
@@ -13,6 +12,10 @@
 	import { installCalendarDayFlowEventActivation } from './calendar-dayflow-event-activation';
 	import CalendarMobileEventEditor from './calendar-mobile-event-editor.svelte';
 	import CalendarMonthEventLayer from './calendar-month-event-layer.svelte';
+	import CalendarMonthView from '../grid/calendar-month-view.svelte';
+	import { calendarGridEventsFromDayFlowEvents } from '../grid/calendar-grid-events';
+	import { calendarGridDateKey } from '../grid/calendar-grid-dates';
+	import type { CalendarGridEvent } from '../grid/calendar-grid-layout';
 	import CalendarMonthRangePreview from './calendar-month-range-preview.svelte';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 	import type { MonthRangePreviewSegment } from './calendar-month-range-action';
@@ -56,6 +59,8 @@
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
 		navigateToDateKey: (dateKey: string) => void;
+		selectedMonthDateKey: string | null;
+		visibleMonthChanged: (month: Date) => void;
 		addEventOnDay: (dateKey: string) => void;
 		deleteEvent: (eventID: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
@@ -83,6 +88,8 @@
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
 		navigateToDateKey,
+		selectedMonthDateKey,
+		visibleMonthChanged,
 		addEventOnDay,
 		deleteEvent,
 		openEvent,
@@ -132,6 +139,28 @@
 	}
 
 	const replayedContextMenuEventKey = 'calendarStageReplayedContextMenu';
+
+	const gridEvents = $derived(calendarGridEventsFromDayFlowEvents(events));
+	const monthViewText = $derived({
+		addEventOnDay: text.addEventOnDay,
+		openDay: text.openDay,
+		editEvent: text.editEvent,
+		duplicateEvent: text.duplicateEvent,
+		deleteEvent: text.deleteEvent,
+		moreEvents: monthMoreText.button
+	});
+
+	function openGridEvent(event: CalendarGridEvent, originElement: HTMLElement): void {
+		const rectangle = originElement.getBoundingClientRect();
+		openEvent(event.id, {
+			clientX: rectangle.right,
+			clientY: rectangle.top,
+			originElement,
+			leftClientX: rectangle.left,
+			topClientY: rectangle.top,
+			bottomClientY: rectangle.bottom
+		});
+	}
 
 	let contextTarget = $state<{ dateKey: string; eventID: string; anchor: DraftPopoverAnchor } | null>(null);
 
@@ -214,29 +243,46 @@
 					role="region"
 					aria-label={text.pageTitle}
 				>
-					<DayFlowCalendar
-						{calendar}
-						eventContentDay={CalendarDayFlowEventActivator}
-						eventContentWeek={CalendarDayFlowEventActivator}
-						eventContentMonth={CalendarDayFlowEventActivator}
-						eventContentAllDayDay={CalendarDayFlowEventActivator}
-						eventContentAllDayWeek={CalendarDayFlowEventActivator}
-						eventContentAllDayMonth={CalendarDayFlowEventActivator}
-						mobileEventDetail={CalendarMobileEventEditor}
-					/>
-
-					<CalendarMonthEventLayer
-						{clearSelectedEvent}
-						{events}
-						{localeCode}
-						{monthMoreText}
-						{openEvent}
-						{saveMovedEvent}
-						{selectDate}
-						{selectedEventID}
-						{stageElement}
-						{toolbarView}
-					/>
+					{#if toolbarView === ViewType.MONTH}
+						<div class="absolute inset-0 flex min-h-0 flex-col">
+						<CalendarMonthView
+							visibleDate={toolbarDate}
+							selectedDateKey={selectedMonthDateKey ?? ''}
+							selectedEventID={selectedEventID ?? ''}
+							events={gridEvents}
+							{localeCode}
+							text={monthViewText}
+							selectDay={(day) => selectDate(calendarGridDateKey(day))}
+							openDay={(day) => navigateToDateKey(calendarGridDateKey(day))}
+							addEventOnDay={(day) => addEventOnDay(calendarGridDateKey(day))}
+							openEvent={openGridEvent}
+							duplicateEvent={(event) => addEventOnDay(calendarGridDateKey(event.start))}
+							deleteEvent={(event) => deleteEvent(event.id)}
+							visibleMonthChanged={(month) => visibleMonthChanged(month)}
+						/>
+						</div>
+					{:else}
+						<DayFlowCalendar
+							{calendar}
+							eventContentDay={CalendarDayFlowEventActivator}
+							eventContentWeek={CalendarDayFlowEventActivator}
+							eventContentAllDayDay={CalendarDayFlowEventActivator}
+							eventContentAllDayWeek={CalendarDayFlowEventActivator}
+							mobileEventDetail={CalendarMobileEventEditor}
+						/>
+						<CalendarMonthEventLayer
+							{clearSelectedEvent}
+							{events}
+							{localeCode}
+							{monthMoreText}
+							{openEvent}
+							{saveMovedEvent}
+							{selectDate}
+							{selectedEventID}
+							{stageElement}
+							{toolbarView}
+						/>
+					{/if}
 					<CalendarMonthRangePreview segments={monthRangePreviewSegments} title={monthRangePreviewTitle} />
 				<CalendarTimelineRangePreview segments={timelineRangePreviewSegments} title={timelineRangePreviewTitle} />
 			</div>
@@ -259,10 +305,6 @@
 			<ContextMenu.Item onclick={() => contextTarget && addEventOnDay(contextTarget.dateKey)}>
 				<CalendarPlusIcon />
 				{text.addEventOnDay}
-			</ContextMenu.Item>
-			<ContextMenu.Item onclick={() => contextTarget && navigateToDateKey(contextTarget.dateKey)}>
-				<CalendarSearchIcon />
-				{text.openDay}
 			</ContextMenu.Item>
 		{/if}
 	</ContextMenu.Content>

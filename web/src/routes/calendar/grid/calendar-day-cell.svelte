@@ -2,7 +2,6 @@
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import { cn } from '$lib/utils';
 	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
-	import CalendarSearchIcon from '@lucide/svelte/icons/calendar-search';
 	import type { Snippet } from 'svelte';
 	import { calendarGridDateKey } from './calendar-grid-dates';
 
@@ -14,16 +13,13 @@
 		isSelected: boolean;
 		text: {
 			addEventOnDay: string;
-			openDay: string;
 		};
 		addEventOnDay: (day: Date) => void;
-		openDay: (day: Date) => void;
 		selectDay: (day: Date) => void;
 		children: Snippet;
 	};
 
-	let { day, dayLabel, isToday, isOutsideMonth, isSelected, text, addEventOnDay, openDay, selectDay, children }: CalendarDayCellProps =
-		$props();
+	let { day, dayLabel, isToday, isOutsideMonth, isSelected, text, addEventOnDay, selectDay, children }: CalendarDayCellProps = $props();
 </script>
 
 <ContextMenu.Root>
@@ -62,10 +58,6 @@
 		<ContextMenu.Item onclick={() => addEventOnDay(day)}>
 			<CalendarPlusIcon />
 			{text.addEventOnDay}
-		</ContextMenu.Item>
-		<ContextMenu.Item onclick={() => openDay(day)}>
-			<CalendarSearchIcon />
-			{text.openDay}
 		</ContextMenu.Item>
 	</ContextMenu.Content>
 </ContextMenu.Root>
