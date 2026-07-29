@@ -42,7 +42,7 @@
 	const dragSnapMinutes = 15;
 	const longPressMilliseconds = 450;
 	const defaultDurationMinutes = 60;
-	const weekSwipeThresholdPixels = 120;
+	const weekSwipeThresholdPixels = 60;
 	const weekSwipeGapMilliseconds = 150;
 
 	let gridElement = $state<HTMLElement | null>(null);

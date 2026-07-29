@@ -50,7 +50,7 @@
 	const laneHeightPixels = 22;
 	const visibleChipCount = 3;
 	const scrollOverlayHideDelayMilliseconds = 700;
-	const wheelScrollDamping = 0.3;
+	const wheelScrollDamping = 0.7;
 	const rowSnapAnimationMilliseconds = 220;
 	const windowExtendWeeks = 26;
 	const windowExtendMarginPixels = 1200;
