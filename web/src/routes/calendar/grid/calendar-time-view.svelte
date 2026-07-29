@@ -29,6 +29,7 @@
 		selectDay: (day: Date) => void;
 		openEvent: (event: CalendarGridEvent, originElement: HTMLElement) => void;
 		addEventOnTimeRange: (start: Date, end: Date) => void;
+		addEventOnDayRange: (startDateKey: string, endDateKey: string) => void;
 	};
 
 	let {
@@ -40,7 +41,8 @@
 		draftPreviewTitle,
 		selectDay,
 		openEvent,
-		addEventOnTimeRange
+		addEventOnTimeRange,
+		addEventOnDayRange
 	}: CalendarTimeViewProps = $props();
 
 	const hourHeightPixels = 48;
@@ -72,7 +74,49 @@
 			: Array.from({ length: dayCount }, (_, dayOffset) => addCalendarGridDays(weekWindowStart, dayOffset))
 	);
 	const canSwipeWeeks = $derived(dayCount === 7);
+	const allDayRowLabel = '종일';
 	const allDayLaneHeightPixels = 22;
+	let allDayDragColumns = $state<{ days: Date[]; startIndex: number; endIndex: number } | null>(null);
+
+	const allDayDragSpan = $derived(
+		allDayDragColumns
+			? {
+					startColumn: Math.min(allDayDragColumns.startIndex, allDayDragColumns.endIndex),
+					columnCount: Math.abs(allDayDragColumns.endIndex - allDayDragColumns.startIndex) + 1
+				}
+			: null
+	);
+
+	function allDayColumnIndexFromPointer(event: PointerEvent, columnCount: number): number {
+		const rowElement = event.currentTarget;
+		if (!(rowElement instanceof HTMLElement)) return 0;
+		const bounds = rowElement.getBoundingClientRect();
+		const ratio = (event.clientX - bounds.left) / Math.max(1, bounds.width);
+		return Math.min(columnCount - 1, Math.max(0, Math.floor(ratio * columnCount)));
+	}
+
+	function startAllDayDrag(event: PointerEvent, columnDays: Date[]): void {
+		if (event.button !== 0) return;
+		const columnIndex = allDayColumnIndexFromPointer(event, columnDays.length);
+		allDayDragColumns = { days: columnDays, startIndex: columnIndex, endIndex: columnIndex };
+	}
+
+	function extendAllDayDrag(event: PointerEvent, columnDays: Date[]): void {
+		if (!allDayDragColumns) return;
+		allDayDragColumns = { ...allDayDragColumns, endIndex: allDayColumnIndexFromPointer(event, columnDays.length) };
+	}
+
+	function finishAllDayDrag(): void {
+		const drag = allDayDragColumns;
+		allDayDragColumns = null;
+		if (!drag) return;
+		const firstIndex = Math.min(drag.startIndex, drag.endIndex);
+		const lastIndex = Math.max(drag.startIndex, drag.endIndex);
+		const startDay = drag.days[firstIndex];
+		const endDay = drag.days[lastIndex];
+		if (!startDay || !endDay) return;
+		addEventOnDayRange(calendarGridDateKey(startDay), calendarGridDateKey(endDay));
+	}
 	const stripAllDaySpans = $derived(calendarGridAllDaySpans(stripDays, events));
 	const daysAllDaySpans = $derived(calendarGridAllDaySpans(days, events));
 
@@ -90,6 +134,14 @@
 		start: today,
 		end: today,
 		isAllDay: false,
+		color: defaultCalendarEventColor
+	});
+	const draftAllDayPreview = $derived<CalendarGridEvent>({
+		id: 'calendar-draft-all-day-preview',
+		title: draftPreviewTitle,
+		start: today,
+		end: today,
+		isAllDay: true,
 		color: defaultCalendarEventColor
 	});
 	const nowMinutes = $derived(calendarGridMinutesFromMidnight(today));
@@ -465,13 +517,31 @@
 {/snippet}
 
 {#snippet allDayRow(columnDays: Date[], spans: ReturnType<typeof calendarGridAllDaySpans>)}
-	<div class="relative" style={`height: ${allDayRowHeightPixels(spans)}px`}>
+	<div
+		role="grid"
+		tabindex="-1"
+		aria-label={allDayRowLabel}
+		class="relative select-none"
+		style={`height: ${allDayRowHeightPixels(spans)}px`}
+		onpointerdown={(event) => startAllDayDrag(event, columnDays)}
+		onpointermove={(event) => extendAllDayDrag(event, columnDays)}
+		onpointerup={finishAllDayDrag}
+		onpointerleave={() => (allDayDragColumns = null)}
+	>
 		<div class="absolute inset-0 grid" style={`grid-template-columns: repeat(${columnDays.length}, minmax(0, 1fr))`}>
 			{#each columnDays as day (day.getTime())}
 				<div class="border-border/50 border-l"></div>
 			{/each}
 		</div>
 		<div class="absolute inset-0 grid px-0.5 pt-1" style={`grid-template-columns: repeat(${columnDays.length}, minmax(0, 1fr))`}>
+			{#if allDayDragSpan && allDayDragColumns?.days.length === columnDays.length}
+				<div
+					class="px-0.5"
+					style={`grid-column: ${allDayDragSpan.startColumn + 1} / span ${allDayDragSpan.columnCount}; grid-row: 1`}
+				>
+					<CalendarEventChip event={draftAllDayPreview} isSelected openEvent={() => {}} />
+				</div>
+			{/if}
 			{#each spans as span (span.event.id)}
 				<div
 					class="px-0.5"
@@ -603,7 +673,7 @@
 					<MiniCalendarDay>
 						{day.day}
 						{#if hasEventsOnDate(day)}
-							<span class="bg-foreground size-1 rounded-full"></span>
+							<span class="size-1 rounded-full" style={`background: ${defaultCalendarEventColor}`}></span>
 						{/if}
 					</MiniCalendarDay>
 				{/snippet}
