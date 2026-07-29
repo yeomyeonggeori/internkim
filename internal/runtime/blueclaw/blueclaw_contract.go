@@ -112,6 +112,20 @@ const (
 	BuzzRelayLocalURL                     = "ws://127.0.0.1:3000"
 	BuzzRelayRedisURL                     = "redis://127.0.0.1:6379"
 	BuzzRelayArtifactPath                 = ".dependency/buzz-relay"
+	MinioServiceName                      = "buzz-minio"
+	MinioServicePath                      = "/etc/systemd/system/buzz-minio.service"
+	MinioBinaryPath                       = "/usr/local/bin/minio"
+	McBinaryPath                          = "/usr/local/bin/mc"
+	MinioBinaryURL                        = "https://dl.min.io/server/minio/release/linux-arm64/minio"
+	McBinaryURL                           = "https://dl.min.io/client/mc/release/linux-arm64/mc"
+	MinioDataPath                         = "/var/lib/buzz-minio"
+	MinioAddress                          = "127.0.0.1:9000"
+	MinioConsoleAddress                   = "127.0.0.1:9001"
+	MinioEnvironmentFilePath              = "/root/.internkim/secrets/buzz-minio-env"
+	MinioPasswordPath                     = "/root/.internkim/secrets/buzz-minio-pass"
+	BuzzMediaBucket                       = "buzz-media"
+	BuzzMediaAccessKey                    = "buzzrelay"
+	BuzzRelayS3EnvironmentFilePath        = "/root/.internkim/secrets/buzz-relay-s3"
 )
 
 func BlueclawHealthCheckURL() string {
