@@ -415,7 +415,7 @@ func deriveChannelID(seed, mattermostChannelID string) string {
 }
 
 func waitForChannelRow(ctx context.Context, database *sql.DB, communityID, channelID string) error {
-	for attempt := 0; attempt < 40; attempt++ {
+	for attempt := 0; attempt < 240; attempt++ {
 		var exists bool
 		errorValue := database.QueryRowContext(ctx,
 			`SELECT EXISTS(SELECT 1 FROM channels WHERE community_id = $1 AND id = $2)`,
