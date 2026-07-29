@@ -41,9 +41,10 @@ type Callbacks struct {
 	LoadState func(key string) string
 	SaveState func(key, value string)
 
-	GetOpenRouterKey   func(force bool) (string, error)
-	GetLiteRTModelPath func(force bool) (string, error)
-	GetBuzzKeySeed     func(force bool) (string, error)
+	GetOpenRouterKey        func(force bool) (string, error)
+	GetLiteRTModelPath      func(force bool) (string, error)
+	GetBuzzKeySeed          func(force bool) (string, error)
+	GetBuzzRelayOwnerPubkey func() (string, error)
 
 	GetGasWebhookURL func(accessToken string) (string, error)
 

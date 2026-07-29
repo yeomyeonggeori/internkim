@@ -73,7 +73,7 @@ func main() {
 		authorPubkeys[userID] = pubkey
 	}
 
-	bootstrapSecret := deriveSecret(*keySeed, "__bootstrap__")
+	bootstrapSecret := deriveSecret(*keySeed, buzzidentity.BootstrapSubject)
 	bootstrapPubkey, errorValue := nostr.GetPublicKey(bootstrapSecret)
 	failOn(errorValue, "derive bootstrap pubkey")
 	registerRelayMember(*buzzAdminCommand, bootstrapPubkey)
