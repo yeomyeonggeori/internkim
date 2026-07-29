@@ -112,9 +112,14 @@
 		});
 	}
 
-	function openDateRangePicker(isOpen: boolean): void {
-		if (!isOpen) return;
-		pickedDateRange = { start: startCalendarDate, end: endCalendarDate };
+	function toggleDateRangePicker(isOpen: boolean): void {
+		if (isOpen) {
+			pickedDateRange = { start: startCalendarDate, end: endCalendarDate };
+			return;
+		}
+		if (!pickedDateRange.start || pickedDateRange.end) return;
+		const singleDayKey = dateKeyFromCalendarDate(pickedDateRange.start);
+		updatePopover({ dateKey: singleDayKey, endDateKey: singleDayKey });
 	}
 
 	function changeDateRange(range: DateRange | undefined): void {
@@ -178,7 +183,7 @@
 			</div>
 
 			{#if popover.allDay}
-				<Popover.Root bind:open={isRangePickerOpen} onOpenChange={openDateRangePicker}>
+				<Popover.Root bind:open={isRangePickerOpen} onOpenChange={toggleDateRangePicker}>
 					<Popover.Trigger>
 						{#snippet child({ props })}
 							<Button
