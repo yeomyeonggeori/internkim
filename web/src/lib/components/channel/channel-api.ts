@@ -216,12 +216,8 @@ export async function sendChannelMessage(
 	channelID?: string,
 	replyToRootID?: string
 ): Promise<void> {
-	if (buzzIdentity.secretHex && channelID) {
-		const relayURL = await buzzRelayURL();
-		if (relayURL) {
-			await clientSignChannelMessage(relayURL, buzzIdentity.secretHex, channelID, message, attachments, replyToRootID);
-			return;
-		}
-	}
+	// The relay lives on the device's loopback, unreachable from the browser, so
+	// the message and its attachments are published through the on-device bridge
+	// (chatd), which signs with the person's own derived key.
 	await sendServerSignedMessage(message, attachments, channelID, replyToRootID);
 }
