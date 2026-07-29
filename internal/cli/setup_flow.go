@@ -458,6 +458,11 @@ func (state *setupFlowState) buzzRelayBinaryAssets() []localBinaryAsset {
 			localPath:  filepath.Join(state.scriptDir, blueclaw.BuzzRelayArtifactPath, blueclaw.BuzzAdminName),
 			remotePath: blueclaw.BuzzAdminBinaryPath,
 		},
+		{
+			name:       blueclaw.BuzzMigrateName,
+			localPath:  filepath.Join(state.scriptDir, blueclaw.BuzzRelayArtifactPath, blueclaw.BuzzMigrateName),
+			remotePath: blueclaw.BuzzMigrateBinaryPath,
+		},
 	}
 }
 
