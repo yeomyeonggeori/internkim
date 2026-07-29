@@ -87,6 +87,7 @@
 	);
 	const monthLabelFormatter = $derived(new Intl.DateTimeFormat(localeCode, { year: 'numeric', month: 'long' }));
 	const timeFormatter = $derived(new Intl.DateTimeFormat(localeCode, { hour: 'numeric', minute: '2-digit' }));
+	const activeMonth = $derived(weekMonths.get(anchorWeekStartKey) ?? new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1));
 	const today = new Date();
 
 	$effect(() => {
@@ -200,8 +201,8 @@
 		};
 	}
 
-	function isOutsideVisibleMonth(day: Date, week: CalendarGridWeek): boolean {
-		return day.getMonth() !== (weekMonths.get(week.startDateKey)?.getMonth() ?? day.getMonth());
+	function isOutsideVisibleMonth(day: Date): boolean {
+		return day.getMonth() !== activeMonth.getMonth() || day.getFullYear() !== activeMonth.getFullYear();
 	}
 
 	function monthStartDayInWeek(week: CalendarGridWeek): Date | undefined {
@@ -318,7 +319,7 @@
 						{day}
 						dayLabel={String(day.getDate())}
 						isToday={isSameCalendarGridDay(day, today)}
-						isOutsideMonth={isOutsideVisibleMonth(day, week)}
+						isOutsideMonth={isOutsideVisibleMonth(day)}
 						isSelected={selectedDateKey === calendarGridDateKey(day)}
 						isInSelectedRange={isDateKeyInSelectedRange(calendarGridDateKey(day))}
 						addEventOnDay={(selectedDay) => addEventOnDay(selectedDay)}
