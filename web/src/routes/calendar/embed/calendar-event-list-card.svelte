@@ -50,7 +50,9 @@
 			onclick={(event) => openEvent(event.currentTarget)}
 		>
 			<span class="w-1 shrink-0 self-stretch rounded-full bg-(--calendar-event-color)"></span>
-			<span class="min-w-0 flex-1">
+			<span
+				class="min-w-0 flex-1 [&_.calendar-event-content]:flex [&_.calendar-event-content]:min-w-0 [&_.calendar-event-content]:items-baseline [&_.calendar-event-content]:gap-2 [&_.calendar-event-time]:!text-muted-foreground/70 [&_.calendar-event-time]:shrink-0 [&_.calendar-event-time]:!text-[10px] [&_.calendar-event-time]:tabular-nums [&_.calendar-event-title]:min-w-0 [&_.calendar-event-title]:flex-1 [&_.calendar-event-title]:truncate [&_.calendar-event-title]:text-sm [&_.calendar-event-title]:font-medium"
+			>
 				<CalendarEventContent event={{ title, start, allDay: isAllDay }} {isAllDay} {timeLabel} />
 				{#if location}
 					<span class="text-muted-foreground mt-1 flex min-w-0 items-center gap-1 text-xs">
