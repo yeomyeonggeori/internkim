@@ -47,18 +47,19 @@ type Callbacks struct {
 
 	GetGasWebhookURL func(accessToken string) (string, error)
 
-	BinariesVersion           func() string
-	InstallBinariesSSH        func(context *Context) error
-	InstallAdmindSSH          func(context *Context) error
-	InstallCapabilitydSSH     func(context *Context) error
-	StageBinariesSD           func(context *Context) error
-	SkillsManifest            func() string
-	InstallSkillsSSH          func(context *Context) error
-	StageSkillsSD             func(context *Context) error
-	BlueclawRuntimeManifest   func() string
-	InstallBlueclawRuntimeSSH func(context *Context) error
-	BlueclawPayloadManifest   func() string
-	InstallBlueclawPayloadSSH func(context *Context) error
+	BinariesVersion             func() string
+	InstallBinariesSSH          func(context *Context) error
+	InstallBuzzRelayBinariesSSH func(context *Context) error
+	InstallAdmindSSH            func(context *Context) error
+	InstallCapabilitydSSH       func(context *Context) error
+	StageBinariesSD             func(context *Context) error
+	SkillsManifest              func() string
+	InstallSkillsSSH            func(context *Context) error
+	StageSkillsSD               func(context *Context) error
+	BlueclawRuntimeManifest     func() string
+	InstallBlueclawRuntimeSSH   func(context *Context) error
+	BlueclawPayloadManifest     func() string
+	InstallBlueclawPayloadSSH   func(context *Context) error
 
 	AdminWebVersion func() string
 	DeployAdminWeb  func(context *Context) error
