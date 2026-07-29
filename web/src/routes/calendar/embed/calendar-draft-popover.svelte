@@ -85,7 +85,7 @@
 
 	const startCalendarDate = $derived(calendarDateFromDateKey(popover.dateKey));
 	const endCalendarDate = $derived(calendarDateFromDateKey(popover.endDateKey));
-	const selectedDateRange = $derived<DateRange>({ start: startCalendarDate, end: endCalendarDate });
+	let pickedDateRange = $state<DateRange>({ start: undefined, end: undefined });
 	const dateRangeLabel = $derived(
 		popover.dateKey === popover.endDateKey
 			? formatDateKey(popover.dateKey)
@@ -112,13 +112,18 @@
 		});
 	}
 
+	function openDateRangePicker(isOpen: boolean): void {
+		if (!isOpen) return;
+		pickedDateRange = { start: startCalendarDate, end: endCalendarDate };
+	}
+
 	function changeDateRange(range: DateRange | undefined): void {
-		if (!range?.start) return;
+		if (!range?.start || !range.end) return;
 		updatePopover({
 			dateKey: dateKeyFromCalendarDate(range.start),
-			endDateKey: dateKeyFromCalendarDate(range.end ?? range.start)
+			endDateKey: dateKeyFromCalendarDate(range.end)
 		});
-		if (range.end) isRangePickerOpen = false;
+		isRangePickerOpen = false;
 	}
 
 	function changeStartDate(value: DateValue | undefined): void {
@@ -173,7 +178,7 @@
 			</div>
 
 			{#if popover.allDay}
-				<Popover.Root bind:open={isRangePickerOpen}>
+				<Popover.Root bind:open={isRangePickerOpen} onOpenChange={openDateRangePicker}>
 					<Popover.Trigger>
 						{#snippet child({ props })}
 							<Button
@@ -189,7 +194,7 @@
 					</Popover.Trigger>
 					<Popover.Content class="w-auto overflow-hidden p-0" align="start">
 						<RangeCalendar
-							value={selectedDateRange}
+							bind:value={pickedDateRange}
 							onValueChange={changeDateRange}
 							captionLayout="dropdown"
 						/>
