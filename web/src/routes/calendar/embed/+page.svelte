@@ -119,6 +119,7 @@
 
 	onMount(() => {
 		void loadParticipantCandidates();
+		broadcastCalendarVisibleDate(state.toolbarDate);
 		const uninstallCalendarPageLifecycle = installCalendarPageLifecycle({
 			applyCalendarView: (view) => {
 				calendar.changeView(view);
