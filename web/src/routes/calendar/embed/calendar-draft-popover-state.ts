@@ -135,7 +135,6 @@ export function hasDraftPopoverEventChanges(popover: DraftPopoverState, event: D
 }
 
 export function isDraftPopoverValid(popover: DraftPopoverState): boolean {
-	if (!popover.title.trim()) return false;
 	const startTime = draftPopoverStartDate(popover).getTime();
 	const endTime = draftPopoverEndDate(popover).getTime();
 	return popover.allDay ? endTime >= startTime : endTime > startTime;

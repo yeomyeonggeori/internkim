@@ -211,18 +211,12 @@
 			<CalendarEventAuditCard rows={auditRows} label={auditLabel} emptyText={auditEmptyText} />
 		</Field.Group>
 
-		<footer class="bg-popover sticky bottom-0 flex items-center gap-2 border-t p-3">
-			{#if popover.mode === 'edit'}
+		{#if popover.mode === 'edit'}
+			<footer class="bg-popover sticky bottom-0 flex items-center border-t p-3">
 				<Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" disabled={isSaving} onclick={deletePopover}>
 					{text.delete}
 				</Button>
-			{/if}
-			<Button variant="outline" size="sm" class="ml-auto" disabled={isSaving} onclick={cancelPopover}>
-				{text.cancel}
-			</Button>
-			<Button size="sm" disabled={isSaving || !canSavePopover} onclick={savePopover}>
-				{text.complete}
-			</Button>
-		</footer>
+			</footer>
+		{/if}
 	</Popover.Content>
 </Popover.Root>

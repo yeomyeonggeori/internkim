@@ -1,6 +1,5 @@
 import { createEvent, type Event as DayFlowEvent } from '@dayflow/core';
 
-const legacyKoreanNewEventTitle = '새 일정';
 const localSortMetadataKey = 'localSortAt';
 
 export type DraftEventParams = Omit<Parameters<typeof createEvent>[0], 'title'> & { title?: string };
@@ -12,11 +11,6 @@ export class CalendarDraftEventState {
 	private readonly draftEventOriginalTitles = new Map<string, string>();
 	private readonly draftEventRevisions = new Map<string, number>();
 	private readonly eventsDeletedDuringCreate = new Set<string>();
-
-	constructor(
-		private readonly placeholderTitle: () => string,
-		private readonly localizedNewEvent: () => string
-	) {}
 
 	addCreatedEvent(event: DayFlowEvent): void {
 		this.draftEventIDs.add(event.id);
@@ -96,7 +90,7 @@ export class CalendarDraftEventState {
 	}
 
 	isPlaceholderTitle(title: string | undefined): boolean {
-		return isPlaceholderEventTitle(title, this.placeholderTitle(), this.localizedNewEvent());
+		return (title ?? '').trim() === '';
 	}
 
 	createDraftEvent(params: DraftEventParams): DayFlowEvent {
@@ -150,12 +144,4 @@ export class CalendarDraftEventState {
 			}
 		}
 	}
-}
-
-function isPlaceholderEventTitle(title: string | undefined, placeholderTitle: string, localizedNewEvent: string): boolean {
-	const trimmed = (title ?? '').trim();
-	if (trimmed === '') return true;
-	if (trimmed === placeholderTitle || trimmed === legacyKoreanNewEventTitle) return true;
-	if (trimmed === localizedNewEvent) return true;
-	return false;
 }
