@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
+	import { untrack } from 'svelte';
 	import CalendarDayCell from './calendar-day-cell.svelte';
 	import CalendarEventChip from './calendar-event-chip.svelte';
 	import {
@@ -56,15 +57,9 @@
 	let scrollFrame: number | null = null;
 	let scrollOverlayTimer: number | null = null;
 
-	let windowAnchorDateKey = $state('');
+	let windowAnchorDateKey = $state(untrack(() => calendarGridDateKey(visibleDate)));
 
-	const weeks = $derived(
-		calendarGridWeeks(
-			windowAnchorDateKey ? calendarGridDateFromKey(windowAnchorDateKey) : visibleDate,
-			weeksBeforeVisibleDate,
-			weeksAfterVisibleDate
-		)
-	);
+	const weeks = $derived(calendarGridWeeks(calendarGridDateFromKey(windowAnchorDateKey), weeksBeforeVisibleDate, weeksAfterVisibleDate));
 	const weekLayouts = $derived(
 		new Map<string, CalendarGridWeekLayout>(weeks.map((week) => [week.startDateKey, calendarGridWeekLayout(week, events)]))
 	);
@@ -79,24 +74,14 @@
 	const today = new Date();
 
 	$effect(() => {
+		const requestedDateKey = calendarGridDateKey(visibleDate);
+		if (requestedDateKey === selfReportedMonthKey) return;
 		const visibleWeekStartKey = calendarGridDateKey(startOfCalendarGridWeek(visibleDate));
 		if (visibleWeekStartKey === anchorWeekStartKey) return;
-		if (calendarGridDateKey(visibleDate) === selfReportedMonthKey || isWeekInsideViewport(visibleWeekStartKey)) {
-			anchorWeekStartKey = visibleWeekStartKey;
-			return;
-		}
 		anchorWeekStartKey = visibleWeekStartKey;
-		if (!weeks.some((week) => week.startDateKey === visibleWeekStartKey)) windowAnchorDateKey = calendarGridDateKey(visibleDate);
+		if (!weeks.some((week) => week.startDateKey === visibleWeekStartKey)) windowAnchorDateKey = requestedDateKey;
 		scrollWeekIntoView(visibleWeekStartKey);
 	});
-
-	function isWeekInsideViewport(weekStartKey: string): boolean {
-		const weekElement = scrollElement?.querySelector<HTMLElement>(`[data-week-start="${weekStartKey}"]`);
-		if (!weekElement || !scrollElement) return false;
-		const viewport = scrollElement.getBoundingClientRect();
-		const week = weekElement.getBoundingClientRect();
-		return week.bottom > viewport.top && week.top < viewport.bottom;
-	}
 
 	$effect(() => {
 		return () => {
