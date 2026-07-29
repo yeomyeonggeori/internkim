@@ -59,8 +59,7 @@
 		};
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
-		editingEventID: string | null;
-		editingTitle: string;
+		editingEvent: Pick<CalendarGridEvent, 'id' | 'title' | 'start' | 'end' | 'isAllDay'> | null;
 		navigateToDateKey: (dateKey: string) => void;
 		selectedMonthDateKey: string | null;
 		visibleMonthChanged: (month: Date) => void;
@@ -92,8 +91,7 @@
 		monthMoreText,
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
-		editingEventID,
-		editingTitle,
+		editingEvent,
 		navigateToDateKey,
 		selectedMonthDateKey,
 		visibleMonthChanged,
@@ -151,7 +149,7 @@
 
 	const gridEvents = $derived(
 		calendarGridEventsFromDayFlowEvents(events).map((event) =>
-			event.id === editingEventID ? { ...event, title: editingTitle } : event
+			event.id === editingEvent?.id ? { ...event, ...editingEvent } : event
 		)
 	);
 	function openGridEvent(event: CalendarGridEvent, originElement: HTMLElement): void {
