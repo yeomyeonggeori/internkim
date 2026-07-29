@@ -268,10 +268,17 @@
 		isRangeDragging = false;
 	}
 
-	function isDateKeyInSelectedRange(dateKey: string): boolean {
-		if (!isRangeDragging || !rangeStartDateKey || !rangeEndDateKey) return false;
+	function draftRangeForWeek(week: CalendarGridWeek): { startColumn: number; columnCount: number } | null {
+		if (!isRangeDragging || !rangeStartDateKey || !rangeEndDateKey) return null;
 		const [startDateKey, endDateKey] = [rangeStartDateKey, rangeEndDateKey].sort();
-		return dateKey >= startDateKey && dateKey <= endDateKey;
+		const columnKeys = week.days.map((day) => calendarGridDateKey(day));
+		const startColumn = columnKeys.findIndex((dateKey) => dateKey >= startDateKey && dateKey <= endDateKey);
+		if (startColumn < 0) return null;
+		const lastColumn = columnKeys.reduce(
+			(latest, dateKey, columnIndex) => (dateKey >= startDateKey && dateKey <= endDateKey ? columnIndex : latest),
+			startColumn
+		);
+		return { startColumn, columnCount: lastColumn - startColumn + 1 };
 	}
 </script>
 
@@ -321,7 +328,6 @@
 						isToday={isSameCalendarGridDay(day, today)}
 						isOutsideMonth={isOutsideVisibleMonth(day)}
 						isSelected={selectedDateKey === calendarGridDateKey(day)}
-						isInSelectedRange={isDateKeyInSelectedRange(calendarGridDateKey(day))}
 						addEventOnDay={(selectedDay) => addEventOnDay(selectedDay)}
 						selectDay={(selectedDay) => selectDay(selectedDay)}
 					>
@@ -345,6 +351,15 @@
 						{/if}
 					</CalendarDayCell>
 				{/each}
+				{#if draftRangeForWeek(week)}
+					{@const draftRange = draftRangeForWeek(week)}
+					<div class="pointer-events-none absolute inset-x-0 top-8 grid grid-cols-7">
+						<div
+							class="bg-primary/20 border-primary mx-1 h-5 rounded-md border"
+							style={`grid-column: ${(draftRange?.startColumn ?? 0) + 1} / span ${draftRange?.columnCount ?? 1}; grid-row: 1; margin-top: ${layout.laneCount * laneHeightPixels}px`}
+						></div>
+					</div>
+				{/if}
 				<div class="pointer-events-none absolute inset-x-0 top-8 grid grid-cols-7">
 					{#each layout.spans as span (span.event.id)}
 						<div
