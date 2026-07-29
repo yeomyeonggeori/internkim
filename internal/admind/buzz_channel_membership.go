@@ -3,7 +3,10 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -109,7 +112,26 @@ func (service *Service) allStaffEmails(ctx context.Context) []string {
 			}
 		}
 	}
+	for _, email := range service.usersSyncCacheEmails() {
+		add(email)
+	}
+	add(service.seedAdminEmail())
 	return emails
+}
+
+func (service *Service) usersSyncCacheEmails() []string {
+	stateDirectory := filepath.Dir(service.Configuration.FlowDatabasePath)
+	content, errorValue := os.ReadFile(filepath.Join(stateDirectory, "users-sync.json"))
+	if errorValue != nil {
+		return nil
+	}
+	var cache struct {
+		Users []string `json:"users"`
+	}
+	if json.Unmarshal(content, &cache) != nil {
+		return nil
+	}
+	return cache.Users
 }
 
 func (service *Service) staffBuzzPubkeys(ctx context.Context) []string {
