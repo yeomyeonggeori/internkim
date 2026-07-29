@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"log"
 	"strings"
 	"time"
 
@@ -25,19 +26,23 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 		return
 	}
 	channelIDs, errorValue := service.buzzStreamChannelIDs(ctx)
-	if errorValue != nil || len(channelIDs) == 0 {
+	if errorValue != nil {
+		log.Printf("buzz staff membership: channel query failed: %v", errorValue)
 		return
 	}
 	staffPubkeys := service.staffBuzzPubkeys(ctx)
-	if len(staffPubkeys) == 0 {
+	log.Printf("buzz staff membership: %d stream channels, %d staff pubkeys", len(channelIDs), len(staffPubkeys))
+	if len(channelIDs) == 0 || len(staffPubkeys) == 0 {
 		return
 	}
 	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
 	publisher, errorValue := relaypublish.Connect(ctx, strings.TrimSpace(service.Configuration.BuzzRelayURL), bootstrapSecret)
 	if errorValue != nil {
+		log.Printf("buzz staff membership: relay connect failed: %v", errorValue)
 		return
 	}
 	defer publisher.Close()
+	granted, failed := 0, 0
 	for _, channelID := range channelIDs {
 		for _, pubkey := range staffPubkeys {
 			select {
@@ -45,10 +50,18 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 				return
 			default:
 			}
-			_ = publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey)
+			if errorValue := publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey); errorValue != nil {
+				if failed == 0 {
+					log.Printf("buzz staff membership: first AddMember error: %v", errorValue)
+				}
+				failed++
+			} else {
+				granted++
+			}
 			time.Sleep(60 * time.Millisecond)
 		}
 	}
+	log.Printf("buzz staff membership: granted %d, failed %d", granted, failed)
 }
 
 func (service *Service) buzzStreamChannelIDs(ctx context.Context) ([]string, error) {
