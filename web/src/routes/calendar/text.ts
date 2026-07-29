@@ -99,6 +99,10 @@ export type CalendarLocaleText = {
 	new: string;
 	newEvent: string;
 	editEvent: string;
+	deleteEvent: string;
+	duplicateEvent: string;
+	addEventOnDay: string;
+	openDay: string;
 	draftPopover: {
 		calendar: string;
 		participants: string;
@@ -289,6 +293,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		new: '일정 추가',
 		newEvent: '새 일정',
 		editEvent: '일정 편집',
+		deleteEvent: '일정 삭제',
+		duplicateEvent: '일정 복제',
+		addEventOnDay: '이 날짜에 일정 추가',
+		openDay: '이 날짜 열기',
 		draftPopover: {
 			calendar: '캘린더',
 			participants: '참여자',
@@ -444,6 +452,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		new: 'Add event',
 		newEvent: 'New Event',
 		editEvent: 'Edit Event',
+		deleteEvent: 'Delete event',
+		duplicateEvent: 'Duplicate event',
+		addEventOnDay: 'Add event on this day',
+		openDay: 'Open this day',
 		draftPopover: {
 			calendar: 'Calendar',
 			participants: 'Participants',
