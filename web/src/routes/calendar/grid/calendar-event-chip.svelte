@@ -8,6 +8,7 @@
 		event: CalendarGridEvent;
 		size?: CalendarEventChipSize;
 		timeLabel?: string;
+		placeholder?: string;
 		isSelected?: boolean;
 		continuesBefore?: boolean;
 		continuesAfter?: boolean;
@@ -19,6 +20,7 @@
 		event,
 		size = 'compact',
 		timeLabel = '',
+		placeholder = '',
 		isSelected = false,
 		continuesBefore = false,
 		continuesAfter = false,
@@ -46,11 +48,11 @@
 	)}
 	onclick={(clickEvent) => openEvent(event, clickEvent.currentTarget)}
 >
-	{#if !continuesBefore && !isSelected}
-		<span class="w-1 shrink-0 self-stretch rounded-full bg-(--calendar-event-color)"></span>
+	{#if !continuesBefore}
+		<span class={cn('w-1 shrink-0 self-stretch rounded-full bg-(--calendar-event-color)', isSelected && 'invisible')}></span>
 	{/if}
 	<span class={cn('flex min-w-0 flex-1 gap-1.5', size === 'compact' ? 'items-center' : 'flex-col')}>
-		<span class="truncate font-medium">{event.title}</span>
+		<span class={cn('truncate font-medium', !event.title && 'opacity-70')}>{event.title || placeholder}</span>
 		{#if timeLabel}
 			<span class={cn('shrink-0 tabular-nums', isSelected ? 'text-white/80' : 'text-muted-foreground', size === 'compact' && 'ml-auto')}>
 			{timeLabel}
