@@ -11,6 +11,8 @@ import { installCalendarEventSelection } from './calendar-event-selection';
 import type { CalendarEventSelectionOptions } from './calendar-event-selection';
 import { installCalendarKeyboardDelete } from './calendar-keyboard-delete';
 import type { CalendarKeyboardDeleteContext } from './calendar-keyboard-delete';
+import { installCalendarKeyboardSave } from './calendar-keyboard-save';
+import type { CalendarKeyboardSaveContext } from './calendar-keyboard-save';
 import { installCalendarKeyboardUndo } from './calendar-keyboard-undo';
 import type { CalendarKeyboardUndoContext } from './calendar-keyboard-undo';
 import { installCalendarMonthKeyboardNavigation } from './calendar-month-selection';
@@ -54,6 +56,7 @@ export type CalendarEmbedLifecycleOptions = {
 	monthKeyboardNavigation: CalendarMonthKeyboardNavigationOptions;
 	keyboardDelete: CalendarKeyboardDeleteContext;
 	keyboardUndo: CalendarKeyboardUndoContext;
+	keyboardSave: CalendarKeyboardSaveContext;
 	miniCalendarMonthPicker: DayFlowMiniCalendarPickerContext;
 	navigateToDateKey: (dateKey: string) => void;
 };
@@ -76,6 +79,7 @@ export function installCalendarEmbedLifecycle(options: CalendarEmbedLifecycleOpt
 	const stopMonthKeyboardNavigation = installCalendarMonthKeyboardNavigation(options.monthKeyboardNavigation);
 	const stopKeyboardDelete = installCalendarKeyboardDelete(options.keyboardDelete);
 	const stopKeyboardUndo = installCalendarKeyboardUndo(options.keyboardUndo);
+	const stopKeyboardSave = installCalendarKeyboardSave(options.keyboardSave);
 	const stopMiniCalendarDateSelection = installDayFlowMiniCalendarDateSelection(options.navigateToDateKey);
 	const stopMiniCalendarMonthPicker = installDayFlowMiniCalendarMonthPicker(options.miniCalendarMonthPicker);
 	return () => {
@@ -90,6 +94,7 @@ export function installCalendarEmbedLifecycle(options: CalendarEmbedLifecycleOpt
 		stopMonthKeyboardNavigation();
 		stopKeyboardDelete();
 		stopKeyboardUndo();
+		stopKeyboardSave();
 		stopMiniCalendarDateSelection();
 		stopMiniCalendarMonthPicker();
 		clearCalendarAllDayLayout(options.stageElement);
