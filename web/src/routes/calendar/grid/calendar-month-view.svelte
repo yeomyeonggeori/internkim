@@ -46,6 +46,7 @@
 	const laneHeightPixels = 22;
 	const visibleChipCount = 3;
 	const scrollOverlayHideDelayMilliseconds = 700;
+	const wheelScrollDamping = 0.3;
 
 	let scrollElement = $state<HTMLElement | null>(null);
 	let anchorWeekStartKey = $state('');
@@ -119,6 +120,20 @@
 		});
 	}
 
+	function handleWheel(wheelEvent: WheelEvent): void {
+		if (!scrollElement || wheelEvent.ctrlKey) return;
+		const lineHeightPixels = 16;
+		const pageHeightPixels = scrollElement.clientHeight;
+		const deltaPixels =
+			wheelEvent.deltaMode === 1
+				? wheelEvent.deltaY * lineHeightPixels
+				: wheelEvent.deltaMode === 2
+					? wheelEvent.deltaY * pageHeightPixels
+					: wheelEvent.deltaY;
+		wheelEvent.preventDefault();
+		scrollElement.scrollTop += deltaPixels * wheelScrollDamping;
+	}
+
 	function handleScroll(): void {
 		if (isScrollingToWeek || scrollFrame !== null) return;
 		scrollFrame = requestAnimationFrame(() => {
@@ -181,7 +196,7 @@
 			</div>
 		{/each}
 	</div>
-	<div bind:this={scrollElement} onscroll={handleScroll} class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+	<div bind:this={scrollElement} onscroll={handleScroll} onwheel={handleWheel} class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 		{#each weeks as week (week.startDateKey)}
 			{@const layout = weekLayouts.get(week.startDateKey) ?? { spans: [], timedEntries: [], laneCount: 0 }}
 			{@const monthStartDay = monthStartDayInWeek(week)}
