@@ -43,7 +43,7 @@
 	const dragSnapMinutes = 15;
 	const longPressMilliseconds = 450;
 	const defaultDurationMinutes = 60;
-	const flickMilliseconds = 700;
+	const flickVelocityPixelsPerMillisecond = 0.45;
 	const flickTravelPixels = 8;
 
 	let gridElement = $state<HTMLElement | null>(null);
@@ -132,12 +132,12 @@
 		currentOffset,
 		gestureStartOffset,
 		offsets,
-		gestureMilliseconds
+		gestureVelocity
 	}: {
 		currentOffset: number;
 		gestureStartOffset: number;
 		offsets: number[];
-		gestureMilliseconds: number;
+		gestureVelocity: number;
 	}): number {
 		const columnWidth = columnWidthPixels();
 		if (columnWidth === 0 || offsets.length === 0) return currentOffset;
@@ -146,7 +146,7 @@
 		const direction = travel > 0 ? 1 : -1;
 		const startColumnIndex = Math.round(gestureStartOffset / columnWidth);
 		const targetColumnIndex =
-			gestureMilliseconds < flickMilliseconds
+			gestureVelocity >= flickVelocityPixelsPerMillisecond
 				? weekAlignedColumnIndex(startColumnIndex, direction)
 				: Math.round(currentOffset / columnWidth);
 		const boundedIndex = Math.min(offsets.length - 1, Math.max(0, targetColumnIndex));
