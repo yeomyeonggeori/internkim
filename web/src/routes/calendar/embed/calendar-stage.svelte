@@ -248,6 +248,7 @@
 							events={gridEvents}
 							{localeCode}
 							moreEventsText={monthMoreText.button}
+							draftPreviewTitle={text.newEvent}
 							selectDay={(day) => selectDate(calendarGridDateKey(day))}
 							openDay={(day) => navigateToDateKey(calendarGridDateKey(day))}
 							addEventOnDay={(day) => addEventOnDay(calendarGridDateKey(day))}
@@ -264,6 +265,7 @@
 								selectedEventID={selectedEventID ?? ''}
 								events={gridEvents}
 								{localeCode}
+								draftPreviewTitle={text.newEvent}
 								selectDay={(day) => navigateToDateKey(calendarGridDateKey(day))}
 								openEvent={openGridEvent}
 								addEventOnTimeRange={(start, end) => addEventOnTimeRange(start, end)}

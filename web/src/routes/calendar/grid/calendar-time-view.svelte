@@ -14,6 +14,7 @@
 		startOfCalendarGridDay,
 		startOfCalendarGridWeek
 	} from './calendar-grid-dates';
+	import { defaultCalendarEventColor } from './calendar-grid-events';
 	import { calendarGridTimedBlocks, type CalendarGridEvent } from './calendar-grid-layout';
 	import { createCalendarScrollSnap } from './calendar-grid-scroll-snap.svelte';
 
@@ -23,6 +24,7 @@
 		selectedEventID: string;
 		events: CalendarGridEvent[];
 		localeCode: string;
+		draftPreviewTitle: string;
 		selectDay: (day: Date) => void;
 		openEvent: (event: CalendarGridEvent, originElement: HTMLElement) => void;
 		addEventOnTimeRange: (start: Date, end: Date) => void;
@@ -34,6 +36,7 @@
 		selectedEventID,
 		events,
 		localeCode,
+		draftPreviewTitle,
 		selectDay,
 		openEvent,
 		addEventOnTimeRange
@@ -80,6 +83,14 @@
 	const hourFormatter = $derived(new Intl.DateTimeFormat(localeCode, { hour: 'numeric' }));
 	const timeFormatter = $derived(new Intl.DateTimeFormat(localeCode, { hour: 'numeric', minute: '2-digit' }));
 	const today = new Date();
+	const draftEventPreview = $derived<CalendarGridEvent>({
+		id: 'calendar-draft-preview',
+		title: draftPreviewTitle,
+		start: today,
+		end: today,
+		isAllDay: false,
+		color: defaultCalendarEventColor
+	});
 	const nowMinutes = $derived(calendarGridMinutesFromMidnight(today));
 	const miniCalendarValue = $derived(
 		new CalendarDate(visibleDate.getFullYear(), visibleDate.getMonth() + 1, visibleDate.getDate()) as DateValue
@@ -367,9 +378,17 @@
 
 		{#if draftRange}
 			<div
-				class="bg-primary/20 border-primary pointer-events-none absolute inset-x-0.5 rounded-md border"
+				class="pointer-events-none absolute inset-x-0.5"
 				style={`top: ${draftRange.topPixels}px; height: ${draftRange.heightPixels}px`}
-			></div>
+			>
+				<CalendarEventChip
+					event={draftEventPreview}
+					size={draftRange.heightPixels < 44 ? 'compact' : 'block'}
+					isSelected
+					class="h-full"
+					openEvent={() => {}}
+				/>
+			</div>
 		{/if}
 
 		{#if isSameCalendarGridDay(day, today)}
