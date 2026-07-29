@@ -59,7 +59,7 @@
 				aria-expanded={isPickerOpen}
 				aria-label={label}
 				disabled={!canAddParticipants}
-				class="h-8 w-full justify-between px-2 text-xs font-normal"
+				class="h-8 w-full justify-between px-2 text-sm font-normal"
 			>
 				<span class={cn('truncate', !selectedNames && 'text-muted-foreground')}>{selectedNames || label}</span>
 				<ChevronsUpDownIcon class="size-3.5 shrink-0 opacity-50" />
@@ -68,9 +68,9 @@
 	</Popover.Trigger>
 	<Popover.Content class="w-56 p-0" align="start">
 		<Command.Root>
-			<Command.Input {placeholder} class="h-8 text-xs" />
+			<Command.Input {placeholder} class="h-9" />
 			<Command.List>
-				<Command.Empty class="py-4 text-xs">{emptyText}</Command.Empty>
+				<Command.Empty class="py-4 text-sm">{emptyText}</Command.Empty>
 				{#each candidates as candidate (calendarParticipantKey(candidate))}
 					<Command.Item
 						value={calendarParticipantOptionLabel(candidate, candidates)}

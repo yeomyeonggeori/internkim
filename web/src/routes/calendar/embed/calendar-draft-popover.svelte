@@ -102,7 +102,7 @@
 
 		<div class="grid gap-1.5 p-2">
 			<div class="flex items-center gap-2 px-1">
-				<Label for="draft-all-day" class="text-muted-foreground text-xs font-normal">{text.allDay}</Label>
+				<Label for="draft-all-day" class="text-muted-foreground font-normal">{text.allDay}</Label>
 				<Switch
 					id="draft-all-day"
 					class="ml-auto"
@@ -115,7 +115,7 @@
 				<Input
 					type="date"
 					aria-label={text.startDate}
-					class="h-8 flex-1 px-2 text-xs tabular-nums"
+					class="h-8 flex-1 px-2 text-sm tabular-nums"
 					value={popover.dateKey}
 					onchange={(event) => changeStart({ startDateKey: event.currentTarget.value })}
 				/>
@@ -123,7 +123,7 @@
 					<Input
 						type="time"
 						aria-label={text.startTime}
-						class="h-8 w-24 px-2 text-xs tabular-nums"
+						class="h-8 w-24 px-2 text-sm tabular-nums"
 						value={popover.startTime}
 						onchange={(event) => changeStart({ startTime: event.currentTarget.value })}
 					/>
@@ -134,7 +134,7 @@
 				<Input
 					type="date"
 					aria-label={text.endDate}
-					class="h-8 flex-1 px-2 text-xs tabular-nums"
+					class="h-8 flex-1 px-2 text-sm tabular-nums"
 					value={popover.endDateKey}
 					onchange={(event) => updatePopover({ endDateKey: event.currentTarget.value })}
 				/>
@@ -142,7 +142,7 @@
 					<Input
 						type="time"
 						aria-label={text.endTime}
-						class="h-8 w-24 px-2 text-xs tabular-nums"
+						class="h-8 w-24 px-2 text-sm tabular-nums"
 						value={popover.endTime}
 						onchange={(event) => updatePopover({ endTime: event.currentTarget.value })}
 					/>
@@ -153,7 +153,7 @@
 				aria-label={text.location}
 				placeholder={text.location}
 				autocomplete="off"
-				class="h-8 px-2 text-xs"
+				class="h-8 px-2 text-sm"
 				value={popover.location}
 				oninput={(event) => updatePopover({ location: event.currentTarget.value })}
 			/>
@@ -162,7 +162,7 @@
 				aria-label={text.description}
 				placeholder={text.description}
 				autocomplete="off"
-				class="h-8 px-2 text-xs"
+				class="h-8 px-2 text-sm"
 				value={popover.description}
 				oninput={(event) => updatePopover({ description: event.currentTarget.value })}
 			/>
@@ -179,7 +179,7 @@
 			{#if calendarOptions.length > 1}
 			<div class="flex">
 				<Select.Root type="single" value={popover.calendarID} onValueChange={(calendarID) => updatePopover({ calendarID })}>
-					<Select.Trigger size="sm" aria-label={text.calendar} class="h-8 flex-1 text-xs">
+					<Select.Trigger size="sm" aria-label={text.calendar} class="h-8 flex-1 text-sm">
 						{selectedCalendarName}
 					</Select.Trigger>
 					<Select.Content>
