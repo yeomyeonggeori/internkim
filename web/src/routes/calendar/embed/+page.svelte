@@ -102,10 +102,6 @@
 		)
 	);
 
-	const selectedAuditEvent = $derived(
-		state.selectedAuditEventID ? (calendar.events.find((event) => event.id === state.selectedAuditEventID) ?? null) : null
-	);
-
 	installCalendarPageEffects({
 		isBrowser: () => browser,
 		calendar,
@@ -296,7 +292,6 @@
 	timelineRangePreviewTitle={draftEventPlaceholderTitle()}
 	isMobileTwoDayWeekView={isMobileTwoDayWeekView}
 	popover={state.draftPopover}
-	auditEvent={selectedAuditEvent}
 	{calendarOptions}
 	participantCandidates={state.participantCandidates}
 	{text}

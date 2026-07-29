@@ -19,7 +19,6 @@
 	};
 
 	type CalendarPageContentProps = {
-		auditEvent: Pick<DayFlowEvent, 'meta'> | null;
 		activeMobileEditorEventID: string | null;
 		calendar: ReturnType<typeof useCalendarApp>;
 		calendarOptions: CalendarOption[];
@@ -66,7 +65,6 @@
 	};
 
 	let {
-		auditEvent,
 		activeMobileEditorEventID,
 		calendar,
 		calendarOptions,
@@ -169,7 +167,6 @@
 	/>
 	<CalendarPageDraftPopover
 		{popover}
-		{auditEvent}
 		{calendarOptions}
 		{participantCandidates}
 		{localeCode}
