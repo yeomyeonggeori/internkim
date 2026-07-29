@@ -24,6 +24,7 @@
 		selectDay: (day: Date) => void;
 		openDay: (day: Date) => void;
 		addEventOnDay: (day: Date) => void;
+		addEventOnRange: (startDateKey: string, endDateKey: string) => void;
 		openEvent: (event: CalendarGridEvent, originElement: HTMLElement) => void;
 		visibleMonthChanged: (month: Date) => void;
 	};
@@ -38,6 +39,7 @@
 		selectDay,
 		openDay,
 		addEventOnDay,
+		addEventOnRange,
 		openEvent,
 		visibleMonthChanged
 	}: CalendarMonthViewProps = $props();
@@ -52,6 +54,8 @@
 	const rowSnapAnimationMilliseconds = 220;
 	const windowExtendWeeks = 26;
 	const windowExtendMarginPixels = 1200;
+	const longPressMilliseconds = 450;
+	const rangeDragThresholdPixels = 6;
 
 	let scrollElement = $state<HTMLElement | null>(null);
 	let anchorWeekStartKey = $state('');
@@ -64,6 +68,11 @@
 	let snapAnimationFrame: number | null = null;
 	let isSnappingToRow = false;
 	let isExtendingWindow = false;
+	let rangeStartDateKey = $state('');
+	let rangeEndDateKey = $state('');
+	let isRangeDragging = $state(false);
+	let rangeStartPoint: { clientX: number; clientY: number } | null = null;
+	let longPressTimer: number | null = null;
 
 	let windowAnchorDateKey = $state(untrack(() => calendarGridDateKey(visibleDate)));
 	let weeksBeforeAnchor = $state(weeksBeforeVisibleDate);
@@ -99,6 +108,7 @@
 			if (scrollOverlayTimer !== null) clearTimeout(scrollOverlayTimer);
 			if (rowSnapTimer !== null) clearTimeout(rowSnapTimer);
 			if (snapAnimationFrame !== null) cancelAnimationFrame(snapAnimationFrame);
+			if (longPressTimer !== null) clearTimeout(longPressTimer);
 		};
 	});
 
@@ -259,6 +269,71 @@
 	function monthStartDayInWeek(week: CalendarGridWeek): Date | undefined {
 		return week.days.find((day) => day.getDate() === 1);
 	}
+
+	function dateKeyFromPoint(clientX: number, clientY: number): string {
+		const element = scrollElement?.ownerDocument.elementFromPoint(clientX, clientY);
+		return element?.closest<HTMLElement>('[data-calendar-date]')?.dataset.calendarDate ?? '';
+	}
+
+	function handlePointerDown(pointerEvent: PointerEvent): void {
+		if (pointerEvent.button !== 0 || !(pointerEvent.target instanceof Element)) return;
+		if (pointerEvent.target.closest('button')) return;
+		const dateKey = dateKeyFromPoint(pointerEvent.clientX, pointerEvent.clientY);
+		if (!dateKey) return;
+		rangeStartDateKey = dateKey;
+		rangeEndDateKey = dateKey;
+		rangeStartPoint = { clientX: pointerEvent.clientX, clientY: pointerEvent.clientY };
+		isRangeDragging = false;
+		longPressTimer = window.setTimeout(() => {
+			longPressTimer = null;
+			if (isRangeDragging || !rangeStartDateKey) return;
+			const pressedDateKey = rangeStartDateKey;
+			clearRangeSelection();
+			addEventOnDay(calendarGridDateFromKey(pressedDateKey));
+		}, longPressMilliseconds);
+	}
+
+	function handlePointerMove(pointerEvent: PointerEvent): void {
+		if (!rangeStartDateKey || !rangeStartPoint) return;
+		const movedDistance =
+			Math.abs(pointerEvent.clientX - rangeStartPoint.clientX) + Math.abs(pointerEvent.clientY - rangeStartPoint.clientY);
+		if (!isRangeDragging && movedDistance < rangeDragThresholdPixels) return;
+		isRangeDragging = true;
+		cancelLongPress();
+		const dateKey = dateKeyFromPoint(pointerEvent.clientX, pointerEvent.clientY);
+		if (dateKey) rangeEndDateKey = dateKey;
+	}
+
+	function handlePointerUp(): void {
+		cancelLongPress();
+		if (!isRangeDragging || !rangeStartDateKey || !rangeEndDateKey) {
+			clearRangeSelection();
+			return;
+		}
+		const [startDateKey, endDateKey] = [rangeStartDateKey, rangeEndDateKey].sort();
+		clearRangeSelection();
+		addEventOnRange(startDateKey, endDateKey);
+	}
+
+	function cancelLongPress(): void {
+		if (longPressTimer === null) return;
+		clearTimeout(longPressTimer);
+		longPressTimer = null;
+	}
+
+	function clearRangeSelection(): void {
+		cancelLongPress();
+		rangeStartDateKey = '';
+		rangeEndDateKey = '';
+		rangeStartPoint = null;
+		isRangeDragging = false;
+	}
+
+	function isDateKeyInSelectedRange(dateKey: string): boolean {
+		if (!isRangeDragging || !rangeStartDateKey || !rangeEndDateKey) return false;
+		const [startDateKey, endDateKey] = [rangeStartDateKey, rangeEndDateKey].sort();
+		return dateKey >= startDateKey && dateKey <= endDateKey;
+	}
 </script>
 
 <div class="relative flex min-h-0 flex-1 flex-col">
@@ -269,7 +344,19 @@
 			</div>
 		{/each}
 	</div>
-	<div bind:this={scrollElement} onscroll={handleScroll} onscrollend={handleScrollEnd} onwheel={handleWheel} class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+	<div
+		bind:this={scrollElement}
+		role="grid"
+		tabindex="-1"
+		aria-label={monthLabelFormatter.format(visibleDate)}
+		onscroll={handleScroll}
+		onscrollend={handleScrollEnd}
+		onwheel={handleWheel}
+		onpointerdown={handlePointerDown}
+		onpointermove={handlePointerMove}
+		onpointerup={handlePointerUp}
+		onpointercancel={clearRangeSelection}
+		onpointerleave={clearRangeSelection} class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 		{#each weeks as week (week.startDateKey)}
 			{@const layout = weekLayouts.get(week.startDateKey) ?? { spans: [], timedEntries: [], laneCount: 0 }}
 			{@const monthStartDay = monthStartDayInWeek(week)}
@@ -294,6 +381,7 @@
 						isToday={isSameCalendarGridDay(day, today)}
 						isOutsideMonth={isOutsideVisibleMonth(day, week)}
 						isSelected={selectedDateKey === calendarGridDateKey(day)}
+						isInSelectedRange={isDateKeyInSelectedRange(calendarGridDateKey(day))}
 						addEventOnDay={(selectedDay) => addEventOnDay(selectedDay)}
 						selectDay={(selectedDay) => selectDay(selectedDay)}
 					>

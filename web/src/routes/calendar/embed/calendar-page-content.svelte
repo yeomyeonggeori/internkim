@@ -41,6 +41,7 @@
 		selectedMonthDateKey: string | null;
 		visibleMonthChanged: (month: Date) => void;
 		addEventOnDay: (dateKey: string) => void;
+		addEventOnRange: (startDateKey: string, endDateKey: string) => void;
 		deleteEvent: (eventID: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		openSettings: () => void;
@@ -91,6 +92,7 @@
 		selectedMonthDateKey,
 		visibleMonthChanged,
 		addEventOnDay,
+		addEventOnRange,
 		deleteEvent,
 		openEvent,
 		openSettings,
@@ -159,6 +161,7 @@
 		{selectedMonthDateKey}
 		{visibleMonthChanged}
 		{addEventOnDay}
+		{addEventOnRange}
 		{deleteEvent}
 	/>
 	<CalendarPageDraftPopover
