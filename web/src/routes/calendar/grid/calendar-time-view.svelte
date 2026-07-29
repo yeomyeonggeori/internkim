@@ -43,7 +43,7 @@
 	const dragSnapMinutes = 15;
 	const longPressMilliseconds = 450;
 	const defaultDurationMinutes = 60;
-	const flickMilliseconds = 600;
+	const flickMilliseconds = 400;
 	const flickTravelPixels = 8;
 
 	let gridElement = $state<HTMLElement | null>(null);
