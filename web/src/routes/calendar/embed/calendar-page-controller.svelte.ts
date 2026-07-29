@@ -88,7 +88,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		shouldPreserveLocalEvent: (event) => shouldPreserveLocalCalendarEvent(draftEvents, event),
 		afterRenderEvents: (events) => {
 			eventSelection.openPendingCalendarEvent(events);
-			renderSync.scheduleCalendarEventDOMSync();
 		}
 	});
 
