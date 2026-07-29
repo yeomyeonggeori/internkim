@@ -53,6 +53,10 @@
 	let horizontalTravel = 0;
 	let lastHorizontalWheelTime = 0;
 	let hasSwipedThisGesture = false;
+	let pendingSlideDirection = 0;
+	let weekSlidePercent = $state(0);
+	let isWeekSlideAnimated = $state(false);
+	let slideFrame: number | null = null;
 
 	const days = $derived(
 		dayCount === 1
@@ -109,6 +113,7 @@
 		const weekDirection = horizontalTravel > 0 ? 7 : -7;
 		hasSwipedThisGesture = true;
 		horizontalTravel = 0;
+		pendingSlideDirection = weekDirection > 0 ? 1 : -1;
 		selectDay(addCalendarGridDays(startOfCalendarGridWeek(visibleDate), weekDirection));
 	}
 
@@ -120,11 +125,28 @@
 		visibleDate;
 		hasSwipedThisGesture = false;
 		horizontalTravel = 0;
+		if (pendingSlideDirection === 0) return;
+		startWeekSlide(pendingSlideDirection);
+		pendingSlideDirection = 0;
 	});
+
+	function startWeekSlide(direction: number): void {
+		if (slideFrame !== null) cancelAnimationFrame(slideFrame);
+		isWeekSlideAnimated = false;
+		weekSlidePercent = direction * 100;
+		slideFrame = requestAnimationFrame(() => {
+			slideFrame = requestAnimationFrame(() => {
+				slideFrame = null;
+				isWeekSlideAnimated = true;
+				weekSlidePercent = 0;
+			});
+		});
+	}
 
 	$effect(() => {
 		return () => {
 			if (longPressTimer !== null) clearTimeout(longPressTimer);
+			if (slideFrame !== null) cancelAnimationFrame(slideFrame);
 			scrollSnap.destroy();
 		};
 	});
@@ -286,8 +308,11 @@
 	</div>
 {/snippet}
 
-<div class="flex min-h-0 flex-1">
-		<div class="flex min-h-0 flex-1 flex-col">
+<div class="flex min-h-0 flex-1 overflow-hidden">
+		<div
+			class="flex min-h-0 flex-1 flex-col"
+			style={`transform: translateX(${weekSlidePercent}%); transition: transform ${isWeekSlideAnimated ? '220ms cubic-bezier(0.22, 1, 0.36, 1)' : '0ms'}`}
+		>
 			<div class="border-border/70 flex items-end border-b">
 				{#each days as day (day.getTime())}
 					{@render dayHeader(day)}
