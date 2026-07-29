@@ -45,6 +45,21 @@
 				mode = 'hidden';
 				return;
 			}
+			// Already signed in (e.g. with an existing email + password): take the
+			// identity from the session instead of forcing a new-password dialog.
+			try {
+				const identityResponse = await fetch('/auth/identity', { credentials: 'include' });
+				if (identityResponse.ok) {
+					const { secretHex } = (await identityResponse.json()) as { secretHex?: string };
+					if (secretHex) {
+						buzzIdentity.secretHex = secretHex;
+						mode = 'hidden';
+						return;
+					}
+				}
+			} catch {
+				// fall through to explicit enrollment
+			}
 			email = session.email;
 			displayName = email;
 			mode = 'enroll';
