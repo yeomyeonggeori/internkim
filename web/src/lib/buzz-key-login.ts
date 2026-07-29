@@ -62,6 +62,20 @@ export async function buzzPasswordLogin(email: string, password: string): Promis
 
 // Returning login with a passkey: the discoverable passkey identifies the
 // person and unlocks the key in one gesture — no typed email.
+export async function mattermostPasswordLogin(email: string, password: string): Promise<string> {
+	const response = await fetch("/auth/password-login", {
+		method: "POST",
+		credentials: "include",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ email, password })
+	});
+	if (!response.ok) {
+		throw new Error((await response.text()).trim() || "이메일 또는 비밀번호가 올바르지 않습니다.");
+	}
+	const result = (await response.json()) as { secretHex?: string };
+	return result.secretHex ?? "";
+}
+
 export async function buzzPasskeyLogin(): Promise<string> {
 	const { email, output } = await loginWithBuzzPasskey();
 	const document = await fetchLoginVault(email);

@@ -9,7 +9,7 @@
 	import PowerIcon from '@lucide/svelte/icons/power';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import type { Snippet } from 'svelte';
-	import { buzzPasskeyLogin, buzzPasswordLogin } from '$lib/buzz-key-login';
+	import { buzzPasskeyLogin, buzzPasswordLogin, mattermostPasswordLogin } from '$lib/buzz-key-login';
 	import { isPasskeySupported } from '$lib/buzz-passkey';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 
@@ -77,7 +77,14 @@
 			errorMessage = text.emailRequired;
 			return;
 		}
-		return runLogin(() => buzzPasswordLogin(email.trim().toLowerCase(), password));
+		const normalizedEmail = email.trim().toLowerCase();
+		return runLogin(async () => {
+			try {
+				return await buzzPasswordLogin(normalizedEmail, password);
+			} catch (buzzError) {
+				return await mattermostPasswordLogin(normalizedEmail, password);
+			}
+		});
 	}
 
 	function loginWithPasskey() {
