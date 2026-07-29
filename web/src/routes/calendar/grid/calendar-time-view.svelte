@@ -155,18 +155,33 @@
 		{#each days as day (day.getTime())}
 			<button
 				type="button"
-				class="flex flex-1 items-center justify-center gap-1.5 px-2 py-2 text-sm"
+				class={cn(
+					'flex flex-1 items-center gap-2 px-2 py-2 text-sm',
+					dayCount === 1 ? 'justify-start' : 'justify-center gap-1.5'
+				)}
 				onclick={() => selectDay(day)}
 			>
-				<span class="text-muted-foreground">{weekdayFormatter.format(day)}</span>
-				<span
-					class={cn(
-						'flex size-6 items-center justify-center rounded-full font-medium tabular-nums',
-						isSameCalendarGridDay(day, today) && 'bg-primary text-primary-foreground'
-					)}
-				>
-					{day.getDate()}
-				</span>
+				{#if dayCount === 1}
+					<span
+						class={cn(
+							'flex size-9 items-center justify-center rounded-full text-2xl font-semibold tabular-nums',
+							isSameCalendarGridDay(day, today) && 'bg-primary text-primary-foreground'
+						)}
+					>
+						{day.getDate()}
+					</span>
+					<span class="text-muted-foreground">{weekdayFormatter.format(day)}</span>
+				{:else}
+					<span class="text-muted-foreground">{weekdayFormatter.format(day)}</span>
+					<span
+						class={cn(
+							'flex size-6 items-center justify-center rounded-full font-medium tabular-nums',
+							isSameCalendarGridDay(day, today) && 'bg-primary text-primary-foreground'
+						)}
+					>
+						{day.getDate()}
+					</span>
+				{/if}
 			</button>
 		{/each}
 	</div>
