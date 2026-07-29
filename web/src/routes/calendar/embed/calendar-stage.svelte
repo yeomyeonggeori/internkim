@@ -1,5 +1,10 @@
 <script lang="ts">
 	import { setContext } from 'svelte';
+	import * as ContextMenu from '$lib/components/ui/context-menu';
+	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
+	import CalendarSearchIcon from '@lucide/svelte/icons/calendar-search';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
+	import TrashIcon from '@lucide/svelte/icons/trash';
 	import { DayFlowCalendar, useCalendarApp, ViewType } from '@dayflow/svelte';
 	import type { Event as DayFlowEvent } from '@dayflow/core';
 	import type { CalendarLocaleText } from '../text';
@@ -51,6 +56,8 @@
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
 		navigateToDateKey: (dateKey: string) => void;
+		addEventOnDay: (dateKey: string) => void;
+		deleteEvent: (eventID: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
 		selectDate: (dateKey: string) => void;
@@ -76,6 +83,8 @@
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
 		navigateToDateKey,
+		addEventOnDay,
+		deleteEvent,
 		openEvent,
 		saveMovedEvent,
 		selectDate,
@@ -122,6 +131,50 @@
 		navigateToDateKey(dateKey);
 	}
 
+	const replayedContextMenuEventKey = 'calendarStageReplayedContextMenu';
+
+	let contextTarget = $state<{ dateKey: string; eventID: string; anchor: DraftPopoverAnchor } | null>(null);
+
+	const contextEventTitle = $derived(events.find((event) => event.id === contextTarget?.eventID)?.title ?? '');
+	const contextDayLabel = $derived(
+		contextTarget?.dateKey
+			? new Date(`${contextTarget.dateKey}T12:00:00`).toLocaleDateString(localeCode, { month: 'long', day: 'numeric' })
+			: ''
+	);
+
+	function captureContextTarget(event: MouseEvent): void {
+		if (!(event.target instanceof Element) || isReplayedContextMenuEvent(event)) return;
+		const eventElement = event.target.closest<HTMLElement>('[data-event-id], .df-event, .df-month-segment-event');
+		const dayElement = event.target.closest<HTMLElement>('[data-date]');
+		contextTarget = {
+			eventID: eventElement?.dataset.eventId ?? '',
+			dateKey: dayElement?.dataset.date ?? '',
+			anchor: { clientX: event.clientX, clientY: event.clientY }
+		};
+		if (!contextTarget.eventID && !contextTarget.dateKey) return;
+		event.preventDefault();
+		event.stopPropagation();
+		replayContextMenuEventOnStage(event);
+	}
+
+	function replayContextMenuEventOnStage(event: MouseEvent): void {
+		const currentStageElement = stageElement;
+		if (!currentStageElement) return;
+		const replayedEvent = new MouseEvent('contextmenu', {
+			bubbles: true,
+			cancelable: true,
+			clientX: event.clientX,
+			clientY: event.clientY,
+			button: event.button
+		});
+		Object.defineProperty(replayedEvent, replayedContextMenuEventKey, { value: true });
+		currentStageElement.dispatchEvent(replayedEvent);
+	}
+
+	function isReplayedContextMenuEvent(event: MouseEvent): boolean {
+		return replayedContextMenuEventKey in event;
+	}
+
 	function handleStageDateClick(event: MouseEvent): void {
 		handleMobileTwoDayWeekDateClick(event);
 		handleWeekHeaderDateClick(event);
@@ -135,8 +188,10 @@
 			openEvent: (eventID, anchor) => openEvent(eventID, anchor)
 		});
 		currentStageElement.addEventListener('click', handleStageDateClick, true);
+		currentStageElement.addEventListener('contextmenu', captureContextTarget, true);
 		return () => {
 			currentStageElement.removeEventListener('click', handleStageDateClick, true);
+			currentStageElement.removeEventListener('contextmenu', captureContextTarget, true);
 			stopDayFlowEventActivation();
 		};
 	});
@@ -144,40 +199,71 @@
 	import './calendar-stage.css';
 </script>
 
-<div
-	bind:this={stageElement}
-	class="calendar-stage"
-	class:calendar-stage-day={toolbarView === ViewType.DAY}
-	class:calendar-stage-week={toolbarView === ViewType.WEEK}
-	class:calendar-stage-month={toolbarView === ViewType.MONTH}
-	class:calendar-stage-mobile-two-day-week={isMobileTwoDayWeekView}
-	tabindex="-1"
-	role="region"
-	aria-label={text.pageTitle}
->
-	<DayFlowCalendar
-		{calendar}
-		eventContentDay={CalendarDayFlowEventActivator}
-		eventContentWeek={CalendarDayFlowEventActivator}
-		eventContentMonth={CalendarDayFlowEventActivator}
-		eventContentAllDayDay={CalendarDayFlowEventActivator}
-		eventContentAllDayWeek={CalendarDayFlowEventActivator}
-		eventContentAllDayMonth={CalendarDayFlowEventActivator}
-		mobileEventDetail={CalendarMobileEventEditor}
-	/>
+<ContextMenu.Root>
+	<ContextMenu.Trigger>
+		{#snippet child({ props })}
+			<div
+				{...props}
+				bind:this={stageElement}
+				class="calendar-stage"
+					class:calendar-stage-day={toolbarView === ViewType.DAY}
+					class:calendar-stage-week={toolbarView === ViewType.WEEK}
+					class:calendar-stage-month={toolbarView === ViewType.MONTH}
+					class:calendar-stage-mobile-two-day-week={isMobileTwoDayWeekView}
+					tabindex="-1"
+					role="region"
+					aria-label={text.pageTitle}
+				>
+					<DayFlowCalendar
+						{calendar}
+						eventContentDay={CalendarDayFlowEventActivator}
+						eventContentWeek={CalendarDayFlowEventActivator}
+						eventContentMonth={CalendarDayFlowEventActivator}
+						eventContentAllDayDay={CalendarDayFlowEventActivator}
+						eventContentAllDayWeek={CalendarDayFlowEventActivator}
+						eventContentAllDayMonth={CalendarDayFlowEventActivator}
+						mobileEventDetail={CalendarMobileEventEditor}
+					/>
 
-	<CalendarMonthEventLayer
-		{clearSelectedEvent}
-		{events}
-		{localeCode}
-		{monthMoreText}
-		{openEvent}
-		{saveMovedEvent}
-		{selectDate}
-		{selectedEventID}
-		{stageElement}
-		{toolbarView}
-	/>
-	<CalendarMonthRangePreview segments={monthRangePreviewSegments} title={monthRangePreviewTitle} />
-	<CalendarTimelineRangePreview segments={timelineRangePreviewSegments} title={timelineRangePreviewTitle} />
-</div>
+					<CalendarMonthEventLayer
+						{clearSelectedEvent}
+						{events}
+						{localeCode}
+						{monthMoreText}
+						{openEvent}
+						{saveMovedEvent}
+						{selectDate}
+						{selectedEventID}
+						{stageElement}
+						{toolbarView}
+					/>
+					<CalendarMonthRangePreview segments={monthRangePreviewSegments} title={monthRangePreviewTitle} />
+				<CalendarTimelineRangePreview segments={timelineRangePreviewSegments} title={timelineRangePreviewTitle} />
+			</div>
+		{/snippet}
+	</ContextMenu.Trigger>
+	<ContextMenu.Content class="w-52">
+		{#if contextTarget?.eventID}
+			<ContextMenu.Label class="truncate">{contextEventTitle}</ContextMenu.Label>
+			<ContextMenu.Item onclick={() => contextTarget && openEvent(contextTarget.eventID, contextTarget.anchor)}>
+				<PencilIcon />
+				{text.editEvent}
+			</ContextMenu.Item>
+			<ContextMenu.Separator />
+			<ContextMenu.Item variant="destructive" onclick={() => contextTarget && deleteEvent(contextTarget.eventID)}>
+				<TrashIcon />
+				{text.deleteEvent}
+			</ContextMenu.Item>
+		{:else if contextTarget?.dateKey}
+			<ContextMenu.Label>{contextDayLabel}</ContextMenu.Label>
+			<ContextMenu.Item onclick={() => contextTarget && addEventOnDay(contextTarget.dateKey)}>
+				<CalendarPlusIcon />
+				{text.addEventOnDay}
+			</ContextMenu.Item>
+			<ContextMenu.Item onclick={() => contextTarget && navigateToDateKey(contextTarget.dateKey)}>
+				<CalendarSearchIcon />
+				{text.openDay}
+			</ContextMenu.Item>
+		{/if}
+	</ContextMenu.Content>
+</ContextMenu.Root>
