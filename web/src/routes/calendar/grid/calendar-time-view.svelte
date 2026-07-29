@@ -314,6 +314,9 @@
 			style={`transform: translateX(${weekSlidePercent}%); transition: transform ${isWeekSlideAnimated ? '220ms cubic-bezier(0.22, 1, 0.36, 1)' : '0ms'}`}
 		>
 			<div class="border-border/70 flex items-end border-b">
+				{#if dayCount > 1}
+					<div class="w-16 shrink-0"></div>
+				{/if}
 				{#each days as day (day.getTime())}
 					{@render dayHeader(day)}
 				{/each}

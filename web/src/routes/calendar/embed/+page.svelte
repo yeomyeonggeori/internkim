@@ -34,6 +34,7 @@
 	import { installCalendarPageLifecycle } from './calendar-page-lifecycle-install';
 	import { isCalendarMobileTwoDayWeekView } from './calendar-mobile-two-day-week';
 	import CalendarPageContent from './calendar-page-content.svelte';
+	import { endOfMonthWindow, startOfMonthWindow } from './calendar-visible-range';
 	import { syncCalendarThemeToDocument } from './calendar-page-theme';
 	import { createCalendarEmbedPageState } from './calendar-page-state.svelte';
 	import { fetchCalendarParticipants } from './calendar-participants';
@@ -82,6 +83,16 @@
 		renderSync,
 		selectedMonthDate
 	} = controller;
+
+	let loadedEventWindowKey = '';
+
+	$effect(() => {
+		const visibleDate = state.toolbarDate;
+		const windowKey = `${visibleDate.getFullYear()}-${visibleDate.getMonth()}`;
+		if (windowKey === loadedEventWindowKey) return;
+		loadedEventWindowKey = windowKey;
+		void eventLoader.loadEvents(startOfMonthWindow(visibleDate), endOfMonthWindow(visibleDate));
+	});
 
 	const stageEvents = $derived(
 		visibleEventsWithPreservedLocalEvents(
