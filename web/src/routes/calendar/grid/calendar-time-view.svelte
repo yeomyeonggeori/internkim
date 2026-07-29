@@ -43,30 +43,24 @@
 	const dragSnapMinutes = 15;
 	const longPressMilliseconds = 450;
 	const defaultDurationMinutes = 60;
-	const daySwipeThresholdPixels = 60;
-	const weekSwipeThresholdPixels = 200;
-	const weekSwipeGapMilliseconds = 150;
+	const flickMilliseconds = 260;
+	const flickTravelPixels = 40;
 
 	let gridElement = $state<HTMLElement | null>(null);
 	let draftStartMinutes = $state<number | null>(null);
 	let draftEndMinutes = $state<number | null>(null);
 	let draftDay = $state<Date | null>(null);
 	let longPressTimer: number | null = null;
-	let horizontalTravel = 0;
-	let lastHorizontalWheelTime = 0;
-	let hasSwipedThisGesture = false;
-	let horizontalSwipeTimer: number | null = null;
-	let pendingSlideDirection = 0;
-	let pendingSlideSteps = 0;
 	let weekWindowStartKey = $state('');
-	let selfReportedWindowStartKey = '';
-	let weekSlidePercent = $state(0);
-	let isWeekSlideAnimated = $state(false);
-	let slideFrame: number | null = null;
+	let selfReportedLeadingDayKey = '';
+	let columnsElement = $state<HTMLElement | null>(null);
+	let headerStripElement = $state<HTMLElement | null>(null);
+	let isRecenteringColumns = false;
 
 	const weekWindowStart = $derived(
 		weekWindowStartKey ? calendarGridDateFromKey(weekWindowStartKey) : startOfCalendarGridWeek(visibleDate)
 	);
+	const stripDays = $derived(Array.from({ length: 21 }, (_, dayOffset) => addCalendarGridDays(weekWindowStart, dayOffset - 7)));
 	const days = $derived(
 		dayCount === 1
 			? [startOfCalendarGridDay(visibleDate)]
@@ -107,96 +101,116 @@
 
 
 
-	function handleHorizontalWheel(wheelEvent: WheelEvent): void {
-		if (!canSwipeWeeks || Math.abs(wheelEvent.deltaX) <= Math.abs(wheelEvent.deltaY)) {
-			scrollSnap.handleWheel(wheelEvent);
-			return;
-		}
-		wheelEvent.preventDefault();
-		const now = performance.now();
-		if (now - lastHorizontalWheelTime > weekSwipeGapMilliseconds) {
-			horizontalTravel = 0;
-			hasSwipedThisGesture = false;
-		}
-		lastHorizontalWheelTime = now;
-		if (hasSwipedThisGesture) return;
-		horizontalTravel += wheelEvent.deltaX;
-		if (Math.abs(horizontalTravel) >= weekSwipeThresholdPixels) {
-			commitHorizontalSwipe(7);
-			return;
-		}
-		scheduleHorizontalSwipeCommit();
-	}
 
-	function scheduleHorizontalSwipeCommit(): void {
-		if (horizontalSwipeTimer !== null) clearTimeout(horizontalSwipeTimer);
-		horizontalSwipeTimer = window.setTimeout(() => {
-			horizontalSwipeTimer = null;
-			if (Math.abs(horizontalTravel) < daySwipeThresholdPixels) {
-				horizontalTravel = 0;
-				return;
-			}
-			commitHorizontalSwipe(1);
-		}, weekSwipeGapMilliseconds);
-	}
 
-	function commitHorizontalSwipe(dayStep: number): void {
-		if (horizontalSwipeTimer !== null) clearTimeout(horizontalSwipeTimer);
-		horizontalSwipeTimer = null;
-		const direction = horizontalTravel > 0 ? 1 : -1;
-		horizontalTravel = 0;
-		hasSwipedThisGesture = true;
-		shiftWeekWindow(direction, dayStep);
-	}
 
-	function shiftWeekWindow(direction: number, dayStep: number): void {
-		const shiftedStart =
-			dayStep === 7
-				? startOfCalendarGridWeek(addCalendarGridDays(weekWindowStart, direction * 7))
-				: addCalendarGridDays(weekWindowStart, direction);
-		const shiftedStartKey = calendarGridDateKey(shiftedStart);
-		pendingSlideDirection = direction;
-		pendingSlideSteps = dayStep;
-		weekWindowStartKey = shiftedStartKey;
-		selfReportedWindowStartKey = shiftedStartKey;
-		selectDay(shiftedStart);
-	}
 
 	function hourScrollOffsets(): number[] {
 		return Array.from({ length: 24 }, (_, hour) => hour * hourHeightPixels);
 	}
 
 	$effect(() => {
-		const visibleWeekStartKey = calendarGridDateKey(startOfCalendarGridWeek(visibleDate));
-		if (calendarGridDateKey(visibleDate) !== selfReportedWindowStartKey && weekWindowStartKey !== visibleWeekStartKey) {
-			weekWindowStartKey = visibleWeekStartKey;
-		}
-		hasSwipedThisGesture = false;
-		horizontalTravel = 0;
-		if (pendingSlideDirection === 0) return;
-		startWeekSlide(pendingSlideDirection, pendingSlideSteps);
-		pendingSlideDirection = 0;
+		if (!canSwipeWeeks) return;
+		const requestedDayKey = calendarGridDateKey(visibleDate);
+		if (requestedDayKey === selfReportedLeadingDayKey) return;
+		const weekStartKey = calendarGridDateKey(startOfCalendarGridWeek(visibleDate));
+		if (weekWindowStartKey === weekStartKey) return;
+		weekWindowStartKey = weekStartKey;
+		recenterColumns();
 	});
 
-	function startWeekSlide(direction: number, dayStep: number): void {
-		if (slideFrame !== null) cancelAnimationFrame(slideFrame);
-		isWeekSlideAnimated = false;
-		weekSlidePercent = (direction * 100 * dayStep) / 7;
-		slideFrame = requestAnimationFrame(() => {
-			slideFrame = requestAnimationFrame(() => {
-				slideFrame = null;
-				isWeekSlideAnimated = true;
-				weekSlidePercent = 0;
+	const columnSnap = createCalendarScrollSnap({
+		getScrollElement: () => columnsElement,
+		getSnapOffsets: columnSnapOffsets,
+		axis: 'horizontal',
+		damping: 1,
+		resolveSnapOffset: resolveColumnSnapOffset,
+		onSnapSettled: settleLeadingColumn
+	});
+
+	function resolveColumnSnapOffset({
+		currentOffset,
+		gestureStartOffset,
+		offsets,
+		gestureMilliseconds
+	}: {
+		currentOffset: number;
+		gestureStartOffset: number;
+		offsets: number[];
+		gestureMilliseconds: number;
+	}): number {
+		const columnWidth = columnWidthPixels();
+		if (columnWidth === 0 || offsets.length === 0) return currentOffset;
+		const travel = currentOffset - gestureStartOffset;
+		const isFlick = gestureMilliseconds < flickMilliseconds && Math.abs(travel) >= flickTravelPixels;
+		const startColumnIndex = Math.round(gestureStartOffset / columnWidth);
+		const targetColumnIndex = isFlick
+			? startColumnIndex + (travel > 0 ? 7 : -7)
+			: Math.round(currentOffset / columnWidth);
+		const boundedIndex = Math.min(offsets.length - 1, Math.max(0, targetColumnIndex));
+		return boundedIndex * columnWidth;
+	}
+
+	function columnWidthPixels(): number {
+		return (columnsElement?.clientWidth ?? 0) / 7;
+	}
+
+	function columnSnapOffsets(): number[] {
+		const columnWidth = columnWidthPixels();
+		if (columnWidth === 0) return [];
+		return Array.from({ length: 15 }, (_, columnIndex) => columnIndex * columnWidth);
+	}
+
+	function handleGridWheel(wheelEvent: WheelEvent): void {
+		if (!canSwipeWeeks || Math.abs(wheelEvent.deltaX) <= Math.abs(wheelEvent.deltaY)) {
+			scrollSnap.handleWheel(wheelEvent);
+			return;
+		}
+		columnSnap.handleWheel(wheelEvent);
+	}
+
+	function settleLeadingColumn(offset: number): void {
+		if (!columnsElement || isRecenteringColumns) return;
+		const columnWidth = columnWidthPixels();
+		if (columnWidth === 0) return;
+		const columnIndex = Math.round(offset / columnWidth);
+		if (columnIndex === 7) return;
+		const leadingDay = stripDays[columnIndex];
+		if (!leadingDay) return;
+		selfReportedLeadingDayKey = calendarGridDateKey(leadingDay);
+		weekWindowStartKey = calendarGridDateKey(leadingDay);
+		recenterColumns();
+		selectDay(leadingDay);
+	}
+
+	function syncHeaderStripScroll(): void {
+		if (!columnsElement || !headerStripElement) return;
+		headerStripElement.scrollLeft = columnsElement.scrollLeft;
+	}
+
+	function recenterColumns(): void {
+		isRecenteringColumns = true;
+		requestAnimationFrame(() => {
+			if (columnsElement) columnsElement.scrollLeft = columnWidthPixels() * 7;
+			syncHeaderStripScroll();
+			requestAnimationFrame(() => {
+				isRecenteringColumns = false;
 			});
 		});
 	}
 
 	$effect(() => {
+		if (!canSwipeWeeks || !columnsElement) return;
+		weekWindowStartKey;
+		recenterColumns();
+	});
+
+
+	$effect(() => {
 		return () => {
 			if (longPressTimer !== null) clearTimeout(longPressTimer);
-			if (horizontalSwipeTimer !== null) clearTimeout(horizontalSwipeTimer);
-			if (slideFrame !== null) cancelAnimationFrame(slideFrame);
 			scrollSnap.destroy();
+			columnSnap.destroy();
 		};
 	});
 
@@ -358,14 +372,67 @@
 {/snippet}
 
 <div class="flex min-h-0 flex-1 overflow-hidden">
-		<div
-			class="flex min-h-0 flex-1 flex-col"
-			style={`transform: translateX(${weekSlidePercent}%); transition: transform ${isWeekSlideAnimated ? '220ms cubic-bezier(0.22, 1, 0.36, 1)' : '0ms'}`}
-		>
+	{#if canSwipeWeeks}
+		<div class="flex min-h-0 flex-1 flex-col">
+			<div class="flex shrink-0">
+				<div class="bg-background border-border/50 z-30 w-16 shrink-0 border-r">
+					<div class="border-border/50 h-9 border-b"></div>
+					<div class="border-border/50 text-muted-foreground h-9 border-b-2 px-2 py-1 text-right text-xs whitespace-nowrap">종일</div>
+				</div>
+				<div bind:this={headerStripElement} class="no-scrollbar min-w-0 flex-1 overflow-x-hidden">
+					<div class="flex" style="width: 300%">
+						{#each stripDays as day (day.getTime())}
+							<div class="flex flex-col" style="width: calc(100% / 21)">
+								<div class="border-border/50 flex h-9 items-end border-b">
+									{@render dayHeader(day)}
+								</div>
+								<div class="border-border/50 flex h-9 border-b-2">
+									{@render allDayCell(day)}
+								</div>
+							</div>
+						{/each}
+					</div>
+				</div>
+			</div>
+			<div
+				bind:this={gridElement}
+				role="grid"
+				tabindex="-1"
+				aria-label={weekdayFormatter.format(days[0])}
+				class="no-scrollbar min-h-0 flex-1 overflow-y-auto"
+				onwheel={handleGridWheel}
+				ontouchend={scrollSnap.handleGestureEnd}
+				onscrollend={scrollSnap.handleScrollEnd}
+			>
+				<div class="flex min-w-0">
+					<div class="bg-background border-border/50 sticky left-0 z-30 w-16 shrink-0 border-r">
+						{#each Array.from({ length: 24 }, (_, hour) => hour) as hour (hour)}
+							<div class="text-muted-foreground relative h-12 pr-2 text-right text-xs whitespace-nowrap tabular-nums">
+								<span class="absolute top-0 right-2 -translate-y-1/2">
+									{hour === 0 ? '' : hourFormatter.format(new Date(2026, 0, 1, hour))}
+								</span>
+							</div>
+						{/each}
+					</div>
+					<div
+						bind:this={columnsElement}
+						class="no-scrollbar min-w-0 flex-1 overflow-x-hidden"
+						onscroll={syncHeaderStripScroll}
+					>
+						<div class="flex" style={`width: 300%; height: ${24 * hourHeightPixels}px`}>
+							{#each stripDays as day (day.getTime())}
+								<div class="flex shrink-0 flex-col" style="width: calc(100% / 21)">
+									{@render dayColumn(day)}
+								</div>
+							{/each}
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	{:else}
+		<div class="flex min-h-0 flex-1 flex-col">
 			<div class="border-border/50 flex items-end border-b">
-				{#if dayCount > 1}
-					<div class="w-16 shrink-0"></div>
-				{/if}
 				{#each days as day (day.getTime())}
 					{@render dayHeader(day)}
 				{/each}
@@ -382,7 +449,7 @@
 				tabindex="-1"
 				aria-label={weekdayFormatter.format(days[0])}
 				class="no-scrollbar min-h-0 flex-1 overflow-y-auto"
-				onwheel={handleHorizontalWheel}
+				onwheel={scrollSnap.handleWheel}
 				ontouchend={scrollSnap.handleGestureEnd}
 				onscrollend={scrollSnap.handleScrollEnd}
 			>
@@ -402,6 +469,7 @@
 				</div>
 			</div>
 		</div>
+	{/if}
 
 	{#if dayCount === 1}
 		<aside class="border-border/50 hidden w-fit shrink-0 border-l p-2 lg:block">

@@ -5,7 +5,12 @@ type CalendarScrollSnapOptions = {
 	damping?: number;
 	animationMilliseconds?: number;
 	onSnapSettled?: (offset: number) => void;
-	resolveSnapOffset?: (context: { currentOffset: number; gestureStartOffset: number; offsets: number[] }) => number;
+	resolveSnapOffset?: (context: {
+		currentOffset: number;
+		gestureStartOffset: number;
+		offsets: number[];
+		gestureMilliseconds: number;
+	}) => number;
 };
 
 export type CalendarScrollSnap = {
@@ -21,6 +26,7 @@ const momentumDecaySteps = 3;
 const gestureGapMilliseconds = 140;
 const wheelFollowFactor = 0.28;
 const minimumTravelRatio = 0.25;
+const idleSnapMilliseconds = 90;
 
 export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): CalendarScrollSnap {
 	const axis = options.axis ?? 'vertical';
@@ -33,8 +39,10 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 	let previousWheelTime = 0;
 	let isIgnoringMomentum = false;
 	let gestureStartOffset = 0;
+	let gestureStartTime = 0;
 	let wheelTargetOffset = 0;
 	let wheelFrame: number | null = null;
+	let idleSnapTimer: number | null = null;
 
 	function wheelDelta(wheelEvent: WheelEvent): number {
 		return axis === 'horizontal' ? wheelEvent.deltaX : wheelEvent.deltaY;
@@ -71,6 +79,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 			isIgnoringMomentum = false;
 			decayingSteps = 0;
 			gestureStartOffset = currentOffset(scrollElement);
+			gestureStartTime = now;
 			cancelAnimation();
 		} else if (isAcceleratingAgain) {
 			isIgnoringMomentum = false;
@@ -82,11 +91,22 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 		}
 
 		queueWheelScroll(scrollElement, wheelDeltaPixels(wheelEvent, scrollElement) * damping, isNewGesture);
+		scheduleIdleSnap();
 		decayingSteps = magnitude < previousMagnitude - 0.5 ? decayingSteps + 1 : 0;
 		previousMagnitude = magnitude;
 		if (decayingSteps < momentumDecaySteps) return;
 		isIgnoringMomentum = true;
 		snapToNearestOffset();
+	}
+
+	function scheduleIdleSnap(): void {
+		if (idleSnapTimer !== null) clearTimeout(idleSnapTimer);
+		idleSnapTimer = window.setTimeout(() => {
+			idleSnapTimer = null;
+			if (isIgnoringMomentum) return;
+			isIgnoringMomentum = true;
+			snapToNearestOffset();
+		}, idleSnapMilliseconds);
 	}
 
 	function queueWheelScroll(scrollElement: HTMLElement, deltaPixels: number, isNewGesture: boolean): void {
@@ -141,7 +161,12 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 		if (offsets.length === 0) return;
 		const offset = wheelFrame !== null ? wheelTargetOffset : currentOffset(scrollElement);
 		const nearestOffset = options.resolveSnapOffset
-			? options.resolveSnapOffset({ currentOffset: offset, gestureStartOffset, offsets })
+			? options.resolveSnapOffset({
+					currentOffset: offset,
+					gestureStartOffset,
+					offsets,
+					gestureMilliseconds: Math.max(0, previousWheelTime - gestureStartTime)
+				})
 			: snapOffsetForTravel(offset, offsets);
 		cancelWheelScroll();
 		if (Math.abs(nearestOffset - offset) < 1) {
@@ -205,6 +230,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 		handleGestureEnd,
 		handleScrollEnd,
 		destroy: () => {
+			if (idleSnapTimer !== null) clearTimeout(idleSnapTimer);
 			cancelWheelScroll();
 			cancelAnimation();
 		}
