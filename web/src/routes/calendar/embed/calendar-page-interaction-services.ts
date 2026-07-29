@@ -36,7 +36,6 @@ type CalendarPageInteractionServicesContext = {
 
 export function createCalendarPageInteractionServices(context: CalendarPageInteractionServicesContext) {
 	const pageNavigation = createCalendarPageNavigation({
-		calendar: context.calendar,
 		getToolbarDate: () => context.state.toolbarDate,
 		getToolbarView: () => context.state.toolbarView,
 		setToolbarView: (view) => {
@@ -46,7 +45,6 @@ export function createCalendarPageInteractionServices(context: CalendarPageInter
 		setSelectedMonthDateKey: (dateKey) => {
 			context.state.selectedMonthDateKey = dateKey;
 		},
-		refreshSelectedMonthDateCellAfterRender: context.selectedMonthDate.refreshSelectedMonthDateCellAfterRender,
 		selectCalendarEvent: context.selectCalendarEvent,
 		broadcastCalendarView: context.broadcastCalendarView,
 		isMobileTwoDayWeekView: context.getIsMobileTwoDayWeekView
