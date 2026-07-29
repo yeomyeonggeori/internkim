@@ -9,7 +9,6 @@
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import { calendarText } from '../text';
 	import { dateKeyFromDate } from './calendar-month-selection';
@@ -26,7 +25,6 @@
 		goToToday: () => void;
 		goToNext: () => void;
 		navigateToDateKey: (dateKey: string) => void;
-		createQuickEvent: (event: MouseEvent) => void;
 		openSettings: () => void;
 	};
 
@@ -40,7 +38,6 @@
 		goToToday,
 		goToNext,
 		navigateToDateKey,
-		createQuickEvent,
 		openSettings
 	}: CalendarToolbarProps = $props();
 
@@ -90,10 +87,6 @@
 		<TooltipIconButton label={text.settings} variant="outline" size="icon-sm" onclick={openSettings}>
 			<SettingsIcon />
 		</TooltipIconButton>
-		<Button size="sm" onclick={(event) => createQuickEvent(event)}>
-			<PlusIcon />
-			<span class="max-sm:sr-only">{text.new}</span>
-		</Button>
 	</div>
 </header>
 </Tooltip.Provider>

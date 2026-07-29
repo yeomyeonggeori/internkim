@@ -29,6 +29,7 @@ type CalendarPageInteractionServicesContext = {
 	isBrowser: () => boolean;
 	selectedMonthDate: CalendarSelectedMonthDateActions;
 	selectCalendarEvent: (eventID: string) => void;
+	createQuickEvent: () => void;
 	setVisibleDate: (date: Date) => void;
 	state: CalendarEmbedPageState;
 };
@@ -53,7 +54,8 @@ export function createCalendarPageInteractionServices(context: CalendarPageInter
 
 	const pageMessages = createCalendarPageMessageActions({
 		getCurrentOrigin: () => window.location.origin,
-		navigateToDateKey: pageNavigation.navigateToDateKey
+		navigateToDateKey: pageNavigation.navigateToDateKey,
+		createQuickEvent: context.createQuickEvent
 	});
 
 	const rangePreview = createCalendarPageRangePreview({

@@ -31,7 +31,6 @@
 		calendarOptions: CalendarOption[];
 		participantCandidates: CalendarParticipant[];
 		conflicts: CalendarConflict[];
-		createQuickEvent: (event: MouseEvent) => void;
 		currentMonthTitle: string;
 		deletePopover: () => void;
 		dismissConflict: (conflictID: number) => void | Promise<void>;
@@ -81,7 +80,6 @@
 		clearSelectedEvent,
 		clearActiveMobileEditorEvent,
 		conflicts,
-		createQuickEvent,
 		currentMonthTitle,
 		deletePopover,
 		dismissConflict,
@@ -148,7 +146,6 @@
 		{goToToday}
 		{goToNext}
 		{navigateToDateKey}
-		createQuickEvent={createQuickEvent}
 		{openSettings}
 	/>
 	<CalendarStage
