@@ -239,6 +239,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		isBrowser: context.isBrowser,
 		selectedMonthDate,
 		selectCalendarEvent: eventSelection.selectCalendarEvent,
+		createQuickEvent: () => draftPopoverActions.createQuickDraftPopover(null),
 		setVisibleDate: context.setVisibleDate,
 		state: context.state
 	});

@@ -2,9 +2,11 @@
 	import { browser } from '$app/environment';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import AppFloatingActionButton from '$lib/components/app-floating-action-button.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { onMount } from 'svelte';
-	import type { CalendarNavigationMessage } from './calendar-navigation-message';
+	import type { CalendarCreateEventMessage, CalendarNavigationMessage } from './calendar-navigation-message';
 	import { calendarText } from './text';
 	import { bumpCalendarRefresh, calendarNavigation, calendarRefresh } from './refresh-signal.svelte';
 
@@ -33,6 +35,13 @@
 	function handleCalendarFrameLoad() {
 		loadedIframeKey = iframeKey;
 	}
+
+	function createCalendarEvent(): void {
+		calendarFrame?.contentWindow?.postMessage(
+			{ type: 'calendar-create-event' } satisfies CalendarCreateEventMessage,
+			window.location.origin
+		);
+	}
 </script>
 
 <svelte:head>
@@ -49,4 +58,8 @@
 			class="min-h-0 flex-1 border-0 bg-background"
 		></iframe>
 	{/key}
+
+	<AppFloatingActionButton label={text.newEvent} onclick={createCalendarEvent}>
+		<PlusIcon />
+	</AppFloatingActionButton>
 </main>

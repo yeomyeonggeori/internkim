@@ -197,14 +197,6 @@
 		return state.toolbarView;
 	}
 
-	function createQuickEvent(event: MouseEvent): void {
-		if (isMobileTwoDayWeekView) {
-			eventActions.openQuickEventMobileEditor();
-			return;
-		}
-		draftPopoverActions.createQuickDraftPopover(event);
-	}
-
 	function openCalendarEvent(eventID: string, anchor: DraftPopoverAnchor): void {
 		eventSelection.selectCalendarEvent(eventID);
 		if (isCompactEventEditor) {
@@ -276,7 +268,6 @@
 			hasMoved: true
 		})}
 	deleteEvent={(eventID) => void eventActions.deleteEvent(eventID)}
-	{createQuickEvent}
 	openSettings={openCalendarSettings}
 	clearSelectedEvent={eventSelection.clearSelectedEvent}
 	stageEvents={stageEvents}
