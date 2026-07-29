@@ -23,6 +23,35 @@ func (service *Service) startStaffChannelMembershipSync(ctx context.Context) {
 	go service.ensureStaffChannelMembership(ctx)
 }
 
+func (service *Service) ensureUserChannelMembership(ctx context.Context, email string) {
+	seed := service.buzzKeySeed()
+	if seed == "" || strings.TrimSpace(service.Configuration.BuzzRelayURL) == "" {
+		return
+	}
+	secretHex := service.buzzSecretForEmail(ctx, email)
+	if secretHex == "" {
+		return
+	}
+	pubkey, errorValue := buzzPublicKey(secretHex)
+	if errorValue != nil {
+		return
+	}
+	channelIDs, errorValue := service.buzzStreamChannelIDs(ctx)
+	if errorValue != nil || len(channelIDs) == 0 {
+		return
+	}
+	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
+	publisher, errorValue := relaypublish.Connect(ctx, strings.TrimSpace(service.Configuration.BuzzRelayURL), bootstrapSecret)
+	if errorValue != nil {
+		return
+	}
+	defer publisher.Close()
+	for _, channelID := range channelIDs {
+		_ = publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey)
+		time.Sleep(60 * time.Millisecond)
+	}
+}
+
 func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 	seed := service.buzzKeySeed()
 	if seed == "" {
