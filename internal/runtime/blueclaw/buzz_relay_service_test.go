@@ -13,6 +13,7 @@ func TestBuzzRelayServiceUnitCarriesRequiredContract(t *testing.T) {
 		"EnvironmentFile=" + BuzzRelayKeyEnvironmentFilePath,
 		"EnvironmentFile=" + BuzzRelayDatabaseEnvironmentFilePath,
 		"EnvironmentFile=-" + BuzzRelayS3EnvironmentFilePath,
+		"EnvironmentFile=-" + BuzzRelayImportOverrideEnvPath,
 		"Environment=BUZZ_BIND_ADDR=" + BuzzRelayBindAddress,
 		"Environment=BUZZ_HEALTH_PORT=" + BuzzRelayHealthPort,
 		"Environment=REDIS_URL=" + BuzzRelayRedisURL,
@@ -24,6 +25,11 @@ func TestBuzzRelayServiceUnitCarriesRequiredContract(t *testing.T) {
 		if !strings.Contains(unit, expected) {
 			t.Fatalf("buzz relay unit missing %q, got:\n%s", expected, unit)
 		}
+	}
+	membershipIndex := strings.Index(unit, "Environment=BUZZ_REQUIRE_RELAY_MEMBERSHIP=true")
+	overrideIndex := strings.Index(unit, "EnvironmentFile=-"+BuzzRelayImportOverrideEnvPath)
+	if overrideIndex < membershipIndex {
+		t.Fatalf("import override must load after the membership default so it can win, got membership@%d override@%d", membershipIndex, overrideIndex)
 	}
 }
 

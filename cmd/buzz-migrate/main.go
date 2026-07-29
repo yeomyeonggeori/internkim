@@ -77,6 +77,9 @@ func main() {
 	bootstrapPubkey, errorValue := nostr.GetPublicKey(bootstrapSecret)
 	failOn(errorValue, "derive bootstrap pubkey")
 	registerRelayMember(*buzzAdminCommand, bootstrapPubkey)
+	for _, pubkey := range authorPubkeys {
+		registerRelayMember(*buzzAdminCommand, pubkey)
+	}
 
 	buzzDatabase, errorValue := sql.Open("postgres", *buzzDatabaseURL)
 	failOn(errorValue, "open buzz database")

@@ -126,6 +126,11 @@ const (
 	BuzzMediaBucket                       = "buzz-media"
 	BuzzMediaAccessKey                    = "buzzrelay"
 	BuzzRelayS3EnvironmentFilePath        = "/root/.internkim/secrets/buzz-relay-s3"
+	BuzzRelayImportOverrideEnvPath        = "/root/.internkim/secrets/buzz-relay-import-override"
+	BuzzMigrateName                       = "buzz-migrate"
+	BuzzMigrateBinaryPath                 = "/usr/local/bin/buzz-migrate"
+	BuzzMigrateMarkerPath                 = "/root/.internkim/state/buzz-migrated"
+	BuzzPremigrateSnapshotPath            = "/root/.internkim/state/buzz-premigrate.sql"
 )
 
 func BlueclawHealthCheckURL() string {
