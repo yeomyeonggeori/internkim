@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { Calendar as MiniCalendar } from '$lib/components/ui/calendar';
 	import { cn } from '$lib/utils';
+	import { CalendarDate, type DateValue } from '@internationalized/date';
 	import CalendarEventChip from './calendar-event-chip.svelte';
 	import {
 		addCalendarGridDays,
@@ -64,6 +66,14 @@
 	const timeFormatter = $derived(new Intl.DateTimeFormat(localeCode, { hour: 'numeric', minute: '2-digit' }));
 	const today = new Date();
 	const nowMinutes = $derived(calendarGridMinutesFromMidnight(today));
+	const miniCalendarValue = $derived(
+		new CalendarDate(visibleDate.getFullYear(), visibleDate.getMonth() + 1, visibleDate.getDate()) as DateValue
+	);
+
+	function selectMiniCalendarDate(dateValue: DateValue | undefined): void {
+		if (!dateValue) return;
+		selectDay(new Date(dateValue.year, dateValue.month - 1, dateValue.day, 12, 0, 0, 0));
+	}
 
 	$effect(() => {
 		return () => {
@@ -138,6 +148,7 @@
 	}
 </script>
 
+<div class="flex min-h-0 flex-1">
 <div class="flex min-h-0 flex-1 flex-col">
 	<div class="border-border/70 flex border-b">
 		<div class="w-16 shrink-0"></div>
@@ -230,4 +241,16 @@
 			{/each}
 		</div>
 	</div>
+</div>
+	{#if dayCount === 1}
+		<aside class="border-border/70 hidden w-72 shrink-0 border-l p-3 lg:block">
+			<MiniCalendar
+				type="single"
+				value={miniCalendarValue}
+				onValueChange={selectMiniCalendarDate}
+				locale={localeCode}
+				class="w-full"
+			/>
+		</aside>
+	{/if}
 </div>
