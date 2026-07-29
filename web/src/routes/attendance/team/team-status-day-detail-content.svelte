@@ -134,7 +134,6 @@
 						<CalendarEventListCard
 							cardTestID="team-status-calendar-event-card"
 							buttonTestID="team-status-calendar-event"
-							buttonClass="team-status-calendar-event"
 							title={event.calendarEvent.title}
 							color={event.calendarEvent.color}
 							start={new Date(event.calendarEvent.startISO)}
@@ -221,31 +220,3 @@
 	</section>
 </div>
 
-<style>
-	:global(.team-status-calendar-event .calendar-event-content) {
-		display: flex;
-		min-width: 0;
-		width: 100%;
-		align-items: center;
-		gap: 0.75rem;
-	}
-
-	:global(.team-status-calendar-event .calendar-event-title) {
-		min-width: 0;
-		flex: 1;
-		overflow: hidden;
-		font-size: 0.875rem;
-		font-weight: 600;
-		line-height: 1.25rem;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	:global(.team-status-calendar-event .calendar-event-time) {
-		flex: none;
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		font-size: 0.6875rem;
-		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
-	}
-</style>
