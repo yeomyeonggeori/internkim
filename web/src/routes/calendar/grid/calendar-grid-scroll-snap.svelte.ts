@@ -15,11 +15,12 @@ export type CalendarScrollSnap = {
 	destroy: () => void;
 };
 
-const defaultDamping = 0.3;
+const defaultDamping = 0.7;
 const defaultAnimationMilliseconds = 220;
 const momentumDecaySteps = 3;
 const gestureGapMilliseconds = 140;
 const wheelFollowFactor = 0.28;
+const minimumTravelRatio = 0.25;
 
 export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): CalendarScrollSnap {
 	const axis = options.axis ?? 'vertical';
@@ -62,7 +63,8 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 
 		const magnitude = Math.abs(wheelDelta(wheelEvent));
 		const now = performance.now();
-		const isNewGesture = now - previousWheelTime > gestureGapMilliseconds || magnitude > previousMagnitude + 0.5;
+		const isNewGesture = now - previousWheelTime > gestureGapMilliseconds;
+		const isAcceleratingAgain = magnitude > previousMagnitude + 0.5;
 		previousWheelTime = now;
 
 		if (isNewGesture) {
@@ -70,6 +72,9 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 			decayingSteps = 0;
 			gestureStartOffset = currentOffset(scrollElement);
 			cancelAnimation();
+		} else if (isAcceleratingAgain) {
+			isIgnoringMomentum = false;
+			decayingSteps = 0;
 		}
 		if (isIgnoringMomentum) {
 			previousMagnitude = magnitude;
@@ -134,15 +139,37 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 		cancelWheelScroll();
 		const offsets = options.getSnapOffsets();
 		if (offsets.length === 0) return;
-		const offset = currentOffset(scrollElement);
+		const offset = wheelFrame !== null ? wheelTargetOffset : currentOffset(scrollElement);
 		const nearestOffset = options.resolveSnapOffset
 			? options.resolveSnapOffset({ currentOffset: offset, gestureStartOffset, offsets })
-			: offsets.reduce((closest, candidate) => (Math.abs(candidate - offset) < Math.abs(closest - offset) ? candidate : closest), offsets[0]);
+			: snapOffsetForTravel(offset, offsets);
+		cancelWheelScroll();
 		if (Math.abs(nearestOffset - offset) < 1) {
 			options.onSnapSettled?.(nearestOffset);
 			return;
 		}
 		animateScrollTo(nearestOffset);
+	}
+
+	function snapOffsetForTravel(offset: number, offsets: number[]): number {
+		const nearestOffset = offsets.reduce(
+			(closest, candidate) => (Math.abs(candidate - offset) < Math.abs(closest - offset) ? candidate : closest),
+			offsets[0]
+		);
+		const travel = offset - gestureStartOffset;
+		const spacing = snapSpacing(offsets);
+		if (spacing === 0 || Math.abs(travel) < spacing * minimumTravelRatio) return nearestOffset;
+		const forwardOffsets = travel > 0 ? offsets.filter((candidate) => candidate > gestureStartOffset + 1) : [];
+		const backwardOffsets = travel < 0 ? offsets.filter((candidate) => candidate < gestureStartOffset - 1) : [];
+		if (travel > 0 && forwardOffsets.length > 0) return Math.max(nearestOffset, Math.min(...forwardOffsets));
+		if (travel < 0 && backwardOffsets.length > 0) return Math.min(nearestOffset, Math.max(...backwardOffsets));
+		return nearestOffset;
+	}
+
+	function snapSpacing(offsets: number[]): number {
+		if (offsets.length < 2) return 0;
+		const sortedOffsets = [...offsets].sort((first, second) => first - second);
+		return Math.abs(sortedOffsets[1] - sortedOffsets[0]);
 	}
 
 	function animateScrollTo(targetScrollTop: number): void {
