@@ -69,6 +69,8 @@
 	let openThreadRoot = $state<ChannelMessage | null>(null);
 	let threadComposer = $state('');
 	let isThreadSending = $state(false);
+	let threadPendingAttachments = $state<PendingAttachment[]>([]);
+	let threadFileInput = $state<HTMLInputElement | null>(null);
 
 	const currentUser = $derived<ChannelParticipant>({
 		id: currentUserID,
@@ -227,11 +229,13 @@
 	async function submitThreadReply(event: SubmitEvent) {
 		event.preventDefault();
 		const trimmedReply = threadComposer.trim();
-		if (!trimmedReply || isThreadSending || !openThreadRoot) return;
+		const outgoingAttachments = threadPendingAttachments.map((pending) => pending.attachment);
+		if ((!trimmedReply && outgoingAttachments.length === 0) || isThreadSending || !openThreadRoot) return;
 		isThreadSending = true;
 		threadComposer = '';
+		clearThreadAttachments();
 		try {
-			await sendChannelMessage(trimmedReply, [], channelId, openThreadRoot.id);
+			await sendChannelMessage(trimmedReply, outgoingAttachments, channelId, openThreadRoot.id);
 			await loadConversation();
 		} catch {
 			loadFailed = true;
@@ -287,34 +291,69 @@
 		}
 	}
 
-	async function handleFilesSelected(event: Event) {
-		if (!(event.currentTarget instanceof HTMLInputElement)) return;
+	function filesFromInput(event: Event): File[] {
+		if (!(event.currentTarget instanceof HTMLInputElement)) return [];
 		const files = Array.from(event.currentTarget.files ?? []);
 		event.currentTarget.value = '';
+		return files;
+	}
+
+	async function buildPendingAttachments(files: File[]): Promise<PendingAttachment[]> {
+		const built: PendingAttachment[] = [];
 		for (const file of files) {
-			const attachment = await fileToAttachment(file);
-			pendingAttachments = [
-				...pendingAttachments,
-				{
-					id: `attachment-${attachmentSerial++}`,
-					previewURL: URL.createObjectURL(file),
-					isImage: file.type.startsWith('image/'),
-					sizeBytes: file.size,
-					attachment
-				}
-			];
+			built.push({
+				id: `attachment-${attachmentSerial++}`,
+				previewURL: URL.createObjectURL(file),
+				isImage: file.type.startsWith('image/'),
+				sizeBytes: file.size,
+				attachment: await fileToAttachment(file)
+			});
 		}
+		return built;
+	}
+
+	function withoutAttachment(list: PendingAttachment[], id: string): PendingAttachment[] {
+		const removed = list.find((pending) => pending.id === id);
+		if (removed) URL.revokeObjectURL(removed.previewURL);
+		return list.filter((pending) => pending.id !== id);
+	}
+
+	function revokeAttachments(list: PendingAttachment[]): PendingAttachment[] {
+		for (const pending of list) URL.revokeObjectURL(pending.previewURL);
+		return [];
+	}
+
+	async function handleFilesSelected(event: Event) {
+		pendingAttachments = [...pendingAttachments, ...(await buildPendingAttachments(filesFromInput(event)))];
 	}
 
 	function removeAttachment(id: string) {
-		const removed = pendingAttachments.find((pending) => pending.id === id);
-		if (removed) URL.revokeObjectURL(removed.previewURL);
-		pendingAttachments = pendingAttachments.filter((pending) => pending.id !== id);
+		pendingAttachments = withoutAttachment(pendingAttachments, id);
 	}
 
 	function clearAttachments() {
-		for (const pending of pendingAttachments) URL.revokeObjectURL(pending.previewURL);
-		pendingAttachments = [];
+		pendingAttachments = revokeAttachments(pendingAttachments);
+	}
+
+	async function handleThreadFilesSelected(event: Event) {
+		threadPendingAttachments = [
+			...threadPendingAttachments,
+			...(await buildPendingAttachments(filesFromInput(event)))
+		];
+	}
+
+	function removeThreadAttachment(id: string) {
+		threadPendingAttachments = withoutAttachment(threadPendingAttachments, id);
+	}
+
+	function clearThreadAttachments() {
+		threadPendingAttachments = revokeAttachments(threadPendingAttachments);
+	}
+
+	function closeThread() {
+		clearThreadAttachments();
+		threadComposer = '';
+		openThreadRoot = null;
 	}
 
 	async function answerChoice(optionLabel: string) {
@@ -565,6 +604,42 @@
 		</div>
 	</div>
 	<form onsubmit={submitThreadReply} class="border-t p-3">
+		<input bind:this={threadFileInput} type="file" multiple class="hidden" onchange={handleThreadFilesSelected} />
+		{#if threadPendingAttachments.length > 0}
+			<Attachment.Group class="mb-2">
+				{#each threadPendingAttachments as pending (pending.id)}
+					<Attachment.Root size="sm">
+						{#if pending.isImage}
+							<Attachment.Media variant="image">
+								<img src={pending.previewURL} alt="" />
+							</Attachment.Media>
+						{:else}
+							<Attachment.Media>
+								<FileIcon />
+							</Attachment.Media>
+						{/if}
+						<Attachment.Content>
+							<Attachment.Title>{pending.attachment.filename}</Attachment.Title>
+							<Attachment.Description>
+								{formatAttachmentMeta({
+									mimeType: pending.attachment.contentType,
+									filename: pending.attachment.filename,
+									sizeBytes: pending.sizeBytes
+								})}
+							</Attachment.Description>
+						</Attachment.Content>
+						<Attachment.Actions>
+							<Attachment.Action
+								aria-label={text.removeAttachment}
+								onclick={() => removeThreadAttachment(pending.id)}
+							>
+								<XIcon />
+							</Attachment.Action>
+						</Attachment.Actions>
+					</Attachment.Root>
+				{/each}
+			</Attachment.Group>
+		{/if}
 		<InputGroup.Root>
 			<InputGroup.Textarea
 				bind:value={threadComposer}
@@ -575,11 +650,20 @@
 			/>
 			<InputGroup.Addon align="block-end" class="pt-1">
 				<InputGroup.Button
+					type="button"
+					variant="outline"
+					size="icon-sm"
+					aria-label={text.addAttachment}
+					onclick={() => threadFileInput?.click()}
+				>
+					<PlusIcon />
+				</InputGroup.Button>
+				<InputGroup.Button
 					type="submit"
 					variant="default"
 					size="icon-sm"
 					class="ms-auto"
-					disabled={threadComposer.trim().length === 0 || isThreadSending}
+					disabled={(threadComposer.trim().length === 0 && threadPendingAttachments.length === 0) || isThreadSending}
 				>
 					<ArrowUpIcon />
 					<span class="sr-only">{text.send}</span>
@@ -747,7 +831,7 @@
 				variant="ghost"
 				size="icon-sm"
 				aria-label={text.closeThread}
-				onclick={() => (openThreadRoot = null)}
+				onclick={closeThread}
 			>
 				<XIcon />
 			</Button>
@@ -761,7 +845,7 @@
 	<Sheet.Root
 		open={!!openThreadRoot}
 		onOpenChange={(open) => {
-			if (!open) openThreadRoot = null;
+			if (!open) closeThread();
 		}}
 	>
 		<Sheet.Content side="right" class="flex w-full flex-col gap-0 p-0 sm:max-w-md">
