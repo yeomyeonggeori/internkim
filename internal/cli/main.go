@@ -5551,6 +5551,19 @@ func buildBuzzKeySeedCallback() func(force bool) (string, error) {
 	}
 }
 
+func buildBuzzBootstrapSecretCallback() func() (string, error) {
+	return func() (string, error) {
+		seed, errorValue := buildBuzzKeySeedCallback()(false)
+		if errorValue != nil {
+			return "", errorValue
+		}
+		if strings.TrimSpace(seed) == "" {
+			return "", errors.New("buzz key seed unavailable; cannot derive chatd bootstrap secret")
+		}
+		return buzzidentity.Secret(seed, buzzidentity.BootstrapSubject), nil
+	}
+}
+
 func buildBuzzRelayOwnerPubkeyCallback() func() (string, error) {
 	return func() (string, error) {
 		seed, errorValue := buildBuzzKeySeedCallback()(false)

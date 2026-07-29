@@ -131,6 +131,14 @@ const (
 	BuzzMigrateBinaryPath                 = "/usr/local/bin/buzz-migrate"
 	BuzzMigrateMarkerPath                 = "/root/.internkim/state/buzz-migrated"
 	BuzzAccountLinksPath                  = "/root/.internkim/state/admin/buzz-account-links.json"
+	ChatdName                             = "chatd"
+	ChatdServiceName                      = "chatd"
+	ChatdServicePath                      = "/etc/systemd/system/chatd.service"
+	ChatdBinaryPath                       = "/usr/local/bin/chatd"
+	ChatdEnvironmentFilePath              = "/root/.internkim/secrets/chatd-env"
+	ChatdListenPort                       = "18090"
+	ChatdEndpoint                         = "http://127.0.0.1:18090"
+	ChatdBotUserName                      = "internkim"
 	BuzzPremigrateSnapshotPath            = "/root/.internkim/state/buzz-premigrate.sql"
 )
 

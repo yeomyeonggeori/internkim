@@ -176,6 +176,7 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		GetLiteRTModelPath:          buildLiteRTModelPathCallback(state.parameters.LiteRTModelPath),
 		GetBuzzKeySeed:              buildBuzzKeySeedCallback(),
 		GetBuzzRelayOwnerPubkey:     buildBuzzRelayOwnerPubkeyCallback(),
+		GetBuzzBootstrapSecret:      buildBuzzBootstrapSecretCallback(),
 		GetGasWebhookURL:            state.provisionGasWebhook,
 		BinariesVersion:             state.binariesVersion,
 		InstallBinariesSSH:          state.installBinariesSSH,
@@ -462,6 +463,11 @@ func (state *setupFlowState) buzzRelayBinaryAssets() []localBinaryAsset {
 			name:       blueclaw.BuzzMigrateName,
 			localPath:  filepath.Join(state.scriptDir, blueclaw.BuzzRelayArtifactPath, blueclaw.BuzzMigrateName),
 			remotePath: blueclaw.BuzzMigrateBinaryPath,
+		},
+		{
+			name:       blueclaw.ChatdName,
+			localPath:  filepath.Join(state.scriptDir, blueclaw.BuzzRelayArtifactPath, blueclaw.ChatdName),
+			remotePath: blueclaw.ChatdBinaryPath,
 		},
 	}
 }
