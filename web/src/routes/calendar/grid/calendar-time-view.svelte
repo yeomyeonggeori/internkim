@@ -44,7 +44,7 @@
 	const longPressMilliseconds = 450;
 	const defaultDurationMinutes = 60;
 	const flickMilliseconds = 260;
-	const flickTravelPixels = 40;
+	const flickTravelPixels = 8;
 
 	let gridElement = $state<HTMLElement | null>(null);
 	let draftStartMinutes = $state<number | null>(null);
@@ -142,13 +142,22 @@
 		const columnWidth = columnWidthPixels();
 		if (columnWidth === 0 || offsets.length === 0) return currentOffset;
 		const travel = currentOffset - gestureStartOffset;
-		const isFlick = gestureMilliseconds < flickMilliseconds && Math.abs(travel) >= flickTravelPixels;
+		if (Math.abs(travel) < flickTravelPixels) return gestureStartOffset;
+		const direction = travel > 0 ? 1 : -1;
 		const startColumnIndex = Math.round(gestureStartOffset / columnWidth);
-		const targetColumnIndex = isFlick
-			? startColumnIndex + (travel > 0 ? 7 : -7)
-			: Math.round(currentOffset / columnWidth);
+		const targetColumnIndex =
+			gestureMilliseconds < flickMilliseconds
+				? weekAlignedColumnIndex(startColumnIndex, direction)
+				: Math.round(currentOffset / columnWidth);
 		const boundedIndex = Math.min(offsets.length - 1, Math.max(0, targetColumnIndex));
 		return boundedIndex * columnWidth;
+	}
+
+	function weekAlignedColumnIndex(startColumnIndex: number, direction: number): number {
+		const leadingDay = stripDays[Math.min(stripDays.length - 1, Math.max(0, startColumnIndex))] ?? weekWindowStart;
+		const targetDay = addCalendarGridDays(startOfCalendarGridWeek(leadingDay), direction * 7);
+		const dayOffset = Math.round((targetDay.getTime() - weekWindowStart.getTime()) / 86400000);
+		return 7 + dayOffset;
 	}
 
 	function columnWidthPixels(): number {
