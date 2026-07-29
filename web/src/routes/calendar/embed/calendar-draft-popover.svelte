@@ -12,7 +12,6 @@
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
-	import type { CalendarAuditRow } from './calendar-audit';
 	import { calendarDateTimeRangeChangesForStart } from './calendar-date-time-range';
 	import { isDraftPopoverValid, type DraftPopoverState } from './calendar-draft-popover-state';
 	import type { DraftPopoverText } from './calendar-draft-popover-text';
@@ -28,8 +27,6 @@
 		popover: DraftPopoverState;
 		calendarOptions: CalendarOption[];
 		participantCandidates: CalendarParticipant[];
-		auditRows: CalendarAuditRow[];
-		auditLabel: string;
 		dialogLabel: string;
 		text: DraftPopoverText;
 		updatePopover: (changes: Partial<DraftPopoverState>) => void;
@@ -42,8 +39,6 @@
 		popover,
 		calendarOptions,
 		participantCandidates,
-		auditRows,
-		auditLabel,
 		dialogLabel,
 		text,
 		updatePopover,
@@ -220,16 +215,11 @@
 		</div>
 
 		{#if popover.mode === 'edit'}
-			<footer class="border-border/50 flex items-center gap-2 border-t px-2 py-1.5">
-				<ul class="text-muted-foreground min-w-0 flex-1 text-[11px] leading-4" aria-label={auditLabel}>
-					{#each auditRows as row (`${row.label}:${row.actor.email}:${row.actor.name}`)}
-						<li class="truncate">{row.label} {row.actor.name}{row.time ? ` · ${row.time}` : ''}</li>
-					{/each}
-				</ul>
+			<footer class="border-border/50 flex border-t px-2 py-1.5">
 				<Button
 					variant="ghost"
 					size="sm"
-					class="text-destructive hover:text-destructive h-7 shrink-0 px-2"
+					class="text-destructive hover:text-destructive h-7 px-2"
 					onclick={deletePopover}
 				>
 					<TrashIcon />
