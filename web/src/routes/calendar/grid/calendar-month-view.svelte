@@ -13,6 +13,7 @@
 		type CalendarGridWeek
 	} from './calendar-grid-dates';
 	import { calendarGridWeekLayout, type CalendarGridEvent, type CalendarGridWeekLayout } from './calendar-grid-layout';
+	import { createCalendarScrollSnap } from './calendar-grid-scroll-snap.svelte';
 
 	type CalendarMonthViewProps = {
 		visibleDate: Date;
@@ -50,7 +51,6 @@
 	const visibleChipCount = 3;
 	const scrollOverlayHideDelayMilliseconds = 700;
 	const wheelScrollDamping = 0.3;
-	const rowSnapIdleMilliseconds = 90;
 	const rowSnapAnimationMilliseconds = 220;
 	const windowExtendWeeks = 26;
 	const windowExtendMarginPixels = 1200;
@@ -64,9 +64,6 @@
 	let selfReportedMonthKey = '';
 	let scrollFrame: number | null = null;
 	let scrollOverlayTimer: number | null = null;
-	let rowSnapTimer: number | null = null;
-	let snapAnimationFrame: number | null = null;
-	let isSnappingToRow = false;
 	let isExtendingWindow = false;
 	let rangeStartDateKey = $state('');
 	let rangeEndDateKey = $state('');
@@ -102,13 +99,28 @@
 		scrollWeekIntoView(visibleWeekStartKey);
 	});
 
+	const scrollSnap = createCalendarScrollSnap({
+		getScrollElement: () => scrollElement,
+		getSnapOffsets: weekRowScrollOffsets,
+		damping: wheelScrollDamping,
+		animationMilliseconds: rowSnapAnimationMilliseconds
+	});
+
+	function weekRowScrollOffsets(): number[] {
+		if (!scrollElement) return [];
+		const viewportTop = scrollElement.getBoundingClientRect().top;
+		const currentScrollTop = scrollElement.scrollTop;
+		return [...scrollElement.querySelectorAll<HTMLElement>('[data-week-start]')].map(
+			(rowElement) => currentScrollTop + rowElement.getBoundingClientRect().top - viewportTop
+		);
+	}
+
 	$effect(() => {
 		return () => {
 			if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
 			if (scrollOverlayTimer !== null) clearTimeout(scrollOverlayTimer);
-			if (rowSnapTimer !== null) clearTimeout(rowSnapTimer);
-			if (snapAnimationFrame !== null) cancelAnimationFrame(snapAnimationFrame);
 			if (longPressTimer !== null) clearTimeout(longPressTimer);
+			scrollSnap.destroy();
 		};
 	});
 
@@ -127,81 +139,7 @@
 		});
 	}
 
-	function handleWheel(wheelEvent: WheelEvent): void {
-		if (!scrollElement || wheelEvent.ctrlKey) return;
-		wheelEvent.preventDefault();
-		cancelRowSnapAnimation();
-		scrollElement.scrollTop += wheelDeltaPixels(wheelEvent) * wheelScrollDamping;
-		scheduleRowSnap();
-	}
-
-	function scheduleRowSnap(): void {
-		if (rowSnapTimer !== null) clearTimeout(rowSnapTimer);
-		if (supportsScrollEnd()) return;
-		rowSnapTimer = window.setTimeout(() => {
-			rowSnapTimer = null;
-			snapToNearestRow();
-		}, rowSnapIdleMilliseconds);
-	}
-
-	function supportsScrollEnd(): boolean {
-		return typeof window !== 'undefined' && 'onscrollend' in window;
-	}
-
-	function handleScrollEnd(): void {
-		if (isSnappingToRow || isScrollingToWeek) {
-			isSnappingToRow = false;
-			return;
-		}
-		snapToNearestRow();
-	}
-
-	function snapToNearestRow(): void {
-		if (!scrollElement) return;
-		const viewportTop = scrollElement.getBoundingClientRect().top;
-		const nearestOffset = [...scrollElement.querySelectorAll<HTMLElement>('[data-week-start]')]
-			.map((rowElement) => rowElement.getBoundingClientRect().top - viewportTop)
-			.reduce((closest, offset) => (Math.abs(offset) < Math.abs(closest) ? offset : closest), Number.POSITIVE_INFINITY);
-		if (!Number.isFinite(nearestOffset) || Math.abs(nearestOffset) < 1) return;
-		isSnappingToRow = true;
-		animateScrollTo(scrollElement.scrollTop + nearestOffset);
-	}
-
-	function animateScrollTo(targetScrollTop: number): void {
-		if (snapAnimationFrame !== null) cancelAnimationFrame(snapAnimationFrame);
-		const startScrollTop = scrollElement?.scrollTop ?? 0;
-		const scrollDistance = targetScrollTop - startScrollTop;
-		const startTime = performance.now();
-		const step = (now: number) => {
-			if (!scrollElement) return;
-			const progress = Math.min(1, (now - startTime) / rowSnapAnimationMilliseconds);
-			const easedProgress = 1 - (1 - progress) ** 3;
-			scrollElement.scrollTop = startScrollTop + scrollDistance * easedProgress;
-			if (progress < 1) {
-				snapAnimationFrame = requestAnimationFrame(step);
-				return;
-			}
-			snapAnimationFrame = null;
-			isSnappingToRow = false;
-		};
-		snapAnimationFrame = requestAnimationFrame(step);
-	}
-
-	function cancelRowSnapAnimation(): void {
-		if (snapAnimationFrame !== null) cancelAnimationFrame(snapAnimationFrame);
-		snapAnimationFrame = null;
-		isSnappingToRow = false;
-	}
-
-	function wheelDeltaPixels(wheelEvent: WheelEvent): number {
-		const lineHeightPixels = 16;
-		if (wheelEvent.deltaMode === 1) return wheelEvent.deltaY * lineHeightPixels;
-		if (wheelEvent.deltaMode === 2) return wheelEvent.deltaY * (scrollElement?.clientHeight ?? 0);
-		return wheelEvent.deltaY;
-	}
-
 	function handleScroll(): void {
-		if (!isSnappingToRow && !isScrollingToWeek) scheduleRowSnap();
 		if (isScrollingToWeek || scrollFrame !== null) return;
 		scrollFrame = requestAnimationFrame(() => {
 			scrollFrame = null;
@@ -350,8 +288,9 @@
 		tabindex="-1"
 		aria-label={monthLabelFormatter.format(visibleDate)}
 		onscroll={handleScroll}
-		onscrollend={handleScrollEnd}
-		onwheel={handleWheel}
+		onscrollend={scrollSnap.handleScrollEnd}
+		onwheel={scrollSnap.handleWheel}
+		ontouchend={scrollSnap.handleGestureEnd}
 		onpointerdown={handlePointerDown}
 		onpointermove={handlePointerMove}
 		onpointerup={handlePointerUp}
