@@ -156,6 +156,9 @@
 		align={anchor?.originElement ? 'end' : 'start'}
 		collisionPadding={12}
 		interactOutsideBehavior="ignore"
+		onOpenAutoFocus={(event) => {
+			if (popover.mode === 'edit') event.preventDefault();
+		}}
 		aria-label={dialogLabel}
 		class="max-h-[min(30rem,var(--bits-popover-content-available-height))] w-80 gap-0 overflow-y-auto p-0"
 	>
