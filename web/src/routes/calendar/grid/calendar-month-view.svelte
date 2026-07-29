@@ -48,8 +48,7 @@
 	const visibleChipCount = 3;
 	const scrollOverlayHideDelayMilliseconds = 700;
 	const wheelScrollDamping = 0.3;
-	const rowStepThresholdPixels = 24;
-	const rowStepCooldownMilliseconds = 240;
+	const rowSnapIdleMilliseconds = 140;
 
 	let scrollElement = $state<HTMLElement | null>(null);
 	let anchorWeekStartKey = $state('');
@@ -58,8 +57,8 @@
 	let selfReportedMonthKey = '';
 	let scrollFrame: number | null = null;
 	let scrollOverlayTimer: number | null = null;
-	let accumulatedWheelDelta = 0;
-	let isSteppingRow = false;
+	let rowSnapTimer: number | null = null;
+	let isSnappingToRow = false;
 
 	let windowAnchorDateKey = $state(untrack(() => calendarGridDateKey(visibleDate)));
 
@@ -91,6 +90,7 @@
 		return () => {
 			if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
 			if (scrollOverlayTimer !== null) clearTimeout(scrollOverlayTimer);
+			if (rowSnapTimer !== null) clearTimeout(rowSnapTimer);
 		};
 	});
 
@@ -112,12 +112,28 @@
 	function handleWheel(wheelEvent: WheelEvent): void {
 		if (!scrollElement || wheelEvent.ctrlKey) return;
 		wheelEvent.preventDefault();
-		if (isSteppingRow) return;
-		accumulatedWheelDelta += wheelDeltaPixels(wheelEvent) * wheelScrollDamping;
-		if (Math.abs(accumulatedWheelDelta) < rowStepThresholdPixels) return;
-		const direction = accumulatedWheelDelta > 0 ? 1 : -1;
-		accumulatedWheelDelta = 0;
-		scrollToAdjacentRow(direction);
+		isSnappingToRow = false;
+		scrollElement.scrollTop += wheelDeltaPixels(wheelEvent) * wheelScrollDamping;
+		scheduleRowSnap();
+	}
+
+	function scheduleRowSnap(): void {
+		if (rowSnapTimer !== null) clearTimeout(rowSnapTimer);
+		rowSnapTimer = window.setTimeout(() => {
+			rowSnapTimer = null;
+			snapToNearestRow();
+		}, rowSnapIdleMilliseconds);
+	}
+
+	function snapToNearestRow(): void {
+		if (!scrollElement) return;
+		const viewportTop = scrollElement.getBoundingClientRect().top;
+		const nearestOffset = [...scrollElement.querySelectorAll<HTMLElement>('[data-week-start]')]
+			.map((rowElement) => rowElement.getBoundingClientRect().top - viewportTop)
+			.reduce((closest, offset) => (Math.abs(offset) < Math.abs(closest) ? offset : closest), Number.POSITIVE_INFINITY);
+		if (!Number.isFinite(nearestOffset) || Math.abs(nearestOffset) < 1) return;
+		isSnappingToRow = true;
+		scrollElement.scrollTo({ top: scrollElement.scrollTop + nearestOffset, behavior: 'smooth' });
 	}
 
 	function wheelDeltaPixels(wheelEvent: WheelEvent): number {
@@ -127,24 +143,8 @@
 		return wheelEvent.deltaY;
 	}
 
-	function scrollToAdjacentRow(direction: 1 | -1): void {
-		if (!scrollElement) return;
-		const viewportTop = scrollElement.getBoundingClientRect().top;
-		const rowElements = [...scrollElement.querySelectorAll<HTMLElement>('[data-week-start]')];
-		const currentRowIndex = rowElements.findIndex((rowElement) => rowElement.getBoundingClientRect().bottom > viewportTop + 2);
-		const targetRow = rowElements[Math.min(rowElements.length - 1, Math.max(0, currentRowIndex + direction))];
-		if (!targetRow) return;
-		isSteppingRow = true;
-		scrollElement.scrollTo({
-			top: scrollElement.scrollTop + targetRow.getBoundingClientRect().top - viewportTop,
-			behavior: 'smooth'
-		});
-		window.setTimeout(() => {
-			isSteppingRow = false;
-		}, rowStepCooldownMilliseconds);
-	}
-
 	function handleScroll(): void {
+		if (!isSnappingToRow && !isScrollingToWeek) scheduleRowSnap();
 		if (isScrollingToWeek || scrollFrame !== null) return;
 		scrollFrame = requestAnimationFrame(() => {
 			scrollFrame = null;
