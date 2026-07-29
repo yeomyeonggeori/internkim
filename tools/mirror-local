@@ -10,6 +10,9 @@ set -euo pipefail
 # Seed (must match the history importer -key-seed): provide it once, either as
 # INTERNKIM_BUZZ_KEY_SEED in the environment or in the repo .env. It is written
 # to a local seed file and reused on later runs, so no env is needed after that.
+# The seed is a critical root secret — persist and back it up; an inline env var
+# used for one command is not persisted and is how it gets lost. See
+# docs/buzz-identity-seed.md.
 #
 # Optional:
 #   INTERNKIM_MM_ADMIN_PASSWORD_PATH  override the MM admin password file;
