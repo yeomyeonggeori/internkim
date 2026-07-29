@@ -77,7 +77,7 @@
 	}
 
 	function enrollWithPassword() {
-		if (password.length < 8) {
+		if (password.length < 4) {
 			errorMessage = text.passwordTooShort;
 			return;
 		}
@@ -117,7 +117,7 @@
 		newPassword: '비밀번호 (이메일 + 비밀번호로 로그인)',
 		confirmPassword: '비밀번호 확인',
 		setPassword: '설정하기',
-		passwordTooShort: '비밀번호는 8자 이상이어야 합니다',
+		passwordTooShort: '비밀번호는 4자 이상이어야 합니다',
 		passwordMismatch: '비밀번호가 일치하지 않습니다',
 		genericError: '문제가 발생했습니다'
 	};

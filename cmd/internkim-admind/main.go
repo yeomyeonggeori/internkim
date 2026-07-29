@@ -15,13 +15,17 @@ func readBuzzDatabaseURL(path string) (string, error) {
 	if errorValue != nil {
 		return "", fmt.Errorf("read buzz database url from %s: %w", path, errorValue)
 	}
-	value := strings.TrimSpace(string(document))
-	value = strings.TrimPrefix(value, "DATABASE_URL=")
-	value = strings.Trim(value, `"'`)
-	if value == "" {
-		return "", fmt.Errorf("buzz database url file %s is empty", path)
+	for _, line := range strings.Split(string(document), "\n") {
+		value, found := strings.CutPrefix(strings.TrimSpace(line), "DATABASE_URL=")
+		if !found {
+			continue
+		}
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		if value != "" {
+			return value, nil
+		}
 	}
-	return value, nil
+	return "", fmt.Errorf("no DATABASE_URL found in %s", path)
 }
 
 func main() {

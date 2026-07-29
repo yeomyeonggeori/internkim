@@ -10,6 +10,7 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import type { Snippet } from 'svelte';
 	import { buzzPasskeyLogin, buzzPasswordLogin, mattermostPasswordLogin } from '$lib/buzz-key-login';
+	import { createBuzzIdentityTransport, enrollKnownBuzzIdentity } from '$lib/buzz-identity-session';
 	import { isPasskeySupported } from '$lib/buzz-passkey';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 
@@ -24,6 +25,7 @@
 	const text = createPageText(appShellText);
 	const fieldId = $props.id();
 	const passkeyAvailable = isPasskeySupported();
+	const identityTransport = createBuzzIdentityTransport();
 	let isLoading = $state(true);
 	let isAuthenticated = $state(false);
 	let notInvited = $state(false);
@@ -82,7 +84,12 @@
 			try {
 				return await buzzPasswordLogin(normalizedEmail, password);
 			} catch (buzzError) {
-				return await mattermostPasswordLogin(normalizedEmail, password);
+				const secretHex = await mattermostPasswordLogin(normalizedEmail, password);
+				await enrollKnownBuzzIdentity(identityTransport, secretHex, {
+					kind: 'password',
+					password
+				}).catch(() => {});
+				return secretHex;
 			}
 		});
 	}
