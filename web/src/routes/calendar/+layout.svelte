@@ -3,6 +3,7 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
+	import { calendarDateFromKey } from './calendar-layout-date';
 	import { onMount } from 'svelte';
 	import {
 		fetchCalendarAccountStatus,
@@ -12,10 +13,7 @@
 		saveGoogleCalendarSelection,
 		uploadGoogleOAuthClient
 	} from './calendar-layout-api';
-	import {
-		installCalendarLayoutMessageSync,
-		loadCalendarLayoutStoredState
-	} from './calendar-layout-message-sync';
+	import { installCalendarLayoutMessageSync } from './calendar-layout-message-sync';
 	import {
 		googleOAuthReturnStatusFromMessageEvent,
 		googleOAuthReturnStatusFromStorageEvent,
@@ -35,8 +33,8 @@
 	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
 	const layoutState = new CalendarLayoutState();
 
-	const todayMonthLabel = $derived(
-		layoutState.today.toLocaleDateString(localeCode, {
+	const visibleMonthLabel = $derived(
+		(layoutState.selectedDateKey ? calendarDateFromKey(layoutState.selectedDateKey) : layoutState.today).toLocaleDateString(localeCode, {
 			year: 'numeric',
 			month: 'long'
 		})
@@ -44,7 +42,7 @@
 
 	$effect(() => {
 		if (isEmbed) return;
-		breadcrumbMeta.value = todayMonthLabel;
+		breadcrumbMeta.value = visibleMonthLabel;
 		return () => {
 			breadcrumbMeta.value = '';
 		};
@@ -55,10 +53,6 @@
 		handleGoogleOAuthReturn();
 		loadSyncInformation();
 		loadAccountStatus();
-		const storedState = loadCalendarLayoutStoredState();
-		if (storedState.visibleDate) {
-			layoutState.applyVisibleDate(storedState.visibleDate);
-		}
 		window.addEventListener('message', handleGoogleOAuthMessage);
 		window.addEventListener('storage', handleGoogleOAuthStorageEvent);
 		const uninstallMessageSync = installCalendarLayoutMessageSync({
