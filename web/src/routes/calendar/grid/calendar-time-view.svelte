@@ -256,6 +256,7 @@
 	function handleColumnPointerDown(pointerEvent: PointerEvent, day: Date): void {
 		if (pointerEvent.button !== 0 || !(pointerEvent.currentTarget instanceof HTMLElement)) return;
 		if (pointerEvent.target instanceof Element && pointerEvent.target.closest('button')) return;
+		pointerEvent.preventDefault();
 		const startMinutes = minutesFromPoint(pointerEvent.currentTarget, pointerEvent.clientY);
 		draftStart = { day, minutes: startMinutes };
 		draftEnd = { day, minutes: startMinutes };
@@ -448,7 +449,7 @@
 				role="grid"
 				tabindex="-1"
 				aria-label={weekdayFormatter.format(days[0])}
-				class="no-scrollbar min-h-0 flex-1 overflow-y-auto"
+				class="no-scrollbar min-h-0 flex-1 select-none overflow-y-auto"
 				onwheel={handleGridWheel}
 				ontouchend={scrollSnap.handleGestureEnd}
 				onscrollend={scrollSnap.handleScrollEnd}
@@ -497,7 +498,7 @@
 				role="grid"
 				tabindex="-1"
 				aria-label={weekdayFormatter.format(days[0])}
-				class="no-scrollbar min-h-0 flex-1 overflow-y-auto"
+				class="no-scrollbar min-h-0 flex-1 select-none overflow-y-auto"
 				onwheel={scrollSnap.handleWheel}
 				ontouchend={scrollSnap.handleGestureEnd}
 				onscrollend={scrollSnap.handleScrollEnd}
