@@ -6,8 +6,7 @@
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import CheckCircle2Icon from '@lucide/svelte/icons/circle-check-big';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
-	import MapPinIcon from '@lucide/svelte/icons/map-pin';
-	import CalendarEventContent from '../../calendar/embed/calendar-event-content.svelte';
+	import CalendarEventListCard from '../../calendar/embed/calendar-event-list-card.svelte';
 	import FlowTaskBoardCard from '../../flow/flow-task-board-card.svelte';
 	import { flowText } from '../../flow/text';
 	import { getAttendanceState } from '../attendance-context.svelte';
@@ -132,38 +131,17 @@
 			{:else if detail.context.calendarEvents.length}
 				<div class="grid gap-2">
 					{#each detail.context.calendarEvents as event (event.id)}
-						{@const calendarEvent = {
-							title: event.calendarEvent.title,
-							start: new Date(event.calendarEvent.startISO),
-							allDay: event.calendarEvent.isAllDay
-						}}
-						<Card.Root
-							size="sm"
-							class="gap-0 rounded-md bg-info/10 py-0 text-info ring-info/20 transition-colors hover:bg-info/15 data-[size=sm]:gap-0 data-[size=sm]:py-0"
-							data-testid="team-status-calendar-event-card"
-						>
-							<Card.Content class="p-0 group-data-[size=sm]/card:px-0">
-								<button
-									type="button"
-									class="team-status-calendar-event min-h-11 w-full min-w-0 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-info/40"
-									aria-label={event.title}
-									data-testid="team-status-calendar-event"
-									onclick={() => openCalendarEvent(event.id)}
-								>
-									<CalendarEventContent
-										event={calendarEvent}
-										isAllDay={event.calendarEvent.isAllDay}
-										timeLabel={event.timeLabel}
-									/>
-									{#if event.location}
-										<span class="mt-1 flex min-w-0 items-center gap-1 text-xs text-info/70">
-											<MapPinIcon class="size-3 shrink-0" aria-hidden="true" />
-											<span class="truncate">{event.location}</span>
-										</span>
-									{/if}
-								</button>
-							</Card.Content>
-						</Card.Root>
+						<CalendarEventListCard
+							cardTestID="team-status-calendar-event-card"
+							buttonTestID="team-status-calendar-event"
+							buttonClass="team-status-calendar-event"
+							title={event.calendarEvent.title}
+							start={new Date(event.calendarEvent.startISO)}
+							isAllDay={event.calendarEvent.isAllDay}
+							timeLabel={event.timeLabel}
+							location={event.location}
+							openEvent={() => openCalendarEvent(event.id)}
+						/>
 					{/each}
 				</div>
 			{:else}
