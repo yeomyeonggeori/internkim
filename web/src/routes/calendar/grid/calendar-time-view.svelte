@@ -16,7 +16,7 @@
 		startOfCalendarGridWeek
 	} from './calendar-grid-dates';
 	import { defaultCalendarEventColor } from './calendar-grid-events';
-	import { calendarGridTimedBlocks, type CalendarGridEvent } from './calendar-grid-layout';
+	import { calendarGridAllDaySpans, calendarGridTimedBlocks, type CalendarGridEvent } from './calendar-grid-layout';
 	import { createCalendarScrollSnap } from './calendar-grid-scroll-snap.svelte';
 
 	type CalendarTimeViewProps = {
@@ -72,14 +72,14 @@
 			: Array.from({ length: dayCount }, (_, dayOffset) => addCalendarGridDays(weekWindowStart, dayOffset))
 	);
 	const canSwipeWeeks = $derived(dayCount === 7);
-	const allDayEvents = $derived(
-		days.map((day) => ({
-			day,
-			events: events.filter(
-				(event) => event.isAllDay && event.end > startOfCalendarGridDay(day) && event.start < addCalendarGridDays(day, 1)
-			)
-		}))
-	);
+	const allDayLaneHeightPixels = 22;
+	const stripAllDaySpans = $derived(calendarGridAllDaySpans(stripDays, events));
+	const daysAllDaySpans = $derived(calendarGridAllDaySpans(days, events));
+
+	function allDayRowHeightPixels(spans: { lane: number }[]): number {
+		const laneCount = spans.reduce((count, span) => Math.max(count, span.lane + 1), 1);
+		return laneCount * allDayLaneHeightPixels + 8;
+	}
 	const weekdayFormatter = $derived(new Intl.DateTimeFormat(localeCode, { weekday: 'short' }));
 	const hourFormatter = $derived(new Intl.DateTimeFormat(localeCode, { hour: 'numeric' }));
 	const timeFormatter = $derived(new Intl.DateTimeFormat(localeCode, { hour: 'numeric', minute: '2-digit' }));
@@ -464,11 +464,30 @@
 	</button>
 {/snippet}
 
-{#snippet allDayCell(day: Date)}
-	<div class="border-border/50 flex min-h-8 flex-1 flex-col gap-0.5 border-l p-0.5">
-		{#each events.filter((event) => event.isAllDay && event.end > startOfCalendarGridDay(day) && event.start < addCalendarGridDays(day, 1)) as event (event.id)}
-			<CalendarEventChip {event} isSelected={selectedEventID === event.id} placeholder={draftPreviewTitle} {openEvent} />
-		{/each}
+{#snippet allDayRow(columnDays: Date[], spans: ReturnType<typeof calendarGridAllDaySpans>)}
+	<div class="relative" style={`height: ${allDayRowHeightPixels(spans)}px`}>
+		<div class="absolute inset-0 grid" style={`grid-template-columns: repeat(${columnDays.length}, minmax(0, 1fr))`}>
+			{#each columnDays as day (day.getTime())}
+				<div class="border-border/50 border-l"></div>
+			{/each}
+		</div>
+		<div class="absolute inset-0 grid px-0.5 pt-1" style={`grid-template-columns: repeat(${columnDays.length}, minmax(0, 1fr))`}>
+			{#each spans as span (span.event.id)}
+				<div
+					class="px-0.5"
+					style={`grid-column: ${span.startColumn + 1} / span ${span.columnCount}; grid-row: 1; margin-top: ${span.lane * allDayLaneHeightPixels}px`}
+				>
+					<CalendarEventChip
+						event={span.event}
+						isSelected={selectedEventID === span.event.id}
+						continuesBefore={span.continuesBefore}
+						continuesAfter={span.continuesAfter}
+						placeholder={draftPreviewTitle}
+						{openEvent}
+					/>
+				</div>
+			{/each}
+		</div>
 	</div>
 {/snippet}
 
@@ -478,20 +497,25 @@
 			<div class="flex shrink-0">
 				<div class="bg-background border-border/50 z-30 w-16 shrink-0 border-r">
 					<div class="border-border/50 h-9 border-b"></div>
-					<div class="border-border/50 text-muted-foreground h-9 border-b-2 px-2 py-1 text-right text-xs whitespace-nowrap">종일</div>
+					<div
+						class="border-border/50 text-muted-foreground border-b-2 px-2 py-1 text-right text-xs whitespace-nowrap"
+						style={`height: ${allDayRowHeightPixels(stripAllDaySpans)}px`}
+					>
+						종일
+					</div>
 				</div>
 				<div bind:this={headerStripElement} class="no-scrollbar min-w-0 flex-1 overflow-x-hidden">
-					<div class="flex" style="width: 300%">
-						{#each stripDays as day (day.getTime())}
-							<div class="flex flex-col" style="width: calc(100% / 21)">
-								<div class="border-border/50 flex h-9 items-end border-b">
+					<div style="width: 300%">
+						<div class="flex">
+							{#each stripDays as day (day.getTime())}
+								<div class="border-border/50 flex h-9 items-end border-b" style="width: calc(100% / 21)">
 									{@render dayHeader(day)}
 								</div>
-								<div class="border-border/50 flex h-9 border-b-2">
-									{@render allDayCell(day)}
-								</div>
-							</div>
-						{/each}
+							{/each}
+						</div>
+						<div class="border-border/50 border-b-2">
+							{@render allDayRow(stripDays, stripAllDaySpans)}
+						</div>
 					</div>
 				</div>
 			</div>
@@ -540,9 +564,9 @@
 			</div>
 			<div class="border-border/50 flex border-b-2">
 				<div class="text-muted-foreground w-16 shrink-0 px-2 py-1 text-right text-xs whitespace-nowrap">종일</div>
-				{#each days as day (day.getTime())}
-					{@render allDayCell(day)}
-				{/each}
+				<div class="min-w-0 flex-1">
+					{@render allDayRow(days, daysAllDaySpans)}
+				</div>
 			</div>
 			<div
 				bind:this={gridElement}
@@ -589,6 +613,7 @@
 					{#each selectedDayEvents as event (event.id)}
 						<CalendarEventListCard
 							title={event.title}
+							color={event.color}
 							start={event.start}
 							isAllDay={event.isAllDay}
 							timeLabel={eventTimeLabel(event)}
