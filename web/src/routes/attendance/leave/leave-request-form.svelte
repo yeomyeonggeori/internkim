@@ -40,6 +40,10 @@
 	const selectedLeaveType = $derived(
 		selectableLeaveTypes.find((leaveType) => leaveType.id === draft.leaveTypeID)
 	);
+	const isHireDateRequired = $derived(
+		employeeLeave.payload?.hireDateRequired === true &&
+			selectedLeaveType?.requiresHireDate === true
+	);
 	let preview = $state<EmployeeLeavePreview | null>(null);
 	let isPreviewLoading = $state(false);
 	let previewErrorMessage = $state('');
@@ -53,7 +57,7 @@
 	$effect(() => {
 		const request = draft.previewRequest();
 		const requestKey = request ? JSON.stringify(request) : '';
-		if (!requestKey) {
+		if (!requestKey || isHireDateRequired) {
 			previewSequence++;
 			preview = null;
 			previewErrorMessage = '';
@@ -98,7 +102,7 @@
 
 	async function submit(): Promise<void> {
 		const submission = draft.submission();
-		if (!submission || !preview || employeeLeave.isMutating) return;
+		if (!submission || !preview || employeeLeave.isMutating || isHireDateRequired) return;
 		try {
 			switch (submission.mode) {
 				case 'create':
@@ -141,6 +145,18 @@
 				</p>
 				<p class="mt-1 text-xs opacity-80">
 					{draft.mode === 'edit' ? text.leave.editDescription : text.leave.resubmitDescription}
+				</p>
+			</div>
+		{/if}
+
+		{#if isHireDateRequired}
+			<div
+				class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+				data-testid="leave-hire-date-required"
+			>
+				<p class="font-medium">{text.leave.hireDateRequiredTitle}</p>
+				<p class="mt-1 text-xs text-muted-foreground">
+					{text.leave.hireDateRequiredDescription}
 				</p>
 			</div>
 		{/if}
@@ -306,6 +322,7 @@
 			class="sm:min-w-36"
 			disabled={
 				employeeLeave.isMutating ||
+				isHireDateRequired ||
 				isPreviewLoading ||
 				!preview ||
 				preview.totalDeductionMilliDays <= 0

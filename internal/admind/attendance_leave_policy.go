@@ -167,3 +167,19 @@ func attendanceLeavePolicyFiscalDateIsValid(month int, day int) bool {
 	date := time.Date(attendanceLeavePolicyReferenceCalendarYear, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 	return int(date.Month()) == month && date.Day() == day
 }
+
+func attendanceLeaveTypeRequiresHireDate(leaveType attendanceLeaveType) bool {
+	return leaveType.IsActive &&
+		leaveType.BalanceMode != "none" &&
+		leaveType.GrantCadence != "manual" &&
+		leaveType.GrantCadence != "none"
+}
+
+func attendanceLeavePolicyRequiresHireDate(policy attendanceLeavePolicy) bool {
+	for _, leaveType := range policy.LeaveTypes {
+		if attendanceLeaveTypeRequiresHireDate(leaveType) {
+			return true
+		}
+	}
+	return false
+}

@@ -19,6 +19,13 @@ describe('employee leave error localization', () => {
 				attendanceText.en.leave.mutationFailed
 			)
 		).toBe('There is not enough leave available.');
+		expect(
+			employeeLeaveErrorMessage(
+				new EmployeeLeaveAPIError('hireDateRequired', 409),
+				attendanceText.ko.leave,
+				attendanceText.ko.leave.mutationFailed
+			)
+		).toBe('이 휴가를 신청하려면 입사일을 먼저 등록해야 합니다.');
 	});
 
 	test('uses a localized generic fallback for unknown response shapes', () => {
