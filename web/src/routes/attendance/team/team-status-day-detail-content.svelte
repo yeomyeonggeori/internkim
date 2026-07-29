@@ -136,6 +136,7 @@
 							buttonTestID="team-status-calendar-event"
 							buttonClass="team-status-calendar-event"
 							title={event.calendarEvent.title}
+							color={event.calendarEvent.color}
 							start={new Date(event.calendarEvent.startISO)}
 							isAllDay={event.calendarEvent.isAllDay}
 							timeLabel={event.timeLabel}
