@@ -225,7 +225,7 @@
 		role="gridcell"
 		tabindex="-1"
 		data-calendar-date={calendarGridDateKey(day)}
-		class="border-border/70 relative flex-1 border-l"
+		class="border-border/50 relative flex-1 border-l"
 		onpointerdown={(pointerEvent) => handleColumnPointerDown(pointerEvent, day)}
 		onpointermove={handleColumnPointerMove}
 		onpointerup={handleColumnPointerUp}
@@ -301,7 +301,7 @@
 {/snippet}
 
 {#snippet allDayCell(day: Date)}
-	<div class="border-border/70 flex min-h-8 flex-1 flex-col gap-0.5 border-l p-0.5">
+	<div class="border-border/50 flex min-h-8 flex-1 flex-col gap-0.5 border-l p-0.5">
 		{#each events.filter((event) => event.isAllDay && event.end > startOfCalendarGridDay(day) && event.start < addCalendarGridDays(day, 1)) as event (event.id)}
 			<CalendarEventChip {event} isSelected={selectedEventID === event.id} {openEvent} />
 		{/each}
@@ -355,7 +355,7 @@
 		</div>
 
 	{#if dayCount === 1}
-		<aside class="border-border/70 hidden w-fit shrink-0 border-l p-2 lg:block">
+		<aside class="border-border/50 hidden w-fit shrink-0 border-l p-2 lg:block">
 			<MiniCalendar type="single" value={miniCalendarValue} onValueChange={selectMiniCalendarDate} locale={localeCode} />
 		</aside>
 	{/if}
