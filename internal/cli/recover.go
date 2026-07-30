@@ -97,7 +97,7 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 	}
 	printCommandTargetEvidence(target)
 	fmt.Printf("Recovery action: %s\n", response.Action)
-	for _, serviceName := range []string{"ssh", "cloudflared-node-ssh", "cloudflared"} {
+	for _, serviceName := range []string{"ssh", "cloudflared-node-ssh", "cloudflared", "blueclaw", "buzz-relay", "buzz-relay-stunnel", "chatd", "relay-tls-443"} {
 		if serviceState := strings.TrimSpace(response.Services[serviceName]); serviceState != "" {
 			fmt.Printf("  %-22s %s\n", serviceName, serviceState)
 		}
@@ -150,7 +150,7 @@ func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, t
 
 func isAllowedCLIRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage":
+	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal":
 		return true
 	default:
 		return false

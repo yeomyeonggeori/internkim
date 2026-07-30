@@ -57,7 +57,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal":
 		return true
 	default:
 		return false
@@ -106,6 +106,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "repair Blueclaw workspace image", "sh", "-lc", blueclawWorkspaceRepairCommand()))
 	case "blueclaw-postgres-salvage":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "salvage orphaned Blueclaw postgres cluster", "sh", "-lc", blueclawPostgresSalvageCommand()))
+	case "repair-buzz-relay":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "repair Buzz relay TLS terminator", "sh", "-lc", buzzRelayRepairCommand()))
+	case "buzz-relay-journal":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read Buzz relay TLS terminator journal", "sh", "-lc", buzzRelayJournalDiagnosticCommand()))
 	}
 	response.Services = service.sshRecoveryServiceStates(ctx)
 	response.JournalTail = service.sshRecoveryJournalTail(ctx)
@@ -448,12 +452,67 @@ done
 `)
 }
 
+func buzzRelayRepairCommand() string {
+	return strings.TrimSpace(fmt.Sprintf(`
+set +e
+cat > /etc/stunnel/buzz-relay.conf <<'STUNNELCONF'
+foreground = yes
+[buzz-relay]
+accept = 127.0.0.1:443
+connect = %s
+cert = %s
+key = /root/.internkim/tls/relay.key
+STUNNELCONF
+cat > /etc/systemd/system/buzz-relay-stunnel.service <<'STUNNELUNIT'
+[Unit]
+Description=Buzz relay TLS terminator (stunnel)
+After=network-online.target %s.service
+Wants=network-online.target
+[Service]
+ExecStart=/usr/bin/stunnel4 /etc/stunnel/buzz-relay.conf
+Restart=always
+RestartSec=2
+[Install]
+WantedBy=multi-user.target
+STUNNELUNIT
+setsid nohup sh -c 'systemctl disable --now stunnel4 2>/dev/null; pkill -f "stunnel.*buzz-relay.conf" 2>/dev/null; systemctl daemon-reload; systemctl enable buzz-relay-stunnel; systemctl restart buzz-relay-stunnel; sleep 2; systemctl restart chatd' > /var/log/internkim-buzz-relay-repair.log 2>&1 < /dev/null &
+sleep 1
+echo "buzz relay repair launched; verify with recover status"
+`,
+		blueclaw.BuzzRelayBindAddress,
+		blueclaw.BuzzRelayCertificatePath,
+		blueclaw.BuzzRelayServiceName,
+	))
+}
+
+func buzzRelayJournalDiagnosticCommand() string {
+	return strings.TrimSpace(`
+set +e
+printf '== stunnel binaries ==\n'
+ls -la /usr/bin/stunnel* 2>&1
+printf '\n== buzz-relay-stunnel unit status ==\n'
+systemctl status buzz-relay-stunnel --no-pager -l 2>&1 | tail -25
+printf '\n== buzz-relay-stunnel journal ==\n'
+journalctl -u buzz-relay-stunnel -n 40 --no-pager 2>&1 | tail -40
+printf '\n== repair unit journal ==\n'
+journalctl -u internkim-buzz-relay-repair -n 30 --no-pager 2>&1 | tail -30
+printf '\n== config ==\n'
+cat /etc/stunnel/buzz-relay.conf 2>&1
+printf '\n== cert/key present ==\n'
+ls -la /root/.internkim/tls/ 2>&1
+`)
+}
+
 func (service *Service) sshRecoveryServiceStates(ctx context.Context) map[string]string {
 	return map[string]string{
 		"ssh":                  service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "ssh"),
 		"cloudflared-node-ssh": service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "cloudflared-node-ssh"),
 		"cloudflared":          service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "cloudflared"),
 		"blueclaw":             service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", blueclaw.BlueclawServiceName),
+		"buzz-relay":           service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", blueclaw.BuzzRelayServiceName),
+		"buzz-relay-stunnel":   service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "buzz-relay-stunnel"),
+		"chatd":                service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "chatd"),
+		"relay-tls-443":        service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "ss -ltn 2>/dev/null | grep -q ':443' && echo listening || echo down"),
 	}
 }
 
