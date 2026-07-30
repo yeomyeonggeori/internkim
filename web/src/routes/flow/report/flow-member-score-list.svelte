@@ -2,7 +2,6 @@
 	import { tick } from 'svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { personProfileImagePath } from '$lib/person-profile-image';
-	import { flowDefinitionPaletteColor } from '../flow-definition-colors';
 	import type { FlowMember } from '../flow-types';
 	import type { FlowMemberScoreSection } from './flow-report-data';
 	import { memberScoreScale, memberScoreWidth } from './flow-member-score-scale';
@@ -18,7 +17,6 @@
 	let isRowScrollAtEnd = $state(true);
 
 	const rowScrollFadeThreshold = 16;
-	const barColor = flowDefinitionPaletteColor(0);
 	const scale = $derived(memberScoreScale(section.rows.map((row) => row.total)));
 	const averageWidth = $derived(memberScoreWidth(section.averageValue, scale));
 
@@ -91,8 +89,8 @@
 						</div>
 						<div class="bg-muted relative h-1.5 overflow-hidden rounded-full">
 							<div
-								class="h-full rounded-full"
-								style={`width: ${memberScoreWidth(row.total, scale)}%; background: ${barColor}`}
+								class={isTopScore(row.total) ? 'h-full rounded-full bg-blue-600' : 'bg-primary h-full rounded-full'}
+								style={`width: ${memberScoreWidth(row.total, scale)}%`}
 								aria-label={`${row.label} ${formatValue(row.total, section.unit)}`}
 							></div>
 							{#if section.averageValue > 0}
