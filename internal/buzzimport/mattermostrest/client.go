@@ -117,7 +117,7 @@ func (client Client) PublicChannels(ctx context.Context, teamID string) ([]restC
 
 // Posts pulls a channel's whole history oldest first, paging backfrom the newest
 // page, which is the order an import needs so a reply resolves its root.
-func (client Client) Posts(ctx context.Context, channelID string) ([]buzzimport.MattermostPost, error) {
+func (client Client) Posts(ctx context.Context, channelID string, sinceMillis int64) ([]buzzimport.MattermostPost, error) {
 	collected := map[string]restPost{}
 	order := []string{}
 	beforePostID := ""
@@ -139,12 +139,19 @@ func (client Client) Posts(ctx context.Context, channelID string) ([]buzzimport.
 				order = append(order, postID)
 			}
 		}
+		oldestInPage := page.Posts[page.Order[len(page.Order)-1]]
+		if sinceMillis > 0 && oldestInPage.CreateAt <= sinceMillis {
+			break
+		}
 		beforePostID = page.Order[len(page.Order)-1]
 	}
 	posts := make([]buzzimport.MattermostPost, 0, len(order))
 	for _, postID := range order {
 		post := collected[postID]
 		if post.DeleteAt != 0 || post.Type != "" || (post.Message == "" && len(post.FileIDs) == 0) {
+			continue
+		}
+		if sinceMillis > 0 && post.CreateAt <= sinceMillis {
 			continue
 		}
 		posts = append(posts, buzzimport.MattermostPost{
