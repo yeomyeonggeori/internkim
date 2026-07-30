@@ -101,6 +101,10 @@
 	}
 }
 
+@utility font-message {
+	font-family: ui-sans-serif, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+}
+
 @theme inline {
   --font-sans: 'SUIT Variable', ui-sans-serif, system-ui, sans-serif;
   --color-background: hsl(var(--background));
