@@ -123,11 +123,17 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 		snapToNearestOffset();
 	}
 
+	function cancelIdleSnap(): void {
+		if (idleSnapTimer === null) return;
+		clearTimeout(idleSnapTimer);
+		idleSnapTimer = null;
+	}
+
 	function scheduleIdleSnap(): void {
-		if (idleSnapTimer !== null) clearTimeout(idleSnapTimer);
+		cancelIdleSnap();
 		idleSnapTimer = window.setTimeout(() => {
 			idleSnapTimer = null;
-			if (isIgnoringMomentum) return;
+			if (isIgnoringMomentum || animationFrame !== null) return;
 			isIgnoringMomentum = true;
 			isIdleSnapped = true;
 			snapToNearestOffset();
@@ -187,6 +193,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 	}
 
 	function snapToNearestOffset(): void {
+		cancelIdleSnap();
 		const scrollElement = options.getScrollElement();
 		if (!scrollElement) return;
 		const offset = wheelFrame !== null ? wheelTargetOffset : currentOffset(scrollElement);
