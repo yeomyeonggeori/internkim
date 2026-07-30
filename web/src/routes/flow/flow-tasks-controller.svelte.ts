@@ -3,7 +3,7 @@ import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 import { FlowTaskBoardController } from './flow-task-board-controller.svelte';
 import { FlowTaskEditorController } from './flow-task-editor-controller.svelte';
 import { FlowTaskFiltersController } from './flow-task-filters-controller.svelte';
-import { flowBusinessColor, flowSizeColor, flowTaskTypeColor } from './flow-definition-colors';
+import { flowBusinessColor, flowTaskTypeColor } from './flow-definition-colors';
 import { updateFlowTaskStatus } from './flow-task-persistence';
 import { FlowTaskQuickCreateController } from './flow-task-quick-create-controller.svelte';
 import type { LoadFlow } from './flow-load-tracker';
@@ -121,7 +121,6 @@ class FlowTasksController {
 	memberSelectOptions = () => memberSelectOptions(this.members());
 	businessColor = (business: string) => flowBusinessColor(business, this.definitions());
 	taskTypeColor = (type: string) => flowTaskTypeColor(type, this.definitions());
-	sizeColor = (size: string) => flowSizeColor(size, this.definitions());
 	memberEmail = (memberID: string) => this.members().find((member) => member.id === memberID)?.email ?? '';
 
 	filteredTasks = () => this.filters.tasks(this.tasks());

@@ -71,9 +71,6 @@ CREATE TABLE IF NOT EXISTS flow_size_definitions (
 	if errorValue := ensureFlowColumn(ctx, database, "flow_definitions", "color", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := ensureFlowColumn(ctx, database, "flow_size_definitions", "color", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
-		return errorValue
-	}
 	if errorValue := ensureFlowColumn(ctx, database, "flow_tasks", "mattermost_post_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}

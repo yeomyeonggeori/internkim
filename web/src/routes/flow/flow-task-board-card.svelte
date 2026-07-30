@@ -29,7 +29,6 @@
 		isOverduePlan?: boolean;
 		businessColor?: (business: string) => string;
 		taskTypeColor?: (type: string) => string;
-		sizeColor?: (size: string) => string;
 	};
 
 	let {
@@ -48,8 +47,7 @@
 		memberEmail = () => '',
 		isOverduePlan = false,
 		businessColor = () => '#64748b',
-		taskTypeColor = () => '#64748b',
-		sizeColor = () => ''
+		taskTypeColor = () => '#64748b'
 	}: Props = $props();
 
 	let canDrag = $derived(isInteractive && isDraggable && !isPending && !isReadOnly);
@@ -156,10 +154,7 @@
 					</span>
 				{/if}
 			</div>
-			<Badge
-				class={`h-[18px] min-w-7 shrink-0 justify-center px-1.5 text-[11px] font-semibold leading-none ${sizeColor(task.size) ? 'rounded-md border-transparent font-mono tabular-nums shadow-none' : sizeBadgeClass(task.size)}`}
-				style={flowDefinitionBadgeStyle(sizeColor(task.size))}
-			>{task.size}</Badge>
+			<Badge class={`h-[18px] min-w-7 shrink-0 justify-center px-1.5 text-[11px] font-semibold leading-none ${sizeBadgeClass(task.size)}`}>{task.size}</Badge>
 		</div>
 
 		<div class="line-clamp-2 text-sm font-semibold leading-5 text-card-foreground">

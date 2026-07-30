@@ -76,7 +76,6 @@ export type FlowSizeDefinition = {
 	developmentExample: string;
 	otherExample: string;
 	note: string;
-	color?: string;
 	score: number;
 	label: string;
 };

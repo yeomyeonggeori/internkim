@@ -78,11 +78,6 @@
 		void saveDefinitions();
 	}
 
-	function setSizeColor(name: string, color: string): void {
-		sizeDrafts = sizeDrafts.map((size) => (size.name === name ? { ...size, color } : size));
-		void saveDefinitions();
-	}
-
 	function updateCategory(index: number, value: string): void {
 		categoryDrafts = categoryDrafts.map((item, itemIndex) => (itemIndex === index ? value : item));
 	}
@@ -170,7 +165,6 @@
 	{categoryDrafts}
 	{setCategoryColor}
 	{setTypeColor}
-	{setSizeColor}
 	{typeDrafts}
 	{newCategoryText}
 	{newTypeText}

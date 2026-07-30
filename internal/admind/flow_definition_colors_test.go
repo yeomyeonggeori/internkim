@@ -18,7 +18,6 @@ func TestFlowDefinitionColorsPersist(t *testing.T) {
 	definitions.Types = []string{"기능"}
 	definitions.TypeColors = map[string]string{"기능": "#0891b2"}
 	definitions.Sizes = []flowSizeDefinition{sizeDefinition("T", 21, 64, "개발", "기타", "비고")}
-	definitions.Sizes[0].Color = "#16a34a"
 	if errorValue := service.writeFlowDefinitions(ctx, definitions); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -34,8 +33,5 @@ func TestFlowDefinitionColorsPersist(t *testing.T) {
 	}
 	if reloaded.TypeColors["기능"] != "#0891b2" {
 		t.Fatalf("typeColors = %#v", reloaded.TypeColors)
-	}
-	if len(reloaded.Sizes) != 1 || reloaded.Sizes[0].Color != "#16a34a" {
-		t.Fatalf("sizes = %#v", reloaded.Sizes)
 	}
 }

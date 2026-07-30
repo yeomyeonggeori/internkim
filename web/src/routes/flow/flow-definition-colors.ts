@@ -12,12 +12,6 @@ export function flowTaskTypeColor(type: string, definitions: FlowDefinitions): s
 	return definitionColor(type, definitions.types, definitions.typeColors, flowTypeColor);
 }
 
-export function flowSizeColor(sizeName: string, definitions: FlowDefinitions): string {
-	const size = definitions.sizes.find((candidate) => candidate.name === sizeName.trim());
-	if (!size?.color) return '';
-	return normalizeColor(size.color);
-}
-
 export function flowDefinitionBadgeStyle(color: string): string {
 	if (!color) return '';
 	return `background: ${color}; color: #ffffff;`;

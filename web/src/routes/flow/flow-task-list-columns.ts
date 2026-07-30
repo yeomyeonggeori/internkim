@@ -28,7 +28,6 @@ type FlowTaskListColumnsInput = {
 	memberEmail: (memberID: string) => string;
 	businessColor: (business: string) => string;
 	taskTypeColor: (type: string) => string;
-	sizeColor: (size: string) => string;
 };
 
 export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): ColumnDef<FlowTask>[] {
@@ -41,8 +40,7 @@ export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): Colu
 		canUpdateTask,
 		memberEmail,
 		businessColor,
-		taskTypeColor,
-		sizeColor
+		taskTypeColor
 	} = input;
 
 	return [
@@ -77,7 +75,7 @@ export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): Colu
 		{
 			accessorKey: 'size',
 			header: (context) => renderHeader(text.table.size, context.column),
-			cell: (info) => renderComponent(FlowTaskListSizeCell, { task: info.row.original, color: sizeColor(info.row.original.size) })
+			cell: (info) => renderComponent(FlowTaskListSizeCell, { task: info.row.original })
 		},
 		{
 			accessorKey: 'status',

@@ -28,7 +28,6 @@
 		weekPosition?: FlowTaskBoardWeekPosition;
 		businessColor: (business: string) => string;
 		taskTypeColor: (type: string) => string;
-		sizeColor: (size: string) => string;
 		memberEmail: (memberID: string) => string;
 	};
 
@@ -47,7 +46,6 @@
 		weekPosition = 'current',
 		businessColor,
 		taskTypeColor,
-		sizeColor,
 		memberEmail
 	}: Props = $props();
 
@@ -162,7 +160,6 @@
 										isOverduePlan={isOverdueFlowPlan(task, weekStartISO)}
 										{businessColor}
 										{taskTypeColor}
-										{sizeColor}
 										{businessFallback}
 										{openTask}
 										isPending={isTaskPending(task.id)}

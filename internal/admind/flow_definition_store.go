@@ -109,7 +109,7 @@ func readFlowDefinitionValues(ctx context.Context, database *sql.DB, kind string
 
 func readFlowSizeDefinitions(ctx context.Context, database *sql.DB) ([]flowSizeDefinition, error) {
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT name, distance_km, max_hours, development_example, other_example, note, color
+SELECT name, distance_km, max_hours, development_example, other_example, note
 FROM flow_size_definitions
 ORDER BY position, name`)
 	if errorValue != nil {
@@ -119,7 +119,7 @@ ORDER BY position, name`)
 	sizes := []flowSizeDefinition{}
 	for rows.Next() {
 		var size flowSizeDefinition
-		if errorValue := rows.Scan(&size.Name, &size.DistanceKM, &size.MaxHours, &size.DevelopmentExample, &size.OtherExample, &size.Note, &size.Color); errorValue != nil {
+		if errorValue := rows.Scan(&size.Name, &size.DistanceKM, &size.MaxHours, &size.DevelopmentExample, &size.OtherExample, &size.Note); errorValue != nil {
 			return nil, errorValue
 		}
 		size.Score = size.DistanceKM
@@ -179,8 +179,8 @@ func replaceFlowSizeDefinitions(ctx context.Context, transaction interface {
 	}
 	for index, size := range sizes {
 		if _, errorValue := transaction.ExecContext(ctx, `
-INSERT INTO flow_size_definitions(name, distance_km, max_hours, development_example, other_example, note, position, color)
-VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+INSERT INTO flow_size_definitions(name, distance_km, max_hours, development_example, other_example, note, position)
+VALUES(?, ?, ?, ?, ?, ?, ?)`,
 			size.Name,
 			size.DistanceKM,
 			size.MaxHours,
@@ -188,7 +188,6 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
 			size.OtherExample,
 			size.Note,
 			index,
-			strings.TrimSpace(size.Color),
 		); errorValue != nil {
 			return errorValue
 		}

@@ -246,8 +246,7 @@ function flowSizeDefinitionFromRecord(
 		label: stringFromValue(parsed.label, `${distanceKm}km · ${maxHours}h`),
 		developmentExample: stringFromValue(parsed.developmentExample, fallback?.developmentExample ?? ''),
 		otherExample: stringFromValue(parsed.otherExample, fallback?.otherExample ?? ''),
-		note: stringFromValue(parsed.note, fallback?.note ?? ''),
-		color: stringFromValue(parsed.color, fallback?.color ?? '')
+		note: stringFromValue(parsed.note, fallback?.note ?? '')
 	};
 }
 
