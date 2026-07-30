@@ -1,4 +1,6 @@
 <script lang="ts">
+	import FilterCombobox from '$lib/components/filter-combobox.svelte';
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as ButtonGroup from '$lib/components/ui/button-group';
@@ -26,6 +28,16 @@
 		goToNext: () => void;
 		navigateToDateKey: (dateKey: string) => void;
 		openSettings: () => void;
+		participantOptions: CalendarParticipantFilterOption[];
+		participantFilterKey: string;
+		selectParticipantFilter: (participantKey: string) => void;
+	};
+
+	type CalendarParticipantFilterOption = {
+		value: string;
+		label: string;
+		email: string;
+		image: string;
 	};
 
 	let {
@@ -38,7 +50,10 @@
 		goToToday,
 		goToNext,
 		navigateToDateKey,
-		openSettings
+		openSettings,
+		participantOptions,
+		participantFilterKey,
+		selectParticipantFilter
 	}: CalendarToolbarProps = $props();
 
 	const text = createPageText(calendarText);
@@ -74,6 +89,37 @@
 	</Popover.Root>
 
 	<div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+		<FilterCombobox
+			value={participantFilterKey}
+			options={participantOptions}
+			label={text.filterParticipant}
+			searchPlaceholder={text.draftPopover.participantsPlaceholder}
+			onSelect={selectParticipantFilter}
+			class="h-8 w-44"
+		>
+			{#snippet selectedContent(option)}
+				<PersonAvatar
+					name={option.label}
+					email={option.email}
+					seed={option.value}
+					image={option.image}
+					class="size-5 shrink-0"
+				/>
+				<span class="truncate">{option.label}</span>
+			{/snippet}
+			{#snippet optionContent(option)}
+				{#if option.value}
+					<PersonAvatar
+						name={option.label}
+						email={option.email}
+						seed={option.value}
+						image={option.image}
+						class="size-6"
+					/>
+				{/if}
+				<span class="truncate">{option.label}</span>
+			{/snippet}
+		</FilterCombobox>
 		<CalendarViewSwitcher {toolbarView} {changeCalendarView} />
 		<ButtonGroup.Root>
 			<TooltipIconButton label={stepLabels.previous} variant="outline" size="icon-sm" onclick={goToPrevious}>
