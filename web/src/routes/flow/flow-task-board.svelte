@@ -104,7 +104,7 @@
 
 <div class="sticky top-0 -mx-4 min-w-0 bg-background md:-mx-8">
 	<div class={boardScrollClass} data-flow-board-scroll use:flowTaskBoardViewportHeight>
-		<div class="flex h-full min-w-max gap-3">
+		<div class="flex h-full min-w-max gap-3 pr-4 md:pr-8">
 			{#each columns as column (column.status)}
 				<section
 					class={columnClass}
