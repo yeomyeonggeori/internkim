@@ -39,7 +39,7 @@ var StepBuzzRelay = Step{
 		connection.Run("DEBIAN_FRONTEND=noninteractive apt-get install -y -qq redis-server >/dev/null 2>&1; systemctl enable --now redis-server 2>/dev/null")
 		connection.Run("systemctl start postgresql 2>/dev/null; sleep 1")
 		connection.Run(buzzDatabaseProvisionCommand(ownerPubkey))
-		connection.Run(buzzRelayUnitInstallCommand(blueclaw.DeriveRelayPublicURL(context.PublicURL)))
+		connection.Run(buzzRelayUnitInstallCommand(blueclaw.BuzzRelayCanonicalWssURL))
 
 		fmt.Println("  " + context.T("Buzz 릴레이 설치 완료", "Buzz relay installed"))
 		return nil
@@ -67,9 +67,9 @@ su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='` + bluecla
 chmod 600 ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath
 }
 
-func buzzRelayUnitInstallCommand(relayPublicURL string) string {
+func buzzRelayUnitInstallCommand(relayCanonicalURL string) string {
 	return `cat > ` + blueclaw.BuzzRelayServicePath + ` <<'BUZZRELAYUNITEOF'
-` + blueclaw.BuzzRelayServiceUnit(relayPublicURL) + `BUZZRELAYUNITEOF
+` + blueclaw.BuzzRelayServiceUnit(relayCanonicalURL) + `BUZZRELAYUNITEOF
 systemctl daemon-reload
 systemctl enable buzz-relay
 systemctl restart buzz-relay`
