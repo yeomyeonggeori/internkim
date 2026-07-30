@@ -23,6 +23,7 @@
 		onTaskDrop?: (event: DragEvent, task: FlowTask) => void;
 		ownerChip?: Snippet;
 		isInteractive?: boolean;
+		memberEmail?: (memberID: string) => string;
 	};
 
 	let {
@@ -37,7 +38,8 @@
 		onTaskDragOver,
 		onTaskDrop,
 		ownerChip,
-		isInteractive = true
+		isInteractive = true,
+		memberEmail = () => ''
 	}: Props = $props();
 
 	let canDrag = $derived(isInteractive && isDraggable && !isPending && !isReadOnly);
@@ -130,11 +132,11 @@
 				{#if ownerChip}
 					{@render ownerChip()}
 				{:else}
-					<FlowTaskPersonChip name={display.ownerName} seed={task.ownerID || display.ownerName} image={personProfileImagePath(task.ownerID)} />
+					<FlowTaskPersonChip name={display.ownerName} email={memberEmail(task.ownerID)} seed={task.ownerID || display.ownerName} image={personProfileImagePath(task.ownerID)} />
 				{/if}
 				{#if primaryParticipantName}
 					<span class="inline-flex min-w-0 max-w-24 items-center gap-1.5">
-						<PersonAvatar name={primaryParticipantName} seed={primaryParticipantID || primaryParticipantName} image={personProfileImagePath(primaryParticipantID)} class="size-3.5 ring-1 ring-border/60" />
+						<PersonAvatar name={primaryParticipantName} email={memberEmail(primaryParticipantID)} seed={primaryParticipantID || primaryParticipantName} image={personProfileImagePath(primaryParticipantID)} class="size-3.5 ring-1 ring-border/60" />
 						<span class="truncate">{primaryParticipantName}</span>
 					</span>
 				{/if}

@@ -118,6 +118,7 @@ class FlowTasksController {
 	typeFilterOptions = () => this.filters.typeOptions(this.summary, this.text);
 	statusSelectOptions = () => statusSelectOptions(this.statusOptions(), this.statusLabel);
 	memberSelectOptions = () => memberSelectOptions(this.members());
+	memberEmail = (memberID: string) => this.members().find((member) => member.id === memberID)?.email ?? '';
 
 	filteredTasks = () => this.filters.tasks(this.tasks());
 

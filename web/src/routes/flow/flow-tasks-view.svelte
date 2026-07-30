@@ -94,6 +94,7 @@
 		</div>
 		<Tabs.Content value="board" class="min-h-[36rem]">
 			<FlowTaskBoard
+				memberEmail={page.memberEmail}
 				tasks={page.filteredTasks()}
 				boardText={text.task.board}
 				businessFallback={text.task.businessFallback}
@@ -109,6 +110,7 @@
 		</Tabs.Content>
 		<Tabs.Content value="list" class="min-h-[36rem]">
 			<FlowTaskListView
+				memberEmail={page.memberEmail}
 				tasks={page.filteredTasks()}
 				{text}
 				statusOptions={page.statusSelectOptions()}

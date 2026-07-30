@@ -33,7 +33,7 @@ export type DevFlowState = Omit<FlowState, 'metrics'> & {
 	metrics: DevFlowMetrics;
 };
 
-export function createDevFlowSummary(weekCode: string | null | undefined, currentUserEmail = 'admin@example.com'): DevFlowSummary {
+export function createDevFlowSummary(weekCode: string | null | undefined, currentUserEmail = 'kim@example.com'): DevFlowSummary {
 	const state = createDevFlowState(currentUserEmail);
 	const weeklySummary = createDevFlowWeeklySummary(weekCode);
 
@@ -75,7 +75,7 @@ export function createDevFlowWeeklySummary(weekCode: string | null | undefined):
 	};
 }
 
-export function createDevFlowState(currentUserEmail = 'admin@example.com'): DevFlowState {
+export function createDevFlowState(currentUserEmail = 'kim@example.com'): DevFlowState {
 	const currentWeek = buildFlowWeek(undefined);
 	const tasks = createGlobalFixtureTasks(currentWeek);
 	const definitions = createDevFlowDefinitions();

@@ -29,7 +29,7 @@ export const devFlowSizes: FlowSizeDefinition[] = [
 ];
 
 export const devFlowMembers: FlowMember[] = [
-	member('kim-intern', '김철수', 'admin@example.com', 'admin', '2026-03-02'),
+	member('kim-intern', '김철수', 'kim@example.com', 'admin', '2026-03-02'),
 	member('designer', '이영희', 'designer@example.com', 'member', '2026-03-09'),
 	member('engineer', '박민준', 'engineer@example.com', 'member', '2026-03-16'),
 	member('operator', '최서연', 'operator@example.com', 'member', '2026-03-23'),

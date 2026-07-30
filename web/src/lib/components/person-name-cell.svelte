@@ -6,16 +6,17 @@
 	type Props = {
 		name: string;
 		personID?: string;
+		email?: string;
 		fallback?: string;
 		class?: string;
 	};
 
-	let { name, personID = '', fallback = '—', class: className }: Props = $props();
+	let { name, personID = '', email = '', fallback = '—', class: className }: Props = $props();
 </script>
 
 {#if name || personID}
 	<div class={cn('flex min-w-0 items-center gap-2 font-medium', className)}>
-		<PersonAvatar name={name || personID} seed={personID || name} image={personProfileImagePath(personID)} class="size-6" />
+		<PersonAvatar name={name || personID} {email} seed={personID || name} image={personProfileImagePath(personID)} class="size-6" />
 		<span class="truncate">{name || personID}</span>
 	</div>
 {:else}
