@@ -13,6 +13,7 @@
 	import WorkSegmentSummary from '../shared/work-segment-summary.svelte';
 	import type { AttendanceText } from '../text';
 	import type { TeamStatusDayDetail } from './team-status-day-detail';
+	import TeamStatusLeaveSegmentSummary from './team-status-leave-segment-summary.svelte';
 	import { WorkRecordEditorState } from './work-record-editor.svelte';
 
 	type Props = {
@@ -37,6 +38,9 @@
 	const canEditWorkRecords = $derived(
 		isOwnDay && detail.day.segments.length > 0 && attendanceLocations.length > 0
 	);
+	const displayedSegmentCount = $derived(
+		detail.day.timelineSegments.length || detail.day.segments.length
+	);
 
 	$effect(() => {
 		if (!workRecordEditor.isEditing) return;
@@ -57,11 +61,14 @@
 		<h3 class="truncate text-sm font-semibold">{text.workRecords}</h3>
 		<span
 			class={sectionCountBadgeClass}
-			aria-label={text.locationSegmentCountTemplate.replace('{count}', String(detail.day.segments.length))}
+			aria-label={text.locationSegmentCountTemplate.replace(
+				'{count}',
+				String(displayedSegmentCount)
+			)}
 			data-slot="section-count-badge"
 			data-testid="section-count-badge"
 		>
-			{text.locationSegmentCountTemplate.replace('{count}', String(detail.day.segments.length))}
+			{text.locationSegmentCountTemplate.replace('{count}', String(displayedSegmentCount))}
 		</span>
 	</div>
 	<div class="flex shrink-0 items-center gap-2">
@@ -115,46 +122,78 @@
 				</span>
 			</div>
 		</div>
-	{:else if detail.day.segments.length}
+	{:else if detail.day.timelineSegments.length}
 		<div class="grid gap-2">
-			{#each detail.day.segments as segment (segment.id)}
-				{@const startDraft = workRecordEditor.draftFor(segment.startEventID)}
-				{@const endDraft = workRecordEditor.draftFor(segment.endEventID)}
-				{@const draftLocation = attendanceLocations.find((location) => location.id === startDraft?.locationID)}
-				{@const displayStartTime = workRecordEditor.displayTime(startDraft, detail.day.date, segment.startTime)}
-				{@const displayEndTime = workRecordEditor.displayTime(endDraft, detail.day.date, segment.endTime)}
-				{@const displayDurationMinutes = startDraft
-					? workRecordEditor.durationMinutes(displayStartTime, displayEndTime)
-					: segment.durationMinutes}
-				<div
-					class="rounded-lg border border-border/70 bg-card px-3.5 py-3 shadow-sm"
-					data-testid="team-status-day-segment"
-					data-state={segment.isOpen ? 'open' : 'closed'}
-				>
-					<WorkSegmentSummary
-						locationName={draftLocation?.name ?? segment.locationName}
-						locationColor={draftLocation?.color ?? segment.locationColor}
-						startTime={displayStartTime}
-						endTime={displayEndTime}
-						durationMinutes={displayDurationMinutes}
-						isOpen={segment.isOpen}
-					/>
-					{#if workRecordEditor.isEditing && startDraft}
-						<WorkSegmentEditFields
-							startTime={startDraft.localTime}
-							endTime={endDraft?.localTime}
-							locationID={startDraft.locationID}
-							locations={attendanceLocations}
-							isSaving={workRecordEditor.isSaving}
-							startMaximumTime={workRecordEditor.maximumTimeFor(startDraft.localDate)}
-							endMaximumTime={workRecordEditor.maximumTimeFor(endDraft?.localDate)}
-							{text}
-							onStartTimeChange={(value) => workRecordEditor.updateEventTime(segment.startEventID, value)}
-							onEndTimeChange={(value) => workRecordEditor.updateEventTime(segment.endEventID, value)}
-							onLocationChange={(value) => workRecordEditor.updateSegmentLocation(segment, value)}
+			{#each detail.day.timelineSegments as timelineSegment (timelineSegment.id)}
+				{#if timelineSegment.kind === 'leave'}
+					<div
+						class="rounded-lg border border-border/70 bg-card px-3.5 py-3 shadow-sm"
+						data-testid="team-status-day-leave-segment"
+					>
+						<TeamStatusLeaveSegmentSummary
+							label={timelineSegment.label}
+							startTime={timelineSegment.startTime}
+							endTime={timelineSegment.endTime}
+							durationMinutes={timelineSegment.durationMinutes}
 						/>
+					</div>
+				{:else}
+					{@const segment = detail.day.segments.find(
+						(candidate) => candidate.id === timelineSegment.id
+					)}
+					{#if segment}
+						{@const startDraft = workRecordEditor.draftFor(segment.startEventID)}
+						{@const endDraft = workRecordEditor.draftFor(segment.endEventID)}
+						{@const draftLocation = attendanceLocations.find(
+							(location) => location.id === startDraft?.locationID
+						)}
+						{@const displayStartTime = workRecordEditor.displayTime(
+							startDraft,
+							detail.day.date,
+							segment.startTime
+						)}
+						{@const displayEndTime = workRecordEditor.displayTime(
+							endDraft,
+							detail.day.date,
+							segment.endTime
+						)}
+						{@const displayDurationMinutes = startDraft
+							? workRecordEditor.durationMinutes(displayStartTime, displayEndTime)
+							: segment.durationMinutes}
+						<div
+							class="rounded-lg border border-border/70 bg-card px-3.5 py-3 shadow-sm"
+							data-testid="team-status-day-segment"
+							data-state={segment.isOpen ? 'open' : 'closed'}
+						>
+							<WorkSegmentSummary
+								locationName={draftLocation?.name ?? segment.locationName}
+								locationColor={draftLocation?.color ?? segment.locationColor}
+								startTime={displayStartTime}
+								endTime={displayEndTime}
+								durationMinutes={displayDurationMinutes}
+								isOpen={segment.isOpen}
+							/>
+							{#if workRecordEditor.isEditing && startDraft}
+								<WorkSegmentEditFields
+									startTime={startDraft.localTime}
+									endTime={endDraft?.localTime}
+									locationID={startDraft.locationID}
+									locations={attendanceLocations}
+									isSaving={workRecordEditor.isSaving}
+									startMaximumTime={workRecordEditor.maximumTimeFor(startDraft.localDate)}
+									endMaximumTime={workRecordEditor.maximumTimeFor(endDraft?.localDate)}
+									{text}
+									onStartTimeChange={(value) =>
+										workRecordEditor.updateEventTime(segment.startEventID, value)}
+									onEndTimeChange={(value) =>
+										workRecordEditor.updateEventTime(segment.endEventID, value)}
+									onLocationChange={(value) =>
+										workRecordEditor.updateSegmentLocation(segment, value)}
+								/>
+							{/if}
+						</div>
 					{/if}
-				</div>
+				{/if}
 			{/each}
 		</div>
 	{:else}

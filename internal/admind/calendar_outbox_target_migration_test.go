@@ -8,7 +8,7 @@ import (
 func TestCalendarOutboxSchemaBackfillsLegacyTargetlessRowsSafely(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
-	database, errorValue := service.openSQLiteDatabase(ctx, service.Configuration.CalendarDatabasePath, nil)
+	database, errorValue := service.openSQLiteDatabase(ctx, service.stateDatabasePath(), nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -70,7 +70,7 @@ INSERT INTO calendar_outbox (
 	if errorValue := database.Close(); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	database, errorValue = service.openSQLiteDatabase(ctx, service.Configuration.CalendarDatabasePath, nil)
+	database, errorValue = service.openSQLiteDatabase(ctx, service.stateDatabasePath(), nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -98,7 +98,7 @@ END;`)
 	if errorValue := database.Close(); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	database, errorValue = service.openSQLiteDatabase(ctx, service.Configuration.CalendarDatabasePath, nil)
+	database, errorValue = service.openSQLiteDatabase(ctx, service.stateDatabasePath(), nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

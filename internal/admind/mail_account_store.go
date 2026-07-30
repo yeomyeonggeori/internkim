@@ -8,7 +8,7 @@ import (
 )
 
 func (service *Service) openMailDatabase(ctx context.Context) (*sql.DB, error) {
-	return service.openSQLiteDatabase(ctx, service.Configuration.MailDatabasePath, ensureMailSchema)
+	return service.openStateDatabase(ctx, "mail", ensureMailSchema, sqliteDatabaseOptions{})
 }
 
 func ensureMailSchema(ctx context.Context, database *sql.DB) error {

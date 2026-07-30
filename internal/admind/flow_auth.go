@@ -217,7 +217,7 @@ func (service *Service) isEmailInUsersSyncCache(actorEmail string) bool {
 	if normalizedEmail == "" {
 		return false
 	}
-	stateDirectory := filepath.Dir(service.Configuration.FlowDatabasePath)
+	stateDirectory := filepath.Dir(service.stateDatabasePath())
 	content, errorValue := os.ReadFile(filepath.Join(stateDirectory, "users-sync.json"))
 	if errorValue != nil {
 		return false

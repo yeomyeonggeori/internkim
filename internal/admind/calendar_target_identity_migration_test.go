@@ -284,7 +284,7 @@ END;`)
 		database.Close()
 		t.Fatal("migration unexpectedly succeeded")
 	}
-	database, errorValue = service.openSQLiteDatabase(ctx, service.Configuration.CalendarDatabasePath, nil)
+	database, errorValue = service.openSQLiteDatabase(ctx, service.stateDatabasePath(), nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

@@ -137,7 +137,6 @@ func TestCalendarEventMutationReportsTargetUnavailable(t *testing.T) {
 
 func calendarTargetUnavailableRequestBody(eventID string, title string) string {
 	payload := calendarEventWriteRequest{
-		EventID:  eventID,
 		Title:    title,
 		StartISO: "2026-07-16T01:00:00Z",
 		EndISO:   "2026-07-16T02:00:00Z",

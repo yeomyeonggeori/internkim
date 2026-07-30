@@ -86,6 +86,8 @@ type attendanceAbsence struct {
 	Date         string `json:"date"`
 	StartDate    string `json:"startDate,omitempty"`
 	EndDate      string `json:"endDate,omitempty"`
+	StartTime    string `json:"startTime,omitempty"`
+	EndTime      string `json:"endTime,omitempty"`
 	Reason       string `json:"reason,omitempty"`
 	CreatedBy    string `json:"createdBy,omitempty"`
 	CreatedAt    string `json:"createdAt"`
@@ -111,19 +113,20 @@ type attendanceAbsenceRange struct {
 }
 
 type attendanceSummaryResponse struct {
-	Month                 string               `json:"month"`
-	ServerTime            string               `json:"serverTime"`
-	CurrentUserEmail      string               `json:"currentUserEmail"`
-	IsAdmin               bool                 `json:"isAdmin"`
-	TimeZone              string               `json:"timeZone"`
-	TimeZoneAuthoritative bool                 `json:"timeZoneAuthoritative"`
-	Events                []attendanceEvent    `json:"events"`
-	Absences              []attendanceAbsence  `json:"absences"`
-	Members               []attendanceMember   `json:"members"`
-	TodayStatus           string               `json:"todayStatus"`
-	Locations             []attendanceLocation `json:"locations"`
-	TeamViewVisibleToAll  bool                 `json:"teamViewVisibleToAll"`
-	TeamViewBlocked       bool                 `json:"teamViewBlocked"`
+	Month                 string                     `json:"month"`
+	ServerTime            string                     `json:"serverTime"`
+	CurrentUserEmail      string                     `json:"currentUserEmail"`
+	IsAdmin               bool                       `json:"isAdmin"`
+	TimeZone              string                     `json:"timeZone"`
+	TimeZoneAuthoritative bool                       `json:"timeZoneAuthoritative"`
+	Events                []attendanceEvent          `json:"events"`
+	Absences              []attendanceAbsence        `json:"absences"`
+	Members               []attendanceMember         `json:"members"`
+	TodayStatus           string                     `json:"todayStatus"`
+	ActiveLeave           *attendanceActiveLeaveView `json:"activeLeave,omitempty"`
+	Locations             []attendanceLocation       `json:"locations"`
+	TeamViewVisibleToAll  bool                       `json:"teamViewVisibleToAll"`
+	TeamViewBlocked       bool                       `json:"teamViewBlocked"`
 }
 
 type attendanceMember struct {
@@ -131,6 +134,8 @@ type attendanceMember struct {
 	DisplayName        string `json:"displayName"`
 	Image              string `json:"image,omitempty"`
 	MattermostUsername string `json:"mattermostUsername"`
+	UserID             string `json:"-"`
+	HireDate           string `json:"-"`
 }
 
 type attendanceAbsenceRequest struct {

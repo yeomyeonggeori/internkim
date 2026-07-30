@@ -253,6 +253,7 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 	if errorValue := transaction.Commit(); errorValue != nil {
 		return errorValue
 	}
+	service.deletePairedFlowTaskForCalendarEvent(ctx, event.ID)
 	service.runCalendarStoreSideEffectUnlocked(func() {
 		service.reconcileCalendarEventNotifications(ctx, eventID)
 		service.applyCalendarMattermostProjectionByID(ctx, event.ID)

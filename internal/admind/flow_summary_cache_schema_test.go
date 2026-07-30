@@ -11,7 +11,7 @@ import (
 
 func TestEnsureFlowSummaryCacheSchemaCreatesExactTables(t *testing.T) {
 	service := NewService(Configuration{FlowDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
-	database, errorValue := service.openSQLiteDatabase(context.Background(), service.Configuration.FlowDatabasePath, nil)
+	database, errorValue := service.openSQLiteDatabase(context.Background(), service.stateDatabasePath(), nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -25,7 +25,7 @@ func TestEnsureFlowSummaryCacheSchemaCreatesExactTables(t *testing.T) {
 
 func TestEnsureFlowSummaryCacheSchemaDoesNotClearDerivedEntries(t *testing.T) {
 	service := NewService(Configuration{FlowDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
-	database, errorValue := service.openSQLiteDatabase(context.Background(), service.Configuration.FlowDatabasePath, nil)
+	database, errorValue := service.openSQLiteDatabase(context.Background(), service.stateDatabasePath(), nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -55,7 +55,7 @@ func TestEnsureFlowSummaryCacheSchemaDoesNotClearDerivedEntries(t *testing.T) {
 
 func TestEnsureFlowSummaryCacheSchemaPreservesLegacyFlowData(t *testing.T) {
 	service := NewService(Configuration{FlowDatabasePath: filepath.Join(t.TempDir(), "legacy-flow.sqlite")})
-	database, errorValue := service.openSQLiteDatabase(context.Background(), service.Configuration.FlowDatabasePath, nil)
+	database, errorValue := service.openSQLiteDatabase(context.Background(), service.stateDatabasePath(), nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

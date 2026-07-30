@@ -50,6 +50,7 @@ type Configuration struct {
 	CapabilitySocketPath           string
 	StateDirectory                 string
 	CompanionJobPath               string
+	DatabasePath                   string
 	FlowDatabasePath               string
 	CalendarDatabasePath           string
 	CalendarSecretsDirectory       string
@@ -96,9 +97,9 @@ type Configuration struct {
 	BuzzAccountLinksPath           string
 	BuzzKeySeedPath                string
 	BuzzRelayKeyPath               string
-	CloudflareAccessTeamDomain string
-	CloudflareAccessAUDs       string
-	TrustProxyForwardedEmail   bool
+	CloudflareAccessTeamDomain     string
+	CloudflareAccessAUDs           string
+	TrustProxyForwardedEmail       bool
 }
 
 type Service struct {
@@ -147,10 +148,12 @@ type Service struct {
 	calendarActorCache         map[string]calendarActorProfileCacheEntry
 	companyShareMutex          sync.Mutex
 	companyShareAttempts       map[string]companyShareAttempt
+	attendanceLeavePolicyMutationMutex sync.Mutex
 	policyRecordCacheMutex     sync.Mutex
 	policyRecordCache          []adminUserMutation
 	requestMetrics             *adminRequestMetrics
 	databaseSchemas            *adminDatabaseSchemas
+	legacyDatabaseMigration    sync.Once
 	calendarWindowCache        calendarEventWindowCacheAvailability
 	calendarWindowBuilds       calendarEventWindowCacheBuildCoordinator
 	mattermostSessions         *mattermostSessionCache
@@ -995,6 +998,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeAttendanceLocations(responseWriter)
 	case request.Method == http.MethodPut && path == "/attendance-locations":
 		service.updateAttendanceLocations(responseWriter, request)
+	case (request.Method == http.MethodGet || request.Method == http.MethodPut) && path == "/attendance-leave-policy":
+		service.handleAttendanceLeavePolicy(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/wifi-profiles":
 		service.writeWifiProfiles(responseWriter)
 	case request.Method == http.MethodPost && path == "/wifi-profiles":
@@ -2633,6 +2638,7 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.StateDirectory == "" {
 		configuration.StateDirectory = defaultConfiguration.StateDirectory
 	}
+	configuration.DatabasePath = resolvedStateDatabasePath(configuration, defaultConfiguration)
 	if configuration.CompanionJobPath == "" {
 		if configuration.StateDirectory == defaultConfiguration.StateDirectory {
 			configuration.CompanionJobPath = defaultConfiguration.CompanionJobPath

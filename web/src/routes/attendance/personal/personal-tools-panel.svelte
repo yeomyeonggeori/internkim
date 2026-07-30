@@ -1,13 +1,11 @@
 <script lang="ts">
-	import { buttonVariants } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import * as Dialog from '$lib/components/ui/dialog';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { cn } from '$lib/utils';
 	import { getAttendanceState } from '../attendance-context.svelte';
-	import AbsenceForm from '../absence-form.svelte';
 	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
 	import DeferredSection from '$lib/components/deferred-section.svelte';
+	import LeaveBalanceSummary from '../leave/leave-balance-summary.svelte';
+	import LeaveRequestDialog from '../leave/leave-request-dialog.svelte';
 	import QuickActions from '../quick-actions.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { formatHoursMinutes } from '../shared/attendance-format';
@@ -38,7 +36,7 @@
 </script>
 
 <div
-	class={`min-h-0 space-y-4 overflow-auto ${containerClass}`}
+	class={`min-h-0 space-y-4 ${containerClass}`}
 	data-testid="personal-tools-panel"
 >
 	{#if !attendance.summary}
@@ -57,16 +55,7 @@
 				<Skeleton class="h-40 w-full rounded-xl" />
 			{/snippet}
 		</DeferredSection>
-		<Dialog.Root>
-			<Dialog.Trigger class={cn(buttonVariants({ variant: 'outline' }), 'w-full')}>
-				{text.absenceFormTitle}
-			</Dialog.Trigger>
-			<Dialog.Content class="max-w-md">
-				<Dialog.Header>
-					<Dialog.Title>{text.absenceFormTitle}</Dialog.Title>
-				</Dialog.Header>
-				<AbsenceForm />
-			</Dialog.Content>
-		</Dialog.Root>
+		<LeaveBalanceSummary />
+		<LeaveRequestDialog />
 	{/if}
 </div>

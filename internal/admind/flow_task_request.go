@@ -4,13 +4,17 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-	"time"
 )
 
 func (service *Service) flowTaskFromRequest(request *http.Request, members []flowMember, definitions flowDefinitions, taskID string) (flowTask, error) {
+	task, _, errorValue := service.flowTaskAndPayloadFromRequest(request, members, definitions, taskID)
+	return task, errorValue
+}
+
+func (service *Service) flowTaskAndPayloadFromRequest(request *http.Request, members []flowMember, definitions flowDefinitions, taskID string) (flowTask, flowTaskWriteRequest, error) {
 	var payload flowTaskWriteRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		return flowTask{}, errorValue
+		return flowTask{}, payload, errorValue
 	}
 	memberByID := map[string]flowMember{}
 	for _, member := range members {
@@ -18,7 +22,7 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 	}
 	owner, found := memberByID[strings.TrimSpace(payload.OwnerID)]
 	if !found {
-		return flowTask{}, flowValidationError("ownerID is not a known member")
+		return flowTask{}, payload, flowValidationError("ownerID is not a known member")
 	}
 	participantIDs := uniqueNonEmpty(payload.ParticipantIDs)
 	if len(participantIDs) == 0 {
@@ -31,20 +35,20 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 	for _, memberID := range participantIDs {
 		member, found := memberByID[memberID]
 		if !found {
-			return flowTask{}, flowValidationError("participantID is not a known member")
+			return flowTask{}, payload, flowValidationError("participantID is not a known member")
 		}
 		participants = append(participants, member)
 	}
 	content := strings.TrimSpace(payload.Content)
 	if content == "" {
-		return flowTask{}, flowValidationError("content is required")
+		return flowTask{}, payload, flowValidationError("content is required")
 	}
 	status := firstNonEmpty(cleanFlowStatus(payload.Status), defaultFlowStatus())
 	statusRank := 0
 	statusRankProvided := payload.StatusRank != nil
 	if payload.StatusRank != nil {
 		if *payload.StatusRank < 0 {
-			return flowTask{}, flowValidationError("statusRank must be zero or greater")
+			return flowTask{}, payload, flowValidationError("statusRank must be zero or greater")
 		}
 		statusRank = *payload.StatusRank
 	}
@@ -54,36 +58,32 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 		payload.RequestReason = firstNonEmpty(strings.TrimSpace(payload.RequestReason), "타인 업무 추가 요청")
 	}
 	if !isAllowedFlowStatus(status) {
-		return flowTask{}, flowValidationError("status is not allowed")
+		return flowTask{}, payload, flowValidationError("status is not allowed")
 	}
 	category := strings.TrimSpace(firstNonEmpty(payload.Category, payload.Business))
 	if category != "" && len(definitions.Categories) > 0 && !containsString(definitions.Categories, category) {
-		return flowTask{}, flowValidationError("category is not allowed")
+		return flowTask{}, payload, flowValidationError("category is not allowed")
 	}
 	taskType := firstNonEmpty(strings.TrimSpace(payload.Type), "기타")
 	if !containsString(definitions.Types, taskType) {
-		return flowTask{}, flowValidationError("type is not allowed")
+		return flowTask{}, payload, flowValidationError("type is not allowed")
 	}
 	size := firstNonEmpty(strings.ToUpper(strings.TrimSpace(payload.Size)), "M")
 	if !containsFlowSize(definitions.Sizes, size) {
-		return flowTask{}, flowValidationError("size is not allowed")
+		return flowTask{}, payload, flowValidationError("size is not allowed")
 	}
 	now := flowDateNow()
 	canonicalWeekCode, errorValue := canonicalFlowTaskWeekCode(payload.WeekCode, now)
 	if errorValue != nil {
-		return flowTask{}, errorValue
+		return flowTask{}, payload, errorValue
 	}
 	payload.WeekCode = canonicalWeekCode
 	if errorValue := validateFlowTaskDateInput(payload.StartDate, payload.EndDate, now.Location()); errorValue != nil {
-		return flowTask{}, errorValue
+		return flowTask{}, payload, errorValue
 	}
 	dates := normalizeFlowTaskDates(payload, status, now)
-	id := strings.TrimSpace(taskID)
-	if id == "" {
-		id = stableFlowID(dates.WeekCode + owner.ID + content + time.Now().UTC().Format(time.RFC3339Nano))
-	}
 	return flowTask{
-		ID:                 id,
+		ID:                 strings.TrimSpace(taskID),
 		OwnerID:            owner.ID,
 		OwnerName:          owner.Name,
 		ParticipantIDs:     memberIDs(participants),
@@ -102,5 +102,5 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 		Flag:               payload.Flag,
 		RequestReason:      strings.TrimSpace(payload.RequestReason),
 		DecisionReason:     strings.TrimSpace(payload.DecisionReason),
-	}, nil
+	}, payload, nil
 }
