@@ -567,6 +567,8 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/_internkim/runtime/", service.handleRuntime)
 	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
 	multiplexer.HandleFunc("/_internkim/mattermost/actions", service.handleMattermostInteractiveAction)
+	multiplexer.Handle(relayProxyPrefix, service.handleRelayProxy())
+	multiplexer.Handle(relayProxyPrefix+"/", service.handleRelayProxy())
 	multiplexer.HandleFunc("/messenger", service.serveBoardSection("messenger"))
 	multiplexer.HandleFunc("/messenger/", service.serveBoardSection("messenger"))
 	multiplexer.HandleFunc("/settings", service.serveBoardSection("settings"))
