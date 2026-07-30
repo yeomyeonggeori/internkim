@@ -146,6 +146,7 @@ type Service struct {
 	calendarActorCache         map[string]calendarActorProfileCacheEntry
 	companyShareMutex          sync.Mutex
 	companyShareAttempts       map[string]companyShareAttempt
+	attendanceLeavePolicyMutationMutex sync.Mutex
 	policyRecordCacheMutex     sync.Mutex
 	policyRecordCache          []adminUserMutation
 	requestMetrics             *adminRequestMetrics

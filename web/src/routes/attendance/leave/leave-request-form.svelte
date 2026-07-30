@@ -108,6 +108,9 @@
 	}
 
 	function selectedLeaveBalanceText(leaveType: EmployeeLeaveType): string {
+		if (employeeLeave.payload?.balanceTrackingMode === 'unlimited') {
+			return text.leave.selectedBalanceUnlimited;
+		}
 		if (leaveType.balanceMode === 'none') return text.leave.selectedBalanceUntracked;
 		const available = `${milliDaysValue(leaveType.balance?.availableMilliDays ?? 0)}${text.leave.dayUnit}`;
 		const reserved = `${milliDaysValue(leaveType.balance?.reservedMilliDays ?? 0)}${text.leave.dayUnit}`;

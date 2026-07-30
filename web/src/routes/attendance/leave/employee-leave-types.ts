@@ -1,11 +1,8 @@
 export type EmployeeLeaveBalanceMode = 'annual' | 'separate' | 'none';
+export type EmployeeLeaveBalanceTrackingMode = 'managed' | 'unlimited';
 export type EmployeeLeaveUnit = 'fullDay' | 'halfDay' | 'quarterDay';
 export type EmployeeLeaveStatus =
-	| 'pending'
-	| 'needsChanges'
-	| 'approved'
-	| 'rejected'
-	| 'cancelled';
+	'pending' | 'needsChanges' | 'approved' | 'rejected' | 'cancelled';
 export type EmployeeLeavePartialPeriod = 'morning' | 'afternoon' | 'custom';
 export const employeeLeaveErrorCodes = [
 	'invalidInput',
@@ -88,6 +85,7 @@ export type EmployeeLeaveLedgerEntry = {
 };
 
 export type EmployeeLeavePayload = {
+	balanceTrackingMode: EmployeeLeaveBalanceTrackingMode;
 	leaveTypes: EmployeeLeaveType[];
 	summary: EmployeeLeaveSummary;
 	requests: EmployeeLeaveRequest[];

@@ -8,7 +8,10 @@ import type {
 import type { DevEmployeeLeaveMockState } from './dev-attendance-leave-mock';
 import type { DevEmployeeLeaveAttachmentInput } from './dev-attendance-leave-multipart';
 import { buildEmployeeLeavePreview } from './dev-attendance-leave-preview';
-import { applyEmployeeLeaveBalanceMutation } from './dev-attendance-leave-balance';
+import {
+	applyEmployeeLeaveBalanceMutation,
+	synchronizeUnlimitedEmployeeLeaveUsage
+} from './dev-attendance-leave-balance';
 
 export function createEmployeeLeaveRequest(
 	state: DevEmployeeLeaveMockState,
@@ -47,6 +50,7 @@ export function createEmployeeLeaveRequest(
 	};
 	state.payload.requests.unshift(request);
 	reserveBalance(state, request, preview.totalDeductionMilliDays, createdAt);
+	synchronizeUnlimitedEmployeeLeaveUsage(state.payload);
 	return structuredClone(request);
 }
 
@@ -88,11 +92,11 @@ export function resubmitEmployeeLeaveRequest(
 		updatedAt
 	};
 	state.payload.requests[requestIndex] = nextRequest;
-	const deductionDifference =
-		preview.totalDeductionMilliDays - previousRequest.deductionMilliDays;
+	const deductionDifference = preview.totalDeductionMilliDays - previousRequest.deductionMilliDays;
 	if (deductionDifference !== 0) {
 		reserveBalance(state, nextRequest, deductionDifference, updatedAt);
 	}
+	synchronizeUnlimitedEmployeeLeaveUsage(state.payload);
 	return structuredClone(nextRequest);
 }
 
@@ -141,6 +145,7 @@ export function updateEmployeeLeaveRequest(
 	releaseBalance(state, previousRequest, updatedAt);
 	state.payload.requests[requestIndex] = nextRequest;
 	reserveBalance(state, nextRequest, preview.totalDeductionMilliDays, updatedAt);
+	synchronizeUnlimitedEmployeeLeaveUsage(state.payload);
 	return structuredClone(nextRequest);
 }
 
@@ -160,6 +165,7 @@ export function cancelEmployeeLeaveRequest(
 				ledgerEntry.requestID = undefined;
 			}
 		}
+		synchronizeUnlimitedEmployeeLeaveUsage(state.payload);
 		return structuredClone(previousRequest);
 	}
 	if (previousRequest.status !== 'approved') return undefined;
@@ -173,6 +179,7 @@ export function cancelEmployeeLeaveRequest(
 	};
 	state.payload.requests[requestIndex] = nextRequest;
 	restoreUsedBalance(state, nextRequest, updatedAt);
+	synchronizeUnlimitedEmployeeLeaveUsage(state.payload);
 	return structuredClone(nextRequest);
 }
 

@@ -42,9 +42,10 @@ type attendanceLeaveManagementDetailView struct {
 }
 
 type attendanceLeaveManagementResponse struct {
-	LeaveTypes []attendanceLeaveTypeView               `json:"leaveTypes"`
-	Employees  []attendanceLeaveManagementEmployeeView `json:"employees"`
-	Detail     *attendanceLeaveManagementDetailView    `json:"detail,omitempty"`
+	BalanceTrackingMode string                                  `json:"balanceTrackingMode"`
+	LeaveTypes          []attendanceLeaveTypeView               `json:"leaveTypes"`
+	Employees           []attendanceLeaveManagementEmployeeView `json:"employees"`
+	Detail              *attendanceLeaveManagementDetailView    `json:"detail,omitempty"`
 }
 
 type attendanceLeaveManagementAdjustmentInput struct {

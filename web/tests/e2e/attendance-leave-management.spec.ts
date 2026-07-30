@@ -10,9 +10,7 @@ test.describe('administrator employee leave management', () => {
 	test('keeps the latest employee selection when responses finish out of order', async ({
 		page
 	}) => {
-		const managementState = createDevLeaveManagementMockState(
-			createDevEmployeeLeaveMockState()
-		);
+		const managementState = createDevLeaveManagementMockState(createDevEmployeeLeaveMockState());
 		let releaseFirstSelection: () => void = () => undefined;
 		let markFirstSelectionRequested: () => void = () => undefined;
 		const firstSelectionRequested = new Promise<void>((resolve) => {
@@ -72,10 +70,52 @@ test.describe('administrator employee leave management', () => {
 		await expect(view.getByText('남음 11.5일')).toBeVisible();
 	});
 
+	test('shows usage-only employee management in unlimited leave mode', async ({ page }) => {
+		const managementState = createDevLeaveManagementMockState(createDevEmployeeLeaveMockState());
+		managementState.leave.payload.balanceTrackingMode = 'unlimited';
+		await page.route('**/attendance/api/leave-management**', async (route) => {
+			const request = route.request();
+			const requestURL = new URL(request.url());
+			const response = createDevLeaveManagementMockResponse(managementState, {
+				method: request.method(),
+				pathname: requestURL.pathname,
+				searchParams: requestURL.searchParams,
+				body: request.postData() ?? undefined
+			});
+			if (!response) {
+				await route.fallback();
+				return;
+			}
+			await route.fulfill({
+				status: response.status,
+				contentType: 'application/json',
+				body: JSON.stringify(response.body)
+			});
+		});
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId('leave-management-navigation').click();
+
+		const view = page.getByTestId('leave-management-view');
+		await expect(view.getByText('직원별 휴가 사용량과 승인 대기량을 확인합니다.')).toBeVisible();
+		await expect(view.getByRole('button', { name: '휴가 잔여량 조정' })).toHaveCount(0);
+		await expect(view.getByRole('columnheader', { name: '부여' })).toHaveCount(0);
+		await expect(view.getByRole('columnheader', { name: '남음' })).toHaveCount(0);
+		await expect(view.getByRole('columnheader', { name: '사용' })).toBeVisible();
+		await expect(view.getByRole('columnheader', { name: '대기' })).toBeVisible();
+
+		await view.getByRole('button', { name: '김철수 kim@example.com' }).click();
+		await expect(view.getByText('잔여량 변동')).toHaveCount(0);
+		await expect(
+			view.getByTestId('leave-management-employee-detail-header').getByText('김철수')
+		).toBeVisible();
+		await expect(view.getByText('사용 1일')).toBeVisible();
+		await expect(view.getByText('대기 0.5일')).toBeVisible();
+		await expect(view.getByRole('button', { name: '과거 휴가 등록' })).toBeVisible();
+	});
+
 	test('reviews balances, adjusts leave, and adds a past leave record', async ({ page }) => {
-		const managementState = createDevLeaveManagementMockState(
-			createDevEmployeeLeaveMockState()
-		);
+		const managementState = createDevLeaveManagementMockState(createDevEmployeeLeaveMockState());
 		let shouldDelayManagementRequest = false;
 		let releaseRefresh: () => void = () => undefined;
 		let markRefreshRequested: () => void = () => undefined;

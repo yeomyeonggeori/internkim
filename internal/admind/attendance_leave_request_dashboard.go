@@ -25,50 +25,67 @@ func (service *Service) readAttendanceLeaveDashboard(
 	}
 	defer database.Close()
 	dashboard := attendanceLeaveDashboard{
-		Requests:      []attendanceLeaveRequestView{},
-		LedgerEntries: []attendanceLeaveLedgerView{},
+		BalanceTrackingMode: policy.BalanceTrackingMode,
+		Requests:            []attendanceLeaveRequestView{},
+		LedgerEntries:       []attendanceLeaveLedgerView{},
 		HireDateRequired: strings.TrimSpace(employee.HireDate) == "" &&
 			attendanceLeavePolicyRequiresHireDate(policy),
 	}
 	balancesByAccount := make(map[string]attendanceLeaveDashboardSummary)
-	for _, leaveType := range policy.LeaveTypes {
-		if !leaveType.IsActive || !attendanceLeaveTypeOwnsBalance(leaveType) {
-			continue
+	usageByLeaveType := map[string]attendanceLeaveDashboardSummary{}
+	if policy.BalanceTrackingMode == attendanceLeaveBalanceTrackingUnlimited {
+		usageByLeaveType, dashboard.Summary, errorValue = readAttendanceLeaveUsageSummaries(
+			ctx,
+			database,
+			employee.Email,
+		)
+		if errorValue != nil {
+			return attendanceLeaveDashboard{}, errorValue
 		}
-		balance, balanceError := queryAttendanceLeaveBalance(ctx, database, employee, leaveType.ID)
-		if balanceError != nil {
-			return attendanceLeaveDashboard{}, balanceError
-		}
-		if employee.HireDate != "" {
-			hireDate, parseError := time.ParseInLocation(
-				time.DateOnly,
-				employee.HireDate,
-				service.workspaceTimeZone().location,
-			)
-			if parseError != nil {
-				return attendanceLeaveDashboard{}, parseError
+	} else {
+		for _, leaveType := range policy.LeaveTypes {
+			if !leaveType.IsActive || !attendanceLeaveTypeOwnsBalance(leaveType) {
+				continue
 			}
-			balance = attendanceLeaveBalanceWithSchedule(
-				balance,
-				hireDate,
-				now,
-				policy,
-				leaveType,
-			)
-		}
-		balanceView := attendanceLeaveDashboardSummary{
-			UsedMilliDays:      balance.UsedMilliDays,
-			ReservedMilliDays:  balance.ReservedMilliDays,
-			AvailableMilliDays: balance.AvailableMilliDays,
-		}
-		balancesByAccount[attendanceLeaveBalanceAccountID(leaveType.ID, leaveType.BalanceMode)] = balanceView
-		if leaveType.IncludeInSummary {
-			dashboard.Summary.AvailableMilliDays += balanceView.AvailableMilliDays
-			dashboard.Summary.ReservedMilliDays += balanceView.ReservedMilliDays
-			dashboard.Summary.UsedMilliDays += balanceView.UsedMilliDays
+			balance, balanceError := queryAttendanceLeaveBalance(ctx, database, employee, leaveType.ID)
+			if balanceError != nil {
+				return attendanceLeaveDashboard{}, balanceError
+			}
+			if employee.HireDate != "" {
+				hireDate, parseError := time.ParseInLocation(
+					time.DateOnly,
+					employee.HireDate,
+					service.workspaceTimeZone().location,
+				)
+				if parseError != nil {
+					return attendanceLeaveDashboard{}, parseError
+				}
+				balance = attendanceLeaveBalanceWithSchedule(
+					balance,
+					hireDate,
+					now,
+					policy,
+					leaveType,
+				)
+			}
+			balanceView := attendanceLeaveDashboardSummary{
+				UsedMilliDays:      balance.UsedMilliDays,
+				ReservedMilliDays:  balance.ReservedMilliDays,
+				AvailableMilliDays: balance.AvailableMilliDays,
+			}
+			balancesByAccount[attendanceLeaveBalanceAccountID(leaveType.ID, leaveType.BalanceMode)] = balanceView
+			if leaveType.IncludeInSummary {
+				dashboard.Summary.AvailableMilliDays += balanceView.AvailableMilliDays
+				dashboard.Summary.ReservedMilliDays += balanceView.ReservedMilliDays
+				dashboard.Summary.UsedMilliDays += balanceView.UsedMilliDays
+			}
 		}
 	}
-	dashboard.LeaveTypes = attendanceLeaveTypeViews(policy, balancesByAccount)
+	dashboard.LeaveTypes = attendanceLeaveTypeViews(
+		policy,
+		balancesByAccount,
+		usageByLeaveType,
+	)
 	records, errorValue := readAttendanceLeaveRequestRecords(ctx, database, employee.Email)
 	if errorValue != nil {
 		return attendanceLeaveDashboard{}, errorValue
@@ -89,6 +106,7 @@ func (service *Service) readAttendanceLeaveDashboard(
 func attendanceLeaveTypeViews(
 	policy attendanceLeavePolicy,
 	balancesByAccount map[string]attendanceLeaveDashboardSummary,
+	usageByLeaveType map[string]attendanceLeaveDashboardSummary,
 ) []attendanceLeaveTypeView {
 	views := make([]attendanceLeaveTypeView, 0, len(policy.LeaveTypes))
 	for _, leaveType := range policy.LeaveTypes {
@@ -99,9 +117,13 @@ func attendanceLeaveTypeViews(
 			AllowedUnits:     append([]string{}, leaveType.AllowedUnits...),
 			IncludeInSummary: leaveType.IncludeInSummary,
 			IsActive:         leaveType.IsActive,
-			RequiresHireDate: attendanceLeaveTypeRequiresHireDate(leaveType),
+			RequiresHireDate: policy.BalanceTrackingMode == attendanceLeaveBalanceTrackingManaged &&
+				attendanceLeaveTypeRequiresHireDate(leaveType),
 		}
-		if leaveType.BalanceMode != "none" {
+		if policy.BalanceTrackingMode == attendanceLeaveBalanceTrackingUnlimited {
+			balance := usageByLeaveType[leaveType.ID]
+			view.Balance = &balance
+		} else if leaveType.BalanceMode != "none" {
 			accountID := attendanceLeaveBalanceAccountID(leaveType.ID, leaveType.BalanceMode)
 			if balance, found := balancesByAccount[accountID]; found {
 				balanceCopy := balance

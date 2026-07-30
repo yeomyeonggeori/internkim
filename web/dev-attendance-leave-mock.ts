@@ -1,6 +1,7 @@
 import type {
 	EmployeeLeaveErrorCode,
-	EmployeeLeavePayload
+	EmployeeLeavePayload,
+	EmployeeLeaveSummary
 } from './src/routes/attendance/leave/employee-leave-types';
 import { buildEmployeeLeaveFixture } from './dev-attendance-leave-fixture';
 import {
@@ -25,6 +26,7 @@ export type DevEmployeeLeaveMockState = {
 	nextRequestID: number;
 	nextAttachmentID: number;
 	nextLedgerID: number;
+	managedBalancesByLeaveType: Record<string, EmployeeLeaveSummary | undefined>;
 };
 
 export type DevEmployeeLeaveMockRequest = {
@@ -40,11 +42,18 @@ export type DevEmployeeLeaveMockResponse = {
 };
 
 export function createDevEmployeeLeaveMockState(): DevEmployeeLeaveMockState {
+	const payload = buildEmployeeLeaveFixture();
 	return {
-		payload: buildEmployeeLeaveFixture(),
+		payload,
 		nextRequestID: 1,
 		nextAttachmentID: 1,
-		nextLedgerID: 1
+		nextLedgerID: 1,
+		managedBalancesByLeaveType: Object.fromEntries(
+			payload.leaveTypes.map((leaveType) => [
+				leaveType.id,
+				leaveType.balance ? structuredClone(leaveType.balance) : undefined
+			])
+		)
 	};
 }
 
@@ -55,10 +64,7 @@ export function createDevEmployeeLeaveMockResponse(
 	if (request.method === 'GET' && request.pathname === '/attendance/api/leave') {
 		return { status: 200, body: structuredClone(state.payload) };
 	}
-	if (
-		request.method === 'POST' &&
-		request.pathname === '/attendance/api/leave-requests/preview'
-	) {
+	if (request.method === 'POST' && request.pathname === '/attendance/api/leave-requests/preview') {
 		return {
 			status: 200,
 			body: buildEmployeeLeavePreview(employeeLeavePreviewRequestFromBody(request.body))

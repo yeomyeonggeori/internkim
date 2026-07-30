@@ -8,6 +8,7 @@
 	const text = createPageText(attendanceText);
 	const employeeLeave = getEmployeeLeaveState();
 	const summary = $derived(employeeLeave.payload?.summary);
+	const isUnlimited = $derived(employeeLeave.payload?.balanceTrackingMode === 'unlimited');
 	const totalMilliDays = $derived(
 		(summary?.usedMilliDays ?? 0) +
 			(summary?.reservedMilliDays ?? 0) +
@@ -48,25 +49,29 @@
 			</div>
 			<div class="text-right">
 				<p class="text-[11px] text-muted-foreground">{text.leave.summaryAvailable}</p>
-				<p class="mt-0.5 text-sm font-semibold tabular-nums">{days(summary?.availableMilliDays)}</p>
+				<p class="mt-0.5 text-sm font-semibold tabular-nums">
+					{isUnlimited ? text.leave.summaryUnlimited : days(summary?.availableMilliDays)}
+				</p>
 			</div>
 		</div>
 
-		<div
-			class="flex h-2 w-full overflow-hidden rounded-full bg-muted"
-			role="img"
-			aria-label={text.leave.summaryBarLabel
-				.replace('{used}', days(summary?.usedMilliDays))
-				.replace('{pending}', days(summary?.reservedMilliDays))
-				.replace('{available}', days(summary?.availableMilliDays))}
-			data-testid="leave-balance-segmented-bar"
-		>
-			{#if totalMilliDays > 0}
-				<span class="h-full bg-primary" style:width={`${usedPercent}%`}></span>
-				<span class="h-full bg-primary/40" style:width={`${reservedPercent}%`}></span>
-				<span class="h-full bg-muted-foreground/15" style:width={`${availablePercent}%`}></span>
-			{/if}
-		</div>
+		{#if !isUnlimited}
+			<div
+				class="flex h-2 w-full overflow-hidden rounded-full bg-muted"
+				role="img"
+				aria-label={text.leave.summaryBarLabel
+					.replace('{used}', days(summary?.usedMilliDays))
+					.replace('{pending}', days(summary?.reservedMilliDays))
+					.replace('{available}', days(summary?.availableMilliDays))}
+				data-testid="leave-balance-segmented-bar"
+			>
+				{#if totalMilliDays > 0}
+					<span class="h-full bg-primary" style:width={`${usedPercent}%`}></span>
+					<span class="h-full bg-primary/40" style:width={`${reservedPercent}%`}></span>
+					<span class="h-full bg-muted-foreground/15" style:width={`${availablePercent}%`}></span>
+				{/if}
+			</div>
+		{/if}
 
 		{#if employeeLeave.errorMessage}
 			<p class="text-xs text-destructive">{employeeLeave.errorMessage}</p>

@@ -27,6 +27,7 @@ import {
 	createDevAttendanceLeavePolicyMockState,
 	type DevAttendanceLeavePolicyMockState
 } from './dev-attendance-leave-policy-mock';
+import { synchronizeUnlimitedEmployeeLeaveUsage } from './dev-attendance-leave-balance';
 
 type DevAttendanceMockPluginOptions = {
 	isEnabled: boolean;
@@ -129,7 +130,10 @@ export async function createDevAttendanceMockResponse(
 	request: DevAttendanceMockRequest
 ): Promise<DevAttendanceMockResponse | undefined> {
 	if (request.method === 'GET' && request.pathname === '/auth/session') {
-		return { status: 200, body: { authenticated: true, email: state.userEmail, isAdmin: true } };
+		return {
+			status: 200,
+			body: { authenticated: true, email: state.userEmail, isAdmin: true }
+		};
 	}
 	if (request.method === 'GET' && request.pathname === '/admin/api/session') {
 		return {
@@ -154,7 +158,28 @@ export async function createDevAttendanceMockResponse(
 		state.leavePolicy,
 		request
 	);
-	if (leavePolicyResponse) return leavePolicyResponse;
+	if (leavePolicyResponse) {
+		if (request.method === 'PUT' && request.pathname === '/admin/api/attendance-leave-policy') {
+			const nextMode = state.leavePolicy.policy.balanceTrackingMode;
+			if (state.leave.payload.balanceTrackingMode !== nextMode && nextMode === 'unlimited') {
+				state.leave.managedBalancesByLeaveType = Object.fromEntries(
+					state.leave.payload.leaveTypes.map((leaveType) => [
+						leaveType.id,
+						leaveType.balance ? structuredClone(leaveType.balance) : undefined
+					])
+				);
+				state.leave.payload.balanceTrackingMode = nextMode;
+				synchronizeUnlimitedEmployeeLeaveUsage(state.leave.payload);
+			} else if (state.leave.payload.balanceTrackingMode !== nextMode) {
+				state.leave.payload.balanceTrackingMode = nextMode;
+				for (const leaveType of state.leave.payload.leaveTypes) {
+					const balance = state.leave.managedBalancesByLeaveType[leaveType.id];
+					leaveType.balance = balance ? structuredClone(balance) : undefined;
+				}
+			}
+		}
+		return leavePolicyResponse;
+	}
 	const leaveResponse = createDevEmployeeLeaveMockResponse(state.leave, request);
 	if (leaveResponse) return leaveResponse;
 	const leaveApprovalResponse = createDevLeaveApprovalMockResponse(state.leaveApproval, request);
@@ -367,7 +392,8 @@ function normalizeLocalTime(localTime: string): string {
 function datesBetween(startDate: string, endDate: string): string[] {
 	const start = new Date(`${startDate}T00:00:00Z`);
 	const end = new Date(`${endDate}T00:00:00Z`);
-	if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [startDate];
+	if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start)
+		return [startDate];
 	const dates: string[] = [];
 	const cursor = new Date(start);
 	while (cursor <= end && dates.length < 31) {

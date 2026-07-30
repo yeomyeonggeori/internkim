@@ -8,12 +8,13 @@
 
 	const text = createPageText(attendanceText);
 	const employeeLeave = getEmployeeLeaveState();
+	const isUnlimited = $derived(employeeLeave.payload?.balanceTrackingMode === 'unlimited');
 	const balanceTypes = $derived(
 		(employeeLeave.payload?.leaveTypes ?? []).filter(
 			(leaveType) =>
 				leaveType.isActive &&
 				leaveType.balance !== undefined &&
-				(leaveType.balanceMode === 'separate' || leaveType.id === 'annual')
+				(isUnlimited || leaveType.balanceMode === 'separate' || leaveType.id === 'annual')
 		)
 	);
 
@@ -28,9 +29,13 @@
 
 <section class="border-b px-4 py-4 sm:px-6" data-testid="leave-type-balances">
 	<div>
-		<h3 class="text-sm font-semibold">{text.leave.balanceOverviewTitle}</h3>
+		<h3 class="text-sm font-semibold">
+			{isUnlimited ? text.leave.usageOverviewTitle : text.leave.balanceOverviewTitle}
+		</h3>
 		<p class="mt-1 text-xs text-muted-foreground">
-			{text.leave.balanceOverviewDescription}
+			{isUnlimited
+				? text.leave.usageOverviewDescription
+				: text.leave.balanceOverviewDescription}
 		</p>
 	</div>
 	{#if balanceTypes.length}
@@ -40,8 +45,14 @@
 					<span class="text-sm font-medium">{leaveTypeName(leaveType.id, leaveType.name)}</span>
 					<span class="text-right text-sm tabular-nums">
 						<span class="font-semibold">
-							{text.leave.balanceOverviewAvailable}
-							{days(leaveType.balance?.availableMilliDays ?? 0)}
+							{isUnlimited
+								? text.leave.balanceOverviewUsed
+								: text.leave.balanceOverviewAvailable}
+							{days(
+								isUnlimited
+									? leaveType.balance?.usedMilliDays ?? 0
+									: leaveType.balance?.availableMilliDays ?? 0
+							)}
 						</span>
 						{#if (leaveType.balance?.reservedMilliDays ?? 0) > 0}
 							<span class="ml-2 text-xs text-muted-foreground">

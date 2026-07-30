@@ -2,6 +2,7 @@ import type { EmployeeLeavePayload } from './src/routes/attendance/leave/employe
 
 export function buildEmployeeLeaveFixture(): EmployeeLeavePayload {
 	return {
+		balanceTrackingMode: 'managed',
 		leaveTypes: [
 			{
 				id: 'annual',

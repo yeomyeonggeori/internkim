@@ -9,7 +9,8 @@ import type {
 } from './src/routes/attendance/approval/leave-approval-types';
 import {
 	applyEmployeeLeaveBalanceMutation,
-	employeeLeaveTypeBalance
+	employeeLeaveTypeBalance,
+	synchronizeUnlimitedEmployeeLeaveUsage
 } from './dev-attendance-leave-balance';
 
 type DevLeaveApprovalRequest = {
@@ -169,6 +170,7 @@ function applyDecision(
 			reservedMilliDays: -request.deductionMilliDays
 		});
 	}
+	synchronizeUnlimitedEmployeeLeaveUsage(state.leave.payload);
 }
 
 function approvalStatus(action: LeaveApprovalAction): LeaveApprovalStatus {
