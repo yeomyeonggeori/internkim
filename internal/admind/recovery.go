@@ -4,12 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
+
+// ensureBuzzRelayTerminator keeps the loopback TLS terminator (:443 -> relay
+// :3000) running whenever this box hosts the Buzz relay. The Debian SysV
+// stunnel4 service is not auto-restarted, so a native systemd unit is installed
+// and (re)started on every admind start. Runs detached from any request context.
+func (service *Service) ensureBuzzRelayTerminator() {
+	if strings.TrimSpace(service.Configuration.BuzzRelayURL) == "" {
+		return
+	}
+	go func() {
+		output, errorValue := service.runCommand(context.Background(), "sh", "-lc", buzzRelayRepairCommand())
+		if errorValue != nil {
+			log.Printf("buzz relay terminator ensure failed: %v: %s", errorValue, strings.TrimSpace(string(output)))
+		}
+	}()
+}
 
 type sshRecoveryRequest struct {
 	fleetSignedRequest
@@ -107,7 +124,9 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 	case "blueclaw-postgres-salvage":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "salvage orphaned Blueclaw postgres cluster", "sh", "-lc", blueclawPostgresSalvageCommand()))
 	case "repair-buzz-relay":
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "repair Buzz relay TLS terminator", "sh", "-lc", buzzRelayRepairCommand()))
+		repairContext, cancelRepair := context.WithTimeout(context.Background(), 60*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(repairContext, "repair Buzz relay TLS terminator", "sh", "-lc", buzzRelayRepairCommand()))
+		cancelRepair()
 	case "buzz-relay-journal":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read Buzz relay TLS terminator journal", "sh", "-lc", buzzRelayJournalDiagnosticCommand()))
 	}
@@ -455,7 +474,8 @@ done
 func buzzRelayRepairCommand() string {
 	return strings.TrimSpace(fmt.Sprintf(`
 set +e
-cat > /etc/stunnel/buzz-relay.conf <<'STUNNELCONF'
+mkdir -p /root/.internkim/tls
+cat > /root/.internkim/tls/buzz-relay-stunnel.conf <<'STUNNELCONF'
 foreground = yes
 [buzz-relay]
 accept = 127.0.0.1:443
@@ -463,21 +483,30 @@ connect = %s
 cert = %s
 key = /root/.internkim/tls/relay.key
 STUNNELCONF
+rm -f /etc/stunnel/buzz-relay.conf
 cat > /etc/systemd/system/buzz-relay-stunnel.service <<'STUNNELUNIT'
 [Unit]
 Description=Buzz relay TLS terminator (stunnel)
 After=network-online.target %s.service
 Wants=network-online.target
 [Service]
-ExecStart=/usr/bin/stunnel4 /etc/stunnel/buzz-relay.conf
+ExecStart=/usr/bin/stunnel4 /root/.internkim/tls/buzz-relay-stunnel.conf
 Restart=always
 RestartSec=2
 [Install]
 WantedBy=multi-user.target
 STUNNELUNIT
-setsid nohup sh -c 'systemctl disable --now stunnel4 2>/dev/null; pkill -f "stunnel.*buzz-relay.conf" 2>/dev/null; systemctl daemon-reload; systemctl enable buzz-relay-stunnel; systemctl restart buzz-relay-stunnel; sleep 2; systemctl restart chatd' > /var/log/internkim-buzz-relay-repair.log 2>&1 < /dev/null &
-sleep 1
-echo "buzz relay repair launched; verify with recover status"
+systemctl disable --now stunnel4 2>/dev/null
+systemctl mask stunnel4 2>/dev/null
+pkill -x stunnel4 2>/dev/null
+systemctl daemon-reload
+systemctl enable buzz-relay-stunnel 2>&1
+systemctl restart buzz-relay-stunnel 2>&1
+sleep 3
+printf 'is-active: '; systemctl is-active buzz-relay-stunnel
+printf '== unit status ==\n'; systemctl status buzz-relay-stunnel --no-pager -l 2>&1 | tail -18
+systemctl restart chatd 2>&1
+printf '== port443 ==\n'; ss -ltn 2>/dev/null | grep ':443' || printf '443 DOWN\n'
 `,
 		blueclaw.BuzzRelayBindAddress,
 		blueclaw.BuzzRelayCertificatePath,

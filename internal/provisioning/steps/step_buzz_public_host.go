@@ -95,7 +95,7 @@ fi`
 func buzzRelayStunnelCommand() string {
 	return `command -v stunnel4 >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y stunnel4
 systemctl disable --now stunnel4 2>/dev/null || true
-pkill -f 'stunnel.*buzz-relay.conf' 2>/dev/null || true
+pkill -x stunnel4 2>/dev/null || true
 cat > ` + buzzRelayStunnelConfigurationPath + ` <<'STUNNELCONFEOF'
 foreground = yes
 [buzz-relay]
