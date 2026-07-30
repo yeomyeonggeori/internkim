@@ -26,7 +26,8 @@
 		class: className,
 		icon,
 		onSelect,
-		optionContent
+		optionContent,
+		selectedContent
 	}: {
 		value?: string;
 		options: Option[];
@@ -37,6 +38,7 @@
 		icon?: Snippet;
 		onSelect?: (value: string) => void;
 		optionContent?: Snippet<[Option]>;
+		selectedContent?: Snippet<[Option]>;
 	} = $props();
 
 	const text = createPageText(appShellText);
@@ -66,13 +68,15 @@
 		{#snippet child({ props })}
 			<Button {...props} variant="outline" class={cn('w-[200px] justify-between', className)} role="combobox" aria-expanded={open}>
 				<span class="flex min-w-0 items-center gap-2">
-					{@render icon?.()}
+					{#if !(selectedOption && selectedContent)}
+						{@render icon?.()}
+					{/if}
 					{#if !selectedOption}
 						{label}
-					{:else if optionContent}
-						{@render optionContent(selectedOption)}
+					{:else if selectedContent}
+						{@render selectedContent(selectedOption)}
 					{:else}
-						{selectedOption.label}
+						<span class="truncate">{selectedOption.label}</span>
 					{/if}
 				</span>
 				<ChevronsUpDownIcon class="opacity-50" />
