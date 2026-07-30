@@ -20,8 +20,10 @@ export type FlowTaskBoardColumnTheme = {
 export type FlowTaskBoardOptions = {
 	weekStartISO?: string;
 	weekEndISO?: string;
-	isCurrentWeek?: boolean;
+	weekPosition?: FlowTaskBoardWeekPosition;
 };
+
+export type FlowTaskBoardWeekPosition = 'past' | 'current' | 'future';
 
 const boardColumnThemes: Record<FlowTaskBoardStatus, FlowTaskBoardColumnTheme> = {
 	요청: {
@@ -57,7 +59,7 @@ const boardColumnThemes: Record<FlowTaskBoardStatus, FlowTaskBoardColumnTheme> =
 };
 
 export function buildFlowTaskBoard(tasks: FlowTask[], options: FlowTaskBoardOptions = {}): FlowTaskBoardColumn[] {
-	return BOARD_STATUS_VALUES.map((status) => ({
+	return BOARD_STATUS_VALUES.filter((status) => isBoardColumnVisible(status, options)).map((status) => ({
 		status,
 		theme: boardColumnThemes[status],
 		tasks: tasks
@@ -76,15 +78,23 @@ function compareFlowTaskBoardOrder(left: FlowTask, right: FlowTask): number {
 	return left.id.localeCompare(right.id);
 }
 
+function isBoardColumnVisible(status: FlowTaskBoardStatus, options: FlowTaskBoardOptions): boolean {
+	return status !== '예정' || weekPosition(options) !== 'past';
+}
+
 function matchesBoardColumnWeek(task: FlowTask, status: FlowTaskBoardStatus, options: FlowTaskBoardOptions): boolean {
 	if (status === '요청' || status === '일시정지') return true;
-	if (status === '진행') return options.isCurrentWeek !== false;
+	if (status === '진행') return weekPosition(options) === 'current';
 	if (!options.weekStartISO || !options.weekEndISO) return true;
 	if (status === '완료') return isInSelectedWeek(task.endDate, options);
-	const startDate = task.startDate?.trim() ?? '';
-	const endDate = task.endDate?.trim() ?? '';
-	if (!startDate && !endDate) return options.isCurrentWeek !== false;
-	return isInSelectedWeek(endDate || startDate, options);
+	const plannedDate = task.endDate?.trim() || task.startDate?.trim() || '';
+	if (!plannedDate) return weekPosition(options) === 'current';
+	if (plannedDate < options.weekStartISO) return weekPosition(options) === 'current';
+	return isInSelectedWeek(plannedDate, options);
+}
+
+function weekPosition(options: FlowTaskBoardOptions): FlowTaskBoardWeekPosition {
+	return options.weekPosition ?? 'current';
 }
 
 function isInSelectedWeek(date: string | undefined, options: FlowTaskBoardOptions): boolean {
