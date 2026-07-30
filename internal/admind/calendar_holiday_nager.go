@@ -26,6 +26,7 @@ type nagerDateHoliday struct {
 func (service *Service) syncNagerCalendarHolidays(
 	ctx context.Context,
 	countryCode string,
+	locale string,
 	startTime time.Time,
 	endTime time.Time,
 	currentTime time.Time,
@@ -33,9 +34,8 @@ func (service *Service) syncNagerCalendarHolidays(
 	workspaceLocation, _ := service.workspaceTimeLocation()
 	startYear := startTime.In(workspaceLocation).Year()
 	endYear := endTime.In(workspaceLocation).AddDate(0, 0, -1).Year()
-	workspaceLanguage := service.workspaceLanguage()
 	for year := startYear; year <= endYear; year += 1 {
-		sourceKey := fmt.Sprintf("%s:%d", countryCode, year)
+		sourceKey := fmt.Sprintf("%s:%d:%s", countryCode, year, locale)
 		state, found, errorValue := service.readCalendarHolidaySource(ctx, calendarHolidayProviderNager, sourceKey)
 		if errorValue != nil {
 			return errorValue
@@ -62,10 +62,7 @@ func (service *Service) syncNagerCalendarHolidays(
 			if _, parseError := time.Parse(time.DateOnly, holiday.Date); parseError != nil {
 				return fmt.Errorf("nager holiday date %q for %s: %w", holiday.Date, sourceKey, parseError)
 			}
-			title := firstNonEmpty(strings.TrimSpace(holiday.LocalName), strings.TrimSpace(holiday.Name))
-			if workspaceLanguage == workspaceLanguageEnglish {
-				title = firstNonEmpty(strings.TrimSpace(holiday.Name), strings.TrimSpace(holiday.LocalName))
-			}
+			title := calendarHolidayTitle(countryCode, locale, holiday.LocalName, holiday.Name)
 			if title == "" {
 				return fmt.Errorf("nager holiday title is required for %s on %s", countryCode, holiday.Date)
 			}
@@ -96,6 +93,13 @@ func (service *Service) syncNagerCalendarHolidays(
 		}
 	}
 	return nil
+}
+
+func calendarHolidayTitle(countryCode string, locale string, localName string, englishName string) string {
+	if strings.EqualFold(strings.TrimSpace(countryCode), "KR") && locale == workspaceLanguageKorean {
+		return firstNonEmpty(strings.TrimSpace(localName), strings.TrimSpace(englishName))
+	}
+	return firstNonEmpty(strings.TrimSpace(englishName), strings.TrimSpace(localName))
 }
 
 func (service *Service) fetchNagerCalendarHolidaysWithRetry(

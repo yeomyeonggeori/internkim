@@ -25,13 +25,15 @@ func (service *Service) serveCalendarHolidays(responseWriter http.ResponseWriter
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	source, syncError := service.ensureCalendarHolidaysForRange(request.Context(), startTime, endTime, time.Now().UTC())
+	locale := normalizeCalendarHolidayLocale(query.Get("locale"))
+	source, syncError := service.ensureCalendarHolidaysForRange(request.Context(), locale, startTime, endTime, time.Now().UTC())
 	countryCode := service.workspaceCountryCode()
 	workspaceLocation, _ := service.workspaceTimeLocation()
 	holidays, errorValue := service.readCalendarHolidays(
 		request.Context(),
 		source,
 		countryCode,
+		locale,
 		startTime.In(workspaceLocation).Format(time.DateOnly),
 		endTime.In(workspaceLocation).Format(time.DateOnly),
 	)
@@ -68,13 +70,19 @@ func (service *Service) refreshCalendarHolidayCache(ctx context.Context, current
 		return errorValue
 	}
 	startTime, endTime := service.calendarHolidayPreloadRange(currentTime)
-	return service.syncNagerCalendarHolidays(
-		ctx,
-		service.workspaceCountryCode(),
-		startTime,
-		endTime,
-		currentTime,
-	)
+	for _, locale := range [...]string{workspaceLanguageKorean, workspaceLanguageEnglish} {
+		if errorValue := service.syncNagerCalendarHolidays(
+			ctx,
+			service.workspaceCountryCode(),
+			locale,
+			startTime,
+			endTime,
+			currentTime,
+		); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
 }
 
 func (service *Service) invalidateCalendarHolidaySyncState(ctx context.Context) error {
@@ -96,20 +104,28 @@ WHERE source_key <> ?`,
 
 func (service *Service) ensureCalendarHolidaysForRange(
 	ctx context.Context,
+	locale string,
 	startTime time.Time,
 	endTime time.Time,
 	currentTime time.Time,
 ) (string, error) {
 	countryCode := service.workspaceCountryCode()
 	preloadStart, preloadEnd := service.calendarHolidayPreloadRange(currentTime)
-	preloadError := service.syncNagerCalendarHolidays(ctx, countryCode, preloadStart, preloadEnd, currentTime)
+	preloadError := service.syncNagerCalendarHolidays(ctx, countryCode, locale, preloadStart, preloadEnd, currentTime)
 	if !startTime.Before(preloadStart) && !endTime.After(preloadEnd) {
 		return calendarHolidaySourceAPI, preloadError
 	}
-	if errorValue := service.syncNagerCalendarHolidays(ctx, countryCode, startTime, endTime, currentTime); errorValue != nil {
+	if errorValue := service.syncNagerCalendarHolidays(ctx, countryCode, locale, startTime, endTime, currentTime); errorValue != nil {
 		return calendarHolidaySourceAPI, errorValue
 	}
 	return calendarHolidaySourceAPI, preloadError
+}
+
+func normalizeCalendarHolidayLocale(locale string) string {
+	if strings.EqualFold(strings.TrimSpace(locale), workspaceLanguageKorean) {
+		return workspaceLanguageKorean
+	}
+	return workspaceLanguageEnglish
 }
 
 func (service *Service) calendarHolidayPreloadRange(currentTime time.Time) (time.Time, time.Time) {

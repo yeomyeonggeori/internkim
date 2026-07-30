@@ -10,6 +10,8 @@ export type CalendarHoliday = {
 	color: string;
 };
 
+export type CalendarHolidayLocale = 'ko' | 'en';
+
 type CalendarHolidaysResponse = {
 	holidays: CalendarHoliday[];
 	source: CalendarHoliday['source'];
@@ -18,11 +20,13 @@ type CalendarHolidaysResponse = {
 export async function fetchCalendarHolidays(
 	startDate: Date,
 	endDate: Date,
+	locale: CalendarHolidayLocale,
 	errorFallback: string
 ): Promise<CalendarHoliday[]> {
 	const query = new URLSearchParams({
 		startISO: startDate.toISOString(),
-		endISO: endDate.toISOString()
+		endISO: endDate.toISOString(),
+		locale
 	});
 	const response = await fetch(`/calendar/api/holidays?${query}`, { credentials: 'include' });
 	if (!response.ok) throw new Error(await responseErrorMessage(response, errorFallback));

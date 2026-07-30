@@ -28,11 +28,13 @@ import { createCalendarPageEventSelection } from './calendar-page-event-selectio
 import { createCalendarPageInteractionServices } from './calendar-page-interaction-services';
 import { createCalendarPageRenderSync } from './calendar-page-render-sync';
 import type { CalendarEmbedPageState } from './calendar-page-state.svelte';
+import type { CalendarHolidayLocale } from './calendar-holiday-persistence';
 
 type CalendarPageControllerContext = {
 	isBrowser: () => boolean;
 	getIsMobileTwoDayWeekView: () => boolean;
 	getLocaleCode: () => string;
+	getLocale: () => CalendarHolidayLocale;
 	initialCalendarDate: () => Date;
 	initialCalendarView: () => ViewType;
 	setVisibleDate: (date: Date) => void;
@@ -69,6 +71,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 
 	const eventLoader: CalendarEventLoader = createCalendarEventLoader({
 		isBrowser: context.isBrowser,
+		getLocale: context.getLocale,
 		errorFallback: () => context.text.error,
 		getCalendarEvents: () => eventStore.getAllEvents(),
 		getVisibleEvents: () => context.state.visibleEvents,

@@ -16,10 +16,12 @@ test('does not apply a deferred refresh after a newer local update', async () =>
 	let calendarEvents = [calendarTestEvent('event-1', 'First update')];
 	let visibleEvents: typeof calendarEvents = [];
 	let appliedChangeCount = 0;
+	let fetchedHolidayLocale = '';
 	const loadingStates: boolean[] = [];
 	const loader = createCalendarEventLoader(
 		{
 			isBrowser: () => true,
+			getLocale: () => 'ko',
 			errorFallback: () => 'Could not load events.',
 			getCalendarEvents: () => calendarEvents,
 			getVisibleEvents: () => visibleEvents,
@@ -46,7 +48,10 @@ test('does not apply a deferred refresh after a newer local update', async () =>
 				reportFetchStarted();
 				return pendingEvents;
 			},
-			fetchHolidays: async () => []
+			fetchHolidays: async (_startDate, _endDate, locale) => {
+				fetchedHolidayLocale = locale;
+				return [];
+			}
 		}
 	);
 
@@ -62,6 +67,7 @@ test('does not apply a deferred refresh after a newer local update', async () =>
 
 	expect(calendarEvents.map((event) => event.title)).toEqual(['Second update']);
 	expect(appliedChangeCount).toBe(0);
+	expect(fetchedHolidayLocale).toBe('ko');
 	expect(loadingStates).toEqual([true, false]);
 });
 
