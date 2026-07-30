@@ -105,6 +105,9 @@ func TestCalendarEventCreatesPairedTaskAndDeletesTogether(t *testing.T) {
 	if !found {
 		t.Fatal("calendar event did not create a paired task")
 	}
+	if pairedTask.ID == "" {
+		t.Fatalf("paired task has no id: %#v", pairedTask)
+	}
 	if pairedTask.Content != "제품 리뷰 회의" || pairedTask.Size != "S" || pairedTask.Status != flowStatusPlanned {
 		t.Fatalf("paired task = %#v", pairedTask)
 	}
