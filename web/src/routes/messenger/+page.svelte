@@ -1,7 +1,6 @@
 <script lang="ts">
 	import Channel from '$lib/components/channel/channel.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
-	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -82,8 +81,8 @@
 </svelte:head>
 
 
-<div class="flex min-h-0 w-full flex-1 p-4">
-	<Card.Root class="flex min-h-0 w-full flex-row gap-0 overflow-hidden p-0">
+<div class="flex min-h-0 w-full flex-1">
+	<div class="flex min-h-0 w-full flex-row overflow-hidden">
 		<Sidebar.Provider class="h-full min-h-0 w-auto" style="--sidebar-width: 16rem;">
 			<Sidebar.Root collapsible="none" class="border-r">
 				<Sidebar.Content class="pt-2">
@@ -152,7 +151,7 @@
 				<Channel channelId={activeID} />
 			{/key}
 		</div>
-	</Card.Root>
+	</div>
 </div>
 
 <Dialog.Root bind:open={isNewDirectMessageOpen}>
