@@ -38,7 +38,6 @@ type CalendarPageLifecycleInstallContext = {
 	selectedMonthDate: CalendarSelectedMonthDateActions;
 	setSelectedAuditEventID: (eventID: string | null) => void;
 	setToolbarView: (view: ViewType) => void;
-	syncCalendarThemeToDocument: () => void;
 	text: CalendarLocaleText;
 };
 

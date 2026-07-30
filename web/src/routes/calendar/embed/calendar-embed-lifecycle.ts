@@ -20,7 +20,6 @@ export type CalendarEmbedLifecycleOptions = {
 	initialCalendarView: () => ViewType;
 	applyCalendarView: (view: ViewType) => void;
 	setToolbarView: (view: ViewType) => void;
-	syncCalendarThemeToDocument: () => void;
 	hasVisibleRange: () => boolean;
 	initialCalendarDate: () => Date;
 	loadEvents: (startDate: Date, endDate: Date) => void;
@@ -41,10 +40,8 @@ export function installCalendarEmbedLifecycle(options: CalendarEmbedLifecycleOpt
 	const savedView = options.initialCalendarView();
 	options.applyCalendarView(savedView);
 	options.setToolbarView(savedView);
-	options.syncCalendarThemeToDocument();
 	loadInitialVisibleRange(options);
 	startInitialRemoteCalendarSync(options);
-	const themeObserver = observeThemeChanges(options);
 	const stopStageActions = installStageActions(options);
 	const stopMonthKeyboardNavigation = installCalendarMonthKeyboardNavigation(options.monthKeyboardNavigation);
 	const stopKeyboardDelete = installCalendarKeyboardDelete(options.keyboardDelete);
@@ -55,7 +52,6 @@ export function installCalendarEmbedLifecycle(options: CalendarEmbedLifecycleOpt
 		window.removeEventListener('message', options.handleCalendarWindowMessage, { capture: true });
 		window.removeEventListener('storage', options.handleCalendarStorageMessage, { capture: true });
 		calendarChannel.close();
-		themeObserver.disconnect();
 		stopStageActions();
 		stopMonthKeyboardNavigation();
 		stopKeyboardDelete();
@@ -72,12 +68,6 @@ function loadInitialVisibleRange(options: CalendarEmbedLifecycleOptions): void {
 
 function startInitialRemoteCalendarSync(options: CalendarEmbedLifecycleOptions): void {
 	void options.syncRemoteCalendarAndRefresh().catch(() => undefined);
-}
-
-function observeThemeChanges(options: CalendarEmbedLifecycleOptions): MutationObserver {
-	const observer = new MutationObserver(options.syncCalendarThemeToDocument);
-	observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-	return observer;
 }
 
 function installStageActions(options: CalendarEmbedLifecycleOptions): () => void {
