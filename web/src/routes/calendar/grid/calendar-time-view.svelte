@@ -570,7 +570,7 @@
 
 <div class="flex min-h-0 flex-1 overflow-hidden">
 	{#if canSwipeWeeks}
-		<div class="flex min-h-0 flex-1 flex-col">
+		<div class="flex min-h-0 min-w-0 flex-1 flex-col">
 			<div class="flex shrink-0">
 				<div class="bg-background border-border/50 z-30 w-16 shrink-0 border-r">
 					<div class="border-border/50 h-9 border-b"></div>
@@ -633,7 +633,7 @@
 			</div>
 		</div>
 	{:else}
-		<div class="flex min-h-0 flex-1 flex-col">
+		<div class="flex min-h-0 min-w-0 flex-1 flex-col">
 			<div class="border-border/50 flex items-end border-b">
 				{#each days as day (day.getTime())}
 					{@render dayHeader(day)}
