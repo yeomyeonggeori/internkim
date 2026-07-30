@@ -81,7 +81,7 @@ func buzzHostsAliasCommand(publicHost string) string {
 func buzzRelayCertificateCommand(publicHost string) string {
 	return `mkdir -p ` + buzzRelayTLSDirectory + `
 chmod 700 ` + buzzRelayTLSDirectory + `
-if [ ! -f ` + blueclaw.BuzzRelayCertificatePath + ` ]; then
+if [ ! -f ` + blueclaw.BuzzRelayCertificatePath + ` ] || ! openssl x509 -in ` + blueclaw.BuzzRelayCertificatePath + ` -noout -ext subjectAltName 2>/dev/null | grep -qF "DNS:` + publicHost + `"; then
   openssl req -x509 -newkey rsa:2048 -nodes -keyout ` + buzzRelayKeyPath + ` -out ` + blueclaw.BuzzRelayCertificatePath + ` -days 3650 -subj "/CN=` + publicHost + `" -addext "subjectAltName=DNS:` + publicHost + `"
   cp ` + blueclaw.BuzzRelayCertificatePath + ` ` + buzzRelayTrustStorePath + `
   update-ca-certificates
@@ -107,6 +107,8 @@ elif ! grep -q '^ENABLED=1' /etc/default/stunnel4 2>/dev/null; then
   printf 'ENABLED=1\n' >> /etc/default/stunnel4
 fi
 systemctl enable stunnel4
+pkill -f 'stunnel.*buzz-relay.conf' 2>/dev/null || true
+sleep 1
 systemctl restart stunnel4`
 }
 
