@@ -1,5 +1,8 @@
 <script lang="ts">
+	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import { Calendar as MiniCalendar, Day as MiniCalendarDay } from '$lib/components/ui/calendar';
+	import * as Empty from '$lib/components/ui/empty';
+	import { Separator } from '$lib/components/ui/separator';
 	import { cn } from '$lib/utils';
 	import { CalendarDate, type DateValue } from '@internationalized/date';
 	import { tick } from 'svelte';
@@ -26,6 +29,7 @@
 		events: CalendarGridEvent[];
 		localeCode: string;
 		draftPreviewTitle: string;
+		noEventsText: string;
 		selectDay: (day: Date) => void;
 		openEvent: (event: CalendarGridEvent, originElement: HTMLElement) => void;
 		addEventOnTimeRange: (start: Date, end: Date) => void;
@@ -39,6 +43,7 @@
 		events,
 		localeCode,
 		draftPreviewTitle,
+		noEventsText,
 		selectDay,
 		openEvent,
 		addEventOnTimeRange,
@@ -680,8 +685,9 @@
 					</MiniCalendarDay>
 				{/snippet}
 			</MiniCalendar>
+			<Separator class="my-3" />
 			{#if selectedDayEvents.length > 0}
-				<div class="mt-3 grid gap-2">
+				<div class="grid gap-2">
 					{#each selectedDayEvents as event (event.id)}
 						<CalendarEventListCard
 							title={event.title}
@@ -694,6 +700,15 @@
 						/>
 					{/each}
 				</div>
+			{:else}
+				<Empty.Root class="border-border/50 bg-muted/10 min-h-24 border border-dashed p-4">
+					<Empty.Header class="gap-1.5">
+						<Empty.Media class="text-muted-foreground mb-0">
+							<CalendarDaysIcon class="size-5" aria-hidden="true" />
+						</Empty.Media>
+						<Empty.Title class="text-muted-foreground">{noEventsText}</Empty.Title>
+					</Empty.Header>
+				</Empty.Root>
 			{/if}
 		</aside>
 	{/if}

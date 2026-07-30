@@ -261,6 +261,7 @@
 								events={gridEvents}
 								{localeCode}
 								draftPreviewTitle={text.newEvent}
+								noEventsText={text.noDayEvents}
 								selectDay={(day) => navigateToDateKey(calendarGridDateKey(day))}
 								openEvent={openGridEvent}
 								addEventOnTimeRange={(start, end) => addEventOnTimeRange(start, end)}
