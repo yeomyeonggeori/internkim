@@ -21,6 +21,7 @@ export type FlowTaskBoardOptions = {
 	weekStartISO?: string;
 	weekEndISO?: string;
 	weekPosition?: FlowTaskBoardWeekPosition;
+	hideEmptyRequestColumn?: boolean;
 };
 
 export type FlowTaskBoardWeekPosition = 'past' | 'current' | 'future';
@@ -59,13 +60,15 @@ const boardColumnThemes: Record<FlowTaskBoardStatus, FlowTaskBoardColumnTheme> =
 };
 
 export function buildFlowTaskBoard(tasks: FlowTask[], options: FlowTaskBoardOptions = {}): FlowTaskBoardColumn[] {
-	return BOARD_STATUS_VALUES.filter((status) => isBoardColumnVisible(status, options)).map((status) => ({
-		status,
-		theme: boardColumnThemes[status],
-		tasks: tasks
-			.filter((task) => task.status === status && matchesBoardColumnWeek(task, status, options))
-			.toSorted(compareFlowTaskBoardOrder)
-	}));
+	return BOARD_STATUS_VALUES.filter((status) => isBoardColumnVisible(status, options))
+		.map((status) => ({
+			status,
+			theme: boardColumnThemes[status],
+			tasks: tasks
+				.filter((task) => task.status === status && matchesBoardColumnWeek(task, status, options))
+				.toSorted(compareFlowTaskBoardOrder)
+		}))
+		.filter((column) => !(column.status === '요청' && column.tasks.length === 0 && options.hideEmptyRequestColumn));
 }
 
 export function isFlowTaskBoardStatus(status: string): status is FlowTaskBoardStatus {

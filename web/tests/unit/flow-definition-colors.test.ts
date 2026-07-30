@@ -22,6 +22,14 @@ describe('flow definition colors', () => {
 		expect(flowTaskTypeColor('기능', definitions)).toBe(flowDefinitionPaletteColor(1));
 	});
 
+	test('mixes default colors so neighbouring definitions look different', () => {
+		const defaults = [0, 1, 2, 3, 4, 5].map((index) => flowDefinitionPaletteColor(index));
+
+		expect(new Set(defaults).size).toBe(defaults.length);
+		expect(defaults.some((color, index) => index > 0 && color === defaults[index - 1])).toBe(false);
+		expect(flowDefinitionPaletteColor(0)).not.toBe(flowDefinitionPaletteColor(1));
+	});
+
 	test('falls back to a neutral color for values the definitions do not list', () => {
 		expect(flowBusinessColor('사라진 사업', flowDefinitions({}))).toBe('#64748b');
 	});
