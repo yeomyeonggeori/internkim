@@ -29,6 +29,8 @@ func (service *Service) handleAttendanceLeavePolicy(responseWriter http.Response
 		http.Error(responseWriter, "request must contain one JSON object", http.StatusBadRequest)
 		return
 	}
+	service.attendanceLeavePolicyMutationMutex.Lock()
+	defer service.attendanceLeavePolicyMutationMutex.Unlock()
 	normalizeLegacyAttendanceLeavePolicy(&policy)
 	existing, errorValue := service.readAttendanceLeavePolicy(request.Context())
 	if errorValue != nil {
@@ -60,6 +62,14 @@ func (service *Service) handleAttendanceLeavePolicy(responseWriter http.Response
 			status = http.StatusBadRequest
 		}
 		http.Error(responseWriter, errorValue.Error(), status)
+		return
+	}
+	if errorValue = service.synchronizeAttendanceLeaveBalanceTrackingBeforeUpdate(
+		request.Context(),
+		existing,
+		policy,
+	); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	if errorValue = service.writeAttendanceLeavePolicy(request.Context(), policy); errorValue != nil {

@@ -5,6 +5,7 @@ const attendanceDefaultAnnualGrantMilliDays = 15000
 func defaultAttendanceLeavePolicy() attendanceLeavePolicy {
 	return attendanceLeavePolicy{
 		Version:              attendanceLeavePolicyVersion,
+		BalanceTrackingMode:  attendanceLeaveBalanceTrackingManaged,
 		FiscalYearStartMonth: 1,
 		FiscalYearStartDay:   1,
 		LeaveTypes:           defaultAttendanceLeaveTypes(),

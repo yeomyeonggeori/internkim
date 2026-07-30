@@ -171,6 +171,7 @@ export type AttendanceLocationsResponse = {
 };
 
 export type LeaveBalanceMode = 'annual' | 'separate' | 'none';
+export type LeaveBalanceTrackingMode = 'managed' | 'unlimited';
 export type LeaveGrantCadence = 'annual' | 'monthly' | 'none';
 export type LeaveExpiryMode = 'fiscalYearEnd' | 'monthsAfterGrant' | 'none';
 export type LeaveAllowedUnit = 'fullDay' | 'halfDay' | 'quarterDay';
@@ -196,6 +197,7 @@ export type LeaveType = {
 
 export type AttendanceLeavePolicy = {
 	version: 2;
+	balanceTrackingMode: LeaveBalanceTrackingMode;
 	fiscalYearStartMonth: number;
 	fiscalYearStartDay: number;
 	leaveTypes: LeaveType[];

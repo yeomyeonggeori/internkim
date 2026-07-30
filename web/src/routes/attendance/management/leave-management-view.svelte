@@ -20,6 +20,7 @@
 	const text = createPageText(attendanceText);
 	const management = getLeaveManagementState();
 	let search = $state('');
+	const isUnlimited = $derived(management.payload?.balanceTrackingMode === 'unlimited');
 
 	const filteredEmployees = $derived(
 		(management.payload?.employees ?? []).filter((employee) => {
@@ -70,10 +71,16 @@
 	<header class="flex flex-wrap items-start justify-between gap-4">
 		<div>
 			<h1 class="text-2xl font-semibold tracking-tight">{text.management.title}</h1>
-			<p class="mt-1 text-sm text-muted-foreground">{text.management.description}</p>
+			<p class="mt-1 text-sm text-muted-foreground">
+				{isUnlimited
+					? text.management.unlimitedDescription
+					: text.management.description}
+			</p>
 		</div>
 		<div class="flex flex-wrap gap-2">
-			<LeaveAdjustmentDialog />
+			{#if !isUnlimited}
+				<LeaveAdjustmentDialog />
+			{/if}
 			<PastLeaveDialog />
 			<Button
 				variant={management.isLoading ? 'secondary' : 'ghost'}
@@ -109,11 +116,15 @@
 					<Table.Header>
 						<Table.Row>
 							<Table.Head>{text.management.employee}</Table.Head>
-							<Table.Head class="text-right">{text.management.granted}</Table.Head>
+							{#if !isUnlimited}
+								<Table.Head class="text-right">{text.management.granted}</Table.Head>
+							{/if}
 							<Table.Head class="text-right">{text.management.used}</Table.Head>
 							<Table.Head class="text-right">{text.management.pending}</Table.Head>
-							<Table.Head class="text-right">{text.management.available}</Table.Head>
-							<Table.Head class="text-right">{text.management.expiring}</Table.Head>
+							{#if !isUnlimited}
+								<Table.Head class="text-right">{text.management.available}</Table.Head>
+								<Table.Head class="text-right">{text.management.expiring}</Table.Head>
+							{/if}
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
@@ -142,25 +153,29 @@
 										</span>
 									</button>
 								</Table.Cell>
-								<Table.Cell class="text-right tabular-nums">
-									{dayValue(employee.grantedMilliDays)}
-								</Table.Cell>
+								{#if !isUnlimited}
+									<Table.Cell class="text-right tabular-nums">
+										{dayValue(employee.grantedMilliDays)}
+									</Table.Cell>
+								{/if}
 								<Table.Cell class="text-right tabular-nums">
 									{dayValue(employee.usedMilliDays)}
 								</Table.Cell>
 								<Table.Cell class="text-right tabular-nums">
 									{dayValue(employee.reservedMilliDays)}
 								</Table.Cell>
-								<Table.Cell class="text-right font-medium tabular-nums">
-									{dayValue(employee.availableMilliDays)}
-								</Table.Cell>
-								<Table.Cell class="text-right tabular-nums">
-									{dayValue(employee.expiringMilliDays)}
-								</Table.Cell>
+								{#if !isUnlimited}
+									<Table.Cell class="text-right font-medium tabular-nums">
+										{dayValue(employee.availableMilliDays)}
+									</Table.Cell>
+									<Table.Cell class="text-right tabular-nums">
+										{dayValue(employee.expiringMilliDays)}
+									</Table.Cell>
+								{/if}
 							</Table.Row>
 						{:else}
 							<Table.Row>
-								<Table.Cell colspan={6} class="h-28 text-center text-muted-foreground">
+								<Table.Cell colspan={isUnlimited ? 3 : 6} class="h-28 text-center text-muted-foreground">
 									{text.management.noEmployees}
 								</Table.Cell>
 							</Table.Row>
@@ -197,15 +212,19 @@
 										{leaveTypeName(balance.leaveTypeID, balance.leaveTypeName)}
 									</p>
 									<Badge variant="secondary">
-										{text.management.available} {dayValue(balance.availableMilliDays)}
+										{isUnlimited
+											? `${text.management.used} ${dayValue(balance.usedMilliDays)}`
+											: `${text.management.available} ${dayValue(balance.availableMilliDays)}`}
 									</Badge>
 								</div>
-								<div class="mt-3 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-									<span>{text.management.granted} {dayValue(balance.grantedMilliDays)}</span>
-									<span>{text.management.used} {dayValue(balance.usedMilliDays)}</span>
+								<div class="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+									{#if !isUnlimited}
+										<span>{text.management.granted} {dayValue(balance.grantedMilliDays)}</span>
+										<span>{text.management.used} {dayValue(balance.usedMilliDays)}</span>
+									{/if}
 									<span>{text.management.pending} {dayValue(balance.reservedMilliDays)}</span>
 								</div>
-								{#if balance.nextExpiryDate}
+								{#if !isUnlimited && balance.nextExpiryDate}
 									<p class="mt-2 text-xs text-muted-foreground">
 										{text.management.expiryTemplate
 											.replace('{date}', balance.nextExpiryDate)
@@ -217,13 +236,14 @@
 					</Card.Content>
 				</Card.Root>
 
-				<Card.Root>
-					<Card.Header>
-						<Card.Title>{text.management.ledgerTitle}</Card.Title>
-						<Card.Description>{text.management.ledgerDescription}</Card.Description>
-					</Card.Header>
-					<Card.Content class="space-y-3">
-						{#each detail.ledgerEntries as entry (entry.id)}
+				{#if !isUnlimited}
+					<Card.Root>
+						<Card.Header>
+							<Card.Title>{text.management.ledgerTitle}</Card.Title>
+							<Card.Description>{text.management.ledgerDescription}</Card.Description>
+						</Card.Header>
+						<Card.Content class="space-y-3">
+							{#each detail.ledgerEntries as entry (entry.id)}
 							<div class="flex flex-wrap items-start justify-between gap-3 border-b pb-3 last:border-0 last:pb-0">
 								<div class="min-w-0">
 									<div class="flex flex-wrap items-center gap-2">
@@ -246,13 +266,14 @@
 									</p>
 								</div>
 							</div>
-						{:else}
-							<p class="py-8 text-center text-sm text-muted-foreground">
-								{text.management.noLedger}
-							</p>
-						{/each}
-					</Card.Content>
-				</Card.Root>
+							{:else}
+								<p class="py-8 text-center text-sm text-muted-foreground">
+									{text.management.noLedger}
+								</p>
+							{/each}
+						</Card.Content>
+					</Card.Root>
+				{/if}
 
 				<Card.Root>
 					<Card.Header>

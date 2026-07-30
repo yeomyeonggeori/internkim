@@ -224,6 +224,7 @@ function managementPayload(
 		(employeeValue) => employeeValue.email === selectedEmail
 	);
 	return {
+		balanceTrackingMode: state.leave.payload.balanceTrackingMode,
 		leaveTypes: structuredClone(state.leave.payload.leaveTypes),
 		employees: structuredClone(state.employees),
 		detail: selectedEmployee

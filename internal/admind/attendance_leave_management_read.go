@@ -38,8 +38,9 @@ func (service *Service) readAttendanceLeaveManagement(
 		}
 	}
 	response := attendanceLeaveManagementResponse{
-		LeaveTypes: attendanceLeaveTypeViews(policy, nil),
-		Employees:  make([]attendanceLeaveManagementEmployeeView, 0, len(members)),
+		BalanceTrackingMode: policy.BalanceTrackingMode,
+		LeaveTypes:          attendanceLeaveTypeViews(policy, nil, nil),
+		Employees:           make([]attendanceLeaveManagementEmployeeView, 0, len(members)),
 	}
 	for _, member := range members {
 		employee, employeeError := attendanceLeaveManagementEmployee(
@@ -165,6 +166,31 @@ func attendanceLeaveManagementEmployee(
 	}
 	if employee.DisplayName == "" {
 		employee.DisplayName = employee.Email
+	}
+	if policy.BalanceTrackingMode == attendanceLeaveBalanceTrackingUnlimited {
+		usageByLeaveType, total, errorValue := readAttendanceLeaveUsageSummaries(
+			ctx,
+			database,
+			employee.Email,
+		)
+		if errorValue != nil {
+			return attendanceLeaveManagementEmployeeView{}, errorValue
+		}
+		employee.UsedMilliDays = total.UsedMilliDays
+		employee.ReservedMilliDays = total.ReservedMilliDays
+		for _, leaveType := range policy.LeaveTypes {
+			if !leaveType.IsActive {
+				continue
+			}
+			usage := usageByLeaveType[leaveType.ID]
+			employee.Balances = append(employee.Balances, attendanceLeaveManagementBalanceView{
+				LeaveTypeID:       leaveType.ID,
+				LeaveTypeName:     leaveType.Name,
+				ReservedMilliDays: usage.ReservedMilliDays,
+				UsedMilliDays:     usage.UsedMilliDays,
+			})
+		}
+		return employee, nil
 	}
 	for _, leaveType := range policy.LeaveTypes {
 		if !attendanceLeaveTypeOwnsBalance(leaveType) {
