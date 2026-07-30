@@ -56,7 +56,7 @@ export type LeaveManagementAdjustment = {
 	employeeEmail: string;
 	leaveTypeID: string;
 	amountMilliDays: number;
-	kind: 'adjustment' | 'legalCorrection';
+	kind: 'adjustment';
 	reason: string;
 	effectiveOn: string;
 	expiresOn: string;

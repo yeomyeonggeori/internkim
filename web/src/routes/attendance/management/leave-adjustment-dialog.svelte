@@ -18,7 +18,6 @@
 	let isOpen = $state(false);
 	let leaveTypeID = $state('');
 	let amountDays = $state('');
-	let kind = $state<'adjustment' | 'legalCorrection'>('adjustment');
 	let reason = $state('');
 	let effectiveOn = $state('');
 	let expiresOn = $state('');
@@ -32,7 +31,6 @@
 	function reset(): void {
 		leaveTypeID = balanceTypes[0]?.id ?? '';
 		amountDays = '';
-		kind = 'adjustment';
 		reason = '';
 		effectiveOn = todayDateInTimeZone(attendance.summary?.timeZone);
 		expiresOn = '';
@@ -56,7 +54,7 @@
 			employeeEmail: management.selectedEmployeeEmail,
 			leaveTypeID,
 			amountMilliDays,
-			kind,
+			kind: 'adjustment',
 			reason: reason.trim(),
 			effectiveOn,
 			expiresOn
@@ -99,25 +97,6 @@
 								{leaveTypeName(leaveType.id, leaveType.name)}
 							</Select.Item>
 						{/each}
-					</Select.Content>
-				</Select.Root>
-			</label>
-
-			<label class="grid gap-1.5 text-sm font-medium">
-				{text.management.adjustKind}
-				<Select.Root type="single" bind:value={kind}>
-					<Select.Trigger class="w-full">
-						{kind === 'legalCorrection'
-							? text.management.legalCorrection
-							: text.management.manualAdjustment}
-					</Select.Trigger>
-					<Select.Content>
-						<Select.Item value="adjustment" label={text.management.manualAdjustment}>
-							{text.management.manualAdjustment}
-						</Select.Item>
-						<Select.Item value="legalCorrection" label={text.management.legalCorrection}>
-							{text.management.legalCorrection}
-						</Select.Item>
 					</Select.Content>
 				</Select.Root>
 			</label>

@@ -25,8 +25,7 @@ func (service *Service) adjustManagedAttendanceLeave(
 			"employee, leave type, and amount are required",
 		)
 	}
-	if input.Kind != attendanceLeaveOperationAdjustment &&
-		input.Kind != attendanceLeaveOperationLegalCorrection {
+	if input.Kind != attendanceLeaveOperationAdjustment {
 		return attendanceLeaveBalance{}, attendanceLeaveInvalidInputErrorf(
 			"unsupported leave adjustment kind",
 		)
