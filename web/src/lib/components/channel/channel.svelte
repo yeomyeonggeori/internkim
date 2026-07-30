@@ -491,7 +491,7 @@
 	{/if}
 	{#if message.isError}
 		<Bubble.Root variant="destructive" class="max-w-[min(80%,32rem)]">
-			<Bubble.Content>{text.errorSummary}</Bubble.Content>
+			<Bubble.Content class="font-message">{text.errorSummary}</Bubble.Content>
 			<Bubble.Reactions align={reactionAlign}>
 				<Popover.Root>
 					<Popover.Trigger>
@@ -525,7 +525,7 @@
 			class={`max-w-[min(80%,32rem)] ${reactions.length > 0 ? 'mt-5' : ''}`}
 		>
 			<Bubble.Content>
-				<div class="chat-markdown">
+				<div class="chat-markdown font-message">
 					<SvelteMarkdown source={content.text} />
 				</div>
 			</Bubble.Content>
@@ -662,6 +662,7 @@
 		{/if}
 		<InputGroup.Root>
 			<InputGroup.Textarea
+				class="font-message"
 				bind:value={threadComposer}
 				placeholder={messageInputDisabled ? text.composerDisabledPlaceholder : text.threadComposerPlaceholder}
 				aria-label={text.threadComposerPlaceholder}
@@ -804,6 +805,7 @@
 		{/if}
 		<InputGroup.Root>
 			<InputGroup.Textarea
+				class="font-message"
 				bind:value={composerValue}
 				placeholder={messageInputDisabled ? text.composerDisabledPlaceholder : text.composerPlaceholder}
 				aria-label={text.composerPlaceholder}
