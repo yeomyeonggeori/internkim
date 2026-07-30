@@ -27,6 +27,10 @@
 		tick().then(updateRowScrollFade);
 	});
 
+	function isTopScore(value: number): boolean {
+		return value > 0 && value === scale.highestValue;
+	}
+
 	function memberOf(name: string): FlowMember | undefined {
 		return members.find((member) => member.name === name);
 	}
@@ -78,9 +82,9 @@
 						<div class="flex items-baseline justify-between gap-3">
 							<span class="min-w-0 truncate text-sm font-medium">{row.label}</span>
 							<span
-								class={row.total > section.averageValue
-									? 'shrink-0 text-sm font-semibold tabular-nums text-teal-700'
-									: 'shrink-0 text-sm tabular-nums text-muted-foreground'}
+								class={isTopScore(row.total)
+									? 'shrink-0 text-sm font-semibold tabular-nums text-blue-600'
+									: 'text-foreground shrink-0 text-sm tabular-nums'}
 							>
 								{formatValue(row.total, section.unit)}
 							</span>
