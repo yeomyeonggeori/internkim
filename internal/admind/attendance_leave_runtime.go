@@ -19,6 +19,7 @@ var errAttendanceLeaveClockOutAlreadyApplied = errors.New(
 type attendanceActiveLeaveView struct {
 	RequestID          string `json:"requestID"`
 	OccurrenceID       string `json:"occurrenceID"`
+	LeaveTypeID        string `json:"leaveTypeID"`
 	LeaveTypeName      string `json:"leaveTypeName"`
 	StartTime          string `json:"startTime"`
 	EndTime            string `json:"endTime"`
@@ -48,6 +49,7 @@ func (service *Service) readActiveAttendanceLeave(
 SELECT
 	request.id,
 	occurrence.id,
+	request.leave_type_id,
 	request.leave_type_name,
 	occurrence.start_time,
 	occurrence.end_time,
@@ -69,6 +71,7 @@ LIMIT 1`,
 	).Scan(
 		&activeLeave.RequestID,
 		&activeLeave.OccurrenceID,
+		&activeLeave.LeaveTypeID,
 		&activeLeave.LeaveTypeName,
 		&activeLeave.StartTime,
 		&activeLeave.EndTime,

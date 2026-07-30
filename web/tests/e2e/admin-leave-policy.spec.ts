@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import { createDefaultAttendanceLeavePolicy } from '../../dev-attendance-leave-policy-mock';
 import type { AttendanceLeavePolicy } from '../../src/routes/admin/admin-types';
+import { mockBuzzDisabled } from './buzz-test-routes';
 
 type MockAdminRole = 'admin' | 'operationsAdmin';
 
@@ -9,9 +10,14 @@ function isAttendanceLeavePolicy(value: unknown): value is AttendanceLeavePolicy
 	return Reflect.get(value, 'version') === 2 && Array.isArray(Reflect.get(value, 'leaveTypes'));
 }
 
-async function mockAdminLeavePolicyPage(page: Page, role: MockAdminRole) {
+async function mockAdminLeavePolicyPage(
+	page: Page,
+	role: MockAdminRole,
+	locale: 'ko' | 'en' = 'ko'
+) {
 	let policy = createDefaultAttendanceLeavePolicy();
 
+	await mockBuzzDisabled(page);
 	await page.route('**/admin/api/session', async (route) => {
 		await route.fulfill({
 			json: {
@@ -26,7 +32,7 @@ async function mockAdminLeavePolicyPage(page: Page, role: MockAdminRole) {
 		});
 	});
 	await page.route('**/admin/api/locale', async (route) => {
-		await route.fulfill({ json: { locale: 'ko' } });
+		await route.fulfill({ json: { locale } });
 	});
 	await page.route('**/auth/session**', async (route) => {
 		await route.fulfill({ json: { authenticated: true, email: 'admin@example.com' } });
@@ -57,7 +63,7 @@ test.describe('admin leave policy settings', () => {
 		await page.goto('/settings/?fleet_id=demo&section=attendanceSettings');
 
 		const leavePolicySettings = page.getByTestId('attendance-leave-policy-settings');
-		await expect(page.getByRole('button', { name: '근태 설정', exact: true })).toBeVisible();
+		await expect(page.getByRole('tab', { name: '근태 설정', exact: true })).toBeVisible();
 		await expect(
 			leavePolicySettings.locator('[data-slot="card-title"]', { hasText: '근태 설정' })
 		).toBeVisible();
@@ -210,5 +216,23 @@ test.describe('admin leave policy settings', () => {
 		await expect(page.getByRole('tab', { name: '근태 설정', exact: true })).toHaveCount(0);
 		await expect(page.locator('[data-slot="card-title"]', { hasText: '근태 설정' })).toHaveCount(0);
 		await expect(page.getByRole('tab', { name: '사용자' })).toBeVisible();
+	});
+
+	test('localizes default leave names and preserves administrator names in English', async ({
+		page
+	}) => {
+		await mockAdminLeavePolicyPage(page, 'admin', 'en');
+		await page.goto('/settings/?fleet_id=demo&section=attendanceSettings');
+
+		const settings = page.getByTestId('attendance-leave-policy-settings');
+		await expect(settings.getByTestId('leave-policy-list-scroll')).toContainText('Annual leave');
+		await expect(settings.getByLabel('Name')).toHaveValue('Annual leave');
+		await settings.getByLabel('Name').fill('Company annual leave');
+		await settings.getByRole('button', { name: 'Save', exact: true }).click();
+		await expect(settings.getByLabel('Name')).toHaveValue('Company annual leave');
+		await page.reload();
+		await expect(
+			page.getByTestId('attendance-leave-policy-settings').getByLabel('Name')
+		).toHaveValue('Company annual leave');
 	});
 });

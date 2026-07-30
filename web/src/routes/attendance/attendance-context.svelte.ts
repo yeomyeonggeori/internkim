@@ -113,6 +113,7 @@ export type AttendanceMember = {
 export type AttendanceActiveLeave = {
 	requestID: string;
 	occurrenceID: string;
+	leaveTypeID: string;
 	leaveTypeName: string;
 	startTime: string;
 	endTime: string;

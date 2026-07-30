@@ -36,6 +36,20 @@ test.describe('administrator leave approvals', () => {
 		expect(state.decisions).toEqual([{ action: 'approve', response: '' }]);
 	});
 
+	test('localizes the default leave name in the English approval inbox', async ({ page }) => {
+		await page.unroute('**/admin/api/locale');
+		await page.route('**/admin/api/locale', async (route) => {
+			await route.fulfill({ json: { locale: 'en' } });
+		});
+		await installLeaveApprovalRoute(page);
+		await page.goto('/attendance');
+		await page.getByTestId('leave-approval-navigation').click();
+
+		await expect(
+			page.getByTestId('leave-approval-request-leave-approval-pending')
+		).toContainText('Annual leave');
+	});
+
 	test('keeps an approved request out of pending when an older inbox load finishes later', async ({
 		page
 	}) => {

@@ -79,6 +79,7 @@ test.describe('approved partial leave attendance runtime', () => {
 					: {
 							requestID: 'leave-runtime-request',
 							occurrenceID: 'leave-runtime-occurrence',
+							leaveTypeID: 'annual',
 							leaveTypeName: '연차',
 							startTime: '13:00',
 							endTime: '15:00',

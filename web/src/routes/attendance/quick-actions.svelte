@@ -3,6 +3,8 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { formatDisplayTime } from '$lib/components/time-text';
 	import { cn } from '$lib/utils';
@@ -44,6 +46,15 @@
 	const todayDay = $derived(computeDayEvents(today, myEvents, { currentDate: today }));
 	const status = $derived(statusForDay(today, myEvents, myAbsences, today));
 	const activeLeave = $derived(attendance.currentMonthSummary?.activeLeave);
+	const activeLeaveName = $derived(
+		activeLeave
+			? localizedLeaveTypeName(
+					activeLeave.leaveTypeID,
+					activeLeave.leaveTypeName,
+					currentLocale.value
+				)
+			: ''
+	);
 
 	const elapsedMinutes = $derived.by(() => {
 		if (todayDay.activeSegment) {
@@ -148,7 +159,7 @@
 			>
 				<p class="font-medium text-info">{text.onLeave}</p>
 				<p class="mt-0.5 text-muted-foreground">
-					{activeLeave.leaveTypeName} · {activeLeave.startTime}–{activeLeave.endTime}
+					{activeLeaveName} · {activeLeave.startTime}–{activeLeave.endTime}
 				</p>
 			</div>
 		{/if}
