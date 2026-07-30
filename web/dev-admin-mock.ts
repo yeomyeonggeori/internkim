@@ -1,3 +1,4 @@
+import { devLocale, setDevLocale } from './dev-locale-state';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export type DevAdminMockState = {
@@ -52,11 +53,11 @@ export function createDevAdminMockResponse(
 		};
 	}
 	if (request.method === 'GET' && request.pathname === '/admin/api/locale') {
-		return { status: 200, body: { locale: state.locale } };
+		return { status: 200, body: { locale: devLocale() } };
 	}
 	if (request.method === 'PUT' && request.pathname === '/admin/api/locale') {
-		state.locale = localeFromBody(request.body);
-		return { status: 200, body: { locale: state.locale } };
+		setDevLocale(localeFromBody(request.body));
+		return { status: 200, body: { locale: devLocale() } };
 	}
 	return undefined;
 }
