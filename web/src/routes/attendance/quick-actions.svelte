@@ -3,6 +3,8 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { formatDisplayTime } from '$lib/components/time-text';
 	import { cn } from '$lib/utils';
@@ -43,6 +45,16 @@
 
 	const todayDay = $derived(computeDayEvents(today, myEvents, { currentDate: today }));
 	const status = $derived(statusForDay(today, myEvents, myAbsences, today));
+	const activeLeave = $derived(attendance.currentMonthSummary?.activeLeave);
+	const activeLeaveName = $derived(
+		activeLeave
+			? localizedLeaveTypeName(
+					activeLeave.leaveTypeID,
+					activeLeave.leaveTypeName,
+					currentLocale.value
+				)
+			: ''
+	);
 
 	const elapsedMinutes = $derived.by(() => {
 		if (todayDay.activeSegment) {
@@ -56,7 +68,9 @@
 		todayDay.activeSegment?.locationName ?? todayDay.activeSegment?.locationID ?? text.location
 	);
 
-	const nextKind = $derived<AttendanceKind>(status === 'working' ? 'clock_out' : 'clock_in');
+	const nextKind = $derived<AttendanceKind>(
+		activeLeave ? 'clock_in' : status === 'working' ? 'clock_out' : 'clock_in'
+	);
 	const actionLabel = $derived(nextKind === 'clock_in' ? text.clockIn : text.clockOut);
 
 	let selectedLocationID = $state<string>('');
@@ -71,14 +85,15 @@
 	let isToggling = $state(false);
 	let errorMessage = $state('');
 
-	async function handleToggle() {
+	async function handleToggle(confirmEarlyReturn = false) {
 		if (isToggling) return;
 		isToggling = true;
 		errorMessage = '';
 		try {
 			await attendance.toggleAttendance(
 				nextKind,
-				nextKind === 'clock_in' ? selectedLocationID || undefined : undefined
+				nextKind === 'clock_in' ? selectedLocationID || undefined : undefined,
+				confirmEarlyReturn
 			);
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.processingFailed;
@@ -137,6 +152,17 @@
 				{/if}
 			</div>
 		{/if}
+		{#if activeLeave}
+			<div
+				class="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-xs"
+				data-testid="active-leave-status"
+			>
+				<p class="font-medium text-info">{text.onLeave}</p>
+				<p class="mt-0.5 text-muted-foreground">
+					{activeLeaveName} · {activeLeave.startTime}–{activeLeave.endTime}
+				</p>
+			</div>
+		{/if}
 		{#if todaySegmentBars.length > 0}
 			<div class="h-1.5 w-full rounded-full bg-muted" data-testid="quick-actions-current-bar" aria-hidden="true">
 				<div class="flex h-full overflow-hidden rounded-full" style:width={`${segmentBarsTotalPercent(todaySegmentBars)}%`}>
@@ -193,12 +219,40 @@
 					</AlertDialog.Header>
 					<AlertDialog.Footer>
 						<AlertDialog.Cancel>{text.cancel}</AlertDialog.Cancel>
-						<AlertDialog.Action onclick={handleToggle}>{text.clockOut}</AlertDialog.Action>
+						<AlertDialog.Action onclick={() => handleToggle()}>{text.clockOut}</AlertDialog.Action>
+					</AlertDialog.Footer>
+				</AlertDialog.Content>
+			</AlertDialog.Root>
+		{:else if activeLeave}
+			<AlertDialog.Root>
+				<AlertDialog.Trigger class={cn(buttonVariants(), 'w-full')} disabled={isToggling}>
+					{#if isToggling}
+						<LoaderIcon class="size-3.5 animate-spin" />
+					{:else}
+						<LogInIcon class="size-3.5" />
+					{/if}
+					{actionLabel}
+				</AlertDialog.Trigger>
+				<AlertDialog.Content>
+					<AlertDialog.Header>
+						<AlertDialog.Title>{text.earlyReturnConfirmTitle}</AlertDialog.Title>
+						<AlertDialog.Description>
+							{text.earlyReturnConfirmDescriptionTemplate.replace(
+								'{endTime}',
+								activeLeave.endTime
+							)}
+						</AlertDialog.Description>
+					</AlertDialog.Header>
+					<AlertDialog.Footer>
+						<AlertDialog.Cancel>{text.cancel}</AlertDialog.Cancel>
+						<AlertDialog.Action onclick={() => handleToggle(true)}>
+							{text.earlyReturnConfirmAction}
+						</AlertDialog.Action>
 					</AlertDialog.Footer>
 				</AlertDialog.Content>
 			</AlertDialog.Root>
 		{:else}
-			<Button class="w-full" onclick={handleToggle} disabled={isToggling}>
+			<Button class="w-full" onclick={() => handleToggle()} disabled={isToggling}>
 				{#if isToggling}
 					<LoaderIcon class="size-3.5 animate-spin" />
 				{:else}

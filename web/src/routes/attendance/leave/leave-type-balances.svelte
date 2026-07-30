@@ -1,0 +1,72 @@
+<script lang="ts">
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { attendanceText } from '../text';
+	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
+	import { milliDaysValue } from './leave-history-model';
+
+	const text = createPageText(attendanceText);
+	const employeeLeave = getEmployeeLeaveState();
+	const isUnlimited = $derived(employeeLeave.payload?.balanceTrackingMode === 'unlimited');
+	const balanceTypes = $derived(
+		(employeeLeave.payload?.leaveTypes ?? []).filter(
+			(leaveType) =>
+				leaveType.isActive &&
+				leaveType.balance !== undefined &&
+				(isUnlimited || leaveType.balanceMode === 'separate' || leaveType.id === 'annual')
+		)
+	);
+
+	function days(value: number): string {
+		return `${milliDaysValue(value)}${text.leave.dayUnit}`;
+	}
+
+	function leaveTypeName(id: string, name: string): string {
+		return localizedLeaveTypeName(id, name, currentLocale.value);
+	}
+</script>
+
+<section class="border-b px-4 py-4 sm:px-6" data-testid="leave-type-balances">
+	<div>
+		<h3 class="text-sm font-semibold">
+			{isUnlimited ? text.leave.usageOverviewTitle : text.leave.balanceOverviewTitle}
+		</h3>
+		<p class="mt-1 text-xs text-muted-foreground">
+			{isUnlimited
+				? text.leave.usageOverviewDescription
+				: text.leave.balanceOverviewDescription}
+		</p>
+	</div>
+	{#if balanceTypes.length}
+		<div class="mt-3 divide-y">
+			{#each balanceTypes as leaveType (leaveType.id)}
+				<div class="flex items-center justify-between gap-4 py-2.5">
+					<span class="text-sm font-medium">{leaveTypeName(leaveType.id, leaveType.name)}</span>
+					<span class="text-right text-sm tabular-nums">
+						<span class="font-semibold">
+							{isUnlimited
+								? text.leave.balanceOverviewUsed
+								: text.leave.balanceOverviewAvailable}
+							{days(
+								isUnlimited
+									? leaveType.balance?.usedMilliDays ?? 0
+									: leaveType.balance?.availableMilliDays ?? 0
+							)}
+						</span>
+						{#if (leaveType.balance?.reservedMilliDays ?? 0) > 0}
+							<span class="ml-2 text-xs text-muted-foreground">
+								{text.leave.balanceOverviewPending}
+								{days(leaveType.balance?.reservedMilliDays ?? 0)}
+							</span>
+						{/if}
+					</span>
+				</div>
+			{/each}
+		</div>
+	{:else}
+		<p class="mt-3 text-sm text-muted-foreground">
+			{text.leave.balanceOverviewEmpty}
+		</p>
+	{/if}
+</section>

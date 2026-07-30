@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type attendanceClockRequest struct {
-	Kind       string `json:"kind"`
-	LocationID string `json:"locationID"`
+	Kind               string `json:"kind"`
+	LocationID         string `json:"locationID"`
+	ConfirmEarlyReturn bool   `json:"confirmEarlyReturn"`
 }
 
 var errAttendanceDuplicateIgnored = errors.New("attendance duplicate ignored")
@@ -44,6 +46,17 @@ func (service *Service) writeAttendanceClock(responseWriter http.ResponseWriter,
 		return
 	}
 	ctx := request.Context()
+	now := time.Now().UTC()
+	activeLeave, errorValue := service.prepareAttendanceLeaveClock(ctx, actorEmail, body, now)
+	if errorValue != nil {
+		if errors.Is(errorValue, errAttendanceLeaveEarlyReturnConfirmationRequired) ||
+			errors.Is(errorValue, errAttendanceLeaveClockOutAlreadyApplied) {
+			http.Error(responseWriter, errorValue.Error(), http.StatusConflict)
+			return
+		}
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	adminToken, errorValue := service.mattermostAdminToken(ctx)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -97,6 +110,16 @@ func (service *Service) writeAttendanceClock(responseWriter http.ResponseWriter,
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	if errorValue := service.completeAttendanceLeaveClock(
+		ctx,
+		activeLeave,
+		actorEmail,
+		body,
+		now,
+	); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	service.writeJSON(responseWriter, map[string]any{"ok": true, "status": result.Status, "resultPostID": result.ResultPostID})
 }
 
@@ -114,6 +137,15 @@ func (service *Service) toggleAttendanceFromMattermost(ctx context.Context, payl
 }
 
 func (service *Service) recordAttendanceFromMattermost(ctx context.Context, payload mattermostInteractivePayload, requestedKind string) (attendanceActionResult, error) {
+	return service.recordAttendanceFromMattermostAt(ctx, payload, requestedKind, time.Now().UTC())
+}
+
+func (service *Service) recordAttendanceFromMattermostAt(
+	ctx context.Context,
+	payload mattermostInteractivePayload,
+	requestedKind string,
+	now time.Time,
+) (attendanceActionResult, error) {
 	adminToken, errorValue := service.mattermostAdminToken(ctx)
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
@@ -124,6 +156,22 @@ func (service *Service) recordAttendanceFromMattermost(ctx context.Context, payl
 	}
 	if !found {
 		return attendanceActionResult{}, fmt.Errorf("Mattermost user %s was not found", payload.UserID)
+	}
+	leaveClockRequest := attendanceClockRequest{Kind: requestedKind}
+	activeLeave, errorValue := service.reconcileApprovedLeaveClockOut(
+		ctx,
+		userRecord.Email,
+		now,
+	)
+	if errorValue != nil {
+		return attendanceActionResult{}, errorValue
+	}
+	if activeLeave != nil {
+		if requestedKind == attendanceKindClockOut {
+			return attendanceActionResult{}, errAttendanceLeaveClockOutAlreadyApplied
+		}
+		leaveClockRequest.Kind = attendanceKindClockIn
+		leaveClockRequest.ConfirmEarlyReturn = true
 	}
 	teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
 	if errorValue != nil {
@@ -142,10 +190,25 @@ func (service *Service) recordAttendanceFromMattermost(ctx context.Context, payl
 	}
 	teamID := firstNonEmpty(payload.TeamID, teamRecord.ID)
 	actionPostID := firstNonEmpty(readTrimmedFile(service.mattermostAttendanceEntryPostIDPath()), payload.PostID)
+	result := attendanceActionResult{}
 	if requestedKind == "" {
-		return service.applyAttendanceToggle(ctx, userRecord, userToken, teamID, channelID, actionPostID)
+		result, errorValue = service.applyAttendanceToggle(ctx, userRecord, userToken, teamID, channelID, actionPostID)
+	} else {
+		result, errorValue = service.applyAttendanceAction(ctx, userRecord, userToken, requestedKind, teamID, channelID, actionPostID, payload.Context.LocationID)
 	}
-	return service.applyAttendanceAction(ctx, userRecord, userToken, requestedKind, teamID, channelID, actionPostID, payload.Context.LocationID)
+	if errorValue != nil {
+		return attendanceActionResult{}, errorValue
+	}
+	if errorValue := service.completeAttendanceLeaveClock(
+		ctx,
+		activeLeave,
+		userRecord.Email,
+		leaveClockRequest,
+		now,
+	); errorValue != nil {
+		return attendanceActionResult{}, errorValue
+	}
+	return result, nil
 }
 
 func (service *Service) mattermostAttendanceActionChannelID(ctx context.Context, token string, teamID string, payloadChannelID string) (string, error) {

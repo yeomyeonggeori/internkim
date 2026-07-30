@@ -1,8 +1,11 @@
 import { expect, test as base } from '@playwright/test';
+import { buildEmployeeLeaveFixture } from '../../dev-attendance-leave-fixture';
 import { buildAttendanceSummaryFixture } from '../../dev-attendance-summary-fixture';
+import { mockBuzzDisabled } from './buzz-test-routes';
 
 export const test = base.extend({
 	page: async ({ page }, use) => {
+		await mockBuzzDisabled(page);
 		await page.route('**/admin/api/session', async (route) => {
 			await route.fulfill({ json: { email: 'tester@example.com', isAdmin: true } });
 		});
@@ -16,6 +19,9 @@ export const test = base.extend({
 			const requestURL = new URL(route.request().url());
 			const month = requestURL.searchParams.get('month') ?? '2026-05';
 			await route.fulfill({ json: buildAttendanceSummaryFixture(month) });
+		});
+		await page.route('**/attendance/api/leave', async (route) => {
+			await route.fulfill({ json: buildEmployeeLeaveFixture() });
 		});
 		await page.route('**/calendar/api/events?**', async (route) => {
 			await route.fulfill({ json: { events: [] } });

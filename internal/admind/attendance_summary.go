@@ -50,6 +50,15 @@ func (service *Service) writeAttendanceSummaryWithReadersAt(
 		targetEmail = actorEmail
 	}
 	members := service.attendanceMembersForSummary(request, actorEmail, isAdmin, teamVisible)
+	activeLeave, errorValue := service.reconcileApprovedLeaveClockOut(
+		request.Context(),
+		actorEmail,
+		serverTime,
+	)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	events, errorValue := eventsReader(request.Context(), month, targetEmail)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -84,6 +93,14 @@ func (service *Service) writeAttendanceSummaryWithReadersAt(
 		visibleEvents = filtered
 	}
 	responseWriter.Header().Set("Cache-Control", "private, no-store")
+	todayStatus := attendanceStatusForEvents(
+		statusEvents,
+		serverTime.In(timeZone.location).Format("2006-01-02"),
+		serverTime,
+	)
+	if activeLeave != nil {
+		todayStatus = "on_leave"
+	}
 	service.writeJSON(responseWriter, attendanceSummaryResponse{
 		Month:                 month,
 		ServerTime:            serverTime.Format(time.RFC3339Nano),
@@ -94,7 +111,8 @@ func (service *Service) writeAttendanceSummaryWithReadersAt(
 		Events:                visibleEvents,
 		Absences:              projectAttendanceAbsences(absences, actorEmail, isAdmin),
 		Members:               members,
-		TodayStatus:           attendanceStatusForEvents(statusEvents, serverTime.In(timeZone.location).Format("2006-01-02"), serverTime),
+		TodayStatus:           todayStatus,
+		ActiveLeave:           activeLeave,
 		Locations:             locations,
 		TeamViewVisibleToAll:  teamVisible,
 		TeamViewBlocked:       teamViewBlocked,
