@@ -136,3 +136,24 @@ func TestApplyAttendanceStatusChangeClocksInAndDedupes(t *testing.T) {
 		t.Fatalf("events after clock out status = %+v", events)
 	}
 }
+
+func TestSeededAttendanceStatusDoesNotReplayAsClockIn(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	user := mattermostUserRecord{
+		ID:    "user-1",
+		Props: map[string]json.RawMessage{"customStatus": json.RawMessage(`{"emoji":"office","text":"출근"}`)},
+	}
+	lastStatusByUser := map[string]string{}
+
+	lastStatusByUser[user.ID] = mattermostCustomStatusText(user)
+	service.applyAttendanceStatusChange(context.Background(), user, lastStatusByUser)
+
+	month := time.Now().In(func() *time.Location { location, _ := service.workspaceTimeLocation(); return location }()).Format("2006-01")
+	events, errorValue := service.readAttendanceEvents(context.Background(), month, "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 0 {
+		t.Fatalf("expected a seeded status to record nothing, events = %+v", events)
+	}
+}
