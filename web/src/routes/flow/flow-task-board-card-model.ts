@@ -5,6 +5,7 @@ export type FlowTaskBoardCardDisplay = {
 	ownerName: string;
 	participantNames: string[];
 	participantIDs: string[];
+	businessLabel: string;
 	metadataLabels: string[];
 };
 
@@ -13,7 +14,8 @@ export function buildFlowTaskBoardCardDisplay(task: FlowTask, emptyBusinessLabel
 		ownerName: task.ownerName,
 		participantNames: participantNamesWithoutOwner(task),
 		participantIDs: participantIDsWithoutOwner(task),
-		metadataLabels: buildMetadataLabels(task, emptyBusinessLabel)
+		businessLabel: flowBusinessLabel(task.business, emptyBusinessLabel),
+		metadataLabels: buildMetadataLabels(task)
 	};
 }
 
@@ -25,6 +27,6 @@ function participantIDsWithoutOwner(task: FlowTask): string[] {
 	return task.participantIDs.filter((participantID) => participantID !== task.ownerID);
 }
 
-function buildMetadataLabels(task: FlowTask, emptyBusinessLabel: string): string[] {
-	return [flowBusinessLabel(task.business, emptyBusinessLabel), task.type].filter((label): label is string => Boolean(label));
+function buildMetadataLabels(task: FlowTask): string[] {
+	return [task.type].filter((label): label is string => Boolean(label));
 }
