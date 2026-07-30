@@ -36,8 +36,10 @@
 	import {
 		calendarParticipantKey,
 		calendarParticipantsFromUnknown,
+		calendarParticipantsWithViewerFirst,
 		fetchCalendarParticipants
 	} from './calendar-participants';
+	import { fetchWebSessionEmail } from '$lib/web-session';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 	import './calendar-page.css';
 
@@ -194,7 +196,8 @@
 
 	async function loadParticipantCandidates(): Promise<void> {
 		try {
-			state.participantCandidates = await fetchCalendarParticipants(text.error);
+			const candidates = await fetchCalendarParticipants(text.error);
+			state.participantCandidates = calendarParticipantsWithViewerFirst(candidates, await fetchWebSessionEmail());
 		} catch {
 			state.participantCandidates = [];
 		}
