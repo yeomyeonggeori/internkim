@@ -9,5 +9,5 @@ export function flowBusinessColor(business: string, categories: string[]): strin
 }
 
 export function flowBusinessBadgeStyle(color: string): string {
-	return `background: ${color}1f; color: ${color}; border-color: ${color}33;`;
+	return `background: ${color}; color: #ffffff;`;
 }
