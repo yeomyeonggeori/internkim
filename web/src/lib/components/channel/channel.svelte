@@ -65,6 +65,7 @@
 	let loadFailed = $state(false);
 	let hasLoadedOnce = $state(false);
 	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+	let lastConversationSignature = '';
 	let pendingAttachments = $state<PendingAttachment[]>([]);
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let attachmentSerial = 0;
@@ -166,9 +167,16 @@
 			if (latestIncoming && !isMine(latestIncoming) && latestIncoming.id !== messages.at(-1)?.id) {
 				isAgentWorking = false;
 			}
-			messages = conversation.messages;
-			if (openThreadRoot) {
-				openThreadRoot = messages.find((message) => message.id === openThreadRoot?.id) ?? openThreadRoot;
+			// Only replace the list when it actually changed. A poll that returns the
+			// same messages must not reassign the array, or the re-render resets the
+			// scroll position and the view keeps jumping.
+			const signature = conversationSignature(conversation.messages);
+			if (signature !== lastConversationSignature) {
+				lastConversationSignature = signature;
+				messages = conversation.messages;
+				if (openThreadRoot) {
+					openThreadRoot = messages.find((message) => message.id === openThreadRoot?.id) ?? openThreadRoot;
+				}
 			}
 			loadFailed = false;
 		} catch {
@@ -176,6 +184,15 @@
 		} finally {
 			hasLoadedOnce = true;
 		}
+	}
+
+	function conversationSignature(list: ChannelMessage[]): string {
+		return list
+			.map((message) => {
+				const reactionTotal = (message.reactions ?? []).reduce((sum, reaction) => sum + reaction.count, 0);
+				return `${message.id}:${message.sentAt}:${message.text.length}:${reactionTotal}:${(message.attachments ?? []).length}`;
+			})
+			.join('~');
 	}
 
 	async function loadCurrentUser() {
@@ -389,6 +406,7 @@
 		void channelId;
 		hasLoadedOnce = false;
 		messages = [];
+		lastConversationSignature = '';
 		openThreadRoot = null;
 		loadConversation();
 	});
