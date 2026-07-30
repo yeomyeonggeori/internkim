@@ -10,6 +10,42 @@ import {
 type SavedGroup = { id: string; name: string; parentID?: string };
 
 test.describe('employee organization directory editing', () => {
+	test('lets employees edit their own organization profile', async ({ page }) => {
+		let savedProfile: { phoneNumber: string; hireDate: string } | undefined;
+		await mockOrganizationDirectory(page);
+		await page.route('**/organization/api/me/profile', async (route) => {
+			savedProfile = route.request().postDataJSON() as { phoneNumber: string; hireDate: string };
+			await route.fulfill({ json: savedProfile });
+		});
+
+		await page.goto('/organization/');
+		await page.getByTestId('organization-person-node-user-dabin').click();
+
+		const detailPanel = page.getByTestId('organization-person-detail-panel');
+		await detailPanel.getByRole('button', { name: '수정하기' }).click();
+
+		await expect(detailPanel.getByLabel('전화번호')).toBeEnabled();
+		await expect(detailPanel.getByLabel('입사일')).toBeEnabled();
+		await detailPanel.getByLabel('전화번호').fill('+82 10-1234-5678');
+		await detailPanel.getByLabel('입사일').fill('2026-03-12');
+		await detailPanel.getByRole('button', { name: '저장', exact: true }).click();
+
+		await expect.poll(() => savedProfile).toEqual({
+			phoneNumber: '+82 10-1234-5678',
+			hireDate: '2026-03-12'
+		});
+		await expect(detailPanel).toContainText('+82 10-1234-5678');
+		await expect(detailPanel).toContainText('2026-03-12');
+
+		await page.setViewportSize({ width: 390, height: 520 });
+		await page.reload();
+		await page.getByTestId('organization-person-node-user-dabin').click();
+		const mobileDetailPanel = page.getByRole('dialog', { name: '직원 상세' }).getByTestId('organization-person-detail-panel');
+		await mobileDetailPanel.getByRole('button', { name: '수정하기' }).click();
+		await expect(mobileDetailPanel.getByLabel('전화번호')).toBeEnabled();
+		await expect(mobileDetailPanel.getByLabel('입사일')).toBeEnabled();
+	});
+
 	test('adds an organization under the selected parent', async ({ page }) => {
 		let savedGroups: SavedGroup[] = [];
 		await mockOrganizationDirectory(page, { canManage: true });
