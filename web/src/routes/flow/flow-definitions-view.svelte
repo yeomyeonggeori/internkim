@@ -1,6 +1,6 @@
 <script lang="ts">
 	import FlowEditableDefinitionListCard from './flow-editable-definition-list-card.svelte';
-	import { flowProjectColor, flowTypeColor } from './flow-report-colors';
+	import { flowBusinessColor, flowTaskTypeColor } from './flow-definition-colors';
 	import FlowSizeDefinitionsCard from './flow-size-definitions-card.svelte';
 	import type { FlowDefinitions } from './flow-types';
 
@@ -15,6 +15,7 @@
 		note: string;
 		business: string;
 		businessDescription: string;
+		color: string;
 		type: string;
 		typeDescription: string;
 		adminOnly: string;
@@ -30,6 +31,9 @@
 	type Props = {
 		definitions: FlowDefinitions;
 		categoryDrafts: string[];
+		setCategoryColor: (index: number, color: string) => void;
+		setTypeColor: (index: number, color: string) => void;
+		setSizeColor: (name: string, color: string) => void;
 		typeDrafts: string[];
 		newCategoryText: string;
 		newTypeText: string;
@@ -54,6 +58,9 @@
 	let {
 		definitions,
 		categoryDrafts,
+		setCategoryColor,
+		setTypeColor,
+		setSizeColor,
 		typeDrafts,
 		newCategoryText,
 		newTypeText,
@@ -93,7 +100,7 @@
 
 {#if canEditDefinitions}
 	<section class="grid gap-4">
-		<FlowSizeDefinitionsCard {definitions} {text} />
+		<FlowSizeDefinitionsCard {definitions} {text} {isAdmin} {setSizeColor} />
 		<div class="grid gap-4 lg:grid-cols-2">
 			<FlowEditableDefinitionListCard
 				title={text.business}
@@ -108,7 +115,9 @@
 				add={addCategory}
 				setNewValue={setNewCategoryText}
 				{saveDefinitions}
-				itemColor={flowProjectColor}
+				itemColor={(index) => flowBusinessColor(categoryDrafts[index] ?? '', definitions)}
+				setItemColor={setCategoryColor}
+				colorLabel={text.color}
 			/>
 			<FlowEditableDefinitionListCard
 				title={text.type}
@@ -123,7 +132,9 @@
 				add={addType}
 				setNewValue={setNewTypeText}
 				{saveDefinitions}
-				itemColor={flowTypeColor}
+				itemColor={(index) => flowTaskTypeColor(typeDrafts[index] ?? '', definitions)}
+				setItemColor={setTypeColor}
+				colorLabel={text.color}
 			/>
 		</div>
 		{#if isAdmin}
