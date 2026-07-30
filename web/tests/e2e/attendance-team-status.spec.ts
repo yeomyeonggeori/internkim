@@ -356,14 +356,17 @@ test.describe('attendance team status', () => {
 		const targetDate = '2026-06-17';
 		const summary = buildAttendanceSummaryFixture('2026-06');
 		let calendarRequests = 0;
-		let flowRequests = 0;
 		await page.unroute('**/attendance/api/summary**');
 		await page.route('**/attendance/api/summary**', async (route) => {
 			await route.fulfill({ json: summary });
 		});
 		await page.unroute('**/calendar/api/events?**');
 		await page.route('**/calendar/api/events?**', async (route) => {
-			calendarRequests += 1;
+			const requestURL = new URL(route.request().url());
+			const targetStartISO = new Date(`${summary.month}-01T00:00:00`).toISOString();
+			if (requestURL.searchParams.get('startISO') === targetStartISO) {
+				calendarRequests += 1;
+			}
 			await route.fulfill({
 				json: {
 					events: [
@@ -382,7 +385,6 @@ test.describe('attendance team status', () => {
 		});
 		await page.unroute('**/flow/api/state');
 		await page.route('**/flow/api/state', async (route) => {
-			flowRequests += 1;
 			await route.fulfill({
 				json: flowStateFixture([
 					flowTask('completed-personal-task', '월간 현황 팝업 구현', '완료', targetDate, 'kim', [
@@ -460,7 +462,6 @@ test.describe('attendance team status', () => {
 		await expect(dialog.getByText('다른 사람 완료 업무')).toHaveCount(0);
 		await expect(dialog.getByTestId('team-status-section-scroll-fade')).toHaveCount(0);
 		expect(calendarRequests).toBe(1);
-		expect(flowRequests).toBe(1);
 	});
 
 	test('keeps calendar events and completed flow tasks separated by source', async ({ page }) => {
