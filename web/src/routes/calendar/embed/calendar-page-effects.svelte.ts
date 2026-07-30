@@ -1,5 +1,5 @@
-import type { Event as DayFlowEvent } from '@dayflow/core';
-import type { ViewType } from '@dayflow/svelte';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { ViewType } from '../calendar-view-type';
 import type { CalendarLocaleText } from '../text';
 import type { CalendarPageRangePreviewActions } from './calendar-page-range-preview';
 import type { CalendarPageRenderSyncActions } from './calendar-page-render-sync';

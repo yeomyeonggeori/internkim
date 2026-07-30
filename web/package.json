@@ -50,10 +50,6 @@
 		"wrangler": "^4.63.0"
 	},
 	"dependencies": {
-		"@dayflow/core": "^3.6.1",
-		"@dayflow/plugin-drag": "^1.5.1",
-		"@dayflow/plugin-sidebar": "^1.5.1",
-		"@dayflow/svelte": "^3.6.1",
 		"@humanspeak/svelte-markdown": "^1.6.0",
 		"@lucide/svelte": "^1.27.0",
 		"@tailwindcss/typography": "^0.5.19",

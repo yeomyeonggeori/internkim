@@ -1,3 +1,4 @@
+import type { CalendarParticipant } from '../embed/calendar-participants';
 import {
 	addCalendarGridDays,
 	calendarGridMinutesFromMidnight,
@@ -13,6 +14,7 @@ export type CalendarGridEvent = {
 	end: Date;
 	isAllDay: boolean;
 	color: string;
+	participants: CalendarParticipant[];
 };
 
 export type CalendarGridSpan = {

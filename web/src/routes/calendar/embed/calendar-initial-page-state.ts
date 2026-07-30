@@ -1,4 +1,4 @@
-import { ViewType } from '@dayflow/svelte';
+import { ViewType } from '../calendar-view-type';
 import { calendarViewType } from './calendar-embed-view-helpers';
 import { loadSavedCalendarView } from './calendar-storage';
 

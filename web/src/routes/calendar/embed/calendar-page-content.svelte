@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { Event as DayFlowEvent } from '@dayflow/core';
-	import type { ViewType } from '@dayflow/svelte';
+	import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+	import type { ViewType } from '../calendar-view-type';
 	import type { CalendarLocaleText } from '../text';
 	import type { CalendarConflict } from './calendar-conflicts';
 	import type { CalendarParticipant } from './calendar-participants';

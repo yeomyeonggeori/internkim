@@ -1,5 +1,5 @@
-import type { Event as DayFlowEvent, Locale } from '@dayflow/core';
-import type { ViewType } from '@dayflow/svelte';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { ViewType } from '../calendar-view-type';
 import { createCalendarEventStore } from './calendar-event-store.svelte';
 import type { CalendarLocaleText } from '../text';
 import {
@@ -31,7 +31,6 @@ import type { CalendarEmbedPageState } from './calendar-page-state.svelte';
 
 type CalendarPageControllerContext = {
 	isBrowser: () => boolean;
-	getCalendarLocale: () => Locale;
 	getIsMobileTwoDayWeekView: () => boolean;
 	getLocaleCode: () => string;
 	initialCalendarDate: () => Date;
