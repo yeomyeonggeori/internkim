@@ -69,7 +69,9 @@ test.describe('employee leave requests', () => {
 		await expect(leaveSummary.getByText('1일')).toBeVisible();
 		await expect(leaveSummary.getByText('0.5일')).toBeVisible();
 		await expect(leaveSummary.getByText('15.5일')).toBeVisible();
-		await expect(page.getByLabel('내 근무 시간')).toBeVisible();
+		await expect(
+			page.locator('[data-slot="card"][aria-label="내 근무 시간"]')
+		).toBeVisible();
 		await expect(page.getByTestId('leave-history-needs-changes-count')).toHaveText('1');
 
 		await page.getByRole('button', { name: '휴가 등록' }).click();
@@ -304,6 +306,7 @@ test.describe('employee leave requests', () => {
 		await page.getByRole('button', { name: 'Request leave' }).click();
 		const dialog = page.getByTestId('leave-request-dialog');
 
+		await expect(dialog.getByTestId('leave-request-type-trigger')).toHaveText('Annual leave');
 		await dialog.getByRole('button', { name: 'Quarter day', exact: true }).click();
 		const customStartTime = dialog.getByLabel('Start time');
 

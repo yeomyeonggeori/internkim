@@ -7,6 +7,8 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import {
 		daysFromMilliDays,
 		isLeaveBalanceMode,
@@ -143,6 +145,10 @@
 			? text.attendanceSettings.monthlyAmount
 			: text.attendanceSettings.annualAmount;
 	}
+
+	function draftName(): string {
+		return localizedLeaveTypeName(draft.id, draft.name, currentLocale.value);
+	}
 </script>
 
 <svelte:window onresize={updateScrollFade} />
@@ -150,7 +156,7 @@
 <Card.Root class="min-h-0 max-sm:mb-20 lg:h-full">
 	<Card.Header>
 		<div class="flex items-center gap-2">
-			<Card.Title>{draft.name.trim() || text.attendanceSettings.newLeave}</Card.Title>
+			<Card.Title>{draftName().trim() || text.attendanceSettings.newLeave}</Card.Title>
 			{#if draft.isSystem}
 				<Badge variant="secondary">{text.attendanceSettings.systemBadge}</Badge>
 			{/if}
@@ -169,7 +175,7 @@
 				<Field.Label for="leave-name">{text.attendanceSettings.name}</Field.Label>
 				<Input
 					id="leave-name"
-					value={draft.name}
+					value={draftName()}
 					oninput={(event) =>
 						update((current) => ({ ...current, name: event.currentTarget.value }))}
 					disabled={isSaving}

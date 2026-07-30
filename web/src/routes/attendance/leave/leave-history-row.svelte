@@ -2,6 +2,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import type { AttendanceText } from '../text';
 	import type { EmployeeLeaveRequest, EmployeeLeaveStatus, EmployeeLeaveUnit } from './employee-leave-types';
 	import type { LeaveHistoryItem } from './leave-history-model';
@@ -78,6 +80,10 @@
 			minute: '2-digit'
 		}).format(parsed);
 	}
+
+	function leaveTypeName(id: string, name: string): string {
+		return localizedLeaveTypeName(id, name, currentLocale.value);
+	}
 </script>
 
 <article class="grid gap-3 py-4 first:pt-0 last:pb-0" data-testid="leave-history-row">
@@ -85,7 +91,9 @@
 		<div class="flex min-w-0 items-start justify-between gap-3">
 			<div class="min-w-0">
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
-					<p class="truncate text-sm font-semibold">{item.request.leaveTypeName}</p>
+					<p class="truncate text-sm font-semibold">
+						{leaveTypeName(item.request.leaveTypeID, item.request.leaveTypeName)}
+					</p>
 					<Badge variant={statusVariant(item.request.status)}>
 						{statusLabel(item.request.status)}
 					</Badge>
@@ -180,7 +188,9 @@
 	{:else}
 		<div class="flex min-w-0 items-start justify-between gap-3">
 			<div class="min-w-0">
-				<p class="text-sm font-semibold">{item.entry.leaveTypeName}</p>
+				<p class="text-sm font-semibold">
+					{leaveTypeName(item.entry.leaveTypeID, item.entry.leaveTypeName)}
+				</p>
 				<p class="mt-1 text-xs text-muted-foreground">
 					{operationLabel(item.entry.operationType)}
 					<span class="ml-1 font-medium tabular-nums text-foreground">

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../text';
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
@@ -18,6 +20,10 @@
 	function days(value: number): string {
 		return `${milliDaysValue(value)}${text.leave.dayUnit}`;
 	}
+
+	function leaveTypeName(id: string, name: string): string {
+		return localizedLeaveTypeName(id, name, currentLocale.value);
+	}
 </script>
 
 <section class="border-b px-4 py-4 sm:px-6" data-testid="leave-type-balances">
@@ -31,7 +37,7 @@
 		<div class="mt-3 divide-y">
 			{#each balanceTypes as leaveType (leaveType.id)}
 				<div class="flex items-center justify-between gap-4 py-2.5">
-					<span class="text-sm font-medium">{leaveType.name}</span>
+					<span class="text-sm font-medium">{leaveTypeName(leaveType.id, leaveType.name)}</span>
 					<span class="text-right text-sm tabular-nums">
 						<span class="font-semibold">
 							{text.leave.balanceOverviewAvailable}

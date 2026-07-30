@@ -3,6 +3,8 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import { Textarea } from '$lib/components/ui/textarea';
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { getAttendanceViewState } from '../attendance-view-state.svelte';
@@ -97,6 +99,10 @@
 		return text.leave.unitFullDay;
 	}
 
+	function leaveTypeName(leaveType: EmployeeLeaveType): string {
+		return localizedLeaveTypeName(leaveType.id, leaveType.name, currentLocale.value);
+	}
+
 	function selectLeaveType(leaveType: EmployeeLeaveType): void {
 		draft.setLeaveType(leaveType);
 	}
@@ -179,16 +185,16 @@
 				<span>{text.leave.leaveTypeLabel}</span>
 				<Select.Root type="single" bind:value={draft.leaveTypeID} disabled={employeeLeave.isMutating}>
 					<Select.Trigger class="w-full" data-testid="leave-request-type-trigger">
-						{selectedLeaveType?.name ?? text.leave.selectLeaveType}
+						{selectedLeaveType ? leaveTypeName(selectedLeaveType) : text.leave.selectLeaveType}
 					</Select.Trigger>
 					<Select.Content>
 						{#each selectableLeaveTypes as leaveType (leaveType.id)}
 							<Select.Item
 								value={leaveType.id}
-								label={leaveType.name}
+								label={leaveTypeName(leaveType)}
 								onclick={() => selectLeaveType(leaveType)}
 							>
-								{leaveType.name}
+								{leaveTypeName(leaveType)}
 							</Select.Item>
 						{/each}
 					</Select.Content>

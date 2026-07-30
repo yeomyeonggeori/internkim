@@ -3,6 +3,8 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
@@ -42,6 +44,10 @@
 	function handleOpenChange(open: boolean): void {
 		isOpen = open;
 		if (open) reset();
+	}
+
+	function leaveTypeName(id: string, name: string): string {
+		return localizedLeaveTypeName(id, name, currentLocale.value);
 	}
 
 	$effect(() => {
@@ -88,12 +94,17 @@
 				{text.management.leaveType}
 				<Select.Root type="single" bind:value={leaveTypeID}>
 					<Select.Trigger class="w-full">
-						{selectedLeaveType?.name ?? text.management.selectLeaveType}
+						{selectedLeaveType
+							? leaveTypeName(selectedLeaveType.id, selectedLeaveType.name)
+							: text.management.selectLeaveType}
 					</Select.Trigger>
 					<Select.Content>
 						{#each leaveTypes as leaveType (leaveType.id)}
-							<Select.Item value={leaveType.id} label={leaveType.name}>
-								{leaveType.name}
+							<Select.Item
+								value={leaveType.id}
+								label={leaveTypeName(leaveType.id, leaveType.name)}
+							>
+								{leaveTypeName(leaveType.id, leaveType.name)}
 							</Select.Item>
 						{/each}
 					</Select.Content>

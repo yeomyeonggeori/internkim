@@ -3,6 +3,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import PaperclipIcon from '@lucide/svelte/icons/paperclip';
 	import type { AttendanceText } from '../text';
 	import { milliDaysValue } from '../leave/leave-history-model';
@@ -79,6 +81,14 @@
 		}).format(new Date(change.returnedAt));
 	}
 
+	function leaveTypeName(): string {
+		return localizedLeaveTypeName(
+			request.leaveTypeID,
+			request.leaveTypeName,
+			currentLocale.value
+		);
+	}
+
 	async function approve(): Promise<void> {
 		try {
 			await approval.decide(request.id, { action: 'approve' });
@@ -101,7 +111,7 @@
 				<div class="min-w-0">
 					<Card.Title class="truncate text-base">{request.employeeEmail}</Card.Title>
 					<Card.Description class="mt-1 flex flex-wrap items-center gap-2">
-						<span>{request.leaveTypeName}</span>
+						<span>{leaveTypeName()}</span>
 						<span aria-hidden="true">·</span>
 						<span>{unitLabel()}</span>
 					</Card.Description>

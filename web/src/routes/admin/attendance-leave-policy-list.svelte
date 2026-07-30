@@ -3,6 +3,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import type { AdminPageText, AttendanceLeavePolicy, LeaveAllowedUnit, LeaveType } from './admin-types';
 
 	type Props = {
@@ -60,6 +62,10 @@
 		return leaveType.paid ? text.attendanceSettings.paid : text.attendanceSettings.unpaid;
 	}
 
+	function leaveTypeName(leaveType: LeaveType): string {
+		return localizedLeaveTypeName(leaveType.id, leaveType.name, currentLocale.value);
+	}
+
 	function allowedUnitLabel(unit: LeaveAllowedUnit): string {
 		if (unit === 'fullDay') return text.attendanceSettings.fullDay;
 		if (unit === 'halfDay') return text.attendanceSettings.halfDay;
@@ -93,7 +99,7 @@
 							onclick={() => onSelect(leaveType)}
 						>
 							<span>
-								<span class="block font-medium">{leaveType.name}</span>
+								<span class="block font-medium">{leaveTypeName(leaveType)}</span>
 								<span class="text-xs text-muted-foreground">
 									{paidLabel(leaveType)} · {leaveType.allowedUnits
 										.map(allowedUnitLabel)
