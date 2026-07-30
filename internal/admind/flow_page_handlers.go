@@ -40,3 +40,30 @@ func (service *Service) serveFlowIndex(responseWriter http.ResponseWriter, reque
 	}
 	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
 }
+
+// serveBoardSection serves a prerendered board-UI section (its own index.html,
+// falling back to the SPA shell) so a refresh on a client-side route is handled
+// by the app instead of falling through to the Mattermost proxy on "/".
+func (service *Service) serveBoardSection(section string) http.HandlerFunc {
+	prefix := "/" + section
+	return func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == prefix {
+			http.Redirect(responseWriter, request, prefix+"/", http.StatusFound)
+			return
+		}
+		relativePath := strings.TrimPrefix(request.URL.Path, prefix+"/")
+		if relativePath != "" {
+			filePath := filepath.Join(service.Configuration.AdminUIPath, section, relativePath)
+			if fileInfo, errorValue := os.Stat(filePath); errorValue == nil && !fileInfo.IsDir() {
+				http.ServeFile(responseWriter, request, filePath)
+				return
+			}
+		}
+		sectionIndexPath := filepath.Join(service.Configuration.AdminUIPath, section, "index.html")
+		if fileInfo, errorValue := os.Stat(sectionIndexPath); errorValue == nil && !fileInfo.IsDir() {
+			http.ServeFile(responseWriter, request, sectionIndexPath)
+			return
+		}
+		http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
+	}
+}

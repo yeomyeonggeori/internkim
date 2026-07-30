@@ -567,6 +567,12 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/_internkim/runtime/", service.handleRuntime)
 	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
 	multiplexer.HandleFunc("/_internkim/mattermost/actions", service.handleMattermostInteractiveAction)
+	multiplexer.HandleFunc("/messenger", service.serveBoardSection("messenger"))
+	multiplexer.HandleFunc("/messenger/", service.serveBoardSection("messenger"))
+	multiplexer.HandleFunc("/settings", service.serveBoardSection("settings"))
+	multiplexer.HandleFunc("/settings/", service.serveBoardSection("settings"))
+	multiplexer.HandleFunc("/assistant", service.serveBoardSection("assistant"))
+	multiplexer.HandleFunc("/assistant/", service.serveBoardSection("assistant"))
 	multiplexer.Handle("/", service.managedChannelWriteGuard(service.attendancePostDeleteSync(service.mattermostProxy())))
 	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(service.withSiteGateway(multiplexer))))
 }
