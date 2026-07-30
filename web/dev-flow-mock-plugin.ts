@@ -215,7 +215,9 @@ function flowTaskFromRecord(parsed: Record<string, unknown>, fallback: FlowTask)
 function flowDefinitionsFromRecord(parsed: Record<string, unknown>, fallback: FlowDefinitions): FlowDefinitions {
 	return {
 		categories: stringArrayFromValue(parsed.categories, fallback.categories),
+		categoryColors: colorMapFromValue(parsed.categoryColors, fallback.categoryColors),
 		types: stringArrayFromValue(parsed.types, fallback.types),
+		typeColors: colorMapFromValue(parsed.typeColors, fallback.typeColors),
 		sizes: flowSizeDefinitionsFromValue(parsed.sizes, fallback.sizes)
 	};
 }
@@ -244,8 +246,16 @@ function flowSizeDefinitionFromRecord(
 		label: stringFromValue(parsed.label, `${distanceKm}km · ${maxHours}h`),
 		developmentExample: stringFromValue(parsed.developmentExample, fallback?.developmentExample ?? ''),
 		otherExample: stringFromValue(parsed.otherExample, fallback?.otherExample ?? ''),
-		note: stringFromValue(parsed.note, fallback?.note ?? '')
+		note: stringFromValue(parsed.note, fallback?.note ?? ''),
+		color: stringFromValue(parsed.color, fallback?.color ?? '')
 	};
+}
+
+function colorMapFromValue(value: unknown, fallback: Record<string, string> | undefined): Record<string, string> {
+	if (!isUnknownRecord(value)) return fallback ?? {};
+	return Object.fromEntries(
+		Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+	);
 }
 
 function createFlowTaskBoardMoveMockResponse(

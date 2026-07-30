@@ -21,6 +21,8 @@
 	let categoryDrafts = $state<string[]>([]);
 	let typeDrafts = $state<string[]>([]);
 	let sizeDrafts = $state<FlowSizeDefinition[]>([]);
+	let categoryColorDrafts = $state<Record<string, string>>({});
+	let typeColorDrafts = $state<Record<string, string>>({});
 	let newCategoryText = $state('');
 	let newTypeText = $state('');
 	let isSavingDefinitions = $state(false);
@@ -41,6 +43,8 @@
 		const currentDefinitions = definitions();
 		categoryDrafts = [...currentDefinitions.categories];
 		typeDrafts = [...currentDefinitions.types];
+		categoryColorDrafts = { ...(currentDefinitions.categoryColors ?? {}) };
+		typeColorDrafts = { ...(currentDefinitions.typeColors ?? {}) };
 		sizeDrafts = currentDefinitions.sizes.map((size) => ({ ...size }));
 	});
 
@@ -57,6 +61,25 @@
 		if (!value || typeDrafts.includes(value)) return;
 		typeDrafts = [...typeDrafts, value];
 		newTypeText = '';
+		void saveDefinitions();
+	}
+
+	function setCategoryColor(index: number, color: string): void {
+		const value = categoryDrafts[index];
+		if (!value) return;
+		categoryColorDrafts = { ...categoryColorDrafts, [value]: color };
+		void saveDefinitions();
+	}
+
+	function setTypeColor(index: number, color: string): void {
+		const value = typeDrafts[index];
+		if (!value) return;
+		typeColorDrafts = { ...typeColorDrafts, [value]: color };
+		void saveDefinitions();
+	}
+
+	function setSizeColor(name: string, color: string): void {
+		sizeDrafts = sizeDrafts.map((size) => (size.name === name ? { ...size, color } : size));
 		void saveDefinitions();
 	}
 
@@ -94,7 +117,9 @@
 			await saveFlowDefinitions(
 				{
 					categories: categoryDrafts,
+					categoryColors: colorsForValues(categoryDrafts, categoryColorDrafts),
 					types: typeDrafts,
+					typeColors: colorsForValues(typeDrafts, typeColorDrafts),
 					sizes
 				},
 				text.saveError
@@ -107,6 +132,10 @@
 		} finally {
 			isSavingDefinitions = false;
 		}
+	}
+
+	function colorsForValues(values: string[], colors: Record<string, string>): Record<string, string> {
+		return Object.fromEntries(values.filter((value) => colors[value]).map((value) => [value, colors[value]]));
 	}
 
 	function confirmRemoveCategory(index: number): void {
@@ -139,6 +168,9 @@
 <FlowDefinitionsView
 	definitions={definitions()}
 	{categoryDrafts}
+	{setCategoryColor}
+	{setTypeColor}
+	{setSizeColor}
 	{typeDrafts}
 	{newCategoryText}
 	{newTypeText}

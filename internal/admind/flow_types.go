@@ -116,9 +116,11 @@ type flowDistanceTrend struct {
 }
 
 type flowDefinitions struct {
-	Categories []string             `json:"categories"`
-	Types      []string             `json:"types"`
-	Sizes      []flowSizeDefinition `json:"sizes"`
+	Categories     []string             `json:"categories"`
+	CategoryColors map[string]string    `json:"categoryColors"`
+	Types          []string             `json:"types"`
+	TypeColors     map[string]string    `json:"typeColors"`
+	Sizes          []flowSizeDefinition `json:"sizes"`
 }
 
 type flowSizeDefinition struct {
@@ -128,6 +130,7 @@ type flowSizeDefinition struct {
 	DevelopmentExample string `json:"developmentExample"`
 	OtherExample       string `json:"otherExample"`
 	Note               string `json:"note"`
+	Color              string `json:"color"`
 	Score              int    `json:"score"`
 	Label              string `json:"label"`
 }

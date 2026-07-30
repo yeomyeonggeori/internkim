@@ -76,13 +76,16 @@ export type FlowSizeDefinition = {
 	developmentExample: string;
 	otherExample: string;
 	note: string;
+	color?: string;
 	score: number;
 	label: string;
 };
 
 export type FlowDefinitions = {
 	categories: string[];
+	categoryColors?: Record<string, string>;
 	types: string[];
+	typeColors?: Record<string, string>;
 	sizes: FlowSizeDefinition[];
 };
 

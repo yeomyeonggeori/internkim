@@ -13,11 +13,11 @@ func (service *Service) readFlowDefinitions(ctx context.Context) (flowDefinition
 	}
 	defer database.Close()
 	definitions := flowDefinitions{}
-	categories, errorValue := readFlowDefinitionValues(ctx, database, "category")
+	categories, categoryColors, errorValue := readFlowDefinitionValues(ctx, database, "category")
 	if errorValue != nil {
 		return flowDefinitions{}, errorValue
 	}
-	types, errorValue := readFlowDefinitionValues(ctx, database, "type")
+	types, typeColors, errorValue := readFlowDefinitionValues(ctx, database, "type")
 	if errorValue != nil {
 		return flowDefinitions{}, errorValue
 	}
@@ -26,7 +26,9 @@ func (service *Service) readFlowDefinitions(ctx context.Context) (flowDefinition
 		return flowDefinitions{}, errorValue
 	}
 	definitions.Categories = categories
+	definitions.CategoryColors = categoryColors
 	definitions.Types = types
+	definitions.TypeColors = typeColors
 	definitions.Sizes = sizes
 	if len(definitions.Types) == 0 {
 		definitions.Types = defaultFlowTypes()
@@ -83,26 +85,31 @@ func localizedSizeText(storedText string, koreanDefaultText string, localizedDef
 	return trimmedText
 }
 
-func readFlowDefinitionValues(ctx context.Context, database *sql.DB, kind string) ([]string, error) {
-	rows, errorValue := database.QueryContext(ctx, "SELECT value FROM flow_definitions WHERE kind = ? ORDER BY position, value", kind)
+func readFlowDefinitionValues(ctx context.Context, database *sql.DB, kind string) ([]string, map[string]string, error) {
+	rows, errorValue := database.QueryContext(ctx, "SELECT value, color FROM flow_definitions WHERE kind = ? ORDER BY position, value", kind)
 	if errorValue != nil {
-		return nil, errorValue
+		return nil, nil, errorValue
 	}
 	defer rows.Close()
 	values := []string{}
+	colors := map[string]string{}
 	for rows.Next() {
 		var value string
-		if errorValue := rows.Scan(&value); errorValue != nil {
-			return nil, errorValue
+		var color string
+		if errorValue := rows.Scan(&value, &color); errorValue != nil {
+			return nil, nil, errorValue
 		}
 		values = append(values, value)
+		if strings.TrimSpace(color) != "" {
+			colors[value] = color
+		}
 	}
-	return values, rows.Err()
+	return values, colors, rows.Err()
 }
 
 func readFlowSizeDefinitions(ctx context.Context, database *sql.DB) ([]flowSizeDefinition, error) {
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT name, distance_km, max_hours, development_example, other_example, note
+SELECT name, distance_km, max_hours, development_example, other_example, note, color
 FROM flow_size_definitions
 ORDER BY position, name`)
 	if errorValue != nil {
@@ -112,7 +119,7 @@ ORDER BY position, name`)
 	sizes := []flowSizeDefinition{}
 	for rows.Next() {
 		var size flowSizeDefinition
-		if errorValue := rows.Scan(&size.Name, &size.DistanceKM, &size.MaxHours, &size.DevelopmentExample, &size.OtherExample, &size.Note); errorValue != nil {
+		if errorValue := rows.Scan(&size.Name, &size.DistanceKM, &size.MaxHours, &size.DevelopmentExample, &size.OtherExample, &size.Note, &size.Color); errorValue != nil {
 			return nil, errorValue
 		}
 		size.Score = size.DistanceKM
@@ -132,11 +139,11 @@ func (service *Service) writeFlowDefinitions(ctx context.Context, definitions fl
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := replaceFlowDefinitionKind(ctx, transaction, "category", definitions.Categories); errorValue != nil {
+	if errorValue := replaceFlowDefinitionKind(ctx, transaction, "category", definitions.Categories, definitions.CategoryColors); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
-	if errorValue := replaceFlowDefinitionKind(ctx, transaction, "type", definitions.Types); errorValue != nil {
+	if errorValue := replaceFlowDefinitionKind(ctx, transaction, "type", definitions.Types, definitions.TypeColors); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -151,12 +158,12 @@ func (service *Service) writeFlowDefinitions(ctx context.Context, definitions fl
 	return transaction.Commit()
 }
 
-func replaceFlowDefinitionKind(ctx context.Context, transaction *sql.Tx, kind string, values []string) error {
+func replaceFlowDefinitionKind(ctx context.Context, transaction *sql.Tx, kind string, values []string, colors map[string]string) error {
 	if _, errorValue := transaction.ExecContext(ctx, "DELETE FROM flow_definitions WHERE kind = ?", kind); errorValue != nil {
 		return errorValue
 	}
 	for index, value := range values {
-		if _, errorValue := transaction.ExecContext(ctx, "INSERT INTO flow_definitions(kind, value, position) VALUES(?, ?, ?)", kind, value, index); errorValue != nil {
+		if _, errorValue := transaction.ExecContext(ctx, "INSERT INTO flow_definitions(kind, value, position, color) VALUES(?, ?, ?, ?)", kind, value, index, strings.TrimSpace(colors[value])); errorValue != nil {
 			return errorValue
 		}
 	}
@@ -172,8 +179,8 @@ func replaceFlowSizeDefinitions(ctx context.Context, transaction interface {
 	}
 	for index, size := range sizes {
 		if _, errorValue := transaction.ExecContext(ctx, `
-INSERT INTO flow_size_definitions(name, distance_km, max_hours, development_example, other_example, note, position)
-VALUES(?, ?, ?, ?, ?, ?, ?)`,
+INSERT INTO flow_size_definitions(name, distance_km, max_hours, development_example, other_example, note, position, color)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
 			size.Name,
 			size.DistanceKM,
 			size.MaxHours,
@@ -181,6 +188,7 @@ VALUES(?, ?, ?, ?, ?, ?, ?)`,
 			size.OtherExample,
 			size.Note,
 			index,
+			strings.TrimSpace(size.Color),
 		); errorValue != nil {
 			return errorValue
 		}
