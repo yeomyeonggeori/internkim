@@ -55,42 +55,45 @@ test.describe('admin role tabs', () => {
 	test('shows every admin tab to full admins', async ({ page }) => {
 		await mockAdminPage(page, 'admin');
 
-		await page.goto('/admin/?fleet_id=demo');
+		await page.goto('/settings/?fleet_id=demo');
 
 		const main = page.locator('main');
-		await expect(main.getByRole('button', { name: '기기' })).toBeVisible();
-		await expect(main.getByRole('button', { name: '사용자' })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '기기' })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '사용자' })).toBeVisible();
 		await expect(main.getByRole('link', { name: '조직도' })).toHaveCount(0);
-		await expect(main.getByRole('button', { name: '조직도' })).toHaveCount(0);
-		await expect(main.getByRole('button', { name: '인증 정보' })).toBeVisible();
-		await expect(main.getByRole('button', { name: '백업' })).toBeVisible();
-		await expect(main.getByRole('button', { name: '봇' })).toBeVisible();
-		await expect(main.getByRole('button', { name: '설정' })).toBeVisible();
-		await expect(main.getByRole('button', { name: '네트워크' })).toBeVisible();
-		await main.getByRole('button', { name: '사용자' }).click();
-		await main.getByText('일반', { exact: true }).first().click();
-		await expect(page.getByRole('option', { name: '관리자', exact: true })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '조직도' })).toHaveCount(0);
+		await expect(main.getByRole('tab', { name: '인증 정보' })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '백업' })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '봇' })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '일반', exact: true })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '근태 설정', exact: true })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '네트워크' })).toBeVisible();
+		await main.getByRole('tab', { name: '사용자' }).click();
+		const adminRow = main.getByRole('row').filter({ hasText: 'admin@example.com' });
+		await expect(adminRow.getByText('관리자', { exact: true })).toBeVisible();
+		await expect(adminRow.getByRole('button', { name: '일반으로 변경' })).toBeVisible();
 	});
 
 	test('limits operations admins to user and settings tabs', async ({ page }) => {
 		await mockAdminPage(page, 'operationsAdmin');
 
-		await page.goto('/admin/?fleet_id=demo');
+		await page.goto('/settings/?fleet_id=demo');
 
 		const main = page.locator('main');
-		await expect(main.getByRole('button', { name: '사용자' })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '사용자' })).toBeVisible();
 		await expect(main.getByRole('link', { name: '조직도' })).toHaveCount(0);
-		await expect(main.getByRole('button', { name: '조직도' })).toHaveCount(0);
-		await expect(main.getByRole('button', { name: '설정' })).toBeVisible();
-		await expect(main.getByRole('button', { name: '기기' })).toHaveCount(0);
-		await expect(main.getByRole('button', { name: '인증 정보' })).toHaveCount(0);
-		await expect(main.getByRole('button', { name: '백업' })).toHaveCount(0);
-		await expect(main.getByRole('button', { name: '봇' })).toHaveCount(0);
-		await expect(main.getByRole('button', { name: '네트워크' })).toHaveCount(0);
-		await main.getByText('일반', { exact: true }).first().click();
-		await expect(page.getByRole('option', { name: '운영자', exact: true })).toBeVisible();
-		await expect(page.getByRole('option', { name: '관리자', exact: true })).toHaveCount(0);
+		await expect(main.getByRole('tab', { name: '조직도' })).toHaveCount(0);
+		await expect(main.getByRole('tab', { name: '일반', exact: true })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '근태 설정', exact: true })).toHaveCount(0);
+		await expect(main.getByRole('tab', { name: '기기' })).toHaveCount(0);
+		await expect(main.getByRole('tab', { name: '인증 정보' })).toHaveCount(0);
+		await expect(main.getByRole('tab', { name: '백업' })).toHaveCount(0);
+		await expect(main.getByRole('tab', { name: '봇' })).toHaveCount(0);
+		await expect(main.getByRole('tab', { name: '네트워크' })).toHaveCount(0);
+		await main.getByRole('tab', { name: '사용자' }).click();
 		const adminRow = main.getByRole('row').filter({ hasText: 'admin@example.com' });
+		await expect(adminRow.getByText('관리자', { exact: true })).toBeVisible();
+		await expect(adminRow.getByRole('button', { name: '일반으로 변경' })).toHaveCount(0);
 		await expect(adminRow.getByRole('button', { name: '저장' })).toBeDisabled();
 		await expect(adminRow.getByRole('button', { name: '비밀번호 리셋' })).toBeDisabled();
 		await expect(adminRow.getByRole('button', { name: '삭제' })).toBeDisabled();

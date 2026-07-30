@@ -30,7 +30,7 @@ type organizationSchemaExecutor interface {
 }
 
 func (service *Service) openOrganizationDatabase(ctx context.Context) (*sql.DB, error) {
-	return service.openSQLiteDatabase(ctx, service.organizationDatabasePath(), ensureOrganizationSchema)
+	return service.openStateDatabase(ctx, "organization", ensureOrganizationSchema, sqliteDatabaseOptions{})
 }
 
 func (service *Service) organizationDatabasePath() string {

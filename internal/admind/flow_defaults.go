@@ -2,6 +2,7 @@ package admind
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -70,6 +71,21 @@ func containsFlowSize(values []flowSizeDefinition, target string) bool {
 		}
 	}
 	return false
+}
+
+var flowDefinitionColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+func cleanFlowDefinitionColors(colors map[string]string) map[string]string {
+	result := map[string]string{}
+	for value, color := range colors {
+		trimmedValue := strings.TrimSpace(value)
+		trimmedColor := strings.ToLower(strings.TrimSpace(color))
+		if trimmedValue == "" || !flowDefinitionColorPattern.MatchString(trimmedColor) {
+			continue
+		}
+		result[trimmedValue] = trimmedColor
+	}
+	return result
 }
 
 func cleanFlowDefinitionValues(values []string) []string {

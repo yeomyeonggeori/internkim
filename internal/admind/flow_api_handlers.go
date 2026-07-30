@@ -71,9 +71,9 @@ func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *
 }
 
 func (service *Service) writeFlowStatus(responseWriter http.ResponseWriter) {
-	_, errorValue := os.Stat(service.Configuration.FlowDatabasePath)
+	_, errorValue := os.Stat(service.stateDatabasePath())
 	response := flowStatusResponse{
-		DatabasePath: service.Configuration.FlowDatabasePath,
+		DatabasePath: service.stateDatabasePath(),
 		Exists:       errorValue == nil,
 		Ready:        true,
 		Message:      "Flow task storage is backed by SQLite.",
@@ -167,12 +167,15 @@ func (service *Service) createFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	task, errorValue := service.flowTaskFromRequest(request, members, definitions, "")
+	task, payload, errorValue := service.flowTaskAndPayloadFromRequest(request, members, definitions, "")
 	if errorValue != nil {
 		writeFlowRequestError(responseWriter, errorValue)
 		return
 	}
 	task.Business = firstNonEmpty(task.Business, defaultFlowTaskBusiness(definitions))
+	if payload.IsCalendarEvent {
+		task.CalendarEventID = service.createPairedCalendarEventForFlowTask(request, task, payload)
+	}
 	task, errorValue = service.writeFlowTaskAtStatusEnd(request.Context(), task)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -316,6 +319,7 @@ func (service *Service) deleteFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	service.deletePairedCalendarEventForFlowTask(request.Context(), task)
 	service.writeJSON(responseWriter, map[string]any{
 		"status": "deleted",
 		"task":   task,
@@ -329,9 +333,11 @@ func (service *Service) updateFlowDefinitions(responseWriter http.ResponseWriter
 		return
 	}
 	definitions := flowDefinitions{
-		Categories: cleanFlowDefinitionValues(payload.Categories),
-		Types:      cleanFlowDefinitionValues(payload.Types),
-		Sizes:      cleanFlowSizeDefinitions(payload.Sizes),
+		Categories:     cleanFlowDefinitionValues(payload.Categories),
+		CategoryColors: cleanFlowDefinitionColors(payload.CategoryColors),
+		Types:          cleanFlowDefinitionValues(payload.Types),
+		TypeColors:     cleanFlowDefinitionColors(payload.TypeColors),
+		Sizes:          cleanFlowSizeDefinitions(payload.Sizes),
 	}
 	if len(definitions.Types) == 0 {
 		writeFlowRequestError(responseWriter, flowValidationError("at least one type is required"))

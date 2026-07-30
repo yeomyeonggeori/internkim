@@ -32,6 +32,18 @@ export function buildAttendanceAbsenceFixtures(options: BuildAttendanceAbsenceFi
 		reason: 'family',
 		createdBy: 'kim@example.com',
 	});
+	if (month === '2026-07') {
+		appendAbsence({
+			id: 'absence-lee-partial-leave',
+			email: 'lee@example.com',
+			kind: 'leave',
+			date: '2026-07-17',
+			startTime: '13:00',
+			endTime: '15:00',
+			reason: 'private appointment',
+			createdBy: 'lee@example.com'
+		});
+	}
 	defaultAbsenceRanges().forEach(appendAbsenceRange);
 	if (month === '2026-06') juneAbsenceRanges().forEach(appendAbsenceRange);
 
