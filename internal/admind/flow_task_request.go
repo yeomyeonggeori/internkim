@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-	"time"
 )
 
 func (service *Service) flowTaskFromRequest(request *http.Request, members []flowMember, definitions flowDefinitions, taskID string) (flowTask, error) {
@@ -83,12 +82,8 @@ func (service *Service) flowTaskAndPayloadFromRequest(request *http.Request, mem
 		return flowTask{}, payload, errorValue
 	}
 	dates := normalizeFlowTaskDates(payload, status, now)
-	id := strings.TrimSpace(taskID)
-	if id == "" {
-		id = stableFlowID(dates.WeekCode + owner.ID + content + time.Now().UTC().Format(time.RFC3339Nano))
-	}
 	return flowTask{
-		ID:                 id,
+		ID:                 strings.TrimSpace(taskID),
 		OwnerID:            owner.ID,
 		OwnerName:          owner.Name,
 		ParticipantIDs:     memberIDs(participants),

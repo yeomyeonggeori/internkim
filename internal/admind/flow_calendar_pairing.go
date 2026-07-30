@@ -85,7 +85,6 @@ func (service *Service) pairedFlowTaskForCalendarEvent(request *http.Request, ev
 	startDate, endDate := calendarEventDateKeys(event)
 	now := flowDateNow()
 	task := flowTask{
-		ID:              stableFlowID("calendar-" + event.ID),
 		OwnerID:         owner.ID,
 		OwnerName:       owner.Name,
 		ParticipantIDs:  calendarEventParticipantMemberIDs(members, event, owner.ID),
@@ -170,6 +169,7 @@ func (service *Service) createPairedFlowTaskForCalendarEvent(request *http.Reque
 	if _, errorValue := service.writeFlowTaskAtStatusEnd(request.Context(), task); errorValue != nil {
 		return
 	}
+
 }
 
 func (service *Service) deletePairedFlowTaskForCalendarEvent(ctx context.Context, eventID string) {

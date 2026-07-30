@@ -105,8 +105,11 @@ func TestCalendarEventCreatesPairedTaskAndDeletesTogether(t *testing.T) {
 	if !found {
 		t.Fatal("calendar event did not create a paired task")
 	}
-	if pairedTask.ID == "" {
-		t.Fatalf("paired task has no id: %#v", pairedTask)
+	if pairedTask.ID == "" || strings.Contains(pairedTask.ID, createdEvent.ID) {
+		t.Fatalf("paired task must carry its own stored identifier: %#v", pairedTask)
+	}
+	if storedTask, storedFound, storedError := service.readFlowTaskByID(context.Background(), pairedTask.ID); storedError != nil || !storedFound || storedTask.CalendarEventID != createdEvent.ID {
+		t.Fatalf("paired task is not reachable by its primary key (found=%v error=%v)", storedFound, storedError)
 	}
 	if pairedTask.Content != "제품 리뷰 회의" || pairedTask.Size != "S" || pairedTask.Status != flowStatusPlanned {
 		t.Fatalf("paired task = %#v", pairedTask)
