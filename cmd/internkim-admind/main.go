@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -84,11 +85,15 @@ func main() {
 
 	if configuration.BuzzDatabaseURL == "" && *buzzDatabaseURLPath != "" {
 		databaseURL, errorValue := readBuzzDatabaseURL(*buzzDatabaseURLPath)
-		if errorValue != nil {
+		switch {
+		case errors.Is(errorValue, os.ErrNotExist):
+			fmt.Fprintf(os.Stderr, "buzz database url file %s not present yet; continuing without buzz member polling\n", *buzzDatabaseURLPath)
+		case errorValue != nil:
 			fmt.Fprintln(os.Stderr, errorValue)
 			os.Exit(1)
+		default:
+			configuration.BuzzDatabaseURL = databaseURL
 		}
-		configuration.BuzzDatabaseURL = databaseURL
 	}
 
 	if errorValue := admind.Run(configuration); errorValue != nil {
