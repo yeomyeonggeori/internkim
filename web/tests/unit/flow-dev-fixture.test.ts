@@ -9,7 +9,7 @@ import { buildDevFlowMemberScoreDetails } from '../../src/routes/flow/dev-flow-f
 
 describe('createDevFlowSummary', () => {
 	test('builds a populated local Flow summary for the requested week', () => {
-		const summary = createDevFlowSummary('26W16', 'admin@example.com');
+		const summary = createDevFlowSummary('26W16', 'kim@example.com');
 
 		expect(summary.week).toMatchObject({
 			code: '26W16',
@@ -22,7 +22,7 @@ describe('createDevFlowSummary', () => {
 			code: '26W23',
 			isCurrent: true
 		});
-		expect(summary.currentUserEmail).toBe('admin@example.com');
+		expect(summary.currentUserEmail).toBe('kim@example.com');
 		expect(summary.currentUserName).toBe('김철수');
 		expect(summary.source).toBe('dev-mock');
 		expect(summary.members.length).toBe(10);
