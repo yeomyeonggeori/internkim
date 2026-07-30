@@ -23,6 +23,7 @@ test('does not apply a deferred refresh after a newer local update', async () =>
 			isBrowser: () => true,
 			getLocale: () => 'ko',
 			errorFallback: () => 'Could not load events.',
+			holidayErrorFallback: () => 'Could not load public holidays.',
 			getCalendarEvents: () => calendarEvents,
 			getVisibleEvents: () => visibleEvents,
 			applyCalendarEventsChanges: (changes) => {
@@ -69,6 +70,46 @@ test('does not apply a deferred refresh after a newer local update', async () =>
 	expect(appliedChangeCount).toBe(0);
 	expect(fetchedHolidayLocale).toBe('ko');
 	expect(loadingStates).toEqual([true, false]);
+});
+
+test('reports a localized warning while keeping calendar events when holiday loading fails', async () => {
+	const errorMessages: string[] = [];
+	let visibleEvents: DayFlowEvent[] = [];
+	const loader = createCalendarEventLoader(
+		{
+			isBrowser: () => true,
+			getLocale: () => 'en',
+			errorFallback: () => 'Could not load events.',
+			holidayErrorFallback: () => 'Could not load public holidays.',
+			getCalendarEvents: () => [],
+			getVisibleEvents: () => visibleEvents,
+			applyCalendarEventsChanges: () => {},
+			triggerCalendarRender: () => {},
+			setVisibleEvents: (events) => {
+				visibleEvents = events;
+			},
+			setEventCount: () => {},
+			setIsLoading: () => {},
+			setErrorMessage: (message) => {
+				errorMessages.push(message);
+			},
+			refreshSelectedMonthDateCell: () => {}
+		},
+		{
+			fetchEvents: async () => [calendarServerEvent('event-1', 'Available event')],
+			fetchHolidays: async () => {
+				throw new Error('provider unavailable');
+			}
+		}
+	);
+
+	await loader.loadEvents(
+		new Date('2026-07-01T00:00:00Z'),
+		new Date('2026-08-01T00:00:00Z')
+	);
+
+	expect(visibleEvents.map((event) => event.title)).toEqual(['Available event']);
+	expect(errorMessages).toEqual(['', 'Could not load public holidays.']);
 });
 
 function calendarTestEvent(eventID: string, title: string): DayFlowEvent {
