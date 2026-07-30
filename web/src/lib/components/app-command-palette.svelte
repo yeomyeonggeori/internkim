@@ -280,10 +280,11 @@
 		<Command.Item
 			value="calendar-event-{result.id}"
 			forceMount
-			class="p-0 aria-selected:bg-transparent"
+			class="[&>svg.cn-command-item-indicator]:hidden"
 			onSelect={() => openCalendarEvent(result.startDate)}
 		>
 			<CalendarEventListCard
+				class="min-w-0 flex-1"
 				title={result.title}
 				start={result.startDate}
 				isAllDay={result.isAllDay}

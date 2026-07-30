@@ -18,6 +18,7 @@
 		cardTestID?: string;
 		buttonTestID?: string;
 		buttonClass?: string;
+		class?: string;
 		openEvent: (originElement: HTMLElement) => void;
 	};
 
@@ -32,6 +33,7 @@
 		cardTestID = 'calendar-event-card',
 		buttonTestID = 'calendar-event-card-button',
 		buttonClass = '',
+		class: className = '',
 		openEvent
 	}: Props = $props();
 </script>
@@ -39,7 +41,10 @@
 <Card.Root
 	size="sm"
 	style={`--calendar-event-color: ${color}`}
-	class="bg-(--calendar-event-color)/12 hover:bg-(--calendar-event-color)/20 text-foreground ring-(--calendar-event-color)/20 gap-0 rounded-md py-0 transition-colors data-[size=sm]:gap-0 data-[size=sm]:py-0"
+	class={cn(
+		'bg-(--calendar-event-color)/12 hover:bg-(--calendar-event-color)/20 text-foreground ring-(--calendar-event-color)/20 gap-0 rounded-md py-0 transition-colors data-[size=sm]:gap-0 data-[size=sm]:py-0',
+		className
+	)}
 	data-testid={cardTestID}
 >
 	<Card.Content class="p-0 group-data-[size=sm]/card:px-0">
