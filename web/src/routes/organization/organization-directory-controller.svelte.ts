@@ -1,8 +1,9 @@
 import type { AdminPageText } from '../admin/admin-types';
 import type { Locale } from '../../lib/i18n/locale.svelte';
+import { fetchWebSessionEmail } from '$lib/web-session';
 import { apiErrorMessage, fetchAdminSession, saveOrgGroups, saveOrgProfiles } from '../admin/admin-api';
 import { adminSessionRole, canManageOrganization } from '../admin/admin-role-policy';
-import { fetchOrganizationDirectory, fetchWebSessionEmail, organizationApiErrorMessage, saveOwnOrganizationProfile, type OwnOrganizationProfile } from './organization-api';
+import { fetchOrganizationDirectory, organizationApiErrorMessage, saveOwnOrganizationProfile, type OwnOrganizationProfile } from './organization-api';
 import { filterOrganizationRecords, organizationFilterOptions, unassignedGroupID } from './organization-directory-model';
 import { organizationGroupSavePlan } from './organization-group-controller';
 import { OrganizationOrganizationEditController } from './organization-edit-controller.svelte';
