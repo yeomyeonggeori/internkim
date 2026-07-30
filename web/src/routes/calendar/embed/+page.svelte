@@ -5,15 +5,12 @@
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { ViewType } from '@dayflow/svelte';
+	import { ViewType } from '../calendar-view-type';
 	import { onMount } from 'svelte';
 	import { calendarText } from '../text';
 	import {
 		normalizedVisibleDate
 	} from './calendar-embed-view-helpers';
-	import {
-		createCalendarLocale
-	} from './calendar-config';
 		import {
 		calendarSearchParams,
 		initialCalendarDate as createInitialCalendarDate,
@@ -42,7 +39,6 @@
 
 	const text = createPageText(calendarText);
 	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
-	const calendarLocale = $derived(createCalendarLocale(currentLocale.value, text));
 	const draftEventPlaceholderTitle = () => text.newEvent;
 	const initialCalendarDate = () => createInitialCalendarDate(browser, calendarSearchParams(browser));
 	const initialCalendarEventID = () => createInitialCalendarEventID(browser, calendarSearchParams(browser));
@@ -58,7 +54,6 @@
 	const calendarOptions = $derived([{ id: 'internkim', name: text.work }]);
 	const controller = createCalendarPageController({
 		isBrowser: () => browser,
-		getCalendarLocale: () => calendarLocale,
 		getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
 		getLocaleCode: () => localeCode,
 		initialCalendarDate,
@@ -174,10 +169,6 @@
 
 	function openCalendarEvent(eventID: string, anchor: DraftPopoverAnchor): void {
 		eventSelection.selectCalendarEvent(eventID);
-		if (isCompactEventEditor) {
-			eventActions.openEventMobileEditor(eventID);
-			return;
-		}
 		eventDetails.openEventDetails(eventID, anchor);
 	}
 

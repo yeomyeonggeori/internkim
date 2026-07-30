@@ -1,4 +1,4 @@
-import type { ViewType } from '@dayflow/svelte';
+import type { ViewType } from '../calendar-view-type';
 import { installCalendarDraftPopoverDismiss } from './calendar-draft-popover-dismiss';
 import type { CalendarDraftPopoverDismissOptions } from './calendar-draft-popover-dismiss';
 import { installCalendarKeyboardDelete } from './calendar-keyboard-delete';

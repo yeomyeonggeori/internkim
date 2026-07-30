@@ -96,18 +96,6 @@ export default defineConfig(({ mode }) => {
 			rollupOptions: {
 				output: {
 					manualChunks(moduleID) {
-						if (moduleID.includes('/node_modules/temporal-polyfill/')) {
-							return 'calendar-temporal';
-						}
-						if (moduleID.includes('/node_modules/@dayflow/core/') || moduleID.includes('/node_modules/@dayflow/plugin-drag/')) {
-							return 'calendar-dayflow-core';
-						}
-						if (moduleID.includes('/node_modules/@dayflow/blossom-color-picker/')) {
-							return 'calendar-dayflow-color';
-						}
-						if (moduleID.includes('/node_modules/@dayflow/svelte/')) {
-							return 'calendar-dayflow-svelte';
-						}
 						if (moduleID.includes('/node_modules/preact/')) {
 							return 'calendar-preact';
 						}

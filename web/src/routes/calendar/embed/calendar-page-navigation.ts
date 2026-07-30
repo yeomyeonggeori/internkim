@@ -1,4 +1,4 @@
-import { ViewType } from '@dayflow/svelte';
+import { ViewType } from '../calendar-view-type';
 import type { CalendarViewValue } from '../calendar-navigation-message';
 import { calendarViewMessageValue } from './calendar-embed-view-helpers';
 import { dateFromDateKey } from './calendar-month-selection';

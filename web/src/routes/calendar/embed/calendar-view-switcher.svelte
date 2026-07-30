@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { ViewType } from '@dayflow/svelte';
+	import { ViewType } from '../calendar-view-type';
 	import { calendarText } from '../text';
 
 	type CalendarViewSwitcherProps = {

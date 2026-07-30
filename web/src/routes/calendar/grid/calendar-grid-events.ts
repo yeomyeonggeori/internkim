@@ -1,5 +1,6 @@
-import type { Event as DayFlowEvent } from '@dayflow/core';
+import type { CalendarModelEvent as DayFlowEvent } from '../embed/calendar-event-model';
 import { eventEndDate, eventStartDate } from '../embed/calendar-event-mapping';
+import { calendarParticipantsFromUnknown } from '../embed/calendar-participants';
 import { addCalendarGridDays, startOfCalendarGridDay } from './calendar-grid-dates';
 import type { CalendarGridEvent } from './calendar-grid-layout';
 
@@ -15,7 +16,8 @@ export function calendarGridEventFromDayFlowEvent(event: DayFlowEvent): Calendar
 		start: isAllDay ? startOfCalendarGridDay(start) : start,
 		end: isAllDay ? addCalendarGridDays(startOfCalendarGridDay(end), 1) : end,
 		isAllDay,
-		color: typeof event.meta?.color === 'string' && event.meta.color ? event.meta.color : defaultCalendarEventColor
+		color: typeof event.meta?.color === 'string' && event.meta.color ? event.meta.color : defaultCalendarEventColor,
+		participants: calendarParticipantsFromUnknown(event.meta?.participants)
 	};
 }
 

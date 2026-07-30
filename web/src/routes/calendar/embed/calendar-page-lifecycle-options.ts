@@ -1,4 +1,4 @@
-import type { ViewType } from '@dayflow/svelte';
+import type { ViewType } from '../calendar-view-type';
 import type { CalendarLocaleText } from '../text';
 import type { CalendarDraftPopoverActions } from './calendar-draft-popover-actions';
 import { dateKey, type DraftPopoverState } from './calendar-draft-popover-state';

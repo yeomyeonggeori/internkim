@@ -1,4 +1,4 @@
-import { createEvent, type Event as DayFlowEvent } from '@dayflow/core';
+import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 import type { CalendarEventActions } from './calendar-event-actions';
 import {
 	draftPopoverChanges,

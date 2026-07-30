@@ -134,7 +134,8 @@
 		start: today,
 		end: today,
 		isAllDay: false,
-		color: defaultCalendarEventColor
+		color: defaultCalendarEventColor,
+		participants: []
 	});
 	const draftAllDayPreview = $derived<CalendarGridEvent>({
 		id: 'calendar-draft-all-day-preview',
@@ -142,7 +143,8 @@
 		start: today,
 		end: today,
 		isAllDay: true,
-		color: defaultCalendarEventColor
+		color: defaultCalendarEventColor,
+		participants: []
 	});
 	const nowMinutes = $derived(calendarGridMinutesFromMidnight(today));
 	const miniCalendarValue = $derived(
@@ -684,6 +686,7 @@
 						<CalendarEventListCard
 							title={event.title}
 							color={event.color}
+							participants={event.participants}
 							start={event.start}
 							isAllDay={event.isAllDay}
 							timeLabel={eventTimeLabel(event)}
