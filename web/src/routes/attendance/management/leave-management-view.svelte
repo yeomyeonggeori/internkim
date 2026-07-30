@@ -6,6 +6,8 @@
 	import { Input } from '$lib/components/ui/input';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as Table from '$lib/components/ui/table';
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { milliDaysValue } from '../leave/leave-history-model';
@@ -57,6 +59,10 @@
 		if (status === 'rejected') return text.management.rejected;
 		if (status === 'cancelled') return text.management.cancelled;
 		return text.management.needsChanges;
+	}
+
+	function leaveTypeName(id: string, name: string): string {
+		return localizedLeaveTypeName(id, name, currentLocale.value);
 	}
 </script>
 
@@ -187,7 +193,9 @@
 						{#each detail.employee.balances as balance (balance.leaveTypeID)}
 							<div class="rounded-lg border p-4">
 								<div class="flex items-center justify-between gap-2">
-									<p class="font-medium">{balance.leaveTypeName}</p>
+									<p class="font-medium">
+										{leaveTypeName(balance.leaveTypeID, balance.leaveTypeName)}
+									</p>
 									<Badge variant="secondary">
 										{text.management.available} {dayValue(balance.availableMilliDays)}
 									</Badge>
@@ -219,7 +227,9 @@
 							<div class="flex flex-wrap items-start justify-between gap-3 border-b pb-3 last:border-0 last:pb-0">
 								<div class="min-w-0">
 									<div class="flex flex-wrap items-center gap-2">
-										<p class="font-medium">{entry.leaveTypeName}</p>
+										<p class="font-medium">
+											{leaveTypeName(entry.leaveTypeID, entry.leaveTypeName)}
+										</p>
 										<Badge variant="outline">{operationLabel(entry.operationType)}</Badge>
 									</div>
 									<p class="mt-1 text-xs text-muted-foreground">
@@ -256,7 +266,9 @@
 							>
 								<div>
 									<div class="flex items-center gap-2">
-										<p class="font-medium">{request.leaveTypeName}</p>
+										<p class="font-medium">
+											{leaveTypeName(request.leaveTypeID, request.leaveTypeName)}
+										</p>
 										<Badge variant="secondary">{requestStatus(request.status)}</Badge>
 									</div>
 									<p class="mt-1 text-xs text-muted-foreground">

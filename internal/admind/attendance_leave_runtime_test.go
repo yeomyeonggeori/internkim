@@ -21,7 +21,7 @@ func TestApprovedPartialLeaveClosesOpenWorkAtLeaveStart(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if activeLeave == nil || activeLeave.RequestID != requestID {
+	if activeLeave == nil || activeLeave.RequestID != requestID || activeLeave.LeaveTypeID != "annual" {
 		t.Fatalf("active leave = %+v", activeLeave)
 	}
 	events, errorValue := service.readAttendanceEvents(

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import AttendanceLeavePolicyEditor from './attendance-leave-policy-editor.svelte';
 	import AttendanceLeavePolicyList from './attendance-leave-policy-list.svelte';
 	import AttendanceLeavePolicyRemoveDialog from './attendance-leave-policy-remove-dialog.svelte';
@@ -236,7 +238,9 @@
 
 <AttendanceLeavePolicyRemoveDialog
 	open={removalConfirmationOpen}
-	leaveTypeName={draft?.name ?? ''}
+	leaveTypeName={draft
+		? localizedLeaveTypeName(draft.id, draft.name, currentLocale.value)
+		: ''}
 	{isSaving}
 	{text}
 	onOpenChange={(open) => (removalConfirmationOpen = open)}
