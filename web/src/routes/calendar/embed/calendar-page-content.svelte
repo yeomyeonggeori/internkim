@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { Event as DayFlowEvent } from '@dayflow/core';
-	import type { useCalendarApp, ViewType } from '@dayflow/svelte';
+	import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+	import type { ViewType } from '../calendar-view-type';
 	import type { CalendarLocaleText } from '../text';
 	import type { CalendarConflict } from './calendar-conflicts';
 	import type { CalendarParticipant } from './calendar-participants';
@@ -27,7 +27,6 @@
 
 	type CalendarPageContentProps = {
 		activeMobileEditorEventID: string | null;
-		calendar: ReturnType<typeof useCalendarApp>;
 		calendarOptions: CalendarOption[];
 		participantCandidates: CalendarParticipant[];
 		conflicts: CalendarConflict[];
@@ -72,7 +71,6 @@
 
 	let {
 		activeMobileEditorEventID,
-		calendar,
 		calendarOptions,
 		participantCandidates,
 		cancelPopover,
@@ -150,7 +148,6 @@
 	/>
 	<CalendarStage
 		{activeMobileEditorEventID}
-		{calendar}
 		{clearActiveMobileEditorEvent}
 		{clearSelectedEvent}
 		events={stageEvents}

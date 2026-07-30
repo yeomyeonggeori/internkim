@@ -1,4 +1,4 @@
-import type { Event as DayFlowEvent } from '@dayflow/core';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 import { CalendarDraftEventState } from './calendar-draft-events';
 import { calendarEventElementsByID } from './calendar-event-elements';
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';

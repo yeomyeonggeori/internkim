@@ -1,5 +1,5 @@
-import type { CalendarViewType, Event as DayFlowEvent } from '@dayflow/core';
-import { ViewType } from '@dayflow/svelte';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import { ViewType, type ViewType as CalendarViewType } from '../calendar-view-type';
 import { dayFlowEventSelectorForID } from './calendar-dayflow-dom-adapter';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
 

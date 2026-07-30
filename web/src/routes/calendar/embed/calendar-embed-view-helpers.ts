@@ -1,6 +1,6 @@
 // 캘린더 embed 페이지의 순수 view helper를 제공합니다.
-import type { Event as DayFlowEvent } from '@dayflow/core';
-import { ViewType } from '@dayflow/svelte';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import { ViewType } from '../calendar-view-type';
 import type { CalendarViewValue } from '../calendar-navigation-message';
 import type { MiniCalendarWeekdayLabels } from './calendar-dayflow-mini-calendar-enhancement';
 

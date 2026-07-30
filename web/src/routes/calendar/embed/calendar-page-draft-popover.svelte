@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Event as DayFlowEvent } from '@dayflow/core';
+	import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 	import type { CalendarLocaleText } from '../text';
 	import CalendarDraftPopover from './calendar-draft-popover.svelte';
 	import type { DraftPopoverState } from './calendar-draft-popover-state';

@@ -1,5 +1,5 @@
-import type { Event as DayFlowEvent } from '@dayflow/core';
-import { ViewType } from '@dayflow/svelte';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import { ViewType } from '../calendar-view-type';
 import type { CalendarViewValue } from '../calendar-navigation-message';
 import type { CalendarEventLoader } from './calendar-event-loader';
 import type { CalendarSelectedMonthDateActions } from './calendar-month-selection';
@@ -8,21 +8,8 @@ import { createCalendarPageNavigation } from './calendar-page-navigation';
 import { createCalendarPageRangePreview } from './calendar-page-range-preview';
 import type { CalendarEmbedPageState } from './calendar-page-state.svelte';
 
-type CalendarPageInteractionCalendar = {
-	changeView: (viewType: ViewType) => void;
-	goToToday: () => void;
-	goToPrevious: () => void;
-	goToNext: () => void;
-	app: {
-		selectDate: (date: Date) => void;
-		setCurrentDate: (date: Date) => void;
-		setVisibleMonth: (date: Date) => void;
-	};
-};
-
 type CalendarPageInteractionServicesContext = {
 	broadcastCalendarView: (view: CalendarViewValue) => void;
-	calendar: CalendarPageInteractionCalendar;
 	eventLoader: CalendarEventLoader;
 	getLocaleCode: () => string;
 	getIsMobileTwoDayWeekView: () => boolean;
@@ -36,7 +23,6 @@ type CalendarPageInteractionServicesContext = {
 
 export function createCalendarPageInteractionServices(context: CalendarPageInteractionServicesContext) {
 	const pageNavigation = createCalendarPageNavigation({
-		calendar: context.calendar,
 		getToolbarDate: () => context.state.toolbarDate,
 		getToolbarView: () => context.state.toolbarView,
 		setToolbarView: (view) => {
@@ -46,7 +32,6 @@ export function createCalendarPageInteractionServices(context: CalendarPageInter
 		setSelectedMonthDateKey: (dateKey) => {
 			context.state.selectedMonthDateKey = dateKey;
 		},
-		refreshSelectedMonthDateCellAfterRender: context.selectedMonthDate.refreshSelectedMonthDateCellAfterRender,
 		selectCalendarEvent: context.selectCalendarEvent,
 		broadcastCalendarView: context.broadcastCalendarView,
 		isMobileTwoDayWeekView: context.getIsMobileTwoDayWeekView

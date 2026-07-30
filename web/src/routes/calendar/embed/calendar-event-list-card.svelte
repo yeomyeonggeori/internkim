@@ -4,9 +4,12 @@
 	import { cn } from '$lib/utils';
 	import { defaultCalendarEventColor } from '../grid/calendar-grid-events';
 	import CalendarEventContent from './calendar-event-content.svelte';
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { calendarParticipantKey, type CalendarParticipant } from './calendar-participants';
 
 	type Props = {
 		title: string;
+		participants?: CalendarParticipant[];
 		start: Date;
 		isAllDay: boolean;
 		color?: string;
@@ -15,6 +18,7 @@
 		cardTestID?: string;
 		buttonTestID?: string;
 		buttonClass?: string;
+		class?: string;
 		openEvent: (originElement: HTMLElement) => void;
 	};
 
@@ -25,9 +29,11 @@
 		color = defaultCalendarEventColor,
 		timeLabel = '',
 		location = '',
+		participants = [],
 		cardTestID = 'calendar-event-card',
 		buttonTestID = 'calendar-event-card-button',
 		buttonClass = '',
+		class: className = '',
 		openEvent
 	}: Props = $props();
 </script>
@@ -35,7 +41,10 @@
 <Card.Root
 	size="sm"
 	style={`--calendar-event-color: ${color}`}
-	class="bg-(--calendar-event-color)/12 hover:bg-(--calendar-event-color)/20 text-foreground ring-(--calendar-event-color)/20 gap-0 rounded-md py-0 transition-colors data-[size=sm]:gap-0 data-[size=sm]:py-0"
+	class={cn(
+		'bg-(--calendar-event-color)/12 hover:bg-(--calendar-event-color)/20 text-foreground ring-(--calendar-event-color)/20 gap-0 rounded-md py-0 transition-colors data-[size=sm]:gap-0 data-[size=sm]:py-0',
+		className
+	)}
 	data-testid={cardTestID}
 >
 	<Card.Content class="p-0 group-data-[size=sm]/card:px-0">
@@ -51,9 +60,25 @@
 		>
 			<span class="w-1 shrink-0 self-stretch rounded-full bg-(--calendar-event-color)"></span>
 			<span
-				class="min-w-0 flex-1 [&_.calendar-event-content]:flex [&_.calendar-event-content]:min-w-0 [&_.calendar-event-content]:items-baseline [&_.calendar-event-content]:gap-2 [&_.calendar-event-time]:!text-muted-foreground/70 [&_.calendar-event-time]:shrink-0 [&_.calendar-event-time]:!text-[10px] [&_.calendar-event-time]:tabular-nums [&_.calendar-event-title]:min-w-0 [&_.calendar-event-title]:flex-1 [&_.calendar-event-title]:truncate [&_.calendar-event-title]:text-sm [&_.calendar-event-title]:font-medium"
+				class="min-w-0 flex-1 [&_.calendar-event-content]:flex [&_.calendar-event-content]:min-w-0 [&_.calendar-event-content]:flex-col [&_.calendar-event-content]:gap-0.5 [&_.calendar-event-time]:!text-muted-foreground/70 [&_.calendar-event-time]:self-start [&_.calendar-event-time]:!text-[10px] [&_.calendar-event-time]:tabular-nums [&_.calendar-event-title]:block [&_.calendar-event-title]:min-w-0 [&_.calendar-event-title]:truncate [&_.calendar-event-title]:text-sm [&_.calendar-event-title]:font-medium"
 			>
 				<CalendarEventContent event={{ title, start, allDay: isAllDay }} {isAllDay} {timeLabel} />
+				{#if participants.length > 0}
+					<span class="mt-1 flex items-center -space-x-1">
+						{#each participants.slice(0, 4) as participant (calendarParticipantKey(participant))}
+							<PersonAvatar
+								name={participant.name}
+								email={participant.email ?? ''}
+								seed={calendarParticipantKey(participant)}
+								image={participant.image ?? ''}
+								class="ring-background size-4 ring-2"
+							/>
+						{/each}
+						{#if participants.length > 4}
+							<span class="text-muted-foreground pl-2 text-[10px]">+{participants.length - 4}</span>
+						{/if}
+					</span>
+				{/if}
 				{#if location}
 					<span class="text-muted-foreground mt-1 flex min-w-0 items-center gap-1 text-xs">
 						<MapPinIcon class="size-3 shrink-0" aria-hidden="true" />

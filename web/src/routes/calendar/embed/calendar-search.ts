@@ -1,6 +1,8 @@
 import { matchesKoreanSearch } from '$lib/korean-search';
-import type { Event as DayFlowEvent } from '@dayflow/core';
-import { eventStartDate } from './calendar-event-mapping';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import { eventEndDate, eventStartDate } from './calendar-event-mapping';
+import { defaultCalendarEventColor } from '../grid/calendar-grid-events';
+import { calendarParticipantsFromUnknown, type CalendarParticipant } from './calendar-participants';
 
 const weekdayLabels = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const;
 
@@ -8,6 +10,10 @@ export type CalendarSearchResult = {
 	id: string;
 	title: string;
 	startDate: Date;
+	endDate: Date;
+	isAllDay: boolean;
+	color: string;
+	participants: CalendarParticipant[];
 	dateLabel: string;
 	highlightParts: HighlightPart[];
 };
@@ -31,6 +37,10 @@ export function searchCalendarEvents(query: string, events: DayFlowEvent[]): Cal
 				id: event.id,
 				title: event.title,
 				startDate,
+				endDate: eventEndDate(event),
+				isAllDay: event.allDay ?? false,
+				color: typeof event.meta?.color === 'string' && event.meta.color ? event.meta.color : defaultCalendarEventColor,
+				participants: calendarParticipantsFromUnknown(event.meta?.participants),
 				dateLabel: searchDateLabel(startDate),
 				highlightParts: highlightSearchMatch(event.title, trimmedQuery)
 			};

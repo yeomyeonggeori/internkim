@@ -1,4 +1,4 @@
-import { createEvent, temporalToDate, type Event as DayFlowEvent } from '@dayflow/core';
+import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 import type { CalendarEvent, CalendarEventPayload } from './calendar-event-persistence';
 import { calendarParticipantInputs, calendarParticipantsFromUnknown } from './calendar-participants';
 
@@ -57,36 +57,29 @@ export function calendarEventPayloadFromDayFlowEvent(
 }
 
 export function eventStartDate(event: DayFlowEvent): Date {
-	return event.allDay ? localDateFromCalendarDateParts(calendarDatePartsFromTemporal(event.start)) : temporalToDate(event.start);
+	return event.allDay ? localDateFromCalendarDateParts(calendarDatePartsFromDate(event.start)) : new Date(event.start);
 }
 
 export function eventEndDate(event: DayFlowEvent): Date {
-	return event.allDay ? localDateFromCalendarDateParts(calendarDatePartsFromTemporal(event.end)) : temporalToDate(event.end);
+	return event.allDay ? localDateFromCalendarDateParts(calendarDatePartsFromDate(event.end)) : new Date(event.end);
 }
 
 function calendarDateFromDayFlowEventStart(event: DayFlowEvent): Date {
-	if (event.allDay) return dateFromCalendarDateParts(calendarDatePartsFromTemporal(event.start));
-	return temporalToDate(event.start);
+	if (event.allDay) return dateFromCalendarDateParts(calendarDatePartsFromDate(event.start));
+	return new Date(event.start);
 }
 
 function calendarDateFromDayFlowEventEnd(event: DayFlowEvent): Date {
-	if (event.allDay) return dateFromCalendarDateParts(nextCalendarDateParts(calendarDatePartsFromTemporal(event.end)));
-	return temporalToDate(event.end);
+	if (event.allDay) return dateFromCalendarDateParts(nextCalendarDateParts(calendarDatePartsFromDate(event.end)));
+	return new Date(event.end);
 }
 
-function calendarDatePartsFromTemporal(value: DayFlowEvent['start']): CalendarDateParts {
-	if (isCalendarDateParts(value)) return value;
-	const date = temporalToDate(value);
+function calendarDatePartsFromDate(value: Date): CalendarDateParts {
 	return {
-		year: date.getFullYear(),
-		month: date.getMonth() + 1,
-		day: date.getDate()
+		year: value.getFullYear(),
+		month: value.getMonth() + 1,
+		day: value.getDate()
 	};
-}
-
-function isCalendarDateParts(value: unknown): value is CalendarDateParts {
-	if (!value || typeof value !== 'object') return false;
-	return 'year' in value && 'month' in value && 'day' in value;
 }
 
 function dateFromCalendarDateParts(dateParts: CalendarDateParts): Date {
