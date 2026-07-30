@@ -20,10 +20,12 @@ export function shiftedCalendarToolbarDate(
 	return nextDate;
 }
 
+const monthWindowRadius = 3;
+
 export function startOfMonthWindow(date: Date): Date {
-	return new Date(date.getFullYear(), date.getMonth() - 1, 1);
+	return new Date(date.getFullYear(), date.getMonth() - monthWindowRadius, 1);
 }
 
 export function endOfMonthWindow(date: Date): Date {
-	return new Date(date.getFullYear(), date.getMonth() + 2, 1);
+	return new Date(date.getFullYear(), date.getMonth() + monthWindowRadius + 1, 1);
 }
