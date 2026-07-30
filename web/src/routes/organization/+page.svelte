@@ -25,9 +25,13 @@
 	const detailSheetViewport = new IsMobile(1024);
 	const controller = new OrganizationDirectoryController(adminBaseURL, text, adminPageText, () => currentLocale.value);
 
+	const orderedRecords = $derived([
+		...controller.records.filter((record) => controller.isOwnRecord(record)),
+		...controller.records.filter((record) => !controller.isOwnRecord(record))
+	]);
 	const personOptions = $derived([
 		{ value: '', label: text.allEmployees, keywords: [], jobTitle: '', email: '', image: '', seed: '' },
-		...controller.records.map((record) => ({
+		...orderedRecords.map((record) => ({
 			value: record.name || record.email,
 			label: record.name || record.email,
 			keywords: [record.jobTitle ?? ''].filter(Boolean),
