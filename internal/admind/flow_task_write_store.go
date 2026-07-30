@@ -92,8 +92,8 @@ func writeFlowTaskInTransaction(ctx context.Context, transaction *sql.Tx, task f
 	}
 	_, errorValue = transaction.ExecContext(ctx, `
 INSERT INTO flow_tasks (
-		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	week_code = excluded.week_code,
 	owner_id = excluded.owner_id,
@@ -113,6 +113,7 @@ ON CONFLICT(id) DO UPDATE SET
 	request_reason = excluded.request_reason,
 	decision_reason = excluded.decision_reason,
 	mattermost_post_id = excluded.mattermost_post_id,
+	calendar_event_id = excluded.calendar_event_id,
 	updated_at = excluded.updated_at`,
 		task.ID,
 		task.WeekCode,
@@ -133,6 +134,7 @@ ON CONFLICT(id) DO UPDATE SET
 		task.RequestReason,
 		task.DecisionReason,
 		task.MattermostPostID,
+		task.CalendarEventID,
 		createdAt,
 		now,
 	)
