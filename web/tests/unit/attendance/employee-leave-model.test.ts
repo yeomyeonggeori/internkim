@@ -133,6 +133,7 @@ describe('leave request draft', () => {
 					name: '이전 특별 휴가',
 					balanceMode: 'none' as const,
 					allowedUnits: ['quarterDay' as const],
+					includeInSummary: false,
 					isActive: false,
 					requiresHireDate: false
 				}

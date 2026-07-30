@@ -8,6 +8,12 @@ export function buildEmployeeLeaveFixture(): EmployeeLeavePayload {
 				name: '연차',
 				balanceMode: 'annual',
 				allowedUnits: ['fullDay', 'halfDay', 'quarterDay'],
+				includeInSummary: true,
+				balance: {
+					usedMilliDays: 1000,
+					reservedMilliDays: 500,
+					availableMilliDays: 13500
+				},
 				isActive: true,
 				requiresHireDate: true
 			},
@@ -16,6 +22,7 @@ export function buildEmployeeLeaveFixture(): EmployeeLeavePayload {
 				name: '병가',
 				balanceMode: 'none',
 				allowedUnits: ['fullDay', 'halfDay'],
+				includeInSummary: false,
 				isActive: true,
 				requiresHireDate: false
 			},
@@ -24,6 +31,26 @@ export function buildEmployeeLeaveFixture(): EmployeeLeavePayload {
 				name: '경조 휴가',
 				balanceMode: 'separate',
 				allowedUnits: ['fullDay'],
+				includeInSummary: false,
+				balance: {
+					usedMilliDays: 0,
+					reservedMilliDays: 0,
+					availableMilliDays: 3000
+				},
+				isActive: true,
+				requiresHireDate: false
+			},
+			{
+				id: 'reward',
+				name: '포상휴가',
+				balanceMode: 'separate',
+				allowedUnits: ['fullDay'],
+				includeInSummary: true,
+				balance: {
+					usedMilliDays: 0,
+					reservedMilliDays: 0,
+					availableMilliDays: 2000
+				},
 				isActive: true,
 				requiresHireDate: false
 			}
@@ -32,7 +59,7 @@ export function buildEmployeeLeaveFixture(): EmployeeLeavePayload {
 		summary: {
 			usedMilliDays: 1000,
 			reservedMilliDays: 500,
-			availableMilliDays: 13500
+			availableMilliDays: 15500
 		},
 		requests: [
 			{

@@ -17,11 +17,12 @@ export function createLeaveType(sortOrder: number): LeaveType {
 		name: '',
 		paid: false,
 		balanceMode: 'separate',
-		grantCadence: 'manual',
+		grantCadence: 'none',
 		grantAmountMilliDays: 0,
 		expiryMode: 'none',
 		carryoverEnabled: false,
 		allowedUnits: ['fullDay'],
+		includeInSummary: true,
 		isActive: true,
 		isSystem: false,
 		sortOrder
@@ -43,18 +44,44 @@ export function leaveTypeIsValid(leaveType: LeaveType): boolean {
 	);
 }
 
+export function leaveTypeWithBalanceMode(
+	leaveType: LeaveType,
+	balanceMode: LeaveBalanceMode
+): LeaveType {
+	if (balanceMode === 'separate' || (balanceMode === 'annual' && leaveType.id === 'annual')) {
+		return {
+			...leaveType,
+			balanceMode,
+			grantCadence: leaveType.grantCadence,
+			includeInSummary: leaveType.includeInSummary
+		};
+	}
+	return {
+		...leaveType,
+		balanceMode,
+		grantCadence: 'none',
+		grantAmountMilliDays: 0,
+		expiryMode: 'none',
+		expiryMonths: undefined,
+		carryoverEnabled: false,
+		carryoverLimitMilliDays: undefined,
+		includeInSummary: false
+	};
+}
+
+export function leaveTypeOwnsBalance(leaveType: LeaveType): boolean {
+	return (
+		leaveType.balanceMode === 'separate' ||
+		(leaveType.balanceMode === 'annual' && leaveType.id === 'annual')
+	);
+}
+
 export function isLeaveBalanceMode(value: string | undefined): value is LeaveBalanceMode {
 	return value === 'annual' || value === 'separate' || value === 'none';
 }
 
 export function isLeaveGrantCadence(value: string | undefined): value is LeaveGrantCadence {
-	return (
-		value === 'statutory' ||
-		value === 'annual' ||
-		value === 'monthly' ||
-		value === 'manual' ||
-		value === 'none'
-	);
+	return value === 'annual' || value === 'monthly' || value === 'none';
 }
 
 export function isLeaveExpiryMode(value: string | undefined): value is LeaveExpiryMode {

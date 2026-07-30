@@ -7,6 +7,10 @@ import type {
 	LeaveApprovalRequest,
 	LeaveApprovalStatus
 } from './src/routes/attendance/approval/leave-approval-types';
+import {
+	applyEmployeeLeaveBalanceMutation,
+	employeeLeaveTypeBalance
+} from './dev-attendance-leave-balance';
 
 type DevLeaveApprovalRequest = {
 	method: string;
@@ -129,10 +133,10 @@ function projectLeaveApprovalRequest(
 		reason: request.reason,
 		adminResponse: request.adminResponse,
 		attachments: structuredClone(request.attachments),
-		balance: {
-			availableMilliDays: state.payload.summary.availableMilliDays,
-			reservedMilliDays: state.payload.summary.reservedMilliDays,
-			usedMilliDays: state.payload.summary.usedMilliDays
+		balance: employeeLeaveTypeBalance(state.payload, request.leaveTypeID) ?? {
+			availableMilliDays: 0,
+			reservedMilliDays: 0,
+			usedMilliDays: 0
 		},
 		createdAt: request.createdAt,
 		updatedAt: request.updatedAt ?? request.createdAt
@@ -154,12 +158,16 @@ function applyDecision(
 	request.canResubmit = nextStatus === 'needsChanges';
 	request.revision += 1;
 	if (action === 'approve') {
-		state.leave.payload.summary.reservedMilliDays -= request.deductionMilliDays;
-		state.leave.payload.summary.usedMilliDays += request.deductionMilliDays;
+		applyEmployeeLeaveBalanceMutation(state.leave.payload, request.leaveTypeID, {
+			reservedMilliDays: -request.deductionMilliDays,
+			usedMilliDays: request.deductionMilliDays
+		});
 	}
 	if (action === 'reject') {
-		state.leave.payload.summary.reservedMilliDays -= request.deductionMilliDays;
-		state.leave.payload.summary.availableMilliDays += request.deductionMilliDays;
+		applyEmployeeLeaveBalanceMutation(state.leave.payload, request.leaveTypeID, {
+			availableMilliDays: request.deductionMilliDays,
+			reservedMilliDays: -request.deductionMilliDays
+		});
 	}
 }
 

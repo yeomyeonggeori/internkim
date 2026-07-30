@@ -8,6 +8,7 @@ import type {
 import type { DevEmployeeLeaveMockState } from './dev-attendance-leave-mock';
 import type { DevEmployeeLeaveAttachmentInput } from './dev-attendance-leave-multipart';
 import { buildEmployeeLeavePreview } from './dev-attendance-leave-preview';
+import { applyEmployeeLeaveBalanceMutation } from './dev-attendance-leave-balance';
 
 export function createEmployeeLeaveRequest(
 	state: DevEmployeeLeaveMockState,
@@ -181,12 +182,12 @@ function reserveBalance(
 	deductionMilliDays: number,
 	occurredAt: string
 ): void {
-	const leaveType = state.payload.leaveTypes.find(
-		(candidate) => candidate.id === request.leaveTypeID
-	);
-	if (leaveType?.balanceMode === 'none' || deductionMilliDays === 0) return;
-	state.payload.summary.reservedMilliDays += deductionMilliDays;
-	state.payload.summary.availableMilliDays -= deductionMilliDays;
+	if (deductionMilliDays === 0) return;
+	const balance = applyEmployeeLeaveBalanceMutation(state.payload, request.leaveTypeID, {
+		availableMilliDays: -deductionMilliDays,
+		reservedMilliDays: deductionMilliDays
+	});
+	if (!balance) return;
 	state.payload.ledgerEntries.unshift({
 		id: `leave-ledger-created-${state.nextLedgerID++}`,
 		operationKey: `reserve:${request.id}:${occurredAt}`,
@@ -195,7 +196,7 @@ function reserveBalance(
 		leaveTypeID: request.leaveTypeID,
 		leaveTypeName: request.leaveTypeName,
 		deltaMilliDays: -deductionMilliDays,
-		balanceAfterMilliDays: state.payload.summary.availableMilliDays,
+		balanceAfterMilliDays: balance.availableMilliDays,
 		isUntracked: false,
 		requestID: request.id
 	});
@@ -206,12 +207,12 @@ function releaseBalance(
 	request: EmployeeLeaveRequest,
 	occurredAt: string
 ): void {
-	const leaveType = state.payload.leaveTypes.find(
-		(candidate) => candidate.id === request.leaveTypeID
-	);
-	if (leaveType?.balanceMode === 'none' || request.deductionMilliDays === 0) return;
-	state.payload.summary.reservedMilliDays -= request.deductionMilliDays;
-	state.payload.summary.availableMilliDays += request.deductionMilliDays;
+	if (request.deductionMilliDays === 0) return;
+	const balance = applyEmployeeLeaveBalanceMutation(state.payload, request.leaveTypeID, {
+		availableMilliDays: request.deductionMilliDays,
+		reservedMilliDays: -request.deductionMilliDays
+	});
+	if (!balance) return;
 	state.payload.ledgerEntries.unshift({
 		id: `leave-ledger-created-${state.nextLedgerID++}`,
 		operationKey: `release:${request.id}:${occurredAt}`,
@@ -220,7 +221,7 @@ function releaseBalance(
 		leaveTypeID: request.leaveTypeID,
 		leaveTypeName: request.leaveTypeName,
 		deltaMilliDays: request.deductionMilliDays,
-		balanceAfterMilliDays: state.payload.summary.availableMilliDays,
+		balanceAfterMilliDays: balance.availableMilliDays,
 		isUntracked: false,
 		requestID: request.id
 	});
@@ -231,12 +232,12 @@ function restoreUsedBalance(
 	request: EmployeeLeaveRequest,
 	occurredAt: string
 ): void {
-	const leaveType = state.payload.leaveTypes.find(
-		(candidate) => candidate.id === request.leaveTypeID
-	);
-	if (leaveType?.balanceMode === 'none' || request.deductionMilliDays === 0) return;
-	state.payload.summary.usedMilliDays -= request.deductionMilliDays;
-	state.payload.summary.availableMilliDays += request.deductionMilliDays;
+	if (request.deductionMilliDays === 0) return;
+	const balance = applyEmployeeLeaveBalanceMutation(state.payload, request.leaveTypeID, {
+		availableMilliDays: request.deductionMilliDays,
+		usedMilliDays: -request.deductionMilliDays
+	});
+	if (!balance) return;
 	state.payload.ledgerEntries.unshift({
 		id: `leave-ledger-created-${state.nextLedgerID++}`,
 		operationKey: `restore:${request.id}:${occurredAt}`,
@@ -245,7 +246,7 @@ function restoreUsedBalance(
 		leaveTypeID: request.leaveTypeID,
 		leaveTypeName: request.leaveTypeName,
 		deltaMilliDays: request.deductionMilliDays,
-		balanceAfterMilliDays: state.payload.summary.availableMilliDays,
+		balanceAfterMilliDays: balance.availableMilliDays,
 		isUntracked: false,
 		requestID: request.id
 	});
