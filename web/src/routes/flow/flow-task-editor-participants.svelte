@@ -48,7 +48,7 @@
 		{#each taskDraft.participantNames as name, index}
 			{@const participantID = taskDraft.participantIDs[index] ?? ''}
 			<Badge variant="outline" class="gap-1.5 pl-1 pr-1">
-				<PersonAvatar name={name} seed={participantID || name} image={participantImage(participantID)} class="size-4" />
+				<PersonAvatar name={name} email={members.find((member) => member.id === participantID)?.email ?? ''} seed={participantID || name} image={participantImage(participantID)} class="size-4" />
 				{name}
 				{#if canEditTask && canEditTaskAssignment && canRemoveFlowTaskParticipant(taskDraft, participantID)}
 					<button

@@ -25,6 +25,7 @@ type FlowTaskListColumnsInput = {
 	statusLabel: (status: string) => string;
 	updateTaskStatus: (task: FlowTask, nextStatus: string) => Promise<void>;
 	canUpdateTask: (task: FlowTask) => boolean;
+	memberEmail: (memberID: string) => string;
 };
 
 export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): ColumnDef<FlowTask>[] {
@@ -34,14 +35,15 @@ export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): Colu
 		pendingStatusTaskID,
 		statusLabel,
 		updateTaskStatus,
-		canUpdateTask
+		canUpdateTask,
+		memberEmail
 	} = input;
 
 	return [
 		{
 			accessorKey: 'ownerName',
 			header: (context) => renderHeader(text.table.owner, context.column),
-			cell: (info) => renderComponent(PersonNameCell, { name: info.row.original.ownerName, personID: info.row.original.ownerID })
+			cell: (info) => renderComponent(PersonNameCell, { name: info.row.original.ownerName, personID: info.row.original.ownerID, email: memberEmail(info.row.original.ownerID) })
 		},
 		{
 			accessorKey: 'business',
@@ -66,7 +68,7 @@ export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): Colu
 			id: 'participants',
 			enableSorting: false,
 			header: (context) => renderHeader(text.table.participants, context.column),
-			cell: (info) => renderComponent(FlowTaskListParticipantsCell, { task: info.row.original })
+			cell: (info) => renderComponent(FlowTaskListParticipantsCell, { task: info.row.original, memberEmail })
 		},
 		{
 			accessorKey: 'size',

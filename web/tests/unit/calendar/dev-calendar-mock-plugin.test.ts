@@ -116,7 +116,8 @@ describe('dev calendar mock plugin', () => {
 		expect(response?.body.events?.map((event) => event.title)).toEqual([
 			'오늘의 우선순위 정렬',
 			'근태 상세 화면 UI 리뷰',
-			'팀 진행 상황 공유'
+			'팀 진행 상황 공유',
+			'오늘 종일 일정'
 		]);
 	});
 });

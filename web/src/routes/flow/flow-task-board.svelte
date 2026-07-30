@@ -24,6 +24,7 @@
 		canUpdateTask: (task: FlowTask) => boolean;
 		weekStartISO?: string;
 		weekEndISO?: string;
+		memberEmail: (memberID: string) => string;
 	};
 
 	let {
@@ -37,7 +38,8 @@
 		pendingTaskIDs,
 		canUpdateTask,
 		weekStartISO = '',
-		weekEndISO = ''
+		weekEndISO = '',
+		memberEmail
 	}: Props = $props();
 
 	const columnClass = [
@@ -142,6 +144,7 @@
 								<div role="listitem">
 									<FlowTaskBoardCard
 										{task}
+										{memberEmail}
 										{businessFallback}
 										{openTask}
 										isPending={isTaskPending(task.id)}
