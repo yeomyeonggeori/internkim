@@ -106,6 +106,7 @@ func (service *Service) handleAgentDirectMessage(responseWriter http.ResponseWri
 }
 
 func (service *Service) writeAgentConversation(responseWriter http.ResponseWriter, request *http.Request, actorEmail string, channelID string) {
+	service.triggerMattermostMirror()
 	channel, errorValue := service.ensureAgentDirectMessageChannel(request.Context(), actorEmail, channelID)
 	if errorValue != nil {
 		service.writeAgentDirectMessageError(responseWriter, errorValue)
