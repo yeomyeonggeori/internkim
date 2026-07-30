@@ -23,6 +23,9 @@
 		label,
 		searchPlaceholder,
 		clearValue = '',
+		canClearSelection = true,
+		disabled = false,
+		id,
 		class: className,
 		icon,
 		onSelect,
@@ -34,6 +37,9 @@
 		label: string;
 		searchPlaceholder?: string;
 		clearValue?: string;
+		canClearSelection?: boolean;
+		disabled?: boolean;
+		id?: string;
 		class?: string;
 		icon?: Snippet;
 		onSelect?: (value: string) => void;
@@ -49,7 +55,7 @@
 	const selectedOption = $derived(options.find((option) => option.value === value && option.value !== clearValue));
 
 	function selectOption(optionValue: string) {
-		const nextValue = value === optionValue ? clearValue : optionValue;
+		const nextValue = canClearSelection && value === optionValue ? clearValue : optionValue;
 		value = nextValue;
 		onSelect?.(nextValue);
 		closeAndFocusTrigger();
@@ -68,6 +74,8 @@
 		{#snippet child({ props })}
 			<Button
 				{...props}
+				{disabled}
+				{id}
 				variant="outline"
 				class={cn('w-[200px] justify-between', className)}
 				role="combobox"

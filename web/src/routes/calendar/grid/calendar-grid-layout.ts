@@ -15,6 +15,8 @@ export type CalendarGridEvent = {
 	isAllDay: boolean;
 	color: string;
 	participants: CalendarParticipant[];
+	readOnly?: boolean;
+	displayPriority?: number;
 };
 
 export type CalendarGridSpan = {
@@ -97,7 +99,12 @@ export function calendarGridWeekLayout(week: CalendarGridWeek, events: CalendarG
 		.filter((event) => !isSpanEvent(event))
 		.map((event) => ({ event, dayIndex: dayDifference(weekStart, event.start) }))
 		.filter((entry) => entry.dayIndex >= 0 && entry.dayIndex <= 6)
-		.sort((first, second) => first.dayIndex - second.dayIndex || first.event.start.getTime() - second.event.start.getTime());
+		.sort(
+			(first, second) =>
+				first.dayIndex - second.dayIndex ||
+				compareEventPriority(first.event, second.event) ||
+				first.event.start.getTime() - second.event.start.getTime()
+		);
 	return { spans, timedEntries, laneCount: laneEnds.length };
 }
 
@@ -157,10 +164,15 @@ function lastCoveredDay(event: CalendarGridEvent): Date {
 
 function compareSpanEvents(first: CalendarGridEvent, second: CalendarGridEvent): number {
 	return (
+		compareEventPriority(first, second) ||
 		first.start.getTime() - second.start.getTime() ||
 		second.end.getTime() - first.end.getTime() ||
 		first.title.localeCompare(second.title)
 	);
+}
+
+function compareEventPriority(first: CalendarGridEvent, second: CalendarGridEvent): number {
+	return (first.displayPriority ?? 1) - (second.displayPriority ?? 1);
 }
 
 function firstFreeLane(laneEnds: number[], startColumn: number): number {

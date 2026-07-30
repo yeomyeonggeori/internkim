@@ -132,6 +132,9 @@ CREATE TABLE IF NOT EXISTS calendar_properties (
 	if errorValue := ensureCalendarDeleteIntentSchema(ctx, database); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarHolidaySchema(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	return ensureCalendarSyncSchema(ctx, database)
 }
 

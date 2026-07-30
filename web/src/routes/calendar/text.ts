@@ -5,6 +5,7 @@ export type CalendarLocaleText = {
 	title: string;
 	subtitle: string;
 	work: string;
+	holidays: string;
 	previousMonth: string;
 	nextMonth: string;
 	previousWeek: string;
@@ -195,6 +196,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		title: '일정',
 		subtitle: '팀 일정과 외부 일정 연동을 한 화면에서 다룹니다.',
 		work: '팀 일정',
+		holidays: '공휴일',
 		previousMonth: '이전 달',
 		nextMonth: '다음 달',
 		previousWeek: '지난 주',
@@ -354,6 +356,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		title: 'Calendar',
 		subtitle: 'Team schedule and external calendar sync in one place.',
 		work: 'Work',
+		holidays: 'Public holidays',
 		previousMonth: 'Previous month',
 		nextMonth: 'Next month',
 		previousWeek: 'Previous week',

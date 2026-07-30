@@ -14,6 +14,7 @@ import type {
 	CompanyShareSettingsUpdate,
 	CredentialProviderStatus,
 	CredentialProvidersResponse,
+	HolidayCountriesResponse,
 	OrgGroup,
 	ReleaseHistoryResponse,
 	RestoreUploadResponse,
@@ -84,6 +85,19 @@ export async function deleteOpenRouterCredential(adminBaseURL: string, fallbackM
 export async function fetchWorkspaceSettings(adminBaseURL: string, fallbackMessage: string): Promise<WorkspaceSettings> {
 	const response = await fetch(`${adminBaseURL}/workspace-settings`, { credentials: 'include' });
 	return readJSON<WorkspaceSettings>(response, fallbackMessage);
+}
+
+export async function fetchHolidayCountries(adminBaseURL: string, fallbackMessage: string): Promise<HolidayCountriesResponse> {
+	const response = await fetch(`${adminBaseURL}/holiday-countries`, { credentials: 'include' });
+	return readJSON<HolidayCountriesResponse>(response, fallbackMessage);
+}
+
+export async function refreshCalendarHolidays(adminBaseURL: string, fallbackMessage: string): Promise<void> {
+	const response = await fetch(`${adminBaseURL}/holiday-sync/refresh`, {
+		method: 'POST',
+		credentials: 'include'
+	});
+	await readJSON<{ source: string }>(response, fallbackMessage);
 }
 
 export async function updateWorkspaceSettings(adminBaseURL: string, settings: WorkspaceSettings, fallbackMessage: string): Promise<WorkspaceSettings> {

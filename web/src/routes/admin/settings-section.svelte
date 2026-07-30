@@ -12,11 +12,14 @@
 	import {
 		apiErrorMessage,
 		fetchAttendanceLocations,
+		fetchHolidayCountries,
 		fetchWorkspaceSettings,
+		refreshCalendarHolidays,
 		updateAttendanceLocations,
 		updateWorkspaceSettings
 	} from './admin-api';
-	import type { AdminPageText, AttendanceLocation, WorkspaceLanguage, WorkspaceSettings } from './admin-types';
+	import type { AdminPageText, AttendanceLocation, HolidayCountry, WorkspaceLanguage, WorkspaceSettings } from './admin-types';
+	import WorkspaceCountrySelect from './workspace-country-select.svelte';
 
 	type SettingsSectionProps = {
 		adminBaseURL: string;
@@ -27,11 +30,14 @@
 	let { adminBaseURL, isDeviceReachable, text }: SettingsSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
-	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko', callingCode: '82' });
-	let workspaceSettingsDraft = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko', callingCode: '82' });
+	let workspaceSettings = $state<WorkspaceSettings>({ countryCode: 'KR', timeZone: 'system', language: 'ko', callingCode: '82' });
+	let workspaceSettingsDraft = $state<WorkspaceSettings>({ countryCode: 'KR', timeZone: 'system', language: 'ko', callingCode: '82' });
 	let workspaceSettingsMessage = $state('');
 	let isLoadingWorkspaceSettings = $state(false);
 	let isSavingWorkspaceSettings = $state(false);
+	let holidayCountries = $state<HolidayCountry[]>([]);
+	let isLoadingHolidayCountries = $state(false);
+	let isRefreshingCalendarHolidays = $state(false);
 	let attendanceLocations = $state<AttendanceLocation[]>([]);
 	let attendanceLocationsMessage = $state('');
 	let isLoadingAttendanceLocations = $state(false);
@@ -41,6 +47,7 @@
 		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
 		loadedAdminBaseURL = adminBaseURL;
 		loadWorkspaceSettings();
+		loadHolidayCountries();
 		loadAttendanceLocations();
 	});
 
@@ -53,6 +60,7 @@
 
 	function normalizeWorkspaceSettings(settings: WorkspaceSettings): WorkspaceSettings {
 		return {
+			countryCode: settings.countryCode?.trim().toUpperCase() || 'KR',
 			timeZone: settings.timeZone?.trim() || 'system',
 			language: settings.language === 'en' ? 'en' : 'ko',
 			callingCode: settings.callingCode?.replace(/[^0-9]/g, '') || '82',
@@ -88,6 +96,35 @@
 			workspaceSettingsMessage = apiErrorMessage(error, text.settings.saveError);
 		} finally {
 			isSavingWorkspaceSettings = false;
+		}
+	}
+
+	async function loadHolidayCountries() {
+		if (!adminBaseURL) return;
+
+		isLoadingHolidayCountries = true;
+		try {
+			const response = await fetchHolidayCountries(adminBaseURL, text.settings.loadError);
+			holidayCountries = response.countries ?? [];
+		} catch {
+			workspaceSettingsMessage = text.settings.loadError;
+		} finally {
+			isLoadingHolidayCountries = false;
+		}
+	}
+
+	async function refreshHolidays() {
+		if (!adminBaseURL) return;
+
+		isRefreshingCalendarHolidays = true;
+		workspaceSettingsMessage = '';
+		try {
+			await refreshCalendarHolidays(adminBaseURL, text.settings.holidayRefreshError);
+			workspaceSettingsMessage = text.settings.holidayRefreshSuccess;
+		} catch (error) {
+			workspaceSettingsMessage = apiErrorMessage(error, text.settings.holidayRefreshError);
+		} finally {
+			isRefreshingCalendarHolidays = false;
 		}
 	}
 
@@ -159,7 +196,18 @@
 	</Card.Header>
 	<Card.Content>
 		<Field.Group class="@container/field-group">
-			<div class="grid gap-5 md:grid-cols-3">
+			<div class="grid gap-5 md:grid-cols-2">
+				<Field.Field>
+					<Field.Label for="workspace-country-code">{text.settings.country}</Field.Label>
+					<WorkspaceCountrySelect
+						bind:countryCode={workspaceSettingsDraft.countryCode}
+						countries={holidayCountries}
+						disabled={isLoadingWorkspaceSettings || isLoadingHolidayCountries || isSavingWorkspaceSettings}
+						label={text.settings.country}
+						locale={workspaceSettingsDraft.language === 'en' ? 'en' : 'ko'}
+					/>
+					<Field.Description>{text.settings.countryDescription}</Field.Description>
+				</Field.Field>
 				<Field.Field>
 					<Field.Label for="workspace-time-zone">{text.settings.timeZone}</Field.Label>
 					<Input
@@ -203,7 +251,17 @@
 			{/if}
 		</Field.Group>
 	</Card.Content>
-	<Card.Footer class="justify-end">
+	<Card.Footer class="justify-between">
+		<Button
+			variant="outline"
+			disabled={!isDeviceReachable || isRefreshingCalendarHolidays}
+			onclick={refreshHolidays}
+		>
+			{#if isRefreshingCalendarHolidays}
+				<LoaderIcon class="size-4 animate-spin" />
+			{/if}
+			{text.settings.holidayRefresh}
+		</Button>
 		<Button disabled={!isDeviceReachable || isLoadingWorkspaceSettings || isSavingWorkspaceSettings} onclick={saveWorkspaceSettings}>
 			{#if isSavingWorkspaceSettings}
 				<LoaderIcon class="size-4 animate-spin" />
