@@ -106,6 +106,7 @@
 				canUpdateTask={page.canUpdateTask}
 				weekStartISO={summary?.week.startISO ?? ''}
 				weekEndISO={summary?.week.endISO ?? ''}
+				isCurrentWeek={summary?.week.isCurrent ?? true}
 			/>
 		</Tabs.Content>
 		<Tabs.Content value="list" class="min-h-[36rem]">
