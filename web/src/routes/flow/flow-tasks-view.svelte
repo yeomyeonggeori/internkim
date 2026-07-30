@@ -5,9 +5,7 @@
 	import FlowTaskQuickAdd from './flow-task-quick-add.svelte';
 	import FlowWeekSelector from './flow-week-selector.svelte';
 	import FlowTaskBoard from './flow-task-board.svelte';
-	import { Button } from '$lib/components/ui/button';
 	import * as Tabs from '$lib/components/ui/tabs';
-	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { untrack } from 'svelte';
 	import { createFlowTasksController } from './flow-tasks-controller.svelte';
 	import type { LoadFlow } from './flow-load-tracker';
@@ -93,18 +91,6 @@
 				resetFilters={page.resetFilters}
 				setParticipantFilterIDs={page.setParticipantFilterIDs}
 			/>
-			{#if taskViewTab === 'list'}
-				<Button
-					type="button"
-					size="icon"
-					aria-label={text.filters.addTask}
-					title={text.filters.addTask}
-					onclick={() => page.createTask()}
-					disabled={page.members().length === 0}
-				>
-					<PlusIcon class="size-4" />
-				</Button>
-			{/if}
 		</div>
 		<Tabs.Content value="board" class="min-h-[36rem]">
 			<FlowTaskBoard
