@@ -30,6 +30,42 @@ test.describe('calendar route shell', () => {
 		expect(context.pages()).toHaveLength(1);
 	});
 
+	test('renders holidays without opening edit controls', async ({ page }) => {
+		await page.unroute('**/calendar/api/holidays?**');
+		await page.route('**/calendar/api/holidays?**', async (route) => {
+			await route.fulfill({
+				json: {
+					holidays: [
+						{
+							id: 'holiday-2026-06-15',
+							title: '공휴일',
+							date: '2026-06-15',
+							source: 'holiday_api',
+							countryCode: 'KR',
+							readOnly: true,
+							color: '#ef4444'
+						}
+					],
+					source: 'holiday_api'
+				}
+			});
+		});
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
+		await page.goto('/calendar/embed');
+
+		const holiday = page.locator('[data-calendar-event-id="holiday-2026-06-15"]:visible').first();
+		await expect(holiday).toBeVisible();
+		await expect(holiday).toHaveClass(/bg-\(--calendar-event-color\)\/12/);
+		await expect(holiday).not.toHaveClass(/text-\(--calendar-event-color\)/);
+		await expect(holiday.locator('.calendar-event-accent')).toHaveCount(1);
+		await expect(holiday).toHaveAttribute('aria-disabled', 'true');
+		await holiday.click({ force: true });
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
+		await holiday.click({ button: 'right', force: true });
+		await expect(page.getByText('일정 삭제')).toHaveCount(0);
+	});
+
 	test('opens the compact editor for a month event in a narrow calendar shell', async ({ context, page }) => {
 		await page.setViewportSize({ width: 600, height: 900 });
 		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));

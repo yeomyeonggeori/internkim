@@ -45,7 +45,8 @@ test('does not apply a deferred refresh after a newer local update', async () =>
 			fetchEvents: async () => {
 				reportFetchStarted();
 				return pendingEvents;
-			}
+			},
+			fetchHolidays: async () => []
 		}
 	);
 

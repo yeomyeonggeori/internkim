@@ -1,6 +1,12 @@
 import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
-import { dayFlowEventFromCalendarEvent, eventEndDate, eventStartDate } from './calendar-event-mapping';
+import {
+	dayFlowEventFromCalendarEvent,
+	dayFlowEventFromCalendarHoliday,
+	eventEndDate,
+	eventStartDate
+} from './calendar-event-mapping';
 import { fetchCalendarEvents } from './calendar-event-persistence';
+import { fetchCalendarHolidays } from './calendar-holiday-persistence';
 
 type CalendarEventLoaderContext = {
 	isBrowser: () => boolean;
@@ -29,6 +35,7 @@ export type CalendarEventLoader = {
 
 type CalendarEventLoaderDependencies = {
 	fetchEvents: typeof fetchCalendarEvents;
+	fetchHolidays: typeof fetchCalendarHolidays;
 };
 
 export function createCalendarEventLoader(
@@ -39,6 +46,7 @@ export function createCalendarEventLoader(
 	let loadEventsRequestID = 0;
 	let isLoadPending = false;
 	const fetchEvents = dependencies.fetchEvents ?? fetchCalendarEvents;
+	const fetchHolidays = dependencies.fetchHolidays ?? fetchCalendarHolidays;
 
 	function hasVisibleRange(): boolean {
 		return visibleRange !== null;
@@ -52,14 +60,27 @@ export function createCalendarEventLoader(
 		context.setIsLoading(true);
 		context.setErrorMessage('');
 		try {
-			const calendarEvents = await fetchEvents(startDate, endDate, context.errorFallback());
+			const [calendarEvents, holidayResult] = await Promise.all([
+				fetchEvents(startDate, endDate, context.errorFallback()),
+				fetchHolidays(startDate, endDate, context.errorFallback())
+					.then((holidays) => ({ holidays, error: null }))
+					.catch((error: unknown) => ({ holidays: [], error }))
+			]);
 			if (requestID !== loadEventsRequestID) return;
-			const events = mergePreservedLocalEvents(calendarEvents.map(dayFlowEventFromCalendarEvent));
+			const events = mergePreservedLocalEvents([
+				...calendarEvents.map(dayFlowEventFromCalendarEvent),
+				...holidayResult.holidays.map(dayFlowEventFromCalendarHoliday)
+			]);
 			const mergedEvents = eventsOutsideRange(context.getVisibleEvents(), startDate, endDate).concat(events);
 			context.setVisibleEvents(mergedEvents);
 			context.setEventCount(mergedEvents.length);
 			replaceCalendarEvents(mergedEvents);
 			context.afterRenderEvents?.(events);
+			if (holidayResult.error) {
+				context.setErrorMessage(
+					holidayResult.error instanceof Error ? holidayResult.error.message : context.errorFallback()
+				);
+			}
 		} catch (error) {
 			if (requestID !== loadEventsRequestID) return;
 			context.setVisibleEvents([]);

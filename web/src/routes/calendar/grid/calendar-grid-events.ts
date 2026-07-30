@@ -17,7 +17,9 @@ export function calendarGridEventFromDayFlowEvent(event: DayFlowEvent): Calendar
 		end: isAllDay ? addCalendarGridDays(startOfCalendarGridDay(end), 1) : end,
 		isAllDay,
 		color: typeof event.meta?.color === 'string' && event.meta.color ? event.meta.color : defaultCalendarEventColor,
-		participants: calendarParticipantsFromUnknown(event.meta?.participants)
+		participants: calendarParticipantsFromUnknown(event.meta?.participants),
+		readOnly: event.calendarId === 'holidays' || event.meta?.readOnly === true,
+		displayPriority: event.calendarId === 'holidays' ? 0 : 1
 	};
 }
 

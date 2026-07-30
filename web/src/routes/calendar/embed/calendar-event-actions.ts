@@ -138,7 +138,7 @@ export function createCalendarEventActions(
 
 	function openEventMobileEditor(eventID: string): void {
 		const event = context.getCalendarEvents().find((calendarEvent) => calendarEvent.id === eventID);
-		if (!event) return;
+		if (!event || event.calendarId === 'holidays' || event.meta?.readOnly === true) return;
 		context.openMobileEventEditor(event);
 	}
 
