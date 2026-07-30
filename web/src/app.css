@@ -4,28 +4,28 @@
 
 @font-face {
 	font-family: 'Freesentation';
-	src: url('/fonts/Freesentation-4Regular.woff2') format('woff2');
+	src: url('./lib/fonts/Freesentation-4Regular.woff2') format('woff2');
 	font-weight: 400;
 	font-display: swap;
 }
 
 @font-face {
 	font-family: 'Freesentation';
-	src: url('/fonts/Freesentation-5Medium.woff2') format('woff2');
+	src: url('./lib/fonts/Freesentation-5Medium.woff2') format('woff2');
 	font-weight: 500;
 	font-display: swap;
 }
 
 @font-face {
 	font-family: 'Freesentation';
-	src: url('/fonts/Freesentation-6SemiBold.woff2') format('woff2');
+	src: url('./lib/fonts/Freesentation-6SemiBold.woff2') format('woff2');
 	font-weight: 600;
 	font-display: swap;
 }
 
 @font-face {
 	font-family: 'Freesentation';
-	src: url('/fonts/Freesentation-7Bold.woff2') format('woff2');
+	src: url('./lib/fonts/Freesentation-7Bold.woff2') format('woff2');
 	font-weight: 700;
 	font-display: swap;
 }
