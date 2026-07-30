@@ -104,12 +104,14 @@ type attendanceLeaveDashboardSummary struct {
 }
 
 type attendanceLeaveTypeView struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	BalanceMode      string   `json:"balanceMode"`
-	AllowedUnits     []string `json:"allowedUnits"`
-	IsActive         bool     `json:"isActive"`
-	RequiresHireDate bool     `json:"requiresHireDate"`
+	ID               string                           `json:"id"`
+	Name             string                           `json:"name"`
+	BalanceMode      string                           `json:"balanceMode"`
+	AllowedUnits     []string                         `json:"allowedUnits"`
+	IncludeInSummary bool                             `json:"includeInSummary"`
+	Balance          *attendanceLeaveDashboardSummary `json:"balance,omitempty"`
+	IsActive         bool                             `json:"isActive"`
+	RequiresHireDate bool                             `json:"requiresHireDate"`
 }
 
 type attendanceLeaveLedgerView struct {

@@ -49,11 +49,10 @@ func (service *Service) synchronizeAttendanceLeaveAccruals(
 	}
 	operationEmployee := attendanceLeaveEmployee{Email: employee.Email}
 	for _, leaveType := range policy.LeaveTypes {
-		if leaveType.BalanceMode == "none" {
+		if !attendanceLeaveTypeOwnsBalance(leaveType) {
 			continue
 		}
 		if leaveType.IsActive &&
-			leaveType.GrantCadence != "manual" &&
 			leaveType.GrantCadence != "none" {
 			accruals, accrualError := attendanceLeaveAccrualsThrough(
 				hireDate,
@@ -108,16 +107,8 @@ func attendanceLeaveAutomaticOperationKey(
 	leaveTypeID string,
 	employeeEmail string,
 ) string {
-	prefix := "automatic-leave"
-	switch accrual.ReferenceID {
-	case "automatic:statutory:fiscal":
-		prefix = "automatic-leave-fiscal"
-	case "automatic:statutory:legal-correction":
-		prefix = "automatic-leave-legal-correction"
-	}
 	return fmt.Sprintf(
-		"%s:%s:%s:%s",
-		prefix,
+		"automatic-leave:%s:%s:%s",
 		strings.TrimSpace(leaveTypeID),
 		normalizeAttendanceLeaveEmail(employeeEmail),
 		accrual.GrantDate,

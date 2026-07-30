@@ -82,6 +82,196 @@ func TestAttendanceLeaveRequestCreateReservesBalanceAndReturnsPrivateDashboard(t
 	}
 }
 
+func TestAttendanceLeaveRequestAnnualBalanceModeUsesAnnualAccount(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	policy := defaultAttendanceLeavePolicy()
+	policy.LeaveTypes = append(policy.LeaveTypes, attendanceLeaveType{
+		ID: "custom-shared", Name: "연차 차감 휴가", BalanceMode: "annual",
+		GrantCadence: "none", ExpiryMode: "none", AllowedUnits: []string{"fullDay"},
+		IsActive: true, SortOrder: 5,
+	})
+	if errorValue := service.writeAttendanceLeavePolicy(t.Context(), policy); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
+		Operation: attendanceLeaveOperation{
+			OperationKey: "grant-shared-annual-balance",
+			Employee:     employee,
+			LeaveTypeID:  attendanceAnnualLeaveTypeID,
+			Amount:       2000,
+			EffectiveOn:  "2027-01-01",
+		},
+		ExpiresOn: "2028-01-01",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	createRecorder := performAttendanceLeaveMultipartRequest(
+		t,
+		service,
+		http.MethodPost,
+		"/attendance/api/leave-requests",
+		"staff@example.com",
+		`{"leaveTypeID":"custom-shared","unit":"fullDay","startDate":"2027-05-03"}`,
+	)
+	if createRecorder.Code != http.StatusOK {
+		t.Fatalf("create status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+	var created struct {
+		Request struct {
+			ID string `json:"id"`
+		} `json:"request"`
+	}
+	if errorValue := json.NewDecoder(createRecorder.Body).Decode(&created); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	annualBalance, errorValue := service.readAttendanceLeaveBalance(
+		t.Context(),
+		employee,
+		attendanceAnnualLeaveTypeID,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	customBalance, errorValue := service.readAttendanceLeaveBalance(
+		t.Context(),
+		employee,
+		"custom-shared",
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if annualBalance.AvailableMilliDays != 1000 ||
+		annualBalance.ReservedMilliDays != 1000 ||
+		customBalance.AvailableMilliDays != 0 ||
+		customBalance.ReservedMilliDays != 0 {
+		t.Fatalf("annual = %+v custom = %+v", annualBalance, customBalance)
+	}
+
+	approvalRecorder := decideAttendanceLeaveForTest(
+		t,
+		service,
+		created.Request.ID,
+		`{"action":"approve"}`,
+	)
+	if approvalRecorder.Code != http.StatusOK {
+		t.Fatalf("approve status = %d body = %s", approvalRecorder.Code, approvalRecorder.Body.String())
+	}
+	annualBalance, errorValue = service.readAttendanceLeaveBalance(
+		t.Context(),
+		employee,
+		attendanceAnnualLeaveTypeID,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if annualBalance.AvailableMilliDays != 1000 ||
+		annualBalance.ReservedMilliDays != 0 ||
+		annualBalance.UsedMilliDays != 1000 {
+		t.Fatalf("approved annual balance = %+v", annualBalance)
+	}
+
+	cancelRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/attendance/api/leave-requests/"+created.Request.ID+"/cancel",
+		nil,
+	)
+	cancelRequest.RemoteAddr = "203.0.113.10:1234"
+	cancelRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	cancelRecorder := httptest.NewRecorder()
+	service.handleAttendance(cancelRecorder, cancelRequest)
+	if cancelRecorder.Code != http.StatusOK {
+		t.Fatalf("cancel status = %d body = %s", cancelRecorder.Code, cancelRecorder.Body.String())
+	}
+	annualBalance, errorValue = service.readAttendanceLeaveBalance(
+		t.Context(),
+		employee,
+		attendanceAnnualLeaveTypeID,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if annualBalance.AvailableMilliDays != 2000 ||
+		annualBalance.ReservedMilliDays != 0 ||
+		annualBalance.UsedMilliDays != 0 {
+		t.Fatalf("cancelled annual balance = %+v", annualBalance)
+	}
+}
+
+func TestAttendanceLeaveDashboardSummarizesOnlyIncludedBalanceAccounts(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	policy := defaultAttendanceLeavePolicy()
+	for index := range policy.LeaveTypes {
+		if policy.LeaveTypes[index].ID == "bereavement" {
+			policy.LeaveTypes[index].BalanceMode = "separate"
+			policy.LeaveTypes[index].IncludeInSummary = false
+		}
+	}
+	if errorValue := service.writeAttendanceLeavePolicy(t.Context(), policy); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	for _, grant := range []attendanceLeaveGrant{
+		{
+			Operation: attendanceLeaveOperation{
+				OperationKey: "grant-dashboard-annual",
+				Employee:     employee,
+				LeaveTypeID:  "annual",
+				Amount:       1000,
+				EffectiveOn:  "2027-01-01",
+			},
+			ExpiresOn: "2028-01-01",
+		},
+		{
+			Operation: attendanceLeaveOperation{
+				OperationKey: "grant-dashboard-reward",
+				Employee:     employee,
+				LeaveTypeID:  "reward",
+				Amount:       2000,
+				EffectiveOn:  "2027-01-01",
+			},
+		},
+		{
+			Operation: attendanceLeaveOperation{
+				OperationKey: "grant-dashboard-bereavement",
+				Employee:     employee,
+				LeaveTypeID:  "bereavement",
+				Amount:       3000,
+				EffectiveOn:  "2027-01-01",
+			},
+		},
+	} {
+		if _, errorValue := service.grantAttendanceLeave(t.Context(), grant); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+
+	dashboard := readAttendanceLeaveDashboardForTest(t, service, employee.Email)
+	if dashboard.Summary.AvailableMilliDays != 3000 {
+		t.Fatalf("summary = %+v", dashboard.Summary)
+	}
+	expectedBalances := map[string]int{
+		"annual":      1000,
+		"reward":      2000,
+		"bereavement": 3000,
+	}
+	for _, leaveType := range dashboard.LeaveTypes {
+		expectedBalance, found := expectedBalances[leaveType.ID]
+		if !found {
+			continue
+		}
+		if leaveType.Balance == nil ||
+			leaveType.Balance.AvailableMilliDays != expectedBalance {
+			t.Fatalf("leave type %s balance = %+v", leaveType.ID, leaveType.Balance)
+		}
+		delete(expectedBalances, leaveType.ID)
+	}
+	if len(expectedBalances) != 0 {
+		t.Fatalf("missing leave type balances = %+v", expectedBalances)
+	}
+}
+
 func TestAttendanceLeaveRequestCreateInsufficientBalanceIsAtomic(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	employee := attendanceLeaveEmployee{Email: "staff@example.com"}

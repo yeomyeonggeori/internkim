@@ -201,7 +201,7 @@ func attendanceLeaveApprovalBalance(
 	return queryAttendanceLeaveBalance(ctx, queryer, attendanceLeaveEmployee{
 		Email:  record.EmployeeEmail,
 		UserID: record.UserID,
-	}, record.LeaveTypeID)
+	}, attendanceLeaveBalanceAccountID(record.LeaveTypeID, record.BalanceMode))
 }
 
 func scanAttendanceLeaveApprovalRequest(
