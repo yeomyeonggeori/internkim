@@ -33,7 +33,13 @@
 	import CalendarPageContent from './calendar-page-content.svelte';
 	import { endOfMonthWindow, startOfMonthWindow } from './calendar-visible-range';
 	import { createCalendarEmbedPageState } from './calendar-page-state.svelte';
-	import { fetchCalendarParticipants } from './calendar-participants';
+	import {
+		calendarParticipantKey,
+		calendarParticipantsFromUnknown,
+		calendarParticipantsWithViewerFirst,
+		fetchCalendarParticipants
+	} from './calendar-participants';
+	import { fetchWebSessionEmail } from '$lib/web-session';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 	import './calendar-page.css';
 
@@ -95,6 +101,17 @@
 			(event) => shouldPreserveLocalCalendarEvent(draftEvents, event)
 		)
 	);
+
+	const filteredStageEvents = $derived(
+		state.participantFilterKey
+			? stageEvents.filter((event) =>
+					calendarParticipantsFromUnknown(event.meta?.participants).some(
+						(participant) => calendarParticipantKey(participant) === state.participantFilterKey
+					)
+				)
+			: stageEvents
+	);
+
 
 	installCalendarPageEffects({
 		isBrowser: () => browser,
@@ -179,7 +196,8 @@
 
 	async function loadParticipantCandidates(): Promise<void> {
 		try {
-			state.participantCandidates = await fetchCalendarParticipants(text.error);
+			const candidates = await fetchCalendarParticipants(text.error);
+			state.participantCandidates = calendarParticipantsWithViewerFirst(candidates, await fetchWebSessionEmail());
 		} catch {
 			state.participantCandidates = [];
 		}
@@ -235,7 +253,7 @@
 	deleteEvent={(eventID) => void eventActions.deleteEvent(eventID)}
 	openSettings={openCalendarSettings}
 	clearSelectedEvent={eventSelection.clearSelectedEvent}
-	stageEvents={stageEvents}
+	stageEvents={filteredStageEvents}
 	{localeCode}
 	selectedEventID={state.selectedAuditEventID}
 	openEvent={openCalendarEvent}
@@ -248,6 +266,10 @@
 	timelineRangePreviewTitle={draftEventPlaceholderTitle()}
 	isMobileTwoDayWeekView={isMobileTwoDayWeekView}
 	popover={state.draftPopover}
+	participantFilterKey={state.participantFilterKey}
+	selectParticipantFilter={(participantKey) => {
+		state.participantFilterKey = participantKey;
+	}}
 	{calendarOptions}
 	participantCandidates={state.participantCandidates}
 	{text}

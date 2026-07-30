@@ -186,6 +186,7 @@ function storeDevCalendarEvent(state: DevCalendarMockState, eventID: unknown, bo
 		timeZone: textField(payload.timeZone) || 'Asia/Seoul',
 		isAllDay: payload.isAllDay === true,
 		color: textField(payload.color) || '#2563eb',
+		participants: Array.isArray(payload.participants) ? (payload.participants as CalendarEvent['participants']) : [],
 		updatedAt: new Date().toISOString()
 	};
 	state.events = [...state.events.filter((event) => event.id !== id), savedEvent];
