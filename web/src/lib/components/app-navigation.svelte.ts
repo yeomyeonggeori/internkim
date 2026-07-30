@@ -44,12 +44,13 @@ class AppNavigation {
 	adminRole = $state<UserRole>('member');
 	canViewTasks = $state(false);
 	isPocSuperAdmin = $state(false);
+	buzzEnabled = $state(false);
 
 	currentPath = $derived(page.url.pathname);
 	displayUserName = $derived(this.userName || text.workspace);
 
 	apps = $derived<AppRailItem[]>([
-		{ href: '/messenger/', label: text.messenger, icon: MessagesSquareIcon },
+		...(this.buzzEnabled ? [{ href: '/messenger/', label: text.messenger, icon: MessagesSquareIcon }] : []),
 		{ href: '/flow/', label: text.flow, icon: ListChecksIcon },
 		{ href: '/memory/', label: text.memory, icon: BrainIcon },
 		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon },
@@ -85,6 +86,7 @@ class AppNavigation {
 			this.clearSession();
 			return;
 		}
+		await this.loadBuzzEnabled();
 		try {
 			const response = await adminApiFetch('/admin/api/session');
 			if (!response.ok) {
@@ -131,6 +133,24 @@ class AppNavigation {
 		this.adminRole = 'member';
 		this.canViewTasks = false;
 		this.isPocSuperAdmin = false;
+		this.buzzEnabled = false;
+	}
+
+	// The messenger runs on Buzz, which only exists where a relay is provisioned
+	// (the company device), never on the PoC tenants. The relay config endpoint
+	// returns a URL there and nothing on the PoC, so it doubles as the feature gate.
+	private async loadBuzzEnabled() {
+		try {
+			const response = await fetch('/agent/api/buzz-relay-config', { credentials: 'include' });
+			if (!response.ok) {
+				this.buzzEnabled = false;
+				return;
+			}
+			const document = (await response.json()) as { relayURL?: string };
+			this.buzzEnabled = Boolean(document.relayURL?.trim());
+		} catch {
+			this.buzzEnabled = false;
+		}
 	}
 
 	private async loadWebSession() {
