@@ -8,8 +8,6 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import NetworkIcon from '@lucide/svelte/icons/network';
-	import UserRoundIcon from '@lucide/svelte/icons/user-round';
-	import ComponentIcon from '@lucide/svelte/icons/component';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { onMount } from 'svelte';
 	import { adminText } from '../admin/text';
@@ -114,9 +112,6 @@
 									searchPlaceholder={text.organization}
 									class="min-w-0 flex-1 sm:ml-auto sm:w-52 sm:flex-none"
 								>
-									{#snippet icon()}
-										<ComponentIcon class="size-4 shrink-0 opacity-60" />
-									{/snippet}
 								</FilterCombobox>
 								<FilterCombobox
 									bind:value={controller.query}
@@ -125,9 +120,6 @@
 									searchPlaceholder={text.searchPlaceholder}
 									class="min-w-0 flex-1 sm:w-72 sm:flex-none"
 								>
-									{#snippet icon()}
-										<UserRoundIcon class="size-4 shrink-0 opacity-60" />
-									{/snippet}
 									{#snippet selectedContent(option)}
 										<PersonAvatar
 											name={option.label}

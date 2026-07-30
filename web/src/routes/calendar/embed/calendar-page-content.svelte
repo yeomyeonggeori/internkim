@@ -3,7 +3,7 @@
 	import { ViewType } from '../calendar-view-type';
 	import type { CalendarLocaleText } from '../text';
 	import type { CalendarConflict } from './calendar-conflicts';
-	import type { CalendarParticipant } from './calendar-participants';
+	import { calendarParticipantKey, type CalendarParticipant } from './calendar-participants';
 	import CalendarConflictBanner from './calendar-conflict-banner.svelte';
 	import {
 		draftPopoverEndDate,
@@ -50,6 +50,8 @@
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		openSettings: () => void;
 		popover: DraftPopoverState | null;
+		participantFilterKey: string;
+		selectParticipantFilter: (participantKey: string) => void;
 		refreshConflicts: () => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
 		savePopover: () => void;
@@ -98,6 +100,8 @@
 		openEvent,
 		openSettings,
 		popover,
+		participantFilterKey,
+		selectParticipantFilter,
 		refreshConflicts,
 		saveMovedEvent,
 		savePopover,
@@ -112,6 +116,16 @@
 		updatePopover,
 		stageElement = $bindable<HTMLElement | null>(null)
 	}: CalendarPageContentProps = $props();
+
+	const participantFilterOptions = $derived([
+		{ value: '', label: text.allParticipants, email: '', image: '' },
+		...participantCandidates.map((participant) => ({
+			value: calendarParticipantKey(participant),
+			label: participant.name,
+			email: participant.email ?? '',
+			image: participant.image ?? ''
+		}))
+	]);
 
 	const editingEvent = $derived<Pick<CalendarGridEvent, 'id' | 'title' | 'start' | 'end' | 'isAllDay'> | null>(
 		popover
@@ -145,6 +159,9 @@
 		{goToNext}
 		{navigateToDateKey}
 		{openSettings}
+		participantOptions={participantFilterOptions}
+		{participantFilterKey}
+		{selectParticipantFilter}
 	/>
 	<CalendarStage
 		{activeMobileEditorEventID}
