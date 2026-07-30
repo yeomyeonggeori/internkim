@@ -5,9 +5,15 @@
 	import type { CalendarConflict } from './calendar-conflicts';
 	import type { CalendarParticipant } from './calendar-participants';
 	import CalendarConflictBanner from './calendar-conflict-banner.svelte';
-	import type { DraftPopoverAnchor, DraftPopoverState } from './calendar-draft-popover-state';
+	import {
+		draftPopoverEndDate,
+		draftPopoverStartDate,
+		type DraftPopoverAnchor,
+		type DraftPopoverState
+	} from './calendar-draft-popover-state';
+	import { addCalendarGridDays } from '../grid/calendar-grid-dates';
+	import type { CalendarGridEvent } from '../grid/calendar-grid-layout';
 	import type { MonthRangePreviewSegment } from './calendar-month-range-action';
-	import type { VisibleMonthScrollLabel } from './calendar-month-scroll-overlay-state';
 	import CalendarPageDraftPopover from './calendar-page-draft-popover.svelte';
 	import type { CalendarSearchResult } from './calendar-search';
 	import CalendarStage from './calendar-stage.svelte';
@@ -20,30 +26,32 @@
 	};
 
 	type CalendarPageContentProps = {
-		auditEvent: Pick<DayFlowEvent, 'meta'> | null;
 		activeMobileEditorEventID: string | null;
 		calendar: ReturnType<typeof useCalendarApp>;
 		calendarOptions: CalendarOption[];
 		participantCandidates: CalendarParticipant[];
 		conflicts: CalendarConflict[];
-		createQuickEvent: (event: MouseEvent) => void;
 		currentMonthTitle: string;
 		deletePopover: () => void;
 		dismissConflict: (conflictID: number) => void | Promise<void>;
 		goToNext: () => void;
 		goToPrevious: () => void;
-		isSaving: boolean;
+		goToToday: () => void;
 		isMobileTwoDayWeekView: boolean;
 		localeCode: string;
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
-		monthScrollOverlayLabels: VisibleMonthScrollLabel[];
 		navigateToDateKey: (dateKey: string) => void;
+		selectedMonthDateKey: string | null;
+		visibleMonthChanged: (month: Date) => void;
+		addEventOnDay: (dateKey: string) => void;
+		addEventOnRange: (startDateKey: string, endDateKey: string) => void;
+		addEventOnTimeRange: (start: Date, end: Date) => void;
+		deleteEvent: (eventID: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
 		openSettings: () => void;
 		popover: DraftPopoverState | null;
 		refreshConflicts: () => void;
-			repositionPopover: (size: { width: number; height: number }) => void;
 		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
 		savePopover: () => void;
 		cancelPopover: () => void;
@@ -63,7 +71,6 @@
 	};
 
 	let {
-		auditEvent,
 		activeMobileEditorEventID,
 		calendar,
 		calendarOptions,
@@ -73,24 +80,27 @@
 		clearSelectedEvent,
 		clearActiveMobileEditorEvent,
 		conflicts,
-		createQuickEvent,
 		currentMonthTitle,
 		deletePopover,
 		dismissConflict,
 		goToNext,
 		goToPrevious,
-		isSaving,
+		goToToday,
 		isMobileTwoDayWeekView,
 		localeCode,
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
-		monthScrollOverlayLabels,
 		navigateToDateKey,
+		selectedMonthDateKey,
+		visibleMonthChanged,
+		addEventOnDay,
+		addEventOnRange,
+		addEventOnTimeRange,
+		deleteEvent,
 		openEvent,
 		openSettings,
 		popover,
 		refreshConflicts,
-			repositionPopover,
 		saveMovedEvent,
 		savePopover,
 		selectDate,
@@ -104,6 +114,20 @@
 		updatePopover,
 		stageElement = $bindable<HTMLElement | null>(null)
 	}: CalendarPageContentProps = $props();
+
+	const editingEvent = $derived<Pick<CalendarGridEvent, 'id' | 'title' | 'start' | 'end' | 'isAllDay'> | null>(
+		popover
+			? {
+					id: popover.eventID,
+					title: popover.title,
+					start: draftPopoverStartDate(popover),
+					end: popover.allDay
+						? addCalendarGridDays(draftPopoverEndDate(popover), 1)
+						: draftPopoverEndDate(popover),
+					isAllDay: popover.allDay
+				}
+			: null
+	);
 </script>
 
 <main class="calendar-page flex min-h-screen flex-col">
@@ -119,9 +143,9 @@
 		{localeCode}
 		{changeCalendarView}
 		{goToPrevious}
+		{goToToday}
 		{goToNext}
 		{navigateToDateKey}
-		createQuickEvent={createQuickEvent}
 		{openSettings}
 	/>
 	<CalendarStage
@@ -147,24 +171,26 @@
 		bind:stageElement
 		{monthRangePreviewSegments}
 		{monthRangePreviewTitle}
+		{editingEvent}
 		{timelineRangePreviewSegments}
 		{timelineRangePreviewTitle}
-		{monthScrollOverlayLabels}
 		{navigateToDateKey}
+		{selectedMonthDateKey}
+		{visibleMonthChanged}
+		{addEventOnDay}
+		{addEventOnRange}
+		{addEventOnTimeRange}
+		{deleteEvent}
 	/>
 	<CalendarPageDraftPopover
 		{popover}
-		{auditEvent}
 		{calendarOptions}
 		{participantCandidates}
-		{isSaving}
 		{localeCode}
 		{text}
 		{updatePopover}
-		{repositionPopover}
 		{savePopover}
 		{cancelPopover}
 		{deletePopover}
-		{stageElement}
 	/>
 </main>

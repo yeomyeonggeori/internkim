@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
-	import * as Chart from '$lib/components/ui/chart';
+	import type * as Chart from '$lib/components/ui/chart';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ClockIcon from '@lucide/svelte/icons/clock';
-	import { BarChart } from 'layerchart';
 	import { getAttendanceState, type ChartMode } from '../attendance-context.svelte';
+	import { loadedWorkTimeChartPlot, loadWorkTimeChartPlot } from './work-time-chart-plot-loader';
 	import { attendanceText } from '../text';
 	import { todayDateInTimeZone } from './attendance-date';
 	import DurationText from './duration-text.svelte';
@@ -41,6 +42,11 @@
 	}: Props = $props();
 
 	const attendance = getAttendanceState();
+	let plotComponent = $state(loadedWorkTimeChartPlot());
+
+	void loadWorkTimeChartPlot().then((plot) => {
+		plotComponent = plot;
+	});
 	const text = createPageText(attendanceText);
 	const modes = $derived<ChartModeOption[]>([
 		{ value: 'day', label: text.day },
@@ -149,62 +155,25 @@
 		</div>
 	</Card.Header>
 	<Card.Content class={compact ? 'px-3 pb-3 pt-1' : undefined}>
-		<Chart.Container
-			config={chartConfig}
-			class={compact ? 'h-24 w-full [&_.lc-axis-tick-label]:text-[9px]' : 'h-72 w-full'}
-			aria-label={title}
-		>
-			<BarChart
-				data={chartData}
-				x="index"
-				yDomain={[0, maxTotal]}
-				axis="x"
-				grid
-				rule={false}
-				padding={{ left: 6, right: 6, bottom: 18 }}
-				series={chartSeries}
-				seriesLayout="stack"
-				props={{
-					grid: { class: 'stroke-border/60' },
-					xAxis: {
-						ticks: axisLabelIndexes,
-						format: axisLabelFormatter,
-						tickLabelProps: axisTickLabelProps,
-					},
-					bars: {
-						strokeWidth: 0,
-						radius: 2,
-					},
-				}}
-			>
-				{#snippet tooltip()}
-					<Chart.Tooltip
-						anchor="bottom"
-						contained={false}
-						indicator="dot"
-						labelFormatter={tooltipLabelFormatter}
-						class="w-max min-w-28"
-						motion="none"
-						x="data"
-						y="data"
-						yOffset={8}
-					>
-						{#snippet formatter({ value, name, item })}
-							<div
-								class="size-2.5 shrink-0 rounded-[2px]"
-								style="background-color: {item.color ?? fallbackLocationColor};"
-							></div>
-							<div class="flex flex-1 items-center justify-between gap-3 leading-none">
-								<span class="whitespace-nowrap text-muted-foreground">{name}</span>
-								<span class="whitespace-nowrap text-foreground font-mono font-medium tabular-nums">
-									{typeof value === 'number' ? formatChartValue(value) : String(value)}
-								</span>
-							</div>
-						{/snippet}
-					</Chart.Tooltip>
-				{/snippet}
-			</BarChart>
-		</Chart.Container>
+		{#if !plotComponent}
+			<Skeleton class={compact ? 'h-24 w-full' : 'h-72 w-full'} />
+		{:else}
+			{@const WorkTimeChartPlot = plotComponent}
+			<WorkTimeChartPlot
+				{title}
+				{compact}
+				{chartData}
+				{chartConfig}
+				{chartSeries}
+				{maxTotal}
+				{axisLabelIndexes}
+				{axisTickLabelProps}
+				{fallbackLocationColor}
+				{axisLabelFormatter}
+				{tooltipLabelFormatter}
+				{formatChartValue}
+			/>
+		{/if}
 		{#if pointsSummary}
 			<div class={compact ? 'mt-2 grid gap-1 border-t pt-2 text-[11px]' : 'mt-3 flex items-center gap-6 text-xs'}>
 				<div class="flex items-baseline justify-between gap-2">

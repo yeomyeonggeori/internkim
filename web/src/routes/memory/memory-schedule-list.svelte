@@ -2,6 +2,8 @@
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
+	import * as Card from '$lib/components/ui/card';
+	import * as Field from '$lib/components/ui/field';
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
@@ -136,67 +138,47 @@
 	}
 </script>
 
-<section class="grid min-w-0 gap-4">
-	<div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-		<div class="grid gap-1">
-			<h2 class="text-lg font-semibold tracking-tight">{text.scheduleTab}</h2>
-			<p class="text-sm text-muted-foreground">{text.scheduleDescription}</p>
-		</div>
-		<div class="flex flex-wrap items-center gap-2">
-			<div class="flex h-9 items-center gap-2 rounded-md border bg-background px-3 shadow-xs">
-				<Switch
-					id="memory-include-expired"
-					size="sm"
-					checked={includeExpiredSchedules}
-					onCheckedChange={toggleIncludeExpiredSchedules}
-				/>
-				<Label for="memory-include-expired" class="whitespace-nowrap text-sm font-medium">
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.scheduleTab}</Card.Title>
+		<Card.Description>{text.scheduleDescription}</Card.Description>
+		<Card.Action class="flex items-center gap-2">
+			<div class="bg-background flex h-8 items-center gap-2 rounded-md border px-3">
+				<Switch id="memory-include-expired" size="sm" checked={includeExpiredSchedules} onCheckedChange={toggleIncludeExpiredSchedules} />
+				<Label for="memory-include-expired" class="text-sm font-medium whitespace-nowrap">
 					{text.scheduleIncludeExpired}
 				</Label>
 			</div>
 			<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={refreshSchedules} aria-label={text.refresh} title={text.refresh}>
 				<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
 			</Button>
-		</div>
-	</div>
-
-	{#if hasLoadError}
-		<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{text.scheduleLoadFailed}</p>
-	{/if}
-	{#if actionErrorMessage}
-		<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionErrorMessage}</p>
-	{/if}
-
-	<div class="overflow-hidden rounded-md border bg-background">
-		<MemoryScheduleTable
-			{text}
-			{schedules}
-			{isLoading}
-			{hasLoadError}
-			{openEditDialog}
-			{confirmDeleteSchedule}
-		/>
-
-		{#if totalCount > 0 && !hasLoadError && !(isLoading && schedules.length === 0)}
-			<div class="border-t bg-muted/20 px-4 py-3">
-				<ListPaginationFooter
-					totalItems={totalCount}
-					pageIndex={currentPage - 1}
-					{pageSize}
-					pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
-					canPreviousPage={currentPage > 1 && !isLoading}
-					canNextPage={currentPage * pageSize < totalCount && !isLoading}
-					previousPage={() => changeSchedulePage(currentPage - 1)}
-					nextPage={() => changeSchedulePage(currentPage + 1)}
-					summary={text.schedulePageSummaryTemplate}
-					previousLabel={text.schedulePreviousPage}
-					nextLabel={text.scheduleNextPage}
-					ariaLabel={text.schedulePagination}
-				/>
-			</div>
+		</Card.Action>
+	</Card.Header>
+	<Card.Content class="grid min-w-0 gap-4 px-0">
+		{#if hasLoadError || actionErrorMessage}
+			<Field.Error class="px-4">{hasLoadError ? text.scheduleLoadFailed : actionErrorMessage}</Field.Error>
 		{/if}
-	</div>
-</section>
+		<MemoryScheduleTable {text} {schedules} {isLoading} {hasLoadError} {openEditDialog} {confirmDeleteSchedule} />
+	</Card.Content>
+	{#if totalCount > 0 && !hasLoadError && !(isLoading && schedules.length === 0)}
+		<Card.Footer>
+			<ListPaginationFooter
+				totalItems={totalCount}
+				pageIndex={currentPage - 1}
+				{pageSize}
+				pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
+				canPreviousPage={currentPage > 1 && !isLoading}
+				canNextPage={currentPage * pageSize < totalCount && !isLoading}
+				previousPage={() => changeSchedulePage(currentPage - 1)}
+				nextPage={() => changeSchedulePage(currentPage + 1)}
+				summary={text.schedulePageSummaryTemplate}
+				previousLabel={text.schedulePreviousPage}
+				nextLabel={text.scheduleNextPage}
+				ariaLabel={text.schedulePagination}
+			/>
+		</Card.Footer>
+	{/if}
+</Card.Root>
 
 <MemoryScheduleEditDialog
 	{text}

@@ -37,6 +37,7 @@ export type CalendarEventPersistenceActions = {
 	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
 	flushPendingDelete: () => Promise<void>;
+	undoLastDelete: () => boolean;
 	persistCreatedEvent: (event: DayFlowEvent) => Promise<void>;
 };
 
@@ -228,6 +229,7 @@ export function createCalendarEventPersistenceActions(
 		saveUpdatedEvent,
 		deleteEvent,
 		flushPendingDelete: deletePersistence.flushPendingDelete,
+		undoLastDelete: deletePersistence.undoLastDelete,
 		persistCreatedEvent: draftPersistence.persistCreatedEvent
 	};
 }

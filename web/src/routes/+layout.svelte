@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import ChannelSheet from '$lib/components/channel/channel-sheet.svelte';
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
@@ -23,17 +24,31 @@
 	import { isEmbeddedFrame } from '$lib/embedded';
 	import { isAppShortcutMessage } from '$lib/app-shortcut-message';
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
+	import { webAuthSessionDependency } from '$lib/web-auth-session';
+	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
 
-	let { children } = $props();
+	let { children, data } = $props();
 	const text = createPageText(appShellText);
 	let isCommandPaletteOpen = $state(false);
 	let isAppSidebarOpen = $state(false);
-
-	onMount(initializeLocale);
+	onMount(() => {
+		initializeLocale();
+		preloadWorkTimeChartPlot();
+		const revalidateSession = () => {
+			if (document.visibilityState !== 'visible') return;
+			void invalidate(webAuthSessionDependency);
+		};
+		window.addEventListener('focus', revalidateSession);
+		document.addEventListener('visibilitychange', revalidateSession);
+		return () => {
+			window.removeEventListener('focus', revalidateSession);
+			document.removeEventListener('visibilitychange', revalidateSession);
+		};
+	});
 
 	function selectLocale(code: string) {
 		if (code === 'ko' || code === 'en') setLocale(code);
@@ -111,7 +126,7 @@
 	<Tooltip.Provider delayDuration={120}>
 		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-svh w-full bg-background text-foreground">
 			{#if !isEmbeddedFrame()}
-				<AppRail />
+				<AppRail session={data.session} />
 			{/if}
 			<div class="flex min-w-0 flex-1 flex-col">
 				{#if !isEmbeddedFrame()}
@@ -200,7 +215,7 @@
 				{/if}
 				<div data-app-shell-scroll class="flex min-h-0 flex-1 overflow-y-auto max-sm:pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-0">
 					{#if usesWebAuthGate(page.url.pathname)}
-						<WebAuthGate returnPath={currentReturnPath()}>
+						<WebAuthGate session={data.session} returnPath={currentReturnPath()}>
 							{@render children()}
 						</WebAuthGate>
 					{:else}

@@ -11,23 +11,18 @@ export type CalendarDraftPopoverDismissOptions = {
 
 export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopoverDismissOptions): () => void {
 	let shouldSuppressNextClick = false;
-	let isDismissing = false;
 
 	const dismissPopover = (popover: DraftPopoverState): void => {
-		if (isDismissing) return;
-		isDismissing = true;
 		const dismissAction = isDraftPopoverValid(popover) ? options.saveDraftPopover : options.cancelDraftPopover;
-		void dismissAction().finally(() => {
-			isDismissing = false;
-		});
+		void dismissAction();
 	};
 
 	const handlePointerDown = (event: PointerEvent): void => {
 		const popover = options.getDraftPopover();
 		if (!popover || !(event.target instanceof Element)) return;
-		if (event.target.closest('.calendar-draft-popover')) return;
+		if (event.target.closest('[data-slot="popover-content"]')) return;
 		const isInsideCalendarStage = options.stageElement.contains(event.target);
-		const isCalendarEvent = Boolean(event.target.closest('.df-event, .df-month-segment-event'));
+		const isCalendarEvent = Boolean(event.target.closest('[data-calendar-event-id]'));
 		dismissPopover(popover);
 		if (!isCalendarEvent) options.clearSelectedEvent();
 		if (!isInsideCalendarStage || isCalendarEvent) return;
@@ -40,7 +35,7 @@ export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopover
 	const handleClick = (event: MouseEvent): void => {
 		if (!shouldSuppressNextClick) return;
 		shouldSuppressNextClick = false;
-		if (event.target instanceof Element && event.target.closest('.calendar-draft-popover')) return;
+		if (event.target instanceof Element && event.target.closest('[data-slot="popover-content"]')) return;
 		event.preventDefault();
 		event.stopPropagation();
 		event.stopImmediatePropagation();
@@ -74,7 +69,7 @@ export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopover
 }
 
 function isDraftPopoverTarget(target: EventTarget | null): boolean {
-	if (target instanceof Element) return Boolean(target.closest('.calendar-draft-popover'));
-	if (target instanceof Text) return Boolean(target.parentElement?.closest('.calendar-draft-popover'));
+	if (target instanceof Element) return Boolean(target.closest('[data-slot="popover-content"]'));
+	if (target instanceof Text) return Boolean(target.parentElement?.closest('[data-slot="popover-content"]'));
 	return false;
 }

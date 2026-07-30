@@ -5,58 +5,46 @@
 	import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from '$lib/components/ui/field';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { cloudflareLoginURLFor, mattermostLoginURLFor, type WebAuthSession } from '$lib/web-auth-session';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import PowerIcon from '@lucide/svelte/icons/power';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import type { Snippet } from 'svelte';
+	import { onMount } from 'svelte';
 	import { buzzPasskeyLogin, buzzPasswordLogin, mattermostPasswordLogin } from '$lib/buzz-key-login';
 	import { createBuzzIdentityTransport, enrollKnownBuzzIdentity } from '$lib/buzz-identity-session';
 	import { isPasskeySupported } from '$lib/buzz-passkey';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 
-	type SessionResponse = {
-		authenticated: boolean;
-		email?: string;
-		identityEmail?: string;
-		notInvited?: boolean;
-	};
+	let { children, session, returnPath }: { children?: Snippet; session: WebAuthSession | null; returnPath: string } = $props();
 
-	let { children, returnPath }: { children?: Snippet; returnPath: string } = $props();
 	const text = createPageText(appShellText);
 	const fieldId = $props.id();
 	const passkeyAvailable = isPasskeySupported();
 	const identityTransport = createBuzzIdentityTransport();
-	let isLoading = $state(true);
-	let isAuthenticated = $state(false);
-	let notInvited = $state(false);
-	let identityEmail = $state('');
+	let buzzEnabled = $state(false);
 	let email = $state('');
 	let password = $state('');
 	let busy = $state(false);
 	let errorMessage = $state('');
-	let lastReturnPath = '';
 
-	$effect(() => {
-		if (returnPath === lastReturnPath) return;
-		lastReturnPath = returnPath;
-		loadSession();
-	});
+	const mattermostLoginURL = $derived(session?.mattermostLoginURL || mattermostLoginURLFor(returnPath));
+	const cloudflareLoginURL = $derived(session?.cloudflareLoginURL || cloudflareLoginURLFor(returnPath));
 
-	async function loadSession() {
-		isLoading = true;
+	// The company device runs Buzz identity (email/password/passkey signed in the
+	// browser); the PoC tenants still authenticate through Mattermost/Cloudflare
+	// SSO. The relay-config endpoint is unauthenticated, so the login screen can
+	// pick the right flow before anyone signs in.
+	onMount(async () => {
 		try {
-			const session = (await fetch(`/auth/session?return=${encodeURIComponent(returnPath)}`, {
-				credentials: 'include'
-			}).then((response) => response.json())) as SessionResponse;
-			isAuthenticated = session.authenticated;
-			notInvited = session.notInvited ?? false;
-			identityEmail = session.identityEmail ?? '';
+			const response = await fetch('/agent/api/buzz-relay-config', { credentials: 'include' });
+			if (response.ok) {
+				const document = (await response.json()) as { relayURL?: string };
+				buzzEnabled = Boolean(document.relayURL?.trim());
+			}
 		} catch {
-			isAuthenticated = false;
-		} finally {
-			isLoading = false;
+			buzzEnabled = false;
 		}
-	}
+	});
 
 	function signupURL() {
 		return `/auth/verify/start?return=${encodeURIComponent(returnPath)}`;
@@ -97,45 +85,11 @@
 	function loginWithPasskey() {
 		return runLogin(buzzPasskeyLogin);
 	}
-
-	async function logOut() {
-		try {
-			const body = (await fetch(`/auth/logout?return=${encodeURIComponent(returnPath)}`, {
-				method: 'POST',
-				credentials: 'include'
-			}).then((response) => response.json())) as { redirectURL?: string };
-			location.replace(body.redirectURL ?? '/');
-		} catch {
-			location.replace('/');
-		}
-	}
 </script>
 
-{#if isLoading}
-	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
-		<div class="flex items-center gap-2 text-sm text-muted-foreground">
-			<RefreshCwIcon class="size-4 animate-spin" />
-			<span>{text.checkingSession}</span>
-		</div>
-	</div>
-{:else if isAuthenticated}
+{#if session?.authenticated}
 	{@render children?.()}
-{:else if notInvited}
-	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
-		<Card.Root class="w-full max-w-sm">
-			<Card.Header>
-				<Card.Title>{text.notInvitedTitle}</Card.Title>
-				<Card.Description>{text.notInvitedDescription.replace('{email}', identityEmail)}</Card.Description>
-			</Card.Header>
-			<Card.Content>
-				<Button variant="outline" class="w-full gap-2" onclick={logOut}>
-					<PowerIcon class="size-4" />
-					<span>{text.signOutTryAnother}</span>
-				</Button>
-			</Card.Content>
-		</Card.Root>
-	</div>
-{:else}
+{:else if buzzEnabled}
 	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
 		<Card.Root class="mx-auto w-full max-w-sm">
 			<Card.Header>
@@ -176,6 +130,28 @@
 						</Field>
 					</FieldGroup>
 				</form>
+			</Card.Content>
+		</Card.Root>
+	</div>
+{:else}
+	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
+		<Card.Root class="mx-auto w-full max-w-sm">
+			<Card.Header>
+				<Card.Title class="text-2xl">{text.signInTitle}</Card.Title>
+				<Card.Description>{text.signInDescription}</Card.Description>
+			</Card.Header>
+			<Card.Content class="space-y-3">
+				<Button href={mattermostLoginURL} class="w-full gap-2">
+					<PowerIcon class="size-4" />
+					<span>{text.continueWithMattermost}</span>
+				</Button>
+				<Button href={cloudflareLoginURL} variant="outline" class="w-full gap-2">
+					<PowerIcon class="size-4" />
+					<span>{text.continueWithCloudflare}</span>
+				</Button>
+				{#if session?.isUnavailable}
+					<p class="text-xs text-muted-foreground">{text.webSessionUnavailable}</p>
+				{/if}
 			</Card.Content>
 		</Card.Root>
 	</div>

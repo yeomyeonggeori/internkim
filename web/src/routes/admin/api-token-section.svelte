@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { CopyButton } from '$lib/components/ui/copy-button';
+	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -21,11 +24,18 @@
 	};
 
 	const text = createPageText(appShellText);
-	let tokenLabel = $state('Claude Code');
+	let tokenLabel = $state(todayTokenLabel());
 	let tokenScopes = $state<PublicAPITokenScope[]>(['read']);
 	let tokenResult = $state<PublicAPITokenCreateResponse | null>(null);
 	let message = $state('');
 	let isCreating = $state(false);
+
+	function todayTokenLabel() {
+		const today = new Date();
+		const month = `${today.getMonth() + 1}`.padStart(2, '0');
+		const day = `${today.getDate()}`.padStart(2, '0');
+		return `${today.getFullYear()}-${month}-${day}`;
+	}
 
 	const tokenScopeOptions = (): { value: PublicAPITokenScope; label: string; description: string }[] => [
 		{ value: 'read', label: text.apiTokenSheet.scopes.read, description: text.apiTokenSheet.scopeDescriptions.read },
@@ -75,65 +85,68 @@
 	}
 </script>
 
-<div class="rounded-lg border p-4">
-	<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-		<div>
-			<h3 class="text-sm font-semibold">{text.apiTokenSheet.title}</h3>
-			<p class="text-muted-foreground mt-1 text-sm">{text.apiTokenSheet.description}</p>
-		</div>
-		<Badge variant="outline">/api/v1</Badge>
-	</div>
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.apiTokenSheet.title}</Card.Title>
+		<Card.Description>{text.apiTokenSheet.description}</Card.Description>
+		<Card.Action>
+			<Badge variant="outline" class="font-mono">/api/v1</Badge>
+		</Card.Action>
+	</Card.Header>
 	<form
-		class="grid max-w-xl gap-4"
 		onsubmit={(event) => {
 			event.preventDefault();
 			createPublicAPIToken();
 		}}
 	>
-		<label class="grid gap-1.5">
-			<span class="text-muted-foreground text-xs font-medium">{text.apiTokenSheet.label}</span>
-			<Input bind:value={tokenLabel} placeholder={text.apiTokenSheet.labelPlaceholder} autocomplete="off" />
-		</label>
-		<div class="grid gap-2">
-			<p class="text-muted-foreground text-xs font-medium">{text.apiTokenSheet.scopesTitle}</p>
-			<div class="grid gap-2">
-				{#each tokenScopeOptions() as option (option.value)}
-					<label class="bg-background/70 flex min-w-0 gap-2 rounded-md border p-3">
-						<input
-							class="mt-1 size-4 shrink-0"
-							type="checkbox"
-							checked={tokenScopes.includes(option.value)}
-							disabled={option.value === 'read'}
-							onchange={(event) => toggleTokenScope(option.value, event.currentTarget.checked)}
-						/>
-						<span class="min-w-0">
-							<span class="block text-sm font-medium">{option.label}</span>
-							<span class="text-muted-foreground mt-1 block text-xs leading-5">{option.description}</span>
-						</span>
-					</label>
-				{/each}
-			</div>
-		</div>
-		<p class="text-muted-foreground text-xs">{text.apiTokenSheet.ownerBoundary}</p>
-		<Button type="submit" disabled={isCreating || !tokenLabel.trim()} class="w-fit gap-2">
-			{#if isCreating}
-				<LoaderIcon class="size-4 animate-spin" />
-			{/if}
-			{text.apiTokenSheet.create}
-		</Button>
+		<Card.Content>
+			<Field.Group class="max-w-xl">
+				<Field.Field>
+					<Field.Label for="api-token-label">{text.apiTokenSheet.label}</Field.Label>
+					<Input id="api-token-label" bind:value={tokenLabel} autocomplete="off" />
+				</Field.Field>
+				<Field.Set>
+					<Field.Legend variant="label">{text.apiTokenSheet.scopesTitle}</Field.Legend>
+					<Field.Group data-slot="checkbox-group">
+						{#each tokenScopeOptions() as option (option.value)}
+							<Field.Label>
+								<Field.Field orientation="horizontal">
+									<Checkbox
+										checked={tokenScopes.includes(option.value)}
+										disabled={option.value === 'read'}
+										onCheckedChange={(isChecked) => toggleTokenScope(option.value, isChecked)}
+									/>
+									<Field.Content>
+										<Field.Title>{option.label}</Field.Title>
+										<Field.Description>{option.description}</Field.Description>
+									</Field.Content>
+								</Field.Field>
+							</Field.Label>
+						{/each}
+					</Field.Group>
+					<Field.Description>{text.apiTokenSheet.ownerBoundary}</Field.Description>
+				</Field.Set>
+				{#if tokenResult?.token}
+					<Field.Field>
+						<Field.Label>{text.apiTokenSheet.createSuccess}</Field.Label>
+						<div class="flex items-center gap-2">
+							<code class="bg-muted min-w-0 flex-1 overflow-x-auto rounded-md border px-3 py-2 font-mono text-xs">{tokenResult.token}</code>
+							<CopyButton text={tokenResult.token} variant="outline" />
+						</div>
+						<Field.Description>{text.apiTokenSheet.shownOnce}</Field.Description>
+					</Field.Field>
+				{:else if message}
+					<Field.Error>{message}</Field.Error>
+				{/if}
+			</Field.Group>
+		</Card.Content>
+		<Card.Footer class="justify-end">
+			<Button type="submit" disabled={isCreating || !tokenLabel.trim()}>
+				{#if isCreating}
+					<LoaderIcon class="size-4 animate-spin" />
+				{/if}
+				{text.apiTokenSheet.create}
+			</Button>
+		</Card.Footer>
 	</form>
-	{#if tokenResult?.token}
-		<div class="mt-4 grid max-w-xl gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3">
-			<div class="flex flex-wrap items-center justify-between gap-2">
-				<p class="text-sm font-medium">{text.apiTokenSheet.createSuccess}</p>
-				<CopyButton text={tokenResult.token} variant="outline" size="sm">
-					{text.apiTokenSheet.copy}
-				</CopyButton>
-			</div>
-			<code class="bg-background block max-w-full overflow-x-auto rounded px-2 py-1 text-xs">{tokenResult.token}</code>
-			<p class="text-muted-foreground text-xs">{text.apiTokenSheet.shownOnce}</p>
-		</div>
-	{:else if message}
-		<p class="bg-muted/30 mt-4 max-w-xl rounded-md border px-3 py-2 text-sm">{message}</p>
-	{/if}
-</div>
+</Card.Root>

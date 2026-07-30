@@ -1,10 +1,15 @@
 <script lang="ts">
+	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import * as ButtonGroup from '$lib/components/ui/button-group';
+	import * as Popover from '$lib/components/ui/popover';
+	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { ViewType } from '@dayflow/svelte';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import { calendarText } from '../text';
 	import { dateKeyFromDate } from './calendar-month-selection';
 	import CalendarToolbarDatePicker from './calendar-toolbar-date-picker.svelte';
@@ -17,9 +22,9 @@
 		localeCode: string;
 		changeCalendarView: (viewType: ViewType) => void;
 		goToPrevious: () => void;
+		goToToday: () => void;
 		goToNext: () => void;
 		navigateToDateKey: (dateKey: string) => void;
-		createQuickEvent: (event: MouseEvent) => void;
 		openSettings: () => void;
 	};
 
@@ -30,192 +35,58 @@
 		localeCode,
 		changeCalendarView,
 		goToPrevious,
+		goToToday,
 		goToNext,
 		navigateToDateKey,
-		createQuickEvent,
 		openSettings
 	}: CalendarToolbarProps = $props();
 
 	const text = createPageText(calendarText);
+	const stepLabels = $derived(navigationLabels(toolbarView));
 	let isDatePickerOpen = $state(false);
 
-	function toggleDatePicker(event: MouseEvent): void {
-		event.stopPropagation();
-		isDatePickerOpen = !isDatePickerOpen;
-	}
-
-	function closeDatePicker(): void {
-		isDatePickerOpen = false;
-	}
-
-	function navigatePrevious(event: MouseEvent): void {
-		event.stopPropagation();
-		closeDatePicker();
-		goToPrevious();
-	}
-
-	function navigateNext(event: MouseEvent): void {
-		event.stopPropagation();
-		closeDatePicker();
-		goToNext();
+	function navigationLabels(viewType: ViewType): { previous: string; next: string } {
+		if (viewType === ViewType.DAY) return { previous: text.previousDay, next: text.nextDay };
+		if (viewType === ViewType.WEEK) return { previous: text.previousWeek, next: text.nextWeek };
+		return { previous: text.previousMonth, next: text.nextMonth };
 	}
 
 	function selectPickerDate(date: Date): void {
+		isDatePickerOpen = false;
 		navigateToDateKey(dateKeyFromDate(date));
-	}
-
-	function handleWindowClick(): void {
-		if (!isDatePickerOpen) return;
-		closeDatePicker();
-	}
-
-	function handleWindowKeydown(event: KeyboardEvent): void {
-		if (!isDatePickerOpen) return;
-		if (event.key !== 'Escape') return;
-		closeDatePicker();
 	}
 </script>
 
-<svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
+<Tooltip.Provider delayDuration={120}>
+<header class="bg-background border-border/50 sticky top-0 z-20 flex min-h-14 flex-wrap items-center gap-2 border-b py-2 pr-4 pl-6">
+	<Popover.Root bind:open={isDatePickerOpen}>
+		<Popover.Trigger>
+			{#snippet child({ props })}
+				<Button {...props} variant="ghost" class="-ml-2 gap-1.5 px-2 text-[22px] leading-none font-extrabold tabular-nums">
+					{currentMonthTitle}
+					<ChevronDownIcon class="text-muted-foreground size-4" />
+				</Button>
+			{/snippet}
+		</Popover.Trigger>
+		<Popover.Content align="start" class="w-64" onOpenAutoFocus={(event) => event.preventDefault()}>
+			<CalendarToolbarDatePicker selectedDate={toolbarDate} {localeCode} {text} selectDate={selectPickerDate} />
+		</Popover.Content>
+	</Popover.Root>
 
-<header class="calendar-toolbar">
-	<div class="calendar-toolbar-left">
-		<div class="calendar-date-navigation">
-			<Button variant="ghost" size="icon-sm" aria-label={text.previous} onclick={navigatePrevious}>
+	<div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+		<CalendarViewSwitcher {toolbarView} {changeCalendarView} />
+		<ButtonGroup.Root>
+			<TooltipIconButton label={stepLabels.previous} variant="outline" size="icon-sm" onclick={goToPrevious}>
 				<ChevronLeftIcon />
-			</Button>
-			<Button
-				variant="ghost"
-				class="calendar-toolbar-title"
-				aria-haspopup="dialog"
-				aria-expanded={isDatePickerOpen}
-				onclick={toggleDatePicker}
-			>
-				{currentMonthTitle}
-			</Button>
-			<Button variant="ghost" size="icon-sm" aria-label={text.next} onclick={navigateNext}>
+			</TooltipIconButton>
+			<Button variant="outline" size="sm" onclick={goToToday}>{text.today}</Button>
+			<TooltipIconButton label={stepLabels.next} variant="outline" size="icon-sm" onclick={goToNext}>
 				<ChevronRightIcon />
-			</Button>
-			{#if isDatePickerOpen}
-				<CalendarToolbarDatePicker
-					selectedDate={toolbarDate}
-					{localeCode}
-					{text}
-					selectDate={selectPickerDate}
-					close={closeDatePicker}
-				/>
-			{/if}
-		</div>
+			</TooltipIconButton>
+		</ButtonGroup.Root>
+		<TooltipIconButton label={text.settings} variant="outline" size="icon-sm" onclick={openSettings}>
+			<SettingsIcon />
+		</TooltipIconButton>
 	</div>
-	<div class="calendar-toolbar-actions">
-		<Button variant="outline" size="sm" class="shrink-0" onclick={openSettings}>
-			{text.settings}
-		</Button>
-	</div>
-	<div class="calendar-toolbar-search-row">
-		<Button size="sm" class="mobile-new-event-button shrink-0" aria-label={text.new} onclick={(event) => createQuickEvent(event)}>
-			<PlusIcon />
-			{text.new}
-		</Button>
-	</div>
-	<CalendarViewSwitcher {toolbarView} {changeCalendarView} />
-	<Button size="sm" class="desktop-new-event-button shrink-0" onclick={(event) => createQuickEvent(event)}>
-		<PlusIcon />
-		{text.new}
-	</Button>
 </header>
-
-<style>
-	.calendar-toolbar {
-		display: flex;
-		height: 56px;
-		flex-shrink: 0;
-		align-items: center;
-		gap: 8px;
-		border-bottom: 1px solid var(--color-border);
-		background: var(--color-background);
-		padding: 0 16px;
-	}
-
-	.calendar-toolbar-left {
-		display: flex;
-		min-width: 0;
-		align-items: center;
-		gap: 12px;
-	}
-
-	.calendar-date-navigation {
-		position: relative;
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	:global(.calendar-toolbar-title) {
-		font-size: 20px;
-		font-weight: 700;
-	}
-
-	.calendar-toolbar-actions {
-		display: inline-flex;
-		flex-shrink: 0;
-		align-items: center;
-		gap: 4px;
-		margin-left: auto;
-	}
-
-	.calendar-toolbar-left {
-		flex-shrink: 0;
-	}
-
-	.calendar-toolbar-search-row {
-		display: contents;
-	}
-
-	:global(.mobile-new-event-button) {
-		display: none;
-	}
-
-	@media (max-width: 767px) {
-		.calendar-toolbar {
-			height: auto;
-			flex-wrap: wrap;
-			gap: 8px;
-			padding: 10px;
-		}
-
-		:global(.calendar-toolbar-title) {
-			font-size: 16px;
-		}
-
-		.calendar-toolbar-actions {
-			margin-left: auto;
-			order: 2;
-		}
-
-		.calendar-toolbar-search-row {
-			display: flex;
-			width: 100%;
-			order: 4;
-			align-items: center;
-			gap: 8px;
-		}
-
-		.calendar-toolbar-search-row :global(.calendar-search-shell) {
-			flex: 1 1 auto;
-			order: 0;
-			width: auto;
-			min-width: 0;
-			margin-left: 0;
-		}
-
-		:global(.desktop-new-event-button) {
-			display: none;
-		}
-
-		:global(.mobile-new-event-button) {
-			display: inline-flex;
-			margin-left: auto;
-		}
-	}
-</style>
+</Tooltip.Provider>

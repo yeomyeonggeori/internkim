@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
+	import * as Item from '$lib/components/ui/item';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import UploadIcon from '@lucide/svelte/icons/upload';
@@ -247,140 +250,144 @@
 	}
 </script>
 
-<div class="flex flex-wrap items-center justify-between gap-3">
-	<div>
-		<h2 class="text-base font-semibold">{text.device.title}</h2>
-		<p class="text-muted-foreground text-sm">{text.device.description}</p>
-		{#if adminSession?.email}
-			<p class="text-muted-foreground mt-1 text-xs">
-				Cloudflare Access: <span class="font-medium text-foreground">{adminSession.email}</span>
-				{#if adminSession.isAdmin}
-					<span class="ml-1 text-emerald-700">{text.device.admin}</span>
-				{:else if adminSession.bootstrapStatus === 'failed'}
-					<span class="ml-1 text-destructive">{text.device.claimFailed}</span>
-				{:else}
-					<span class="ml-1 text-amber-700">{adminSessionStatusText()}</span>
-				{/if}
-			</p>
-			{#if adminSession.bootstrapError}
-				<p class="mt-1 text-xs text-destructive">{adminSession.bootstrapError}</p>
-			{/if}
-		{:else if adminSession}
-			<p class="text-muted-foreground mt-1 text-xs">
-				Cloudflare Access: <span class="font-medium text-destructive">{adminSessionStatusText()}</span>
-			</p>
-		{/if}
-	</div>
-	<Badge variant={isDeviceReachable ? 'secondary' : 'outline'}>
-		{isDeviceReachable ? text.device.online : text.device.unreachable}
-	</Badge>
-</div>
-
-<form
-	class="grid gap-2 sm:grid-cols-[1fr_auto]"
-	onsubmit={(event) => {
-		event.preventDefault();
-		saveFleetId();
-	}}
->
-	<Input bind:value={fleetIdInput} placeholder={text.device.fleetIDPlaceholder} autocomplete="off" />
-	<Button type="submit" variant="outline" class="gap-2">
-		{#if isCheckingDevice}
-			<LoaderIcon class="size-4 animate-spin" />
-		{:else}
-			<RefreshCwIcon class="size-4" />
-		{/if}
-		{text.device.check}
-	</Button>
-</form>
-
-{#if adminErrorMessage}
-	<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{adminErrorMessage}</p>
-{/if}
-
-<div class="rounded-lg border p-4">
-	<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-		<div>
-			<h3 class="text-sm font-semibold">{text.deviceUpdate.title}</h3>
-			<p class="text-muted-foreground mt-1 text-sm">{text.deviceUpdate.description}</p>
-		</div>
-		<Badge variant={blueclawUpdateStatus?.state === 'current' ? 'secondary' : 'outline'}>
-			{blueclawUpdateStateLabel(blueclawUpdateJob?.phase || blueclawUpdateJob?.status || blueclawUpdateStatus?.state)}
-		</Badge>
-	</div>
-	<div class="grid gap-3 md:grid-cols-3">
-		<div class="rounded-md bg-muted/30 p-3">
-			<p class="text-muted-foreground text-xs">{text.deviceUpdate.currentRevision}</p>
-			<p class="mt-1 font-mono text-sm">{releaseLabel(blueclawUpdateStatus?.current?.releaseID)}</p>
-		</div>
-		<div class="rounded-md bg-muted/30 p-3">
-			<p class="text-muted-foreground text-xs">{text.deviceUpdate.latestRevision}</p>
-			<p class="mt-1 font-mono text-sm">{releaseLabel(blueclawUpdateStatus?.latest?.releaseID)}</p>
-		</div>
-		<div class="rounded-md bg-muted/30 p-3">
-			<p class="text-muted-foreground text-xs">{text.deviceUpdate.jobPhase}</p>
-			<p class="mt-1 text-sm">{blueclawUpdateStateLabel(blueclawUpdateJob?.phase || blueclawUpdateJob?.status || blueclawUpdateStatus?.state)}</p>
-		</div>
-	</div>
-	{#if releaseComponents(blueclawUpdateStatus?.latest).length > 0}
-		<div class="mt-3 rounded-md bg-muted/20 p-3">
-			<p class="text-muted-foreground mb-2 text-xs">{text.deviceUpdate.components}</p>
-			<div class="grid gap-2 sm:grid-cols-2">
-				{#each releaseComponents(blueclawUpdateStatus?.latest) as [componentName, component]}
-					<div class="flex items-center justify-between gap-3 rounded border bg-background px-2 py-1.5 text-xs">
-						<span class="font-medium">{componentName}</span>
-						<span class="font-mono text-muted-foreground">{shortRevision(component.revision)}</span>
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.device.title}</Card.Title>
+		<Card.Description>{text.device.description}</Card.Description>
+		<Card.Action>
+			<Badge variant={isDeviceReachable ? 'secondary' : 'outline'}>
+				{isDeviceReachable ? text.device.online : text.device.unreachable}
+			</Badge>
+		</Card.Action>
+	</Card.Header>
+	<Card.Content>
+		<Field.Group>
+			<form
+				onsubmit={(event) => {
+					event.preventDefault();
+					saveFleetId();
+				}}
+			>
+				<Field.Field>
+					<Field.Label for="device-fleet-id">{text.device.fleetIDPlaceholder}</Field.Label>
+					<div class="flex flex-wrap items-center gap-2">
+						<Input id="device-fleet-id" class="min-w-64 flex-1" bind:value={fleetIdInput} autocomplete="off" />
+						<Button type="submit" variant="outline">
+							{#if isCheckingDevice}
+								<LoaderIcon class="size-4 animate-spin" />
+							{:else}
+								<RefreshCwIcon />
+							{/if}
+							{text.device.check}
+						</Button>
 					</div>
-				{/each}
-			</div>
-		</div>
-	{/if}
-	<div class="mt-3 rounded-md bg-muted/20 p-3">
-		<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-			<p class="text-muted-foreground text-xs">{text.deviceUpdate.recentReleases}</p>
-			<Button variant="outline" size="sm" class="gap-2" disabled={!isDeviceReachable || isLoadingBlueclawUpdate} onclick={loadBlueclawUpdateStatus}>
+					{#if adminSession?.email}
+						<Field.Description>
+							Cloudflare Access: <span class="text-foreground font-medium">{adminSession.email}</span>
+							{#if adminSession.isAdmin}
+								· {text.device.admin}
+							{:else}
+								· {adminSession.bootstrapStatus === 'failed' ? text.device.claimFailed : adminSessionStatusText()}
+							{/if}
+						</Field.Description>
+					{:else if adminSession}
+						<Field.Description>Cloudflare Access: {adminSessionStatusText()}</Field.Description>
+					{/if}
+				</Field.Field>
+			</form>
+			{#if adminErrorMessage || adminSession?.bootstrapError}
+				<Field.Error>{adminErrorMessage || adminSession?.bootstrapError}</Field.Error>
+			{/if}
+		</Field.Group>
+	</Card.Content>
+</Card.Root>
+
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.deviceUpdate.title}</Card.Title>
+		<Card.Description>{text.deviceUpdate.description}</Card.Description>
+		<Card.Action class="flex items-center gap-2">
+			<Badge variant={blueclawUpdateStatus?.state === 'current' ? 'secondary' : 'outline'}>
+				{blueclawUpdateStateLabel(blueclawUpdateJob?.phase || blueclawUpdateJob?.status || blueclawUpdateStatus?.state)}
+			</Badge>
+			<Button variant="outline" size="sm" disabled={!isDeviceReachable || isLoadingBlueclawUpdate} onclick={loadBlueclawUpdateStatus}>
 				{#if isLoadingBlueclawUpdate}
 					<LoaderIcon class="size-4 animate-spin" />
 				{:else}
-					<RefreshCwIcon class="size-4" />
+					<RefreshCwIcon />
 				{/if}
 				{text.deviceUpdate.refresh}
 			</Button>
-		</div>
-		{#if releaseHistoryEntries.length > 0}
-			<div class="grid gap-2">
-				{#each releaseHistoryEntries as entry}
-					<div class="grid gap-2 rounded border bg-background px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-						<div class="min-w-0">
-							<div class="flex min-w-0 flex-wrap items-center gap-2">
-								<span class="truncate font-mono text-sm">{releaseLabel(entry.releaseID)}</span>
-								{#if isCurrentRelease(entry)}
-									<Badge variant="secondary">{text.deviceUpdate.currentBadge}</Badge>
-								{/if}
-							</div>
-							<p class="text-muted-foreground mt-1 text-xs">{releaseDate(entry.createdAt)}</p>
-						</div>
-						<Button size="sm" class="gap-2" disabled={!canApplyRelease(entry)} onclick={() => applyUpdate(entry)}>
-							{#if isApplyingBlueclawUpdate && applyingReleaseID === entry.releaseID}
-								<LoaderIcon class="size-4 animate-spin" />
-							{:else}
-								<UploadIcon class="size-4" />
-							{/if}
-							{releaseActionLabel(entry)}
-						</Button>
-					</div>
-				{/each}
+		</Card.Action>
+	</Card.Header>
+	<Card.Content class="grid gap-5">
+		<dl class="grid gap-4 sm:grid-cols-3">
+			<div class="grid gap-1">
+				<dt class="text-muted-foreground text-xs">{text.deviceUpdate.currentRevision}</dt>
+				<dd class="font-mono text-sm">{releaseLabel(blueclawUpdateStatus?.current?.releaseID)}</dd>
 			</div>
-		{:else}
-			<p class="rounded border bg-background px-3 py-2 text-sm text-muted-foreground">{text.deviceUpdate.noReleases}</p>
+			<div class="grid gap-1">
+				<dt class="text-muted-foreground text-xs">{text.deviceUpdate.latestRevision}</dt>
+				<dd class="font-mono text-sm">{releaseLabel(blueclawUpdateStatus?.latest?.releaseID)}</dd>
+			</div>
+			<div class="grid gap-1">
+				<dt class="text-muted-foreground text-xs">{text.deviceUpdate.jobPhase}</dt>
+				<dd class="text-sm">{blueclawUpdateStateLabel(blueclawUpdateJob?.phase || blueclawUpdateJob?.status || blueclawUpdateStatus?.state)}</dd>
+			</div>
+		</dl>
+
+		{#if releaseComponents(blueclawUpdateStatus?.latest).length > 0}
+			<Field.Field>
+				<Field.Label>{text.deviceUpdate.components}</Field.Label>
+				<div class="grid gap-2 sm:grid-cols-2">
+					{#each releaseComponents(blueclawUpdateStatus?.latest) as [componentName, component]}
+						<Item.Root variant="outline" size="xs">
+							<Item.Content>
+								<Item.Title>{componentName}</Item.Title>
+							</Item.Content>
+							<Item.Actions class="text-muted-foreground font-mono text-xs">{shortRevision(component.revision)}</Item.Actions>
+						</Item.Root>
+					{/each}
+				</div>
+			</Field.Field>
 		{/if}
-	</div>
-	<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-		<p class="text-muted-foreground text-xs">{text.deviceUpdate.notice}</p>
-	</div>
-	{#if blueclawUpdateMessage || blueclawUpdateJob?.error}
-		<p class="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-			{blueclawUpdateMessage || blueclawUpdateJob?.error}
-		</p>
-	{/if}
-</div>
+
+		<Field.Field>
+			<Field.Label>{text.deviceUpdate.recentReleases}</Field.Label>
+			{#if releaseHistoryEntries.length > 0}
+				<Item.Group class="gap-2">
+					{#each releaseHistoryEntries as entry}
+						<Item.Root variant="outline">
+							<Item.Content>
+								<Item.Title class="font-mono">
+									{releaseLabel(entry.releaseID)}
+									{#if isCurrentRelease(entry)}
+										<Badge variant="secondary" class="font-sans">{text.deviceUpdate.currentBadge}</Badge>
+									{/if}
+								</Item.Title>
+								<Item.Description>{releaseDate(entry.createdAt)}</Item.Description>
+							</Item.Content>
+							<Item.Actions>
+								<Button size="sm" variant="outline" disabled={!canApplyRelease(entry)} onclick={() => applyUpdate(entry)}>
+									{#if isApplyingBlueclawUpdate && applyingReleaseID === entry.releaseID}
+										<LoaderIcon class="size-4 animate-spin" />
+									{:else}
+										<UploadIcon />
+									{/if}
+									{releaseActionLabel(entry)}
+								</Button>
+							</Item.Actions>
+						</Item.Root>
+					{/each}
+				</Item.Group>
+			{:else}
+				<p class="text-muted-foreground rounded-lg border border-dashed px-3 py-6 text-center text-sm">{text.deviceUpdate.noReleases}</p>
+			{/if}
+			<Field.Description>{text.deviceUpdate.notice}</Field.Description>
+		</Field.Field>
+
+		{#if blueclawUpdateMessage || blueclawUpdateJob?.error}
+			<Field.Error>{blueclawUpdateMessage || blueclawUpdateJob?.error}</Field.Error>
+		{/if}
+	</Card.Content>
+</Card.Root>

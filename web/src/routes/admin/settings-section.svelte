@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
+	import * as Item from '$lib/components/ui/item';
 	import * as Select from '$lib/components/ui/select';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
-	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import {
@@ -150,123 +151,126 @@
 	}
 </script>
 
-<div class="rounded-lg border p-4">
-	<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-		<div>
-			<h3 class="text-sm font-semibold">{text.settings.title}</h3>
-			<p class="text-muted-foreground mt-1 text-sm">{text.settings.description}</p>
-		</div>
-		<div class="flex flex-wrap gap-2">
-			<Badge variant="outline">{workspaceSettings.timeZone || 'system'}</Badge>
-			<Badge variant="outline">{workspaceLanguageOptions().find((option) => option.value === workspaceSettings.language)?.label}</Badge>
-		</div>
-	</div>
-	<div class="grid gap-3 md:grid-cols-[1fr_160px_220px_auto] md:items-end">
-		<div>
-			<label class="text-xs font-medium text-muted-foreground" for="workspace-time-zone">{text.settings.timeZone}</label>
-			<Input
-				id="workspace-time-zone"
-				bind:value={workspaceSettingsDraft.timeZone}
-				placeholder={text.settings.timeZonePlaceholder}
-				disabled={isLoadingWorkspaceSettings}
-				autocomplete="off"
-				class="mt-1"
-			/>
-			<p class="mt-2 text-xs text-muted-foreground">{text.settings.timeZoneHint}</p>
-		</div>
-		<div>
-			<label class="text-xs font-medium text-muted-foreground" for="workspace-calling-code">{text.settings.callingCode}</label>
-			<Input
-				id="workspace-calling-code"
-				bind:value={workspaceSettingsDraft.callingCode}
-				placeholder={text.settings.callingCodePlaceholder}
-				disabled={isLoadingWorkspaceSettings}
-				autocomplete="off"
-				inputmode="numeric"
-				class="mt-1"
-			/>
-			<p class="mt-2 text-xs text-muted-foreground">{text.settings.callingCodeHint}</p>
-		</div>
-		<label class="grid gap-1.5">
-			<span class="text-xs font-medium text-muted-foreground">{text.settings.workspaceLanguageTitle}</span>
-			<Select.Root type="single" bind:value={workspaceSettingsDraft.language} disabled={isLoadingWorkspaceSettings || isSavingWorkspaceSettings}>
-				<Select.Trigger class="w-full">
-					{workspaceLanguageOptions().find((option) => option.value === workspaceSettingsDraft.language)?.label}
-				</Select.Trigger>
-				<Select.Content>
-					{#each workspaceLanguageOptions() as option (option.value)}
-						<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
-					{/each}
-				</Select.Content>
-			</Select.Root>
-			<span class="text-xs text-muted-foreground">{text.settings.workspaceLanguageDescription}</span>
-		</label>
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.settings.title}</Card.Title>
+		<Card.Description>{text.settings.description}</Card.Description>
+	</Card.Header>
+	<Card.Content>
+		<Field.Group class="@container/field-group">
+			<div class="grid gap-5 md:grid-cols-3">
+				<Field.Field>
+					<Field.Label for="workspace-time-zone">{text.settings.timeZone}</Field.Label>
+					<Input
+						id="workspace-time-zone"
+						bind:value={workspaceSettingsDraft.timeZone}
+						placeholder={text.settings.timeZonePlaceholder}
+						disabled={isLoadingWorkspaceSettings}
+						autocomplete="off"
+					/>
+					<Field.Description>{text.settings.timeZoneHint}</Field.Description>
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="workspace-calling-code">{text.settings.callingCode}</Field.Label>
+					<Input
+						id="workspace-calling-code"
+						bind:value={workspaceSettingsDraft.callingCode}
+						placeholder={text.settings.callingCodePlaceholder}
+						disabled={isLoadingWorkspaceSettings}
+						autocomplete="off"
+						inputmode="numeric"
+					/>
+					<Field.Description>{text.settings.callingCodeHint}</Field.Description>
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="workspace-language">{text.settings.workspaceLanguageTitle}</Field.Label>
+					<Select.Root type="single" bind:value={workspaceSettingsDraft.language} disabled={isLoadingWorkspaceSettings || isSavingWorkspaceSettings}>
+						<Select.Trigger id="workspace-language" class="w-full">
+							{workspaceLanguageOptions().find((option) => option.value === workspaceSettingsDraft.language)?.label}
+						</Select.Trigger>
+						<Select.Content>
+							{#each workspaceLanguageOptions() as option (option.value)}
+								<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+					<Field.Description>{text.settings.workspaceLanguageDescription}</Field.Description>
+				</Field.Field>
+			</div>
+			{#if workspaceSettingsMessage}
+				<Field.Description>{workspaceSettingsMessage}</Field.Description>
+			{/if}
+		</Field.Group>
+	</Card.Content>
+	<Card.Footer class="justify-end">
 		<Button disabled={!isDeviceReachable || isLoadingWorkspaceSettings || isSavingWorkspaceSettings} onclick={saveWorkspaceSettings}>
 			{#if isSavingWorkspaceSettings}
 				<LoaderIcon class="size-4 animate-spin" />
 			{/if}
 			{text.settings.save}
 		</Button>
-	</div>
-	{#if workspaceSettingsMessage}
-		<p class="mt-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">{workspaceSettingsMessage}</p>
-	{/if}
-</div>
+	</Card.Footer>
+</Card.Root>
 
-<div class="rounded-lg border p-4">
-	<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-		<div>
-			<h3 class="flex items-center gap-2 text-sm font-semibold">
-				<MapPinIcon class="size-4 text-emerald-600" />
-				{text.attendanceLocations.title}
-			</h3>
-			<p class="mt-1 text-sm text-muted-foreground">{text.attendanceLocations.description}</p>
-		</div>
-		<Button variant="outline" size="sm" class="gap-2" onclick={addAttendanceLocation} disabled={isLoadingAttendanceLocations}>
-			<PlusIcon class="size-4" />
-			{text.attendanceLocations.add}
-		</Button>
-	</div>
-	<div class="grid gap-2">
-		{#each attendanceLocations as location, index (index)}
-			<div class="grid gap-2 rounded-md border p-3 md:grid-cols-[auto_1fr_9rem_auto_auto] md:items-center">
-				<input
-					type="color"
-					value={location.color}
-					aria-label={text.attendanceLocations.color}
-					class="size-9 rounded-md border bg-background"
-					oninput={(event) => updateAttendanceLocation(index, 'color', event.currentTarget.value)}
-				/>
-				<Input
-					value={location.name}
-					placeholder={text.attendanceLocations.placeholder}
-					autocomplete="off"
-					oninput={(event) => updateAttendanceLocation(index, 'name', event.currentTarget.value)}
-				/>
-				<Button
-					variant={location.isDefault ? 'secondary' : 'ghost'}
-					size="sm"
-					onclick={() => updateAttendanceLocation(index, 'isDefault', true)}
-				>
-					{text.attendanceLocations.default}
-				</Button>
-				{#if attendanceLocations.length > 1}
-					<Button variant="ghost" size="icon-sm" aria-label={text.attendanceLocations.remove} onclick={() => removeAttendanceLocation(index)}>
-						<Trash2Icon class="size-4" />
-					</Button>
-				{/if}
-			</div>
-		{/each}
-	</div>
-	<div class="mt-4 flex flex-wrap items-center gap-2">
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.attendanceLocations.title}</Card.Title>
+		<Card.Description>{text.attendanceLocations.description}</Card.Description>
+		<Card.Action>
+			<Button variant="outline" size="sm" onclick={addAttendanceLocation} disabled={isLoadingAttendanceLocations}>
+				<PlusIcon />
+				{text.attendanceLocations.add}
+			</Button>
+		</Card.Action>
+	</Card.Header>
+	<Card.Content>
+		<Item.Group class="gap-2">
+			{#each attendanceLocations as location, index (index)}
+				<Item.Root variant="outline">
+					<Item.Media>
+						<input
+							type="color"
+							value={location.color}
+							aria-label={text.attendanceLocations.color}
+							class="bg-background size-8 rounded-md border"
+							oninput={(event) => updateAttendanceLocation(index, 'color', event.currentTarget.value)}
+						/>
+					</Item.Media>
+					<Item.Content>
+						<Input
+							value={location.name}
+							placeholder={text.attendanceLocations.placeholder}
+							autocomplete="off"
+							oninput={(event) => updateAttendanceLocation(index, 'name', event.currentTarget.value)}
+						/>
+					</Item.Content>
+					<Item.Actions>
+						<Button
+							variant={location.isDefault ? 'secondary' : 'ghost'}
+							size="sm"
+							onclick={() => updateAttendanceLocation(index, 'isDefault', true)}
+						>
+							{text.attendanceLocations.default}
+						</Button>
+						{#if attendanceLocations.length > 1}
+							<Button variant="ghost" size="icon-sm" aria-label={text.attendanceLocations.remove} onclick={() => removeAttendanceLocation(index)}>
+								<Trash2Icon />
+							</Button>
+						{/if}
+					</Item.Actions>
+				</Item.Root>
+			{/each}
+		</Item.Group>
+		{#if attendanceLocationsMessage}
+			<Field.Description class="mt-4">{attendanceLocationsMessage}</Field.Description>
+		{/if}
+	</Card.Content>
+	<Card.Footer class="justify-end">
 		<Button disabled={!isDeviceReachable || isSavingAttendanceLocations || attendanceLocations.length === 0} onclick={saveAttendanceLocations}>
 			{#if isSavingAttendanceLocations}
 				<LoaderIcon class="size-4 animate-spin" />
 			{/if}
 			{text.attendanceLocations.save}
 		</Button>
-		{#if attendanceLocationsMessage}
-			<p class="rounded-md border bg-muted/30 px-3 py-2 text-sm">{attendanceLocationsMessage}</p>
-		{/if}
-	</div>
-</div>
+	</Card.Footer>
+</Card.Root>
