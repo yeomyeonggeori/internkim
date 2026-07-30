@@ -10,10 +10,12 @@ func (service *Service) readAttendanceLeavePolicy(ctx context.Context) (attendan
 	if errorValue != nil {
 		return attendanceLeavePolicy{}, errorValue
 	}
+	normalizeLegacyAttendanceLeavePolicy(&document.LeavePolicy)
 	return document.LeavePolicy, nil
 }
 
 func (service *Service) writeAttendanceLeavePolicy(ctx context.Context, policy attendanceLeavePolicy) error {
+	normalizeLegacyAttendanceLeavePolicy(&policy)
 	return service.updateAttendanceSettingsDocument(ctx, func(document *attendanceSettingsDocument) error {
 		document.LeavePolicy = policy
 		return nil

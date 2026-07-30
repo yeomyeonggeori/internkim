@@ -65,7 +65,7 @@ func (service *Service) cancelAttendanceLeaveRequest(
 			if _, errorValue := closeAttendanceLeaveReservationInTransaction(ctx, transaction, attendanceLeaveOperation{
 				OperationKey: "leave-request:" + record.ID + ":release:" + attendanceLeaveRequestRevisionValue(record.Revision),
 				Employee:     employee,
-				LeaveTypeID:  record.LeaveTypeID,
+				LeaveTypeID:  attendanceLeaveBalanceAccountID(record.LeaveTypeID, record.BalanceMode),
 				Kind:         attendanceLeaveOperationRelease,
 				ReferenceID:  attendanceLeaveRequestReservationReference(record.ID, record.Revision),
 				EffectiveOn:  record.StartDate,
@@ -128,7 +128,7 @@ func (service *Service) cancelApprovedAttendanceLeaveRequestInTransaction(
 		if _, errorValue := restoreAttendanceLeaveUseInTransaction(ctx, transaction, attendanceLeaveOperation{
 			OperationKey: "leave-request:" + record.ID + ":restore:" + attendanceLeaveRequestRevisionValue(record.Revision),
 			Employee:     employee,
-			LeaveTypeID:  record.LeaveTypeID,
+			LeaveTypeID:  attendanceLeaveBalanceAccountID(record.LeaveTypeID, record.BalanceMode),
 			ReferenceID:  attendanceLeaveRequestReservationReference(record.ID, record.Revision),
 			EffectiveOn:  record.StartDate,
 		}); errorValue != nil {

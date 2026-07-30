@@ -46,7 +46,7 @@ func TestAttendanceLeaveFiscalYearAndProportionalGrant(t *testing.T) {
 		time.Date(2026, 7, 1, 0, 0, 0, 0, location),
 		start,
 		end,
-		attendanceAnnualStatutoryGrantMilliDays,
+		attendanceDefaultAnnualGrantMilliDays,
 	)
 	if grant != 7562 {
 		t.Fatalf("proportional grant = %d", grant)
@@ -84,14 +84,14 @@ func TestAttendanceLeaveCalendarMathClampsMonthEndsAndLeapFiscalYears(t *testing
 		time.Date(2027, 3, 1, 0, 0, 0, 0, location),
 		start,
 		end,
-		attendanceAnnualStatutoryGrantMilliDays,
+		attendanceDefaultAnnualGrantMilliDays,
 	)
 	if grant != 14959 {
 		t.Fatalf("leap fiscal proportional grant = %d", grant)
 	}
 }
 
-func TestAttendanceLeaveStatutoryAccrualsUseFiscalYearAndLegalCorrection(t *testing.T) {
+func TestAttendanceLeaveAnnualAccrualsUseFiscalYear(t *testing.T) {
 	location := time.FixedZone("Asia/Seoul", 9*60*60)
 	hireDate := time.Date(2026, 7, 1, 0, 0, 0, 0, location)
 	policy := defaultAttendanceLeavePolicy()
@@ -104,30 +104,37 @@ func TestAttendanceLeaveStatutoryAccrualsUseFiscalYearAndLegalCorrection(t *test
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	var fiscalGrant attendanceLeaveAccrual
-	var legalCorrection attendanceLeaveAccrual
-	for _, accrual := range accruals {
-		switch accrual.ReferenceID {
-		case "automatic:statutory:fiscal":
-			fiscalGrant = accrual
-		case "automatic:statutory:legal-correction":
-			legalCorrection = accrual
-		}
+	if len(accruals) != 2 {
+		t.Fatalf("annual accruals = %+v", accruals)
 	}
-	if fiscalGrant.GrantDate != "2027-01-01" ||
-		fiscalGrant.AmountMilliDays != 7562 {
-		t.Fatalf("fiscal grant = %+v", fiscalGrant)
+	if accruals[0].GrantDate != "2026-07-01" ||
+		accruals[0].AmountMilliDays != 7562 {
+		t.Fatalf("first annual grant = %+v", accruals[0])
 	}
-	if legalCorrection.GrantDate != "2027-07-01" ||
-		legalCorrection.AmountMilliDays != 7438 ||
-		fiscalGrant.AmountMilliDays+legalCorrection.AmountMilliDays != attendanceAnnualStatutoryGrantMilliDays {
-		t.Fatalf("legal correction = %+v", legalCorrection)
+	if accruals[1].GrantDate != "2027-01-01" ||
+		accruals[1].AmountMilliDays != attendanceDefaultAnnualGrantMilliDays {
+		t.Fatalf("next annual grant = %+v", accruals[1])
 	}
 }
 
 func TestAttendanceLeaveMonthlyAndAnnualAccrualsClampCalendarDates(t *testing.T) {
 	hireDate := time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC)
-	accruals := attendanceLeaveMonthlyAccruals(hireDate, time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC), 12)
+	policy := defaultAttendanceLeavePolicy()
+	monthlyType := policy.LeaveTypes[0]
+	monthlyType.GrantCadence = "monthly"
+	monthlyType.GrantAmountMilliDays = 1000
+	monthlyType.ExpiryMode = "monthsAfterGrant"
+	expiryMonths := 12
+	monthlyType.ExpiryMonths = &expiryMonths
+	accruals, errorValue := attendanceLeaveAccrualsThrough(
+		hireDate,
+		time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC),
+		policy,
+		monthlyType,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if len(accruals) != 3 {
 		t.Fatalf("monthly accrual count = %d", len(accruals))
 	}
@@ -137,7 +144,6 @@ func TestAttendanceLeaveMonthlyAndAnnualAccrualsClampCalendarDates(t *testing.T)
 			t.Fatalf("accrual %d = %+v", index, accruals[index])
 		}
 	}
-	policy := defaultAttendanceLeavePolicy()
 	next, exists := attendanceLeaveNextAccrual(
 		hireDate,
 		time.Date(2027, 2, 1, 0, 0, 0, 0, time.UTC),
@@ -153,26 +159,33 @@ func TestAttendanceLeaveMonthlyAndAnnualAccrualsClampCalendarDates(t *testing.T)
 		hireDate,
 		time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
 		policy,
-		policy.LeaveTypes[0],
+		monthlyType,
 	)
 	if balance.NextGrantDate != "2026-03-31" || balance.NextGrantMilliDays != 1000 {
 		t.Fatalf("scheduled balance = %+v", balance)
 	}
 }
 
-func TestAttendanceLeaveStatutoryCorrectionExpiryAndCarryover(t *testing.T) {
-	if attendanceLeaveStatutoryAnnualGrantMilliDays(1) != 15000 {
-		t.Fatal("expected 15 days after one completed year")
+func TestAttendanceLeaveCurrentMonthlyGrantTargetUsesCurrentFiscalYear(t *testing.T) {
+	policy := defaultAttendanceLeavePolicy()
+	leaveType := policy.LeaveTypes[0]
+	leaveType.GrantCadence = "monthly"
+	leaveType.GrantAmountMilliDays = 1000
+	amount, grantDate, errorValue := attendanceLeaveCurrentGrantTarget(
+		attendanceLeaveEmployee{HireDate: "2026-01-01"},
+		policy,
+		leaveType,
+		time.Date(2026, 4, 15, 9, 0, 0, 0, time.UTC),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	if attendanceLeaveStatutoryAnnualGrantMilliDays(3) != 16000 {
-		t.Fatal("expected 16 days after three completed years")
+	if amount != 3000 || grantDate != "2026-04-01" {
+		t.Fatalf("monthly target = %d on %s", amount, grantDate)
 	}
-	if attendanceLeaveStatutoryAnnualGrantMilliDays(50) != 25000 {
-		t.Fatal("expected statutory maximum of 25 days")
-	}
-	if attendanceLeaveLegalCorrectionMilliDays(15000, 12000) != 3000 {
-		t.Fatal("expected 3 day legal correction")
-	}
+}
+
+func TestAttendanceLeaveExpiryAndCarryover(t *testing.T) {
 	expiry, errorValue := attendanceLeaveExpiryDate(
 		time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
 		time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -191,6 +204,8 @@ func TestAttendanceLeaveStatutoryCorrectionExpiryAndCarryover(t *testing.T) {
 func TestAttendanceLeaveAccrualSynchronizationPersistsMonthlyGrantsOnce(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	policy := defaultAttendanceLeavePolicy()
+	policy.LeaveTypes[0].GrantCadence = "monthly"
+	policy.LeaveTypes[0].GrantAmountMilliDays = 1000
 	employee := attendanceLeaveEmployee{
 		Email:    "staff@example.com",
 		UserID:   "user-1",
@@ -239,7 +254,7 @@ func TestAttendanceLeaveAccrualSynchronizationPersistsMonthlyGrantsOnce(t *testi
 	}
 }
 
-func TestAttendanceLeaveAccrualSynchronizationRecordsFiscalGrantAndLegalCorrection(t *testing.T) {
+func TestAttendanceLeaveAccrualSynchronizationRecordsAnnualFiscalGrants(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	employee := attendanceLeaveEmployee{
 		Email:    "staff@example.com",
@@ -262,27 +277,15 @@ func TestAttendanceLeaveAccrualSynchronizationRecordsFiscalGrantAndLegalCorrecti
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	var fiscalGrantAmount int
-	var legalCorrectionAmount int
+	var grantAmount int
 	for _, entry := range entries {
-		switch entry.Kind {
-		case attendanceLeaveOperationGrant:
-			if strings.HasPrefix(entry.OperationKey, "automatic-leave-fiscal:") {
-				fiscalGrantAmount += entry.AmountMilliDays
-			}
-		case attendanceLeaveOperationLegalCorrection:
-			legalCorrectionAmount += entry.AmountMilliDays
+		if entry.Kind == attendanceLeaveOperationGrant &&
+			strings.HasPrefix(entry.OperationKey, "automatic-leave:") {
+			grantAmount += entry.AmountMilliDays
 		}
 	}
-	if fiscalGrantAmount != 7562 ||
-		legalCorrectionAmount != 7438 ||
-		fiscalGrantAmount+legalCorrectionAmount != attendanceAnnualStatutoryGrantMilliDays {
-		t.Fatalf(
-			"fiscal grant = %d, legal correction = %d, entries = %+v",
-			fiscalGrantAmount,
-			legalCorrectionAmount,
-			entries,
-		)
+	if grantAmount != 22562 {
+		t.Fatalf("annual grants = %d, entries = %+v", grantAmount, entries)
 	}
 }
 
@@ -309,9 +312,9 @@ func TestAttendanceLeaveAccrualSynchronizationExpiresPriorFiscalYear(t *testing.
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if balance.GrantedMilliDays != 26000 ||
+	if balance.GrantedMilliDays != 30000 ||
 		balance.AvailableMilliDays != 15000 ||
-		balance.ExpiredMilliDays != 11000 ||
+		balance.ExpiredMilliDays != 15000 ||
 		balance.NextExpiryDate != "2028-01-01" {
 		t.Fatalf("fiscal year balance = %+v", balance)
 	}
@@ -353,9 +356,9 @@ func TestAttendanceLeaveAccrualSynchronizationCarriesLimitedBalance(t *testing.T
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if balance.GrantedMilliDays != 26000 ||
+	if balance.GrantedMilliDays != 30000 ||
 		balance.AvailableMilliDays != 18000 ||
-		balance.ExpiredMilliDays != 8000 ||
+		balance.ExpiredMilliDays != 12000 ||
 		balance.NextExpiryDate != "2028-01-01" {
 		t.Fatalf("carryover balance = %+v", balance)
 	}
@@ -396,7 +399,7 @@ func TestAttendanceLeaveAccrualSynchronizationKeepsExistingGrantsAfterPolicyChan
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if balance.GrantedMilliDays != 26000 {
+	if balance.GrantedMilliDays != 30000 {
 		t.Fatalf("policy change rewrote existing grants: %+v", balance)
 	}
 }
@@ -480,7 +483,7 @@ func TestAttendanceLeaveAccrualSynchronizationStopsInactiveTypeAndExpiresExistin
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if dashboard.Summary.AvailableMilliDays != 3000 {
+	if dashboard.Summary.AvailableMilliDays != 15000 {
 		t.Fatalf("dashboard summary = %+v", dashboard.Summary)
 	}
 }
@@ -510,8 +513,8 @@ func TestAttendanceLeaveAccrualSynchronizationBackfillsLateRegisteredEmployee(t 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if balance.GrantedMilliDays != 6000 ||
-		balance.AvailableMilliDays != 6000 {
+	if balance.GrantedMilliDays != 15000 ||
+		balance.AvailableMilliDays != 15000 {
 		t.Fatalf("late registered employee balance = %+v", balance)
 	}
 }

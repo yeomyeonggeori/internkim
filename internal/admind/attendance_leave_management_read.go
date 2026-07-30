@@ -38,7 +38,7 @@ func (service *Service) readAttendanceLeaveManagement(
 		}
 	}
 	response := attendanceLeaveManagementResponse{
-		LeaveTypes: attendanceLeaveTypeViews(policy),
+		LeaveTypes: attendanceLeaveTypeViews(policy, nil),
 		Employees:  make([]attendanceLeaveManagementEmployeeView, 0, len(members)),
 	}
 	for _, member := range members {
@@ -167,7 +167,7 @@ func attendanceLeaveManagementEmployee(
 		employee.DisplayName = employee.Email
 	}
 	for _, leaveType := range policy.LeaveTypes {
-		if leaveType.BalanceMode == "none" {
+		if !attendanceLeaveTypeOwnsBalance(leaveType) {
 			continue
 		}
 		balance, errorValue := queryAttendanceLeaveBalance(
