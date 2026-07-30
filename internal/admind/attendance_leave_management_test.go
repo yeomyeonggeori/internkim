@@ -38,8 +38,8 @@ func TestAttendanceLeaveManagementAdjustsBalanceAndKeepsReason(t *testing.T) {
 			"employeeEmail":"staff@example.com",
 			"leaveTypeID":"annual",
 			"amountMilliDays":1500,
-			"kind":"legalCorrection",
-			"reason":"입사일 기준 법정 연차 보충",
+			"kind":"adjustment",
+			"reason":"관리자 추가 부여",
 			"effectiveOn":"2026-07-28",
 			"expiresOn":"2026-12-31"
 		}`,
@@ -73,10 +73,35 @@ func TestAttendanceLeaveManagementAdjustsBalanceAndKeepsReason(t *testing.T) {
 		t.Fatalf("ledger entries = %+v", response.Detail.LedgerEntries)
 	}
 	entry := response.Detail.LedgerEntries[0]
-	if entry.OperationType != attendanceLeaveOperationLegalCorrection ||
-		entry.Reason != "입사일 기준 법정 연차 보충" {
+	if entry.OperationType != attendanceLeaveOperationAdjustment ||
+		entry.Reason != "관리자 추가 부여" {
 		t.Fatalf("ledger entry = %+v", entry)
 	}
+}
+
+func TestAttendanceLeaveManagementRejectsLegalCorrection(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	recorder := performAttendanceLeaveManagementRequest(
+		t,
+		service,
+		http.MethodPost,
+		"/attendance/api/leave-management/adjustments",
+		`{
+			"employeeEmail":"staff@example.com",
+			"leaveTypeID":"annual",
+			"amountMilliDays":1000,
+			"kind":"legalCorrection",
+			"reason":"",
+			"effectiveOn":"2026-07-28",
+			"expiresOn":""
+		}`,
+	)
+	assertAttendanceLeaveErrorResponse(
+		t,
+		recorder,
+		http.StatusBadRequest,
+		attendanceLeaveErrorInvalidInput,
+	)
 }
 
 func TestAttendanceLeaveManagementAdjustmentAllowsEmptyReason(t *testing.T) {
