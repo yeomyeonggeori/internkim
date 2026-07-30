@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import * as Item from '$lib/components/ui/item';
+	import { Label } from '$lib/components/ui/label';
 	import BriefcaseBusinessIcon from '@lucide/svelte/icons/briefcase-business';
 	import ComponentIcon from '@lucide/svelte/icons/component';
 	import MailIcon from '@lucide/svelte/icons/mail';
@@ -95,7 +96,29 @@
 		</Item.Root>
 
 		<div class="min-h-0 overflow-y-auto overscroll-contain px-6 py-5">
-			{#if isEditing && localEditingRecord && adminText}
+			{#if !canEdit && canEditOwnProfile && ownProfileDraft}
+				<div class="grid gap-4" data-testid={`organization-own-profile-${record.userID}`}>
+					<div class="grid gap-2">
+						<Label for={`organization-own-phone-${record.userID}`} class="text-xs">{text.phoneNumber}</Label>
+						<Input
+							id={`organization-own-phone-${record.userID}`}
+							bind:value={ownProfileDraft.phoneNumber}
+							autocomplete="tel"
+							inputmode="tel"
+							disabled={isSavingOwnProfile}
+						/>
+					</div>
+					<div class="grid gap-2">
+						<Label for={`organization-own-hire-date-${record.userID}`} class="text-xs">{text.hireDate}</Label>
+						<Input
+							id={`organization-own-hire-date-${record.userID}`}
+							type="date"
+							bind:value={ownProfileDraft.hireDate}
+							disabled={isSavingOwnProfile}
+						/>
+					</div>
+				</div>
+			{:else if isEditing && localEditingRecord && adminText}
 				<div class="grid gap-4" data-testid={`organization-profile-${localEditingRecord.userID}`}>
 					<Item.Root variant="muted" size="sm">
 						<Item.Media variant="icon"><MailIcon /></Item.Media>
