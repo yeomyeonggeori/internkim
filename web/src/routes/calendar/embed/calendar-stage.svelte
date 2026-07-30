@@ -56,6 +56,7 @@
 		monthRangePreviewTitle: string;
 		editingEvent: Pick<CalendarGridEvent, 'id' | 'title' | 'start' | 'end' | 'isAllDay'> | null;
 		navigateToDateKey: (dateKey: string) => void;
+		openDayView: (dateKey: string) => void;
 		selectedMonthDateKey: string | null;
 		visibleMonthChanged: (month: Date) => void;
 		addEventOnDay: (dateKey: string) => void;
@@ -87,6 +88,7 @@
 		monthRangePreviewTitle,
 		editingEvent,
 		navigateToDateKey,
+		openDayView,
 		selectedMonthDateKey,
 		visibleMonthChanged,
 		addEventOnDay,
@@ -245,7 +247,7 @@
 							moreEventsText={monthMoreText.button}
 							draftPreviewTitle={text.newEvent}
 							selectDay={(day) => selectDate(calendarGridDateKey(day))}
-							openDay={(day) => navigateToDateKey(calendarGridDateKey(day))}
+							openDay={(day) => openDayView(calendarGridDateKey(day))}
 							addEventOnDay={(day) => addEventOnDay(calendarGridDateKey(day))}
 							addEventOnRange={(startDateKey, endDateKey) => addEventOnRange(startDateKey, endDateKey)}
 							openEvent={openGridEvent}
