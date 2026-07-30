@@ -74,12 +74,16 @@ func main() {
 		authorPubkeys[userID] = pubkey
 	}
 
+	incremental := *sinceMillis > 0
+
 	bootstrapSecret := deriveSecret(*keySeed, buzzidentity.BootstrapSubject)
 	bootstrapPubkey, errorValue := nostr.GetPublicKey(bootstrapSecret)
 	failOn(errorValue, "derive bootstrap pubkey")
-	registerRelayMember(*buzzAdminCommand, bootstrapPubkey)
-	for _, pubkey := range authorPubkeys {
-		registerRelayMember(*buzzAdminCommand, pubkey)
+	if !incremental {
+		registerRelayMember(*buzzAdminCommand, bootstrapPubkey)
+		for _, pubkey := range authorPubkeys {
+			registerRelayMember(*buzzAdminCommand, pubkey)
+		}
 	}
 
 	buzzDatabase, errorValue := sql.Open("postgres", *buzzDatabaseURL)
@@ -93,9 +97,12 @@ func main() {
 	channels, errorValue := client.PublicChannels(ctx, teamID)
 	failOn(errorValue, "read channels")
 
-	publisher, errorValue := relaypublish.Connect(ctx, *relayURL, bootstrapSecret)
-	failOn(errorValue, "connect relay")
-	defer publisher.Close()
+	var publisher *relaypublish.Publisher
+	if !incremental {
+		publisher, errorValue = relaypublish.Connect(ctx, *relayURL, bootstrapSecret)
+		failOn(errorValue, "connect relay")
+		defer publisher.Close()
+	}
 
 	totalImported := 0
 	totalSkipped := 0
@@ -107,14 +114,16 @@ func main() {
 			continue
 		}
 		buzzChannelID := deriveChannelID(*keySeed, channel.ID)
-		errorValue := publisher.CreateChannel(ctx, bootstrapSecret, buzzChannelID, channelDisplayName(channel), channel.Purpose)
-		if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
-			failOn(errorValue, "create channel "+channel.Name)
+		if !incremental {
+			errorValue := publisher.CreateChannel(ctx, bootstrapSecret, buzzChannelID, channelDisplayName(channel), channel.Purpose)
+			if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
+				failOn(errorValue, "create channel "+channel.Name)
+			}
+			failOn(waitForChannelRow(ctx, buzzDatabase, communityID, buzzChannelID), "wait for channel "+channel.Name)
+			memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
+			failOn(errorValue, "read members for "+channel.Name)
+			syncChannelMembers(ctx, publisher, bootstrapSecret, buzzChannelID, memberUserIDs, authorPubkeys, *viewerPubkey)
 		}
-		failOn(waitForChannelRow(ctx, buzzDatabase, communityID, buzzChannelID), "wait for channel "+channel.Name)
-		memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
-		failOn(errorValue, "read members for "+channel.Name)
-		syncChannelMembers(ctx, publisher, bootstrapSecret, buzzChannelID, memberUserIDs, authorPubkeys, *viewerPubkey)
 
 		posts, errorValue := client.Posts(ctx, channel.ID, *sinceMillis)
 		failOn(errorValue, "read posts for "+channel.Name)
