@@ -14,7 +14,6 @@ import (
 func TestCalendarCreateReturnsPersistedEventVersion(t *testing.T) {
 	service := newCalendarTestService(t)
 	payload := calendarEventWriteRequest{
-		EventID:  "created-event-version",
 		Title:    "Created title",
 		StartISO: "2026-07-16T01:00:00Z",
 		EndISO:   "2026-07-16T02:00:00Z",
@@ -246,7 +245,6 @@ func updateCalendarEventThroughHTTP(t *testing.T, service *Service, event calend
 func sendCalendarEventUpdate(t *testing.T, service *Service, event calendarEvent, title string, expectedUpdatedAt string) *httptest.ResponseRecorder {
 	t.Helper()
 	payload := calendarEventWriteRequest{
-		EventID:           event.ID,
 		Title:             title,
 		Description:       event.Description,
 		Location:          event.Location,
