@@ -77,7 +77,7 @@ func TestFlowSchemaCreatesTaskLookupIndexes(t *testing.T) {
 func TestFlowSchemaBackfillsLegacyTaskCreatedAt(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	ctx := context.Background()
-	database, errorValue := service.openSQLiteDatabase(ctx, service.Configuration.FlowDatabasePath, nil)
+	database, errorValue := service.openSQLiteDatabase(ctx, service.stateDatabasePath(), nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

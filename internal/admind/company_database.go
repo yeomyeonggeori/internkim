@@ -52,7 +52,7 @@ var supportedCompanyMetricCurrencies = map[companyMetricCurrency]bool{
 const companyMetricCurrencyColumnDefinition = "TEXT NOT NULL DEFAULT '' CHECK(currency IN ('', 'USD', 'KRW', 'EUR', 'JPY', 'GBP', 'CNY', 'HKD', 'SGD', 'AUD', 'CAD', 'CHF', 'INR'))"
 
 func (service *Service) openCompanyDatabase(ctx context.Context) (*sql.DB, error) {
-	return service.openSQLiteDatabase(ctx, service.companyDatabasePath(), ensureCompanySchema)
+	return service.openStateDatabase(ctx, "company", ensureCompanySchema, sqliteDatabaseOptions{})
 }
 
 func (service *Service) companyDatabasePath() string {
