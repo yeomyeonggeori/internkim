@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ColorPicker from '$lib/components/color-picker.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Field from '$lib/components/ui/field';
@@ -228,12 +229,10 @@
 			{#each attendanceLocations as location, index (index)}
 				<Item.Root variant="outline">
 					<Item.Media>
-						<input
-							type="color"
+						<ColorPicker
 							value={location.color}
-							aria-label={text.attendanceLocations.color}
-							class="bg-background size-8 rounded-md border"
-							oninput={(event) => updateAttendanceLocation(index, 'color', event.currentTarget.value)}
+							label={text.attendanceLocations.color}
+							onChange={(color) => updateAttendanceLocation(index, 'color', color)}
 						/>
 					</Item.Media>
 					<Item.Content>

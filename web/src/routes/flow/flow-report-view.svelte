@@ -18,12 +18,12 @@
 
 <section class="grid min-w-0 gap-4 lg:grid-cols-2">
 	<div class="grid min-w-0 gap-4">
-		<FlowReportCard section={sections.weeklyStatus} />
-		<FlowReportCard section={sections.businessDistance} />
+		<FlowReportCard section={sections.weeklyStatus} definitions={summary?.definitions} />
+		<FlowReportCard section={sections.businessDistance} definitions={summary?.definitions} />
 	</div>
 	<div class="min-w-0">
 		<FlowMemberScoreCard section={sections.memberDistance} {summary} {text} />
 	</div>
-	<FlowReportCard section={sections.weeklyDistanceTrend} />
-	<FlowReportCard section={sections.monthlyDistanceTrend} />
+	<FlowReportCard section={sections.weeklyDistanceTrend} definitions={summary?.definitions} />
+	<FlowReportCard section={sections.monthlyDistanceTrend} definitions={summary?.definitions} />
 </section>

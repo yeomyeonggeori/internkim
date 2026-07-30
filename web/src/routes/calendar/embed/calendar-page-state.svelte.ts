@@ -32,6 +32,7 @@ export class CalendarEmbedPageState {
 	draftPopover = $state<DraftPopoverState | null>(null);
 	calendarConflicts = $state<CalendarConflict[]>([]);
 	participantCandidates = $state<CalendarParticipant[]>([]);
+	viewerParticipants = $state<CalendarParticipant[]>([]);
 
 	constructor(initialValues: CalendarEmbedPageStateInitialValues) {
 		this.toolbarDate = $state(initialValues.toolbarDate);

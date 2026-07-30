@@ -1,11 +1,17 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import { cn } from '$lib/utils';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import FlowTaskBoardCard from './flow-task-board-card.svelte';
 	import { FlowTaskBoardDragController } from './flow-task-board-drag-controller.svelte';
 	import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 	import { flowTaskBoardViewportHeight } from './flow-task-board-viewport-height';
-	import { buildFlowTaskBoard, isFlowTaskBoardStatus } from './flow-task-board-model';
+	import { buildFlowTaskBoard, isFlowTaskBoardStatus, isOverdueFlowPlan, type FlowTaskBoardWeekPosition } from './flow-task-board-model';
+	import {
+		canCreateFlowTaskInColumn,
+		shouldHideEmptyRequestColumn,
+		type FlowBoardParticipantScope
+	} from './flow-board-participant-scope';
 	import type { FlowTask } from './flow-types';
 
 	type BoardText = {
@@ -24,6 +30,11 @@
 		canUpdateTask: (task: FlowTask) => boolean;
 		weekStartISO?: string;
 		weekEndISO?: string;
+		weekPosition?: FlowTaskBoardWeekPosition;
+		businessColor: (business: string) => string;
+		taskTypeColor: (type: string) => string;
+		memberEmail: (memberID: string) => string;
+		participantScope: FlowBoardParticipantScope;
 	};
 
 	let {
@@ -37,7 +48,12 @@
 		pendingTaskIDs,
 		canUpdateTask,
 		weekStartISO = '',
-		weekEndISO = ''
+		weekEndISO = '',
+		weekPosition = 'current',
+		businessColor,
+		taskTypeColor,
+		memberEmail,
+		participantScope
 	}: Props = $props();
 
 	const columnClass = [
@@ -53,7 +69,12 @@
 	const insertionLineClass = 'h-0.5 w-full rounded-full bg-primary shadow-sm ring-1 ring-primary/20';
 	const boardDrag = new FlowTaskBoardDragController();
 
-	let columns = $derived(buildFlowTaskBoard(tasks, { weekStartISO, weekEndISO }));
+	let columns = $derived(buildFlowTaskBoard(tasks, {
+		weekStartISO,
+		weekEndISO,
+		weekPosition,
+		hideEmptyRequestColumn: shouldHideEmptyRequestColumn(participantScope)
+	}));
 
 	$effect(() => {
 		boardDrag.sync({ pendingTaskIDs, canUpdateTask, moveTask });
@@ -83,7 +104,7 @@
 
 <div class="sticky top-0 -mx-4 min-w-0 bg-background md:-mx-8">
 	<div class={boardScrollClass} data-flow-board-scroll use:flowTaskBoardViewportHeight>
-		<div class="flex h-full min-w-max gap-3">
+		<div class="flex h-full min-w-max gap-3 pr-4 md:pr-8">
 			{#each columns as column (column.status)}
 				<section
 					class={columnClass}
@@ -101,7 +122,12 @@
 							></span>
 							<h3 class="truncate text-sm font-semibold text-foreground">{statusLabel(column.status)}</h3>
 							<span
-								class="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground"
+								class={cn(
+									'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums',
+									column.status === '요청' && column.tasks.length > 0
+										? 'bg-destructive text-white'
+										: 'bg-muted text-muted-foreground'
+								)}
 								aria-label={taskCountLabel(column.tasks.length)}
 								data-flow-board-task-count
 							>
@@ -115,6 +141,7 @@
 							class="shrink-0"
 							aria-label={addTaskLabel(column.status)}
 							title={addTaskLabel(column.status)}
+							disabled={!canCreateFlowTaskInColumn(column.status, participantScope)}
 							onclick={() => createTaskInColumn(column.status)}
 						>
 							<PlusIcon class="size-3.5" />
@@ -142,6 +169,10 @@
 								<div role="listitem">
 									<FlowTaskBoardCard
 										{task}
+										{memberEmail}
+										isOverduePlan={isOverdueFlowPlan(task, weekStartISO)}
+										{businessColor}
+										{taskTypeColor}
 										{businessFallback}
 										{openTask}
 										isPending={isTaskPending(task.id)}

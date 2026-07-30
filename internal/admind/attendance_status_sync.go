@@ -40,7 +40,7 @@ func (service *Service) startMattermostAttendanceStatusSync(ctx context.Context)
 	go func() {
 		lastStatusByUser := map[string]string{}
 		seededPresetsByUser := map[string]string{}
-		service.syncMattermostAttendanceStatuses(ctx, lastStatusByUser, seededPresetsByUser)
+		service.seedMattermostAttendanceStatuses(ctx, lastStatusByUser, seededPresetsByUser)
 		ticker := time.NewTicker(attendanceStatusSyncInterval)
 		defer ticker.Stop()
 		for {
@@ -54,7 +54,23 @@ func (service *Service) startMattermostAttendanceStatusSync(ctx context.Context)
 	}()
 }
 
+func (service *Service) seedMattermostAttendanceStatuses(ctx context.Context, lastStatusByUser map[string]string, seededPresetsByUser map[string]string) {
+	service.walkMattermostAttendanceStatuses(ctx, seededPresetsByUser, func(user mattermostUserRecord) {
+		lastStatusByUser[user.ID] = mattermostCustomStatusText(user)
+	})
+}
+
 func (service *Service) syncMattermostAttendanceStatuses(ctx context.Context, lastStatusByUser map[string]string, seededPresetsByUser map[string]string) {
+	service.walkMattermostAttendanceStatuses(ctx, seededPresetsByUser, func(user mattermostUserRecord) {
+		service.applyAttendanceStatusChange(ctx, user, lastStatusByUser)
+	})
+}
+
+func (service *Service) walkMattermostAttendanceStatuses(
+	ctx context.Context,
+	seededPresetsByUser map[string]string,
+	visitUser func(mattermostUserRecord),
+) {
 	syncContext, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	adminToken, errorValue := service.mattermostAdminToken(syncContext)
@@ -76,7 +92,7 @@ func (service *Service) syncMattermostAttendanceStatuses(ctx context.Context, la
 	presetsSignature := attendanceStatusPresetsSignature(presets)
 	for _, user := range users {
 		service.ensureAttendanceStatusPresetsForUser(syncContext, adminToken, user.ID, presets, presetsSignature, seededPresetsByUser)
-		service.applyAttendanceStatusChange(syncContext, user, lastStatusByUser)
+		visitUser(user)
 	}
 }
 

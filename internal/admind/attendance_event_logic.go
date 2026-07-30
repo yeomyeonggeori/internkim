@@ -102,10 +102,17 @@ func (service *Service) latestActiveAttendanceEventForToday(ctx context.Context,
 
 func (service *Service) latestAttendanceActionEvent(ctx context.Context, database *sql.DB, mattermostUserID string, kind string, now time.Time) (attendanceEvent, bool, error) {
 	event, found, errorValue := service.latestActiveAttendanceEventForToday(ctx, database, mattermostUserID, now)
-	if errorValue != nil || found || kind == attendanceKindClockIn {
+	if errorValue != nil || found {
 		return event, found, errorValue
 	}
-	return service.openClockInFromYesterday(ctx, database, mattermostUserID, now)
+	yesterdayEvent, found, errorValue := service.openClockInFromYesterday(ctx, database, mattermostUserID, now)
+	if errorValue != nil || !found {
+		return attendanceEvent{}, false, errorValue
+	}
+	if kind == attendanceKindClockIn && !attendanceEventOccurredWithin(yesterdayEvent, now, attendanceOvernightShiftWindow) {
+		return attendanceEvent{}, false, nil
+	}
+	return yesterdayEvent, true, nil
 }
 
 func (service *Service) openClockInFromYesterday(ctx context.Context, database *sql.DB, mattermostUserID string, now time.Time) (attendanceEvent, bool, error) {

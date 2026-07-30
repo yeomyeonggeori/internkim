@@ -82,7 +82,9 @@ export type FlowSizeDefinition = {
 
 export type FlowDefinitions = {
 	categories: string[];
+	categoryColors?: Record<string, string>;
 	types: string[];
+	typeColors?: Record<string, string>;
 	sizes: FlowSizeDefinition[];
 };
 

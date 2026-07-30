@@ -20,7 +20,11 @@ export type FlowTaskBoardColumnTheme = {
 export type FlowTaskBoardOptions = {
 	weekStartISO?: string;
 	weekEndISO?: string;
+	weekPosition?: FlowTaskBoardWeekPosition;
+	hideEmptyRequestColumn?: boolean;
 };
+
+export type FlowTaskBoardWeekPosition = 'past' | 'current' | 'future';
 
 const boardColumnThemes: Record<FlowTaskBoardStatus, FlowTaskBoardColumnTheme> = {
 	요청: {
@@ -56,13 +60,15 @@ const boardColumnThemes: Record<FlowTaskBoardStatus, FlowTaskBoardColumnTheme> =
 };
 
 export function buildFlowTaskBoard(tasks: FlowTask[], options: FlowTaskBoardOptions = {}): FlowTaskBoardColumn[] {
-	return BOARD_STATUS_VALUES.map((status) => ({
-		status,
-		theme: boardColumnThemes[status],
-		tasks: tasks
-			.filter((task) => task.status === status && matchesBoardColumnWeek(task, status, options))
-			.toSorted(compareFlowTaskBoardOrder)
-	}));
+	return BOARD_STATUS_VALUES.filter((status) => isBoardColumnVisible(status, options))
+		.map((status) => ({
+			status,
+			theme: boardColumnThemes[status],
+			tasks: tasks
+				.filter((task) => task.status === status && matchesBoardColumnWeek(task, status, options))
+				.toSorted(compareFlowTaskBoardOrder)
+		}))
+		.filter((column) => !(column.status === '요청' && column.tasks.length === 0 && options.hideEmptyRequestColumn));
 }
 
 export function isFlowTaskBoardStatus(status: string): status is FlowTaskBoardStatus {
@@ -75,9 +81,33 @@ function compareFlowTaskBoardOrder(left: FlowTask, right: FlowTask): number {
 	return left.id.localeCompare(right.id);
 }
 
+export function isOverdueFlowPlan(task: FlowTask, weekStartISO: string): boolean {
+	if (task.status !== '예정' || !weekStartISO) return false;
+	const plannedDate = task.endDate?.trim() || task.startDate?.trim() || '';
+	return plannedDate !== '' && plannedDate < weekStartISO;
+}
+
+function isBoardColumnVisible(status: FlowTaskBoardStatus, options: FlowTaskBoardOptions): boolean {
+	return status !== '예정' || weekPosition(options) !== 'past';
+}
+
 function matchesBoardColumnWeek(task: FlowTask, status: FlowTaskBoardStatus, options: FlowTaskBoardOptions): boolean {
-	if (status !== '완료') return true;
+	if (status === '요청' || status === '일시정지') return true;
+	if (status === '진행') return weekPosition(options) === 'current';
 	if (!options.weekStartISO || !options.weekEndISO) return true;
-	const endDate = task.endDate?.trim() ?? '';
-	return endDate >= options.weekStartISO && endDate <= options.weekEndISO;
+	if (status === '완료') return isInSelectedWeek(task.endDate, options);
+	const plannedDate = task.endDate?.trim() || task.startDate?.trim() || '';
+	if (!plannedDate) return weekPosition(options) === 'current';
+	if (plannedDate < options.weekStartISO) return weekPosition(options) === 'current';
+	return isInSelectedWeek(plannedDate, options);
+}
+
+function weekPosition(options: FlowTaskBoardOptions): FlowTaskBoardWeekPosition {
+	return options.weekPosition ?? 'current';
+}
+
+function isInSelectedWeek(date: string | undefined, options: FlowTaskBoardOptions): boolean {
+	const selectedDate = date?.trim() ?? '';
+	if (!selectedDate || !options.weekStartISO || !options.weekEndISO) return false;
+	return selectedDate >= options.weekStartISO && selectedDate <= options.weekEndISO;
 }
