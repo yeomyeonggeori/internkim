@@ -41,6 +41,7 @@ func main() {
 	onlyChannels := flag.String("channels", "", "comma-separated Mattermost channel names to import; empty imports every public channel")
 	orphanRootTitle := flag.String("orphan-root-title", "", "when set, replies whose Mattermost root was not imported are threaded under one synthesized root message carrying this title, per original root; otherwise such replies are skipped")
 	fileCacheDir := flag.String("file-cache-dir", "", "directory of {fileID}.{jpg|png} images used as a fallback when the Mattermost server no longer serves a file")
+	sinceMillis := flag.Int64("since", 0, "when >0, import only Mattermost posts created after this unix-millis timestamp (incremental sync; skips the wipe)")
 	flag.Parse()
 
 	channelFilter := map[string]bool{}
@@ -115,7 +116,7 @@ func main() {
 		failOn(errorValue, "read members for "+channel.Name)
 		syncChannelMembers(ctx, publisher, bootstrapSecret, buzzChannelID, memberUserIDs, authorPubkeys, *viewerPubkey)
 
-		posts, errorValue := client.Posts(ctx, channel.ID)
+		posts, errorValue := client.Posts(ctx, channel.ID, *sinceMillis)
 		failOn(errorValue, "read posts for "+channel.Name)
 		imported, skipped := importChannelPosts(ctx, importDependencies{
 			injector: injector, uploader: uploader, client: client,
