@@ -57,7 +57,7 @@ test.describe('admin leave policy settings', () => {
 		await page.goto('/settings/?fleet_id=demo&section=attendanceSettings');
 
 		const leavePolicySettings = page.getByTestId('attendance-leave-policy-settings');
-		await expect(page.getByRole('tab', { name: '근태 설정', exact: true })).toBeVisible();
+		await expect(page.getByRole('button', { name: '근태 설정', exact: true })).toBeVisible();
 		await expect(
 			leavePolicySettings.locator('[data-slot="card-title"]', { hasText: '근태 설정' })
 		).toBeVisible();
