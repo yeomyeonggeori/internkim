@@ -115,7 +115,10 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 	if errorValue := ensureAttendanceLeaveLedgerSchema(ctx, database); errorValue != nil {
 		return errorValue
 	}
-	return ensureAttendanceLeaveRequestSchema(ctx, database)
+	if errorValue := ensureAttendanceLeaveRequestSchema(ctx, database); errorValue != nil {
+		return errorValue
+	}
+	return nil
 }
 
 func ensureAttendanceColumn(ctx context.Context, database *sql.DB, columnName string, columnDefinition string) error {
