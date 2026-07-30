@@ -41,7 +41,7 @@ func (service *Service) writeFlowTaskAtStatusEnd(ctx context.Context, task flowT
 		return flowTask{}, errorValue
 	}
 	task.StatusRank = statusRank
-	task = flowTaskWithCreatedAt(task)
+	task = flowTaskWithCreatedAt(flowTaskWithIdentifier(task))
 	if errorValue := writeFlowTaskAndInvalidateSummaryInTransaction(ctx, transaction, task); errorValue != nil {
 		_ = transaction.Rollback()
 		return flowTask{}, errorValue
@@ -66,6 +66,18 @@ func writeFlowTaskAndInvalidateSummaryInTransaction(ctx context.Context, transac
 	}
 	sourceKeys := flowTasksSummarySourceKeys(sourceTasks)
 	return incrementFlowSummarySourceRevisions(ctx, transaction, sourceKeys)
+}
+
+func flowTaskWithIdentifier(task flowTask) flowTask {
+	if strings.TrimSpace(task.ID) != "" {
+		return task
+	}
+	task.ID = newFlowTaskID(task)
+	return task
+}
+
+func newFlowTaskID(task flowTask) string {
+	return stableFlowID(task.WeekCode + task.OwnerID + task.Content + time.Now().UTC().Format(time.RFC3339Nano))
 }
 
 func flowTaskWithCreatedAt(task flowTask) flowTask {
