@@ -85,6 +85,7 @@ func (service *Service) pairedFlowTaskForCalendarEvent(request *http.Request, ev
 	startDate, endDate := calendarEventDateKeys(event)
 	now := flowDateNow()
 	task := flowTask{
+		ID:              stableFlowID("calendar-" + event.ID),
 		OwnerID:         owner.ID,
 		OwnerName:       owner.Name,
 		ParticipantIDs:  calendarEventParticipantMemberIDs(members, event, owner.ID),
