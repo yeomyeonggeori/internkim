@@ -11,8 +11,11 @@ export function flowTaskTypeColor(type: string, definitions: FlowDefinitions): s
 	return definitionColor(type, definitions.types, definitions.typeColors);
 }
 
+const paletteHueStride = 11;
+
 export function flowDefinitionPaletteColor(index: number): string {
-	return colorPickerPalette[Math.abs(index) % colorPickerPalette.length];
+	const strideIndex = (Math.abs(index) * paletteHueStride) % colorPickerPalette.length;
+	return colorPickerPalette[strideIndex];
 }
 
 export function flowDefinitionOutlineBadgeStyle(color: string): string {

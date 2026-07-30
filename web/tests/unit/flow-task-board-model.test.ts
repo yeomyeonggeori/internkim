@@ -101,6 +101,14 @@ describe('flow task board model', () => {
 		expect(isOverdueFlowPlan(flowTask({ status: '진행', startDate: '2026-05-18', endDate: '2026-05-22' }), '2026-06-01')).toBe(false);
 	});
 
+	test('hides an empty request column when asked, and keeps it when it has tasks', () => {
+		const empty = buildFlowTaskBoard([], { hideEmptyRequestColumn: true });
+		const filled = buildFlowTaskBoard([flowTask({ id: 'requested', status: '요청' })], { hideEmptyRequestColumn: true });
+
+		expect(empty.map((column) => column.status)).not.toContain('요청');
+		expect(filled.map((column) => column.status)).toContain('요청');
+	});
+
 	test('limits only the completed column to tasks completed in the selected week', () => {
 		const board = buildFlowTaskBoard([
 			flowTask({ id: 'done-this-week', status: '완료', endDate: '2026-06-03' }),
