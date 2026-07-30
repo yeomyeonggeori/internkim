@@ -191,10 +191,6 @@
 		return eventDateKeys.has(calendarGridDateKey(new Date(dateValue.year, dateValue.month - 1, dateValue.day)));
 	}
 
-	const scrollSnap = createCalendarScrollSnap({
-		getScrollElement: () => gridElement,
-		getSnapOffsets: hourScrollOffsets
-	});
 
 
 
@@ -205,11 +201,6 @@
 
 
 
-
-
-	function hourScrollOffsets(): number[] {
-		return Array.from({ length: 24 }, (_, hour) => hour * hourHeightPixels);
-	}
 
 	$effect(() => {
 		if (!canSwipeWeeks) return;
@@ -287,10 +278,7 @@
 	}
 
 	function handleGridWheel(wheelEvent: WheelEvent): void {
-		if (!canSwipeWeeks || Math.abs(wheelEvent.deltaX) <= Math.abs(wheelEvent.deltaY)) {
-			scrollSnap.handleWheel(wheelEvent);
-			return;
-		}
+		if (!canSwipeWeeks || Math.abs(wheelEvent.deltaX) <= Math.abs(wheelEvent.deltaY)) return;
 		columnSnap.handleWheel(wheelEvent);
 	}
 
@@ -333,7 +321,6 @@
 	$effect(() => {
 		return () => {
 			if (longPressTimer !== null) clearTimeout(longPressTimer);
-			scrollSnap.destroy();
 			columnSnap.destroy();
 		};
 	});
@@ -602,8 +589,6 @@
 				aria-label={weekdayFormatter.format(days[0])}
 				class="no-scrollbar min-h-0 flex-1 select-none overflow-y-auto"
 				onwheel={handleGridWheel}
-				ontouchend={scrollSnap.handleGestureEnd}
-				onscrollend={scrollSnap.handleScrollEnd}
 			>
 				<div class="flex min-w-0">
 					<div class="bg-background border-border/50 sticky left-0 z-30 w-16 shrink-0 border-r">
@@ -650,9 +635,6 @@
 				tabindex="-1"
 				aria-label={weekdayFormatter.format(days[0])}
 				class="no-scrollbar min-h-0 flex-1 select-none overflow-y-auto"
-				onwheel={scrollSnap.handleWheel}
-				ontouchend={scrollSnap.handleGestureEnd}
-				onscrollend={scrollSnap.handleScrollEnd}
 			>
 				<div class="flex" style={`height: ${24 * hourHeightPixels}px`}>
 					<div class="w-16 shrink-0">
