@@ -42,8 +42,9 @@
 	}
 
 	function operationLabel(operationType: string): string {
-		if (operationType === 'legalCorrection') return text.management.legalCorrection;
-		if (operationType === 'adjustment') return text.management.manualAdjustment;
+		if (operationType === 'legalCorrection' || operationType === 'adjustment') {
+			return text.management.manualAdjustment;
+		}
 		if (operationType === 'grant') return text.management.grant;
 		if (operationType === 'reserve') return text.management.reserve;
 		if (operationType === 'release') return text.management.release;
