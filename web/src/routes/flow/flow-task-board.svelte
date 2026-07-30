@@ -5,7 +5,7 @@
 	import { FlowTaskBoardDragController } from './flow-task-board-drag-controller.svelte';
 	import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 	import { flowTaskBoardViewportHeight } from './flow-task-board-viewport-height';
-	import { buildFlowTaskBoard, isFlowTaskBoardStatus, type FlowTaskBoardWeekPosition } from './flow-task-board-model';
+	import { buildFlowTaskBoard, isFlowTaskBoardStatus, isOverdueFlowPlan, type FlowTaskBoardWeekPosition } from './flow-task-board-model';
 	import type { FlowTask } from './flow-types';
 
 	type BoardText = {
@@ -147,6 +147,7 @@
 									<FlowTaskBoardCard
 										{task}
 										{memberEmail}
+										isOverduePlan={isOverdueFlowPlan(task, weekStartISO)}
 										{businessFallback}
 										{openTask}
 										isPending={isTaskPending(task.id)}
