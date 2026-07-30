@@ -24,6 +24,22 @@ export function calendarParticipantNames(participants: CalendarParticipant[]): s
 	return participants.map((participant) => participant.name);
 }
 
+export function calendarParticipantsWithViewerFirst(
+	participants: CalendarParticipant[],
+	viewerEmail: string
+): CalendarParticipant[] {
+	const normalizedViewerEmail = viewerEmail.trim().toLowerCase();
+	if (!normalizedViewerEmail) return participants;
+	const viewerParticipants = participants.filter(
+		(participant) => (participant.email ?? '').trim().toLowerCase() === normalizedViewerEmail
+	);
+	if (viewerParticipants.length === 0) return participants;
+	return [
+		...viewerParticipants,
+		...participants.filter((participant) => !viewerParticipants.includes(participant))
+	];
+}
+
 export function calendarParticipantInputs(participants: CalendarParticipant[]): CalendarParticipantInput[] {
 	return normalizeCalendarParticipants(participants).map((participant) => ({
 		personID: participant.personID,
