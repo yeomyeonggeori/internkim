@@ -2,19 +2,7 @@ import {
 	isCalendarViewValue,
 	type CalendarViewValue
 } from '../calendar-navigation-message';
-import { calendarDateStorageKey, calendarViewStorageKey } from '../calendar-storage-keys';
-
-export function loadSavedCalendarDate(isBrowser: boolean): Date {
-	if (!isBrowser) return new Date();
-	try {
-		const saved = window.localStorage.getItem(calendarDateStorageKey);
-		if (!saved) return new Date();
-		const parsed = new Date(saved);
-		return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-	} catch {
-		return new Date();
-	}
-}
+import { calendarViewStorageKey } from '../calendar-storage-keys';
 
 export function loadSavedCalendarView(isBrowser: boolean, storage: Storage | null = browserStorage(isBrowser)): CalendarViewValue {
 	if (!storage) return 'month';

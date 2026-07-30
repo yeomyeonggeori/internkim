@@ -3,6 +3,7 @@ import { organizationText } from './organization-text';
 export const adminText = {
 	ko: {
 		title: '김인턴',
+		pageTitle: '설정',
 		subtitle: 'Mattermost에서 사용하는 사내 AI 하드웨어',
 		accessProtected: '접근 보호됨',
 		heroTitle: '대화는 Mattermost에서 시작하세요.',
@@ -120,6 +121,7 @@ export const adminText = {
 			displayNamePlaceholder: '표시 이름',
 			englishDisplayNamePlaceholder: '영문 표시 이름',
 			publicDescriptionPlaceholder: '공개 설명',
+			aliasesLabel: '별칭',
 			aliasesPlaceholder: '별칭, 한 줄에 하나씩',
 			identityExtensionPlaceholder: '프롬프트 전용 identity extension',
 			save: '프로필 저장'
@@ -255,6 +257,8 @@ export const adminText = {
 			download: '백업 다운로드',
 			passphrasePlaceholder: '백업 passphrase',
 			restoreConfirmPlaceholder: 'RESTORE 입력',
+			bundleLabel: '백업 파일',
+			restoreConfirmLabel: '확인 문구',
 			manifestReady: 'manifest 준비됨',
 			backupFallback: '백업',
 			restoreTitle: '복구',
@@ -319,6 +323,7 @@ export const adminText = {
 	},
 	en: {
 		title: 'intern kim',
+		pageTitle: 'Settings',
 		subtitle: 'Internal AI hardware for Mattermost and Slack',
 		accessProtected: 'Access protected',
 		heroTitle: 'Start conversations in Mattermost.',
@@ -436,6 +441,7 @@ export const adminText = {
 			displayNamePlaceholder: 'display name',
 			englishDisplayNamePlaceholder: 'English display name',
 			publicDescriptionPlaceholder: 'public description',
+			aliasesLabel: 'Aliases',
 			aliasesPlaceholder: 'aliases, one per line',
 			identityExtensionPlaceholder: 'prompt-only identity extension',
 			save: 'Save profile'
@@ -571,6 +577,8 @@ export const adminText = {
 			download: 'Download backup',
 			passphrasePlaceholder: 'backup passphrase',
 			restoreConfirmPlaceholder: 'type RESTORE',
+			bundleLabel: 'Backup file',
+			restoreConfirmLabel: 'Confirmation',
 			manifestReady: 'manifest ready',
 			backupFallback: 'backup',
 			restoreTitle: 'Restore',

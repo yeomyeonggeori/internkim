@@ -43,7 +43,7 @@ type CalendarPageControllerContext = {
 
 export function createCalendarPageController(context: CalendarPageControllerContext) {
 	const draftEventPlaceholderTitle = () => context.text.newEvent;
-	const draftEvents = new CalendarDraftEventState(draftEventPlaceholderTitle, () => context.text.newEvent);
+	const draftEvents = new CalendarDraftEventState();
 	const programmaticUpdates = new CalendarProgrammaticUpdateState();
 	const selectedMonthDate = createCalendarSelectedMonthDateActions({
 		isBrowser: context.isBrowser,
@@ -88,7 +88,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		shouldPreserveLocalEvent: (event) => shouldPreserveLocalCalendarEvent(draftEvents, event),
 		afterRenderEvents: (events) => {
 			eventSelection.openPendingCalendarEvent(events);
-			renderSync.scheduleCalendarEventDOMSync();
 		}
 	});
 
@@ -200,6 +199,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 
 	const draftPopoverActions: CalendarDraftPopoverActions = createCalendarDraftPopoverActions({
 		eventActions,
+		untitledEventTitle: draftEventPlaceholderTitle,
 		getDraftPopover: () => context.state.draftPopover,
 		setDraftPopover: (popover) => {
 			context.state.draftPopover = popover;
@@ -238,6 +238,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		isBrowser: context.isBrowser,
 		selectedMonthDate,
 		selectCalendarEvent: eventSelection.selectCalendarEvent,
+		createQuickEvent: () => draftPopoverActions.createQuickDraftPopover(null),
 		setVisibleDate: context.setVisibleDate,
 		state: context.state
 	});
@@ -255,7 +256,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		pageNavigation: interactionServices.pageNavigation,
 		rangePreview: interactionServices.rangePreview,
 		renderSync,
-		scrollOverlays: interactionServices.scrollOverlays,
 		selectedMonthDate
 	};
 }

@@ -125,13 +125,6 @@ describe('calendar text', () => {
 		expect(calendarText.ko.googleOAuthClientGuide.steps.length).toBe(7);
 	});
 
-	test('localizes event audit labels', () => {
-		expect(calendarText.en.eventAuditCreated).toBe('Created');
-		expect(calendarText.en.eventAuditUpdated).toBe('Updated');
-		expect(calendarText.ko.eventAuditCreated).toBe('등록');
-		expect(calendarText.ko.eventAuditUpdated).toBe('수정');
-	});
-
 	test('localizes an unavailable calendar target separately from generic persistence errors', () => {
 		expect(calendarText.ko.calendarTargetUnavailableError).toBe(
 			'Google 캘린더의 저장 위치를 사용할 수 없습니다. 계정을 다시 연결하거나 쓸 수 있는 캘린더를 선택하세요.'

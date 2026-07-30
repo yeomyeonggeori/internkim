@@ -3,6 +3,7 @@
 	import FlowTaskListView from './flow-task-list-view.svelte';
 	import FlowTaskEditor from './flow-task-editor.svelte';
 	import FlowTaskQuickAdd from './flow-task-quick-add.svelte';
+	import FlowWeekSelector from './flow-week-selector.svelte';
 	import FlowTaskBoard from './flow-task-board.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -19,11 +20,13 @@
 		summary: FlowSummary | null;
 		focusedTaskID: string;
 		text: FlowPageText;
+		isLoading: boolean;
 		loadFlow: LoadFlow;
+		selectWeek: (weekCode: string) => void;
 		setPageErrorMessage: (message: string) => void;
 	};
 
-	let { summary, focusedTaskID, text, loadFlow, setPageErrorMessage }: Props = $props();
+	let { summary, focusedTaskID, text, isLoading, loadFlow, selectWeek, setPageErrorMessage }: Props = $props();
 
 	const page = createFlowTasksController();
 	let taskViewTab = $state('board');
@@ -62,8 +65,20 @@
 				<Tabs.Trigger value="board">{text.task.viewTabs.board}</Tabs.Trigger>
 				<Tabs.Trigger value="list">{text.task.viewTabs.list}</Tabs.Trigger>
 			</Tabs.List>
+			<FlowWeekSelector
+				class="ml-auto"
+				week={summary?.week}
+				currentWeekStartISO={summary?.currentWeek?.startISO ?? ''}
+				disabled={!summary || isLoading}
+				selectWeekLabel={text.selectWeekDate}
+				currentWeekLabel={text.currentWeek}
+				lastWeekLabel={text.lastWeek}
+				previousWeekLabel={text.previousWeek}
+				nextWeekLabel={text.nextWeek}
+				onSelectWeek={selectWeek}
+			/>
 			<FlowTaskFilters
-				class="ml-auto justify-end"
+				class="justify-end"
 				bind:searchText={page.filters.searchText}
 				bind:statusFilter={page.filters.statusFilter}
 				bind:businessFilter={page.filters.businessFilter}
@@ -74,10 +89,8 @@
 				businessOptions={page.categoryFilterOptions()}
 				typeOptions={page.typeFilterOptions()}
 				hasBusinessFilter={page.definitions().categories.length > 0}
-				hasMembers={page.members().length > 0}
 				text={text.filters}
 				resetFilters={page.resetFilters}
-				createTask={page.createTask}
 				setParticipantFilterIDs={page.setParticipantFilterIDs}
 			/>
 			{#if taskViewTab === 'list'}

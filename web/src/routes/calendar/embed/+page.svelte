@@ -34,6 +34,7 @@
 	import { installCalendarPageLifecycle } from './calendar-page-lifecycle-install';
 	import { isCalendarMobileTwoDayWeekView } from './calendar-mobile-two-day-week';
 	import CalendarPageContent from './calendar-page-content.svelte';
+	import { endOfMonthWindow, startOfMonthWindow } from './calendar-visible-range';
 	import { syncCalendarThemeToDocument } from './calendar-page-theme';
 	import { createCalendarEmbedPageState } from './calendar-page-state.svelte';
 	import { fetchCalendarParticipants } from './calendar-participants';
@@ -59,8 +60,8 @@
 	const controller = createCalendarPageController({
 		isBrowser: () => browser,
 		getCalendarLocale: () => calendarLocale,
-		getLocaleCode: () => localeCode,
 		getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
+		getLocaleCode: () => localeCode,
 		initialCalendarDate,
 		initialCalendarView,
 		setVisibleDate,
@@ -80,9 +81,18 @@
 		pageNavigation,
 		rangePreview,
 		renderSync,
-		scrollOverlays,
 		selectedMonthDate
 	} = controller;
+
+	let loadedEventWindowKey = '';
+
+	$effect(() => {
+		const visibleDate = state.toolbarDate;
+		const windowKey = `${visibleDate.getFullYear()}-${visibleDate.getMonth()}`;
+		if (windowKey === loadedEventWindowKey) return;
+		loadedEventWindowKey = windowKey;
+		void eventLoader.loadEvents(startOfMonthWindow(visibleDate), endOfMonthWindow(visibleDate));
+	});
 
 	const stageEvents = $derived(
 		visibleEventsWithPreservedLocalEvents(
@@ -92,33 +102,24 @@
 		)
 	);
 
-	const selectedAuditEvent = $derived(
-		state.selectedAuditEventID ? (calendar.events.find((event) => event.id === state.selectedAuditEventID) ?? null) : null
-	);
-
 	installCalendarPageEffects({
 		isBrowser: () => browser,
 		calendar,
 		getCalendarLocale: () => calendarLocale,
-		getCurrentLocale: () => currentLocale.value,
-		getMonthRangeSelection: () => state.monthRangeSelection,
-		getTimelineRangeSelection: () => state.timelineRangeSelection,
 		getStageElement: () => state.calendarStageElement,
 		getToolbarDate: () => state.toolbarDate,
 		getToolbarView: () => state.toolbarView,
 		getVisibleEvents: () => state.visibleEvents,
-		getLocaleCode: () => localeCode,
-		getSelectedMonthDateKey: () => state.selectedMonthDateKey,
-		getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
+		getMonthRangeSelection: () => state.monthRangeSelection,
+		getTimelineRangeSelection: () => state.timelineRangeSelection,
 		rangePreview,
 		renderSync,
-		selectedMonthDate,
-		pageNavigation,
 		text
 	});
 
 	onMount(() => {
 		void loadParticipantCandidates();
+		broadcastCalendarVisibleDate(state.toolbarDate);
 		const uninstallCalendarPageLifecycle = installCalendarPageLifecycle({
 			applyCalendarView: (view) => {
 				calendar.changeView(view);
@@ -126,35 +127,23 @@
 			clearDraftPopover: () => {
 				state.draftPopover = null;
 			},
-			clearMonthRangePreview: () => {
-				state.monthRangePreviewSegments = [];
-			},
 			deleteEvent: eventActions.deleteEvent,
+			undoLastDelete: eventActions.undoLastDelete,
 			draftPopoverActions,
 			eventActions,
 			eventLoader,
 			eventSelection,
 			getCurrentView: currentCalendarView,
 			getDraftPopover: () => state.draftPopover,
-			getLocaleCode: () => localeCode,
-			getMonthRangeSelection: () => state.monthRangeSelection,
 			getSelectedAuditEventID: () => state.selectedAuditEventID,
 			getStageElement: () => state.calendarStageElement,
-			getTimelineRangeSelection: () => state.timelineRangeSelection,
 			getToolbarDate: () => state.toolbarDate,
-			getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
 			initialCalendarDate,
 			initialCalendarView,
-			openEventEditor: openCalendarEvent,
 			pageMessages,
 			pageNavigation,
-			rangePreview,
 			renderSync,
-			scrollOverlays,
 			selectedMonthDate,
-			setMonthRangeSelection: (selection) => {
-				state.monthRangeSelection = selection;
-			},
 			setSelectedAuditEventID: (eventID) => {
 				state.selectedAuditEventID = eventID;
 			},
@@ -188,14 +177,6 @@
 		if (calendar.currentView === ViewType.WEEK) return ViewType.WEEK;
 		if (calendar.currentView === ViewType.MONTH) return ViewType.MONTH;
 		return state.toolbarView;
-	}
-
-	function createQuickEvent(event: MouseEvent): void {
-		if (isMobileTwoDayWeekView) {
-			eventActions.openQuickEventMobileEditor();
-			return;
-		}
-		draftPopoverActions.createQuickDraftPopover(event);
 	}
 
 	function openCalendarEvent(eventID: string, anchor: DraftPopoverAnchor): void {
@@ -251,9 +232,24 @@
 	toolbarView={state.toolbarView}
 	changeCalendarView={pageNavigation.changeCalendarView}
 	goToPrevious={pageNavigation.goToPrevious}
+	goToToday={pageNavigation.goToToday}
 	goToNext={pageNavigation.goToNext}
 	navigateToDateKey={pageNavigation.navigateToDateKey}
-	{createQuickEvent}
+	selectedMonthDateKey={state.selectedMonthDateKey}
+	visibleMonthChanged={(month) => pageNavigation.setVisibleDate(month)}
+	addEventOnDay={(dateKey) => draftPopoverActions.openMonthSingleDayDraftPopover(dateKey)}
+	addEventOnTimeRange={(start, end) =>
+		draftPopoverActions.openTimelineRangeDraftPopover(start, end, { clientX: 0, clientY: 0 })}
+	addEventOnRange={(startDateKey, endDateKey) =>
+		draftPopoverActions.openMonthRangeDraftPopover({
+			pointerID: 0,
+			startDateKey,
+			endDateKey,
+			startClientX: 0,
+			startClientY: 0,
+			hasMoved: true
+		})}
+	deleteEvent={(eventID) => void eventActions.deleteEvent(eventID)}
 	openSettings={openCalendarSettings}
 	clearSelectedEvent={eventSelection.clearSelectedEvent}
 	stageEvents={stageEvents}
@@ -267,16 +263,12 @@
 	monthRangePreviewTitle={draftEventPlaceholderTitle()}
 	timelineRangePreviewSegments={state.timelineRangePreviewSegments}
 	timelineRangePreviewTitle={draftEventPlaceholderTitle()}
-	monthScrollOverlayLabels={state.monthScrollOverlayLabels}
 	isMobileTwoDayWeekView={isMobileTwoDayWeekView}
 	popover={state.draftPopover}
-	auditEvent={selectedAuditEvent}
 	{calendarOptions}
 	participantCandidates={state.participantCandidates}
-	isSaving={state.isSaving}
 	{text}
 	updatePopover={draftPopoverActions.updateDraftPopover}
-	repositionPopover={draftPopoverActions.repositionDraftPopover}
 	savePopover={draftPopoverActions.saveDraftPopover}
 	cancelPopover={draftPopoverActions.cancelDraftPopover}
 	deletePopover={draftPopoverActions.deleteDraftPopover}

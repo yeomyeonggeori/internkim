@@ -1,65 +1,74 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
-	import { Popover } from 'bits-ui';
-	import { flowWeekCodeForDateISO, formatFlowWeekDateRange, type FlowWeekDateRange } from './flow-week-label';
+	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
+	import * as Select from '$lib/components/ui/select';
+	import { cn } from '$lib/utils';
+	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import { flowWeekOptions } from './flow-week-label';
+	import type { FlowWeek } from './flow-types';
 
 	type Props = {
-		week: FlowWeekDateRange | null | undefined;
+		week: FlowWeek | null | undefined;
+		currentWeekStartISO: string;
 		disabled: boolean;
-		selectDateLabel: string;
+		selectWeekLabel: string;
 		currentWeekLabel: string;
+		lastWeekLabel: string;
+		previousWeekLabel: string;
+		nextWeekLabel: string;
 		onSelectWeek: (weekCode: string) => void;
-		onSelectCurrentWeek: () => void;
+		class?: string;
 	};
 
-	let { week, disabled, selectDateLabel, currentWeekLabel, onSelectWeek, onSelectCurrentWeek }: Props = $props();
-	let isOpen = $state(false);
+	let {
+		week,
+		currentWeekStartISO,
+		disabled,
+		selectWeekLabel,
+		currentWeekLabel,
+		lastWeekLabel,
+		previousWeekLabel,
+		nextWeekLabel,
+		onSelectWeek,
+		class: className
+	}: Props = $props();
 
-	const dateInputValue = () => week?.startISO || '';
+	const weekChoices = $derived(
+		flowWeekOptions(currentWeekStartISO || week?.startISO || '', 12, 4).map((option) => ({
+			value: option.value,
+			label: weekChoiceLabel(option.offsetFromCurrent, option.label)
+		}))
+	);
+	const selectedWeekLabel = $derived(weekChoices.find((choice) => choice.value === week?.code)?.label ?? selectWeekLabel);
+	let selectedWeekCode = $state('');
 
-	function selectDate(dateISO: string) {
-		const weekCode = flowWeekCodeForDateISO(dateISO);
-		if (!weekCode) return;
-		onSelectWeek(weekCode);
-		isOpen = false;
-	}
+	$effect(() => {
+		selectedWeekCode = week?.code ?? '';
+	});
 
-	function handleDateInputChange(event: Event) {
-		if (!(event.currentTarget instanceof HTMLInputElement)) return;
-		selectDate(event.currentTarget.value);
-	}
-
-	function moveToCurrentWeek() {
-		onSelectCurrentWeek();
-		isOpen = false;
+	function weekChoiceLabel(offsetFromCurrent: number, dateRangeLabel: string): string {
+		if (offsetFromCurrent === 0) return currentWeekLabel;
+		if (offsetFromCurrent === -1) return lastWeekLabel;
+		if (offsetFromCurrent === 1) return nextWeekLabel;
+		return dateRangeLabel;
 	}
 </script>
 
-<Popover.Root bind:open={isOpen}>
-	<Popover.Trigger
-		{disabled}
-		aria-label={selectDateLabel}
-		class="inline-flex h-8 w-[7.5rem] shrink-0 items-center justify-center rounded-[min(var(--radius-md),10px)] border border-border bg-card px-2.5 text-sm font-medium tabular-nums shadow-xs outline-none transition-all hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
-	>
-		{formatFlowWeekDateRange(week)}
-	</Popover.Trigger>
-	<Popover.Portal>
-		<Popover.Content
-			sideOffset={8}
-			class="z-50 w-64 rounded-lg border bg-popover p-3 text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
-		>
-			<div class="space-y-3">
-				<div class="flex items-center gap-2 text-sm font-medium">
-					<CalendarDaysIcon class="size-4 text-muted-foreground" />
-					<span>{selectDateLabel}</span>
-				</div>
-				<Input type="date" value={dateInputValue()} onchange={handleDateInputChange} />
-				<Button variant="secondary" size="sm" class="w-full" onclick={moveToCurrentWeek}>
-					{currentWeekLabel}
-				</Button>
-			</div>
-		</Popover.Content>
-	</Popover.Portal>
-</Popover.Root>
+<div class={cn('flex shrink-0 items-center gap-1', className)}>
+	<TooltipIconButton label={previousWeekLabel} variant="outline" size="icon-sm" {disabled} onclick={() => onSelectWeek(week?.previous ?? '')}>
+		<ChevronLeftIcon />
+	</TooltipIconButton>
+	<Select.Root type="single" bind:value={selectedWeekCode} {disabled} onValueChange={(weekCode) => weekCode && onSelectWeek(weekCode)}>
+		<Select.Trigger class="h-8 w-[9.5rem] justify-between rounded-[min(var(--radius-md),10px)] tabular-nums" aria-label={selectWeekLabel}>
+			{selectedWeekLabel}
+		</Select.Trigger>
+		<Select.Content>
+			{#each weekChoices as choice (choice.value)}
+				<Select.Item value={choice.value} label={choice.label}>{choice.label}</Select.Item>
+			{/each}
+		</Select.Content>
+	</Select.Root>
+	<TooltipIconButton label={nextWeekLabel} variant="outline" size="icon-sm" {disabled} onclick={() => onSelectWeek(week?.next ?? '')}>
+		<ChevronRightIcon />
+	</TooltipIconButton>
+</div>

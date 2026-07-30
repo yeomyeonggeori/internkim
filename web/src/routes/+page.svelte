@@ -1,14 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { Badge } from '$lib/components/ui/badge';
-	import { Button } from '$lib/components/ui/button';
-	import { CopyButton } from '$lib/components/ui/copy-button';
-	import { Separator } from '$lib/components/ui/separator';
+	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
-	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
-	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
-	import QrCode from 'svelte-qrcode';
 	import { onMount } from 'svelte';
 	import { fetchAdminSession } from './admin/admin-api';
 	import { adminSessionRole, canViewAdminSection, firstVisibleAdminSection } from './admin/admin-role-policy';
@@ -25,7 +18,6 @@
 	import { adminText } from './admin/text';
 	import UsersSection from './admin/users-section.svelte';
 
-	const logoSrc = '/logo.svg';
 	const storedFleetIdKey = 'internkim_fleet_id';
 	const isMockAdminAPI = import.meta.env.VITE_MOCK_ADMIN === '1';
 	const mockAdminEmail = import.meta.env.VITE_DEV_USER_EMAIL?.trim() || 'preview-admin@example.com';
@@ -45,6 +37,7 @@
 
 	let fleetIdInput = $state('');
 	let adminSession = $state<AdminSession | null>(null);
+	let isAdminSessionLoaded = $state(false);
 	let isDeviceReachable = $state(isMockAdminAPI);
 	let activeAdminSection = $state<AdminSection>('device');
 
@@ -53,50 +46,6 @@
 		if (explicitFleetID) return explicitFleetID;
 		if (!browser) return '';
 		return fleetIDFromHost();
-	}
-
-	let buzzDeepLink = $state('');
-
-	async function loadBuzzDeepLink() {
-		const baseURL = adminBaseURL();
-		if (!baseURL) return;
-		try {
-			const response = await fetch(baseURL.replace(/\/admin\/api$/, '') + '/buzz/api/config', {
-				credentials: 'include'
-			});
-			if (!response.ok) return;
-			const configuration = (await response.json()) as { deepLink?: string };
-			buzzDeepLink = configuration.deepLink ?? '';
-		} catch {
-			buzzDeepLink = '';
-		}
-	}
-
-	function messengerLink() {
-		return buzzDeepLink || mattermostURL();
-	}
-
-	function messengerLabel() {
-		return buzzDeepLink ? text.openBuzz : text.openMattermost;
-	}
-
-	function messengerSubtitle() {
-		return buzzDeepLink ? text.buzzSubtitle : text.subtitle;
-	}
-
-	function messengerHeroTitle() {
-		return buzzDeepLink ? text.buzzHeroTitle : text.heroTitle;
-	}
-
-	function messengerHeroDescription() {
-		return buzzDeepLink ? text.buzzHeroDescription : text.heroDescription;
-	}
-
-	function mattermostURL() {
-		const providedURL = adminSession?.mattermostURL?.trim();
-		if (providedURL) return providedURL;
-		const currentFleetID = fleetID();
-		return currentFleetID ? `https://${currentFleetID}.intern.kim` : '';
 	}
 
 	function adminBaseURL() {
@@ -117,6 +66,7 @@
 	}
 
 	$effect(() => {
+		if (!isAdminSessionLoaded) return;
 		if (isVisibleAdminSection(activeAdminSection)) return;
 		const visibleSection = firstVisibleAdminSection(
 			currentAdminRole,
@@ -137,7 +87,6 @@
 		fleetIdInput = queryFleetID || fleetIDFromHost() || localStorage.getItem(storedFleetIdKey) || '';
 		if (fleetIdInput) localStorage.setItem(storedFleetIdKey, fleetIdInput);
 		loadAdminSession();
-		loadBuzzDeepLink();
 	});
 
 	function isAdminSection(section: string): section is AdminSection {
@@ -181,6 +130,8 @@
 			adminSession = isMockAdminAPI ? { ...loadedSession, email: mockAdminEmail, isAdmin: true, role: 'admin' } : loadedSession;
 		} catch {
 			adminSession = null;
+		} finally {
+			isAdminSessionLoaded = true;
 		}
 	}
 </script>
@@ -192,116 +143,63 @@
 <main class="bg-background text-foreground min-h-svh w-full min-w-0 flex-1">
 	<div class="mx-auto flex min-h-svh w-full max-w-6xl min-w-0 flex-col px-4 py-5 sm:px-5 sm:py-6">
 		<header class="flex flex-wrap items-center justify-between gap-4">
-			<div class="flex items-center gap-3">
-				<img src={logoSrc} alt={text.title} class="size-9" />
-				<div>
-					<h1 class="text-lg font-semibold leading-tight">{text.title}</h1>
-					<p class="text-muted-foreground text-sm">{messengerSubtitle()}</p>
-				</div>
-			</div>
-			<div class="flex items-center gap-2">
-				<Badge variant="secondary" class="gap-1.5">
-					<ShieldCheckIcon class="size-3.5" />
-					{text.accessProtected}
-				</Badge>
-			</div>
+			<h1 class="text-xl font-semibold">{text.pageTitle}</h1>
 		</header>
 
-		{#if currentAdminRole !== 'member'}
-			<section class="grid gap-4 py-8 sm:grid-cols-[190px_1fr]">
-				<div class="flex items-center justify-center rounded-lg border bg-muted/30 p-4">
-					{#if messengerLink()}
-						<QrCode value={messengerLink()} size="150" />
-					{:else}
-						<MessageSquareIcon class="text-muted-foreground size-16" strokeWidth={1.5} />
+		{#if isAdminSessionLoaded}
+			<UnderlineTabs.Root class="pt-4" value={activeAdminSection} onValueChange={(section) => activateAdminSection(section as AdminSection)}>
+				<UnderlineTabs.List>
+					{#each adminSections() as section (section.value)}
+						<UnderlineTabs.Trigger value={section.value}>{section.label}</UnderlineTabs.Trigger>
+					{/each}
+				</UnderlineTabs.List>
+			</UnderlineTabs.Root>
+
+			{#if isVisibleAdminSection(activeAdminSection)}
+				<section class="grid min-w-0 gap-5 py-6">
+					{#if activeAdminSection === 'device'}
+						<DeviceSection
+							adminBaseURL={adminBaseURL()}
+							adminSession={adminSession}
+							bind:fleetIdInput
+							bind:isDeviceReachable
+							text={text}
+							onFleetIDSaved={saveFleetID}
+						/>
+					{:else if activeAdminSection === 'bot'}
+						<BotSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+					{:else if activeAdminSection === 'credentials'}
+						<CredentialsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+					{:else if activeAdminSection === 'backup'}
+						<BackupSection
+							adminBaseURL={adminBaseURL()}
+							fleetID={fleetID()}
+							isDeviceHost={!!fleetIDFromHost()}
+							isDeviceReachable={isDeviceReachable}
+							text={text}
+						/>
+					{:else if activeAdminSection === 'users'}
+						<UsersSection
+							adminBaseURL={adminBaseURL()}
+							adminSession={adminSession}
+							fleetID={fleetID()}
+							isDeviceContext={!!fleetID()}
+							text={text}
+							onUserChanged={loadAdminSession}
+						/>
+					{:else if activeAdminSection === 'settings'}
+						<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+					{:else if activeAdminSection === 'sharing'}
+						<CompanyShareSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+					{:else if activeAdminSection === 'network'}
+						<NetworkSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+					{:else if activeAdminSection === 'buzz'}
+						<BuzzSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+					{:else if activeAdminSection === 'apiTokens'}
+						<APITokenSection />
 					{/if}
-				</div>
-				<div class="flex min-w-0 flex-col justify-center gap-4">
-					<div>
-						<h2 class="text-2xl font-semibold">{messengerHeroTitle()}</h2>
-						<p class="text-muted-foreground mt-2 text-sm leading-6">
-							{messengerHeroDescription()}
-						</p>
-					</div>
-					{#if messengerLink()}
-						<div class="flex flex-wrap items-center gap-2">
-							<Button href={messengerLink()} data-sveltekit-reload class="gap-2">
-								<ExternalLinkIcon class="size-4" />
-								{messengerLabel()}
-							</Button>
-							<CopyButton text={messengerLink()} variant="outline" />
-						</div>
-					{:else}
-						<p class="text-muted-foreground rounded-md border bg-muted/30 px-3 py-2 text-sm">
-							{text.devicePending}
-						</p>
-					{/if}
-				</div>
-			</section>
-
-			<Separator />
-		{/if}
-
-		<nav class="flex w-full min-w-0 gap-1 overflow-x-auto py-4">
-			{#each adminSections() as section}
-				<Button
-					variant={activeAdminSection === section.value ? 'default' : 'ghost'}
-					size="sm"
-					onclick={() => activateAdminSection(section.value)}
-				>
-					{section.label}
-				</Button>
-			{/each}
-		</nav>
-
-		{#if isVisibleAdminSection(activeAdminSection)}
-			{#if activeAdminSection === 'users'}
-				<Separator />
+				</section>
 			{/if}
-
-			<section class="grid min-w-0 gap-5 py-6">
-				{#if activeAdminSection === 'device'}
-					<DeviceSection
-						adminBaseURL={adminBaseURL()}
-						adminSession={adminSession}
-						bind:fleetIdInput
-						bind:isDeviceReachable
-						text={text}
-						onFleetIDSaved={saveFleetID}
-					/>
-				{:else if activeAdminSection === 'bot'}
-					<BotSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-				{:else if activeAdminSection === 'credentials'}
-					<CredentialsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-				{:else if activeAdminSection === 'backup'}
-					<BackupSection
-						adminBaseURL={adminBaseURL()}
-						fleetID={fleetID()}
-						isDeviceHost={!!fleetIDFromHost()}
-						isDeviceReachable={isDeviceReachable}
-						text={text}
-					/>
-				{:else if activeAdminSection === 'users'}
-					<UsersSection
-						adminBaseURL={adminBaseURL()}
-						adminSession={adminSession}
-						fleetID={fleetID()}
-						isDeviceContext={!!fleetID()}
-						text={text}
-						onUserChanged={loadAdminSession}
-					/>
-				{:else if activeAdminSection === 'settings'}
-					<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-				{:else if activeAdminSection === 'sharing'}
-					<CompanyShareSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-				{:else if activeAdminSection === 'network'}
-					<NetworkSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-				{:else if activeAdminSection === 'buzz'}
-					<BuzzSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-				{:else if activeAdminSection === 'apiTokens'}
-					<APITokenSection />
-				{/if}
-			</section>
 		{/if}
 	</div>
 </main>

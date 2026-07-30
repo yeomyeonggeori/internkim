@@ -7,6 +7,10 @@ export type CalendarLocaleText = {
 	work: string;
 	previousMonth: string;
 	nextMonth: string;
+	previousWeek: string;
+	nextWeek: string;
+	previousDay: string;
+	nextDay: string;
 	pickMonthAndYear: string;
 	previousYear: string;
 	nextYear: string;
@@ -95,11 +99,15 @@ export type CalendarLocaleText = {
 	new: string;
 	newEvent: string;
 	editEvent: string;
+	deleteEvent: string;
+	duplicateEvent: string;
+	addEventOnDay: string;
+	openDay: string;
 	draftPopover: {
 		calendar: string;
 		participants: string;
 		participantsPlaceholder: string;
-		removeParticipantAction: string;
+		participantsEmpty: string;
 		cancel: string;
 		complete: string;
 		delete: string;
@@ -107,7 +115,6 @@ export type CalendarLocaleText = {
 		endDate: string;
 		startTime: string;
 		endTime: string;
-		auditEmpty: string;
 		dateTimePicker: {
 			previousMonth: string;
 			nextMonth: string;
@@ -124,9 +131,6 @@ export type CalendarLocaleText = {
 			editEndDateTime: string;
 		};
 	};
-	eventAudit: string;
-	eventAuditCreated: string;
-	eventAuditUpdated: string;
 	conflictBannerTitle: string;
 	conflictBannerDescription: string;
 	conflictDismiss: string;
@@ -189,6 +193,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		work: '팀 일정',
 		previousMonth: '이전 달',
 		nextMonth: '다음 달',
+		previousWeek: '지난 주',
+		nextWeek: '다음 주',
+		previousDay: '어제',
+		nextDay: '내일',
 		pickMonthAndYear: '월과 연도 선택',
 		previousYear: '이전 해',
 		nextYear: '다음 해',
@@ -278,14 +286,18 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		month: '월',
 		monthMoreButton: '+{count} 더보기',
 		monthMoreAriaLabel: '{date}의 숨겨진 일정 {count}개 보기',
-		new: '새로 만들기',
+		new: '일정 추가',
 		newEvent: '새 일정',
 		editEvent: '일정 편집',
+		deleteEvent: '일정 삭제',
+		duplicateEvent: '일정 복제',
+		addEventOnDay: '이 날짜에 일정 추가',
+		openDay: '이 날짜 열기',
 		draftPopover: {
 			calendar: '캘린더',
 			participants: '참여자',
-			participantsPlaceholder: '이름으로 검색해 추가',
-			removeParticipantAction: '{name} 제거',
+			participantsPlaceholder: '이름 검색',
+			participantsEmpty: '검색 결과 없음',
 			cancel: '취소',
 			complete: '완료',
 			delete: '삭제',
@@ -293,7 +305,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			endDate: '종료 날짜',
 			startTime: '시작 시간',
 			endTime: '종료 시간',
-			auditEmpty: '등록·수정 정보 없음',
 			dateTimePicker: {
 				previousMonth: '이전 달',
 				nextMonth: '다음 달',
@@ -310,9 +321,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 				editEndDateTime: '종료 날짜 및 시간 수정'
 			}
 		},
-		eventAudit: '일정 변경 이력',
-		eventAuditCreated: '등록',
-		eventAuditUpdated: '수정',
 		conflictBannerTitle: '외부에서 변경된 일정이 있습니다',
 		conflictBannerDescription:
 			'다른 위치(Google 캘린더 등)에서 같은 일정이 동시에 수정되었습니다. 내 변경은 보존되었지만 외부 변경 사항을 확인해주세요.',
@@ -340,6 +348,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		work: 'Work',
 		previousMonth: 'Previous month',
 		nextMonth: 'Next month',
+		previousWeek: 'Previous week',
+		nextWeek: 'Next week',
+		previousDay: 'Previous day',
+		nextDay: 'Next day',
 		pickMonthAndYear: 'Pick month and year',
 		previousYear: 'Previous year',
 		nextYear: 'Next year',
@@ -429,14 +441,18 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		month: 'Month',
 		monthMoreButton: '+{count} more',
 		monthMoreAriaLabel: 'Show {count} more events on {date}',
-		new: 'New',
+		new: 'Add event',
 		newEvent: 'New Event',
 		editEvent: 'Edit Event',
+		deleteEvent: 'Delete event',
+		duplicateEvent: 'Duplicate event',
+		addEventOnDay: 'Add event on this day',
+		openDay: 'Open this day',
 		draftPopover: {
 			calendar: 'Calendar',
 			participants: 'Participants',
-			participantsPlaceholder: 'Search by name to add',
-			removeParticipantAction: 'Remove {name}',
+			participantsPlaceholder: 'Search by name',
+			participantsEmpty: 'No matches',
 			cancel: 'Cancel',
 			complete: 'Done',
 			delete: 'Delete',
@@ -444,7 +460,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			endDate: 'End date',
 			startTime: 'Start time',
 			endTime: 'End time',
-			auditEmpty: 'No creation or edit details',
 			dateTimePicker: {
 				previousMonth: 'Previous month',
 				nextMonth: 'Next month',
@@ -461,9 +476,6 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 				editEndDateTime: 'Edit end date and time'
 			}
 		},
-		eventAudit: 'Event audit',
-		eventAuditCreated: 'Created',
-		eventAuditUpdated: 'Updated',
 		conflictBannerTitle: 'External changes detected',
 		conflictBannerDescription:
 			'The same events were modified elsewhere (e.g. Google Calendar) at the same time. Your changes are preserved, but please review the external edits.',

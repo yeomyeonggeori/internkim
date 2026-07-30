@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { Event as DayFlowEvent } from '@dayflow/core';
 	import type { CalendarLocaleText } from '../text';
-	import { calendarAuditRows } from './calendar-audit';
 	import CalendarDraftPopover from './calendar-draft-popover.svelte';
 	import type { DraftPopoverState } from './calendar-draft-popover-state';
 	import type { CalendarParticipant } from './calendar-participants';
@@ -12,51 +11,43 @@
 	};
 
 	type Props = {
-		auditEvent: Pick<DayFlowEvent, 'meta'> | null;
 		calendarOptions: CalendarOption[];
 		participantCandidates: CalendarParticipant[];
 		cancelPopover: () => void;
 		deletePopover: () => void;
-		isSaving: boolean;
 		localeCode: string;
 		popover: DraftPopoverState | null;
-		repositionPopover: (size: { width: number; height: number }) => void;
 		savePopover: () => void;
 		text: CalendarLocaleText;
 		updatePopover: (changes: Partial<DraftPopoverState>) => void;
-		stageElement: HTMLElement | null;
 	};
 
 	let {
-		auditEvent,
 		calendarOptions,
 		participantCandidates,
 		cancelPopover,
 		deletePopover,
-		isSaving,
 		localeCode,
 		popover,
-		repositionPopover,
 		savePopover,
 		text,
-		updatePopover,
-		stageElement
+		updatePopover
 	}: Props = $props();
 
-	const auditRows = $derived(
-		calendarAuditRows(auditEvent, localeCode, {
-			created: text.eventAuditCreated,
-			updated: text.eventAuditUpdated
-		})
-	);
+	let lastPopover: DraftPopoverState | null = null;
+	const renderedPopover = $derived.by(() => {
+		if (popover) lastPopover = popover;
+		return lastPopover;
+	});
 	const popoverText = $derived({
 		title: text.conflictField.title,
+		titlePlaceholder: text.newEvent,
 		allDay: text.allDay,
 		location: text.conflictField.location,
 		description: text.conflictField.description,
 		participants: text.draftPopover.participants,
 		participantsPlaceholder: text.draftPopover.participantsPlaceholder,
-		removeParticipantAction: text.draftPopover.removeParticipantAction,
+		participantsEmpty: text.draftPopover.participantsEmpty,
 		calendar: text.draftPopover.calendar,
 		cancel: text.draftPopover.cancel,
 		complete: text.draftPopover.complete,
@@ -65,27 +56,21 @@
 		endDate: text.draftPopover.endDate,
 		startTime: text.draftPopover.startTime,
 		endTime: text.draftPopover.endTime,
-		auditEmpty: text.draftPopover.auditEmpty,
 		dateTimePicker: text.draftPopover.dateTimePicker
 	});
 </script>
 
-{#if popover}
+{#if popover && renderedPopover}
 	<CalendarDraftPopover
-		{popover}
+		popover={renderedPopover}
+		{localeCode}
 		{calendarOptions}
 		{participantCandidates}
-		{auditRows}
-		auditLabel={text.eventAudit}
-		dialogLabel={popover.mode === 'edit' ? text.editEvent : text.newEvent}
-		{localeCode}
-		{isSaving}
+		dialogLabel={renderedPopover.mode === 'edit' ? text.editEvent : text.newEvent}
 		text={popoverText}
 		{updatePopover}
-		{repositionPopover}
 		{savePopover}
 		{cancelPopover}
 		{deletePopover}
-		{stageElement}
 	/>
 {/if}

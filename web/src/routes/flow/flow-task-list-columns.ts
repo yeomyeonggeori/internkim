@@ -2,7 +2,7 @@ import { renderComponent } from '$lib/components/ui/data-table';
 import type { Column, ColumnDef } from '@tanstack/table-core';
 import { compareOptionalDate } from './flow-style';
 import FlowTaskListHeaderCell from './flow-task-list-header-cell.svelte';
-import FlowTaskListOwnerCell from './flow-task-list-owner-cell.svelte';
+import PersonNameCell from '$lib/components/person-name-cell.svelte';
 import FlowTaskListParticipantsCell from './flow-task-list-participants-cell.svelte';
 import FlowTaskListSizeCell from './flow-task-list-size-cell.svelte';
 import FlowTaskListStatusCell from './flow-task-list-status-cell.svelte';
@@ -41,7 +41,7 @@ export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): Colu
 		{
 			accessorKey: 'ownerName',
 			header: (context) => renderHeader(text.table.owner, context.column),
-			cell: (info) => renderComponent(FlowTaskListOwnerCell, { task: info.row.original })
+			cell: (info) => renderComponent(PersonNameCell, { name: info.row.original.ownerName, personID: info.row.original.ownerID })
 		},
 		{
 			accessorKey: 'business',

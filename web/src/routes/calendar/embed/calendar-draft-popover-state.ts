@@ -1,23 +1,14 @@
 import type { Event as DayFlowEvent } from '@dayflow/core';
 import { temporalToDate } from '@dayflow/core';
 import { calendarDateTimeRangeChangesForStart } from './calendar-date-time-range';
-import {
-	draftPopoverPositionFromAnchor,
-	type DraftPopoverAnchor,
-	type DraftPopoverPosition
-} from './calendar-draft-popover-position';
+import type { DraftPopoverAnchor } from './calendar-draft-popover-anchor-types';
 import {
 	calendarParticipantsEqual,
 	calendarParticipantsFromUnknown,
 	type CalendarParticipant
 } from './calendar-participants';
 
-export {
-	draftPopoverPositionFromAnchor,
-	type DraftPopoverAnchor,
-	type DraftPopoverPosition,
-	type DraftPopoverSize
-} from './calendar-draft-popover-position';
+export type { DraftPopoverAnchor } from './calendar-draft-popover-anchor-types';
 
 export type DraftPopoverMode = 'create' | 'edit';
 
@@ -35,7 +26,6 @@ export type DraftPopoverState = {
 	participants: CalendarParticipant[];
 	calendarID: string;
 	anchor: DraftPopoverAnchor | null;
-	position: DraftPopoverPosition;
 };
 
 export type DraftPopoverEventChanges = {
@@ -74,8 +64,7 @@ export function draftPopoverStateFromEvent(
 		description: event.description ?? '',
 		participants: calendarParticipantsFromUnknown(event.meta?.participants),
 		calendarID: event.calendarId ?? 'internkim',
-		anchor,
-		position: draftPopoverPositionFromAnchor(anchor, stageElement)
+		anchor
 	};
 }
 
@@ -146,7 +135,6 @@ export function hasDraftPopoverEventChanges(popover: DraftPopoverState, event: D
 }
 
 export function isDraftPopoverValid(popover: DraftPopoverState): boolean {
-	if (!popover.title.trim()) return false;
 	const startTime = draftPopoverStartDate(popover).getTime();
 	const endTime = draftPopoverEndDate(popover).getTime();
 	return popover.allDay ? endTime >= startTime : endTime > startTime;

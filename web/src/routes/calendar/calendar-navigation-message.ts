@@ -23,6 +23,10 @@ export type CalendarOpenSettingsMessage = {
 	type: 'calendar-open-settings';
 };
 
+export type CalendarCreateEventMessage = {
+	type: 'calendar-create-event';
+};
+
 export type CalendarRefreshMessage = {
 	type: 'calendar-refresh';
 };
@@ -58,6 +62,11 @@ export function isCalendarEventsChangedMessage(value: unknown): value is Calenda
 export function isCalendarOpenSettingsMessage(value: unknown): value is CalendarOpenSettingsMessage {
 	if (!value || typeof value !== 'object') return false;
 	return 'type' in value && value.type === 'calendar-open-settings';
+}
+
+export function isCalendarCreateEventMessage(value: unknown): value is CalendarCreateEventMessage {
+	if (!value || typeof value !== 'object') return false;
+	return 'type' in value && value.type === 'calendar-create-event';
 }
 
 export function isCalendarRefreshMessage(value: unknown): value is CalendarRefreshMessage {

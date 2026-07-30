@@ -61,6 +61,7 @@ export type CalendarEventActions = {
 	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
 	flushPendingDelete: () => Promise<void>;
+	undoLastDelete: () => boolean;
 	scheduleDraftTitleInputPlaceholderUpdates: () => void;
 	scheduleDraftEventVisibilitySync: () => void;
 };
@@ -178,6 +179,7 @@ export function createCalendarEventActions(
 		saveUpdatedEvent: persistenceActions.saveUpdatedEvent,
 		deleteEvent: persistenceActions.deleteEvent,
 		flushPendingDelete: persistenceActions.flushPendingDelete,
+		undoLastDelete: persistenceActions.undoLastDelete,
 		scheduleDraftTitleInputPlaceholderUpdates: draftEventDOM.scheduleDraftTitleInputPlaceholderUpdates,
 		scheduleDraftEventVisibilitySync: draftEventDOM.scheduleDraftEventVisibilitySync
 	};

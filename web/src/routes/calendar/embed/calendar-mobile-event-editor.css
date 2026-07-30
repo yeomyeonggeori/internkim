@@ -208,109 +208,17 @@ html.dark .calendar-mobile-event-editor.df-mobile-event-drawer {
 	align-items: start;
 }
 
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-selector,
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-combobox {
-	min-width: 0;
-	width: 100%;
-}
 
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-combobox {
-	position: relative;
-}
 
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-input-shell {
-	display: flex;
-	min-height: 40px;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 6px;
-	border-radius: 10px;
-	background: var(--calendar-mobile-editor-control);
-	padding: 6px 8px;
-}
 
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-input-shell input {
-	min-width: 128px;
-	width: auto;
-	flex: 1 1 128px;
-	height: 28px;
-	background: transparent;
-	padding: 0;
-}
 
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-chip {
-	display: inline-flex;
-	max-width: 100%;
-	align-items: center;
-	gap: 6px;
-	border-color: var(--calendar-mobile-editor-border);
-	background: rgb(255 255 255 / 0.86);
-	color: var(--calendar-mobile-editor-text);
-}
 
-html.dark .calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-chip {
-	background: rgb(39 39 42 / 0.86);
-}
 
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-chip span {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
 
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-remove {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	border: 0;
-	background: transparent;
-	color: var(--calendar-mobile-editor-action);
-}
 
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-listbox {
-	position: absolute;
-	top: calc(100% + 6px);
-	right: 0;
-	left: 0;
-	z-index: 4;
-	display: flex;
-	max-height: 196px;
-	flex-direction: column;
-	overflow-y: auto;
-	border: 1px solid var(--calendar-mobile-editor-border);
-	border-radius: 14px;
-	background: var(--calendar-mobile-editor-row);
-	padding: 6px;
-	box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
-}
 
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-option {
-	display: grid;
-	grid-template-columns: auto minmax(0, 1fr);
-	align-items: center;
-	gap: 8px;
-	min-height: 42px;
-	border: 0;
-	border-radius: 10px;
-	background: transparent;
-	padding: 8px 10px;
-	color: var(--calendar-mobile-editor-text);
-	font-size: 15px;
-	font-weight: 700;
-	text-align: left;
-}
 
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-option:hover,
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-option[aria-selected='true'] {
-	background: var(--calendar-mobile-editor-control);
-}
 
-.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-option-text {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
 
 .calendar-mobile-event-editor .mobile-event-field input:focus-visible,
 .calendar-mobile-event-editor .mobile-event-field textarea:focus-visible,
@@ -392,8 +300,7 @@ html.dark .calendar-mobile-event-editor .mobile-event-participants-field .calend
 	.calendar-mobile-event-editor .mobile-event-field input:focus-visible,
 	.calendar-mobile-event-editor .mobile-event-field textarea:focus-visible,
 	.calendar-mobile-event-editor .mobile-event-field select:focus-visible,
-	.calendar-mobile-event-editor .mobile-event-title-row input:focus-visible,
-	.calendar-mobile-event-editor .mobile-event-participants-field .calendar-participant-input-shell:focus-within {
+	.calendar-mobile-event-editor .mobile-event-title-row input:focus-visible {
 		outline: 2px solid Highlight;
 		outline-offset: 2px;
 		box-shadow: none;
