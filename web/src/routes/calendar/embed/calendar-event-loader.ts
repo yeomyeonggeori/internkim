@@ -6,10 +6,14 @@ import {
 	eventStartDate
 } from './calendar-event-mapping';
 import { fetchCalendarEvents } from './calendar-event-persistence';
-import { fetchCalendarHolidays } from './calendar-holiday-persistence';
+import {
+	fetchCalendarHolidays,
+	type CalendarHolidayLocale
+} from './calendar-holiday-persistence';
 
 type CalendarEventLoaderContext = {
 	isBrowser: () => boolean;
+	getLocale: () => CalendarHolidayLocale;
 	errorFallback: () => string;
 	getCalendarEvents: () => DayFlowEvent[];
 	getVisibleEvents: () => DayFlowEvent[];
@@ -62,7 +66,7 @@ export function createCalendarEventLoader(
 		try {
 			const [calendarEvents, holidayResult] = await Promise.all([
 				fetchEvents(startDate, endDate, context.errorFallback()),
-				fetchHolidays(startDate, endDate, context.errorFallback())
+				fetchHolidays(startDate, endDate, context.getLocale(), context.errorFallback())
 					.then((holidays) => ({ holidays, error: null }))
 					.catch((error: unknown) => ({ holidays: [], error }))
 			]);

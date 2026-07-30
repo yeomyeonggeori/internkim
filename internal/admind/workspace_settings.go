@@ -106,13 +106,6 @@ func (service *Service) updateWorkspaceSettings(responseWriter http.ResponseWrit
 				"error", errorValue,
 			)
 		}
-	} else if languageChanged {
-		if errorValue := service.invalidateCalendarHolidaySyncState(request.Context()); errorValue != nil {
-			slog.WarnContext(request.Context(), "calendar holiday cache invalidation after language change failed",
-				"language", settings.Language,
-				"error", errorValue,
-			)
-		}
 	}
 	if !countryChanged || languageChanged {
 		if errorValue := service.syncMattermostWorkspaceChannelDisplayNames(request.Context(), settings.Language); errorValue != nil {

@@ -48,8 +48,8 @@ func TestCalendarHolidaysUseCachedCountryAPIResponseWithConnectedGoogleAccount(t
 		}, nil
 	})}
 
-	first := requestCalendarHolidaysForTest(t, service)
-	second := requestCalendarHolidaysForTest(t, service)
+	first := requestCalendarHolidaysForLocaleTest(t, service, workspaceLanguageKorean)
+	second := requestCalendarHolidaysForLocaleTest(t, service, workspaceLanguageKorean)
 
 	if first.Source != calendarHolidaySourceAPI || second.Source != calendarHolidaySourceAPI {
 		t.Fatalf("sources = %q, %q", first.Source, second.Source)
@@ -95,15 +95,18 @@ func TestCalendarHolidayRefreshPreloadsCurrentAndNextYearForChangedCountry(t *te
 		t.Fatalf("refresh calendar holidays: %v", errorValue)
 	}
 
-	if len(requestPaths) != 2 ||
+	if len(requestPaths) != calendarHolidayPreloadYears*len([...]string{workspaceLanguageKorean, workspaceLanguageEnglish}) ||
 		!strings.Contains(requestPaths[0], "/2026/US") ||
-		!strings.Contains(requestPaths[1], "/2027/US") {
+		!strings.Contains(requestPaths[1], "/2027/US") ||
+		!strings.Contains(requestPaths[2], "/2026/US") ||
+		!strings.Contains(requestPaths[3], "/2027/US") {
 		t.Fatalf("holiday request paths = %#v", requestPaths)
 	}
 	holidays, errorValue := service.readCalendarHolidays(
 		context.Background(),
 		calendarHolidaySourceAPI,
 		"US",
+		workspaceLanguageEnglish,
 		"2026-01-01",
 		"2028-01-01",
 	)
@@ -154,7 +157,7 @@ func TestWorkspaceCountryUpdateRefreshesHolidaysWithoutMattermost(t *testing.T) 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
-	if len(holidayRequestPaths) != calendarHolidayPreloadYears {
+	if len(holidayRequestPaths) != calendarHolidayPreloadYears*len([...]string{workspaceLanguageKorean, workspaceLanguageEnglish}) {
 		t.Fatalf("holiday request paths = %#v", holidayRequestPaths)
 	}
 	settings, errorValue := service.readWorkspaceSettings()
@@ -169,7 +172,7 @@ func TestWorkspaceCountryUpdateRefreshesHolidaysWithoutMattermost(t *testing.T) 
 func TestCalendarHolidaysServeCachedResponseWhenCountryAPIFails(t *testing.T) {
 	service := newCalendarTestService(t)
 	currentTime := time.Now().UTC()
-	sourceKey := "KR:" + currentTime.Format("2006")
+	sourceKey := "KR:" + currentTime.Format("2006") + ":" + workspaceLanguageKorean
 	if errorValue := service.replaceCalendarHolidaySnapshot(
 		context.Background(),
 		calendarHolidaySourceAPI,
@@ -204,7 +207,7 @@ func TestCalendarHolidaysServeCachedResponseWhenCountryAPIFails(t *testing.T) {
 		}, nil
 	})}
 
-	response := requestCalendarHolidaysForYearTest(t, service, currentTime.Year())
+	response := requestCalendarHolidaysForYearLocaleTest(t, service, currentTime.Year(), workspaceLanguageKorean)
 
 	if len(response.Holidays) != 1 || response.Holidays[0].Title != "새해 첫날" {
 		t.Fatalf("holidays = %#v", response.Holidays)
@@ -296,14 +299,8 @@ func TestCalendarHolidayCountriesUseCachedAPIResponse(t *testing.T) {
 	}
 }
 
-func TestCalendarHolidaysUseEnglishNameForEnglishWorkspace(t *testing.T) {
+func TestCalendarHolidaysUseEnglishNameForEnglishLocale(t *testing.T) {
 	service := newCalendarTestService(t)
-	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{
-		CountryCode: "KR",
-		Language:    workspaceLanguageEnglish,
-	}); errorValue != nil {
-		t.Fatalf("write workspace settings: %v", errorValue)
-	}
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		year := "2026"
 		if strings.Contains(request.URL.Path, "/2027/") {
@@ -322,25 +319,48 @@ func TestCalendarHolidaysUseEnglishNameForEnglishWorkspace(t *testing.T) {
 		}, nil
 	})}
 
-	response := requestCalendarHolidaysForTest(t, service)
+	response := requestCalendarHolidaysForLocaleTest(t, service, workspaceLanguageEnglish)
 
 	if len(response.Holidays) != 1 || response.Holidays[0].Title != "New Year's Day" {
 		t.Fatalf("holidays = %#v", response.Holidays)
 	}
 }
 
-func requestCalendarHolidaysForTest(t *testing.T, service *Service) calendarHolidaysResponse {
-	t.Helper()
-	return requestCalendarHolidaysForYearTest(t, service, 2026)
+func TestCalendarHolidayTitleUsesLocalNameOnlyForMatchingCountryLanguage(t *testing.T) {
+	testCases := []struct {
+		name        string
+		countryCode string
+		locale      string
+		expected    string
+	}{
+		{name: "Korea in Korean", countryCode: "KR", locale: workspaceLanguageKorean, expected: "광복절"},
+		{name: "Korea in English", countryCode: "KR", locale: workspaceLanguageEnglish, expected: "Liberation Day"},
+		{name: "United States in Korean", countryCode: "US", locale: workspaceLanguageKorean, expected: "Liberation Day"},
+		{name: "United States in English", countryCode: "US", locale: workspaceLanguageEnglish, expected: "Liberation Day"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			title := calendarHolidayTitle(testCase.countryCode, testCase.locale, "광복절", "Liberation Day")
+			if title != testCase.expected {
+				t.Fatalf("title = %q, want %q", title, testCase.expected)
+			}
+		})
+	}
 }
 
-func requestCalendarHolidaysForYearTest(t *testing.T, service *Service, year int) calendarHolidaysResponse {
+func requestCalendarHolidaysForLocaleTest(t *testing.T, service *Service, locale string) calendarHolidaysResponse {
+	t.Helper()
+	return requestCalendarHolidaysForYearLocaleTest(t, service, 2026, locale)
+}
+
+func requestCalendarHolidaysForYearLocaleTest(t *testing.T, service *Service, year int, locale string) calendarHolidaysResponse {
 	t.Helper()
 	startTime := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
 	request := httptest.NewRequest(
 		http.MethodGet,
 		"/calendar/api/holidays?startISO="+startTime.Format(time.RFC3339)+
-			"&endISO="+startTime.AddDate(1, 0, 0).Format(time.RFC3339),
+			"&endISO="+startTime.AddDate(1, 0, 0).Format(time.RFC3339)+
+			"&locale="+locale,
 		nil,
 	)
 	request.RemoteAddr = "127.0.0.1:12345"
