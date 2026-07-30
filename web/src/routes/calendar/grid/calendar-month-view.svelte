@@ -204,12 +204,20 @@
 		}, scrollOverlayHideDelayMilliseconds);
 	}
 
+	function dayLaneCount(layout: CalendarGridWeekLayout, dayIndex: number): number {
+		return layout.spans
+			.filter((span) => dayIndex >= span.startColumn && dayIndex < span.startColumn + span.columnCount)
+			.reduce((count, span) => Math.max(count, span.lane + 1), 0);
+	}
+
 	function timedEventsForDay(layout: CalendarGridWeekLayout, dayIndex: number) {
 		const entries = layout.timedEntries.filter((entry) => entry.dayIndex === dayIndex);
-		const availableChipCount = Math.max(1, visibleChipCount - layout.laneCount);
+		const availableChipCount = Math.max(1, visibleChipCount - dayLaneCount(layout, dayIndex));
+		if (entries.length <= availableChipCount) return { visible: entries, hiddenCount: 0 };
+		const visibleCount = Math.max(0, availableChipCount - 1);
 		return {
-			visible: entries.slice(0, availableChipCount),
-			hiddenCount: Math.max(0, entries.length - availableChipCount)
+			visible: entries.slice(0, visibleCount),
+			hiddenCount: entries.length - visibleCount
 		};
 	}
 
@@ -311,7 +319,6 @@
 		onscroll={handleScroll}
 		onscrollend={scrollSnap.handleScrollEnd}
 		onwheel={scrollSnap.handleWheel}
-		ontouchend={scrollSnap.handleGestureEnd}
 		onpointerdown={handlePointerDown}
 		onpointermove={handlePointerMove}
 		onpointerup={handlePointerUp}
@@ -344,7 +351,7 @@
 						addEventOnDay={(selectedDay) => addEventOnDay(selectedDay)}
 						selectDay={(selectedDay) => selectDay(selectedDay)}
 					>
-						<div style={`height: ${layout.laneCount * laneHeightPixels}px`}></div>
+						<div style={`height: ${dayLaneCount(layout, dayIndex) * laneHeightPixels}px`}></div>
 						{#each timed.visible as entry (entry.event.id)}
 							<CalendarEventChip
 								event={entry.event}

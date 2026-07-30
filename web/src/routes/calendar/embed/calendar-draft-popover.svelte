@@ -297,6 +297,7 @@
 				label={text.participants}
 				placeholder={text.participantsPlaceholder}
 				emptyText={text.participantsEmpty}
+				summaryTemplate={text.participantsSummary}
 				onChange={(participants) => updatePopover({ participants })}
 			/>
 

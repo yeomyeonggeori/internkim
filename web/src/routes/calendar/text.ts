@@ -108,6 +108,7 @@ export type CalendarLocaleText = {
 		calendar: string;
 		participants: string;
 		participantsPlaceholder: string;
+		participantsSummary: string;
 		participantsEmpty: string;
 		cancel: string;
 		complete: string;
@@ -300,6 +301,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			participants: '참여자',
 			participantsPlaceholder: '이름 검색',
 			participantsEmpty: '검색 결과 없음',
+			participantsSummary: '{name} 외 {count}명',
 			cancel: '취소',
 			complete: '완료',
 			delete: '삭제',
@@ -456,6 +458,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 			participants: 'Participants',
 			participantsPlaceholder: 'Search by name',
 			participantsEmpty: 'No matches',
+			participantsSummary: '{name} +{count}',
 			cancel: 'Cancel',
 			complete: 'Done',
 			delete: 'Delete',
