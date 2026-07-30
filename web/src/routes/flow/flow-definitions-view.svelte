@@ -33,7 +33,6 @@
 		categoryDrafts: string[];
 		setCategoryColor: (index: number, color: string) => void;
 		setTypeColor: (index: number, color: string) => void;
-		setSizeColor: (name: string, color: string) => void;
 		typeDrafts: string[];
 		newCategoryText: string;
 		newTypeText: string;
@@ -60,7 +59,6 @@
 		categoryDrafts,
 		setCategoryColor,
 		setTypeColor,
-		setSizeColor,
 		typeDrafts,
 		newCategoryText,
 		newTypeText,
@@ -100,7 +98,7 @@
 
 {#if canEditDefinitions}
 	<section class="grid gap-4">
-		<FlowSizeDefinitionsCard {definitions} {text} {isAdmin} {setSizeColor} />
+		<FlowSizeDefinitionsCard {definitions} {text} />
 		<div class="grid gap-4 lg:grid-cols-2">
 			<FlowEditableDefinitionListCard
 				title={text.business}
