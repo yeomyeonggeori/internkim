@@ -107,6 +107,7 @@
 				canUpdateTask={page.canUpdateTask}
 				weekStartISO={summary?.week.startISO ?? ''}
 				weekEndISO={summary?.week.endISO ?? ''}
+				participantScope={page.participantScope()}
 				weekPosition={flowTaskBoardWeekPosition(summary)}
 				businessColor={page.businessColor}
 				taskTypeColor={page.taskTypeColor}

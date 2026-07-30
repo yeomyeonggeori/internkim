@@ -7,6 +7,11 @@
 	import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 	import { flowTaskBoardViewportHeight } from './flow-task-board-viewport-height';
 	import { buildFlowTaskBoard, isFlowTaskBoardStatus, isOverdueFlowPlan, type FlowTaskBoardWeekPosition } from './flow-task-board-model';
+	import {
+		canCreateFlowTaskInColumn,
+		shouldHideEmptyRequestColumn,
+		type FlowBoardParticipantScope
+	} from './flow-board-participant-scope';
 	import type { FlowTask } from './flow-types';
 
 	type BoardText = {
@@ -29,6 +34,7 @@
 		businessColor: (business: string) => string;
 		taskTypeColor: (type: string) => string;
 		memberEmail: (memberID: string) => string;
+		participantScope: FlowBoardParticipantScope;
 	};
 
 	let {
@@ -46,7 +52,8 @@
 		weekPosition = 'current',
 		businessColor,
 		taskTypeColor,
-		memberEmail
+		memberEmail,
+		participantScope
 	}: Props = $props();
 
 	const columnClass = [
@@ -62,7 +69,12 @@
 	const insertionLineClass = 'h-0.5 w-full rounded-full bg-primary shadow-sm ring-1 ring-primary/20';
 	const boardDrag = new FlowTaskBoardDragController();
 
-	let columns = $derived(buildFlowTaskBoard(tasks, { weekStartISO, weekEndISO, weekPosition }));
+	let columns = $derived(buildFlowTaskBoard(tasks, {
+		weekStartISO,
+		weekEndISO,
+		weekPosition,
+		hideEmptyRequestColumn: shouldHideEmptyRequestColumn(participantScope)
+	}));
 
 	$effect(() => {
 		boardDrag.sync({ pendingTaskIDs, canUpdateTask, moveTask });
@@ -129,6 +141,7 @@
 							class="shrink-0"
 							aria-label={addTaskLabel(column.status)}
 							title={addTaskLabel(column.status)}
+							disabled={!canCreateFlowTaskInColumn(column.status, participantScope)}
 							onclick={() => createTaskInColumn(column.status)}
 						>
 							<PlusIcon class="size-3.5" />
