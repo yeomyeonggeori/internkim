@@ -1,8 +1,13 @@
 package admind
 
 import (
+	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -257,6 +262,237 @@ func TestAttendanceLeaveManagedModeDoesNotRetroactivelyDeductUnlimitedRequests(t
 	if balance.AvailableMilliDays != 0 || balance.ReservedMilliDays != 1000 {
 		t.Fatalf("managed balance = %+v", balance)
 	}
+}
+
+func TestAttendanceLeaveBalanceTrackingSerializesModeChangeWithRequest(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
+		Operation: attendanceLeaveOperation{
+			OperationKey: "grant-before-concurrent-mode-request",
+			Employee:     employee,
+			LeaveTypeID:  "reward",
+			Amount:       1000,
+			EffectiveOn:  "2027-01-01",
+		},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policy := requestAttendanceLeavePolicy(
+		t,
+		service,
+		http.MethodGet,
+		"",
+		"admin@example.com",
+		http.StatusOK,
+	)
+	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingUnlimited
+	encodedPolicy, errorValue := json.Marshal(policy)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policyRequest := httptest.NewRequest(
+		http.MethodPut,
+		"/admin/api/attendance-leave-policy",
+		strings.NewReader(string(encodedPolicy)),
+	)
+	policyRequest.RemoteAddr = "198.51.100.10:443"
+	policyRequest.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	leaveRequest, errorValue := newConcurrentAttendanceLeaveRequest(
+		`{"leaveTypeID":"reward","unit":"fullDay","startDate":"2027-05-03"}`,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policyRecorder := httptest.NewRecorder()
+	leaveRecorder := httptest.NewRecorder()
+	router := service.router()
+	start := make(chan struct{})
+	var requests sync.WaitGroup
+	requests.Add(2)
+	go func() {
+		defer requests.Done()
+		<-start
+		router.ServeHTTP(policyRecorder, policyRequest)
+	}()
+	go func() {
+		defer requests.Done()
+		<-start
+		router.ServeHTTP(leaveRecorder, leaveRequest)
+	}()
+	close(start)
+	requests.Wait()
+	if policyRecorder.Code != http.StatusOK {
+		t.Fatalf(
+			"policy status = %d body = %s",
+			policyRecorder.Code,
+			policyRecorder.Body.String(),
+		)
+	}
+	if leaveRecorder.Code != http.StatusOK {
+		t.Fatalf(
+			"leave status = %d body = %s",
+			leaveRecorder.Code,
+			leaveRecorder.Body.String(),
+		)
+	}
+	balance, errorValue := service.readAttendanceLeaveBalance(
+		t.Context(),
+		employee,
+		"reward",
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if balance.AvailableMilliDays != 1000 || balance.ReservedMilliDays != 0 {
+		t.Fatalf("concurrent balance = %+v", balance)
+	}
+	dashboard := readAttendanceLeaveDashboardForTest(t, service, employee.Email)
+	if dashboard.BalanceTrackingMode != attendanceLeaveBalanceTrackingUnlimited ||
+		dashboard.Summary.ReservedMilliDays != 1000 ||
+		len(dashboard.Requests) != 1 {
+		t.Fatalf("concurrent dashboard = %+v", dashboard)
+	}
+}
+
+func TestAttendanceLeaveBalanceTrackingSerializesModeChangeWithApproval(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
+		Operation: attendanceLeaveOperation{
+			OperationKey: "grant-before-concurrent-mode-approval",
+			Employee:     employee,
+			LeaveTypeID:  "reward",
+			Amount:       1000,
+			EffectiveOn:  "2027-01-01",
+		},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	createRecorder := performAttendanceLeaveMultipartRequest(
+		t,
+		service,
+		http.MethodPost,
+		"/attendance/api/leave-requests",
+		employee.Email,
+		`{"leaveTypeID":"reward","unit":"fullDay","startDate":"2027-05-03"}`,
+	)
+	if createRecorder.Code != http.StatusOK {
+		t.Fatalf(
+			"create status = %d body = %s",
+			createRecorder.Code,
+			createRecorder.Body.String(),
+		)
+	}
+	var created struct {
+		Request attendanceLeaveRequestView `json:"request"`
+	}
+	if errorValue := json.NewDecoder(createRecorder.Body).Decode(&created); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policy := requestAttendanceLeavePolicy(
+		t,
+		service,
+		http.MethodGet,
+		"",
+		"admin@example.com",
+		http.StatusOK,
+	)
+	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingUnlimited
+	encodedPolicy, errorValue := json.Marshal(policy)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policyRequest := httptest.NewRequest(
+		http.MethodPut,
+		"/admin/api/attendance-leave-policy",
+		strings.NewReader(string(encodedPolicy)),
+	)
+	policyRequest.RemoteAddr = "198.51.100.10:443"
+	policyRequest.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	approvalRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/attendance/api/leave-approvals/"+created.Request.ID,
+		strings.NewReader(`{"action":"approve"}`),
+	)
+	approvalRequest.RemoteAddr = "198.51.100.10:443"
+	approvalRequest.Header.Set("X-Forwarded-Email", "admin@example.com")
+	approvalRecorder := httptest.NewRecorder()
+	policyRecorder := httptest.NewRecorder()
+	router := service.router()
+	start := make(chan struct{})
+	var requests sync.WaitGroup
+	requests.Add(2)
+	go func() {
+		defer requests.Done()
+		<-start
+		router.ServeHTTP(policyRecorder, policyRequest)
+	}()
+	go func() {
+		defer requests.Done()
+		<-start
+		router.ServeHTTP(approvalRecorder, approvalRequest)
+	}()
+	close(start)
+	requests.Wait()
+	if policyRecorder.Code != http.StatusOK {
+		t.Fatalf(
+			"policy status = %d body = %s",
+			policyRecorder.Code,
+			policyRecorder.Body.String(),
+		)
+	}
+	if approvalRecorder.Code != http.StatusOK {
+		t.Fatalf(
+			"approval status = %d body = %s",
+			approvalRecorder.Code,
+			approvalRecorder.Body.String(),
+		)
+	}
+	balance, errorValue := service.readAttendanceLeaveBalance(
+		t.Context(),
+		employee,
+		"reward",
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if balance.ReservedMilliDays != 0 ||
+		(balance.AvailableMilliDays != 0 && balance.AvailableMilliDays != 1000) {
+		t.Fatalf("concurrent approval balance = %+v", balance)
+	}
+	dashboard := readAttendanceLeaveDashboardForTest(t, service, employee.Email)
+	if dashboard.BalanceTrackingMode != attendanceLeaveBalanceTrackingUnlimited ||
+		dashboard.Summary.UsedMilliDays != 1000 ||
+		dashboard.Summary.ReservedMilliDays != 0 ||
+		len(dashboard.Requests) != 1 ||
+		dashboard.Requests[0].Status != attendanceLeaveRequestStatusApproved {
+		t.Fatalf("concurrent approval dashboard = %+v", dashboard)
+	}
+}
+
+func newConcurrentAttendanceLeaveRequest(requestJSON string) (*http.Request, error) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	field, errorValue := writer.CreateFormField("request")
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if _, errorValue = field.Write([]byte(requestJSON)); errorValue != nil {
+		return nil, errorValue
+	}
+	if errorValue = writer.Close(); errorValue != nil {
+		return nil, errorValue
+	}
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/attendance/api/leave-requests",
+		&body,
+	)
+	request.RemoteAddr = "203.0.113.10:1234"
+	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	return request, nil
 }
 
 func attendanceLeaveTypeViewByID(

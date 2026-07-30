@@ -1,6 +1,9 @@
 package admind
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -150,6 +153,10 @@ func (service *Service) attendanceLeavePolicyAdjustment(
 	if delta == 0 {
 		return attendanceLeavePolicyAdjustment{}, false, nil
 	}
+	mutationID, errorValue := attendanceLeavePolicyMutationID(existingPolicy, updatedPolicy)
+	if errorValue != nil {
+		return attendanceLeavePolicyAdjustment{}, false, errorValue
+	}
 	accountID := attendanceLeaveBalanceAccountID(updatedType.ID, updatedType.BalanceMode)
 	if delta < 0 {
 		balance, balanceError := service.readAttendanceLeaveBalance(
@@ -194,7 +201,7 @@ func (service *Service) attendanceLeavePolicyAdjustment(
 		Operation: attendanceLeaveOperation{
 			OperationKey: fmt.Sprintf(
 				"policy-leave-adjustment:%s:%s:%s",
-				strings.TrimSpace(updatedPolicy.UpdatedAt),
+				mutationID,
 				strings.TrimSpace(accountID),
 				normalizeAttendanceLeaveEmail(employee.Email),
 			),
@@ -206,6 +213,25 @@ func (service *Service) attendanceLeavePolicyAdjustment(
 		AmountMilliDays: delta,
 		ExpiresOn:       expiresOn,
 	}, true, nil
+}
+
+func attendanceLeavePolicyMutationID(
+	existing attendanceLeavePolicy,
+	updated attendanceLeavePolicy,
+) (string, error) {
+	updated.UpdatedAt = ""
+	encoded, errorValue := json.Marshal(struct {
+		Existing attendanceLeavePolicy `json:"existing"`
+		Updated  attendanceLeavePolicy `json:"updated"`
+	}{
+		Existing: existing,
+		Updated:  updated,
+	})
+	if errorValue != nil {
+		return "", fmt.Errorf("encode leave policy mutation: %w", errorValue)
+	}
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:12]), nil
 }
 
 func attendanceLeaveCurrentGrantTarget(
