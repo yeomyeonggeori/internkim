@@ -53,6 +53,8 @@
 		attachment: ChannelOutgoingAttachment;
 	};
 
+	// ponytail: 전환 중 메시지 입력 임시 잠금 (되돌리려면 false)
+	const messageInputDisabled = true;
 	let messages = $state<ChannelMessage[]>([]);
 	let currentUserID = $state('');
 	let currentUserEmail = $state('');
@@ -643,10 +645,11 @@
 		<InputGroup.Root>
 			<InputGroup.Textarea
 				bind:value={threadComposer}
-				placeholder={text.threadComposerPlaceholder}
+				placeholder={messageInputDisabled ? text.composerDisabledPlaceholder : text.threadComposerPlaceholder}
 				aria-label={text.threadComposerPlaceholder}
 				rows={1}
 				onkeydown={handleThreadKeydown}
+				disabled={messageInputDisabled}
 			/>
 			<InputGroup.Addon align="block-end" class="pt-1">
 				<InputGroup.Button
@@ -655,6 +658,7 @@
 					size="icon-sm"
 					aria-label={text.addAttachment}
 					onclick={() => threadFileInput?.click()}
+					disabled={messageInputDisabled}
 				>
 					<PlusIcon />
 				</InputGroup.Button>
@@ -663,7 +667,7 @@
 					variant="default"
 					size="icon-sm"
 					class="ms-auto"
-					disabled={(threadComposer.trim().length === 0 && threadPendingAttachments.length === 0) || isThreadSending}
+					disabled={messageInputDisabled || (threadComposer.trim().length === 0 && threadPendingAttachments.length === 0) || isThreadSending}
 				>
 					<ArrowUpIcon />
 					<span class="sr-only">{text.send}</span>
@@ -783,10 +787,11 @@
 		<InputGroup.Root>
 			<InputGroup.Textarea
 				bind:value={composerValue}
-				placeholder={text.composerPlaceholder}
+				placeholder={messageInputDisabled ? text.composerDisabledPlaceholder : text.composerPlaceholder}
 				aria-label={text.composerPlaceholder}
 				rows={2}
 				onkeydown={handleComposerKeydown}
+				disabled={messageInputDisabled}
 			/>
 			<InputGroup.Addon align="block-end" class="pt-1">
 				<InputGroup.Button
@@ -795,6 +800,7 @@
 					size="icon-sm"
 					aria-label={text.addAttachment}
 					onclick={() => fileInput?.click()}
+					disabled={messageInputDisabled}
 				>
 					<PlusIcon />
 				</InputGroup.Button>
@@ -803,7 +809,7 @@
 					variant="default"
 					size="icon-sm"
 					class="ms-auto"
-					disabled={(composerValue.trim().length === 0 && pendingAttachments.length === 0) || isSending}
+					disabled={messageInputDisabled || (composerValue.trim().length === 0 && pendingAttachments.length === 0) || isSending}
 				>
 					<ArrowUpIcon />
 					<span class="sr-only">{text.send}</span>
