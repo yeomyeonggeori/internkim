@@ -135,7 +135,7 @@
 	}
 </script>
 
-<Card.Root class={compact ? 'gap-2' : undefined}>
+<Card.Root class={compact ? 'gap-2' : undefined} aria-label={title}>
 	<Card.Header class={compact ? 'flex flex-col gap-2 space-y-0 pb-0' : 'flex flex-row items-center justify-between space-y-0'}>
 		<Card.Title class="flex items-center gap-1.5 text-sm">
 			<ClockIcon class="size-3.5 text-muted-foreground" />
