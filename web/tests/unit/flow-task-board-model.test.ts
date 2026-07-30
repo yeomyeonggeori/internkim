@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { BOARD_STATUS_VALUES, buildFlowTaskBoard } from '../../src/routes/flow/flow-task-board-model';
+import { BOARD_STATUS_VALUES, buildFlowTaskBoard, isOverdueFlowPlan } from '../../src/routes/flow/flow-task-board-model';
 import type { FlowTask } from '../../src/routes/flow/flow-types';
 
 describe('flow task board model', () => {
@@ -92,6 +92,13 @@ describe('flow task board model', () => {
 			'requested',
 			'in-progress'
 		]);
+	});
+
+	test('marks a plan as overdue only when its date falls before the selected week', () => {
+		expect(isOverdueFlowPlan(flowTask({ status: '예정', startDate: '2026-05-18', endDate: '2026-05-22' }), '2026-06-01')).toBe(true);
+		expect(isOverdueFlowPlan(flowTask({ status: '예정', startDate: '2026-05-18', endDate: '' }), '2026-06-01')).toBe(true);
+		expect(isOverdueFlowPlan(flowTask({ status: '예정', startDate: '2026-06-02', endDate: '2026-06-05' }), '2026-06-01')).toBe(false);
+		expect(isOverdueFlowPlan(flowTask({ status: '진행', startDate: '2026-05-18', endDate: '2026-05-22' }), '2026-06-01')).toBe(false);
 	});
 
 	test('limits only the completed column to tasks completed in the selected week', () => {

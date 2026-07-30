@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
+	import { cn } from '$lib/utils';
 	import * as Card from '$lib/components/ui/card';
 	import { personProfileImagePath } from '$lib/person-profile-image';
 	import { buildFlowTaskBoardCardDisplay } from './flow-task-board-card-model';
@@ -24,6 +25,7 @@
 		ownerChip?: Snippet;
 		isInteractive?: boolean;
 		memberEmail?: (memberID: string) => string;
+		isOverduePlan?: boolean;
 	};
 
 	let {
@@ -39,7 +41,8 @@
 		onTaskDrop,
 		ownerChip,
 		isInteractive = true,
-		memberEmail = () => ''
+		memberEmail = () => '',
+		isOverduePlan = false
 	}: Props = $props();
 
 	let canDrag = $derived(isInteractive && isDraggable && !isPending && !isReadOnly);
@@ -159,7 +162,13 @@
 					<Badge variant="outline" class="h-5 max-w-24 rounded-md border-border/70 bg-muted/30 px-1.5 py-0 text-[11px] font-normal text-muted-foreground shadow-none">{label}</Badge>
 				{/each}
 				{#if task.startDate || task.endDate}
-					<Badge variant="secondary" class="h-5 max-w-full rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">
+					<Badge
+						variant={isOverduePlan ? 'destructive' : 'secondary'}
+						class={cn(
+							'h-5 max-w-full rounded-md px-1.5 py-0 text-[11px] font-medium shadow-none',
+							!isOverduePlan && 'bg-muted text-foreground/75'
+						)}
+					>
 						<FlowTaskDateRange startDate={task.startDate} endDate={task.endDate} />
 					</Badge>
 				{/if}
