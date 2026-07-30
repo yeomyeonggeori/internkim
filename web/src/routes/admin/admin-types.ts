@@ -171,7 +171,7 @@ export type AttendanceLocationsResponse = {
 };
 
 export type LeaveBalanceMode = 'annual' | 'separate' | 'none';
-export type LeaveGrantCadence = 'statutory' | 'annual' | 'monthly' | 'manual' | 'none';
+export type LeaveGrantCadence = 'annual' | 'monthly' | 'none';
 export type LeaveExpiryMode = 'fiscalYearEnd' | 'monthsAfterGrant' | 'none';
 export type LeaveAllowedUnit = 'fullDay' | 'halfDay' | 'quarterDay';
 
@@ -188,13 +188,14 @@ export type LeaveType = {
 	carryoverEnabled: boolean;
 	carryoverLimitMilliDays?: number;
 	allowedUnits: LeaveAllowedUnit[];
+	includeInSummary: boolean;
 	isActive: boolean;
 	isSystem: boolean;
 	sortOrder: number;
 };
 
 export type AttendanceLeavePolicy = {
-	version: 1;
+	version: 2;
 	fiscalYearStartMonth: number;
 	fiscalYearStartDay: number;
 	leaveTypes: LeaveType[];

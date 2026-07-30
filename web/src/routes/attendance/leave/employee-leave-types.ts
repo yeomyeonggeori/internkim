@@ -31,6 +31,8 @@ export type EmployeeLeaveType = {
 	name: string;
 	balanceMode: EmployeeLeaveBalanceMode;
 	allowedUnits: EmployeeLeaveUnit[];
+	includeInSummary: boolean;
+	balance?: EmployeeLeaveSummary;
 	isActive: boolean;
 	requiresHireDate: boolean;
 };

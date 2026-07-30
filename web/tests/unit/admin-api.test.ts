@@ -83,14 +83,14 @@ describe('apiErrorMessage', () => {
 
 describe('attendance leave policy API', () => {
 	test('uses the attendance leave policy GET endpoint', async () => {
-		const policy = { version: 1, fiscalYearStartMonth: 1, fiscalYearStartDay: 1, leaveTypes: [], updatedAt: '' };
+		const policy = { version: 2, fiscalYearStartMonth: 1, fiscalYearStartDay: 1, leaveTypes: [], updatedAt: '' };
 		globalThis.fetch = (async (input) => { expect(input).toBe('/admin/api/attendance-leave-policy'); return new Response(JSON.stringify(policy)); }) as typeof fetch;
 		expect(await fetchAttendanceLeavePolicy('/admin/api', 'load failed')).toEqual(policy);
 		restoreGlobals();
 	});
 
 	test('sends the complete policy to the attendance leave policy PUT endpoint', async () => {
-		const policy = { version: 1 as const, fiscalYearStartMonth: 1, fiscalYearStartDay: 1, leaveTypes: [], updatedAt: '' };
+		const policy = { version: 2 as const, fiscalYearStartMonth: 1, fiscalYearStartDay: 1, leaveTypes: [], updatedAt: '' };
 		globalThis.fetch = (async (input, init) => { expect(input).toBe('/admin/api/attendance-leave-policy'); expect(init?.method).toBe('PUT'); expect(init?.body).toBe(JSON.stringify(policy)); return new Response(JSON.stringify(policy)); }) as typeof fetch;
 		expect(await updateAttendanceLeavePolicy('/admin/api', policy, 'save failed')).toEqual(policy);
 		restoreGlobals();

@@ -13,7 +13,7 @@ describe('development employee leave mock', () => {
 		expect(state.payload.summary).toEqual({
 			usedMilliDays: 1000,
 			reservedMilliDays: 500,
-			availableMilliDays: 13500
+			availableMilliDays: 15500
 		});
 		expect(state.payload.requests.map((request) => request.status)).toEqual([
 			'pending',
@@ -158,6 +158,57 @@ describe('development employee leave mock', () => {
 				.filter((entry) => entry.operationKey.includes(createdRequest.id))
 				.every((entry) => entry.requestID === undefined)
 		).toBe(true);
+	});
+
+	test('updates each leave balance without adding excluded accounts to the summary', () => {
+		const state = createDevEmployeeLeaveMockState();
+		const initialSummary = structuredClone(state.payload.summary);
+		const rewardBalance = state.payload.leaveTypes.find(
+			(leaveType) => leaveType.id === 'reward'
+		)?.balance;
+		const familyEventBalance = state.payload.leaveTypes.find(
+			(leaveType) => leaveType.id === 'family-event'
+		)?.balance;
+
+		for (const [leaveTypeID, startDate] of [
+			['reward', '2026-08-18'],
+			['family-event', '2026-08-19']
+		]) {
+			const multipart = multipartRequest({
+				request: {
+					leaveTypeID,
+					unit: 'fullDay',
+					startDate,
+					endDate: startDate,
+					reason: ''
+				},
+				fileName: `${leaveTypeID}.pdf`,
+				fileContent: leaveTypeID
+			});
+			const response = createDevEmployeeLeaveMockResponse(state, {
+				method: 'POST',
+				pathname: '/attendance/api/leave-requests',
+				body: multipart.body,
+				contentType: multipart.contentType
+			});
+			expect(response?.status).toBe(200);
+		}
+
+		expect(rewardBalance).toEqual({
+			usedMilliDays: 0,
+			reservedMilliDays: 1000,
+			availableMilliDays: 1000
+		});
+		expect(familyEventBalance).toEqual({
+			usedMilliDays: 0,
+			reservedMilliDays: 1000,
+			availableMilliDays: 2000
+		});
+		expect(state.payload.summary).toEqual({
+			usedMilliDays: initialSummary.usedMilliDays,
+			reservedMilliDays: initialSummary.reservedMilliDays + 1000,
+			availableMilliDays: initialSummary.availableMilliDays - 1000
+		});
 	});
 
 	test('resubmits only a request in the changes-requested state', () => {

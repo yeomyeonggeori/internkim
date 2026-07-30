@@ -5,6 +5,7 @@
 	import type { EmployeeLeaveRequest } from './employee-leave-types';
 	import LeaveHistory from './leave-history.svelte';
 	import LeaveRequestDialog from './leave-request-dialog.svelte';
+	import LeaveTypeBalances from './leave-type-balances.svelte';
 
 	const text = createPageText(attendanceText);
 	let requestToEdit = $state<EmployeeLeaveRequest | undefined>();
@@ -17,6 +18,7 @@
 	</div>
 	<Card.Root class="gap-0">
 		<Card.Content class="px-0">
+			<LeaveTypeBalances />
 			<LeaveHistory
 				text={text.leave}
 				onEdit={(request) => (requestToEdit = request)}
