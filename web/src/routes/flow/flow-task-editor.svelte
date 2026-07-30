@@ -26,6 +26,9 @@
 		pageTitle: string;
 		text: FlowTaskEditorText;
 		statusLabel: (status: string) => string;
+		businessColor: (business: string) => string;
+		taskTypeColor: (type: string) => string;
+		memberEmail: (memberID: string) => string;
 		setTaskOwnerID: (memberID: string) => void;
 		setParticipantNames: (names: string[]) => void;
 		removeParticipantID: (memberID: string) => void;
@@ -54,6 +57,9 @@
 		pageTitle,
 		text,
 		statusLabel,
+		businessColor,
+		taskTypeColor,
+		memberEmail,
 		setTaskOwnerID,
 		setParticipantNames,
 		removeParticipantID,
@@ -99,7 +105,7 @@
 		{#if taskDraft}
 			{#if !isEditingTask}
 				<div class="space-y-4 px-4 pb-6">
-					<FlowTaskDetailView task={taskDraft} {text} {statusLabel} />
+					<FlowTaskDetailView task={taskDraft} {text} {statusLabel} {businessColor} {taskTypeColor} {memberEmail} />
 					<Sheet.Footer>
 						{#if canEditTask}
 							<Button class="gap-2" onclick={startEditingTask}>
@@ -113,7 +119,7 @@
 				</div>
 			{:else}
 				<div class="space-y-4 px-4 pb-6">
-						<FlowTaskEditorSummary {taskDraft} {text} {statusLabel} />
+						<FlowTaskEditorSummary {taskDraft} {text} {statusLabel} {businessColor} {taskTypeColor} />
 					<FlowTaskEditorFields
 						bind:taskDraft
 						{members}

@@ -28,6 +28,15 @@ export const devFlowSizes: FlowSizeDefinition[] = [
 	sizeDefinition('XXL', 13, 128, '마일스톤', '파트너십 설계 / 계약 구조 설계 / 서비스 기획 / 정책 개편', '반드시 하위 항목으로 쪼갤 것')
 ];
 
+export const devFlowSizesEnglish: FlowSizeDefinition[] = [
+	englishSizeDefinition('XS', 1, 1, 'Trivial change', 'Call / 10 minute meeting / handoff / tidy-up / scheduling', 'Done in a moment'),
+	englishSizeDefinition('S', 2, 2, 'Low risk change with a narrow blast radius', 'Half hour meeting / short draft / customer or partner reply / briefing', 'Several fit in a day'),
+	englishSizeDefinition('M', 3, 8, 'Small feature / change with real impact', 'Report / meeting under two hours / external meeting / cross-team alignment / document', 'Takes a dedicated day'),
+	englishSizeDefinition('L', 5, 16, 'Mid-size feature / change touching many areas', 'Important external meeting / mid-size research / proposal draft / policy change', 'Takes about two days'),
+	englishSizeDefinition('XL', 8, 32, 'Large feature / complex change / external integration', 'Restructuring / negotiation / long meeting / workshop', 'Takes about a week'),
+	englishSizeDefinition('XXL', 13, 128, 'Milestone', 'Partnership design / contract structure / service planning / policy overhaul', 'Must be split into smaller items')
+];
+
 export const devFlowMembers: FlowMember[] = [
 	member('kim-intern', '김철수', 'kim@example.com', 'admin', '2026-03-02'),
 	member('designer', '이영희', 'designer@example.com', 'member', '2026-03-09'),
@@ -64,6 +73,13 @@ export const devFlowFutureTaskSpecs: DevFlowTaskSpec[] = [
 	taskSpec('release-review', 'writer', ['writer'], '여명거리', '문서', '릴리즈 문구 검수', '변경 내용을 팀이 같은 표현으로 안내한다.', 'M', '완료', 4, 4),
 	taskSpec('support-cleanup', 'support', ['support', 'operator'], '김인턴', '운영', '운영 문의 정리', '반복 문의와 답변 기준을 정리한다.', 'S', '완료', 5, 5)
 ];
+
+function englishSizeDefinition(name: string, distanceKm: number, maxHours: number, developmentExample: string, otherExample: string, note: string): FlowSizeDefinition {
+	return {
+		...sizeDefinition(name, distanceKm, maxHours, developmentExample, otherExample, note),
+		label: `${distanceKm}km · max ${maxHours}h`
+	};
+}
 
 function sizeDefinition(name: string, distanceKm: number, maxHours: number, developmentExample: string, otherExample: string, note: string): FlowSizeDefinition {
 	return {

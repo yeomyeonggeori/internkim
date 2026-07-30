@@ -83,7 +83,7 @@ export function createDevFlowMockState(userEmail: string): DevFlowMockState {
 	return {
 		userEmail,
 		locale: 'ko',
-		flowState: createDevFlowState(userEmail),
+		flowState: createDevFlowState(userEmail, 'ko'),
 		nextTaskID: 1
 	};
 }
@@ -155,13 +155,14 @@ export async function createDevFlowMockResponse(
 	}
 	if (request.method === 'PUT' && request.pathname === '/admin/api/locale') {
 		state.locale = localeFromBody(request.body);
+		state.flowState.definitions.sizes = createDevFlowState(state.userEmail, state.locale).definitions.sizes;
 		return { status: 200, body: { locale: state.locale } };
 	}
 	return undefined;
 }
 
 function resetDevFlowMockState(state: DevFlowMockState): void {
-	state.flowState = createDevFlowState(state.userEmail);
+	state.flowState = createDevFlowState(state.userEmail, state.locale);
 	state.nextTaskID = 1;
 }
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { personProfileImagePath } from '$lib/person-profile-image';
 	import FlowTaskEditorSummary from './flow-task-editor-summary.svelte';
 	import FlowTaskPersonChip from './flow-task-person-chip.svelte';
 	import type { FlowTaskEditorText } from './flow-task-editor-types';
@@ -8,15 +9,18 @@
 		task: FlowTask;
 		text: FlowTaskEditorText;
 		statusLabel: (status: string) => string;
+		businessColor: (business: string) => string;
+		taskTypeColor: (type: string) => string;
+		memberEmail: (memberID: string) => string;
 	};
 
-	let { task, text, statusLabel }: Props = $props();
+	let { task, text, statusLabel, businessColor, taskTypeColor, memberEmail }: Props = $props();
 
 	const dateRange = $derived([task.startDate, task.endDate].filter(Boolean).join(' — '));
 </script>
 
 <div class="space-y-4">
-	<FlowTaskEditorSummary taskDraft={task} {text} {statusLabel} />
+	<FlowTaskEditorSummary taskDraft={task} {text} {statusLabel} {businessColor} {taskTypeColor} />
 
 	<div>
 		<p class="text-xs text-muted-foreground">{text.content}</p>
@@ -34,7 +38,7 @@
 		<div>
 			<p class="text-xs text-muted-foreground">{text.owner}</p>
 			<div class="mt-1 flex flex-wrap gap-1">
-				<FlowTaskPersonChip name={task.ownerName} seed={task.ownerID} />
+				<FlowTaskPersonChip name={task.ownerName} email={memberEmail(task.ownerID)} seed={task.ownerID} image={personProfileImagePath(task.ownerID)} />
 			</div>
 		</div>
 		{#if task.participantNames.length}
@@ -42,7 +46,12 @@
 				<p class="text-xs text-muted-foreground">{text.participants}</p>
 				<div class="mt-1 flex flex-wrap gap-1">
 					{#each task.participantNames as participantName, index (participantName)}
-						<FlowTaskPersonChip name={participantName} seed={task.participantIDs[index] ?? participantName} />
+						<FlowTaskPersonChip
+								name={participantName}
+								email={memberEmail(task.participantIDs[index] ?? '')}
+								seed={task.participantIDs[index] ?? participantName}
+								image={personProfileImagePath(task.participantIDs[index])}
+							/>
 					{/each}
 				</div>
 			</div>
