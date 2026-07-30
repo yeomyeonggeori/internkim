@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 type flowTaskQueryer interface {
@@ -16,7 +17,7 @@ func (service *Service) readFlowTasks(ctx context.Context, weekCode string, memb
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 WHERE week_code = ?
 ORDER BY status = '요청' DESC, owner_name, updated_at DESC`, weekCode)
@@ -42,7 +43,7 @@ func (service *Service) readAllFlowTasks(ctx context.Context, members []flowMemb
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 ORDER BY status = '요청' DESC, week_code DESC, owner_name, updated_at DESC`)
 	if errorValue != nil {
@@ -67,7 +68,7 @@ func (service *Service) readFlowTasksBetweenDates(ctx context.Context, startDate
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 WHERE (start_date >= ? AND start_date <= ?) OR (end_date >= ? AND end_date <= ?)
 ORDER BY start_date, owner_name, updated_at DESC`, startDate, endDate, startDate, endDate)
@@ -95,13 +96,41 @@ func (service *Service) readFlowTaskByID(ctx context.Context, taskID string) (fl
 	return readFlowTaskByIDWithQueryer(ctx, database, taskID)
 }
 
+func (service *Service) readFlowTaskByCalendarEventID(ctx context.Context, eventID string) (flowTask, bool, error) {
+	trimmedEventID := strings.TrimSpace(eventID)
+	if trimmedEventID == "" {
+		return flowTask{}, false, nil
+	}
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return flowTask{}, false, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
+FROM flow_tasks
+WHERE calendar_event_id = ?`, trimmedEventID)
+	if errorValue != nil {
+		return flowTask{}, false, errorValue
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return flowTask{}, false, rows.Err()
+	}
+	task, errorValue := scanFlowTask(rows)
+	if errorValue != nil {
+		return flowTask{}, false, errorValue
+	}
+	return task, true, rows.Err()
+}
+
 func readFlowTaskByIDInTransaction(ctx context.Context, transaction *sql.Tx, taskID string) (flowTask, bool, error) {
 	return readFlowTaskByIDWithQueryer(ctx, transaction, taskID)
 }
 
 func readFlowTaskByIDWithQueryer(ctx context.Context, queryer flowTaskQueryer, taskID string) (flowTask, bool, error) {
 	rows, errorValue := queryer.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 WHERE id = ?`, taskID)
 	if errorValue != nil {
@@ -125,7 +154,7 @@ func (service *Service) readFlowTasksWithMattermostPosts(ctx context.Context) ([
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-	SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at
+	SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
 	FROM flow_tasks
 	WHERE mattermost_post_id != '' OR status IN (?, ?, ?, ?) OR id IN (SELECT task_id FROM flow_channel_outbox)
 	ORDER BY updated_at DESC`,

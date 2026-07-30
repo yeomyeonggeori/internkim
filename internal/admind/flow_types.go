@@ -74,6 +74,7 @@ type flowTask struct {
 	RequestReason      string   `json:"requestReason,omitempty"`
 	DecisionReason     string   `json:"decisionReason,omitempty"`
 	MattermostPostID   string   `json:"mattermostPostID,omitempty"`
+	CalendarEventID    string   `json:"calendarEventID,omitempty"`
 	CreatedAt          string   `json:"createdAt,omitempty"`
 }
 
@@ -135,22 +136,27 @@ type flowSizeDefinition struct {
 }
 
 type flowTaskWriteRequest struct {
-	OwnerID        string   `json:"ownerID"`
-	ParticipantIDs []string `json:"participantIDs"`
-	Business       string   `json:"business"`
-	Category       string   `json:"category"`
-	Type           string   `json:"type"`
-	Content        string   `json:"content"`
-	Goal           string   `json:"goal"`
-	Size           string   `json:"size"`
-	Status         string   `json:"status"`
-	StatusRank     *int     `json:"statusRank"`
-	StartDate      string   `json:"startDate"`
-	EndDate        string   `json:"endDate"`
-	WeekCode       string   `json:"weekCode"`
-	Flag           int      `json:"flag"`
-	RequestReason  string   `json:"requestReason"`
-	DecisionReason string   `json:"decisionReason"`
+	OwnerID         string   `json:"ownerID"`
+	ParticipantIDs  []string `json:"participantIDs"`
+	Business        string   `json:"business"`
+	Category        string   `json:"category"`
+	Type            string   `json:"type"`
+	Content         string   `json:"content"`
+	Goal            string   `json:"goal"`
+	Size            string   `json:"size"`
+	Status          string   `json:"status"`
+	StatusRank      *int     `json:"statusRank"`
+	StartDate       string   `json:"startDate"`
+	EndDate         string   `json:"endDate"`
+	WeekCode        string   `json:"weekCode"`
+	Flag            int      `json:"flag"`
+	RequestReason   string   `json:"requestReason"`
+	DecisionReason  string   `json:"decisionReason"`
+	IsCalendarEvent bool     `json:"isCalendarEvent"`
+	EventStartISO   string   `json:"eventStartISO"`
+	EventEndISO     string   `json:"eventEndISO"`
+	EventLocation   string   `json:"eventLocation"`
+	EventAllDay     bool     `json:"eventAllDay"`
 }
 
 type flowTaskBoardMoveRequest struct {

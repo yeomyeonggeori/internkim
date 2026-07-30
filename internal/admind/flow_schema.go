@@ -68,6 +68,12 @@ CREATE TABLE IF NOT EXISTS flow_size_definitions (
 	if errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureFlowColumn(ctx, database, "flow_tasks", "calendar_event_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS flow_tasks_calendar_event_id ON flow_tasks(calendar_event_id)"); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := ensureFlowColumn(ctx, database, "flow_definitions", "color", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}

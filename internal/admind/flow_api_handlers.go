@@ -167,12 +167,15 @@ func (service *Service) createFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	task, errorValue := service.flowTaskFromRequest(request, members, definitions, "")
+	task, payload, errorValue := service.flowTaskAndPayloadFromRequest(request, members, definitions, "")
 	if errorValue != nil {
 		writeFlowRequestError(responseWriter, errorValue)
 		return
 	}
 	task.Business = firstNonEmpty(task.Business, defaultFlowTaskBusiness(definitions))
+	if payload.IsCalendarEvent {
+		task.CalendarEventID = service.createPairedCalendarEventForFlowTask(request, task, payload)
+	}
 	task, errorValue = service.writeFlowTaskAtStatusEnd(request.Context(), task)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -316,6 +319,7 @@ func (service *Service) deleteFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	service.deletePairedCalendarEventForFlowTask(request.Context(), task)
 	service.writeJSON(responseWriter, map[string]any{
 		"status": "deleted",
 		"task":   task,
