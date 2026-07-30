@@ -112,7 +112,7 @@ func (service *Service) writeAgentConversation(responseWriter http.ResponseWrite
 		return
 	}
 	var history chatdHistoryResponse
-	historyRequest := map[string]any{"historyCursor": channel.HistoryCursor, "limit": 100}
+	historyRequest := map[string]any{"historyCursor": channel.HistoryCursor, "limit": 2000}
 	if errorValue := service.chatdPlatformRequest(request.Context(), "history.fetch", historyRequest, &history); errorValue != nil {
 		service.writeAgentDirectMessageError(responseWriter, errorValue)
 		return
