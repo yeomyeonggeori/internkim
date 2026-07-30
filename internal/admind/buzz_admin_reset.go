@@ -94,7 +94,7 @@ func buzzKeyForVersion(seed string, email string, version int) string {
 }
 
 func (service *Service) reattributeBuzzMessages(ctx context.Context, oldSecretHex string, newSecretHex string) (int, error) {
-	relayURL := strings.TrimSpace(service.Configuration.BuzzRelayURL)
+	relayURL := service.buzzRelayEffectiveURL()
 	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
 	communityID := strings.TrimSpace(service.Configuration.BuzzCommunityID)
 	if relayURL == "" || databaseURL == "" || communityID == "" {

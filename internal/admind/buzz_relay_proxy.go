@@ -5,6 +5,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 const relayProxyPrefix = "/relay"
@@ -14,6 +16,28 @@ func (service *Service) relayLoopbackHost() string {
 	relayURL = strings.TrimPrefix(relayURL, "wss://")
 	relayURL = strings.TrimPrefix(relayURL, "ws://")
 	return strings.TrimSuffix(relayURL, "/")
+}
+
+func (service *Service) buzzRelayPublicURL() string {
+	if configured := strings.TrimSpace(service.Configuration.BuzzRelayPublicURL); configured != "" {
+		return configured
+	}
+	deviceURL := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceURLPath))
+	return blueclaw.DeriveRelayPublicURL(deviceURL)
+}
+
+func (service *Service) buzzRelayPublicHost() string {
+	publicURL := service.buzzRelayPublicURL()
+	publicURL = strings.TrimPrefix(publicURL, "wss://")
+	publicURL = strings.TrimPrefix(publicURL, "ws://")
+	return strings.TrimSuffix(publicURL, "/")
+}
+
+func (service *Service) buzzRelayEffectiveURL() string {
+	if publicURL := service.buzzRelayPublicURL(); publicURL != "" {
+		return publicURL
+	}
+	return strings.TrimSpace(service.Configuration.BuzzRelayURL)
 }
 
 // The Buzz relay listens only on the device loopback and keys each community by
@@ -29,6 +53,10 @@ func (service *Service) handleRelayProxy() http.Handler {
 			http.Error(responseWriter, "buzz relay unavailable", http.StatusNotImplemented)
 		})
 	}
+	presentedHost := host
+	if publicHost := service.buzzRelayPublicHost(); publicHost != "" {
+		presentedHost = publicHost
+	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	originalDirector := proxy.Director
 	proxy.Director = func(request *http.Request) {
@@ -37,12 +65,15 @@ func (service *Service) handleRelayProxy() http.Handler {
 		if request.URL.Path == "" {
 			request.URL.Path = "/"
 		}
-		request.Host = host
+		request.Host = presentedHost
 	}
 	return proxy
 }
 
 func (service *Service) publicRelayURL(request *http.Request) string {
+	if publicURL := service.buzzRelayPublicURL(); publicURL != "" {
+		return publicURL
+	}
 	host := strings.TrimSpace(request.Host)
 	if host == "" {
 		return strings.TrimSpace(service.Configuration.BuzzRelayURL)

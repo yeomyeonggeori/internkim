@@ -209,7 +209,11 @@ WantedBy=multi-user.target
 `, AdmindBinaryPath, BuzzRelayLocalURL, BuzzRelayDatabaseEnvironmentFilePath, BuzzAdminBinaryPath, "/root/.internkim/secrets/buzz-key-seed", BuzzRelayKeyEnvironmentFilePath, BuzzAccountLinksPath, ChatdEndpoint)
 }
 
-func BuzzRelayServiceUnit() string {
+func BuzzRelayServiceUnit(relayPublicURL string) string {
+	relayURL := relayPublicURL
+	if relayURL == "" {
+		relayURL = BuzzRelayLocalURL
+	}
 	return fmt.Sprintf(`[Unit]
 Description=Buzz Relay
 After=network-online.target time-sync.target postgresql.service redis-server.service
@@ -239,14 +243,18 @@ TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
-`, BuzzRelayKeyEnvironmentFilePath, BuzzRelayDatabaseEnvironmentFilePath, BuzzRelayS3EnvironmentFilePath, BuzzRelayBindAddress, BuzzRelayHealthPort, BuzzRelayRedisURL, BuzzRelayLocalURL, BuzzRelayImportOverrideEnvPath, BuzzRelayBinaryPath)
+`, BuzzRelayKeyEnvironmentFilePath, BuzzRelayDatabaseEnvironmentFilePath, BuzzRelayS3EnvironmentFilePath, BuzzRelayBindAddress, BuzzRelayHealthPort, BuzzRelayRedisURL, relayURL, BuzzRelayImportOverrideEnvPath, BuzzRelayBinaryPath)
 }
 
 func BuzzRelayHealthCheckCommand() string {
 	return "curl --max-time 5 -fsS http://" + BuzzRelayBindAddress + "/_readiness >/dev/null && echo ok || echo no"
 }
 
-func ChatdServiceUnit() string {
+func ChatdServiceUnit(relayPublicURL string) string {
+	relayURL := relayPublicURL
+	if relayURL == "" {
+		relayURL = "ws://" + BuzzRelayBindAddress
+	}
 	return fmt.Sprintf(`[Unit]
 Description=Buzz chatd bridge
 After=network-online.target buzz-relay.service internkim-admind.service
@@ -256,7 +264,8 @@ Wants=network-online.target
 User=root
 EnvironmentFile=%s
 Environment=CHATD_BOT_USER_NAME=%s
-Environment=CHATD_BUZZ_RELAY_URL=ws://%s
+Environment=CHATD_BUZZ_RELAY_URL=%s
+Environment=NODE_EXTRA_CA_CERTS=%s
 Environment=CHATD_BUZZ_ACCOUNT_LINKS_PATH=%s
 Environment=CHATD_LISTEN_PORT=%s
 Environment=CHATD_ADMIND_BASE_URL=%s
@@ -266,7 +275,7 @@ RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
-`, ChatdEnvironmentFilePath, ChatdBotUserName, BuzzRelayBindAddress, BuzzAccountLinksPath, ChatdListenPort, AdmindBaseURL, ChatdBinaryPath)
+`, ChatdEnvironmentFilePath, ChatdBotUserName, relayURL, BuzzRelayCertificatePath, BuzzAccountLinksPath, ChatdListenPort, AdmindBaseURL, ChatdBinaryPath)
 }
 
 func ChatdHealthCheckCommand() string {

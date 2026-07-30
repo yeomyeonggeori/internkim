@@ -6,8 +6,9 @@ import (
 )
 
 func TestBuzzRelayServiceUnitCarriesRequiredContract(t *testing.T) {
-	unit := BuzzRelayServiceUnit()
+	unit := BuzzRelayServiceUnit("")
 	for _, expected := range []string{
+		"Environment=RELAY_URL=" + BuzzRelayLocalURL,
 		"After=network-online.target time-sync.target postgresql.service redis-server.service",
 		"BindsTo=postgresql.service",
 		"EnvironmentFile=" + BuzzRelayKeyEnvironmentFilePath,
@@ -30,6 +31,33 @@ func TestBuzzRelayServiceUnitCarriesRequiredContract(t *testing.T) {
 	overrideIndex := strings.Index(unit, "EnvironmentFile=-"+BuzzRelayImportOverrideEnvPath)
 	if overrideIndex < membershipIndex {
 		t.Fatalf("import override must load after the membership default so it can win, got membership@%d override@%d", membershipIndex, overrideIndex)
+	}
+}
+
+func TestBuzzRelayServiceUnitUsesPublicRelayURL(t *testing.T) {
+	unit := BuzzRelayServiceUnit("wss://zd2df6qt6jmc-relay.intern.kim")
+	if !strings.Contains(unit, "Environment=RELAY_URL=wss://zd2df6qt6jmc-relay.intern.kim") {
+		t.Fatalf("relay unit missing public RELAY_URL, got:\n%s", unit)
+	}
+	if strings.Contains(unit, "Environment=RELAY_URL="+BuzzRelayLocalURL) {
+		t.Fatalf("relay unit must not fall back to loopback when a public URL is supplied, got:\n%s", unit)
+	}
+	if !strings.Contains(unit, "Environment=BUZZ_BIND_ADDR="+BuzzRelayBindAddress) {
+		t.Fatalf("relay unit must keep binding loopback, got:\n%s", unit)
+	}
+}
+
+func TestChatdServiceUnitRelayURLAndCACerts(t *testing.T) {
+	loopback := ChatdServiceUnit("")
+	if !strings.Contains(loopback, "Environment=CHATD_BUZZ_RELAY_URL=ws://"+BuzzRelayBindAddress) {
+		t.Fatalf("chatd unit missing loopback relay URL fallback, got:\n%s", loopback)
+	}
+	if !strings.Contains(loopback, "Environment=NODE_EXTRA_CA_CERTS="+BuzzRelayCertificatePath) {
+		t.Fatalf("chatd unit missing relay CA cert, got:\n%s", loopback)
+	}
+	public := ChatdServiceUnit("wss://zd2df6qt6jmc-relay.intern.kim")
+	if !strings.Contains(public, "Environment=CHATD_BUZZ_RELAY_URL=wss://zd2df6qt6jmc-relay.intern.kim") {
+		t.Fatalf("chatd unit missing public relay URL, got:\n%s", public)
 	}
 }
 
