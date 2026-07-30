@@ -42,7 +42,7 @@
 	{#if badgeCount > 0}
 		<Badge
 			data-testid="app-rail-nav-badge"
-			class="bg-destructive pointer-events-none absolute -top-1 -right-1 h-4 min-w-4 rounded-full px-1 text-[10px] tabular-nums text-white"
+			class="bg-destructive pointer-events-none absolute top-1/2 right-2 h-4 min-w-4 -translate-y-1/2 rounded-full px-1 text-[10px] tabular-nums text-white group-data-[collapsible=icon]:top-0 group-data-[collapsible=icon]:right-0 group-data-[collapsible=icon]:translate-x-1 group-data-[collapsible=icon]:-translate-y-1"
 		>
 			{badgeCount}
 		</Badge>
