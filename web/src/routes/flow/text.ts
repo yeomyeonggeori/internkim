@@ -87,6 +87,7 @@ export const flowText = {
 			note: '비고',
 			business: '사업',
 			type: '종류',
+			color: '색상',
 			businessDescription: '사업은 업무가 속한 단위입니다. 값이 하나 이하이면 업무 추가 화면에서 숨깁니다.',
 			typeDescription: '업무 종류는 모든 업무에 필요합니다.',
 			newBusiness: '사업 추가',
@@ -302,6 +303,7 @@ export const flowText = {
 		},
 		definitions: {
 			size: 'Size',
+			color: 'Color',
 			sizeDescription: 'Distance (km) is the task size baseline. Completed work is counted toward distance and score by its end date.',
 			sizeName: 'Size',
 			distance: 'Distance (km)',

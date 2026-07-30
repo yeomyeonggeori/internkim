@@ -1,20 +1,29 @@
 import { matchesKoreanSearch } from '$lib/korean-search';
 import { fetchFlowState } from '../../routes/flow/flow-api';
-import type { FlowTask } from '../../routes/flow/flow-types';
+import { flowBusinessColor, flowTaskTypeColor } from '../../routes/flow/flow-definition-colors';
+import type { FlowDefinitions, FlowTask } from '../../routes/flow/flow-types';
 
 const searchResultLimit = 5;
 
+const emptyDefinitions: FlowDefinitions = { categories: [], types: [], sizes: [] };
+
 class FlowTaskSearch {
 	tasks = $state<FlowTask[]>([]);
+	definitions = $state<FlowDefinitions>(emptyDefinitions);
 
 	load = async () => {
 		try {
 			const state = await fetchFlowState('');
 			this.tasks = state.tasks ?? [];
+			this.definitions = state.definitions ?? emptyDefinitions;
 		} catch {
 			this.tasks = [];
+			this.definitions = emptyDefinitions;
 		}
 	};
+
+	businessColor = (business: string) => flowBusinessColor(business, this.definitions);
+	taskTypeColor = (type: string) => flowTaskTypeColor(type, this.definitions);
 
 	search = (query: string): FlowTask[] => {
 		const normalizedQuery = query.trim().toLowerCase();

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { BOARD_STATUS_VALUES, buildFlowTaskBoard } from '../../src/routes/flow/flow-task-board-model';
+import { BOARD_STATUS_VALUES, buildFlowTaskBoard, isOverdueFlowPlan } from '../../src/routes/flow/flow-task-board-model';
 import type { FlowTask } from '../../src/routes/flow/flow-types';
 
 describe('flow task board model', () => {
@@ -51,6 +51,64 @@ describe('flow task board model', () => {
 		]);
 	});
 
+	test('keeps planned tasks in the week of their end date, or their start date when open ended', () => {
+		const board = buildFlowTaskBoard([
+			flowTask({ id: 'ends-this-week', status: '예정', startDate: '2026-05-25', endDate: '2026-06-03' }),
+			flowTask({ id: 'ends-next-week', status: '예정', startDate: '2026-06-02', endDate: '2026-06-10' }),
+			flowTask({ id: 'starts-this-week-open-ended', status: '예정', startDate: '2026-06-04', endDate: '' })
+		], {
+			weekStartISO: '2026-06-01',
+			weekEndISO: '2026-06-07',
+			weekPosition: 'future'
+		});
+
+		expect(board.find((column) => column.status === '예정')?.tasks.map((task) => task.id)).toEqual([
+			'ends-this-week',
+			'starts-this-week-open-ended'
+		]);
+	});
+
+	test('hides the planned column in past weeks and carries overdue plans into the current week', () => {
+		const overdue = flowTask({ id: 'overdue-plan', status: '예정', startDate: '2026-05-18', endDate: '2026-05-22' });
+		const pastWeek = { weekStartISO: '2026-05-25', weekEndISO: '2026-05-31', weekPosition: 'past' as const };
+		const currentWeek = { weekStartISO: '2026-06-01', weekEndISO: '2026-06-07', weekPosition: 'current' as const };
+
+		expect(buildFlowTaskBoard([overdue], pastWeek).map((column) => column.status)).not.toContain('예정');
+		expect(buildFlowTaskBoard([overdue], currentWeek).find((column) => column.status === '예정')?.tasks.map((task) => task.id)).toEqual([
+			'overdue-plan'
+		]);
+	});
+
+	test('shows requested tasks in every week and in-progress tasks only in the current week', () => {
+		const tasks = [
+			flowTask({ id: 'requested', status: '요청', startDate: '2026-05-04', endDate: '' }),
+			flowTask({ id: 'in-progress', status: '진행', startDate: '2026-05-04', endDate: '' })
+		];
+		const pastWeek = { weekStartISO: '2026-06-01', weekEndISO: '2026-06-07', weekPosition: 'past' as const };
+		const currentWeek = { ...pastWeek, weekPosition: 'current' as const };
+
+		expect(buildFlowTaskBoard(tasks, pastWeek).flatMap((column) => column.tasks.map((task) => task.id))).toEqual(['requested']);
+		expect(buildFlowTaskBoard(tasks, currentWeek).flatMap((column) => column.tasks.map((task) => task.id))).toEqual([
+			'requested',
+			'in-progress'
+		]);
+	});
+
+	test('marks a plan as overdue only when its date falls before the selected week', () => {
+		expect(isOverdueFlowPlan(flowTask({ status: '예정', startDate: '2026-05-18', endDate: '2026-05-22' }), '2026-06-01')).toBe(true);
+		expect(isOverdueFlowPlan(flowTask({ status: '예정', startDate: '2026-05-18', endDate: '' }), '2026-06-01')).toBe(true);
+		expect(isOverdueFlowPlan(flowTask({ status: '예정', startDate: '2026-06-02', endDate: '2026-06-05' }), '2026-06-01')).toBe(false);
+		expect(isOverdueFlowPlan(flowTask({ status: '진행', startDate: '2026-05-18', endDate: '2026-05-22' }), '2026-06-01')).toBe(false);
+	});
+
+	test('hides an empty request column when asked, and keeps it when it has tasks', () => {
+		const empty = buildFlowTaskBoard([], { hideEmptyRequestColumn: true });
+		const filled = buildFlowTaskBoard([flowTask({ id: 'requested', status: '요청' })], { hideEmptyRequestColumn: true });
+
+		expect(empty.map((column) => column.status)).not.toContain('요청');
+		expect(filled.map((column) => column.status)).toContain('요청');
+	});
+
 	test('limits only the completed column to tasks completed in the selected week', () => {
 		const board = buildFlowTaskBoard([
 			flowTask({ id: 'done-this-week', status: '완료', endDate: '2026-06-03' }),
@@ -58,7 +116,8 @@ describe('flow task board model', () => {
 			flowTask({ id: 'progress-last-week', status: '진행', endDate: '2026-05-28' })
 		], {
 			weekStartISO: '2026-06-01',
-			weekEndISO: '2026-06-07'
+			weekEndISO: '2026-06-07',
+			weekPosition: 'current' as const
 		});
 
 		expect(board.find((column) => column.status === '완료')?.tasks.map((task) => task.id)).toEqual(['done-this-week']);

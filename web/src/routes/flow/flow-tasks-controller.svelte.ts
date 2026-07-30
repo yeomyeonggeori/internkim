@@ -3,6 +3,8 @@ import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 import { FlowTaskBoardController } from './flow-task-board-controller.svelte';
 import { FlowTaskEditorController } from './flow-task-editor-controller.svelte';
 import { FlowTaskFiltersController } from './flow-task-filters-controller.svelte';
+import { flowBoardParticipantScope } from './flow-board-participant-scope';
+import { flowBusinessColor, flowTaskTypeColor } from './flow-definition-colors';
 import { updateFlowTaskStatus } from './flow-task-persistence';
 import { FlowTaskQuickCreateController } from './flow-task-quick-create-controller.svelte';
 import type { LoadFlow } from './flow-load-tracker';
@@ -18,6 +20,7 @@ import {
 } from './flow-task-options';
 import {
 	canUpdateFlowTask,
+	currentFlowMember,
 } from './flow-task-workspace-model';
 import { flowText } from './text';
 import type { FlowQuickTaskCreateResult, FlowSummary, FlowTask } from './flow-types';
@@ -118,6 +121,10 @@ class FlowTasksController {
 	typeFilterOptions = () => this.filters.typeOptions(this.summary, this.text);
 	statusSelectOptions = () => statusSelectOptions(this.statusOptions(), this.statusLabel);
 	memberSelectOptions = () => memberSelectOptions(this.members());
+	businessColor = (business: string) => flowBusinessColor(business, this.definitions());
+	taskTypeColor = (type: string) => flowTaskTypeColor(type, this.definitions());
+	participantScope = () => flowBoardParticipantScope(this.filters.participantFilterIDs, currentFlowMember(this.summary)?.id);
+	memberEmail = (memberID: string) => this.members().find((member) => member.id === memberID)?.email ?? '';
 
 	filteredTasks = () => this.filters.tasks(this.tasks());
 

@@ -4,11 +4,13 @@
 
 	let {
 		name,
+		email = '',
 		seed,
 		image = '',
 		class: className
 	}: {
 		name: string;
+		email?: string;
 		seed: string;
 		image?: string;
 		class?: string;
@@ -16,6 +18,6 @@
 </script>
 
 <span class={cn('inline-flex min-w-0 max-w-28 items-center gap-1.5', className)}>
-	<PersonAvatar {name} {seed} {image} class="size-4 ring-1 ring-border/70" />
+	<PersonAvatar {name} {email} {seed} {image} class="size-4 ring-1 ring-border/70" />
 	<span class="truncate">{name}</span>
 </span>

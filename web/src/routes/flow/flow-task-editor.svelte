@@ -26,6 +26,9 @@
 		pageTitle: string;
 		text: FlowTaskEditorText;
 		statusLabel: (status: string) => string;
+		businessColor: (business: string) => string;
+		taskTypeColor: (type: string) => string;
+		memberEmail: (memberID: string) => string;
 		setTaskOwnerID: (memberID: string) => void;
 		setParticipantNames: (names: string[]) => void;
 		removeParticipantID: (memberID: string) => void;
@@ -54,6 +57,9 @@
 		pageTitle,
 		text,
 		statusLabel,
+		businessColor,
+		taskTypeColor,
+		memberEmail,
 		setTaskOwnerID,
 		setParticipantNames,
 		removeParticipantID,
@@ -91,29 +97,29 @@
 <Sheet.Root open={taskDraft !== null} onOpenChange={(open) => {
 	if (!open) closeEditor();
 }}>
-	<Sheet.Content class="w-full overflow-y-auto sm:max-w-xl">
+	<Sheet.Content class="w-full gap-0 sm:max-w-xl">
 		<Sheet.Header>
 			<Sheet.Title>{sheetTitle()}</Sheet.Title>
 			<Sheet.Description>{taskDraft?.weekCode} · {pageTitle}</Sheet.Description>
 		</Sheet.Header>
 		{#if taskDraft}
 			{#if !isEditingTask}
-				<div class="space-y-4 px-4 pb-6">
-					<FlowTaskDetailView task={taskDraft} {text} {statusLabel} />
-					<Sheet.Footer>
-						{#if canEditTask}
-							<Button class="gap-2" onclick={startEditingTask}>
-								<PencilIcon />
-								{text.editTitle}
-							</Button>
-						{:else}
-							<p class="text-sm text-muted-foreground">{text.readOnly}</p>
-						{/if}
-					</Sheet.Footer>
+				<div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+					<FlowTaskDetailView task={taskDraft} {text} {statusLabel} {businessColor} {taskTypeColor} {memberEmail} />
 				</div>
+				<Sheet.Footer class="border-t">
+					{#if canEditTask}
+						<Button class="gap-2" onclick={startEditingTask}>
+							<PencilIcon />
+							{text.editTitle}
+						</Button>
+					{:else}
+						<p class="text-muted-foreground text-sm">{text.readOnly}</p>
+					{/if}
+				</Sheet.Footer>
 			{:else}
-				<div class="space-y-4 px-4 pb-6">
-						<FlowTaskEditorSummary {taskDraft} {text} {statusLabel} />
+				<div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+					<FlowTaskEditorSummary {taskDraft} {text} {statusLabel} {businessColor} {taskTypeColor} />
 					<FlowTaskEditorFields
 						bind:taskDraft
 						{members}
@@ -144,21 +150,26 @@
 					{#if taskErrorMessage}
 						<p class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{taskErrorMessage}</p>
 					{/if}
-					<Sheet.Footer>
-						{#if canRemoveTask}
-							<Button variant="destructive" onclick={() => {
-								if (taskDraft) confirmTaskDelete(taskDraft);
-							}} disabled={isDeletingTask || isSavingTask}>
-								{isDeletingTask ? text.deleting : text.deleteAction}
-							</Button>
-						{/if}
-						{#if canEditTask}
-							<Button onclick={saveTask} disabled={isSavingTask || !taskDraft.content.trim()}>
-								{isSavingTask ? text.saving : text.save}
-							</Button>
-						{/if}
-					</Sheet.Footer>
 				</div>
+				<Sheet.Footer class="flex-row items-center justify-end gap-2 border-t">
+					{#if canRemoveTask}
+						<Button
+							variant="destructive"
+							class="mr-auto"
+							onclick={() => {
+								if (taskDraft) confirmTaskDelete(taskDraft);
+							}}
+							disabled={isDeletingTask || isSavingTask}
+						>
+							{isDeletingTask ? text.deleting : text.deleteAction}
+						</Button>
+					{/if}
+					{#if canEditTask}
+						<Button onclick={saveTask} disabled={isSavingTask || !taskDraft.content.trim()}>
+							{isSavingTask ? text.saving : text.save}
+						</Button>
+					{/if}
+				</Sheet.Footer>
 			{/if}
 		{/if}
 	</Sheet.Content>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Identicon from '$lib/components/identicon.svelte';
+	import { personAvatarSeed } from '$lib/person-avatar-seed';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import { cn } from '$lib/utils';
 
@@ -17,7 +18,7 @@
 		class?: string;
 	} = $props();
 
-	const avatarSeed = $derived((seed || email || name || '?').trim());
+	const avatarSeed = $derived(personAvatarSeed(email, seed, name));
 	const avatarLabel = $derived(name || email || 'Person');
 </script>
 

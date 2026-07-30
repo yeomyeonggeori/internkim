@@ -35,7 +35,9 @@ export function isDefaultParticipantFilter(participantFilterIDs: string[], summa
 	return sameStringSet(participantFilterIDs, defaultFilterIDs);
 }
 
-export function currentFlowMember(summary: FlowSummary | null): FlowMember | undefined {
+export function currentFlowMember(
+	summary: { members: FlowMember[]; currentUserEmail: string } | null
+): FlowMember | undefined {
 	if (!summary?.currentUserEmail) return undefined;
 	return summary.members.find((member) => member.email.toLowerCase() === summary.currentUserEmail.toLowerCase());
 }

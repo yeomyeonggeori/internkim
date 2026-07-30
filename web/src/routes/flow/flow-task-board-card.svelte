@@ -1,12 +1,14 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
+	import { cn } from '$lib/utils';
 	import * as Card from '$lib/components/ui/card';
 	import { personProfileImagePath } from '$lib/person-profile-image';
 	import { buildFlowTaskBoardCardDisplay } from './flow-task-board-card-model';
 	import FlowTaskDateRange from './flow-task-date-range.svelte';
 	import FlowTaskPersonChip from './flow-task-person-chip.svelte';
 	import { sizeBadgeClass } from './flow-style';
+	import { flowDefinitionBadgeStyle, flowDefinitionOutlineBadgeStyle } from './flow-definition-colors';
 	import type { FlowTask } from './flow-types';
 	import type { Snippet } from 'svelte';
 
@@ -23,6 +25,10 @@
 		onTaskDrop?: (event: DragEvent, task: FlowTask) => void;
 		ownerChip?: Snippet;
 		isInteractive?: boolean;
+		memberEmail?: (memberID: string) => string;
+		isOverduePlan?: boolean;
+		businessColor?: (business: string) => string;
+		taskTypeColor?: (type: string) => string;
 	};
 
 	let {
@@ -37,7 +43,11 @@
 		onTaskDragOver,
 		onTaskDrop,
 		ownerChip,
-		isInteractive = true
+		isInteractive = true,
+		memberEmail = () => '',
+		isOverduePlan = false,
+		businessColor = () => '#64748b',
+		taskTypeColor = () => '#64748b'
 	}: Props = $props();
 
 	let canDrag = $derived(isInteractive && isDraggable && !isPending && !isReadOnly);
@@ -130,11 +140,11 @@
 				{#if ownerChip}
 					{@render ownerChip()}
 				{:else}
-					<FlowTaskPersonChip name={display.ownerName} seed={task.ownerID || display.ownerName} image={personProfileImagePath(task.ownerID)} />
+					<FlowTaskPersonChip name={display.ownerName} email={memberEmail(task.ownerID)} seed={task.ownerID || display.ownerName} image={personProfileImagePath(task.ownerID)} />
 				{/if}
 				{#if primaryParticipantName}
 					<span class="inline-flex min-w-0 max-w-24 items-center gap-1.5">
-						<PersonAvatar name={primaryParticipantName} seed={primaryParticipantID || primaryParticipantName} image={personProfileImagePath(primaryParticipantID)} class="size-3.5 ring-1 ring-border/60" />
+						<PersonAvatar name={primaryParticipantName} email={memberEmail(primaryParticipantID)} seed={primaryParticipantID || primaryParticipantName} image={personProfileImagePath(primaryParticipantID)} class="size-3.5 ring-1 ring-border/60" />
 						<span class="truncate">{primaryParticipantName}</span>
 					</span>
 				{/if}
@@ -151,13 +161,33 @@
 			{task.content}
 		</div>
 
-		{#if display.metadataLabels.length > 0 || task.startDate || task.endDate}
+		{#if display.businessLabel || display.metadataLabels.length > 0 || task.startDate || task.endDate}
 			<div class="flex flex-wrap items-center gap-1.5">
+				{#if display.businessLabel}
+					<Badge
+						class="h-5 max-w-24 rounded-md border-transparent px-1.5 py-0 text-[11px] font-medium shadow-none"
+						style={flowDefinitionBadgeStyle(businessColor(task.business))}
+					>
+						{display.businessLabel}
+					</Badge>
+				{/if}
 				{#each display.metadataLabels as label}
-					<Badge variant="outline" class="h-5 max-w-24 rounded-md border-border/70 bg-muted/30 px-1.5 py-0 text-[11px] font-normal text-muted-foreground shadow-none">{label}</Badge>
+					<Badge
+						variant="outline"
+						class="h-5 max-w-24 rounded-md border px-1.5 py-0 text-[11px] font-medium shadow-none"
+						style={flowDefinitionOutlineBadgeStyle(taskTypeColor(label))}
+					>
+						{label}
+					</Badge>
 				{/each}
 				{#if task.startDate || task.endDate}
-					<Badge variant="secondary" class="h-5 max-w-full rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">
+					<Badge
+						variant={isOverduePlan ? 'destructive' : 'secondary'}
+						class={cn(
+							'h-5 max-w-full rounded-md px-1.5 py-0 text-[11px] font-medium shadow-none',
+							!isOverduePlan && 'bg-muted text-foreground/75'
+						)}
+					>
 						<FlowTaskDateRange startDate={task.startDate} endDate={task.endDate} />
 					</Badge>
 				{/if}

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import FlowEditableDefinitionListCard from './flow-editable-definition-list-card.svelte';
-	import { flowProjectColor, flowTypeColor } from './flow-report-colors';
+	import { flowBusinessColor, flowTaskTypeColor } from './flow-definition-colors';
 	import FlowSizeDefinitionsCard from './flow-size-definitions-card.svelte';
 	import type { FlowDefinitions } from './flow-types';
 
@@ -15,6 +15,7 @@
 		note: string;
 		business: string;
 		businessDescription: string;
+		color: string;
 		type: string;
 		typeDescription: string;
 		adminOnly: string;
@@ -24,12 +25,19 @@
 		add: string;
 		autoSave: string;
 		saved: string;
+		saveError: string;
 	};
 	type DefinitionSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 	type Props = {
 		definitions: FlowDefinitions;
 		categoryDrafts: string[];
+		setCategoryColor: (index: number, color: string) => void;
+		newCategoryColor: string;
+		newTypeColor: string;
+		setNewCategoryColor: (color: string) => void;
+		setNewTypeColor: (color: string) => void;
+		setTypeColor: (index: number, color: string) => void;
 		typeDrafts: string[];
 		newCategoryText: string;
 		newTypeText: string;
@@ -54,6 +62,12 @@
 	let {
 		definitions,
 		categoryDrafts,
+		setCategoryColor,
+		newCategoryColor,
+		newTypeColor,
+		setNewCategoryColor,
+		setNewTypeColor,
+		setTypeColor,
 		typeDrafts,
 		newCategoryText,
 		newTypeText,
@@ -75,20 +89,6 @@
 		saveDefinitions
 	}: Props = $props();
 
-	let definitionStatusMessage = $derived(definitionErrorMessage || definitionSaveStateMessage(definitionSaveState));
-	let definitionStatusClass = $derived(definitionStatusContainerClass(definitionSaveState, Boolean(definitionErrorMessage)));
-
-	function definitionSaveStateMessage(saveState: DefinitionSaveState): string {
-		if (saveState === 'saving' || isSavingDefinitions) return text.saving;
-		if (saveState === 'saved') return text.saved;
-		return text.autoSave;
-	}
-
-	function definitionStatusContainerClass(saveState: DefinitionSaveState, hasError: boolean): string {
-		if (hasError || saveState === 'error') return 'rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive';
-		if (saveState === 'saved') return 'rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700';
-		return 'rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground';
-	}
 </script>
 
 {#if canEditDefinitions}
@@ -108,7 +108,11 @@
 				add={addCategory}
 				setNewValue={setNewCategoryText}
 				{saveDefinitions}
-				itemColor={flowProjectColor}
+				itemColor={(index) => flowBusinessColor(categoryDrafts[index] ?? '', definitions)}
+				setItemColor={setCategoryColor}
+				newColor={newCategoryColor}
+				setNewColor={setNewCategoryColor}
+				colorLabel={text.color}
 			/>
 			<FlowEditableDefinitionListCard
 				title={text.type}
@@ -123,13 +127,15 @@
 				add={addType}
 				setNewValue={setNewTypeText}
 				{saveDefinitions}
-				itemColor={flowTypeColor}
+				itemColor={(index) => flowTaskTypeColor(typeDrafts[index] ?? '', definitions)}
+				setItemColor={setTypeColor}
+				newColor={newTypeColor}
+				setNewColor={setNewTypeColor}
+				colorLabel={text.color}
 			/>
 		</div>
 		{#if isAdmin}
-			<p class={definitionStatusClass}>
-				{definitionStatusMessage}
-			</p>
+			<p class="text-muted-foreground text-sm">{text.autoSave}</p>
 		{:else}
 			<p class="text-sm text-muted-foreground">{text.adminOnly}</p>
 		{/if}
