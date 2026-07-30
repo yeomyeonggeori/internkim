@@ -108,11 +108,13 @@
 				weekStartISO={summary?.week.startISO ?? ''}
 				weekEndISO={summary?.week.endISO ?? ''}
 				weekPosition={flowTaskBoardWeekPosition(summary)}
+				businessColor={page.businessColor}
 			/>
 		</Tabs.Content>
 		<Tabs.Content value="list" class="min-h-[36rem]">
 			<FlowTaskListView
 				memberEmail={page.memberEmail}
+				businessColor={page.businessColor}
 				tasks={page.filteredTasks()}
 				{text}
 				statusOptions={page.statusSelectOptions()}

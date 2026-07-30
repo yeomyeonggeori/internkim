@@ -8,6 +8,7 @@
 	import FlowTaskDateRange from './flow-task-date-range.svelte';
 	import FlowTaskPersonChip from './flow-task-person-chip.svelte';
 	import { sizeBadgeClass } from './flow-style';
+	import { flowBusinessBadgeStyle } from './flow-business-color';
 	import type { FlowTask } from './flow-types';
 	import type { Snippet } from 'svelte';
 
@@ -26,6 +27,7 @@
 		isInteractive?: boolean;
 		memberEmail?: (memberID: string) => string;
 		isOverduePlan?: boolean;
+		businessColor?: (business: string) => string;
 	};
 
 	let {
@@ -42,7 +44,8 @@
 		ownerChip,
 		isInteractive = true,
 		memberEmail = () => '',
-		isOverduePlan = false
+		isOverduePlan = false,
+		businessColor = () => '#64748b'
 	}: Props = $props();
 
 	let canDrag = $derived(isInteractive && isDraggable && !isPending && !isReadOnly);
@@ -156,8 +159,16 @@
 			{task.content}
 		</div>
 
-		{#if display.metadataLabels.length > 0 || task.startDate || task.endDate}
+		{#if display.businessLabel || display.metadataLabels.length > 0 || task.startDate || task.endDate}
 			<div class="flex flex-wrap items-center gap-1.5">
+				{#if display.businessLabel}
+					<Badge
+						class="h-5 max-w-24 rounded-md border px-1.5 py-0 text-[11px] font-medium shadow-none"
+						style={flowBusinessBadgeStyle(businessColor(task.business))}
+					>
+						{display.businessLabel}
+					</Badge>
+				{/if}
 				{#each display.metadataLabels as label}
 					<Badge variant="outline" class="h-5 max-w-24 rounded-md border-border/70 bg-muted/30 px-1.5 py-0 text-[11px] font-normal text-muted-foreground shadow-none">{label}</Badge>
 				{/each}
