@@ -2,7 +2,18 @@ import type { adminText } from './text';
 
 export type UserRole = 'admin' | 'operationsAdmin' | 'member';
 export type WorkspaceLanguage = 'ko' | 'en';
-export type AdminSection = 'device' | 'bot' | 'credentials' | 'backup' | 'users' | 'settings' | 'sharing' | 'network' | 'buzz' | 'apiTokens';
+export type AdminSection =
+	| 'device'
+	| 'bot'
+	| 'credentials'
+	| 'backup'
+	| 'users'
+	| 'settings'
+	| 'attendanceSettings'
+	| 'sharing'
+	| 'network'
+	| 'buzz'
+	| 'apiTokens';
 
 export type BuzzInviteRecord = {
 	code: string;
@@ -157,6 +168,40 @@ export type AttendanceLocation = {
 
 export type AttendanceLocationsResponse = {
 	locations?: AttendanceLocation[];
+};
+
+export type LeaveBalanceMode = 'annual' | 'separate' | 'none';
+export type LeaveBalanceTrackingMode = 'managed' | 'unlimited';
+export type LeaveGrantCadence = 'annual' | 'monthly' | 'none';
+export type LeaveExpiryMode = 'fiscalYearEnd' | 'monthsAfterGrant' | 'none';
+export type LeaveAllowedUnit = 'fullDay' | 'halfDay' | 'quarterDay';
+
+export type LeaveType = {
+	id: string;
+	systemKind: string;
+	name: string;
+	paid: boolean;
+	balanceMode: LeaveBalanceMode;
+	grantCadence: LeaveGrantCadence;
+	grantAmountMilliDays: number;
+	expiryMode: LeaveExpiryMode;
+	expiryMonths?: number;
+	carryoverEnabled: boolean;
+	carryoverLimitMilliDays?: number;
+	allowedUnits: LeaveAllowedUnit[];
+	includeInSummary: boolean;
+	isActive: boolean;
+	isSystem: boolean;
+	sortOrder: number;
+};
+
+export type AttendanceLeavePolicy = {
+	version: 2;
+	balanceTrackingMode: LeaveBalanceTrackingMode;
+	fiscalYearStartMonth: number;
+	fiscalYearStartDay: number;
+	leaveTypes: LeaveType[];
+	updatedAt: string;
 };
 
 export type WifiProfile = {

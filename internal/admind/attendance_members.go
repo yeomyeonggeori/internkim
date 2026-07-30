@@ -58,6 +58,8 @@ func attendanceMembersFromAdminUserRecords(records []adminUserMutation) []attend
 			DisplayName:        displayName,
 			Image:              flowMember.Image,
 			MattermostUsername: strings.TrimSpace(flowMember.MattermostUsername),
+			UserID:             flowMember.ID,
+			HireDate:           flowMember.HireDate,
 		})
 	}
 	return result
