@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Badge } from '$lib/components/ui/badge/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import type { AppRailItem } from '$lib/components/app-rail-types';
 
@@ -13,6 +14,7 @@
 	} = $props();
 
 	const Icon = $derived(item.icon);
+	const badgeCount = $derived(item.badgeCount ?? 0);
 </script>
 
 <Sidebar.MenuItem>
@@ -37,4 +39,12 @@
 			{/if}
 		{/snippet}
 	</Sidebar.MenuButton>
+	{#if badgeCount > 0}
+		<Badge
+			data-testid="app-rail-nav-badge"
+			class="bg-destructive pointer-events-none absolute -top-1 -right-1 h-4 min-w-4 rounded-full px-1 text-[10px] tabular-nums text-white"
+		>
+			{badgeCount}
+		</Badge>
+	{/if}
 </Sidebar.MenuItem>
