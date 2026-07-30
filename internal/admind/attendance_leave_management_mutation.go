@@ -40,9 +40,16 @@ func (service *Service) adjustManagedAttendanceLeave(
 	if errorValue := validateOptionalAttendanceLeaveDate(input.ExpiresOn); errorValue != nil {
 		return attendanceLeaveBalance{}, attendanceLeaveInvalidInputError(errorValue)
 	}
+	service.attendanceLeavePolicyMutationMutex.Lock()
+	defer service.attendanceLeavePolicyMutationMutex.Unlock()
 	policy, errorValue := service.readAttendanceLeavePolicy(ctx)
 	if errorValue != nil {
 		return attendanceLeaveBalance{}, errorValue
+	}
+	if policy.BalanceTrackingMode == attendanceLeaveBalanceTrackingUnlimited {
+		return attendanceLeaveBalance{}, attendanceLeaveInvalidInputErrorf(
+			"leave balances are not managed in unlimited mode",
+		)
 	}
 	leaveType, found := attendanceLeaveTypeByID(policy, input.LeaveTypeID)
 	if !found || leaveType.BalanceMode == "none" {
@@ -114,6 +121,8 @@ func (service *Service) createManagedPastAttendanceLeave(
 			"past leave date must not be in the future",
 		)
 	}
+	service.attendanceLeavePolicyMutationMutex.Lock()
+	defer service.attendanceLeavePolicyMutationMutex.Unlock()
 	preview, errorValue := service.previewAttendanceLeaveRequestAllowPast(ctx, requestInput, now)
 	if errorValue != nil {
 		return attendanceLeaveApprovalRequestView{}, errorValue
@@ -128,6 +137,7 @@ func (service *Service) createManagedPastAttendanceLeave(
 			"leave type is not active",
 		)
 	}
+	leaveType = attendanceLeaveTypeForRequest(policy, leaveType)
 	record, errorValue := service.createAttendanceLeaveRequest(
 		ctx,
 		attendanceLeaveEmployee{Email: employeeEmail},

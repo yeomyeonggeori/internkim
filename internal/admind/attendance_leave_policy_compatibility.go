@@ -1,6 +1,9 @@
 package admind
 
 func normalizeLegacyAttendanceLeavePolicy(policy *attendanceLeavePolicy) {
+	if policy.BalanceTrackingMode == "" {
+		policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingManaged
+	}
 	for index := range policy.LeaveTypes {
 		switch policy.LeaveTypes[index].GrantCadence {
 		case "statutory":

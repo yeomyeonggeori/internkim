@@ -11,10 +11,13 @@ import (
 const (
 	attendanceLeavePolicyVersion               = 2
 	attendanceLeavePolicyReferenceCalendarYear = 2024
+	attendanceLeaveBalanceTrackingManaged      = "managed"
+	attendanceLeaveBalanceTrackingUnlimited    = "unlimited"
 )
 
 type attendanceLeavePolicy struct {
 	Version              int                   `json:"version"`
+	BalanceTrackingMode  string                `json:"balanceTrackingMode"`
 	FiscalYearStartMonth int                   `json:"fiscalYearStartMonth"`
 	FiscalYearStartDay   int                   `json:"fiscalYearStartDay"`
 	LeaveTypes           []attendanceLeaveType `json:"leaveTypes"`
@@ -52,6 +55,10 @@ func newAttendanceLeaveTypeID() (string, error) {
 func validateAttendanceLeavePolicy(policy *attendanceLeavePolicy, _ *attendanceLeavePolicy) error {
 	if policy.Version != attendanceLeavePolicyVersion || !attendanceLeavePolicyFiscalDateIsValid(policy.FiscalYearStartMonth, policy.FiscalYearStartDay) {
 		return fmt.Errorf("invalid policy header")
+	}
+	if policy.BalanceTrackingMode != attendanceLeaveBalanceTrackingManaged &&
+		policy.BalanceTrackingMode != attendanceLeaveBalanceTrackingUnlimited {
+		return fmt.Errorf("invalid balanceTrackingMode")
 	}
 	if policy.UpdatedAt != "" {
 		if _, errorValue := time.Parse(time.RFC3339, policy.UpdatedAt); errorValue != nil {
@@ -166,6 +173,9 @@ func attendanceLeaveTypeRequiresHireDate(leaveType attendanceLeaveType) bool {
 }
 
 func attendanceLeavePolicyRequiresHireDate(policy attendanceLeavePolicy) bool {
+	if policy.BalanceTrackingMode == attendanceLeaveBalanceTrackingUnlimited {
+		return false
+	}
 	for _, leaveType := range policy.LeaveTypes {
 		if attendanceLeaveTypeRequiresHireDate(leaveType) {
 			return true

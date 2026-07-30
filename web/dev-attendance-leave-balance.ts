@@ -11,6 +11,7 @@ export function applyEmployeeLeaveBalanceMutation(
 	leaveTypeID: string,
 	mutation: EmployeeLeaveBalanceMutation
 ): EmployeeLeaveSummary | undefined {
+	if (payload.balanceTrackingMode === 'unlimited') return undefined;
 	const requestedType = payload.leaveTypes.find((leaveType) => leaveType.id === leaveTypeID);
 	const owner = balanceOwner(payload.leaveTypes, requestedType);
 	if (!owner?.balance) return undefined;
@@ -23,6 +24,40 @@ export function applyEmployeeLeaveBalanceMutation(
 		applyMutation(payload.summary, mutation);
 	}
 	return structuredClone(owner.balance);
+}
+
+export function synchronizeUnlimitedEmployeeLeaveUsage(payload: EmployeeLeavePayload): void {
+	if (payload.balanceTrackingMode !== 'unlimited') return;
+	const usageByLeaveType = new Map<string, EmployeeLeaveSummary>();
+	for (const leaveType of payload.leaveTypes) {
+		usageByLeaveType.set(leaveType.id, {
+			usedMilliDays: 0,
+			reservedMilliDays: 0,
+			availableMilliDays: 0
+		});
+	}
+	for (const request of payload.requests) {
+		const usage = usageByLeaveType.get(request.leaveTypeID);
+		if (!usage) continue;
+		if (request.status === 'approved') {
+			usage.usedMilliDays += request.deductionMilliDays;
+		}
+		if (request.status === 'pending' || request.status === 'needsChanges') {
+			usage.reservedMilliDays += request.deductionMilliDays;
+		}
+	}
+	payload.summary = {
+		usedMilliDays: 0,
+		reservedMilliDays: 0,
+		availableMilliDays: 0
+	};
+	for (const leaveType of payload.leaveTypes) {
+		const usage = usageByLeaveType.get(leaveType.id);
+		leaveType.balance = usage ? structuredClone(usage) : undefined;
+		leaveType.requiresHireDate = false;
+		payload.summary.usedMilliDays += usage?.usedMilliDays ?? 0;
+		payload.summary.reservedMilliDays += usage?.reservedMilliDays ?? 0;
+	}
 }
 
 export function employeeLeaveTypeBalance(

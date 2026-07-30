@@ -23,6 +23,8 @@ func (service *Service) updateAttendanceLeaveRequestResponse(
 		)
 		return
 	}
+	service.attendanceLeavePolicyMutationMutex.Lock()
+	defer service.attendanceLeavePolicyMutationMutex.Unlock()
 	now := time.Now()
 	preview, errorValue := service.previewAttendanceLeaveRequest(request.Context(), input, now)
 	if errorValue != nil {
@@ -42,6 +44,7 @@ func (service *Service) updateAttendanceLeaveRequestResponse(
 		)
 		return
 	}
+	leaveType = attendanceLeaveTypeForRequest(policy, leaveType)
 	employee, errorValue := service.attendanceLeaveEmployeeWithHireDateForRequest(
 		request,
 		service.webStaffActorEmail(request),

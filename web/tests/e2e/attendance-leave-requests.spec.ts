@@ -13,6 +13,46 @@ import { expect, test } from './attendance-page-test-fixture';
 import { selectKorean } from './attendance-test-helpers';
 
 test.describe('employee leave requests', () => {
+	test('shows usage without a remaining balance in unlimited leave mode', async ({ page }) => {
+		const leaveState = await installLeaveMock(page);
+		leaveState.payload.balanceTrackingMode = 'unlimited';
+		leaveState.payload.hireDateRequired = false;
+		leaveState.payload.summary = {
+			usedMilliDays: 1250,
+			reservedMilliDays: 500,
+			availableMilliDays: 0
+		};
+		for (const leaveType of leaveState.payload.leaveTypes) {
+			leaveType.balance = {
+				usedMilliDays: leaveType.id === 'annual' ? 1250 : 0,
+				reservedMilliDays: leaveType.id === 'annual' ? 500 : 0,
+				availableMilliDays: 0
+			};
+		}
+		await page.clock.setFixedTime(new Date('2026-08-01T10:00:00+09:00'));
+		await page.goto('/attendance');
+		await selectKorean(page);
+
+		const summary = page.getByTestId('leave-balance-summary');
+		await expect(summary).toContainText('1.25일');
+		await expect(summary).toContainText('0.5일');
+		await expect(summary).toContainText('제한 없음');
+		await expect(summary.getByTestId('leave-balance-segmented-bar')).toHaveCount(0);
+
+		await page.getByRole('button', { name: '휴가 내역' }).click();
+		const usage = page.getByTestId('leave-type-balances');
+		await expect(usage.getByText('내 휴가 사용량')).toBeVisible();
+		await expect(usage).toContainText('연차');
+		await expect(usage).toContainText('사용 1.25일');
+		await expect(usage).toContainText('대기 0.5일');
+		await expect(usage).toContainText('병가');
+
+		await page.getByRole('button', { name: '휴가 등록' }).click();
+		await expect(
+			page.getByTestId('leave-request-dialog').getByText('휴가 자유 사용 · 잔여량 제한 없음')
+		).toBeVisible();
+	});
+
 	test('blocks accrued leave with a clear message when the hire date is missing', async ({
 		page
 	}) => {
@@ -69,9 +109,7 @@ test.describe('employee leave requests', () => {
 		await expect(leaveSummary.getByText('1일')).toBeVisible();
 		await expect(leaveSummary.getByText('0.5일')).toBeVisible();
 		await expect(leaveSummary.getByText('15.5일')).toBeVisible();
-		await expect(
-			page.locator('[data-slot="card"][aria-label="내 근무 시간"]')
-		).toBeVisible();
+		await expect(page.locator('[data-slot="card"][aria-label="내 근무 시간"]')).toBeVisible();
 		await expect(page.getByTestId('leave-history-needs-changes-count')).toHaveText('1');
 
 		await page.getByRole('button', { name: '휴가 등록' }).click();
@@ -207,9 +245,7 @@ test.describe('employee leave requests', () => {
 		releaseStaleResponse();
 		await staleResponseCompleted;
 		await page.getByRole('button', { name: '휴가 내역' }).click();
-		const createdRow = page
-			.getByTestId('leave-history-row')
-			.filter({ hasText: '2026-08-21' });
+		const createdRow = page.getByTestId('leave-history-row').filter({ hasText: '2026-08-21' });
 		await expect(createdRow).toBeVisible();
 		await expect(createdRow.getByText('승인 대기', { exact: true })).toBeVisible();
 	});

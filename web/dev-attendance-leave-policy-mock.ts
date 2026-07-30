@@ -52,6 +52,7 @@ function systemLeaveType(
 export function createDefaultAttendanceLeavePolicy(): AttendanceLeavePolicy {
 	return {
 		version: 2,
+		balanceTrackingMode: 'managed',
 		fiscalYearStartMonth: 1,
 		fiscalYearStartDay: 1,
 		leaveTypes: [

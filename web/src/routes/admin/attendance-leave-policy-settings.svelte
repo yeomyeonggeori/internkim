@@ -2,6 +2,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
+	import AttendanceLeaveBalanceTracking from './attendance-leave-balance-tracking.svelte';
 	import AttendanceLeavePolicyEditor from './attendance-leave-policy-editor.svelte';
 	import AttendanceLeavePolicyList from './attendance-leave-policy-list.svelte';
 	import AttendanceLeavePolicyRemoveDialog from './attendance-leave-policy-remove-dialog.svelte';
@@ -15,7 +16,12 @@
 		fetchAttendanceLeavePolicy,
 		updateAttendanceLeavePolicy
 	} from './admin-api';
-	import type { AdminPageText, AttendanceLeavePolicy, LeaveType } from './admin-types';
+	import type {
+		AdminPageText,
+		AttendanceLeavePolicy,
+		LeaveBalanceTrackingMode,
+		LeaveType
+	} from './admin-types';
 
 	type LeavePolicySettingsProps = {
 		adminBaseURL: string;
@@ -33,6 +39,7 @@
 	let previousSelectedID = $state('');
 	let expiryConfirmationOpen = $state(false);
 	let removalConfirmationOpen = $state(false);
+	let balanceTrackingMode = $state<LeaveBalanceTrackingMode>('managed');
 
 	$effect(() => {
 		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
@@ -48,12 +55,32 @@
 				adminBaseURL,
 				text.attendanceSettings.loadError
 			);
+			balanceTrackingMode = policy.balanceTrackingMode;
 			draft = policy.leaveTypes[0] ? copyLeaveType(policy.leaveTypes[0]) : null;
 			previousSelectedID = draft?.id ?? '';
 		} catch (error) {
 			message = apiErrorMessage(error, text.attendanceSettings.loadError);
 		} finally {
 			isLoading = false;
+		}
+	}
+
+	async function saveBalanceTrackingMode(): Promise<void> {
+		if (!policy || balanceTrackingMode === policy.balanceTrackingMode) return;
+		isSaving = true;
+		message = '';
+		try {
+			policy = await updateAttendanceLeavePolicy(
+				adminBaseURL,
+				{ ...policy, balanceTrackingMode },
+				text.attendanceSettings.saveError
+			);
+			balanceTrackingMode = policy.balanceTrackingMode;
+			message = text.attendanceSettings.saveSuccess;
+		} catch (error) {
+			message = apiErrorMessage(error, text.attendanceSettings.saveError);
+		} finally {
+			isSaving = false;
 		}
 	}
 
@@ -180,35 +207,48 @@
 	}
 </script>
 
-<div
-	data-testid="attendance-leave-policy-settings"
-	class="grid gap-5 lg:h-[clamp(36rem,calc(100dvh-12rem),52rem)] lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)] lg:items-stretch"
->
-	<AttendanceLeavePolicyList
-		{policy}
-		pendingDraft={draft && !draft.id ? draft : null}
-		selectedID={draft?.id ?? ''}
-		{message}
-		{isLoading}
-		{isSaving}
-		{text}
-		onAdd={addLeaveType}
-		onSelect={selectLeaveType}
-	/>
-
-	{#if draft}
-		<AttendanceLeavePolicyEditor
-			{draft}
-			{text}
+<div data-testid="attendance-leave-policy-settings" class="space-y-5">
+	{#if policy}
+		<AttendanceLeaveBalanceTracking
+			mode={balanceTrackingMode}
+			savedMode={policy.balanceTrackingMode}
 			{isSaving}
-			{validationAttempted}
-			hasChanges={draftHasChanges()}
-			onChange={(nextDraft) => (draft = nextDraft)}
-			onCancel={cancelChanges}
-			onRemove={() => (removalConfirmationOpen = true)}
-			onSave={requestSave}
+			{text}
+			onChange={(mode) => (balanceTrackingMode = mode)}
+			onCancel={() => (balanceTrackingMode = policy?.balanceTrackingMode ?? 'managed')}
+			onSave={() => void saveBalanceTrackingMode()}
 		/>
 	{/if}
+
+	<div
+		class="grid gap-5 lg:h-[clamp(36rem,calc(100dvh-26rem),52rem)] lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)] lg:items-stretch"
+	>
+		<AttendanceLeavePolicyList
+			{policy}
+			pendingDraft={draft && !draft.id ? draft : null}
+			selectedID={draft?.id ?? ''}
+			{message}
+			{isLoading}
+			{isSaving}
+			{text}
+			onAdd={addLeaveType}
+			onSelect={selectLeaveType}
+		/>
+
+		{#if draft}
+			<AttendanceLeavePolicyEditor
+				{draft}
+				{text}
+				{isSaving}
+				{validationAttempted}
+				hasChanges={draftHasChanges()}
+				onChange={(nextDraft) => (draft = nextDraft)}
+				onCancel={cancelChanges}
+				onRemove={() => (removalConfirmationOpen = true)}
+				onSave={requestSave}
+			/>
+		{/if}
+	</div>
 </div>
 
 <AlertDialog.Root

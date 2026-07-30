@@ -128,11 +128,12 @@ type attendanceLeaveLedgerView struct {
 }
 
 type attendanceLeaveDashboard struct {
-	LeaveTypes       []attendanceLeaveTypeView       `json:"leaveTypes"`
-	Summary          attendanceLeaveDashboardSummary `json:"summary"`
-	Requests         []attendanceLeaveRequestView    `json:"requests"`
-	LedgerEntries    []attendanceLeaveLedgerView     `json:"ledgerEntries"`
-	HireDateRequired bool                            `json:"hireDateRequired"`
+	BalanceTrackingMode string                          `json:"balanceTrackingMode"`
+	LeaveTypes          []attendanceLeaveTypeView       `json:"leaveTypes"`
+	Summary             attendanceLeaveDashboardSummary `json:"summary"`
+	Requests            []attendanceLeaveRequestView    `json:"requests"`
+	LedgerEntries       []attendanceLeaveLedgerView     `json:"ledgerEntries"`
+	HireDateRequired    bool                            `json:"hireDateRequired"`
 }
 
 type attendanceLeaveRequestOccurrence struct {

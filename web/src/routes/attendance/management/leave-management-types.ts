@@ -1,4 +1,8 @@
-import type { EmployeeLeaveRequest, EmployeeLeaveType } from '../leave/employee-leave-types';
+import type {
+	EmployeeLeaveBalanceTrackingMode,
+	EmployeeLeaveRequest,
+	EmployeeLeaveType
+} from '../leave/employee-leave-types';
 
 export type LeaveManagementBalance = {
 	leaveTypeID: string;
@@ -42,6 +46,7 @@ export type LeaveManagementDetail = {
 };
 
 export type LeaveManagementPayload = {
+	balanceTrackingMode: EmployeeLeaveBalanceTrackingMode;
 	leaveTypes: EmployeeLeaveType[];
 	employees: LeaveManagementEmployee[];
 	detail?: LeaveManagementDetail;

@@ -49,6 +49,8 @@ func (service *Service) writeAttendanceLeaveRequest(responseWriter http.Response
 		)
 		return
 	}
+	service.attendanceLeavePolicyMutationMutex.Lock()
+	defer service.attendanceLeavePolicyMutationMutex.Unlock()
 	now := time.Now()
 	preview, errorValue := service.previewAttendanceLeaveRequest(request.Context(), input, now)
 	if errorValue != nil {
@@ -65,6 +67,7 @@ func (service *Service) writeAttendanceLeaveRequest(responseWriter http.Response
 		writeAttendanceLeaveRequestError(responseWriter, attendanceLeaveInvalidInputErrorf("leave type is not active"))
 		return
 	}
+	leaveType = attendanceLeaveTypeForRequest(policy, leaveType)
 	employee, errorValue := service.attendanceLeaveEmployeeWithHireDateForRequest(
 		request,
 		service.webStaffActorEmail(request),
@@ -168,6 +171,8 @@ func (service *Service) resubmitAttendanceLeaveRequestResponse(
 		return
 	}
 	input = normalizeAttendanceLeaveRequestInput(input)
+	service.attendanceLeavePolicyMutationMutex.Lock()
+	defer service.attendanceLeavePolicyMutationMutex.Unlock()
 	now := time.Now()
 	preview, errorValue := service.previewAttendanceLeaveRequest(request.Context(), input, now)
 	if errorValue != nil {
@@ -184,6 +189,7 @@ func (service *Service) resubmitAttendanceLeaveRequestResponse(
 		writeAttendanceLeaveRequestError(responseWriter, attendanceLeaveInvalidInputErrorf("leave type is not active"))
 		return
 	}
+	leaveType = attendanceLeaveTypeForRequest(policy, leaveType)
 	employee, errorValue := service.attendanceLeaveEmployeeWithHireDateForRequest(
 		request,
 		service.webStaffActorEmail(request),
