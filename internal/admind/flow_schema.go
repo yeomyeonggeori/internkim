@@ -8,7 +8,7 @@ import (
 
 func (service *Service) openFlowDatabase(ctx context.Context) (*sql.DB, error) {
 	options := sqliteDatabaseOptions{transactionLock: "immediate"}
-	return service.openSQLiteDatabaseWithOptions(ctx, service.Configuration.FlowDatabasePath, ensureFlowSchema, options)
+	return service.openStateDatabase(ctx, "flow", ensureFlowSchema, options)
 }
 
 func ensureFlowSchema(ctx context.Context, database *sql.DB) error {

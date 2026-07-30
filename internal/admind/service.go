@@ -50,6 +50,7 @@ type Configuration struct {
 	CapabilitySocketPath           string
 	StateDirectory                 string
 	CompanionJobPath               string
+	DatabasePath                   string
 	FlowDatabasePath               string
 	CalendarDatabasePath           string
 	CalendarSecretsDirectory       string
@@ -95,9 +96,9 @@ type Configuration struct {
 	BuzzAccountLinksPath           string
 	BuzzKeySeedPath                string
 	BuzzRelayKeyPath               string
-	CloudflareAccessTeamDomain string
-	CloudflareAccessAUDs       string
-	TrustProxyForwardedEmail   bool
+	CloudflareAccessTeamDomain     string
+	CloudflareAccessAUDs           string
+	TrustProxyForwardedEmail       bool
 }
 
 type Service struct {
@@ -150,6 +151,7 @@ type Service struct {
 	policyRecordCache          []adminUserMutation
 	requestMetrics             *adminRequestMetrics
 	databaseSchemas            *adminDatabaseSchemas
+	legacyDatabaseMigration    sync.Once
 	calendarWindowCache        calendarEventWindowCacheAvailability
 	calendarWindowBuilds       calendarEventWindowCacheBuildCoordinator
 	mattermostSessions         *mattermostSessionCache
@@ -2632,6 +2634,7 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.StateDirectory == "" {
 		configuration.StateDirectory = defaultConfiguration.StateDirectory
 	}
+	configuration.DatabasePath = resolvedStateDatabasePath(configuration, defaultConfiguration)
 	if configuration.CompanionJobPath == "" {
 		if configuration.StateDirectory == defaultConfiguration.StateDirectory {
 			configuration.CompanionJobPath = defaultConfiguration.CompanionJobPath

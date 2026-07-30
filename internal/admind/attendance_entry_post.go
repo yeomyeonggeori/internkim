@@ -83,7 +83,7 @@ func (service *Service) pinMattermostPost(ctx context.Context, token string, pos
 }
 
 func (service *Service) cleanupMattermostAttendanceResultPosts(ctx context.Context, adminToken string) error {
-	if _, errorValue := os.Stat(service.Configuration.AttendanceDatabasePath); os.IsNotExist(errorValue) {
+	if _, errorValue := os.Stat(service.stateDatabasePath()); os.IsNotExist(errorValue) {
 		return nil
 	} else if errorValue != nil {
 		return errorValue
