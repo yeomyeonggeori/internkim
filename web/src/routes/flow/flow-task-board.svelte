@@ -5,7 +5,7 @@
 	import { FlowTaskBoardDragController } from './flow-task-board-drag-controller.svelte';
 	import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 	import { flowTaskBoardViewportHeight } from './flow-task-board-viewport-height';
-	import { buildFlowTaskBoard, isFlowTaskBoardStatus } from './flow-task-board-model';
+	import { buildFlowTaskBoard, isFlowTaskBoardStatus, type FlowTaskBoardWeekPosition } from './flow-task-board-model';
 	import type { FlowTask } from './flow-types';
 
 	type BoardText = {
@@ -24,7 +24,7 @@
 		canUpdateTask: (task: FlowTask) => boolean;
 		weekStartISO?: string;
 		weekEndISO?: string;
-		isCurrentWeek?: boolean;
+		weekPosition?: FlowTaskBoardWeekPosition;
 		memberEmail: (memberID: string) => string;
 	};
 
@@ -40,7 +40,7 @@
 		canUpdateTask,
 		weekStartISO = '',
 		weekEndISO = '',
-		isCurrentWeek = true,
+		weekPosition = 'current',
 		memberEmail
 	}: Props = $props();
 
@@ -57,7 +57,7 @@
 	const insertionLineClass = 'h-0.5 w-full rounded-full bg-primary shadow-sm ring-1 ring-primary/20';
 	const boardDrag = new FlowTaskBoardDragController();
 
-	let columns = $derived(buildFlowTaskBoard(tasks, { weekStartISO, weekEndISO, isCurrentWeek }));
+	let columns = $derived(buildFlowTaskBoard(tasks, { weekStartISO, weekEndISO, weekPosition }));
 
 	$effect(() => {
 		boardDrag.sync({ pendingTaskIDs, canUpdateTask, moveTask });
