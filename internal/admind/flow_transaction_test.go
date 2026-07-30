@@ -71,7 +71,7 @@ func TestFlowWriteTransactionReservesWriterAtBegin(t *testing.T) {
 func TestFlowDatabasePreservesQuestionMarkInDatabasePath(t *testing.T) {
 	ctx := context.Background()
 	databasePath := filepath.Join(t.TempDir(), "state?tenant=one", "flow?cache.sqlite")
-	service := NewService(Configuration{FlowDatabasePath: databasePath})
+	service := NewService(Configuration{DatabasePath: databasePath})
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -184,7 +184,7 @@ func TestOpenFlowDatabasePreservesRelativeDatabasePath(t *testing.T) {
 	t.Chdir(t.TempDir())
 	ctx := context.Background()
 	databasePath := "flow.sqlite"
-	service := NewService(Configuration{FlowDatabasePath: databasePath})
+	service := NewService(Configuration{DatabasePath: databasePath})
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -193,7 +193,7 @@ func TestOpenFlowDatabasePreservesRelativeDatabasePath(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	if _, errorValue := os.Stat(databasePath); errorValue != nil {
-		t.Fatalf("relative Flow database path was not created: %v", errorValue)
+		t.Fatalf("relative state database path was not created: %v", errorValue)
 	}
 }
 

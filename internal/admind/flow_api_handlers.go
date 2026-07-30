@@ -71,9 +71,9 @@ func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *
 }
 
 func (service *Service) writeFlowStatus(responseWriter http.ResponseWriter) {
-	_, errorValue := os.Stat(service.Configuration.FlowDatabasePath)
+	_, errorValue := os.Stat(service.stateDatabasePath())
 	response := flowStatusResponse{
-		DatabasePath: service.Configuration.FlowDatabasePath,
+		DatabasePath: service.stateDatabasePath(),
 		Exists:       errorValue == nil,
 		Ready:        true,
 		Message:      "Flow task storage is backed by SQLite.",

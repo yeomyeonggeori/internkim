@@ -29,7 +29,7 @@ WHERE (local_date >= ? AND local_date < ? OR id IN (
 }
 
 func (service *Service) openAttendanceDatabase(ctx context.Context) (*sql.DB, error) {
-	return service.openSQLiteDatabase(ctx, service.Configuration.AttendanceDatabasePath, ensureAttendanceSchema)
+	return service.openStateDatabase(ctx, "attendance", ensureAttendanceSchema, sqliteDatabaseOptions{})
 }
 
 func (service *Service) latestActiveAttendanceEvent(ctx context.Context, database *sql.DB, mattermostUserID string) (attendanceEvent, bool, error) {

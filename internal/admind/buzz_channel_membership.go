@@ -180,7 +180,7 @@ func (service *Service) allStaffEmails(ctx context.Context) []string {
 }
 
 func (service *Service) usersSyncCacheEmails() []string {
-	stateDirectory := filepath.Dir(service.Configuration.FlowDatabasePath)
+	stateDirectory := filepath.Dir(service.stateDatabasePath())
 	content, errorValue := os.ReadFile(filepath.Join(stateDirectory, "users-sync.json"))
 	if errorValue != nil {
 		return nil

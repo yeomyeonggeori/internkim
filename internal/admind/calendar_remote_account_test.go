@@ -483,7 +483,7 @@ func TestSaveSelectedCalendarPreservesCompletedInitialSyncForStaleSameSelection(
 func TestRemoteCalendarAccountSchemaMigratesLegacyColumns(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
-	database, errorValue := service.openSQLiteDatabase(ctx, service.Configuration.CalendarDatabasePath, nil)
+	database, errorValue := service.openSQLiteDatabase(ctx, service.stateDatabasePath(), nil)
 	if errorValue != nil {
 		t.Fatalf("open legacy database: %v", errorValue)
 	}

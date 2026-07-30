@@ -11,6 +11,11 @@ import (
 
 func moveLatestAttendanceEventToYesterday(t *testing.T, service *Service) {
 	t.Helper()
+	moveLatestAttendanceEventToYesterdayAt(t, service, 21, 50)
+}
+
+func moveLatestAttendanceEventToYesterdayAt(t *testing.T, service *Service, hour int, minute int) {
+	t.Helper()
 	database, errorValue := service.openAttendanceDatabase(context.Background())
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -18,7 +23,7 @@ func moveLatestAttendanceEventToYesterday(t *testing.T, service *Service) {
 	defer database.Close()
 	location, _ := service.workspaceTimeLocation()
 	yesterday := time.Now().In(location).AddDate(0, 0, -1)
-	occurredAt := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 21, 50, 0, 0, location)
+	occurredAt := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), hour, minute, 0, 0, location)
 	if _, errorValue := database.ExecContext(context.Background(), `
 UPDATE attendance_events
 SET local_date = ?, occurred_at = ?, local_time = ?
@@ -197,7 +202,7 @@ func TestAttendanceClockInStillAllowedAfterForgottenClockOut(t *testing.T) {
 	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	moveLatestAttendanceEventToYesterday(t, service)
+	moveLatestAttendanceEventToYesterdayAt(t, service, 9, 50)
 
 	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"출근"}`))
 	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
@@ -229,7 +234,6 @@ func TestAttendanceClockInStillAllowedAfterForgottenClockOut(t *testing.T) {
 		t.Fatalf("expected morning clock-in to stay allowed, events = %+v", events)
 	}
 }
-
 
 func insertAttendanceClockInAt(t *testing.T, service *Service, occurredAt time.Time) {
 	t.Helper()

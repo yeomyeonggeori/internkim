@@ -486,7 +486,9 @@ func TestAttendanceCleanupKeepsLatestClockInAndClockOutPosts(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	defer database.Close()
-	baseTime := time.Now().UTC().Add(-4 * time.Hour)
+	location, _ := service.workspaceTimeLocation()
+	today := time.Now().In(location)
+	baseTime := time.Date(today.Year(), today.Month(), today.Day(), 8, 0, 0, 0, location).UTC()
 	firstUser := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com"}
 	secondUser := mattermostUserRecord{ID: "user-2", Username: "other", Email: "other@example.com"}
 	events := []attendanceEvent{
