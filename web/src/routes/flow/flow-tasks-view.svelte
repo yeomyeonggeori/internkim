@@ -145,6 +145,9 @@
 {/if}
 
 <FlowTaskEditor
+	businessColor={page.businessColor}
+	taskTypeColor={page.taskTypeColor}
+	memberEmail={page.memberEmail}
 	bind:taskDraft={page.editor.taskDraft}
 	isEditingTask={page.editor.isEditingTask}
 	members={page.members()}

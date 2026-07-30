@@ -15,14 +15,6 @@
 		--calendar-selected-today-background: #98a2b2;
 		--df-color-destructive: #d42422;
 		--df-color-destructive-foreground: #ffffff;
-		--background: 0 0% 100%;
-		--foreground: 222.2 84% 4.9%;
-		--card: 0 0% 100%;
-		--card-foreground: 222.2 84% 4.9%;
-		--muted: 210 40% 96.1%;
-		--muted-foreground: 215.4 16.3% 46.9%;
-		--border: 214.3 31.8% 91.4%;
-		--destructive: 0 84.2% 60.2%;
 		--calendar-grid-line: #e1e5eb;
 		--calendar-grid-line-strong: #cfd6e3;
 		--calendar-grid-line-soft: #edf1f5;
@@ -50,14 +42,13 @@
 		min-height: 0;
 		flex: 1;
 		padding: 0;
-		color-scheme: light;
-		background: #ffffff;
+		background: hsl(var(--background));
 	}
+
 
 	.calendar-stage .df-calendar-container {
 		width: 100%;
 		--df-calendar-height: calc(100svh - 56px);
-		color-scheme: light;
 		border-radius: 0;
 		border: 0;
 	}

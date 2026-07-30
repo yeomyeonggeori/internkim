@@ -16,9 +16,9 @@ export function sizeBadgeClass(size: string): string {
 		case 'XS':
 			return `${baseClass} bg-[#6b7280]`;
 		case 'S':
-			return `${baseClass} bg-[#16a34a]`;
-		case 'M':
 			return `${baseClass} bg-[#2563eb]`;
+		case 'M':
+			return `${baseClass} bg-[#16a34a]`;
 		case 'L':
 			return `${baseClass} bg-[#d97706]`;
 		case 'XL':
