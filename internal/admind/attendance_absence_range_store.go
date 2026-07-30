@@ -56,7 +56,81 @@ func (service *Service) readAttendanceAbsenceOccurrences(ctx context.Context, st
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return expandAttendanceAbsenceRanges(ranges, startDate, endDate), nil
+	absences := expandAttendanceAbsenceRanges(ranges, startDate, endDate)
+	leaveTimes, errorValue := service.readAttendancePartialLeaveAbsenceTimes(
+		ctx,
+		startDate,
+		endDate,
+		email,
+	)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	for index := range absences {
+		leaveTime, exists := leaveTimes[attendanceAbsenceTimeKey(absences[index].RangeID, absences[index].Date)]
+		if !exists {
+			continue
+		}
+		absences[index].StartTime = leaveTime.StartTime
+		absences[index].EndTime = leaveTime.EndTime
+	}
+	return absences, nil
+}
+
+type attendancePartialLeaveAbsenceTime struct {
+	RangeID   string
+	Date      string
+	StartTime string
+	EndTime   string
+}
+
+func (service *Service) readAttendancePartialLeaveAbsenceTimes(
+	ctx context.Context,
+	startDate string,
+	endDate string,
+	email string,
+) (map[string]attendancePartialLeaveAbsenceTime, error) {
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	query := `
+SELECT link.range_id, occurrence.date, occurrence.start_time, occurrence.end_time
+FROM attendance_leave_request_absence_ranges link
+JOIN attendance_leave_requests request ON request.id = link.request_id
+JOIN attendance_leave_request_occurrences occurrence ON occurrence.request_id = request.id
+WHERE occurrence.date >= ? AND occurrence.date < ?
+	AND request.status = ?
+	AND request.unit != 'fullDay'`
+	arguments := []any{startDate, endDate, attendanceLeaveRequestStatusApproved}
+	if strings.TrimSpace(email) != "" {
+		query += " AND request.employee_email = ?"
+		arguments = append(arguments, normalizeAttendanceLeaveEmail(email))
+	}
+	rows, errorValue := database.QueryContext(ctx, query, arguments...)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	leaveTimes := map[string]attendancePartialLeaveAbsenceTime{}
+	for rows.Next() {
+		var leaveTime attendancePartialLeaveAbsenceTime
+		if errorValue := rows.Scan(
+			&leaveTime.RangeID,
+			&leaveTime.Date,
+			&leaveTime.StartTime,
+			&leaveTime.EndTime,
+		); errorValue != nil {
+			return nil, errorValue
+		}
+		leaveTimes[attendanceAbsenceTimeKey(leaveTime.RangeID, leaveTime.Date)] = leaveTime
+	}
+	return leaveTimes, rows.Err()
+}
+
+func attendanceAbsenceTimeKey(rangeID string, date string) string {
+	return rangeID + "\x00" + date
 }
 
 func (service *Service) readAttendanceAbsenceRanges(ctx context.Context, startDate string, endDate string, email string) ([]attendanceAbsenceRange, error) {

@@ -72,6 +72,142 @@ func TestAttendanceClockMessagesUseAdminLocale(t *testing.T) {
 	}
 }
 
+func TestAttendanceClockInFromMattermostEndsActiveLeaveEarly(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	location := service.workspaceTimeZone().location
+	currentLocalDate := time.Now().In(location)
+	localNow := time.Date(
+		currentLocalDate.Year(),
+		currentLocalDate.Month(),
+		currentLocalDate.Day(),
+		12,
+		0,
+		0,
+		0,
+		location,
+	)
+	now := localNow.UTC()
+	leaveStart := localNow.Add(-30 * time.Minute)
+	leaveEnd := localNow.Add(90 * time.Minute)
+	employee := attendanceLeaveEmployee{
+		Email:  "staff@example.com",
+		UserID: "user-1",
+	}
+	leaveType, found := attendanceLeaveTypeByID(defaultAttendanceLeavePolicy(), "sick")
+	if !found {
+		t.Fatal("sick leave type is missing")
+	}
+	record, errorValue := service.createAttendanceLeaveRequest(
+		t.Context(),
+		employee,
+		attendanceLeaveRequestInput{
+			LeaveTypeID:   leaveType.ID,
+			Unit:          "quarterDay",
+			StartDate:     localNow.Format(time.DateOnly),
+			PartialPeriod: attendanceLeavePartialPeriodCustom,
+			StartTime:     leaveStart.Format("15:04"),
+		},
+		attendanceLeaveRequestPreview{
+			Occurrences: []attendanceLeaveRequestOccurrence{{
+				Date:               localNow.Format(time.DateOnly),
+				StartTime:          leaveStart.Format("15:04"),
+				EndTime:            leaveEnd.Format("15:04"),
+				DeductionMilliDays: 250,
+			}},
+			TotalDeductionMilliDays: 250,
+		},
+		leaveType,
+		nil,
+		now.Add(-time.Hour),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.decideAttendanceLeaveRequest(
+		t.Context(),
+		record.ID,
+		"admin@example.com",
+		attendanceLeaveApprovalInput{Action: attendanceLeaveApprovalActionApprove},
+		now.Add(-45*time.Minute),
+	); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue := service.openAttendanceDatabase(t.Context())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	clockIn := service.createAttendanceEvent(
+		mattermostUserRecord{
+			ID:       "user-1",
+			Username: "staff",
+			Email:    "staff@example.com",
+		},
+		attendanceKindClockIn,
+		leaveStart.Add(-time.Hour),
+		"team-1",
+		"attendance-channel",
+		"entry-post",
+		"clock-in-post",
+		attendanceLocation{ID: "office", Name: "사무실"},
+	)
+	if errorValue := service.insertAttendanceEvent(t.Context(), database, clockIn); errorValue != nil {
+		database.Close()
+		t.Fatal(errorValue)
+	}
+	database.Close()
+
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context: mattermostInteractiveContext{
+			Action: attendanceClockInAction,
+			Token:  service.ensureMattermostInteractiveActionToken(),
+		},
+	}
+	if _, errorValue := service.recordAttendanceFromMattermostAt(
+		t.Context(),
+		payload,
+		attendanceKindClockIn,
+		now,
+	); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	activeLeave, errorValue := service.readActiveAttendanceLeave(
+		t.Context(),
+		"staff@example.com",
+		now,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if activeLeave != nil {
+		t.Fatalf("active leave = %+v", activeLeave)
+	}
+	events, errorValue := service.readAttendanceEvents(
+		t.Context(),
+		localNow.Format("2006-01"),
+		"staff@example.com",
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	automaticClockOutFound := false
+	mattermostClockInCount := 0
+	for _, event := range events {
+		if event.Source == attendanceSourceApprovedLeave && event.Kind == attendanceKindClockOut {
+			automaticClockOutFound = true
+		}
+		if event.Source == attendanceSourceMattermostButton && event.Kind == attendanceKindClockIn {
+			mattermostClockInCount++
+		}
+	}
+	if len(events) != 3 || !automaticClockOutFound || mattermostClockInCount != 2 {
+		t.Fatalf("mattermost early return events = %+v", events)
+	}
+}
+
 func TestAttendanceClockButtonUsesStoredEntryPostID(t *testing.T) {
 	service, posts := newAttendanceActionTestService(t)
 	service.saveMattermostAttendanceEntryPostID("entry-post")

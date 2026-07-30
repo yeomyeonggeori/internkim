@@ -91,6 +91,8 @@ export type AttendanceAbsence = {
 	date: string;
 	startDate?: string;
 	endDate?: string;
+	startTime?: string;
+	endTime?: string;
 	reason?: string;
 	createdBy?: string;
 	createdAt: string;
@@ -108,6 +110,18 @@ export type AttendanceMember = {
 	mattermostUsername: string;
 };
 
+export type AttendanceActiveLeave = {
+	requestID: string;
+	occurrenceID: string;
+	leaveTypeID: string;
+	leaveTypeName: string;
+	startTime: string;
+	endTime: string;
+	deductionMilliDays: number;
+	startAt: string;
+	endAt: string;
+};
+
 export type AttendanceSummary = {
 	month: string;
 	serverTime?: string;
@@ -119,6 +133,7 @@ export type AttendanceSummary = {
 	absences: AttendanceAbsence[];
 	members: AttendanceMember[];
 	todayStatus: string;
+	activeLeave?: AttendanceActiveLeave;
 	locations: AttendanceLocation[];
 	teamViewVisibleToAll: boolean;
 	teamViewBlocked: boolean;
@@ -150,11 +165,23 @@ export class AttendanceState {
 					this.summary.serverTime = summary.serverTime;
 					this.summary.timeZone = summary.timeZone;
 					this.summary.timeZoneAuthoritative = summary.timeZoneAuthoritative;
+					this.summary.todayStatus = summary.todayStatus;
+					this.summary.activeLeave = summary.activeLeave;
+					if (this.summary.month === summary.month) {
+						this.summary.events = summary.events;
+						this.summary.absences = summary.absences;
+					}
 				}
 				if (this.currentMonthSummary) {
 					this.currentMonthSummary.serverTime = summary.serverTime;
 					this.currentMonthSummary.timeZone = summary.timeZone;
 					this.currentMonthSummary.timeZoneAuthoritative = summary.timeZoneAuthoritative;
+					this.currentMonthSummary.todayStatus = summary.todayStatus;
+					this.currentMonthSummary.activeLeave = summary.activeLeave;
+					if (this.currentMonthSummary.month === summary.month) {
+						this.currentMonthSummary.events = summary.events;
+						this.currentMonthSummary.absences = summary.absences;
+					}
 				}
 			}
 		});
@@ -272,8 +299,12 @@ export class AttendanceState {
 		}
 	}
 
-	async toggleAttendance(kind?: AttendanceKind, locationID?: string) {
-		await toggleAttendanceOnServer(kind, locationID);
+	async toggleAttendance(
+		kind?: AttendanceKind,
+		locationID?: string,
+		confirmEarlyReturn = false
+	) {
+		await toggleAttendanceOnServer(kind, locationID, confirmEarlyReturn);
 		await this.load();
 	}
 

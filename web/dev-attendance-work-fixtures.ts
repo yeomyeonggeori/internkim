@@ -40,6 +40,7 @@ export function buildAttendanceEventFixtures(options: BuildAttendanceEventFixtur
 
 	idSeed = appendPopupOverflowScenario(events, idSeed, month, endDay);
 	idSeed = appendCompletedThreeLocationScenario(events, idSeed, month, endDay);
+	idSeed = appendPartialLeaveScenario(events, idSeed, month, endDay);
 	appendTodayMultipleLocationScenario(events, idSeed, month, todayMonth, todayDate);
 
 	return events;
@@ -134,6 +135,27 @@ function appendCompletedThreeLocationScenario(
 		['clock_out', '12:20', 'office', '외부 일정 이동'],
 		['clock_in', '13:00', 'outside', '외부 일정 시작'],
 		['clock_out', '17:30', 'outside', '외부 일정 종료'],
+	]);
+}
+
+function appendPartialLeaveScenario(
+	events: AttendanceSummary['events'],
+	startIDSeed: number,
+	month: string,
+	endDay: number
+): number {
+	const sampleDay = 17;
+	if (month !== '2026-07' || endDay < sampleDay) return startIDSeed;
+	const date = `${month}-${pad(sampleDay)}`;
+	const person =
+		devAttendancePeople.find((candidate) => candidate.email === 'lee@example.com') ??
+		devAttendancePeople[0];
+	removePersonDateEvents(events, person.email, date);
+	return appendMultiLocationEvents(events, startIDSeed, person, date, [
+		['clock_in', '09:00', 'office', '오전 근무 시작'],
+		['clock_out', '12:00', 'office', '휴가 전 근무 종료'],
+		['clock_in', '15:00', 'office', '휴가 후 근무 시작'],
+		['clock_out', '18:00', 'office', '오후 근무 종료']
 	]);
 }
 

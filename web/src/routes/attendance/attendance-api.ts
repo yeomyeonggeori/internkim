@@ -70,12 +70,20 @@ export async function updateAttendanceTeamViewVisibility(visible: boolean): Prom
 	if (!response.ok) throw new Error(await response.text());
 }
 
-export async function toggleAttendanceOnServer(kind?: AttendanceKind, locationID?: string): Promise<void> {
+export async function toggleAttendanceOnServer(
+	kind?: AttendanceKind,
+	locationID?: string,
+	confirmEarlyReturn = false
+): Promise<void> {
 	const response = await fetch('/attendance/api/clock', {
 		method: 'POST',
 		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ kind: kind ?? '', locationID: locationID ?? '' })
+		body: JSON.stringify({
+			kind: kind ?? '',
+			locationID: locationID ?? '',
+			confirmEarlyReturn
+		})
 	});
 	if (!response.ok) throw new Error(await response.text());
 }

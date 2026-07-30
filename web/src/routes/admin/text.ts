@@ -22,6 +22,7 @@ export const adminText = {
 			backup: '백업',
 			bot: '봇',
 			settings: '일반',
+			attendanceSettings: '근태 설정',
 			sharing: '회사 페이지',
 			network: '네트워크',
 			buzz: 'Buzz',
@@ -138,7 +139,7 @@ export const adminText = {
 			openRouterApiKeyPlaceholder: 'OpenRouter API 키',
 			notice: '키는 저장 전에 검증되고, LLM이나 도구 결과에는 노출되지 않습니다.'
 		},
-		settings: {
+			settings: {
 			title: '작업공간 설정',
 			description: '근태와 운영 화면에서 사용할 작업공간 설정입니다.',
 			timeZone: '시간대',
@@ -155,6 +156,9 @@ export const adminText = {
 			loadError: '설정을 불러오지 못했습니다.',
 			saveSuccess: '저장되었습니다.',
 			saveError: '설정을 저장하지 못했습니다.'
+		},
+		attendanceSettings: {
+			title: '근태 설정', description: '기본 휴가와 회사 사용자 정의 휴가 종류를 관리합니다.', systemBadge: '기본 휴가', add: '휴가 종류 추가', newLeave: '새 휴가', unsaved: '저장 전', inactive: '사용 중지', paid: '유급', paidDescription: '이 휴가를 유급으로 처리할지 설정합니다.', unpaid: '무급', balanceMode: '차감 방식', fullDay: '1일', halfDay: '반차', quarterDay: '반반차', name: '이름', namePlaceholder: '예: 가족돌봄 휴가', systemKind: '시스템 종류', balanceModeAnnual: '연차 차감', balanceModeSeparate: '별도 잔액', balanceModeNone: '차감 없음', includeInSummary: '휴가 현황 합계에 포함', includeInSummaryDescription: '직원 근태 화면의 사용·승인 대기·남음 합계에 포함합니다.', annualBalanceDescription: '이 휴가는 별도 잔액을 만들지 않고 연차 잔액에서 차감합니다.', grantCadence: '부여 주기', grantCadenceLabels: { annual: '매년', monthly: '매월', none: '자동 부여 없음' }, annualAmount: '연간 부여 일수', monthlyAmount: '월별 부여 일수', expiryMode: '소멸 방식', expiryModeLabels: { fiscalYearEnd: '회계연도 말', monthsAfterGrant: '부여 후 개월', none: '없음' }, expiryMonths: '소멸 개월', carryover: '이월 허용', carryoverDescription: '남은 잔여량을 다음 기간으로 넘길 수 있게 합니다.', carryoverLimit: '이월 한도', carryoverLimitDescription: '비워 두면 한도를 두지 않습니다.', expiryConfirmationTitle: '소멸·이월 정책을 변경할까요?', expiryConfirmationDescription: '저장하면 현재 남아 있는 휴가에도 새 소멸일과 이월 규칙이 바로 적용됩니다.', expiryConfirmationCancel: '취소', expiryConfirmationSave: '변경 저장', remove: '휴가 종류 제거', removeConfirmationTitle: '휴가 종류를 제거할까요?', removeConfirmationDescription: '‘{name}’ 휴가 종류는 신규 신청과 설정 목록에서 제거됩니다. 기존 사용 내역은 유지됩니다.', removeConfirmationCancel: '취소', removeConfirmationAction: '제거', removeSuccess: '휴가 종류를 제거했습니다.', removeError: '휴가 종류를 제거하지 못했습니다.', cancelChanges: '변경 취소', save: '저장', loading: '불러오는 중...', loadError: '근태 설정을 불러오지 못했습니다.', saveError: '근태 설정을 저장하지 못했습니다.', saveSuccess: '근태 설정을 저장했습니다.', atLeastOneUnit: '신청 단위를 하나 이상 선택하세요.', requiredName: '이름을 입력하세요.', invalidPolicy: '정책 값을 다시 확인하세요.'
 		},
 		companyShare: {
 			title: '공유 회사 페이지',
@@ -342,6 +346,7 @@ export const adminText = {
 			backup: 'Backup',
 			bot: 'Bot',
 			settings: 'General',
+			attendanceSettings: 'Attendance settings',
 			sharing: 'Company page',
 			network: 'Network',
 			buzz: 'Buzz',
@@ -475,6 +480,9 @@ export const adminText = {
 			loadError: 'Could not load settings.',
 			saveSuccess: 'Saved.',
 			saveError: 'Could not save settings.'
+		},
+		attendanceSettings: {
+			title: 'Attendance settings', description: 'Manage default and custom leave types for your company.', systemBadge: 'Default leave', add: 'Add leave type', newLeave: 'New leave type', unsaved: 'Unsaved', inactive: 'Stopped', paid: 'Paid', paidDescription: 'Choose whether this leave type is paid.', unpaid: 'Unpaid', balanceMode: 'Balance mode', fullDay: 'Full day', halfDay: 'Half day', quarterDay: 'Quarter day', name: 'Name', namePlaceholder: 'e.g. Family care leave', systemKind: 'System kind', balanceModeAnnual: 'Deduct annual balance', balanceModeSeparate: 'Separate balance', balanceModeNone: 'No balance', includeInSummary: 'Include in leave summary', includeInSummaryDescription: 'Include this balance in the employee attendance summary totals.', annualBalanceDescription: 'This leave type deducts the annual leave balance without creating a separate balance.', grantCadence: 'Grant cadence', grantCadenceLabels: { annual: 'Annual', monthly: 'Monthly', none: 'No automatic grant' }, annualAmount: 'Annual grant days', monthlyAmount: 'Monthly grant days', expiryMode: 'Expiry mode', expiryModeLabels: { fiscalYearEnd: 'Fiscal year end', monthsAfterGrant: 'Months after grant', none: 'None' }, expiryMonths: 'Expiry months', carryover: 'Allow carryover', carryoverDescription: 'Carry remaining balance into the next period.', carryoverLimit: 'Carryover limit', carryoverLimitDescription: 'Leave blank for no limit.', expiryConfirmationTitle: 'Change the expiry and carryover policy?', expiryConfirmationDescription: 'Saving immediately applies the new expiry dates and carryover rules to current available leave.', expiryConfirmationCancel: 'Cancel', expiryConfirmationSave: 'Save changes', remove: 'Remove leave type', removeConfirmationTitle: 'Remove this leave type?', removeConfirmationDescription: '{name} will be removed from new requests and settings. Existing history will be preserved.', removeConfirmationCancel: 'Cancel', removeConfirmationAction: 'Remove', removeSuccess: 'Leave type removed.', removeError: 'Could not remove leave type.', cancelChanges: 'Cancel changes', save: 'Save', loading: 'Loading...', loadError: 'Could not load attendance settings.', saveError: 'Could not save attendance settings.', saveSuccess: 'Attendance settings saved.', atLeastOneUnit: 'Select at least one request unit.', requiredName: 'Enter a name.', invalidPolicy: 'Review the policy values.'
 		},
 		companyShare: {
 			title: 'Shared company page',

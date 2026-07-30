@@ -234,6 +234,44 @@ describe('team status table model', () => {
 		});
 	});
 
+	test('keeps a partial leave segment between completed work segments', () => {
+		const summary = attendanceSummary(
+			[
+				attendanceEvent('lee-morning-in', 'lee@example.com', '이서희', '2026-06-17', 'clock_in', '09:00', 'lab-a', 'Lab A'),
+				attendanceEvent('lee-morning-out', 'lee@example.com', '이서희', '2026-06-17', 'clock_out', '12:00', 'lab-a', 'Lab A'),
+				attendanceEvent('lee-afternoon-in', 'lee@example.com', '이서희', '2026-06-17', 'clock_in', '15:00', 'lab-a', 'Lab A'),
+				attendanceEvent('lee-afternoon-out', 'lee@example.com', '이서희', '2026-06-17', 'clock_out', '18:00', 'lab-a', 'Lab A'),
+			],
+			[
+				attendanceAbsence('lee-quarter-leave', 'lee@example.com', 'leave', '2026-06-17', {
+					startTime: '13:00',
+					endTime: '15:00',
+				}),
+			]
+		);
+
+		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-17');
+		const day = rows
+			.find((row) => row.email === 'lee@example.com')
+			?.days.find((candidate) => candidate.date === '2026-06-17');
+
+		expect(day).toMatchObject({
+			label: '06시간 00분',
+			tone: 'finished',
+			timelineSegments: [
+				{ kind: 'work', startTime: '09:00', endTime: '12:00' },
+				{
+					kind: 'leave',
+					label: '휴가',
+					startTime: '13:00',
+					endTime: '15:00',
+					durationMinutes: 120,
+				},
+				{ kind: 'work', startTime: '15:00', endTime: '18:00' },
+			],
+		});
+	});
+
 	test('uses current month summary for the current location while viewing another month', () => {
 		const selectedSummary = attendanceSummaryForMonth('2026-05',
 			[

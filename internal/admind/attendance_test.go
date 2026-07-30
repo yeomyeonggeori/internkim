@@ -29,6 +29,13 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 		MattermostBotTokenPath:      writeTestFile(t, "bot-token"),
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 	})
+	if errorValue := service.writeOrganizationProfiles(t.Context(), []organizationProfile{{
+		UserID:   "user-1",
+		Email:    "staff@example.com",
+		HireDate: "2099-01-01",
+	}}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
