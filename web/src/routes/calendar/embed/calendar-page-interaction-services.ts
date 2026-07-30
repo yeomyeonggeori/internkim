@@ -8,21 +8,8 @@ import { createCalendarPageNavigation } from './calendar-page-navigation';
 import { createCalendarPageRangePreview } from './calendar-page-range-preview';
 import type { CalendarEmbedPageState } from './calendar-page-state.svelte';
 
-type CalendarPageInteractionCalendar = {
-	changeView: (viewType: ViewType) => void;
-	goToToday: () => void;
-	goToPrevious: () => void;
-	goToNext: () => void;
-	app: {
-		selectDate: (date: Date) => void;
-		setCurrentDate: (date: Date) => void;
-		setVisibleMonth: (date: Date) => void;
-	};
-};
-
 type CalendarPageInteractionServicesContext = {
 	broadcastCalendarView: (view: CalendarViewValue) => void;
-	calendar: CalendarPageInteractionCalendar;
 	eventLoader: CalendarEventLoader;
 	getLocaleCode: () => string;
 	getIsMobileTwoDayWeekView: () => boolean;

@@ -33,7 +33,6 @@ type CalendarPageLifecycleOptionsContext = {
 	selectedMonthDate: CalendarSelectedMonthDateActions;
 	setSelectedAuditEventID: (eventID: string | null) => void;
 	setToolbarView: (view: ViewType) => void;
-	syncCalendarThemeToDocument: () => void;
 	text: CalendarLocaleText;
 };
 
@@ -48,7 +47,6 @@ export function createCalendarPageLifecycleOptions(
 		initialCalendarView: context.initialCalendarView,
 		applyCalendarView: context.applyCalendarView,
 		setToolbarView: context.setToolbarView,
-		syncCalendarThemeToDocument: context.syncCalendarThemeToDocument,
 		hasVisibleRange: context.eventLoader.hasVisibleRange,
 		initialCalendarDate: context.initialCalendarDate,
 		loadEvents: context.eventLoader.loadEvents,
