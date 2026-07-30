@@ -71,6 +71,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		isBrowser: context.isBrowser,
 		errorFallback: () => context.text.error,
 		getCalendarEvents: () => eventStore.getAllEvents(),
+		getVisibleEvents: () => context.state.visibleEvents,
 		applyCalendarEventsChanges: (changes) => {
 			eventStore.applyEventsChanges(changes);
 		},
