@@ -29,6 +29,7 @@ func scanFlowTask(rows *sql.Rows) (flowTask, error) {
 		&task.RequestReason,
 		&task.DecisionReason,
 		&task.MattermostPostID,
+		&task.CalendarEventID,
 		&task.CreatedAt,
 	)
 	if errorValue != nil {

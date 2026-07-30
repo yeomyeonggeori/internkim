@@ -8,6 +8,18 @@ import (
 )
 
 func (service *Service) flowMembers(request *http.Request) []flowMember {
+	return membersFromUserRecords(service.organizationChartUserRecords(request))
+}
+
+func (service *Service) organizationChartUserRecords(request *http.Request) []adminUserMutation {
+	metadataResponse, errorValue := service.organizationUsersMetadataResponse(request)
+	if errorValue != nil {
+		return service.accountDirectoryUserRecords(request)
+	}
+	return visibleOrganizationUsersResponse(metadataResponse.response, metadataResponse.profilesByUserID, metadataResponse.profilesByEmail).Records
+}
+
+func (service *Service) accountDirectoryUserRecords(request *http.Request) []adminUserMutation {
 	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
 	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
 	var records []adminUserMutation
@@ -16,8 +28,7 @@ func (service *Service) flowMembers(request *http.Request) []flowMember {
 			records = fetched
 		}
 	}
-	records = mergeUserRecordsByEmail(records, service.blueclawPolicyUserRecords(request.Context()))
-	return membersFromUserRecords(withActorUserRecord(records, service.flowActorEmail(request)))
+	return mergeUserRecordsByEmail(records, service.blueclawPolicyUserRecords(request.Context()))
 }
 
 func (service *Service) blueclawPolicyUserRecords(ctx context.Context) []adminUserMutation {
@@ -73,19 +84,6 @@ func mergeUserRecordsByEmail(primaryRecords []adminUserMutation, additionalRecor
 		}
 	}
 	return mergedRecords
-}
-
-func withActorUserRecord(records []adminUserMutation, actorEmail string) []adminUserMutation {
-	normalizedEmail := strings.ToLower(strings.TrimSpace(actorEmail))
-	if normalizedEmail == "" {
-		return records
-	}
-	for _, record := range records {
-		if strings.EqualFold(strings.TrimSpace(record.Email), normalizedEmail) {
-			return records
-		}
-	}
-	return append(records, adminUserMutation{Email: normalizedEmail, Status: "active"})
 }
 
 func membersFromUserRecords(records []adminUserMutation) []flowMember {

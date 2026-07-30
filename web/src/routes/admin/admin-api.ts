@@ -1,6 +1,7 @@
 import type {
 	AdminJob,
 	AdminSession,
+	AttendanceLeavePolicy,
 	AttendanceLocation,
 	AttendanceLocationsResponse,
 	BlueclawUpdateStatus,
@@ -147,6 +148,21 @@ export async function updateAttendanceLocations(adminBaseURL: string, locations:
 		body: JSON.stringify({ locations })
 	});
 	return readJSON<AttendanceLocationsResponse>(response, fallbackMessage);
+}
+
+export async function fetchAttendanceLeavePolicy(adminBaseURL: string, fallbackMessage: string): Promise<AttendanceLeavePolicy> {
+	const response = await fetch(`${adminBaseURL}/attendance-leave-policy`, { credentials: 'include' });
+	return readJSON<AttendanceLeavePolicy>(response, fallbackMessage);
+}
+
+export async function updateAttendanceLeavePolicy(adminBaseURL: string, policy: AttendanceLeavePolicy, fallbackMessage: string): Promise<AttendanceLeavePolicy> {
+	const response = await fetch(`${adminBaseURL}/attendance-leave-policy`, {
+		method: 'PUT',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(policy)
+	});
+	return readJSON<AttendanceLeavePolicy>(response, fallbackMessage);
 }
 
 export async function fetchUsers(adminBaseURL: string, fallbackMessage: string): Promise<UsersResponse> {

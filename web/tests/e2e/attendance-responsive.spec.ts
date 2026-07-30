@@ -47,12 +47,42 @@ test.describe('attendance responsive view', () => {
 		await expect(page.getByTestId('team-status-table')).toBeVisible();
 		await expect(page.getByText('월간 근무 현황표')).toBeVisible();
 		await expect(page.getByText('내 근무 시간')).toBeVisible();
-		await expect(page.getByRole('button', { name: '부재 등록' })).toBeVisible();
+		await expect(page.getByRole('button', { name: '휴가 등록' })).toBeVisible();
 
 		const statusTable = page.getByTestId('team-status-table');
+		await page.getByRole('combobox', { name: '직원 선택' }).click();
 		await page.getByPlaceholder('직원 검색').fill('김철수');
+		await page.getByRole('option', { name: /김철수/ }).click();
 		await expect(statusTable.getByText('김철수')).toBeVisible();
 		await expect(statusTable.getByText('강민호')).toHaveCount(0);
+	});
+
+	test('scrolls desktop sidebar navigation together with personal tools', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 500 });
+		await page.goto('/attendance');
+		await selectKorean(page);
+
+		const scrollArea = page.getByTestId('attendance-sidebar-scroll');
+		const navigation = page.getByTestId('leave-history-navigation');
+		const personalTools = page.getByTestId('personal-tools-panel');
+		const initialNavigationBox = await navigation.boundingBox();
+		const scrollLayout = await scrollArea.evaluate((element) => ({
+			clientHeight: element.clientHeight,
+			overflowY: window.getComputedStyle(element).overflowY,
+			scrollHeight: element.scrollHeight
+		}));
+
+		expect(scrollLayout.overflowY).toBe('auto');
+		expect(scrollLayout.scrollHeight).toBeGreaterThan(scrollLayout.clientHeight);
+		expect(await personalTools.evaluate((element) => window.getComputedStyle(element).overflowY)).toBe('visible');
+
+		await scrollArea.evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
+		await expect.poll(() => scrollArea.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+		const scrolledNavigationBox = await navigation.boundingBox();
+		expect(initialNavigationBox).not.toBeNull();
+		expect(scrolledNavigationBox).not.toBeNull();
+		expect(scrolledNavigationBox!.y).toBeLessThan(initialNavigationBox!.y);
 	});
 
 	test('switches between status and tools containers on mobile', async ({ page }) => {
@@ -70,8 +100,8 @@ test.describe('attendance responsive view', () => {
 		expect(initialTabStyle.recordsBackground).not.toBe('rgba(0, 0, 0, 0)');
 		expect(initialTabStyle.recordsBackground).not.toBe(initialTabStyle.statusBackground);
 		const tabListLayout = await mobileTabListLayout(page.getByRole('tablist'));
-		expect(tabListLayout.width).toBeLessThanOrEqual(220);
 		expect(tabListLayout.left).toBeLessThanOrEqual(24);
+		expect(tabListLayout.right).toBeLessThanOrEqual(tabListLayout.viewportWidth - 12);
 		await expect(page.getByTestId('mobile-attendance-tools-view')).toBeVisible();
 		await expect(page.getByTestId('team-status-grid')).toBeHidden();
 
@@ -81,7 +111,7 @@ test.describe('attendance responsive view', () => {
 		await expect(page.getByTestId('team-status-grid')).toBeVisible();
 		await expect(page.getByTestId('mobile-attendance-tools-view')).toBeHidden();
 		const monthPickerLayout = await mobileMonthPickerLayout(page);
-		expect(Math.abs(monthPickerLayout.searchRight - monthPickerLayout.nextButtonRight)).toBeLessThanOrEqual(1);
+		expect(Math.abs(monthPickerLayout.filterRight - monthPickerLayout.nextButtonRight)).toBeLessThanOrEqual(1);
 		expect(monthPickerLayout.previousGap).toBeLessThanOrEqual(1);
 		expect(monthPickerLayout.nextGap).toBeLessThanOrEqual(1);
 
@@ -107,7 +137,7 @@ test.describe('attendance responsive view', () => {
 		const toolsView = page.getByTestId('mobile-attendance-tools-view');
 		await expect(page.getByRole('tab', { name: '내 기록' })).toHaveAttribute('aria-selected', 'true');
 		await expect(toolsView.getByText('내 근무 시간')).toBeVisible();
-		await expect(toolsView.getByRole('button', { name: '부재 등록' })).toBeVisible();
+		await expect(toolsView.getByRole('button', { name: '휴가 등록' })).toBeVisible();
 
 		await page.getByRole('tab', { name: '팀 현황' }).click();
 		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
@@ -137,7 +167,7 @@ test.describe('attendance responsive view', () => {
 
 		await expect(page.getByTestId('team-status-table')).toBeVisible();
 		await expect(page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`)).toBeVisible();
-		await expect(page.getByPlaceholder('직원 검색')).toBeVisible();
+		await expect(page.getByRole('combobox', { name: '직원 선택' })).toBeVisible();
 
 		const layout = await measureMobileTeamStatusTable(page.getByTestId('team-status-table'), todayDate);
 
@@ -190,15 +220,15 @@ test.describe('attendance responsive view', () => {
 		await expect(page.getByRole('tab', { name: 'My records' })).toHaveAttribute('aria-selected', 'true');
 		await page.getByRole('tab', { name: 'Team status' }).click();
 		await expect(page.getByText('Monthly work status table')).toBeVisible();
-		await expect(page.getByPlaceholder('Search employees')).toBeVisible();
+		await expect(page.getByRole('combobox', { name: 'Select employee' })).toBeVisible();
 		await expect(page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`)).toBeVisible();
 		const monthPickerLayout = await mobileMonthPickerLayout(page, {
-			searchPlaceholder: 'Search employees',
+			employeeFilterLabel: 'Select employee',
 			previousMonthLabel: 'Previous month',
 			monthTriggerName: /\w+ \d{4}/,
 			nextMonthLabel: 'Next month'
 		});
-		expect(monthPickerLayout.nextButtonRight).toBeLessThanOrEqual(monthPickerLayout.searchRight + 1);
+		expect(monthPickerLayout.nextButtonRight).toBeLessThanOrEqual(monthPickerLayout.filterRight + 1);
 		expect(monthPickerLayout.previousGap).toBeLessThanOrEqual(1);
 		expect(monthPickerLayout.nextGap).toBeLessThanOrEqual(1);
 

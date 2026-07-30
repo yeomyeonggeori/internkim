@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Empty from '$lib/components/ui/empty';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
@@ -10,8 +9,6 @@
 	import { calendarParticipantsFromUnknown } from '../../calendar/embed/calendar-participants';
 	import FlowTaskBoardCard from '../../flow/flow-task-board-card.svelte';
 	import { flowText } from '../../flow/text';
-	import { getAttendanceState } from '../attendance-context.svelte';
-	import { absencesForDate, absenceLabelText, hasAbsenceDetails } from '../shared/attendance-absence';
 	import type { AttendanceText } from '../text';
 	import type { TeamStatusDayDetail } from './team-status-day-detail';
 	import TeamStatusWorkRecordSection from './team-status-work-record-section.svelte';
@@ -22,36 +19,11 @@
 	};
 
 	let { text, detail }: Props = $props();
-	const attendance = getAttendanceState();
-	let deletingAbsenceID = $state('');
-	let absenceErrorID = $state('');
-	let absenceErrorMessage = $state('');
 	const sectionCountBadgeClass = 'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground';
 
-	const isOwnDay = $derived(detail.email === attendance.summary?.currentUserEmail);
-	const ownDayAbsences = $derived(
-		isOwnDay && attendance.summary
-			? absencesForDate(attendance.summary.absences, detail.day.date, attendance.summary.currentUserEmail)
-			: []
-	);
 	const flowBusinessFallback = $derived(
 		text.dateLocale === 'ko-KR' ? flowText.ko.task.businessFallback : flowText.en.task.businessFallback
 	);
-
-	async function deleteAbsence(absenceID: string) {
-		if (deletingAbsenceID) return;
-		deletingAbsenceID = absenceID;
-		absenceErrorID = '';
-		absenceErrorMessage = '';
-		try {
-			await attendance.deleteAbsence(absenceID);
-		} catch (error) {
-			absenceErrorID = absenceID;
-			absenceErrorMessage = error instanceof Error ? error.message : text.processingFailed;
-		} finally {
-			deletingAbsenceID = '';
-		}
-	}
 
 	function openCalendarEvent(eventID: string): void {
 		void goto(`/calendar/?date=${encodeURIComponent(detail.day.date)}&event=${encodeURIComponent(eventID)}`);
@@ -65,32 +37,6 @@
 <div class="divide-y" data-testid="team-status-day-detail-content">
 	<section class="px-5 py-5">
 		<TeamStatusWorkRecordSection {text} {detail} {sectionCountBadgeClass} />
-
-		{#if isOwnDay && ownDayAbsences.length}
-			<div class="mt-4 grid gap-2 border-t pt-4" data-testid="personal-day-detail-panel">
-				{#each ownDayAbsences as absence (absence.id)}
-					<div class="rounded-lg bg-info/10 p-3 text-xs">
-						<div class="flex items-start justify-between gap-3">
-							<div class="min-w-0">
-								<p class="font-medium text-info">{absenceLabelText(absence, text)}</p>
-								{#if hasAbsenceDetails(absence)}
-									<div class="mt-1 space-y-1 text-muted-foreground">
-										{#if absence.reason}<p>{absence.reason}</p>{/if}
-										{#if absence.createdBy}<p>{text.absenceCreatedByTemplate.replace('{user}', absence.createdBy)}</p>{/if}
-									</div>
-								{/if}
-							</div>
-							<Button type="button" variant="outline" size="sm" disabled={!!deletingAbsenceID} onclick={() => deleteAbsence(absence.id)}>
-								{text.cancel}
-							</Button>
-						</div>
-						{#if absenceErrorMessage && absenceErrorID === absence.id}
-							<p class="mt-2 text-destructive">{absenceErrorMessage}</p>
-						{/if}
-					</div>
-				{/each}
-			</div>
-		{/if}
 	</section>
 
 	<section class="px-5 py-5">

@@ -41,7 +41,7 @@ func (service *Service) writeFlowTaskAtStatusEnd(ctx context.Context, task flowT
 		return flowTask{}, errorValue
 	}
 	task.StatusRank = statusRank
-	task = flowTaskWithCreatedAt(task)
+	task = flowTaskWithCreatedAt(flowTaskWithIdentifier(task))
 	if errorValue := writeFlowTaskAndInvalidateSummaryInTransaction(ctx, transaction, task); errorValue != nil {
 		_ = transaction.Rollback()
 		return flowTask{}, errorValue
@@ -68,6 +68,18 @@ func writeFlowTaskAndInvalidateSummaryInTransaction(ctx context.Context, transac
 	return incrementFlowSummarySourceRevisions(ctx, transaction, sourceKeys)
 }
 
+func flowTaskWithIdentifier(task flowTask) flowTask {
+	if strings.TrimSpace(task.ID) != "" {
+		return task
+	}
+	task.ID = newFlowTaskID(task)
+	return task
+}
+
+func newFlowTaskID(task flowTask) string {
+	return stableFlowID(task.WeekCode + task.OwnerID + task.Content + time.Now().UTC().Format(time.RFC3339Nano))
+}
+
 func flowTaskWithCreatedAt(task flowTask) flowTask {
 	if strings.TrimSpace(task.CreatedAt) != "" {
 		return task
@@ -92,8 +104,8 @@ func writeFlowTaskInTransaction(ctx context.Context, transaction *sql.Tx, task f
 	}
 	_, errorValue = transaction.ExecContext(ctx, `
 INSERT INTO flow_tasks (
-		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	week_code = excluded.week_code,
 	owner_id = excluded.owner_id,
@@ -113,6 +125,7 @@ ON CONFLICT(id) DO UPDATE SET
 	request_reason = excluded.request_reason,
 	decision_reason = excluded.decision_reason,
 	mattermost_post_id = excluded.mattermost_post_id,
+	calendar_event_id = excluded.calendar_event_id,
 	updated_at = excluded.updated_at`,
 		task.ID,
 		task.WeekCode,
@@ -133,6 +146,7 @@ ON CONFLICT(id) DO UPDATE SET
 		task.RequestReason,
 		task.DecisionReason,
 		task.MattermostPostID,
+		task.CalendarEventID,
 		createdAt,
 		now,
 	)

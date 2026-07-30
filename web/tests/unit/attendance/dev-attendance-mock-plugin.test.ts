@@ -53,6 +53,67 @@ describe('dev attendance mock plugin', () => {
 		expect(hasKey(body, 'absences')).toBe(true);
 	});
 
+	test('returns and updates the default attendance leave policy', async () => {
+		const state = createDevAttendanceMockState('kim@example.com');
+		const initialResponse = await createDevAttendanceMockResponse(state, {
+			method: 'GET',
+			pathname: '/admin/api/attendance-leave-policy',
+			searchParams: new URLSearchParams()
+		});
+
+		expect(initialResponse?.status).toBe(200);
+		expect(initialResponse?.body).toMatchObject({
+			version: 2
+		});
+
+		const initialPolicy = initialResponse?.body as {
+			leaveTypes: Array<Record<string, unknown>>;
+			[key: string]: unknown;
+		};
+		expect(initialPolicy.leaveTypes.length).toBe(16);
+		expect(initialPolicy.leaveTypes[9]).toMatchObject({ id: 'reward', name: '포상휴가' });
+		expect(initialPolicy.leaveTypes[13]).toMatchObject({
+			id: 'parental-leave',
+			name: '육아휴직'
+		});
+		const updateResponse = await createDevAttendanceMockResponse(state, {
+			method: 'PUT',
+			pathname: '/admin/api/attendance-leave-policy',
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({
+				...initialPolicy,
+				leaveTypes: [
+					...initialPolicy.leaveTypes,
+					{
+						...initialPolicy.leaveTypes[15],
+						id: '',
+						systemKind: '',
+						name: '회사 특별 휴가',
+						isSystem: false,
+						sortOrder: 16
+					}
+				]
+			})
+		});
+		const reloadedResponse = await createDevAttendanceMockResponse(state, {
+			method: 'GET',
+			pathname: '/admin/api/attendance-leave-policy',
+			searchParams: new URLSearchParams()
+		});
+
+		expect(updateResponse?.status).toBe(200);
+		const updatedPolicy = updateResponse?.body as {
+			leaveTypes: Array<Record<string, unknown>>;
+		};
+		expect(updatedPolicy.leaveTypes.length).toBe(17);
+		expect(updatedPolicy.leaveTypes[16]).toMatchObject({
+			id: 'custom-1',
+			name: '회사 특별 휴가',
+			isSystem: false
+		});
+		expect(reloadedResponse?.body).toEqual(updateResponse?.body);
+	});
+
 	test('keeps the Seoul fixture day when the host time zone is still on the previous date', () => {
 		const currentTime = new HostPreviousDate('2026-07-01T00:30:00+09:00');
 		const summary = buildAttendanceSummaryFixture('2026-07', currentTime);
@@ -60,6 +121,33 @@ describe('dev attendance mock plugin', () => {
 
 		expect(summary.events.every((event) => event.localDate <= '2026-07-01')).toBe(true);
 		expect(personalLeave?.date).toBe('2026-07-02');
+	});
+
+	test('includes work, partial leave, and resumed work in the July fixture', () => {
+		const summary = buildAttendanceSummaryFixture(
+			'2026-07',
+			new Date('2026-07-29T10:00:00+09:00')
+		);
+		const partialLeave = summary.absences.find(
+			(absence) => absence.id === 'absence-lee-partial-leave'
+		);
+		const events = summary.events
+			.filter(
+				(event) => event.email === 'lee@example.com' && event.localDate === '2026-07-17'
+			)
+			.map((event) => ({ kind: event.kind, localTime: event.localTime }));
+
+		expect(partialLeave).toMatchObject({
+			kind: 'leave',
+			startTime: '13:00',
+			endTime: '15:00'
+		});
+		expect(events).toEqual([
+			{ kind: 'clock_in', localTime: '09:00' },
+			{ kind: 'clock_out', localTime: '12:00' },
+			{ kind: 'clock_in', localTime: '15:00' },
+			{ kind: 'clock_out', localTime: '18:00' }
+		]);
 	});
 
 	test('includes a multiple-location current-day scenario for the development user', async () => {

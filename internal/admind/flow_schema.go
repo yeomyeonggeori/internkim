@@ -8,7 +8,7 @@ import (
 
 func (service *Service) openFlowDatabase(ctx context.Context) (*sql.DB, error) {
 	options := sqliteDatabaseOptions{transactionLock: "immediate"}
-	return service.openSQLiteDatabaseWithOptions(ctx, service.Configuration.FlowDatabasePath, ensureFlowSchema, options)
+	return service.openStateDatabase(ctx, "flow", ensureFlowSchema, options)
 }
 
 func ensureFlowSchema(ctx context.Context, database *sql.DB) error {
@@ -66,6 +66,12 @@ CREATE TABLE IF NOT EXISTS flow_size_definitions (
 	position INTEGER NOT NULL
 )`)
 	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureFlowColumn(ctx, database, "flow_tasks", "calendar_event_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS flow_tasks_calendar_event_id ON flow_tasks(calendar_event_id)"); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := ensureFlowColumn(ctx, database, "flow_definitions", "color", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {

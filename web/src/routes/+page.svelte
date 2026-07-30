@@ -14,6 +14,7 @@
 	import DeviceSection from './admin/device-section.svelte';
 	import NetworkSection from './admin/network-section.svelte';
 	import SettingsSection from './admin/settings-section.svelte';
+	import AttendanceSettingsSection from './admin/attendance-settings-section.svelte';
 	import type { AdminSection, AdminSession } from './admin/admin-types';
 	import { adminText } from './admin/text';
 	import UsersSection from './admin/users-section.svelte';
@@ -29,6 +30,7 @@
 		{ value: 'backup', isDeviceManagedOnly: false },
 		{ value: 'bot', isDeviceManagedOnly: false },
 		{ value: 'settings', isDeviceManagedOnly: false },
+		{ value: 'attendanceSettings', isDeviceManagedOnly: false },
 		{ value: 'sharing', isDeviceManagedOnly: false },
 		{ value: 'network', isDeviceManagedOnly: true },
 		{ value: 'buzz', isDeviceManagedOnly: false },
@@ -189,6 +191,8 @@
 						/>
 					{:else if activeAdminSection === 'settings'}
 						<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+					{:else if activeAdminSection === 'attendanceSettings'}
+						<AttendanceSettingsSection adminBaseURL={adminBaseURL()} text={text} />
 					{:else if activeAdminSection === 'sharing'}
 						<CompanyShareSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
 					{:else if activeAdminSection === 'network'}

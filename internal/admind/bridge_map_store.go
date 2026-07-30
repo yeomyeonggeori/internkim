@@ -21,7 +21,7 @@ type bridgeChannelMapping struct {
 }
 
 func (service *Service) openBridgeMapDatabase(ctx context.Context) (*sql.DB, error) {
-	return service.openSQLiteDatabase(ctx, service.Configuration.BridgeMapDatabasePath, ensureBridgeMapSchema)
+	return service.openStateDatabase(ctx, "bridge-map", ensureBridgeMapSchema, sqliteDatabaseOptions{})
 }
 
 func (service *Service) recordBridgeMessage(ctx context.Context, database *sql.DB, mapping bridgeMessageMapping) error {

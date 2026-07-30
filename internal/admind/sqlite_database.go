@@ -29,6 +29,10 @@ func (service *Service) openSQLiteDatabase(ctx context.Context, databasePath str
 }
 
 func (service *Service) openSQLiteDatabaseWithOptions(ctx context.Context, databasePath string, ensureSchema func(context.Context, *sql.DB) error, options sqliteDatabaseOptions) (*sql.DB, error) {
+	return service.openSQLiteDatabaseWithSchemaName(ctx, databasePath, databasePath, ensureSchema, options)
+}
+
+func (service *Service) openSQLiteDatabaseWithSchemaName(ctx context.Context, databasePath string, schemaName string, ensureSchema func(context.Context, *sql.DB) error, options sqliteDatabaseOptions) (*sql.DB, error) {
 	if errorValue := os.MkdirAll(filepath.Dir(databasePath), 0o700); errorValue != nil {
 		return nil, errorValue
 	}
@@ -41,7 +45,7 @@ func (service *Service) openSQLiteDatabaseWithOptions(ctx context.Context, datab
 		_ = database.Close()
 		return nil, errorValue
 	}
-	if errorValue := service.ensureSQLiteSchema(ctx, databasePath, database, ensureSchema); errorValue != nil {
+	if errorValue := service.ensureSQLiteSchema(ctx, schemaName, database, ensureSchema); errorValue != nil {
 		_ = database.Close()
 		return nil, errorValue
 	}
@@ -80,20 +84,20 @@ func configureSQLiteConnection(ctx context.Context, database *sql.DB) error {
 	return errorValue
 }
 
-func (service *Service) ensureSQLiteSchema(ctx context.Context, databasePath string, database *sql.DB, ensureSchema func(context.Context, *sql.DB) error) error {
+func (service *Service) ensureSQLiteSchema(ctx context.Context, schemaName string, database *sql.DB, ensureSchema func(context.Context, *sql.DB) error) error {
 	if ensureSchema == nil {
 		return nil
 	}
 	schemas := service.databaseSchemaState()
 	schemas.mutex.Lock()
 	defer schemas.mutex.Unlock()
-	if schemas.ready[databasePath] {
+	if schemas.ready[schemaName] {
 		return nil
 	}
 	if errorValue := ensureSchema(ctx, database); errorValue != nil {
 		return errorValue
 	}
-	schemas.ready[databasePath] = true
+	schemas.ready[schemaName] = true
 	return nil
 }
 

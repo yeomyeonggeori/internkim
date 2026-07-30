@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { mergeProps } from 'bits-ui';
 	import DurationText from '../shared/duration-text.svelte';
 	import WorkSegmentSummary from '../shared/work-segment-summary.svelte';
+	import TeamStatusLeaveSegmentSummary from './team-status-leave-segment-summary.svelte';
 	import type { TeamStatusPersonDay } from './team-status-table-model';
 
 	type Props = {
@@ -24,6 +26,7 @@
 		onWorkTooltipOpenChange,
 		onOpenDayDetail
 	}: Props = $props();
+	const isMobile = new IsMobile();
 
 	function cellDividerClass(): string {
 		if (columnIndex === 0) return isLastColumn ? 'border-r' : '';
@@ -41,7 +44,8 @@
 		return `relative flex h-full min-h-12 w-full max-w-none flex-col items-center justify-center gap-1 px-1.5 pb-2 text-center text-xs font-medium transition hover:bg-muted/30 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${cellToneClass(dayToStyle)}`;
 	}
 
-	function segmentBarColor(segment: TeamStatusPersonDay['segments'][number]): string {
+	function segmentBarColor(segment: TeamStatusPersonDay['timelineSegments'][number]): string {
+		if (segment.kind === 'leave') return 'var(--color-info)';
 		return segment.locationColor ?? 'var(--color-muted-foreground)';
 	}
 
@@ -56,7 +60,7 @@
 	}
 
 	function daySegmentsTotalPercent(dayToMeasure: TeamStatusPersonDay): number {
-		const totalPercent = dayToMeasure.segments.reduce(
+		const totalPercent = dayToMeasure.timelineSegments.reduce(
 			(total, segment) => total + segment.widthPercent,
 			0
 		);
@@ -64,7 +68,7 @@
 	}
 
 	const hasVisibleLabel = $derived(day.tone === 'absence' || day.label !== '-');
-	const hasWorkTooltip = $derived(day.segments.length > 0);
+	const hasWorkTooltip = $derived(!isMobile.current && day.timelineSegments.length > 0);
 	const buttonProps = $derived({
 		class: cellButtonClass(day),
 		'aria-label': hasVisibleLabel ? undefined : day.label,
@@ -92,9 +96,9 @@
 			<span class={`absolute inset-x-1.5 bottom-1 h-1.5 rounded-full ${absenceMeterClass(day)}`} aria-hidden="true"></span>
 		{:else}
 			<span class="absolute inset-x-1.5 bottom-1 h-1.5 rounded-full bg-muted" aria-hidden="true">
-				{#if day.segments.length > 0}
+				{#if day.timelineSegments.length > 0}
 					<span class="flex h-full overflow-hidden rounded-full" style:width={`${daySegmentsTotalPercent(day)}%`}>
-						{#each day.segments as segment (segment.id)}
+						{#each day.timelineSegments as segment (segment.id)}
 							<span
 								class="h-full"
 								style:flex-grow={segment.widthPercent}
@@ -110,15 +114,24 @@
 
 	{#snippet WorkSegmentTooltip()}
 	<div class="grid min-w-44 gap-2">
-		{#each day.segments as segment (segment.id)}
-			<WorkSegmentSummary
-				locationName={segment.locationName}
-				locationColor={segment.locationColor}
-				startTime={segment.startTime}
-				endTime={segment.endTime}
-				durationMinutes={segment.durationMinutes}
-				isOpen={segment.isOpen}
-			/>
+		{#each day.timelineSegments as segment (segment.id)}
+			{#if segment.kind === 'work'}
+				<WorkSegmentSummary
+					locationName={segment.locationName}
+					locationColor={segment.locationColor}
+					startTime={segment.startTime}
+					endTime={segment.endTime}
+					durationMinutes={segment.durationMinutes}
+					isOpen={segment.isOpen}
+				/>
+			{:else}
+				<TeamStatusLeaveSegmentSummary
+					label={segment.label}
+					startTime={segment.startTime}
+					endTime={segment.endTime}
+					durationMinutes={segment.durationMinutes}
+				/>
+			{/if}
 		{/each}
 	</div>
 {/snippet}

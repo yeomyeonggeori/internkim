@@ -109,63 +109,6 @@ test.describe('attendance personal tools', () => {
 		await expect(secondDayDialog.getByTestId('team-status-day-segment').getByLabel('01시간 00분')).toBeVisible();
 	});
 
-	test('registers own absence without sending an email override', async ({ page }) => {
-		let requestBody: Record<string, unknown> = {};
-		await page.route('**/attendance/api/absences', async (route) => {
-			requestBody = JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>;
-			await route.fulfill({
-				json: {
-					absences: [
-						{
-							id: 'absence-created',
-							email: 'kim@example.com',
-							kind: 'leave',
-							labelKey: 'leave',
-							date: '2026-06-10',
-							createdAt: '2026-06-10T09:00:00+09:00'
-						}
-					]
-				}
-			});
-		});
-
-		await page.goto('/attendance');
-		await selectKorean(page);
-		await page.getByRole('button', { name: '부재 등록' }).click();
-
-		const absenceDialog = page.getByRole('dialog');
-		await absenceDialog.getByLabel('시작일').fill('2026-06-10');
-		await absenceDialog.getByLabel('종료일').fill('2026-06-10');
-		await absenceDialog.getByLabel('사유').fill('family');
-		await absenceDialog.getByRole('button', { name: '등록', exact: true }).click();
-
-		await expect(absenceDialog.getByText('부재를 등록했습니다.')).toBeVisible();
-		expect(requestBody).toEqual({
-			kind: 'leave',
-			startDate: '2026-06-10',
-			endDate: '2026-06-10',
-			reason: 'family'
-		});
-	});
-
-	test('shows a weekday-only notice when a weekend absence creates no records', async ({ page }) => {
-		await page.route('**/attendance/api/absences', async (route) => {
-			await route.fulfill({ json: { absences: [] } });
-		});
-
-		await page.goto('/attendance');
-		await selectKorean(page);
-		await page.getByRole('button', { name: '부재 등록' }).click();
-
-		const absenceDialog = page.getByRole('dialog');
-		await absenceDialog.getByLabel('시작일').fill('2026-06-13');
-		await absenceDialog.getByLabel('종료일').fill('2026-06-14');
-		await absenceDialog.getByRole('button', { name: '등록', exact: true }).click();
-
-		await expect(absenceDialog.getByText('등록할 평일이 없습니다.')).toBeVisible();
-		await expect(absenceDialog.getByText('부재를 등록했습니다.')).toHaveCount(0);
-	});
-
 	test('updates an attendance event only after saving an override reason', async ({ page }) => {
 		const todayDate = todayDateInSeoul();
 		const currentTime = new Date(`${todayDate}T15:00:00+09:00`);
@@ -517,39 +460,4 @@ test.describe('attendance personal tools', () => {
 		await expect(editActions.getByRole('button', { name: '저장' })).toBeEnabled();
 	});
 
-	test('cancels an own absence from the selected day panel', async ({ page }) => {
-		let summary = buildAttendanceSummaryFixture('2026-06');
-		const targetAbsence = summary.absences.find(
-			(absence) => absence.email === summary.currentUserEmail && absence.kind === 'leave'
-		);
-		if (!targetAbsence) throw new Error('Expected a current user leave absence fixture');
-		let deletedAbsenceID = '';
-
-		await page.unroute('**/attendance/api/summary**');
-		await page.route('**/attendance/api/summary**', async (route) => {
-			const requestURL = new URL(route.request().url());
-			const month = requestURL.searchParams.get('month') ?? summary.month;
-			await route.fulfill({ json: month === summary.month ? summary : buildAttendanceSummaryFixture(month) });
-		});
-		await page.route('**/attendance/api/absences/*', async (route) => {
-			deletedAbsenceID = decodeURIComponent(route.request().url().split('/').at(-1) ?? '');
-			summary = {
-				...summary,
-				absences: summary.absences.filter((absence) => absence.id !== deletedAbsenceID)
-			};
-			await route.fulfill({ json: { ok: true } });
-		});
-
-		await page.goto('/attendance');
-		await selectKorean(page);
-		await page.getByTestId(`team-status-cell-kim@example.com-${targetAbsence.date}`).click();
-
-		const detailDialog = page.getByTestId('team-status-day-detail-dialog');
-		const detailPanel = detailDialog.getByTestId('personal-day-detail-panel');
-		await expect(detailPanel.getByText('휴가')).toBeVisible();
-		await detailPanel.getByRole('button', { name: '취소' }).click();
-
-		expect(deletedAbsenceID).toBe(targetAbsence.id);
-		await expect(detailPanel.getByText('휴가')).toHaveCount(0);
-	});
 });

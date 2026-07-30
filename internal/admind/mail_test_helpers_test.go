@@ -23,7 +23,7 @@ func newMailTestService(t *testing.T) *Service {
 
 func writeUsersSyncTestCache(t *testing.T, service *Service, email string) {
 	t.Helper()
-	stateDirectory := filepath.Dir(service.Configuration.FlowDatabasePath)
+	stateDirectory := filepath.Dir(service.stateDatabasePath())
 	if errorValue := os.MkdirAll(stateDirectory, 0o700); errorValue != nil {
 		t.Fatal(errorValue)
 	}
