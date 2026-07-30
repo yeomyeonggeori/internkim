@@ -9,7 +9,7 @@ import (
 
 var StepBuzzMigrate = Step{
 	Name: "buzz-migrate",
-	Deps: []string{"buzz-relay", "buzz-media"},
+	Deps: []string{"buzz-relay", "buzz-media", "buzz-public-host"},
 	Title: func(context *Context) string {
 		return context.T("Mattermost 히스토리 마이그레이션 중...", "Migrating Mattermost history...")
 	},
@@ -82,6 +82,11 @@ func buzzMigrateLaunchCommand() string {
 SEED=$(cat /root/.internkim/secrets/buzz-key-seed)
 DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
 TEAM=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
+DEVICE_HOST=$(sed -E 's#^[a-z]+://##; s#/.*$##' ` + blueclaw.DeviceURLFilePath + `)
+case "$DEVICE_HOST" in
+  *.*) PUBLIC_HOST=$(printf '%s' "$DEVICE_HOST" | sed -E 's/\./-relay./') ;;
+  *) PUBLIC_HOST="${DEVICE_HOST}-relay" ;;
+esac
 rm -f ` + blueclaw.BuzzMigrateMarkerPath + `
 cat > /tmp/buzz-migrate-run.sh <<RUNEOF
 export DATABASE_URL="$DB_URL"
@@ -92,9 +97,9 @@ export DATABASE_URL="$DB_URL"
   --buzz-database-url "$DB_URL" \
   --buzz-admin ` + blueclaw.BuzzAdminBinaryPath + ` \
   --key-seed "$SEED" \
-  --relay-url ws://` + blueclaw.BuzzRelayBindAddress + ` \
-  --relay-http-url http://` + blueclaw.BuzzRelayBindAddress + ` \
-  --community-host ` + blueclaw.BuzzRelayBindAddress + ` \
+  --relay-url wss://$PUBLIC_HOST \
+  --relay-http-url https://$PUBLIC_HOST \
+  --community-host $PUBLIC_HOST \
   --orphan-root-title "이전 대화" \
   && touch ` + blueclaw.BuzzMigrateMarkerPath + ` && echo "MIGRATE_DONE_OK" || echo "MIGRATE_DONE_FAIL"
 rm -f ` + blueclaw.BuzzRelayImportOverrideEnvPath + `

@@ -31,7 +31,7 @@ func (service *Service) grantRelayMembership(ctx context.Context, pubkey string)
 		return
 	}
 	execution := exec.CommandContext(ctx, command, "add-member", "--pubkey", pubkey)
-	execution.Env = append(os.Environ(), "DATABASE_URL="+databaseURL, "RELAY_URL="+strings.TrimSpace(service.Configuration.BuzzRelayURL))
+	execution.Env = append(os.Environ(), "DATABASE_URL="+databaseURL, "RELAY_URL="+service.buzzRelayEffectiveURL())
 	if content, errorValue := os.ReadFile(strings.TrimSpace(service.Configuration.BuzzRelayKeyPath)); errorValue == nil {
 		for _, line := range strings.Split(string(content), "\n") {
 			if strings.HasPrefix(strings.TrimSpace(line), "BUZZ_RELAY_PRIVATE_KEY=") {
@@ -63,7 +63,7 @@ func (service *Service) ensureUserChannelMembership(ctx context.Context, email s
 		return
 	}
 	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
-	publisher, errorValue := relaypublish.Connect(ctx, strings.TrimSpace(service.Configuration.BuzzRelayURL), bootstrapSecret)
+	publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), bootstrapSecret)
 	if errorValue != nil {
 		return
 	}
@@ -90,7 +90,7 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 		return
 	}
 	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
-	publisher, errorValue := relaypublish.Connect(ctx, strings.TrimSpace(service.Configuration.BuzzRelayURL), bootstrapSecret)
+	publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), bootstrapSecret)
 	if errorValue != nil {
 		log.Printf("buzz staff membership: relay connect failed: %v", errorValue)
 		return

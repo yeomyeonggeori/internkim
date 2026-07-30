@@ -89,6 +89,7 @@ type Configuration struct {
 	BuzzInviteKeyPath              string
 	BuzzCommunityID                string
 	BuzzRelayURL                   string
+	BuzzRelayPublicURL             string
 	BuzzLandingBaseURL             string
 	BuzzAdminCommandPath           string
 	BuzzDatabaseURL                string
