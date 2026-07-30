@@ -205,6 +205,12 @@
 		return day.getMonth() !== activeMonth.getMonth() || day.getFullYear() !== activeMonth.getFullYear();
 	}
 
+	function isHoliday(day: Date): boolean {
+		const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+		const dayEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+		return events.some((event) => event.readOnly && event.start < dayEnd && event.end > dayStart);
+	}
+
 	function monthStartDayInWeek(week: CalendarGridWeek): Date | undefined {
 		return week.days.find((day) => day.getDate() === 1);
 	}
@@ -286,7 +292,7 @@
 <div class="relative flex min-h-0 flex-1 flex-col">
 	<div class="border-border/50 text-muted-foreground grid grid-cols-7 border-b text-xs font-medium">
 		{#each weekdayLabels as weekdayLabel, weekdayIndex (weekdayLabel)}
-			<div class={cn('px-2 py-1.5', weekdayIndex === 0 && 'text-destructive', weekdayIndex === 6 && 'text-primary')}>
+			<div class={cn('px-2 py-1.5', (weekdayIndex === 0 || weekdayIndex === 6) && 'text-destructive')}>
 				{weekdayLabel}
 			</div>
 		{/each}
@@ -326,6 +332,7 @@
 						isToday={isSameCalendarGridDay(day, today)}
 						isOutsideMonth={isOutsideVisibleMonth(day)}
 						isSelected={selectedDateKey === calendarGridDateKey(day)}
+						isHoliday={isHoliday(day)}
 						addEventOnDay={(selectedDay) => addEventOnDay(selectedDay)}
 						selectDay={(selectedDay) => selectDay(selectedDay)}
 					>

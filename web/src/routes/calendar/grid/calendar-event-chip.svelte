@@ -33,6 +33,8 @@
 	type="button"
 	data-calendar-event-id={event.id}
 	data-selected={isSelected ? '' : undefined}
+	aria-disabled={event.readOnly ? 'true' : undefined}
+	tabindex={event.readOnly ? -1 : undefined}
 	style={`--calendar-event-color: ${event.color}`}
 	class={cn(
 		'flex w-full min-w-0 gap-1.5 overflow-hidden rounded-md px-1 text-left text-xs leading-4 transition-colors',
@@ -46,10 +48,23 @@
 		continuesAfter && 'rounded-r-none',
 		className
 	)}
-	onclick={(clickEvent) => openEvent(event, clickEvent.currentTarget)}
+	onclick={(clickEvent) => {
+		if (event.readOnly) return;
+		openEvent(event, clickEvent.currentTarget);
+	}}
+	oncontextmenu={(contextMenuEvent) => {
+		if (!event.readOnly) return;
+		contextMenuEvent.preventDefault();
+		contextMenuEvent.stopPropagation();
+	}}
 >
 	{#if !continuesBefore}
-		<span class={cn('w-1 shrink-0 self-stretch rounded-full bg-(--calendar-event-color)', isSelected && 'invisible')}></span>
+		<span
+			class={cn(
+				'calendar-event-accent w-1 shrink-0 self-stretch rounded-full bg-(--calendar-event-color)',
+				isSelected && 'invisible'
+			)}
+		></span>
 	{/if}
 	<span class={cn('flex min-w-0 flex-1 gap-1.5', size === 'compact' ? 'items-center' : 'flex-col')}>
 		<span class={cn('truncate font-medium', !event.title && 'opacity-70')}>{event.title || placeholder}</span>

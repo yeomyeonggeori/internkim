@@ -963,6 +963,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeWorkspaceSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/workspace-settings":
 		service.updateWorkspaceSettings(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/holiday-countries":
+		service.serveCalendarHolidayCountries(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/holiday-sync/refresh":
+		service.refreshCalendarHolidays(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/company-share":
 		service.writeCompanyShareSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/company-share":

@@ -1,5 +1,6 @@
 import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 import type { CalendarEvent, CalendarEventPayload } from './calendar-event-persistence';
+import type { CalendarHoliday } from './calendar-holiday-persistence';
 import { calendarParticipantInputs, calendarParticipantsFromUnknown } from './calendar-participants';
 
 export type CalendarDateParts = {
@@ -31,6 +32,25 @@ export function dayFlowEventFromCalendarEvent(event: CalendarEvent): DayFlowEven
 			updatedByImage: event.updatedByImage ?? '',
 			updatedByAt: event.updatedByAt ?? '',
 			updatedAt: event.updatedAt
+		}
+	});
+}
+
+export function dayFlowEventFromCalendarHoliday(holiday: CalendarHoliday): DayFlowEvent {
+	const date = localDateFromCalendarDateParts(calendarDatePartsFromISODate(holiday.date));
+	return createEvent({
+		id: holiday.id,
+		title: holiday.title,
+		description: '',
+		start: date,
+		end: date,
+		allDay: true,
+		calendarId: 'holidays',
+		meta: {
+			color: holiday.color,
+			countryCode: holiday.countryCode ?? '',
+			readOnly: true,
+			source: holiday.source
 		}
 	});
 }
@@ -93,6 +113,16 @@ function localDateFromCalendarDateParts(dateParts: CalendarDateParts): Date {
 function localDateFromISODate(isoDate: string): Date {
 	const date = new Date(isoDate);
 	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function calendarDatePartsFromISODate(isoDate: string): CalendarDateParts {
+	const matches = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+	if (!matches) throw new Error(`Invalid calendar date: ${isoDate}`);
+	return {
+		year: Number(matches[1]),
+		month: Number(matches[2]),
+		day: Number(matches[3])
+	};
 }
 
 function dayBeforeLocalISODate(isoDate: string): Date {
