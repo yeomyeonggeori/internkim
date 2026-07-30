@@ -4,6 +4,7 @@
 	import FlowDefinitionsView from './flow-definitions-view.svelte';
 	import type { LoadFlow } from './flow-load-tracker';
 	import type { FlowDefinitions, FlowSizeDefinition, FlowSummary } from './flow-types';
+	import { flowProjectColor, flowTypeColor } from './flow-report-colors';
 	import { flowText } from './text';
 
 	type FlowDefinitionsText = typeof flowText.ko.definitions;
@@ -23,6 +24,8 @@
 	let sizeDrafts = $state<FlowSizeDefinition[]>([]);
 	let categoryColorDrafts = $state<Record<string, string>>({});
 	let typeColorDrafts = $state<Record<string, string>>({});
+	let newCategoryColor = $state('');
+	let newTypeColor = $state('');
 	let newCategoryText = $state('');
 	let newTypeText = $state('');
 	let isSavingDefinitions = $state(false);
@@ -51,17 +54,29 @@
 	function addCategory(): void {
 		const value = newCategoryText.trim();
 		if (!value || categoryDrafts.includes(value)) return;
+		categoryColorDrafts = { ...categoryColorDrafts, [value]: nextCategoryColor() };
 		categoryDrafts = [...categoryDrafts, value];
 		newCategoryText = '';
+		newCategoryColor = '';
 		void saveDefinitions();
 	}
 
 	function addType(): void {
 		const value = newTypeText.trim();
 		if (!value || typeDrafts.includes(value)) return;
+		typeColorDrafts = { ...typeColorDrafts, [value]: nextTypeColor() };
 		typeDrafts = [...typeDrafts, value];
 		newTypeText = '';
+		newTypeColor = '';
 		void saveDefinitions();
+	}
+
+	function nextCategoryColor(): string {
+		return newCategoryColor || flowProjectColor(categoryDrafts.length);
+	}
+
+	function nextTypeColor(): string {
+		return newTypeColor || flowTypeColor(typeDrafts.length);
 	}
 
 	function setCategoryColor(index: number, color: string): void {
@@ -164,6 +179,10 @@
 	definitions={definitions()}
 	{categoryDrafts}
 	{setCategoryColor}
+	newCategoryColor={nextCategoryColor()}
+	newTypeColor={nextTypeColor()}
+	setNewCategoryColor={(color) => (newCategoryColor = color)}
+	setNewTypeColor={(color) => (newTypeColor = color)}
 	{setTypeColor}
 	{typeDrafts}
 	{newCategoryText}
