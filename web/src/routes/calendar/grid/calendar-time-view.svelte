@@ -225,7 +225,6 @@
 		getScrollElement: () => columnsElement,
 		getSnapOffsets: columnSnapOffsets,
 		axis: 'horizontal',
-		damping: 1,
 		resolveSnapOffset: resolveColumnSnapOffset,
 		onSnapSettled: settleLeadingColumn
 	});

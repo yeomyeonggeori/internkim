@@ -2,7 +2,6 @@ type CalendarScrollSnapOptions = {
 	getScrollElement: () => HTMLElement | null;
 	getSnapOffsets: () => number[];
 	axis?: 'vertical' | 'horizontal';
-	damping?: number;
 	animationMilliseconds?: number;
 	onSnapSettled?: (offset: number) => void;
 	resolveSnapOffset?: (context: {
@@ -21,7 +20,6 @@ export type CalendarScrollSnap = {
 	destroy: () => void;
 };
 
-const defaultDamping = 0.7;
 const defaultAnimationMilliseconds = 220;
 const momentumDecaySteps = 3;
 const gestureGapMilliseconds = 140;
@@ -33,7 +31,6 @@ const maximumSnapMilliseconds = 420;
 
 export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): CalendarScrollSnap {
 	const axis = options.axis ?? 'vertical';
-	const damping = options.damping ?? defaultDamping;
 	const animationMilliseconds = options.animationMilliseconds ?? defaultAnimationMilliseconds;
 
 	let animationFrame: number | null = null;
@@ -103,7 +100,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 			return;
 		}
 
-		queueWheelScroll(scrollElement, wheelDeltaPixels(wheelEvent, scrollElement) * damping, isNewGesture);
+		queueWheelScroll(scrollElement, wheelDeltaPixels(wheelEvent, scrollElement), isNewGesture);
 		scheduleIdleSnap();
 		const isDecaying = magnitude < previousMagnitude - 0.5;
 		decayingSteps = isDecaying ? decayingSteps + 1 : 0;
