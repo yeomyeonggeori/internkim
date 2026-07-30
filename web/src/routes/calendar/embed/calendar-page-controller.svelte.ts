@@ -93,6 +93,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 	const eventActions: CalendarEventActions = createCalendarEventActions(
 		{
 			isBrowser: context.isBrowser,
+			defaultEventParticipants: () => context.state.viewerParticipants,
 			getCurrentDate: () => context.state.toolbarDate,
 			getStageElement: () => context.state.calendarStageElement,
 			getSelectedAuditEventID: () => context.state.selectedAuditEventID,
