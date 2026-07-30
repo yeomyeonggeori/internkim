@@ -23,6 +23,7 @@ export class CalendarEmbedPageState {
 	timelineRangePreviewSegments = $state<TimelineRangePreviewSegment[]>([]);
 	selectedMonthDateKey = $state<string | null>(null);
 	searchText = $state('');
+	participantFilterKey = $state('');
 	toolbarDate: Date;
 	toolbarView: ViewType;
 	selectedAuditEventID = $state<string | null>(null);
