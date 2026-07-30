@@ -51,6 +51,38 @@ describe('flow task board model', () => {
 		]);
 	});
 
+	test('keeps planned tasks in the week of their end date, or their start date when open ended', () => {
+		const board = buildFlowTaskBoard([
+			flowTask({ id: 'ends-this-week', status: '예정', startDate: '2026-05-25', endDate: '2026-06-03' }),
+			flowTask({ id: 'ends-next-week', status: '예정', startDate: '2026-06-02', endDate: '2026-06-10' }),
+			flowTask({ id: 'starts-this-week-open-ended', status: '예정', startDate: '2026-06-04', endDate: '' })
+		], {
+			weekStartISO: '2026-06-01',
+			weekEndISO: '2026-06-07',
+			isCurrentWeek: false
+		});
+
+		expect(board.find((column) => column.status === '예정')?.tasks.map((task) => task.id)).toEqual([
+			'ends-this-week',
+			'starts-this-week-open-ended'
+		]);
+	});
+
+	test('shows requested tasks in every week and in-progress tasks only in the current week', () => {
+		const tasks = [
+			flowTask({ id: 'requested', status: '요청', startDate: '2026-05-04', endDate: '' }),
+			flowTask({ id: 'in-progress', status: '진행', startDate: '2026-05-04', endDate: '' })
+		];
+		const pastWeek = { weekStartISO: '2026-06-01', weekEndISO: '2026-06-07', isCurrentWeek: false };
+		const currentWeek = { ...pastWeek, isCurrentWeek: true };
+
+		expect(buildFlowTaskBoard(tasks, pastWeek).flatMap((column) => column.tasks.map((task) => task.id))).toEqual(['requested']);
+		expect(buildFlowTaskBoard(tasks, currentWeek).flatMap((column) => column.tasks.map((task) => task.id))).toEqual([
+			'requested',
+			'in-progress'
+		]);
+	});
+
 	test('limits only the completed column to tasks completed in the selected week', () => {
 		const board = buildFlowTaskBoard([
 			flowTask({ id: 'done-this-week', status: '완료', endDate: '2026-06-03' }),
@@ -58,7 +90,8 @@ describe('flow task board model', () => {
 			flowTask({ id: 'progress-last-week', status: '진행', endDate: '2026-05-28' })
 		], {
 			weekStartISO: '2026-06-01',
-			weekEndISO: '2026-06-07'
+			weekEndISO: '2026-06-07',
+			isCurrentWeek: true
 		});
 
 		expect(board.find((column) => column.status === '완료')?.tasks.map((task) => task.id)).toEqual(['done-this-week']);

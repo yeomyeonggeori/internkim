@@ -24,6 +24,7 @@
 		canUpdateTask: (task: FlowTask) => boolean;
 		weekStartISO?: string;
 		weekEndISO?: string;
+		isCurrentWeek?: boolean;
 		memberEmail: (memberID: string) => string;
 	};
 
@@ -39,6 +40,7 @@
 		canUpdateTask,
 		weekStartISO = '',
 		weekEndISO = '',
+		isCurrentWeek = true,
 		memberEmail
 	}: Props = $props();
 
@@ -55,7 +57,7 @@
 	const insertionLineClass = 'h-0.5 w-full rounded-full bg-primary shadow-sm ring-1 ring-primary/20';
 	const boardDrag = new FlowTaskBoardDragController();
 
-	let columns = $derived(buildFlowTaskBoard(tasks, { weekStartISO, weekEndISO }));
+	let columns = $derived(buildFlowTaskBoard(tasks, { weekStartISO, weekEndISO, isCurrentWeek }));
 
 	$effect(() => {
 		boardDrag.sync({ pendingTaskIDs, canUpdateTask, moveTask });

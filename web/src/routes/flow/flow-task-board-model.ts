@@ -20,6 +20,7 @@ export type FlowTaskBoardColumnTheme = {
 export type FlowTaskBoardOptions = {
 	weekStartISO?: string;
 	weekEndISO?: string;
+	isCurrentWeek?: boolean;
 };
 
 const boardColumnThemes: Record<FlowTaskBoardStatus, FlowTaskBoardColumnTheme> = {
@@ -76,8 +77,18 @@ function compareFlowTaskBoardOrder(left: FlowTask, right: FlowTask): number {
 }
 
 function matchesBoardColumnWeek(task: FlowTask, status: FlowTaskBoardStatus, options: FlowTaskBoardOptions): boolean {
-	if (status !== '완료') return true;
+	if (status === '요청' || status === '일시정지') return true;
+	if (status === '진행') return options.isCurrentWeek !== false;
 	if (!options.weekStartISO || !options.weekEndISO) return true;
+	if (status === '완료') return isInSelectedWeek(task.endDate, options);
+	const startDate = task.startDate?.trim() ?? '';
 	const endDate = task.endDate?.trim() ?? '';
-	return endDate >= options.weekStartISO && endDate <= options.weekEndISO;
+	if (!startDate && !endDate) return options.isCurrentWeek !== false;
+	return isInSelectedWeek(endDate || startDate, options);
+}
+
+function isInSelectedWeek(date: string | undefined, options: FlowTaskBoardOptions): boolean {
+	const selectedDate = date?.trim() ?? '';
+	if (!selectedDate || !options.weekStartISO || !options.weekEndISO) return false;
+	return selectedDate >= options.weekStartISO && selectedDate <= options.weekEndISO;
 }
