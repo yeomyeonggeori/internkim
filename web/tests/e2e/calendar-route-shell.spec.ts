@@ -66,6 +66,41 @@ test.describe('calendar route shell', () => {
 		await expect(page.getByText('일정 삭제')).toHaveCount(0);
 	});
 
+	test('reloads holidays with the persisted UI locale', async ({ page }) => {
+		const requestedLocales: string[] = [];
+		await page.unroute('**/admin/api/locale');
+		await page.route('**/admin/api/locale', async (route) => {
+			await route.fulfill({ json: { locale: 'en' } });
+		});
+		await page.unroute('**/calendar/api/holidays?**');
+		await page.route('**/calendar/api/holidays?**', async (route) => {
+			const locale = new URL(route.request().url()).searchParams.get('locale') ?? '';
+			requestedLocales.push(locale);
+			await route.fulfill({
+				json: {
+					holidays: [
+						{
+							id: 'holiday-2026-06-15',
+							title: locale === 'ko' ? '광복절' : 'Liberation Day',
+							date: '2026-06-15',
+							source: 'holiday_api',
+							countryCode: 'KR',
+							readOnly: true,
+							color: '#ef4444'
+						}
+					],
+					source: 'holiday_api'
+				}
+			});
+		});
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
+		await page.goto('/calendar/embed');
+
+		await expect.poll(() => requestedLocales.at(-1)).toBe('en');
+		await expect(page.getByRole('button', { name: 'Liberation Day' })).toBeVisible();
+		await expect(page.getByRole('button', { name: '광복절' })).toHaveCount(0);
+	});
+
 	test('opens the compact editor for a month event in a narrow calendar shell', async ({ context, page }) => {
 		await page.setViewportSize({ width: 600, height: 900 });
 		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));

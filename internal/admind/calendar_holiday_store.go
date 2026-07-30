@@ -48,6 +48,7 @@ func (service *Service) readCalendarHolidays(
 	ctx context.Context,
 	source string,
 	countryCode string,
+	locale string,
 	startDate string,
 	endDate string,
 ) ([]calendarHoliday, error) {
@@ -59,8 +60,8 @@ func (service *Service) readCalendarHolidays(
 	query := `
 SELECT source_key, external_id, country_code, title, holiday_date
 FROM calendar_holidays
-WHERE source = ? AND holiday_date >= ? AND holiday_date < ? AND country_code = ?`
-	arguments := []any{source, startDate, endDate, countryCode}
+WHERE source = ? AND holiday_date >= ? AND holiday_date < ? AND country_code = ? AND source_key LIKE ?`
+	arguments := []any{source, startDate, endDate, countryCode, "%:" + locale}
 	query += " ORDER BY holiday_date, title, source_key, external_id"
 	rows, errorValue := database.QueryContext(ctx, query, arguments...)
 	if errorValue != nil {
