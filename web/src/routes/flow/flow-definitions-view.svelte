@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
 	import FlowEditableDefinitionListCard from './flow-editable-definition-list-card.svelte';
 	import { flowBusinessColor, flowTaskTypeColor } from './flow-definition-colors';
 	import FlowSizeDefinitionsCard from './flow-size-definitions-card.svelte';
@@ -90,10 +89,6 @@
 		saveDefinitions
 	}: Props = $props();
 
-	$effect(() => {
-		if (definitionSaveState === 'saved') toast.success(text.saved);
-		if (definitionSaveState === 'error') toast.error(definitionErrorMessage || text.saveError);
-	});
 </script>
 
 {#if canEditDefinitions}
