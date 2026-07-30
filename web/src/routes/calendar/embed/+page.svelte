@@ -37,6 +37,7 @@
 		calendarParticipantKey,
 		calendarParticipantsFromUnknown,
 		calendarParticipantsWithViewerFirst,
+		calendarViewerParticipants,
 		fetchCalendarParticipants
 	} from './calendar-participants';
 	import { fetchWebSessionEmail } from '$lib/web-session';
@@ -197,7 +198,9 @@
 	async function loadParticipantCandidates(): Promise<void> {
 		try {
 			const candidates = await fetchCalendarParticipants(text.error);
-			state.participantCandidates = calendarParticipantsWithViewerFirst(candidates, await fetchWebSessionEmail());
+			const viewerEmail = await fetchWebSessionEmail();
+			state.participantCandidates = calendarParticipantsWithViewerFirst(candidates, viewerEmail);
+			state.viewerParticipants = calendarViewerParticipants(candidates, viewerEmail);
 		} catch {
 			state.participantCandidates = [];
 		}
