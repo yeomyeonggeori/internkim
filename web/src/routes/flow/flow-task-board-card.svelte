@@ -163,7 +163,7 @@
 			<div class="flex flex-wrap items-center gap-1.5">
 				{#if display.businessLabel}
 					<Badge
-						class="h-5 max-w-24 rounded-md border px-1.5 py-0 text-[11px] font-medium shadow-none"
+						class="h-5 max-w-24 rounded-md border-transparent px-1.5 py-0 text-[11px] font-medium shadow-none"
 						style={flowBusinessBadgeStyle(businessColor(task.business))}
 					>
 						{display.businessLabel}
