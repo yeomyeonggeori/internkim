@@ -28,6 +28,7 @@ type CalendarDeletePersistenceOptions = {
 export type CalendarDeletePersistenceActions = {
 	deleteEvent: (eventID: string, revision: number) => Promise<void>;
 	flushPendingDelete: () => Promise<void>;
+	undoLastDelete: () => boolean;
 };
 
 type CalendarDeleteIntentResult =
@@ -156,6 +157,12 @@ export function createCalendarDeletePersistenceActions(
 		);
 	}
 
+	function undoLastDelete(): boolean {
+		if (!pendingDelete) return false;
+		undoPendingDelete(pendingDelete.event.id);
+		return true;
+	}
+
 	function flushPendingDelete(): Promise<void> {
 		finalizePendingDelete(true);
 		return Promise.resolve();
@@ -273,7 +280,8 @@ export function createCalendarDeletePersistenceActions(
 
 	return {
 		deleteEvent,
-		flushPendingDelete
+		flushPendingDelete,
+		undoLastDelete
 	};
 }
 

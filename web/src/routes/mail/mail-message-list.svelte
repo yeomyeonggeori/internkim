@@ -89,14 +89,16 @@
 		{/if}
 
 		<div class="space-y-2">
-			{#if messages.length && isLoadingMessages}
-				<p class="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">{text.loadingMessages}</p>
+			{#if !messages.length && isLoadingMessages && account.isConfigured}
+				{#each Array.from({ length: 6 }) as _, placeholderIndex (placeholderIndex)}
+					<MailMessageRow isPlaceholder {text} />
+				{/each}
 			{/if}
 			{#each messages as message (messageKey(message))}
 				<MailMessageRow {message} isActive={messageKey(selectedMessage) === messageKey(message)} {text} {selectMessage} />
 			{/each}
 
-			{#if !messages.length}
+			{#if !messages.length && !(isLoadingMessages && account.isConfigured)}
 				<div class="rounded-lg border border-dashed bg-background p-8 text-center">
 					<MailOpenIcon class="mx-auto size-5 text-muted-foreground" />
 					{#if !hasLoadedAccount}

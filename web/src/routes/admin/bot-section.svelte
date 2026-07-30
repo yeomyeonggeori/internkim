@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
@@ -88,52 +90,52 @@
 	}
 </script>
 
-<div class="rounded-lg border p-4">
-	<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-		<div>
-			<h3 class="text-sm font-semibold">{text.bot.title}</h3>
-			<p class="text-muted-foreground mt-1 text-sm">
-				{text.bot.description}
-			</p>
-		</div>
-		<Badge variant="outline">{botProfile.username}</Badge>
-	</div>
-	<div class="grid gap-3 md:grid-cols-2">
-		<Input bind:value={botProfile.displayName} placeholder={text.bot.displayNamePlaceholder} disabled={isLoadingBotProfile} />
-		<Input bind:value={botProfile.englishDisplayName} placeholder={text.bot.englishDisplayNamePlaceholder} disabled={isLoadingBotProfile} />
-		<Input
-			class="md:col-span-2"
-			bind:value={botProfile.publicDescription}
-			placeholder={text.bot.publicDescriptionPlaceholder}
-			disabled={isLoadingBotProfile}
-		/>
-		<Textarea
-			bind:value={botProfileAliasesText}
-			placeholder={text.bot.aliasesPlaceholder}
-			disabled={isLoadingBotProfile}
-			class="min-h-24"
-		/>
-		<Textarea
-			bind:value={botProfile.identityExtension}
-			placeholder={text.bot.identityExtensionPlaceholder}
-			disabled={isLoadingBotProfile}
-			class="min-h-24"
-		/>
-	</div>
-	<div class="mt-3 flex flex-wrap items-center justify-between gap-3">
-		<p class="text-muted-foreground text-xs">
-			{text.bot.identityNotice}
-		</p>
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.bot.title}</Card.Title>
+		<Card.Description>{text.bot.description}</Card.Description>
+		<Card.Action>
+			<Badge variant="outline" class="font-mono">{botProfile.username}</Badge>
+		</Card.Action>
+	</Card.Header>
+	<Card.Content>
+		<Field.Group>
+			<div class="grid gap-5 md:grid-cols-2">
+				<Field.Field>
+					<Field.Label for="bot-display-name">{text.bot.displayNamePlaceholder}</Field.Label>
+					<Input id="bot-display-name" bind:value={botProfile.displayName} disabled={isLoadingBotProfile} />
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="bot-english-display-name">{text.bot.englishDisplayNamePlaceholder}</Field.Label>
+					<Input id="bot-english-display-name" bind:value={botProfile.englishDisplayName} disabled={isLoadingBotProfile} />
+				</Field.Field>
+			</div>
+			<Field.Field>
+				<Field.Label for="bot-public-description">{text.bot.publicDescriptionPlaceholder}</Field.Label>
+				<Input id="bot-public-description" bind:value={botProfile.publicDescription} disabled={isLoadingBotProfile} />
+			</Field.Field>
+			<div class="grid gap-5 md:grid-cols-2">
+				<Field.Field>
+					<Field.Label for="bot-aliases">{text.bot.aliasesLabel}</Field.Label>
+					<Textarea id="bot-aliases" bind:value={botProfileAliasesText} placeholder={text.bot.aliasesPlaceholder} disabled={isLoadingBotProfile} class="min-h-24" />
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="bot-identity-extension">{text.bot.identityExtensionPlaceholder}</Field.Label>
+					<Textarea id="bot-identity-extension" bind:value={botProfile.identityExtension} disabled={isLoadingBotProfile} class="min-h-24" />
+					<Field.Description>{text.bot.identityNotice}</Field.Description>
+				</Field.Field>
+			</div>
+			{#if botProfileErrorMessage}
+				<Field.Error>{botProfileErrorMessage}</Field.Error>
+			{/if}
+		</Field.Group>
+	</Card.Content>
+	<Card.Footer class="justify-end">
 		<Button disabled={!isDeviceReachable || isSavingBotProfile || !botProfile.displayName.trim()} onclick={saveBotProfile}>
 			{#if isSavingBotProfile}
 				<LoaderIcon class="size-4 animate-spin" />
 			{/if}
 			{text.bot.save}
 		</Button>
-	</div>
-	{#if botProfileErrorMessage}
-		<p class="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-			{botProfileErrorMessage}
-		</p>
-	{/if}
-</div>
+	</Card.Footer>
+</Card.Root>

@@ -1,14 +1,13 @@
 import { ViewType } from '@dayflow/svelte';
 import { calendarViewType } from './calendar-embed-view-helpers';
-import { loadSavedCalendarDate, loadSavedCalendarView } from './calendar-storage';
+import { loadSavedCalendarView } from './calendar-storage';
 
-export function initialCalendarDate(isBrowser: boolean, searchParams: URLSearchParams): Date {
-	if (!isBrowser) return loadSavedCalendarDate(isBrowser);
+export function initialCalendarDate(isBrowser: boolean, searchParams: URLSearchParams, today = new Date()): Date {
+	if (!isBrowser) return today;
 	const dateValue = searchParams.get('date') ?? '';
-	if (!dateValue) return loadSavedCalendarDate(isBrowser);
+	if (!dateValue) return today;
 	const parsedDate = new Date(`${dateValue}T00:00:00`);
-	if (Number.isNaN(parsedDate.getTime())) return loadSavedCalendarDate(isBrowser);
-	return parsedDate;
+	return Number.isNaN(parsedDate.getTime()) ? today : parsedDate;
 }
 
 export function initialCalendarEventID(isBrowser: boolean, searchParams: URLSearchParams): string {

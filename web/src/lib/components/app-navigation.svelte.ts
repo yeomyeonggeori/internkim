@@ -5,6 +5,7 @@ import type { AppRailItem } from '$lib/components/app-rail-types';
 import { appShellText } from '$lib/i18n/app-shell-text';
 import { createPageText } from '$lib/i18n/page-text.svelte';
 import type { UserRole } from '$lib/types';
+import type { WebAuthSession } from '$lib/web-auth-session';
 import ActivityIcon from '@lucide/svelte/icons/activity';
 import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
@@ -16,14 +17,6 @@ import MailIcon from '@lucide/svelte/icons/mail';
 import MessagesSquareIcon from '@lucide/svelte/icons/messages-square';
 import BrainIcon from '@lucide/svelte/icons/brain';
 import NetworkIcon from '@lucide/svelte/icons/network';
-
-type WebSession = {
-	authenticated?: boolean;
-	email?: string;
-	image?: string;
-	canViewTasks?: boolean;
-	isPocSuperAdmin?: boolean;
-};
 
 type AdminSession = {
 	email?: string;
@@ -80,12 +73,16 @@ class AppNavigation {
 		return this.currentPath === base || this.currentPath.startsWith(`${base}/`);
 	};
 
-	load = async () => {
-		const hasWebUser = await this.loadWebSession();
-		if (!hasWebUser) {
+	load = async (session: WebAuthSession | null) => {
+		if (!session?.authenticated) {
 			this.clearSession();
 			return;
 		}
+		this.userEmail = session.email;
+		this.userName = session.email ? session.email.split('@')[0] : '';
+		this.userImage = session.image;
+		this.canViewTasks = session.canViewTasks;
+		this.isPocSuperAdmin = session.isPocSuperAdmin;
 		await this.loadBuzzEnabled();
 		try {
 			const response = await adminApiFetch('/admin/api/session');
@@ -153,31 +150,6 @@ class AppNavigation {
 		}
 	}
 
-	private async loadWebSession() {
-		try {
-			const response = await fetch(`/auth/session?return=${encodeURIComponent(this.currentPath)}`, {
-				credentials: 'include'
-			});
-			if (!response.ok) {
-				this.clearSession();
-				return false;
-			}
-			const session = (await response.json()) as WebSession;
-			if (!session.authenticated) {
-				this.clearSession();
-				return false;
-			}
-			this.userEmail = session.email || '';
-			this.userName = this.userEmail ? this.userEmail.split('@')[0] : '';
-			this.userImage = session.image || '';
-			this.canViewTasks = session.canViewTasks === true;
-			this.isPocSuperAdmin = session.isPocSuperAdmin === true;
-			return true;
-		} catch {
-			this.clearSession();
-			return false;
-		}
-	}
 }
 
 function normalizeSessionRole(session: AdminSession): UserRole {

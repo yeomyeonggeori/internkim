@@ -10,6 +10,7 @@
 	import * as Table from '$lib/components/ui/table';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import PersonNameCell from '$lib/components/person-name-cell.svelte';
 	import { goto } from '$app/navigation';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -157,10 +158,6 @@
 			.replace('{to}', String(Math.min(totalTaskRunCount, (taskPageIndex + 1) * taskPageSize)));
 	}
 
-	function taskRunRequesterLabel(taskRun: TaskRunSummary): string {
-		return taskRun.requesterDisplayName || taskRun.requesterPersonID || '—';
-	}
-
 	function taskRunCostLabel(taskRun: TaskRunSummary): string {
 		return taskRun.llmCostUSD && taskRun.llmCostUSD > 0 ? formatCostUSD(taskRun.llmCostUSD) : '—';
 	}
@@ -278,7 +275,13 @@
 							<div class="flex min-w-0 items-start justify-between gap-3">
 								<div class="min-w-0">
 									<p class="line-clamp-2 text-sm font-medium">{taskRun.prompt || '—'}</p>
-									<p class="truncate text-xs text-muted-foreground">{taskRunRequesterLabel(taskRun)}</p>
+									{#if isAdmin}
+										<PersonNameCell
+											name={taskRun.requesterDisplayName ?? ''}
+											personID={taskRun.requesterPersonID ?? ''}
+											class="mt-1 text-xs font-normal text-muted-foreground [&_[data-slot=avatar]]:size-5"
+										/>
+									{/if}
 								</div>
 								<Badge variant={taskStatusBadgeVariant(taskRun.status)} class="shrink-0">
 									<StatusIcon />
@@ -346,8 +349,8 @@
 									onclick={() => openTaskRun(taskRun.taskRunID)}
 								>
 									{#if isAdmin}
-										<Table.Cell class="text-sm whitespace-nowrap">
-											{taskRunRequesterLabel(taskRun)}
+										<Table.Cell class="whitespace-nowrap text-sm">
+											<PersonNameCell name={taskRun.requesterDisplayName ?? ''} personID={taskRun.requesterPersonID ?? ''} />
 										</Table.Cell>
 									{/if}
 									<Table.Cell class="max-w-0">

@@ -1,10 +1,11 @@
 import { calendarDateStorageKey } from '../calendar-storage-keys';
-import { isCalendarNavigationMessage } from '../calendar-navigation-message';
+import { isCalendarCreateEventMessage, isCalendarNavigationMessage } from '../calendar-navigation-message';
 import { dateKey } from './calendar-draft-popover-state';
 
 type CalendarPageMessageContext = {
 	getCurrentOrigin: () => string;
 	navigateToDateKey: (dateKey: string) => void;
+	createQuickEvent: () => void;
 };
 
 export type CalendarPageMessageActions = {
@@ -22,6 +23,10 @@ export function createCalendarPageMessageActions(context: CalendarPageMessageCon
 
 	function handleCalendarWindowMessage(event: MessageEvent<unknown>): void {
 		if (event.origin !== context.getCurrentOrigin()) return;
+		if (isCalendarCreateEventMessage(event.data)) {
+			context.createQuickEvent();
+			return;
+		}
 		if (!isCalendarNavigationMessage(event.data)) return;
 		context.navigateToDateKey(event.data.dateKey);
 	}

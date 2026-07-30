@@ -143,7 +143,7 @@
 			candidates={participantCandidates}
 			label={draftText.participants}
 			placeholder={draftText.participantsPlaceholder}
-			removeLabel={draftText.removeParticipantAction}
+			emptyText={draftText.participantsEmpty}
 			disabled={!canEdit}
 			onChange={onParticipantsChange}
 		/>

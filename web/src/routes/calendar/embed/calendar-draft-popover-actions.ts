@@ -1,11 +1,9 @@
 import type { Event as DayFlowEvent } from '@dayflow/core';
 import type { CalendarEventActions } from './calendar-event-actions';
 import {
-	draftPopoverPositionFromAnchor,
 	draftPopoverStateFromEvent,
 	type DraftPopoverAnchor,
 	type DraftPopoverMode,
-	type DraftPopoverSize,
 	type DraftPopoverState
 } from './calendar-draft-popover-state';
 import {
@@ -13,7 +11,6 @@ import {
 } from './calendar-event-anchor-capture';
 import {
 	anchorFromElement,
-	areSamePopoverPositions,
 	calendarEventAnchorForEventID,
 	clearDraftPopoverElementMotion,
 	genericEventAnchorForEventID,
@@ -24,14 +21,13 @@ import { createCalendarDraftPopoverPersistence } from './calendar-draft-popover-
 import type { MonthRangeSelection } from './calendar-month-range-action';
 
 export type CalendarDraftPopoverActions = {
-	createQuickDraftPopover: (event: MouseEvent) => void;
+	createQuickDraftPopover: (event: MouseEvent | null) => void;
 	openAllDaySingleDraftPopover: (dateKey: string, anchor?: DraftPopoverAnchor | null) => void;
 	openMonthSingleDayDraftPopover: (dateKey: string, anchor?: DraftPopoverAnchor | null) => void;
 	openMonthRangeDraftPopover: (selection: MonthRangeSelection, anchor?: DraftPopoverAnchor | null) => void;
 	openTimelineSingleDraftPopover: (startDate: Date, anchor: DraftPopoverAnchor) => void;
 	openTimelineRangeDraftPopover: (firstDate: Date, secondDate: Date, anchor: DraftPopoverAnchor) => void;
 	openEventDraftPopover: (event: DayFlowEvent, mode: DraftPopoverMode, anchor?: DraftPopoverAnchor | null) => void;
-	repositionDraftPopover: (size: DraftPopoverSize) => void;
 	updateDraftPopover: (changes: Partial<DraftPopoverState>) => void;
 	saveDraftPopover: () => Promise<void>;
 	cancelDraftPopover: () => Promise<void>;
@@ -40,6 +36,7 @@ export type CalendarDraftPopoverActions = {
 
 type CalendarDraftPopoverActionsContext = {
 	eventActions: CalendarEventActions;
+	untitledEventTitle: () => string;
 	getDraftPopover: () => DraftPopoverState | null;
 	setDraftPopover: (popover: DraftPopoverState | null) => void;
 	getCalendarEvents: () => DayFlowEvent[];
@@ -56,9 +53,9 @@ export function createCalendarDraftPopoverActions(
 ): CalendarDraftPopoverActions {
 	const persistence = createCalendarDraftPopoverPersistence(context);
 
-	function createQuickDraftPopover(event: MouseEvent): void {
+	function createQuickDraftPopover(event: MouseEvent | null): void {
 		const draftEvent = context.eventActions.createQuickEvent();
-		openDraftPopoverForEvent(draftEvent, 'create', anchorFromElement(event.currentTarget), false);
+		openDraftPopoverForEvent(draftEvent, 'create', event ? anchorFromElement(event.currentTarget) : null, false);
 	}
 
 	function openMonthSingleDayDraftPopover(dateKey: string, anchor: DraftPopoverAnchor | null = null): void {
@@ -95,15 +92,6 @@ export function createCalendarDraftPopoverActions(
 		openDraftPopoverForEvent(event, mode, eventAnchor, false);
 	}
 
-	function repositionDraftPopover(size: DraftPopoverSize): void {
-		const popover = context.getDraftPopover();
-		if (!popover?.anchor || !popover.position.isReady) return;
-		const position = draftPopoverPositionFromAnchor(popover.anchor, context.getStageElement(), size);
-		if (areSamePopoverPositions(popover.position, position)) return;
-		clearDraftPopoverElementMotion();
-		context.setDraftPopover({ ...popover, position });
-	}
-
 	function updateDraftPopover(changes: Partial<DraftPopoverState>): void {
 		const popover = context.getDraftPopover();
 		if (!popover) return;
@@ -117,14 +105,7 @@ export function createCalendarDraftPopoverActions(
 		shouldWaitForRenderedAnchor: boolean
 	): void {
 		if (mode === 'create') context.selectEvent(event.id);
-		const popover = draftPopoverStateFromEvent(event, mode, anchor, context.getStageElement());
-		context.setDraftPopover({
-			...popover,
-			position: {
-				...popover.position,
-				isReady: !shouldWaitForRenderedAnchor || shouldShowInitialPopover(mode, anchor)
-			}
-		});
+		context.setDraftPopover(draftPopoverStateFromEvent(event, mode, anchor, context.getStageElement()));
 		scheduleRenderedEventPopoverPosition(event.id, mode, anchor, 0);
 	}
 
@@ -158,11 +139,7 @@ export function createCalendarDraftPopoverActions(
 			}
 			return;
 		}
-		context.setDraftPopover({
-			...popover,
-			anchor: renderedEventAnchor,
-			position: draftPopoverPositionFromAnchor(renderedEventAnchor, context.getStageElement())
-		});
+		context.setDraftPopover({ ...popover, anchor: renderedEventAnchor });
 	}
 
 	return {
@@ -173,7 +150,6 @@ export function createCalendarDraftPopoverActions(
 		openTimelineSingleDraftPopover,
 		openTimelineRangeDraftPopover,
 		openEventDraftPopover,
-		repositionDraftPopover,
 		updateDraftPopover,
 		saveDraftPopover: persistence.saveDraftPopover,
 		cancelDraftPopover: persistence.cancelDraftPopover,

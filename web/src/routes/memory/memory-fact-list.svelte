@@ -7,6 +7,8 @@
 	import * as Item from '$lib/components/ui/item';
 	import NetworkIcon from '@lucide/svelte/icons/network';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
+	import * as Card from '$lib/components/ui/card';
+	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
@@ -145,77 +147,80 @@
 	}
 </script>
 
-<section class="grid min-w-0 gap-3">
-	<div class="flex min-w-0 flex-wrap items-center gap-2">
-		<div class="relative min-w-48 flex-1">
-			<SearchIcon class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-			<Input bind:value={filters.searchText} placeholder={text.factFilterPlaceholder} autocomplete="off" class="pl-8" />
-		</div>
-		<FilterCombobox bind:value={filters.sourceKind} options={sourceKindOptions} label={text.factFilterKindAll} clearValue="all" class="w-36" />
-		<FilterCombobox bind:value={filters.scope} options={scopeOptions} label={text.factFilterScopeAll} clearValue="all" class="w-36" />
-		{#if hasActiveFilters}
-			<Button type="button" variant="ghost" size="sm" onclick={resetFilters} class="gap-2">
-				<RotateCcwIcon class="size-4" />
-				{text.factFilterReset}
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.factListTab}</Card.Title>
+		<Card.Description>{countSummaryText()}</Card.Description>
+		<Card.Action>
+			<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={loadMemoryGraph} aria-label={text.refresh} title={text.refresh}>
+				<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
 			</Button>
+		</Card.Action>
+	</Card.Header>
+	<Card.Content class="grid min-w-0 gap-4">
+		<div class="flex min-w-0 flex-wrap items-center gap-2">
+			<div class="relative min-w-48 flex-1">
+				<SearchIcon class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+				<Input bind:value={filters.searchText} placeholder={text.factFilterPlaceholder} autocomplete="off" class="pl-8" />
+			</div>
+			<FilterCombobox bind:value={filters.sourceKind} options={sourceKindOptions} label={text.factFilterKindAll} clearValue="all" class="w-36" />
+			<FilterCombobox bind:value={filters.scope} options={scopeOptions} label={text.factFilterScopeAll} clearValue="all" class="w-36" />
+			{#if hasActiveFilters}
+				<Button type="button" variant="ghost" size="sm" onclick={resetFilters}>
+					<RotateCcwIcon class="size-4" />
+					{text.factFilterReset}
+				</Button>
+			{/if}
+		</div>
+
+		{#if errorMessage || actionErrorMessage}
+			<Field.Error>{errorMessage || actionErrorMessage}</Field.Error>
 		{/if}
-		<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={loadMemoryGraph} aria-label={text.refresh} title={text.refresh}>
-			<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
-		</Button>
-	</div>
 
-	<p class="text-xs text-muted-foreground">{countSummaryText()}</p>
-
-	{#if errorMessage}
-		<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorMessage}</p>
-	{/if}
-	{#if actionErrorMessage}
-		<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionErrorMessage}</p>
-	{/if}
-
-	{#if visibleFacts.length === 0 && !isLoading}
-		<Empty.Root class="border">
-			<Empty.Header>
-				<Empty.Media variant="icon">
-					<NetworkIcon />
-				</Empty.Media>
-				<Empty.Title>{facts.length === 0 ? text.noVisibleMemory : text.factListEmpty}</Empty.Title>
-			</Empty.Header>
-		</Empty.Root>
-	{:else}
-		<Item.Group class="gap-2">
-			{#each visibleFacts as fact (`${fact.namespaceID}:${fact.factID}`)}
-				<Item.Root variant="outline" class="items-start">
-					<Item.Content>
-						<Item.Title class="text-muted-foreground gap-2 font-normal">
-							<Badge variant="outline">{sourceKindLabel(fact.sourceKind ?? '') || text.source}</Badge>
-							<span class="truncate text-xs">{scopeDisplayName(fact)}</span>
-							<span class="text-xs tabular-nums">{validAtText(fact)}</span>
-						</Item.Title>
-						<div class="memory-fact-markdown text-sm leading-5">
-							<SvelteMarkdown source={fact.content} />
-						</div>
-					</Item.Content>
-					<Item.Actions class="self-start">
-						<span class="text-muted-foreground text-xs tabular-nums">{factScoreText(fact.score)}</span>
-						{#if canDeleteFact(fact)}
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon-sm"
-								onclick={() => confirmDeleteFact(fact)}
-								aria-label={text.memoryDelete}
-								title={text.memoryDelete}
-							>
-								<TrashIcon class="size-4" />
-							</Button>
-						{/if}
-					</Item.Actions>
-				</Item.Root>
-			{/each}
-		</Item.Group>
-	{/if}
-</section>
+		{#if visibleFacts.length === 0 && !isLoading}
+			<Empty.Root class="border border-dashed">
+				<Empty.Header>
+					<Empty.Media variant="icon">
+						<NetworkIcon />
+					</Empty.Media>
+					<Empty.Title>{facts.length === 0 ? text.noVisibleMemory : text.factListEmpty}</Empty.Title>
+				</Empty.Header>
+			</Empty.Root>
+		{:else}
+			<Item.Group class="gap-2">
+				{#each visibleFacts as fact (`${fact.namespaceID}:${fact.factID}`)}
+					<Item.Root variant="outline" class="items-start">
+						<Item.Content>
+							<Item.Title class="text-muted-foreground gap-2 font-normal">
+								<Badge variant="outline">{sourceKindLabel(fact.sourceKind ?? '') || text.source}</Badge>
+								<span class="truncate text-xs">{scopeDisplayName(fact)}</span>
+								<span class="text-xs tabular-nums">{validAtText(fact)}</span>
+							</Item.Title>
+							<div class="memory-fact-markdown text-sm leading-5">
+								<SvelteMarkdown source={fact.content} />
+							</div>
+						</Item.Content>
+						<Item.Actions class="self-start">
+							<span class="text-muted-foreground text-xs tabular-nums">{factScoreText(fact.score)}</span>
+							{#if canDeleteFact(fact)}
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									onclick={() => confirmDeleteFact(fact)}
+									aria-label={text.memoryDelete}
+									title={text.memoryDelete}
+								>
+									<TrashIcon class="size-4" />
+								</Button>
+							{/if}
+						</Item.Actions>
+					</Item.Root>
+				{/each}
+			</Item.Group>
+		{/if}
+	</Card.Content>
+</Card.Root>
 
 
 <style>

@@ -5,7 +5,7 @@
 	let { children }: { children?: Snippet } = $props();
 </script>
 
-<Sidebar.Root collapsible="icon" data-app-chrome>
+<Sidebar.Root collapsible="icon" data-app-chrome data-app-rail>
 	{@render children?.()}
 	<Sidebar.Rail />
 </Sidebar.Root>

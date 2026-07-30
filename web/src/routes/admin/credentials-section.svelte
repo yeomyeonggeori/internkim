@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
+	import * as Item from '$lib/components/ui/item';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import { apiErrorMessage, deleteOpenRouterCredential, fetchCredentialProviders, saveOpenRouterCredential } from './admin-api';
 	import type { AdminPageText, CredentialProviderStatus } from './admin-types';
@@ -81,24 +84,22 @@
 	}
 </script>
 
-<div class="rounded-lg border p-4">
-	<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-		<div>
-			<h3 class="text-sm font-semibold">{text.credentials.title}</h3>
-			<p class="text-muted-foreground mt-1 text-sm">
-				{text.credentials.description}
-			</p>
-		</div>
-		<Badge variant={openRouterProvider()?.configured ? 'secondary' : 'outline'}>
-			{openRouterProvider()?.configured ? text.credentials.configured : text.credentials.missing}
-		</Badge>
-	</div>
-	<div class="grid gap-3">
-		<div class="rounded-md bg-muted/30 p-3">
-			<div class="flex flex-wrap items-center justify-between gap-3">
-				<div>
-					<p class="text-sm font-medium">OpenRouter</p>
-					<p class="text-muted-foreground mt-1 text-xs">
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.credentials.title}</Card.Title>
+		<Card.Description>{text.credentials.description}</Card.Description>
+		<Card.Action>
+			<Badge variant={openRouterProvider()?.configured ? 'secondary' : 'outline'}>
+				{openRouterProvider()?.configured ? text.credentials.configured : text.credentials.missing}
+			</Badge>
+		</Card.Action>
+	</Card.Header>
+	<Card.Content>
+		<Field.Group>
+			<Item.Root variant="outline">
+				<Item.Content>
+					<Item.Title>OpenRouter</Item.Title>
+					<Item.Description>
 						{#if openRouterProvider()?.fingerprint}
 							{openRouterProvider()?.fingerprint}
 						{:else if isLoadingCredentials}
@@ -106,35 +107,45 @@
 						{:else}
 							{text.credentials.noKey}
 						{/if}
-					</p>
-				</div>
+					</Item.Description>
+				</Item.Content>
 				{#if openRouterProvider()?.configured}
-					<Button variant="ghost" size="sm" disabled={isSavingCredential} onclick={deleteOpenRouterKey}>
-						{text.credentials.delete}
-					</Button>
+					<Item.Actions>
+						<Button variant="outline" size="sm" disabled={isSavingCredential} onclick={deleteOpenRouterKey}>
+							{text.credentials.delete}
+						</Button>
+					</Item.Actions>
 				{/if}
-			</div>
-		</div>
-		<form
-			class="grid gap-2 sm:grid-cols-[1fr_auto]"
-			onsubmit={(event) => {
-				event.preventDefault();
-				saveOpenRouterKey();
-			}}
-		>
-			<Input bind:value={openRouterApiKey} type="password" placeholder={text.credentials.openRouterApiKeyPlaceholder} autocomplete="new-password" />
-			<Button type="submit" disabled={!isDeviceReachable || isSavingCredential || !openRouterApiKey.trim()} class="gap-2">
-				{#if isSavingCredential}
-					<LoaderIcon class="size-4 animate-spin" />
-				{/if}
-				{text.credentials.save}
-			</Button>
-		</form>
-		<p class="text-muted-foreground text-xs">{text.credentials.notice}</p>
-	</div>
-	{#if credentialErrorMessage}
-		<p class="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-			{credentialErrorMessage}
-		</p>
-	{/if}
-</div>
+			</Item.Root>
+			<form
+				onsubmit={(event) => {
+					event.preventDefault();
+					saveOpenRouterKey();
+				}}
+			>
+				<Field.Field>
+					<Field.Label for="openrouter-api-key">{text.credentials.openRouterApiKeyPlaceholder}</Field.Label>
+					<div class="flex flex-wrap items-center gap-2">
+						<Input
+							id="openrouter-api-key"
+							class="min-w-64 flex-1"
+							bind:value={openRouterApiKey}
+							type="password"
+							autocomplete="new-password"
+						/>
+						<Button type="submit" disabled={!isDeviceReachable || isSavingCredential || !openRouterApiKey.trim()}>
+							{#if isSavingCredential}
+								<LoaderIcon class="size-4 animate-spin" />
+							{/if}
+							{text.credentials.save}
+						</Button>
+					</div>
+					<Field.Description>{text.credentials.notice}</Field.Description>
+				</Field.Field>
+			</form>
+			{#if credentialErrorMessage}
+				<Field.Error>{credentialErrorMessage}</Field.Error>
+			{/if}
+		</Field.Group>
+	</Card.Content>
+</Card.Root>

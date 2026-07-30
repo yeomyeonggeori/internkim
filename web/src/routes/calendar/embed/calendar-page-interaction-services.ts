@@ -6,7 +6,6 @@ import type { CalendarSelectedMonthDateActions } from './calendar-month-selectio
 import { createCalendarPageMessageActions } from './calendar-page-messages';
 import { createCalendarPageNavigation } from './calendar-page-navigation';
 import { createCalendarPageRangePreview } from './calendar-page-range-preview';
-import { createCalendarPageScrollOverlays } from './calendar-page-scroll-overlays';
 import type { CalendarEmbedPageState } from './calendar-page-state.svelte';
 
 type CalendarPageInteractionCalendar = {
@@ -30,6 +29,7 @@ type CalendarPageInteractionServicesContext = {
 	isBrowser: () => boolean;
 	selectedMonthDate: CalendarSelectedMonthDateActions;
 	selectCalendarEvent: (eventID: string) => void;
+	createQuickEvent: () => void;
 	setVisibleDate: (date: Date) => void;
 	state: CalendarEmbedPageState;
 };
@@ -54,7 +54,8 @@ export function createCalendarPageInteractionServices(context: CalendarPageInter
 
 	const pageMessages = createCalendarPageMessageActions({
 		getCurrentOrigin: () => window.location.origin,
-		navigateToDateKey: pageNavigation.navigateToDateKey
+		navigateToDateKey: pageNavigation.navigateToDateKey,
+		createQuickEvent: context.createQuickEvent
 	});
 
 	const rangePreview = createCalendarPageRangePreview({
@@ -77,18 +78,9 @@ export function createCalendarPageInteractionServices(context: CalendarPageInter
 		getVisibleEvents: () => context.state.visibleEvents
 	});
 
-	const scrollOverlays = createCalendarPageScrollOverlays({
-		getLocaleCode: context.getLocaleCode,
-		getMonthScrollOverlayLabels: () => context.state.monthScrollOverlayLabels,
-		setMonthScrollOverlayLabels: (labels) => {
-			context.state.monthScrollOverlayLabels = labels;
-		}
-	});
-
 	return {
 		pageMessages,
 		pageNavigation,
 		rangePreview,
-		scrollOverlays
 	};
 }
