@@ -8,8 +8,6 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import NetworkIcon from '@lucide/svelte/icons/network';
-	import UserRoundIcon from '@lucide/svelte/icons/user-round';
-	import ComponentIcon from '@lucide/svelte/icons/component';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { onMount } from 'svelte';
 	import { adminText } from '../admin/text';
@@ -27,9 +25,13 @@
 	const detailSheetViewport = new IsMobile(1024);
 	const controller = new OrganizationDirectoryController(adminBaseURL, text, adminPageText, () => currentLocale.value);
 
+	const orderedRecords = $derived([
+		...controller.records.filter((record) => controller.isOwnRecord(record)),
+		...controller.records.filter((record) => !controller.isOwnRecord(record))
+	]);
 	const personOptions = $derived([
 		{ value: '', label: text.allEmployees, keywords: [], jobTitle: '', email: '', image: '', seed: '' },
-		...controller.records.map((record) => ({
+		...orderedRecords.map((record) => ({
 			value: record.name || record.email,
 			label: record.name || record.email,
 			keywords: [record.jobTitle ?? ''].filter(Boolean),
@@ -114,9 +116,6 @@
 									searchPlaceholder={text.organization}
 									class="min-w-0 flex-1 sm:ml-auto sm:w-52 sm:flex-none"
 								>
-									{#snippet icon()}
-										<ComponentIcon class="size-4 shrink-0 opacity-60" />
-									{/snippet}
 								</FilterCombobox>
 								<FilterCombobox
 									bind:value={controller.query}
@@ -125,9 +124,6 @@
 									searchPlaceholder={text.searchPlaceholder}
 									class="min-w-0 flex-1 sm:w-72 sm:flex-none"
 								>
-									{#snippet icon()}
-										<UserRoundIcon class="size-4 shrink-0 opacity-60" />
-									{/snippet}
 									{#snippet selectedContent(option)}
 										<PersonAvatar
 											name={option.label}
