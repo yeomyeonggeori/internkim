@@ -57,7 +57,7 @@ func (service *Service) adjustManagedAttendanceLeave(
 	operation := attendanceLeaveOperation{
 		OperationKey: "admin-leave-adjustment:" + token,
 		Employee:     attendanceLeaveEmployee{Email: input.EmployeeEmail},
-		LeaveTypeID:  input.LeaveTypeID,
+		LeaveTypeID:  attendanceLeaveBalanceAccountID(leaveType.ID, leaveType.BalanceMode),
 		Kind:         input.Kind,
 		ReferenceID:  input.Reason,
 		EffectiveOn:  input.EffectiveOn,

@@ -11,7 +11,6 @@ const (
 	attendanceLeaveFullDayMilliDays    = 1000
 	attendanceLeaveHalfDayMilliDays    = 500
 	attendanceLeaveQuarterDayMilliDays = 250
-	attendanceLeaveMaximumAnnualDays   = 25
 )
 
 func attendanceLeaveUnitMilliDays(unit string) (int, error) {
@@ -38,40 +37,6 @@ func attendanceLeaveUnitWorkMinutes(unit string, netScheduledWorkMinutes int) (i
 	return netScheduledWorkMinutes * milliDays / attendanceLeaveFullDayMilliDays, nil
 }
 
-func attendanceLeaveStatutoryAnnualGrantMilliDays(completedYears int) int {
-	if completedYears < 1 {
-		return 0
-	}
-	additionalDays := (completedYears - 1) / 2
-	days := 15 + additionalDays
-	if days > attendanceLeaveMaximumAnnualDays {
-		days = attendanceLeaveMaximumAnnualDays
-	}
-	return days * attendanceLeaveFullDayMilliDays
-}
-
-func attendanceLeaveMonthlyAccruals(hireDate time.Time, through time.Time, expiryMonths int) []attendanceLeaveAccrual {
-	accruals := []attendanceLeaveAccrual{}
-	for completedMonths := 1; completedMonths <= 11; completedMonths++ {
-		grantDate := attendanceLeaveCalendarAnniversary(hireDate, 0, completedMonths)
-		if grantDate.After(through) {
-			break
-		}
-		expiresOn := ""
-		if expiryMonths > 0 {
-			expiresOn = attendanceLeaveCalendarAnniversary(grantDate, 0, expiryMonths).Format(time.DateOnly)
-		}
-		accruals = append(accruals, attendanceLeaveAccrual{
-			GrantDate:       grantDate.Format(time.DateOnly),
-			AmountMilliDays: attendanceLeaveFullDayMilliDays,
-			ExpiresOn:       expiresOn,
-			Kind:            attendanceLeaveOperationGrant,
-			ReferenceID:     "automatic:statutory:monthly",
-		})
-	}
-	return accruals
-}
-
 func attendanceLeaveAccrualsThrough(
 	hireDate time.Time,
 	asOf time.Time,
@@ -80,12 +45,8 @@ func attendanceLeaveAccrualsThrough(
 ) ([]attendanceLeaveAccrual, error) {
 	accruals := []attendanceLeaveAccrual{}
 	switch leaveType.GrantCadence {
-	case "statutory":
-		accruals = append(
-			accruals,
-			attendanceLeaveMonthlyAccruals(hireDate, asOf, 0)...,
-		)
-		statutoryAccruals, errorValue := attendanceLeaveStatutoryFiscalAccruals(
+	case "annual":
+		annualAccruals, errorValue := attendanceLeaveAnnualAccruals(
 			hireDate,
 			asOf,
 			policy,
@@ -94,20 +55,7 @@ func attendanceLeaveAccrualsThrough(
 		if errorValue != nil {
 			return nil, errorValue
 		}
-		accruals = append(accruals, statutoryAccruals...)
-	case "annual":
-		for completedYears := 1; ; completedYears++ {
-			grantDate := attendanceLeaveCalendarAnniversary(hireDate, completedYears, 0)
-			if grantDate.After(asOf) {
-				break
-			}
-			accruals = append(accruals, attendanceLeaveAccrual{
-				GrantDate:       grantDate.Format(time.DateOnly),
-				AmountMilliDays: leaveType.GrantAmountMilliDays,
-				Kind:            attendanceLeaveOperationGrant,
-				ReferenceID:     "automatic:annual",
-			})
-		}
+		accruals = append(accruals, annualAccruals...)
 	case "monthly":
 		for completedMonths := 1; ; completedMonths++ {
 			grantDate := attendanceLeaveCalendarAnniversary(hireDate, 0, completedMonths)
@@ -167,13 +115,13 @@ func attendanceLeaveAccrualsThrough(
 	return result, nil
 }
 
-func attendanceLeaveStatutoryFiscalAccruals(
+func attendanceLeaveAnnualAccruals(
 	hireDate time.Time,
 	asOf time.Time,
 	policy attendanceLeavePolicy,
 	leaveType attendanceLeaveType,
 ) ([]attendanceLeaveAccrual, error) {
-	firstFiscalYearStart, firstFiscalGrantDate, errorValue := attendanceLeaveFiscalYearBounds(
+	firstFiscalYearStart, firstFiscalYearEnd, errorValue := attendanceLeaveFiscalYearBounds(
 		hireDate,
 		policy.FiscalYearStartMonth,
 		policy.FiscalYearStartDay,
@@ -181,104 +129,30 @@ func attendanceLeaveStatutoryFiscalAccruals(
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	accruals := []attendanceLeaveAccrual{}
-	for yearOffset := 0; ; yearOffset++ {
-		fiscalGrantDate := attendanceLeaveCalendarDate(
-			firstFiscalGrantDate.Year()+yearOffset,
-			time.Month(policy.FiscalYearStartMonth),
-			policy.FiscalYearStartDay,
-			hireDate.Location(),
-		)
-		if fiscalGrantDate.After(asOf) {
-			break
-		}
-		amount := attendanceLeaveStatutoryFiscalGrantMilliDays(
+	accruals := []attendanceLeaveAccrual{{
+		GrantDate: hireDate.Format(time.DateOnly),
+		AmountMilliDays: attendanceLeaveProportionalGrantMilliDays(
 			hireDate,
 			firstFiscalYearStart,
-			firstFiscalGrantDate,
-			fiscalGrantDate,
+			firstFiscalYearEnd,
 			leaveType.GrantAmountMilliDays,
-		)
+		),
+		Kind:        attendanceLeaveOperationGrant,
+		ReferenceID: "automatic:annual",
+	}}
+	for fiscalGrantDate := firstFiscalYearEnd; !fiscalGrantDate.After(asOf); fiscalGrantDate = attendanceLeaveNextFiscalYearBoundary(
+		fiscalGrantDate,
+		policy.FiscalYearStartMonth,
+		policy.FiscalYearStartDay,
+	) {
 		accruals = append(accruals, attendanceLeaveAccrual{
 			GrantDate:       fiscalGrantDate.Format(time.DateOnly),
-			AmountMilliDays: amount,
+			AmountMilliDays: leaveType.GrantAmountMilliDays,
 			Kind:            attendanceLeaveOperationGrant,
-			ReferenceID:     "automatic:statutory:fiscal",
-		})
-	}
-	for completedYears := 1; ; completedYears++ {
-		anniversary := attendanceLeaveCalendarAnniversary(hireDate, completedYears, 0)
-		if anniversary.After(asOf) {
-			break
-		}
-		fiscalGrantDate, _, boundsError := attendanceLeaveFiscalYearBounds(
-			anniversary,
-			policy.FiscalYearStartMonth,
-			policy.FiscalYearStartDay,
-		)
-		if boundsError != nil {
-			return nil, boundsError
-		}
-		fiscalGrantAmount := attendanceLeaveStatutoryFiscalGrantMilliDays(
-			hireDate,
-			firstFiscalYearStart,
-			firstFiscalGrantDate,
-			fiscalGrantDate,
-			leaveType.GrantAmountMilliDays,
-		)
-		requiredAmount := attendanceLeaveStatutoryAnnualGrantMilliDays(completedYears)
-		if requiredAmount < leaveType.GrantAmountMilliDays {
-			requiredAmount = leaveType.GrantAmountMilliDays
-		}
-		correctionAmount := attendanceLeaveLegalCorrectionMilliDays(
-			requiredAmount,
-			fiscalGrantAmount,
-		)
-		if correctionAmount == 0 {
-			continue
-		}
-		accruals = append(accruals, attendanceLeaveAccrual{
-			GrantDate:       anniversary.Format(time.DateOnly),
-			AmountMilliDays: correctionAmount,
-			Kind:            attendanceLeaveOperationLegalCorrection,
-			ReferenceID:     "automatic:statutory:legal-correction",
+			ReferenceID:     "automatic:annual",
 		})
 	}
 	return accruals, nil
-}
-
-func attendanceLeaveStatutoryFiscalGrantMilliDays(
-	hireDate time.Time,
-	firstFiscalYearStart time.Time,
-	firstFiscalGrantDate time.Time,
-	fiscalGrantDate time.Time,
-	configuredAnnualMilliDays int,
-) int {
-	if fiscalGrantDate.Equal(firstFiscalGrantDate) {
-		return attendanceLeaveProportionalGrantMilliDays(
-			hireDate,
-			firstFiscalYearStart,
-			firstFiscalGrantDate,
-			configuredAnnualMilliDays,
-		)
-	}
-	completedYears := attendanceLeaveCompletedYears(hireDate, fiscalGrantDate)
-	amount := attendanceLeaveStatutoryAnnualGrantMilliDays(completedYears)
-	if amount < configuredAnnualMilliDays {
-		return configuredAnnualMilliDays
-	}
-	return amount
-}
-
-func attendanceLeaveCompletedYears(hireDate time.Time, date time.Time) int {
-	years := date.Year() - hireDate.Year()
-	if attendanceLeaveCalendarAnniversary(hireDate, years, 0).After(date) {
-		years--
-	}
-	if years < 0 {
-		return 0
-	}
-	return years
 }
 
 func attendanceLeavePolicyEffectiveDate(
@@ -385,13 +259,6 @@ func attendanceLeaveBalanceWithSchedule(
 	balance.NextGrantDate = next.GrantDate
 	balance.NextGrantMilliDays = next.AmountMilliDays
 	return balance
-}
-
-func attendanceLeaveLegalCorrectionMilliDays(statutoryRequiredMilliDays int, alreadyGrantedMilliDays int) int {
-	if statutoryRequiredMilliDays <= alreadyGrantedMilliDays {
-		return 0
-	}
-	return statutoryRequiredMilliDays - alreadyGrantedMilliDays
 }
 
 func attendanceLeaveCarryoverMilliDays(availableMilliDays int, enabled bool, limitMilliDays *int) int {

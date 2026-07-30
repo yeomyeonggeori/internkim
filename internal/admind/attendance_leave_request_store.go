@@ -50,7 +50,7 @@ func (service *Service) createAttendanceLeaveRequest(
 			attendanceLeaveOperation{
 				OperationKey: "leave-request:" + requestID + ":reserve:1",
 				Employee:     employee,
-				LeaveTypeID:  leaveType.ID,
+				LeaveTypeID:  attendanceLeaveBalanceAccountID(leaveType.ID, leaveType.BalanceMode),
 				ReferenceID:  attendanceLeaveRequestReservationReference(requestID, 1),
 			},
 			preview.Occurrences,

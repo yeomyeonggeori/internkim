@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	attendanceLeavePolicyVersion               = 1
-	attendanceAnnualStatutoryGrantMilliDays    = 15000
+	attendanceLeavePolicyVersion               = 2
 	attendanceLeavePolicyReferenceCalendarYear = 2024
 )
 
@@ -35,24 +34,11 @@ type attendanceLeaveType struct {
 	CarryoverEnabled        bool     `json:"carryoverEnabled"`
 	CarryoverLimitMilliDays *int     `json:"carryoverLimitMilliDays"`
 	AllowedUnits            []string `json:"allowedUnits"`
+	IncludeInSummary        bool     `json:"includeInSummary"`
 	LegacyEvidenceGuidance  string   `json:"evidenceGuidance,omitempty"`
 	IsActive                bool     `json:"isActive"`
 	IsSystem                bool     `json:"isSystem"`
 	SortOrder               int      `json:"sortOrder"`
-}
-
-func defaultAttendanceLeavePolicy() attendanceLeavePolicy {
-	return attendanceLeavePolicy{Version: attendanceLeavePolicyVersion, FiscalYearStartMonth: 1, FiscalYearStartDay: 1, LeaveTypes: []attendanceLeaveType{
-		{ID: "annual", SystemKind: "annual", Name: "연차", Paid: true, BalanceMode: "annual", GrantCadence: "statutory", GrantAmountMilliDays: attendanceAnnualStatutoryGrantMilliDays, ExpiryMode: "fiscalYearEnd", AllowedUnits: attendanceDefaultPartialLeaveUnits(), IsActive: true, IsSystem: true, SortOrder: 0},
-		{ID: "sick", SystemKind: "sick", Name: "병가", BalanceMode: "none", GrantCadence: "none", ExpiryMode: "none", AllowedUnits: attendanceDefaultPartialLeaveUnits(), IsActive: true, IsSystem: true, SortOrder: 1},
-		{ID: "bereavement", SystemKind: "bereavement", Name: "경조휴가", BalanceMode: "separate", GrantCadence: "manual", ExpiryMode: "none", AllowedUnits: []string{"fullDay"}, IsActive: true, IsSystem: true, SortOrder: 2},
-		{ID: "unpaid", SystemKind: "unpaid", Name: "무급휴가", BalanceMode: "none", GrantCadence: "none", ExpiryMode: "none", AllowedUnits: attendanceDefaultPartialLeaveUnits(), IsActive: true, IsSystem: true, SortOrder: 3},
-		{ID: "other", SystemKind: "other", Name: "기타 휴가", BalanceMode: "none", GrantCadence: "none", ExpiryMode: "none", AllowedUnits: []string{"fullDay"}, IsActive: true, IsSystem: true, SortOrder: 4},
-	}}
-}
-
-func attendanceDefaultPartialLeaveUnits() []string {
-	return []string{"fullDay", "halfDay", "quarterDay"}
 }
 
 func newAttendanceLeaveTypeID() (string, error) {
@@ -63,7 +49,7 @@ func newAttendanceLeaveTypeID() (string, error) {
 	return "custom-" + hex.EncodeToString(bytesValue), nil
 }
 
-func validateAttendanceLeavePolicy(policy *attendanceLeavePolicy, existing *attendanceLeavePolicy) error {
+func validateAttendanceLeavePolicy(policy *attendanceLeavePolicy, _ *attendanceLeavePolicy) error {
 	if policy.Version != attendanceLeavePolicyVersion || !attendanceLeavePolicyFiscalDateIsValid(policy.FiscalYearStartMonth, policy.FiscalYearStartDay) {
 		return fmt.Errorf("invalid policy header")
 	}
@@ -75,6 +61,7 @@ func validateAttendanceLeavePolicy(policy *attendanceLeavePolicy, existing *atte
 	systems := defaultAttendanceLeavePolicy().LeaveTypes
 	byID := map[string]attendanceLeaveType{}
 	byName := map[string]bool{}
+	hasSharedAnnualBalance := false
 	for index := range policy.LeaveTypes {
 		leaveType := &policy.LeaveTypes[index]
 		leaveType.ID = strings.TrimSpace(leaveType.ID)
@@ -98,7 +85,10 @@ func validateAttendanceLeavePolicy(policy *attendanceLeavePolicy, existing *atte
 		if leaveType.BalanceMode != "annual" && leaveType.BalanceMode != "separate" && leaveType.BalanceMode != "none" {
 			return fmt.Errorf("invalid balanceMode")
 		}
-		if leaveType.GrantCadence != "statutory" && leaveType.GrantCadence != "annual" && leaveType.GrantCadence != "monthly" && leaveType.GrantCadence != "manual" && leaveType.GrantCadence != "none" {
+		if leaveType.IsActive && leaveType.BalanceMode == "annual" && leaveType.ID != attendanceAnnualLeaveTypeID {
+			hasSharedAnnualBalance = true
+		}
+		if leaveType.GrantCadence != "annual" && leaveType.GrantCadence != "monthly" && leaveType.GrantCadence != "none" {
 			return fmt.Errorf("invalid grantCadence")
 		}
 		if leaveType.ExpiryMode != "fiscalYearEnd" && leaveType.ExpiryMode != "monthsAfterGrant" && leaveType.ExpiryMode != "none" {
@@ -115,6 +105,17 @@ func validateAttendanceLeavePolicy(policy *attendanceLeavePolicy, existing *atte
 		}
 		if !leaveType.CarryoverEnabled {
 			leaveType.CarryoverLimitMilliDays = nil
+		}
+		if !attendanceLeaveTypeOwnsBalance(*leaveType) &&
+			(leaveType.GrantCadence != "none" ||
+				leaveType.GrantAmountMilliDays != 0 ||
+				leaveType.ExpiryMode != "none" ||
+				leaveType.CarryoverEnabled ||
+				leaveType.IncludeInSummary) {
+			return fmt.Errorf("shared or untracked leave type cannot define a separate balance policy")
+		}
+		if !leaveType.IsActive && leaveType.IncludeInSummary {
+			return fmt.Errorf("inactive leave type cannot be included in summary")
 		}
 		seenUnits := map[string]bool{}
 		for _, unit := range leaveType.AllowedUnits {
@@ -141,20 +142,10 @@ func validateAttendanceLeavePolicy(policy *attendanceLeavePolicy, existing *atte
 			}
 		}
 	}
-	for _, system := range systems {
-		leaveType, ok := byID[system.ID]
-		if !ok || !leaveType.IsSystem || leaveType.SystemKind != system.SystemKind {
-			return fmt.Errorf("system leave type cannot be deleted")
-		}
-		if system.ID == "annual" && (!leaveType.IsActive || !leaveType.Paid || leaveType.BalanceMode != "annual" || leaveType.GrantCadence != "statutory" || leaveType.GrantAmountMilliDays < attendanceAnnualStatutoryGrantMilliDays) {
-			return fmt.Errorf("annual legal floor")
-		}
-	}
-	if existing != nil {
-		for _, oldType := range existing.LeaveTypes {
-			if _, ok := byID[oldType.ID]; !ok {
-				return fmt.Errorf("existing leave type cannot be deleted")
-			}
+	if hasSharedAnnualBalance {
+		annualType, found := byID[attendanceAnnualLeaveTypeID]
+		if !found || !annualType.IsActive || !attendanceLeaveTypeOwnsBalance(annualType) {
+			return fmt.Errorf("annual balance owner is required")
 		}
 	}
 	return nil
@@ -171,7 +162,6 @@ func attendanceLeavePolicyFiscalDateIsValid(month int, day int) bool {
 func attendanceLeaveTypeRequiresHireDate(leaveType attendanceLeaveType) bool {
 	return leaveType.IsActive &&
 		leaveType.BalanceMode != "none" &&
-		leaveType.GrantCadence != "manual" &&
 		leaveType.GrantCadence != "none"
 }
 

@@ -91,7 +91,7 @@ func (service *Service) reviseAttendanceLeaveRequest(
 		if _, errorValue := closeAttendanceLeaveReservationInTransaction(ctx, transaction, attendanceLeaveOperation{
 			OperationKey: fmt.Sprintf("leave-request:%s:release:%d", record.ID, record.Revision),
 			Employee:     employee,
-			LeaveTypeID:  record.LeaveTypeID,
+			LeaveTypeID:  attendanceLeaveBalanceAccountID(record.LeaveTypeID, record.BalanceMode),
 			Kind:         attendanceLeaveOperationRelease,
 			ReferenceID:  attendanceLeaveRequestReservationReference(record.ID, record.Revision),
 			EffectiveOn:  record.StartDate,
@@ -118,7 +118,7 @@ func (service *Service) reviseAttendanceLeaveRequest(
 			attendanceLeaveOperation{
 				OperationKey: fmt.Sprintf("leave-request:%s:reserve:%d", record.ID, nextRevision),
 				Employee:     employee,
-				LeaveTypeID:  leaveType.ID,
+				LeaveTypeID:  attendanceLeaveBalanceAccountID(leaveType.ID, leaveType.BalanceMode),
 				ReferenceID:  attendanceLeaveRequestReservationReference(record.ID, nextRevision),
 			},
 			preview.Occurrences,

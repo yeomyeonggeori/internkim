@@ -145,6 +145,7 @@ func decodeAttendanceSettingsDocument(encodedDocument []byte) (attendanceSetting
 		}
 		return attendanceSettingsDocument{}, errorValue
 	}
+	normalizeLegacyAttendanceLeavePolicy(&document.LeavePolicy)
 	if errorValue := validateAttendanceSettingsDocument(&document); errorValue != nil {
 		return attendanceSettingsDocument{}, errorValue
 	}

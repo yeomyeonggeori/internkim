@@ -86,7 +86,7 @@ func (service *Service) decideAttendanceLeaveRequest(
 				attendanceLeaveOperation{
 					OperationKey: "leave-request:" + record.ID + ":release:" + attendanceLeaveRequestRevisionValue(record.Revision),
 					Employee:     employee,
-					LeaveTypeID:  record.LeaveTypeID,
+					LeaveTypeID:  attendanceLeaveBalanceAccountID(record.LeaveTypeID, record.BalanceMode),
 					Kind:         attendanceLeaveOperationRelease,
 					ReferenceID:  attendanceLeaveRequestReservationReference(record.ID, record.Revision),
 					EffectiveOn:  record.StartDate,
@@ -207,7 +207,7 @@ func (service *Service) approveAttendanceLeaveRequest(
 			attendanceLeaveOperation{
 				OperationKey: "leave-request:" + record.ID + ":use:" + attendanceLeaveRequestRevisionValue(record.Revision),
 				Employee:     employee,
-				LeaveTypeID:  record.LeaveTypeID,
+				LeaveTypeID:  attendanceLeaveBalanceAccountID(record.LeaveTypeID, record.BalanceMode),
 				Kind:         attendanceLeaveOperationUse,
 				ReferenceID:  attendanceLeaveRequestReservationReference(record.ID, record.Revision),
 				EffectiveOn:  record.StartDate,
