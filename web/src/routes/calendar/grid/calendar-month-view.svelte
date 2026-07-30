@@ -14,7 +14,6 @@
 	} from './calendar-grid-dates';
 	import { defaultCalendarEventColor } from './calendar-grid-events';
 	import { calendarGridWeekLayout, type CalendarGridEvent, type CalendarGridWeekLayout } from './calendar-grid-layout';
-	import { createCalendarScrollSnap } from './calendar-grid-scroll-snap.svelte';
 
 	type CalendarMonthViewProps = {
 		visibleDate: Date;
@@ -53,7 +52,6 @@
 	const laneHeightPixels = 22;
 	const visibleChipCount = 3;
 	const scrollOverlayHideDelayMilliseconds = 700;
-	const rowSnapAnimationMilliseconds = 220;
 	const windowExtendWeeks = 26;
 	const windowExtendMarginPixels = 1200;
 	const longPressMilliseconds = 450;
@@ -111,27 +109,11 @@
 		scrollWeekIntoView(visibleWeekStartKey);
 	});
 
-	const scrollSnap = createCalendarScrollSnap({
-		getScrollElement: () => scrollElement,
-		getSnapOffsets: weekRowScrollOffsets,
-		animationMilliseconds: rowSnapAnimationMilliseconds
-	});
-
-	function weekRowScrollOffsets(): number[] {
-		if (!scrollElement) return [];
-		const viewportTop = scrollElement.getBoundingClientRect().top;
-		const currentScrollTop = scrollElement.scrollTop;
-		return [...scrollElement.querySelectorAll<HTMLElement>('[data-week-start]')].map(
-			(rowElement) => currentScrollTop + rowElement.getBoundingClientRect().top - viewportTop
-		);
-	}
-
 	$effect(() => {
 		return () => {
 			if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
 			if (scrollOverlayTimer !== null) clearTimeout(scrollOverlayTimer);
 			if (longPressTimer !== null) clearTimeout(longPressTimer);
-			scrollSnap.destroy();
 		};
 	});
 
@@ -315,18 +297,15 @@
 		tabindex="-1"
 		aria-label={monthLabelFormatter.format(visibleDate)}
 		onscroll={handleScroll}
-		onscrollend={scrollSnap.handleScrollEnd}
-		ontouchstart={scrollSnap.handleTouchStart}
-		onwheel={scrollSnap.handleWheel}
 		onpointerdown={handlePointerDown}
 		onpointermove={handlePointerMove}
 		onpointerup={handlePointerUp}
 		onpointercancel={clearRangeSelection}
-		onpointerleave={clearRangeSelection} class="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain select-none">
+		onpointerleave={clearRangeSelection} class="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-auto overscroll-contain select-none">
 		{#each weeks as week (week.startDateKey)}
 			{@const layout = weekLayouts.get(week.startDateKey) ?? { spans: [], timedEntries: [], laneCount: 0 }}
 			{@const monthStartDay = monthStartDayInWeek(week)}
-			<div data-week-start={week.startDateKey} class="relative grid grid-cols-7">
+			<div data-week-start={week.startDateKey} class="relative grid snap-start grid-cols-7">
 				{#if monthStartDay}
 					<div
 						aria-hidden="true"
