@@ -18,6 +18,7 @@
 		label: string;
 		placeholder: string;
 		emptyText: string;
+		summaryTemplate: string;
 		onChange?: (participants: CalendarParticipant[]) => void;
 		disabled?: boolean;
 	};
@@ -28,6 +29,7 @@
 		label,
 		placeholder,
 		emptyText,
+		summaryTemplate,
 		onChange,
 		disabled = false
 	}: Props = $props();
@@ -35,7 +37,14 @@
 	let isPickerOpen = $state(false);
 
 	const selectedKeys = $derived(new Set(participants.map(calendarParticipantKey)));
-	const selectedNames = $derived(participants.map((participant) => participant.name).join(', '));
+	const selectedSummary = $derived(participantSummaryLabel(participants));
+
+	function participantSummaryLabel(selectedParticipants: CalendarParticipant[]): string {
+		const [firstParticipant, ...otherParticipants] = selectedParticipants;
+		if (!firstParticipant) return '';
+		if (otherParticipants.length === 0) return firstParticipant.name;
+		return summaryTemplate.replace('{name}', firstParticipant.name).replace('{count}', String(otherParticipants.length));
+	}
 	const canAddParticipants = $derived(!disabled && candidates.length > 0);
 
 	function toggleParticipant(participant: CalendarParticipant): void {
@@ -61,7 +70,24 @@
 				disabled={!canAddParticipants}
 				class="h-8 w-full justify-between px-2 text-sm font-normal"
 			>
-				<span class={cn('truncate', !selectedNames && 'text-muted-foreground')}>{selectedNames || label}</span>
+				<span class="flex min-w-0 items-center gap-1.5">
+					{#if participants.length > 0}
+						<span class="flex shrink-0 items-center -space-x-1">
+							{#each participants.slice(0, 3) as participant (calendarParticipantKey(participant))}
+								<PersonAvatar
+									name={participant.name}
+									email={participant.email ?? ''}
+									seed={calendarParticipantKey(participant)}
+									image={participant.image ?? ''}
+									class="ring-background size-4 ring-2"
+								/>
+							{/each}
+						</span>
+					{/if}
+					<span class={cn('truncate', participants.length === 0 && 'text-muted-foreground')}>
+						{selectedSummary || label}
+					</span>
+				</span>
 				<ChevronsUpDownIcon class="size-3.5 shrink-0 opacity-50" />
 			</Button>
 		{/snippet}

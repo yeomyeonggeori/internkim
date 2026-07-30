@@ -48,6 +48,7 @@
 		participants: text.draftPopover.participants,
 		participantsPlaceholder: text.draftPopover.participantsPlaceholder,
 		participantsEmpty: text.draftPopover.participantsEmpty,
+		participantsSummary: text.draftPopover.participantsSummary,
 		calendar: text.draftPopover.calendar,
 		cancel: text.draftPopover.cancel,
 		complete: text.draftPopover.complete,
