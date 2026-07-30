@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { flowBusinessColor, flowTaskTypeColor } from '../../src/routes/flow/flow-definition-colors';
-import { flowProjectColor, flowTypeColor } from '../../src/routes/flow/flow-report-colors';
+import { flowBusinessColor, flowDefinitionPaletteColor, flowTaskTypeColor } from '../../src/routes/flow/flow-definition-colors';
 import type { FlowDefinitions } from '../../src/routes/flow/flow-types';
 
 describe('flow definition colors', () => {
@@ -19,8 +18,8 @@ describe('flow definition colors', () => {
 	test('falls back to the definitions order palette when no color is saved', () => {
 		const definitions = flowDefinitions({ categories: ['여명거리', '김인턴'], types: ['기획', '기능'] });
 
-		expect(flowBusinessColor('여명거리', definitions)).toBe(flowProjectColor(0));
-		expect(flowTaskTypeColor('기능', definitions)).toBe(flowTypeColor(1));
+		expect(flowBusinessColor('여명거리', definitions)).toBe(flowDefinitionPaletteColor(0));
+		expect(flowTaskTypeColor('기능', definitions)).toBe(flowDefinitionPaletteColor(1));
 	});
 
 	test('falls back to a neutral color for values the definitions do not list', () => {
