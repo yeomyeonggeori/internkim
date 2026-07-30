@@ -80,7 +80,7 @@ func (service *Service) handleBuzzAdminWipe(responseWriter http.ResponseWriter, 
 }
 
 func (service *Service) wipeBuzzMessages(ctx context.Context, secretHex string) (int, error) {
-	relayURL := strings.TrimSpace(service.Configuration.BuzzRelayURL)
+	relayURL := service.buzzRelayEffectiveURL()
 	if relayURL == "" {
 		return 0, errors.New("buzz relay URL is not configured")
 	}

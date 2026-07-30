@@ -9,7 +9,7 @@ import (
 
 var StepBuzzChatd = Step{
 	Name: "buzz-chatd",
-	Deps: []string{"buzz-relay"},
+	Deps: []string{"buzz-relay", "buzz-public-host"},
 	Title: func(context *Context) string {
 		return context.T("Buzz chatd 브리지 설치 중...", "Installing Buzz chatd bridge...")
 	},
@@ -37,7 +37,7 @@ var StepBuzzChatd = Step{
 
 		connection := context.SSH
 		connection.Run(chatdEnvironmentCommand(bootstrapSecret))
-		connection.Run(chatdUnitInstallCommand())
+		connection.Run(chatdUnitInstallCommand(blueclaw.DeriveRelayPublicURL(context.PublicURL)))
 
 		fmt.Println("  " + context.T("Buzz chatd 설치 완료", "Buzz chatd installed"))
 		return nil
@@ -53,9 +53,9 @@ printf 'CHATD_BUZZ_PRIVATE_KEY=%s\n' '` + bootstrapSecret + `' > ` + blueclaw.Ch
 chmod 600 ` + blueclaw.ChatdEnvironmentFilePath
 }
 
-func chatdUnitInstallCommand() string {
+func chatdUnitInstallCommand(relayPublicURL string) string {
 	return `cat > ` + blueclaw.ChatdServicePath + ` <<'CHATDUNITEOF'
-` + blueclaw.ChatdServiceUnit() + `CHATDUNITEOF
+` + blueclaw.ChatdServiceUnit(relayPublicURL) + `CHATDUNITEOF
 systemctl daemon-reload
 systemctl enable ` + blueclaw.ChatdServiceName + `
 systemctl restart ` + blueclaw.ChatdServiceName + `

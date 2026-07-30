@@ -105,9 +105,10 @@ func (service *Service) handleBuzz(responseWriter http.ResponseWriter, request *
 	case request.Method == http.MethodPost && path == "/links":
 		service.handleBuzzLinkCreate(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/config":
+		relayURL := service.buzzRelayEffectiveURL()
 		service.writeJSON(responseWriter, map[string]string{
-			"relayURL": service.Configuration.BuzzRelayURL,
-			"deepLink": "buzz://connect?relay=" + url.QueryEscape(service.Configuration.BuzzRelayURL),
+			"relayURL": relayURL,
+			"deepLink": "buzz://connect?relay=" + url.QueryEscape(relayURL),
 		})
 	default:
 		http.NotFound(responseWriter, request)
@@ -180,11 +181,12 @@ func (service *Service) handleBuzzInviteCreate(responseWriter http.ResponseWrite
 }
 
 func (service *Service) buzzInviteURL(code string) string {
+	relayURL := service.buzzRelayEffectiveURL()
 	landingBaseURL := strings.TrimRight(service.Configuration.BuzzLandingBaseURL, "/")
 	if landingBaseURL == "" {
-		return "buzz://join?relay=" + url.QueryEscape(service.Configuration.BuzzRelayURL) + "&code=" + url.QueryEscape(code)
+		return "buzz://join?relay=" + url.QueryEscape(relayURL) + "&code=" + url.QueryEscape(code)
 	}
-	return landingBaseURL + "/invite.html?relay=" + url.QueryEscape(service.Configuration.BuzzRelayURL) + "&code=" + url.QueryEscape(code)
+	return landingBaseURL + "/invite.html?relay=" + url.QueryEscape(relayURL) + "&code=" + url.QueryEscape(code)
 }
 
 func (service *Service) handleBuzzInviteList(responseWriter http.ResponseWriter) {
