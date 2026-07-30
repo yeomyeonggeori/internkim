@@ -2,6 +2,7 @@ import { renderComponent } from '$lib/components/ui/data-table';
 import type { Column, ColumnDef } from '@tanstack/table-core';
 import { compareOptionalDate } from './flow-style';
 import FlowTaskListHeaderCell from './flow-task-list-header-cell.svelte';
+import FlowTaskListBusinessCell from './flow-task-list-business-cell.svelte';
 import FlowTaskListParticipantsCell from './flow-task-list-participants-cell.svelte';
 import FlowTaskListSizeCell from './flow-task-list-size-cell.svelte';
 import FlowTaskListStatusCell from './flow-task-list-status-cell.svelte';
@@ -25,6 +26,7 @@ type FlowTaskListColumnsInput = {
 	updateTaskStatus: (task: FlowTask, nextStatus: string) => Promise<void>;
 	canUpdateTask: (task: FlowTask) => boolean;
 	memberEmail: (memberID: string) => string;
+	businessColor: (business: string) => string;
 };
 
 export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): ColumnDef<FlowTask>[] {
@@ -35,16 +37,17 @@ export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): Colu
 		statusLabel,
 		updateTaskStatus,
 		canUpdateTask,
-		memberEmail
+		memberEmail,
+		businessColor
 	} = input;
 
 	return [
 		{
 			accessorKey: 'business',
 			header: (context) => renderHeader(text.table.business, context.column),
-			cell: (info) => renderComponent(FlowTaskListTextCell, {
-				value: flowBusinessLabel(info.row.original.business, text.report.fallbackBusiness),
-				isMuted: true
+			cell: (info) => renderComponent(FlowTaskListBusinessCell, {
+				label: flowBusinessLabel(info.row.original.business, text.report.fallbackBusiness),
+				color: businessColor(info.row.original.business)
 			})
 		},
 		{
