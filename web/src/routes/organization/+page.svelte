@@ -27,16 +27,18 @@
 	const detailSheetViewport = new IsMobile(1024);
 	const controller = new OrganizationDirectoryController(adminBaseURL, text, adminPageText, () => currentLocale.value);
 
-	const personOptions = $derived(
-		controller.records.map((record) => ({
+	const personOptions = $derived([
+		{ value: '', label: text.allEmployees, keywords: [], jobTitle: '', email: '', image: '', seed: '' },
+		...controller.records.map((record) => ({
 			value: record.name || record.email,
 			label: record.name || record.email,
 			keywords: [record.jobTitle ?? ''].filter(Boolean),
 			jobTitle: record.jobTitle ?? '',
 			email: record.email,
-			image: record.image ?? ''
+			image: record.image ?? '',
+			seed: record.userID
 		}))
-	);
+	]);
 	const organizationOptions = $derived([
 		{ value: '', label: text.allOrganizations },
 		...controller.options.groups.map((group) => ({ value: group.id, label: group.name })),
@@ -126,8 +128,26 @@
 									{#snippet icon()}
 										<UserRoundIcon class="size-4 shrink-0 opacity-60" />
 									{/snippet}
+									{#snippet selectedContent(option)}
+										<PersonAvatar
+											name={option.label}
+											email={option.email}
+											seed={option.seed}
+											image={option.image}
+											class="size-5 shrink-0"
+										/>
+										<span class="truncate">{option.label}</span>
+									{/snippet}
 									{#snippet optionContent(option)}
-										<PersonAvatar name={option.label} email={option.email} image={option.image} class="size-6" />
+										{#if option.value}
+											<PersonAvatar
+												name={option.label}
+												email={option.email}
+												seed={option.seed}
+												image={option.image}
+												class="size-6"
+											/>
+										{/if}
 										<span class="grid min-w-0">
 											<span class="truncate">{option.label}</span>
 											{#if option.jobTitle}
