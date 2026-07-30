@@ -17,6 +17,7 @@ export type CalendarScrollSnap = {
 	handleWheel: (wheelEvent: WheelEvent) => void;
 	handleGestureEnd: () => void;
 	handleScrollEnd: () => void;
+	handleTouchStart: () => void;
 	destroy: () => void;
 };
 
@@ -36,6 +37,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 	const animationMilliseconds = options.animationMilliseconds ?? defaultAnimationMilliseconds;
 
 	let animationFrame: number | null = null;
+	let settledOffset: number | null = null;
 	let previousMagnitude = 0;
 	let decayingSteps = 0;
 	let previousWheelTime = 0;
@@ -68,10 +70,15 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 		else scrollElement.scrollTop = offset;
 	}
 
+	function clearSettledOffset(): void {
+		settledOffset = null;
+	}
+
 	function handleWheel(wheelEvent: WheelEvent): void {
 		const scrollElement = options.getScrollElement();
 		if (!scrollElement || wheelEvent.ctrlKey) return;
 		wheelEvent.preventDefault();
+		clearSettledOffset();
 
 		const magnitude = Math.abs(wheelDelta(wheelEvent));
 		const now = performance.now();
@@ -154,6 +161,10 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 		wheelFrame = null;
 	}
 
+	function handleTouchStart(): void {
+		clearSettledOffset();
+	}
+
 	function handleGestureEnd(): void {
 		gestureLiftTime = performance.now();
 		gestureLiftOffset = wheelTargetOffset;
@@ -163,6 +174,8 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 
 	function handleScrollEnd(): void {
 		if (animationFrame !== null) return;
+		const scrollElement = options.getScrollElement();
+		if (scrollElement && settledOffset !== null && Math.abs(currentOffset(scrollElement) - settledOffset) < 1) return;
 		snapToNearestOffset();
 	}
 
@@ -183,6 +196,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 			: snapOffsetForTravel(offset, offsets);
 		cancelWheelScroll();
 		if (Math.abs(nearestOffset - offset) < 1) {
+			settledOffset = nearestOffset;
 			options.onSnapSettled?.(nearestOffset);
 			return;
 		}
@@ -237,6 +251,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 				return;
 			}
 			animationFrame = null;
+			settledOffset = targetScrollTop;
 			options.onSnapSettled?.(targetScrollTop);
 		};
 		animationFrame = requestAnimationFrame(step);
@@ -252,6 +267,7 @@ export function createCalendarScrollSnap(options: CalendarScrollSnapOptions): Ca
 		handleWheel,
 		handleGestureEnd,
 		handleScrollEnd,
+		handleTouchStart,
 		destroy: () => {
 			if (idleSnapTimer !== null) clearTimeout(idleSnapTimer);
 			cancelWheelScroll();
