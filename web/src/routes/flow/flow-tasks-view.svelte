@@ -110,7 +110,6 @@
 				weekPosition={flowTaskBoardWeekPosition(summary)}
 				businessColor={page.businessColor}
 				taskTypeColor={page.taskTypeColor}
-				sizeColor={page.sizeColor}
 			/>
 		</Tabs.Content>
 		<Tabs.Content value="list" class="min-h-[36rem]">
@@ -118,7 +117,6 @@
 				memberEmail={page.memberEmail}
 				businessColor={page.businessColor}
 				taskTypeColor={page.taskTypeColor}
-				sizeColor={page.sizeColor}
 				tasks={page.filteredTasks()}
 				{text}
 				statusOptions={page.statusSelectOptions()}

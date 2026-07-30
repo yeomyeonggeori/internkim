@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { flowBusinessColor, flowSizeColor, flowTaskTypeColor } from '../../src/routes/flow/flow-definition-colors';
+import { flowBusinessColor, flowTaskTypeColor } from '../../src/routes/flow/flow-definition-colors';
 import { flowProjectColor, flowTypeColor } from '../../src/routes/flow/flow-report-colors';
 import type { FlowDefinitions } from '../../src/routes/flow/flow-types';
 
@@ -26,17 +26,8 @@ describe('flow definition colors', () => {
 	test('falls back to a neutral color for values the definitions do not list', () => {
 		expect(flowBusinessColor('사라진 사업', flowDefinitions({}))).toBe('#64748b');
 	});
-
-	test('reports no size color until one is saved', () => {
-		expect(flowSizeColor('M', flowDefinitions({}))).toBe('');
-		expect(flowSizeColor('M', flowDefinitions({ sizes: [size('M', '#2563EB')] }))).toBe('#2563eb');
-	});
 });
 
 function flowDefinitions(overrides: Partial<FlowDefinitions>): FlowDefinitions {
 	return { categories: [], types: [], sizes: [], ...overrides };
-}
-
-function size(name: string, color: string) {
-	return { name, distanceKm: 3, maxHours: 8, developmentExample: '', otherExample: '', note: '', color, score: 3, label: '' };
 }

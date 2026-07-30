@@ -130,7 +130,6 @@ type flowSizeDefinition struct {
 	DevelopmentExample string `json:"developmentExample"`
 	OtherExample       string `json:"otherExample"`
 	Note               string `json:"note"`
-	Color              string `json:"color"`
 	Score              int    `json:"score"`
 	Label              string `json:"label"`
 }

@@ -29,7 +29,6 @@
 		memberEmail: (memberID: string) => string;
 		businessColor: (business: string) => string;
 		taskTypeColor: (type: string) => string;
-		sizeColor: (size: string) => string;
 	};
 
 	let {
@@ -44,8 +43,7 @@
 		focusedTaskID,
 		memberEmail,
 		businessColor,
-		taskTypeColor,
-		sizeColor
+		taskTypeColor
 	}: Props = $props();
 
 	let taskSorting = $state<SortingState>([]);
@@ -60,8 +58,7 @@
 		canUpdateTask,
 		memberEmail,
 		businessColor,
-		taskTypeColor,
-		sizeColor
+		taskTypeColor
 	}));
 
 	const taskTable = createSvelteTable<FlowTask>({
