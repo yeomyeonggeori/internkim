@@ -35,7 +35,6 @@
 	import { isCalendarMobileTwoDayWeekView } from './calendar-mobile-two-day-week';
 	import CalendarPageContent from './calendar-page-content.svelte';
 	import { endOfMonthWindow, startOfMonthWindow } from './calendar-visible-range';
-	import { syncCalendarThemeToDocument } from './calendar-page-theme';
 	import { createCalendarEmbedPageState } from './calendar-page-state.svelte';
 	import { fetchCalendarParticipants } from './calendar-participants';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
@@ -69,7 +68,7 @@
 		text
 	});
 	const {
-		calendar,
+		eventStore,
 		conflictActions,
 		draftEvents,
 		draftPopoverActions,
@@ -97,15 +96,13 @@
 	const stageEvents = $derived(
 		visibleEventsWithPreservedLocalEvents(
 			state.visibleEvents,
-			calendarStageEventsWithDraftPopover(calendar.events, draftEvents.createdEvents(), state.draftPopover),
+			calendarStageEventsWithDraftPopover(eventStore.events, draftEvents.createdEvents(), state.draftPopover),
 			(event) => shouldPreserveLocalCalendarEvent(draftEvents, event)
 		)
 	);
 
 	installCalendarPageEffects({
 		isBrowser: () => browser,
-		calendar,
-		getCalendarLocale: () => calendarLocale,
 		getStageElement: () => state.calendarStageElement,
 		getToolbarDate: () => state.toolbarDate,
 		getToolbarView: () => state.toolbarView,
@@ -122,7 +119,7 @@
 		broadcastCalendarVisibleDate(state.toolbarDate);
 		const uninstallCalendarPageLifecycle = installCalendarPageLifecycle({
 			applyCalendarView: (view) => {
-				calendar.changeView(view);
+				state.toolbarView = view;
 			},
 			clearDraftPopover: () => {
 				state.draftPopover = null;
@@ -150,7 +147,6 @@
 			setToolbarView: (view) => {
 				state.toolbarView = view;
 			},
-			syncCalendarThemeToDocument: () => syncCalendarThemeToDocument(calendar.app),
 			text
 		});
 		return () => {
@@ -173,9 +169,6 @@
 	}
 
 	function currentCalendarView(): ViewType {
-		if (calendar.currentView === ViewType.DAY) return ViewType.DAY;
-		if (calendar.currentView === ViewType.WEEK) return ViewType.WEEK;
-		if (calendar.currentView === ViewType.MONTH) return ViewType.MONTH;
 		return state.toolbarView;
 	}
 
@@ -220,7 +213,6 @@
 
 <CalendarPageContent
 	activeMobileEditorEventID={state.activeMobileEditorEventID}
-	calendar={calendar}
 	clearActiveMobileEditorEvent={(eventID) => {
 		if (state.activeMobileEditorEventID === eventID) state.activeMobileEditorEventID = null;
 	}}

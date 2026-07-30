@@ -1,16 +1,9 @@
 import type { Event as DayFlowEvent } from '@dayflow/core';
 import { clearFocusedCalendarEventElements, focusCalendarEventElement } from './calendar-event-elements';
-
-type CalendarPageEventSelectionCalendar = {
-	app: {
-		applyEventsChanges: (changes: { delete: string[]; add: DayFlowEvent[] }) => void;
-		getAllEvents: () => DayFlowEvent[];
-		selectEvent: (eventID: string | null) => void;
-	};
-};
+import type { CalendarEventStore } from './calendar-event-store.svelte';
 
 type CalendarPageEventSelectionContext = {
-	calendar: CalendarPageEventSelectionCalendar;
+	eventStore: CalendarEventStore;
 	getPendingEventID: () => string;
 	getStageElement: () => HTMLElement | null;
 	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
@@ -33,24 +26,22 @@ export function createCalendarPageEventSelection(
 	function selectCalendarEvent(eventID: string): void {
 		context.setSelectedAuditEventID(eventID);
 		focusCalendarEventElement(context.getStageElement(), eventID);
-		context.calendar.app.selectEvent(eventID);
 		requestAnimationFrame(() => focusCalendarEventElement(context.getStageElement(), eventID));
 	}
 
 	function replaceLocalCalendarEvent(event: DayFlowEvent): void {
-		context.calendar.app.applyEventsChanges({ delete: [event.id], add: [event] });
-		context.setVisibleEvents(context.calendar.app.getAllEvents());
+		context.eventStore.applyEventsChanges({ delete: [event.id], add: [event] });
+		context.setVisibleEvents(context.eventStore.getAllEvents());
 	}
 
 	async function saveMovedMonthEvent(event: DayFlowEvent): Promise<void> {
-		const previousEvent = context.calendar.app.getAllEvents().find((candidate) => candidate.id === event.id);
+		const previousEvent = context.eventStore.getAllEvents().find((candidate) => candidate.id === event.id);
 		replaceLocalCalendarEvent(event);
 		await context.saveUpdatedEvent(event, previousEvent);
 	}
 
 	function clearSelectedEvent(): void {
 		context.setSelectedAuditEventID(null);
-		context.calendar.app.selectEvent(null);
 		clearFocusedCalendarEventElements(context.getStageElement());
 	}
 

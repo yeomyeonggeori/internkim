@@ -1,5 +1,6 @@
 import type { Event as DayFlowEvent, Locale } from '@dayflow/core';
-import { useCalendarApp, type ViewType } from '@dayflow/svelte';
+import type { ViewType } from '@dayflow/svelte';
+import { createCalendarEventStore } from './calendar-event-store.svelte';
 import type { CalendarLocaleText } from '../text';
 import {
 	broadcastCalendarEventsChanged,
@@ -22,7 +23,6 @@ import {
 import { createCalendarSelectedMonthDateActions } from './calendar-month-selection';
 import { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
 import { shouldPreserveLocalCalendarEvent } from './calendar-visible-events';
-import { createCalendarPageAppOptions } from './calendar-page-app-options';
 import { createCalendarPageEventDetails } from './calendar-page-event-details';
 import { createCalendarPageEventSelection } from './calendar-page-event-selection';
 import { createCalendarPageInteractionServices } from './calendar-page-interaction-services';
@@ -44,6 +44,7 @@ type CalendarPageControllerContext = {
 export function createCalendarPageController(context: CalendarPageControllerContext) {
 	const draftEventPlaceholderTitle = () => context.text.newEvent;
 	const draftEvents = new CalendarDraftEventState();
+	const eventStore = createCalendarEventStore();
 	const programmaticUpdates = new CalendarProgrammaticUpdateState();
 	const selectedMonthDate = createCalendarSelectedMonthDateActions({
 		isBrowser: context.isBrowser,
@@ -70,13 +71,11 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 	const eventLoader: CalendarEventLoader = createCalendarEventLoader({
 		isBrowser: context.isBrowser,
 		errorFallback: () => context.text.error,
-		getCalendarEvents: () => calendar.app.getAllEvents(),
+		getCalendarEvents: () => eventStore.getAllEvents(),
 		applyCalendarEventsChanges: (changes) => {
-			calendar.app.applyEventsChanges(changes);
+			eventStore.applyEventsChanges(changes);
 		},
-		triggerCalendarRender: () => {
-			calendar.app.triggerRender();
-		},
+		triggerCalendarRender: () => {},
 		setVisibleEvents: (events) => {
 			context.state.visibleEvents = events;
 		},
@@ -94,22 +93,22 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 	const eventActions: CalendarEventActions = createCalendarEventActions(
 		{
 			isBrowser: context.isBrowser,
-			getCurrentDate: () => calendar.currentDate,
+			getCurrentDate: () => context.state.toolbarDate,
 			getStageElement: () => context.state.calendarStageElement,
 			getSelectedAuditEventID: () => context.state.selectedAuditEventID,
 			setSelectedAuditEventID: (eventID) => {
 				context.state.selectedAuditEventID = eventID;
 			},
-			getCalendarEvents: () => calendar.app.getAllEvents(),
-			addCalendarEvent: (event) => calendar.addEvent(event),
+			getCalendarEvents: () => eventStore.getAllEvents(),
+			addCalendarEvent: (event) => eventStore.addEvent(event),
 			restoreCalendarEvent: (event) => {
-				calendar.app.applyEventsChanges({ delete: [event.id], add: [event] });
+				eventStore.applyEventsChanges({ delete: [event.id], add: [event] });
 			},
 			removeCalendarEvent: (eventID) => {
-				calendar.app.applyEventsChanges({ delete: [eventID], add: [] });
+				eventStore.applyEventsChanges({ delete: [eventID], add: [] });
 			},
-			updateCalendarEvent: async (eventID, changes, shouldRender) => {
-				await calendar.updateEvent(eventID, changes, shouldRender);
+			updateCalendarEvent: async (eventID, changes) => {
+				eventStore.updateEvent(eventID, changes);
 			},
 			setEventCount: () => {},
 			setVisibleEvents: (events) => {
@@ -124,7 +123,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 			openMobileEventEditor: (event) => {
 				context.state.draftPopover = null;
 				context.state.activeMobileEditorEventID = event.id;
-				calendar.app.onMobileEventDetailToggle(event);
 			},
 			notifyEventsChanged: broadcastCalendarEventsChanged,
 			invalidatePendingEventLoad: eventLoader.invalidatePendingLoad,
@@ -165,24 +163,8 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		programmaticUpdates
 	);
 
-	const calendar = useCalendarApp(createCalendarPageAppOptions({
-		defaultView: context.initialCalendarView(),
-		initialDate: context.initialCalendarDate(),
-		locale: context.getCalendarLocale(),
-		text: context.text,
-		getToolbarDate: () => context.state.toolbarDate,
-		loadEvents: eventLoader.loadEvents,
-		setVisibleDate: context.setVisibleDate,
-		saveCreatedEvent: eventActions.saveCreatedEvent,
-		saveUpdatedEvent: eventActions.saveUpdatedEvent,
-		deleteEvent: eventActions.deleteEvent,
-		closeMobileEventEditor: () => {
-			context.state.activeMobileEditorEventID = null;
-		}
-	}));
-
 	const eventSelection = createCalendarPageEventSelection({
-		calendar,
+		eventStore,
 		getStageElement: () => context.state.calendarStageElement,
 		getPendingEventID: () => context.state.pendingEventID ?? '',
 		setPendingEventID: (eventID) => {
@@ -204,15 +186,15 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		setDraftPopover: (popover) => {
 			context.state.draftPopover = popover;
 		},
-		getCalendarEvents: () => calendar.events,
+		getCalendarEvents: () => eventStore.events,
 		getStageElement: () => context.state.calendarStageElement,
 		selectEvent: eventSelection.selectCalendarEvent,
 		replaceLocalEvent: eventSelection.replaceLocalCalendarEvent
 	});
 
 	const eventDetails = createCalendarPageEventDetails({
-		getAppEvents: () => calendar.app.getAllEvents(),
-		getFallbackEvents: () => calendar.events,
+		getAppEvents: () => eventStore.getAllEvents(),
+		getFallbackEvents: () => eventStore.events,
 		openEventDraftPopover: draftPopoverActions.openEventDraftPopover
 	});
 
@@ -223,7 +205,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		getSelectedEventID: () => context.state.selectedAuditEventID,
 		getToolbarView: () => context.state.toolbarView,
 		getToolbarDate: () => context.state.toolbarDate,
-		getCalendarEvents: () => calendar.app.getAllEvents(),
+		getCalendarEvents: () => eventStore.getAllEvents(),
 		refreshCurrentRange: eventLoader.refreshCurrentRange,
 		loadCalendarConflicts: conflictActions.loadCalendarConflicts,
 		broadcastCalendarEventsChanged
@@ -231,7 +213,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 
 	const interactionServices = createCalendarPageInteractionServices({
 		broadcastCalendarView,
-		calendar,
 		eventLoader,
 		getLocaleCode: context.getLocaleCode,
 		getIsMobileTwoDayWeekView: context.getIsMobileTwoDayWeekView,
@@ -244,7 +225,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 	});
 
 	return {
-		calendar,
+		eventStore,
 		conflictActions,
 		draftEvents,
 		draftPopoverActions,
