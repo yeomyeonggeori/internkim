@@ -16,7 +16,8 @@ const defaultLeaveTypeNames = {
 	refresh: { ko: '리프레시휴가', en: 'Refresh leave' },
 	'parental-leave': { ko: '육아휴직', en: 'Parental leave' },
 	unpaid: { ko: '무급휴가', en: 'Unpaid leave' },
-	other: { ko: '기타 휴가', en: 'Other leave' }
+	other: { ko: '기타 휴가', en: 'Other leave' },
+	'legacy-leave': { ko: '기존 휴가', en: 'Legacy leave' }
 } as const;
 
 export function localizedLeaveTypeName(id: string, name: string, locale: Locale): string {
