@@ -42,7 +42,7 @@
 				{section.emptyLabel}
 			</div>
 		{:else}
-			<FlowMemberScoreList {section} />
+			<FlowMemberScoreList {section} members={summary?.members ?? []} />
 		{/if}
 	</Card.Content>
 </Card.Root>

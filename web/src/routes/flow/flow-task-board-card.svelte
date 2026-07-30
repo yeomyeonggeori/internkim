@@ -8,7 +8,7 @@
 	import FlowTaskDateRange from './flow-task-date-range.svelte';
 	import FlowTaskPersonChip from './flow-task-person-chip.svelte';
 	import { sizeBadgeClass } from './flow-style';
-	import { flowDefinitionBadgeStyle } from './flow-definition-colors';
+	import { flowDefinitionBadgeStyle, flowDefinitionOutlineBadgeStyle } from './flow-definition-colors';
 	import type { FlowTask } from './flow-types';
 	import type { Snippet } from 'svelte';
 
@@ -173,8 +173,9 @@
 				{/if}
 				{#each display.metadataLabels as label}
 					<Badge
-						class="h-5 max-w-24 rounded-md border-transparent px-1.5 py-0 text-[11px] font-medium shadow-none"
-						style={flowDefinitionBadgeStyle(taskTypeColor(label))}
+						variant="outline"
+						class="h-5 max-w-24 rounded-md border px-1.5 py-0 text-[11px] font-medium shadow-none"
+						style={flowDefinitionOutlineBadgeStyle(taskTypeColor(label))}
 					>
 						{label}
 					</Badge>

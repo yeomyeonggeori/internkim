@@ -57,7 +57,8 @@ export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): Colu
 			header: (context) => renderHeader(text.table.type, context.column),
 			cell: (info) => renderComponent(FlowTaskListBusinessCell, {
 				label: info.row.original.type,
-				color: taskTypeColor(info.row.original.type)
+				color: taskTypeColor(info.row.original.type),
+				isOutlined: true
 			})
 		},
 		{
