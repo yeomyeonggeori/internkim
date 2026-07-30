@@ -318,6 +318,7 @@
 		aria-label={monthLabelFormatter.format(visibleDate)}
 		onscroll={handleScroll}
 		onscrollend={scrollSnap.handleScrollEnd}
+		ontouchstart={scrollSnap.handleTouchStart}
 		onwheel={scrollSnap.handleWheel}
 		onpointerdown={handlePointerDown}
 		onpointermove={handlePointerMove}
