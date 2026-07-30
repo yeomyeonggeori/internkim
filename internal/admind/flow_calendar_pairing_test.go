@@ -178,3 +178,54 @@ func TestFlowTaskWithCalendarFlagCreatesEventAndDeletesTogether(t *testing.T) {
 		t.Fatalf("paired event survived the task delete (found=%v error=%v)", found, errorValue)
 	}
 }
+
+func TestCalendarCreateIgnoresCallerSuppliedEventID(t *testing.T) {
+	service := newCalendarTestService(t)
+	createRequest := httptest.NewRequest(http.MethodPost, "/calendar/api/events", strings.NewReader(`{
+		"eventID":"caller-chosen-id",
+		"title":"모델이 정한 아이디 무시",
+		"startISO":"2036-05-10T01:00:00Z",
+		"endISO":"2036-05-10T02:00:00Z"
+	}`))
+	createRequest.Header.Set("Content-Type", "application/json")
+	createRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	createResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body = %s", createResponse.Code, createResponse.Body.String())
+	}
+	var createdEvent calendarEvent
+	if errorValue := json.Unmarshal(createResponse.Body.Bytes(), &createdEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if createdEvent.ID == "caller-chosen-id" {
+		t.Fatalf("caller chose the stored identifier: %#v", createdEvent)
+	}
+}
+
+func TestSoftDeletingAnEventFromTheStoreRemovesThePairedTask(t *testing.T) {
+	service := newCalendarTestService(t)
+	createRequest := httptest.NewRequest(http.MethodPost, "/calendar/api/events", strings.NewReader(`{
+		"title":"동기화 경로 삭제",
+		"startISO":"2036-05-11T01:00:00Z",
+		"endISO":"2036-05-11T02:00:00Z"
+	}`))
+	createRequest.Header.Set("Content-Type", "application/json")
+	createRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	createResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(createResponse, createRequest)
+	var createdEvent calendarEvent
+	if errorValue := json.Unmarshal(createResponse.Body.Bytes(), &createdEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	pairedTask, found, errorValue := service.readFlowTaskByCalendarEventID(context.Background(), createdEvent.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("paired task missing (found=%v error=%v)", found, errorValue)
+	}
+	if errorValue := service.softDeleteCalendarEventWithSource(context.Background(), createdEvent.ID, calendarSourcePull); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, found, errorValue := service.readFlowTaskByID(context.Background(), pairedTask.ID); errorValue != nil || found {
+		t.Fatalf("paired task survived a store-level delete (found=%v error=%v)", found, errorValue)
+	}
+}
