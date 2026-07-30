@@ -10,7 +10,8 @@ const buzzRelayKeyPath = "/root/.internkim/tls/relay.key"
 const buzzRelayTLSDirectory = "/root/.internkim/tls"
 const buzzRelayTrustStorePath = "/usr/local/share/ca-certificates/buzz-relay.crt"
 const buzzRelayStunnelConfigurationPath = "/etc/stunnel/buzz-relay.conf"
-const buzzRelayStunnelPidPath = "/run/stunnel4-buzz-relay.pid"
+const buzzRelayStunnelServiceUnitPath = "/etc/systemd/system/buzz-relay-stunnel.service"
+const buzzRelayStunnelServiceName = "buzz-relay-stunnel"
 const buzzRelayStunnelAcceptAddress = "127.0.0.1:443"
 const buzzRelayServiceDropInDirectory = "/etc/systemd/system/buzz-relay.service.d"
 const buzzRelayPublicURLDropInPath = "/etc/systemd/system/buzz-relay.service.d/public-url.conf"
@@ -43,7 +44,7 @@ var StepBuzzPublicHost = Step{
 		if !sshFileExists(context, buzzRelayPublicURLDropInPath) {
 			return false
 		}
-		return trimmedRun(context, "systemctl is-active stunnel4") == "active"
+		return trimmedRun(context, "systemctl is-active "+buzzRelayStunnelServiceName) == "active"
 	},
 	Run: func(context *Context) error {
 		if context.Backend != BackendSSH {
@@ -93,23 +94,31 @@ fi`
 
 func buzzRelayStunnelCommand() string {
 	return `command -v stunnel4 >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y stunnel4
+systemctl disable --now stunnel4 2>/dev/null || true
+pkill -f 'stunnel.*buzz-relay.conf' 2>/dev/null || true
 cat > ` + buzzRelayStunnelConfigurationPath + ` <<'STUNNELCONFEOF'
-pid = ` + buzzRelayStunnelPidPath + `
+foreground = yes
 [buzz-relay]
 accept = ` + buzzRelayStunnelAcceptAddress + `
 connect = ` + blueclaw.BuzzRelayBindAddress + `
 cert = ` + blueclaw.BuzzRelayCertificatePath + `
 key = ` + buzzRelayKeyPath + `
 STUNNELCONFEOF
-if grep -q '^ENABLED=0' /etc/default/stunnel4 2>/dev/null; then
-  sed -i 's/^ENABLED=0/ENABLED=1/' /etc/default/stunnel4
-elif ! grep -q '^ENABLED=1' /etc/default/stunnel4 2>/dev/null; then
-  printf 'ENABLED=1\n' >> /etc/default/stunnel4
-fi
-systemctl enable stunnel4
-pkill -f 'stunnel.*buzz-relay.conf' 2>/dev/null || true
-sleep 1
-systemctl restart stunnel4`
+cat > ` + buzzRelayStunnelServiceUnitPath + ` <<'STUNNELUNITEOF'
+[Unit]
+Description=Buzz relay TLS terminator (stunnel)
+After=network-online.target ` + blueclaw.BuzzRelayServiceName + `.service
+Wants=network-online.target
+[Service]
+ExecStart=/usr/bin/stunnel4 ` + buzzRelayStunnelConfigurationPath + `
+Restart=always
+RestartSec=2
+[Install]
+WantedBy=multi-user.target
+STUNNELUNITEOF
+systemctl daemon-reload
+systemctl enable ` + buzzRelayStunnelServiceName + `
+systemctl restart ` + buzzRelayStunnelServiceName + ``
 }
 
 func buzzCommunityRekeyCommand(publicHost string) string {
