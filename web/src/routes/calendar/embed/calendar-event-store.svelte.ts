@@ -1,4 +1,4 @@
-import type { Event as CalendarStoreEvent } from '@dayflow/core';
+import type { CalendarModelEvent as CalendarStoreEvent } from './calendar-event-model';
 
 export type CalendarEventStore = {
 	readonly events: CalendarStoreEvent[];

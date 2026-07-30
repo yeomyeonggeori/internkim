@@ -1,4 +1,4 @@
-import type { CalendarViewType } from '@dayflow/core';
+import type { ViewType as CalendarViewType } from '../calendar-view-type';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 import {
 	hasTimelinePointerMoved,

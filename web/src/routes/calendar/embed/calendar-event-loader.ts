@@ -1,4 +1,4 @@
-import { recalculateEventDays, type Event as DayFlowEvent } from '@dayflow/core';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 import { dayFlowEventFromCalendarEvent } from './calendar-event-mapping';
 import { fetchCalendarEvents } from './calendar-event-persistence';
 
@@ -56,7 +56,7 @@ export function createCalendarEventLoader(
 			const events = mergePreservedLocalEvents(calendarEvents.map(dayFlowEventFromCalendarEvent));
 			context.setVisibleEvents(events);
 			context.setEventCount(events.length);
-			replaceCalendarEvents(events, startDate);
+			replaceCalendarEvents(events);
 			context.afterRenderEvents?.(events);
 		} catch (error) {
 			if (requestID !== loadEventsRequestID) return;
@@ -83,14 +83,14 @@ export function createCalendarEventLoader(
 
 	function renderVisibleEvents(events: DayFlowEvent[]): void {
 		if (!visibleRange) return;
-		replaceCalendarEvents(events, visibleRange.startDate);
+		replaceCalendarEvents(events);
 	}
 
-	function replaceCalendarEvents(events: DayFlowEvent[], visibleRangeStartDate: Date): void {
+	function replaceCalendarEvents(events: DayFlowEvent[]): void {
 		const eventIDs = context.getCalendarEvents().map((event) => event.id);
 		context.applyCalendarEventsChanges({
 			delete: eventIDs,
-			add: recalculateEventDays(events, visibleRangeStartDate)
+			add: events
 		});
 		context.triggerCalendarRender();
 		context.refreshSelectedMonthDateCell();

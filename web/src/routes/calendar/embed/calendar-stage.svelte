@@ -4,11 +4,10 @@
 	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import TrashIcon from '@lucide/svelte/icons/trash';
-	import { ViewType } from '@dayflow/svelte';
-	import type { Event as DayFlowEvent } from '@dayflow/core';
+	import { ViewType } from '../calendar-view-type';
+	import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 	import type { CalendarLocaleText } from '../text';
 	import type { CalendarParticipant } from './calendar-participants';
-	import CalendarMobileEventEditor from './calendar-mobile-event-editor.svelte';
 	import CalendarMonthView from '../grid/calendar-month-view.svelte';
 	import CalendarTimeView from '../grid/calendar-time-view.svelte';
 	import { calendarGridEventsFromDayFlowEvents } from '../grid/calendar-grid-events';

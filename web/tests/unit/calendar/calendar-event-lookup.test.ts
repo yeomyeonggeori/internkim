@@ -1,4 +1,4 @@
-import { createEvent } from '@dayflow/core';
+import { createCalendarModelEvent as createEvent } from '../../../src/routes/calendar/embed/calendar-event-model';
 import { expect, test } from 'bun:test';
 
 import { findCalendarEventByID } from '../../../src/routes/calendar/embed/calendar-event-lookup';

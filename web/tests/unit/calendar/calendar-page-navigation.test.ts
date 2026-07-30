@@ -1,4 +1,4 @@
-import { ViewType } from '@dayflow/svelte';
+import { ViewType } from '../../../src/routes/calendar/calendar-view-type';
 import { describe, expect, test } from 'bun:test';
 
 import { createCalendarPageNavigation } from '../../../src/routes/calendar/embed/calendar-page-navigation';
@@ -26,6 +26,10 @@ describe('calendar page navigation', () => {
 			id: 'event-1',
 			title: '디플랫코리아 기획안 전달',
 			startDate: eventDate,
+			endDate: new Date(2026, 5, 4, 19, 0),
+			isAllDay: false,
+			color: '#3b82f6',
+			participants: [],
 			dateLabel: '2026.06.04 THU',
 			highlightParts: [{ text: '디플랫코리아 기획안 전달', isMatch: false }]
 		});
