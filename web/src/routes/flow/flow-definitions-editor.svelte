@@ -4,7 +4,7 @@
 	import FlowDefinitionsView from './flow-definitions-view.svelte';
 	import type { LoadFlow } from './flow-load-tracker';
 	import type { FlowDefinitions, FlowSizeDefinition, FlowSummary } from './flow-types';
-	import { flowProjectColor, flowTypeColor } from './flow-report-colors';
+	import { flowDefinitionPaletteColor } from './flow-definition-colors';
 	import { flowText } from './text';
 
 	type FlowDefinitionsText = typeof flowText.ko.definitions;
@@ -72,11 +72,11 @@
 	}
 
 	function nextCategoryColor(): string {
-		return newCategoryColor || flowProjectColor(categoryDrafts.length);
+		return newCategoryColor || flowDefinitionPaletteColor(categoryDrafts.length);
 	}
 
 	function nextTypeColor(): string {
-		return newTypeColor || flowTypeColor(typeDrafts.length);
+		return newTypeColor || flowDefinitionPaletteColor(typeDrafts.length);
 	}
 
 	function setCategoryColor(index: number, color: string): void {
