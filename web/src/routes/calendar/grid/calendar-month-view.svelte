@@ -319,7 +319,6 @@
 		onscroll={handleScroll}
 		onscrollend={scrollSnap.handleScrollEnd}
 		onwheel={scrollSnap.handleWheel}
-		ontouchend={scrollSnap.handleGestureEnd}
 		onpointerdown={handlePointerDown}
 		onpointermove={handlePointerMove}
 		onpointerup={handlePointerUp}
