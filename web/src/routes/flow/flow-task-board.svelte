@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import { cn } from '$lib/utils';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import FlowTaskBoardCard from './flow-task-board-card.svelte';
 	import { FlowTaskBoardDragController } from './flow-task-board-drag-controller.svelte';
@@ -105,7 +106,12 @@
 							></span>
 							<h3 class="truncate text-sm font-semibold text-foreground">{statusLabel(column.status)}</h3>
 							<span
-								class="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground"
+								class={cn(
+									'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums',
+									column.status === '요청' && column.tasks.length > 0
+										? 'bg-destructive text-white'
+										: 'bg-muted text-muted-foreground'
+								)}
 								aria-label={taskCountLabel(column.tasks.length)}
 								data-flow-board-task-count
 							>
