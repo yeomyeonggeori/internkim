@@ -391,6 +391,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startBuzzAccountLinkSync(ctx)
 	service.startStaffChannelMembershipSync(ctx)
 	service.startMattermostPasswordHashSync(ctx)
+	service.ensureBuzzRelayTerminator()
 	service.warnWhenFontAssetsMissing()
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
