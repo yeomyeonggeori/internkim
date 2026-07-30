@@ -78,6 +78,12 @@ function compareFlowTaskBoardOrder(left: FlowTask, right: FlowTask): number {
 	return left.id.localeCompare(right.id);
 }
 
+export function isOverdueFlowPlan(task: FlowTask, weekStartISO: string): boolean {
+	if (task.status !== '예정' || !weekStartISO) return false;
+	const plannedDate = task.endDate?.trim() || task.startDate?.trim() || '';
+	return plannedDate !== '' && plannedDate < weekStartISO;
+}
+
 function isBoardColumnVisible(status: FlowTaskBoardStatus, options: FlowTaskBoardOptions): boolean {
 	return status !== '예정' || weekPosition(options) !== 'past';
 }
