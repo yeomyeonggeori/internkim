@@ -66,6 +66,24 @@ test.describe('calendar route shell', () => {
 		await expect(page.getByText('일정 삭제')).toHaveCount(0);
 	});
 
+	test('keeps calendar events visible and warns when holidays fail to load', async ({ page }) => {
+		await page.unroute('**/calendar/api/holidays?**');
+		await page.route('**/calendar/api/holidays?**', async (route) => {
+			await route.fulfill({
+				status: 503,
+				contentType: 'text/plain',
+				body: 'provider unavailable'
+			});
+		});
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
+		await page.goto('/calendar/embed');
+
+		await expect(page.locator('[data-calendar-event-id="event-2026-06-15"]:visible').first()).toBeVisible();
+		await expect(page.getByRole('status')).toHaveText(
+			'공휴일을 불러오지 못했습니다. 일반 일정은 계속 사용할 수 있습니다.'
+		);
+	});
+
 	test('reloads holidays with the persisted UI locale', async ({ page }) => {
 		const requestedLocales: string[] = [];
 		await page.unroute('**/admin/api/locale');

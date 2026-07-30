@@ -104,6 +104,9 @@ func (service *Service) fetchNagerCalendarHolidayCountries(ctx context.Context) 
 	if errorValue := json.Unmarshal(body, &countries); errorValue != nil {
 		return nil, errorValue
 	}
+	if len(countries) == 0 {
+		return nil, fmt.Errorf("nager country API returned no countries")
+	}
 	seen := make(map[string]struct{}, len(countries))
 	for index := range countries {
 		countries[index].CountryCode = strings.ToUpper(strings.TrimSpace(countries[index].CountryCode))

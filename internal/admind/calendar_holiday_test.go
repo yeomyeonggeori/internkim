@@ -169,6 +169,40 @@ func TestWorkspaceCountryUpdateRefreshesHolidaysWithoutMattermost(t *testing.T) 
 	}
 }
 
+func TestWorkspaceSettingsUpdateDoesNotRequireHolidayAPIWhenCountryIsUnchanged(t *testing.T) {
+	service, _, _ := newWorkspaceSettingsMattermostTestService(t, false)
+	originalTransport := service.HTTPClient.Transport
+	var holidayRequestCount atomic.Int64
+	service.HTTPClient.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Host == "date.nager.at" {
+			holidayRequestCount.Add(1)
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Header:     http.Header{"Content-Type": []string{"text/plain"}},
+				Body:       io.NopCloser(strings.NewReader("unavailable")),
+				Request:    request,
+			}, nil
+		}
+		return originalTransport.RoundTrip(request)
+	})
+	request := httptest.NewRequest(
+		http.MethodPut,
+		"/admin/api/workspace-settings",
+		strings.NewReader(`{"countryCode":"KR","timeZone":"Asia/Seoul","language":"ko","callingCode":"82"}`),
+	)
+	request.RemoteAddr = "127.0.0.1:12345"
+	recorder := httptest.NewRecorder()
+
+	service.router().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if holidayRequestCount.Load() != 0 {
+		t.Fatalf("holiday request count = %d", holidayRequestCount.Load())
+	}
+}
+
 func TestCalendarHolidaysServeCachedResponseWhenCountryAPIFails(t *testing.T) {
 	service := newCalendarTestService(t)
 	currentTime := time.Now().UTC()
@@ -296,6 +330,46 @@ func TestCalendarHolidayCountriesUseCachedAPIResponse(t *testing.T) {
 	}
 	if requestCount.Load() != 1 {
 		t.Fatalf("API request count = %d, want one cached request", requestCount.Load())
+	}
+}
+
+func TestCalendarHolidayCountriesKeepCacheWhenAPIResponseIsEmpty(t *testing.T) {
+	service := newCalendarTestService(t)
+	currentTime := time.Now().UTC()
+	cachedCountries := []calendarHolidayCountry{{CountryCode: "KR", Name: "South Korea"}}
+	if errorValue := service.replaceCalendarHolidayCountries(context.Background(), cachedCountries, currentTime.Add(-25*time.Hour)); errorValue != nil {
+		t.Fatalf("store cached countries: %v", errorValue)
+	}
+	if errorValue := service.upsertCalendarHolidaySourceState(context.Background(), calendarHolidaySourceState{
+		Provider:     calendarHolidayProviderNager,
+		SourceKey:    calendarHolidayCountriesSourceKey,
+		LastSyncedAt: currentTime.Add(-25 * time.Hour).Format(time.RFC3339),
+	}); errorValue != nil {
+		t.Fatalf("store stale country state: %v", errorValue)
+	}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`[]`)),
+			Request:    request,
+		}, nil
+	})}
+
+	countries, errorValue := service.ensureCalendarHolidayCountries(context.Background(), currentTime)
+
+	if errorValue != nil {
+		t.Fatalf("ensure countries: %v", errorValue)
+	}
+	if len(countries) != 1 || countries[0].CountryCode != "KR" {
+		t.Fatalf("countries = %#v", countries)
+	}
+	storedCountries, errorValue := service.readCalendarHolidayCountries(context.Background())
+	if errorValue != nil {
+		t.Fatalf("read cached countries: %v", errorValue)
+	}
+	if len(storedCountries) != 1 || storedCountries[0].CountryCode != "KR" {
+		t.Fatalf("stored countries = %#v", storedCountries)
 	}
 }
 
