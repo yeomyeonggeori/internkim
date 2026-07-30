@@ -21,6 +21,8 @@
 		saveDefinitions: () => void;
 		itemColor: (index: number) => string;
 		setItemColor: (index: number, color: string) => void;
+		newColor: string;
+		setNewColor: (color: string) => void;
 		colorLabel: string;
 	};
 
@@ -39,6 +41,8 @@
 		saveDefinitions,
 		itemColor,
 		setItemColor,
+		newColor,
+		setNewColor,
 		colorLabel
 	}: Props = $props();
 </script>
@@ -80,7 +84,7 @@
 		{/each}
 		{#if isAdmin}
 			<div class="grid grid-cols-[auto_1fr_auto] items-center gap-2">
-				<span class="size-2.5 rounded-full" style={`background: ${itemColor(items.length)}`}></span>
+				<ColorPicker value={newColor} label={colorLabel} class="size-7" onChange={setNewColor} />
 				<Input value={newValue} placeholder={title} oninput={(event) => setNewValue(event.currentTarget.value)} />
 				<Button variant="outline" size="icon" onclick={add} aria-label={addLabel}>
 					<PlusIcon class="size-4" />

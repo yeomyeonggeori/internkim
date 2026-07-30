@@ -32,6 +32,10 @@
 		definitions: FlowDefinitions;
 		categoryDrafts: string[];
 		setCategoryColor: (index: number, color: string) => void;
+		newCategoryColor: string;
+		newTypeColor: string;
+		setNewCategoryColor: (color: string) => void;
+		setNewTypeColor: (color: string) => void;
 		setTypeColor: (index: number, color: string) => void;
 		typeDrafts: string[];
 		newCategoryText: string;
@@ -58,6 +62,10 @@
 		definitions,
 		categoryDrafts,
 		setCategoryColor,
+		newCategoryColor,
+		newTypeColor,
+		setNewCategoryColor,
+		setNewTypeColor,
 		setTypeColor,
 		typeDrafts,
 		newCategoryText,
@@ -115,6 +123,8 @@
 				{saveDefinitions}
 				itemColor={(index) => flowBusinessColor(categoryDrafts[index] ?? '', definitions)}
 				setItemColor={setCategoryColor}
+				newColor={newCategoryColor}
+				setNewColor={setNewCategoryColor}
 				colorLabel={text.color}
 			/>
 			<FlowEditableDefinitionListCard
@@ -132,6 +142,8 @@
 				{saveDefinitions}
 				itemColor={(index) => flowTaskTypeColor(typeDrafts[index] ?? '', definitions)}
 				setItemColor={setTypeColor}
+				newColor={newTypeColor}
+				setNewColor={setNewTypeColor}
 				colorLabel={text.color}
 			/>
 		</div>
