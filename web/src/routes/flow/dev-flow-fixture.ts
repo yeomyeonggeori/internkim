@@ -1,5 +1,5 @@
 import { buildFlowWeek } from './dev-flow-fixture-date';
-import { devFlowMembers, devFlowSizes, devFlowStatuses, devFlowTypes } from './dev-flow-fixture-data';
+import { devFlowMembers, devFlowSizes, devFlowSizesEnglish, devFlowStatuses, devFlowTypes } from './dev-flow-fixture-data';
 import { buildDevFlowMemberScoreDetails, currentDevFlowMemberScores } from './dev-flow-fixture-score';
 import { createDevFlowScoreTasks } from './dev-flow-fixture-score-tasks';
 import {
@@ -75,10 +75,10 @@ export function createDevFlowWeeklySummary(weekCode: string | null | undefined):
 	};
 }
 
-export function createDevFlowState(currentUserEmail = 'kim@example.com'): DevFlowState {
+export function createDevFlowState(currentUserEmail = 'kim@example.com', locale: 'ko' | 'en' = 'ko'): DevFlowState {
 	const currentWeek = buildFlowWeek(undefined);
 	const tasks = createGlobalFixtureTasks(currentWeek);
-	const definitions = createDevFlowDefinitions();
+	const definitions = createDevFlowDefinitions(locale);
 	const memberScoreDetails = buildDevFlowMemberScoreDetails(createDevFlowScoreTasks(currentWeek, createFixtureTasks), devFlowMembers, definitions, currentWeek);
 	const memberScores = currentDevFlowMemberScores(memberScoreDetails);
 	const memberDistances = calculateDevFlowMemberDistances(devFlowMembers, tasks, definitions);
@@ -98,8 +98,8 @@ export function createDevFlowState(currentUserEmail = 'kim@example.com'): DevFlo
 	};
 }
 
-function createDevFlowDefinitions(): FlowDefinitions {
-	return { categories: ['여명거리', '김인턴'], types: devFlowTypes, sizes: devFlowSizes };
+function createDevFlowDefinitions(locale: 'ko' | 'en' = 'ko'): FlowDefinitions {
+	return { categories: ['여명거리', '김인턴'], types: devFlowTypes, sizes: locale === 'en' ? devFlowSizesEnglish : devFlowSizes };
 }
 
 function createGlobalFixtureTasks(currentWeek: FlowWeek): FlowTask[] {
