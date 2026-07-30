@@ -45,41 +45,41 @@ export default defineConfig(({ mode }) => {
 		plugins: [
 			devAdminUsersMockPlugin({
 				isEnabled: env.VITE_MOCK_ADMIN === '1',
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devAdminOrganizationMockPlugin({
 				isEnabled: env.VITE_MOCK_ADMIN === '1',
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com',
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com',
 				userRole: devUserRole
 			}),
 			devAttendanceMockPlugin({
 				isEnabled: isAttendanceMockEnabled,
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devCalendarMockPlugin({
 				isEnabled: isAttendanceMockEnabled || env.VITE_MOCK_CALENDAR === '1',
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devFilesMockPlugin({
 				isEnabled: env.VITE_MOCK_FILES === '1',
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devPersonProfileImageMockPlugin({ isEnabled: isFlowMockEnabled }),
 			devFlowMockPlugin({
 				isEnabled: isAttendanceMockEnabled || isFlowMockEnabled,
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devTasksMockPlugin({
 				isEnabled: env.VITE_MOCK_TASKS === '1',
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devMailMockPlugin({
 				isEnabled: env.VITE_MOCK_MAIL === '1',
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devMemoryMockPlugin({
 				isEnabled: env.VITE_MOCK_MEMORY === '1',
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			tailwindcss(),
 			sveltekit()

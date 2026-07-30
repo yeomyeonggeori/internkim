@@ -71,6 +71,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		isBrowser: context.isBrowser,
 		errorFallback: () => context.text.error,
 		getCalendarEvents: () => eventStore.getAllEvents(),
+		getVisibleEvents: () => context.state.visibleEvents,
 		applyCalendarEventsChanges: (changes) => {
 			eventStore.applyEventsChanges(changes);
 		},
@@ -92,6 +93,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 	const eventActions: CalendarEventActions = createCalendarEventActions(
 		{
 			isBrowser: context.isBrowser,
+			defaultEventParticipants: () => context.state.viewerParticipants,
 			getCurrentDate: () => context.state.toolbarDate,
 			getStageElement: () => context.state.calendarStageElement,
 			getSelectedAuditEventID: () => context.state.selectedAuditEventID,

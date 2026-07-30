@@ -47,6 +47,7 @@ export function createPersistenceScenario(
 	const draftEvents = new CalendarDraftEventState();
 	const context: CalendarEventActionsContext = {
 		isBrowser: () => false,
+		defaultEventParticipants: () => [],
 		getCurrentDate: () => new Date('2026-07-16T00:00:00Z'),
 		getStageElement: () => null,
 		getSelectedAuditEventID: () => null,

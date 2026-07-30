@@ -2,7 +2,7 @@ import { renderComponent } from '$lib/components/ui/data-table';
 import type { Column, ColumnDef } from '@tanstack/table-core';
 import { compareOptionalDate } from './flow-style';
 import FlowTaskListHeaderCell from './flow-task-list-header-cell.svelte';
-import PersonNameCell from '$lib/components/person-name-cell.svelte';
+import FlowTaskListBusinessCell from './flow-task-list-business-cell.svelte';
 import FlowTaskListParticipantsCell from './flow-task-list-participants-cell.svelte';
 import FlowTaskListSizeCell from './flow-task-list-size-cell.svelte';
 import FlowTaskListStatusCell from './flow-task-list-status-cell.svelte';
@@ -25,6 +25,9 @@ type FlowTaskListColumnsInput = {
 	statusLabel: (status: string) => string;
 	updateTaskStatus: (task: FlowTask, nextStatus: string) => Promise<void>;
 	canUpdateTask: (task: FlowTask) => boolean;
+	memberEmail: (memberID: string) => string;
+	businessColor: (business: string) => string;
+	taskTypeColor: (type: string) => string;
 };
 
 export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): ColumnDef<FlowTask>[] {
@@ -34,27 +37,29 @@ export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): Colu
 		pendingStatusTaskID,
 		statusLabel,
 		updateTaskStatus,
-		canUpdateTask
+		canUpdateTask,
+		memberEmail,
+		businessColor,
+		taskTypeColor
 	} = input;
 
 	return [
 		{
-			accessorKey: 'ownerName',
-			header: (context) => renderHeader(text.table.owner, context.column),
-			cell: (info) => renderComponent(PersonNameCell, { name: info.row.original.ownerName, personID: info.row.original.ownerID })
-		},
-		{
 			accessorKey: 'business',
 			header: (context) => renderHeader(text.table.business, context.column),
-			cell: (info) => renderComponent(FlowTaskListTextCell, {
-				value: flowBusinessLabel(info.row.original.business, text.report.fallbackBusiness),
-				isMuted: true
+			cell: (info) => renderComponent(FlowTaskListBusinessCell, {
+				label: flowBusinessLabel(info.row.original.business, text.report.fallbackBusiness),
+				color: businessColor(info.row.original.business)
 			})
 		},
 		{
 			accessorKey: 'type',
 			header: (context) => renderHeader(text.table.type, context.column),
-			cell: (info) => renderComponent(FlowTaskListTextCell, { value: info.row.original.type })
+			cell: (info) => renderComponent(FlowTaskListBusinessCell, {
+				label: info.row.original.type,
+				color: taskTypeColor(info.row.original.type),
+				isOutlined: true
+			})
 		},
 		{
 			accessorKey: 'content',
@@ -66,7 +71,7 @@ export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): Colu
 			id: 'participants',
 			enableSorting: false,
 			header: (context) => renderHeader(text.table.participants, context.column),
-			cell: (info) => renderComponent(FlowTaskListParticipantsCell, { task: info.row.original })
+			cell: (info) => renderComponent(FlowTaskListParticipantsCell, { task: info.row.original, memberEmail })
 		},
 		{
 			accessorKey: 'size',

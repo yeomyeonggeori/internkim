@@ -24,6 +24,7 @@ const (
 	attendanceSameLocationResumeCancelReason     = "same_location_resume"
 	attendanceDuplicateWindow                    = 5 * time.Minute
 	attendanceAccidentalSequenceWindow           = 30 * time.Second
+	attendanceOvernightShiftWindow               = 12 * time.Hour
 )
 
 type attendanceEvent struct {

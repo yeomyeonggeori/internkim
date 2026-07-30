@@ -1,19 +1,22 @@
 <script lang="ts">
-	import { flowTypeColor } from '../flow-report-colors';
+	import { flowDefinitionPaletteColor, flowTaskTypeColor } from '../flow-definition-colors';
+	import type { FlowDefinitions } from '../flow-types';
 	import type { FlowDailyTypeDistanceSection, FlowReportRow } from './flow-report-data';
 
 	type Props = {
 		section: FlowDailyTypeDistanceSection;
+		definitions?: FlowDefinitions;
 	};
 
-	let { section }: Props = $props();
+	let { section, definitions }: Props = $props();
 	let activeDailyIndex = $state<number | null>(null);
 
 	const dailyGridTicks = [0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100];
 	const dailyMajorTicks = [0, 25, 50, 75, 100];
 
-	function typeSegmentColor(index: number): string {
-		return flowTypeColor(index);
+	function typeSegmentColor(index: number, label = ''): string {
+		if (!definitions || !label) return flowDefinitionPaletteColor(index);
+		return flowTaskTypeColor(label, definitions);
 	}
 
 	function activeDailyRow(): FlowReportRow | null {
@@ -76,7 +79,7 @@
 										<div class="flex h-full w-full flex-col-reverse overflow-hidden rounded-sm">
 											{#each row.segments as segment}
 												<div
-													style={`height: ${segment.percent}%; background: ${typeSegmentColor(segment.colorIndex)}`}
+													style={`height: ${segment.percent}%; background: ${typeSegmentColor(segment.colorIndex, segment.label)}`}
 													aria-label={`${row.label} ${segment.label} ${formatValue(segment.value, section.unit)}`}
 												></div>
 											{/each}
@@ -104,7 +107,7 @@
 								{#each activeRow.segments as segment}
 									<div class="flex items-center justify-between gap-4">
 										<span class="flex min-w-0 items-center gap-1.5">
-											<span class="size-2 shrink-0 rounded-sm" style={`background: ${typeSegmentColor(segment.colorIndex)}`}></span>
+											<span class="size-2 shrink-0 rounded-sm" style={`background: ${typeSegmentColor(segment.colorIndex, segment.label)}`}></span>
 											<span class="truncate">{segment.label}</span>
 										</span>
 										<span class="shrink-0 tabular-nums">{formatValue(segment.value, section.unit)}</span>
@@ -127,7 +130,7 @@
 		{#each section.items as item, index}
 			<div class="flex min-w-0 items-center justify-between gap-2">
 				<div class="flex min-w-0 items-center gap-2">
-					<span class="size-2.5 shrink-0 rounded-sm" style={`background: ${typeSegmentColor(item.colorIndex ?? index)}`}></span>
+					<span class="size-2.5 shrink-0 rounded-sm" style={`background: ${typeSegmentColor(item.colorIndex ?? index, item.label)}`}></span>
 					<span class="truncate">{item.label}</span>
 				</div>
 				<span class="shrink-0 tabular-nums">{formatValue(item.value, section.unit)}</span>

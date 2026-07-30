@@ -20,7 +20,7 @@
 
 	const storedFleetIdKey = 'internkim_fleet_id';
 	const isMockAdminAPI = import.meta.env.VITE_MOCK_ADMIN === '1';
-	const mockAdminEmail = import.meta.env.VITE_DEV_USER_EMAIL?.trim() || 'preview-admin@example.com';
+	const mockAdminEmail = import.meta.env.VITE_DEV_USER_EMAIL?.trim() || 'kim@example.com';
 	const text = createPageText(adminText);
 	const adminSectionConfigurations: { value: AdminSection; isDeviceManagedOnly: boolean }[] = [
 		{ value: 'device', isDeviceManagedOnly: true },

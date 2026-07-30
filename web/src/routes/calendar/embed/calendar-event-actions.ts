@@ -1,3 +1,4 @@
+import type { CalendarParticipant } from './calendar-participants';
 import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 import { CalendarDraftEventState, type DraftEventParams } from './calendar-draft-events';
 import {
@@ -14,6 +15,7 @@ import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-up
 
 export type CalendarEventActionsContext = {
 	isBrowser: () => boolean;
+	defaultEventParticipants: () => CalendarParticipant[];
 	getCurrentDate: () => Date | null | undefined;
 	getStageElement: () => HTMLElement | null;
 	getSelectedAuditEventID: () => string | null;
@@ -102,7 +104,12 @@ export function createCalendarEventActions(
 
 	function addDraftEvent(params: DraftEventParams): DayFlowEvent {
 		context.invalidatePendingEventLoad();
-		const event = draftEvents.createDraftEvent(params);
+		const defaultParticipants = context.defaultEventParticipants();
+		const event = draftEvents.createDraftEvent(
+			defaultParticipants.length === 0
+				? params
+				: { ...params, meta: { ...(params.meta ?? {}), participants: defaultParticipants } }
+		);
 		draftEvents.addCreatedEvent(event);
 		context.addCalendarEvent(event);
 		refreshLocalEventSnapshotWithEvent(event);

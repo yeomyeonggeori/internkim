@@ -1,3 +1,5 @@
+import { devFlowSizes, devFlowSizesEnglish } from './src/routes/flow/dev-flow-fixture-data';
+import { devLocale, setDevLocale } from './dev-locale-state';
 import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createFlowTaskBoardMove, type FlowTaskBoardMoveRequest } from './src/routes/flow/flow-task-board-drag';
@@ -14,7 +16,6 @@ const statusRankStep = 1024;
 
 type DevFlowMockState = {
 	userEmail: string;
-	locale: 'ko' | 'en';
 	flowState: FlowState;
 	nextTaskID: number;
 };
@@ -82,8 +83,7 @@ function shouldHandleDevFlowMockRequest(method: string, pathname: string): boole
 export function createDevFlowMockState(userEmail: string): DevFlowMockState {
 	return {
 		userEmail,
-		locale: 'ko',
-		flowState: createDevFlowState(userEmail),
+		flowState: createDevFlowState(userEmail, devLocale()),
 		nextTaskID: 1
 	};
 }
@@ -96,7 +96,7 @@ export async function createDevFlowMockResponse(
 		return { status: 200, body: createDevFlowWeeklySummary(request.searchParams.get('week')) };
 	}
 	if (request.method === 'GET' && request.pathname === '/flow/api/state') {
-		return { status: 200, body: state.flowState };
+		return { status: 200, body: { ...state.flowState, definitions: localizedDefinitions(state.flowState.definitions) } };
 	}
 	if (request.method === 'POST' && request.pathname === '/flow/api/test/reset') {
 		resetDevFlowMockState(state);
@@ -151,17 +151,21 @@ export async function createDevFlowMockResponse(
 		};
 	}
 	if (request.method === 'GET' && request.pathname === '/admin/api/locale') {
-		return { status: 200, body: { locale: state.locale } };
+		return { status: 200, body: { locale: devLocale() } };
 	}
 	if (request.method === 'PUT' && request.pathname === '/admin/api/locale') {
-		state.locale = localeFromBody(request.body);
-		return { status: 200, body: { locale: state.locale } };
+		setDevLocale(localeFromBody(request.body));
+		return { status: 200, body: { locale: devLocale() } };
 	}
 	return undefined;
 }
 
+function localizedDefinitions(definitions: FlowDefinitions): FlowDefinitions {
+	return { ...definitions, sizes: devLocale() === 'en' ? devFlowSizesEnglish : devFlowSizes };
+}
+
 function resetDevFlowMockState(state: DevFlowMockState): void {
-	state.flowState = createDevFlowState(state.userEmail);
+	state.flowState = createDevFlowState(state.userEmail, devLocale());
 	state.nextTaskID = 1;
 }
 
@@ -215,7 +219,9 @@ function flowTaskFromRecord(parsed: Record<string, unknown>, fallback: FlowTask)
 function flowDefinitionsFromRecord(parsed: Record<string, unknown>, fallback: FlowDefinitions): FlowDefinitions {
 	return {
 		categories: stringArrayFromValue(parsed.categories, fallback.categories),
+		categoryColors: colorMapFromValue(parsed.categoryColors, fallback.categoryColors),
 		types: stringArrayFromValue(parsed.types, fallback.types),
+		typeColors: colorMapFromValue(parsed.typeColors, fallback.typeColors),
 		sizes: flowSizeDefinitionsFromValue(parsed.sizes, fallback.sizes)
 	};
 }
@@ -246,6 +252,13 @@ function flowSizeDefinitionFromRecord(
 		otherExample: stringFromValue(parsed.otherExample, fallback?.otherExample ?? ''),
 		note: stringFromValue(parsed.note, fallback?.note ?? '')
 	};
+}
+
+function colorMapFromValue(value: unknown, fallback: Record<string, string> | undefined): Record<string, string> {
+	if (!isUnknownRecord(value)) return fallback ?? {};
+	return Object.fromEntries(
+		Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+	);
 }
 
 function createFlowTaskBoardMoveMockResponse(

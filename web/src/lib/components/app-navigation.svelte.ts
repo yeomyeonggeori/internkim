@@ -1,5 +1,6 @@
 import { page } from '$app/state';
 import { adminApiFetch } from '$lib/admin-api';
+import { appBadgeCounts } from '$lib/components/app-badge-counts.svelte';
 import { feedbackFormURL } from '$lib/components/app-rail-config';
 import type { AppRailItem } from '$lib/components/app-rail-types';
 import { appShellText } from '$lib/i18n/app-shell-text';
@@ -44,9 +45,9 @@ class AppNavigation {
 
 	apps = $derived<AppRailItem[]>([
 		...(this.buzzEnabled ? [{ href: '/messenger/', label: text.messenger, icon: MessagesSquareIcon }] : []),
-		{ href: '/flow/', label: text.flow, icon: ListChecksIcon },
+		{ href: '/flow/', label: text.flow, icon: ListChecksIcon, badgeCount: appBadgeCounts.requestedTasks },
 		{ href: '/memory/', label: text.memory, icon: BrainIcon },
-		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon },
+		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon, badgeCount: appBadgeCounts.participatingEvents },
 		{ href: '/mail/', label: text.mail, icon: MailIcon },
 		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon },
 		{ href: '/organization/', label: text.organization, icon: NetworkIcon },
@@ -83,6 +84,7 @@ class AppNavigation {
 		this.userImage = session.image;
 		this.canViewTasks = session.canViewTasks;
 		this.isPocSuperAdmin = session.isPocSuperAdmin;
+		void appBadgeCounts.load(session.email);
 		await this.loadBuzzEnabled();
 		try {
 			const response = await adminApiFetch('/admin/api/session');

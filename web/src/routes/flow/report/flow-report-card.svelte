@@ -4,12 +4,14 @@
 	import FlowDailyTypeDistanceChart from './flow-daily-type-distance-chart.svelte';
 	import FlowDistanceLineChart from './flow-distance-line-chart.svelte';
 	import type { FlowChartSection } from './flow-report-data';
+	import type { FlowDefinitions } from '../flow-types';
 
 	type Props = {
 		section: FlowChartSection;
+		definitions?: FlowDefinitions;
 	};
 
-	let { section }: Props = $props();
+	let { section, definitions }: Props = $props();
 
 	function isCompactCard(): boolean {
 		return section.chartKind === 'dailyTypeStacked';
@@ -45,11 +47,11 @@
 				{section.emptyLabel}
 			</div>
 		{:else if section.chartKind === 'dailyTypeStacked'}
-			<FlowDailyTypeDistanceChart section={section} />
+			<FlowDailyTypeDistanceChart section={section} {definitions} />
 		{:else if section.chartKind === 'lineComparison'}
 			<FlowDistanceLineChart section={section} variant={section.id === 'monthlyDistanceTrend' ? 'monthly' : 'weekly'} />
 		{:else if section.chartKind === 'donut'}
-			<FlowBusinessDistanceDonut section={section} />
+			<FlowBusinessDistanceDonut section={section} {definitions} />
 		{/if}
 	</Card.Content>
 </Card.Root>

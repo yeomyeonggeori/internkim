@@ -14,6 +14,7 @@ test('does not apply a deferred refresh after a newer local update', async () =>
 		resolveFetch = resolve;
 	});
 	let calendarEvents = [calendarTestEvent('event-1', 'First update')];
+	let visibleEvents: typeof calendarEvents = [];
 	let appliedChangeCount = 0;
 	const loadingStates: boolean[] = [];
 	const loader = createCalendarEventLoader(
@@ -21,6 +22,7 @@ test('does not apply a deferred refresh after a newer local update', async () =>
 			isBrowser: () => true,
 			errorFallback: () => 'Could not load events.',
 			getCalendarEvents: () => calendarEvents,
+			getVisibleEvents: () => visibleEvents,
 			applyCalendarEventsChanges: (changes) => {
 				appliedChangeCount += 1;
 				calendarEvents = [

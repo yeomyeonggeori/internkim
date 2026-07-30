@@ -250,7 +250,11 @@ function createAttendancePreviewCalendarEvents(userEmail: string): CalendarEvent
 	return [
 		previewCalendarEvent('attendance-preview-standup', '오늘의 우선순위 정렬', date, '09:30', '10:00', '회의실 A', userEmail),
 		previewCalendarEvent('attendance-preview-review', '근태 상세 화면 UI 리뷰', date, '14:00', '15:00', '디자인 룸', userEmail),
-		previewCalendarEvent('attendance-preview-sync', '팀 진행 상황 공유', date, '16:30', '17:00', '회의실 B', userEmail)
+		previewCalendarEvent('attendance-preview-sync', '팀 진행 상황 공유', date, '16:30', '17:00', '회의실 B', userEmail),
+		{
+			...previewCalendarEvent('today-all-day-preview', '오늘 종일 일정', date, '00:00', '23:59', '', userEmail),
+			isAllDay: true
+		}
 	];
 }
 

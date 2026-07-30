@@ -265,6 +265,8 @@
 			<div class="min-w-0 flex-1">
 				<FlowTaskBoardCard
 					{task}
+					businessColor={flowTaskSearch.businessColor}
+					taskTypeColor={flowTaskSearch.taskTypeColor}
 					businessFallback={flowLabels.task.businessFallback}
 					openTask={() => openFlowTask(task)}
 					isDraggable={false}

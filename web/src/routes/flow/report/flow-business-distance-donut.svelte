@@ -1,15 +1,18 @@
 <script lang="ts">
-	import { flowProjectColor } from '../flow-report-colors';
+	import { flowBusinessColor, flowDefinitionPaletteColor } from '../flow-definition-colors';
+	import type { FlowDefinitions } from '../flow-types';
 	import type { FlowBusinessDistanceSection, FlowReportItem } from './flow-report-data';
 
 	type Props = {
 		section: FlowBusinessDistanceSection;
+		definitions?: FlowDefinitions;
 	};
 
-	let { section }: Props = $props();
+	let { section, definitions }: Props = $props();
 
-	function donutColor(index: number): string {
-		return flowProjectColor(index);
+	function donutColor(index: number, label: string): string {
+		if (!definitions) return flowDefinitionPaletteColor(index);
+		return flowBusinessColor(label, definitions);
 	}
 
 	function formatValue(value: number, unit: string): string {
@@ -22,7 +25,7 @@
 			const start = cursor;
 			const end = cursor + item.percent;
 			cursor = end;
-			return `${donutColor(index)} ${start}% ${end}%`;
+			return `${donutColor(index, item.label)} ${start}% ${end}%`;
 		});
 		return `conic-gradient(${segments.join(', ')})`;
 	}
@@ -40,7 +43,7 @@
 		{#each section.items as item, index}
 			<div class="grid grid-cols-[1fr_auto] items-center gap-3 py-2 text-sm">
 				<div class="flex min-w-0 items-center gap-2">
-					<span class="size-2.5 shrink-0 rounded-full" style={`background: ${donutColor(index)}`}></span>
+					<span class="size-2.5 shrink-0 rounded-full" style={`background: ${donutColor(index, item.label)}`}></span>
 					<span class="truncate font-semibold">{item.label}</span>
 				</div>
 				<span class="text-right text-muted-foreground tabular-nums">{formatValue(item.value, section.unit)} · {item.percent}%</span>

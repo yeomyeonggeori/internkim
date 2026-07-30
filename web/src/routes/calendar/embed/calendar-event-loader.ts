@@ -1,11 +1,12 @@
 import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
-import { dayFlowEventFromCalendarEvent } from './calendar-event-mapping';
+import { dayFlowEventFromCalendarEvent, eventEndDate, eventStartDate } from './calendar-event-mapping';
 import { fetchCalendarEvents } from './calendar-event-persistence';
 
 type CalendarEventLoaderContext = {
 	isBrowser: () => boolean;
 	errorFallback: () => string;
 	getCalendarEvents: () => DayFlowEvent[];
+	getVisibleEvents: () => DayFlowEvent[];
 	applyCalendarEventsChanges: (changes: { delete: string[]; add: DayFlowEvent[] }) => void;
 	triggerCalendarRender: () => void;
 	setVisibleEvents: (events: DayFlowEvent[]) => void;
@@ -54,9 +55,10 @@ export function createCalendarEventLoader(
 			const calendarEvents = await fetchEvents(startDate, endDate, context.errorFallback());
 			if (requestID !== loadEventsRequestID) return;
 			const events = mergePreservedLocalEvents(calendarEvents.map(dayFlowEventFromCalendarEvent));
-			context.setVisibleEvents(events);
-			context.setEventCount(events.length);
-			replaceCalendarEvents(events);
+			const mergedEvents = eventsOutsideRange(context.getVisibleEvents(), startDate, endDate).concat(events);
+			context.setVisibleEvents(mergedEvents);
+			context.setEventCount(mergedEvents.length);
+			replaceCalendarEvents(mergedEvents);
 			context.afterRenderEvents?.(events);
 		} catch (error) {
 			if (requestID !== loadEventsRequestID) return;
@@ -94,6 +96,10 @@ export function createCalendarEventLoader(
 		});
 		context.triggerCalendarRender();
 		context.refreshSelectedMonthDateCell();
+	}
+
+	function eventsOutsideRange(events: DayFlowEvent[], startDate: Date, endDate: Date): DayFlowEvent[] {
+		return events.filter((event) => eventEndDate(event) <= startDate || eventStartDate(event) >= endDate);
 	}
 
 	function mergePreservedLocalEvents(events: DayFlowEvent[]): DayFlowEvent[] {

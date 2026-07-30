@@ -2,6 +2,35 @@
 @import "tw-animate-css";
 @import "./shadcn-tailwind.css";
 
+@font-face {
+	font-family: 'Freesentation';
+	src: url('./lib/fonts/Freesentation-4Regular.woff2') format('woff2');
+	font-weight: 400;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Freesentation';
+	src: url('./lib/fonts/Freesentation-5Medium.woff2') format('woff2');
+	font-weight: 500;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Freesentation';
+	src: url('./lib/fonts/Freesentation-6SemiBold.woff2') format('woff2');
+	font-weight: 600;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Freesentation';
+	src: url('./lib/fonts/Freesentation-7Bold.woff2') format('woff2');
+	font-weight: 700;
+	font-display: swap;
+}
+
+
 @theme inline {
 	@keyframes accordion-down {
 		from {
@@ -95,6 +124,7 @@
 }
 
 @theme inline {
+  --font-sans: 'Freesentation', ui-sans-serif, system-ui, sans-serif;
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-muted: hsl(var(--muted));
@@ -227,6 +257,12 @@
 @layer base {
   * {
     @apply border-border;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-optical-sizing: auto;
   }
   body {
     @apply bg-background text-foreground;

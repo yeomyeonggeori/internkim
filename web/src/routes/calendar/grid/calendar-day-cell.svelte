@@ -32,7 +32,7 @@
 	data-calendar-date={calendarGridDateKey(day)}
 	data-selected={isSelected ? '' : undefined}
 	class={cn(
-		'border-border/50 flex min-h-24 min-w-0 flex-col gap-1 border-r border-b px-1.5 pt-1 pb-1.5 last:border-r-0',
+		'border-border/50 flex h-24 min-w-0 flex-col gap-1 overflow-hidden border-r border-b px-1.5 pt-1 pb-1.5 last:border-r-0',
 		'focus-visible:ring-ring/50 outline-none focus-visible:ring-2 focus-visible:ring-inset',
 		isOutsideMonth && 'text-muted-foreground',
 		isSelected && 'bg-accent/40'

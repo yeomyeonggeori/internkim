@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { toast } from 'svelte-sonner';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { saveFlowDefinitions } from './flow-api';
 	import FlowDefinitionsView from './flow-definitions-view.svelte';
 	import type { LoadFlow } from './flow-load-tracker';
 	import type { FlowDefinitions, FlowSizeDefinition, FlowSummary } from './flow-types';
+	import { flowDefinitionPaletteColor } from './flow-definition-colors';
 	import { flowText } from './text';
 
 	type FlowDefinitionsText = typeof flowText.ko.definitions;
@@ -21,6 +23,10 @@
 	let categoryDrafts = $state<string[]>([]);
 	let typeDrafts = $state<string[]>([]);
 	let sizeDrafts = $state<FlowSizeDefinition[]>([]);
+	let categoryColorDrafts = $state<Record<string, string>>({});
+	let typeColorDrafts = $state<Record<string, string>>({});
+	let newCategoryColor = $state('');
+	let newTypeColor = $state('');
 	let newCategoryText = $state('');
 	let newTypeText = $state('');
 	let isSavingDefinitions = $state(false);
@@ -41,22 +47,50 @@
 		const currentDefinitions = definitions();
 		categoryDrafts = [...currentDefinitions.categories];
 		typeDrafts = [...currentDefinitions.types];
+		categoryColorDrafts = { ...(currentDefinitions.categoryColors ?? {}) };
+		typeColorDrafts = { ...(currentDefinitions.typeColors ?? {}) };
 		sizeDrafts = currentDefinitions.sizes.map((size) => ({ ...size }));
 	});
 
 	function addCategory(): void {
 		const value = newCategoryText.trim();
 		if (!value || categoryDrafts.includes(value)) return;
+		categoryColorDrafts = { ...categoryColorDrafts, [value]: nextCategoryColor() };
 		categoryDrafts = [...categoryDrafts, value];
 		newCategoryText = '';
+		newCategoryColor = '';
 		void saveDefinitions();
 	}
 
 	function addType(): void {
 		const value = newTypeText.trim();
 		if (!value || typeDrafts.includes(value)) return;
+		typeColorDrafts = { ...typeColorDrafts, [value]: nextTypeColor() };
 		typeDrafts = [...typeDrafts, value];
 		newTypeText = '';
+		newTypeColor = '';
+		void saveDefinitions();
+	}
+
+	function nextCategoryColor(): string {
+		return newCategoryColor || flowDefinitionPaletteColor(categoryDrafts.length);
+	}
+
+	function nextTypeColor(): string {
+		return newTypeColor || flowDefinitionPaletteColor(typeDrafts.length);
+	}
+
+	function setCategoryColor(index: number, color: string): void {
+		const value = categoryDrafts[index];
+		if (!value) return;
+		categoryColorDrafts = { ...categoryColorDrafts, [value]: color };
+		void saveDefinitions();
+	}
+
+	function setTypeColor(index: number, color: string): void {
+		const value = typeDrafts[index];
+		if (!value) return;
+		typeColorDrafts = { ...typeColorDrafts, [value]: color };
 		void saveDefinitions();
 	}
 
@@ -94,19 +128,27 @@
 			await saveFlowDefinitions(
 				{
 					categories: categoryDrafts,
+					categoryColors: colorsForValues(categoryDrafts, categoryColorDrafts),
 					types: typeDrafts,
+					typeColors: colorsForValues(typeDrafts, typeColorDrafts),
 					sizes
 				},
 				text.saveError
 			);
 			await loadFlow(currentWeek());
 			definitionSaveState = 'saved';
+			toast.success(text.saved);
 		} catch (error) {
 			definitionErrorMessage = error instanceof Error ? error.message : text.saveError;
 			definitionSaveState = 'error';
+			toast.error(definitionErrorMessage);
 		} finally {
 			isSavingDefinitions = false;
 		}
+	}
+
+	function colorsForValues(values: string[], colors: Record<string, string>): Record<string, string> {
+		return Object.fromEntries(values.filter((value) => colors[value]).map((value) => [value, colors[value]]));
 	}
 
 	function confirmRemoveCategory(index: number): void {
@@ -139,6 +181,12 @@
 <FlowDefinitionsView
 	definitions={definitions()}
 	{categoryDrafts}
+	{setCategoryColor}
+	newCategoryColor={nextCategoryColor()}
+	newTypeColor={nextTypeColor()}
+	setNewCategoryColor={(color) => (newCategoryColor = color)}
+	setNewTypeColor={(color) => (newTypeColor = color)}
+	{setTypeColor}
 	{typeDrafts}
 	{newCategoryText}
 	{newTypeText}

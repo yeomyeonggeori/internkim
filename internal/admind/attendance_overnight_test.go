@@ -229,3 +229,73 @@ func TestAttendanceClockInStillAllowedAfterForgottenClockOut(t *testing.T) {
 		t.Fatalf("expected morning clock-in to stay allowed, events = %+v", events)
 	}
 }
+
+
+func insertAttendanceClockInAt(t *testing.T, service *Service, occurredAt time.Time) {
+	t.Helper()
+	database, errorValue := service.openAttendanceDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	location, timeZoneName := service.workspaceTimeLocation()
+	localTime := occurredAt.In(location)
+	event := attendanceEvent{
+		ID:               randomHex(16),
+		MattermostUserID: "user-1",
+		Kind:             attendanceKindClockIn,
+		OccurredAt:       occurredAt.UTC().Format(time.RFC3339Nano),
+		LocalDate:        localTime.Format("2006-01-02"),
+		LocalTime:        localTime.Format("15:04:05"),
+		TimeZoneAtEvent:  timeZoneName,
+		Source:           attendanceSourceMattermostButton,
+		LocationID:       "office",
+		LocationName:     "사무실",
+	}
+	if errorValue := service.insertAttendanceEvent(context.Background(), database, event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func TestOvernightShiftKeepsBlockingAnotherClockIn(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	location, _ := service.workspaceTimeLocation()
+	now := time.Date(2026, 7, 30, 0, 20, 0, 0, location).UTC()
+	insertAttendanceClockInAt(t, service, time.Date(2026, 7, 29, 21, 22, 0, 0, location).UTC())
+	database, errorValue := service.openAttendanceDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+
+	event, found, errorValue := service.latestAttendanceActionEvent(context.Background(), database, "user-1", attendanceKindClockIn, now)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !found || event.Kind != attendanceKindClockIn {
+		t.Fatalf("expected the open overnight clock-in to be found, found = %v event = %+v", found, event)
+	}
+	if !shouldIgnoreAttendanceAction(attendanceKindClockIn, event, found) {
+		t.Fatal("expected another clock-in during the overnight shift to be ignored")
+	}
+}
+
+func TestForgottenClockOutStopsBlockingTheNextClockIn(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	location, _ := service.workspaceTimeLocation()
+	now := time.Date(2026, 7, 30, 9, 0, 0, 0, location).UTC()
+	insertAttendanceClockInAt(t, service, time.Date(2026, 7, 29, 9, 30, 0, 0, location).UTC())
+	database, errorValue := service.openAttendanceDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+
+	_, found, errorValue := service.latestAttendanceActionEvent(context.Background(), database, "user-1", attendanceKindClockIn, now)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if found {
+		t.Fatal("expected a stale clock-in from the previous day to stop blocking a new clock-in")
+	}
+}
