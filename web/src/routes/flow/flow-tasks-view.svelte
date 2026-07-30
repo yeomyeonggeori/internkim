@@ -5,6 +5,7 @@
 	import FlowTaskQuickAdd from './flow-task-quick-add.svelte';
 	import FlowWeekSelector from './flow-week-selector.svelte';
 	import FlowTaskBoard from './flow-task-board.svelte';
+	import { flowTaskBoardWeekPosition } from './flow-task-board-week-position';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { untrack } from 'svelte';
 	import { createFlowTasksController } from './flow-tasks-controller.svelte';
@@ -106,7 +107,7 @@
 				canUpdateTask={page.canUpdateTask}
 				weekStartISO={summary?.week.startISO ?? ''}
 				weekEndISO={summary?.week.endISO ?? ''}
-				isCurrentWeek={summary?.week.isCurrent ?? true}
+				weekPosition={flowTaskBoardWeekPosition(summary)}
 			/>
 		</Tabs.Content>
 		<Tabs.Content value="list" class="min-h-[36rem]">
