@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toast } from 'svelte-sonner';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { saveFlowDefinitions } from './flow-api';
 	import FlowDefinitionsView from './flow-definitions-view.svelte';
@@ -136,9 +137,11 @@
 			);
 			await loadFlow(currentWeek());
 			definitionSaveState = 'saved';
+			toast.success(text.saved);
 		} catch (error) {
 			definitionErrorMessage = error instanceof Error ? error.message : text.saveError;
 			definitionSaveState = 'error';
+			toast.error(definitionErrorMessage);
 		} finally {
 			isSavingDefinitions = false;
 		}
