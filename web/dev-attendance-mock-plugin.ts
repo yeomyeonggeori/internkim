@@ -22,6 +22,11 @@ import {
 	createDevLeaveManagementMockState,
 	type DevLeaveManagementMockState
 } from './dev-attendance-leave-management-mock';
+import {
+	createDevAttendanceLeavePolicyMockResponse,
+	createDevAttendanceLeavePolicyMockState,
+	type DevAttendanceLeavePolicyMockState
+} from './dev-attendance-leave-policy-mock';
 
 type DevAttendanceMockPluginOptions = {
 	isEnabled: boolean;
@@ -38,6 +43,7 @@ type DevAttendanceMockState = {
 	leave: DevEmployeeLeaveMockState;
 	leaveApproval: DevLeaveApprovalMockState;
 	leaveManagement: DevLeaveManagementMockState;
+	leavePolicy: DevAttendanceLeavePolicyMockState;
 };
 
 type DevAttendanceMockRequest = {
@@ -113,7 +119,8 @@ export function createDevAttendanceMockState(userEmail: string): DevAttendanceMo
 		nextAbsenceID: 1,
 		leave,
 		leaveApproval: createDevLeaveApprovalMockState(leave),
-		leaveManagement: createDevLeaveManagementMockState(leave)
+		leaveManagement: createDevLeaveManagementMockState(leave),
+		leavePolicy: createDevAttendanceLeavePolicyMockState()
 	};
 }
 
@@ -143,6 +150,11 @@ export async function createDevAttendanceMockResponse(
 		state.locale = localeFromBody(request.body);
 		return { status: 200, body: { locale: state.locale } };
 	}
+	const leavePolicyResponse = createDevAttendanceLeavePolicyMockResponse(
+		state.leavePolicy,
+		request
+	);
+	if (leavePolicyResponse) return leavePolicyResponse;
 	const leaveResponse = createDevEmployeeLeaveMockResponse(state.leave, request);
 	if (leaveResponse) return leaveResponse;
 	const leaveApprovalResponse = createDevLeaveApprovalMockResponse(state.leaveApproval, request);

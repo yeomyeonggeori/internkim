@@ -15,6 +15,7 @@
 	} from './employee-leave-types';
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
 	import LeaveEvidencePicker from './leave-evidence-picker.svelte';
+	import { milliDaysValue } from './leave-history-model';
 	import LeavePartialTimeFields from './leave-partial-time-fields.svelte';
 	import type { LeaveRequestDraft } from './leave-request-draft.svelte';
 	import LeaveRequestPreview from './leave-request-preview.svelte';
@@ -100,6 +101,18 @@
 		draft.setLeaveType(leaveType);
 	}
 
+	function selectedLeaveBalanceText(leaveType: EmployeeLeaveType): string {
+		if (leaveType.balanceMode === 'none') return text.leave.selectedBalanceUntracked;
+		const available = `${milliDaysValue(leaveType.balance?.availableMilliDays ?? 0)}${text.leave.dayUnit}`;
+		const reserved = `${milliDaysValue(leaveType.balance?.reservedMilliDays ?? 0)}${text.leave.dayUnit}`;
+		if (leaveType.balanceMode === 'annual' && leaveType.id !== 'annual') {
+			return text.leave.selectedAnnualBalance.replace('{available}', available);
+		}
+		return text.leave.selectedBalance
+			.replace('{available}', available)
+			.replace('{reserved}', reserved);
+	}
+
 	async function submit(): Promise<void> {
 		const submission = draft.submission();
 		if (!submission || !preview || employeeLeave.isMutating || isHireDateRequired) return;
@@ -165,7 +178,7 @@
 			<label class="grid gap-1.5 text-sm font-medium">
 				<span>{text.leave.leaveTypeLabel}</span>
 				<Select.Root type="single" bind:value={draft.leaveTypeID} disabled={employeeLeave.isMutating}>
-					<Select.Trigger class="w-full">
+					<Select.Trigger class="w-full" data-testid="leave-request-type-trigger">
 						{selectedLeaveType?.name ?? text.leave.selectLeaveType}
 					</Select.Trigger>
 					<Select.Content>
@@ -180,12 +193,18 @@
 						{/each}
 					</Select.Content>
 				</Select.Root>
+				{#if selectedLeaveType}
+					<span class="text-xs font-normal text-muted-foreground">
+						{selectedLeaveBalanceText(selectedLeaveType)}
+					</span>
+				{/if}
 			</label>
 
-			<div class="grid gap-1.5">
+			<div class="grid content-start gap-1.5">
 				<p class="text-sm font-medium">{text.leave.unitLabel}</p>
 				<div
-					class="grid rounded-lg border p-0.5"
+					class="grid h-8 rounded-lg border p-0.5"
+					data-testid="leave-request-unit-control"
 					style:grid-template-columns={`repeat(${Math.max(1, selectedLeaveType?.allowedUnits.length ?? 1)}, minmax(0, 1fr))`}
 				>
 					{#each selectedLeaveType?.allowedUnits ?? [] as unit (unit)}
@@ -193,7 +212,7 @@
 							type="button"
 							variant={draft.unit === unit ? 'default' : 'ghost'}
 							size="sm"
-							class="w-full"
+							class="h-full w-full"
 							onclick={() => draft.setUnit(unit)}
 							disabled={employeeLeave.isMutating}
 						>

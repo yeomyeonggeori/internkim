@@ -68,7 +68,7 @@ test.describe('employee leave requests', () => {
 		await expect(leaveSummary.getByText('사용')).toBeVisible();
 		await expect(leaveSummary.getByText('1일')).toBeVisible();
 		await expect(leaveSummary.getByText('0.5일')).toBeVisible();
-		await expect(leaveSummary.getByText('13.5일')).toBeVisible();
+		await expect(leaveSummary.getByText('15.5일')).toBeVisible();
 		await expect(page.getByLabel('내 근무 시간')).toBeVisible();
 		await expect(page.getByTestId('leave-history-needs-changes-count')).toHaveText('1');
 
@@ -78,6 +78,24 @@ test.describe('employee leave requests', () => {
 		await expect(dialog.getByRole('tab')).toHaveCount(0);
 		const dialogBox = await dialog.boundingBox();
 		expect(dialogBox?.width ?? 0).toBeGreaterThan(700);
+		await expect(dialog.getByText('남음 13.5일 · 승인 대기 0.5일')).toBeVisible();
+		const leaveTypeBox = await dialog.getByTestId('leave-request-type-trigger').boundingBox();
+		const leaveUnitBox = await dialog.getByTestId('leave-request-unit-control').boundingBox();
+		expect(leaveTypeBox).not.toBeNull();
+		expect(leaveUnitBox).not.toBeNull();
+		expect(Math.abs((leaveTypeBox?.y ?? 0) - (leaveUnitBox?.y ?? 0))).toBeLessThanOrEqual(1);
+		expect(Math.abs((leaveTypeBox?.height ?? 0) - (leaveUnitBox?.height ?? 0))).toBeLessThanOrEqual(
+			1
+		);
+		const leaveTypeSelect = dialog.getByRole('button', { name: /^휴가 종류/ });
+		await leaveTypeSelect.click();
+		await page.getByRole('option', { name: '포상휴가', exact: true }).click();
+		await expect(dialog.getByText('남음 2일 · 승인 대기 0일')).toBeVisible();
+		await leaveTypeSelect.click();
+		await page.getByRole('option', { name: '병가', exact: true }).click();
+		await expect(dialog.getByText('잔여량 차감 없음')).toBeVisible();
+		await leaveTypeSelect.click();
+		await page.getByRole('option', { name: '연차', exact: true }).click();
 
 		await dialog.getByLabel('시작일').fill('2026-08-14');
 		await dialog.getByLabel('종료일').fill('2026-08-17');
@@ -105,6 +123,14 @@ test.describe('employee leave requests', () => {
 		);
 		await page.getByRole('button', { name: '휴가 내역' }).click();
 		await expect(page.getByTestId('leave-history-view')).toBeVisible();
+		const leaveTypeBalances = page.getByTestId('leave-type-balances');
+		await expect(leaveTypeBalances.getByText('내 휴가 잔여량')).toBeVisible();
+		await expect(leaveTypeBalances).toContainText('연차');
+		await expect(leaveTypeBalances).toContainText('남음 12.5일');
+		await expect(leaveTypeBalances).toContainText('포상휴가');
+		await expect(leaveTypeBalances).toContainText('남음 2일');
+		await expect(leaveTypeBalances).toContainText('경조 휴가');
+		await expect(leaveTypeBalances).toContainText('남음 3일');
 		expect(createdRequest).toMatchObject({
 			status: 'pending',
 			unit: 'fullDay',
