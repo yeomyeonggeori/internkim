@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLeavePolicyDefaults(t *testing.T) {
@@ -257,6 +258,84 @@ func TestLeavePolicyAdminAPIImmediatelyAdjustsCurrentGrant(t *testing.T) {
 	)
 	if stored.LeaveTypes[0].GrantAmountMilliDays != 16000 {
 		t.Fatalf("stored policy after rejected reduction = %+v", stored.LeaveTypes[0])
+	}
+}
+
+func TestLeavePolicyAdjustmentRetryUsesStableOperationKey(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	employee := attendanceLeaveEmployee{
+		Email:    "staff@example.com",
+		UserID:   "user-1",
+		HireDate: "2026-01-01",
+	}
+	existing := defaultAttendanceLeavePolicy()
+	existing.UpdatedAt = "2026-07-30T00:00:00Z"
+	updated := existing
+	updated.LeaveTypes = append([]attendanceLeaveType{}, existing.LeaveTypes...)
+	updated.LeaveTypes[0] = existing.LeaveTypes[0]
+	updated.LeaveTypes[0].GrantAmountMilliDays = 16000
+	updated.UpdatedAt = "2026-07-30T01:00:00Z"
+	request := httptest.NewRequest(http.MethodPut, "/admin/api/attendance-leave-policy", nil)
+
+	first, required, errorValue := service.attendanceLeavePolicyAdjustment(
+		request,
+		employee,
+		existing,
+		existing.LeaveTypes[0],
+		updated,
+		updated.LeaveTypes[0],
+		time.Date(2026, 7, 30, 9, 0, 0, 0, time.UTC),
+	)
+	if errorValue != nil || !required {
+		t.Fatalf("first adjustment required = %t, error = %v", required, errorValue)
+	}
+	if _, errorValue = service.adjustAttendanceLeave(
+		t.Context(),
+		first.Operation,
+		first.AmountMilliDays,
+		first.ExpiresOn,
+	); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	updated.UpdatedAt = "2026-07-30T02:00:00Z"
+	retry, required, errorValue := service.attendanceLeavePolicyAdjustment(
+		request,
+		employee,
+		existing,
+		existing.LeaveTypes[0],
+		updated,
+		updated.LeaveTypes[0],
+		time.Date(2026, 7, 30, 9, 0, 0, 0, time.UTC),
+	)
+	if errorValue != nil || !required {
+		t.Fatalf("retry adjustment required = %t, error = %v", required, errorValue)
+	}
+	if retry.Operation.OperationKey != first.Operation.OperationKey {
+		t.Fatalf(
+			"retry operation key = %q, first = %q",
+			retry.Operation.OperationKey,
+			first.Operation.OperationKey,
+		)
+	}
+	if _, errorValue = service.adjustAttendanceLeave(
+		t.Context(),
+		retry.Operation,
+		retry.AmountMilliDays,
+		retry.ExpiresOn,
+	); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	balance, errorValue := service.readAttendanceLeaveBalance(
+		t.Context(),
+		employee,
+		attendanceAnnualLeaveTypeID,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if balance.GrantedMilliDays != 1000 || balance.AvailableMilliDays != 1000 {
+		t.Fatalf("retry balance = %+v", balance)
 	}
 }
 
