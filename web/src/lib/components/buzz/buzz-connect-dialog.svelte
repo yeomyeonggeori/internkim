@@ -68,12 +68,28 @@
 		}
 	}
 
+	// A returning session may not carry the unlocked key in memory (the identity
+	// gate only sets it at enrollment). It is a deterministic function of the
+	// signed-in email, so the session-gated endpoint hands it back on request.
+	async function loadIdentity() {
+		if (buzzIdentity.secretHex) return;
+		try {
+			const response = await fetch('/auth/identity', { credentials: 'include' });
+			if (!response.ok) return;
+			const document: { secretHex?: string } = await response.json();
+			if (document.secretHex) buzzIdentity.secretHex = document.secretHex;
+		} catch {
+			// leave locked; the dialog shows the sign-in hint
+		}
+	}
+
 	$effect(() => {
 		if (!open) {
 			revealed = false;
 			return;
 		}
 		if (!relayURL) loadRelayURL();
+		loadIdentity();
 	});
 </script>
 
