@@ -80,7 +80,8 @@ func (service *Service) updateWorkspaceSettings(responseWriter http.ResponseWrit
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	if strings.TrimSpace(payload.CountryCode) != "" {
+	countryChanged := previousSettings.CountryCode != settings.CountryCode
+	if strings.TrimSpace(payload.CountryCode) != "" && countryChanged {
 		countries, countriesError := service.ensureCalendarHolidayCountries(request.Context(), time.Now().UTC())
 		if countriesError != nil {
 			http.Error(responseWriter, countriesError.Error(), http.StatusBadGateway)
@@ -97,7 +98,6 @@ func (service *Service) updateWorkspaceSettings(responseWriter http.ResponseWrit
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	countryChanged := previousSettings.CountryCode != settings.CountryCode
 	languageChanged := previousSettings.Language != settings.Language
 	if countryChanged {
 		if errorValue := service.refreshCalendarHolidayCache(request.Context(), currentTime); errorValue != nil {

@@ -15,6 +15,7 @@ type CalendarEventLoaderContext = {
 	isBrowser: () => boolean;
 	getLocale: () => CalendarHolidayLocale;
 	errorFallback: () => string;
+	holidayErrorFallback: () => string;
 	getCalendarEvents: () => DayFlowEvent[];
 	getVisibleEvents: () => DayFlowEvent[];
 	applyCalendarEventsChanges: (changes: { delete: string[]; add: DayFlowEvent[] }) => void;
@@ -66,7 +67,7 @@ export function createCalendarEventLoader(
 		try {
 			const [calendarEvents, holidayResult] = await Promise.all([
 				fetchEvents(startDate, endDate, context.errorFallback()),
-				fetchHolidays(startDate, endDate, context.getLocale(), context.errorFallback())
+				fetchHolidays(startDate, endDate, context.getLocale(), context.holidayErrorFallback())
 					.then((holidays) => ({ holidays, error: null }))
 					.catch((error: unknown) => ({ holidays: [], error }))
 			]);
@@ -81,9 +82,7 @@ export function createCalendarEventLoader(
 			replaceCalendarEvents(mergedEvents);
 			context.afterRenderEvents?.(events);
 			if (holidayResult.error) {
-				context.setErrorMessage(
-					holidayResult.error instanceof Error ? holidayResult.error.message : context.errorFallback()
-				);
+				context.setErrorMessage(context.holidayErrorFallback());
 			}
 		} catch (error) {
 			if (requestID !== loadEventsRequestID) return;

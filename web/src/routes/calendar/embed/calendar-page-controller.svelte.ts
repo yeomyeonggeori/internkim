@@ -73,6 +73,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		isBrowser: context.isBrowser,
 		getLocale: context.getLocale,
 		errorFallback: () => context.text.error,
+		holidayErrorFallback: () => context.text.holidayLoadError,
 		getCalendarEvents: () => eventStore.getAllEvents(),
 		getVisibleEvents: () => context.state.visibleEvents,
 		applyCalendarEventsChanges: (changes) => {
@@ -84,7 +85,9 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		},
 		setEventCount: () => {},
 		setIsLoading: () => {},
-		setErrorMessage: () => {},
+		setErrorMessage: (message) => {
+			context.state.loadErrorMessage = message;
+		},
 		refreshSelectedMonthDateCell: selectedMonthDate.refreshSelectedMonthDateCellAfterRender,
 		preservedLocalEvents: () => draftEvents.createdEvents(),
 		shouldPreserveLocalEvent: (event) => shouldPreserveLocalCalendarEvent(draftEvents, event),

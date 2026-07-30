@@ -232,6 +232,7 @@
 	conflicts={state.calendarConflicts}
 	dismissConflict={conflictActions.dismissCalendarConflict}
 	refreshConflicts={conflictActions.dismissAllConflictsAndRefresh}
+	loadErrorMessage={state.loadErrorMessage}
 	{currentMonthTitle}
 	toolbarDate={state.toolbarDate}
 	toolbarView={state.toolbarView}
