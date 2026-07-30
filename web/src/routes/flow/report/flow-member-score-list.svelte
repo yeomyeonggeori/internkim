@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { flowTypeColor } from '../flow-report-colors';
+	import { flowDefinitionPaletteColor } from '../flow-definition-colors';
 	import type { FlowMemberScoreSection } from './flow-report-data';
 
 	type Props = {
@@ -20,7 +20,7 @@
 	});
 
 	function scoreSegmentColor(index: number): string {
-		return flowTypeColor(index);
+		return flowDefinitionPaletteColor(index);
 	}
 
 	function rowWidth(value: number): number {
