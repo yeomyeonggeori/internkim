@@ -1,4 +1,4 @@
-import type { Event as DayFlowEvent } from '@dayflow/core';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 import { CalendarDraftEventState, type DraftEventParams } from './calendar-draft-events';
 import {
 	createCalendarDraftEventDOMActions,

@@ -95,6 +95,7 @@ export type CalendarLocaleText = {
 	week: string;
 	month: string;
 	monthMoreButton: string;
+	noDayEvents: string;
 	monthMoreAriaLabel: string;
 	new: string;
 	newEvent: string;
@@ -285,6 +286,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		week: '주',
 		month: '월',
 		monthMoreButton: '+{count} 더보기',
+		noDayEvents: '일정 없음',
 		monthMoreAriaLabel: '{date}의 숨겨진 일정 {count}개 보기',
 		new: '일정 추가',
 		newEvent: '새 일정',
@@ -440,6 +442,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		week: 'Week',
 		month: 'Month',
 		monthMoreButton: '+{count} more',
+		noDayEvents: 'No events',
 		monthMoreAriaLabel: 'Show {count} more events on {date}',
 		new: 'Add event',
 		newEvent: 'New Event',

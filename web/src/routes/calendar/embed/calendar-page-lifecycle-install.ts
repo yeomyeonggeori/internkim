@@ -1,5 +1,5 @@
 import { tick } from 'svelte';
-import type { ViewType } from '@dayflow/svelte';
+import type { ViewType } from '../calendar-view-type';
 import type { CalendarLocaleText } from '../text';
 import type { DraftPopoverAnchor, DraftPopoverState } from './calendar-draft-popover-state';
 import { installCalendarEmbedLifecycle } from './calendar-embed-lifecycle';
@@ -38,7 +38,6 @@ type CalendarPageLifecycleInstallContext = {
 	selectedMonthDate: CalendarSelectedMonthDateActions;
 	setSelectedAuditEventID: (eventID: string | null) => void;
 	setToolbarView: (view: ViewType) => void;
-	syncCalendarThemeToDocument: () => void;
 	text: CalendarLocaleText;
 };
 

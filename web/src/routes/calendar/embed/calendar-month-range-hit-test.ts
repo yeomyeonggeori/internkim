@@ -1,4 +1,4 @@
-import { ViewType } from '@dayflow/svelte';
+import { ViewType } from '../calendar-view-type';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 
 export type MonthDateCell = {

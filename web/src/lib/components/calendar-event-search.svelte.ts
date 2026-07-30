@@ -1,7 +1,7 @@
 import { dayFlowEventFromCalendarEvent } from '../../routes/calendar/embed/calendar-event-mapping';
 import { fetchCalendarEvents } from '../../routes/calendar/embed/calendar-event-persistence';
 import { searchCalendarEvents, type CalendarSearchResult } from '../../routes/calendar/embed/calendar-search';
-import type { Event as DayFlowEvent } from '@dayflow/core';
+import type { CalendarModelEvent as DayFlowEvent } from '../../routes/calendar/embed/calendar-event-model';
 
 const monthsBefore = 1;
 const monthsAfter = 3;

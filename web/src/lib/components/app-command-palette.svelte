@@ -2,6 +2,8 @@
 	import { appNavigation } from '$lib/components/app-navigation.svelte';
 	import { attendanceClock } from '$lib/components/attendance-clock.svelte';
 	import { calendarEventSearch } from '$lib/components/calendar-event-search.svelte';
+	import CalendarEventListCard from '../../routes/calendar/embed/calendar-event-list-card.svelte';
+	import type { CalendarSearchResult } from '../../routes/calendar/embed/calendar-search';
 	import { mailMessageSearch } from '$lib/components/mail-message-search.svelte';
 	import { flowTaskSearch } from '$lib/components/flow-task-search.svelte';
 	import FlowTaskBoardCard from '../../routes/flow/flow-task-board-card.svelte';
@@ -59,6 +61,14 @@
 		calendarEventSearch.load();
 		flowTaskSearch.load();
 	});
+
+	function searchResultTimeLabel(result: CalendarSearchResult): string {
+		return `${clockLabel(result.startDate)}-${clockLabel(result.endDate)}`;
+	}
+
+	function clockLabel(date: Date): string {
+		return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+	}
 
 	function searchScopeFromPath(pathname: string) {
 		if (pathname.startsWith('/mail')) return 'mail';
@@ -267,10 +277,22 @@
 
 {#snippet calendarResultItems()}
 	{#each calendarResults as result (result.id)}
-		<Command.Item value="calendar-event-{result.id}" forceMount onSelect={() => openCalendarEvent(result.startDate)}>
-			<CalendarDaysIcon />
-			{result.title}
-			<Command.Shortcut>{result.dateLabel}</Command.Shortcut>
+		<Command.Item
+			value="calendar-event-{result.id}"
+			forceMount
+			class="[&>svg.cn-command-item-indicator]:hidden"
+			onSelect={() => openCalendarEvent(result.startDate)}
+		>
+			<CalendarEventListCard
+				class="min-w-0 flex-1"
+				title={result.title}
+				start={result.startDate}
+				isAllDay={result.isAllDay}
+				color={result.color}
+				participants={result.participants}
+				timeLabel={result.isAllDay ? '' : searchResultTimeLabel(result)}
+				openEvent={() => openCalendarEvent(result.startDate)}
+			/>
 		</Command.Item>
 	{/each}
 {/snippet}

@@ -8,7 +8,8 @@ import {
 } from '../../../src/routes/calendar/grid/calendar-grid-layout';
 
 function event(overrides: Partial<CalendarGridEvent> & Pick<CalendarGridEvent, 'id' | 'start' | 'end'>): CalendarGridEvent {
-	return { title: overrides.id, isAllDay: false, color: '#000000', ...overrides };
+	return { title: overrides.id, isAllDay: false, color: '#000000',
+	participants: [], ...overrides };
 }
 
 describe('calendar grid weeks', () => {

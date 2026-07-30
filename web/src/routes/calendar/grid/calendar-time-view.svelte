@@ -1,5 +1,8 @@
 <script lang="ts">
+	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import { Calendar as MiniCalendar, Day as MiniCalendarDay } from '$lib/components/ui/calendar';
+	import * as Empty from '$lib/components/ui/empty';
+	import { Separator } from '$lib/components/ui/separator';
 	import { cn } from '$lib/utils';
 	import { CalendarDate, type DateValue } from '@internationalized/date';
 	import { tick } from 'svelte';
@@ -26,6 +29,7 @@
 		events: CalendarGridEvent[];
 		localeCode: string;
 		draftPreviewTitle: string;
+		noEventsText: string;
 		selectDay: (day: Date) => void;
 		openEvent: (event: CalendarGridEvent, originElement: HTMLElement) => void;
 		addEventOnTimeRange: (start: Date, end: Date) => void;
@@ -39,6 +43,7 @@
 		events,
 		localeCode,
 		draftPreviewTitle,
+		noEventsText,
 		selectDay,
 		openEvent,
 		addEventOnTimeRange,
@@ -134,7 +139,8 @@
 		start: today,
 		end: today,
 		isAllDay: false,
-		color: defaultCalendarEventColor
+		color: defaultCalendarEventColor,
+		participants: []
 	});
 	const draftAllDayPreview = $derived<CalendarGridEvent>({
 		id: 'calendar-draft-all-day-preview',
@@ -142,7 +148,8 @@
 		start: today,
 		end: today,
 		isAllDay: true,
-		color: defaultCalendarEventColor
+		color: defaultCalendarEventColor,
+		participants: []
 	});
 	const nowMinutes = $derived(calendarGridMinutesFromMidnight(today));
 	const miniCalendarValue = $derived(
@@ -563,7 +570,7 @@
 
 <div class="flex min-h-0 flex-1 overflow-hidden">
 	{#if canSwipeWeeks}
-		<div class="flex min-h-0 flex-1 flex-col">
+		<div class="flex min-h-0 min-w-0 flex-1 flex-col">
 			<div class="flex shrink-0">
 				<div class="bg-background border-border/50 z-30 w-16 shrink-0 border-r">
 					<div class="border-border/50 h-9 border-b"></div>
@@ -626,7 +633,7 @@
 			</div>
 		</div>
 	{:else}
-		<div class="flex min-h-0 flex-1 flex-col">
+		<div class="flex min-h-0 min-w-0 flex-1 flex-col">
 			<div class="border-border/50 flex items-end border-b">
 				{#each days as day (day.getTime())}
 					{@render dayHeader(day)}
@@ -678,12 +685,14 @@
 					</MiniCalendarDay>
 				{/snippet}
 			</MiniCalendar>
+			<Separator class="my-3" />
 			{#if selectedDayEvents.length > 0}
-				<div class="mt-3 grid gap-2">
+				<div class="grid gap-2">
 					{#each selectedDayEvents as event (event.id)}
 						<CalendarEventListCard
 							title={event.title}
 							color={event.color}
+							participants={event.participants}
 							start={event.start}
 							isAllDay={event.isAllDay}
 							timeLabel={eventTimeLabel(event)}
@@ -691,6 +700,15 @@
 						/>
 					{/each}
 				</div>
+			{:else}
+				<Empty.Root class="border-border/50 bg-muted/10 min-h-24 border border-dashed p-4">
+					<Empty.Header class="gap-1.5">
+						<Empty.Media class="text-muted-foreground mb-0">
+							<CalendarDaysIcon class="size-5" aria-hidden="true" />
+						</Empty.Media>
+						<Empty.Title class="text-muted-foreground">{noEventsText}</Empty.Title>
+					</Empty.Header>
+				</Empty.Root>
 			{/if}
 		</aside>
 	{/if}
