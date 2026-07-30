@@ -1,4 +1,4 @@
-import type { Event as DayFlowEvent } from '@dayflow/core';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 import { calendarColors } from './calendar-config';
 import { calendarEventPayloadFromDayFlowEvent } from './calendar-event-mapping';
 import {

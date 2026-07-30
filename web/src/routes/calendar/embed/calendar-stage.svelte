@@ -4,13 +4,10 @@
 	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import TrashIcon from '@lucide/svelte/icons/trash';
-	import { DayFlowCalendar, useCalendarApp, ViewType } from '@dayflow/svelte';
-	import type { Event as DayFlowEvent } from '@dayflow/core';
+	import { ViewType } from '../calendar-view-type';
+	import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 	import type { CalendarLocaleText } from '../text';
 	import type { CalendarParticipant } from './calendar-participants';
-	import CalendarDayFlowEventActivator from './calendar-dayflow-event-activator.svelte';
-	import { installCalendarDayFlowEventActivation } from './calendar-dayflow-event-activation';
-	import CalendarMobileEventEditor from './calendar-mobile-event-editor.svelte';
 	import CalendarMonthView from '../grid/calendar-month-view.svelte';
 	import CalendarTimeView from '../grid/calendar-time-view.svelte';
 	import { calendarGridEventsFromDayFlowEvents } from '../grid/calendar-grid-events';
@@ -44,7 +41,6 @@
 
 	type CalendarStageProps = {
 		activeMobileEditorEventID: string | null;
-		calendar: ReturnType<typeof useCalendarApp>;
 		clearActiveMobileEditorEvent: (eventID: string) => void;
 		clearSelectedEvent: () => void;
 		events: DayFlowEvent[];
@@ -79,7 +75,6 @@
 
 	let {
 		activeMobileEditorEventID,
-		calendar,
 		clearActiveMobileEditorEvent,
 		clearSelectedEvent,
 		events,
@@ -213,16 +208,11 @@
 	$effect(() => {
 		const currentStageElement = stageElement;
 		if (!currentStageElement) return;
-		const stopDayFlowEventActivation = installCalendarDayFlowEventActivation({
-			stageElement: currentStageElement,
-			openEvent: (eventID, anchor) => openEvent(eventID, anchor)
-		});
 		currentStageElement.addEventListener('click', handleStageDateClick, true);
 		currentStageElement.addEventListener('contextmenu', captureContextTarget, true);
 		return () => {
 			currentStageElement.removeEventListener('click', handleStageDateClick, true);
 			currentStageElement.removeEventListener('contextmenu', captureContextTarget, true);
-			stopDayFlowEventActivation();
 		};
 	});
 
@@ -271,6 +261,7 @@
 								events={gridEvents}
 								{localeCode}
 								draftPreviewTitle={text.newEvent}
+								noEventsText={text.noDayEvents}
 								selectDay={(day) => navigateToDateKey(calendarGridDateKey(day))}
 								openEvent={openGridEvent}
 								addEventOnTimeRange={(start, end) => addEventOnTimeRange(start, end)}

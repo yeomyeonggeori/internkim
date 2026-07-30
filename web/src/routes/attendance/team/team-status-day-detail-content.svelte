@@ -7,6 +7,7 @@
 	import CheckCircle2Icon from '@lucide/svelte/icons/circle-check-big';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import CalendarEventListCard from '../../calendar/embed/calendar-event-list-card.svelte';
+	import { calendarParticipantsFromUnknown } from '../../calendar/embed/calendar-participants';
 	import FlowTaskBoardCard from '../../flow/flow-task-board-card.svelte';
 	import { flowText } from '../../flow/text';
 	import { getAttendanceState } from '../attendance-context.svelte';
@@ -136,6 +137,7 @@
 							buttonTestID="team-status-calendar-event"
 							title={event.calendarEvent.title}
 							color={event.calendarEvent.color}
+							participants={calendarParticipantsFromUnknown(event.calendarEvent.participants)}
 							start={new Date(event.calendarEvent.startISO)}
 							isAllDay={event.calendarEvent.isAllDay}
 							timeLabel={event.timeLabel}

@@ -1,5 +1,4 @@
-import type { Event as DayFlowEvent } from '@dayflow/core';
-import { temporalToDate } from '@dayflow/core';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 import { calendarDateTimeRangeChangesForStart } from './calendar-date-time-range';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-anchor-types';
 import {
@@ -153,8 +152,8 @@ export function dateKey(date: Date): string {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-function dateFromEventValue(value: DayFlowEvent['start']): Date {
-	return temporalToDate(value);
+function dateFromEventValue(value: Date): Date {
+	return new Date(value);
 }
 
 function eventLocation(event: DayFlowEvent): string {

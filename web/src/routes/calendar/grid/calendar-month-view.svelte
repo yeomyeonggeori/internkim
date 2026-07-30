@@ -98,6 +98,7 @@
 		start: today,
 		end: today,
 		isAllDay: true,
+		participants: [],
 		color: defaultCalendarEventColor
 	});
 

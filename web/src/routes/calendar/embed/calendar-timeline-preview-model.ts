@@ -1,4 +1,5 @@
-import { ViewType, type CalendarViewType, type Event as DayFlowEvent } from '@dayflow/core';
+import { ViewType, type ViewType as CalendarViewType } from '../calendar-view-type';
+import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
 import {
 	calendarTimelineDisplayDayCount,

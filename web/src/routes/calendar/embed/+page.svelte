@@ -5,15 +5,12 @@
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { ViewType } from '@dayflow/svelte';
+	import { ViewType } from '../calendar-view-type';
 	import { onMount } from 'svelte';
 	import { calendarText } from '../text';
 	import {
 		normalizedVisibleDate
 	} from './calendar-embed-view-helpers';
-	import {
-		createCalendarLocale
-	} from './calendar-config';
 		import {
 		calendarSearchParams,
 		initialCalendarDate as createInitialCalendarDate,
@@ -35,7 +32,6 @@
 	import { isCalendarMobileTwoDayWeekView } from './calendar-mobile-two-day-week';
 	import CalendarPageContent from './calendar-page-content.svelte';
 	import { endOfMonthWindow, startOfMonthWindow } from './calendar-visible-range';
-	import { syncCalendarThemeToDocument } from './calendar-page-theme';
 	import { createCalendarEmbedPageState } from './calendar-page-state.svelte';
 	import { fetchCalendarParticipants } from './calendar-participants';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
@@ -43,7 +39,6 @@
 
 	const text = createPageText(calendarText);
 	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
-	const calendarLocale = $derived(createCalendarLocale(currentLocale.value, text));
 	const draftEventPlaceholderTitle = () => text.newEvent;
 	const initialCalendarDate = () => createInitialCalendarDate(browser, calendarSearchParams(browser));
 	const initialCalendarEventID = () => createInitialCalendarEventID(browser, calendarSearchParams(browser));
@@ -59,7 +54,6 @@
 	const calendarOptions = $derived([{ id: 'internkim', name: text.work }]);
 	const controller = createCalendarPageController({
 		isBrowser: () => browser,
-		getCalendarLocale: () => calendarLocale,
 		getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
 		getLocaleCode: () => localeCode,
 		initialCalendarDate,
@@ -69,7 +63,7 @@
 		text
 	});
 	const {
-		calendar,
+		eventStore,
 		conflictActions,
 		draftEvents,
 		draftPopoverActions,
@@ -97,15 +91,13 @@
 	const stageEvents = $derived(
 		visibleEventsWithPreservedLocalEvents(
 			state.visibleEvents,
-			calendarStageEventsWithDraftPopover(calendar.events, draftEvents.createdEvents(), state.draftPopover),
+			calendarStageEventsWithDraftPopover(eventStore.events, draftEvents.createdEvents(), state.draftPopover),
 			(event) => shouldPreserveLocalCalendarEvent(draftEvents, event)
 		)
 	);
 
 	installCalendarPageEffects({
 		isBrowser: () => browser,
-		calendar,
-		getCalendarLocale: () => calendarLocale,
 		getStageElement: () => state.calendarStageElement,
 		getToolbarDate: () => state.toolbarDate,
 		getToolbarView: () => state.toolbarView,
@@ -122,7 +114,7 @@
 		broadcastCalendarVisibleDate(state.toolbarDate);
 		const uninstallCalendarPageLifecycle = installCalendarPageLifecycle({
 			applyCalendarView: (view) => {
-				calendar.changeView(view);
+				state.toolbarView = view;
 			},
 			clearDraftPopover: () => {
 				state.draftPopover = null;
@@ -150,7 +142,6 @@
 			setToolbarView: (view) => {
 				state.toolbarView = view;
 			},
-			syncCalendarThemeToDocument: () => syncCalendarThemeToDocument(calendar.app),
 			text
 		});
 		return () => {
@@ -173,18 +164,11 @@
 	}
 
 	function currentCalendarView(): ViewType {
-		if (calendar.currentView === ViewType.DAY) return ViewType.DAY;
-		if (calendar.currentView === ViewType.WEEK) return ViewType.WEEK;
-		if (calendar.currentView === ViewType.MONTH) return ViewType.MONTH;
 		return state.toolbarView;
 	}
 
 	function openCalendarEvent(eventID: string, anchor: DraftPopoverAnchor): void {
 		eventSelection.selectCalendarEvent(eventID);
-		if (isCompactEventEditor) {
-			eventActions.openEventMobileEditor(eventID);
-			return;
-		}
 		eventDetails.openEventDetails(eventID, anchor);
 	}
 
@@ -220,7 +204,6 @@
 
 <CalendarPageContent
 	activeMobileEditorEventID={state.activeMobileEditorEventID}
-	calendar={calendar}
 	clearActiveMobileEditorEvent={(eventID) => {
 		if (state.activeMobileEditorEventID === eventID) state.activeMobileEditorEventID = null;
 	}}

@@ -5,7 +5,7 @@
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { ViewType } from '@dayflow/svelte';
+	import { ViewType } from '../calendar-view-type';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';

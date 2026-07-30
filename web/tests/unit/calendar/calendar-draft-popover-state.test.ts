@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { createEvent } from '@dayflow/core';
+import { createCalendarModelEvent as createEvent } from '../../../src/routes/calendar/embed/calendar-event-model';
 import {
 	draftPopoverChanges,
 	draftPopoverStartDateTimeChanges,

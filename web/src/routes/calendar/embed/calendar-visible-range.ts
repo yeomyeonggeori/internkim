@@ -1,4 +1,4 @@
-import { ViewType } from '@dayflow/svelte';
+import { ViewType } from '../calendar-view-type';
 import { calendarWeekNavigationDayCount } from './calendar-mobile-two-day-week';
 
 export function shiftedCalendarToolbarDate(
