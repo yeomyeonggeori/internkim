@@ -329,9 +329,11 @@ func (service *Service) updateFlowDefinitions(responseWriter http.ResponseWriter
 		return
 	}
 	definitions := flowDefinitions{
-		Categories: cleanFlowDefinitionValues(payload.Categories),
-		Types:      cleanFlowDefinitionValues(payload.Types),
-		Sizes:      cleanFlowSizeDefinitions(payload.Sizes),
+		Categories:     cleanFlowDefinitionValues(payload.Categories),
+		CategoryColors: cleanFlowDefinitionColors(payload.CategoryColors),
+		Types:          cleanFlowDefinitionValues(payload.Types),
+		TypeColors:     cleanFlowDefinitionColors(payload.TypeColors),
+		Sizes:          cleanFlowSizeDefinitions(payload.Sizes),
 	}
 	if len(definitions.Types) == 0 {
 		writeFlowRequestError(responseWriter, flowValidationError("at least one type is required"))
