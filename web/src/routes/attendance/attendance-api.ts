@@ -9,6 +9,78 @@ export type AttendanceSummaryRequest = {
 	month: string;
 };
 
+export type AttendanceWorkStatusPeriod = 'day' | 'week' | 'month';
+
+export type AttendanceWorkDayStatus = {
+	date: string;
+	workMode: 'autonomous' | 'flexible' | 'fixed';
+	hasBaseline: boolean;
+	targetMinutes: number;
+	actualMinutes: number;
+	provisionalMinutes: number;
+	paidLeaveMinutes: number;
+	creditedLeaveMinutes: number;
+	fulfilledMinutes: number;
+	differenceMinutes: number;
+	remainingMinutes: number;
+	overtimeMinutes: number;
+	nightMinutes: number;
+	isWorking: boolean;
+	needsReview: boolean;
+	coreTimeMissed: boolean;
+	late: boolean;
+	earlyLeave: boolean;
+	hasLeaveWorkOverlap: boolean;
+	hasIncompleteWorkRecord: boolean;
+	status: string;
+	workSegments: { startTime: string; endTime: string; provisional: boolean }[];
+	leaveSegments: { startTime: string; endTime: string; paid: boolean }[];
+};
+
+export type AttendanceEmployeeWorkStatus = {
+	email: string;
+	displayName: string;
+	periodStart: string;
+	periodEnd: string;
+	workMode: 'autonomous' | 'flexible' | 'fixed';
+	hasBaseline: boolean;
+	targetMinutes: number;
+	actualMinutes: number;
+	provisionalMinutes: number;
+	paidLeaveMinutes: number;
+	creditedLeaveMinutes: number;
+	fulfilledMinutes: number;
+	differenceMinutes: number;
+	remainingMinutes: number;
+	overtimeMinutes: number;
+	nightMinutes: number;
+	isWorking: boolean;
+	needsReview: boolean;
+	coreTimeMissed: boolean;
+	late: boolean;
+	earlyLeave: boolean;
+	hasLeaveWorkOverlap: boolean;
+	hasIncompleteRecords: boolean;
+	status: string;
+	days: AttendanceWorkDayStatus[];
+};
+
+export type AttendanceWorkStatus = {
+	period: AttendanceWorkStatusPeriod;
+	anchor: string;
+	periodStart: string;
+	periodEnd: string;
+	timeZone: string;
+	isAdmin: boolean;
+	personal?: AttendanceEmployeeWorkStatus;
+	employees: AttendanceEmployeeWorkStatus[];
+};
+
+export type AttendanceWorkStatusRequest = {
+	period: AttendanceWorkStatusPeriod;
+	anchor: string;
+};
+
 export type CreateAttendanceAbsenceRequest = {
 	kind: AttendanceAbsenceKind;
 	startDate: string;
@@ -28,6 +100,21 @@ export async function fetchAttendanceSummary(request: AttendanceSummaryRequest):
 	const response = await fetch(path, { credentials: 'include', cache: 'no-store' });
 	if (!response.ok) throw new Error(await response.text());
 	return (await response.json()) as AttendanceSummary;
+}
+
+export async function fetchAttendanceWorkStatus(
+	request: AttendanceWorkStatusRequest
+): Promise<AttendanceWorkStatus> {
+	const query = new URLSearchParams({
+		period: request.period,
+		anchor: request.anchor
+	});
+	const response = await fetch(`/attendance/api/work-status?${query.toString()}`, {
+		credentials: 'include',
+		cache: 'no-store'
+	});
+	if (!response.ok) throw new Error(await response.text());
+	return (await response.json()) as AttendanceWorkStatus;
 }
 
 export async function createAttendanceAbsence(request: CreateAttendanceAbsenceRequest): Promise<AttendanceAbsence[]> {

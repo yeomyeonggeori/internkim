@@ -1,5 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
 import { createDefaultAttendanceLeavePolicy } from '../../dev-attendance-leave-policy-mock';
+import { createDevAttendanceWorkPolicyMockState } from '../../dev-attendance-work-policy-mock';
 import type {
 	AttendanceLeavePolicy,
 	CompanyHoliday,
@@ -25,6 +26,7 @@ async function mockAdminLeavePolicyPage(
 	locale: 'ko' | 'en' = 'ko'
 ) {
 	let policy = createDefaultAttendanceLeavePolicy();
+	const workPolicyState = createDevAttendanceWorkPolicyMockState();
 	let companyHolidays: CompanyHoliday[] = [];
 
 	await mockBuzzDisabled(page);
@@ -70,6 +72,22 @@ async function mockAdminLeavePolicyPage(
 		}
 		await route.fulfill({ json: policy });
 	});
+	await page.route('**/admin/api/attendance-work-policy', async (route) => {
+		if (route.request().method() === 'PUT') {
+			const revision = route.request().postDataJSON() as typeof workPolicyState.policy.revisions[number];
+			workPolicyState.policy = {
+				...workPolicyState.policy,
+				updatedAt: '2026-07-31T00:00:00Z',
+				revisions: [
+					...workPolicyState.policy.revisions.filter(
+						(currentRevision) => currentRevision.effectiveDate !== '2026-07-31'
+					),
+					{ ...revision, effectiveDate: '2026-07-31' }
+				]
+			};
+		}
+		await route.fulfill({ json: workPolicyState.policy });
+	});
 	await page.route('**/admin/api/company-holidays**', async (route) => {
 		const request = route.request();
 		const holidayID = decodeURIComponent(
@@ -100,15 +118,42 @@ async function mockAdminLeavePolicyPage(
 }
 
 test.describe('admin leave policy settings', () => {
+	test('keeps work and leave settings as separate top-level tabs', async ({ page }) => {
+		await mockAdminLeavePolicyPage(page, 'admin');
+		await page.goto('/settings/?fleet_id=demo&section=workSettings');
+
+		await expect(page.getByRole('tab', { name: '근무 설정', exact: true })).toBeVisible();
+		await expect(page.getByRole('tab', { name: '휴가 설정', exact: true })).toBeVisible();
+		const workSettings = page.getByTestId('attendance-work-settings');
+		await expect(
+			workSettings.locator('[data-slot="card-title"]', { hasText: '근무 방식' })
+		).toBeVisible();
+		await expect(workSettings.getByText('회사 지정 휴일', { exact: true })).toBeVisible();
+		await expect(page.getByTestId('attendance-leave-policy-settings')).toHaveCount(0);
+
+		await workSettings.getByRole('button', { name: /고정 근무제/ }).click();
+		await expect(workSettings.getByText('출퇴근 시간', { exact: true })).toBeVisible();
+		await expect(workSettings.getByText('주 기준 근무시간', { exact: true })).toHaveCount(0);
+		await workSettings.getByRole('button', { name: '변경사항 저장' }).click();
+		await expect(workSettings.getByRole('status')).toContainText('근무 설정을 저장했습니다.');
+
+		await page.reload();
+		await expect(
+			page
+				.getByTestId('attendance-work-settings')
+				.getByRole('button', { name: /고정 근무제/ })
+		).toHaveAttribute('aria-pressed', 'true');
+	});
+
 	test('edits annual policy and manages a custom leave type', async ({ page }) => {
 		await mockAdminLeavePolicyPage(page, 'admin');
-		await page.goto('/settings/?fleet_id=demo&section=attendanceSettings');
+		await page.goto('/settings/?fleet_id=demo&section=leaveSettings');
 
 		const leavePolicySettings = page.getByTestId('attendance-leave-policy-settings');
-		await expect(page.getByRole('tab', { name: '근태 설정', exact: true })).toBeVisible();
+		await expect(page.getByRole('tab', { name: '휴가 설정', exact: true })).toBeVisible();
 		await expect(
 			leavePolicySettings.locator('[data-slot="card-title"]', {
-				hasText: '근태 설정'
+				hasText: '휴가 설정'
 			})
 		).toBeVisible();
 		await expect(leavePolicySettings.getByRole('button', { name: /연차/ })).toBeVisible();
@@ -181,7 +226,7 @@ test.describe('admin leave policy settings', () => {
 		await grantDaysInput.fill('14');
 		await leavePolicySettings.getByRole('button', { name: '저장', exact: true }).click();
 		await expect(leavePolicySettings.getByRole('status')).toContainText(
-			'근태 설정을 저장했습니다.'
+			'휴가 설정을 저장했습니다.'
 		);
 		await expect(grantDaysInput).toHaveValue('14');
 		await leavePolicySettings.getByRole('button', { name: '소멸 방식' }).click();
@@ -192,7 +237,7 @@ test.describe('admin leave policy settings', () => {
 		).toBeVisible();
 		await page.getByRole('button', { name: '변경 저장' }).click();
 		await expect(leavePolicySettings.getByRole('status')).toContainText(
-			'근태 설정을 저장했습니다.'
+			'휴가 설정을 저장했습니다.'
 		);
 
 		const nameInput = leavePolicySettings.getByLabel('이름');
@@ -261,16 +306,16 @@ test.describe('admin leave policy settings', () => {
 
 	test('hides the attendance settings tab from operations admins', async ({ page }) => {
 		await mockAdminLeavePolicyPage(page, 'operationsAdmin');
-		await page.goto('/settings/?fleet_id=demo&section=attendanceSettings');
+		await page.goto('/settings/?fleet_id=demo&section=leaveSettings');
 
-		await expect(page.getByRole('tab', { name: '근태 설정', exact: true })).toHaveCount(0);
-		await expect(page.locator('[data-slot="card-title"]', { hasText: '근태 설정' })).toHaveCount(0);
+		await expect(page.getByRole('tab', { name: '휴가 설정', exact: true })).toHaveCount(0);
+		await expect(page.locator('[data-slot="card-title"]', { hasText: '휴가 설정' })).toHaveCount(0);
 		await expect(page.getByRole('tab', { name: '사용자' })).toBeVisible();
 	});
 
 	test('creates, edits, reloads, and deletes an annual company holiday', async ({ page }) => {
 		await mockAdminLeavePolicyPage(page, 'admin');
-		await page.goto('/settings/?fleet_id=demo&section=attendanceSettings');
+		await page.goto('/settings/?fleet_id=demo&section=workSettings');
 
 		const settings = page.getByTestId('company-holiday-settings');
 		await expect(settings.getByText('등록된 회사 휴일이 없습니다.')).toBeVisible();
@@ -303,7 +348,7 @@ test.describe('admin leave policy settings', () => {
 
 	test('saves the company-wide unlimited leave mode', async ({ page }) => {
 		await mockAdminLeavePolicyPage(page, 'admin');
-		await page.goto('/settings/?fleet_id=demo&section=attendanceSettings');
+		await page.goto('/settings/?fleet_id=demo&section=leaveSettings');
 
 		const settings = page.getByTestId('attendance-leave-policy-settings');
 		const managedMode = settings.getByTestId('leave-balance-tracking-managed');
@@ -312,7 +357,7 @@ test.describe('admin leave policy settings', () => {
 		await unlimitedMode.click();
 		await expect(unlimitedMode).toHaveAttribute('aria-pressed', 'true');
 		await settings.getByRole('button', { name: '운영 방식 저장' }).click();
-		await expect(settings.getByText('근태 설정을 저장했습니다.')).toBeVisible();
+		await expect(settings.getByText('휴가 설정을 저장했습니다.')).toBeVisible();
 
 		await page.reload();
 		await expect(
@@ -326,7 +371,7 @@ test.describe('admin leave policy settings', () => {
 		page
 	}) => {
 		await mockAdminLeavePolicyPage(page, 'admin', 'en');
-		await page.goto('/settings/?fleet_id=demo&section=attendanceSettings');
+		await page.goto('/settings/?fleet_id=demo&section=leaveSettings');
 
 		const settings = page.getByTestId('attendance-leave-policy-settings');
 		await expect(settings.getByTestId('leave-policy-list-scroll')).toContainText('Annual leave');

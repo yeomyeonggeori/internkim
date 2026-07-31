@@ -4,6 +4,7 @@
 	import type * as Chart from '$lib/components/ui/chart';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import type { Snippet } from 'svelte';
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import { getAttendanceState, type ChartMode } from '../attendance-context.svelte';
 	import { loadedWorkTimeChartPlot, loadWorkTimeChartPlot } from './work-time-chart-plot-loader';
@@ -24,6 +25,7 @@
 		locations: WorkTimeChartLocation[];
 		formatValue: (value: number) => string;
 		compact?: boolean;
+		footer?: Snippet;
 	};
 
 	const fallbackLocationColor = 'var(--color-muted-foreground)';
@@ -39,6 +41,7 @@
 		locations,
 		formatValue,
 		compact = false,
+		footer,
 	}: Props = $props();
 
 	const attendance = getAttendanceState();
@@ -189,6 +192,9 @@
 					<DurationText minutes={pointsSummary.minimumMinutes} size="inherit" tone="default" />
 				</div>
 			</div>
+		{/if}
+		{#if footer}
+			{@render footer()}
 		{/if}
 	</Card.Content>
 </Card.Root>

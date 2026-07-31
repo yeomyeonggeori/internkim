@@ -15,6 +15,7 @@
 	import NetworkSection from './admin/network-section.svelte';
 	import SettingsSection from './admin/settings-section.svelte';
 	import AttendanceSettingsSection from './admin/attendance-settings-section.svelte';
+	import AttendanceWorkSettingsSection from './admin/attendance-work-settings-section.svelte';
 	import type { AdminSection, AdminSession } from './admin/admin-types';
 	import { adminText } from './admin/text';
 	import UsersSection from './admin/users-section.svelte';
@@ -30,7 +31,8 @@
 		{ value: 'backup', isDeviceManagedOnly: false },
 		{ value: 'bot', isDeviceManagedOnly: false },
 		{ value: 'settings', isDeviceManagedOnly: false },
-		{ value: 'attendanceSettings', isDeviceManagedOnly: false },
+		{ value: 'workSettings', isDeviceManagedOnly: false },
+		{ value: 'leaveSettings', isDeviceManagedOnly: false },
 		{ value: 'sharing', isDeviceManagedOnly: false },
 		{ value: 'network', isDeviceManagedOnly: true },
 		{ value: 'buzz', isDeviceManagedOnly: false },
@@ -85,7 +87,11 @@
 			location.replace(`https://${queryFleetID}.example.test/admin/`);
 			return;
 		}
-		if (isAdminSection(querySection)) activeAdminSection = querySection;
+		if (querySection === 'attendanceSettings') {
+			activeAdminSection = 'leaveSettings';
+		} else if (isAdminSection(querySection)) {
+			activeAdminSection = querySection;
+		}
 		fleetIdInput = queryFleetID || fleetIDFromHost() || localStorage.getItem(storedFleetIdKey) || '';
 		if (fleetIdInput) localStorage.setItem(storedFleetIdKey, fleetIdInput);
 		loadAdminSession();
@@ -191,7 +197,9 @@
 						/>
 					{:else if activeAdminSection === 'settings'}
 						<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-					{:else if activeAdminSection === 'attendanceSettings'}
+					{:else if activeAdminSection === 'workSettings'}
+						<AttendanceWorkSettingsSection adminBaseURL={adminBaseURL()} text={text} />
+					{:else if activeAdminSection === 'leaveSettings'}
 						<AttendanceSettingsSection adminBaseURL={adminBaseURL()} text={text} />
 					{:else if activeAdminSection === 'sharing'}
 						<CompanyShareSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />

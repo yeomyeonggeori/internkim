@@ -9,7 +9,8 @@ export type AdminSection =
 	| 'backup'
 	| 'users'
 	| 'settings'
-	| 'attendanceSettings'
+	| 'workSettings'
+	| 'leaveSettings'
 	| 'sharing'
 	| 'network'
 	| 'buzz'
@@ -227,6 +228,36 @@ export type CompanyHolidayInput = Pick<CompanyHoliday, 'title' | 'date' | 'recur
 
 export type CompanyHolidaysResponse = {
 	holidays: CompanyHoliday[];
+};
+
+export type AttendanceWorkMode = 'autonomous' | 'flexible' | 'fixed';
+
+export type AttendanceWorkBreakPeriod = {
+	startTime: string;
+	endTime: string;
+};
+
+export type AttendanceWorkPolicyRevision = {
+	effectiveDate: string;
+	workMode: AttendanceWorkMode;
+	workingWeekdays: number[];
+	dailyTargetMinutes: number;
+	weeklyTargetMinutes: number;
+	referenceStartTime: string;
+	fixedStartTime: string;
+	fixedEndTime: string;
+	coreTimeEnabled: boolean;
+	coreStartTime: string;
+	coreEndTime: string;
+	breakPeriods: AttendanceWorkBreakPeriod[];
+	nightStartTime: string;
+	nightEndTime: string;
+};
+
+export type AttendanceWorkPolicy = {
+	version: 1;
+	updatedAt: string;
+	revisions: AttendanceWorkPolicyRevision[];
 };
 
 export type WifiProfile = {
