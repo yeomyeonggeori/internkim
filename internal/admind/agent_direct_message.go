@@ -341,6 +341,18 @@ func agentDirectMessagesFromHistory(historyMessages []chatdHistoryMessage, chann
 			}
 		}
 	}
+	replacementRootBySynthetic := map[string]string{}
+	earliestReplySentAt := map[string]string{}
+	for _, historyMessage := range historyMessages {
+		if !syntheticRootIDs[historyMessage.ThreadRootID] {
+			continue
+		}
+		earliest, seen := earliestReplySentAt[historyMessage.ThreadRootID]
+		if !seen || historyMessage.SentAt < earliest {
+			earliestReplySentAt[historyMessage.ThreadRootID] = historyMessage.SentAt
+			replacementRootBySynthetic[historyMessage.ThreadRootID] = historyMessage.ID
+		}
+	}
 	messages := make([]agentDirectMessage, 0, len(historyMessages))
 	for index, historyMessage := range historyMessages {
 		if syntheticRootIDs[historyMessage.ID] {
@@ -348,7 +360,12 @@ func agentDirectMessagesFromHistory(historyMessages []chatdHistoryMessage, chann
 		}
 		threadRootID := historyMessage.ThreadRootID
 		if syntheticRootIDs[threadRootID] {
-			threadRootID = ""
+			replacementRoot := replacementRootBySynthetic[threadRootID]
+			if historyMessage.ID == replacementRoot {
+				threadRootID = ""
+			} else {
+				threadRootID = replacementRoot
+			}
 		}
 		isCurrentUser := historyMessage.SenderID != "" && historyMessage.SenderID == channel.UserPubkeyHex
 		sender := channelParticipant{
