@@ -8,6 +8,9 @@ import type {
 	BotProfile,
 	CircleRecord,
 	CompanyDocumentsResponse,
+	CompanyHoliday,
+	CompanyHolidayInput,
+	CompanyHolidaysResponse,
 	CompanyMetricsResponse,
 	CompanyRecordsResponse,
 	CompanyShareSettings,
@@ -169,6 +172,55 @@ export async function updateAttendanceLeavePolicy(adminBaseURL: string, policy: 
 		body: JSON.stringify(policy)
 	});
 	return readJSON<AttendanceLeavePolicy>(response, fallbackMessage);
+}
+
+export async function fetchCompanyHolidays(
+	adminBaseURL: string,
+	fallbackMessage: string
+): Promise<CompanyHolidaysResponse> {
+	const response = await fetch(`${adminBaseURL}/company-holidays`, { credentials: 'include' });
+	return readJSON<CompanyHolidaysResponse>(response, fallbackMessage);
+}
+
+export async function createCompanyHoliday(
+	adminBaseURL: string,
+	input: CompanyHolidayInput,
+	fallbackMessage: string
+): Promise<CompanyHoliday> {
+	const response = await fetch(`${adminBaseURL}/company-holidays`, {
+		method: 'POST',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(input)
+	});
+	return readJSON<CompanyHoliday>(response, fallbackMessage);
+}
+
+export async function updateCompanyHoliday(
+	adminBaseURL: string,
+	holidayID: string,
+	input: CompanyHolidayInput,
+	fallbackMessage: string
+): Promise<CompanyHoliday> {
+	const response = await fetch(`${adminBaseURL}/company-holidays/${encodeURIComponent(holidayID)}`, {
+		method: 'PUT',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(input)
+	});
+	return readJSON<CompanyHoliday>(response, fallbackMessage);
+}
+
+export async function deleteCompanyHoliday(
+	adminBaseURL: string,
+	holidayID: string,
+	fallbackMessage: string
+): Promise<void> {
+	const response = await fetch(`${adminBaseURL}/company-holidays/${encodeURIComponent(holidayID)}`, {
+		method: 'DELETE',
+		credentials: 'include'
+	});
+	return readVoid(response, fallbackMessage);
 }
 
 export async function fetchUsers(adminBaseURL: string, fallbackMessage: string): Promise<UsersResponse> {

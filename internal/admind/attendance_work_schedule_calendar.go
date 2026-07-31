@@ -16,15 +16,17 @@ func attendanceWorkScheduleDate(value string, location *time.Location) (time.Tim
 	return date, nil
 }
 
-func attendanceWorkScheduleIsWorkingDate(schedule attendanceWorkSchedule, date string) (bool, error) {
+func attendanceWorkScheduleIsWorkingDate(
+	schedule attendanceWorkSchedule,
+	date string,
+	holidayDates map[string]struct{},
+) (bool, error) {
 	parsedDate, errorValue := attendanceWorkScheduleDate(date, time.UTC)
 	if errorValue != nil {
 		return false, errorValue
 	}
-	for _, holiday := range schedule.Holidays {
-		if holiday.Date == date {
-			return false, nil
-		}
+	if _, isHoliday := holidayDates[date]; isHoliday {
+		return false, nil
 	}
 	weekday := int(parsedDate.Weekday())
 	if weekday == 0 {
@@ -42,9 +44,14 @@ func attendanceWorkScheduleIsWorkingInstant(
 	schedule attendanceWorkSchedule,
 	instant time.Time,
 	location *time.Location,
+	holidayDates map[string]struct{},
 ) (bool, error) {
 	if location == nil {
 		return false, fmt.Errorf("time zone is required")
 	}
-	return attendanceWorkScheduleIsWorkingDate(schedule, instant.In(location).Format("2006-01-02"))
+	return attendanceWorkScheduleIsWorkingDate(
+		schedule,
+		instant.In(location).Format("2006-01-02"),
+		holidayDates,
+	)
 }
