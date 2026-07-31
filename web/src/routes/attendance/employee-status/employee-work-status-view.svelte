@@ -36,14 +36,11 @@
 	];
 	const statusOptions = $derived([
 		{ value: 'all', label: text.workStatus.allStatuses },
-		{ value: 'remaining', label: text.workStatus.statusRemaining },
-		{ value: 'fulfilled', label: text.workStatus.statusFulfilled },
 		{ value: 'overtime', label: text.workStatus.statusOvertime },
-		{ value: 'coreTimeMissed', label: text.workStatus.statusCoreTimeMissed },
-		{ value: 'late', label: text.workStatus.statusLate },
-		{ value: 'earlyLeave', label: text.workStatus.statusEarlyLeave },
-		{ value: 'needsReview', label: text.workStatus.statusNeedsReview },
-		{ value: 'actualOnly', label: text.workStatus.statusActualOnly }
+		{ value: 'remaining', label: text.workStatus.statusRemaining },
+		{ value: 'coreTimeMissed', label: text.workStatus.filterCoreTime },
+		{ value: 'lateOrEarly', label: text.workStatus.filterLateOrEarly },
+		{ value: 'needsReview', label: text.workStatus.statusNeedsReview }
 	]);
 	const employees = $derived(
 		filterEmployeeWorkStatuses(workStatus.payload?.employees ?? [], search, statusFilter)
@@ -87,7 +84,11 @@
 			coreTimeMissed: text.workStatus.statusCoreTimeMissed,
 			late: text.workStatus.statusLate,
 			earlyLeave: text.workStatus.statusEarlyLeave,
-			lateAndEarlyLeave: text.workStatus.statusLateAndEarlyLeave
+			lateAndEarlyLeave: text.workStatus.statusLateAndEarlyLeave,
+			remaining: text.workStatus.statusRemaining,
+			fulfilled: text.workStatus.statusFulfilled,
+			overtime: text.workStatus.statusOvertime,
+			actualOnly: text.workStatus.statusActualOnly
 		};
 		return statusOptions.find((option) => option.value === status)?.label ?? labels[status] ?? status;
 	}
@@ -95,6 +96,18 @@
 	function formatDifference(minutes: number): string {
 		const prefix = minutes > 0 ? '+' : minutes < 0 ? '-' : '';
 		return `${prefix}${formatWorkStatusDuration(Math.abs(minutes), text)}`;
+	}
+
+	function barScale(employee: AttendanceEmployeeWorkStatus): number {
+		return Math.max(employee.targetMinutes, employee.actualMinutes, 1);
+	}
+
+	function actualBarWidth(employee: AttendanceEmployeeWorkStatus): number {
+		return (Math.min(employee.actualMinutes, employee.targetMinutes || employee.actualMinutes) / barScale(employee)) * 100;
+	}
+
+	function leaveBarWidth(employee: AttendanceEmployeeWorkStatus): number {
+		return (employee.creditedLeaveMinutes / barScale(employee)) * 100;
 	}
 
 	function refresh(): void {
@@ -136,8 +149,7 @@
 
 	<Card.Root>
 		<Card.Header class="gap-3">
-			<div class="grid gap-2 md:grid-cols-[minmax(15rem,1fr)_auto]">
-				<Input bind:value={search} placeholder={text.workStatus.searchPlaceholder} />
+			<div class="flex flex-wrap items-center gap-2">
 				<div class="flex flex-wrap gap-1">
 					{#each statusOptions as option (option.value)}
 						<Button
@@ -149,6 +161,7 @@
 						</Button>
 					{/each}
 				</div>
+				<Input class="ml-auto w-full md:w-64" bind:value={search} placeholder={text.workStatus.searchPlaceholder} />
 			</div>
 		</Card.Header>
 		<Card.Content class="overflow-x-auto">
@@ -162,15 +175,13 @@
 						<Table.Row>
 							<Table.Head>{text.workStatus.employee}</Table.Head>
 							<Table.Head>{text.workStatus.mode}</Table.Head>
-							<Table.Head>{text.status}</Table.Head>
-							<Table.Head class="text-right">{text.workStatus.actual}</Table.Head>
-							<Table.Head class="text-right">{text.workStatus.paidLeave}</Table.Head>
+							<Table.Head>{text.workStatus.actual}</Table.Head>
+							<Table.Head class="text-right">{text.workStatus.creditedLeave}</Table.Head>
 							<Table.Head class="text-right">{text.workStatus.fulfilled}</Table.Head>
-							<Table.Head class="text-right">{text.workStatus.target}</Table.Head>
 							<Table.Head class="text-right">{text.workStatus.difference}</Table.Head>
-							<Table.Head class="text-right">{text.workStatus.overtime}</Table.Head>
 							<Table.Head class="text-right">{text.workStatus.night}</Table.Head>
-							<Table.Head class="text-right">{text.workStatus.details}</Table.Head>
+							<Table.Head>{text.status}</Table.Head>
+							<Table.Head><span class="sr-only">{text.workStatus.details}</span></Table.Head>
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
@@ -191,23 +202,43 @@
 									</div>
 								</Table.Cell>
 								<Table.Cell>{text.workStatus[employee.workMode]}</Table.Cell>
-								<Table.Cell><Badge variant="secondary">{statusLabel(employee.status)}</Badge></Table.Cell>
-								<Table.Cell class="text-right tabular-nums">{formatWorkStatusDuration(employee.actualMinutes, text)}</Table.Cell>
-								<Table.Cell class="text-right tabular-nums">{formatWorkStatusDuration(employee.paidLeaveMinutes, text)}</Table.Cell>
-								<Table.Cell class="text-right tabular-nums">{formatWorkStatusDuration(employee.fulfilledMinutes, text)}</Table.Cell>
-								<Table.Cell class="text-right tabular-nums">{formatWorkStatusDuration(employee.targetMinutes, text)}</Table.Cell>
-								<Table.Cell class="text-right tabular-nums">{formatDifference(employee.differenceMinutes)}</Table.Cell>
-								<Table.Cell class="text-right tabular-nums">{formatWorkStatusDuration(employee.overtimeMinutes, text)}</Table.Cell>
+								<Table.Cell class="min-w-36">
+									<div class="grid gap-1">
+										<span class="text-xs tabular-nums">{formatWorkStatusDuration(employee.actualMinutes, text)}</span>
+										<div class="flex h-1.5 overflow-hidden rounded-full bg-muted">
+											<div class="bg-foreground" style={`width:${actualBarWidth(employee)}%`}></div>
+											<div class="bg-blue-500" style={`width:${leaveBarWidth(employee)}%`}></div>
+										</div>
+									</div>
+								</Table.Cell>
+								<Table.Cell class="text-right tabular-nums">{formatWorkStatusDuration(employee.creditedLeaveMinutes, text)}</Table.Cell>
+								<Table.Cell class="text-right tabular-nums">
+									{#if employee.hasBaseline}
+										{formatWorkStatusDuration(employee.fulfilledMinutes, text)}
+										<span class="text-muted-foreground"> / {formatWorkStatusDuration(employee.targetMinutes, text)}</span>
+									{:else}
+										{text.workStatus.noBaseline}
+									{/if}
+								</Table.Cell>
+								<Table.Cell class="text-right tabular-nums">
+									{employee.hasBaseline ? formatDifference(employee.differenceMinutes) : text.workStatus.noBaseline}
+								</Table.Cell>
 								<Table.Cell class="text-right tabular-nums">{formatWorkStatusDuration(employee.nightMinutes, text)}</Table.Cell>
-								<Table.Cell class="text-right">
-									<Button variant="outline" size="sm" onclick={() => (selectedEmployee = employee)}>
-										{text.workStatus.details}
+								<Table.Cell><Badge variant="secondary">{statusLabel(employee.status)}</Badge></Table.Cell>
+								<Table.Cell>
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										aria-label={`${employee.displayName} ${text.workStatus.details}`}
+										onclick={() => (selectedEmployee = employee)}
+									>
+										<ChevronRightIcon />
 									</Button>
 								</Table.Cell>
 							</Table.Row>
 						{:else}
 							<Table.Row>
-								<Table.Cell colspan={11} class="h-28 text-center text-muted-foreground">
+								<Table.Cell colspan={9} class="h-28 text-center text-muted-foreground">
 									{text.workStatus.noEmployees}
 								</Table.Cell>
 							</Table.Row>
