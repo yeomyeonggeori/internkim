@@ -130,6 +130,15 @@ func TestCalendarHolidayRequestRefreshRunsOncePerMonth(t *testing.T) {
 	if !refreshed {
 		t.Fatal("first request did not refresh")
 	}
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatalf("open calendar database: %v", errorValue)
+	}
+	if _, errorValue := database.ExecContext(context.Background(), "DELETE FROM calendar_holiday_sources"); errorValue != nil {
+		database.Close()
+		t.Fatalf("delete calendar holiday sources: %v", errorValue)
+	}
+	database.Close()
 	refreshed, errorValue = service.refreshCalendarHolidaysOnRequest(
 		context.Background(),
 		currentTime.AddDate(0, 0, 20),

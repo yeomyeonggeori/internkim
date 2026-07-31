@@ -79,6 +79,7 @@ func (service *Service) refreshCalendarHolidayCache(ctx context.Context, current
 		return errorValue
 	}
 	service.calendarHolidayRetryAt = time.Time{}
+	service.holidayCheckedMonth = service.calendarHolidayMonthKey(currentTime)
 	return nil
 }
 
