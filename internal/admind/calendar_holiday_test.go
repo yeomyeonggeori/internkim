@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -57,8 +58,8 @@ func TestCalendarHolidaysUseCachedCountryAPIResponseWithConnectedGoogleAccount(t
 	if len(first.Holidays) != 1 || first.Holidays[0].Title != "새해 첫날" || !first.Holidays[0].ReadOnly {
 		t.Fatalf("first holidays = %#v", first.Holidays)
 	}
-	if requestCount.Load() != 1 {
-		t.Fatalf("API request count = %d, want requested year once", requestCount.Load())
+	if requestCount.Load() != calendarHolidayPreloadYears {
+		t.Fatalf("API request count = %d, want %d preload years", requestCount.Load(), calendarHolidayPreloadYears)
 	}
 }
 
@@ -201,10 +202,23 @@ func TestWorkspaceSettingsUpdateDoesNotRequireHolidayAPIWhenCountryIsUnchanged(t
 	}
 }
 
-func TestCalendarHolidaysDoNotRefreshStoredResponseOnRead(t *testing.T) {
+func TestCalendarHolidaysServeStoredResponseWhenRequestRefreshFails(t *testing.T) {
 	service := newCalendarTestService(t)
 	currentTime := time.Now().UTC()
-	sourceKey := "KR:" + currentTime.Format("2006") + ":" + workspaceLanguageKorean
+	workspaceLocation, _ := service.workspaceTimeLocation()
+	localCurrentTime := currentTime.In(workspaceLocation)
+	currentYear := localCurrentTime.Year()
+	sourceKey := "KR:" + strconv.Itoa(currentYear) + ":" + workspaceLanguageKorean
+	staleTime := time.Date(
+		localCurrentTime.Year(),
+		localCurrentTime.Month(),
+		1,
+		0,
+		0,
+		0,
+		0,
+		workspaceLocation,
+	).Add(-time.Hour).UTC()
 	if errorValue := service.replaceCalendarHolidaySnapshot(
 		context.Background(),
 		calendarHolidaySourceAPI,
@@ -212,21 +226,25 @@ func TestCalendarHolidaysDoNotRefreshStoredResponseOnRead(t *testing.T) {
 		[]storedCalendarHoliday{{
 			Source:      calendarHolidaySourceAPI,
 			SourceKey:   sourceKey,
-			ExternalID:  currentTime.Format("2006") + "-01-01:새해 첫날",
+			ExternalID:  strconv.Itoa(currentYear) + "-01-01:새해 첫날",
 			CountryCode: "KR",
 			Title:       "새해 첫날",
-			Date:        currentTime.Format("2006") + "-01-01",
+			Date:        strconv.Itoa(currentYear) + "-01-01",
 		}},
-		currentTime.Add(-25*time.Hour),
+		staleTime,
 	); errorValue != nil {
 		t.Fatalf("store cached holiday: %v", errorValue)
 	}
-	if errorValue := service.upsertCalendarHolidaySourceState(context.Background(), calendarHolidaySourceState{
-		Provider:     calendarHolidayProviderNager,
-		SourceKey:    sourceKey,
-		LastSyncedAt: currentTime.Add(-25 * time.Hour).Format(time.RFC3339),
-	}); errorValue != nil {
-		t.Fatalf("store stale holiday state: %v", errorValue)
+	for year := currentYear; year < currentYear+calendarHolidayPreloadYears; year += 1 {
+		for _, locale := range [...]string{workspaceLanguageKorean, workspaceLanguageEnglish} {
+			if errorValue := service.upsertCalendarHolidaySourceState(context.Background(), calendarHolidaySourceState{
+				Provider:     calendarHolidayProviderNager,
+				SourceKey:    calendarHolidaySourceKey("KR", year, locale),
+				LastSyncedAt: staleTime.Format(time.RFC3339),
+			}); errorValue != nil {
+				t.Fatalf("store stale holiday state: %v", errorValue)
+			}
+		}
 	}
 	var requestCount atomic.Int64
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -239,13 +257,17 @@ func TestCalendarHolidaysDoNotRefreshStoredResponseOnRead(t *testing.T) {
 		}, nil
 	})}
 
-	response := requestCalendarHolidaysForYearLocaleTest(t, service, currentTime.Year(), workspaceLanguageKorean)
+	first := requestCalendarHolidaysForYearLocaleTest(t, service, currentYear, workspaceLanguageKorean)
+	second := requestCalendarHolidaysForYearLocaleTest(t, service, currentYear, workspaceLanguageKorean)
 
-	if len(response.Holidays) != 1 || response.Holidays[0].Title != "새해 첫날" {
-		t.Fatalf("holidays = %#v", response.Holidays)
+	if len(first.Holidays) != 1 || first.Holidays[0].Title != "새해 첫날" {
+		t.Fatalf("first holidays = %#v", first.Holidays)
 	}
-	if requestCount.Load() != 0 {
-		t.Fatalf("API request count = %d, want none", requestCount.Load())
+	if len(second.Holidays) != 1 || second.Holidays[0].Title != "새해 첫날" {
+		t.Fatalf("second holidays = %#v", second.Holidays)
+	}
+	if requestCount.Load() != calendarHolidayMaximumAttempts {
+		t.Fatalf("API request count = %d, want %d", requestCount.Load(), calendarHolidayMaximumAttempts)
 	}
 }
 

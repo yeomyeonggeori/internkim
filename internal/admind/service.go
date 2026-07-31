@@ -143,6 +143,7 @@ type Service struct {
 	calendarHolidayCacheMutex  sync.RWMutex
 	calendarHolidayLoadMutex   sync.Mutex
 	calendarHolidayCache       map[calendarHolidayCacheKey][]calendarHoliday
+	calendarHolidayRetryAt     time.Time
 	calendarCandidateClock     calendarConflictCandidateClock
 	calendarPullCacheMutex     sync.Mutex
 	lastCalendarPullAt         time.Time
@@ -387,7 +388,6 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startCalendarNotificationWorker(ctx)
 	service.startCalendarDeleteIntentWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
-	service.startCalendarHolidayScheduler(ctx)
 	service.startSoftDeletedMattermostPostPurge(ctx)
 	service.startSiteRuntimeJanitor(ctx)
 	service.startScheduledBackups(ctx)
