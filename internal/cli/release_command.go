@@ -404,6 +404,7 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 		{name: "fonts", revision: gitRevision, restartGroup: "admind", healthCheck: "web", sourcePath: deviceAssetSourcePath("fonts", repositoryRootPath)},
 		{name: "mattermostPlugins", revision: gitRevision, restartGroup: "admind", healthCheck: "mattermostPlugins", sourcePath: filepath.Join(repositoryRootPath, "build", "mattermost-plugins")},
 		{name: "chatd", revision: gitRevision, restartGroup: "chatd", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.ChatdName), builder: buildChatdReleaseBinary},
+		{name: "buzzMigrate", revision: gitRevision, restartGroup: "", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BuzzMigrateName), builder: buildReleaseBinary("./cmd/buzz-migrate")},
 	}
 	blobs := []releaseBlob{}
 	for _, input := range blobInputs {
