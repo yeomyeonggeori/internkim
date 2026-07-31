@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -228,5 +230,44 @@ func TestAttendanceWorkPolicyHTTPRoundtripUsesCompanyDate(t *testing.T) {
 		len(loadedResponse.HolidayDates) != 1 ||
 		loadedResponse.HolidayDates[0] != "2026-08-17" {
 		t.Fatalf("response = %+v", loadedResponse)
+	}
+}
+
+func TestAttendanceWorkPolicyHTTPPutDoesNotSaveWhenHolidayLookupFails(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	before, errorValue := service.readAttendanceSettingsDocument(t.Context())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	revision := defaultAttendanceWorkPolicyRevision()
+	encodedRevision, errorValue := json.Marshal(revision)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(
+		http.MethodPut,
+		"/admin/api/attendance-work-policy",
+		bytes.NewReader(encodedRevision),
+	)
+	recorder := httptest.NewRecorder()
+	holidayReader := func(context.Context, time.Time, time.Time) (map[string]struct{}, error) {
+		return nil, errors.New("holiday lookup failed")
+	}
+
+	service.handleAttendanceWorkPolicyAt(
+		recorder,
+		request,
+		time.Date(2026, time.July, 31, 16, 30, 0, 0, time.UTC),
+		holidayReader,
+	)
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	after, errorValue := service.readAttendanceSettingsDocument(t.Context())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("attendance settings changed = before %+v after %+v", before, after)
 	}
 }

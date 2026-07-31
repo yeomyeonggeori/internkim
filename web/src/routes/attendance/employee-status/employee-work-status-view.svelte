@@ -13,24 +13,25 @@
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { attendanceText } from '../text';
-	import { getWorkStatusState } from '../work-status/work-status-state.svelte';
+	import { WorkStatusState } from '../work-status/work-status-state.svelte';
 	import EmployeeWorkStatusDetailDialog from './employee-work-status-detail-dialog.svelte';
 	import { filterEmployeeWorkStatuses } from './employee-work-status-model';
 	import EmployeeWorkStatusTable from './employee-work-status-table.svelte';
 
 	const text = createPageText(attendanceText);
 	const attendance = getAttendanceState();
-	const workStatus = getWorkStatusState();
+	const workStatus = new WorkStatusState();
 	let search = $state('');
 	let statusFilter = $state('all');
+	let period = $state<AttendanceWorkStatusPeriod>('day');
 	let anchor = $state('');
 	let selectedEmployee = $state<AttendanceEmployeeWorkStatus | null>(null);
 
-	const periods: { value: AttendanceWorkStatusPeriod; label: string }[] = [
+	const periods = $derived<{ value: AttendanceWorkStatusPeriod; label: string }[]>([
 		{ value: 'day', label: text.day },
 		{ value: 'week', label: text.week },
 		{ value: 'month', label: text.month }
-	];
+	]);
 	const statusOptions = $derived([
 		{ value: 'all', label: text.workStatus.allStatuses },
 		{ value: 'overtime', label: text.workStatus.statusOvertime },
@@ -54,24 +55,24 @@
 		const summary = attendance.summary;
 		if (!summary || anchor) return;
 		anchor = todayDateInTimeZone(summary.timeZone);
+		void workStatus.load(period, anchor);
 	});
 
-	function selectPeriod(period: AttendanceWorkStatusPeriod): void {
-		attendance.chartMode = period;
+	function selectPeriod(periodValue: AttendanceWorkStatusPeriod): void {
+		period = periodValue;
 		void workStatus.load(period, anchor);
 	}
 
 	function movePeriod(direction: -1 | 1): void {
 		if (!anchor) return;
 		const date = new Date(`${anchor}T00:00:00Z`);
-		if (attendance.chartMode === 'month') {
+		if (period === 'month') {
 			date.setUTCMonth(date.getUTCMonth() + direction);
 		} else {
-			date.setUTCDate(date.getUTCDate() + direction * (attendance.chartMode === 'week' ? 7 : 1));
+			date.setUTCDate(date.getUTCDate() + direction * (period === 'week' ? 7 : 1));
 		}
 		anchor = date.toISOString().slice(0, 10);
-		if (attendance.chartMode === 'month') attendance.selectedMonth = anchor.slice(0, 7);
-		void workStatus.load(attendance.chartMode, anchor);
+		void workStatus.load(period, anchor);
 	}
 
 	function statusLabel(status: string): string {
@@ -91,7 +92,7 @@
 	}
 
 	function refresh(): void {
-		void workStatus.load(attendance.chartMode, anchor);
+		void workStatus.load(period, anchor);
 	}
 </script>
 
@@ -103,22 +104,32 @@
 		</div>
 		<div class="flex flex-wrap items-center gap-2">
 			<div class="flex rounded-md border p-0.5">
-				{#each periods as period (period.value)}
+				{#each periods as periodOption (periodOption.value)}
 					<Button
-						variant={attendance.chartMode === period.value ? 'default' : 'ghost'}
+						variant={period === periodOption.value ? 'default' : 'ghost'}
 						size="sm"
 						class="h-7 px-3 text-xs"
-						onclick={() => selectPeriod(period.value)}
+						onclick={() => selectPeriod(periodOption.value)}
 					>
-						{period.label}
+						{periodOption.label}
 					</Button>
 				{/each}
 			</div>
-			<Button variant="outline" size="icon-sm" onclick={() => movePeriod(-1)}>
+			<Button
+				variant="outline"
+				size="icon-sm"
+				aria-label={text.leave.historyPaginationPrevious}
+				onclick={() => movePeriod(-1)}
+			>
 				<ChevronLeftIcon />
 			</Button>
 			<span class="min-w-32 text-center text-sm font-medium tabular-nums">{periodLabel}</span>
-			<Button variant="outline" size="icon-sm" onclick={() => movePeriod(1)}>
+			<Button
+				variant="outline"
+				size="icon-sm"
+				aria-label={text.leave.historyPaginationNext}
+				onclick={() => movePeriod(1)}
+			>
 				<ChevronRightIcon />
 			</Button>
 			<Button variant="ghost" size="icon-sm" onclick={refresh} aria-label={text.refresh}>

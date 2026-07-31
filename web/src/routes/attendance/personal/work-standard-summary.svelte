@@ -10,7 +10,14 @@
 	const workStatus = getWorkStatusState();
 	const status = $derived(workStatus.payload?.personal);
 	const totalMinutes = $derived(
-		status ? Math.max(0, status.actualMinutes) + Math.max(0, status.paidLeaveMinutes) : 0
+		status
+			? Math.max(0, status.actualMinutes) +
+				Math.max(0, status.provisionalMinutes) +
+				Math.max(0, status.paidLeaveMinutes)
+			: 0
+	);
+	const displayedActualMinutes = $derived(
+		status ? Math.max(0, status.actualMinutes) + Math.max(0, status.provisionalMinutes) : 0
 	);
 	const uncreditedLeaveMinutes = $derived(
 		status ? Math.max(0, status.paidLeaveMinutes - status.creditedLeaveMinutes) : 0
@@ -54,6 +61,7 @@
 		{#if status.hasBaseline}
 			<WorkStandardCapacityBar
 				actualMinutes={status.actualMinutes}
+				provisionalMinutes={status.provisionalMinutes}
 				paidLeaveMinutes={status.paidLeaveMinutes}
 				creditedLeaveMinutes={status.creditedLeaveMinutes}
 				targetMinutes={status.targetMinutes}
@@ -62,7 +70,7 @@
 			<div class="grid grid-cols-2 gap-3 text-[11px]" data-testid="work-standard-no-baseline-values">
 				<div>
 					<p class="text-muted-foreground">{text.workStatus.actual}</p>
-					<p class="mt-1"><DurationText minutes={status.actualMinutes} showZero size="inherit" tone="default" /></p>
+					<p class="mt-1"><DurationText minutes={displayedActualMinutes} showZero size="inherit" tone="default" /></p>
 				</div>
 				<div>
 					<p class="text-muted-foreground">{text.workStatus.leave}</p>

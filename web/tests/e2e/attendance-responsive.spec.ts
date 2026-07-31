@@ -82,11 +82,11 @@ test.describe('attendance responsive view', () => {
 		await expect(standard.getByText('실제 근무 01시간 20분')).toHaveCount(0);
 
 		await workTimeCard.getByRole('button', { name: '일별' }).click();
-		await expect(standard.getByText(/2026-07-31/)).toBeVisible();
+		await expect(standard.getByText(new RegExp(`${todayDateInSeoul()}$`))).toBeVisible();
 		const capacityBar = standard.getByTestId('work-standard-capacity-bar');
 		await expect(capacityBar).toHaveAttribute(
 			'aria-label',
-			/실제 근무 01시간 20분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 08시간 00분/
+			/실제 근무 01시간 20분, 진행 중 잠정 00시간 00분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 08시간 00분/
 		);
 		await expect(standard.getByTestId('work-standard-total')).toHaveText('09시간 20분');
 		await expect(
@@ -104,14 +104,14 @@ test.describe('attendance responsive view', () => {
 		await expect(standard.getByText(/2026-07-27–2026-08-02/)).toBeVisible();
 		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
 			'aria-label',
-			/실제 근무 33시간 20분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 40시간 00분/
+			/실제 근무 33시간 20분, 진행 중 잠정 00시간 00분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 40시간 00분/
 		);
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
 		await workTimeCard.getByRole('button', { name: '월별' }).click();
 		await expect(standard.getByText(/2026-05-01–2026-05-31/)).toBeVisible();
 		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
 			'aria-label',
-			/실제 근무 161시간 20분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 168시간 00분/
+			/실제 근무 161시간 20분, 진행 중 잠정 00시간 00분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 168시간 00분/
 		);
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
 	});
@@ -186,6 +186,42 @@ test.describe('attendance responsive view', () => {
 		await expect(page.getByText('최도윤 · 일별 상세')).toBeVisible();
 		await expect(page.getByRole('columnheader', { name: '근무 구간' })).toBeVisible();
 		await expect(page.getByRole('columnheader', { name: '휴가 구간' })).toBeVisible();
+	});
+
+	test('keeps the employee anchor when switching periods and displays provisional work', async ({ page }) => {
+		const requestedAnchors: string[] = [];
+		await page.unroute('**/attendance/api/work-status?**');
+		await page.route('**/attendance/api/work-status?**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			requestedAnchors.push(requestURL.searchParams.get('anchor') ?? '');
+			const payload = createDevAttendanceWorkStatus(
+				'tester@example.com',
+				requestURL.searchParams.get('period'),
+				requestURL.searchParams.get('anchor')
+			);
+			payload.personal = payload.personal
+				? { ...payload.personal, actualMinutes: 60, provisionalMinutes: 30 }
+				: undefined;
+			payload.employees = payload.employees.map((employee, index) =>
+				index === 1 ? { ...employee, actualMinutes: 60, provisionalMinutes: 30 } : employee
+			);
+			await route.fulfill({ json: payload });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await expect(page.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
+			'aria-label',
+			/실제 근무 01시간 00분, 진행 중 잠정 00시간 30분/
+		);
+		await page.getByTestId('employee-work-status-navigation').click();
+		const view = page.getByTestId('employee-work-status-view');
+		await view.getByRole('button', { name: '이전', exact: true }).click();
+		const historicalAnchor = requestedAnchors.at(-1);
+		await view.getByRole('button', { name: '주별' }).click();
+		await expect.poll(() => requestedAnchors.at(-1)).toBe(historicalAnchor);
+		await expect(view.locator('.bg-yellow-400').first()).toBeVisible();
+		await expect(view.getByText('01시간 30분').first()).toBeVisible();
 	});
 
 	test('scrolls desktop sidebar navigation together with personal tools', async ({ page }) => {

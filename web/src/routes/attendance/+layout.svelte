@@ -32,7 +32,7 @@
 	const text = createPageText(attendanceText);
 	const attendance = new AttendanceState(text.loadFailed);
 	const attendanceView = new AttendanceViewState();
-	const workStatus = new WorkStatusState();
+	const personalWorkStatus = new WorkStatusState();
 
 	async function refreshAfterEmployeeLeaveMutation(): Promise<void> {
 		const refreshes: Promise<void>[] = [attendance.load()];
@@ -69,7 +69,7 @@
 	setAttendanceViewState(attendanceView);
 	setLeaveApprovalState(leaveApproval);
 	setLeaveManagementState(leaveManagement);
-	setWorkStatusState(workStatus);
+	setWorkStatusState(personalWorkStatus);
 
 	function refreshServerClock(): void {
 		void attendance.refreshServerClock();
@@ -113,7 +113,7 @@
 			period === 'month' && selectedMonth && !today.startsWith(selectedMonth)
 				? `${selectedMonth}-01`
 				: today;
-		untrack(() => void workStatus.load(period, anchor));
+		untrack(() => void personalWorkStatus.load(period, anchor));
 	});
 
 	$effect(() => {
