@@ -1,7 +1,6 @@
 package admind
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -44,7 +43,7 @@ func TestAttendanceAbsenceAllowsAdminOtherEmail(t *testing.T) {
 	}
 }
 
-func TestAttendanceAbsenceLocalAdminUsesSystemCreatedBy(t *testing.T) {
+func TestAttendanceAbsenceLocalRequestDoesNotGrantAdministratorAccess(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
 	request := httptest.NewRequest(http.MethodPost, "/attendance/api/absences", strings.NewReader(`{
@@ -55,16 +54,8 @@ func TestAttendanceAbsenceLocalAdminUsesSystemCreatedBy(t *testing.T) {
 	request.RemoteAddr = "127.0.0.1:1234"
 	recorder := httptest.NewRecorder()
 	service.handleAttendance(recorder, request)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("expected create status 200, got %d: %s", recorder.Code, recorder.Body.String())
-	}
-
-	var response attendanceAbsenceTestResponse
-	if errorValue := json.NewDecoder(recorder.Body).Decode(&response); errorValue != nil {
-		t.Fatalf("decode create response: %v", errorValue)
-	}
-	if response.Absences[0].CreatedBy != attendanceAbsenceLocalAdminActor {
-		t.Fatalf("expected local admin createdBy, got %q", response.Absences[0].CreatedBy)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("expected create status 403, got %d: %s", recorder.Code, recorder.Body.String())
 	}
 }
 

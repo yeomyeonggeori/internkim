@@ -38,7 +38,7 @@ func (service *Service) writeAttendanceEventOverride(responseWriter http.Respons
 		http.Error(responseWriter, "attendance staff identity is required", http.StatusForbidden)
 		return
 	}
-	if !service.isAuthorized(request) && !strings.EqualFold(event.Email, actorEmail) {
+	if !service.canManageAttendance(request) && !strings.EqualFold(event.Email, actorEmail) {
 		http.Error(responseWriter, "attendance event owner or admin required", http.StatusForbidden)
 		return
 	}
