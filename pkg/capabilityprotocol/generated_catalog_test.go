@@ -15,8 +15,8 @@ func TestGeneratedCatalogLoadsCanonicalToolDescriptors(t *testing.T) {
 	if catalog.protocolVersion == "" || len(catalog.aggregateHash) != 64 {
 		t.Fatalf("generated protocol identity is incomplete: %+v", catalog)
 	}
-	if len(catalog.tools) != 25 {
-		t.Fatalf("expected twenty-five generated tool descriptors, got %d", len(catalog.tools))
+	if len(catalog.tools) != 26 {
+		t.Fatalf("expected twenty-six generated tool descriptors, got %d", len(catalog.tools))
 	}
 	if errorValue := ValidateDescriptorSet(catalog.tools); errorValue != nil {
 		t.Fatal(errorValue)
@@ -38,6 +38,7 @@ func TestGeneratedToolDescriptorsReturnClones(t *testing.T) {
 	names := []string{
 		"task.add",
 		"task.list",
+		"task.definitions",
 		"task.update",
 		"task.delete",
 		"calendar.add",
@@ -63,8 +64,8 @@ func TestGeneratedToolDescriptorsReturnClones(t *testing.T) {
 		"web.search",
 	}
 	firstDescriptors := MustGeneratedToolDescriptors(names...)
-	if len(firstDescriptors) != 25 {
-		t.Fatalf("expected twenty-five tool descriptors, got %d", len(firstDescriptors))
+	if len(firstDescriptors) != 26 {
+		t.Fatalf("expected twenty-six tool descriptors, got %d", len(firstDescriptors))
 	}
 	firstDescriptors[0].InputSchema[0] = 'x'
 	firstDescriptors[0].InputIntentSchema[0] = 'x'
