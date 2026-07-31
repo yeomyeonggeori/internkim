@@ -3,6 +3,7 @@ import { getContext, setContext } from 'svelte';
 export type AttendanceWorkspaceView =
 	| 'tools'
 	| 'status'
+	| 'employeeWorkStatus'
 	| 'leaveHistory'
 	| 'approvals'
 	| 'leaveManagement';

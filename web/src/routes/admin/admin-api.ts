@@ -4,6 +4,8 @@ import type {
 	AttendanceLeavePolicy,
 	AttendanceLocation,
 	AttendanceLocationsResponse,
+	AttendanceWorkPolicy,
+	AttendanceWorkPolicyRevision,
 	BlueclawUpdateStatus,
 	BotProfile,
 	CircleRecord,
@@ -221,6 +223,30 @@ export async function deleteCompanyHoliday(
 		credentials: 'include'
 	});
 	return readVoid(response, fallbackMessage);
+}
+
+export async function fetchAttendanceWorkPolicy(
+	adminBaseURL: string,
+	fallbackMessage: string
+): Promise<AttendanceWorkPolicy> {
+	const response = await fetch(`${adminBaseURL}/attendance-work-policy`, {
+		credentials: 'include'
+	});
+	return readJSON<AttendanceWorkPolicy>(response, fallbackMessage);
+}
+
+export async function updateAttendanceWorkPolicy(
+	adminBaseURL: string,
+	revision: AttendanceWorkPolicyRevision,
+	fallbackMessage: string
+): Promise<AttendanceWorkPolicy> {
+	const response = await fetch(`${adminBaseURL}/attendance-work-policy`, {
+		method: 'PUT',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(revision)
+	});
+	return readJSON<AttendanceWorkPolicy>(response, fallbackMessage);
 }
 
 export async function fetchUsers(adminBaseURL: string, fallbackMessage: string): Promise<UsersResponse> {
