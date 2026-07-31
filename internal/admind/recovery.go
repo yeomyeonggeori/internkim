@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair":
 		return true
 	default:
 		return false
@@ -161,6 +161,14 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		logContext, cancelLog := context.WithTimeout(context.Background(), 60*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(logContext, "tail Buzz re-import logs", "sh", "-lc", buzzReimportLogCommand()))
 		cancelLog()
+	case "buzz-read-test":
+		readContext, cancelRead := context.WithTimeout(context.Background(), 60*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(readContext, "test the web channel-read path for a real user", "sh", "-lc", buzzReadTestCommand()))
+		cancelRead()
+	case "buzz-chatd-repair":
+		chatdContext, cancelChatd := context.WithTimeout(context.Background(), 60*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(chatdContext, "restart chatd with TLS bypass + relay debug", "sh", "-lc", buzzChatdRepairCommand()))
+		cancelChatd()
 	case "buzz-snapshot":
 		snapshotContext, cancelSnapshot := context.WithTimeout(context.Background(), 180*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(snapshotContext, "snapshot buzz relay database", "sh", "-lc", buzzSnapshotCommand()))
@@ -747,6 +755,44 @@ echo "reimport launched (self-healing: auto-restores $SNAP if import fails) — 
 `)
 }
 
+func buzzChatdRepairCommand() string {
+	chatd := blueclaw.ChatdServiceName
+	return strings.TrimSpace(`
+set +e
+mkdir -p /etc/systemd/system/` + chatd + `.service.d
+rm -f /etc/systemd/system/` + chatd + `.service.d/tls-debug.conf
+cat > /etc/systemd/system/` + chatd + `.service.d/tls.conf <<'DROPIN'
+[Service]
+Environment=NODE_TLS_REJECT_UNAUTHORIZED=0
+DROPIN
+systemctl daemon-reload
+systemctl restart ` + chatd + `
+for attempt in $(seq 1 15); do ss -ltn 2>/dev/null | grep -q ':18090' && break; sleep 1; done
+ss -ltn 2>/dev/null | grep -q ':18090' && echo ':18090 LISTENING (chatd serving)' || echo ':18090 STILL DOWN'
+echo "== chatd journal (last 20, with relay debug) =="
+journalctl -u ` + chatd + ` -n 20 --no-pager 2>&1 | tail -20
+`)
+}
+
+func buzzReadTestCommand() string {
+	return strings.TrimSpace(`
+set +e
+ADMIN_TOKEN=$(cat /root/.internkim/secrets/mattermost-bot-token 2>/dev/null)
+EMAIL=$(curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/users?per_page=60&active=true" 2>/dev/null | jq -r '[.[] | select(.is_bot|not) | .email] | .[0]')
+echo "test user email: $EMAIL"
+echo "== /agent/api/channels (what the web lists) =="
+curl -fsS -H "X-Forwarded-Email: $EMAIL" "http://127.0.0.1:18080/agent/api/channels" 2>&1 | jq '{count: (.conversations|length), names: [.conversations[]?.name][0:8]}' 2>/dev/null || curl -sS -H "X-Forwarded-Email: $EMAIL" "http://127.0.0.1:18080/agent/api/channels" 2>&1 | head -c 400
+echo
+echo "== chatd conversations.list direct (raw status) =="
+SEC=$(curl -fsS "http://127.0.0.1:18080/bridge/api/identity?email=$EMAIL" 2>/dev/null | jq -r .secretHex)
+curl -sS -o /dev/null -w "http %{http_code}\n" -X POST "` + blueclaw.ChatdEndpoint + `/v1/platform/buzz/conversations.list" -H "Content-Type: application/json" -d "{\"userSecretHex\":\"$SEC\"}" 2>&1
+echo "== chatd :18090 listening? =="
+ss -ltn 2>/dev/null | grep -q ':18090' && echo ':18090 LISTENING' || echo ':18090 NOT listening'
+echo "== chatd journal (last 10) =="
+journalctl -u ` + blueclaw.ChatdServiceName + ` -n 10 --no-pager 2>&1 | tail -10
+`)
+}
+
 func buzzReimportLogCommand() string {
 	return strings.TrimSpace(`
 echo "=== /tmp/buzz-reimport.log ==="
@@ -794,6 +840,16 @@ printf '== kinds ==\n'
 q "SELECT kind, count(*) FROM events WHERE content='이전 대화' GROUP BY 1"
 printf '== synthetic roots per channel (top 20) ==\n'
 q "SELECT channel_id::text, count(*) FROM events WHERE content='이전 대화' GROUP BY 1 ORDER BY 2 DESC LIMIT 20"
+printf '== event kinds (9=msg 39002=channel-membership 13534=relay-membership 0=profile) ==\n'
+q "SELECT kind, count(*) FROM events GROUP BY kind ORDER BY 2 DESC"
+printf '== communities (id, host) ==\n'
+q "SELECT id::text, host FROM communities"
+printf '== events by community ==\n'
+q "SELECT community_id::text, count(*) FROM events WHERE kind=9 GROUP BY 1"
+printf '== channels count + sample ==\n'
+q "SELECT community_id::text, count(*) FROM channels GROUP BY 1"
+printf '== relay effective REQUIRE_RELAY_MEMBERSHIP ==\n'
+systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment 2>&1 | tr ' ' '\n' | grep -iE 'REQUIRE_RELAY|COMMUNITY_HOST|BUZZ_COMMUNITY' || echo '(none set => production default)'
 printf '== total kind9 events ==\n'
 q "SELECT count(*) FROM events WHERE kind=9"
 printf '== all kind9 authoring pubkeys (top 15) ==\n'
