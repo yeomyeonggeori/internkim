@@ -99,6 +99,51 @@ func TestAttendanceLeaveRequestPreviewExcludesCompanyHolidays(t *testing.T) {
 	}
 }
 
+func TestAttendanceLeaveRequestPreviewUsesDateEffectiveWorkPolicy(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	revision := defaultAttendanceWorkPolicyRevision()
+	revision.WorkMode = attendanceWorkModeFixed
+	revision.DailyTargetMinutes = 300
+	revision.WeeklyTargetMinutes = 1500
+	revision.ReferenceStartTime = "10:00"
+	revision.FixedStartTime = "10:00"
+	revision.FixedEndTime = "16:00"
+	revision.CoreTimeEnabled = false
+	revision.CoreStartTime = ""
+	revision.CoreEndTime = ""
+	if _, errorValue := service.saveAttendanceWorkPolicyRevision(
+		t.Context(),
+		revision,
+		"2027-05-10",
+		time.Date(2027, time.May, 10, 1, 0, 0, 0, time.UTC),
+	); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	preview, errorValue := service.previewAttendanceLeaveRequest(
+		t.Context(),
+		attendanceLeaveRequestInput{
+			LeaveTypeID: "annual",
+			Unit:        attendanceWorkScheduleFullDay,
+			StartDate:   "2027-05-07",
+			EndDate:     "2027-05-10",
+		},
+		time.Date(2027, time.May, 1, 9, 0, 0, 0, service.workspaceTimeZone().location),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(preview.Occurrences) != 2 ||
+		preview.Occurrences[0].Date != "2027-05-07" ||
+		preview.Occurrences[0].StartTime != "09:00" ||
+		preview.Occurrences[0].EndTime != "18:00" ||
+		preview.Occurrences[1].Date != "2027-05-10" ||
+		preview.Occurrences[1].StartTime != "10:00" ||
+		preview.Occurrences[1].EndTime != "16:00" {
+		t.Fatalf("preview occurrences = %+v", preview.Occurrences)
+	}
+}
+
 func TestAttendanceLeaveRequestPreviewLoadsMissingNationalHolidays(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	var requestCount atomic.Int64
