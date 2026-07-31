@@ -50,6 +50,41 @@ func (service *Service) calendarHolidaysForRange(
 	return holidays, nil
 }
 
+func (service *Service) calendarHolidaysFromStoredRange(
+	ctx context.Context,
+	countryCode string,
+	locale string,
+	startTime time.Time,
+	endTime time.Time,
+) ([]calendarHoliday, bool, error) {
+	service.calendarHolidayLoadMutex.Lock()
+	defer service.calendarHolidayLoadMutex.Unlock()
+	workspaceLocation, _ := service.workspaceTimeLocation()
+	startYear := startTime.In(workspaceLocation).Year()
+	endYear := endTime.In(workspaceLocation).AddDate(0, 0, -1).Year()
+	startDate := startTime.In(workspaceLocation).Format(time.DateOnly)
+	endDate := endTime.In(workspaceLocation).Format(time.DateOnly)
+	holidays := make([]calendarHoliday, 0)
+	for year := startYear; year <= endYear; year += 1 {
+		yearHolidays, found, errorValue := service.loadStoredCalendarHolidayYear(
+			ctx,
+			newCalendarHolidayCacheKey(countryCode, locale, year),
+		)
+		if errorValue != nil {
+			return nil, false, errorValue
+		}
+		if !found {
+			return nil, false, nil
+		}
+		for _, holiday := range yearHolidays {
+			if holiday.Date >= startDate && holiday.Date < endDate {
+				holidays = append(holidays, holiday)
+			}
+		}
+	}
+	return holidays, true, nil
+}
+
 func (service *Service) ensureCalendarHolidayYear(
 	ctx context.Context,
 	countryCode string,
@@ -66,19 +101,14 @@ func (service *Service) ensureCalendarHolidayYear(
 	if holidays, found := service.readCalendarHolidayMemoryCache(key); found {
 		return holidays, nil
 	}
-	sourceKey := calendarHolidaySourceKey(key.CountryCode, key.Year, key.Locale)
-	state, found, errorValue := service.readCalendarHolidaySource(ctx, calendarHolidayProviderNager, sourceKey)
+	holidays, found, errorValue := service.loadStoredCalendarHolidayYear(ctx, key)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	if found && strings.TrimSpace(state.LastSyncedAt) != "" {
-		holidays, readError := service.readCalendarHolidayYear(ctx, key)
-		if readError != nil {
-			return nil, readError
-		}
-		service.writeCalendarHolidayMemoryCache(key, holidays)
+	if found {
 		return holidays, nil
 	}
+	sourceKey := calendarHolidaySourceKey(key.CountryCode, key.Year, key.Locale)
 	if errorValue := service.refreshNagerCalendarHolidayYears(
 		ctx,
 		key.CountryCode,
@@ -88,11 +118,34 @@ func (service *Service) ensureCalendarHolidayYear(
 	); errorValue != nil {
 		return nil, errorValue
 	}
-	holidays, found := service.readCalendarHolidayMemoryCache(key)
+	holidays, found = service.readCalendarHolidayMemoryCache(key)
 	if !found {
 		return nil, fmt.Errorf("calendar holiday cache missing after refresh for %s", sourceKey)
 	}
 	return holidays, nil
+}
+
+func (service *Service) loadStoredCalendarHolidayYear(
+	ctx context.Context,
+	key calendarHolidayCacheKey,
+) ([]calendarHoliday, bool, error) {
+	if holidays, found := service.readCalendarHolidayMemoryCache(key); found {
+		return holidays, true, nil
+	}
+	sourceKey := calendarHolidaySourceKey(key.CountryCode, key.Year, key.Locale)
+	state, found, errorValue := service.readCalendarHolidaySource(ctx, calendarHolidayProviderNager, sourceKey)
+	if errorValue != nil {
+		return nil, false, errorValue
+	}
+	if found && strings.TrimSpace(state.LastSyncedAt) != "" {
+		holidays, readError := service.readCalendarHolidayYear(ctx, key)
+		if readError != nil {
+			return nil, false, readError
+		}
+		service.writeCalendarHolidayMemoryCache(key, holidays)
+		return holidays, true, nil
+	}
+	return nil, false, nil
 }
 
 func (service *Service) readCalendarHolidayYear(
