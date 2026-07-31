@@ -32,8 +32,8 @@ func TestCalendarHolidaysServeMemoryCacheWithoutReadingDeletedDatabaseSnapshot(t
 	if len(first.Holidays) != 1 || len(second.Holidays) != 1 || second.Holidays[0].Title != "새해 첫날" {
 		t.Fatalf("holidays = %#v, %#v", first.Holidays, second.Holidays)
 	}
-	if requestCount.Load() != 1 {
-		t.Fatalf("API request count = %d, want one", requestCount.Load())
+	if requestCount.Load() != calendarHolidayPreloadYears {
+		t.Fatalf("API request count = %d, want %d", requestCount.Load(), calendarHolidayPreloadYears)
 	}
 }
 
@@ -53,8 +53,8 @@ func TestCalendarHolidaysLoadPersistedSnapshotAfterServiceRestart(t *testing.T) 
 	if len(first.Holidays) != 1 || len(second.Holidays) != 1 || second.Holidays[0].Title != "새해 첫날" {
 		t.Fatalf("holidays = %#v, %#v", first.Holidays, second.Holidays)
 	}
-	if requestCount.Load() != 1 {
-		t.Fatalf("API request count = %d, want one before restart", requestCount.Load())
+	if requestCount.Load() != calendarHolidayPreloadYears {
+		t.Fatalf("API request count = %d, want %d before restart", requestCount.Load(), calendarHolidayPreloadYears)
 	}
 }
 
@@ -117,26 +117,112 @@ func TestCalendarHolidaysRejectOversizedRangeWithoutAPIRequest(t *testing.T) {
 	}
 }
 
-func TestCalendarHolidayMonthlyRefreshRunsOncePerMonth(t *testing.T) {
+func TestCalendarHolidayRequestRefreshRunsOncePerMonth(t *testing.T) {
 	service := newCalendarTestService(t)
 	var requestCount atomic.Int64
 	service.HTTPClient = calendarHolidayTestHTTPClient(t, "KR", &requestCount)
 	currentTime := time.Date(2026, time.July, 1, 0, 5, 0, 0, time.FixedZone("KST", 9*60*60))
 
-	if errorValue := service.refreshCalendarHolidaysIfDue(context.Background(), currentTime); errorValue != nil {
-		t.Fatalf("first monthly refresh: %v", errorValue)
+	refreshed, errorValue := service.refreshCalendarHolidaysOnRequest(context.Background(), currentTime)
+	if errorValue != nil {
+		t.Fatalf("first request refresh: %v", errorValue)
 	}
-	if errorValue := service.refreshCalendarHolidaysIfDue(context.Background(), currentTime.AddDate(0, 0, 20)); errorValue != nil {
-		t.Fatalf("same-month refresh: %v", errorValue)
+	if !refreshed {
+		t.Fatal("first request did not refresh")
+	}
+	refreshed, errorValue = service.refreshCalendarHolidaysOnRequest(
+		context.Background(),
+		currentTime.AddDate(0, 0, 20),
+	)
+	if errorValue != nil {
+		t.Fatalf("same-month request refresh: %v", errorValue)
+	}
+	if refreshed {
+		t.Fatal("same-month request refreshed")
 	}
 	if requestCount.Load() != calendarHolidayPreloadYears {
 		t.Fatalf("same-month API request count = %d, want %d", requestCount.Load(), calendarHolidayPreloadYears)
 	}
-	if errorValue := service.refreshCalendarHolidaysIfDue(context.Background(), currentTime.AddDate(0, 1, 0)); errorValue != nil {
-		t.Fatalf("next-month refresh: %v", errorValue)
+	refreshed, errorValue = service.refreshCalendarHolidaysOnRequest(
+		context.Background(),
+		currentTime.AddDate(0, 1, 0),
+	)
+	if errorValue != nil {
+		t.Fatalf("next-month request refresh: %v", errorValue)
+	}
+	if !refreshed {
+		t.Fatal("next-month request did not refresh")
 	}
 	if requestCount.Load() != calendarHolidayPreloadYears*2 {
 		t.Fatalf("next-month API request count = %d, want %d", requestCount.Load(), calendarHolidayPreloadYears*2)
+	}
+}
+
+func TestCalendarHolidayConcurrentFirstRequestsRefreshOnce(t *testing.T) {
+	service := newCalendarTestService(t)
+	var requestCount atomic.Int64
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requestCount.Add(1)
+		time.Sleep(10 * time.Millisecond)
+		segments := strings.Split(strings.Trim(request.URL.Path, "/"), "/")
+		return calendarHolidayTestResponse(request, "KR", segments[len(segments)-2]), nil
+	})}
+	currentTime := time.Date(2026, time.July, 1, 0, 5, 0, 0, time.UTC)
+	var waitGroup sync.WaitGroup
+	errors := make(chan error, 4)
+	for range 4 {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			_, errorValue := service.refreshCalendarHolidaysOnRequest(context.Background(), currentTime)
+			errors <- errorValue
+		}()
+	}
+	waitGroup.Wait()
+	close(errors)
+	for errorValue := range errors {
+		if errorValue != nil {
+			t.Fatalf("request refresh: %v", errorValue)
+		}
+	}
+	if requestCount.Load() != calendarHolidayPreloadYears {
+		t.Fatalf("API request count = %d, want %d", requestCount.Load(), calendarHolidayPreloadYears)
+	}
+}
+
+func TestCalendarHolidayRequestRefreshWaitsBeforeRetryAfterFailure(t *testing.T) {
+	service := newCalendarTestService(t)
+	var requestCount atomic.Int64
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requestCount.Add(1)
+		return nil, io.EOF
+	})}
+	currentTime := time.Date(2026, time.July, 1, 0, 5, 0, 0, time.UTC)
+
+	if _, errorValue := service.refreshCalendarHolidaysOnRequest(context.Background(), currentTime); errorValue == nil {
+		t.Fatal("first request refresh error = nil")
+	}
+	firstRequestCount := requestCount.Load()
+	if firstRequestCount != calendarHolidayMaximumAttempts {
+		t.Fatalf("first API request count = %d, want %d", firstRequestCount, calendarHolidayMaximumAttempts)
+	}
+	if _, errorValue := service.refreshCalendarHolidaysOnRequest(
+		context.Background(),
+		currentTime.Add(time.Hour),
+	); errorValue == nil {
+		t.Fatal("retry cooldown error = nil")
+	}
+	if requestCount.Load() != firstRequestCount {
+		t.Fatalf("cooldown API request count = %d, want %d", requestCount.Load(), firstRequestCount)
+	}
+	if _, errorValue := service.refreshCalendarHolidaysOnRequest(
+		context.Background(),
+		currentTime.Add(calendarHolidayRefreshRetryDelay+time.Hour),
+	); errorValue == nil {
+		t.Fatal("post-cooldown refresh error = nil")
+	}
+	if requestCount.Load() != firstRequestCount*2 {
+		t.Fatalf("post-cooldown API request count = %d, want %d", requestCount.Load(), firstRequestCount*2)
 	}
 }
 
@@ -198,18 +284,6 @@ func TestCalendarHolidayRefreshReplacesDatabaseAndMemorySnapshots(t *testing.T) 
 	}
 	if len(databaseHolidays) != 1 || databaseHolidays[0].Title != "새 휴일" || databaseHolidays[0].Date != "2026-03-01" {
 		t.Fatalf("database holidays = %#v", databaseHolidays)
-	}
-}
-
-func TestCalendarHolidayNextMonthlyRefreshUsesWorkspaceTimeZone(t *testing.T) {
-	service := newCalendarTestService(t)
-	currentTime := time.Date(2026, time.July, 31, 14, 30, 0, 0, time.UTC)
-
-	nextRefresh := service.calendarHolidayNextMonthlyRefresh(currentTime)
-
-	expected := time.Date(2026, time.July, 31, 15, 5, 0, 0, time.UTC)
-	if !nextRefresh.Equal(expected) {
-		t.Fatalf("next refresh = %s, want %s", nextRefresh.Format(time.RFC3339), expected.Format(time.RFC3339))
 	}
 }
 

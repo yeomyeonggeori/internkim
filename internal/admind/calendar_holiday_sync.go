@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -31,13 +32,38 @@ func (service *Service) serveCalendarHolidays(responseWriter http.ResponseWriter
 		http.Error(responseWriter, "calendar holiday range cannot exceed two calendar years", http.StatusBadRequest)
 		return
 	}
+	currentTime := time.Now().UTC()
+	_, refreshError := service.refreshCalendarHolidaysOnRequest(request.Context(), currentTime)
+	if refreshError != nil {
+		holidays, found, storedError := service.calendarHolidaysFromStoredRange(
+			request.Context(),
+			countryCode,
+			locale,
+			startTime,
+			endTime,
+		)
+		if storedError != nil {
+			http.Error(responseWriter, storedError.Error(), http.StatusBadGateway)
+			return
+		}
+		if !found {
+			http.Error(responseWriter, refreshError.Error(), http.StatusBadGateway)
+			return
+		}
+		slog.WarnContext(request.Context(), "calendar holiday request refresh failed",
+			"country_code", countryCode,
+			"error", refreshError,
+		)
+		service.writeJSON(responseWriter, calendarHolidaysResponse{Holidays: holidays, Source: calendarHolidaySourceAPI})
+		return
+	}
 	holidays, errorValue := service.calendarHolidaysForRange(
 		request.Context(),
 		countryCode,
 		locale,
 		startTime,
 		endTime,
-		time.Now().UTC(),
+		currentTime,
 	)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -49,7 +75,11 @@ func (service *Service) serveCalendarHolidays(responseWriter http.ResponseWriter
 func (service *Service) refreshCalendarHolidayCache(ctx context.Context, currentTime time.Time) error {
 	service.calendarHolidayLoadMutex.Lock()
 	defer service.calendarHolidayLoadMutex.Unlock()
-	return service.refreshCalendarHolidayCacheLocked(ctx, currentTime)
+	if errorValue := service.refreshCalendarHolidayCacheLocked(ctx, currentTime); errorValue != nil {
+		return errorValue
+	}
+	service.calendarHolidayRetryAt = time.Time{}
+	return nil
 }
 
 func (service *Service) refreshCalendarHolidayCacheLocked(ctx context.Context, currentTime time.Time) error {
