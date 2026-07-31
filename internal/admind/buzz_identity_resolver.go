@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 
@@ -12,6 +13,24 @@ import (
 )
 
 var errBuzzKeySeedMissing = errors.New("buzz key seed is not configured")
+
+// mattermostBotBuzzEmail returns the Mattermost bot account's own email so that
+// the bot's mirrored posts resolve to its Buzz bootstrap identity — the same key
+// chatd signs the bot's own traffic with — instead of a per-email person key.
+func (service *Service) mattermostBotBuzzEmail(ctx context.Context) string {
+	service.botBuzzEmailOnce.Do(func() {
+		token, errorValue := service.mattermostBotToken()
+		if errorValue != nil {
+			return
+		}
+		var userRecord mattermostUserRecord
+		if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", token, nil, &userRecord); errorValue != nil {
+			return
+		}
+		service.botBuzzEmailValue = strings.ToLower(strings.TrimSpace(userRecord.Email))
+	})
+	return service.botBuzzEmailValue
+}
 
 func (service *Service) buzzKeySeed() string {
 	service.buzzKeySeedOnce.Do(func() {
@@ -37,6 +56,9 @@ func (service *Service) personBuzzSecret(ctx context.Context, email string) (str
 	seed := service.buzzKeySeed()
 	if seed == "" {
 		return "", errBuzzKeySeedMissing
+	}
+	if botEmail := service.mattermostBotBuzzEmail(ctx); botEmail != "" && strings.EqualFold(strings.TrimSpace(email), botEmail) {
+		return buzzidentity.Secret(seed, buzzidentity.BootstrapSubject), nil
 	}
 	subject := service.buzzVaultSubject(ctx, email)
 	version := service.buzzIdentityVersion(subject)

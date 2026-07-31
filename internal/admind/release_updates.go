@@ -281,6 +281,14 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 	if errorValue := service.installReleaseBlueclawPayload(ctx, jobID, stagingPath); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := service.installReleaseBinary(stagingPath, "chatd", blueclawruntime.ChatdBinaryPath); errorValue != nil {
+		return errorValue
+	}
+	if _, hasChatd := manifest.Components["chatd"]; hasChatd {
+		if errorValue := service.restartReleaseChatd(ctx); errorValue != nil {
+			return errorValue
+		}
+	}
 	if errorValue := service.installReleaseBinary(stagingPath, "admind", blueclawruntime.AdmindBinaryPath); errorValue != nil {
 		return errorValue
 	}
@@ -571,6 +579,28 @@ func releaseLLMDLocalOnly(runtimeConfigurationPath string) (bool, error) {
 		return *runtimeConfiguration.Capabilities.Routing.LocalOnly, nil
 	}
 	return false, nil
+}
+
+func (service *Service) restartReleaseChatd(ctx context.Context) error {
+	if output, errorValue := service.runCommand(ctx, "systemctl", "restart", blueclawruntime.ChatdServiceName); errorValue != nil {
+		return fmt.Errorf("restart chatd: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	lastOutput := ""
+	for attempt := 0; attempt < 10; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(3 * time.Second):
+			}
+		}
+		output, errorValue := service.runCommand(ctx, "systemctl", "is-active", blueclawruntime.ChatdServiceName)
+		lastOutput = strings.TrimSpace(string(output))
+		if errorValue == nil && lastOutput == "active" {
+			return nil
+		}
+	}
+	return fmt.Errorf("chatd did not become active: %s", lastOutput)
 }
 
 func (service *Service) restartReleaseLLMD(ctx context.Context) error {
