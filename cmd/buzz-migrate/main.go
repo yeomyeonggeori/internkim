@@ -42,6 +42,8 @@ func main() {
 	orphanRootTitle := flag.String("orphan-root-title", "", "when set, replies whose Mattermost root was not imported are threaded under one synthesized root message carrying this title, per original root; otherwise such replies are skipped")
 	fileCacheDir := flag.String("file-cache-dir", "", "directory of {fileID}.{jpg|png} images used as a fallback when the Mattermost server no longer serves a file")
 	sinceMillis := flag.Int64("since", 0, "when >0, import only Mattermost posts created after this unix-millis timestamp (incremental sync; skips the wipe)")
+	repairOrphans := flag.Bool("repair-orphan-roots", false, "re-link replies stranded under synthetic '이전 대화' roots onto their real imported root; no wipe, no membership change")
+	applyRepair := flag.Bool("apply", false, "with --repair-orphan-roots, apply the changes; otherwise dry-run")
 	flag.Parse()
 
 	channelFilter := map[string]bool{}
@@ -102,6 +104,30 @@ func main() {
 		publisher, errorValue = relaypublish.Connect(ctx, *relayURL, bootstrapSecret)
 		failOn(errorValue, "connect relay")
 		defer publisher.Close()
+	}
+
+	if *repairOrphans {
+		totalRelinked := 0
+		totalRoots := 0
+		for _, restChannel := range channels {
+			channel := restChannel.ToImport()
+			if len(channelFilter) > 0 && !channelFilter[channel.Name] {
+				continue
+			}
+			buzzChannelID := deriveChannelID(*keySeed, channel.ID)
+			posts, errorValue := client.Posts(ctx, channel.ID, 0)
+			failOn(errorValue, "read posts for "+channel.Name)
+			relinked, roots := repairChannelOrphans(ctx, buzzDatabase, communityID, buzzChannelID, bootstrapPubkey, posts, authorPubkeys, *applyRepair)
+			totalRelinked += relinked
+			totalRoots += roots
+			fmt.Printf("%-24s relinked=%d synthetic_roots=%d\n", channel.Name, relinked, roots)
+		}
+		mode := "dry-run"
+		if *applyRepair {
+			mode = "APPLIED"
+		}
+		fmt.Printf("repair done (%s): %d replies re-linked, %d synthetic roots resolved\n", mode, totalRelinked, totalRoots)
+		return
 	}
 
 	totalImported := 0

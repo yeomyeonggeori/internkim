@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply":
 		return true
 	default:
 		return false
@@ -145,6 +145,14 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		restoreContext, cancelRestore := context.WithTimeout(context.Background(), 300*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(restoreContext, "restore buzz relay database from snapshot", "sh", "-lc", buzzRestoreCommand()))
 		cancelRestore()
+	case "buzz-repair-dryrun":
+		dryContext, cancelDry := context.WithTimeout(context.Background(), 200*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(dryContext, "dry-run orphan-root repair", "sh", "-lc", buzzRepairCommand(false)))
+		cancelDry()
+	case "buzz-repair-apply":
+		applyContext, cancelApply := context.WithTimeout(context.Background(), 200*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(applyContext, "apply orphan-root repair", "sh", "-lc", buzzRepairCommand(true)))
+		cancelApply()
 	case "buzz-snapshot":
 		snapshotContext, cancelSnapshot := context.WithTimeout(context.Background(), 180*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(snapshotContext, "snapshot buzz relay database", "sh", "-lc", buzzSnapshotCommand()))
@@ -644,6 +652,37 @@ for attempt in $(seq 1 40); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRe
 systemctl start ` + blueclaw.ChatdServiceName + `
 echo "restored from snapshot; relay+chatd started"
 su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"SELECT count(*) FROM events WHERE kind=9\"" | sed 's/^/kind9 events: /'
+`)
+}
+
+func buzzRepairCommand(apply bool) string {
+	applyFlag := ""
+	if apply {
+		applyFlag = " --apply"
+	}
+	return strings.TrimSpace(`
+set -e
+MM_TOKEN=$(cat ` + blueclaw.BlueclawMattermostTokenPath + `)
+SEED=$(cat /root/.internkim/secrets/buzz-key-seed)
+DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
+TEAM=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
+DEVICE_HOST=$(sed -E 's#^[a-z]+://##; s#/.*$##' ` + blueclaw.DeviceURLFilePath + `)
+case "$DEVICE_HOST" in
+  *.*) PUBLIC_HOST=$(printf '%s' "$DEVICE_HOST" | sed -E 's/\./-relay./') ;;
+  *) PUBLIC_HOST="${DEVICE_HOST}-relay" ;;
+esac
+export DATABASE_URL="$DB_URL"
+` + blueclaw.BuzzMigrateBinaryPath + ` \
+  --mattermost-url ` + blueclaw.BlueclawMattermostLocalURL + ` \
+  --mattermost-token "$MM_TOKEN" \
+  --team "$TEAM" \
+  --buzz-database-url "$DB_URL" \
+  --buzz-admin ` + blueclaw.BuzzAdminBinaryPath + ` \
+  --key-seed "$SEED" \
+  --relay-url wss://$PUBLIC_HOST \
+  --relay-http-url https://$PUBLIC_HOST \
+  --community-host $PUBLIC_HOST \
+  --repair-orphan-roots` + applyFlag + ` 2>&1 | tail -60
 `)
 }
 
