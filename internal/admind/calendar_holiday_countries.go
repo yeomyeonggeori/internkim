@@ -41,7 +41,7 @@ func (service *Service) ensureCalendarHolidayCountries(ctx context.Context, curr
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	if found && len(cachedCountries) > 0 && calendarHolidaySourceIsFresh(state.LastSyncedAt, currentTime, calendarHolidayCacheTTL) {
+	if found && len(cachedCountries) > 0 && calendarHolidaySourceIsFresh(state.LastSyncedAt, currentTime, calendarHolidayCountryCacheTTL) {
 		return cachedCountries, nil
 	}
 	countries, errorValue := service.fetchNagerCalendarHolidayCountriesWithRetry(ctx)

@@ -52,8 +52,6 @@ func isOperationsAdminPath(method string, path string) bool {
 		return true
 	case method == http.MethodGet && path == "/holiday-countries":
 		return true
-	case method == http.MethodPost && path == "/holiday-sync/refresh":
-		return true
 	case method == http.MethodGet && path == "/attendance-locations":
 		return true
 	case method == http.MethodPut && path == "/attendance-locations":

@@ -100,6 +100,7 @@ func (service *Service) updateWorkspaceSettings(responseWriter http.ResponseWrit
 	}
 	languageChanged := previousSettings.Language != settings.Language
 	if countryChanged {
+		service.clearCalendarHolidayMemoryCache()
 		if errorValue := service.refreshCalendarHolidayCache(request.Context(), currentTime); errorValue != nil {
 			slog.WarnContext(request.Context(), "calendar holiday refresh after country change failed",
 				"country_code", settings.CountryCode,

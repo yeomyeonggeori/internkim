@@ -140,6 +140,9 @@ type Service struct {
 	calendarNotificationGroup  sync.WaitGroup
 	calendarSwitchWaiters      atomic.Int64
 	calendarStoreWriteMutex    sync.Mutex
+	calendarHolidayCacheMutex  sync.RWMutex
+	calendarHolidayLoadMutex   sync.Mutex
+	calendarHolidayCache       map[calendarHolidayCacheKey][]calendarHoliday
 	calendarCandidateClock     calendarConflictCandidateClock
 	calendarPullCacheMutex     sync.Mutex
 	lastCalendarPullAt         time.Time
@@ -341,6 +344,7 @@ func NewService(configuration Configuration) *Service {
 		calendarDeleteIntentWakeUp: make(chan struct{}, 1),
 		calendarNotificationStates: map[string]*calendarNotificationReconciliationState{},
 		calendarActorCache:         map[string]calendarActorProfileCacheEntry{},
+		calendarHolidayCache:       map[calendarHolidayCacheKey][]calendarHoliday{},
 		companyShareAttempts:       map[string]companyShareAttempt{},
 		requestMetrics:             newAdminRequestMetrics(),
 		databaseSchemas:            newAdminDatabaseSchemas(),
@@ -383,6 +387,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startCalendarNotificationWorker(ctx)
 	service.startCalendarDeleteIntentWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
+	service.startCalendarHolidayScheduler(ctx)
 	service.startSoftDeletedMattermostPostPurge(ctx)
 	service.startSiteRuntimeJanitor(ctx)
 	service.startScheduledBackups(ctx)
@@ -965,8 +970,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.updateWorkspaceSettings(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/holiday-countries":
 		service.serveCalendarHolidayCountries(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/holiday-sync/refresh":
-		service.refreshCalendarHolidays(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/company-share":
 		service.writeCompanyShareSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/company-share":

@@ -57,8 +57,8 @@ func TestCalendarHolidaysUseCachedCountryAPIResponseWithConnectedGoogleAccount(t
 	if len(first.Holidays) != 1 || first.Holidays[0].Title != "새해 첫날" || !first.Holidays[0].ReadOnly {
 		t.Fatalf("first holidays = %#v", first.Holidays)
 	}
-	if requestCount.Load() != 2 {
-		t.Fatalf("API request count = %d, want current and next year once", requestCount.Load())
+	if requestCount.Load() != 1 {
+		t.Fatalf("API request count = %d, want requested year once", requestCount.Load())
 	}
 }
 
@@ -95,11 +95,9 @@ func TestCalendarHolidayRefreshPreloadsCurrentAndNextYearForChangedCountry(t *te
 		t.Fatalf("refresh calendar holidays: %v", errorValue)
 	}
 
-	if len(requestPaths) != calendarHolidayPreloadYears*len([...]string{workspaceLanguageKorean, workspaceLanguageEnglish}) ||
+	if len(requestPaths) != calendarHolidayPreloadYears ||
 		!strings.Contains(requestPaths[0], "/2026/US") ||
-		!strings.Contains(requestPaths[1], "/2027/US") ||
-		!strings.Contains(requestPaths[2], "/2026/US") ||
-		!strings.Contains(requestPaths[3], "/2027/US") {
+		!strings.Contains(requestPaths[1], "/2027/US") {
 		t.Fatalf("holiday request paths = %#v", requestPaths)
 	}
 	holidays, errorValue := service.readCalendarHolidays(
@@ -157,7 +155,7 @@ func TestWorkspaceCountryUpdateRefreshesHolidaysWithoutMattermost(t *testing.T) 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
-	if len(holidayRequestPaths) != calendarHolidayPreloadYears*len([...]string{workspaceLanguageKorean, workspaceLanguageEnglish}) {
+	if len(holidayRequestPaths) != calendarHolidayPreloadYears {
 		t.Fatalf("holiday request paths = %#v", holidayRequestPaths)
 	}
 	settings, errorValue := service.readWorkspaceSettings()
@@ -203,7 +201,7 @@ func TestWorkspaceSettingsUpdateDoesNotRequireHolidayAPIWhenCountryIsUnchanged(t
 	}
 }
 
-func TestCalendarHolidaysServeCachedResponseWhenCountryAPIFails(t *testing.T) {
+func TestCalendarHolidaysDoNotRefreshStoredResponseOnRead(t *testing.T) {
 	service := newCalendarTestService(t)
 	currentTime := time.Now().UTC()
 	sourceKey := "KR:" + currentTime.Format("2006") + ":" + workspaceLanguageKorean
@@ -246,8 +244,8 @@ func TestCalendarHolidaysServeCachedResponseWhenCountryAPIFails(t *testing.T) {
 	if len(response.Holidays) != 1 || response.Holidays[0].Title != "새해 첫날" {
 		t.Fatalf("holidays = %#v", response.Holidays)
 	}
-	if requestCount.Load() != calendarHolidayMaximumAttempts {
-		t.Fatalf("API request count = %d, want %d", requestCount.Load(), calendarHolidayMaximumAttempts)
+	if requestCount.Load() != 0 {
+		t.Fatalf("API request count = %d, want none", requestCount.Load())
 	}
 }
 
