@@ -4,7 +4,7 @@ export type CalendarHoliday = {
 	id: string;
 	title: string;
 	date: string;
-	source: 'holiday_api';
+	source: 'holiday_api' | 'company';
 	countryCode?: string;
 	readOnly: true;
 	color: string;

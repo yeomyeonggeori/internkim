@@ -3,7 +3,11 @@ import { adminApiFetch } from '../../src/lib/admin-api';
 import {
 	AdminApiError,
 	apiErrorMessage,
+	createCompanyHoliday,
+	deleteCompanyHoliday,
 	fetchAttendanceLeavePolicy,
+	fetchCompanyHolidays,
+	updateCompanyHoliday,
 	updateAttendanceLeavePolicy
 } from '../../src/routes/admin/admin-api';
 
@@ -93,6 +97,64 @@ describe('attendance leave policy API', () => {
 		const policy = { version: 2 as const, balanceTrackingMode: 'managed' as const, fiscalYearStartMonth: 1, fiscalYearStartDay: 1, leaveTypes: [], updatedAt: '' };
 		globalThis.fetch = (async (input, init) => { expect(input).toBe('/admin/api/attendance-leave-policy'); expect(init?.method).toBe('PUT'); expect(init?.body).toBe(JSON.stringify(policy)); return new Response(JSON.stringify(policy)); }) as typeof fetch;
 		expect(await updateAttendanceLeavePolicy('/admin/api', policy, 'save failed')).toEqual(policy);
+		restoreGlobals();
+	});
+});
+
+describe('company holiday API', () => {
+	const holiday = {
+		id: 'company-holiday-1',
+		title: '창립기념일',
+		date: '2026-09-18',
+		recursAnnually: true,
+		createdAt: '2026-07-31T00:00:00Z',
+		updatedAt: '2026-07-31T00:00:00Z'
+	};
+
+	test('lists company holidays', async () => {
+		globalThis.fetch = (async (input, init) => {
+			expect(input).toBe('/admin/api/company-holidays');
+			expect(init?.credentials).toBe('include');
+			return new Response(JSON.stringify({ holidays: [holiday] }));
+		}) as typeof fetch;
+
+		expect(await fetchCompanyHolidays('/admin/api', 'load failed')).toEqual({
+			holidays: [holiday]
+		});
+		restoreGlobals();
+	});
+
+	test('creates and updates company holidays', async () => {
+		const input = { title: holiday.title, date: holiday.date, recursAnnually: true };
+		let requestIndex = 0;
+		globalThis.fetch = (async (url, init) => {
+			if (requestIndex === 0) {
+				expect(url).toBe('/admin/api/company-holidays');
+				expect(init?.method).toBe('POST');
+			} else {
+				expect(url).toBe('/admin/api/company-holidays/company-holiday-1');
+				expect(init?.method).toBe('PUT');
+			}
+			expect(init?.body).toBe(JSON.stringify(input));
+			requestIndex += 1;
+			return new Response(JSON.stringify(holiday));
+		}) as typeof fetch;
+
+		expect(await createCompanyHoliday('/admin/api', input, 'save failed')).toEqual(holiday);
+		expect(
+			await updateCompanyHoliday('/admin/api', holiday.id, input, 'save failed')
+		).toEqual(holiday);
+		restoreGlobals();
+	});
+
+	test('deletes company holidays', async () => {
+		globalThis.fetch = (async (input, init) => {
+			expect(input).toBe('/admin/api/company-holidays/company-holiday-1');
+			expect(init?.method).toBe('DELETE');
+			return new Response(null, { status: 204 });
+		}) as typeof fetch;
+
+		await deleteCompanyHoliday('/admin/api', holiday.id, 'delete failed');
 		restoreGlobals();
 	});
 });

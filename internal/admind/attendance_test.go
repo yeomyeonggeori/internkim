@@ -132,6 +132,10 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 				}
 			}
 			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case strings.Contains(request.URL.Path, "/api/v3/PublicHolidays/"):
+			segments := strings.Split(strings.Trim(request.URL.Path, "/"), "/")
+			year := segments[len(segments)-2]
+			return calendarHolidayTestResponse(request, workspaceDefaultCountryCode, year), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil

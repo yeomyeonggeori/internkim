@@ -214,6 +214,21 @@ export type AttendanceLeavePolicy = {
 	updatedAt: string;
 };
 
+export type CompanyHoliday = {
+	id: string;
+	title: string;
+	date: string;
+	recursAnnually: boolean;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type CompanyHolidayInput = Pick<CompanyHoliday, 'title' | 'date' | 'recursAnnually'>;
+
+export type CompanyHolidaysResponse = {
+	holidays: CompanyHoliday[];
+};
+
 export type WifiProfile = {
 	name: string;
 	ssid: string;
