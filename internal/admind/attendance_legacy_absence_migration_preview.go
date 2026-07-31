@@ -10,8 +10,6 @@ import (
 )
 
 const (
-	attendanceLegacyLeaveTypeID      = "legacy-leave"
-	attendanceLegacyLeaveTypeName    = "Legacy leave"
 	attendanceLegacyMigrationApplied = "applied"
 	attendanceLegacyMigrationRolled  = "rolledBack"
 )

@@ -44,6 +44,8 @@ func (service *Service) writeAttendanceLeaveApprovalDecision(
 		writeAttendanceLeaveRequestError(responseWriter, attendanceLeaveInvalidInputError(errorValue))
 		return
 	}
+	service.attendanceLeavePolicyMutationMutex.Lock()
+	defer service.attendanceLeavePolicyMutationMutex.Unlock()
 	view, errorValue := service.decideAttendanceLeaveRequest(
 		request.Context(),
 		requestID,

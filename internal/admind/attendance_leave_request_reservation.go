@@ -9,11 +9,13 @@ import (
 	"time"
 )
 
-func reserveAttendanceLeaveRequestOccurrencesInTransaction(
+func (service *Service) reserveAttendanceLeaveRequestOccurrencesInTransaction(
 	ctx context.Context,
 	transaction *sql.Tx,
 	operation attendanceLeaveOperation,
 	occurrences []attendanceLeaveRequestOccurrence,
+	policy attendanceLeavePolicy,
+	excludedRequestID string,
 ) (attendanceLeaveBalance, error) {
 	orderedOccurrences := slices.Clone(occurrences)
 	slices.SortFunc(
@@ -59,6 +61,9 @@ func reserveAttendanceLeaveRequestOccurrencesInTransaction(
 			transaction,
 			operation,
 			occurrence,
+			service,
+			policy,
+			excludedRequestID,
 		)
 		if errorValue != nil {
 			return attendanceLeaveBalance{}, errorValue
@@ -125,6 +130,9 @@ func attendanceLeaveRequestOccurrenceAllocations(
 	transaction *sql.Tx,
 	operation attendanceLeaveOperation,
 	occurrence attendanceLeaveRequestOccurrence,
+	service *Service,
+	policy attendanceLeavePolicy,
+	excludedRequestID string,
 ) ([]attendanceLeaveReservationAllocation, error) {
 	rows, errorValue := transaction.QueryContext(ctx, `
 SELECT id, available_milli_days
@@ -144,23 +152,59 @@ ORDER BY expires_on IS NULL, expires_on, granted_on, id`,
 		return nil, errorValue
 	}
 	defer rows.Close()
-	remaining := occurrence.DeductionMilliDays
-	allocations := []attendanceLeaveReservationAllocation{}
-	for rows.Next() && remaining > 0 {
+	type availableGrantLot struct {
+		id        string
+		available int
+	}
+	grantLots := []availableGrantLot{}
+	totalAvailable := 0
+	for rows.Next() {
 		var allocation attendanceLeaveReservationAllocation
 		var available int
 		if errorValue := rows.Scan(&allocation.GrantLotID, &available); errorValue != nil {
 			return nil, errorValue
 		}
-		allocation.AmountMilliDays = min(available, remaining)
-		allocations = append(allocations, allocation)
-		remaining -= allocation.AmountMilliDays
+		grantLots = append(grantLots, availableGrantLot{id: allocation.GrantLotID, available: available})
+		totalAvailable += available
 	}
 	if errorValue := rows.Err(); errorValue != nil {
 		return nil, errorValue
 	}
-	if remaining != 0 {
+	occurrenceDate, errorValue := time.ParseInLocation(
+		time.DateOnly,
+		occurrence.Date,
+		service.workspaceTimeZone().location,
+	)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	untrackedUsage, errorValue := service.attendanceLeaveUntrackedUsageForAccount(
+		ctx,
+		transaction,
+		operation.Employee.Email,
+		operation.LeaveTypeID,
+		policy,
+		occurrenceDate,
+		excludedRequestID,
+	)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if totalAvailable-untrackedUsage < occurrence.DeductionMilliDays {
 		return nil, errAttendanceLeaveInsufficientBalance
+	}
+	remaining := occurrence.DeductionMilliDays
+	allocations := []attendanceLeaveReservationAllocation{}
+	for _, grantLot := range grantLots {
+		if remaining == 0 {
+			break
+		}
+		amount := min(grantLot.available, remaining)
+		allocations = append(allocations, attendanceLeaveReservationAllocation{
+			GrantLotID:      grantLot.id,
+			AmountMilliDays: amount,
+		})
+		remaining -= amount
 	}
 	return allocations, nil
 }

@@ -80,7 +80,7 @@ WHERE operation_key = ?
 			operationKey,
 			attendanceLeaveOperationUntrackedUse,
 			requestID,
-			attendanceLegacyLeaveTypeID,
+			attendanceAnnualLeaveTypeID,
 		)
 		if errorValue != nil {
 			return attendanceLegacyAbsenceMigrationBatch{}, errorValue
@@ -99,7 +99,7 @@ WHERE operation_key = ?
 DELETE FROM attendance_leave_requests
 WHERE id = ? AND leave_type_id = ?`,
 			requestID,
-			attendanceLegacyLeaveTypeID,
+			attendanceAnnualLeaveTypeID,
 		)
 		if errorValue != nil {
 			return attendanceLegacyAbsenceMigrationBatch{}, errorValue

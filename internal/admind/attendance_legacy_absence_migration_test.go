@@ -18,6 +18,21 @@ func TestAttendanceLegacyAbsenceMigrationPreservesSourceAndSupportsRollback(
 	service, _ := newAttendanceActionTestService(t)
 	ctx := t.Context()
 	employeeUserIDs := attendanceLegacyAbsenceMigrationTestEmployeeUserIDs()
+	if _, errorValue := service.grantAttendanceLeave(ctx, attendanceLeaveGrant{
+		Operation: attendanceLeaveOperation{
+			OperationKey: "grant-before-legacy-migration",
+			Employee: attendanceLeaveEmployee{
+				Email:  "staff@example.com",
+				UserID: "user-1",
+			},
+			LeaveTypeID: attendanceAnnualLeaveTypeID,
+			Amount:      3000,
+			EffectiveOn: "2026-01-01",
+		},
+		ExpiresOn: "2027-01-01",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	leaveRangeID := insertLegacyAttendanceAbsenceForMigration(
 		t,
 		service,
@@ -136,8 +151,8 @@ WHERE id = ?`,
 	); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if leaveTypeID != attendanceLegacyLeaveTypeID ||
-		leaveTypeName != attendanceLegacyLeaveTypeName ||
+	if leaveTypeID != attendanceAnnualLeaveTypeID ||
+		leaveTypeName != "연차" ||
 		userID != "user-1" ||
 		balanceMode != "none" ||
 		status != attendanceLeaveRequestStatusApproved ||
@@ -160,19 +175,19 @@ WHERE id = ?`,
 	if operationCount := attendanceMigrationTableCount(t, database, "attendance_leave_operations"); operationCount != initialOperationCount+1 {
 		t.Fatalf("leave operation count = %d, want %d", operationCount, initialOperationCount+1)
 	}
-	legacyBalance, errorValue := queryAttendanceLeaveBalance(
+	annualBalance, errorValue := queryAttendanceLeaveBalance(
 		ctx,
 		database,
 		attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"},
-		attendanceLegacyLeaveTypeID,
+		attendanceAnnualLeaveTypeID,
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if legacyBalance.AvailableMilliDays != 0 ||
-		legacyBalance.ReservedMilliDays != 0 ||
-		legacyBalance.UsedMilliDays != 2000 {
-		t.Fatalf("legacy balance = %+v", legacyBalance)
+	if annualBalance.AvailableMilliDays != 3000 ||
+		annualBalance.ReservedMilliDays != 0 ||
+		annualBalance.UsedMilliDays != 2000 {
+		t.Fatalf("annual balance = %+v", annualBalance)
 	}
 	var linkedRangeID string
 	if errorValue := database.QueryRowContext(ctx, `
@@ -196,8 +211,9 @@ WHERE request_id = ?`,
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if dashboard.Summary.UsedMilliDays != 2000 {
-		t.Fatalf("migrated dashboard used leave = %d, want 2000", dashboard.Summary.UsedMilliDays)
+	if dashboard.Summary.UsedMilliDays != 2000 ||
+		dashboard.Summary.AvailableMilliDays != 1000 {
+		t.Fatalf("migrated dashboard summary = %+v", dashboard.Summary)
 	}
 	policy := defaultAttendanceLeavePolicy()
 	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingUnlimited
