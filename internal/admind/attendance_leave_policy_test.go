@@ -436,12 +436,20 @@ func TestLeavePolicyAdminAPIArchivesUsedRemovedType(t *testing.T) {
 	t.Fatal("used removed type was deleted")
 }
 
-func TestLeavePolicyAdminAPIRejectsNonAdmins(t *testing.T) {
+func TestLeavePolicyAdminAPIAccessByRole(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	requestAttendanceLeavePolicy(t, service, http.MethodGet, "", "staff@example.com", http.StatusForbidden)
+	requestAttendanceLeavePolicyFromAddress(
+		t,
+		service,
+		http.MethodGet,
+		"",
+		"staff@example.com",
+		"127.0.0.1:1234",
+		http.StatusForbidden,
+	)
 
 	operationsAdminService := newOperationsAdminAuthorizationTestService(t)
-	requestAttendanceLeavePolicy(t, operationsAdminService, http.MethodGet, "", "operator@example.com", http.StatusForbidden)
+	requestAttendanceLeavePolicy(t, operationsAdminService, http.MethodGet, "", "operator@example.com", http.StatusOK)
 }
 
 func requestAttendanceLeavePolicy(
@@ -453,8 +461,29 @@ func requestAttendanceLeavePolicy(
 	expectedStatus int,
 ) attendanceLeavePolicy {
 	t.Helper()
+	return requestAttendanceLeavePolicyFromAddress(
+		t,
+		service,
+		method,
+		body,
+		email,
+		"198.51.100.10:443",
+		expectedStatus,
+	)
+}
+
+func requestAttendanceLeavePolicyFromAddress(
+	t *testing.T,
+	service *Service,
+	method string,
+	body string,
+	email string,
+	remoteAddress string,
+	expectedStatus int,
+) attendanceLeavePolicy {
+	t.Helper()
 	request := httptest.NewRequest(method, "/admin/api/attendance-leave-policy", strings.NewReader(body))
-	request.RemoteAddr = "198.51.100.10:443"
+	request.RemoteAddr = remoteAddress
 	request.Header.Set("Cf-Access-Authenticated-User-Email", email)
 	response := httptest.NewRecorder()
 	service.router().ServeHTTP(response, request)

@@ -11,7 +11,7 @@ func (service *Service) writeAttendanceLeaveApprovalInbox(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 ) {
-	if !service.isAuthorized(request) {
+	if !service.canManageAttendance(request) {
 		writeAttendanceLeaveRequestError(responseWriter, errAttendanceLeaveAccessDenied)
 		return
 	}
@@ -29,7 +29,7 @@ func (service *Service) writeAttendanceLeaveApprovalDecision(
 	request *http.Request,
 	requestID string,
 ) {
-	if !service.isAuthorized(request) {
+	if !service.canManageAttendance(request) {
 		writeAttendanceLeaveRequestError(responseWriter, errAttendanceLeaveAccessDenied)
 		return
 	}
