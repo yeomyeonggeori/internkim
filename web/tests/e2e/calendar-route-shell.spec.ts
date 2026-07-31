@@ -44,6 +44,14 @@ test.describe('calendar route shell', () => {
 							countryCode: 'KR',
 							readOnly: true,
 							color: '#ef4444'
+						},
+						{
+							id: 'company-holiday-2026-06-15',
+							title: '창립기념일',
+							date: '2026-06-15',
+							source: 'company',
+							readOnly: true,
+							color: '#ef4444'
 						}
 					],
 					source: 'holiday_api'
@@ -54,12 +62,26 @@ test.describe('calendar route shell', () => {
 		await page.goto('/calendar/embed');
 
 		const holiday = page.locator('[data-calendar-event-id="holiday-2026-06-15"]:visible').first();
+		const companyHoliday = page
+			.locator('[data-calendar-event-id="company-holiday-2026-06-15"]:visible')
+			.first();
+		const calendarEvent = page
+			.locator('[data-calendar-event-id="event-2026-06-15"]:visible')
+			.first();
 		await expect(holiday).toBeVisible();
+		await expect(companyHoliday).toBeVisible();
+		await expect(companyHoliday).toContainText('창립기념일');
 		await expect(holiday).toHaveClass(/bg-\(--calendar-event-color\)\/12/);
 		await expect(holiday).not.toHaveClass(/text-\(--calendar-event-color\)/);
 		await expect(holiday.locator('.calendar-event-accent')).toHaveCount(1);
 		await expect(holiday).toHaveAttribute('aria-disabled', 'true');
-		await holiday.click({ force: true });
+		await expect(companyHoliday).toHaveAttribute('aria-disabled', 'true');
+		const companyHolidayBox = await companyHoliday.boundingBox();
+		const calendarEventBox = await calendarEvent.boundingBox();
+		expect(companyHolidayBox).not.toBeNull();
+		expect(calendarEventBox).not.toBeNull();
+		expect(companyHolidayBox?.y ?? 0).toBeLessThan(calendarEventBox?.y ?? 0);
+		await companyHoliday.click({ force: true });
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
 		await holiday.click({ button: 'right', force: true });
