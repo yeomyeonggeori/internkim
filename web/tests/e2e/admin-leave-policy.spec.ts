@@ -1,6 +1,10 @@
 import { expect, type Page, test } from '@playwright/test';
 import { createDefaultAttendanceLeavePolicy } from '../../dev-attendance-leave-policy-mock';
-import type { AttendanceLeavePolicy } from '../../src/routes/admin/admin-types';
+import type {
+	AttendanceLeavePolicy,
+	CompanyHoliday,
+	CompanyHolidayInput
+} from '../../src/routes/admin/admin-types';
 import { mockBuzzDisabled } from './buzz-test-routes';
 
 type MockAdminRole = 'admin' | 'operationsAdmin';
@@ -21,6 +25,7 @@ async function mockAdminLeavePolicyPage(
 	locale: 'ko' | 'en' = 'ko'
 ) {
 	let policy = createDefaultAttendanceLeavePolicy();
+	let companyHolidays: CompanyHoliday[] = [];
 
 	await mockBuzzDisabled(page);
 	await page.route('**/admin/api/session', async (route) => {
@@ -64,6 +69,33 @@ async function mockAdminLeavePolicyPage(
 			};
 		}
 		await route.fulfill({ json: policy });
+	});
+	await page.route('**/admin/api/company-holidays**', async (route) => {
+		const request = route.request();
+		const holidayID = decodeURIComponent(
+			new URL(request.url()).pathname.split('/company-holidays/')[1] ?? ''
+		);
+		if (request.method() === 'POST' || request.method() === 'PUT') {
+			const input = request.postDataJSON() as CompanyHolidayInput;
+			const saved: CompanyHoliday = {
+				id: holidayID || `company-holiday-${companyHolidays.length + 1}`,
+				...input,
+				createdAt: '2026-07-31T00:00:00Z',
+				updatedAt: '2026-07-31T00:00:00Z'
+			};
+			companyHolidays = [
+				...companyHolidays.filter((holiday) => holiday.id !== saved.id),
+				saved
+			];
+			await route.fulfill({ status: request.method() === 'POST' ? 201 : 200, json: saved });
+			return;
+		}
+		if (request.method() === 'DELETE') {
+			companyHolidays = companyHolidays.filter((holiday) => holiday.id !== holidayID);
+			await route.fulfill({ status: 204 });
+			return;
+		}
+		await route.fulfill({ json: { holidays: companyHolidays } });
 	});
 }
 
@@ -119,7 +151,9 @@ test.describe('admin leave policy settings', () => {
 		await expect(leavePolicySettings.getByText('허용 단위', { exact: true })).toHaveCount(0);
 		const editorScroll = leavePolicySettings.getByTestId('leave-policy-editor-scroll');
 		const editorFooter = leavePolicySettings.getByTestId('leave-policy-editor-footer');
+		const annualSettingsBox = await leavePolicySettings.boundingBox();
 		const annualFooterBox = await editorFooter.boundingBox();
+		expect(annualSettingsBox).not.toBeNull();
 		expect(annualFooterBox).not.toBeNull();
 		await expect(leavePolicySettings.getByTestId('leave-policy-editor-scroll-fade')).toBeVisible();
 		await editorScroll.evaluate((element) => {
@@ -133,9 +167,13 @@ test.describe('admin leave policy settings', () => {
 				hasText: '병가'
 			})
 		).toBeVisible();
+		const sickSettingsBox = await leavePolicySettings.boundingBox();
 		const sickFooterBox = await editorFooter.boundingBox();
+		expect(sickSettingsBox).not.toBeNull();
 		expect(sickFooterBox).not.toBeNull();
-		expect(Math.abs((sickFooterBox?.y ?? 0) - (annualFooterBox?.y ?? 0))).toBeLessThanOrEqual(1);
+		const annualFooterOffset = (annualFooterBox?.y ?? 0) - (annualSettingsBox?.y ?? 0);
+		const sickFooterOffset = (sickFooterBox?.y ?? 0) - (sickSettingsBox?.y ?? 0);
+		expect(Math.abs(sickFooterOffset - annualFooterOffset)).toBeLessThanOrEqual(1);
 		await expect(leavePolicySettings.getByTestId('leave-policy-editor-scroll-fade')).toHaveCount(0);
 		await leavePolicySettings.getByRole('button', { name: /^연차/ }).click();
 		const grantDaysInput = leavePolicySettings.getByLabel('연간 부여 일수');
@@ -228,6 +266,39 @@ test.describe('admin leave policy settings', () => {
 		await expect(page.getByRole('tab', { name: '근태 설정', exact: true })).toHaveCount(0);
 		await expect(page.locator('[data-slot="card-title"]', { hasText: '근태 설정' })).toHaveCount(0);
 		await expect(page.getByRole('tab', { name: '사용자' })).toBeVisible();
+	});
+
+	test('creates, edits, reloads, and deletes an annual company holiday', async ({ page }) => {
+		await mockAdminLeavePolicyPage(page, 'admin');
+		await page.goto('/settings/?fleet_id=demo&section=attendanceSettings');
+
+		const settings = page.getByTestId('company-holiday-settings');
+		await expect(settings.getByText('등록된 회사 휴일이 없습니다.')).toBeVisible();
+		await expect(settings.getByTestId('company-holiday-editor')).toHaveCount(0);
+		await settings.getByRole('button', { name: '휴일 추가' }).click();
+		await expect(settings.getByRole('button', { name: '휴일 추가' })).toHaveCount(0);
+		await expect(settings.getByText('회사 휴일 등록')).toBeVisible();
+		await settings.getByLabel('휴일명').fill('창립기념일');
+		await settings.getByLabel('날짜').fill('2026-09-18');
+		await settings.getByRole('switch', { name: '매년 반복' }).click();
+		await settings.getByRole('button', { name: '저장' }).click();
+
+		await expect(settings.getByText('창립기념일', { exact: true })).toBeVisible();
+		await expect(settings.getByText('9월 18일 · 매년 반복')).toBeVisible();
+		await expect(settings.getByRole('button', { name: '휴일 추가' })).toBeVisible();
+		await page.reload();
+		const reloadedSettings = page.getByTestId('company-holiday-settings');
+		await expect(reloadedSettings.getByText('창립기념일', { exact: true })).toBeVisible();
+
+		await reloadedSettings.getByRole('button', { name: '수정' }).click();
+		await reloadedSettings.getByLabel('휴일명').fill('회사 창립기념일');
+		await reloadedSettings.getByRole('button', { name: '저장' }).click();
+		await expect(reloadedSettings.getByText('회사 창립기념일')).toBeVisible();
+
+		await reloadedSettings.getByRole('button', { name: '수정' }).click();
+		await reloadedSettings.getByRole('button', { name: '삭제' }).click();
+		await page.getByRole('alertdialog').getByRole('button', { name: '삭제' }).click();
+		await expect(reloadedSettings.getByText('등록된 회사 휴일이 없습니다.')).toBeVisible();
 	});
 
 	test('saves the company-wide unlimited leave mode', async ({ page }) => {

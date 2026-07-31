@@ -20,18 +20,12 @@ type attendanceWorkSchedule struct {
 	FixedStartTime       string                              `json:"fixedStartTime"`
 	FixedEndTime         string                              `json:"fixedEndTime"`
 	BreakPeriods         []attendanceWorkScheduleBreakPeriod `json:"breakPeriods"`
-	Holidays             []attendanceWorkScheduleHoliday     `json:"holidays"`
 	UpdatedAt            string                              `json:"updatedAt"`
 }
 
 type attendanceWorkScheduleBreakPeriod struct {
 	StartTime string `json:"startTime"`
 	EndTime   string `json:"endTime"`
-}
-
-type attendanceWorkScheduleHoliday struct {
-	Date string `json:"date"`
-	Name string `json:"name"`
 }
 
 func defaultAttendanceWorkSchedule() attendanceWorkSchedule {
@@ -47,7 +41,6 @@ func defaultAttendanceWorkSchedule() attendanceWorkSchedule {
 			StartTime: "12:00",
 			EndTime:   "13:00",
 		}},
-		Holidays:  []attendanceWorkScheduleHoliday{},
 		UpdatedAt: "",
 	}
 }
