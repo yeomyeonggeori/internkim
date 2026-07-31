@@ -2,16 +2,16 @@ package admind
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 )
 
 const (
-	calendarHolidayCacheTTL        = 24 * time.Hour
-	calendarHolidayMaximumAttempts = 3
-	calendarHolidayPreloadYears    = 2
+	calendarHolidayCountryCacheTTL   = 24 * time.Hour
+	calendarHolidayMaximumAttempts   = 3
+	calendarHolidayPreloadYears      = 2
+	calendarHolidayMaximumRangeYears = 2
 )
 
 func (service *Service) serveCalendarHolidays(responseWriter http.ResponseWriter, request *http.Request) {
@@ -26,99 +26,42 @@ func (service *Service) serveCalendarHolidays(responseWriter http.ResponseWriter
 		return
 	}
 	locale := normalizeCalendarHolidayLocale(query.Get("locale"))
-	source, syncError := service.ensureCalendarHolidaysForRange(request.Context(), locale, startTime, endTime, time.Now().UTC())
 	countryCode := service.workspaceCountryCode()
-	workspaceLocation, _ := service.workspaceTimeLocation()
-	holidays, errorValue := service.readCalendarHolidays(
-		request.Context(),
-		source,
-		countryCode,
-		locale,
-		startTime.In(workspaceLocation).Format(time.DateOnly),
-		endTime.In(workspaceLocation).Format(time.DateOnly),
-	)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+	if !service.calendarHolidayRangeIsSupported(startTime, endTime) {
+		http.Error(responseWriter, "calendar holiday range cannot exceed two calendar years", http.StatusBadRequest)
 		return
 	}
-	if syncError != nil {
-		if len(holidays) == 0 {
-			http.Error(responseWriter, syncError.Error(), http.StatusBadGateway)
-			return
-		}
-		slog.WarnContext(request.Context(), "calendar holiday sync failed; serving cached holidays",
-			"source", source,
-			"country_code", countryCode,
-			"error", syncError,
-		)
-	}
-	service.writeJSON(responseWriter, calendarHolidaysResponse{Holidays: holidays, Source: source})
-}
-
-func (service *Service) refreshCalendarHolidays(responseWriter http.ResponseWriter, request *http.Request) {
-	currentTime := time.Now().UTC()
-	errorValue := service.refreshCalendarHolidayCache(request.Context(), currentTime)
+	holidays, errorValue := service.calendarHolidaysForRange(
+		request.Context(),
+		countryCode,
+		locale,
+		startTime,
+		endTime,
+		time.Now().UTC(),
+	)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	service.writeJSON(responseWriter, map[string]string{"source": calendarHolidaySourceAPI})
+	service.writeJSON(responseWriter, calendarHolidaysResponse{Holidays: holidays, Source: calendarHolidaySourceAPI})
 }
 
 func (service *Service) refreshCalendarHolidayCache(ctx context.Context, currentTime time.Time) error {
-	if errorValue := service.invalidateCalendarHolidaySyncState(ctx); errorValue != nil {
-		return errorValue
-	}
+	service.calendarHolidayLoadMutex.Lock()
+	defer service.calendarHolidayLoadMutex.Unlock()
+	return service.refreshCalendarHolidayCacheLocked(ctx, currentTime)
+}
+
+func (service *Service) refreshCalendarHolidayCacheLocked(ctx context.Context, currentTime time.Time) error {
 	startTime, endTime := service.calendarHolidayPreloadRange(currentTime)
-	for _, locale := range [...]string{workspaceLanguageKorean, workspaceLanguageEnglish} {
-		if errorValue := service.syncNagerCalendarHolidays(
-			ctx,
-			service.workspaceCountryCode(),
-			locale,
-			startTime,
-			endTime,
-			currentTime,
-		); errorValue != nil {
-			return errorValue
-		}
-	}
-	return nil
-}
-
-func (service *Service) invalidateCalendarHolidaySyncState(ctx context.Context) error {
-	service.calendarStoreWriteMutex.Lock()
-	defer service.calendarStoreWriteMutex.Unlock()
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	_, errorValue = database.ExecContext(ctx, `
-UPDATE calendar_holiday_sources
-SET last_synced_at = '', last_error = ''
-WHERE source_key <> ?`,
-		calendarHolidayCountriesSourceKey,
+	workspaceLocation, _ := service.workspaceTimeLocation()
+	return service.refreshNagerCalendarHolidayYears(
+		ctx,
+		service.workspaceCountryCode(),
+		startTime.In(workspaceLocation).Year(),
+		endTime.In(workspaceLocation).AddDate(0, 0, -1).Year(),
+		currentTime,
 	)
-	return errorValue
-}
-
-func (service *Service) ensureCalendarHolidaysForRange(
-	ctx context.Context,
-	locale string,
-	startTime time.Time,
-	endTime time.Time,
-	currentTime time.Time,
-) (string, error) {
-	countryCode := service.workspaceCountryCode()
-	preloadStart, preloadEnd := service.calendarHolidayPreloadRange(currentTime)
-	preloadError := service.syncNagerCalendarHolidays(ctx, countryCode, locale, preloadStart, preloadEnd, currentTime)
-	if !startTime.Before(preloadStart) && !endTime.After(preloadEnd) {
-		return calendarHolidaySourceAPI, preloadError
-	}
-	if errorValue := service.syncNagerCalendarHolidays(ctx, countryCode, locale, startTime, endTime, currentTime); errorValue != nil {
-		return calendarHolidaySourceAPI, errorValue
-	}
-	return calendarHolidaySourceAPI, preloadError
 }
 
 func normalizeCalendarHolidayLocale(locale string) string {
@@ -133,6 +76,13 @@ func (service *Service) calendarHolidayPreloadRange(currentTime time.Time) (time
 	currentYear := currentTime.In(workspaceLocation).Year()
 	startTime := time.Date(currentYear, time.January, 1, 0, 0, 0, 0, workspaceLocation)
 	return startTime, startTime.AddDate(calendarHolidayPreloadYears, 0, 0)
+}
+
+func (service *Service) calendarHolidayRangeIsSupported(startTime time.Time, endTime time.Time) bool {
+	workspaceLocation, _ := service.workspaceTimeLocation()
+	startYear := startTime.In(workspaceLocation).Year()
+	endYear := endTime.In(workspaceLocation).AddDate(0, 0, -1).Year()
+	return endYear-startYear+1 <= calendarHolidayMaximumRangeYears
 }
 
 func calendarHolidayRetryDelay(attempt int) time.Duration {

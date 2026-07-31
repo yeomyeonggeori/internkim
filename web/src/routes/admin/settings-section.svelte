@@ -14,7 +14,6 @@
 		fetchAttendanceLocations,
 		fetchHolidayCountries,
 		fetchWorkspaceSettings,
-		refreshCalendarHolidays,
 		updateAttendanceLocations,
 		updateWorkspaceSettings
 	} from './admin-api';
@@ -37,7 +36,6 @@
 	let isSavingWorkspaceSettings = $state(false);
 	let holidayCountries = $state<HolidayCountry[]>([]);
 	let isLoadingHolidayCountries = $state(false);
-	let isRefreshingCalendarHolidays = $state(false);
 	let attendanceLocations = $state<AttendanceLocation[]>([]);
 	let attendanceLocationsMessage = $state('');
 	let isLoadingAttendanceLocations = $state(false);
@@ -110,21 +108,6 @@
 			workspaceSettingsMessage = text.settings.loadError;
 		} finally {
 			isLoadingHolidayCountries = false;
-		}
-	}
-
-	async function refreshHolidays() {
-		if (!adminBaseURL) return;
-
-		isRefreshingCalendarHolidays = true;
-		workspaceSettingsMessage = '';
-		try {
-			await refreshCalendarHolidays(adminBaseURL, text.settings.holidayRefreshError);
-			workspaceSettingsMessage = text.settings.holidayRefreshSuccess;
-		} catch (error) {
-			workspaceSettingsMessage = apiErrorMessage(error, text.settings.holidayRefreshError);
-		} finally {
-			isRefreshingCalendarHolidays = false;
 		}
 	}
 
@@ -251,17 +234,7 @@
 			{/if}
 		</Field.Group>
 	</Card.Content>
-	<Card.Footer class="justify-between">
-		<Button
-			variant="outline"
-			disabled={!isDeviceReachable || isRefreshingCalendarHolidays}
-			onclick={refreshHolidays}
-		>
-			{#if isRefreshingCalendarHolidays}
-				<LoaderIcon class="size-4 animate-spin" />
-			{/if}
-			{text.settings.holidayRefresh}
-		</Button>
+	<Card.Footer class="justify-end">
 		<Button disabled={!isDeviceReachable || isLoadingWorkspaceSettings || isSavingWorkspaceSettings} onclick={saveWorkspaceSettings}>
 			{#if isSavingWorkspaceSettings}
 				<LoaderIcon class="size-4 animate-spin" />

@@ -44,6 +44,11 @@ type calendarHolidaySourceState struct {
 	LastError    string
 }
 
+type calendarHolidaySnapshot struct {
+	SourceKey string
+	Holidays  []storedCalendarHoliday
+}
+
 func (service *Service) readCalendarHolidays(
 	ctx context.Context,
 	source string,
@@ -96,6 +101,22 @@ func (service *Service) replaceCalendarHolidaySnapshot(
 	holidays []storedCalendarHoliday,
 	fetchedAt time.Time,
 ) error {
+	return service.replaceCalendarHolidaySnapshots(
+		ctx,
+		source,
+		[]calendarHolidaySnapshot{{SourceKey: sourceKey, Holidays: holidays}},
+		nil,
+		fetchedAt,
+	)
+}
+
+func (service *Service) replaceCalendarHolidaySnapshots(
+	ctx context.Context,
+	source string,
+	snapshots []calendarHolidaySnapshot,
+	states []calendarHolidaySourceState,
+	fetchedAt time.Time,
+) error {
 	service.calendarStoreWriteMutex.Lock()
 	defer service.calendarStoreWriteMutex.Unlock()
 	database, errorValue := service.openCalendarDatabase(ctx)
@@ -108,25 +129,43 @@ func (service *Service) replaceCalendarHolidaySnapshot(
 		return errorValue
 	}
 	defer transaction.Rollback()
-	if _, errorValue := transaction.ExecContext(ctx,
-		"DELETE FROM calendar_holidays WHERE source = ? AND source_key = ?",
-		source,
-		sourceKey,
-	); errorValue != nil {
-		return errorValue
-	}
-	for _, holiday := range holidays {
-		if _, errorValue := transaction.ExecContext(ctx, `
+	for _, snapshot := range snapshots {
+		if _, errorValue := transaction.ExecContext(ctx,
+			"DELETE FROM calendar_holidays WHERE source = ? AND source_key = ?",
+			source,
+			snapshot.SourceKey,
+		); errorValue != nil {
+			return errorValue
+		}
+		for _, holiday := range snapshot.Holidays {
+			if _, errorValue := transaction.ExecContext(ctx, `
 INSERT INTO calendar_holidays (
 	source, source_key, external_id, country_code, title, holiday_date, fetched_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			source,
-			sourceKey,
-			holiday.ExternalID,
-			holiday.CountryCode,
-			holiday.Title,
-			holiday.Date,
-			fetchedAt.UTC().Format(time.RFC3339),
+				source,
+				snapshot.SourceKey,
+				holiday.ExternalID,
+				holiday.CountryCode,
+				holiday.Title,
+				holiday.Date,
+				fetchedAt.UTC().Format(time.RFC3339),
+			); errorValue != nil {
+				return errorValue
+			}
+		}
+	}
+	for _, state := range states {
+		if _, errorValue := transaction.ExecContext(ctx, `
+INSERT INTO calendar_holiday_sources (
+	provider, source_key, last_synced_at, last_error
+) VALUES (?, ?, ?, ?)
+ON CONFLICT(provider, source_key) DO UPDATE SET
+	last_synced_at = excluded.last_synced_at,
+	last_error = excluded.last_error`,
+			state.Provider,
+			state.SourceKey,
+			state.LastSyncedAt,
+			state.LastError,
 		); errorValue != nil {
 			return errorValue
 		}

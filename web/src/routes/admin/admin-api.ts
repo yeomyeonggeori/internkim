@@ -92,14 +92,6 @@ export async function fetchHolidayCountries(adminBaseURL: string, fallbackMessag
 	return readJSON<HolidayCountriesResponse>(response, fallbackMessage);
 }
 
-export async function refreshCalendarHolidays(adminBaseURL: string, fallbackMessage: string): Promise<void> {
-	const response = await fetch(`${adminBaseURL}/holiday-sync/refresh`, {
-		method: 'POST',
-		credentials: 'include'
-	});
-	await readJSON<{ source: string }>(response, fallbackMessage);
-}
-
 export async function updateWorkspaceSettings(adminBaseURL: string, settings: WorkspaceSettings, fallbackMessage: string): Promise<WorkspaceSettings> {
 	const response = await fetch(`${adminBaseURL}/workspace-settings`, {
 		method: 'PUT',
