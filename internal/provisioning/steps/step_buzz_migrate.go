@@ -58,7 +58,9 @@ fi`
 }
 
 func buzzMigrateWipeCommand() string {
-	return `systemctl stop ` + blueclaw.BuzzRelayServiceName + `
+	return `systemctl stop ` + blueclaw.ChatdServiceName + ` 2>/dev/null || true
+echo "=== chatd stopped for re-import (prevents mirror interference) ==="
+systemctl stop ` + blueclaw.BuzzRelayServiceName + `
 {
   printf 'BUZZ_REQUIRE_RELAY_MEMBERSHIP=false\n'
   printf 'BUZZ_RATE_LIMIT_HUMAN_MESSAGES_PER_MIN=1000000\n'
@@ -104,7 +106,9 @@ export DATABASE_URL="$DB_URL"
   && touch ` + blueclaw.BuzzMigrateMarkerPath + ` && echo "MIGRATE_DONE_OK" || echo "MIGRATE_DONE_FAIL"
 rm -f ` + blueclaw.BuzzRelayImportOverrideEnvPath + `
 systemctl restart ` + blueclaw.BuzzRelayServiceName + `
-echo "MIGRATE_PRODUCTION_MODE_RESTORED"
+sleep 2
+systemctl start ` + blueclaw.ChatdServiceName + `
+echo "MIGRATE_PRODUCTION_MODE_RESTORED_AND_CHATD_STARTED"
 RUNEOF
 chmod 700 /tmp/buzz-migrate-run.sh
 echo "=== importing team: $TEAM (background) ==="
