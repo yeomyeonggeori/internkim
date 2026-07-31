@@ -5,6 +5,7 @@
 
 	type Props = {
 		actualMinutes: number;
+		provisionalMinutes: number;
 		paidLeaveMinutes: number;
 		creditedLeaveMinutes: number;
 		targetMinutes: number;
@@ -12,6 +13,7 @@
 
 	let {
 		actualMinutes,
+		provisionalMinutes,
 		paidLeaveMinutes,
 		creditedLeaveMinutes,
 		targetMinutes
@@ -22,7 +24,10 @@
 		Math.max(targetMinutes, 1) / (targetPosition / 100)
 	);
 	const actualBarMinutes = $derived(
-		Math.min(Math.max(actualMinutes, 0), visualCapacityMinutes)
+		Math.min(
+			Math.max(actualMinutes, 0) + Math.max(provisionalMinutes, 0),
+			visualCapacityMinutes
+		)
 	);
 	const leaveBarMinutes = $derived(
 		Math.min(
@@ -33,7 +38,7 @@
 	const actualWidth = $derived((actualBarMinutes / visualCapacityMinutes) * 100);
 	const leaveWidth = $derived((leaveBarMinutes / visualCapacityMinutes) * 100);
 	const barLabel = $derived(
-		`${text.workStatus.actual} ${formatWorkStatusDuration(actualMinutes, text)}, ${text.workStatus.leave} ${formatWorkStatusDuration(paidLeaveMinutes, text)}, ${text.workStatus.creditedLeave} ${formatWorkStatusDuration(creditedLeaveMinutes, text)}, ${text.workStatus.target} ${formatWorkStatusDuration(targetMinutes, text)}`
+		`${text.workStatus.actual} ${formatWorkStatusDuration(actualMinutes, text)}, ${text.workStatus.provisional} ${formatWorkStatusDuration(provisionalMinutes, text)}, ${text.workStatus.leave} ${formatWorkStatusDuration(paidLeaveMinutes, text)}, ${text.workStatus.creditedLeave} ${formatWorkStatusDuration(creditedLeaveMinutes, text)}, ${text.workStatus.target} ${formatWorkStatusDuration(targetMinutes, text)}`
 	);
 </script>
 
