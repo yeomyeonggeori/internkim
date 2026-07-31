@@ -289,6 +289,9 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 			return errorValue
 		}
 	}
+	if errorValue := service.installReleaseBinary(stagingPath, "buzzMigrate", blueclawruntime.BuzzMigrateBinaryPath); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := service.installReleaseBinary(stagingPath, "admind", blueclawruntime.AdmindBinaryPath); errorValue != nil {
 		return errorValue
 	}
