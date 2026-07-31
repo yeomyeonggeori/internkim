@@ -152,10 +152,20 @@ export type CredentialProvidersResponse = {
 };
 
 export type WorkspaceSettings = {
+	countryCode: string;
 	timeZone: string;
 	language: WorkspaceLanguage;
 	callingCode: string;
 	updatedAt?: string;
+};
+
+export type HolidayCountry = {
+	countryCode: string;
+	name: string;
+};
+
+export type HolidayCountriesResponse = {
+	countries?: HolidayCountry[];
 };
 
 export type AttendanceLocation = {

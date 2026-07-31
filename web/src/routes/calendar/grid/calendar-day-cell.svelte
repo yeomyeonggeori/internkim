@@ -9,6 +9,7 @@
 		isToday: boolean;
 		isOutsideMonth: boolean;
 		isSelected: boolean;
+		isHoliday: boolean;
 		addEventOnDay: (day: Date) => void;
 		selectDay: (day: Date) => void;
 		children: Snippet;
@@ -20,10 +21,13 @@
 		isToday,
 		isOutsideMonth,
 		isSelected,
+		isHoliday,
 		addEventOnDay,
 		selectDay,
 		children
 	}: CalendarDayCellProps = $props();
+
+	const isRedDate = $derived(day.getDay() === 0 || day.getDay() === 6 || isHoliday);
 </script>
 
 <div
@@ -49,7 +53,9 @@
 		class={cn(
 			'flex size-6 shrink-0 items-center justify-center self-start rounded-full text-xs font-medium tabular-nums',
 			isOutsideMonth && !isToday && 'opacity-40',
-			isToday && 'bg-primary text-primary-foreground'
+			!isToday && isRedDate && 'text-destructive',
+			isToday && !isRedDate && 'bg-primary text-primary-foreground',
+			isToday && isRedDate && 'bg-destructive text-destructive-foreground'
 		)}
 	>
 		{dayLabel}

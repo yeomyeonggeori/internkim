@@ -173,8 +173,15 @@
 		if (!(event.target instanceof Element) || isReplayedContextMenuEvent(event)) return;
 		const eventElement = event.target.closest<HTMLElement>('[data-calendar-event-id], [data-event-id], .df-event, .df-month-segment-event');
 		const dayElement = event.target.closest<HTMLElement>('[data-calendar-date], [data-date]');
+		const eventID = eventElement?.dataset.calendarEventId ?? eventElement?.dataset.eventId ?? '';
+		if (gridEvents.find((calendarEvent) => calendarEvent.id === eventID)?.readOnly) {
+			contextTarget = null;
+			event.preventDefault();
+			event.stopPropagation();
+			return;
+		}
 		contextTarget = {
-			eventID: eventElement?.dataset.calendarEventId ?? eventElement?.dataset.eventId ?? '',
+			eventID,
 			dateKey: dayElement?.dataset.calendarDate ?? dayElement?.dataset.date ?? '',
 			anchor: { clientX: event.clientX, clientY: event.clientY }
 		};
