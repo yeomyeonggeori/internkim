@@ -8,11 +8,12 @@ import (
 
 // The messenger backend mints blob URLs at its own origin (the device
 // loopback), which a browser can never reach. Every media URL handed to the web
-// is rewritten to this backend-neutral prefix and served back through admind on
-// the public domain, which then fetches the blob from the loopback backend on
-// the browser's behalf. The rewrite is absolute (device origin + prefix) so the
-// URL resolves regardless of which page or origin renders it.
-const mediaProxyPrefix = "/media/"
+// is rewritten to this prefix and served back through admind on the public
+// domain, which then fetches the blob from the loopback backend on the
+// browser's behalf. The rewrite is absolute (device origin + prefix) so the URL
+// resolves regardless of which page or origin renders it. The prefix stays
+// /buzz-media/ until the public gateway routes a neutral /media/ prefix too.
+const mediaProxyPrefix = "/buzz-media/"
 
 func (service *Service) buzzMediaOrigin() string {
 	relayURL := strings.TrimSpace(service.Configuration.BuzzRelayURL)
