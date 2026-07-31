@@ -150,6 +150,8 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 	switch {
 	case request.Method == http.MethodGet && path == "/events":
 		service.listCalendarEvents(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/holidays":
+		service.serveCalendarHolidays(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/events/search":
 		service.searchCalendarEventCandidates(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/participants":

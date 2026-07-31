@@ -142,6 +142,8 @@ export const adminText = {
 			settings: {
 			title: '작업공간 설정',
 			description: '근태와 운영 화면에서 사용할 작업공간 설정입니다.',
+			country: '회사 국가',
+			countryDescription: '선택한 회사 국가를 기준으로 공휴일을 자동 표시하고 매월 최신 정보로 업데이트합니다.',
 			timeZone: '시간대',
 			timeZonePlaceholder: 'system 또는 Asia/Seoul',
 			timeZoneHint: '비워두거나 system으로 두면 기기 설정을 사용합니다. IANA timezone만 저장됩니다.',
@@ -466,6 +468,8 @@ export const adminText = {
 		settings: {
 			title: 'Workspace Settings',
 			description: 'Workspace settings used by attendance and operations screens.',
+			country: 'Company country',
+			countryDescription: 'Public holidays are shown for the selected company country and updated automatically each month.',
 			timeZone: 'Time zone',
 			timeZonePlaceholder: 'system or Asia/Seoul',
 			timeZoneHint: 'Leave empty or set system to use the device setting. Only IANA time zones are saved.',

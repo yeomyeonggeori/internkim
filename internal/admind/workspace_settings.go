@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,6 +16,7 @@ import (
 )
 
 type workspaceSettings struct {
+	CountryCode string `json:"countryCode"`
 	TimeZone    string `json:"timeZone"`
 	Language    string `json:"language"`
 	CallingCode string `json:"callingCode"`
@@ -24,11 +26,13 @@ type workspaceSettings struct {
 const (
 	workspaceLanguageKorean     = "ko"
 	workspaceLanguageEnglish    = "en"
+	workspaceDefaultCountryCode = "KR"
 	workspaceDefaultCallingCode = "82"
 )
 
 func defaultWorkspaceSettings() workspaceSettings {
 	return workspaceSettings{
+		CountryCode: workspaceDefaultCountryCode,
 		TimeZone:    workspaceBusinessTimeZone,
 		Language:    workspaceLanguageKorean,
 		CallingCode: workspaceDefaultCallingCode,
@@ -43,6 +47,14 @@ func (service *Service) workspaceCallingCode() string {
 	return normalizeWorkspaceSettingsWithoutValidation(settings).CallingCode
 }
 
+func (service *Service) workspaceCountryCode() string {
+	settings, errorValue := service.readWorkspaceSettings()
+	if errorValue != nil {
+		return workspaceDefaultCountryCode
+	}
+	return normalizeWorkspaceSettingsWithoutValidation(settings).CountryCode
+}
+
 func (service *Service) writeWorkspaceSettings(responseWriter http.ResponseWriter) {
 	settings, errorValue := service.readWorkspaceSettings()
 	if errorValue != nil {
@@ -53,6 +65,11 @@ func (service *Service) writeWorkspaceSettings(responseWriter http.ResponseWrite
 }
 
 func (service *Service) updateWorkspaceSettings(responseWriter http.ResponseWriter, request *http.Request) {
+	previousSettings, errorValue := service.readWorkspaceSettings()
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	var payload workspaceSettings
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
@@ -63,14 +80,39 @@ func (service *Service) updateWorkspaceSettings(responseWriter http.ResponseWrit
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	settings.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	countryChanged := previousSettings.CountryCode != settings.CountryCode
+	if strings.TrimSpace(payload.CountryCode) != "" && countryChanged {
+		countries, countriesError := service.ensureCalendarHolidayCountries(request.Context(), time.Now().UTC())
+		if countriesError != nil {
+			http.Error(responseWriter, countriesError.Error(), http.StatusBadGateway)
+			return
+		}
+		if !calendarHolidayCountryIsSupported(countries, settings.CountryCode) {
+			http.Error(responseWriter, "countryCode is not supported by the holiday provider", http.StatusBadRequest)
+			return
+		}
+	}
+	currentTime := time.Now().UTC()
+	settings.UpdatedAt = currentTime.Format(time.RFC3339)
 	if errorValue := service.writeWorkspaceSettingsFile(settings); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	if errorValue := service.syncMattermostWorkspaceChannelDisplayNames(request.Context(), settings.Language); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
+	languageChanged := previousSettings.Language != settings.Language
+	if countryChanged {
+		service.clearCalendarHolidayMemoryCache()
+		if errorValue := service.refreshCalendarHolidayCache(request.Context(), currentTime); errorValue != nil {
+			slog.WarnContext(request.Context(), "calendar holiday refresh after country change failed",
+				"country_code", settings.CountryCode,
+				"error", errorValue,
+			)
+		}
+	}
+	if !countryChanged || languageChanged {
+		if errorValue := service.syncMattermostWorkspaceChannelDisplayNames(request.Context(), settings.Language); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	service.writeJSON(responseWriter, settings)
 }
@@ -120,6 +162,12 @@ func (service *Service) workspaceLanguage() string {
 
 func normalizeWorkspaceSettings(settings workspaceSettings) (workspaceSettings, error) {
 	normalized := normalizeWorkspaceSettingsWithoutValidation(settings)
+	countryCode := strings.ToUpper(strings.TrimSpace(settings.CountryCode))
+	if countryCode != "" {
+		if errorValue := validateWorkspaceCountryCode(countryCode); errorValue != nil {
+			return workspaceSettings{}, errorValue
+		}
+	}
 	language := strings.ToLower(strings.TrimSpace(settings.Language))
 	if language != "" {
 		if errorValue := validateWorkspaceLanguage(language); errorValue != nil {
@@ -137,6 +185,10 @@ func normalizeWorkspaceSettings(settings workspaceSettings) (workspaceSettings, 
 
 func normalizeWorkspaceSettingsWithoutValidation(settings workspaceSettings) workspaceSettings {
 	defaults := defaultWorkspaceSettings()
+	countryCode := strings.ToUpper(strings.TrimSpace(settings.CountryCode))
+	if validateWorkspaceCountryCode(countryCode) != nil {
+		countryCode = defaults.CountryCode
+	}
 	timeZone := strings.TrimSpace(settings.TimeZone)
 	if timeZone == "" {
 		timeZone = defaults.TimeZone
@@ -150,11 +202,24 @@ func normalizeWorkspaceSettingsWithoutValidation(settings workspaceSettings) wor
 		callingCode = defaults.CallingCode
 	}
 	return workspaceSettings{
+		CountryCode: countryCode,
 		TimeZone:    timeZone,
 		Language:    language,
 		CallingCode: callingCode,
 		UpdatedAt:   strings.TrimSpace(settings.UpdatedAt),
 	}
+}
+
+func validateWorkspaceCountryCode(countryCode string) error {
+	if len(countryCode) != 2 {
+		return fmt.Errorf("countryCode must be an ISO 3166-1 alpha-2 code")
+	}
+	for _, character := range countryCode {
+		if character < 'A' || character > 'Z' {
+			return fmt.Errorf("countryCode must be an ISO 3166-1 alpha-2 code")
+		}
+	}
+	return nil
 }
 
 func validateWorkspaceLanguage(language string) error {

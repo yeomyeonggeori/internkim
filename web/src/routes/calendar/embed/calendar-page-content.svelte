@@ -19,6 +19,7 @@
 	import CalendarStage from './calendar-stage.svelte';
 	import CalendarToolbar from './calendar-toolbar.svelte';
 	import type { TimelineRangePreviewSegment } from './calendar-timeline-preview';
+	import CalendarLoadWarning from './calendar-load-warning.svelte';
 
 	type CalendarOption = {
 		id: string;
@@ -37,6 +38,7 @@
 		goToPrevious: () => void;
 		goToToday: () => void;
 		isMobileTwoDayWeekView: boolean;
+		loadErrorMessage: string;
 		localeCode: string;
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
@@ -87,6 +89,7 @@
 		goToPrevious,
 		goToToday,
 		isMobileTwoDayWeekView,
+		loadErrorMessage,
 		localeCode,
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
@@ -148,6 +151,7 @@
 		{dismissConflict}
 		refreshConflicts={refreshConflicts}
 	/>
+	<CalendarLoadWarning message={loadErrorMessage} />
 	<CalendarToolbar
 		{currentMonthTitle}
 		{toolbarDate}
