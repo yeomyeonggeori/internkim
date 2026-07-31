@@ -21,6 +21,10 @@ func (service *Service) decideAttendanceLeaveRequest(
 		return attendanceLeaveApprovalRequestView{}, errorValue
 	}
 	status := attendanceLeaveApprovalStatus(action)
+	policy, errorValue := service.readAttendanceLeavePolicy(ctx)
+	if errorValue != nil {
+		return attendanceLeaveApprovalRequestView{}, errorValue
+	}
 	database, errorValue := service.openAttendanceLeaveMutationDatabase(ctx)
 	if errorValue != nil {
 		return attendanceLeaveApprovalRequestView{}, errorValue
@@ -69,13 +73,15 @@ func (service *Service) decideAttendanceLeaveRequest(
 	}
 	switch action {
 	case attendanceLeaveApprovalActionApprove:
-		if errorValue := service.approveAttendanceLeaveRequest(
+		record, errorValue = service.approveAttendanceLeaveRequest(
 			ctx,
 			transaction,
 			record,
 			employee,
+			policy,
 			now,
-		); errorValue != nil {
+		)
+		if errorValue != nil {
 			return attendanceLeaveApprovalRequestView{}, errorValue
 		}
 	case attendanceLeaveApprovalActionReject:
@@ -107,7 +113,12 @@ func (service *Service) decideAttendanceLeaveRequest(
 	); errorValue != nil {
 		return attendanceLeaveApprovalRequestView{}, errorValue
 	}
-	balance, errorValue := attendanceLeaveApprovalBalance(ctx, transaction, record)
+	balance, errorValue := service.attendanceLeaveApprovalBalance(
+		ctx,
+		transaction,
+		record,
+		policy,
+	)
 	if errorValue != nil {
 		return attendanceLeaveApprovalRequestView{}, errorValue
 	}
@@ -187,8 +198,9 @@ func (service *Service) approveAttendanceLeaveRequest(
 	transaction *sql.Tx,
 	record attendanceLeaveRequestRecord,
 	employee attendanceLeaveEmployee,
+	policy attendanceLeavePolicy,
 	now time.Time,
-) error {
+) (attendanceLeaveRequestRecord, error) {
 	if errorValue := attendanceLeaveRequestEnsureNoConflict(
 		ctx,
 		transaction,
@@ -198,7 +210,65 @@ func (service *Service) approveAttendanceLeaveRequest(
 		now,
 		service.workspaceTimeZone().location,
 	); errorValue != nil {
-		return errorValue
+		return attendanceLeaveRequestRecord{}, errorValue
+	}
+	if policy.BalanceTrackingMode == attendanceLeaveBalanceTrackingManaged &&
+		record.BalanceMode == "none" {
+		leaveType, found := attendanceLeaveTypeByID(policy, record.LeaveTypeID)
+		if found && leaveType.IsActive && leaveType.BalanceMode != "none" {
+			nextRevision := record.Revision + 1
+			if _, errorValue := service.reserveAttendanceLeaveRequestOccurrencesInTransaction(
+				ctx,
+				transaction,
+				attendanceLeaveOperation{
+					OperationKey: fmt.Sprintf(
+						"leave-request:%s:reserve:%d",
+						record.ID,
+						nextRevision,
+					),
+					Employee: employee,
+					LeaveTypeID: attendanceLeaveBalanceAccountID(
+						leaveType.ID,
+						leaveType.BalanceMode,
+					),
+					ReferenceID: attendanceLeaveRequestReservationReference(
+						record.ID,
+						nextRevision,
+					),
+				},
+				record.Occurrences,
+				policy,
+				record.ID,
+			); errorValue != nil {
+				return attendanceLeaveRequestRecord{}, errorValue
+			}
+			result, errorValue := transaction.ExecContext(ctx, `
+UPDATE attendance_leave_requests
+SET leave_type_name = ?, balance_mode = ?, revision = ?, updated_at = ?
+WHERE id = ? AND status = ? AND balance_mode = 'none' AND revision = ?`,
+				leaveType.Name,
+				leaveType.BalanceMode,
+				nextRevision,
+				now.UTC().Format(time.RFC3339Nano),
+				record.ID,
+				attendanceLeaveRequestStatusApproved,
+				record.Revision,
+			)
+			if errorValue != nil {
+				return attendanceLeaveRequestRecord{}, errorValue
+			}
+			updatedRows, errorValue := result.RowsAffected()
+			if errorValue != nil {
+				return attendanceLeaveRequestRecord{}, errorValue
+			}
+			if updatedRows != 1 {
+				return attendanceLeaveRequestRecord{}, errAttendanceLeaveApprovalConflict
+			}
+			record.LeaveTypeName = leaveType.Name
+			record.BalanceMode = leaveType.BalanceMode
+			record.Revision = nextRevision
+			record.UpdatedAt = now.UTC().Format(time.RFC3339Nano)
+		}
 	}
 	if record.BalanceMode != "none" {
 		if _, errorValue := closeAttendanceLeaveReservationInTransaction(
@@ -213,7 +283,7 @@ func (service *Service) approveAttendanceLeaveRequest(
 				EffectiveOn:  record.StartDate,
 			},
 		); errorValue != nil {
-			return errorValue
+			return attendanceLeaveRequestRecord{}, errorValue
 		}
 	} else {
 		if _, errorValue := recordUntrackedAttendanceLeaveUseInTransaction(
@@ -228,10 +298,13 @@ func (service *Service) approveAttendanceLeaveRequest(
 				EffectiveOn:  record.StartDate,
 			},
 		); errorValue != nil {
-			return errorValue
+			return attendanceLeaveRequestRecord{}, errorValue
 		}
 	}
-	return createAttendanceLeaveApprovalAbsences(ctx, transaction, record, now)
+	if errorValue := createAttendanceLeaveApprovalAbsences(ctx, transaction, record, now); errorValue != nil {
+		return attendanceLeaveRequestRecord{}, errorValue
+	}
+	return record, nil
 }
 
 func createAttendanceLeaveApprovalAbsences(

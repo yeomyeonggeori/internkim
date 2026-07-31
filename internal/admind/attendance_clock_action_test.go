@@ -117,6 +117,7 @@ func TestAttendanceClockInFromMattermostEndsActiveLeaveEarly(t *testing.T) {
 			TotalDeductionMilliDays: 250,
 		},
 		leaveType,
+		defaultAttendanceLeavePolicy(),
 		nil,
 		now.Add(-time.Hour),
 	)

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestAttendanceLeavePolicyDefaultsLegacyBalanceTrackingToManaged(t *testing.T) {
@@ -179,7 +180,7 @@ func TestAttendanceLeaveUnlimitedModeAllowsRequestWithoutBalance(t *testing.T) {
 	}
 }
 
-func TestAttendanceLeaveManagedModeDoesNotRetroactivelyDeductUnlimitedRequests(t *testing.T) {
+func TestAttendanceLeaveManagedModeBindsPendingUnlimitedRequestToBalance(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
@@ -229,6 +230,15 @@ func TestAttendanceLeaveManagedModeDoesNotRetroactivelyDeductUnlimitedRequests(t
 	if approvalRecorder.Code != http.StatusOK {
 		t.Fatalf("approve status = %d body = %s", approvalRecorder.Code, approvalRecorder.Body.String())
 	}
+	var approved struct {
+		Request attendanceLeaveApprovalRequestView `json:"request"`
+	}
+	if errorValue := json.NewDecoder(approvalRecorder.Body).Decode(&approved); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if approved.Request.BalanceMode != "annual" {
+		t.Fatalf("approved balance mode = %q", approved.Request.BalanceMode)
+	}
 	balance, errorValue := service.readAttendanceLeaveBalance(
 		t.Context(),
 		employee,
@@ -237,8 +247,10 @@ func TestAttendanceLeaveManagedModeDoesNotRetroactivelyDeductUnlimitedRequests(t
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if balance.AvailableMilliDays != 1000 || balance.ReservedMilliDays != 0 {
-		t.Fatalf("retroactively deducted balance = %+v", balance)
+	if balance.AvailableMilliDays != 0 ||
+		balance.ReservedMilliDays != 0 ||
+		balance.UsedMilliDays != 1000 {
+		t.Fatalf("managed approval balance = %+v", balance)
 	}
 	managedRequest := performAttendanceLeaveMultipartRequest(
 		t,
@@ -248,19 +260,280 @@ func TestAttendanceLeaveManagedModeDoesNotRetroactivelyDeductUnlimitedRequests(t
 		employee.Email,
 		`{"leaveTypeID":"annual","unit":"fullDay","startDate":"2027-05-04"}`,
 	)
-	if managedRequest.Code != http.StatusOK {
+	if managedRequest.Code != http.StatusConflict {
 		t.Fatalf("managed create status = %d body = %s", managedRequest.Code, managedRequest.Body.String())
 	}
-	balance, errorValue = service.readAttendanceLeaveBalance(
+}
+
+func TestAttendanceLeaveManagedModeCountsUnlimitedUsageWithoutDoubleDeduction(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
+		Operation: attendanceLeaveOperation{
+			OperationKey: "grant-before-repeated-policy-switches",
+			Employee:     employee,
+			LeaveTypeID:  attendanceAnnualLeaveTypeID,
+			Amount:       1000,
+			EffectiveOn:  "2027-01-01",
+		},
+		ExpiresOn: "2028-01-01",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policy := defaultAttendanceLeavePolicy()
+	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingUnlimited
+	if errorValue := service.writeAttendanceLeavePolicy(t.Context(), policy); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, date := range []string{"2027-05-03", "2027-05-04"} {
+		createRecorder := performAttendanceLeaveMultipartRequest(
+			t,
+			service,
+			http.MethodPost,
+			"/attendance/api/leave-requests",
+			employee.Email,
+			`{"leaveTypeID":"annual","unit":"fullDay","startDate":"`+date+`"}`,
+		)
+		if createRecorder.Code != http.StatusOK {
+			t.Fatalf("unlimited create status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
+		}
+		var created struct {
+			Request attendanceLeaveRequestView `json:"request"`
+		}
+		if errorValue := json.NewDecoder(createRecorder.Body).Decode(&created); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		approvalRecorder := decideAttendanceLeaveForTest(
+			t,
+			service,
+			created.Request.ID,
+			`{"action":"approve"}`,
+		)
+		if approvalRecorder.Code != http.StatusOK {
+			t.Fatalf("unlimited approve status = %d body = %s", approvalRecorder.Code, approvalRecorder.Body.String())
+		}
+	}
+	asOf := time.Date(2027, 5, 5, 0, 0, 0, 0, time.UTC)
+	for _, mode := range []string{
+		attendanceLeaveBalanceTrackingManaged,
+		attendanceLeaveBalanceTrackingUnlimited,
+		attendanceLeaveBalanceTrackingManaged,
+	} {
+		policy.BalanceTrackingMode = mode
+		if errorValue := service.writeAttendanceLeavePolicy(t.Context(), policy); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if mode != attendanceLeaveBalanceTrackingManaged {
+			continue
+		}
+		dashboard, errorValue := service.readAttendanceLeaveDashboard(t.Context(), employee, asOf)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if dashboard.Summary.AvailableMilliDays != 0 ||
+			dashboard.Summary.UsedMilliDays != 2000 {
+			t.Fatalf("managed dashboard after repeated switch = %+v", dashboard.Summary)
+		}
+	}
+	managedRequest := performAttendanceLeaveMultipartRequest(
+		t,
+		service,
+		http.MethodPost,
+		"/attendance/api/leave-requests",
+		employee.Email,
+		`{"leaveTypeID":"annual","unit":"fullDay","startDate":"2027-05-05"}`,
+	)
+	if managedRequest.Code != http.StatusConflict {
+		t.Fatalf("managed create status = %d body = %s", managedRequest.Code, managedRequest.Body.String())
+	}
+}
+
+func TestAttendanceLeaveManagedModeExcludesCancelledUnlimitedUsage(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
+		Operation: attendanceLeaveOperation{
+			OperationKey: "grant-before-cancelled-unlimited-use",
+			Employee:     employee,
+			LeaveTypeID:  attendanceAnnualLeaveTypeID,
+			Amount:       1000,
+			EffectiveOn:  "2027-01-01",
+		},
+		ExpiresOn: "2028-01-01",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policy := requestAttendanceLeavePolicy(
+		t,
+		service,
+		http.MethodGet,
+		"",
+		"admin@example.com",
+		http.StatusOK,
+	)
+	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingUnlimited
+	encodedPolicy, errorValue := json.Marshal(policy)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policy = requestAttendanceLeavePolicy(
+		t,
+		service,
+		http.MethodPut,
+		string(encodedPolicy),
+		"admin@example.com",
+		http.StatusOK,
+	)
+	createRecorder := performAttendanceLeaveMultipartRequest(
+		t,
+		service,
+		http.MethodPost,
+		"/attendance/api/leave-requests",
+		employee.Email,
+		`{"leaveTypeID":"annual","unit":"fullDay","startDate":"2027-05-03"}`,
+	)
+	if createRecorder.Code != http.StatusOK {
+		t.Fatalf("create status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+	var created struct {
+		Request attendanceLeaveRequestView `json:"request"`
+	}
+	if errorValue := json.NewDecoder(createRecorder.Body).Decode(&created); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	approvalRecorder := decideAttendanceLeaveForTest(
+		t,
+		service,
+		created.Request.ID,
+		`{"action":"approve"}`,
+	)
+	if approvalRecorder.Code != http.StatusOK {
+		t.Fatalf("approve status = %d body = %s", approvalRecorder.Code, approvalRecorder.Body.String())
+	}
+	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingManaged
+	encodedPolicy, errorValue = json.Marshal(policy)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	requestAttendanceLeavePolicy(
+		t,
+		service,
+		http.MethodPut,
+		string(encodedPolicy),
+		"admin@example.com",
+		http.StatusOK,
+	)
+	cancelRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/attendance/api/leave-requests/"+created.Request.ID+"/cancel",
+		nil,
+	)
+	cancelRequest.RemoteAddr = "203.0.113.10:1234"
+	cancelRequest.Header.Set("X-Forwarded-Email", employee.Email)
+	cancelRecorder := httptest.NewRecorder()
+	service.handleAttendance(cancelRecorder, cancelRequest)
+	if cancelRecorder.Code != http.StatusOK {
+		t.Fatalf("cancel status = %d body = %s", cancelRecorder.Code, cancelRecorder.Body.String())
+	}
+	dashboard := readAttendanceLeaveDashboardForTest(t, service, employee.Email)
+	annualType, found := attendanceLeaveTypeViewByID(
+		dashboard.LeaveTypes,
+		attendanceAnnualLeaveTypeID,
+	)
+	if !found ||
+		annualType.Balance == nil ||
+		annualType.Balance.AvailableMilliDays != 1000 ||
+		annualType.Balance.UsedMilliDays != 0 ||
+		dashboard.Summary.UsedMilliDays != 0 {
+		t.Fatalf("cancelled unlimited usage = %+v summary = %+v", annualType, dashboard.Summary)
+	}
+}
+
+func TestAttendanceLeaveManagedModeReconcilesOnlyCurrentFiscalYearUsage(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
+		Operation: attendanceLeaveOperation{
+			OperationKey: "grant-for-fiscal-boundary-reconciliation",
+			Employee:     employee,
+			LeaveTypeID:  attendanceAnnualLeaveTypeID,
+			Amount:       2000,
+			EffectiveOn:  "2027-01-01",
+		},
+		ExpiresOn: "2028-01-01",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policy := defaultAttendanceLeavePolicy()
+	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingUnlimited
+	policy.FiscalYearStartMonth = 4
+	policy.FiscalYearStartDay = 1
+	if errorValue := service.writeAttendanceLeavePolicy(t.Context(), policy); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, date := range []string{"2027-03-31", "2027-04-01"} {
+		createRecorder := performAttendanceLeaveMultipartRequest(
+			t,
+			service,
+			http.MethodPost,
+			"/attendance/api/leave-requests",
+			employee.Email,
+			`{"leaveTypeID":"annual","unit":"fullDay","startDate":"`+date+`"}`,
+		)
+		if createRecorder.Code != http.StatusOK {
+			t.Fatalf("create %s status = %d body = %s", date, createRecorder.Code, createRecorder.Body.String())
+		}
+		var created struct {
+			Request attendanceLeaveRequestView `json:"request"`
+		}
+		if errorValue := json.NewDecoder(createRecorder.Body).Decode(&created); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		approvalRecorder := decideAttendanceLeaveForTest(
+			t,
+			service,
+			created.Request.ID,
+			`{"action":"approve"}`,
+		)
+		if approvalRecorder.Code != http.StatusOK {
+			t.Fatalf("approve %s status = %d body = %s", date, approvalRecorder.Code, approvalRecorder.Body.String())
+		}
+	}
+	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingManaged
+	if errorValue := service.writeAttendanceLeavePolicy(t.Context(), policy); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue := service.openAttendanceDatabase(t.Context())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	rawBalance, errorValue := queryAttendanceLeaveBalance(
 		t.Context(),
+		database,
 		employee,
 		attendanceAnnualLeaveTypeID,
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if balance.AvailableMilliDays != 0 || balance.ReservedMilliDays != 1000 {
-		t.Fatalf("managed balance = %+v", balance)
+	for _, asOf := range []time.Time{
+		time.Date(2027, 3, 31, 0, 0, 0, 0, time.UTC),
+		time.Date(2027, 4, 2, 0, 0, 0, 0, time.UTC),
+	} {
+		balance, balanceError := service.attendanceLeaveBalanceWithUntrackedUsage(
+			t.Context(),
+			database,
+			rawBalance,
+			policy,
+			asOf,
+		)
+		if balanceError != nil {
+			t.Fatal(balanceError)
+		}
+		if balance.AvailableMilliDays != 1000 {
+			t.Fatalf("effective balance at %s = %+v", asOf.Format(time.DateOnly), balance)
+		}
 	}
 }
 

@@ -67,9 +67,11 @@ LEFT JOIN attendance_leave_requests request
 	)
 	AND request.employee_email = operation.employee_email
 WHERE operation.employee_email = ?
+	AND (request.id IS NULL OR request.status = ?)
 GROUP BY COALESCE(request.leave_type_id, operation.leave_type_id)
 ORDER BY COALESCE(request.leave_type_id, operation.leave_type_id)`,
 		normalizeAttendanceLeaveEmail(employeeEmail),
+		attendanceLeaveRequestStatusApproved,
 	)
 	if errorValue != nil {
 		return nil, attendanceLeaveDashboardSummary{}, errorValue
