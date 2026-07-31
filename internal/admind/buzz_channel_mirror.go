@@ -15,11 +15,17 @@ var (
 
 const mirrorTriggerThrottle = 20 * time.Second
 
-// The messenger reads from Buzz. Instead of polling Mattermost on a background
-// timer, an incremental import is kicked off when someone opens or refreshes a
-// channel. A throttle collapses a burst of conversation loads (the client polls
-// while a channel is open) into at most one sync, and only one runs at a time.
+// The messenger reads from Buzz. The real-time chatd Buzz<->Mattermost mirror
+// now carries new Mattermost messages into Buzz per-user, so the older
+// on-channel-open incremental importer is disabled: running both double-mirrors
+// Mattermost messages and the importer's orphan-thread roots surface as empty
+// "이전 대화" bubbles. Kept as a no-op guard so callers stay compiled.
+var mattermostMirrorImporterDisabled = true
+
 func (service *Service) triggerMattermostMirror() {
+	if mattermostMirrorImporterDisabled {
+		return
+	}
 	if strings.TrimSpace(service.buzzKeySeed()) == "" {
 		return
 	}
