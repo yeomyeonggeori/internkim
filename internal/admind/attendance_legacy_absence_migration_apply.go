@@ -23,6 +23,14 @@ func (service *Service) applyAttendanceLegacyAbsenceMigration(
 	}
 	service.attendanceLeavePolicyMutationMutex.Lock()
 	defer service.attendanceLeavePolicyMutationMutex.Unlock()
+	policy, errorValue := service.readAttendanceLeavePolicy(ctx)
+	if errorValue != nil {
+		return attendanceLegacyAbsenceMigrationBatch{}, errorValue
+	}
+	annualType, found := attendanceLeaveTypeByID(policy, attendanceAnnualLeaveTypeID)
+	if !found {
+		return attendanceLegacyAbsenceMigrationBatch{}, fmt.Errorf("annual leave type is missing")
+	}
 	database, errorValue := service.openAttendanceLegacyAbsenceMigrationDatabase(ctx, true)
 	if errorValue != nil {
 		return attendanceLegacyAbsenceMigrationBatch{}, errorValue
@@ -99,6 +107,7 @@ INSERT INTO attendance_legacy_absence_migration_batches (
 			ctx,
 			transaction,
 			absenceRange,
+			annualType,
 			actorEmail,
 			timestamp,
 		)
@@ -127,6 +136,7 @@ func (service *Service) migrateAttendanceLegacyAbsenceRange(
 	ctx context.Context,
 	transaction *sql.Tx,
 	absenceRange attendanceLegacyAbsenceRange,
+	annualType attendanceLeaveType,
 	actorEmail string,
 	fallbackTimestamp string,
 ) (string, error) {
@@ -152,8 +162,8 @@ func (service *Service) migrateAttendanceLegacyAbsenceRange(
 		ID:                      requestID,
 		EmployeeEmail:           absenceRange.Email,
 		UserID:                  absenceRange.UserID,
-		LeaveTypeID:             attendanceLegacyLeaveTypeID,
-		LeaveTypeName:           attendanceLegacyLeaveTypeName,
+		LeaveTypeID:             annualType.ID,
+		LeaveTypeName:           annualType.Name,
 		BalanceMode:             "none",
 		Status:                  attendanceLeaveRequestStatusApproved,
 		Unit:                    attendanceWorkScheduleFullDay,
@@ -203,7 +213,7 @@ WHERE request_id = ?`,
 				Email:  absenceRange.Email,
 				UserID: absenceRange.UserID,
 			},
-			LeaveTypeID: attendanceLegacyLeaveTypeID,
+			LeaveTypeID: annualType.ID,
 			ReferenceID: requestID,
 			Amount:      record.TotalDeductionMilliDays,
 			EffectiveOn: absenceRange.StartDate,

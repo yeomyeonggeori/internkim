@@ -53,6 +53,16 @@ func (service *Service) readAttendanceLeaveDashboard(
 			if balanceError != nil {
 				return attendanceLeaveDashboard{}, balanceError
 			}
+			balance, balanceError = service.attendanceLeaveBalanceWithUntrackedUsage(
+				ctx,
+				database,
+				balance,
+				policy,
+				now,
+			)
+			if balanceError != nil {
+				return attendanceLeaveDashboard{}, balanceError
+			}
 			if employee.HireDate != "" {
 				hireDate, parseError := time.ParseInLocation(
 					time.DateOnly,
