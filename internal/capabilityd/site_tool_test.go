@@ -146,6 +146,66 @@ func TestSiteServePassesThroughResolutionFailure(t *testing.T) {
 	}
 }
 
+func TestSiteServeReportsStaleBuildAsInvalidInput(t *testing.T) {
+	const staleBuildMessage = "site workspace app/dist is stale: app/src/App.tsx changed at 2026-07-31T10:00:00Z after the build at 2026-07-31T09:00:00Z; rebuild (bun scripts/build.ts) only after app/src or app config changes"
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Header:     http.Header{"Content-Type": []string{"text/plain"}},
+				Body:       io.NopCloser(strings.NewReader(staleBuildMessage)),
+			}, nil
+		})},
+	}
+
+	response, errorValue := invokeSiteCapabilityTool(t, service, capabilities.ToolInvokeRequest{
+		ToolName:  "site.serve",
+		Input:     json.RawMessage(`{"title":"Demo Site","sourceWorkspacePath":"~/sites/demo-site","mode":"publish"}`),
+		Transport: testSiteSourceBundleTransport("~/sites/demo-site"),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected a structured failure rather than a propagated error: %v", errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeFailed || !response.IsError {
+		t.Fatalf("expected a failed outcome, got %+v", response)
+	}
+	if response.ErrorCode != "invalid_input" || response.FailureStage != "site_source" {
+		t.Fatalf("expected a canonical invalid_input classification, got %+v", response)
+	}
+	if !response.Retryable || !response.SafeRetry {
+		t.Fatalf("expected the serve to be safely retryable after a build, got %+v", response)
+	}
+	if !strings.Contains(response.Message, "app/dist") || !strings.Contains(response.Message, "bun scripts/build.ts") {
+		t.Fatalf("expected the admind message to survive, got %q", response.Message)
+	}
+	if !strings.Contains(string(response.Result), "app/dist") {
+		t.Fatalf("expected the message in the result document, got %s", response.Result)
+	}
+}
+
+func TestSiteServePropagatesServerErrors(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Header:     http.Header{"Content-Type": []string{"text/plain"}},
+				Body:       io.NopCloser(strings.NewReader("site app exploded")),
+			}, nil
+		})},
+	}
+
+	_, errorValue := invokeSiteCapabilityTool(t, service, capabilities.ToolInvokeRequest{
+		ToolName:  "site.serve",
+		Input:     json.RawMessage(`{"title":"Demo Site","sourceWorkspacePath":"~/sites/demo-site","mode":"publish"}`),
+		Transport: testSiteSourceBundleTransport("~/sites/demo-site"),
+	})
+	if errorValue == nil {
+		t.Fatal("expected a server failure to stay an error rather than becoming caller-fixable")
+	}
+}
+
 func TestSiteListProjectsCanonicalEntries(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
