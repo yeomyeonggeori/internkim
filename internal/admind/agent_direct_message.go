@@ -10,8 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 )
 
 type channelParticipant struct {
@@ -123,7 +121,7 @@ func (service *Service) writeAgentConversation(responseWriter http.ResponseWrite
 	service.writeJSON(responseWriter, service.rewriteConversationMedia(agentConversationResponse{
 		ConversationID: channel.ChannelID,
 		CurrentUserID:  channel.UserPubkeyHex,
-		Messages:       agentDirectMessagesFromHistory(history.Messages, channel, service.syntheticImportRootPubkey()),
+		Messages:       agentDirectMessagesFromHistory(history.Messages, channel),
 	}))
 }
 
@@ -279,20 +277,6 @@ func (service *Service) handleAgentChannels(responseWriter http.ResponseWriter, 
 	service.writeJSON(responseWriter, response)
 }
 
-const importedOrphanRootTitle = "이전 대화"
-
-func (service *Service) syntheticImportRootPubkey() string {
-	seed := service.buzzKeySeed()
-	if seed == "" {
-		return ""
-	}
-	pubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
-	if errorValue != nil {
-		return ""
-	}
-	return pubkey
-}
-
 func (service *Service) chatdPlatformRequest(ctx context.Context, capabilityName string, requestBody any, responseValue any) error {
 	endpoint := strings.TrimRight(strings.TrimSpace(service.Configuration.ChatdEndpoint), "/")
 	if endpoint == "" {
@@ -334,41 +318,10 @@ func (service *Service) writeAgentDirectMessageError(responseWriter http.Respons
 	http.Error(responseWriter, "agent_unreachable", http.StatusBadGateway)
 }
 
-func agentDirectMessagesFromHistory(historyMessages []chatdHistoryMessage, channel chatdDirectMessageChannel, syntheticRootPubkeyHex string) []agentDirectMessage {
-	syntheticRootIDs := map[string]bool{}
-	if syntheticRootPubkeyHex != "" {
-		for _, historyMessage := range historyMessages {
-			if historyMessage.SenderID == syntheticRootPubkeyHex && historyMessage.Text == importedOrphanRootTitle {
-				syntheticRootIDs[historyMessage.ID] = true
-			}
-		}
-	}
-	replacementRootBySynthetic := map[string]string{}
-	earliestReplySentAt := map[string]string{}
-	for _, historyMessage := range historyMessages {
-		if !syntheticRootIDs[historyMessage.ThreadRootID] {
-			continue
-		}
-		earliest, seen := earliestReplySentAt[historyMessage.ThreadRootID]
-		if !seen || historyMessage.SentAt < earliest {
-			earliestReplySentAt[historyMessage.ThreadRootID] = historyMessage.SentAt
-			replacementRootBySynthetic[historyMessage.ThreadRootID] = historyMessage.ID
-		}
-	}
+func agentDirectMessagesFromHistory(historyMessages []chatdHistoryMessage, channel chatdDirectMessageChannel) []agentDirectMessage {
 	messages := make([]agentDirectMessage, 0, len(historyMessages))
 	for index, historyMessage := range historyMessages {
-		if syntheticRootIDs[historyMessage.ID] {
-			continue
-		}
 		threadRootID := historyMessage.ThreadRootID
-		if syntheticRootIDs[threadRootID] {
-			replacementRoot := replacementRootBySynthetic[threadRootID]
-			if historyMessage.ID == replacementRoot {
-				threadRootID = ""
-			} else {
-				threadRootID = replacementRoot
-			}
-		}
 		isCurrentUser := historyMessage.SenderID != "" && historyMessage.SenderID == channel.UserPubkeyHex
 		sender := channelParticipant{
 			ID:        historyMessage.SenderID,
