@@ -260,6 +260,13 @@ export type AttendanceWorkPolicy = {
 	revisions: AttendanceWorkPolicyRevision[];
 };
 
+export type AttendanceWorkPolicyResponse = {
+	policy: AttendanceWorkPolicy;
+	currentMonth: string;
+	holidayDates: string[];
+	timeZone: string;
+};
+
 export type WifiProfile = {
 	name: string;
 	ssid: string;

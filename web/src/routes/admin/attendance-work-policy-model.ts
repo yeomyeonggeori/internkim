@@ -33,6 +33,7 @@ export function setAttendanceWorkingWeekdays(
 	next.workingWeekdays = normalizedWeekdays;
 	if (next.workMode !== 'autonomous' && normalizedWeekdays.length > 0) {
 		next.dailyTargetMinutes = Math.round(next.weeklyTargetMinutes / normalizedWeekdays.length);
+		next.weeklyTargetMinutes = next.dailyTargetMinutes * normalizedWeekdays.length;
 	}
 	return next;
 }
@@ -42,9 +43,11 @@ export function setAttendanceWeeklyTargetMinutes(
 	weeklyTargetMinutes: number
 ): AttendanceWorkPolicyRevision {
 	const next = copyAttendanceWorkPolicyRevision(revision);
-	next.weeklyTargetMinutes = weeklyTargetMinutes;
 	if (next.workingWeekdays.length > 0) {
 		next.dailyTargetMinutes = Math.round(weeklyTargetMinutes / next.workingWeekdays.length);
+		next.weeklyTargetMinutes = next.dailyTargetMinutes * next.workingWeekdays.length;
+	} else {
+		next.weeklyTargetMinutes = weeklyTargetMinutes;
 	}
 	return next;
 }

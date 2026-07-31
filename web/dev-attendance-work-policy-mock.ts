@@ -1,5 +1,6 @@
 import type {
 	AttendanceWorkPolicy,
+	AttendanceWorkPolicyResponse,
 	AttendanceWorkPolicyRevision
 } from './src/routes/admin/admin-types';
 
@@ -33,7 +34,7 @@ export function createDevAttendanceWorkPolicyMockResponse(
 	request: DevAttendanceWorkPolicyRequest
 ): DevAttendanceWorkPolicyResponse | undefined {
 	if (request.pathname !== '/admin/api/attendance-work-policy') return undefined;
-	if (request.method === 'GET') return { status: 200, body: state.policy };
+	if (request.method === 'GET') return { status: 200, body: workPolicyResponse(state.policy) };
 	if (request.method !== 'PUT') return { status: 405, body: 'method not allowed' };
 	const revision = parseRevision(request.body);
 	const effectiveDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
@@ -48,7 +49,17 @@ export function createDevAttendanceWorkPolicyMockResponse(
 			left.effectiveDate.localeCompare(right.effectiveDate)
 		)
 	};
-	return { status: 200, body: state.policy };
+	return { status: 200, body: workPolicyResponse(state.policy) };
+}
+
+function workPolicyResponse(policy: AttendanceWorkPolicy): AttendanceWorkPolicyResponse {
+	const currentDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+	return {
+		policy,
+		currentMonth: currentDate.slice(0, 7),
+		holidayDates: [],
+		timeZone: 'Asia/Seoul'
+	};
 }
 
 function parseRevision(body: string | undefined): AttendanceWorkPolicyRevision {

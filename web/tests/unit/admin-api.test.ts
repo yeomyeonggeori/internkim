@@ -164,11 +164,17 @@ describe('company holiday API', () => {
 describe('attendance work policy API', () => {
 	test('loads the work policy revisions', async () => {
 		const policy = { version: 1, updatedAt: '', revisions: [] };
+		const response = {
+			policy,
+			currentMonth: '2026-08',
+			holidayDates: ['2026-08-17'],
+			timeZone: 'Asia/Seoul'
+		};
 		globalThis.fetch = (async (input) => {
 			expect(input).toBe('/admin/api/attendance-work-policy');
-			return new Response(JSON.stringify(policy));
+			return new Response(JSON.stringify(response));
 		}) as typeof fetch;
-		expect(await fetchAttendanceWorkPolicy('/admin/api', 'load failed')).toEqual(policy);
+		expect(await fetchAttendanceWorkPolicy('/admin/api', 'load failed')).toEqual(response);
 		restoreGlobals();
 	});
 
@@ -190,13 +196,19 @@ describe('attendance work policy API', () => {
 			nightEndTime: '06:00'
 		};
 		const policy = { version: 1, updatedAt: '', revisions: [revision] };
+		const response = {
+			policy,
+			currentMonth: '2026-08',
+			holidayDates: [],
+			timeZone: 'Asia/Seoul'
+		};
 		globalThis.fetch = (async (input, init) => {
 			expect(input).toBe('/admin/api/attendance-work-policy');
 			expect(init?.method).toBe('PUT');
 			expect(init?.body).toBe(JSON.stringify(revision));
-			return new Response(JSON.stringify(policy));
+			return new Response(JSON.stringify(response));
 		}) as typeof fetch;
-		expect(await updateAttendanceWorkPolicy('/admin/api', revision, 'save failed')).toEqual(policy);
+		expect(await updateAttendanceWorkPolicy('/admin/api', revision, 'save failed')).toEqual(response);
 		restoreGlobals();
 	});
 });
