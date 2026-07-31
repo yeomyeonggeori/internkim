@@ -23,76 +23,128 @@ type nagerDateHoliday struct {
 	Types       []string `json:"types"`
 }
 
-func (service *Service) syncNagerCalendarHolidays(
+func (service *Service) refreshNagerCalendarHolidayYears(
 	ctx context.Context,
 	countryCode string,
-	locale string,
-	startTime time.Time,
-	endTime time.Time,
+	startYear int,
+	endYear int,
 	currentTime time.Time,
 ) error {
-	workspaceLocation, _ := service.workspaceTimeLocation()
-	startYear := startTime.In(workspaceLocation).Year()
-	endYear := endTime.In(workspaceLocation).AddDate(0, 0, -1).Year()
 	for year := startYear; year <= endYear; year += 1 {
-		sourceKey := fmt.Sprintf("%s:%d:%s", countryCode, year, locale)
-		state, found, errorValue := service.readCalendarHolidaySource(ctx, calendarHolidayProviderNager, sourceKey)
-		if errorValue != nil {
-			return errorValue
-		}
-		if found && calendarHolidaySourceIsFresh(state.LastSyncedAt, currentTime, calendarHolidayCacheTTL) {
-			continue
-		}
 		holidays, errorValue := service.fetchNagerCalendarHolidaysWithRetry(ctx, countryCode, year)
 		if errorValue != nil {
-			state.Provider = calendarHolidayProviderNager
-			state.SourceKey = sourceKey
-			state.LastError = errorValue.Error()
-			if stateError := service.upsertCalendarHolidaySourceState(ctx, state); stateError != nil {
-				slog.WarnContext(ctx, "calendar holiday source state update failed",
-					"provider", calendarHolidayProviderNager,
-					"source_key", sourceKey,
-					"error", stateError,
-				)
-			}
+			service.recordNagerCalendarHolidayError(ctx, countryCode, year, errorValue)
 			return errorValue
 		}
-		stored := make([]storedCalendarHoliday, 0, len(holidays))
-		for _, holiday := range holidays {
-			if _, parseError := time.Parse(time.DateOnly, holiday.Date); parseError != nil {
-				return fmt.Errorf("nager holiday date %q for %s: %w", holiday.Date, sourceKey, parseError)
+		snapshots := make([]calendarHolidaySnapshot, 0, 2)
+		states := make([]calendarHolidaySourceState, 0, 2)
+		cachedHolidays := make(map[calendarHolidayCacheKey][]calendarHoliday, 2)
+		for _, locale := range [...]string{workspaceLanguageKorean, workspaceLanguageEnglish} {
+			key := newCalendarHolidayCacheKey(countryCode, locale, year)
+			sourceKey := calendarHolidaySourceKey(key.CountryCode, key.Year, key.Locale)
+			stored, transformError := storedNagerCalendarHolidays(key.CountryCode, key.Locale, sourceKey, holidays)
+			if transformError != nil {
+				return transformError
 			}
-			title := calendarHolidayTitle(countryCode, locale, holiday.LocalName, holiday.Name)
-			if title == "" {
-				return fmt.Errorf("nager holiday title is required for %s on %s", countryCode, holiday.Date)
-			}
-			stored = append(stored, storedCalendarHoliday{
-				Source:      calendarHolidaySourceAPI,
-				SourceKey:   sourceKey,
-				ExternalID:  holiday.Date + ":" + title,
-				CountryCode: countryCode,
-				Title:       title,
-				Date:        holiday.Date,
+			snapshots = append(snapshots, calendarHolidaySnapshot{SourceKey: sourceKey, Holidays: stored})
+			states = append(states, calendarHolidaySourceState{
+				Provider:     calendarHolidayProviderNager,
+				SourceKey:    sourceKey,
+				LastSyncedAt: currentTime.UTC().Format(time.RFC3339),
 			})
+			cachedHolidays[key] = calendarHolidaysFromStored(sourceKey, stored)
 		}
-		if errorValue := service.replaceCalendarHolidaySnapshot(
+		if errorValue := service.replaceCalendarHolidaySnapshots(
 			ctx,
 			calendarHolidaySourceAPI,
-			sourceKey,
-			stored,
+			snapshots,
+			states,
 			currentTime,
 		); errorValue != nil {
 			return errorValue
 		}
-		if errorValue := service.upsertCalendarHolidaySourceState(ctx, calendarHolidaySourceState{
-			Provider:     calendarHolidayProviderNager,
-			SourceKey:    sourceKey,
-			LastSyncedAt: currentTime.UTC().Format(time.RFC3339),
-		}); errorValue != nil {
-			return errorValue
+		for key, yearHolidays := range cachedHolidays {
+			service.writeCalendarHolidayMemoryCache(key, yearHolidays)
 		}
 	}
 	return nil
+}
+
+func storedNagerCalendarHolidays(
+	countryCode string,
+	locale string,
+	sourceKey string,
+	holidays []nagerDateHoliday,
+) ([]storedCalendarHoliday, error) {
+	stored := make([]storedCalendarHoliday, 0, len(holidays))
+	for _, holiday := range holidays {
+		if _, parseError := time.Parse(time.DateOnly, holiday.Date); parseError != nil {
+			return nil, fmt.Errorf("nager holiday date %q for %s: %w", holiday.Date, sourceKey, parseError)
+		}
+		title := calendarHolidayTitle(countryCode, locale, holiday.LocalName, holiday.Name)
+		if title == "" {
+			return nil, fmt.Errorf("nager holiday title is required for %s on %s", countryCode, holiday.Date)
+		}
+		stored = append(stored, storedCalendarHoliday{
+			Source:      calendarHolidaySourceAPI,
+			SourceKey:   sourceKey,
+			ExternalID:  holiday.Date + ":" + title,
+			CountryCode: countryCode,
+			Title:       title,
+			Date:        holiday.Date,
+		})
+	}
+	return stored, nil
+}
+
+func calendarHolidaysFromStored(sourceKey string, stored []storedCalendarHoliday) []calendarHoliday {
+	holidays := make([]calendarHoliday, 0, len(stored))
+	for _, value := range stored {
+		holidays = append(holidays, calendarHoliday{
+			ID:          calendarHolidayID(calendarHolidaySourceAPI, sourceKey, value.ExternalID),
+			Title:       value.Title,
+			Date:        value.Date,
+			Source:      calendarHolidaySourceAPI,
+			CountryCode: value.CountryCode,
+			ReadOnly:    true,
+			Color:       calendarHolidayColor,
+		})
+	}
+	return holidays
+}
+
+func (service *Service) recordNagerCalendarHolidayError(
+	ctx context.Context,
+	countryCode string,
+	year int,
+	syncError error,
+) {
+	for _, locale := range [...]string{workspaceLanguageKorean, workspaceLanguageEnglish} {
+		sourceKey := calendarHolidaySourceKey(countryCode, year, locale)
+		state, _, readError := service.readCalendarHolidaySource(ctx, calendarHolidayProviderNager, sourceKey)
+		if readError != nil {
+			slog.WarnContext(ctx, "calendar holiday source state read failed",
+				"provider", calendarHolidayProviderNager,
+				"source_key", sourceKey,
+				"error", readError,
+			)
+			continue
+		}
+		state.Provider = calendarHolidayProviderNager
+		state.SourceKey = sourceKey
+		state.LastError = syncError.Error()
+		if stateError := service.upsertCalendarHolidaySourceState(ctx, state); stateError != nil {
+			slog.WarnContext(ctx, "calendar holiday source state update failed",
+				"provider", calendarHolidayProviderNager,
+				"source_key", sourceKey,
+				"error", stateError,
+			)
+		}
+	}
+}
+
+func calendarHolidaySourceKey(countryCode string, year int, locale string) string {
+	return fmt.Sprintf("%s:%d:%s", strings.ToUpper(strings.TrimSpace(countryCode)), year, normalizeCalendarHolidayLocale(locale))
 }
 
 func calendarHolidayTitle(countryCode string, locale string, localName string, englishName string) string {

@@ -236,6 +236,9 @@ func TestOperationsAdminPathPolicy(t *testing.T) {
 	if !isOperationsAdminPath(http.MethodPut, "/workspace-settings") {
 		t.Fatal("operations admin should update workspace settings")
 	}
+	if isOperationsAdminPath(http.MethodPost, "/holiday-sync/refresh") {
+		t.Fatal("operations admin should not access removed holiday refresh")
+	}
 	if isOperationsAdminPath(http.MethodGet, "/bot-profile") {
 		t.Fatal("operations admin should not access bot profile")
 	}
