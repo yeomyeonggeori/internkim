@@ -63,6 +63,38 @@ ORDER BY range_id`,
 		return attendanceLegacyAbsenceMigrationBatch{}, errorValue
 	}
 	for _, requestID := range requestIDs {
+		operationKey := attendanceLegacyAbsenceUseOperationKey(requestID)
+		if _, errorValue := transaction.ExecContext(ctx, `
+DELETE FROM attendance_leave_ledger_entries
+WHERE operation_key = ?`,
+			operationKey,
+		); errorValue != nil {
+			return attendanceLegacyAbsenceMigrationBatch{}, errorValue
+		}
+		operationResult, errorValue := transaction.ExecContext(ctx, `
+DELETE FROM attendance_leave_operations
+WHERE operation_key = ?
+	AND kind = ?
+	AND reference_id = ?
+	AND leave_type_id = ?`,
+			operationKey,
+			attendanceLeaveOperationUntrackedUse,
+			requestID,
+			attendanceLegacyLeaveTypeID,
+		)
+		if errorValue != nil {
+			return attendanceLegacyAbsenceMigrationBatch{}, errorValue
+		}
+		deletedOperationCount, errorValue := operationResult.RowsAffected()
+		if errorValue != nil {
+			return attendanceLegacyAbsenceMigrationBatch{}, errorValue
+		}
+		if deletedOperationCount != 1 {
+			return attendanceLegacyAbsenceMigrationBatch{}, fmt.Errorf(
+				"legacy migration leave operation %s is missing during rollback",
+				operationKey,
+			)
+		}
 		result, errorValue := transaction.ExecContext(ctx, `
 DELETE FROM attendance_leave_requests
 WHERE id = ? AND leave_type_id = ?`,

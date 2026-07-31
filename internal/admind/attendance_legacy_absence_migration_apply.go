@@ -194,5 +194,26 @@ WHERE request_id = ?`,
 	); errorValue != nil {
 		return "", errorValue
 	}
+	if _, errorValue := recordUntrackedAttendanceLeaveUseInTransaction(
+		ctx,
+		transaction,
+		attendanceLeaveOperation{
+			OperationKey: attendanceLegacyAbsenceUseOperationKey(requestID),
+			Employee: attendanceLeaveEmployee{
+				Email:  absenceRange.Email,
+				UserID: absenceRange.UserID,
+			},
+			LeaveTypeID: attendanceLegacyLeaveTypeID,
+			ReferenceID: requestID,
+			Amount:      record.TotalDeductionMilliDays,
+			EffectiveOn: absenceRange.StartDate,
+		},
+	); errorValue != nil {
+		return "", errorValue
+	}
 	return requestID, nil
+}
+
+func attendanceLegacyAbsenceUseOperationKey(requestID string) string {
+	return "leave-request:" + requestID + ":legacy-use:1"
 }

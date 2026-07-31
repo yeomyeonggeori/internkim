@@ -33,16 +33,18 @@ func (service *Service) readAttendanceLeaveDashboard(
 	}
 	balancesByAccount := make(map[string]attendanceLeaveDashboardSummary)
 	usageByLeaveType := map[string]attendanceLeaveDashboardSummary{}
+	usageByLeaveType, usageSummary, errorValue := readAttendanceLeaveUsageSummaries(
+		ctx,
+		database,
+		employee.Email,
+	)
+	if errorValue != nil {
+		return attendanceLeaveDashboard{}, errorValue
+	}
 	if policy.BalanceTrackingMode == attendanceLeaveBalanceTrackingUnlimited {
-		usageByLeaveType, dashboard.Summary, errorValue = readAttendanceLeaveUsageSummaries(
-			ctx,
-			database,
-			employee.Email,
-		)
-		if errorValue != nil {
-			return attendanceLeaveDashboard{}, errorValue
-		}
+		dashboard.Summary = usageSummary
 	} else {
+		dashboard.Summary.UsedMilliDays = usageSummary.UsedMilliDays
 		for _, leaveType := range policy.LeaveTypes {
 			if !leaveType.IsActive || !attendanceLeaveTypeOwnsBalance(leaveType) {
 				continue
@@ -77,7 +79,6 @@ func (service *Service) readAttendanceLeaveDashboard(
 			if leaveType.IncludeInSummary {
 				dashboard.Summary.AvailableMilliDays += balanceView.AvailableMilliDays
 				dashboard.Summary.ReservedMilliDays += balanceView.ReservedMilliDays
-				dashboard.Summary.UsedMilliDays += balanceView.UsedMilliDays
 			}
 		}
 	}

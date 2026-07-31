@@ -171,6 +171,28 @@ func TestAttendanceLeaveRequestAnnualBalanceModeUsesAnnualAccount(t *testing.T) 
 		annualBalance.UsedMilliDays != 1000 {
 		t.Fatalf("approved annual balance = %+v", annualBalance)
 	}
+	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingUnlimited
+	if errorValue := service.writeAttendanceLeavePolicy(t.Context(), policy); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	dashboard := readAttendanceLeaveDashboardForTest(t, service, employee.Email)
+	customType, found := attendanceLeaveTypeViewByID(dashboard.LeaveTypes, "custom-shared")
+	if !found ||
+		customType.Balance == nil ||
+		customType.Balance.UsedMilliDays != 1000 {
+		t.Fatalf("custom shared usage = %+v", customType)
+	}
+	annualType, found := attendanceLeaveTypeViewByID(dashboard.LeaveTypes, attendanceAnnualLeaveTypeID)
+	if !found ||
+		annualType.Balance == nil ||
+		annualType.Balance.UsedMilliDays != 0 ||
+		dashboard.Summary.UsedMilliDays != 1000 {
+		t.Fatalf("annual usage = %+v summary = %+v", annualType, dashboard.Summary)
+	}
+	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingManaged
+	if errorValue := service.writeAttendanceLeavePolicy(t.Context(), policy); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
 	cancelRequest := httptest.NewRequest(
 		http.MethodPost,
