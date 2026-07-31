@@ -38,21 +38,23 @@
 		<Card.Title class="text-sm">{text.leave.summaryTitle}</Card.Title>
 	</Card.Header>
 	<Card.Content class="space-y-2 px-3 pb-3 pt-1">
-		<div class="grid grid-cols-3 gap-2">
+		<div class="grid gap-2" class:grid-cols-2={isUnlimited} class:grid-cols-3={!isUnlimited}>
 			<div>
 				<p class="text-[11px] text-muted-foreground">{text.leave.summaryUsed}</p>
 				<p class="mt-0.5 text-sm font-semibold tabular-nums">{days(summary?.usedMilliDays)}</p>
 			</div>
-			<div class="text-center">
+			<div class:text-center={!isUnlimited} class:text-right={isUnlimited}>
 				<p class="text-[11px] text-muted-foreground">{text.leave.summaryPending}</p>
 				<p class="mt-0.5 text-sm font-semibold tabular-nums">{days(summary?.reservedMilliDays)}</p>
 			</div>
-			<div class="text-right">
-				<p class="text-[11px] text-muted-foreground">{text.leave.summaryAvailable}</p>
-				<p class="mt-0.5 text-sm font-semibold tabular-nums">
-					{isUnlimited ? text.leave.summaryUnlimited : days(summary?.availableMilliDays)}
-				</p>
-			</div>
+			{#if !isUnlimited}
+				<div class="text-right">
+					<p class="text-[11px] text-muted-foreground">{text.leave.summaryAvailable}</p>
+					<p class="mt-0.5 text-sm font-semibold tabular-nums">
+						{days(summary?.availableMilliDays)}
+					</p>
+				</div>
+			{/if}
 		</div>
 
 		{#if !isUnlimited}
