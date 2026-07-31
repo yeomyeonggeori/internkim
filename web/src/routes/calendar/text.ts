@@ -5,6 +5,7 @@ export type CalendarLocaleText = {
 	title: string;
 	subtitle: string;
 	work: string;
+	holidays: string;
 	previousMonth: string;
 	nextMonth: string;
 	previousWeek: string;
@@ -75,6 +76,7 @@ export type CalendarLocaleText = {
 	loading: string;
 	empty: string;
 	error: string;
+	holidayLoadError: string;
 	saveError: string;
 	deleteError: string;
 	calendarEventVersionConflictError: string;
@@ -195,6 +197,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		title: '일정',
 		subtitle: '팀 일정과 외부 일정 연동을 한 화면에서 다룹니다.',
 		work: '팀 일정',
+		holidays: '공휴일',
 		previousMonth: '이전 달',
 		nextMonth: '다음 달',
 		previousWeek: '지난 주',
@@ -266,6 +269,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		loading: '일정을 불러오는 중...',
 		empty: '일정을 드래그하거나 더블클릭해서 새 일정을 만드세요.',
 		error: '일정을 불러오지 못했습니다.',
+		holidayLoadError: '공휴일을 불러오지 못했습니다. 일반 일정은 계속 사용할 수 있습니다.',
 		saveError: '일정을 저장하지 못했습니다.',
 		deleteError: '일정을 삭제하지 못했습니다.',
 		calendarEventVersionConflictError:
@@ -354,6 +358,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		title: 'Calendar',
 		subtitle: 'Team schedule and external calendar sync in one place.',
 		work: 'Work',
+		holidays: 'Public holidays',
 		previousMonth: 'Previous month',
 		nextMonth: 'Next month',
 		previousWeek: 'Previous week',
@@ -425,6 +430,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		loading: 'Loading calendar...',
 		empty: 'Drag or click the calendar to create an event.',
 		error: 'Could not load the calendar.',
+		holidayLoadError: 'Could not load public holidays. Other calendar events remain available.',
 		saveError: 'Could not save the event.',
 		deleteError: 'Could not delete the event.',
 		calendarEventVersionConflictError:
