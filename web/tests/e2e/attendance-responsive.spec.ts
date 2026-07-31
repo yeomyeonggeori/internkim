@@ -67,7 +67,9 @@ test.describe('attendance responsive view', () => {
 		await expect(workTimeCard.getByText('일일 최고')).toBeVisible();
 		await expect(workTimeCard.getByText('일일 최저')).toBeVisible();
 		await expect(standard.getByText('근무 기준')).toBeVisible();
-		await expect(standard.getByText('휴가 인정')).toBeVisible();
+		await expect(standard.getByText('휴가', { exact: true })).toBeVisible();
+		await expect(standard.getByText('휴가 인정')).toHaveCount(0);
+		await expect(standard.getByText('남은 시간')).toHaveCount(0);
 		await expect(standard.getByText('유급 휴가')).toHaveCount(0);
 		await expect(standard.getByText('야간 근무 시간')).toBeVisible();
 		await expect(standard.getByText('기준 대비 초과 시간')).toBeVisible();
@@ -81,25 +83,29 @@ test.describe('attendance responsive view', () => {
 		const capacityBar = standard.getByTestId('work-standard-capacity-bar');
 		await expect(capacityBar).toHaveAttribute(
 			'aria-label',
-			/전체 시간 24시간 00분, 실제 근무 01시간 20분/
+			/실제 근무 01시간 20분, 휴가 06시간 40분, 기준 시간 08시간 00분/
 		);
+		await expect(capacityBar).not.toHaveAttribute('aria-label', /전체 시간|남은 시간/);
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute(
 			'style',
-			/left:\s*33\.333/
+			/left:\s*80%/
 		);
+		await expect(standard.getByTestId('work-standard-progress-track')).toHaveCSS('height', '14px');
 		await expect(page.getByTestId('work-standard-bar-tooltip')).toHaveCount(0);
 		await workTimeCard.getByRole('button', { name: '주별' }).click();
 		await expect(standard.getByText(/2026-07-27–2026-08-02/)).toBeVisible();
 		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
 			'aria-label',
-			/전체 시간 168시간 00분, 실제 근무 33시간 20분/
+			/실제 근무 33시간 20분, 휴가 06시간 40분, 기준 시간 40시간 00분/
 		);
+		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
 		await workTimeCard.getByRole('button', { name: '월별' }).click();
 		await expect(standard.getByText(/2026-05-01–2026-05-31/)).toBeVisible();
 		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
 			'aria-label',
-			/전체 시간 744시간 00분/
+			/실제 근무 161시간 20분, 휴가 06시간 40분, 기준 시간 168시간 00분/
 		);
+		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
 	});
 
 	test('shows the administrator employee work status list and review filters', async ({ page }) => {
