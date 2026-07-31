@@ -52,6 +52,24 @@ export type LeaveManagementPayload = {
 	detail?: LeaveManagementDetail;
 };
 
+export type LeaveManagementLegacyMigrationPreview = {
+	candidateLeaveCount: number;
+	candidateOccurrenceCount: number;
+	alreadyMigratedCount: number;
+	conflictCount: number;
+	preservedOtherCount: number;
+	fingerprint: string;
+};
+
+export type LeaveManagementLegacyMigrationBatch = {
+	id: string;
+	status: string;
+	leaveCount: number;
+	preservedOtherCount: number;
+	createdAt: string;
+	rolledBackAt?: string;
+};
+
 export type LeaveManagementAdjustment = {
 	employeeEmail: string;
 	leaveTypeID: string;
