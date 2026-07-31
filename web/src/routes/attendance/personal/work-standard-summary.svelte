@@ -1,22 +1,13 @@
 <script lang="ts">
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../text';
-	import {
-		calculatePeriodCapacityMinutes,
-		formatWorkStatusDuration
-	} from '../work-status/work-status-format';
+	import { formatWorkStatusDuration } from '../work-status/work-status-format';
 	import { getWorkStatusState } from '../work-status/work-status-state.svelte';
 	import WorkStandardCapacityBar from './work-standard-capacity-bar.svelte';
 
 	const text = createPageText(attendanceText);
 	const workStatus = getWorkStatusState();
 	const status = $derived(workStatus.payload?.personal);
-	const defaultCapacityMinutes = 24 * 60;
-	const capacityMinutes = $derived(
-		status
-			? calculatePeriodCapacityMinutes(status.periodStart, status.periodEnd)
-			: defaultCapacityMinutes
-	);
 </script>
 
 <div class="mt-3 border-t pt-3" data-testid="personal-work-standard">
@@ -50,13 +41,24 @@
 			{/if}
 		</div>
 
-		<WorkStandardCapacityBar
-			actualMinutes={status.actualMinutes}
-			creditedLeaveMinutes={status.creditedLeaveMinutes}
-			{capacityMinutes}
-			hasBaseline={status.hasBaseline}
-			targetMinutes={status.targetMinutes}
-		/>
+		{#if status.hasBaseline}
+			<WorkStandardCapacityBar
+				actualMinutes={status.actualMinutes}
+				creditedLeaveMinutes={status.creditedLeaveMinutes}
+				targetMinutes={status.targetMinutes}
+			/>
+		{:else}
+			<div class="grid grid-cols-2 gap-3 text-[10px]" data-testid="work-standard-no-baseline-values">
+				<div>
+					<p class="text-muted-foreground">{text.workStatus.actual}</p>
+					<p class="mt-1 font-medium tabular-nums">{formatWorkStatusDuration(status.actualMinutes, text)}</p>
+				</div>
+				<div>
+					<p class="text-muted-foreground">{text.workStatus.leave}</p>
+					<p class="mt-1 font-medium tabular-nums">{formatWorkStatusDuration(status.creditedLeaveMinutes, text)}</p>
+				</div>
+			</div>
+		{/if}
 
 		<div class="mt-3 space-y-1.5 border-t pt-3 text-[10px]">
 			<div class="flex items-center justify-between gap-3">
