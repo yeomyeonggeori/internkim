@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore":
 		return true
 	default:
 		return false
@@ -141,6 +141,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		membershipContext, cancelMembership := context.WithTimeout(context.Background(), 90*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(membershipContext, "recover buzz staff membership", "sh", "-lc", buzzMembershipRecoverCommand()))
 		cancelMembership()
+	case "buzz-restore":
+		restoreContext, cancelRestore := context.WithTimeout(context.Background(), 300*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(restoreContext, "restore buzz relay database from snapshot", "sh", "-lc", buzzRestoreCommand()))
+		cancelRestore()
 	case "buzz-snapshot":
 		snapshotContext, cancelSnapshot := context.WithTimeout(context.Background(), 180*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(snapshotContext, "snapshot buzz relay database", "sh", "-lc", buzzSnapshotCommand()))
@@ -620,6 +624,26 @@ echo "== effective relay env =="; systemctl show ` + blueclaw.BuzzRelayServiceNa
 echo "relay permissive via drop-in — scheduling admind restart to resync staff membership"
 systemd-run --on-active=3sec --unit=internkim-membership-admind-restart systemctl restart internkim-admind
 echo "admind restart scheduled"
+`)
+}
+
+func buzzRestoreCommand() string {
+	return strings.TrimSpace(`
+set -e
+BACKUP=$(ls -t /root/.internkim/backups/buzz-*.sql 2>/dev/null | head -1)
+if [ -z "$BACKUP" ]; then echo "NO BACKUP FOUND"; exit 1; fi
+echo "restoring from $BACKUP ($(wc -c < "$BACKUP") bytes)"
+systemctl stop ` + blueclaw.ChatdServiceName + ` 2>/dev/null || true
+systemctl stop ` + blueclaw.BuzzRelayServiceName + `
+su - postgres -c "dropdb --if-exists ` + blueclaw.BuzzRelayDatabaseName + ` && createdb -O ` + blueclaw.BuzzRelayDatabaseUser + ` ` + blueclaw.BuzzRelayDatabaseName + `"
+cat "$BACKUP" | su - postgres -c "psql -q -d ` + blueclaw.BuzzRelayDatabaseName + `" >/dev/null 2>&1
+rm -f /etc/systemd/system/` + blueclaw.BuzzRelayServiceName + `.service.d/membership-recover.conf
+systemctl daemon-reload
+systemctl start ` + blueclaw.BuzzRelayServiceName + `
+for attempt in $(seq 1 40); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
+systemctl start ` + blueclaw.ChatdServiceName + `
+echo "restored from snapshot; relay+chatd started"
+su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"SELECT count(*) FROM events WHERE kind=9\"" | sed 's/^/kind9 events: /'
 `)
 }
 
