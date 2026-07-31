@@ -14,6 +14,7 @@
 	import { attendanceText } from '../text';
 	import LeaveAdjustmentDialog from './leave-adjustment-dialog.svelte';
 	import { getLeaveManagementState } from './leave-management-state.svelte';
+	import LegacyAbsenceMigrationDialog from './legacy-absence-migration-dialog.svelte';
 	import LeaveTimeCorrectionDialog from './leave-time-correction-dialog.svelte';
 	import PastLeaveDialog from './past-leave-dialog.svelte';
 
@@ -79,6 +80,7 @@
 			</p>
 		</div>
 		<div class="flex flex-wrap gap-2">
+			<LegacyAbsenceMigrationDialog />
 			{#if !isUnlimited}
 				<LeaveAdjustmentDialog />
 			{/if}

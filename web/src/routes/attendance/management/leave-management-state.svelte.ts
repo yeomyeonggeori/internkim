@@ -3,6 +3,7 @@ import type { AttendanceText } from '../text';
 import { employeeLeaveErrorMessage } from '../leave/employee-leave-error';
 import {
 	adjustManagedLeave,
+	applyLegacyAbsenceMigration,
 	cancelManagedLeaveRequest,
 	correctManagedLeaveTime,
 	createManagedPastLeave,
@@ -55,6 +56,12 @@ export class LeaveManagementState {
 
 	async adjust(input: LeaveManagementAdjustment): Promise<void> {
 		await this.mutate(() => adjustManagedLeave(input));
+	}
+
+	async migrateLegacyAbsences(fingerprint: string): Promise<void> {
+		await this.mutate(async () => {
+			await applyLegacyAbsenceMigration(fingerprint);
+		});
 	}
 
 	async addPastLeave(input: LeaveManagementPastLeave): Promise<void> {
