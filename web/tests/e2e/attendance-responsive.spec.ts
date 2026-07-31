@@ -91,6 +91,10 @@ test.describe('attendance responsive view', () => {
 			/left:\s*80%/
 		);
 		await expect(standard.getByTestId('work-standard-progress-track')).toHaveCSS('height', '14px');
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveCSS(
+			'background-color',
+			'rgb(250, 204, 21)'
+		);
 		await expect(page.getByTestId('work-standard-bar-tooltip')).toHaveCount(0);
 		await workTimeCard.getByRole('button', { name: '주별' }).click();
 		await expect(standard.getByText(/2026-07-27–2026-08-02/)).toBeVisible();

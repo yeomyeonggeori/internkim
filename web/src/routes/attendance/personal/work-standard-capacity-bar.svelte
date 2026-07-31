@@ -53,7 +53,11 @@
 			class="flex h-3.5 overflow-hidden rounded-full bg-muted"
 			data-testid="work-standard-progress-track"
 		>
-			<span class="bg-foreground" style={`width:${actualWidth}%`}></span>
+			<span
+				class="bg-yellow-400"
+				style={`width:${actualWidth}%`}
+				data-testid="work-standard-actual-segment"
+			></span>
 			<span class="bg-blue-500" style={`width:${leaveWidth}%`}></span>
 		</span>
 		<span
@@ -65,6 +69,6 @@
 </div>
 
 <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
-	<span><i class="mr-1 inline-block size-2 rounded-full bg-foreground"></i>{text.workStatus.actual}</span>
+	<span><i class="mr-1 inline-block size-2 rounded-full bg-yellow-400"></i>{text.workStatus.actual}</span>
 	<span><i class="mr-1 inline-block size-2 rounded-full bg-blue-500"></i>{text.workStatus.leave}</span>
 </div>
