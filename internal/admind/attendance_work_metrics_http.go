@@ -242,6 +242,7 @@ func mergeAttendanceWorkMembers(
 	for _, member := range members {
 		email := strings.ToLower(strings.TrimSpace(member.Email))
 		if email != "" {
+			member.Email = email
 			byEmail[email] = member
 		}
 	}

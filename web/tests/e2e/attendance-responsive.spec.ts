@@ -1,5 +1,6 @@
 import { expect, test } from './attendance-page-test-fixture';
 import { buildAttendanceSummaryFixture } from '../../dev-attendance-summary-fixture';
+import { createDevAttendanceWorkStatus } from '../../dev-attendance-work-status-mock';
 import {
 	expectReadableMobileTeamStatusTable,
 	measureMobileTeamStatusTable,
@@ -61,7 +62,9 @@ test.describe('attendance responsive view', () => {
 		await page.goto('/attendance');
 		await selectKorean(page);
 
-		const workTimeCard = page.locator('[aria-label="내 근무 시간"]');
+		const workTimeCard = page
+			.getByTestId('attendance-sidebar-scroll')
+			.locator('[data-slot="card"][aria-label="내 근무 시간"]');
 		const standard = workTimeCard.getByTestId('personal-work-standard');
 		await expect(workTimeCard.getByText('일일 평균')).toBeVisible();
 		await expect(workTimeCard.getByText('일일 최고')).toBeVisible();
@@ -71,9 +74,9 @@ test.describe('attendance responsive view', () => {
 		await expect(standard.getByText('휴가 인정')).toHaveCount(0);
 		await expect(standard.getByText('남은 시간')).toHaveCount(0);
 		await expect(standard.getByText('유급 휴가')).toHaveCount(0);
-		await expect(standard.getByText('야간 근무 시간')).toBeVisible();
-		await expect(standard.getByText('기준 대비 초과 시간')).toBeVisible();
-		await expect(standard.getByText('기준 달성까지 부족한 시간')).toBeVisible();
+		await expect(standard.getByText('야간 근무', { exact: true })).toBeVisible();
+		await expect(standard.getByText('기준 초과', { exact: true })).toBeVisible();
+		await expect(standard.getByText('기준 부족', { exact: true })).toBeVisible();
 		await expect(standard.getByRole('status')).toHaveCount(0);
 		await expect(standard.getByText('실제 근무', { exact: true })).toBeVisible();
 		await expect(standard.getByText('실제 근무 01시간 20분')).toHaveCount(0);
@@ -83,33 +86,82 @@ test.describe('attendance responsive view', () => {
 		const capacityBar = standard.getByTestId('work-standard-capacity-bar');
 		await expect(capacityBar).toHaveAttribute(
 			'aria-label',
-			/실제 근무 01시간 20분, 휴가 06시간 40분, 기준 시간 08시간 00분/
+			/실제 근무 01시간 20분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 08시간 00분/
 		);
+		await expect(standard.getByTestId('work-standard-total')).toHaveText('09시간 20분');
+		await expect(
+			standard.getByTestId('work-standard-uncredited-leave').getByLabel('01시간 20분')
+		).toBeVisible();
 		await expect(capacityBar).not.toHaveAttribute('aria-label', /전체 시간|남은 시간/);
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute(
 			'style',
 			/left:\s*80%/
 		);
 		await expect(standard.getByTestId('work-standard-progress-track')).toHaveCSS('height', '14px');
-		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveCSS(
-			'background-color',
-			'rgb(250, 204, 21)'
-		);
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveClass(/bg-yellow-400/);
 		await expect(page.getByTestId('work-standard-bar-tooltip')).toHaveCount(0);
 		await workTimeCard.getByRole('button', { name: '주별' }).click();
 		await expect(standard.getByText(/2026-07-27–2026-08-02/)).toBeVisible();
 		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
 			'aria-label',
-			/실제 근무 33시간 20분, 휴가 06시간 40분, 기준 시간 40시간 00분/
+			/실제 근무 33시간 20분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 40시간 00분/
 		);
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
 		await workTimeCard.getByRole('button', { name: '월별' }).click();
 		await expect(standard.getByText(/2026-05-01–2026-05-31/)).toBeVisible();
 		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
 			'aria-label',
-			/실제 근무 161시간 20분, 휴가 06시간 40분, 기준 시간 168시간 00분/
+			/실제 근무 161시간 20분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 168시간 00분/
 		);
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
+	});
+
+	test('distinguishes four work and leave baseline states', async ({ page }) => {
+		const scenarios = [
+			{ actualMinutes: 360, paidLeaveMinutes: 0, creditedLeaveMinutes: 0, fulfilledMinutes: 360, remainingMinutes: 120, overtimeMinutes: 0, differenceMinutes: -120, total: '06시간 00분', shortfall: '02시간 00분' },
+			{ actualMinutes: 300, paidLeaveMinutes: 120, creditedLeaveMinutes: 120, fulfilledMinutes: 420, remainingMinutes: 60, overtimeMinutes: 0, differenceMinutes: -60, total: '07시간 00분', shortfall: '01시간 00분' },
+			{ actualMinutes: 540, paidLeaveMinutes: 0, creditedLeaveMinutes: 0, fulfilledMinutes: 480, remainingMinutes: 0, overtimeMinutes: 60, differenceMinutes: 0, total: '09시간 00분', overtime: '01시간 00분' },
+			{ actualMinutes: 420, paidLeaveMinutes: 120, creditedLeaveMinutes: 60, fulfilledMinutes: 480, remainingMinutes: 0, overtimeMinutes: 0, differenceMinutes: 0, total: '09시간 00분', uncreditedLeave: '01시간 00분' }
+		];
+		let scenario = scenarios[0];
+		await page.unroute('**/attendance/api/work-status?**');
+		await page.route('**/attendance/api/work-status?**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const payload = createDevAttendanceWorkStatus(
+				'tester@example.com',
+				requestURL.searchParams.get('period'),
+				requestURL.searchParams.get('anchor')
+			);
+			payload.personal = payload.personal ? { ...payload.personal, ...scenario, targetMinutes: 480, nightMinutes: 0 } : undefined;
+			await route.fulfill({ json: payload });
+		});
+
+		for (const currentScenario of scenarios) {
+			scenario = currentScenario;
+			await page.goto('/attendance');
+			await selectKorean(page);
+			const standard = page
+				.getByTestId('attendance-sidebar-scroll')
+				.getByTestId('personal-work-standard');
+			await page
+				.getByTestId('attendance-sidebar-scroll')
+				.getByRole('button', { name: '일별' })
+				.click();
+			await expect(standard.getByTestId('work-standard-total')).toHaveText(currentScenario.total);
+			const overtimeRow = standard.getByText('기준 초과', { exact: true }).locator('..');
+			const shortfallRow = standard.getByText('기준 부족', { exact: true }).locator('..');
+			await expect(overtimeRow.getByLabel(currentScenario.overtime ?? '00시간 00분')).toBeVisible();
+			await expect(shortfallRow.getByLabel(currentScenario.shortfall ?? '00시간 00분')).toBeVisible();
+			if (currentScenario.uncreditedLeave) {
+				await expect(
+					standard
+						.getByTestId('work-standard-uncredited-leave')
+						.getByLabel(currentScenario.uncreditedLeave)
+				).toBeVisible();
+			} else {
+				await expect(standard.getByTestId('work-standard-uncredited-leave')).toHaveCount(0);
+			}
+		}
 	});
 
 	test('shows the administrator employee work status list and review filters', async ({ page }) => {
