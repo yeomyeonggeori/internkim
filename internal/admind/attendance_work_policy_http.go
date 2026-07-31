@@ -54,8 +54,17 @@ func (service *Service) handleAttendanceWorkPolicyAt(
 			http.Error(responseWriter, "request must contain one JSON object", http.StatusBadRequest)
 			return
 		}
+		response, errorValue := service.attendanceWorkPolicyResponse(
+			request.Context(),
+			attendanceWorkPolicy{},
+			now,
+			holidayReader,
+		)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+			return
+		}
 		effectiveDate := now.In(service.workspaceTimeZone().location).Format(time.DateOnly)
-		var errorValue error
 		policy, errorValue = service.saveAttendanceWorkPolicyRevision(
 			request.Context(),
 			revision,
@@ -66,6 +75,9 @@ func (service *Service) handleAttendanceWorkPolicyAt(
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 			return
 		}
+		response.Policy = policy
+		service.writeJSON(responseWriter, response)
+		return
 	}
 	response, errorValue := service.attendanceWorkPolicyResponse(
 		request.Context(),

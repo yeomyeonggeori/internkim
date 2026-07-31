@@ -224,13 +224,13 @@ func TestAttendanceClockInStillAllowedAfterForgottenClockOut(t *testing.T) {
 		}
 		events = append(events, currentMonthEvents...)
 	}
-	clockInCount := 0
+	clockInIDs := map[string]struct{}{}
 	for _, event := range events {
 		if event.Kind == attendanceKindClockIn && event.CanceledAt == "" {
-			clockInCount++
+			clockInIDs[event.ID] = struct{}{}
 		}
 	}
-	if clockInCount != 2 {
+	if len(clockInIDs) != 2 {
 		t.Fatalf("expected morning clock-in to stay allowed, events = %+v", events)
 	}
 }

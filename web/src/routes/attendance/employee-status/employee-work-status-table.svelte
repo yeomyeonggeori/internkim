@@ -23,12 +23,16 @@
 	}
 
 	function barScale(employee: AttendanceEmployeeWorkStatus): number {
-		return Math.max(employee.targetMinutes, employee.actualMinutes, 1);
+		return Math.max(employee.targetMinutes, displayedActualMinutes(employee), 1);
+	}
+
+	function displayedActualMinutes(employee: AttendanceEmployeeWorkStatus): number {
+		return Math.max(0, employee.actualMinutes) + Math.max(0, employee.provisionalMinutes);
 	}
 
 	function actualBarWidth(employee: AttendanceEmployeeWorkStatus): number {
 		return (
-			(Math.min(employee.actualMinutes, employee.targetMinutes || employee.actualMinutes) /
+			(Math.min(displayedActualMinutes(employee), employee.targetMinutes || displayedActualMinutes(employee)) /
 				barScale(employee)) *
 			100
 		);
@@ -73,8 +77,11 @@
 				<Table.Cell>{text.workStatus[employee.workMode]}</Table.Cell>
 				<Table.Cell class="min-w-36">
 					<div class="grid gap-1">
-						<span class="text-xs tabular-nums">
-							{formatWorkStatusDuration(employee.actualMinutes, text)}
+						<span
+							class="text-xs tabular-nums"
+							aria-label={`${text.workStatus.actual} ${formatWorkStatusDuration(employee.actualMinutes, text)}, ${text.workStatus.provisional} ${formatWorkStatusDuration(employee.provisionalMinutes, text)}`}
+						>
+							{formatWorkStatusDuration(displayedActualMinutes(employee), text)}
 						</span>
 						<div class="flex h-1.5 overflow-hidden rounded-full bg-muted">
 							<div class="bg-yellow-400" style={`width:${actualBarWidth(employee)}%`}></div>
