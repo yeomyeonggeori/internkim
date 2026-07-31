@@ -1002,7 +1002,7 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	case request.Method == http.MethodPut && path == "/company-documents":
 		service.updateCompanyDocument(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/attendance-locations":
-		service.writeAttendanceLocations(responseWriter)
+		service.writeAttendanceLocations(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/attendance-locations":
 		service.updateAttendanceLocations(responseWriter, request)
 	case (request.Method == http.MethodGet || request.Method == http.MethodPut) && path == "/attendance-leave-policy":

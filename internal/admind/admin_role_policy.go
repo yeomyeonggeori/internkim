@@ -56,6 +56,8 @@ func isOperationsAdminPath(method string, path string) bool {
 		return true
 	case method == http.MethodPut && path == "/attendance-locations":
 		return true
+	case (method == http.MethodGet || method == http.MethodPut) && path == "/attendance-leave-policy":
+		return true
 	default:
 		return false
 	}

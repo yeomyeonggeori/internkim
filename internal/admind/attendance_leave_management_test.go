@@ -13,7 +13,7 @@ import (
 func TestAttendanceLeaveManagementRequiresAdministrator(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/attendance/api/leave-management", nil)
-	request.RemoteAddr = "203.0.113.10:1234"
+	request.RemoteAddr = "127.0.0.1:1234"
 	request.Header.Set("X-Forwarded-Email", "staff@example.com")
 	recorder := httptest.NewRecorder()
 

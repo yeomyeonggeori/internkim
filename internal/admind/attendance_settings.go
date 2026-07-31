@@ -6,7 +6,7 @@ import (
 )
 
 func (service *Service) writeAttendanceSettings(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.isAuthorized(request) {
+	if !service.canManageAttendance(request) {
 		http.Error(responseWriter, "admin required", http.StatusForbidden)
 		return
 	}
