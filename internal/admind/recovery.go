@@ -604,20 +604,22 @@ journalctl -u chatd -n 60 --no-pager 2>&1 | grep -iE 'mirror|mattermost|puppet|c
 func buzzMembershipRecoverCommand() string {
 	return strings.TrimSpace(`
 set -e
-{
-  printf 'BUZZ_REQUIRE_RELAY_MEMBERSHIP=false\n'
-  printf 'BUZZ_RATE_LIMIT_HUMAN_MESSAGES_PER_MIN=1000000\n'
-  printf 'BUZZ_RATE_LIMIT_HUMAN_API_CALLS_PER_MIN=1000000\n'
-  printf 'BUZZ_RATE_LIMIT_HUMAN_WS_EVENTS_PER_SEC=100000\n'
-  printf 'BUZZ_MEDIA_UPLOADS_PER_MINUTE=1000000\n'
-} > ` + blueclaw.BuzzRelayImportOverrideEnvPath + `
-chmod 600 ` + blueclaw.BuzzRelayImportOverrideEnvPath + `
+mkdir -p /etc/systemd/system/` + blueclaw.BuzzRelayServiceName + `.service.d
+cat > /etc/systemd/system/` + blueclaw.BuzzRelayServiceName + `.service.d/membership-recover.conf <<'DROPIN'
+[Service]
+Environment=BUZZ_REQUIRE_RELAY_MEMBERSHIP=false
+Environment=BUZZ_RATE_LIMIT_HUMAN_MESSAGES_PER_MIN=1000000
+Environment=BUZZ_RATE_LIMIT_HUMAN_API_CALLS_PER_MIN=1000000
+Environment=BUZZ_RATE_LIMIT_HUMAN_WS_EVENTS_PER_SEC=100000
+Environment=BUZZ_MEDIA_UPLOADS_PER_MINUTE=1000000
+DROPIN
 systemctl daemon-reload
 systemctl restart ` + blueclaw.BuzzRelayServiceName + `
 for attempt in $(seq 1 30); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
-echo "relay permissive (membership off, limits relaxed) — scheduling admind restart to resync staff membership"
+echo "== effective relay env =="; systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | grep -iE 'REQUIRE_RELAY|WS_EVENTS' || true
+echo "relay permissive via drop-in — scheduling admind restart to resync staff membership"
 systemd-run --on-active=3sec --unit=internkim-membership-admind-restart systemctl restart internkim-admind
-echo "admind restart scheduled; staff relay+channel membership will re-grant on boot"
+echo "admind restart scheduled"
 `)
 }
 
