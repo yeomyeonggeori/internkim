@@ -228,6 +228,7 @@ func TestAttendanceSettingsToggle(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPatch, "/attendance/api/settings", strings.NewReader(`{"teamViewVisibleToAll":false}`))
 	request.RemoteAddr = "127.0.0.1:1234"
+	request.Header.Set("X-Forwarded-Email", "admin@example.com")
 	service.handleAttendance(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
@@ -238,6 +239,18 @@ func TestAttendanceSettingsToggle(t *testing.T) {
 	}
 	if body["teamViewVisibleToAll"] != false {
 		t.Fatalf("response = %+v", body)
+	}
+}
+
+func TestAttendanceSettingsRejectsMemberThroughLoopback(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/attendance/api/settings", strings.NewReader(`{"teamViewVisibleToAll":false}`))
+	request.RemoteAddr = "127.0.0.1:1234"
+	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	service.handleAttendance(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
 }
 

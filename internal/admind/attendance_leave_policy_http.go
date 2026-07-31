@@ -9,6 +9,10 @@ import (
 )
 
 func (service *Service) handleAttendanceLeavePolicy(responseWriter http.ResponseWriter, request *http.Request) {
+	if !service.canManageAttendance(request) {
+		http.Error(responseWriter, "admin access required", http.StatusForbidden)
+		return
+	}
 	if request.Method == http.MethodGet {
 		policy, errorValue := service.readAttendanceLeavePolicy(request.Context())
 		if errorValue != nil {
