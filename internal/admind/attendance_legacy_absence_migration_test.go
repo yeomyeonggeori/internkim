@@ -18,6 +18,21 @@ func TestAttendanceLegacyAbsenceMigrationPreservesSourceAndSupportsRollback(
 	service, _ := newAttendanceActionTestService(t)
 	ctx := t.Context()
 	employeeUserIDs := attendanceLegacyAbsenceMigrationTestEmployeeUserIDs()
+	if _, errorValue := service.grantAttendanceLeave(ctx, attendanceLeaveGrant{
+		Operation: attendanceLeaveOperation{
+			OperationKey: "grant-before-legacy-migration",
+			Employee: attendanceLeaveEmployee{
+				Email:  "staff@example.com",
+				UserID: "user-1",
+			},
+			LeaveTypeID: attendanceAnnualLeaveTypeID,
+			Amount:      3000,
+			EffectiveOn: "2026-01-01",
+		},
+		ExpiresOn: "2027-01-01",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	leaveRangeID := insertLegacyAttendanceAbsenceForMigration(
 		t,
 		service,
@@ -136,8 +151,8 @@ WHERE id = ?`,
 	); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if leaveTypeID != attendanceLegacyLeaveTypeID ||
-		leaveTypeName != attendanceLegacyLeaveTypeName ||
+	if leaveTypeID != attendanceAnnualLeaveTypeID ||
+		leaveTypeName != "연차" ||
 		userID != "user-1" ||
 		balanceMode != "none" ||
 		status != attendanceLeaveRequestStatusApproved ||
@@ -157,8 +172,22 @@ WHERE id = ?`,
 	if occurrenceCount := attendanceMigrationRequestOccurrenceCount(t, database, requestID); occurrenceCount != 2 {
 		t.Fatalf("occurrence count = %d, want 2", occurrenceCount)
 	}
-	if operationCount := attendanceMigrationTableCount(t, database, "attendance_leave_operations"); operationCount != initialOperationCount {
-		t.Fatalf("leave operation count = %d, want %d", operationCount, initialOperationCount)
+	if operationCount := attendanceMigrationTableCount(t, database, "attendance_leave_operations"); operationCount != initialOperationCount+1 {
+		t.Fatalf("leave operation count = %d, want %d", operationCount, initialOperationCount+1)
+	}
+	annualBalance, errorValue := queryAttendanceLeaveBalance(
+		ctx,
+		database,
+		attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"},
+		attendanceAnnualLeaveTypeID,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if annualBalance.AvailableMilliDays != 3000 ||
+		annualBalance.ReservedMilliDays != 0 ||
+		annualBalance.UsedMilliDays != 2000 {
+		t.Fatalf("annual balance = %+v", annualBalance)
 	}
 	var linkedRangeID string
 	if errorValue := database.QueryRowContext(ctx, `
@@ -173,6 +202,31 @@ WHERE request_id = ?`,
 		t.Fatalf("linked range ID = %q, want %q", linkedRangeID, leaveRangeID)
 	}
 	database.Close()
+	employee := attendanceLeaveEmployee{
+		Email:    "staff@example.com",
+		UserID:   "user-1",
+		HireDate: "2099-01-01",
+	}
+	dashboard, errorValue := service.readAttendanceLeaveDashboard(ctx, employee, now)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if dashboard.Summary.UsedMilliDays != 2000 ||
+		dashboard.Summary.AvailableMilliDays != 1000 {
+		t.Fatalf("migrated dashboard summary = %+v", dashboard.Summary)
+	}
+	policy := defaultAttendanceLeavePolicy()
+	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingUnlimited
+	if errorValue := service.writeAttendanceLeavePolicy(ctx, policy); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	dashboard, errorValue = service.readAttendanceLeaveDashboard(ctx, employee, now)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if dashboard.Summary.UsedMilliDays != 2000 {
+		t.Fatalf("used leave after policy update = %d, want 2000", dashboard.Summary.UsedMilliDays)
+	}
 
 	repeatedPreview, errorValue := service.previewAttendanceLegacyAbsenceMigration(
 		ctx,
@@ -224,10 +278,20 @@ WHERE request_id = ?`,
 			t.Fatalf("%s count after rollback = %d", tableName, count)
 		}
 	}
+	if operationCount := attendanceMigrationTableCount(t, database, "attendance_leave_operations"); operationCount != initialOperationCount {
+		t.Fatalf("operation count after rollback = %d, want %d", operationCount, initialOperationCount)
+	}
 	if sourceCount := attendanceMigrationTableCount(t, database, "attendance_absence_ranges"); sourceCount != 2 {
 		t.Fatalf("source absence count after rollback = %d, want 2", sourceCount)
 	}
 	database.Close()
+	dashboard, errorValue = service.readAttendanceLeaveDashboard(ctx, employee, now)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if dashboard.Summary.UsedMilliDays != 0 {
+		t.Fatalf("used leave after rollback = %d, want 0", dashboard.Summary.UsedMilliDays)
+	}
 
 	preview, errorValue = service.previewAttendanceLegacyAbsenceMigration(ctx, employeeUserIDs)
 	if errorValue != nil {
