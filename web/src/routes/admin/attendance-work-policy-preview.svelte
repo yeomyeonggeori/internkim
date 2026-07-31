@@ -6,21 +6,24 @@
 	type Props = {
 		revision: AttendanceWorkPolicyRevision;
 		text: AdminPageText;
+		currentMonth: string;
+		holidayDates: string[];
 	};
 
-	let { revision, text }: Props = $props();
+	let { revision, text, currentMonth, holidayDates }: Props = $props();
 
 	function hours(minutes: number): string {
 		if (minutes <= 0) return text.workSettings.noBaseline;
 		const hourValue = Math.floor(minutes / 60);
 		const minuteValue = minutes % 60;
-		return minuteValue === 0 ? `${hourValue}시간` : `${hourValue}시간 ${minuteValue}분`;
+		return minuteValue === 0
+			? `${hourValue}${text.workSettings.hourUnit}`
+			: `${hourValue}${text.workSettings.hourUnit} ${minuteValue}${text.workSettings.minuteUnit}`;
 	}
 
 	const modeLabel = $derived(text.workSettings[revision.workMode]);
-	const currentMonth = new Date().toISOString().slice(0, 7);
 	const monthlyTargetMinutes = $derived(
-		attendanceMonthlyTargetMinutes(revision, currentMonth)
+		attendanceMonthlyTargetMinutes(revision, currentMonth, holidayDates)
 	);
 </script>
 

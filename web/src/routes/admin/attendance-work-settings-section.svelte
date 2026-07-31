@@ -28,6 +28,8 @@
 	let message = $state('');
 	let isLoading = $state(false);
 	let isSaving = $state(false);
+	let currentMonth = $state('');
+	let holidayDates = $state<string[]>([]);
 
 	$effect(() => {
 		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
@@ -39,7 +41,10 @@
 		isLoading = true;
 		message = '';
 		try {
-			policy = await fetchAttendanceWorkPolicy(adminBaseURL, text.workSettings.loadError);
+			const response = await fetchAttendanceWorkPolicy(adminBaseURL, text.workSettings.loadError);
+			policy = response.policy;
+			currentMonth = response.currentMonth;
+			holidayDates = response.holidayDates;
 			draft = currentAttendanceWorkPolicyRevision(policy);
 		} catch (error) {
 			message = apiErrorMessage(error, text.workSettings.loadError);
@@ -73,17 +78,30 @@
 		isSaving = true;
 		message = '';
 		try {
-			policy = await updateAttendanceWorkPolicy(
+			const response = await updateAttendanceWorkPolicy(
 				adminBaseURL,
 				draft,
 				text.workSettings.saveError
 			);
+			policy = response.policy;
+			currentMonth = response.currentMonth;
+			holidayDates = response.holidayDates;
 			draft = currentAttendanceWorkPolicyRevision(policy);
 			message = text.workSettings.saveSuccess;
 		} catch (error) {
 			message = apiErrorMessage(error, text.workSettings.saveError);
 		} finally {
 			isSaving = false;
+		}
+	}
+
+	async function refreshPreviewContext(): Promise<void> {
+		try {
+			const response = await fetchAttendanceWorkPolicy(adminBaseURL, text.workSettings.loadError);
+			currentMonth = response.currentMonth;
+			holidayDates = response.holidayDates;
+		} catch (error) {
+			message = apiErrorMessage(error, text.workSettings.loadError);
 		}
 	}
 </script>
@@ -133,7 +151,7 @@
 					</Card.Content>
 				</Card.Root>
 			</div>
-			<AttendanceWorkPolicyPreview revision={draft} {text} />
+			<AttendanceWorkPolicyPreview revision={draft} {text} {currentMonth} {holidayDates} />
 		</div>
 	{/if}
 
@@ -148,5 +166,9 @@
 		</p>
 	{/if}
 
-	<CompanyHolidaySettings {adminBaseURL} {text} />
+	<CompanyHolidaySettings
+		{adminBaseURL}
+		{text}
+		onChanged={() => void refreshPreviewContext()}
+	/>
 </div>

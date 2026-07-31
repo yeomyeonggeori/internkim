@@ -86,7 +86,14 @@ async function mockAdminLeavePolicyPage(
 				]
 			};
 		}
-		await route.fulfill({ json: workPolicyState.policy });
+		await route.fulfill({
+			json: {
+				policy: workPolicyState.policy,
+				currentMonth: '2026-07',
+				holidayDates: companyHolidays.map((holiday) => holiday.date),
+				timeZone: 'Asia/Seoul'
+			}
+		});
 	});
 	await page.route('**/admin/api/company-holidays**', async (route) => {
 		const request = route.request();

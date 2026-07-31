@@ -1,11 +1,7 @@
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
-	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
-	import * as Table from '$lib/components/ui/table';
-	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
@@ -18,8 +14,9 @@
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { attendanceText } from '../text';
 	import { getWorkStatusState } from '../work-status/work-status-state.svelte';
-	import { formatWorkStatusDuration } from '../work-status/work-status-format';
+	import EmployeeWorkStatusDetailDialog from './employee-work-status-detail-dialog.svelte';
 	import { filterEmployeeWorkStatuses } from './employee-work-status-model';
+	import EmployeeWorkStatusTable from './employee-work-status-table.svelte';
 
 	const text = createPageText(attendanceText);
 	const attendance = getAttendanceState();
@@ -93,23 +90,6 @@
 		return statusOptions.find((option) => option.value === status)?.label ?? labels[status] ?? status;
 	}
 
-	function formatDifference(minutes: number): string {
-		const prefix = minutes > 0 ? '+' : minutes < 0 ? '-' : '';
-		return `${prefix}${formatWorkStatusDuration(Math.abs(minutes), text)}`;
-	}
-
-	function barScale(employee: AttendanceEmployeeWorkStatus): number {
-		return Math.max(employee.targetMinutes, employee.actualMinutes, 1);
-	}
-
-	function actualBarWidth(employee: AttendanceEmployeeWorkStatus): number {
-		return (Math.min(employee.actualMinutes, employee.targetMinutes || employee.actualMinutes) / barScale(employee)) * 100;
-	}
-
-	function leaveBarWidth(employee: AttendanceEmployeeWorkStatus): number {
-		return (employee.creditedLeaveMinutes / barScale(employee)) * 100;
-	}
-
 	function refresh(): void {
 		void workStatus.load(attendance.chartMode, anchor);
 	}
@@ -161,7 +141,11 @@
 						</Button>
 					{/each}
 				</div>
-				<Input class="ml-auto w-full md:w-64" bind:value={search} placeholder={text.workStatus.searchPlaceholder} />
+				<Input
+					class="ml-auto w-full md:w-64"
+					bind:value={search}
+					placeholder={text.workStatus.searchPlaceholder}
+				/>
 			</div>
 		</Card.Header>
 		<Card.Content class="overflow-x-auto">
@@ -170,151 +154,20 @@
 					{text.workStatus.loadFailed}
 				</p>
 			{:else}
-				<Table.Root>
-					<Table.Header>
-						<Table.Row>
-							<Table.Head>{text.workStatus.employee}</Table.Head>
-							<Table.Head>{text.workStatus.mode}</Table.Head>
-							<Table.Head>{text.workStatus.actual}</Table.Head>
-							<Table.Head class="text-right">{text.workStatus.creditedLeave}</Table.Head>
-							<Table.Head class="text-right">{text.workStatus.fulfilled}</Table.Head>
-							<Table.Head class="text-right">{text.workStatus.difference}</Table.Head>
-							<Table.Head class="text-right">{text.workStatus.night}</Table.Head>
-							<Table.Head>{text.status}</Table.Head>
-							<Table.Head><span class="sr-only">{text.workStatus.details}</span></Table.Head>
-						</Table.Row>
-					</Table.Header>
-					<Table.Body>
-						{#each employees as employee (employee.email)}
-							<Table.Row>
-								<Table.Cell>
-									<div class="flex items-center gap-2">
-										<PersonAvatar
-											name={employee.displayName}
-											email={employee.email}
-											seed={employee.email}
-											class="size-8 shrink-0"
-										/>
-										<span class="grid">
-											<span class="font-medium">{employee.displayName}</span>
-											<span class="text-xs text-muted-foreground">{employee.email}</span>
-										</span>
-									</div>
-								</Table.Cell>
-								<Table.Cell>{text.workStatus[employee.workMode]}</Table.Cell>
-								<Table.Cell class="min-w-36">
-									<div class="grid gap-1">
-										<span class="text-xs tabular-nums">{formatWorkStatusDuration(employee.actualMinutes, text)}</span>
-										<div class="flex h-1.5 overflow-hidden rounded-full bg-muted">
-											<div class="bg-foreground" style={`width:${actualBarWidth(employee)}%`}></div>
-											<div class="bg-blue-500" style={`width:${leaveBarWidth(employee)}%`}></div>
-										</div>
-									</div>
-								</Table.Cell>
-								<Table.Cell class="text-right tabular-nums">{formatWorkStatusDuration(employee.creditedLeaveMinutes, text)}</Table.Cell>
-								<Table.Cell class="text-right tabular-nums">
-									{#if employee.hasBaseline}
-										{formatWorkStatusDuration(employee.fulfilledMinutes, text)}
-										<span class="text-muted-foreground"> / {formatWorkStatusDuration(employee.targetMinutes, text)}</span>
-									{:else}
-										{text.workStatus.noBaseline}
-									{/if}
-								</Table.Cell>
-								<Table.Cell class="text-right tabular-nums">
-									{employee.hasBaseline ? formatDifference(employee.differenceMinutes) : text.workStatus.noBaseline}
-								</Table.Cell>
-								<Table.Cell class="text-right tabular-nums">{formatWorkStatusDuration(employee.nightMinutes, text)}</Table.Cell>
-								<Table.Cell><Badge variant="secondary">{statusLabel(employee.status)}</Badge></Table.Cell>
-								<Table.Cell>
-									<Button
-										variant="ghost"
-										size="icon-sm"
-										aria-label={`${employee.displayName} ${text.workStatus.details}`}
-										onclick={() => (selectedEmployee = employee)}
-									>
-										<ChevronRightIcon />
-									</Button>
-								</Table.Cell>
-							</Table.Row>
-						{:else}
-							<Table.Row>
-								<Table.Cell colspan={9} class="h-28 text-center text-muted-foreground">
-									{text.workStatus.noEmployees}
-								</Table.Cell>
-							</Table.Row>
-						{/each}
-					</Table.Body>
-				</Table.Root>
+				<EmployeeWorkStatusTable
+					{employees}
+					{text}
+					{statusLabel}
+					onSelect={(employee) => (selectedEmployee = employee)}
+				/>
 			{/if}
 		</Card.Content>
 	</Card.Root>
 </div>
 
-<Dialog.Root
-	open={selectedEmployee !== null}
-	onOpenChange={(open) => {
-		if (!open) selectedEmployee = null;
-	}}
->
-	<Dialog.Content class="max-h-[85vh] overflow-y-auto sm:max-w-3xl" closeLabel={text.close}>
-		{#if selectedEmployee}
-			<Dialog.Header>
-				<Dialog.Title>{selectedEmployee.displayName} · {text.workStatus.dailyBreakdown}</Dialog.Title>
-				<Dialog.Description>
-					{selectedEmployee.periodStart}–{selectedEmployee.periodEnd}
-				</Dialog.Description>
-			</Dialog.Header>
-			<Table.Root>
-				<Table.Header>
-					<Table.Row>
-						<Table.Head>{text.date}</Table.Head>
-						<Table.Head>{text.status}</Table.Head>
-						<Table.Head class="text-right">{text.workStatus.target}</Table.Head>
-						<Table.Head class="text-right">{text.workStatus.actual}</Table.Head>
-						<Table.Head class="text-right">{text.workStatus.paidLeave}</Table.Head>
-						<Table.Head class="text-right">{text.workStatus.overtime}</Table.Head>
-						<Table.Head class="text-right">{text.workStatus.night}</Table.Head>
-						<Table.Head>{text.workStatus.workSegments}</Table.Head>
-						<Table.Head>{text.workStatus.leaveSegments}</Table.Head>
-					</Table.Row>
-				</Table.Header>
-				<Table.Body>
-					{#each selectedEmployee.days as day (day.date)}
-						<Table.Row>
-							<Table.Cell>{day.date}</Table.Cell>
-							<Table.Cell><Badge variant="secondary">{statusLabel(day.status)}</Badge></Table.Cell>
-							<Table.Cell class="text-right">{formatWorkStatusDuration(day.targetMinutes, text)}</Table.Cell>
-							<Table.Cell class="text-right">{formatWorkStatusDuration(day.actualMinutes, text)}</Table.Cell>
-							<Table.Cell class="text-right">{formatWorkStatusDuration(day.paidLeaveMinutes, text)}</Table.Cell>
-							<Table.Cell class="text-right">{formatWorkStatusDuration(day.overtimeMinutes, text)}</Table.Cell>
-							<Table.Cell class="text-right">{formatWorkStatusDuration(day.nightMinutes, text)}</Table.Cell>
-							<Table.Cell>
-								{#if day.workSegments.length > 0}
-									{day.workSegments
-										.map((segment) => `${segment.startTime}–${segment.endTime}${segment.provisional ? ` (${text.workStatus.statusWorking})` : ''}`)
-										.join(', ')}
-								{:else}
-									{text.workStatus.noSegments}
-								{/if}
-							</Table.Cell>
-							<Table.Cell>
-								{#if day.leaveSegments.length > 0}
-									{day.leaveSegments
-										.map((segment) => `${segment.startTime}–${segment.endTime} (${segment.paid ? text.workStatus.paid : text.workStatus.unpaid})`)
-										.join(', ')}
-								{:else}
-									{text.workStatus.noSegments}
-								{/if}
-							</Table.Cell>
-						</Table.Row>
-					{/each}
-				</Table.Body>
-			</Table.Root>
-			<Dialog.Footer>
-				<Button variant="outline" onclick={() => (selectedEmployee = null)}>
-					{text.workStatus.close}
-				</Button>
-			</Dialog.Footer>
-		{/if}
-	</Dialog.Content>
-</Dialog.Root>
+<EmployeeWorkStatusDetailDialog
+	employee={selectedEmployee}
+	{text}
+	{statusLabel}
+	onClose={() => (selectedEmployee = null)}
+/>

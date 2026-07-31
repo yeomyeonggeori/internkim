@@ -24,7 +24,7 @@
 
 	let { revision, text, disabled, onChange }: Props = $props();
 
-	const weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
+	const weekdayLabels = $derived(text.workSettings.weekdays);
 
 	function update(mutator: (next: AttendanceWorkPolicyRevision) => void): void {
 		const next = copyAttendanceWorkPolicyRevision(revision);
@@ -118,7 +118,9 @@
 							)}
 						{disabled}
 					/>
-					<span class="pointer-events-none absolute right-3 top-2.5 text-xs text-muted-foreground">시간</span>
+					<span class="pointer-events-none absolute right-3 top-2.5 text-xs text-muted-foreground">
+						{text.workSettings.hourUnit}
+					</span>
 				</div>
 			</Field.Field>
 			<Field.Field>
@@ -149,7 +151,7 @@
 					<div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
 						<Input
 							type="time"
-							aria-label={`${text.workSettings.coreTime} 시작`}
+							aria-label={`${text.workSettings.coreTime} ${text.workSettings.start}`}
 							value={revision.coreStartTime}
 							oninput={(event) => update((next) => (next.coreStartTime = event.currentTarget.value))}
 							{disabled}
@@ -157,7 +159,7 @@
 						<span class="text-muted-foreground">–</span>
 						<Input
 							type="time"
-							aria-label={`${text.workSettings.coreTime} 종료`}
+							aria-label={`${text.workSettings.coreTime} ${text.workSettings.end}`}
 							value={revision.coreEndTime}
 							oninput={(event) => update((next) => (next.coreEndTime = event.currentTarget.value))}
 							{disabled}
@@ -171,7 +173,7 @@
 				<div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
 					<Input
 						type="time"
-						aria-label={`${text.workSettings.fixedHours} 시작`}
+						aria-label={`${text.workSettings.fixedHours} ${text.workSettings.start}`}
 						value={revision.fixedStartTime}
 						oninput={(event) => update((next) => (next.fixedStartTime = event.currentTarget.value))}
 						{disabled}
@@ -179,7 +181,7 @@
 					<span class="text-muted-foreground">–</span>
 					<Input
 						type="time"
-						aria-label={`${text.workSettings.fixedHours} 종료`}
+						aria-label={`${text.workSettings.fixedHours} ${text.workSettings.end}`}
 						value={revision.fixedEndTime}
 						oninput={(event) => update((next) => (next.fixedEndTime = event.currentTarget.value))}
 						{disabled}
@@ -204,7 +206,7 @@
 				<div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
 					<Input
 						type="time"
-						aria-label={`${text.workSettings.nightHours} 시작`}
+						aria-label={`${text.workSettings.nightHours} ${text.workSettings.start}`}
 						value={revision.nightStartTime}
 						oninput={(event) => update((next) => (next.nightStartTime = event.currentTarget.value))}
 						{disabled}
@@ -212,7 +214,7 @@
 					<span class="text-muted-foreground">–</span>
 					<Input
 						type="time"
-						aria-label={`${text.workSettings.nightHours} 종료`}
+						aria-label={`${text.workSettings.nightHours} ${text.workSettings.end}`}
 						value={revision.nightEndTime}
 						oninput={(event) => update((next) => (next.nightEndTime = event.currentTarget.value))}
 						{disabled}
@@ -225,7 +227,7 @@
 					<div class="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2">
 						<Input
 							type="time"
-							aria-label={`${text.workSettings.breakPeriods} ${index + 1} 시작`}
+							aria-label={`${text.workSettings.breakPeriods} ${index + 1} ${text.workSettings.start}`}
 							value={period.startTime}
 							oninput={(event) => updateBreakPeriod(index, 'startTime', event.currentTarget.value)}
 							{disabled}
@@ -233,7 +235,7 @@
 						<span class="text-muted-foreground">–</span>
 						<Input
 							type="time"
-							aria-label={`${text.workSettings.breakPeriods} ${index + 1} 종료`}
+							aria-label={`${text.workSettings.breakPeriods} ${index + 1} ${text.workSettings.end}`}
 							value={period.endTime}
 							oninput={(event) => updateBreakPeriod(index, 'endTime', event.currentTarget.value)}
 							{disabled}

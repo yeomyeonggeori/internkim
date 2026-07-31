@@ -176,6 +176,7 @@ test.describe('attendance responsive view', () => {
 		await expect(view.getByRole('columnheader', { name: '기준 차이' })).toBeVisible();
 		await expect(view.getByRole('columnheader', { name: '기준 시간' })).toHaveCount(0);
 		await expect(view.getByRole('columnheader', { name: '회사 기준 대비 초과' })).toHaveCount(0);
+		await expect(view.locator('.bg-yellow-400').first()).toHaveClass(/bg-yellow-400/);
 
 		await view.getByRole('button', { name: '기록 확인 필요' }).click();
 		await expect(view.getByText('최도윤', { exact: true })).toBeVisible();
