@@ -5,12 +5,14 @@
 
 	type Props = {
 		actualMinutes: number;
+		paidLeaveMinutes: number;
 		creditedLeaveMinutes: number;
 		targetMinutes: number;
 	};
 
 	let {
 		actualMinutes,
+		paidLeaveMinutes,
 		creditedLeaveMinutes,
 		targetMinutes
 	}: Props = $props();
@@ -24,14 +26,14 @@
 	);
 	const leaveBarMinutes = $derived(
 		Math.min(
-			Math.max(creditedLeaveMinutes, 0),
+			Math.max(paidLeaveMinutes, 0),
 			Math.max(visualCapacityMinutes - actualBarMinutes, 0)
 		)
 	);
 	const actualWidth = $derived((actualBarMinutes / visualCapacityMinutes) * 100);
 	const leaveWidth = $derived((leaveBarMinutes / visualCapacityMinutes) * 100);
 	const barLabel = $derived(
-		`${text.workStatus.actual} ${formatWorkStatusDuration(actualMinutes, text)}, ${text.workStatus.leave} ${formatWorkStatusDuration(creditedLeaveMinutes, text)}, ${text.workStatus.target} ${formatWorkStatusDuration(targetMinutes, text)}`
+		`${text.workStatus.actual} ${formatWorkStatusDuration(actualMinutes, text)}, ${text.workStatus.leave} ${formatWorkStatusDuration(paidLeaveMinutes, text)}, ${text.workStatus.creditedLeave} ${formatWorkStatusDuration(creditedLeaveMinutes, text)}, ${text.workStatus.target} ${formatWorkStatusDuration(targetMinutes, text)}`
 	);
 </script>
 
@@ -58,7 +60,11 @@
 				style={`width:${actualWidth}%`}
 				data-testid="work-standard-actual-segment"
 			></span>
-			<span class="bg-blue-500" style={`width:${leaveWidth}%`}></span>
+			<span
+				class="bg-blue-500"
+				style={`width:${leaveWidth}%`}
+				data-testid="work-standard-leave-segment"
+			></span>
 		</span>
 		<span
 			class="absolute -inset-y-1 w-0.5 bg-foreground"
