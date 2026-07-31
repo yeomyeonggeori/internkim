@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import type { AttendanceEmployeeWorkStatus } from '../../../src/routes/attendance/attendance-api';
 import { filterEmployeeWorkStatuses } from '../../../src/routes/attendance/employee-status/employee-work-status-model';
-import { formatWorkStatusDuration } from '../../../src/routes/attendance/work-status/work-status-format';
+import {
+	calculatePeriodCapacityMinutes,
+	formatWorkStatusDuration
+} from '../../../src/routes/attendance/work-status/work-status-format';
 
 const employee = (
 	displayName: string,
@@ -42,6 +45,14 @@ describe('formatWorkStatusDuration', () => {
 		expect(formatWorkStatusDuration(0, { hourUnit: '시간', minuteUnit: '분' })).toBe(
 			'00시간 00분'
 		);
+	});
+});
+
+describe('calculatePeriodCapacityMinutes', () => {
+	test('uses every calendar hour in day, week, and month periods', () => {
+		expect(calculatePeriodCapacityMinutes('2026-07-31', '2026-07-31')).toBe(24 * 60);
+		expect(calculatePeriodCapacityMinutes('2026-07-27', '2026-08-02')).toBe(168 * 60);
+		expect(calculatePeriodCapacityMinutes('2026-05-01', '2026-05-31')).toBe(744 * 60);
 	});
 });
 
