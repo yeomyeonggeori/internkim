@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport":
 		return true
 	default:
 		return false
@@ -153,6 +153,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		applyContext, cancelApply := context.WithTimeout(context.Background(), 200*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(applyContext, "apply orphan-root repair", "sh", "-lc", buzzRepairCommand(true)))
 		cancelApply()
+	case "buzz-reimport":
+		reimportContext, cancelReimport := context.WithTimeout(context.Background(), 300*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(reimportContext, "re-import Mattermost history into Buzz (wipe + bot-inclusive, loopback membership)", "sh", "-lc", buzzReimportCommand()))
+		cancelReimport()
 	case "buzz-snapshot":
 		snapshotContext, cancelSnapshot := context.WithTimeout(context.Background(), 180*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(snapshotContext, "snapshot buzz relay database", "sh", "-lc", buzzSnapshotCommand()))
@@ -652,6 +656,65 @@ for attempt in $(seq 1 40); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRe
 systemctl start ` + blueclaw.ChatdServiceName + `
 echo "restored from snapshot; relay+chatd started"
 su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"SELECT count(*) FROM events WHERE kind=9\"" | sed 's/^/kind9 events: /'
+`)
+}
+
+func buzzReimportCommand() string {
+	return strings.TrimSpace(`
+set -e
+mkdir -p /root/.internkim/backups
+SNAP="/root/.internkim/backups/buzz-$(date -u +%Y%m%dT%H%M%SZ).sql"
+su - postgres -c "pg_dump ` + blueclaw.BuzzRelayDatabaseName + `" > "$SNAP"
+echo "pre-reimport snapshot: $SNAP ($(wc -c < "$SNAP") bytes)"
+systemctl stop ` + blueclaw.ChatdServiceName + ` 2>/dev/null || true
+systemctl stop ` + blueclaw.BuzzRelayServiceName + `
+{
+  printf 'BUZZ_REQUIRE_RELAY_MEMBERSHIP=false\n'
+  printf 'BUZZ_RATE_LIMIT_HUMAN_MESSAGES_PER_MIN=1000000\n'
+  printf 'BUZZ_RATE_LIMIT_HUMAN_API_CALLS_PER_MIN=1000000\n'
+  printf 'BUZZ_RATE_LIMIT_HUMAN_WS_EVENTS_PER_SEC=100000\n'
+  printf 'BUZZ_MEDIA_UPLOADS_PER_MINUTE=1000000\n'
+} > ` + blueclaw.BuzzRelayImportOverrideEnvPath + `
+chmod 600 ` + blueclaw.BuzzRelayImportOverrideEnvPath + `
+su - postgres -c "dropdb --if-exists ` + blueclaw.BuzzRelayDatabaseName + ` && createdb -O ` + blueclaw.BuzzRelayDatabaseUser + ` ` + blueclaw.BuzzRelayDatabaseName + `"
+systemctl daemon-reload
+systemctl start ` + blueclaw.BuzzRelayServiceName + `
+for attempt in $(seq 1 40); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
+echo "db wiped, relay in import mode (membership off)"
+MM_TOKEN=$(cat ` + blueclaw.BlueclawMattermostTokenPath + `)
+SEED=$(cat /root/.internkim/secrets/buzz-key-seed)
+DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
+TEAM=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
+DEVICE_HOST=$(sed -E 's#^[a-z]+://##; s#/.*$##' ` + blueclaw.DeviceURLFilePath + `)
+case "$DEVICE_HOST" in
+  *.*) PUBLIC_HOST=$(printf '%s' "$DEVICE_HOST" | sed -E 's/\./-relay./') ;;
+  *) PUBLIC_HOST="${DEVICE_HOST}-relay" ;;
+esac
+rm -f ` + blueclaw.BuzzMigrateMarkerPath + `
+cat > /tmp/buzz-reimport-run.sh <<RUNEOF
+export DATABASE_URL="$DB_URL"
+` + blueclaw.BuzzMigrateBinaryPath + ` \
+  --mattermost-url ` + blueclaw.BlueclawMattermostLocalURL + ` \
+  --mattermost-token "$MM_TOKEN" \
+  --team "$TEAM" \
+  --buzz-database-url "$DB_URL" \
+  --buzz-admin ` + blueclaw.BuzzAdminBinaryPath + ` \
+  --key-seed "$SEED" \
+  --relay-url ws://` + blueclaw.BuzzRelayBindAddress + ` \
+  --relay-http-url http://` + blueclaw.BuzzRelayBindAddress + ` \
+  --community-host $PUBLIC_HOST \
+  --orphan-root-title "이전 대화" \
+  && touch ` + blueclaw.BuzzMigrateMarkerPath + ` && echo MIGRATE_DONE_OK || echo MIGRATE_DONE_FAIL
+rm -f ` + blueclaw.BuzzRelayImportOverrideEnvPath + `
+systemctl restart ` + blueclaw.BuzzRelayServiceName + `
+sleep 2
+systemctl start ` + blueclaw.ChatdServiceName + `
+echo REIMPORT_DONE
+RUNEOF
+chmod 700 /tmp/buzz-reimport-run.sh
+setsid nohup bash /tmp/buzz-reimport-run.sh > /tmp/buzz-reimport.log 2>&1 < /dev/null &
+sleep 1
+echo "reimport launched (background, loopback membership) — poll /tmp/buzz-reimport.log; rollback snapshot at $SNAP"
 `)
 }
 
