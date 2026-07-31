@@ -736,7 +736,6 @@
 								<!-- content-visibility:auto applies paint containment that clips the floating Bubble.Reactions badge; disable it so reactions can overflow the item. -->
 								<MessageScroller.Item
 									messageId={item.id}
-									scrollAnchor={item.senderID === currentUserID}
 									class="[content-visibility:visible]"
 								>
 									<Message.Root align={item.senderID === currentUserID ? 'end' : 'start'}>
