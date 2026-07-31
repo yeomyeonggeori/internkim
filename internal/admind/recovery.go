@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status":
 		return true
 	default:
 		return false
@@ -129,6 +129,12 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		cancelRepair()
 	case "buzz-relay-journal":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read Buzz relay TLS terminator journal", "sh", "-lc", buzzRelayJournalDiagnosticCommand()))
+	case "enable-buzz-mirror":
+		mirrorContext, cancelMirror := context.WithTimeout(context.Background(), 90*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(mirrorContext, "enable Buzz<->Mattermost mirror", "sh", "-lc", buzzMirrorEnableCommand()))
+		cancelMirror()
+	case "buzz-mirror-status":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read Buzz<->Mattermost mirror status", "sh", "-lc", buzzMirrorStatusCommand()))
 	}
 	response.Services = service.sshRecoveryServiceStates(ctx)
 	response.JournalTail = service.sshRecoveryJournalTail(ctx)
@@ -529,6 +535,59 @@ printf '\n== config ==\n'
 cat /etc/stunnel/buzz-relay.conf 2>&1
 printf '\n== cert/key present ==\n'
 ls -la /root/.internkim/tls/ 2>&1
+`)
+}
+
+func buzzMirrorEnableCommand() string {
+	return strings.TrimSpace(`
+set +e
+MM=http://127.0.0.1:8065
+ADMIN_EMAIL=$(cat /root/.internkim/config/admin-email 2>/dev/null || cat /root/.internkim/admin-email 2>/dev/null)
+[ -n "$ADMIN_EMAIL" ] || ADMIN_EMAIL=admin
+ADMIN_PASS=$(cat /root/.internkim/secrets/mm-admin-pass 2>/dev/null)
+[ -n "$ADMIN_PASS" ] || { echo "no admin password file"; exit 1; }
+TOKEN=$(curl -s -D- -o /dev/null -X POST $MM/api/v4/users/login -H 'Content-Type: application/json' -d "$(jq -n --arg l "$ADMIN_EMAIL" --arg p "$ADMIN_PASS" '{login_id:$l,password:$p}')" | awk 'tolower($1)=="token:"{print $2}' | tr -d '\r')
+[ -n "$TOKEN" ] || { echo "admin login failed for $ADMIN_EMAIL"; exit 1; }
+curl -s -X PUT $MM/api/v4/config/patch -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"ServiceSettings":{"EnableUserAccessTokens":true}}' >/dev/null
+ADMIN_ID=$(curl -s $MM/api/v4/users/me -H "Authorization: Bearer $TOKEN" | jq -r .id)
+ADMIN_PAT=$(curl -s -X POST $MM/api/v4/users/$ADMIN_ID/tokens -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"description":"chatd mirror admin"}' | jq -r .token)
+[ -n "$ADMIN_PAT" ] && [ "$ADMIN_PAT" != null ] || { echo "admin PAT creation failed"; exit 1; }
+BOT=$(cat /root/.internkim/secrets/mattermost-bot-token 2>/dev/null)
+[ -n "$BOT" ] || { echo "bot token missing"; exit 1; }
+mkdir -p /etc/systemd/system/chatd.service.d
+cat > /etc/systemd/system/chatd.service.d/mirror.conf <<EOF
+[Service]
+Environment=CHATD_MATTERMOST_BASE_URL=$MM
+Environment=CHATD_MATTERMOST_BOT_TOKEN=$BOT
+Environment=CHATD_MATTERMOST_ADMIN_TOKEN=$ADMIN_PAT
+Environment=CHATD_BLUECLAW_INGRESS_URL=http://127.0.0.1:8080
+EOF
+systemctl daemon-reload
+systemctl restart chatd
+sleep 5
+if [ "$(systemctl is-active chatd)" != active ]; then
+  rm -f /etc/systemd/system/chatd.service.d/mirror.conf
+  systemctl daemon-reload
+  systemctl restart chatd
+  echo "ROLLED BACK: chatd failed to start with mirror config; messenger restored"
+  exit 1
+fi
+echo "mirror enabled; chatd active"
+journalctl -u chatd -n 20 --no-pager 2>&1 | grep -iE "mirror|mattermost|connect|error|ready|listen" | tail -10
+`)
+}
+
+func buzzMirrorStatusCommand() string {
+	return strings.TrimSpace(`
+set +e
+printf '== chatd MM env (base URL present => mirror enabled) ==\n'
+systemctl show chatd -p Environment 2>&1 | tr ' ' '\n' | grep -iE 'CHATD_MATTERMOST_BASE_URL|CHATD_BLUECLAW_INGRESS' || echo 'NO MM env (not enabled / rolled back)'
+printf '== mirror drop-in present? ==\n'
+test -f /etc/systemd/system/chatd.service.d/mirror.conf && echo 'drop-in PRESENT' || echo 'drop-in ABSENT (rolled back / not enabled)'
+printf '== chatd state ==\n'
+systemctl show chatd -p ActiveState,SubState,NRestarts 2>&1
+printf '== chatd mirror journal ==\n'
+journalctl -u chatd -n 60 --no-pager 2>&1 | grep -iE 'mirror|mattermost|puppet|connect|ready|error|ROLLED|adapters' | tail -18
 `)
 }
 
