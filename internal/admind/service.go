@@ -121,6 +121,8 @@ type Service struct {
 	buzzInviteStoreOnce        sync.Once
 	buzzKeySeedOnce            sync.Once
 	buzzKeySeedValue           string
+	botBuzzEmailOnce           sync.Once
+	botBuzzEmailValue          string
 	cloudflareAccessOnce       sync.Once
 	cloudflareAccessCheck      *cloudflareAccessVerifier
 	sites                      map[string]*SiteRecord
@@ -526,6 +528,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/buzz-mm-mirrored", service.handleBuzzMMMirrored)
 	multiplexer.HandleFunc("/agent/api/buzz-admin-wipe", service.handleBuzzAdminWipe)
 	multiplexer.HandleFunc("/agent/api/buzz-admin-reset", service.handleBuzzAdminReset)
+	multiplexer.HandleFunc("/agent/api/buzz-repair-orphans", service.handleBuzzRepairOrphans)
 	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
