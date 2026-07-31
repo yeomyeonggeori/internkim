@@ -46,9 +46,22 @@ func (service *Service) serveCalendarHolidays(responseWriter http.ResponseWriter
 			http.Error(responseWriter, storedError.Error(), http.StatusBadGateway)
 			return
 		}
-		if !found {
-			http.Error(responseWriter, refreshError.Error(), http.StatusBadGateway)
+		companyHolidays, companyError := service.readCalendarCompanyHolidaysForRange(
+			request.Context(),
+			startTime,
+			endTime,
+		)
+		if companyError != nil {
+			http.Error(responseWriter, companyError.Error(), http.StatusInternalServerError)
 			return
+		}
+		holidays = append(holidays, companyHolidays...)
+		sortCalendarHolidays(holidays)
+		if !found {
+			if len(companyHolidays) == 0 {
+				http.Error(responseWriter, refreshError.Error(), http.StatusBadGateway)
+				return
+			}
 		}
 		slog.WarnContext(request.Context(), "calendar holiday request refresh failed",
 			"country_code", countryCode,
@@ -69,6 +82,17 @@ func (service *Service) serveCalendarHolidays(responseWriter http.ResponseWriter
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
+	companyHolidays, errorValue := service.readCalendarCompanyHolidaysForRange(
+		request.Context(),
+		startTime,
+		endTime,
+	)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	holidays = append(holidays, companyHolidays...)
+	sortCalendarHolidays(holidays)
 	service.writeJSON(responseWriter, calendarHolidaysResponse{Holidays: holidays, Source: calendarHolidaySourceAPI})
 }
 
