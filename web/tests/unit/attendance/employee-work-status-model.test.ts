@@ -69,11 +69,17 @@ describe('filterEmployeeWorkStatuses', () => {
 		const employees = [
 			employee('김민지', 'minji@example.com', 'needsReview', { needsReview: true }),
 			employee('박지훈', 'jihoon@example.com', 'remaining', { late: true }),
-			employee('이서연', 'seoyeon@example.com', 'remaining', { coreTimeMissed: true })
+			employee('이서연', 'seoyeon@example.com', 'remaining', { coreTimeMissed: true }),
+			employee('최도윤', 'doyoon@example.com', 'remaining', { earlyLeave: true }),
+			employee('정하늘', 'haneul@example.com', 'remaining', { late: true, earlyLeave: true })
 		];
 
 		expect(filterEmployeeWorkStatuses(employees, '', 'needsReview')).toEqual([employees[0]]);
-		expect(filterEmployeeWorkStatuses(employees, '', 'late')).toEqual([employees[1]]);
+		expect(filterEmployeeWorkStatuses(employees, '', 'lateOrEarly')).toEqual([
+			employees[1],
+			employees[3],
+			employees[4]
+		]);
 		expect(filterEmployeeWorkStatuses(employees, '', 'coreTimeMissed')).toEqual([employees[2]]);
 	});
 });
