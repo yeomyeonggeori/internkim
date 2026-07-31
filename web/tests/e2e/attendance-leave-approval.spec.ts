@@ -193,8 +193,11 @@ test.describe('administrator leave approvals', () => {
 		await selectKorean(page);
 
 		await expect(page.getByTestId('leave-approval-navigation')).toHaveCount(0);
+		await expect(page.getByTestId('leave-management-navigation')).toHaveCount(0);
 		await expect(page.getByRole('tab', { name: '휴가 승인' })).toHaveCount(0);
+		await expect(page.getByRole('tab', { name: '직원별 휴가' })).toHaveCount(0);
 		await expect(page.getByTestId('leave-approval-view')).toHaveCount(0);
+		await expect(page.getByTestId('leave-management-view')).toHaveCount(0);
 	});
 
 	test('shows the approval inbox as an administrator mobile tab', async ({ page }) => {
