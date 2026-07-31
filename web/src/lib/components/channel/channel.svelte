@@ -54,7 +54,7 @@
 	};
 
 	// ponytail: 전환 중 메시지 입력 임시 잠금 (되돌리려면 false)
-	const messageInputDisabled = true;
+	const messageInputDisabled = false;
 	let messages = $state<ChannelMessage[]>([]);
 	let currentUserID = $state('');
 	let currentUserEmail = $state('');
