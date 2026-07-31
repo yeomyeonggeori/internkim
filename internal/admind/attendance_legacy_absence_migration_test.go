@@ -157,8 +157,22 @@ WHERE id = ?`,
 	if occurrenceCount := attendanceMigrationRequestOccurrenceCount(t, database, requestID); occurrenceCount != 2 {
 		t.Fatalf("occurrence count = %d, want 2", occurrenceCount)
 	}
-	if operationCount := attendanceMigrationTableCount(t, database, "attendance_leave_operations"); operationCount != initialOperationCount {
-		t.Fatalf("leave operation count = %d, want %d", operationCount, initialOperationCount)
+	if operationCount := attendanceMigrationTableCount(t, database, "attendance_leave_operations"); operationCount != initialOperationCount+1 {
+		t.Fatalf("leave operation count = %d, want %d", operationCount, initialOperationCount+1)
+	}
+	legacyBalance, errorValue := queryAttendanceLeaveBalance(
+		ctx,
+		database,
+		attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"},
+		attendanceLegacyLeaveTypeID,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if legacyBalance.AvailableMilliDays != 0 ||
+		legacyBalance.ReservedMilliDays != 0 ||
+		legacyBalance.UsedMilliDays != 2000 {
+		t.Fatalf("legacy balance = %+v", legacyBalance)
 	}
 	var linkedRangeID string
 	if errorValue := database.QueryRowContext(ctx, `
@@ -173,6 +187,30 @@ WHERE request_id = ?`,
 		t.Fatalf("linked range ID = %q, want %q", linkedRangeID, leaveRangeID)
 	}
 	database.Close()
+	employee := attendanceLeaveEmployee{
+		Email:    "staff@example.com",
+		UserID:   "user-1",
+		HireDate: "2099-01-01",
+	}
+	dashboard, errorValue := service.readAttendanceLeaveDashboard(ctx, employee, now)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if dashboard.Summary.UsedMilliDays != 2000 {
+		t.Fatalf("migrated dashboard used leave = %d, want 2000", dashboard.Summary.UsedMilliDays)
+	}
+	policy := defaultAttendanceLeavePolicy()
+	policy.BalanceTrackingMode = attendanceLeaveBalanceTrackingUnlimited
+	if errorValue := service.writeAttendanceLeavePolicy(ctx, policy); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	dashboard, errorValue = service.readAttendanceLeaveDashboard(ctx, employee, now)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if dashboard.Summary.UsedMilliDays != 2000 {
+		t.Fatalf("used leave after policy update = %d, want 2000", dashboard.Summary.UsedMilliDays)
+	}
 
 	repeatedPreview, errorValue := service.previewAttendanceLegacyAbsenceMigration(
 		ctx,
@@ -224,10 +262,20 @@ WHERE request_id = ?`,
 			t.Fatalf("%s count after rollback = %d", tableName, count)
 		}
 	}
+	if operationCount := attendanceMigrationTableCount(t, database, "attendance_leave_operations"); operationCount != initialOperationCount {
+		t.Fatalf("operation count after rollback = %d, want %d", operationCount, initialOperationCount)
+	}
 	if sourceCount := attendanceMigrationTableCount(t, database, "attendance_absence_ranges"); sourceCount != 2 {
 		t.Fatalf("source absence count after rollback = %d, want 2", sourceCount)
 	}
 	database.Close()
+	dashboard, errorValue = service.readAttendanceLeaveDashboard(ctx, employee, now)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if dashboard.Summary.UsedMilliDays != 0 {
+		t.Fatalf("used leave after rollback = %d, want 0", dashboard.Summary.UsedMilliDays)
+	}
 
 	preview, errorValue = service.previewAttendanceLegacyAbsenceMigration(ctx, employeeUserIDs)
 	if errorValue != nil {
