@@ -279,6 +279,8 @@ func (service *Service) handleAgentChannels(responseWriter http.ResponseWriter, 
 	service.writeJSON(responseWriter, response)
 }
 
+const importedOrphanRootTitle = "이전 대화"
+
 func (service *Service) syntheticImportRootPubkey() string {
 	seed := service.buzzKeySeed()
 	if seed == "" {
@@ -336,7 +338,7 @@ func agentDirectMessagesFromHistory(historyMessages []chatdHistoryMessage, chann
 	syntheticRootIDs := map[string]bool{}
 	if syntheticRootPubkeyHex != "" {
 		for _, historyMessage := range historyMessages {
-			if historyMessage.SenderID == syntheticRootPubkeyHex {
+			if historyMessage.SenderID == syntheticRootPubkeyHex && historyMessage.Text == importedOrphanRootTitle {
 				syntheticRootIDs[historyMessage.ID] = true
 			}
 		}
