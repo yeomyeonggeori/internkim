@@ -144,6 +144,7 @@ type Service struct {
 	calendarHolidayLoadMutex   sync.Mutex
 	calendarHolidayCache       map[calendarHolidayCacheKey][]calendarHoliday
 	calendarHolidayRetryAt     time.Time
+	holidayCheckedMonth        string
 	calendarCandidateClock     calendarConflictCandidateClock
 	calendarPullCacheMutex     sync.Mutex
 	lastCalendarPullAt         time.Time
