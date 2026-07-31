@@ -94,6 +94,67 @@ func TestAttendanceWorkMetricsCapLeaveAndDeriveOvertimeFromActualWork(t *testing
 	}
 }
 
+func TestAttendanceWorkMetricsDistinguishShortfallOvertimeAndLeaveCredit(t *testing.T) {
+	location, errorValue := time.LoadLocation("Asia/Seoul")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	testCases := []struct {
+		name                     string
+		clockIn                  string
+		clockOut                 string
+		deductionMilliDays       int
+		expectedActualMinutes    int
+		expectedPaidLeaveMinutes int
+		expectedCreditedMinutes  int
+		expectedRemainingMinutes int
+		expectedOvertimeMinutes  int
+	}{
+		{name: "work shortfall", clockIn: "2026-07-31T01:00:00Z", clockOut: "2026-07-31T08:00:00Z", expectedActualMinutes: 360, expectedRemainingMinutes: 120},
+		{name: "work and leave shortfall", clockIn: "2026-07-31T01:00:00Z", clockOut: "2026-07-31T07:00:00Z", deductionMilliDays: 250, expectedActualMinutes: 300, expectedPaidLeaveMinutes: 120, expectedCreditedMinutes: 120, expectedRemainingMinutes: 60},
+		{name: "work overtime", clockIn: "2026-07-31T00:00:00Z", clockOut: "2026-07-31T10:00:00Z", expectedActualMinutes: 540, expectedOvertimeMinutes: 60},
+		{name: "work and leave above target", clockIn: "2026-07-31T00:00:00Z", clockOut: "2026-07-31T08:00:00Z", deductionMilliDays: 250, expectedActualMinutes: 420, expectedPaidLeaveMinutes: 120, expectedCreditedMinutes: 60},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			leaves := []attendancePaidLeaveOccurrence{}
+			if testCase.deductionMilliDays > 0 {
+				leaves = append(leaves, attendancePaidLeaveOccurrence{
+					Email:              "kim@example.com",
+					Date:               "2026-07-31",
+					DeductionMilliDays: testCase.deductionMilliDays,
+					Paid:               true,
+				})
+			}
+			status, calculateError := calculateAttendanceWorkStatus(
+				"kim@example.com",
+				"김철수",
+				"2026-07-31",
+				"2026-07-31",
+				[]attendanceEvent{
+					workMetricEvent("in", attendanceKindClockIn, testCase.clockIn),
+					workMetricEvent("out", attendanceKindClockOut, testCase.clockOut),
+				},
+				leaves,
+				defaultAttendanceWorkPolicy(),
+				map[string]struct{}{},
+				location,
+				time.Date(2026, time.July, 31, 21, 0, 0, 0, location),
+			)
+			if calculateError != nil {
+				t.Fatal(calculateError)
+			}
+			if status.ActualMinutes != testCase.expectedActualMinutes ||
+				status.PaidLeaveMinutes != testCase.expectedPaidLeaveMinutes ||
+				status.CreditedLeaveMinutes != testCase.expectedCreditedMinutes ||
+				status.RemainingMinutes != testCase.expectedRemainingMinutes ||
+				status.OvertimeMinutes != testCase.expectedOvertimeMinutes {
+				t.Fatalf("status = %+v", status)
+			}
+		})
+	}
+}
+
 func TestAttendanceWorkMetricsCountNightOverlap(t *testing.T) {
 	location, errorValue := time.LoadLocation("Asia/Seoul")
 	if errorValue != nil {
@@ -448,6 +509,37 @@ func TestReadAttendanceWorkPeriodEventsIncludesAdjacentMonthBoundaries(t *testin
 		requestedMonths[0] != "2026-07" ||
 		requestedMonths[1] != "2026-08" {
 		t.Fatalf("months = %v events = %+v", requestedMonths, events)
+	}
+}
+
+func TestMergeAttendanceWorkMembersUsesEmailIdentityForDuplicateNames(t *testing.T) {
+	members := []attendanceMember{{Email: "KIM@example.com", DisplayName: "김민지"}}
+	events := []attendanceEvent{
+		{Email: "kim@example.com", DisplayName: "변경된 이름"},
+		{Email: "other@example.com", DisplayName: "김민지"},
+	}
+
+	merged := mergeAttendanceWorkMembers(members, events, "")
+	if len(merged) != 2 {
+		t.Fatalf("members = %+v", merged)
+	}
+	byEmail := map[string]attendanceMember{}
+	for _, member := range merged {
+		byEmail[member.Email] = member
+	}
+	if byEmail["kim@example.com"].DisplayName != "김민지" ||
+		byEmail["other@example.com"].DisplayName != "김민지" {
+		t.Fatalf("members = %+v", merged)
+	}
+}
+
+func TestAttendanceWorkDisplayNameMatchesEmailCaseInsensitively(t *testing.T) {
+	displayName := attendanceWorkDisplayName(
+		[]attendanceEvent{{Email: "KIM@example.com", DisplayName: "김민지"}},
+		"kim@example.com",
+	)
+	if displayName != "김민지" {
+		t.Fatalf("display name = %q", displayName)
 	}
 }
 
