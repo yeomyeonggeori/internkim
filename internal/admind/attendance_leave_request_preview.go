@@ -45,7 +45,10 @@ func (service *Service) previewAttendanceLeaveRequestWithPastOption(
 		return attendanceLeaveRequestPreview{}, attendanceLeaveInvalidInputErrorf("leave unit is not allowed")
 	}
 	timeZone := service.workspaceTimeZone()
-	schedule := defaultAttendanceWorkSchedule()
+	workPolicy, errorValue := service.readAttendanceWorkPolicy(ctx)
+	if errorValue != nil {
+		return attendanceLeaveRequestPreview{}, errorValue
+	}
 	startDate, endDate, errorValue := attendanceLeaveRequestDateRangeWithPastOption(
 		input,
 		now.In(timeZone.location),
@@ -68,6 +71,11 @@ func (service *Service) previewAttendanceLeaveRequestWithPastOption(
 	}
 	for date := startDate; !date.After(endDate); date = date.AddDate(0, 0, 1) {
 		dateValue := date.Format(time.DateOnly)
+		revision, revisionError := attendanceWorkPolicyRevisionForDate(workPolicy, dateValue)
+		if revisionError != nil {
+			return attendanceLeaveRequestPreview{}, revisionError
+		}
+		schedule := attendanceWorkScheduleFromPolicyRevision(revision)
 		working, workingError := attendanceWorkScheduleIsWorkingDate(schedule, dateValue, holidayDates)
 		if workingError != nil {
 			return attendanceLeaveRequestPreview{}, workingError
