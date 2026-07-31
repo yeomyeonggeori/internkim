@@ -63,17 +63,30 @@ test.describe('attendance responsive view', () => {
 
 		const workTimeCard = page.locator('[aria-label="내 근무 시간"]');
 		const standard = workTimeCard.getByTestId('personal-work-standard');
-		await expect(standard.getByText('근무 기준')).toBeVisible();
-		await expect(standard.getByText('회사 기준 대비 초과')).toBeVisible();
+		await expect(workTimeCard.getByText('일일 평균')).toBeVisible();
+		await expect(workTimeCard.getByText('일일 최고')).toBeVisible();
+		await expect(workTimeCard.getByText('일일 최저')).toBeVisible();
 		await expect(standard.getByText('휴가 인정')).toBeVisible();
 		await expect(standard.getByText('유급 휴가')).toHaveCount(0);
+		await expect(standard.getByText('근무 기준')).toHaveCount(0);
+		await expect(standard.getByText('야간 근무')).toHaveCount(0);
+		await expect(standard.getByText('회사 기준 대비 초과')).toHaveCount(0);
 
 		await workTimeCard.getByRole('button', { name: '일별' }).click();
-		await expect(standard.getByText(/2026-07-31/)).toBeVisible();
+		await expect(standard.locator('[aria-label*="실제 근무"]')).toHaveAttribute(
+			'aria-label',
+			/실제 근무 01시간 20분/
+		);
 		await workTimeCard.getByRole('button', { name: '주별' }).click();
-		await expect(standard.getByText(/2026-07-27–2026-08-02/)).toBeVisible();
+		await expect(standard.locator('[aria-label*="실제 근무"]')).toHaveAttribute(
+			'aria-label',
+			/실제 근무 33시간 20분/
+		);
 		await workTimeCard.getByRole('button', { name: '월별' }).click();
-		await expect(standard.getByText(/2026-05-01–2026-05-31/)).toBeVisible();
+		await expect(standard.locator('[aria-label*="실제 근무"]')).not.toHaveAttribute(
+			'aria-label',
+			/실제 근무 33시간 20분/
+		);
 	});
 
 	test('shows the administrator employee work status list and review filters', async ({ page }) => {
