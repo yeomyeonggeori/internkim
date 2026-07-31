@@ -87,12 +87,7 @@ test.describe('attendance responsive view', () => {
 			'style',
 			/left:\s*33\.333/
 		);
-		await capacityBar.hover();
-		const breakdown = page.getByTestId('work-standard-bar-tooltip');
-		await expect(breakdown).toBeVisible();
-		await expect(breakdown.getByText('01시간 20분')).toBeVisible();
-		await expect(breakdown.getByText('06시간 40분')).toBeVisible();
-		await expect(breakdown.getByText('16시간 00분')).toBeVisible();
+		await expect(page.getByTestId('work-standard-bar-tooltip')).toHaveCount(0);
 		await workTimeCard.getByRole('button', { name: '주별' }).click();
 		await expect(standard.getByText(/2026-07-27–2026-08-02/)).toBeVisible();
 		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
@@ -211,8 +206,8 @@ test.describe('attendance responsive view', () => {
 		await expect(page.getByRole('tab', { name: '내 기록' })).toHaveAttribute('aria-selected', 'true');
 		await expect(toolsView.getByText('내 근무 시간')).toBeVisible();
 		await expect(toolsView.getByRole('button', { name: '휴가 등록' })).toBeVisible();
-		await toolsView.getByTestId('work-standard-capacity-bar').click();
-		await expect(page.getByTestId('work-standard-bar-tooltip')).toBeVisible();
+		await expect(toolsView.getByTestId('work-standard-capacity-bar')).toBeVisible();
+		await expect(page.getByTestId('work-standard-bar-tooltip')).toHaveCount(0);
 
 		await page.getByRole('tab', { name: '팀 현황' }).click();
 		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();
