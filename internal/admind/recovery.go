@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log":
 		return true
 	default:
 		return false
@@ -155,8 +155,12 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		cancelApply()
 	case "buzz-reimport":
 		reimportContext, cancelReimport := context.WithTimeout(context.Background(), 300*time.Second)
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(reimportContext, "re-import Mattermost history into Buzz (wipe + bot-inclusive, loopback membership)", "sh", "-lc", buzzReimportCommand()))
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(reimportContext, "re-import Mattermost history into Buzz (wipe + bot-inclusive, loopback membership, self-healing)", "sh", "-lc", buzzReimportCommand()))
 		cancelReimport()
+	case "buzz-reimport-log":
+		logContext, cancelLog := context.WithTimeout(context.Background(), 60*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(logContext, "tail Buzz re-import logs", "sh", "-lc", buzzReimportLogCommand()))
+		cancelLog()
 	case "buzz-snapshot":
 		snapshotContext, cancelSnapshot := context.WithTimeout(context.Background(), 180*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(snapshotContext, "snapshot buzz relay database", "sh", "-lc", buzzSnapshotCommand()))
@@ -660,38 +664,46 @@ su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"SE
 }
 
 func buzzReimportCommand() string {
+	relay := blueclaw.BuzzRelayServiceName
+	chatd := blueclaw.ChatdServiceName
+	database := blueclaw.BuzzRelayDatabaseName
+	databaseUser := blueclaw.BuzzRelayDatabaseUser
+	override := blueclaw.BuzzRelayImportOverrideEnvPath
+	bind := blueclaw.BuzzRelayBindAddress
+	marker := blueclaw.BuzzMigrateMarkerPath
 	return strings.TrimSpace(`
 set -e
 mkdir -p /root/.internkim/backups
-SNAP="/root/.internkim/backups/buzz-$(date -u +%Y%m%dT%H%M%SZ).sql"
-su - postgres -c "pg_dump ` + blueclaw.BuzzRelayDatabaseName + `" > "$SNAP"
+export SNAP="/root/.internkim/backups/buzz-$(date -u +%Y%m%dT%H%M%SZ).sql"
+su - postgres -c "pg_dump ` + database + `" > "$SNAP"
 echo "pre-reimport snapshot: $SNAP ($(wc -c < "$SNAP") bytes)"
-systemctl stop ` + blueclaw.ChatdServiceName + ` 2>/dev/null || true
-systemctl stop ` + blueclaw.BuzzRelayServiceName + `
+systemctl stop ` + chatd + ` 2>/dev/null || true
+systemctl stop ` + relay + `
 {
   printf 'BUZZ_REQUIRE_RELAY_MEMBERSHIP=false\n'
   printf 'BUZZ_RATE_LIMIT_HUMAN_MESSAGES_PER_MIN=1000000\n'
   printf 'BUZZ_RATE_LIMIT_HUMAN_API_CALLS_PER_MIN=1000000\n'
   printf 'BUZZ_RATE_LIMIT_HUMAN_WS_EVENTS_PER_SEC=100000\n'
   printf 'BUZZ_MEDIA_UPLOADS_PER_MINUTE=1000000\n'
-} > ` + blueclaw.BuzzRelayImportOverrideEnvPath + `
-chmod 600 ` + blueclaw.BuzzRelayImportOverrideEnvPath + `
-su - postgres -c "dropdb --if-exists ` + blueclaw.BuzzRelayDatabaseName + ` && createdb -O ` + blueclaw.BuzzRelayDatabaseUser + ` ` + blueclaw.BuzzRelayDatabaseName + `"
+} > ` + override + `
+chmod 600 ` + override + `
+su - postgres -c "dropdb --if-exists ` + database + ` && createdb -O ` + databaseUser + ` ` + database + `"
 systemctl daemon-reload
-systemctl start ` + blueclaw.BuzzRelayServiceName + `
-for attempt in $(seq 1 40); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
+systemctl start ` + relay + `
+for attempt in $(seq 1 40); do curl -fsS --max-time 3 http://` + bind + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
 echo "db wiped, relay in import mode (membership off)"
-MM_TOKEN=$(cat ` + blueclaw.BlueclawMattermostTokenPath + `)
-SEED=$(cat /root/.internkim/secrets/buzz-key-seed)
-DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
-TEAM=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
+export MM_TOKEN=$(cat ` + blueclaw.BlueclawMattermostTokenPath + `)
+export SEED=$(cat /root/.internkim/secrets/buzz-key-seed)
+export DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
+export TEAM=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
 DEVICE_HOST=$(sed -E 's#^[a-z]+://##; s#/.*$##' ` + blueclaw.DeviceURLFilePath + `)
 case "$DEVICE_HOST" in
-  *.*) PUBLIC_HOST=$(printf '%s' "$DEVICE_HOST" | sed -E 's/\./-relay./') ;;
-  *) PUBLIC_HOST="${DEVICE_HOST}-relay" ;;
+  *.*) export PUBLIC_HOST=$(printf '%s' "$DEVICE_HOST" | sed -E 's/\./-relay./') ;;
+  *) export PUBLIC_HOST="${DEVICE_HOST}-relay" ;;
 esac
-rm -f ` + blueclaw.BuzzMigrateMarkerPath + `
-cat > /tmp/buzz-reimport-run.sh <<RUNEOF
+export BUZZ_RELAY_PRIVATE_KEY=$(grep '^BUZZ_RELAY_PRIVATE_KEY=' /root/.internkim/secrets/buzz-relay-env | head -1 | sed 's/^BUZZ_RELAY_PRIVATE_KEY=//')
+rm -f ` + marker + `
+cat > /tmp/buzz-reimport-run.sh <<'RUNEOF'
 export DATABASE_URL="$DB_URL"
 ` + blueclaw.BuzzMigrateBinaryPath + ` \
   --mattermost-url ` + blueclaw.BlueclawMattermostLocalURL + ` \
@@ -700,21 +712,49 @@ export DATABASE_URL="$DB_URL"
   --buzz-database-url "$DB_URL" \
   --buzz-admin ` + blueclaw.BuzzAdminBinaryPath + ` \
   --key-seed "$SEED" \
-  --relay-url ws://` + blueclaw.BuzzRelayBindAddress + ` \
-  --relay-http-url http://` + blueclaw.BuzzRelayBindAddress + ` \
-  --community-host $PUBLIC_HOST \
-  --orphan-root-title "이전 대화" \
-  && touch ` + blueclaw.BuzzMigrateMarkerPath + ` && echo MIGRATE_DONE_OK || echo MIGRATE_DONE_FAIL
-rm -f ` + blueclaw.BuzzRelayImportOverrideEnvPath + `
-systemctl restart ` + blueclaw.BuzzRelayServiceName + `
+  --relay-url wss://$PUBLIC_HOST \
+  --relay-http-url https://$PUBLIC_HOST \
+  --community-host "$PUBLIC_HOST" \
+  --orphan-root-title "이전 대화" > /tmp/buzz-migrate.log 2>&1
+RC=$?
+COUNT=$(su - postgres -c "psql -X -qAt -d ` + database + ` -c \"SELECT count(*) FROM events WHERE kind=9\"" 2>/dev/null)
+COUNT=${COUNT:-0}
+echo "buzz-migrate rc=$RC imported kind9=$COUNT"
+if [ "$RC" -ne 0 ] || [ "$COUNT" -lt 50 ]; then
+  echo "IMPORT FAILED (rc=$RC kind9=$COUNT) — auto-restoring $SNAP"
+  systemctl stop ` + relay + `
+  su - postgres -c "dropdb --if-exists ` + database + ` && createdb -O ` + databaseUser + ` ` + database + `"
+  cat "$SNAP" | su - postgres -c "psql -q -d ` + database + `" >/dev/null 2>&1
+  rm -f ` + override + `
+  systemctl daemon-reload
+  systemctl start ` + relay + `
+  for attempt in $(seq 1 40); do curl -fsS --max-time 3 http://` + bind + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
+  systemctl start ` + chatd + `
+  echo REIMPORT_FAILED_AUTORESTORED
+  exit 0
+fi
+touch ` + marker + `
+rm -f ` + override + `
+systemctl restart ` + relay + `
 sleep 2
-systemctl start ` + blueclaw.ChatdServiceName + `
-echo REIMPORT_DONE
+systemctl start ` + chatd + `
+echo REIMPORT_DONE_OK
 RUNEOF
 chmod 700 /tmp/buzz-reimport-run.sh
 setsid nohup bash /tmp/buzz-reimport-run.sh > /tmp/buzz-reimport.log 2>&1 < /dev/null &
 sleep 1
-echo "reimport launched (background, loopback membership) — poll /tmp/buzz-reimport.log; rollback snapshot at $SNAP"
+echo "reimport launched (self-healing: auto-restores $SNAP if import fails) — poll with buzz-reimport-log"
+`)
+}
+
+func buzzReimportLogCommand() string {
+	return strings.TrimSpace(`
+echo "=== /tmp/buzz-reimport.log ==="
+tail -40 /tmp/buzz-reimport.log 2>/dev/null || echo "(no reimport log)"
+echo "=== /tmp/buzz-migrate.log (tail) ==="
+tail -40 /tmp/buzz-migrate.log 2>/dev/null || echo "(no buzz-migrate log)"
+echo "=== current kind9 count ==="
+su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"SELECT count(*) FROM events WHERE kind=9\"" 2>/dev/null | sed 's/^/kind9: /'
 `)
 }
 

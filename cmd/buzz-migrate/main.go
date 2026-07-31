@@ -90,8 +90,7 @@ func main() {
 	buzzDatabase, errorValue := sql.Open("postgres", *buzzDatabaseURL)
 	failOn(errorValue, "open buzz database")
 	defer buzzDatabase.Close()
-	var communityID string
-	failOn(buzzDatabase.QueryRow(`SELECT id FROM communities WHERE host = $1`, *communityHost).Scan(&communityID), "resolve community")
+	communityID := resolveCommunityID(buzzDatabase, *communityHost)
 	injector := buzzimport.ChannelInjector{Database: buzzDatabase, CommunityID: communityID}
 	uploader := media.Uploader{HTTPBaseURL: strings.TrimRight(*relayHTTPURL, "/")}
 
@@ -426,6 +425,25 @@ func channelDisplayName(channel buzzimport.MattermostChannel) string {
 
 func deriveSecret(seed, email string) string {
 	return buzzidentity.Secret(seed, email)
+}
+
+// resolveCommunityID finds the community by host, falling back to the sole
+// community when the host does not match. After a wipe the relay recreates one
+// community whose host can differ from the derived public host, and a strict
+// host match there would abort the whole import with an empty database.
+func resolveCommunityID(database *sql.DB, communityHost string) string {
+	var communityID string
+	if errorValue := database.QueryRow(`SELECT id FROM communities WHERE host = $1`, communityHost).Scan(&communityID); errorValue == nil {
+		return communityID
+	}
+	var count int
+	failOn(database.QueryRow(`SELECT count(*) FROM communities`).Scan(&count), "count communities")
+	if count == 1 {
+		failOn(database.QueryRow(`SELECT id FROM communities LIMIT 1`).Scan(&communityID), "resolve sole community")
+		return communityID
+	}
+	failOn(fmt.Errorf("community host %q not found among %d communities", communityHost, count), "resolve community")
+	return ""
 }
 
 func deriveChannelID(seed, mattermostChannelID string) string {
