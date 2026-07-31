@@ -26,10 +26,8 @@ function employeeMatchesWorkStatus(employee: AttendanceEmployeeWorkStatus, statu
 			return employee.remainingMinutes > 0;
 		case 'coreTimeMissed':
 			return employee.coreTimeMissed;
-		case 'late':
-			return employee.late;
-		case 'earlyLeave':
-			return employee.earlyLeave;
+		case 'lateOrEarly':
+			return employee.late || employee.earlyLeave;
 		case 'needsReview':
 			return employee.needsReview;
 		default:

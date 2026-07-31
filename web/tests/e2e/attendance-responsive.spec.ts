@@ -65,7 +65,8 @@ test.describe('attendance responsive view', () => {
 		const standard = workTimeCard.getByTestId('personal-work-standard');
 		await expect(standard.getByText('근무 기준')).toBeVisible();
 		await expect(standard.getByText('회사 기준 대비 초과')).toBeVisible();
-		await expect(standard.getByText('유급 휴가')).toBeVisible();
+		await expect(standard.getByText('휴가 인정')).toBeVisible();
+		await expect(standard.getByText('유급 휴가')).toHaveCount(0);
 
 		await workTimeCard.getByRole('button', { name: '일별' }).click();
 		await expect(standard.getByText(/2026-07-31/)).toBeVisible();
@@ -85,12 +86,14 @@ test.describe('attendance responsive view', () => {
 		await expect(view.getByRole('columnheader', { name: '근무 방식' })).toBeVisible();
 		await expect(view.getByRole('columnheader', { name: '기준 충족' })).toBeVisible();
 		await expect(view.getByRole('columnheader', { name: '기준 차이' })).toBeVisible();
+		await expect(view.getByRole('columnheader', { name: '기준 시간' })).toHaveCount(0);
+		await expect(view.getByRole('columnheader', { name: '회사 기준 대비 초과' })).toHaveCount(0);
 
 		await view.getByRole('button', { name: '기록 확인 필요' }).click();
 		await expect(view.getByText('최도윤', { exact: true })).toBeVisible();
 		await expect(view.getByText('김민지', { exact: true })).toHaveCount(0);
 
-		await view.getByRole('button', { name: '상세' }).click();
+		await view.getByRole('button', { name: '최도윤 상세' }).click();
 		await expect(page.getByText('최도윤 · 일별 상세')).toBeVisible();
 		await expect(page.getByRole('columnheader', { name: '근무 구간' })).toBeVisible();
 		await expect(page.getByRole('columnheader', { name: '휴가 구간' })).toBeVisible();
