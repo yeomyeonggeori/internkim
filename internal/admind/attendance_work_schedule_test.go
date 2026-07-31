@@ -17,8 +17,7 @@ func TestAttendanceWorkScheduleDefaults(t *testing.T) {
 		schedule.FixedEndTime != "" ||
 		len(schedule.BreakPeriods) != 1 ||
 		schedule.BreakPeriods[0].StartTime != "12:00" ||
-		schedule.BreakPeriods[0].EndTime != "13:00" ||
-		len(schedule.Holidays) != 0 {
+		schedule.BreakPeriods[0].EndTime != "13:00" {
 		t.Fatalf("defaults = %+v", schedule)
 	}
 	if expectedWeekdays := []int{1, 2, 3, 4, 5}; !equalIntSlices(schedule.WorkingWeekdays, expectedWeekdays) {
@@ -40,11 +39,6 @@ func TestAttendanceWorkScheduleNormalizesOrderedValues(t *testing.T) {
 		{StartTime: " 15:00 ", EndTime: "15:30"},
 		{StartTime: "12:00", EndTime: "13:00"},
 	}
-	schedule.Holidays = []attendanceWorkScheduleHoliday{
-		{Date: "2026-12-25", Name: " Christmas "},
-		{Date: " 2026-01-01 ", Name: "New Year"},
-	}
-
 	if errorValue := validateAndNormalizeAttendanceWorkSchedule(&schedule); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -53,8 +47,6 @@ func TestAttendanceWorkScheduleNormalizesOrderedValues(t *testing.T) {
 	}
 	if schedule.BreakPeriods[0].StartTime != "12:00" ||
 		schedule.BreakPeriods[1].StartTime != "15:00" ||
-		schedule.Holidays[0].Date != "2026-01-01" ||
-		schedule.Holidays[1].Name != "Christmas" ||
 		schedule.FixedStartTime != "" ||
 		schedule.FixedEndTime != "" {
 		t.Fatalf("normalized schedule = %+v", schedule)
@@ -84,18 +76,6 @@ func TestAttendanceWorkScheduleRejectsInvalidContracts(t *testing.T) {
 			schedule.BreakPeriods = []attendanceWorkScheduleBreakPeriod{
 				{StartTime: "12:00", EndTime: "13:00"},
 				{StartTime: "12:30", EndTime: "14:00"},
-			}
-		}},
-		{name: "holiday date", mutate: func(schedule *attendanceWorkSchedule) {
-			schedule.Holidays = []attendanceWorkScheduleHoliday{{Date: "2026-02-29", Name: "Invalid"}}
-		}},
-		{name: "holiday name", mutate: func(schedule *attendanceWorkSchedule) {
-			schedule.Holidays = []attendanceWorkScheduleHoliday{{Date: "2026-02-28", Name: " "}}
-		}},
-		{name: "duplicate holiday", mutate: func(schedule *attendanceWorkSchedule) {
-			schedule.Holidays = []attendanceWorkScheduleHoliday{
-				{Date: "2026-02-28", Name: "First"},
-				{Date: "2026-02-28", Name: "Second"},
 			}
 		}},
 	}
@@ -211,10 +191,10 @@ func TestAttendanceWorkScheduleValidatesFixedAndFlexibleModes(t *testing.T) {
 
 func TestAttendanceWorkScheduleWorkingDatesExcludeWeekendsAndHolidays(t *testing.T) {
 	schedule := defaultAttendanceWorkSchedule()
-	schedule.Holidays = []attendanceWorkScheduleHoliday{{Date: "2026-07-27", Name: "Company holiday"}}
 	if errorValue := validateAndNormalizeAttendanceWorkSchedule(&schedule); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	holidayDates := map[string]struct{}{"2026-07-27": {}}
 
 	tests := []struct {
 		date     string
@@ -225,7 +205,7 @@ func TestAttendanceWorkScheduleWorkingDatesExcludeWeekendsAndHolidays(t *testing
 		{date: "2026-08-01", expected: false},
 	}
 	for _, testCase := range tests {
-		actual, errorValue := attendanceWorkScheduleIsWorkingDate(schedule, testCase.date)
+		actual, errorValue := attendanceWorkScheduleIsWorkingDate(schedule, testCase.date, holidayDates)
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}
@@ -233,7 +213,7 @@ func TestAttendanceWorkScheduleWorkingDatesExcludeWeekendsAndHolidays(t *testing
 			t.Fatalf("%s working = %t", testCase.date, actual)
 		}
 	}
-	if _, errorValue := attendanceWorkScheduleIsWorkingDate(schedule, "2026-02-29"); errorValue == nil {
+	if _, errorValue := attendanceWorkScheduleIsWorkingDate(schedule, "2026-02-29", holidayDates); errorValue == nil {
 		t.Fatal("expected invalid date failure")
 	}
 
@@ -241,11 +221,11 @@ func TestAttendanceWorkScheduleWorkingDatesExcludeWeekendsAndHolidays(t *testing
 	if errorValue := validateAndNormalizeAttendanceWorkSchedule(&schedule); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	saturdayIsWorking, errorValue := attendanceWorkScheduleIsWorkingDate(schedule, "2026-08-01")
+	saturdayIsWorking, errorValue := attendanceWorkScheduleIsWorkingDate(schedule, "2026-08-01", nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	tuesdayIsWorking, errorValue := attendanceWorkScheduleIsWorkingDate(schedule, "2026-07-28")
+	tuesdayIsWorking, errorValue := attendanceWorkScheduleIsWorkingDate(schedule, "2026-07-28", nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -262,11 +242,11 @@ func TestAttendanceWorkScheduleWorkingInstantUsesCompanyTimeZone(t *testing.T) {
 	}
 	instant := time.Date(2026, time.July, 26, 15, 30, 0, 0, time.UTC)
 
-	isWorkingInSeoul, errorValue := attendanceWorkScheduleIsWorkingInstant(schedule, instant, seoul)
+	isWorkingInSeoul, errorValue := attendanceWorkScheduleIsWorkingInstant(schedule, instant, seoul, nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	isWorkingInUTC, errorValue := attendanceWorkScheduleIsWorkingInstant(schedule, instant, time.UTC)
+	isWorkingInUTC, errorValue := attendanceWorkScheduleIsWorkingInstant(schedule, instant, time.UTC, nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

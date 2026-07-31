@@ -971,6 +971,9 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.updateWorkspaceSettings(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/holiday-countries":
 		service.serveCalendarHolidayCountries(responseWriter, request)
+	case path == calendarCompanyHolidaysAdminPath ||
+		strings.HasPrefix(path, calendarCompanyHolidaysAdminPath+"/"):
+		service.handleCalendarCompanyHolidays(responseWriter, request, path)
 	case request.Method == http.MethodGet && path == "/company-share":
 		service.writeCompanyShareSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/company-share":
