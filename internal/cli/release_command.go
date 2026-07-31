@@ -403,6 +403,7 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 		{name: "skills", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "skills", sourcePath: deviceAssetSourcePath("skills", repositoryRootPath)},
 		{name: "fonts", revision: gitRevision, restartGroup: "admind", healthCheck: "web", sourcePath: deviceAssetSourcePath("fonts", repositoryRootPath)},
 		{name: "mattermostPlugins", revision: gitRevision, restartGroup: "admind", healthCheck: "mattermostPlugins", sourcePath: filepath.Join(repositoryRootPath, "build", "mattermost-plugins")},
+		{name: "chatd", revision: gitRevision, restartGroup: "chatd", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.ChatdName), builder: buildChatdReleaseBinary},
 	}
 	blobs := []releaseBlob{}
 	for _, input := range blobInputs {
@@ -452,6 +453,19 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 		})
 	}
 	return blobs, nil
+}
+
+func buildChatdReleaseBinary(repositoryRootPath string, outputPath string) error {
+	if errorValue := os.MkdirAll(filepath.Dir(outputPath), 0o755); errorValue != nil {
+		return errorValue
+	}
+	command := exec.Command("bun", "build", "src/main.ts", "--compile", "--target=bun-linux-arm64", "--outfile", outputPath)
+	command.Dir = filepath.Join(repositoryRootPath, ".dependency", "blueclaw", "chatd")
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return fmt.Errorf("build chatd: %s", strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 func buildReleaseBinary(packagePath string) func(string, string) error {

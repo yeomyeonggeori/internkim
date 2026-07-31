@@ -656,33 +656,13 @@ su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"SE
 }
 
 func buzzRepairCommand(apply bool) string {
-	applyFlag := ""
+	applyValue := "false"
 	if apply {
-		applyFlag = " --apply"
+		applyValue = "true"
 	}
 	return strings.TrimSpace(`
-set -e
-MM_TOKEN=$(cat ` + blueclaw.BlueclawMattermostTokenPath + `)
-SEED=$(cat /root/.internkim/secrets/buzz-key-seed)
-DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
-TEAM=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
-DEVICE_HOST=$(sed -E 's#^[a-z]+://##; s#/.*$##' ` + blueclaw.DeviceURLFilePath + `)
-case "$DEVICE_HOST" in
-  *.*) PUBLIC_HOST=$(printf '%s' "$DEVICE_HOST" | sed -E 's/\./-relay./') ;;
-  *) PUBLIC_HOST="${DEVICE_HOST}-relay" ;;
-esac
-export DATABASE_URL="$DB_URL"
-` + blueclaw.BuzzMigrateBinaryPath + ` \
-  --mattermost-url ` + blueclaw.BlueclawMattermostLocalURL + ` \
-  --mattermost-token "$MM_TOKEN" \
-  --team "$TEAM" \
-  --buzz-database-url "$DB_URL" \
-  --buzz-admin ` + blueclaw.BuzzAdminBinaryPath + ` \
-  --key-seed "$SEED" \
-  --relay-url wss://$PUBLIC_HOST \
-  --relay-http-url https://$PUBLIC_HOST \
-  --community-host $PUBLIC_HOST \
-  --repair-orphan-roots` + applyFlag + ` 2>&1 | tail -60
+body=$(curl -sS -X POST "http://127.0.0.1:18080/agent/api/buzz-repair-orphans?apply=` + applyValue + `")
+printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 `)
 }
 
@@ -710,11 +690,15 @@ q "SELECT encode(pubkey,'hex'), count(*) FROM events WHERE content='이전 대�
 printf '== kinds ==\n'
 q "SELECT kind, count(*) FROM events WHERE content='이전 대화' GROUP BY 1"
 printf '== synthetic roots per channel (top 20) ==\n'
-q "SELECT encode(channel_id,'hex'), count(*) FROM events WHERE content='이전 대화' GROUP BY 1 ORDER BY 2 DESC LIMIT 20"
-printf '== roots with vs without descendants ==\n'
-q "SELECT (tm.descendant_count>0) AS has_replies, count(*) FROM events e LEFT JOIN thread_metadata tm ON tm.event_id=e.id WHERE e.content='이전 대화' GROUP BY 1"
-printf '== sample replies threaded under a synthetic root ==\n'
-q "SELECT left(r.content,80) FROM events e JOIN thread_metadata tmr ON tmr.root_event_id=e.id JOIN events r ON r.id=tmr.event_id WHERE e.content='이전 대화' AND r.content<>'이전 대화' LIMIT 10"
+q "SELECT channel_id::text, count(*) FROM events WHERE content='이전 대화' GROUP BY 1 ORDER BY 2 DESC LIMIT 20"
+printf '== total kind9 events ==\n'
+q "SELECT count(*) FROM events WHERE kind=9"
+printf '== all kind9 authoring pubkeys (top 15) ==\n'
+q "SELECT encode(pubkey,'hex'), count(*) FROM events WHERE kind=9 GROUP BY 1 ORDER BY 2 DESC LIMIT 15"
+printf '== bootstrap-authored (67ac03f0) non-orphan messages ==\n'
+q "SELECT count(*) FROM events WHERE kind=9 AND pubkey=decode('67ac03f0279bb2523574f1be46695f1f5d40d6d51626b555483ec2edac17307d','hex') AND content<>'이전 대화'"
+printf '== recent 15 kind9 events (author short + content) ==\n'
+q "SELECT to_char(created_at,'MM-DD HH24:MI'), substr(encode(pubkey,'hex'),1,8), left(content,45) FROM events WHERE kind=9 ORDER BY created_at DESC LIMIT 15"
 `)
 }
 

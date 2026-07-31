@@ -252,6 +252,42 @@ func (client Client) Team(ctx context.Context, name string) (string, error) {
 	return team.ID, nil
 }
 
+// Post fetches a single post by id without the type/empty filters Posts applies,
+// so a reply's root can be resolved even when it is a typed (e.g. attendance
+// plugin) post that the bulk import skips.
+func (client Client) Post(ctx context.Context, postID string) (buzzimport.MattermostPost, bool, error) {
+	var post restPost
+	if errorValue := client.get(ctx, "/api/v4/posts/"+url.PathEscape(postID), &post); errorValue != nil {
+		return buzzimport.MattermostPost{}, false, errorValue
+	}
+	if post.ID == "" || post.DeleteAt != 0 {
+		return buzzimport.MattermostPost{}, false, nil
+	}
+	return buzzimport.MattermostPost{
+		ID:           post.ID,
+		ChannelID:    post.ChannelID,
+		UserID:       post.UserID,
+		RootID:       post.RootID,
+		Message:      post.Message,
+		CreatedAt:    time.UnixMilli(post.CreateAt).UTC(),
+		FileIDs:      post.FileIDs,
+		HasReactions: post.HasReactions,
+	}, true, nil
+}
+
+// BotUserIDs returns the set of Mattermost user ids that are bots, so an import
+// can attribute their posts to the shared bot buzz identity instead of skipping
+// them (a bot-authored thread root left unimported strands every human reply).
+func BotUserIDs(users []restUser) map[string]bool {
+	botUserIDs := map[string]bool{}
+	for _, user := range users {
+		if user.IsBot {
+			botUserIDs[user.ID] = true
+		}
+	}
+	return botUserIDs
+}
+
 func UsersToChannelAuthorEmails(users []restUser) (map[string]string, map[string]MattermostAuthor) {
 	authorEmails := map[string]string{}
 	authorsByID := map[string]MattermostAuthor{}
