@@ -74,6 +74,8 @@ func (service *Service) handleAttendance(responseWriter http.ResponseWriter, req
 	switch {
 	case request.Method == http.MethodGet && path == "/summary":
 		service.writeAttendanceSummary(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/work-status":
+		service.writeAttendanceWorkStatus(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/leave":
 		service.writeAttendanceLeaveDashboard(responseWriter, request)
 	case request.Method == http.MethodGet && isLeaveRequestAttachment:
