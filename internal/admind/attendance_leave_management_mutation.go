@@ -143,6 +143,7 @@ func (service *Service) createManagedPastAttendanceLeave(
 		requestInput,
 		preview,
 		leaveType,
+		policy,
 		nil,
 		now,
 	)

@@ -12,6 +12,7 @@ func (service *Service) updateAttendanceLeaveRequest(
 	input attendanceLeaveRequestInput,
 	preview attendanceLeaveRequestPreview,
 	leaveType attendanceLeaveType,
+	policy attendanceLeavePolicy,
 	attachments []attendanceLeaveRequestAttachment,
 	now time.Time,
 ) (attendanceLeaveRequestRecord, error) {
@@ -22,6 +23,7 @@ func (service *Service) updateAttendanceLeaveRequest(
 		input,
 		preview,
 		leaveType,
+		policy,
 		attachments,
 		attendanceLeaveRequestRevisionOperation{
 			ExpectedStatus:       attendanceLeaveRequestStatusPending,

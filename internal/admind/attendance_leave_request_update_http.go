@@ -88,6 +88,7 @@ func (service *Service) updateAttendanceLeaveRequestResponse(
 		input,
 		preview,
 		leaveType,
+		policy,
 		attachments,
 		now,
 	)

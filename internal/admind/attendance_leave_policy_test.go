@@ -406,15 +406,13 @@ func TestLeavePolicyAdminAPIRejectsUnknownFieldsAndDeletesUnusedType(t *testing.
 func TestLeavePolicyAdminAPIArchivesUsedRemovedType(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
-	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
-		Operation: attendanceLeaveOperation{
-			OperationKey: "grant-used-reward-leave",
-			Employee:     employee,
-			LeaveTypeID:  "reward",
-			Kind:         attendanceLeaveOperationGrant,
-			Amount:       1000,
-			EffectiveOn:  "2026-07-30",
-		},
+	if _, errorValue := service.recordUntrackedAttendanceLeaveUse(t.Context(), attendanceLeaveOperation{
+		OperationKey: "used-reward-leave",
+		Employee:     employee,
+		LeaveTypeID:  "reward",
+		ReferenceID:  "reward-request",
+		Amount:       500,
+		EffectiveOn:  "2026-07-30",
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -425,6 +423,17 @@ func TestLeavePolicyAdminAPIArchivesUsedRemovedType(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	updated := requestAttendanceLeavePolicy(t, service, http.MethodPut, string(encodedPolicy), "admin@example.com", http.StatusOK)
+	dashboard, errorValue := service.readAttendanceLeaveDashboard(
+		t.Context(),
+		employee,
+		time.Date(2026, 7, 31, 10, 0, 0, 0, time.UTC),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if dashboard.Summary.UsedMilliDays != 500 {
+		t.Fatalf("used leave after policy update = %d, want 500", dashboard.Summary.UsedMilliDays)
+	}
 	for _, leaveType := range updated.LeaveTypes {
 		if leaveType.ID == "reward" {
 			if leaveType.IsActive || leaveType.IncludeInSummary {

@@ -255,12 +255,20 @@ WHERE lot.employee_email = ? AND lot.leave_type_id = ?`,
 SELECT COALESCE(SUM(entry.amount_milli_days), 0)
 FROM attendance_leave_ledger_entries entry
 JOIN attendance_leave_operations operation ON operation.operation_key = entry.operation_key
+LEFT JOIN attendance_leave_requests request
+	ON (
+		operation.reference_id = request.id
+		OR instr(operation.reference_id, request.id || ':revision:') = 1
+	)
+	AND request.employee_email = operation.employee_email
 WHERE operation.employee_email = ?
 	AND operation.leave_type_id = ?
-	AND entry.kind = ?`,
+	AND entry.kind = ?
+	AND (request.id IS NULL OR request.status = ?)`,
 		balance.EmployeeEmail,
 		balance.LeaveTypeID,
 		attendanceLeaveOperationUntrackedUse,
+		attendanceLeaveRequestStatusApproved,
 	).Scan(&untrackedUsed)
 	if errorValue != nil {
 		return attendanceLeaveBalance{}, errorValue

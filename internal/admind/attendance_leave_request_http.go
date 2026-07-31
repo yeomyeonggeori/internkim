@@ -110,6 +110,7 @@ func (service *Service) writeAttendanceLeaveRequest(responseWriter http.Response
 		input,
 		preview,
 		leaveType,
+		policy,
 		attachments,
 		now,
 	)
@@ -233,6 +234,7 @@ func (service *Service) resubmitAttendanceLeaveRequestResponse(
 		input,
 		preview,
 		leaveType,
+		policy,
 		attachments,
 		now,
 	)
