@@ -7,7 +7,9 @@ import {
 	deleteCompanyHoliday,
 	fetchAttendanceLeavePolicy,
 	fetchCompanyHolidays,
+	fetchAttendanceWorkPolicy,
 	updateCompanyHoliday,
+	updateAttendanceWorkPolicy,
 	updateAttendanceLeavePolicy
 } from '../../src/routes/admin/admin-api';
 
@@ -155,6 +157,46 @@ describe('company holiday API', () => {
 		}) as typeof fetch;
 
 		await deleteCompanyHoliday('/admin/api', holiday.id, 'delete failed');
+		restoreGlobals();
+	});
+});
+
+describe('attendance work policy API', () => {
+	test('loads the work policy revisions', async () => {
+		const policy = { version: 1, updatedAt: '', revisions: [] };
+		globalThis.fetch = (async (input) => {
+			expect(input).toBe('/admin/api/attendance-work-policy');
+			return new Response(JSON.stringify(policy));
+		}) as typeof fetch;
+		expect(await fetchAttendanceWorkPolicy('/admin/api', 'load failed')).toEqual(policy);
+		restoreGlobals();
+	});
+
+	test('saves only the current work policy revision', async () => {
+		const revision = {
+			effectiveDate: '',
+			workMode: 'flexible' as const,
+			workingWeekdays: [1, 2, 3, 4, 5],
+			dailyTargetMinutes: 480,
+			weeklyTargetMinutes: 2400,
+			referenceStartTime: '09:00',
+			fixedStartTime: '',
+			fixedEndTime: '',
+			coreTimeEnabled: true,
+			coreStartTime: '11:00',
+			coreEndTime: '16:00',
+			breakPeriods: [{ startTime: '12:00', endTime: '13:00' }],
+			nightStartTime: '22:00',
+			nightEndTime: '06:00'
+		};
+		const policy = { version: 1, updatedAt: '', revisions: [revision] };
+		globalThis.fetch = (async (input, init) => {
+			expect(input).toBe('/admin/api/attendance-work-policy');
+			expect(init?.method).toBe('PUT');
+			expect(init?.body).toBe(JSON.stringify(revision));
+			return new Response(JSON.stringify(policy));
+		}) as typeof fetch;
+		expect(await updateAttendanceWorkPolicy('/admin/api', revision, 'save failed')).toEqual(policy);
 		restoreGlobals();
 	});
 });
