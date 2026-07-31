@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect":
 		return true
 	default:
 		return false
@@ -135,6 +135,8 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		cancelMirror()
 	case "buzz-mirror-status":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read Buzz<->Mattermost mirror status", "sh", "-lc", buzzMirrorStatusCommand()))
+	case "buzz-orphan-inspect":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "inspect imported orphan-thread roots", "sh", "-lc", buzzOrphanInspectCommand()))
 	}
 	response.Services = service.sshRecoveryServiceStates(ctx)
 	response.JournalTail = service.sshRecoveryJournalTail(ctx)
@@ -588,6 +590,27 @@ printf '== chatd state ==\n'
 systemctl show chatd -p ActiveState,SubState,NRestarts 2>&1
 printf '== chatd mirror journal ==\n'
 journalctl -u chatd -n 60 --no-pager 2>&1 | grep -iE 'mirror|mattermost|puppet|connect|ready|error|ROLLED|adapters' | tail -18
+`)
+}
+
+func buzzOrphanInspectCommand() string {
+	return strings.TrimSpace(`
+set +e
+q() { su - postgres -c "psql -X -d buzz -c \"$1\"" 2>&1; }
+printf '== events schema ==\n';            q "\\d events"
+printf '== thread_metadata schema ==\n';   q "\\d thread_metadata"
+printf '== total synthetic 이전 대화 roots ==\n'
+q "SELECT count(*) FROM events WHERE content='이전 대화'"
+printf '== authoring pubkeys ==\n'
+q "SELECT encode(pubkey,'hex'), count(*) FROM events WHERE content='이전 대화' GROUP BY 1 ORDER BY 2 DESC LIMIT 5"
+printf '== kinds ==\n'
+q "SELECT kind, count(*) FROM events WHERE content='이전 대화' GROUP BY 1"
+printf '== synthetic roots per channel (top 20) ==\n'
+q "SELECT encode(channel_id,'hex'), count(*) FROM events WHERE content='이전 대화' GROUP BY 1 ORDER BY 2 DESC LIMIT 20"
+printf '== roots with vs without descendants ==\n'
+q "SELECT (tm.descendant_count>0) AS has_replies, count(*) FROM events e LEFT JOIN thread_metadata tm ON tm.event_id=e.id WHERE e.content='이전 대화' GROUP BY 1"
+printf '== sample replies threaded under a synthetic root ==\n'
+q "SELECT left(r.content,80) FROM events e JOIN thread_metadata tmr ON tmr.root_event_id=e.id JOIN events r ON r.id=tmr.event_id WHERE e.content='이전 대화' AND r.content<>'이전 대화' LIMIT 10"
 `)
 }
 

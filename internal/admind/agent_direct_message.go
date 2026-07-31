@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 )
 
 type channelParticipant struct {
@@ -121,7 +123,7 @@ func (service *Service) writeAgentConversation(responseWriter http.ResponseWrite
 	service.writeJSON(responseWriter, service.rewriteConversationMedia(agentConversationResponse{
 		ConversationID: channel.ChannelID,
 		CurrentUserID:  channel.UserPubkeyHex,
-		Messages:       agentDirectMessagesFromHistory(history.Messages, channel),
+		Messages:       agentDirectMessagesFromHistory(history.Messages, channel, service.syntheticImportRootPubkey()),
 	}))
 }
 
@@ -277,6 +279,18 @@ func (service *Service) handleAgentChannels(responseWriter http.ResponseWriter, 
 	service.writeJSON(responseWriter, response)
 }
 
+func (service *Service) syntheticImportRootPubkey() string {
+	seed := service.buzzKeySeed()
+	if seed == "" {
+		return ""
+	}
+	pubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
+	if errorValue != nil {
+		return ""
+	}
+	return pubkey
+}
+
 func (service *Service) chatdPlatformRequest(ctx context.Context, capabilityName string, requestBody any, responseValue any) error {
 	endpoint := strings.TrimRight(strings.TrimSpace(service.Configuration.ChatdEndpoint), "/")
 	if endpoint == "" {
@@ -318,9 +332,24 @@ func (service *Service) writeAgentDirectMessageError(responseWriter http.Respons
 	http.Error(responseWriter, "agent_unreachable", http.StatusBadGateway)
 }
 
-func agentDirectMessagesFromHistory(historyMessages []chatdHistoryMessage, channel chatdDirectMessageChannel) []agentDirectMessage {
+func agentDirectMessagesFromHistory(historyMessages []chatdHistoryMessage, channel chatdDirectMessageChannel, syntheticRootPubkeyHex string) []agentDirectMessage {
+	syntheticRootIDs := map[string]bool{}
+	if syntheticRootPubkeyHex != "" {
+		for _, historyMessage := range historyMessages {
+			if historyMessage.SenderID == syntheticRootPubkeyHex {
+				syntheticRootIDs[historyMessage.ID] = true
+			}
+		}
+	}
 	messages := make([]agentDirectMessage, 0, len(historyMessages))
 	for index, historyMessage := range historyMessages {
+		if syntheticRootIDs[historyMessage.ID] {
+			continue
+		}
+		threadRootID := historyMessage.ThreadRootID
+		if syntheticRootIDs[threadRootID] {
+			threadRootID = ""
+		}
 		isCurrentUser := historyMessage.SenderID != "" && historyMessage.SenderID == channel.UserPubkeyHex
 		sender := channelParticipant{
 			ID:        historyMessage.SenderID,
@@ -341,7 +370,7 @@ func agentDirectMessagesFromHistory(historyMessages []chatdHistoryMessage, chann
 		}
 		messages = append(messages, agentDirectMessage{
 			ID:           messageID,
-			ThreadRootID: historyMessage.ThreadRootID,
+			ThreadRootID: threadRootID,
 			Sender:       sender,
 			Text:         historyMessage.Text,
 			SentAt:       historyMessage.SentAt,
