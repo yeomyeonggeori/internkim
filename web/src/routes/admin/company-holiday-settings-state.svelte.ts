@@ -73,10 +73,10 @@ export class CompanyHolidaySettingsState {
 		this.message = '';
 	}
 
-	async save(): Promise<void> {
-		if (!this.draft || !this.text) return;
+	async save(): Promise<boolean> {
+		if (!this.draft || !this.text) return false;
 		this.validationAttempted = true;
-		if (!this.draft.title.trim() || !this.draft.date) return;
+		if (!this.draft.title.trim() || !this.draft.date) return false;
 		this.isSaving = true;
 		this.message = '';
 		const input: CompanyHolidayInput = {
@@ -100,15 +100,17 @@ export class CompanyHolidaySettingsState {
 			this.draft = null;
 			this.validationAttempted = false;
 			this.message = this.text.saveSuccess;
+			return true;
 		} catch (error) {
 			this.message = apiErrorMessage(error, this.text.saveError);
+			return false;
 		} finally {
 			this.isSaving = false;
 		}
 	}
 
-	async remove(): Promise<void> {
-		if (!this.draft?.id || !this.text) return;
+	async remove(): Promise<boolean> {
+		if (!this.draft?.id || !this.text) return false;
 		this.isSaving = true;
 		this.message = '';
 		try {
@@ -117,8 +119,10 @@ export class CompanyHolidaySettingsState {
 			this.draft = null;
 			this.validationAttempted = false;
 			this.message = this.text.removeSuccess;
+			return true;
 		} catch (error) {
 			this.message = apiErrorMessage(error, this.text.removeError);
+			return false;
 		} finally {
 			this.isSaving = false;
 		}

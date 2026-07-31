@@ -12,9 +12,10 @@
 	type Props = {
 		adminBaseURL: string;
 		text: AdminPageText;
+		onChanged?: () => void;
 	};
 
-	let { adminBaseURL, text }: Props = $props();
+	let { adminBaseURL, text, onChanged = () => {} }: Props = $props();
 	const settingsState = new CompanyHolidaySettingsState();
 	let removalConfirmationOpen = $state(false);
 
@@ -35,6 +36,14 @@
 			? text.companyHolidays.annual
 			: text.companyHolidays.oneTime;
 		return `${formatted} · ${recurrence}`;
+	}
+
+	async function saveHoliday(): Promise<void> {
+		if (await settingsState.save()) onChanged();
+	}
+
+	async function removeHoliday(): Promise<void> {
+		if (await settingsState.remove()) onChanged();
 	}
 </script>
 
@@ -110,7 +119,7 @@
 						<Button variant="outline" onclick={() => settingsState.cancel()} disabled={settingsState.isSaving}>
 							{text.companyHolidays.cancel}
 						</Button>
-						<Button onclick={() => void settingsState.save()} disabled={settingsState.isSaving}>
+						<Button onclick={() => void saveHoliday()} disabled={settingsState.isSaving}>
 							{text.companyHolidays.save}
 						</Button>
 					</div>
@@ -170,7 +179,7 @@
 			<AlertDialog.Action
 				onclick={() => {
 					removalConfirmationOpen = false;
-					void settingsState.remove();
+					void removeHoliday();
 				}}
 			>
 				{text.companyHolidays.remove}

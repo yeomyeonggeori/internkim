@@ -2,6 +2,7 @@ package admind
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -185,16 +186,21 @@ func TestAttendanceWorkPolicyHTTPRoundtripUsesCompanyDate(t *testing.T) {
 		"/admin/api/attendance-work-policy",
 		bytes.NewReader(encodedRevision),
 	)
-	service.handleAttendanceWorkPolicy(putRecorder, putRequest)
+	now := time.Date(2026, time.July, 31, 16, 30, 0, 0, time.UTC)
+	holidayReader := func(context.Context, time.Time, time.Time) (map[string]struct{}, error) {
+		return map[string]struct{}{"2026-08-17": {}}, nil
+	}
+	service.handleAttendanceWorkPolicyAt(putRecorder, putRequest, now, holidayReader)
 	if putRecorder.Code != http.StatusOK {
 		t.Fatalf("put status = %d body = %s", putRecorder.Code, putRecorder.Body.String())
 	}
 
-	var saved attendanceWorkPolicy
-	if errorValue = json.Unmarshal(putRecorder.Body.Bytes(), &saved); errorValue != nil {
+	var savedResponse attendanceWorkPolicyResponse
+	if errorValue = json.Unmarshal(putRecorder.Body.Bytes(), &savedResponse); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	expectedDate := time.Now().In(service.workspaceTimeZone().location).Format(time.DateOnly)
+	saved := savedResponse.Policy
+	expectedDate := now.In(service.workspaceTimeZone().location).Format(time.DateOnly)
 	current, errorValue := attendanceWorkPolicyRevisionForDate(saved, expectedDate)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -205,15 +211,22 @@ func TestAttendanceWorkPolicyHTTPRoundtripUsesCompanyDate(t *testing.T) {
 
 	getRecorder := httptest.NewRecorder()
 	getRequest := httptest.NewRequest(http.MethodGet, "/admin/api/attendance-work-policy", nil)
-	service.handleAttendanceWorkPolicy(getRecorder, getRequest)
+	service.handleAttendanceWorkPolicyAt(getRecorder, getRequest, now, holidayReader)
 	if getRecorder.Code != http.StatusOK {
 		t.Fatalf("get status = %d body = %s", getRecorder.Code, getRecorder.Body.String())
 	}
-	var loaded attendanceWorkPolicy
-	if errorValue = json.Unmarshal(getRecorder.Body.Bytes(), &loaded); errorValue != nil {
+	var loadedResponse attendanceWorkPolicyResponse
+	if errorValue = json.Unmarshal(getRecorder.Body.Bytes(), &loadedResponse); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	loaded := loadedResponse.Policy
 	if len(loaded.Revisions) != len(saved.Revisions) {
 		t.Fatalf("loaded = %+v saved = %+v", loaded, saved)
+	}
+	if loadedResponse.CurrentMonth != "2026-08" ||
+		loadedResponse.TimeZone != service.workspaceTimeZone().name ||
+		len(loadedResponse.HolidayDates) != 1 ||
+		loadedResponse.HolidayDates[0] != "2026-08-17" {
+		t.Fatalf("response = %+v", loadedResponse)
 	}
 }

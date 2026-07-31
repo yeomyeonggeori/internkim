@@ -58,6 +58,16 @@ describe('attendance work policy model', () => {
 		const changedTarget = setAttendanceWeeklyTargetMinutes(changedWeekdays, 1920);
 		expect(changedTarget.dailyTargetMinutes).toBe(480);
 		expect(changedTarget.weeklyTargetMinutes).toBe(1920);
+
+		const roundedTarget = setAttendanceWeeklyTargetMinutes(
+			{ ...revision(), workingWeekdays: [1, 2, 3, 4, 5, 6] },
+			2415
+		);
+		expect(roundedTarget.dailyTargetMinutes).toBe(403);
+		expect(roundedTarget.weeklyTargetMinutes).toBe(2418);
+		expect(
+			roundedTarget.dailyTargetMinutes * roundedTarget.workingWeekdays.length
+		).toBe(roundedTarget.weeklyTargetMinutes);
 	});
 
 	test('derives fixed target after subtracting overlapping breaks', () => {

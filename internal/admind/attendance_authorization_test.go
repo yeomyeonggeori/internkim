@@ -77,6 +77,58 @@ func TestAttendanceSummaryManagementFlagByRoleThroughLoopback(t *testing.T) {
 	}
 }
 
+func TestAttendanceWorkStatusManagementFlagByRoleThroughLoopback(t *testing.T) {
+	service := newAttendanceRoleAuthorizationTestService(t)
+	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{TimeZone: "Asia/Seoul"}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	tests := []struct {
+		name    string
+		email   string
+		isAdmin bool
+	}{
+		{name: "member", email: "member@example.com", isAdmin: false},
+		{name: "operations admin", email: "operator@example.com", isAdmin: true},
+		{name: "admin", email: "admin@example.com", isAdmin: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/attendance/api/work-status?period=day&anchor=2026-07-31", nil)
+			request.RemoteAddr = "127.0.0.1:1234"
+			request.Header.Set("Cf-Access-Authenticated-User-Email", test.email)
+			recorder := httptest.NewRecorder()
+			service.writeAttendanceWorkStatusWithReadersAt(
+				recorder,
+				request,
+				func(context.Context, string, string) ([]attendanceEvent, error) {
+					return []attendanceEvent{}, nil
+				},
+				func(context.Context, string, string) ([]attendancePaidLeaveOccurrence, error) {
+					return []attendancePaidLeaveOccurrence{}, nil
+				},
+				func(context.Context, time.Time, time.Time) (map[string]struct{}, error) {
+					return map[string]struct{}{}, nil
+				},
+				time.Date(2026, 7, 31, 3, 0, 0, 0, time.UTC),
+			)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+			}
+			var response attendanceWorkStatusResponse
+			if errorValue := json.NewDecoder(recorder.Body).Decode(&response); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if response.IsAdmin != test.isAdmin {
+				t.Fatalf("isAdmin = %v, want %v", response.IsAdmin, test.isAdmin)
+			}
+			if test.isAdmin && len(response.Employees) != 3 {
+				t.Fatalf("employees = %d, want 3", len(response.Employees))
+			}
+		})
+	}
+}
+
 func TestAttendanceLocationsAccessByRoleThroughLoopback(t *testing.T) {
 	service := newAttendanceRoleAuthorizationTestService(t)
 	tests := []struct {
