@@ -25,7 +25,7 @@ func TestToolActionParametersFlattenTerminalRunInput(t *testing.T) {
 	variant := actionSchemaVariant{
 		Properties: map[string]json.RawMessage{
 			"action":               json.RawMessage(`{"type":"string","enum":["continue"]}`),
-			"toolName":             json.RawMessage(`{"type":"string","enum":["terminal.run"]}`),
+			"toolName":             json.RawMessage(`{"type":"string","enum":["terminal_run"]}`),
 			"toolInput":            json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`),
 			"message":              json.RawMessage(`{"type":"string"}`),
 			"reason":               json.RawMessage(`{"type":"string"}`),
@@ -82,7 +82,7 @@ func TestReconstructActionFromFlatArgumentsSplitsToolInputAndPlanningFields(t *t
 		"blueclawMessage":              json.RawMessage(`"running tests"`),
 		"blueclawReason":               json.RawMessage(`"verify the change"`),
 		"blueclawExecutionStateUpdate": json.RawMessage(`{}`),
-		"blueclawRequestTools":         json.RawMessage(`["web.search"]`),
+		"blueclawRequestTools":         json.RawMessage(`["web_search"]`),
 		"blueclawGoalStatus":           json.RawMessage(`"in_progress"`),
 		"blueclawGoalSatisfied":        json.RawMessage(`false`),
 		"blueclawRemainingWork":        json.RawMessage(`"none"`),

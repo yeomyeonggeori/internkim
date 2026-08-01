@@ -128,7 +128,7 @@ def main() -> int:
         return 2
     failures = design_failures(source_root) + content_failures(source_root) + dist_failures(source_root) + build_quality_failures(source_root)
     if failures:
-        print(f"Pre-serve validation FAILED for {source_root}. Fix these before site.serve:")
+        print(f"Pre-serve validation FAILED for {source_root}. Fix these before site_serve:")
         for failure in failures:
             print(f"  - {failure}")
         return 1

@@ -41,7 +41,7 @@ func TestArtifactReviewUsesOpenRouterMultimodalMessage(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "artifact.review", strings.NewReader(`{"input":{"artifactKind":"site","intent":"booking flow","rubric":"check layout","evidence":[{"role":"desktopScreenshot","path":"tmp/site/desktop.png","mimeType":"image/png","label":"desktop"}]}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "artifact_review", strings.NewReader(`{"input":{"artifactKind":"site","intent":"booking flow","rubric":"check layout","evidence":[{"role":"desktopScreenshot","path":"tmp/site/desktop.png","mimeType":"image/png","label":"desktop"}]}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -59,7 +59,7 @@ func TestArtifactReviewUsesOpenRouterMultimodalMessage(t *testing.T) {
 
 func TestArtifactReviewRejectsBlueclawInternalPath(t *testing.T) {
 	service := Service{Configuration: Configuration{BlueclawWorkspacePath: t.TempDir()}}
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "artifact.review", strings.NewReader(`{"input":{"artifactKind":"site","intent":"booking flow","rubric":"check layout","evidence":[{"role":"desktopScreenshot","path":"/workspace/.blueclaw/secret.png","mimeType":"image/png","label":"desktop"}]}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "artifact_review", strings.NewReader(`{"input":{"artifactKind":"site","intent":"booking flow","rubric":"check layout","evidence":[{"role":"desktopScreenshot","path":"/workspace/.blueclaw/secret.png","mimeType":"image/png","label":"desktop"}]}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

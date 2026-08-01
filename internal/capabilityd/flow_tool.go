@@ -121,15 +121,15 @@ var flowTaskDeleteNotFoundError = errors.New("flow task delete target not found"
 
 func (service Service) invokeFlowTaskTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch strings.TrimSpace(request.ToolName) {
-	case "task.add":
+	case "task_add":
 		return service.invokeFlowTaskAdd(ctx, request)
-	case "task.list":
+	case "task_list":
 		return service.invokeFlowTaskList(ctx, request)
-	case "task.definitions":
+	case "task_definitions":
 		return service.invokeFlowTaskDefinitions(ctx, request)
-	case "task.update":
+	case "task_update":
 		return service.invokeFlowTaskUpdate(ctx, request)
-	case "task.delete":
+	case "task_delete":
 		return service.invokeFlowTaskDelete(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("flow task tool is not configured: %s", request.ToolName)
@@ -381,7 +381,7 @@ func flowTaskResponseStatus(result json.RawMessage) string {
 
 func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return flowTaskAddInput{}, fmt.Errorf("task.add input is required")
+		return flowTaskAddInput{}, fmt.Errorf("task_add input is required")
 	}
 	var input flowTaskAddInput
 	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
@@ -443,7 +443,7 @@ func decodeFlowTaskListInput(document json.RawMessage) (flowTaskListInput, error
 
 func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return flowTaskUpdateInput{}, fmt.Errorf("task.update input is required")
+		return flowTaskUpdateInput{}, fmt.Errorf("task_update input is required")
 	}
 	var input flowTaskUpdateInput
 	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
@@ -468,7 +468,7 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 		return flowTaskUpdateInput{}, fmt.Errorf("taskHint is required")
 	}
 	if !hasFlowTaskUpdatePatch(input) {
-		return flowTaskUpdateInput{}, fmt.Errorf("task.update requires at least one mutable field")
+		return flowTaskUpdateInput{}, fmt.Errorf("task_update requires at least one mutable field")
 	}
 	if input.Status != nil && !containsString(flowTaskUpdateStatuses(), *input.Status) {
 		return flowTaskUpdateInput{}, fmt.Errorf("status is not allowed")
@@ -481,7 +481,7 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 
 func decodeFlowTaskDeleteInput(document json.RawMessage) (flowTaskDeleteInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return flowTaskDeleteInput{}, fmt.Errorf("task.delete input is required")
+		return flowTaskDeleteInput{}, fmt.Errorf("task_delete input is required")
 	}
 	var input flowTaskDeleteInput
 	if errorValue := decodeStrictFlowTaskInput(document, &input); errorValue != nil {
@@ -1047,7 +1047,7 @@ func flowTaskNotFoundFailure(toolName string) flowTaskUpdateFailure {
 	return flowTaskUpdateFailure{
 		ErrorCode:    "flow_task_not_found",
 		FailureStage: "target_resolution",
-		Message:      toolName + " target was not found; it may have been deleted since task.list was called",
+		Message:      toolName + " target was not found; it may have been deleted since task_list was called",
 		Retryable:    true,
 		SafeRetry:    true,
 	}
@@ -1057,7 +1057,7 @@ func flowTaskDuplicateFailure() flowTaskUpdateFailure {
 	return flowTaskUpdateFailure{
 		ErrorCode:    "flow_task_duplicate",
 		FailureStage: "duplicate_guard",
-		Message:      "task.add skipped an existing duplicate; use task.list to inspect it before deciding whether to add another task",
+		Message:      "task_add skipped an existing duplicate; use task_list to inspect it before deciding whether to add another task",
 	}
 }
 

@@ -6,64 +6,64 @@
   "../../assets/blueclaw-workspace/skills/mattermost"
  ],
  "allowedTools": [
-  "conversation.history",
-  "memory.search",
-  "message.context",
-  "message.search",
-  "message.send",
-  "message.update",
-  "message.delete"
+  "conversation_history",
+  "memory_search",
+  "message_context",
+  "message_search",
+  "message_send",
+  "message_update",
+  "message_delete"
  ],
  "capabilityToolNames": [
-  "message.context",
-  "message.search",
-  "message.send",
-  "message.update",
-  "message.delete"
+  "message_context",
+  "message_search",
+  "message_send",
+  "message_update",
+  "message_delete"
  ],
  "capabilityToolDescriptors": [
   {
-   "name": "message.send",
+   "name": "message_send",
    "requiresApproval": true
   },
   {
-   "name": "message.update",
+   "name": "message_update",
    "requiresApproval": true
   },
   {
-   "name": "message.delete",
+   "name": "message_delete",
    "requiresApproval": true
   }
  ],
  "initialToolNames": [
-  "message.send"
+  "message_send"
  ],
  "steps": [
   {
    "prompt": "이번 주 고객지원 회의 전에 다시 확인할 수 있도록 이 대화에 메모를 하나 남겨줘. 내용은 '고객지원 주간회의 자료가 준비됐습니다. 참석 전에 확인해주세요.'로 해줘.",
    "expectedToolCalls": [
-    "message.send"
+    "message_send"
    ],
    "expectedExactToolCallCounts": {
-    "message.send": 1
+    "message_send": 1
    },
    "expectedEventCounts": [
     {
-     "name": "tool.message.send.requested",
+     "name": "tool.message_send.requested",
      "bodyFragment": "\"targetType\":\"currentThread\"",
      "count": 1,
      "exact": true,
      "advisory": true
     },
     {
-     "name": "tool.message.send.requested",
+     "name": "tool.message_send.requested",
      "bodyFragment": "고객지원 주간회의 자료가 준비됐습니다. 참석 전에 확인해주세요.",
      "count": 1,
      "exact": true,
      "advisory": true
     },
     {
-     "name": "tool.message.send.result",
+     "name": "tool.message_send.result",
      "outputFragment": "\"deliveryStatus\":\"sent\"",
      "count": 1,
      "exact": true
@@ -75,14 +75,14 @@
    "prompt": "방금 남긴 고객지원 주간회의 메모를 찾아서 '고객지원 월간회의 자료가 준비됐습니다. 참석 전에 확인해주세요.'로 고쳐줘.",
    "approvalAction": "approve",
    "expectedToolCalls": [
-    "message.search",
-    "message.update"
+    "message_search",
+    "message_update"
    ],
    "expectedExactToolCallCounts": {
-    "message.update": 1
+    "message_update": 1
    },
    "expectedToolCallCounts": {
-    "message.search": 1
+    "message_search": 1
    },
    "expectedEvents": [
     "confirmation.requested",
@@ -91,19 +91,19 @@
    ],
    "expectedEventCounts": [
     {
-     "name": "tool.message.search.result",
+     "name": "tool.message_search.result",
      "outputFragment": "고객지원 주간회의 자료가 준비됐습니다.",
      "count": 1
     },
     {
-     "name": "tool.message.update.requested",
+     "name": "tool.message_update.requested",
      "bodyFragment": "고객지원 월간회의 자료가 준비됐습니다. 참석 전에 확인해주세요.",
      "count": 1,
      "exact": true,
      "advisory": true
     },
     {
-     "name": "tool.message.update.result",
+     "name": "tool.message_update.result",
      "outputFragment": "\"deliveryStatus\":\"updated\"",
      "count": 1,
      "exact": true
@@ -114,14 +114,14 @@
   {
    "prompt": "이 대화에서 방금 수정한 고객지원 월간회의 메모를 찾아서 내용이 제대로 바뀌었는지 확인해줘.",
    "expectedToolCalls": [
-    "message.search"
+    "message_search"
    ],
    "expectedToolCallCounts": {
-    "message.search": 1
+    "message_search": 1
    },
    "expectedEventCounts": [
     {
-     "name": "tool.message.search.result",
+     "name": "tool.message_search.result",
      "outputFragment": "고객지원 월간회의 자료가 준비됐습니다. 참석 전에 확인해주세요.",
      "count": 1
     }
@@ -136,14 +136,14 @@
    "prompt": "방금 확인한 고객지원 월간회의 메모를 찾아서 삭제해줘.",
    "approvalAction": "approve",
    "expectedToolCalls": [
-    "message.search",
-    "message.delete"
+    "message_search",
+    "message_delete"
    ],
    "expectedExactToolCallCounts": {
-    "message.delete": 1
+    "message_delete": 1
    },
    "expectedToolCallCounts": {
-    "message.search": 1
+    "message_search": 1
    },
    "expectedEvents": [
     "confirmation.requested",
@@ -152,12 +152,12 @@
    ],
    "expectedEventCounts": [
     {
-     "name": "tool.message.search.result",
+     "name": "tool.message_search.result",
      "outputFragment": "고객지원 월간회의 자료가 준비됐습니다.",
      "count": 1
     },
     {
-     "name": "tool.message.delete.result",
+     "name": "tool.message_delete.result",
      "outputFragment": "\"deliveryStatus\":\"deleted\"",
      "count": 1,
      "exact": true
@@ -168,14 +168,14 @@
   {
    "prompt": "이 대화에서 삭제한 고객지원 월간회의 메모가 더는 남아 있지 않은지 확인해줘.",
    "expectedToolCalls": [
-    "message.search"
+    "message_search"
    ],
    "expectedToolCallCounts": {
-    "message.search": 1
+    "message_search": 1
    },
    "expectedEventCounts": [
     {
-     "name": "tool.message.search.result",
+     "name": "tool.message_search.result",
      "outputFragment": "\"messageIDs\":[]",
      "count": 1,
      "advisory": true
@@ -187,10 +187,10 @@
    "prompt": "확인 잘 됐어. 이제 같은 내용을 나한테 DM으로도 하나 보내줘. 내용은 '고객지원 월간회의 자료가 준비됐습니다. DM으로도 전달드립니다.'로 해줘.",
    "approvalAction": "approve",
    "expectedToolCalls": [
-    "message.send"
+    "message_send"
    ],
    "expectedExactToolCallCounts": {
-    "message.send": 1
+    "message_send": 1
    },
    "expectedEvents": [
     "confirmation.requested",
@@ -199,20 +199,20 @@
    ],
    "expectedEventCounts": [
     {
-     "name": "tool.message.send.requested",
+     "name": "tool.message_send.requested",
      "bodyFragment": "\"targetType\":\"directMessage\"",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.message.send.requested",
+     "name": "tool.message_send.requested",
      "bodyFragment": "고객지원 월간회의 자료가 준비됐습니다. DM으로도 전달드립니다.",
      "count": 1,
      "exact": true,
      "advisory": true
     },
     {
-     "name": "tool.message.send.result",
+     "name": "tool.message_send.result",
      "outputFragment": "\"deliveryStatus\":\"sent\"",
      "count": 1,
      "exact": true
@@ -224,10 +224,10 @@
    "prompt": "좋아. 마지막으로 town-square 채널에 공지를 하나 올려줘. 내용은 '고객지원 월간회의 자료가 공유되었습니다. town-square에서 확인해주세요.'로 해줘.",
    "approvalAction": "approve",
    "expectedToolCalls": [
-    "message.send"
+    "message_send"
    ],
    "expectedExactToolCallCounts": {
-    "message.send": 1
+    "message_send": 1
    },
    "expectedEvents": [
     "confirmation.requested",
@@ -236,20 +236,20 @@
    ],
    "expectedEventCounts": [
     {
-     "name": "tool.message.send.requested",
+     "name": "tool.message_send.requested",
      "bodyFragment": "\"targetType\":\"channel\"",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.message.send.requested",
+     "name": "tool.message_send.requested",
      "bodyFragment": "고객지원 월간회의 자료가 공유되었습니다. town-square에서 확인해주세요.",
      "count": 1,
      "exact": true,
      "advisory": true
     },
     {
-     "name": "tool.message.send.result",
+     "name": "tool.message_send.result",
      "outputFragment": "\"deliveryStatus\":\"sent\"",
      "count": 1,
      "exact": true

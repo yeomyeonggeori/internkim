@@ -181,7 +181,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected native action response: %v", errorValue)
 	}
-	if response.Content != `{"action":"continue","message":"publishing","toolInput":{"siteID":"site-1"},"toolName":"site.serve"}` {
+	if response.Content != `{"action":"continue","message":"publishing","toolInput":{"siteID":"site-1"},"toolName":"site_serve"}` {
 		t.Fatalf("expected action JSON, got %s", response.Content)
 	}
 	if response.ConstraintMode != ConstraintModeNativeToolCall {
@@ -281,7 +281,7 @@ func TestOpenRouterBackendAcceptsProviderReturnedToolName(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"calendar.add","arguments":"{\"title\":\"휴가\",\"startISO\":\"2026-05-09T09:00:00+09:00\",\"endISO\":\"2026-05-09T18:00:00+09:00\"}"}}]}}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"calendar_add","arguments":"{\"title\":\"휴가\",\"startISO\":\"2026-05-09T09:00:00+09:00\",\"endISO\":\"2026-05-09T18:00:00+09:00\"}"}}]}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -298,7 +298,7 @@ func TestOpenRouterBackendAcceptsProviderReturnedToolName(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected provider-returned tool name to resolve: %v", errorValue)
 	}
-	if !strings.Contains(response.Content, `"toolName":"calendar.add"`) {
+	if !strings.Contains(response.Content, `"toolName":"calendar_add"`) {
 		t.Fatalf("expected calendar tool action, got %s", response.Content)
 	}
 }
@@ -567,9 +567,9 @@ func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	maxTokens := 2048
 	request := openAIActionToolRequest("local-model", []Message{{Role: "user", Content: "publish"}}, []nativeActionTool{{
 		FunctionName: "continue__site_app_publish",
-		Description:  "Call site.serve",
+		Description:  "Call site_serve",
 		Action:       "continue",
-		ToolName:     "site.serve",
+		ToolName:     "site_serve",
 		Parameters:   json.RawMessage(`{"type":"object","properties":{}}`),
 	}}, GenerationOptions{Seed: &seed, Temperature: &temperature, MaxTokens: &maxTokens})
 
@@ -706,7 +706,7 @@ func TestNativeActionToolsPreserveFlattenedToolInputOptionalityForProviderCompat
 		t.Fatal("expected action schema")
 	}
 
-	calendarAddTool := toolSet.ToolByName[nativeActionFunctionName("continue", "calendar.add")]
+	calendarAddTool := toolSet.ToolByName[nativeActionFunctionName("continue", "calendar_add")]
 	var parameters map[string]any
 	if errorValue := json.Unmarshal(calendarAddTool.Parameters, &parameters); errorValue != nil {
 		t.Fatalf("expected calendar parameters: %v", errorValue)
@@ -726,7 +726,7 @@ func TestNativeActionToolsPreserveFlattenedToolInputOptionalityForProviderCompat
 			t.Fatalf("expected optional flattened toolInput field %s to be removed from required, got %+v", fieldName, parameters)
 		}
 	}
-	assertNativeRequiredFieldsHaveProperties(t, "calendar.add", parameters)
+	assertNativeRequiredFieldsHaveProperties(t, "calendar_add", parameters)
 }
 
 func TestNativeActionToolsProjectEveryDefaultCapabilitySchema(t *testing.T) {
@@ -800,7 +800,7 @@ func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) 
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name: "blueclaw_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{{
-			Name:        "file.write",
+			Name:        "file_write",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`),
 		}}),
 	})
@@ -810,7 +810,7 @@ func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) 
 	if !isActionSchema {
 		t.Fatal("expected action schema")
 	}
-	tool := toolSet.ToolByName[nativeActionFunctionName("continue", "file.write")]
+	tool := toolSet.ToolByName[nativeActionFunctionName("continue", "file_write")]
 	var parameters map[string]any
 	if errorValue := json.Unmarshal(tool.Parameters, &parameters); errorValue != nil {
 		t.Fatalf("expected parameters json: %v", errorValue)
@@ -831,7 +831,7 @@ func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) 
 			t.Fatalf("expected portable optional flattened field %s to be removed from required, got %+v in %s", fieldName, required, tool.Parameters)
 		}
 	}
-	assertNativeSchemaIsProviderSafe(t, "file.write", tool.Parameters)
+	assertNativeSchemaIsProviderSafe(t, "file_write", tool.Parameters)
 }
 
 func TestOpenRouterBackendResolvesDefaultModel(t *testing.T) {
@@ -1545,7 +1545,7 @@ func testAgentActionSchema() StructuredOutputSchema {
 		Name: "blueclaw_agent_turn_action",
 		Document: json.RawMessage(`{"oneOf":[
 			{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"message":{"type":"string"},"goalStatus":{"type":"string","enum":["satisfied"]},"goalSatisfied":{"type":"boolean"},"completionEvidence":{"type":"array"},"qualityReview":{"type":"array"},"executionStateUpdate":{"type":"object"}},"required":["action","message","goalStatus","goalSatisfied","completionEvidence","qualityReview","executionStateUpdate"]},
-			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["site.serve"]},"toolInput":{"type":"object","properties":{"siteID":{"type":"string"}},"required":["siteID"]},"message":{"type":"string"},"executionStateUpdate":{"type":"object"},"nextStepPlan":{"type":"object","properties":{"objective":{"type":"string"},"expectedTools":{"type":"array","items":{"type":"string"}},"doneCriteria":{"type":"array","items":{"type":"string"}},"risk":{"type":"string"},"workingSetReason":{"type":"string"}},"required":["objective","expectedTools","doneCriteria","risk","workingSetReason"]}},"required":["action","toolName","toolInput","executionStateUpdate","nextStepPlan"]}
+			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["site_serve"]},"toolInput":{"type":"object","properties":{"siteID":{"type":"string"}},"required":["siteID"]},"message":{"type":"string"},"executionStateUpdate":{"type":"object"},"nextStepPlan":{"type":"object","properties":{"objective":{"type":"string"},"expectedTools":{"type":"array","items":{"type":"string"}},"doneCriteria":{"type":"array","items":{"type":"string"}},"risk":{"type":"string"},"workingSetReason":{"type":"string"}},"required":["objective","expectedTools","doneCriteria","risk","workingSetReason"]}},"required":["action","toolName","toolInput","executionStateUpdate","nextStepPlan"]}
 		]}`),
 		IsStrictlyEnforced: true,
 	}

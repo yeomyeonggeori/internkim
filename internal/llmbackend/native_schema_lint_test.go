@@ -167,7 +167,7 @@ func TestOpenRouterNativeActionErrorIncludesSchemaLintDiagnostics(t *testing.T) 
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name: "blueclaw_agent_turn_action",
 			Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{{
-				Name:        "file.write",
+				Name:        "file_write",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":["string","null"]}},"required":["path","content"]}`),
 			}}),
 		},
@@ -187,7 +187,7 @@ func TestNativeActionToolSchemasArePortableAfterNormalization(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name: "blueclaw_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{{
-			Name:        "file.write",
+			Name:        "file_write",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":["string","null"]},"retries":{"type":"integer","minimum":0}},"required":["path","content","retries"],"additionalProperties":false}`),
 		}}),
 	})
@@ -197,8 +197,8 @@ func TestNativeActionToolSchemasArePortableAfterNormalization(t *testing.T) {
 	if !isActionSchema {
 		t.Fatal("expected action schema")
 	}
-	tool := toolSet.ToolByName[nativeActionFunctionName("continue", "file.write")]
-	assertNativeSchemaIsProviderSafe(t, "file.write", tool.Parameters)
+	tool := toolSet.ToolByName[nativeActionFunctionName("continue", "file_write")]
+	assertNativeSchemaIsProviderSafe(t, "file_write", tool.Parameters)
 	if len(toolSet.NativeSchemaLint.NormalizationsApplied) == 0 {
 		t.Fatalf("expected schema normalization findings, got %+v", toolSet.NativeSchemaLint)
 	}

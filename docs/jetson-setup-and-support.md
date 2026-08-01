@@ -191,7 +191,7 @@ admind의 `/admin/api/recovery/` 엔드포인트를 fleet-secret으로 서명된
 
 ### 5-3. 채팅 기반 진단
 
-Mattermost + Blueclaw가 동작 중이면 관리자 채널에서 `terminal.run`, `file.read` 등으로 직접 진단.
+Mattermost + Blueclaw가 동작 중이면 관리자 채널에서 `terminal_run`, `file_read` 등으로 직접 진단.
 
 ### 5-4. 지원 계층 요약
 

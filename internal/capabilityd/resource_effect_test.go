@@ -17,16 +17,16 @@ func TestCapabilitySuccessResponseProjectsRegisteredResultContracts(t *testing.T
 		effect     string
 		identity   string
 	}{
-		{toolName: "task.add", status: "created", result: `{"taskID":"task-1"}`, objectType: "task", effect: "created", identity: "task-1"},
-		{toolName: "task.update", status: "updated", result: `{"taskID":"task-1"}`, objectType: "task", effect: "updated", identity: "task-1"},
-		{toolName: "task.delete", status: "deleted", result: `{"taskID":"task-1","deleted":true}`, objectType: "task", effect: "deleted", identity: "task-1"},
-		{toolName: "calendar.add", status: "created", result: calendarResult, objectType: "calendar", effect: "created", identity: "event-1"},
-		{toolName: "calendar.update", status: "updated", result: calendarResult, objectType: "calendar", effect: "updated", identity: "event-1"},
-		{toolName: "calendar.delete", status: "deleted", result: `{"eventID":"event-1","deleted":true}`, objectType: "calendar", effect: "deleted", identity: "event-1"},
-		{toolName: "message.send", status: "sent", result: `{"messageIDs":["message-1"],"deliveryStatus":"sent"}`, objectType: "message", effect: "sent", identity: "message-1"},
-		{toolName: "message.update", status: "updated", result: `{"messageID":"message-1","deliveryStatus":"updated","messageUpdated":true}`, objectType: "message", effect: "updated", identity: "message-1"},
-		{toolName: "message.delete", status: "deleted", result: `{"messageIDs":["message-1"],"deliveryStatus":"deleted"}`, objectType: "message", effect: "deleted", identity: "message-1"},
-		{toolName: "channel.update", status: "updated", result: `{"channelID":"channel-1","updated":true}`, objectType: "channel", effect: "updated", identity: "channel-1"},
+		{toolName: "task_add", status: "created", result: `{"taskID":"task-1"}`, objectType: "task", effect: "created", identity: "task-1"},
+		{toolName: "task_update", status: "updated", result: `{"taskID":"task-1"}`, objectType: "task", effect: "updated", identity: "task-1"},
+		{toolName: "task_delete", status: "deleted", result: `{"taskID":"task-1","deleted":true}`, objectType: "task", effect: "deleted", identity: "task-1"},
+		{toolName: "calendar_add", status: "created", result: calendarResult, objectType: "calendar", effect: "created", identity: "event-1"},
+		{toolName: "calendar_update", status: "updated", result: calendarResult, objectType: "calendar", effect: "updated", identity: "event-1"},
+		{toolName: "calendar_delete", status: "deleted", result: `{"eventID":"event-1","deleted":true}`, objectType: "calendar", effect: "deleted", identity: "event-1"},
+		{toolName: "message_send", status: "sent", result: `{"messageIDs":["message-1"],"deliveryStatus":"sent"}`, objectType: "message", effect: "sent", identity: "message-1"},
+		{toolName: "message_update", status: "updated", result: `{"messageID":"message-1","deliveryStatus":"updated","messageUpdated":true}`, objectType: "message", effect: "updated", identity: "message-1"},
+		{toolName: "message_delete", status: "deleted", result: `{"messageIDs":["message-1"],"deliveryStatus":"deleted"}`, objectType: "message", effect: "deleted", identity: "message-1"},
+		{toolName: "channel_update", status: "updated", result: `{"channelID":"channel-1","updated":true}`, objectType: "channel", effect: "updated", identity: "channel-1"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.toolName, func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestCapabilitySuccessResponseProjectsRegisteredResultContracts(t *testing.T
 
 func TestCapabilitySuccessResponseFromCarriesOriginAndValidates(t *testing.T) {
 	result := `{"scope":"self","weekFrom":0,"weekTo":0,"statusFilter":"","ownerID":"member-1","tasks":[{"taskID":"task-1"}],"count":1}`
-	response, errorValue := capabilitySuccessResponseFrom("task.list", "ok", []byte(result), capabilityResponseOrigin{
+	response, errorValue := capabilitySuccessResponseFrom("task_list", "ok", []byte(result), capabilityResponseOrigin{
 		Provider:        "internkim-test",
 		SelectedBackend: capabilities.LLMBackendRemote,
 		Content:         "listed",
@@ -71,9 +71,9 @@ func TestCapabilitySuccessResponseFailsClosed(t *testing.T) {
 		errorMatch string
 	}{
 		{name: "missing descriptor", toolName: "task.unknown", result: `{"taskID":"task-1"}`, errorMatch: "descriptor is missing"},
-		{name: "invalid result", toolName: "task.add", result: `{"status":"created"}`, errorMatch: "violates task.add contract"},
-		{name: "invalid list result", toolName: "task.list", result: `{"tasks":null,"count":0,"scope":"self"}`, errorMatch: "violates task.list contract"},
-		{name: "invalid calendar list result", toolName: "calendar.list", result: `{"events":[{"eventID":""}]}`, errorMatch: "violates calendar.list contract"},
+		{name: "invalid result", toolName: "task_add", result: `{"status":"created"}`, errorMatch: "violates task_add contract"},
+		{name: "invalid list result", toolName: "task_list", result: `{"tasks":null,"count":0,"scope":"self"}`, errorMatch: "violates task_list contract"},
+		{name: "invalid calendar list result", toolName: "calendar_list", result: `{"events":[{"eventID":""}]}`, errorMatch: "violates calendar_list contract"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {

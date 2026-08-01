@@ -185,7 +185,7 @@ func (service *Service) validateCompanionFileUpload(companionID string, payload 
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
 	job := service.companionJobs[strings.TrimSpace(payload.JobID)]
-	if job == nil || job.CompanionID != companionID || job.Status != "running" || job.ToolName != "file.pick" {
+	if job == nil || job.CompanionID != companionID || job.Status != "running" || job.ToolName != "file_pick" {
 		return errors.New("companion file upload is not allowed for this job")
 	}
 	return nil

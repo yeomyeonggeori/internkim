@@ -13,11 +13,11 @@ import (
 
 func TestMailMessageSendRequiresDescriptorApproval(t *testing.T) {
 	service := Service{Configuration: Configuration{AdmindBaseURL: "http://admind.local"}}
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "mail.message.send", strings.NewReader(`{"input":{"to":["recipient@example.com"],"subject":"Demo","body":"Hello"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "mail_message_send", strings.NewReader(`{"input":{"to":["recipient@example.com"],"subject":"Demo","body":"Hello"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	assertCapabilityApprovalRequired(t, response, "mail.message.send")
+	assertCapabilityApprovalRequired(t, response, "mail_message_send")
 }
 
 func TestMailMessageSendApprovedContinuationPostsToAdmind(t *testing.T) {
@@ -38,7 +38,7 @@ func TestMailMessageSendApprovedContinuationPostsToAdmind(t *testing.T) {
 	}
 
 	result, errorValue := service.invokeMailMessageSend(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "mail.message.send",
+		ToolName: "mail_message_send",
 		Input:    []byte(`{"to":["recipient@example.com"],"subject":"Demo","body":"Hello"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "Staff@Example.com",
@@ -72,7 +72,7 @@ func TestMailMessageListForwardsCursorAndRequester(t *testing.T) {
 	}
 
 	_, errorValue := service.invokeMailMessageList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "mail.message.list",
+		ToolName: "mail_message_list",
 		Input:    []byte(`{"mailbox":"INBOX","limit":5,"cursor":"cursor-1"}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "Staff@Example.com"},
 	})
@@ -90,7 +90,7 @@ func TestMailMessageListForwardsCursorAndRequester(t *testing.T) {
 func TestMailMessageSearchRequiresQuery(t *testing.T) {
 	service := Service{Configuration: Configuration{AdmindBaseURL: "http://admind.local"}}
 	_, errorValue := service.invokeMailMessageSearch(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "mail.message.search",
+		ToolName: "mail_message_search",
 		Input:    []byte(`{"mailbox":"INBOX"}`),
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "query is required") {
@@ -109,7 +109,7 @@ func TestMailMessageSearchForwardsQueryAndCursor(t *testing.T) {
 	}
 
 	_, errorValue := service.invokeMailMessageSearch(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "mail.message.search",
+		ToolName: "mail_message_search",
 		Input:    []byte(`{"mailbox":"INBOX","query":"invoice","limit":5,"cursor":"cursor-1"}`),
 	})
 	if errorValue != nil {
@@ -141,7 +141,7 @@ func TestMailConnectionStatusUsesAccountEndpoint(t *testing.T) {
 	}
 
 	result, errorValue := service.invokeMailConnectionStatus(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "mail.connection.status",
+		ToolName: "mail_connection_status",
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "Staff@Example.com"},
 	})
 	if errorValue != nil {
@@ -157,7 +157,7 @@ func TestMailConnectionStatusUsesAccountEndpoint(t *testing.T) {
 
 func TestMailConnectionStartReturnsSetupURL(t *testing.T) {
 	service := Service{Configuration: Configuration{AdmindBaseURL: "http://admind.local"}}
-	result, errorValue := service.invokeMailConnectionStart(context.Background(), capabilities.ToolInvokeRequest{ToolName: "mail.connection.start"})
+	result, errorValue := service.invokeMailConnectionStart(context.Background(), capabilities.ToolInvokeRequest{ToolName: "mail_connection_start"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

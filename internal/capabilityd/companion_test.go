@@ -114,7 +114,7 @@ func TestCompanionStructuredProviderRejectsEmptyContent(t *testing.T) {
 }
 
 func TestDecodeToolInvokeRequestRequiresRequesterPersonIDForTrustedFlags(t *testing.T) {
-	_, errorValue := decodeToolInvokeRequest("message.send", strings.NewReader(`{
+	_, errorValue := decodeToolInvokeRequest("message_send", strings.NewReader(`{
 		"context": {
 			"isScheduledRun": true
 		}
@@ -125,7 +125,7 @@ func TestDecodeToolInvokeRequestRequiresRequesterPersonIDForTrustedFlags(t *test
 }
 
 func TestDecodeToolInvokeRequestRejectsReservedRequesterPersonID(t *testing.T) {
-	_, errorValue := decodeToolInvokeRequest("message.send", strings.NewReader(`{
+	_, errorValue := decodeToolInvokeRequest("message_send", strings.NewReader(`{
 		"context": {
 			"requesterPersonID": "blueclaw"
 		}
@@ -136,7 +136,7 @@ func TestDecodeToolInvokeRequestRejectsReservedRequesterPersonID(t *testing.T) {
 }
 
 func TestDecodeToolInvokeRequestRejectsMalformedRequesterPersonID(t *testing.T) {
-	_, errorValue := decodeToolInvokeRequest("message.send", strings.NewReader(`{
+	_, errorValue := decodeToolInvokeRequest("message_send", strings.NewReader(`{
 		"context": {
 			"requesterPersonID": "../person-1"
 		}
@@ -147,7 +147,7 @@ func TestDecodeToolInvokeRequestRejectsMalformedRequesterPersonID(t *testing.T) 
 }
 
 func TestDecodeToolInvokeRequestAcceptsPlausibleRequesterPersonID(t *testing.T) {
-	request, errorValue := decodeToolInvokeRequest("message.send", strings.NewReader(`{
+	request, errorValue := decodeToolInvokeRequest("message_send", strings.NewReader(`{
 		"context": {
 			"requesterPersonID": " person-1 ",
 			"isApprovalContinuation": true
@@ -162,8 +162,8 @@ func TestDecodeToolInvokeRequestAcceptsPlausibleRequesterPersonID(t *testing.T) 
 }
 
 func TestDecodeToolInvokeRequestRejectsOperationMismatch(t *testing.T) {
-	_, errorValue := decodeToolInvokeRequest("site.list", strings.NewReader(`{
-		"toolName": "site.unserve",
+	_, errorValue := decodeToolInvokeRequest("site_list", strings.NewReader(`{
+		"toolName": "site_unserve",
 		"input": {}
 	}`))
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "tool name mismatch") {
@@ -176,10 +176,10 @@ func TestInvokeCapabilityToolRejectsInputOutsideDescriptorSchema(t *testing.T) {
 		toolName string
 		input    string
 	}{
-		{toolName: "site.serve", input: `{"title":"Demo","sourceWorkspacePath":"~/sites/demo","mode":"deploy"}`},
-		{toolName: "site.serve", input: `{"title":"Demo","sourceWorkspacePath":"~/sites/demo","mode":"publish","slug":"demo"}`},
-		{toolName: "site.unserve", input: `{"siteReference":"site-1","confirm":"DELETE"}`},
-		{toolName: "site.unserve", input: `{"siteReference":"site-1","userConfirmed":true}`},
+		{toolName: "site_serve", input: `{"title":"Demo","sourceWorkspacePath":"~/sites/demo","mode":"deploy"}`},
+		{toolName: "site_serve", input: `{"title":"Demo","sourceWorkspacePath":"~/sites/demo","mode":"publish","slug":"demo"}`},
+		{toolName: "site_unserve", input: `{"siteReference":"site-1","confirm":"DELETE"}`},
+		{toolName: "site_unserve", input: `{"siteReference":"site-1","userConfirmed":true}`},
 	}
 	for _, testCase := range testCases {
 		response, errorValue := (Service{}).invokeCapabilityTool(
@@ -197,21 +197,21 @@ func TestInvokeCapabilityToolRejectsInputOutsideDescriptorSchema(t *testing.T) {
 }
 
 func TestCapabilityToolDescriptorRequiresExactCanonicalName(t *testing.T) {
-	descriptor, found := capabilityToolDescriptorFor("site.unserve")
+	descriptor, found := capabilityToolDescriptorFor("site_unserve")
 	if !found {
-		t.Fatal("expected site.unserve descriptor")
+		t.Fatal("expected site_unserve descriptor")
 	}
-	if descriptor.CanonicalName != "site.unserve" {
-		t.Fatalf("expected canonical site.unserve descriptor, got %+v", descriptor)
+	if descriptor.CanonicalName != "site_unserve" {
+		t.Fatalf("expected canonical site_unserve descriptor, got %+v", descriptor)
 	}
-	if descriptor.PolicyResource != "tool:site.unserve" {
+	if descriptor.PolicyResource != "tool:site_unserve" {
 		t.Fatalf("expected descriptor policy resource, got %q", descriptor.PolicyResource)
 	}
 	if !descriptor.RequiresApproval {
-		t.Fatal("expected site.unserve descriptor to require approval")
+		t.Fatal("expected site_unserve descriptor to require approval")
 	}
 	if descriptor.RequiresUserPresence {
-		t.Fatal("site.unserve executes on the device; requiring user presence routes it to the companion")
+		t.Fatal("site_unserve executes on the device; requiring user presence routes it to the companion")
 	}
 	if _, found := capabilityToolDescriptorFor("site."); found {
 		t.Fatal("expected prefix-only operation to have no descriptor")
@@ -227,9 +227,9 @@ func TestInvokeCapabilityToolRejectsUnknownPrefixOperation(t *testing.T) {
 }
 
 func TestValidateContractedCapabilityResponseRejectsContractViolations(t *testing.T) {
-	descriptor, found := capabilityToolDescriptorFor("task.add")
+	descriptor, found := capabilityToolDescriptorFor("task_add")
 	if !found {
-		t.Fatal("expected task.add descriptor")
+		t.Fatal("expected task_add descriptor")
 	}
 
 	validResult := json.RawMessage(`{"taskID":"task-1"}`)
@@ -242,7 +242,7 @@ func TestValidateContractedCapabilityResponseRejectsContractViolations(t *testin
 		{
 			name: "missing identity",
 			response: capabilities.ToolInvokeResponse{
-				ToolName: "task.add",
+				ToolName: "task_add",
 				Outcome:  capabilities.ToolOutcomeSucceeded,
 				Result:   validResult,
 			},
@@ -253,7 +253,7 @@ func TestValidateContractedCapabilityResponseRejectsContractViolations(t *testin
 			response: capabilities.ToolInvokeResponse{
 				Provider:        "internkim",
 				SelectedBackend: "device",
-				ToolName:        "task.update",
+				ToolName:        "task_update",
 				Outcome:         capabilities.ToolOutcomeSucceeded,
 				Result:          validResult,
 				Effects:         validEffects,
@@ -265,19 +265,19 @@ func TestValidateContractedCapabilityResponseRejectsContractViolations(t *testin
 			response: capabilities.ToolInvokeResponse{
 				Provider:        "internkim",
 				SelectedBackend: "device",
-				ToolName:        "task.add",
+				ToolName:        "task_add",
 				Outcome:         capabilities.ToolOutcomeSucceeded,
 				Result:          json.RawMessage(`{"status":"created"}`),
 				Effects:         validEffects,
 			},
-			message: "violates task.add contract",
+			message: "violates task_add contract",
 		},
 		{
 			name: "mismatched effects",
 			response: capabilities.ToolInvokeResponse{
 				Provider:        "internkim",
 				SelectedBackend: "device",
-				ToolName:        "task.add",
+				ToolName:        "task_add",
 				Outcome:         capabilities.ToolOutcomeSucceeded,
 				Result:          validResult,
 				Effects:         []capabilities.ResourceEffect{{ObjectType: "task", Effect: "updated", ID: "task-1"}},
@@ -297,14 +297,14 @@ func TestValidateContractedCapabilityResponseRejectsContractViolations(t *testin
 }
 
 func TestValidateContractedCapabilityResponseRequiresExpectedCompanionIdentity(t *testing.T) {
-	descriptor, found := capabilityToolDescriptorFor("task.add")
+	descriptor, found := capabilityToolDescriptorFor("task_add")
 	if !found {
-		t.Fatal("expected task.add descriptor")
+		t.Fatal("expected task_add descriptor")
 	}
 	response := capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
 		SelectedBackend: "device",
-		ToolName:        "task.add",
+		ToolName:        "task_add",
 		Outcome:         capabilities.ToolOutcomeSucceeded,
 		Effects:         []capabilities.ResourceEffect{{ObjectType: "task", Effect: "created", ID: "task-1"}},
 		Result:          json.RawMessage(`{"taskID":"task-1"}`),
@@ -333,7 +333,7 @@ func TestCompanionProviderDoesNotInferIdentity(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := provider.InvokeTool(context.Background(), capabilities.ToolInvokeRequest{ToolName: "browser.open"})
+	response, errorValue := provider.InvokeTool(context.Background(), capabilities.ToolInvokeRequest{ToolName: "browser_open"})
 	if errorValue != nil {
 		t.Fatalf("expected companion response: %v", errorValue)
 	}
@@ -559,7 +559,7 @@ func TestCapabilityRouterUsesDescriptors(t *testing.T) {
 		CompanionAvailable: true,
 		Descriptors:        capabilities.CompanionToolDescriptors(),
 	}
-	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.open"}) {
+	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser_open"}) {
 		t.Fatal("expected browser tool to stay device-side")
 	}
 	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "unknown.tool"}) {
@@ -570,15 +570,15 @@ func TestCapabilityRouterUsesDescriptors(t *testing.T) {
 func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 	service := Service{}
 	toolNames := []string{
-		"message.send",
-		"message.update",
-		"message.delete",
-		"channel.update",
-		"task.delete",
-		"calendar.delete",
-		"mail.connection.start",
-		"mail.message.send",
-		"site.unserve",
+		"message_send",
+		"message_update",
+		"message_delete",
+		"channel_update",
+		"task_delete",
+		"calendar_delete",
+		"mail_connection_start",
+		"mail_message_send",
+		"site_unserve",
 		"google.gmail.send",
 	}
 	for _, toolName := range toolNames {
@@ -609,7 +609,7 @@ func TestInvokeCapabilityToolSiteUnserveInjectsInternalApprovalProof(t *testing.
 			return siteToolJSONResponse(`{"siteID":"site-1","slug":"demo","status":"deleted"}`), nil
 		})},
 	}
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "site.unserve", strings.NewReader(`{
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "site_unserve", strings.NewReader(`{
 		"input":{"siteReference":"site-1","reason":"Remove obsolete launch page"},
 		"context":{"requesterPersonID":"person-1","isApprovalContinuation":true}
 	}`))
@@ -669,7 +669,7 @@ func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			request := capabilities.ToolInvokeRequest{
-				ToolName: "message.send",
+				ToolName: "message_send",
 				Input:    json.RawMessage(testCase.input),
 				Context:  testCase.context,
 			}
@@ -680,7 +680,7 @@ func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
 				t.Fatalf("expected requiresApproval=%v, got isDenied=%v response=%+v", testCase.requiresApproval, isDenied, response)
 			}
 			if isDenied {
-				assertCapabilityApprovalRequired(t, response, "message.send")
+				assertCapabilityApprovalRequired(t, response, "message_send")
 			}
 		})
 	}
@@ -695,7 +695,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 	t.Run("directMessage resolving to the requester is pre-approved", func(t *testing.T) {
 		service := platformDMResolverTestService(t, platformDMResolvedGamyeongResponse())
 		request := capabilities.ToolInvokeRequest{
-			ToolName: "message.send",
+			ToolName: "message_send",
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
 			Context:  requesterContext,
 		}
@@ -709,7 +709,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 	t.Run("directMessage resolving to a different person still requires approval", func(t *testing.T) {
 		service := platformDMResolverTestService(t, platformDMResolvedGamyeongResponse())
 		request := capabilities.ToolInvokeRequest{
-			ToolName: "message.send",
+			ToolName: "message_send",
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
 			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-someone-else", ConversationID: "conversation-1"},
 		}
@@ -718,13 +718,13 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 		if !isDenied {
 			t.Fatal("expected direct message to a different person to require approval")
 		}
-		assertCapabilityApprovalRequired(t, response, "message.send")
+		assertCapabilityApprovalRequired(t, response, "message_send")
 	})
 
 	t.Run("directMessage broadcast with personHints still requires approval", func(t *testing.T) {
 		service := platformDMResolverTestService(t, platformDMResolvedGamyeongResponse())
 		request := capabilities.ToolInvokeRequest{
-			ToolName: "message.send",
+			ToolName: "message_send",
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플","personHints":["샘플"]}`),
 			Context:  requesterContext,
 		}
@@ -733,7 +733,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 		if !isDenied {
 			t.Fatal("expected multi-recipient directMessage to require approval")
 		}
-		assertCapabilityApprovalRequired(t, response, "message.send")
+		assertCapabilityApprovalRequired(t, response, "message_send")
 	})
 
 	t.Run("recipient resolution failure still requires approval", func(t *testing.T) {
@@ -741,7 +741,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 		server.Close()
 		service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
 		request := capabilities.ToolInvokeRequest{
-			ToolName: "message.send",
+			ToolName: "message_send",
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
 			Context:  requesterContext,
 		}
@@ -750,13 +750,13 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 		if !isDenied {
 			t.Fatal("expected resolution failure to require approval")
 		}
-		assertCapabilityApprovalRequired(t, response, "message.send")
+		assertCapabilityApprovalRequired(t, response, "message_send")
 	})
 
 	t.Run("scheduled run never qualifies for the self direct-message pre-approval", func(t *testing.T) {
 		service := platformDMResolverTestService(t, platformDMResolvedGamyeongResponse())
 		request := capabilities.ToolInvokeRequest{
-			ToolName: "message.send",
+			ToolName: "message_send",
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
 			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-gamyeong", ConversationID: "conversation-1", IsScheduledRun: true},
 		}
@@ -768,7 +768,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 
 func TestMessageSendPreApprovalExcludesScheduledRuns(t *testing.T) {
 	request := capabilities.ToolInvokeRequest{
-		ToolName: "message.send",
+		ToolName: "message_send",
 		Input:    json.RawMessage(`{"targetType":"currentThread"}`),
 		Context:  capabilities.ToolInvokeContext{ConversationID: "conversation-1", IsScheduledRun: true},
 	}
@@ -783,10 +783,10 @@ func TestPreferCompanionBrowserRoutesGenericBrowserTool(t *testing.T) {
 		PreferCompanionBrowser: true,
 		Descriptors:            []capabilities.Descriptor{},
 	}
-	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.navigate"}) {
+	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser_navigate"}) {
 		t.Fatal("expected browser tool to stay device-side regardless of PreferCompanionBrowser")
 	}
-	for _, toolName := range []string{"task.add", "task.list", "task.update", "task.delete"} {
+	for _, toolName := range []string{"task_add", "task_list", "task_update", "task_delete"} {
 		if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: toolName}) {
 			t.Fatalf("expected %s to stay device-side", toolName)
 		}
@@ -799,7 +799,7 @@ func TestPreferCompanionBrowserDoesNotRouteWithoutCompanionAvailable(t *testing.
 		PreferCompanionBrowser: true,
 		Descriptors:            []capabilities.Descriptor{},
 	}
-	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.navigate"}) {
+	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser_navigate"}) {
 		t.Fatal("expected device fallback when companion is unavailable")
 	}
 }
@@ -817,7 +817,7 @@ func TestScreenshotDoesNotFallbackWhenCompanionUnavailable(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.screenshot", strings.NewReader(`{"input":{}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_screenshot", strings.NewReader(`{"input":{}}`))
 	if errorValue != nil {
 		t.Fatalf("expected structured screenshot denial: %v", errorValue)
 	}
@@ -834,7 +834,7 @@ func TestSimpleBrowserToolFallsBackWhenCompanionBrowserNotReady(t *testing.T) {
 	denialResult, _ := json.Marshal(capabilities.DenialResult{
 		Status:     "denied",
 		Code:       capabilities.CapabilityNotReady,
-		ToolName:   "browser.open",
+		ToolName:   "browser_open",
 		UserReason: "Companion은 연결되어 있지만 브라우저 런타임이 준비되지 않았습니다.",
 	})
 	service := Service{
@@ -845,7 +845,7 @@ func TestSimpleBrowserToolFallsBackWhenCompanionBrowserNotReady(t *testing.T) {
 			}
 			return jsonResponse(capabilities.ToolInvokeResponse{
 				Provider: "companion",
-				ToolName: "browser.open",
+				ToolName: "browser_open",
 				Status:   "denied",
 				IsError:  true,
 				Result:   denialResult,
@@ -860,12 +860,12 @@ func TestSimpleBrowserToolFallsBackWhenCompanionBrowserNotReady(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected device fallback response: %v", errorValue)
 	}
 	if response.Provider != "device" || !commandWasCalled {
-		t.Fatalf("expected browser.open to fallback to device, got response=%+v commandWasCalled=%v", response, commandWasCalled)
+		t.Fatalf("expected browser_open to fallback to device, got response=%+v commandWasCalled=%v", response, commandWasCalled)
 	}
 }
 
@@ -885,12 +885,12 @@ func TestSimpleBrowserToolFallsBackToDeviceWhenCompanionUnavailable(t *testing.T
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected device fallback response: %v", errorValue)
 	}
 	if response.Provider != "device" || !commandWasCalled {
-		t.Fatalf("expected browser.open to fallback to device, got response=%+v commandWasCalled=%v", response, commandWasCalled)
+		t.Fatalf("expected browser_open to fallback to device, got response=%+v commandWasCalled=%v", response, commandWasCalled)
 	}
 }
 
@@ -909,7 +909,7 @@ func TestCompanionOnlyBrowserToolPreservesNotReadyDenial(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{
 		"requiresUserPresence":true,
 		"executionMode":"companion",
 		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
@@ -947,7 +947,7 @@ func TestCompanionRequiredBrowserJobExpiryReportsNotReady(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{
 		"requiresUserPresence":true,
 		"executionMode":"companion",
 		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
@@ -984,7 +984,7 @@ func TestUserPresenceBrowserToolDoesNotFallbackToDeviceWhenCompanionUnavailable(
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{
 		"requiresUserPresence":true,
 		"executionMode":"companion",
 		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
@@ -997,7 +997,7 @@ func TestUserPresenceBrowserToolDoesNotFallbackToDeviceWhenCompanionUnavailable(
 		t.Fatalf("expected not_connected denial, got %+v", response)
 	}
 	if commandWasCalled {
-		t.Fatal("expected user-presence browser.open not to fallback to device browser")
+		t.Fatal("expected user-presence browser_open not to fallback to device browser")
 	}
 }
 
@@ -1008,7 +1008,7 @@ func TestUserPresenceBrowserToolRequiresConnectWhenCompanionNotConfigured(t *tes
 		return nil, nil
 	}}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{
 		"requiresUserPresence":true,
 		"executionMode":"companion",
 		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
@@ -1021,14 +1021,14 @@ func TestUserPresenceBrowserToolRequiresConnectWhenCompanionNotConfigured(t *tes
 		t.Fatalf("expected no-success denial, got %+v", response)
 	}
 	if commandWasCalled {
-		t.Fatal("expected companion-only browser.open not to fallback to device browser")
+		t.Fatal("expected companion-only browser_open not to fallback to device browser")
 	}
 }
 
 func TestCompanionRequiredBrowserDenialIncludesConnectRecovery(t *testing.T) {
 	service := Service{}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{
 		"requiresUserPresence":true,
 		"executionMode":"companion",
 		"input":{"url":"https://example.com/login"}
@@ -1055,7 +1055,7 @@ func TestBrowserToolUsesCompanionBeforeDeviceFallback(t *testing.T) {
 			companionWasCalled = true
 			return jsonResponse(capabilities.ToolInvokeResponse{
 				Provider: "companion",
-				ToolName: "browser.open",
+				ToolName: "browser_open",
 				Status:   "ok",
 				Result:   json.RawMessage(`{"url":"https://example.com"}`),
 			}), nil
@@ -1066,9 +1066,9 @@ func TestBrowserToolUsesCompanionBeforeDeviceFallback(t *testing.T) {
 		},
 	}
 
-	service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
 	if companionWasCalled {
-		t.Fatal("expected browser.open to use device-only path, not companion")
+		t.Fatal("expected browser_open to use device-only path, not companion")
 	}
 	if !deviceCommandCalled {
 		t.Fatal("expected device browser command to be called")
@@ -1082,7 +1082,7 @@ func TestBrowserHandoffRequiresCompanion(t *testing.T) {
 		return nil, nil
 	}}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.handoff", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_handoff", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected handoff denial: %v", errorValue)
 	}
@@ -1090,7 +1090,7 @@ func TestBrowserHandoffRequiresCompanion(t *testing.T) {
 		t.Fatalf("expected companion-required handoff denial, got %+v result=%s", response, response.Result)
 	}
 	if commandWasCalled {
-		t.Fatal("expected browser.handoff not to fallback to device browser")
+		t.Fatal("expected browser_handoff not to fallback to device browser")
 	}
 }
 
@@ -1103,13 +1103,13 @@ func TestHumanInputToolRoutesToCompanion(t *testing.T) {
 		if errorValue := json.NewDecoder(request.Body).Decode(&forwardedRequest); errorValue != nil {
 			t.Fatalf("expected forwarded tool request: %v", errorValue)
 		}
-		if forwardedRequest.ToolName != "user.confirm" {
+		if forwardedRequest.ToolName != "user_confirm" {
 			t.Fatalf("expected tool name to be forwarded, got %q", forwardedRequest.ToolName)
 		}
 		return jsonResponse(capabilities.ToolInvokeResponse{
 			Provider:        "companion",
 			SelectedBackend: testCompanionBackend,
-			ToolName:        "user.confirm",
+			ToolName:        "user_confirm",
 			Result:          json.RawMessage(`{"confirmed":true}`),
 		}), nil
 	})}
@@ -1118,7 +1118,7 @@ func TestHumanInputToolRoutesToCompanion(t *testing.T) {
 		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
 		HTTPClient:    httpClient,
 	}
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "user.confirm", strings.NewReader(`{"requiresUserPresence":true,"input":{"message":"continue?"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "user_confirm", strings.NewReader(`{"requiresUserPresence":true,"input":{"message":"continue?"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected companion tool response: %v", errorValue)
 	}
@@ -1130,7 +1130,7 @@ func TestHumanInputToolRoutesToCompanion(t *testing.T) {
 func TestHumanInputToolFailsCleanlyWithoutCompanion(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "sk-must-not-leak")
 	service := Service{Configuration: DefaultConfiguration()}
-	_, errorValue := service.invokeCapabilityTool(context.Background(), "user.confirm", strings.NewReader(`{"requiresUserPresence":true,"input":{"message":"continue?"}}`))
+	_, errorValue := service.invokeCapabilityTool(context.Background(), "user_confirm", strings.NewReader(`{"requiresUserPresence":true,"input":{"message":"continue?"}}`))
 	if errorValue == nil {
 		t.Fatal("expected missing companion to fail")
 	}

@@ -8,10 +8,10 @@ import (
 
 func TestCanonicalizeDescriptorsBuildsStrictProviderMetadata(t *testing.T) {
 	descriptors := CanonicalizeDescriptors([]Descriptor{{
-		Name:               "task.add",
-		CanonicalName:      "task.add",
+		Name:               "task_add",
+		CanonicalName:      "task_add",
 		Namespace:          "task",
-		ModelName:          "task.add",
+		ModelName:          "task_add",
 		ModelVisibility:    ModelVisibilityVisible,
 		ModelVisible:       true,
 		Description:        "Create a task.",
@@ -24,7 +24,7 @@ func TestCanonicalizeDescriptorsBuildsStrictProviderMetadata(t *testing.T) {
 		ResultContract:     emptyTestResultContract(),
 		InputSchemaStrict:  true,
 		OutputSchemaStrict: true,
-		PolicyResource:     "tool:task.add",
+		PolicyResource:     "tool:task_add",
 		SideEffectClass:    "workspace_write",
 		SideEffect:         "workspace_write",
 		Availability:       AvailabilityMetadata{State: AvailabilityOK},
@@ -39,13 +39,13 @@ func TestCanonicalizeDescriptorsBuildsStrictProviderMetadata(t *testing.T) {
 		t.Fatalf("expected one canonical descriptor, got %#v", descriptors)
 	}
 	descriptor := descriptors[0]
-	if descriptor.Name != "task.add" || descriptor.CanonicalName != "task.add" || descriptor.Namespace != "task" || descriptor.ModelName != "task.add" {
+	if descriptor.Name != "task_add" || descriptor.CanonicalName != "task_add" || descriptor.Namespace != "task" || descriptor.ModelName != "task_add" {
 		t.Fatalf("unexpected canonical identity: %+v", descriptor)
 	}
 	if descriptor.ModelVisibility != ModelVisibilityVisible || !descriptor.ModelVisible {
 		t.Fatalf("unexpected model visibility: %+v", descriptor)
 	}
-	if !descriptor.InputSchemaStrict || !descriptor.OutputSchemaStrict || descriptor.SideEffect != "workspace_write" || descriptor.PolicyResource != "tool:task.add" {
+	if !descriptor.InputSchemaStrict || !descriptor.OutputSchemaStrict || descriptor.SideEffect != "workspace_write" || descriptor.PolicyResource != "tool:task_add" {
 		t.Fatalf("unexpected provider metadata: %+v", descriptor)
 	}
 	if descriptor.Availability.State != AvailabilityOK || descriptor.Idempotency.Supported || descriptor.Idempotency.Scope != "operation" {
@@ -80,7 +80,7 @@ func TestDescriptorValidationRequiresExplicitInputIntentSchema(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			descriptor := validTestDescriptor("task.add")
+			descriptor := validTestDescriptor("task_add")
 			descriptor.InputSchema = json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"}},"required":["title"],"additionalProperties":false}`)
 			descriptor.InputIntentSchema = testCase.intentSchema
 			errorValue := ValidateDescriptor(descriptor)
@@ -92,7 +92,7 @@ func TestDescriptorValidationRequiresExplicitInputIntentSchema(t *testing.T) {
 }
 
 func TestDescriptorValidationAcceptsExplicitPartialInputIntentSchema(t *testing.T) {
-	descriptor := validTestDescriptor("task.add")
+	descriptor := validTestDescriptor("task_add")
 	descriptor.InputSchema = json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"endDate":{"type":"string"}},"required":["title"],"additionalProperties":false}`)
 	descriptor.InputIntentSchema = json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"endDate":{"type":"string"}},"additionalProperties":false}`)
 
@@ -102,32 +102,32 @@ func TestDescriptorValidationAcceptsExplicitPartialInputIntentSchema(t *testing.
 }
 
 func TestDescriptorValidationRejectsMissingMetadataAndDuplicates(t *testing.T) {
-	if errorValue := ValidateDescriptor(Descriptor{Name: "task.add", Description: "Create a task.", Version: "1", PrivacyClass: "task", EstimatedLatency: "low"}); errorValue == nil || !strings.Contains(errorValue.Error(), "canonicalName") {
+	if errorValue := ValidateDescriptor(Descriptor{Name: "task_add", Description: "Create a task.", Version: "1", PrivacyClass: "task", EstimatedLatency: "low"}); errorValue == nil || !strings.Contains(errorValue.Error(), "canonicalName") {
 		t.Fatalf("expected missing canonical name error, got %v", errorValue)
 	}
-	firstDescriptor := validTestDescriptor("task.add")
-	secondDescriptor := validTestDescriptor("task.update")
-	secondDescriptor.CanonicalName = "task.add"
+	firstDescriptor := validTestDescriptor("task_add")
+	secondDescriptor := validTestDescriptor("task_update")
+	secondDescriptor.CanonicalName = "task_add"
 	if descriptors := CanonicalizeDescriptors([]Descriptor{firstDescriptor, secondDescriptor}); descriptors != nil {
 		t.Fatalf("expected duplicate canonical names to fail closed: %#v", descriptors)
 	}
-	firstDescriptor = validTestDescriptor("task.add")
-	secondDescriptor = validTestDescriptor("task.update")
+	firstDescriptor = validTestDescriptor("task_add")
+	secondDescriptor = validTestDescriptor("task_update")
 	firstDescriptor.ModelName = "task"
 	secondDescriptor.ModelName = "task"
 	if descriptors := CanonicalizeDescriptors([]Descriptor{firstDescriptor, secondDescriptor}); descriptors != nil {
 		t.Fatalf("expected duplicate model names to fail closed: %#v", descriptors)
 	}
-	firstDescriptor = validTestDescriptor("task.add")
-	secondDescriptor = validTestDescriptor("task.add")
-	secondDescriptor.CanonicalName = "task.update"
+	firstDescriptor = validTestDescriptor("task_add")
+	secondDescriptor = validTestDescriptor("task_add")
+	secondDescriptor.CanonicalName = "task_update"
 	if descriptors := CanonicalizeDescriptors([]Descriptor{firstDescriptor, secondDescriptor}); descriptors != nil {
 		t.Fatalf("expected duplicate names to fail closed: %#v", descriptors)
 	}
 }
 
 func TestCanonicalizeDescriptorsDoesNotInferSemanticMetadata(t *testing.T) {
-	missingSideEffect := validTestDescriptor("task.add")
+	missingSideEffect := validTestDescriptor("task_add")
 	missingSideEffect.SideEffectClass = ""
 	missingSideEffect.SideEffect = ""
 	if descriptors := CanonicalizeDescriptors([]Descriptor{missingSideEffect}); descriptors != nil {
@@ -155,17 +155,17 @@ func TestCanonicalizeDescriptorsRejectsMissingSchemasAndDescription(t *testing.T
 		descriptor Descriptor
 	}{
 		{name: "description", descriptor: func() Descriptor {
-			descriptor := validTestDescriptor("task.add")
+			descriptor := validTestDescriptor("task_add")
 			descriptor.Description = ""
 			return descriptor
 		}()},
 		{name: "input schema", descriptor: func() Descriptor {
-			descriptor := validTestDescriptor("task.add")
+			descriptor := validTestDescriptor("task_add")
 			descriptor.InputSchema = nil
 			return descriptor
 		}()},
 		{name: "output schema", descriptor: func() Descriptor {
-			descriptor := validTestDescriptor("task.add")
+			descriptor := validTestDescriptor("task_add")
 			descriptor.OutputSchema = nil
 			return descriptor
 		}()},
@@ -180,7 +180,7 @@ func TestCanonicalizeDescriptorsRejectsMissingSchemasAndDescription(t *testing.T
 }
 
 func TestCanonicalizeDescriptorsRejectsOpenObjectSchema(t *testing.T) {
-	descriptor := validTestDescriptor("task.add")
+	descriptor := validTestDescriptor("task_add")
 	descriptor.InputSchema = json.RawMessage(`{"type":"object","additionalProperties":true}`)
 
 	if descriptors := CanonicalizeDescriptors([]Descriptor{descriptor}); descriptors != nil {
@@ -210,7 +210,7 @@ func TestCanonicalizeDescriptorsRejectsUnresolvableSchemas(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			descriptor := validTestDescriptor("task.add")
+			descriptor := validTestDescriptor("task_add")
 			testCase.mutateSchema(&descriptor)
 			if descriptors := CanonicalizeDescriptors([]Descriptor{descriptor}); descriptors != nil {
 				t.Fatalf("expected unresolvable %s schema to fail closed: %#v", testCase.name, descriptors)
@@ -221,7 +221,7 @@ func TestCanonicalizeDescriptorsRejectsUnresolvableSchemas(t *testing.T) {
 
 func TestValidateDescriptorAcceptsCanonicalUnavailableStates(t *testing.T) {
 	for _, state := range []string{CapabilityAvailable, CapabilityNotAllowed, CapabilityNotConnected, CapabilityNotReady} {
-		descriptor := validTestDescriptor("task.add")
+		descriptor := validTestDescriptor("task_add")
 		descriptor.Availability.State = state
 		if errorValue := ValidateDescriptor(descriptor); errorValue != nil {
 			t.Fatalf("state %q: %v", state, errorValue)
@@ -230,7 +230,7 @@ func TestValidateDescriptorAcceptsCanonicalUnavailableStates(t *testing.T) {
 }
 
 func TestValidateDescriptorRejectsUnknownLatency(t *testing.T) {
-	descriptor := validTestDescriptor("task.add")
+	descriptor := validTestDescriptor("task_add")
 	descriptor.EstimatedLatency = "instant"
 
 	if errorValue := ValidateDescriptor(descriptor); errorValue == nil {
@@ -239,7 +239,7 @@ func TestValidateDescriptorRejectsUnknownLatency(t *testing.T) {
 }
 
 func TestCanonicalizeDescriptorsValidatesResultContracts(t *testing.T) {
-	validDescriptor := validTestDescriptor("task.add")
+	validDescriptor := validTestDescriptor("task_add")
 	validDescriptor.ResultContract = &ToolResultContract{
 		Schema: json.RawMessage(`{"type":"object","properties":{"taskID":{"type":"string"}},"required":["taskID"]}`),
 		Effects: []ResourceEffectContract{{
@@ -273,7 +273,7 @@ func TestCanonicalizeDescriptorsValidatesResultContracts(t *testing.T) {
 		{Schema: json.RawMessage(`{"type":"object","properties":{"passed":{"type":"boolean"}},"required":["passed"],"additionalProperties":false}`), EvidenceCondition: &EvidenceCondition{ResultField: "passed"}},
 		{Schema: json.RawMessage(`{"type":"object","properties":{"passed":{"type":"boolean"}},"required":["passed"],"additionalProperties":false}`), EvidenceCondition: &EvidenceCondition{ResultField: "passed", Equals: json.RawMessage(`"true"`)}},
 	} {
-		descriptor := validTestDescriptor("task.add")
+		descriptor := validTestDescriptor("task_add")
 		descriptor.ResultContract = contract
 		if canonicalDescriptors := CanonicalizeDescriptors([]Descriptor{descriptor}); canonicalDescriptors != nil {
 			t.Fatalf("expected invalid result contract to fail closed: %+v", canonicalDescriptors)
@@ -321,7 +321,7 @@ func TestValidateResultContractAcceptsDistinctIdentitiesForOneEffect(t *testing.
 }
 
 func TestValidateModelVisibleCapabilityDescriptorSetRequiresResultContracts(t *testing.T) {
-	modelVisibleDescriptor := validTestDescriptor("task.add")
+	modelVisibleDescriptor := validTestDescriptor("task_add")
 	modelVisibleDescriptor.ResultContract = nil
 	if errorValue := ValidateDescriptorSet([]Descriptor{modelVisibleDescriptor}); errorValue == nil ||
 		!strings.Contains(errorValue.Error(), "model-visible capability resultContract is required") {
@@ -345,7 +345,7 @@ func TestValidateModelVisibleCapabilityDescriptorSetRequiresResultContracts(t *t
 }
 
 func TestMustCanonicalizeModelVisibleDescriptorsFailsClosed(t *testing.T) {
-	modelVisibleDescriptor := validTestDescriptor("task.add")
+	modelVisibleDescriptor := validTestDescriptor("task_add")
 	modelVisibleDescriptor.ResultContract = nil
 	defer func() {
 		if recover() == nil {
@@ -363,7 +363,7 @@ func TestValidateDescriptorRejectsInvalidCompletionEvidence(t *testing.T) {
 		{Mode: "success", Action: " write_task", TargetKind: "task"},
 	}
 	for _, completionEvidence := range testCases {
-		descriptor := validTestDescriptor("task.add")
+		descriptor := validTestDescriptor("task_add")
 		descriptor.CompletionEvidence = &completionEvidence
 		if errorValue := ValidateDescriptor(descriptor); errorValue == nil {
 			t.Fatalf("expected invalid completion evidence rejection: %+v", completionEvidence)
@@ -372,7 +372,7 @@ func TestValidateDescriptorRejectsInvalidCompletionEvidence(t *testing.T) {
 }
 
 func TestValidateDescriptorRejectsRequiredIdempotencyWithoutSupport(t *testing.T) {
-	descriptor := validTestDescriptor("task.add")
+	descriptor := validTestDescriptor("task_add")
 	descriptor.Idempotency.Required = true
 
 	if errorValue := ValidateDescriptor(descriptor); errorValue == nil {

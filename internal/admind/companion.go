@@ -621,7 +621,7 @@ func companionJobTimeoutSecond(request capabilities.ToolInvokeRequest) int {
 		}
 		return request.TimeoutSecond
 	}
-	if request.RequiresUserPresence || strings.HasPrefix(request.ToolName, "browser.") {
+	if request.RequiresUserPresence || strings.HasPrefix(request.ToolName, "browser_") {
 		return 120
 	}
 	return 30
@@ -744,7 +744,7 @@ func (service *Service) findBrowserHandoffJobLocked(companionID string, handoffI
 		return nil
 	}
 	for _, job := range service.companionJobs {
-		if job.CompanionID != companionID || job.ToolName != "browser.handoff" || job.Response == nil {
+		if job.CompanionID != companionID || job.ToolName != "browser_handoff" || job.Response == nil {
 			continue
 		}
 		if browserHandoffIDFromResponse(job.Response) == handoffID {
@@ -974,7 +974,7 @@ func companionOwnsJob(companion *CompanionRecord, job *CompanionJob) bool {
 
 func requiresRequesterOwnedCompanion(toolName string) bool {
 	trimmedToolName := strings.TrimSpace(toolName)
-	return strings.HasPrefix(trimmedToolName, "browser.") || strings.HasPrefix(trimmedToolName, "user.") || trimmedToolName == "file.pick"
+	return strings.HasPrefix(trimmedToolName, "browser_") || strings.HasPrefix(trimmedToolName, "user_") || trimmedToolName == "file_pick"
 }
 
 func shouldUseRequesterOwnedCompanion(request capabilities.ToolInvokeRequest) bool {
@@ -1099,9 +1099,9 @@ func companionResourceScope(request capabilities.ToolInvokeRequest) capabilities
 		return request.ResourceScope
 	}
 	switch request.ToolName {
-	case "browser.open", "browser.snapshot", "browser.screenshot", "browser.handoff", "browser.click", "browser.fill", "browser.select", "browser.press", "browser.wait":
+	case "browser_open", "browser_snapshot", "browser_screenshot", "browser_handoff", "browser_click", "browser_fill", "browser_select", "browser_press", "browser_wait":
 		return capabilities.ResourceScope{Kind: "web_origin", Value: browserOriginFromInput(request.Input)}
-	case "file.pick":
+	case "file_pick":
 		return capabilities.ResourceScope{Kind: "file_root", Value: ""}
 	case "filesystem.mount.create", "filesystem.mount.list", "filesystem.mount.pause", "filesystem.mount.resume", "filesystem.mount.revoke", "filesystem.mount.status", "filesystem.mount.stat", "filesystem.mount.list_directory", "filesystem.mount.read", "filesystem.mount.write", "filesystem.mount.mkdir", "filesystem.mount.rename", "filesystem.mount.delete", "filesystem.mount.truncate", "filesystem.mount.chmod", "filesystem.mount.watch":
 		return companionMountResourceScope(request)
@@ -1167,7 +1167,7 @@ func companionDenialResponse(denial capabilities.DenialResult) (capabilities.Too
 func companionCapabilityUnavailableResponse(request capabilities.ToolInvokeRequest, code string) capabilities.ToolInvokeResponse {
 	userReason := capabilities.CapabilityUnavailableUserReason(request.ToolName, code)
 	var recovery *capabilities.RecoveryAction
-	if code == capabilities.CapabilityNotConnected && strings.HasPrefix(strings.TrimSpace(request.ToolName), "browser.") {
+	if code == capabilities.CapabilityNotConnected && strings.HasPrefix(strings.TrimSpace(request.ToolName), "browser_") {
 		recovery = capabilities.CompanionConnectRecovery()
 	}
 	document, _ := json.Marshal(capabilities.DenialResult{

@@ -46,7 +46,7 @@ test('capture delete approval before and after', async ({ page }) => {
 			if (!store) return { mention: false, attach: false };
 			const posts = Object.values(store.getState?.()?.entities?.posts?.posts ?? {});
 			return {
-				mention: posts.some((post) => (post.message || '').includes('진행할까요') || (post.message || '').includes('task.delete')),
+				mention: posts.some((post) => (post.message || '').includes('진행할까요') || (post.message || '').includes('task_delete')),
 				attach: posts.some((post) => Boolean(post.props?.attachments)),
 			};
 		}).catch(() => ({ mention: false, attach: false }));

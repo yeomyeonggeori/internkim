@@ -30,7 +30,7 @@ func flowTaskCreatedWithinDuplicateWindow(createdAt string, now time.Time) bool 
 }
 
 func logFlowTaskAddDeduplicated(taskID string, ownerID string) {
-	log.Printf("task.add deduplicated: taskID=%s ownerID=%s", taskID, ownerID)
+	log.Printf("task_add deduplicated: taskID=%s ownerID=%s", taskID, ownerID)
 }
 
 func mergeFlowTaskAddInputIntoDuplicate(task flowTaskForTool, input flowTaskAddInput) (flowTaskForTool, bool) {

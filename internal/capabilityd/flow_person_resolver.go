@@ -76,7 +76,7 @@ func ambiguousFlowOwnerResolution(matches []flowMemberForTool) flowOwnerResoluti
 	return flowOwnerResolution{Failure: &flowTaskAddFailure{
 		ErrorCode:    "flow_owner_ambiguous",
 		FailureStage: "target_resolution",
-		Message:      "task.add target is ambiguous; ask the user to choose one candidate by @handle",
+		Message:      "task_add target is ambiguous; ask the user to choose one candidate by @handle",
 		Candidates:   flowTaskAddCandidates(matches),
 		Retryable:    true,
 		SafeRetry:    true,

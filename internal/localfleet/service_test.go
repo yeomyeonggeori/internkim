@@ -167,7 +167,7 @@ func TestMattermostDocxAttachmentScenarioUsesPromptDownloadGate(t *testing.T) {
 	for _, expectedFragment := range []string{
 		"verify mattermost --prompt",
 		"Local Fleet DOCX Attachment Test",
-		"--expect-tool file.deliver",
+		"--expect-tool file_deliver",
 		"--download-files-to '/repo/.local/local-fleet/runs/docx/downloads/mattermost-docx-attachment'",
 		"--wait-for-completion",
 	} {

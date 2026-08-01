@@ -40,7 +40,6 @@ const (
 
 type capabilityToolRoute struct {
 	ToolName                 string
-	ToolPrefix               string
 	Category                 capabilityToolCategory
 	IsTrimmedMatch           bool
 	RequiresCompanionBrowser bool
@@ -48,39 +47,59 @@ type capabilityToolRoute struct {
 }
 
 var capabilityToolRoutes = []capabilityToolRoute{
-	{ToolName: "browser.screenshot", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, RequiresCompanionBrowser: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "browser.handoff", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, RequiresCompanionBrowser: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolPrefix: "browser.", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "web.search", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeWebTool},
-	{ToolName: "web.fetch", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeWebTool},
-	{ToolName: "document.read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDocumentReadTool},
-	{ToolName: "image.read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeImageReadTool},
-	{ToolName: "image.generate", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeImageGenerateTool},
-	{ToolName: "artifact.review", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeArtifactReviewTool},
-	{ToolName: "task.add", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
-	{ToolName: "task.list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
-	{ToolName: "task.update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
-	{ToolName: "task.delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
-	{ToolName: "message.context", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
-	{ToolName: "message.search", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
-	{ToolName: "message.send", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
-	{ToolName: "message.update", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
-	{ToolName: "message.delete", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
-	{ToolName: "channel.update", Category: deviceToolCategory, Handler: Service.invokeMattermostTool},
-	{ToolName: "calendar.add", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
-	{ToolName: "calendar.list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
-	{ToolName: "calendar.update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
-	{ToolName: "calendar.delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
-	{ToolName: "mail.message.list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail.message.search", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail.message.read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail.message.send", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail.message.move", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail.message.mark", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail.connection.status", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail.connection.start", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolPrefix: "site.", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeSiteAppTool},
-	{ToolPrefix: "company.", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "browser_screenshot", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, RequiresCompanionBrowser: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_handoff", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, RequiresCompanionBrowser: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_open", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_snapshot", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_click", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_navigate", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_fill", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_select", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_press", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_wait", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "web_search", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeWebTool},
+	{ToolName: "web_fetch", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeWebTool},
+	{ToolName: "document_read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDocumentReadTool},
+	{ToolName: "image_read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeImageReadTool},
+	{ToolName: "image_generate", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeImageGenerateTool},
+	{ToolName: "artifact_review", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeArtifactReviewTool},
+	{ToolName: "task_add", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
+	{ToolName: "task_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
+	{ToolName: "task_update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
+	{ToolName: "task_delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
+	{ToolName: "message_context", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
+	{ToolName: "message_search", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
+	{ToolName: "message_send", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
+	{ToolName: "message_update", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
+	{ToolName: "message_delete", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
+	{ToolName: "channel_update", Category: deviceToolCategory, Handler: Service.invokeMattermostTool},
+	{ToolName: "calendar_add", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
+	{ToolName: "calendar_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
+	{ToolName: "calendar_update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
+	{ToolName: "calendar_delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
+	{ToolName: "mail_message_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail_message_search", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail_message_read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail_message_send", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail_message_move", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail_message_mark", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail_connection_status", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail_connection_start", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "site_serve", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeSiteAppTool},
+	{ToolName: "site_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeSiteAppTool},
+	{ToolName: "site_unserve", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeSiteAppTool},
+	{ToolName: "company_document_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "company_document_register", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "company_document_search", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "company_document_update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "company_info_get", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "company_info_set", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "company_metric_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "company_metric_record", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "company_record_add", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "company_record_delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "company_record_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
+	{ToolName: "company_record_update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
 	{ToolName: "google.docs.create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
 	{ToolName: "google.sheets.create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
 	{ToolName: "google.gmail.send", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
@@ -124,9 +143,6 @@ func (route capabilityToolRoute) matches(toolName string) bool {
 	matchedToolName := route.matchableToolName(toolName)
 	if route.ToolName != "" {
 		return route.ToolName == matchedToolName
-	}
-	if route.ToolPrefix != "" {
-		return strings.HasPrefix(matchedToolName, route.ToolPrefix)
 	}
 	return false
 }
@@ -356,7 +372,7 @@ func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context,
 // not need a separate approval step. Scheduled/proactive runs are excluded
 // because there is no live user turn granting that authority in the moment.
 func isPreApprovedCurrentConversationMessageSend(request capabilities.ToolInvokeRequest) bool {
-	if request.ToolName != "message.send" {
+	if request.ToolName != "message_send" {
 		return false
 	}
 	if request.Context.IsScheduledRun {
@@ -375,7 +391,7 @@ func isPreApprovedCurrentConversationMessageSend(request capabilities.ToolInvoke
 // with multiple recipient hints are excluded because that is a different
 // trust shape.
 func (service Service) isPreApprovedSelfDirectMessageSend(ctx context.Context, request capabilities.ToolInvokeRequest) bool {
-	if request.ToolName != "message.send" {
+	if request.ToolName != "message_send" {
 		return false
 	}
 	if request.Context.IsScheduledRun {

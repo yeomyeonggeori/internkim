@@ -61,27 +61,27 @@ func experimentVariants() []experimentVariant {
 
 func experimentScenarios(t *testing.T) []experimentScenario {
 	t.Helper()
-	calendarAddDescriptor := findLiveDescriptor(t, capabilities.CalendarDescriptors(), "calendar.add")
-	taskAddDescriptor := findLiveDescriptor(t, capabilities.FlowDescriptors(), "task.add")
+	calendarAddDescriptor := findLiveDescriptor(t, capabilities.CalendarDescriptors(), "calendar_add")
+	taskAddDescriptor := findLiveDescriptor(t, capabilities.FlowDescriptors(), "task_add")
 	return []experimentScenario{
 		{
 			Name:                  "calendar-full",
 			Prompt:                "내일 오후 3시부터 4시까지 팀 회의 일정 잡아줘. 오늘은 2026-07-02 수요일, 시간대 Asia/Seoul.",
-			ExpectedTool:          "calendar.add",
+			ExpectedTool:          "calendar_add",
 			PrimaryDescriptor:     calendarAddDescriptor,
 			RequiredFieldsToCheck: experimentDescriptorRequiredFields(t, calendarAddDescriptor),
 		},
 		{
 			Name:                  "task-add",
 			Prompt:                "분기 보고서 초안 작성 업무를 추가해줘.",
-			ExpectedTool:          "task.add",
+			ExpectedTool:          "task_add",
 			PrimaryDescriptor:     taskAddDescriptor,
 			RequiredFieldsToCheck: experimentDescriptorRequiredFields(t, taskAddDescriptor),
 		},
 		{
 			Name:                  "underspecified",
 			Prompt:                "회의 잡아줘.",
-			ExpectedTool:          "calendar.add",
+			ExpectedTool:          "calendar_add",
 			PrimaryDescriptor:     calendarAddDescriptor,
 			RequiredFieldsToCheck: experimentDescriptorRequiredFields(t, calendarAddDescriptor),
 			IsUnderspecified:      true,
@@ -106,7 +106,7 @@ func TestOpenRouterLiveNestedRequiredStripExperiment(t *testing.T) {
 
 	variants := experimentVariants()
 	scenarios := experimentScenarios(t)
-	webSearchDescriptor := findLiveDescriptor(t, capabilities.WebDescriptors(), "web.search")
+	webSearchDescriptor := findLiveDescriptor(t, capabilities.WebDescriptors(), "web_search")
 	schemaByVariantScenario := experimentSchemaDocuments(t, variants, scenarios, webSearchDescriptor)
 
 	type experimentJob struct {

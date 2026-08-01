@@ -23,7 +23,7 @@ describe('prompt bridge payloads', () => {
 			requestId: 'prompt-3',
 			kind: 'approval',
 			message: 'Allow browser work?',
-			toolName: 'browser.navigate',
+			toolName: 'browser_navigate',
 			capabilityScope: 'browser',
 			resourceScope: { kind: 'web_origin', value: 'https://github.com' }
 		});

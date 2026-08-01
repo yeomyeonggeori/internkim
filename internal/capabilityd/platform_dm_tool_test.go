@@ -50,7 +50,7 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 	}
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "message.send",
+		ToolName: "message_send",
 		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
@@ -83,21 +83,21 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
 	service := Service{}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "message.send", strings.NewReader(`{"input":{"targetType":"directMessage","personHint":"샘플","message":"테스트"},"context":{"requesterPersonID":"person-other","requesterPlatformUserID":"user-other"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "message_send", strings.NewReader(`{"input":{"targetType":"directMessage","personHint":"샘플","message":"테스트"},"context":{"requesterPersonID":"person-other","requesterPlatformUserID":"user-other"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	assertCapabilityApprovalRequired(t, response, "message.send")
+	assertCapabilityApprovalRequired(t, response, "message_send")
 }
 
 func TestPlatformDMSendImmediateSelfRequiresDescriptorApproval(t *testing.T) {
 	service := Service{}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "message.send", strings.NewReader(`{"input":{"targetType":"directMessage","personHint":"샘플","message":"본인 확인"},"context":{"requesterPersonID":"person-gamyeong","requesterPlatformUserID":"user-gamyeong"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "message_send", strings.NewReader(`{"input":{"targetType":"directMessage","personHint":"샘플","message":"본인 확인"},"context":{"requesterPersonID":"person-gamyeong","requesterPlatformUserID":"user-gamyeong"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	assertCapabilityApprovalRequired(t, response, "message.send")
+	assertCapabilityApprovalRequired(t, response, "message_send")
 }
 
 func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
@@ -105,7 +105,7 @@ func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
 	service := platformDMTestService(t, tokenPath, platformDMResolvedGamyeongResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "message.send",
+		ToolName: "message_send",
 		Input:    []byte(`{"targetType":"directMessage","personHint":"@gamyeong","message":"승인 후 전송"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsApprovalContinuation: true,
@@ -124,7 +124,7 @@ func TestPlatformDMSendMatchesMattermostNickname(t *testing.T) {
 	service := platformDMTestService(t, tokenPath, `{"status":"resolved","recipient":{"personID":"person-gamyeong","displayName":"이샘플","emails":["gamyeong@example.com"],"externalUserID":"user-gamyeong","username":"member-42"}}`)
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "message.send",
+		ToolName: "message_send",
 		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
@@ -214,7 +214,7 @@ func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 	service := platformDMTestService(t, tokenPath, `{"status":"ambiguous","candidates":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"],"externalUserID":"user-one"},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"],"externalUserID":"user-two"}]}`)
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "message.send",
+		ToolName: "message_send",
 		Input:    []byte(`{"targetType":"directMessage","personHint":"lee","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
@@ -233,7 +233,7 @@ func TestPlatformDMSendMissingMattermostTokenDoesNotSend(t *testing.T) {
 	service := platformDMTestService(t, "/missing/token", platformDMResolvedGamyeongResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "message.send",
+		ToolName: "message_send",
 		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
@@ -274,7 +274,7 @@ func TestPlatformDMSendPostFailureIsNotSafeToRetry(t *testing.T) {
 	}
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "message.send",
+		ToolName: "message_send",
 		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
@@ -310,7 +310,7 @@ func TestPlatformDMSendDirectChannelFailureUsesSpecificStage(t *testing.T) {
 	}
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "message.send",
+		ToolName: "message_send",
 		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
@@ -346,7 +346,7 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 	}
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "message.send",
+		ToolName: "message_send",
 		Input:    []byte(`{"targetType":"directMessage","personHint":"lee","message":"테스트"}`),
 		Context:  capabilities.ToolInvokeContext{IsScheduledRun: true},
 	})
@@ -468,7 +468,7 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 	}
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "message.send",
+		ToolName: "message_send",
 		Input:    []byte(`{"targetType":"directMessage","personHints":["샘플","정국","없는사람"],"message":"완료 확인 부탁"}`),
 		Context:  capabilities.ToolInvokeContext{IsApprovalContinuation: true},
 	})
@@ -496,11 +496,11 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 func TestPlatformMessageBroadcastImmediateRunRequiresApproval(t *testing.T) {
 	service := Service{}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "message.send", strings.NewReader(`{"input":{"targetType":"directMessage","personHints":["샘플","정국"],"message":"확인"},"context":{"requesterPersonID":"person-other"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "message_send", strings.NewReader(`{"input":{"targetType":"directMessage","personHints":["샘플","정국"],"message":"확인"},"context":{"requesterPersonID":"person-other"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	assertCapabilityApprovalRequired(t, response, "message.send")
+	assertCapabilityApprovalRequired(t, response, "message_send")
 }
 
 func platformDMTestJSONResponse(document string) *http.Response {
