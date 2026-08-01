@@ -87,9 +87,14 @@ export function parseMessageContent(text: string): MessageContent {
 
 const emojiShortcodePattern = /:([^:\s]+):/g;
 
-export function applyCustomEmoji(text: string, customEmoji?: ChannelCustomEmoji[]): string {
-	if (!customEmoji || customEmoji.length === 0) return text;
-	const urlByName = new Map(customEmoji.map((emoji) => [emoji.name, emoji.url]));
+export function applyCustomEmoji(
+	text: string,
+	perMessageEmoji?: ChannelCustomEmoji[],
+	globalEmoji?: Map<string, string>
+): string {
+	const urlByName = new Map(globalEmoji ?? []);
+	for (const emoji of perMessageEmoji ?? []) urlByName.set(emoji.name, emoji.url);
+	if (urlByName.size === 0) return text;
 	return text.replace(emojiShortcodePattern, (whole, name: string) => {
 		const url = urlByName.get(name);
 		return url ? `![${name}](${url})` : whole;
