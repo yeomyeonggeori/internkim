@@ -39,7 +39,7 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 
 	let { isActive = true, threadLayout = 'sheet', channelId }: {
@@ -249,10 +249,11 @@
 		return [...head, ...latest];
 	}
 
-	async function loadOlderMessages(viewport: HTMLElement) {
+	const olderMessagesPrefetchThreshold = 800;
+
+	async function loadOlderMessages() {
 		if (isLoadingOlder || !hasMoreBefore || !historyCursor) return;
 		isLoadingOlder = true;
-		const previousScrollHeight = viewport.scrollHeight;
 		try {
 			const page = await fetchChannelConversation(channelId, historyCursor);
 			hasMoreBefore = page.hasMoreBefore;
@@ -262,10 +263,11 @@
 			if (fresh.length === 0) {
 				hasMoreBefore = false;
 			} else {
+				// The MessageScroller preserves scroll position across a prepend on its
+				// own (childList observer -> restorePrependedAnchor), so we only add the
+				// messages and never touch scrollTop, which is what caused the bounce.
 				olderMessages = [...fresh, ...olderMessages];
 				messages = [...fresh, ...messages];
-				await tick();
-				viewport.scrollTop += viewport.scrollHeight - previousScrollHeight;
 			}
 		} finally {
 			isLoadingOlder = false;
@@ -275,8 +277,8 @@
 	function handleViewportScroll(event: Event) {
 		const viewport = event.currentTarget;
 		if (!(viewport instanceof HTMLElement)) return;
-		if (viewport.scrollTop > 160) return;
-		loadOlderMessages(viewport);
+		if (viewport.scrollTop > olderMessagesPrefetchThreshold) return;
+		loadOlderMessages();
 	}
 
 	function conversationSignature(list: ChannelMessage[]): string {
@@ -854,13 +856,17 @@
 			</Empty.Root>
 		{:else}
 			<MessageScroller.Root>
+				{#if isLoadingOlder}
+					<div class="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
+						<span
+							class="bg-background/80 text-muted-foreground rounded-full px-3 py-1 text-xs shadow-sm backdrop-blur"
+						>
+							{text.loadingOlder}
+						</span>
+					</div>
+				{/if}
 				<MessageScroller.Viewport onscroll={handleViewportScroll}>
 					<MessageScroller.Content aria-busy={isAgentWorking} class="gap-8 px-4 py-12">
-						{#if isLoadingOlder}
-							<Marker.Root role="status">
-								<Marker.Content class="shimmer">{text.loadingOlder}</Marker.Content>
-							</Marker.Root>
-						{/if}
 						{#each timeline as item (item.id)}
 							{#if item.kind === 'date'}
 								<Marker.Root variant="separator">
