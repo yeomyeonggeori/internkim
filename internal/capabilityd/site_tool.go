@@ -63,6 +63,9 @@ func (requestError *siteAppRequestError) Error() string {
 func (service Service) invokeSiteAppTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	result, errorValue := service.invokeSiteApp(ctx, request)
 	if errorValue != nil {
+		if response, isCallerFailure := siteAppCallerFailureResponse(request.ToolName, errorValue); isCallerFailure {
+			return response, nil
+		}
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	if response, isResolutionFailure := siteAppResolutionFailureResponse(request.ToolName, result); isResolutionFailure {
@@ -90,6 +93,35 @@ func (service Service) invokeSiteAppTool(ctx context.Context, request capabiliti
 		response.Status = response.Effects[0].Effect
 	}
 	return response, nil
+}
+
+func siteAppCallerFailureResponse(toolName string, errorValue error) (capabilities.ToolInvokeResponse, bool) {
+	var requestError *siteAppRequestError
+	if !errors.As(errorValue, &requestError) {
+		return capabilities.ToolInvokeResponse{}, false
+	}
+	if requestError.statusCode < http.StatusBadRequest || requestError.statusCode >= http.StatusInternalServerError {
+		return capabilities.ToolInvokeResponse{}, false
+	}
+	message := strings.TrimSpace(requestError.message)
+	result, marshalError := json.Marshal(map[string]string{"message": message})
+	if marshalError != nil {
+		return capabilities.ToolInvokeResponse{}, false
+	}
+	return capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "device",
+		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
+		Status:          "error",
+		IsError:         true,
+		Message:         message,
+		ErrorCode:       "invalid_input",
+		FailureStage:    "site_source",
+		Retryable:       true,
+		SafeRetry:       true,
+		Result:          result,
+	}, true
 }
 
 func siteAppResolutionFailureResponse(toolName string, result json.RawMessage) (capabilities.ToolInvokeResponse, bool) {

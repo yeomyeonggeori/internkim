@@ -1,6 +1,7 @@
 import { expect, test as base } from '@playwright/test';
 import { buildEmployeeLeaveFixture } from '../../dev-attendance-leave-fixture';
 import { buildAttendanceSummaryFixture } from '../../dev-attendance-summary-fixture';
+import { createDevAttendanceWorkStatus } from '../../dev-attendance-work-status-mock';
 import { mockBuzzDisabled } from './buzz-test-routes';
 
 export const test = base.extend({
@@ -22,6 +23,16 @@ export const test = base.extend({
 		});
 		await page.route('**/attendance/api/leave', async (route) => {
 			await route.fulfill({ json: buildEmployeeLeaveFixture() });
+		});
+		await page.route('**/attendance/api/work-status?**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			await route.fulfill({
+				json: createDevAttendanceWorkStatus(
+					'tester@example.com',
+					requestURL.searchParams.get('period'),
+					requestURL.searchParams.get('anchor')
+				)
+			});
 		});
 		await page.route('**/calendar/api/events?**', async (route) => {
 			await route.fulfill({ json: { events: [] } });

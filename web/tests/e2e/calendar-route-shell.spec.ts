@@ -30,6 +30,117 @@ test.describe('calendar route shell', () => {
 		expect(context.pages()).toHaveLength(1);
 	});
 
+	test('renders holidays without opening edit controls', async ({ page }) => {
+		await page.unroute('**/calendar/api/holidays?**');
+		await page.route('**/calendar/api/holidays?**', async (route) => {
+			await route.fulfill({
+				json: {
+					holidays: [
+						{
+							id: 'holiday-2026-06-15',
+							title: '공휴일',
+							date: '2026-06-15',
+							source: 'holiday_api',
+							countryCode: 'KR',
+							readOnly: true,
+							color: '#ef4444'
+						},
+						{
+							id: 'company-holiday-2026-06-15',
+							title: '창립기념일',
+							date: '2026-06-15',
+							source: 'company',
+							readOnly: true,
+							color: '#ef4444'
+						}
+					],
+					source: 'holiday_api'
+				}
+			});
+		});
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
+		await page.goto('/calendar/embed');
+
+		const holiday = page.locator('[data-calendar-event-id="holiday-2026-06-15"]:visible').first();
+		const companyHoliday = page
+			.locator('[data-calendar-event-id="company-holiday-2026-06-15"]:visible')
+			.first();
+		const calendarEvent = page
+			.locator('[data-calendar-event-id="event-2026-06-15"]:visible')
+			.first();
+		await expect(holiday).toBeVisible();
+		await expect(companyHoliday).toBeVisible();
+		await expect(companyHoliday).toContainText('창립기념일');
+		await expect(holiday).toHaveClass(/bg-\(--calendar-event-color\)\/12/);
+		await expect(holiday).not.toHaveClass(/text-\(--calendar-event-color\)/);
+		await expect(holiday.locator('.calendar-event-accent')).toHaveCount(1);
+		await expect(holiday).toHaveAttribute('aria-disabled', 'true');
+		await expect(companyHoliday).toHaveAttribute('aria-disabled', 'true');
+		const companyHolidayBox = await companyHoliday.boundingBox();
+		const calendarEventBox = await calendarEvent.boundingBox();
+		expect(companyHolidayBox).not.toBeNull();
+		expect(calendarEventBox).not.toBeNull();
+		expect(companyHolidayBox?.y ?? 0).toBeLessThan(calendarEventBox?.y ?? 0);
+		await companyHoliday.click({ force: true });
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
+		await holiday.click({ button: 'right', force: true });
+		await expect(page.getByText('일정 삭제')).toHaveCount(0);
+	});
+
+	test('keeps calendar events visible and warns when holidays fail to load', async ({ page }) => {
+		await page.unroute('**/calendar/api/holidays?**');
+		await page.route('**/calendar/api/holidays?**', async (route) => {
+			await route.fulfill({
+				status: 503,
+				contentType: 'text/plain',
+				body: 'provider unavailable'
+			});
+		});
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
+		await page.goto('/calendar/embed');
+
+		await expect(page.locator('[data-calendar-event-id="event-2026-06-15"]:visible').first()).toBeVisible();
+		await expect(page.getByRole('status')).toHaveText(
+			'공휴일을 불러오지 못했습니다. 일반 일정은 계속 사용할 수 있습니다.'
+		);
+	});
+
+	test('reloads holidays with the persisted UI locale', async ({ page }) => {
+		const requestedLocales: string[] = [];
+		await page.unroute('**/admin/api/locale');
+		await page.route('**/admin/api/locale', async (route) => {
+			await route.fulfill({ json: { locale: 'en' } });
+		});
+		await page.unroute('**/calendar/api/holidays?**');
+		await page.route('**/calendar/api/holidays?**', async (route) => {
+			const locale = new URL(route.request().url()).searchParams.get('locale') ?? '';
+			requestedLocales.push(locale);
+			await route.fulfill({
+				json: {
+					holidays: [
+						{
+							id: 'holiday-2026-06-15',
+							title: locale === 'ko' ? '광복절' : 'Liberation Day',
+							date: '2026-06-15',
+							source: 'holiday_api',
+							countryCode: 'KR',
+							readOnly: true,
+							color: '#ef4444'
+						}
+					],
+					source: 'holiday_api'
+				}
+			});
+		});
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
+		await page.goto('/calendar/embed');
+
+		await expect.poll(() => requestedLocales.at(-1)).toBe('en');
+		await expect(page.getByRole('button', { name: 'Liberation Day' })).toBeVisible();
+		await expect(page.getByRole('button', { name: '광복절' })).toHaveCount(0);
+	});
+
 	test('opens the compact editor for a month event in a narrow calendar shell', async ({ context, page }) => {
 		await page.setViewportSize({ width: 600, height: 900 });
 		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));

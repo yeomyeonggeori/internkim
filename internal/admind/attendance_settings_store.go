@@ -21,6 +21,7 @@ type attendanceSettingsDocument struct {
 	Version              int                   `json:"version"`
 	UpdatedAt            string                `json:"updatedAt"`
 	TeamViewVisibleToAll *bool                 `json:"teamViewVisibleToAll"`
+	WorkPolicy           attendanceWorkPolicy  `json:"workPolicy"`
 	LeavePolicy          attendanceLeavePolicy `json:"leavePolicy"`
 	LegacyWorkSchedule   json.RawMessage       `json:"workSchedule,omitempty"`
 }
@@ -146,6 +147,9 @@ func decodeAttendanceSettingsDocument(encodedDocument []byte) (attendanceSetting
 		return attendanceSettingsDocument{}, errorValue
 	}
 	normalizeLegacyAttendanceLeavePolicy(&document.LeavePolicy)
+	if document.WorkPolicy.Version == 0 {
+		document.WorkPolicy = defaultAttendanceWorkPolicy()
+	}
 	if errorValue := validateAttendanceSettingsDocument(&document); errorValue != nil {
 		return attendanceSettingsDocument{}, errorValue
 	}
@@ -166,6 +170,9 @@ func validateAttendanceSettingsDocument(document *attendanceSettingsDocument) er
 	if document.TeamViewVisibleToAll == nil {
 		return errors.New("attendance settings teamViewVisibleToAll is required")
 	}
+	if errorValue := validateAndNormalizeAttendanceWorkPolicy(&document.WorkPolicy); errorValue != nil {
+		return fmt.Errorf("invalid attendance work policy: %w", errorValue)
+	}
 	if errorValue := validateAttendanceLeavePolicy(&document.LeavePolicy, nil); errorValue != nil {
 		return fmt.Errorf("invalid attendance leave policy: %w", errorValue)
 	}
@@ -177,6 +184,7 @@ func defaultAttendanceSettingsDocument() attendanceSettingsDocument {
 	return attendanceSettingsDocument{
 		Version:              attendanceSettingsDocumentVersion,
 		TeamViewVisibleToAll: &teamViewVisibleToAll,
+		WorkPolicy:           defaultAttendanceWorkPolicy(),
 		LeavePolicy:          defaultAttendanceLeavePolicy(),
 	}
 }

@@ -19,7 +19,7 @@ func (service *Service) writeAttendanceLegacyAbsenceMigrationPreview(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 ) {
-	if !service.isAuthorized(request) {
+	if !service.canManageAttendance(request) {
 		writeAttendanceLeaveRequestError(responseWriter, errAttendanceLeaveAccessDenied)
 		return
 	}
@@ -44,7 +44,7 @@ func (service *Service) writeAttendanceLegacyAbsenceMigrationApply(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 ) {
-	if !service.isAuthorized(request) {
+	if !service.canManageAttendance(request) {
 		writeAttendanceLeaveRequestError(responseWriter, errAttendanceLeaveAccessDenied)
 		return
 	}
@@ -111,7 +111,7 @@ func (service *Service) writeAttendanceLegacyAbsenceMigrationRollback(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 ) {
-	if !service.isAuthorized(request) {
+	if !service.canManageAttendance(request) {
 		writeAttendanceLeaveRequestError(responseWriter, errAttendanceLeaveAccessDenied)
 		return
 	}

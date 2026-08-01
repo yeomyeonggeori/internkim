@@ -23,6 +23,7 @@ func TestAttendanceSettingsDefaultsDoNotCreateFile(t *testing.T) {
 	if document.Version != attendanceSettingsDocumentVersion ||
 		document.TeamViewVisibleToAll == nil ||
 		!*document.TeamViewVisibleToAll ||
+		document.WorkPolicy.Version != attendanceWorkPolicyVersion ||
 		document.LeavePolicy.Version != attendanceLeavePolicyVersion {
 		t.Fatalf("defaults = %+v", document)
 	}
@@ -228,6 +229,7 @@ func TestAttendanceSettingsToggle(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPatch, "/attendance/api/settings", strings.NewReader(`{"teamViewVisibleToAll":false}`))
 	request.RemoteAddr = "127.0.0.1:1234"
+	request.Header.Set("X-Forwarded-Email", "admin@example.com")
 	service.handleAttendance(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
@@ -241,12 +243,25 @@ func TestAttendanceSettingsToggle(t *testing.T) {
 	}
 }
 
+func TestAttendanceSettingsRejectsMemberThroughLoopback(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/attendance/api/settings", strings.NewReader(`{"teamViewVisibleToAll":false}`))
+	request.RemoteAddr = "127.0.0.1:1234"
+	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	service.handleAttendance(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func validAttendanceSettingsTestDocument() attendanceSettingsDocument {
 	teamViewVisibleToAll := true
 	return attendanceSettingsDocument{
 		Version:              attendanceSettingsDocumentVersion,
 		UpdatedAt:            time.Now().UTC().Format(time.RFC3339),
 		TeamViewVisibleToAll: &teamViewVisibleToAll,
+		WorkPolicy:           defaultAttendanceWorkPolicy(),
 		LeavePolicy:          defaultAttendanceLeavePolicy(),
 	}
 }

@@ -492,8 +492,24 @@ func TestWorkspaceSettingsDefaultsToKorean(t *testing.T) {
 	if settings.Language != workspaceLanguageKorean {
 		t.Fatalf("workspace language = %q", settings.Language)
 	}
+	if settings.CountryCode != workspaceDefaultCountryCode {
+		t.Fatalf("workspace country = %q", settings.CountryCode)
+	}
 	if settings.TimeZone != workspaceBusinessTimeZone {
 		t.Fatalf("workspace time zone = %q", settings.TimeZone)
+	}
+}
+
+func TestWorkspaceSettingsRejectsInvalidCountryCode(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+
+	request := httptest.NewRequest(http.MethodPut, "/admin/api/workspace-settings", strings.NewReader(`{"countryCode":"KOR","language":"ko"}`))
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("workspace settings status = %d body = %s", response.Code, response.Body.String())
 	}
 }
 

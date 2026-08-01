@@ -18,7 +18,7 @@ export function createCalendarPageEventDetails(
 ): CalendarPageEventDetailsActions {
 	function openEventDetails(eventID: string, anchor: DraftPopoverAnchor | null = null): void {
 		const event = findCalendarEventByID(context.getAppEvents(), context.getFallbackEvents(), eventID);
-		if (!event) return;
+		if (!event || event.calendarId === 'holidays' || event.meta?.readOnly === true) return;
 		context.openEventDraftPopover(event, 'edit', anchor);
 	}
 

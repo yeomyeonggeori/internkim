@@ -9,6 +9,7 @@
 	import LeaveApprovalView from './approval/leave-approval-view.svelte';
 	import { getLeaveApprovalState } from './approval/leave-approval-state.svelte';
 	import { getEmployeeLeaveState } from './leave/employee-leave-state.svelte';
+	import EmployeeWorkStatusView from './employee-status/employee-work-status-view.svelte';
 	import LeaveHistoryView from './leave/leave-history-view.svelte';
 	import LeaveManagementView from './management/leave-management-view.svelte';
 	import PersonalToolsPanel from './personal/personal-tools-panel.svelte';
@@ -29,7 +30,8 @@
 		if (
 			!attendance.summary?.isAdmin &&
 			(attendanceView.selected === 'approvals' ||
-				attendanceView.selected === 'leaveManagement')
+				attendanceView.selected === 'leaveManagement' ||
+				attendanceView.selected === 'employeeWorkStatus')
 		) {
 			attendanceView.select(isMobile.current ? 'tools' : 'status');
 			return;
@@ -43,7 +45,10 @@
 {#if !attendance.summary}
 	<AttendanceLoadingSkeleton />
 {:else}
-	<Tabs.Root bind:value={attendanceView.selected} class="min-h-0 min-w-0 flex-1 gap-3">
+	<Tabs.Root
+		bind:value={attendanceView.selected}
+		class="min-h-0 min-w-0 flex-1 gap-3 max-sm:pb-[calc(var(--app-mobile-nav-bottom)+var(--app-mobile-nav-height)+0.75rem)]"
+	>
 	<Tabs.List
 		class="inline-flex h-9 w-full max-w-full self-start justify-start overflow-x-auto rounded-full border-0 bg-muted p-1 md:hidden"
 	>
@@ -71,6 +76,12 @@
 			{/if}
 		</Tabs.Trigger>
 		{#if attendance.summary?.isAdmin}
+			<Tabs.Trigger
+				value="employeeWorkStatus"
+				class="h-7 flex-none rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+			>
+				{text.workStatus.employeeMobileTab}
+			</Tabs.Trigger>
 			<Tabs.Trigger
 				value="approvals"
 				class="h-7 flex-none gap-1.5 rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
@@ -104,6 +115,9 @@
 		{/if}
 	</Tabs.Content>
 	{#if attendance.summary?.isAdmin}
+		<Tabs.Content value="employeeWorkStatus" class="min-h-0 min-w-0">
+			<EmployeeWorkStatusView />
+		</Tabs.Content>
 		<Tabs.Content value="approvals" class="min-h-0 min-w-0">
 			<LeaveApprovalView />
 		</Tabs.Content>

@@ -54,14 +54,14 @@
             "type": "string"
           },
           "status": {
-            "description": "Initial task status. Defaults to 예정. The runtime may change delegated tasks to 요청.",
+            "description": "Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.",
             "enum": [
-              "예정",
-              "진행",
-              "완료",
-              "일시정지",
-              "기각",
-              "중단"
+              "planned",
+              "in_progress",
+              "completed",
+              "paused",
+              "rejected",
+              "cancelled"
             ],
             "type": "string"
           },
@@ -112,14 +112,14 @@
             "type": "string"
           },
           "status": {
-            "description": "Initial task status. Defaults to 예정. The runtime may change delegated tasks to 요청.",
+            "description": "Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.",
             "enum": [
-              "예정",
-              "진행",
-              "완료",
-              "일시정지",
-              "기각",
-              "중단"
+              "planned",
+              "in_progress",
+              "completed",
+              "paused",
+              "rejected",
+              "cancelled"
             ],
             "type": "string"
           },
@@ -391,7 +391,7 @@
             "type": "string"
           },
           "status": {
-            "description": "Filter by task status. Accepted values: '예정', '진행', '완료', '요청', '일시정지', '기각', '중단' (or English equivalents: 'planned', 'in_progress', 'done', 'requested', 'paused', 'rejected', 'cancelled'). Leave empty to return all statuses.",
+            "description": "Filter by task status. Accepted values: 'planned', 'in_progress', 'completed', 'requested', 'paused', 'rejected', 'cancelled'. Leave empty to return all statuses.",
             "type": "string"
           },
           "targetPersonHint": {
@@ -703,6 +703,170 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "task.definitions",
+      "description": "List the values a task field accepts in this workspace: businesses, task types, sizes, and statuses. Call this before task.add or task.update when the business or type is not already known to be registered, and before importing records from another system, because a value outside these lists is rejected.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "task.definitions",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "task.definitions",
+      "namespace": "task",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "businesses": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "sizes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "types": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "businesses",
+          "types",
+          "sizes",
+          "statuses"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:task.definitions",
+      "privacyClass": "workspace_task",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "businesses": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "sizes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "statuses": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "types": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "businesses",
+            "types",
+            "sizes",
+            "statuses"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "task.update",
       "completionEvidence": {
         "action": "write_task",
@@ -763,13 +927,13 @@
           "status": {
             "description": "New task status. Omit to leave unchanged.",
             "enum": [
-              "예정",
-              "진행",
-              "완료",
-              "요청",
-              "일시정지",
-              "기각",
-              "중단"
+              "planned",
+              "in_progress",
+              "completed",
+              "requested",
+              "paused",
+              "rejected",
+              "cancelled"
             ],
             "type": "string"
           },
@@ -832,13 +996,13 @@
           "status": {
             "description": "New task status. Omit to leave unchanged.",
             "enum": [
-              "예정",
-              "진행",
-              "완료",
-              "요청",
-              "일시정지",
-              "기각",
-              "중단"
+              "planned",
+              "in_progress",
+              "completed",
+              "requested",
+              "paused",
+              "rejected",
+              "cancelled"
             ],
             "type": "string"
           },

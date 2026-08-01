@@ -5,7 +5,11 @@ import (
 	"net/http"
 )
 
-func (service *Service) writeAttendanceLocations(responseWriter http.ResponseWriter) {
+func (service *Service) writeAttendanceLocations(responseWriter http.ResponseWriter, request *http.Request) {
+	if !service.canManageAttendance(request) {
+		http.Error(responseWriter, "admin access required", http.StatusForbidden)
+		return
+	}
 	locations, errorValue := service.readAttendanceLocations()
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -15,6 +19,10 @@ func (service *Service) writeAttendanceLocations(responseWriter http.ResponseWri
 }
 
 func (service *Service) updateAttendanceLocations(responseWriter http.ResponseWriter, request *http.Request) {
+	if !service.canManageAttendance(request) {
+		http.Error(responseWriter, "admin access required", http.StatusForbidden)
+		return
+	}
 	var payload attendanceLocationsResponse
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)

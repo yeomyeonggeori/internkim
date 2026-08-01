@@ -4,16 +4,23 @@ import type {
 	AttendanceLeavePolicy,
 	AttendanceLocation,
 	AttendanceLocationsResponse,
+	AttendanceWorkPolicy,
+	AttendanceWorkPolicyResponse,
+	AttendanceWorkPolicyRevision,
 	BlueclawUpdateStatus,
 	BotProfile,
 	CircleRecord,
 	CompanyDocumentsResponse,
+	CompanyHoliday,
+	CompanyHolidayInput,
+	CompanyHolidaysResponse,
 	CompanyMetricsResponse,
 	CompanyRecordsResponse,
 	CompanyShareSettings,
 	CompanyShareSettingsUpdate,
 	CredentialProviderStatus,
 	CredentialProvidersResponse,
+	HolidayCountriesResponse,
 	OrgGroup,
 	ReleaseHistoryResponse,
 	RestoreUploadResponse,
@@ -84,6 +91,11 @@ export async function deleteOpenRouterCredential(adminBaseURL: string, fallbackM
 export async function fetchWorkspaceSettings(adminBaseURL: string, fallbackMessage: string): Promise<WorkspaceSettings> {
 	const response = await fetch(`${adminBaseURL}/workspace-settings`, { credentials: 'include' });
 	return readJSON<WorkspaceSettings>(response, fallbackMessage);
+}
+
+export async function fetchHolidayCountries(adminBaseURL: string, fallbackMessage: string): Promise<HolidayCountriesResponse> {
+	const response = await fetch(`${adminBaseURL}/holiday-countries`, { credentials: 'include' });
+	return readJSON<HolidayCountriesResponse>(response, fallbackMessage);
 }
 
 export async function updateWorkspaceSettings(adminBaseURL: string, settings: WorkspaceSettings, fallbackMessage: string): Promise<WorkspaceSettings> {
@@ -163,6 +175,79 @@ export async function updateAttendanceLeavePolicy(adminBaseURL: string, policy: 
 		body: JSON.stringify(policy)
 	});
 	return readJSON<AttendanceLeavePolicy>(response, fallbackMessage);
+}
+
+export async function fetchCompanyHolidays(
+	adminBaseURL: string,
+	fallbackMessage: string
+): Promise<CompanyHolidaysResponse> {
+	const response = await fetch(`${adminBaseURL}/company-holidays`, { credentials: 'include' });
+	return readJSON<CompanyHolidaysResponse>(response, fallbackMessage);
+}
+
+export async function createCompanyHoliday(
+	adminBaseURL: string,
+	input: CompanyHolidayInput,
+	fallbackMessage: string
+): Promise<CompanyHoliday> {
+	const response = await fetch(`${adminBaseURL}/company-holidays`, {
+		method: 'POST',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(input)
+	});
+	return readJSON<CompanyHoliday>(response, fallbackMessage);
+}
+
+export async function updateCompanyHoliday(
+	adminBaseURL: string,
+	holidayID: string,
+	input: CompanyHolidayInput,
+	fallbackMessage: string
+): Promise<CompanyHoliday> {
+	const response = await fetch(`${adminBaseURL}/company-holidays/${encodeURIComponent(holidayID)}`, {
+		method: 'PUT',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(input)
+	});
+	return readJSON<CompanyHoliday>(response, fallbackMessage);
+}
+
+export async function deleteCompanyHoliday(
+	adminBaseURL: string,
+	holidayID: string,
+	fallbackMessage: string
+): Promise<void> {
+	const response = await fetch(`${adminBaseURL}/company-holidays/${encodeURIComponent(holidayID)}`, {
+		method: 'DELETE',
+		credentials: 'include'
+	});
+	return readVoid(response, fallbackMessage);
+}
+
+export async function fetchAttendanceWorkPolicy(
+	adminBaseURL: string,
+	fallbackMessage: string
+): Promise<AttendanceWorkPolicyResponse> {
+	const response = await fetch(`${adminBaseURL}/attendance-work-policy`, {
+		credentials: 'include'
+	});
+	return readJSON<AttendanceWorkPolicyResponse>(response, fallbackMessage);
+}
+
+export async function updateAttendanceWorkPolicy(
+	adminBaseURL: string,
+	revision: AttendanceWorkPolicyRevision,
+	fallbackMessage: string
+): Promise<AttendanceWorkPolicyResponse> {
+	const response = await fetch(`${adminBaseURL}/attendance-work-policy`, {
+		method: 'PUT',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(revision)
+	});
+	return readJSON<AttendanceWorkPolicyResponse>(response, fallbackMessage);
 }
 
 export async function fetchUsers(adminBaseURL: string, fallbackMessage: string): Promise<UsersResponse> {

@@ -87,13 +87,15 @@ func main() {
 	if configuration.BuzzDatabaseURL == "" && *buzzDatabaseURLPath != "" {
 		databaseURL, errorValue := readBuzzDatabaseURL(*buzzDatabaseURLPath)
 		switch {
+		case errorValue == nil:
+			configuration.BuzzDatabaseURL = databaseURL
 		case errors.Is(errorValue, os.ErrNotExist):
-			fmt.Fprintf(os.Stderr, "buzz database url file %s not present yet; continuing without buzz member polling\n", *buzzDatabaseURLPath)
-		case errorValue != nil:
+			// A deployment without the Buzz relay has no relay database, and
+			// admind serves everything else without one.
+			fmt.Fprintf(os.Stderr, "buzz relay database is not configured at %s; continuing without buzz\n", *buzzDatabaseURLPath)
+		default:
 			fmt.Fprintln(os.Stderr, errorValue)
 			os.Exit(1)
-		default:
-			configuration.BuzzDatabaseURL = databaseURL
 		}
 	}
 

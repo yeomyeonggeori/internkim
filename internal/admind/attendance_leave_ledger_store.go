@@ -10,7 +10,7 @@ import (
 
 func (service *Service) openAttendanceLeaveMutationDatabase(ctx context.Context) (*sql.DB, error) {
 	options := sqliteDatabaseOptions{transactionLock: "immediate"}
-	return service.openSQLiteDatabaseWithOptions(ctx, service.Configuration.AttendanceDatabasePath, ensureAttendanceSchema, options)
+	return service.openStateDatabase(ctx, "attendance", ensureAttendanceSchema, options)
 }
 
 func (service *Service) grantAttendanceLeave(ctx context.Context, grant attendanceLeaveGrant) (attendanceLeaveBalance, error) {
