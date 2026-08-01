@@ -6,14 +6,15 @@ import (
 	"strings"
 )
 
-// The messenger backend mints blob URLs at its own origin (the device
-// loopback), which a browser can never reach. Every media URL handed to the web
-// is rewritten to this prefix and served back through admind on the public
-// domain, which then fetches the blob from the loopback backend on the
-// browser's behalf. The rewrite is absolute (device origin + prefix) so the URL
-// resolves regardless of which page or origin renders it. The prefix stays
-// /buzz-media/ until the public gateway routes a neutral /media/ prefix too.
-const mediaProxyPrefix = "/buzz-media/"
+// The messenger backend mints blob URLs at its own origin — the device loopback
+// for live traffic, or the public relay host for imported history — neither of
+// which a browser should fetch directly (the loopback is unreachable and the
+// relay host has no public ingress). Every media URL handed to the web is
+// rewritten to this prefix and served back through admind on the public domain,
+// which then fetches the blob from the loopback backend on the browser's behalf.
+// The prefix is backend-neutral: it names what the resource is, not which
+// messaging backend produced it, so a future backend swap needs no URL change.
+const mediaProxyPrefix = "/attachments/"
 
 func (service *Service) buzzMediaOrigin() string {
 	relayURL := strings.TrimSpace(service.Configuration.BuzzRelayURL)
@@ -26,16 +27,52 @@ func (service *Service) buzzMediaOrigin() string {
 	return relayURL
 }
 
+// buzzPublicRelayOrigin is the https origin imported media is stamped with,
+// derived from the device URL the same way the importer does (host -> host with
+// "-relay" before the first label), e.g. https://foo.example.test ->
+// https://foo-relay.example.test.
+func (service *Service) buzzPublicRelayOrigin() string {
+	return relayOriginForDeviceURL(service.mediaPublicBase())
+}
+
+func mediaRelayHost(origin string) string {
+	if index := strings.Index(origin, "://"); index >= 0 {
+		return origin[index+3:]
+	}
+	return origin
+}
+
+func relayOriginForDeviceURL(deviceURL string) string {
+	scheme, host := "", deviceURL
+	if index := strings.Index(deviceURL, "://"); index >= 0 {
+		scheme, host = deviceURL[:index+3], deviceURL[index+3:]
+	}
+	if host == "" {
+		return ""
+	}
+	if dot := strings.Index(host, "."); dot >= 0 {
+		host = host[:dot] + "-relay" + host[dot:]
+	} else {
+		host += "-relay"
+	}
+	return scheme + host
+}
+
 func (service *Service) mediaPublicBase() string {
 	return strings.TrimSuffix(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceURLPath)), "/")
 }
 
 func (service *Service) rewriteBuzzMedia(value string) string {
-	origin := service.buzzMediaOrigin()
-	if origin == "" || value == "" {
+	if value == "" {
 		return value
 	}
-	return strings.ReplaceAll(value, origin+"/", service.mediaPublicBase()+mediaProxyPrefix)
+	replacement := service.mediaPublicBase() + mediaProxyPrefix
+	for _, origin := range []string{service.buzzMediaOrigin(), service.buzzPublicRelayOrigin()} {
+		if origin != "" {
+			value = strings.ReplaceAll(value, origin+"/", replacement)
+		}
+	}
+	return value
 }
 
 func (service *Service) handleBuzzMediaProxy(responseWriter http.ResponseWriter, request *http.Request) {
@@ -53,6 +90,12 @@ func (service *Service) handleBuzzMediaProxy(responseWriter http.ResponseWriter,
 	if errorValue != nil {
 		http.Error(responseWriter, "invalid media request", http.StatusBadRequest)
 		return
+	}
+	// The relay serves media per-community, routed by Host header. Fetching over
+	// loopback would present Host 127.0.0.1 and miss the community, so present
+	// the public relay host the way a browser would have.
+	if relayHost := mediaRelayHost(service.buzzPublicRelayOrigin()); relayHost != "" {
+		upstreamRequest.Host = relayHost
 	}
 	response, errorValue := service.httpClient().Do(upstreamRequest)
 	if errorValue != nil {
