@@ -15,9 +15,27 @@
 		type Person
 	} from '$lib/components/channel/channel-api';
 	import { onMount } from 'svelte';
+	import { page } from '$app/state';
+	import { replaceState } from '$app/navigation';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
+	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { syncMattermostToBuzz } from '$lib/buzz-mm-sync';
 	import { loadChannelOrder, saveChannelOrder, orderChannels, moveChannel } from './channel-order';
+
+	const lastChannelKey = 'messenger-last-channel';
+
+	function loadLastChannelID(): string | null {
+		if (typeof localStorage === 'undefined') return null;
+		return localStorage.getItem(lastChannelKey);
+	}
+
+	function selectChannel(channelID: string) {
+		activeID = channelID;
+		if (typeof localStorage !== 'undefined') localStorage.setItem(lastChannelKey, channelID);
+		const url = new URL(location.href);
+		url.searchParams.set('channel', channelID);
+		replaceState(url, {});
+	}
 
 	const text = createPageText(channelText);
 
@@ -57,7 +75,7 @@
 			const channelID = await ensureDirectMessage(person.id);
 			if (!channelID) return;
 			await loadConversationList();
-			activeID = channelID;
+			selectChannel(channelID);
 		} catch {
 			// keep the current conversation on failure
 		}
@@ -86,12 +104,23 @@
 		conversations.find((conversation) => conversation.id === activeID)
 	);
 
+	$effect(() => {
+		breadcrumbMeta.value = activeConversation?.name ?? '';
+		return () => {
+			breadcrumbMeta.value = '';
+		};
+	});
+
 	onMount(async () => {
 		userChannelOrder = loadChannelOrder();
 		try {
 			await loadConversationList();
-			const preferredDirectMessage = conversations.find((conversation) => conversation.kind === 'dm');
-			activeID = (preferredDirectMessage ?? conversations[0])?.id;
+			const requestedID = page.url.searchParams.get('channel') ?? loadLastChannelID();
+			const remembered = requestedID
+				? conversations.find((conversation) => conversation.id === requestedID)
+				: undefined;
+			const initial = remembered ?? groupChannels[0] ?? conversations[0];
+			if (initial) selectChannel(initial.id);
 		} catch {
 			conversations = [];
 		}
@@ -136,7 +165,7 @@
 									>
 										<Sidebar.MenuButton
 											isActive={activeID === channel.id}
-											onclick={() => (activeID = channel.id)}
+											onclick={() => selectChannel(channel.id)}
 										>
 											<HashIcon />
 											<span>{channel.name}</span>
@@ -157,7 +186,7 @@
 									<Sidebar.MenuItem>
 										<Sidebar.MenuButton
 											isActive={activeID === conversation.id}
-											onclick={() => (activeID = conversation.id)}
+											onclick={() => selectChannel(conversation.id)}
 										>
 											<PersonAvatar
 												name={conversation.name}
