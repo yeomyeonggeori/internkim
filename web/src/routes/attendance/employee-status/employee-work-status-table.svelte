@@ -127,7 +127,7 @@
 							data-testid="employee-work-status-metric"
 							aria-label={formatDifference(employee.differenceMinutes)}
 						>
-							<span class="text-right" data-testid="employee-work-status-difference-sign">
+							<span class="text-center" data-testid="employee-work-status-difference-sign">
 								{differenceSign(employee.differenceMinutes)}
 							</span>
 							<span data-testid="employee-work-status-difference-value">
