@@ -37,6 +37,7 @@
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 	import { onDestroy, onMount, tick } from 'svelte';
+	import { fade, scale } from 'svelte/transition';
 
 	let { isActive = true, threadLayout = 'sheet', channelId }: {
 		isActive?: boolean;
@@ -947,8 +948,14 @@
 		class="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/80 p-6"
 		aria-label="이미지 닫기"
 		onclick={() => (lightboxURL = null)}
+		transition:fade={{ duration: 150 }}
 	>
-		<img src={lightboxURL} alt="" class="max-h-full max-w-full rounded-md object-contain" />
+		<img
+			src={lightboxURL}
+			alt=""
+			class="max-h-full max-w-full rounded-md object-contain"
+			transition:scale={{ duration: 200, start: 0.9, opacity: 0 }}
+		/>
 	</button>
 {/if}
 
