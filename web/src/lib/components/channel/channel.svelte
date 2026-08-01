@@ -249,7 +249,16 @@
 		return [...head, ...latest];
 	}
 
-	const olderMessagesPrefetchThreshold = 800;
+	function firstVisibleMessageAnchor(viewport: HTMLElement): { element: HTMLElement; offset: number } | null {
+		const viewportTop = viewport.getBoundingClientRect().top;
+		for (const element of viewport.querySelectorAll<HTMLElement>('[data-message-id]')) {
+			const rectangle = element.getBoundingClientRect();
+			if (rectangle.bottom > viewportTop) {
+				return { element, offset: rectangle.top - viewportTop };
+			}
+		}
+		return null;
+	}
 
 	async function loadOlderMessages(viewport: HTMLElement) {
 		if (isLoadingOlder || !hasMoreBefore || !historyCursor) return;
@@ -264,16 +273,24 @@
 				hasMoreBefore = false;
 				return;
 			}
-			// Distance from the bottom is invariant under a prepend, so restore it as
-			// an absolute scrollTop after the DOM grows. Measuring right before the
-			// mutation (not before the fetch) and setting an absolute target keeps the
-			// reading position exactly, regardless of message grouping or the
-			// scroller's own anchor logic.
+			// Pin a real element (the first message still visible) rather than a
+			// distance, so grouping changes and content growth below the anchor never
+			// shift the reading position. Re-pin for a short window because attachment
+			// heights can settle after the DOM grows.
+			const anchor = firstVisibleMessageAnchor(viewport);
 			const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop;
+			const restoreScroll = () => {
+				if (anchor && anchor.element.isConnected) {
+					const currentOffset = anchor.element.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+					viewport.scrollTop += currentOffset - anchor.offset;
+				} else {
+					viewport.scrollTop = viewport.scrollHeight - distanceFromBottom;
+				}
+			};
 			olderMessages = [...fresh, ...olderMessages];
 			messages = [...fresh, ...messages];
 			await tick();
-			viewport.scrollTop = viewport.scrollHeight - distanceFromBottom;
+			restoreScroll();
 		} finally {
 			isLoadingOlder = false;
 		}
@@ -282,7 +299,7 @@
 	function handleViewportScroll(event: Event) {
 		const viewport = event.currentTarget;
 		if (!(viewport instanceof HTMLElement)) return;
-		if (viewport.scrollTop > olderMessagesPrefetchThreshold) return;
+		if (viewport.scrollTop > viewport.clientHeight * 2.5) return;
 		loadOlderMessages(viewport);
 	}
 
