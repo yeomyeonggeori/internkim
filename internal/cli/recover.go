@@ -97,7 +97,7 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 	}
 	printCommandTargetEvidence(target)
 	fmt.Printf("Recovery action: %s\n", response.Action)
-	for _, serviceName := range []string{"ssh", "cloudflared-node-ssh", "cloudflared", "blueclaw", "buzz-relay", "buzz-relay-stunnel", "chatd", "relay-tls-443", "mattermost-8065", "mattermost-state", "mattermost-why", "mattermost-how", "disk-root", "postgres-dbs", "pg-clusters", "mm-config-db", "mm-pat-enabled", "mm-db-data", "mm-env-ds"} {
+	for _, serviceName := range []string{"ssh", "cloudflared-node-ssh", "cloudflared", "blueclaw", "buzz-relay", "buzz-relay-stunnel", "chatd", "relay-tls-443", "mattermost-8065", "mattermost-state", "mattermost-why", "mattermost-how", "disk-root", "postgres-dbs", "pg-clusters", "mm-config-db", "mm-pat-enabled", "buzz-minio", "minio-ready", "mm-db-data", "mm-env-ds"} {
 		if serviceState := strings.TrimSpace(response.Services[serviceName]); serviceState != "" {
 			fmt.Printf("  %-22s %s\n", serviceName, serviceState)
 		}
