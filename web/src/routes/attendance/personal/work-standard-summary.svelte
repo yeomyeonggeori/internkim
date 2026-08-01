@@ -12,15 +12,11 @@
 	const totalMinutes = $derived(
 		status
 			? Math.max(0, status.actualMinutes) +
-				Math.max(0, status.provisionalMinutes) +
-				Math.max(0, status.paidLeaveMinutes)
+				Math.max(0, status.provisionalMinutes)
 			: 0
 	);
 	const displayedActualMinutes = $derived(
 		status ? Math.max(0, status.actualMinutes) + Math.max(0, status.provisionalMinutes) : 0
-	);
-	const uncreditedLeaveMinutes = $derived(
-		status ? Math.max(0, status.paidLeaveMinutes - status.creditedLeaveMinutes) : 0
 	);
 </script>
 
@@ -66,8 +62,6 @@
 			<WorkStandardCapacityBar
 				actualMinutes={status.actualMinutes}
 				provisionalMinutes={status.provisionalMinutes}
-				paidLeaveMinutes={status.paidLeaveMinutes}
-				creditedLeaveMinutes={status.creditedLeaveMinutes}
 				targetMinutes={status.targetMinutes}
 			/>
 		{:else}
@@ -78,7 +72,7 @@
 				</div>
 				<div>
 					<p class="text-muted-foreground">{text.workStatus.leave}</p>
-					<p class="mt-1"><DurationText minutes={status.paidLeaveMinutes} showZero size="inherit" tone="default" /></p>
+					<p class="mt-1"><DurationText minutes={status.leaveMinutes} showZero size="inherit" tone="default" /></p>
 				</div>
 			</div>
 		{/if}
@@ -104,15 +98,6 @@
 					<span class="whitespace-nowrap font-medium">{text.workStatus.noBaseline}</span>
 				{/if}
 			</div>
-			{#if uncreditedLeaveMinutes > 0}
-				<div
-					class="flex items-baseline justify-between gap-2"
-					data-testid="work-standard-uncredited-leave"
-				>
-					<span class="whitespace-nowrap text-muted-foreground">{text.workStatus.uncreditedLeaveDuration}</span>
-					<DurationText minutes={uncreditedLeaveMinutes} size="inherit" tone="default" />
-				</div>
-			{/if}
 		</div>
 	{/if}
 </div>

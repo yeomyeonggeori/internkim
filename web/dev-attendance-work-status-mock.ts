@@ -45,18 +45,14 @@ function workStatusEmployee(
 	targetMinutes: number,
 	targetDifference: number,
 	nightMinutes: number,
-	requestedPaidLeaveMinutes = 0
+	leaveMinutes = 0
 ): AttendanceEmployeeWorkStatus {
-	const actualMinutes = Math.max(0, targetMinutes + targetDifference - requestedPaidLeaveMinutes);
-	const paidLeaveMinutes = requestedPaidLeaveMinutes;
-	const creditedLeaveMinutes = Math.min(
-		requestedPaidLeaveMinutes,
-		Math.max(0, targetMinutes - actualMinutes)
-	);
-	const fulfilledMinutes = Math.min(targetMinutes, actualMinutes + creditedLeaveMinutes);
-	const remainingMinutes = Math.max(0, targetMinutes - fulfilledMinutes);
-	const overtimeMinutes = Math.max(0, actualMinutes - targetMinutes);
-	const differenceMinutes = fulfilledMinutes - targetMinutes;
+	const adjustedTargetMinutes = Math.max(0, targetMinutes - leaveMinutes);
+	const actualMinutes = Math.max(0, adjustedTargetMinutes + targetDifference);
+	const fulfilledMinutes = Math.min(adjustedTargetMinutes, actualMinutes);
+	const remainingMinutes = Math.max(0, adjustedTargetMinutes - fulfilledMinutes);
+	const overtimeMinutes = Math.max(0, actualMinutes - adjustedTargetMinutes);
+	const differenceMinutes = actualMinutes - adjustedTargetMinutes;
 	const status =
 		overtimeMinutes > 0 ? 'overtime' : remainingMinutes > 0 ? 'remaining' : 'fulfilled';
 	return {
@@ -66,11 +62,10 @@ function workStatusEmployee(
 		periodEnd,
 		workMode: 'flexible',
 		hasBaseline: true,
-		targetMinutes,
+		targetMinutes: adjustedTargetMinutes,
 		actualMinutes,
 		provisionalMinutes: 0,
-		paidLeaveMinutes,
-		creditedLeaveMinutes,
+		leaveMinutes,
 		fulfilledMinutes,
 		differenceMinutes,
 		remainingMinutes,
@@ -89,13 +84,12 @@ function workStatusEmployee(
 				date: periodStart,
 				workMode: 'flexible',
 				hasBaseline: true,
-				targetMinutes: Math.min(480, targetMinutes),
+				targetMinutes: Math.min(480, adjustedTargetMinutes),
 				actualMinutes: Math.min(480, actualMinutes),
 				provisionalMinutes: 0,
-				paidLeaveMinutes: Math.min(480, paidLeaveMinutes),
-				creditedLeaveMinutes: Math.min(480, creditedLeaveMinutes),
+				leaveMinutes: Math.min(480, leaveMinutes),
 				fulfilledMinutes: Math.min(480, fulfilledMinutes),
-				differenceMinutes: Math.min(0, differenceMinutes),
+				differenceMinutes,
 				remainingMinutes: Math.min(480, remainingMinutes),
 				overtimeMinutes: Math.min(180, overtimeMinutes),
 				nightMinutes: Math.min(180, nightMinutes),

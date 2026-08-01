@@ -12,7 +12,7 @@ func calculateAttendanceWorkStatus(
 	startDate string,
 	endDate string,
 	events []attendanceEvent,
-	leaveOccurrences []attendancePaidLeaveOccurrence,
+	leaveOccurrences []attendanceApprovedLeaveOccurrence,
 	policy attendanceWorkPolicy,
 	holidayDates map[string]struct{},
 	location *time.Location,
@@ -64,8 +64,7 @@ func calculateAttendanceWorkStatus(
 		status.TargetMinutes += day.TargetMinutes
 		status.ActualMinutes += day.ActualMinutes
 		status.ProvisionalMinutes += day.ProvisionalMinutes
-		status.PaidLeaveMinutes += day.PaidLeaveMinutes
-		status.CreditedLeaveMinutes += day.CreditedLeaveMinutes
+		status.LeaveMinutes += day.LeaveMinutes
 		status.FulfilledMinutes += day.FulfilledMinutes
 		status.NightMinutes += day.NightMinutes
 		status.IsWorking = status.IsWorking || day.IsWorking
@@ -82,9 +81,9 @@ func calculateAttendanceWorkStatus(
 	}
 	status.WorkMode = currentRevision.WorkMode
 	if status.HasBaseline {
-		status.FulfilledMinutes = min(status.TargetMinutes, status.FulfilledMinutes)
+		status.FulfilledMinutes = min(status.TargetMinutes, status.ActualMinutes)
 		status.RemainingMinutes = max(0, status.TargetMinutes-status.FulfilledMinutes)
-		status.DifferenceMinutes = status.FulfilledMinutes - status.TargetMinutes
+		status.DifferenceMinutes = status.ActualMinutes - status.TargetMinutes
 		status.OvertimeMinutes = max(0, status.ActualMinutes-status.TargetMinutes)
 	}
 	status.Status = attendanceWorkStatusLabel(status)
@@ -95,7 +94,7 @@ func calculateAttendanceWorkDayStatus(
 	date time.Time,
 	revision attendanceWorkPolicyRevision,
 	records attendanceWorkRecords,
-	leaveOccurrences []attendancePaidLeaveOccurrence,
+	leaveOccurrences []attendanceApprovedLeaveOccurrence,
 	holidayDates map[string]struct{},
 	location *time.Location,
 	now time.Time,
@@ -171,16 +170,15 @@ func calculateAttendanceWorkDayStatus(
 			Paid:      occurrence.Paid,
 		})
 	}
-	paidLeaveMinutes := 0
+	leaveMinutes := 0
 	if targetMinutes > 0 {
 		for _, occurrence := range leaveOccurrences {
-			if occurrence.Paid {
-				paidLeaveMinutes += (revision.DailyTargetMinutes*occurrence.DeductionMilliDays + 999) / 1000
-			}
+			leaveMinutes += (revision.DailyTargetMinutes*occurrence.DeductionMilliDays + 999) / 1000
 		}
+		leaveMinutes = min(targetMinutes, leaveMinutes)
+		targetMinutes -= leaveMinutes
 	}
-	creditedLeaveMinutes := min(paidLeaveMinutes, max(0, targetMinutes-min(actualMinutes, targetMinutes)))
-	fulfilledMinutes := actualMinutes + creditedLeaveMinutes
+	fulfilledMinutes := actualMinutes
 	if hasBaseline {
 		fulfilledMinutes = min(targetMinutes, fulfilledMinutes)
 	}
@@ -191,7 +189,7 @@ func calculateAttendanceWorkDayStatus(
 	if hasBaseline {
 		remainingMinutes = max(0, targetMinutes-fulfilledMinutes)
 		overtimeMinutes = max(0, actualMinutes-targetMinutes)
-		differenceMinutes = fulfilledMinutes - targetMinutes
+		differenceMinutes = actualMinutes - targetMinutes
 	}
 	_, hasIncompleteWorkRecord := records.IncompleteDates[dateValue]
 	hasLeaveWorkOverlap := attendanceSegmentsOverlap(daySegments, leaveIntervals)
@@ -211,8 +209,7 @@ func calculateAttendanceWorkDayStatus(
 		TargetMinutes:           targetMinutes,
 		ActualMinutes:           actualMinutes,
 		ProvisionalMinutes:      provisionalMinutes,
-		PaidLeaveMinutes:        paidLeaveMinutes,
-		CreditedLeaveMinutes:    creditedLeaveMinutes,
+		LeaveMinutes:            leaveMinutes,
 		FulfilledMinutes:        fulfilledMinutes,
 		DifferenceMinutes:       differenceMinutes,
 		RemainingMinutes:        remainingMinutes,

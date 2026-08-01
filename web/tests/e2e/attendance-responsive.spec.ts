@@ -72,7 +72,7 @@ test.describe('attendance responsive view', () => {
 		await expect(workTimeCard.getByText('일일 최저')).toBeVisible();
 		await expect(standard.getByText('근무 기준')).toBeVisible();
 		await expect(standard.getByText('근무·휴가 합계')).toHaveCount(0);
-		await expect(standard.getByText('휴가', { exact: true })).toBeVisible();
+		await expect(standard.getByText('휴가', { exact: true })).toHaveCount(0);
 		await expect(standard.getByText('휴가 인정')).toHaveCount(0);
 		await expect(standard.getByText('남은 시간')).toHaveCount(0);
 		await expect(standard.getByText('유급 휴가')).toHaveCount(0);
@@ -88,12 +88,10 @@ test.describe('attendance responsive view', () => {
 		const capacityBar = standard.getByTestId('work-standard-capacity-bar');
 		await expect(capacityBar).toHaveAttribute(
 			'aria-label',
-			/실제 근무 01시간 20분, 진행 중 잠정 00시간 00분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 08시간 00분/
+			/실제 근무 01시간 20분, 진행 중 잠정 00시간 00분, 기준 시간 00시간 00분/
 		);
-		await expect(standard.getByTestId('work-standard-total')).toHaveText('09시간 20분');
-		await expect(
-			standard.getByTestId('work-standard-uncredited-leave').getByLabel('01시간 20분')
-		).toBeVisible();
+		await expect(standard.getByTestId('work-standard-total')).toHaveText('01시간 20분');
+		await expect(standard.getByTestId('work-standard-leave-segment')).toHaveCount(0);
 		await expect(capacityBar).not.toHaveAttribute('aria-label', /전체 시간|남은 시간/);
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute(
 			'style',
@@ -115,17 +113,17 @@ test.describe('attendance responsive view', () => {
 		await expect(standard.getByText(/2026-07-27–2026-08-02/)).toBeVisible();
 		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
 			'aria-label',
-			/실제 근무 33시간 20분, 진행 중 잠정 00시간 00분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 40시간 00분/
+			/실제 근무 33시간 20분, 진행 중 잠정 00시간 00분, 기준 시간 32시간 00분/
 		);
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
 		await workTimeCard.getByRole('button', { name: '월별' }).click();
 		await expect(standard.getByText(/2026-05-01–2026-05-31/)).toBeVisible();
 		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
 			'aria-label',
-			/실제 근무 161시간 20분, 진행 중 잠정 00시간 00분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 168시간 00분/
+			/실제 근무 161시간 20분, 진행 중 잠정 00시간 00분, 기준 시간 160시간 00분/
 		);
 		await expect(standard.getByTestId('work-standard-total-row')).toHaveText(
-			'169시간 20분 / 기준 시간 168시간 00분'
+			'161시간 20분 / 기준 시간 160시간 00분'
 		);
 		await expect
 			.poll(() =>
@@ -139,10 +137,10 @@ test.describe('attendance responsive view', () => {
 
 	test('distinguishes four work and leave baseline states', async ({ page }) => {
 		const scenarios = [
-			{ actualMinutes: 360, paidLeaveMinutes: 0, creditedLeaveMinutes: 0, fulfilledMinutes: 360, remainingMinutes: 120, overtimeMinutes: 0, differenceMinutes: -120, total: '06시간 00분', shortfall: '02시간 00분' },
-			{ actualMinutes: 300, paidLeaveMinutes: 120, creditedLeaveMinutes: 120, fulfilledMinutes: 420, remainingMinutes: 60, overtimeMinutes: 0, differenceMinutes: -60, total: '07시간 00분', shortfall: '01시간 00분' },
-			{ actualMinutes: 540, paidLeaveMinutes: 0, creditedLeaveMinutes: 0, fulfilledMinutes: 480, remainingMinutes: 0, overtimeMinutes: 60, differenceMinutes: 0, total: '09시간 00분', overtime: '01시간 00분' },
-			{ actualMinutes: 420, paidLeaveMinutes: 120, creditedLeaveMinutes: 60, fulfilledMinutes: 480, remainingMinutes: 0, overtimeMinutes: 0, differenceMinutes: 0, total: '09시간 00분', uncreditedLeave: '01시간 00분' }
+			{ actualMinutes: 360, leaveMinutes: 0, targetMinutes: 480, fulfilledMinutes: 360, remainingMinutes: 120, overtimeMinutes: 0, differenceMinutes: -120, total: '06시간 00분', target: '08시간 00분', shortfall: '02시간 00분' },
+			{ actualMinutes: 300, leaveMinutes: 120, targetMinutes: 360, fulfilledMinutes: 300, remainingMinutes: 60, overtimeMinutes: 0, differenceMinutes: -60, total: '05시간 00분', target: '06시간 00분', shortfall: '01시간 00분' },
+			{ actualMinutes: 540, leaveMinutes: 0, targetMinutes: 480, fulfilledMinutes: 480, remainingMinutes: 0, overtimeMinutes: 60, differenceMinutes: 60, total: '09시간 00분', target: '08시간 00분', overtime: '01시간 00분' },
+			{ actualMinutes: 420, leaveMinutes: 120, targetMinutes: 360, fulfilledMinutes: 360, remainingMinutes: 0, overtimeMinutes: 60, differenceMinutes: 60, total: '07시간 00분', target: '06시간 00분', overtime: '01시간 00분' }
 		];
 		let scenario = scenarios[0];
 		await page.unroute('**/attendance/api/work-status?**');
@@ -153,7 +151,7 @@ test.describe('attendance responsive view', () => {
 				requestURL.searchParams.get('period'),
 				requestURL.searchParams.get('anchor')
 			);
-			payload.personal = payload.personal ? { ...payload.personal, ...scenario, targetMinutes: 480, nightMinutes: 0 } : undefined;
+			payload.personal = payload.personal ? { ...payload.personal, ...scenario, nightMinutes: 0 } : undefined;
 			await route.fulfill({ json: payload });
 		});
 
@@ -169,19 +167,13 @@ test.describe('attendance responsive view', () => {
 				.getByRole('button', { name: '일별' })
 				.click();
 			await expect(standard.getByTestId('work-standard-total')).toHaveText(currentScenario.total);
+			await expect(standard.getByText(`기준 시간 ${currentScenario.target}`, { exact: true })).toBeVisible();
+			await expect(standard.getByTestId('work-standard-leave-segment')).toHaveCount(0);
+			await expect(standard.locator('.bg-blue-500')).toHaveCount(0);
 			const overtimeRow = standard.getByText('기준 초과', { exact: true }).locator('..');
 			const shortfallRow = standard.getByText('기준 부족', { exact: true }).locator('..');
 			await expect(overtimeRow.getByLabel(currentScenario.overtime ?? '00시간 00분')).toBeVisible();
 			await expect(shortfallRow.getByLabel(currentScenario.shortfall ?? '00시간 00분')).toBeVisible();
-			if (currentScenario.uncreditedLeave) {
-				await expect(
-					standard
-						.getByTestId('work-standard-uncredited-leave')
-						.getByLabel(currentScenario.uncreditedLeave)
-				).toBeVisible();
-			} else {
-				await expect(standard.getByTestId('work-standard-uncredited-leave')).toHaveCount(0);
-			}
 		}
 	});
 
@@ -200,10 +192,10 @@ test.describe('attendance responsive view', () => {
 		await expect(view.getByRole('columnheader', { name: '회사 기준 대비 초과' })).toHaveCount(0);
 		await expect(view.locator('.bg-yellow-400').first()).toHaveClass(/bg-yellow-400/);
 
-		const metricHeaders = table.locator('[data-slot="table-head"]').filter({ hasText: /실제 근무|휴가 인정|기준 충족|기준 차이|야간 근무/ });
+		const metricHeaders = table.locator('[data-slot="table-head"]').filter({ hasText: /실제 근무|휴가|기준 충족|기준 차이|야간 근무/ });
 		await expect(metricHeaders).toHaveCount(5);
 		for (const header of await metricHeaders.all()) {
-			await expect(header).toHaveCSS('text-align', 'right');
+			await expect(header).toHaveCSS('text-align', 'left');
 		}
 
 		const firstEmployeeRow = table.getByRole('row').nth(1);
@@ -220,7 +212,7 @@ test.describe('attendance responsive view', () => {
 			})
 		);
 		expect(metricLayout.every((metric) => metric.fontSize === metricLayout[0]?.fontSize)).toBe(true);
-		expect(metricLayout.every((metric) => metric.textAlign === 'right')).toBe(true);
+		expect(metricLayout.every((metric) => metric.textAlign === 'left')).toBe(true);
 		expect(Math.max(...metricLayout.map((metric) => metric.top)) - Math.min(...metricLayout.map((metric) => metric.top))).toBeLessThanOrEqual(1);
 
 		await page.setViewportSize({ width: 1200, height: 900 });

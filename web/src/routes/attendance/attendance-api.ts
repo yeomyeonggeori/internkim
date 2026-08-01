@@ -18,8 +18,7 @@ export type AttendanceWorkDayStatus = {
 	targetMinutes: number;
 	actualMinutes: number;
 	provisionalMinutes: number;
-	paidLeaveMinutes: number;
-	creditedLeaveMinutes: number;
+	leaveMinutes: number;
 	fulfilledMinutes: number;
 	differenceMinutes: number;
 	remainingMinutes: number;
@@ -47,8 +46,7 @@ export type AttendanceEmployeeWorkStatus = {
 	targetMinutes: number;
 	actualMinutes: number;
 	provisionalMinutes: number;
-	paidLeaveMinutes: number;
-	creditedLeaveMinutes: number;
+	leaveMinutes: number;
 	fulfilledMinutes: number;
 	differenceMinutes: number;
 	remainingMinutes: number;
