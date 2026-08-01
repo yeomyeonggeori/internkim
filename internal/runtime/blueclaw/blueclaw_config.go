@@ -569,6 +569,7 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:artifact.review", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:task.add", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:task.list", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:task.definitions", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:task.update", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:message.context", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:message.search", "actions": []string{"execute"}, "circles": []string{"staff"}},
