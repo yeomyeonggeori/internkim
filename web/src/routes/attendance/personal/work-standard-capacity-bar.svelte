@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import AttendanceProgressBar, { type AttendanceProgressSegment } from '../shared/attendance-progress-bar.svelte';
 	import { attendanceText } from '../text';
 	import { formatWorkStatusDuration } from '../work-status/work-status-format';
 
@@ -37,6 +38,20 @@
 	);
 	const actualWidth = $derived((actualBarMinutes / visualCapacityMinutes) * 100);
 	const leaveWidth = $derived((leaveBarMinutes / visualCapacityMinutes) * 100);
+	const progressSegments = $derived<AttendanceProgressSegment[]>([
+		{
+			id: 'actual',
+			widthPercent: actualWidth,
+			className: 'bg-yellow-400',
+			testId: 'work-standard-actual-segment'
+		},
+		{
+			id: 'leave',
+			widthPercent: leaveWidth,
+			className: 'bg-blue-500',
+			testId: 'work-standard-leave-segment'
+		}
+	]);
 	const barLabel = $derived(
 		`${text.workStatus.actual} ${formatWorkStatusDuration(actualMinutes, text)}, ${text.workStatus.provisional} ${formatWorkStatusDuration(provisionalMinutes, text)}, ${text.workStatus.leave} ${formatWorkStatusDuration(paidLeaveMinutes, text)}, ${text.workStatus.creditedLeave} ${formatWorkStatusDuration(creditedLeaveMinutes, text)}, ${text.workStatus.target} ${formatWorkStatusDuration(targetMinutes, text)}`
 	);
@@ -55,27 +70,13 @@
 	>
 		{text.workStatus.target} {formatWorkStatusDuration(targetMinutes, text)}
 	</span>
-	<span class="relative block" aria-hidden="true">
-		<span
-			class="flex h-3.5 overflow-hidden rounded-full bg-muted"
-			data-testid="work-standard-progress-track"
-		>
-			<span
-				class="bg-yellow-400"
-				style={`width:${actualWidth}%`}
-				data-testid="work-standard-actual-segment"
-			></span>
-			<span
-				class="bg-blue-500"
-				style={`width:${leaveWidth}%`}
-				data-testid="work-standard-leave-segment"
-			></span>
-		</span>
-		<span
-			class="absolute -inset-y-1 w-0.5 bg-foreground"
-			style={`left:${targetPosition}%`}
-			data-testid="work-standard-target-marker"
-		></span>
+	<span aria-hidden="true">
+		<AttendanceProgressBar
+			segments={progressSegments}
+			trackTestId="work-standard-progress-track"
+			{targetPosition}
+			targetMarkerTestId="work-standard-target-marker"
+		/>
 	</span>
 </div>
 
