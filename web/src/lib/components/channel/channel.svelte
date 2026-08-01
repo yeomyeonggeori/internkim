@@ -257,6 +257,12 @@
 	let showScrollToBottom = $state(false);
 	const reversedTimeline = $derived(timeline.slice().reverse());
 
+	const olderPrefetchScreens = 3;
+
+	function distanceFromOldestTop(container: HTMLElement): number {
+		return container.scrollHeight - container.clientHeight - Math.abs(container.scrollTop);
+	}
+
 	async function loadOlderMessages() {
 		if (isLoadingOlder || !hasMoreBefore || !historyCursor) return;
 		isLoadingOlder = true;
@@ -275,15 +281,24 @@
 		} finally {
 			isLoadingOlder = false;
 		}
+		// Keep filling the buffer above the fold so a fast scroll to the very top
+		// never outruns loading and jumps at the boundary.
+		requestAnimationFrame(prefetchOlderIfNearTop);
+	}
+
+	function prefetchOlderIfNearTop() {
+		const container = scrollContainer;
+		if (!container || !hasMoreBefore) return;
+		if (distanceFromOldestTop(container) < container.clientHeight * olderPrefetchScreens) {
+			loadOlderMessages();
+		}
 	}
 
 	function handleViewportScroll() {
 		const container = scrollContainer;
 		if (!container) return;
-		const distanceFromTop =
-			container.scrollHeight - container.clientHeight - Math.abs(container.scrollTop);
 		showScrollToBottom = Math.abs(container.scrollTop) > 200;
-		if (distanceFromTop < container.clientHeight * 2.5) loadOlderMessages();
+		prefetchOlderIfNearTop();
 	}
 
 	function scrollToBottom() {
