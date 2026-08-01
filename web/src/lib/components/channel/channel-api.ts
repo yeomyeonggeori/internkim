@@ -59,6 +59,8 @@ export type ChannelConversation = {
 	conversationID: string;
 	currentUserID: string;
 	messages: ChannelMessage[];
+	hasMoreBefore: boolean;
+	historyCursor: string;
 };
 
 export type MessageContent = {
@@ -116,22 +118,36 @@ export async function ensureDirectMessage(personID: string): Promise<string> {
 	return document.channelId ?? '';
 }
 
-function conversationURL(channelID?: string): string {
-	return channelID ? `/agent/api/dm?channelId=${encodeURIComponent(channelID)}` : '/agent/api/dm';
+function conversationURL(channelID?: string, before?: string): string {
+	const params = new URLSearchParams();
+	if (channelID) params.set('channelId', channelID);
+	if (before) params.set('before', before);
+	const query = params.toString();
+	return query ? `/agent/api/dm?${query}` : '/agent/api/dm';
 }
 
-export async function fetchChannelConversation(channelID?: string): Promise<ChannelConversation> {
-	const response = await fetch(conversationURL(channelID), { credentials: 'include', cache: 'no-store' });
+export async function fetchChannelConversation(
+	channelID?: string,
+	before?: string
+): Promise<ChannelConversation> {
+	const response = await fetch(conversationURL(channelID, before), {
+		credentials: 'include',
+		cache: 'no-store'
+	});
 	if (!response.ok) throw new Error(await response.text());
 	const document: {
 		conversationID?: string;
 		currentUserId?: string;
 		messages?: ChannelMessage[];
+		hasMoreBefore?: boolean;
+		historyCursor?: string;
 	} = await response.json();
 	return {
 		conversationID: document.conversationID ?? '',
 		currentUserID: document.currentUserId ?? '',
-		messages: document.messages ?? []
+		messages: document.messages ?? [],
+		hasMoreBefore: document.hasMoreBefore ?? false,
+		historyCursor: document.historyCursor ?? ''
 	};
 }
 
