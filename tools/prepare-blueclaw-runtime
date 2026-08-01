@@ -25,6 +25,9 @@ remote_directory="/tmp/internkim-blueclaw-runtime-builder"
 stop_container_after_build=0
 rsync_excludes=(
   --exclude '.git'
+  --exclude '.artifacts'
+  --exclude '.local'
+  --exclude '.claude'
   --exclude '.dependency/agent-browser'
   --exclude '.dependency/blueclaw-payload'
   --exclude '.dependency/blueclaw-runtime*'
