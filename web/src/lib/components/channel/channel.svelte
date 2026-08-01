@@ -33,7 +33,8 @@
 	import MessageCircleDashedIcon from '@lucide/svelte/icons/message-circle-dashed';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { onDestroy, onMount } from 'svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
+	import { onDestroy, onMount, tick } from 'svelte';
 
 	let { isActive = true, threadLayout = 'sheet', channelId }: {
 		isActive?: boolean;
@@ -64,6 +65,10 @@
 	let isSending = $state(false);
 	let loadFailed = $state(false);
 	let hasLoadedOnce = $state(false);
+	let olderMessages = $state<ChannelMessage[]>([]);
+	let hasMoreBefore = $state(false);
+	let historyCursor = $state('');
+	let isLoadingOlder = $state(false);
 	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 	let lastConversationSignature = '';
 	let pendingAttachments = $state<PendingAttachment[]>([]);
@@ -170,10 +175,14 @@
 			// Only replace the list when it actually changed. A poll that returns the
 			// same messages must not reassign the array, or the re-render resets the
 			// scroll position and the view keeps jumping.
+			if (olderMessages.length === 0) {
+				hasMoreBefore = conversation.hasMoreBefore;
+				historyCursor = conversation.historyCursor;
+			}
 			const signature = conversationSignature(conversation.messages);
 			if (signature !== lastConversationSignature) {
 				lastConversationSignature = signature;
-				messages = conversation.messages;
+				messages = mergeOlderMessages(olderMessages, conversation.messages);
 				if (openThreadRoot) {
 					openThreadRoot = messages.find((message) => message.id === openThreadRoot?.id) ?? openThreadRoot;
 				}
@@ -184,6 +193,42 @@
 		} finally {
 			hasLoadedOnce = true;
 		}
+	}
+
+	function mergeOlderMessages(older: ChannelMessage[], latest: ChannelMessage[]): ChannelMessage[] {
+		const latestIds = new Set(latest.map((message) => message.id));
+		const head = older.filter((message) => !latestIds.has(message.id));
+		return [...head, ...latest];
+	}
+
+	async function loadOlderMessages(viewport: HTMLElement) {
+		if (isLoadingOlder || !hasMoreBefore || !historyCursor) return;
+		isLoadingOlder = true;
+		const previousScrollHeight = viewport.scrollHeight;
+		try {
+			const page = await fetchChannelConversation(channelId, historyCursor);
+			hasMoreBefore = page.hasMoreBefore;
+			historyCursor = page.historyCursor;
+			const existingIds = new Set(messages.map((message) => message.id));
+			const fresh = page.messages.filter((message) => !existingIds.has(message.id));
+			if (fresh.length === 0) {
+				hasMoreBefore = false;
+			} else {
+				olderMessages = [...fresh, ...olderMessages];
+				messages = [...fresh, ...messages];
+				await tick();
+				viewport.scrollTop += viewport.scrollHeight - previousScrollHeight;
+			}
+		} finally {
+			isLoadingOlder = false;
+		}
+	}
+
+	function handleViewportScroll(event: Event) {
+		const viewport = event.currentTarget;
+		if (!(viewport instanceof HTMLElement)) return;
+		if (viewport.scrollTop > 160) return;
+		loadOlderMessages(viewport);
 	}
 
 	function conversationSignature(list: ChannelMessage[]): string {
@@ -406,6 +451,10 @@
 		void channelId;
 		hasLoadedOnce = false;
 		messages = [];
+		olderMessages = [];
+		hasMoreBefore = false;
+		historyCursor = '';
+		isLoadingOlder = false;
 		lastConversationSignature = '';
 		openThreadRoot = null;
 		loadConversation();
@@ -461,7 +510,7 @@
 				<Attachment.Root orientation="vertical">
 					{#if attachment.kind === 'image'}
 						<Attachment.Media variant="image">
-							<img src={attachment.url} alt={attachment.filename ?? ''} />
+							<img src={attachment.url} alt={attachment.filename ?? ''} loading="lazy" decoding="async" />
 						</Attachment.Media>
 					{:else}
 						<Attachment.Media>
@@ -700,12 +749,17 @@
 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
 		{#if !hasLoadedOnce}
-			<Empty.Root class="h-full">
-				<Empty.Header>
-					<Empty.Media variant="icon"><MessageCircleDashedIcon /></Empty.Media>
-					<Empty.Title>{text.title}</Empty.Title>
-				</Empty.Header>
-			</Empty.Root>
+			<div class="flex h-full flex-col gap-8 px-4 py-12">
+				{#each Array(6) as _, index (index)}
+					<div class="flex gap-3" class:flex-row-reverse={index % 3 === 0}>
+						<Skeleton class="size-9 shrink-0 rounded-full" />
+						<div class="flex max-w-[70%] flex-col gap-2">
+							<Skeleton class="h-4 w-24" />
+							<Skeleton class="h-16 w-64 max-w-full rounded-2xl" />
+						</div>
+					</div>
+				{/each}
+			</div>
 		{:else if loadFailed && messages.length === 0}
 			<Empty.Root class="h-full">
 				<Empty.Header>
@@ -725,8 +779,13 @@
 			</Empty.Root>
 		{:else}
 			<MessageScroller.Root>
-				<MessageScroller.Viewport>
+				<MessageScroller.Viewport onscroll={handleViewportScroll}>
 					<MessageScroller.Content aria-busy={isAgentWorking} class="gap-8 px-4 py-12">
+						{#if isLoadingOlder}
+							<Marker.Root role="status">
+								<Marker.Content class="shimmer">{text.loadingOlder}</Marker.Content>
+							</Marker.Root>
+						{/if}
 						{#each timeline as item (item.id)}
 							{#if item.kind === 'date'}
 								<Marker.Root variant="separator">
