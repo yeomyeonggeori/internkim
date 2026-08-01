@@ -1282,11 +1282,24 @@ func (state *setupFlowState) installGoServiceBinarySSH(asset localBinaryAsset, s
 	}
 	state.installGoServiceUnitSSH(servicePath, serviceDocument)
 	state.sshClient.run("systemctl restart " + serviceName)
-	if strings.TrimSpace(state.sshClient.run("systemctl is-active "+serviceName+" 2>/dev/null")) != "active" {
+	if !state.waitForActiveService(serviceName) {
 		return fmt.Errorf("%s restart failed", serviceName)
 	}
 	fmt.Printf("  %s %s\n", serviceName, state.messenger.t("재시작 완료", "restarted"))
 	return nil
+}
+
+
+// A unit that restarts under systemd passes through activating, and a unit that
+// crashed once comes back on its own restart, so sampling once right after the
+// restart reports a healthy service as failed.
+func (state *setupFlowState) waitForActiveService(serviceName string) bool {
+	status := strings.TrimSpace(state.sshClient.run(
+		"for attempt in $(seq 1 30); do state=$(systemctl is-active " + serviceName + " 2>/dev/null); " +
+			"if [ \"$state\" = active ]; then printf active; exit 0; fi; " +
+			"if [ \"$state\" = failed ]; then printf failed; exit 0; fi; sleep 1; done; printf \"$state\"",
+	))
+	return status == "active"
 }
 
 func (state *setupFlowState) installGoServiceUnitSSH(servicePath string, serviceDocument string) {
