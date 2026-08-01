@@ -142,11 +142,17 @@ def run_evaluations(arguments: argparse.Namespace) -> int:
     runDirectory.mkdir(parents=True, exist_ok=False)
 
     commandTimeoutSeconds = arguments.command_timeout if arguments.command_timeout else arguments.timeout + 3000
-    manifest = create_manifest(runID, selectedEvaluations, arguments.dry_run, arguments.reuse, arguments.model, arguments.seed, arguments.temperature, arguments.timeout, commandTimeoutSeconds)
+    effectiveSeed, effectiveTemperature, droppedPins = drop_unsupported_generation_pins(arguments.model, arguments.seed, arguments.temperature)
+    for parameterName in droppedPins:
+        print(f"{arguments.model} has no endpoint accepting {parameterName}; running without that pin")
+    manifest = create_manifest(runID, selectedEvaluations, arguments.dry_run, arguments.reuse, arguments.model, effectiveSeed, effectiveTemperature, arguments.timeout, commandTimeoutSeconds)
+    manifest["generationOptions"]["requestedSeed"] = arguments.seed
+    manifest["generationOptions"]["requestedTemperature"] = arguments.temperature
+    manifest["generationOptions"]["droppedGenerationParameters"] = droppedPins
     write_json(runDirectory / "manifest.json", manifest)
 
     for evaluation in selectedEvaluations:
-        run_single_evaluation(runDirectory, evaluation, arguments.dry_run, arguments.reuse, arguments.model, arguments.seed, arguments.temperature, arguments.timeout, commandTimeoutSeconds)
+        run_single_evaluation(runDirectory, evaluation, arguments.dry_run, arguments.reuse, arguments.model, effectiveSeed, effectiveTemperature, arguments.timeout, commandTimeoutSeconds)
 
     update_scorecard_for_evaluable_outputs(runDirectory, configuration, selectedEvaluations, None)
     manifest = update_manifest_evaluability(runDirectory, manifest, selectedEvaluations)
@@ -1453,6 +1459,49 @@ def select_evaluations(configuration: dict, selectedIDs: list[str]) -> list[dict
     return [evaluationsByID[selectedID] for selectedID in selectedIDs]
 
 
+
+OPENROUTER_ENDPOINTS_URL = "https://openrouter.ai/api/v1/models/{model}/endpoints"
+
+
+def resolve_supported_generation_parameters(modelName: str) -> set[str] | None:
+    """Union of parameters any endpoint serving this model accepts.
+
+    OpenRouter routes to whichever endpoint can satisfy the request, so a
+    parameter one endpoint accepts is routable. Returns None when the catalog
+    cannot be read, which leaves the requested pins untouched.
+    """
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(OPENROUTER_ENDPOINTS_URL.format(model=modelName), timeout=20) as response:
+            document = json.loads(response.read())
+    except Exception:
+        return None
+    endpoints = document.get("data", {}).get("endpoints", [])
+    if not endpoints:
+        return None
+    supported: set[str] = set()
+    for endpoint in endpoints:
+        supported.update(endpoint.get("supported_parameters", []))
+    return supported
+
+
+def drop_unsupported_generation_pins(modelName: str, seed: int, temperature: float) -> tuple[int | None, float | None, list[str]]:
+    """Pinning a parameter no endpoint accepts makes OpenRouter refuse to route.
+
+    The refusal is instant and reads as a model failure, so drop the pin at the
+    source rather than letting a boundary quietly rewrite the request.
+    """
+    supported = resolve_supported_generation_parameters(modelName)
+    if supported is None:
+        return seed, temperature, []
+    dropped = [name for name in ("seed", "temperature") if name not in supported]
+    return (
+        None if "seed" in dropped else seed,
+        None if "temperature" in dropped else temperature,
+        dropped,
+    )
+
 def create_manifest(runID: str, selectedEvaluations: list[dict], isDryRun: bool, shouldReuseFleet: bool, modelName: str, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> dict:
     return {
         "runID": runID,
@@ -1704,10 +1753,8 @@ def build_evaluation_command(evaluation: dict, resultDirectory: Path, diagnostic
         "test",
         prompt,
         "--no-open",
-        "--seed",
-        str(seed),
-        "--temperature",
-        format_float(temperature),
+        *(["--seed", str(seed)] if seed is not None else []),
+        *(["--temperature", format_float(temperature)] if temperature is not None else []),
         "--timeout",
         str(testTimeoutSeconds),
         "--result-json",
