@@ -173,16 +173,25 @@ export class MessageScrollerController {
 
 		const items = getMessageScrollerItems(content, this.spacer);
 		const previousItemCount = this.itemCount;
-		const previousFirstItem = this.firstItem;
 		this.itemCount = items.length;
 		this.firstItem = items[0] ?? null;
 
 		if (this.flushPendingScrollToMessage()) return this.captureAfterContentChange();
 		if (previousItemCount === 0) return this.handleInitialContent(items);
 
-		const previousFirstItemIndex = previousFirstItem ? items.indexOf(previousFirstItem) : -1;
-		if (this.shouldPreserveScrollOnPrepend && previousFirstItemIndex > 0) {
-			this.restorePrependedAnchor();
+		// Preserve the reading position whenever items are added above the current
+		// view (infinite scroll up), not only when the very first item moved. The
+		// first item is often a date separator that stays first when older messages
+		// share its day, so gating on its index missed same-day prepends and the
+		// view jumped. restorePrependedAnchor only adjusts when the anchor actually
+		// shifted, so it no-ops for plain bottom appends and falls through below.
+		const itemsWereAdded = items.length > previousItemCount;
+		if (
+			this.shouldPreserveScrollOnPrepend &&
+			itemsWereAdded &&
+			this.mode !== "following-bottom" &&
+			this.restorePrependedAnchor()
+		) {
 			return this.captureAfterContentChange();
 		}
 
