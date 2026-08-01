@@ -45,7 +45,6 @@
 			</p>
 			{#if status.hasBaseline}
 				<div class="mt-1 tabular-nums">
-					<p class="text-[10px] text-muted-foreground">{text.workStatus.workLeaveTotal}</p>
 					<p
 						class="flex items-baseline gap-1 whitespace-nowrap"
 						data-testid="work-standard-total-row"

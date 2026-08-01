@@ -71,6 +71,7 @@ test.describe('attendance responsive view', () => {
 		await expect(workTimeCard.getByText('일일 최고')).toBeVisible();
 		await expect(workTimeCard.getByText('일일 최저')).toBeVisible();
 		await expect(standard.getByText('근무 기준')).toBeVisible();
+		await expect(standard.getByText('근무·휴가 합계')).toHaveCount(0);
 		await expect(standard.getByText('휴가', { exact: true })).toBeVisible();
 		await expect(standard.getByText('휴가 인정')).toHaveCount(0);
 		await expect(standard.getByText('남은 시간')).toHaveCount(0);
@@ -190,6 +191,7 @@ test.describe('attendance responsive view', () => {
 		await page.getByTestId('employee-work-status-navigation').click();
 
 		const view = page.getByTestId('employee-work-status-view');
+		const table = view.getByTestId('employee-work-status-table');
 		await expect(view.getByText('직원 근무 현황', { exact: true })).toBeVisible();
 		await expect(view.getByRole('columnheader', { name: '근무 방식' })).toBeVisible();
 		await expect(view.getByRole('columnheader', { name: '기준 충족' })).toBeVisible();
@@ -197,6 +199,45 @@ test.describe('attendance responsive view', () => {
 		await expect(view.getByRole('columnheader', { name: '기준 시간' })).toHaveCount(0);
 		await expect(view.getByRole('columnheader', { name: '회사 기준 대비 초과' })).toHaveCount(0);
 		await expect(view.locator('.bg-yellow-400').first()).toHaveClass(/bg-yellow-400/);
+
+		const metricHeaders = table.locator('[data-slot="table-head"]').filter({ hasText: /실제 근무|휴가 인정|기준 충족|기준 차이|야간 근무/ });
+		await expect(metricHeaders).toHaveCount(5);
+		for (const header of await metricHeaders.all()) {
+			await expect(header).toHaveCSS('text-align', 'right');
+		}
+
+		const firstEmployeeRow = table.getByRole('row').nth(1);
+		const metricValues = firstEmployeeRow.getByTestId('employee-work-status-metric');
+		await expect(metricValues).toHaveCount(5);
+		const metricLayout = await metricValues.evaluateAll((elements) =>
+			elements.map((element) => {
+				const style = getComputedStyle(element);
+				return {
+					fontSize: style.fontSize,
+					textAlign: style.textAlign,
+					top: Math.round(element.getBoundingClientRect().top)
+				};
+			})
+		);
+		expect(metricLayout.every((metric) => metric.fontSize === metricLayout[0]?.fontSize)).toBe(true);
+		expect(metricLayout.every((metric) => metric.textAlign === 'right')).toBe(true);
+		expect(Math.max(...metricLayout.map((metric) => metric.top)) - Math.min(...metricLayout.map((metric) => metric.top))).toBeLessThanOrEqual(1);
+
+		await page.setViewportSize({ width: 1200, height: 900 });
+		const tableContainer = view.locator('[data-slot="table-container"]');
+		await expect.poll(() => tableContainer.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+		await tableContainer.evaluate((element) => (element.scrollLeft = element.scrollWidth));
+		await expect
+			.poll(() =>
+				tableContainer.evaluate((container) => {
+					const detailButton = container.querySelector('tbody tr:first-child button');
+					if (!(detailButton instanceof HTMLElement)) return false;
+					const containerRect = container.getBoundingClientRect();
+					const buttonRect = detailButton.getBoundingClientRect();
+					return buttonRect.left >= containerRect.left && buttonRect.right <= containerRect.right;
+				})
+			)
+			.toBe(true);
 
 		await view.getByRole('button', { name: '기록 확인 필요' }).click();
 		await expect(view.getByText('최도윤', { exact: true })).toBeVisible();

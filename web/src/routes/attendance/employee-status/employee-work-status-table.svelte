@@ -43,24 +43,35 @@
 	}
 </script>
 
-<Table.Root>
+<Table.Root class="min-w-[77rem] table-fixed" data-testid="employee-work-status-table">
+	<colgroup>
+		<col class="w-60" />
+		<col class="w-24" />
+		<col class="w-44" />
+		<col class="w-28" />
+		<col class="w-48" />
+		<col class="w-28" />
+		<col class="w-28" />
+		<col class="w-36" />
+		<col class="w-12" />
+	</colgroup>
 	<Table.Header>
 		<Table.Row>
 			<Table.Head>{text.workStatus.employee}</Table.Head>
 			<Table.Head>{text.workStatus.mode}</Table.Head>
-			<Table.Head>{text.workStatus.actual}</Table.Head>
+			<Table.Head class="text-right">{text.workStatus.actual}</Table.Head>
 			<Table.Head class="text-right">{text.workStatus.creditedLeave}</Table.Head>
 			<Table.Head class="text-right">{text.workStatus.fulfilled}</Table.Head>
 			<Table.Head class="text-right">{text.workStatus.difference}</Table.Head>
 			<Table.Head class="text-right">{text.workStatus.night}</Table.Head>
 			<Table.Head>{text.status}</Table.Head>
-			<Table.Head><span class="sr-only">{text.workStatus.details}</span></Table.Head>
+			<Table.Head class="text-center"><span class="sr-only">{text.workStatus.details}</span></Table.Head>
 		</Table.Row>
 	</Table.Header>
 	<Table.Body>
 		{#each employees as employee (employee.email)}
 			<Table.Row>
-				<Table.Cell>
+				<Table.Cell class="align-top">
 					<div class="flex items-center gap-2">
 						<PersonAvatar
 							name={employee.displayName}
@@ -74,11 +85,12 @@
 						</span>
 					</div>
 				</Table.Cell>
-				<Table.Cell>{text.workStatus[employee.workMode]}</Table.Cell>
-				<Table.Cell class="min-w-36">
+				<Table.Cell class="align-top">{text.workStatus[employee.workMode]}</Table.Cell>
+				<Table.Cell class="align-top text-right">
 					<div class="grid gap-1">
 						<span
-							class="text-xs tabular-nums"
+							class="block tabular-nums"
+							data-testid="employee-work-status-metric"
 							aria-label={`${text.workStatus.actual} ${formatWorkStatusDuration(employee.actualMinutes, text)}, ${text.workStatus.provisional} ${formatWorkStatusDuration(employee.provisionalMinutes, text)}`}
 						>
 							{formatWorkStatusDuration(displayedActualMinutes(employee), text)}
@@ -89,29 +101,37 @@
 						</div>
 					</div>
 				</Table.Cell>
-				<Table.Cell class="text-right tabular-nums">
-					{formatWorkStatusDuration(employee.creditedLeaveMinutes, text)}
+				<Table.Cell class="align-top text-right">
+					<span class="block tabular-nums" data-testid="employee-work-status-metric">
+						{formatWorkStatusDuration(employee.creditedLeaveMinutes, text)}
+					</span>
 				</Table.Cell>
-				<Table.Cell class="text-right tabular-nums">
-					{#if employee.hasBaseline}
-						{formatWorkStatusDuration(employee.fulfilledMinutes, text)}
-						<span class="text-muted-foreground">
-							/ {formatWorkStatusDuration(employee.targetMinutes, text)}
-						</span>
-					{:else}
-						{text.workStatus.noBaseline}
-					{/if}
+				<Table.Cell class="align-top text-right">
+					<span class="block tabular-nums" data-testid="employee-work-status-metric">
+						{#if employee.hasBaseline}
+							{formatWorkStatusDuration(employee.fulfilledMinutes, text)}
+							<span class="text-muted-foreground">
+								/ {formatWorkStatusDuration(employee.targetMinutes, text)}
+							</span>
+						{:else}
+							{text.workStatus.noBaseline}
+						{/if}
+					</span>
 				</Table.Cell>
-				<Table.Cell class="text-right tabular-nums">
-					{employee.hasBaseline
-						? formatDifference(employee.differenceMinutes)
-						: text.workStatus.noBaseline}
+				<Table.Cell class="align-top text-right">
+					<span class="block tabular-nums" data-testid="employee-work-status-metric">
+						{employee.hasBaseline
+							? formatDifference(employee.differenceMinutes)
+							: text.workStatus.noBaseline}
+					</span>
 				</Table.Cell>
-				<Table.Cell class="text-right tabular-nums">
-					{formatWorkStatusDuration(employee.nightMinutes, text)}
+				<Table.Cell class="align-top text-right">
+					<span class="block tabular-nums" data-testid="employee-work-status-metric">
+						{formatWorkStatusDuration(employee.nightMinutes, text)}
+					</span>
 				</Table.Cell>
-				<Table.Cell><Badge variant="secondary">{statusLabel(employee.status)}</Badge></Table.Cell>
-				<Table.Cell>
+				<Table.Cell class="align-top"><Badge variant="secondary">{statusLabel(employee.status)}</Badge></Table.Cell>
+				<Table.Cell class="align-top text-center">
 					<Button
 						variant="ghost"
 						size="icon-sm"
