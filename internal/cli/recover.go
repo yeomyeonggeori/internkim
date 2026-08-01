@@ -117,7 +117,7 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 	if diagnose {
 		printSSHRecoveryLocalDiagnostics(configuration, sshpassBin, target)
 	}
-	if action == "status" || action == "snapshot" || action == "journal-tail" || action == "limit-blueclaw" || action == "restart-blueclaw" || action == "blueclaw-boot-diagnose" || action == "blueclaw-journal" || action == "buzz-mirror-status" || action == "buzz-orphan-inspect" || action == "buzz-snapshot" || action == "buzz-membership-recover" || action == "buzz-restore" || action == "buzz-repair-dryrun" || action == "buzz-repair-apply" || action == "buzz-reimport" || action == "buzz-reimport-log" || action == "buzz-read-test" || action == "buzz-chatd-repair" {
+	if action == "status" || action == "snapshot" || action == "journal-tail" || action == "limit-blueclaw" || action == "restart-blueclaw" || action == "blueclaw-boot-diagnose" || action == "blueclaw-journal" || action == "buzz-mirror-status" || action == "buzz-orphan-inspect" || action == "buzz-snapshot" || action == "buzz-membership-recover" || action == "buzz-restore" || action == "buzz-repair-dryrun" || action == "buzz-repair-apply" || action == "buzz-reimport" || action == "buzz-reimport-log" || action == "buzz-read-test" || action == "buzz-chatd-repair" || action == "mattermost-unlock-users" || action == "postgres-repair" {
 		return nil
 	}
 	if action == "reboot" {
@@ -150,7 +150,7 @@ func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, t
 
 func isAllowedCLIRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair":
+	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair":
 		return true
 	default:
 		return false
