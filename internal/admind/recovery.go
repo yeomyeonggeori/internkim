@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair":
 		return true
 	default:
 		return false
@@ -169,6 +169,14 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		chatdContext, cancelChatd := context.WithTimeout(context.Background(), 60*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(chatdContext, "restart chatd with TLS bypass + relay debug", "sh", "-lc", buzzChatdRepairCommand()))
 		cancelChatd()
+	case "mattermost-unlock-users":
+		unlockContext, cancelUnlock := context.WithTimeout(context.Background(), 60*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(unlockContext, "diagnose + reset Mattermost login lockouts", "sh", "-lc", mattermostUnlockUsersCommand()))
+		cancelUnlock()
+	case "postgres-repair":
+		pgContext, cancelPg := context.WithTimeout(context.Background(), 90*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(pgContext, "diagnose + restart postgres", "sh", "-lc", postgresRepairCommand()))
+		cancelPg()
 	case "buzz-snapshot":
 		snapshotContext, cancelSnapshot := context.WithTimeout(context.Background(), 180*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(snapshotContext, "snapshot buzz relay database", "sh", "-lc", buzzSnapshotCommand()))
@@ -752,6 +760,42 @@ chmod 700 /tmp/buzz-reimport-run.sh
 setsid nohup bash /tmp/buzz-reimport-run.sh > /tmp/buzz-reimport.log 2>&1 < /dev/null &
 sleep 1
 echo "reimport launched (self-healing: auto-restores $SNAP if import fails) — poll with buzz-reimport-log"
+`)
+}
+
+func postgresRepairCommand() string {
+	return strings.TrimSpace(`
+set +e
+echo "== disk before =="; df -h / 2>&1 | tail -1
+echo "== backups =="; du -sh /root/.internkim/backups 2>/dev/null; ls -laS /root/.internkim/backups/*.sql 2>/dev/null | head -6
+echo "== postgres log (crash reason) =="; journalctl -u 'postgresql@*' -n 15 --no-pager 2>&1 | tail -15
+echo "== free disk: old deploy snapshots + old daily/buzz backups (keep newest of each) =="
+rm -f -v /root/.internkim/backups/preserved-*.tar.gz /root/.internkim/backups/preserved-*.gzip-status /root/.internkim/backups/preserved-*.gzip-test.log
+ls -t /root/.internkim/backups/.internkim-backup-*.tar.gz 2>/dev/null | tail -n +2 | xargs -r rm -f -v
+ls -t /root/.internkim/backups/buzz-*.sql 2>/dev/null | tail -n +2 | xargs -r rm -f -v
+echo "== disk after cleanup =="; df -h / 2>&1 | tail -1
+echo "== restart postgres =="; timeout 50 systemctl restart postgresql 2>&1; echo "restart rc=$?"
+sleep 2
+echo "== verify =="; timeout 8 su - postgres -c "psql -X -qAt -c 'SELECT 1'" 2>&1 | sed 's/^/psql SELECT 1: /'
+echo "== disk final =="; df -h / 2>&1 | tail -1
+`)
+}
+
+func mattermostUnlockUsersCommand() string {
+	return strings.TrimSpace(`
+set -eu
+su - postgres -c "psql -X -qAt -c \"SELECT datname FROM pg_database WHERE datistemplate = false\"" | while IFS= read -r database; do
+  [ -n "$database" ] || continue
+  escaped_database=$(printf "%s" "$database" | sed "s/'/'\\\\''/g")
+  has_users=$(su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"SELECT to_regclass('public.users') IS NOT NULL AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='failedattempts')\"" 2>/dev/null)
+  [ "$has_users" = "t" ] || continue
+  printf "== %s: locked users (failedattempts>0) before ==\n" "$database"
+  su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"SELECT email || ' failed=' || failedattempts || ' del=' || deleteat || ' auth=' || COALESCE(NULLIF(authservice,''),'password') FROM users WHERE failedattempts > 0 AND deleteat = 0 ORDER BY failedattempts DESC\"" 2>/dev/null
+  printf "== lee@dawn.kim account state ==\n"
+  su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"SELECT email || ' failed=' || failedattempts || ' del=' || deleteat || ' auth=' || COALESCE(NULLIF(authservice,''),'password') FROM users WHERE lower(email)='lee@dawn.kim'\"" 2>/dev/null
+  updated=$(su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"UPDATE users SET failedattempts = 0 WHERE deleteat = 0 AND failedattempts > 0 RETURNING email\"" 2>/dev/null | wc -l)
+  printf "== %s: reset failedattempts for %s user(s) ==\n" "$database" "$updated"
+done
 `)
 }
 
