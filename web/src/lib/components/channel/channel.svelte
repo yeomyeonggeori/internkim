@@ -39,7 +39,7 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 
 	let { isActive = true, threadLayout = 'sheet', channelId }: {
@@ -251,7 +251,7 @@
 
 	const olderMessagesPrefetchThreshold = 800;
 
-	async function loadOlderMessages() {
+	async function loadOlderMessages(viewport: HTMLElement) {
 		if (isLoadingOlder || !hasMoreBefore || !historyCursor) return;
 		isLoadingOlder = true;
 		try {
@@ -262,13 +262,18 @@
 			const fresh = page.messages.filter((message) => !existingIds.has(message.id));
 			if (fresh.length === 0) {
 				hasMoreBefore = false;
-			} else {
-				// The MessageScroller preserves scroll position across a prepend on its
-				// own (childList observer -> restorePrependedAnchor), so we only add the
-				// messages and never touch scrollTop, which is what caused the bounce.
-				olderMessages = [...fresh, ...olderMessages];
-				messages = [...fresh, ...messages];
+				return;
 			}
+			// Distance from the bottom is invariant under a prepend, so restore it as
+			// an absolute scrollTop after the DOM grows. Measuring right before the
+			// mutation (not before the fetch) and setting an absolute target keeps the
+			// reading position exactly, regardless of message grouping or the
+			// scroller's own anchor logic.
+			const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop;
+			olderMessages = [...fresh, ...olderMessages];
+			messages = [...fresh, ...messages];
+			await tick();
+			viewport.scrollTop = viewport.scrollHeight - distanceFromBottom;
 		} finally {
 			isLoadingOlder = false;
 		}
@@ -278,7 +283,7 @@
 		const viewport = event.currentTarget;
 		if (!(viewport instanceof HTMLElement)) return;
 		if (viewport.scrollTop > olderMessagesPrefetchThreshold) return;
-		loadOlderMessages();
+		loadOlderMessages(viewport);
 	}
 
 	function conversationSignature(list: ChannelMessage[]): string {
