@@ -4,26 +4,59 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
-func TestPruneScheduledBackupsKeepsNewestBundles(t *testing.T) {
+func TestPruneBackupDirectoryReclaimsDisk(t *testing.T) {
 	backupDirectory := t.TempDir()
-	for _, name := range []string{
-		"internkim-backup-20260701T000000Z.ikbak",
-		"internkim-backup-20260702T000000Z.ikbak",
-		"internkim-backup-20260703T000000Z.ikbak",
-	} {
-		if errorValue := os.WriteFile(filepath.Join(backupDirectory, name), []byte("x"), 0o600); errorValue != nil {
+	write := func(name string, age time.Duration) {
+		full := filepath.Join(backupDirectory, name)
+		if errorValue := os.WriteFile(full, []byte("x"), 0o600); errorValue != nil {
 			t.Fatal(errorValue)
 		}
+		if age > 0 {
+			old := time.Now().Add(-age)
+			_ = os.Chtimes(full, old, old)
+		}
 	}
-	pruneScheduledBackups(backupDirectory, 2)
-	entries, _ := os.ReadDir(backupDirectory)
-	if len(entries) != 2 {
-		t.Fatalf("expected 2 bundles, got %d", len(entries))
+	// encrypted bundles: keep newest 2
+	write("internkim-backup-20260701T000000Z.ikbak", 0)
+	write("internkim-backup-20260702T000000Z.ikbak", 0)
+	write("internkim-backup-20260703T000000Z.ikbak", 0)
+	// buzz sql snapshots: keep newest 2
+	write("buzz-20260701T000000Z.sql", 0)
+	write("buzz-20260702T000000Z.sql", 0)
+	write("buzz-20260703T000000Z.sql", 0)
+	// stale one-off deploy snapshot: always removed
+	write("preserved-predeploy-20260101T000000Z.tar.gz", 0)
+	// plain leftover from a failed encrypt: removed only when older than an hour
+	write(".internkim-backup-20260704T000000Z.tar.gz", 2*time.Hour)
+	// a plain leftover that may be in progress: kept
+	write(".internkim-backup-20260705T000000Z.tar.gz", time.Minute)
+
+	pruneBackupDirectory(backupDirectory, 2)
+
+	exists := func(name string) bool {
+		_, errorValue := os.Stat(filepath.Join(backupDirectory, name))
+		return errorValue == nil
 	}
-	if _, errorValue := os.Stat(filepath.Join(backupDirectory, "internkim-backup-20260701T000000Z.ikbak")); !os.IsNotExist(errorValue) {
-		t.Fatal("expected the oldest bundle to be pruned")
+	if exists("internkim-backup-20260701T000000Z.ikbak") {
+		t.Fatal("oldest .ikbak should be pruned")
+	}
+	if !exists("internkim-backup-20260703T000000Z.ikbak") || !exists("internkim-backup-20260702T000000Z.ikbak") {
+		t.Fatal("newest two .ikbak should be kept")
+	}
+	if exists("buzz-20260701T000000Z.sql") {
+		t.Fatal("oldest buzz snapshot should be pruned")
+	}
+	if exists("preserved-predeploy-20260101T000000Z.tar.gz") {
+		t.Fatal("stale preserved deploy snapshot should be removed")
+	}
+	if exists(".internkim-backup-20260704T000000Z.tar.gz") {
+		t.Fatal("old plain leftover should be removed")
+	}
+	if !exists(".internkim-backup-20260705T000000Z.tar.gz") {
+		t.Fatal("recent plain leftover (possibly in-progress) should be kept")
 	}
 }
 

@@ -97,7 +97,7 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 	}
 	printCommandTargetEvidence(target)
 	fmt.Printf("Recovery action: %s\n", response.Action)
-	for _, serviceName := range []string{"ssh", "cloudflared-node-ssh", "cloudflared", "blueclaw", "buzz-relay", "buzz-relay-stunnel", "chatd", "relay-tls-443", "mattermost-8065", "mattermost-state", "mattermost-why", "mattermost-how", "disk-root", "postgres-dbs", "pg-clusters", "mm-config-db", "mm-db-data", "mm-env-ds"} {
+	for _, serviceName := range []string{"ssh", "cloudflared-node-ssh", "cloudflared", "blueclaw", "buzz-relay", "buzz-relay-stunnel", "chatd", "relay-tls-443", "mattermost-8065", "mattermost-state", "mattermost-why", "mattermost-how", "disk-root", "postgres-dbs", "pg-clusters", "mm-config-db", "mm-pat-enabled", "mm-db-data", "mm-env-ds"} {
 		if serviceState := strings.TrimSpace(response.Services[serviceName]); serviceState != "" {
 			fmt.Printf("  %-22s %s\n", serviceName, serviceState)
 		}
@@ -117,7 +117,7 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 	if diagnose {
 		printSSHRecoveryLocalDiagnostics(configuration, sshpassBin, target)
 	}
-	if action == "status" || action == "snapshot" || action == "journal-tail" || action == "limit-blueclaw" || action == "restart-blueclaw" || action == "blueclaw-boot-diagnose" || action == "blueclaw-journal" || action == "buzz-mirror-status" || action == "buzz-orphan-inspect" || action == "buzz-snapshot" || action == "buzz-membership-recover" || action == "buzz-restore" || action == "buzz-repair-dryrun" || action == "buzz-repair-apply" || action == "buzz-reimport" || action == "buzz-reimport-log" || action == "buzz-read-test" || action == "buzz-chatd-repair" || action == "mattermost-unlock-users" || action == "postgres-repair" || action == "mattermost-restart" || action == "mattermost-db-resync" || action == "mattermost-fix-dbname" || action == "mattermost-force-dbname" {
+	if action == "status" || action == "snapshot" || action == "journal-tail" || action == "limit-blueclaw" || action == "restart-blueclaw" || action == "blueclaw-boot-diagnose" || action == "blueclaw-journal" || action == "buzz-mirror-status" || action == "buzz-orphan-inspect" || action == "buzz-snapshot" || action == "buzz-membership-recover" || action == "buzz-restore" || action == "buzz-repair-dryrun" || action == "buzz-repair-apply" || action == "buzz-reimport" || action == "buzz-reimport-log" || action == "buzz-read-test" || action == "buzz-chatd-repair" || action == "mattermost-unlock-users" || action == "postgres-repair" {
 		return nil
 	}
 	if action == "reboot" {
@@ -150,7 +150,7 @@ func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, t
 
 func isAllowedCLIRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "mattermost-restart", "mattermost-db-resync", "mattermost-fix-dbname", "mattermost-force-dbname":
+	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair":
 		return true
 	default:
 		return false

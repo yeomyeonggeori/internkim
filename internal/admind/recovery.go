@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "mattermost-restart", "mattermost-db-resync", "mattermost-fix-dbname", "mattermost-force-dbname":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair":
 		return true
 	default:
 		return false
@@ -177,22 +177,6 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		pgContext, cancelPg := context.WithTimeout(context.Background(), 90*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(pgContext, "diagnose + restart postgres", "sh", "-lc", postgresRepairCommand()))
 		cancelPg()
-	case "mattermost-restart":
-		mmContext, cancelMM := context.WithTimeout(context.Background(), 90*time.Second)
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(mmContext, "restart Mattermost + verify", "sh", "-lc", mattermostRestartCommand()))
-		cancelMM()
-	case "mattermost-db-resync":
-		resyncContext, cancelResync := context.WithTimeout(context.Background(), 60*time.Second)
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(resyncContext, "resync mmuser db password + restart", "sh", "-lc", mattermostDbResyncCommand()))
-		cancelResync()
-	case "mattermost-fix-dbname":
-		fixContext, cancelFix := context.WithTimeout(context.Background(), 60*time.Second)
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(fixContext, "point MM config at the mattermost db + restart", "sh", "-lc", mattermostFixDbnameCommand()))
-		cancelFix()
-	case "mattermost-force-dbname":
-		forceContext, cancelForce := context.WithTimeout(context.Background(), 60*time.Second)
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(forceContext, "replace mattermost_test->mattermost everywhere + restart", "sh", "-lc", mattermostForceDbnameCommand()))
-		cancelForce()
 	case "buzz-snapshot":
 		snapshotContext, cancelSnapshot := context.WithTimeout(context.Background(), 180*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(snapshotContext, "snapshot buzz relay database", "sh", "-lc", buzzSnapshotCommand()))
@@ -779,101 +763,6 @@ echo "reimport launched (self-healing: auto-restores $SNAP if import fails) — 
 `)
 }
 
-func mattermostForceDbnameCommand() string {
-	return strings.TrimSpace(`
-set +e
-echo "== files referencing mattermost_test (before) =="
-grep -rl 'mattermost_test' /opt/mattermost/config /etc/systemd/system /lib/systemd/system /etc/default /etc/mattermost 2>/dev/null | grep -vE 'pgbak|\.bak' | tee /tmp/mmref.txt
-echo "== replacing mattermost_test -> mattermost =="
-while IFS= read -r f; do [ -f "$f" ] || continue; cp -a "$f" "$f.pgbak" 2>/dev/null; sed -i 's/mattermost_test/mattermost/g' "$f"; echo "fixed: $f"; done < /tmp/mmref.txt
-rm -f /tmp/mmref.txt
-echo "== remaining refs (should be empty) =="
-grep -rl 'mattermost_test' /opt/mattermost/config /etc/systemd/system /lib/systemd/system /etc/default /etc/mattermost 2>/dev/null | grep -vE 'pgbak|\.bak'
-systemctl daemon-reload
-echo "== restart mattermost =="
-timeout 30 systemctl restart mattermost.service 2>&1; echo "rc=$?"
-echo "done (check status: mattermost-8065)"
-`)
-}
-
-func mattermostFixDbnameCommand() string {
-	return strings.TrimSpace(`
-set +e
-CFG=/opt/mattermost/config/config.json
-cp -a "$CFG" "$CFG.bak-$(date -u +%Y%m%dT%H%M%SZ)" 2>&1 | sed 's/^/backup: /'
-echo "before: $(grep -oE '"DataSource": *"[^"]*"' "$CFG" | head -1 | sed -E 's#://[^:]+:[^@]+@#://U:P@#')"
-python3 - "$CFG" <<'PYEOF'
-import json, sys
-cfg = sys.argv[1]
-d = json.load(open(cfg))
-sql = d.get('SqlSettings', {})
-changed = 0
-for k in ['DataSource', 'DataSourceReplicas', 'DataSourceSearchReplicas']:
-    v = sql.get(k)
-    if isinstance(v, str) and 'mattermost_test' in v:
-        sql[k] = v.replace('mattermost_test', 'mattermost'); changed += 1
-    elif isinstance(v, list):
-        nv = [x.replace('mattermost_test', 'mattermost') if isinstance(x, str) else x for x in v]
-        if nv != v: sql[k] = nv; changed += 1
-json.dump(d, open(cfg, 'w'), indent=4)
-print("fields changed:", changed)
-PYEOF
-echo "after: $(grep -oE '"DataSource": *"[^"]*"' "$CFG" | head -1 | sed -E 's#://[^:]+:[^@]+@#://U:P@#')"
-echo "== restart mattermost =="
-timeout 30 systemctl restart mattermost.service 2>&1; echo "rc=$?"
-echo "done (check status: mattermost-8065)"
-`)
-}
-
-func mattermostDbResyncCommand() string {
-	return strings.TrimSpace(`
-set +e
-CFG=/opt/mattermost/config/config.json
-[ -f "$CFG" ] || CFG=$(ls -t /opt/mattermost/config/config.json /mattermost/config/config.json 2>/dev/null | head -1)
-echo "config: ${CFG:-NOT FOUND}"
-python3 - "$CFG" > /tmp/mm-resync.sql 2>/tmp/mm-resync.err <<'PYEOF'
-import json, sys
-from urllib.parse import urlparse, unquote
-ds = json.load(open(sys.argv[1]))['SqlSettings']['DataSource']
-u = urlparse(ds)
-user = (u.username or 'mmuser').replace('"','""')
-pw = unquote(u.password or '')
-sys.stderr.write("db_user=%s host=%s db=%s\n" % (u.username, u.hostname, (u.path or '').lstrip('/')))
-print('ALTER USER "%s" WITH PASSWORD \'%s\';' % (user, pw.replace("'", "''")))
-PYEOF
-cat /tmp/mm-resync.err
-chmod 644 /tmp/mm-resync.sql
-echo "== ALTER mmuser password to match config =="
-su - postgres -c "psql -X -d postgres -f /tmp/mm-resync.sql" 2>&1 | sed 's/^/psql: /'
-rm -f /tmp/mm-resync.sql /tmp/mm-resync.err
-echo "== restart mattermost =="
-timeout 25 systemctl restart mattermost.service 2>&1; echo "rc=$?"
-echo "done (check status: mattermost-8065)"
-`)
-}
-
-func mattermostRestartCommand() string {
-	return strings.TrimSpace(`
-set +e
-UNIT=$(systemctl list-unit-files --no-legend 2>/dev/null | awk '{print $1}' | grep -iE 'mattermost' | head -1)
-CT=$(timeout 5 docker ps -a --format '{{.Names}}|{{.Status}}' 2>/dev/null | grep -iE 'mattermost' | head -1)
-echo "unit=${UNIT:-none} container=${CT:-none}"
-ps -eo comm,pid 2>/dev/null | grep -iE 'mattermost' | head -2
-if [ -n "$UNIT" ]; then
-  echo "state=$(systemctl is-active "$UNIT" 2>&1)"
-  echo "why: $(timeout 8 journalctl -u "$UNIT" -n 4 --no-pager 2>&1 | tail -4 | tr '\n' '~')"
-  timeout 25 systemctl restart "$UNIT" 2>&1; echo "restart_rc=$?"
-elif [ -n "$CT" ]; then
-  CN=$(printf '%s' "$CT" | cut -d'|' -f1)
-  timeout 25 docker restart "$CN" 2>&1; echo "docker_restart_rc=$?"
-else
-  echo "NO_MM_UNIT_OR_CONTAINER_FOUND"
-  systemctl list-unit-files --no-legend 2>/dev/null | awk '{print $1}' | grep -iE 'mm|chat|mattermost' | head
-fi
-echo "done (check status for mattermost-8065)"
-`)
-}
-
 func postgresRepairCommand() string {
 	return strings.TrimSpace(`
 set +e
@@ -1034,6 +923,7 @@ func (service *Service) sshRecoveryServiceStates(ctx context.Context) map[string
 		"postgres-dbs":         service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "timeout 6 su - postgres -c \"psql -X -qAt -c 'SELECT datname FROM pg_database WHERE datistemplate=false'\" 2>&1 | tr '\\n' ' '"),
 		"pg-clusters":          service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "pg_lsclusters --no-header 2>/dev/null | awk '{print $1\"/\"$2\":\"$4}' | tr '\\n' ' '"),
 		"mm-config-db":         service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "grep -oE '\\\"DataSource\\\": *\\\"[^\\\"]*\\\"' /opt/mattermost/config/config.json 2>/dev/null | head -1 | sed -E 's#://[^:]+:[^@]+@#://USER:PASS@#'"),
+		"mm-pat-enabled":       service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "grep -o '\\\"EnableUserAccessTokens\\\": *[a-z]*' /opt/mattermost/config/config.json 2>/dev/null | grep -oE 'true|false' | head -1"),
 		"mm-db-data":           service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "timeout 6 su - postgres -c \"psql -X -qAt -d mattermost -c \\\"SELECT 'users='||count(*) FROM users\\\"; psql -X -qAt -d mattermost -c \\\"SELECT 'posts='||count(*) FROM posts\\\"\" 2>&1 | tr '\\n' ' '"),
 		"mm-env-ds":            service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "{ systemctl show mattermost.service -p Environment -p EnvironmentFiles 2>/dev/null | tr ' ' '\\n' | grep -iE 'DATASOURCE|EnvironmentFiles'; for f in $(systemctl show mattermost.service -p EnvironmentFiles 2>/dev/null | sed 's/EnvironmentFiles=//' | tr ' ' '\\n' | sed 's/^-//'); do grep -h DATASOURCE \"$f\" 2>/dev/null; done; } | grep -iE 'test|datasource|Environment' | sed -E 's#://[^:]+:[^@]+@#://U:P@#' | head -3 | tr '\\n' '  '"),
 	}
