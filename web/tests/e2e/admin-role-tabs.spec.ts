@@ -66,7 +66,8 @@ test.describe('admin role tabs', () => {
 		await expect(main.getByRole('tab', { name: '백업' })).toBeVisible();
 		await expect(main.getByRole('tab', { name: '봇' })).toBeVisible();
 		await expect(main.getByRole('tab', { name: '일반', exact: true })).toBeVisible();
-		await expect(main.getByRole('tab', { name: '근태 설정', exact: true })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '근무 설정', exact: true })).toBeVisible();
+		await expect(main.getByRole('tab', { name: '휴가 설정', exact: true })).toBeVisible();
 		await expect(main.getByRole('tab', { name: '네트워크' })).toBeVisible();
 		await main.getByRole('tab', { name: '사용자' }).click();
 		const adminRow = main.getByRole('row').filter({ hasText: 'admin@example.com' });
@@ -84,7 +85,8 @@ test.describe('admin role tabs', () => {
 		await expect(main.getByRole('link', { name: '조직도' })).toHaveCount(0);
 		await expect(main.getByRole('tab', { name: '조직도' })).toHaveCount(0);
 		await expect(main.getByRole('tab', { name: '일반', exact: true })).toBeVisible();
-		await expect(main.getByRole('tab', { name: '근태 설정', exact: true })).toHaveCount(0);
+		await expect(main.getByRole('tab', { name: '근무 설정', exact: true })).toHaveCount(0);
+		await expect(main.getByRole('tab', { name: '휴가 설정', exact: true })).toHaveCount(0);
 		await expect(main.getByRole('tab', { name: '기기' })).toHaveCount(0);
 		await expect(main.getByRole('tab', { name: '인증 정보' })).toHaveCount(0);
 		await expect(main.getByRole('tab', { name: '백업' })).toHaveCount(0);

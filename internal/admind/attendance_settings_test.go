@@ -23,6 +23,7 @@ func TestAttendanceSettingsDefaultsDoNotCreateFile(t *testing.T) {
 	if document.Version != attendanceSettingsDocumentVersion ||
 		document.TeamViewVisibleToAll == nil ||
 		!*document.TeamViewVisibleToAll ||
+		document.WorkPolicy.Version != attendanceWorkPolicyVersion ||
 		document.LeavePolicy.Version != attendanceLeavePolicyVersion {
 		t.Fatalf("defaults = %+v", document)
 	}
@@ -260,6 +261,7 @@ func validAttendanceSettingsTestDocument() attendanceSettingsDocument {
 		Version:              attendanceSettingsDocumentVersion,
 		UpdatedAt:            time.Now().UTC().Format(time.RFC3339),
 		TeamViewVisibleToAll: &teamViewVisibleToAll,
+		WorkPolicy:           defaultAttendanceWorkPolicy(),
 		LeavePolicy:          defaultAttendanceLeavePolicy(),
 	}
 }

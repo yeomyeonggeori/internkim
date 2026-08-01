@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
+	import ChartNoAxesCombinedIcon from '@lucide/svelte/icons/chart-no-axes-combined';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
 	import HistoryIcon from '@lucide/svelte/icons/history';
@@ -56,6 +57,17 @@
 				<LayoutDashboardIcon />
 				{text.approval.statusNavigation}
 			</Button>
+			{#if attendance.summary?.isAdmin}
+				<Button
+					variant={attendanceView.selected === 'employeeWorkStatus' ? 'secondary' : 'ghost'}
+					class="w-full justify-start"
+					onclick={() => attendanceView.select('employeeWorkStatus')}
+					data-testid="employee-work-status-navigation"
+				>
+					<ChartNoAxesCombinedIcon />
+					{text.workStatus.employeeNavigation}
+				</Button>
+			{/if}
 			<Button
 				variant={attendanceView.selected === 'leaveHistory' ? 'secondary' : 'ghost'}
 				class="w-full justify-start"

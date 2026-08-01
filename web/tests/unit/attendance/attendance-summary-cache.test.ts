@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 
 import {
 	clearCachedAttendanceSummaries,
@@ -27,7 +27,23 @@ function createMemorySessionStorage(): Storage {
 	};
 }
 
-Object.defineProperty(globalThis, 'window', { value: { sessionStorage: createMemorySessionStorage() }, writable: true });
+const originalWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+
+beforeAll(() => {
+	Object.defineProperty(globalThis, 'window', {
+		value: { sessionStorage: createMemorySessionStorage() },
+		configurable: true,
+		writable: true
+	});
+});
+
+afterAll(() => {
+	if (originalWindowDescriptor) {
+		Object.defineProperty(globalThis, 'window', originalWindowDescriptor);
+		return;
+	}
+	delete (globalThis as { window?: Window }).window;
+});
 
 describe('attendance summary cache', () => {
 	beforeEach(() => {
