@@ -104,7 +104,7 @@ sequenceDiagram
   participant Helper as blueclaw-posix-helper
   participant Linux as Linux POSIX
 
-  Model->>Service: file.write / terminal.run / file.deliver
+  Model->>Service: file_write / terminal_run / file_deliver
   Service->>Resolver: virtual path validation
   Resolver-->>Service: typed workspace path
   Service->>Actor: requester operation
@@ -138,15 +138,15 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  A["file.write tmp/<slug>/DESIGN.md"] --> B["file.write tmp/<slug>/presentation.md"]
-  B --> C["terminal.run workingDirectoryPath=tmp/<slug>"]
+  A["file_write tmp/<slug>/DESIGN.md"] --> B["file_write tmp/<slug>/presentation.md"]
+  B --> C["terminal_run workingDirectoryPath=tmp/<slug>"]
   C --> D["build output tmp/<slug>/build/*.pptx"]
-  D --> E["file.deliver tmp/<slug>/build/*.pptx"]
+  D --> E["file_deliver tmp/<slug>/build/*.pptx"]
 ```
 
-Required artifact task는 `file.deliver` completion evidence가 있어야 completed로 인정됩니다. `tmp/<slug>` 파일 생성, local path 문자열, markdown 링크, `/workspace/...` 경로 노출은 완료 증거가 아닙니다.
+Required artifact task는 `file_deliver` completion evidence가 있어야 completed로 인정됩니다. `tmp/<slug>` 파일 생성, local path 문자열, markdown 링크, `/workspace/...` 경로 노출은 완료 증거가 아닙니다.
 
-`simple-slides`는 `file.write -> terminal.run -> file.deliver` 흐름을 따릅니다. Marp runtime은 전역 PATH의 ambiguous `marp`를 잡지 않고 rootfs 선설치 entrypoint 또는 requester tmp의 skill-local install을 사용합니다. 실행 중 쓰기 경로는 `tmp/<slug>/build/.tmp` 아래로 고정합니다.
+`simple-slides`는 `file_write -> terminal_run -> file_deliver` 흐름을 따릅니다. Marp runtime은 전역 PATH의 ambiguous `marp`를 잡지 않고 rootfs 선설치 entrypoint 또는 requester tmp의 skill-local install을 사용합니다. 실행 중 쓰기 경로는 `tmp/<slug>/build/.tmp` 아래로 고정합니다.
 
 ## 설정 생성
 

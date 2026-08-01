@@ -3,26 +3,26 @@
   "requiresLLMD": true,
   "expectedLLMProvider": "openrouter",
   "allowedTools": [
-    "file.write",
-    "file.read",
-    "file.edit",
-    "file.deliver",
-    "file.delete"
+    "file_write",
+    "file_read",
+    "file_edit",
+    "file_deliver",
+    "file_delete"
   ],
   "initialToolNames": [
-    "file.write",
-    "file.deliver"
+    "file_write",
+    "file_deliver"
   ],
   "steps": [
     {
       "prompt": "고객지원팀 주간 운영 점검에 쓸 작은 JSON 파일을 만들어서 보내줘. 파일 이름은 customer-support-weekly-check.json으로 하고, 보고서 이름은 '고객지원 주간 운영 점검', 상태는 '검토 중', 담당은 '운영팀'으로 넣어줘.",
       "expectedToolCalls": [
-        "file.write",
-        "file.deliver"
+        "file_write",
+        "file_deliver"
       ],
       "expectedExactToolCallCounts": {
-        "file.write": 1,
-        "file.deliver": 1
+        "file_write": 1,
+        "file_deliver": 1
       },
       "expectedAttachments": [
         ".json"
@@ -34,14 +34,14 @@
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.file.write.result",
+          "name": "tool.file_write.result",
           "bodyFragment": "\"effect\":\"created\"",
           "count": 1,
           "exact": true,
           "advisory": true
         },
         {
-          "name": "tool.file.deliver.result",
+          "name": "tool.file_deliver.result",
           "bodyFragment": "\"effect\":\"attached\"",
           "count": 1,
           "exact": true,
@@ -63,14 +63,14 @@
     {
       "prompt": "방금 만든 JSON 파일을 읽어서 보고서 이름, 상태, 담당을 확인해줘.",
       "expectedToolCalls": [
-        "file.read"
+        "file_read"
       ],
       "expectedToolCallCounts": {
-        "file.read": 1
+        "file_read": 1
       },
       "expectedEventCounts": [
         {
-          "name": "tool.file.read.result",
+          "name": "tool.file_read.result",
           "outputFragment": "고객지원 주간 운영 점검",
           "count": 1
         }
@@ -95,12 +95,12 @@
     {
       "prompt": "그 JSON 파일의 상태를 '검토 완료'로 바꾸고 담당을 '고객경험팀'으로 수정한 뒤 같은 파일로 다시 보내줘.",
       "expectedToolCalls": [
-        "file.edit",
-        "file.deliver"
+        "file_edit",
+        "file_deliver"
       ],
       "expectedExactToolCallCounts": {
-        "file.edit": 1,
-        "file.deliver": 1
+        "file_edit": 1,
+        "file_deliver": 1
       },
       "expectedAttachments": [
         ".json"
@@ -112,14 +112,14 @@
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.file.edit.result",
+          "name": "tool.file_edit.result",
           "bodyFragment": "\"effect\":\"updated\"",
           "count": 1,
           "exact": true,
           "advisory": true
         },
         {
-          "name": "tool.file.deliver.result",
+          "name": "tool.file_deliver.result",
           "bodyFragment": "\"effect\":\"attached\"",
           "count": 1,
           "exact": true,
@@ -149,19 +149,19 @@
     {
       "prompt": "수정한 JSON 파일을 다시 읽어서 상태와 담당이 제대로 바뀌었는지 확인해줘.",
       "expectedToolCalls": [
-        "file.read"
+        "file_read"
       ],
       "expectedToolCallCounts": {
-        "file.read": 1
+        "file_read": 1
       },
       "expectedEventCounts": [
         {
-          "name": "tool.file.read.result",
+          "name": "tool.file_read.result",
           "outputFragment": "검토 완료",
           "count": 1
         },
         {
-          "name": "tool.file.read.result",
+          "name": "tool.file_read.result",
           "outputFragment": "고객경험팀",
           "count": 1
         }
@@ -189,7 +189,7 @@
       "prompt": "확인한 customer-support-weekly-check.json 파일을 삭제해줘.",
       "approvalAction": "approve",
       "expectedToolCalls": [
-        "file.delete"
+        "file_delete"
       ],
       "expectedEvents": [
         "approval.pending_call",
@@ -198,20 +198,20 @@
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.file.delete.requested",
+          "name": "tool.file_delete.requested",
           "count": 1,
           "exact": true,
           "advisory": true
         },
         {
-          "name": "tool.file.delete.result",
+          "name": "tool.file_delete.result",
           "bodyFragment": "\"effect\":\"deleted\"",
           "count": 1,
           "exact": true,
           "advisory": true
         },
         {
-          "name": "tool.file.delete.result",
+          "name": "tool.file_delete.result",
           "outputFragment": "deleted",
           "count": 1,
           "exact": true

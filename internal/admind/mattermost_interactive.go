@@ -82,9 +82,9 @@ func (service *Service) mattermostInteractiveActionHandlers() map[string]matterm
 			service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockOut)
 		},
 		attendanceToggleAction: service.handleAttendanceToggleAction,
-		"ask.confirm":          service.handleAskInteractiveAction,
+		"ask_confirm":          service.handleAskInteractiveAction,
 		"ask.cancel":           service.handleAskInteractiveAction,
-		"ask.choice":           service.handleAskInteractiveAction,
+		"ask_choice":           service.handleAskInteractiveAction,
 	}
 }
 
@@ -150,11 +150,11 @@ func normalizedMattermostAskEventEnvelope(payload mattermostInteractivePayload) 
 
 func mattermostAskActionPrompt(action string, choiceKey string) string {
 	switch strings.TrimSpace(action) {
-	case "ask.confirm":
+	case "ask_confirm":
 		return "approved"
 	case "ask.cancel":
 		return "rejected"
-	case "ask.choice":
+	case "ask_choice":
 		return "selected " + strings.TrimSpace(choiceKey)
 	default:
 		return strings.TrimSpace(action)

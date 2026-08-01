@@ -60,13 +60,13 @@ func (service Service) invokeWebTool(ctx context.Context, request capabilities.T
 
 func (service Service) invokeOpenRouterWebTool(ctx context.Context, request capabilities.ToolInvokeRequest, apiKey string) (json.RawMessage, error) {
 	switch strings.TrimSpace(request.ToolName) {
-	case "web.search":
+	case "web_search":
 		input, errorValue := decodeWebSearchInput(request.Input)
 		if errorValue != nil {
 			return nil, errorValue
 		}
 		return service.invokeOpenRouterWebSearch(ctx, input, apiKey)
-	case "web.fetch":
+	case "web_fetch":
 		input, errorValue := decodeWebFetchInput(request.Input)
 		if errorValue != nil {
 			return nil, errorValue

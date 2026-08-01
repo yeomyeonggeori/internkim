@@ -310,13 +310,13 @@ func titleCapabilityScope(value string) string {
 
 func capabilityScopeForTool(toolName string) string {
 	switch {
-	case strings.HasPrefix(toolName, "browser."):
+	case strings.HasPrefix(toolName, "browser_"):
 		return "browser"
-	case toolName == "file.pick":
+	case toolName == "file_pick":
 		return "file"
 	case strings.HasPrefix(toolName, "desktop."):
 		return "desktop"
-	case toolName == "user.confirm" || toolName == "user.input":
+	case toolName == "user_confirm" || toolName == "user.input":
 		return "user_input"
 	default:
 		return ""

@@ -36,7 +36,7 @@ func TestFileLifecycleUsesCanonicalKernelToolsAndButtonApproval(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	expectedTools := []string{"file.write", "file.read", "file.edit", "file.deliver", "file.delete"}
+	expectedTools := []string{"file_write", "file_read", "file_edit", "file_deliver", "file_delete"}
 	if len(scenario.Steps) != 5 || !slices.Equal(scenario.AllowedTools, expectedTools) {
 		t.Fatalf("unexpected file lifecycle: %#v", scenario)
 	}
@@ -83,16 +83,16 @@ func TestMessageLifecycleUsesCanonicalSearchMutationLineageAndButtonApproval(t *
 	}
 	for _, stepIndex := range []int{5, 6} {
 		step := scenario.Steps[stepIndex]
-		if !containsMattermostScenarioString(step.ExpectedToolCalls, "message.send") || step.ApprovalAction != mattermostScenarioApprovalApprove {
+		if !containsMattermostScenarioString(step.ExpectedToolCalls, "message_send") || step.ApprovalAction != mattermostScenarioApprovalApprove {
 			t.Fatalf("step %d does not send with button approval: %#v", stepIndex+1, step)
 		}
 	}
-	if len(scenario.InitialToolNames) != 1 || scenario.InitialToolNames[0] != "message.send" {
+	if len(scenario.InitialToolNames) != 1 || scenario.InitialToolNames[0] != "message_send" {
 		t.Fatalf("unexpected initial message tools: %#v", scenario.InitialToolNames)
 	}
 	for _, stepIndex := range []int{1, 3} {
 		step := scenario.Steps[stepIndex]
-		if !containsMattermostScenarioString(step.ExpectedToolCalls, "message.search") {
+		if !containsMattermostScenarioString(step.ExpectedToolCalls, "message_search") {
 			t.Fatalf("step %d does not search before mutation: %#v", stepIndex+1, step)
 		}
 		if step.ApprovalAction != mattermostScenarioApprovalApprove {
@@ -104,14 +104,14 @@ func TestMessageLifecycleUsesCanonicalSearchMutationLineageAndButtonApproval(t *
 func TestMattermostScenarioMessageMutationRequiresSearchAndScenarioLineage(t *testing.T) {
 	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{
 		TaskEvents: []mattermostScenarioTaskEvent{{
-			Name: "tool.message.send.result",
+			Name: "tool.message_send.result",
 			Body: `{"output":{"data":{"messageIDs":["message-1"],"deliveryStatus":"sent"}}}`,
 		}},
 	}}}
-	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"message.search", "message.update"}}
+	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"message_search", "message_update"}}
 	events := []mattermostScenarioTaskEvent{
-		{Name: "tool.message.search.result", Body: `{"output":{"data":{"messageIDs":["message-1"],"candidates":[]}}}`},
-		{Name: "tool.message.update.requested", Body: `{"input":{"messageID":"message-1","message":"수정"}}`},
+		{Name: "tool.message_search.result", Body: `{"output":{"data":{"messageIDs":["message-1"],"candidates":[]}}}`},
+		{Name: "tool.message_update.requested", Body: `{"input":{"messageID":"message-1","message":"수정"}}`},
 	}
 	if errorValue := validateMattermostScenarioMessageMutationIDs(1, expected, events, &result); errorValue != nil {
 		t.Fatalf("validate exact message lineage: %v", errorValue)
@@ -119,7 +119,7 @@ func TestMattermostScenarioMessageMutationRequiresSearchAndScenarioLineage(t *te
 
 	events[1].Body = `{"input":{"messageID":"message-2","message":"수정"}}`
 	errorValue := validateMattermostScenarioMessageMutationIDs(1, expected, events, &result)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "message.search returned it") {
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "message_search returned it") {
 		t.Fatalf("expected unobserved message ID failure, got %v", errorValue)
 	}
 }
@@ -127,14 +127,14 @@ func TestMattermostScenarioMessageMutationRequiresSearchAndScenarioLineage(t *te
 func TestMattermostScenarioMessageMutationRejectsSearchResultOutsidePriorLineage(t *testing.T) {
 	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{
 		TaskEvents: []mattermostScenarioTaskEvent{{
-			Name: "tool.message.update.result",
+			Name: "tool.message_update.result",
 			Body: `{"output":{"data":{"messageID":"message-1","deliveryStatus":"updated","messageUpdated":true}}}`,
 		}},
 	}}}
-	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"message.search", "message.delete"}}
+	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"message_search", "message_delete"}}
 	events := []mattermostScenarioTaskEvent{
-		{Name: "tool.message.search.result", Body: `{"output":{"data":{"messageIDs":["message-2"],"candidates":[]}}}`},
-		{Name: "tool.message.delete.requested", Body: `{"input":{"messageIDs":["message-2"]}}`},
+		{Name: "tool.message_search.result", Body: `{"output":{"data":{"messageIDs":["message-2"],"candidates":[]}}}`},
+		{Name: "tool.message_delete.requested", Body: `{"input":{"messageIDs":["message-2"]}}`},
 	}
 	errorValue := validateMattermostScenarioMessageMutationIDs(1, expected, events, &result)
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "outside the scenario mutation lineage") {
@@ -150,35 +150,35 @@ func TestWebsiteLifecycleResolvesCanonicalSiteIdentityForEveryMutation(t *testin
 	if len(scenario.Steps) != 5 {
 		t.Fatalf("expected draft, preview, publish, republish, and unserve steps, got %d", len(scenario.Steps))
 	}
-	if slices.Contains(scenario.AllowedTools, "site.create") || !slices.Contains(scenario.AllowedTools, "site.serve") {
+	if slices.Contains(scenario.AllowedTools, "site.create") || !slices.Contains(scenario.AllowedTools, "site_serve") {
 		t.Fatalf("unexpected site tool surface: %#v", scenario.AllowedTools)
 	}
 
 	draftStep := scenario.Steps[0]
 	forbidsPublish := false
 	for _, eventCount := range draftStep.ExpectedEventCounts {
-		if eventCount.Name == "tool.site.serve.requested" && eventCount.BodyFragment == `"mode":"publish"` &&
+		if eventCount.Name == "tool.site_serve.requested" && eventCount.BodyFragment == `"mode":"publish"` &&
 			eventCount.Exact && !eventCount.Advisory && eventCount.Count == 0 {
 			forbidsPublish = true
 		}
 	}
-	if !forbidsPublish || !containsMattermostScenarioString(draftStep.ExpectedToolCalls, "terminal.run") {
+	if !forbidsPublish || !containsMattermostScenarioString(draftStep.ExpectedToolCalls, "terminal_run") {
 		t.Fatalf("step 1 must draft through the scaffold script without publishing: %#v", draftStep)
 	}
 
-	if !hasWebsiteScenarioEventCount(scenario.Steps[1], "tool.site.serve.result", `"effect":"previewed"`, false) {
+	if !hasWebsiteScenarioEventCount(scenario.Steps[1], "tool.site_serve.result", `"effect":"previewed"`, false) {
 		t.Fatalf("step 2 does not require the previewed serve effect: %#v", scenario.Steps[1])
 	}
 	for _, publishStepIndex := range []int{2, 3} {
 		step := scenario.Steps[publishStepIndex]
-		if !hasWebsiteScenarioEventCount(step, "tool.site.serve.requested", `"mode":"publish"`, true) {
+		if !hasWebsiteScenarioEventCount(step, "tool.site_serve.requested", `"mode":"publish"`, true) {
 			t.Fatalf("step %d does not require exactly one publish-mode serve: %#v", publishStepIndex+1, step)
 		}
-		if !hasWebsiteScenarioEventCount(step, "tool.site.serve.result", `"effect":"published"`, false) {
+		if !hasWebsiteScenarioEventCount(step, "tool.site_serve.result", `"effect":"published"`, false) {
 			t.Fatalf("step %d does not require the published serve effect: %#v", publishStepIndex+1, step)
 		}
 	}
-	if !hasWebsiteScenarioEventCount(scenario.Steps[3], "tool.site.serve.requested", `"siteReference":`, false) {
+	if !hasWebsiteScenarioEventCount(scenario.Steps[3], "tool.site_serve.requested", `"siteReference":`, false) {
 		t.Fatalf("step 4 does not require updating the existing site through siteReference: %#v", scenario.Steps[3])
 	}
 
@@ -186,13 +186,13 @@ func TestWebsiteLifecycleResolvesCanonicalSiteIdentityForEveryMutation(t *testin
 	if unserveStep.ApprovalAction != mattermostScenarioApprovalApprove ||
 		!containsMattermostScenarioString(unserveStep.ExpectedEvents, "confirmation.requested") ||
 		!containsMattermostScenarioString(unserveStep.ExpectedEvents, "approval.executed") ||
-		!containsMattermostScenarioString(unserveStep.ExpectedToolCalls, "terminal.run") ||
+		!containsMattermostScenarioString(unserveStep.ExpectedToolCalls, "terminal_run") ||
 		len(unserveStep.ForbiddenWorkspaceFiles) == 0 {
 		t.Fatalf("step 5 must unserve with approval and remove workspace files explicitly: %#v", unserveStep)
 	}
 	hasExactUnserveResult := false
 	for _, eventCount := range unserveStep.ExpectedEventCounts {
-		if eventCount.Name == "tool.site.unserve.result" && eventCount.OutputFragment == "unserved" {
+		if eventCount.Name == "tool.site_unserve.result" && eventCount.OutputFragment == "unserved" {
 			hasExactUnserveResult = eventCount.Exact && !eventCount.Advisory && eventCount.Count == 1
 		}
 	}
@@ -231,13 +231,13 @@ func TestDocumentLifecycleUsesCanonicalReadAndButtonApproval(t *testing.T) {
 	if len(scenario.Steps) != 5 {
 		t.Fatalf("expected one delete turn with button approval, got %d steps", len(scenario.Steps))
 	}
-	if !containsMattermostScenarioString(scenario.CapabilityToolNames, "document.read") ||
-		!containsMattermostScenarioString(scenario.InitialToolNames, "document.read") {
+	if !containsMattermostScenarioString(scenario.CapabilityToolNames, "document_read") ||
+		!containsMattermostScenarioString(scenario.InitialToolNames, "document_read") {
 		t.Fatalf("unexpected document tool exposure: %#v", scenario)
 	}
 	for _, stepIndex := range []int{1, 3} {
-		if !containsMattermostScenarioString(scenario.Steps[stepIndex].ExpectedAnyToolCalls, "document.read") {
-			t.Fatalf("step %d does not accept document.read as a read path: %#v", stepIndex+1, scenario.Steps[stepIndex])
+		if !containsMattermostScenarioString(scenario.Steps[stepIndex].ExpectedAnyToolCalls, "document_read") {
+			t.Fatalf("step %d does not accept document_read as a read path: %#v", stepIndex+1, scenario.Steps[stepIndex])
 		}
 	}
 	deleteStep := scenario.Steps[len(scenario.Steps)-1]
@@ -250,8 +250,8 @@ func TestDocumentLifecycleUsesCanonicalReadAndButtonApproval(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.Contains(string(skillDocument), "tool-references: document.read") {
-		t.Fatal("document skill does not reference document.read")
+	if !strings.Contains(string(skillDocument), "tool-references: document_read") {
+		t.Fatal("document skill does not reference document_read")
 	}
 }
 
@@ -340,23 +340,23 @@ func TestMattermostScenarioAcceptsInCeilingModelSubstitution(t *testing.T) {
 func TestMattermostScenarioRequiresDirectExposureEvidence(t *testing.T) {
 	scenario := mattermostScenario{
 		Name:                "exposure",
-		AllowedTools:        []string{"task.add"},
-		InitialToolNames:    []string{"task.add"},
+		AllowedTools:        []string{"task_add"},
+		InitialToolNames:    []string{"task_add"},
 		SkillDirectoryPaths: []string{"skills/internkim-flow"},
-		Steps:               []mattermostScenarioStep{{Prompt: "work", ExpectedToolCalls: []string{"task.add"}}},
+		Steps:               []mattermostScenarioStep{{Prompt: "work", ExpectedToolCalls: []string{"task_add"}}},
 	}
 	result := mattermostScenarioResult{ScenarioName: scenario.Name, Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "agent.instructions_loaded", Body: `{"exposedToolNames":["task.add"],"selectedSkillToolReferences":{"internkim-flow":["task.add"]}}`},
-			{Name: "agent.step_working_set", Body: `{"exposure":{"exposedToolIDs":["task.add"],"selectedSkillToolIDs":["task.add"],"selectionSource":"selected_skills","usedFallbackGroups":false}}`},
-			{Name: "tool.task.add.requested"},
+			{Name: "agent.instructions_loaded", Body: `{"exposedToolNames":["task_add"],"selectedSkillToolReferences":{"internkim-flow":["task_add"]}}`},
+			{Name: "agent.step_working_set", Body: `{"exposure":{"exposedToolIDs":["task_add"],"selectedSkillToolIDs":["task_add"],"selectionSource":"selected_skills","usedFallbackGroups":false}}`},
+			{Name: "tool.task_add.requested"},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
 		t.Fatalf("validate direct exposure evidence: %v", errorValue)
 	}
-	result.Steps[0].TaskEvents[1].Body = `{"exposure":{"exposedToolIDs":["task.add"],"pinnedGroupToolIDs":["task.add"],"selectionSource":"deterministic_palette","usedFallbackGroups":true}}`
+	result.Steps[0].TaskEvents[1].Body = `{"exposure":{"exposedToolIDs":["task_add"],"pinnedGroupToolIDs":["task_add"],"selectionSource":"deterministic_palette","usedFallbackGroups":true}}`
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil {
 		t.Fatal("expected fallback exposure evidence to fail")
 	}
@@ -365,8 +365,8 @@ func TestMattermostScenarioRequiresDirectExposureEvidence(t *testing.T) {
 func TestMattermostScenarioReportsStatusBeforeMissingExposure(t *testing.T) {
 	scenario := mattermostScenario{
 		Name:             "exposure",
-		AllowedTools:     []string{"task.add"},
-		InitialToolNames: []string{"task.add"},
+		AllowedTools:     []string{"task_add"},
+		InitialToolNames: []string{"task_add"},
 		Steps: []mattermostScenarioStep{{
 			Prompt:             "업무를 추가해줘",
 			ExpectedTaskStatus: "completed",
@@ -422,10 +422,10 @@ func TestResolveMattermostScenarioExpectedValuesUsesStrictFutureDatesInAsiaSeoul
 }
 
 func TestMattermostScenarioCalendarMutationUsesListedEventHint(t *testing.T) {
-	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"calendar.list", "calendar.update"}}
+	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"calendar_list", "calendar_update"}}
 	events := []mattermostScenarioTaskEvent{
-		{Name: "tool.calendar.list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1","title":"IR 미팅"}]}}}`},
-		{Name: "tool.calendar.update.requested", Body: `{"input":{"eventHint":"event-1"}}`},
+		{Name: "tool.calendar_list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1","title":"IR 미팅"}]}}}`},
+		{Name: "tool.calendar_update.requested", Body: `{"input":{"eventHint":"event-1"}}`},
 	}
 
 	if errorValue := validateMattermostScenarioCalendarMutationIDs(0, expected, events); errorValue != nil {
@@ -444,10 +444,10 @@ func TestMattermostScenarioCalendarMutationUsesListedEventHint(t *testing.T) {
 }
 
 func TestMattermostScenarioCalendarMutationRequiresListBeforeMutation(t *testing.T) {
-	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"calendar.list", "calendar.delete"}}
+	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"calendar_list", "calendar_delete"}}
 	events := []mattermostScenarioTaskEvent{
-		{Name: "tool.calendar.delete.requested", Body: `{"input":{"eventHint":"event-1"}}`},
-		{Name: "tool.calendar.list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1"}]}}}`},
+		{Name: "tool.calendar_delete.requested", Body: `{"input":{"eventHint":"event-1"}}`},
+		{Name: "tool.calendar_list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1"}]}}}`},
 	}
 
 	if errorValue := validateMattermostScenarioCalendarMutationIDs(0, expected, events); errorValue == nil {
@@ -525,11 +525,11 @@ func TestValidateMattermostScenarioResultChecksRepliesEventsStatusAndAttachments
 			Prompt:                 "do the work",
 			ExpectedTaskStatus:     "completed",
 			ExpectedReplyFragments: []string{"done"},
-			ExpectedToolCalls:      []string{"task.add"},
+			ExpectedToolCalls:      []string{"task_add"},
 			ExpectedEvents:         []string{"task.completed"},
 			ExpectedEventCounts: []mattermostScenarioEventCount{{
-				Name:         "tool.task.add.result",
-				BodyFragment: "task.add",
+				Name:         "tool.task_add.result",
+				BodyFragment: "task_add",
 				Count:        1,
 			}},
 			ExpectedAttachments: []string{"report.docx"},
@@ -539,8 +539,8 @@ func TestValidateMattermostScenarioResultChecksRepliesEventsStatusAndAttachments
 		TaskRun: mattermostScenarioTaskRun{TaskRunID: "task-1", Status: "completed"},
 		TaskEvents: []mattermostScenarioTaskEvent{
 			{Name: "task.completed"},
-			{Name: "tool.task.add.requested", Body: `{"operation":"task.add"}`},
-			{Name: "tool.task.add.result", Body: "task.add report"},
+			{Name: "tool.task_add.requested", Body: `{"operation":"task_add"}`},
+			{Name: "tool.task_add.result", Body: "task_add report"},
 		},
 	}
 	result := mattermostScenarioResult{
@@ -568,15 +568,15 @@ func TestValidateMattermostScenarioResultChecksRepliesEventsStatusAndAttachments
 func TestMattermostScenarioCountsRecordEfficiencyButGatePresence(t *testing.T) {
 	scenario := mattermostScenario{Name: "counts", Steps: []mattermostScenarioStep{{
 		Prompt:                      "count",
-		ExpectedToolCallCounts:      map[string]int{"task.list": 2},
-		ExpectedExactToolCallCounts: map[string]int{"task.update": 0},
+		ExpectedToolCallCounts:      map[string]int{"task_list": 2},
+		ExpectedExactToolCallCounts: map[string]int{"task_update": 0},
 		ExpectedEventCounts:         []mattermostScenarioEventCount{{Name: "task.completed", Count: 2}},
 	}}}
 	result := mattermostScenarioResult{
 		ScenarioName: "counts", ChannelID: "channel", UserID: "user",
 		Steps: []mattermostScenarioStepResult{{
 			Prompt: "count", TaskStatus: "completed", TaskEvents: []mattermostScenarioTaskEvent{
-				{Name: "tool.task.list.requested"},
+				{Name: "tool.task_list.requested"},
 				{Name: "task.completed"},
 			},
 		}},
@@ -587,7 +587,7 @@ func TestMattermostScenarioCountsRecordEfficiencyButGatePresence(t *testing.T) {
 	if len(result.EfficiencyObservations) != 2 || result.EfficiencyObservations[0].Observed != 1 {
 		t.Fatalf("expected one efficiency observation, got %#v", result.EfficiencyObservations)
 	}
-	result.Steps[0].TaskEvents = append(result.Steps[0].TaskEvents, mattermostScenarioTaskEvent{Name: "tool.task.update.requested"})
+	result.Steps[0].TaskEvents = append(result.Steps[0].TaskEvents, mattermostScenarioTaskEvent{Name: "tool.task_update.requested"})
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil {
 		t.Fatal("expected forbidden zero count to fail")
 	}
@@ -597,7 +597,7 @@ func TestMattermostScenarioMissingEventReportsOutputExpectation(t *testing.T) {
 	scenario := mattermostScenario{Name: "task", Steps: []mattermostScenarioStep{{
 		Prompt: "업무를 추가해줘",
 		ExpectedEventCounts: []mattermostScenarioEventCount{{
-			Name:           "tool.task.add.result",
+			Name:           "tool.task_add.result",
 			OutputFragment: "2026-07-24",
 			Count:          1,
 		}},
@@ -605,13 +605,13 @@ func TestMattermostScenarioMissingEventReportsOutputExpectation(t *testing.T) {
 	result := mattermostScenarioResult{ScenarioName: "task", Steps: []mattermostScenarioStepResult{{
 		Prompt: "업무를 추가해줘",
 		TaskEvents: []mattermostScenarioTaskEvent{{
-			Name: "tool.task.add.result",
+			Name: "tool.task_add.result",
 			Body: `{"output":{"data":{"title":"고객지원 분기 결산"}}}`,
 		}},
 	}}}
 
 	errorValue := validateMattermostScenarioResult(scenario, &result)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), `event "tool.task.add.result" with output containing "2026-07-24"`) {
+	if errorValue == nil || !strings.Contains(errorValue.Error(), `event "tool.task_add.result" with output containing "2026-07-24"`) {
 		t.Fatalf("expected missing output detail, got %v", errorValue)
 	}
 }
@@ -619,19 +619,19 @@ func TestMattermostScenarioMissingEventReportsOutputExpectation(t *testing.T) {
 func TestMattermostScenarioRejectsDuplicateMutatingCount(t *testing.T) {
 	scenario := mattermostScenario{Name: "counts", Steps: []mattermostScenarioStep{{
 		Prompt:                      "count",
-		ExpectedExactToolCallCounts: map[string]int{"task.add": 1},
+		ExpectedExactToolCallCounts: map[string]int{"task_add": 1},
 	}}}
 	result := mattermostScenarioResult{ScenarioName: "counts", Steps: []mattermostScenarioStepResult{{
 		Prompt: "count",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "tool.task.add.requested"},
-			{Name: "tool.task.add.result"},
+			{Name: "tool.task_add.requested"},
+			{Name: "tool.task_add.result"},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
 		t.Fatalf("expected one mutation to pass: %v", errorValue)
 	}
-	result.Steps[0].TaskEvents = append(result.Steps[0].TaskEvents, mattermostScenarioTaskEvent{Name: "tool.task.add.requested"})
+	result.Steps[0].TaskEvents = append(result.Steps[0].TaskEvents, mattermostScenarioTaskEvent{Name: "tool.task_add.requested"})
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "exact tool") {
 		t.Fatalf("expected duplicate mutation to fail, got %v", errorValue)
 	}
@@ -640,11 +640,11 @@ func TestMattermostScenarioRejectsDuplicateMutatingCount(t *testing.T) {
 func TestMattermostScenarioTreatsReadCountMismatchAsObservation(t *testing.T) {
 	scenario := mattermostScenario{Name: "counts", Steps: []mattermostScenarioStep{{
 		Prompt:                 "count",
-		ExpectedToolCallCounts: map[string]int{"task.list": 0},
+		ExpectedToolCallCounts: map[string]int{"task_list": 0},
 	}}}
 	result := mattermostScenarioResult{ScenarioName: "counts", Steps: []mattermostScenarioStepResult{{
 		Prompt:     "count",
-		TaskEvents: []mattermostScenarioTaskEvent{{Name: "tool.task.list.requested"}},
+		TaskEvents: []mattermostScenarioTaskEvent{{Name: "tool.task_list.requested"}},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
 		t.Fatalf("expected read count mismatch to remain observational: %v", errorValue)
@@ -675,18 +675,18 @@ func TestMattermostScenarioRejectsUnsupportedApprovalAction(t *testing.T) {
 
 func TestMattermostScenarioOutputFragmentExcludesToolRequestEcho(t *testing.T) {
 	expectation := mattermostScenarioEventCount{
-		Name:           "tool.task.update.result",
+		Name:           "tool.task_update.result",
 		OutputFragment: "고객지원 분기 결산 검토 완료",
 		Count:          1,
 	}
 	events := []mattermostScenarioTaskEvent{{
-		Name: "tool.task.update.result",
-		Body: `{"output":{"data":{"content":"고객지원 분기 결산 누락 항목 확인"}},"toolInputKey":"task.update request 고객지원 분기 결산 검토 완료"}`,
+		Name: "tool.task_update.result",
+		Body: `{"output":{"data":{"content":"고객지원 분기 결산 누락 항목 확인"}},"toolInputKey":"task_update request 고객지원 분기 결산 검토 완료"}`,
 	}}
 	if count := countMattermostScenarioExpectedEvents(events, expectation); count != 0 {
 		t.Fatalf("expected request echo to be excluded, got %d", count)
 	}
-	events[0].Body = `{"output":{"data":{"content":"고객지원 분기 결산 검토 완료"}},"toolInputKey":"task.update"}`
+	events[0].Body = `{"output":{"data":{"content":"고객지원 분기 결산 검토 완료"}},"toolInputKey":"task_update"}`
 	if count := countMattermostScenarioExpectedEvents(events, expectation); count != 1 {
 		t.Fatalf("expected output data to match, got %d", count)
 	}
@@ -702,7 +702,7 @@ func TestMattermostScenarioOutputFragmentRequiresToolResult(t *testing.T) {
 		Steps: []mattermostScenarioStep{{
 			Prompt: "검토해줘",
 			ExpectedEventCounts: []mattermostScenarioEventCount{{
-				Name:           "tool.task.update.result",
+				Name:           "tool.task_update.result",
 				OutputFragment: "완료",
 			}},
 		}},
@@ -714,7 +714,7 @@ func TestMattermostScenarioOutputFragmentRequiresToolResult(t *testing.T) {
 	invalidScenario.Steps = []mattermostScenarioStep{{
 		Prompt: "검토해줘",
 		ExpectedEventCounts: []mattermostScenarioEventCount{{
-			Name:           "tool.task.update.requested",
+			Name:           "tool.task_update.requested",
 			OutputFragment: "완료",
 		}},
 	}}
@@ -728,10 +728,10 @@ func TestMattermostScenarioOutputFragmentRequiresToolResult(t *testing.T) {
 }
 
 func TestMattermostScenarioAnyToolExpectationNeedsOneCandidate(t *testing.T) {
-	scenario := mattermostScenario{Name: "any", Steps: []mattermostScenarioStep{{Prompt: "any", ExpectedAnyToolCalls: []string{"file.edit", "file.write"}}}}
+	scenario := mattermostScenario{Name: "any", Steps: []mattermostScenarioStep{{Prompt: "any", ExpectedAnyToolCalls: []string{"file_edit", "file_write"}}}}
 	result := mattermostScenarioResult{
 		ScenarioName: "any", ChannelID: "channel", UserID: "user",
-		Steps: []mattermostScenarioStepResult{{Prompt: "any", TaskEvents: []mattermostScenarioTaskEvent{{Name: "tool.file.write.requested"}}}},
+		Steps: []mattermostScenarioStepResult{{Prompt: "any", TaskEvents: []mattermostScenarioTaskEvent{{Name: "tool.file_write.requested"}}}},
 	}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
 		t.Fatalf("expected one any-tool candidate to pass: %v", errorValue)
@@ -760,23 +760,23 @@ func TestMattermostScenarioBoundaryRejectsUnknownAndTrailingData(t *testing.T) {
 }
 
 func TestMattermostScenarioToolEvidenceRequiresRequestedEvent(t *testing.T) {
-	events := []mattermostScenarioTaskEvent{{Name: "tool.task.add.result", Body: `{"operation":"task.add"}`}}
-	if countMattermostScenarioToolEvents(events, "task.add") != 0 {
+	events := []mattermostScenarioTaskEvent{{Name: "tool.task_add.result", Body: `{"operation":"task_add"}`}}
+	if countMattermostScenarioToolEvents(events, "task_add") != 0 {
 		t.Fatal("expected result events not to count as tool requests")
 	}
-	events = append(events, mattermostScenarioTaskEvent{Name: "tool.task.add.requested"})
-	if countMattermostScenarioToolEvents(events, "task.add") != 1 {
+	events = append(events, mattermostScenarioTaskEvent{Name: "tool.task_add.requested"})
+	if countMattermostScenarioToolEvents(events, "task_add") != 1 {
 		t.Fatal("expected direct typed request event to count")
 	}
 }
 
 func TestCountMattermostScenarioExpectedEventsAcceptsAnyOfNames(t *testing.T) {
 	events := []mattermostScenarioTaskEvent{
-		{Name: "tool.task.add.result", Body: `{"output":{"content":"{\"endDate\":\"\"}"}}`},
-		{Name: "tool.task.update.result", Body: `{"output":{"content":"{\"endDate\":\"2026-07-24\"}"}}`},
+		{Name: "tool.task_add.result", Body: `{"output":{"content":"{\"endDate\":\"\"}"}}`},
+		{Name: "tool.task_update.result", Body: `{"output":{"content":"{\"endDate\":\"2026-07-24\"}"}}`},
 	}
 	expectation := mattermostScenarioEventCount{
-		AnyOfNames:     []string{"tool.task.add.result", "tool.task.update.result"},
+		AnyOfNames:     []string{"tool.task_add.result", "tool.task_update.result"},
 		OutputFragment: "2026-07-24",
 		Count:          1,
 	}
@@ -784,7 +784,7 @@ func TestCountMattermostScenarioExpectedEventsAcceptsAnyOfNames(t *testing.T) {
 	if count := countMattermostScenarioExpectedEvents(events, expectation); count != 1 {
 		t.Fatalf("expected the update result to satisfy the any-of expectation, got %d", count)
 	}
-	if !expectation.matchesEventName("tool.task.update.result") || expectation.matchesEventName("tool.task.list.result") {
+	if !expectation.matchesEventName("tool.task_update.result") || expectation.matchesEventName("tool.task_list.result") {
 		t.Fatal("expected any-of name matching to accept listed names only")
 	}
 }

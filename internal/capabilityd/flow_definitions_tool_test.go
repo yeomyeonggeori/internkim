@@ -40,7 +40,7 @@ func flowDefinitionsService(t *testing.T, body string, requesterEmail *string) S
 func invokeFlowDefinitions(t *testing.T, service Service) map[string]any {
 	t.Helper()
 	response, errorValue := service.invokeFlowTaskDefinitions(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "task.definitions",
+		ToolName: "task_definitions",
 		Input:    []byte(`{}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
 	})
@@ -113,7 +113,7 @@ func TestFlowTaskDefinitionsReturnsEmptyListsWhenWorkspaceHasNone(t *testing.T) 
 func TestFlowTaskDefinitionsRoutesThroughFlowTaskTool(t *testing.T) {
 	service := flowDefinitionsService(t, flowDefinitionsStateBody, nil)
 	response, errorValue := service.invokeFlowTaskTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "task.definitions",
+		ToolName: "task_definitions",
 		Input:    []byte(`{}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
 	})

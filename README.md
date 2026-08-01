@@ -47,7 +47,7 @@ Optional external channels
 사용자 컴퓨터
     └─ internkim-companion
          ├─ long-poll internkim-admind companion broker
-         ├─ user.confirm / user.input / file.pick
+         ├─ user_confirm / user.input / file_pick
          ├─ headed browser via bundled agent-browser
          └─ future local-only model capability
 ```
@@ -62,7 +62,7 @@ Blueclaw workspace 보안의 canonical boundary는 Linux user/group/POSIX 권한
 
 - 사람은 안정적인 `bc_person_<shortID>` Linux user로 실행됩니다.
 - circle은 `bc_circle_<circleID>` group으로 투영됩니다.
-- 모든 `terminal.run`, terminal session, `file.write`, `file.read`, `file.promote`, `file.attach`, 사용자 작성 skill/tool, dependency install script, package lifecycle script는 requester 또는 task actor의 unprivileged UID/GID/supplementary groups로 실행됩니다.
+- 모든 `terminal_run`, terminal session, `file_write`, `file_read`, `file.promote`, `file.attach`, 사용자 작성 skill/tool, dependency install script, package lifecycle script는 requester 또는 task actor의 unprivileged UID/GID/supplementary groups로 실행됩니다.
 - admin 사용자도 raw terminal에서는 기본 task actor scope만 갖습니다. admin-only 파일 접근, 임시 grant, 특정 파일 허용, 외부 전송은 built-in capability/tool 경계에서만 처리합니다.
 - Blueclaw service는 requester workspace 파일을 직접 `os.ReadFile`/`os.WriteFile`로 만지지 않습니다. 모든 workspace 파일 I/O와 process 실행은 `WorkspaceActorFactory -> WorkspaceActor -> blueclaw-posix-helper` 경로를 탑니다.
 - `blueclaw-posix-helper`는 `root:root 4755` setuid bridge입니다. helper 파일 실행 가능 여부는 authorization boundary가 아니며, helper 내부에서 real UID가 root 또는 `blueclaw`인지 확인한 뒤 requester UID/GID로 전환합니다.
@@ -88,7 +88,7 @@ Artifact 생성은 durable output을 명시적으로 승격하는 흐름을 씁�
 
 ```mermaid
 flowchart LR
-  Draft["file.write tmp/<slug>/source files"] --> Build["terminal.run cwd=tmp/<slug>"]
+  Draft["file_write tmp/<slug>/source files"] --> Build["terminal_run cwd=tmp/<slug>"]
   Build --> Output["tmp/<slug>/build/*"]
   Output --> Promote["file.promote to artifacts/<slug>/"]
   Promote --> Attach["file.attach promoted artifact"]
@@ -492,11 +492,11 @@ Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 ./internkim-companion pair 'internkim://pair?device_url=https%3A%2F%2Fdc719d8e.intern.kim&code=ABCD-1234'
 ```
 
-현재 companion executor는 `user.confirm`, `user.input`, approval grant, `file.pick`, `browser.open`, `browser.snapshot`, `browser.screenshot`, `browser.handoff`, `browser.click`, `browser.fill`, `browser.select`, `browser.press`, `browser.wait`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. requester identity가 있는 Companion LLM job은 같은 owner의 Companion만 claim할 수 있고, embedding은 기본적으로 Jetson 내부 embedding service를 계속 사용합니다. Tauri shell은 confirmation/input/approval/file picker UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
+현재 companion executor는 `user_confirm`, `user.input`, approval grant, `file_pick`, `browser_open`, `browser_snapshot`, `browser_screenshot`, `browser_handoff`, `browser_click`, `browser_fill`, `browser_select`, `browser_press`, `browser_wait`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. requester identity가 있는 Companion LLM job은 같은 owner의 Companion만 claim할 수 있고, embedding은 기본적으로 Jetson 내부 embedding service를 계속 사용합니다. Tauri shell은 confirmation/input/approval/file picker UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
 
-`file.pick`은 사용자 로컬 경로를 InternKim/Blueclaw에 넘기지 않습니다. companion이 선택된 파일을 signed broker upload로 device의 `/tmp/internkim-companion-files/{filename}`에 복사하고, 응답에는 device-local temporary path와 TTL만 포함합니다. 같은 이름은 덮어쓰며 metadata TTL이 지나면 `internkim-admind`가 자동 삭제합니다.
+`file_pick`은 사용자 로컬 경로를 InternKim/Blueclaw에 넘기지 않습니다. companion이 선택된 파일을 signed broker upload로 device의 `/tmp/internkim-companion-files/{filename}`에 복사하고, 응답에는 device-local temporary path와 TTL만 포함합니다. 같은 이름은 덮어쓰며 metadata TTL이 지나면 `internkim-admind`가 자동 삭제합니다.
 
-브라우저 capability는 Companion-first로 라우팅합니다. 발화자 소유 Companion이 available하면 headed mode와 InternKim 전용 persistent profile을 갖춘 Companion browser에서 실행합니다. Companion이 없을 때만 device Lightpanda fallback을 단순 공개 페이지 텍스트 탐색에 사용합니다. 로그인/MFA처럼 사용자가 직접 처리해야 하는 단계는 `browser.handoff`가 Chrome 위에 Companion OS overlay window로 `완료` 버튼을 띄우고, 사용자가 누르면 snapshot을 검증해 같은 세션에서 이어갑니다. Linux는 X11만 지원하며 Wayland에서는 browser handoff가 unavailable로 표시됩니다. snapshot 결과에는 URL, title, snapshot text, interactive refs만 담습니다. click/fill/select/press/wait는 snapshot에서 얻은 ref나 selector를 입력으로 받습니다. screenshot은 Companion browser에서만 허용하고, fallback에서는 Companion 연결 안내를 반환합니다. Browser download는 파일 이동 보안 정책을 별도로 닫은 뒤 추가합니다. Companion 앱 bundle에는 현재 OS/arch용 `agent-browser`가 포함되며, 첫 실행 때 managed browser install을 자동으로 시도합니다. 실패해도 user/file/mock LLM capability는 계속 동작하고 browser capability만 unavailable로 표시됩니다. 개발 환경에서는 `make deps-companion-browser`로 bundle source와 browser install smoke를 확인합니다.
+브라우저 capability는 Companion-first로 라우팅합니다. 발화자 소유 Companion이 available하면 headed mode와 InternKim 전용 persistent profile을 갖춘 Companion browser에서 실행합니다. Companion이 없을 때만 device Lightpanda fallback을 단순 공개 페이지 텍스트 탐색에 사용합니다. 로그인/MFA처럼 사용자가 직접 처리해야 하는 단계는 `browser_handoff`가 Chrome 위에 Companion OS overlay window로 `완료` 버튼을 띄우고, 사용자가 누르면 snapshot을 검증해 같은 세션에서 이어갑니다. Linux는 X11만 지원하며 Wayland에서는 browser handoff가 unavailable로 표시됩니다. snapshot 결과에는 URL, title, snapshot text, interactive refs만 담습니다. click/fill/select/press/wait는 snapshot에서 얻은 ref나 selector를 입력으로 받습니다. screenshot은 Companion browser에서만 허용하고, fallback에서는 Companion 연결 안내를 반환합니다. Browser download는 파일 이동 보안 정책을 별도로 닫은 뒤 추가합니다. Companion 앱 bundle에는 현재 OS/arch용 `agent-browser`가 포함되며, 첫 실행 때 managed browser install을 자동으로 시도합니다. 실패해도 user/file/mock LLM capability는 계속 동작하고 browser capability만 unavailable로 표시됩니다. 개발 환경에서는 `make deps-companion-browser`로 bundle source와 browser install smoke를 확인합니다.
 
 Pairing signing key는 state file에 평문으로 저장하지 않습니다. state에는 key reference만 남기고 macOS에서는 Keychain을 사용합니다. secure storage를 쓸 수 없는 개발 환경에서만 `INTERNKIM_COMPANION_DEV_FILE_STORE=1`을 켜서 파일 기반 fallback을 허용합니다.
 
@@ -513,7 +513,7 @@ macOS beta artifact는 `make package-companion-beta`로 만듭니다. 결과물 
 ./internkim-companion run --dev-mock-llm --allow-stdin-prompts
 ```
 
-InternKim `capabilityd`는 companion URL을 직접 호출하지 않고 local `internkim-admind` broker로 job을 생성합니다. companion이 online이고 capability를 advertise할 때만 `browser.*`, `user.*`, `file.pick`, companion LLM capability를 provider-neutral하게 라우팅합니다. Blueclaw는 provider 구현, 브라우저 바이너리, 로컬 모델 경로, 사용자 브라우저 쿠키를 보지 않습니다.
+InternKim `capabilityd`는 companion URL을 직접 호출하지 않고 local `internkim-admind` broker로 job을 생성합니다. companion이 online이고 capability를 advertise할 때만 `browser.*`, `user.*`, `file_pick`, companion LLM capability를 provider-neutral하게 라우팅합니다. Blueclaw는 provider 구현, 브라우저 바이너리, 로컬 모델 경로, 사용자 브라우저 쿠키를 보지 않습니다.
 
 Terminal은 제품 기능에서도 쓰되 requester actor/POSIX boundary 안에서만 실행합니다. 외부 서비스, 로컬 브라우저, 파일 선택, 사용자 확인처럼 더 좁은 typed capability가 있는 작업은 terminal 대신 capability adapter를 우선 사용합니다.
 

@@ -11,7 +11,7 @@
 | 사용자 권한 경계 | 다른 사람의 private workspace, service-owned internal path | requester POSIX identity와 Blueclaw workspace actor |
 | 비밀값 경계 | provider token, platform token, Google credential, local model path | `internkim-capabilityd`, `internkim-admind`, Google helper |
 | 로컬 컴퓨터 경계 | local absolute path, browser cookie, local profile path, sensitive login step | `internkim-companion` |
-| 산출물 경계 | 임시 파일이나 내부 path를 완료 증거로 사용 | `file.deliver` 기반 artifact flow |
+| 산출물 경계 | 임시 파일이나 내부 path를 완료 증거로 사용 | `file_deliver` 기반 artifact flow |
 | LLM 운영 연속성 경계 | remote provider만 유일한 실행 경로로 고정 | `internkim-capabilityd` local/companion/remote provider routing |
 | 업무 운영 경계 | 근태, 메일, 일정, 업무 관리를 각기 다른 SaaS 권한 모델에 흩어두기 | Mattermost와 Blueclaw task/capability/event model |
 
@@ -67,7 +67,7 @@ Workspace 경로도 사용자에게 concrete POSIX path를 직접 노출하지 �
 - 사용자 로컬 파일 선택은 Companion이 처리하고, 김인턴에는 device-local temporary path와 TTL만 전달된다.
 - 브라우저 자동화는 Companion browser를 우선 사용하며, snapshot 결과에는 URL, title, text, interactive ref만 담는다.
 
-이 구조는 "LLM에게 도구를 주되, 비밀값은 주지 않는다"는 원칙을 구현한다. LLM은 `calendar`, `mail`, `browser`, `file.pick`, `reply.send` 같은 typed capability를 호출할 수 있지만, 실제 credential과 local resource는 capability provider가 들고 있다. 따라서 prompt injection이 있어도 모델이 token 문자열을 읽어 외부로 복사하는 경로가 크게 줄어든다.
+이 구조는 "LLM에게 도구를 주되, 비밀값은 주지 않는다"는 원칙을 구현한다. LLM은 `calendar`, `mail`, `browser`, `file_pick`, `reply.send` 같은 typed capability를 호출할 수 있지만, 실제 credential과 local resource는 capability provider가 들고 있다. 따라서 prompt injection이 있어도 모델이 token 문자열을 읽어 외부로 복사하는 경로가 크게 줄어든다.
 
 ## 4. Agent runtime과 제품 appliance 경계가 분리됨
 
@@ -149,9 +149,9 @@ Companion은 사용자의 로컬 컴퓨터를 trusted runtime으로 다루지만
 
 김인턴은 작업을 바로 "완료"로 처리하지 않고, artifact와 event를 남기는 방식으로 설계되어 있다.
 
-- Required artifact task는 `file.deliver` completion evidence가 있어야 완료로 인정한다.
+- Required artifact task는 `file_deliver` completion evidence가 있어야 완료로 인정한다.
 - `tmp/<slug>`의 중간 파일, local path 문자열, markdown 링크, 내부 `/workspace/...` 경로 노출은 완료 증거가 아니다.
-- 생성물은 `file.write -> terminal.run -> file.deliver` 흐름을 탄다.
+- 생성물은 `file_write -> terminal_run -> file_deliver` 흐름을 탄다.
 - reset 명령은 Blueclaw task, raw event, conversation, memory mirror, Kuzu memory files, Mattermost post/reaction/thread 기록을 구분해서 정리한다.
 - secrets, policy, platform account link는 기본 reset 대상에서 제외해 운영 상태를 보존한다.
 

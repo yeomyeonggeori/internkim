@@ -6,37 +6,37 @@
     "../../assets/blueclaw-workspace/skills/internkim-flow"
   ],
   "allowedTools": [
-    "conversation.history",
-    "memory.search",
-    "task.add",
-    "task.list",
-    "task.update",
-    "task.delete"
+    "conversation_history",
+    "memory_search",
+    "task_add",
+    "task_list",
+    "task_update",
+    "task_delete"
   ],
   "capabilityToolNames": [
-    "task.add",
-    "task.list",
-    "task.update",
-    "task.delete"
+    "task_add",
+    "task_list",
+    "task_update",
+    "task_delete"
   ],
   "capabilityToolDescriptors": [
     {
-      "name": "task.delete",
+      "name": "task_delete",
       "requiresApproval": true
     }
   ],
   "initialToolNames": [
-    "task.add"
+    "task_add"
   ],
   "steps": [
     {
       "prompt": "다가오는 금요일까지 고객지원팀의 분기 결산 자료에서 누락 항목을 확인하는 업무를 내 업무 목록에 추가해줘. 업무 제목은 '고객지원 분기 결산 누락 항목 확인'으로 해줘.",
       "expectedToolCalls": [
-        "task.add"
+        "task_add"
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.task.add.result",
+          "name": "tool.task_add.result",
           "outputFragment": "고객지원 분기 결산 누락 항목 확인",
           "count": 1
         },
@@ -44,8 +44,8 @@
           "outputFragment": "{{nextFriday}}",
           "count": 1,
           "anyOfNames": [
-            "tool.task.add.result",
-            "tool.task.update.result"
+            "tool.task_add.result",
+            "tool.task_update.result"
           ]
         }
       ],
@@ -54,18 +54,18 @@
     {
       "prompt": "방금 추가한 업무 제목을 '고객지원 분기 결산 검토 완료'로 바꿔줘. 금요일까지 확인을 끝내는 목표는 그대로 유지해줘.",
       "expectedToolCalls": [
-        "task.update"
+        "task_update"
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.task.update.requested",
+          "name": "tool.task_update.requested",
           "bodyFragment": "고객지원 분기 결산 검토 완료",
           "count": 1,
           "exact": true,
           "advisory": true
         },
         {
-          "name": "tool.task.update.result",
+          "name": "tool.task_update.result",
           "outputFragment": "고객지원 분기 결산 검토 완료",
           "count": 1
         }
@@ -75,11 +75,11 @@
     {
       "prompt": "내 업무를 조회해서 방금 바꾼 고객지원 분기 결산 업무가 남아 있는지 알려줘.",
       "expectedToolCalls": [
-        "task.list"
+        "task_list"
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.task.list.result",
+          "name": "tool.task_list.result",
           "outputFragment": "고객지원 분기 결산 검토 완료",
           "count": 1
         }
@@ -93,7 +93,7 @@
       "prompt": "방금 확인한 '고객지원 분기 결산 검토 완료' 업무를 삭제해줘.",
       "approvalAction": "approve",
       "expectedToolCalls": [
-        "task.delete"
+        "task_delete"
       ],
       "expectedEvents": [
         "confirmation.requested",
@@ -102,7 +102,7 @@
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.task.delete.result",
+          "name": "tool.task_delete.result",
           "outputFragment": "deleted",
           "count": 1,
           "exact": true
@@ -113,11 +113,11 @@
     {
       "prompt": "내 업무를 다시 조회해서 삭제한 '고객지원 분기 결산 검토 완료' 업무가 남아 있지 않은지 확인해줘.",
       "expectedToolCalls": [
-        "task.list"
+        "task_list"
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.task.list.result",
+          "name": "tool.task_list.result",
           "outputFragment": "고객지원 분기 결산 검토 완료",
           "count": 0,
           "exact": true

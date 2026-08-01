@@ -20,7 +20,7 @@
 |---|---|---|
 | 대화 런타임 | Blueclaw | 정책, task, ACL, prompt, skill 선택을 담당 |
 | 비밀 정보 실행 | `internkim-capabilityd` | OpenRouter, platform token, device browser 같은 secret-bearing 작업을 직접 보유 |
-| 사용자 로컬 실행 | `internkim-companion` | `user.confirm`, `user.input`, `file.pick`, `browser.*`를 사용자 컴퓨터에서 실행 |
+| 사용자 로컬 실행 | `internkim-companion` | `user_confirm`, `user.input`, `file_pick`, `browser.*`를 사용자 컴퓨터에서 실행 |
 | Portable artifacts | ICS, CalDAV, DOCX, XLSX, CSV, HTML, PDF | Google 인증 없이 먼저 생성/공유 가능한 기본 산출물 |
 | Google Workspace | `gws`, `gws-bot`, Apps Script bridge | optional import/export/publish target으로 유지 |
 | 기억 | Graphiti memory sidecar | 대화, 업무, 사람, 파일 요약을 장기 기억으로 저장 |
@@ -67,8 +67,8 @@ Google Workspace는 편리한 publishing target이지만 기본 실행 경로가
 | `task.create`, `task.transition` | Blueclaw DB | 업무 투두 상태 관리 |
 | `attendance.clock` | Blueclaw DB | 출퇴근 기록 |
 | `artifact.ingest` | device, Companion | 파일 인식과 분석 |
-| `terminal.run` `mode=session_start` | device admin profile | 인터랙티브 터미널 |
-| `image.generate` | remote or local model | 이미지 생성 |
+| `terminal_run` `mode=session_start` | device admin profile | 인터랙티브 터미널 |
+| `image_generate` | remote or local model | 이미지 생성 |
 
 Blueclaw skill은 shell 명령 문자열을 직접 기억하기보다 이 capability 이름을 기준으로 요청해야 한다. `capabilityd`가 실제 provider를 선택하고, provider는 portable file generator, CalDAV, Apps Script, `gws-bot`, Companion, DB, remote model 중 하나가 된다.
 
@@ -102,7 +102,7 @@ Calendar, email, file sharing, 기억 분리는 모두 "누구의 권한으로 �
 
 | 작업 | 기본 정책 |
 |---|---|
-| 이메일 발송 | 매번 `user.confirm` 필수 |
+| 이메일 발송 | 매번 `user_confirm` 필수 |
 | 외부 공유 | 수신자, 권한, 파일명 확인 후 승인 |
 | 캘린더 참석자 초대 | 참석자 이메일이 외부 도메인이면 승인 |
 | Google import/publish | 대상 계정, 파일명, 공유 범위 확인 후 승인 |
@@ -111,7 +111,7 @@ Calendar, email, file sharing, 기억 분리는 모두 "누구의 권한으로 �
 | 터미널 write 명령 | admin/dev profile에서만 승인 후 실행 |
 | 브라우저 form submit | observe 결과와 제출 요약을 보여준 뒤 승인 |
 
-Companion의 approval grant는 task-scoped로 유지하고, `user.confirm`과 `user.input`은 재사용 grant 밖에 둔다.
+Companion의 approval grant는 task-scoped로 유지하고, `user_confirm`과 `user.input`은 재사용 grant 밖에 둔다.
 
 ### 4. 스케줄러와 알림 엔진 추가
 
@@ -141,7 +141,7 @@ Companion의 approval grant는 task-scoped로 유지하고, `user.confirm`과 `u
 | `artifact_extraction` | markitdown, OCR, VLM, PDF text 추출 결과 |
 | `artifact_relation` | task, meeting, staff, email, calendar event와의 연결 |
 
-Companion `file.pick`은 로컬 경로를 노출하지 않고 device temp path만 반환하는 현재 정책을 유지한다. 이후 영구 보관이 필요하면 Drive, DB blob store, 또는 `/root/.internkim/artifacts` 중 하나로 명시적으로 승격한다.
+Companion `file_pick`은 로컬 경로를 노출하지 않고 device temp path만 반환하는 현재 정책을 유지한다. 이후 영구 보관이 필요하면 Drive, DB blob store, 또는 `/root/.internkim/artifacts` 중 하나로 명시적으로 승격한다.
 
 ### 6. 업무 DB를 product schema로 확장
 

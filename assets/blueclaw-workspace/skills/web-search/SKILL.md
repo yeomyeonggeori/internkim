@@ -1,12 +1,12 @@
 ---
 name: web-search
 description: Search the public web or fetch a specific URL when the user's request needs external or current information that is not already available in the conversation, an attachment, or another skill. Use for news, prices, schedules, documentation, or any fact you cannot already answer from provided context.
-tool-references: web.search web.fetch
+tool-references: web_search web_fetch
 ---
 
 # Web Search
 
-Check the conversation and attachments first. When external or current information is needed, call `web.search` for discovery or `web.fetch` for specific URLs; descriptors define exact fields and result shapes.
+Check the conversation and attachments first. When external or current information is needed, call `web_search` for discovery or `web_fetch` for specific URLs; descriptors define exact fields and result shapes.
 
 ## Search
 

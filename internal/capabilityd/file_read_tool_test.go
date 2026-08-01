@@ -40,14 +40,14 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(`{"input":{"path":"/workspace/docs/report.pdf"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/docs/report.pdf"}}`))
 	if errorValue != nil {
-		t.Fatalf("expected document.read: %v", errorValue)
+		t.Fatalf("expected document_read: %v", errorValue)
 	}
 	if response.IsError || response.Content != "# Report\n\nBody" {
 		t.Fatalf("unexpected response: %+v", response)
 	}
-	if response.Provider != "markitdown" || response.SelectedBackend != capabilities.LLMBackendRemote || response.ToolName != "document.read" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.Effects == nil || len(response.Effects) != 0 {
+	if response.Provider != "markitdown" || response.SelectedBackend != capabilities.LLMBackendRemote || response.ToolName != "document_read" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.Effects == nil || len(response.Effects) != 0 {
 		t.Fatalf("unexpected response identity: %+v", response)
 	}
 	if helperRequest.Path != sourcePath || helperRequest.OpenRouterAPIKey != "sk-file" || helperRequest.OpenRouterBaseURL != "https://openrouter.test/api/v1" || helperRequest.OpenRouterModel != "openrouter/vision-model" {
@@ -65,9 +65,9 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 	}
 
 	helperOutput = []byte(`{"content":"# Report\n\nBody"}`)
-	response, errorValue = service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(`{"input":{"path":"/workspace/docs/report.pdf"}}`))
+	response, errorValue = service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/docs/report.pdf"}}`))
 	if errorValue != nil {
-		t.Fatalf("expected document.read without warnings: %v", errorValue)
+		t.Fatalf("expected document_read without warnings: %v", errorValue)
 	}
 	result = documentReadResult{}
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
@@ -76,12 +76,12 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 	if result.Warnings == nil || len(result.Warnings) != 0 {
 		t.Fatalf("expected an empty warnings array, got %+v", result.Warnings)
 	}
-	descriptor, isFound := capabilityToolDescriptorFor("document.read")
+	descriptor, isFound := capabilityToolDescriptorFor("document_read")
 	if !isFound {
-		t.Fatal("document.read descriptor is missing")
+		t.Fatal("document_read descriptor is missing")
 	}
 	if errorValue := capabilityschema.Validate(descriptor.ResultContract.Schema, response.Result); errorValue != nil {
-		t.Fatalf("document.read result violates its contract: %v", errorValue)
+		t.Fatalf("document_read result violates its contract: %v", errorValue)
 	}
 }
 
@@ -93,14 +93,14 @@ func TestDocumentReadRejectsUnsupportedInputFields(t *testing.T) {
 		`{"input":{"path":"/workspace/report.pdf","maxPages":0}}`,
 		`{"input":{"path":"/workspace/report.pdf","maxOutputBytes":0}}`,
 	} {
-		response, errorValue := service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(input))
+		response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(input))
 		if errorValue != nil {
 			t.Fatalf("expected structured input error: %v", errorValue)
 		}
 		if !response.IsError || response.ErrorCode != "invalid_input" {
 			t.Fatalf("expected invalid input response, got %+v", response)
 		}
-		if response.Provider != "internkim" || response.SelectedBackend != capabilities.ExecutionModeDevice || response.ToolName != "document.read" || response.Outcome != capabilities.ToolOutcomeFailed || len(response.Effects) != 0 {
+		if response.Provider != "internkim" || response.SelectedBackend != capabilities.ExecutionModeDevice || response.ToolName != "document_read" || response.Outcome != capabilities.ToolOutcomeFailed || len(response.Effects) != 0 {
 			t.Fatalf("unexpected document error identity: %+v", response)
 		}
 	}
@@ -126,7 +126,7 @@ func TestDocumentReadRejectsUnsafeWorkspacePaths(t *testing.T) {
 		`{"input":{"path":"/workspace/../etc/passwd"}}`,
 		`{"input":{"path":"/workspace/.blueclaw/config/runtime.json"}}`,
 	} {
-		response, errorValue := service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(input))
+		response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(input))
 		if errorValue != nil {
 			t.Fatalf("expected structured error response: %v", errorValue)
 		}
@@ -151,9 +151,9 @@ func TestDocumentReadFallsBackToNoOCRWithoutOpenRouterKey(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(`{"input":{"path":"/workspace/notes.txt"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/notes.txt"}}`))
 	if errorValue != nil {
-		t.Fatalf("expected document.read without OCR: %v", errorValue)
+		t.Fatalf("expected document_read without OCR: %v", errorValue)
 	}
 	if response.IsError || response.Content != "hello" {
 		t.Fatalf("unexpected response: %+v", response)
@@ -182,9 +182,9 @@ func TestDocumentReadUsesNoOCRForHTMLWithOpenRouterKey(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(`{"input":{"path":"/workspace/index.html"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/index.html"}}`))
 	if errorValue != nil {
-		t.Fatalf("expected document.read: %v", errorValue)
+		t.Fatalf("expected document_read: %v", errorValue)
 	}
 	if response.IsError || response.Content != "# HTML Title" {
 		t.Fatalf("unexpected response: %+v", response)
@@ -237,9 +237,9 @@ func TestDocumentReadUsesNoOCRFallbackWhenOCRAttemptFails(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(`{"input":{"path":"/workspace/scan.pdf"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/scan.pdf"}}`))
 	if errorValue != nil {
-		t.Fatalf("expected document.read: %v", errorValue)
+		t.Fatalf("expected document_read: %v", errorValue)
 	}
 	if response.IsError || response.Content != "fallback text" || callCount != 2 {
 		t.Fatalf("unexpected response: %+v", response)
@@ -262,9 +262,9 @@ func TestDocumentReadTruncatesLargeOutput(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(`{"input":{"path":"/workspace/large.txt","maxOutputBytes":1200}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/large.txt","maxOutputBytes":1200}}`))
 	if errorValue != nil {
-		t.Fatalf("expected document.read: %v", errorValue)
+		t.Fatalf("expected document_read: %v", errorValue)
 	}
 	var result documentReadResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
@@ -290,7 +290,7 @@ func TestDocumentReadHelperFailureReturnsStructuredFacts(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(`{"input":{"path":"/workspace/broken.pdf"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/broken.pdf"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected structured error response: %v", errorValue)
 	}
@@ -308,15 +308,15 @@ func TestImageReadReturnsImageAttachment(t *testing.T) {
 		BlueclawWorkspacePath: workspacePath,
 	}.WithDefaults()}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "image.read", strings.NewReader(`{"input":{"path":"/workspace/uploads/screen.png"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "image_read", strings.NewReader(`{"input":{"path":"/workspace/uploads/screen.png"}}`))
 	if errorValue != nil {
-		t.Fatalf("expected image.read: %v", errorValue)
+		t.Fatalf("expected image_read: %v", errorValue)
 	}
 	var result imageReadResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.IsError || len(result.Attachments) != 1 || response.Provider != "workspace" || response.SelectedBackend != capabilities.LLMBackendDevice || response.ToolName != "image.read" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.Effects == nil || len(response.Effects) != 0 {
+	if response.IsError || len(result.Attachments) != 1 || response.Provider != "workspace" || response.SelectedBackend != capabilities.LLMBackendDevice || response.ToolName != "image_read" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.Effects == nil || len(response.Effects) != 0 {
 		t.Fatalf("unexpected response: %+v", response)
 	}
 	attachment := result.Attachments[0]
@@ -331,14 +331,14 @@ func TestImageReadRejectsUnsupportedInputFields(t *testing.T) {
 		`{"input":{"path":"/workspace/screen.png","materialID":"material-1"}}`,
 		`{"input":{"path":"/workspace/screen.png","unexpected":true}}`,
 	} {
-		response, errorValue := service.invokeCapabilityTool(context.Background(), "image.read", strings.NewReader(input))
+		response, errorValue := service.invokeCapabilityTool(context.Background(), "image_read", strings.NewReader(input))
 		if errorValue != nil {
 			t.Fatalf("expected structured input error: %v", errorValue)
 		}
 		if !response.IsError || response.ErrorCode != "invalid_input" {
 			t.Fatalf("expected invalid input response, got %+v", response)
 		}
-		if response.Provider != "internkim" || response.SelectedBackend != capabilities.ExecutionModeDevice || response.ToolName != "image.read" || response.Outcome != capabilities.ToolOutcomeFailed || len(response.Effects) != 0 {
+		if response.Provider != "internkim" || response.SelectedBackend != capabilities.ExecutionModeDevice || response.ToolName != "image_read" || response.Outcome != capabilities.ToolOutcomeFailed || len(response.Effects) != 0 {
 			t.Fatalf("unexpected image error identity: %+v", response)
 		}
 	}
