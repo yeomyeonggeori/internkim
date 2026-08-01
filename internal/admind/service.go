@@ -525,6 +525,8 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/buzz-invite", service.handleBuzzInviteEmail)
 	multiplexer.HandleFunc("/agent/api/buzz-relay-config", service.handleBuzzRelayConfig)
 	multiplexer.HandleFunc(mediaProxyPrefix, service.handleBuzzMediaProxy)
+	multiplexer.HandleFunc("/agent/api/custom-emoji", service.handleCustomEmojiList)
+	multiplexer.HandleFunc(customEmojiProxyPrefix, service.handleCustomEmojiImage)
 	multiplexer.HandleFunc("/agent/api/buzz-mm-pending", service.handleBuzzMMPending)
 	multiplexer.HandleFunc("/agent/api/buzz-mm-mirrored", service.handleBuzzMMMirrored)
 	multiplexer.HandleFunc("/agent/api/buzz-admin-wipe", service.handleBuzzAdminWipe)

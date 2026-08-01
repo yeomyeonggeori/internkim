@@ -35,6 +35,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
+	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 	import { onDestroy, onMount, tick } from 'svelte';
 
 	let { isActive = true, threadLayout = 'sheet', channelId }: {
@@ -462,6 +463,7 @@
 	});
 
 	onMount(async () => {
+		customEmoji.load();
 		await loadCurrentUser();
 		scheduleRefresh();
 	});
@@ -576,7 +578,9 @@
 		>
 			<Bubble.Content>
 				<div class="chat-markdown">
-					<SvelteMarkdown source={applyCustomEmoji(content.text, message.customEmoji)} />
+					<SvelteMarkdown
+						source={applyCustomEmoji(content.text, message.customEmoji, customEmoji.nameToURL)}
+					/>
 				</div>
 			</Bubble.Content>
 			{#if reactions.length > 0}
