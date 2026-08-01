@@ -5,7 +5,6 @@
 	import * as InputGroup from '$lib/components/ui/input-group/index.js';
 	import * as Marker from '$lib/components/ui/marker/index.js';
 	import * as Message from '$lib/components/ui/message/index.js';
-	import * as MessageScroller from '$lib/components/ui/message-scroller/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -35,11 +34,12 @@
 	import MessageCircleDashedIcon from '@lucide/svelte/icons/message-circle-dashed';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 
 	let { isActive = true, threadLayout = 'sheet', channelId }: {
@@ -249,18 +249,15 @@
 		return [...head, ...latest];
 	}
 
-	function firstVisibleMessageAnchor(viewport: HTMLElement): { element: HTMLElement; offset: number } | null {
-		const viewportTop = viewport.getBoundingClientRect().top;
-		for (const element of viewport.querySelectorAll<HTMLElement>('[data-message-id]')) {
-			const rectangle = element.getBoundingClientRect();
-			if (rectangle.bottom > viewportTop) {
-				return { element, offset: rectangle.top - viewportTop };
-			}
-		}
-		return null;
-	}
+	// The message list is a column-reverse scroller: newest at the bottom, scroll
+	// origin at the bottom. Prepending older messages appends them to the far
+	// (top) end, so the browser keeps the reading position natively — no scrollTop
+	// math and nothing for an autoscroll to fight.
+	let scrollContainer = $state<HTMLDivElement | null>(null);
+	let showScrollToBottom = $state(false);
+	const reversedTimeline = $derived(timeline.slice().reverse());
 
-	async function loadOlderMessages(viewport: HTMLElement) {
+	async function loadOlderMessages() {
 		if (isLoadingOlder || !hasMoreBefore || !historyCursor) return;
 		isLoadingOlder = true;
 		try {
@@ -273,34 +270,24 @@
 				hasMoreBefore = false;
 				return;
 			}
-			// Pin a real element (the first message still visible) rather than a
-			// distance, so grouping changes and content growth below the anchor never
-			// shift the reading position. Re-pin for a short window because attachment
-			// heights can settle after the DOM grows.
-			const anchor = firstVisibleMessageAnchor(viewport);
-			const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop;
-			const restoreScroll = () => {
-				if (anchor && anchor.element.isConnected) {
-					const currentOffset = anchor.element.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
-					viewport.scrollTop += currentOffset - anchor.offset;
-				} else {
-					viewport.scrollTop = viewport.scrollHeight - distanceFromBottom;
-				}
-			};
 			olderMessages = [...fresh, ...olderMessages];
 			messages = [...fresh, ...messages];
-			await tick();
-			restoreScroll();
 		} finally {
 			isLoadingOlder = false;
 		}
 	}
 
-	function handleViewportScroll(event: Event) {
-		const viewport = event.currentTarget;
-		if (!(viewport instanceof HTMLElement)) return;
-		if (viewport.scrollTop > viewport.clientHeight * 2.5) return;
-		loadOlderMessages(viewport);
+	function handleViewportScroll() {
+		const container = scrollContainer;
+		if (!container) return;
+		const distanceFromTop =
+			container.scrollHeight - container.clientHeight - Math.abs(container.scrollTop);
+		showScrollToBottom = Math.abs(container.scrollTop) > 200;
+		if (distanceFromTop < container.clientHeight * 2.5) loadOlderMessages();
+	}
+
+	function scrollToBottom() {
+		scrollContainer?.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
 	function conversationSignature(list: ChannelMessage[]): string {
@@ -415,6 +402,7 @@
 				sentAt: new Date().toISOString()
 			}
 		];
+		scrollContainer?.scrollTo({ top: 0 });
 		try {
 			await sendChannelMessage(trimmedMessage, outgoingAttachments, channelId);
 			isAgentWorking = true;
@@ -844,7 +832,6 @@
 {/snippet}
 
 <div class="flex min-h-0 flex-1">
-<MessageScroller.Provider autoScroll>
 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
 		{#if !hasLoadedOnce}
@@ -877,7 +864,7 @@
 				</Empty.Header>
 			</Empty.Root>
 		{:else}
-			<MessageScroller.Root>
+			<div class="relative flex h-full flex-col">
 				{#if isLoadingOlder}
 					<div class="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
 						<span
@@ -887,43 +874,50 @@
 						</span>
 					</div>
 				{/if}
-				<MessageScroller.Viewport onscroll={handleViewportScroll} class="[overflow-anchor:none]">
-					<MessageScroller.Content aria-busy={isAgentWorking} class="gap-8 px-4 py-12">
-						{#each timeline as item (item.id)}
-							{#if item.kind === 'date'}
-								<Marker.Root variant="separator">
-									<Marker.Content>{item.label}</Marker.Content>
-								</Marker.Root>
-							{:else}
-								<!-- content-visibility:auto applies paint containment that clips the floating Bubble.Reactions badge; disable it so reactions can overflow the item. -->
-								<MessageScroller.Item
-									messageId={item.id}
-									class="[content-visibility:visible]"
-								>
-									<Message.Root align={item.senderID === currentUserID ? 'end' : 'start'}>
-										{#if item.senderID !== currentUserID}
-											{@render senderAvatar(item.items[0].sender)}
-										{/if}
-										<Message.Content>
-											<Bubble.Group class="w-full">
-												{#each item.items as message (message.id)}
-													{@render messageBody(message)}
-												{/each}
-											</Bubble.Group>
-										</Message.Content>
-									</Message.Root>
-								</MessageScroller.Item>
-							{/if}
-						{/each}
-						{#if isAgentWorking}
-							<Marker.Root role="status">
-								<Marker.Content class="shimmer">{text.working}</Marker.Content>
+				<div
+					bind:this={scrollContainer}
+					onscroll={handleViewportScroll}
+					class="flex min-h-0 flex-1 flex-col-reverse gap-8 overflow-y-auto overscroll-contain px-4 py-12 [scrollbar-gutter:stable]"
+				>
+					{#if isAgentWorking}
+						<Marker.Root role="status">
+							<Marker.Content class="shimmer">{text.working}</Marker.Content>
+						</Marker.Root>
+					{/if}
+					{#each reversedTimeline as item (item.id)}
+						{#if item.kind === 'date'}
+							<Marker.Root variant="separator">
+								<Marker.Content>{item.label}</Marker.Content>
 							</Marker.Root>
+						{:else}
+							<div data-message-id={item.id}>
+								<Message.Root align={item.senderID === currentUserID ? 'end' : 'start'}>
+									{#if item.senderID !== currentUserID}
+										{@render senderAvatar(item.items[0].sender)}
+									{/if}
+									<Message.Content>
+										<Bubble.Group class="w-full">
+											{#each item.items as message (message.id)}
+												{@render messageBody(message)}
+											{/each}
+										</Bubble.Group>
+									</Message.Content>
+								</Message.Root>
+							</div>
 						{/if}
-					</MessageScroller.Content>
-				</MessageScroller.Viewport>
-				<MessageScroller.Button />
-			</MessageScroller.Root>
+					{/each}
+				</div>
+				{#if showScrollToBottom}
+					<button
+						type="button"
+						aria-label="맨 아래로"
+						onclick={scrollToBottom}
+						class="bg-background hover:bg-muted text-foreground absolute bottom-4 left-1/2 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border shadow-md transition"
+					>
+						<ChevronDownIcon class="size-5" />
+					</button>
+				{/if}
+			</div>
 		{/if}
 	</div>
 	<form onsubmit={submitMessage} class="border-t p-3">
@@ -997,7 +991,6 @@
 		</InputGroup.Root>
 	</form>
 </div>
-</MessageScroller.Provider>
 {#if threadLayout === 'inline' && openThreadRoot}
 	<aside class="flex min-h-0 w-full max-w-md flex-col border-l">
 		<header class="flex items-center justify-between gap-2 border-b p-3">
