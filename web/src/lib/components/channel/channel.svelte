@@ -71,6 +71,7 @@
 	let hasMoreBefore = $state(false);
 	let historyCursor = $state('');
 	let isLoadingOlder = $state(false);
+	let lightboxURL = $state<string | null>(null);
 	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 	let lastConversationSignature = '';
 	let pendingAttachments = $state<PendingAttachment[]>([]);
@@ -513,7 +514,14 @@
 				<Attachment.Root orientation="vertical">
 					{#if attachment.kind === 'image'}
 						<Attachment.Media variant="image">
-							<img src={attachment.url} alt={attachment.filename ?? ''} loading="lazy" decoding="async" />
+							<button
+								type="button"
+								class="block h-full w-full cursor-zoom-in"
+								aria-label={attachment.filename ?? '이미지 크게 보기'}
+								onclick={() => (lightboxURL = attachment.url)}
+							>
+								<img src={attachment.url} alt={attachment.filename ?? ''} loading="lazy" decoding="async" />
+							</button>
 						</Attachment.Media>
 					{:else}
 						<Attachment.Media>
@@ -534,10 +542,10 @@
 					{/if}
 				</Attachment.Root>
 			{/each}
-				{#if !content.text && reactions.length > 0}
-					{@render reactionRow(reactions, reactionAlign, reactionSide)}
-				{/if}
 			</Attachment.Group>
+			{#if !content.text && reactions.length > 0}
+				{@render reactionRow(reactions, reactionAlign, reactionSide)}
+			{/if}
 			{#if !content.text}{@render timeStamp(message)}{/if}
 		</div>
 	{/if}
@@ -927,6 +935,22 @@
 	</aside>
 {/if}
 </div>
+
+<svelte:window
+	onkeydown={(event) => {
+		if (event.key === 'Escape') lightboxURL = null;
+	}}
+/>
+{#if lightboxURL}
+	<button
+		type="button"
+		class="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/80 p-6"
+		aria-label="이미지 닫기"
+		onclick={() => (lightboxURL = null)}
+	>
+		<img src={lightboxURL} alt="" class="max-h-full max-w-full rounded-md object-contain" />
+	</button>
+{/if}
 
 {#if threadLayout === 'sheet'}
 	<Sheet.Root
