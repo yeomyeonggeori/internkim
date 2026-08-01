@@ -17,6 +17,7 @@
 	import {
 		fetchChannelConversation,
 		parseMessageContent,
+		applyCustomEmoji,
 		sendChannelMessage,
 		type ChannelMessage,
 		type ChannelMessageReaction,
@@ -575,7 +576,7 @@
 		>
 			<Bubble.Content>
 				<div class="chat-markdown">
-					<SvelteMarkdown source={content.text} />
+					<SvelteMarkdown source={applyCustomEmoji(content.text, message.customEmoji)} />
 				</div>
 			</Bubble.Content>
 			{#if reactions.length > 0}
@@ -965,5 +966,30 @@
 	}
 	.chat-markdown :global(code) {
 		font-size: 0.85em;
+	}
+	.chat-markdown :global(table) {
+		display: block;
+		max-width: 100%;
+		overflow-x: auto;
+		border-collapse: collapse;
+		margin: 0.5rem 0;
+		font-size: 0.9em;
+	}
+	.chat-markdown :global(th),
+	.chat-markdown :global(td) {
+		border: 1px solid var(--border);
+		padding: 0.375rem 0.625rem;
+		text-align: left;
+		white-space: nowrap;
+	}
+	.chat-markdown :global(thead th) {
+		background: var(--muted);
+		font-weight: 600;
+	}
+	.chat-markdown :global(img) {
+		display: inline-block;
+		height: 1.4em;
+		width: auto;
+		vertical-align: text-bottom;
 	}
 </style>

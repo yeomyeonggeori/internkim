@@ -36,6 +36,11 @@ export type ChannelMessageAttachment = {
 	sizeBytes?: number;
 };
 
+export type ChannelCustomEmoji = {
+	name: string;
+	url: string;
+};
+
 export type ThreadSummary = {
 	replyCount: number;
 	lastReplyAt: string;
@@ -52,6 +57,7 @@ export type ChannelMessage = {
 	interaction?: ChannelInteraction;
 	reactions?: ChannelMessageReaction[];
 	attachments?: ChannelMessageAttachment[];
+	customEmoji?: ChannelCustomEmoji[];
 	thread?: ThreadSummary;
 };
 
@@ -77,6 +83,17 @@ export function parseMessageContent(text: string): MessageContent {
 		return '';
 	});
 	return { text: stripped.trim(), imageURLs };
+}
+
+const emojiShortcodePattern = /:([^:\s]+):/g;
+
+export function applyCustomEmoji(text: string, customEmoji?: ChannelCustomEmoji[]): string {
+	if (!customEmoji || customEmoji.length === 0) return text;
+	const urlByName = new Map(customEmoji.map((emoji) => [emoji.name, emoji.url]));
+	return text.replace(emojiShortcodePattern, (whole, name: string) => {
+		const url = urlByName.get(name);
+		return url ? `![${name}](${url})` : whole;
+	});
 }
 
 export type ChannelSummary = {
