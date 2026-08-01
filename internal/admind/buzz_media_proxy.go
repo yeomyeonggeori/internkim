@@ -127,6 +127,9 @@ func (service *Service) rewriteConversationMedia(response agentConversationRespo
 		for reactionIndex := range message.Reactions {
 			message.Reactions[reactionIndex].ImageURL = service.rewriteBuzzMedia(message.Reactions[reactionIndex].ImageURL)
 		}
+		for emojiIndex := range message.CustomEmoji {
+			message.CustomEmoji[emojiIndex].URL = service.rewriteBuzzMedia(message.CustomEmoji[emojiIndex].URL)
+		}
 	}
 	return response
 }
