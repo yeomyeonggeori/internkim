@@ -77,6 +77,9 @@ export async function routeCalendarShellAPI(page: Page): Promise<void> {
 			}
 		});
 	});
+	await page.route('**/calendar/api/holidays?**', async (route) => {
+		await route.fulfill({ json: { holidays: [], source: 'holiday_api' } });
+	});
 	await page.route('**/calendar/api/participants', async (route) => {
 		await route.fulfill({ json: { participants: [] } });
 	});

@@ -36,7 +36,8 @@ test.describe('employee leave requests', () => {
 		const summary = page.getByTestId('leave-balance-summary');
 		await expect(summary).toContainText('1.25일');
 		await expect(summary).toContainText('0.5일');
-		await expect(summary).toContainText('제한 없음');
+		await expect(summary.getByText('남음', { exact: true })).toHaveCount(0);
+		await expect(summary.getByText('제한 없음', { exact: true })).toHaveCount(0);
 		await expect(summary.getByTestId('leave-balance-segmented-bar')).toHaveCount(0);
 
 		await page.getByRole('button', { name: '휴가 내역' }).click();

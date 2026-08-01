@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func validateAndNormalizeAttendanceWorkSchedule(schedule *attendanceWorkSchedule) error {
@@ -26,9 +25,6 @@ func validateAndNormalizeAttendanceWorkSchedule(schedule *attendanceWorkSchedule
 		return errorValue
 	}
 	if errorValue := normalizeAttendanceWorkScheduleBreakPeriods(schedule); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := normalizeAttendanceWorkScheduleHolidays(schedule); errorValue != nil {
 		return errorValue
 	}
 	return validateAttendanceWorkScheduleMode(schedule)
@@ -77,31 +73,6 @@ func normalizeAttendanceWorkScheduleBreakPeriods(schedule *attendanceWorkSchedul
 		}
 	}
 	schedule.BreakPeriods = breakPeriods
-	return nil
-}
-
-func normalizeAttendanceWorkScheduleHolidays(schedule *attendanceWorkSchedule) error {
-	holidays := make([]attendanceWorkScheduleHoliday, len(schedule.Holidays))
-	copy(holidays, schedule.Holidays)
-	seenDates := make(map[string]struct{}, len(holidays))
-	for index := range holidays {
-		holidays[index].Date = strings.TrimSpace(holidays[index].Date)
-		holidays[index].Name = strings.TrimSpace(holidays[index].Name)
-		if _, errorValue := attendanceWorkScheduleDate(holidays[index].Date, time.UTC); errorValue != nil {
-			return fmt.Errorf("invalid holiday date: %w", errorValue)
-		}
-		if holidays[index].Name == "" {
-			return fmt.Errorf("holiday name must not be empty")
-		}
-		if _, exists := seenDates[holidays[index].Date]; exists {
-			return fmt.Errorf("holiday dates must be unique")
-		}
-		seenDates[holidays[index].Date] = struct{}{}
-	}
-	sort.Slice(holidays, func(left int, right int) bool {
-		return holidays[left].Date < holidays[right].Date
-	})
-	schedule.Holidays = holidays
 	return nil
 }
 

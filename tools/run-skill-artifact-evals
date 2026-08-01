@@ -26,6 +26,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 EVALUATIONS_PATH = REPOSITORY_ROOT / "evals" / "skill-artifact-quality" / "evals.json"
 SCORES_PATH = REPOSITORY_ROOT / "evals" / "skill-artifact-quality" / "scores.json"
 ARTIFACTS_ROOT = REPOSITORY_ROOT / ".artifacts" / "skill-artifact-evals"
+DEFAULT_GENERATION_MODEL = "openai/gpt-5.6-luna"
 DEFAULT_GENERATION_SEED = 41
 DEFAULT_GENERATION_TEMPERATURE = 0.0
 DEFAULT_TEST_TIMEOUT_SECONDS = 900
@@ -99,6 +100,7 @@ def parse_arguments() -> argparse.Namespace:
     runParser.add_argument("--evaluation", action="append", default=[], help="Evaluation ID to run. Repeatable.")
     runParser.add_argument("--dry-run", action="store_true", help="Write run files without executing InternKim.")
     runParser.add_argument("--reuse", action="store_true", help="Reuse the shared Local Fleet while still sending prompts through Mattermost.")
+    runParser.add_argument("--model", default=DEFAULT_GENERATION_MODEL, help="OpenRouter model pinned across every tier for the run.")
     runParser.add_argument("--seed", type=int, default=DEFAULT_GENERATION_SEED, help="Fixed generation seed passed through internkim test.")
     runParser.add_argument("--temperature", type=float, default=DEFAULT_GENERATION_TEMPERATURE, help="Fixed generation temperature passed through internkim test.")
     runParser.add_argument("--timeout", type=int, default=DEFAULT_TEST_TIMEOUT_SECONDS, help="Seconds passed to internkim test --timeout.")
@@ -139,12 +141,19 @@ def run_evaluations(arguments: argparse.Namespace) -> int:
     runDirectory = ARTIFACTS_ROOT / runID
     runDirectory.mkdir(parents=True, exist_ok=False)
 
+    require_xml_parser()
     commandTimeoutSeconds = arguments.command_timeout if arguments.command_timeout else arguments.timeout + 3000
-    manifest = create_manifest(runID, selectedEvaluations, arguments.dry_run, arguments.reuse, arguments.seed, arguments.temperature, arguments.timeout, commandTimeoutSeconds)
+    effectiveSeed, effectiveTemperature, droppedPins = drop_unsupported_generation_pins(arguments.model, arguments.seed, arguments.temperature)
+    for parameterName in droppedPins:
+        print(f"{arguments.model} has no endpoint accepting {parameterName}; running without that pin")
+    manifest = create_manifest(runID, selectedEvaluations, arguments.dry_run, arguments.reuse, arguments.model, effectiveSeed, effectiveTemperature, arguments.timeout, commandTimeoutSeconds)
+    manifest["generationOptions"]["requestedSeed"] = arguments.seed
+    manifest["generationOptions"]["requestedTemperature"] = arguments.temperature
+    manifest["generationOptions"]["droppedGenerationParameters"] = droppedPins
     write_json(runDirectory / "manifest.json", manifest)
 
     for evaluation in selectedEvaluations:
-        run_single_evaluation(runDirectory, evaluation, arguments.dry_run, arguments.reuse, arguments.seed, arguments.temperature, arguments.timeout, commandTimeoutSeconds)
+        run_single_evaluation(runDirectory, evaluation, arguments.dry_run, arguments.reuse, arguments.model, effectiveSeed, effectiveTemperature, arguments.timeout, commandTimeoutSeconds)
 
     update_scorecard_for_evaluable_outputs(runDirectory, configuration, selectedEvaluations, None)
     manifest = update_manifest_evaluability(runDirectory, manifest, selectedEvaluations)
@@ -1451,7 +1460,67 @@ def select_evaluations(configuration: dict, selectedIDs: list[str]) -> list[dict
     return [evaluationsByID[selectedID] for selectedID in selectedIDs]
 
 
-def create_manifest(runID: str, selectedEvaluations: list[dict], isDryRun: bool, shouldReuseFleet: bool, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> dict:
+
+OPENROUTER_ENDPOINTS_URL = "https://openrouter.ai/api/v1/models/{model}/endpoints"
+
+
+def resolve_supported_generation_parameters(modelName: str) -> set[str] | None:
+    """Union of parameters any endpoint serving this model accepts.
+
+    OpenRouter routes to whichever endpoint can satisfy the request, so a
+    parameter one endpoint accepts is routable. Returns None when the catalog
+    cannot be read, which leaves the requested pins untouched.
+    """
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(OPENROUTER_ENDPOINTS_URL.format(model=modelName), timeout=20) as response:
+            document = json.loads(response.read())
+    except Exception:
+        return None
+    endpoints = document.get("data", {}).get("endpoints", [])
+    if not endpoints:
+        return None
+    supported: set[str] = set()
+    for endpoint in endpoints:
+        supported.update(endpoint.get("supported_parameters", []))
+    return supported
+
+
+def drop_unsupported_generation_pins(modelName: str, seed: int, temperature: float) -> tuple[int | None, float | None, list[str]]:
+    """Pinning a parameter no endpoint accepts makes OpenRouter refuse to route.
+
+    The refusal is instant and reads as a model failure, so drop the pin at the
+    source rather than letting a boundary quietly rewrite the request.
+    """
+    supported = resolve_supported_generation_parameters(modelName)
+    if supported is None:
+        return seed, temperature, []
+    dropped = [name for name in ("seed", "temperature") if name not in supported]
+    return (
+        None if "seed" in dropped else seed,
+        None if "temperature" in dropped else temperature,
+        dropped,
+    )
+
+def require_xml_parser() -> None:
+    """Fail before the fleet runs, not after.
+
+    Every OOXML artifact is scored through ElementTree, which needs expat. Some
+    macOS CPython builds link against a system libexpat that is missing symbols,
+    and the ImportError only surfaces during the audit - after a fleet has been
+    provisioned and a live model has been paid for.
+    """
+    try:
+        import pyexpat  # noqa: F401
+    except ImportError as errorValue:
+        raise SystemExit(
+            f"this interpreter cannot parse XML ({errorValue}), so generated documents could not be scored.\n"
+            f"run the evaluations with an interpreter that has a working expat, for example: uv python install 3.12"
+        )
+
+
+def create_manifest(runID: str, selectedEvaluations: list[dict], isDryRun: bool, shouldReuseFleet: bool, modelName: str, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> dict:
     return {
         "runID": runID,
         "startedAt": current_datetime(),
@@ -1469,6 +1538,7 @@ def create_manifest(runID: str, selectedEvaluations: list[dict], isDryRun: bool,
             "effectiveTemperature": temperature,
             "testTimeoutSeconds": testTimeoutSeconds,
             "commandTimeoutSeconds": commandTimeoutSeconds,
+            "model": modelName,
             "applicationPath": "blueclaw agent.generationOptions via internkim test"
         },
         "evaluationIDs": [evaluation["id"] for evaluation in selectedEvaluations]
@@ -1569,7 +1639,7 @@ def create_scorecard_criterion(criterion: dict) -> dict:
     }
 
 
-def run_single_evaluation(runDirectory: Path, evaluation: dict, isDryRun: bool, shouldReuseFleet: bool, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> None:
+def run_single_evaluation(runDirectory: Path, evaluation: dict, isDryRun: bool, shouldReuseFleet: bool, modelName: str, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> None:
     resultDirectory = result_directory(runDirectory, evaluation["id"])
     diagnosticDirectory = diagnostic_directory(runDirectory, evaluation["id"])
     resultDirectory.mkdir(parents=True)
@@ -1592,7 +1662,7 @@ def run_single_evaluation(runDirectory: Path, evaluation: dict, isDryRun: bool, 
         return
 
     try:
-        completedProcess = subprocess.run(command, cwd=REPOSITORY_ROOT, text=True, capture_output=True, timeout=commandTimeoutSeconds)
+        completedProcess = subprocess.run(command, cwd=REPOSITORY_ROOT, env=generation_environment(modelName), text=True, capture_output=True, timeout=commandTimeoutSeconds)
         stdoutText = completedProcess.stdout
         stderrText = completedProcess.stderr
         exitCode = completedProcess.returncode
@@ -1688,16 +1758,21 @@ def read_source_data(evaluation: dict) -> str:
     return sourcePath.read_text(encoding="utf-8")
 
 
+def generation_environment(modelName: str) -> dict:
+    environment = dict(os.environ)
+    if modelName.strip():
+        environment["INTERNKIM_TEST_MODEL"] = modelName.strip()
+    return environment
+
+
 def build_evaluation_command(evaluation: dict, resultDirectory: Path, diagnosticDirectory: Path, prompt: str, shouldReuseFleet: bool, seed: int, temperature: float, testTimeoutSeconds: int) -> list[str]:
     command = [
         str(REPOSITORY_ROOT / "internkim"),
         "test",
         prompt,
         "--no-open",
-        "--seed",
-        str(seed),
-        "--temperature",
-        format_float(temperature),
+        *(["--seed", str(seed)] if seed is not None else []),
+        *(["--temperature", format_float(temperature)] if temperature is not None else []),
         "--timeout",
         str(testTimeoutSeconds),
         "--result-json",
@@ -1780,7 +1855,32 @@ def audit_evaluation_output(resultDirectory: Path, diagnosticDirectory: Path, ev
         "formatChecks": formatChecks,
         "renderChecks": renderChecks,
         "efficiency": compute_efficiency_metrics(diagnosticDirectory),
+        "evaluable": artifactExists,
+        "nonEvaluableReason": None if artifactExists else non_evaluable_reason(evaluation, {"exitCode": exitCode, "artifactKind": evaluation["artifactKind"]}),
+        "failureLayer": None if artifactExists else classify_failure_layer(diagnosticDirectory, exitCode),
     }
+
+
+PROVISIONING_STEP_FAILURE_PATTERN = re.compile(r"^\u2717 step ([\w.-]+): (.+)$", re.MULTILINE)
+
+
+def classify_failure_layer(diagnosticDirectory: Path, exitCode) -> dict:
+    """Name the layer that failed so a stalled fleet never reads as a weak model.
+
+    A missing artifact is scored as fourteen absent strings either way; only the
+    layer tells you whether the agent produced a bad document or never ran.
+    """
+    stepFailure = PROVISIONING_STEP_FAILURE_PATTERN.search(read_stdout_text(diagnosticDirectory))
+    if stepFailure:
+        return {
+            "layer": "harness",
+            "detail": f"provisioning step {stepFailure.group(1)} failed: {stepFailure.group(2).strip()}",
+        }
+    if exitCode == -1:
+        return {"layer": "harness", "detail": "generation command hit the outer timeout before returning."}
+    if exitCode is None:
+        return {"layer": "harness", "detail": "generation never ran."}
+    return {"layer": "product", "detail": "generation ran to completion without leaving the requested artifact."}
 
 
 TURN_TASK_STEP_ID_PATTERN = re.compile(r":turn-\d+$")

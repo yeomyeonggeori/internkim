@@ -43,6 +43,31 @@ describe('calendar grid week layout', () => {
 		]);
 	});
 
+	test('places a holiday in the first lane before regular all-day events', () => {
+		const week = calendarGridWeek(new Date(2026, 7, 9));
+		const layout = calendarGridWeekLayout(week, [
+			event({
+				id: 'regular',
+				start: new Date(2026, 7, 14),
+				end: new Date(2026, 7, 17),
+				isAllDay: true,
+				displayPriority: 1
+			}),
+			event({
+				id: 'holiday',
+				start: new Date(2026, 7, 15),
+				end: new Date(2026, 7, 16),
+				isAllDay: true,
+				displayPriority: 0
+			})
+		]);
+
+		expect(layout.spans.map((span) => [span.event.id, span.lane])).toEqual([
+			['holiday', 0],
+			['regular', 1]
+		]);
+	});
+
 	test('reuses a lane once the earlier event has ended', () => {
 		const week = calendarGridWeek(new Date(2026, 6, 26));
 		const layout = calendarGridWeekLayout(week, [

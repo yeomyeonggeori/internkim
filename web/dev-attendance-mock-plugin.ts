@@ -27,6 +27,12 @@ import {
 	createDevAttendanceLeavePolicyMockState,
 	type DevAttendanceLeavePolicyMockState
 } from './dev-attendance-leave-policy-mock';
+import {
+	createDevAttendanceWorkPolicyMockResponse,
+	createDevAttendanceWorkPolicyMockState,
+	type DevAttendanceWorkPolicyMockState
+} from './dev-attendance-work-policy-mock';
+import { createDevAttendanceWorkStatus } from './dev-attendance-work-status-mock';
 import { synchronizeUnlimitedEmployeeLeaveUsage } from './dev-attendance-leave-balance';
 
 type DevAttendanceMockPluginOptions = {
@@ -45,6 +51,7 @@ type DevAttendanceMockState = {
 	leaveApproval: DevLeaveApprovalMockState;
 	leaveManagement: DevLeaveManagementMockState;
 	leavePolicy: DevAttendanceLeavePolicyMockState;
+	workPolicy: DevAttendanceWorkPolicyMockState;
 };
 
 type DevAttendanceMockRequest = {
@@ -121,7 +128,8 @@ export function createDevAttendanceMockState(userEmail: string): DevAttendanceMo
 		leave,
 		leaveApproval: createDevLeaveApprovalMockState(leave),
 		leaveManagement: createDevLeaveManagementMockState(leave),
-		leavePolicy: createDevAttendanceLeavePolicyMockState()
+		leavePolicy: createDevAttendanceLeavePolicyMockState(),
+		workPolicy: createDevAttendanceWorkPolicyMockState()
 	};
 }
 
@@ -180,6 +188,11 @@ export async function createDevAttendanceMockResponse(
 		}
 		return leavePolicyResponse;
 	}
+	const workPolicyResponse = createDevAttendanceWorkPolicyMockResponse(
+		state.workPolicy,
+		request
+	);
+	if (workPolicyResponse) return workPolicyResponse;
 	const leaveResponse = createDevEmployeeLeaveMockResponse(state.leave, request);
 	if (leaveResponse) return leaveResponse;
 	const leaveApprovalResponse = createDevLeaveApprovalMockResponse(state.leaveApproval, request);
@@ -189,6 +202,16 @@ export async function createDevAttendanceMockResponse(
 		request
 	);
 	if (leaveManagementResponse) return leaveManagementResponse;
+	if (request.method === 'GET' && request.pathname === '/attendance/api/work-status') {
+		return {
+			status: 200,
+			body: createDevAttendanceWorkStatus(
+				state.userEmail,
+				request.searchParams.get('period'),
+				request.searchParams.get('anchor')
+			)
+		};
+	}
 	if (request.method === 'GET' && request.pathname === '/attendance/api/summary') {
 		const month = request.searchParams.get('month') || currentMonth();
 		const summary = buildAttendanceSummaryFixture(month);

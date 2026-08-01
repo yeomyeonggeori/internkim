@@ -28,7 +28,9 @@ function createLoader(fetchedEvents: CalendarEvent[]) {
 	const loader = createCalendarEventLoader(
 		{
 			isBrowser: () => true,
+			getLocale: () => 'ko',
 			errorFallback: () => 'error',
+			holidayErrorFallback: () => 'holiday error',
 			getCalendarEvents: () => calendarEvents,
 			getVisibleEvents: () => visibleEvents,
 			applyCalendarEventsChanges: (changes) => {

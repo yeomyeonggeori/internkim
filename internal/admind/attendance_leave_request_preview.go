@@ -45,11 +45,22 @@ func (service *Service) previewAttendanceLeaveRequestWithPastOption(
 		return attendanceLeaveRequestPreview{}, attendanceLeaveInvalidInputErrorf("leave unit is not allowed")
 	}
 	timeZone := service.workspaceTimeZone()
-	schedule := defaultAttendanceWorkSchedule()
+	workPolicy, errorValue := service.readAttendanceWorkPolicy(ctx)
+	if errorValue != nil {
+		return attendanceLeaveRequestPreview{}, errorValue
+	}
 	startDate, endDate, errorValue := attendanceLeaveRequestDateRangeWithPastOption(
 		input,
 		now.In(timeZone.location),
 		allowPast,
+	)
+	if errorValue != nil {
+		return attendanceLeaveRequestPreview{}, errorValue
+	}
+	holidayDates, errorValue := service.readCalendarHolidayDatesForRange(
+		ctx,
+		startDate,
+		endDate.AddDate(0, 0, 1),
 	)
 	if errorValue != nil {
 		return attendanceLeaveRequestPreview{}, errorValue
@@ -60,14 +71,19 @@ func (service *Service) previewAttendanceLeaveRequestWithPastOption(
 	}
 	for date := startDate; !date.After(endDate); date = date.AddDate(0, 0, 1) {
 		dateValue := date.Format(time.DateOnly)
-		working, workingError := attendanceWorkScheduleIsWorkingDate(schedule, dateValue)
+		revision, revisionError := attendanceWorkPolicyRevisionForDate(workPolicy, dateValue)
+		if revisionError != nil {
+			return attendanceLeaveRequestPreview{}, revisionError
+		}
+		schedule := attendanceWorkScheduleFromPolicyRevision(revision)
+		working, workingError := attendanceWorkScheduleIsWorkingDate(schedule, dateValue, holidayDates)
 		if workingError != nil {
 			return attendanceLeaveRequestPreview{}, workingError
 		}
 		if !working {
 			preview.ExcludedDates = append(preview.ExcludedDates, attendanceLeaveRequestExcludedDate{
 				Date:   dateValue,
-				Reason: attendanceLeaveRequestExclusionReason(schedule, dateValue),
+				Reason: attendanceLeaveRequestExclusionReason(holidayDates, dateValue),
 			})
 			continue
 		}
@@ -303,11 +319,9 @@ func attendanceLeaveRequestDeductionMilliDays(unit string) (int, error) {
 	}
 }
 
-func attendanceLeaveRequestExclusionReason(schedule attendanceWorkSchedule, date string) string {
-	for _, holiday := range schedule.Holidays {
-		if holiday.Date == date {
-			return "holiday"
-		}
+func attendanceLeaveRequestExclusionReason(holidayDates map[string]struct{}, date string) string {
+	if _, isHoliday := holidayDates[date]; isHoliday {
+		return "holiday"
 	}
 	return "nonWorkingDay"
 }

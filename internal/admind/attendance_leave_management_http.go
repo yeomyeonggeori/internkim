@@ -10,7 +10,7 @@ func (service *Service) writeAttendanceLeaveManagement(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 ) {
-	if !service.isAuthorized(request) {
+	if !service.canManageAttendance(request) {
 		writeAttendanceLeaveRequestError(responseWriter, errAttendanceLeaveAccessDenied)
 		return
 	}
@@ -31,7 +31,7 @@ func (service *Service) writeAttendanceLeaveManagementAdjustment(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 ) {
-	if !service.isAuthorized(request) {
+	if !service.canManageAttendance(request) {
 		writeAttendanceLeaveRequestError(responseWriter, errAttendanceLeaveAccessDenied)
 		return
 	}
@@ -57,7 +57,7 @@ func (service *Service) writeAttendanceLeaveManagementPastLeave(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 ) {
-	if !service.isAuthorized(request) {
+	if !service.canManageAttendance(request) {
 		writeAttendanceLeaveRequestError(responseWriter, errAttendanceLeaveAccessDenied)
 		return
 	}
@@ -85,7 +85,7 @@ func (service *Service) writeAttendanceLeaveManagementCancellation(
 	request *http.Request,
 	requestID string,
 ) {
-	if !service.isAuthorized(request) {
+	if !service.canManageAttendance(request) {
 		writeAttendanceLeaveRequestError(responseWriter, errAttendanceLeaveAccessDenied)
 		return
 	}
@@ -113,7 +113,7 @@ func (service *Service) writeAttendanceLeaveManagementTimeCorrection(
 	request *http.Request,
 	requestID string,
 ) {
-	if !service.isAuthorized(request) {
+	if !service.canManageAttendance(request) {
 		writeAttendanceLeaveRequestError(responseWriter, errAttendanceLeaveAccessDenied)
 		return
 	}

@@ -29,6 +29,13 @@ var StepBuzzMigrate = Step{
 		if errorValue := context.Callbacks.InstallBuzzRelayBinariesSSH(context); errorValue != nil {
 			return errorValue
 		}
+		if trimmedRun(context, "test -x "+blueclaw.BuzzMigrateBinaryPath+" && echo yes || echo no") != "yes" {
+			fmt.Println("  " + context.T(
+				"buzz-migrate 없음 — Mattermost 히스토리 마이그레이션 건너뜀",
+				"buzz-migrate absent - skipping Mattermost history migration",
+			))
+			return nil
+		}
 
 		fmt.Println(context.SSH.Run(buzzMigrateInspectCommand()))
 		fmt.Println(context.SSH.Run(buzzMigrateSnapshotCommand()))

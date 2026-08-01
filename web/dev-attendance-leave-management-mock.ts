@@ -2,6 +2,7 @@ import type { DevEmployeeLeaveMockState } from './dev-attendance-leave-mock';
 import type {
 	LeaveManagementAdjustment,
 	LeaveManagementEmployee,
+	LeaveManagementLegacyMigrationPreview,
 	LeaveManagementLedgerEntry,
 	LeaveManagementPastLeave,
 	LeaveManagementPayload,
@@ -24,6 +25,7 @@ export type DevLeaveManagementMockState = {
 	leave: DevEmployeeLeaveMockState;
 	employees: LeaveManagementEmployee[];
 	ledgerByEmail: Record<string, LeaveManagementLedgerEntry[]>;
+	legacyMigration: LeaveManagementLegacyMigrationPreview;
 };
 
 export function createDevLeaveManagementMockState(
@@ -51,6 +53,14 @@ export function createDevLeaveManagementMockState(
 				ledger('park-reserve', 'reserve', -500, 7000, '2026-08-03', '승인 대기'),
 				ledger('park-grant', 'grant', 15000, 15000, '2026-01-01', '2026년 연차 부여')
 			]
+		},
+		legacyMigration: {
+			candidateLeaveCount: 0,
+			candidateOccurrenceCount: 0,
+			alreadyMigratedCount: 0,
+			conflictCount: 0,
+			preservedOtherCount: 0,
+			fingerprint: 'sha256:dev-empty'
 		}
 	};
 }
@@ -59,6 +69,40 @@ export function createDevLeaveManagementMockResponse(
 	state: DevLeaveManagementMockState,
 	request: DevLeaveManagementRequest
 ): DevLeaveManagementResponse | undefined {
+	if (
+		request.method === 'GET' &&
+		request.pathname === '/attendance/api/leave-management/legacy-migration'
+	) {
+		return { status: 200, body: structuredClone(state.legacyMigration) };
+	}
+	if (
+		request.method === 'POST' &&
+		request.pathname === '/attendance/api/leave-management/legacy-migration/apply'
+	) {
+		const input = parseBody<{ fingerprint?: string }>(request.body);
+		if (!input?.fingerprint || input.fingerprint !== state.legacyMigration.fingerprint) {
+			return errorResponse('migration preview is stale', 409);
+		}
+		if (state.legacyMigration.conflictCount > 0) {
+			return errorResponse('migration conflicts must be resolved', 409);
+		}
+		const leaveCount = state.legacyMigration.candidateLeaveCount;
+		state.legacyMigration.candidateLeaveCount = 0;
+		state.legacyMigration.candidateOccurrenceCount = 0;
+		state.legacyMigration.alreadyMigratedCount += leaveCount;
+		return {
+			status: 200,
+			body: {
+				batch: {
+					id: 'legacy-migration-dev',
+					status: 'applied',
+					leaveCount,
+					preservedOtherCount: state.legacyMigration.preservedOtherCount,
+					createdAt: new Date().toISOString()
+				}
+			}
+		};
+	}
 	if (request.method === 'GET' && request.pathname === '/attendance/api/leave-management') {
 		return {
 			status: 200,

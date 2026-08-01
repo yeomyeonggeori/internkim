@@ -74,6 +74,7 @@ type localBinaryAsset struct {
 	downloadURL    string
 	archiveEntry   string
 	expectedSHA256 string
+	optional       bool
 }
 
 func installSkillPythonDependenciesCommand() string {
@@ -463,11 +464,13 @@ func (state *setupFlowState) buzzRelayBinaryAssets() []localBinaryAsset {
 			name:       blueclaw.BuzzMigrateName,
 			localPath:  filepath.Join(state.scriptDir, blueclaw.BuzzRelayArtifactPath, blueclaw.BuzzMigrateName),
 			remotePath: blueclaw.BuzzMigrateBinaryPath,
+			optional:   true,
 		},
 		{
 			name:       blueclaw.ChatdName,
 			localPath:  filepath.Join(state.scriptDir, blueclaw.BuzzRelayArtifactPath, blueclaw.ChatdName),
 			remotePath: blueclaw.ChatdBinaryPath,
+			optional:   true,
 		},
 	}
 }
@@ -475,7 +478,11 @@ func (state *setupFlowState) buzzRelayBinaryAssets() []localBinaryAsset {
 func (state *setupFlowState) installBuzzRelayBinariesSSH(context *setup.Context) error {
 	for _, asset := range state.buzzRelayBinaryAssets() {
 		if _, errorValue := os.Stat(asset.localPath); errorValue != nil {
-			return fmt.Errorf("buzz relay artifact missing at %s; run make prepare-buzz-relay: %w", asset.localPath, errorValue)
+			if !asset.optional {
+				return fmt.Errorf("buzz relay artifact missing at %s; run make prepare-buzz-relay: %w", asset.localPath, errorValue)
+			}
+			fmt.Printf("  %s %s (%s)\n", asset.name, state.messenger.t("건너뜀: 빌드 산출물 없음", "skipped: no build produces it"), asset.localPath)
+			continue
 		}
 		existingHash := strings.TrimSpace(state.sshClient.run(
 			fmt.Sprintf("md5sum %s 2>/dev/null | awk '{print $1}'", asset.remotePath),
@@ -1282,11 +1289,33 @@ func (state *setupFlowState) installGoServiceBinarySSH(asset localBinaryAsset, s
 	}
 	state.installGoServiceUnitSSH(servicePath, serviceDocument)
 	state.sshClient.run("systemctl restart " + serviceName)
-	if strings.TrimSpace(state.sshClient.run("systemctl is-active "+serviceName+" 2>/dev/null")) != "active" {
+	if !state.waitForActiveService(serviceName) {
 		return fmt.Errorf("%s restart failed", serviceName)
 	}
 	fmt.Printf("  %s %s\n", serviceName, state.messenger.t("재시작 완료", "restarted"))
 	return nil
+}
+
+// A unit that restarts under systemd passes through activating, and a unit that
+// crashed once comes back on its own restart, so sampling once right after the
+// restart reports a healthy service as failed.
+func (state *setupFlowState) waitForActiveService(serviceName string) bool {
+	status := strings.TrimSpace(state.sshClient.run(
+		"for attempt in $(seq 1 30); do state=$(systemctl is-active " + serviceName + " 2>/dev/null); " +
+			"if [ \"$state\" = active ]; then printf active; exit 0; fi; " +
+			"if [ \"$state\" = failed ]; then printf failed; exit 0; fi; sleep 1; done; printf \"$state\"",
+	))
+	if status != "active" {
+		return false
+	}
+	// A crash-looping unit reads active between restarts, so require it to stay
+	// up rather than trusting the first sample.
+	restartCount := strings.TrimSpace(state.sshClient.run("systemctl show " + serviceName + " -p NRestarts --value 2>/dev/null"))
+	settled := strings.TrimSpace(state.sshClient.run(
+		"sleep 3; state=$(systemctl is-active " + serviceName + " 2>/dev/null); " +
+			"printf \"%s %s\" \"$state\" \"$(systemctl show " + serviceName + " -p NRestarts --value 2>/dev/null)\"",
+	))
+	return settled == "active "+restartCount
 }
 
 func (state *setupFlowState) installGoServiceUnitSSH(servicePath string, serviceDocument string) {

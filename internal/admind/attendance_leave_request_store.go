@@ -14,6 +14,7 @@ func (service *Service) createAttendanceLeaveRequest(
 	input attendanceLeaveRequestInput,
 	preview attendanceLeaveRequestPreview,
 	leaveType attendanceLeaveType,
+	policy attendanceLeavePolicy,
 	attachments []attendanceLeaveRequestAttachment,
 	now time.Time,
 ) (attendanceLeaveRequestRecord, error) {
@@ -44,7 +45,7 @@ func (service *Service) createAttendanceLeaveRequest(
 		return attendanceLeaveRequestRecord{}, errorValue
 	}
 	if leaveType.BalanceMode != "none" {
-		if _, errorValue := reserveAttendanceLeaveRequestOccurrencesInTransaction(
+		if _, errorValue := service.reserveAttendanceLeaveRequestOccurrencesInTransaction(
 			ctx,
 			transaction,
 			attendanceLeaveOperation{
@@ -54,6 +55,8 @@ func (service *Service) createAttendanceLeaveRequest(
 				ReferenceID:  attendanceLeaveRequestReservationReference(requestID, 1),
 			},
 			preview.Occurrences,
+			policy,
+			"",
 		); errorValue != nil {
 			return attendanceLeaveRequestRecord{}, errorValue
 		}

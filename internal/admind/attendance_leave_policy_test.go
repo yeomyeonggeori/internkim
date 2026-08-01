@@ -406,15 +406,13 @@ func TestLeavePolicyAdminAPIRejectsUnknownFieldsAndDeletesUnusedType(t *testing.
 func TestLeavePolicyAdminAPIArchivesUsedRemovedType(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
-	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
-		Operation: attendanceLeaveOperation{
-			OperationKey: "grant-used-reward-leave",
-			Employee:     employee,
-			LeaveTypeID:  "reward",
-			Kind:         attendanceLeaveOperationGrant,
-			Amount:       1000,
-			EffectiveOn:  "2026-07-30",
-		},
+	if _, errorValue := service.recordUntrackedAttendanceLeaveUse(t.Context(), attendanceLeaveOperation{
+		OperationKey: "used-reward-leave",
+		Employee:     employee,
+		LeaveTypeID:  "reward",
+		ReferenceID:  "reward-request",
+		Amount:       500,
+		EffectiveOn:  "2026-07-30",
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -425,6 +423,17 @@ func TestLeavePolicyAdminAPIArchivesUsedRemovedType(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	updated := requestAttendanceLeavePolicy(t, service, http.MethodPut, string(encodedPolicy), "admin@example.com", http.StatusOK)
+	dashboard, errorValue := service.readAttendanceLeaveDashboard(
+		t.Context(),
+		employee,
+		time.Date(2026, 7, 31, 10, 0, 0, 0, time.UTC),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if dashboard.Summary.UsedMilliDays != 500 {
+		t.Fatalf("used leave after policy update = %d, want 500", dashboard.Summary.UsedMilliDays)
+	}
 	for _, leaveType := range updated.LeaveTypes {
 		if leaveType.ID == "reward" {
 			if leaveType.IsActive || leaveType.IncludeInSummary {
@@ -436,12 +445,20 @@ func TestLeavePolicyAdminAPIArchivesUsedRemovedType(t *testing.T) {
 	t.Fatal("used removed type was deleted")
 }
 
-func TestLeavePolicyAdminAPIRejectsNonAdmins(t *testing.T) {
+func TestLeavePolicyAdminAPIAccessByRole(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	requestAttendanceLeavePolicy(t, service, http.MethodGet, "", "staff@example.com", http.StatusForbidden)
+	requestAttendanceLeavePolicyFromAddress(
+		t,
+		service,
+		http.MethodGet,
+		"",
+		"staff@example.com",
+		"127.0.0.1:1234",
+		http.StatusForbidden,
+	)
 
 	operationsAdminService := newOperationsAdminAuthorizationTestService(t)
-	requestAttendanceLeavePolicy(t, operationsAdminService, http.MethodGet, "", "operator@example.com", http.StatusForbidden)
+	requestAttendanceLeavePolicy(t, operationsAdminService, http.MethodGet, "", "operator@example.com", http.StatusOK)
 }
 
 func requestAttendanceLeavePolicy(
@@ -453,8 +470,29 @@ func requestAttendanceLeavePolicy(
 	expectedStatus int,
 ) attendanceLeavePolicy {
 	t.Helper()
+	return requestAttendanceLeavePolicyFromAddress(
+		t,
+		service,
+		method,
+		body,
+		email,
+		"198.51.100.10:443",
+		expectedStatus,
+	)
+}
+
+func requestAttendanceLeavePolicyFromAddress(
+	t *testing.T,
+	service *Service,
+	method string,
+	body string,
+	email string,
+	remoteAddress string,
+	expectedStatus int,
+) attendanceLeavePolicy {
+	t.Helper()
 	request := httptest.NewRequest(method, "/admin/api/attendance-leave-policy", strings.NewReader(body))
-	request.RemoteAddr = "198.51.100.10:443"
+	request.RemoteAddr = remoteAddress
 	request.Header.Set("Cf-Access-Authenticated-User-Email", email)
 	response := httptest.NewRecorder()
 	service.router().ServeHTTP(response, request)
