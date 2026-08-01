@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import {
 	createAttendanceAbsence,
 	deleteAttendanceAbsence,
-	fetchAttendanceSummary
+	fetchAttendanceSummary,
+	fetchAttendanceWorkStatus
 } from '../../../src/routes/attendance/attendance-api';
 import { createMockFetch } from '../test-fetch';
 
@@ -58,6 +59,39 @@ describe('fetchAttendanceSummary', () => {
 			await fetchAttendanceSummary({ month: '' });
 
 			expect(requestedURL).toBe('/attendance/api/summary');
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+});
+
+describe('fetchAttendanceWorkStatus', () => {
+	test('requests the selected period and anchor without browser caching', async () => {
+		const originalFetch = globalThis.fetch;
+		let requestedURL = '';
+		let requestOptions: RequestInit | undefined;
+		try {
+			globalThis.fetch = createMockFetch(async (input, init) => {
+				requestedURL = String(input);
+				requestOptions = init;
+				return Response.json({
+					period: 'week',
+					anchor: '2026-07-31',
+					periodStart: '2026-07-27',
+					periodEnd: '2026-08-02',
+					timeZone: 'Asia/Seoul',
+					isAdmin: false,
+					personal: null,
+					employees: []
+				});
+			});
+
+			await fetchAttendanceWorkStatus({ period: 'week', anchor: '2026-07-31' });
+
+			expect(requestedURL).toBe(
+				'/attendance/api/work-status?period=week&anchor=2026-07-31'
+			);
+			expect(requestOptions).toEqual({ credentials: 'include', cache: 'no-store' });
 		} finally {
 			globalThis.fetch = originalFetch;
 		}

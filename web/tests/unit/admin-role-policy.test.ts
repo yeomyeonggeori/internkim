@@ -7,7 +7,17 @@ import {
 } from '../../src/routes/admin/admin-role-policy';
 import type { AdminSection, AdminSession, UserRole } from '../../src/routes/admin/admin-types';
 
-const allSections: AdminSection[] = ['device', 'users', 'credentials', 'backup', 'bot', 'settings', 'network'];
+const allSections: AdminSection[] = [
+	'device',
+	'users',
+	'credentials',
+	'backup',
+	'bot',
+	'settings',
+	'workSettings',
+	'leaveSettings',
+	'network'
+];
 
 function visibleSections(role: UserRole): AdminSection[] {
 	return allSections.filter((section) => canViewAdminSection(role, section));

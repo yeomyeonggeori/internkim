@@ -12,6 +12,7 @@
 	import WorkTimeChart from '../shared/work-time-chart.svelte';
 	import { buildDailyWorkTimeValues, buildWorkTimeChartLocations } from '../shared/work-time-chart-data';
 	import { attendanceText } from '../text';
+	import WorkStandardSummary from './work-standard-summary.svelte';
 
 	type Props = {
 		containerClass?: string;
@@ -50,7 +51,11 @@
 				locations={chartLocations}
 				formatValue={(value) => formatHoursMinutes(value, text)}
 				compact
-			/>
+			>
+				{#snippet footer()}
+					<WorkStandardSummary />
+				{/snippet}
+			</WorkTimeChart>
 			{#snippet placeholder()}
 				<Skeleton class="h-40 w-full rounded-xl" />
 			{/snippet}
