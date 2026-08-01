@@ -27,6 +27,12 @@ type agentDirectMessage struct {
 	IsError      bool                     `json:"isError,omitempty"`
 	Reactions    []agentMessageReaction   `json:"reactions,omitempty"`
 	Attachments  []agentMessageAttachment `json:"attachments,omitempty"`
+	CustomEmoji  []agentCustomEmoji       `json:"customEmoji,omitempty"`
+}
+
+type agentCustomEmoji struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }
 
 type agentMessageAttachment struct {
@@ -89,6 +95,7 @@ type chatdHistoryMessage struct {
 	IsError         bool                     `json:"isError"`
 	Reactions       []agentMessageReaction   `json:"reactions"`
 	Attachments     []agentMessageAttachment `json:"attachments"`
+	CustomEmoji     []agentCustomEmoji       `json:"customEmoji"`
 }
 
 type chatdHistoryResponse struct {
@@ -364,6 +371,7 @@ func agentDirectMessagesFromHistory(historyMessages []chatdHistoryMessage, chann
 			IsError:      historyMessage.IsError,
 			Reactions:    historyMessage.Reactions,
 			Attachments:  historyMessage.Attachments,
+			CustomEmoji:  historyMessage.CustomEmoji,
 		})
 	}
 	sort.SliceStable(messages, func(leftIndex int, rightIndex int) bool {
