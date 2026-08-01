@@ -47,7 +47,14 @@ type agentConversationResponse struct {
 	ConversationID string               `json:"conversationID"`
 	CurrentUserID  string               `json:"currentUserId"`
 	Messages       []agentDirectMessage `json:"messages"`
+	HasMoreBefore  bool                 `json:"hasMoreBefore"`
+	HistoryCursor  string               `json:"historyCursor,omitempty"`
 }
+
+// agentConversationPageSize bounds how many messages a channel open fetches.
+// Older messages page in on demand via the history cursor, so switching channels
+// stays fast instead of loading the entire history up front.
+const agentConversationPageSize = 50
 
 type agentDirectMessageRequest struct {
 	Message       string                         `json:"message"`
@@ -85,7 +92,9 @@ type chatdHistoryMessage struct {
 }
 
 type chatdHistoryResponse struct {
-	Messages []chatdHistoryMessage `json:"messages"`
+	Messages      []chatdHistoryMessage `json:"messages"`
+	HasMoreBefore bool                  `json:"hasMoreBefore"`
+	HistoryCursor string                `json:"historyCursor"`
 }
 
 func (service *Service) handleAgentDirectMessage(responseWriter http.ResponseWriter, request *http.Request) {
@@ -112,8 +121,12 @@ func (service *Service) writeAgentConversation(responseWriter http.ResponseWrite
 		service.writeAgentDirectMessageError(responseWriter, errorValue)
 		return
 	}
+	historyCursor := channel.HistoryCursor
+	if before := strings.TrimSpace(request.URL.Query().Get("before")); before != "" {
+		historyCursor = before
+	}
 	var history chatdHistoryResponse
-	historyRequest := map[string]any{"historyCursor": channel.HistoryCursor, "limit": 2000}
+	historyRequest := map[string]any{"historyCursor": historyCursor, "limit": agentConversationPageSize}
 	if errorValue := service.chatdPlatformRequest(request.Context(), "history.fetch", historyRequest, &history); errorValue != nil {
 		service.writeAgentDirectMessageError(responseWriter, errorValue)
 		return
@@ -122,6 +135,8 @@ func (service *Service) writeAgentConversation(responseWriter http.ResponseWrite
 		ConversationID: channel.ChannelID,
 		CurrentUserID:  channel.UserPubkeyHex,
 		Messages:       agentDirectMessagesFromHistory(history.Messages, channel),
+		HasMoreBefore:  history.HasMoreBefore,
+		HistoryCursor:  history.HistoryCursor,
 	}))
 }
 
