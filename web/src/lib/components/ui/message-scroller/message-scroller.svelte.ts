@@ -173,16 +173,19 @@ export class MessageScrollerController {
 
 		const items = getMessageScrollerItems(content, this.spacer);
 		const previousItemCount = this.itemCount;
-		const previousFirstItem = this.firstItem;
 		this.itemCount = items.length;
 		this.firstItem = items[0] ?? null;
 
 		if (this.flushPendingScrollToMessage()) return this.captureAfterContentChange();
 		if (previousItemCount === 0) return this.handleInitialContent(items);
 
-		const previousFirstItemIndex = previousFirstItem ? items.indexOf(previousFirstItem) : -1;
-		if (this.shouldPreserveScrollOnPrepend && previousFirstItemIndex > 0) {
-			this.restorePrependedAnchor();
+		// Items added while the user is reading history (not following the bottom):
+		// keep the viewport still and publish state only. Prepended pages are
+		// position-restored by the consumer; any scroll adjustment here runs a frame
+		// later and fights that restore, jumping the view. A bottom append while
+		// scrolled up should also stay put rather than yank to the newest message.
+		if (items.length > previousItemCount && this.mode !== "following-bottom") {
+			this.commitScrollState();
 			return this.captureAfterContentChange();
 		}
 
