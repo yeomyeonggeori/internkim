@@ -23,11 +23,10 @@ ssh_user="${USER:-admin}"
 ssh_password=""
 remote_directory="/tmp/internkim-blueclaw-runtime-builder"
 stop_container_after_build=0
+maximum_transfer_bytes="${INTERNKIM_RUNTIME_BUILDER_MAX_TRANSFER_BYTES:-5000000000}"
+transfer_probe_seconds="${INTERNKIM_RUNTIME_BUILDER_PROBE_SECONDS:-120}"
 rsync_excludes=(
   --exclude '.git'
-  --exclude '.artifacts'
-  --exclude '.local'
-  --exclude '.claude'
   --exclude '.dependency/agent-browser'
   --exclude '.dependency/blueclaw-payload'
   --exclude '.dependency/blueclaw-runtime*'
@@ -47,6 +46,49 @@ rsync_excludes=(
   --exclude 'web/.wrangler'
   --exclude 'web/node_modules'
 )
+
+append_ignored_top_level_excludes() {
+  local entry entry_name
+  for entry in "$repository_root"/.[!.]* "$repository_root"/*; do
+    [ -e "$entry" ] || continue
+    entry_name="$(basename "$entry")"
+    [ "$entry_name" = ".git" ] && continue
+    if git -C "$repository_root" check-ignore -q "$entry_name" 2>/dev/null; then
+      rsync_excludes+=(--exclude "/$entry_name")
+    fi
+  done
+}
+
+guard_transfer_size() {
+  local probe_output probe_status transfer_bytes
+  probe_output="$(timeout "$transfer_probe_seconds" rsync -an --stats \
+    "${rsync_excludes[@]}" "$repository_root/" "$repository_root/" 2>/dev/null)"
+  probe_status=$?
+  if [ "$probe_status" -ne 0 ]; then
+    echo "runtime builder transfer could not be sized within ${transfer_probe_seconds}s;" >&2
+    echo "something under the repository root is far larger than a source tree." >&2
+    exit 1
+  fi
+  transfer_bytes="$(printf '%s' "$probe_output" | awk '/^Total file size:/ { gsub(/[^0-9]/, "", $4); print $4; exit }')"
+  [ -n "$transfer_bytes" ] || return 0
+  if [ "$transfer_bytes" -gt "$maximum_transfer_bytes" ]; then
+    echo "runtime builder would ship $transfer_bytes bytes to the builder, above the ${maximum_transfer_bytes} byte limit." >&2
+    echo "largest included top-level entries:" >&2
+    report_largest_included_entries >&2
+    exit 1
+  fi
+}
+
+report_largest_included_entries() {
+  local entry entry_name
+  for entry in "$repository_root"/.[!.]* "$repository_root"/*; do
+    [ -d "$entry" ] || continue
+    entry_name="$(basename "$entry")"
+    [ "$entry_name" = ".git" ] && continue
+    git -C "$repository_root" check-ignore -q "$entry_name" 2>/dev/null && continue
+    timeout 20 du -sh "$entry" 2>/dev/null || echo "?	$entry"
+  done | sort -rh | head -8
+}
 
 usage() {
   cat <<'USAGE'
@@ -159,6 +201,8 @@ rsync_ssh_command() {
 rsync_to_builder() {
   local remote_target="$ssh_user@$ssh_host"
   local rsync_ssh
+  append_ignored_top_level_excludes
+  guard_transfer_size
   rsync_ssh="$(rsync_ssh_command)"
   if [ -n "$ssh_password" ]; then
     SSHPASS="$ssh_password" rsync -az --delete \

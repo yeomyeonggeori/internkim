@@ -1790,7 +1790,32 @@ def audit_evaluation_output(resultDirectory: Path, diagnosticDirectory: Path, ev
         "formatChecks": formatChecks,
         "renderChecks": renderChecks,
         "efficiency": compute_efficiency_metrics(diagnosticDirectory),
+        "evaluable": artifactExists,
+        "nonEvaluableReason": None if artifactExists else non_evaluable_reason(evaluation, {"exitCode": exitCode, "artifactKind": evaluation["artifactKind"]}),
+        "failureLayer": None if artifactExists else classify_failure_layer(diagnosticDirectory, exitCode),
     }
+
+
+PROVISIONING_STEP_FAILURE_PATTERN = re.compile(r"^\u2717 step ([\w.-]+): (.+)$", re.MULTILINE)
+
+
+def classify_failure_layer(diagnosticDirectory: Path, exitCode) -> dict:
+    """Name the layer that failed so a stalled fleet never reads as a weak model.
+
+    A missing artifact is scored as fourteen absent strings either way; only the
+    layer tells you whether the agent produced a bad document or never ran.
+    """
+    stepFailure = PROVISIONING_STEP_FAILURE_PATTERN.search(read_stdout_text(diagnosticDirectory))
+    if stepFailure:
+        return {
+            "layer": "harness",
+            "detail": f"provisioning step {stepFailure.group(1)} failed: {stepFailure.group(2).strip()}",
+        }
+    if exitCode == -1:
+        return {"layer": "harness", "detail": "generation command hit the outer timeout before returning."}
+    if exitCode is None:
+        return {"layer": "harness", "detail": "generation never ran."}
+    return {"layer": "product", "detail": "generation ran to completion without leaving the requested artifact."}
 
 
 TURN_TASK_STEP_ID_PATTERN = re.compile(r":turn-\d+$")
