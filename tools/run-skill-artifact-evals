@@ -26,6 +26,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 EVALUATIONS_PATH = REPOSITORY_ROOT / "evals" / "skill-artifact-quality" / "evals.json"
 SCORES_PATH = REPOSITORY_ROOT / "evals" / "skill-artifact-quality" / "scores.json"
 ARTIFACTS_ROOT = REPOSITORY_ROOT / ".artifacts" / "skill-artifact-evals"
+DEFAULT_GENERATION_MODEL = "openai/gpt-5.6-luna"
 DEFAULT_GENERATION_SEED = 41
 DEFAULT_GENERATION_TEMPERATURE = 0.0
 DEFAULT_TEST_TIMEOUT_SECONDS = 900
@@ -99,6 +100,7 @@ def parse_arguments() -> argparse.Namespace:
     runParser.add_argument("--evaluation", action="append", default=[], help="Evaluation ID to run. Repeatable.")
     runParser.add_argument("--dry-run", action="store_true", help="Write run files without executing InternKim.")
     runParser.add_argument("--reuse", action="store_true", help="Reuse the shared Local Fleet while still sending prompts through Mattermost.")
+    runParser.add_argument("--model", default=DEFAULT_GENERATION_MODEL, help="OpenRouter model pinned across every tier for the run.")
     runParser.add_argument("--seed", type=int, default=DEFAULT_GENERATION_SEED, help="Fixed generation seed passed through internkim test.")
     runParser.add_argument("--temperature", type=float, default=DEFAULT_GENERATION_TEMPERATURE, help="Fixed generation temperature passed through internkim test.")
     runParser.add_argument("--timeout", type=int, default=DEFAULT_TEST_TIMEOUT_SECONDS, help="Seconds passed to internkim test --timeout.")
@@ -140,11 +142,11 @@ def run_evaluations(arguments: argparse.Namespace) -> int:
     runDirectory.mkdir(parents=True, exist_ok=False)
 
     commandTimeoutSeconds = arguments.command_timeout if arguments.command_timeout else arguments.timeout + 3000
-    manifest = create_manifest(runID, selectedEvaluations, arguments.dry_run, arguments.reuse, arguments.seed, arguments.temperature, arguments.timeout, commandTimeoutSeconds)
+    manifest = create_manifest(runID, selectedEvaluations, arguments.dry_run, arguments.reuse, arguments.model, arguments.seed, arguments.temperature, arguments.timeout, commandTimeoutSeconds)
     write_json(runDirectory / "manifest.json", manifest)
 
     for evaluation in selectedEvaluations:
-        run_single_evaluation(runDirectory, evaluation, arguments.dry_run, arguments.reuse, arguments.seed, arguments.temperature, arguments.timeout, commandTimeoutSeconds)
+        run_single_evaluation(runDirectory, evaluation, arguments.dry_run, arguments.reuse, arguments.model, arguments.seed, arguments.temperature, arguments.timeout, commandTimeoutSeconds)
 
     update_scorecard_for_evaluable_outputs(runDirectory, configuration, selectedEvaluations, None)
     manifest = update_manifest_evaluability(runDirectory, manifest, selectedEvaluations)
@@ -1451,7 +1453,7 @@ def select_evaluations(configuration: dict, selectedIDs: list[str]) -> list[dict
     return [evaluationsByID[selectedID] for selectedID in selectedIDs]
 
 
-def create_manifest(runID: str, selectedEvaluations: list[dict], isDryRun: bool, shouldReuseFleet: bool, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> dict:
+def create_manifest(runID: str, selectedEvaluations: list[dict], isDryRun: bool, shouldReuseFleet: bool, modelName: str, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> dict:
     return {
         "runID": runID,
         "startedAt": current_datetime(),
@@ -1469,6 +1471,7 @@ def create_manifest(runID: str, selectedEvaluations: list[dict], isDryRun: bool,
             "effectiveTemperature": temperature,
             "testTimeoutSeconds": testTimeoutSeconds,
             "commandTimeoutSeconds": commandTimeoutSeconds,
+            "model": modelName,
             "applicationPath": "blueclaw agent.generationOptions via internkim test"
         },
         "evaluationIDs": [evaluation["id"] for evaluation in selectedEvaluations]
@@ -1569,7 +1572,7 @@ def create_scorecard_criterion(criterion: dict) -> dict:
     }
 
 
-def run_single_evaluation(runDirectory: Path, evaluation: dict, isDryRun: bool, shouldReuseFleet: bool, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> None:
+def run_single_evaluation(runDirectory: Path, evaluation: dict, isDryRun: bool, shouldReuseFleet: bool, modelName: str, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> None:
     resultDirectory = result_directory(runDirectory, evaluation["id"])
     diagnosticDirectory = diagnostic_directory(runDirectory, evaluation["id"])
     resultDirectory.mkdir(parents=True)
@@ -1592,7 +1595,7 @@ def run_single_evaluation(runDirectory: Path, evaluation: dict, isDryRun: bool, 
         return
 
     try:
-        completedProcess = subprocess.run(command, cwd=REPOSITORY_ROOT, text=True, capture_output=True, timeout=commandTimeoutSeconds)
+        completedProcess = subprocess.run(command, cwd=REPOSITORY_ROOT, env=generation_environment(modelName), text=True, capture_output=True, timeout=commandTimeoutSeconds)
         stdoutText = completedProcess.stdout
         stderrText = completedProcess.stderr
         exitCode = completedProcess.returncode
@@ -1686,6 +1689,13 @@ def enrich_evaluation(evaluation: dict, prompt: str) -> dict:
 def read_source_data(evaluation: dict) -> str:
     sourcePath = EVALUATIONS_PATH.parent / evaluation["sourceFile"]
     return sourcePath.read_text(encoding="utf-8")
+
+
+def generation_environment(modelName: str) -> dict:
+    environment = dict(os.environ)
+    if modelName.strip():
+        environment["INTERNKIM_TEST_MODEL"] = modelName.strip()
+    return environment
 
 
 def build_evaluation_command(evaluation: dict, resultDirectory: Path, diagnosticDirectory: Path, prompt: str, shouldReuseFleet: bool, seed: int, temperature: float, testTimeoutSeconds: int) -> list[str]:
