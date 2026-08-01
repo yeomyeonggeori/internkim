@@ -39,7 +39,7 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 
 	let { isActive = true, threadLayout = 'sheet', channelId }: {
@@ -266,8 +266,6 @@
 	async function loadOlderMessages() {
 		if (isLoadingOlder || !hasMoreBefore || !historyCursor) return;
 		isLoadingOlder = true;
-		const container = scrollContainer;
-		const previousScrollTop = container?.scrollTop ?? 0;
 		try {
 			const page = await fetchChannelConversation(channelId, historyCursor);
 			hasMoreBefore = page.hasMoreBefore;
@@ -280,16 +278,11 @@
 			}
 			olderMessages = [...fresh, ...olderMessages];
 			messages = [...fresh, ...messages];
-			await tick();
-			// In column-reverse, scrollTop is the distance from the bottom and is
-			// invariant under a prepend. Restore it explicitly to override the
-			// browser's unreliable native anchoring at the top scroll boundary.
-			if (container) container.scrollTop = previousScrollTop;
 		} finally {
 			isLoadingOlder = false;
 		}
-		// Keep filling the buffer above the fold so a fast scroll to the very top
-		// never outruns loading and jumps at the boundary.
+		// Only keep a small buffer ahead of the fold as the user scrolls up — load
+		// on demand, never speculatively, so we don't pay for history nobody reads.
 		requestAnimationFrame(prefetchOlderIfNearTop);
 	}
 
@@ -899,7 +892,7 @@
 				<div
 					bind:this={scrollContainer}
 					onscroll={handleViewportScroll}
-					class="flex min-h-0 flex-1 flex-col-reverse gap-8 overflow-y-auto overscroll-contain px-4 py-12 [overflow-anchor:none] [scrollbar-gutter:stable]"
+					class="flex min-h-0 flex-1 flex-col-reverse gap-8 overflow-y-auto overscroll-y-none px-4 py-12 [scrollbar-gutter:stable]"
 				>
 					{#if isAgentWorking}
 						<Marker.Root role="status">
