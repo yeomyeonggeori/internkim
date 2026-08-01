@@ -74,6 +74,7 @@ type localBinaryAsset struct {
 	downloadURL    string
 	archiveEntry   string
 	expectedSHA256 string
+	optional       bool
 }
 
 func installSkillPythonDependenciesCommand() string {
@@ -463,11 +464,13 @@ func (state *setupFlowState) buzzRelayBinaryAssets() []localBinaryAsset {
 			name:       blueclaw.BuzzMigrateName,
 			localPath:  filepath.Join(state.scriptDir, blueclaw.BuzzRelayArtifactPath, blueclaw.BuzzMigrateName),
 			remotePath: blueclaw.BuzzMigrateBinaryPath,
+			optional:   true,
 		},
 		{
 			name:       blueclaw.ChatdName,
 			localPath:  filepath.Join(state.scriptDir, blueclaw.BuzzRelayArtifactPath, blueclaw.ChatdName),
 			remotePath: blueclaw.ChatdBinaryPath,
+			optional:   true,
 		},
 	}
 }
@@ -475,7 +478,11 @@ func (state *setupFlowState) buzzRelayBinaryAssets() []localBinaryAsset {
 func (state *setupFlowState) installBuzzRelayBinariesSSH(context *setup.Context) error {
 	for _, asset := range state.buzzRelayBinaryAssets() {
 		if _, errorValue := os.Stat(asset.localPath); errorValue != nil {
-			return fmt.Errorf("buzz relay artifact missing at %s; run make prepare-buzz-relay: %w", asset.localPath, errorValue)
+			if !asset.optional {
+				return fmt.Errorf("buzz relay artifact missing at %s; run make prepare-buzz-relay: %w", asset.localPath, errorValue)
+			}
+			fmt.Printf("  %s %s (%s)\n", asset.name, state.messenger.t("건너뜀: 빌드 산출물 없음", "skipped: no build produces it"), asset.localPath)
+			continue
 		}
 		existingHash := strings.TrimSpace(state.sshClient.run(
 			fmt.Sprintf("md5sum %s 2>/dev/null | awk '{print $1}'", asset.remotePath),
