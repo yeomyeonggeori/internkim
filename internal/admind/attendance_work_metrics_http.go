@@ -9,11 +9,11 @@ import (
 	"time"
 )
 
-type attendancePaidLeaveReader func(
+type attendanceApprovedLeaveReader func(
 	context.Context,
 	string,
 	string,
-) ([]attendancePaidLeaveOccurrence, error)
+) ([]attendanceApprovedLeaveOccurrence, error)
 
 type attendanceHolidayDatesReader func(
 	context.Context,
@@ -40,7 +40,7 @@ func (service *Service) writeAttendanceWorkStatus(
 		responseWriter,
 		request,
 		service.readAttendanceEvents,
-		service.readPaidAttendanceLeaveOccurrences,
+		service.readApprovedAttendanceLeaveOccurrences,
 		service.readCalendarHolidayDatesForRange,
 		time.Now().UTC(),
 	)
@@ -50,7 +50,7 @@ func (service *Service) writeAttendanceWorkStatusWithReadersAt(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 	eventsReader attendanceEventsReader,
-	leaveReader attendancePaidLeaveReader,
+	leaveReader attendanceApprovedLeaveReader,
 	holidayReader attendanceHolidayDatesReader,
 	now time.Time,
 ) {
@@ -77,7 +77,7 @@ func (service *Service) writeAttendanceWorkStatusWithReadersAt(
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	paidLeave, errorValue := leaveReader(request.Context(), startDate, endDate)
+	approvedLeave, errorValue := leaveReader(request.Context(), startDate, endDate)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -118,7 +118,7 @@ func (service *Service) writeAttendanceWorkStatusWithReadersAt(
 			startDate,
 			endDate,
 			events,
-			paidLeave,
+			approvedLeave,
 			policy,
 			holidayDates,
 			timeZone.location,
@@ -140,7 +140,7 @@ func (service *Service) writeAttendanceWorkStatusWithReadersAt(
 				startDate,
 				endDate,
 				events,
-				paidLeave,
+				approvedLeave,
 				policy,
 				holidayDates,
 				timeZone.location,

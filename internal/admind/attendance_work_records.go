@@ -75,10 +75,10 @@ func attendanceWorkRecordsForEmail(
 }
 
 func attendanceLeaveByDate(
-	occurrences []attendancePaidLeaveOccurrence,
+	occurrences []attendanceApprovedLeaveOccurrence,
 	email string,
-) map[string][]attendancePaidLeaveOccurrence {
-	result := make(map[string][]attendancePaidLeaveOccurrence)
+) map[string][]attendanceApprovedLeaveOccurrence {
+	result := make(map[string][]attendanceApprovedLeaveOccurrence)
 	for _, occurrence := range occurrences {
 		if strings.EqualFold(occurrence.Email, email) {
 			result[occurrence.Date] = append(result[occurrence.Date], occurrence)
@@ -89,7 +89,7 @@ func attendanceLeaveByDate(
 
 func attendanceLeaveIntervals(
 	date time.Time,
-	occurrences []attendancePaidLeaveOccurrence,
+	occurrences []attendanceApprovedLeaveOccurrence,
 	location *time.Location,
 ) []attendanceWorkSegment {
 	intervals := make([]attendanceWorkSegment, 0, len(occurrences))

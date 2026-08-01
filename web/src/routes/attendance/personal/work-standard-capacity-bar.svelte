@@ -7,16 +7,12 @@
 	type Props = {
 		actualMinutes: number;
 		provisionalMinutes: number;
-		paidLeaveMinutes: number;
-		creditedLeaveMinutes: number;
 		targetMinutes: number;
 	};
 
 	let {
 		actualMinutes,
 		provisionalMinutes,
-		paidLeaveMinutes,
-		creditedLeaveMinutes,
 		targetMinutes
 	}: Props = $props();
 	const text = createPageText(attendanceText);
@@ -30,30 +26,17 @@
 			visualCapacityMinutes
 		)
 	);
-	const leaveBarMinutes = $derived(
-		Math.min(
-			Math.max(paidLeaveMinutes, 0),
-			Math.max(visualCapacityMinutes - actualBarMinutes, 0)
-		)
-	);
 	const actualWidth = $derived((actualBarMinutes / visualCapacityMinutes) * 100);
-	const leaveWidth = $derived((leaveBarMinutes / visualCapacityMinutes) * 100);
 	const progressSegments = $derived<AttendanceProgressSegment[]>([
 		{
 			id: 'actual',
 			widthPercent: actualWidth,
 			className: 'bg-yellow-400',
 			testId: 'work-standard-actual-segment'
-		},
-		{
-			id: 'leave',
-			widthPercent: leaveWidth,
-			className: 'bg-blue-500',
-			testId: 'work-standard-leave-segment'
 		}
 	]);
 	const barLabel = $derived(
-		`${text.workStatus.actual} ${formatWorkStatusDuration(actualMinutes, text)}, ${text.workStatus.provisional} ${formatWorkStatusDuration(provisionalMinutes, text)}, ${text.workStatus.leave} ${formatWorkStatusDuration(paidLeaveMinutes, text)}, ${text.workStatus.creditedLeave} ${formatWorkStatusDuration(creditedLeaveMinutes, text)}, ${text.workStatus.target} ${formatWorkStatusDuration(targetMinutes, text)}`
+		`${text.workStatus.actual} ${formatWorkStatusDuration(actualMinutes, text)}, ${text.workStatus.provisional} ${formatWorkStatusDuration(provisionalMinutes, text)}, ${text.workStatus.target} ${formatWorkStatusDuration(targetMinutes, text)}`
 	);
 </script>
 
@@ -82,5 +65,4 @@
 
 <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
 	<span><i class="mr-1 inline-block size-2 rounded-full bg-yellow-400"></i>{text.workStatus.actual}</span>
-	<span><i class="mr-1 inline-block size-2 rounded-full bg-blue-500"></i>{text.workStatus.leave}</span>
 </div>

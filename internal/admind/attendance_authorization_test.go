@@ -104,8 +104,8 @@ func TestAttendanceWorkStatusManagementFlagByRoleThroughLoopback(t *testing.T) {
 				func(context.Context, string, string) ([]attendanceEvent, error) {
 					return []attendanceEvent{}, nil
 				},
-				func(context.Context, string, string) ([]attendancePaidLeaveOccurrence, error) {
-					return []attendancePaidLeaveOccurrence{}, nil
+				func(context.Context, string, string) ([]attendanceApprovedLeaveOccurrence, error) {
+					return []attendanceApprovedLeaveOccurrence{}, nil
 				},
 				func(context.Context, time.Time, time.Time) (map[string]struct{}, error) {
 					return map[string]struct{}{}, nil

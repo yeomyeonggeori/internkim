@@ -31,15 +31,7 @@
 	}
 
 	function actualBarWidth(employee: AttendanceEmployeeWorkStatus): number {
-		return (
-			(Math.min(displayedActualMinutes(employee), employee.targetMinutes || displayedActualMinutes(employee)) /
-				barScale(employee)) *
-			100
-		);
-	}
-
-	function leaveBarWidth(employee: AttendanceEmployeeWorkStatus): number {
-		return (employee.creditedLeaveMinutes / barScale(employee)) * 100;
+		return (displayedActualMinutes(employee) / barScale(employee)) * 100;
 	}
 </script>
 
@@ -57,21 +49,21 @@
 	</colgroup>
 	<Table.Header>
 		<Table.Row>
-			<Table.Head>{text.workStatus.employee}</Table.Head>
-			<Table.Head>{text.workStatus.mode}</Table.Head>
-			<Table.Head class="text-right">{text.workStatus.actual}</Table.Head>
-			<Table.Head class="text-right">{text.workStatus.creditedLeave}</Table.Head>
-			<Table.Head class="text-right">{text.workStatus.fulfilled}</Table.Head>
-			<Table.Head class="text-right">{text.workStatus.difference}</Table.Head>
-			<Table.Head class="text-right">{text.workStatus.night}</Table.Head>
-			<Table.Head>{text.status}</Table.Head>
+			<Table.Head class="text-left">{text.workStatus.employee}</Table.Head>
+			<Table.Head class="text-left">{text.workStatus.mode}</Table.Head>
+			<Table.Head class="text-left">{text.workStatus.actual}</Table.Head>
+			<Table.Head class="text-left">{text.workStatus.leave}</Table.Head>
+			<Table.Head class="text-left">{text.workStatus.fulfilled}</Table.Head>
+			<Table.Head class="text-left">{text.workStatus.difference}</Table.Head>
+			<Table.Head class="text-left">{text.workStatus.night}</Table.Head>
+			<Table.Head class="text-left">{text.status}</Table.Head>
 			<Table.Head class="text-center"><span class="sr-only">{text.workStatus.details}</span></Table.Head>
 		</Table.Row>
 	</Table.Header>
 	<Table.Body>
 		{#each employees as employee (employee.email)}
 			<Table.Row>
-				<Table.Cell class="align-top">
+				<Table.Cell class="align-top text-left">
 					<div class="flex items-center gap-2">
 						<PersonAvatar
 							name={employee.displayName}
@@ -85,8 +77,8 @@
 						</span>
 					</div>
 				</Table.Cell>
-				<Table.Cell class="align-top">{text.workStatus[employee.workMode]}</Table.Cell>
-				<Table.Cell class="align-top text-right">
+				<Table.Cell class="align-top text-left">{text.workStatus[employee.workMode]}</Table.Cell>
+				<Table.Cell class="align-top text-left">
 					<div class="grid gap-1">
 						<span
 							class="block tabular-nums"
@@ -97,16 +89,15 @@
 						</span>
 						<div class="flex h-1.5 overflow-hidden rounded-full bg-muted">
 							<div class="bg-yellow-400" style={`width:${actualBarWidth(employee)}%`}></div>
-							<div class="bg-blue-500" style={`width:${leaveBarWidth(employee)}%`}></div>
 						</div>
 					</div>
 				</Table.Cell>
-				<Table.Cell class="align-top text-right">
+				<Table.Cell class="align-top text-left">
 					<span class="block tabular-nums" data-testid="employee-work-status-metric">
-						{formatWorkStatusDuration(employee.creditedLeaveMinutes, text)}
+						{formatWorkStatusDuration(employee.leaveMinutes, text)}
 					</span>
 				</Table.Cell>
-				<Table.Cell class="align-top text-right">
+				<Table.Cell class="align-top text-left">
 					<span class="block tabular-nums" data-testid="employee-work-status-metric">
 						{#if employee.hasBaseline}
 							{formatWorkStatusDuration(employee.fulfilledMinutes, text)}
@@ -118,19 +109,19 @@
 						{/if}
 					</span>
 				</Table.Cell>
-				<Table.Cell class="align-top text-right">
+				<Table.Cell class="align-top text-left">
 					<span class="block tabular-nums" data-testid="employee-work-status-metric">
 						{employee.hasBaseline
 							? formatDifference(employee.differenceMinutes)
 							: text.workStatus.noBaseline}
 					</span>
 				</Table.Cell>
-				<Table.Cell class="align-top text-right">
+				<Table.Cell class="align-top text-left">
 					<span class="block tabular-nums" data-testid="employee-work-status-metric">
 						{formatWorkStatusDuration(employee.nightMinutes, text)}
 					</span>
 				</Table.Cell>
-				<Table.Cell class="align-top"><Badge variant="secondary">{statusLabel(employee.status)}</Badge></Table.Cell>
+				<Table.Cell class="align-top text-left"><Badge variant="secondary">{statusLabel(employee.status)}</Badge></Table.Cell>
 				<Table.Cell class="align-top text-center">
 					<Button
 						variant="ghost"
