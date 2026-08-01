@@ -20,13 +20,19 @@
 		LeaveManagementState,
 		setLeaveManagementState
 	} from './management/leave-management-state.svelte';
+	import { todayDateInTimeZone } from './shared/attendance-date';
 	import { attendanceText } from './text';
+	import {
+		setWorkStatusState,
+		WorkStatusState
+	} from './work-status/work-status-state.svelte';
 
 	let { children } = $props();
 
 	const text = createPageText(attendanceText);
 	const attendance = new AttendanceState(text.loadFailed);
 	const attendanceView = new AttendanceViewState();
+	const personalWorkStatus = new WorkStatusState();
 
 	async function refreshAfterEmployeeLeaveMutation(): Promise<void> {
 		const refreshes: Promise<void>[] = [attendance.load()];
@@ -63,6 +69,7 @@
 	setAttendanceViewState(attendanceView);
 	setLeaveApprovalState(leaveApproval);
 	setLeaveManagementState(leaveManagement);
+	setWorkStatusState(personalWorkStatus);
 
 	function refreshServerClock(): void {
 		void attendance.refreshServerClock();
@@ -94,6 +101,19 @@
 		attendance.selectedMonth;
 		attendance.chartMode;
 		attendance.persistFilters();
+	});
+
+	$effect(() => {
+		const summary = attendance.summary;
+		const period = attendance.chartMode;
+		const selectedMonth = attendance.selectedMonth;
+		if (!summary) return;
+		const today = todayDateInTimeZone(summary.timeZone);
+		const anchor =
+			period === 'month' && selectedMonth && !today.startsWith(selectedMonth)
+				? `${selectedMonth}-01`
+				: today;
+		untrack(() => void personalWorkStatus.load(period, anchor));
 	});
 
 	$effect(() => {
