@@ -887,7 +887,7 @@
 						</span>
 					</div>
 				{/if}
-				<MessageScroller.Viewport onscroll={handleViewportScroll}>
+				<MessageScroller.Viewport onscroll={handleViewportScroll} class="[overflow-anchor:none]">
 					<MessageScroller.Content aria-busy={isAgentWorking} class="gap-8 px-4 py-12">
 						{#each timeline as item (item.id)}
 							{#if item.kind === 'date'}
