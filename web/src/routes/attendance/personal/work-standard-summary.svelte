@@ -46,11 +46,16 @@
 			{#if status.hasBaseline}
 				<div class="mt-1 tabular-nums">
 					<p class="text-[10px] text-muted-foreground">{text.workStatus.workLeaveTotal}</p>
-					<p class="text-lg font-semibold" data-testid="work-standard-total">
-						{formatWorkStatusDuration(totalMinutes, text)}
-					</p>
-					<p class="text-[10px] text-muted-foreground">
-						/ {text.workStatus.target} {formatWorkStatusDuration(status.targetMinutes, text)}
+					<p
+						class="flex items-baseline gap-1 whitespace-nowrap"
+						data-testid="work-standard-total-row"
+					>
+						<span class="text-base font-semibold" data-testid="work-standard-total">
+							{formatWorkStatusDuration(totalMinutes, text)}
+						</span>
+						<span class="text-[9px] text-muted-foreground">
+							/ {text.workStatus.target} {formatWorkStatusDuration(status.targetMinutes, text)}
+						</span>
 					</p>
 				</div>
 			{:else}

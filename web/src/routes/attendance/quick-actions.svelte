@@ -16,6 +16,7 @@
 	import { computeDayEvents, statusForDay, type AttendanceWorkSegment } from './shared/attendance-aggregation';
 	import { timeInTimeZone, todayDateInTimeZone } from './shared/attendance-date';
 	import { formatHoursMinutes } from './shared/attendance-format';
+	import AttendanceProgressBar, { type AttendanceProgressSegment } from './shared/attendance-progress-bar.svelte';
 	import { dayWidthPercent } from './shared/day-timeline';
 	import DurationText from './shared/duration-text.svelte';
 	import LocationLabel from './shared/location-label.svelte';
@@ -104,6 +105,13 @@
 
 	const locations = $derived(attendance.currentMonthSummary?.locations ?? []);
 	const todaySegmentBars = $derived(buildSegmentBars(todayDay.segments));
+	const todayProgressSegments = $derived<AttendanceProgressSegment[]>(
+		todaySegmentBars.map((segment) => ({
+			id: segment.id,
+			widthPercent: segment.widthPercent,
+			color: segment.color
+		}))
+	);
 	const showLocationPicker = $derived(nextKind === 'clock_in' && locations.length > 1);
 
 	function buildSegmentBars(segments: AttendanceWorkSegment[]): SegmentBar[] {
@@ -115,11 +123,6 @@
 				color: segmentColor(segment) ?? 'var(--color-muted-foreground)',
 			};
 		});
-	}
-
-	function segmentBarsTotalPercent(segmentBars: SegmentBar[]): number {
-		const totalPercent = segmentBars.reduce((total, segment) => total + segment.widthPercent, 0);
-		return Math.min(100, totalPercent);
 	}
 
 	function segmentColor(segment: AttendanceWorkSegment | undefined): string | undefined {
@@ -164,13 +167,12 @@
 			</div>
 		{/if}
 		{#if todaySegmentBars.length > 0}
-			<div class="h-1.5 w-full rounded-full bg-muted" data-testid="quick-actions-current-bar" aria-hidden="true">
-				<div class="flex h-full overflow-hidden rounded-full" style:width={`${segmentBarsTotalPercent(todaySegmentBars)}%`}>
-					{#each todaySegmentBars as segment (segment.id)}
-						<span class="h-full" style:flex-grow={segment.widthPercent} style:background-color={segment.color}></span>
-					{/each}
-				</div>
-			</div>
+			<span aria-hidden="true">
+				<AttendanceProgressBar
+					segments={todayProgressSegments}
+					trackTestId="quick-actions-current-bar"
+				/>
+			</span>
 		{/if}
 		{#if todayDay.clockIn}
 			<div class="flex min-w-0 items-center gap-3 text-xs tabular-nums text-muted-foreground">

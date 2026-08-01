@@ -65,6 +65,7 @@ test.describe('attendance responsive view', () => {
 		const workTimeCard = page
 			.getByTestId('attendance-sidebar-scroll')
 			.locator('[data-slot="card"][aria-label="내 근무 시간"]');
+		const attendanceSidebar = page.getByTestId('attendance-sidebar-scroll');
 		const standard = workTimeCard.getByTestId('personal-work-standard');
 		await expect(workTimeCard.getByText('일일 평균')).toBeVisible();
 		await expect(workTimeCard.getByText('일일 최고')).toBeVisible();
@@ -97,7 +98,16 @@ test.describe('attendance responsive view', () => {
 			'style',
 			/left:\s*80%/
 		);
-		await expect(standard.getByTestId('work-standard-progress-track')).toHaveCSS('height', '14px');
+		await expect(attendanceSidebar.getByTestId('quick-actions-current-bar')).toHaveAttribute(
+			'data-attendance-progress-bar',
+			''
+		);
+		await expect(standard.getByTestId('work-standard-progress-track')).toHaveAttribute(
+			'data-attendance-progress-bar',
+			''
+		);
+		await expect(standard.getByTestId('work-standard-progress-track')).toHaveCSS('height', '6px');
+		await expect(standard.getByTestId('work-standard-total-row')).toHaveCSS('white-space', 'nowrap');
 		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveClass(/bg-yellow-400/);
 		await expect(page.getByTestId('work-standard-bar-tooltip')).toHaveCount(0);
 		await workTimeCard.getByRole('button', { name: '주별' }).click();
@@ -113,6 +123,16 @@ test.describe('attendance responsive view', () => {
 			'aria-label',
 			/실제 근무 161시간 20분, 진행 중 잠정 00시간 00분, 휴가 08시간 00분, 휴가 인정 06시간 40분, 기준 시간 168시간 00분/
 		);
+		await expect(standard.getByTestId('work-standard-total-row')).toHaveText(
+			'169시간 20분 / 기준 시간 168시간 00분'
+		);
+		await expect
+			.poll(() =>
+				standard
+					.getByTestId('work-standard-total-row')
+					.evaluate((element) => element.scrollWidth <= element.clientWidth)
+			)
+			.toBe(true);
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
 	});
 
