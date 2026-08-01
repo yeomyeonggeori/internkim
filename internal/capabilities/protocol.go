@@ -154,6 +154,7 @@ func FlowDescriptors() []Descriptor {
 	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
 		"task.add",
 		"task.list",
+		"task.definitions",
 		"task.update",
 		"task.delete",
 	))
