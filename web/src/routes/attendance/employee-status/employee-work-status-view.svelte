@@ -159,7 +159,7 @@
 				/>
 			</div>
 		</Card.Header>
-		<Card.Content class="overflow-x-auto">
+		<Card.Content>
 			{#if workStatus.errorMessage}
 				<p class="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
 					{text.workStatus.loadFailed}
