@@ -954,7 +954,7 @@
 			src={lightboxURL}
 			alt=""
 			class="max-h-full max-w-full rounded-md object-contain"
-			transition:scale={{ duration: 200, start: 0.9, opacity: 0 }}
+			in:scale={{ duration: 200, start: 0.9 }}
 		/>
 	</button>
 {/if}
