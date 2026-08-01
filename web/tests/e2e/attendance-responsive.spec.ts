@@ -222,6 +222,7 @@ test.describe('attendance responsive view', () => {
 			{ name: '이서연', sign: '-' }
 		];
 		const headingLeft = await differenceHeading.evaluate((element) => Math.round(element.getBoundingClientRect().left));
+		const signCenters: number[] = [];
 		for (const differenceRow of differenceRows) {
 			const row = table.getByRole('row').filter({ hasText: differenceRow.name });
 			const sign = row.getByTestId('employee-work-status-difference-sign');
@@ -229,11 +230,17 @@ test.describe('attendance responsive view', () => {
 			await expect(sign).toHaveText(differenceRow.sign);
 			const positions = await Promise.all([
 				sign.evaluate((element) => element.getBoundingClientRect().right),
-				value.evaluate((element) => Math.round(element.getBoundingClientRect().left))
+				value.evaluate((element) => Math.round(element.getBoundingClientRect().left)),
+				sign.evaluate((element) => {
+					const bounds = element.getBoundingClientRect();
+					return bounds.left + bounds.width / 2;
+				})
 			]);
 			expect(positions[0]).toBeLessThanOrEqual(positions[1]);
 			expect(Math.abs(positions[1] - headingLeft)).toBeLessThanOrEqual(1);
+			if (differenceRow.sign) signCenters.push(positions[2]);
 		}
+		expect(Math.abs((signCenters[0] ?? 0) - (signCenters[1] ?? 0))).toBeLessThanOrEqual(0.5);
 
 		await page.setViewportSize({ width: 1200, height: 900 });
 		const tableContainer = view.locator('[data-slot="table-container"]');
