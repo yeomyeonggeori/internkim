@@ -13,10 +13,13 @@ import (
 const scheduledBackupDirectory = "/root/.internkim/backups"
 const scheduledBackupPassphrasePath = "/root/.internkim/secrets/backup-passphrase"
 const scheduledBackupInterval = 24 * time.Hour
-const scheduledBackupRetainCount = 7
+const scheduledBackupRetainCount = 3
 
 func (service *Service) startScheduledBackups(ctx context.Context) {
 	go func() {
+		// Reclaim disk on startup: a full root partition crashes postgres and
+		// takes the whole box down, so clear stale backups before anything else.
+		pruneBackupDirectory(scheduledBackupDirectory, scheduledBackupRetainCount)
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
 		for {
@@ -24,6 +27,7 @@ func (service *Service) startScheduledBackups(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				pruneBackupDirectory(scheduledBackupDirectory, scheduledBackupRetainCount)
 				if newestScheduledBackupAge(scheduledBackupDirectory) < scheduledBackupInterval {
 					continue
 				}
@@ -58,7 +62,7 @@ func (service *Service) runScheduledBackup(ctx context.Context) error {
 		return errorValue
 	}
 	_ = os.Remove(plainPath)
-	pruneScheduledBackups(scheduledBackupDirectory, scheduledBackupRetainCount)
+	pruneBackupDirectory(scheduledBackupDirectory, scheduledBackupRetainCount)
 	log.Printf("scheduled backup completed: %s", encryptedPath)
 	return nil
 }
@@ -107,20 +111,47 @@ func newestScheduledBackupTime(backupDirectory string) time.Time {
 	return newest
 }
 
-func pruneScheduledBackups(backupDirectory string, retainCount int) {
+// pruneBackupDirectory keeps the backups directory small enough that it can
+// never fill the root partition (a full root crashes postgres and the box). It
+// retains the newest retainCount encrypted bundles and two buzz sql snapshots,
+// deletes stale one-off deploy snapshots outright, and removes plain tar.gz
+// leftovers from a failed encrypt — but only ones untouched for over an hour so
+// an in-progress backup is never truncated.
+func pruneBackupDirectory(backupDirectory string, retainCount int) {
 	entries, errorValue := os.ReadDir(backupDirectory)
 	if errorValue != nil {
 		return
 	}
-	bundleNames := []string{}
+	encryptedBundles := []string{}
+	sqlSnapshots := []string{}
+	now := time.Now()
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".ikbak") {
-			bundleNames = append(bundleNames, entry.Name())
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		fullPath := filepath.Join(backupDirectory, name)
+		switch {
+		case strings.HasSuffix(name, ".ikbak"):
+			encryptedBundles = append(encryptedBundles, name)
+		case strings.HasPrefix(name, "buzz-") && strings.HasSuffix(name, ".sql"):
+			sqlSnapshots = append(sqlSnapshots, name)
+		case strings.HasPrefix(name, "preserved-"):
+			_ = os.Remove(fullPath)
+		case strings.HasPrefix(name, ".internkim-backup-") && strings.HasSuffix(name, ".tar.gz"):
+			if information, statError := entry.Info(); statError == nil && now.Sub(information.ModTime()) > time.Hour {
+				_ = os.Remove(fullPath)
+			}
 		}
 	}
-	sort.Strings(bundleNames)
-	for len(bundleNames) > retainCount {
-		_ = os.Remove(filepath.Join(backupDirectory, bundleNames[0]))
-		bundleNames = bundleNames[1:]
+	removeOldestBackups(backupDirectory, encryptedBundles, retainCount)
+	removeOldestBackups(backupDirectory, sqlSnapshots, 2)
+}
+
+func removeOldestBackups(backupDirectory string, timestampedNames []string, retainCount int) {
+	sort.Strings(timestampedNames)
+	for len(timestampedNames) > retainCount {
+		_ = os.Remove(filepath.Join(backupDirectory, timestampedNames[0]))
+		timestampedNames = timestampedNames[1:]
 	}
 }
