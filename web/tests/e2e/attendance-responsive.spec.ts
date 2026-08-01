@@ -215,6 +215,26 @@ test.describe('attendance responsive view', () => {
 		expect(metricLayout.every((metric) => metric.textAlign === 'left')).toBe(true);
 		expect(Math.max(...metricLayout.map((metric) => metric.top)) - Math.min(...metricLayout.map((metric) => metric.top))).toBeLessThanOrEqual(1);
 
+		const differenceHeading = table.getByTestId('employee-work-status-difference-heading');
+		const differenceRows = [
+			{ name: '관리자', sign: '+' },
+			{ name: '김민지', sign: '' },
+			{ name: '이서연', sign: '-' }
+		];
+		const headingLeft = await differenceHeading.evaluate((element) => Math.round(element.getBoundingClientRect().left));
+		for (const differenceRow of differenceRows) {
+			const row = table.getByRole('row').filter({ hasText: differenceRow.name });
+			const sign = row.getByTestId('employee-work-status-difference-sign');
+			const value = row.getByTestId('employee-work-status-difference-value');
+			await expect(sign).toHaveText(differenceRow.sign);
+			const positions = await Promise.all([
+				sign.evaluate((element) => element.getBoundingClientRect().right),
+				value.evaluate((element) => Math.round(element.getBoundingClientRect().left))
+			]);
+			expect(positions[0]).toBeLessThanOrEqual(positions[1]);
+			expect(Math.abs(positions[1] - headingLeft)).toBeLessThanOrEqual(1);
+		}
+
 		await page.setViewportSize({ width: 1200, height: 900 });
 		const tableContainer = view.locator('[data-slot="table-container"]');
 		await expect.poll(() => tableContainer.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
