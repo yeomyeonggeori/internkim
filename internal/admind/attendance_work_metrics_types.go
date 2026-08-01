@@ -1,6 +1,6 @@
 package admind
 
-type attendancePaidLeaveOccurrence struct {
+type attendanceApprovedLeaveOccurrence struct {
 	Email              string
 	Date               string
 	StartTime          string
@@ -28,8 +28,7 @@ type attendanceWorkDayStatus struct {
 	TargetMinutes           int                             `json:"targetMinutes"`
 	ActualMinutes           int                             `json:"actualMinutes"`
 	ProvisionalMinutes      int                             `json:"provisionalMinutes"`
-	PaidLeaveMinutes        int                             `json:"paidLeaveMinutes"`
-	CreditedLeaveMinutes    int                             `json:"creditedLeaveMinutes"`
+	LeaveMinutes            int                             `json:"leaveMinutes"`
 	FulfilledMinutes        int                             `json:"fulfilledMinutes"`
 	DifferenceMinutes       int                             `json:"differenceMinutes"`
 	RemainingMinutes        int                             `json:"remainingMinutes"`
@@ -57,8 +56,7 @@ type attendanceWorkStatus struct {
 	TargetMinutes        int                       `json:"targetMinutes"`
 	ActualMinutes        int                       `json:"actualMinutes"`
 	ProvisionalMinutes   int                       `json:"provisionalMinutes"`
-	PaidLeaveMinutes     int                       `json:"paidLeaveMinutes"`
-	CreditedLeaveMinutes int                       `json:"creditedLeaveMinutes"`
+	LeaveMinutes         int                       `json:"leaveMinutes"`
 	FulfilledMinutes     int                       `json:"fulfilledMinutes"`
 	DifferenceMinutes    int                       `json:"differenceMinutes"`
 	RemainingMinutes     int                       `json:"remainingMinutes"`

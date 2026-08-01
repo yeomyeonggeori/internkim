@@ -5,20 +5,18 @@ import (
 	"strings"
 )
 
-func (service *Service) readPaidAttendanceLeaveOccurrences(
+func (service *Service) readApprovedAttendanceLeaveOccurrences(
 	ctx context.Context,
 	startDate string,
 	endDate string,
-) ([]attendancePaidLeaveOccurrence, error) {
+) ([]attendanceApprovedLeaveOccurrence, error) {
 	policy, errorValue := service.readAttendanceLeavePolicy(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	paidLeaveTypeIDs := make(map[string]struct{})
+	leaveTypePaidByID := make(map[string]bool, len(policy.LeaveTypes))
 	for _, leaveType := range policy.LeaveTypes {
-		if leaveType.Paid {
-			paidLeaveTypeIDs[leaveType.ID] = struct{}{}
-		}
+		leaveTypePaidByID[leaveType.ID] = leaveType.Paid
 	}
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
@@ -40,9 +38,9 @@ ORDER BY occurrence.date, request.employee_email`,
 		return nil, errorValue
 	}
 	defer rows.Close()
-	result := []attendancePaidLeaveOccurrence{}
+	result := []attendanceApprovedLeaveOccurrence{}
 	for rows.Next() {
-		var occurrence attendancePaidLeaveOccurrence
+		var occurrence attendanceApprovedLeaveOccurrence
 		var leaveTypeID string
 		if errorValue = rows.Scan(
 			&occurrence.Email,
@@ -54,9 +52,7 @@ ORDER BY occurrence.date, request.employee_email`,
 		); errorValue != nil {
 			return nil, errorValue
 		}
-		if _, paid := paidLeaveTypeIDs[strings.TrimSpace(leaveTypeID)]; paid {
-			occurrence.Paid = true
-		}
+		occurrence.Paid = leaveTypePaidByID[strings.TrimSpace(leaveTypeID)]
 		result = append(result, occurrence)
 	}
 	if errorValue = rows.Err(); errorValue != nil {

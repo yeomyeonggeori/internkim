@@ -31,7 +31,7 @@
 						<Table.Head>{text.status}</Table.Head>
 						<Table.Head class="text-right">{text.workStatus.target}</Table.Head>
 						<Table.Head class="text-right">{text.workStatus.actual}</Table.Head>
-						<Table.Head class="text-right">{text.workStatus.paidLeave}</Table.Head>
+						<Table.Head class="text-right">{text.workStatus.leave}</Table.Head>
 						<Table.Head class="text-right">{text.workStatus.overtime}</Table.Head>
 						<Table.Head class="text-right">{text.workStatus.night}</Table.Head>
 						<Table.Head>{text.workStatus.workSegments}</Table.Head>
@@ -45,7 +45,7 @@
 							<Table.Cell><Badge variant="secondary">{statusLabel(day.status)}</Badge></Table.Cell>
 							<Table.Cell class="text-right">{formatWorkStatusDuration(day.targetMinutes, text)}</Table.Cell>
 							<Table.Cell class="text-right">{formatWorkStatusDuration(day.actualMinutes, text)}</Table.Cell>
-							<Table.Cell class="text-right">{formatWorkStatusDuration(day.paidLeaveMinutes, text)}</Table.Cell>
+							<Table.Cell class="text-right">{formatWorkStatusDuration(day.leaveMinutes, text)}</Table.Cell>
 							<Table.Cell class="text-right">{formatWorkStatusDuration(day.overtimeMinutes, text)}</Table.Cell>
 							<Table.Cell class="text-right">{formatWorkStatusDuration(day.nightMinutes, text)}</Table.Cell>
 							<Table.Cell>

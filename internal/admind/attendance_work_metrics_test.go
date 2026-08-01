@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestAttendanceWorkMetricsSubtractBreaksAndCountPaidLeave(t *testing.T) {
+func TestAttendanceWorkMetricsSubtractBreaksAndReduceTargetByApprovedLeave(t *testing.T) {
 	location, errorValue := time.LoadLocation("Asia/Seoul")
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -19,11 +19,11 @@ func TestAttendanceWorkMetricsSubtractBreaksAndCountPaidLeave(t *testing.T) {
 		workMetricEvent("in", attendanceKindClockIn, "2026-07-31T00:00:00Z"),
 		workMetricEvent("out", attendanceKindClockOut, "2026-07-31T04:00:00Z"),
 	}
-	leaves := []attendancePaidLeaveOccurrence{{
+	leaves := []attendanceApprovedLeaveOccurrence{{
 		Email:              "kim@example.com",
 		Date:               "2026-07-31",
 		DeductionMilliDays: 500,
-		Paid:               true,
+		Paid:               false,
 	}}
 
 	status, errorValue := calculateAttendanceWorkStatus(
@@ -41,11 +41,11 @@ func TestAttendanceWorkMetricsSubtractBreaksAndCountPaidLeave(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if status.TargetMinutes != 480 ||
+	if status.TargetMinutes != 240 ||
 		status.ActualMinutes != 180 ||
-		status.PaidLeaveMinutes != 240 ||
-		status.CreditedLeaveMinutes != 240 ||
-		status.FulfilledMinutes != 420 ||
+		status.LeaveMinutes != 240 ||
+		status.FulfilledMinutes != 180 ||
+		status.DifferenceMinutes != -60 ||
 		status.RemainingMinutes != 60 ||
 		status.OvertimeMinutes != 0 {
 		t.Fatalf("status = %+v", status)
@@ -62,7 +62,7 @@ func TestAttendanceWorkMetricsCapLeaveAndDeriveOvertimeFromActualWork(t *testing
 		workMetricEvent("in", attendanceKindClockIn, "2026-07-31T00:00:00Z"),
 		workMetricEvent("out", attendanceKindClockOut, "2026-07-31T11:00:00Z"),
 	}
-	leaves := []attendancePaidLeaveOccurrence{{
+	leaves := []attendanceApprovedLeaveOccurrence{{
 		Email:              "kim@example.com",
 		Date:               "2026-07-31",
 		DeductionMilliDays: 1000,
@@ -85,16 +85,16 @@ func TestAttendanceWorkMetricsCapLeaveAndDeriveOvertimeFromActualWork(t *testing
 		t.Fatal(errorValue)
 	}
 	if status.ActualMinutes != 600 ||
-		status.PaidLeaveMinutes != 480 ||
-		status.CreditedLeaveMinutes != 0 ||
-		status.FulfilledMinutes != 480 ||
-		status.OvertimeMinutes != 120 ||
+		status.TargetMinutes != 0 ||
+		status.LeaveMinutes != 480 ||
+		status.FulfilledMinutes != 0 ||
+		status.OvertimeMinutes != 600 ||
 		status.RemainingMinutes != 0 {
 		t.Fatalf("status = %+v", status)
 	}
 }
 
-func TestAttendanceWorkMetricsDistinguishShortfallOvertimeAndLeaveCredit(t *testing.T) {
+func TestAttendanceWorkMetricsDistinguishShortfallOvertimeAndAdjustedTarget(t *testing.T) {
 	location, errorValue := time.LoadLocation("Asia/Seoul")
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -105,21 +105,21 @@ func TestAttendanceWorkMetricsDistinguishShortfallOvertimeAndLeaveCredit(t *test
 		clockOut                 string
 		deductionMilliDays       int
 		expectedActualMinutes    int
-		expectedPaidLeaveMinutes int
-		expectedCreditedMinutes  int
+		expectedLeaveMinutes     int
+		expectedTargetMinutes    int
 		expectedRemainingMinutes int
 		expectedOvertimeMinutes  int
 	}{
-		{name: "work shortfall", clockIn: "2026-07-31T01:00:00Z", clockOut: "2026-07-31T08:00:00Z", expectedActualMinutes: 360, expectedRemainingMinutes: 120},
-		{name: "work and leave shortfall", clockIn: "2026-07-31T01:00:00Z", clockOut: "2026-07-31T07:00:00Z", deductionMilliDays: 250, expectedActualMinutes: 300, expectedPaidLeaveMinutes: 120, expectedCreditedMinutes: 120, expectedRemainingMinutes: 60},
-		{name: "work overtime", clockIn: "2026-07-31T00:00:00Z", clockOut: "2026-07-31T10:00:00Z", expectedActualMinutes: 540, expectedOvertimeMinutes: 60},
-		{name: "work and leave above target", clockIn: "2026-07-31T00:00:00Z", clockOut: "2026-07-31T08:00:00Z", deductionMilliDays: 250, expectedActualMinutes: 420, expectedPaidLeaveMinutes: 120, expectedCreditedMinutes: 60},
+		{name: "work shortfall", clockIn: "2026-07-31T01:00:00Z", clockOut: "2026-07-31T08:00:00Z", expectedActualMinutes: 360, expectedTargetMinutes: 480, expectedRemainingMinutes: 120},
+		{name: "work and leave shortfall", clockIn: "2026-07-31T01:00:00Z", clockOut: "2026-07-31T07:00:00Z", deductionMilliDays: 250, expectedActualMinutes: 300, expectedLeaveMinutes: 120, expectedTargetMinutes: 360, expectedRemainingMinutes: 60},
+		{name: "work overtime", clockIn: "2026-07-31T00:00:00Z", clockOut: "2026-07-31T10:00:00Z", expectedActualMinutes: 540, expectedTargetMinutes: 480, expectedOvertimeMinutes: 60},
+		{name: "work and leave above target", clockIn: "2026-07-31T00:00:00Z", clockOut: "2026-07-31T08:00:00Z", deductionMilliDays: 250, expectedActualMinutes: 420, expectedLeaveMinutes: 120, expectedTargetMinutes: 360, expectedOvertimeMinutes: 60},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			leaves := []attendancePaidLeaveOccurrence{}
+			leaves := []attendanceApprovedLeaveOccurrence{}
 			if testCase.deductionMilliDays > 0 {
-				leaves = append(leaves, attendancePaidLeaveOccurrence{
+				leaves = append(leaves, attendanceApprovedLeaveOccurrence{
 					Email:              "kim@example.com",
 					Date:               "2026-07-31",
 					DeductionMilliDays: testCase.deductionMilliDays,
@@ -145,8 +145,8 @@ func TestAttendanceWorkMetricsDistinguishShortfallOvertimeAndLeaveCredit(t *test
 				t.Fatal(calculateError)
 			}
 			if status.ActualMinutes != testCase.expectedActualMinutes ||
-				status.PaidLeaveMinutes != testCase.expectedPaidLeaveMinutes ||
-				status.CreditedLeaveMinutes != testCase.expectedCreditedMinutes ||
+				status.LeaveMinutes != testCase.expectedLeaveMinutes ||
+				status.TargetMinutes != testCase.expectedTargetMinutes ||
 				status.RemainingMinutes != testCase.expectedRemainingMinutes ||
 				status.OvertimeMinutes != testCase.expectedOvertimeMinutes {
 				t.Fatalf("status = %+v", status)
@@ -267,7 +267,7 @@ func TestAttendanceWorkMetricsExcludeHolidaysFromBaseline(t *testing.T) {
 		"2026-07-31",
 		"2026-07-31",
 		nil,
-		[]attendancePaidLeaveOccurrence{{
+		[]attendanceApprovedLeaveOccurrence{{
 			Email:              "kim@example.com",
 			Date:               "2026-07-31",
 			DeductionMilliDays: 1000,
@@ -281,7 +281,7 @@ func TestAttendanceWorkMetricsExcludeHolidaysFromBaseline(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if status.TargetMinutes != 0 || status.PaidLeaveMinutes != 0 || status.RemainingMinutes != 0 {
+	if status.TargetMinutes != 0 || status.LeaveMinutes != 0 || status.RemainingMinutes != 0 {
 		t.Fatalf("status = %+v", status)
 	}
 }
@@ -351,7 +351,7 @@ func TestAttendanceWorkMetricsFlagLeaveOverlapAndApplyScheduleExceptions(t *test
 		workMetricEvent("in", attendanceKindClockIn, "2026-07-31T01:00:00Z"),
 		workMetricEvent("out", attendanceKindClockOut, "2026-07-31T08:00:00Z"),
 	}
-	leave := []attendancePaidLeaveOccurrence{
+	leave := []attendanceApprovedLeaveOccurrence{
 		{Email: "kim@example.com", Date: "2026-07-31", StartTime: "09:00", EndTime: "10:00"},
 		{Email: "kim@example.com", Date: "2026-07-31", StartTime: "17:00", EndTime: "18:00"},
 	}
@@ -375,7 +375,7 @@ func TestAttendanceWorkMetricsFlagLeaveOverlapAndApplyScheduleExceptions(t *test
 		t.Fatalf("fixed leave exception = %+v", status)
 	}
 
-	overlappingLeave := append(leave, attendancePaidLeaveOccurrence{
+	overlappingLeave := append(leave, attendanceApprovedLeaveOccurrence{
 		Email: "kim@example.com", Date: "2026-07-31", StartTime: "11:00", EndTime: "12:00",
 	})
 	status, errorValue = calculateAttendanceWorkStatus(
@@ -442,7 +442,7 @@ func TestAttendanceWorkStatusHTTPReturnsScopedWeeklyStatus(t *testing.T) {
 			workMetricEvent("out", attendanceKindClockOut, "2026-07-31T09:00:00Z"),
 		}, nil
 	}
-	leaveReader := func(context.Context, string, string) ([]attendancePaidLeaveOccurrence, error) {
+	leaveReader := func(context.Context, string, string) ([]attendanceApprovedLeaveOccurrence, error) {
 		return nil, nil
 	}
 	holidayReader := func(context.Context, time.Time, time.Time) (map[string]struct{}, error) {
