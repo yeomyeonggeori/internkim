@@ -567,7 +567,13 @@
 								onclick={() =>
 									openLightbox(imageAttachmentURLs, imageAttachmentURLs.indexOf(attachment.url))}
 							>
-								<img src={attachment.url} alt={attachment.filename ?? ''} loading="lazy" decoding="async" />
+								<img
+									src={attachment.url}
+									alt={attachment.filename ?? ''}
+									loading="lazy"
+									decoding="async"
+									class="aspect-square h-full w-full object-cover"
+								/>
 							</button>
 						</Attachment.Media>
 					{:else}

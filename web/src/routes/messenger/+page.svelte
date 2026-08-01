@@ -48,8 +48,32 @@
 	let draggedChannelID = $state<string | null>(null);
 	let dragOverChannelID = $state<string | null>(null);
 
+	const conversationsCacheKey = 'messenger-conversations';
+
+	function loadCachedConversations(): ChannelSummary[] {
+		if (typeof sessionStorage === 'undefined') return [];
+		try {
+			const cached: unknown = JSON.parse(sessionStorage.getItem(conversationsCacheKey) ?? '[]');
+			return Array.isArray(cached) ? (cached as ChannelSummary[]) : [];
+		} catch {
+			return [];
+		}
+	}
+
 	async function loadConversationList() {
 		conversations = await fetchConversations();
+		if (typeof sessionStorage !== 'undefined') {
+			sessionStorage.setItem(conversationsCacheKey, JSON.stringify(conversations));
+		}
+	}
+
+	function selectInitialChannel() {
+		const requestedID = page.url.searchParams.get('channel') ?? loadLastChannelID();
+		const remembered = requestedID
+			? conversations.find((conversation) => conversation.id === requestedID)
+			: undefined;
+		const initial = remembered ?? groupChannels[0] ?? conversations[0];
+		if (initial) selectChannel(initial.id);
 	}
 
 	$effect(() => {
@@ -113,16 +137,18 @@
 
 	onMount(async () => {
 		userChannelOrder = loadChannelOrder();
+		const cached = loadCachedConversations();
+		if (cached.length > 0) {
+			conversations = cached;
+			selectInitialChannel();
+		}
 		try {
 			await loadConversationList();
-			const requestedID = page.url.searchParams.get('channel') ?? loadLastChannelID();
-			const remembered = requestedID
-				? conversations.find((conversation) => conversation.id === requestedID)
-				: undefined;
-			const initial = remembered ?? groupChannels[0] ?? conversations[0];
-			if (initial) selectChannel(initial.id);
+			if (!conversations.some((conversation) => conversation.id === activeID)) {
+				selectInitialChannel();
+			}
 		} catch {
-			conversations = [];
+			// keep the cached channel list when a refresh fails
 		}
 	});
 </script>
