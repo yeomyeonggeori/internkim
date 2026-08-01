@@ -17,6 +17,7 @@
 	import { onMount } from 'svelte';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 	import { syncMattermostToBuzz } from '$lib/buzz-mm-sync';
+	import { loadChannelOrder, saveChannelOrder, orderChannels, moveChannel } from './channel-order';
 
 	const text = createPageText(channelText);
 
@@ -25,6 +26,9 @@
 	let isNewDirectMessageOpen = $state(false);
 	let people = $state<Person[]>([]);
 	let hasSyncedMattermost = false;
+	let userChannelOrder = $state<string[]>([]);
+	let draggedChannelID = $state<string | null>(null);
+	let dragOverChannelID = $state<string | null>(null);
 
 	async function loadConversationList() {
 		conversations = await fetchConversations();
@@ -59,13 +63,31 @@
 		}
 	}
 
-	const groupChannels = $derived(conversations.filter((conversation) => conversation.kind === 'group'));
+	const groupChannels = $derived(
+		orderChannels(
+			conversations.filter((conversation) => conversation.kind === 'group'),
+			userChannelOrder
+		)
+	);
 	const directMessages = $derived(conversations.filter((conversation) => conversation.kind === 'dm'));
+
+	function handleChannelDrop(targetID: string) {
+		if (!draggedChannelID) return;
+		const reordered = moveChannel(
+			groupChannels.map((channel) => channel.id),
+			draggedChannelID,
+			targetID
+		);
+		userChannelOrder = reordered;
+		saveChannelOrder(reordered);
+		draggedChannelID = null;
+	}
 	const activeConversation = $derived(
 		conversations.find((conversation) => conversation.id === activeID)
 	);
 
 	onMount(async () => {
+		userChannelOrder = loadChannelOrder();
 		try {
 			await loadConversationList();
 			const preferredDirectMessage = conversations.find((conversation) => conversation.kind === 'dm');
@@ -91,7 +113,27 @@
 						<Sidebar.GroupContent>
 							<Sidebar.Menu>
 								{#each groupChannels as channel (channel.id)}
-									<Sidebar.MenuItem>
+									<Sidebar.MenuItem
+										draggable="true"
+										class={dragOverChannelID === channel.id
+											? 'border-primary rounded-md border'
+											: 'rounded-md border border-transparent'}
+										ondragstart={() => (draggedChannelID = channel.id)}
+										ondragend={() => ((draggedChannelID = null), (dragOverChannelID = null))}
+										ondragover={(event: DragEvent) => {
+											if (!draggedChannelID || draggedChannelID === channel.id) return;
+											event.preventDefault();
+											dragOverChannelID = channel.id;
+										}}
+										ondragleave={() => {
+											if (dragOverChannelID === channel.id) dragOverChannelID = null;
+										}}
+										ondrop={(event: DragEvent) => {
+											event.preventDefault();
+											dragOverChannelID = null;
+											handleChannelDrop(channel.id);
+										}}
+									>
 										<Sidebar.MenuButton
 											isActive={activeID === channel.id}
 											onclick={() => (activeID = channel.id)}
