@@ -968,7 +968,7 @@ llm_action_body="$(jq -cn --arg model "$model" --argjson schema "$action_schema"
   enableResponseHealing: true
 }')"
 llm_action_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_action_body" http://internkim/v1/llm/structured)"
-printf '%s' "$llm_action_response" | jq -e '.provider == "openrouter" and .selectedBackend == "remote" and .constraintMode == "native_tool_call" and (.content | fromjson | .action == "finish")' >/dev/null
+printf '%s' "$llm_action_response" | jq -e '.provider == "openrouter" and .selectedBackend == "remote" and (.constraintMode == "openai_json_schema" or .constraintMode == "native_tool_call") and (.content | fromjson | .action == "finish")' >/dev/null
 
 echo "checking litert capability"
 if command -v litert-lm >/dev/null 2>&1 && [ -s /root/.internkim/models/gemma-4-E4B-it.litertlm ]; then
