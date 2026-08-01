@@ -34,6 +34,8 @@
 	import MessageCircleDashedIcon from '@lucide/svelte/icons/message-circle-dashed';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
+	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 	import { onDestroy, onMount, tick } from 'svelte';
@@ -72,8 +74,48 @@
 	let hasMoreBefore = $state(false);
 	let historyCursor = $state('');
 	let isLoadingOlder = $state(false);
-	let lightboxURL = $state<string | null>(null);
+	let lightbox = $state<{ images: string[]; index: number } | null>(null);
+	let lightboxTouchStartX = 0;
+	let lightboxTouchMoved = false;
 	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function openLightbox(images: string[], index: number) {
+		if (images.length === 0) return;
+		lightbox = { images, index: Math.max(0, index) };
+	}
+
+	function stepLightbox(delta: number) {
+		if (!lightbox || lightbox.images.length < 2) return;
+		const count = lightbox.images.length;
+		lightbox = { images: lightbox.images, index: (lightbox.index + delta + count) % count };
+	}
+
+	function handleLightboxKeydown(event: KeyboardEvent) {
+		if (!lightbox) return;
+		if (event.key === 'Escape') lightbox = null;
+		else if (event.key === 'ArrowRight') stepLightbox(1);
+		else if (event.key === 'ArrowLeft') stepLightbox(-1);
+	}
+
+	function handleLightboxTouchStart(event: TouchEvent) {
+		lightboxTouchStartX = event.changedTouches[0]?.clientX ?? 0;
+		lightboxTouchMoved = false;
+	}
+
+	function handleLightboxTouchEnd(event: TouchEvent) {
+		const deltaX = (event.changedTouches[0]?.clientX ?? 0) - lightboxTouchStartX;
+		if (Math.abs(deltaX) < 40) return;
+		lightboxTouchMoved = true;
+		stepLightbox(deltaX < 0 ? 1 : -1);
+	}
+
+	function closeLightboxFromBackdrop() {
+		if (lightboxTouchMoved) {
+			lightboxTouchMoved = false;
+			return;
+		}
+		lightbox = null;
+	}
 	let lastConversationSignature = '';
 	let pendingAttachments = $state<PendingAttachment[]>([]);
 	let fileInput = $state<HTMLInputElement | null>(null);
@@ -508,6 +550,9 @@
 	{@const reactionAlign = mine ? 'start' : 'end'}
 	{@const reactionSide = 'top' as const}
 	{@const imageReactionSpacing = !content.text && reactions.length > 0 ? 'mt-5' : ''}
+	{@const imageAttachmentURLs = attachments
+		.filter((attachment) => attachment.kind === 'image')
+		.map((attachment) => attachment.url)}
 	{#if attachments.length > 0}
 		<div class="relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end">
 			<Attachment.Group class={`relative w-fit max-w-full ${imageReactionSpacing}`}>
@@ -519,7 +564,8 @@
 								type="button"
 								class="block h-full w-full cursor-zoom-in"
 								aria-label={attachment.filename ?? '이미지 크게 보기'}
-								onclick={() => (lightboxURL = attachment.url)}
+								onclick={() =>
+									openLightbox(imageAttachmentURLs, imageAttachmentURLs.indexOf(attachment.url))}
 							>
 								<img src={attachment.url} alt={attachment.filename ?? ''} loading="lazy" decoding="async" />
 							</button>
@@ -937,26 +983,57 @@
 {/if}
 </div>
 
-<svelte:window
-	onkeydown={(event) => {
-		if (event.key === 'Escape') lightboxURL = null;
-	}}
-/>
-{#if lightboxURL}
-	<button
-		type="button"
-		class="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/80 p-6"
-		aria-label="이미지 닫기"
-		onclick={() => (lightboxURL = null)}
+<svelte:window onkeydown={handleLightboxKeydown} />
+{#if lightbox}
+	{@const currentImage = lightbox.images[lightbox.index]}
+	{@const hasMultiple = lightbox.images.length > 1}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center"
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
 		transition:fade={{ duration: 150 }}
+		ontouchstart={handleLightboxTouchStart}
+		ontouchend={handleLightboxTouchEnd}
 	>
-		<img
-			src={lightboxURL}
-			alt=""
-			class="max-h-full max-w-full rounded-md object-contain"
-			in:scale={{ duration: 200, start: 0.9 }}
-		/>
-	</button>
+		<button
+			type="button"
+			class="absolute inset-0 cursor-zoom-out bg-black/80"
+			aria-label="이미지 닫기"
+			onclick={closeLightboxFromBackdrop}
+		></button>
+		{#key lightbox.index}
+			<img
+				src={currentImage}
+				alt=""
+				class="pointer-events-none relative z-10 max-h-full max-w-full rounded-md object-contain p-6"
+				in:scale={{ duration: 200, start: 0.94 }}
+			/>
+		{/key}
+		{#if hasMultiple}
+			<button
+				type="button"
+				class="absolute left-3 z-20 flex size-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/20 max-md:hidden"
+				aria-label="이전 이미지"
+				onclick={() => stepLightbox(-1)}
+			>
+				<ChevronLeftIcon class="size-6" />
+			</button>
+			<button
+				type="button"
+				class="absolute right-3 z-20 flex size-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/20 max-md:hidden"
+				aria-label="다음 이미지"
+				onclick={() => stepLightbox(1)}
+			>
+				<ChevronRightIcon class="size-6" />
+			</button>
+			<div
+				class="absolute bottom-5 z-20 rounded-full bg-black/50 px-3 py-1 text-sm text-white/90"
+			>
+				{lightbox.index + 1} / {lightbox.images.length}
+			</div>
+		{/if}
+	</div>
 {/if}
 
 {#if threadLayout === 'sheet'}
