@@ -22,6 +22,12 @@
 		return `${prefix}${formatWorkStatusDuration(Math.abs(minutes), text)}`;
 	}
 
+	function differenceSign(minutes: number): '+' | '-' | '' {
+		if (minutes > 0) return '+';
+		if (minutes < 0) return '-';
+		return '';
+	}
+
 	function barScale(employee: AttendanceEmployeeWorkStatus): number {
 		return Math.max(employee.targetMinutes, displayedActualMinutes(employee), 1);
 	}
@@ -54,7 +60,12 @@
 			<Table.Head class="text-left">{text.workStatus.actual}</Table.Head>
 			<Table.Head class="text-left">{text.workStatus.leave}</Table.Head>
 			<Table.Head class="text-left">{text.workStatus.fulfilled}</Table.Head>
-			<Table.Head class="text-left">{text.workStatus.difference}</Table.Head>
+			<Table.Head class="text-left">
+				<span class="inline-grid grid-cols-[0.75em_auto] gap-1">
+					<span aria-hidden="true"></span>
+					<span data-testid="employee-work-status-difference-heading">{text.workStatus.difference}</span>
+				</span>
+			</Table.Head>
 			<Table.Head class="text-left">{text.workStatus.night}</Table.Head>
 			<Table.Head class="text-left">{text.status}</Table.Head>
 			<Table.Head class="text-center"><span class="sr-only">{text.workStatus.details}</span></Table.Head>
@@ -110,11 +121,24 @@
 					</span>
 				</Table.Cell>
 				<Table.Cell class="align-top text-left">
-					<span class="block tabular-nums" data-testid="employee-work-status-metric">
-						{employee.hasBaseline
-							? formatDifference(employee.differenceMinutes)
-							: text.workStatus.noBaseline}
-					</span>
+					{#if employee.hasBaseline}
+						<span
+							class="inline-grid grid-cols-[0.75em_auto] items-baseline gap-1 tabular-nums"
+							data-testid="employee-work-status-metric"
+							aria-label={formatDifference(employee.differenceMinutes)}
+						>
+							<span class="text-right" data-testid="employee-work-status-difference-sign">
+								{differenceSign(employee.differenceMinutes)}
+							</span>
+							<span data-testid="employee-work-status-difference-value">
+								{formatWorkStatusDuration(Math.abs(employee.differenceMinutes), text)}
+							</span>
+						</span>
+					{:else}
+						<span class="block tabular-nums" data-testid="employee-work-status-metric">
+							{text.workStatus.noBaseline}
+						</span>
+					{/if}
 				</Table.Cell>
 				<Table.Cell class="align-top text-left">
 					<span class="block tabular-nums" data-testid="employee-work-status-metric">
