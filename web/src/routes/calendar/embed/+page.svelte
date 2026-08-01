@@ -63,6 +63,7 @@
 		isBrowser: () => browser,
 		getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
 		getLocaleCode: () => localeCode,
+		getLocale: () => currentLocale.value,
 		initialCalendarDate,
 		initialCalendarView,
 		setVisibleDate,
@@ -89,7 +90,7 @@
 
 	$effect(() => {
 		const visibleDate = state.toolbarDate;
-		const windowKey = `${visibleDate.getFullYear()}-${visibleDate.getMonth()}`;
+		const windowKey = `${visibleDate.getFullYear()}-${visibleDate.getMonth()}-${currentLocale.value}`;
 		if (windowKey === loadedEventWindowKey) return;
 		loadedEventWindowKey = windowKey;
 		void eventLoader.loadEvents(startOfMonthWindow(visibleDate), endOfMonthWindow(visibleDate));
@@ -231,6 +232,7 @@
 	conflicts={state.calendarConflicts}
 	dismissConflict={conflictActions.dismissCalendarConflict}
 	refreshConflicts={conflictActions.dismissAllConflictsAndRefresh}
+	loadErrorMessage={state.loadErrorMessage}
 	{currentMonthTitle}
 	toolbarDate={state.toolbarDate}
 	toolbarView={state.toolbarView}

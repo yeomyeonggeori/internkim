@@ -1,7 +1,7 @@
 ---
 name: internkim-flow
 description: Add, find, update, or complete weekly work items when the user asks to add, record, request, find, change, or complete work, todos, 업무, deadlines, or task notes.
-tool-references: task.add task.list task.update task.delete
+tool-references: task.add task.list task.definitions task.update task.delete
 ---
 
 # 업무 관리
@@ -17,6 +17,7 @@ Use the typed work capability operations for work items; descriptors define fiel
 - `task.update` and `task.delete` take a single `taskHint`: the exact task ID or the exact task title from a task.list result, resolved server-side to the canonical task. Use `task.list` first when neither is known precisely; if the hint does not uniquely resolve, the runtime fails with a candidates list — retry with the exact ID or title from it instead of guessing.
 - Update with at least one mutable field; completion sets status to `완료`. Delete only on explicit request, passing the exact ID or title as `taskHint`. Approval authorizes deletion but does not identify the target.
 - Current-week listing is the default. Use week offsets for another period, including `weekFrom -1, weekTo -1` for last week, `weekFrom -3, weekTo 0` for the last four weeks, and a wide range such as `weekFrom -520` for history.
+- `task.definitions` lists the businesses, task types, sizes, and statuses this workspace accepts. Call it before writing a business or type you have not seen in a `task.list` result, and before bringing records in from another system; a value outside these lists is rejected.
 
 ## Replies and failures
 

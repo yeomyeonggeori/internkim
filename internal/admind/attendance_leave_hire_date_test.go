@@ -3,7 +3,6 @@ package admind
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 )
@@ -64,13 +63,7 @@ func TestAttendanceLeaveRequestAllowsUntrackedTypeWithoutHireDate(t *testing.T) 
 
 func TestAttendanceLeaveProfileReadFailureDoesNotLookLikeMissingHireDate(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	organizationDatabasePath := service.organizationDatabasePath()
-	if errorValue := os.Remove(organizationDatabasePath); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.Mkdir(organizationDatabasePath, 0o700); errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	dropOrganizationProfilesTable(t, service)
 
 	memberRequest := httptest.NewRequest(http.MethodGet, "/attendance/api/summary", nil)
 	records, found := service.attendanceUserRecordsForMembers(memberRequest)
@@ -92,4 +85,16 @@ func TestAttendanceLeaveProfileReadFailureDoesNotLookLikeMissingHireDate(t *test
 		http.StatusInternalServerError,
 		attendanceLeaveErrorInternal,
 	)
+}
+
+func dropOrganizationProfilesTable(t *testing.T, service *Service) {
+	t.Helper()
+	database, errorValue := service.openOrganizationDatabase(t.Context())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	if _, errorValue := database.ExecContext(t.Context(), "DROP TABLE organization_profiles"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 }

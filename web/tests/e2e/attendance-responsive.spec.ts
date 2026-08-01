@@ -1,5 +1,6 @@
 import { expect, test } from './attendance-page-test-fixture';
 import { buildAttendanceSummaryFixture } from '../../dev-attendance-summary-fixture';
+import { createDevAttendanceWorkStatus } from '../../dev-attendance-work-status-mock';
 import {
 	expectReadableMobileTeamStatusTable,
 	measureMobileTeamStatusTable,
@@ -55,6 +56,252 @@ test.describe('attendance responsive view', () => {
 		await page.getByRole('option', { name: /김철수/ }).click();
 		await expect(statusTable.getByText('김철수')).toBeVisible();
 		await expect(statusTable.getByText('강민호')).toHaveCount(0);
+	});
+
+	test('updates the personal work standard with the existing chart period controls', async ({ page }) => {
+		await page.goto('/attendance');
+		await selectKorean(page);
+
+		const workTimeCard = page
+			.getByTestId('attendance-sidebar-scroll')
+			.locator('[data-slot="card"][aria-label="내 근무 시간"]');
+		const attendanceSidebar = page.getByTestId('attendance-sidebar-scroll');
+		const standard = workTimeCard.getByTestId('personal-work-standard');
+		await expect(workTimeCard.getByText('일일 평균')).toBeVisible();
+		await expect(workTimeCard.getByText('일일 최고')).toBeVisible();
+		await expect(workTimeCard.getByText('일일 최저')).toBeVisible();
+		await expect(standard.getByText('근무 기준')).toBeVisible();
+		await expect(standard.getByText('근무·휴가 합계')).toHaveCount(0);
+		await expect(standard.getByText('휴가', { exact: true })).toHaveCount(0);
+		await expect(standard.getByText('휴가 인정')).toHaveCount(0);
+		await expect(standard.getByText('남은 시간')).toHaveCount(0);
+		await expect(standard.getByText('유급 휴가')).toHaveCount(0);
+		await expect(standard.getByText('야간 근무', { exact: true })).toBeVisible();
+		await expect(standard.getByText('기준 초과', { exact: true })).toBeVisible();
+		await expect(standard.getByText('기준 부족', { exact: true })).toBeVisible();
+		await expect(standard.getByRole('status')).toHaveCount(0);
+		await expect(standard.getByText('실제 근무', { exact: true })).toBeVisible();
+		await expect(standard.getByText('실제 근무 01시간 20분')).toHaveCount(0);
+
+		await workTimeCard.getByRole('button', { name: '일별' }).click();
+		await expect(standard.getByText(new RegExp(`${todayDateInSeoul()}$`))).toBeVisible();
+		const capacityBar = standard.getByTestId('work-standard-capacity-bar');
+		await expect(capacityBar).toHaveAttribute(
+			'aria-label',
+			/실제 근무 01시간 20분, 진행 중 잠정 00시간 00분, 기준 시간 00시간 00분/
+		);
+		await expect(standard.getByTestId('work-standard-total')).toHaveText('01시간 20분');
+		await expect(standard.getByTestId('work-standard-leave-segment')).toHaveCount(0);
+		await expect(capacityBar).not.toHaveAttribute('aria-label', /전체 시간|남은 시간/);
+		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute(
+			'style',
+			/left:\s*80%/
+		);
+		await expect(attendanceSidebar.getByTestId('quick-actions-current-bar')).toHaveAttribute(
+			'data-attendance-progress-bar',
+			''
+		);
+		await expect(standard.getByTestId('work-standard-progress-track')).toHaveAttribute(
+			'data-attendance-progress-bar',
+			''
+		);
+		await expect(standard.getByTestId('work-standard-progress-track')).toHaveCSS('height', '6px');
+		await expect(standard.getByTestId('work-standard-total-row')).toHaveCSS('white-space', 'nowrap');
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveClass(/bg-yellow-400/);
+		await expect(page.getByTestId('work-standard-bar-tooltip')).toHaveCount(0);
+		await workTimeCard.getByRole('button', { name: '주별' }).click();
+		await expect(standard.getByText(/2026-07-27–2026-08-02/)).toBeVisible();
+		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
+			'aria-label',
+			/실제 근무 33시간 20분, 진행 중 잠정 00시간 00분, 기준 시간 32시간 00분/
+		);
+		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
+		await workTimeCard.getByRole('button', { name: '월별' }).click();
+		await expect(standard.getByText(/2026-05-01–2026-05-31/)).toBeVisible();
+		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
+			'aria-label',
+			/실제 근무 161시간 20분, 진행 중 잠정 00시간 00분, 기준 시간 160시간 00분/
+		);
+		await expect(standard.getByTestId('work-standard-total-row')).toHaveText(
+			'161시간 20분 / 기준 시간 160시간 00분'
+		);
+		await expect
+			.poll(() =>
+				standard
+					.getByTestId('work-standard-total-row')
+					.evaluate((element) => element.scrollWidth <= element.clientWidth)
+			)
+			.toBe(true);
+		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
+	});
+
+	test('distinguishes four work and leave baseline states', async ({ page }) => {
+		const scenarios = [
+			{ actualMinutes: 360, leaveMinutes: 0, targetMinutes: 480, fulfilledMinutes: 360, remainingMinutes: 120, overtimeMinutes: 0, differenceMinutes: -120, total: '06시간 00분', target: '08시간 00분', shortfall: '02시간 00분' },
+			{ actualMinutes: 300, leaveMinutes: 120, targetMinutes: 360, fulfilledMinutes: 300, remainingMinutes: 60, overtimeMinutes: 0, differenceMinutes: -60, total: '05시간 00분', target: '06시간 00분', shortfall: '01시간 00분' },
+			{ actualMinutes: 540, leaveMinutes: 0, targetMinutes: 480, fulfilledMinutes: 480, remainingMinutes: 0, overtimeMinutes: 60, differenceMinutes: 60, total: '09시간 00분', target: '08시간 00분', overtime: '01시간 00분' },
+			{ actualMinutes: 420, leaveMinutes: 120, targetMinutes: 360, fulfilledMinutes: 360, remainingMinutes: 0, overtimeMinutes: 60, differenceMinutes: 60, total: '07시간 00분', target: '06시간 00분', overtime: '01시간 00분' }
+		];
+		let scenario = scenarios[0];
+		await page.unroute('**/attendance/api/work-status?**');
+		await page.route('**/attendance/api/work-status?**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const payload = createDevAttendanceWorkStatus(
+				'tester@example.com',
+				requestURL.searchParams.get('period'),
+				requestURL.searchParams.get('anchor')
+			);
+			payload.personal = payload.personal ? { ...payload.personal, ...scenario, nightMinutes: 0 } : undefined;
+			await route.fulfill({ json: payload });
+		});
+
+		for (const currentScenario of scenarios) {
+			scenario = currentScenario;
+			await page.goto('/attendance');
+			await selectKorean(page);
+			const standard = page
+				.getByTestId('attendance-sidebar-scroll')
+				.getByTestId('personal-work-standard');
+			await page
+				.getByTestId('attendance-sidebar-scroll')
+				.getByRole('button', { name: '일별' })
+				.click();
+			await expect(standard.getByTestId('work-standard-total')).toHaveText(currentScenario.total);
+			await expect(standard.getByText(`기준 시간 ${currentScenario.target}`, { exact: true })).toBeVisible();
+			await expect(standard.getByTestId('work-standard-leave-segment')).toHaveCount(0);
+			await expect(standard.locator('.bg-blue-500')).toHaveCount(0);
+			const overtimeRow = standard.getByText('기준 초과', { exact: true }).locator('..');
+			const shortfallRow = standard.getByText('기준 부족', { exact: true }).locator('..');
+			await expect(overtimeRow.getByLabel(currentScenario.overtime ?? '00시간 00분')).toBeVisible();
+			await expect(shortfallRow.getByLabel(currentScenario.shortfall ?? '00시간 00분')).toBeVisible();
+		}
+	});
+
+	test('shows the administrator employee work status list and review filters', async ({ page }) => {
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page.getByTestId('employee-work-status-navigation').click();
+
+		const view = page.getByTestId('employee-work-status-view');
+		const table = view.getByTestId('employee-work-status-table');
+		await expect(view.getByText('직원 근무 현황', { exact: true })).toBeVisible();
+		await expect(view.getByRole('columnheader', { name: '근무 방식' })).toBeVisible();
+		await expect(view.getByRole('columnheader', { name: '기준 충족' })).toBeVisible();
+		await expect(view.getByRole('columnheader', { name: '기준 차이' })).toBeVisible();
+		await expect(view.getByRole('columnheader', { name: '기준 시간' })).toHaveCount(0);
+		await expect(view.getByRole('columnheader', { name: '회사 기준 대비 초과' })).toHaveCount(0);
+		await expect(view.locator('.bg-yellow-400').first()).toHaveClass(/bg-yellow-400/);
+
+		const metricHeaders = table.locator('[data-slot="table-head"]').filter({ hasText: /실제 근무|휴가|기준 충족|기준 차이|야간 근무/ });
+		await expect(metricHeaders).toHaveCount(5);
+		for (const header of await metricHeaders.all()) {
+			await expect(header).toHaveCSS('text-align', 'left');
+		}
+
+		const firstEmployeeRow = table.getByRole('row').nth(1);
+		const metricValues = firstEmployeeRow.getByTestId('employee-work-status-metric');
+		await expect(metricValues).toHaveCount(5);
+		const metricLayout = await metricValues.evaluateAll((elements) =>
+			elements.map((element) => {
+				const style = getComputedStyle(element);
+				return {
+					fontSize: style.fontSize,
+					textAlign: style.textAlign,
+					top: Math.round(element.getBoundingClientRect().top)
+				};
+			})
+		);
+		expect(metricLayout.every((metric) => metric.fontSize === metricLayout[0]?.fontSize)).toBe(true);
+		expect(metricLayout.every((metric) => metric.textAlign === 'left')).toBe(true);
+		expect(Math.max(...metricLayout.map((metric) => metric.top)) - Math.min(...metricLayout.map((metric) => metric.top))).toBeLessThanOrEqual(1);
+
+		const differenceHeading = table.getByTestId('employee-work-status-difference-heading');
+		const differenceRows = [
+			{ name: '관리자', sign: '+' },
+			{ name: '김민지', sign: '' },
+			{ name: '이서연', sign: '-' }
+		];
+		const headingLeft = await differenceHeading.evaluate((element) => Math.round(element.getBoundingClientRect().left));
+		const signCenters: number[] = [];
+		for (const differenceRow of differenceRows) {
+			const row = table.getByRole('row').filter({ hasText: differenceRow.name });
+			const sign = row.getByTestId('employee-work-status-difference-sign');
+			const value = row.getByTestId('employee-work-status-difference-value');
+			await expect(sign).toHaveText(differenceRow.sign);
+			const positions = await Promise.all([
+				sign.evaluate((element) => element.getBoundingClientRect().right),
+				value.evaluate((element) => Math.round(element.getBoundingClientRect().left)),
+				sign.evaluate((element) => {
+					const bounds = element.getBoundingClientRect();
+					return bounds.left + bounds.width / 2;
+				})
+			]);
+			expect(positions[0]).toBeLessThanOrEqual(positions[1]);
+			expect(Math.abs(positions[1] - headingLeft)).toBeLessThanOrEqual(1);
+			if (differenceRow.sign) signCenters.push(positions[2]);
+		}
+		expect(Math.abs((signCenters[0] ?? 0) - (signCenters[1] ?? 0))).toBeLessThanOrEqual(0.5);
+
+		await page.setViewportSize({ width: 1200, height: 900 });
+		const tableContainer = view.locator('[data-slot="table-container"]');
+		await expect.poll(() => tableContainer.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+		await tableContainer.evaluate((element) => (element.scrollLeft = element.scrollWidth));
+		await expect
+			.poll(() =>
+				tableContainer.evaluate((container) => {
+					const detailButton = container.querySelector('tbody tr:first-child button');
+					if (!(detailButton instanceof HTMLElement)) return false;
+					const containerRect = container.getBoundingClientRect();
+					const buttonRect = detailButton.getBoundingClientRect();
+					return buttonRect.left >= containerRect.left && buttonRect.right <= containerRect.right;
+				})
+			)
+			.toBe(true);
+
+		await view.getByRole('button', { name: '기록 확인 필요' }).click();
+		await expect(view.getByText('최도윤', { exact: true })).toBeVisible();
+		await expect(view.getByText('김민지', { exact: true })).toHaveCount(0);
+
+		await view.getByRole('button', { name: '최도윤 상세' }).click();
+		await expect(page.getByText('최도윤 · 일별 상세')).toBeVisible();
+		await expect(page.getByRole('columnheader', { name: '근무 구간' })).toBeVisible();
+		await expect(page.getByRole('columnheader', { name: '휴가 구간' })).toBeVisible();
+	});
+
+	test('keeps the employee anchor when switching periods and displays provisional work', async ({ page }) => {
+		const requestedAnchors: string[] = [];
+		await page.unroute('**/attendance/api/work-status?**');
+		await page.route('**/attendance/api/work-status?**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			requestedAnchors.push(requestURL.searchParams.get('anchor') ?? '');
+			const payload = createDevAttendanceWorkStatus(
+				'tester@example.com',
+				requestURL.searchParams.get('period'),
+				requestURL.searchParams.get('anchor')
+			);
+			payload.personal = payload.personal
+				? { ...payload.personal, actualMinutes: 60, provisionalMinutes: 30 }
+				: undefined;
+			payload.employees = payload.employees.map((employee, index) =>
+				index === 1 ? { ...employee, actualMinutes: 60, provisionalMinutes: 30 } : employee
+			);
+			await route.fulfill({ json: payload });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await expect(page.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
+			'aria-label',
+			/실제 근무 01시간 00분, 진행 중 잠정 00시간 30분/
+		);
+		await page.getByTestId('employee-work-status-navigation').click();
+		const view = page.getByTestId('employee-work-status-view');
+		await view.getByRole('button', { name: '이전', exact: true }).click();
+		const historicalAnchor = requestedAnchors.at(-1);
+		await view.getByRole('button', { name: '주별' }).click();
+		await expect.poll(() => requestedAnchors.at(-1)).toBe(historicalAnchor);
+		await expect(view.locator('.bg-yellow-400').first()).toBeVisible();
+		await expect(view.getByText('01시간 30분').first()).toBeVisible();
 	});
 
 	test('scrolls desktop sidebar navigation together with personal tools', async ({ page }) => {
@@ -138,6 +385,8 @@ test.describe('attendance responsive view', () => {
 		await expect(page.getByRole('tab', { name: '내 기록' })).toHaveAttribute('aria-selected', 'true');
 		await expect(toolsView.getByText('내 근무 시간')).toBeVisible();
 		await expect(toolsView.getByRole('button', { name: '휴가 등록' })).toBeVisible();
+		await expect(toolsView.getByTestId('work-standard-capacity-bar')).toBeVisible();
+		await expect(page.getByTestId('work-standard-bar-tooltip')).toHaveCount(0);
 
 		await page.getByRole('tab', { name: '팀 현황' }).click();
 		await page.getByTestId(`team-status-cell-kim@example.com-${todayDate}`).click();

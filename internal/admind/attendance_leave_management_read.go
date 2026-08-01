@@ -43,11 +43,12 @@ func (service *Service) readAttendanceLeaveManagement(
 		Employees:           make([]attendanceLeaveManagementEmployeeView, 0, len(members)),
 	}
 	for _, member := range members {
-		employee, employeeError := attendanceLeaveManagementEmployee(
+		employee, employeeError := service.attendanceLeaveManagementEmployee(
 			request.Context(),
 			database,
 			member,
 			policy,
+			now,
 		)
 		if employeeError != nil {
 			return attendanceLeaveManagementResponse{}, employeeError
@@ -153,11 +154,12 @@ FROM attendance_leave_requests`)
 	return members, nil
 }
 
-func attendanceLeaveManagementEmployee(
+func (service *Service) attendanceLeaveManagementEmployee(
 	ctx context.Context,
 	database *sql.DB,
 	member attendanceMember,
 	policy attendanceLeavePolicy,
+	now time.Time,
 ) (attendanceLeaveManagementEmployeeView, error) {
 	employee := attendanceLeaveManagementEmployeeView{
 		Email:       normalizeAttendanceLeaveEmail(member.Email),
@@ -201,6 +203,16 @@ func attendanceLeaveManagementEmployee(
 			database,
 			attendanceLeaveEmployee{Email: employee.Email},
 			leaveType.ID,
+		)
+		if errorValue != nil {
+			return attendanceLeaveManagementEmployeeView{}, errorValue
+		}
+		balance, errorValue = service.attendanceLeaveBalanceWithUntrackedUsage(
+			ctx,
+			database,
+			balance,
+			policy,
+			now,
 		)
 		if errorValue != nil {
 			return attendanceLeaveManagementEmployeeView{}, errorValue

@@ -34,6 +34,10 @@ func (service *Service) correctManagedAttendanceLeaveTime(
 	if startError != nil || endError != nil || !endTime.After(startTime) {
 		return attendanceLeaveInvalidInputErrorf("leave time range is invalid")
 	}
+	policy, errorValue := service.readAttendanceLeavePolicy(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
 	database, errorValue := service.openAttendanceLeaveMutationDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -79,12 +83,13 @@ func (service *Service) correctManagedAttendanceLeaveTime(
 		return errorValue
 	}
 	nextRevision := record.Revision + 1
-	if errorValue := rebindManagedAttendanceLeaveUseInTransaction(
+	if errorValue := service.rebindManagedAttendanceLeaveUseInTransaction(
 		ctx,
 		transaction,
 		record,
 		occurrence,
 		nextRevision,
+		policy,
 	); errorValue != nil {
 		return errorValue
 	}
@@ -145,12 +150,13 @@ INSERT INTO attendance_leave_request_events (
 	return transaction.Commit()
 }
 
-func rebindManagedAttendanceLeaveUseInTransaction(
+func (service *Service) rebindManagedAttendanceLeaveUseInTransaction(
 	ctx context.Context,
 	transaction *sql.Tx,
 	record attendanceLeaveRequestRecord,
 	occurrence attendanceLeaveRequestOccurrence,
 	nextRevision int,
+	policy attendanceLeavePolicy,
 ) error {
 	if record.BalanceMode == "none" {
 		return nil
@@ -180,7 +186,7 @@ func rebindManagedAttendanceLeaveUseInTransaction(
 		return errorValue
 	}
 	nextReferenceID := attendanceLeaveRequestReservationReference(record.ID, nextRevision)
-	if _, errorValue := reserveAttendanceLeaveRequestOccurrencesInTransaction(
+	if _, errorValue := service.reserveAttendanceLeaveRequestOccurrencesInTransaction(
 		ctx,
 		transaction,
 		attendanceLeaveOperation{
@@ -194,6 +200,8 @@ func rebindManagedAttendanceLeaveUseInTransaction(
 			ReferenceID: nextReferenceID,
 		},
 		[]attendanceLeaveRequestOccurrence{occurrence},
+		policy,
+		"",
 	); errorValue != nil {
 		return errorValue
 	}

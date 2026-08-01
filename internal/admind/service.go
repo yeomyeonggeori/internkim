@@ -143,6 +143,11 @@ type Service struct {
 	calendarNotificationGroup  sync.WaitGroup
 	calendarSwitchWaiters      atomic.Int64
 	calendarStoreWriteMutex    sync.Mutex
+	calendarHolidayCacheMutex  sync.RWMutex
+	calendarHolidayLoadMutex   sync.Mutex
+	calendarHolidayCache       map[calendarHolidayCacheKey][]calendarHoliday
+	calendarHolidayRetryAt     time.Time
+	holidayCheckedMonth        string
 	calendarCandidateClock     calendarConflictCandidateClock
 	calendarPullCacheMutex     sync.Mutex
 	lastCalendarPullAt         time.Time
@@ -344,6 +349,7 @@ func NewService(configuration Configuration) *Service {
 		calendarDeleteIntentWakeUp: make(chan struct{}, 1),
 		calendarNotificationStates: map[string]*calendarNotificationReconciliationState{},
 		calendarActorCache:         map[string]calendarActorProfileCacheEntry{},
+		calendarHolidayCache:       map[calendarHolidayCacheKey][]calendarHoliday{},
 		companyShareAttempts:       map[string]companyShareAttempt{},
 		requestMetrics:             newAdminRequestMetrics(),
 		databaseSchemas:            newAdminDatabaseSchemas(),
@@ -971,6 +977,11 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeWorkspaceSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/workspace-settings":
 		service.updateWorkspaceSettings(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/holiday-countries":
+		service.serveCalendarHolidayCountries(responseWriter, request)
+	case path == calendarCompanyHolidaysAdminPath ||
+		strings.HasPrefix(path, calendarCompanyHolidaysAdminPath+"/"):
+		service.handleCalendarCompanyHolidays(responseWriter, request, path)
 	case request.Method == http.MethodGet && path == "/company-share":
 		service.writeCompanyShareSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/company-share":
@@ -1002,11 +1013,13 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	case request.Method == http.MethodPut && path == "/company-documents":
 		service.updateCompanyDocument(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/attendance-locations":
-		service.writeAttendanceLocations(responseWriter)
+		service.writeAttendanceLocations(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/attendance-locations":
 		service.updateAttendanceLocations(responseWriter, request)
 	case (request.Method == http.MethodGet || request.Method == http.MethodPut) && path == "/attendance-leave-policy":
 		service.handleAttendanceLeavePolicy(responseWriter, request)
+	case (request.Method == http.MethodGet || request.Method == http.MethodPut) && path == "/attendance-work-policy":
+		service.handleAttendanceWorkPolicy(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/wifi-profiles":
 		service.writeWifiProfiles(responseWriter)
 	case request.Method == http.MethodPost && path == "/wifi-profiles":

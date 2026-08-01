@@ -3,11 +3,16 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 func (service *Service) readAttendanceLeaveApprovalInbox(
 	ctx context.Context,
 ) (attendanceLeaveApprovalInbox, error) {
+	policy, errorValue := service.readAttendanceLeavePolicy(ctx)
+	if errorValue != nil {
+		return attendanceLeaveApprovalInbox{}, errorValue
+	}
 	database, errorValue := service.openAttendanceLeaveMutationDatabase(ctx)
 	if errorValue != nil {
 		return attendanceLeaveApprovalInbox{}, errorValue
@@ -19,13 +24,22 @@ func (service *Service) readAttendanceLeaveApprovalInbox(
 	}
 	pending := make([]attendanceLeaveApprovalRequestView, 0, len(pendingRecords))
 	for _, record := range pendingRecords {
-		view, viewError := projectAttendanceLeaveApprovalRequest(ctx, database, record)
+		view, viewError := service.projectAttendanceLeaveApprovalRequest(
+			ctx,
+			database,
+			record,
+			policy,
+		)
 		if viewError != nil {
 			return attendanceLeaveApprovalInbox{}, viewError
 		}
 		pending = append(pending, view)
 	}
-	recentChanges, errorValue := readAttendanceLeaveApprovalRecentChanges(ctx, database)
+	recentChanges, errorValue := service.readAttendanceLeaveApprovalRecentChanges(
+		ctx,
+		database,
+		policy,
+	)
 	if errorValue != nil {
 		return attendanceLeaveApprovalInbox{}, errorValue
 	}
@@ -65,9 +79,10 @@ ORDER BY created_at, id`,
 	return records, rows.Err()
 }
 
-func readAttendanceLeaveApprovalRecentChanges(
+func (service *Service) readAttendanceLeaveApprovalRecentChanges(
 	ctx context.Context,
 	database *sql.DB,
+	policy attendanceLeavePolicy,
 ) ([]attendanceLeaveApprovalChangeView, error) {
 	rows, errorValue := database.QueryContext(ctx, `
 SELECT
@@ -113,7 +128,12 @@ LIMIT 50`,
 	}
 	changes := make([]attendanceLeaveApprovalChangeView, 0, len(records))
 	for _, record := range records {
-		view, viewError := projectAttendanceLeaveApprovalRequest(ctx, database, record.request)
+		view, viewError := service.projectAttendanceLeaveApprovalRequest(
+			ctx,
+			database,
+			record.request,
+			policy,
+		)
 		if viewError != nil {
 			return nil, viewError
 		}
@@ -132,10 +152,11 @@ LIMIT 50`,
 	return changes, nil
 }
 
-func projectAttendanceLeaveApprovalRequest(
+func (service *Service) projectAttendanceLeaveApprovalRequest(
 	ctx context.Context,
 	database *sql.DB,
 	record attendanceLeaveRequestRecord,
+	policy attendanceLeavePolicy,
 ) (attendanceLeaveApprovalRequestView, error) {
 	occurrences, errorValue := readAttendanceLeaveRequestOccurrences(ctx, database, record.ID)
 	if errorValue != nil {
@@ -147,7 +168,12 @@ func projectAttendanceLeaveApprovalRequest(
 	}
 	record.Occurrences = occurrences
 	record.Attachments = attachments
-	balance, errorValue := attendanceLeaveApprovalBalance(ctx, database, record)
+	balance, errorValue := service.attendanceLeaveApprovalBalance(
+		ctx,
+		database,
+		record,
+		policy,
+	)
 	if errorValue != nil {
 		return attendanceLeaveApprovalRequestView{}, errorValue
 	}
@@ -190,18 +216,40 @@ func projectAttendanceLeaveApprovalRequestRecord(
 	return view
 }
 
-func attendanceLeaveApprovalBalance(
+func (service *Service) attendanceLeaveApprovalBalance(
 	ctx context.Context,
 	queryer attendanceLeaveQueryer,
 	record attendanceLeaveRequestRecord,
+	policy attendanceLeavePolicy,
 ) (attendanceLeaveBalance, error) {
-	if record.BalanceMode == "none" {
+	leaveType, found := attendanceLeaveTypeByID(policy, record.LeaveTypeID)
+	if policy.BalanceTrackingMode != attendanceLeaveBalanceTrackingManaged ||
+		!found ||
+		leaveType.BalanceMode == "none" {
 		return attendanceLeaveBalance{}, nil
 	}
-	return queryAttendanceLeaveBalance(ctx, queryer, attendanceLeaveEmployee{
+	balance, errorValue := queryAttendanceLeaveBalance(ctx, queryer, attendanceLeaveEmployee{
 		Email:  record.EmployeeEmail,
 		UserID: record.UserID,
-	}, attendanceLeaveBalanceAccountID(record.LeaveTypeID, record.BalanceMode))
+	}, attendanceLeaveBalanceAccountID(leaveType.ID, leaveType.BalanceMode))
+	if errorValue != nil {
+		return attendanceLeaveBalance{}, errorValue
+	}
+	requestDate, errorValue := time.ParseInLocation(
+		time.DateOnly,
+		record.StartDate,
+		service.workspaceTimeZone().location,
+	)
+	if errorValue != nil {
+		return attendanceLeaveBalance{}, errorValue
+	}
+	return service.attendanceLeaveBalanceWithUntrackedUsage(
+		ctx,
+		queryer,
+		balance,
+		policy,
+		requestDate,
+	)
 }
 
 func scanAttendanceLeaveApprovalRequest(

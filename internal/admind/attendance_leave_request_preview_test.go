@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -59,6 +60,138 @@ func TestAttendanceLeaveRequestPreviewExcludesWeekends(t *testing.T) {
 		response.ExcludedDates[1].Date != "2027-05-09" ||
 		response.ExcludedDates[1].Reason != "nonWorkingDay" {
 		t.Fatalf("excluded dates = %+v", response.ExcludedDates)
+	}
+}
+
+func TestAttendanceLeaveRequestPreviewExcludesCompanyHolidays(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	if _, errorValue := service.createCalendarCompanyHoliday(
+		t.Context(),
+		calendarCompanyHolidayInput{
+			Title:          "창립기념일",
+			Date:           "2027-05-10",
+			RecursAnnually: true,
+		},
+		time.Now(),
+	); errorValue != nil {
+		t.Fatalf("create company holiday: %v", errorValue)
+	}
+	preview, errorValue := service.previewAttendanceLeaveRequest(
+		t.Context(),
+		attendanceLeaveRequestInput{
+			LeaveTypeID: "annual",
+			Unit:        attendanceWorkScheduleFullDay,
+			StartDate:   "2027-05-07",
+			EndDate:     "2027-05-10",
+		},
+		time.Date(2027, time.May, 1, 9, 0, 0, 0, service.workspaceTimeZone().location),
+	)
+	if errorValue != nil {
+		t.Fatalf("preview leave request: %v", errorValue)
+	}
+	if len(preview.Occurrences) != 1 || preview.Occurrences[0].Date != "2027-05-07" {
+		t.Fatalf("preview occurrences = %#v", preview.Occurrences)
+	}
+	if len(preview.ExcludedDates) != 3 ||
+		preview.ExcludedDates[2].Date != "2027-05-10" ||
+		preview.ExcludedDates[2].Reason != "holiday" {
+		t.Fatalf("excluded dates = %#v", preview.ExcludedDates)
+	}
+}
+
+func TestAttendanceLeaveRequestPreviewUsesDateEffectiveWorkPolicy(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	revision := defaultAttendanceWorkPolicyRevision()
+	revision.WorkMode = attendanceWorkModeFixed
+	revision.DailyTargetMinutes = 300
+	revision.WeeklyTargetMinutes = 1500
+	revision.ReferenceStartTime = "10:00"
+	revision.FixedStartTime = "10:00"
+	revision.FixedEndTime = "16:00"
+	revision.CoreTimeEnabled = false
+	revision.CoreStartTime = ""
+	revision.CoreEndTime = ""
+	if _, errorValue := service.saveAttendanceWorkPolicyRevision(
+		t.Context(),
+		revision,
+		"2027-05-10",
+		time.Date(2027, time.May, 10, 1, 0, 0, 0, time.UTC),
+	); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	preview, errorValue := service.previewAttendanceLeaveRequest(
+		t.Context(),
+		attendanceLeaveRequestInput{
+			LeaveTypeID: "annual",
+			Unit:        attendanceWorkScheduleFullDay,
+			StartDate:   "2027-05-07",
+			EndDate:     "2027-05-10",
+		},
+		time.Date(2027, time.May, 1, 9, 0, 0, 0, service.workspaceTimeZone().location),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(preview.Occurrences) != 2 ||
+		preview.Occurrences[0].Date != "2027-05-07" ||
+		preview.Occurrences[0].StartTime != "09:00" ||
+		preview.Occurrences[0].EndTime != "18:00" ||
+		preview.Occurrences[1].Date != "2027-05-10" ||
+		preview.Occurrences[1].StartTime != "10:00" ||
+		preview.Occurrences[1].EndTime != "16:00" {
+		t.Fatalf("preview occurrences = %+v", preview.Occurrences)
+	}
+}
+
+func TestAttendanceLeaveRequestPreviewLoadsMissingNationalHolidays(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	var requestCount atomic.Int64
+	service.HTTPClient = calendarHolidayTestHTTPClient(t, workspaceDefaultCountryCode, &requestCount)
+
+	preview, errorValue := service.previewAttendanceLeaveRequest(
+		t.Context(),
+		attendanceLeaveRequestInput{
+			LeaveTypeID: "annual",
+			Unit:        attendanceWorkScheduleFullDay,
+			StartDate:   "2027-01-01",
+			EndDate:     "2027-01-04",
+		},
+		time.Date(2026, time.December, 31, 9, 0, 0, 0, service.workspaceTimeZone().location),
+	)
+	if errorValue != nil {
+		t.Fatalf("preview leave request: %v", errorValue)
+	}
+	if requestCount.Load() != 1 {
+		t.Fatalf("national holiday request count = %d", requestCount.Load())
+	}
+	if len(preview.Occurrences) != 1 || preview.Occurrences[0].Date != "2027-01-04" {
+		t.Fatalf("preview occurrences = %#v", preview.Occurrences)
+	}
+	if len(preview.ExcludedDates) != 3 ||
+		preview.ExcludedDates[0].Date != "2027-01-01" ||
+		preview.ExcludedDates[0].Reason != "holiday" {
+		t.Fatalf("excluded dates = %#v", preview.ExcludedDates)
+	}
+}
+
+func TestAttendanceLeaveRequestPreviewFailsWhenNationalHolidaysCannotLoad(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return nil, errors.New("holiday provider unavailable")
+	})}
+
+	_, errorValue := service.previewAttendanceLeaveRequest(
+		t.Context(),
+		attendanceLeaveRequestInput{
+			LeaveTypeID: "annual",
+			Unit:        attendanceWorkScheduleFullDay,
+			StartDate:   "2027-01-04",
+		},
+		time.Date(2027, time.January, 1, 9, 0, 0, 0, service.workspaceTimeZone().location),
+	)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "fetch KR holidays for 2027") {
+		t.Fatalf("error = %v", errorValue)
 	}
 }
 

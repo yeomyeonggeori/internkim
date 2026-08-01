@@ -9,7 +9,8 @@ export type AdminSection =
 	| 'backup'
 	| 'users'
 	| 'settings'
-	| 'attendanceSettings'
+	| 'workSettings'
+	| 'leaveSettings'
 	| 'sharing'
 	| 'network'
 	| 'buzz'
@@ -152,10 +153,20 @@ export type CredentialProvidersResponse = {
 };
 
 export type WorkspaceSettings = {
+	countryCode: string;
 	timeZone: string;
 	language: WorkspaceLanguage;
 	callingCode: string;
 	updatedAt?: string;
+};
+
+export type HolidayCountry = {
+	countryCode: string;
+	name: string;
+};
+
+export type HolidayCountriesResponse = {
+	countries?: HolidayCountry[];
 };
 
 export type AttendanceLocation = {
@@ -202,6 +213,58 @@ export type AttendanceLeavePolicy = {
 	fiscalYearStartDay: number;
 	leaveTypes: LeaveType[];
 	updatedAt: string;
+};
+
+export type CompanyHoliday = {
+	id: string;
+	title: string;
+	date: string;
+	recursAnnually: boolean;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type CompanyHolidayInput = Pick<CompanyHoliday, 'title' | 'date' | 'recursAnnually'>;
+
+export type CompanyHolidaysResponse = {
+	holidays: CompanyHoliday[];
+};
+
+export type AttendanceWorkMode = 'autonomous' | 'flexible' | 'fixed';
+
+export type AttendanceWorkBreakPeriod = {
+	startTime: string;
+	endTime: string;
+};
+
+export type AttendanceWorkPolicyRevision = {
+	effectiveDate: string;
+	workMode: AttendanceWorkMode;
+	workingWeekdays: number[];
+	dailyTargetMinutes: number;
+	weeklyTargetMinutes: number;
+	referenceStartTime: string;
+	fixedStartTime: string;
+	fixedEndTime: string;
+	coreTimeEnabled: boolean;
+	coreStartTime: string;
+	coreEndTime: string;
+	breakPeriods: AttendanceWorkBreakPeriod[];
+	nightStartTime: string;
+	nightEndTime: string;
+};
+
+export type AttendanceWorkPolicy = {
+	version: 1;
+	updatedAt: string;
+	revisions: AttendanceWorkPolicyRevision[];
+};
+
+export type AttendanceWorkPolicyResponse = {
+	policy: AttendanceWorkPolicy;
+	currentMonth: string;
+	holidayDates: string[];
+	timeZone: string;
 };
 
 export type WifiProfile = {

@@ -78,8 +78,6 @@ func TestAdminSessionPreservesClaimedAdminRole(t *testing.T) {
 	}
 }
 
-
-
 func TestOperationsAdminCanUseAllowedAdminEndpoint(t *testing.T) {
 	service := newOperationsAdminAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/admin/api/users", nil)
@@ -235,6 +233,12 @@ func TestOperationsAdminPathPolicy(t *testing.T) {
 	}
 	if !isOperationsAdminPath(http.MethodPut, "/workspace-settings") {
 		t.Fatal("operations admin should update workspace settings")
+	}
+	if isOperationsAdminPath(http.MethodPost, "/holiday-sync/refresh") {
+		t.Fatal("operations admin should not access removed holiday refresh")
+	}
+	if isOperationsAdminPath(http.MethodGet, "/company-holidays") {
+		t.Fatal("operations admin should not access company holidays")
 	}
 	if isOperationsAdminPath(http.MethodGet, "/bot-profile") {
 		t.Fatal("operations admin should not access bot profile")
