@@ -26,6 +26,7 @@
 		type ThreadSummary
 	} from './channel-api';
 	import { fileToAttachment, formatAttachmentMeta } from './channel-attachments';
+	import { getCachedMessages, setCachedMessages } from './channel-message-cache';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
 	import FileIcon from '@lucide/svelte/icons/file';
@@ -229,6 +230,7 @@
 			if (signature !== lastConversationSignature) {
 				lastConversationSignature = signature;
 				messages = mergeOlderMessages(olderMessages, conversation.messages);
+				setCachedMessages(channelId, conversation.messages);
 				if (openThreadRoot) {
 					openThreadRoot = messages.find((message) => message.id === openThreadRoot?.id) ?? openThreadRoot;
 				}
@@ -494,15 +496,22 @@
 	});
 
 	$effect(() => {
-		void channelId;
-		hasLoadedOnce = false;
-		messages = [];
+		const activeChannelID = channelId;
 		olderMessages = [];
 		hasMoreBefore = false;
 		historyCursor = '';
 		isLoadingOlder = false;
-		lastConversationSignature = '';
 		openThreadRoot = null;
+		const cached = getCachedMessages(activeChannelID) ?? [];
+		if (cached.length > 0) {
+			messages = cached;
+			lastConversationSignature = conversationSignature(cached);
+			hasLoadedOnce = true;
+		} else {
+			messages = [];
+			lastConversationSignature = '';
+			hasLoadedOnce = false;
+		}
 		loadConversation();
 	});
 
