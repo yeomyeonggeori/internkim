@@ -125,6 +125,8 @@ func (service Service) invokeFlowTaskTool(ctx context.Context, request capabilit
 		return service.invokeFlowTaskAdd(ctx, request)
 	case "task.list":
 		return service.invokeFlowTaskList(ctx, request)
+	case "task.definitions":
+		return service.invokeFlowTaskDefinitions(ctx, request)
 	case "task.update":
 		return service.invokeFlowTaskUpdate(ctx, request)
 	case "task.delete":
