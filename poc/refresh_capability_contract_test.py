@@ -66,17 +66,17 @@ class CapabilityContractRefreshTest(unittest.TestCase):
             for resource in self.contract_document()['policyResourceReplacements']:
                 self.assertNotIn(resource, resources)
             for resource in [
-                'tool:task.update',
-                'tool:message.send',
-                'tool:channel.update',
-                'tool:calendar.list',
-                'tool:site.serve',
+                'tool:task_update',
+                'tool:message_send',
+                'tool:channel_update',
+                'tool:calendar_list',
+                'tool:site_serve',
                 'tool:site.repair',
                 'custom:tenant-15',
             ]:
                 self.assertIn(resource, resources)
             self.assertEqual(resources['custom:tenant-15']['actions'], ['preserve'])
-            self.assertEqual(resources['tool:task.list']['circles'], ['custom-circle'])
+            self.assertEqual(resources['tool:task_list']['circles'], ['custom-circle'])
 
             first_runtime_document = (tenant_path / 'runtime.json').read_text()
             first_policy_document = (tenant_path / 'policy.json').read_text()
@@ -127,11 +127,11 @@ class CapabilityContractRefreshTest(unittest.TestCase):
 
     def contract_document(self):
         tool_names = [
-            'task.update',
-            'message.send',
-            'channel.update',
-            'calendar.list',
-            'site.serve',
+            'task_update',
+            'message_send',
+            'channel_update',
+            'calendar_list',
+            'site_serve',
         ]
         return {
             'version': 3,
@@ -143,15 +143,15 @@ class CapabilityContractRefreshTest(unittest.TestCase):
             ],
             'routingCandidates': ['companion', 'device'],
             'policyResourceReplacements': {
-                'tool:flow.task.update': 'tool:task.update',
-                'tool:platform.message.send': 'tool:message.send',
-                'tool:mattermost.channel.update': 'tool:channel.update',
-                'tool:calendar.event.list': 'tool:calendar.list',
-                'tool:site.app.publish': 'tool:site.serve',
+                'tool:flow.task.update': 'tool:task_update',
+                'tool:platform.message.send': 'tool:message_send',
+                'tool:mattermost_channel_update': 'tool:channel_update',
+                'tool:calendar.event.list': 'tool:calendar_list',
+                'tool:site.app.publish': 'tool:site_serve',
             },
             'policyResourceDefaults': [
                 {
-                    'resource': 'tool:task.list',
+                    'resource': 'tool:task_list',
                     'actions': ['execute'],
                     'circles': ['staff'],
                 },
@@ -183,10 +183,10 @@ class CapabilityContractRefreshTest(unittest.TestCase):
             'resourceAccess': [
                 {'resource': 'tool:flow.task.update', 'actions': ['execute'], 'circles': ['staff']},
                 {'resource': 'tool:platform.message.send', 'actions': ['execute'], 'circles': ['staff']},
-                {'resource': 'tool:mattermost.channel.update', 'actions': ['execute'], 'circles': ['admin']},
+                {'resource': 'tool:mattermost_channel_update', 'actions': ['execute'], 'circles': ['admin']},
                 {'resource': 'tool:calendar.event.list', 'actions': ['execute'], 'circles': ['staff']},
                 {'resource': 'tool:site.app.publish', 'actions': ['execute'], 'circles': ['staff']},
-                {'resource': 'tool:task.list', 'actions': ['execute'], 'circles': ['custom-circle']},
+                {'resource': 'tool:task_list', 'actions': ['execute'], 'circles': ['custom-circle']},
                 {'resource': 'custom:tenant-15', 'actions': ['preserve'], 'circles': ['custom-circle']},
             ],
         }

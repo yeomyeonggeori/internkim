@@ -411,7 +411,7 @@ func TestForcedCloudflareAccessRunsSatisfiedWebDependency(t *testing.T) {
 }
 
 func TestOnlyBlueclawPayloadIncludesStaleBlueclawConfiguration(t *testing.T) {
-	context := defaultBlueclawPlanContext("runtime-profile-missing-tools:file.deliver", "missing")
+	context := defaultBlueclawPlanContext("runtime-profile-missing-tools:file_deliver", "missing")
 
 	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"blueclaw-payload"}})
 	if err != nil {
@@ -428,7 +428,7 @@ func TestOnlyBlueclawPayloadIncludesStaleBlueclawConfiguration(t *testing.T) {
 }
 
 func TestOnlyServicesIncludesStaleBlueclawConfiguration(t *testing.T) {
-	context := defaultBlueclawPlanContext("runtime-profile-missing-tools:file.deliver", "ok")
+	context := defaultBlueclawPlanContext("runtime-profile-missing-tools:file_deliver", "ok")
 
 	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"services"}})
 	if err != nil {

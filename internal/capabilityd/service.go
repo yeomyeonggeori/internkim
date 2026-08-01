@@ -870,7 +870,7 @@ func (service Service) mattermostConfirmAttachment(request replyRequest, handle 
 	return &mattermostinteractive.Attachment{
 		Fallback: strings.TrimSpace(request.Message),
 		Actions: []mattermostinteractive.Action{
-			service.mattermostAskButton("askConfirm", "확인", "primary", request, handle, "ask.confirm", "", ""),
+			service.mattermostAskButton("askConfirm", "확인", "primary", request, handle, "ask_confirm", "", ""),
 			service.mattermostAskButton("askCancel", "취소", "danger", request, handle, "ask.cancel", "", ""),
 		},
 	}
@@ -881,7 +881,7 @@ func (service Service) mattermostChoiceAttachment(request replyRequest, handle p
 	if len(options) <= 3 && request.Interaction.SelectionMode != "multiple" {
 		actions := []mattermostinteractive.Action{}
 		for _, option := range options {
-			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, mattermostChoiceDisplayLabel(option), "", request, handle, "ask.choice", option.Key, mattermostChoiceResolvedLabel(option)))
+			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, mattermostChoiceDisplayLabel(option), "", request, handle, "ask_choice", option.Key, mattermostChoiceResolvedLabel(option)))
 		}
 		return &mattermostinteractive.Attachment{Fallback: strings.TrimSpace(request.Message), Text: mattermostChoiceAttachmentText(request.Interaction), Actions: actions}
 	}
@@ -892,7 +892,7 @@ func (service Service) mattermostChoiceAttachment(request replyRequest, handle p
 			service.mattermostAskActionBuilder().Select(
 				"askChoiceMenu",
 				"선택",
-				service.mattermostAskActionContext(request, handle, "ask.choice", "", ""),
+				service.mattermostAskActionContext(request, handle, "ask_choice", "", ""),
 				mattermostAskMenuOptions(options),
 			),
 		},

@@ -21,7 +21,7 @@
 
 - **어플라이언스 모델**: Jetson(8GB) 하드웨어에 Firecracker microVM 게스트로 Blueclaw 구동. 데몬은 시크릿을 전혀 들지 않고(`capabilityLLM` 단일 프로바이더), 모든 LLM/플랫폼/시크릿 작업은 Unix socket/vsock 너머 capabilityd가 소유. Cloudflare Tunnel + OAuth 관리 게이트.
 - **에이전트 루프**: `AgentKernel` → intake 라우팅 → 확인(confirm) 게이트 → `AgentTurnRunner` 반복 루프. 액션은 네이티브 tool-calling이 아닌 **strict JSON-Schema 구조화 출력**(`blueclaw_agent_turn_action`, oneOf 액션 변형). 노출 도구는 그룹 캡(`maxSchemaCallableToolCount = 15`)으로 제한. effort 프로파일(quick/standard/deep/extended)별 반복/시간/도구 예산과 budget escalation, stall 감지.
-- **완료 증거 게이트**: `OutcomeContract` + `completion_gate` — `file.deliver` 등 요구 증거 도구의 성공 관측이 없으면 finish를 거부. "말로 끝났다"가 불가능한 구조.
+- **완료 증거 게이트**: `OutcomeContract` + `completion_gate` — `file_deliver` 등 요구 증거 도구의 성공 관측이 없으면 finish를 거부. "말로 끝났다"가 불가능한 구조.
 - **정책/보안**: policy.json의 사람/서클/채널/리소스 ACL을 POSIX 사용자·그룹(`bc_person_*`, `bc_circle_*`)으로 투영. 모든 FS/exec은 setuid `blueclaw-posix-helper`를 통해 요청자 UID로 강등 실행. 워크스페이스 가상 경로 경계.
 - **메모리**: Graphiti temporal knowledge graph 사이드카(Kuzu) + Postgres 미러 + ACL/보안등급 필터링 검색.
 - **커넥터**: Mattermost(주력, WebSocket+폴링 폴백+ephemeral 플러그인), Slack Socket Mode, Signal JSON-RPC. durable outbox·중복 제거·재시도까지 있는 **배달 보증형** 설계.
@@ -100,7 +100,7 @@ stale 체크아웃). 아래 1·5번의 "코드" 쪽 근거는 stale 체크아웃
 2. `E2E.md`의 "카세트 플래그는 미배선 스텁" 서술 — 실제로는 `blueclaw-lab/main.go`에 완전 배선됨. 본문·백로그 갱신. **완료**
 3. 테스트 모델 핀 불일치: 현행 `INTERNKIM_TEST_MODEL=xiaomi/mimo-v2.5` — `blueclaw-crud-render-gate-handoff.md`에 정정 노트 추가(본문 로그는 보존). **완료**
 4. 정책/런타임 예제 파일 형식: 로더는 JSON인데 예제는 `.yaml` 확장자(내용은 JSON) — `config/{policy,runtime,secret.enc}.example.yaml`을 `.json`으로 리네임하고 참조 5곳(cmd 기본값·테스트) 수정, `go build`+`go test ./tests/integration` 통과. **완료**
-5. `file.deliver` 혼재 — stale 체크아웃 문제였다. e52c4ec7 기준 Blueclaw 코드도 `file.deliver`를 사용하며 문서·스킬·config와 일치. 서브모듈 정렬로 해소. **완료**
+5. `file_deliver` 혼재 — stale 체크아웃 문제였다. e52c4ec7 기준 Blueclaw 코드도 `file_deliver`를 사용하며 문서·스킬·config와 일치. 서브모듈 정렬로 해소. **완료**
 6. 모델명 하드코딩 산재: `DefaultActionModelName`, fallback `z-ai/glm-5.2`, `BlueclawHighModelName`, Graphiti 모델, 임베딩 모델이 서로 다른 파일에 핀 — 단일 카탈로그 파일로 수렴 권장. **후속 과제**
 7. LiteRT 레거시 경로(`litert.go`, `cmd/internkim-local-llm-runner`, E4B 모델 URL) 정리 또는 명시적 legacy 마킹. **후속 과제**
 재발 방지: 서브모듈 remote를 HTTPS(`https://github.com/Dawn-kim-official/blueclaw.git`)로
@@ -117,7 +117,7 @@ stale 체크아웃). 아래 1·5번의 "코드" 쪽 근거는 stale 체크아웃
 - **가드레일**: 목표 자동 재개가 승인 게이트를 우회하지 않게(external_send/destructive는 매 회 승인 정책 적용).
 
 ### P1-3. 스킬 학습 루프 (Hermes의 강점을 인턴킴 방식으로)
-- **격차**: Hermes의 "작업 후 스킬 자동 생성 + 7일 주기 큐레이션"은 사용할수록 좋아지는 체감을 만든다. 인턴킴은 `skill.add`/`skill.search`와 SOUL.md가 있으나 루프가 수동이다.
+- **격차**: Hermes의 "작업 후 스킬 자동 생성 + 7일 주기 큐레이션"은 사용할수록 좋아지는 체감을 만든다. 인턴킴은 `skill_add`/`skill_search`와 SOUL.md가 있으나 루프가 수동이다.
 - **제안**: 완료된 태스크의 이벤트 레저에서 반복 패턴을 감지해 **초안 스킬을 생성하되 사람(관리자) 승인 후 활성화**하는 반자동 루프. 스킬 크기 예산(8/12/15KB)과 SKILL.md 검사 가능성을 그대로 적용. Hermes에서 문제가 된 "자동 생성 스킬이 수동 커스터마이징을 덮어쓰는" 사고는 승인 게이트+버전 이력으로 원천 차단.
 - **가드레일**: `disable-model-invocation`·`allowedProfiles` 같은 기존 가시성 통제를 초안 스킬에 기본 적용. 자동 활성화 금지(조직용 제품에서 에이전트가 스스로 능력을 늘리는 것은 보안 사건이다).
 

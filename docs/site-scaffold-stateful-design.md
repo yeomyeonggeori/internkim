@@ -9,7 +9,7 @@
 - 백엔드는 PocketBase 고정. 정적 사이트는 기샘플지 않으며(마커 기반, 기존 동작), stateful 사이트는
   게이트웨이 lazy-start + 유휴 N분 후 stop으로 미사용 시 자원 0을 만든다.
 - 동시 발행 캡 10. 초과 발행 시 admind가 발행 목록을 구조화 에러로 반환하고, 에이전트가
-  ask.choice로 내릴 사이트를 사용자에게 고르게 한 뒤 unpublish→재발행한다. 기발행 사이트의
+  ask_choice로 내릴 사이트를 사용자에게 고르게 한 뒤 unpublish→재발행한다. 기발행 사이트의
   업데이트는 캡과 무관.
 - 라우팅은 해시 라우팅. admind SPA fallback으로 히스토리 라우팅도 가능하지만, 스캐폴드의 상대경로
   자산(./site-content.json, ./theme.css)과 `/api/**`,`/_/**` 예약 경로 충돌을 피하는 최저위험 선택.

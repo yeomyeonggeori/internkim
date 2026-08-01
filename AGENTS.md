@@ -137,7 +137,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - After local simulation passes, verify executable and Linux permission behavior
   with `./internkim dev fleet run --without-mattermost --scenario <name>`.
 - Treat Local Fleet VM verification as the required pre-deploy Linux/runtime gate for
-  agent execution that touches `terminal.run`, `bun`, `uv`, Python dependency wrappers,
+  agent execution that touches `terminal_run`, `bun`, `uv`, Python dependency wrappers,
   POSIX users/groups, or workspace permissions.
 - The disposable local fleet is an Apple Container VM (`internkim-e2e-<runID>`) with
   its config at `.local/local-fleet/runs/<runID>/config.json`; Blueclaw runs as a
@@ -448,7 +448,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   remaining Go-side access pre-check is a migration leftover slated for
   removal, not a pattern to extend.
 - Agreed direction for file tools: route them through the shell as the
-  requester (the same helper-exec primitive as terminal.run) so tilde,
+  requester (the same helper-exec primitive as terminal_run) so tilde,
   globs, and relative paths carry native POSIX semantics and the Go path
   resolver, the access pre-checks, and every virtual path vocabulary
   disappear together. Mechanical argument quoting is serialization, not a
@@ -512,10 +512,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Store only companion signing key references in local state JSON; use OS secure
   storage for keys, with explicit development fallback only.
 - Approval grants are task-scoped runtime-memory permissions. Keep
-  `user.confirm` and `user.input` outside grant reuse.
+  `user_confirm` and `user.input` outside grant reuse.
 - Persist broker jobs under `/root/.internkim/state/companion-jobs.json`; restart
   recovery must not silently drop pending user-local work.
-- `file.pick` must hide user-local paths from InternKim and Blueclaw. Upload
+- `file_pick` must hide user-local paths from InternKim and Blueclaw. Upload
   selected files through the signed broker into `/tmp/internkim-companion-files`.
 - Browser capabilities must go through a typed browser runtime adapter; do not
   scatter raw `agent-browser`, Playwright, Chrome, or Obscura calls.

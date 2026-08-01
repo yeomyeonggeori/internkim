@@ -159,11 +159,11 @@ func siteAppDescriptor(toolName string) (capabilities.Descriptor, bool) {
 
 func projectCanonicalSiteAppResult(request capabilities.ToolInvokeRequest, result json.RawMessage) (json.RawMessage, error) {
 	switch request.ToolName {
-	case "site.serve":
+	case "site_serve":
 		return projectSiteServeResult(request.Input, request.Transport.SiteSourceBundle, result)
-	case "site.list":
+	case "site_list":
 		return projectSiteListResult(result)
-	case "site.unserve":
+	case "site_unserve":
 		return projectSiteUnserveResult(result)
 	default:
 		return nil, errors.New("site app tool is not configured: " + request.ToolName)
@@ -192,16 +192,16 @@ func projectSiteServeResult(inputDocument json.RawMessage, sourceBundle *capabil
 	}
 	mode := strings.TrimSpace(input.Mode)
 	if mode != "preview" && mode != "publish" {
-		return nil, errors.New(`site.serve mode must be "preview" or "publish"`)
+		return nil, errors.New(`site_serve mode must be "preview" or "publish"`)
 	}
 	if sourceBundle == nil {
-		return nil, errors.New("site.serve transport is missing source bundle")
+		return nil, errors.New("site_serve transport is missing source bundle")
 	}
 	if !isLowercaseSHA256(sourceBundle.SHA256) {
-		return nil, errors.New("site.serve source bundle must include a lowercase SHA-256 hash")
+		return nil, errors.New("site_serve source bundle must include a lowercase SHA-256 hash")
 	}
 	if record.SiteID == "" || strings.TrimSpace(record.Slug) == "" {
-		return nil, errors.New("site.serve result is missing canonical fields")
+		return nil, errors.New("site_serve result is missing canonical fields")
 	}
 	result := map[string]any{
 		"siteID":       record.SiteID,
@@ -211,13 +211,13 @@ func projectSiteServeResult(inputDocument json.RawMessage, sourceBundle *capabil
 	}
 	if mode == "publish" {
 		if record.Status != "published" || strings.TrimSpace(record.PublishedURL) == "" {
-			return nil, errors.New("site.serve publish result is missing canonical fields")
+			return nil, errors.New("site_serve publish result is missing canonical fields")
 		}
 		result["publishedURL"] = strings.TrimSpace(record.PublishedURL)
 		return marshalSiteAppResult(result)
 	}
 	if strings.TrimSpace(record.PreviewURL) == "" {
-		return nil, errors.New("site.serve preview result is missing canonical fields")
+		return nil, errors.New("site_serve preview result is missing canonical fields")
 	}
 	result["previewURL"] = strings.TrimSpace(record.PreviewURL)
 	return marshalSiteAppResult(result)
@@ -234,7 +234,7 @@ func projectSiteListResult(resultDocument json.RawMessage) (json.RawMessage, err
 			continue
 		}
 		if record.SiteID == "" || strings.TrimSpace(record.Slug) == "" || !isCanonicalSiteStatus(record.Status) {
-			return nil, errors.New("site.list result contains a record missing canonical fields")
+			return nil, errors.New("site_list result contains a record missing canonical fields")
 		}
 		entry := map[string]any{
 			"siteID": record.SiteID,
@@ -257,7 +257,7 @@ func projectSiteUnserveResult(resultDocument json.RawMessage) (json.RawMessage, 
 		return nil, errorValue
 	}
 	if record.SiteID == "" || strings.TrimSpace(record.Slug) == "" || record.Status != "deleted" {
-		return nil, errors.New("site.unserve result is missing canonical fields")
+		return nil, errors.New("site_unserve result is missing canonical fields")
 	}
 	return marshalSiteAppResult(map[string]any{
 		"siteID":   record.SiteID,
@@ -332,15 +332,15 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 		return nil, errorValue
 	}
 	switch request.ToolName {
-	case "site.serve":
+	case "site_serve":
 		inputDocument, errorValue = siteAppInputWithSourceBundle(inputDocument, request.Transport.SiteSourceBundle)
 		if errorValue != nil {
 			return nil, errorValue
 		}
 		return service.postAdmindSite(ctx, "/admin/api/sites/serve", inputDocument)
-	case "site.list":
+	case "site_list":
 		return service.listAdmindSites(ctx, inputDocument)
-	case "site.unserve":
+	case "site_unserve":
 		return service.unserveAdmindSite(ctx, inputDocument, request.Context.IsApprovalContinuation)
 	default:
 		return nil, errors.New("site app tool is not configured: " + request.ToolName)
@@ -348,7 +348,7 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 }
 
 func siteToolNeedsSourceBundle(toolName string) bool {
-	return toolName == "site.serve"
+	return toolName == "site_serve"
 }
 
 func siteAppInputWithSourceBundle(document json.RawMessage, sourceBundle *capabilities.SiteSourceBundle) (json.RawMessage, error) {

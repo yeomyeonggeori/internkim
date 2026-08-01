@@ -17,11 +17,11 @@ func TestAgentsAssetDoesNotReferenceUnavailableSearchTool(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if strings.Contains(string(document), "web.search") {
-		t.Fatal("workspace AGENTS asset must not reference unavailable web.search tool")
+	if strings.Contains(string(document), "web_search") {
+		t.Fatal("workspace AGENTS asset must not reference unavailable web_search tool")
 	}
-	if !strings.Contains(string(document), "web.fetch") {
-		t.Fatal("workspace AGENTS asset must prefer available web.fetch for public page lookup")
+	if !strings.Contains(string(document), "web_fetch") {
+		t.Fatal("workspace AGENTS asset must prefer available web_fetch for public page lookup")
 	}
 }
 
@@ -170,7 +170,7 @@ func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	calendarContent := string(calendarDocument)
-	for _, expectedText := range []string{"task.add", "task.update", "calendar.list", "`eventHint`", "Decide by the user's intent", "deadline-driven deliverable", "Do not mark calendar events with `[완료]`"} {
+	for _, expectedText := range []string{"task_add", "task_update", "calendar_list", "`eventHint`", "Decide by the user's intent", "deadline-driven deliverable", "Do not mark calendar events with `[완료]`"} {
 		if !strings.Contains(calendarContent, expectedText) {
 			t.Fatalf("calendar skill must document mixed calendar/work routing %q", expectedText)
 		}
@@ -181,7 +181,7 @@ func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	workContent := string(workDocument)
-	for _, expectedText := range []string{"task.list", "task.update", "calendar.add", "Decide by intent", "do not call the product `Flow`"} {
+	for _, expectedText := range []string{"task_list", "task_update", "calendar_add", "Decide by intent", "do not call the product `Flow`"} {
 		if !strings.Contains(workContent, expectedText) {
 			t.Fatalf("work skill must document localized semantic routing %q", expectedText)
 		}
@@ -220,13 +220,13 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 	for _, expectedText := range []string{
 		"source of truth",
 		"source checklist",
-		"site.serve",
-		"site.list",
-		"site.unserve",
+		"site_serve",
+		"site_list",
+		"site_unserve",
 		"scripts/scaffold.sh ~/sites/<short-name>",
 		"scripts/build.sh ~/sites/<short-name>",
 		"scripts/validate.py ~/sites/<short-name>",
-		"artifact.review",
+		"artifact_review",
 		"app/public/site-content.json",
 		"sourceWorkspacePath",
 		`"mode": "preview"`,
@@ -234,7 +234,7 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		"TODO(design)",
 		"colors, typography, rounded, spacing, components",
 		"dark navy shell",
-		"file.edit",
+		"file_edit",
 		"siteReference",
 		"publishedURL",
 		"sourceSHA256",
@@ -474,7 +474,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 			t.Fatalf("website skill must include %q", expectedText)
 		}
 	}
-	expectedToolReferences := "tool-references: terminal.run file.read file.write file.edit browser.open browser.snapshot browser.screenshot browser.click artifact.review site.serve site.list site.unserve"
+	expectedToolReferences := "tool-references: terminal_run file_read file_write file_edit browser_open browser_snapshot browser_screenshot browser_click artifact_review site_serve site_list site_unserve"
 	if !strings.Contains(string(siteSkillDocument), expectedToolReferences) {
 		t.Fatalf("website skill must use the canonical tool references")
 	}
@@ -483,7 +483,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 			t.Fatalf("website skill must not reference %q", removedToolName)
 		}
 	}
-	for _, expectedText := range []string{"file.edit", "siteReference", "runtime obtains approval", "sourceSHA256"} {
+	for _, expectedText := range []string{"file_edit", "siteReference", "runtime obtains approval", "sourceSHA256"} {
 		if !strings.Contains(string(siteSkillDocument), expectedText) {
 			t.Fatalf("website skill must include %q", expectedText)
 		}
@@ -522,8 +522,8 @@ func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	skillContent := string(skillDocument)
-	if !strings.Contains(skillContent, "tool-references: terminal.run") {
-		t.Fatal("calculator skill must use the canonical terminal.run tool reference")
+	if !strings.Contains(skillContent, "tool-references: terminal_run") {
+		t.Fatal("calculator skill must use the canonical terminal_run tool reference")
 	}
 	if !strings.Contains(skillContent, "/workspace/skills/calculator/scripts/calc.py") {
 		t.Fatal("calculator skill must run the bundled evaluator script")
@@ -573,15 +573,15 @@ func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 		"work only in `artifacts/<deck-slug>/`",
 		"`slides.html` as the canonical controller-free source",
 		"restore_source.py",
-		"targeted `file.edit`",
-		"never reconstruct an existing deck with whole-file `file.write`",
+		"targeted `file_edit`",
+		"never reconstruct an existing deck with whole-file `file_write`",
 		"same slug",
 	} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("presentation revision workflow must document %q", expectedText)
 		}
 	}
-	if strings.Contains(content, "rewrite the file with `file.write` instead of retrying") {
+	if strings.Contains(content, "rewrite the file with `file_write` instead of retrying") {
 		t.Fatal("presentation revision workflow must not replace an existing deck after a missed edit")
 	}
 	if strings.Contains(content, "verified wholesale replacement") {
@@ -756,7 +756,7 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"composition-seeds.md",
 		"visual-styles.md",
 		"webfonts.md",
-		"Do not call `terminal.run` with an `arguments` array alone",
+		"Do not call `terminal_run` with an `arguments` array alone",
 		"required-visible-text.txt",
 		"one source fact or must-appear phrase per line",
 		"not a token filter",
@@ -767,8 +767,8 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence",
 		"FORMATS=pptx",
 		`"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh"`,
-		"`file.write` tool directly",
-		"Do not use `capability.invoke`, `filesystem.mount.write`, `file.pick`",
+		"`file_write` tool directly",
+		"Do not use `capability.invoke`, `filesystem.mount.write`, `file_pick`",
 		"must not delay the primary source file",
 		"A dark theme is not a visual system",
 		"Scene",
@@ -866,7 +866,7 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 			t.Fatalf("presentation must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{`"command": "/workspace/skills/presentation/scripts/build.sh"`, `"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh"`, "/workspace/skills/presentation/scripts/build.sh", `"workingDirectoryPath": "artifacts/<deck-slug>"`, "file.deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
+	for _, expectedText := range []string{`"command": "/workspace/skills/presentation/scripts/build.sh"`, `"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh"`, "/workspace/skills/presentation/scripts/build.sh", `"workingDirectoryPath": "artifacts/<deck-slug>"`, "file_deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
 		if !strings.Contains(skillContent, expectedText) {
 			t.Fatalf("presentation must document %q", expectedText)
 		}

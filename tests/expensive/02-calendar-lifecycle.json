@@ -6,40 +6,40 @@
     "../../assets/blueclaw-workspace/skills/calendar"
   ],
   "allowedTools": [
-    "conversation.history",
-    "memory.search",
-    "calendar.add",
-    "calendar.list",
-    "calendar.update",
-    "calendar.delete"
+    "conversation_history",
+    "memory_search",
+    "calendar_add",
+    "calendar_list",
+    "calendar_update",
+    "calendar_delete"
   ],
   "capabilityToolNames": [
-    "calendar.add",
-    "calendar.list",
-    "calendar.update",
-    "calendar.delete"
+    "calendar_add",
+    "calendar_list",
+    "calendar_update",
+    "calendar_delete"
   ],
   "capabilityToolDescriptors": [
     {
-      "name": "calendar.delete",
+      "name": "calendar_delete",
       "requiresApproval": true
     }
   ],
   "initialToolNames": [
-    "calendar.add",
-    "calendar.list",
-    "calendar.update",
-    "calendar.delete"
+    "calendar_add",
+    "calendar_list",
+    "calendar_update",
+    "calendar_delete"
   ],
   "steps": [
     {
       "prompt": "내일 오전 10시부터 11시까지 고객지원팀과 분기 결산 누락 항목을 검토하는 회의를 잡아줘. 회의 제목은 '고객지원팀 분기 결산 검토'로 해줘.",
       "expectedToolCalls": [
-        "calendar.add"
+        "calendar_add"
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.calendar.add.result",
+          "name": "tool.calendar_add.result",
           "outputFragment": "{{tomorrow}}T10:00:00+09:00",
           "count": 1
         }
@@ -49,18 +49,18 @@
     {
       "prompt": "방금 만든 '고객지원팀 분기 결산 검토' 일정을 내일 오후 2시부터 3시로 옮겨줘.",
       "expectedToolCalls": [
-        "calendar.update"
+        "calendar_update"
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.calendar.update.requested",
+          "name": "tool.calendar_update.requested",
           "bodyFragment": "{{tomorrow}}T14:00:00+09:00",
           "count": 1,
           "exact": true,
           "advisory": true
         },
         {
-          "name": "tool.calendar.update.result",
+          "name": "tool.calendar_update.result",
           "outputFragment": "{{tomorrow}}T14:00:00+09:00",
           "count": 1
         }
@@ -70,18 +70,18 @@
     {
       "prompt": "내 캘린더를 조회해서 방금 옮긴 '고객지원팀 분기 결산 검토'가 오후 2시부터 3시로 등록되어 있는지 확인해줘.",
       "expectedToolCalls": [
-        "calendar.list"
+        "calendar_list"
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.calendar.list.requested",
+          "name": "tool.calendar_list.requested",
           "bodyFragment": "고객지원팀 분기 결산 검토",
           "count": 1,
           "exact": true,
           "advisory": true
         },
         {
-          "name": "tool.calendar.list.result",
+          "name": "tool.calendar_list.result",
           "outputFragment": "{{tomorrow}}T14:00:00+09:00",
           "count": 1
         }
@@ -95,7 +95,7 @@
       "prompt": "방금 확인한 '고객지원팀 분기 결산 검토' 일정을 삭제해줘.",
       "approvalAction": "approve",
       "expectedToolCalls": [
-        "calendar.delete"
+        "calendar_delete"
       ],
       "expectedEvents": [
         "confirmation.requested",
@@ -104,7 +104,7 @@
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.calendar.delete.result",
+          "name": "tool.calendar_delete.result",
           "outputFragment": "deleted",
           "count": 1,
           "exact": true
@@ -115,11 +115,11 @@
     {
       "prompt": "내 캘린더를 다시 조회해서 삭제한 '고객지원팀 분기 결산 검토'가 남아 있지 않은지 확인해줘.",
       "expectedToolCalls": [
-        "calendar.list"
+        "calendar_list"
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.calendar.list.result",
+          "name": "tool.calendar_list.result",
           "outputFragment": "고객지원팀 분기 결산 검토",
           "count": 0,
           "exact": true

@@ -60,10 +60,10 @@ func TestOpenRouterLiveAgentActionSchemaFromEnv(t *testing.T) {
 	backend, _ := liveOpenRouterBackendFromEnv(t)
 	ctx := context.Background()
 	request := StructuredRequest{
-		Messages: []Message{{Role: "user", Content: "Call browser.open for https://example.com."}},
+		Messages: []Message{{Role: "user", Content: "Call browser_open for https://example.com."}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:               "blueclaw_agent_turn_action",
-			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.CompanionToolDescriptors(), "browser.open")}),
+			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.CompanionToolDescriptors(), "browser_open")}),
 			IsStrictlyEnforced: true,
 		},
 	}
@@ -108,7 +108,7 @@ func TestOpenRouterLiveSingleCalendarActionSchemaFromEnv(t *testing.T) {
 		Messages: []Message{{Role: "user", Content: "Add vacation to the calendar."}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:               "blueclaw_agent_turn_action",
-			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.CalendarDescriptors(), "calendar.add")}),
+			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.CalendarDescriptors(), "calendar_add")}),
 			IsStrictlyEnforced: true,
 		},
 	}
@@ -166,7 +166,7 @@ func TestOpenRouterLiveLowTierDiscriminatedUnionFromEnv(t *testing.T) {
 					},
 					{
 						"type":"object",
-						"properties":{"kind":{"type":"string","enum":["tool"]},"toolName":{"type":"string","enum":["browser.open"]}},
+						"properties":{"kind":{"type":"string","enum":["tool"]},"toolName":{"type":"string","enum":["browser_open"]}},
 						"required":["kind","toolName"],
 						"additionalProperties":false
 					}
@@ -188,8 +188,8 @@ func TestOpenRouterLiveLowTierDiscriminatedUnionFromEnv(t *testing.T) {
 	if errorValue := json.Unmarshal([]byte(response.Content), &decision); errorValue != nil {
 		t.Fatalf("expected discriminated union JSON, got %q: %v", response.Content, errorValue)
 	}
-	if decision.Kind != "tool" || decision.ToolName != "browser.open" {
-		t.Fatalf("expected tool branch with browser.open, got %+v", decision)
+	if decision.Kind != "tool" || decision.ToolName != "browser_open" {
+		t.Fatalf("expected tool branch with browser_open, got %+v", decision)
 	}
 }
 

@@ -1,9 +1,9 @@
 {
   "name": "other-person-calendar-capture",
   "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/calendar"],
-  "allowedTools": ["conversation.history", "memory.search", "calendar.add", "calendar.list", "calendar.update"],
-  "capabilityToolNames": ["calendar.add", "calendar.list", "calendar.update"],
-  "initialToolNames": ["calendar.add", "calendar.list", "calendar.update"],
+  "allowedTools": ["conversation_history", "memory_search", "calendar_add", "calendar_list", "calendar_update"],
+  "capabilityToolNames": ["calendar_add", "calendar_list", "calendar_update"],
+  "initialToolNames": ["calendar_add", "calendar_list", "calendar_update"],
   "steps": [
     {
       "prompt": "@박예시 님 내일 오후 3시부터 4시까지 신규 가입 플로우 점검 회의 일정 잡아주세요.",
@@ -12,12 +12,12 @@
       "channelID": "town-square",
       "channelName": "town-square",
       "addressing": {"otherPersonMentioned": true},
-      "expectedToolCalls": ["calendar.list", "calendar.add"],
+      "expectedToolCalls": ["calendar_list", "calendar_add"],
       "expectedEventCounts": [
         {"name": "agent.ambient_duty_launch", "bodyFragment": "calendar", "count": 1},
-        {"name": "tool.calendar.add.requested", "bodyFragment": "\"people\":[\"박예시\"]", "count": 1},
-        {"name": "tool.calendar.add.requested", "bodyFragment": "\"includeRequester\":false", "count": 1},
-        {"name": "tool.calendar.add.result", "outputFragment": "박예시", "count": 1}
+        {"name": "tool.calendar_add.requested", "bodyFragment": "\"people\":[\"박예시\"]", "count": 1},
+        {"name": "tool.calendar_add.requested", "bodyFragment": "\"includeRequester\":false", "count": 1},
+        {"name": "tool.calendar_add.result", "outputFragment": "박예시", "count": 1}
       ],
       "expectedTaskStatus": "completed"
     }

@@ -3650,7 +3650,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 		"displayName":"test companion",
 		"publicKey":"`+keyPair.PublicKey+`",
 		"localOnly":true,
-		"capabilities":[{"name":"user.confirm","version":"1","privacyClass":"user_input","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
+		"capabilities":[{"name":"user_confirm","version":"1","privacyClass":"user_input","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
 	}`))
 	handler.ServeHTTP(pairResponse, pairRequest)
 	if pairResponse.Code != http.StatusOK {
@@ -3699,7 +3699,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	errorChannel := make(chan error, 1)
 	go func() {
 		response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-			ToolName:      "user.confirm",
+			ToolName:      "user_confirm",
 			Input:         json.RawMessage(`{"message":"continue?"}`),
 			Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 			TimeoutSecond: 2,
@@ -3722,7 +3722,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	if errorValue := json.NewDecoder(nextResponse.Body).Decode(&companionJob); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if companionJob.JobID == "" || companionJob.Request.ToolName != "user.confirm" {
+	if companionJob.JobID == "" || companionJob.Request.ToolName != "user_confirm" {
 		t.Fatalf("unexpected companion job: %+v", companionJob)
 	}
 
@@ -3730,7 +3730,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	completeRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/jobs/"+companionJob.JobID+"/complete", strings.NewReader(`{
 		"provider":"companion",
 		"selectedBackend":"companion_local",
-		"toolName":"user.confirm",
+		"toolName":"user_confirm",
 		"result":{"confirmed":true}
 	}`))
 	setCompanionHeaders(t, completeRequest, pairResult, keyPair.PrivateKey)
@@ -3741,7 +3741,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 
 	select {
 	case response := <-resultChannel:
-		if response.ToolName != "user.confirm" {
+		if response.ToolName != "user_confirm" {
 			t.Fatalf("unexpected invoke response: %+v", response)
 		}
 	case errorValue := <-errorChannel:
@@ -4377,7 +4377,7 @@ func TestCompanionAuthCheckRequiresSignedCompanion(t *testing.T) {
 	handler := service.router()
 	_, pairResult := pairTestCompanion(t, handler, keyPairCapabilityRequest{
 		KeyPair:    keyPairForTest(t),
-		Capability: `{"name":"user.confirm","version":"1","privacyClass":"user_input","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
+		Capability: `{"name":"user_confirm","version":"1","privacyClass":"user_input","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
 	})
 
 	unsignedResponse := httptest.NewRecorder()
@@ -4425,7 +4425,7 @@ func TestCompanionDenyReturnsStructuredObservation(t *testing.T) {
 		"code":"`+pairingCode.Code+`",
 		"displayName":"test companion",
 		"publicKey":"`+keyPair.PublicKey+`",
-		"capabilities":[{"name":"browser.open","version":"1","privacyClass":"user_browser","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
+		"capabilities":[{"name":"browser_open","version":"1","privacyClass":"user_browser","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
 	}`))
 	handler.ServeHTTP(pairResponse, pairRequest)
 	var pairResult companionPairResponse
@@ -4435,7 +4435,7 @@ func TestCompanionDenyReturnsStructuredObservation(t *testing.T) {
 	resultChannel := make(chan capabilities.ToolInvokeResponse, 1)
 	go func() {
 		response, _ := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-			ToolName:      "browser.open",
+			ToolName:      "browser_open",
 			Input:         json.RawMessage(`{"url":"https://github.com"}`),
 			Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 			PrivacyClass:  "user_browser",
@@ -4479,13 +4479,13 @@ func TestCompanionJobRequiresRequesterIdentityForUserLocalTool(t *testing.T) {
 		CompanionID: "companion-1",
 		OwnerEmail:  "admin@example.com",
 		Capabilities: []capabilities.Descriptor{
-			{Name: "browser.handoff"},
+			{Name: "browser_handoff"},
 		},
 		LastSeenAt: time.Now().UTC(),
 	}
 
 	response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName:      "browser.handoff",
+		ToolName:      "browser_handoff",
 		Input:         json.RawMessage(`{"url":"https://example.com"}`),
 		TimeoutSecond: 1,
 	})
@@ -4508,13 +4508,13 @@ func TestCompanionJobReportsNotReadyWhenOwnerBrowserCapabilityMissing(t *testing
 		CompanionID: "companion-1",
 		OwnerEmail:  "admin@example.com",
 		Capabilities: []capabilities.Descriptor{
-			{Name: "user.confirm"},
+			{Name: "user_confirm"},
 		},
 		LastSeenAt: time.Now().UTC(),
 	}
 
 	response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName:     "browser.open",
+		ToolName:     "browser_open",
 		Input:        json.RawMessage(`{"url":"https://example.com"}`),
 		Context:      capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 		PrivacyClass: "user_browser",
@@ -4541,13 +4541,13 @@ func TestCompanionJobExpiryReportsNotReady(t *testing.T) {
 		CompanionID: "companion-1",
 		OwnerEmail:  "admin@example.com",
 		Capabilities: []capabilities.Descriptor{
-			{Name: "browser.open"},
+			{Name: "browser_open"},
 		},
 		LastSeenAt: time.Now().UTC(),
 	}
 
 	response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		Input:         json.RawMessage(`{"url":"https://example.com"}`),
 		Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 		PrivacyClass:  "user_browser",
@@ -4573,7 +4573,7 @@ func TestCompanionJobClaimRequiresMatchingOwner(t *testing.T) {
 		CompanionID: "alice-companion",
 		OwnerEmail:  "alice@example.com",
 		Capabilities: []capabilities.Descriptor{
-			{Name: "browser.handoff"},
+			{Name: "browser_handoff"},
 		},
 		LastSeenAt: now,
 	}
@@ -4581,7 +4581,7 @@ func TestCompanionJobClaimRequiresMatchingOwner(t *testing.T) {
 		CompanionID: "bob-companion",
 		OwnerEmail:  "bob@example.com",
 		Capabilities: []capabilities.Descriptor{
-			{Name: "browser.handoff"},
+			{Name: "browser_handoff"},
 		},
 		LastSeenAt: now,
 	}
@@ -4591,8 +4591,8 @@ func TestCompanionJobClaimRequiresMatchingOwner(t *testing.T) {
 		JobID:          "job-1",
 		Status:         "pending",
 		RequesterEmail: "alice@example.com",
-		ToolName:       "browser.handoff",
-		Request:        capabilities.ToolInvokeRequest{ToolName: "browser.handoff"},
+		ToolName:       "browser_handoff",
+		Request:        capabilities.ToolInvokeRequest{ToolName: "browser_handoff"},
 		CreatedAt:      now,
 		UpdatedAt:      now,
 		ExpiresAt:      now.Add(time.Minute),
@@ -4622,7 +4622,7 @@ func TestCompanionJobClaimMatchesPlatformUserIDOwner(t *testing.T) {
 		OwnerPlatform:       "mattermost",
 		OwnerPlatformUserID: "mattermost-user-1",
 		Capabilities: []capabilities.Descriptor{
-			{Name: "browser.open"},
+			{Name: "browser_open"},
 		},
 		LastSeenAt: now,
 	}
@@ -4630,9 +4630,9 @@ func TestCompanionJobClaimMatchesPlatformUserIDOwner(t *testing.T) {
 	service.companionJobs["job-1"] = &CompanionJob{
 		JobID:    "job-1",
 		Status:   "pending",
-		ToolName: "browser.open",
+		ToolName: "browser_open",
 		Request: capabilities.ToolInvokeRequest{
-			ToolName: "browser.open",
+			ToolName: "browser_open",
 			Context: capabilities.ToolInvokeContext{
 				RequesterPlatformUserID: "mattermost-user-1",
 				Platform:                "mattermost",
@@ -4660,7 +4660,7 @@ func TestCompanionBrowserResourceScopeFallsBackToParentOrigin(t *testing.T) {
 	}
 
 	resourceScope := service.inferCompanionResourceScope(capabilities.ToolInvokeRequest{
-		ToolName:    "browser.click",
+		ToolName:    "browser_click",
 		ParentJobID: "parent-job",
 		Input:       json.RawMessage(`{"target":"@e1"}`),
 	})
@@ -4678,7 +4678,7 @@ func TestCompanionJobPersistenceRestoresPendingAndCompletedJobs(t *testing.T) {
 	service.companionJobs["pending-job"] = &CompanionJob{
 		JobID:     "pending-job",
 		Status:    "pending",
-		ToolName:  "user.confirm",
+		ToolName:  "user_confirm",
 		CreatedAt: now,
 		UpdatedAt: now,
 		ExpiresAt: now.Add(time.Minute),
@@ -4687,7 +4687,7 @@ func TestCompanionJobPersistenceRestoresPendingAndCompletedJobs(t *testing.T) {
 		JobID:       "running-job",
 		Status:      "running",
 		CompanionID: "companion-1",
-		ToolName:    "user.confirm",
+		ToolName:    "user_confirm",
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		ExpiresAt:   now.Add(time.Minute),
@@ -4695,8 +4695,8 @@ func TestCompanionJobPersistenceRestoresPendingAndCompletedJobs(t *testing.T) {
 	service.companionJobs["completed-job"] = &CompanionJob{
 		JobID:     "completed-job",
 		Status:    "completed",
-		ToolName:  "user.confirm",
-		Response:  &capabilities.ToolInvokeResponse{ToolName: "user.confirm"},
+		ToolName:  "user_confirm",
+		Response:  &capabilities.ToolInvokeResponse{ToolName: "user_confirm"},
 		CreatedAt: now,
 		UpdatedAt: now,
 		ExpiresAt: now.Add(time.Minute),
@@ -4724,14 +4724,14 @@ func TestCompanionJobClaimRequeuesStaleRunningJob(t *testing.T) {
 	staleCompanion := &CompanionRecord{
 		CompanionID: "stale-companion",
 		Capabilities: []capabilities.Descriptor{
-			{Name: "user.confirm"},
+			{Name: "user_confirm"},
 		},
 		LastSeenAt: now.Add(-2 * companionOnlineWindow),
 	}
 	activeCompanion := &CompanionRecord{
 		CompanionID: "active-companion",
 		Capabilities: []capabilities.Descriptor{
-			{Name: "user.confirm"},
+			{Name: "user_confirm"},
 		},
 		LastSeenAt: now,
 	}
@@ -4741,8 +4741,8 @@ func TestCompanionJobClaimRequeuesStaleRunningJob(t *testing.T) {
 		JobID:       "job-1",
 		Status:      "running",
 		CompanionID: staleCompanion.CompanionID,
-		ToolName:    "user.confirm",
-		Request:     capabilities.ToolInvokeRequest{ToolName: "user.confirm"},
+		ToolName:    "user_confirm",
+		Request:     capabilities.ToolInvokeRequest{ToolName: "user_confirm"},
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		ExpiresAt:   now.Add(time.Minute),
@@ -4768,7 +4768,7 @@ func TestCompanionWatchCreatesOwnerLocalAttentionJob(t *testing.T) {
 	companion := &CompanionRecord{
 		CompanionID:  "alice-companion",
 		OwnerEmail:   "alice@example.com",
-		Capabilities: append([]capabilities.Descriptor{{Name: "user.confirm"}}, capabilities.CompanionLLMDescriptors()...),
+		Capabilities: append([]capabilities.Descriptor{{Name: "user_confirm"}}, capabilities.CompanionLLMDescriptors()...),
 		LastSeenAt:   now,
 	}
 	service.companions[companion.CompanionID] = companion
@@ -4776,13 +4776,13 @@ func TestCompanionWatchCreatesOwnerLocalAttentionJob(t *testing.T) {
 		JobID:             "job-1",
 		Status:            "pending",
 		RequesterEmail:    "alice@example.com",
-		ToolName:          "user.confirm",
+		ToolName:          "user_confirm",
 		PrivacyClass:      "user_input",
 		WatchStatus:       companionWatchStatusOpen,
 		NextWatchAt:       now.Add(-time.Second),
 		WatchAttemptCount: 0,
 		Request: capabilities.ToolInvokeRequest{
-			ToolName: "user.confirm",
+			ToolName: "user_confirm",
 			Context:  capabilities.ToolInvokeContext{RequesterEmail: "alice@example.com"},
 		},
 		CreatedAt: now.Add(-6 * time.Minute),
@@ -4806,7 +4806,7 @@ func TestCompanionWatchCreatesOwnerLocalAttentionJob(t *testing.T) {
 	if errorValue := json.Unmarshal(claimedJob.Request.Input, &triageRequest); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if triageRequest.JobID != "job-1" || triageRequest.ToolName != "user.confirm" || triageRequest.WatchAttemptCount != 1 {
+	if triageRequest.JobID != "job-1" || triageRequest.ToolName != "user_confirm" || triageRequest.WatchAttemptCount != 1 {
 		t.Fatalf("unexpected triage request: %+v", triageRequest)
 	}
 }
@@ -4833,12 +4833,12 @@ func TestCompanionWatchRoutesOnlyToOwningCompanion(t *testing.T) {
 		Status:         "running",
 		CompanionID:    aliceCompanion.CompanionID,
 		RequesterEmail: "alice@example.com",
-		ToolName:       "browser.handoff",
+		ToolName:       "browser_handoff",
 		PrivacyClass:   "user_browser",
 		WatchStatus:    companionWatchStatusOpen,
 		NextWatchAt:    now.Add(-time.Second),
 		Request: capabilities.ToolInvokeRequest{
-			ToolName: "browser.handoff",
+			ToolName: "browser_handoff",
 			Context:  capabilities.ToolInvokeContext{RequesterEmail: "alice@example.com"},
 		},
 		CreatedAt: now.Add(-6 * time.Minute),
@@ -4868,7 +4868,7 @@ func TestCompanionWatchFallsBackWithoutLocalAttentionModel(t *testing.T) {
 	companion := &CompanionRecord{
 		CompanionID:  "alice-companion",
 		OwnerEmail:   "alice@example.com",
-		Capabilities: []capabilities.Descriptor{{Name: "user.confirm"}},
+		Capabilities: []capabilities.Descriptor{{Name: "user_confirm"}},
 		LastSeenAt:   now,
 	}
 	service.companions[companion.CompanionID] = companion
@@ -4877,12 +4877,12 @@ func TestCompanionWatchFallsBackWithoutLocalAttentionModel(t *testing.T) {
 		Status:         "running",
 		CompanionID:    companion.CompanionID,
 		RequesterEmail: "alice@example.com",
-		ToolName:       "user.confirm",
+		ToolName:       "user_confirm",
 		PrivacyClass:   "user_input",
 		WatchStatus:    companionWatchStatusOpen,
 		NextWatchAt:    now.Add(-time.Second),
 		Request: capabilities.ToolInvokeRequest{
-			ToolName: "user.confirm",
+			ToolName: "user_confirm",
 			Context:  capabilities.ToolInvokeContext{RequesterEmail: "alice@example.com"},
 		},
 		CreatedAt: now.Add(-6 * time.Minute),
@@ -4917,12 +4917,12 @@ func TestCompanionAttentionCompletionSchedulesBackoffAndStoresNoReplyTarget(t *t
 		Status:            "running",
 		CompanionID:       "alice-companion",
 		RequesterEmail:    "alice@example.com",
-		ToolName:          "user.confirm",
+		ToolName:          "user_confirm",
 		PrivacyClass:      "user_input",
 		WatchStatus:       companionWatchStatusOpen,
 		WatchAttemptCount: 1,
 		Request: capabilities.ToolInvokeRequest{
-			ToolName: "user.confirm",
+			ToolName: "user_confirm",
 			Context:  capabilities.ToolInvokeContext{RequesterEmail: "alice@example.com"},
 		},
 		CreatedAt: now.Add(-6 * time.Minute),
@@ -4974,16 +4974,16 @@ func TestCompanionTerminalJobClosesWatch(t *testing.T) {
 		JobID:       "job-1",
 		Status:      "running",
 		CompanionID: "alice-companion",
-		ToolName:    "user.confirm",
+		ToolName:    "user_confirm",
 		WatchStatus: companionWatchStatusOpen,
 		NextWatchAt: now.Add(time.Minute),
-		Request:     capabilities.ToolInvokeRequest{ToolName: "user.confirm"},
+		Request:     capabilities.ToolInvokeRequest{ToolName: "user_confirm"},
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		ExpiresAt:   now.Add(time.Hour),
 	}
 
-	errorValue := service.finishCompanionJob("alice-companion", "job-1", &capabilities.ToolInvokeResponse{ToolName: "user.confirm"}, "")
+	errorValue := service.finishCompanionJob("alice-companion", "job-1", &capabilities.ToolInvokeResponse{ToolName: "user_confirm"}, "")
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -5015,7 +5015,7 @@ func TestRuntimeRemoteModelReadAndUpdate(t *testing.T) {
 	handler := service.router()
 	keyPair, pairResult := pairTestCompanion(t, handler, keyPairCapabilityRequest{
 		KeyPair:    keyPairForTest(t),
-		Capability: `{"name":"user.confirm","version":"1","privacyClass":"user_input","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
+		Capability: `{"name":"user_confirm","version":"1","privacyClass":"user_input","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
 	})
 	_ = keyPair
 
@@ -5071,7 +5071,7 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	handler := service.router()
 	keyPair, pairResult := pairTestCompanion(t, handler, keyPairCapabilityRequest{
 		KeyPair:    keyPairForTest(t),
-		Capability: `{"name":"file.pick","version":"1","privacyClass":"local_file","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
+		Capability: `{"name":"file_pick","version":"1","privacyClass":"local_file","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
 	})
 	_ = keyPair
 
@@ -5079,7 +5079,7 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	errorChannel := make(chan error, 1)
 	go func() {
 		response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-			ToolName:      "file.pick",
+			ToolName:      "file_pick",
 			PrivacyClass:  "local_file",
 			Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 			TimeoutSecond: 2,
@@ -5155,7 +5155,7 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	}
 
 	completeJobResponse := httptest.NewRecorder()
-	completeJobRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/jobs/"+companionJob.JobID+"/complete", strings.NewReader(toolResponseJSON(t, "file.pick", uploadResult)))
+	completeJobRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/jobs/"+companionJob.JobID+"/complete", strings.NewReader(toolResponseJSON(t, "file_pick", uploadResult)))
 	setCompanionHeaders(t, completeJobRequest, pairResult.companionPairResponse, pairResult.privateKey)
 	handler.ServeHTTP(completeJobResponse, completeJobRequest)
 	if completeJobResponse.Code != http.StatusOK {
@@ -5163,7 +5163,7 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	}
 	select {
 	case response := <-resultChannel:
-		if response.ToolName != "file.pick" {
+		if response.ToolName != "file_pick" {
 			t.Fatalf("unexpected response: %+v", response)
 		}
 	case errorValue := <-errorChannel:
@@ -5547,22 +5547,22 @@ func TestCompanionJobTimeoutSecond(t *testing.T) {
 		},
 		{
 			name:     "browser default allows user approval",
-			request:  capabilities.ToolInvokeRequest{ToolName: "browser.open"},
+			request:  capabilities.ToolInvokeRequest{ToolName: "browser_open"},
 			expected: 120,
 		},
 		{
 			name:     "user presence default allows user approval",
-			request:  capabilities.ToolInvokeRequest{ToolName: "user.confirm", RequiresUserPresence: true},
+			request:  capabilities.ToolInvokeRequest{ToolName: "user_confirm", RequiresUserPresence: true},
 			expected: 120,
 		},
 		{
 			name:     "explicit timeout is preserved",
-			request:  capabilities.ToolInvokeRequest{ToolName: "browser.open", TimeoutSecond: 45},
+			request:  capabilities.ToolInvokeRequest{ToolName: "browser_open", TimeoutSecond: 45},
 			expected: 45,
 		},
 		{
 			name:     "explicit timeout is capped",
-			request:  capabilities.ToolInvokeRequest{ToolName: "browser.open", TimeoutSecond: 500},
+			request:  capabilities.ToolInvokeRequest{ToolName: "browser_open", TimeoutSecond: 500},
 			expected: 300,
 		},
 	}

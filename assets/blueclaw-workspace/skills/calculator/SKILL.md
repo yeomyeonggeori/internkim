@@ -1,7 +1,7 @@
 ---
 name: calculator
 description: Calculate explicit arithmetic expressions exactly when the user asks a direct arithmetic question or provides an expression.
-tool-references: terminal.run
+tool-references: terminal_run
 ---
 
 # Calculator
@@ -13,7 +13,7 @@ For simple greetings or non-numeric explanations, answer directly without this s
 ## Workflow
 
 1. Extract the exact arithmetic expression from the request.
-2. Run the evaluator with `terminal.run`:
+2. Run the evaluator with `terminal_run`:
 
 ```json
 {

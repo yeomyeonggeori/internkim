@@ -70,9 +70,9 @@ func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) 
 		"delete_stale_probe_users",
 		"probe-mattermost-",
 		"expect_browser_open=true",
-		"tool.browser.open.result",
+		"tool.browser_open.result",
 		".isError != true",
-		"expected successful tool.browser.open.result",
+		"expected successful tool.browser_open.result",
 		"browserOpenVerified: $browser_open_verified",
 	}
 	for _, fragment := range requiredFragments {
@@ -83,7 +83,7 @@ func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) 
 }
 
 func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
-	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, false, []string{"schedule.create"}, []string{"schedule.created"}, false, false, false)
+	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, false, []string{"schedule_create"}, []string{"schedule.created"}, false, false, false)
 	requiredFragments := []string{
 		"expected_tools_json=",
 		"expected_events_json=",
@@ -102,7 +102,7 @@ func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
-	script := verifyMattermostPromptScript(defaultVerifySitePrompt, false, 90, false, true, []string{"terminal.run", "site.serve"}, nil, false, false, false)
+	script := verifyMattermostPromptScript(defaultVerifySitePrompt, false, 90, false, true, []string{"terminal_run", "site_serve"}, nil, false, false, false)
 	requiredFragments := []string{
 		"expect_public_url=true",
 		"wait for final site reply",
@@ -146,7 +146,7 @@ func TestVerifyMattermostSitePromptRequiresExplicitTarget(t *testing.T) {
 		"--prompt",
 		"웹사이트 하나 만들어서 배포해줘",
 		"--expect-tool",
-		"site.serve",
+		"site_serve",
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "saved physical board") {
 		t.Fatalf("expected Mattermost site verification to reject implicit physical target, got %v", errorValue)
@@ -154,7 +154,7 @@ func TestVerifyMattermostSitePromptRequiresExplicitTarget(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
-	script := verifyMattermostPromptScript(defaultVerifySitePrompt, false, 90, false, true, []string{"terminal.run", "site.serve"}, nil, false, false, false)
+	script := verifyMattermostPromptScript(defaultVerifySitePrompt, false, 90, false, true, []string{"terminal_run", "site_serve"}, nil, false, false, false)
 	scriptPath := filepath.Join(t.TempDir(), "verify-site.sh")
 	if errorValue := os.WriteFile(scriptPath, []byte(script), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
@@ -167,7 +167,7 @@ func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanDownloadFinalAttachments(t *testing.T) {
-	script := verifyMattermostPromptScript("짧은 발표자료 만들어줘.", true, 90, false, false, []string{"file.deliver"}, nil, true, false, false)
+	script := verifyMattermostPromptScript("짧은 발표자료 만들어줘.", true, 90, false, false, []string{"file_deliver"}, nil, true, false, false)
 	requiredFragments := []string{
 		"download_files=true",
 		"download_bot_files",

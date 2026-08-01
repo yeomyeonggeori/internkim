@@ -204,7 +204,7 @@ try:
         raise RuntimeError("public Mattermost ask did not include two choice buttons")
     selected_action = actions[0]
     selected_context = (selected_action.get("integration") or {}).get("context") or {}
-    if selected_context.get("action") != "ask.choice" or selected_context.get("choiceKey") != "confirm":
+    if selected_context.get("action") != "ask_choice" or selected_context.get("choiceKey") != "confirm":
         raise RuntimeError("public Mattermost ask button has the wrong action context")
     assert_wrong_user_is_rejected(selected_action)
     selected_action_id = click_mattermost_action(selected_action)

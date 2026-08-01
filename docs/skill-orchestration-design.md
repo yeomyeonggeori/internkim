@@ -18,7 +18,7 @@ Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skil
 
 Skill은 절차와 판단 기준이다. Kernel tool은 LLM이 직접 호출할 수 있는 실행 API다. Domain capability는 `/workspace/tools/capability` CLI를 통해 호출하는 로컬 bridge API다. Skill은 tool schema, 승인 정책, side-effect 정책을 다시 정의하지 않는다.
 
-LLM에 노출되는 kernel tool은 compact fixed set으로 유지한다. 기본 kernel은 `terminal.run`, `ask.input`, `ask.confirm`, `file.deliver`, `skill.search`, `file.read`, `file.write`, `file.edit`, `file.patch`, `file.preview`, `image.read`다. `ask.input.choices`가 비어 있으면 주관식 입력이고, 값이 있으면 선택지 또는 직접 입력을 받는다. Interactive terminal session 동작은 `terminal.run`의 `mode=session_start|session_write|session_status|session_close`로만 표현한다. WorkKind, selected skill, pinned recovery, profile별 bundle은 직접 tool palette를 확장하지 않는다.
+LLM에 노출되는 kernel tool은 compact fixed set으로 유지한다. 기본 kernel은 `terminal_run`, `ask_input`, `ask_confirm`, `file_deliver`, `skill_search`, `file_read`, `file_write`, `file_edit`, `file.patch`, `file_preview`, `image_read`다. `ask.input.choices`가 비어 있으면 주관식 입력이고, 값이 있으면 선택지 또는 직접 입력을 받는다. Interactive terminal session 동작은 `terminal_run`의 `mode=session_start|session_write|session_status|session_close`로만 표현한다. WorkKind, selected skill, pinned recovery, profile별 bundle은 직접 tool palette를 확장하지 않는다.
 
 `SKILL.md`는 선택될 때 초기 LLM context에 들어가는 실행 지침이다. 일반 skill은 8 KB 이하, 복잡한 artifact skill은 12 KB 이하를 목표로 하고, repository hard gate는 15 KB 및 300 lines다. 이 한계를 넘는 skill 문서는 prompt-runtime bug로 간주한다. 긴 reference는 `references/`, 반복 실행 로직은 `scripts/`, 재사용 asset은 `assets/`에 두고 `SKILL.md`에는 언제 읽거나 실행해야 하는지만 쓴다. 초기 prompt builder는 선택된 `SKILL.md` body만 포함해야 하며 scripts, references, assets 내용을 자동으로 붙이면 안 된다.
 
@@ -34,7 +34,7 @@ CompletionGate는 tool 이름을 특별 취급하지 않는다. `ToolDefinition.
 
 `no_tool_fallback`은 순수 계산, 설명, 조회처럼 답변으로 대체 가능한 실패에만 허용한다. 메시지 전송, 업무 변경, 일정 변경, 스킬 변경처럼 외부 상태가 바뀌어야 하는 작업은 fallback 문장으로 완료 처리하지 않는다.
 
-Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc에 의존하면 코딩 품질과 회복성이 떨어지므로 `file.read`, `file.write`, `file.edit`, `file.patch`는 kernel에 포함한다. Attachment/document entrypoint인 `file.preview`와 visual attachment entrypoint인 `image.read`도 kernel에 포함한다. 이 파일 도구들은 virtual workspace path와 requester permissions를 지켜야 하며, delivery는 `file.deliver`가 담당한다. Legacy delivery aliases are not model-facing kernel tools. Domain operations such as tasks, calendar, mail, browser, and website publish remain capability CLI operations.
+Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc에 의존하면 코딩 품질과 회복성이 떨어지므로 `file_read`, `file_write`, `file_edit`, `file.patch`는 kernel에 포함한다. Attachment/document entrypoint인 `file_preview`와 visual attachment entrypoint인 `image_read`도 kernel에 포함한다. 이 파일 도구들은 virtual workspace path와 requester permissions를 지켜야 하며, delivery는 `file_deliver`가 담당한다. Legacy delivery aliases are not model-facing kernel tools. Domain operations such as tasks, calendar, mail, browser, and website publish remain capability CLI operations.
 
 ## Canonical 실행 경로
 
@@ -43,12 +43,12 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 | 일정 추가/조회 | ICS, CalDAV first, optional `calendar` skill | 시간/참석자/장소 누락 질문, 외부 참석자 승인, Google sync 선택 |
 | 문서 생성 | DOCX, PDF, HTML, Markdown first, optional `create-gws-file` skill | 제목/공유 대상/본문 구조 결정, Google Docs import 선택 |
 | 시트 생성 | XLSX, CSV first, optional `create-gws-file` skill | 시트 목적, 컬럼, 초기 데이터 구조 결정, Google Sheets import 선택 |
-| 이메일 초안/발송 | `.eml` 또는 draft text first, optional Gmail bridge | 발송 전 preview와 `user.confirm` 강제 |
+| 이메일 초안/발송 | `.eml` 또는 draft text first, optional Gmail bridge | 발송 전 preview와 `user_confirm` 강제 |
 | 슬라이드 deck | `DESIGN.md` + HTML/PPTX/PDF first, optional Google Slides import | 목적/청중/톤/출력 형식 결정 |
 | PDF 생성/읽기 | `pdf` skill | 한글 폰트, 템플릿, 출력 파일 연결 |
 | 파일 전송 | native reply attachments | 파일 경로 검증, 메시지, 공유 대상 결정 |
 | 브라우저 자동화 | `agent-browser` skill, `browser.*` capability | 사용자 입력 대기, 제출 승인, 관찰 결과 요약 |
-| 로컬 파일 선택 | Companion `file.pick` | 로컬 경로 비노출, device temp path만 사용 |
+| 로컬 파일 선택 | Companion `file_pick` | 로컬 경로 비노출, device temp path만 사용 |
 | 기억 저장/검색 | Graphiti memory | 개인/직급/팀/회사 scope 선택 |
 | 업무/출퇴근 | Blueclaw task DB, future attendance capability | 상태 전이, 담당자, audit 기록 |
 
@@ -61,16 +61,16 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 - Calendar 요청은 ICS/CalDAV를 먼저 만들고, 사용자가 Google Calendar를 원할 때 `calendar` skill을 사용한다.
 - Docs 요청은 DOCX/HTML/PDF를 먼저 만들고, 사용자가 Google Docs 공동 편집을 원할 때 `create-gws-file` skill을 사용한다.
 - Sheets 요청은 XLSX/CSV를 먼저 만들고, 사용자가 Google Sheets를 원할 때 `create-gws-file` skill을 사용한다.
-- Email 요청은 `.eml` 또는 draft text를 먼저 만들고, Gmail 발송은 preview와 `user.confirm` 후 실행한다.
+- Email 요청은 `.eml` 또는 draft text를 먼저 만들고, Gmail 발송은 preview와 `user_confirm` 후 실행한다.
 - Slides 요청은 `slide-orchestrator`로 넘긴다.
 
 ### `artifact-orchestrator`
 
 파일 생성, 선택, 공유, platform attachment를 연결한다.
 
-- 사용자 로컬 파일은 Companion `file.pick`으로 받고 로컬 경로를 노출하지 않는다.
+- 사용자 로컬 파일은 Companion `file_pick`으로 받고 로컬 경로를 노출하지 않는다.
 - Mattermost/Slack/Signal 전송은 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로를 사용한다.
-- 생성 작업은 `tmp/<slug>`에서 시작하고, 최종본만 `file.deliver`로 전달한다. 장기 보관이 필요한 경우에만 명시된 `artifacts/<slug>`, circle, 또는 shared 위치에 파일을 만든 뒤 전달한다.
+- 생성 작업은 `tmp/<slug>`에서 시작하고, 최종본만 `file_deliver`로 전달한다. 장기 보관이 필요한 경우에만 명시된 `artifacts/<slug>`, circle, 또는 shared 위치에 파일을 만든 뒤 전달한다.
 - 외부 공유와 Google Drive publish는 수신자, 권한, 파일명을 요약하고 승인 후 실행한다.
 - 장기 보관이 필요할 때만 artifact registry로 승격한다.
 
@@ -89,9 +89,9 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 
 - 간단한 Google Slides와 고급 HTML 슬라이드를 같은 deck pipeline으로 다루되, 기본 출력은 HTML/PPTX/PDF다.
 - `DESIGN.md`는 YAML token front matter와 Markdown rationale을 포함한다.
-- source files는 `file.write` 또는 bundled skill script로 `tmp/<deck-slug>/DESIGN.md`와 `tmp/<deck-slug>/presentation.md`에 작성한다.
-- build는 `terminal.run`으로 `workingDirectoryPath=tmp/<deck-slug>`에서 `/workspace/skills/simple-slides/scripts/build.sh`를 실행한다.
-- output은 `tmp/<deck-slug>/build/` 아래에 만들고, 최종본만 `file.deliver`로 전달한다.
+- source files는 `file_write` 또는 bundled skill script로 `tmp/<deck-slug>/DESIGN.md`와 `tmp/<deck-slug>/presentation.md`에 작성한다.
+- build는 `terminal_run`으로 `workingDirectoryPath=tmp/<deck-slug>`에서 `/workspace/skills/simple-slides/scripts/build.sh`를 실행한다.
+- output은 `tmp/<deck-slug>/build/` 아래에 만들고, 최종본만 `file_deliver`로 전달한다.
 - `simple-slides`는 global PATH의 Marp를 선택하지 않는다. Rootfs 선설치 Marp entrypoint를 사용하거나 requester tmp의 skill-local install을 사용하고, runtime temp/cache/home은 task build tmp 아래에 둔다.
 - 폰트는 Korean-first로 고른다. 기본 조합은 Paperlogy display + Freesentation body이며, 기술/모빌리티 덱은 A2Z display + Freesentation body를 우선한다. 후보와 import/cache 경로는 `assets/blueclaw-workspace/fonts/korean-fonts.tsv`와 `simple-slides`의 `references/design-system.md`를 따른다.
 - 시각 품질 검증과 출력 파일 연결은 `simple-slides` 규칙을 따른다.
@@ -119,8 +119,8 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 사용자 컴퓨터에서만 가능한 일을 Companion으로 보낸다.
 
 - 브라우저는 발화자 Companion browser를 우선 사용하고, Companion이 없을 때만 내부 Lightpanda fallback으로 단순 텍스트 탐색을 처리한다.
-- 로그인, MFA, captcha, 민감 입력은 `browser.handoff`로 발화자의 Companion browser 안에서 처리한다.
-- 일반 사용자 입력 대기는 `user.input`, irreversible action 확인은 `user.confirm`으로 처리한다.
+- 로그인, MFA, captcha, 민감 입력은 `browser_handoff`로 발화자의 Companion browser 안에서 처리한다.
+- 일반 사용자 입력 대기는 `user.input`, irreversible action 확인은 `user_confirm`으로 처리한다.
 - 파일/디렉토리 정리는 dry-run 결과를 먼저 보여주고 승인 후 실행한다.
 - 터미널은 dev/admin profile 전용으로 유지한다.
 
@@ -167,8 +167,8 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 - "내일 3시에 미팅 잡아줘"는 `workspace-orchestrator`가 ICS/CalDAV 이벤트를 만들고, 사용자가 원하면 Google Calendar에도 동기화한다.
 - "시트 하나 만들어줘"는 `workspace-orchestrator`가 XLSX/CSV를 만들고, 사용자가 원하면 Google Sheets로 가져간다.
 - "발표자료 만들어줘"는 `slide-orchestrator`가 `DESIGN.md`를 먼저 만든 뒤 HTML/PPTX/PDF를 만들고, 사용자가 원하면 Google Slides로 가져간다.
-- "pptx 파일로 줘"처럼 required artifact 요청이면 `file.deliver` completion evidence가 있어야 성공이다. 텍스트 초안 제안은 완료가 아니다.
+- "pptx 파일로 줘"처럼 required artifact 요청이면 `file_deliver` completion evidence가 있어야 성공이다. 텍스트 초안 제안은 완료가 아니다.
 - "계약서 템플릿 채워줘"는 `document-orchestrator`가 누락 필드를 인터뷰한 뒤 DOCX 또는 PDF 생성으로 위임한다.
 - "이 파일 보내줘"는 `artifact-orchestrator`가 기존 attachment 경로를 사용한다.
-- "브라우저에서 로그인 기다렸다가 진행해줘"는 `local-orchestrator`가 Companion browser와 `user.input`/`user.confirm`을 사용한다.
+- "브라우저에서 로그인 기다렸다가 진행해줘"는 `local-orchestrator`가 Companion browser와 `user.input`/`user_confirm`을 사용한다.
 - "메일 보내줘"는 preview와 수동 승인 없이는 발송하지 않는다.
