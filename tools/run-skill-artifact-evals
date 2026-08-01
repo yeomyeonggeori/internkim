@@ -141,6 +141,7 @@ def run_evaluations(arguments: argparse.Namespace) -> int:
     runDirectory = ARTIFACTS_ROOT / runID
     runDirectory.mkdir(parents=True, exist_ok=False)
 
+    require_xml_parser()
     commandTimeoutSeconds = arguments.command_timeout if arguments.command_timeout else arguments.timeout + 3000
     effectiveSeed, effectiveTemperature, droppedPins = drop_unsupported_generation_pins(arguments.model, arguments.seed, arguments.temperature)
     for parameterName in droppedPins:
@@ -1501,6 +1502,23 @@ def drop_unsupported_generation_pins(modelName: str, seed: int, temperature: flo
         None if "temperature" in dropped else temperature,
         dropped,
     )
+
+def require_xml_parser() -> None:
+    """Fail before the fleet runs, not after.
+
+    Every OOXML artifact is scored through ElementTree, which needs expat. Some
+    macOS CPython builds link against a system libexpat that is missing symbols,
+    and the ImportError only surfaces during the audit - after a fleet has been
+    provisioned and a live model has been paid for.
+    """
+    try:
+        import pyexpat  # noqa: F401
+    except ImportError as errorValue:
+        raise SystemExit(
+            f"this interpreter cannot parse XML ({errorValue}), so generated documents could not be scored.\n"
+            f"run the evaluations with an interpreter that has a working expat, for example: uv python install 3.12"
+        )
+
 
 def create_manifest(runID: str, selectedEvaluations: list[dict], isDryRun: bool, shouldReuseFleet: bool, modelName: str, seed: int, temperature: float, testTimeoutSeconds: int, commandTimeoutSeconds: int) -> dict:
     return {
