@@ -675,7 +675,7 @@ begin
   assert public.member_leave_remaining(veteran, 2026) is null,
     'with no entitlement set, there is nothing to count against';
 
-  update public.company set leave_day_minutes = 480, leave_days = 15
+  update public.company set leave_days = 15
     where id = '00000000-0000-0000-0000-0000000000a0';
   update public.member set leave_days = 20 where id = veteran;
 
