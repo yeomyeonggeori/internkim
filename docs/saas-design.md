@@ -57,23 +57,28 @@ Two planes:
         │                                                                        state          │
         │   Control-plane API (onboarding: create community, issue agent identity, add roster)  │
         └───────────────────────────────────────────────────────────────────────────────────────┘
-                    ▲ outbound wss (nostr, NIP-42)                 ▲ https
-                    │                                              │
-        ┌───────────┴──────────────────────────────┐   ┌──────────┴─────────────┐
-        │  CUSTOMER COMPUTE (they run)              │   │  Browser (any device)  │
-        │  Agent client (CLI-installed or app):     │   │  our web app           │
-        │  - blueclaw agent loop + tools/terminal   │   └────────────────────────┘
-        │  - Buzz connector (nostr identity = Bot)  │
-        │  - capability/permission boundary (POSIX) │
-        │  - BYO LLM (local / OpenRouter / Claude)  │
-        └───────────────────────────────────────────┘
+           ▲ outbound wss (nostr, NIP-42)   ▲ outbound (relay+SaaS)   ▲ https
+           │                                │                         │
+   ┌───────┴───────────────────────┐  ┌─────┴──────────────────┐  ┌──┴───────────────┐
+   │  HOST — company agent (24/7)   │  │  GUEST — employee app   │  │ Browser (any dev)│
+   │  spare company computer:       │  │  (optional companion):  │  │ our web app      │
+   │  - blueclaw loop + harness     │  │  - local file/browser   │  └──────────────────┘
+   │    (own, or Claude Code, …)    │  │  - local model, confirm │
+   │  - Buzz connector = Bot member │  │  - OS secure storage    │
+   │  - capability boundary (POSIX) │  │  intermittent; ENHANCES │
+   │  - BYO LLM                     │  │  but NOT required       │
+   │  - localhost + REST; no tunnel │  └─────────────────────────┘
+   └────────────────────────────────┘   host↔guest caps routed via relay
 ```
 
 - **Central (we operate, small + cheap):** the Buzz relay, the web app, Supabase,
   and a thin control-plane for onboarding/provisioning.
-- **Customer (BYOC):** the agent client on their Linux environment. It connects
-  **outbound** to our relay (no inbound exposure on their side) with its own
-  nostr identity, and uses **their** LLM.
+- **Host (customer, always-on):** blueclaw + harness on a **spare company
+  computer**, outbound-only to relay + SaaS, **localhost + REST, no tunnel**. The
+  company's single persistent agent (`Bot` member). BYO LLM.
+- **Guest (employee, optional):** the companion app — **optional progressive
+  enhancement** that adds that employee's local-device capabilities when
+  installed and online. The product works without it via the web app / messenger.
 
 The heavy/variable cost (agent compute + LLM tokens) lives with the customer.
 Our marginal cost per customer is near-zero.
@@ -148,44 +153,76 @@ per-device tunnels, no per-device NIP-98 URL-mismatch problems.
 
 ---
 
-## 6. Client packaging (the customer install)
+## 6. Runtime topology: one app, two modes (host + optional guest)
 
-Two delivery forms, same core:
+The customer runtime is **a single app/artifact with a mode selector, chosen at
+setup: `host` or `guest`** (a machine may run both). Host and guest share the
+core — Buzz connector, identity, capability framework, blueclaw runtime — so
+bundling both roles adds **negligible size**; there is **no separate download**.
+The app runs **headless** (host on a spare box / server) or with the desktop
+companion UI (guest on an employee's machine).
 
-- **CLI install** (`curl | sh` / package): installs the agent runtime + Buzz
-  connector as a service on a customer Linux host/VM. For technical customers
-  and self-hosters.
-- **Packaged app**: bundle the runtime behind the existing
-  `internkim-companion` (Tauri) shell as "the user's local trusted runtime,"
-  so non-technical users get a one-click app. The companion already owns local
-  files / local model / browser handoff.
+### Host — the always-on company agent
+- Runs **blueclaw + a harness** (the agent loop; the harness may be blueclaw's
+  own or an attached one like Claude Code) **24/7** on a **spare/leftover company
+  computer** — no dedicated hardware to buy.
+- **Outbound-only.** It reaches out to the **Buzz relay** and the **InternKim
+  SaaS (REST)**; internally it uses **localhost + REST** only. **No CF tunnel, no
+  inbound ports, no public exposure.** (This removes the per-device
+  exposure/NIP-98 pain entirely.)
+- Joins the community as the `Bot` member; it is the company's single persistent
+  assistant.
+- Linux/POSIX is required for the in-tenant permission boundary; on a
+  Windows/Mac spare box, run it inside a bundled container/VM (WSL, etc.).
+- Started in **`host` mode** (headless): the same app via CLI/package, or the
+  desktop app set to host mode.
 
-Requirements for the client:
-- Linux runtime environment for the agent (terminal, POSIX users/groups for the
-  in-tenant permission boundary). On non-Linux hosts, run inside a local
-  container/VM shipped by the app.
-- Outbound-only network (connects to our relay + the customer's LLM endpoint);
-  no inbound ports.
-- BYO LLM configuration (local model path, OpenRouter key, or Claude Code).
+### Guest — the optional per-employee companion
+- Each **employee** is a separate community member. Running the app in **`guest`
+  mode is optional**: the product **works without it** (employees use the web app
+  / Buzz messenger; the host agent serves them via host-side + SaaS + remote
+  capabilities).
+- **Installing the companion is a progressive enhancement** — it unlocks that
+  employee's **local-device capabilities**: local file pick, browser handoff,
+  local model inference, desktop confirm/input, OS secure credential storage.
+  Available **only while that employee's app is on**.
+- The app is intermittent (on/off) by nature.
+
+### Host ↔ guest communication
+- Both host and guests connect **outbound to the central relay**; host→guest
+  capability requests are **routed over the relay** (no direct connection, no LAN
+  discovery, no tunnel). The party model is **host agent ↔ a specific guest
+  employee**, so the companion's capability broker/handoff pattern is **kept**
+  (transport = relay), not removed.
+- Fits the existing boundary: *blueclaw requests a capability; the runtime routes
+  it to device / companion / remote*. If a given employee has no companion or is
+  offline, the agent **degrades gracefully** (e.g. ask them to upload via web,
+  use a server-side browser).
+
+### Security / permissions (open — see §11)
+- Which guest a host may ask for which capability, and the approval model
+  (`user.confirm`/`user.input` only when that guest is online).
+- Host identity vs. each guest identity on the relay roster.
+- The host→guest capability RPC framing/encryption over relay events.
 
 ---
 
-## 7. Availability model (the one real trade-off)
+## 7. Availability model
 
-Because the agent runs on the customer's machine, **the agent is online only
-while that machine is on/awake.** Consequences:
+The host/guest split resolves the earlier "agent online only when a machine is
+on" concern:
 
-- Fine for "assistant that helps when asked."
-- Breaks "always-available assistant that acts overnight / replies while you're
-  offline."
-
-Options (decide per product tier):
-- **v1 default:** local agent, online when the machine is. Cheapest, most
-  private, simplest.
-- **Optional hosted agent:** for customers who want always-on, run *their* agent
-  on a small always-on host (our cloud or theirs). This is where the
-  scale-to-zero microVM economics (Firecracker/Fly/E2B) would apply later — pay
-  only for active seconds. Not v1.
+- **Agent is always-on** — it lives on the always-on host (spare company box). So
+  the company gets a persistent assistant with **no dedicated hardware and no
+  tunnel**.
+- **Per-employee local capabilities are intermittent + optional** — available
+  only when that employee has the companion installed and running. The agent
+  degrades gracefully when they aren't.
+- **Host box is the company's single always-on point** (a SPOF for the agent, not
+  for data — messages/data live on the relay + Supabase, so a host outage is
+  loss-free). It's a spare box, so acceptable; an optional hosted-host fallback
+  (our cloud, or scale-to-zero microVM later) can be offered for customers
+  without a reliable spare machine.
 
 ---
 
@@ -260,18 +297,18 @@ Guiding principles:
   in S3; membership is invite-gated.
 - **Rollback:** pilot is greenfield → just delete it.
 
-### Phase 2 — Agent client (BYOC)
-- Package the agent (**blueclaw** + Buzz connector + `capabilityd` permission
-  boundary) as a **CLI installer** for customer Linux, with BYO-LLM config
-  (local / OpenRouter / Claude Code).
-- Run the pilot tenant’s agent on a **non-Jetson Linux box** (a cloud VM first,
-  then a real customer machine), connected **outbound** to the central relay.
+### Phase 2 — Client app (one app, host mode first)
+- Build the **single app** (blueclaw + Buzz connector + permission boundary,
+  BYO-LLM), starting with **`host` mode headless** (CLI/package install) for a
+  spare Linux box.
+- Run the pilot tenant’s **host** on a **non-Jetson Linux box** (a cloud VM
+  first, then a real spare machine), connected **outbound** to the central relay.
   Validate the full loop (chat → agent → tools/terminal → reply) with **no device
-  hardware**.
-- Then wrap the same runtime in the **companion (Tauri) app** for
-  non-technical, one-click installs.
-- **Gate:** agent joins as `Bot`, does real work end-to-end from a plain Linux
-  host; app install works for a non-technical user.
+  hardware and no tunnel**.
+- Then the **desktop app** with the mode selector — `host` for a one-click spare
+  box, `guest` for employees’ optional local capabilities.
+- **Gate:** host joins as `Bot`, does real work end-to-end from a plain Linux
+  host; desktop app install + mode selection works for a non-technical user.
 - **Rollback:** none (pilot only).
 
 ### Phase 3 — Arbitrary-agent adapter (parallel / optional)
@@ -333,15 +370,23 @@ Per tenant:
    agent.
 8. **Relay backends:** run Postgres/Redis/S3 ourselves vs. managed (Supabase /
    Upstash / S3) to minimize the self-hosted surface.
+9. **Host↔guest capability model:** which guest a host may ask for which
+   capability, the approval flow (`user.confirm`/`user.input` only when that
+   guest is online), and the RPC framing/encryption carried over relay events.
+10. **Host identity & fallback:** host `Bot` identity vs. each guest identity on
+    the roster; optional hosted-host fallback for customers without a reliable
+    spare box.
 
 ---
 
 ## 12. Summary
 
 Move from "ship a Jetson per tenant" to "run a tiny central plane (relay + web +
-data) and let each customer run their own agent client (BYO compute + LLM),
-joined to their own Buzz community." Isolation is strong (their machine, relay
-membership, Supabase RLS), our marginal cost is ~$0 (so a free tier is viable),
+data) and let each customer run **one app** — **host** mode (always-on agent on
+a spare box, outbound-only, no tunnel) + optional **guest** mode (employees'
+local capabilities), joined to their own Buzz community, BYO compute + LLM."
+Isolation is strong (their machine, relay membership, Supabase RLS), our marginal
+cost is ~$0 (so a free tier is viable),
 and the whole stack stays open source for self-hosters. The main open items are
 component placement, the agent adapter for arbitrary agents, and whether/how to
 offer an always-on tier.
