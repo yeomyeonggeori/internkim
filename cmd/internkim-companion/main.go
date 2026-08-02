@@ -117,14 +117,6 @@ const (
 
 type browserAutoApprovalHandler struct{}
 
-func (handler browserAutoApprovalHandler) Approve(ctx context.Context, request companionruntime.ApprovalRequest) (companionruntime.ApprovalDecision, error) {
-	_ = ctx
-	if request.CapabilityScope == "browser" {
-		return companionruntime.ApprovalDecision{Allowed: true}, nil
-	}
-	return companionruntime.ApprovalDecision{Allowed: false, SuggestedConstraint: "automatic approval is limited to browser grants"}, nil
-}
-
 func registerStateFlag(flags *flag.FlagSet) *string {
 	return flags.String("state", defaultStatePath(), "companion state path")
 }
@@ -305,13 +297,10 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	runOnce := flags.Bool("once", false, "process one polling cycle")
 	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses")
 	allowStdinPrompts := flags.Bool("allow-stdin-prompts", false, "allow terminal prompts for user input capabilities")
-	shellBridgeURL := flags.String("shell-bridge-url", "", "local companion shell bridge URL")
-	shellBridgeToken := flags.String("shell-bridge-token", "", "local companion shell bridge token")
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
 	browserExecutablePath := flags.String("browser-executable", defaultBrowserExecutablePath(), "browser executable path")
 	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
 	browserExtensionPath := flags.String("browser-extension-path", "", "companion browser extension directory path")
-	developmentAutoApproveBrowser := flags.Bool("development-auto-approve-browser", false, "automatically approve browser grants for local E2E")
 	localLLMFlags := registerLocalLLMFlags(flags)
 	preferCompanionBrowser := flags.Bool("prefer-companion-browser", false, "ask the device to route browser tools to this companion")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
@@ -346,19 +335,18 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if readiness.Status != "ready" {
 		state.Capabilities = companionruntime.CapabilitiesWithoutBrowser(state.Capabilities)
 	}
-	grantStore := companionruntime.NewMemoryGrantStore()
 	handoffStore := companionruntime.NewPersistentBrowserHandoffStore(defaultHandoffStatePath(*statePath))
 	runtimeStatus := &runtimeState{}
 	if localLLMConfiguration.Enabled {
 		runtimeStatus.replaceLocalLLM(localLLMConfiguration)
 	}
-	executor := companionruntime.NewExecutor(*devMockLLM, localLLM, localLLM, browserRuntime, handoffStore, grantStore)
+	executor := companionruntime.NewExecutor(*devMockLLM, localLLM, localLLM, browserRuntime, handoffStore)
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
 	}
 	deviceClient := companionruntime.DeviceClient{HTTPClient: httpClient, State: state, PrivateKey: privateKey}
 	handoffCompletionHandler := companionruntime.JobRunner{DeviceClient: deviceClient}.CompleteHandoff
-	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, handoffStore, executor.BrowserRuntime, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
+	controlServer, errorValue := startControlServer(*controlListenAddress, handoffStore, executor.BrowserRuntime, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -366,21 +354,8 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		defer controlServer.Close()
 	}
 	if *allowStdinPrompts {
-		executor.PromptHandler = companionruntime.TerminalPromptHandler{Reader: os.Stdin, Writer: os.Stdout}
 	}
-	if *developmentAutoApproveBrowser {
-		executor.ApprovalHandler = browserAutoApprovalHandler{}
-	}
-	if strings.TrimSpace(*shellBridgeURL) != "" {
-		shellBridgeHandler := companionruntime.ShellBridgePromptHandler{
-			BaseURL:    *shellBridgeURL,
-			Token:      *shellBridgeToken,
-			HTTPClient: httpClient,
-		}
-		executor.PromptHandler = shellBridgeHandler
-		executor.ApprovalHandler = shellBridgeHandler
-		executor.FileUploader = companionruntime.DeviceFileUploader{DeviceClient: deviceClient}
-	}
+	executor.FileUploader = companionruntime.DeviceFileUploader{DeviceClient: deviceClient}
 	jobRunner := companionruntime.JobRunner{
 		DeviceClient:           deviceClient,
 		Executor:               executor,

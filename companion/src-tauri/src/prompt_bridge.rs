@@ -128,9 +128,6 @@ fn handle_prompt_stream(
         return Ok(());
     }
     let kind = match request.path.as_str() {
-        "/v1/user/confirm" => "confirm",
-        "/v1/user/input" => "input",
-        "/v1/security/approval" => "approval",
         _ => {
             write_http_json(&mut stream, 404, json!({"error":"not found"}))?;
             return Ok(());
