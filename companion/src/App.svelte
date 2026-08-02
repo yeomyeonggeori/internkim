@@ -8,7 +8,6 @@
 	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, type PromptRequest, type PromptResult } from './lib/prompts';
 	import { disconnectCompanion, ensureLaunchAtLogin, pairCompanion, readCompanionStatus, refreshRuntimeStatus, restartCompanionRuntime, setRuntimeState, startCompanionRuntime } from './lib/sidecar';
 	import GrantsPanel from './lib/components/GrantsPanel.svelte';
-	import MountsPanel from './lib/components/MountsPanel.svelte';
 	import PairingPanel from './lib/components/PairingPanel.svelte';
 	import RuntimeStatusPanel from './lib/components/RuntimeStatusPanel.svelte';
 	import SettingsPanel from './lib/components/SettingsPanel.svelte';
@@ -196,7 +195,6 @@
 
 	<RuntimeStatusPanel {status} onStart={ensureRuntime} />
 
-	<MountsPanel onMessage={(text) => (message = text)} />
 
 	<SettingsPanel {status} />
 

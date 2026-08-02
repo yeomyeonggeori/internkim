@@ -102,12 +102,6 @@ the exact successful tool result and resource effect. A read, plan, draft,
 progress message, or similarly named operation cannot prove a write, send,
 publish, or delivery.
 
-## Companion Mounted Folders
-
-For folders mounted from the user's computer, use `filesystem_mount_list`, guest
-paths under `/workspace/mounts/<name>`, and `filesystem.mount.*` tools. Do not
-ask for or reveal local absolute paths. If a mount is unavailable, say so.
-
 ## Memory
 
 Use conversation context, progress summaries, and prior successful tool

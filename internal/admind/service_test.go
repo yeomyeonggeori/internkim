@@ -5531,7 +5531,7 @@ func TestCompanionJobTimeoutSecond(t *testing.T) {
 	}{
 		{
 			name:     "non interactive default",
-			request:  capabilities.ToolInvokeRequest{ToolName: "filesystem_mount_list"},
+			request:  capabilities.ToolInvokeRequest{ToolName: "web_search"},
 			expected: 30,
 		},
 		{

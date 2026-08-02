@@ -666,7 +666,7 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	}
 	runtimeStatus := &runtimeState{}
 	runtimeStatus.recordHeartbeat(nil)
-	handler := controlHandler(grantStore, companionruntime.NewMountStore(""), companionruntime.NewBrowserHandoffStore(), nil, nil, runtimeStatus, newDynamicLocalLLM(localLLMSettings{}), http.DefaultClient)
+	handler := controlHandler(grantStore, companionruntime.NewBrowserHandoffStore(), nil, nil, runtimeStatus, newDynamicLocalLLM(localLLMSettings{}), http.DefaultClient)
 
 	listRequest := httptest.NewRequest(http.MethodGet, "/v1/security/grants", nil)
 	listRequest.RemoteAddr = "127.0.0.1:1234"
@@ -711,7 +711,6 @@ func TestControlHandlerCompletesBrowserHandoff(t *testing.T) {
 	}
 	handler := controlHandler(
 		companionruntime.NewMemoryGrantStore(),
-		companionruntime.NewMountStore(""),
 		handoffStore,
 		nil,
 		nil,
@@ -759,7 +758,6 @@ func TestControlHandlerUpdatesLocalLLMWithoutRestart(t *testing.T) {
 	localLLM := newDynamicLocalLLM(localLLMSettings{})
 	handler := controlHandler(
 		companionruntime.NewMemoryGrantStore(),
-		companionruntime.NewMountStore(""),
 		companionruntime.NewBrowserHandoffStore(),
 		nil,
 		nil,
@@ -897,9 +895,6 @@ func TestDisconnectRevokesRemoteAndClearsLocalPairing(t *testing.T) {
 	if errorValue := saveState(statePath, state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := os.WriteFile(defaultMountStatePath(statePath), []byte("{}"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
 	if errorValue := os.WriteFile(defaultHandoffStatePath(statePath), []byte("{}"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -922,9 +917,6 @@ func TestDisconnectRevokesRemoteAndClearsLocalPairing(t *testing.T) {
 	}
 	if _, errorValue := os.Stat(statePath); !errors.Is(errorValue, os.ErrNotExist) {
 		t.Fatalf("expected state file to be removed, got %v", errorValue)
-	}
-	if _, errorValue := os.Stat(defaultMountStatePath(statePath)); !errors.Is(errorValue, os.ErrNotExist) {
-		t.Fatalf("expected mount state to be removed, got %v", errorValue)
 	}
 	if _, errorValue := os.Stat(defaultHandoffStatePath(statePath)); !errors.Is(errorValue, os.ErrNotExist) {
 		t.Fatalf("expected handoff state to be removed, got %v", errorValue)

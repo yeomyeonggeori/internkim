@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,10 +27,6 @@ type PromptHandler interface {
 
 type FilePicker interface {
 	PickFile(ctx context.Context, request FilePickRequest) (PickedFile, error)
-}
-
-type DirectoryPicker interface {
-	PickDirectory(ctx context.Context, request DirectoryPickRequest) (PickedDirectory, error)
 }
 
 // browserHandoffPauser is implemented by browser.ExtensionInputRuntime.
@@ -68,9 +63,7 @@ type Executor struct {
 	HandoffStore    *BrowserHandoffStore
 	PromptHandler   PromptHandler
 	FilePicker      FilePicker
-	DirectoryPicker DirectoryPicker
 	FileUploader    FileUploader
-	MountStore      *MountStore
 	ApprovalHandler ApprovalHandler
 	GrantStore      *MemoryGrantStore
 }
@@ -86,7 +79,6 @@ func NewExecutor(
 	embeddingChain llmbackend.EmbeddingProvider,
 	browserRuntime browserruntime.Runtime,
 	handoffStore *BrowserHandoffStore,
-	mountStore *MountStore,
 	grantStore *MemoryGrantStore,
 ) Executor {
 	return Executor{
@@ -95,7 +87,6 @@ func NewExecutor(
 		EmbeddingChain: embeddingChain,
 		BrowserRuntime: browserRuntime,
 		HandoffStore:   handoffStore,
-		MountStore:     mountStore,
 		GrantStore:     grantStore,
 	}
 }
@@ -158,22 +149,6 @@ var executorToolHandlers = map[string]executorToolHandler{
 	"user_confirm":                       executorRequestHandler(Executor.executeUserConfirm),
 	"user_input":                         executorRequestHandler(Executor.executeUserInput),
 	"file_pick":                          Executor.executeFilePick,
-	"filesystem_mount_create":            executorRequestHandler(Executor.executeMountCreate),
-	"filesystem_mount_list":              executorSimpleHandler(Executor.executeMountList),
-	"filesystem_mount_pause":             executorSimpleHandler(Executor.executeMountPause),
-	"filesystem_mount_resume":            executorSimpleHandler(Executor.executeMountResume),
-	"filesystem_mount_revoke":            executorSimpleHandler(Executor.executeMountRevoke),
-	"filesystem_mount_status":            executorSimpleHandler(Executor.executeMountStatus),
-	"filesystem_mount_stat":              executorSimpleHandler(Executor.executeMountStat),
-	"filesystem_mount_list_directory":    executorSimpleHandler(Executor.executeMountListDirectory),
-	"filesystem_mount_read":              executorSimpleHandler(Executor.executeMountRead),
-	"filesystem_mount_write":             executorSimpleHandler(Executor.executeMountWrite),
-	"filesystem_mount_mkdir":             executorSimpleHandler(Executor.executeMountMakeDirectory),
-	"filesystem_mount_rename":            executorSimpleHandler(Executor.executeMountRename),
-	"filesystem_mount_delete":            executorSimpleHandler(Executor.executeMountDelete),
-	"filesystem_mount_truncate":          executorSimpleHandler(Executor.executeMountTruncate),
-	"filesystem_mount_chmod":             executorSimpleHandler(Executor.executeMountChangeMode),
-	"filesystem_mount_watch":             executorSimpleHandler(Executor.executeMountWatch),
 }
 
 func executorRequestHandler(handler func(Executor, context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)) executorToolHandler {
@@ -796,264 +771,6 @@ func (executor Executor) executeFilePick(ctx context.Context, envelope JobEnvelo
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	return toolResponse(request.ToolName, uploadedFile)
-}
-
-func (executor Executor) executeMountCreate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, errorValue := executor.requireMountStore()
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	var input struct {
-		Path        string `json:"path"`
-		DisplayName string `json:"displayName"`
-		Title       string `json:"title"`
-	}
-	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	localPath := strings.TrimSpace(input.Path)
-	if localPath == "" {
-		if executor.DirectoryPicker == nil {
-			return capabilities.ToolInvokeResponse{}, errors.New("directory picker requires companion UI")
-		}
-		pickedDirectory, errorValue := executor.DirectoryPicker.PickDirectory(ctx, DirectoryPickRequest{Title: firstNonEmpty(input.Title, "Choose a folder for the connected agent")})
-		if errorValue != nil {
-			return capabilities.ToolInvokeResponse{}, errorValue
-		}
-		localPath = pickedDirectory.Path
-	}
-	mount, errorValue := mountStore.Create(localPath, input.DisplayName)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, mount)
-}
-
-func (executor Executor) executeMountList(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, errorValue := executor.requireMountStore()
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, map[string]any{"mounts": mountStore.List()})
-}
-
-func (executor Executor) executeMountRevoke(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	mount, errorValue := mountStore.Revoke(input.MountID)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, mount)
-}
-
-func (executor Executor) executeMountPause(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	mount, errorValue := mountStore.Pause(input.MountID)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, mount)
-}
-
-func (executor Executor) executeMountResume(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	mount, errorValue := mountStore.Resume(input.MountID)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, mount)
-}
-
-func (executor Executor) executeMountStatus(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	if strings.TrimSpace(input.MountID) == "" {
-		return toolResponse(request.ToolName, map[string]any{"mounts": mountStore.List()})
-	}
-	mount, errorValue := mountStore.Status(input.MountID)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, mount)
-}
-
-func (executor Executor) executeMountStat(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	information, errorValue := mountStore.Stat(input.MountID, input.Path)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, information)
-}
-
-func (executor Executor) executeMountListDirectory(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	entries, errorValue := mountStore.ListDirectory(input.MountID, input.Path)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, map[string]any{"entries": entries})
-}
-
-func (executor Executor) executeMountRead(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	result, errorValue := mountStore.ReadFile(input.MountID, input.Path)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, result)
-}
-
-func (executor Executor) executeMountWrite(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	document, errorValue := mountWriteDocument(input)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	information, errorValue := mountStore.WriteFile(input.MountID, input.Path, document)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, information)
-}
-
-func (executor Executor) executeMountMakeDirectory(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	information, errorValue := mountStore.MakeDirectory(input.MountID, input.Path)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, information)
-}
-
-func (executor Executor) executeMountRename(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	information, errorValue := mountStore.Rename(input.MountID, input.Path, input.ToPath)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, information)
-}
-
-func (executor Executor) executeMountDelete(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	result, errorValue := mountStore.Delete(input.MountID, input.Path, input.Recursive)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, result)
-}
-
-func (executor Executor) executeMountTruncate(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	information, errorValue := mountStore.Truncate(input.MountID, input.Path, input.SizeBytes)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, information)
-}
-
-func (executor Executor) executeMountChangeMode(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	information, errorValue := mountStore.ChangeMode(input.MountID, input.Path, os.FileMode(input.Mode))
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, information)
-}
-
-func (executor Executor) executeMountWatch(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	mountStore, input, errorValue := executor.mountInput(request)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	entries, errorValue := mountStore.ChangedSince(input.MountID, input.Path, time.Unix(0, input.SinceUnixNano).UTC())
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, map[string]any{"entries": entries, "sinceUnixNano": input.SinceUnixNano})
-}
-
-type mountToolInput struct {
-	MountID       string `json:"mountID"`
-	Path          string `json:"path"`
-	ToPath        string `json:"toPath"`
-	Content       string `json:"content"`
-	ContentBase64 string `json:"contentBase64"`
-	Recursive     bool   `json:"recursive"`
-	SizeBytes     int64  `json:"sizeBytes"`
-	Mode          uint32 `json:"mode"`
-	SinceUnixNano int64  `json:"sinceUnixNano"`
-}
-
-func (executor Executor) mountInput(request capabilities.ToolInvokeRequest) (*MountStore, mountToolInput, error) {
-	mountStore, errorValue := executor.requireMountStore()
-	if errorValue != nil {
-		return nil, mountToolInput{}, errorValue
-	}
-	var input mountToolInput
-	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
-		return nil, mountToolInput{}, errorValue
-	}
-	if strings.TrimSpace(input.MountID) == "" && request.ResourceScope.Kind == MountResourceScopeKind {
-		input.MountID = request.ResourceScope.Value
-	}
-	if strings.TrimSpace(input.MountID) == "" && request.ToolName != "filesystem_mount_status" {
-		return nil, mountToolInput{}, errors.New("mountID is required")
-	}
-	return mountStore, input, nil
-}
-
-func (executor Executor) requireMountStore() (*MountStore, error) {
-	if executor.MountStore == nil {
-		return nil, errors.New("filesystem mount store is unavailable")
-	}
-	return executor.MountStore, nil
-}
-
-func mountWriteDocument(input mountToolInput) ([]byte, error) {
-	if strings.TrimSpace(input.ContentBase64) != "" {
-		return base64.StdEncoding.DecodeString(strings.TrimSpace(input.ContentBase64))
-	}
-	return []byte(input.Content), nil
 }
 
 func fileUploadRequestFromPickedFile(envelope JobEnvelope, request FilePickRequest, pickedFile PickedFile) (FileUploadRequest, error) {
