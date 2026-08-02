@@ -48,7 +48,7 @@ func shouldWatchCompanionJob(job *CompanionJob) bool {
 	return toolName == "user_confirm" ||
 		toolName == "user_input" ||
 		toolName == "file_pick" ||
-		strings.HasPrefix(toolName, "filesystem.mount.")
+		capabilities.IsToolInNamespace(toolName, "filesystem")
 }
 
 func closeCompanionJobWatchLocked(job *CompanionJob, now time.Time) {

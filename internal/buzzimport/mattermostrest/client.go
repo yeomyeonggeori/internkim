@@ -155,11 +155,11 @@ func (client Client) Posts(ctx context.Context, channelID string, sinceMillis in
 			continue
 		}
 		posts = append(posts, buzzimport.MattermostPost{
-			ID:        post.ID,
-			ChannelID: post.ChannelID,
-			UserID:    post.UserID,
-			RootID:    post.RootID,
-			Message:   post.Message,
+			ID:           post.ID,
+			ChannelID:    post.ChannelID,
+			UserID:       post.UserID,
+			RootID:       post.RootID,
+			Message:      post.Message,
 			CreatedAt:    time.UnixMilli(post.CreateAt).UTC(),
 			FileIDs:      post.FileIDs,
 			HasReactions: post.HasReactions,

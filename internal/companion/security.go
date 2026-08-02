@@ -308,19 +308,20 @@ func titleCapabilityScope(value string) string {
 	return strings.ToUpper(value[:1]) + value[1:]
 }
 
-func capabilityScopeForTool(toolName string) string {
-	switch {
-	case strings.HasPrefix(toolName, "browser_"):
-		return "browser"
-	case toolName == "file_pick":
-		return "file"
-	case strings.HasPrefix(toolName, "desktop."):
-		return "desktop"
-	case toolName == "user_confirm" || toolName == "user_input":
-		return "user_input"
-	default:
-		return ""
+// A grant covers the family a tool declares, so a tool joining that family needs
+// no change here and a renamed tool cannot silently leave it.
+var companionToolApprovalScopes = buildCompanionToolApprovalScopes()
+
+func buildCompanionToolApprovalScopes() map[string]string {
+	scopeByToolName := map[string]string{}
+	for _, descriptor := range capabilities.CompanionToolDescriptors() {
+		scopeByToolName[descriptor.Name] = descriptor.ApprovalScope
 	}
+	return scopeByToolName
+}
+
+func capabilityScopeForTool(toolName string) string {
+	return companionToolApprovalScopes[strings.TrimSpace(toolName)]
 }
 
 func denialForJob(envelope JobEnvelope, request capabilities.ToolInvokeRequest, userReason string, suggestedConstraint string) capabilities.DenialResult {
