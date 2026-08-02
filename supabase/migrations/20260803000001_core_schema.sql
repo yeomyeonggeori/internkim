@@ -104,15 +104,25 @@ create table public.task (
   ends_at timestamptz,
   is_event boolean not null default false,
   is_whole_day boolean not null default false,
+  notify_minutes_before integer check (notify_minutes_before > 0),
   note text,
   check ((starts_at is null) = (ends_at is null)),
   check (ends_at >= starts_at),
   check (not is_event or starts_at is not null),
-  check (not is_whole_day or starts_at is not null)
+  check (not is_whole_day or starts_at is not null),
+  check (notify_minutes_before is null or starts_at is not null)
 );
 
 create index on public.task (company_id, status);
 create index on public.task (company_id, starts_at) where is_event;
+
+create table public.task_participant (
+  task_id uuid not null references public.task on delete cascade,
+  member_id uuid not null references public.member on delete cascade,
+  primary key (task_id, member_id)
+);
+
+create index on public.task_participant (member_id);
 
 create type public.leave_kind as enum ('annual', 'sick', 'unpaid');
 create type public.leave_status as enum ('requested', 'approved', 'rejected');
@@ -177,7 +187,18 @@ alter table public.company enable row level security;
 alter table public.member enable row level security;
 alter table public.credential enable row level security;
 alter table public.attendance enable row level security;
+create function public.company_of_task(target_task uuid)
+returns uuid
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select company_id from public.task where id = target_task;
+$$;
+
 alter table public.task enable row level security;
+alter table public.task_participant enable row level security;
 alter table public.leave enable row level security;
 
 create policy company_readable_by_member on public.company
@@ -206,6 +227,13 @@ create policy attendance_writable_by_owner on public.attendance
 create policy task_usable_by_colleague on public.task
   for all using (company_id = public.company_of(public.my_member()))
   with check (company_id = public.company_of(public.my_member()));
+
+create policy task_participant_usable_by_colleague on public.task_participant
+  for all using (public.company_of_task(task_id) = public.company_of(public.my_member()))
+  with check (
+    public.company_of_task(task_id) = public.company_of(public.my_member())
+    and public.company_of(member_id) = public.company_of(public.my_member())
+  );
 
 create policy leave_readable_by_colleague on public.leave
   for select using (public.company_of(member_id) = public.company_of(public.my_member()));
