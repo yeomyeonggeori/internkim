@@ -228,7 +228,13 @@ on" concern:
 
 ## 8. Open source & self-hosting
 
-- **All source public** (the InternKim stack; Buzz is already Apache-2.0).
+- **All source public** (the InternKim stack; Buzz is already Apache-2.0) with one
+  exception: the **bluecollar** harness (the agent loop) stays private, while the
+  contract it plugs into (`agentcontract`) is public — see
+  [`harness-split-design.md`](./harness-split-design.md). blueclaw's self-host
+  path must therefore stay green with an **AI SDK harness** (Claude Code, Codex,
+  opencode via llmd) instead of bluecollar, so the open-source stack has no hole
+  where the agent loop should be.
 - **Self-host path:** a customer can run the whole thing themselves — their own
   Buzz relay (+ Postgres/Redis/S3), their own web app, their own agent — with no
   dependency on our central plane. The SaaS is a convenience layer over the same
@@ -300,7 +306,10 @@ Guiding principles:
 ### Phase 2 — Client app (one app, host mode first)
 - Build the **single app** (blueclaw + Buzz connector + permission boundary,
   BYO-LLM), starting with **`host` mode headless** (CLI/package install) for a
-  spare Linux box.
+  spare Linux box. This is the same deliverable as the `blueclaw host` terminal
+  entry point in `harness-split-design.md` §5 — build it once.
+- The **harness is selectable at this point**, not later: bluecollar or an AI SDK
+  harness. Shipping single-harness here means rewiring in Phase 3.
 - Run the pilot tenant’s **host** on a **non-Jetson Linux box** (a cloud VM
   first, then a real spare machine), connected **outbound** to the central relay.
   Validate the full loop (chat → agent → tools/terminal → reply) with **no device
@@ -311,9 +320,15 @@ Guiding principles:
   host; desktop app install + mode selection works for a non-technical user.
 - **Rollback:** none (pilot only).
 
-### Phase 3 — Arbitrary-agent adapter (parallel / optional)
-- Finish the **Buzz/ACP adapter** (`acpd` + Buzz adapter) so non-native agents
-  (e.g. Claude Code) can connect. Native blueclaw already speaks Buzz.
+### Phase 3 — External-participant adapter: ACP over Buzz (parallel / optional)
+- Finish the **Buzz/ACP adapter** (`acpd` + Buzz adapter) so an agent we do not
+  host (e.g. an employee's own Claude Code) can join a community as a member.
+  Native blueclaw already speaks Buzz.
+- This is **not** harness replacement. Swapping the loop *inside* our host is the
+  harness port (`harness-split-design.md` §3); here the whole agent lives outside
+  our host and our POSIX boundary does not apply to it. Do not collapse the two:
+  the harness port must not grow ACP concepts, and `acpd` must not drive blueclaw
+  tools.
 - Gated by the §11 decision on whether v1 opens to arbitrary agents.
 
 ### Phase 4 — Migrate existing Jetson tenants (one at a time)
@@ -376,6 +391,8 @@ Per tenant:
 10. **Host identity & fallback:** host `Bot` identity vs. each guest identity on
     the roster; optional hosted-host fallback for customers without a reliable
     spare box.
+11. **Default harness for self-hosters:** bluecollar is private, so which harness
+    is the default for someone self-hosting blueclaw without access to it?
 
 ---
 
