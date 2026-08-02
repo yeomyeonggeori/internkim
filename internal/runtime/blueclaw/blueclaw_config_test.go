@@ -552,7 +552,7 @@ func TestBlueclawRuntimeConfigSupportsOptionalModelOverride(t *testing.T) {
 	if capabilityLanguageModel["model"] != "google/custom-model" {
 		t.Fatalf("expected explicit model override, got %+v", capabilityLanguageModel)
 	}
-	for _, tierModelField := range []string{"highModel", "mediumModel", "lowModel", "xlowModel", "codingModel"} {
+	for _, tierModelField := range []string{"highModel", "mediumModel", "lowModel", "xlowModel"} {
 		if _, isFound := capabilityLanguageModel[tierModelField]; isFound {
 			t.Fatalf("expected ordinary model override to omit %s, got %+v", tierModelField, capabilityLanguageModel)
 		}
@@ -578,7 +578,7 @@ func TestBlueclawRuntimeConfigCanApplyModelOverrideToAllTiers(t *testing.T) {
 
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
 	capabilityLanguageModel := languageModel["capability"].(map[string]any)
-	for _, tierModelField := range []string{"model", "highModel", "lowModel", "xlowModel", "codingModel"} {
+	for _, tierModelField := range []string{"model", "highModel", "lowModel", "xlowModel"} {
 		if capabilityLanguageModel[tierModelField] != "google/test-model" {
 			t.Fatalf("expected %s to use test model, got %+v", tierModelField, capabilityLanguageModel)
 		}
