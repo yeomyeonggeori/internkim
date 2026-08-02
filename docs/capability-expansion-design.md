@@ -20,7 +20,7 @@
 |---|---|---|
 | 대화 런타임 | Blueclaw | 정책, task, ACL, prompt, skill 선택을 담당 |
 | 비밀 정보 실행 | `internkim-capabilityd` | OpenRouter, platform token, device browser 같은 secret-bearing 작업을 직접 보유 |
-| 사용자 로컬 실행 | `internkim-companion` | `user_confirm`, `user_input`, `file_pick`, `browser.*`를 사용자 컴퓨터에서 실행 |
+| 사용자 로컬 실행 | `internkim-companion` | `browser_*`를 사용자 컴퓨터에서 실행 |
 | Portable artifacts | ICS, CalDAV, DOCX, XLSX, CSV, HTML, PDF | Google 인증 없이 먼저 생성/공유 가능한 기본 산출물 |
 | Google Workspace | `gws`, `gws-bot`, Apps Script bridge | optional import/export/publish target으로 유지 |
 | 기억 | Graphiti memory sidecar | 대화, 업무, 사람, 파일 요약을 장기 기억으로 저장 |
@@ -141,7 +141,6 @@ Companion의 approval grant는 task-scoped로 유지하고, `user_confirm`과 `u
 | `artifact_extraction` | markitdown, OCR, VLM, PDF text 추출 결과 |
 | `artifact_relation` | task, meeting, staff, email, calendar event와의 연결 |
 
-Companion `file_pick`은 로컬 경로를 노출하지 않고 device temp path만 반환하는 현재 정책을 유지한다. 이후 영구 보관이 필요하면 Drive, DB blob store, 또는 `/root/.internkim/artifacts` 중 하나로 명시적으로 승격한다.
 
 ### 6. 업무 DB를 product schema로 확장
 

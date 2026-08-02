@@ -1118,8 +1118,6 @@ func companionResourceScope(request capabilities.ToolInvokeRequest) capabilities
 	switch request.ToolName {
 	case "browser_open", "browser_snapshot", "browser_screenshot", "browser_handoff", "browser_click", "browser_fill", "browser_select", "browser_press", "browser_wait":
 		return capabilities.ResourceScope{Kind: "web_origin", Value: browserOriginFromInput(request.Input)}
-	case "file_pick":
-		return capabilities.ResourceScope{Kind: "file_root", Value: ""}
 	default:
 		return capabilities.ResourceScope{}
 	}

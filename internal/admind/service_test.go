@@ -5060,7 +5060,7 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	handler := service.router()
 	keyPair, pairResult := pairTestCompanion(t, handler, keyPairCapabilityRequest{
 		KeyPair:    keyPairForTest(t),
-		Capability: `{"name":"file_pick","version":"1","privacyClass":"local_file","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
+		Capability: `{"name":"browser_screenshot","version":"1","privacyClass":"local_file","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
 	})
 	_ = keyPair
 
@@ -5068,8 +5068,8 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	errorChannel := make(chan error, 1)
 	go func() {
 		response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-			ToolName:      "file_pick",
-			PrivacyClass:  "local_file",
+			ToolName:      "browser_screenshot",
+			ExecutionMode: capabilities.ExecutionModeCompanion,
 			Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 			TimeoutSecond: 2,
 		})
@@ -5144,7 +5144,7 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	}
 
 	completeJobResponse := httptest.NewRecorder()
-	completeJobRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/jobs/"+companionJob.JobID+"/complete", strings.NewReader(toolResponseJSON(t, "file_pick", uploadResult)))
+	completeJobRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/jobs/"+companionJob.JobID+"/complete", strings.NewReader(toolResponseJSON(t, "browser_screenshot", uploadResult)))
 	setCompanionHeaders(t, completeJobRequest, pairResult.companionPairResponse, pairResult.privateKey)
 	handler.ServeHTTP(completeJobResponse, completeJobRequest)
 	if completeJobResponse.Code != http.StatusOK {
@@ -5152,7 +5152,7 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	}
 	select {
 	case response := <-resultChannel:
-		if response.ToolName != "file_pick" {
+		if response.ToolName != "browser_screenshot" {
 			t.Fatalf("unexpected response: %+v", response)
 		}
 	case errorValue := <-errorChannel:

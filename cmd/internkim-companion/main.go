@@ -379,7 +379,6 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		}
 		executor.PromptHandler = shellBridgeHandler
 		executor.ApprovalHandler = shellBridgeHandler
-		executor.FilePicker = shellBridgeHandler
 		executor.FileUploader = companionruntime.DeviceFileUploader{DeviceClient: deviceClient}
 	}
 	jobRunner := companionruntime.JobRunner{

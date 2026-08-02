@@ -49,23 +49,6 @@ func (handler ShellBridgePromptHandler) Approve(ctx context.Context, request App
 	return response, nil
 }
 
-func (handler ShellBridgePromptHandler) PickFile(ctx context.Context, request FilePickRequest) (PickedFile, error) {
-	var response struct {
-		Canceled bool   `json:"cancelled"`
-		Path     string `json:"path"`
-	}
-	if errorValue := handler.post(ctx, "/v1/file/pick", request, &response); errorValue != nil {
-		return PickedFile{}, errorValue
-	}
-	if response.Canceled {
-		return PickedFile{}, ErrFilePickCanceled
-	}
-	if strings.TrimSpace(response.Path) == "" {
-		return PickedFile{}, errors.New("file picker returned no file")
-	}
-	return PickedFile{Path: response.Path}, nil
-}
-
 func (handler ShellBridgePromptHandler) post(ctx context.Context, path string, requestBody any, responseBody any) error {
 	baseURL, errorValue := validateShellBridgeURL(handler.BaseURL)
 	if errorValue != nil {

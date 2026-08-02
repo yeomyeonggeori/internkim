@@ -45,10 +45,7 @@ func shouldWatchCompanionJob(job *CompanionJob) bool {
 		return false
 	}
 	toolName := strings.TrimSpace(job.ToolName)
-	return toolName == "user_confirm" ||
-		toolName == "user_input" ||
-		toolName == "file_pick" ||
-		capabilities.IsToolInNamespace(toolName, "filesystem")
+	return toolName == "user_confirm" || toolName == "user_input"
 }
 
 func closeCompanionJobWatchLocked(job *CompanionJob, now time.Time) {
