@@ -278,10 +278,10 @@ func collectMattermostScenarioCreatedResourceIDs(result mattermostScenarioResult
 		for _, event := range step.TaskEvents {
 			toolName, resourceID := mattermostScenarioCreatedResourceFromEvent(event)
 			switch {
-			case toolName == "task.add" && !seenTaskIDs[resourceID]:
+			case toolName == "task_add" && !seenTaskIDs[resourceID]:
 				seenTaskIDs[resourceID] = true
 				resourceIDs.TaskIDs = append(resourceIDs.TaskIDs, resourceID)
-			case toolName == "calendar.add" && !seenCalendarEventIDs[resourceID]:
+			case toolName == "calendar_add" && !seenCalendarEventIDs[resourceID]:
 				seenCalendarEventIDs[resourceID] = true
 				resourceIDs.CalendarEventIDs = append(resourceIDs.CalendarEventIDs, resourceID)
 			}
@@ -309,9 +309,9 @@ func mattermostScenarioCreatedResourceFromEvent(event mattermostScenarioTaskEven
 		return "", ""
 	}
 	identifierKeys := []string{"id"}
-	if result.Tool == "task.add" {
+	if result.Tool == "task_add" {
 		identifierKeys = []string{"taskID", "id"}
-	} else if result.Tool == "calendar.add" {
+	} else if result.Tool == "calendar_add" {
 		identifierKeys = []string{"eventID", "id"}
 	} else {
 		return "", ""
@@ -328,10 +328,10 @@ func mattermostScenarioCreatedResourceFromEvent(event mattermostScenarioTaskEven
 
 func mattermostScenarioCreatedResourceToolName(eventName string) (string, bool) {
 	switch eventName {
-	case "tool.task.add.result":
-		return "task.add", true
-	case "tool.calendar.add.result":
-		return "calendar.add", true
+	case "tool.task_add.result":
+		return "task_add", true
+	case "tool.calendar_add.result":
+		return "calendar_add", true
 	default:
 		return "", false
 	}
@@ -381,7 +381,7 @@ func mattermostScenarioHasSiteEvidence(result mattermostScenarioResult) bool {
 			if !isDirectToolEvent {
 				toolName, isDirectToolEvent = mattermostScenarioDirectToolName(event.Name, "result")
 			}
-			if isDirectToolEvent && strings.HasPrefix(toolName, "site.") {
+			if isDirectToolEvent && isSiteToolName(toolName) {
 				return true
 			}
 		}

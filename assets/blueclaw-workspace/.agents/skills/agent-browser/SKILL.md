@@ -11,10 +11,10 @@ Invoke `browser.*` operations through the capability bridge. InternKim runs the 
 
 Core workflow:
 
-1. `browser.open` with `{ "url": "https://example.com" }` to navigate.
-2. `browser.snapshot` with `{}` to read page text and interactive refs such as `@e1`.
-3. `browser.click` or `browser.fill` using refs or selectors.
-4. Re-run `browser.snapshot` after page changes.
-5. `browser.screenshot` when the user asks to capture the visible result.
+1. `browser_open` with `{ "url": "https://example.com" }` to navigate.
+2. `browser_snapshot` with `{}` to read page text and interactive refs such as `@e1`.
+3. `browser_click` or `browser_fill` using refs or selectors.
+4. Re-run `browser_snapshot` after page changes.
+5. `browser_screenshot` when the user asks to capture the visible result.
 
 Never invent missing refs, selectors, URLs, or file paths. If an operation returns an attachment, let the final reply include the attachment instead of exposing a device path.

@@ -149,7 +149,7 @@ func (service Service) invokeMattermostTool(ctx context.Context, request capabil
 		return response, nil
 	}
 	switch request.ToolName {
-	case "channel.update":
+	case "channel_update":
 		return service.invokeMattermostChannelUpdate(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("mattermost tool is not configured: %s", request.ToolName)
@@ -166,7 +166,7 @@ func (service Service) authorizeMattermostTool(ctx context.Context, request capa
 }
 
 func mattermostRequiredCircle(toolName string) string {
-	if toolName == "channel.update" {
+	if toolName == "channel_update" {
 		return mattermostToolAdminCircle
 	}
 	return mattermostToolStaffCircle
@@ -325,7 +325,7 @@ func (service Service) invokeMattermostChannelUpdate(ctx context.Context, reques
 
 func decodeMattermostChannelUpdateInput(document json.RawMessage) (mattermostChannelUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return mattermostChannelUpdateInput{}, fmt.Errorf("channel.update input is required")
+		return mattermostChannelUpdateInput{}, fmt.Errorf("channel_update input is required")
 	}
 	var input mattermostChannelUpdateInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
@@ -367,7 +367,7 @@ func decodeMattermostPostSearchInput(document json.RawMessage) (mattermostPostSe
 
 func decodeMattermostPostUpdateInput(document json.RawMessage) (mattermostPostUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return mattermostPostUpdateInput{}, fmt.Errorf("message.update input is required")
+		return mattermostPostUpdateInput{}, fmt.Errorf("message_update input is required")
 	}
 	var input mattermostPostUpdateInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
@@ -388,7 +388,7 @@ func decodeMattermostPostUpdateInput(document json.RawMessage) (mattermostPostUp
 
 func decodeMattermostPostDeleteInput(document json.RawMessage) (mattermostPostDeleteInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return mattermostPostDeleteInput{}, fmt.Errorf("message.delete input is required")
+		return mattermostPostDeleteInput{}, fmt.Errorf("message_delete input is required")
 	}
 	var input mattermostPostDeleteInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {

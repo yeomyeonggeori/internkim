@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs ON the fleet VM, appended after the helper functions of e2e-crud-remote.sh
 # (the host driver strips that script's dispatch and concatenates this file).
-# Drives ask.input multi-turn conversations: post a DM, detect the bot's question,
+# Drives ask_input multi-turn conversations: post a DM, detect the bot's question,
 # answer it (optionally with file attachments), and assert whether later tasks
 # ask again.
 

@@ -189,8 +189,8 @@ go test ./internal/e2e -run 'TestScheduleCreateAcceptance|TestSitePrototypeAccep
 실제 Mattermost ingress smoke는 비용과 platform 상태에 의존하므로 opt-in입니다. 검증 뒤 테스트 메시지와 봇 답변은 삭제해야 합니다.
 
 ```bash
-./internkim test '1분마다 "1분 지났습니다"라고 보내줘' --expect-tool schedule.create
-./internkim test "테스트용 'Local Fleet Studio' 단일 페이지 소개 웹사이트를 만들어서 배포해줘. 첫 화면 제목은 'Local Fleet Studio', 보조 문구는 '로컬 플릿 웹사이트 생성 배포 테스트', 섹션은 서비스 소개, 장점 3개, 문의 CTA만 넣어줘. 추가 질문하지 말고 합리적인 기본값으로 진행해줘." --expect-public-url --expect-tool terminal.run --expect-tool site.serve
+./internkim test '1분마다 "1분 지났습니다"라고 보내줘' --expect-tool schedule_create
+./internkim test "테스트용 'Local Fleet Studio' 단일 페이지 소개 웹사이트를 만들어서 배포해줘. 첫 화면 제목은 'Local Fleet Studio', 보조 문구는 '로컬 플릿 웹사이트 생성 배포 테스트', 섹션은 서비스 소개, 장점 3개, 문의 CTA만 넣어줘. 추가 질문하지 말고 합리적인 기본값으로 진행해줘." --expect-public-url --expect-tool terminal_run --expect-tool site_serve
 ```
 
 Mattermost ask 선택지 attachment와 버튼 ACK 회귀는 Local Fleet VM 또는 저수준 lab smoke로 확인합니다. public 봇 답변에 선택지 attachment가 붙지 않고, requester-only ephemeral post가 생성되며, 버튼 ACK는 빈 ephemeral text 없이 delete update를 반환해야 합니다.

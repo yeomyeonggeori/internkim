@@ -9,7 +9,7 @@ import (
 func DefaultCapabilities(localOnly bool, devMockLLM bool) []capabilities.Descriptor {
 	descriptors := capabilities.CompanionToolDescriptors()
 	for index, descriptor := range descriptors {
-		if strings.HasPrefix(descriptor.Name, "browser.") {
+		if strings.HasPrefix(descriptor.Name, "browser_") {
 			descriptors[index].WorksOffline = localOnly
 		}
 	}
@@ -22,7 +22,7 @@ func DefaultCapabilities(localOnly bool, devMockLLM bool) []capabilities.Descrip
 func CapabilitiesWithoutBrowser(descriptors []capabilities.Descriptor) []capabilities.Descriptor {
 	filteredDescriptors := []capabilities.Descriptor{}
 	for _, descriptor := range descriptors {
-		if strings.HasPrefix(descriptor.Name, "browser.") {
+		if strings.HasPrefix(descriptor.Name, "browser_") {
 			continue
 		}
 		filteredDescriptors = append(filteredDescriptors, descriptor)

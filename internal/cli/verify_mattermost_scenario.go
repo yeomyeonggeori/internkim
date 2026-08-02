@@ -747,7 +747,7 @@ func validateMattermostScenarioEvents(stepIndex int, expected mattermostScenario
 }
 
 func validateMattermostScenarioCalendarMutationIDs(stepIndex int, expected mattermostScenarioStep, events []mattermostScenarioTaskEvent) error {
-	if !containsMattermostScenarioString(expected.ExpectedToolCalls, "calendar.list") {
+	if !containsMattermostScenarioString(expected.ExpectedToolCalls, "calendar_list") {
 		return nil
 	}
 	for eventIndex, event := range events {
@@ -760,14 +760,14 @@ func validateMattermostScenarioCalendarMutationIDs(stepIndex int, expected matte
 			return fmt.Errorf("Mattermost scenario step %d %s request has no eventHint", stepIndex, toolName)
 		}
 		if !listedMattermostScenarioCalendarEventHints(events[:eventIndex])[eventHint] {
-			return fmt.Errorf("Mattermost scenario step %d %s used eventHint %q before calendar.list returned it", stepIndex, toolName, eventHint)
+			return fmt.Errorf("Mattermost scenario step %d %s used eventHint %q before calendar_list returned it", stepIndex, toolName, eventHint)
 		}
 	}
 	return nil
 }
 
 func mattermostScenarioCalendarMutationName(eventName string) (string, bool) {
-	for _, toolName := range []string{"calendar.update", "calendar.delete"} {
+	for _, toolName := range []string{"calendar_update", "calendar_delete"} {
 		if eventName == "tool."+toolName+".requested" {
 			return toolName, true
 		}
@@ -798,7 +798,7 @@ func listedMattermostScenarioCalendarEventHints(events []mattermostScenarioTaskE
 }
 
 func mattermostScenarioCalendarListEventHints(event mattermostScenarioTaskEvent) []string {
-	if event.Name != "tool.calendar.list.result" {
+	if event.Name != "tool.calendar_list.result" {
 		return nil
 	}
 	var result struct {
@@ -826,7 +826,7 @@ func validateMattermostScenarioMessageMutationIDs(stepIndex int, expected matter
 	lineageIDs := priorMattermostScenarioMessageIDs(stepIndex, result)
 	searchIDs := map[string]bool{}
 	for eventIndex, event := range events {
-		if event.Name == "tool.message.search.result" {
+		if event.Name == "tool.message_search.result" {
 			addMattermostScenarioMessageIDs(searchIDs, mattermostScenarioMessageResultIDs(event))
 			continue
 		}
@@ -839,8 +839,8 @@ func validateMattermostScenarioMessageMutationIDs(stepIndex int, expected matter
 			return fmt.Errorf("Mattermost scenario step %d %s request has no message ID", stepIndex, toolName)
 		}
 		for _, messageID := range messageIDs {
-			if containsMattermostScenarioString(expected.ExpectedToolCalls, "message.search") && !searchIDs[messageID] {
-				return fmt.Errorf("Mattermost scenario step %d %s used message ID %q before message.search returned it at event %d", stepIndex, toolName, messageID, eventIndex)
+			if containsMattermostScenarioString(expected.ExpectedToolCalls, "message_search") && !searchIDs[messageID] {
+				return fmt.Errorf("Mattermost scenario step %d %s used message ID %q before message_search returned it at event %d", stepIndex, toolName, messageID, eventIndex)
 			}
 			if len(lineageIDs) > 0 && !lineageIDs[messageID] {
 				return fmt.Errorf("Mattermost scenario step %d %s used message ID %q outside the scenario mutation lineage", stepIndex, toolName, messageID)
@@ -851,7 +851,7 @@ func validateMattermostScenarioMessageMutationIDs(stepIndex int, expected matter
 }
 
 func mattermostScenarioMessageMutationName(eventName string) (string, bool) {
-	for _, toolName := range []string{"message.update", "message.delete"} {
+	for _, toolName := range []string{"message_update", "message_delete"} {
 		if eventName == "tool."+toolName+".requested" {
 			return toolName, true
 		}
@@ -883,7 +883,7 @@ func priorMattermostScenarioMessageIDs(stepIndex int, result *mattermostScenario
 	}
 	for _, step := range result.Steps[:min(stepIndex, len(result.Steps))] {
 		for _, event := range step.TaskEvents {
-			if event.Name != "tool.message.send.result" && event.Name != "tool.message.update.result" {
+			if event.Name != "tool.message_send.result" && event.Name != "tool.message_update.result" {
 				continue
 			}
 			addMattermostScenarioMessageIDs(messageIDs, mattermostScenarioMessageResultIDs(event))

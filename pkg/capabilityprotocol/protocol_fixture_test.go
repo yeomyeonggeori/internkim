@@ -9,7 +9,7 @@ import (
 func TestBlueclawProtocolCapabilityFixturesMatchGoContracts(t *testing.T) {
 	var descriptor Descriptor
 	readProtocolFixture(t, "capability-descriptor", &descriptor)
-	if descriptor.Name != "calendar.add" || len(descriptor.InputSchema) == 0 {
+	if descriptor.Name != "calendar_add" || len(descriptor.InputSchema) == 0 {
 		t.Fatalf("unexpected capability descriptor fixture: %#v", descriptor)
 	}
 

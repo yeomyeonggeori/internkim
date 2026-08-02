@@ -61,7 +61,7 @@ func TestGeneratedCapabilityContractIsAcceptedByPocRefresh(t *testing.T) {
 	if capabilityConfiguration["protocolVersion"] != "0.4.0" {
 		t.Fatalf("protocol version = %v, want 0.4.0", capabilityConfiguration["protocolVersion"])
 	}
-	if capabilityConfiguration["aggregateProtocolHash"] != "77cead53c2bde57018e76cb4369e645c853545c1526249514c390aa146f39b02" {
+	if capabilityConfiguration["aggregateProtocolHash"] != "cbe08983acd56a9098505c5f2e99f77a73d7257fac01258ef00846e7f83cf998" {
 		t.Fatalf("aggregate protocol hash = %v, want generated hash", capabilityConfiguration["aggregateProtocolHash"])
 	}
 	for _, value := range toolDescriptors {

@@ -778,8 +778,8 @@ func mattermostScenarioCleanupPostIDs(result mattermostScenarioResult) []string 
 	for _, post := range result.Posts {
 		postIDs = appendUniqueMattermostScenarioPostID(postIDs, seenPostIDs, post.ID)
 	}
-	deletedPostIDs := mattermostScenarioResultMessageIDs(result, "tool.message.delete.result")
-	sentMessageIDs := mattermostScenarioResultMessageIDs(result, "tool.message.send.result")
+	deletedPostIDs := mattermostScenarioResultMessageIDs(result, "tool.message_delete.result")
+	sentMessageIDs := mattermostScenarioResultMessageIDs(result, "tool.message_send.result")
 	remainingMessageIDs := make([]string, 0, len(sentMessageIDs))
 	for messageID := range sentMessageIDs {
 		if !deletedPostIDs[messageID] {
@@ -881,7 +881,7 @@ func findMattermostScenarioEventPublicURL(events []mattermostScenarioTaskEvent) 
 	for eventIndex := len(events) - 1; eventIndex >= 0; eventIndex-- {
 		event := events[eventIndex]
 		toolName, isDirectToolEvent := mattermostScenarioDirectToolName(event.Name, "result")
-		if !isDirectToolEvent || !strings.HasPrefix(toolName, "site.") {
+		if !isDirectToolEvent || !isSiteToolName(toolName) {
 			continue
 		}
 		if publicURL := findMattermostScenarioPublicURL(event.Body); publicURL != "" {

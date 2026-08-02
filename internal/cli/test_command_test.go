@@ -60,7 +60,7 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 		"--auto-confirm",
 		"--expect-public-url",
 		"--expect-tool",
-		"site.serve",
+		"site_serve",
 	}, time.Now())
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -83,7 +83,7 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 	if configuration.MaximumModelTier != "" {
 		t.Fatalf("expected real mode to omit model ceiling: %+v", configuration)
 	}
-	if !configuration.ShouldExpectPublicURL || len(configuration.ExpectedTools) != 1 || configuration.ExpectedTools[0] != "site.serve" {
+	if !configuration.ShouldExpectPublicURL || len(configuration.ExpectedTools) != 1 || configuration.ExpectedTools[0] != "site_serve" {
 		t.Fatalf("unexpected site verification flags: %+v", configuration)
 	}
 }

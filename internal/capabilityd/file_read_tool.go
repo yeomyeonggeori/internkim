@@ -97,7 +97,7 @@ func (service Service) invokeDocumentReadTool(ctx context.Context, request capab
 	}
 	contentType := detectWorkspaceFileContentType(hostPath)
 	if strings.HasPrefix(contentType, "image/") {
-		return fileReadErrorResponse(request.ToolName, "image files must be read with image.read", "use_image_read", "content_type", false), nil
+		return fileReadErrorResponse(request.ToolName, "image files must be read with image_read", "use_image_read", "content_type", false), nil
 	}
 	helperResponse, backend, model, errorValue := service.convertDocument(ctx, hostPath, input.MaxPages)
 	if errorValue != nil {
@@ -144,7 +144,7 @@ func (service Service) invokeImageReadTool(ctx context.Context, request capabili
 	}
 	contentType := detectWorkspaceFileContentType(hostPath)
 	if !strings.HasPrefix(contentType, "image/") {
-		return fileReadErrorResponse(request.ToolName, "non-image files must be read with document.read or file.read", "use_document_read", "content_type", false), nil
+		return fileReadErrorResponse(request.ToolName, "non-image files must be read with document_read or file_read", "use_document_read", "content_type", false), nil
 	}
 	fileInformation, errorValue := os.Stat(hostPath)
 	if errorValue != nil {
@@ -474,7 +474,7 @@ func fileReadErrorResponse(toolName string, message string, code string, stage s
 }
 
 func fileReadErrorIdentity(toolName string) (string, string) {
-	if strings.TrimSpace(toolName) == "image.read" {
+	if strings.TrimSpace(toolName) == "image_read" {
 		return "workspace", capabilities.LLMBackendDevice
 	}
 	return "markitdown", capabilities.LLMBackendRemote

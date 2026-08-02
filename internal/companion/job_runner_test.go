@@ -112,7 +112,7 @@ func TestJobRunnerRoutesDenial(t *testing.T) {
 		case "/_internkim/companion/heartbeat":
 			return textJobRunnerResponse(http.StatusOK, `{}`), nil
 		case "/_internkim/companion/jobs/next":
-			return textJobRunnerResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser.click","request":{"toolName":"browser.click","input":{}}}`), nil
+			return textJobRunnerResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser_click","request":{"toolName":"browser_click","input":{}}}`), nil
 		case "/_internkim/companion/jobs/job-1/deny":
 			seenDeny = true
 			return textJobRunnerResponse(http.StatusOK, `{}`), nil
@@ -121,7 +121,7 @@ func TestJobRunnerRoutesDenial(t *testing.T) {
 			return nil, nil
 		}
 	})
-	denial := capabilities.DenialResult{Status: "denied", Code: "not_allowed", JobID: "job-1", ToolName: "browser.click"}
+	denial := capabilities.DenialResult{Status: "denied", Code: "not_allowed", JobID: "job-1", ToolName: "browser_click"}
 	runner := JobRunner{
 		DeviceClient: DeviceClient{
 			HTTPClient: &http.Client{Transport: transport},

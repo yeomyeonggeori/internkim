@@ -63,21 +63,21 @@ func (service Service) invokeMailTool(ctx context.Context, request capabilities.
 
 func (service Service) invokeMail(ctx context.Context, request capabilities.ToolInvokeRequest) (json.RawMessage, error) {
 	switch strings.TrimSpace(request.ToolName) {
-	case "mail.message.list":
+	case "mail_message_list":
 		return service.invokeMailMessageList(ctx, request)
-	case "mail.message.search":
+	case "mail_message_search":
 		return service.invokeMailMessageSearch(ctx, request)
-	case "mail.message.read":
+	case "mail_message_read":
 		return service.invokeMailMessageRead(ctx, request)
-	case "mail.message.send":
+	case "mail_message_send":
 		return service.invokeMailMessageSend(ctx, request)
-	case "mail.message.move":
+	case "mail_message_move":
 		return service.invokeMailMessageMove(ctx, request)
-	case "mail.message.mark":
+	case "mail_message_mark":
 		return service.invokeMailMessageMark(ctx, request)
-	case "mail.connection.status":
+	case "mail_connection_status":
 		return service.invokeMailConnectionStatus(ctx, request)
-	case "mail.connection.start":
+	case "mail_connection_start":
 		return service.invokeMailConnectionStart(ctx, request)
 	default:
 		return nil, fmt.Errorf("mail tool is not configured: %s", request.ToolName)

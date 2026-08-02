@@ -27,11 +27,11 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected device browser response: %v", errorValue)
 	}
-	if response.Provider != "device" || response.ToolName != "browser.open" || response.Outcome != capabilities.ToolOutcomeSucceeded {
+	if response.Provider != "device" || response.ToolName != "browser_open" || response.Outcome != capabilities.ToolOutcomeSucceeded {
 		t.Fatalf("unexpected response: %+v", response)
 	}
 	if len(calls) != 3 {
@@ -60,7 +60,7 @@ func TestDeviceBrowserScreenshotRequiresCompanion(t *testing.T) {
 		return nil, nil
 	}}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.screenshot", strings.NewReader(`{"input":{"ttlSeconds":600}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_screenshot", strings.NewReader(`{"input":{"ttlSeconds":600}}`))
 	if errorValue != nil {
 		t.Fatalf("expected structured screenshot denial: %v", errorValue)
 	}
