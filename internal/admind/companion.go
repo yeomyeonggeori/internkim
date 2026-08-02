@@ -621,7 +621,7 @@ func companionJobTimeoutSecond(request capabilities.ToolInvokeRequest) int {
 		}
 		return request.TimeoutSecond
 	}
-	if request.RequiresUserPresence || strings.HasPrefix(request.ToolName, "browser_") {
+	if request.RequiresUserPresence || requiresRequesterOwnedCompanion(request.ToolName) {
 		return 120
 	}
 	return 30
@@ -972,9 +972,21 @@ func companionOwnsJob(companion *CompanionRecord, job *CompanionJob) bool {
 	return job.RequesterPersonID == "" && job.RequesterEmail == "" && companion.OwnerPersonID == "" && companion.OwnerEmail == ""
 }
 
+// A tool runs on the requester's own companion because it reaches that person's
+// machine - their browser session, their files, their screen. The descriptor
+// states it; the name is not evidence of anything.
+var companionToolNeedsRequesterDevice = buildCompanionToolDeviceNeed()
+
+func buildCompanionToolDeviceNeed() map[string]bool {
+	needByToolName := map[string]bool{}
+	for _, descriptor := range capabilities.CompanionToolDescriptors() {
+		needByToolName[descriptor.Name] = descriptor.RequiresRequesterDevice
+	}
+	return needByToolName
+}
+
 func requiresRequesterOwnedCompanion(toolName string) bool {
-	trimmedToolName := strings.TrimSpace(toolName)
-	return strings.HasPrefix(trimmedToolName, "browser_") || strings.HasPrefix(trimmedToolName, "user_") || trimmedToolName == "file_pick"
+	return companionToolNeedsRequesterDevice[strings.TrimSpace(toolName)]
 }
 
 func shouldUseRequesterOwnedCompanion(request capabilities.ToolInvokeRequest) bool {
@@ -1167,7 +1179,7 @@ func companionDenialResponse(denial capabilities.DenialResult) (capabilities.Too
 func companionCapabilityUnavailableResponse(request capabilities.ToolInvokeRequest, code string) capabilities.ToolInvokeResponse {
 	userReason := capabilities.CapabilityUnavailableUserReason(request.ToolName, code)
 	var recovery *capabilities.RecoveryAction
-	if code == capabilities.CapabilityNotConnected && strings.HasPrefix(strings.TrimSpace(request.ToolName), "browser_") {
+	if code == capabilities.CapabilityNotConnected && requiresRequesterOwnedCompanion(request.ToolName) {
 		recovery = capabilities.CompanionConnectRecovery()
 	}
 	document, _ := json.Marshal(capabilities.DenialResult{
