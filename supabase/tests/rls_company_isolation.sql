@@ -39,8 +39,8 @@ insert into public.task (company_id, assignee_id, title, starts_at, ends_at, is_
   ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'SaaS migration', '2026-08-04 00:00+09', '2026-08-20 00:00+09', false),
   ('00000000-0000-0000-0000-0000000000b0', '000000bb-0000-0000-0000-000000000001', 'Other company meeting', '2026-08-04 09:00+09', '2026-08-04 10:00+09', true);
 
-insert into public.leave (member_id, kind, is_paid, starts_on, ends_on) values
-  ('000000aa-0000-0000-0000-000000000001', '연차', true, '2026-08-10', '2026-08-12');
+insert into public.leave (member_id, kind, is_paid, days, starts_on, ends_on) values
+  ('000000aa-0000-0000-0000-000000000001', '연차', true, 3, '2026-08-10', '2026-08-12');
 
 do $$
 declare
@@ -93,30 +93,30 @@ declare
   colleague uuid := '000000aa-0000-0000-0000-000000000002';
   malformed_schedule_blocked boolean := false;
 begin
-  assert public.member_working_hours(employee) is null
+  assert public.member_work_hours(employee) is null
      and public.member_minimum_daily_minutes(employee) is null,
     'with nothing set anywhere, working time is unconstrained';
 
   update public.company
-    set working_hours = weekday_schedule, minimum_daily_minutes = 240
+    set work_hours = weekday_schedule, minimum_daily_minutes = 240
     where id = '00000000-0000-0000-0000-0000000000a0';
 
-  assert public.member_working_hours(employee) = weekday_schedule,
+  assert public.member_work_hours(employee) = weekday_schedule,
     'a member without their own hours follows the company';
   assert public.member_minimum_daily_minutes(employee) = 240,
     'a member without their own minimum follows the company';
 
   update public.member
-    set working_hours = '[[null,null,null,null,null,null,null]]', minimum_daily_minutes = 120
+    set work_hours = '[[null,null,null,null,null,null,null]]', minimum_daily_minutes = 120
     where id = colleague;
 
-  assert public.member_working_hours(colleague) = '[[null,null,null,null,null,null,null]]',
+  assert public.member_work_hours(colleague) = '[[null,null,null,null,null,null,null]]',
     'a member on their own schedule overrides the company one';
   assert public.member_minimum_daily_minutes(colleague) = 120,
     'a member minimum overrides the company one';
 
   begin
-    update public.member set working_hours = '[[null,null,null]]' where id = colleague;
+    update public.member set work_hours = '[[null,null,null]]' where id = colleague;
   exception when check_violation then
     malformed_schedule_blocked := true;
   end;
@@ -136,26 +136,26 @@ declare
   fortnight_later date := first_saturday + 14;
   monday date := date '2026-08-03';
 begin
-  update public.member set working_hours = fortnight where id = employee;
+  update public.member set work_hours = fortnight where id = employee;
 
-  assert public.member_day_hours(employee, first_saturday)
-      is distinct from public.member_day_hours(employee, next_saturday),
+  assert public.member_work_hours_on(employee, first_saturday)
+      is distinct from public.member_work_hours_on(employee, next_saturday),
     'in a two-week cycle, consecutive Saturdays differ';
 
-  assert public.member_day_hours(employee, first_saturday)
-      is not distinct from public.member_day_hours(employee, fortnight_later),
+  assert public.member_work_hours_on(employee, first_saturday)
+      is not distinct from public.member_work_hours_on(employee, fortnight_later),
     'the cycle repeats after its own length';
 
-  assert public.member_day_hours(employee, monday) = 'null'::jsonb,
+  assert public.member_work_hours_on(employee, monday) = 'null'::jsonb,
     'a day the schedule leaves empty is a day off';
 
-  update public.member set working_hours = null where id = employee;
-  assert public.member_day_hours(employee, monday) is not null,
+  update public.member set work_hours = null where id = employee;
+  assert public.member_work_hours_on(employee, monday) is not null,
     'clearing a member schedule falls back to the company cycle';
 
-  update public.company set working_hours = null
+  update public.company set work_hours = null
     where id = '00000000-0000-0000-0000-0000000000a0';
-  assert public.member_day_hours(employee, monday) is null,
+  assert public.member_work_hours_on(employee, monday) is null,
     'with no schedule anywhere there is nothing to look up';
 
   raise notice 'working hours: a multi-week cycle resolves per day';
@@ -201,6 +201,7 @@ begin
 
   raise notice 'identity: slug is unique and url-safe, locale falls back to the company';
 end $$;
+
 
 do $$
 declare
@@ -349,8 +350,8 @@ begin
   assert rows_changed = 0, 'a member must not be able to approve their own leave';
 
   begin
-    insert into public.leave (member_id, kind, is_paid, starts_on, ends_on)
-    values ('000000aa-0000-0000-0000-000000000002', '무급휴가', false, '2026-09-01', '2026-09-02');
+    insert into public.leave (member_id, kind, is_paid, days, starts_on, ends_on)
+    values ('000000aa-0000-0000-0000-000000000002', '무급휴가', false, 2, '2026-09-01', '2026-09-02');
   exception when insufficient_privilege then
     colleague_request_blocked := true;
   end;
@@ -649,6 +650,47 @@ begin
     'a company with no registered locations accepts any location';
 
   raise notice 'attendance: moving between sites is allowed, repeating a state is not';
+end $$;
+
+do $$
+declare
+  veteran uuid := '000000aa-0000-0000-0000-000000000001';
+  newcomer uuid := '000000aa-0000-0000-0000-000000000003';
+begin
+  assert public.member_leave_days_granted(veteran) is null,
+    'with no entitlement set anywhere, there is nothing to count against';
+
+  update public.company set leave_days_granted = 15
+    where id = '00000000-0000-0000-0000-0000000000a0';
+  update public.member set leave_days_granted = 20 where id = veteran;
+
+  assert public.member_leave_days_granted(newcomer) = 15,
+    'a member without their own entitlement follows the company';
+  assert public.member_leave_days_granted(veteran) = 20,
+    'long service can raise a single member entitlement';
+
+  update public.leave set status = 'requested' where member_id = veteran;
+  assert public.member_remaining_leave_days(veteran, 2026) = 20,
+    'a leave that is still only requested has not been consumed';
+
+  update public.leave set status = 'approved' where member_id = veteran;
+  assert public.member_remaining_leave_days(veteran, 2026) = 17,
+    'an approved leave is deducted';
+
+  insert into public.leave (member_id, kind, is_paid, days, status, starts_on, ends_on)
+    values (veteran, '반차', true, 0.5, 'approved', '2026-08-13', '2026-08-13');
+  assert public.member_remaining_leave_days(veteran, 2026) = 16.5,
+    'a half day consumes half a day';
+
+  insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_on, ends_on)
+    values (veteran, '경조사', true, false, 3, 'approved', '2026-08-17', '2026-08-19');
+  assert public.member_remaining_leave_days(veteran, 2026) = 16.5,
+    'leave granted outside the entitlement does not consume it';
+
+  assert public.member_remaining_leave_days(veteran, 2025) = 20,
+    'last year is counted separately';
+
+  raise notice 'annual leave: entitlement falls back, and only deducting leave consumes it';
 end $$;
 
 rollback;

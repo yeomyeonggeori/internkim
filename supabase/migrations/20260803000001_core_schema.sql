@@ -1,4 +1,4 @@
-create function public.is_working_hours(schedule jsonb)
+create function public.is_work_hours(schedule jsonb)
 returns boolean
 language sql
 immutable
@@ -19,8 +19,9 @@ create table public.company (
   locale text not null check (locale ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   timezone text not null check ((timestamp '2000-01-01' at time zone timezone) is not null),
   work_locations text[] check (work_locations is null or array_length(work_locations, 1) > 0),
-  working_hours jsonb check (working_hours is null or public.is_working_hours(working_hours)),
+  work_hours jsonb check (work_hours is null or public.is_work_hours(work_hours)),
   minimum_daily_minutes integer check (minimum_daily_minutes > 0),
+  leave_days_granted numeric(5, 2) check (leave_days_granted >= 0),
   rules jsonb not null default '{}'
 );
 
@@ -33,10 +34,12 @@ create table public.member (
   user_id uuid unique references auth.users on delete set null,
   status public.member_status not null default 'pending',
   is_admin boolean not null default false,
+  joined_on date,
   locale text check (locale ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   timezone text check (timezone is null or (timestamp '2000-01-01' at time zone timezone) is not null),
-  working_hours jsonb check (working_hours is null or public.is_working_hours(working_hours)),
-  minimum_daily_minutes integer check (minimum_daily_minutes > 0)
+  work_hours jsonb check (work_hours is null or public.is_work_hours(work_hours)),
+  minimum_daily_minutes integer check (minimum_daily_minutes > 0),
+  leave_days_granted numeric(5, 2) check (leave_days_granted >= 0)
 );
 
 create index on public.member (company_id);
@@ -207,6 +210,8 @@ create table public.leave (
   member_id uuid not null references public.member on delete cascade,
   kind text not null,
   is_paid boolean not null,
+  is_deducted boolean not null default true,
+  days numeric(5, 2) not null check (days > 0),
   status public.leave_status not null default 'requested',
   starts_on date not null,
   ends_on date not null,
@@ -226,7 +231,7 @@ as $$
   select id from public.member where user_id = auth.uid();
 $$;
 
-create function public.company_of(target_member uuid)
+create function public.company_of_member(target_member uuid)
 returns uuid
 language sql
 security definer
@@ -272,20 +277,20 @@ as $$
   where member.id = target_member;
 $$;
 
-create function public.member_working_hours(target_member uuid)
+create function public.member_work_hours(target_member uuid)
 returns jsonb
 language sql
 security definer
 stable
 set search_path = public
 as $$
-  select coalesce(member.working_hours, company.working_hours)
+  select coalesce(member.work_hours, company.work_hours)
   from public.member
   join public.company on company.id = member.company_id
   where member.id = target_member;
 $$;
 
-create function public.member_day_hours(target_member uuid, target_day date)
+create function public.member_work_hours_on(target_member uuid, target_day date)
 returns jsonb
 language sql
 security definer
@@ -295,7 +300,7 @@ as $$
   select schedule
     -> (((((target_day - date '2000-01-03') / 7) % jsonb_array_length(schedule)) + jsonb_array_length(schedule)) % jsonb_array_length(schedule))
     -> (extract(isodow from target_day)::integer - 1)
-  from (select public.member_working_hours(target_member) as schedule) resolved
+  from (select public.member_work_hours(target_member) as schedule) resolved
   where schedule is not null;
 $$;
 
@@ -310,6 +315,35 @@ as $$
   from public.member
   join public.company on company.id = member.company_id
   where member.id = target_member;
+$$;
+
+create function public.member_leave_days_granted(target_member uuid)
+returns numeric
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select coalesce(member.leave_days_granted, company.leave_days_granted)
+  from public.member
+  join public.company on company.id = member.company_id
+  where member.id = target_member;
+$$;
+
+create function public.member_remaining_leave_days(target_member uuid, target_year integer)
+returns numeric
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select public.member_leave_days_granted(target_member) - coalesce((
+    select sum(days) from public.leave
+    where member_id = target_member
+      and status = 'approved'
+      and is_deducted
+      and extract(year from starts_on) = target_year
+  ), 0);
 $$;
 
 alter table public.company enable row level security;
@@ -331,41 +365,41 @@ alter table public.task_participant enable row level security;
 alter table public.leave enable row level security;
 
 create policy company_readable_by_member on public.company
-  for select using (id = public.company_of(public.my_member()));
+  for select using (id = public.company_of_member(public.my_member()));
 
 create policy company_updatable_by_admin on public.company
-  for update using (id = public.company_of(public.my_member()) and public.is_company_admin())
-  with check (id = public.company_of(public.my_member()));
+  for update using (id = public.company_of_member(public.my_member()) and public.is_company_admin())
+  with check (id = public.company_of_member(public.my_member()));
 
 create policy member_readable_by_colleague on public.member
-  for select using (company_id = public.company_of(public.my_member()));
+  for select using (company_id = public.company_of_member(public.my_member()));
 
 create policy credential_readable_by_colleague on public.credential
-  for select using (public.company_of(member_id) = public.company_of(public.my_member()));
+  for select using (public.company_of_member(member_id) = public.company_of_member(public.my_member()));
 
 create policy credential_writable_by_owner on public.credential
   for all using (member_id = public.my_member())
   with check (member_id = public.my_member());
 
 create policy attendance_readable_by_colleague on public.attendance
-  for select using (public.company_of(member_id) = public.company_of(public.my_member()));
+  for select using (public.company_of_member(member_id) = public.company_of_member(public.my_member()));
 
 create policy attendance_writable_by_owner on public.attendance
   for insert with check (member_id = public.my_member());
 
 create policy task_usable_by_colleague on public.task
-  for all using (company_id = public.company_of(public.my_member()))
-  with check (company_id = public.company_of(public.my_member()));
+  for all using (company_id = public.company_of_member(public.my_member()))
+  with check (company_id = public.company_of_member(public.my_member()));
 
 create policy task_participant_usable_by_colleague on public.task_participant
-  for all using (public.company_of_task(task_id) = public.company_of(public.my_member()))
+  for all using (public.company_of_task(task_id) = public.company_of_member(public.my_member()))
   with check (
-    public.company_of_task(task_id) = public.company_of(public.my_member())
-    and public.company_of(member_id) = public.company_of(public.my_member())
+    public.company_of_task(task_id) = public.company_of_member(public.my_member())
+    and public.company_of_member(member_id) = public.company_of_member(public.my_member())
   );
 
 create policy leave_readable_by_colleague on public.leave
-  for select using (public.company_of(member_id) = public.company_of(public.my_member()));
+  for select using (public.company_of_member(member_id) = public.company_of_member(public.my_member()));
 
 create policy leave_requestable_by_owner on public.leave
   for insert with check (member_id = public.my_member());
@@ -373,5 +407,5 @@ create policy leave_requestable_by_owner on public.leave
 create policy leave_decidable_by_admin on public.leave
   for update using (
     public.is_company_admin()
-    and public.company_of(member_id) = public.company_of(public.my_member())
+    and public.company_of_member(member_id) = public.company_of_member(public.my_member())
   );
