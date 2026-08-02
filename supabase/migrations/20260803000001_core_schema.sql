@@ -14,6 +14,9 @@ $$;
 create table public.company (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  slug text not null unique check (slug ~ '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'),
+  country text not null check (country ~ '^[A-Z]{2}$'),
+  locale text not null check (locale ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   timezone text not null check ((timestamp '2000-01-01' at time zone timezone) is not null),
   work_locations text[] check (work_locations is null or array_length(work_locations, 1) > 0),
   working_hours jsonb check (working_hours is null or public.is_working_hours(working_hours)),
@@ -30,6 +33,7 @@ create table public.member (
   user_id uuid unique references auth.users on delete set null,
   status public.member_status not null default 'pending',
   is_admin boolean not null default false,
+  locale text check (locale ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   timezone text check (timezone is null or (timestamp '2000-01-01' at time zone timezone) is not null),
   working_hours jsonb check (working_hours is null or public.is_working_hours(working_hours)),
   minimum_daily_minutes integer check (minimum_daily_minutes > 0)
@@ -250,6 +254,19 @@ stable
 set search_path = public
 as $$
   select coalesce(member.timezone, company.timezone)
+  from public.member
+  join public.company on company.id = member.company_id
+  where member.id = target_member;
+$$;
+
+create function public.member_locale(target_member uuid)
+returns text
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select coalesce(member.locale, company.locale)
   from public.member
   join public.company on company.id = member.company_id
   where member.id = target_member;
