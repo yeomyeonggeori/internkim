@@ -81,6 +81,21 @@ end $$;
 
 do $$
 declare
+  seoul_member uuid := '000000aa-0000-0000-0000-000000000001';
+  new_york_member uuid := '000000bb-0000-0000-0000-000000000001';
+begin
+  assert public.member_today(seoul_member)
+       = (now() at time zone 'Asia/Seoul')::date,
+    'a member day is read in their own timezone';
+
+  assert public.member_today(seoul_member) - public.member_today(new_york_member) between 0 and 1,
+    'members in distant timezones can be on different calendar days';
+
+  raise notice 'today: each member has their own calendar day';
+end $$;
+
+do $$
+declare
   weekday_schedule jsonb := '[[
     [{"from":"09:00","to":"18:00"}],
     [{"from":"09:00","to":"18:00"}],
@@ -657,37 +672,37 @@ declare
   veteran uuid := '000000aa-0000-0000-0000-000000000001';
   newcomer uuid := '000000aa-0000-0000-0000-000000000003';
 begin
-  assert public.member_leave_days_granted(veteran) is null,
+  assert public.member_leave_allowance(veteran) is null,
     'with no entitlement set anywhere, there is nothing to count against';
 
-  update public.company set leave_days_granted = 15
+  update public.company set leave_allowance = 15
     where id = '00000000-0000-0000-0000-0000000000a0';
-  update public.member set leave_days_granted = 20 where id = veteran;
+  update public.member set leave_allowance = 20 where id = veteran;
 
-  assert public.member_leave_days_granted(newcomer) = 15,
+  assert public.member_leave_allowance(newcomer) = 15,
     'a member without their own entitlement follows the company';
-  assert public.member_leave_days_granted(veteran) = 20,
+  assert public.member_leave_allowance(veteran) = 20,
     'long service can raise a single member entitlement';
 
   update public.leave set status = 'requested' where member_id = veteran;
-  assert public.member_remaining_leave_days(veteran, 2026) = 20,
+  assert public.member_leave_balance(veteran, 2026) = 20,
     'a leave that is still only requested has not been consumed';
 
   update public.leave set status = 'approved' where member_id = veteran;
-  assert public.member_remaining_leave_days(veteran, 2026) = 17,
+  assert public.member_leave_balance(veteran, 2026) = 17,
     'an approved leave is deducted';
 
   insert into public.leave (member_id, kind, is_paid, days, status, starts_on, ends_on)
     values (veteran, '반차', true, 0.5, 'approved', '2026-08-13', '2026-08-13');
-  assert public.member_remaining_leave_days(veteran, 2026) = 16.5,
+  assert public.member_leave_balance(veteran, 2026) = 16.5,
     'a half day consumes half a day';
 
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_on, ends_on)
     values (veteran, '경조사', true, false, 3, 'approved', '2026-08-17', '2026-08-19');
-  assert public.member_remaining_leave_days(veteran, 2026) = 16.5,
+  assert public.member_leave_balance(veteran, 2026) = 16.5,
     'leave granted outside the entitlement does not consume it';
 
-  assert public.member_remaining_leave_days(veteran, 2025) = 20,
+  assert public.member_leave_balance(veteran, 2025) = 20,
     'last year is counted separately';
 
   raise notice 'annual leave: entitlement falls back, and only deducting leave consumes it';
