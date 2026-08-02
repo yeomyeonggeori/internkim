@@ -34,7 +34,7 @@ create table public.member (
   user_id uuid unique references auth.users on delete set null,
   status public.member_status not null default 'pending',
   is_admin boolean not null default false,
-  joined_on date,
+  joined_at timestamptz,
   locale text check (locale ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   timezone text check (timezone is null or (timestamp '2000-01-01' at time zone timezone) is not null),
   work_hours jsonb check (work_hours is null or public.is_work_hours(work_hours)),
@@ -213,13 +213,13 @@ create table public.leave (
   is_deducted boolean not null default true,
   days numeric(5, 2) not null check (days > 0),
   status public.leave_status not null default 'requested',
-  starts_on date not null,
-  ends_on date not null,
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
   note text,
-  check (ends_on >= starts_on)
+  check (ends_at >= starts_at)
 );
 
-create index on public.leave (member_id, starts_on);
+create index on public.leave (member_id, starts_at);
 
 create function public.my_member()
 returns uuid
@@ -352,7 +352,7 @@ as $$
     where member_id = target_member
       and status = 'approved'
       and is_deducted
-      and extract(year from starts_on) = target_year
+      and extract(year from (starts_at at time zone public.member_timezone(target_member))) = target_year
   ), 0);
 $$;
 

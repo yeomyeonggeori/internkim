@@ -39,8 +39,8 @@ insert into public.task (company_id, assignee_id, title, starts_at, ends_at, is_
   ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'SaaS migration', '2026-08-04 00:00+09', '2026-08-20 00:00+09', false),
   ('00000000-0000-0000-0000-0000000000b0', '000000bb-0000-0000-0000-000000000001', 'Other company meeting', '2026-08-04 09:00+09', '2026-08-04 10:00+09', true);
 
-insert into public.leave (member_id, kind, is_paid, days, starts_on, ends_on) values
-  ('000000aa-0000-0000-0000-000000000001', '연차', true, 3, '2026-08-10', '2026-08-12');
+insert into public.leave (member_id, kind, is_paid, days, starts_at, ends_at) values
+  ('000000aa-0000-0000-0000-000000000001', '연차', true, 3, '2026-08-10 00:00+09', '2026-08-12 23:59+09');
 
 do $$
 declare
@@ -365,8 +365,8 @@ begin
   assert rows_changed = 0, 'a member must not be able to approve their own leave';
 
   begin
-    insert into public.leave (member_id, kind, is_paid, days, starts_on, ends_on)
-    values ('000000aa-0000-0000-0000-000000000002', '무급휴가', false, 2, '2026-09-01', '2026-09-02');
+    insert into public.leave (member_id, kind, is_paid, days, starts_at, ends_at)
+    values ('000000aa-0000-0000-0000-000000000002', '무급휴가', false, 2, '2026-09-01 00:00+09', '2026-09-02 23:59+09');
   exception when insufficient_privilege then
     colleague_request_blocked := true;
   end;
@@ -692,18 +692,25 @@ begin
   assert public.member_leave_balance(veteran, 2026) = 17,
     'an approved leave is deducted';
 
-  insert into public.leave (member_id, kind, is_paid, days, status, starts_on, ends_on)
-    values (veteran, '반차', true, 0.5, 'approved', '2026-08-13', '2026-08-13');
+  insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at)
+    values (veteran, '반차', true, 0.5, 'approved', '2026-08-13 09:00+09', '2026-08-13 13:00+09');
   assert public.member_leave_balance(veteran, 2026) = 16.5,
     'a half day consumes half a day';
 
-  insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_on, ends_on)
-    values (veteran, '경조사', true, false, 3, 'approved', '2026-08-17', '2026-08-19');
+  insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
+    values (veteran, '경조사', true, false, 3, 'approved', '2026-08-17 00:00+09', '2026-08-19 23:59+09');
   assert public.member_leave_balance(veteran, 2026) = 16.5,
     'leave granted outside the entitlement does not consume it';
 
   assert public.member_leave_balance(veteran, 2025) = 20,
     'last year is counted separately';
+
+  insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at)
+    values (veteran, '연차', true, 1, 'approved', '2027-01-01 09:00+09', '2027-01-01 18:00+09');
+  assert public.member_leave_balance(veteran, 2026) = 16.5,
+    'a new year leave in Seoul must not be charged to the year that is still running in UTC';
+  assert public.member_leave_balance(veteran, 2027) = 19,
+    'it belongs to the year the member is actually living in';
 
   raise notice 'annual leave: entitlement falls back, and only deducting leave consumes it';
 end $$;
