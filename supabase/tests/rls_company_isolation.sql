@@ -6,9 +6,9 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000c1', 'invited@example.test'),
   ('00000000-0000-0000-0000-0000000000a9', 'admin@example.test');
 
-insert into public.company (id, name) values
-  ('00000000-0000-0000-0000-0000000000a0', 'Company A'),
-  ('00000000-0000-0000-0000-0000000000b0', 'Company B');
+insert into public.company (id, name, timezone) values
+  ('00000000-0000-0000-0000-0000000000a0', 'Company A', 'Asia/Seoul'),
+  ('00000000-0000-0000-0000-0000000000b0', 'Company B', 'America/New_York');
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values
   ('000000aa-0000-0000-0000-000000000000', '00000000-0000-0000-0000-0000000000a0', 'admin@example.test', '00000000-0000-0000-0000-0000000000a9', 'active', true);
@@ -29,6 +29,84 @@ insert into public.attendance (member_id, kind) values
 insert into public.credential (member_id, kind, external_id) values
   ('000000aa-0000-0000-0000-000000000002', 'buzz', 'pubkey-unclaimed'),
   ('000000bb-0000-0000-0000-000000000001', 'buzz', 'pubkey-b');
+
+insert into public.task (company_id, assignee_id, title) values
+  ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'Ship the vertical slice'),
+  ('00000000-0000-0000-0000-0000000000b0', '000000bb-0000-0000-0000-000000000001', 'Other company work');
+
+insert into public.event (company_id, owner_id, title, starts_at, ends_at) values
+  ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'Standup', '2026-08-04 09:00+09', '2026-08-04 09:15+09'),
+  ('00000000-0000-0000-0000-0000000000b0', '000000bb-0000-0000-0000-000000000001', 'Other company meeting', '2026-08-04 09:00+09', '2026-08-04 10:00+09');
+
+do $$
+declare
+  bogus_company_timezone_blocked boolean := false;
+  bogus_member_timezone_blocked boolean := false;
+begin
+  assert public.member_timezone('000000aa-0000-0000-0000-000000000001') = 'Asia/Seoul',
+    'a member without a timezone follows their company';
+
+  update public.member set timezone = 'Europe/Berlin'
+    where id = '000000aa-0000-0000-0000-000000000001';
+  assert public.member_timezone('000000aa-0000-0000-0000-000000000001') = 'Europe/Berlin',
+    'a member timezone overrides the company one';
+
+  update public.member set timezone = null
+    where id = '000000aa-0000-0000-0000-000000000001';
+  assert public.member_timezone('000000aa-0000-0000-0000-000000000001') = 'Asia/Seoul',
+    'clearing a member timezone falls back to the company again';
+
+  begin
+    update public.company set timezone = 'Asia/Seuol'
+      where id = '00000000-0000-0000-0000-0000000000a0';
+  exception when invalid_parameter_value then
+    bogus_company_timezone_blocked := true;
+  end;
+  assert bogus_company_timezone_blocked, 'a misspelled company timezone must be rejected';
+
+  begin
+    update public.member set timezone = 'Not/AZone'
+      where id = '000000aa-0000-0000-0000-000000000001';
+  exception when invalid_parameter_value then
+    bogus_member_timezone_blocked := true;
+  end;
+  assert bogus_member_timezone_blocked, 'a misspelled member timezone must be rejected';
+
+  raise notice 'timezone: member overrides company, and misspellings are rejected';
+end $$;
+
+do $$
+declare
+  visible_tasks integer;
+  visible_events integer;
+  rows_changed integer;
+  cross_company_task_blocked boolean := false;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1"}', true);
+
+  select count(*) into visible_tasks from public.task;
+  assert visible_tasks = 1, 'tasks from another company must be invisible';
+
+  select count(*) into visible_events from public.event;
+  assert visible_events = 1, 'events from another company must be invisible';
+
+  update public.task set status = 'doing'
+    where company_id = '00000000-0000-0000-0000-0000000000b0';
+  get diagnostics rows_changed = row_count;
+  assert rows_changed = 0, 'a member must not be able to edit another company task';
+
+  begin
+    insert into public.task (company_id, title)
+    values ('00000000-0000-0000-0000-0000000000b0', 'Planted task');
+  exception when insufficient_privilege then
+    cross_company_task_blocked := true;
+  end;
+  assert cross_company_task_blocked, 'a member must not be able to create a task in another company';
+
+  reset role;
+  raise notice 'task and event: company-scoped for read and write';
+end $$;
 
 do $$
 declare
