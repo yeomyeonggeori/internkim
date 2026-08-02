@@ -675,14 +675,14 @@ begin
   assert public.member_leave_remaining(veteran, 2026) is null,
     'with no entitlement set, there is nothing to count against';
 
-  update public.company set leave_day_minutes = 480, leave_allowance = 15
+  update public.company set leave_day_minutes = 480, leave_days = 15
     where id = '00000000-0000-0000-0000-0000000000a0';
-  update public.member set leave_allowance = 20 where id = veteran;
+  update public.member set leave_days = 20 where id = veteran;
 
-  assert public.member_leave_allowance(newcomer) = 15,
-    'a member without their own entitlement follows the company default';
-  assert public.member_leave_allowance(veteran) = 20,
-    'long service can raise a single member entitlement';
+  assert public.member_leave_days(newcomer) = 15,
+    'a member without their own entitlement follows the company';
+  assert public.member_leave_days(veteran) = 20,
+    'a single member entitlement can be raised';
 
   update public.leave set status = 'requested' where member_id = veteran;
   assert public.member_leave_remaining(veteran, 2026) = 20,
@@ -712,19 +712,7 @@ begin
   assert public.member_leave_remaining(veteran, 2027) = 19,
     'it belongs to the year the member is actually living in';
 
-  update public.company
-    set leave_accrual = 'monthly', leave_carryover_limit = 5, leave_carryover_expiry_months = 3
-    where id = '00000000-0000-0000-0000-0000000000a0';
-
-  begin
-    update public.company set leave_carryover_limit = null
-      where id = '00000000-0000-0000-0000-0000000000a0';
-    assert false, 'an expiry with nothing to expire must be rejected';
-  exception when check_violation then
-    null;
-  end;
-
-  raise notice 'leave policy: accrual and carryover are company settings, expiry needs a carryover';
+  raise notice 'annual leave: entitlement is a per member result, only deducting leave consumes it';
 end $$;
 
 rollback;

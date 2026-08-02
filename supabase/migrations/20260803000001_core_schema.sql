@@ -11,8 +11,6 @@ as $$
     );
 $$;
 
-create type public.leave_accrual as enum ('yearly', 'monthly');
-
 create table public.company (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -24,11 +22,7 @@ create table public.company (
   work_hours jsonb check (work_hours is null or public.is_work_hours(work_hours)),
   minimum_daily_minutes integer check (minimum_daily_minutes > 0),
   leave_day_minutes integer check (leave_day_minutes > 0),
-  leave_allowance numeric(6, 2) check (leave_allowance >= 0),
-  leave_accrual public.leave_accrual,
-  leave_carryover_limit numeric(6, 2) check (leave_carryover_limit >= 0),
-  leave_carryover_expiry_months integer check (leave_carryover_expiry_months > 0),
-  check (leave_carryover_expiry_months is null or leave_carryover_limit is not null),
+  leave_days numeric(6, 2) check (leave_days >= 0),
   rules jsonb not null default '{}'
 );
 
@@ -46,7 +40,7 @@ create table public.member (
   timezone text check (timezone is null or (timestamp '2000-01-01' at time zone timezone) is not null),
   work_hours jsonb check (work_hours is null or public.is_work_hours(work_hours)),
   minimum_daily_minutes integer check (minimum_daily_minutes > 0),
-  leave_allowance numeric(6, 2) check (leave_allowance >= 0)
+  leave_days numeric(6, 2) check (leave_days >= 0)
 );
 
 create index on public.member (company_id);
@@ -335,14 +329,15 @@ as $$
 $$;
 
 
-create function public.member_leave_allowance(target_member uuid)
+
+create function public.member_leave_days(target_member uuid)
 returns numeric
 language sql
 security definer
 stable
 set search_path = public
 as $$
-  select coalesce(member.leave_allowance, company.leave_allowance)
+  select coalesce(member.leave_days, company.leave_days)
   from public.member
   join public.company on company.id = member.company_id
   where member.id = target_member;
@@ -355,7 +350,7 @@ security definer
 stable
 set search_path = public
 as $$
-  select public.member_leave_allowance(target_member) - coalesce((
+  select public.member_leave_days(target_member) - coalesce((
     select sum(days) from public.leave
     where member_id = target_member
       and status = 'approved'
