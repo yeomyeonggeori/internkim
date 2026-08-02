@@ -3639,7 +3639,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 		"displayName":"test companion",
 		"publicKey":"`+keyPair.PublicKey+`",
 		"localOnly":true,
-		"capabilities":[{"name":"user_confirm","version":"1","privacyClass":"user_input","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
+		"capabilities":[{"name":"browser_open","version":"1","privacyClass":"device_browser","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
 	}`))
 	handler.ServeHTTP(pairResponse, pairRequest)
 	if pairResponse.Code != http.StatusOK {
@@ -3688,7 +3688,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	errorChannel := make(chan error, 1)
 	go func() {
 		response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-			ToolName:      "user_confirm",
+			ToolName:      "browser_open",
 			Input:         json.RawMessage(`{"message":"continue?"}`),
 			Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 			TimeoutSecond: 2,
@@ -3711,7 +3711,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	if errorValue := json.NewDecoder(nextResponse.Body).Decode(&companionJob); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if companionJob.JobID == "" || companionJob.Request.ToolName != "user_confirm" {
+	if companionJob.JobID == "" || companionJob.Request.ToolName != "browser_open" {
 		t.Fatalf("unexpected companion job: %+v", companionJob)
 	}
 

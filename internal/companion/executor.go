@@ -1,13 +1,11 @@
 package companion
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,11 +16,6 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
-
-type PromptHandler interface {
-	Confirm(ctx context.Context, message string, defaultValue bool) (bool, error)
-	Input(ctx context.Context, message string) (string, error)
-}
 
 // browserHandoffPauser is implemented by browser.ExtensionInputRuntime.
 // Pausing stops OS-level input synthesis on the runtime's already-open
@@ -51,19 +44,16 @@ type FileUploader interface {
 }
 
 type Executor struct {
-	DevMockLLM      bool
-	LLMChain        llmbackend.Provider
-	EmbeddingChain  llmbackend.EmbeddingProvider
-	BrowserRuntime  browserruntime.Runtime
-	HandoffStore    *BrowserHandoffStore
-	PromptHandler   PromptHandler
-	FileUploader    FileUploader
-	ApprovalHandler ApprovalHandler
-	GrantStore      *MemoryGrantStore
+	DevMockLLM     bool
+	LLMChain       llmbackend.Provider
+	EmbeddingChain llmbackend.EmbeddingProvider
+	BrowserRuntime browserruntime.Runtime
+	HandoffStore   *BrowserHandoffStore
+	FileUploader   FileUploader
 }
 
 // NewExecutor builds an Executor from the dependencies known at companion
-// startup. PromptHandler, ApprovalHandler, FilePicker, DirectoryPicker, and
+// startup. The browser runtime and the file uploader are
 // FileUploader are intentionally left unset here: the caller wires them in
 // afterward only when the matching optional CLI flag (--allow-stdin-prompts,
 // --development-auto-approve-browser, --shell-bridge-url) is present.
@@ -73,7 +63,6 @@ func NewExecutor(
 	embeddingChain llmbackend.EmbeddingProvider,
 	browserRuntime browserruntime.Runtime,
 	handoffStore *BrowserHandoffStore,
-	grantStore *MemoryGrantStore,
 ) Executor {
 	return Executor{
 		DevMockLLM:     devMockLLM,
@@ -81,13 +70,7 @@ func NewExecutor(
 		EmbeddingChain: embeddingChain,
 		BrowserRuntime: browserRuntime,
 		HandoffStore:   handoffStore,
-		GrantStore:     grantStore,
 	}
-}
-
-type TerminalPromptHandler struct {
-	Reader io.Reader
-	Writer io.Writer
 }
 
 type FileUploadRequest struct {
@@ -124,8 +107,6 @@ var executorToolHandlers = map[string]executorToolHandler{
 	"browser_select":                     executorRequestHandler(Executor.executeBrowserSelect),
 	"browser_press":                      executorRequestHandler(Executor.executeBrowserPress),
 	"browser_wait":                       executorRequestHandler(Executor.executeBrowserWait),
-	"user_confirm":                       executorRequestHandler(Executor.executeUserConfirm),
-	"user_input":                         executorRequestHandler(Executor.executeUserInput),
 }
 
 func executorRequestHandler(handler func(Executor, context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)) executorToolHandler {
@@ -145,11 +126,6 @@ func (executor Executor) Execute(ctx context.Context, request capabilities.ToolI
 }
 
 func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if executor.GrantStore != nil {
-		if errorValue := executor.GrantStore.Authorize(ctx, envelope, request, executor.ApprovalHandler); errorValue != nil {
-			return capabilities.ToolInvokeResponse{}, errorValue
-		}
-	}
 	handler, hasHandler := executorToolHandlers[request.ToolName]
 	if !hasHandler {
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("companion capability is not configured: %s", request.ToolName)
@@ -678,42 +654,6 @@ func (executor Executor) browserActionFailureResponse(ctx context.Context, reque
 	return response, nil
 }
 
-func (executor Executor) executeUserConfirm(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if executor.PromptHandler == nil {
-		return capabilities.ToolInvokeResponse{}, errors.New("user confirmation requires companion UI or --allow-stdin-prompts")
-	}
-	var input struct {
-		Message string `json:"message"`
-		Default bool   `json:"default"`
-	}
-	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	confirmed, errorValue := executor.PromptHandler.Confirm(ctx, firstNonEmpty(input.Message, "Continue?"), input.Default)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, map[string]bool{"confirmed": confirmed})
-}
-
-func (executor Executor) executeUserInput(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if executor.PromptHandler == nil {
-		return capabilities.ToolInvokeResponse{}, errors.New("user input requires companion UI or --allow-stdin-prompts")
-	}
-	var input struct {
-		Message string `json:"message"`
-		Prompt  string `json:"prompt"`
-	}
-	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	text, errorValue := executor.PromptHandler.Input(ctx, firstNonEmpty(input.Message, input.Prompt, "Input"))
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, map[string]string{"text": text})
-}
-
 func extensionAllowed(filename string, allowedExtensions []string) bool {
 	if len(allowedExtensions) == 0 {
 		return true
@@ -726,51 +666,6 @@ func extensionAllowed(filename string, allowedExtensions []string) bool {
 		}
 	}
 	return false
-}
-
-func (handler TerminalPromptHandler) Confirm(ctx context.Context, message string, defaultValue bool) (bool, error) {
-	_ = ctx
-	if handler.Reader == nil {
-		return false, errors.New("terminal prompt reader is not configured")
-	}
-	writer := handler.Writer
-	if writer == nil {
-		writer = io.Discard
-	}
-	reader := bufio.NewReader(handler.Reader)
-	_, _ = fmt.Fprintf(writer, "%s ", message)
-	if defaultValue {
-		_, _ = fmt.Fprint(writer, "[Y/n] ")
-	} else {
-		_, _ = fmt.Fprint(writer, "[y/N] ")
-	}
-	line, errorValue := reader.ReadString('\n')
-	if errorValue != nil && !errors.Is(errorValue, io.EOF) {
-		return false, errorValue
-	}
-	answer := strings.ToLower(strings.TrimSpace(line))
-	if answer == "" {
-		return defaultValue, nil
-	}
-	return answer == "y" || answer == "yes", nil
-}
-
-func (handler TerminalPromptHandler) Input(ctx context.Context, message string) (string, error) {
-	_ = ctx
-	if handler.Reader == nil {
-		return "", errors.New("terminal prompt reader is not configured")
-	}
-	writer := handler.Writer
-	if writer == nil {
-		writer = io.Discard
-	}
-	reader := bufio.NewReader(handler.Reader)
-	_, _ = fmt.Fprintf(writer, "%s ", message)
-	line, errorValue := reader.ReadString('\n')
-	if errorValue != nil && !errors.Is(errorValue, io.EOF) {
-		return "", errorValue
-	}
-	return strings.TrimSpace(line), nil
 }
 
 func MockStructuredContent(document []byte) string {

@@ -18,37 +18,6 @@ type ShellBridgePromptHandler struct {
 	HTTPClient *http.Client
 }
 
-func (handler ShellBridgePromptHandler) Confirm(ctx context.Context, message string, defaultValue bool) (bool, error) {
-	var response struct {
-		Confirmed bool `json:"confirmed"`
-	}
-	if errorValue := handler.post(ctx, "/v1/user/confirm", map[string]any{
-		"message": message,
-		"default": defaultValue,
-	}, &response); errorValue != nil {
-		return false, errorValue
-	}
-	return response.Confirmed, nil
-}
-
-func (handler ShellBridgePromptHandler) Input(ctx context.Context, message string) (string, error) {
-	var response struct {
-		Text string `json:"text"`
-	}
-	if errorValue := handler.post(ctx, "/v1/user/input", map[string]string{"message": message}, &response); errorValue != nil {
-		return "", errorValue
-	}
-	return response.Text, nil
-}
-
-func (handler ShellBridgePromptHandler) Approve(ctx context.Context, request ApprovalRequest) (ApprovalDecision, error) {
-	var response ApprovalDecision
-	if errorValue := handler.post(ctx, "/v1/security/approval", request, &response); errorValue != nil {
-		return ApprovalDecision{}, errorValue
-	}
-	return response, nil
-}
-
 func (handler ShellBridgePromptHandler) post(ctx context.Context, path string, requestBody any, responseBody any) error {
 	baseURL, errorValue := validateShellBridgeURL(handler.BaseURL)
 	if errorValue != nil {

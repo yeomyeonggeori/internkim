@@ -1094,39 +1094,6 @@ func TestBrowserHandoffRequiresCompanion(t *testing.T) {
 	}
 }
 
-func TestHumanInputToolRoutesToCompanion(t *testing.T) {
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path != "/jobs" {
-			t.Fatalf("unexpected companion path: %s", request.URL.Path)
-		}
-		var forwardedRequest capabilities.ToolInvokeRequest
-		if errorValue := json.NewDecoder(request.Body).Decode(&forwardedRequest); errorValue != nil {
-			t.Fatalf("expected forwarded tool request: %v", errorValue)
-		}
-		if forwardedRequest.ToolName != "user_confirm" {
-			t.Fatalf("expected tool name to be forwarded, got %q", forwardedRequest.ToolName)
-		}
-		return jsonResponse(capabilities.ToolInvokeResponse{
-			Provider:        "companion",
-			SelectedBackend: testCompanionBackend,
-			ToolName:        "user_confirm",
-			Result:          json.RawMessage(`{"confirmed":true}`),
-		}), nil
-	})}
-
-	service := Service{
-		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
-		HTTPClient:    httpClient,
-	}
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "user_confirm", strings.NewReader(`{"requiresUserPresence":true,"input":{"message":"continue?"}}`))
-	if errorValue != nil {
-		t.Fatalf("expected companion tool response: %v", errorValue)
-	}
-	if response.SelectedBackend != testCompanionBackend {
-		t.Fatalf("expected companion backend, got %q", response.SelectedBackend)
-	}
-}
-
 func TestHumanInputToolFailsCleanlyWithoutCompanion(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "sk-must-not-leak")
 	service := Service{Configuration: DefaultConfiguration()}
