@@ -67,7 +67,7 @@ Workspace 경로도 사용자에게 concrete POSIX path를 직접 노출하지 �
 - 사용자 로컬 파일 선택은 Companion이 처리하고, 김인턴에는 device-local temporary path와 TTL만 전달된다.
 - 브라우저 자동화는 Companion browser를 우선 사용하며, snapshot 결과에는 URL, title, text, interactive ref만 담는다.
 
-이 구조는 "LLM에게 도구를 주되, 비밀값은 주지 않는다"는 원칙을 구현한다. LLM은 `calendar`, `mail`, `browser`, `file_pick`, `reply.send` 같은 typed capability를 호출할 수 있지만, 실제 credential과 local resource는 capability provider가 들고 있다. 따라서 prompt injection이 있어도 모델이 token 문자열을 읽어 외부로 복사하는 경로가 크게 줄어든다.
+이 구조는 "LLM에게 도구를 주되, 비밀값은 주지 않는다"는 원칙을 구현한다. LLM은 `calendar`, `mail`, `browser`, `reply.send` 같은 typed capability를 호출할 수 있지만, 실제 credential과 local resource는 capability provider가 들고 있다. 따라서 prompt injection이 있어도 모델이 token 문자열을 읽어 외부로 복사하는 경로가 크게 줄어든다.
 
 ## 4. Agent runtime과 제품 appliance 경계가 분리됨
 

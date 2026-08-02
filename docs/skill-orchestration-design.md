@@ -48,7 +48,6 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 | PDF 생성/읽기 | `pdf` skill | 한글 폰트, 템플릿, 출력 파일 연결 |
 | 파일 전송 | native reply attachments | 파일 경로 검증, 메시지, 공유 대상 결정 |
 | 브라우저 자동화 | `agent-browser` skill, `browser.*` capability | 사용자 입력 대기, 제출 승인, 관찰 결과 요약 |
-| 로컬 파일 선택 | Companion `file_pick` | 로컬 경로 비노출, device temp path만 사용 |
 | 기억 저장/검색 | Graphiti memory | 개인/직급/팀/회사 scope 선택 |
 | 업무/출퇴근 | Blueclaw task DB, future attendance capability | 상태 전이, 담당자, audit 기록 |
 
@@ -68,7 +67,6 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 
 파일 생성, 선택, 공유, platform attachment를 연결한다.
 
-- 사용자 로컬 파일은 Companion `file_pick`으로 받고 로컬 경로를 노출하지 않는다.
 - Mattermost/Slack/Signal 전송은 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로를 사용한다.
 - 생성 작업은 `tmp/<slug>`에서 시작하고, 최종본만 `file_deliver`로 전달한다. 장기 보관이 필요한 경우에만 명시된 `artifacts/<slug>`, circle, 또는 shared 위치에 파일을 만든 뒤 전달한다.
 - 외부 공유와 Google Drive publish는 수신자, 권한, 파일명을 요약하고 승인 후 실행한다.

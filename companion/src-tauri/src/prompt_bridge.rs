@@ -54,12 +54,6 @@ struct ApprovalInput {
     timeout_seconds: Option<u64>,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct FilePickInput {
-    title: Option<String>,
-    allowed_extensions: Option<Vec<String>>,
-}
 
 #[tauri::command]
 pub fn start_shell_bridge(
@@ -133,9 +127,6 @@ fn handle_prompt_stream(
         write_http_json(&mut stream, 405, json!({"error":"method not allowed"}))?;
         return Ok(());
     }
-    if request.path == "/v1/file/pick" {
-        return handle_file_pick(app, stream, request.body);
-    }
     let kind = match request.path.as_str() {
         "/v1/user/confirm" => "confirm",
         "/v1/user/input" => "input",
@@ -207,35 +198,6 @@ fn handle_boolean_prompt(
     write_http_json(&mut stream, 200, json!({response_key:is_approved}))
 }
 
-fn handle_file_pick(app: AppHandle, mut stream: TcpStream, body: Vec<u8>) -> Result<(), String> {
-    let input: FilePickInput = serde_json::from_slice(&body).map_err(|error| error.to_string())?;
-    let _ = show_prompt_window(&app);
-    let mut file_dialog = app.dialog().file();
-    if let Some(title) = input.title.filter(|value| !value.trim().is_empty()) {
-        file_dialog = file_dialog.set_title(title);
-    }
-    let extensions = normalize_extensions(input.allowed_extensions.unwrap_or_default());
-    let extension_refs: Vec<&str> = extensions.iter().map(String::as_str).collect();
-    if !extension_refs.is_empty() {
-        file_dialog = file_dialog.add_filter("Allowed files", &extension_refs);
-    }
-    match file_dialog.blocking_pick_file() {
-        Some(file_path) => match file_path.into_path() {
-            Ok(path) => write_http_json(
-                &mut stream,
-                200,
-                json!({"path": path.to_string_lossy().to_string()}),
-            )?,
-            Err(_) => write_http_json(
-                &mut stream,
-                500,
-                json!({"error":"selected file path is unavailable"}),
-            )?,
-        },
-        None => write_http_json(&mut stream, 200, json!({"cancelled":true}))?,
-    }
-    Ok(())
-}
 
 impl PromptRequest {
     fn with_request_id(mut self, request_id: String) -> Self {

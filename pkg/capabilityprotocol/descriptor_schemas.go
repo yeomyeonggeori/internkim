@@ -58,14 +58,6 @@ func userInputSchema() json.RawMessage {
 	).RawMessage()
 }
 
-func filePickInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("message", jsonschema.String()),
-		jsonschema.Field("accept", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("multiple", jsonschema.Boolean()),
-	).RawMessage()
-}
-
 func emptyToolInputSchema() json.RawMessage {
 	return jsonschema.Object().RawMessage()
 }

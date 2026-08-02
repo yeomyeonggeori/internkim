@@ -500,7 +500,6 @@ func TestWebsiteBrowserDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
 
 func TestUncontractedToolsStayRegisteredButHiddenFromModels(t *testing.T) {
 	hiddenDefaultToolNames := []string{
-		"file_pick",
 		"browser_handoff",
 		"browser_fill",
 		"browser_select",
