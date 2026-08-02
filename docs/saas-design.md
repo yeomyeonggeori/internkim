@@ -54,32 +54,39 @@ Two planes:
 ```
         ┌─────────────────────────────  CENTRAL PLANE (we run)  ──────────────────────────────┐
         │                                                                                       │
-        │   Buzz relay (one, multi-community)      Web app (thin client)      Supabase          │
-        │   - nostr, membership/roles              - static SPA               - company/HR/org  │
-        │   - identity + roster provisioning       - free-tier host             data (RLS)      │
-        │   - real TLS, single public host         - talks to relay + agent   - app/account     │
-        │                                                                        state          │
-        │   Control-plane API (onboarding: create community, issue agent identity, add roster)  │
+        │   Supabase                    Web app (thin client)     Buzz relay (optional,         │
+        │   - Auth/OAuth = IDENTITY     - static SPA                one, multi-community)       │
+        │   - RLS: tenant membership    - free-tier host          - our own messenger option    │
+        │     + company/HR/org data     - talks to central plane  - real TLS, single host       │
+        │   - Realtime = host↔guest RPC   + the tenant's messenger                              │
+        │   - encrypted messenger credentials on the user row                                   │
+        │                                                                                       │
+        │   Control-plane API (onboarding: create tenant, provision messenger, issue host cred) │
         └───────────────────────────────────────────────────────────────────────────────────────┘
-           ▲ outbound wss (nostr, NIP-42)   ▲ outbound (relay+SaaS)   ▲ https
-           │                                │                         │
-   ┌───────┴───────────────────────┐  ┌─────┴──────────────────┐  ┌──┴───────────────┐
+           ▲ outbound (central + messenger)  ▲ outbound (same)      ▲ https
+           │                                 │                      │
+   ┌───────┴───────────────────────┐  ┌──────┴─────────────────┐  ┌─┴────────────────┐
    │  HOST — company agent (24/7)   │  │  GUEST — employee app   │  │ Browser (any dev)│
    │  spare company computer:       │  │  (optional companion):  │  │ our web app      │
    │  - blueclaw loop + harness     │  │  - local file/browser   │  └──────────────────┘
    │    (own, or Claude Code, …)    │  │  - local model, confirm │
-   │  - Buzz connector = Bot member │  │  - OS secure storage    │
-   │  - capability boundary (POSIX) │  │  intermittent; ENHANCES │
-   │  - BYO LLM                     │  │  but NOT required       │
-   │  - localhost + REST; no tunnel │  └─────────────────────────┘
-   └────────────────────────────────┘   host↔guest caps routed via relay
+   │  - chatd: messenger adapters   │  │  - OS secure storage    │
+   │    (Buzz | Slack | …)          │  │  intermittent; ENHANCES │
+   │  - capability boundary (POSIX) │  │  but NOT required       │
+   │  - BYO LLM                     │  └─────────────────────────┘
+   │  - localhost + REST; no tunnel │
+   └────────────────────────────────┘   host↔guest caps over Supabase Realtime
+
+   The messenger is a swappable surface. The central plane owns identity,
+   membership and capability RPC, so no single messenger is load-bearing.
 ```
 
-- **Central (we operate, small + cheap):** the Buzz relay, the web app, Supabase,
-  and a thin control-plane for onboarding/provisioning.
+- **Central (we operate, small + cheap):** Supabase (identity, data, Realtime),
+  the web app, a thin control-plane for onboarding/provisioning, and — for
+  tenants who want our messenger rather than their own — the Buzz relay.
 - **Host (customer, always-on):** blueclaw + harness on a **spare company
-  computer**, outbound-only to relay + SaaS, **localhost + REST, no tunnel**. The
-  company's single persistent agent (`Bot` member). BYO LLM.
+  computer**, outbound-only to the central plane + the tenant's messenger,
+  **localhost + REST, no tunnel**. The company's single persistent agent. BYO LLM.
 - **Guest (employee, optional):** the companion app — **optional progressive
   enhancement** that adds that employee's local-device capabilities when
   installed and online. The product works without it via the web app / messenger.
@@ -93,13 +100,15 @@ Our marginal cost per customer is near-zero.
 
 | Component | Runs | Tech | Notes |
 |---|---|---|---|
-| Buzz relay | Central (we) | block/buzz (Rust) | One shared, multi-community (host/community_id routing). Backends can be managed (Supabase Postgres, managed Redis, S3/Supabase Storage) to shrink self-hosting to one small process. |
-| Identity / membership provisioning | Central (we) | InternKim (`feat/buzz-invites`) | Issue each customer community + each agent a nostr key; add to relay roster / channel membership. |
-| Web app | Central (we) | SvelteKit (`web/`) | Thin client: static SPA on free-tier host (Vercel/CF Pages). Connects to relay (nostr WS) + shows InternKim features (attendance, calendar, HR, paperwork, org). |
+| Identity + tenant membership | Central (we) | Supabase Auth (OAuth) + RLS | The identity of record. Messenger credentials are encrypted rows on the user (§5). |
+| Host↔guest capability RPC | Central (we) | Supabase Realtime | Not the messenger — see §6. |
+| Control plane | Central (we) | InternKim (`feat/buzz-invites` grows into it) | Create tenant, provision the chosen messenger, issue the host credential. |
+| Buzz relay | Central (we), **optional** | block/buzz (Rust) | Our own messenger option for tenants who don't bring one. One shared, multi-community (host/community_id routing). Managed backends (Supabase Postgres, managed Redis, S3/Supabase Storage) shrink self-hosting to one small process. |
+| Web app | Central (we) | SvelteKit (`web/`) | Thin client: static SPA on free-tier host (Vercel/CF Pages). Talks to the central plane + the tenant's messenger. |
 | Company/HR/org data | Central (we) | Supabase (Postgres + RLS) | Per-tenant RLS + tenant-scoped role (never service key in client). |
 | Media | Central or per-tenant | S3 / Supabase Storage | Replaces MinIO. Buzz uses Blossom; point at S3-compatible. |
 | Agent runtime | Customer | `blueclaw` (Go) | Agent loop, tools, terminal, POSIX permission boundary. Runs on customer compute. |
-| Buzz connector | Customer | blueclaw-native nostr / adapter | Agent joins its community as a `Bot` member. |
+| Messenger connector | Customer | `chatd` (Chat SDK, pluggable adapters) | Agent joins the tenant's workspace as its bot member. Buzz is one adapter; others are addable without runtime changes. |
 | Capability boundary | Customer | `capabilityd` | Tool/permission enforcement local to the agent. |
 | LLM | Customer | `llmd` / local / Claude Code | BYO. Not our cost. |
 
@@ -133,9 +142,12 @@ the shape already holds: `loadConfiguration` errors only if *all* platforms are
 absent (`chatd/src/configuration.ts:38`), and with MM off the mirror degenerates
 to a no-op (`mirror/wire.ts:22`), so Buzz-only runs today with no code change.
 
-Buzz is the **hub** (the community + membership + identity substrate we operate);
-additional adapters are fan-out targets from it, which is the topology
-`main.ts:13` already encodes.
+Note that `main.ts:13` currently encodes "Buzz is the hub, fan out to the rest".
+That was right when Buzz owned identity; under §5 it no longer does. **No
+messenger is load-bearing** — each adapter is a surface, and a tenant that uses
+only Slack should never need a Buzz relay running. Whether adapters still fan out
+to each other (multi-messenger tenants) is a product question, not an
+architectural dependency.
 
 **`admind` → split three ways.** Today it is one mux with ~20 responsibility
 clusters (`internal/admind/service.go:516`).
@@ -155,7 +167,8 @@ storage removes the reason for it. Same for the relay's Postgres admin surface
 open questions §11.12 and §11.13:
 - **Workspace file browsing.** The browser reaches the host's filesystem today
   (`workspace_files.go:78`). An outbound-only host cannot serve it. Route it over
-  the relay, or drop browser-side file browsing.
+  the central plane (the same Realtime channel as host↔guest RPC), or drop
+  browser-side file browsing.
 - **Agent-generated sites.** Served by Host header off the device
   (`sites.go:366`), including per-site PocketBase systemd units. An outbound-only
   host cannot host public sites; publishing must move central (or to the
@@ -170,43 +183,68 @@ Three isolation concerns, three mechanisms:
 1. **Compute / filesystem (inter-tenant):** each customer's agent runs on **their
    own machine**. Physical separation → no cross-tenant filesystem access,
    trivially. This is the strongest layer and it's free (their hardware).
-2. **Messaging (inter-tenant):** enforced by the **relay natively** — membership
-   and channel roles (`Owner`/`Admin`/`Member`/`Guest`/`Bot`, `channel_members`
-   table, kind:13534 roster). A non-member cannot read a channel; the relay
-   checks membership before every subscription/event. Community boundary is
-   URL/`community_id`-authoritative and immutable in multi-community mode.
-3. **Data (inter-tenant):** Supabase **RLS** + a tenant-scoped DB role per
+2. **Product authorization (who may do what):** the **central plane** — Supabase
+   Auth identity + RLS + tenant membership. This is messenger-independent, so it
+   holds identically for a Buzz tenant and a Slack tenant.
+3. **Channel visibility (who may read a conversation):** the **messenger's own
+   mechanism**, whichever one the tenant uses. Buzz enforces membership and
+   channel roles (`Owner`/`Admin`/`Member`/`Guest`/`Bot`, `channel_members`,
+   kind:13534 roster) before every subscription/event; Slack enforces workspace
+   and channel membership. **We do not reimplement this**, and we do not assume
+   Buzz's version of it.
+4. **Data (inter-tenant):** Supabase **RLS** + a tenant-scoped DB role per
    customer. The service-role key never reaches a client.
+
+Note that (2) and (3) are genuinely different layers, and the central plane
+cannot enforce (3) — Supabase cannot decide who reads a Slack channel. Tenant
+isolation does not depend on it: separate tenants are separate workspaces or
+communities.
 
 **Operator trust:** Buzz group/channel messages are **not E2E**; whoever runs the
 relay can read plaintext. Since *we* run the relay, that's us — acceptable for
 v1 (we are the trusted operator). If message privacy from us ever becomes a
-requirement, options are (a) client-side per-community encryption, or (b) let the
-customer self-host the relay. Deferred, not v1.
-
-**Access control is native, not our invention:** Buzz has per-community admins
-who add/remove members and gate channels. Our `feat/buzz-invites` adds the
-invite/identity-provisioning UX on top; the enforcement is the relay's.
+requirement, options are (a) client-side per-community encryption, (b) let the
+customer self-host the relay, or (c) use a messenger they already trust.
+Deferred, not v1.
 
 ---
 
 ## 5. Identity, membership & onboarding
 
-- Each **customer = one Buzz community** on our shared relay (host/community_id).
-- Each **human user** and each **agent** is a nostr keypair that is a **member**
-  of the community with a role. Agents use the `Bot` role.
-- **Onboarding flow (control-plane):**
-  1. Customer signs up on the web app (Supabase Auth).
-  2. Control-plane creates their community on the relay, provisions an admin
-     identity, and configures membership/join policy (invite-gated).
-  3. Customer installs the agent client (CLI or app) on their Linux box; the
-     client is handed (or fetches) its **agent nostr identity** and the relay
-     URL/community, and is added to the roster as a `Bot`.
-  4. The agent connects outbound (wss + NIP-42), joins its channels, and starts
-     participating. The web app shows the same community.
+**Identity of record is the Supabase Auth user (OAuth).** Not a nostr key, not a
+Slack user. Each person and each agent is one central account; a **messenger
+identity is a linked credential hanging off that account**, stored encrypted in
+the user table (Supabase Vault / an encrypted column, key held by the control
+plane) — a nostr secret for Buzz, a token for Slack, one row per messenger.
 
-The relay is exposed **once** at a single public host with real TLS — no
-per-device tunnels, no per-device NIP-98 URL-mismatch problems.
+This replaces today's seed-derivation model, where every pubkey is computed
+admin-side from one seed plus an email (`buzz_identity_resolver.go:55`) and the
+pubkey→email map is written to a `0644` file for chatd to read
+(`buzz_invite.go:445`). That file and its heuristic linking
+(`singleOutstandingInvite`, `buzz_invite.go:393`) both disappear: linking becomes
+a row, created when the person connects that messenger.
+
+Human keys keep the stronger arrangement they already have — the browser reseals
+the nostr secret under passkey/password client-side (`buzz_client_vault.go:57`),
+so we hold ciphertext we cannot open. Server-held encryption is for the **host
+agent's** bot credential, which the installer must be able to hand over.
+
+- Each **customer = one tenant** centrally, mapped to one workspace in whichever
+  messenger they use (a Buzz community, a Slack workspace, …).
+- **Onboarding flow (control-plane):**
+  1. Customer signs up on the web app (Supabase Auth / OAuth).
+  2. Control-plane creates the tenant, then provisions the chosen messenger:
+     for Buzz, a community on our relay with an admin identity and invite-gated
+     join policy; for an existing messenger, an app/bot install.
+  3. Customer installs the agent client on their Linux box; the client
+     authenticates to the central plane as the tenant's host and is handed its
+     **messenger credential** for that tenant.
+  4. The agent connects outbound to the messenger and to the central plane, and
+     starts participating. The web app shows the same tenant.
+
+When the messenger is our Buzz relay, it is exposed **once** at a single public
+host with real TLS — no per-device tunnels, no per-device NIP-98 URL-mismatch
+problems.
 
 ---
 
@@ -214,7 +252,7 @@ per-device tunnels, no per-device NIP-98 URL-mismatch problems.
 
 The customer runtime is **a single app/artifact with a mode selector, chosen at
 setup: `host` or `guest`** (a machine may run both). Host and guest share the
-core — Buzz connector, identity, capability framework, blueclaw runtime — so
+core — messenger connector, identity, capability framework, blueclaw runtime — so
 bundling both roles adds **negligible size**; there is **no separate download**.
 The app runs **headless** (host on a spare box / server) or with the desktop
 companion UI (guest on an employee's machine).
@@ -223,21 +261,21 @@ companion UI (guest on an employee's machine).
 - Runs **blueclaw + a harness** (the agent loop; the harness may be blueclaw's
   own or an attached one like Claude Code) **24/7** on a **spare/leftover company
   computer** — no dedicated hardware to buy.
-- **Outbound-only.** It reaches out to the **Buzz relay** and the **InternKim
-  SaaS (REST)**; internally it uses **localhost + REST** only. **No CF tunnel, no
-  inbound ports, no public exposure.** (This removes the per-device
+- **Outbound-only.** It reaches out to the **tenant's messenger** and the
+  **InternKim central plane**; internally it uses **localhost + REST** only. **No
+  CF tunnel, no inbound ports, no public exposure.** (This removes the per-device
   exposure/NIP-98 pain entirely.)
-- Joins the community as the `Bot` member; it is the company's single persistent
-  assistant.
+- Joins the tenant's workspace as the bot member (Buzz `Bot`, a Slack bot user,
+  …); it is the company's single persistent assistant.
 - Linux/POSIX is required for the in-tenant permission boundary; on a
   Windows/Mac spare box, run it inside a bundled container/VM (WSL, etc.).
 - Started in **`host` mode** (headless): the same app via CLI/package, or the
   desktop app set to host mode.
 
 ### Guest — the optional per-employee companion
-- Each **employee** is a separate community member. Running the app in **`guest`
+- Each **employee** is a separate workspace member. Running the app in **`guest`
   mode is optional**: the product **works without it** (employees use the web app
-  / Buzz messenger; the host agent serves them via host-side + SaaS + remote
+  / their messenger; the host agent serves them via host-side + SaaS + remote
   capabilities).
 - **Installing the companion is a progressive enhancement** — it unlocks that
   employee's **local-device capabilities**: local file pick, browser handoff,
@@ -246,11 +284,14 @@ companion UI (guest on an employee's machine).
 - The app is intermittent (on/off) by nature.
 
 ### Host ↔ guest communication
-- Both host and guests connect **outbound to the central relay**; host→guest
-  capability requests are **routed over the relay** (no direct connection, no LAN
-  discovery, no tunnel). The party model is **host agent ↔ a specific guest
+- Both host and guests connect **outbound to the central plane**; host→guest
+  capability requests are **routed over Supabase Realtime** (no direct connection,
+  no LAN discovery, no tunnel). The party model is **host agent ↔ a specific guest
   employee**, so the companion's capability broker/handoff pattern is **kept**
-  (transport = relay), not removed.
+  (transport = the central plane), not removed.
+- Deliberately **not** the messenger. Capability RPC over messenger events would
+  make the messenger mandatory infrastructure and re-create the mirror we are
+  deleting; Realtime comes with Supabase, which the design already requires.
 - Fits the existing boundary: *blueclaw requests a capability; the runtime routes
   it to device / companion / remote*. If a given employee has no companion or is
   offline, the agent **degrades gracefully** (e.g. ask them to upload via web,
@@ -259,8 +300,8 @@ companion UI (guest on an employee's machine).
 ### Security / permissions (open — see §11)
 - Which guest a host may ask for which capability, and the approval model
   (`user.confirm`/`user.input` only when that guest is online).
-- Host identity vs. each guest identity on the relay roster.
-- The host→guest capability RPC framing/encryption over relay events.
+- Host identity vs. each guest identity in the workspace roster.
+- The host→guest capability RPC framing/encryption over Supabase Realtime.
 
 ---
 
