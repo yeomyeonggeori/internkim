@@ -39,8 +39,8 @@ insert into public.task (company_id, assignee_id, title, starts_at, ends_at, is_
   ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'SaaS migration', '2026-08-04 00:00+09', '2026-08-20 00:00+09', false),
   ('00000000-0000-0000-0000-0000000000b0', '000000bb-0000-0000-0000-000000000001', 'Other company meeting', '2026-08-04 09:00+09', '2026-08-04 10:00+09', true);
 
-insert into public.leave (member_id, kind, starts_on, ends_on) values
-  ('000000aa-0000-0000-0000-000000000001', 'annual', '2026-08-10', '2026-08-12');
+insert into public.leave (member_id, kind, is_paid, starts_on, ends_on) values
+  ('000000aa-0000-0000-0000-000000000001', '연차', true, '2026-08-10', '2026-08-12');
 
 do $$
 declare
@@ -226,8 +226,8 @@ begin
   assert rows_changed = 0, 'a member must not be able to approve their own leave';
 
   begin
-    insert into public.leave (member_id, kind, starts_on, ends_on)
-    values ('000000aa-0000-0000-0000-000000000002', 'annual', '2026-09-01', '2026-09-02');
+    insert into public.leave (member_id, kind, is_paid, starts_on, ends_on)
+    values ('000000aa-0000-0000-0000-000000000002', '무급휴가', false, '2026-09-01', '2026-09-02');
   exception when insufficient_privilege then
     colleague_request_blocked := true;
   end;
