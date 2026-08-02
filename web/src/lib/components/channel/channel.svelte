@@ -1137,17 +1137,21 @@
 		border-collapse: collapse;
 		margin: 0.5rem 0;
 		font-size: 0.9em;
+		border: 1px solid hsl(var(--border));
 	}
 	.chat-markdown :global(th),
 	.chat-markdown :global(td) {
-		border: 1px solid var(--border);
+		border: 1px solid hsl(var(--border));
 		padding: 0.375rem 0.625rem;
 		text-align: left;
 		white-space: nowrap;
 	}
 	.chat-markdown :global(thead th) {
-		background: var(--muted);
+		background: hsl(var(--muted));
 		font-weight: 600;
+	}
+	.chat-markdown :global(tbody tr:nth-child(even)) {
+		background: hsl(var(--muted) / 0.4);
 	}
 	.chat-markdown :global(img) {
 		display: inline-block;
