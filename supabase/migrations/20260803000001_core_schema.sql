@@ -21,7 +21,7 @@ create table public.company (
   work_locations text[] check (work_locations is null or array_length(work_locations, 1) > 0),
   work_hours jsonb check (work_hours is null or public.is_work_hours(work_hours)),
   minimum_daily_minutes integer check (minimum_daily_minutes > 0),
-  leave_days_granted numeric(5, 2) check (leave_days_granted >= 0),
+  leave_allowance numeric(5, 2) check (leave_allowance >= 0),
   rules jsonb not null default '{}'
 );
 
@@ -39,7 +39,7 @@ create table public.member (
   timezone text check (timezone is null or (timestamp '2000-01-01' at time zone timezone) is not null),
   work_hours jsonb check (work_hours is null or public.is_work_hours(work_hours)),
   minimum_daily_minutes integer check (minimum_daily_minutes > 0),
-  leave_days_granted numeric(5, 2) check (leave_days_granted >= 0)
+  leave_allowance numeric(5, 2) check (leave_allowance >= 0)
 );
 
 create index on public.member (company_id);
@@ -264,6 +264,16 @@ as $$
   where member.id = target_member;
 $$;
 
+create function public.member_today(target_member uuid)
+returns date
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select (now() at time zone public.member_timezone(target_member))::date;
+$$;
+
 create function public.member_locale(target_member uuid)
 returns text
 language sql
@@ -317,27 +327,27 @@ as $$
   where member.id = target_member;
 $$;
 
-create function public.member_leave_days_granted(target_member uuid)
+create function public.member_leave_allowance(target_member uuid)
 returns numeric
 language sql
 security definer
 stable
 set search_path = public
 as $$
-  select coalesce(member.leave_days_granted, company.leave_days_granted)
+  select coalesce(member.leave_allowance, company.leave_allowance)
   from public.member
   join public.company on company.id = member.company_id
   where member.id = target_member;
 $$;
 
-create function public.member_remaining_leave_days(target_member uuid, target_year integer)
+create function public.member_leave_balance(target_member uuid, target_year integer)
 returns numeric
 language sql
 security definer
 stable
 set search_path = public
 as $$
-  select public.member_leave_days_granted(target_member) - coalesce((
+  select public.member_leave_allowance(target_member) - coalesce((
     select sum(days) from public.leave
     where member_id = target_member
       and status = 'approved'
