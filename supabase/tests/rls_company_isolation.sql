@@ -6,9 +6,9 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000c1', 'invited@example.test'),
   ('00000000-0000-0000-0000-0000000000a9', 'admin@example.test');
 
-insert into public.company (id, name, timezone, work_locations) values
-  ('00000000-0000-0000-0000-0000000000a0', 'Company A', 'Asia/Seoul', array['Headquarters', 'Branch']),
-  ('00000000-0000-0000-0000-0000000000b0', 'Company B', 'America/New_York', null);
+insert into public.company (id, name, slug, country, locale, timezone, work_locations) values
+  ('00000000-0000-0000-0000-0000000000a0', 'Company A', 'company-a', 'KR', 'ko', 'Asia/Seoul', array['Headquarters', 'Branch']),
+  ('00000000-0000-0000-0000-0000000000b0', 'Company B', 'company-b', 'US', 'en-US', 'America/New_York', null);
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values
   ('000000aa-0000-0000-0000-000000000000', '00000000-0000-0000-0000-0000000000a0', 'admin@example.test', '00000000-0000-0000-0000-0000000000a9', 'active', true);
@@ -159,6 +159,47 @@ begin
     'with no schedule anywhere there is nothing to look up';
 
   raise notice 'working hours: a multi-week cycle resolves per day';
+end $$;
+
+do $$
+declare
+  employee uuid := '000000aa-0000-0000-0000-000000000001';
+  duplicate_slug_blocked boolean := false;
+  shouted_slug_blocked boolean := false;
+  invented_country_blocked boolean := false;
+begin
+  assert public.member_locale(employee) = 'ko',
+    'a member without their own locale answers in the company one';
+
+  update public.member set locale = 'en' where id = employee;
+  assert public.member_locale(employee) = 'en',
+    'a member locale overrides the company one';
+
+  begin
+    update public.company set slug = 'company-b'
+      where id = '00000000-0000-0000-0000-0000000000a0';
+  exception when unique_violation then
+    duplicate_slug_blocked := true;
+  end;
+  assert duplicate_slug_blocked, 'two companies cannot share a slug';
+
+  begin
+    update public.company set slug = 'Company A'
+      where id = '00000000-0000-0000-0000-0000000000a0';
+  exception when check_violation then
+    shouted_slug_blocked := true;
+  end;
+  assert shouted_slug_blocked, 'a slug is lowercase and url-safe';
+
+  begin
+    update public.company set country = 'Korea'
+      where id = '00000000-0000-0000-0000-0000000000a0';
+  exception when check_violation then
+    invented_country_blocked := true;
+  end;
+  assert invented_country_blocked, 'country is an ISO 3166-1 alpha-2 code';
+
+  raise notice 'identity: slug is unique and url-safe, locale falls back to the company';
 end $$;
 
 do $$
