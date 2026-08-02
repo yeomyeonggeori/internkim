@@ -377,6 +377,36 @@ Guiding principles:
 - **Open-source/self-host path stays green at every phase** (self-hosters run the
   same components we do).
 
+### The first goal — one vertical slice
+
+Phases 0–5 are a program, not a goal. The thing to actually finish first is a
+**single vertical slice** that crosses every new seam once, at minimum width:
+
+> An employee messages InternKim from the messenger; InternKim answers from a
+> spare Linux box; the attendance record from that conversation lands in
+> Supabase. **Zero Jetsons, zero tunnels.**
+
+**Acceptance — all five, demonstrated together:**
+1. That employee signs in with **Supabase Auth (OAuth)** and is a member of one
+   tenant.
+2. Their **messenger identity is a linked encrypted credential** on that user
+   row — not derived from a seed, not read from a `0644` file.
+3. The **host runs on a plain Linux box, outbound-only** — no inbound port, no
+   cloudflared, no `stunnel`.
+4. The agent answers through **one chatd adapter**, and swapping which adapter is
+   configured does not touch the runtime.
+5. The **attendance write goes to Supabase under RLS** as that tenant's role, with
+   the service key never leaving the central plane.
+
+**Explicitly out of scope for the slice** (each one is width, and each is a
+faithful copy of the same pattern once the slice holds): calendar, mail, company
+records, paperwork, org chart, memory, sites, workspace file browsing, guest mode,
+media/S3, migrating any existing tenant, the desktop app, harness selection.
+
+Attendance is the chosen feature because it is the smallest one that writes, is
+tenant-scoped, and is already exercised end-to-end today — so a regression is
+visible immediately rather than theoretical.
+
 ### Phase 0 — De-risk the foundations (no user impact)
 - Resolve enough of the §11 open questions to proceed (at minimum: component
   placement, media home, relay backends).
