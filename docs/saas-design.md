@@ -273,6 +273,12 @@ companion UI (guest on an employee's machine).
   …); it is the company's single persistent assistant.
 - Linux/POSIX is required for the in-tenant permission boundary; on a
   Windows/Mac spare box, run it inside a bundled container/VM (WSL, etc.).
+- **What the host actually needs** (verified by booting `cmd/blueclaw` on an
+  ordinary machine to `status: ok`): the agent binary, **llmd** and **a
+  Postgres**. Firecracker, the POSIX helper, `capabilityd`, Mattermost, a relay
+  and cloudflared are all unnecessary — `capabilityd: not_configured` is a
+  passing state. llmd and Postgres are hard startup gates, so the installable
+  bundle must carry both; "localhost + REST" understated this.
 - Started in **`host` mode** (headless): the same app via CLI/package, or the
   desktop app set to host mode.
 
