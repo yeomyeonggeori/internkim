@@ -21,7 +21,6 @@ create table public.company (
   work_locations text[] check (work_locations is null or array_length(work_locations, 1) > 0),
   work_hours jsonb check (work_hours is null or public.is_work_hours(work_hours)),
   minimum_daily_minutes integer check (minimum_daily_minutes > 0),
-  leave_day_minutes integer check (leave_day_minutes > 0),
   leave_days numeric(6, 2) check (leave_days >= 0),
   rules jsonb not null default '{}'
 );

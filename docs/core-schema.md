@@ -76,9 +76,11 @@ query instead of a permanent `UNION`.
 
 ## 4. Time, and the units
 
-**One time unit: integer minutes.** `minimum_daily_minutes`,
-`notify_minutes_before`, `leave_day_minutes`, `leave.minutes`. No fractional
-days, no floats.
+**Durations of work are integer minutes** (`minimum_daily_minutes`,
+`notify_minutes_before`). **Leave is `numeric` days**, because that is the unit
+law grants and audits in — a statutory minimum is "15 days", never "7200
+minutes". Storing the audited quantity in the audited unit means a company
+changing its standard working day cannot silently move a legal record.
 
 **Work hours are a repeating multi-week cycle**, `[[7 days], [7 days], …]`. The
 cycle length is the array length; a `null` day is a day off. A one-week array is
@@ -87,7 +89,7 @@ column. `member_work_hours_on(member, day)` hides the cycle arithmetic — do no
 reimplement it at a call site.
 
 **Everything resolves member → company.** `timezone`, `locale`, `work_hours`,
-`minimum_daily_minutes`, `leave_allowance_minutes`: set on the company, override
+`minimum_daily_minutes`, `leave_days`: set on the company, override
 on the member, read through the `member_*()` function. Never read the columns
 directly, or the fallback goes missing in one place and that is the bug.
 
@@ -108,19 +110,38 @@ without it, a Seoul employee's New Year leave is charged to the previous year.
 
 ## 5. Leave — and what is wrong with the current implementation
 
-The schema knows nothing about 반차 or 반반차, and it must stay that way.
+**The schema holds global facts. Policy lives in the client.** Accrual period,
+tenure increments, carryover caps and their expiry, part-time proration — those
+differ by country and by company, and columns for them were tried and removed.
+What the database keeps is the *result*:
+
+```
+company.leave_days   default entitlement          member.leave_days   override
+leave.days           what one leave consumes      leave.is_deducted   does it consume
+```
+
+**The rule that keeps this from breaking: the client computes, but it must write
+the result to `member.leave_days`.** A client that derives the number on the fly
+and only renders it will disagree with the next client — the web app and the
+agent would quote different balances. The stored number is the one answer.
+
+The schema also knows nothing about 반차 or 반반차, and it must stay that way.
 
 - `kind` is **free text**, the company's own vocabulary (`연차`, `경조사`,
   `예비군`). Leave types vary by company and by country; a fixed enum is wrong.
-- `minutes` is the quantity. Half-day and quarter-day are presets a client
-  offers — 480/240/120 where a day is eight hours, 450/225 where it is seven and
-  a half. An hours-only integer cannot express the second case.
+- `days` is the quantity, `numeric`. Half-day and quarter-day are presets a
+  client offers (0.5, 0.25); hourly leave is a fraction of a day. 반차 is
+  international, 반반차 is essentially Korean — elsewhere the same need is met
+  by hourly leave, and both are just numbers here.
 - `is_paid` and `is_deducted` are the two axes the system actually branches on.
-  Statutory-ness is **not** one of them: it never varies per row and depends on
-  `company.country`, so it belongs to the type definition in `company.rules`.
+  They vary per row: a normally paid leave can be taken unpaid, and a leave can
+  be granted without consuming the entitlement. Statutory-ness is **not** one of
+  them — it never varies per row and depends on `company.country`, so it belongs
+  to the policy the client applies.
 - `starts_at`/`ends_at` are the span (when someone is away, what the calendar
-  draws); `minutes` is the consumption. They legitimately disagree — a Friday to
-  Monday leave spans four days and costs two.
+  draws); `days` is the consumption. They legitimately disagree — a Friday to
+  Monday leave spans four days and costs two, and a half day is a one-day span
+  costing 0.5.
 
 **The device-era implementation contradicts all of this and must be rewritten
 against this schema:**
@@ -128,23 +149,22 @@ against this schema:**
 | Where | What is wrong |
 |---|---|
 | `internal/admind/attendance_leave_accrual.go:16` | `attendanceLeaveUnitMilliDays` accepts only `fullDay`, `halfDay`, `quarterDay` and errors on anything else. There is no way to record a ninety-day parental leave — this is why it surfaces as "출산휴가 1일". |
-| same file | Quantities are **milli-days** (1000/500/250). The canonical unit is integer minutes. |
+| same file | Quantities are **milli-days** (1000/500/250), a third unit nothing else uses. |
 | `internal/admind/attendance_absence_kinds.go:17` | Absence kinds are `leave` and `other`, with `day_off` folded into `leave`. There is no concept of a leave type at all. |
 
-Rewrite target: quantity is `leave.minutes`, type is `leave.kind` free text,
-and the client offers presets derived from `company.leave_day_minutes`.
+Rewrite target: quantity is `leave.days`, type is `leave.kind` free text, and
+any preset (half day, quarter day, an hour) is the client's own arithmetic.
 
-**Not in the schema yet, deliberately:** accrual (monthly, per-pay-period,
-tenure tiers), carryover and its cap, expiry, part-time proration. Those rules
-are too varied for columns and live in `company.rules`; the columns hold only
-the inputs (`member.joined_at`) and the result (`leave_allowance_minutes`).
-The existing Go code does model accrual, carryover and expiry — that logic is
-worth keeping, but it has to be rebuilt on minutes and on a real leave-type
-definition, not on three hardcoded units.
+**Keep the logic, move it.** That Go code does implement accrual, carryover,
+expiry and proportional grants, and those are real requirements — the defect is
+that they sit on three hardcoded units and two absence kinds. Rebuild them where
+policy belongs, and have them write `member.leave_days`.
 
-**One trap:** a part-timer's allowance is absolute in minutes, so if their day
-is four hours and the company grants 7200 minutes, they get thirty days off, not
-fifteen. Set `member.leave_allowance_minutes` when a member's day differs.
+**Two things the schema deliberately cannot express**, so they are the client's
+job: leave whose carried-over portion expires on its own date, and entitlement
+history ("how many days did they have in 2025"). Both need a grant ledger. It
+was designed and rejected as premature — the upgrade path is clean, because
+`leave` rows never reference a grant.
 
 ## 6. Access control
 
