@@ -129,6 +129,31 @@ end $$;
 
 do $$
 declare
+  whole_day_without_range_blocked boolean := false;
+  whole_day_work integer;
+begin
+  insert into public.task (company_id, title, starts_at, ends_at, is_whole_day)
+  values ('00000000-0000-0000-0000-0000000000a0', 'Day-long work span',
+          '2026-08-04 00:00+09', '2026-08-20 00:00+09', true);
+
+  select count(*) into whole_day_work
+    from public.task where is_whole_day and not is_event;
+  assert whole_day_work = 1, 'whole-day describes the time range, so plain work can use it too';
+
+  begin
+    insert into public.task (company_id, title, is_whole_day)
+    values ('00000000-0000-0000-0000-0000000000a0', 'Whole day of nothing in particular', true);
+  exception when check_violation then
+    whole_day_without_range_blocked := true;
+  end;
+  assert whole_day_without_range_blocked,
+    'whole-day needs a range to reinterpret as dates';
+
+  raise notice 'task: whole-day retypes a range as dates, for events and work alike';
+end $$;
+
+do $$
+declare
   visible_leave integer;
   rows_changed integer;
   colleague_request_blocked boolean := false;
