@@ -103,6 +103,7 @@ create table public.task (
   starts_at timestamptz,
   ends_at timestamptz,
   is_event boolean not null default false,
+  note text,
   check ((starts_at is null) = (ends_at is null)),
   check (ends_at >= starts_at),
   check (not is_event or starts_at is not null)
@@ -121,6 +122,7 @@ create table public.leave (
   status public.leave_status not null default 'requested',
   starts_on date not null,
   ends_on date not null,
+  note text,
   check (ends_on >= starts_on)
 );
 
