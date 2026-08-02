@@ -567,7 +567,7 @@ test.describe('employee leave requests', () => {
 	});
 
 	test('uses the same overflow-safe full-screen dialog on mobile', async ({ page }) => {
-		await installLeaveMock(page);
+		const leaveState = await installLeaveMock(page);
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.clock.setFixedTime(new Date('2026-08-01T10:00:00+09:00'));
 		await page.goto('/attendance');
@@ -598,7 +598,19 @@ test.describe('employee leave requests', () => {
 		});
 		await expect(dialog.getByRole('button', { name: '승인 요청' })).toBeVisible();
 		await expect(dialog.getByRole('tab')).toHaveCount(0);
-		await dialog.getByRole('button', { name: '취소', exact: true }).click();
+		await dialog.getByLabel('날짜').fill('2026-08-03');
+		await dialog.getByLabel('시작 시각').fill('11:00');
+		await expect(dialog.getByTestId('leave-request-preview').getByText('11:00–14:00')).toBeVisible();
+		const submitButton = dialog.getByRole('button', { name: '승인 요청' });
+		await expect(submitButton).toBeEnabled();
+		await submitButton.click();
+
+		await expect(dialog).toBeHidden();
+		expect(
+			leaveState.payload.requests.some(
+				(request) => request.startDate === '2026-08-03' && request.unit === 'quarterDay'
+			)
+		).toBe(true);
 		await page.getByRole('tab', { name: '휴가 내역' }).click();
 		await expect(page.getByTestId('leave-history-view')).toBeVisible();
 	});
