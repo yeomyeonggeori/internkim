@@ -410,7 +410,7 @@ func CompanionConnectRecovery() *RecoveryAction {
 }
 
 func CapabilityUnavailableUserReason(toolName string, code string) string {
-	isBrowserTool := strings.HasPrefix(strings.TrimSpace(toolName), "browser.")
+	isBrowserTool := toolNamespaces[strings.TrimSpace(toolName)] == "browser"
 	switch code {
 	case CapabilityNotReady:
 		if isBrowserTool {
@@ -549,4 +549,23 @@ func companyDocumentUpdateInputSchema() json.RawMessage {
 		jsonschema.Field("counterpart", jsonschema.String().WithDescription("Corrected counterpart. Omit to keep unchanged.")),
 		jsonschema.Field("summary", jsonschema.String().WithDescription("Replacement summary. Omit to keep unchanged.")),
 	).RawMessage()
+}
+
+// Which family a tool belongs to is written on its descriptor. Reading it off the
+// front of the name means every rename quietly reclassifies the tool.
+var toolNamespaces = buildToolNamespaces()
+
+func buildToolNamespaces() map[string]string {
+	namespaceByToolName := map[string]string{}
+	for _, descriptor := range CompanionToolDescriptors() {
+		namespaceByToolName[descriptor.Name] = descriptor.Namespace
+	}
+	for _, descriptor := range RegisteredToolDescriptors() {
+		namespaceByToolName[descriptor.Name] = descriptor.Namespace
+	}
+	return namespaceByToolName
+}
+
+func IsToolInNamespace(toolName string, namespace string) bool {
+	return toolNamespaces[strings.TrimSpace(toolName)] == namespace
 }
