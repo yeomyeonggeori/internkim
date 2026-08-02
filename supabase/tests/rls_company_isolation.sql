@@ -34,9 +34,13 @@ insert into public.task (company_id, assignee_id, title) values
   ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'Ship the vertical slice'),
   ('00000000-0000-0000-0000-0000000000b0', '000000bb-0000-0000-0000-000000000001', 'Other company work');
 
-insert into public.event (company_id, owner_id, title, starts_at, ends_at) values
-  ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'Standup', '2026-08-04 09:00+09', '2026-08-04 09:15+09'),
-  ('00000000-0000-0000-0000-0000000000b0', '000000bb-0000-0000-0000-000000000001', 'Other company meeting', '2026-08-04 09:00+09', '2026-08-04 10:00+09');
+insert into public.task (company_id, assignee_id, title, starts_at, ends_at, is_event) values
+  ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'Standup', '2026-08-04 09:00+09', '2026-08-04 09:15+09', true),
+  ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'SaaS migration', '2026-08-04 00:00+09', '2026-08-20 00:00+09', false),
+  ('00000000-0000-0000-0000-0000000000b0', '000000bb-0000-0000-0000-000000000001', 'Other company meeting', '2026-08-04 09:00+09', '2026-08-04 10:00+09', true);
+
+insert into public.leave (member_id, kind, starts_on, ends_on) values
+  ('000000aa-0000-0000-0000-000000000001', 'annual', '2026-08-10', '2026-08-12');
 
 do $$
 declare
@@ -86,10 +90,10 @@ begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1"}', true);
 
   select count(*) into visible_tasks from public.task;
-  assert visible_tasks = 1, 'tasks from another company must be invisible';
+  assert visible_tasks = 3, 'tasks from another company must be invisible';
 
-  select count(*) into visible_events from public.event;
-  assert visible_events = 1, 'events from another company must be invisible';
+  select count(*) into visible_events from public.task where is_event;
+  assert visible_events = 1, 'a multi-day work span must not appear on the calendar';
 
   update public.task set status = 'doing'
     where company_id = '00000000-0000-0000-0000-0000000000b0';
@@ -105,7 +109,56 @@ begin
   assert cross_company_task_blocked, 'a member must not be able to create a task in another company';
 
   reset role;
-  raise notice 'task and event: company-scoped for read and write';
+  raise notice 'task: company-scoped, and only timed appointments reach the calendar';
+end $$;
+
+do $$
+declare
+  untimed_event_blocked boolean := false;
+begin
+  begin
+    insert into public.task (company_id, title, is_event)
+    values ('00000000-0000-0000-0000-0000000000a0', 'Meeting with no time', true);
+  exception when check_violation then
+    untimed_event_blocked := true;
+  end;
+  assert untimed_event_blocked, 'an event without a time cannot be reminded about, so it must be rejected';
+
+  raise notice 'task: an event always carries the time it happens at';
+end $$;
+
+do $$
+declare
+  visible_leave integer;
+  rows_changed integer;
+  colleague_request_blocked boolean := false;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1"}', true);
+
+  select count(*) into visible_leave from public.leave;
+  assert visible_leave = 1, 'leave is visible to colleagues so it can show on the calendar';
+
+  update public.leave set status = 'approved';
+  get diagnostics rows_changed = row_count;
+  assert rows_changed = 0, 'a member must not be able to approve their own leave';
+
+  begin
+    insert into public.leave (member_id, kind, starts_on, ends_on)
+    values ('000000aa-0000-0000-0000-000000000002', 'annual', '2026-09-01', '2026-09-02');
+  exception when insufficient_privilege then
+    colleague_request_blocked := true;
+  end;
+  assert colleague_request_blocked, 'a member must not be able to request leave for someone else';
+
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a9"}', true);
+
+  update public.leave set status = 'approved';
+  get diagnostics rows_changed = row_count;
+  assert rows_changed = 1, 'an admin approves leave in their own company';
+
+  reset role;
+  raise notice 'leave: requested by the member, approved by an admin, visible to colleagues';
 end $$;
 
 do $$

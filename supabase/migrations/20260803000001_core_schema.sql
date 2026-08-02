@@ -99,22 +99,32 @@ create table public.task (
   assignee_id uuid references public.member on delete set null,
   title text not null,
   status public.task_status not null default 'todo',
-  due_at timestamptz
+  due_at timestamptz,
+  starts_at timestamptz,
+  ends_at timestamptz,
+  is_event boolean not null default false,
+  check ((starts_at is null) = (ends_at is null)),
+  check (ends_at >= starts_at),
+  check (not is_event or starts_at is not null)
 );
 
 create index on public.task (company_id, status);
+create index on public.task (company_id, starts_at) where is_event;
 
-create table public.event (
+create type public.leave_kind as enum ('annual', 'sick', 'unpaid');
+create type public.leave_status as enum ('requested', 'approved', 'rejected');
+
+create table public.leave (
   id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references public.company on delete cascade,
-  owner_id uuid references public.member on delete set null,
-  title text not null,
-  starts_at timestamptz not null,
-  ends_at timestamptz not null,
-  check (ends_at >= starts_at)
+  member_id uuid not null references public.member on delete cascade,
+  kind public.leave_kind not null,
+  status public.leave_status not null default 'requested',
+  starts_on date not null,
+  ends_on date not null,
+  check (ends_on >= starts_on)
 );
 
-create index on public.event (company_id, starts_at);
+create index on public.leave (member_id, starts_on);
 
 create function public.my_member()
 returns uuid
@@ -164,7 +174,7 @@ alter table public.member enable row level security;
 alter table public.credential enable row level security;
 alter table public.attendance enable row level security;
 alter table public.task enable row level security;
-alter table public.event enable row level security;
+alter table public.leave enable row level security;
 
 create policy company_readable_by_member on public.company
   for select using (id = public.company_of(public.my_member()));
@@ -193,6 +203,14 @@ create policy task_usable_by_colleague on public.task
   for all using (company_id = public.company_of(public.my_member()))
   with check (company_id = public.company_of(public.my_member()));
 
-create policy event_usable_by_colleague on public.event
-  for all using (company_id = public.company_of(public.my_member()))
-  with check (company_id = public.company_of(public.my_member()));
+create policy leave_readable_by_colleague on public.leave
+  for select using (public.company_of(member_id) = public.company_of(public.my_member()));
+
+create policy leave_requestable_by_owner on public.leave
+  for insert with check (member_id = public.my_member());
+
+create policy leave_decidable_by_admin on public.leave
+  for update using (
+    public.is_company_admin()
+    and public.company_of(member_id) = public.company_of(public.my_member())
+  );
