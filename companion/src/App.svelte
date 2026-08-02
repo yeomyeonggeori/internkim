@@ -5,9 +5,7 @@
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
 	import { isCompanionVerified, isStalePairingStatus, normalizeManualPairingInput, parsePairingLink, stalePairingMessage, statusLabel, type CompanionStatus } from './lib/pairing';
-	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, type PromptRequest, type PromptResult } from './lib/prompts';
 	import { disconnectCompanion, ensureLaunchAtLogin, pairCompanion, readCompanionStatus, refreshRuntimeStatus, restartCompanionRuntime, setRuntimeState, startCompanionRuntime } from './lib/sidecar';
-	import GrantsPanel from './lib/components/GrantsPanel.svelte';
 	import PairingPanel from './lib/components/PairingPanel.svelte';
 	import RuntimeStatusPanel from './lib/components/RuntimeStatusPanel.svelte';
 	import SettingsPanel from './lib/components/SettingsPanel.svelte';
@@ -16,7 +14,6 @@
 	let deviceURL = $state('');
 	let pairingCode = $state('');
 	let message = $state('');
-	let promptResult = $state<PromptResult>({ status: 'idle' });
 	let isBusy = $state(false);
 
 	onMount(() => {
@@ -59,15 +56,6 @@
 			});
 			await listen('open-admin-request', () => {
 				void openAdmin();
-			});
-			await listen<unknown>('prompt-request', async (event) => {
-				try {
-					const prompt = normalizePromptRequest(event.payload);
-					await invoke('show_main_window');
-					await answerPromptWithAlert(prompt);
-				} catch (errorValue) {
-					message = errorValue instanceof Error ? errorValue.message : 'Prompt request failed';
-				}
 			});
 		} catch {
 			message = 'Companion shell events are unavailable.';
@@ -142,34 +130,7 @@
 		}
 	}
 
-	async function answerPromptWithAlert(prompt: PromptRequest) {
-		promptResult = { status: 'pending' };
-		if (prompt.kind === 'confirm') {
-			await completePromptRequest(prompt.requestID, confirmResponse(window.confirm(prompt.message)));
-			return;
-		}
-		if (prompt.kind === 'input') {
-			await completePromptRequest(prompt.requestID, inputResponse(window.prompt(prompt.message) ?? ''));
-			return;
-		}
-		const allowed = window.confirm(prompt.message);
-		if (allowed) {
-			const rememberSession = window.confirm('이번 세션 동안 같은 권한을 다시 묻지 않을까요?');
-			await completePromptRequest(prompt.requestID, approvalResponse(true, '', rememberSession));
-			return;
-		}
-		const denialReason = window.prompt('거부 이유나 대안이 있으면 입력하세요.', '') ?? '';
-		await completePromptRequest(prompt.requestID, approvalResponse(false, denialReason));
-	}
 
-	async function completePromptRequest(requestID: string, response: unknown) {
-		try {
-			await invoke('complete_prompt_request', { requestId: requestID, response });
-			promptResult = { status: 'completed', message: 'Response sent.' };
-		} catch (errorValue) {
-			promptResult = { status: 'failed', message: errorValue instanceof Error ? errorValue.message : 'Response failed' };
-		}
-	}
 
 	async function openAdmin() {
 		if (!status.deviceURL) return;
@@ -198,7 +159,6 @@
 
 	<SettingsPanel {status} />
 
-	<GrantsPanel onMessage={(text) => (message = text)} />
 
 	<PairingPanel
 		{status}

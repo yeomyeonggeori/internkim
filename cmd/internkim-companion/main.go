@@ -296,7 +296,6 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	statePath := registerStateFlag(flags)
 	runOnce := flags.Bool("once", false, "process one polling cycle")
 	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses")
-	allowStdinPrompts := flags.Bool("allow-stdin-prompts", false, "allow terminal prompts for user input capabilities")
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
 	browserExecutablePath := flags.String("browser-executable", defaultBrowserExecutablePath(), "browser executable path")
 	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
@@ -352,8 +351,6 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	if controlServer != nil {
 		defer controlServer.Close()
-	}
-	if *allowStdinPrompts {
 	}
 	executor.FileUploader = companionruntime.DeviceFileUploader{DeviceClient: deviceClient}
 	jobRunner := companionruntime.JobRunner{

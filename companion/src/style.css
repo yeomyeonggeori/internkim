@@ -110,7 +110,6 @@ select {
 .status-panel,
 .form-panel,
 .runtime-panel,
-.grant-panel,
 .capability-panel,
 .settings-panel {
 	border: 1px solid var(--border);
@@ -140,7 +139,6 @@ select {
 }
 
 .runtime-panel,
-.grant-panel,
 .form-panel,
 .capability-panel,
 .settings-panel {
@@ -160,8 +158,7 @@ select {
 
 .panel-header > *,
 .model-row-header > *,
-.runtime-row > * > *,
-.grant-row > * {
+.runtime-row > * > * > * {
 	min-width: 0;
 }
 
@@ -230,8 +227,7 @@ h3 {
 	background: hsl(151 81% 96%);
 }
 
-.runtime-row,
-.grant-row {
+.runtime-row {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -244,26 +240,14 @@ h3 {
 	min-width: 0;
 }
 
-.grant-list,
 .backend-config {
 	display: grid;
 	gap: 10px;
 	min-width: 0;
 }
 
-.grant-row div {
-	display: grid;
-	gap: 4px;
-	min-width: 0;
-}
 
-.grant-row strong {
-	color: var(--foreground);
-	font-size: 14px;
-	overflow-wrap: anywhere;
-}
 
-.grant-row span,
 .runtime-row span {
 	color: var(--muted-foreground);
 	font-size: 12px;
@@ -458,7 +442,6 @@ button.ghost:hover:not(:disabled) {
 	.status-panel,
 	.form-panel,
 	.runtime-panel,
-	.grant-panel,
 	.capability-panel,
 	.settings-panel {
 		padding: 14px;
@@ -467,8 +450,7 @@ button.ghost:hover:not(:disabled) {
 	.status-panel,
 	.panel-header,
 	.model-row-header,
-	.runtime-row,
-	.grant-row {
+	.runtime-row {
 		align-items: stretch;
 		flex-direction: column;
 		justify-content: flex-start;

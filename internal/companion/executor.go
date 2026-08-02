@@ -53,10 +53,8 @@ type Executor struct {
 }
 
 // NewExecutor builds an Executor from the dependencies known at companion
-// startup. The browser runtime and the file uploader are
-// FileUploader are intentionally left unset here: the caller wires them in
-// afterward only when the matching optional CLI flag (--allow-stdin-prompts,
-// --development-auto-approve-browser, --shell-bridge-url) is present.
+// startup. The file uploader is left unset here and wired in afterward, because
+// only a run that talks to a device has one.
 func NewExecutor(
 	devMockLLM bool,
 	llmChain llmbackend.Provider,

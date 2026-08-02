@@ -1,5 +1,4 @@
 mod handoff_overlay;
-mod prompt_bridge;
 mod settings;
 mod startup;
 
@@ -36,7 +35,6 @@ fn ensure_launch_at_login() -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
-        .manage(prompt_bridge::PromptBridgeState::default())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -55,8 +53,6 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             show_main_window,
-            prompt_bridge::start_shell_bridge,
-            prompt_bridge::complete_prompt_request,
             handoff_overlay::sync_handoff_overlay,
             open_admin_url,
             ensure_launch_at_login,
