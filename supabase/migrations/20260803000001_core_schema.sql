@@ -2,7 +2,8 @@ create table public.company (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   timezone text not null check ((timestamp '2000-01-01' at time zone timezone) is not null),
-  work_locations text[] check (work_locations is null or array_length(work_locations, 1) > 0)
+  work_locations text[] check (work_locations is null or array_length(work_locations, 1) > 0),
+  rules jsonb not null default '{}'
 );
 
 create type public.member_status as enum ('pending', 'invited', 'active', 'departed', 'withdrawn');
