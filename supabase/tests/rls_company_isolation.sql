@@ -81,14 +81,14 @@ end $$;
 
 do $$
 declare
-  weekday_schedule jsonb := '[
+  weekday_schedule jsonb := '[[
     [{"from":"09:00","to":"18:00"}],
     [{"from":"09:00","to":"18:00"}],
     [{"from":"09:00","to":"18:00"}],
     [{"from":"09:00","to":"18:00"}],
     [{"from":"09:00","to":"15:00"}],
     null,
-    null]';
+    null]]';
   employee uuid := '000000aa-0000-0000-0000-000000000001';
   colleague uuid := '000000aa-0000-0000-0000-000000000002';
   malformed_schedule_blocked boolean := false;
@@ -107,22 +107,58 @@ begin
     'a member without their own minimum follows the company';
 
   update public.member
-    set working_hours = '[null,null,null,null,null,null,null]', minimum_daily_minutes = 120
+    set working_hours = '[[null,null,null,null,null,null,null]]', minimum_daily_minutes = 120
     where id = colleague;
 
-  assert public.member_working_hours(colleague) = '[null,null,null,null,null,null,null]',
+  assert public.member_working_hours(colleague) = '[[null,null,null,null,null,null,null]]',
     'a member on their own schedule overrides the company one';
   assert public.member_minimum_daily_minutes(colleague) = 120,
     'a member minimum overrides the company one';
 
   begin
-    update public.member set working_hours = '[null,null,null]' where id = colleague;
+    update public.member set working_hours = '[[null,null,null]]' where id = colleague;
   exception when check_violation then
     malformed_schedule_blocked := true;
   end;
   assert malformed_schedule_blocked, 'a weekly schedule always covers seven days';
 
   raise notice 'working hours: member overrides company, and nothing set means flexible';
+end $$;
+
+do $$
+declare
+  fortnight jsonb := '[
+    [null,null,null,null,null,[{"from":"09:00","to":"13:00"}],null],
+    [null,null,null,null,null,null,null]]';
+  employee uuid := '000000aa-0000-0000-0000-000000000001';
+  first_saturday date := date '2026-08-08';
+  next_saturday date := first_saturday + 7;
+  fortnight_later date := first_saturday + 14;
+  monday date := date '2026-08-03';
+begin
+  update public.member set working_hours = fortnight where id = employee;
+
+  assert public.member_day_hours(employee, first_saturday)
+      is distinct from public.member_day_hours(employee, next_saturday),
+    'in a two-week cycle, consecutive Saturdays differ';
+
+  assert public.member_day_hours(employee, first_saturday)
+      is not distinct from public.member_day_hours(employee, fortnight_later),
+    'the cycle repeats after its own length';
+
+  assert public.member_day_hours(employee, monday) = 'null'::jsonb,
+    'a day the schedule leaves empty is a day off';
+
+  update public.member set working_hours = null where id = employee;
+  assert public.member_day_hours(employee, monday) is not null,
+    'clearing a member schedule falls back to the company cycle';
+
+  update public.company set working_hours = null
+    where id = '00000000-0000-0000-0000-0000000000a0';
+  assert public.member_day_hours(employee, monday) is null,
+    'with no schedule anywhere there is nothing to look up';
+
+  raise notice 'working hours: a multi-week cycle resolves per day';
 end $$;
 
 do $$
