@@ -1,9 +1,22 @@
+create function public.is_working_hours(schedule jsonb)
+returns boolean
+language sql
+immutable
+as $$
+  select jsonb_typeof(schedule) = 'array'
+    and jsonb_array_length(schedule) >= 1
+    and not exists (
+      select 1 from jsonb_array_elements(schedule) as week
+      where jsonb_typeof(week) <> 'array' or jsonb_array_length(week) <> 7
+    );
+$$;
+
 create table public.company (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   timezone text not null check ((timestamp '2000-01-01' at time zone timezone) is not null),
   work_locations text[] check (work_locations is null or array_length(work_locations, 1) > 0),
-  working_hours jsonb check (working_hours is null or jsonb_array_length(working_hours) = 7),
+  working_hours jsonb check (working_hours is null or public.is_working_hours(working_hours)),
   minimum_daily_minutes integer check (minimum_daily_minutes > 0),
   rules jsonb not null default '{}'
 );
@@ -18,7 +31,7 @@ create table public.member (
   status public.member_status not null default 'pending',
   is_admin boolean not null default false,
   timezone text check (timezone is null or (timestamp '2000-01-01' at time zone timezone) is not null),
-  working_hours jsonb check (working_hours is null or jsonb_array_length(working_hours) = 7),
+  working_hours jsonb check (working_hours is null or public.is_working_hours(working_hours)),
   minimum_daily_minutes integer check (minimum_daily_minutes > 0)
 );
 
@@ -253,6 +266,20 @@ as $$
   from public.member
   join public.company on company.id = member.company_id
   where member.id = target_member;
+$$;
+
+create function public.member_day_hours(target_member uuid, target_day date)
+returns jsonb
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select schedule
+    -> (((((target_day - date '2000-01-03') / 7) % jsonb_array_length(schedule)) + jsonb_array_length(schedule)) % jsonb_array_length(schedule))
+    -> (extract(isodow from target_day)::integer - 1)
+  from (select public.member_working_hours(target_member) as schedule) resolved
+  where schedule is not null;
 $$;
 
 create function public.member_minimum_daily_minutes(target_member uuid)
