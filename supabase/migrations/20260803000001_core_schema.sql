@@ -1,6 +1,7 @@
 create table public.company (
   id uuid primary key default gen_random_uuid(),
-  name text not null
+  name text not null,
+  timezone text not null check ((timestamp '2000-01-01' at time zone timezone) is not null)
 );
 
 create type public.member_status as enum ('pending', 'invited', 'active', 'departed', 'withdrawn');
@@ -11,7 +12,8 @@ create table public.member (
   email text unique,
   user_id uuid unique references auth.users on delete set null,
   status public.member_status not null default 'pending',
-  is_admin boolean not null default false
+  is_admin boolean not null default false,
+  timezone text check (timezone is null or (timestamp '2000-01-01' at time zone timezone) is not null)
 );
 
 create index on public.member (company_id);
@@ -89,6 +91,31 @@ create table public.attendance (
 
 create index on public.attendance (member_id, occurred_at desc);
 
+create type public.task_status as enum ('todo', 'doing', 'done');
+
+create table public.task (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.company on delete cascade,
+  assignee_id uuid references public.member on delete set null,
+  title text not null,
+  status public.task_status not null default 'todo',
+  due_at timestamptz
+);
+
+create index on public.task (company_id, status);
+
+create table public.event (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.company on delete cascade,
+  owner_id uuid references public.member on delete set null,
+  title text not null,
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  check (ends_at >= starts_at)
+);
+
+create index on public.event (company_id, starts_at);
+
 create function public.my_member()
 returns uuid
 language sql
@@ -119,10 +146,25 @@ as $$
   select coalesce((select is_admin from public.member where user_id = auth.uid()), false);
 $$;
 
+create function public.member_timezone(target_member uuid)
+returns text
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select coalesce(member.timezone, company.timezone)
+  from public.member
+  join public.company on company.id = member.company_id
+  where member.id = target_member;
+$$;
+
 alter table public.company enable row level security;
 alter table public.member enable row level security;
 alter table public.credential enable row level security;
 alter table public.attendance enable row level security;
+alter table public.task enable row level security;
+alter table public.event enable row level security;
 
 create policy company_readable_by_member on public.company
   for select using (id = public.company_of(public.my_member()));
@@ -146,3 +188,11 @@ create policy attendance_readable_by_colleague on public.attendance
 
 create policy attendance_writable_by_owner on public.attendance
   for insert with check (member_id = public.my_member());
+
+create policy task_usable_by_colleague on public.task
+  for all using (company_id = public.company_of(public.my_member()))
+  with check (company_id = public.company_of(public.my_member()));
+
+create policy event_usable_by_colleague on public.event
+  for all using (company_id = public.company_of(public.my_member()))
+  with check (company_id = public.company_of(public.my_member()));
