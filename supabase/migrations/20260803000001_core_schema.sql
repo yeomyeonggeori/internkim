@@ -1,7 +1,8 @@
 create table public.company (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  timezone text not null check ((timestamp '2000-01-01' at time zone timezone) is not null)
+  timezone text not null check ((timestamp '2000-01-01' at time zone timezone) is not null),
+  work_locations text[] check (work_locations is null or array_length(work_locations, 1) > 0)
 );
 
 create type public.member_status as enum ('pending', 'invited', 'active', 'departed', 'withdrawn');
@@ -82,14 +83,67 @@ create table public.credential (
   unique (kind, external_id)
 );
 
+create type public.attendance_kind as enum ('clock_in', 'clock_out');
+
 create table public.attendance (
   id uuid primary key default gen_random_uuid(),
   member_id uuid not null references public.member on delete cascade,
-  kind text not null check (kind in ('clock_in', 'clock_out')),
-  occurred_at timestamptz not null default now()
+  kind public.attendance_kind not null,
+  location text,
+  occurred_at timestamptz not null default now(),
+  check (kind = 'clock_in' or location is null)
 );
 
 create index on public.attendance (member_id, occurred_at desc);
+
+create function public.resolve_attendance()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  registered_locations text[];
+  previous public.attendance;
+begin
+  select company.work_locations into registered_locations
+    from public.member
+    join public.company on company.id = member.company_id
+    where member.id = new.member_id;
+
+  if new.kind = 'clock_in' then
+    if new.location is null then
+      new.location := registered_locations[1];
+    elsif registered_locations is not null and not (new.location = any (registered_locations)) then
+      raise exception 'location % is not one of the registered work locations', new.location
+        using errcode = 'check_violation';
+    end if;
+  end if;
+
+  select * into previous
+    from public.attendance
+    where member_id = new.member_id and occurred_at <= new.occurred_at
+    order by occurred_at desc, id desc
+    limit 1;
+
+  if new.kind = 'clock_out' and (previous is null or previous.kind = 'clock_out') then
+    raise exception 'cannot clock out without being clocked in'
+      using errcode = 'check_violation';
+  end if;
+
+  if new.kind = 'clock_in' and previous.kind = 'clock_in'
+     and previous.location is not distinct from new.location then
+    raise exception 'already clocked in at %', new.location
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger resolve_attendance_on_insert
+  before insert on public.attendance
+  for each row execute function public.resolve_attendance();
 
 create type public.task_status as enum ('todo', 'doing', 'done');
 

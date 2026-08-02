@@ -6,9 +6,9 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000c1', 'invited@example.test'),
   ('00000000-0000-0000-0000-0000000000a9', 'admin@example.test');
 
-insert into public.company (id, name, timezone) values
-  ('00000000-0000-0000-0000-0000000000a0', 'Company A', 'Asia/Seoul'),
-  ('00000000-0000-0000-0000-0000000000b0', 'Company B', 'America/New_York');
+insert into public.company (id, name, timezone, work_locations) values
+  ('00000000-0000-0000-0000-0000000000a0', 'Company A', 'Asia/Seoul', array['Headquarters', 'Branch']),
+  ('00000000-0000-0000-0000-0000000000b0', 'Company B', 'America/New_York', null);
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values
   ('000000aa-0000-0000-0000-000000000000', '00000000-0000-0000-0000-0000000000a0', 'admin@example.test', '00000000-0000-0000-0000-0000000000a9', 'active', true);
@@ -268,7 +268,7 @@ begin
 
   begin
     insert into public.attendance (member_id, kind)
-    values ('000000aa-0000-0000-0000-000000000002', 'clock_in');
+    values ('000000aa-0000-0000-0000-000000000002', 'clock_out');
   exception when insufficient_privilege then
     impersonation_blocked := true;
   end;
@@ -447,6 +447,85 @@ begin
   assert surviving_attendance = 1, 'attendance stays with the company after the account is deleted';
 
   raise notice 'withdrawal: a self-deleted account keeps the company record';
+end $$;
+
+do $$
+declare
+  traveller uuid := '000000aa-0000-0000-0000-000000000003';
+  unregistered_company_member uuid := '000000bb-0000-0000-0000-000000000001';
+  base timestamptz := '2026-08-05 09:00+09';
+  defaulted_location text;
+  free_location text;
+  leaving_without_arriving_blocked boolean := false;
+  same_location_blocked boolean := false;
+  unregistered_location_blocked boolean := false;
+  double_clock_out_blocked boolean := false;
+  located_clock_out_blocked boolean := false;
+begin
+  begin
+    insert into public.attendance (member_id, kind, occurred_at)
+      values (traveller, 'clock_out', base);
+  exception when check_violation then
+    leaving_without_arriving_blocked := true;
+  end;
+  assert leaving_without_arriving_blocked, 'clocking out without being clocked in must be rejected';
+
+  insert into public.attendance (member_id, kind, occurred_at)
+    values (traveller, 'clock_in', base + interval '1 minute');
+
+  select location into defaulted_location
+    from public.attendance where member_id = traveller order by occurred_at desc limit 1;
+  assert defaulted_location = 'Headquarters',
+    'a clock-in without a location takes the first registered work location';
+
+  begin
+    insert into public.attendance (member_id, kind, location, occurred_at)
+      values (traveller, 'clock_in', 'Headquarters', base + interval '2 minutes');
+  exception when check_violation then
+    same_location_blocked := true;
+  end;
+  assert same_location_blocked, 'clocking in again at the same location must be rejected';
+
+  insert into public.attendance (member_id, kind, location, occurred_at)
+    values (traveller, 'clock_in', 'Branch', base + interval '3 minutes');
+
+  begin
+    insert into public.attendance (member_id, kind, location, occurred_at)
+      values (traveller, 'clock_in', 'Somewhere Else', base + interval '4 minutes');
+  exception when check_violation then
+    unregistered_location_blocked := true;
+  end;
+  assert unregistered_location_blocked, 'a location outside the registered ones must be rejected';
+
+  begin
+    insert into public.attendance (member_id, kind, location, occurred_at)
+      values (traveller, 'clock_out', 'Branch', base + interval '5 minutes');
+  exception when check_violation then
+    located_clock_out_blocked := true;
+  end;
+  assert located_clock_out_blocked, 'a clock-out carries no location';
+
+  insert into public.attendance (member_id, kind, occurred_at)
+    values (traveller, 'clock_out', base + interval '6 minutes');
+
+  begin
+    insert into public.attendance (member_id, kind, occurred_at)
+      values (traveller, 'clock_out', base + interval '7 minutes');
+  exception when check_violation then
+    double_clock_out_blocked := true;
+  end;
+  assert double_clock_out_blocked, 'clocking out twice must be rejected';
+
+  insert into public.attendance (member_id, kind, location, occurred_at)
+    values (unregistered_company_member, 'clock_in', 'A client office', base + interval '8 minutes');
+
+  select location into free_location
+    from public.attendance where member_id = unregistered_company_member
+    order by occurred_at desc limit 1;
+  assert free_location = 'A client office',
+    'a company with no registered locations accepts any location';
+
+  raise notice 'attendance: moving between sites is allowed, repeating a state is not';
 end $$;
 
 rollback;
