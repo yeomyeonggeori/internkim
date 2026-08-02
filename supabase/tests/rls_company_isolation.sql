@@ -154,6 +154,63 @@ end $$;
 
 do $$
 declare
+  standup uuid;
+  my_upcoming integer;
+  remaining_participants integer;
+  surviving_task integer;
+  outsider_blocked boolean := false;
+  untimed_notify_blocked boolean := false;
+begin
+  select id into standup from public.task where title = 'Standup';
+
+  insert into public.member (id, company_id, email)
+    values ('000000aa-0000-0000-0000-00000000000f', '00000000-0000-0000-0000-0000000000a0', 'leaving@example.test');
+
+  insert into public.task_participant (task_id, member_id) values
+    (standup, '000000aa-0000-0000-0000-000000000001'),
+    (standup, '000000aa-0000-0000-0000-00000000000f');
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1"}', true);
+
+  select count(*) into my_upcoming
+    from public.task
+    join public.task_participant on task_participant.task_id = task.id
+    where task_participant.member_id = public.my_member() and task.is_event;
+  assert my_upcoming = 1, 'a member can list the events they attend';
+
+  begin
+    insert into public.task_participant (task_id, member_id)
+    values (standup, '000000bb-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then
+    outsider_blocked := true;
+  end;
+  assert outsider_blocked, 'someone from another company must not be added as a participant';
+
+  reset role;
+
+  delete from public.member where id = '000000aa-0000-0000-0000-00000000000f';
+
+  select count(*) into remaining_participants
+    from public.task_participant where task_id = standup;
+  assert remaining_participants = 1, 'removing a member drops their participation';
+
+  select count(*) into surviving_task from public.task where id = standup;
+  assert surviving_task = 1, 'removing a participant does not remove the event';
+
+  begin
+    insert into public.task (company_id, title, notify_minutes_before)
+    values ('00000000-0000-0000-0000-0000000000a0', 'Remind me about nothing', 30);
+  exception when check_violation then
+    untimed_notify_blocked := true;
+  end;
+  assert untimed_notify_blocked, 'there is nothing to count back from without a start time';
+
+  raise notice 'participants: joined, company-scoped, and cleaned up with the member';
+end $$;
+
+do $$
+declare
   visible_leave integer;
   rows_changed integer;
   colleague_request_blocked boolean := false;
