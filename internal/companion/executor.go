@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,10 +22,6 @@ import (
 type PromptHandler interface {
 	Confirm(ctx context.Context, message string, defaultValue bool) (bool, error)
 	Input(ctx context.Context, message string) (string, error)
-}
-
-type FilePicker interface {
-	PickFile(ctx context.Context, request FilePickRequest) (PickedFile, error)
 }
 
 // browserHandoffPauser is implemented by browser.ExtensionInputRuntime.
@@ -62,7 +57,6 @@ type Executor struct {
 	BrowserRuntime  browserruntime.Runtime
 	HandoffStore    *BrowserHandoffStore
 	PromptHandler   PromptHandler
-	FilePicker      FilePicker
 	FileUploader    FileUploader
 	ApprovalHandler ApprovalHandler
 	GrantStore      *MemoryGrantStore
@@ -96,20 +90,6 @@ type TerminalPromptHandler struct {
 	Writer io.Writer
 }
 
-type FilePickRequest struct {
-	Title             string   `json:"title,omitempty"`
-	AllowedExtensions []string `json:"allowedExtensions,omitempty"`
-	MaxBytes          int64    `json:"maxBytes,omitempty"`
-	TTLSeconds        int      `json:"ttlSeconds,omitempty"`
-}
-
-type PickedFile struct {
-	Path        string `json:"path"`
-	Filename    string `json:"filename,omitempty"`
-	SizeBytes   int64  `json:"sizeBytes,omitempty"`
-	ContentType string `json:"contentType,omitempty"`
-}
-
 type FileUploadRequest struct {
 	JobID       string
 	Path        string
@@ -127,8 +107,6 @@ type UploadedFile struct {
 	DevicePath  string `json:"devicePath"`
 	ExpiresAt   string `json:"expiresAt"`
 }
-
-var ErrFilePickCanceled = errors.New("file pick canceled")
 
 type executorToolHandler func(Executor, context.Context, JobEnvelope, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)
 
@@ -148,7 +126,6 @@ var executorToolHandlers = map[string]executorToolHandler{
 	"browser_wait":                       executorRequestHandler(Executor.executeBrowserWait),
 	"user_confirm":                       executorRequestHandler(Executor.executeUserConfirm),
 	"user_input":                         executorRequestHandler(Executor.executeUserInput),
-	"file_pick":                          Executor.executeFilePick,
 }
 
 func executorRequestHandler(handler func(Executor, context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)) executorToolHandler {
@@ -735,69 +712,6 @@ func (executor Executor) executeUserInput(ctx context.Context, request capabilit
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	return toolResponse(request.ToolName, map[string]string{"text": text})
-}
-
-func (executor Executor) executeFilePick(ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if executor.FilePicker == nil {
-		return capabilities.ToolInvokeResponse{}, errors.New("file picker requires companion UI")
-	}
-	if executor.FileUploader == nil {
-		return capabilities.ToolInvokeResponse{}, errors.New("file upload requires device broker")
-	}
-	var input FilePickRequest
-	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	pickedFile, errorValue := executor.FilePicker.PickFile(ctx, input)
-	if errors.Is(errorValue, ErrFilePickCanceled) {
-		return capabilities.ToolInvokeResponse{}, DenialError{Denial: capabilities.DenialResult{
-			Status:              "denied",
-			Code:                "user_cancelled",
-			JobID:               envelope.JobID,
-			ToolName:            request.ToolName,
-			ResourceScope:       firstResourceScope(envelope.ResourceScope, request.ResourceScope),
-			SuggestedConstraint: "file selection was cancelled",
-		}}
-	}
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	fileUploadRequest, errorValue := fileUploadRequestFromPickedFile(envelope, input, pickedFile)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	uploadedFile, errorValue := executor.FileUploader.UploadFile(ctx, fileUploadRequest)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, uploadedFile)
-}
-
-func fileUploadRequestFromPickedFile(envelope JobEnvelope, request FilePickRequest, pickedFile PickedFile) (FileUploadRequest, error) {
-	trimmedPath := strings.TrimSpace(pickedFile.Path)
-	if trimmedPath == "" {
-		return FileUploadRequest{}, errors.New("selected file path is missing")
-	}
-	information, errorValue := os.Stat(trimmedPath)
-	if errorValue != nil || information.IsDir() {
-		return FileUploadRequest{}, errors.New("selected file cannot be read")
-	}
-	if request.MaxBytes > 0 && information.Size() > request.MaxBytes {
-		return FileUploadRequest{}, errors.New("selected file is larger than the requested limit")
-	}
-	filename := firstNonEmpty(pickedFile.Filename, filepath.Base(trimmedPath))
-	if !extensionAllowed(filename, request.AllowedExtensions) {
-		return FileUploadRequest{}, errors.New("selected file extension is not allowed")
-	}
-	contentType := firstNonEmpty(pickedFile.ContentType, mime.TypeByExtension(strings.ToLower(filepath.Ext(filename))), "application/octet-stream")
-	return FileUploadRequest{
-		JobID:       envelope.JobID,
-		Path:        trimmedPath,
-		Filename:    filename,
-		SizeBytes:   information.Size(),
-		ContentType: contentType,
-		TTLSeconds:  request.TTLSeconds,
-	}, nil
 }
 
 func extensionAllowed(filename string, allowedExtensions []string) bool {

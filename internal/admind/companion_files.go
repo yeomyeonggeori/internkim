@@ -185,7 +185,7 @@ func (service *Service) validateCompanionFileUpload(companionID string, payload 
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
 	job := service.companionJobs[strings.TrimSpace(payload.JobID)]
-	if job == nil || job.CompanionID != companionID || job.Status != "running" || job.ToolName != "file_pick" {
+	if job == nil || job.CompanionID != companionID || job.Status != "running" || !companionToolUploadsFiles(job.ToolName) {
 		return errors.New("companion file upload is not allowed for this job")
 	}
 	return nil
@@ -386,4 +386,9 @@ func safeCompanionFilename(filename string) string {
 func isCompanionTempPath(directory string, path string) bool {
 	relativePath, errorValue := filepath.Rel(directory, path)
 	return errorValue == nil && !strings.HasPrefix(relativePath, "..") && !filepath.IsAbs(relativePath)
+}
+
+// Only a job whose tool produces a file may push bytes into admind.
+func companionToolUploadsFiles(toolName string) bool {
+	return strings.TrimSpace(toolName) == "browser_screenshot"
 }
