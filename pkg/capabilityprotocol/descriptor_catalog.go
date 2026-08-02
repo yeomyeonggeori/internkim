@@ -1,5 +1,13 @@
 package capabilityprotocol
 
+// A grant covers a family of tools, and each tool names the family it belongs to.
+const (
+	BrowserApprovalScope   = "browser"
+	FileApprovalScope      = "file"
+	DesktopApprovalScope   = "desktop"
+	UserInputApprovalScope = "user_input"
+)
+
 func mustGeneratedToolDescriptor(name string) Descriptor {
 	return MustGeneratedToolDescriptors(name)[0]
 }
@@ -7,10 +15,20 @@ func mustGeneratedToolDescriptor(name string) Descriptor {
 // Every browser tool drives one browser session, and that session lives on the
 // requester's own machine, so the whole family runs there - not just the steps
 // that need the person watching.
-func companionBrowserDescriptor(name string) Descriptor {
+func companionBrowserDescriptor(name string, options ...func(*Descriptor)) Descriptor {
 	descriptor := mustGeneratedToolDescriptor(name)
 	descriptor.RequiresRequesterDevice = true
+	descriptor.ApprovalScope = BrowserApprovalScope
+	for _, option := range options {
+		option(&descriptor)
+	}
 	return descriptor
+}
+
+// Some browser steps cannot run headless at all - they need the person's own
+// browser window - and the descriptor is where that is written down.
+func withCompanionBrowser(descriptor *Descriptor) {
+	descriptor.RequiresCompanionBrowser = true
 }
 
 func deviceBrowserDescriptor(name string, description string) Descriptor {
@@ -38,6 +56,7 @@ func CompanionToolDescriptors() []Descriptor {
 				EstimatedLatency:        "interactive",
 				RequiresUserPresence:    true,
 				RequiresRequesterDevice: true,
+				ApprovalScope:           UserInputApprovalScope,
 				WorksOffline:            true,
 				InputSchema:             userConfirmInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),
@@ -62,6 +81,7 @@ func CompanionToolDescriptors() []Descriptor {
 				EstimatedLatency:        "interactive",
 				RequiresUserPresence:    true,
 				RequiresRequesterDevice: true,
+				ApprovalScope:           UserInputApprovalScope,
 				WorksOffline:            true,
 				InputSchema:             userInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),
@@ -86,6 +106,7 @@ func CompanionToolDescriptors() []Descriptor {
 				EstimatedLatency:        "interactive",
 				RequiresUserPresence:    true,
 				RequiresRequesterDevice: true,
+				ApprovalScope:           FileApprovalScope,
 				WorksOffline:            true,
 				InputSchema:             filePickInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),
@@ -466,7 +487,7 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		companionBrowserDescriptor("browser_open"),
 		companionBrowserDescriptor("browser_snapshot"),
-		companionBrowserDescriptor("browser_screenshot"),
+		companionBrowserDescriptor("browser_screenshot", withCompanionBrowser),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
 				Name:            "browser_handoff",
@@ -476,19 +497,21 @@ func CompanionToolDescriptors() []Descriptor {
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
-				Description:             "Hand browser control to the user for an interactive step.",
-				Version:                 "1",
-				PrivacyClass:            "user_browser",
-				EstimatedLatency:        "interactive",
-				RequiresUserPresence:    true,
-				RequiresRequesterDevice: true,
-				WorksOffline:            false,
-				InputSchema:             browserHandoffInputSchema(),
-				OutputSchema:            ToolInvokeOutputSchema(),
-				PolicyResource:          "tool:browser_handoff",
-				SideEffect:              SideEffectConnect,
-				Availability:            AvailabilityMetadata{State: AvailabilityOK},
-				Idempotency:             IdempotencyMetadata{Scope: "operation"},
+				Description:              "Hand browser control to the user for an interactive step.",
+				Version:                  "1",
+				PrivacyClass:             "user_browser",
+				EstimatedLatency:         "interactive",
+				RequiresUserPresence:     true,
+				RequiresRequesterDevice:  true,
+				ApprovalScope:            BrowserApprovalScope,
+				RequiresCompanionBrowser: true,
+				WorksOffline:             false,
+				InputSchema:              browserHandoffInputSchema(),
+				OutputSchema:             ToolInvokeOutputSchema(),
+				PolicyResource:           "tool:browser_handoff",
+				SideEffect:               SideEffectConnect,
+				Availability:             AvailabilityMetadata{State: AvailabilityOK},
+				Idempotency:              IdempotencyMetadata{Scope: "operation"},
 			},
 		}),
 		companionBrowserDescriptor("browser_click"),
@@ -507,6 +530,7 @@ func CompanionToolDescriptors() []Descriptor {
 				EstimatedLatency:        "interactive",
 				RequiresUserPresence:    false,
 				RequiresRequesterDevice: true,
+				ApprovalScope:           BrowserApprovalScope,
 				WorksOffline:            false,
 				InputSchema:             browserFillInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),
@@ -531,6 +555,7 @@ func CompanionToolDescriptors() []Descriptor {
 				EstimatedLatency:        "interactive",
 				RequiresUserPresence:    false,
 				RequiresRequesterDevice: true,
+				ApprovalScope:           BrowserApprovalScope,
 				WorksOffline:            false,
 				InputSchema:             browserSelectInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),
@@ -555,6 +580,7 @@ func CompanionToolDescriptors() []Descriptor {
 				EstimatedLatency:        "interactive",
 				RequiresUserPresence:    false,
 				RequiresRequesterDevice: true,
+				ApprovalScope:           BrowserApprovalScope,
 				WorksOffline:            false,
 				InputSchema:             browserPressInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),
@@ -579,6 +605,7 @@ func CompanionToolDescriptors() []Descriptor {
 				EstimatedLatency:        "interactive",
 				RequiresUserPresence:    false,
 				RequiresRequesterDevice: true,
+				ApprovalScope:           BrowserApprovalScope,
 				WorksOffline:            false,
 				InputSchema:             browserWaitInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),
@@ -708,6 +735,7 @@ func DeviceBrowserDescriptors() []Descriptor {
 				EstimatedLatency:        "interactive",
 				RequiresUserPresence:    false,
 				RequiresRequesterDevice: true,
+				ApprovalScope:           BrowserApprovalScope,
 				WorksOffline:            false,
 				InputSchema:             browserFillInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),
@@ -732,6 +760,7 @@ func DeviceBrowserDescriptors() []Descriptor {
 				EstimatedLatency:        "interactive",
 				RequiresUserPresence:    false,
 				RequiresRequesterDevice: true,
+				ApprovalScope:           BrowserApprovalScope,
 				WorksOffline:            false,
 				InputSchema:             browserSelectInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),
@@ -756,6 +785,7 @@ func DeviceBrowserDescriptors() []Descriptor {
 				EstimatedLatency:        "interactive",
 				RequiresUserPresence:    false,
 				RequiresRequesterDevice: true,
+				ApprovalScope:           BrowserApprovalScope,
 				WorksOffline:            false,
 				InputSchema:             browserPressInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),
@@ -780,6 +810,7 @@ func DeviceBrowserDescriptors() []Descriptor {
 				EstimatedLatency:        "interactive",
 				RequiresUserPresence:    false,
 				RequiresRequesterDevice: true,
+				ApprovalScope:           BrowserApprovalScope,
 				WorksOffline:            false,
 				InputSchema:             browserWaitInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),

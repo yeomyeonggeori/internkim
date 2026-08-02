@@ -23,13 +23,13 @@ type MattermostChannel struct {
 }
 
 type MattermostPost struct {
-	ID        string
-	ChannelID string
-	UserID    string
-	RootID    string
-	Message   string
-	CreatedAt time.Time
-	FileIDs   []string
+	ID           string
+	ChannelID    string
+	UserID       string
+	RootID       string
+	Message      string
+	CreatedAt    time.Time
+	FileIDs      []string
 	HasReactions bool
 }
 

@@ -534,7 +534,7 @@ func TestRunOnceDeniesBrowserJobWithReason(t *testing.T) {
 		case "/_internkim/companion/heartbeat":
 			return textResponse(http.StatusOK, `{}`), nil
 		case "/_internkim/companion/jobs/next":
-			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser_navigate","resourceScope":{"kind":"web_origin","value":"https://github.com"},"request":{"toolName":"browser_navigate","input":{"url":"https://github.com"}}}`), nil
+			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser_click","resourceScope":{"kind":"web_origin","value":"https://github.com"},"request":{"toolName":"browser_click","input":{"url":"https://github.com"}}}`), nil
 		case "/_internkim/companion/jobs/job-1/deny":
 			seenDeny = true
 			return textResponse(http.StatusOK, `{}`), nil
@@ -654,12 +654,12 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	grantStore := companionruntime.NewMemoryGrantStore()
 	approvalHandler := companionruntime.ApprovalHandler(companionApprovalHandler{allowed: true})
 	request := capabilities.ToolInvokeRequest{
-		ToolName:      "browser_navigate",
+		ToolName:      "browser_click",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
 	}
 	if errorValue := grantStore.Authorize(context.Background(), companionruntime.JobEnvelope{
 		JobID:         "job-1",
-		ToolName:      "browser_navigate",
+		ToolName:      "browser_click",
 		ResourceScope: request.ResourceScope,
 	}, request, approvalHandler); errorValue != nil {
 		t.Fatal(errorValue)
@@ -978,7 +978,7 @@ func TestCompanionStatusFiltersBrowserCapabilitiesWhenRuntimeUnavailable(t *test
 		Error:  "companion browser runtime unavailable",
 	}, companionAuthStatusVerified)
 
-	if hasCapability(document.Capabilities, "browser_navigate") {
+	if hasCapability(document.Capabilities, "browser_click") {
 		t.Fatal("expected browser capabilities to be hidden when runtime is unavailable")
 	}
 	if document.ExtensionAutomationStatus != "unavailable" {

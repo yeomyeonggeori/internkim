@@ -107,7 +107,7 @@ func companionMountResourceScope(request capabilities.ToolInvokeRequest) capabil
 }
 
 func (service *Service) validateCompanionMountRequest(request capabilities.ToolInvokeRequest) error {
-	if !strings.HasPrefix(request.ToolName, "filesystem.mount.") {
+	if !capabilities.IsToolInNamespace(request.ToolName, "filesystem") {
 		return nil
 	}
 	switch request.ToolName {
