@@ -39,8 +39,8 @@ insert into public.task (company_id, assignee_id, title, starts_at, ends_at, is_
   ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'SaaS migration', '2026-08-04 00:00+09', '2026-08-20 00:00+09', false),
   ('00000000-0000-0000-0000-0000000000b0', '000000bb-0000-0000-0000-000000000001', 'Other company meeting', '2026-08-04 09:00+09', '2026-08-04 10:00+09', true);
 
-insert into public.leave (member_id, kind, is_paid, minutes, starts_at, ends_at) values
-  ('000000aa-0000-0000-0000-000000000001', '연차', true, 1440, '2026-08-10 00:00+09', '2026-08-12 23:59+09');
+insert into public.leave (member_id, kind, is_paid, days, starts_at, ends_at) values
+  ('000000aa-0000-0000-0000-000000000001', '연차', true, 3, '2026-08-10 00:00+09', '2026-08-12 23:59+09');
 
 do $$
 declare
@@ -365,8 +365,8 @@ begin
   assert rows_changed = 0, 'a member must not be able to approve their own leave';
 
   begin
-    insert into public.leave (member_id, kind, is_paid, minutes, starts_at, ends_at)
-    values ('000000aa-0000-0000-0000-000000000002', '무급휴가', false, 960, '2026-09-01 00:00+09', '2026-09-02 23:59+09');
+    insert into public.leave (member_id, kind, is_paid, days, starts_at, ends_at)
+    values ('000000aa-0000-0000-0000-000000000002', '무급휴가', false, 2, '2026-09-01 00:00+09', '2026-09-02 23:59+09');
   exception when insufficient_privilege then
     colleague_request_blocked := true;
   end;
@@ -672,47 +672,59 @@ declare
   veteran uuid := '000000aa-0000-0000-0000-000000000001';
   newcomer uuid := '000000aa-0000-0000-0000-000000000003';
 begin
-  assert public.member_leave_allowance_minutes(veteran) is null,
-    'with no entitlement set anywhere, there is nothing to count against';
+  assert public.member_leave_remaining(veteran, 2026) is null,
+    'with no entitlement set, there is nothing to count against';
 
-  update public.company set leave_day_minutes = 480, leave_allowance_minutes = 7200
+  update public.company set leave_day_minutes = 480, leave_allowance = 15
     where id = '00000000-0000-0000-0000-0000000000a0';
-  update public.member set leave_allowance_minutes = 9600 where id = veteran;
+  update public.member set leave_allowance = 20 where id = veteran;
 
-  assert public.member_leave_allowance_minutes(newcomer) = 7200,
-    'a member without their own entitlement follows the company';
-  assert public.member_leave_allowance_minutes(veteran) = 9600,
+  assert public.member_leave_allowance(newcomer) = 15,
+    'a member without their own entitlement follows the company default';
+  assert public.member_leave_allowance(veteran) = 20,
     'long service can raise a single member entitlement';
 
   update public.leave set status = 'requested' where member_id = veteran;
-  assert public.member_leave_remaining_minutes(veteran, 2026) = 9600,
+  assert public.member_leave_remaining(veteran, 2026) = 20,
     'a leave that is still only requested has not been consumed';
 
   update public.leave set status = 'approved' where member_id = veteran;
-  assert public.member_leave_remaining_minutes(veteran, 2026) = 8160,
+  assert public.member_leave_remaining(veteran, 2026) = 17,
     'an approved leave is deducted';
 
-  insert into public.leave (member_id, kind, is_paid, minutes, status, starts_at, ends_at)
-    values (veteran, '반차', true, 240, 'approved', '2026-08-13 09:00+09', '2026-08-13 13:00+09');
-  assert public.member_leave_remaining_minutes(veteran, 2026) = 7920,
+  insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at)
+    values (veteran, '반차', true, 0.5, 'approved', '2026-08-13 09:00+09', '2026-08-13 13:00+09');
+  assert public.member_leave_remaining(veteran, 2026) = 16.5,
     'a half day consumes half a day';
 
-  insert into public.leave (member_id, kind, is_paid, is_deducted, minutes, status, starts_at, ends_at)
-    values (veteran, '경조사', true, false, 1440, 'approved', '2026-08-17 00:00+09', '2026-08-19 23:59+09');
-  assert public.member_leave_remaining_minutes(veteran, 2026) = 7920,
+  insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
+    values (veteran, '경조사', true, false, 3, 'approved', '2026-08-17 00:00+09', '2026-08-19 23:59+09');
+  assert public.member_leave_remaining(veteran, 2026) = 16.5,
     'leave granted outside the entitlement does not consume it';
 
-  assert public.member_leave_remaining_minutes(veteran, 2025) = 9600,
+  assert public.member_leave_remaining(veteran, 2025) = 20,
     'last year is counted separately';
 
-  insert into public.leave (member_id, kind, is_paid, minutes, status, starts_at, ends_at)
-    values (veteran, '연차', true, 480, 'approved', '2027-01-01 09:00+09', '2027-01-01 18:00+09');
-  assert public.member_leave_remaining_minutes(veteran, 2026) = 7920,
+  insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at)
+    values (veteran, '연차', true, 1, 'approved', '2027-01-01 09:00+09', '2027-01-01 18:00+09');
+  assert public.member_leave_remaining(veteran, 2026) = 16.5,
     'a new year leave in Seoul must not be charged to the year that is still running in UTC';
-  assert public.member_leave_remaining_minutes(veteran, 2027) = 9120,
+  assert public.member_leave_remaining(veteran, 2027) = 19,
     'it belongs to the year the member is actually living in';
 
-  raise notice 'annual leave: entitlement falls back, and only deducting leave consumes it';
+  update public.company
+    set leave_accrual = 'monthly', leave_carryover_limit = 5, leave_carryover_expiry_months = 3
+    where id = '00000000-0000-0000-0000-0000000000a0';
+
+  begin
+    update public.company set leave_carryover_limit = null
+      where id = '00000000-0000-0000-0000-0000000000a0';
+    assert false, 'an expiry with nothing to expire must be rejected';
+  exception when check_violation then
+    null;
+  end;
+
+  raise notice 'leave policy: accrual and carryover are company settings, expiry needs a carryover';
 end $$;
 
 rollback;
