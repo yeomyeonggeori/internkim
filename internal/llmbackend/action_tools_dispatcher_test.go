@@ -54,19 +54,19 @@ func TestNativeActionToolExposesOptionalToolInputProperties(t *testing.T) {
 		t.Fatalf("native tools failed: %v", errorValue)
 	}
 
-	readTool, isFound := findNativeActionToolByName(toolSet, "document.read")
+	readTool, isFound := findNativeActionToolByName(toolSet, "document_read")
 	if !isFound {
-		t.Skip("document.read not present in descriptor set")
+		t.Skip("document_read not present in descriptor set")
 	}
 	var parameters struct {
 		Properties map[string]json.RawMessage `json:"properties"`
 	}
 	if errorValue := json.Unmarshal(readTool.Parameters, &parameters); errorValue != nil {
-		t.Fatalf("document.read parameters parse failed: %v", errorValue)
+		t.Fatalf("document_read parameters parse failed: %v", errorValue)
 	}
 	for _, propertyName := range []string{"path", "maxPages", "maxOutputBytes"} {
 		if _, isPresent := parameters.Properties[propertyName]; !isPresent {
-			t.Fatalf("document.read native schema is missing %q so the model has no field to fill; got %v", propertyName, parameters.Properties)
+			t.Fatalf("document_read native schema is missing %q so the model has no field to fill; got %v", propertyName, parameters.Properties)
 		}
 	}
 }

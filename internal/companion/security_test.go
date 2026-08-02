@@ -49,12 +49,12 @@ func TestGrantStoreReusesApprovedBrowserGrant(t *testing.T) {
 	store := NewMemoryGrantStore()
 	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true}}
 	request := capabilities.ToolInvokeRequest{
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
 	}
 	envelope := JobEnvelope{
 		JobID:         "job-1",
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: request.ResourceScope,
 	}
 
@@ -75,12 +75,12 @@ func TestGrantStoreListsAndRevokesActiveGrant(t *testing.T) {
 	store := NewMemoryGrantStore()
 	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true}}
 	request := capabilities.ToolInvokeRequest{
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
 	}
 	envelope := JobEnvelope{
 		JobID:         "job-1",
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: request.ResourceScope,
 	}
 
@@ -115,12 +115,12 @@ func TestGrantStoreDeniesWithReason(t *testing.T) {
 		SuggestedConstraint: "ask me for text",
 	}}
 	request := capabilities.ToolInvokeRequest{
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://bank.example"},
 	}
 	envelope := JobEnvelope{
 		JobID:         "job-1",
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: request.ResourceScope,
 	}
 
@@ -137,21 +137,21 @@ func TestGrantStoreDeniesWithReason(t *testing.T) {
 func TestGrantStoreRemembersCapabilityForRestOfTaskOnly(t *testing.T) {
 	store := NewMemoryGrantStore()
 	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true, RememberSession: true}}
-	request := capabilities.ToolInvokeRequest{ToolName: "browser.handoff"}
-	envelope := JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}
+	request := capabilities.ToolInvokeRequest{ToolName: "browser_handoff"}
+	envelope := JobEnvelope{JobID: "job-1", ToolName: "browser_handoff"}
 
 	if errorValue := store.Authorize(context.Background(), envelope, request, approvalHandler); errorValue != nil {
 		t.Fatalf("expected approval to create session grant: %v", errorValue)
 	}
 
 	sameTaskRequest := capabilities.ToolInvokeRequest{
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://console.cloud.google.com"},
 	}
 	sameTaskEnvelope := JobEnvelope{
 		JobID:         "job-2",
 		ParentJobID:   "job-1",
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: sameTaskRequest.ResourceScope,
 	}
 	if errorValue := store.Authorize(context.Background(), sameTaskEnvelope, sameTaskRequest, approvalHandler); errorValue != nil {
@@ -162,12 +162,12 @@ func TestGrantStoreRemembersCapabilityForRestOfTaskOnly(t *testing.T) {
 	}
 
 	unrelatedTaskRequest := capabilities.ToolInvokeRequest{
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://console.cloud.google.com"},
 	}
 	unrelatedTaskEnvelope := JobEnvelope{
 		JobID:         "job-99",
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: unrelatedTaskRequest.ResourceScope,
 	}
 	if errorValue := store.Authorize(context.Background(), unrelatedTaskEnvelope, unrelatedTaskRequest, approvalHandler); errorValue != nil {
@@ -197,19 +197,19 @@ func TestGrantStoreRejectsReuseAcrossUnrelatedTasks(t *testing.T) {
 	store := NewMemoryGrantStore()
 	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true, RememberSession: true}}
 
-	taskARequest := capabilities.ToolInvokeRequest{ToolName: "browser.handoff"}
-	taskAEnvelope := JobEnvelope{JobID: "task-a-root", ToolName: "browser.handoff"}
+	taskARequest := capabilities.ToolInvokeRequest{ToolName: "browser_handoff"}
+	taskAEnvelope := JobEnvelope{JobID: "task-a-root", ToolName: "browser_handoff"}
 	if errorValue := store.Authorize(context.Background(), taskAEnvelope, taskARequest, approvalHandler); errorValue != nil {
 		t.Fatalf("expected task A approval to create a session grant: %v", errorValue)
 	}
 
 	taskBRequest := capabilities.ToolInvokeRequest{
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
 	}
 	taskBEnvelope := JobEnvelope{
 		JobID:         "task-b-root",
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: taskBRequest.ResourceScope,
 	}
 	if errorValue := store.Authorize(context.Background(), taskBEnvelope, taskBRequest, approvalHandler); errorValue != nil {
@@ -237,12 +237,12 @@ func TestApprovalRequestIncludesContextDeadline(t *testing.T) {
 	store := NewMemoryGrantStore()
 	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true}}
 	request := capabilities.ToolInvokeRequest{
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
 	}
 	envelope := JobEnvelope{
 		JobID:         "job-1",
-		ToolName:      "browser.open",
+		ToolName:      "browser_open",
 		ResourceScope: request.ResourceScope,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)

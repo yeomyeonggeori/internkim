@@ -37,7 +37,7 @@ content-addressed storage가 적합하다.
 - 읽기는 local chunk를 우선 사용하고, 없으면 provider index에서 가까운 노드를
   골라 병렬 hydrate한다.
 - raw POSIX remote mount는 사용하지 않는다. `WorkspaceActor`가 파일 접근 및
-  `terminal.run` 전에 필요한 working set을 hydrate한다.
+  `terminal_run` 전에 필요한 working set을 hydrate한다.
 - 모든 chunk 보유 노드를 전역 mesh로 연결하지 않고, anchor의 provider index와
   rendezvous placement로 탐색 비용을 제한한다.
 
@@ -102,7 +102,7 @@ Erasure coding은 최소 `k+m`개의 독립 failure domain이 필요하고 작�
 - chunk 한 개가 손상되면 hash 검증으로 거부하고 다른 provider에서 복구한다.
 - 두 storage 노드 동시 손실 후에도 durable 파일을 읽고 자동 repair할 수 있다.
 - metadata quorum이 없는 partition은 새로운 publish를 확정하지 못한다.
-- 원격 파일을 대상으로 `file.read`, artifact 작업, `terminal.run`을 호출하면 자동
+- 원격 파일을 대상으로 `file_read`, artifact 작업, `terminal_run`을 호출하면 자동
   hydrate 후 정상 실행된다.
 - 개인 권한이 없는 사용자는 local에 ciphertext chunk가 있어도 파일을 해독하거나
   조회하지 못한다.

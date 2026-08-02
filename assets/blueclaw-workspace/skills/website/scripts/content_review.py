@@ -103,7 +103,7 @@ def main() -> int:
     verdict = "PASSED" if score >= CONTENT_GATE_SCORE_MINIMUM else "FAILED"
     print(f"Content review: {len(blocks)} blocks, score {score}/100 (minimum {CONTENT_GATE_SCORE_MINIMUM})")
     if warnings:
-        print(f"Content gate {verdict}. Resolve these before publish-mode site.serve:" if verdict == "FAILED" else f"Content gate {verdict} with notes:")
+        print(f"Content gate {verdict}. Resolve these before publish-mode site_serve:" if verdict == "FAILED" else f"Content gate {verdict} with notes:")
         for warning in warnings:
             print(f"  - {warning}")
     else:

@@ -6,7 +6,7 @@ Use a bounded quality loop for rendered artifacts:
 2. Build or render the artifact.
 3. Run deterministic checks for blank output, stale builds, clipped content, missing source files, default fonts, starter markers, and format-specific risks.
 4. Create visual evidence with screenshots, contact sheets, exported page images, or slide images.
-5. Call `artifact.review` with the evidence, intent, rubric, expected visible text when available, and previous issues.
+5. Call `artifact_review` with the evidence, intent, rubric, expected visible text when available, and previous issues.
 6. Revise source when any blocking issue remains. Repeat at most three times.
 7. Accept warnings only with an explicit rationale in the review decision.
 8. Publish, promote, or attach only after the review decision has no blocking issues.

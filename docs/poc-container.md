@@ -39,7 +39,7 @@ Blueclaw를 **direct/native 모드**로 실행하는 컨테이너 하나이며
 - **작업 데이터(DB)** — 각 blueclaw는 자기 `tenant_NN` 데이터베이스에만 접속한다.
   단, 단순히 DB만 나누는 것으로는 부족하다: 모든 테넌트가 공유 Postgres 슈퍼유저
   자격증명을 쓰고 컨테이너가 같은 네트워크에서 `postgres`에 도달하면, 한 테넌트
-  에이전트가 `terminal.run`의 `psql`로 다른 테넌트 DB를 읽을 수 있다(실측으로 확인됨).
+  에이전트가 `terminal_run`의 `psql`로 다른 테넌트 DB를 읽을 수 있다(실측으로 확인됨).
   그래서 **테넌트별 최소권한 Postgres 롤**을 강제한다: 테넌트마다 자기 비밀번호를 가진
   롤이 자기 DB를 소유하고, `REVOKE CONNECT ON DATABASE ... FROM PUBLIC` + 자기 롤에만
   `GRANT CONNECT`. 각 테넌트 DSN은 슈퍼유저가 아니라 자기 롤을 쓴다. `mattermost` DB도
@@ -174,7 +174,7 @@ internkim tenant container status --workdir <DIR>
 ## 아직 안 된 것
 
 - 터미널 toolchain(bun/uv/python)을 테넌트 이미지에 포함(채팅 루프엔 불필요,
-  `terminal.run` 기반 작업에만 필요).
+  `terminal_run` 기반 작업에만 필요).
 - POSIX 개인 격리 복원(이미지에 `blueclaw` 베이스 유저를 굽고 `posixHelperPath`
   복원 시 활성).
 - arm64 Mattermost 이미지(현재 `10.5` 태그는 amd64라 에뮬레이션).

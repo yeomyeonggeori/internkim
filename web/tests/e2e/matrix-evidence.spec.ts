@@ -20,7 +20,7 @@ const screenshotPath = process.env.INTERNKIM_MATRIX_SHOT ?? '';
 
 const actionURL = `${mattermostURL.replace(/:8065.*/, ':18080')}/_internkim/mattermost/actions`;
 const buttons = [{ text: '버튼 첨부', actions: [
-	{ id: 'c', name: '확인', type: 'button', style: 'primary', integration: { url: actionURL, context: { action: 'ask.confirm', token: 'diagnostic' } } },
+	{ id: 'c', name: '확인', type: 'button', style: 'primary', integration: { url: actionURL, context: { action: 'ask_confirm', token: 'diagnostic' } } },
 	{ id: 'x', name: '취소', type: 'button', style: 'danger', integration: { url: actionURL, context: { action: 'ask.cancel', token: 'diagnostic' } } },
 ] }];
 

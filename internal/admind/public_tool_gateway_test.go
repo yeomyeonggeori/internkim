@@ -18,7 +18,7 @@ import (
 func TestPublicToolGatewayOverridesActorFromBearerToken(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
-		if request.ToolName != "task.add" {
+		if request.ToolName != "task_add" {
 			t.Fatalf("tool name = %q", request.ToolName)
 		}
 		if request.Context.RequesterEmail != "staff@example.com" {
@@ -37,7 +37,7 @@ func TestPublicToolGatewayOverridesActorFromBearerToken(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	requestBody := `{"input":{"title":"업무 추가"},"context":{"requesterEmail":"other@example.com"},"actor":{"email":"other@example.com"}}`
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task.add/invoke", strings.NewReader(requestBody))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task_add/invoke", strings.NewReader(requestBody))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -55,7 +55,7 @@ func TestPublicToolGatewayRequiresExplicitWriteScope(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task.add/invoke", strings.NewReader(`{"input":{"title":"업무 추가"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task_add/invoke", strings.NewReader(`{"input":{"title":"업무 추가"}}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -73,7 +73,7 @@ func TestPublicToolGatewayDeniesConnectWithoutWriteScope(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/mail.connection.start/invoke", strings.NewReader(`{}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/mail_connection_start/invoke", strings.NewReader(`{}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -87,7 +87,7 @@ func TestPublicToolGatewayDeniesConnectWithoutWriteScope(t *testing.T) {
 func TestPublicToolGatewayAllowsConnectScope(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
-		if request.ToolName != "mail.connection.start" {
+		if request.ToolName != "mail_connection_start" {
 			t.Fatalf("tool name = %q", request.ToolName)
 		}
 		if !request.Context.IsApprovalContinuation {
@@ -99,7 +99,7 @@ func TestPublicToolGatewayAllowsConnectScope(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/mail.connection.start/invoke", strings.NewReader(`{}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/mail_connection_start/invoke", strings.NewReader(`{}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -117,7 +117,7 @@ func TestPublicToolGatewayRequiresExplicitDestructiveScope(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task.delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task_delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -131,7 +131,7 @@ func TestPublicToolGatewayRequiresExplicitDestructiveScope(t *testing.T) {
 func TestPublicToolGatewayAllowsDestructiveScope(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
-		if request.ToolName != "task.delete" {
+		if request.ToolName != "task_delete" {
 			t.Fatalf("tool name = %q", request.ToolName)
 		}
 		if !request.Context.IsApprovalContinuation {
@@ -143,7 +143,7 @@ func TestPublicToolGatewayAllowsDestructiveScope(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task.delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task_delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -163,7 +163,7 @@ func TestPublicToolGatewayLegacyScopeStillGrantsWriteTier(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task.add/invoke", strings.NewReader(`{"input":{"title":"업무 추가"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task_add/invoke", strings.NewReader(`{"input":{"title":"업무 추가"}}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 

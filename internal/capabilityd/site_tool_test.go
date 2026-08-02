@@ -31,7 +31,7 @@ func TestSiteServePublishPropagatesContextAndBundle(t *testing.T) {
 
 	transport := testSiteSourceBundleTransport("~/sites/demo-site")
 	response, errorValue := invokeSiteCapabilityTool(t, service, capabilities.ToolInvokeRequest{
-		ToolName:  "site.serve",
+		ToolName:  "site_serve",
 		Input:     json.RawMessage(`{"title":"Demo Site","sourceWorkspacePath":"~/sites/demo-site","mode":"publish"}`),
 		Transport: transport,
 		Context: capabilities.ToolInvokeContext{
@@ -78,7 +78,7 @@ func TestSiteServePreviewProjectsPreviewURL(t *testing.T) {
 	}
 
 	response, errorValue := invokeSiteCapabilityTool(t, service, capabilities.ToolInvokeRequest{
-		ToolName:  "site.serve",
+		ToolName:  "site_serve",
 		Input:     json.RawMessage(`{"title":"Demo Site","sourceWorkspacePath":"~/sites/demo-site","mode":"preview"}`),
 		Transport: testSiteSourceBundleTransport("~/sites/demo-site"),
 	})
@@ -96,7 +96,7 @@ func TestSiteServePreviewProjectsPreviewURL(t *testing.T) {
 func TestSiteServeRequiresSourceBundle(t *testing.T) {
 	service := Service{Configuration: Configuration{AdmindBaseURL: "http://admind.local"}}
 	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.serve",
+		ToolName: "site_serve",
 		Input:    json.RawMessage(`{"title":"Demo Site","sourceWorkspacePath":"~/sites/demo-site","mode":"publish"}`),
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "source bundle is required") {
@@ -113,7 +113,7 @@ func TestSiteServeRejectsMismatchedReferenceResult(t *testing.T) {
 	}
 
 	_, errorValue := invokeSiteCapabilityTool(t, service, capabilities.ToolInvokeRequest{
-		ToolName:  "site.serve",
+		ToolName:  "site_serve",
 		Input:     json.RawMessage(`{"title":"Demo Site","sourceWorkspacePath":"~/sites/demo-site","mode":"publish","siteReference":"demo-site"}`),
 		Transport: testSiteSourceBundleTransport("~/sites/demo-site"),
 	})
@@ -131,7 +131,7 @@ func TestSiteServePassesThroughResolutionFailure(t *testing.T) {
 	}
 
 	response, errorValue := invokeSiteCapabilityTool(t, service, capabilities.ToolInvokeRequest{
-		ToolName:  "site.serve",
+		ToolName:  "site_serve",
 		Input:     json.RawMessage(`{"title":"Demo Site","sourceWorkspacePath":"~/sites/demo-site","mode":"publish","siteReference":"missing-site"}`),
 		Transport: testSiteSourceBundleTransport("~/sites/demo-site"),
 	})
@@ -160,7 +160,7 @@ func TestSiteServeReportsStaleBuildAsInvalidInput(t *testing.T) {
 	}
 
 	response, errorValue := invokeSiteCapabilityTool(t, service, capabilities.ToolInvokeRequest{
-		ToolName:  "site.serve",
+		ToolName:  "site_serve",
 		Input:     json.RawMessage(`{"title":"Demo Site","sourceWorkspacePath":"~/sites/demo-site","mode":"publish"}`),
 		Transport: testSiteSourceBundleTransport("~/sites/demo-site"),
 	})
@@ -197,7 +197,7 @@ func TestSiteServePropagatesServerErrors(t *testing.T) {
 	}
 
 	_, errorValue := invokeSiteCapabilityTool(t, service, capabilities.ToolInvokeRequest{
-		ToolName:  "site.serve",
+		ToolName:  "site_serve",
 		Input:     json.RawMessage(`{"title":"Demo Site","sourceWorkspacePath":"~/sites/demo-site","mode":"publish"}`),
 		Transport: testSiteSourceBundleTransport("~/sites/demo-site"),
 	})
@@ -218,7 +218,7 @@ func TestSiteListProjectsCanonicalEntries(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.list",
+		ToolName: "site_list",
 		Input:    json.RawMessage(`{}`),
 	})
 	if errorValue != nil {
@@ -248,7 +248,7 @@ func TestSiteListFiltersByExactReference(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.list",
+		ToolName: "site_list",
 		Input:    json.RawMessage(`{"siteReference":"beta"}`),
 	})
 	if errorValue != nil {
@@ -269,7 +269,7 @@ func TestSiteListReturnsTypedNotFoundForUnknownReference(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.list",
+		ToolName: "site_list",
 		Input:    json.RawMessage(`{"siteReference":"brand-new-site"}`),
 	})
 	if errorValue != nil {
@@ -313,7 +313,7 @@ func TestSiteUnserveResolvesReferenceAndDeletes(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.unserve",
+		ToolName: "site_unserve",
 		Input:    json.RawMessage(`{"siteReference":"demo","reason":"Remove obsolete launch page"}`),
 		Context:  capabilities.ToolInvokeContext{IsApprovalContinuation: true},
 	})
@@ -340,7 +340,7 @@ func TestSiteUnserveReturnsTypedNotFound(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.unserve",
+		ToolName: "site_unserve",
 		Input:    json.RawMessage(`{"siteReference":"missing-site"}`),
 	})
 	if errorValue != nil {
@@ -360,7 +360,7 @@ func TestSiteUnserveReturnsAmbiguousCandidates(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.unserve",
+		ToolName: "site_unserve",
 		Input:    json.RawMessage(`{"siteReference":"shared"}`),
 	})
 	if errorValue != nil {
@@ -374,7 +374,7 @@ func TestSiteUnserveReturnsAmbiguousCandidates(t *testing.T) {
 func TestSiteUnserveRequiresReference(t *testing.T) {
 	service := Service{Configuration: Configuration{AdmindBaseURL: "http://admind.local"}}
 	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "site.unserve",
+		ToolName: "site_unserve",
 		Input:    json.RawMessage(`{}`),
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "siteReference is required") {
@@ -396,7 +396,7 @@ func TestSiteAppIdentityRejectsSurroundingWhitespace(t *testing.T) {
 func TestSiteServeRejectsPaddedSiteID(t *testing.T) {
 	_, errorValue := projectCanonicalSiteAppResult(
 		capabilities.ToolInvokeRequest{
-			ToolName:  "site.serve",
+			ToolName:  "site_serve",
 			Input:     json.RawMessage(`{"title":"Demo","sourceWorkspacePath":"~/sites/demo","mode":"publish"}`),
 			Transport: testSiteSourceBundleTransport("~/sites/demo"),
 		},
@@ -469,7 +469,7 @@ func TestSiteAppRejectsMalformedSuccessfulResponse(t *testing.T) {
 	}
 
 	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName:  "site.serve",
+		ToolName:  "site_serve",
 		Input:     json.RawMessage(`{"title":"Demo","sourceWorkspacePath":"~/sites/demo","mode":"publish"}`),
 		Transport: testSiteSourceBundleTransport("~/sites/demo"),
 	})

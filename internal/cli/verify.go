@@ -70,16 +70,16 @@ func runVerifyAPI(arguments []string) error {
 func runVerifyMattermost(arguments []string) error {
 	flagSet := flag.NewFlagSet("verify mattermost", flag.ContinueOnError)
 	prompt := flagSet.String("prompt", "", "Post this prompt through the real Mattermost ingress path")
-	expectBrowserOpen := flagSet.Bool("expect-browser-open", false, "Require a successful browser.open tool result for prompt verification")
+	expectBrowserOpen := flagSet.Bool("expect-browser-open", false, "Require a successful browser_open tool result for prompt verification")
 	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL in the final bot reply and verify it returns site HTML")
 	htmlAttachmentFollowupE2E := flagSet.Bool("html-attachment-followup-e2e", false, "Upload an HTML file through Mattermost and verify current and follow-up attachment preview")
 	messageDeleteE2E := flagSet.Bool("message-delete-e2e", false, "Create Mattermost test posts and verify InternKim deletes only its own posts")
-	directMessageE2E := flagSet.Bool("direct-message-e2e", false, "Create Mattermost probe users and verify message.send sends a direct message")
+	directMessageE2E := flagSet.Bool("direct-message-e2e", false, "Create Mattermost probe users and verify message_send sends a direct message")
 	expectedTools := repeatedStringFlag{}
 	expectedEvents := repeatedStringFlag{}
 	flagSet.Var(&expectedTools, "expect-tool", "Require a requested tool event for prompt verification; repeat for multiple tools")
 	flagSet.Var(&expectedEvents, "expect-event", "Require a task event name for prompt verification; repeat for multiple events")
-	browserOpenE2E := flagSet.Bool("browser-open-e2e", false, "Pair a local probe companion and require a successful browser.open result")
+	browserOpenE2E := flagSet.Bool("browser-open-e2e", false, "Pair a local probe companion and require a successful browser_open result")
 	keep := flagSet.Bool("keep", false, "Keep probe messages and users for inspection")
 	keepBrowser := flagSet.Bool("keep-browser", false, "Keep the local browser window open after browser-open E2E")
 	downloadFilesTo := flagSet.String("download-files-to", "", "Download final Mattermost bot attachments into this local directory")
@@ -149,7 +149,7 @@ func runVerifySite(arguments []string) error {
 		return errorValue
 	}
 	fmt.Printf("verify site: %s@%s\n", verifyTarget.user, verifyTarget.host)
-	expectedTools := []string{"terminal.run", "site.serve"}
+	expectedTools := []string{"terminal_run", "site_serve"}
 	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil, false, false, false), mattermostPromptScriptSSHTimeout(*timeoutSeconds, true))
 }
 
@@ -158,7 +158,7 @@ func isMattermostSiteVerification(expectPublicURL bool, expectedTools []string) 
 		return true
 	}
 	for _, toolName := range expectedTools {
-		if strings.HasPrefix(strings.TrimSpace(toolName), "site.") {
+		if isSiteToolName(toolName) {
 			return true
 		}
 	}
@@ -2117,13 +2117,13 @@ printf '{}' > "$site_style_metrics_file"
 printf '[]' > "$site_screenshots_file"
 if [ "$expect_browser_open" = "true" ]; then
   if [ -z "$task_run_id" ]; then
-    echo "expected successful browser.open result, but no task was created for probe prompt" >&2
+    echo "expected successful browser_open result, but no task was created for probe prompt" >&2
     exit 1
   fi
-  if jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.browser.open.result" and (((.body // "{}") | fromjson? // {}) | .isError != true))' "$task_detail_file" >/dev/null; then
+  if jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.browser_open.result" and (((.body // "{}") | fromjson? // {}) | .isError != true))' "$task_detail_file" >/dev/null; then
     browser_open_verified=true
   else
-    echo "expected successful tool.browser.open.result for probe task $task_run_id" >&2
+    echo "expected successful tool.browser_open.result for probe task $task_run_id" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
     exit 1
   fi
@@ -2538,8 +2538,8 @@ if [ "$task_status" != "completed" ]; then
   jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
   exit 1
 fi
-if ! jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.message.send.requested")' "$task_detail_file" >/dev/null; then
-  echo "expected message.send request in direct-message E2E task $task_run_id" >&2
+if ! jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.message_send.requested")' "$task_detail_file" >/dev/null; then
+  echo "expected message_send request in direct-message E2E task $task_run_id" >&2
   jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
   exit 1
 fi
@@ -2878,7 +2878,7 @@ if [ "$task_status" != "completed" ]; then
   exit 1
 fi
 
-for expected_tool in message.search message.delete; do
+for expected_tool in message_search message_delete; do
   if ! jq -e --arg name "tool.$expected_tool.requested" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == $name)' "$task_detail_file" >/dev/null; then
     echo "expected $expected_tool to be requested in message delete E2E task $task_run_id" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
@@ -2886,7 +2886,7 @@ for expected_tool in message.search message.delete; do
   fi
 done
 
-for old_tool in platform.dm.inspect platform.dm.send mattermost.post.delete mattermost.post.search mattermost.context.inspect; do
+for old_tool in platform.dm.inspect platform.dm.send mattermost_post_delete mattermost_post_search mattermost_context_inspect; do
   if jq -e --arg old_tool "$old_tool" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name // "") | contains($old_tool))' "$task_detail_file" >/dev/null; then
     echo "old message tool appeared in message delete E2E task: $old_tool" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
@@ -2894,7 +2894,7 @@ for old_tool in platform.dm.inspect platform.dm.send mattermost.post.delete matt
   fi
 done
 
-for forbidden_tool in file.read file.preview terminal.run; do
+for forbidden_tool in file_read file_preview terminal_run; do
   if jq -e --arg forbidden_tool "$forbidden_tool" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name // "") | contains("tool." + $forbidden_tool + ".requested"))' "$task_detail_file" >/dev/null; then
     echo "message delete E2E leaked into unrelated tool: $forbidden_tool" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
@@ -3064,9 +3064,9 @@ wait_for_task_attachment_read() {
     task_id="$(task_id_for_prompt "$prompt")"
     if [ -n "$task_id" ]; then
       blueclaw_request "$label task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_id" > "$task_detail_file"
-      if jq -e --arg title "$unique_title" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name == "tool.file.preview.result" or .name == "tool.file.read.result" or .name == "tool.document.read.result") and ((.body // "") | tostring | contains($title)))' "$task_detail_file" >/dev/null; then
-        if jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.terminal.run.requested")' "$task_detail_file" >/dev/null; then
-          echo "$label task used terminal.run instead of attachment read tools" >&2
+      if jq -e --arg title "$unique_title" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name == "tool.file_preview.result" or .name == "tool.file_read.result" or .name == "tool.document_read.result") and ((.body // "") | tostring | contains($title)))' "$task_detail_file" >/dev/null; then
+        if jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.terminal_run.requested")' "$task_detail_file" >/dev/null; then
+          echo "$label task used terminal_run instead of attachment read tools" >&2
           jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
           return 1
         fi
@@ -3400,16 +3400,16 @@ while [ "$SECONDS" -lt "$deadline" ]; do
     any(.companions[]?;
       .isOnline == true
       and (.ownerPlatformUserID == $owner_platform_user_id or (.ownerEmail | ascii_downcase) == ($owner_email | ascii_downcase))
-      and any(.capabilities[]?; .name == "browser.open")
+      and any(.capabilities[]?; .name == "browser_open")
     )
   ' >/dev/null; then
-    echo "remote companion: online with browser.open"
+    echo "remote companion: online with browser_open"
     exit 0
   fi
   sleep 1
 done
 
-echo "expected remote companion heartbeat with browser.open for $owner_email" >&2
+echo "expected remote companion heartbeat with browser_open for $owner_email" >&2
 curl --silent --show-error http://127.0.0.1:18080/admin/api/companion/status |
   jq --arg owner_platform_user_id "$owner_platform_user_id" --arg owner_email "$owner_email" '
     .companions
@@ -3577,8 +3577,8 @@ if [ -z "$task_run_id" ]; then
 fi
 task_detail_file="$(mktemp)"
 blueclaw_request "probe browser task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
-if ! jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.browser.open.result" and (((.body // "{}") | fromjson? // {}) | .isError != true))' "$task_detail_file" >/dev/null; then
-  echo "expected successful tool.browser.open.result for probe browser task $task_run_id" >&2
+if ! jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.browser_open.result" and (((.body // "{}") | fromjson? // {}) | .isError != true))' "$task_detail_file" >/dev/null; then
+  echo "expected successful tool.browser_open.result for probe browser task $task_run_id" >&2
   jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
   exit 1
 fi
@@ -3613,4 +3613,12 @@ jq -cn \
 		keepValue,
 		timeoutSeconds,
 	)
+}
+
+// Site tools are named exactly; matching a name prefix silently reclassifies any
+// future tool that happens to start the same way.
+var siteToolNames = map[string]bool{"site_serve": true, "site_list": true, "site_unserve": true}
+
+func isSiteToolName(toolName string) bool {
+	return siteToolNames[strings.TrimSpace(toolName)]
 }

@@ -1408,7 +1408,7 @@ func TestMattermostReplySendsAskChoiceButtonsInline(t *testing.T) {
 			t.Fatalf("expected admind action URL, got %+v", integration)
 		}
 		contextDocument := integration["context"].(map[string]any)
-		if contextDocument["token"] == "" || contextDocument["action"] != "ask.choice" || contextDocument["conversationID"] != "thread:channel-1:root-1" || contextDocument["targetUserID"] != "user-1" || contextDocument["choiceLabel"] != "가독성" {
+		if contextDocument["token"] == "" || contextDocument["action"] != "ask_choice" || contextDocument["conversationID"] != "thread:channel-1:root-1" || contextDocument["targetUserID"] != "user-1" || contextDocument["choiceLabel"] != "가독성" {
 			t.Fatalf("expected ask action token context, got %+v", contextDocument)
 		}
 	default:

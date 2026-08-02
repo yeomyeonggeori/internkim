@@ -34,10 +34,10 @@
 현재 사용자가 허용한 방향:
 
 - 6개 툴 고정은 절대 제약이 아니다. 12개 정도라도 안정성과 명확성이 좋으면 괜찮다.
-- `file.read`, `file.write`, `file.edit`, `file.patch`, `file.preview`, `image.read` 같은 coding/artifact 작업용 generic file tools는 복구 또는 유지 가능하다.
+- `file_read`, `file_write`, `file_edit`, `file.patch`, `file_preview`, `image_read` 같은 coding/artifact 작업용 generic file tools는 복구 또는 유지 가능하다.
 - `file.attach`는 모델에게 보이면 안 된다.
-- 최종 전달은 `file.deliver`처럼 provider-neutral delivery path를 사용해야 한다.
-- `ask.input`은 선택지 배열이 비어 있으면 주관식, 비어 있지 않으면 선택 또는 직접 답변 입력으로 동작한다. 별도 `ask.choice`는 되살리지 않는다.
+- 최종 전달은 `file_deliver`처럼 provider-neutral delivery path를 사용해야 한다.
+- `ask_input`은 선택지 배열이 비어 있으면 주관식, 비어 있지 않으면 선택 또는 직접 답변 입력으로 동작한다. 별도 `ask_choice`는 되살리지 않는다.
 
 ## 현재 Git 상태
 
@@ -70,10 +70,10 @@ git -C .dependency/blueclaw log --oneline -6
 
 ## 이미 적용된 변경
 
-- `file.deliver`를 최종 전달 툴로 유지하고, `file.attach`는 모델에게 보이지 않게 정리했다.
+- `file_deliver`를 최종 전달 툴로 유지하고, `file.attach`는 모델에게 보이지 않게 정리했다.
 - `artifact.deliver`는 새 계약에서 사용하지 않는다.
-- `ask.choice`는 제거하고 `ask.input`의 `choices` 배열로 통합하는 방향으로 정리했다.
-- `terminal.session`은 별도 툴로 노출하지 않고 `terminal.run` 세션 모드로 흡수하는 방향이다.
+- `ask_choice`는 제거하고 `ask_input`의 `choices` 배열로 통합하는 방향으로 정리했다.
+- `terminal.session`은 별도 툴로 노출하지 않고 `terminal_run` 세션 모드로 흡수하는 방향이다.
 - `site.app.*` 같은 사이트 전용 툴 이름은 모델 프롬프트/스킬 문서에서 제거하는 중이다.
 - Blueclaw 내부는 InternKim 브랜드와 public `/api/v1` 의존을 피해야 한다. 전달/렌더/외부 연동은 capabilityd 경유가 맞다.
 - skill 문서는 작게 유지해야 한다. 큰 스크립트나 긴 절차를 모델에게 통째로 전달하는 것은 버그로 본다.
@@ -124,7 +124,7 @@ go test ./internal/agent -run 'TestBuildAgentActionRequestPreservesNativeToolCal
 
 실패 핵심:
 
-- 승인 후 Blueclaw가 `terminal.run`으로 `/workspace/tools/capability invoke flow.task.add`를 실행했다.
+- 승인 후 Blueclaw가 `terminal_run`으로 `/workspace/tools/capability invoke flow.task.add`를 실행했다.
 - 실행 결과는 `capability bridge unavailable: [Errno -2] Name or service not known`였다.
 - 즉 모델이 CRUD를 회피한 것이 아니라, 런타임 안에서 capability bridge 이름 해석 또는 연결 설정이 깨져 있었다.
 - 그 뒤 recovery turn에서 `google/gemma-4-31b-it:free`가 OpenRouter 429를 반환했고 task가 paused 상태가 되면서 harness가 실패했다.
@@ -132,17 +132,17 @@ go test ./internal/agent -run 'TestBuildAgentActionRequestPreservesNativeToolCal
 실패 당시 tool palette:
 
 ```text
-terminal.run
-ask.input
-ask.confirm
-file.deliver
-file.edit
+terminal_run
+ask_input
+ask_confirm
+file_deliver
+file_edit
 file.patch
-file.preview
-file.read
-file.write
-image.read
-skill.search
+file_preview
+file_read
+file_write
+image_read
+skill_search
 ```
 
 사용자는 6개 고정 제약은 임의였고 12개 정도는 괜찮다고 정정했다. 따라서 이 실패의 첫 조사 대상은 tool 개수보다 `/workspace/tools/capability`가 바라보는 capability bridge endpoint/DNS이다.
@@ -187,7 +187,7 @@ rg "INTERNKIM_TEST_MODEL|--real|google/gemma-4-31b-it" .
 - 웹사이트는 public URL이 실제로 열려야 하고 desktop/mobile 스크린샷을 저장해야 한다.
 - 웹사이트 삭제는 스크린샷 확보 뒤 별도 삭제 요청으로 검증한다. 삭제 후 URL 또는 site 상태가 제거됐는지 확인한다.
 
-`--expect-tool terminal.run`은 필수 조건이 아니다. 특정 회귀를 좁혀 볼 때만 쓴다. 일반 CRUD/렌더 게이트에서는 기존 `./internkim test` 경로를 유지한다.
+`--expect-tool terminal_run`은 필수 조건이 아니다. 특정 회귀를 좁혀 볼 때만 쓴다. 일반 CRUD/렌더 게이트에서는 기존 `./internkim test` 경로를 유지한다.
 
 웹사이트 생성/배포는 오래 걸릴 수 있으므로 필요한 경우에만 `--timeout 1800`을 쓴다. 짧은 CRUD 테스트에 무조건 붙이지 않는다.
 
@@ -213,7 +213,7 @@ jq '{ok, taskStatus, botMessage, taskRunID, channelID, userPostID, botPostID, fi
 
 ### 3. 문서 생성, 수정, 삭제
 
-최종 파일은 `.artifacts/.../files/` 아래로 받는다. `file.deliver`가 실제 전달 경로여야 한다.
+최종 파일은 `.artifacts/.../files/` 아래로 받는다. `file_deliver`가 실제 전달 경로여야 한다.
 
 ```bash
 ./internkim test --reuse --keep --no-open --auto-confirm --seed 43 --temperature 0 --timeout 1200 --result-json .artifacts/blueclaw-crud-render-gate-20260629T122226KST/document-crud.json -o .artifacts/blueclaw-crud-render-gate-20260629T122226KST/files/document-crud.docx "테스트 ID IK-DOC-CRUD-20260629-122226. DOCX 문서를 실제로 생성, 수정, 삭제 검증해줘. 먼저 제목이 'IK-DOC-CRUD-20260629-122226 초안 문서'인 DOCX 문서를 만들고 본문에 생성 확인 문장을 넣어. 이어서 같은 문서를 수정해서 제목을 'IK-DOC-CRUD-20260629-122226 수정 문서'로 바꾸고 본문에 수정 확인 문장을 추가해. 중간 초안 파일이나 불필요한 임시 파일은 삭제해. 최종 수정본 DOCX를 전달하고, 답변에는 생성, 수정, 삭제, 최종 파일 전달이 각각 성공했는지 적어줘."
@@ -315,7 +315,7 @@ Cleanup 전에 필요한 스크린샷을 모두 확보해야 한다.
 - 모델에게 `file.attach`가 보이면 안 된다.
 - 모델에게 `artifact.deliver`가 보이면 안 된다.
 - 모델에게 `site.app.*` 같은 제거된 사이트 전용 툴 이름이 보이면 안 된다.
-- `ask.choice`를 새 계약의 일반 툴로 되살리면 안 된다.
+- `ask_choice`를 새 계약의 일반 툴로 되살리면 안 된다.
 - `terminal.session`을 별도 툴로 되살리면 안 된다.
 - Blueclaw core가 InternKim public API나 Mattermost 전용 전달 구현에 직접 묶이면 안 된다.
 - `--real` 여부가 모델 외 실행 경로를 바꾸면 안 된다.

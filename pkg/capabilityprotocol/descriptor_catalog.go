@@ -16,10 +16,10 @@ func CompanionToolDescriptors() []Descriptor {
 	return MustCanonicalizeBuiltInDescriptors([]Descriptor{
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "user.confirm",
-				CanonicalName:   "user.confirm",
+				Name:            "user_confirm",
+				CanonicalName:   "user_confirm",
 				Namespace:       "user",
-				ModelName:       "user.confirm",
+				ModelName:       "user_confirm",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -31,7 +31,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          userConfirmInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:user.confirm",
+				PolicyResource:       "tool:user_confirm",
 				SideEffect:           SideEffectApproval,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -62,10 +62,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "file.pick",
-				CanonicalName:   "file.pick",
+				Name:            "file_pick",
+				CanonicalName:   "file_pick",
 				Namespace:       "file",
-				ModelName:       "file.pick",
+				ModelName:       "file_pick",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -77,7 +77,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          filePickInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:file.pick",
+				PolicyResource:       "tool:file_pick",
 				SideEffect:           SideEffectLocalFile,
 				RequiresApproval:     true,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
@@ -452,15 +452,15 @@ func CompanionToolDescriptors() []Descriptor {
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
 			},
 		}),
-		mustGeneratedToolDescriptor("browser.open"),
-		mustGeneratedToolDescriptor("browser.snapshot"),
-		mustGeneratedToolDescriptor("browser.screenshot"),
+		mustGeneratedToolDescriptor("browser_open"),
+		mustGeneratedToolDescriptor("browser_snapshot"),
+		mustGeneratedToolDescriptor("browser_screenshot"),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "browser.handoff",
-				CanonicalName:   "browser.handoff",
+				Name:            "browser_handoff",
+				CanonicalName:   "browser_handoff",
 				Namespace:       "browser",
-				ModelName:       "browser.handoff",
+				ModelName:       "browser_handoff",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -472,19 +472,19 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         false,
 				InputSchema:          browserHandoffInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.handoff",
+				PolicyResource:       "tool:browser_handoff",
 				SideEffect:           SideEffectConnect,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
 			},
 		}),
-		mustGeneratedToolDescriptor("browser.click"),
+		mustGeneratedToolDescriptor("browser_click"),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "browser.fill",
-				CanonicalName:   "browser.fill",
+				Name:            "browser_fill",
+				CanonicalName:   "browser_fill",
 				Namespace:       "browser",
-				ModelName:       "browser.fill",
+				ModelName:       "browser_fill",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -496,7 +496,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         false,
 				InputSchema:          browserFillInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.fill",
+				PolicyResource:       "tool:browser_fill",
 				SideEffect:           SideEffectExternalWrite,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -504,10 +504,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "browser.select",
-				CanonicalName:   "browser.select",
+				Name:            "browser_select",
+				CanonicalName:   "browser_select",
 				Namespace:       "browser",
-				ModelName:       "browser.select",
+				ModelName:       "browser_select",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -519,7 +519,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         false,
 				InputSchema:          browserSelectInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.select",
+				PolicyResource:       "tool:browser_select",
 				SideEffect:           SideEffectExternalWrite,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -527,10 +527,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "browser.press",
-				CanonicalName:   "browser.press",
+				Name:            "browser_press",
+				CanonicalName:   "browser_press",
 				Namespace:       "browser",
-				ModelName:       "browser.press",
+				ModelName:       "browser_press",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -542,7 +542,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         false,
 				InputSchema:          browserPressInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.press",
+				PolicyResource:       "tool:browser_press",
 				SideEffect:           SideEffectExternalWrite,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -550,10 +550,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "browser.wait",
-				CanonicalName:   "browser.wait",
+				Name:            "browser_wait",
+				CanonicalName:   "browser_wait",
 				Namespace:       "browser",
-				ModelName:       "browser.wait",
+				ModelName:       "browser_wait",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -565,7 +565,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         false,
 				InputSchema:          browserWaitInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.wait",
+				PolicyResource:       "tool:browser_wait",
 				SideEffect:           SideEffectRead,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -673,15 +673,15 @@ func CompanionLLMDescriptors() []Descriptor {
 
 func DeviceBrowserDescriptors() []Descriptor {
 	return MustCanonicalizeBuiltInDescriptors([]Descriptor{
-		deviceBrowserDescriptor("browser.open", "Open an exact HTTP or HTTPS URL in the device browser."),
-		deviceBrowserDescriptor("browser.snapshot", "Read the current device browser page structure."),
-		deviceBrowserDescriptor("browser.click", "Click one exact target from the current device browser snapshot."),
+		deviceBrowserDescriptor("browser_open", "Open an exact HTTP or HTTPS URL in the device browser."),
+		deviceBrowserDescriptor("browser_snapshot", "Read the current device browser page structure."),
+		deviceBrowserDescriptor("browser_click", "Click one exact target from the current device browser snapshot."),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "browser.fill",
-				CanonicalName:   "browser.fill",
+				Name:            "browser_fill",
+				CanonicalName:   "browser_fill",
 				Namespace:       "browser",
-				ModelName:       "browser.fill",
+				ModelName:       "browser_fill",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -693,7 +693,7 @@ func DeviceBrowserDescriptors() []Descriptor {
 				WorksOffline:         false,
 				InputSchema:          browserFillInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.fill",
+				PolicyResource:       "tool:browser_fill",
 				SideEffect:           SideEffectExternalWrite,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -701,10 +701,10 @@ func DeviceBrowserDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "browser.select",
-				CanonicalName:   "browser.select",
+				Name:            "browser_select",
+				CanonicalName:   "browser_select",
 				Namespace:       "browser",
-				ModelName:       "browser.select",
+				ModelName:       "browser_select",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -716,7 +716,7 @@ func DeviceBrowserDescriptors() []Descriptor {
 				WorksOffline:         false,
 				InputSchema:          browserSelectInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.select",
+				PolicyResource:       "tool:browser_select",
 				SideEffect:           SideEffectExternalWrite,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -724,10 +724,10 @@ func DeviceBrowserDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "browser.press",
-				CanonicalName:   "browser.press",
+				Name:            "browser_press",
+				CanonicalName:   "browser_press",
 				Namespace:       "browser",
-				ModelName:       "browser.press",
+				ModelName:       "browser_press",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -739,7 +739,7 @@ func DeviceBrowserDescriptors() []Descriptor {
 				WorksOffline:         false,
 				InputSchema:          browserPressInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.press",
+				PolicyResource:       "tool:browser_press",
 				SideEffect:           SideEffectExternalWrite,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -747,10 +747,10 @@ func DeviceBrowserDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "browser.wait",
-				CanonicalName:   "browser.wait",
+				Name:            "browser_wait",
+				CanonicalName:   "browser_wait",
 				Namespace:       "browser",
-				ModelName:       "browser.wait",
+				ModelName:       "browser_wait",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -762,7 +762,7 @@ func DeviceBrowserDescriptors() []Descriptor {
 				WorksOffline:         false,
 				InputSchema:          browserWaitInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:browser.wait",
+				PolicyResource:       "tool:browser_wait",
 				SideEffect:           SideEffectRead,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},

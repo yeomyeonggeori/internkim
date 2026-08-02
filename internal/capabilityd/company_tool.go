@@ -84,27 +84,27 @@ type companyDocumentUpdateInput struct {
 
 func (service Service) invokeCompanyTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch strings.TrimSpace(request.ToolName) {
-	case "company.info.get":
+	case "company_info_get":
 		return service.invokeCompanyInfoGet(ctx, request)
-	case "company.info.set":
+	case "company_info_set":
 		return service.invokeCompanyInfoSet(ctx, request)
-	case "company.metric.record":
+	case "company_metric_record":
 		return service.invokeCompanyMetricRecord(ctx, request)
-	case "company.metric.list":
+	case "company_metric_list":
 		return service.invokeCompanyMetricList(ctx, request)
-	case "company.record.add", "company.record.update":
+	case "company_record_add", "company_record_update":
 		return service.invokeCompanyRecordWrite(ctx, request)
-	case "company.record.list":
+	case "company_record_list":
 		return service.invokeCompanyRecordList(ctx, request)
-	case "company.record.delete":
+	case "company_record_delete":
 		return service.invokeCompanyRecordDelete(ctx, request)
-	case "company.document.register":
+	case "company_document_register":
 		return service.invokeCompanyDocumentRegister(ctx, request)
-	case "company.document.list":
+	case "company_document_list":
 		return service.invokeCompanyDocumentList(ctx, request)
-	case "company.document.search":
+	case "company_document_search":
 		return service.invokeCompanyDocumentSearch(ctx, request)
-	case "company.document.update":
+	case "company_document_update":
 		return service.invokeCompanyDocumentUpdate(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("company tool is not configured: %s", request.ToolName)
@@ -225,7 +225,7 @@ func (service Service) invokeCompanyRecordWrite(ctx context.Context, request cap
 	}
 	method := http.MethodPost
 	status := "added"
-	if request.ToolName == "company.record.update" {
+	if request.ToolName == "company_record_update" {
 		method = http.MethodPut
 		status = "updated"
 	}

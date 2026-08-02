@@ -131,42 +131,42 @@ func TestMattermostScenarioCleanupDeletesCreatedDomainResourcesFromToolResults(t
 	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{
 		{TaskEvents: []mattermostScenarioTaskEvent{
 			{
-				Name: "tool.task.add.result",
-				Body: `{"tool":"task.add","output":{"data":{"id":"task-1"},"content":"{\"id\":\"ignored-task\"}"}}`,
+				Name: "tool.task_add.result",
+				Body: `{"tool":"task_add","output":{"data":{"id":"task-1"},"content":"{\"id\":\"ignored-task\"}"}}`,
 			},
 			{
-				Name: "tool.calendar.add.result",
-				Body: `{"tool":"calendar.add","output":{"content":"{\"eventID\":\"event-1\"}"}}`,
+				Name: "tool.calendar_add.result",
+				Body: `{"tool":"calendar_add","output":{"content":"{\"eventID\":\"event-1\"}"}}`,
 			},
 			{
-				Name: "tool.task.add.result",
-				Body: `{"tool":"task.add","output":{"data":{"id":"task-2"}}}`,
+				Name: "tool.task_add.result",
+				Body: `{"tool":"task_add","output":{"data":{"id":"task-2"}}}`,
 			},
 			{
-				Name: "tool.calendar.add.result",
-				Body: `{"tool":"calendar.add","output":{"data":{"eventID":"event-2"}}}`,
+				Name: "tool.calendar_add.result",
+				Body: `{"tool":"calendar_add","output":{"data":{"eventID":"event-2"}}}`,
 			},
 		}},
 		{TaskEvents: []mattermostScenarioTaskEvent{
 			{
-				Name: "tool.task.add.result",
-				Body: `{"tool":"task.add","output":{"data":{"id":"task-1"}}}`,
+				Name: "tool.task_add.result",
+				Body: `{"tool":"task_add","output":{"data":{"id":"task-1"}}}`,
 			},
 			{
-				Name: "tool.task.list.result",
-				Body: `{"tool":"task.list","output":{"data":{"id":"must-not-delete"}}}`,
+				Name: "tool.task_list.result",
+				Body: `{"tool":"task_list","output":{"data":{"id":"must-not-delete"}}}`,
 			},
 			{
-				Name: "tool.task.add.requested",
-				Body: `{"tool":"task.add","output":{"data":{"id":"requested-task"}}}`,
+				Name: "tool.task_add.requested",
+				Body: `{"tool":"task_add","output":{"data":{"id":"requested-task"}}}`,
 			},
 			{
-				Name: "tool.task.list.result",
-				Body: `{"tool":"task.list","output":{"data":{"id":"listed-task"}}}`,
+				Name: "tool.task_list.result",
+				Body: `{"tool":"task_list","output":{"data":{"id":"listed-task"}}}`,
 			},
 			{
-				Name: "tool.task.add.result",
-				Body: `{"tool":"task.update","output":{"data":{"id":"mismatched-task"}}}`,
+				Name: "tool.task_add.result",
+				Body: `{"tool":"task_update","output":{"data":{"id":"mismatched-task"}}}`,
 			},
 		}},
 	}}
@@ -223,8 +223,8 @@ func TestMattermostScenarioCleanupPreservesProbeIdentityUntilExactTaskCleanupSuc
 	}}
 	admin := mattermostScenarioAdmin{remote: remote}
 	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
-		Name: "tool.task.add.result",
-		Body: `{"tool":"task.add","output":{"data":{"id":"task-created-before-failure"}}}`,
+		Name: "tool.task_add.result",
+		Body: `{"tool":"task_add","output":{"data":{"id":"task-created-before-failure"}}}`,
 	}}}}}
 
 	firstCleanupError := admin.cleanup(context.Background(), result, "probe@example.com")
@@ -250,8 +250,8 @@ func TestMattermostScenarioCleanupRequiresEmailForCreatedDomainResources(t *test
 	remote := &fakeMattermostScenarioRemote{runValue: func(string) (string, error) { return "", nil }}
 	admin := mattermostScenarioAdmin{remote: remote}
 	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
-		Name: "tool.task.add.result",
-		Body: `{"tool":"task.add","output":{"data":{"taskID":"task-1"}}}`,
+		Name: "tool.task_add.result",
+		Body: `{"tool":"task_add","output":{"data":{"taskID":"task-1"}}}`,
 	}}}}}
 
 	errorValue := admin.deleteCreatedResources(context.Background(), result, "")
@@ -265,9 +265,9 @@ func TestMattermostScenarioCleanupRequiresEmailForCreatedDomainResources(t *test
 
 func TestMattermostScenarioCreatedResourcesIgnoreMalformedAndFailedResults(t *testing.T) {
 	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{
-		{Name: "tool.task.add.result", Body: `not-json`},
-		{Name: "tool.calendar.add.result", Body: `{"tool":"calendar.add","output":{"data":{"errorCode":"operation_failed"}}}`},
-		{Name: "tool.task.add.requested", Body: `{"tool":"task.add","output":{"data":{"id":"task-1"}}}`},
+		{Name: "tool.task_add.result", Body: `not-json`},
+		{Name: "tool.calendar_add.result", Body: `{"tool":"calendar_add","output":{"data":{"errorCode":"operation_failed"}}}`},
+		{Name: "tool.task_add.requested", Body: `{"tool":"task_add","output":{"data":{"id":"task-1"}}}`},
 	}}}}
 
 	resourceIDs := collectMattermostScenarioCreatedResourceIDs(result)
@@ -300,8 +300,8 @@ func TestMattermostScenarioCleanupAggregatesFailuresAndVerifiesRemainingResource
 		ChannelID:      "channel",
 		ConversationID: "thread:channel:root",
 		Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
-			Name: "tool.site.serve.requested",
-			Body: `{"operation":"site.serve"}`,
+			Name: "tool.site_serve.requested",
+			Body: `{"operation":"site_serve"}`,
 		}}}},
 	}
 
@@ -330,7 +330,7 @@ func TestMattermostScenarioCleanupSkipsSitesWithoutSiteEvidence(t *testing.T) {
 		ConversationID: "thread:channel:root",
 		Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{{
 			Name: "tool.capability.invoke.result",
-			Body: `{"operation":"site.serve","siteID":"site-1"}`,
+			Body: `{"operation":"site_serve","siteID":"site-1"}`,
 		}}}},
 	}
 

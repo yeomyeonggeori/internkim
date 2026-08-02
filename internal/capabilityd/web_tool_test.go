@@ -33,7 +33,7 @@ func TestWebSearchUsesOpenRouterAutoServerTool(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.search", strings.NewReader(`{"input":{"query":"internkim","limit":3}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_search", strings.NewReader(`{"input":{"query":"internkim","limit":3}}`))
 	if errorValue != nil {
 		t.Fatalf("expected web search: %v", errorValue)
 	}
@@ -43,7 +43,7 @@ func TestWebSearchUsesOpenRouterAutoServerTool(t *testing.T) {
 	if tool["type"] != "openrouter:web_search" || parameters["engine"] != "auto" || parameters["max_results"] != float64(3) {
 		t.Fatalf("unexpected web search tool: %+v", tool)
 	}
-	if response.Provider != "openrouter" || response.SelectedBackend != "remote" || response.ToolName != "web.search" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.IsError {
+	if response.Provider != "openrouter" || response.SelectedBackend != "remote" || response.ToolName != "web_search" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.IsError {
 		t.Fatalf("unexpected response: %+v", response)
 	}
 }
@@ -63,7 +63,7 @@ func TestWebSearchExtractsJSONFromMarkdownCodeFence(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.search", strings.NewReader(`{"input":{"query":"internkim"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_search", strings.NewReader(`{"input":{"query":"internkim"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected web search: %v", errorValue)
 	}
@@ -97,7 +97,7 @@ func TestWebSearchExtractsJSONAfterLeadingProse(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.search", strings.NewReader(`{"input":{"query":"internkim"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_search", strings.NewReader(`{"input":{"query":"internkim"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected web search: %v", errorValue)
 	}
@@ -130,7 +130,7 @@ func TestWebSearchWrapsPlainProseContentAsAnswer(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.search", strings.NewReader(`{"input":{"query":"internkim"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_search", strings.NewReader(`{"input":{"query":"internkim"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected web search: %v", errorValue)
 	}
@@ -164,7 +164,7 @@ func TestWebSearchFillsMissingEchoFieldsDeterministically(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.search", strings.NewReader(`{"input":{"query":"internkim"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_search", strings.NewReader(`{"input":{"query":"internkim"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected web search: %v", errorValue)
 	}
@@ -204,7 +204,7 @@ func TestWebFetchRejectsPrivateURLBeforeProviderCall(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.fetch", strings.NewReader(`{"input":{"urls":["http://127.0.0.1:8080"]}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_fetch", strings.NewReader(`{"input":{"urls":["http://127.0.0.1:8080"]}}`))
 	if errorValue != nil {
 		t.Fatalf("expected structured tool error response: %v", errorValue)
 	}
@@ -228,7 +228,7 @@ func TestWebFetchAcceptsPlainTextOpenRouterContent(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.fetch", strings.NewReader(`{"input":{"urls":["https://example.com"]}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_fetch", strings.NewReader(`{"input":{"urls":["https://example.com"]}}`))
 	if errorValue != nil {
 		t.Fatalf("expected web fetch: %v", errorValue)
 	}
@@ -263,7 +263,7 @@ func TestWebFetchWrapsMultiURLPlainTextAsCombinedContent(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.fetch", strings.NewReader(`{"input":{"urls":["https://example.com","https://example.com"]}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_fetch", strings.NewReader(`{"input":{"urls":["https://example.com","https://example.com"]}}`))
 	if errorValue != nil {
 		t.Fatalf("expected web fetch: %v", errorValue)
 	}
@@ -297,7 +297,7 @@ func TestWebFetchAcceptsSchemaJSONOpenRouterContent(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.fetch", strings.NewReader(`{"input":{"urls":["https://example.com"]}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_fetch", strings.NewReader(`{"input":{"urls":["https://example.com"]}}`))
 	if errorValue != nil {
 		t.Fatalf("expected web fetch: %v", errorValue)
 	}
@@ -321,7 +321,7 @@ func TestWebFetchWrapsNonSchemaJSONAsRawContent(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.fetch", strings.NewReader(`{"input":{"urls":["https://example.com"]}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_fetch", strings.NewReader(`{"input":{"urls":["https://example.com"]}}`))
 	if errorValue != nil {
 		t.Fatalf("expected web fetch: %v", errorValue)
 	}
@@ -342,11 +342,11 @@ func TestWebToolLocalOnlyBlocksOpenRouter(t *testing.T) {
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
 	service := Service{Configuration: Configuration{OpenRouterKeyPath: secretPath, LocalOnly: true}.WithDefaults()}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.search", strings.NewReader(`{"input":{"query":"internkim"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_search", strings.NewReader(`{"input":{"query":"internkim"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected structured tool error response: %v", errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "local_only" || response.ToolName != "web.search" || response.Outcome != capabilities.ToolOutcomeFailed {
+	if !response.IsError || response.ErrorCode != "local_only" || response.ToolName != "web_search" || response.Outcome != capabilities.ToolOutcomeFailed {
 		t.Fatalf("expected local-only denial, got %+v", response)
 	}
 }
@@ -354,7 +354,7 @@ func TestWebToolLocalOnlyBlocksOpenRouter(t *testing.T) {
 func TestWebToolMissingOpenRouterKeyDoesNotLeakSecrets(t *testing.T) {
 	service := Service{Configuration: Configuration{OpenRouterKeyPath: filepath.Join(t.TempDir(), "missing")}.WithDefaults()}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.search", strings.NewReader(`{"input":{"query":"internkim"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_search", strings.NewReader(`{"input":{"query":"internkim"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected structured tool error response: %v", errorValue)
 	}

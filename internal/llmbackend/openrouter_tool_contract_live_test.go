@@ -24,16 +24,16 @@ func toolArgumentContractCases(t *testing.T) []toolArgumentContractCase {
 	return []toolArgumentContractCase{
 		{
 			Name:          "web.search.query",
-			Descriptor:    findLiveDescriptor(t, webDescriptors, "web.search"),
+			Descriptor:    findLiveDescriptor(t, webDescriptors, "web_search"),
 			Prompt:        "Search the web for the official release date of the next SpaceX Starship flight.",
-			ExpectedTool:  "web.search",
+			ExpectedTool:  "web_search",
 			RequiredField: "query",
 		},
 		{
 			Name:          "task.add.title",
-			Descriptor:    findLiveDescriptor(t, flowDescriptors, "task.add"),
+			Descriptor:    findLiveDescriptor(t, flowDescriptors, "task_add"),
 			Prompt:        "Add a new work task: 분기 보고서 초안 작성.",
-			ExpectedTool:  "task.add",
+			ExpectedTool:  "task_add",
 			RequiredField: "title",
 		},
 	}
