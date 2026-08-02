@@ -738,7 +738,7 @@ func TestExecutorRoutesTextLLMThroughChain(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "llm.text",
+		ToolName: "llm_text",
 		Input:    requestBody,
 	})
 	if errorValue != nil {
@@ -778,7 +778,7 @@ func TestExecutorRoutesStructuredLLMThroughChain(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "llm.structured",
+		ToolName: "llm_structured",
 		Input:    requestBody,
 	})
 	if errorValue != nil {
@@ -879,7 +879,7 @@ func TestExecutorRoutesEmbeddingThroughChain(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "embedding.create",
+		ToolName: "embedding_create",
 		Input:    requestBody,
 	})
 	if errorValue != nil {
@@ -903,7 +903,7 @@ func TestExecutorRoutesEmbeddingThroughChain(t *testing.T) {
 func TestExecutorTextLLMRequiresChainOrMockMode(t *testing.T) {
 	executor := Executor{}
 	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "llm.text",
+		ToolName: "llm_text",
 		Input:    json.RawMessage(`{"messages":[]}`),
 	})
 	if errorValue == nil {
@@ -1104,7 +1104,7 @@ func TestMockStructuredLLMUsesSchemaRequiredKeys(t *testing.T) {
 	executor := Executor{DevMockLLM: true}
 
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "llm.structured",
+		ToolName: "llm_structured",
 		Input:    json.RawMessage(`{"structuredOutputSchema":{"document":{"required":["reply"]}}}`),
 	})
 	if errorValue != nil {

@@ -47,7 +47,7 @@ Optional external channels
 사용자 컴퓨터
     └─ internkim-companion
          ├─ long-poll internkim-admind companion broker
-         ├─ user_confirm / user.input / file_pick
+         ├─ user_confirm / user_input / file_pick
          ├─ headed browser via bundled agent-browser
          └─ future local-only model capability
 ```
@@ -492,7 +492,7 @@ Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 ./internkim-companion pair 'internkim://pair?device_url=https%3A%2F%2Fdc719d8e.intern.kim&code=ABCD-1234'
 ```
 
-현재 companion executor는 `user_confirm`, `user.input`, approval grant, `file_pick`, `browser_open`, `browser_snapshot`, `browser_screenshot`, `browser_handoff`, `browser_click`, `browser_fill`, `browser_select`, `browser_press`, `browser_wait`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. requester identity가 있는 Companion LLM job은 같은 owner의 Companion만 claim할 수 있고, embedding은 기본적으로 Jetson 내부 embedding service를 계속 사용합니다. Tauri shell은 confirmation/input/approval/file picker UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
+현재 companion executor는 `user_confirm`, `user_input`, approval grant, `file_pick`, `browser_open`, `browser_snapshot`, `browser_screenshot`, `browser_handoff`, `browser_click`, `browser_fill`, `browser_select`, `browser_press`, `browser_wait`, 개발용 mock `llm_text`, 개발용 mock `llm_structured`를 처리합니다. requester identity가 있는 Companion LLM job은 같은 owner의 Companion만 claim할 수 있고, embedding은 기본적으로 Jetson 내부 embedding service를 계속 사용합니다. Tauri shell은 confirmation/input/approval/file picker UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
 
 `file_pick`은 사용자 로컬 경로를 InternKim/Blueclaw에 넘기지 않습니다. companion이 선택된 파일을 signed broker upload로 device의 `/tmp/internkim-companion-files/{filename}`에 복사하고, 응답에는 device-local temporary path와 TTL만 포함합니다. 같은 이름은 덮어쓰며 metadata TTL이 지나면 `internkim-admind`가 자동 삭제합니다.
 

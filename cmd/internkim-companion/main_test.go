@@ -331,10 +331,10 @@ func TestDefaultCapabilitiesAdvertiseLLMOnlyInDevelopmentMockMode(t *testing.T) 
 	withoutMockLLM := companionruntime.DefaultCapabilities(true, false)
 	withMockLLM := companionruntime.DefaultCapabilities(true, true)
 
-	if hasCapability(withoutMockLLM, "llm.structured") {
+	if hasCapability(withoutMockLLM, "llm_structured") {
 		t.Fatal("expected LLM capability to be hidden without development mock mode")
 	}
-	if !hasCapability(withMockLLM, "llm.structured") {
+	if !hasCapability(withMockLLM, "llm_structured") {
 		t.Fatal("expected LLM capability in development mock mode")
 	}
 	if !hasCapability(withoutMockLLM, "browser_open") {
@@ -399,7 +399,7 @@ func TestPairSavesState(t *testing.T) {
 	if _, errorValue := secureStore.Get(nilContext(), state.PrivateKeyID); errorValue != nil {
 		t.Fatalf("expected private key in secure store: %v", errorValue)
 	}
-	if !hasCapability(state.Capabilities, "llm.structured") {
+	if !hasCapability(state.Capabilities, "llm_structured") {
 		t.Fatal("expected development LLM capability to be stored")
 	}
 }
@@ -455,7 +455,7 @@ func TestRunOnceCompletesMockLLMJob(t *testing.T) {
 		case "/_internkim/companion/heartbeat":
 			return textResponse(http.StatusOK, `{}`), nil
 		case "/_internkim/companion/jobs/next":
-			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","request":{"toolName":"llm.structured","input":{"structuredOutputSchema":{"document":{"required":["reply"]}}}}}`), nil
+			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","request":{"toolName":"llm_structured","input":{"structuredOutputSchema":{"document":{"required":["reply"]}}}}}`), nil
 		case "/_internkim/companion/jobs/job-1/complete":
 			seenComplete = true
 			return textResponse(http.StatusOK, `{}`), nil

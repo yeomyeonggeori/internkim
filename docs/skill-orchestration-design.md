@@ -120,7 +120,7 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 
 - 브라우저는 발화자 Companion browser를 우선 사용하고, Companion이 없을 때만 내부 Lightpanda fallback으로 단순 텍스트 탐색을 처리한다.
 - 로그인, MFA, captcha, 민감 입력은 `browser_handoff`로 발화자의 Companion browser 안에서 처리한다.
-- 일반 사용자 입력 대기는 `user.input`, irreversible action 확인은 `user_confirm`으로 처리한다.
+- 일반 사용자 입력 대기는 `user_input`, irreversible action 확인은 `user_confirm`으로 처리한다.
 - 파일/디렉토리 정리는 dry-run 결과를 먼저 보여주고 승인 후 실행한다.
 - 터미널은 dev/admin profile 전용으로 유지한다.
 
@@ -170,5 +170,5 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 - "pptx 파일로 줘"처럼 required artifact 요청이면 `file_deliver` completion evidence가 있어야 성공이다. 텍스트 초안 제안은 완료가 아니다.
 - "계약서 템플릿 채워줘"는 `document-orchestrator`가 누락 필드를 인터뷰한 뒤 DOCX 또는 PDF 생성으로 위임한다.
 - "이 파일 보내줘"는 `artifact-orchestrator`가 기존 attachment 경로를 사용한다.
-- "브라우저에서 로그인 기다렸다가 진행해줘"는 `local-orchestrator`가 Companion browser와 `user.input`/`user_confirm`을 사용한다.
+- "브라우저에서 로그인 기다렸다가 진행해줘"는 `local-orchestrator`가 Companion browser와 `user_input`/`user_confirm`을 사용한다.
 - "메일 보내줘"는 preview와 수동 승인 없이는 발송하지 않는다.

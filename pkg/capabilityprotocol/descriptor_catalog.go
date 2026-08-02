@@ -49,10 +49,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "user.input",
-				CanonicalName:   "user.input",
+				Name:            "user_input",
+				CanonicalName:   "user_input",
 				Namespace:       "user",
-				ModelName:       "user.input",
+				ModelName:       "user_input",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -65,7 +65,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:            true,
 				InputSchema:             userInputSchema(),
 				OutputSchema:            ToolInvokeOutputSchema(),
-				PolicyResource:          "tool:user.input",
+				PolicyResource:          "tool:user_input",
 				SideEffect:              SideEffectApproval,
 				Availability:            AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:             IdempotencyMetadata{Scope: "operation"},
@@ -98,10 +98,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.create",
-				CanonicalName:   "filesystem.mount.create",
+				Name:            "filesystem_mount_create",
+				CanonicalName:   "filesystem_mount_create",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.create",
+				ModelName:       "filesystem_mount_create",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -113,7 +113,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountCreateInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.create",
+				PolicyResource:       "tool:filesystem_mount_create",
 				SideEffect:           SideEffectLocalFile,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -121,10 +121,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.list",
-				CanonicalName:   "filesystem.mount.list",
+				Name:            "filesystem_mount_list",
+				CanonicalName:   "filesystem_mount_list",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.list",
+				ModelName:       "filesystem_mount_list",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -136,7 +136,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          emptyToolInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.list",
+				PolicyResource:       "tool:filesystem_mount_list",
 				SideEffect:           SideEffectRead,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -144,10 +144,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.pause",
-				CanonicalName:   "filesystem.mount.pause",
+				Name:            "filesystem_mount_pause",
+				CanonicalName:   "filesystem_mount_pause",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.pause",
+				ModelName:       "filesystem_mount_pause",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -159,7 +159,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountReferenceInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.pause",
+				PolicyResource:       "tool:filesystem_mount_pause",
 				SideEffect:           SideEffectLocalFile,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -167,10 +167,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.resume",
-				CanonicalName:   "filesystem.mount.resume",
+				Name:            "filesystem_mount_resume",
+				CanonicalName:   "filesystem_mount_resume",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.resume",
+				ModelName:       "filesystem_mount_resume",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -182,7 +182,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountReferenceInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.resume",
+				PolicyResource:       "tool:filesystem_mount_resume",
 				SideEffect:           SideEffectLocalFile,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -190,10 +190,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.revoke",
-				CanonicalName:   "filesystem.mount.revoke",
+				Name:            "filesystem_mount_revoke",
+				CanonicalName:   "filesystem_mount_revoke",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.revoke",
+				ModelName:       "filesystem_mount_revoke",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -205,7 +205,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountReferenceInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.revoke",
+				PolicyResource:       "tool:filesystem_mount_revoke",
 				SideEffect:           SideEffectDestructive,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -213,10 +213,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.status",
-				CanonicalName:   "filesystem.mount.status",
+				Name:            "filesystem_mount_status",
+				CanonicalName:   "filesystem_mount_status",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.status",
+				ModelName:       "filesystem_mount_status",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -228,7 +228,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountReferenceInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.status",
+				PolicyResource:       "tool:filesystem_mount_status",
 				SideEffect:           SideEffectRead,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -236,10 +236,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.stat",
-				CanonicalName:   "filesystem.mount.stat",
+				Name:            "filesystem_mount_stat",
+				CanonicalName:   "filesystem_mount_stat",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.stat",
+				ModelName:       "filesystem_mount_stat",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -251,7 +251,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountPathInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.stat",
+				PolicyResource:       "tool:filesystem_mount_stat",
 				SideEffect:           SideEffectRead,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -259,10 +259,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.list_directory",
-				CanonicalName:   "filesystem.mount.list_directory",
+				Name:            "filesystem_mount_list_directory",
+				CanonicalName:   "filesystem_mount_list_directory",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.list_directory",
+				ModelName:       "filesystem_mount_list_directory",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -274,7 +274,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountPathInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.list_directory",
+				PolicyResource:       "tool:filesystem_mount_list_directory",
 				SideEffect:           SideEffectRead,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -282,10 +282,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.read",
-				CanonicalName:   "filesystem.mount.read",
+				Name:            "filesystem_mount_read",
+				CanonicalName:   "filesystem_mount_read",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.read",
+				ModelName:       "filesystem_mount_read",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -297,7 +297,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountPathInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.read",
+				PolicyResource:       "tool:filesystem_mount_read",
 				SideEffect:           SideEffectRead,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -305,10 +305,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.write",
-				CanonicalName:   "filesystem.mount.write",
+				Name:            "filesystem_mount_write",
+				CanonicalName:   "filesystem_mount_write",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.write",
+				ModelName:       "filesystem_mount_write",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -320,7 +320,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountWriteInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.write",
+				PolicyResource:       "tool:filesystem_mount_write",
 				SideEffect:           SideEffectLocalFile,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -328,10 +328,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.mkdir",
-				CanonicalName:   "filesystem.mount.mkdir",
+				Name:            "filesystem_mount_mkdir",
+				CanonicalName:   "filesystem_mount_mkdir",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.mkdir",
+				ModelName:       "filesystem_mount_mkdir",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -343,7 +343,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountPathInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.mkdir",
+				PolicyResource:       "tool:filesystem_mount_mkdir",
 				SideEffect:           SideEffectLocalFile,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -351,10 +351,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.rename",
-				CanonicalName:   "filesystem.mount.rename",
+				Name:            "filesystem_mount_rename",
+				CanonicalName:   "filesystem_mount_rename",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.rename",
+				ModelName:       "filesystem_mount_rename",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -366,7 +366,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountRenameInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.rename",
+				PolicyResource:       "tool:filesystem_mount_rename",
 				SideEffect:           SideEffectLocalFile,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -374,10 +374,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.delete",
-				CanonicalName:   "filesystem.mount.delete",
+				Name:            "filesystem_mount_delete",
+				CanonicalName:   "filesystem_mount_delete",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.delete",
+				ModelName:       "filesystem_mount_delete",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -389,7 +389,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountDeleteInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.delete",
+				PolicyResource:       "tool:filesystem_mount_delete",
 				SideEffect:           SideEffectDestructive,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -397,10 +397,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.truncate",
-				CanonicalName:   "filesystem.mount.truncate",
+				Name:            "filesystem_mount_truncate",
+				CanonicalName:   "filesystem_mount_truncate",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.truncate",
+				ModelName:       "filesystem_mount_truncate",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -412,7 +412,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountTruncateInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.truncate",
+				PolicyResource:       "tool:filesystem_mount_truncate",
 				SideEffect:           SideEffectLocalFile,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -420,10 +420,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.chmod",
-				CanonicalName:   "filesystem.mount.chmod",
+				Name:            "filesystem_mount_chmod",
+				CanonicalName:   "filesystem_mount_chmod",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.chmod",
+				ModelName:       "filesystem_mount_chmod",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -435,7 +435,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountChangeModeInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.chmod",
+				PolicyResource:       "tool:filesystem_mount_chmod",
 				SideEffect:           SideEffectLocalFile,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -443,10 +443,10 @@ func CompanionToolDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "filesystem.mount.watch",
-				CanonicalName:   "filesystem.mount.watch",
+				Name:            "filesystem_mount_watch",
+				CanonicalName:   "filesystem_mount_watch",
 				Namespace:       "filesystem",
-				ModelName:       "filesystem.mount.watch",
+				ModelName:       "filesystem_mount_watch",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -458,7 +458,7 @@ func CompanionToolDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          mountWatchInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:filesystem.mount.watch",
+				PolicyResource:       "tool:filesystem_mount_watch",
 				SideEffect:           SideEffectRead,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -595,10 +595,10 @@ func CompanionLLMDescriptors() []Descriptor {
 	return MustCanonicalizeBuiltInDescriptors([]Descriptor{
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "llm.text",
-				CanonicalName:   "llm.text",
+				Name:            "llm_text",
+				CanonicalName:   "llm_text",
 				Namespace:       "llm",
-				ModelName:       "llm.text",
+				ModelName:       "llm_text",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -610,7 +610,7 @@ func CompanionLLMDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          TextLLMInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:llm.text",
+				PolicyResource:       "tool:llm_text",
 				SideEffect:           SideEffectComputation,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -618,10 +618,10 @@ func CompanionLLMDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "llm.structured",
-				CanonicalName:   "llm.structured",
+				Name:            "llm_structured",
+				CanonicalName:   "llm_structured",
 				Namespace:       "llm",
-				ModelName:       "llm.structured",
+				ModelName:       "llm_structured",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -633,7 +633,7 @@ func CompanionLLMDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          StructuredLLMInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:llm.structured",
+				PolicyResource:       "tool:llm_structured",
 				SideEffect:           SideEffectComputation,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},
@@ -641,10 +641,10 @@ func CompanionLLMDescriptors() []Descriptor {
 		}),
 		NewDescriptor(DescriptorDefinition{
 			Identity: DescriptorIdentity{
-				Name:            "embedding.create",
-				CanonicalName:   "embedding.create",
+				Name:            "embedding_create",
+				CanonicalName:   "embedding_create",
 				Namespace:       "embedding",
-				ModelName:       "embedding.create",
+				ModelName:       "embedding_create",
 				ModelVisibility: ModelVisibilityHidden,
 			},
 			Metadata: DescriptorMetadata{
@@ -656,7 +656,7 @@ func CompanionLLMDescriptors() []Descriptor {
 				WorksOffline:         true,
 				InputSchema:          EmbeddingInputSchema(),
 				OutputSchema:         ToolInvokeOutputSchema(),
-				PolicyResource:       "tool:embedding.create",
+				PolicyResource:       "tool:embedding_create",
 				SideEffect:           SideEffectComputation,
 				Availability:         AvailabilityMetadata{State: AvailabilityOK},
 				Idempotency:          IdempotencyMetadata{Scope: "operation"},

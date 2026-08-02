@@ -977,6 +977,25 @@ func companionOwnsJob(companion *CompanionRecord, job *CompanionJob) bool {
 // states it; the name is not evidence of anything.
 var companionToolNeedsRequesterDevice = buildCompanionToolDeviceNeed()
 
+// The local-model capabilities are the ones the model namespace owns. Reading the
+// family off the front of a name breaks the moment a tool is renamed.
+var companionToolNamespaces = buildCompanionToolNamespaces()
+
+func buildCompanionToolNamespaces() map[string]string {
+	namespaceByToolName := map[string]string{}
+	for _, descriptor := range capabilities.CompanionToolDescriptors() {
+		namespaceByToolName[descriptor.Name] = descriptor.Namespace
+	}
+	for _, descriptor := range capabilities.CompanionLLMDescriptors() {
+		namespaceByToolName[descriptor.Name] = descriptor.Namespace
+	}
+	return namespaceByToolName
+}
+
+func isLocalModelCapability(toolName string) bool {
+	return companionToolNamespaces[strings.TrimSpace(toolName)] == "llm"
+}
+
 func buildCompanionToolDeviceNeed() map[string]bool {
 	needByToolName := map[string]bool{}
 	for _, descriptor := range capabilities.CompanionToolDescriptors() {
@@ -993,7 +1012,7 @@ func shouldUseRequesterOwnedCompanion(request capabilities.ToolInvokeRequest) bo
 	if requiresRequesterOwnedCompanion(request.ToolName) {
 		return true
 	}
-	if !strings.HasPrefix(strings.TrimSpace(request.ToolName), "llm.") {
+	if !isLocalModelCapability(request.ToolName) {
 		return false
 	}
 	return hasCompanionRequester(request)
@@ -1115,7 +1134,7 @@ func companionResourceScope(request capabilities.ToolInvokeRequest) capabilities
 		return capabilities.ResourceScope{Kind: "web_origin", Value: browserOriginFromInput(request.Input)}
 	case "file_pick":
 		return capabilities.ResourceScope{Kind: "file_root", Value: ""}
-	case "filesystem.mount.create", "filesystem.mount.list", "filesystem.mount.pause", "filesystem.mount.resume", "filesystem.mount.revoke", "filesystem.mount.status", "filesystem.mount.stat", "filesystem.mount.list_directory", "filesystem.mount.read", "filesystem.mount.write", "filesystem.mount.mkdir", "filesystem.mount.rename", "filesystem.mount.delete", "filesystem.mount.truncate", "filesystem.mount.chmod", "filesystem.mount.watch":
+	case "filesystem_mount_create", "filesystem_mount_list", "filesystem_mount_pause", "filesystem_mount_resume", "filesystem_mount_revoke", "filesystem_mount_status", "filesystem_mount_stat", "filesystem_mount_list_directory", "filesystem_mount_read", "filesystem_mount_write", "filesystem_mount_mkdir", "filesystem_mount_rename", "filesystem_mount_delete", "filesystem_mount_truncate", "filesystem_mount_chmod", "filesystem_mount_watch":
 		return companionMountResourceScope(request)
 	default:
 		return capabilities.ResourceScope{}

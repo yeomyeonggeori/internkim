@@ -442,7 +442,7 @@ func TestForceOpenRouterModelDisablesActionFallbackModels(t *testing.T) {
 func TestForceOpenRouterModelUsesRemoteProviderForAutoMode(t *testing.T) {
 	service := Service{Configuration: Configuration{ForceOpenRouterModel: true}}
 
-	provider, errorValue := service.providerForExecutionMode(context.Background(), "llm.structured", "auto", "", "")
+	provider, errorValue := service.providerForExecutionMode(context.Background(), "llm_structured", "auto", "", "")
 	if errorValue != nil {
 		t.Fatalf("expected forced OpenRouter auto provider: %v", errorValue)
 	}

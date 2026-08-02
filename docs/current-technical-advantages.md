@@ -88,7 +88,7 @@ Blueclaw는 정책, task, ACL, prompt, skill 선택, memory, scheduler 같은 ag
 
 ```mermaid
 flowchart LR
-  Request["llm.text / llm.structured / embedding"]
+  Request["llm_text / llm_structured / embedding"]
   Capabilityd["internkim-capabilityd"]
   Local["device local provider"]
   Companion["Companion provider"]

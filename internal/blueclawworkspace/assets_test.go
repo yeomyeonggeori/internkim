@@ -768,7 +768,7 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"FORMATS=pptx",
 		`"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh"`,
 		"`file_write` tool directly",
-		"Do not use `capability.invoke`, `filesystem.mount.write`, `file_pick`",
+		"Do not use `capability.invoke`, `filesystem_mount_write`, `file_pick`",
 		"must not delay the primary source file",
 		"A dark theme is not a visual system",
 		"Scene",

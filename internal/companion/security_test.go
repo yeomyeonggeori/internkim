@@ -223,9 +223,9 @@ func TestGrantStoreRejectsReuseAcrossUnrelatedTasks(t *testing.T) {
 func TestUserInputDoesNotNeedGrant(t *testing.T) {
 	store := NewMemoryGrantStore()
 	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: false}}
-	request := capabilities.ToolInvokeRequest{ToolName: "user.input"}
+	request := capabilities.ToolInvokeRequest{ToolName: "user_input"}
 
-	if errorValue := store.Authorize(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "user.input"}, request, approvalHandler); errorValue != nil {
+	if errorValue := store.Authorize(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "user_input"}, request, approvalHandler); errorValue != nil {
 		t.Fatalf("expected user input to bypass grants: %v", errorValue)
 	}
 	if approvalHandler.calls != 0 {
