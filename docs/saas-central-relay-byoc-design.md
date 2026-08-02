@@ -221,19 +221,96 @@ relay instead.
 
 ---
 
-## 10. Migration from the Jetson per-device model
+## 10. Transition plan (Jetson per-device → central + BYOC)
 
-Rough sequence (details later):
-1. Stand up the central plane: one exposed multi-community relay (managed
-   backends), the web app as a thin client, Supabase for data.
-2. Package the agent client (CLI first, then app) for customer Linux.
-3. Build/finish the onboarding control-plane (community + identity provisioning
-   from `feat/buzz-invites`).
-4. Finish the **Buzz agent adapter** so non-native agents (e.g. Claude Code) can
-   connect (the `acpd` + Buzz-adapter work); native blueclaw already speaks Buzz.
-5. Drop Mattermost and the device-local relay/stunnel/cloudflared exposure; drop
-   the on-device GPU LLM in favor of BYO remote/local LLM.
-6. Migrate existing Jetson tenants to communities on the central relay.
+Guiding principles:
+- **Dual-run, never big-bang.** The central plane comes up *alongside* the
+  running Jetsons; existing tenants keep working untouched until each is migrated
+  deliberately.
+- **Per-tenant cutover = blast radius of one.** Migrate tenants one at a time,
+  each with a rollback window and a hot-standby Jetson.
+- **External durable state de-risks cutover.** Since DB → Supabase and media →
+  S3 live off the box, a failed cutover is a *re-point*, not data loss.
+- **Parity gate before decommission.** No device is retired until its tenant
+  passes a feature-parity + soak check.
+- **Open-source/self-host path stays green at every phase** (self-hosters run the
+  same components we do).
+
+### Phase 0 — De-risk the foundations (no user impact)
+- Resolve enough of the §11 open questions to proceed (at minimum: component
+  placement, media home, relay backends).
+- Stand up **one central multi-community relay** in the cloud with managed
+  backends (Supabase Postgres, managed Redis, S3/Supabase Storage), exposed at a
+  **single real-TLS public host**. Prove end-to-end on a throwaway test
+  community: multi-community routing, membership/roles, and **NIP-98 auth working
+  through the real host** (the exact thing that's been painful per-device — solve
+  it once, centrally).
+- **Gate:** external Buzz client + a test agent both join the test community and
+  exchange messages over the public host.
+- **Rollback:** none needed — nothing production touched.
+
+### Phase 1 — Central plane MVP + a greenfield pilot
+- Web app repointed as a **thin client** to the central relay (not per-device
+  admind). Supabase Auth + company/HR/org schema with RLS + per-tenant role.
+- **Control-plane API**: create community, provision identity, add to roster
+  (built on `feat/buzz-invites`).
+- Onboard **one brand-new pilot tenant entirely on the central plane** (zero
+  Jetson) to validate the model before touching any existing tenant.
+- **Gate:** pilot tenant’s users use the web app; data lands in Supabase; media
+  in S3; membership is invite-gated.
+- **Rollback:** pilot is greenfield → just delete it.
+
+### Phase 2 — Agent client (BYOC)
+- Package the agent (**blueclaw** + Buzz connector + `capabilityd` permission
+  boundary) as a **CLI installer** for customer Linux, with BYO-LLM config
+  (local / OpenRouter / Claude Code).
+- Run the pilot tenant’s agent on a **non-Jetson Linux box** (a cloud VM first,
+  then a real customer machine), connected **outbound** to the central relay.
+  Validate the full loop (chat → agent → tools/terminal → reply) with **no device
+  hardware**.
+- Then wrap the same runtime in the **companion (Tauri) app** for
+  non-technical, one-click installs.
+- **Gate:** agent joins as `Bot`, does real work end-to-end from a plain Linux
+  host; app install works for a non-technical user.
+- **Rollback:** none (pilot only).
+
+### Phase 3 — Arbitrary-agent adapter (parallel / optional)
+- Finish the **Buzz/ACP adapter** (`acpd` + Buzz adapter) so non-native agents
+  (e.g. Claude Code) can connect. Native blueclaw already speaks Buzz.
+- Gated by the §11 decision on whether v1 opens to arbitrary agents.
+
+### Phase 4 — Migrate existing Jetson tenants (one at a time)
+Per tenant:
+1. Create the tenant’s **community on the central relay**; provision its agent
+   identity + roster.
+2. **Migrate data:**
+   - Buzz relay events: import the device relay’s Postgres history into the
+     central relay for that community (re-key community host as needed).
+   - Media: **MinIO → S3**.
+   - Company/HR/org: **→ Supabase** (RLS + tenant role).
+   - Workspace files: device → the tenant’s chosen compute and/or object storage.
+3. **Install the agent client** on the chosen compute (cloud VM or the customer’s
+   machine); connect outbound.
+4. **Cut users over** to the central web app / community.
+5. **Verify parity** (message history, attendance/calendar/HR features, agent
+   responds correctly). Keep the **Jetson as hot standby** for the rollback
+   window.
+6. **Soak, then decommission** the Jetson.
+- **Gate (per tenant):** parity check passes + soak period clean.
+- **Rollback (per tenant):** re-point the tenant back to its standby Jetson; the
+  device was never wiped until soak passed.
+
+### Phase 5 — Decommission the device stack
+- Retire per-device pieces: **on-device GPU LLM** (→ BYO remote/local),
+  **Mattermost**, **stunnel/cloudflared per-device relay exposure**, per-device
+  OTA. Simplify/split `admind` and `chatd` per the component-placement decision.
+- **Gate:** all tenants migrated + soaked.
+
+### Sequencing notes
+- Phases 0–3 run **before** any existing tenant is touched, entirely in parallel
+  with production Jetsons.
+- Phase 4 is incremental and reversible per tenant.
+- Phase 5 only starts once the fleet is empty of un-migrated tenants.
 
 ---
 
