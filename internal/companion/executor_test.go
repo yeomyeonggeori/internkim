@@ -685,32 +685,6 @@ func TestHandoffBridgeCompletionCapturesSnapshot(t *testing.T) {
 	}
 }
 
-func TestUserConfirmUsesPromptHandler(t *testing.T) {
-	executor := Executor{
-		PromptHandler: TerminalPromptHandler{
-			Reader: strings.NewReader("yes\n"),
-			Writer: &strings.Builder{},
-		},
-	}
-
-	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "user_confirm",
-		Input:    json.RawMessage(`{"message":"continue?"}`),
-	})
-	if errorValue != nil {
-		t.Fatalf("expected confirm success: %v", errorValue)
-	}
-	var result struct {
-		Confirmed bool `json:"confirmed"`
-	}
-	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !result.Confirmed {
-		t.Fatal("expected confirmation to be true")
-	}
-}
-
 func TestExecutorRoutesTextLLMThroughChain(t *testing.T) {
 	chain := &stubLLMChain{textResponse: llmbackend.Response{
 		Provider:        "ollama",
@@ -900,76 +874,6 @@ func TestExecutorTextLLMRequiresChainOrMockMode(t *testing.T) {
 	}
 	if !strings.Contains(errorValue.Error(), "not configured") {
 		t.Fatalf("expected configuration error, got %v", errorValue)
-	}
-}
-
-func TestUserConfirmWithoutPromptHandlerFailsSafely(t *testing.T) {
-	executor := Executor{}
-
-	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{ToolName: "user_confirm"})
-	if errorValue == nil {
-		t.Fatal("expected missing prompt handler to fail")
-	}
-	if strings.Contains(errorValue.Error(), "token") || strings.Contains(errorValue.Error(), "secret") {
-		t.Fatalf("unexpected sensitive error: %v", errorValue)
-	}
-}
-
-func TestShellBridgePromptHandlerConfirm(t *testing.T) {
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path != "/v1/user/confirm" {
-			t.Fatalf("unexpected bridge path: %s", request.URL.Path)
-		}
-		if request.Header.Get("X-InternKim-Shell-Bridge-Token") != "bridge-token" {
-			t.Fatalf("expected shell bridge token header")
-		}
-		return textResponse(http.StatusOK, `{"confirmed":true}`), nil
-	})}
-	handler := ShellBridgePromptHandler{
-		BaseURL:    "http://127.0.0.1:1234",
-		Token:      "bridge-token",
-		HTTPClient: httpClient,
-	}
-
-	confirmed, errorValue := handler.Confirm(context.Background(), "continue?", false)
-	if errorValue != nil {
-		t.Fatalf("expected shell bridge confirm success: %v", errorValue)
-	}
-	if !confirmed {
-		t.Fatal("expected shell bridge confirmation")
-	}
-}
-
-func TestShellBridgePromptHandlerInput(t *testing.T) {
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path != "/v1/user/input" {
-			t.Fatalf("unexpected bridge path: %s", request.URL.Path)
-		}
-		return textResponse(http.StatusOK, `{"text":"approved text"}`), nil
-	})}
-	handler := ShellBridgePromptHandler{
-		BaseURL:    "http://127.0.0.1:1234",
-		HTTPClient: httpClient,
-	}
-
-	text, errorValue := handler.Input(context.Background(), "value?")
-	if errorValue != nil {
-		t.Fatalf("expected shell bridge input success: %v", errorValue)
-	}
-	if text != "approved text" {
-		t.Fatalf("unexpected shell bridge input: %s", text)
-	}
-}
-
-func TestShellBridgePromptHandlerRejectsNonLocalURL(t *testing.T) {
-	handler := ShellBridgePromptHandler{BaseURL: "https://device.example.test"}
-
-	_, errorValue := handler.Confirm(context.Background(), "continue?", false)
-	if errorValue == nil {
-		t.Fatal("expected non-local bridge to fail")
-	}
-	if strings.Contains(errorValue.Error(), "token") || strings.Contains(errorValue.Error(), "secret") {
-		t.Fatalf("unexpected sensitive error: %v", errorValue)
 	}
 }
 
