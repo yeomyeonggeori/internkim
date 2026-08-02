@@ -178,13 +178,13 @@ create table public.task_participant (
 
 create index on public.task_participant (member_id);
 
-create type public.leave_kind as enum ('annual', 'sick', 'unpaid');
 create type public.leave_status as enum ('requested', 'approved', 'rejected');
 
 create table public.leave (
   id uuid primary key default gen_random_uuid(),
   member_id uuid not null references public.member on delete cascade,
-  kind public.leave_kind not null,
+  kind text not null,
+  is_paid boolean not null,
   status public.leave_status not null default 'requested',
   starts_on date not null,
   ends_on date not null,
