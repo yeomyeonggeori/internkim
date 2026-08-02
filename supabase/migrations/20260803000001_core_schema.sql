@@ -103,10 +103,12 @@ create table public.task (
   starts_at timestamptz,
   ends_at timestamptz,
   is_event boolean not null default false,
+  is_whole_day boolean not null default false,
   note text,
   check ((starts_at is null) = (ends_at is null)),
   check (ends_at >= starts_at),
-  check (not is_event or starts_at is not null)
+  check (not is_event or starts_at is not null),
+  check (not is_whole_day or starts_at is not null)
 );
 
 create index on public.task (company_id, status);
