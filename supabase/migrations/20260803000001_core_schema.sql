@@ -3,6 +3,8 @@ create table public.company (
   name text not null,
   timezone text not null check ((timestamp '2000-01-01' at time zone timezone) is not null),
   work_locations text[] check (work_locations is null or array_length(work_locations, 1) > 0),
+  working_hours jsonb check (working_hours is null or jsonb_array_length(working_hours) = 7),
+  minimum_daily_minutes integer check (minimum_daily_minutes > 0),
   rules jsonb not null default '{}'
 );
 
@@ -15,7 +17,9 @@ create table public.member (
   user_id uuid unique references auth.users on delete set null,
   status public.member_status not null default 'pending',
   is_admin boolean not null default false,
-  timezone text check (timezone is null or (timestamp '2000-01-01' at time zone timezone) is not null)
+  timezone text check (timezone is null or (timestamp '2000-01-01' at time zone timezone) is not null),
+  working_hours jsonb check (working_hours is null or jsonb_array_length(working_hours) = 7),
+  minimum_daily_minutes integer check (minimum_daily_minutes > 0)
 );
 
 create index on public.member (company_id);
@@ -233,6 +237,32 @@ stable
 set search_path = public
 as $$
   select coalesce(member.timezone, company.timezone)
+  from public.member
+  join public.company on company.id = member.company_id
+  where member.id = target_member;
+$$;
+
+create function public.member_working_hours(target_member uuid)
+returns jsonb
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select coalesce(member.working_hours, company.working_hours)
+  from public.member
+  join public.company on company.id = member.company_id
+  where member.id = target_member;
+$$;
+
+create function public.member_minimum_daily_minutes(target_member uuid)
+returns integer
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select coalesce(member.minimum_daily_minutes, company.minimum_daily_minutes)
   from public.member
   join public.company on company.id = member.company_id
   where member.id = target_member;
