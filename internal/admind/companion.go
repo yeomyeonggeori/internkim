@@ -126,7 +126,6 @@ type companionHeartbeatRequest struct {
 	LocalOnly              bool                      `json:"localOnly"`
 	LocalLLMAvailable      bool                      `json:"localLLMAvailable,omitempty"`
 	PreferCompanionBrowser bool                      `json:"preferCompanionBrowser,omitempty"`
-	Mounts                 []CompanionMountSnapshot  `json:"mounts,omitempty"`
 }
 
 type companionPairingCodeResponse struct {
@@ -381,10 +380,6 @@ func (service *Service) companionHeartbeat(responseWriter http.ResponseWriter, r
 	}
 	storedCompanion.LocalOnly = payload.LocalOnly
 	service.mutex.Unlock()
-	if errorValue := service.updateCompanionMounts(companion.CompanionID, payload.Mounts); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
 	if errorValue := service.saveCompanions(); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -538,9 +533,6 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	request.ResourceScope = service.inferCompanionResourceScope(request)
-	if errorValue := service.validateCompanionMountRequest(request); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
 	availability := service.companionCapabilityAvailability(request)
 	if availability != capabilities.CapabilityAvailable {
 		return companionCapabilityUnavailableResponse(request, availability), nil
@@ -650,9 +642,6 @@ func (service *Service) claimNextCompanionJob(companion *CompanionRecord) (*Comp
 		if shouldUseRequesterOwnedCompanion(job.Request) && !companionOwnsJob(companion, job) {
 			continue
 		}
-		if !service.companionCanClaimMountJobLocked(companion, job) {
-			continue
-		}
 		job.Status = "running"
 		job.CompanionID = companion.CompanionID
 		job.UpdatedAt = now
@@ -699,9 +688,6 @@ func (service *Service) finishCompanionJob(companionID string, jobID string, res
 	}
 	service.mutex.Unlock()
 	if job.ToolName != capabilities.AttentionTriageToolName {
-		if errorValue := service.updateCompanionMountsFromJob(companionID, jobID, response); errorValue != nil {
-			return errorValue
-		}
 	}
 	if errorValue := service.saveCompanionJobs(); errorValue != nil {
 		return errorValue
@@ -1134,8 +1120,6 @@ func companionResourceScope(request capabilities.ToolInvokeRequest) capabilities
 		return capabilities.ResourceScope{Kind: "web_origin", Value: browserOriginFromInput(request.Input)}
 	case "file_pick":
 		return capabilities.ResourceScope{Kind: "file_root", Value: ""}
-	case "filesystem_mount_create", "filesystem_mount_list", "filesystem_mount_pause", "filesystem_mount_resume", "filesystem_mount_revoke", "filesystem_mount_status", "filesystem_mount_stat", "filesystem_mount_list_directory", "filesystem_mount_read", "filesystem_mount_write", "filesystem_mount_mkdir", "filesystem_mount_rename", "filesystem_mount_delete", "filesystem_mount_truncate", "filesystem_mount_chmod", "filesystem_mount_watch":
-		return companionMountResourceScope(request)
 	default:
 		return capabilities.ResourceScope{}
 	}

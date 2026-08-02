@@ -116,7 +116,6 @@ type Service struct {
 	companions                         map[string]*CompanionRecord
 	companionJobs                      map[string]*CompanionJob
 	companionFileUploads               map[string]*CompanionFileUpload
-	companionMounts                    map[string]*CompanionMountRecord
 	buzzInviteStore                    *buzzInviteStore
 	buzzInviteStoreOnce                sync.Once
 	buzzKeySeedOnce                    sync.Once
@@ -342,7 +341,6 @@ func NewService(configuration Configuration) *Service {
 		companions:                 map[string]*CompanionRecord{},
 		companionJobs:              map[string]*CompanionJob{},
 		companionFileUploads:       map[string]*CompanionFileUpload{},
-		companionMounts:            map[string]*CompanionMountRecord{},
 		sites:                      map[string]*SiteRecord{},
 		mailBackend:                standardMailBackend{},
 		calendarSyncWakeUp:         make(chan struct{}, 1),
@@ -358,7 +356,6 @@ func NewService(configuration Configuration) *Service {
 	}
 	service.loadCompanions()
 	service.loadCompanionJobs()
-	service.loadCompanionMounts()
 	service.loadSites()
 	return service
 }

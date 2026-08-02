@@ -57,7 +57,6 @@ fn main() {
             show_main_window,
             prompt_bridge::start_shell_bridge,
             prompt_bridge::complete_prompt_request,
-            prompt_bridge::pick_mount_directory,
             handoff_overlay::sync_handoff_overlay,
             open_admin_url,
             ensure_launch_at_login,

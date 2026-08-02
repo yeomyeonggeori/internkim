@@ -24,7 +24,6 @@ type JobRunner struct {
 	DeviceClient           DeviceClient
 	Executor               JobExecutor
 	Runtime                HeartbeatRuntime
-	MountStore             *MountStore
 	PreferCompanionBrowser bool
 	RunOnce                bool
 	HeartbeatLoopInterval  time.Duration
@@ -99,9 +98,6 @@ func (runner JobRunner) heartbeatPayload() map[string]any {
 	}
 	if runner.Runtime != nil {
 		payload["localLLMAvailable"] = runner.Runtime.LocalLLMAvailable()
-	}
-	if runner.MountStore != nil {
-		payload["mounts"] = runner.MountStore.List()
 	}
 	return payload
 }

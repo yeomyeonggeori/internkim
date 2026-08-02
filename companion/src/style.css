@@ -112,8 +112,7 @@ select {
 .runtime-panel,
 .grant-panel,
 .capability-panel,
-.settings-panel,
-.mount-panel {
+.settings-panel {
 	border: 1px solid var(--border);
 	border-radius: 8px;
 	background: var(--card);
@@ -125,8 +124,7 @@ select {
 }
 
 .status-panel,
-.settings-panel,
-.mount-panel {
+.settings-panel {
 	grid-column: 1 / -1;
 }
 
@@ -145,14 +143,12 @@ select {
 .grant-panel,
 .form-panel,
 .capability-panel,
-.settings-panel,
-.mount-panel {
+.settings-panel {
 	display: grid;
 	gap: 12px;
 }
 
 .panel-header,
-.mount-actions,
 .model-row-header {
 	display: flex;
 	align-items: center;
@@ -164,8 +160,7 @@ select {
 
 .panel-header > *,
 .model-row-header > *,
-.runtime-row > *,
-.mount-row > *,
+.runtime-row > * > *,
 .grant-row > * {
 	min-width: 0;
 }
@@ -214,8 +209,7 @@ h3 {
 }
 
 .indicator,
-.badge,
-.mount-badge {
+.badge {
 	display: inline-flex;
 	align-items: center;
 	border: 1px solid var(--border);
@@ -230,15 +224,13 @@ h3 {
 }
 
 .indicator.online,
-.badge.online,
-.mount-badge.online {
+.badge.online.online {
 	border-color: hsl(160 84% 39% / 28%);
 	color: hsl(160 84% 26%);
 	background: hsl(151 81% 96%);
 }
 
 .runtime-row,
-.mount-row,
 .grant-row {
 	display: flex;
 	align-items: center;
@@ -252,7 +244,6 @@ h3 {
 	min-width: 0;
 }
 
-.mount-list,
 .grant-list,
 .backend-config {
 	display: grid;
@@ -260,21 +251,18 @@ h3 {
 	min-width: 0;
 }
 
-.mount-row div:first-child,
 .grant-row div {
 	display: grid;
 	gap: 4px;
 	min-width: 0;
 }
 
-.mount-row strong,
 .grant-row strong {
 	color: var(--foreground);
 	font-size: 14px;
 	overflow-wrap: anywhere;
 }
 
-.mount-row span,
 .grant-row span,
 .runtime-row span {
 	color: var(--muted-foreground);
@@ -472,8 +460,7 @@ button.ghost:hover:not(:disabled) {
 	.runtime-panel,
 	.grant-panel,
 	.capability-panel,
-	.settings-panel,
-	.mount-panel {
+	.settings-panel {
 		padding: 14px;
 	}
 
@@ -481,7 +468,6 @@ button.ghost:hover:not(:disabled) {
 	.panel-header,
 	.model-row-header,
 	.runtime-row,
-	.mount-row,
 	.grant-row {
 		align-items: stretch;
 		flex-direction: column;
@@ -489,19 +475,16 @@ button.ghost:hover:not(:disabled) {
 	}
 
 	.indicator,
-	.badge,
-	.mount-badge {
+	.badge {
 		width: fit-content;
 		white-space: normal;
 	}
 
-	.mount-actions,
 	.actions {
 		align-items: stretch;
 		width: 100%;
 	}
 
-	.mount-actions > *,
 	.actions > * {
 		flex: 1 1 auto;
 	}
