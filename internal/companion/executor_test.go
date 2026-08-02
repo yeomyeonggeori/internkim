@@ -267,13 +267,13 @@ func TestBrowserNavigateOpensValidatedURL(t *testing.T) {
 	executor := Executor{BrowserRuntime: browserRuntime}
 
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "browser.open",
+		ToolName: "browser_open",
 		Input:    json.RawMessage(`{"url":"https://example.com/path"}`),
 	})
 	if errorValue != nil {
 		t.Fatalf("expected browser navigate success: %v", errorValue)
 	}
-	if response.ToolName != "browser.open" || browserRuntime.navigateRequest.URL != "https://example.com/path" {
+	if response.ToolName != "browser_open" || browserRuntime.navigateRequest.URL != "https://example.com/path" {
 		t.Fatalf("unexpected browser result: response=%+v request=%+v", response, browserRuntime.navigateRequest)
 	}
 }
@@ -282,7 +282,7 @@ func TestBrowserNavigateRejectsNonHTTPURL(t *testing.T) {
 	executor := Executor{BrowserRuntime: browserruntime.AgentBrowserRuntime{}}
 
 	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "browser.open",
+		ToolName: "browser_open",
 		Input:    json.RawMessage(`{"url":"file:///etc/passwd"}`),
 	})
 	if errorValue == nil {
@@ -299,7 +299,7 @@ func TestBrowserObserveUsesRuntimeSchema(t *testing.T) {
 		CapturedAt:      "2026-04-27T00:00:00Z",
 	}}}
 
-	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{ToolName: "browser.snapshot"})
+	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{ToolName: "browser_snapshot"})
 	if errorValue != nil {
 		t.Fatalf("expected observe success: %v", errorValue)
 	}
@@ -329,8 +329,8 @@ func TestBrowserScreenshotUploadsDevicePathOnly(t *testing.T) {
 		FileUploader: uploader,
 	}
 
-	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.screenshot"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser.screenshot",
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser_screenshot"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser_screenshot",
 		Input:    json.RawMessage(`{"ttlSeconds":300}`),
 	})
 	if errorValue != nil {
@@ -355,11 +355,11 @@ func TestBrowserControlToolsUseRuntime(t *testing.T) {
 	executor := Executor{BrowserRuntime: browserRuntime}
 
 	requests := []capabilities.ToolInvokeRequest{
-		{ToolName: "browser.click", Input: json.RawMessage(`{"ref":"@e1"}`)},
-		{ToolName: "browser.fill", Input: json.RawMessage(`{"target":"@e2","text":"hello"}`)},
-		{ToolName: "browser.select", Input: json.RawMessage(`{"selector":"select[name=team]","value":"ops"}`)},
-		{ToolName: "browser.press", Input: json.RawMessage(`{"key":"Enter"}`)},
-		{ToolName: "browser.wait", Input: json.RawMessage(`{"milliseconds":250}`)},
+		{ToolName: "browser_click", Input: json.RawMessage(`{"ref":"@e1"}`)},
+		{ToolName: "browser_fill", Input: json.RawMessage(`{"target":"@e2","text":"hello"}`)},
+		{ToolName: "browser_select", Input: json.RawMessage(`{"selector":"select[name=team]","value":"ops"}`)},
+		{ToolName: "browser_press", Input: json.RawMessage(`{"key":"Enter"}`)},
+		{ToolName: "browser_wait", Input: json.RawMessage(`{"milliseconds":250}`)},
 	}
 	for _, request := range requests {
 		response, errorValue := executor.Execute(context.Background(), request)
@@ -404,7 +404,7 @@ func TestBrowserControlFailureReturnsSnapshotForRecovery(t *testing.T) {
 	executor := Executor{BrowserRuntime: browserRuntime}
 
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "browser.click",
+		ToolName: "browser_click",
 		Input:    json.RawMessage(`{"target":"@old"}`),
 	})
 	if errorValue != nil {
@@ -437,7 +437,7 @@ func TestBrowserControlFailureReportsSnapshotFailure(t *testing.T) {
 	executor := Executor{BrowserRuntime: browserRuntime}
 
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "browser.fill",
+		ToolName: "browser_fill",
 		Input:    json.RawMessage(`{"target":"@old","text":"hello"}`),
 	})
 	if errorValue != nil {
@@ -465,8 +465,8 @@ func TestBrowserHandoffPausesRuntimeAndResumesAfterUserCompletion(t *testing.T) 
 	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
 	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://example.com/app")
 
-	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser.handoff",
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser_handoff",
 		Input:    json.RawMessage(`{"url":"https://example.com/login","message":"로그인 후 완료를 눌러주세요.","successCriteria":{"textIncludesAny":["Continue"]}}`),
 	})
 	if completionError := <-completionErrors; completionError != nil {
@@ -504,8 +504,8 @@ func TestBrowserHandoffTimeoutResumesRuntime(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, errorValue := executor.ExecuteJob(ctx, JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser.handoff",
+	_, errorValue := executor.ExecuteJob(ctx, JobEnvelope{JobID: "job-1", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser_handoff",
 		Input:    json.RawMessage(`{"url":"https://example.com/login"}`),
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "timed out") {
@@ -524,8 +524,8 @@ func TestBrowserHandoffSurfacesPauseFailureWithoutStrandingTheHandoff(t *testing
 	browserRuntime := &fakeBrowserRuntime{pauseError: errors.New("runtime does not support a human handoff")}
 	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
 
-	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser.handoff",
+	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser_handoff",
 		Input:    json.RawMessage(`{"url":"https://example.com/login"}`),
 	})
 	if errorValue == nil {
@@ -548,8 +548,8 @@ func TestBrowserHandoffRejectsLinuxWayland(t *testing.T) {
 	t.Setenv("DISPLAY", "")
 	executor := Executor{BrowserRuntime: &fakeBrowserRuntime{}, HandoffStore: NewBrowserHandoffStore()}
 
-	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser.handoff",
+	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser_handoff",
 		Input:    json.RawMessage(`{"url":"https://example.com/login"}`),
 	})
 
@@ -570,8 +570,8 @@ func TestBrowserHandoffTakesHumanPathForGoogleHost(t *testing.T) {
 	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
 	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://console.cloud.google.com/project")
 
-	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser.handoff",
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser_handoff",
 		Input:    json.RawMessage(`{"url":"https://console.cloud.google.com/project","message":"로그인 후 계속을 눌러주세요."}`),
 	})
 	if completionError := <-completionErrors; completionError != nil {
@@ -608,8 +608,8 @@ func TestBrowserHandoffReusesActiveHandoffWithoutReopeningBrowser(t *testing.T) 
 		CapturedAt: time.Now().UTC().Format(time.RFC3339),
 	})
 
-	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-2", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser.handoff",
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-2", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser_handoff",
 		Input:    json.RawMessage(`{"url":"https://example.com/projectselector2/iam-admin/serviceaccounts?supportedpurview=project","message":"로그인 후 완료를 눌러주세요."}`),
 	})
 	if errorValue != nil {
@@ -705,7 +705,7 @@ func TestUserConfirmUsesPromptHandler(t *testing.T) {
 	}
 
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "user.confirm",
+		ToolName: "user_confirm",
 		Input:    json.RawMessage(`{"message":"continue?"}`),
 	})
 	if errorValue != nil {
@@ -811,7 +811,7 @@ func TestAttentionTriageUsesCompanionStructuredLLM(t *testing.T) {
 	}}
 	inputDocument, errorValue := json.Marshal(capabilities.AttentionTriageRequest{
 		JobID:             "job-1",
-		ToolName:          "user.confirm",
+		ToolName:          "user_confirm",
 		Status:            "pending",
 		RequesterEmail:    "alice@example.com",
 		PrivacyClass:      "user_input",
@@ -844,7 +844,7 @@ func TestAttentionTriageUsesCompanionStructuredLLM(t *testing.T) {
 func TestAttentionTriageReportsUnavailableLocalLLM(t *testing.T) {
 	_, errorValue := Executor{}.Execute(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: capabilities.AttentionTriageToolName,
-		Input:    json.RawMessage(`{"jobID":"job-1","toolName":"user.confirm","status":"pending"}`),
+		Input:    json.RawMessage(`{"jobID":"job-1","toolName":"user_confirm","status":"pending"}`),
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "companion LLM is not configured") {
 		t.Fatalf("expected local LLM configuration error, got %v", errorValue)
@@ -855,7 +855,7 @@ func TestAttentionTriageReturnsBackendFailure(t *testing.T) {
 	executor := Executor{LLMChain: &stubLLMChain{structuredError: errors.New("backend unavailable")}}
 	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: capabilities.AttentionTriageToolName,
-		Input:    json.RawMessage(`{"jobID":"job-1","toolName":"user.confirm","status":"pending"}`),
+		Input:    json.RawMessage(`{"jobID":"job-1","toolName":"user_confirm","status":"pending"}`),
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "backend unavailable") {
 		t.Fatalf("expected backend error, got %v", errorValue)
@@ -917,7 +917,7 @@ func TestExecutorTextLLMRequiresChainOrMockMode(t *testing.T) {
 func TestUserConfirmWithoutPromptHandlerFailsSafely(t *testing.T) {
 	executor := Executor{}
 
-	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{ToolName: "user.confirm"})
+	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{ToolName: "user_confirm"})
 	if errorValue == nil {
 		t.Fatal("expected missing prompt handler to fail")
 	}
@@ -934,8 +934,8 @@ func TestFilePickUploadsSelectedFile(t *testing.T) {
 		FileUploader: uploader,
 	}
 
-	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file.pick"}, capabilities.ToolInvokeRequest{
-		ToolName: "file.pick",
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file_pick"}, capabilities.ToolInvokeRequest{
+		ToolName: "file_pick",
 		Input:    json.RawMessage(`{"allowedExtensions":["pdf"],"ttlSeconds":600}`),
 	})
 	if errorValue != nil {
@@ -959,12 +959,12 @@ func TestFilePickCancelReturnsDenialObservation(t *testing.T) {
 		FileUploader: &fakeFileUploader{},
 	}
 
-	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file.pick"}, capabilities.ToolInvokeRequest{ToolName: "file.pick"})
+	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file_pick"}, capabilities.ToolInvokeRequest{ToolName: "file_pick"})
 	denialError, ok := errorValue.(DenialError)
 	if !ok {
 		t.Fatalf("expected denial error, got %v", errorValue)
 	}
-	if denialError.Denial.Code != "user_cancelled" || denialError.Denial.ToolName != "file.pick" {
+	if denialError.Denial.Code != "user_cancelled" || denialError.Denial.ToolName != "file_pick" {
 		t.Fatalf("unexpected denial: %+v", denialError.Denial)
 	}
 }
@@ -976,15 +976,15 @@ func TestFilePickValidatesExtensionAndSize(t *testing.T) {
 		FileUploader: &fakeFileUploader{},
 	}
 
-	_, extensionError := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file.pick"}, capabilities.ToolInvokeRequest{
-		ToolName: "file.pick",
+	_, extensionError := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file_pick"}, capabilities.ToolInvokeRequest{
+		ToolName: "file_pick",
 		Input:    json.RawMessage(`{"allowedExtensions":["pdf"]}`),
 	})
 	if extensionError == nil {
 		t.Fatal("expected extension validation error")
 	}
-	_, sizeError := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file.pick"}, capabilities.ToolInvokeRequest{
-		ToolName: "file.pick",
+	_, sizeError := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file_pick"}, capabilities.ToolInvokeRequest{
+		ToolName: "file_pick",
 		Input:    json.RawMessage(`{"maxBytes":1}`),
 	})
 	if sizeError == nil {

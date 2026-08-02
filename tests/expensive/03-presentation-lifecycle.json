@@ -1,12 +1,12 @@
 {
   "name": "presentation-lifecycle",
   "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/presentation"],
-  "allowedTools": ["conversation.history", "memory.search", "terminal.run", "file.read", "file.write", "file.edit", "file.delete", "file.deliver"],
-  "initialToolNames": ["file.write", "terminal.run", "file.deliver"],
+  "allowedTools": ["conversation_history", "memory_search", "terminal_run", "file_read", "file_write", "file_edit", "file_delete", "file_deliver"],
+  "initialToolNames": ["file_write", "terminal_run", "file_deliver"],
   "steps": [
     {
       "prompt": "'비용 테스트 발표자료'라는 제목의 3장짜리 HTML 발표자료를 만들어서 전달해줘. 내용은 목표, 진행 방식, 완료 조건이야.",
-      "expectedToolCalls": ["file.write", "terminal.run", "file.deliver"],
+      "expectedToolCalls": ["file_write", "terminal_run", "file_deliver"],
       "expectedAttachments": [".html"],
       "expectedWorkspaceFiles": [
         {
@@ -19,8 +19,8 @@
     },
     {
       "prompt": "방금 만든 발표자료의 마지막 장에 '고정 시드 41' 문구를 추가하고 수정본을 다시 전달해줘.",
-      "expectedToolCalls": ["file.deliver"],
-      "expectedAnyToolCalls": ["file.edit", "file.write"],
+      "expectedToolCalls": ["file_deliver"],
+      "expectedAnyToolCalls": ["file_edit", "file_write"],
       "expectedAttachments": [".html"],
       "expectedWorkspaceFiles": [
         {
@@ -33,22 +33,22 @@
     },
     {
       "prompt": "내 발표자료 파일 중 방금 만든 '비용 테스트 발표자료'를 찾아서 경로와 형식을 알려줘.",
-      "expectedToolCalls": ["terminal.run"],
+      "expectedToolCalls": ["terminal_run"],
       "expectedReplyFragments": ["slides.html", "HTML"],
       "expectedTaskStatus": "completed"
     },
     {
       "prompt": "방금 찾은 '비용 테스트 발표자료' 파일과 작업 폴더를 삭제해줘.",
-      "expectedToolCalls": ["file.delete"],
+      "expectedToolCalls": ["file_delete"],
       "expectedEvents": ["confirmation.requested", "approval.pending_call"],
       "expectedTaskStatus": "waiting_approval"
     },
     {
       "prompt": "발표자료 삭제 승인할게.",
-      "expectedToolCalls": ["file.delete"],
+      "expectedToolCalls": ["file_delete"],
       "expectedEvents": ["approval.executed"],
       "expectedEventCounts": [
-        {"name": "tool.file.delete.result", "outputFragment": "deleted", "count": 1}
+        {"name": "tool.file_delete.result", "outputFragment": "deleted", "count": 1}
       ],
       "forbiddenWorkspaceFiles": ["circles/staff/tmp/*"],
       "expectedTaskStatus": "completed"

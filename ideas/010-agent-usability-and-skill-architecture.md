@@ -27,7 +27,7 @@ name: simple-slides
 description: Create presentation decks and attach PPTX/PDF/HTML outputs.
 category: document-generation
 tags: [slides, pptx, marp, reporting]
-allowed-tools: terminal.run file.write file.attach
+allowed-tools: terminal_run file_write file.attach
 allowedProfiles: [default]
 triggerHints:
   - slides

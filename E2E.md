@@ -28,28 +28,28 @@ lab runner의 `--llm-provider llmd --live-llm --strict-assertions` 조합으로
 | `memory_guided_followup` | `memory` | 1턴 기억 저장 → 2턴 회상해 답변 반영 |
 | `tool_permission_hides_skill` | — | 허용 툴 없는 스킬 억제 + 거짓 거절 없음 |
 | `gws_disabled` | — | 비허용 GWS 툴 차단과 거부 설명 |
-| `schedule_create_acceptance` | — | scheduled-task 스킬로 interval `schedule.create` |
-| `site_prototype_acceptance` | `site` | `terminal.run` 스캐폴드/빌드 → `site.serve`, URL 회신 |
-| `ask_choice_reply_acceptance` | — | `ask.choice` 발행과 다음 턴 선택 해석 |
-| `ask_confirm_reply_acceptance` | — | `ask.confirm`(external_send) 발행과 승인 후 계속 |
-| `attachment_material_read` | — | 컨텍스트 첨부를 `image.read`로 읽기 |
-| `attachment_html_preview_recovery` | — | 현재 메시지 HTML 첨부 `file.preview` |
+| `schedule_create_acceptance` | — | scheduled-task 스킬로 interval `schedule_create` |
+| `site_prototype_acceptance` | `site` | `terminal_run` 스캐폴드/빌드 → `site_serve`, URL 회신 |
+| `ask_choice_reply_acceptance` | — | `ask_choice` 발행과 다음 턴 선택 해석 |
+| `ask_confirm_reply_acceptance` | — | `ask_confirm`(external_send) 발행과 승인 후 계속 |
+| `attachment_material_read` | — | 컨텍스트 첨부를 `image_read`로 읽기 |
+| `attachment_html_preview_recovery` | — | 현재 메시지 HTML 첨부 `file_preview` |
 | `attachment_html_previous_preview_recovery` | — | 이전 메시지 첨부 경로 복구 |
 | `attachment_current_image_input` | — | 현재 이미지 첨부의 직접 이미지 파트 주입 |
 | `plain_question_acceptance` | — | 도구 없이 일반질문 직접 회신 |
-| `web_search_acceptance` | — | `web.search` 1회 후 결과 기반 답변 |
-| `schedule_lifecycle_acceptance` | — | 반복 예약 생성→`schedule.update` 수정→취소 |
+| `web_search_acceptance` | — | `web_search` 1회 후 결과 기반 답변 |
+| `schedule_lifecycle_acceptance` | — | 반복 예약 생성→`schedule_update` 수정→취소 |
 | `one_time_schedule_acceptance` | — | `kind:"once"`+`runAt` 일회성 예약 생성 |
-| `dm_send_confirm_acceptance` | — | ask.confirm 승인 후 `platform.message.send` DM 송신 |
+| `dm_send_confirm_acceptance` | — | ask_confirm 승인 후 `platform.message.send` DM 송신 |
 | `channel_post_acceptance` | — | 채널 타깃 `platform.message.send` 포스트 작성 |
 | `calendar_event_lifecycle_acceptance` | — | 일정 생성→시간 변경→삭제 3턴 |
 | `platform_message_edit_acceptance` | — | `platform.message.update`로 기존 포스트 수정 |
-| `skill_lifecycle_acceptance` | — | `skill.add` 등록 후 `skill.remove` 삭제 |
-| `capability_question_acceptance` | — | 빈 쿼리 `skill.search`로 능력 질문 답변 |
+| `skill_lifecycle_acceptance` | — | `skill_add` 등록 후 `skill_remove` 삭제 |
+| `capability_question_acceptance` | — | 빈 쿼리 `skill_search`로 능력 질문 답변 |
 | `task_history_question_acceptance` | — | `task.history`로 선행 작업 질문 답변 |
 | `site_edit_redeploy_acceptance` | — | 배포된 사이트 수정→빌드→재배포 |
 | `site_lifecycle_acceptance` | — | PENDING: structured `requiredEvidence` 기반 웹사이트 생성→배포→수정→재배포→삭제 승인→삭제 |
-| `memory_explicit_tool_acceptance` | — | `memory.remember` 저장과 `memory.search` 회상 명시 단언 |
+| `memory_explicit_tool_acceptance` | — | `memory_remember` 저장과 `memory_search` 회상 명시 단언 |
 | `failure_explanation_acceptance` | — | 실패 태스크 사유를 `task.history`로 설명 |
 
 플릿 시나리오: `dm-recipient-resolve`, `mattermost-bot-invited`, `restart-policy-survival`, `web-backed-ui`, `regression-proof`.
@@ -62,19 +62,19 @@ lab runner의 `--llm-provider llmd --live-llm --strict-assertions` 조합으로
 |---|---|---|---|
 | 1 | 웹사이트 생성+배포 | COVERED | `site_prototype_acceptance` |
 | 2 | 배포된 웹사이트 수정 | COVERED | `site_edit_redeploy_acceptance` |
-| 2a | 배포된 웹사이트 삭제 | COVERED | `site_lifecycle_acceptance` (structured `requiredEvidence:["site.unserve"]` 승인 후 삭제) |
+| 2a | 배포된 웹사이트 삭제 | COVERED | `site_lifecycle_acceptance` (structured `requiredEvidence:["site_unserve"]` 승인 후 삭제) |
 | 3 | DM 보내기 (confirm + 상대 수신 확인) | PARTIAL | `dm_send_confirm_acceptance` (confirm 게이트→송신→messageID 관측 단언); `dm-recipient-resolve`가 실 Mattermost 계정 이메일과 Blueclaw 정책 사람 연결을 통해 수신자 해석을 단언. 실제 상대 수신 확인은 실플랫폼 스모크 영역 |
 | 4 | 채널 포스트 작성 | COVERED | `channel_post_acceptance` |
 | 5 | 포스트 수정 | COVERED | `platform_message_edit_acceptance` (`platform.message.update`) |
-| 6 | 반복 예약 생성/수정/삭제 | COVERED | `schedule_lifecycle_acceptance` (생성→`schedule.update` 수정→취소) |
+| 6 | 반복 예약 생성/수정/삭제 | COVERED | `schedule_lifecycle_acceptance` (생성→`schedule_update` 수정→취소) |
 | 7 | 일회성 예약 생성/수정/삭제 | PARTIAL | 생성은 `one_time_schedule_acceptance` (`kind:"once"`+`runAt`); 수정·삭제 흐름은 6과 동일 패턴이라 미중복 |
 | 8 | 일정/업무 생성/수정/삭제 | COVERED | `calendar_event_lifecycle_acceptance` (`calendar.event.add/update/delete` 3턴) |
-| 9 | 기억 추가 | COVERED | `memory_explicit_tool_acceptance` (`memory.remember` 호출·입력 단언) |
-| 10 | 기억해내기 | COVERED | `memory_explicit_tool_acceptance` (`memory.search` 호출·반영 단언) + `memory_guided_followup` |
-| 11 | 스킬 생성/삭제 | COVERED | `skill_lifecycle_acceptance` (`skill.add`/`skill.remove`) |
+| 9 | 기억 추가 | COVERED | `memory_explicit_tool_acceptance` (`memory_remember` 호출·입력 단언) |
+| 10 | 기억해내기 | COVERED | `memory_explicit_tool_acceptance` (`memory_search` 호출·반영 단언) + `memory_guided_followup` |
+| 11 | 스킬 생성/삭제 | COVERED | `skill_lifecycle_acceptance` (`skill_add`/`skill_remove`) |
 | 12 | 검색 | COVERED | `web_search_acceptance` |
 | 13 | 일반질문 | COVERED | `plain_question_acceptance` |
-| 14 | introspection: 뭘 할 수 있어? | COVERED | `capability_question_acceptance` (빈 쿼리 `skill.search` 전체 로스터) |
+| 14 | introspection: 뭘 할 수 있어? | COVERED | `capability_question_acceptance` (빈 쿼리 `skill_search` 전체 로스터) |
 | 15 | introspection: 아까 뭐 했어? | COVERED | `task_history_question_acceptance` (`task.history` 2턴) |
 | 16 | introspection: 왜 실패했어? | COVERED | `failure_explanation_acceptance` (실패 태스크 후 `task.history`로 사유 설명) |
 | 17 | Mattermost DM 수신자 해석 | COVERED | `dm-recipient-resolve` (실 Mattermost 사용자 생성→정책 초대→인바운드 계정 링크→부분 이름으로 `/admin/api/identity/resolve-recipient` resolved 단언) |

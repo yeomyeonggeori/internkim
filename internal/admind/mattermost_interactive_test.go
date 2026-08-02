@@ -80,7 +80,7 @@ func TestMattermostAskActionKeepsControlWhenForwardFails(t *testing.T) {
 		return jsonResponse(http.StatusServiceUnavailable, `{}`, nil), nil
 	})}
 	token := service.ensureMattermostInteractiveActionToken()
-	request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/actions", strings.NewReader(`{"user_id":"user-1","post_id":"post-1","channel_id":"channel-1","context":{"action":"ask.confirm","token":"`+token+`","interactionID":"interaction-1","taskRunID":"task-1","conversationID":"channel-1","replyTargetID":"target-1","targetUserID":"user-1"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/actions", strings.NewReader(`{"user_id":"user-1","post_id":"post-1","channel_id":"channel-1","context":{"action":"ask_confirm","token":"`+token+`","interactionID":"interaction-1","taskRunID":"task-1","conversationID":"channel-1","replyTargetID":"target-1","targetUserID":"user-1"}}`))
 	responseRecorder := httptest.NewRecorder()
 
 	service.handleMattermostInteractiveAction(responseRecorder, request)
@@ -102,7 +102,7 @@ func TestMattermostAskActionAcknowledgesWithAttachmentClear(t *testing.T) {
 		return jsonResponse(http.StatusOK, `{"handled":true}`, nil), nil
 	})}
 	token := service.ensureMattermostInteractiveActionToken()
-	requestBody := `{"user_id":"user-1","post_id":"post-1","channel_id":"channel-1","context":{"action":"ask.confirm","token":"` + token + `","interactionID":"interaction-1","taskRunID":"task-1","conversationID":"channel-1","replyTargetID":"target-1","targetUserID":"user-1"}}`
+	requestBody := `{"user_id":"user-1","post_id":"post-1","channel_id":"channel-1","context":{"action":"ask_confirm","token":"` + token + `","interactionID":"interaction-1","taskRunID":"task-1","conversationID":"channel-1","replyTargetID":"target-1","targetUserID":"user-1"}}`
 	request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/actions", strings.NewReader(requestBody))
 	responseRecorder := httptest.NewRecorder()
 
@@ -137,7 +137,7 @@ func TestMattermostAskConfirmRequiresTargetUser(t *testing.T) {
 		return jsonResponse(http.StatusOK, `{"handled":true}`, nil), nil
 	})}
 	token := service.ensureMattermostInteractiveActionToken()
-	request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/actions", strings.NewReader(`{"user_id":"user-2","post_id":"post-1","channel_id":"channel-1","context":{"action":"ask.confirm","token":"`+token+`","interactionID":"interaction-1","taskRunID":"task-1","conversationID":"channel-1","replyTargetID":"target-1","targetUserID":"user-1"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/actions", strings.NewReader(`{"user_id":"user-2","post_id":"post-1","channel_id":"channel-1","context":{"action":"ask_confirm","token":"`+token+`","interactionID":"interaction-1","taskRunID":"task-1","conversationID":"channel-1","replyTargetID":"target-1","targetUserID":"user-1"}}`))
 	responseRecorder := httptest.NewRecorder()
 
 	service.handleMattermostInteractiveAction(responseRecorder, request)
@@ -169,7 +169,7 @@ func TestMattermostAskActionAcceptsConfiguredInteractiveTokenPath(t *testing.T) 
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, `{"handled":true}`, nil), nil
 	})}
-	request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/actions", strings.NewReader(`{"user_id":"user-1","post_id":"post-1","channel_id":"channel-1","context":{"action":"ask.confirm","token":"configured-token","interactionID":"interaction-1","taskRunID":"task-1","conversationID":"channel-1","replyTargetID":"target-1","targetUserID":"user-1"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/actions", strings.NewReader(`{"user_id":"user-1","post_id":"post-1","channel_id":"channel-1","context":{"action":"ask_confirm","token":"configured-token","interactionID":"interaction-1","taskRunID":"task-1","conversationID":"channel-1","replyTargetID":"target-1","targetUserID":"user-1"}}`))
 	responseRecorder := httptest.NewRecorder()
 
 	service.handleMattermostInteractiveAction(responseRecorder, request)

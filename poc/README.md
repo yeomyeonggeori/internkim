@@ -208,5 +208,5 @@ python3 poc/setup-ssh-tunnel.py   # cf.env가 ~/internkim-poc/에 있어야 함
 ## 미구현 항목
 
 - 테넌트별 Cloudflare 터널 (현재는 poc-0.intern.kim → Mattermost 단일 터널만)
-- 터미널 툴체인 (bun/uv/python) — `terminal.run` 태스크 필요 시 이미지에 추가
+- 터미널 툴체인 (bun/uv/python) — `terminal_run` 태스크 필요 시 이미지에 추가
 - POSIX per-person 격리

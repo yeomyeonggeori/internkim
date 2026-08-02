@@ -176,7 +176,7 @@ def company_display_name(profile):
 
 def add_letterhead(pdf, profile):
     if not company_display_name(profile):
-        raise ValueError("profile.name is required — insert the company.info.get result into profile")
+        raise ValueError("profile.name is required — insert the company_info_get result into profile")
     top_y = pdf.get_y()
     logo_path = str(profile.get("logoPath", "")).strip()
     if logo_path and Path(logo_path).exists():
@@ -575,7 +575,7 @@ def main():
         document = load_document(os.path.expanduser(arguments.document_path))
         pdf = render_document(document)
     except FileNotFoundError:
-        print(f"paperwork renderer error: document JSON not found at {arguments.document_path}; write it with file.write first, following the spec's skeleton", file=sys.stderr)
+        print(f"paperwork renderer error: document JSON not found at {arguments.document_path}; write it with file_write first, following the spec's skeleton", file=sys.stderr)
         raise SystemExit(1)
     except PermissionError:
         print(f"paperwork renderer error: cannot write to {output_path} (permission denied); rerun the SAME command with the output changed to ~/documents/{output_path.parent.name}/{output_path.name}", file=sys.stderr)

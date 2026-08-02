@@ -6,59 +6,59 @@
   "../../assets/blueclaw-workspace/skills/website"
  ],
  "allowedTools": [
-  "conversation.history",
-  "memory.search",
-  "terminal.run",
-  "file.read",
-  "file.write",
-  "file.edit",
-  "browser.open",
-  "browser.snapshot",
-  "browser.screenshot",
-  "browser.click",
-  "artifact.review",
-  "site.serve",
-  "site.list",
-  "site.unserve"
+  "conversation_history",
+  "memory_search",
+  "terminal_run",
+  "file_read",
+  "file_write",
+  "file_edit",
+  "browser_open",
+  "browser_snapshot",
+  "browser_screenshot",
+  "browser_click",
+  "artifact_review",
+  "site_serve",
+  "site_list",
+  "site_unserve"
  ],
  "capabilityToolNames": [
-  "site.serve",
-  "site.list",
-  "site.unserve",
-  "artifact.review"
+  "site_serve",
+  "site_list",
+  "site_unserve",
+  "artifact_review"
  ],
  "capabilityToolDescriptors": [
   {
-   "name": "site.unserve",
+   "name": "site_unserve",
    "requiresApproval": true
   }
  ],
  "initialToolNames": [
-  "site.serve",
-  "site.list"
+  "site_serve",
+  "site_list"
  ],
  "steps": [
   {
    "prompt": "우리 회사 '브릿지웍스'에 처음 문의하는 소상공인을 위한 상담 안내 웹사이트를 초안으로 만들어줘. 받을 수 있는 상담, 대상 고객, 신청 방법과 운영 시간을 한눈에 보여주고 '상담 신청' 버튼도 넣어줘. 아직 공개하지는 말아줘.",
    "expectedToolCalls": [
-    "terminal.run"
+    "terminal_run"
    ],
    "expectedAnyToolCalls": [
-    "file.write",
-    "file.edit"
+    "file_write",
+    "file_edit"
    ],
    "expectedExactToolCallCounts": {
-    "site.unserve": 0
+    "site_unserve": 0
    },
    "expectedEventCounts": [
     {
-     "name": "tool.terminal.run.result",
+     "name": "tool.terminal_run.result",
      "outputFragment": "Scaffolded site project",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.serve.requested",
+     "name": "tool.site_serve.requested",
      "bodyFragment": "\"mode\":\"publish\"",
      "count": 0,
      "exact": true
@@ -78,41 +78,41 @@
   {
    "prompt": "브릿지웍스 상담 안내 사이트 첫 화면에 '첫 상담은 30분 무료입니다'라는 안내를 추가해줘. 공개하기 전에 미리보기로 문구와 상담 신청 버튼이 잘 보이고 눌리는지도 확인해줘.",
    "expectedToolCalls": [
-    "site.serve"
+    "site_serve"
    ],
    "expectedAnyToolCalls": [
-    "file.write",
-    "file.edit"
+    "file_write",
+    "file_edit"
    ],
    "expectedToolCallCounts": {
-    "site.serve": 1
+    "site_serve": 1
    },
    "expectedEventCounts": [
     {
-     "name": "tool.site.serve.requested",
+     "name": "tool.site_serve.requested",
      "bodyFragment": "\"mode\":\"preview\"",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.serve.result",
+     "name": "tool.site_serve.result",
      "outputFragment": "previewURL",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.serve.result",
+     "name": "tool.site_serve.result",
      "bodyFragment": "\"objectType\":\"website\"",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.serve.result",
+     "name": "tool.site_serve.result",
      "bodyFragment": "\"effect\":\"previewed\"",
      "count": 1
     },
     {
-     "name": "tool.artifact.review.result",
+     "name": "tool.artifact_review.result",
      "bodyFragment": "\"passed\":true",
      "count": 1,
      "advisory": true
@@ -141,35 +141,35 @@
   {
    "prompt": "브릿지웍스 상담 안내 사이트 미리보기에 문제없으면 지금 공개하고 링크를 보내줘.",
    "expectedToolCalls": [
-    "site.serve"
+    "site_serve"
    ],
    "expectedEventCounts": [
     {
-     "name": "tool.site.serve.requested",
+     "name": "tool.site_serve.requested",
      "bodyFragment": "\"mode\":\"publish\"",
      "count": 1,
      "exact": true
     },
     {
-     "name": "tool.site.serve.result",
+     "name": "tool.site_serve.result",
      "outputFragment": "publishedURL",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.serve.result",
+     "name": "tool.site_serve.result",
      "outputFragment": "sourceSHA256",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.serve.result",
+     "name": "tool.site_serve.result",
      "bodyFragment": "\"objectType\":\"website\"",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.serve.result",
+     "name": "tool.site_serve.result",
      "bodyFragment": "\"effect\":\"published\"",
      "count": 1
     }
@@ -187,37 +187,37 @@
   {
    "prompt": "브릿지웍스 상담 안내 사이트의 '첫 상담은 30분 무료입니다'를 '상담 신청은 평일 오전에 접수합니다'로 바꾸고, 버튼이 잘 작동하는지 확인한 다음 다시 공개해줘.",
    "expectedToolCalls": [
-    "site.serve"
+    "site_serve"
    ],
    "expectedAnyToolCalls": [
-    "file.write",
-    "file.edit"
+    "file_write",
+    "file_edit"
    ],
    "expectedEventCounts": [
     {
-     "name": "tool.site.serve.requested",
+     "name": "tool.site_serve.requested",
      "bodyFragment": "\"mode\":\"publish\"",
      "count": 1,
      "exact": true
     },
     {
-     "name": "tool.site.serve.requested",
+     "name": "tool.site_serve.requested",
      "bodyFragment": "\"siteReference\":",
      "count": 1
     },
     {
-     "name": "tool.site.serve.result",
+     "name": "tool.site_serve.result",
      "outputFragment": "sourceSHA256",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.serve.result",
+     "name": "tool.site_serve.result",
      "bodyFragment": "\"effect\":\"published\"",
      "count": 1
     },
     {
-     "name": "tool.artifact.review.result",
+     "name": "tool.artifact_review.result",
      "bodyFragment": "\"passed\":true",
      "count": 1,
      "advisory": true
@@ -250,11 +250,11 @@
    "prompt": "방금 공개한 브릿지웍스 상담 안내 사이트를 이제 내려줘. 서버에서 내려간 걸 확인한 다음 내 작업 폴더의 사이트 파일도 전부 삭제해줘.",
    "approvalAction": "approve",
    "expectedToolCalls": [
-    "site.unserve",
-    "terminal.run"
+    "site_unserve",
+    "terminal_run"
    ],
    "expectedToolCallCounts": {
-    "site.unserve": 1
+    "site_unserve": 1
    },
    "expectedEvents": [
     "confirmation.requested",
@@ -263,25 +263,25 @@
    ],
    "expectedEventCounts": [
     {
-     "name": "tool.site.unserve.requested",
+     "name": "tool.site_unserve.requested",
      "bodyFragment": "\"siteReference\":",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.unserve.result",
+     "name": "tool.site_unserve.result",
      "outputFragment": "unserved",
      "count": 1,
      "exact": true
     },
     {
-     "name": "tool.site.unserve.result",
+     "name": "tool.site_unserve.result",
      "bodyFragment": "\"objectType\":\"website\"",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.site.unserve.result",
+     "name": "tool.site_unserve.result",
      "bodyFragment": "\"effect\":\"deleted\"",
      "count": 1,
      "advisory": true

@@ -1,7 +1,7 @@
 ---
 name: company-data
 description: Record and look up company master data — metrics time series (연매출, 영업이익, MAU, 직원 수), history and assets (연혁, 투자 유치, 제품 출시, 특허, 인증, 수상, 레퍼런스), and the company document ledger. Use for 매출 기록, 지표 기록, 연혁 추가, 투자 이력, 회사 정보 수정, 우리가 보낸 계약서/견적서 조회, revenue record, funding history, company timeline requests. Do not use for creating documents — the paperwork skill owns document generation.
-tool-references: file.read company.info.get company.info.set company.metric.list company.metric.record company.record.list company.record.add company.record.update company.record.delete company.document.list company.document.search company.document.register
+tool-references: file_read company_info_get company_info_set company_metric_list company_metric_record company_record_list company_record_add company_record_update company_record_delete company_document_list company_document_search company_document_register
 ---
 
 # Company Data
@@ -10,19 +10,19 @@ Use the typed operations for the persistent profile, numeric time series, histor
 
 ## Metrics
 
-For a new metric, first call `company.metric.list` for the relevant period. Identical data needs no write; a correction updates the existing period; only a genuinely new fact calls `company.metric.record`. Use one metric key across periods, choose year, quarter, or month deliberately, and never combine quarter and month. Money keeps the stated local `currency` and stated `valueUSD`; never estimate exchange rates. Non-money metrics use `unit` instead.
+For a new metric, first call `company_metric_list` for the relevant period. Identical data needs no write; a correction updates the existing period; only a genuinely new fact calls `company_metric_record`. Use one metric key across periods, choose year, quarter, or month deliberately, and never combine quarter and month. Money keeps the stated local `currency` and stated `valueUSD`; never estimate exchange rates. Non-money metrics use `unit` instead.
 
 ## Records
 
-For history, funding, products, certifications, IP, awards, references, or grants, first call `company.record.list` for the category and period. Identical facts need no write; changed details use `company.record.update` with the observed ID; new facts use `company.record.add`. Delete only on explicit request. Use structured attributes when a category has repeatable details.
+For history, funding, products, certifications, IP, awards, references, or grants, first call `company_record_list` for the category and period. Identical facts need no write; changed details use `company_record_update` with the observed ID; new facts use `company_record_add`. Delete only on explicit request. Use structured attributes when a category has repeatable details.
 
 ## Profile
 
-Use `company.info.get` before answering or changing profile data. Call `company.info.set` with the requested language and only changed fields. Store country-specific identifiers in `legalAttributes`; never put company facts in files or memory instead of this table.
+Use `company_info_get` before answering or changing profile data. Call `company_info_set` with the requested language and only changed fields. Store country-specific identifiers in `legalAttributes`; never put company facts in files or memory instead of this table.
 
 ## Document ledger
 
-Search with `company.document.search` before reading a file when a ledger summary can answer the question; use `company.document.list` for inventories. Save an attached received contract under the staff documents area, then register it with kind and a concise summary. Do not use this skill to create documents.
+Search with `company_document_search` before reading a file when a ledger summary can answer the question; use `company_document_list` for inventories. Save an attached received contract under the staff documents area, then register it with kind and a concise summary. Do not use this skill to create documents.
 
 ## Rules
 

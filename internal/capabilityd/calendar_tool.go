@@ -119,13 +119,13 @@ type calendarEventForTool struct {
 
 func (service Service) invokeCalendarTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch strings.TrimSpace(request.ToolName) {
-	case "calendar.add":
+	case "calendar_add":
 		return service.invokeCalendarEventAdd(ctx, request)
-	case "calendar.list":
+	case "calendar_list":
 		return service.invokeCalendarEventList(ctx, request)
-	case "calendar.update":
+	case "calendar_update":
 		return service.invokeCalendarEventUpdate(ctx, request)
-	case "calendar.delete":
+	case "calendar_delete":
 		return service.invokeCalendarEventDelete(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("calendar tool is not configured: %s", request.ToolName)
@@ -393,7 +393,7 @@ func completeCalendarListRange(startISO string, endISO string) (string, string) 
 
 func decodeCalendarEventUpdateInput(document json.RawMessage) (calendarEventUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return calendarEventUpdateInput{}, fmt.Errorf("calendar.update input is required")
+		return calendarEventUpdateInput{}, fmt.Errorf("calendar_update input is required")
 	}
 	var input calendarEventUpdateInput
 	if errorValue := decodeStrictCalendarToolInput(document, &input); errorValue != nil {
@@ -414,7 +414,7 @@ func decodeCalendarEventUpdateInput(document json.RawMessage) (calendarEventUpda
 		return calendarEventUpdateInput{}, fmt.Errorf("eventHint is required")
 	}
 	if !hasCalendarEventUpdatePatch(input) {
-		return calendarEventUpdateInput{}, fmt.Errorf("calendar.update requires at least one mutable field")
+		return calendarEventUpdateInput{}, fmt.Errorf("calendar_update requires at least one mutable field")
 	}
 	return input, nil
 }

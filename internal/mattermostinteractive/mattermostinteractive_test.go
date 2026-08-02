@@ -18,8 +18,8 @@ func TestActionBuilderAddsSharedEndpointAndToken(t *testing.T) {
 		t.Fatalf("button context = %+v", button.Integration.Context)
 	}
 
-	selection := builder.Select("askChoice", "선택", Context{Action: "ask.choice"}, []Option{{Text: "A", Value: "a"}})
-	if selection.Integration.Context.Action != "ask.choice" || selection.Integration.Context.Token != "shared-token" {
+	selection := builder.Select("askChoice", "선택", Context{Action: "ask_choice"}, []Option{{Text: "A", Value: "a"}})
+	if selection.Integration.Context.Action != "ask_choice" || selection.Integration.Context.Token != "shared-token" {
 		t.Fatalf("selection context = %+v", selection.Integration.Context)
 	}
 }

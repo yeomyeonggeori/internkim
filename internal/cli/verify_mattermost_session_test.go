@@ -162,7 +162,7 @@ func testMattermostReplyEvent(identifier string, replyKind string, postID string
 }
 
 func TestMattermostScenarioApprovalFollowupValidatesOnlyEventsCreatedAfterSnapshot(t *testing.T) {
-	oldEvent := mattermostScenarioTaskEvent{TaskEventID: "old", Name: "tool.calendar.delete.requested"}
+	oldEvent := mattermostScenarioTaskEvent{TaskEventID: "old", Name: "tool.calendar_delete.requested"}
 	newEvent := mattermostScenarioTaskEvent{TaskEventID: "new", Name: "approval.granted"}
 	detailCalls := 0
 	admin := &fakeMattermostScenarioAdminAPI{
@@ -186,7 +186,7 @@ func TestMattermostScenarioApprovalFollowupValidatesOnlyEventsCreatedAfterSnapsh
 			return []mattermostProbePost{{ID: "bot-post", RootID: "user-post", UserID: "bot", Message: "수정했습니다.", CreatedAt: 2}}
 		},
 	}
-	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{Prompt: "삭제해줘", ExpectedEvents: []string{"approval.granted"}, ExpectedToolCallCounts: map[string]int{"calendar.delete": 0}, ExpectedTaskStatus: "completed"}}}
+	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{Prompt: "삭제해줘", ExpectedEvents: []string{"approval.granted"}, ExpectedToolCallCounts: map[string]int{"calendar_delete": 0}, ExpectedTaskStatus: "completed"}}}
 	session := newTestMattermostScenarioSession(scenario, mattermost, admin)
 
 	if errorValue := session.runStep(context.Background(), 0); errorValue != nil {
@@ -235,7 +235,7 @@ func TestMattermostScenarioHookReceivesEvidenceBeforeLaterStep(t *testing.T) {
 				{TaskEventID: "reply-" + taskRunID, Name: "connector.reply.sent", Body: `{"dispatchID":"` + botPostID + `","messageID":"mattermost:thread:channel:user-post-1:user-post-` + stepNumber + `","replyKind":"success"}`},
 			}
 			if taskRunID == "task-1" {
-				events = append(events, mattermostScenarioTaskEvent{TaskEventID: "site-" + taskRunID, Name: "tool.site.serve.result", Body: `{"url":"https://preview.intern.kim/site"}`})
+				events = append(events, mattermostScenarioTaskEvent{TaskEventID: "site-" + taskRunID, Name: "tool.site_serve.result", Body: `{"url":"https://preview.intern.kim/site"}`})
 			}
 			return mattermostScenarioTaskDetail{
 				TaskRun:    mattermostScenarioTaskRun{TaskRunID: taskRunID, Status: "completed"},
@@ -779,8 +779,8 @@ func TestMattermostScenarioCleanupDeletesUndeletedMessageSideEffects(t *testing.
 	admin := &fakeMattermostScenarioAdminAPI{}
 	session := newTestMattermostScenarioSession(mattermostScenario{}, mattermost, admin)
 	session.result.Steps = []mattermostScenarioStepResult{
-		{TaskEvents: []mattermostScenarioTaskEvent{{Name: "tool.message.send.result", Body: `{"output":{"data":{"messageIDs":["sent-1","sent-2"],"deliveryStatus":"sent"}}}`}}},
-		{TaskEvents: []mattermostScenarioTaskEvent{{Name: "tool.message.delete.result", Body: `{"output":{"data":{"messageIDs":["sent-2"],"deliveryStatus":"deleted"}}}`}}},
+		{TaskEvents: []mattermostScenarioTaskEvent{{Name: "tool.message_send.result", Body: `{"output":{"data":{"messageIDs":["sent-1","sent-2"],"deliveryStatus":"sent"}}}`}}},
+		{TaskEvents: []mattermostScenarioTaskEvent{{Name: "tool.message_delete.result", Body: `{"output":{"data":{"messageIDs":["sent-2"],"deliveryStatus":"deleted"}}}`}}},
 	}
 
 	if errorValue := session.cleanup(context.Background()); errorValue != nil {
@@ -905,7 +905,7 @@ func TestMattermostScenarioStepMetricsDescribeAgentWork(t *testing.T) {
 		{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router"}`},
 		{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action"}`},
 		{Name: "agent.action"},
-		{Name: "tool.task.add.requested"},
+		{Name: "tool.task_add.requested"},
 		{Name: "tool.capability.invoke.requested"},
 	}}
 	setMattermostScenarioStepMetrics(&result)
@@ -932,7 +932,7 @@ func TestMattermostScenarioStepMetricsAggregateTokenUsageAcrossLLMCalls(t *testi
 		{Name: "llm.call", Body: `{"promptTokens":100,"completionTokens":20,"totalTokens":120,"cachedPromptTokens":40,"reasoningTokens":5,"costUSD":0.01}`},
 		{Name: "llm.call", Body: `{"promptTokens":50,"completionTokens":10,"totalTokens":60,"cachedPromptTokens":10,"reasoningTokens":0,"costUSD":0.005}`},
 		{Name: "agent.action"},
-		{Name: "tool.task.add.requested"},
+		{Name: "tool.task_add.requested"},
 	}}
 	setMattermostScenarioStepMetrics(&result)
 	usage := result.TokenUsage
@@ -1016,7 +1016,7 @@ func TestSumMattermostScenarioTokenUsageAggregatesStepsAndTokensPerStep(t *testi
 
 func TestMattermostScenarioEventPublicURLRequiresDirectTypedResult(t *testing.T) {
 	events := []mattermostScenarioTaskEvent{
-		{Name: "tool.site.serve.result", Body: `{"publicURL":"https://demo.intern.kim"}`},
+		{Name: "tool.site_serve.result", Body: `{"publicURL":"https://demo.intern.kim"}`},
 		{Name: "tool.capability.invoke.result", Body: `{"publicURL":"https://legacy.intern.kim"}`},
 	}
 	if publicURL := findMattermostScenarioEventPublicURL(events); publicURL != "https://demo.intern.kim" {

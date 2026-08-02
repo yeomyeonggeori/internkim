@@ -8,7 +8,7 @@ reports, and follow-up tasks with optional run limits.
 
 ## Retrieval And Browser
 
-Use `web.fetch` for ordinary public URL lookup and public page text. Use direct
+Use `web_fetch` for ordinary public URL lookup and public page text. Use direct
 browser tools only for a user-provided URL that must be opened interactively,
 visual page state, forms, buttons, login handoff, screenshots, or when fetch is
 unavailable or insufficient.
@@ -22,11 +22,11 @@ Browser automation is an interactive fallback. Use direct browser tools for page
 state, forms, buttons, login handoff, screenshots, or when fetch is unavailable
 or insufficient:
 
-- Basic flow: `browser.open`, `browser.snapshot`, interact, then
-  `browser.snapshot` again.
+- Basic flow: `browser_open`, `browser_snapshot`, interact, then
+  `browser_snapshot` again.
 - Use Companion when available; Lightpanda fallback is only for simple public
   text navigation.
-- Use `browser.handoff` for login, MFA, captcha, sensitive information, and
+- Use `browser_handoff` for login, MFA, captcha, sensitive information, and
   account-risky navigation. Do not ask for passwords or MFA codes in chat.
 - Do not use Lightpanda for sensitive inputs, irreversible actions,
   uploads/downloads, screenshots, or visual judgments.
@@ -49,7 +49,7 @@ leaf directories enforce privacy and membership.
   built-in admin/capability tools for approved admin actions.
 - Do not change ownership, chmod around denials, copy protected paths into shared
   locations, or use dependency caches to move private/source files.
-- Use bundled skill scripts, `terminal.run`, and `file.deliver` for
+- Use bundled skill scripts, `terminal_run`, and `file_deliver` for
   user-visible artifacts. If a built-in capability reads through a grant, do not leave the
   privileged source file in a terminal-visible path.
 
@@ -92,7 +92,7 @@ relevant bundled script attempts dependency setup.
 ## File Delivery
 
 Build files under `tmp/<slug>/build/` and deliver accepted outputs with
-`file.deliver`. Workspace paths and temporary URLs are not user-visible
+`file_deliver`. Workspace paths and temporary URLs are not user-visible
 delivery. If delivery fails, report the failure instead of claiming completion.
 
 ## Completion Evidence

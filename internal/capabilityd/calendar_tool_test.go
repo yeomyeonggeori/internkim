@@ -32,7 +32,7 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.add",
+		ToolName: "calendar_add",
 		Input:    []byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","location":"Office","people":["동하","수민"],"reminderLeadHours":48}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "Staff@Example.com",
@@ -100,7 +100,7 @@ func TestCalendarEventAddResolvesPeopleHintsAndIncludesRequester(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.add",
+		ToolName: "calendar_add",
 		Input:    []byte(`{"title":"경산 일정","startISO":"2026-05-08T05:00:00+09:00","endISO":"2026-05-08T06:00:00+09:00","people":["우경"]}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:    "staff@example.com",
@@ -290,7 +290,7 @@ func TestCalendarEventListFiltersQueryAndLimit(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.list",
+		ToolName: "calendar_list",
 		Input:    []byte(`{"startISO":"2026-05-08T00:00:00Z","endISO":"2026-05-09T00:00:00Z","query":"design","limit":1}`),
 	})
 	if errorValue != nil {
@@ -348,7 +348,7 @@ func TestCalendarEventListRejectsEventWithoutIdentity(t *testing.T) {
 		})},
 	}
 	if _, errorValue := service.invokeCalendarEventList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.list",
+		ToolName: "calendar_list",
 		Input:    []byte(`{}`),
 	}); errorValue == nil {
 		t.Fatal("expected list result identity error")
@@ -373,7 +373,7 @@ func TestCalendarEventAddPreservesDuplicateControlWithoutSuccessEffect(t *testin
 	}
 	baseInput := `{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00"`
 	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.add",
+		ToolName: "calendar_add",
 		Input:    []byte(baseInput + `}`),
 	})
 	if errorValue != nil {
@@ -387,7 +387,7 @@ func TestCalendarEventAddPreservesDuplicateControlWithoutSuccessEffect(t *testin
 	}
 
 	response, errorValue = service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.add",
+		ToolName: "calendar_add",
 		Input:    []byte(baseInput + `}`),
 		Context: capabilities.ToolInvokeContext{
 			ConflictResolution: capabilities.ToolConflictResolutionAllowDuplicate,
@@ -414,7 +414,7 @@ func TestCalendarEventListDefaultsToUpcomingWindow(t *testing.T) {
 	}
 
 	if _, errorValue := service.invokeCalendarEventList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.list",
+		ToolName: "calendar_list",
 		Input:    []byte(`{}`),
 	}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -430,7 +430,7 @@ func TestCalendarMutationInputsRequireEventHint(t *testing.T) {
 			name: "update query",
 			invoke: func(service Service) error {
 				_, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-					ToolName: "calendar.update",
+					ToolName: "calendar_update",
 					Input:    []byte(`{"query":"비용 테스트 일정","startISO":"2026-07-16T14:00:00+09:00"}`),
 				})
 				return errorValue
@@ -440,7 +440,7 @@ func TestCalendarMutationInputsRequireEventHint(t *testing.T) {
 			name: "update title without hint",
 			invoke: func(service Service) error {
 				_, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-					ToolName: "calendar.update",
+					ToolName: "calendar_update",
 					Input:    []byte(`{"title":"비용 테스트 일정"}`),
 				})
 				return errorValue
@@ -450,7 +450,7 @@ func TestCalendarMutationInputsRequireEventHint(t *testing.T) {
 			name: "delete query",
 			invoke: func(service Service) error {
 				_, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-					ToolName: "calendar.delete",
+					ToolName: "calendar_delete",
 					Input:    []byte(`{"query":"비용 테스트 일정"}`),
 				})
 				return errorValue
@@ -525,7 +525,7 @@ func TestCalendarEventUpdatePreservesOmittedFields(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.update",
+		ToolName: "calendar_update",
 		Input:    []byte(`{"eventHint":"event-1","title":"Changed title"}`),
 	})
 
@@ -599,7 +599,7 @@ func TestCalendarEventUpdateReturnsVersionConflict(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.update",
+		ToolName: "calendar_update",
 		Input:    []byte(`{"eventHint":"event-1","title":"Conflicted event","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`),
 	})
 
@@ -636,7 +636,7 @@ func TestCalendarEventUpdateRejectsInvalidDirectLookupContract(t *testing.T) {
 			}
 
 			response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-				ToolName: "calendar.update",
+				ToolName: "calendar_update",
 				Input:    []byte(`{"eventHint":"event-1","title":"Changed","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`),
 			})
 
@@ -678,7 +678,7 @@ func TestCalendarEventUpdateResolvesByExactEventIDAcrossAllEvents(t *testing.T) 
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.update",
+		ToolName: "calendar_update",
 		Input:    []byte(`{"eventHint":"event-1","title":"IR 미팅 완료"}`),
 	})
 	if errorValue != nil {
@@ -711,7 +711,7 @@ func TestCalendarEventUpdateResolvesByExactUniqueTitle(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.update",
+		ToolName: "calendar_update",
 		Input:    []byte(`{"eventHint":"IR 미팅","title":"IR 미팅 완료"}`),
 	})
 	if errorValue != nil {
@@ -738,7 +738,7 @@ func TestCalendarEventUpdateAmbiguousTitleReturnsCandidatesWithoutWrite(t *testi
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.update",
+		ToolName: "calendar_update",
 		Input:    []byte(`{"eventHint":"IR 미팅","title":"IR 미팅 완료"}`),
 	})
 	if errorValue != nil {
@@ -764,7 +764,7 @@ func TestCalendarEventUpdateUnresolvedHintReturnsCandidatesWithoutWrite(t *testi
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.update",
+		ToolName: "calendar_update",
 		Input:    []byte(`{"eventHint":"missing-event","title":"IR 미팅 완료"}`),
 	})
 	if errorValue != nil {
@@ -790,7 +790,7 @@ func TestCalendarEventUpdateHintResolutionIsCaseSensitiveAfterTrim(t *testing.T)
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.update",
+		ToolName: "calendar_update",
 		Input:    []byte(`{"eventHint":"ir meeting","title":"IR Meeting Done"}`),
 	})
 	if errorValue != nil {
@@ -822,7 +822,7 @@ func TestCalendarEventUpdateHintResolutionTrimsWhitespaceBeforeMatching(t *testi
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.update",
+		ToolName: "calendar_update",
 		Input:    []byte(`{"eventHint":" IR 미팅 ","title":"IR 미팅 완료"}`),
 	})
 	if errorValue != nil {
@@ -854,7 +854,7 @@ func TestCalendarEventDeleteResolvesByExactUniqueTitle(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.delete",
+		ToolName: "calendar_delete",
 		Input:    []byte(`{"eventHint":"고객지원 분기 결산 검토"}`),
 	})
 	if errorValue != nil {
@@ -880,7 +880,7 @@ func TestCalendarEventDeleteAmbiguousTitleReturnsCandidatesWithoutDeleting(t *te
 	}
 
 	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.delete",
+		ToolName: "calendar_delete",
 		Input:    []byte(`{"eventHint":"IR 미팅"}`),
 	})
 	if errorValue != nil {
@@ -906,7 +906,7 @@ func TestCalendarEventDeleteNoMatchReturnsCandidatesWithoutDeleting(t *testing.T
 	}
 
 	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.delete",
+		ToolName: "calendar_delete",
 		Input:    []byte(`{"eventHint":"missing-event"}`),
 	})
 	if errorValue != nil {
@@ -972,7 +972,7 @@ func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "calendar.delete", strings.NewReader(`{"input":{"eventHint":"event-1"},"context":{"requesterPersonID":"person-1","requesterEmail":"Staff@Example.com","isScheduledRun":true}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "calendar_delete", strings.NewReader(`{"input":{"eventHint":"event-1"},"context":{"requesterPersonID":"person-1","requesterEmail":"Staff@Example.com","isScheduledRun":true}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1006,7 +1006,7 @@ func TestCalendarEventDeleteReturnsVersionConflict(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar.delete",
+		ToolName: "calendar_delete",
 		Input:    []byte(`{"eventHint":"event-1"}`),
 	})
 

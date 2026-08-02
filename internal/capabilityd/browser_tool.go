@@ -34,13 +34,13 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 	var errorValue error
 
 	switch request.ToolName {
-	case "browser.open":
+	case "browser_open":
 		var input browserruntime.NavigateRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
 		if errorValue == nil {
 			result, errorValue = browserRuntime.Navigate(ctx, input)
 		}
-	case "browser.snapshot":
+	case "browser_snapshot":
 		var input browserruntime.ObserveRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
 		if errorValue == nil {
@@ -54,33 +54,33 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 			}
 			result = observation
 		}
-	case "browser.screenshot":
+	case "browser_screenshot":
 		return capabilityUnavailableResponse(request.ToolName, capabilities.CapabilityNotConnected), nil
-	case "browser.click":
+	case "browser_click":
 		var input browserruntime.ClickRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
 		if errorValue == nil {
 			result, errorValue = browserRuntime.Click(ctx, input)
 		}
-	case "browser.fill":
+	case "browser_fill":
 		var input browserruntime.FillRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
 		if errorValue == nil {
 			result, errorValue = browserRuntime.Fill(ctx, input)
 		}
-	case "browser.select":
+	case "browser_select":
 		var input browserruntime.SelectRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
 		if errorValue == nil {
 			result, errorValue = browserRuntime.Select(ctx, input)
 		}
-	case "browser.press":
+	case "browser_press":
 		var input browserruntime.PressRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
 		if errorValue == nil {
 			result, errorValue = browserRuntime.Press(ctx, input)
 		}
-	case "browser.wait":
+	case "browser_wait":
 		var input browserruntime.WaitRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
 		if errorValue == nil {

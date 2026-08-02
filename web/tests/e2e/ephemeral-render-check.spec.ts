@@ -84,7 +84,7 @@ test('ephemeral interactive button renders live', async ({ page, request }) => {
 
 	const plainResult = await postEphemeral(request, botToken, userID, botUserID, channelID, 'MANUAL_PLAIN_EPHEMERAL', undefined);
 	const buttonsAttachment = [{ text: '주간보고서 업무를 삭제할까요?', actions: [
-		{ id: 'c', name: '확인', type: 'button', style: 'primary', integration: { url: 'http://127.0.0.1:18080/_internkim/mattermost/actions', context: { action: 'ask.confirm', token: 'diagnostic' } } },
+		{ id: 'c', name: '확인', type: 'button', style: 'primary', integration: { url: 'http://127.0.0.1:18080/_internkim/mattermost/actions', context: { action: 'ask_confirm', token: 'diagnostic' } } },
 		{ id: 'x', name: '취소', type: 'button', style: 'danger', integration: { url: 'http://127.0.0.1:18080/_internkim/mattermost/actions', context: { action: 'ask.cancel', token: 'diagnostic' } } },
 	] }];
 	const buttonResult = await postEphemeral(request, botToken, userID, botUserID, channelID, 'MANUAL_BUTTON_EPHEMERAL', buttonsAttachment);

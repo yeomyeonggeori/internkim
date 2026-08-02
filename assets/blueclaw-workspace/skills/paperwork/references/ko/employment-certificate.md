@@ -9,7 +9,7 @@ filename: 재직증명서_<성명>_<YYYYMMDD>.pdf
 
 ## Required fields
 
-- documentNumber: company.document.register가 반환한 번호를 "제 <YYYY>-<NNN>호" 형식으로 표기한다 (예: 제 2026-013호)
+- documentNumber: company_document_register가 반환한 번호를 "제 <YYYY>-<NNN>호" 형식으로 표기한다 (예: 제 2026-013호)
 - meta 인적사항(4): 성명, 생년월일, 주소, 소속(부서)
 - meta 재직사항(4): 직위(직급), 담당업무, 재직기간, 제출용도
 - 재직기간은 "<입사일> ~ 현재 재직 중" 형식으로 표기 (아직 재직 중이므로 종료일이 없음)

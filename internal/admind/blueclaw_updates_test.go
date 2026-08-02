@@ -443,8 +443,8 @@ func TestRefreshBlueclawCapabilityContractReplacesStaleOperationNames(t *testing
 	if strings.Contains(refreshed, "flow.task.add") {
 		t.Fatalf("expected legacy flow.task.add to be gone, got:\n%s", refreshed)
 	}
-	if !strings.Contains(refreshed, `"task.add"`) {
-		t.Fatalf("expected neutral task.add descriptor, got:\n%s", refreshed)
+	if !strings.Contains(refreshed, `"task_add"`) {
+		t.Fatalf("expected neutral task_add descriptor, got:\n%s", refreshed)
 	}
 	currentContract := blueclawruntime.CurrentCapabilityContract()
 	if !strings.Contains(refreshed, `"protocolVersion": "`+currentContract.ProtocolVersion+`"`) ||

@@ -38,8 +38,8 @@ func TestLoadAgentBrowserSkillMarkdownUsesVendoredFallback(t *testing.T) {
 	}
 	for _, fragment := range []string{
 		"agent-browser",
-		"browser.open",
-		"browser.snapshot",
+		"browser_open",
+		"browser_snapshot",
 		"interactive fallback",
 		"user input such as login/MFA/captcha",
 	} {
@@ -62,9 +62,9 @@ func TestLoadWorkspaceAgentsMarkdownUsesBoardAsset(t *testing.T) {
 
 	for _, fragment := range []string{
 		"## Retrieval And Browser",
-		"`browser.snapshot`",
+		"`browser_snapshot`",
 		"interactive fallback",
-		"Use `web.fetch` for ordinary public URL lookup",
+		"Use `web_fetch` for ordinary public URL lookup",
 		"## File Delivery",
 		"## Memory",
 		"## Approval Handling",

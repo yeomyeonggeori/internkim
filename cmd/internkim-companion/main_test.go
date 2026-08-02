@@ -337,7 +337,7 @@ func TestDefaultCapabilitiesAdvertiseLLMOnlyInDevelopmentMockMode(t *testing.T) 
 	if !hasCapability(withMockLLM, "llm.structured") {
 		t.Fatal("expected LLM capability in development mock mode")
 	}
-	if !hasCapability(withoutMockLLM, "browser.open") {
+	if !hasCapability(withoutMockLLM, "browser_open") {
 		t.Fatal("expected browser capability to be advertised")
 	}
 }
@@ -488,7 +488,7 @@ func TestRunOnceCompletesShellBridgeConfirmJob(t *testing.T) {
 		case "/_internkim/companion/heartbeat":
 			return textResponse(http.StatusOK, `{}`), nil
 		case "/_internkim/companion/jobs/next":
-			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","request":{"toolName":"user.confirm","input":{"message":"continue?"}}}`), nil
+			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","request":{"toolName":"user_confirm","input":{"message":"continue?"}}}`), nil
 		case "/_internkim/companion/jobs/job-1/complete":
 			seenComplete = true
 			return textResponse(http.StatusOK, `{}`), nil
@@ -534,7 +534,7 @@ func TestRunOnceDeniesBrowserJobWithReason(t *testing.T) {
 		case "/_internkim/companion/heartbeat":
 			return textResponse(http.StatusOK, `{}`), nil
 		case "/_internkim/companion/jobs/next":
-			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser.navigate","resourceScope":{"kind":"web_origin","value":"https://github.com"},"request":{"toolName":"browser.navigate","input":{"url":"https://github.com"}}}`), nil
+			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser_navigate","resourceScope":{"kind":"web_origin","value":"https://github.com"},"request":{"toolName":"browser_navigate","input":{"url":"https://github.com"}}}`), nil
 		case "/_internkim/companion/jobs/job-1/deny":
 			seenDeny = true
 			return textResponse(http.StatusOK, `{}`), nil
@@ -583,7 +583,7 @@ func TestRunOnceCancelsApprovalAtJobExpiry(t *testing.T) {
 		case "/_internkim/companion/heartbeat":
 			return textResponse(http.StatusOK, `{}`), nil
 		case "/_internkim/companion/jobs/next":
-			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser.open","resourceScope":{"kind":"web_origin","value":"https://github.com"},"expiresAt":"`+expiresAt+`","request":{"toolName":"browser.open","input":{"url":"https://github.com"},"resourceScope":{"kind":"web_origin","value":"https://github.com"}}}`), nil
+			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser_open","resourceScope":{"kind":"web_origin","value":"https://github.com"},"expiresAt":"`+expiresAt+`","request":{"toolName":"browser_open","input":{"url":"https://github.com"},"resourceScope":{"kind":"web_origin","value":"https://github.com"}}}`), nil
 		case "/_internkim/companion/jobs/job-1/fail":
 			seenFail = true
 			return textResponse(http.StatusOK, `{}`), nil
@@ -654,12 +654,12 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	grantStore := companionruntime.NewMemoryGrantStore()
 	approvalHandler := companionruntime.ApprovalHandler(companionApprovalHandler{allowed: true})
 	request := capabilities.ToolInvokeRequest{
-		ToolName:      "browser.navigate",
+		ToolName:      "browser_navigate",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
 	}
 	if errorValue := grantStore.Authorize(context.Background(), companionruntime.JobEnvelope{
 		JobID:         "job-1",
-		ToolName:      "browser.navigate",
+		ToolName:      "browser_navigate",
 		ResourceScope: request.ResourceScope,
 	}, request, approvalHandler); errorValue != nil {
 		t.Fatal(errorValue)
@@ -978,7 +978,7 @@ func TestCompanionStatusFiltersBrowserCapabilitiesWhenRuntimeUnavailable(t *test
 		Error:  "companion browser runtime unavailable",
 	}, companionAuthStatusVerified)
 
-	if hasCapability(document.Capabilities, "browser.navigate") {
+	if hasCapability(document.Capabilities, "browser_navigate") {
 		t.Fatal("expected browser capabilities to be hidden when runtime is unavailable")
 	}
 	if document.ExtensionAutomationStatus != "unavailable" {
