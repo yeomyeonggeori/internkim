@@ -81,6 +81,52 @@ end $$;
 
 do $$
 declare
+  weekday_schedule jsonb := '[
+    [{"from":"09:00","to":"18:00"}],
+    [{"from":"09:00","to":"18:00"}],
+    [{"from":"09:00","to":"18:00"}],
+    [{"from":"09:00","to":"18:00"}],
+    [{"from":"09:00","to":"15:00"}],
+    null,
+    null]';
+  employee uuid := '000000aa-0000-0000-0000-000000000001';
+  colleague uuid := '000000aa-0000-0000-0000-000000000002';
+  malformed_schedule_blocked boolean := false;
+begin
+  assert public.member_working_hours(employee) is null
+     and public.member_minimum_daily_minutes(employee) is null,
+    'with nothing set anywhere, working time is unconstrained';
+
+  update public.company
+    set working_hours = weekday_schedule, minimum_daily_minutes = 240
+    where id = '00000000-0000-0000-0000-0000000000a0';
+
+  assert public.member_working_hours(employee) = weekday_schedule,
+    'a member without their own hours follows the company';
+  assert public.member_minimum_daily_minutes(employee) = 240,
+    'a member without their own minimum follows the company';
+
+  update public.member
+    set working_hours = '[null,null,null,null,null,null,null]', minimum_daily_minutes = 120
+    where id = colleague;
+
+  assert public.member_working_hours(colleague) = '[null,null,null,null,null,null,null]',
+    'a member on their own schedule overrides the company one';
+  assert public.member_minimum_daily_minutes(colleague) = 120,
+    'a member minimum overrides the company one';
+
+  begin
+    update public.member set working_hours = '[null,null,null]' where id = colleague;
+  exception when check_violation then
+    malformed_schedule_blocked := true;
+  end;
+  assert malformed_schedule_blocked, 'a weekly schedule always covers seven days';
+
+  raise notice 'working hours: member overrides company, and nothing set means flexible';
+end $$;
+
+do $$
+declare
   visible_tasks integer;
   visible_events integer;
   rows_changed integer;
