@@ -142,9 +142,9 @@ var ErrFilePickCanceled = errors.New("file pick canceled")
 type executorToolHandler func(Executor, context.Context, JobEnvelope, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)
 
 var executorToolHandlers = map[string]executorToolHandler{
-	"llm.text":                           executorRequestHandler(Executor.executeTextLLM),
-	"llm.structured":                     executorRequestHandler(Executor.executeStructuredLLM),
-	"embedding.create":                   executorRequestHandler(Executor.executeEmbedding),
+	"llm_text":                           executorRequestHandler(Executor.executeTextLLM),
+	"llm_structured":                     executorRequestHandler(Executor.executeStructuredLLM),
+	"embedding_create":                   executorRequestHandler(Executor.executeEmbedding),
 	capabilities.AttentionTriageToolName: executorRequestHandler(Executor.executeAttentionTriage),
 	"browser_open":                       executorRequestHandler(Executor.executeBrowserNavigate),
 	"browser_snapshot":                   executorRequestHandler(Executor.executeBrowserObserve),
@@ -156,24 +156,24 @@ var executorToolHandlers = map[string]executorToolHandler{
 	"browser_press":                      executorRequestHandler(Executor.executeBrowserPress),
 	"browser_wait":                       executorRequestHandler(Executor.executeBrowserWait),
 	"user_confirm":                       executorRequestHandler(Executor.executeUserConfirm),
-	"user.input":                         executorRequestHandler(Executor.executeUserInput),
+	"user_input":                         executorRequestHandler(Executor.executeUserInput),
 	"file_pick":                          Executor.executeFilePick,
-	"filesystem.mount.create":            executorRequestHandler(Executor.executeMountCreate),
-	"filesystem.mount.list":              executorSimpleHandler(Executor.executeMountList),
-	"filesystem.mount.pause":             executorSimpleHandler(Executor.executeMountPause),
-	"filesystem.mount.resume":            executorSimpleHandler(Executor.executeMountResume),
-	"filesystem.mount.revoke":            executorSimpleHandler(Executor.executeMountRevoke),
-	"filesystem.mount.status":            executorSimpleHandler(Executor.executeMountStatus),
-	"filesystem.mount.stat":              executorSimpleHandler(Executor.executeMountStat),
-	"filesystem.mount.list_directory":    executorSimpleHandler(Executor.executeMountListDirectory),
-	"filesystem.mount.read":              executorSimpleHandler(Executor.executeMountRead),
-	"filesystem.mount.write":             executorSimpleHandler(Executor.executeMountWrite),
-	"filesystem.mount.mkdir":             executorSimpleHandler(Executor.executeMountMakeDirectory),
-	"filesystem.mount.rename":            executorSimpleHandler(Executor.executeMountRename),
-	"filesystem.mount.delete":            executorSimpleHandler(Executor.executeMountDelete),
-	"filesystem.mount.truncate":          executorSimpleHandler(Executor.executeMountTruncate),
-	"filesystem.mount.chmod":             executorSimpleHandler(Executor.executeMountChangeMode),
-	"filesystem.mount.watch":             executorSimpleHandler(Executor.executeMountWatch),
+	"filesystem_mount_create":            executorRequestHandler(Executor.executeMountCreate),
+	"filesystem_mount_list":              executorSimpleHandler(Executor.executeMountList),
+	"filesystem_mount_pause":             executorSimpleHandler(Executor.executeMountPause),
+	"filesystem_mount_resume":            executorSimpleHandler(Executor.executeMountResume),
+	"filesystem_mount_revoke":            executorSimpleHandler(Executor.executeMountRevoke),
+	"filesystem_mount_status":            executorSimpleHandler(Executor.executeMountStatus),
+	"filesystem_mount_stat":              executorSimpleHandler(Executor.executeMountStat),
+	"filesystem_mount_list_directory":    executorSimpleHandler(Executor.executeMountListDirectory),
+	"filesystem_mount_read":              executorSimpleHandler(Executor.executeMountRead),
+	"filesystem_mount_write":             executorSimpleHandler(Executor.executeMountWrite),
+	"filesystem_mount_mkdir":             executorSimpleHandler(Executor.executeMountMakeDirectory),
+	"filesystem_mount_rename":            executorSimpleHandler(Executor.executeMountRename),
+	"filesystem_mount_delete":            executorSimpleHandler(Executor.executeMountDelete),
+	"filesystem_mount_truncate":          executorSimpleHandler(Executor.executeMountTruncate),
+	"filesystem_mount_chmod":             executorSimpleHandler(Executor.executeMountChangeMode),
+	"filesystem_mount_watch":             executorSimpleHandler(Executor.executeMountWatch),
 }
 
 func executorRequestHandler(handler func(Executor, context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)) executorToolHandler {
@@ -1036,7 +1036,7 @@ func (executor Executor) mountInput(request capabilities.ToolInvokeRequest) (*Mo
 	if strings.TrimSpace(input.MountID) == "" && request.ResourceScope.Kind == MountResourceScopeKind {
 		input.MountID = request.ResourceScope.Value
 	}
-	if strings.TrimSpace(input.MountID) == "" && request.ToolName != "filesystem.mount.status" {
+	if strings.TrimSpace(input.MountID) == "" && request.ToolName != "filesystem_mount_status" {
 		return nil, mountToolInput{}, errors.New("mountID is required")
 	}
 	return mountStore, input, nil

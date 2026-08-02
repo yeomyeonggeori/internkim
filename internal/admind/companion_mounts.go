@@ -58,12 +58,12 @@ func (service *Service) updateCompanionMountsFromJob(companionID string, jobID s
 		return nil
 	}
 	switch response.ToolName {
-	case "filesystem.mount.create", "filesystem.mount.pause", "filesystem.mount.resume", "filesystem.mount.revoke", "filesystem.mount.status":
+	case "filesystem_mount_create", "filesystem_mount_pause", "filesystem_mount_resume", "filesystem_mount_revoke", "filesystem_mount_status":
 		var mount CompanionMountSnapshot
 		if errorValue := json.Unmarshal(response.Result, &mount); errorValue == nil && mount.MountID != "" {
 			return service.updateCompanionMounts(companionID, []CompanionMountSnapshot{mount})
 		}
-	case "filesystem.mount.list":
+	case "filesystem_mount_list":
 		var document struct {
 			Mounts []CompanionMountSnapshot `json:"mounts"`
 		}
@@ -111,7 +111,7 @@ func (service *Service) validateCompanionMountRequest(request capabilities.ToolI
 		return nil
 	}
 	switch request.ToolName {
-	case "filesystem.mount.create", "filesystem.mount.list", "filesystem.mount.status":
+	case "filesystem_mount_create", "filesystem_mount_list", "filesystem_mount_status":
 		return nil
 	}
 	mountID := companionMountResourceScope(request).Value
@@ -124,7 +124,7 @@ func (service *Service) validateCompanionMountRequest(request capabilities.ToolI
 	if mount == nil || mount.Status == companionruntime.MountStatusRevoked {
 		return errors.New("companion mount is unavailable")
 	}
-	if mount.Status != companionruntime.MountStatusOnline && request.ToolName != "filesystem.mount.resume" && request.ToolName != "filesystem.mount.revoke" {
+	if mount.Status != companionruntime.MountStatusOnline && request.ToolName != "filesystem_mount_resume" && request.ToolName != "filesystem_mount_revoke" {
 		return errors.New("companion mount is not online")
 	}
 	return nil
@@ -136,7 +136,7 @@ func (service *Service) companionCanClaimMountJobLocked(companion *CompanionReco
 	}
 	mount := service.companionMounts[job.ResourceScope.Value]
 	if mount == nil {
-		return job.ToolName == "filesystem.mount.create" || job.ToolName == "filesystem.mount.list" || job.ToolName == "filesystem.mount.status"
+		return job.ToolName == "filesystem_mount_create" || job.ToolName == "filesystem_mount_list" || job.ToolName == "filesystem_mount_status"
 	}
 	return mount.CompanionID == companion.CompanionID && mount.Status != companionruntime.MountStatusRevoked
 }

@@ -2024,7 +2024,6 @@ func TestFlowAPIRejectsDeletingOtherUserTask(t *testing.T) {
 	}
 }
 
-
 func TestFlowAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	cookieValue := webSessionCookieForTest(t, service, "staff@example.com")
@@ -2254,8 +2253,6 @@ func TestWebSessionDoesNotAuthorizeAdminAPI(t *testing.T) {
 	}
 }
 
-
-
 func TestWebLogoutSuppressesImplicitCloudflareSession(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	logoutRequest := httptest.NewRequest(http.MethodPost, "/auth/logout?return=/tasks/", nil)
@@ -2358,11 +2355,6 @@ func TestTasksPageRedirectsBarePath(t *testing.T) {
 	}
 }
 
-
-
-
-
-
 func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/auth/verify/callback?return=/calendar/", nil)
@@ -2405,9 +2397,6 @@ func TestCloudflareAuthCallbackRejectsNonStaff(t *testing.T) {
 		t.Fatalf("cookies = %#v", response.Result().Cookies())
 	}
 }
-
-
-
 
 func responseCookieByNameForTest(t *testing.T, cookies []*http.Cookie, name string) *http.Cookie {
 	t.Helper()
@@ -3780,7 +3769,7 @@ func TestLocalCompanionPairingCodeStoresMattermostOwner(t *testing.T) {
 		"code":"`+pairingCode.Code+`",
 		"displayName":"Alice Mac",
 		"publicKey":"test-key",
-		"capabilities":[{"name":"llm.text"}]
+		"capabilities":[{"name":"llm_text"}]
 	}`))
 	pairResponse := httptest.NewRecorder()
 	handler.ServeHTTP(pairResponse, pairRequest)
@@ -4339,11 +4328,11 @@ func TestCompanionLLMJobWithRequesterOnlyClaimsRequesterOwner(t *testing.T) {
 	job := &CompanionJob{
 		JobID:          "job-1",
 		Status:         "pending",
-		ToolName:       "llm.text",
+		ToolName:       "llm_text",
 		PrivacyClass:   "model_input",
 		RequesterEmail: "alice@example.com",
 		Request: capabilities.ToolInvokeRequest{
-			ToolName: "llm.text",
+			ToolName: "llm_text",
 			Context: capabilities.ToolInvokeContext{
 				RequesterEmail: "alice@example.com",
 			},

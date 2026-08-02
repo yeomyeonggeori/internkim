@@ -40,7 +40,7 @@ func TestCompanionMountJobClaimRequiresOwningCompanion(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	job := &CompanionJob{
-		ToolName:      "filesystem.mount.read",
+		ToolName:      "filesystem_mount_read",
 		ResourceScope: capabilities.ResourceScope{Kind: companionruntime.MountResourceScopeKind, Value: "mount-1"},
 	}
 
@@ -63,7 +63,7 @@ func TestCompanionMountResourceScopeComesFromInput(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	scope := companionMountResourceScope(capabilities.ToolInvokeRequest{
-		ToolName: "filesystem.mount.read",
+		ToolName: "filesystem_mount_read",
 		Input:    input,
 	})
 	if scope.Kind != companionruntime.MountResourceScopeKind || scope.Value != "mount-1" {

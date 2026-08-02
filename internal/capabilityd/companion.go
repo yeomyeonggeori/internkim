@@ -100,12 +100,12 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "company_record_delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
 	{ToolName: "company_record_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
 	{ToolName: "company_record_update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "google.docs.create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google.sheets.create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google.gmail.send", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google.calendar.event", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google.calendar.list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google.drive.import_pptx", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_docs_create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_sheets_create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_gmail_send", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_calendar_event", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_calendar_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_drive_import_pptx", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
 }
 
 var capabilityToolDescriptorsByCanonicalName = buildCapabilityToolDescriptorsByCanonicalName()
@@ -642,7 +642,7 @@ func (provider companionProvider) CompleteStructured(ctx context.Context, reques
 		return LLMResponse{}, errorValue
 	}
 	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
-		ToolName:      "llm.structured",
+		ToolName:      "llm_structured",
 		Input:         document,
 		Context:       toolInvokeContextFromLLMRequest(request.Context),
 		ExecutionMode: capabilities.ExecutionModeCompanion,
@@ -676,7 +676,7 @@ func (provider companionProvider) CompleteText(ctx context.Context, request Text
 		return LLMResponse{}, errorValue
 	}
 	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
-		ToolName:      "llm.text",
+		ToolName:      "llm_text",
 		Input:         document,
 		Context:       toolInvokeContextFromLLMRequest(request.Context),
 		ExecutionMode: capabilities.ExecutionModeCompanion,
@@ -753,7 +753,7 @@ func (provider companionProvider) CreateEmbedding(ctx context.Context, request E
 		return EmbeddingResponse{}, errorValue
 	}
 	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
-		ToolName:      "embedding.create",
+		ToolName:      "embedding_create",
 		Input:         document,
 		ExecutionMode: capabilities.ExecutionModeCompanion,
 		PrivacyClass:  "model_input",

@@ -20,7 +20,7 @@ func TestExecutorMountCreateListAndWrite(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	createResponse, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "filesystem.mount.create",
+		ToolName: "filesystem_mount_create",
 		Input:    createInput,
 	})
 	if errorValue != nil {
@@ -36,7 +36,7 @@ func TestExecutorMountCreateListAndWrite(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	if _, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "filesystem.mount.write",
+		ToolName: "filesystem_mount_write",
 		Input:    writeInput,
 	}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -45,7 +45,7 @@ func TestExecutorMountCreateListAndWrite(t *testing.T) {
 		t.Fatalf("expected mounted file write, got %q %v", string(document), errorValue)
 	}
 
-	listResponse, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{ToolName: "filesystem.mount.list"})
+	listResponse, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{ToolName: "filesystem_mount_list"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

@@ -512,7 +512,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Store only companion signing key references in local state JSON; use OS secure
   storage for keys, with explicit development fallback only.
 - Approval grants are task-scoped runtime-memory permissions. Keep
-  `user_confirm` and `user.input` outside grant reuse.
+  `user_confirm` and `user_input` outside grant reuse.
 - Persist broker jobs under `/root/.internkim/state/companion-jobs.json`; restart
   recovery must not silently drop pending user-local work.
 - `file_pick` must hide user-local paths from InternKim and Blueclaw. Upload
