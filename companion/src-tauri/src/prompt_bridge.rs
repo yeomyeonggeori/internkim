@@ -61,12 +61,6 @@ struct FilePickInput {
     allowed_extensions: Option<Vec<String>>,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DirectoryPickInput {
-    title: Option<String>,
-}
-
 #[tauri::command]
 pub fn start_shell_bridge(
     app: AppHandle,
@@ -142,9 +136,6 @@ fn handle_prompt_stream(
     if request.path == "/v1/file/pick" {
         return handle_file_pick(app, stream, request.body);
     }
-    if request.path == "/v1/directory/pick" {
-        return handle_directory_pick(app, stream, request.body);
-    }
     let kind = match request.path.as_str() {
         "/v1/user/confirm" => "confirm",
         "/v1/user/input" => "input",
@@ -216,18 +207,6 @@ fn handle_boolean_prompt(
     write_http_json(&mut stream, 200, json!({response_key:is_approved}))
 }
 
-#[tauri::command]
-pub fn pick_mount_directory(app: AppHandle) -> Result<Option<String>, String> {
-    let _ = show_prompt_window(&app);
-    match app.dialog().file().blocking_pick_folder() {
-        Some(file_path) => match file_path.into_path() {
-            Ok(path) => Ok(Some(path.to_string_lossy().to_string())),
-            Err(_) => Err("selected directory path is unavailable".to_string()),
-        },
-        None => Ok(None),
-    }
-}
-
 fn handle_file_pick(app: AppHandle, mut stream: TcpStream, body: Vec<u8>) -> Result<(), String> {
     let input: FilePickInput = serde_json::from_slice(&body).map_err(|error| error.to_string())?;
     let _ = show_prompt_window(&app);
@@ -251,36 +230,6 @@ fn handle_file_pick(app: AppHandle, mut stream: TcpStream, body: Vec<u8>) -> Res
                 &mut stream,
                 500,
                 json!({"error":"selected file path is unavailable"}),
-            )?,
-        },
-        None => write_http_json(&mut stream, 200, json!({"cancelled":true}))?,
-    }
-    Ok(())
-}
-
-fn handle_directory_pick(
-    app: AppHandle,
-    mut stream: TcpStream,
-    body: Vec<u8>,
-) -> Result<(), String> {
-    let input: DirectoryPickInput =
-        serde_json::from_slice(&body).map_err(|error| error.to_string())?;
-    let _ = show_prompt_window(&app);
-    let mut file_dialog = app.dialog().file();
-    if let Some(title) = input.title.filter(|value| !value.trim().is_empty()) {
-        file_dialog = file_dialog.set_title(title);
-    }
-    match file_dialog.blocking_pick_folder() {
-        Some(file_path) => match file_path.into_path() {
-            Ok(path) => write_http_json(
-                &mut stream,
-                200,
-                json!({"path": path.to_string_lossy().to_string()}),
-            )?,
-            Err(_) => write_http_json(
-                &mut stream,
-                500,
-                json!({"error":"selected directory path is unavailable"}),
             )?,
         },
         None => write_http_json(&mut stream, 200, json!({"cancelled":true}))?,
