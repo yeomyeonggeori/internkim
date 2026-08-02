@@ -116,8 +116,8 @@ func TestGoogleWorkspaceToolsAreNotDefaultDeviceCapabilities(t *testing.T) {
 }
 
 func TestRegisteredToolDescriptorsIncludeOptionalCapabilities(t *testing.T) {
-	descriptor := descriptorForTool(t, RegisteredToolDescriptors(), "google.gmail.send")
-	if descriptor.CanonicalName != "google.gmail.send" || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || descriptor.ModelVisible {
+	descriptor := descriptorForTool(t, RegisteredToolDescriptors(), "google_gmail_send")
+	if descriptor.CanonicalName != "google_gmail_send" || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || descriptor.ModelVisible {
 		t.Fatalf("unexpected registered descriptor: %+v", descriptor)
 	}
 }
@@ -501,22 +501,22 @@ func TestWebsiteBrowserDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
 func TestUncontractedToolsStayRegisteredButHiddenFromModels(t *testing.T) {
 	hiddenDefaultToolNames := []string{
 		"file_pick",
-		"filesystem.mount.create",
-		"filesystem.mount.list",
-		"filesystem.mount.pause",
-		"filesystem.mount.resume",
-		"filesystem.mount.revoke",
-		"filesystem.mount.status",
-		"filesystem.mount.stat",
-		"filesystem.mount.list_directory",
-		"filesystem.mount.read",
-		"filesystem.mount.write",
-		"filesystem.mount.mkdir",
-		"filesystem.mount.rename",
-		"filesystem.mount.delete",
-		"filesystem.mount.truncate",
-		"filesystem.mount.chmod",
-		"filesystem.mount.watch",
+		"filesystem_mount_create",
+		"filesystem_mount_list",
+		"filesystem_mount_pause",
+		"filesystem_mount_resume",
+		"filesystem_mount_revoke",
+		"filesystem_mount_status",
+		"filesystem_mount_stat",
+		"filesystem_mount_list_directory",
+		"filesystem_mount_read",
+		"filesystem_mount_write",
+		"filesystem_mount_mkdir",
+		"filesystem_mount_rename",
+		"filesystem_mount_delete",
+		"filesystem_mount_truncate",
+		"filesystem_mount_chmod",
+		"filesystem_mount_watch",
 		"browser_handoff",
 		"browser_fill",
 		"browser_select",
@@ -654,8 +654,8 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site_serve", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site_list", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site_unserve", true)
-	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.calendar.event", false)
-	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.gmail.send", true)
+	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google_calendar_event", false)
+	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google_gmail_send", true)
 }
 
 func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
@@ -663,8 +663,8 @@ func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
 	assertDescriptorCompletionEvidence(t, MailDescriptors(), "mail_message_send", "success", "send_email", "email")
 	assertDescriptorCompletionEvidence(t, CalendarDescriptors(), "calendar_add", "success", "write_calendar", "calendar")
 	assertDescriptorCompletionEvidence(t, SiteAppDescriptors(), "site_serve", "success", "serve_site", "site")
-	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google.gmail.send", "success", "send_email", "email")
-	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google.calendar.event", "success", "write_calendar", "calendar")
+	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google_gmail_send", "success", "send_email", "email")
+	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google_calendar_event", "success", "write_calendar", "calendar")
 }
 
 func TestMailDescriptorsMatchSkillInputs(t *testing.T) {
@@ -773,11 +773,11 @@ func TestSiteServeEffectsProjectByMode(t *testing.T) {
 
 func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {
 	descriptors := GoogleWorkspaceDescriptors()
-	docsSchema := descriptorSchema(t, descriptors, "google.docs.create")
-	sheetsSchema := descriptorSchema(t, descriptors, "google.sheets.create")
-	gmailSchema := descriptorSchema(t, descriptors, "google.gmail.send")
-	eventSchema := descriptorSchema(t, descriptors, "google.calendar.event")
-	listSchema := descriptorSchema(t, descriptors, "google.calendar.list")
+	docsSchema := descriptorSchema(t, descriptors, "google_docs_create")
+	sheetsSchema := descriptorSchema(t, descriptors, "google_sheets_create")
+	gmailSchema := descriptorSchema(t, descriptors, "google_gmail_send")
+	eventSchema := descriptorSchema(t, descriptors, "google_calendar_event")
+	listSchema := descriptorSchema(t, descriptors, "google_calendar_list")
 
 	assertSchemaHasProperties(t, docsSchema, "title", "body")
 	assertSchemaOmitsProperties(t, docsSchema, "content")
@@ -838,7 +838,7 @@ func TestDefaultDescriptorsSatisfyCanonicalProviderContract(t *testing.T) {
 }
 
 func TestSendDescriptorsOwnIdempotencyMetadata(t *testing.T) {
-	for _, toolName := range []string{"message_send", "mail_message_send", "google.gmail.send"} {
+	for _, toolName := range []string{"message_send", "mail_message_send", "google_gmail_send"} {
 		descriptor := descriptorForTool(t, append(DefaultToolDescriptors(), GoogleWorkspaceDescriptors()...), toolName)
 		if !descriptor.Idempotency.Supported || descriptor.Idempotency.Scope != "operation" {
 			t.Fatalf("%s must explicitly support operation idempotency: %+v", toolName, descriptor)

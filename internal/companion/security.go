@@ -316,7 +316,7 @@ func capabilityScopeForTool(toolName string) string {
 		return "file"
 	case strings.HasPrefix(toolName, "desktop."):
 		return "desktop"
-	case toolName == "user_confirm" || toolName == "user.input":
+	case toolName == "user_confirm" || toolName == "user_input":
 		return "user_input"
 	default:
 		return ""

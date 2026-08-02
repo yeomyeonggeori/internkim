@@ -107,66 +107,66 @@ type Service struct {
 	HTTPClient    *http.Client
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
-	mutex                      sync.Mutex
-	jobs                       map[string]*Job
-	uploads                    map[string]*RestoreUpload
-	blueclawUpdateUploads      map[string]*BlueclawUpdateUpload
-	releaseUpdateUploads       map[string]*ReleaseUpdateUpload
-	pairingCodes               map[string]*CompanionPairingCode
-	companions                 map[string]*CompanionRecord
-	companionJobs              map[string]*CompanionJob
-	companionFileUploads       map[string]*CompanionFileUpload
-	companionMounts            map[string]*CompanionMountRecord
-	buzzInviteStore            *buzzInviteStore
-	buzzInviteStoreOnce        sync.Once
-	buzzKeySeedOnce            sync.Once
-	buzzKeySeedValue           string
-	botBuzzEmailOnce           sync.Once
-	botBuzzEmailValue          string
-	cloudflareAccessOnce       sync.Once
-	cloudflareAccessCheck      *cloudflareAccessVerifier
-	sites                      map[string]*SiteRecord
-	siteRuntimeMutex           sync.Mutex
-	siteRuntimeActivities      map[string]*siteRuntimeActivity
-	mailBackend                mailBackend
-	googleOAuthStates          sync.Map
-	calendarSyncWakeUp         chan struct{}
-	calendarDeleteIntentWakeUp chan struct{}
-	calendarSyncCycleMutex     sync.Mutex
-	calendarRemoteMutex        sync.Mutex
-	calendarOAuthTokenMutex    sync.Mutex
-	calendarNotificationMutex  sync.Mutex
-	calendarNotificationStates map[string]*calendarNotificationReconciliationState
-	calendarNotificationLive   chan calendarNotificationReconciliationJob
-	calendarNotificationRepair chan calendarNotificationReconciliationJob
-	calendarNotificationCtx    context.Context
-	calendarNotificationGroup  sync.WaitGroup
-	calendarSwitchWaiters      atomic.Int64
-	calendarStoreWriteMutex    sync.Mutex
-	calendarHolidayCacheMutex  sync.RWMutex
-	calendarHolidayLoadMutex   sync.Mutex
-	calendarHolidayCache       map[calendarHolidayCacheKey][]calendarHoliday
-	calendarHolidayRetryAt     time.Time
-	holidayCheckedMonth        string
-	calendarCandidateClock     calendarConflictCandidateClock
-	calendarPullCacheMutex     sync.Mutex
-	lastCalendarPullAt         time.Time
-	calendarActorCacheMutex    sync.Mutex
-	calendarActorCache         map[string]calendarActorProfileCacheEntry
-	companyShareMutex          sync.Mutex
-	companyShareAttempts       map[string]companyShareAttempt
+	mutex                              sync.Mutex
+	jobs                               map[string]*Job
+	uploads                            map[string]*RestoreUpload
+	blueclawUpdateUploads              map[string]*BlueclawUpdateUpload
+	releaseUpdateUploads               map[string]*ReleaseUpdateUpload
+	pairingCodes                       map[string]*CompanionPairingCode
+	companions                         map[string]*CompanionRecord
+	companionJobs                      map[string]*CompanionJob
+	companionFileUploads               map[string]*CompanionFileUpload
+	companionMounts                    map[string]*CompanionMountRecord
+	buzzInviteStore                    *buzzInviteStore
+	buzzInviteStoreOnce                sync.Once
+	buzzKeySeedOnce                    sync.Once
+	buzzKeySeedValue                   string
+	botBuzzEmailOnce                   sync.Once
+	botBuzzEmailValue                  string
+	cloudflareAccessOnce               sync.Once
+	cloudflareAccessCheck              *cloudflareAccessVerifier
+	sites                              map[string]*SiteRecord
+	siteRuntimeMutex                   sync.Mutex
+	siteRuntimeActivities              map[string]*siteRuntimeActivity
+	mailBackend                        mailBackend
+	googleOAuthStates                  sync.Map
+	calendarSyncWakeUp                 chan struct{}
+	calendarDeleteIntentWakeUp         chan struct{}
+	calendarSyncCycleMutex             sync.Mutex
+	calendarRemoteMutex                sync.Mutex
+	calendarOAuthTokenMutex            sync.Mutex
+	calendarNotificationMutex          sync.Mutex
+	calendarNotificationStates         map[string]*calendarNotificationReconciliationState
+	calendarNotificationLive           chan calendarNotificationReconciliationJob
+	calendarNotificationRepair         chan calendarNotificationReconciliationJob
+	calendarNotificationCtx            context.Context
+	calendarNotificationGroup          sync.WaitGroup
+	calendarSwitchWaiters              atomic.Int64
+	calendarStoreWriteMutex            sync.Mutex
+	calendarHolidayCacheMutex          sync.RWMutex
+	calendarHolidayLoadMutex           sync.Mutex
+	calendarHolidayCache               map[calendarHolidayCacheKey][]calendarHoliday
+	calendarHolidayRetryAt             time.Time
+	holidayCheckedMonth                string
+	calendarCandidateClock             calendarConflictCandidateClock
+	calendarPullCacheMutex             sync.Mutex
+	lastCalendarPullAt                 time.Time
+	calendarActorCacheMutex            sync.Mutex
+	calendarActorCache                 map[string]calendarActorProfileCacheEntry
+	companyShareMutex                  sync.Mutex
+	companyShareAttempts               map[string]companyShareAttempt
 	attendanceLeavePolicyMutationMutex sync.Mutex
-	policyRecordCacheMutex     sync.Mutex
-	policyRecordCache          []adminUserMutation
-	requestMetrics             *adminRequestMetrics
-	databaseSchemas            *adminDatabaseSchemas
-	legacyDatabaseMigration    sync.Once
-	calendarWindowCache        calendarEventWindowCacheAvailability
-	calendarWindowBuilds       calendarEventWindowCacheBuildCoordinator
-	mattermostSessions         *mattermostSessionCache
-	removeTokenQuarantineFile  func(string) error
-	promoteCalendarTokenFile   func(string, string) error
-	startedAt                  time.Time
+	policyRecordCacheMutex             sync.Mutex
+	policyRecordCache                  []adminUserMutation
+	requestMetrics                     *adminRequestMetrics
+	databaseSchemas                    *adminDatabaseSchemas
+	legacyDatabaseMigration            sync.Once
+	calendarWindowCache                calendarEventWindowCacheAvailability
+	calendarWindowBuilds               calendarEventWindowCacheBuildCoordinator
+	mattermostSessions                 *mattermostSessionCache
+	removeTokenQuarantineFile          func(string) error
+	promoteCalendarTokenFile           func(string, string) error
+	startedAt                          time.Time
 }
 
 type Job struct {

@@ -42,7 +42,7 @@ type providerAvailability struct {
 
 func (service Service) completeStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
 	request.Model = service.llmRequestModel(request.Model)
-	provider, errorValue := service.providerForExecutionMode(ctx, "llm.structured", request.ExecutionMode, request.Provider, request.Accelerator)
+	provider, errorValue := service.providerForExecutionMode(ctx, "llm_structured", request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
@@ -51,7 +51,7 @@ func (service Service) completeStructured(ctx context.Context, request Structure
 
 func (service Service) completeText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
 	request.Model = service.llmRequestModel(request.Model)
-	provider, errorValue := service.providerForExecutionMode(ctx, "llm.text", request.ExecutionMode, request.Provider, request.Accelerator)
+	provider, errorValue := service.providerForExecutionMode(ctx, "llm_text", request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}

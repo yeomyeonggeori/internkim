@@ -104,7 +104,7 @@ publish, or delivery.
 
 ## Companion Mounted Folders
 
-For folders mounted from the user's computer, use `filesystem.mount.list`, guest
+For folders mounted from the user's computer, use `filesystem_mount_list`, guest
 paths under `/workspace/mounts/<name>`, and `filesystem.mount.*` tools. Do not
 ask for or reveal local absolute paths. If a mount is unavailable, say so.
 
