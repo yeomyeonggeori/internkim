@@ -33,10 +33,6 @@ let runtimeChild: Child | undefined;
 let restartAttempts = 0;
 let shouldRestartRuntime = true;
 
-type ShellBridgeInfo = {
-	url: string;
-	token: string;
-};
 
 export async function readCompanionStatus(): Promise<CompanionStatus> {
 	const output = await Command.sidecar('binaries/internkim-companion', ['status', '--json', '--verify-auth']).execute();
@@ -95,15 +91,10 @@ function localLLMSidecarArguments(settings: CompanionSettings): string[] {
 }
 
 async function buildSidecarArguments(): Promise<string[]> {
-	const shellBridge = await invoke<ShellBridgeInfo>('start_shell_bridge');
 	const settings = await loadCompanionSettings();
 	const browserExtensionPath = await resolveResource('browser-extension');
 	return [
 		'run',
-		'--shell-bridge-url',
-		shellBridge.url,
-		'--shell-bridge-token',
-		shellBridge.token,
 		'--control-listen',
 		controlPlaneListenAddress,
 		'--browser-extension-path',
