@@ -1,4 +1,4 @@
-# InternKim SaaS: Central Relay + Bring-Your-Own-Compute Agent — Design
+# InternKim SaaS: Central Identity + Bring-Your-Own Compute, LLM and Messenger — Design
 
 Status: **Draft / for discussion** · Owner: TBD · Last updated: 2026-08-02
 
@@ -34,7 +34,7 @@ GPU LLM) behind a cloudflared tunnel. Problems:
 ### Goals
 - No hardware to supply. Setup is a **simple client install** (CLI or packaged
   app) on a customer's own Linux environment.
-- **Central management** of the shared substrate (messaging relay, identity,
+- **Central management** of the shared substrate (identity, membership,
   onboarding) so onboarding is push-button.
 - **Bring-your-own-compute + bring-your-own-LLM**: the agent runs on the
   customer's machine with the customer's model of choice (local, OpenRouter,
@@ -46,8 +46,9 @@ GPU LLM) behind a cloudflared tunnel. Problems:
 - Not shipping or managing customer hardware.
 - Not guaranteeing an always-available agent by default (see §7).
 - Not providing hosted LLM inference (that's BYO).
-- Not requiring privacy from the relay operator via E2E (see §4 — deferred; the
-  relay we operate is trusted; E2E is a later option).
+- Not operating a messenger. Chat lives on the customer's own Slack, Mattermost
+  or Buzz relay, so message privacy from us is a property of the design rather
+  than something E2E has to add (§4).
 
 ---
 
@@ -58,14 +59,16 @@ Two planes:
 ```
         ┌─────────────────────────────  CENTRAL PLANE (we run)  ──────────────────────────────┐
         │                                                                                       │
-        │   Supabase                    Web app (thin client)     Buzz relay (optional,         │
-        │   - Auth/OAuth = IDENTITY     - static SPA                one, multi-community)       │
-        │   - RLS: tenant membership    - free-tier host          - our own messenger option    │
-        │     + company/HR/org data     - talks to central plane  - real TLS, single host       │
-        │   - Realtime = host↔guest RPC   + the tenant's messenger                              │
+        │   Supabase                          Web app (thin client)                            │
+        │   - Auth/OAuth = IDENTITY           - static SPA, free-tier host                     │
+        │   - RLS: tenant membership          - talks to the central plane                     │
+        │     + company/HR/org data             and the tenant's messenger                     │
+        │   - Realtime = host↔guest RPC                                                         │
         │   - encrypted messenger credentials on the user row                                   │
         │                                                                                       │
-        │   Control-plane API (onboarding: create tenant, provision messenger, issue host cred) │
+        │   Control-plane API (onboarding: create tenant, attach messenger, issue host cred)    │
+        │                                                                                       │
+        │   NO messenger runs here. We store no customer conversation.                          │
         └───────────────────────────────────────────────────────────────────────────────────────┘
            ▲ outbound (central + messenger)  ▲ outbound (same)      ▲ https
            │                                 │                      │
@@ -75,19 +78,20 @@ Two planes:
    │  - blueclaw loop + harness     │  │  - local file/browser   │  └──────────────────┘
    │    (own, or Claude Code, …)    │  │  - local model, confirm │
    │  - chatd: messenger adapters   │  │  - OS secure storage    │
-   │    (Buzz | Slack | …)          │  │  intermittent; ENHANCES │
-   │  - capability boundary (POSIX) │  │  but NOT required       │
-   │  - BYO LLM                     │  └─────────────────────────┘
-   │  - localhost + REST; no tunnel │
-   └────────────────────────────────┘   host↔guest caps over Supabase Realtime
-
-   The messenger is a swappable surface. The central plane owns identity,
-   membership and capability RPC, so no single messenger is load-bearing.
+   │  - capability boundary (POSIX) │  │  intermittent; ENHANCES │
+   │  - BYO LLM, local Postgres     │  │  but NOT required       │
+   │  - localhost + REST; no tunnel │  └─────────────────────────┘
+   └───────┬────────────────────────┘   host↔guest caps over Supabase Realtime
+           │ outbound
+   ┌───────┴──────────────────────────────────────────────┐
+   │  THE TENANT'S MESSENGER — theirs, not ours            │
+   │  their Slack · their Mattermost · their Buzz relay    │
+   └───────────────────────────────────────────────────────┘
 ```
 
 - **Central (we operate, small + cheap):** Supabase (identity, data, Realtime),
-  the web app, a thin control-plane for onboarding/provisioning, and — for
-  tenants who want our messenger rather than their own — the Buzz relay.
+  the web app, and a thin control-plane for onboarding/provisioning. **No
+  messenger.**
 - **Host (customer, always-on):** blueclaw + harness on a **spare company
   computer**, outbound-only to the central plane + the tenant's messenger,
   **localhost + REST, no tunnel**. The company's single persistent agent. BYO LLM.
@@ -107,7 +111,7 @@ Our marginal cost per customer is near-zero.
 | Identity + tenant membership | Central (we) | Supabase Auth (OAuth) + RLS | The identity of record. Messenger credentials are encrypted rows on the user (§5). |
 | Host↔guest capability RPC | Central (we) | Supabase Realtime | Not the messenger — see §6. |
 | Control plane | Central (we) | InternKim (`feat/buzz-invites` grows into it) | Create tenant, provision the chosen messenger, issue the host credential. |
-| Buzz relay | Central (we), **optional** | block/buzz (Rust) | Our own messenger option for tenants who don't bring one. One shared, multi-community (host/community_id routing). Managed backends (Supabase Postgres, managed Redis, S3/Supabase Storage) shrink self-hosting to one small process. |
+| Messenger | **Customer** | their Slack / their Mattermost / their Buzz relay | Bring-your-own. We attach an adapter and store no conversation. |
 | Web app | Central (we) | SvelteKit (`web/`) | Thin client: static SPA on free-tier host (Vercel/CF Pages). Talks to the central plane + the tenant's messenger. |
 | Company/HR/org data | Central (we) | Supabase (Postgres + RLS) | Per-tenant RLS + tenant-scoped role (never service key in client). |
 | Media | Central or per-tenant | S3 / Supabase Storage | Replaces MinIO. Buzz uses Blossom; point at S3-compatible. |
@@ -157,6 +161,21 @@ platform must be a config entry, not a code change — either an official
 survives as a **first-class adapter a tenant may choose**, which is a change from
 the earlier "drop Mattermost" position — what is dropped is Mattermost as *our*
 device-era substrate, not as a messenger a customer already runs.
+
+**We operate no messenger. All three are bring-your-own.** The customer's Slack,
+the customer's Mattermost, or a Buzz relay the customer runs (it is Apache-2.0
+and reduces to one container with managed backends). We only attach an adapter.
+
+The reason is where message data lives. A relay *is* the message store — nostr
+events in its Postgres, media in its S3 — and there is no E2E, so whoever runs it
+reads the plaintext (§4). Running one for a tenant means holding their entire
+chat history on our infrastructure. With BYO, messages stay in the customer's
+messenger and in the host box's own Postgres, both of which are theirs. That is
+what keeps our marginal cost near zero and keeps the operator-trust ask small.
+
+The consequence, accepted deliberately: **v1 cannot serve a customer who has no
+messenger at all.** Onboarding one would mean either hosting a relay or building
+chat into the web app; both are out of scope until a real customer needs it.
 
 What goes away is the **Mattermost bridge and the MM↔Buzz mirror**, which are a
 different thing from the adapter: `mirror/mattermost-puppet.ts`, the star-topology mirror
@@ -226,11 +245,10 @@ isolation does not depend on it: separate tenants are separate workspaces or
 communities.
 
 **Operator trust:** Buzz group/channel messages are **not E2E**; whoever runs the
-relay can read plaintext. Since *we* run the relay, that's us — acceptable for
-v1 (we are the trusted operator). If message privacy from us ever becomes a
-requirement, options are (a) client-side per-community encryption, (b) let the
-customer self-host the relay, or (c) use a messenger they already trust.
-Deferred, not v1.
+relay can read plaintext — but that operator is the **customer**, because every
+supported messenger is one they run. We never hold their conversation. What we do
+hold is what the product needs: identity, membership and company data in
+Supabase, and whatever the agent records there on a member's behalf.
 
 ---
 
@@ -259,17 +277,17 @@ agent's** bot credential, which the installer must be able to hand over.
 - **Onboarding flow (control-plane):**
   1. Customer signs up on the web app (Supabase Auth / OAuth).
   2. Control-plane creates the tenant, then provisions the chosen messenger:
-     for Buzz, a community on our relay with an admin identity and invite-gated
-     join policy; for an existing messenger, an app/bot install.
+     a bot install into the messenger they already run (a Slack app via OAuth, a
+     Mattermost bot, a member on their Buzz relay).
   3. Customer installs the agent client on their Linux box; the client
      authenticates to the central plane as the tenant's host and is handed its
      **messenger credential** for that tenant.
   4. The agent connects outbound to the messenger and to the central plane, and
      starts participating. The web app shows the same tenant.
 
-When the messenger is our Buzz relay, it is exposed **once** at a single public
-host with real TLS — no per-device tunnels, no per-device NIP-98 URL-mismatch
-problems.
+Nothing here needs a public host of ours. The host reaches the messenger and the
+central plane outbound, which is what removes the per-device tunnel and the
+NIP-98 URL-mismatch problem altogether.
 
 ---
 
@@ -348,7 +366,7 @@ on" concern:
   only when that employee has the companion installed and running. The agent
   degrades gracefully when they aren't.
 - **Host box is the company's single always-on point** (a SPOF for the agent, not
-  for data — messages/data live on the relay + Supabase, so a host outage is
+  for data — messages live in the tenant's messenger and product data in Supabase, so a host outage is
   loss-free). It's a spare box, so acceptable; an optional hosted-host fallback
   (our cloud, or scale-to-zero microVM later) can be offered for customers
   without a reliable spare machine.
@@ -380,16 +398,14 @@ customer's:
 
 - **Web app:** static SPA on a free tier (Vercel/CF Pages) → ~$0 at small scale.
 - **Supabase:** free tier early; Pro (~$25/mo) shared as data grows.
-- **Relay:** one small always-on process. With managed backends (Supabase
-  Postgres, managed Redis, S3/Supabase Storage) it's a single container,
-  ~$5–20/mo total, shared across all customers.
+- **Messenger:** **$0** — the customer runs it. This is also why message volume
+  and media storage never appear on our bill, and why the question of depending
+  on Block's `buzz.xyz` does not arise.
 - **Compute (agent) + LLM:** customer's — not our cost.
 
 → A **free web tier is viable**; total fixed cost is a small flat number
-(single-digit-to-low-double-digit dollars/month) until scale pushes past free
-tiers. Do **not** depend on Block's `buzz.xyz` as our free relay — it is an
-early-stage landing with no confirmed public/commercial terms; run our own small
-relay instead.
+(single-digit dollars/month) until scale pushes past free tiers. Our costs scale
+with *accounts and product data*, not with how much anyone chats.
 
 ---
 
