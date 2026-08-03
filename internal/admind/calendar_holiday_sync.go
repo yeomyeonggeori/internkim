@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -35,7 +36,12 @@ func (service *Service) serveCalendarHolidays(responseWriter http.ResponseWriter
 	currentTime := time.Now().UTC()
 	_, refreshError := service.refreshCalendarHolidaysOnRequest(request.Context(), currentTime)
 	if refreshError != nil {
-		holidays, found, storedError := service.calendarHolidaysFromStoredRange(
+		var providerError *calendarHolidayProviderRefreshError
+		if !errors.As(refreshError, &providerError) {
+			http.Error(responseWriter, refreshError.Error(), http.StatusInternalServerError)
+			return
+		}
+		holidays, _, storedError := service.calendarHolidaysFromStoredRange(
 			request.Context(),
 			countryCode,
 			locale,
@@ -56,18 +62,25 @@ func (service *Service) serveCalendarHolidays(responseWriter http.ResponseWriter
 			return
 		}
 		holidays = append(holidays, companyHolidays...)
-		sortCalendarHolidays(holidays)
-		if !found {
-			if len(companyHolidays) == 0 {
-				http.Error(responseWriter, refreshError.Error(), http.StatusBadGateway)
-				return
-			}
+		if holidays == nil {
+			holidays = make([]calendarHoliday, 0)
 		}
+		sortCalendarHolidays(holidays)
 		slog.WarnContext(request.Context(), "calendar holiday request refresh failed",
 			"country_code", countryCode,
 			"error", refreshError,
 		)
-		service.writeJSON(responseWriter, calendarHolidaysResponse{Holidays: holidays, Source: calendarHolidaySourceAPI})
+		response := calendarHolidaysResponse{
+			Holidays:  holidays,
+			Source:    calendarHolidaySourceAPI,
+			Degraded:  true,
+			ErrorCode: calendarHolidayProviderUnavailableCode,
+		}
+		nextRetryAt := service.earliestCalendarHolidayRetry(providerError.Failures)
+		if !nextRetryAt.IsZero() {
+			response.NextRetryAt = nextRetryAt.Format(time.RFC3339)
+		}
+		service.writeJSON(responseWriter, response)
 		return
 	}
 	holidays, errorValue := service.calendarHolidaysForRange(
@@ -102,7 +115,6 @@ func (service *Service) refreshCalendarHolidayCache(ctx context.Context, current
 	if errorValue := service.refreshCalendarHolidayCacheLocked(ctx, currentTime); errorValue != nil {
 		return errorValue
 	}
-	service.calendarHolidayRetryAt = time.Time{}
 	service.holidayCheckedMonth = service.calendarHolidayMonthKey(currentTime)
 	return nil
 }
@@ -110,12 +122,18 @@ func (service *Service) refreshCalendarHolidayCache(ctx context.Context, current
 func (service *Service) refreshCalendarHolidayCacheLocked(ctx context.Context, currentTime time.Time) error {
 	startTime, endTime := service.calendarHolidayPreloadRange(currentTime)
 	workspaceLocation, _ := service.workspaceTimeLocation()
-	return service.refreshNagerCalendarHolidayYears(
+	startYear := startTime.In(workspaceLocation).Year()
+	endYear := endTime.In(workspaceLocation).AddDate(0, 0, -1).Year()
+	years := make([]int, 0, endYear-startYear+1)
+	for year := startYear; year <= endYear; year += 1 {
+		years = append(years, year)
+	}
+	return service.refreshNagerCalendarHolidaySelectedYears(
 		ctx,
 		service.workspaceCountryCode(),
-		startTime.In(workspaceLocation).Year(),
-		endTime.In(workspaceLocation).AddDate(0, 0, -1).Year(),
+		years,
 		currentTime,
+		true,
 	)
 }
 
