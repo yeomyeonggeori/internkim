@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import {
 	addMember,
 	controlPlane,
-	issueHostSecret,
+	issueAgentKey,
+	revokeAgent,
 	linkCredential,
 	provisionCompany,
 	sessionForPlatformIdentity,
@@ -19,7 +20,8 @@ const client = canReachSupabase ? controlPlane(credentials) : null;
 const stamp = Date.now();
 let ourCompanyID = '';
 let theirCompanyID = '';
-let ourHostSecret = '';
+let ourAgentKey = '';
+let ourAgentID = '';
 let speakerID = '';
 
 async function withAccount(memberID: string): Promise<void> {
@@ -39,7 +41,9 @@ beforeAll(async () => {
 		`agent-ours-${stamp}-admin@example.test`,
 	);
 	ourCompanyID = ours.companyID;
-	ourHostSecret = (await issueHostSecret(client, ourCompanyID)).secret;
+	const issued = await issueAgentKey(client, ourCompanyID, 'first');
+	ourAgentKey = issued.apiKey;
+	ourAgentID = issued.agentID;
 
 	speakerID = await addMember(client, ourCompanyID, `agent-speaker-${stamp}@example.test`);
 	await withAccount(speakerID);
@@ -74,8 +78,8 @@ if (!canReachSupabase) {
 }
 
 if (canReachSupabase) {
-	test('a host acts as the member who spoke on its own platform', async () => {
-		const session = await sessionForPlatformIdentity(credentials, ourHostSecret, 'buzz', `speaker-${stamp}`);
+	test('an agent acts as the member who spoke on its own platform', async () => {
+		const session = await sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`);
 		expect(session.memberID).toBe(speakerID);
 
 		const asMember = createClient(projectURL, publishableKey, {
@@ -88,32 +92,50 @@ if (canReachSupabase) {
 		expect(writeError).toBeNull();
 	});
 
-	test('a host cannot act for somebody at another company', async () => {
+	test('an agent cannot act for somebody at another company', async () => {
 		await expect(
-			sessionForPlatformIdentity(credentials, ourHostSecret, 'buzz', `outsider-${stamp}`),
+			sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `outsider-${stamp}`),
 		).rejects.toThrow('another company');
 	});
 
 	test('an identity nobody claims is refused', async () => {
 		await expect(
-			sessionForPlatformIdentity(credentials, ourHostSecret, 'buzz', 'nobody-at-all'),
+			sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', 'nobody-at-all'),
 		).rejects.toThrow('no member');
 	});
 
-	test('a made-up host secret is refused', async () => {
+	test('a made-up key is refused', async () => {
 		await expect(
-			sessionForPlatformIdentity(credentials, 'not-a-real-secret', 'buzz', `speaker-${stamp}`),
-		).rejects.toThrow('no company');
+			sessionForPlatformIdentity(credentials, 'not-a-real-key', 'buzz', `speaker-${stamp}`),
+		).rejects.toThrow('no agent');
 	});
 
-	test('the secret is not stored in a usable form', async () => {
-		const { data } = await client!
-			.from('company')
-			.select('host_secret_hash')
-			.eq('id', ourCompanyID)
-			.single();
+	test('the key is not stored in a usable form', async () => {
+		const { data } = await client!.from('agent').select('api_key_hash').eq('id', ourAgentID).single();
 
-		expect(data!.host_secret_hash).not.toBe(ourHostSecret);
-		expect(data!.host_secret_hash).toHaveLength(64);
+		expect(data!.api_key_hash).not.toBe(ourAgentKey);
+		expect(data!.api_key_hash).toHaveLength(64);
+	});
+
+	test('a second agent can run before the first is retired', async () => {
+		const spare = await issueAgentKey(client!, ourCompanyID, 'spare');
+
+		const bySpare = await sessionForPlatformIdentity(credentials, spare.apiKey, 'buzz', `speaker-${stamp}`);
+		const byFirst = await sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`);
+		expect(bySpare.memberID).toBe(speakerID);
+		expect(byFirst.memberID).toBe(speakerID);
+
+		await revokeAgent(client!, ourAgentID);
+		await expect(
+			sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`),
+		).rejects.toThrow('no agent');
+		const stillWorks = await sessionForPlatformIdentity(credentials, spare.apiKey, 'buzz', `speaker-${stamp}`);
+		expect(stillWorks.memberID).toBe(speakerID);
+	});
+
+	test('an agent that has connected is seen', async () => {
+		const { data } = await client!.from('agent').select('last_seen_at').eq('id', ourAgentID).single();
+
+		expect(data!.last_seen_at).not.toBeNull();
 	});
 }

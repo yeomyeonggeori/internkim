@@ -1,5 +1,5 @@
-// The host asks: "somebody with this platform identity spoke — let me act as them."
-// It proves it is that company's host, and gets back that member's session. The
+// An agent asks: "somebody with this platform identity spoke — let me act as them."
+// It proves which company it belongs to, and gets back that member's session. The
 // service key never leaves here.
 import { error, json } from '@sveltejs/kit';
 import { sessionForPlatformIdentity } from '$lib/server/control-plane';
@@ -14,10 +14,10 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (!projectURL || !serviceRoleKey) error(500, 'the control plane is not configured');
 
 	const authorization = request.headers.get('authorization') ?? '';
-	const hostSecret = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
-	if (!hostSecret) error(401, 'no host secret');
+	const apiKey = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
+	if (!apiKey) error(401, 'no agent key');
 
-	const body: SessionRequest = await request.json().catch(() => ({}));
+	const body = (await request.json().catch(() => ({}))) as SessionRequest;
 	const kind = typeof body.kind === 'string' ? body.kind.trim() : '';
 	const externalID = typeof body.externalID === 'string' ? body.externalID.trim() : '';
 	if (!kind || !externalID) error(400, 'kind and externalID are required');
@@ -25,14 +25,14 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	try {
 		const session = await sessionForPlatformIdentity(
 			{ projectURL, serviceRoleKey },
-			hostSecret,
+			apiKey,
 			kind,
 			externalID,
 		);
 		return json(session);
 	} catch (errorValue) {
-		// Which of "wrong secret", "unknown identity" and "another company's member"
-		// happened is not the caller's business; saying so would let a host enumerate.
-		error(403, errorValue instanceof Error ? 'refused' : 'refused');
+		// Which of "wrong key", "unknown identity" and "another company's member"
+		// happened is not the caller's business; saying so would let an agent enumerate.
+		error(403, 'refused');
 	}
 };
