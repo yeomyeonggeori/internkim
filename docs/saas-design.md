@@ -250,6 +250,18 @@ supported messenger is one they run. We never hold their conversation. What we d
 hold is what the product needs: identity, membership and company data in
 Supabase, and whatever the agent records there on a member's behalf.
 
+**Mail follows the same line.** The mail server is the record; we are a client, so
+message bodies are never stored centrally. The web app caches what it is showing
+in the browser, and the host fetches over IMAP when the agent needs something.
+Only the connection lives in Supabase, as a `credential` row pointing at a vault
+secret — the same shape a messenger identity uses. The device's own mail tables
+were already caches (`mail_message_cache`, `mail_mailbox_cache`,
+`mail_message_list_cache`), so nothing is lost by not migrating them.
+
+Two consequences, accepted: **there is no server-side mail search**, so a question
+spanning months is answered by fetching rather than by an index we keep; and the
+browser cache is per device, so the same person on a second machine starts cold.
+
 ---
 
 ## 5. Identity, membership & onboarding
