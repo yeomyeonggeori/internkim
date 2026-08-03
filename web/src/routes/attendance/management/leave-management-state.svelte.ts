@@ -61,7 +61,7 @@ export class LeaveManagementState {
 	async migrateLegacyAbsences(fingerprint: string): Promise<void> {
 		await this.mutate(async () => {
 			await applyLegacyAbsenceMigration(fingerprint);
-		});
+		}, false);
 	}
 
 	async addPastLeave(input: LeaveManagementPastLeave): Promise<void> {
@@ -94,7 +94,7 @@ export class LeaveManagementState {
 		this.errorMessage = '';
 	}
 
-	private async mutate(action: () => Promise<void>): Promise<void> {
+	private async mutate(action: () => Promise<void>, reportError = true): Promise<void> {
 		if (this.isMutating) return;
 		this.isMutating = true;
 		this.errorMessage = '';
@@ -103,11 +103,13 @@ export class LeaveManagementState {
 			await this.load(this.selectedEmployeeEmail);
 			await this.onMutationCompleted();
 		} catch (error) {
-			this.errorMessage = employeeLeaveErrorMessage(
-				error,
-				this.text,
-				this.text.processingFailed
-			);
+			if (reportError) {
+				this.errorMessage = employeeLeaveErrorMessage(
+					error,
+					this.text,
+					this.text.processingFailed
+				);
+			}
 			throw error;
 		} finally {
 			this.isMutating = false;
