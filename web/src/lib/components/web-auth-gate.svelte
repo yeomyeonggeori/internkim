@@ -14,14 +14,15 @@
 	import { createBuzzIdentityTransport, enrollKnownBuzzIdentity } from '$lib/buzz-identity-session';
 	import { isPasskeySupported } from '$lib/buzz-passkey';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
+	import { isSupabaseConfigured, signInWithSupabase } from '$lib/supabase-session';
 
 	let { children, session, returnPath }: { children?: Snippet; session: WebAuthSession | null; returnPath: string } = $props();
 
 	const text = createPageText(appShellText);
 	const fieldId = $props.id();
-	const passkeyAvailable = isPasskeySupported();
+	const passkeyAvailable = isPasskeySupported() && !isSupabaseConfigured;
 	const identityTransport = createBuzzIdentityTransport();
-	let buzzEnabled = $state(false);
+	let buzzEnabled = $state(isSupabaseConfigured);
 	let email = $state('');
 	let password = $state('');
 	let busy = $state(false);
@@ -35,6 +36,7 @@
 	// SSO. The relay-config endpoint is unauthenticated, so the login screen can
 	// pick the right flow before anyone signs in.
 	onMount(async () => {
+		if (isSupabaseConfigured) return;
 		try {
 			const response = await fetch('/agent/api/buzz-relay-config', { credentials: 'include' });
 			if (response.ok) {
@@ -62,12 +64,25 @@
 		}
 	}
 
+	async function runSupabaseLogin(normalizedEmail: string) {
+		busy = true;
+		errorMessage = '';
+		try {
+			await signInWithSupabase(normalizedEmail, password);
+			location.reload();
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : text.webSessionUnavailable;
+			busy = false;
+		}
+	}
+
 	function loginWithPassword() {
 		if (email.trim().length === 0) {
 			errorMessage = text.emailRequired;
 			return;
 		}
 		const normalizedEmail = email.trim().toLowerCase();
+		if (isSupabaseConfigured) return runSupabaseLogin(normalizedEmail);
 		return runLogin(async () => {
 			try {
 				return await buzzPasswordLogin(normalizedEmail, password);
@@ -123,10 +138,12 @@
 							<Button type="submit" class="w-full" disabled={busy || password.length === 0}>
 								{text.signInWithPassword}
 							</Button>
-							<FieldDescription class="text-center">
-								{text.firstTimePrompt}
-								<a class="underline" href={signupURL()} data-sveltekit-reload>{text.signUpWithCloudflare}</a>
-							</FieldDescription>
+							{#if !isSupabaseConfigured}
+								<FieldDescription class="text-center">
+									{text.firstTimePrompt}
+									<a class="underline" href={signupURL()} data-sveltekit-reload>{text.signUpWithCloudflare}</a>
+								</FieldDescription>
+							{/if}
 						</Field>
 					</FieldGroup>
 				</form>
