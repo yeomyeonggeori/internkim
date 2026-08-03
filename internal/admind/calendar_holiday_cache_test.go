@@ -212,21 +212,24 @@ func TestCalendarHolidayRequestRefreshWaitsBeforeRetryAfterFailure(t *testing.T)
 		t.Fatal("first request refresh error = nil")
 	}
 	firstRequestCount := requestCount.Load()
-	if firstRequestCount != calendarHolidayMaximumAttempts {
-		t.Fatalf("first API request count = %d, want %d", firstRequestCount, calendarHolidayMaximumAttempts)
+	wantFirstRequestCount := int64(calendarHolidayMaximumAttempts * calendarHolidayPreloadYears)
+	if firstRequestCount != wantFirstRequestCount {
+		t.Fatalf("first API request count = %d, want %d", firstRequestCount, wantFirstRequestCount)
 	}
-	if _, errorValue := service.refreshCalendarHolidaysOnRequest(
+	restartedService := NewService(service.Configuration)
+	restartedService.HTTPClient = service.HTTPClient
+	if _, errorValue := restartedService.refreshCalendarHolidaysOnRequest(
 		context.Background(),
-		currentTime.Add(time.Hour),
+		currentTime.Add(30*time.Second),
 	); errorValue == nil {
-		t.Fatal("retry cooldown error = nil")
+		t.Fatal("retry cooldown error after restart = nil")
 	}
 	if requestCount.Load() != firstRequestCount {
-		t.Fatalf("cooldown API request count = %d, want %d", requestCount.Load(), firstRequestCount)
+		t.Fatalf("cooldown API request count after restart = %d, want %d", requestCount.Load(), firstRequestCount)
 	}
-	if _, errorValue := service.refreshCalendarHolidaysOnRequest(
+	if _, errorValue := restartedService.refreshCalendarHolidaysOnRequest(
 		context.Background(),
-		currentTime.Add(calendarHolidayRefreshRetryDelay+time.Hour),
+		currentTime.Add(calendarHolidayProviderRetryDelays[0]+time.Second),
 	); errorValue == nil {
 		t.Fatal("post-cooldown refresh error = nil")
 	}

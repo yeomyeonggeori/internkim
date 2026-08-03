@@ -240,6 +240,12 @@ func TestOperationsAdminPathPolicy(t *testing.T) {
 	if isOperationsAdminPath(http.MethodGet, "/company-holidays") {
 		t.Fatal("operations admin should not access company holidays")
 	}
+	if !isOperationsAdminPath(http.MethodGet, "/calendar-holidays/status") {
+		t.Fatal("operations admin should access calendar holiday status")
+	}
+	if !isOperationsAdminPath(http.MethodPost, "/calendar-holidays/refresh") {
+		t.Fatal("operations admin should refresh calendar holidays")
+	}
 	if isOperationsAdminPath(http.MethodGet, "/bot-profile") {
 		t.Fatal("operations admin should not access bot profile")
 	}

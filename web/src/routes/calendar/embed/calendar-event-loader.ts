@@ -68,8 +68,8 @@ export function createCalendarEventLoader(
 			const [calendarEvents, holidayResult] = await Promise.all([
 				fetchEvents(startDate, endDate, context.errorFallback()),
 				fetchHolidays(startDate, endDate, context.getLocale(), context.holidayErrorFallback())
-					.then((holidays) => ({ holidays, error: null }))
-					.catch((error: unknown) => ({ holidays: [], error }))
+					.then((result) => ({ ...result, error: null }))
+					.catch((error: unknown) => ({ holidays: [], degraded: false, error }))
 			]);
 			if (requestID !== loadEventsRequestID) return;
 			const events = mergePreservedLocalEvents([
@@ -81,7 +81,7 @@ export function createCalendarEventLoader(
 			context.setEventCount(mergedEvents.length);
 			replaceCalendarEvents(mergedEvents);
 			context.afterRenderEvents?.(events);
-			if (holidayResult.error) {
+			if (holidayResult.error || holidayResult.degraded) {
 				context.setErrorMessage(context.holidayErrorFallback());
 			}
 		} catch (error) {

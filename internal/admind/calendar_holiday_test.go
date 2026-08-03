@@ -266,12 +266,16 @@ func TestCalendarHolidaysServeStoredResponseWhenRequestRefreshFails(t *testing.T
 	if len(second.Holidays) != 1 || second.Holidays[0].Title != "새해 첫날" {
 		t.Fatalf("second holidays = %#v", second.Holidays)
 	}
-	if requestCount.Load() != calendarHolidayMaximumAttempts {
-		t.Fatalf("API request count = %d, want %d", requestCount.Load(), calendarHolidayMaximumAttempts)
+	if !first.Degraded || !second.Degraded || first.ErrorCode != calendarHolidayProviderUnavailableCode {
+		t.Fatalf("degraded responses = %#v %#v", first, second)
+	}
+	wantRequestCount := int64(calendarHolidayMaximumAttempts * calendarHolidayPreloadYears)
+	if requestCount.Load() != wantRequestCount {
+		t.Fatalf("API request count = %d, want %d", requestCount.Load(), wantRequestCount)
 	}
 }
 
-func TestCalendarHolidaysReturnBadGatewayWithoutCache(t *testing.T) {
+func TestCalendarHolidaysReturnDegradedResponseWithoutCache(t *testing.T) {
 	service := newCalendarTestService(t)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		return &http.Response{
@@ -293,8 +297,15 @@ func TestCalendarHolidaysReturnBadGatewayWithoutCache(t *testing.T) {
 
 	service.serveCalendarHolidays(recorder, request)
 
-	if recorder.Code != http.StatusBadGateway {
+	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response calendarHolidaysResponse
+	if errorValue := json.NewDecoder(recorder.Body).Decode(&response); errorValue != nil {
+		t.Fatalf("decode response: %v", errorValue)
+	}
+	if !response.Degraded || response.ErrorCode != calendarHolidayProviderUnavailableCode || len(response.Holidays) != 0 {
+		t.Fatalf("response = %#v", response)
 	}
 }
 

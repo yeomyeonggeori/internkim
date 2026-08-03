@@ -169,6 +169,25 @@ export type HolidayCountriesResponse = {
 	countries?: HolidayCountry[];
 };
 
+export type CalendarHolidaySyncState = 'healthy' | 'degraded' | 'neverSynced';
+
+export type CalendarHolidayYearStatus = {
+	year: number;
+	status: CalendarHolidaySyncState;
+	cacheCount: number;
+	lastSyncedAt?: string;
+	lastAttemptAt?: string;
+	lastError?: string;
+	nextRetryAt?: string;
+};
+
+export type CalendarHolidayStatus = {
+	status: CalendarHolidaySyncState;
+	countryCode: string;
+	provider: string;
+	years: CalendarHolidayYearStatus[];
+};
+
 export type AttendanceLocation = {
 	id: string;
 	name: string;
