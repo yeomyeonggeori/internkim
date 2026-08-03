@@ -1,4 +1,5 @@
 import { recordSupabaseAttendance, supabaseAttendanceSummary } from '$lib/attendance/supabase-attendance';
+import { supabaseWorkStatus } from '$lib/attendance/supabase-work-status';
 import { isSupabaseConfigured } from '$lib/supabase';
 import type {
 	AttendanceAbsence,
@@ -106,6 +107,7 @@ export async function fetchAttendanceSummary(request: AttendanceSummaryRequest):
 export async function fetchAttendanceWorkStatus(
 	request: AttendanceWorkStatusRequest
 ): Promise<AttendanceWorkStatus> {
+	if (isSupabaseConfigured) return supabaseWorkStatus(request);
 	const query = new URLSearchParams({
 		period: request.period,
 		anchor: request.anchor
