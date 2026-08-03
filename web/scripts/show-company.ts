@@ -29,10 +29,26 @@ for (const company of companies ?? []) {
 		);
 	}
 
-	const { count } = await client
-		.from('attendance')
-		.select('*', { count: 'exact', head: true });
-	console.log(`  attendance rows: ${count ?? 0}`);
+	const { count } = await client.from('attendance').select('*', { count: 'exact', head: true });
+	const { count: leaveCount } = await client.from('leave').select('*', { count: 'exact', head: true });
+	console.log(`  attendance rows: ${count ?? 0}   leave rows: ${leaveCount ?? 0}`);
+	const { data: locations } = await client.from('attendance').select('location');
+	const tally = new Map<string, number>();
+	for (const row of locations ?? []) tally.set(row.location ?? '(none)', (tally.get(row.location ?? '(none)') ?? 0) + 1);
+	console.log(`  locations: ${[...tally].map(([name, n]) => `${name} ${n}`).join(', ')}`);
+
+	const { data: leaves } = await client
+		.from('leave')
+		.select('kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
+		.order('starts_at');
+	const dayIn = (instant: string) =>
+		new Date(instant).toLocaleDateString('sv-SE', { timeZone: company.timezone });
+	for (const leave of leaves ?? []) {
+		console.log(
+			`  leave ${leave.kind} paid=${leave.is_paid} deducted=${leave.is_deducted} days=${leave.days} ` +
+				`${dayIn(leave.starts_at)}~${dayIn(leave.ends_at)} ${leave.note ?? ''}`,
+		);
+	}
 }
 
 const { data: accounts } = await client.auth.admin.listUsers();
