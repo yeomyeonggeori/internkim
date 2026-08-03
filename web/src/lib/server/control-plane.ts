@@ -97,6 +97,55 @@ export async function linkCredential(
 	if (error) throw new Error(`credential ${kind}: ${error.message}`);
 }
 
+export type MemberSession = {
+	memberID: string;
+	accessToken: string;
+	expiresAt: number;
+};
+
+// The host acts as the member who spoke, so it needs that member's session rather
+// than a key of its own. Supabase can hand one over without sending mail: generate
+// the link it would have mailed, then redeem it here.
+export async function sessionForMember(
+	credentials: ControlPlaneCredentials,
+	memberID: string,
+): Promise<MemberSession> {
+	const client = controlPlane(credentials);
+	const { data: member, error: memberError } = await client
+		.from('member')
+		.select('email, status')
+		.eq('id', memberID)
+		.single();
+	if (memberError) throw new Error(`member ${memberID}: ${memberError.message}`);
+	if (!member.email) throw new Error(`member ${memberID} has no address to sign in as`);
+	if (member.status === 'departed' || member.status === 'withdrawn') {
+		throw new Error(`member ${memberID} has left and cannot be acted for`);
+	}
+
+	const { data: link, error: linkError } = await client.auth.admin.generateLink({
+		type: 'magiclink',
+		email: member.email,
+	});
+	if (linkError) throw new Error(`link for ${member.email}: ${linkError.message}`);
+
+	// Redeeming the link signs this client in as the member, so it happens on a
+	// throwaway one. Doing it on the caller's client would quietly drop the control
+	// plane to that member's privileges for everything afterwards.
+	const redeemer = controlPlane(credentials);
+	const { data: session, error: verifyError } = await redeemer.auth.verifyOtp({
+		token_hash: link.properties.hashed_token,
+		type: 'magiclink',
+	});
+	if (verifyError) throw new Error(`session for ${member.email}: ${verifyError.message}`);
+	if (!session.session) throw new Error(`no session came back for ${member.email}`);
+
+	return {
+		memberID,
+		accessToken: session.session.access_token,
+		expiresAt: session.session.expires_at ?? 0,
+	};
+}
+
 export async function memberOfPlatformIdentity(
 	client: SupabaseClient,
 	kind: string,
