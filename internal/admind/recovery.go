@@ -256,6 +256,13 @@ for logDirectory in $(printf '%s\n' "$newestLogDirectories" | head -2); do
   tail -c 4000 "$logDirectory/stdout.log" 2>/dev/null || printf '(missing)\n'
 done
 newestJailerRoot=$(ls -dt /var/lib/bc/firecracker/*/root 2>/dev/null | head -1)
+printf '\n== live guest task runs ==\n'
+curl -s -m 6 http://127.0.0.1:8080/admin/api/task 2>&1 | head -c 1500
+printf '\n== live guest failure detail ==\n'
+failedTaskRunID=$(curl -s -m 6 http://127.0.0.1:8080/admin/api/task 2>/dev/null | tr ',' '\n' | grep -A0 'taskRunID' | head -1 | sed 's/.*"taskRunID":"//;s/".*//')
+if [ -n "$failedTaskRunID" ]; then
+  curl -s -m 8 "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$failedTaskRunID" 2>&1 | head -c 3000
+fi
 printf '\n== jailer root %s ==\n' "$newestJailerRoot"
 ls -la "$newestJailerRoot" 2>/dev/null || true
 printf '\n== firecracker-config.json ==\n'
