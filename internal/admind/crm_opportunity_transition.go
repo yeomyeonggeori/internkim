@@ -42,7 +42,7 @@ func (service *Service) transitionCRMOpportunityStage(ctx context.Context, trans
 	}
 	if opportunity.Stage == transition.Stage {
 		_ = transaction.Rollback()
-		return fmt.Errorf("CRM opportunity is already in stage %s", transition.Stage)
+		return newCRMConflict(fmt.Sprintf("CRM opportunity is already in stage %s", transition.Stage))
 	}
 	if transition.StagePosition == 0 {
 		transition.StagePosition = 1024
@@ -106,7 +106,7 @@ func (service *Service) setCRMOpportunityStagePosition(ctx context.Context, oppo
 		return fmt.Errorf("CRM position opportunity and actor are required")
 	}
 	if opportunityID == beforeOpportunityID {
-		return fmt.Errorf("CRM position anchor must differ from the moved opportunity")
+		return newCRMConflict("CRM position anchor must differ from the moved opportunity")
 	}
 	database, errorValue := service.openCRMDatabase(ctx)
 	if errorValue != nil {
@@ -151,7 +151,7 @@ FROM opportunity
 WHERE pipeline = ? AND stage = ? AND stage_position = ?`, pipeline, stage, position).Scan(&collisionCount); errorValue != nil {
 		return errorValue
 	}
-	if collisionCount <= 1 {
+	if collisionCount <= 1 && beforeOpportunityID == "" {
 		return nil
 	}
 	return rebalanceCRMStagePositions(ctx, transaction, pipeline, stage, movedOpportunityID, position, beforeOpportunityID, updatedAt, actorPersonID)
@@ -192,7 +192,7 @@ ORDER BY stage_position, id`, pipeline, stage, movedOpportunityID)
 		ids = append(ids, opportunity.id)
 	}
 	if beforeOpportunityID != "" && !inserted {
-		return fmt.Errorf("CRM position anchor %s is not in pipeline %s stage %s", beforeOpportunityID, pipeline, stage)
+		return newCRMConflict(fmt.Sprintf("CRM position anchor %s is not in pipeline %s stage %s", beforeOpportunityID, pipeline, stage))
 	}
 	if !inserted {
 		ids = append(ids, movedOpportunityID)
