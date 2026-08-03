@@ -71,6 +71,27 @@ async function mockAdminPage(page: Page, role: MockAdminRole): Promise<void> {
 }
 
 test.describe('admin role tabs', () => {
+	test('matches the country dropdown width to its trigger', async ({ page }) => {
+		await mockAdminPage(page, 'operationsAdmin');
+
+		await page.goto('/settings/?fleet_id=demo');
+
+		const main = page.locator('main');
+		await main.getByRole('tab', { name: '일반', exact: true }).click();
+		const countryTrigger = main.getByRole('combobox', { name: '회사 국가', exact: true });
+		await countryTrigger.click();
+		const countryContent = page.locator('[data-slot="popover-content"]');
+		await expect(countryContent).toBeVisible();
+		await expect
+			.poll(async () => {
+				const triggerBox = await countryTrigger.boundingBox();
+				const contentBox = await countryContent.boundingBox();
+				if (!triggerBox || !contentBox) return Number.POSITIVE_INFINITY;
+				return Math.abs(contentBox.width - triggerBox.width);
+			})
+			.toBeLessThanOrEqual(1);
+	});
+
 	test('shows every admin tab to full admins', async ({ page }) => {
 		await mockAdminPage(page, 'admin');
 

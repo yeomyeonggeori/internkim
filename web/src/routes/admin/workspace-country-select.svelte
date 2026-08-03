@@ -23,4 +23,5 @@
 	id="workspace-country-code"
 	canClearSelection={false}
 	class="w-full"
+	contentClass="w-(--bits-popover-anchor-width)"
 />
