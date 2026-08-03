@@ -123,13 +123,30 @@ current tree.
 
 `capabilityd` and `chatd` place themselves; only `admind` needs splitting.
 
-**`capabilityd` → client, whole.** Its boundary *is* device-local: a unix socket
-at `/run/internkim/capability.sock` chowned to the POSIX group `blueclaw`
+**`capabilityd` → client, minus its messenger half.** The part that stays is the
+tool and permission boundary, and it *is* device-local: a unix socket at
+`/run/internkim/capability.sock` chowned to the POSIX group `blueclaw`
 (`internal/capabilityd/service.go:1348`), plus subprocess exec and local model
-paths. It has **zero** Buzz/nostr code — its platform support is
-Mattermost/Slack/Signal, of which Signal is dropped. Its
-calendar/mail/company/flow/site tools are already thin HTTP clients over
+paths. Its calendar/mail/company/flow/site tools are thin HTTP clients over
 `AdmindBaseURL` (`service.go:233`), so they simply re-point at the central API.
+
+The part that **goes** is its messenger implementation. capabilityd and chatd
+both hand-maintain the same `/v1/platform/{platform}/*` contract, and capabilityd
+is the subset: **9 capabilities against chatd's 15** (chatd additionally has
+`channel.ensure`, `conversations.list`, `dm.ensure`, `dm.send`, `message.edit`,
+`people.list`). blueclaw picks between the two per platform via
+`connectors.chatd.enabledPlatforms` (`application.go:952`). Two hand-kept copies
+of one contract is the defect our own rules name; chatd is the survivor because
+it is where the Chat SDK adapters live. That deletes roughly 250 KB of Go
+(`mattermost_*.go` including a 50 KB tool, `slack_socket.go`, `signal_jsonrpc.go`,
+`platform_*.go`).
+
+**It cannot be deleted yet**, and the reasons are the regression list: Slack
+exists only in capabilityd until a chatd Slack adapter is written; Mattermost
+*inbound* ran through `capabilityd/mattermost_websocket.go` on the device, and
+chatd only became a real inbound path for it once every adapter started using the
+normalized route; and each chatd adapter must actually implement the capabilities
+its platform is asked for.
 
 **`chatd` → client, and it stays multi-adapter.** chatd is a Chat SDK host with a
 pluggable adapter set; **Buzz is our adapter, not the only one**. Attaching a
