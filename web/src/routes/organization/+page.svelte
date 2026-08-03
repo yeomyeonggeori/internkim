@@ -15,6 +15,8 @@
 	import { OrganizationDirectoryController } from './organization-directory-controller.svelte';
 	import { unassignedGroupID } from './organization-directory-model';
 	import OrganizationLoadingSkeleton from './organization-loading-skeleton.svelte';
+	import OrganizationInviteDialog from './organization-invite-dialog.svelte';
+	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import OrganizationOrganizationTree from './organization-tree.svelte';
 	import OrganizationPeopleLayer from './organization-people-layer.svelte';
 	import OrganizationPersonDetailPanel from './organization-person-detail-panel.svelte';
@@ -49,6 +51,7 @@
 	]);
 	const isDetailSheetOpen = $derived(Boolean(controller.selectedRecord));
 	let isOrganizationSheetOpen = $state(false);
+	let isInviteOpen = $state(false);
 
 	$effect(() => {
 		breadcrumbMeta.value = controller.groupID ? controller.selectedOrganizationName : '';
@@ -104,6 +107,11 @@
 					<div class="grid min-h-0 min-w-0 grid-cols-1">
 						<div class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
 							<div class="flex items-center gap-2 px-4 py-3 sm:px-6">
+								{#if controller.canManage}
+									<Button type="button" size="icon" variant="outline" aria-label={text.inviteMember} onclick={() => (isInviteOpen = true)}>
+										<UserPlusIcon />
+									</Button>
+								{/if}
 								{#if detailSheetViewport.current}
 									<Button type="button" size="icon" variant="outline" aria-label={text.openOrganizations} onclick={() => (isOrganizationSheetOpen = true)}>
 										<NetworkIcon />
@@ -234,6 +242,8 @@
 		</Sheet.Root>
 	{/if}
 </main>
+
+<OrganizationInviteDialog bind:isOpen={isInviteOpen} onInvited={() => controller.load()} />
 
 <OrganizationAddOrganizationDialog
 	bind:isOpen={controller.isAddingGroup}

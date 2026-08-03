@@ -5,6 +5,11 @@ export type ControlPlaneCredentials = {
 	serviceRoleKey: string;
 };
 
+export type MemberCredentials = {
+	projectURL: string;
+	publishableKey: string;
+};
+
 export type CompanyInput = {
 	name: string;
 	slug: string;
@@ -23,6 +28,29 @@ export function controlPlane(credentials: ControlPlaneCredentials): SupabaseClie
 	return createClient(credentials.projectURL, credentials.serviceRoleKey, {
 		auth: { autoRefreshToken: false, persistSession: false },
 	});
+}
+
+// Acts with someone's own token, so row level security answers "who is this and
+// what may they touch" instead of a check written here.
+export function asMember(credentials: MemberCredentials, accessToken: string): SupabaseClient {
+	return createClient(credentials.projectURL, credentials.publishableKey, {
+		auth: { autoRefreshToken: false, persistSession: false },
+		global: { headers: { Authorization: `Bearer ${accessToken}` } },
+	});
+}
+
+export type AdminCaller = { memberID: string; companyID: string };
+
+export async function adminCallerOf(client: SupabaseClient): Promise<AdminCaller | null> {
+	const { data: account } = await client.auth.getUser();
+	if (!account.user) return null;
+	const { data: member } = await client
+		.from('member')
+		.select('id, company_id, is_admin')
+		.eq('user_id', account.user.id)
+		.maybeSingle();
+	if (!member?.is_admin) return null;
+	return { memberID: member.id, companyID: member.company_id };
 }
 
 export async function provisionCompany(
