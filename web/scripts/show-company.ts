@@ -54,6 +54,31 @@ for (const company of companies ?? []) {
 	for (const row of locations ?? []) tally.set(row.location ?? '(none)', (tally.get(row.location ?? '(none)') ?? 0) + 1);
 	console.log(`  locations: ${[...tally].map(([name, n]) => `${name} ${n}`).join(', ')}`);
 
+	const { count: taskCount } = await client
+		.from('task')
+		.select('*', { count: 'exact', head: true })
+		.eq('company_id', company.id);
+	const { count: eventCount } = await client
+		.from('task')
+		.select('*', { count: 'exact', head: true })
+		.eq('company_id', company.id)
+		.eq('is_event', true);
+	const { count: participantCount } = await client
+		.from('task_participant')
+		.select('*', { count: 'exact', head: true });
+	console.log(`  tasks: ${taskCount ?? 0} (events ${eventCount ?? 0}), participants: ${participantCount ?? 0}`);
+	const { data: statuses } = await client.from('task').select('status').eq('company_id', company.id);
+	const statusTally = new Map<string, number>();
+	for (const row of statuses ?? []) statusTally.set(row.status, (statusTally.get(row.status) ?? 0) + 1);
+	console.log(`  statuses: ${[...statusTally].map(([name, n]) => `${name} ${n}`).join(', ')}`);
+	const { data: located } = await client
+		.from('task')
+		.select('title, location')
+		.eq('company_id', company.id)
+		.not('location', 'is', null)
+		.limit(3);
+	for (const row of located ?? []) console.log(`  located: ${row.title} @ ${JSON.stringify(row.location)}`);
+
 	const { data: leaves } = await client
 		.from('leave')
 		.select('kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
