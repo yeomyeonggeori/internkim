@@ -397,7 +397,7 @@ func TestAttendanceLegacyAbsenceMigrationRejectsStalePreview(t *testing.T) {
 		employeeUserIDs,
 		time.Date(2026, 7, 30, 10, 0, 0, 0, time.UTC),
 	)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "preview is stale") {
+	if !errors.Is(errorValue, errAttendanceLegacyMigrationStale) {
 		t.Fatalf("stale preview error = %v", errorValue)
 	}
 	database, errorValue := service.openAttendanceDatabase(ctx)
@@ -411,6 +411,99 @@ func TestAttendanceLegacyAbsenceMigrationRejectsStalePreview(t *testing.T) {
 	if count := attendanceMigrationTableCount(t, database, "attendance_legacy_absence_migration_batches"); count != 0 {
 		t.Fatalf("batch count after stale apply = %d", count)
 	}
+}
+
+func TestAttendanceLegacyAbsenceMigrationRejectsPreviewConflictWithoutWrites(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	ctx := t.Context()
+	employeeUserIDs := attendanceLegacyAbsenceMigrationTestEmployeeUserIDs()
+	insertLegacyAttendanceAbsenceForMigration(
+		t,
+		service,
+		"unknown@example.com",
+		attendanceAbsenceLeave,
+		"2026-07-20",
+		"2026-07-20",
+		"unknown employee leave",
+	)
+	preview, errorValue := service.previewAttendanceLegacyAbsenceMigration(ctx, employeeUserIDs)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	_, errorValue = service.applyAttendanceLegacyAbsenceMigration(
+		ctx,
+		"admin@example.com",
+		preview.Fingerprint,
+		employeeUserIDs,
+		time.Date(2026, 7, 30, 10, 0, 0, 0, time.UTC),
+	)
+	if !errors.Is(errorValue, errAttendanceLegacyMigrationConflict) {
+		t.Fatalf("conflict preview error = %v", errorValue)
+	}
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	if count := attendanceMigrationTableCount(t, database, "attendance_leave_requests"); count != 0 {
+		t.Fatalf("request count after conflict apply = %d", count)
+	}
+	if count := attendanceMigrationTableCount(t, database, "attendance_legacy_absence_migration_batches"); count != 0 {
+		t.Fatalf("batch count after conflict apply = %d", count)
+	}
+}
+
+func TestAttendanceLegacyAbsenceMigrationHTTPReturnsTypedStaleAndConflictErrors(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	employeeUserIDs := attendanceLegacyAbsenceMigrationTestEmployeeUserIDs()
+	insertLegacyAttendanceAbsenceForMigration(
+		t,
+		service,
+		"staff@example.com",
+		attendanceAbsenceLeave,
+		"2026-07-20",
+		"2026-07-20",
+		"first legacy leave",
+	)
+	preview, errorValue := service.previewAttendanceLegacyAbsenceMigration(t.Context(), employeeUserIDs)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	insertLegacyAttendanceAbsenceForMigration(
+		t,
+		service,
+		"staff@example.com",
+		attendanceAbsenceLeave,
+		"2026-07-21",
+		"2026-07-21",
+		"second legacy leave",
+	)
+	staleRecorder := performAttendanceLegacyMigrationApplyRequest(t, service, preview.Fingerprint)
+	assertAttendanceLegacyMigrationError(t, staleRecorder, attendanceLeaveErrorLegacyMigrationStale)
+
+	conflictService, _ := newAttendanceActionTestService(t)
+	insertLegacyAttendanceAbsenceForMigration(
+		t,
+		conflictService,
+		"unknown@example.com",
+		attendanceAbsenceLeave,
+		"2026-07-20",
+		"2026-07-20",
+		"unknown employee leave",
+	)
+	conflictPreview, errorValue := conflictService.previewAttendanceLegacyAbsenceMigration(
+		t.Context(),
+		employeeUserIDs,
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	conflictRecorder := performAttendanceLegacyMigrationApplyRequest(
+		t,
+		conflictService,
+		conflictPreview.Fingerprint,
+	)
+	assertAttendanceLegacyMigrationError(t, conflictRecorder, attendanceLeaveErrorLegacyMigrationConflict)
 }
 
 func TestAttendanceLegacyAbsenceMigrationReportsUnknownEmployeeConflict(t *testing.T) {
@@ -512,6 +605,45 @@ func insertLegacyAttendanceAbsenceForMigration(
 		t.Fatal("expected inserted legacy absence")
 	}
 	return absences[0].RangeID
+}
+
+func performAttendanceLegacyMigrationApplyRequest(
+	t *testing.T,
+	service *Service,
+	fingerprint string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	body, errorValue := json.Marshal(attendanceLegacyAbsenceMigrationApplyInput{
+		Fingerprint: fingerprint,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return performAttendanceLeaveManagementRequest(
+		t,
+		service,
+		http.MethodPost,
+		"/attendance/api/leave-management/legacy-migration/apply",
+		string(body),
+	)
+}
+
+func assertAttendanceLegacyMigrationError(
+	t *testing.T,
+	recorder *httptest.ResponseRecorder,
+	wantCode string,
+) {
+	t.Helper()
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response attendanceLeaveErrorResponse
+	if errorValue := json.NewDecoder(recorder.Body).Decode(&response); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Code != wantCode {
+		t.Fatalf("error code = %q, want %q", response.Code, wantCode)
+	}
 }
 
 func attendanceMigrationTableCount(
