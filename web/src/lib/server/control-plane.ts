@@ -181,36 +181,49 @@ export async function sessionForMember(
 	};
 }
 
-export type HostCredential = { companyID: string; secret: string };
+export type AgentKey = { agentID: string; companyID: string; apiKey: string };
 
-// Issued once at install. Only the hash is stored, so what the central plane holds
-// cannot be used to act as a host.
-export async function issueHostSecret(
+// Issued once when an agent is installed. Only the hash is stored, so what the
+// control plane holds cannot be used to be an agent.
+export async function issueAgentKey(
 	client: SupabaseClient,
 	companyID: string,
-): Promise<HostCredential> {
-	const secret = [...crypto.getRandomValues(new Uint8Array(32))]
+	name: string,
+): Promise<AgentKey> {
+	const apiKey = [...crypto.getRandomValues(new Uint8Array(32))]
 		.map((byte) => byte.toString(16).padStart(2, '0'))
 		.join('');
-	const { error } = await client
-		.from('company')
-		.update({ host_secret_hash: await hashOf(secret) })
-		.eq('id', companyID);
-	if (error) throw new Error(`host secret: ${error.message}`);
-	return { companyID, secret };
+	const { data, error } = await client
+		.from('agent')
+		.insert({ company_id: companyID, name, api_key_hash: await hashOf(apiKey) })
+		.select('id')
+		.single();
+	if (error) throw new Error(`agent ${name}: ${error.message}`);
+	return { agentID: data.id, companyID, apiKey };
 }
 
-export async function companyOfHostSecret(
+export async function revokeAgent(client: SupabaseClient, agentID: string): Promise<void> {
+	const { error } = await client
+		.from('agent')
+		.update({ revoked_at: new Date().toISOString() })
+		.eq('id', agentID);
+	if (error) throw new Error(`agent ${agentID}: ${error.message}`);
+}
+
+export async function agentOfKey(
 	client: SupabaseClient,
-	secret: string,
-): Promise<string | null> {
+	apiKey: string,
+): Promise<{ agentID: string; companyID: string } | null> {
 	const { data, error } = await client
-		.from('company')
-		.select('id')
-		.eq('host_secret_hash', await hashOf(secret))
+		.from('agent')
+		.select('id, company_id, revoked_at')
+		.eq('api_key_hash', await hashOf(apiKey))
 		.maybeSingle();
-	if (error) throw new Error(`host secret: ${error.message}`);
-	return data?.id ?? null;
+	if (error) throw new Error(`agent key: ${error.message}`);
+	if (!data || data.revoked_at) return null;
+
+	await client.from('agent').update({ last_seen_at: new Date().toISOString() }).eq('id', data.id);
+	return { agentID: data.id, companyID: data.company_id };
 }
 
 async function hashOf(secret: string): Promise<string> {
@@ -218,19 +231,19 @@ async function hashOf(secret: string): Promise<string> {
 	return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-// What the host actually asks for: the member behind a platform identity, and a
-// session to act as them. The host proves it belongs to the company first, and the
-// member has to be in that same company — otherwise one company's host could act
+// What an agent actually asks for: the member behind a platform identity, and a
+// session to act as them. It proves which company it belongs to first, and the
+// member has to be in that same company — otherwise one company's agent could act
 // for another's people.
 export async function sessionForPlatformIdentity(
 	credentials: ControlPlaneCredentials,
-	hostSecret: string,
+	apiKey: string,
 	kind: string,
 	externalID: string,
 ): Promise<MemberSession> {
 	const client = controlPlane(credentials);
-	const companyID = await companyOfHostSecret(client, hostSecret);
-	if (!companyID) throw new Error('that host secret belongs to no company');
+	const agent = await agentOfKey(client, apiKey);
+	if (!agent) throw new Error('that key belongs to no agent');
 
 	const memberID = await memberOfPlatformIdentity(client, kind, externalID);
 	if (!memberID) throw new Error(`no member has ${kind} identity ${externalID}`);
@@ -241,7 +254,7 @@ export async function sessionForPlatformIdentity(
 		.eq('id', memberID)
 		.single();
 	if (error) throw new Error(error.message);
-	if (member.company_id !== companyID) {
+	if (member.company_id !== agent.companyID) {
 		throw new Error('that member belongs to another company');
 	}
 
