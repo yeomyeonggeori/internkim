@@ -17,16 +17,18 @@
 		updateAttendanceLocations,
 		updateWorkspaceSettings
 	} from './admin-api';
-	import type { AdminPageText, AttendanceLocation, HolidayCountry, WorkspaceLanguage, WorkspaceSettings } from './admin-types';
+	import type { AdminPageText, AttendanceLocation, HolidayCountry, UserRole, WorkspaceLanguage, WorkspaceSettings } from './admin-types';
+	import CalendarHolidayStatusCard from './calendar-holiday-status-card.svelte';
 	import WorkspaceCountrySelect from './workspace-country-select.svelte';
 
 	type SettingsSectionProps = {
 		adminBaseURL: string;
 		isDeviceReachable: boolean;
+		role: UserRole;
 		text: AdminPageText;
 	};
 
-	let { adminBaseURL, isDeviceReachable, text }: SettingsSectionProps = $props();
+	let { adminBaseURL, isDeviceReachable, role, text }: SettingsSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
 	let workspaceSettings = $state<WorkspaceSettings>({ countryCode: 'KR', timeZone: 'system', language: 'ko', callingCode: '82' });
@@ -243,6 +245,8 @@
 		</Button>
 	</Card.Footer>
 </Card.Root>
+
+<CalendarHolidayStatusCard {adminBaseURL} {isDeviceReachable} {role} {text} />
 
 <Card.Root>
 	<Card.Header class="border-b pb-4">
