@@ -108,7 +108,7 @@ Our marginal cost per customer is near-zero.
 
 | Component | Runs | Tech | Notes |
 |---|---|---|---|
-| Identity + tenant membership | Central (we) | Supabase Auth (OAuth) + RLS | The identity of record. Messenger credentials are encrypted rows on the user (§5). |
+| Identity + tenant membership | Central (we) **or the customer's own Supabase** (§8.1) | Supabase Auth + RLS | The identity of record. Messenger credentials are encrypted rows on the user (§5). |
 | Host↔guest capability RPC | Central (we) | Supabase Realtime | Not the messenger — see §6. |
 | Control plane | Central (we) | InternKim (`feat/buzz-invites` grows into it) | Create tenant, provision the chosen messenger, issue the host credential. |
 | Messenger | **Customer** | their Slack / their Mattermost / their Buzz relay | Bring-your-own. We attach an adapter and store no conversation. |
@@ -422,11 +422,31 @@ price of the host having no inbound surface.
   opencode via llmd) instead of bluecollar, so the open-source stack has no hole
   where the agent loop should be.
 - **Self-host path:** a customer can run the whole thing themselves — their own
-  Buzz relay (+ Postgres/Redis/S3), their own web app, their own agent — with no
-  dependency on our central plane. The SaaS is a convenience layer over the same
+  messenger (already true, §3), their own agent (already true, §6), their own web
+  app, and **their own Supabase**. The SaaS is a convenience layer over the same
   open stack, not a lock-in.
-- This keeps trust/optionality high and matches Buzz's own "self-host or use the
-  hosted convenience" posture.
+
+### 8.1 Self-hosting the data plane means self-hosting Supabase
+
+Supabase is Apache-2.0 and comes up with docker compose, so pointing everything at
+a self-run instance costs a URL and a set of keys. Migrations, RLS, the triggers
+and the scripts are unchanged, because it is the same stack.
+
+**Running plain Postgres instead is not the same promise**, and the difference is
+worth stating before somebody assumes otherwise. Four things we currently get for
+free would have to be built:
+
+| Used today | Would have to be written |
+|---|---|
+| GoTrue — accounts, sessions, passwords | an authentication service |
+| PostgREST — the browser reading and writing directly | a data API |
+| RLS keyed on `auth.uid()` | JWT issuance and a claim convention |
+| `generateLink` + `verifyOtp` | member session issuance (§6) |
+
+The web app talks straight to the database precisely because PostgREST and RLS are
+there; without them the architecture grows an API server in the middle. So the
+supported self-host path is **Supabase, self-hosted** — the same shape as the
+messenger being the customer's, not ours.
 
 ---
 
