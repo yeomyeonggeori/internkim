@@ -145,7 +145,9 @@ type Service struct {
 	calendarHolidayCacheMutex          sync.RWMutex
 	calendarHolidayLoadMutex           sync.Mutex
 	calendarHolidayCache               map[calendarHolidayCacheKey][]calendarHoliday
-	calendarHolidayRetryAt             time.Time
+	calendarHolidayRetryMutex          sync.RWMutex
+	calendarHolidayRetryStates         map[calendarHolidayRetryKey]calendarHolidayRetryState
+	calendarHolidayRetryLoadError      error
 	holidayCheckedMonth                string
 	calendarCandidateClock             calendarConflictCandidateClock
 	calendarPullCacheMutex             sync.Mutex
@@ -348,12 +350,14 @@ func NewService(configuration Configuration) *Service {
 		calendarNotificationStates: map[string]*calendarNotificationReconciliationState{},
 		calendarActorCache:         map[string]calendarActorProfileCacheEntry{},
 		calendarHolidayCache:       map[calendarHolidayCacheKey][]calendarHoliday{},
+		calendarHolidayRetryStates: map[calendarHolidayRetryKey]calendarHolidayRetryState{},
 		companyShareAttempts:       map[string]companyShareAttempt{},
 		requestMetrics:             newAdminRequestMetrics(),
 		databaseSchemas:            newAdminDatabaseSchemas(),
 		mattermostSessions:         newMattermostSessionCache(),
 		startedAt:                  time.Now().UTC(),
 	}
+	service.calendarHolidayRetryLoadError = service.loadCalendarHolidayRetryStates()
 	service.loadCompanions()
 	service.loadCompanionJobs()
 	service.loadSites()
@@ -976,6 +980,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.updateWorkspaceSettings(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/holiday-countries":
 		service.serveCalendarHolidayCountries(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/calendar-holidays/status":
+		service.writeCalendarHolidayStatus(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/calendar-holidays/refresh":
+		service.refreshCalendarHolidayStatus(responseWriter, request)
 	case path == calendarCompanyHolidaysAdminPath ||
 		strings.HasPrefix(path, calendarCompanyHolidaysAdminPath+"/"):
 		service.handleCalendarCompanyHolidays(responseWriter, request, path)

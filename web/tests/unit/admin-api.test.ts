@@ -6,7 +6,9 @@ import {
 	createCompanyHoliday,
 	deleteCompanyHoliday,
 	fetchAttendanceLeavePolicy,
+	fetchCalendarHolidayStatus,
 	fetchCompanyHolidays,
+	refreshCalendarHolidayStatus,
 	fetchAttendanceWorkPolicy,
 	updateCompanyHoliday,
 	updateAttendanceWorkPolicy,
@@ -210,5 +212,27 @@ describe('attendance work policy API', () => {
 		}) as typeof fetch;
 		expect(await updateAttendanceWorkPolicy('/admin/api', revision, 'save failed')).toEqual(response);
 		restoreGlobals();
+	});
+});
+
+describe('calendar holiday status API', () => {
+	test('loads status and posts a manual refresh', async () => {
+		const status = { status: 'degraded', countryCode: 'KR', provider: 'nager', years: [] };
+		const requests: { input: string; method?: string }[] = [];
+		globalThis.fetch = (async (input, init) => {
+			requests.push({ input: String(input), method: init?.method });
+			return new Response(JSON.stringify(status));
+		}) as typeof fetch;
+
+		try {
+			expect(await fetchCalendarHolidayStatus('/admin/api', 'load failed')).toEqual(status);
+			expect(await refreshCalendarHolidayStatus('/admin/api', 'refresh failed')).toEqual(status);
+			expect(requests).toEqual([
+				{ input: '/admin/api/calendar-holidays/status', method: undefined },
+				{ input: '/admin/api/calendar-holidays/refresh', method: 'POST' }
+			]);
+		} finally {
+			restoreGlobals();
+		}
 	});
 });

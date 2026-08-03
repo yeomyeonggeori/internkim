@@ -160,6 +160,9 @@ export const adminText = {
 			saveSuccess: '저장되었습니다.',
 			saveError: '설정을 저장하지 못했습니다.'
 		},
+		holidayStatus: {
+			title: '공휴일 동기화', description: '국가별 공휴일 제공자와 로컬 캐시 상태를 확인합니다.', healthy: '정상', degraded: '오류', neverSynced: '동기화 전', country: '국가', provider: '제공자', year: '연도', cacheCount: '저장된 공휴일', lastSyncedAt: '마지막 성공', lastAttemptAt: '마지막 시도', nextRetryAt: '다음 자동 재시도', actualError: '실제 오류', refresh: '지금 다시 시도', refreshing: '다시 시도 중...', loading: '불러오는 중...', loadError: '공휴일 동기화 상태를 불러오지 못했습니다.', refreshError: '공휴일을 다시 불러오지 못했습니다.', emptyValue: '없음'
+		},
 		companyHolidays: {
 			title: '회사 지정 휴일', description: '창립기념일이나 전사 휴무일을 등록하면 모든 구성원의 캘린더와 휴가 계산에 반영됩니다.', add: '휴일 추가', createTitle: '회사 휴일 등록', editTitle: '회사 휴일 수정', name: '휴일명', namePlaceholder: '예: 창립기념일', date: '날짜', recursAnnually: '매년 반복', recurrenceDescription: '선택한 월과 일에 매년 표시합니다. 주말과 겹쳐도 대체 휴일은 자동으로 만들지 않습니다.', annual: '매년 반복', oneTime: '1회', edit: '수정', remove: '삭제', cancel: '취소', save: '저장', loading: '불러오는 중...', empty: '등록된 회사 휴일이 없습니다.', loadError: '회사 휴일을 불러오지 못했습니다.', saveError: '회사 휴일을 저장하지 못했습니다.', saveSuccess: '회사 휴일을 저장했습니다.', removeError: '회사 휴일을 삭제하지 못했습니다.', removeSuccess: '회사 휴일을 삭제했습니다.', removeConfirmationTitle: '회사 휴일을 삭제할까요?', removeConfirmationDescription: '삭제하면 모든 구성원의 캘린더와 휴가 계산에서 더 이상 적용되지 않습니다.'
 		},
@@ -534,6 +537,9 @@ export const adminText = {
 			loadError: 'Could not load settings.',
 			saveSuccess: 'Saved.',
 			saveError: 'Could not save settings.'
+		},
+		holidayStatus: {
+			title: 'Holiday sync', description: 'Review the public holiday provider and local cache status.', healthy: 'Healthy', degraded: 'Error', neverSynced: 'Not synced', country: 'Country', provider: 'Provider', year: 'Year', cacheCount: 'Cached holidays', lastSyncedAt: 'Last success', lastAttemptAt: 'Last attempt', nextRetryAt: 'Next automatic retry', actualError: 'Actual error', refresh: 'Retry now', refreshing: 'Retrying...', loading: 'Loading...', loadError: 'Could not load holiday sync status.', refreshError: 'Could not refresh public holidays.', emptyValue: 'None'
 		},
 		companyHolidays: {
 			title: 'Company holidays', description: 'Add company anniversaries and office closure days to every member calendar and leave calculation.', add: 'Add holiday', createTitle: 'Add company holiday', editTitle: 'Edit company holiday', name: 'Holiday name', namePlaceholder: 'e.g. Company anniversary', date: 'Date', recursAnnually: 'Repeat annually', recurrenceDescription: 'Show this holiday on the same month and day each year. Weekend overlaps do not create an automatic substitute holiday.', annual: 'Repeats annually', oneTime: 'One time', edit: 'Edit', remove: 'Delete', cancel: 'Cancel', save: 'Save', loading: 'Loading...', empty: 'No company holidays have been added.', loadError: 'Could not load company holidays.', saveError: 'Could not save the company holiday.', saveSuccess: 'Company holiday saved.', removeError: 'Could not delete the company holiday.', removeSuccess: 'Company holiday deleted.', removeConfirmationTitle: 'Delete this company holiday?', removeConfirmationDescription: 'It will no longer appear on member calendars or apply to leave calculations.'
