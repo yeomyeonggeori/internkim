@@ -30,14 +30,14 @@ insert into public.credential (member_id, kind, external_id) values
   ('000000aa-0000-0000-0000-000000000002', 'buzz', 'pubkey-unclaimed'),
   ('000000bb-0000-0000-0000-000000000001', 'buzz', 'pubkey-b');
 
-insert into public.task (company_id, assignee_id, title) values
-  ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'Ship the vertical slice'),
-  ('00000000-0000-0000-0000-0000000000b0', '000000bb-0000-0000-0000-000000000001', 'Other company work');
+insert into public.task (company_id, title) values
+  ('00000000-0000-0000-0000-0000000000a0', 'Ship the vertical slice'),
+  ('00000000-0000-0000-0000-0000000000b0', 'Other company work');
 
-insert into public.task (company_id, assignee_id, title, starts_at, ends_at, is_event) values
-  ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'Standup', '2026-08-04 09:00+09', '2026-08-04 09:15+09', true),
-  ('00000000-0000-0000-0000-0000000000a0', '000000aa-0000-0000-0000-000000000001', 'SaaS migration', '2026-08-04 00:00+09', '2026-08-20 00:00+09', false),
-  ('00000000-0000-0000-0000-0000000000b0', '000000bb-0000-0000-0000-000000000001', 'Other company meeting', '2026-08-04 09:00+09', '2026-08-04 10:00+09', true);
+insert into public.task (company_id, title, starts_at, ends_at, is_event) values
+  ('00000000-0000-0000-0000-0000000000a0', 'Standup', '2026-08-04 09:00+09', '2026-08-04 09:15+09', true),
+  ('00000000-0000-0000-0000-0000000000a0', 'SaaS migration', '2026-08-04 00:00+09', '2026-08-20 00:00+09', false),
+  ('00000000-0000-0000-0000-0000000000b0', 'Other company meeting', '2026-08-04 09:00+09', '2026-08-04 10:00+09', true);
 
 insert into public.leave (member_id, kind, is_paid, days, starts_at, ends_at) values
   ('000000aa-0000-0000-0000-000000000001', '연차', true, 3, '2026-08-10 00:00+09', '2026-08-12 23:59+09');
@@ -234,7 +234,7 @@ begin
   select count(*) into visible_events from public.task where is_event;
   assert visible_events = 1, 'a multi-day work span must not appear on the calendar';
 
-  update public.task set status = 'doing'
+  update public.task set status = 'in_progress'
     where company_id = '00000000-0000-0000-0000-0000000000b0';
   get diagnostics rows_changed = row_count;
   assert rows_changed = 0, 'a member must not be able to edit another company task';
