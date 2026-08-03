@@ -117,7 +117,7 @@ class AppNavigation {
 	logOut = async () => {
 		if (isSupabaseConfigured) {
 			await signOutOfSupabase();
-			location.replace(this.currentPath);
+			location.replace('/flow/');
 			return;
 		}
 		let redirectURL = '/flow/';
