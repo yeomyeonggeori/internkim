@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -401,6 +402,37 @@ func TestCalendarHolidayCountriesKeepCacheWhenAPIResponseIsEmpty(t *testing.T) {
 	}
 	if len(storedCountries) != 1 || storedCountries[0].CountryCode != "KR" {
 		t.Fatalf("stored countries = %#v", storedCountries)
+	}
+}
+
+func TestCalendarHolidayCountriesKeepCacheWhenAPIRequestFails(t *testing.T) {
+	service := newCalendarTestService(t)
+	currentTime := time.Now().UTC()
+	cachedCountries := []calendarHolidayCountry{
+		{CountryCode: "KR", Name: "South Korea"},
+		{CountryCode: "US", Name: "United States"},
+	}
+	if errorValue := service.replaceCalendarHolidayCountries(context.Background(), cachedCountries, currentTime.Add(-25*time.Hour)); errorValue != nil {
+		t.Fatalf("store cached countries: %v", errorValue)
+	}
+	if errorValue := service.upsertCalendarHolidaySourceState(context.Background(), calendarHolidaySourceState{
+		Provider:     calendarHolidayProviderNager,
+		SourceKey:    calendarHolidayCountriesSourceKey,
+		LastSyncedAt: currentTime.Add(-25 * time.Hour).Format(time.RFC3339),
+	}); errorValue != nil {
+		t.Fatalf("store stale country state: %v", errorValue)
+	}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return nil, errors.New("nager unavailable")
+	})}
+
+	countries, errorValue := service.ensureCalendarHolidayCountries(context.Background(), currentTime)
+
+	if errorValue != nil {
+		t.Fatalf("ensure countries: %v", errorValue)
+	}
+	if len(countries) != 2 || countries[0].CountryCode != "KR" || countries[1].CountryCode != "US" {
+		t.Fatalf("countries = %#v", countries)
 	}
 }
 
