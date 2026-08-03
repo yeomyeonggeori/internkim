@@ -181,6 +181,73 @@ export async function sessionForMember(
 	};
 }
 
+export type HostCredential = { companyID: string; secret: string };
+
+// Issued once at install. Only the hash is stored, so what the central plane holds
+// cannot be used to act as a host.
+export async function issueHostSecret(
+	client: SupabaseClient,
+	companyID: string,
+): Promise<HostCredential> {
+	const secret = [...crypto.getRandomValues(new Uint8Array(32))]
+		.map((byte) => byte.toString(16).padStart(2, '0'))
+		.join('');
+	const { error } = await client
+		.from('company')
+		.update({ host_secret_hash: await hashOf(secret) })
+		.eq('id', companyID);
+	if (error) throw new Error(`host secret: ${error.message}`);
+	return { companyID, secret };
+}
+
+export async function companyOfHostSecret(
+	client: SupabaseClient,
+	secret: string,
+): Promise<string | null> {
+	const { data, error } = await client
+		.from('company')
+		.select('id')
+		.eq('host_secret_hash', await hashOf(secret))
+		.maybeSingle();
+	if (error) throw new Error(`host secret: ${error.message}`);
+	return data?.id ?? null;
+}
+
+async function hashOf(secret: string): Promise<string> {
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+	return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+// What the host actually asks for: the member behind a platform identity, and a
+// session to act as them. The host proves it belongs to the company first, and the
+// member has to be in that same company — otherwise one company's host could act
+// for another's people.
+export async function sessionForPlatformIdentity(
+	credentials: ControlPlaneCredentials,
+	hostSecret: string,
+	kind: string,
+	externalID: string,
+): Promise<MemberSession> {
+	const client = controlPlane(credentials);
+	const companyID = await companyOfHostSecret(client, hostSecret);
+	if (!companyID) throw new Error('that host secret belongs to no company');
+
+	const memberID = await memberOfPlatformIdentity(client, kind, externalID);
+	if (!memberID) throw new Error(`no member has ${kind} identity ${externalID}`);
+
+	const { data: member, error } = await client
+		.from('member')
+		.select('company_id')
+		.eq('id', memberID)
+		.single();
+	if (error) throw new Error(error.message);
+	if (member.company_id !== companyID) {
+		throw new Error('that member belongs to another company');
+	}
+
+	return sessionForMember(credentials, memberID);
+}
+
 export async function memberOfPlatformIdentity(
 	client: SupabaseClient,
 	kind: string,
