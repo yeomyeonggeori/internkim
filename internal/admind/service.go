@@ -565,6 +565,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/organization", service.serveOrganizationPage)
 	multiplexer.HandleFunc("/organization/api/", service.handleOrganization)
 	multiplexer.HandleFunc("/organization/", service.serveOrganizationPage)
+	service.registerCRMRoutes(multiplexer)
 	multiplexer.HandleFunc("/buzz/api/", service.handleBuzz)
 	multiplexer.HandleFunc("/bridge/api/", service.handleBridgeMap)
 	multiplexer.HandleFunc("/files", service.serveFilesPage)

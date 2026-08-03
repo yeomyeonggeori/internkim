@@ -9,6 +9,23 @@ import (
 )
 
 var errCRMRecordNotFound = errors.New("CRM record not found")
+var errCRMConflict = errors.New("CRM record conflict")
+
+type crmConflictError struct {
+	message string
+}
+
+func (errorValue crmConflictError) Error() string {
+	return errorValue.message
+}
+
+func (errorValue crmConflictError) Unwrap() error {
+	return errCRMConflict
+}
+
+func newCRMConflict(message string) error {
+	return crmConflictError{message: message}
+}
 
 type crmAuditFields struct {
 	CreatedAt          string
