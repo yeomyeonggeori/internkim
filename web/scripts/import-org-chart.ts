@@ -13,6 +13,7 @@ type DeviceProfile = {
 	user_id: string;
 	email: string;
 	job_title: string | null;
+	phone_number: string | null;
 	group_id: string | null;
 	supervisor_id: string | null;
 	hire_date: string | null;
@@ -38,7 +39,7 @@ const groups = device
 	.query('select id, name, parent_id, position from organization_groups order by position')
 	.all() as DeviceGroup[];
 const profiles = device
-	.query('select user_id, email, job_title, group_id, supervisor_id, hire_date from organization_profiles')
+	.query('select user_id, email, job_title, phone_number, group_id, supervisor_id, hire_date from organization_profiles')
 	.all() as DeviceProfile[];
 
 const { data: members, error: memberError } = await client
@@ -102,6 +103,7 @@ for (const profile of profiles) {
 		.from('member')
 		.update({
 			job_title: (profile.job_title ?? '').trim() || null,
+			phone_number: (profile.phone_number ?? '').trim() || null,
 			team_id: teamIDByDeviceGroup.get(profile.group_id || '') ?? null,
 			supervisor_id: supervisorID && supervisorID !== memberID ? supervisorID : null,
 			joined_at: profile.hire_date ? `${profile.hire_date}T00:00:00+09:00` : null,
