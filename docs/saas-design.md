@@ -377,11 +377,38 @@ on" concern:
 - **Per-employee local capabilities are intermittent + optional** — available
   only when that employee has the companion installed and running. The agent
   degrades gracefully when they aren't.
-- **Host box is the company's single always-on point** (a SPOF for the agent, not
-  for data — messages live in the tenant's messenger and product data in Supabase, so a host outage is
-  loss-free). It's a spare box, so acceptable; an optional hosted-host fallback
-  (our cloud, or scale-to-zero microVM later) can be offered for customers
-  without a reliable spare machine.
+- **Host box is the company's single always-on point.** Messages live in the
+  tenant's messenger and product data in Supabase, so losing the box does not
+  lose the record — but it is **not loss-free**, and the earlier claim that it
+  was is corrected in §7.1. It's a spare box, so acceptable; an optional
+  hosted-host fallback (our cloud, or scale-to-zero microVM later) can be offered
+  for customers without a reliable spare machine.
+
+### 7.1 What lives centrally and what lives on the host
+
+The host already needs a Postgres of its own — verified by booting the agent, and
+the reason the installable bundle carries one (§6). So the question is not
+whether there is a second database but where the line runs. It runs between **the
+record** and **the agent's working memory**:
+
+| | Central (Supabase) | Host-local |
+|---|---|---|
+| What | What several clients must agree on | What the agent holds in order to work |
+| Examples | people, org, attendance, leave, tasks, events | raw events, conversations, the task-run ledger, agent memory, workspace files, caches |
+| If the host dies | untouched | gone |
+| Backed up by | us | the customer |
+
+Agent memory stays host-local on purpose. Moving it centrally would make host
+replacement harmless and put backups on us, but it would also mean holding a
+company's internal knowledge — the thing we deliberately avoid for messages and
+mail. Consistency wins, and the cost is stated plainly rather than hidden: **a
+lost host box loses the agent's memory and conversation history, and backing that
+up is the customer's job.**
+
+One asymmetry falls out of outbound-only: the web app cannot read the host's
+cache, because nothing reaches into the host. So the browser caches for the web
+and the host caches for itself, and the same mail is fetched twice. That is the
+price of the host having no inbound surface.
 
 ---
 
