@@ -1,0 +1,76 @@
+// A company's mail and calendar servers: an admin says where they are and what
+// password reaches them. The password goes straight to the vault; nothing here
+// ever sends it back.
+import { adminCallerOf, asMember, controlPlane } from '$lib/server/control-plane';
+import {
+	companyConnections,
+	forgetCompanyConnection,
+	saveCompanyConnection
+} from '$lib/server/company-credential';
+import { error, json } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+
+const connectionKinds = ['smtp', 'imap', 'caldav'];
+
+type Plane = { projectURL: string; publishableKey: string; serviceRoleKey: string };
+
+function planeOf(platform: App.Platform | undefined): Plane {
+	const environment = (platform?.env ?? process.env) as Record<string, string | undefined>;
+	const plane = {
+		projectURL: environment.SUPABASE_URL ?? '',
+		publishableKey: environment.SUPABASE_PUBLISHABLE_KEY ?? '',
+		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? ''
+	};
+	if (!plane.projectURL || !plane.publishableKey || !plane.serviceRoleKey) {
+		error(500, 'the central plane is not configured');
+	}
+	return plane;
+}
+
+async function adminOf(request: Request, plane: Plane) {
+	const authorization = request.headers.get('authorization') ?? '';
+	const accessToken = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
+	if (!accessToken) error(401, 'sign in first');
+	const caller = await adminCallerOf(asMember(plane, accessToken));
+	if (!caller) error(403, 'only an admin keeps these');
+	return caller;
+}
+
+export const GET: RequestHandler = async ({ request, platform }) => {
+	const plane = planeOf(platform);
+	const caller = await adminOf(request, plane);
+	const client = controlPlane(plane);
+	return json({ connections: await companyConnections(client, caller.companyID) });
+};
+
+export const PUT: RequestHandler = async ({ request, platform }) => {
+	const plane = planeOf(platform);
+	const caller = await adminOf(request, plane);
+
+	const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+	const kind = typeof body.kind === 'string' ? body.kind.trim() : '';
+	const host = typeof body.host === 'string' ? body.host.trim() : '';
+	if (!connectionKinds.includes(kind)) error(400, 'unknown kind of connection');
+	if (!host) error(400, 'a host is required');
+
+	await saveCompanyConnection(controlPlane(plane), caller.companyID, {
+		kind,
+		host,
+		settings: isRecord(body.settings) ? body.settings : {},
+		secret: typeof body.secret === 'string' && body.secret ? body.secret : undefined
+	});
+	return json({ kind, host });
+};
+
+export const DELETE: RequestHandler = async ({ request, platform, url }) => {
+	const plane = planeOf(platform);
+	const caller = await adminOf(request, plane);
+	const kind = url.searchParams.get('kind') ?? '';
+	if (!connectionKinds.includes(kind)) error(400, 'unknown kind of connection');
+	await forgetCompanyConnection(controlPlane(plane), caller.companyID, kind);
+	return json({ kind });
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
