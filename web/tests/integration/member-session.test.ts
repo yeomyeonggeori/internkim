@@ -88,8 +88,8 @@ if (canReachSupabase) {
 		const session = await sessionForMember({ projectURL, serviceRoleKey }, speakerID);
 		const secondsLeft = session.expiresAt - Math.floor(Date.now() / 1000);
 
-		expect(secondsLeft).toBeGreaterThan(0);
-		expect(secondsLeft).toBeLessThanOrEqual(60 * 60 * 24);
+		expect(secondsLeft > 0).toBe(true);
+		expect(secondsLeft <= 60 * 60 * 24).toBe(true);
 	});
 
 	test('somebody who has left cannot be acted for', async () => {
