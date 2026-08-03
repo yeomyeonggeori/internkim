@@ -60,6 +60,37 @@ const client = controlPlane({
 	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
 });
 
+// The same title finishing at the same moment is the same task, so a rerun updates
+// it rather than laying down a second copy. Matching on the day instead would merge
+// two meetings that share a title on one day, and losing one of those is worse than
+// a duplicate that someone can see and delete.
+const identityOf = (title: string, endsAt: string | null) =>
+	`${title}|${endsAt ? new Date(endsAt).getTime() : ''}`;
+
+const { data: existingTasks, error: existingError } = await client
+	.from('task')
+	.select('id, title, ends_at')
+	.eq('company_id', companyID);
+if (existingError) throw new Error(existingError.message);
+const taskIDByIdentity = new Map(
+	(existingTasks ?? []).map((task) => [identityOf(task.title, task.ends_at), task.id]),
+);
+
+async function writeTask(fields: Record<string, unknown>, identity: string): Promise<{ id: string }> {
+	const knownID = taskIDByIdentity.get(identity);
+	if (knownID) {
+		const { error } = await client.from('task').update(fields).eq('id', knownID);
+		if (error) throw new Error(`task update ${identity}: ${error.message}`);
+		return { id: knownID };
+	}
+	// Key on what the record stored, not on what was sent: a reversed range comes back
+	// in order, and keying on the sent value would make the next run insert it again.
+	const { data, error } = await client.from('task').insert(fields).select('id, title, ends_at').single();
+	if (error) throw new Error(`task insert ${identity}: ${error.message}`);
+	taskIDByIdentity.set(identityOf(data.title, data.ends_at), data.id);
+	return data;
+}
+
 const { data: members, error: memberError } = await client
 	.from('member')
 	.select('id, email, user_id')
@@ -134,9 +165,11 @@ function dayOf(value: string | null): string {
 function dayRangeOf(startDate: string | null, endDate: string | null): { startsAt: string; endsAt: string } | null {
 	const start = dayOf(startDate);
 	if (!start) return null;
-	// The record puts a reversed range in order, so both days go across as given.
+	// The record puts a reversed range in order. Match that here too, so a rerun
+	// recognises the row it already wrote instead of adding another.
 	const end = dayOf(endDate) || start;
-	return { startsAt: `${start}T00:00:00+09:00`, endsAt: `${end}T23:59:00+09:00` };
+	const [first, last] = end < start ? [end, start] : [start, end];
+	return { startsAt: `${first}T00:00:00+09:00`, endsAt: `${last}T23:59:00+09:00` };
 }
 
 function participantNamesOf(raw: string | null): string[] {
@@ -148,26 +181,37 @@ function participantNamesOf(raw: string | null): string[] {
 	}
 }
 
+async function writeTask(fields: Record<string, unknown>, identity: string): Promise<{ id: string }> {
+	const knownID = taskIDByIdentity.get(identity);
+	if (knownID) {
+		const { error } = await client.from('task').update(fields).eq('id', knownID);
+		if (error) throw new Error(`task update ${identity}: ${error.message}`);
+		return { id: knownID };
+	}
+	// Key on what the record stored, not on what was sent: a reversed range comes back
+	// in order, and keying on the sent value would make the next run insert it again.
+	const { data, error } = await client.from('task').insert(fields).select('id, title, ends_at').single();
+	if (error) throw new Error(`task insert ${identity}: ${error.message}`);
+	taskIDByIdentity.set(identityOf(data.title, data.ends_at), data.id);
+	return data;
+}
+
 let writtenTasks = 0;
 for (const task of flowTasks) {
 	const title = (task.content ?? '').trim() || '(제목 없음)';
 	const range = dayRangeOf(task.start_date, task.end_date);
 	const noteParts = [task.goal?.trim() && `목표: ${task.goal.trim()}`, task.request_reason?.trim()].filter(Boolean);
-	const { data, error } = await client
-		.from('task')
-		.insert({
-			company_id: companyID,
-			title,
-			status: STATUS_OF_DEVICE[(task.status ?? '').trim()] ?? 'todo',
-			note: noteParts.join('\n') || null,
-			// A range needs both ends, and the device has rows with only one of them.
-			starts_at: range?.startsAt ?? null,
-			ends_at: range?.endsAt ?? null,
-			is_whole_day: Boolean(range),
-		})
-		.select('id')
-		.single();
-	if (error) throw new Error(`task ${task.id}: ${error.message}`);
+	const fields = {
+		company_id: companyID,
+		title,
+		status: STATUS_OF_DEVICE[(task.status ?? '').trim()] ?? 'todo',
+		note: noteParts.join('\n') || null,
+		// A range needs both ends, and the device has rows with only one of them.
+		starts_at: range?.startsAt ?? null,
+		ends_at: range?.endsAt ?? null,
+		is_whole_day: Boolean(range),
+	};
+	const data = await writeTask(fields, identityOf(title, range?.endsAt ?? null));
 	writtenTasks += 1;
 
 	const names = new Set([...(task.owner_name ? [task.owner_name.trim()] : []), ...participantNamesOf(task.participant_names)]);
@@ -191,23 +235,20 @@ for (const event of liveEvents) {
 	].filter(Boolean);
 	const location = (event.location ?? '').trim();
 
-	const { data, error } = await client
-		.from('task')
-		.insert({
-			company_id: companyID,
-			title: (event.title ?? '').trim() || '(제목 없음)',
-			is_event: true,
-			is_whole_day: Boolean(event.is_all_day),
-			starts_at: event.start_at,
-			ends_at: event.end_at,
-			location: location ? { name: location } : null,
-			notify_minutes_before: event.reminder_lead_hours ? event.reminder_lead_hours * 60 : null,
-			note: noteParts.join('\n') || null,
-			status: 'done',
-		})
-		.select('id')
-		.single();
-	if (error) throw new Error(`event ${event.id}: ${error.message}`);
+	const title = (event.title ?? '').trim() || '(제목 없음)';
+	const fields = {
+		company_id: companyID,
+		title,
+		is_event: true,
+		is_whole_day: Boolean(event.is_all_day),
+		starts_at: event.start_at,
+		ends_at: event.end_at,
+		location: location ? { name: location } : null,
+		notify_minutes_before: event.reminder_lead_hours ? event.reminder_lead_hours * 60 : null,
+		note: noteParts.join('\n') || null,
+		status: 'done',
+	};
+	const data = await writeTask(fields, identityOf(title, event.end_at));
 	writtenEvents += 1;
 
 	const memberIDs = attendees
