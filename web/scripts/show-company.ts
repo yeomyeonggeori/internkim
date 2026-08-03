@@ -33,7 +33,7 @@ for (const company of companies ?? []) {
 
 	const { data: members } = await client
 		.from('member')
-		.select('id, email, is_admin, status, user_id, joined_at, team_id, supervisor_id')
+		.select('id, email, is_admin, status, user_id, joined_at, team_id, supervisor_id, job_title')
 		.eq('company_id', company.id)
 		.order('is_admin', { ascending: false });
 	const emailByID = new Map((members ?? []).map((member) => [member.id, member.email]));
@@ -41,7 +41,7 @@ for (const company of companies ?? []) {
 		const team = member.team_id ? teamByID.get(member.team_id)?.name : undefined;
 		const supervisor = member.supervisor_id ? emailByID.get(member.supervisor_id) : undefined;
 		console.log(
-			`  ${(member.email ?? '').padEnd(24)} ${member.is_admin ? 'admin ' : 'member'} ` +
+			`  ${(member.email ?? '').padEnd(24)} ${(member.job_title ?? '-').padEnd(12)} ${member.is_admin ? 'admin ' : 'member'} ` +
 				`team=${team ?? '-'} supervisor=${supervisor ?? '-'} joined=${member.joined_at ? dayIn(member.joined_at) : '-'}`,
 		);
 	}
