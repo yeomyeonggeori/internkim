@@ -31,7 +31,7 @@ function argument(name: string): string | undefined {
 
 const client = controlPlane({
 	projectURL: process.env.SUPABASE_URL ?? '',
-	serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
 });
 
 const roster = parseRoster(await Bun.stdin.text());
@@ -48,6 +48,7 @@ if (!companyID && companyName) {
 			country: argument('country') ?? 'KR',
 			locale: argument('locale') ?? 'ko',
 			timezone: argument('timezone') ?? 'Asia/Seoul',
+			workLocations: argument('work-locations')?.split(',').filter(Boolean),
 		},
 		roster.find((person) => person.role === 'admin')?.email ?? roster[0].email,
 	);
