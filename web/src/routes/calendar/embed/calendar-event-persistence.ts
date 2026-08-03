@@ -1,4 +1,10 @@
 import type { CalendarParticipant, CalendarParticipantInput } from './calendar-participants';
+import {
+	deleteSupabaseCalendarEvent,
+	saveSupabaseCalendarEvent,
+	supabaseCalendarEvents
+} from '$lib/calendar/supabase-calendar';
+import { isSupabaseConfigured } from '$lib/supabase';
 
 export type CalendarEvent = {
 	id: string;
@@ -75,6 +81,7 @@ export function isCalendarPersistenceErrorCode(
 }
 
 export async function fetchCalendarEvents(startDate: Date, endDate: Date, errorFallback: string): Promise<CalendarEvent[]> {
+	if (isSupabaseConfigured) return supabaseCalendarEvents(startDate, endDate);
 	const query = new URLSearchParams({
 		startISO: startDate.toISOString(),
 		endISO: endDate.toISOString()
@@ -91,6 +98,7 @@ export async function writeCalendarEvent(
 	payload: CalendarEventPayload,
 	errorFallback: string
 ): Promise<CalendarEvent> {
+	if (isSupabaseConfigured) return saveSupabaseCalendarEvent(payload);
 	const response = await fetch(path, {
 		method,
 		credentials: 'include',
@@ -106,6 +114,7 @@ export async function deletePersistedCalendarEvent(
 	expectedUpdatedAt: string | undefined,
 	errorFallback: string
 ): Promise<void> {
+	if (isSupabaseConfigured) return deleteSupabaseCalendarEvent(eventID);
 	const response = await fetch(`/calendar/api/events/${encodeURIComponent(eventID)}`, {
 		method: 'DELETE',
 		credentials: 'include',

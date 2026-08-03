@@ -1,5 +1,13 @@
 import type { FlowDefinitions, FlowState, FlowSummary, FlowTask, FlowWeeklySummary } from './flow-types';
 import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
+import {
+	deleteSupabaseFlowTask,
+	moveSupabaseFlowTask,
+	saveSupabaseFlowTask,
+	supabaseFlowState,
+	supabaseFlowWeeklySummary
+} from '$lib/flow/supabase-flow';
+import { isSupabaseConfigured } from '$lib/supabase';
 
 export type FlowQuickTaskRequest = {
 	prompt: string;
@@ -15,6 +23,7 @@ export type FlowQuickTaskResult = {
 };
 
 export async function fetchFlowWeeklySummary(week: string, fallbackMessage: string): Promise<FlowWeeklySummary> {
+	if (isSupabaseConfigured) return supabaseFlowWeeklySummary(week);
 	const query = week ? `?week=${encodeURIComponent(week)}` : '';
 	const response = await fetch(`/flow/api/summary${query}`, { credentials: 'include' });
 	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
@@ -22,6 +31,7 @@ export async function fetchFlowWeeklySummary(week: string, fallbackMessage: stri
 }
 
 export async function fetchFlowState(fallbackMessage: string): Promise<FlowState> {
+	if (isSupabaseConfigured) return supabaseFlowState();
 	const response = await fetch('/flow/api/state', { credentials: 'include' });
 	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
 	return (await response.json()) as FlowState;
@@ -62,6 +72,7 @@ export async function createQuickFlowTask(request: FlowQuickTaskRequest, fallbac
 }
 
 export async function saveFlowTask(task: FlowTask, fallbackMessage: string): Promise<void> {
+	if (isSupabaseConfigured) return saveSupabaseFlowTask(task);
 	const method = task.id ? 'PUT' : 'POST';
 	const path = task.id ? `/flow/api/tasks/${encodeURIComponent(task.id)}` : '/flow/api/tasks';
 	const response = await fetch(path, {
@@ -74,6 +85,7 @@ export async function saveFlowTask(task: FlowTask, fallbackMessage: string): Pro
 }
 
 export async function moveFlowTaskOnBoard(request: FlowTaskBoardMoveRequest, fallbackMessage: string): Promise<void> {
+	if (isSupabaseConfigured) return moveSupabaseFlowTask(request.taskID, request.targetStatus);
 	const response = await fetch('/flow/api/tasks/move', {
 		method: 'POST',
 		credentials: 'include',
@@ -84,6 +96,7 @@ export async function moveFlowTaskOnBoard(request: FlowTaskBoardMoveRequest, fal
 }
 
 export async function deleteFlowTask(taskID: string, fallbackMessage: string): Promise<void> {
+	if (isSupabaseConfigured) return deleteSupabaseFlowTask(taskID);
 	const response = await fetch(`/flow/api/tasks/${encodeURIComponent(taskID)}`, {
 		method: 'DELETE',
 		credentials: 'include'
