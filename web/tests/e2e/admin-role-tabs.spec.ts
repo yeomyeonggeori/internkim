@@ -49,6 +49,25 @@ async function mockAdminPage(page: Page, role: MockAdminRole): Promise<void> {
 			}
 		});
 	});
+	await page.route('**/admin/api/workspace-settings', async (route) => {
+		await route.fulfill({ json: { countryCode: 'KR', timeZone: 'Asia/Seoul', language: 'ko', callingCode: '82' } });
+	});
+	await page.route('**/admin/api/holiday-countries', async (route) => {
+		await route.fulfill({ json: { countries: [{ countryCode: 'KR', name: '대한민국' }] } });
+	});
+	await page.route('**/admin/api/attendance-locations', async (route) => {
+		await route.fulfill({ json: { locations: [{ id: 'office', name: '사무실', color: '#2563eb', isDefault: true }] } });
+	});
+	await page.route('**/admin/api/calendar-holidays/status', async (route) => {
+		await route.fulfill({
+			json: {
+				status: 'degraded',
+				countryCode: 'KR',
+				provider: 'nager',
+				years: [{ year: 2026, status: 'degraded', cacheCount: 18, lastError: 'nager API status 503: unavailable' }]
+			}
+		});
+	});
 }
 
 test.describe('admin role tabs', () => {
@@ -101,6 +120,9 @@ test.describe('admin role tabs', () => {
 		await expect(adminRow.getByRole('button', { name: '삭제' })).toBeDisabled();
 		await expect(main.getByRole('button', { name: '삭제 Admin' })).toHaveCount(0);
 		await expect(main.getByRole('button', { name: '삭제 Engineering' })).toBeVisible();
+		await main.getByRole('tab', { name: '일반', exact: true }).click();
+		await expect(main.getByRole('button', { name: '지금 다시 시도' })).toBeVisible();
+		await expect(main.getByText('nager API status 503: unavailable')).toBeVisible();
 	});
 
 	test('hides admin navigation from members', async ({ page }) => {

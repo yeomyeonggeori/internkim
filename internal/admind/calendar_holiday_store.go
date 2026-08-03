@@ -24,8 +24,11 @@ type calendarHoliday struct {
 }
 
 type calendarHolidaysResponse struct {
-	Holidays []calendarHoliday `json:"holidays"`
-	Source   string            `json:"source"`
+	Holidays    []calendarHoliday `json:"holidays"`
+	Source      string            `json:"source"`
+	Degraded    bool              `json:"degraded"`
+	ErrorCode   string            `json:"errorCode,omitempty"`
+	NextRetryAt string            `json:"nextRetryAt,omitempty"`
 }
 
 type storedCalendarHoliday struct {
