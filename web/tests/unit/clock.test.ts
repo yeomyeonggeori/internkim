@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	companySlugOfHost,
 	dayInTimezone,
 	forgottenClockOut,
 	instantFromLocalInput,
@@ -82,5 +83,20 @@ describe('reading a wall clock in the member timezone', () => {
 		const instant = instantFromLocalInput('2026-08-02T18:00', 'Asia/Seoul');
 
 		expect(localInputOf(instant, 'Asia/Seoul')).toBe('2026-08-02T18:00');
+	});
+});
+
+describe('which company a page is for', () => {
+	test('the name in front of the domain is the company', () => {
+		expect(companySlugOfHost('dawn-street.example.test')).toBe('dawn-street');
+	});
+
+	test('the bare domain is for nobody in particular', () => {
+		expect(companySlugOfHost('example.test')).toBeNull();
+		expect(companySlugOfHost('www.example.test')).toBeNull();
+	});
+
+	test('working locally is not a company either', () => {
+		expect(companySlugOfHost('localhost')).toBeNull();
 	});
 });
