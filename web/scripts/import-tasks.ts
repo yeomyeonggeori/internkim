@@ -134,11 +134,9 @@ function dayOf(value: string | null): string {
 function dayRangeOf(startDate: string | null, endDate: string | null): { startsAt: string; endsAt: string } | null {
 	const start = dayOf(startDate);
 	if (!start) return null;
-	const end = dayOf(endDate);
-	// A range that ends before it starts is the two ends written the wrong way round,
-	// so keep both days and put them in order.
-	const [first, last] = end && end < start ? [end, start] : [start, end || start];
-	return { startsAt: `${first}T00:00:00+09:00`, endsAt: `${last}T23:59:00+09:00` };
+	// The record puts a reversed range in order, so both days go across as given.
+	const end = dayOf(endDate) || start;
+	return { startsAt: `${start}T00:00:00+09:00`, endsAt: `${end}T23:59:00+09:00` };
 }
 
 function participantNamesOf(raw: string | null): string[] {

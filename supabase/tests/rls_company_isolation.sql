@@ -746,4 +746,21 @@ begin
   raise notice 'org chart: teams are company-scoped and nobody supervises themselves';
 end $$;
 
+do $$
+declare
+  ordered record;
+begin
+  insert into public.task (company_id, title, starts_at, ends_at)
+  values ('00000000-0000-0000-0000-0000000000a0', 'Written back to front',
+          '2026-06-25 09:00+09', '2026-06-22 09:00+09');
+
+  select starts_at, ends_at into ordered from public.task where title = 'Written back to front';
+  assert ordered.starts_at < ordered.ends_at, 'a reversed range is put in order, not rejected';
+  assert ordered.starts_at = '2026-06-22 09:00+09'::timestamptz
+     and ordered.ends_at = '2026-06-25 09:00+09'::timestamptz,
+    'both days the caller gave are kept';
+
+  raise notice 'ranges: the two ends are put in order rather than refused';
+end $$;
+
 rollback;
