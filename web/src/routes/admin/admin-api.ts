@@ -9,6 +9,7 @@ import type {
 	AttendanceWorkPolicyRevision,
 	BlueclawUpdateStatus,
 	BotProfile,
+	CalendarHolidayStatus,
 	CircleRecord,
 	CompanyDocumentsResponse,
 	CompanyHoliday,
@@ -96,6 +97,19 @@ export async function fetchWorkspaceSettings(adminBaseURL: string, fallbackMessa
 export async function fetchHolidayCountries(adminBaseURL: string, fallbackMessage: string): Promise<HolidayCountriesResponse> {
 	const response = await fetch(`${adminBaseURL}/holiday-countries`, { credentials: 'include' });
 	return readJSON<HolidayCountriesResponse>(response, fallbackMessage);
+}
+
+export async function fetchCalendarHolidayStatus(adminBaseURL: string, fallbackMessage: string): Promise<CalendarHolidayStatus> {
+	const response = await fetch(`${adminBaseURL}/calendar-holidays/status`, { credentials: 'include' });
+	return readJSON<CalendarHolidayStatus>(response, fallbackMessage);
+}
+
+export async function refreshCalendarHolidayStatus(adminBaseURL: string, fallbackMessage: string): Promise<CalendarHolidayStatus> {
+	const response = await fetch(`${adminBaseURL}/calendar-holidays/refresh`, {
+		method: 'POST',
+		credentials: 'include'
+	});
+	return readJSON<CalendarHolidayStatus>(response, fallbackMessage);
 }
 
 export async function updateWorkspaceSettings(adminBaseURL: string, settings: WorkspaceSettings, fallbackMessage: string): Promise<WorkspaceSettings> {
