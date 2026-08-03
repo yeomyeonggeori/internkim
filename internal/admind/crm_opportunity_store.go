@@ -95,18 +95,18 @@ WHERE id = ?`, opportunity.ID).Scan(&existingAccountValue, &existingPipeline, &e
 		existingAccountID = crmStringFromNull(existingAccountValue)
 		if (existingAccountID == "") != (opportunity.AccountID == "") {
 			_ = transaction.Rollback()
-			return crmOpportunity{}, fmt.Errorf("CRM opportunity cannot change between account and contact-only customers")
+			return crmOpportunity{}, newCRMConflict("CRM opportunity cannot change between account and contact-only customers")
 		}
 		if opportunity.Pipeline != existingPipeline || (opportunity.Stage != "" && opportunity.Stage != existingStage) {
 			_ = transaction.Rollback()
-			return crmOpportunity{}, fmt.Errorf("CRM opportunity stage changes require transitionCRMOpportunityStage")
+			return crmOpportunity{}, newCRMConflict("CRM opportunity stage changes require transitionCRMOpportunityStage")
 		}
 		opportunity.Stage = existingStage
 		opportunity.StagePosition = existingStagePosition
 		opportunity.StageChangedAt = existingStageChangedAt
 		if existingAccountID != opportunity.AccountID && contacts == nil {
 			_ = transaction.Rollback()
-			return crmOpportunity{}, fmt.Errorf("CRM opportunity account changes require an explicit contact list")
+			return crmOpportunity{}, newCRMConflict("CRM opportunity account changes require an explicit contact list")
 		}
 	}
 	if opportunity.Stage == "" {
