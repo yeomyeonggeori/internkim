@@ -6,6 +6,10 @@
 		fetchCompany,
 		fetchMember,
 		fetchMyAttendance,
+		forgottenClockOut,
+		instantFromLocalInput,
+		isPlausibleClockOut,
+		localInputOf,
 		nextClockKind,
 		recordAttendance,
 		type AttendanceEntry,
@@ -25,6 +29,9 @@
 
 	const pendingKind = $derived(nextClockKind(entries));
 	const locations = $derived(company?.work_locations ?? []);
+	const zone = $derived(member?.timezone ?? company?.timezone ?? null);
+	const unfinishedDay = $derived(forgottenClockOut(entries, zone));
+	let leftAtInput = $state('');
 
 	function report(errorValue: unknown): void {
 		notice = errorValue instanceof Error ? errorValue.message : String(errorValue);
@@ -71,8 +78,27 @@
 		}
 	}
 
+	async function closeForgottenDay(): Promise<void> {
+		if (!member || !unfinishedDay) return;
+		const leftAt = instantFromLocalInput(leftAtInput, zone);
+		if (!isPlausibleClockOut(unfinishedDay.occurred_at, leftAt)) {
+			notice = 'that leaving time is before you arrived, or in the future';
+			return;
+		}
+		isBusy = true;
+		notice = null;
+		try {
+			await recordAttendance(member.id, 'clock_out', null, leftAt);
+			entries = await fetchMyAttendance(member.id);
+			leftAtInput = '';
+		} catch (errorValue) {
+			report(errorValue);
+		} finally {
+			isBusy = false;
+		}
+	}
+
 	function formatTime(occurredAt: string): string {
-		const zone = member?.timezone ?? company?.timezone;
 		return new Date(occurredAt).toLocaleString(undefined, zone ? { timeZone: zone } : undefined);
 	}
 
@@ -117,7 +143,32 @@
 			<button class="underline" onclick={signOut}>Sign out</button>
 		</div>
 
-		{#if pendingKind === 'clock_in' && locations.length > 0}
+		{#if unfinishedDay}
+			<div class="flex flex-col gap-2 rounded border border-dashed p-3">
+				<p class="text-sm">
+					You clocked in on {formatTime(unfinishedDay.occurred_at)} and never clocked out. When did
+					you leave?
+				</p>
+				<input
+					class="rounded border p-2"
+					type="datetime-local"
+					min={localInputOf(new Date(unfinishedDay.occurred_at), zone)}
+					max={localInputOf(new Date(), zone)}
+					bind:value={leftAtInput}
+				/>
+				<p class="text-xs text-muted-foreground">
+					Times are read in {zone ?? 'your browser timezone'}. Pick any day back to when you
+					arrived — a weekend or holiday in between is fine.
+				</p>
+				<button
+					class="rounded bg-primary p-2 text-primary-foreground"
+					disabled={isBusy || !leftAtInput}
+					onclick={closeForgottenDay}
+				>
+					Record that clock-out
+				</button>
+			</div>
+		{:else if pendingKind === 'clock_in' && locations.length > 0}
 			<select class="rounded border p-2" bind:value={selectedLocation}>
 				{#each locations as location (location)}
 					<option value={location}>{location}</option>
@@ -125,9 +176,11 @@
 			</select>
 		{/if}
 
-		<button class="rounded bg-primary p-3 text-primary-foreground" disabled={isBusy} onclick={clock}>
-			{pendingKind === 'clock_in' ? 'Clock in' : 'Clock out'}
-		</button>
+		{#if !unfinishedDay}
+			<button class="rounded bg-primary p-3 text-primary-foreground" disabled={isBusy} onclick={clock}>
+				{pendingKind === 'clock_in' ? 'Clock in' : 'Clock out'}
+			</button>
+		{/if}
 
 		<ul class="flex flex-col gap-1 text-sm">
 			{#each entries as entry (entry.id)}
