@@ -1,6 +1,14 @@
 export const organizationDirectoryText = {
 	ko: {
 		title: '조직',
+		inviteMember: '구성원 초대',
+		inviteDescription: '이메일 주소로 초대하면 임시 비밀번호가 나옵니다.',
+		inviteEmail: '이메일',
+		invite: '초대',
+		inviteHandOver: '본인에게 전달하세요. 로그인 후 패스키를 등록하면 비밀번호는 더 필요 없습니다.',
+		inviteFailed: '초대하지 못했습니다.',
+		cancel: '취소',
+		done: '완료',
 		search: '검색',
 		selectEmployee: '직원 선택',
 		selectOrganization: '조직 선택',
@@ -46,6 +54,14 @@ export const organizationDirectoryText = {
 		email: '이메일'
 	},
 	en: {
+		inviteMember: 'Invite someone',
+		inviteDescription: 'Invite by address and a temporary password comes back.',
+		inviteEmail: 'Email',
+		invite: 'Invite',
+		inviteHandOver: 'Hand this over. Once they sign in and set up a passkey, no password is needed.',
+		inviteFailed: 'The invitation did not go through.',
+		cancel: 'Cancel',
+		done: 'Done',
 		title: 'Organization',
 		search: 'Search',
 		selectEmployee: 'Select employee',

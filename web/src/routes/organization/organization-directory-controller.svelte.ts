@@ -1,6 +1,8 @@
 import type { AdminPageText } from '../admin/admin-types';
 import type { Locale } from '../../lib/i18n/locale.svelte';
 import { fetchWebSessionEmail } from '$lib/web-session';
+import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
+import { supabase } from '$lib/supabase';
 import { apiErrorMessage, fetchAdminSession, saveOrgGroups, saveOrgProfiles } from '../admin/admin-api';
 import { adminSessionRole, canManageOrganization } from '../admin/admin-role-policy';
 import { fetchOrganizationDirectory, organizationApiErrorMessage, saveOwnOrganizationProfile, type OwnOrganizationProfile } from './organization-api';
@@ -109,7 +111,11 @@ export class OrganizationDirectoryController {
 	}
 
 	async loadAdminAccess(): Promise<void> {
-		this.sessionEmail = await fetchWebSessionEmail();
+		this.sessionEmail = await this.emailOfSignedIn();
+		if (isSupabaseConfigured) {
+			this.canManage = (await supabaseMemberRole()) === 'admin';
+			return;
+		}
 		try {
 			const session = await fetchAdminSession(this.adminBaseURL, '');
 			this.canManage = canManageOrganization(adminSessionRole(session));
@@ -117,6 +123,12 @@ export class OrganizationDirectoryController {
 			this.canManage = false;
 			this.isAddingGroup = false;
 		}
+	}
+
+	private async emailOfSignedIn(): Promise<string> {
+		if (!isSupabaseConfigured) return fetchWebSessionEmail();
+		const { data } = await supabase().auth.getSession();
+		return data.session?.user.email ?? '';
 	}
 
 	isOwnRecord(record: UserRecord | undefined): boolean {
