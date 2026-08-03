@@ -11,6 +11,7 @@ export type Member = {
 
 export type Company = {
 	name: string;
+	slug: string;
 	timezone: string;
 	work_locations: string[] | null;
 };
@@ -37,10 +38,21 @@ export async function fetchMember(accountID: string): Promise<Member | null> {
 export async function fetchCompany(): Promise<Company | null> {
 	const { data, error } = await supabase()
 		.from('company')
-		.select('name, timezone, work_locations')
+		.select('name, slug, timezone, work_locations')
 		.maybeSingle();
 	if (error) throw new Error(error.message);
 	return data;
+}
+
+// Each company is reached at its own name, so the address says which company the
+// page is for. Nothing is scoped by it — RLS already limits a member to their own
+// company — but arriving at somebody else's address should say so rather than
+// quietly showing yours.
+export function companySlugOfHost(hostname: string): string | null {
+	const labels = hostname.split('.');
+	if (labels.length < 3) return null;
+	const slug = labels[0];
+	return slug && slug !== 'www' ? slug : null;
 }
 
 export async function fetchMyAttendance(memberID: string, limit = 20): Promise<AttendanceEntry[]> {

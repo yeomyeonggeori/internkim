@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
 	import {
+		companySlugOfHost,
 		fetchCompany,
 		fetchMember,
 		fetchMyAttendance,
@@ -32,6 +33,12 @@
 	const zone = $derived(member?.timezone ?? company?.timezone ?? null);
 	const unfinishedDay = $derived(forgottenClockOut(entries, zone));
 	let leftAtInput = $state('');
+	const addressedCompany = $derived(
+		typeof window === 'undefined' ? null : companySlugOfHost(window.location.hostname),
+	);
+	const isWrongAddress = $derived(
+		Boolean(company && addressedCompany && company.slug !== addressedCompany),
+	);
 	let newPassword = $state('');
 	let isChangingPassword = $state(false);
 
@@ -144,6 +151,13 @@
 <main class="mx-auto flex max-w-md flex-col gap-6 p-8">
 	<h1 class="text-xl font-semibold">{company?.name ?? 'InternKim'}</h1>
 
+	{#if isWrongAddress}
+		<p class="text-sm text-destructive">
+			This address is for {addressedCompany}, and you are at {company?.name}. Go to your own
+			company's address to clock in.
+		</p>
+	{/if}
+
 	{#if !signedInEmail}
 		<form class="flex flex-col gap-3" onsubmit={(event) => { event.preventDefault(); signIn(); }}>
 			<input class="rounded border p-2" type="email" bind:value={email} placeholder="email" required />
@@ -184,7 +198,9 @@
 			</form>
 		{/if}
 
-		{#if unfinishedDay}
+		{#if isWrongAddress}
+			<p class="text-sm text-muted-foreground">Nothing is shown here.</p>
+		{:else if unfinishedDay}
 			<div class="flex flex-col gap-2 rounded border border-dashed p-3">
 				<p class="text-sm">
 					You clocked in on {formatTime(unfinishedDay.occurred_at)} and never clocked out. When did
