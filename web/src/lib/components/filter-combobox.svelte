@@ -27,6 +27,7 @@
 		disabled = false,
 		id,
 		class: className,
+		contentClass,
 		icon,
 		onSelect,
 		optionContent,
@@ -41,6 +42,7 @@
 		disabled?: boolean;
 		id?: string;
 		class?: string;
+		contentClass?: string;
 		icon?: Snippet;
 		onSelect?: (value: string) => void;
 		optionContent?: Snippet<[Option]>;
@@ -98,7 +100,7 @@
 			</Button>
 		{/snippet}
 	</Popover.Trigger>
-	<Popover.Content class="w-[200px] p-0">
+	<Popover.Content class={cn('w-[200px] p-0', contentClass)}>
 		<Command.Root>
 			<Command.Input placeholder={searchPlaceholder ?? text.search} />
 			<Command.List>
