@@ -12,6 +12,7 @@ type DeviceGroup = { id: string; name: string; parent_id: string | null; positio
 type DeviceProfile = {
 	user_id: string;
 	email: string;
+	job_title: string | null;
 	group_id: string | null;
 	supervisor_id: string | null;
 	hire_date: string | null;
@@ -37,7 +38,7 @@ const groups = device
 	.query('select id, name, parent_id, position from organization_groups order by position')
 	.all() as DeviceGroup[];
 const profiles = device
-	.query('select user_id, email, group_id, supervisor_id, hire_date from organization_profiles')
+	.query('select user_id, email, job_title, group_id, supervisor_id, hire_date from organization_profiles')
 	.all() as DeviceProfile[];
 
 const { data: members, error: memberError } = await client
@@ -58,7 +59,7 @@ for (const profile of profiles) {
 	const supervisorEmail = emailByDeviceUser.get(profile.supervisor_id || '');
 	const known = memberByEmail.has(profile.email);
 	console.log(
-		`  ${profile.email.padEnd(24)} team=${team?.name ?? '-'} supervisor=${supervisorEmail ?? '-'}` +
+		`  ${profile.email.padEnd(24)} ${(profile.job_title ?? '-').padEnd(12)} team=${team?.name ?? '-'} supervisor=${supervisorEmail ?? '-'}` +
 			` joined=${profile.hire_date || '-'}${known ? '' : '   (no member here, skipped)'}`,
 	);
 }
@@ -100,6 +101,7 @@ for (const profile of profiles) {
 	const { error } = await client
 		.from('member')
 		.update({
+			job_title: (profile.job_title ?? '').trim() || null,
 			team_id: teamIDByDeviceGroup.get(profile.group_id || '') ?? null,
 			supervisor_id: supervisorID && supervisorID !== memberID ? supervisorID : null,
 			joined_at: profile.hire_date ? `${profile.hire_date}T00:00:00+09:00` : null,
