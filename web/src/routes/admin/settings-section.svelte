@@ -36,7 +36,9 @@
 	let workspaceSettingsMessage = $state('');
 	let isLoadingWorkspaceSettings = $state(false);
 	let isSavingWorkspaceSettings = $state(false);
+	let hasLoadedWorkspaceSettings = $state(false);
 	let holidayCountries = $state<HolidayCountry[]>([]);
+	let holidayCountriesMessage = $state('');
 	let isLoadingHolidayCountries = $state(false);
 	let attendanceLocations = $state<AttendanceLocation[]>([]);
 	let attendanceLocationsMessage = $state('');
@@ -76,7 +78,9 @@
 		try {
 			workspaceSettings = normalizeWorkspaceSettings(await fetchWorkspaceSettings(adminBaseURL, text.settings.loadError));
 			workspaceSettingsDraft = { ...workspaceSettings };
+			hasLoadedWorkspaceSettings = true;
 		} catch {
+			hasLoadedWorkspaceSettings = false;
 			workspaceSettingsMessage = text.settings.loadError;
 		} finally {
 			isLoadingWorkspaceSettings = false;
@@ -91,6 +95,7 @@
 		try {
 			workspaceSettings = normalizeWorkspaceSettings(await updateWorkspaceSettings(adminBaseURL, workspaceSettingsDraft, text.settings.saveError));
 			workspaceSettingsDraft = { ...workspaceSettings };
+			hasLoadedWorkspaceSettings = true;
 			workspaceSettingsMessage = text.settings.saveSuccess;
 		} catch (error) {
 			workspaceSettingsMessage = apiErrorMessage(error, text.settings.saveError);
@@ -103,11 +108,12 @@
 		if (!adminBaseURL) return;
 
 		isLoadingHolidayCountries = true;
+		holidayCountriesMessage = '';
 		try {
-			const response = await fetchHolidayCountries(adminBaseURL, text.settings.loadError);
+			const response = await fetchHolidayCountries(adminBaseURL, text.settings.countryLoadError);
 			holidayCountries = response.countries ?? [];
 		} catch {
-			workspaceSettingsMessage = text.settings.loadError;
+			holidayCountriesMessage = text.settings.countryLoadError;
 		} finally {
 			isLoadingHolidayCountries = false;
 		}
@@ -188,10 +194,14 @@
 						bind:countryCode={workspaceSettingsDraft.countryCode}
 						countries={holidayCountries}
 						disabled={isLoadingWorkspaceSettings || isLoadingHolidayCountries || isSavingWorkspaceSettings}
+						fallbackCountryCode={hasLoadedWorkspaceSettings ? workspaceSettingsDraft.countryCode : ''}
 						label={text.settings.country}
 						locale={workspaceSettingsDraft.language === 'en' ? 'en' : 'ko'}
 					/>
 					<Field.Description>{text.settings.countryDescription}</Field.Description>
+					{#if holidayCountriesMessage}
+						<Field.Description>{holidayCountriesMessage}</Field.Description>
+					{/if}
 				</Field.Field>
 				<Field.Field>
 					<Field.Label for="workspace-time-zone">{text.settings.timeZone}</Field.Label>
