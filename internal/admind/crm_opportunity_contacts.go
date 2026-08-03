@@ -8,6 +8,12 @@ import (
 )
 
 func replaceCRMOpportunityContactsInTransaction(ctx context.Context, transaction *sql.Tx, opportunityID string, contacts []crmOpportunityContact) error {
+	if _, errorValue := transaction.ExecContext(ctx, `
+UPDATE opportunity_contact
+SET is_primary = 0
+WHERE opportunity_id = ? AND is_primary = 1`, opportunityID); errorValue != nil {
+		return fmt.Errorf("clear CRM opportunity %s primary contact: %w", opportunityID, errorValue)
+	}
 	for _, contact := range contacts {
 		if _, errorValue := transaction.ExecContext(ctx, `
 INSERT INTO opportunity_contact(opportunity_id, contact_id, is_primary)

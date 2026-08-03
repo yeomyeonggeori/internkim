@@ -11,6 +11,7 @@ import (
 func (service *Service) transitionCRMOpportunityStage(ctx context.Context, transition crmOpportunityStageTransition) error {
 	transition.OpportunityID = strings.TrimSpace(transition.OpportunityID)
 	transition.Stage = strings.TrimSpace(transition.Stage)
+	transition.BeforeOpportunityID = strings.TrimSpace(transition.BeforeOpportunityID)
 	transition.ActorPersonID = strings.TrimSpace(transition.ActorPersonID)
 	if transition.OpportunityID == "" || transition.Stage == "" || transition.ActorPersonID == "" {
 		return fmt.Errorf("CRM stage transition opportunity, stage, and actor are required")
@@ -62,7 +63,7 @@ WHERE id = ?`, transition.Stage, transition.StagePosition, transition.OccurredAt
 		_ = transaction.Rollback()
 		return errorValue
 	}
-	if errorValue := rebalanceCRMStagePositionsOnCollision(ctx, transaction, opportunity.Pipeline, transition.Stage, transition.OpportunityID, transition.StagePosition, transition.OccurredAt, transition.ActorPersonID); errorValue != nil {
+	if errorValue := rebalanceCRMStagePositionsOnCollision(ctx, transaction, opportunity.Pipeline, transition.Stage, transition.OpportunityID, transition.StagePosition, transition.BeforeOpportunityID, transition.OccurredAt, transition.ActorPersonID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -91,7 +92,7 @@ WHERE id = ?`, transition.Stage, transition.StagePosition, transition.OccurredAt
 	return nil
 }
 
-func (service *Service) setCRMOpportunityStagePosition(ctx context.Context, opportunityID string, position float64, updatedAt string, actorPersonID string) error {
+func (service *Service) setCRMOpportunityStagePosition(ctx context.Context, opportunityID string, position float64, beforeOpportunityID string, updatedAt string, actorPersonID string) error {
 	if errorValue := crmValidateTimestamp(updatedAt); errorValue != nil {
 		return fmt.Errorf("invalid CRM position update time: %w", errorValue)
 	}
@@ -99,9 +100,13 @@ func (service *Service) setCRMOpportunityStagePosition(ctx context.Context, oppo
 		return fmt.Errorf("invalid CRM stage position")
 	}
 	opportunityID = strings.TrimSpace(opportunityID)
+	beforeOpportunityID = strings.TrimSpace(beforeOpportunityID)
 	actorPersonID = strings.TrimSpace(actorPersonID)
 	if opportunityID == "" || actorPersonID == "" {
 		return fmt.Errorf("CRM position opportunity and actor are required")
+	}
+	if opportunityID == beforeOpportunityID {
+		return fmt.Errorf("CRM position anchor must differ from the moved opportunity")
 	}
 	database, errorValue := service.openCRMDatabase(ctx)
 	if errorValue != nil {
@@ -128,7 +133,7 @@ WHERE id = ?`, position, updatedAt, actorPersonID, opportunityID); errorValue !=
 		_ = transaction.Rollback()
 		return errorValue
 	}
-	if errorValue := rebalanceCRMStagePositionsOnCollision(ctx, transaction, pipeline, stage, opportunityID, position, updatedAt, actorPersonID); errorValue != nil {
+	if errorValue := rebalanceCRMStagePositionsOnCollision(ctx, transaction, pipeline, stage, opportunityID, position, beforeOpportunityID, updatedAt, actorPersonID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
@@ -138,7 +143,7 @@ WHERE id = ?`, position, updatedAt, actorPersonID, opportunityID); errorValue !=
 	return nil
 }
 
-func rebalanceCRMStagePositionsOnCollision(ctx context.Context, transaction *sql.Tx, pipeline string, stage string, movedOpportunityID string, position float64, updatedAt string, actorPersonID string) error {
+func rebalanceCRMStagePositionsOnCollision(ctx context.Context, transaction *sql.Tx, pipeline string, stage string, movedOpportunityID string, position float64, beforeOpportunityID string, updatedAt string, actorPersonID string) error {
 	var collisionCount int
 	if errorValue := transaction.QueryRowContext(ctx, `
 SELECT COUNT(*)
@@ -149,29 +154,48 @@ WHERE pipeline = ? AND stage = ? AND stage_position = ?`, pipeline, stage, posit
 	if collisionCount <= 1 {
 		return nil
 	}
-	return rebalanceCRMStagePositions(ctx, transaction, pipeline, stage, movedOpportunityID, updatedAt, actorPersonID)
+	return rebalanceCRMStagePositions(ctx, transaction, pipeline, stage, movedOpportunityID, position, beforeOpportunityID, updatedAt, actorPersonID)
 }
 
-func rebalanceCRMStagePositions(ctx context.Context, transaction *sql.Tx, pipeline string, stage string, movedOpportunityID string, updatedAt string, actorPersonID string) error {
+func rebalanceCRMStagePositions(ctx context.Context, transaction *sql.Tx, pipeline string, stage string, movedOpportunityID string, position float64, beforeOpportunityID string, updatedAt string, actorPersonID string) error {
 	rows, errorValue := transaction.QueryContext(ctx, `
-SELECT id
+SELECT id, stage_position
 FROM opportunity
-WHERE pipeline = ? AND stage = ?
-ORDER BY stage_position, CASE WHEN id = ? THEN 0 ELSE 1 END, id`, pipeline, stage, movedOpportunityID)
+WHERE pipeline = ? AND stage = ? AND id <> ?
+ORDER BY stage_position, id`, pipeline, stage, movedOpportunityID)
 	if errorValue != nil {
 		return errorValue
 	}
-	ids := []string{}
+	type positionedOpportunity struct {
+		id       string
+		position float64
+	}
+	positioned := []positionedOpportunity{}
 	for rows.Next() {
-		var id string
-		if errorValue := rows.Scan(&id); errorValue != nil {
+		var opportunity positionedOpportunity
+		if errorValue := rows.Scan(&opportunity.id, &opportunity.position); errorValue != nil {
 			rows.Close()
 			return errorValue
 		}
-		ids = append(ids, id)
+		positioned = append(positioned, opportunity)
 	}
 	if errorValue := rows.Close(); errorValue != nil {
 		return errorValue
+	}
+	ids := make([]string, 0, len(positioned)+1)
+	inserted := false
+	for _, opportunity := range positioned {
+		if !inserted && ((beforeOpportunityID != "" && opportunity.id == beforeOpportunityID) || (beforeOpportunityID == "" && opportunity.position >= position)) {
+			ids = append(ids, movedOpportunityID)
+			inserted = true
+		}
+		ids = append(ids, opportunity.id)
+	}
+	if beforeOpportunityID != "" && !inserted {
+		return fmt.Errorf("CRM position anchor %s is not in pipeline %s stage %s", beforeOpportunityID, pipeline, stage)
+	}
+	if !inserted {
+		ids = append(ids, movedOpportunityID)
 	}
 	for index, id := range ids {
 		if _, errorValue := transaction.ExecContext(ctx, `

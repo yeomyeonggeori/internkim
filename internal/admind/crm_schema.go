@@ -211,12 +211,17 @@ var crmSchemaStatements = []string{
 				AND NEW.amount_minor IS NOT NULL AND (NEW.base_amount_minor IS NULL OR NEW.base_currency_code IS NULL) THEN RAISE(ABORT, 'realized opportunity amount requires base amount')
 		END;
 		END`,
-	`CREATE TRIGGER IF NOT EXISTS opportunity_realized_base_amount_immutable
-		BEFORE UPDATE OF base_amount_minor, base_currency_code ON opportunity
+	`CREATE TRIGGER IF NOT EXISTS opportunity_realized_amount_immutable
+		BEFORE UPDATE OF amount_minor, currency_code, base_amount_minor, base_currency_code ON opportunity
 		WHEN (SELECT outcome FROM pipeline_stage WHERE pipeline = OLD.pipeline AND stage = OLD.stage) IN ('won', 'lost')
-			AND (NEW.base_amount_minor IS NOT OLD.base_amount_minor OR NEW.base_currency_code IS NOT OLD.base_currency_code)
+			AND (
+				NEW.amount_minor IS NOT OLD.amount_minor
+				OR NEW.currency_code IS NOT OLD.currency_code
+				OR NEW.base_amount_minor IS NOT OLD.base_amount_minor
+				OR NEW.base_currency_code IS NOT OLD.base_currency_code
+			)
 		BEGIN
-			SELECT RAISE(ABORT, 'realized opportunity base amount is immutable');
+			SELECT RAISE(ABORT, 'realized opportunity amount is immutable');
 		END`,
 	`CREATE TRIGGER IF NOT EXISTS opportunity_contact_validate_insert
 	BEFORE INSERT ON opportunity_contact

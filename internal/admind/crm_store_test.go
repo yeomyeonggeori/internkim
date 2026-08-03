@@ -280,7 +280,7 @@ func TestCRMOpportunityGenericUpdatePreservesStagePosition(t *testing.T) {
 	}
 }
 
-func TestCRMRealizedBaseAmountCannotChange(t *testing.T) {
+func TestCRMRealizedAmountsCannotChange(t *testing.T) {
 	ctx := context.Background()
 	service, opportunity := createCRMOpportunityForStoreTest(t)
 	if errorValue := service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
@@ -298,10 +298,24 @@ func TestCRMRealizedBaseAmountCannotChange(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	realized.BaseAmountMinor = crmInt64(600000)
-	realized.Audit.UpdatedAt = "2026-08-02T04:31:00Z"
-	if _, errorValue := service.writeCRMOpportunity(ctx, realized, nil); errorValue == nil {
-		t.Fatal("realized CRM base amount update should fail")
+	testCases := []struct {
+		name   string
+		change func(*crmOpportunity)
+	}{
+		{name: "amount", change: func(changed *crmOpportunity) { changed.AmountMinor = crmInt64(600000) }},
+		{name: "currency", change: func(changed *crmOpportunity) { changed.CurrencyCode = "USD" }},
+		{name: "base amount", change: func(changed *crmOpportunity) { changed.BaseAmountMinor = crmInt64(600000) }},
+		{name: "base currency", change: func(changed *crmOpportunity) { changed.BaseCurrencyCode = "USD" }},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			changed := realized
+			testCase.change(&changed)
+			changed.Audit.UpdatedAt = "2026-08-02T04:31:00Z"
+			if _, errorValue := service.writeCRMOpportunity(ctx, changed, nil); errorValue == nil {
+				t.Fatalf("realized CRM %s update should fail", testCase.name)
+			}
+		})
 	}
 }
 
@@ -349,7 +363,7 @@ func TestCRMStagePositionCollisionRebalancesOnlyCurrentStage(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.setCRMOpportunityStagePosition(ctx, second.ID, first.StagePosition, "2026-08-02T05:00:00Z", "person-owner"); errorValue != nil {
+	if errorValue := service.setCRMOpportunityStagePosition(ctx, second.ID, first.StagePosition, first.ID, "2026-08-02T05:00:00Z", "person-owner"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	first, _, errorValue = service.readCRMOpportunity(ctx, first.ID, false)
@@ -362,6 +376,54 @@ func TestCRMStagePositionCollisionRebalancesOnlyCurrentStage(t *testing.T) {
 	}
 	if first.StagePosition == second.StagePosition || first.StagePosition/1024 != float64(int(first.StagePosition/1024)) || second.StagePosition/1024 != float64(int(second.StagePosition/1024)) {
 		t.Fatalf("rebalanced positions = %v, %v", first.StagePosition, second.StagePosition)
+	}
+}
+
+func TestCRMStagePositionFallbackPreservesInsertionAnchor(t *testing.T) {
+	ctx := context.Background()
+	service, existing := createCRMOpportunityForStoreTest(t)
+	left, errorValue := service.writeCRMOpportunity(ctx, crmOpportunity{
+		ID: "opportunity-left", AccountID: existing.AccountID, Name: "왼쪽 진행 건", Pipeline: "sales",
+		Stage: "lead", StagePosition: 1, OwnerPersonID: "person-owner", Audit: existing.Audit,
+	}, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	right, errorValue := service.writeCRMOpportunity(ctx, crmOpportunity{
+		ID: "opportunity-right", AccountID: existing.AccountID, Name: "오른쪽 진행 건", Pipeline: "sales",
+		Stage: "lead", StagePosition: math.Nextafter(left.StagePosition, math.Inf(1)), OwnerPersonID: "person-owner", Audit: existing.Audit,
+	}, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	moving, errorValue := service.writeCRMOpportunity(ctx, crmOpportunity{
+		ID: "opportunity-moving", AccountID: existing.AccountID, Name: "이동 진행 건", Pipeline: "sales",
+		Stage: "lead", StagePosition: 0.5, OwnerPersonID: "person-owner", Audit: existing.Audit,
+	}, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	midpoint := (left.StagePosition + right.StagePosition) / 2
+	if midpoint != left.StagePosition {
+		t.Fatalf("midpoint = %v, want collision with %v", midpoint, left.StagePosition)
+	}
+	if errorValue := service.setCRMOpportunityStagePosition(ctx, moving.ID, midpoint, right.ID, "2026-08-02T05:00:00Z", "person-owner"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	left, _, errorValue = service.readCRMOpportunity(ctx, left.ID, false)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	moving, _, errorValue = service.readCRMOpportunity(ctx, moving.ID, false)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	right, _, errorValue = service.readCRMOpportunity(ctx, right.ID, false)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !(left.StagePosition < moving.StagePosition && moving.StagePosition < right.StagePosition) {
+		t.Fatalf("anchored positions = left %v, moving %v, right %v", left.StagePosition, moving.StagePosition, right.StagePosition)
 	}
 }
 
@@ -414,11 +476,12 @@ func TestCRMStageTransitionPositionCollisionRebalancesTargetStage(t *testing.T) 
 	}
 
 	if errorValue := service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
-		OpportunityID: moving.ID,
-		Stage:         "qualified",
-		StagePosition: existing.StagePosition,
-		OccurredAt:    "2026-08-02T05:00:00Z",
-		ActorPersonID: "person-owner",
+		OpportunityID:       moving.ID,
+		Stage:               "qualified",
+		StagePosition:       existing.StagePosition,
+		BeforeOpportunityID: existing.ID,
+		OccurredAt:          "2026-08-02T05:00:00Z",
+		ActorPersonID:       "person-owner",
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -432,6 +495,77 @@ func TestCRMStageTransitionPositionCollisionRebalancesTargetStage(t *testing.T) 
 	}
 	if moving.StagePosition == existing.StagePosition {
 		t.Fatalf("target stage positions = %v, %v", moving.StagePosition, existing.StagePosition)
+	}
+}
+
+func TestCRMOpportunityPrimaryContactReplacementIgnoresInputOrder(t *testing.T) {
+	ctx := context.Background()
+	service, opportunity := createCRMOpportunityForStoreTest(t)
+	first, errorValue := service.writeCRMContact(ctx, crmContact{
+		ID: "contact-primary-first", AccountID: opportunity.AccountID, Name: "기존 주 연락처", Email: "first-primary@example.com",
+		OwnerPersonID: "person-owner", Audit: opportunity.Audit,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	second, errorValue := service.writeCRMContact(ctx, crmContact{
+		ID: "contact-primary-second", AccountID: opportunity.AccountID, Name: "새 주 연락처", Email: "second-primary@example.com",
+		OwnerPersonID: "person-owner", Audit: opportunity.Audit,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	_, errorValue = service.writeCRMOpportunity(ctx, opportunity, []crmOpportunityContact{
+		{ContactID: first.ID, IsPrimary: true},
+		{ContactID: second.ID},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	opportunity.Audit.UpdatedAt = "2026-08-02T05:00:00Z"
+	_, errorValue = service.writeCRMOpportunity(ctx, opportunity, []crmOpportunityContact{
+		{ContactID: second.ID, IsPrimary: true},
+		{ContactID: first.ID},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	_, contacts, errorValue := service.readCRMOpportunity(ctx, opportunity.ID, false)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(contacts) != 2 || contacts[0].ContactID != second.ID || !contacts[0].IsPrimary || contacts[1].IsPrimary {
+		t.Fatalf("replaced CRM opportunity contacts = %#v", contacts)
+	}
+}
+
+func TestCRMOpportunityRejectsCustomerModelChange(t *testing.T) {
+	ctx := context.Background()
+	service, accountOpportunity := createCRMOpportunityForStoreTest(t)
+	contact, errorValue := service.writeCRMContact(ctx, crmContact{
+		ID: "contact-customer-model", Name: "개인 고객", Email: "customer-model@example.com",
+		OwnerPersonID: "person-owner", Audit: accountOpportunity.Audit,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	accountID := accountOpportunity.AccountID
+	accountOpportunity.AccountID = ""
+	accountOpportunity.Audit.UpdatedAt = "2026-08-02T05:00:00Z"
+	if _, errorValue := service.writeCRMOpportunity(ctx, accountOpportunity, []crmOpportunityContact{{ContactID: contact.ID, IsPrimary: true}}); errorValue == nil || errorValue.Error() != "CRM opportunity cannot change between account and contact-only customers" {
+		t.Fatalf("account to contact-only error = %v", errorValue)
+	}
+	contactOpportunity, errorValue := service.writeCRMOpportunity(ctx, crmOpportunity{
+		ID: "opportunity-contact-model", Name: "개인 고객 진행 건", Pipeline: "sales",
+		OwnerPersonID: "person-owner", Audit: accountOpportunity.Audit,
+	}, []crmOpportunityContact{{ContactID: contact.ID, IsPrimary: true}})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	contactOpportunity.AccountID = accountID
+	contactOpportunity.Audit.UpdatedAt = "2026-08-02T05:01:00Z"
+	if _, errorValue := service.writeCRMOpportunity(ctx, contactOpportunity, []crmOpportunityContact{}); errorValue == nil || errorValue.Error() != "CRM opportunity cannot change between account and contact-only customers" {
+		t.Fatalf("contact-only to account error = %v", errorValue)
 	}
 }
 

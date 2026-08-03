@@ -93,6 +93,10 @@ WHERE id = ?`, opportunity.ID).Scan(&existingAccountValue, &existingPipeline, &e
 			return crmOpportunity{}, fmt.Errorf("read CRM opportunity stage %s: %w", opportunity.ID, errorValue)
 		}
 		existingAccountID = crmStringFromNull(existingAccountValue)
+		if (existingAccountID == "") != (opportunity.AccountID == "") {
+			_ = transaction.Rollback()
+			return crmOpportunity{}, fmt.Errorf("CRM opportunity cannot change between account and contact-only customers")
+		}
 		if opportunity.Pipeline != existingPipeline || (opportunity.Stage != "" && opportunity.Stage != existingStage) {
 			_ = transaction.Rollback()
 			return crmOpportunity{}, fmt.Errorf("CRM opportunity stage changes require transitionCRMOpportunityStage")
@@ -127,9 +131,6 @@ WHERE pipeline = ? AND stage = ?`, opportunity.Pipeline, opportunity.Stage).Scan
 	}
 	accountChanged := existingCount > 0 && existingAccountID != opportunity.AccountID
 	contactsWrittenBeforeOpportunity := existingCount == 0 && opportunity.AccountID == ""
-	if accountChanged && existingAccountID == "" {
-		contactsWrittenBeforeOpportunity = true
-	}
 	if accountChanged && existingAccountID != "" && opportunity.AccountID != "" {
 		if errorValue := replaceCRMOpportunityContactsInTransaction(ctx, transaction, opportunity.ID, []crmOpportunityContact{}); errorValue != nil {
 			_ = transaction.Rollback()
@@ -153,7 +154,7 @@ WHERE pipeline = ? AND stage = ?`, opportunity.Pipeline, opportunity.Stage).Scan
 		}
 	}
 	if existingCount == 0 {
-		if errorValue := rebalanceCRMStagePositionsOnCollision(ctx, transaction, opportunity.Pipeline, opportunity.Stage, opportunity.ID, opportunity.StagePosition, opportunity.Audit.UpdatedAt, opportunity.Audit.UpdatedByPersonID); errorValue != nil {
+		if errorValue := rebalanceCRMStagePositionsOnCollision(ctx, transaction, opportunity.Pipeline, opportunity.Stage, opportunity.ID, opportunity.StagePosition, "", opportunity.Audit.UpdatedAt, opportunity.Audit.UpdatedByPersonID); errorValue != nil {
 			_ = transaction.Rollback()
 			return crmOpportunity{}, errorValue
 		}
