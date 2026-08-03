@@ -127,18 +127,22 @@ current tree.
 at `/run/internkim/capability.sock` chowned to the POSIX group `blueclaw`
 (`internal/capabilityd/service.go:1348`), plus subprocess exec and local model
 paths. It has **zero** Buzz/nostr code — its platform support is
-Mattermost/Slack/Signal, and the MM half dies with Mattermost. Its
+Mattermost/Slack/Signal, of which Signal is dropped. Its
 calendar/mail/company/flow/site tools are already thin HTTP clients over
 `AdmindBaseURL` (`service.go:233`), so they simply re-point at the central API.
 
 **`chatd` → client, and it stays multi-adapter.** chatd is a Chat SDK host with a
-pluggable adapter set; **Buzz is our adapter, not the only one**. Other messengers
-(Slack, Signal, a future one) must remain addable without touching the runtime —
-that is the point of the adapter layer, and it is what lets a customer keep the
-messenger they already use.
+pluggable adapter set; **Buzz is our adapter, not the only one**. Attaching a
+platform must be a config entry, not a code change — either an official
+`@chat-adapter/*` package or one we write against `@chat-adapter/shared`.
 
-What goes away is the **Mattermost bridge and the MM↔Buzz mirror**, not
-multi-adapter capability: `mirror/mattermost-puppet.ts`, the star-topology mirror
+**Supported set for v1: Mattermost, Buzz, Slack.** Signal is dropped. Mattermost
+survives as a **first-class adapter a tenant may choose**, which is a change from
+the earlier "drop Mattermost" position — what is dropped is Mattermost as *our*
+device-era substrate, not as a messenger a customer already runs.
+
+What goes away is the **Mattermost bridge and the MM↔Buzz mirror**, which are a
+different thing from the adapter: `mirror/mattermost-puppet.ts`, the star-topology mirror
 in `src/mirror/`, the `/webhooks/mattermost` route, and `bridge.ts`'s legacy
 hardcoded-`'mattermost'` forward path (`bridge.ts:73`). Adapters that survive go
 through the normalized path (`bridge.ts:68`) like Buzz does. The audit confirms
@@ -160,7 +164,7 @@ clusters (`internal/admind/service.go:516`).
 |---|---|---|
 | **Central product API** (Supabase-backed) | attendance, calendar (+CalDAV/ICS/Google OAuth), flow/tasks, memory, mail, company, users/org-profiles/circles, buzz-invites/links/config, buzz-vault/claim/relay-config, key-login auth + session, public API v1 | All are pure API over local SQLite files. Nothing device-coupled; SQLite → Supabase is the whole migration. |
 | **Client (host app)** | workspace files, sites lifecycle, companion broker, runtime settings | Real filesystem, systemd units, `/root/.blueclaw/config/runtime.json`. |
-| **Dropped** | MM catch-all proxy + managed-channel write guard + MM command/action webhooks + MM password-login/session cache + MM user provisioning; Buzz↔MM mirror + admin wipe/reset/orphan-repair; bridge map; media proxy; OTA/release apply + rollback; backup/restore; SSH recovery/diagnostics; wifi profiles | Mattermost removal kills the first group. The rest are per-device operations that the central plane + a customer-installed app replace. |
+| **Dropped** | MM catch-all proxy + managed-channel write guard + MM command/action webhooks + MM password-login/session cache + MM user provisioning; Buzz↔MM mirror + admin wipe/reset/orphan-repair; bridge map; media proxy; OTA/release apply + rollback; backup/restore; SSH recovery/diagnostics; wifi profiles | The first group dies because Mattermost stops being our identity and user store — not because Mattermost is gone; a tenant may still chat on it through the chatd adapter, which needs none of this. The rest are per-device operations that the central plane + a customer-installed app replace. |
 
 The **media proxy** (`buzz_media_proxy.go:19`) exists only because the relay is on
 loopback and the blob URLs are unreachable — a real-TLS central relay with S3
@@ -511,9 +515,11 @@ Per tenant:
   device was never wiped until soak passed.
 
 ### Phase 5 — Decommission the device stack
-- Retire per-device pieces: **on-device GPU LLM** (→ BYO remote/local),
-  **Mattermost**, **stunnel/cloudflared per-device relay exposure**, per-device
-  OTA. Simplify/split `admind` and `chatd` per the component-placement decision.
+- Retire per-device pieces: **on-device GPU LLM** (→ BYO remote/local), **the
+  Mattermost we operate** (the adapter stays — a tenant running their own
+  Mattermost keeps chatting on it), **stunnel/cloudflared per-device relay
+  exposure**, per-device OTA. Simplify/split `admind` and `chatd` per the
+  component-placement decision.
 - **Gate:** all tenants migrated + soaked.
 
 ### Sequencing notes
