@@ -22,10 +22,13 @@ export type AttendanceEntry = {
 	occurred_at: string;
 };
 
-export async function fetchMember(): Promise<Member | null> {
+// Colleagues are visible to each other, so asking for "the member" returns the whole
+// company. The signed-in account is what narrows it to one.
+export async function fetchMember(accountID: string): Promise<Member | null> {
 	const { data, error } = await supabase()
 		.from('member')
 		.select('id, company_id, email, timezone')
+		.eq('user_id', accountID)
 		.maybeSingle();
 	if (error) throw new Error(error.message);
 	return data;

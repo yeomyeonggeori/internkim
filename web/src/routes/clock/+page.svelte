@@ -37,8 +37,8 @@
 		notice = errorValue instanceof Error ? errorValue.message : String(errorValue);
 	}
 
-	async function loadEverything(): Promise<void> {
-		member = await fetchMember();
+	async function loadEverything(accountID: string): Promise<void> {
+		member = await fetchMember(accountID);
 		company = await fetchCompany();
 		selectedLocation ??= locations[0] ?? null;
 		entries = member ? await fetchMyAttendance(member.id) : [];
@@ -109,13 +109,13 @@
 		}
 		const { data } = supabase().auth.onAuthStateChange((_event, session) => {
 			signedInEmail = session?.user.email ?? null;
-			if (session) loadEverything().catch(report);
+			if (session) loadEverything(session.user.id).catch(report);
 		});
 		supabase()
 			.auth.getSession()
 			.then(({ data: current }) => {
 				signedInEmail = current.session?.user.email ?? null;
-				if (current.session) loadEverything().catch(report);
+				if (current.session) loadEverything(current.session.user.id).catch(report);
 			});
 		return () => data.subscription.unsubscribe();
 	});
