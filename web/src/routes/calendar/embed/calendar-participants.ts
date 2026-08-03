@@ -1,3 +1,5 @@
+import { supabaseCalendarParticipants } from '$lib/calendar/supabase-calendar';
+import { isSupabaseConfigured } from '$lib/supabase';
 export type CalendarParticipantInput = {
 	personID: string;
 	name: string;
@@ -9,6 +11,7 @@ export type CalendarParticipant = CalendarParticipantInput & {
 };
 
 export async function fetchCalendarParticipants(errorFallback: string): Promise<CalendarParticipant[]> {
+	if (isSupabaseConfigured) return supabaseCalendarParticipants();
 	const response = await fetch('/calendar/api/participants', { credentials: 'include' });
 	if (!response.ok) throw new Error(await responseErrorMessage(response, errorFallback));
 	const document = await response.json();
