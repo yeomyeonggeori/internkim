@@ -32,6 +32,8 @@
 	const zone = $derived(member?.timezone ?? company?.timezone ?? null);
 	const unfinishedDay = $derived(forgottenClockOut(entries, zone));
 	let leftAtInput = $state('');
+	let newPassword = $state('');
+	let isChangingPassword = $state(false);
 
 	function report(errorValue: unknown): void {
 		notice = errorValue instanceof Error ? errorValue.message : String(errorValue);
@@ -98,6 +100,22 @@
 		}
 	}
 
+	async function changePassword(): Promise<void> {
+		isBusy = true;
+		notice = null;
+		try {
+			const { error } = await supabase().auth.updateUser({ password: newPassword });
+			if (error) throw new Error(error.message);
+			newPassword = '';
+			isChangingPassword = false;
+			notice = 'password changed';
+		} catch (errorValue) {
+			report(errorValue);
+		} finally {
+			isBusy = false;
+		}
+	}
+
 	function formatTime(occurredAt: string): string {
 		return new Date(occurredAt).toLocaleString(undefined, zone ? { timeZone: zone } : undefined);
 	}
@@ -140,8 +158,31 @@
 	{:else}
 		<div class="flex items-center justify-between text-sm text-muted-foreground">
 			<span>{signedInEmail}</span>
-			<button class="underline" onclick={signOut}>Sign out</button>
+			<span class="flex gap-3">
+				<button class="underline" onclick={() => (isChangingPassword = !isChangingPassword)}>
+					Change password
+				</button>
+				<button class="underline" onclick={signOut}>Sign out</button>
+			</span>
 		</div>
+
+		{#if isChangingPassword}
+			<form
+				class="flex flex-col gap-2 rounded border border-dashed p-3"
+				onsubmit={(event) => { event.preventDefault(); changePassword(); }}
+			>
+				<p class="text-sm">Pick your own password — the one you were given is temporary.</p>
+				<input
+					class="rounded border p-2"
+					type="password"
+					bind:value={newPassword}
+					placeholder="new password"
+					minlength="8"
+					required
+				/>
+				<button class="rounded bg-primary p-2 text-primary-foreground" disabled={isBusy}>Save</button>
+			</form>
+		{/if}
 
 		{#if unfinishedDay}
 			<div class="flex flex-col gap-2 rounded border border-dashed p-3">

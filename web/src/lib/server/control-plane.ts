@@ -66,23 +66,58 @@ export async function addMember(
 	return data.id;
 }
 
-export async function inviteMember(client: SupabaseClient, memberID: string): Promise<void> {
+export type Invitation = {
+	memberID: string;
+	email: string;
+	temporaryPassword: string;
+};
+
+// Mail cannot be relied on here — the built-in sender only reaches the project team
+// and reports success either way — so an invitation is a password the admin hands
+// over. The person changes it once they are in.
+export async function inviteMember(client: SupabaseClient, memberID: string): Promise<Invitation> {
 	const { data: member, error: readError } = await client
 		.from('member')
-		.select('email, status')
+		.select('email')
 		.eq('id', memberID)
 		.single();
 	if (readError) throw new Error(`member ${memberID}: ${readError.message}`);
 	if (!member.email) throw new Error(`member ${memberID} has no address to invite`);
 
-	const { error: inviteError } = await client.auth.admin.inviteUserByEmail(member.email);
-	if (inviteError) throw new Error(`invite ${member.email}: ${inviteError.message}`);
+	const temporaryPassword = temporaryPasswordValue();
+	const { data: accounts, error: listError } = await client.auth.admin.listUsers();
+	if (listError) throw new Error(listError.message);
+	const account = accounts.users.find((user) => user.email === member.email);
+
+	if (account) {
+		const { error } = await client.auth.admin.updateUserById(account.id, {
+			password: temporaryPassword,
+			email_confirm: true,
+		});
+		if (error) throw new Error(`password for ${member.email}: ${error.message}`);
+	} else {
+		const { error } = await client.auth.admin.createUser({
+			email: member.email,
+			password: temporaryPassword,
+			email_confirm: true,
+		});
+		if (error) throw new Error(`account for ${member.email}: ${error.message}`);
+	}
 
 	const { error: statusError } = await client
 		.from('member')
 		.update({ status: 'invited' })
 		.eq('id', memberID);
 	if (statusError) throw new Error(`member ${memberID}: ${statusError.message}`);
+
+	return { memberID, email: member.email, temporaryPassword };
+}
+
+function temporaryPasswordValue(): string {
+	const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789';
+	const bytes = crypto.getRandomValues(new Uint8Array(12));
+	const value = [...bytes].map((byte) => alphabet[byte % alphabet.length]).join('');
+	return `${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}`;
 }
 
 export async function linkCredential(

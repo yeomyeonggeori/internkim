@@ -1,8 +1,9 @@
-// Sends invitations. Without --email everyone still pending is invited, so a first
-// rollout is one command and a rerun only reaches whoever has not been asked yet.
-//   bun run web/scripts/invite-members.ts --company <uuid> [--email one@example.com] [--redirect <url>] [--apply]
+// Invites people by issuing a temporary password each, for the admin to pass on.
+// Without --email everyone still pending is invited, so a first rollout is one
+// command and a rerun only reaches whoever has not been asked yet.
+//   bun run web/scripts/invite-members.ts --company <uuid> [--email one@example.com] [--apply]
 
-import { controlPlane } from '../src/lib/server/control-plane';
+import { controlPlane, inviteMember } from '../src/lib/server/control-plane';
 
 function argument(name: string): string | undefined {
 	const index = process.argv.indexOf(`--${name}`);
@@ -11,7 +12,6 @@ function argument(name: string): string | undefined {
 
 const companyID = argument('company');
 const onlyEmail = argument('email');
-const redirectTo = argument('redirect');
 const shouldApply = process.argv.includes('--apply');
 if (!companyID) throw new Error('pass --company <uuid>');
 
@@ -36,18 +36,9 @@ if (!shouldApply) {
 	process.exit(0);
 }
 
+console.log('\nHand these over yourself — they are not mailed:\n');
 for (const member of targets) {
-	const { error: inviteError } = await client.auth.admin.inviteUserByEmail(member.email!, {
-		redirectTo,
-	});
-	if (inviteError) {
-		console.log(`  ${member.email} failed: ${inviteError.message}`);
-		continue;
-	}
-	const { error: statusError } = await client
-		.from('member')
-		.update({ status: 'invited' })
-		.eq('id', member.id);
-	if (statusError) throw new Error(statusError.message);
-	console.log(`  ${member.email} invited`);
+	const invitation = await inviteMember(client, member.id);
+	console.log(`  ${invitation.email.padEnd(28)} ${invitation.temporaryPassword}`);
 }
+console.log('\nEveryone should change theirs after signing in.');
