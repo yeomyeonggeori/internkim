@@ -5,6 +5,7 @@ import { feedbackFormURL } from '$lib/components/app-rail-config';
 import type { AppRailItem } from '$lib/components/app-rail-types';
 import { appShellText } from '$lib/i18n/app-shell-text';
 import { createPageText } from '$lib/i18n/page-text.svelte';
+import { isSupabaseConfigured, signOutOfSupabase, supabaseMemberRole } from '$lib/supabase-session';
 import type { UserRole } from '$lib/types';
 import type { WebAuthSession } from '$lib/web-auth-session';
 import ActivityIcon from '@lucide/svelte/icons/activity';
@@ -84,6 +85,10 @@ class AppNavigation {
 		this.userImage = session.image;
 		this.canViewTasks = session.canViewTasks;
 		this.isPocSuperAdmin = session.isPocSuperAdmin;
+		if (isSupabaseConfigured) {
+			this.adminRole = await supabaseMemberRole();
+			return;
+		}
 		void appBadgeCounts.load(session.email);
 		await this.loadBuzzEnabled();
 		try {
@@ -110,6 +115,11 @@ class AppNavigation {
 	};
 
 	logOut = async () => {
+		if (isSupabaseConfigured) {
+			await signOutOfSupabase();
+			location.replace(this.currentPath);
+			return;
+		}
 		let redirectURL = '/flow/';
 		try {
 			const response = await fetch(`/auth/logout?return=${encodeURIComponent(this.currentPath)}`, {

@@ -19,6 +19,18 @@ export async function supabaseWebAuthSession(returnPath: string): Promise<WebAut
 	};
 }
 
+export async function supabaseMemberRole(): Promise<'admin' | 'member'> {
+	const { data } = await supabase().auth.getSession();
+	const accountID = data.session?.user.id;
+	if (!accountID) return 'member';
+	const member = await supabase().from('member').select('is_admin').eq('user_id', accountID).maybeSingle();
+	return member.data?.is_admin ? 'admin' : 'member';
+}
+
+export async function signOutOfSupabase(): Promise<void> {
+	await supabase().auth.signOut();
+}
+
 export async function signInWithSupabase(email: string, password: string): Promise<void> {
 	const { error } = await supabase().auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
 	if (error) throw new Error(error.message);
