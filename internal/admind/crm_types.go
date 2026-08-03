@@ -104,14 +104,15 @@ type crmResourceLink struct {
 }
 
 type crmOpportunityStageTransition struct {
-	OpportunityID    string
-	Stage            string
-	StagePosition    float64
-	OccurredAt       string
-	ActorPersonID    string
-	LostReason       string
-	BaseAmountMinor  *int64
-	BaseCurrencyCode string
+	OpportunityID       string
+	Stage               string
+	StagePosition       float64
+	BeforeOpportunityID string
+	OccurredAt          string
+	ActorPersonID       string
+	LostReason          string
+	BaseAmountMinor     *int64
+	BaseCurrencyCode    string
 }
 
 func newCRMID(prefix string) string {
