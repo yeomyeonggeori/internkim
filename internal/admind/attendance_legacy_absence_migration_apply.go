@@ -50,15 +50,10 @@ func (service *Service) applyAttendanceLegacyAbsenceMigration(
 		return attendanceLegacyAbsenceMigrationBatch{}, errorValue
 	}
 	if preview.Fingerprint != expectedFingerprint {
-		return attendanceLegacyAbsenceMigrationBatch{}, attendanceLeaveInvalidInputErrorf(
-			"legacy absence migration preview is stale",
-		)
+		return attendanceLegacyAbsenceMigrationBatch{}, errAttendanceLegacyMigrationStale
 	}
 	if preview.ConflictCount > 0 {
-		return attendanceLegacyAbsenceMigrationBatch{}, attendanceLeaveInvalidInputErrorf(
-			"legacy absence migration has %d conflicts",
-			preview.ConflictCount,
-		)
+		return attendanceLegacyAbsenceMigrationBatch{}, errAttendanceLegacyMigrationConflict
 	}
 	if preview.CandidateLeaveCount == 0 {
 		return attendanceLegacyAbsenceMigrationBatch{
