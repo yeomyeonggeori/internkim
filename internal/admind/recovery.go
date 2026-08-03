@@ -243,8 +243,13 @@ set +e
 printf '== firecracker processes ==\n'
 ps -eo pid,stat,etimes,comm | grep -E 'blueclaw|firecracker|jailer' || true
 printf '\n== newest guest log directories ==\n'
-ls -dt /var/log/blueclaw-supervisor/* 2>/dev/null | head -4 || true
-for logDirectory in $(ls -dt /var/log/blueclaw-supervisor/* 2>/dev/null | head -2); do
+newestLogDirectories=$(find /var/log/blueclaw-supervisor -maxdepth 1 -mindepth 1 -type d -newermt '-3 minutes' 2>/dev/null | head -4)
+if [ -z "$newestLogDirectories" ]; then
+  newestLogDirectories=$(find /var/log/blueclaw-supervisor -maxdepth 1 -mindepth 1 -type d -newermt '-2 hours' 2>/dev/null | head -4)
+fi
+printf '%s\n' "$newestLogDirectories"
+printf 'total run directories: %s\n' "$(find /var/log/blueclaw-supervisor -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)"
+for logDirectory in $(printf '%s\n' "$newestLogDirectories" | head -2); do
   printf '\n== %s stderr.log ==\n' "$logDirectory"
   tail -c 4000 "$logDirectory/stderr.log" 2>/dev/null || printf '(missing)\n'
   printf '\n== %s stdout.log ==\n' "$logDirectory"
