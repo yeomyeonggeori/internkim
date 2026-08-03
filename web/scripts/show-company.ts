@@ -17,15 +17,32 @@ for (const company of companies ?? []) {
 	console.log(`company ${company.name} (${company.slug}) ${company.country}/${company.locale} ${company.timezone}`);
 	console.log(`  work locations: ${(company.work_locations ?? []).join(', ') || 'none'}`);
 
+	const dayIn = (instant: string) =>
+		new Date(instant).toLocaleDateString('sv-SE', { timeZone: company.timezone });
+
+	const { data: teams } = await client
+		.from('team')
+		.select('id, name, parent_team_id, position')
+		.eq('company_id', company.id)
+		.order('position');
+	const teamByID = new Map((teams ?? []).map((team) => [team.id, team]));
+	for (const team of teams ?? []) {
+		const parent = team.parent_team_id ? teamByID.get(team.parent_team_id) : undefined;
+		console.log(`  team ${team.name}${parent ? ` under ${parent.name}` : ''}`);
+	}
+
 	const { data: members } = await client
 		.from('member')
-		.select('email, is_admin, status, user_id, joined_at')
+		.select('id, email, is_admin, status, user_id, joined_at, team_id, supervisor_id')
 		.eq('company_id', company.id)
 		.order('is_admin', { ascending: false });
+	const emailByID = new Map((members ?? []).map((member) => [member.id, member.email]));
 	for (const member of members ?? []) {
-		const bound = member.user_id ? 'bound' : 'unbound';
+		const team = member.team_id ? teamByID.get(member.team_id)?.name : undefined;
+		const supervisor = member.supervisor_id ? emailByID.get(member.supervisor_id) : undefined;
 		console.log(
-			`  ${(member.email ?? '').padEnd(24)} ${member.is_admin ? 'admin ' : 'member'} ${member.status.padEnd(8)} ${bound}`,
+			`  ${(member.email ?? '').padEnd(24)} ${member.is_admin ? 'admin ' : 'member'} ` +
+				`team=${team ?? '-'} supervisor=${supervisor ?? '-'} joined=${member.joined_at ? dayIn(member.joined_at) : '-'}`,
 		);
 	}
 
@@ -41,8 +58,6 @@ for (const company of companies ?? []) {
 		.from('leave')
 		.select('kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
 		.order('starts_at');
-	const dayIn = (instant: string) =>
-		new Date(instant).toLocaleDateString('sv-SE', { timeZone: company.timezone });
 	for (const leave of leaves ?? []) {
 		console.log(
 			`  leave ${leave.kind} paid=${leave.is_paid} deducted=${leave.is_deducted} days=${leave.days} ` +
