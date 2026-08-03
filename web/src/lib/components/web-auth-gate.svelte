@@ -15,12 +15,13 @@
 	import { isPasskeySupported } from '$lib/buzz-passkey';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 	import { isSupabaseConfigured, signInWithSupabase } from '$lib/supabase-session';
+	import { signInWithPasskey } from '$lib/supabase-passkey';
 
 	let { children, session, returnPath }: { children?: Snippet; session: WebAuthSession | null; returnPath: string } = $props();
 
 	const text = createPageText(appShellText);
 	const fieldId = $props.id();
-	const passkeyAvailable = isPasskeySupported() && !isSupabaseConfigured;
+	const passkeyAvailable = isPasskeySupported();
 	const identityTransport = createBuzzIdentityTransport();
 	let buzzEnabled = $state(isSupabaseConfigured);
 	let email = $state('');
@@ -64,11 +65,11 @@
 		}
 	}
 
-	async function runSupabaseLogin(normalizedEmail: string) {
+	async function runSupabaseLogin(work: () => Promise<void>) {
 		busy = true;
 		errorMessage = '';
 		try {
-			await signInWithSupabase(normalizedEmail, password);
+			await work();
 			location.reload();
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.webSessionUnavailable;
@@ -82,7 +83,7 @@
 			return;
 		}
 		const normalizedEmail = email.trim().toLowerCase();
-		if (isSupabaseConfigured) return runSupabaseLogin(normalizedEmail);
+		if (isSupabaseConfigured) return runSupabaseLogin(() => signInWithSupabase(normalizedEmail, password));
 		return runLogin(async () => {
 			try {
 				return await buzzPasswordLogin(normalizedEmail, password);
@@ -98,6 +99,7 @@
 	}
 
 	function loginWithPasskey() {
+		if (isSupabaseConfigured) return runSupabaseLogin(signInWithPasskey);
 		return runLogin(buzzPasskeyLogin);
 	}
 </script>
