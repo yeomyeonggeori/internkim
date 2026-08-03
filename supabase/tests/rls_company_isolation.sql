@@ -715,4 +715,35 @@ begin
   raise notice 'annual leave: entitlement is a per member result, only deducting leave consumes it';
 end $$;
 
+do $$
+declare
+  visible_teams integer;
+  self_supervision_blocked boolean := false;
+begin
+  insert into public.team (id, company_id, name, position) values
+    ('000000f0-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000a0', 'Engineering', 0),
+    ('000000f0-0000-0000-0000-000000000002', '00000000-0000-0000-0000-0000000000b0', 'Their team', 0);
+
+  update public.member
+    set team_id = '000000f0-0000-0000-0000-000000000001',
+        supervisor_id = '000000aa-0000-0000-0000-000000000000'
+    where id = '000000aa-0000-0000-0000-000000000001';
+
+  begin
+    update public.member set supervisor_id = id where id = '000000aa-0000-0000-0000-000000000001';
+  exception when check_violation then
+    self_supervision_blocked := true;
+  end;
+  assert self_supervision_blocked, 'nobody reports to themselves';
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a9"}', true);
+
+  select count(*) into visible_teams from public.team;
+  assert visible_teams = 1, 'teams of another company must be invisible';
+
+  reset role;
+  raise notice 'org chart: teams are company-scoped and nobody supervises themselves';
+end $$;
+
 rollback;
