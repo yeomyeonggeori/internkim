@@ -14,6 +14,7 @@
 	import OrganizationAddOrganizationDialog from './organization-add-organization-dialog.svelte';
 	import { OrganizationDirectoryController } from './organization-directory-controller.svelte';
 	import { unassignedGroupID } from './organization-directory-model';
+	import OrganizationLoadingSkeleton from './organization-loading-skeleton.svelte';
 	import OrganizationOrganizationTree from './organization-tree.svelte';
 	import OrganizationPeopleLayer from './organization-people-layer.svelte';
 	import OrganizationPersonDetailPanel from './organization-person-detail-panel.svelte';
@@ -81,7 +82,7 @@
 	<div class="grid h-[calc(100vh-3rem)] min-h-0">
 		<section class="min-h-0 overflow-hidden">
 			{#if controller.isLoading}
-				<p class="p-6 text-sm text-muted-foreground">{text.loading}</p>
+				<OrganizationLoadingSkeleton />
 			{:else}
 				<div class="grid h-full min-h-0 lg:grid-cols-[270px_minmax(0,1fr)]" data-testid="organization-board">
 					<div class="hidden min-h-0 lg:block">
