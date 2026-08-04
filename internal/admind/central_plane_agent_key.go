@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,11 +19,14 @@ func (service *Service) centralPlaneAgentKey() string {
 	}
 	issued, errorValue := service.askCentralPlaneForAgentKey()
 	if errorValue != nil {
+		log.Printf("this device has no central plane key and could not be given one: %v", errorValue)
 		return ""
 	}
 	if errorValue := writeAgentKeyFile(service.Configuration.CentralPlaneAgentKeyPath, issued); errorValue != nil {
+		log.Printf("the central plane issued a key this device could not keep: %v", errorValue)
 		return ""
 	}
+	log.Printf("the central plane issued this device its own key")
 	return issued
 }
 

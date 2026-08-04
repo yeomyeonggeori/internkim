@@ -25,6 +25,7 @@ func (service *Service) centralPlane() *centralplane.Client {
 			PublishableKey: service.Configuration.CentralPlanePublishableKey,
 		}
 		if !settings.Configured() {
+			log.Printf("attendance stays on this device: the central plane is not configured")
 			return
 		}
 		centralPlaneClient = centralplane.New(settings)
