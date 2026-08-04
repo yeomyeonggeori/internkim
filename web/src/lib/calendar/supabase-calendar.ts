@@ -1,4 +1,5 @@
 import { supabase } from '$lib/supabase';
+import { sizeOfHours, sizeOfWholeDays } from '$lib/flow/task-sizes';
 import type { CalendarEvent, CalendarEventPayload } from '../../routes/calendar/embed/calendar-event-persistence';
 import type { CalendarParticipant } from '../../routes/calendar/embed/calendar-participants';
 
@@ -42,7 +43,8 @@ export async function saveSupabaseCalendarEvent(payload: CalendarEventPayload): 
 		starts_at: payload.startISO,
 		ends_at: payload.endISO,
 		is_event: true,
-		is_whole_day: payload.isAllDay
+		is_whole_day: payload.isAllDay,
+		size: sizeOfEvent(payload.startISO, payload.endISO, payload.isAllDay)
 	};
 
 	const saved = payload.eventID
@@ -116,6 +118,12 @@ async function replaceParticipants(taskID: string, participantIDs: string[]): Pr
 		.from('task_participant')
 		.insert(participantIDs.map((memberID) => ({ task_id: taskID, member_id: memberID })));
 	if (added.error) throw new Error(added.error.message);
+}
+
+function sizeOfEvent(startISO: string, endISO: string, isAllDay: boolean): string {
+	const hours = (new Date(endISO).getTime() - new Date(startISO).getTime()) / 3600000;
+	if (!isAllDay) return sizeOfHours(hours);
+	return sizeOfWholeDays(Math.max(1, Math.round(hours / 24)));
 }
 
 async function membersByID(): Promise<Map<string, MemberRow>> {
