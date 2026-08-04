@@ -21,7 +21,7 @@ func InternKimUsersSyncScript() string {
 	return `#!/bin/sh
 set -eu
 
-API_URL="$(cat /root/.internkim/env/api-url 2>/dev/null || echo https://api.example.test)"
+API_URL="$(cat /root/.internkim/env/api-url 2>/dev/null || true)"
 FLEET_ID="$(cat /root/.internkim/env/fleet-id 2>/dev/null || true)"
 FLEET_SECRET="$(cat /root/.internkim/secrets/fleet-secret 2>/dev/null || true)"
 STATE_PATH="/root/.internkim/state/users-sync.json"

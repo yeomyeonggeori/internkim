@@ -32,6 +32,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
@@ -74,10 +75,11 @@ type config struct {
 
 func loadConfig() config {
 	loadEnvFile()
+	domain := envOr("INTERNKIM_DOMAIN", envOr("CF_DOMAIN", ""))
 	return config{
-		APIBaseURL:     envOr("INTERNKIM_API_URL", "https://api.example.test"),
+		APIBaseURL:     envOr("INTERNKIM_API_URL", fleetdomain.Subdomain("api", domain)),
 		RegisterSecret: envOr("INTERNKIM_REGISTER_SECRET", ""),
-		CFDomain:       envOr("INTERNKIM_DOMAIN", "example.test"),
+		CFDomain:       domain,
 	}
 }
 

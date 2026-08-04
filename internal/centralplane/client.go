@@ -12,10 +12,10 @@ import (
 )
 
 type Settings struct {
-	AppURL          string
-	AgentAPIKey     string
-	ProjectURL      string
-	PublishableKey  string
+	AppURL         string
+	AgentAPIKey    string
+	ProjectURL     string
+	PublishableKey string
 }
 
 func (settings Settings) Configured() bool {

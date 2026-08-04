@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 )
 
 const mattermostConnectCommandTrigger = "connect"
@@ -324,7 +326,7 @@ func (service *Service) writeMattermostCommandToken(token string) error {
 func (service *Service) publicDeviceURL(request *http.Request) string {
 	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
 	if fleetID != "" {
-		return "https://" + fleetID + ".example.test"
+		return fleetdomain.Subdomain(fleetID, service.fleetZone())
 	}
 	scheme := "http"
 	if request.TLS != nil {
