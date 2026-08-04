@@ -35,6 +35,30 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   and clean it up or say why it remains.
 - Keep generated test artifacts, platform users, memories, and remote messages
   cleaned up after real-platform tests.
+- No real person's name, address, or phone number belongs in a tracked file.
+  `main`'s history was rewritten once to take them back out, so reintroducing
+  one undoes that. Fixtures, seeds, and documentation use sample names
+  (이샘플, 박예시, 최견본) and `example.com` addresses. Real people live in
+  the database.
+
+## Branches, Commits, and Pull Requests
+
+- Branch names are `<prefix>/<kebab-topic>`. The prefix is a commit type —
+  `feat/attendance-monthly-status-table`, `fix/ssh-banner-diagnosis`,
+  `chore/crm-backend-schema-review` — or the name of whoever owns that line of
+  work when several run in parallel: `codex/attendance`, `chanhee/mail`.
+- Commit subjects are `<type>: <sentence>` or `<type>(<scope>): <sentence>`.
+  Types in use: `feat`, `fix`, `chore`, `refactor`, `test`, `style`, `perf`,
+  `revert`. The scope names the part of the product that changed —
+  `attendance`, `admind`, `calendar`, `buzz`, `web`. Every commit on `main`
+  carries one; a subject without a type does not belong there.
+- The subject says what the change does for whoever reads it later, not what
+  the diff touches: "Let an uninvited address start a company" over
+  "update company route".
+- Pull requests follow `.github/PULL_REQUEST_TEMPLATE.md`. Its 검증 방법
+  section carries the commands actually run, not the ones that ought to be.
+- Say a thing once in review. Edit the existing comment rather than adding
+  another, and delete the duplicates.
 
 ## Engineering Discipline (no cheating, no blind retries)
 
