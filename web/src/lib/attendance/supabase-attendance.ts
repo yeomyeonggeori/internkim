@@ -71,7 +71,9 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		timeZone,
 		events,
 		absences: leave.data.flatMap((row) => absencesOf(row, byID.get(row.member_id), timeZone)),
-		members: members.data.map(memberOf),
+		members: [...members.data]
+			.sort((left, right) => Number(right.id === me?.id) - Number(left.id === me?.id))
+			.map(memberOf),
 		todayStatus: todayStatusOf(events, me?.email ?? '', timeZone),
 		locations: locationsOf(company.data.work_locations),
 		teamViewVisibleToAll: true,
