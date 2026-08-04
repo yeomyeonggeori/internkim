@@ -1,9 +1,10 @@
 import { addMember, adminCallerOf, asMember, controlPlane, inviteMember } from '$lib/server/control-plane';
+import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, platform }) => {
-	const environment = (platform?.env ?? process.env) as Record<string, string | undefined>;
+	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
 	const projectURL = environment.SUPABASE_URL ?? '';
 	const publishableKey = environment.SUPABASE_PUBLISHABLE_KEY ?? '';
 	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';

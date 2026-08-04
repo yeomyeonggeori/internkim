@@ -4,6 +4,7 @@ import {
 	forgetCompanyConnection,
 	saveCompanyConnection
 } from '$lib/server/company-credential';
+import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
@@ -12,7 +13,7 @@ const connectionKinds = ['smtp', 'imap', 'caldav'];
 type Plane = { projectURL: string; publishableKey: string; serviceRoleKey: string };
 
 function planeOf(platform: App.Platform | undefined): Plane {
-	const environment = (platform?.env ?? process.env) as Record<string, string | undefined>;
+	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
 	const plane = {
 		projectURL: environment.SUPABASE_URL ?? '',
 		publishableKey: environment.SUPABASE_PUBLISHABLE_KEY ?? '',
