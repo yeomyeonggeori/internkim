@@ -8,7 +8,7 @@ import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-const connectionKinds = ['smtp', 'imap', 'caldav'];
+const connectionKinds = ['smtp', 'imap', 'caldav', 'mattermost'];
 
 type Plane = { projectURL: string; publishableKey: string; serviceRoleKey: string };
 

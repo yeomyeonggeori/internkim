@@ -23,11 +23,6 @@ const projectURL = required('SUPABASE_URL');
 const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
 const agentKey = required('AGENT_API_KEY');
 const appURL = required('INTERNKIM_APP_URL');
-const mattermost: MattermostSettings = {
-	baseURL: required('MATTERMOST_URL'),
-	email: required('MATTERMOST_EMAIL'),
-	password: required('MATTERMOST_PASSWORD')
-};
 
 function required(name: string): string {
 	const value = process.env[name];
@@ -35,6 +30,7 @@ function required(name: string): string {
 	return value;
 }
 
+const mattermost = await askForConnection('mattermost');
 const session = await signIn(mattermost);
 console.log(`mattermost ready as ${mattermost.email}`);
 
@@ -117,6 +113,22 @@ async function route(method: string, path: string, body: unknown): Promise<unkno
 		return null;
 	}
 	throw new Error(`the app has nothing at ${method} ${route}`);
+}
+
+async function askForConnection(kind: string): Promise<MattermostSettings> {
+	const response = await fetch(`${appURL}/api/agent/connection?kind=${encodeURIComponent(kind)}`, {
+		headers: { Authorization: `Bearer ${agentKey}` }
+	});
+	if (!response.ok) throw new Error(`the central plane has no ${kind} connection for this company (${response.status})`);
+	const connection = (await response.json()) as {
+		host: string;
+		settings: { username?: string };
+		secret: string | null;
+	};
+	if (!connection.settings.username || !connection.secret) {
+		throw new Error(`the ${kind} connection is missing an account`);
+	}
+	return { baseURL: connection.host, email: connection.settings.username, password: connection.secret };
 }
 
 async function askForSession(externalID: string): Promise<{ memberID: string; accessToken: string; expiresAt: number }> {
