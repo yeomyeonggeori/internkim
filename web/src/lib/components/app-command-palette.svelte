@@ -96,7 +96,7 @@
 		attendanceClock.clock('clock_out', '');
 	}
 
-	const canRegisterPasskey = isSupabaseConfigured && isPasskeySupported();
+	const canRegisterPasskey = isSupabaseConfigured() && isPasskeySupported();
 
 	async function runRegisterPasskey() {
 		open = false;

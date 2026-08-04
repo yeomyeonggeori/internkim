@@ -1,4 +1,5 @@
-import type { Handle } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
+import { redirect, type Handle } from '@sveltejs/kit';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	if (event.request.method === 'OPTIONS') {
@@ -11,7 +12,21 @@ export const handle: Handle = async ({ event, resolve }) => {
 		});
 	}
 
-	const response = await resolve(event);
+	const centralPlane = {
+		projectURL: env.SUPABASE_URL ?? '',
+		publishableKey: env.SUPABASE_PUBLISHABLE_KEY ?? ''
+	};
+
+	const servesCompanies = Boolean(centralPlane.projectURL && centralPlane.publishableKey);
+	if (servesCompanies && event.url.pathname === '/') redirect(307, '/flow/');
+
+	const response = await resolve(event, {
+		transformPageChunk: ({ html }) =>
+			html.replace(
+				'<script id="central-plane" type="application/json">{}</script>',
+				`<script id="central-plane" type="application/json">${JSON.stringify(centralPlane)}</script>`
+			)
+	});
 
 	if (event.url.pathname.startsWith('/api/')) {
 		response.headers.set('Access-Control-Allow-Origin', '*');

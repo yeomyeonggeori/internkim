@@ -11,7 +11,7 @@ export type CalendarParticipant = CalendarParticipantInput & {
 };
 
 export async function fetchCalendarParticipants(errorFallback: string): Promise<CalendarParticipant[]> {
-	if (isSupabaseConfigured) return supabaseCalendarParticipants();
+	if (isSupabaseConfigured()) return supabaseCalendarParticipants();
 	const response = await fetch('/calendar/api/participants', { credentials: 'include' });
 	if (!response.ok) throw new Error(await responseErrorMessage(response, errorFallback));
 	const document = await response.json();

@@ -8,10 +8,10 @@
 
 	const text = createPageText(companySettingsText);
 	let isAdmin = $state(false);
-	let isLoading = $state(isSupabaseConfigured);
+	let isLoading = $state(isSupabaseConfigured());
 
 	onMount(async () => {
-		if (!isSupabaseConfigured) return;
+		if (!isSupabaseConfigured()) return;
 		isAdmin = (await supabaseMemberRole()) === 'admin';
 		isLoading = false;
 	});

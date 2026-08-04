@@ -17,7 +17,7 @@ export class LeaveApprovalAPIError extends Error {
 }
 
 export async function fetchLeaveApprovalInbox(): Promise<LeaveApprovalInbox> {
-	if (isSupabaseConfigured) return supabaseLeaveApprovalInbox();
+	if (isSupabaseConfigured()) return supabaseLeaveApprovalInbox();
 	const response = await fetch('/attendance/api/leave-approvals', {
 		credentials: 'include',
 		cache: 'no-store'
@@ -34,7 +34,7 @@ export async function decideLeaveApproval(
 	requestID: string,
 	decision: LeaveApprovalDecision
 ): Promise<LeaveApprovalRequest> {
-	if (isSupabaseConfigured) return decideSupabaseLeave(requestID, decision);
+	if (isSupabaseConfigured()) return decideSupabaseLeave(requestID, decision);
 	const response = await fetch(
 		`/attendance/api/leave-approvals/${encodeURIComponent(requestID)}`,
 		{

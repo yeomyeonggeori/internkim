@@ -112,7 +112,7 @@ export class OrganizationDirectoryController {
 
 	async loadAdminAccess(): Promise<void> {
 		this.sessionEmail = await this.emailOfSignedIn();
-		if (isSupabaseConfigured) {
+		if (isSupabaseConfigured()) {
 			this.canManage = (await supabaseMemberRole()) === 'admin';
 			return;
 		}
@@ -126,7 +126,7 @@ export class OrganizationDirectoryController {
 	}
 
 	private async emailOfSignedIn(): Promise<string> {
-		if (!isSupabaseConfigured) return fetchWebSessionEmail();
+		if (!isSupabaseConfigured()) return fetchWebSessionEmail();
 		const { data } = await supabase().auth.getSession();
 		return data.session?.user.email ?? '';
 	}
