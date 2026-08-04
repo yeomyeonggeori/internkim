@@ -902,8 +902,8 @@ func TestMattermostScenarioWaitForApprovalCompletionTimesOutWithoutProgress(t *t
 
 func TestMattermostScenarioStepMetricsDescribeAgentWork(t *testing.T) {
 	result := mattermostScenarioStepResult{TaskEvents: []mattermostScenarioTaskEvent{
-		{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router"}`},
-		{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action"}`},
+		{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router"}`},
+		{Name: "llm.call", Body: `{"schemaName":"bluecollar_agent_turn_action"}`},
 		{Name: "agent.action"},
 		{Name: "tool.task_add.requested"},
 		{Name: "tool.capability.invoke.requested"},
@@ -918,7 +918,7 @@ func TestMattermostScenarioStepMetricsCountsNativeAgentActionsWithoutDoubleCount
 	result := mattermostScenarioStepResult{TaskEvents: []mattermostScenarioTaskEvent{
 		{Name: "llm.call", Body: `{"kind":"chat"}`},
 		{Name: "agent.action"},
-		{Name: "llm.call", Body: `{"kind":"structured","schemaName":"blueclaw_agent_turn_action"}`},
+		{Name: "llm.call", Body: `{"kind":"structured","schemaName":"bluecollar_agent_turn_action"}`},
 		{Name: "agent.action"},
 	}}
 	setMattermostScenarioStepMetrics(&result)
@@ -969,7 +969,7 @@ func TestMattermostScenarioTokenUsageGuardsZeroPromptDivision(t *testing.T) {
 
 func TestMattermostScenarioTokenUsageTreatsOmittedFieldsAsZero(t *testing.T) {
 	result := mattermostScenarioStepResult{TaskEvents: []mattermostScenarioTaskEvent{
-		{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"llmd"}`},
+		{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","transport":"llmd"}`},
 		{Name: "agent.action"},
 	}}
 	setMattermostScenarioStepMetrics(&result)

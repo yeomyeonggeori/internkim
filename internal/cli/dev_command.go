@@ -556,9 +556,9 @@ func devRequiredExecutables(scenarioName string, explicitExecutables []string) [
 func scenarioExecutableDependencies(scenarioName string) []string {
 	normalizedScenarioName := strings.ToLower(strings.TrimSpace(scenarioName))
 	switch normalizedScenarioName {
-	case "slides", "slides_local_multiturn_success":
+	case "presentation", "presentation_local_multiturn_success":
 		return []string{"bun", "python3"}
-	case "site", "site_artifact_acceptance", "site_prototype_acceptance", "site_edit_redeploy_acceptance", "site_lifecycle_acceptance":
+	case "site_artifact_acceptance", "site_edit_redeploy_acceptance", "site_custom_structure_acceptance", "site_lifecycle_acceptance":
 		return []string{"bun"}
 	default:
 		return nil

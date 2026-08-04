@@ -69,7 +69,7 @@ func TestOpenRouterLiveNativeToolArgumentsAreFilledFromEnv(t *testing.T) {
 					Model:    modelName,
 					Messages: []Message{{Role: "user", Content: contractCase.Prompt}},
 					StructuredOutputSchema: StructuredOutputSchema{
-						Name:               "blueclaw_agent_turn_action",
+						Name:               "bluecollar_agent_turn_action",
 						Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{contractCase.Descriptor}),
 						IsStrictlyEnforced: true,
 					},
@@ -103,7 +103,7 @@ func TestOpenRouterLiveNativeEitherOrToolFilledInLargeToolSetFromEnv(t *testing.
 				Model:    modelName,
 				Messages: []Message{{Role: "user", Content: "Read the file stored at home/notes/launch-plan.md and summarize what it contains."}},
 				StructuredOutputSchema: StructuredOutputSchema{
-					Name:               "blueclaw_agent_turn_action",
+					Name:               "bluecollar_agent_turn_action",
 					Document:           schemaDocument,
 					IsStrictlyEnforced: true,
 				},
@@ -132,7 +132,7 @@ func TestOpenRouterLiveFullDeviceToolSetFitsAndFillsFromEnv(t *testing.T) {
 				Model:    modelName,
 				Messages: []Message{{Role: "user", Content: "Read the file stored at home/notes/launch-plan.md and summarize what it contains."}},
 				StructuredOutputSchema: StructuredOutputSchema{
-					Name:               "blueclaw_agent_turn_action",
+					Name:               "bluecollar_agent_turn_action",
 					Document:           schemaDocument,
 					IsStrictlyEnforced: true,
 				},
