@@ -1,4 +1,3 @@
-// Prints what a company looks like in Supabase. Reads credentials from .env.
 //   bun run web/scripts/show-company.ts
 
 import { controlPlane } from '../src/lib/server/control-plane';

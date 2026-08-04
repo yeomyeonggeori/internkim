@@ -1,9 +1,3 @@
-// Imports a device roster into a company. Idempotent: rerunning changes nothing.
-// It never sends email — accounts are created silently and members stay `pending`
-// until somebody actually invites them.
-//
-//   internkim users list | bun run scripts/import-people.ts --company <uuid>
-//   ... --create-company "Name" --slug name --country KR --locale ko --timezone Asia/Seoul
 
 import { addMember, controlPlane, provisionCompany } from '../src/lib/server/control-plane';
 
@@ -61,8 +55,6 @@ const { data: existing } = await client.auth.admin.listUsers();
 const accountByEmail = new Map(existing.users.map((user) => [user.email ?? '', user.id]));
 
 for (const person of roster) {
-	// The member has to exist first: the bind trigger looks for a matching member
-	// when the account appears, so creating the account first leaves them unlinked.
 	const memberID = await addMember(client, companyID, person.email, {
 		isAdmin: person.role === 'admin',
 	});
@@ -78,7 +70,6 @@ for (const person of roster) {
 		accountID = data.user.id;
 	}
 
-	// Repairs a member left unlinked by an earlier run that created the account first.
 	const { error: bindError } = await client
 		.from('member')
 		.update({ user_id: accountID })

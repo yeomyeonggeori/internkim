@@ -1,4 +1,3 @@
-// Shows who a company has on record.
 //   bun run web/scripts/show-members.ts
 
 import { controlPlane } from '../src/lib/server/control-plane';

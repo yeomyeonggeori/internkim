@@ -1,5 +1,3 @@
-// Counts what a company has on the central plane, so what is still on a device
-// is a subtraction rather than a guess.
 //   bun run web/scripts/show-migration.ts
 
 import { controlPlane } from '../src/lib/server/control-plane';

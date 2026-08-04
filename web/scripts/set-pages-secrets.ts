@@ -1,5 +1,3 @@
-// Gives the Pages project the credentials its server routes need. The secret key
-// is stored encrypted; the project URL and publishable key are plain text.
 //   bun run web/scripts/set-pages-secrets.ts --project internkim
 
 const token = process.env.CF_API_TOKEN ?? process.env.CLOUDFLARE_API_TOKEN ?? '';

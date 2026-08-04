@@ -1,4 +1,3 @@
-// Clears a company's tasks so an import can be rerun from scratch.
 //   bun run web/scripts/clear-tasks.ts --company <uuid>
 
 import { controlPlane } from '../src/lib/server/control-plane';

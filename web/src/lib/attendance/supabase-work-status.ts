@@ -174,8 +174,6 @@ function dayStatusOf(
 	};
 }
 
-// A clock-in with no clock-out after it is someone still at work: counted up to
-// now and marked provisional, so the number moves but never lies about being final.
 function spansOf(rows: AttendanceRow[], timeZone: string): { spans: WorkedSpan[]; isWorking: boolean } {
 	const spans: WorkedSpan[] = [];
 	let openedAt: Date | null = null;

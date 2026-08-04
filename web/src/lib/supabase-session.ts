@@ -27,8 +27,6 @@ export async function supabaseMemberRole(): Promise<'admin' | 'member'> {
 	return member.data?.is_admin ? 'admin' : 'member';
 }
 
-// Signing out globally needs the server to accept the token, and a stale one
-// leaves the browser still holding a session. Ending it locally always works.
 export async function signOutOfSupabase(): Promise<void> {
 	await supabase().auth.signOut({ scope: 'local' });
 }

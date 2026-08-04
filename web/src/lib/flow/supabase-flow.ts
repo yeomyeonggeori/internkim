@@ -11,8 +11,6 @@ import type {
 
 type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled' | 'paused';
 
-// The board speaks the words people use; the table stores the outcome. One list,
-// read both ways, so the two can never drift apart.
 const statusWords: Record<TaskStatus, string> = {
 	todo: '예정',
 	in_progress: '진행',

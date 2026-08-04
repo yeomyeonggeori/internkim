@@ -32,10 +32,6 @@
 	const mattermostLoginURL = $derived(session?.mattermostLoginURL || mattermostLoginURLFor(returnPath));
 	const cloudflareLoginURL = $derived(session?.cloudflareLoginURL || cloudflareLoginURLFor(returnPath));
 
-	// The company device runs Buzz identity (email/password/passkey signed in the
-	// browser); the PoC tenants still authenticate through Mattermost/Cloudflare
-	// SSO. The relay-config endpoint is unauthenticated, so the login screen can
-	// pick the right flow before anyone signs in.
 	onMount(async () => {
 		if (isSupabaseConfigured) return;
 		try {

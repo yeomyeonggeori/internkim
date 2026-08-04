@@ -1,5 +1,3 @@
-// Sets a password on an account so somebody can sign in without waiting for mail.
-// For trying the thing out — a real rollout invites people instead.
 //   bun run web/scripts/set-password.ts --email you@example.com --password '...'
 
 import { controlPlane } from '../src/lib/server/control-plane';

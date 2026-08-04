@@ -1,4 +1,3 @@
-// Lists a company's agents: what is running, what was retired, when each last called.
 //   bun run web/scripts/show-agents.ts [--check <api key>]
 
 import { agentOfKey, controlPlane } from '../src/lib/server/control-plane';

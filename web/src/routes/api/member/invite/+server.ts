@@ -1,6 +1,3 @@
-// An admin invites someone to their company and gets back the password to hand
-// over. Creating an account needs the service key, so it happens here; who is
-// allowed to ask is decided by the caller's own token.
 import { addMember, adminCallerOf, asMember, controlPlane, inviteMember } from '$lib/server/control-plane';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
@@ -24,8 +21,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (!email.includes('@')) error(400, 'an address is required');
 
 	const client = controlPlane({ projectURL, serviceRoleKey });
-	// Addresses are unique across the whole plane, so upserting one that belongs
-	// to another company would quietly move that person here.
 	const { data: existing } = await client.from('member').select('company_id').eq('email', email).maybeSingle();
 	if (existing && existing.company_id !== caller.companyID) error(409, 'that address belongs to another company');
 

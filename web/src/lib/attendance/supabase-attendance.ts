@@ -135,8 +135,6 @@ function eventOf(row: AttendanceRow, member: MemberRow | undefined, timeZone: st
 	};
 }
 
-// The screen draws one absence per day, so a leave that spans days becomes one
-// entry a day with the ends marked.
 function absencesOf(row: LeaveRow, member: MemberRow | undefined, timeZone: string): AttendanceAbsence[] {
 	const startDate = dateIn(new Date(row.starts_at), timeZone);
 	const endDate = dateIn(new Date(row.ends_at), timeZone);

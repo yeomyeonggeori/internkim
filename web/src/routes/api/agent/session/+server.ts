@@ -1,6 +1,3 @@
-// An agent asks: "somebody with this platform identity spoke — let me act as them."
-// It proves which company it belongs to, and gets back that member's session. The
-// service key never leaves here.
 import { error, json } from '@sveltejs/kit';
 import { sessionForPlatformIdentity } from '$lib/server/control-plane';
 import type { RequestHandler } from './$types';
@@ -31,8 +28,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		);
 		return json(session);
 	} catch (errorValue) {
-		// Which of "wrong key", "unknown identity" and "another company's member"
-		// happened is not the caller's business; saying so would let an agent enumerate.
 		error(403, 'refused');
 	}
 };

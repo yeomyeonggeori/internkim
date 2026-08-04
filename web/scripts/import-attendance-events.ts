@@ -1,9 +1,4 @@
-// Brings a device's attendance across from what its own web app serves.
 //   bun run web/scripts/import-attendance-events.ts --file <attendance.json> [--apply]
-//
-// Records go in as they happened, oldest first. The table's clock-in/clock-out
-// rule guards new input, so a row the past violated is reported rather than
-// reshaped into something the device never recorded.
 
 import { controlPlane } from '../src/lib/server/control-plane';
 
