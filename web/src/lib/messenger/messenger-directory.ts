@@ -7,7 +7,7 @@ export type MessengerDirectory = {
 	memberOfExternal: Map<string, string>;
 };
 
-type PersonRow = { platform: string; external_id: string; name: string; member_id: string | null };
+type ContactRow = { platform: string; external_id: string; name: string; member_id: string | null };
 type MemberRow = { id: string; name: string | null; email: string | null };
 
 export async function fetchMessengerDirectory(): Promise<MessengerDirectory> {
@@ -20,9 +20,9 @@ export async function fetchMessengerDirectory(): Promise<MessengerDirectory> {
 	if (members.error) throw new Error(members.error.message);
 
 	const people = await client
-		.from('messenger_person')
+		.from('contact')
 		.select('platform, external_id, name, member_id')
-		.returns<PersonRow[]>();
+		.returns<ContactRow[]>();
 	if (people.error) throw new Error(people.error.message);
 
 	return {
