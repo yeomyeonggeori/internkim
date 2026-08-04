@@ -16,8 +16,8 @@ const accountID = argument('account') ?? '694280310d0ed1189a2a54c4a546403e';
 const project = argument('project') ?? 'internkim';
 
 const variables = {
-	SUPABASE_URL: { type: 'plain_text', value: projectURL },
-	SUPABASE_PUBLISHABLE_KEY: { type: 'plain_text', value: publishableKey },
+	SUPABASE_URL: { type: 'secret_text', value: projectURL },
+	SUPABASE_PUBLISHABLE_KEY: { type: 'secret_text', value: publishableKey },
 	SUPABASE_SECRET_KEY: { type: 'secret_text', value: secretKey },
 };
 

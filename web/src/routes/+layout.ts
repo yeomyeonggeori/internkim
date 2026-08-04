@@ -12,7 +12,7 @@ export const load: LayoutLoad<{ session: WebAuthSession | null }> = async ({ fet
 	depends(webAuthSessionDependency);
 	if (typeof window === 'undefined' || isEmbeddedFrame()) return { session: null };
 	const returnPath = window.location.pathname + window.location.search;
-	if (isSupabaseConfigured) return { session: await supabaseWebAuthSession(returnPath) };
+	if (isSupabaseConfigured()) return { session: await supabaseWebAuthSession(returnPath) };
 	try {
 		const response = await fetch(`/auth/session?return=${encodeURIComponent(returnPath)}`, { credentials: 'include' });
 		if (!response.ok) throw new Error(`session returned ${response.status}`);

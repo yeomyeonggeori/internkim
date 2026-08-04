@@ -97,7 +97,7 @@ export type UpdateAttendanceEventRequest = {
 };
 
 export async function fetchAttendanceSummary(request: AttendanceSummaryRequest): Promise<AttendanceSummary> {
-	if (isSupabaseConfigured) return supabaseAttendanceSummary(request.month);
+	if (isSupabaseConfigured()) return supabaseAttendanceSummary(request.month);
 	const path = attendanceSummaryPath(request);
 	const response = await fetch(path, { credentials: 'include', cache: 'no-store' });
 	if (!response.ok) throw new Error(await response.text());
@@ -107,7 +107,7 @@ export async function fetchAttendanceSummary(request: AttendanceSummaryRequest):
 export async function fetchAttendanceWorkStatus(
 	request: AttendanceWorkStatusRequest
 ): Promise<AttendanceWorkStatus> {
-	if (isSupabaseConfigured) return supabaseWorkStatus(request);
+	if (isSupabaseConfigured()) return supabaseWorkStatus(request);
 	const query = new URLSearchParams({
 		period: request.period,
 		anchor: request.anchor
@@ -165,7 +165,7 @@ export async function toggleAttendanceOnServer(
 	locationID?: string,
 	confirmEarlyReturn = false
 ): Promise<void> {
-	if (isSupabaseConfigured) return recordSupabaseAttendance(kind, locationID);
+	if (isSupabaseConfigured()) return recordSupabaseAttendance(kind, locationID);
 	const response = await fetch('/attendance/api/clock', {
 		method: 'POST',
 		credentials: 'include',

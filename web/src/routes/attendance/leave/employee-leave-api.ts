@@ -28,7 +28,7 @@ export class EmployeeLeaveAPIError extends Error {
 }
 
 export async function fetchEmployeeLeave(): Promise<EmployeeLeavePayload> {
-	if (isSupabaseConfigured) return supabaseEmployeeLeave();
+	if (isSupabaseConfigured()) return supabaseEmployeeLeave();
 	const response = await fetch('/attendance/api/leave', {
 		credentials: 'include',
 		cache: 'no-store'
@@ -49,7 +49,7 @@ export async function fetchEmployeeLeave(): Promise<EmployeeLeavePayload> {
 export async function previewEmployeeLeave(
 	request: EmployeeLeavePreviewRequest
 ): Promise<EmployeeLeavePreview> {
-	if (isSupabaseConfigured) return supabaseLeavePreview(request);
+	if (isSupabaseConfigured()) return supabaseLeavePreview(request);
 	const response = await fetch('/attendance/api/leave-requests/preview', {
 		method: 'POST',
 		credentials: 'include',
@@ -63,7 +63,7 @@ export async function createEmployeeLeaveRequest(
 	request: EmployeeLeaveSubmission,
 	attachments: File[]
 ): Promise<void> {
-	if (isSupabaseConfigured) return createSupabaseLeaveRequest(request);
+	if (isSupabaseConfigured()) return createSupabaseLeaveRequest(request);
 	const response = await fetch('/attendance/api/leave-requests', {
 		method: 'POST',
 		credentials: 'include',
@@ -105,7 +105,7 @@ export async function updateEmployeeLeaveRequest(
 }
 
 export async function cancelEmployeeLeaveRequest(requestID: string): Promise<void> {
-	if (isSupabaseConfigured) return cancelSupabaseLeaveRequest(requestID);
+	if (isSupabaseConfigured()) return cancelSupabaseLeaveRequest(requestID);
 	const response = await fetch(
 		`/attendance/api/leave-requests/${encodeURIComponent(requestID)}/cancel`,
 		{

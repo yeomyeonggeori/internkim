@@ -85,7 +85,7 @@ class AppNavigation {
 		this.userImage = session.image;
 		this.canViewTasks = session.canViewTasks;
 		this.isPocSuperAdmin = session.isPocSuperAdmin;
-		if (isSupabaseConfigured) {
+		if (isSupabaseConfigured()) {
 			this.adminRole = await supabaseMemberRole();
 			return;
 		}
@@ -115,7 +115,7 @@ class AppNavigation {
 	};
 
 	logOut = async () => {
-		if (isSupabaseConfigured) {
+		if (isSupabaseConfigured()) {
 			await signOutOfSupabase();
 			location.replace('/flow/');
 			return;

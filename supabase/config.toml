@@ -6,4 +6,4 @@ enabled = true
 [auth.webauthn]
 rp_display_name = "InternKim"
 rp_id = "example.test"
-rp_origins = ["https://example.test"]
+rp_origins = ["https://example.test", "https://*.example.test"]

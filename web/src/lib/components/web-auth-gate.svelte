@@ -22,9 +22,9 @@
 
 	const text = createPageText(appShellText);
 	const fieldId = $props.id();
-	const passkeyAvailable = isSupabaseConfigured ? isSupabasePasskeySupported() : isBuzzPasskeySupported();
+	const passkeyAvailable = isSupabaseConfigured() ? isSupabasePasskeySupported() : isBuzzPasskeySupported();
 	const identityTransport = createBuzzIdentityTransport();
-	let buzzEnabled = $state(isSupabaseConfigured);
+	let buzzEnabled = $state(isSupabaseConfigured());
 	let email = $state('');
 	let password = $state('');
 	let busy = $state(false);
@@ -34,7 +34,7 @@
 	const cloudflareLoginURL = $derived(session?.cloudflareLoginURL || cloudflareLoginURLFor(returnPath));
 
 	onMount(async () => {
-		if (isSupabaseConfigured) return;
+		if (isSupabaseConfigured()) return;
 		try {
 			const response = await fetch('/agent/api/buzz-relay-config', { credentials: 'include' });
 			if (response.ok) {
@@ -80,7 +80,7 @@
 			return;
 		}
 		const normalizedEmail = email.trim().toLowerCase();
-		if (isSupabaseConfigured) return runSupabaseLogin(() => signInWithSupabase(normalizedEmail, password));
+		if (isSupabaseConfigured()) return runSupabaseLogin(() => signInWithSupabase(normalizedEmail, password));
 		return runLogin(async () => {
 			try {
 				return await buzzPasswordLogin(normalizedEmail, password);
@@ -96,7 +96,7 @@
 	}
 
 	function loginWithPasskey() {
-		if (isSupabaseConfigured) return runSupabaseLogin(signInWithPasskey);
+		if (isSupabaseConfigured()) return runSupabaseLogin(signInWithPasskey);
 		return runLogin(buzzPasskeyLogin);
 	}
 </script>

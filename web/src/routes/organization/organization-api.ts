@@ -4,7 +4,7 @@ import { saveOwnSupabaseProfile, supabaseOrganizationDirectory } from '$lib/orga
 import { isSupabaseConfigured } from '$lib/supabase';
 
 export async function fetchOrganizationDirectory(fallbackMessage: string): Promise<UsersResponse> {
-	if (isSupabaseConfigured) return supabaseOrganizationDirectory();
+	if (isSupabaseConfigured()) return supabaseOrganizationDirectory();
 	const response = await fetch('/organization/api/people', { credentials: 'include' });
 	if (!response.ok) throw new AdminApiError(await responseErrorMessage(response, fallbackMessage), response.status);
 	return (await response.json()) as UsersResponse;
@@ -25,7 +25,7 @@ export type OwnOrganizationProfile = {
 };
 
 export async function saveOwnOrganizationProfile(profile: OwnOrganizationProfile): Promise<OwnOrganizationProfile> {
-	if (isSupabaseConfigured) return saveOwnSupabaseProfile(profile.phoneNumber, profile.hireDate);
+	if (isSupabaseConfigured()) return saveOwnSupabaseProfile(profile.phoneNumber, profile.hireDate);
 	const response = await fetch('/organization/api/me/profile', {
 		method: 'PUT',
 		headers: { 'content-type': 'application/json' },
