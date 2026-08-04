@@ -68,10 +68,24 @@ const idByIdentity = new Map((existing ?? []).map((task) => [identityOf(task.tit
 
 let updated = 0;
 let inserted = 0;
-let unmatchedNames = new Set<string>();
+let skipped = 0;
+const unmatchedNames = new Set<string>();
 
 for (const task of state.tasks) {
 	const title = task.content?.trim() || '(제목 없음)';
+	const names = new Set(
+		[task.ownerName, ...(task.participantNames ?? [])].map((name) => name?.trim()).filter((name): name is string => Boolean(name))
+	);
+	const memberIDs = [...names].map((name) => memberByName.get(name)).filter((memberID): memberID is string => Boolean(memberID));
+
+	// Work whose every named person belongs to no one here is somebody else's,
+	// so it is left where it is rather than adopted.
+	if (names.size > 0 && memberIDs.length === 0) {
+		for (const name of names) unmatchedNames.add(name);
+		skipped += 1;
+		continue;
+	}
+
 	const endDay = dayPartOf(task.endDate);
 	const startDay = dayPartOf(task.startDate);
 	const fields = {
@@ -105,12 +119,6 @@ for (const task of state.tasks) {
 	if (written.error) throw new Error(`${title}: ${written.error.message}`);
 	known ? (updated += 1) : (inserted += 1);
 
-	const names = new Set([task.ownerName, ...(task.participantNames ?? [])].map((name) => name?.trim()).filter(Boolean));
-	const memberIDs = [...names].map((name) => {
-		const memberID = memberByName.get(name!);
-		if (!memberID) unmatchedNames.add(name!);
-		return memberID;
-	}).filter((memberID): memberID is string => Boolean(memberID));
 	if (memberIDs.length === 0) continue;
 	const { error: participantError } = await client
 		.from('task_participant')
@@ -131,8 +139,8 @@ if (shouldApply) {
 	console.log(`vocabulary: ${vocabulary.businesses.length} businesses, ${vocabulary.types.length} types`);
 }
 
-console.log(`${shouldApply ? 'wrote' : 'would write'}: ${updated} updated, ${inserted} inserted`);
-if (unmatchedNames.size) console.log(`names that match no member: ${[...unmatchedNames].join(', ')}`);
+console.log(`${shouldApply ? 'wrote' : 'would write'}: ${updated} updated, ${inserted} inserted, ${skipped} skipped`);
+if (unmatchedNames.size) console.log(`skipped work belonging to: ${[...unmatchedNames].join(', ')}`);
 
 function noteOf(task: DeviceTask): string | null {
 	const parts = [task.goal?.trim() && `목표: ${task.goal.trim()}`, task.requestReason?.trim()].filter(Boolean);
