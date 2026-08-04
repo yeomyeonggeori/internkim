@@ -49,6 +49,12 @@ var (
 			return http.ErrUseLastResponse
 		},
 	}
+	recoveryHTTPClient = &http.Client{
+		Timeout: 10 * time.Minute,
+		CheckRedirect: func(request *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 
 	// Armbian Trixie Minimal images per board
 	armbianImages = map[string]string{
@@ -462,11 +468,26 @@ func formatCloudflareSSHError(hostname string, output string, errorValue error) 
 }
 
 func cloudflareSSHRecoveryHint(hostname string, detail string) string {
+	if !hasCloudflareAccessToken(hostname) {
+		return fmt.Sprintf("이 호스트의 Cloudflare Access 토큰이 ~/.cloudflared 에 없습니다. 토큰 없이는 cloudflared가 브라우저 인증을 기다리며 멈추고, 스트림이 열리지 않아 장비까지 요청이 가지 않습니다(배너 타임아웃으로 보입니다). `cloudflared access login https://%s` 로 인증한 뒤 다시 실행하세요.", hostname)
+	}
 	normalizedDetail := strings.ToLower(detail)
 	if strings.Contains(normalizedDetail, "banner exchange") {
-		return "Cloudflare Access 프록시는 열렸지만 SSH banner를 받지 못했습니다. 브라우저 인증보다 장비의 `sshd` 또는 `cloudflared-node-ssh` 터널 상태를 먼저 확인하세요. HTTP가 살아 있으면 `./internkim recover ssh`로 SSH 터널 복구를 시도하세요."
+		return "Cloudflare Access 토큰은 있는데 SSH banner를 받지 못했습니다. 장비의 `sshd` 또는 `cloudflared-node-ssh` 터널 상태를 확인하세요. HTTP가 살아 있으면 `./internkim recover ssh`로 SSH 터널 복구를 시도하세요."
 	}
 	return fmt.Sprintf("Cloudflare Access 인증이 만료되었을 수 있습니다. `cloudflared access ssh --hostname %s`로 브라우저 인증을 갱신한 뒤 다시 실행하세요.", hostname)
+}
+
+func hasCloudflareAccessToken(hostname string) bool {
+	homeDirectory, errorValue := os.UserHomeDir()
+	if errorValue != nil {
+		return true
+	}
+	tokenPaths, errorValue := filepath.Glob(filepath.Join(homeDirectory, ".cloudflared", hostname+"-*-token"))
+	if errorValue != nil {
+		return true
+	}
+	return len(tokenPaths) > 0
 }
 
 func cloudflareSSHFailureClass(message string) string {
