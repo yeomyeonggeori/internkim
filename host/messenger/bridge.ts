@@ -19,6 +19,8 @@ import {
 type Call = { callID?: string; method?: string; path?: string; body?: unknown };
 type Answer = { callID: string; status: number; body: unknown };
 
+let knownContacts = -1;
+
 const projectURL = required('SUPABASE_URL');
 const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
 const agentKey = required('AGENT_API_KEY');
@@ -49,6 +51,7 @@ if (member.error) throw new Error(member.error.message);
 console.log(`acting as member ${memberSession.memberID}`);
 
 await refreshContacts(client, member.data.company_id, session);
+setInterval(() => void refreshContacts(client, member.data.company_id, session), 600_000);
 
 client.realtime.setAuth(memberSession.accessToken);
 const channel = client.channel(`company:${member.data.company_id}`, { config: { private: true } });
@@ -178,5 +181,8 @@ async function refreshContacts(client: SupabaseClient, companyID: string, sessio
 		{ onConflict: 'company_id,platform,external_id' }
 	);
 	if (error) throw new Error(error.message);
-	console.log(`${people.length} contacts recorded`);
+	if (people.length !== knownContacts) {
+		console.log(`${people.length} contacts recorded`);
+		knownContacts = people.length;
+	}
 }

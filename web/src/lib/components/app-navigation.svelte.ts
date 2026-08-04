@@ -6,6 +6,7 @@ import type { AppRailItem } from '$lib/components/app-rail-types';
 import { appShellText } from '$lib/i18n/app-shell-text';
 import { createPageText } from '$lib/i18n/page-text.svelte';
 import { isSupabaseConfigured, signOutOfSupabase, supabaseMemberRole } from '$lib/supabase-session';
+import { isMessengerConnected } from '$lib/messenger/messenger-directory';
 import type { UserRole } from '$lib/types';
 import type { WebAuthSession } from '$lib/web-auth-session';
 import ActivityIcon from '@lucide/svelte/icons/activity';
@@ -39,13 +40,13 @@ class AppNavigation {
 	adminRole = $state<UserRole>('member');
 	canViewTasks = $state(false);
 	isPocSuperAdmin = $state(false);
-	buzzEnabled = $state(false);
+	hasMessenger = $state(false);
 
 	currentPath = $derived(page.url.pathname);
 	displayUserName = $derived(this.userName || text.workspace);
 
 	apps = $derived<AppRailItem[]>([
-		...(this.buzzEnabled ? [{ href: '/messenger/', label: text.messenger, icon: MessagesSquareIcon }] : []),
+		...(this.hasMessenger ? [{ href: '/messenger/', label: text.messenger, icon: MessagesSquareIcon }] : []),
 		{ href: '/flow/', label: text.flow, icon: ListChecksIcon, badgeCount: appBadgeCounts.requestedTasks },
 		{ href: '/memory/', label: text.memory, icon: BrainIcon },
 		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon, badgeCount: appBadgeCounts.participatingEvents },
@@ -87,10 +88,11 @@ class AppNavigation {
 		this.isPocSuperAdmin = session.isPocSuperAdmin;
 		if (isSupabaseConfigured()) {
 			this.adminRole = await supabaseMemberRole();
+			this.hasMessenger = await isMessengerConnected();
 			return;
 		}
 		void appBadgeCounts.load(session.email);
-		await this.loadBuzzEnabled();
+		await this.loadDeviceMessenger();
 		try {
 			const response = await adminApiFetch('/admin/api/session');
 			if (!response.ok) {
@@ -142,20 +144,20 @@ class AppNavigation {
 		this.adminRole = 'member';
 		this.canViewTasks = false;
 		this.isPocSuperAdmin = false;
-		this.buzzEnabled = false;
+		this.hasMessenger = false;
 	}
 
-	private async loadBuzzEnabled() {
+	private async loadDeviceMessenger() {
 		try {
 			const response = await fetch('/agent/api/buzz-relay-config', { credentials: 'include' });
 			if (!response.ok) {
-				this.buzzEnabled = false;
+				this.hasMessenger = false;
 				return;
 			}
 			const document = (await response.json()) as { relayURL?: string };
-			this.buzzEnabled = Boolean(document.relayURL?.trim());
+			this.hasMessenger = Boolean(document.relayURL?.trim());
 		} catch {
-			this.buzzEnabled = false;
+			this.hasMessenger = false;
 		}
 	}
 

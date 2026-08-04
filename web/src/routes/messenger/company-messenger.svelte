@@ -10,21 +10,34 @@
 		type MessengerChannel,
 		type MessengerPost
 	} from '$lib/messenger/messenger-api';
-	import { fetchMessengerDirectory, personKey, personLabel, type MessengerDirectory } from '$lib/messenger/messenger-directory';
+	import {
+		fetchMessengerDirectory,
+		personKey,
+		personLabel,
+		type MessengerDirectory
+	} from '$lib/messenger/messenger-directory';
+	import { channelLabel, threadsOf } from './messenger-thread';
 	import { onMount } from 'svelte';
 
 	let channels = $state<MessengerChannel[]>([]);
 	let posts = $state<MessengerPost[]>([]);
 	let directory = $state<MessengerDirectory | null>(null);
 	let selectedChannelID = $state('');
+	let replyingTo = $state<MessengerPost | null>(null);
 	let draft = $state('');
 	let isSending = $state(false);
 	let notice = $state('');
 
 	const selectedChannel = $derived(channels.find((channel) => channel.id === selectedChannelID));
+	const threads = $derived(threadsOf(posts));
 
-	function labelOf(post: MessengerPost): string {
+	function nameOf(post: MessengerPost): string {
 		return directory ? personLabel(post.author, directory) : '';
+	}
+
+	function reactionLabel(people: { memberID?: string; externalID?: string }[]): string {
+		if (!directory) return '';
+		return people.map((person) => personLabel(person, directory!)).filter(Boolean).join(', ');
 	}
 
 	async function load() {
@@ -40,6 +53,7 @@
 
 	async function openChannel(channelID: string) {
 		selectedChannelID = channelID;
+		replyingTo = null;
 		posts = [];
 		try {
 			posts = await fetchPosts(channelID);
@@ -55,9 +69,10 @@
 		if (!body || !selectedChannelID) return;
 		isSending = true;
 		try {
-			const written = await writePost(selectedChannelID, body);
+			const written = await writePost(selectedChannelID, body, replyingTo?.id);
 			posts = [...posts, written];
 			draft = '';
+			replyingTo = null;
 			notice = '';
 		} catch (error) {
 			notice = noticeOf(error);
@@ -82,34 +97,72 @@
 				class="w-full truncate rounded-md px-3 py-2 text-left text-sm hover:bg-muted {channel.id === selectedChannelID ? 'bg-muted font-medium' : ''}"
 				onclick={() => openChannel(channel.id)}
 			>
-				{channel.isDirect ? '@' : '#'} {channel.name}
+				{channel.isDirect ? '@' : '#'}
+				{channelLabel(channel, directory)}
 			</button>
 		{/each}
 	</aside>
 
 	<section class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto]">
 		<header class="border-b px-6 py-3 text-sm font-medium">
-			{selectedChannel ? selectedChannel.name : '대화'}
+			{selectedChannel ? channelLabel(selectedChannel, directory) : '대화'}
 		</header>
 
-		<div class="min-h-0 space-y-3 overflow-y-auto px-6 py-4" data-testid="messenger-posts">
+		<div class="min-h-0 space-y-4 overflow-y-auto px-6 py-4" data-testid="messenger-posts">
 			{#if notice}
 				<p class="rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">{notice}</p>
 			{/if}
-			{#each posts as post (post.id)}
-				<article class="flex gap-3">
-					<PersonAvatar name={labelOf(post)} seed={personKey(post.author)} class="size-8 shrink-0" />
-					<div class="min-w-0">
-						<p class="text-sm font-medium">{labelOf(post)}</p>
-						<p class="text-sm whitespace-pre-wrap">{post.body}</p>
-					</div>
+			{#each threads as thread (thread.post.id)}
+				<article class="space-y-2">
+					{#snippet written(post: MessengerPost)}
+						<div class="flex gap-3">
+							<PersonAvatar name={nameOf(post)} seed={personKey(post.author)} class="size-8 shrink-0" />
+							<div class="min-w-0 flex-1">
+								<p class="text-sm font-medium">{nameOf(post)}</p>
+								<p class="text-sm whitespace-pre-wrap">{post.body}</p>
+								{#if post.reactions.length > 0}
+									<div class="mt-1 flex flex-wrap gap-1">
+										{#each post.reactions as reaction (reaction.emoji)}
+											<span class="rounded-full border px-2 py-0.5 text-xs" title={reactionLabel(reaction.people)}>
+												:{reaction.emoji}: {reaction.people.length}
+											</span>
+										{/each}
+									</div>
+								{/if}
+								<button
+									type="button"
+									class="mt-1 text-xs text-muted-foreground underline"
+									onclick={() => (replyingTo = thread.post)}
+								>
+									답글
+								</button>
+							</div>
+						</div>
+					{/snippet}
+
+					{@render written(thread.post)}
+					{#if thread.replies.length > 0}
+						<div class="ml-11 space-y-2 border-l pl-4">
+							{#each thread.replies as reply (reply.id)}
+								{@render written(reply)}
+							{/each}
+						</div>
+					{/if}
 				</article>
 			{/each}
 		</div>
 
-		<form class="flex gap-2 border-t px-6 py-3" onsubmit={send}>
-			<Input bind:value={draft} placeholder="메시지" disabled={isSending || !selectedChannelID} />
-			<Button type="submit" disabled={isSending || !draft.trim() || !selectedChannelID}>보내기</Button>
+		<form class="grid gap-2 border-t px-6 py-3" onsubmit={send}>
+			{#if replyingTo}
+				<p class="flex items-center gap-2 text-xs text-muted-foreground">
+					<span class="truncate">답글: {replyingTo.body}</span>
+					<button type="button" class="underline" onclick={() => (replyingTo = null)}>취소</button>
+				</p>
+			{/if}
+			<div class="flex gap-2">
+				<Input bind:value={draft} placeholder="메시지" disabled={isSending || !selectedChannelID} />
+				<Button type="submit" disabled={isSending || !draft.trim() || !selectedChannelID}>보내기</Button>
+			</div>
 		</form>
 	</section>
 </main>

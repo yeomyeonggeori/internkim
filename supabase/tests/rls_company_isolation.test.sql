@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(26);
 
 delete from public.company;
 
@@ -765,6 +765,100 @@ begin
 
   raise notice 'ranges: the two ends are put in order rather than refused';
 end $$;$block$, 'ranges: the two ends are put in order rather than refused');
+
+select lives_ok($block$do $$
+declare
+  visible_contacts integer;
+  rows_changed integer;
+  foreign_contact_blocked boolean := false;
+begin
+  insert into auth.users (id, email) values
+    ('00000000-0000-0000-0000-0000ffff0001', 'contact-a@example.test'),
+    ('00000000-0000-0000-0000-0000ffff0009', 'contact-admin@example.test');
+  insert into public.company (id, name, slug, country, locale, timezone) values
+    ('00000000-0000-0000-0000-0000ffffff00', 'Company D', 'company-d', 'KR', 'ko', 'Asia/Seoul'),
+    ('00000000-0000-0000-0000-0000ffffff0e', 'Company E', 'company-e', 'KR', 'ko', 'Asia/Seoul');
+  insert into public.member (id, company_id, email, user_id, status, is_admin) values
+    ('000000ff-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000ffffff00', 'contact-a@example.test', '00000000-0000-0000-0000-0000ffff0001', 'active', false),
+    ('000000ff-0000-0000-0000-000000000009', '00000000-0000-0000-0000-0000ffffff00', 'contact-admin@example.test', '00000000-0000-0000-0000-0000ffff0009', 'active', true);
+  insert into public.contact (company_id, platform, external_id, name, member_id) values
+    ('00000000-0000-0000-0000-0000ffffff00', 'mattermost', 'U-d1', 'D One', '000000ff-0000-0000-0000-000000000001'),
+    ('00000000-0000-0000-0000-0000ffffff00', 'mattermost', 'U-guest', 'Outside Guest', null),
+    ('00000000-0000-0000-0000-0000ffffff0e', 'mattermost', 'U-e1', 'E One', null);
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
+
+  select count(*) into visible_contacts from public.contact;
+  assert visible_contacts = 2, 'contacts of another company must be invisible, saw ' || visible_contacts;
+
+  update public.contact set name = 'Renamed'
+    where company_id = '00000000-0000-0000-0000-0000ffffff0e';
+  get diagnostics rows_changed = row_count;
+  assert rows_changed = 0, 'a member must not rename another company contact';
+
+  begin
+    insert into public.contact (company_id, platform, external_id, name)
+    values ('00000000-0000-0000-0000-0000ffffff0e', 'mattermost', 'U-planted', 'Planted');
+  exception when insufficient_privilege then
+    foreign_contact_blocked := true;
+  end;
+  assert foreign_contact_blocked, 'a member must not plant a contact in another company';
+
+  reset role;
+  raise notice 'contacts: a company sees the people it talks to, and nobody elses';
+end $$$block$, 'contacts: a company sees the people it talks to, and nobody elses');
+
+select lives_ok($block$do $$
+declare
+  visible_agents integer;
+  visible_credentials integer;
+  secret_readable boolean := true;
+begin
+  insert into public.agent (company_id, name, api_key_hash) values
+    ('00000000-0000-0000-0000-0000ffffff00', 'company app', 'hash-d'),
+    ('00000000-0000-0000-0000-0000ffffff0e', 'company app', 'hash-e');
+  insert into public.credential (company_id, kind, external_id, settings) values
+    ('00000000-0000-0000-0000-0000ffffff00', 'mattermost', 'https://d.example', '{}'),
+    ('00000000-0000-0000-0000-0000ffffff0e', 'mattermost', 'https://e.example', '{}');
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
+
+  select count(*) into visible_agents from public.agent;
+  assert visible_agents = 0, 'agent keys are not for members to read, saw ' || visible_agents;
+
+  select count(*) into visible_credentials from public.credential where company_id is not null;
+  assert visible_credentials = 0, 'an ordinary member must not read where the company connects, saw ' || visible_credentials;
+
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0009"}', true);
+  select count(*) into visible_credentials from public.credential where company_id is not null;
+  assert visible_credentials = 1, 'an admin reads their own company connections and no others, saw ' || visible_credentials;
+
+  begin
+    perform public.read_company_secret('00000000-0000-0000-0000-000000000000');
+  exception when insufficient_privilege then
+    secret_readable := false;
+  end;
+  assert not secret_readable, 'nobody signed in may open the vault';
+
+  reset role;
+  raise notice 'connections: only an admin sees where a company connects, and the vault stays shut';
+end $$$block$, 'connections: only an admin sees where a company connects, and the vault stays shut');
+
+select lives_ok($block$do $$
+declare
+  own_topic text;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
+  select public.my_company_topic() into own_topic;
+  assert own_topic = 'company:00000000-0000-0000-0000-0000ffffff00',
+    'a member listens on their own company topic, got ' || own_topic;
+
+  reset role;
+  raise notice 'channel: a company topic is derived, never chosen';
+end $$$block$, 'channel: a company topic is derived, never chosen');
 
 select * from finish();
 rollback;
