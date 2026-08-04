@@ -1,4 +1,6 @@
 begin;
+create extension if not exists pgtap with schema extensions;
+select plan(23);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000a1', 'a@example.test'),
@@ -7,7 +9,7 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000a9', 'admin@example.test');
 
 insert into public.company (id, name, slug, country, locale, timezone, work_locations) values
-  ('00000000-0000-0000-0000-0000000000a0', 'Company A', 'company-a', 'KR', 'ko', 'Asia/Seoul', array['Headquarters', 'Branch']),
+  ('00000000-0000-0000-0000-0000000000a0', 'Company A', 'company-a', 'KR', 'ko', 'Asia/Seoul', '[{"name": "Headquarters"}, {"name": "Branch"}]'),
   ('00000000-0000-0000-0000-0000000000b0', 'Company B', 'company-b', 'US', 'en-US', 'America/New_York', null);
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values
@@ -42,7 +44,7 @@ insert into public.task (company_id, title, starts_at, ends_at, is_event) values
 insert into public.leave (member_id, kind, is_paid, days, starts_at, ends_at) values
   ('000000aa-0000-0000-0000-000000000001', '연차', true, 3, '2026-08-10 00:00+09', '2026-08-12 23:59+09');
 
-do $$
+select lives_ok($block$do $$
 declare
   bogus_company_timezone_blocked boolean := false;
   bogus_member_timezone_blocked boolean := false;
@@ -77,9 +79,9 @@ begin
   assert bogus_member_timezone_blocked, 'a misspelled member timezone must be rejected';
 
   raise notice 'timezone: member overrides company, and misspellings are rejected';
-end $$;
+end $$;$block$, 'timezone: member overrides company, and misspellings are rejected');
 
-do $$
+select lives_ok($block$do $$
 declare
   seoul_member uuid := '000000aa-0000-0000-0000-000000000001';
   new_york_member uuid := '000000bb-0000-0000-0000-000000000001';
@@ -92,9 +94,9 @@ begin
     'members in distant timezones can be on different calendar days';
 
   raise notice 'today: each member has their own calendar day';
-end $$;
+end $$;$block$, 'today: each member has their own calendar day');
 
-do $$
+select lives_ok($block$do $$
 declare
   weekday_schedule jsonb := '[[
     [{"from":"09:00","to":"18:00"}],
@@ -138,9 +140,9 @@ begin
   assert malformed_schedule_blocked, 'a weekly schedule always covers seven days';
 
   raise notice 'working hours: member overrides company, and nothing set means flexible';
-end $$;
+end $$;$block$, 'working hours: member overrides company, and nothing set means flexible');
 
-do $$
+select lives_ok($block$do $$
 declare
   fortnight jsonb := '[
     [null,null,null,null,null,[{"from":"09:00","to":"13:00"}],null],
@@ -174,9 +176,9 @@ begin
     'with no schedule anywhere there is nothing to look up';
 
   raise notice 'working hours: a multi-week cycle resolves per day';
-end $$;
+end $$;$block$, 'working hours: a multi-week cycle resolves per day');
 
-do $$
+select lives_ok($block$do $$
 declare
   employee uuid := '000000aa-0000-0000-0000-000000000001';
   duplicate_slug_blocked boolean := false;
@@ -215,9 +217,9 @@ begin
   assert invented_country_blocked, 'country is an ISO 3166-1 alpha-2 code';
 
   raise notice 'identity: slug is unique and url-safe, locale falls back to the company';
-end $$;
+end $$;$block$, 'identity: slug is unique and url-safe, locale falls back to the company');
 
-do $$
+select lives_ok($block$do $$
 declare
   visible_tasks integer;
   visible_events integer;
@@ -248,9 +250,9 @@ begin
 
   reset role;
   raise notice 'task: company-scoped, and only timed appointments reach the calendar';
-end $$;
+end $$;$block$, 'task: company-scoped, and only timed appointments reach the calendar');
 
-do $$
+select lives_ok($block$do $$
 declare
   untimed_event_blocked boolean := false;
 begin
@@ -263,9 +265,9 @@ begin
   assert untimed_event_blocked, 'an event without a time cannot be reminded about, so it must be rejected';
 
   raise notice 'task: an event always carries the time it happens at';
-end $$;
+end $$;$block$, 'task: an event always carries the time it happens at');
 
-do $$
+select lives_ok($block$do $$
 declare
   whole_day_without_range_blocked boolean := false;
   whole_day_work integer;
@@ -288,9 +290,9 @@ begin
     'whole-day needs a range to reinterpret as dates';
 
   raise notice 'task: whole-day retypes a range as dates, for events and work alike';
-end $$;
+end $$;$block$, 'task: whole-day retypes a range as dates, for events and work alike');
 
-do $$
+select lives_ok($block$do $$
 declare
   standup uuid;
   my_upcoming integer;
@@ -345,9 +347,9 @@ begin
   assert untimed_notify_blocked, 'there is nothing to count back from without a start time';
 
   raise notice 'participants: joined, company-scoped, and cleaned up with the member';
-end $$;
+end $$;$block$, 'participants: joined, company-scoped, and cleaned up with the member');
 
-do $$
+select lives_ok($block$do $$
 declare
   visible_leave integer;
   rows_changed integer;
@@ -379,9 +381,9 @@ begin
 
   reset role;
   raise notice 'leave: requested by the member, approved by an admin, visible to colleagues';
-end $$;
+end $$;$block$, 'leave: requested by the member, approved by an admin, visible to colleagues');
 
-do $$
+select lives_ok($block$do $$
 declare
   visible_attendance integer;
   visible_companies integer;
@@ -414,9 +416,9 @@ begin
 
   reset role;
   raise notice 'rls_company_isolation: all assertions passed';
-end $$;
+end $$;$block$, 'rls_company_isolation: all assertions passed');
 
-do $$
+select lives_ok($block$do $$
 declare
   rows_changed integer;
 begin
@@ -442,9 +444,9 @@ begin
 
   reset role;
   raise notice 'admin: company writes are admin-only and company-scoped';
-end $$;
+end $$;$block$, 'admin: company writes are admin-only and company-scoped');
 
-do $$
+select lives_ok($block$do $$
 declare
   claimed_member uuid;
   rows_changed integer;
@@ -458,9 +460,9 @@ begin
 
   reset role;
   raise notice 'escalation: member rows are not client-writable';
-end $$;
+end $$;$block$, 'escalation: member rows are not client-writable');
 
-do $$
+select lives_ok($block$do $$
 declare
   invited_member uuid;
 begin
@@ -473,9 +475,9 @@ begin
 
   reset role;
   raise notice 'invite: an invited member resolves without a separate claim step';
-end $$;
+end $$;$block$, 'invite: an invited member resolves without a separate claim step');
 
-do $$
+select lives_ok($block$do $$
 declare
   projected_email text;
   bound_user uuid;
@@ -495,9 +497,9 @@ begin
     'changing an address must not change member status';
 
   raise notice 'email change: one member follows their account address';
-end $$;
+end $$;$block$, 'email change: one member follows their account address');
 
-do $$
+select lives_ok($block$do $$
 declare
   moved_members integer;
 begin
@@ -520,9 +522,9 @@ begin
   assert moved_members = 1, 'a pending member has no account address to follow';
 
   raise notice 'email change: a company-wide domain move follows every bound member';
-end $$;
+end $$;$block$, 'email change: a company-wide domain move follows every bound member');
 
-do $$
+select lives_ok($block$do $$
 declare
   offboarded_status public.member_status;
   surviving_attendance integer;
@@ -541,9 +543,9 @@ begin
   assert surviving_attendance = 1, 'offboarding keeps the attendance record';
 
   raise notice 'offboarding: an explicit departure survives account deletion';
-end $$;
+end $$;$block$, 'offboarding: an explicit departure survives account deletion');
 
-do $$
+select lives_ok($block$do $$
 declare
   bound_user uuid;
 begin
@@ -556,9 +558,9 @@ begin
     'creating an auth user must bind a pending member with the same email';
 
   raise notice 'import: a pending member binds to its account on sign-up';
-end $$;
+end $$;$block$, 'import: a pending member binds to its account on sign-up');
 
-do $$
+select lives_ok($block$do $$
 declare
   surviving_member integer;
   surviving_attendance integer;
@@ -585,9 +587,9 @@ begin
   assert surviving_attendance = 1, 'attendance stays with the company after the account is deleted';
 
   raise notice 'withdrawal: a self-deleted account keeps the company record';
-end $$;
+end $$;$block$, 'withdrawal: a self-deleted account keeps the company record');
 
-do $$
+select lives_ok($block$do $$
 declare
   traveller uuid := '000000aa-0000-0000-0000-000000000003';
   unregistered_company_member uuid := '000000bb-0000-0000-0000-000000000001';
@@ -664,9 +666,9 @@ begin
     'a company with no registered locations accepts any location';
 
   raise notice 'attendance: moving between sites is allowed, repeating a state is not';
-end $$;
+end $$;$block$, 'attendance: moving between sites is allowed, repeating a state is not');
 
-do $$
+select lives_ok($block$do $$
 declare
   veteran uuid := '000000aa-0000-0000-0000-000000000001';
   newcomer uuid := '000000aa-0000-0000-0000-000000000003';
@@ -712,9 +714,9 @@ begin
     'it belongs to the year the member is actually living in';
 
   raise notice 'annual leave: entitlement is a per member result, only deducting leave consumes it';
-end $$;
+end $$;$block$, 'annual leave: entitlement is a per member result, only deducting leave consumes it');
 
-do $$
+select lives_ok($block$do $$
 declare
   visible_teams integer;
   self_supervision_blocked boolean := false;
@@ -743,9 +745,9 @@ begin
 
   reset role;
   raise notice 'org chart: teams are company-scoped and nobody supervises themselves';
-end $$;
+end $$;$block$, 'org chart: teams are company-scoped and nobody supervises themselves');
 
-do $$
+select lives_ok($block$do $$
 declare
   ordered record;
 begin
@@ -760,6 +762,7 @@ begin
     'both days the caller gave are kept';
 
   raise notice 'ranges: the two ends are put in order rather than refused';
-end $$;
+end $$;$block$, 'ranges: the two ends are put in order rather than refused');
 
+select * from finish();
 rollback;

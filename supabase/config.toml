@@ -1,5 +1,9 @@
 project_id = "mutvimjbvmoludotyehk"
 
+[db.seed]
+enabled = true
+sql_paths = ['./seed.dev.sql']
+
 [auth.passkey]
 enabled = true
 
