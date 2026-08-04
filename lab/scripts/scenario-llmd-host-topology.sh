@@ -102,7 +102,7 @@ assert_guest_llmd_router_transport() {
       [.taskEvents[] |
         select(.name == "llm.call") |
         (.body | fromjson) |
-        select(.schemaName == "blueclaw_turn_router")
+        select(.schemaName == "bluecollar_turn_router")
       ] as $router_calls |
       ($intakes | length) > 0 and
       all($intakes[]; .usedDeterministicFallback == false) and
@@ -136,7 +136,7 @@ assert_guest_llmd_structured_transport() {
       [.taskEvents[] |
         select(.name == "llm.call") |
         (.body | fromjson) |
-        select(.schemaName == "blueclaw_agent_turn_action")
+        select(.schemaName == "bluecollar_agent_turn_action")
       ] as $calls |
       [.taskEvents[] |
         select(.name == "agent.task_launched") |
@@ -212,8 +212,8 @@ if grep -qE '/run/blueclaw-llmd|llmd-auth-key' "$runtime_config"; then
   exit 1
 fi
 
-jq -e '.languageModel.llmd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"]' "$runtime_config" >/dev/null
-jq -e '.languageModel.llmd.structuredSchemaNames == ["blueclaw_agent_turn_action", "blueclaw_agent_turn_finalizer", "blueclaw_turn_router", "blueclaw_recovery_decision", "blueclaw_operation_contract"]' "$workspace_runtime_config" >/dev/null
+jq -e '.languageModel.llmd.structuredSchemaNames == ["bluecollar_agent_turn_action", "bluecollar_agent_turn_finalizer", "bluecollar_turn_router", "bluecollar_recovery_decision", "blueclaw_operation_contract"]' "$runtime_config" >/dev/null
+jq -e '.languageModel.llmd.structuredSchemaNames == ["bluecollar_agent_turn_action", "bluecollar_agent_turn_finalizer", "bluecollar_turn_router", "bluecollar_recovery_decision", "blueclaw_operation_contract"]' "$workspace_runtime_config" >/dev/null
 requester_person_id=$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/admin/api/policy | jq -er '.people[0].personID | select(length > 0)')
 router_task_run_id=$(run_task 'Reply with exactly LLMD topology router ok.' '' false)
 assert_guest_llmd_router_transport "$router_task_run_id"

@@ -176,7 +176,7 @@ func runExperimentTrial(backend OpenRouterBackend, schemaDocument json.RawMessag
 		Model:    experimentModelName(),
 		Messages: []Message{{Role: "user", Content: scenario.Prompt}},
 		StructuredOutputSchema: StructuredOutputSchema{
-			Name:               "blueclaw_agent_turn_action",
+			Name:               "bluecollar_agent_turn_action",
 			Document:           schemaDocument,
 			IsStrictlyEnforced: true,
 		},
