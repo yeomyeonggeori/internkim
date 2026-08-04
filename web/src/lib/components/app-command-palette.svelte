@@ -29,8 +29,7 @@
 	import PowerOffIcon from '@lucide/svelte/icons/power-off';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import { isSupabaseConfigured } from '$lib/supabase-session';
-	import { isPasskeySupported } from '$lib/buzz-passkey';
-	import { enrolPasskey } from '$lib/supabase-passkey';
+	import { isPasskeySupported, registerPasskey } from '$lib/supabase-passkey';
 	import { toast } from 'svelte-sonner';
 
 	let { open = $bindable(false) }: { open?: boolean } = $props();
@@ -102,7 +101,7 @@
 	async function runRegisterPasskey() {
 		open = false;
 		try {
-			await enrolPasskey(appNavigation.userEmail, appNavigation.displayUserName);
+			await registerPasskey();
 			toast.success(text.passkeyRegistered);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.logOut);
