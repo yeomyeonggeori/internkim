@@ -5,6 +5,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 
 ## Core Rules
 
+- The product is moving off per-device hardware onto a central plane the
+  customer signs into, with the agent running on a computer they bring. Device
+  paths still ship and must keep working; when a section speaks of Jetson,
+  OTA, or Firecracker it is describing that older half, not the direction.
 - Prefer existing codebase patterns over new abstractions.
 - Use `rg` or `rg --files` for searches.
 - Use `apply_patch` for manual edits.
@@ -275,11 +279,73 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   `cd web && bun test tests/unit`.
 - Add or update a `web/package.json` script when adding a new test category, and
   wire important regression tests into the normal verification path.
-- When the user asks to run a local web page for them to inspect, start the dev
-  server with the relevant `VITE_MOCK_*` flag so the app is already past the
-  login gate. For attendance UI work, use `VITE_MOCK_ATTENDANCE=1` and an
-  explicit `VITE_DEV_USER_EMAIL`, then verify `/auth/session` returns
-  `authenticated: true` before giving the URL.
+- When the user asks to run a local web page for them to inspect, prefer the
+  central plane: `supabase db reset` then `bun run dev`, and hand over a real
+  sign-in. Mock flags (`VITE_MOCK_ATTENDANCE=1` with an explicit
+  `VITE_DEV_USER_EMAIL`) are for device-backed screens that have no Supabase
+  path yet; with those, verify `/auth/session` returns `authenticated: true`
+  before giving the URL.
+- Unit tests must not see the central plane. `web/.env.test` blanks it so the
+  device paths stay under test; without it a local `web/.env` leaks in and the
+  suites silently exercise the wrong branch.
+
+## Central Plane (Supabase)
+
+- The company web app runs on Supabase, not on a device. `supabase/migrations`
+  is the schema of record and `docs/core-schema.md` explains it. Never edit an
+  applied migration; add the next one.
+- Local loop, in this order: `supabase db reset` (schema plus fixtures),
+  `supabase test db` (pgTAP), `cd web && bun run dev`. The reset alone gives a
+  company you can sign into — `lee@example.com` / `seed-password`.
+- `supabase/seed.dev.sql` is the only place local fixtures live, wired through
+  `[db.seed]` in `config.toml`. Do not write a second seeding script; a reset
+  wipes anything the file does not carry.
+- Run `supabase test db` after every schema change, and add a case for the
+  invariant you just introduced. It is the only thing that catches a function
+  body left pointing at a renamed column: SQL function bodies resolve at call
+  time, so `alter ... rename` inside the same migration that created the
+  function silently breaks it, and nothing complains until a user does.
+- A migration that creates tables must also grant them. `anon`,
+  `authenticated` and `service_role` get no privileges by default on a fresh or
+  self-hosted database — see `20260803000016_api_grants.sql`. RLS is the
+  boundary; grants are what let the API reach the table at all.
+- Row level security is the access boundary. Read on someone's behalf with
+  their own token (`asMember`); the service key is only for what security
+  cannot reach, and it never leaves a server route.
+- Passkeys are Supabase's own (`auth.registerPasskey`, `auth.signInWithPasskey`).
+  A WebAuthn relying party is one domain: `rp_id` must match the registrable
+  domain of every origin it serves, so a passkey registered on `pages.dev`
+  cannot work on `example.test`.
+
+## SaaS Web Deployment (Cloudflare Pages)
+
+- Which Supabase project the app talks to is decided at **runtime**, injected by
+  `hooks.server.ts` into the `#central-plane` element, not baked in by `VITE_*`.
+  One build therefore serves both a device host and a company host — keep it
+  that way, and reach the values through `$env/dynamic/private`.
+- Custom domains always serve the **production** deployment; preview builds only
+  ever answer on `*.pages.dev`. A hostname cannot point at a preview.
+- `web/scripts/deploy-pages.ts` deploys a preview unless `--production` is
+  passed. Keep that default.
+- The `internkim` Pages project serves `api.example.test`. Never deploy to it from
+  a branch that does not contain `origin/main`; that replaces a live API with a
+  stale build and the deploy reports success.
+- Pages custom domains do not accept wildcards. Each company hostname is
+  attached explicitly (`web/scripts/pages-domains.ts`), so creating a company
+  includes creating its hostname.
+
+## Bringing Device Data Across
+
+- Pull a device's data over **HTTP**, not SSH: sign into its own web app and
+  read the endpoints it already serves (`/flow/api/state`,
+  `/attendance/api/summary`, `/calendar/api/events`), then feed the JSON to
+  `web/scripts/import-flow-state.ts` and `import-attendance-events.ts`. Short
+  requests survive a flapping uplink; an SSH session does not.
+- Import history as it happened. When the record refuses a row the past
+  violated, report it rather than reshaping it into something the device never
+  recorded, and keep the export so the decision stays reversible.
+- Work whose every named person belongs to no member of the company is somebody
+  else's; skip it instead of adopting it. Never filter by a person's name.
 
 ## Web UI Components
 
@@ -378,7 +444,9 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   Bazel/CUDA builds OOM the 8GB Jetson.
 - Stop if the plan unexpectedly includes `binaries`, on-device model-runtime *builds*,
   CUDA, or Jetson model runtime work that is not part of an intended local-LLM change.
-- For Admin/Flow web UI-only changes, rebuild the board UI before deploying:
+- Everything in this section is the **device** path. A company on the central
+  plane is deployed by `web/scripts/deploy-pages.ts`; see SaaS Web Deployment.
+- For Admin/Flow web UI-only changes on a device, rebuild the board UI first:
   run `cd web && bun install` when dependencies may have changed, then
   `cd web && bun run build:board`, then `./internkim deploy --components web`
   from the repository root. The OTA web deploy packages the pre-built
