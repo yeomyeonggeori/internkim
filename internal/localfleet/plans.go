@@ -270,6 +270,10 @@ func (service Service) restartPolicySurvivalScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("restart-policy-survival"))
 }
 
+func (service Service) workspacePersistenceScenarioPlans() []CommandPlan {
+	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("workspace-persistence"))
+}
+
 func (service Service) webBackedScenarioPlans(scenario string) []CommandPlan {
 	return append(service.upPlans(false), service.shellPlan("run "+scenario, service.verifyCommand("browser --local")))
 }

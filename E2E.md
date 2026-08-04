@@ -10,7 +10,7 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | 가상 세션 | `./internkim dev simulate --scenario <name>` | `.dependency/blueclaw/internal/e2e/scenarios.go` (등록: `virtual_session.go`) | 스크립트 응답에 대한 에이전트 루프·상태 전이·이벤트 invariant |
 | Mattermost 제외 Linux | `./internkim dev fleet run --without-mattermost --scenario <name>` | Blueclaw virtual-session을 Linux VM 내부에서 실행 | Mattermost 서버 없이 Linux toolchain·agent 경로 검증 |
 | 로컬 플릿 | `./internkim dev fleet run` | `internal/localfleet/plans.go` | 일회용 Linux+Mattermost+Kim 서버에서 predeploy API·Mattermost·browser 스모크 |
-| 플릿 시나리오 | `./internkim dev fleet run --scenario <name>` | `internal/localfleet/service.go` + `lab/scripts/scenario-*.sh`, `.dependency/blueclaw/lab/scripts/scenario-*.sh` | 일회용 실제 커넥터 경유 메시징·재시작 후 정책 보존 |
+| 플릿 시나리오 | `./internkim dev fleet run --scenario <name>` | `internal/localfleet/service.go` + `lab/scripts/scenario-*.sh`, `.dependency/blueclaw/lab/scripts/scenario-*.sh` | 일회용 실제 커넥터 경유 메시징·재시작 후 정책과 태스크 원장 보존 |
 | 재사용 플릿 | `./internkim dev fleet run --reuse --scenario <name>` | `internal/localfleet` shared VM/state/tunnel | 수동 디버깅용 공유 로컬 플릿 |
 
 가상 세션 시나리오는 `.dependency/blueclaw/agenttest/scripted_language_model.go`의
@@ -61,7 +61,8 @@ lab runner의 `--llm-provider llmd --live-llm --strict-assertions` 조합으로
 플릿 시나리오: `dm-recipient-resolve`, `mattermost-bot-invited`,
 `mattermost-direct-message-send`, `mattermost-manual`(`--keep` 필수),
 `mattermost-ask-ephemeral`, `mattermost-docx-attachment`,
-`restart-policy-survival`, `web-backed-ui`, `regression-proof`.
+`restart-policy-survival`, `workspace-persistence`, `web-backed-ui`,
+`regression-proof`.
 `--without-mattermost` 경로는 `llmd-host-topology`와 위 가상 세션 시나리오
 이름을 받는다.
 
