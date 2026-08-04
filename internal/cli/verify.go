@@ -963,7 +963,7 @@ llm_action_body="$(jq -cn --arg model "$model" --argjson schema "$action_schema"
     {role:"system", content:"You must finish this smoke test now. Use the finish action with message ok, goalStatus satisfied, goalSatisfied true, and empty evidence/review arrays."},
     {role:"user", content:"Finish now."}
   ],
-  structuredOutputSchema: {name:"blueclaw_agent_turn_action", document:$schema, isStrictlyEnforced:true},
+  structuredOutputSchema: {name:"bluecollar_agent_turn_action", document:$schema, isStrictlyEnforced:true},
   requireParameters: true,
   enableResponseHealing: true
 }')"
