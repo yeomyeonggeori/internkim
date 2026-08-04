@@ -5,7 +5,20 @@ import (
 	"strings"
 )
 
+var defaultZone = "intern.kim"
+
+func Default() string {
+	return strings.ToLower(strings.TrimSpace(defaultZone))
+}
+
 func Zone(apiBaseURL string) string {
+	if configured := zoneOfAPIBaseURL(apiBaseURL); configured != "" {
+		return configured
+	}
+	return Default()
+}
+
+func zoneOfAPIBaseURL(apiBaseURL string) string {
 	trimmed := strings.TrimSpace(apiBaseURL)
 	if trimmed == "" {
 		return ""
