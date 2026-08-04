@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+const (
+	DefaultProjectURL     = "https://mutvimjbvmoludotyehk.supabase.co"
+	DefaultPublishableKey = "sb_publishable_HwxbmtaLFeHiOAZLIUvIZw_V17mbX44"
+)
+
 type Settings struct {
 	AppURL         string
 	AgentAPIKey    string

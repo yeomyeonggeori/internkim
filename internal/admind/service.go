@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -319,6 +320,9 @@ func DefaultConfiguration() Configuration {
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
 		APIURLPath:                     "/root/.internkim/env/api-url",
+		CentralPlaneAgentKeyPath:       "/root/.internkim/secrets/central-plane-agent-key",
+		CentralPlaneProjectURL:         centralplane.DefaultProjectURL,
+		CentralPlanePublishableKey:     centralplane.DefaultPublishableKey,
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		DeviceURLPath:                  "/root/.internkim/env/device-url",
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
@@ -2730,9 +2734,6 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.OpenRouterModelsURL == "" {
 		configuration.OpenRouterModelsURL = defaultConfiguration.OpenRouterModelsURL
 	}
-	if configuration.ReleaseRegistryURL == "" {
-		configuration.ReleaseRegistryURL = defaultConfiguration.ReleaseRegistryURL
-	}
 	if configuration.ReleaseDownloadTokenPath == "" {
 		configuration.ReleaseDownloadTokenPath = defaultConfiguration.ReleaseDownloadTokenPath
 	}
@@ -2753,6 +2754,18 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.APIBaseURL == "" {
 		configuration.APIBaseURL = strings.TrimSpace(readTrimmedFile(configuration.APIURLPath))
+	}
+	if configuration.CentralPlaneAgentKeyPath == "" {
+		configuration.CentralPlaneAgentKeyPath = defaultConfiguration.CentralPlaneAgentKeyPath
+	}
+	if configuration.CentralPlaneProjectURL == "" {
+		configuration.CentralPlaneProjectURL = defaultConfiguration.CentralPlaneProjectURL
+	}
+	if configuration.CentralPlanePublishableKey == "" {
+		configuration.CentralPlanePublishableKey = defaultConfiguration.CentralPlanePublishableKey
+	}
+	if configuration.CentralPlaneAppURL == "" {
+		configuration.CentralPlaneAppURL = configuration.APIBaseURL
 	}
 	if configuration.ReleaseRegistryURL == "" {
 		configuration.ReleaseRegistryURL = fleetdomain.Subdomain("updates", fleetdomain.Zone(configuration.APIBaseURL))
