@@ -100,45 +100,49 @@ export type FoundedCompany = {
 
 export type ClaimedMember = { memberID: string; companyID: string };
 
-// Someone who was written down before they had an account claims that row by
-// arriving. Invited or written down ahead of time, from here on they are here.
+type MemberRow = { id: string; company_id: string; status: string };
+
 export async function claimMemberFor(
 	client: SupabaseClient,
 	accountID: string,
 	email: string,
 ): Promise<ClaimedMember | null> {
-	const byAccount = await client
+	const found = (await memberHeldByAccount(client, accountID)) ?? (await memberWaitingForAddress(client, email));
+	if (!found) return null;
+	if (hasNotArrivedYet(found.status)) await markArrived(client, found.id, accountID, email);
+	return { memberID: found.id, companyID: found.company_id };
+}
+
+async function memberHeldByAccount(client: SupabaseClient, accountID: string): Promise<MemberRow | null> {
+	const { data, error } = await client
 		.from('member')
 		.select('id, company_id, status')
 		.eq('user_id', accountID)
 		.maybeSingle();
-	if (byAccount.error) throw new Error(byAccount.error.message);
+	if (error) throw new Error(error.message);
+	return data;
+}
 
-	const found =
-		byAccount.data ??
-		(await (async () => {
-			const byEmail = await client.from('member').select('id, company_id, status').eq('email', email).maybeSingle();
-			if (byEmail.error) throw new Error(byEmail.error.message);
-			return byEmail.data ?? null;
-		})());
-	if (!found) return null;
+async function memberWaitingForAddress(client: SupabaseClient, email: string): Promise<MemberRow | null> {
+	const { data, error } = await client.from('member').select('id, company_id, status').eq('email', email).maybeSingle();
+	if (error) throw new Error(error.message);
+	return data;
+}
 
-	if (found.status !== 'active' && found.status !== 'departed' && found.status !== 'withdrawn') {
-		const { error } = await client
-			.from('member')
-			.update({ user_id: accountID, status: 'active' })
-			.eq('id', found.id);
-		if (error) throw new Error(`claiming ${email}: ${error.message}`);
+function hasNotArrivedYet(status: string): boolean {
+	return status !== 'active' && status !== 'departed' && status !== 'withdrawn';
+}
 
-		// A hire date carried over from somewhere else is theirs, not today's.
-		const { error: joiningError } = await client
-			.from('member')
-			.update({ joined_at: new Date().toISOString() })
-			.eq('id', found.id)
-			.is('joined_at', null);
-		if (joiningError) throw new Error(`claiming ${email}: ${joiningError.message}`);
-	}
-	return { memberID: found.id, companyID: found.company_id };
+async function markArrived(client: SupabaseClient, memberID: string, accountID: string, email: string): Promise<void> {
+	const claimed = await client.from('member').update({ user_id: accountID, status: 'active' }).eq('id', memberID);
+	if (claimed.error) throw new Error(`claiming ${email}: ${claimed.error.message}`);
+
+	const firstDay = await client
+		.from('member')
+		.update({ joined_at: new Date().toISOString() })
+		.eq('id', memberID)
+		.is('joined_at', null);
+	if (firstDay.error) throw new Error(`claiming ${email}: ${firstDay.error.message}`);
 }
 
 export async function foundCompany(

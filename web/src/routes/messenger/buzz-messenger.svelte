@@ -101,7 +101,7 @@
 			await loadConversationList();
 			selectChannel(channelID);
 		} catch {
-			// keep the current conversation on failure
+			return;
 		}
 	}
 
@@ -148,7 +148,7 @@
 				selectInitialChannel();
 			}
 		} catch {
-			// keep the cached channel list when a refresh fails
+			return;
 		}
 	});
 </script>
