@@ -21,8 +21,8 @@ type Answer = { callID: string; status: number; body: unknown };
 
 const projectURL = required('SUPABASE_URL');
 const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
-const memberEmail = required('HOST_MEMBER_EMAIL');
-const memberPassword = required('HOST_MEMBER_PASSWORD');
+const agentKey = required('AGENT_API_KEY');
+const appURL = required('INTERNKIM_APP_URL');
 const mattermost: MattermostSettings = {
 	baseURL: required('MATTERMOST_URL'),
 	email: required('MATTERMOST_EMAIL'),
@@ -35,27 +35,33 @@ function required(name: string): string {
 	return value;
 }
 
-const client = createClient(projectURL, publishableKey);
-const signedIn = await client.auth.signInWithPassword({ email: memberEmail, password: memberPassword });
-if (signedIn.error) throw new Error(signedIn.error.message);
+const session = await signIn(mattermost);
+console.log(`mattermost ready as ${mattermost.email}`);
+
+let memberSession = await askForSession(session.userID);
+const client = createClient(projectURL, publishableKey, {
+	auth: { autoRefreshToken: false, persistSession: false },
+	global: { headers: { Authorization: `Bearer ${memberSession.accessToken}` } }
+});
 
 const member = await client
 	.from('member')
 	.select('id, company_id')
-	.eq('user_id', signedIn.data.user.id)
+	.eq('id', memberSession.memberID)
 	.single<{ id: string; company_id: string }>();
 if (member.error) throw new Error(member.error.message);
+console.log(`acting as member ${memberSession.memberID}`);
 
-const session = await signIn(mattermost);
-console.log(`mattermost ready as ${mattermost.email}`);
 await refreshContacts(client, member.data.company_id, session);
 
-await client.realtime.setAuth();
+client.realtime.setAuth(memberSession.accessToken);
 const channel = client.channel(`company:${member.data.company_id}`, { config: { private: true } });
 
 channel.on('broadcast', { event: 'call' }, ({ payload }) => {
 	void answer(payload as Call);
 });
+
+setInterval(() => void keepSessionFresh(), 60_000);
 
 await new Promise<void>((resolve, reject) => {
 	channel.subscribe((status, error) => {
@@ -111,6 +117,24 @@ async function route(method: string, path: string, body: unknown): Promise<unkno
 		return null;
 	}
 	throw new Error(`the app has nothing at ${method} ${route}`);
+}
+
+async function askForSession(externalID: string): Promise<{ memberID: string; accessToken: string; expiresAt: number }> {
+	const response = await fetch(`${appURL}/api/agent/session`, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${agentKey}`, 'Content-Type': 'application/json' },
+		body: JSON.stringify({ kind: 'mattermost', externalID })
+	});
+	if (!response.ok) throw new Error(`the central plane refused this agent key (${response.status})`);
+	return (await response.json()) as { memberID: string; accessToken: string; expiresAt: number };
+}
+
+async function keepSessionFresh(): Promise<void> {
+	const secondsLeft = memberSession.expiresAt - Math.floor(Date.now() / 1000);
+	if (secondsLeft > 300) return;
+	memberSession = await askForSession(session.userID);
+	client.realtime.setAuth(memberSession.accessToken);
+	console.log('session renewed');
 }
 
 async function externalIDsOf(memberIDs: string[]): Promise<string[]> {
