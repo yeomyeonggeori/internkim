@@ -1,4 +1,5 @@
 import { supabase } from '$lib/supabase';
+import { colourOf, type NamedColour } from '$lib/flow/task-vocabulary';
 import type {
 	AttendanceAbsence,
 	AttendanceEvent,
@@ -9,7 +10,7 @@ import type {
 } from '../../routes/attendance/attendance-context.svelte';
 
 type MemberRow = { id: string; name: string | null; email: string | null; is_admin: boolean; user_id: string | null };
-type CompanyRow = { timezone: string; work_locations: string[] | null };
+type CompanyRow = { timezone: string; work_locations: NamedColour[] | null };
 type AttendanceRow = { id: string; member_id: string; kind: AttendanceKind; location: string | null; occurred_at: string };
 type LeaveRow = {
 	id: string;
@@ -159,11 +160,11 @@ function absencesOf(row: LeaveRow, member: MemberRow | undefined, timeZone: stri
 	return days;
 }
 
-function locationsOf(workLocations: string[] | null): AttendanceLocation[] {
-	return (workLocations ?? []).map((name, index) => ({
-		id: name,
-		name,
-		color: '',
+function locationsOf(workLocations: NamedColour[] | null): AttendanceLocation[] {
+	return (workLocations ?? []).map((location, index) => ({
+		id: location.name,
+		name: location.name,
+		color: colourOf(location),
 		isDefault: index === 0
 	}));
 }

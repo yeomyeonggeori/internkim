@@ -30,7 +30,7 @@ beforeAll(async () => {
 			country: 'KR',
 			locale: 'ko',
 			timezone: 'Asia/Seoul',
-			workLocations: ['Headquarters'],
+			workLocations: [{ name: 'Headquarters', color: '#0ea5e9' }],
 		},
 		adminEmail,
 	);

@@ -16,7 +16,7 @@ export type CompanyInput = {
 	country: string;
 	locale: string;
 	timezone: string;
-	workLocations?: string[];
+	workLocations?: { name: string; color?: string }[];
 };
 
 export type ProvisionedCompany = {

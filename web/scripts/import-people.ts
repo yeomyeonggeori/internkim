@@ -48,7 +48,7 @@ if (!companyID && companyName) {
 			country: argument('country') ?? 'KR',
 			locale: argument('locale') ?? 'ko',
 			timezone: argument('timezone') ?? 'Asia/Seoul',
-			workLocations: argument('work-locations')?.split(',').filter(Boolean),
+			workLocations: argument('work-locations')?.split(',').filter(Boolean).map((name) => ({ name })),
 		},
 		roster.find((person) => person.role === 'admin')?.email ?? roster[0].email,
 	);
