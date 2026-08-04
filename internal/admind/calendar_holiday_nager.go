@@ -30,21 +30,76 @@ func (service *Service) refreshNagerCalendarHolidayYears(
 	endYear int,
 	currentTime time.Time,
 ) error {
+	years := make([]int, 0, endYear-startYear+1)
 	for year := startYear; year <= endYear; year += 1 {
+		years = append(years, year)
+	}
+	return service.refreshNagerCalendarHolidaySelectedYears(ctx, countryCode, years, currentTime, true)
+}
+
+func (service *Service) refreshNagerCalendarHolidaySelectedYears(
+	ctx context.Context,
+	countryCode string,
+	years []int,
+	currentTime time.Time,
+	force bool,
+) error {
+	failures := make([]calendarHolidayYearFailure, 0)
+	for _, year := range years {
+		if !force && !service.calendarHolidayRetryAllowed(countryCode, year, currentTime) {
+			state := service.calendarHolidayRetryState(countryCode, year)
+			failures = append(failures, calendarHolidayYearFailure{
+				CountryCode: countryCode,
+				Year:        year,
+				Error:       state.LastError,
+				NextRetryAt: state.NextRetryAt,
+			})
+			continue
+		}
+		if errorValue := service.recordCalendarHolidayRefreshAttempt(countryCode, year, currentTime); errorValue != nil {
+			return fmt.Errorf("record %s holiday refresh attempt for %d: %w", countryCode, year, errorValue)
+		}
 		holidays, errorValue := service.fetchNagerCalendarHolidaysWithRetry(ctx, countryCode, year)
 		if errorValue != nil {
-			service.recordNagerCalendarHolidayError(ctx, countryCode, year, errorValue)
-			return errorValue
+			retryState, retryStateError := service.recordCalendarHolidayRefreshFailure(countryCode, year, currentTime, errorValue)
+			if retryStateError != nil {
+				return fmt.Errorf("record %s holiday refresh failure for %d: %w", countryCode, year, retryStateError)
+			}
+			if stateError := service.recordNagerCalendarHolidayError(ctx, countryCode, year, errorValue); stateError != nil {
+				return stateError
+			}
+			failures = append(failures, calendarHolidayYearFailure{
+				CountryCode: countryCode,
+				Year:        year,
+				Error:       errorValue.Error(),
+				NextRetryAt: retryState.NextRetryAt,
+			})
+			continue
 		}
 		snapshots := make([]calendarHolidaySnapshot, 0, 2)
 		states := make([]calendarHolidaySourceState, 0, 2)
 		cachedHolidays := make(map[calendarHolidayCacheKey][]calendarHoliday, 2)
+		yearFailed := false
 		for _, locale := range [...]string{workspaceLanguageKorean, workspaceLanguageEnglish} {
 			key := newCalendarHolidayCacheKey(countryCode, locale, year)
 			sourceKey := calendarHolidaySourceKey(key.CountryCode, key.Year, key.Locale)
 			stored, transformError := storedNagerCalendarHolidays(key.CountryCode, key.Locale, sourceKey, holidays)
 			if transformError != nil {
-				return transformError
+				retryState, retryStateError := service.recordCalendarHolidayRefreshFailure(countryCode, year, currentTime, transformError)
+				if retryStateError != nil {
+					return fmt.Errorf("record %s holiday transform failure for %d: %w", countryCode, year, retryStateError)
+				}
+				if stateError := service.recordNagerCalendarHolidayError(ctx, countryCode, year, transformError); stateError != nil {
+					return stateError
+				}
+				failures = append(failures, calendarHolidayYearFailure{
+					CountryCode: countryCode,
+					Year:        year,
+					Error:       transformError.Error(),
+					NextRetryAt: retryState.NextRetryAt,
+				})
+				yearFailed = true
+				break
 			}
 			snapshots = append(snapshots, calendarHolidaySnapshot{SourceKey: sourceKey, Holidays: stored})
 			states = append(states, calendarHolidaySourceState{
@@ -53,6 +108,9 @@ func (service *Service) refreshNagerCalendarHolidayYears(
 				LastSyncedAt: currentTime.UTC().Format(time.RFC3339),
 			})
 			cachedHolidays[key] = calendarHolidaysFromStored(sourceKey, stored)
+		}
+		if yearFailed {
+			continue
 		}
 		if errorValue := service.replaceCalendarHolidaySnapshots(
 			ctx,
@@ -66,6 +124,12 @@ func (service *Service) refreshNagerCalendarHolidayYears(
 		for key, yearHolidays := range cachedHolidays {
 			service.writeCalendarHolidayMemoryCache(key, yearHolidays)
 		}
+		if errorValue := service.recordCalendarHolidayRefreshSuccess(countryCode, year, currentTime); errorValue != nil {
+			return fmt.Errorf("record %s holiday refresh success for %d: %w", countryCode, year, errorValue)
+		}
+	}
+	if len(failures) > 0 {
+		return &calendarHolidayProviderRefreshError{Failures: failures}
 	}
 	return nil
 }
@@ -118,7 +182,7 @@ func (service *Service) recordNagerCalendarHolidayError(
 	countryCode string,
 	year int,
 	syncError error,
-) {
+) error {
 	for _, locale := range [...]string{workspaceLanguageKorean, workspaceLanguageEnglish} {
 		sourceKey := calendarHolidaySourceKey(countryCode, year, locale)
 		state, _, readError := service.readCalendarHolidaySource(ctx, calendarHolidayProviderNager, sourceKey)
@@ -128,7 +192,7 @@ func (service *Service) recordNagerCalendarHolidayError(
 				"source_key", sourceKey,
 				"error", readError,
 			)
-			continue
+			return readError
 		}
 		state.Provider = calendarHolidayProviderNager
 		state.SourceKey = sourceKey
@@ -139,8 +203,10 @@ func (service *Service) recordNagerCalendarHolidayError(
 				"source_key", sourceKey,
 				"error", stateError,
 			)
+			return stateError
 		}
 	}
+	return nil
 }
 
 func calendarHolidaySourceKey(countryCode string, year int, locale string) string {

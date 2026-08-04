@@ -114,7 +114,3 @@ func TestProxyScopedTaskDeleteForwardsViewerContext(t *testing.T) {
 		t.Fatalf("unexpected response = %#v", body)
 	}
 }
-
-
-
-

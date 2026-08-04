@@ -104,13 +104,13 @@ func streamEventTags(message ImportedMessage) nostr.Tags {
 const ReactionKind = 7
 
 type ImportedReaction struct {
-	ChannelID         string
-	AuthorSecretHex   string
-	TargetEventID     string
-	Emoji             string
-	CustomShortcode   string
-	CustomEmojiURL    string
-	CreatedAt         time.Time
+	ChannelID       string
+	AuthorSecretHex string
+	TargetEventID   string
+	Emoji           string
+	CustomShortcode string
+	CustomEmojiURL  string
+	CreatedAt       time.Time
 }
 
 func BuildReactionEvent(reaction ImportedReaction) (nostr.Event, error) {

@@ -1,7 +1,7 @@
 ---
 name: create-gws-file
 description: Create Google Docs, Sheets, or Gmail messages through typed Google Workspace capability operations when those optional operations are available. Use document, spreadsheet, mail, or presentation for local artifacts or when the Google operations are unavailable.
-tool-references: google.docs.create google.sheets.create google.gmail.send
+tool-references: google_docs_create google_sheets_create google_gmail_send
 ---
 
 # Google Workspace Files
@@ -10,9 +10,9 @@ Use this skill only when every referenced Google Workspace operation is availabl
 
 ## Routing
 
-- Google Docs: `google.docs.create`
-- Google Sheets: `google.sheets.create`
-- Gmail: `google.gmail.send`
+- Google Docs: `google_docs_create`
+- Google Sheets: `google_sheets_create`
+- Gmail: `google_gmail_send`
 - Calendar: use the `calendar` skill.
 - Slide decks or Google Slides: use the `presentation` skill.
 

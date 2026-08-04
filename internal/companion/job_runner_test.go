@@ -63,7 +63,7 @@ func TestJobRunnerCompletesClaimedJob(t *testing.T) {
 			}
 			return textJobRunnerResponse(http.StatusOK, `{}`), nil
 		case "/_internkim/companion/jobs/next":
-			return textJobRunnerResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"user.input","request":{"toolName":"user.input","input":{"message":"Name"}}}`), nil
+			return textJobRunnerResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"user_input","request":{"toolName":"user_input","input":{"message":"Name"}}}`), nil
 		case "/_internkim/companion/jobs/job-1/complete":
 			return textJobRunnerResponse(http.StatusOK, `{}`), nil
 		default:
@@ -71,7 +71,7 @@ func TestJobRunnerCompletesClaimedJob(t *testing.T) {
 			return nil, nil
 		}
 	})
-	executor := &jobRunnerExecutor{response: capabilities.ToolInvokeResponse{ToolName: "user.input", Content: "Lee"}}
+	executor := &jobRunnerExecutor{response: capabilities.ToolInvokeResponse{ToolName: "user_input", Content: "Lee"}}
 	runtime := &jobRunnerRuntime{}
 	runner := JobRunner{
 		DeviceClient: DeviceClient{
@@ -96,7 +96,7 @@ func TestJobRunnerCompletesClaimedJob(t *testing.T) {
 	if len(runtime.heartbeatErrors) != 1 || runtime.heartbeatErrors[0] != nil {
 		t.Fatalf("expected successful heartbeat record, got %+v", runtime.heartbeatErrors)
 	}
-	if executor.envelope.JobID != "job-1" || executor.envelope.ToolName != "user.input" {
+	if executor.envelope.JobID != "job-1" || executor.envelope.ToolName != "user_input" {
 		t.Fatalf("unexpected executor envelope: %+v", executor.envelope)
 	}
 }

@@ -22,7 +22,7 @@ type buzzMirrorPost struct {
 }
 
 type buzzMirrorPostsPage struct {
-	Order []string                        `json:"order"`
+	Order []string                  `json:"order"`
 	Posts map[string]buzzMirrorPost `json:"posts"`
 }
 
