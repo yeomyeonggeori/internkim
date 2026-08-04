@@ -1,6 +1,6 @@
 import { supabase } from '$lib/supabase';
+import { flowDefinitionsOf, vocabularyOf } from '$lib/flow/task-vocabulary';
 import type {
-	FlowDefinitions,
 	FlowMember,
 	FlowMetrics,
 	FlowState,
@@ -33,6 +33,9 @@ type TaskRow = {
 	title: string;
 	status: TaskStatus;
 	note: string | null;
+	business: string | null;
+	type: string | null;
+	size: string | null;
 	starts_at: string | null;
 	ends_at: string | null;
 	due_at: string | null;
@@ -44,6 +47,9 @@ export async function supabaseFlowState(): Promise<FlowState> {
 	const { data: auth } = await client.auth.getSession();
 	const accountID = auth.session?.user.id ?? '';
 
+	const company = await client.from('company').select('task_vocabulary').limit(1).single<{ task_vocabulary: unknown }>();
+	if (company.error) throw new Error(company.error.message);
+
 	const members = await client
 		.from('member')
 		.select('id, name, email, is_admin, user_id, joined_at')
@@ -53,7 +59,7 @@ export async function supabaseFlowState(): Promise<FlowState> {
 
 	const tasks = await client
 		.from('task')
-		.select('id, title, status, note, starts_at, ends_at, due_at, task_participant (member_id)')
+		.select('id, title, status, note, business, type, size, starts_at, ends_at, due_at, task_participant (member_id)')
 		.eq('is_event', false)
 		.order('ends_at', { ascending: false, nullsFirst: false })
 		.returns<TaskRow[]>();
@@ -68,7 +74,7 @@ export async function supabaseFlowState(): Promise<FlowState> {
 		members: members.data.map((member) => memberOf(member, flowTasks)),
 		tasks: flowTasks,
 		metrics: metricsOf(flowTasks),
-		definitions: definitionsOf(),
+		definitions: flowDefinitionsOf(vocabularyOf(company.data.task_vocabulary)),
 		statusOptions: flowStatusOptions,
 		currentUserEmail: me?.email ?? '',
 		currentUserName: me ? displayName(me) : '',
@@ -96,6 +102,9 @@ export async function saveSupabaseFlowTask(task: FlowTask): Promise<void> {
 		title: task.content || task.goal || '(제목 없음)',
 		status: statusOf[task.status] ?? 'todo',
 		note: task.goal || null,
+		business: task.business || null,
+		type: task.type || null,
+		size: task.size || null,
 		starts_at: instantOf(task.startDate),
 		ends_at: instantOf(task.endDate)
 	};
@@ -177,11 +186,11 @@ function taskOf(task: TaskRow, nameByID: Map<string, string>): FlowTask {
 		ownerName: nameByID.get(participantIDs[0] ?? '') ?? '',
 		participantIDs,
 		participantNames: participantIDs.map((memberID) => nameByID.get(memberID) ?? ''),
-		business: '',
-		type: '',
+		business: task.business ?? '',
+		type: task.type ?? '',
 		content: task.title,
 		goal: task.note ?? '',
-		size: '',
+		size: task.size ?? '',
 		status: statusWords[task.status],
 		statusRank: 0,
 		startDate: dayOf(task.starts_at),
@@ -193,7 +202,13 @@ function taskOf(task: TaskRow, nameByID: Map<string, string>): FlowTask {
 
 function metricsOf(tasks: FlowTask[]): FlowMetrics {
 	const statusCounts: Record<string, number> = {};
-	for (const task of tasks) statusCounts[task.status] = (statusCounts[task.status] ?? 0) + 1;
+	const businessCounts: Record<string, number> = {};
+	const typeCounts: Record<string, number> = {};
+	for (const task of tasks) {
+		statusCounts[task.status] = (statusCounts[task.status] ?? 0) + 1;
+		if (task.business) businessCounts[task.business] = (businessCounts[task.business] ?? 0) + 1;
+		if (task.type) typeCounts[task.type] = (typeCounts[task.type] ?? 0) + 1;
+	}
 	return {
 		totalTasks: tasks.length,
 		completedTasks: statusCounts[statusWords.done] ?? 0,
@@ -201,13 +216,9 @@ function metricsOf(tasks: FlowTask[]): FlowMetrics {
 		pausedTasks: statusCounts[statusWords.paused] ?? 0,
 		stoppedTasks: statusCounts[statusWords.cancelled] ?? 0,
 		statusCounts,
-		businessCounts: {},
-		typeCounts: {}
+		businessCounts,
+		typeCounts
 	};
-}
-
-function definitionsOf(): FlowDefinitions {
-	return { categories: [], types: [], sizes: [] };
 }
 
 function dayOf(instant: string | null): string | undefined {
