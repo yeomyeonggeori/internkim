@@ -2,6 +2,8 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(23);
 
+delete from public.company;
+
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000a1', 'a@example.test'),
   ('00000000-0000-0000-0000-0000000000b1', 'b@example.test'),

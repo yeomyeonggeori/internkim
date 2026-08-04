@@ -2,7 +2,7 @@ import { callCompanyApp } from '$lib/host-bridge';
 
 export type MessengerPerson = {
 	memberID?: string;
-	name: string;
+	externalID?: string;
 };
 
 export type MessengerChannel = {
