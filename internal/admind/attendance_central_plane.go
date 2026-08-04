@@ -17,7 +17,7 @@ var (
 
 func (service *Service) centralPlane() *centralplane.Client {
 	centralPlaneOnce.Do(func() {
-		agentKey := readTrimmedFile(service.Configuration.CentralPlaneAgentKeyPath)
+		agentKey := service.centralPlaneAgentKey()
 		settings := centralplane.Settings{
 			AppURL:         service.Configuration.CentralPlaneAppURL,
 			AgentAPIKey:    agentKey,
@@ -33,8 +33,6 @@ func (service *Service) centralPlane() *centralplane.Client {
 	return centralPlaneClient
 }
 
-// The device stays the record while both are written. A refusal here is reported
-// and dropped, so nobody's clock-in depends on the network reaching the plane.
 func (service *Service) alsoRecordAttendanceCentrally(event attendanceEvent) {
 	client := service.centralPlane()
 	if client == nil || strings.TrimSpace(event.MattermostUserID) == "" {
