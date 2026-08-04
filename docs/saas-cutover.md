@@ -161,7 +161,7 @@ own company and its three people.
   undecided.
 - **Holidays are empty.** The device computed them; the plane has no source.
 - **A company's address needs Cloudflare settings.** Founding a company claims
-  `<slug>.intern.kim` when `CF_API_TOKEN`, `CF_ACCOUNT_ID` and `CF_PAGES_PROJECT`
+  `<slug>.example.test` when `CF_API_TOKEN`, `CF_ACCOUNT_ID` and `CF_PAGES_PROJECT`
   are set on the Pages project; without them the company is still created and the
   screen says the address was not claimed.
 - **One account belongs to one company.** `member.user_id` is unique, so nobody

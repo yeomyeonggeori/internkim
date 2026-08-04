@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
@@ -14,6 +15,7 @@
 	import { onMount } from 'svelte';
 
 	const fieldID = $props.id();
+	const addressZone = $derived(page.url.hostname.split('.').slice(-2).join('.'));
 
 	let name = $state('');
 	let slug = $state('');
@@ -52,7 +54,7 @@
 			const answer = await checkCompanyAddress(asked);
 			isAddressUsable = answer.usable;
 			addressNotice = answer.usable
-				? `${asked}.intern.kim 를 쓸 수 있습니다.`
+				? `${asked}.${addressZone} 를 쓸 수 있습니다.`
 				: answer.taken
 					? '이미 쓰이는 주소입니다.'
 					: '영문 소문자, 숫자, 하이픈으로 3자 이상이어야 합니다.';
@@ -125,7 +127,7 @@
 						<Label for="company-slug-{fieldID}">주소</Label>
 						<div class="flex items-center gap-2">
 							<Input id="company-slug-{fieldID}" bind:value={slug} onblur={checkAddress} disabled={isFounding} />
-							<span class="text-sm whitespace-nowrap text-muted-foreground">.intern.kim</span>
+							<span class="text-sm whitespace-nowrap text-muted-foreground">.{addressZone}</span>
 						</div>
 						{#if addressNotice}
 							<p class="text-xs {isAddressUsable ? 'text-muted-foreground' : 'text-destructive'}">{addressNotice}</p>
