@@ -56,6 +56,10 @@ type Configuration struct {
 	CalendarSecretsDirectory       string
 	MailDatabasePath               string
 	AttendanceDatabasePath         string
+	CentralPlaneAppURL             string
+	CentralPlaneAgentKeyPath       string
+	CentralPlaneProjectURL         string
+	CentralPlanePublishableKey     string
 	BridgeMapDatabasePath          string
 	MattermostAdminPasswordPath    string
 	MattermostTokenPath            string
