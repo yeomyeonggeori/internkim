@@ -1,5 +1,3 @@
--- A work location is a name and, if someone chose one, a colour. Same shape as
--- the rest of a company's vocabulary, so there is one place a name lives.
 alter table public.company add column work_location_list jsonb;
 
 update public.company

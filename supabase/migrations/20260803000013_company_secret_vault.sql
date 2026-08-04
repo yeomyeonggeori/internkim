@@ -1,5 +1,3 @@
--- Only the control plane may reach these, so both are revoked from every role
--- that a browser can ever hold.
 create function public.write_company_secret(secret_id uuid, secret_name text, secret_value text)
 returns uuid
 language plpgsql

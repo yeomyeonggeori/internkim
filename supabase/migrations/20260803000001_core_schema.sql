@@ -327,8 +327,6 @@ as $$
   where member.id = target_member;
 $$;
 
-
-
 create function public.member_leave_days(target_member uuid)
 returns numeric
 language sql

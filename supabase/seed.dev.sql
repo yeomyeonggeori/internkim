@@ -1,9 +1,3 @@
--- Development seed. Applied by hand, never by db reset, so it cannot reach a real project:
---   docker exec -i supabase_db_<ref> psql -U postgres -d postgres < supabase/seed.dev.sql
--- Sign in at /clock with pilot@example.test / pilot-password
-
--- GoTrue scans the token columns as NOT NULL strings; leaving them NULL makes
--- every sign-in fail with a Scan error, so they are seeded as empty strings.
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password,
   email_confirmed_at, created_at, updated_at,

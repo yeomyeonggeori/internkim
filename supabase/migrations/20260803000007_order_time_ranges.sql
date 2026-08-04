@@ -1,6 +1,3 @@
--- A range that ends before it starts is the two ends written the wrong way round.
--- Rejecting it loses one of the days the caller meant; putting them in order keeps
--- both. The check constraints stay as the guarantee this leaves behind.
 create function public.order_time_range()
 returns trigger
 language plpgsql
