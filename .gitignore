@@ -42,3 +42,4 @@ e2e-evidence/
 __pycache__/
 supabase/.branches/
 supabase/.temp/
+/output/

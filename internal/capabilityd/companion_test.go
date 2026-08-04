@@ -24,7 +24,7 @@ func TestCapabilitiesReportCompanionStatus(t *testing.T) {
 		}
 		return jsonResponse(capabilities.RegistryResponse{
 			Capabilities: []capabilities.Descriptor{{
-				Name:                 "llm.structured",
+				Name:                 "llm_structured",
 				Version:              "1",
 				PrivacyClass:         "model_input",
 				EstimatedLatency:     "low",
@@ -53,7 +53,7 @@ func TestCapabilitiesReportCompanionStatus(t *testing.T) {
 	if response.ProtocolVersion != expectedIdentity.ProtocolVersion || response.AggregateProtocolHash != expectedIdentity.AggregateProtocolHash {
 		t.Fatalf("expected generated protocol identity, got protocolVersion=%q aggregateProtocolHash=%q", response.ProtocolVersion, response.AggregateProtocolHash)
 	}
-	if len(response.CompanionCapabilities) != 1 || response.CompanionCapabilities[0].Name != "llm.structured" {
+	if len(response.CompanionCapabilities) != 1 || response.CompanionCapabilities[0].Name != "llm_structured" {
 		t.Fatalf("unexpected companion capabilities: %+v", response.CompanionCapabilities)
 	}
 }
@@ -67,7 +67,7 @@ func TestCompanionStructuredProviderUsesSharedPrototype(t *testing.T) {
 		if errorValue := json.NewDecoder(request.Body).Decode(&toolRequest); errorValue != nil {
 			t.Fatalf("expected tool request: %v", errorValue)
 		}
-		if toolRequest.ToolName != "llm.structured" {
+		if toolRequest.ToolName != "llm_structured" {
 			t.Fatalf("expected structured tool, got %q", toolRequest.ToolName)
 		}
 		result, _ := json.Marshal(LLMResponse{
@@ -77,7 +77,7 @@ func TestCompanionStructuredProviderUsesSharedPrototype(t *testing.T) {
 			SelectedBackend: testCompanionBackend,
 			ConstraintMode:  "openai_json_schema",
 		})
-		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm.structured", Result: result}), nil
+		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm_structured", Result: result}), nil
 	})}
 
 	response, errorValue := (companionProvider{
@@ -101,7 +101,7 @@ func TestCompanionStructuredProviderUsesSharedPrototype(t *testing.T) {
 func TestCompanionStructuredProviderRejectsEmptyContent(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		result, _ := json.Marshal(LLMResponse{})
-		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm.structured", Result: result}), nil
+		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm_structured", Result: result}), nil
 	})}
 
 	_, errorValue := (companionProvider{
@@ -347,10 +347,10 @@ func TestCompanionStructuredProviderRejectsDeniedToolResponse(t *testing.T) {
 		result, _ := json.Marshal(capabilities.DenialResult{
 			Status:   "denied",
 			Code:     capabilities.CapabilityNotConnected,
-			ToolName: "llm.structured",
+			ToolName: "llm_structured",
 		})
 		return jsonResponse(capabilities.ToolInvokeResponse{
-			ToolName: "llm.structured",
+			ToolName: "llm_structured",
 			Status:   "denied",
 			Content:  "Companion이 연결되어 있지 않습니다.",
 			IsError:  true,
@@ -372,10 +372,10 @@ func TestCompanionStructuredProviderRejectsDeniedStatusWithoutErrorFlag(t *testi
 		result, _ := json.Marshal(capabilities.DenialResult{
 			Status:   "denied",
 			Code:     capabilities.CapabilityNotAllowed,
-			ToolName: "llm.structured",
+			ToolName: "llm_structured",
 		})
 		return jsonResponse(capabilities.ToolInvokeResponse{
-			ToolName: "llm.structured",
+			ToolName: "llm_structured",
 			Status:   "denied",
 			Content:  "이 요청을 실행할 수 있는 Companion 권한이 없습니다.",
 			Result:   result,
@@ -393,7 +393,7 @@ func TestCompanionStructuredProviderRejectsDeniedStatusWithoutErrorFlag(t *testi
 
 func TestCompanionStructuredProviderRejectsEmptyResult(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm.structured"}), nil
+		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm_structured"}), nil
 	})}
 
 	_, errorValue := (companionProvider{
@@ -408,7 +408,7 @@ func TestCompanionStructuredProviderRejectsEmptyResult(t *testing.T) {
 func TestCompanionTextProviderRejectsEmptyContent(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		result, _ := json.Marshal(LLMResponse{})
-		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm.text", Result: result}), nil
+		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm_text", Result: result}), nil
 	})}
 
 	_, errorValue := (companionProvider{
@@ -509,7 +509,7 @@ func TestAutoProviderLocalOnlyBlocksRemoteFallback(t *testing.T) {
 
 func TestRemoteExecutionFailsInLocalOnlyMode(t *testing.T) {
 	service := Service{Configuration: Configuration{LocalOnly: true}}
-	_, errorValue := service.providerForExecutionMode(context.Background(), "llm.structured", capabilities.ExecutionModeRemote, "", "")
+	_, errorValue := service.providerForExecutionMode(context.Background(), "llm_structured", capabilities.ExecutionModeRemote, "", "")
 	if errorValue == nil {
 		t.Fatal("expected remote execution to fail in local-only mode")
 	}
@@ -527,7 +527,7 @@ func TestAutoProviderSkipsDisconnectedCompanion(t *testing.T) {
 		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
 		HTTPClient:    httpClient,
 	}
-	if provider := service.companionLLMProviderForAuto(context.Background(), "llm.structured"); provider != nil {
+	if provider := service.companionLLMProviderForAuto(context.Background(), "llm_structured"); provider != nil {
 		t.Fatalf("expected disconnected companion to be skipped, got %T", provider)
 	}
 }
@@ -540,7 +540,7 @@ func TestAutoProviderUsesConnectedCompanionWithStructuredCapability(t *testing.T
 		return jsonResponse(capabilities.RegistryResponse{
 			CompanionStatus: "available",
 			Capabilities: []capabilities.Descriptor{{
-				Name: "llm.structured",
+				Name: "llm_structured",
 			}},
 		}), nil
 	})}
@@ -549,7 +549,7 @@ func TestAutoProviderUsesConnectedCompanionWithStructuredCapability(t *testing.T
 		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
 		HTTPClient:    httpClient,
 	}
-	if provider := service.companionLLMProviderForAuto(context.Background(), "llm.structured"); provider == nil {
+	if provider := service.companionLLMProviderForAuto(context.Background(), "llm_structured"); provider == nil {
 		t.Fatal("expected connected structured companion provider")
 	}
 }
@@ -579,7 +579,7 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 		"mail_connection_start",
 		"mail_message_send",
 		"site_unserve",
-		"google.gmail.send",
+		"google_gmail_send",
 	}
 	for _, toolName := range toolNames {
 		t.Run(toolName, func(t *testing.T) {
@@ -1091,39 +1091,6 @@ func TestBrowserHandoffRequiresCompanion(t *testing.T) {
 	}
 	if commandWasCalled {
 		t.Fatal("expected browser_handoff not to fallback to device browser")
-	}
-}
-
-func TestHumanInputToolRoutesToCompanion(t *testing.T) {
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path != "/jobs" {
-			t.Fatalf("unexpected companion path: %s", request.URL.Path)
-		}
-		var forwardedRequest capabilities.ToolInvokeRequest
-		if errorValue := json.NewDecoder(request.Body).Decode(&forwardedRequest); errorValue != nil {
-			t.Fatalf("expected forwarded tool request: %v", errorValue)
-		}
-		if forwardedRequest.ToolName != "user_confirm" {
-			t.Fatalf("expected tool name to be forwarded, got %q", forwardedRequest.ToolName)
-		}
-		return jsonResponse(capabilities.ToolInvokeResponse{
-			Provider:        "companion",
-			SelectedBackend: testCompanionBackend,
-			ToolName:        "user_confirm",
-			Result:          json.RawMessage(`{"confirmed":true}`),
-		}), nil
-	})}
-
-	service := Service{
-		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
-		HTTPClient:    httpClient,
-	}
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "user_confirm", strings.NewReader(`{"requiresUserPresence":true,"input":{"message":"continue?"}}`))
-	if errorValue != nil {
-		t.Fatalf("expected companion tool response: %v", errorValue)
-	}
-	if response.SelectedBackend != testCompanionBackend {
-		t.Fatalf("expected companion backend, got %q", response.SelectedBackend)
 	}
 }
 

@@ -48,7 +48,6 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 | PDF 생성/읽기 | `pdf` skill | 한글 폰트, 템플릿, 출력 파일 연결 |
 | 파일 전송 | native reply attachments | 파일 경로 검증, 메시지, 공유 대상 결정 |
 | 브라우저 자동화 | `agent-browser` skill, `browser.*` capability | 사용자 입력 대기, 제출 승인, 관찰 결과 요약 |
-| 로컬 파일 선택 | Companion `file_pick` | 로컬 경로 비노출, device temp path만 사용 |
 | 기억 저장/검색 | Graphiti memory | 개인/직급/팀/회사 scope 선택 |
 | 업무/출퇴근 | Blueclaw task DB, future attendance capability | 상태 전이, 담당자, audit 기록 |
 
@@ -68,7 +67,6 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 
 파일 생성, 선택, 공유, platform attachment를 연결한다.
 
-- 사용자 로컬 파일은 Companion `file_pick`으로 받고 로컬 경로를 노출하지 않는다.
 - Mattermost/Slack/Signal 전송은 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로를 사용한다.
 - 생성 작업은 `tmp/<slug>`에서 시작하고, 최종본만 `file_deliver`로 전달한다. 장기 보관이 필요한 경우에만 명시된 `artifacts/<slug>`, circle, 또는 shared 위치에 파일을 만든 뒤 전달한다.
 - 외부 공유와 Google Drive publish는 수신자, 권한, 파일명을 요약하고 승인 후 실행한다.
@@ -120,7 +118,7 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 
 - 브라우저는 발화자 Companion browser를 우선 사용하고, Companion이 없을 때만 내부 Lightpanda fallback으로 단순 텍스트 탐색을 처리한다.
 - 로그인, MFA, captcha, 민감 입력은 `browser_handoff`로 발화자의 Companion browser 안에서 처리한다.
-- 일반 사용자 입력 대기는 `user.input`, irreversible action 확인은 `user_confirm`으로 처리한다.
+- 일반 사용자 입력 대기는 `user_input`, irreversible action 확인은 `user_confirm`으로 처리한다.
 - 파일/디렉토리 정리는 dry-run 결과를 먼저 보여주고 승인 후 실행한다.
 - 터미널은 dev/admin profile 전용으로 유지한다.
 
@@ -170,5 +168,5 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 - "pptx 파일로 줘"처럼 required artifact 요청이면 `file_deliver` completion evidence가 있어야 성공이다. 텍스트 초안 제안은 완료가 아니다.
 - "계약서 템플릿 채워줘"는 `document-orchestrator`가 누락 필드를 인터뷰한 뒤 DOCX 또는 PDF 생성으로 위임한다.
 - "이 파일 보내줘"는 `artifact-orchestrator`가 기존 attachment 경로를 사용한다.
-- "브라우저에서 로그인 기다렸다가 진행해줘"는 `local-orchestrator`가 Companion browser와 `user.input`/`user_confirm`을 사용한다.
+- "브라우저에서 로그인 기다렸다가 진행해줘"는 `local-orchestrator`가 Companion browser와 `user_input`/`user_confirm`을 사용한다.
 - "메일 보내줘"는 preview와 수동 승인 없이는 발송하지 않는다.

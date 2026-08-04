@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -46,7 +47,36 @@ func TestPrintPublicStatusShowsMattermostWhenSSHIsUnavailable(t *testing.T) {
 	}
 }
 
+func writeCloudflareAccessToken(t *testing.T, hostname string) {
+	t.Helper()
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	tokenDirectory := filepath.Join(homeDirectory, ".cloudflared")
+	if errorValue := os.MkdirAll(tokenDirectory, 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(tokenDirectory, hostname+"-abc123-token"), []byte("token"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func TestFormatCloudflareSSHErrorNamesTheMissingAccessToken(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	errorValue := formatCloudflareSSHError("0.ssh.example.com", "Connection timed out during banner exchange", os.ErrDeadlineExceeded)
+
+	errorMessage := errorValue.Error()
+	if !strings.Contains(errorMessage, "cloudflared access login https://0.ssh.example.com") {
+		t.Fatalf("expected the missing token to be named, because without it cloudflared waits for a browser and the request never reaches the device, got %s", errorMessage)
+	}
+	if strings.Contains(errorMessage, "sshd") {
+		t.Fatalf("expected no hint to inspect the device, because the device is not involved when no stream is ever opened, got %s", errorMessage)
+	}
+}
+
 func TestFormatCloudflareSSHErrorIdentifiesMissingSSHBanner(t *testing.T) {
+	writeCloudflareAccessToken(t, "0.ssh.example.com")
+
 	errorValue := formatCloudflareSSHError("0.ssh.example.com", "Connection timed out during banner exchange", os.ErrDeadlineExceeded)
 	errorMessage := errorValue.Error()
 	for _, expectedText := range []string{
@@ -75,6 +105,8 @@ func TestCloudflareSSHFailureClassDistinguishesBannerTimeout(t *testing.T) {
 }
 
 func TestFormatCloudflareSSHErrorKeepsAccessLoginHintForGenericFailures(t *testing.T) {
+	writeCloudflareAccessToken(t, "0.ssh.example.com")
+
 	errorValue := formatCloudflareSSHError("0.ssh.example.com", "access token expired", os.ErrPermission)
 	errorMessage := errorValue.Error()
 	for _, expectedText := range []string{

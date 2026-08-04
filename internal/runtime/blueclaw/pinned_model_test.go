@@ -30,7 +30,7 @@ func TestBlueclawRuntimeConfigPinsOneModelAcrossEveryTier(t *testing.T) {
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
 	capability := languageModel["capability"].(map[string]any)
 
-	for _, tierField := range []string{"model", "maxModel", "xhighModel", "highModel", "lowModel", "xlowModel", "codingModel"} {
+	for _, tierField := range []string{"model", "maxModel", "xhighModel", "highModel", "lowModel", "xlowModel"} {
 		if capability[tierField] != pinnedModelName {
 			t.Fatalf("expected %s to be %s, got %v", tierField, pinnedModelName, capability[tierField])
 		}

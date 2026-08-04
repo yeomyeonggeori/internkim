@@ -5,9 +5,18 @@ export type WorkspaceCountryOption = {
 	label: string;
 };
 
-export function workspaceCountryOptions(countries: HolidayCountry[], locale: string): WorkspaceCountryOption[] {
+export function workspaceCountryOptions(
+	countries: HolidayCountry[],
+	locale: string,
+	selectedCountryCode = ''
+): WorkspaceCountryOption[] {
 	const displayNames = new Intl.DisplayNames([locale], { type: 'region' });
-	const options = countries.map((country) => {
+	const normalizedSelectedCountryCode = selectedCountryCode.trim().toUpperCase();
+	const optionCountries =
+		normalizedSelectedCountryCode && !countries.some((country) => country.countryCode === normalizedSelectedCountryCode)
+			? [...countries, { countryCode: normalizedSelectedCountryCode, name: normalizedSelectedCountryCode }]
+			: countries;
+	const options = optionCountries.map((country) => {
 		const countryName = displayNames.of(country.countryCode);
 		return {
 			value: country.countryCode,

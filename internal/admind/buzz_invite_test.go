@@ -132,7 +132,6 @@ func TestBuzzStorePersistsLinksForAcpd(t *testing.T) {
 	}
 }
 
-
 func TestLinkerPrefersPregeneratedIdentityAndExcludesItFromCorrelation(t *testing.T) {
 	future := time.Now().UTC().Add(time.Hour)
 	pregenerated := strings.Repeat("e", 64)

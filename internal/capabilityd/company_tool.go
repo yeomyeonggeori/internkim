@@ -92,8 +92,10 @@ func (service Service) invokeCompanyTool(ctx context.Context, request capabiliti
 		return service.invokeCompanyMetricRecord(ctx, request)
 	case "company_metric_list":
 		return service.invokeCompanyMetricList(ctx, request)
-	case "company_record_add", "company_record_update":
-		return service.invokeCompanyRecordWrite(ctx, request)
+	case "company_record_add":
+		return service.invokeCompanyRecordWrite(ctx, request, http.MethodPost, "added")
+	case "company_record_update":
+		return service.invokeCompanyRecordWrite(ctx, request, http.MethodPut, "updated")
 	case "company_record_list":
 		return service.invokeCompanyRecordList(ctx, request)
 	case "company_record_delete":
@@ -204,7 +206,7 @@ func (service Service) invokeCompanyMetricList(ctx context.Context, request capa
 	return companyToolResponse(request.ToolName, "ok", result), nil
 }
 
-func (service Service) invokeCompanyRecordWrite(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+func (service Service) invokeCompanyRecordWrite(ctx context.Context, request capabilities.ToolInvokeRequest, method string, status string) (capabilities.ToolInvokeResponse, error) {
 	var input companyRecordInput
 	if errorValue := decodeCompanyInput(request.Input, &input); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -222,12 +224,6 @@ func (service Service) invokeCompanyRecordWrite(ctx context.Context, request cap
 	}
 	if len(attributes) > 0 {
 		payload["attributes"] = attributes
-	}
-	method := http.MethodPost
-	status := "added"
-	if request.ToolName == "company_record_update" {
-		method = http.MethodPut
-		status = "updated"
 	}
 	result, errorValue := service.sendCompanyToolRequest(ctx, method, "/admin/api/company-records", payload, request.Context.RequesterEmail)
 	if errorValue != nil {

@@ -8,9 +8,9 @@ func TestRewriteBuzzMedia(t *testing.T) {
 
 	cases := map[string]string{
 		"![photo](http://127.0.0.1:3000/media/abc.png)": "![photo](/buzz-media/media/abc.png)",
-		"http://127.0.0.1:3000/media/avatar.png":         "/buzz-media/media/avatar.png",
-		"":                                               "",
-		"https://external.example/x.png":                 "https://external.example/x.png",
+		"http://127.0.0.1:3000/media/avatar.png":        "/buzz-media/media/avatar.png",
+		"":                                              "",
+		"https://external.example/x.png":                "https://external.example/x.png",
 	}
 	for input, expected := range cases {
 		if actual := service.rewriteBuzzMedia(input); actual != expected {

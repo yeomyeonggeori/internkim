@@ -9,10 +9,11 @@
 		label: string;
 		locale: string;
 		countries: HolidayCountry[];
+		fallbackCountryCode: string;
 	};
 
-	let { countryCode = $bindable(), disabled, label, locale, countries }: WorkspaceCountrySelectProps = $props();
-	const options = $derived(workspaceCountryOptions(countries, locale));
+	let { countryCode = $bindable(), disabled, label, locale, countries, fallbackCountryCode }: WorkspaceCountrySelectProps = $props();
+	const options = $derived(workspaceCountryOptions(countries, locale, fallbackCountryCode));
 </script>
 
 <FilterCombobox
@@ -23,4 +24,5 @@
 	id="workspace-country-code"
 	canClearSelection={false}
 	class="w-full"
+	contentClass="w-(--bits-popover-anchor-width)"
 />
