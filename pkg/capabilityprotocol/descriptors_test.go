@@ -134,7 +134,7 @@ func TestCanonicalizeDescriptorsDoesNotInferSemanticMetadata(t *testing.T) {
 		t.Fatalf("expected missing side effect to fail closed: %#v", descriptors)
 	}
 
-	llmDescriptor := validTestDescriptor("llm.text")
+	llmDescriptor := validTestDescriptor("llm_text")
 	llmDescriptor.SideEffectClass = SideEffectComputation
 	llmDescriptor.SideEffect = SideEffectComputation
 	descriptors := CanonicalizeDescriptors([]Descriptor{llmDescriptor})
@@ -328,7 +328,7 @@ func TestValidateModelVisibleCapabilityDescriptorSetRequiresResultContracts(t *t
 		t.Fatalf("expected shared model-visible result contract rejection, got %v", errorValue)
 	}
 
-	hiddenDescriptor := validTestDescriptor("llm.text")
+	hiddenDescriptor := validTestDescriptor("llm_text")
 	hiddenDescriptor.ModelVisibility = ModelVisibilityHidden
 	hiddenDescriptor.ModelVisible = false
 	hiddenDescriptor.ResultContract = nil

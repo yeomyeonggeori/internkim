@@ -196,7 +196,7 @@
 							onUserChanged={loadAdminSession}
 						/>
 					{:else if activeAdminSection === 'settings'}
-						<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+						<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} role={currentAdminRole} text={text} />
 					{:else if activeAdminSection === 'workSettings'}
 						<AttendanceWorkSettingsSection adminBaseURL={adminBaseURL()} text={text} />
 					{:else if activeAdminSection === 'leaveSettings'}

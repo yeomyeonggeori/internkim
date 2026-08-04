@@ -256,6 +256,15 @@ for logDirectory in $(printf '%s\n' "$newestLogDirectories" | head -2); do
   tail -c 4000 "$logDirectory/stdout.log" 2>/dev/null || printf '(missing)\n'
 done
 newestJailerRoot=$(ls -dt /var/lib/bc/firecracker/*/root 2>/dev/null | head -1)
+printf '\n== llmd journal ==\n'
+journalctl -u blueclaw-llmd -n 80 --no-pager 2>/dev/null | tail -n 60
+printf '\n== live guest task runs ==\n'
+curl -s -m 6 http://127.0.0.1:8080/admin/api/task 2>&1 | head -c 1500
+printf '\n== live guest failure detail ==\n'
+failedTaskRunID=$(curl -s -m 6 http://127.0.0.1:8080/admin/api/task 2>/dev/null | tr ',' '\n' | grep -A0 'taskRunID' | head -1 | sed 's/.*"taskRunID":"//;s/".*//')
+if [ -n "$failedTaskRunID" ]; then
+  curl -s -m 8 "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$failedTaskRunID" 2>&1 | tr ',' '\n' | grep -E '"name":|"taskEventID":' | head -n 120
+fi
 printf '\n== jailer root %s ==\n' "$newestJailerRoot"
 ls -la "$newestJailerRoot" 2>/dev/null || true
 printf '\n== firecracker-config.json ==\n'
@@ -992,6 +1001,13 @@ for device in /sys/class/net/en*; do
 done
 section wifi
 iw dev 2>/dev/null | sed -n '1,80p'
+section sshd
+ss -ltnp 2>/dev/null | grep ':22 ' || printf 'nothing listening on 22\n'
+sshd -T 2>/dev/null | grep -iE '^(port|listenaddress|maxstartups|usepam|logingracetime) ' || printf 'sshd -T unavailable\n'
+systemctl show ssh -p ActiveState,SubState,MainPID,NRestarts 2>/dev/null
+printf 'local banner: '
+timeout 8 bash -c 'exec 3<>/dev/tcp/127.0.0.1/22; IFS= read -r line <&3 && printf "%s" "$line"' 2>/dev/null || printf 'NO BANNER FROM 127.0.0.1:22'
+printf '\n'
 section pressure
 cat /proc/pressure/cpu /proc/pressure/memory /proc/pressure/io 2>/dev/null
 section memory

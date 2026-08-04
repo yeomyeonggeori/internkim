@@ -200,6 +200,19 @@ func TestBuildJetsonWiFiSelectorUsesWirelessAddressOnly(t *testing.T) {
 	}
 }
 
+func TestBuildJetsonWiFiSelectorLeavesAHealthyRadioAlone(t *testing.T) {
+	document := buildJetsonWiFiSelectorScript()
+	guardIndex := strings.Index(document, "if wireless_address():")
+	if guardIndex < 0 {
+		t.Fatalf("expected the selector to guard on an existing address, got:\n%s", document)
+	}
+	for _, disruption := range []string{"radio", "rescan"} {
+		if index := strings.Index(document, disruption); index >= 0 && index < guardIndex {
+			t.Fatalf("expected %q to run only after the guard, because a connected device that rescans every two minutes is churn nobody asked for; got:\n%s", disruption, document)
+		}
+	}
+}
+
 func TestBuildJetsonWiFiRecoveryUnits(t *testing.T) {
 	serviceDocument := buildJetsonWiFiRecoveryService()
 	for _, fragment := range []string{"After=NetworkManager.service", "Wants=NetworkManager.service", "Type=oneshot", "ExecStart=/usr/local/bin/internkim-wifi-select", "TimeoutStartSec=90"} {

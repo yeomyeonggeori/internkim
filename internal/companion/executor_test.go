@@ -86,11 +86,6 @@ func (runtime *fakeBrowserRuntime) Resume(ctx context.Context) error {
 	return nil
 }
 
-type fakeFilePicker struct {
-	pickedFile PickedFile
-	errorValue error
-}
-
 type fakeFileUploader struct {
 	request FileUploadRequest
 }
@@ -212,12 +207,6 @@ func (runtime *fakeBrowserRuntime) Wait(ctx context.Context, request browserrunt
 		return browserruntime.ActionResult{}, runtime.errorValue
 	}
 	return browserruntime.ActionResult{OK: true, Action: "wait", Target: request.Target}, nil
-}
-
-func (picker fakeFilePicker) PickFile(ctx context.Context, request FilePickRequest) (PickedFile, error) {
-	_ = ctx
-	_ = request
-	return picker.pickedFile, picker.errorValue
 }
 
 func (uploader *fakeFileUploader) UploadFile(ctx context.Context, request FileUploadRequest) (UploadedFile, error) {
@@ -696,32 +685,6 @@ func TestHandoffBridgeCompletionCapturesSnapshot(t *testing.T) {
 	}
 }
 
-func TestUserConfirmUsesPromptHandler(t *testing.T) {
-	executor := Executor{
-		PromptHandler: TerminalPromptHandler{
-			Reader: strings.NewReader("yes\n"),
-			Writer: &strings.Builder{},
-		},
-	}
-
-	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "user_confirm",
-		Input:    json.RawMessage(`{"message":"continue?"}`),
-	})
-	if errorValue != nil {
-		t.Fatalf("expected confirm success: %v", errorValue)
-	}
-	var result struct {
-		Confirmed bool `json:"confirmed"`
-	}
-	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !result.Confirmed {
-		t.Fatal("expected confirmation to be true")
-	}
-}
-
 func TestExecutorRoutesTextLLMThroughChain(t *testing.T) {
 	chain := &stubLLMChain{textResponse: llmbackend.Response{
 		Provider:        "ollama",
@@ -738,7 +701,7 @@ func TestExecutorRoutesTextLLMThroughChain(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "llm.text",
+		ToolName: "llm_text",
 		Input:    requestBody,
 	})
 	if errorValue != nil {
@@ -778,7 +741,7 @@ func TestExecutorRoutesStructuredLLMThroughChain(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "llm.structured",
+		ToolName: "llm_structured",
 		Input:    requestBody,
 	})
 	if errorValue != nil {
@@ -879,7 +842,7 @@ func TestExecutorRoutesEmbeddingThroughChain(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "embedding.create",
+		ToolName: "embedding_create",
 		Input:    requestBody,
 	})
 	if errorValue != nil {
@@ -903,7 +866,7 @@ func TestExecutorRoutesEmbeddingThroughChain(t *testing.T) {
 func TestExecutorTextLLMRequiresChainOrMockMode(t *testing.T) {
 	executor := Executor{}
 	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "llm.text",
+		ToolName: "llm_text",
 		Input:    json.RawMessage(`{"messages":[]}`),
 	})
 	if errorValue == nil {
@@ -911,178 +874,6 @@ func TestExecutorTextLLMRequiresChainOrMockMode(t *testing.T) {
 	}
 	if !strings.Contains(errorValue.Error(), "not configured") {
 		t.Fatalf("expected configuration error, got %v", errorValue)
-	}
-}
-
-func TestUserConfirmWithoutPromptHandlerFailsSafely(t *testing.T) {
-	executor := Executor{}
-
-	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{ToolName: "user_confirm"})
-	if errorValue == nil {
-		t.Fatal("expected missing prompt handler to fail")
-	}
-	if strings.Contains(errorValue.Error(), "token") || strings.Contains(errorValue.Error(), "secret") {
-		t.Fatalf("unexpected sensitive error: %v", errorValue)
-	}
-}
-
-func TestFilePickUploadsSelectedFile(t *testing.T) {
-	filePath := writeExecutorTestFile(t, "report.pdf", "hello")
-	uploader := &fakeFileUploader{}
-	executor := Executor{
-		FilePicker:   fakeFilePicker{pickedFile: PickedFile{Path: filePath}},
-		FileUploader: uploader,
-	}
-
-	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file_pick"}, capabilities.ToolInvokeRequest{
-		ToolName: "file_pick",
-		Input:    json.RawMessage(`{"allowedExtensions":["pdf"],"ttlSeconds":600}`),
-	})
-	if errorValue != nil {
-		t.Fatalf("expected file pick success: %v", errorValue)
-	}
-	if uploader.request.JobID != "job-1" || uploader.request.Filename != "report.pdf" || uploader.request.TTLSeconds != 600 {
-		t.Fatalf("unexpected upload request: %+v", uploader.request)
-	}
-	var result UploadedFile
-	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if result.DevicePath != "/tmp/internkim-companion-files/report.pdf" {
-		t.Fatalf("unexpected device path: %s", result.DevicePath)
-	}
-}
-
-func TestFilePickCancelReturnsDenialObservation(t *testing.T) {
-	executor := Executor{
-		FilePicker:   fakeFilePicker{errorValue: ErrFilePickCanceled},
-		FileUploader: &fakeFileUploader{},
-	}
-
-	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file_pick"}, capabilities.ToolInvokeRequest{ToolName: "file_pick"})
-	denialError, ok := errorValue.(DenialError)
-	if !ok {
-		t.Fatalf("expected denial error, got %v", errorValue)
-	}
-	if denialError.Denial.Code != "user_cancelled" || denialError.Denial.ToolName != "file_pick" {
-		t.Fatalf("unexpected denial: %+v", denialError.Denial)
-	}
-}
-
-func TestFilePickValidatesExtensionAndSize(t *testing.T) {
-	filePath := writeExecutorTestFile(t, "secret.txt", "hello")
-	executor := Executor{
-		FilePicker:   fakeFilePicker{pickedFile: PickedFile{Path: filePath}},
-		FileUploader: &fakeFileUploader{},
-	}
-
-	_, extensionError := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file_pick"}, capabilities.ToolInvokeRequest{
-		ToolName: "file_pick",
-		Input:    json.RawMessage(`{"allowedExtensions":["pdf"]}`),
-	})
-	if extensionError == nil {
-		t.Fatal("expected extension validation error")
-	}
-	_, sizeError := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file_pick"}, capabilities.ToolInvokeRequest{
-		ToolName: "file_pick",
-		Input:    json.RawMessage(`{"maxBytes":1}`),
-	})
-	if sizeError == nil {
-		t.Fatal("expected size validation error")
-	}
-}
-
-func TestShellBridgePromptHandlerConfirm(t *testing.T) {
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path != "/v1/user/confirm" {
-			t.Fatalf("unexpected bridge path: %s", request.URL.Path)
-		}
-		if request.Header.Get("X-InternKim-Shell-Bridge-Token") != "bridge-token" {
-			t.Fatalf("expected shell bridge token header")
-		}
-		return textResponse(http.StatusOK, `{"confirmed":true}`), nil
-	})}
-	handler := ShellBridgePromptHandler{
-		BaseURL:    "http://127.0.0.1:1234",
-		Token:      "bridge-token",
-		HTTPClient: httpClient,
-	}
-
-	confirmed, errorValue := handler.Confirm(context.Background(), "continue?", false)
-	if errorValue != nil {
-		t.Fatalf("expected shell bridge confirm success: %v", errorValue)
-	}
-	if !confirmed {
-		t.Fatal("expected shell bridge confirmation")
-	}
-}
-
-func TestShellBridgePromptHandlerInput(t *testing.T) {
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path != "/v1/user/input" {
-			t.Fatalf("unexpected bridge path: %s", request.URL.Path)
-		}
-		return textResponse(http.StatusOK, `{"text":"approved text"}`), nil
-	})}
-	handler := ShellBridgePromptHandler{
-		BaseURL:    "http://127.0.0.1:1234",
-		HTTPClient: httpClient,
-	}
-
-	text, errorValue := handler.Input(context.Background(), "value?")
-	if errorValue != nil {
-		t.Fatalf("expected shell bridge input success: %v", errorValue)
-	}
-	if text != "approved text" {
-		t.Fatalf("unexpected shell bridge input: %s", text)
-	}
-}
-
-func TestShellBridgePromptHandlerPickFile(t *testing.T) {
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path != "/v1/file/pick" {
-			t.Fatalf("unexpected bridge path: %s", request.URL.Path)
-		}
-		return textResponse(http.StatusOK, `{"path":"/tmp/report.txt"}`), nil
-	})}
-	handler := ShellBridgePromptHandler{
-		BaseURL:    "http://127.0.0.1:1234",
-		HTTPClient: httpClient,
-	}
-
-	pickedFile, errorValue := handler.PickFile(context.Background(), FilePickRequest{Title: "Pick"})
-	if errorValue != nil {
-		t.Fatalf("expected shell bridge file pick success: %v", errorValue)
-	}
-	if pickedFile.Path != "/tmp/report.txt" {
-		t.Fatalf("unexpected file path: %s", pickedFile.Path)
-	}
-}
-
-func TestShellBridgePromptHandlerPickFileCancel(t *testing.T) {
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		return textResponse(http.StatusOK, `{"cancelled":true}`), nil
-	})}
-	handler := ShellBridgePromptHandler{
-		BaseURL:    "http://127.0.0.1:1234",
-		HTTPClient: httpClient,
-	}
-
-	_, errorValue := handler.PickFile(context.Background(), FilePickRequest{})
-	if !errors.Is(errorValue, ErrFilePickCanceled) {
-		t.Fatalf("expected cancel error, got %v", errorValue)
-	}
-}
-
-func TestShellBridgePromptHandlerRejectsNonLocalURL(t *testing.T) {
-	handler := ShellBridgePromptHandler{BaseURL: "https://device.example.test"}
-
-	_, errorValue := handler.Confirm(context.Background(), "continue?", false)
-	if errorValue == nil {
-		t.Fatal("expected non-local bridge to fail")
-	}
-	if strings.Contains(errorValue.Error(), "token") || strings.Contains(errorValue.Error(), "secret") {
-		t.Fatalf("unexpected sensitive error: %v", errorValue)
 	}
 }
 
@@ -1104,7 +895,7 @@ func TestMockStructuredLLMUsesSchemaRequiredKeys(t *testing.T) {
 	executor := Executor{DevMockLLM: true}
 
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "llm.structured",
+		ToolName: "llm_structured",
 		Input:    json.RawMessage(`{"structuredOutputSchema":{"document":{"required":["reply"]}}}`),
 	})
 	if errorValue != nil {

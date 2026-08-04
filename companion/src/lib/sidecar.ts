@@ -25,15 +25,6 @@ export type ActiveGrant = {
 	expiresAt: string;
 };
 
-export type MountedFolder = {
-	mountID: string;
-	displayName: string;
-	guestPath: string;
-	mode: string;
-	status: string;
-	createdAt: string;
-	lastSeenAt: string;
-};
 
 export const controlPlaneBaseURL = 'http://127.0.0.1:7983';
 const controlPlaneListenAddress = '127.0.0.1:7983';
@@ -42,10 +33,6 @@ let runtimeChild: Child | undefined;
 let restartAttempts = 0;
 let shouldRestartRuntime = true;
 
-type ShellBridgeInfo = {
-	url: string;
-	token: string;
-};
 
 export async function readCompanionStatus(): Promise<CompanionStatus> {
 	const output = await Command.sidecar('binaries/internkim-companion', ['status', '--json', '--verify-auth']).execute();
@@ -104,15 +91,10 @@ function localLLMSidecarArguments(settings: CompanionSettings): string[] {
 }
 
 async function buildSidecarArguments(): Promise<string[]> {
-	const shellBridge = await invoke<ShellBridgeInfo>('start_shell_bridge');
 	const settings = await loadCompanionSettings();
 	const browserExtensionPath = await resolveResource('browser-extension');
 	return [
 		'run',
-		'--shell-bridge-url',
-		shellBridge.url,
-		'--shell-bridge-token',
-		shellBridge.token,
 		'--control-listen',
 		controlPlaneListenAddress,
 		'--browser-extension-path',
@@ -267,49 +249,7 @@ export async function revokeGrant(grantID: string): Promise<void> {
 	}
 }
 
-export async function readMountedFolders(): Promise<MountedFolder[]> {
-	if (!runtimeChild) return [];
-	const response = await fetch(`${controlPlaneBaseURL}/v1/filesystem/mounts`);
-	if (!response.ok) return [];
-	const document = (await response.json()) as { mounts?: MountedFolder[] };
-	return document.mounts ?? [];
-}
 
-export async function addMountedFolder(path: string): Promise<MountedFolder> {
-	const response = await fetch(`${controlPlaneBaseURL}/v1/filesystem/mounts`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ path })
-	});
-	if (!response.ok) {
-		throw new Error(await response.text());
-	}
-	return (await response.json()) as MountedFolder;
-}
 
-export async function revokeMountedFolder(mountID: string): Promise<void> {
-	const response = await fetch(`${controlPlaneBaseURL}/v1/filesystem/mounts/${encodeURIComponent(mountID)}`, {
-		method: 'DELETE'
-	});
-	if (!response.ok) {
-		throw new Error(await response.text());
-	}
-}
 
-export async function pauseMountedFolder(mountID: string): Promise<void> {
-	const response = await fetch(`${controlPlaneBaseURL}/v1/filesystem/mounts/${encodeURIComponent(mountID)}/pause`, {
-		method: 'POST'
-	});
-	if (!response.ok) {
-		throw new Error(await response.text());
-	}
-}
 
-export async function resumeMountedFolder(mountID: string): Promise<void> {
-	const response = await fetch(`${controlPlaneBaseURL}/v1/filesystem/mounts/${encodeURIComponent(mountID)}/resume`, {
-		method: 'POST'
-	});
-	if (!response.ok) {
-		throw new Error(await response.text());
-	}
-}

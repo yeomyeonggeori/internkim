@@ -182,7 +182,7 @@ func performSSHRecoveryRequest(target commandTarget, action string) (recoveryRes
 		return response, errorValue
 	}
 	request.Header.Set("Content-Type", "application/json")
-	httpResponse, errorValue := statusHTTPClient.Do(request)
+	httpResponse, errorValue := recoveryHTTPClient.Do(request)
 	if errorValue != nil {
 		return response, errorValue
 	}

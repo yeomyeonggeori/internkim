@@ -2024,7 +2024,6 @@ func TestFlowAPIRejectsDeletingOtherUserTask(t *testing.T) {
 	}
 }
 
-
 func TestFlowAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	cookieValue := webSessionCookieForTest(t, service, "staff@example.com")
@@ -2254,8 +2253,6 @@ func TestWebSessionDoesNotAuthorizeAdminAPI(t *testing.T) {
 	}
 }
 
-
-
 func TestWebLogoutSuppressesImplicitCloudflareSession(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	logoutRequest := httptest.NewRequest(http.MethodPost, "/auth/logout?return=/tasks/", nil)
@@ -2358,11 +2355,6 @@ func TestTasksPageRedirectsBarePath(t *testing.T) {
 	}
 }
 
-
-
-
-
-
 func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/auth/verify/callback?return=/calendar/", nil)
@@ -2405,9 +2397,6 @@ func TestCloudflareAuthCallbackRejectsNonStaff(t *testing.T) {
 		t.Fatalf("cookies = %#v", response.Result().Cookies())
 	}
 }
-
-
-
 
 func responseCookieByNameForTest(t *testing.T, cookies []*http.Cookie, name string) *http.Cookie {
 	t.Helper()
@@ -3650,7 +3639,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 		"displayName":"test companion",
 		"publicKey":"`+keyPair.PublicKey+`",
 		"localOnly":true,
-		"capabilities":[{"name":"user_confirm","version":"1","privacyClass":"user_input","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
+		"capabilities":[{"name":"browser_open","version":"1","privacyClass":"device_browser","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
 	}`))
 	handler.ServeHTTP(pairResponse, pairRequest)
 	if pairResponse.Code != http.StatusOK {
@@ -3699,7 +3688,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	errorChannel := make(chan error, 1)
 	go func() {
 		response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-			ToolName:      "user_confirm",
+			ToolName:      "browser_open",
 			Input:         json.RawMessage(`{"message":"continue?"}`),
 			Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 			TimeoutSecond: 2,
@@ -3722,7 +3711,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	if errorValue := json.NewDecoder(nextResponse.Body).Decode(&companionJob); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if companionJob.JobID == "" || companionJob.Request.ToolName != "user_confirm" {
+	if companionJob.JobID == "" || companionJob.Request.ToolName != "browser_open" {
 		t.Fatalf("unexpected companion job: %+v", companionJob)
 	}
 
@@ -3780,7 +3769,7 @@ func TestLocalCompanionPairingCodeStoresMattermostOwner(t *testing.T) {
 		"code":"`+pairingCode.Code+`",
 		"displayName":"Alice Mac",
 		"publicKey":"test-key",
-		"capabilities":[{"name":"llm.text"}]
+		"capabilities":[{"name":"llm_text"}]
 	}`))
 	pairResponse := httptest.NewRecorder()
 	handler.ServeHTTP(pairResponse, pairRequest)
@@ -4339,11 +4328,11 @@ func TestCompanionLLMJobWithRequesterOnlyClaimsRequesterOwner(t *testing.T) {
 	job := &CompanionJob{
 		JobID:          "job-1",
 		Status:         "pending",
-		ToolName:       "llm.text",
+		ToolName:       "llm_text",
 		PrivacyClass:   "model_input",
 		RequesterEmail: "alice@example.com",
 		Request: capabilities.ToolInvokeRequest{
-			ToolName: "llm.text",
+			ToolName: "llm_text",
 			Context: capabilities.ToolInvokeContext{
 				RequesterEmail: "alice@example.com",
 			},
@@ -5071,7 +5060,7 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	handler := service.router()
 	keyPair, pairResult := pairTestCompanion(t, handler, keyPairCapabilityRequest{
 		KeyPair:    keyPairForTest(t),
-		Capability: `{"name":"file_pick","version":"1","privacyClass":"local_file","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
+		Capability: `{"name":"browser_screenshot","version":"1","privacyClass":"local_file","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
 	})
 	_ = keyPair
 
@@ -5079,8 +5068,8 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	errorChannel := make(chan error, 1)
 	go func() {
 		response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-			ToolName:      "file_pick",
-			PrivacyClass:  "local_file",
+			ToolName:      "browser_screenshot",
+			ExecutionMode: capabilities.ExecutionModeCompanion,
 			Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 			TimeoutSecond: 2,
 		})
@@ -5155,7 +5144,7 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	}
 
 	completeJobResponse := httptest.NewRecorder()
-	completeJobRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/jobs/"+companionJob.JobID+"/complete", strings.NewReader(toolResponseJSON(t, "file_pick", uploadResult)))
+	completeJobRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/jobs/"+companionJob.JobID+"/complete", strings.NewReader(toolResponseJSON(t, "browser_screenshot", uploadResult)))
 	setCompanionHeaders(t, completeJobRequest, pairResult.companionPairResponse, pairResult.privateKey)
 	handler.ServeHTTP(completeJobResponse, completeJobRequest)
 	if completeJobResponse.Code != http.StatusOK {
@@ -5163,7 +5152,7 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 	}
 	select {
 	case response := <-resultChannel:
-		if response.ToolName != "file_pick" {
+		if response.ToolName != "browser_screenshot" {
 			t.Fatalf("unexpected response: %+v", response)
 		}
 	case errorValue := <-errorChannel:
@@ -5542,7 +5531,7 @@ func TestCompanionJobTimeoutSecond(t *testing.T) {
 	}{
 		{
 			name:     "non interactive default",
-			request:  capabilities.ToolInvokeRequest{ToolName: "filesystem.mount.list"},
+			request:  capabilities.ToolInvokeRequest{ToolName: "web_search"},
 			expected: 30,
 		},
 		{

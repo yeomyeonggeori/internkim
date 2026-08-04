@@ -69,22 +69,25 @@ type DescriptorIdentity struct {
 }
 
 type DescriptorMetadata struct {
-	Description          string
-	Version              string
-	PrivacyClass         string
-	EstimatedLatency     string
-	RequiresUserPresence bool
-	WorksOffline         bool
-	InputSchema          json.RawMessage
-	InputIntentSchema    json.RawMessage
-	OutputSchema         json.RawMessage
-	ResultContract       *ToolResultContract
-	PolicyResource       string
-	SideEffect           string
-	RequiresApproval     bool
-	CompletionEvidence   *CompletionEvidenceDescriptor
-	Availability         AvailabilityMetadata
-	Idempotency          IdempotencyMetadata
+	Description              string
+	Version                  string
+	PrivacyClass             string
+	EstimatedLatency         string
+	RequiresUserPresence     bool
+	RequiresRequesterDevice  bool
+	RequiresCompanionBrowser bool
+	ApprovalScope            string
+	WorksOffline             bool
+	InputSchema              json.RawMessage
+	InputIntentSchema        json.RawMessage
+	OutputSchema             json.RawMessage
+	ResultContract           *ToolResultContract
+	PolicyResource           string
+	SideEffect               string
+	RequiresApproval         bool
+	CompletionEvidence       *CompletionEvidenceDescriptor
+	Availability             AvailabilityMetadata
+	Idempotency              IdempotencyMetadata
 }
 
 type DescriptorDefinition struct {
@@ -94,31 +97,34 @@ type DescriptorDefinition struct {
 
 func NewDescriptor(definition DescriptorDefinition) Descriptor {
 	descriptor := Descriptor{
-		Name:                 definition.Identity.Name,
-		CanonicalName:        definition.Identity.CanonicalName,
-		Namespace:            definition.Identity.Namespace,
-		ModelName:            definition.Identity.ModelName,
-		ModelVisibility:      definition.Identity.ModelVisibility,
-		ModelVisible:         definition.Identity.ModelVisibility == ModelVisibilityVisible,
-		Description:          definition.Metadata.Description,
-		Version:              definition.Metadata.Version,
-		PrivacyClass:         definition.Metadata.PrivacyClass,
-		EstimatedLatency:     definition.Metadata.EstimatedLatency,
-		RequiresUserPresence: definition.Metadata.RequiresUserPresence,
-		WorksOffline:         definition.Metadata.WorksOffline,
-		InputSchema:          strictSchema(definition.Metadata.InputSchema),
-		InputIntentSchema:    strictSchema(definition.Metadata.InputIntentSchema),
-		OutputSchema:         strictSchema(definition.Metadata.OutputSchema),
-		InputSchemaStrict:    true,
-		OutputSchemaStrict:   true,
-		ResultContract:       canonicalResultContract(definition.Metadata.ResultContract),
-		PolicyResource:       definition.Metadata.PolicyResource,
-		SideEffectClass:      definition.Metadata.SideEffect,
-		SideEffect:           definition.Metadata.SideEffect,
-		RequiresApproval:     definition.Metadata.RequiresApproval,
-		CompletionEvidence:   definition.Metadata.CompletionEvidence,
-		Availability:         definition.Metadata.Availability,
-		Idempotency:          definition.Metadata.Idempotency,
+		Name:                     definition.Identity.Name,
+		CanonicalName:            definition.Identity.CanonicalName,
+		Namespace:                definition.Identity.Namespace,
+		ModelName:                definition.Identity.ModelName,
+		ModelVisibility:          definition.Identity.ModelVisibility,
+		ModelVisible:             definition.Identity.ModelVisibility == ModelVisibilityVisible,
+		Description:              definition.Metadata.Description,
+		Version:                  definition.Metadata.Version,
+		PrivacyClass:             definition.Metadata.PrivacyClass,
+		EstimatedLatency:         definition.Metadata.EstimatedLatency,
+		RequiresUserPresence:     definition.Metadata.RequiresUserPresence,
+		RequiresRequesterDevice:  definition.Metadata.RequiresRequesterDevice,
+		RequiresCompanionBrowser: definition.Metadata.RequiresCompanionBrowser,
+		ApprovalScope:            definition.Metadata.ApprovalScope,
+		WorksOffline:             definition.Metadata.WorksOffline,
+		InputSchema:              strictSchema(definition.Metadata.InputSchema),
+		InputIntentSchema:        strictSchema(definition.Metadata.InputIntentSchema),
+		OutputSchema:             strictSchema(definition.Metadata.OutputSchema),
+		InputSchemaStrict:        true,
+		OutputSchemaStrict:       true,
+		ResultContract:           canonicalResultContract(definition.Metadata.ResultContract),
+		PolicyResource:           definition.Metadata.PolicyResource,
+		SideEffectClass:          definition.Metadata.SideEffect,
+		SideEffect:               definition.Metadata.SideEffect,
+		RequiresApproval:         definition.Metadata.RequiresApproval,
+		CompletionEvidence:       definition.Metadata.CompletionEvidence,
+		Availability:             definition.Metadata.Availability,
+		Idempotency:              definition.Metadata.Idempotency,
 	}
 	if errorValue := ValidateDescriptor(descriptor); errorValue != nil {
 		panic(errorValue)

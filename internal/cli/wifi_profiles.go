@@ -424,8 +424,6 @@ SNAPSHOTTIMEREOF`,
 func buildJetsonWiFiSelectorScript() string {
 	return strings.TrimSpace(`#!/bin/sh
 set -eu
-nmcli radio wifi on 2>/dev/null || true
-nmcli device wifi rescan 2>/dev/null || true
 python3 - <<'PY'
 import subprocess
 import sys
@@ -470,6 +468,9 @@ def scan_signals():
 
 if wireless_address():
     sys.exit(0)
+
+subprocess.run(["nmcli", "radio", "wifi", "on"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+subprocess.run(["nmcli", "device", "wifi", "rescan"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 signals = scan_signals()
 records = []

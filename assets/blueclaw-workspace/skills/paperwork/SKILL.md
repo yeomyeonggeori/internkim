@@ -15,7 +15,7 @@ Read the requested language's spec first at `/workspace/skills/paperwork/referen
 ## Workflow
 
 1. Identify type and language, then read the matching spec even when a similar document exists in conversation.
-2. Call `company_info_get` for the language. If required `missingFields` or legal attributes are absent, ask once for all missing values with `ask_input`, save them through `company_info_set`, and copy optional logo or stamp images with one `terminal_run`. Never use `file_pick` or `filesystem.mount.*`.
+2. Call `company_info_get` for the language. If required `missingFields` or legal attributes are absent, ask once for all missing values with `ask_input`, save them through `company_info_set`, and copy optional logo or stamp images with one `terminal_run`.
 3. Compare the spec's required fields with the request. Ask only for missing critical names, counterpart, dates, amounts, or terms; never invent them. Treat requester-provided facts as the source of truth and use the user's-language equivalent of “미기재” only for optional fields.
 4. Register with `company_document_register` before rendering, using the catalog slug and a concise summary. Put the returned document number in the content JSON.
 5. Write the spec-shaped content JSON, run the bundled renderer or template filler with `terminal_run`, then deliver the generated PDF or DOCX with `file_deliver`. The typed descriptors and spec define payload fields; do not reproduce their schema in this guide.

@@ -30,82 +30,73 @@ type companionProvider struct {
 
 type capabilityToolHandler func(Service, context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)
 
-type capabilityToolCategory string
-
-const (
-	deviceBrowserToolCategory capabilityToolCategory = "device_browser"
-	deviceToolCategory        capabilityToolCategory = "device"
-	remoteToolCategory        capabilityToolCategory = "remote"
-)
-
+// A route says which handler runs a tool. Everything else a caller wants to know
+// about that tool - who it reaches, whether it needs the person's own browser -
+// is written on the descriptor, where every other reader can see it too.
 type capabilityToolRoute struct {
-	ToolName                 string
-	Category                 capabilityToolCategory
-	IsTrimmedMatch           bool
-	RequiresCompanionBrowser bool
-	Handler                  capabilityToolHandler
+	ToolName string
+	Handler  capabilityToolHandler
 }
 
 var capabilityToolRoutes = []capabilityToolRoute{
-	{ToolName: "browser_screenshot", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, RequiresCompanionBrowser: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "browser_handoff", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, RequiresCompanionBrowser: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "browser_open", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "browser_snapshot", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "browser_click", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "browser_navigate", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "browser_fill", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "browser_select", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "browser_press", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "browser_wait", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "web_search", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeWebTool},
-	{ToolName: "web_fetch", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeWebTool},
-	{ToolName: "document_read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDocumentReadTool},
-	{ToolName: "image_read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeImageReadTool},
-	{ToolName: "image_generate", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeImageGenerateTool},
-	{ToolName: "artifact_review", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeArtifactReviewTool},
-	{ToolName: "task_add", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
-	{ToolName: "task_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
-	{ToolName: "task_update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
-	{ToolName: "task_delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
-	{ToolName: "message_context", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
-	{ToolName: "message_search", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
-	{ToolName: "message_send", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
-	{ToolName: "message_update", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
-	{ToolName: "message_delete", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
-	{ToolName: "channel_update", Category: deviceToolCategory, Handler: Service.invokeMattermostTool},
-	{ToolName: "calendar_add", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
-	{ToolName: "calendar_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
-	{ToolName: "calendar_update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
-	{ToolName: "calendar_delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
-	{ToolName: "mail_message_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail_message_search", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail_message_read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail_message_send", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail_message_move", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail_message_mark", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail_connection_status", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "mail_connection_start", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
-	{ToolName: "site_serve", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeSiteAppTool},
-	{ToolName: "site_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeSiteAppTool},
-	{ToolName: "site_unserve", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeSiteAppTool},
-	{ToolName: "company_document_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "company_document_register", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "company_document_search", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "company_document_update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "company_info_get", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "company_info_set", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "company_metric_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "company_metric_record", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "company_record_add", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "company_record_delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "company_record_list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "company_record_update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCompanyTool},
-	{ToolName: "google.docs.create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google.sheets.create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google.gmail.send", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google.calendar.event", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google.calendar.list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google.drive.import_pptx", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "browser_screenshot", Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_handoff", Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_open", Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_snapshot", Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_click", Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_fill", Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_select", Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_press", Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser_wait", Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "web_search", Handler: Service.invokeWebTool},
+	{ToolName: "web_fetch", Handler: Service.invokeWebTool},
+	{ToolName: "document_read", Handler: Service.invokeDocumentReadTool},
+	{ToolName: "image_read", Handler: Service.invokeImageReadTool},
+	{ToolName: "image_generate", Handler: Service.invokeImageGenerateTool},
+	{ToolName: "artifact_review", Handler: Service.invokeArtifactReviewTool},
+	{ToolName: "task_add", Handler: Service.invokeFlowTaskTool},
+	{ToolName: "task_list", Handler: Service.invokeFlowTaskTool},
+	{ToolName: "task_update", Handler: Service.invokeFlowTaskTool},
+	{ToolName: "task_delete", Handler: Service.invokeFlowTaskTool},
+	{ToolName: "message_context", Handler: Service.invokePlatformMessageTool},
+	{ToolName: "message_search", Handler: Service.invokePlatformMessageTool},
+	{ToolName: "message_send", Handler: Service.invokePlatformMessageTool},
+	{ToolName: "message_update", Handler: Service.invokePlatformMessageTool},
+	{ToolName: "message_delete", Handler: Service.invokePlatformMessageTool},
+	{ToolName: "channel_update", Handler: Service.invokeMattermostTool},
+	{ToolName: "calendar_add", Handler: Service.invokeCalendarTool},
+	{ToolName: "calendar_list", Handler: Service.invokeCalendarTool},
+	{ToolName: "calendar_update", Handler: Service.invokeCalendarTool},
+	{ToolName: "calendar_delete", Handler: Service.invokeCalendarTool},
+	{ToolName: "mail_message_list", Handler: Service.invokeMailTool},
+	{ToolName: "mail_message_search", Handler: Service.invokeMailTool},
+	{ToolName: "mail_message_read", Handler: Service.invokeMailTool},
+	{ToolName: "mail_message_send", Handler: Service.invokeMailTool},
+	{ToolName: "mail_message_move", Handler: Service.invokeMailTool},
+	{ToolName: "mail_message_mark", Handler: Service.invokeMailTool},
+	{ToolName: "mail_connection_status", Handler: Service.invokeMailTool},
+	{ToolName: "mail_connection_start", Handler: Service.invokeMailTool},
+	{ToolName: "site_serve", Handler: Service.invokeSiteAppTool},
+	{ToolName: "site_list", Handler: Service.invokeSiteAppTool},
+	{ToolName: "site_unserve", Handler: Service.invokeSiteAppTool},
+	{ToolName: "company_document_list", Handler: Service.invokeCompanyTool},
+	{ToolName: "company_document_register", Handler: Service.invokeCompanyTool},
+	{ToolName: "company_document_search", Handler: Service.invokeCompanyTool},
+	{ToolName: "company_document_update", Handler: Service.invokeCompanyTool},
+	{ToolName: "company_info_get", Handler: Service.invokeCompanyTool},
+	{ToolName: "company_info_set", Handler: Service.invokeCompanyTool},
+	{ToolName: "company_metric_list", Handler: Service.invokeCompanyTool},
+	{ToolName: "company_metric_record", Handler: Service.invokeCompanyTool},
+	{ToolName: "company_record_add", Handler: Service.invokeCompanyTool},
+	{ToolName: "company_record_delete", Handler: Service.invokeCompanyTool},
+	{ToolName: "company_record_list", Handler: Service.invokeCompanyTool},
+	{ToolName: "company_record_update", Handler: Service.invokeCompanyTool},
+	{ToolName: "google_docs_create", Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_sheets_create", Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_gmail_send", Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_calendar_event", Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_calendar_list", Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_drive_import_pptx", Handler: Service.invokeGoogleWorkspaceTool},
 }
 
 var capabilityToolDescriptorsByCanonicalName = buildCapabilityToolDescriptorsByCanonicalName()
@@ -148,15 +139,26 @@ func (route capabilityToolRoute) matches(toolName string) bool {
 }
 
 func (route capabilityToolRoute) matchableToolName(toolName string) string {
-	if route.IsTrimmedMatch {
-		return strings.TrimSpace(toolName)
-	}
-	return toolName
+	return strings.TrimSpace(toolName)
 }
 
-func (route capabilityToolRoute) isDeviceBrowser() bool {
-	return route.Category == deviceBrowserToolCategory
+// The browser namespace is served by the device browser runtime. Which subsystem
+// owns a tool is identity the descriptor states, not something to read off a name.
+var companionToolNamespaces = buildCompanionToolNamespaces()
+
+func buildCompanionToolNamespaces() map[string]string {
+	namespaceByToolName := map[string]string{}
+	for _, descriptor := range capabilities.CompanionToolDescriptors() {
+		namespaceByToolName[descriptor.Name] = descriptor.Namespace
+	}
+	return namespaceByToolName
 }
+
+func isDeviceBrowserTool(toolName string) bool {
+	return companionToolNamespaces[strings.TrimSpace(toolName)] == browserToolNamespace
+}
+
+const browserToolNamespace = "browser"
 
 func (service Service) capabilityRegistry(ctx context.Context) (capabilities.RegistryResponse, error) {
 	response := capabilities.RegistryResponse{
@@ -225,7 +227,7 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 		if isCompanionRequiredBrowserRequest(request) {
 			return capabilityUnavailableResponse(request.ToolName, companionRequiredBrowserErrorCode(errorValue)), nil
 		}
-		if request.RequiresUserPresence || isCompanionOnlyExecutionMode(request.ExecutionMode) || !toolRoute.isDeviceBrowser() {
+		if request.RequiresUserPresence || isCompanionOnlyExecutionMode(request.ExecutionMode) || !isDeviceBrowserTool(request.ToolName) {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
 	}
@@ -559,14 +561,18 @@ func isCompanionOnlyExecutionMode(executionMode string) bool {
 	return normalizedExecutionMode == capabilities.ExecutionModeCompanion
 }
 
-func isDeviceBrowserTool(toolName string) bool {
-	route, hasRoute := capabilityToolRouteFor(toolName)
-	return hasRoute && route.isDeviceBrowser()
+var companionBrowserToolNames = buildCompanionBrowserToolNames()
+
+func buildCompanionBrowserToolNames() map[string]bool {
+	requiredByToolName := map[string]bool{}
+	for _, descriptor := range capabilities.CompanionToolDescriptors() {
+		requiredByToolName[descriptor.Name] = descriptor.RequiresCompanionBrowser
+	}
+	return requiredByToolName
 }
 
 func isCompanionRequiredBrowserTool(toolName string) bool {
-	route, hasRoute := capabilityToolRouteFor(toolName)
-	return hasRoute && route.RequiresCompanionBrowser
+	return companionBrowserToolNames[strings.TrimSpace(toolName)]
 }
 
 func isCompanionRequiredBrowserRequest(request capabilities.ToolInvokeRequest) bool {
@@ -642,7 +648,7 @@ func (provider companionProvider) CompleteStructured(ctx context.Context, reques
 		return LLMResponse{}, errorValue
 	}
 	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
-		ToolName:      "llm.structured",
+		ToolName:      "llm_structured",
 		Input:         document,
 		Context:       toolInvokeContextFromLLMRequest(request.Context),
 		ExecutionMode: capabilities.ExecutionModeCompanion,
@@ -676,7 +682,7 @@ func (provider companionProvider) CompleteText(ctx context.Context, request Text
 		return LLMResponse{}, errorValue
 	}
 	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
-		ToolName:      "llm.text",
+		ToolName:      "llm_text",
 		Input:         document,
 		Context:       toolInvokeContextFromLLMRequest(request.Context),
 		ExecutionMode: capabilities.ExecutionModeCompanion,
@@ -753,7 +759,7 @@ func (provider companionProvider) CreateEmbedding(ctx context.Context, request E
 		return EmbeddingResponse{}, errorValue
 	}
 	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
-		ToolName:      "embedding.create",
+		ToolName:      "embedding_create",
 		Input:         document,
 		ExecutionMode: capabilities.ExecutionModeCompanion,
 		PrivacyClass:  "model_input",

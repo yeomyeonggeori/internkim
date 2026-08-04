@@ -1,0 +1,35 @@
+package admind
+
+import "net/http"
+
+func (service *Service) registerCRMRoutes(multiplexer *http.ServeMux) {
+	multiplexer.HandleFunc("GET /crm/api/accounts", service.listCRMAccountsHTTP)
+	multiplexer.HandleFunc("POST /crm/api/accounts", service.createCRMAccountHTTP)
+	multiplexer.HandleFunc("GET /crm/api/accounts/{id}", service.readCRMAccountHTTP)
+	multiplexer.HandleFunc("PUT /crm/api/accounts/{id}", service.updateCRMAccountHTTP)
+	multiplexer.HandleFunc("POST /crm/api/accounts/{id}/archive", service.archiveCRMAccountHTTP)
+	multiplexer.HandleFunc("POST /crm/api/accounts/{id}/restore", service.restoreCRMAccountHTTP)
+	multiplexer.HandleFunc("GET /crm/api/contacts", service.listCRMContactsHTTP)
+	multiplexer.HandleFunc("POST /crm/api/contacts", service.createCRMContactHTTP)
+	multiplexer.HandleFunc("GET /crm/api/contacts/{id}", service.readCRMContactHTTP)
+	multiplexer.HandleFunc("PUT /crm/api/contacts/{id}", service.updateCRMContactHTTP)
+	multiplexer.HandleFunc("POST /crm/api/contacts/{id}/archive", service.archiveCRMContactHTTP)
+	multiplexer.HandleFunc("POST /crm/api/contacts/{id}/restore", service.restoreCRMContactHTTP)
+	multiplexer.HandleFunc("GET /crm/api/opportunities", service.listCRMOpportunitiesHTTP)
+	multiplexer.HandleFunc("POST /crm/api/opportunities", service.createCRMOpportunityHTTP)
+	multiplexer.HandleFunc("GET /crm/api/opportunities/{id}", service.readCRMOpportunityHTTP)
+	multiplexer.HandleFunc("PUT /crm/api/opportunities/{id}", service.updateCRMOpportunityHTTP)
+	multiplexer.HandleFunc("POST /crm/api/opportunities/{id}/archive", service.archiveCRMOpportunityHTTP)
+	multiplexer.HandleFunc("POST /crm/api/opportunities/{id}/restore", service.restoreCRMOpportunityHTTP)
+	multiplexer.HandleFunc("POST /crm/api/opportunities/{id}/transition", service.transitionCRMOpportunityHTTP)
+	multiplexer.HandleFunc("POST /crm/api/opportunities/{id}/position", service.positionCRMOpportunityHTTP)
+	multiplexer.HandleFunc("GET /crm/api/activities", service.listCRMActivitiesHTTP)
+	multiplexer.HandleFunc("POST /crm/api/activities", service.createCRMActivityHTTP)
+	multiplexer.HandleFunc("GET /crm/api/activities/{id}", service.readCRMActivityHTTP)
+	multiplexer.HandleFunc("PUT /crm/api/activities/{id}", service.updateCRMActivityHTTP)
+	multiplexer.HandleFunc("POST /crm/api/activities/{id}/archive", service.archiveCRMActivityHTTP)
+	multiplexer.HandleFunc("POST /crm/api/activities/{id}/restore", service.restoreCRMActivityHTTP)
+	multiplexer.HandleFunc("GET /crm/api/pipelines", service.listCRMPipelinesHTTP)
+	multiplexer.HandleFunc("GET /crm/api/pipelines/{pipeline}/stages", service.listCRMPipelineStagesHTTP)
+	multiplexer.HandleFunc("GET /crm/api/lost-reasons", service.listCRMLostReasonsHTTP)
+}

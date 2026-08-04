@@ -58,84 +58,8 @@ func userInputSchema() json.RawMessage {
 	).RawMessage()
 }
 
-func filePickInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("message", jsonschema.String()),
-		jsonschema.Field("accept", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("multiple", jsonschema.Boolean()),
-	).RawMessage()
-}
-
 func emptyToolInputSchema() json.RawMessage {
 	return jsonschema.Object().RawMessage()
-}
-
-func mountCreateInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("path", jsonschema.String()),
-		jsonschema.Field("displayName", jsonschema.String()),
-		jsonschema.Field("title", jsonschema.String()),
-	).RawMessage()
-}
-
-func mountReferenceInputSchema() json.RawMessage {
-	return jsonschema.Object(jsonschema.Field("mountID", jsonschema.String())).RawMessage()
-}
-
-func mountPathInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("mountID", jsonschema.String()),
-		jsonschema.Field("path", jsonschema.String()),
-	).RawMessage()
-}
-
-func mountWriteInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("mountID", jsonschema.String()),
-		jsonschema.Field("path", jsonschema.String()),
-		jsonschema.Field("content", jsonschema.String()),
-		jsonschema.Field("contentBase64", jsonschema.String()),
-	).RawMessage()
-}
-
-func mountRenameInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("mountID", jsonschema.String()),
-		jsonschema.Field("path", jsonschema.String()),
-		jsonschema.Field("toPath", jsonschema.String()),
-	).RawMessage()
-}
-
-func mountDeleteInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("mountID", jsonschema.String()),
-		jsonschema.Field("path", jsonschema.String()),
-		jsonschema.Field("recursive", jsonschema.Boolean()),
-	).RawMessage()
-}
-
-func mountTruncateInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("mountID", jsonschema.String()),
-		jsonschema.Field("path", jsonschema.String()),
-		jsonschema.Field("sizeBytes", jsonschema.Integer()),
-	).RawMessage()
-}
-
-func mountChangeModeInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("mountID", jsonschema.String()),
-		jsonschema.Field("path", jsonschema.String()),
-		jsonschema.Field("mode", jsonschema.Integer()),
-	).RawMessage()
-}
-
-func mountWatchInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("mountID", jsonschema.String()),
-		jsonschema.Field("path", jsonschema.String()),
-		jsonschema.Field("sinceUnixNano", jsonschema.Integer()),
-	).RawMessage()
 }
 
 func TextLLMInputSchema() json.RawMessage {

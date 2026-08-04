@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -266,12 +267,16 @@ func TestCalendarHolidaysServeStoredResponseWhenRequestRefreshFails(t *testing.T
 	if len(second.Holidays) != 1 || second.Holidays[0].Title != "새해 첫날" {
 		t.Fatalf("second holidays = %#v", second.Holidays)
 	}
-	if requestCount.Load() != calendarHolidayMaximumAttempts {
-		t.Fatalf("API request count = %d, want %d", requestCount.Load(), calendarHolidayMaximumAttempts)
+	if !first.Degraded || !second.Degraded || first.ErrorCode != calendarHolidayProviderUnavailableCode {
+		t.Fatalf("degraded responses = %#v %#v", first, second)
+	}
+	wantRequestCount := int64(calendarHolidayMaximumAttempts * calendarHolidayPreloadYears)
+	if requestCount.Load() != wantRequestCount {
+		t.Fatalf("API request count = %d, want %d", requestCount.Load(), wantRequestCount)
 	}
 }
 
-func TestCalendarHolidaysReturnBadGatewayWithoutCache(t *testing.T) {
+func TestCalendarHolidaysReturnDegradedResponseWithoutCache(t *testing.T) {
 	service := newCalendarTestService(t)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		return &http.Response{
@@ -293,8 +298,15 @@ func TestCalendarHolidaysReturnBadGatewayWithoutCache(t *testing.T) {
 
 	service.serveCalendarHolidays(recorder, request)
 
-	if recorder.Code != http.StatusBadGateway {
+	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response calendarHolidaysResponse
+	if errorValue := json.NewDecoder(recorder.Body).Decode(&response); errorValue != nil {
+		t.Fatalf("decode response: %v", errorValue)
+	}
+	if !response.Degraded || response.ErrorCode != calendarHolidayProviderUnavailableCode || len(response.Holidays) != 0 {
+		t.Fatalf("response = %#v", response)
 	}
 }
 
@@ -390,6 +402,37 @@ func TestCalendarHolidayCountriesKeepCacheWhenAPIResponseIsEmpty(t *testing.T) {
 	}
 	if len(storedCountries) != 1 || storedCountries[0].CountryCode != "KR" {
 		t.Fatalf("stored countries = %#v", storedCountries)
+	}
+}
+
+func TestCalendarHolidayCountriesKeepCacheWhenAPIRequestFails(t *testing.T) {
+	service := newCalendarTestService(t)
+	currentTime := time.Now().UTC()
+	cachedCountries := []calendarHolidayCountry{
+		{CountryCode: "KR", Name: "South Korea"},
+		{CountryCode: "US", Name: "United States"},
+	}
+	if errorValue := service.replaceCalendarHolidayCountries(context.Background(), cachedCountries, currentTime.Add(-25*time.Hour)); errorValue != nil {
+		t.Fatalf("store cached countries: %v", errorValue)
+	}
+	if errorValue := service.upsertCalendarHolidaySourceState(context.Background(), calendarHolidaySourceState{
+		Provider:     calendarHolidayProviderNager,
+		SourceKey:    calendarHolidayCountriesSourceKey,
+		LastSyncedAt: currentTime.Add(-25 * time.Hour).Format(time.RFC3339),
+	}); errorValue != nil {
+		t.Fatalf("store stale country state: %v", errorValue)
+	}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return nil, errors.New("nager unavailable")
+	})}
+
+	countries, errorValue := service.ensureCalendarHolidayCountries(context.Background(), currentTime)
+
+	if errorValue != nil {
+		t.Fatalf("ensure countries: %v", errorValue)
+	}
+	if len(countries) != 2 || countries[0].CountryCode != "KR" || countries[1].CountryCode != "US" {
+		t.Fatalf("countries = %#v", countries)
 	}
 }
 
