@@ -114,10 +114,48 @@ passed('reacted, and the reaction reads back');
 await call('DELETE', `/post/${written.id}/reaction?emoji=eyes`);
 passed('took the reaction away');
 
+const reply = (await call('POST', `/channel/${room.id}/post`, { body: 'bridge check, in the thread', parentID: written.id }))
+	.body as { id: string; parentID?: string };
+if (reply.parentID !== written.id) throw new Error('the reply did not hang off the post');
+const thread = (await call('GET', `/channel/${room.id}/post`)).body as { id: string; parentID?: string }[];
+if (!thread.some((post) => post.id === reply.id && post.parentID === written.id)) {
+	throw new Error('the thread does not read back');
+}
+passed('replied in a thread, and it reads back as a reply');
+
+await call('DELETE', `/post/${reply.id}`);
 await call('DELETE', `/post/${written.id}`);
 const afterwards = (await call('GET', `/channel/${room.id}/post`)).body as { id: string }[];
 if (afterwards.some((post) => post.id === written.id)) throw new Error('the post survived deletion');
 passed('deleted it, and it is gone');
+
+const colleagues = await client
+	.from('member')
+	.select('id')
+	.neq('id', member.data.id)
+	.limit(1)
+	.returns<{ id: string }[]>();
+if (colleagues.error) throw new Error(colleagues.error.message);
+if (colleagues.data.length === 0) throw new Error('no colleague to open a direct channel with');
+
+const opened = (await call('POST', '/channel/direct', { memberIDs: [colleagues.data[0].id] })).body as {
+	id: string;
+	isDirect: boolean;
+	participants: { externalID?: string }[];
+};
+if (!opened.isDirect) throw new Error('the direct channel did not come back as direct');
+if (opened.participants.length === 0) throw new Error('the direct channel came back with nobody in it');
+passed('opened a direct channel with a colleague');
+
+const directPost = (await call('POST', `/channel/${opened.id}/post`, { body: 'bridge check, in private' })).body as {
+	id: string;
+};
+const directPosts = (await call('GET', `/channel/${opened.id}/post`)).body as { id: string }[];
+if (!directPosts.some((post) => post.id === directPost.id)) throw new Error('the direct message did not read back');
+passed('wrote in the direct channel, and it reads back');
+
+await call('DELETE', `/post/${directPost.id}`);
+passed('cleaned the direct message up');
 
 console.log(`\n${checks.length} checks passed`);
 process.exit(0);
