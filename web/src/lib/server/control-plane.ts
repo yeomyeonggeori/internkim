@@ -98,18 +98,47 @@ export type FoundedCompany = {
 	invitations: Invitation[];
 };
 
-export async function memberOfAccount(
+export type ClaimedMember = { memberID: string; companyID: string };
+
+// Someone who was written down before they had an account claims that row by
+// arriving. Invited or written down ahead of time, from here on they are here.
+export async function claimMemberFor(
 	client: SupabaseClient,
 	accountID: string,
 	email: string,
-): Promise<string | null> {
-	const byAccount = await client.from('member').select('id').eq('user_id', accountID).maybeSingle();
+): Promise<ClaimedMember | null> {
+	const byAccount = await client
+		.from('member')
+		.select('id, company_id, status')
+		.eq('user_id', accountID)
+		.maybeSingle();
 	if (byAccount.error) throw new Error(byAccount.error.message);
-	if (byAccount.data) return byAccount.data.id;
 
-	const byEmail = await client.from('member').select('id').eq('email', email).maybeSingle();
-	if (byEmail.error) throw new Error(byEmail.error.message);
-	return byEmail.data?.id ?? null;
+	const found =
+		byAccount.data ??
+		(await (async () => {
+			const byEmail = await client.from('member').select('id, company_id, status').eq('email', email).maybeSingle();
+			if (byEmail.error) throw new Error(byEmail.error.message);
+			return byEmail.data ?? null;
+		})());
+	if (!found) return null;
+
+	if (found.status !== 'active' && found.status !== 'departed' && found.status !== 'withdrawn') {
+		const { error } = await client
+			.from('member')
+			.update({ user_id: accountID, status: 'active' })
+			.eq('id', found.id);
+		if (error) throw new Error(`claiming ${email}: ${error.message}`);
+
+		// A hire date carried over from somewhere else is theirs, not today's.
+		const { error: joiningError } = await client
+			.from('member')
+			.update({ joined_at: new Date().toISOString() })
+			.eq('id', found.id)
+			.is('joined_at', null);
+		if (joiningError) throw new Error(`claiming ${email}: ${joiningError.message}`);
+	}
+	return { memberID: found.id, companyID: found.company_id };
 }
 
 export async function foundCompany(

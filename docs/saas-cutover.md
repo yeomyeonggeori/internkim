@@ -97,6 +97,29 @@ admind takes four settings; with any of them missing it writes only locally:
 
 Once both records agree for long enough, the device side is the one to remove.
 
+## Setting a company up for someone
+
+A company can be prepared before anyone has an account: import the data, write
+the people down, and mark whoever should run it as an admin. Those rows carry an
+address and no owner.
+
+When that person signs up with the same address, the row becomes theirs — admin
+and company intact — and their status moves from `pending` to `active` as they
+arrive. A hire date carried over from the device is left alone; only someone with
+no recorded joining day gets today's.
+
+The three states then each say something the others do not:
+
+| | |
+|---|---|
+| `pending` | written down; nothing issued, nobody told |
+| `invited` | an account exists and a temporary password went out |
+| `active` | they have arrived and are using it |
+
+Verified locally: an admin written down with no account signed up, kept `is_admin`,
+landed in the app rather than the company-setup screen, and an imported hire date
+of 2024-03-01 survived.
+
 ## Signing up
 
 Whoever signs up with an address that already has a member is one of that

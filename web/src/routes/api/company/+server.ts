@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/private';
-import { asMember, controlPlane, foundCompany, memberOfAccount } from '$lib/server/control-plane';
+import { asMember, claimMemberFor, controlPlane, foundCompany } from '$lib/server/control-plane';
 import { claimCompanyAddress } from '$lib/server/company-address';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
@@ -51,7 +51,7 @@ export const POST: RequestHandler = async ({ request, platform, url }) => {
 
 	const client = controlPlane({ projectURL, serviceRoleKey });
 
-	const already = await memberOfAccount(client, account.user.id, email);
+	const already = await claimMemberFor(client, account.user.id, email);
 	if (already) error(409, 'this account already belongs to a company');
 
 	const invited = Array.isArray(body.invited)

@@ -46,11 +46,10 @@ export async function foundCompany(company: {
 
 export async function belongsToACompany(): Promise<boolean> {
 	const { data } = await supabase().auth.getSession();
-	const accountID = data.session?.user.id;
-	if (!accountID) return false;
-	const { count } = await supabase()
-		.from('member')
-		.select('id', { count: 'exact', head: true })
-		.eq('user_id', accountID);
-	return (count ?? 0) > 0;
+	const accessToken = data.session?.access_token;
+	if (!accessToken) return false;
+	const response = await fetch('/api/member/me', { headers: { Authorization: `Bearer ${accessToken}` } });
+	if (!response.ok) return false;
+	const claimed = (await response.json()) as { member: { memberID: string } | null };
+	return claimed.member !== null;
 }
