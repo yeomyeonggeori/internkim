@@ -23,6 +23,7 @@ const rows: [string, number][] = [
 	['task (work)', await count('task', (query) => (query as never as { eq: (a: string, b: boolean) => unknown }).eq('is_event', false))],
 	['task (events)', await count('task', (query) => (query as never as { eq: (a: string, b: boolean) => unknown }).eq('is_event', true))],
 	['task_participant', await count('task_participant')],
+	['contact', await count('contact')],
 	['credential', await count('credential')],
 	['agent', await count('agent')],
 ];
