@@ -19,20 +19,19 @@ describe('flowDefinitionsOf', () => {
 	test('turns the stored vocabulary into what the board reads', () => {
 		const definitions = flowDefinitionsOf({
 			businesses: [{ name: '오토케', color: '#111111' }],
-			types: [{ name: '개발' }],
-			sizes: [{ name: 'M', maxHours: 8, score: 3 }]
+			types: [{ name: '개발' }]
 		});
 		expect(definitions.categories).toEqual(['오토케']);
 		expect(definitions.categoryColors?.['오토케']).toBe('#111111');
 		expect(definitions.types).toEqual(['개발']);
 		expect(definitions.typeColors?.['개발']).toMatch(/^hsl\(/);
-		expect(definitions.sizes[0]).toMatchObject({ name: 'M', maxHours: 8, score: 3 });
+		expect(definitions.sizes.map((size) => size.name)).toEqual(['XS', 'S', 'M', 'L', 'XL', 'XXL']);
 	});
 
-	test('an empty company still produces a usable board', () => {
+	test('sizes are the same for a company that has chosen nothing', () => {
 		const definitions = flowDefinitionsOf(vocabularyOf({}));
 		expect(definitions.categories).toEqual([]);
-		expect(definitions.sizes).toEqual([]);
+		expect(definitions.sizes.map((size) => size.name)).toEqual(['XS', 'S', 'M', 'L', 'XL', 'XXL']);
 	});
 });
 
