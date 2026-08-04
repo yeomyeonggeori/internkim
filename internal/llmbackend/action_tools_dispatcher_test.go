@@ -25,7 +25,7 @@ const formerDispatcherThreshold = 12
 func TestNativeActionToolsKeepPerToolSchemasInsteadOfDispatcher(t *testing.T) {
 	descriptors := multiToolActionDescriptors(t)
 	schema := StructuredOutputSchema{
-		Name:     "blueclaw_agent_turn_action",
+		Name:     "bluecollar_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, descriptors),
 	}
 
@@ -45,7 +45,7 @@ func TestNativeActionToolsKeepPerToolSchemasInsteadOfDispatcher(t *testing.T) {
 func TestNativeActionToolExposesOptionalToolInputProperties(t *testing.T) {
 	descriptors := multiToolActionDescriptors(t)
 	schema := StructuredOutputSchema{
-		Name:     "blueclaw_agent_turn_action",
+		Name:     "bluecollar_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, descriptors),
 	}
 

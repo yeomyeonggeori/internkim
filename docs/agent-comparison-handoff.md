@@ -20,7 +20,7 @@
 ## 2. 인턴킴 현재 위치 (조사 스냅샷)
 
 - **어플라이언스 모델**: Jetson(8GB) 하드웨어에 Firecracker microVM 게스트로 Blueclaw 구동. 데몬은 시크릿을 전혀 들지 않고(`capabilityLLM` 단일 프로바이더), 모든 LLM/플랫폼/시크릿 작업은 Unix socket/vsock 너머 capabilityd가 소유. Cloudflare Tunnel + OAuth 관리 게이트.
-- **에이전트 루프**: `AgentKernel` → intake 라우팅 → 확인(confirm) 게이트 → `AgentTurnRunner` 반복 루프. 액션은 네이티브 tool-calling이 아닌 **strict JSON-Schema 구조화 출력**(`blueclaw_agent_turn_action`, oneOf 액션 변형). 노출 도구는 그룹 캡(`maxSchemaCallableToolCount = 15`)으로 제한. effort 프로파일(quick/standard/deep/extended)별 반복/시간/도구 예산과 budget escalation, stall 감지.
+- **에이전트 루프**: `AgentKernel` → intake 라우팅 → 확인(confirm) 게이트 → `AgentTurnRunner` 반복 루프. 액션은 네이티브 tool-calling이 아닌 **strict JSON-Schema 구조화 출력**(`bluecollar_agent_turn_action`, oneOf 액션 변형). 노출 도구는 그룹 캡(`maxSchemaCallableToolCount = 15`)으로 제한. effort 프로파일(quick/standard/deep/extended)별 반복/시간/도구 예산과 budget escalation, stall 감지.
 - **완료 증거 게이트**: `OutcomeContract` + `completion_gate` — `file_deliver` 등 요구 증거 도구의 성공 관측이 없으면 finish를 거부. "말로 끝났다"가 불가능한 구조.
 - **정책/보안**: policy.json의 사람/서클/채널/리소스 ACL을 POSIX 사용자·그룹(`bc_person_*`, `bc_circle_*`)으로 투영. 모든 FS/exec은 setuid `blueclaw-posix-helper`를 통해 요청자 UID로 강등 실행. 워크스페이스 가상 경로 경계.
 - **메모리**: Graphiti temporal knowledge graph 사이드카(Kuzu) + Postgres 미러 + ACL/보안등급 필터링 검색.

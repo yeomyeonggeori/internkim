@@ -4,6 +4,12 @@ Jetson Orin Nano Super에 Blueclaw 런타임과 InternKim capability layer를 �
 
 전원과 네트워크만 연결하면 기기가 독립적으로 동작합니다. 사용자 컴퓨터는 companion을 통한 로컬 브라우저, 파일 선택, 승인 입력이 필요할 때만 연결됩니다.
 
+에이전트 호스트와 루프는 별도 공개 저장소에 있습니다.
+[blueclaw](https://github.com/Dawn-kim-official/blueclaw)가 요청자의 POSIX 신원으로
+툴을 실행하고 승인·원장을 소유하며,
+[bluecollar](https://github.com/Dawn-kim-official/bluecollar)가 그 안에서 도는
+에이전트 루프입니다. 이 저장소는 그 둘을 기기 위에 올리고 운영하는 층입니다.
+
 ## 아키텍처
 
 ```
