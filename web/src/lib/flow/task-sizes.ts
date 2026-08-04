@@ -1,7 +1,5 @@
 import type { FlowSizeDefinition } from '../../routes/flow/flow-types';
 
-// How big a piece of work is means the same thing at every company, so this list
-// is written once here rather than kept per company.
 const sizes: { name: string; distanceKm: number; maxHours: number }[] = [
 	{ name: 'XS', distanceKm: 1, maxHours: 1 },
 	{ name: 'S', distanceKm: 2, maxHours: 2 },
@@ -43,14 +41,11 @@ export function taskSizes(locale: 'ko' | 'en' = 'ko'): FlowSizeDefinition[] {
 
 export const taskSizeNames = sizes.map((size) => size.name);
 
-// An event already says how long it takes, so its size is read off the clock
-// rather than asked for: the smallest size that still fits the hours.
 export function sizeOfHours(hours: number): string {
 	const fitting = sizes.find((size) => hours <= size.maxHours);
 	return (fitting ?? sizes[sizes.length - 1]).name;
 }
 
-// A whole-day event has no hours to measure, so days stand in for them.
 const sizeOfWholeDayCount = ['M', 'L', 'XL'];
 
 export function sizeOfWholeDays(days: number): string {

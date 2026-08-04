@@ -1,9 +1,4 @@
-// Imports the device org chart: teams (a tree), each member's team, their
-// supervisor, and their join date. Reads credentials from .env.
 //   bun run web/scripts/import-org-chart.ts --sqlite <copy> --company <uuid> [--apply]
-//
-// The device keys supervisors by its own user id, so the run maps those back through
-// the profile rows to an address, and an address to a member here.
 
 import { Database } from 'bun:sqlite';
 import { controlPlane } from '../src/lib/server/control-plane';

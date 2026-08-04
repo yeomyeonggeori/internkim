@@ -1,6 +1,3 @@
-// Brings a device's work across from what its own web app serves, so no SSH and
-// no database file are needed. Matches a task by title and end day, the same
-// identity the earlier import used, so rerunning updates instead of duplicating.
 //   bun run web/scripts/import-flow-state.ts --file <flow-state.json> --company <uuid> [--apply]
 
 import { controlPlane } from '../src/lib/server/control-plane';
@@ -78,8 +75,6 @@ for (const task of state.tasks) {
 	);
 	const memberIDs = [...names].map((name) => memberByName.get(name)).filter((memberID): memberID is string => Boolean(memberID));
 
-	// Work whose every named person belongs to no one here is somebody else's,
-	// so it is left where it is rather than adopted.
 	if (names.size > 0 && memberIDs.length === 0) {
 		for (const name of names) unmatchedNames.add(name);
 		skipped += 1;
@@ -96,15 +91,11 @@ for (const task of state.tasks) {
 		business: task.business?.trim() || null,
 		type: task.type?.trim() || null,
 		size: task.size?.trim() || null,
-		// A task with only an end started on the day it was due; a task with only a
-		// start has no end yet.
 		starts_at: dayStart(startDay ?? endDay),
 		ends_at: dayEnd(endDay),
 		is_whole_day: Boolean(startDay && endDay)
 	};
 
-	// An earlier import filled a missing end in with the start. Those rows are
-	// found by that invented end, then corrected rather than duplicated.
 	const known =
 		idByIdentity.get(identityOf(title, endDay)) ??
 		(!endDay && startDay ? idByIdentity.get(identityOf(title, startDay)) : undefined);

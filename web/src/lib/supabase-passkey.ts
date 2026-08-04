@@ -1,10 +1,6 @@
 import { deriveBuzzPasskeyOutput, loginWithBuzzPasskey, registerBuzzPasskey } from '$lib/buzz-passkey';
 import { supabase } from '$lib/supabase';
 
-// A passkey's PRF output is a high-entropy secret only that authenticator can
-// produce, and only after the person verifies themselves. Using it as the
-// account's password makes the passkey the credential, with nothing to verify
-// server-side and no key material to store anywhere.
 function secretFrom(output: Uint8Array): string {
 	let binary = '';
 	for (const byte of output) binary += String.fromCharCode(byte);

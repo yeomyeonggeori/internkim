@@ -1,6 +1,3 @@
-// Invites people by issuing a temporary password each, for the admin to pass on.
-// Without --email everyone still pending is invited, so a first rollout is one
-// command and a rerun only reaches whoever has not been asked yet.
 //   bun run web/scripts/invite-members.ts --company <uuid> [--email one@example.com] [--apply]
 
 import { controlPlane, inviteMember } from '../src/lib/server/control-plane';

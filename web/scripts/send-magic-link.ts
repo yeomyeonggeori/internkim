@@ -1,8 +1,4 @@
-// Asks Supabase to mail a sign-in link, the way the product would.
 //   bun run web/scripts/send-magic-link.ts --email you@example.com [--redirect <url>]
-//
-// Delivery is the thing being tested here: the built-in mailer only reaches
-// addresses on the project team, and it reports success either way.
 
 import { createClient } from '@supabase/supabase-js';
 

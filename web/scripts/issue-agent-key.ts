@@ -1,4 +1,3 @@
-// Issues the key an agent proves itself with. Shown once — only its hash is kept.
 //   bun run web/scripts/issue-agent-key.ts --company <uuid> --name <what to call it>
 
 import { controlPlane, issueAgentKey } from '../src/lib/server/control-plane';

@@ -1,4 +1,3 @@
-// Brings a company's work locations across with the colours it already uses.
 //   bun run web/scripts/import-work-locations.ts --file <attendance.json> --company <uuid> [--apply]
 
 import { controlPlane } from '../src/lib/server/control-plane';
@@ -19,8 +18,6 @@ const document = JSON.parse(await Bun.file(file).text()) as { locations?: Device
 const deviceLocations = document.locations ?? [];
 if (deviceLocations.length === 0) throw new Error('the export carries no work locations');
 
-// The first one is what a clock-in with no location becomes, so the default
-// leads and the rest keep the order they were registered in.
 const ordered = [...deviceLocations].sort((left, right) => Number(right.isDefault) - Number(left.isDefault));
 const locations = ordered.map((location) => ({
 	name: location.name,

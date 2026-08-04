@@ -1,4 +1,3 @@
-// Says which of a device's attendance records never made it across.
 //   bun run web/scripts/compare-attendance.ts --file <attendance.json>
 
 import { controlPlane } from '../src/lib/server/control-plane';

@@ -1,6 +1,3 @@
-// Publishes a built SvelteKit app to a Cloudflare Pages project. Every deploy is
-// a preview on its own URL unless --production is asked for, so a half-finished
-// branch can never land on the live custom domain.
 //   bun run web/scripts/deploy-pages.ts --project internkim --output web/.svelte-kit/cloudflare
 //   bun run web/scripts/deploy-pages.ts --whoami
 

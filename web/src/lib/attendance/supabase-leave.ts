@@ -37,8 +37,6 @@ const statusWords: Record<LeaveStatus, EmployeeLeaveStatus> = {
 
 const dayInMilliseconds = 24 * 60 * 60 * 1000;
 
-// This company takes leave freely, so nothing is deducted from a balance and
-// every kind of leave is the same kind on the screen.
 const theOnlyLeaveType: EmployeeLeaveType = {
 	id: 'leave',
 	name: '휴가',
@@ -173,8 +171,6 @@ function approvalOf(row: LeaveRow, emails: Map<string, string>): LeaveApprovalRe
 	};
 }
 
-// A leave ends the instant the next day starts, so the last day people took off
-// is the day before the recorded end.
 function lastDayOf(row: LeaveRow): string {
 	return new Date(new Date(row.ends_at).getTime() - dayInMilliseconds).toISOString().slice(0, 10);
 }

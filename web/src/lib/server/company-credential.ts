@@ -1,8 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-// What a company shares about a connection: enough to reach the server, never
-// the password. The password lives in the vault and is read only when a request
-// actually needs to talk to that server.
 export type CompanyConnection = {
 	kind: string;
 	host: string;

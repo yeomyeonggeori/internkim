@@ -1,6 +1,3 @@
-// A company's mail and calendar servers: an admin says where they are and what
-// password reaches them. The password goes straight to the vault; nothing here
-// ever sends it back.
 import { adminCallerOf, asMember, controlPlane } from '$lib/server/control-plane';
 import {
 	companyConnections,

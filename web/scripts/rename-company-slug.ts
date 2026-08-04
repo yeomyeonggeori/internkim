@@ -1,4 +1,3 @@
-// Changes the name a company is reached at.
 //   bun run web/scripts/rename-company-slug.ts --company <uuid> --slug <new>
 
 import { controlPlane } from '../src/lib/server/control-plane';

@@ -3,16 +3,11 @@ import type { FlowDefinitions } from '../../routes/flow/flow-types';
 
 export type NamedColour = { name: string; color?: string };
 
-// How big a piece of work is means the same everywhere, so sizes are not part of
-// what a company chooses. Only what work belongs to, and what kind it is.
 export type TaskVocabulary = {
 	businesses?: NamedColour[];
 	types?: NamedColour[];
 };
 
-// A colour is optional in the vocabulary, so one is derived from the name when
-// none was chosen. The same name always lands on the same hue, which is what
-// makes a board readable before anyone has picked anything.
 export function colourOf(entry: NamedColour): string {
 	if (entry.color) return entry.color;
 	let hash = 0;

@@ -1,6 +1,3 @@
-// Prints a sign-in link instead of mailing one. Supabase's built-in mailer only
-// reaches addresses on the project team, so until custom SMTP is configured this is
-// how somebody gets in — hand them the link over whatever they already use.
 //   bun run web/scripts/sign-in-link.ts --company <uuid> [--email one@example.com] [--redirect http://localhost:5599/clock]
 
 import { controlPlane } from '../src/lib/server/control-plane';

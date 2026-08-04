@@ -30,8 +30,6 @@ export function controlPlane(credentials: ControlPlaneCredentials): SupabaseClie
 	});
 }
 
-// Acts with someone's own token, so row level security answers "who is this and
-// what may they touch" instead of a check written here.
 export function asMember(credentials: MemberCredentials, accessToken: string): SupabaseClient {
 	return createClient(credentials.projectURL, credentials.publishableKey, {
 		auth: { autoRefreshToken: false, persistSession: false },
@@ -100,9 +98,6 @@ export type Invitation = {
 	temporaryPassword: string;
 };
 
-// Mail cannot be relied on here — the built-in sender only reaches the project team
-// and reports success either way — so an invitation is a password the admin hands
-// over. The person changes it once they are in.
 export async function inviteMember(client: SupabaseClient, memberID: string): Promise<Invitation> {
 	const { data: member, error: readError } = await client
 		.from('member')
@@ -166,9 +161,6 @@ export type MemberSession = {
 	expiresAt: number;
 };
 
-// The host acts as the member who spoke, so it needs that member's session rather
-// than a key of its own. Supabase can hand one over without sending mail: generate
-// the link it would have mailed, then redeem it here.
 export async function sessionForMember(
 	credentials: ControlPlaneCredentials,
 	memberID: string,
@@ -191,9 +183,6 @@ export async function sessionForMember(
 	});
 	if (linkError) throw new Error(`link for ${member.email}: ${linkError.message}`);
 
-	// Redeeming the link signs this client in as the member, so it happens on a
-	// throwaway one. Doing it on the caller's client would quietly drop the control
-	// plane to that member's privileges for everything afterwards.
 	const redeemer = controlPlane(credentials);
 	const { data: session, error: verifyError } = await redeemer.auth.verifyOtp({
 		token_hash: link.properties.hashed_token,
@@ -211,8 +200,6 @@ export async function sessionForMember(
 
 export type AgentKey = { agentID: string; companyID: string; apiKey: string };
 
-// Issued once when an agent is installed. Only the hash is stored, so what the
-// control plane holds cannot be used to be an agent.
 export async function issueAgentKey(
 	client: SupabaseClient,
 	companyID: string,
@@ -259,10 +246,6 @@ async function hashOf(secret: string): Promise<string> {
 	return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-// What an agent actually asks for: the member behind a platform identity, and a
-// session to act as them. It proves which company it belongs to first, and the
-// member has to be in that same company — otherwise one company's agent could act
-// for another's people.
 export async function sessionForPlatformIdentity(
 	credentials: ControlPlaneCredentials,
 	apiKey: string,
