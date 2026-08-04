@@ -7,6 +7,8 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -126,7 +128,7 @@ func (service Service) companionConnectDeviceURL() string {
 	if fleetID == "" {
 		return admindBaseURL
 	}
-	return "https://" + fleetID + ".example.test"
+	return fleetdomain.Subdomain(fleetID, fleetdomain.Zone(readSecretValue(service.Configuration.APIURLPath)))
 }
 
 func isLocalBaseURL(value string) bool {

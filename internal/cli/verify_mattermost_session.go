@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -859,22 +860,31 @@ var mattermostScenarioSiteURLFieldPattern = regexp.MustCompile(`"(publishedURL|p
 func findMattermostScenarioPublicURL(message string) string {
 	fieldMatches := mattermostScenarioSiteURLFieldPattern.FindAllStringSubmatch(message, -1)
 	for _, fieldMatch := range fieldMatches {
-		if fieldMatch[1] == "publishedURL" && strings.Contains(fieldMatch[2], "example.test") {
+		if fieldMatch[1] == "publishedURL" && isPublicScenarioURL(fieldMatch[2]) {
 			return fieldMatch[2]
 		}
 	}
 	for _, fieldMatch := range fieldMatches {
-		if strings.Contains(fieldMatch[2], "example.test") {
+		if isPublicScenarioURL(fieldMatch[2]) {
 			return fieldMatch[2]
 		}
 	}
 	for _, candidate := range mattermostScenarioURLPattern.FindAllString(message, -1) {
 		trimmedCandidate := strings.TrimRight(candidate, ".,;:!?*]}'\"")
-		if strings.Contains(trimmedCandidate, "example.test") {
+		if isPublicScenarioURL(trimmedCandidate) {
 			return trimmedCandidate
 		}
 	}
 	return ""
+}
+
+func isPublicScenarioURL(candidate string) bool {
+	parsed, errorValue := url.Parse(strings.TrimSpace(candidate))
+	if errorValue != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	return strings.Contains(host, ".") && host != "127.0.0.1"
 }
 
 func findMattermostScenarioEventPublicURL(events []mattermostScenarioTaskEvent) string {

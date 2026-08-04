@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -76,6 +77,7 @@ type Configuration struct {
 	MattermostConfigFilePath       string
 	AdminEmailPath                 string
 	ClaimedAdminEmailPath          string
+	APIURLPath                     string
 	FleetIDPath                    string
 	DeviceURLPath                  string
 	FleetSecretPath                string
@@ -292,7 +294,6 @@ func DefaultConfiguration() Configuration {
 		MattermostBaseURL:              "http://127.0.0.1:8065",
 		MattermostTeamName:             "internkim",
 		BotUsername:                    "internkim",
-		APIBaseURL:                     "https://api.example.test",
 		BlueclawBaseURL:                "http://127.0.0.1:8080",
 		CapabilitySocketPath:           blueclawruntime.CapabilitySocketPath,
 		StateDirectory:                 "/root/.internkim/state/admin",
@@ -310,7 +311,6 @@ func DefaultConfiguration() Configuration {
 		MattermostOAuthClientPath:      "/root/.internkim/secrets/mattermost-oauth-client.json",
 		OpenRouterKeyPath:              "/root/.internkim/secrets/openrouter-api-key",
 		OpenRouterModelsURL:            "https://openrouter.ai/api/v1/models",
-		ReleaseRegistryURL:             "https://updates.example.test",
 		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
 		ReleaseSigningKeyPath:          "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
@@ -318,6 +318,7 @@ func DefaultConfiguration() Configuration {
 		MattermostConfigFilePath:       "/opt/mattermost/config/config.json",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
+		APIURLPath:                     "/root/.internkim/env/api-url",
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		DeviceURLPath:                  "/root/.internkim/env/device-url",
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
@@ -605,7 +606,7 @@ func (service *Service) router() http.Handler {
 func (service *Service) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		origin := request.Header.Get("Origin")
-		if isInternKimCORSPath(request.URL.Path) && isAllowedOrigin(origin) {
+		if isInternKimCORSPath(request.URL.Path) && service.isAllowedOrigin(origin) {
 			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
 			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
 			responseWriter.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, CF-Access-Authenticated-User-Email, X-InternKim-Companion-ID, X-InternKim-Companion-Token")
@@ -2747,6 +2748,15 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.ClaimedAdminEmailPath == "" {
 		configuration.ClaimedAdminEmailPath = defaultConfiguration.ClaimedAdminEmailPath
 	}
+	if configuration.APIURLPath == "" {
+		configuration.APIURLPath = defaultConfiguration.APIURLPath
+	}
+	if configuration.APIBaseURL == "" {
+		configuration.APIBaseURL = strings.TrimSpace(readTrimmedFile(configuration.APIURLPath))
+	}
+	if configuration.ReleaseRegistryURL == "" {
+		configuration.ReleaseRegistryURL = fleetdomain.Subdomain("updates", fleetdomain.Zone(configuration.APIBaseURL))
+	}
 	if configuration.FleetIDPath == "" {
 		configuration.FleetIDPath = defaultConfiguration.FleetIDPath
 	}
@@ -3077,7 +3087,11 @@ func copyRegularFile(sourcePath string, targetPath string) error {
 	return closeErrorValue
 }
 
-func isAllowedOrigin(origin string) bool {
+func (service *Service) fleetZone() string {
+	return fleetdomain.Zone(service.Configuration.APIBaseURL)
+}
+
+func (service *Service) isAllowedOrigin(origin string) bool {
 	if origin == "" {
 		return false
 	}
@@ -3086,7 +3100,7 @@ func isAllowedOrigin(origin string) bool {
 		return false
 	}
 	host := strings.ToLower(parsedURL.Hostname())
-	return host == "example.test" || strings.HasSuffix(host, ".example.test") || host == "localhost" || host == "127.0.0.1"
+	return fleetdomain.Covers(service.fleetZone(), host) || host == "localhost" || host == "127.0.0.1"
 }
 
 func isSafeTarPath(path string) bool {
