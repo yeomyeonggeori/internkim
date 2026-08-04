@@ -15,7 +15,7 @@ if (companyError) throw new Error(companyError.message);
 
 for (const company of companies ?? []) {
 	console.log(`company ${company.name} (${company.slug}) ${company.country}/${company.locale} ${company.timezone}`);
-	console.log(`  work locations: ${(company.work_locations ?? []).join(', ') || 'none'}`);
+	console.log(`  work locations: ${(company.work_locations ?? []).map((location) => `${location.name}${location.color ? ` ${location.color}` : ''}`).join(', ') || 'none'}`);
 
 	const dayIn = (instant: string) =>
 		new Date(instant).toLocaleDateString('sv-SE', { timeZone: company.timezone });
