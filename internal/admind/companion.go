@@ -126,7 +126,6 @@ type companionHeartbeatRequest struct {
 	LocalOnly              bool                      `json:"localOnly"`
 	LocalLLMAvailable      bool                      `json:"localLLMAvailable,omitempty"`
 	PreferCompanionBrowser bool                      `json:"preferCompanionBrowser,omitempty"`
-	Mounts                 []CompanionMountSnapshot  `json:"mounts,omitempty"`
 }
 
 type companionPairingCodeResponse struct {
@@ -381,10 +380,6 @@ func (service *Service) companionHeartbeat(responseWriter http.ResponseWriter, r
 	}
 	storedCompanion.LocalOnly = payload.LocalOnly
 	service.mutex.Unlock()
-	if errorValue := service.updateCompanionMounts(companion.CompanionID, payload.Mounts); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
 	if errorValue := service.saveCompanions(); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -538,9 +533,6 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	request.ResourceScope = service.inferCompanionResourceScope(request)
-	if errorValue := service.validateCompanionMountRequest(request); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
 	availability := service.companionCapabilityAvailability(request)
 	if availability != capabilities.CapabilityAvailable {
 		return companionCapabilityUnavailableResponse(request, availability), nil
@@ -621,7 +613,7 @@ func companionJobTimeoutSecond(request capabilities.ToolInvokeRequest) int {
 		}
 		return request.TimeoutSecond
 	}
-	if request.RequiresUserPresence || strings.HasPrefix(request.ToolName, "browser_") {
+	if request.RequiresUserPresence || requiresRequesterOwnedCompanion(request.ToolName) {
 		return 120
 	}
 	return 30
@@ -648,9 +640,6 @@ func (service *Service) claimNextCompanionJob(companion *CompanionRecord) (*Comp
 			continue
 		}
 		if shouldUseRequesterOwnedCompanion(job.Request) && !companionOwnsJob(companion, job) {
-			continue
-		}
-		if !service.companionCanClaimMountJobLocked(companion, job) {
 			continue
 		}
 		job.Status = "running"
@@ -699,9 +688,6 @@ func (service *Service) finishCompanionJob(companionID string, jobID string, res
 	}
 	service.mutex.Unlock()
 	if job.ToolName != capabilities.AttentionTriageToolName {
-		if errorValue := service.updateCompanionMountsFromJob(companionID, jobID, response); errorValue != nil {
-			return errorValue
-		}
 	}
 	if errorValue := service.saveCompanionJobs(); errorValue != nil {
 		return errorValue
@@ -972,16 +958,47 @@ func companionOwnsJob(companion *CompanionRecord, job *CompanionJob) bool {
 	return job.RequesterPersonID == "" && job.RequesterEmail == "" && companion.OwnerPersonID == "" && companion.OwnerEmail == ""
 }
 
+// A tool runs on the requester's own companion because it reaches that person's
+// machine - their browser session, their files, their screen. The descriptor
+// states it; the name is not evidence of anything.
+var companionToolNeedsRequesterDevice = buildCompanionToolDeviceNeed()
+
+// The local-model capabilities are the ones the model namespace owns. Reading the
+// family off the front of a name breaks the moment a tool is renamed.
+var companionToolNamespaces = buildCompanionToolNamespaces()
+
+func buildCompanionToolNamespaces() map[string]string {
+	namespaceByToolName := map[string]string{}
+	for _, descriptor := range capabilities.CompanionToolDescriptors() {
+		namespaceByToolName[descriptor.Name] = descriptor.Namespace
+	}
+	for _, descriptor := range capabilities.CompanionLLMDescriptors() {
+		namespaceByToolName[descriptor.Name] = descriptor.Namespace
+	}
+	return namespaceByToolName
+}
+
+func isLocalModelCapability(toolName string) bool {
+	return companionToolNamespaces[strings.TrimSpace(toolName)] == "llm"
+}
+
+func buildCompanionToolDeviceNeed() map[string]bool {
+	needByToolName := map[string]bool{}
+	for _, descriptor := range capabilities.CompanionToolDescriptors() {
+		needByToolName[descriptor.Name] = descriptor.RequiresRequesterDevice
+	}
+	return needByToolName
+}
+
 func requiresRequesterOwnedCompanion(toolName string) bool {
-	trimmedToolName := strings.TrimSpace(toolName)
-	return strings.HasPrefix(trimmedToolName, "browser_") || strings.HasPrefix(trimmedToolName, "user_") || trimmedToolName == "file_pick"
+	return companionToolNeedsRequesterDevice[strings.TrimSpace(toolName)]
 }
 
 func shouldUseRequesterOwnedCompanion(request capabilities.ToolInvokeRequest) bool {
 	if requiresRequesterOwnedCompanion(request.ToolName) {
 		return true
 	}
-	if !strings.HasPrefix(strings.TrimSpace(request.ToolName), "llm.") {
+	if !isLocalModelCapability(request.ToolName) {
 		return false
 	}
 	return hasCompanionRequester(request)
@@ -1101,10 +1118,6 @@ func companionResourceScope(request capabilities.ToolInvokeRequest) capabilities
 	switch request.ToolName {
 	case "browser_open", "browser_snapshot", "browser_screenshot", "browser_handoff", "browser_click", "browser_fill", "browser_select", "browser_press", "browser_wait":
 		return capabilities.ResourceScope{Kind: "web_origin", Value: browserOriginFromInput(request.Input)}
-	case "file_pick":
-		return capabilities.ResourceScope{Kind: "file_root", Value: ""}
-	case "filesystem.mount.create", "filesystem.mount.list", "filesystem.mount.pause", "filesystem.mount.resume", "filesystem.mount.revoke", "filesystem.mount.status", "filesystem.mount.stat", "filesystem.mount.list_directory", "filesystem.mount.read", "filesystem.mount.write", "filesystem.mount.mkdir", "filesystem.mount.rename", "filesystem.mount.delete", "filesystem.mount.truncate", "filesystem.mount.chmod", "filesystem.mount.watch":
-		return companionMountResourceScope(request)
 	default:
 		return capabilities.ResourceScope{}
 	}
@@ -1167,7 +1180,7 @@ func companionDenialResponse(denial capabilities.DenialResult) (capabilities.Too
 func companionCapabilityUnavailableResponse(request capabilities.ToolInvokeRequest, code string) capabilities.ToolInvokeResponse {
 	userReason := capabilities.CapabilityUnavailableUserReason(request.ToolName, code)
 	var recovery *capabilities.RecoveryAction
-	if code == capabilities.CapabilityNotConnected && strings.HasPrefix(strings.TrimSpace(request.ToolName), "browser_") {
+	if code == capabilities.CapabilityNotConnected && requiresRequesterOwnedCompanion(request.ToolName) {
 		recovery = capabilities.CompanionConnectRecovery()
 	}
 	document, _ := json.Marshal(capabilities.DenialResult{

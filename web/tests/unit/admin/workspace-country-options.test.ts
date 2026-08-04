@@ -23,3 +23,9 @@ test('workspace country options only include countries supported by the holiday 
 
 	expect(options.map((option) => option.value)).toEqual(['KR']);
 });
+
+test('workspace country options keep the selected country when the holiday API list is unavailable', () => {
+	const options = workspaceCountryOptions([], 'ko', 'kr');
+
+	expect(options).toEqual([{ value: 'KR', label: '대한민국 (KR)' }]);
+});

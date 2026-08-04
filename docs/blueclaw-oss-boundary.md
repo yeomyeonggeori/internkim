@@ -10,7 +10,7 @@ Blueclaw should be releasable as an open-source agent runtime without carrying I
 |---|---|---|
 | Blueclaw runtime | Blueclaw OSS | Conversation runtime, policy, task state, memory, scheduler, skill selection |
 | Capability protocol | Shared contract | Versioned JSON request, response, descriptor, routing, denial, and resource scope types |
-| Companion runtime | Reusable provider core | User-local browser, file picking, confirmation, input, filesystem mounts, and local model execution |
+| Companion runtime | Reusable provider core | User-local browser and local model execution |
 | InternKim product | Private appliance layer | Device provisioning, Cloudflare, Mattermost, Slack, Signal, Google, OpenRouter, admin UI, fleet, packaging |
 
 ## Blueclaw OSS Should Keep
@@ -48,7 +48,7 @@ InternKim-specific capability catalogs stay in `internal/capabilities`.
 
 ## Companion Boundary
 
-Companion is a trusted user-local capability provider. Its reusable core can advertise and execute browser, file, user input, filesystem mount, and local model capabilities.
+Companion is a trusted user-local capability provider. Its reusable core can advertise and execute browser and local model capabilities.
 
 The InternKim companion app remains a product shell around that core. It may include InternKim branding, pairing links, release packaging, tray behavior, and device runtime controls. Product controls should use product-owned device endpoints, not companion broker endpoints.
 

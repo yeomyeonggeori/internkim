@@ -51,7 +51,7 @@ test('does not apply a deferred refresh after a newer local update', async () =>
 			},
 			fetchHolidays: async (_startDate, _endDate, locale) => {
 				fetchedHolidayLocale = locale;
-				return [];
+				return { holidays: [], degraded: false };
 			}
 		}
 	);
@@ -110,6 +110,43 @@ test('reports a localized warning while keeping calendar events when holiday loa
 
 	expect(visibleEvents.map((event) => event.title)).toEqual(['Available event']);
 	expect(errorMessages).toEqual(['', 'Could not load public holidays.']);
+});
+
+test('reports a localized warning while keeping stale holidays in degraded mode', async () => {
+	const errorMessages: string[] = [];
+	let visibleEvents: DayFlowEvent[] = [];
+	const loader = createCalendarEventLoader(
+		{
+			isBrowser: () => true,
+			getLocale: () => 'ko',
+			errorFallback: () => '일정을 불러오지 못했습니다.',
+			holidayErrorFallback: () => '공휴일을 불러오지 못했습니다.',
+			getCalendarEvents: () => [],
+			getVisibleEvents: () => visibleEvents,
+			applyCalendarEventsChanges: () => {},
+			triggerCalendarRender: () => {},
+			setVisibleEvents: (events) => {
+				visibleEvents = events;
+			},
+			setEventCount: () => {},
+			setIsLoading: () => {},
+			setErrorMessage: (message) => errorMessages.push(message),
+			refreshSelectedMonthDateCell: () => {}
+		},
+		{
+			fetchEvents: async () => [],
+			fetchHolidays: async () => ({
+				holidays: [{ id: 'holiday-1', title: '신정', date: '2026-01-01', source: 'holiday_api', countryCode: 'KR', readOnly: true, color: '#dc2626' }],
+				degraded: true,
+				errorCode: 'HOLIDAY_PROVIDER_UNAVAILABLE'
+			})
+		}
+	);
+
+	await loader.loadEvents(new Date('2026-01-01T00:00:00Z'), new Date('2026-02-01T00:00:00Z'));
+
+	expect(visibleEvents.map((event) => event.title)).toEqual(['신정']);
+	expect(errorMessages).toEqual(['', '공휴일을 불러오지 못했습니다.']);
 });
 
 function calendarTestEvent(eventID: string, title: string): DayFlowEvent {

@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { attendanceText } from '../text';
+	import { EmployeeLeaveAPIError } from '../leave/employee-leave-api';
 	import { fetchLegacyAbsenceMigrationPreview } from './leave-management-api';
 	import { getLeaveManagementState } from './leave-management-state.svelte';
 	import type { LeaveManagementLegacyMigrationPreview } from './leave-management-types';
@@ -15,6 +16,7 @@
 	let preview = $state<LeaveManagementLegacyMigrationPreview | null>(null);
 	let isOpen = $state(false);
 	let isApplying = $state(false);
+	let isLoadingPreview = $state(false);
 
 	const isVisible = $derived(
 		(preview?.candidateLeaveCount ?? 0) > 0 || (preview?.conflictCount ?? 0) > 0
@@ -25,12 +27,30 @@
 		return template.replace('{count}', String(count));
 	}
 
-	async function loadPreview(showError: boolean): Promise<void> {
+	async function loadPreview(showError: boolean): Promise<LeaveManagementLegacyMigrationPreview | null> {
+		isLoadingPreview = true;
 		try {
-			preview = await fetchLegacyAbsenceMigrationPreview();
+			const nextPreview = await fetchLegacyAbsenceMigrationPreview();
+			preview = nextPreview;
+			return nextPreview;
 		} catch {
 			if (showError) toast.error(text.management.legacyMigrationLoadFailed);
+			return null;
+		} finally {
+			isLoadingPreview = false;
 		}
+	}
+
+	async function setOpen(nextOpen: boolean): Promise<void> {
+		if (!nextOpen) {
+			isOpen = false;
+			return;
+		}
+		if (isLoadingPreview || isApplying || management.isMutating) return;
+		const nextPreview = await loadPreview(true);
+		isOpen =
+			nextPreview !== null &&
+			(nextPreview.candidateLeaveCount > 0 || nextPreview.conflictCount > 0);
 	}
 
 	async function applyMigration(): Promise<void> {
@@ -45,9 +65,28 @@
 			toast.success(
 				countText(text.management.legacyMigrationCompletedTemplate, migratedCount)
 			);
-		} catch {
-			toast.error(text.management.legacyMigrationApplyFailed);
-			await loadPreview(false);
+		} catch (error) {
+			if (
+				error instanceof EmployeeLeaveAPIError &&
+				error.code === 'legacyMigrationStale'
+			) {
+				const nextPreview = await loadPreview(true);
+				isOpen =
+					nextPreview !== null &&
+					(nextPreview.candidateLeaveCount > 0 || nextPreview.conflictCount > 0);
+				if (nextPreview) toast.error(text.management.legacyMigrationStale);
+			} else if (
+				error instanceof EmployeeLeaveAPIError &&
+				error.code === 'legacyMigrationConflict'
+			) {
+				const nextPreview = await loadPreview(true);
+				isOpen =
+					nextPreview !== null &&
+					(nextPreview.candidateLeaveCount > 0 || nextPreview.conflictCount > 0);
+				if (nextPreview) toast.error(text.management.legacyMigrationConflict);
+			} else {
+				toast.error(text.management.legacyMigrationApplyFailed);
+			}
 		} finally {
 			isApplying = false;
 		}
@@ -59,11 +98,11 @@
 </script>
 
 {#if isVisible && preview}
-	<AlertDialog.Root bind:open={isOpen}>
+	<AlertDialog.Root bind:open={() => isOpen, setOpen}>
 		<AlertDialog.Trigger
 			class={buttonVariants({ variant: 'outline' })}
 			data-testid="legacy-leave-migration-action"
-			disabled={management.isMutating}
+			disabled={isLoadingPreview || isApplying || management.isMutating}
 		>
 			{text.management.legacyMigrationAction}
 		</AlertDialog.Trigger>
@@ -87,13 +126,13 @@
 				</AlertDialog.Description>
 			</AlertDialog.Header>
 			<AlertDialog.Footer>
-				<AlertDialog.Cancel disabled={isApplying || management.isMutating}>
+				<AlertDialog.Cancel disabled={isLoadingPreview || isApplying || management.isMutating}>
 					{isBlocked ? text.approval.close : text.cancel}
 				</AlertDialog.Cancel>
 				{#if !isBlocked}
 					<AlertDialog.Action
 						onclick={() => void applyMigration()}
-						disabled={isApplying || management.isMutating}
+						disabled={isLoadingPreview || isApplying || management.isMutating}
 						loading={isApplying}
 					>
 						{text.management.legacyMigrationConfirmAction}

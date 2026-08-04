@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -331,10 +330,10 @@ func TestDefaultCapabilitiesAdvertiseLLMOnlyInDevelopmentMockMode(t *testing.T) 
 	withoutMockLLM := companionruntime.DefaultCapabilities(true, false)
 	withMockLLM := companionruntime.DefaultCapabilities(true, true)
 
-	if hasCapability(withoutMockLLM, "llm.structured") {
+	if hasCapability(withoutMockLLM, "llm_structured") {
 		t.Fatal("expected LLM capability to be hidden without development mock mode")
 	}
-	if !hasCapability(withMockLLM, "llm.structured") {
+	if !hasCapability(withMockLLM, "llm_structured") {
 		t.Fatal("expected LLM capability in development mock mode")
 	}
 	if !hasCapability(withoutMockLLM, "browser_open") {
@@ -399,7 +398,7 @@ func TestPairSavesState(t *testing.T) {
 	if _, errorValue := secureStore.Get(nilContext(), state.PrivateKeyID); errorValue != nil {
 		t.Fatalf("expected private key in secure store: %v", errorValue)
 	}
-	if !hasCapability(state.Capabilities, "llm.structured") {
+	if !hasCapability(state.Capabilities, "llm_structured") {
 		t.Fatal("expected development LLM capability to be stored")
 	}
 }
@@ -455,7 +454,7 @@ func TestRunOnceCompletesMockLLMJob(t *testing.T) {
 		case "/_internkim/companion/heartbeat":
 			return textResponse(http.StatusOK, `{}`), nil
 		case "/_internkim/companion/jobs/next":
-			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","request":{"toolName":"llm.structured","input":{"structuredOutputSchema":{"document":{"required":["reply"]}}}}}`), nil
+			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","request":{"toolName":"llm_structured","input":{"structuredOutputSchema":{"document":{"required":["reply"]}}}}}`), nil
 		case "/_internkim/companion/jobs/job-1/complete":
 			seenComplete = true
 			return textResponse(http.StatusOK, `{}`), nil
@@ -474,39 +473,6 @@ func TestRunOnceCompletesMockLLMJob(t *testing.T) {
 	}
 }
 
-func TestRunOnceCompletesShellBridgeConfirmJob(t *testing.T) {
-	statePath := filepath.Join(t.TempDir(), "state.json")
-	state, secureStore := testCompanionState(t, true, false)
-	if errorValue := saveState(statePath, state); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	seenComplete := false
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.Path {
-		case "/v1/user/confirm":
-			return textResponse(http.StatusOK, `{"confirmed":true}`), nil
-		case "/_internkim/companion/heartbeat":
-			return textResponse(http.StatusOK, `{}`), nil
-		case "/_internkim/companion/jobs/next":
-			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","request":{"toolName":"user_confirm","input":{"message":"continue?"}}}`), nil
-		case "/_internkim/companion/jobs/job-1/complete":
-			seenComplete = true
-			return textResponse(http.StatusOK, `{}`), nil
-		default:
-			t.Fatalf("unexpected run path: %s", request.URL.Path)
-			return nil, nil
-		}
-	})}
-
-	errorValue := runCompanionWithStore([]string{"--state", statePath, "--once", "--shell-bridge-url", "http://127.0.0.1:1234"}, httpClient, secureStore)
-	if errorValue != nil {
-		t.Fatalf("expected run once success: %v", errorValue)
-	}
-	if !seenComplete {
-		t.Fatal("expected companion to complete the bridge job")
-	}
-}
-
 func TestDefaultBrowserExecutablePathUsesEnvironmentOverride(t *testing.T) {
 	executablePath := filepath.Join(t.TempDir(), "chrome")
 	if errorValue := os.WriteFile(executablePath, []byte("#!/bin/sh\n"), 0o700); errorValue != nil {
@@ -517,93 +483,6 @@ func TestDefaultBrowserExecutablePathUsesEnvironmentOverride(t *testing.T) {
 
 	if actual := defaultBrowserExecutablePath(); actual != executablePath {
 		t.Fatalf("browser executable path = %q, want %q", actual, executablePath)
-	}
-}
-
-func TestRunOnceDeniesBrowserJobWithReason(t *testing.T) {
-	statePath := filepath.Join(t.TempDir(), "state.json")
-	state, secureStore := testCompanionState(t, true, false)
-	if errorValue := saveState(statePath, state); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	seenDeny := false
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.Path {
-		case "/v1/security/approval":
-			return textResponse(http.StatusOK, `{"allowed":false,"userReason":"not now","suggestedConstraint":"ask for text"}`), nil
-		case "/_internkim/companion/heartbeat":
-			return textResponse(http.StatusOK, `{}`), nil
-		case "/_internkim/companion/jobs/next":
-			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser_navigate","resourceScope":{"kind":"web_origin","value":"https://github.com"},"request":{"toolName":"browser_navigate","input":{"url":"https://github.com"}}}`), nil
-		case "/_internkim/companion/jobs/job-1/deny":
-			seenDeny = true
-			return textResponse(http.StatusOK, `{}`), nil
-		default:
-			t.Fatalf("unexpected run path: %s", request.URL.Path)
-			return nil, nil
-		}
-	})}
-
-	errorValue := runCompanionWithStore([]string{"--state", statePath, "--once", "--shell-bridge-url", "http://127.0.0.1:1234"}, httpClient, secureStore)
-	if errorValue == nil {
-		t.Fatal("expected denied browser job to return denial error")
-	}
-	if !seenDeny {
-		t.Fatal("expected companion to send a denial result")
-	}
-}
-
-func TestRunOnceCancelsApprovalAtJobExpiry(t *testing.T) {
-	statePath := filepath.Join(t.TempDir(), "state.json")
-	state, secureStore := testCompanionState(t, true, false)
-	if errorValue := saveState(statePath, state); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	seenFail := false
-	seenApprovalTimeout := false
-	expiresAt := time.Now().UTC().Add(1200 * time.Millisecond).Format(time.RFC3339Nano)
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.Path {
-		case "/v1/security/approval":
-			var payload companionruntime.ApprovalRequest
-			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-				t.Fatalf("expected approval request: %v", errorValue)
-			}
-			if payload.TimeoutSeconds < 1 || payload.TimeoutSeconds > 2 {
-				t.Fatalf("expected job-scoped approval timeout, got %+v", payload)
-			}
-			select {
-			case <-request.Context().Done():
-				seenApprovalTimeout = true
-				return nil, request.Context().Err()
-			case <-time.After(3 * time.Second):
-				t.Fatal("approval request was not canceled by job expiry")
-				return nil, nil
-			}
-		case "/_internkim/companion/heartbeat":
-			return textResponse(http.StatusOK, `{}`), nil
-		case "/_internkim/companion/jobs/next":
-			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser_open","resourceScope":{"kind":"web_origin","value":"https://github.com"},"expiresAt":"`+expiresAt+`","request":{"toolName":"browser_open","input":{"url":"https://github.com"},"resourceScope":{"kind":"web_origin","value":"https://github.com"}}}`), nil
-		case "/_internkim/companion/jobs/job-1/fail":
-			seenFail = true
-			return textResponse(http.StatusOK, `{}`), nil
-		default:
-			t.Fatalf("unexpected run path: %s", request.URL.Path)
-			return nil, nil
-		}
-	})}
-
-	startedAt := time.Now()
-	errorValue := runCompanionWithStore([]string{"--state", statePath, "--once", "--shell-bridge-url", "http://127.0.0.1:1234"}, httpClient, secureStore)
-
-	if errorValue == nil {
-		t.Fatal("expected approval cancellation error")
-	}
-	if time.Since(startedAt) > 2500*time.Millisecond {
-		t.Fatalf("expected run loop to unblock near job expiry, took %s", time.Since(startedAt))
-	}
-	if !seenApprovalTimeout || !seenFail {
-		t.Fatalf("expected approval timeout and failed job, seenApprovalTimeout=%v seenFail=%v", seenApprovalTimeout, seenFail)
 	}
 }
 
@@ -647,146 +526,6 @@ func TestLegacyPrivateKeyStateMigratesToSecureStore(t *testing.T) {
 	}
 	if reloadedState.PrivateKey != "" {
 		t.Fatal("expected saved state to remove legacy private key")
-	}
-}
-
-func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
-	grantStore := companionruntime.NewMemoryGrantStore()
-	approvalHandler := companionruntime.ApprovalHandler(companionApprovalHandler{allowed: true})
-	request := capabilities.ToolInvokeRequest{
-		ToolName:      "browser_navigate",
-		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
-	}
-	if errorValue := grantStore.Authorize(context.Background(), companionruntime.JobEnvelope{
-		JobID:         "job-1",
-		ToolName:      "browser_navigate",
-		ResourceScope: request.ResourceScope,
-	}, request, approvalHandler); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	runtimeStatus := &runtimeState{}
-	runtimeStatus.recordHeartbeat(nil)
-	handler := controlHandler(grantStore, companionruntime.NewMountStore(""), companionruntime.NewBrowserHandoffStore(), nil, nil, runtimeStatus, newDynamicLocalLLM(localLLMSettings{}), http.DefaultClient)
-
-	listRequest := httptest.NewRequest(http.MethodGet, "/v1/security/grants", nil)
-	listRequest.RemoteAddr = "127.0.0.1:1234"
-	listResponse := httptest.NewRecorder()
-	handler.ServeHTTP(listResponse, listRequest)
-	if listResponse.Code != http.StatusOK {
-		t.Fatalf("expected grant list success, got %d", listResponse.Code)
-	}
-	var listDocument grantListDocument
-	if errorValue := json.Unmarshal(listResponse.Body.Bytes(), &listDocument); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(listDocument.Grants) != 1 {
-		t.Fatalf("expected one grant, got %d", len(listDocument.Grants))
-	}
-
-	runtimeRequest := httptest.NewRequest(http.MethodGet, "/v1/runtime/status", nil)
-	runtimeRequest.RemoteAddr = "127.0.0.1:1234"
-	runtimeResponse := httptest.NewRecorder()
-	handler.ServeHTTP(runtimeResponse, runtimeRequest)
-	if runtimeResponse.Code != http.StatusOK || !strings.Contains(runtimeResponse.Body.String(), "lastHeartbeatAt") {
-		t.Fatalf("expected runtime status, got %d %s", runtimeResponse.Code, runtimeResponse.Body.String())
-	}
-
-	revokeRequest := httptest.NewRequest(http.MethodPost, "/v1/security/grants/"+listDocument.Grants[0].GrantID+"/revoke", nil)
-	revokeRequest.RemoteAddr = "127.0.0.1:1234"
-	revokeResponse := httptest.NewRecorder()
-	handler.ServeHTTP(revokeResponse, revokeRequest)
-	if revokeResponse.Code != http.StatusOK {
-		t.Fatalf("expected revoke success, got %d", revokeResponse.Code)
-	}
-	if len(grantStore.ListActive()) != 0 {
-		t.Fatal("expected revoked grant to be inactive")
-	}
-}
-
-func TestControlHandlerCompletesBrowserHandoff(t *testing.T) {
-	handoffStore := companionruntime.NewBrowserHandoffStore()
-	handoff, errorValue := handoffStore.Begin(companionruntime.BrowserHandoffRequest{URL: "https://example.com/login", Message: "done?"}, "internkim")
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	handler := controlHandler(
-		companionruntime.NewMemoryGrantStore(),
-		companionruntime.NewMountStore(""),
-		handoffStore,
-		nil,
-		nil,
-		&runtimeState{},
-		newDynamicLocalLLM(localLLMSettings{}),
-		http.DefaultClient,
-	)
-
-	remoteRequest := httptest.NewRequest(http.MethodGet, "/v1/browser/handoff", nil)
-	remoteRequest.RemoteAddr = "198.51.100.10:1234"
-	remoteResponse := httptest.NewRecorder()
-	handler.ServeHTTP(remoteResponse, remoteRequest)
-	if remoteResponse.Code != http.StatusForbidden {
-		t.Fatalf("expected remote bridge request to fail, got %d", remoteResponse.Code)
-	}
-
-	completeRequest := httptest.NewRequest(http.MethodPost, "/v1/browser/handoff/complete", strings.NewReader(`{"handoffID":"`+handoff.HandoffID+`","sessionID":"internkim","url":"https://example.com/app"}`))
-	completeRequest.RemoteAddr = "127.0.0.1:1234"
-	completeResponse := httptest.NewRecorder()
-	handler.ServeHTTP(completeResponse, completeRequest)
-	if completeResponse.Code != http.StatusOK {
-		t.Fatalf("expected complete success, got %d %s", completeResponse.Code, completeResponse.Body.String())
-	}
-
-	wrongRequest := httptest.NewRequest(http.MethodPost, "/v1/browser/handoff/complete", strings.NewReader(`{"handoffID":"wrong","sessionID":"internkim","url":"https://example.com/app"}`))
-	wrongRequest.RemoteAddr = "127.0.0.1:1234"
-	wrongResponse := httptest.NewRecorder()
-	handler.ServeHTTP(wrongResponse, wrongRequest)
-	if wrongResponse.Code != http.StatusForbidden {
-		t.Fatalf("expected wrong handoff to fail, got %d", wrongResponse.Code)
-	}
-}
-
-func TestControlHandlerUpdatesLocalLLMWithoutRestart(t *testing.T) {
-	modelServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/api/tags" {
-			t.Fatalf("expected ollama tags request, got %s", request.URL.Path)
-		}
-		responseWriter.WriteHeader(http.StatusOK)
-		_, _ = responseWriter.Write([]byte(`{"models":[{"name":"gemma3:1b"}]}`))
-	}))
-	defer modelServer.Close()
-
-	runtimeStatus := &runtimeState{}
-	localLLM := newDynamicLocalLLM(localLLMSettings{})
-	handler := controlHandler(
-		companionruntime.NewMemoryGrantStore(),
-		companionruntime.NewMountStore(""),
-		companionruntime.NewBrowserHandoffStore(),
-		nil,
-		nil,
-		runtimeStatus,
-		localLLM,
-		modelServer.Client(),
-	)
-	body := `{"enableLocalLLM":true,"localBackendOrder":["ollama"],"ollama":{"baseURL":"` + modelServer.URL + `","model":"gemma3:1b"},"llamacpp":{"baseURL":"","model":""},"mlx":{"baseURL":"","model":""}}`
-	request := httptest.NewRequest(http.MethodPost, "/v1/runtime/local-llm", strings.NewReader(body))
-	request.RemoteAddr = "127.0.0.1:1234"
-	response := httptest.NewRecorder()
-
-	handler.ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("expected local LLM update success, got %d body=%s", response.Code, response.Body.String())
-	}
-	settings := localLLM.currentSettings()
-	if !settings.Enabled || settings.Configuration.OllamaModel != "gemma3:1b" {
-		t.Fatalf("expected live ollama model update, got %+v", settings.Configuration)
-	}
-	var status localLLMStatus
-	if errorValue := json.Unmarshal(response.Body.Bytes(), &status); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(status.Backends) != 1 || status.Backends[0].Model != "gemma3:1b" || !status.Backends[0].Available {
-		t.Fatalf("expected ready ollama status, got %+v", status)
 	}
 }
 
@@ -897,9 +636,6 @@ func TestDisconnectRevokesRemoteAndClearsLocalPairing(t *testing.T) {
 	if errorValue := saveState(statePath, state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := os.WriteFile(defaultMountStatePath(statePath), []byte("{}"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
 	if errorValue := os.WriteFile(defaultHandoffStatePath(statePath), []byte("{}"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -922,9 +658,6 @@ func TestDisconnectRevokesRemoteAndClearsLocalPairing(t *testing.T) {
 	}
 	if _, errorValue := os.Stat(statePath); !errors.Is(errorValue, os.ErrNotExist) {
 		t.Fatalf("expected state file to be removed, got %v", errorValue)
-	}
-	if _, errorValue := os.Stat(defaultMountStatePath(statePath)); !errors.Is(errorValue, os.ErrNotExist) {
-		t.Fatalf("expected mount state to be removed, got %v", errorValue)
 	}
 	if _, errorValue := os.Stat(defaultHandoffStatePath(statePath)); !errors.Is(errorValue, os.ErrNotExist) {
 		t.Fatalf("expected handoff state to be removed, got %v", errorValue)
@@ -978,7 +711,7 @@ func TestCompanionStatusFiltersBrowserCapabilitiesWhenRuntimeUnavailable(t *test
 		Error:  "companion browser runtime unavailable",
 	}, companionAuthStatusVerified)
 
-	if hasCapability(document.Capabilities, "browser_navigate") {
+	if hasCapability(document.Capabilities, "browser_click") {
 		t.Fatal("expected browser capabilities to be hidden when runtime is unavailable")
 	}
 	if document.ExtensionAutomationStatus != "unavailable" {
@@ -1033,16 +766,6 @@ func testCompanionState(t *testing.T, localOnly bool, devMockLLM bool) (companio
 
 func nilContext() context.Context {
 	return context.Background()
-}
-
-type companionApprovalHandler struct {
-	allowed bool
-}
-
-func (handler companionApprovalHandler) Approve(ctx context.Context, request companionruntime.ApprovalRequest) (companionruntime.ApprovalDecision, error) {
-	_ = ctx
-	_ = request
-	return companionruntime.ApprovalDecision{Allowed: handler.allowed}, nil
 }
 
 func textResponse(statusCode int, body string) *http.Response {

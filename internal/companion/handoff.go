@@ -455,3 +455,12 @@ func webOriginOrEmpty(value string) string {
 func handoffTimeoutContext(ctx context.Context, seconds int) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, time.Duration(NormalizeHandoffTimeoutSeconds(seconds))*time.Second)
 }
+
+func firstResourceScope(scopes ...capabilities.ResourceScope) capabilities.ResourceScope {
+	for _, scope := range scopes {
+		if scope.Kind != "" || scope.Value != "" {
+			return scope
+		}
+	}
+	return capabilities.ResourceScope{}
+}

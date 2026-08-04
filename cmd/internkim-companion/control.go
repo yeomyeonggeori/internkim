@@ -15,14 +15,6 @@ import (
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
-type grantListDocument struct {
-	Grants []companionruntime.GrantSnapshot `json:"grants"`
-}
-
-type mountListDocument struct {
-	Mounts []companionruntime.MountSnapshot `json:"mounts"`
-}
-
 type localLLMBackendStatus struct {
 	Name          string `json:"name"`
 	Model         string `json:"model,omitempty"`
@@ -169,7 +161,7 @@ func (state *runtimeState) snapshot() runtimeStatusDocument {
 	}
 }
 
-func startControlServer(listenAddress string, grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, handoffStore *companionruntime.BrowserHandoffStore, browserRuntime browserruntime.Runtime, handoffCompletionHandler func(context.Context, companionruntime.HandoffCompletion) error, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) (*http.Server, error) {
+func startControlServer(listenAddress string, handoffStore *companionruntime.BrowserHandoffStore, browserRuntime browserruntime.Runtime, handoffCompletionHandler func(context.Context, companionruntime.HandoffCompletion) error, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) (*http.Server, error) {
 	trimmedAddress := strings.TrimSpace(listenAddress)
 	if trimmedAddress == "" {
 		return nil, nil
@@ -178,7 +170,7 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	server := &http.Server{Handler: controlHandler(grantStore, mountStore, handoffStore, browserRuntime, handoffCompletionHandler, runtime, localLLM, httpClient)}
+	server := &http.Server{Handler: controlHandler(handoffStore, browserRuntime, handoffCompletionHandler, runtime, localLLM, httpClient)}
 	go func() {
 		errorValue := server.Serve(listener)
 		if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
@@ -188,7 +180,7 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 	return server, nil
 }
 
-func controlHandler(grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, handoffStore *companionruntime.BrowserHandoffStore, browserRuntime browserruntime.Runtime, handoffCompletionHandler func(context.Context, companionruntime.HandoffCompletion) error, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) http.Handler {
+func controlHandler(handoffStore *companionruntime.BrowserHandoffStore, browserRuntime browserruntime.Runtime, handoffCompletionHandler func(context.Context, companionruntime.HandoffCompletion) error, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) http.Handler {
 	multiplexer := http.NewServeMux()
 	handoffBridgeHandler := companionruntime.HandoffBridgeHandler{
 		Store:             handoffStore,
@@ -218,62 +210,6 @@ func controlHandler(grantStore *companionruntime.MemoryGrantStore, mountStore *c
 		localLLM.update(settings)
 		runtime.replaceLocalLLM(settings)
 		writeJSON(responseWriter, runtime.refreshLocalLLM(request.Context()))
-	})
-	multiplexer.HandleFunc("GET /v1/security/grants", func(responseWriter http.ResponseWriter, request *http.Request) {
-		_ = request
-		writeJSON(responseWriter, grantListDocument{Grants: grantStore.ListActive()})
-	})
-	multiplexer.HandleFunc("POST /v1/security/grants/{grantID}/revoke", func(responseWriter http.ResponseWriter, request *http.Request) {
-		grantID := request.PathValue("grantID")
-		if grantID == "" || !grantStore.Revoke(grantID) {
-			http.Error(responseWriter, "grant not found", http.StatusNotFound)
-			return
-		}
-		writeJSON(responseWriter, map[string]bool{"revoked": true})
-	})
-	multiplexer.HandleFunc("GET /v1/filesystem/mounts", func(responseWriter http.ResponseWriter, request *http.Request) {
-		_ = request
-		writeJSON(responseWriter, mountListDocument{Mounts: mountStore.List()})
-	})
-	multiplexer.HandleFunc("POST /v1/filesystem/mounts", func(responseWriter http.ResponseWriter, request *http.Request) {
-		var payload struct {
-			Path        string `json:"path"`
-			DisplayName string `json:"displayName"`
-		}
-		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-			return
-		}
-		mount, errorValue := mountStore.Create(payload.Path, payload.DisplayName)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-			return
-		}
-		writeJSON(responseWriter, mount)
-	})
-	multiplexer.HandleFunc("DELETE /v1/filesystem/mounts/{mountID}", func(responseWriter http.ResponseWriter, request *http.Request) {
-		mount, errorValue := mountStore.Revoke(request.PathValue("mountID"))
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusNotFound)
-			return
-		}
-		writeJSON(responseWriter, mount)
-	})
-	multiplexer.HandleFunc("POST /v1/filesystem/mounts/{mountID}/pause", func(responseWriter http.ResponseWriter, request *http.Request) {
-		mount, errorValue := mountStore.Pause(request.PathValue("mountID"))
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusNotFound)
-			return
-		}
-		writeJSON(responseWriter, mount)
-	})
-	multiplexer.HandleFunc("POST /v1/filesystem/mounts/{mountID}/resume", func(responseWriter http.ResponseWriter, request *http.Request) {
-		mount, errorValue := mountStore.Resume(request.PathValue("mountID"))
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusNotFound)
-			return
-		}
-		writeJSON(responseWriter, mount)
 	})
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if !isLoopbackRemoteAddress(request.RemoteAddr) {
