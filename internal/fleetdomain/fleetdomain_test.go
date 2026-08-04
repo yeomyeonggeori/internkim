@@ -8,7 +8,7 @@ func TestZoneDropsTheAPILabel(t *testing.T) {
 		"https://api.example.test/": "example.test",
 		"api.example.test":          "example.test",
 		"https://example.test":      "example.test",
-		"":                          "",
+		"":                          Default(),
 	} {
 		if zone := Zone(apiBaseURL); zone != expected {
 			t.Fatalf("Zone(%q) = %q, want %q", apiBaseURL, zone, expected)
@@ -25,6 +25,15 @@ func TestHostAndSubdomainStayEmptyWithoutAZone(t *testing.T) {
 	}
 	if address := Subdomain("updates", ""); address != "" {
 		t.Fatalf("subdomain without a zone = %q", address)
+	}
+}
+
+func TestConfigurationWinsOverTheDefaultZone(t *testing.T) {
+	if Default() == "" {
+		t.Fatal("a build with no self-hosting settings still needs a zone to serve")
+	}
+	if Zone("https://api.selfhosted.example") != "selfhosted.example" {
+		t.Fatal("a configured API address must win over the default")
 	}
 }
 

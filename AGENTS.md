@@ -405,6 +405,13 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 
 ## Deployment Hygiene
 
+- The fleet domain lives in exactly one place: `fleetdomain.defaultZone`.
+  Everything that needs it — the origin allowlist, the release registry,
+  device hosts, Flow action URLs — derives it rather than spelling it out.
+  Configuration wins over that default: a device takes it from the `api-url`
+  file setup writes, and self-hosting replaces it with `INTERNKIM_DOMAIN` or
+  `-api-url`.
+
 - When told to deploy, make it the default to: (1) check each relevant
   component's currently-deployed version first, (2) rebuild the changes fresh
   (`make build`, plus `make prepare-blueclaw-payload` for any `cmd/blueclaw`
