@@ -32,6 +32,94 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Keep generated test artifacts, platform users, memories, and remote messages
   cleaned up after real-platform tests.
 
+## Working on this repository
+
+Nothing lands on `main` or `design/saas` by direct push. Branch, open a pull
+request, let the checks run, merge.
+
+### Branch names
+
+`<type>/<subject-in-kebab-case>` — the type is the same word the commit will
+carry, and the subject says what changes, not what you did to it.
+
+```
+feat/attendance-absence-counts
+fix/mattermost-recipient-resolution
+docs/readme-and-conventions
+refactor/connector-runtime-split
+test/expensive-calendar-lifecycle
+chore/prune-expensive-artifacts
+ci/skip-docs-only-runs
+```
+
+Branch off the line you are targeting — product work off `design/saas`, device
+and runtime work off `main` — rebase rather than merge when it moves under you,
+and delete the branch once the pull request is merged.
+
+### Commit messages
+
+```
+<type>: <what changes, imperative, lowercase, no trailing period>
+
+<why it changes: the problem the reader would otherwise have to reconstruct.
+Wrap at 72 columns. Say what you deliberately did not do.>
+```
+
+`type` is one of `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`. A
+scope is allowed when it disambiguates (`fix(admind): …`) and omitted when it
+does not.
+
+The subject line is a claim about the code, not a description of the work:
+`fix: keep boot diagnosis usable during the crash it diagnoses` rather than
+`fix: fixed the admind bug`. The body answers *why*; a commit whose body only
+repeats the subject should not have one.
+
+Run `git config commit.template .gitmessage` once to get the template.
+
+### Prose in documents
+
+The README and the docs are read by people deciding whether to trust this
+thing. Prose that reads as machine-written costs that trust, and it drifts back
+in every time someone lets a model write a paragraph. Grep for it before
+committing.
+
+- **One negative-parallel construction per 500 words.** `X, not Y` ·
+  `rather than` · `not merely … but`. Keep the ones where the alternative is
+  what a reader would actually assume; cut the rest. They stop registering when
+  they repeat, which wastes the ones that matter.
+- **Under three em dashes per 500 words.** An em dash that bolts an appositive
+  onto a finished sentence should be a period.
+- **No sentence praising the document's own honesty.** "worth stating plainly",
+  "to be clear", "honest list". Be plain and say nothing about it.
+- **No section-closing restatement.** If the last sentence of a section adds no
+  fact, delete it.
+- **Three or more `A X is a Y that …` in a row is a definition list.**
+- **A fact stated in a table is not restated in prose.**
+- **Bold whole blocks, never words inside a sentence.**
+
+Check with:
+
+```bash
+python3 - <<'EOF'
+import re, pathlib
+text = pathlib.Path("README.md").read_text()
+words = len(text.split())
+negations = len(re.findall(r", not |rather than |not merely", text))
+print(f"{words} words · {negations} negations (1 per {words // max(negations, 1)}) · {text.count(chr(8212))} em dashes")
+EOF
+```
+
+### Pull requests
+
+One reviewable change per pull request. The description says what the reader
+should look at and what evidence exists that it works — the test that fails
+without the change, the scenario that was run, the screenshot. A pull request
+that touches unrelated files should be split.
+
+Branch names, commit messages, pull request titles and pull request
+descriptions are written in English. Discussion in review can be in whatever
+language the reviewers share; the repository's permanent record is English.
+
 ## Engineering Discipline (no cheating, no blind retries)
 
 - Cheating is any change that makes a check pass without making the product
