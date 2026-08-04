@@ -19,6 +19,7 @@ const variables = {
 	SUPABASE_URL: { type: 'secret_text', value: projectURL },
 	SUPABASE_PUBLISHABLE_KEY: { type: 'secret_text', value: publishableKey },
 	SUPABASE_SECRET_KEY: { type: 'secret_text', value: secretKey },
+	CF_PAGES_PROJECT: { type: 'plain_text', value: project },
 };
 
 const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountID}/pages/projects/${project}`, {

@@ -3,8 +3,6 @@ export type CompanyAddress = {
 	status: string;
 };
 
-// A company's address is a hostname on the Pages project that serves this page.
-// Wildcards are not accepted there, so founding a company claims its own.
 export async function claimCompanyAddress(
 	environment: Record<string, string | undefined>,
 	slug: string,
@@ -13,7 +11,7 @@ export async function claimCompanyAddress(
 	const token = environment.CF_API_TOKEN ?? '';
 	const accountID = environment.CF_ACCOUNT_ID ?? '';
 	const project = environment.CF_PAGES_PROJECT ?? '';
-	const zone = environment.COMPANY_ADDRESS_ZONE ?? zoneOf(servedFrom);
+	const zone = environment.CF_DOMAIN || zoneOf(servedFrom);
 	if (!token || !accountID || !project || !zone) return { hostname: null, status: 'addresses are not configured' };
 
 	const hostname = `${slug}.${zone}`;
