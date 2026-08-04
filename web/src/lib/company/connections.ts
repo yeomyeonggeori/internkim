@@ -1,6 +1,6 @@
 import { supabase } from '$lib/supabase';
 
-export type CompanyConnectionKind = 'smtp' | 'imap' | 'caldav';
+export type CompanyConnectionKind = 'smtp' | 'imap' | 'caldav' | 'mattermost';
 
 export type CompanyConnection = {
 	kind: string;

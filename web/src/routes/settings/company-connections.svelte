@@ -18,7 +18,7 @@
 	type Draft = { host: string; port: string; username: string; secret: string; hasSecret: boolean };
 
 	const text = createPageText(companySettingsText);
-	const kinds: CompanyConnectionKind[] = ['smtp', 'imap', 'caldav'];
+	const kinds: CompanyConnectionKind[] = ['mattermost', 'smtp', 'imap', 'caldav'];
 	const fieldID = $props.id();
 
 	let drafts = $state<Record<string, Draft>>(emptyDrafts());
