@@ -17,6 +17,9 @@ type DeviceFlowTask = {
 	status: string | null;
 	start_date: string | null;
 	end_date: string | null;
+	business: string | null;
+	type: string | null;
+	size: string | null;
 	request_reason: string | null;
 	created_at: string | null;
 };
@@ -115,7 +118,7 @@ for (const name of ambiguousNames) memberByName.delete(name);
 const device = new Database(sqlitePath);
 const flowTasks = device
 	.query(
-		'select id, owner_name, participant_names, content, goal, status, start_date, end_date, request_reason, created_at from flow_tasks',
+		'select * from flow_tasks',
 	)
 	.all() as DeviceFlowTask[];
 const events = device
@@ -162,12 +165,15 @@ function dayOf(value: string | null): string {
 	return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : '';
 }
 
-function dayRangeOf(startDate: string | null, endDate: string | null): { startsAt: string; endsAt: string } | null {
+// A task that only ever had a start keeps only a start. Filling the end in with
+// the start would claim a one-day task the device never recorded.
+function dayRangeOf(startDate: string | null, endDate: string | null): { startsAt: string; endsAt: string | null } | null {
 	const start = dayOf(startDate);
-	if (!start) return null;
+	const end = dayOf(endDate);
+	if (!start) return end ? { startsAt: `${end}T00:00:00+09:00`, endsAt: `${end}T23:59:00+09:00` } : null;
+	if (!end) return { startsAt: `${start}T00:00:00+09:00`, endsAt: null };
 	// The record puts a reversed range in order. Match that here too, so a rerun
 	// recognises the row it already wrote instead of adding another.
-	const end = dayOf(endDate) || start;
 	const [first, last] = end < start ? [end, start] : [start, end];
 	return { startsAt: `${first}T00:00:00+09:00`, endsAt: `${last}T23:59:00+09:00` };
 }
@@ -206,10 +212,12 @@ for (const task of flowTasks) {
 		title,
 		status: STATUS_OF_DEVICE[(task.status ?? '').trim()] ?? 'todo',
 		note: noteParts.join('\n') || null,
-		// A range needs both ends, and the device has rows with only one of them.
+		business: task.business?.trim() || null,
+		type: task.type?.trim() || null,
+		size: task.size?.trim() || null,
 		starts_at: range?.startsAt ?? null,
 		ends_at: range?.endsAt ?? null,
-		is_whole_day: Boolean(range),
+		is_whole_day: Boolean(range?.endsAt),
 	};
 	const data = await writeTask(fields, identityOf(title, range?.endsAt ?? null));
 	writtenTasks += 1;
