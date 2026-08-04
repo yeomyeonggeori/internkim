@@ -217,7 +217,6 @@ begin
   raise notice 'identity: slug is unique and url-safe, locale falls back to the company';
 end $$;
 
-
 do $$
 declare
   visible_tasks integer;

@@ -1,5 +1,3 @@
--- What a company calls its work: which business it belongs to, what kind it is,
--- and how big. Read together by every board, so kept together.
 alter table public.company add column task_vocabulary jsonb not null default '{}';
 
 alter table public.task
@@ -7,8 +5,6 @@ alter table public.task
   add column type text,
   add column size text;
 
--- A task that has only started has no end yet. Requiring both made the importer
--- invent one, which is worse than an empty cell.
 do $$
 declare
   paired_nulls text;

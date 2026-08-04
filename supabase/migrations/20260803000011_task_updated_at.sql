@@ -1,4 +1,3 @@
--- Two people editing the same event need to know whose change landed first.
 alter table public.task add column updated_at timestamptz not null default now();
 
 create function public.stamp_task_update()
