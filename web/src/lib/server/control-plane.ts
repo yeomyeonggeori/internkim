@@ -92,6 +92,49 @@ export async function addMember(
 	return data.id;
 }
 
+export type FoundedCompany = {
+	companyID: string;
+	adminMemberID: string;
+	invitations: Invitation[];
+};
+
+export async function memberOfAccount(
+	client: SupabaseClient,
+	accountID: string,
+	email: string,
+): Promise<string | null> {
+	const byAccount = await client.from('member').select('id').eq('user_id', accountID).maybeSingle();
+	if (byAccount.error) throw new Error(byAccount.error.message);
+	if (byAccount.data) return byAccount.data.id;
+
+	const byEmail = await client.from('member').select('id').eq('email', email).maybeSingle();
+	if (byEmail.error) throw new Error(byEmail.error.message);
+	return byEmail.data?.id ?? null;
+}
+
+export async function foundCompany(
+	client: SupabaseClient,
+	founder: { accountID: string; email: string },
+	company: CompanyInput,
+	invited: string[],
+): Promise<FoundedCompany> {
+	const { companyID, adminMemberID } = await provisionCompany(client, company, founder.email);
+
+	const { error } = await client
+		.from('member')
+		.update({ user_id: founder.accountID, status: 'active', joined_at: new Date().toISOString() })
+		.eq('id', adminMemberID);
+	if (error) throw new Error(`founder: ${error.message}`);
+
+	const invitations: Invitation[] = [];
+	for (const email of invited) {
+		if (email === founder.email) continue;
+		const memberID = await addMember(client, companyID, email);
+		invitations.push(await inviteMember(client, memberID));
+	}
+	return { companyID, adminMemberID, invitations };
+}
+
 export type Invitation = {
 	memberID: string;
 	email: string;

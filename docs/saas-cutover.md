@@ -97,6 +97,21 @@ admind takes four settings; with any of them missing it writes only locally:
 
 Once both records agree for long enough, the device side is the one to remove.
 
+## Signing up
+
+Whoever signs up with an address that already has a member is one of that
+company's people: they land in the app and nothing is asked of them. The invite
+already put them there, and the account binds to it by email.
+
+An address nobody has invited is starting a company. That person picks a name and
+an address, optionally lists who to bring, and becomes the admin. The invited get
+temporary passwords on screen, to hand over — the same shape an admin uses later
+from the org chart.
+
+Verified locally end to end: a new address founded a company with two invitations,
+then one of the invited signed in and went straight to the app, seeing only their
+own company and its three people.
+
 ## The cutover itself
 
 1. Pull and import once more, so the plane matches the device.
@@ -122,8 +137,10 @@ Once both records agree for long enough, the device side is the one to remove.
   These belong to the machine the agent runs on, and where they should live is
   undecided.
 - **Holidays are empty.** The device computed them; the plane has no source.
-- **Signing up is a script.** There is no web flow that creates a company, and
-  a company's hostname is attached by hand.
+- **A company's address needs Cloudflare settings.** Founding a company claims
+  `<slug>.intern.kim` when `CF_API_TOKEN`, `CF_ACCOUNT_ID` and `CF_PAGES_PROJECT`
+  are set on the Pages project; without them the company is still created and the
+  screen says the address was not claimed.
 - **One account belongs to one company.** `member.user_id` is unique, so nobody
   can hold two companies at once.
 

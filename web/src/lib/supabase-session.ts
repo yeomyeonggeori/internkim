@@ -31,6 +31,11 @@ export async function signOutOfSupabase(): Promise<void> {
 	await supabase().auth.signOut({ scope: 'local' });
 }
 
+export async function signUpWithSupabase(email: string, password: string): Promise<void> {
+	const { error } = await supabase().auth.signUp({ email: email.trim().toLowerCase(), password });
+	if (error) throw new Error(error.message);
+}
+
 export async function signInWithSupabase(email: string, password: string): Promise<void> {
 	const { error } = await supabase().auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
 	if (error) throw new Error(error.message);
