@@ -5,6 +5,7 @@ import {
 	addReaction,
 	editPost,
 	erasePost,
+	openDirectChannel,
 	readChannels,
 	readPeople,
 	readPosts,
@@ -88,6 +89,10 @@ async function route(method: string, path: string, body: unknown): Promise<unkno
 
 	if (method === 'GET' && parts[0] === 'person') return readPeople(mattermost, session);
 	if (method === 'GET' && parts.length === 1 && parts[0] === 'channel') return readChannels(mattermost, session);
+	if (method === 'POST' && parts[0] === 'channel' && parts[1] === 'direct') {
+		const asked = body as { memberIDs?: string[] } | null;
+		return openDirectChannel(mattermost, session, await externalIDsOf(asked?.memberIDs ?? []));
+	}
 	if (method === 'GET' && parts[0] === 'channel' && parts[2] === 'post') return readPosts(mattermost, session, parts[1]);
 	if (method === 'POST' && parts[0] === 'channel' && parts[2] === 'post') {
 		return writePost(mattermost, session, parts[1], asked?.body ?? '', asked?.parentID);
@@ -106,6 +111,18 @@ async function route(method: string, path: string, body: unknown): Promise<unkno
 		return null;
 	}
 	throw new Error(`the app has nothing at ${method} ${route}`);
+}
+
+async function externalIDsOf(memberIDs: string[]): Promise<string[]> {
+	if (memberIDs.length === 0) return [];
+	const contacts = await client
+		.from('contact')
+		.select('external_id, member_id')
+		.eq('platform', 'mattermost')
+		.in('member_id', memberIDs)
+		.returns<{ external_id: string; member_id: string }[]>();
+	if (contacts.error) throw new Error(contacts.error.message);
+	return contacts.data.map((contact) => contact.external_id);
 }
 
 async function refreshContacts(client: SupabaseClient, companyID: string, session: MattermostSession): Promise<void> {
