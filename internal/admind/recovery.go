@@ -1001,6 +1001,13 @@ for device in /sys/class/net/en*; do
 done
 section wifi
 iw dev 2>/dev/null | sed -n '1,80p'
+section sshd
+ss -ltnp 2>/dev/null | grep ':22 ' || printf 'nothing listening on 22\n'
+sshd -T 2>/dev/null | grep -iE '^(port|listenaddress|maxstartups|usepam|logingracetime) ' || printf 'sshd -T unavailable\n'
+systemctl show ssh -p ActiveState,SubState,MainPID,NRestarts 2>/dev/null
+printf 'local banner: '
+timeout 8 bash -c 'exec 3<>/dev/tcp/127.0.0.1/22; IFS= read -r line <&3 && printf "%s" "$line"' 2>/dev/null || printf 'NO BANNER FROM 127.0.0.1:22'
+printf '\n'
 section pressure
 cat /proc/pressure/cpu /proc/pressure/memory /proc/pressure/io 2>/dev/null
 section memory

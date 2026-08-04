@@ -14,9 +14,9 @@ func TestPerformSSHRecoveryRequestSignsPublicAdminRequest(t *testing.T) {
 	saveState(stateDirectory, "fleet_id", "fleet-1")
 	saveState(stateDirectory, "fleet_secret", "secret-1")
 
-	originalStatusHTTPClient := statusHTTPClient
-	defer func() { statusHTTPClient = originalStatusHTTPClient }()
-	statusHTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+	originalRecoveryHTTPClient := recoveryHTTPClient
+	defer func() { recoveryHTTPClient = originalRecoveryHTTPClient }()
+	recoveryHTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.Method != http.MethodPost || request.URL.Path != "/admin/api/recovery/ssh-tunnel/restart" {
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.Path)
 		}
@@ -65,9 +65,13 @@ func TestPerformSSHRecoveryRequestExplainsRedirectAsMissingEndpoint(t *testing.T
 	saveState(stateDirectory, "fleet_id", "fleet-1")
 	saveState(stateDirectory, "fleet_secret", "secret-1")
 
+	originalRecoveryHTTPClient := recoveryHTTPClient
 	originalStatusHTTPClient := statusHTTPClient
-	defer func() { statusHTTPClient = originalStatusHTTPClient }()
-	statusHTTPClient = &http.Client{
+	defer func() {
+		recoveryHTTPClient = originalRecoveryHTTPClient
+		statusHTTPClient = originalStatusHTTPClient
+	}()
+	stubbedClient := &http.Client{
 		CheckRedirect: func(request *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -79,6 +83,8 @@ func TestPerformSSHRecoveryRequestExplainsRedirectAsMissingEndpoint(t *testing.T
 			response.Header.Set("Location", "/admin/")
 			return response, nil
 		})}
+	recoveryHTTPClient = stubbedClient
+	statusHTTPClient = stubbedClient
 
 	_, errorValue := performSSHRecoveryRequest(commandTarget{
 		stateDir:  stateDirectory,
