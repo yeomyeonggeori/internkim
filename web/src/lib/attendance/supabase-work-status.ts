@@ -63,7 +63,11 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 	if (leave.error) throw new Error(leave.error.message);
 
 	const me = members.data.find((member) => member.user_id === accountID);
-	const employees = members.data.map((member) =>
+	// The person reading the table looks for themselves first, so they lead it.
+	const ordered = [...members.data].sort(
+		(left, right) => Number(right.id === me?.id) - Number(left.id === me?.id)
+	);
+	const employees = ordered.map((member) =>
 		employeeStatusOf(member, days, timeZone, attendance.data, leave.data, company.data.minimum_daily_minutes)
 	);
 
