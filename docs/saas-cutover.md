@@ -75,6 +75,28 @@ The link between a person and their messenger identity is a `credential` row.
 `link-messenger-identities.ts` writes them from `contact`, which the app fills in
 when it connects — so linking is a step of the cutover, not paperwork per person.
 
+## Running both at once, before choosing
+
+The device keeps its own record and now writes the same attendance to the plane
+as well. The local write happens first and is what the button waits for; the
+plane is written afterwards on its own, so a plane that is unreachable, refusing,
+or simply switched off cannot fail a clock-in. A refusal is logged, never
+surfaced to whoever pressed the button.
+
+`insertAttendanceEvent` is the only place a record is created, so every route —
+the Mattermost button, the device web, the agent — mirrors without knowing it.
+
+admind takes four settings; with any of them missing it writes only locally:
+
+```
+--central-plane-app-url         https://<company>.example.test
+--central-plane-agent-key       <file holding the key>
+--central-plane-project-url     https://<project>.supabase.co
+--central-plane-publishable-key sb_publishable_…
+```
+
+Once both records agree for long enough, the device side is the one to remove.
+
 ## The cutover itself
 
 1. Pull and import once more, so the plane matches the device.
