@@ -41,25 +41,6 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   (이샘플, 박예시, 최견본) and `example.com` addresses. Real people live in
   the database.
 
-## Branches, Commits, and Pull Requests
-
-- Branch names are `<prefix>/<kebab-topic>`. The prefix is a commit type —
-  `feat/attendance-monthly-status-table`, `fix/ssh-banner-diagnosis`,
-  `chore/crm-backend-schema-review` — or the name of whoever owns that line of
-  work when several run in parallel: `codex/attendance`, `chanhee/mail`.
-- Commit subjects are `<type>: <sentence>` or `<type>(<scope>): <sentence>`.
-  Types in use: `feat`, `fix`, `chore`, `refactor`, `test`, `style`, `perf`,
-  `revert`. The scope names the part of the product that changed —
-  `attendance`, `admind`, `calendar`, `buzz`, `web`. Every commit on `main`
-  carries one; a subject without a type does not belong there.
-- The subject says what the change does for whoever reads it later, not what
-  the diff touches: "Let an uninvited address start a company" over
-  "update company route".
-- Pull requests follow `.github/PULL_REQUEST_TEMPLATE.md`. Its 검증 방법
-  section carries the commands actually run, not the ones that ought to be.
-- Say a thing once in review. Edit the existing comment rather than adding
-  another, and delete the duplicates.
-
 ## Working on this repository
 
 Nothing lands on `main` or `design/saas` by direct push. Branch, open a pull
@@ -147,6 +128,9 @@ that touches unrelated files should be split.
 Branch names, commit messages, pull request titles and pull request
 descriptions are written in English. Discussion in review can be in whatever
 language the reviewers share; the repository's permanent record is English.
+
+Say a thing once. Edit the existing review comment rather than adding another,
+and delete the duplicates.
 
 ## Engineering Discipline (no cheating, no blind retries)
 
