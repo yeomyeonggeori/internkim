@@ -11,7 +11,7 @@ import type {
 } from '../../routes/attendance/attendance-context.svelte';
 
 type MemberRow = { id: string; name: string | null; email: string | null; is_admin: boolean; user_id: string | null; joined_at: string | null };
-type CompanyRow = { timezone: string; work_locations: NamedColour[] | null };
+type CompanyRow = { id: string; timezone: string; work_locations: NamedColour[] | null; rules: { teamViewVisibleToAll?: boolean } };
 type AttendanceRow = { id: string; member_id: string; kind: AttendanceKind; location: string | null; occurred_at: string };
 type LeaveRow = {
 	id: string;
@@ -28,7 +28,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 	const { data: auth } = await client.auth.getSession();
 	const accountID = auth.session?.user.id ?? '';
 
-	const company = await client.from('company').select('timezone, work_locations').limit(1).single<CompanyRow>();
+	const company = await client.from('company').select('id, timezone, work_locations, rules').limit(1).single<CompanyRow>();
 	if (company.error) throw new Error(company.error.message);
 
 	const members = await client
@@ -75,9 +75,20 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		members: membersInReadingOrder(members.data, me?.id).map(memberOf),
 		todayStatus: todayStatusOf(events, me?.email ?? '', timeZone),
 		locations: locationsOf(company.data.work_locations),
-		teamViewVisibleToAll: true,
+		teamViewVisibleToAll: company.data.rules.teamViewVisibleToAll !== false,
 		teamViewBlocked: false
 	};
+}
+
+export async function setSupabaseTeamViewVisibility(visible: boolean): Promise<void> {
+	const client = supabase();
+	const company = await client.from('company').select('id, rules').limit(1).single<{ id: string; rules: Record<string, unknown> }>();
+	if (company.error) throw new Error(company.error.message);
+	const { error } = await client
+		.from('company')
+		.update({ rules: { ...company.data.rules, teamViewVisibleToAll: visible } })
+		.eq('id', company.data.id);
+	if (error) throw new Error(error.message);
 }
 
 export async function recordSupabaseAttendance(kind?: AttendanceKind, locationID?: string): Promise<void> {

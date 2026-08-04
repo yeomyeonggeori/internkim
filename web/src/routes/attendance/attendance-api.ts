@@ -1,4 +1,4 @@
-import { recordSupabaseAttendance, supabaseAttendanceSummary } from '$lib/attendance/supabase-attendance';
+import { recordSupabaseAttendance, setSupabaseTeamViewVisibility, supabaseAttendanceSummary } from '$lib/attendance/supabase-attendance';
 import { supabaseWorkStatus } from '$lib/attendance/supabase-work-status';
 import { isSupabaseConfigured } from '$lib/supabase';
 import type {
@@ -151,6 +151,7 @@ export async function updateAttendanceEvent(eventID: string, request: UpdateAtte
 }
 
 export async function updateAttendanceTeamViewVisibility(visible: boolean): Promise<void> {
+	if (isSupabaseConfigured()) return setSupabaseTeamViewVisibility(visible);
 	const response = await fetch('/attendance/api/settings', {
 		method: 'PATCH',
 		credentials: 'include',
