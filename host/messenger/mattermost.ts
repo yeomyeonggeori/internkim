@@ -53,6 +53,7 @@ type MattermostPost = {
 	edit_at: number;
 };
 type MattermostUser = { id: string; username: string; first_name: string; last_name: string; email: string };
+type MattermostReaction = { user_id: string; post_id: string; emoji_name: string };
 
 export async function readChannels(settings: MattermostSettings, session: MattermostSession) {
 	const teams = await ask<{ id: string }[]>(settings, session, 'GET', `/users/me/teams`);
@@ -62,20 +63,60 @@ export async function readChannels(settings: MattermostSettings, session: Matter
 			...(await ask<MattermostChannel[]>(settings, session, 'GET', `/users/me/teams/${team.id}/channels`))
 		);
 	}
-	return channels
-		.filter((channel) => channel.type !== 'D' || channel.display_name)
-		.map((channel, index) => ({
-			id: channel.id,
+
+	const named = channels.map((channel) => ({
+		channel,
+		isDirect: channel.type === 'D' || channel.type === 'G',
+		name: channel.display_name || channel.name
+	}));
+	named.sort((left, right) => {
+		if (left.isDirect !== right.isDirect) return left.isDirect ? 1 : -1;
+		return left.name < right.name ? -1 : left.name > right.name ? 1 : 0;
+	});
+
+	const read = [];
+	for (const [position, entry] of named.entries()) {
+		read.push({
+			id: entry.channel.id,
 			platform: 'mattermost',
-			name: channel.display_name || channel.name,
-			isDirect: channel.type === 'D' || channel.type === 'G',
-			position: index,
-			participants: []
-		}));
+			name: entry.name,
+			isDirect: entry.isDirect,
+			position,
+			participants: entry.isDirect ? await readChannelPeople(settings, session, entry.channel.id) : []
+		});
+	}
+	return read;
+}
+
+async function readChannelPeople(settings: MattermostSettings, session: MattermostSession, channelID: string) {
+	const members = await ask<{ user_id: string }[]>(settings, session, 'GET', `/channels/${channelID}/members`);
+	return members
+		.filter((member) => member.user_id !== session.userID)
+		.map((member) => ({ externalID: member.user_id }));
+}
+
+export async function openDirectChannel(
+	settings: MattermostSettings,
+	session: MattermostSession,
+	externalIDs: string[]
+) {
+	const everyone = [...new Set([session.userID, ...externalIDs])];
+	const channel =
+		everyone.length === 2
+			? await ask<MattermostChannel>(settings, session, 'POST', '/channels/direct', everyone)
+			: await ask<MattermostChannel>(settings, session, 'POST', '/channels/group', everyone);
+	return {
+		id: channel.id,
+		platform: 'mattermost',
+		name: channel.display_name || channel.name,
+		isDirect: true,
+		position: 0,
+		participants: externalIDs.map((externalID) => ({ externalID }))
+	};
 }
 
 export async function readPosts(settings: MattermostSettings, session: MattermostSession, channelID: string) {
-	const page = await ask<{ order: string[]; posts: Record<string, MattermostPost> }>(
+	const page = await ask<{ order: string[]; posts: Record<string, MattermostPost & { metadata?: { reactions?: MattermostReaction[] } }> }>(
 		settings,
 		session,
 		'GET',
@@ -92,8 +133,18 @@ export async function readPosts(settings: MattermostSettings, session: Mattermos
 			body: post.message,
 			postedAt: new Date(post.create_at).toISOString(),
 			editedAt: post.edit_at ? new Date(post.edit_at).toISOString() : undefined,
-			reactions: []
+			reactions: reactionsOf(post.metadata?.reactions ?? [])
 		}));
+}
+
+function reactionsOf(reactions: MattermostReaction[]) {
+	const people = new Map<string, { externalID: string }[]>();
+	for (const reaction of reactions) {
+		const already = people.get(reaction.emoji_name) ?? [];
+		already.push({ externalID: reaction.user_id });
+		people.set(reaction.emoji_name, already);
+	}
+	return [...people].map(([emoji, who]) => ({ emoji, people: who }));
 }
 
 export async function writePost(
