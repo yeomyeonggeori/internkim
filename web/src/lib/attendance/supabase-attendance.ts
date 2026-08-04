@@ -1,5 +1,6 @@
 import { supabase } from '$lib/supabase';
 import { colourOf, type NamedColour } from '$lib/flow/task-vocabulary';
+import { membersInReadingOrder } from '$lib/member-order';
 import type {
 	AttendanceAbsence,
 	AttendanceEvent,
@@ -9,7 +10,7 @@ import type {
 	AttendanceSummary
 } from '../../routes/attendance/attendance-context.svelte';
 
-type MemberRow = { id: string; name: string | null; email: string | null; is_admin: boolean; user_id: string | null };
+type MemberRow = { id: string; name: string | null; email: string | null; is_admin: boolean; user_id: string | null; joined_at: string | null };
 type CompanyRow = { timezone: string; work_locations: NamedColour[] | null };
 type AttendanceRow = { id: string; member_id: string; kind: AttendanceKind; location: string | null; occurred_at: string };
 type LeaveRow = {
@@ -32,7 +33,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 
 	const members = await client
 		.from('member')
-		.select('id, name, email, is_admin, user_id')
+		.select('id, name, email, is_admin, user_id, joined_at')
 		.neq('status', 'withdrawn')
 		.returns<MemberRow[]>();
 	if (members.error) throw new Error(members.error.message);
@@ -71,9 +72,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		timeZone,
 		events,
 		absences: leave.data.flatMap((row) => absencesOf(row, byID.get(row.member_id), timeZone)),
-		members: [...members.data]
-			.sort((left, right) => Number(right.id === me?.id) - Number(left.id === me?.id))
-			.map(memberOf),
+		members: membersInReadingOrder(members.data, me?.id).map(memberOf),
 		todayStatus: todayStatusOf(events, me?.email ?? '', timeZone),
 		locations: locationsOf(company.data.work_locations),
 		teamViewVisibleToAll: true,
