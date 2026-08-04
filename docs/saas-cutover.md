@@ -41,6 +41,40 @@ duplicates.
 `show-migration.ts` counts what landed. `compare-attendance.ts` says which
 attendance records the record refused.
 
+## Moving the database somewhere else
+
+Verified 2026-08-04 by dumping the hosted project and restoring it into an empty
+database built only from `supabase/migrations`:
+
+```
+company 1 · member 7 · attendance 925 · task 648 · contact 13 · credential 8 · users 7
+```
+
+Signing in against the restored copy works with the same password, so accounts
+travel with the data. Nothing in the schema is particular to the hosted
+platform: ordinary Postgres, row level security, and the vault extension that
+self-hosted Supabase also ships. The grants that a fresh database needs are a
+migration (`20260803000016_api_grants.sql`), not something the platform does for
+us — that was found the first time this was tried locally.
+
+## Working from the messenger, with no web sign-in
+
+Someone who has never opened the web app can still be acted for. The app proves
+the company with its agent key, names the messenger identity that spoke, and the
+plane hands back that member's session:
+
+```
+POST /api/agent/session   Bearer <agent key>   {"kind":"mattermost","externalID":"…"}
+```
+
+Verified for two members who never signed in: each reads their own record, sees
+their seven colleagues and no other company. An identity nobody claims is
+refused, and so is a wrong agent key.
+
+The link between a person and their messenger identity is a `credential` row.
+`link-messenger-identities.ts` writes them from `contact`, which the app fills in
+when it connects — so linking is a step of the cutover, not paperwork per person.
+
 ## The cutover itself
 
 1. Pull and import once more, so the plane matches the device.
