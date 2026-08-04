@@ -12,7 +12,8 @@
 	import { onMount } from 'svelte';
 	import { buzzPasskeyLogin, buzzPasswordLogin, mattermostPasswordLogin } from '$lib/buzz-key-login';
 	import { createBuzzIdentityTransport, enrollKnownBuzzIdentity } from '$lib/buzz-identity-session';
-	import { isPasskeySupported } from '$lib/buzz-passkey';
+	import { isPasskeySupported as isBuzzPasskeySupported } from '$lib/buzz-passkey';
+	import { isPasskeySupported as isSupabasePasskeySupported } from '$lib/supabase-passkey';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 	import { isSupabaseConfigured, signInWithSupabase } from '$lib/supabase-session';
 	import { signInWithPasskey } from '$lib/supabase-passkey';
@@ -21,7 +22,7 @@
 
 	const text = createPageText(appShellText);
 	const fieldId = $props.id();
-	const passkeyAvailable = isPasskeySupported();
+	const passkeyAvailable = isSupabaseConfigured ? isSupabasePasskeySupported() : isBuzzPasskeySupported();
 	const identityTransport = createBuzzIdentityTransport();
 	let buzzEnabled = $state(isSupabaseConfigured);
 	let email = $state('');
