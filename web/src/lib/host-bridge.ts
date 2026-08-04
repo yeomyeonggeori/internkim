@@ -22,6 +22,7 @@ export class HostUnreachableError extends Error {
 const answerTimeoutMilliseconds = 20_000;
 
 let joined: Promise<RealtimeChannel> | undefined;
+let running = false;
 const waiting = new Map<string, (answer: HostAnswer) => void>();
 
 async function companyChannel(): Promise<RealtimeChannel> {
@@ -39,6 +40,9 @@ async function companyChannel(): Promise<RealtimeChannel> {
 		if (member.error) throw new Error(member.error.message);
 
 		const channel = client.channel(`company:${member.data.company_id}`, { config: { private: true } });
+		channel.on('presence', { event: 'sync' }, () => {
+			running = Object.keys(channel.presenceState()).length > 0;
+		});
 		channel.on('broadcast', { event: 'answer' }, ({ payload }) => {
 			const answer = payload as { callID?: string; status?: number; body?: unknown };
 			if (typeof answer.callID !== 'string') return;
@@ -57,13 +61,12 @@ async function companyChannel(): Promise<RealtimeChannel> {
 }
 
 export async function isCompanyAppRunning(): Promise<boolean> {
-	const channel = await companyChannel();
-	return Object.keys(channel.presenceState()).length > 0;
+	await companyChannel();
+	return running;
 }
 
 export async function callCompanyApp(call: HostCall): Promise<HostAnswer> {
 	const channel = await companyChannel();
-	if (!(await isCompanyAppRunning())) throw new HostUnreachableError();
 
 	const callID = crypto.randomUUID();
 	const answered = new Promise<HostAnswer | null>((resolve) => {
