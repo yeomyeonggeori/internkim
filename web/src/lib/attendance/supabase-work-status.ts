@@ -1,4 +1,5 @@
 import { supabase } from '$lib/supabase';
+import { membersInReadingOrder } from '$lib/member-order';
 import type {
 	AttendanceEmployeeWorkStatus,
 	AttendanceWorkDayStatus,
@@ -12,6 +13,7 @@ type MemberRow = {
 	email: string | null;
 	is_admin: boolean;
 	user_id: string | null;
+	joined_at: string | null;
 	minimum_daily_minutes: number | null;
 };
 type CompanyRow = { timezone: string; minimum_daily_minutes: number | null };
@@ -35,7 +37,7 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 
 	const members = await client
 		.from('member')
-		.select('id, name, email, is_admin, user_id, minimum_daily_minutes')
+		.select('id, name, email, is_admin, user_id, joined_at, minimum_daily_minutes')
 		.neq('status', 'withdrawn')
 		.returns<MemberRow[]>();
 	if (members.error) throw new Error(members.error.message);
@@ -63,11 +65,7 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 	if (leave.error) throw new Error(leave.error.message);
 
 	const me = members.data.find((member) => member.user_id === accountID);
-	// The person reading the table looks for themselves first, so they lead it.
-	const ordered = [...members.data].sort(
-		(left, right) => Number(right.id === me?.id) - Number(left.id === me?.id)
-	);
-	const employees = ordered.map((member) =>
+	const employees = membersInReadingOrder(members.data, me?.id).map((member) =>
 		employeeStatusOf(member, days, timeZone, attendance.data, leave.data, company.data.minimum_daily_minutes)
 	);
 
