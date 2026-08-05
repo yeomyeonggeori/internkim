@@ -51,8 +51,7 @@ console.log(`mattermost ready as ${mattermost.email}`);
 
 let memberSession = await askForSession(session.userID);
 const client = createClient(projectURL, publishableKey, {
-	auth: { autoRefreshToken: false, persistSession: false },
-	global: { headers: { Authorization: `Bearer ${memberSession.accessToken}` } }
+	accessToken: async () => memberSession.accessToken
 });
 
 const member = await client
@@ -64,7 +63,7 @@ if (member.error) throw new Error(member.error.message);
 console.log(`acting as member ${memberSession.memberID}`);
 
 await refreshContacts(client, member.data.company_id, session);
-setInterval(() => void refreshContacts(client, member.data.company_id, session), 600_000);
+setInterval(() => void keepGoing('contacts', () => refreshContacts(client, member.data.company_id, session)), 600_000);
 
 client.realtime.setAuth(memberSession.accessToken);
 const channel = client.channel(`company:${member.data.company_id}`, { config: { private: true } });
@@ -73,7 +72,7 @@ channel.on('broadcast', { event: 'call' }, ({ payload }) => {
 	void answer(payload as Call);
 });
 
-setInterval(() => void keepSessionFresh(), 60_000);
+setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
 
 await new Promise<void>((resolve, reject) => {
 	channel.subscribe((status, error) => {
@@ -191,8 +190,16 @@ async function keepSessionFresh(): Promise<void> {
 	const secondsLeft = memberSession.expiresAt - Math.floor(Date.now() / 1000);
 	if (secondsLeft > 300) return;
 	memberSession = await askForSession(session.userID);
-	client.realtime.setAuth(memberSession.accessToken);
+	await client.realtime.setAuth(memberSession.accessToken);
 	console.log('session renewed');
+}
+
+async function keepGoing(what: string, work: () => Promise<void>): Promise<void> {
+	try {
+		await work();
+	} catch (error) {
+		console.error(`${what} failed, still listening:`, error instanceof Error ? error.message : error);
+	}
 }
 
 async function externalIDsOf(memberIDs: string[]): Promise<string[]> {
