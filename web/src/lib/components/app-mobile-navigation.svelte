@@ -33,7 +33,8 @@
 		primaryItems,
 		text,
 		userEmail,
-		userImage
+		userImage,
+		userMemberID
 	}: {
 		displayUserName: string;
 		isActive: (href: string) => boolean;
@@ -43,6 +44,7 @@
 		text: AppMobileNavigationText;
 		userEmail: string;
 		userImage?: string;
+		userMemberID?: string;
 	} = $props();
 
 	let isMoreSheetOpen = $state(false);
@@ -97,7 +99,7 @@
 {#snippet mobileAccountActions()}
 	<div class="rounded-md border border-sidebar-border bg-background p-2">
 		<div class="flex items-center gap-3 px-1 py-1.5">
-			<PersonAvatar name={displayUserName} email={userEmail} image={userImage ?? ''} class="size-9 rounded-lg" />
+			<PersonAvatar name={displayUserName} email={userEmail} memberID={userMemberID ?? ''} image={userImage ?? ''} class="size-9 rounded-lg" />
 			<div class="grid min-w-0 flex-1 text-sm leading-tight">
 				<span class="truncate font-medium">{displayUserName}</span>
 				<span class="truncate text-xs text-muted-foreground">{userEmail || text.activeWorkspace}</span>
