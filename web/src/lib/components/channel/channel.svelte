@@ -677,6 +677,7 @@
 				<div class="chat-markdown prose prose-sm dark:prose-invert max-w-none">
 					<SvelteMarkdown
 						source={applyCustomEmoji(content.text, message.customEmoji, customEmoji.nameToURL)}
+						options={{ breaks: true, gfm: true }}
 					/>
 				</div>
 			</Bubble.Content>
