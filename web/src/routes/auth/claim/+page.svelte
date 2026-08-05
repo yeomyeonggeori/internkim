@@ -48,8 +48,12 @@
 
 	const askForLink = () =>
 		run(async () => {
-			await sendClaimLink(email);
-			step = 'sent';
+			const outcome = await sendClaimLink(email);
+			if (outcome === 'sent') {
+				step = 'sent';
+				return;
+			}
+			errorMessage = outcome === 'tooManyLately' ? text.claimTooManyLately : text.claimFailed;
 		});
 
 	const proveTheAddress = () =>
