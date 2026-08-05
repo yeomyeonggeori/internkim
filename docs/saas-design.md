@@ -87,6 +87,11 @@ Two planes:
    │  THE TENANT'S MESSENGER — theirs, not ours            │
    │  their Slack · their Mattermost · their Buzz relay    │
    └───────────────────────────────────────────────────────┘
+
+   The messenger the browser draws comes back the same way, over Realtime:
+
+     Browser ──call──▶ Supabase Realtime ──▶ host's messenger bridge ──▶ tenant's messenger
+     Browser ◀─answer── Supabase Realtime ◀──         (outbound only, still no inbound port)
 ```
 
 - **Central (we operate, small + cheap):** Supabase (identity, data, Realtime),
@@ -332,6 +337,38 @@ companion UI (guest on an employee's machine).
   bundle must carry both; "localhost + REST" understated this.
 - Started in **`host` mode** (headless): the same app via CLI/package, or the
   desktop app set to host mode.
+
+### The messenger bridge — the daemon the web app talks to
+
+The web app holds no messenger of its own and has no fallback: every channel,
+person, profile picture and custom emoji it draws is **answered by a daemon on
+the company's always-on computer**. The browser broadcasts a call on the
+company's Supabase Realtime channel, the bridge answers it, and the reply comes
+back the same way. **When the bridge is not running the messenger screen is
+empty** — by design, because the company holds its own messenger and we never
+see the conversation.
+
+What matters about this daemon:
+
+- **It depends on nothing else in the bundle.** It never speaks to blueclaw,
+  chatd, capabilityd, llmd or Postgres — only Supabase, the central plane and
+  the tenant's messenger. It therefore starts first and outlives them: the agent
+  can be down and the messenger still works.
+- **The hardware is irrelevant.** A Jetson, a Mac Studio, a spare Linux box or
+  the developer's own laptop are all equally valid — it needs an outbound network
+  and a machine that stays on, nothing else. The POSIX boundary in §4 constrains
+  where the *agent* runs, not this.
+- **Users are on other networks.** They reach the company's messenger through
+  Supabase Realtime and the Supabase database, never by connecting to the
+  company's machine. That is what keeps "no inbound port" true while people work
+  from anywhere.
+- **Self-hosting is the destination** (§8). Whoever runs it builds one executable
+  and gives it four settings — the Supabase project, its publishable key, their
+  company's app URL and a path to their agent key. Nothing else is per-company.
+- **One company, one process.** It subscribes to a single `company:<id>` channel
+  and signs in as that company's bot. Running several companies from the same
+  computer means starting the executable once per company with different
+  settings; there is no multi-tenant mode inside it and no reason to add one.
 
 ### Guest — the optional per-employee companion
 - Each **employee** is a separate workspace member. Running the app in **`guest`

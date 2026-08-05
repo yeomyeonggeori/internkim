@@ -1,8 +1,10 @@
 #!/bin/sh
 # Brings up the company agent on an ordinary Linux box: llmd, capabilityd, blueclaw
-# and chatd, in that order because each waits for the one before it. Nothing listens
-# off loopback — the box reaches the messenger and the central plane outbound and is
-# never reached back.
+# and chatd, in that order because each waits for the one before it. The messenger
+# bridge starts first and depends on none of them — it talks only to Supabase, the
+# central plane and the tenant's messenger, so the screen stays alive even when the
+# agent does not. Nothing listens off loopback: the box reaches out and is never
+# reached back.
 set -e
 
 llmdRuntimeDirectory="/run/internkim/llmd"
@@ -11,10 +13,14 @@ llmdAuthKeyPath="${llmdRuntimeDirectory}/llmd-auth-key"
 capabilitySocketPath="/run/internkim/capability.sock"
 blueclawAddress="127.0.0.1:8080"
 chatdPort="${CHATD_LISTEN_PORT:-18090}"
+agentKeyPath="/secrets/agent-key"
 
 : "${SUPABASE_URL:?set SUPABASE_URL}"
+: "${SUPABASE_PUBLISHABLE_KEY:?set SUPABASE_PUBLISHABLE_KEY}"
+: "${INTERNKIM_APP_URL:?set INTERNKIM_APP_URL}"
 : "${CHATD_BOT_USER_NAME:?set CHATD_BOT_USER_NAME}"
 : "${DATABASE_URL:?set DATABASE_URL}"
+[ -r "${agentKeyPath}" ] || { echo "[host] no agent key at ${agentKeyPath}" >&2; exit 1; }
 
 mkdir -p "${llmdRuntimeDirectory}"
 chmod 700 "${llmdRuntimeDirectory}"
@@ -24,20 +30,35 @@ llmdPid=""
 capabilitydPid=""
 blueclawPid=""
 chatdPid=""
+bridgePid=""
 
 shutdown() {
   exitCode="$?"
   trap - INT TERM EXIT
-  for processID in "${chatdPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
+  for processID in "${bridgePid}" "${chatdPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
     [ -n "${processID}" ] && kill "${processID}" 2>/dev/null || true
   done
-  for processID in "${chatdPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
+  for processID in "${bridgePid}" "${chatdPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
     [ -n "${processID}" ] && wait "${processID}" 2>/dev/null || true
   done
   rm -f "${llmdAuthKeyPath}"
   exit "${exitCode}"
 }
 trap shutdown INT TERM EXIT
+
+echo "[host] starting messenger bridge"
+keepBridgeRunning() {
+  while true; do
+    AGENT_API_KEY_PATH="${agentKeyPath}" internkim-messenger-bridge &
+    bridgeChild="$!"
+    trap 'kill "${bridgeChild}" 2>/dev/null; exit 0' TERM
+    wait "${bridgeChild}" || true
+    echo "[host] messenger bridge stopped — restarting in 5s"
+    sleep 5
+  done
+}
+keepBridgeRunning &
+bridgePid="$!"
 
 echo "[host] waiting for postgres"
 until pg_isready -d "${DATABASE_URL}" >/dev/null 2>&1; do sleep 1; done

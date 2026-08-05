@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>kim.intern.messenger-bridge</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>BRIDGE_BINARY</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>HOME_DIR/Library/Logs/internkim-messenger-bridge.log</string>
+    <key>StandardErrorPath</key>
+    <string>HOME_DIR/Library/Logs/internkim-messenger-bridge.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SUPABASE_URL</key>
+        <string>SUPABASE_URL_VALUE</string>
+        <key>SUPABASE_PUBLISHABLE_KEY</key>
+        <string>SUPABASE_PUBLISHABLE_KEY_VALUE</string>
+        <key>INTERNKIM_APP_URL</key>
+        <string>INTERNKIM_APP_URL_VALUE</string>
+        <key>AGENT_API_KEY_PATH</key>
+        <string>AGENT_KEY_PATH_VALUE</string>
+    </dict>
+</dict>
+</plist>
