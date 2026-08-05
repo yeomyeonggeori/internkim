@@ -9,6 +9,7 @@
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
+	import ChannelCode from './channel-code.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import { channelText } from '$lib/i18n/channel-text';
@@ -678,6 +679,7 @@
 					<SvelteMarkdown
 						source={applyCustomEmoji(content.text, message.customEmoji, customEmoji.nameToURL)}
 						options={{ breaks: true, gfm: true }}
+						renderers={{ code: ChannelCode }}
 					/>
 				</div>
 			</Bubble.Content>
