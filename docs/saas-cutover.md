@@ -153,9 +153,18 @@ own company and its three people.
 - **The app has run only on this machine.** Nothing but outbound connections is
   used, so a box behind NAT should behave the same — but that is an argument,
   not an observation.
-- **21 attendance records stay behind.** Each is a clock-in with no clock-out
-  before it. The record refuses them; the device allowed them. They are kept in
-  the export, so the decision is reversible.
+- **13 attendance records stay behind.** Each is a second clock-in at the
+  location the person was already clocked in at, so it moves no shift boundary;
+  one of them is the same press recorded twice with an identical timestamp. The
+  device kept every press, the record keeps the shift. Every shift the device
+  knows about now matches the plane, save two of one person's boundaries that an
+  earlier import took from adjusted values and that sit 24 and 103 seconds off.
+
+  Eight of the original twenty-one were not anomalies at all. They were the tail
+  after the import — clock-outs that closed shifts the plane still thought were
+  open, which is why the first mirrored clock-in for one person was refused with
+  `already clocked in at 사무실`. Replaying them in time order through
+  `import-attendance-events.ts` closed the shifts and the refusals went away.
 - **Not migrated at all**: agent memories, workspace files, documents, mail.
   These belong to the machine the agent runs on, and where they should live is
   undecided.
