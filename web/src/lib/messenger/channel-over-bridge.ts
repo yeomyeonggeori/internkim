@@ -1,10 +1,10 @@
 import { supabase } from '$lib/supabase';
 import { customEmoji } from '$lib/stores/custom-emoji.svelte';
+import { personPicture } from '$lib/stores/person-picture.svelte';
 import { emojify, get as glyphOf } from 'node-emoji';
 import {
 	fetchChannels,
 	fetchPosts,
-	fetchProfilePicture,
 	openDirectChannel,
 	writePost,
 	type MessengerChannel,
@@ -37,21 +37,10 @@ const platform = 'mattermost';
 const pageSize = 50;
 
 let directory: MessengerDirectory | null = null;
-const pictures = new Map<string, string>();
 
 function externalIDOf(person: MessengerPerson, people: MessengerDirectory): string {
 	if (person.externalID) return person.externalID;
 	return person.memberID ? (people.externalOfMember.get(person.memberID) ?? '') : '';
-}
-
-async function rememberPictures(externalIDs: string[]): Promise<void> {
-	const wanted = [...new Set(externalIDs)].filter((externalID) => externalID && !pictures.has(externalID));
-	await Promise.all(
-		wanted.map(async (externalID) => {
-			const picture = await fetchProfilePicture(externalID).catch(() => null);
-			pictures.set(externalID, picture?.dataURL ?? '');
-		})
-	);
 }
 
 async function knownPeople(): Promise<MessengerDirectory> {
@@ -76,7 +65,7 @@ function participantOf(person: MessengerPerson, people: MessengerDirectory): Par
 	return {
 		id: canonicalKey(person, people),
 		name: personLabel(person, people),
-		avatarURL: pictures.get(externalIDOf(person, people)) || undefined
+		avatarURL: personPicture.pictureOfExternal(externalIDOf(person, people)) || undefined
 	};
 }
 
@@ -89,7 +78,7 @@ function channelName(channel: MessengerChannel, people: MessengerDirectory, mine
 
 export async function bridgeConversations(): Promise<ChannelSummary[]> {
 	const [channels, people, mine] = await Promise.all([fetchChannels(platform), knownPeople(), myPersonKey()]);
-	await rememberPictures(channels.flatMap((channel) => channel.participants.map((person) => externalIDOf(person, people))));
+	await personPicture.rememberExternals(channels.flatMap((channel) => channel.participants.map((person) => externalIDOf(person, people))));
 	return [...channels]
 		.sort((left, right) => left.position - right.position)
 		.map((channel) => ({
@@ -102,17 +91,17 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 
 function avatarOfDirect(channel: MessengerChannel, people: MessengerDirectory, mine: string): string | undefined {
 	const other = channel.participants.find((person) => canonicalKey(person, people) !== mine);
-	return other ? pictures.get(externalIDOf(other, people)) || undefined : undefined;
+	return other ? personPicture.pictureOfExternal(externalIDOf(other, people)) || undefined : undefined;
 }
 
 export async function bridgePeople(): Promise<Person[]> {
 	const people = await knownPeople();
-	await rememberPictures([...people.externalOfMember.values()]);
+	await personPicture.rememberExternals([...people.externalOfMember.values()]);
 	return [...people.nameOfMember]
 		.map(([memberID, name]) => ({
 			id: memberID,
 			name,
-			avatarURL: pictures.get(people.externalOfMember.get(memberID) ?? '') || undefined
+			avatarURL: personPicture.pictureOfExternal(people.externalOfMember.get(memberID) ?? '') || undefined
 		}))
 		.filter((person) => person.name)
 		.sort((left, right) => left.name.localeCompare(right.name));
@@ -130,7 +119,7 @@ export async function bridgeConversation(channelID?: string, before?: string): P
 	}
 	const posts = await fetchPosts(channelID, before);
 	await customEmoji.load();
-	await rememberPictures(posts.map((post) => externalIDOf(post.author, people)));
+	await personPicture.rememberExternals(posts.map((post) => externalIDOf(post.author, people)));
 	return {
 		conversationID: channelID,
 		currentUserID: mine,
