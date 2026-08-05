@@ -5,7 +5,7 @@ import { feedbackFormURL } from '$lib/components/app-rail-config';
 import type { AppRailItem } from '$lib/components/app-rail-types';
 import { appShellText } from '$lib/i18n/app-shell-text';
 import { createPageText } from '$lib/i18n/page-text.svelte';
-import { isSupabaseConfigured, signOutOfSupabase, supabaseMemberRole } from '$lib/supabase-session';
+import { isSupabaseConfigured, signOutOfSupabase, supabaseMember } from '$lib/supabase-session';
 import { isMessengerConnected } from '$lib/messenger/messenger-directory';
 import type { UserRole } from '$lib/types';
 import type { WebAuthSession } from '$lib/web-auth-session';
@@ -37,6 +37,7 @@ class AppNavigation {
 	userEmail = $state('');
 	userName = $state('');
 	userImage = $state('');
+	userMemberID = $state('');
 	adminRole = $state<UserRole>('member');
 	canViewTasks = $state(false);
 	isPocSuperAdmin = $state(false);
@@ -87,7 +88,9 @@ class AppNavigation {
 		this.canViewTasks = session.canViewTasks;
 		this.isPocSuperAdmin = session.isPocSuperAdmin;
 		if (isSupabaseConfigured()) {
-			this.adminRole = await supabaseMemberRole();
+			const member = await supabaseMember();
+			this.userMemberID = member.memberID;
+			this.adminRole = member.role;
 			this.hasMessenger = await isMessengerConnected();
 			return;
 		}
@@ -141,6 +144,7 @@ class AppNavigation {
 		this.userEmail = '';
 		this.userName = '';
 		this.userImage = '';
+		this.userMemberID = '';
 		this.adminRole = 'member';
 		this.canViewTasks = false;
 		this.isPocSuperAdmin = false;

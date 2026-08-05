@@ -88,6 +88,7 @@
 		displayUserName={appNavigation.displayUserName}
 		userEmail={appNavigation.userEmail}
 		userImage={appNavigation.userImage}
+		userMemberID={appNavigation.userMemberID}
 		labels={profileMenuLabels}
 		logOut={requestLogOut}
 	/>
@@ -102,6 +103,7 @@
 	{text}
 	userEmail={appNavigation.userEmail}
 	userImage={appNavigation.userImage}
+		userMemberID={appNavigation.userMemberID}
 />
 
 <ConfirmDeleteDialog />

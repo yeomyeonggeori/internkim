@@ -6,6 +6,7 @@ export type MessengerDirectory = {
 	nameOfExternal: Map<string, string>;
 	memberOfExternal: Map<string, string>;
 	externalOfMember: Map<string, string>;
+	memberOfEmail: Map<string, string>;
 };
 
 type ContactRow = { platform: string; external_id: string; name: string; member_id: string | null };
@@ -34,8 +35,16 @@ export async function fetchMessengerDirectory(): Promise<MessengerDirectory> {
 		),
 		externalOfMember: new Map(
 			people.data.filter((person) => person.member_id).map((person) => [person.member_id as string, person.external_id])
+		),
+		memberOfEmail: new Map(
+			members.data.filter((member) => member.email).map((member) => [(member.email as string).toLowerCase(), member.id])
 		)
 	};
+}
+
+export function externalIDFor(person: { memberID?: string; email?: string }, directory: MessengerDirectory): string {
+	const memberID = person.memberID || directory.memberOfEmail.get((person.email ?? '').trim().toLowerCase());
+	return memberID ? (directory.externalOfMember.get(memberID) ?? '') : '';
 }
 
 export function personKey(person: MessengerPerson): string {
