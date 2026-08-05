@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from '$lib/supabase';
+import { forgetHeldTasks } from '$lib/flow/flow-task-cache';
 import { signedOutSession, type WebAuthSession } from '$lib/web-auth-session';
 
 export { isSupabaseConfigured };
@@ -38,6 +39,7 @@ export async function supabaseMemberRole(): Promise<'admin' | 'member'> {
 }
 
 export async function signOutOfSupabase(): Promise<void> {
+	forgetHeldTasks();
 	await supabase().auth.signOut({ scope: 'local' });
 }
 
