@@ -4,6 +4,10 @@ project_id = "mutvimjbvmoludotyehk"
 enabled = true
 sql_paths = ['./seed.dev.sql']
 
+[auth]
+site_url = "https://intern.kim"
+additional_redirect_urls = ["https://*.intern.kim/auth/claim"]
+
 [auth.passkey]
 enabled = true
 
