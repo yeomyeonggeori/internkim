@@ -56,12 +56,13 @@
 
 	function usesAppShell(pathname: string) {
 		if (pathname === '/calendar/embed' || pathname.startsWith('/calendar/embed/')) return false;
-		return ['/settings/', '/poc-admin/', '/messenger/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/organization/', '/files/', '/tasks/', '/assistant/'].some(
+		return ['/settings/', '/poc-admin/', '/messenger/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/organization/', '/files/', '/tasks/', '/assistant/', '/auth/claim/'].some(
 			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
 		);
 	}
 
 	function currentApp(pathname: string) {
+		if (pathname.startsWith('/auth/claim')) return text.claimTitle;
 		if (pathname.startsWith('/settings')) return text.settings;
 		if (pathname.startsWith('/poc-admin')) return text.pocAdmin;
 		if (pathname.startsWith('/tasks')) return text.tasks;

@@ -15,27 +15,31 @@
 	import { isPasskeySupported as isBuzzPasskeySupported } from '$lib/buzz-passkey';
 	import { isPasskeySupported as isSupabasePasskeySupported } from '$lib/supabase-passkey';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
-	import { isSupabaseConfigured, signInWithSupabase, signUpWithSupabase } from '$lib/supabase-session';
+	import { isSupabaseConfigured, signInWithSupabase } from '$lib/supabase-session';
 	import { signInWithPasskey } from '$lib/supabase-passkey';
 
 	let { children, session, returnPath }: { children?: Snippet; session: WebAuthSession | null; returnPath: string } = $props();
 
 	const text = createPageText(appShellText);
 	const fieldId = $props.id();
-	const passkeyAvailable = isSupabaseConfigured() ? isSupabasePasskeySupported() : isBuzzPasskeySupported();
 	const identityTransport = createBuzzIdentityTransport();
-	let buzzEnabled = $state(isSupabaseConfigured());
+	let servesCompanies = $state(false);
+	let buzzEnabled = $state<boolean | null>(null);
+	const passkeyAvailable = $derived(servesCompanies ? isSupabasePasskeySupported() : isBuzzPasskeySupported());
 	let email = $state('');
 	let password = $state('');
 	let busy = $state(false);
 	let errorMessage = $state('');
-	let isSigningUp = $state(false);
 
 	const mattermostLoginURL = $derived(session?.mattermostLoginURL || mattermostLoginURLFor(returnPath));
 	const cloudflareLoginURL = $derived(session?.cloudflareLoginURL || cloudflareLoginURLFor(returnPath));
 
 	onMount(async () => {
-		if (isSupabaseConfigured()) return;
+		servesCompanies = isSupabaseConfigured();
+		if (servesCompanies) {
+			buzzEnabled = true;
+			return;
+		}
 		try {
 			const response = await fetch('/agent/api/buzz-relay-config', { credentials: 'include' });
 			if (response.ok) {
@@ -81,11 +85,8 @@
 			return;
 		}
 		const normalizedEmail = email.trim().toLowerCase();
-		if (isSupabaseConfigured()) {
-			return runSupabaseLogin(async () => {
-				if (isSigningUp) await signUpWithSupabase(normalizedEmail, password);
-				await signInWithSupabase(normalizedEmail, password);
-			});
+		if (servesCompanies) {
+			return runSupabaseLogin(() => signInWithSupabase(normalizedEmail, password));
 		}
 		return runLogin(async () => {
 			try {
@@ -102,13 +103,17 @@
 	}
 
 	function loginWithPasskey() {
-		if (isSupabaseConfigured()) return runSupabaseLogin(signInWithPasskey);
+		if (servesCompanies) return runSupabaseLogin(signInWithPasskey);
 		return runLogin(buzzPasskeyLogin);
 	}
 </script>
 
 {#if session?.authenticated}
 	{@render children?.()}
+{:else if buzzEnabled === null}
+	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
+		<p class="text-sm text-muted-foreground">{text.checkingSession}</p>
+	</div>
 {:else if buzzEnabled}
 	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
 		<Card.Root class="mx-auto w-full max-w-sm">
@@ -143,11 +148,10 @@
 							<Button type="submit" class="w-full" disabled={busy || password.length === 0}>
 								{text.signInWithPassword}
 							</Button>
-							{#if isSupabaseConfigured()}
+							{#if servesCompanies}
 								<FieldDescription class="text-center">
-									<button type="button" class="underline" onclick={() => (isSigningUp = !isSigningUp)}>
-										{isSigningUp ? text.signInWithPassword : text.firstTimePrompt}
-									</button>
+									{text.firstTimePrompt}
+									<a class="underline" href="/auth/claim">{text.claimAccount}</a>
 								</FieldDescription>
 							{:else}
 								<FieldDescription class="text-center">

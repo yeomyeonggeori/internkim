@@ -280,7 +280,7 @@ func Main() {
 		}
 		return
 	}
-	runSetup()
+	printUsage()
 }
 
 func printUsage() {
