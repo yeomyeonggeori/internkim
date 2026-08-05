@@ -365,6 +365,10 @@ What matters about this daemon:
 - **Self-hosting is the destination** (§8). Whoever runs it builds one executable
   and gives it four settings — the Supabase project, its publishable key, their
   company's app URL and a path to their agent key. Nothing else is per-company.
+- **One company, one process.** It subscribes to a single `company:<id>` channel
+  and signs in as that company's bot. Running several companies from the same
+  computer means starting the executable once per company with different
+  settings; there is no multi-tenant mode inside it and no reason to add one.
 
 ### Guest — the optional per-employee companion
 - Each **employee** is a separate workspace member. Running the app in **`guest`

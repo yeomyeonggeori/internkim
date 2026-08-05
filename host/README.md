@@ -45,6 +45,10 @@ Only the last two are per-company. Give it the agent key as a **path**, not a
 value, so the key never lands in the process environment where `ps eww` can read
 it; `AGENT_API_KEY` still works for a shell you are driving by hand.
 
+One company, one process: it holds one `company:<id>` channel and one bot
+account. Several companies on one computer means starting it once per company
+with different settings.
+
 To run it as a daemon on its own, without the rest of the bundle:
 `launchagent.plist.template` (macOS `launchctl`, `KeepAlive`), or any supervisor
 that restarts it — `entrypoint.sh` shows the restart loop for a plain shell.
