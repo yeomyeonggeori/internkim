@@ -1107,6 +1107,10 @@
 	.chat-markdown {
 		overflow-wrap: anywhere;
 	}
+	.chat-markdown,
+	.chat-markdown :global(*) {
+		color: inherit;
+	}
 	.chat-markdown :global(p:first-child) {
 		margin-top: 0;
 	}
@@ -1117,6 +1121,24 @@
 		display: block;
 		max-width: 100%;
 		overflow-x: auto;
+		border-collapse: collapse;
+		margin: 0.5rem 0;
+		font-size: 0.9em;
+		border: 1px solid currentColor;
+	}
+	.chat-markdown :global(th),
+	.chat-markdown :global(td) {
+		border: 1px solid currentColor;
+		padding: 0.375rem 0.625rem;
+		text-align: left;
+		white-space: nowrap;
+	}
+	.chat-markdown :global(thead th) {
+		background: color-mix(in srgb, currentColor 12%, transparent);
+		font-weight: 600;
+	}
+	.chat-markdown :global(tbody tr:nth-child(even)) {
+		background: color-mix(in srgb, currentColor 6%, transparent);
 	}
 	.chat-markdown :global(img) {
 		display: inline-block;
