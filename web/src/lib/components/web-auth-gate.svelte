@@ -15,7 +15,7 @@
 	import { isPasskeySupported as isBuzzPasskeySupported } from '$lib/buzz-passkey';
 	import { isPasskeySupported as isSupabasePasskeySupported } from '$lib/supabase-passkey';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
-	import { isSupabaseConfigured, signInWithSupabase, signUpWithSupabase } from '$lib/supabase-session';
+	import { isSupabaseConfigured, signInWithSupabase } from '$lib/supabase-session';
 	import { signInWithPasskey } from '$lib/supabase-passkey';
 
 	let { children, session, returnPath }: { children?: Snippet; session: WebAuthSession | null; returnPath: string } = $props();
@@ -29,7 +29,6 @@
 	let password = $state('');
 	let busy = $state(false);
 	let errorMessage = $state('');
-	let isSigningUp = $state(false);
 
 	const mattermostLoginURL = $derived(session?.mattermostLoginURL || mattermostLoginURLFor(returnPath));
 	const cloudflareLoginURL = $derived(session?.cloudflareLoginURL || cloudflareLoginURLFor(returnPath));
@@ -82,10 +81,7 @@
 		}
 		const normalizedEmail = email.trim().toLowerCase();
 		if (isSupabaseConfigured()) {
-			return runSupabaseLogin(async () => {
-				if (isSigningUp) await signUpWithSupabase(normalizedEmail, password);
-				await signInWithSupabase(normalizedEmail, password);
-			});
+			return runSupabaseLogin(() => signInWithSupabase(normalizedEmail, password));
 		}
 		return runLogin(async () => {
 			try {
@@ -145,9 +141,8 @@
 							</Button>
 							{#if isSupabaseConfigured()}
 								<FieldDescription class="text-center">
-									<button type="button" class="underline" onclick={() => (isSigningUp = !isSigningUp)}>
-										{isSigningUp ? text.signInWithPassword : text.firstTimePrompt}
-									</button>
+									{text.firstTimePrompt}
+									<a class="underline" href="/auth/claim">{text.claimAccount}</a>
 								</FieldDescription>
 							{:else}
 								<FieldDescription class="text-center">
