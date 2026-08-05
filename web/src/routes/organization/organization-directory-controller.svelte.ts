@@ -6,6 +6,7 @@ import { supabase } from '$lib/supabase';
 import { apiErrorMessage, fetchAdminSession, saveOrgGroups, saveOrgProfiles } from '../admin/admin-api';
 import { adminSessionRole, canManageOrganization } from '../admin/admin-role-policy';
 import { fetchOrganizationDirectory, organizationApiErrorMessage, saveOwnOrganizationProfile, type OwnOrganizationProfile } from './organization-api';
+import { lastSeenDirectory, rememberDirectory } from './organization-last-seen';
 import { filterOrganizationRecords, organizationFilterOptions, unassignedGroupID } from './organization-directory-model';
 import { organizationGroupSavePlan } from './organization-group-controller';
 import { OrganizationOrganizationEditController } from './organization-edit-controller.svelte';
@@ -32,15 +33,15 @@ import type { organizationDirectoryText } from './text';
 type OrganizationDirectoryPageText = typeof organizationDirectoryText.ko;
 
 export class OrganizationDirectoryController {
-	records = $state<UserRecord[]>([]);
-	groups = $state<OrgGroup[]>([]);
+	records = $state<UserRecord[]>(lastSeenDirectory()?.records ?? []);
+	groups = $state<OrgGroup[]>(lastSeenDirectory()?.groups ?? []);
 	query = $state('');
 	groupID = $state('');
 	selectedUserID = $state('');
 	editingUserID = $state('');
 	isFilterOpen = $state(false);
 	isAddingGroup = $state(false);
-	isLoading = $state(true);
+	isLoading = $state(!lastSeenDirectory());
 	isSavingGroups = $state(false);
 	canManage = $state(false);
 	sessionEmail = $state('');
@@ -97,11 +98,12 @@ export class OrganizationDirectoryController {
 	}
 
 	async loadDirectory(): Promise<void> {
-		this.isLoading = true;
+		this.isLoading = this.records.length === 0;
 		this.errorMessage = '';
 		try {
 			const response = await fetchOrganizationDirectory(this.text.loadError);
 			this.applyUsersResponse(response);
+			rememberDirectory({ records: this.records, groups: this.groups });
 			this.clearSelection();
 		} catch (error) {
 			this.errorMessage = organizationApiErrorMessage(error, this.text.loadError);

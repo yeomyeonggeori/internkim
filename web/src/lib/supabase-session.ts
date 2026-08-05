@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, supabase } from '$lib/supabase';
 import { forgetHeldTasks } from '$lib/flow/flow-task-cache';
 import { forgetLastSeenFlow } from '../routes/flow/flow-last-seen';
+import { forgetLastSeenDirectory } from '../routes/organization/organization-last-seen';
 import { signedOutSession, type WebAuthSession } from '$lib/web-auth-session';
 
 export { isSupabaseConfigured };
@@ -42,6 +43,7 @@ export async function supabaseMemberRole(): Promise<'admin' | 'member'> {
 export async function signOutOfSupabase(): Promise<void> {
 	forgetHeldTasks();
 	forgetLastSeenFlow();
+	forgetLastSeenDirectory();
 	await supabase().auth.signOut({ scope: 'local' });
 }
 
