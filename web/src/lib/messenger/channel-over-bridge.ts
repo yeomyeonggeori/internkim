@@ -1,5 +1,6 @@
 import { supabase } from '$lib/supabase';
 import { customEmoji } from '$lib/stores/custom-emoji.svelte';
+import { emojify, get as glyphOf } from 'node-emoji';
 import {
 	fetchChannels,
 	fetchPosts,
@@ -144,10 +145,10 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, mine: string
 		id: post.id,
 		threadRootId: post.parentID,
 		sender: participantOf(post.author, people),
-		text: post.body,
+		text: emojify(post.body),
 		sentAt: post.postedAt,
 		reactions: post.reactions.map((reaction) => ({
-			emoji: reaction.emoji,
+			emoji: glyphOf(reaction.emoji) ?? reaction.emoji,
 			count: reaction.people.length,
 			imageURL: customEmoji.nameToURL.get(reaction.emoji),
 			reactedByMe: reaction.people.some((person) => canonicalKey(person, people) === mine),
