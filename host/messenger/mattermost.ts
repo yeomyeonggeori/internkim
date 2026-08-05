@@ -210,6 +210,21 @@ export async function removeReaction(
 	await ask<void>(settings, session, 'DELETE', `/users/${session.userID}/posts/${postID}/reactions/${emoji}`);
 }
 
+export async function readProfilePicture(
+	settings: MattermostSettings,
+	session: MattermostSession,
+	externalID: string
+): Promise<{ dataURL: string } | null> {
+	const response = await fetch(`${settings.baseURL}/api/v4/users/${encodeURIComponent(externalID)}/image`, {
+		headers: { Authorization: `Bearer ${session.token}` }
+	});
+	if (!response.ok) return null;
+	const type = response.headers.get('content-type') ?? 'image/png';
+	const bytes = new Uint8Array(await response.arrayBuffer());
+	if (bytes.length === 0 || bytes.length > 200_000) return null;
+	return { dataURL: `data:${type};base64,${Buffer.from(bytes).toString('base64')}` };
+}
+
 export async function readPeople(settings: MattermostSettings, session: MattermostSession) {
 	const users = await ask<MattermostUser[]>(settings, session, 'GET', '/users?per_page=200&active=true');
 	return users.map((user) => ({

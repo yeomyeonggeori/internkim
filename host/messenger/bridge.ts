@@ -9,6 +9,7 @@ import {
 	readChannels,
 	readPeople,
 	readPosts,
+	readProfilePicture,
 	removeReaction,
 	signIn,
 	writePost,
@@ -86,12 +87,24 @@ async function reply(answer: Answer): Promise<void> {
 	await channel.send({ type: 'broadcast', event: 'answer', payload: answer });
 }
 
+const pictures = new Map<string, { dataURL: string } | null>();
+
+async function pictureOf(externalID: string): Promise<{ dataURL: string } | null> {
+	if (!pictures.has(externalID)) {
+		pictures.set(externalID, await readProfilePicture(mattermost, session, externalID));
+	}
+	return pictures.get(externalID) ?? null;
+}
+
 async function route(method: string, path: string, body: unknown): Promise<unknown> {
 	const [route, query] = path.split('?');
 	const parameters = new URLSearchParams(query ?? '');
 	const parts = route.split('/').filter(Boolean);
 	const asked = body as { body?: string; parentID?: string; emoji?: string } | null;
 
+	if (method === 'GET' && parts[0] === 'person' && parts[2] === 'picture') {
+		return pictureOf(parts[1]);
+	}
 	if (method === 'GET' && parts[0] === 'person') return readPeople(mattermost, session);
 	if (method === 'GET' && parts.length === 1 && parts[0] === 'channel') return readChannels(mattermost, session);
 	if (method === 'POST' && parts[0] === 'channel' && parts[1] === 'direct') {
