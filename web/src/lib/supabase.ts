@@ -31,6 +31,8 @@ export function isSupabaseConfigured(): boolean {
 export function supabase(): SupabaseClient {
 	const plane = centralPlane();
 	if (!plane.projectURL || !plane.publishableKey) throw new Error('this page is not served by the central plane');
-	client ??= createClient(plane.projectURL, plane.publishableKey);
+	client ??= createClient(plane.projectURL, plane.publishableKey, {
+		auth: { experimental: { passkey: true } }
+	});
 	return client;
 }

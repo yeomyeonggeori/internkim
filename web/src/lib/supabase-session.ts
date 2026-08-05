@@ -31,8 +31,29 @@ export async function signOutOfSupabase(): Promise<void> {
 	await supabase().auth.signOut({ scope: 'local' });
 }
 
-export async function signUpWithSupabase(email: string, password: string): Promise<void> {
-	const { error } = await supabase().auth.signUp({ email: email.trim().toLowerCase(), password });
+export type ClaimMailOutcome = 'sent' | 'tooManyLately' | 'failed';
+
+export async function sendClaimLink(email: string): Promise<ClaimMailOutcome> {
+	const response = await fetch('/api/auth/claim', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ email: email.trim().toLowerCase() })
+	});
+	if (response.ok) return 'sent';
+	return response.status === 429 ? 'tooManyLately' : 'failed';
+}
+
+export async function verifyClaimCode(email: string, code: string): Promise<void> {
+	const { error } = await supabase().auth.verifyOtp({
+		email: email.trim().toLowerCase(),
+		token: code.trim(),
+		type: 'email'
+	});
+	if (error) throw new Error(error.message);
+}
+
+export async function setSupabasePassword(password: string): Promise<void> {
+	const { error } = await supabase().auth.updateUser({ password });
 	if (error) throw new Error(error.message);
 }
 

@@ -43,6 +43,14 @@ function messageOf(body: unknown, fallback: string): string {
 	return fallback;
 }
 
+export function fetchCustomEmoji(): Promise<{ name: string; url: string }[]> {
+	return ask<{ name: string; url: string }[]>('GET', '/emoji');
+}
+
+export function fetchProfilePicture(externalID: string): Promise<{ dataURL: string } | null> {
+	return ask<{ dataURL: string } | null>('GET', `/person/${encodeURIComponent(externalID)}/picture`);
+}
+
 export function fetchChannels(platform?: string): Promise<MessengerChannel[]> {
 	const query = platform ? `?platform=${encodeURIComponent(platform)}` : '';
 	return ask<MessengerChannel[]>('GET', `/channel${query}`);

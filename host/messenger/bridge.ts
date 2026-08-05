@@ -9,6 +9,8 @@ import {
 	readChannels,
 	readPeople,
 	readPosts,
+	readCustomEmoji,
+	readProfilePicture,
 	removeReaction,
 	signIn,
 	writePost,
@@ -86,19 +88,40 @@ async function reply(answer: Answer): Promise<void> {
 	await channel.send({ type: 'broadcast', event: 'answer', payload: answer });
 }
 
+const pictures = new Map<string, { dataURL: string } | null>();
+let customEmoji: { name: string; url: string }[] | null = null;
+
+async function emojiSet(): Promise<{ name: string; url: string }[]> {
+	customEmoji ??= await readCustomEmoji(mattermost, session);
+	return customEmoji;
+}
+
+async function pictureOf(externalID: string): Promise<{ dataURL: string } | null> {
+	if (!pictures.has(externalID)) {
+		pictures.set(externalID, await readProfilePicture(mattermost, session, externalID));
+	}
+	return pictures.get(externalID) ?? null;
+}
+
 async function route(method: string, path: string, body: unknown): Promise<unknown> {
 	const [route, query] = path.split('?');
 	const parameters = new URLSearchParams(query ?? '');
 	const parts = route.split('/').filter(Boolean);
 	const asked = body as { body?: string; parentID?: string; emoji?: string } | null;
 
+	if (method === 'GET' && parts[0] === 'emoji') return emojiSet();
+	if (method === 'GET' && parts[0] === 'person' && parts[2] === 'picture') {
+		return pictureOf(parts[1]);
+	}
 	if (method === 'GET' && parts[0] === 'person') return readPeople(mattermost, session);
 	if (method === 'GET' && parts.length === 1 && parts[0] === 'channel') return readChannels(mattermost, session);
 	if (method === 'POST' && parts[0] === 'channel' && parts[1] === 'direct') {
 		const asked = body as { memberIDs?: string[] } | null;
 		return openDirectChannel(mattermost, session, await externalIDsOf(asked?.memberIDs ?? []));
 	}
-	if (method === 'GET' && parts[0] === 'channel' && parts[2] === 'post') return readPosts(mattermost, session, parts[1]);
+	if (method === 'GET' && parts[0] === 'channel' && parts[2] === 'post') {
+		return readPosts(mattermost, session, parts[1], parameters.get('before') ?? undefined);
+	}
 	if (method === 'POST' && parts[0] === 'channel' && parts[2] === 'post') {
 		return writePost(mattermost, session, parts[1], asked?.body ?? '', asked?.parentID);
 	}
