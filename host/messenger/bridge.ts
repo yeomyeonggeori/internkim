@@ -119,7 +119,9 @@ async function route(method: string, path: string, body: unknown): Promise<unkno
 		const asked = body as { memberIDs?: string[] } | null;
 		return openDirectChannel(mattermost, session, await externalIDsOf(asked?.memberIDs ?? []));
 	}
-	if (method === 'GET' && parts[0] === 'channel' && parts[2] === 'post') return readPosts(mattermost, session, parts[1]);
+	if (method === 'GET' && parts[0] === 'channel' && parts[2] === 'post') {
+		return readPosts(mattermost, session, parts[1], parameters.get('before') ?? undefined);
+	}
 	if (method === 'POST' && parts[0] === 'channel' && parts[2] === 'post') {
 		return writePost(mattermost, session, parts[1], asked?.body ?? '', asked?.parentID);
 	}

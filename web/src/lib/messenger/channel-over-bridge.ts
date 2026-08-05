@@ -32,6 +32,7 @@ type Conversation = {
 };
 
 const platform = 'mattermost';
+const pageSize = 50;
 
 let directory: MessengerDirectory | null = null;
 const pictures = new Map<string, string>();
@@ -131,7 +132,7 @@ export async function bridgeConversation(channelID?: string, before?: string): P
 		conversationID: channelID,
 		currentUserID: mine,
 		messages: posts.map((post) => messageOf(post, people, mine)),
-		hasMoreBefore: posts.length > 0,
+		hasMoreBefore: posts.length >= pageSize,
 		historyCursor: posts[0]?.id ?? ''
 	};
 }

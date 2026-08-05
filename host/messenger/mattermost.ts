@@ -115,12 +115,17 @@ export async function openDirectChannel(
 	};
 }
 
-export async function readPosts(settings: MattermostSettings, session: MattermostSession, channelID: string) {
+export async function readPosts(
+	settings: MattermostSettings,
+	session: MattermostSession,
+	channelID: string,
+	before?: string
+) {
 	const page = await ask<{ order: string[]; posts: Record<string, MattermostPost & { metadata?: { reactions?: MattermostReaction[] } }> }>(
 		settings,
 		session,
 		'GET',
-		`/channels/${channelID}/posts?per_page=50`
+		`/channels/${channelID}/posts?per_page=50${before ? `&before=${encodeURIComponent(before)}` : ''}`
 	);
 	return page.order
 		.map((id) => page.posts[id])
