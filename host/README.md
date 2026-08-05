@@ -49,9 +49,34 @@ One company, one process: it holds one `company:<id>` channel and one bot
 account. Several companies on one computer means starting it once per company
 with different settings.
 
-To run it as a daemon on its own, without the rest of the bundle:
-`launchagent.plist.template` (macOS `launchctl`, `KeepAlive`), or any supervisor
-that restarts it — `entrypoint.sh` shows the restart loop for a plain shell.
+### Any always-on computer will do
+
+The bridge has no operating-system-specific code: it reads four settings and
+talks to Supabase, the central plane and the messenger over the network. A
+Linux server, a Jetson, a Mac that stays awake — whichever the company already
+leaves running.
+
+Build for whichever that is. `BRIDGE_TARGET` is empty by default, which builds
+for the machine doing the building:
+
+```
+make build-messenger-bridge                             # this machine
+make build-messenger-bridge BRIDGE_TARGET=bun-linux-arm64
+make build-messenger-bridge BRIDGE_TARGET=bun-linux-x64
+make build-messenger-bridge BRIDGE_TARGET=bun-darwin-arm64
+```
+
+Then hand it to whatever supervises things on that computer, so it comes back
+after a crash or a reboot:
+
+| | |
+|---|---|
+| systemd | `internkim-messenger-bridge.service` — settings in `/etc/internkim/messenger-bridge.env`, `Restart=always` |
+| launchd | `launchagent.plist.template` — `KeepAlive` |
+| the bundle | `entrypoint.sh` already starts and restarts it |
+
+Restarting matters: the bridge is the only thing answering the messenger
+screen, and a process that dies without coming back leaves that screen empty.
 
 ## What it holds
 
