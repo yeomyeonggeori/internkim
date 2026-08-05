@@ -12,7 +12,7 @@ class CustomEmojiStore {
 		this.hasLoaded = true;
 		try {
 			if (isSupabaseConfigured()) {
-				this.nameToURL = new Map((await fetchCustomEmoji()).map((record) => [record.name, record.url]));
+				this.nameToURL = await this.fromCompanyApp();
 				return;
 			}
 			const response = await fetch('/agent/api/custom-emoji', { credentials: 'include' });
@@ -25,6 +25,19 @@ class CustomEmojiStore {
 		} catch {
 			this.hasLoaded = false;
 		}
+	}
+
+	private async fromCompanyApp(): Promise<Map<string, string>> {
+		for (let attempt = 0; attempt < 4; attempt += 1) {
+			try {
+				const drawn = await fetchCustomEmoji();
+				if (drawn.length > 0) return new Map(drawn.map((record) => [record.name, record.url]));
+			} catch {
+				// the app answers once its presence reaches this page
+			}
+			await new Promise((wait) => setTimeout(wait, 2000));
+		}
+		throw new Error('the app did not hand over its emoji');
 	}
 }
 
