@@ -26,13 +26,23 @@ let knownContacts = -1;
 
 const projectURL = required('SUPABASE_URL');
 const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
-const agentKey = required('AGENT_API_KEY');
+const agentKey = await agentKeyFromEnvironmentOrFile();
 const appURL = required('INTERNKIM_APP_URL');
 
 function required(name: string): string {
 	const value = process.env[name];
 	if (!value) throw new Error(`set ${name}`);
 	return value;
+}
+
+async function agentKeyFromEnvironmentOrFile(): Promise<string> {
+	const given = process.env.AGENT_API_KEY?.trim();
+	if (given) return given;
+	const keptAt = process.env.AGENT_API_KEY_PATH?.trim();
+	if (!keptAt) throw new Error('set AGENT_API_KEY or AGENT_API_KEY_PATH');
+	const kept = (await Bun.file(keptAt).text()).trim();
+	if (!kept) throw new Error(`${keptAt} holds no agent key`);
+	return kept;
 }
 
 const mattermost = await askForConnection('mattermost');

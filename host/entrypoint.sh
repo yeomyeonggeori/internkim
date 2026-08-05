@@ -1,8 +1,10 @@
 #!/bin/sh
-# Brings up the company agent on an ordinary Linux box: llmd, capabilityd, blueclaw,
-# chatd and the messenger bridge, in that order because each waits for the one before
-# it. Nothing listens off loopback — the box reaches the messenger and the central
-# plane outbound and is never reached back.
+# Brings up the company agent on an ordinary Linux box: llmd, capabilityd, blueclaw
+# and chatd, in that order because each waits for the one before it. The messenger
+# bridge starts first and depends on none of them — it talks only to Supabase, the
+# central plane and the tenant's messenger, so the screen stays alive even when the
+# agent does not. Nothing listens off loopback: the box reaches out and is never
+# reached back.
 set -e
 
 llmdRuntimeDirectory="/run/internkim/llmd"
@@ -43,6 +45,20 @@ shutdown() {
   exit "${exitCode}"
 }
 trap shutdown INT TERM EXIT
+
+echo "[host] starting messenger bridge"
+keepBridgeRunning() {
+  while true; do
+    AGENT_API_KEY_PATH="${agentKeyPath}" internkim-messenger-bridge &
+    bridgeChild="$!"
+    trap 'kill "${bridgeChild}" 2>/dev/null; exit 0' TERM
+    wait "${bridgeChild}" || true
+    echo "[host] messenger bridge stopped — restarting in 5s"
+    sleep 5
+  done
+}
+keepBridgeRunning &
+bridgePid="$!"
 
 echo "[host] waiting for postgres"
 until pg_isready -d "${DATABASE_URL}" >/dev/null 2>&1; do sleep 1; done
@@ -88,20 +104,6 @@ CHATD_BLUECLAW_BASE_URL="http://${blueclawAddress}" \
 CHATD_LISTEN_PORT="${chatdPort}" \
   chatd &
 chatdPid="$!"
-
-echo "[host] starting messenger bridge"
-keepBridgeRunning() {
-  while true; do
-    AGENT_API_KEY="$(cat "${agentKeyPath}")" internkim-messenger-bridge &
-    bridgeChild="$!"
-    trap 'kill "${bridgeChild}" 2>/dev/null; exit 0' TERM
-    wait "${bridgeChild}" || true
-    echo "[host] messenger bridge stopped — restarting in 5s"
-    sleep 5
-  done
-}
-keepBridgeRunning &
-bridgePid="$!"
 
 echo "[host] up — agent on ${blueclawAddress}, messenger connector on 127.0.0.1:${chatdPort}"
 wait "${blueclawPid}"
