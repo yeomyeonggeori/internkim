@@ -11,12 +11,14 @@
 	import FlowTasksView from './flow-tasks-view.svelte';
 	import { fetchFlowState, fetchFlowWeeklySummary, mergeFlowSummary } from './flow-api';
 	import { createFlowLoadTracker, type FlowLoadOptions } from './flow-load-tracker';
+	import { lastSeenFlow, rememberFlow } from './flow-last-seen';
 	import { createFlowReportSections, emptyFlowMetrics } from './flow-report-sections-model';
 	import type { FlowState, FlowSummary, FlowWeeklySummary } from './flow-types';
 	import { flowText } from './text';
 
-	let summary = $state<FlowSummary | null>(null);
-	let flowState = $state<FlowState | null>(null);
+	const lastSeen = lastSeenFlow();
+	let summary = $state<FlowSummary | null>(lastSeen.summary);
+	let flowState = $state<FlowState | null>(lastSeen.state);
 	let activeTab = $state('tasks');
 	let pendingTaskID = $state('');
 	let focusedTaskID = $state('');
@@ -56,7 +58,7 @@
 	async function loadFlow(week: string, options: FlowLoadOptions = {}): Promise<boolean> {
 		const loadID = flowLoadTracker.start();
 		const reloadState = options.reloadState ?? true;
-		isLoading = true;
+		isLoading = !summary;
 		errorMessage = '';
 		try {
 			if (reloadState) weeklySummaryCache.clear();
@@ -67,6 +69,7 @@
 			if (!flowLoadTracker.isCurrent(loadID)) return false;
 			flowState = nextState;
 			summary = mergeFlowSummary(nextState, weeklySummary);
+			rememberFlow(nextState, summary);
 			openPendingTask();
 			if (summary.week.code) replaceWeekQuery(summary.week.code);
 			return true;
