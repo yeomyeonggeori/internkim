@@ -31,7 +31,7 @@ export async function signOutOfSupabase(): Promise<void> {
 	await supabase().auth.signOut({ scope: 'local' });
 }
 
-export async function sendClaimCode(email: string): Promise<void> {
+export async function sendClaimLink(email: string): Promise<void> {
 	const response = await fetch('/api/auth/claim', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },

@@ -97,6 +97,29 @@ admind takes four settings; with any of them missing it writes only locally:
 
 Once both records agree for long enough, the device side is the one to remove.
 
+## A person's first sign-in
+
+Someone whose company imported them has a `member` row and no account. They
+press **계정 설정하기** on the sign-in screen, give the address the company has
+on file, and get a mail. Either half of that mail works: the link signs them in
+on the device they are reading it on, and the code carries across to a device
+that is not holding the mailbox. Both land on the same screen, where they set a
+password and then, if the browser offers it, a passkey.
+
+Nothing is sent to an address that belongs to no member, and an address that
+belongs to nobody gets the same answer as one that does, so the screen never
+says who works here.
+
+The code half needs `{{ .Token }}` in the project's Magic Link email template.
+Supabase ships that template with the link alone, so until someone adds it the
+mail carries a link and the code box has nothing to receive. The link half works
+either way.
+
+Delivery is the other open end: the built-in Supabase mailer is rate limited
+hard enough that onboarding a whole company through it is a gamble. Either
+attach real SMTP, or turn on Google sign-in — every address here is Google
+Workspace, so that path skips the mail entirely.
+
 ## Setting a company up for someone
 
 A company can be prepared before anyone has an account: import the data, write
