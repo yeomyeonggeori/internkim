@@ -97,6 +97,29 @@ admind takes four settings; with any of them missing it writes only locally:
 
 Once both records agree for long enough, the device side is the one to remove.
 
+## A person's first sign-in
+
+Someone whose company imported them has a `member` row and no account. They
+press **계정 설정하기** on the sign-in screen, give the address the company has
+on file, and get a mail. Either half of that mail works: the link signs them in
+on the device they are reading it on, and the code carries across to a device
+that is not holding the mailbox. Both land on the same screen, where they set a
+password and then, if the browser offers it, a passkey.
+
+Nothing is sent to an address that belongs to no member, and an address that
+belongs to nobody gets the same answer as one that does, so the screen never
+says who works here.
+
+The code half needs `{{ .Token }}` in the project's Magic Link email template.
+Supabase ships that template with the link alone, so until someone adds it the
+mail carries a link and the code box has nothing to receive. The link half works
+either way.
+
+Delivery is the other open end: the built-in Supabase mailer is rate limited
+hard enough that onboarding a whole company through it is a gamble. Either
+attach real SMTP, or turn on Google sign-in — every address here is Google
+Workspace, so that path skips the mail entirely.
+
 ## Setting a company up for someone
 
 A company can be prepared before anyone has an account: import the data, write
@@ -153,9 +176,18 @@ own company and its three people.
 - **The app has run only on this machine.** Nothing but outbound connections is
   used, so a box behind NAT should behave the same — but that is an argument,
   not an observation.
-- **21 attendance records stay behind.** Each is a clock-in with no clock-out
-  before it. The record refuses them; the device allowed them. They are kept in
-  the export, so the decision is reversible.
+- **13 attendance records stay behind.** Each is a second clock-in at the
+  location the person was already clocked in at, so it moves no shift boundary;
+  one of them is the same press recorded twice with an identical timestamp. The
+  device kept every press, the record keeps the shift. Every shift the device
+  knows about now matches the plane, save two of one person's boundaries that an
+  earlier import took from adjusted values and that sit 24 and 103 seconds off.
+
+  Eight of the original twenty-one were not anomalies at all. They were the tail
+  after the import — clock-outs that closed shifts the plane still thought were
+  open, which is why the first mirrored clock-in for one person was refused with
+  `already clocked in at 사무실`. Replaying them in time order through
+  `import-attendance-events.ts` closed the shifts and the refusals went away.
 - **Not migrated at all**: agent memories, workspace files, documents, mail.
   These belong to the machine the agent runs on, and where they should live is
   undecided.

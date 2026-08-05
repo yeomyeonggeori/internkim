@@ -6,6 +6,18 @@
 		<meta name="text-scale" content="scale" />
 		<script>
 			if (window.self !== window.top) document.documentElement.classList.add('internkim-embedded');
+			addEventListener(
+				'error',
+				(event) => {
+					const source = event.target;
+					if (!source || source.tagName !== 'SCRIPT' || !source.src.includes('/_app/immutable/')) return;
+					if (sessionStorage.getItem('internkim-reloaded-for-release')) return;
+					sessionStorage.setItem('internkim-reloaded-for-release', '1');
+					location.reload();
+				},
+				true
+			);
+			addEventListener('load', () => sessionStorage.removeItem('internkim-reloaded-for-release'));
 		</script>
 		<script id="central-plane" type="application/json">{}</script>
 		%sveltekit.head%

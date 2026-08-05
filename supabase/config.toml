@@ -9,5 +9,9 @@ enabled = true
 
 [auth.webauthn]
 rp_display_name = "InternKim"
-rp_id = "example.test"
-rp_origins = ["https://example.test", "https://*.example.test"]
+rp_id = "intern.kim"
+rp_origins = ["https://intern.kim", "https://*.intern.kim"]
+
+[auth.email.template.magic_link]
+subject = "Set up your InternKim sign-in"
+content_path = "./supabase/templates/magic-link.html"

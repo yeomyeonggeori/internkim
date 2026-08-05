@@ -1,3 +1,12 @@
+import { isSupabaseConfigured } from '$lib/supabase';
+import {
+	bridgeConversation,
+	bridgeConversations,
+	bridgeDirectMessage,
+	bridgePeople,
+	bridgeSendMessage
+} from '$lib/messenger/channel-over-bridge';
+
 import { publishBuzzMessage } from '$lib/buzz-relay-client';
 import { imetaTag, uploadBlob } from '$lib/buzz-blossom';
 import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
@@ -109,6 +118,7 @@ export type ChannelSummary = {
 };
 
 export async function fetchConversations(): Promise<ChannelSummary[]> {
+	if (isSupabaseConfigured()) return bridgeConversations();
 	const response = await fetch('/agent/api/channels', { credentials: 'include', cache: 'no-store' });
 	if (!response.ok) throw new Error(await response.text());
 	const document: { conversations?: ChannelSummary[] } = await response.json();
@@ -122,6 +132,7 @@ export type Person = {
 };
 
 export async function fetchPeople(): Promise<Person[]> {
+	if (isSupabaseConfigured()) return bridgePeople();
 	const response = await fetch('/agent/api/people', { credentials: 'include', cache: 'no-store' });
 	if (!response.ok) throw new Error(await response.text());
 	const document: { people?: Person[] } = await response.json();
@@ -129,6 +140,7 @@ export async function fetchPeople(): Promise<Person[]> {
 }
 
 export async function ensureDirectMessage(personID: string): Promise<string> {
+	if (isSupabaseConfigured()) return bridgeDirectMessage(personID);
 	const response = await fetch('/agent/api/dm/ensure', {
 		method: 'POST',
 		credentials: 'include',
@@ -152,6 +164,7 @@ export async function fetchChannelConversation(
 	channelID?: string,
 	before?: string
 ): Promise<ChannelConversation> {
+	if (isSupabaseConfigured()) return bridgeConversation(channelID, before);
 	const response = await fetch(conversationURL(channelID, before), {
 		credentials: 'include',
 		cache: 'no-store'
@@ -254,8 +267,9 @@ export async function sendChannelMessage(
 	channelID?: string,
 	replyToRootID?: string
 ): Promise<void> {
-	// The relay lives on the device's loopback, unreachable from the browser, so
-	// the message and its attachments are published through the on-device bridge
-	// (chatd), which signs with the person's own derived key.
+	if (isSupabaseConfigured()) {
+		await bridgeSendMessage(message, channelID, replyToRootID);
+		return;
+	}
 	await sendServerSignedMessage(message, attachments, channelID, replyToRootID);
 }

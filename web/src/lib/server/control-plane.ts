@@ -293,6 +293,49 @@ export async function issueAgentKey(
 	return { agentID: data.id, companyID, apiKey };
 }
 
+const fleetCredentialKind = 'fleet';
+
+export async function claimFleetForCompany(
+	client: SupabaseClient,
+	companyID: string,
+	fleetID: string,
+): Promise<void> {
+	const { error } = await client
+		.from('credential')
+		.upsert(
+			{ company_id: companyID, kind: fleetCredentialKind, external_id: fleetID },
+			{ onConflict: 'company_id,kind' },
+		);
+	if (error) throw new Error(`fleet ${fleetID}: ${error.message}`);
+}
+
+export async function companyOfFleet(client: SupabaseClient, fleetID: string): Promise<string | null> {
+	const { data, error } = await client
+		.from('credential')
+		.select('company_id')
+		.eq('kind', fleetCredentialKind)
+		.eq('external_id', fleetID)
+		.maybeSingle();
+	if (error) throw new Error(`fleet ${fleetID}: ${error.message}`);
+	return data?.company_id ?? null;
+}
+
+export async function replaceFleetAgentKey(
+	client: SupabaseClient,
+	companyID: string,
+	fleetID: string,
+): Promise<AgentKey> {
+	const name = `${fleetCredentialKind} ${fleetID}`;
+	const { error } = await client
+		.from('agent')
+		.update({ revoked_at: new Date().toISOString() })
+		.eq('company_id', companyID)
+		.eq('name', name)
+		.is('revoked_at', null);
+	if (error) throw new Error(`agent ${name}: ${error.message}`);
+	return issueAgentKey(client, companyID, name);
+}
+
 export async function revokeAgent(client: SupabaseClient, agentID: string): Promise<void> {
 	const { error } = await client
 		.from('agent')

@@ -115,12 +115,17 @@ export async function openDirectChannel(
 	};
 }
 
-export async function readPosts(settings: MattermostSettings, session: MattermostSession, channelID: string) {
+export async function readPosts(
+	settings: MattermostSettings,
+	session: MattermostSession,
+	channelID: string,
+	before?: string
+) {
 	const page = await ask<{ order: string[]; posts: Record<string, MattermostPost & { metadata?: { reactions?: MattermostReaction[] } }> }>(
 		settings,
 		session,
 		'GET',
-		`/channels/${channelID}/posts?per_page=50`
+		`/channels/${channelID}/posts?per_page=50${before ? `&before=${encodeURIComponent(before)}` : ''}`
 	);
 	return page.order
 		.map((id) => page.posts[id])
@@ -208,6 +213,46 @@ export async function removeReaction(
 	emoji: string
 ) {
 	await ask<void>(settings, session, 'DELETE', `/users/${session.userID}/posts/${postID}/reactions/${emoji}`);
+}
+
+export async function readCustomEmoji(
+	settings: MattermostSettings,
+	session: MattermostSession
+): Promise<{ name: string; url: string }[]> {
+	const listed = await ask<{ id: string; name: string }[]>(
+		settings,
+		session,
+		'GET',
+		'/emoji?per_page=200'
+	);
+	const drawn = await Promise.all(
+		listed.map(async (emoji) => {
+			const response = await fetch(`${settings.baseURL}/api/v4/emoji/${encodeURIComponent(emoji.id)}/image`, {
+				headers: { Authorization: `Bearer ${session.token}` }
+			});
+			if (!response.ok) return null;
+			const type = response.headers.get('content-type') ?? 'image/png';
+			const bytes = new Uint8Array(await response.arrayBuffer());
+			if (bytes.length === 0 || bytes.length > 100_000) return null;
+			return { name: emoji.name, url: `data:${type};base64,${Buffer.from(bytes).toString('base64')}` };
+		})
+	);
+	return drawn.filter((emoji): emoji is { name: string; url: string } => emoji !== null);
+}
+
+export async function readProfilePicture(
+	settings: MattermostSettings,
+	session: MattermostSession,
+	externalID: string
+): Promise<{ dataURL: string } | null> {
+	const response = await fetch(`${settings.baseURL}/api/v4/users/${encodeURIComponent(externalID)}/image`, {
+		headers: { Authorization: `Bearer ${session.token}` }
+	});
+	if (!response.ok) return null;
+	const type = response.headers.get('content-type') ?? 'image/png';
+	const bytes = new Uint8Array(await response.arrayBuffer());
+	if (bytes.length === 0 || bytes.length > 200_000) return null;
+	return { dataURL: `data:${type};base64,${Buffer.from(bytes).toString('base64')}` };
 }
 
 export async function readPeople(settings: MattermostSettings, session: MattermostSession) {

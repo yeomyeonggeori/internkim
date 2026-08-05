@@ -16,7 +16,8 @@ export const load: LayoutLoad<{ session: WebAuthSession | null }> = async ({ fet
 	const returnPath = window.location.pathname + window.location.search;
 	if (isSupabaseConfigured()) {
 		const session = await supabaseWebAuthSession(returnPath);
-		if (session.authenticated && !returnPath.startsWith('/start') && !(await belongsToACompany())) {
+		const settlingIn = returnPath.startsWith('/start') || returnPath.startsWith('/auth/');
+		if (session.authenticated && !settlingIn && !(await belongsToACompany())) {
 			redirect(307, '/start');
 		}
 		return { session };
