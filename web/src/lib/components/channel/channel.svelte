@@ -28,7 +28,7 @@
 		type ThreadSummary
 	} from './channel-api';
 	import { fileToAttachment, formatAttachmentMeta } from './channel-attachments';
-	import { getCachedMessages, setCachedMessages } from './channel-message-cache';
+	import { getCachedMessages, getCachedReaderID, setCachedMessages, setCachedReaderID } from './channel-message-cache';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
 	import FileIcon from '@lucide/svelte/icons/file';
@@ -66,7 +66,7 @@
 	// ponytail: 전환 중 메시지 입력 임시 잠금 (되돌리려면 false)
 	const messageInputDisabled = false;
 	let messages = $state<ChannelMessage[]>([]);
-	let currentUserID = $state('');
+	let currentUserID = $state(getCachedReaderID());
 	let currentUserEmail = $state('');
 	let currentUserImage = $state('');
 	let isAgentWorking = $state(false);
@@ -218,6 +218,7 @@
 		try {
 			const conversation = await fetchChannelConversation(channelId);
 			currentUserID = conversation.currentUserID;
+			setCachedReaderID(conversation.currentUserID);
 			const latestIncoming = conversation.messages.at(-1);
 			if (latestIncoming && !isMine(latestIncoming) && latestIncoming.id !== messages.at(-1)?.id) {
 				isAgentWorking = false;
