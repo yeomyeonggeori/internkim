@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(27);
 
 delete from public.company;
 
@@ -859,6 +859,32 @@ begin
   reset role;
   raise notice 'channel: a company topic is derived, never chosen';
 end $$$block$, 'channel: a company topic is derived, never chosen');
+
+select lives_ok($block$do $$
+declare
+  owning_company uuid := '00000000-0000-0000-0000-0000000000a0';
+  joiner uuid := '000000aa-0000-0000-0000-000000000000';
+  chore uuid;
+  before_participants timestamptz;
+  after_added timestamptz;
+  after_removed timestamptz;
+begin
+  insert into public.task (company_id, title) values (owning_company, 'a chore nobody has joined yet')
+    returning id into chore;
+  select updated_at into before_participants from public.task where id = chore;
+
+  insert into public.task_participant (task_id, member_id) values (chore, joiner);
+  select updated_at into after_added from public.task where id = chore;
+  assert after_added > before_participants,
+    'adding a participant must move the task stamp, or an incremental fetch never sees it';
+
+  delete from public.task_participant where task_id = chore and member_id = joiner;
+  select updated_at into after_removed from public.task where id = chore;
+  assert after_removed > after_added,
+    'removing a participant must move the task stamp too';
+
+  raise notice 'task: joining or leaving marks the task as changed';
+end $$$block$, 'task: joining or leaving marks the task as changed');
 
 select * from finish();
 rollback;
