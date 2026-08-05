@@ -9,6 +9,7 @@ import {
 	readChannels,
 	readPeople,
 	readPosts,
+	readCustomEmoji,
 	readProfilePicture,
 	removeReaction,
 	signIn,
@@ -88,6 +89,12 @@ async function reply(answer: Answer): Promise<void> {
 }
 
 const pictures = new Map<string, { dataURL: string } | null>();
+let customEmoji: { name: string; url: string }[] | null = null;
+
+async function emojiSet(): Promise<{ name: string; url: string }[]> {
+	customEmoji ??= await readCustomEmoji(mattermost, session);
+	return customEmoji;
+}
 
 async function pictureOf(externalID: string): Promise<{ dataURL: string } | null> {
 	if (!pictures.has(externalID)) {
@@ -102,6 +109,7 @@ async function route(method: string, path: string, body: unknown): Promise<unkno
 	const parts = route.split('/').filter(Boolean);
 	const asked = body as { body?: string; parentID?: string; emoji?: string } | null;
 
+	if (method === 'GET' && parts[0] === 'emoji') return emojiSet();
 	if (method === 'GET' && parts[0] === 'person' && parts[2] === 'picture') {
 		return pictureOf(parts[1]);
 	}

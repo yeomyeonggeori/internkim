@@ -24,7 +24,7 @@
 	const fieldId = $props.id();
 	const identityTransport = createBuzzIdentityTransport();
 	let servesCompanies = $state(false);
-	let buzzEnabled = $state(false);
+	let buzzEnabled = $state<boolean | null>(null);
 	const passkeyAvailable = $derived(servesCompanies ? isSupabasePasskeySupported() : isBuzzPasskeySupported());
 	let email = $state('');
 	let password = $state('');
@@ -110,6 +110,10 @@
 
 {#if session?.authenticated}
 	{@render children?.()}
+{:else if buzzEnabled === null}
+	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
+		<p class="text-sm text-muted-foreground">{text.checkingSession}</p>
+	</div>
 {:else if buzzEnabled}
 	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
 		<Card.Root class="mx-auto w-full max-w-sm">
