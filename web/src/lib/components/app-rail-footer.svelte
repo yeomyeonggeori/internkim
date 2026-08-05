@@ -9,6 +9,7 @@
 		displayUserName,
 		userEmail,
 		userImage,
+		userMemberID,
 		labels,
 		logOut
 	}: {
@@ -16,6 +17,7 @@
 		displayUserName: string;
 		userEmail: string;
 		userImage?: string;
+		userMemberID?: string;
 		labels: AppRailProfileMenuLabels;
 		logOut: () => void | Promise<void>;
 	} = $props();
@@ -28,6 +30,7 @@
 			{displayUserName}
 			{userEmail}
 			{userImage}
+			{userMemberID}
 			{labels}
 			{logOut}
 		/>

@@ -1,4 +1,4 @@
-import { supabase } from '$lib/supabase';
+import { supabaseMember } from '$lib/supabase-session';
 import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 import { personPicture } from '$lib/stores/person-picture.svelte';
 import { emojify, get as glyphOf } from 'node-emoji';
@@ -49,11 +49,8 @@ async function knownPeople(): Promise<MessengerDirectory> {
 }
 
 async function myPersonKey(): Promise<string> {
-	const { data } = await supabase().auth.getSession();
-	const accountID = data.session?.user.id;
-	if (!accountID) return '';
-	const member = await supabase().from('member').select('id').eq('user_id', accountID).maybeSingle<{ id: string }>();
-	return member.data ? personKey({ memberID: member.data.id }) : '';
+	const { memberID } = await supabaseMember();
+	return memberID ? personKey({ memberID }) : '';
 }
 
 function canonicalKey(person: MessengerPerson, people: MessengerDirectory): string {
