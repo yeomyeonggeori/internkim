@@ -3,6 +3,7 @@ GO_CACHE ?= /tmp/internkim-go-cache-$(GO_HOST)
 GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-$(GO_HOST)
 BLUECLAW_GO_CACHE ?= /tmp/blueclaw-go-cache
 COMPANION_TARGET_TRIPLE ?= $(shell rustc -vV 2>/dev/null | sed -n 's/host: //p')
+BRIDGE_TARGET ?=
 AGENT_BROWSER_VERSION ?= 0.26.0
 COMPANION_BETA_DIST ?= dist/companion
 COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
@@ -15,7 +16,7 @@ build: verify-generated-protocol build-mattermost-ephemeral-plugin
 
 build-messenger-bridge:
 	cd host/messenger && bun install --frozen-lockfile
-	cd host/messenger && bun build --compile --outfile ../../internkim-messenger-bridge bridge.ts
+	cd host/messenger && bun build --compile $(if $(BRIDGE_TARGET),--target=$(BRIDGE_TARGET)) --outfile ../../internkim-messenger-bridge bridge.ts
 
 build-companion:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-companion ./cmd/internkim-companion
