@@ -13,5 +13,5 @@ rp_id = "intern.kim"
 rp_origins = ["https://intern.kim", "https://*.intern.kim"]
 
 [auth.email.template.magic_link]
-subject = "김인턴 계정 설정하기 · Set up your InternKim sign-in"
+subject = "Set up your InternKim sign-in"
 content_path = "./supabase/templates/magic-link.html"
