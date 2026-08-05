@@ -224,8 +224,8 @@
     --popover-foreground: 0 0% 98%;
     --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
+    --border: 240 4% 24%;
+    --input: 240 4% 24%;
     --primary: oklch(0.92 0.004 286.3);
     --primary-foreground: oklch(0.21 0.006 285.9);
     --secondary: 240 3.7% 15.9%;
