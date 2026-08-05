@@ -4,6 +4,10 @@ project_id = "mutvimjbvmoludotyehk"
 enabled = true
 sql_paths = ['./seed.dev.sql']
 
+[auth]
+site_url = "https://intern.kim"
+additional_redirect_urls = ["https://*.intern.kim/auth/claim"]
+
 [auth.passkey]
 enabled = true
 
@@ -11,6 +15,15 @@ enabled = true
 rp_display_name = "InternKim"
 rp_id = "intern.kim"
 rp_origins = ["https://intern.kim", "https://*.intern.kim"]
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.email]
+enable_confirmations = true
+max_frequency = "1m0s"
+otp_length = 8
 
 [auth.email.template.magic_link]
 subject = "Set up your InternKim sign-in"

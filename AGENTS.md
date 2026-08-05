@@ -387,6 +387,12 @@ and delete the duplicates.
 
 ## Central Plane (Supabase)
 
+- `supabase config push` sends the **whole** `config.toml`: any setting the file
+  does not name is reset to the CLI default. Before pushing, move anything that
+  was only ever set in the dashboard into the file, or pushing one change quietly
+  reverts the rest. There is no dry run. The push output is a unified diff where
+  `-` is the live state and `+` is what you are sending; read it before trusting
+  a green exit.
 - The company web app runs on Supabase, not on a device. `supabase/migrations`
   is the schema of record and `docs/core-schema.md` explains it. Never edit an
   applied migration; add the next one.
