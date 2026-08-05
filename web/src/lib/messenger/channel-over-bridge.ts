@@ -1,4 +1,5 @@
 import { supabase } from '$lib/supabase';
+import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 import {
 	fetchChannels,
 	fetchPosts,
@@ -14,7 +15,7 @@ import { fetchMessengerDirectory, personKey, personLabel, type MessengerDirector
 type ChannelSummary = { id: string; name: string; kind: 'dm' | 'group'; avatarURL?: string };
 type Person = { id: string; name: string; avatarURL?: string };
 type Participant = { id: string; name: string; avatarURL?: string };
-type Reaction = { emoji: string; count: number; reactedByMe: boolean; people?: Participant[] };
+type Reaction = { emoji: string; count: number; reactedByMe: boolean; imageURL?: string; people?: Participant[] };
 type Message = {
 	id: string;
 	threadRootId?: string;
@@ -127,6 +128,7 @@ export async function bridgeConversation(channelID?: string, before?: string): P
 		return { conversationID: '', currentUserID: mine, messages: [], hasMoreBefore: false, historyCursor: '' };
 	}
 	const posts = await fetchPosts(channelID, before);
+	await customEmoji.load();
 	await rememberPictures(posts.map((post) => externalIDOf(post.author, people)));
 	return {
 		conversationID: channelID,
@@ -147,6 +149,7 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, mine: string
 		reactions: post.reactions.map((reaction) => ({
 			emoji: reaction.emoji,
 			count: reaction.people.length,
+			imageURL: customEmoji.nameToURL.get(reaction.emoji),
 			reactedByMe: reaction.people.some((person) => canonicalKey(person, people) === mine),
 			people: reaction.people.map((person) => participantOf(person, people))
 		}))
