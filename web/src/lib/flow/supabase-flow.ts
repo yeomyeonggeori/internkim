@@ -1,5 +1,6 @@
 import { supabase } from '$lib/supabase';
 import { flowDefinitionsOf, vocabularyOf } from '$lib/flow/task-vocabulary';
+import { heldTasks, holdTasks, mergeChangedTasks, newestStamp } from '$lib/flow/flow-task-cache';
 import type {
 	FlowMember,
 	FlowMetrics,
@@ -37,8 +38,43 @@ type TaskRow = {
 	starts_at: string | null;
 	ends_at: string | null;
 	due_at: string | null;
+	updated_at: string;
 	task_participant: { member_id: string }[];
 };
+
+const taskColumns =
+	'id, title, status, note, business, type, size, starts_at, ends_at, due_at, updated_at, task_participant (member_id)';
+
+async function readTasks(): Promise<TaskRow[]> {
+	const client = supabase();
+	const held = heldTasks<TaskRow>();
+
+	if (!held) {
+		const everything = await client.from('task').select(taskColumns).eq('is_event', false).returns<TaskRow[]>();
+		if (everything.error) throw new Error(everything.error.message);
+		holdTasks({ tasks: everything.data, fetchedAt: newestStamp(everything.data) });
+		return sortedByEnd(everything.data);
+	}
+
+	const changed = await client
+		.from('task')
+		.select(taskColumns)
+		.eq('is_event', false)
+		.gte('updated_at', held.fetchedAt)
+		.returns<TaskRow[]>();
+	if (changed.error) throw new Error(changed.error.message);
+
+	const live = await client.from('task').select('id').eq('is_event', false).returns<{ id: string }[]>();
+	if (live.error) throw new Error(live.error.message);
+
+	const merged = mergeChangedTasks(held.tasks, changed.data, new Set(live.data.map((row) => row.id)));
+	holdTasks({ tasks: merged, fetchedAt: newestStamp(merged) });
+	return sortedByEnd(merged);
+}
+
+function sortedByEnd(tasks: TaskRow[]): TaskRow[] {
+	return [...tasks].sort((left, right) => (right.ends_at ?? '').localeCompare(left.ends_at ?? ''));
+}
 
 export async function supabaseFlowState(): Promise<FlowState> {
 	const client = supabase();
@@ -55,16 +91,10 @@ export async function supabaseFlowState(): Promise<FlowState> {
 		.returns<MemberRow[]>();
 	if (members.error) throw new Error(members.error.message);
 
-	const tasks = await client
-		.from('task')
-		.select('id, title, status, note, business, type, size, starts_at, ends_at, due_at, task_participant (member_id)')
-		.eq('is_event', false)
-		.order('ends_at', { ascending: false, nullsFirst: false })
-		.returns<TaskRow[]>();
-	if (tasks.error) throw new Error(tasks.error.message);
+	const tasks = await readTasks();
 
 	const nameByID = new Map(members.data.map((member) => [member.id, displayName(member)]));
-	const flowTasks = tasks.data.map((task) => taskOf(task, nameByID));
+	const flowTasks = tasks.map((task) => taskOf(task, nameByID));
 	const me = members.data.find((member) => member.user_id === accountID);
 
 	return {
