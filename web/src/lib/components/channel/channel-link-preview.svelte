@@ -25,10 +25,16 @@
 		href={preview.url}
 		target="_blank"
 		rel="noreferrer"
-		class="flex w-fit max-w-[min(80%,32rem)] flex-col overflow-hidden rounded-lg border bg-card text-card-foreground no-underline transition-colors hover:bg-accent"
+		class="flex w-full max-w-[min(70%,20rem)] flex-col self-start overflow-hidden rounded-lg border bg-card text-card-foreground no-underline transition-colors group-data-[align=end]/message:self-end hover:bg-accent"
 	>
 		{#if preview.imageDataURL}
-			<img src={preview.imageDataURL} alt="" loading="lazy" decoding="async" class="h-32 w-full object-cover" />
+			<img
+				src={preview.imageDataURL}
+				alt=""
+				loading="lazy"
+				decoding="async"
+				class="aspect-[1.91/1] w-full object-cover"
+			/>
 		{/if}
 		<div class="grid gap-0.5 px-3 py-2">
 			<span class="truncate text-xs text-muted-foreground">{preview.siteName}</span>

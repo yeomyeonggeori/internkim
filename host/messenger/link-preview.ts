@@ -17,7 +17,7 @@ export async function readLinkPreview(link: string): Promise<LinkPreview | null>
 	const page = await readCapped(address, pageByteCap, 'text/html');
 	if (!page) return null;
 
-	const tags = await readMetaTags(new TextDecoder().decode(page.bytes));
+	const tags = await readMetaTags(decodePage(page.bytes, page.declaredType));
 	const title = tags.get('og:title') ?? tags.get('title') ?? '';
 	if (!title) return null;
 
@@ -58,7 +58,7 @@ async function readCapped(
 	address: URL,
 	byteCap: number,
 	wantedType: string
-): Promise<{ bytes: Uint8Array; contentType: string } | null> {
+): Promise<{ bytes: Uint8Array; contentType: string; declaredType: string } | null> {
 	const response = await fetch(address, {
 		signal: AbortSignal.timeout(timeoutMillisecond),
 		redirect: 'follow',
@@ -66,7 +66,8 @@ async function readCapped(
 	}).catch(() => null);
 	if (!response?.ok || !response.body) return null;
 
-	const contentType = (response.headers.get('content-type') ?? '').split(';')[0].trim();
+	const declaredType = response.headers.get('content-type') ?? '';
+	const contentType = declaredType.split(';')[0].trim();
 	if (!contentType.startsWith(wantedType)) {
 		await response.body.cancel().catch(() => undefined);
 		return null;
@@ -81,6 +82,27 @@ async function readCapped(
 	}
 	await response.body.cancel().catch(() => undefined);
 	return { bytes: Bun.concatArrayBuffers(chunks, byteCap, true), contentType };
+}
+
+export function decodePage(bytes: Uint8Array, declaredType: string): string {
+	const fromHeader = charsetIn(declaredType);
+	if (fromHeader) return decodeWith(bytes, fromHeader);
+
+	const guessed = decodeWith(bytes, 'utf-8');
+	const fromDocument = charsetIn(guessed.slice(0, 4096));
+	return fromDocument ? decodeWith(bytes, fromDocument) : guessed;
+}
+
+function charsetIn(text: string): string {
+	return /charset\s*=\s*["']?([\w-]+)/i.exec(text)?.[1] ?? '';
+}
+
+function decodeWith(bytes: Uint8Array, label: string): string {
+	try {
+		return new TextDecoder(label).decode(bytes);
+	} catch {
+		return new TextDecoder().decode(bytes);
+	}
 }
 
 async function readMetaTags(html: string): Promise<Map<string, string>> {

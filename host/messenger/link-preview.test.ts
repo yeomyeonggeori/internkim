@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { reachableAddress } from './link-preview';
+import { decodePage, reachableAddress } from './link-preview';
 
 describe('reachableAddress', () => {
 	test('an ordinary web address is fetched', () => {
@@ -26,5 +26,22 @@ describe('reachableAddress', () => {
 		]) {
 			expect(reachableAddress(link)).toBeNull();
 		}
+	});
+});
+
+describe('decodePage', () => {
+	const euckrHangul = new Uint8Array([0xc7, 0xd1, 0xb1, 0xb9, 0xbe, 0xee]);
+
+	test('reads the charset the page declares in its header', () => {
+		expect(decodePage(euckrHangul, 'text/html; charset=euc-kr')).toBe('한국어');
+	});
+
+	test('falls back to the charset in the document when the header is silent', () => {
+		const document = new TextEncoder().encode('<meta charset="utf-8"><title>한국어</title>');
+		expect(decodePage(document, 'text/html')).toContain('한국어');
+	});
+
+	test('an unknown charset does not throw', () => {
+		expect(decodePage(new TextEncoder().encode('hi'), 'text/html; charset=nonsense-9')).toBe('hi');
 	});
 });
