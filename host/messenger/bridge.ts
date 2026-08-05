@@ -1,6 +1,7 @@
 //   bun run host/messenger/bridge.ts
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { readLinkPreview, type LinkPreview } from './link-preview';
 import {
 	addReaction,
 	editPost,
@@ -89,6 +90,7 @@ async function reply(answer: Answer): Promise<void> {
 }
 
 const pictures = new Map<string, { dataURL: string } | null>();
+const linkPreviews = new Map<string, LinkPreview | null>();
 let customEmoji: { name: string; url: string }[] | null = null;
 
 async function emojiSet(): Promise<{ name: string; url: string }[]> {
@@ -103,6 +105,13 @@ async function pictureOf(externalID: string): Promise<{ dataURL: string } | null
 	return pictures.get(externalID) ?? null;
 }
 
+async function previewOf(link: string): Promise<LinkPreview | null> {
+	if (!linkPreviews.has(link)) {
+		linkPreviews.set(link, await readLinkPreview(link).catch(() => null));
+	}
+	return linkPreviews.get(link) ?? null;
+}
+
 async function route(method: string, path: string, body: unknown): Promise<unknown> {
 	const [route, query] = path.split('?');
 	const parameters = new URLSearchParams(query ?? '');
@@ -110,6 +119,7 @@ async function route(method: string, path: string, body: unknown): Promise<unkno
 	const asked = body as { body?: string; parentID?: string; emoji?: string } | null;
 
 	if (method === 'GET' && parts[0] === 'emoji') return emojiSet();
+	if (method === 'GET' && parts[0] === 'link') return previewOf(parameters.get('url') ?? '');
 	if (method === 'GET' && parts[0] === 'person' && parts[2] === 'picture') {
 		return pictureOf(parts[1]);
 	}

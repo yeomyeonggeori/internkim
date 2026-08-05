@@ -56,6 +56,18 @@ export function fetchChannels(platform?: string): Promise<MessengerChannel[]> {
 	return ask<MessengerChannel[]>('GET', `/channel${query}`);
 }
 
+export type LinkPreview = {
+	url: string;
+	title: string;
+	description: string;
+	siteName: string;
+	imageDataURL: string;
+};
+
+export function fetchLinkPreview(url: string): Promise<LinkPreview | null> {
+	return ask<LinkPreview | null>('GET', `/link?url=${encodeURIComponent(url)}`);
+}
+
 export function openDirectChannel(people: string[], platform: string): Promise<MessengerChannel> {
 	return ask<MessengerChannel>('POST', '/channel/direct', { platform, memberIDs: people });
 }
