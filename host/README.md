@@ -16,9 +16,14 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | the agent binary | — |
 | **capabilityd** | optional — `not_configured` is a passing state, but the calendar, task, mail and site tools disappear without it |
 | **chatd** | optional — only if a messenger is attached |
+| **the messenger bridge** | everything the web messenger shows — channels, people, pictures, emoji — is answered by this process; when it is not running the screen is empty, by design, because the company holds its own messenger |
 
 Firecracker, the POSIX helper, Mattermost, a relay and cloudflared are **not**
 needed. The device stack required them; this does not.
+
+`make build-messenger-bridge` compiles `messenger/bridge.ts` into a single
+`internkim-messenger-bridge` executable, so the box needs no Bun and no
+`node_modules`. `entrypoint.sh` starts it last and restarts it if it stops.
 
 ## What it holds
 
@@ -30,13 +35,19 @@ job** (`docs/saas-design.md` §7.1).
 
 ## Configuration
 
-`entrypoint.sh` needs three values and passes the rest through:
+`entrypoint.sh` needs five values and passes the rest through:
 
 ```
 SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_PUBLISHABLE_KEY=<the project's publishable key>
+INTERNKIM_APP_URL=https://<company>.intern.kim
 CHATD_BOT_USER_NAME=<the bot's display name>
 DATABASE_URL=postgres://…            # the host's own Postgres
 ```
+
+The agent key is never an environment variable. It lives in `/secrets/agent-key`,
+mode 0600, beside `/secrets/openrouter-key`; `entrypoint.sh` reads it fresh on
+every bridge start, so rotating the file is enough.
 
 Plus the messenger the tenant runs, one of:
 
