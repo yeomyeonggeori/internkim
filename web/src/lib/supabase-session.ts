@@ -19,12 +19,22 @@ export async function supabaseWebAuthSession(returnPath: string): Promise<WebAut
 	};
 }
 
-export async function supabaseMemberRole(): Promise<'admin' | 'member'> {
+export type SignedInMember = { memberID: string; role: 'admin' | 'member' };
+
+export async function supabaseMember(): Promise<SignedInMember> {
 	const { data } = await supabase().auth.getSession();
 	const accountID = data.session?.user.id;
-	if (!accountID) return 'member';
-	const member = await supabase().from('member').select('is_admin').eq('user_id', accountID).maybeSingle();
-	return member.data?.is_admin ? 'admin' : 'member';
+	if (!accountID) return { memberID: '', role: 'member' };
+	const member = await supabase()
+		.from('member')
+		.select('id, is_admin')
+		.eq('user_id', accountID)
+		.maybeSingle<{ id: string; is_admin: boolean }>();
+	return { memberID: member.data?.id ?? '', role: member.data?.is_admin ? 'admin' : 'member' };
+}
+
+export async function supabaseMemberRole(): Promise<'admin' | 'member'> {
+	return (await supabaseMember()).role;
 }
 
 export async function signOutOfSupabase(): Promise<void> {
