@@ -10,6 +10,8 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import ChannelCode from './channel-code.svelte';
+	import ChannelLinkPreview from './channel-link-preview.svelte';
+	import { firstLinkIn } from './channel-link';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import { channelText } from '$lib/i18n/channel-text';
@@ -688,6 +690,9 @@
 			{/if}
 			{@render timeStamp(message)}
 		</Bubble.Root>
+		{#if firstLinkIn(content.text)}
+			<ChannelLinkPreview url={firstLinkIn(content.text)} />
+		{/if}
 	{/if}
 	{#if message.thread}
 		{@render threadChip(message)}
