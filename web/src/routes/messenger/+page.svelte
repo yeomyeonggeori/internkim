@@ -1,11 +1,5 @@
 <script lang="ts">
-	import BuzzMessenger from './buzz-messenger.svelte';
-	import CompanyMessenger from './company-messenger.svelte';
-	import { isSupabaseConfigured } from '$lib/supabase';
+	import Messenger from './messenger.svelte';
 </script>
 
-{#if isSupabaseConfigured()}
-	<CompanyMessenger />
-{:else}
-	<BuzzMessenger />
-{/if}
+<Messenger />

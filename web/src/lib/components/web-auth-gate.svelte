@@ -22,9 +22,10 @@
 
 	const text = createPageText(appShellText);
 	const fieldId = $props.id();
-	const passkeyAvailable = isSupabaseConfigured() ? isSupabasePasskeySupported() : isBuzzPasskeySupported();
 	const identityTransport = createBuzzIdentityTransport();
-	let buzzEnabled = $state(isSupabaseConfigured());
+	let servesCompanies = $state(false);
+	let buzzEnabled = $state(false);
+	const passkeyAvailable = $derived(servesCompanies ? isSupabasePasskeySupported() : isBuzzPasskeySupported());
 	let email = $state('');
 	let password = $state('');
 	let busy = $state(false);
@@ -34,7 +35,11 @@
 	const cloudflareLoginURL = $derived(session?.cloudflareLoginURL || cloudflareLoginURLFor(returnPath));
 
 	onMount(async () => {
-		if (isSupabaseConfigured()) return;
+		servesCompanies = isSupabaseConfigured();
+		if (servesCompanies) {
+			buzzEnabled = true;
+			return;
+		}
 		try {
 			const response = await fetch('/agent/api/buzz-relay-config', { credentials: 'include' });
 			if (response.ok) {
@@ -80,7 +85,7 @@
 			return;
 		}
 		const normalizedEmail = email.trim().toLowerCase();
-		if (isSupabaseConfigured()) {
+		if (servesCompanies) {
 			return runSupabaseLogin(() => signInWithSupabase(normalizedEmail, password));
 		}
 		return runLogin(async () => {
@@ -98,7 +103,7 @@
 	}
 
 	function loginWithPasskey() {
-		if (isSupabaseConfigured()) return runSupabaseLogin(signInWithPasskey);
+		if (servesCompanies) return runSupabaseLogin(signInWithPasskey);
 		return runLogin(buzzPasskeyLogin);
 	}
 </script>
@@ -139,7 +144,7 @@
 							<Button type="submit" class="w-full" disabled={busy || password.length === 0}>
 								{text.signInWithPassword}
 							</Button>
-							{#if isSupabaseConfigured()}
+							{#if servesCompanies}
 								<FieldDescription class="text-center">
 									{text.firstTimePrompt}
 									<a class="underline" href="/auth/claim">{text.claimAccount}</a>
