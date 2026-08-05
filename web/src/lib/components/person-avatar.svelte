@@ -24,10 +24,10 @@
 	const avatarSeed = $derived(personAvatarSeed(email, seed, name));
 	const avatarLabel = $derived(name || email || 'Person');
 	const identity = $derived({ memberID, email });
-	const drawn = $derived(image || personPicture.pictureOf(identity));
+	const drawn = $derived(personPicture.pictureOf(identity) || image);
 
 	$effect(() => {
-		if (!image && (memberID || email)) void personPicture.remember([identity]);
+		if (memberID || email) void personPicture.remember([identity]);
 	});
 </script>
 
