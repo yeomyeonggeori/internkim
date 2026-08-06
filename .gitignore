@@ -45,3 +45,4 @@ __pycache__/
 supabase/.branches/
 supabase/.temp/
 /output/
+docs/private

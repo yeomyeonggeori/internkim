@@ -40,6 +40,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   one undoes that. Fixtures, seeds, and documentation use sample names
   (이샘플, 박예시, 최견본) and `example.com` addresses. Real people live in
   the database.
+- A new document goes in `docs/internal/`. `docs/` is what a docs site
+  publishes, `docs/private/` is gitignored and holds what nobody needs to open
+  again. `docs/internal/README.md` has the rule and the one constraint: a
+  document that tracked code links to cannot be private.
 
 ## Working on this repository
 
