@@ -23,11 +23,11 @@ needed. The device stack required them; this does not.
 
 ## The messenger bridge
 
-`docs/saas-design.md` §6 has the shape; the part that matters here is that the
-bridge **depends on nothing else in this bundle**. It never speaks to blueclaw,
-chatd, capabilityd, llmd or Postgres — only Supabase, the central plane and the
-tenant's messenger. So `entrypoint.sh` starts it **first**, before the postgres
-wait: the agent can be down and the messenger screen still answers.
+`docs/internal/saas-design.md` §6 has the shape; the part that matters here is
+that the bridge **depends on nothing else in this bundle**. It never speaks to
+blueclaw, chatd, capabilityd, llmd or Postgres — only Supabase, the central
+plane and the tenant's messenger. So `entrypoint.sh` starts it **first**, before
+the postgres wait: the agent can be down and the messenger screen still answers.
 
 That independence is also why it runs anywhere. The POSIX boundary below
 constrains where the *agent* runs; the bridge only needs an outbound network and
@@ -84,7 +84,7 @@ The host's Postgres keeps the agent's working memory: raw events, conversations,
 the task-run ledger, memory, and the workspace. The record — people, attendance,
 leave, tasks — lives centrally. Losing the box therefore loses the agent's memory
 and history but not the company's data, and **backing that up is the customer's
-job** (`docs/saas-design.md` §7.1).
+job** (`docs/internal/saas-design.md` §7.1).
 
 ## Configuration
 
