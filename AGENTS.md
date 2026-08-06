@@ -12,9 +12,16 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   `tools/sync-worktree-local-state <main-worktree-path>` from the new worktree
   before tests or deployments that need local ignored state. The script links
   `.env`, `web/.dev.vars`, `.local/secrets`, `.agents`, and root secret files
-  from the main worktree without copying generated artifacts. Missing paths are
-  reported as skipped. Use `--copy` before the path only when symlinks are not
-  appropriate.
+  from the main worktree, plus the `.dependency/` artifacts that are identical
+  across worktrees (`blueclaw-runtime`, `container-kernel`, `device-browser`,
+  `agent-browser`, `llama-cpp`, `llama-cpp-models`, `litert-models`,
+  `local-fleet-embedding`) — about 6.4 GB a worktree no longer duplicates.
+  Per-worktree build outputs stay excluded: `blueclaw-payload`, `blueclaw-llmd`,
+  `buzz-relay`, and `role-memory-arm64` carry a release SHA, so each worktree
+  builds its own through the matching `make prepare-*` target. Missing paths are
+  reported as skipped, and re-running is idempotent (`kept`). Use `--copy`
+  before the path only when symlinks are not appropriate; it copies the shared
+  artifacts too.
 - Do not revert user or generated changes unless explicitly asked.
 - Before commit, push, or deploy, check the current branch, upstream status,
   and working tree state.
