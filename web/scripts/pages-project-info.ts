@@ -23,8 +23,8 @@ type Deployment = {
 const headers = { Authorization: `Bearer ${token}` };
 const base = `https://api.cloudflare.com/client/v4/accounts/${accountID}/pages/projects/${project}`;
 
-const project_response = await fetch(base, { headers });
-const projectBody = (await project_response.json()) as {
+const projectResponse = await fetch(base, { headers });
+const projectBody = (await projectResponse.json()) as {
 	success: boolean;
 	errors?: unknown;
 	result?: { production_branch?: string; subdomain?: string };
