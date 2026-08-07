@@ -49,7 +49,7 @@ func TestVerifyLocalMattermostPassword(t *testing.T) {
 	if errorValue := writeFileAtomically(filepath.Join(service.Configuration.StateDirectory, mattermostPasswordHashFileName), blob, 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !service.verifyLocalMattermostPassword("Lee@Dawn.kim", "hunter2") {
+	if !service.verifyLocalMattermostPassword("Lee@Example.com", "hunter2") {
 		t.Error("correct password should verify (case-insensitive email)")
 	}
 	if service.verifyLocalMattermostPassword("lee@example.com", "wrong") {
