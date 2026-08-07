@@ -9,7 +9,7 @@ Every new surface — the SaaS web app, the host agent, the central API — targ
 this schema. The device-era attendance and leave code in `internal/admind` does
 **not** match it and is the thing that changes, not this. See §5.
 
-Companion documents: [`saas-design.md`](./internal/saas-design.md) decides where things
+Companion documents: [`saas-design.md`](./saas-design.md) decides where things
 run; this one decides what the data is.
 
 ---
