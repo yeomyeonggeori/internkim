@@ -49,7 +49,7 @@ trap shutdown INT TERM EXIT
 echo "[host] starting messenger bridge"
 keepBridgeRunning() {
   while true; do
-    AGENT_API_KEY_PATH="${agentKeyPath}" internkim-messenger-bridge &
+    AGENT_API_KEY_PATH="${agentKeyPath}" CHATD_BASE_URL="http://127.0.0.1:${chatdPort}" internkim-messenger-bridge &
     bridgeChild="$!"
     trap 'kill "${bridgeChild}" 2>/dev/null; exit 0' TERM
     wait "${bridgeChild}" || true
