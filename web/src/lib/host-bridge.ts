@@ -1,10 +1,10 @@
 import { supabase } from '$lib/supabase';
+import { messengerCredential } from '$lib/messenger-credential';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export type HostCall = {
-	method: 'GET' | 'POST' | 'PUT' | 'DELETE';
-	path: string;
-	body?: unknown;
+	capability: string;
+	body?: Record<string, unknown>;
 };
 
 export type HostAnswer = {
@@ -19,27 +19,34 @@ export class HostUnreachableError extends Error {
 	}
 }
 
+type Wire = {
+	memberID: string;
+	presence: RealtimeChannel;
+	calls: RealtimeChannel;
+	answers: RealtimeChannel;
+};
+
 const answerTimeoutMilliseconds = 20_000;
 
-let joined: Promise<RealtimeChannel> | undefined;
+let joined: Promise<Wire> | undefined;
 let running = false;
 const waiting = new Map<string, (answer: HostAnswer) => void>();
 
-async function companyChannel(): Promise<RealtimeChannel> {
+async function companyWire(): Promise<Wire> {
 	if (joined) return joined;
-	const attempt = openCompanyChannel();
+	const attempt = openWire();
 	joined = attempt;
-	attempt.catch(() => forgetChannel(attempt));
+	attempt.catch(() => forgetWire(attempt));
 	return attempt;
 }
 
-function forgetChannel(attempt: Promise<RealtimeChannel>): void {
+function forgetWire(attempt: Promise<Wire>): void {
 	if (joined !== attempt) return;
 	joined = undefined;
 	running = false;
 }
 
-async function openCompanyChannel(): Promise<RealtimeChannel> {
+async function openWire(): Promise<Wire> {
 	const client = supabase();
 	await client.realtime.setAuth();
 	const { data } = await client.auth.getSession();
@@ -47,23 +54,33 @@ async function openCompanyChannel(): Promise<RealtimeChannel> {
 	if (!accountID) throw new Error('sign in first');
 	const member = await client
 		.from('member')
-		.select('company_id')
+		.select('id, company_id')
 		.eq('user_id', accountID)
-		.single<{ company_id: string }>();
+		.single<{ id: string; company_id: string }>();
 	if (member.error) throw new Error(member.error.message);
 
-	const channel = client.channel(`company:${member.data.company_id}`, { config: { private: true } });
-	channel.on('presence', { event: 'sync' }, () => {
-		running = Object.keys(channel.presenceState()).length > 0;
+	const presence = client.channel(`company:${member.data.company_id}`, {
+		config: { private: true }
 	});
-	channel.on('broadcast', { event: 'answer' }, ({ payload }) => {
+	presence.on('presence', { event: 'sync' }, () => {
+		running = Object.keys(presence.presenceState()).length > 0;
+	});
+	await joinChannel(presence);
+
+	const answers = client.channel(`member:${member.data.id}`, { config: { private: true } });
+	answers.on('broadcast', { event: 'answer' }, ({ payload }) => {
 		const answer = payload as { callID?: string; status?: number; body?: unknown };
 		if (typeof answer.callID !== 'string') return;
 		waiting.get(answer.callID)?.({ status: answer.status ?? 500, body: answer.body });
 		waiting.delete(answer.callID);
 	});
-	await joinChannel(channel);
-	return channel;
+	await joinChannel(answers);
+
+	const calls = client.channel(`company:${member.data.company_id}:call`, {
+		config: { private: true }
+	});
+
+	return { memberID: member.data.id, presence, calls, answers };
 }
 
 function joinChannel(channel: RealtimeChannel): Promise<void> {
@@ -72,19 +89,20 @@ function joinChannel(channel: RealtimeChannel): Promise<void> {
 			if (status === 'SUBSCRIBED') return resolve();
 			if (error) return reject(error);
 			if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-				reject(new Error(`the company channel is ${status}`));
+				reject(new Error(`the ${channel.topic} channel is ${status}`));
 			}
 		});
 	});
 }
 
 export async function isCompanyAppRunning(): Promise<boolean> {
-	await companyChannel();
+	await companyWire();
 	return running;
 }
 
 export async function callCompanyApp(call: HostCall): Promise<HostAnswer> {
-	const channel = await companyChannel();
+	const wire = await companyWire();
+	const actor = await messengerCredential();
 
 	const callID = crypto.randomUUID();
 	const answered = new Promise<HostAnswer | null>((resolve) => {
@@ -95,10 +113,15 @@ export async function callCompanyApp(call: HostCall): Promise<HostAnswer> {
 		}, answerTimeoutMilliseconds);
 	});
 
-	await channel.send({
+	await wire.calls.send({
 		type: 'broadcast',
 		event: 'call',
-		payload: { callID, method: call.method, path: call.path, body: call.body ?? null }
+		payload: {
+			callID,
+			capability: call.capability,
+			replyTo: wire.memberID,
+			body: { ...call.body, actor }
+		}
 	});
 
 	const answer = await answered;
