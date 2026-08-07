@@ -264,3 +264,19 @@ export async function readPeople(settings: MattermostSettings, session: Mattermo
 		email: user.email
 	}));
 }
+
+export async function mintUserAccessToken(
+	settings: MattermostSettings,
+	session: MattermostSession,
+	externalID: string
+): Promise<string> {
+	const token = await ask<{ token?: string }>(
+		settings,
+		session,
+		'POST',
+		`/users/${encodeURIComponent(externalID)}/tokens`,
+		{ description: 'internkim-messenger' }
+	);
+	if (!token.token) throw new Error('mattermost returned no personal access token');
+	return token.token;
+}
