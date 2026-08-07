@@ -57,7 +57,7 @@ func TestCloudflareAccessVerifierAcceptsValidToken(t *testing.T) {
 	token := signTestAccessToken(t, key, "kid-1", map[string]any{
 		"iss":   "https://team.cloudflareaccess.com",
 		"aud":   []string{"aud-1"},
-		"email": "Lee@Dawn.kim",
+		"email": "Lee@Example.com",
 		"exp":   time.Now().Add(time.Hour).Unix(),
 	})
 	request := requestWithAccessToken(token)

@@ -2,6 +2,8 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreview } from './link-preview';
+import { largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
+import { mintMissingTokens } from './member-tokens';
 import {
 	addReaction,
 	editPost,
@@ -20,7 +22,6 @@ import {
 } from './mattermost';
 
 type Call = { callID?: string; method?: string; path?: string; body?: unknown };
-type Answer = { callID: string; status: number; body: unknown };
 
 let knownContacts = -1;
 
@@ -28,6 +29,9 @@ const projectURL = required('SUPABASE_URL');
 const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
 const agentKey = await agentKeyFromEnvironmentOrFile();
 const appURL = required('INTERNKIM_APP_URL');
+const answerByteCeiling = Number(process.env.ANSWER_BYTE_CEILING ?? 200_000);
+const rejoinDeadlineMilliseconds = 60_000;
+const largestPictureBytes = largestRawBytesThatFit(answerByteCeiling);
 
 function required(name: string): string {
 	const value = process.env[name];
@@ -65,6 +69,9 @@ console.log(`acting as member ${memberSession.memberID}`);
 await refreshContacts(client, member.data.company_id, session);
 setInterval(() => void keepGoing('contacts', () => refreshContacts(client, member.data.company_id, session)), 600_000);
 
+await keepGoing('credentials', provisionMemberCredentials);
+setInterval(() => void keepGoing('credentials', provisionMemberCredentials), 600_000);
+
 client.realtime.setAuth(memberSession.accessToken);
 const channel = client.channel(`company:${member.data.company_id}`, { config: { private: true } });
 
@@ -83,6 +90,20 @@ await new Promise<void>((resolve, reject) => {
 await channel.track({ startedAt: new Date().toISOString() });
 console.log(`listening on company:${member.data.company_id}`);
 
+let lastJoinedAt = Date.now();
+setInterval(watchTheChannel, 10_000);
+
+function watchTheChannel(): void {
+	if (channel.state === 'joined') {
+		lastJoinedAt = Date.now();
+		return;
+	}
+	const awayForMilliseconds = Date.now() - lastJoinedAt;
+	if (awayForMilliseconds < rejoinDeadlineMilliseconds) return;
+	console.error(`channel has been ${channel.state} for ${Math.round(awayForMilliseconds / 1000)}s, exiting so the supervisor restarts`);
+	process.exit(1);
+}
+
 async function answer(call: Call): Promise<void> {
 	if (typeof call.callID !== 'string') return;
 	try {
@@ -95,7 +116,9 @@ async function answer(call: Call): Promise<void> {
 }
 
 async function reply(answer: Answer): Promise<void> {
-	await channel.send({ type: 'broadcast', event: 'answer', payload: answer });
+	const notice = oversizeNotice(answer, answerByteCeiling);
+	if (notice) console.error(`answer for ${answer.callID} is over the ${answerByteCeiling} byte ceiling`);
+	await channel.send({ type: 'broadcast', event: 'answer', payload: notice ?? answer });
 }
 
 const pictures = new Map<string, { dataURL: string } | null>();
@@ -109,7 +132,7 @@ async function emojiSet(): Promise<{ name: string; url: string }[]> {
 
 async function pictureOf(externalID: string): Promise<{ dataURL: string } | null> {
 	if (!pictures.has(externalID)) {
-		pictures.set(externalID, await readProfilePicture(mattermost, session, externalID));
+		pictures.set(externalID, await readProfilePicture(mattermost, session, externalID, largestPictureBytes));
 	}
 	return pictures.get(externalID) ?? null;
 }
@@ -158,6 +181,41 @@ async function route(method: string, path: string, body: unknown): Promise<unkno
 		return null;
 	}
 	throw new Error(`the app has nothing at ${method} ${route}`);
+}
+
+async function provisionMemberCredentials(): Promise<void> {
+	const held = await askTheRecord<{ have?: string[] }>('GET', '/api/agent/messenger-credentials?kind=mattermost');
+	const people = await readPeople(mattermost, session);
+	const { credentials, report } = await mintMissingTokens(
+		mattermost,
+		session,
+		people,
+		new Set(held.have ?? [])
+	);
+
+	if (credentials.length > 0) {
+		const kept = await askTheRecord<{ kept?: number }>('POST', '/api/agent/messenger-credentials', {
+			kind: 'mattermost',
+			credentials
+		});
+		console.log(`${kept.kept ?? 0} member credentials recorded, ${report.alreadyHeld} already held`);
+	}
+	if (report.refused.length > 0) {
+		console.error(`the messenger refused a token for ${report.refused.length} of its people`);
+	}
+}
+
+async function askTheRecord<Value>(method: string, path: string, body?: unknown): Promise<Value> {
+	const response = await fetch(`${appURL}${path}`, {
+		method,
+		headers: {
+			Authorization: `Bearer ${agentKey}`,
+			...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+		},
+		body: body === undefined ? undefined : JSON.stringify(body)
+	});
+	if (!response.ok) throw new Error(`the central plane answered ${response.status} for ${path}`);
+	return (await response.json()) as Value;
 }
 
 async function askForConnection(kind: string): Promise<MattermostSettings> {

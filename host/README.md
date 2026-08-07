@@ -33,9 +33,29 @@ That independence is also why it runs anywhere. The POSIX boundary below
 constrains where the *agent* runs; the bridge only needs an outbound network and
 a machine that stays on. A Jetson, a Mac Studio and a laptop are all fine.
 
+### How big an answer may be
+
+Realtime drops a broadcast frame that is too large without telling either side,
+which surfaces as a 20-second timeout and "the company app is not running". That
+diagnosis sends you looking at the wrong machine, so the bridge measures every
+answer first and replies `413` with the byte count instead.
+
+`ANSWER_BYTE_CEILING` sets the limit, default `200000`. **Measure it; the
+default is only a conservative guess.** Supabase's own limit differs
+between the hosted platform and a self-hosted install, so measure it against the
+project you are running and set the variable. The one thing not to do is raise
+it past what the project carries: over the real limit the frame vanishes again
+and the 413 never arrives.
+
+The profile-picture limit is derived from it (`largestRawBytesThatFit`), because
+base64 inflates by a third and the two used to disagree: pictures were accepted
+up to 200,000 raw bytes, which is about 267 KB on the wire. Anything larger now
+comes back without a picture, and the call survives.
+
 `make build-messenger-bridge` compiles it into a single
 `internkim-messenger-bridge` executable, so the box needs no Bun and no
-`node_modules`. It takes four settings and nothing else:
+`node_modules`. It requires four settings, plus the optional
+`ANSWER_BYTE_CEILING` above:
 
 ```
 SUPABASE_URL  SUPABASE_PUBLISHABLE_KEY  INTERNKIM_APP_URL  AGENT_API_KEY_PATH
