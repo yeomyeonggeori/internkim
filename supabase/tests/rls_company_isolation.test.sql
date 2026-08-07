@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(27);
+select plan(29);
 
 delete from public.company;
 
@@ -885,6 +885,45 @@ begin
 
   raise notice 'task: joining or leaving marks the task as changed';
 end $$$block$, 'task: joining or leaving marks the task as changed');
+
+select lives_ok($block$do $$
+declare
+  member_topic text;
+  call_topic text;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
+  select public.my_member_topic() into member_topic;
+  select public.my_call_topic() into call_topic;
+  assert member_topic = 'member:000000ff-0000-0000-0000-000000000001',
+    'a member listens on their own topic, got ' || coalesce(member_topic, 'null');
+  assert call_topic = 'company:00000000-0000-0000-0000-0000ffffff00:call',
+    'calls go to the company call topic, got ' || coalesce(call_topic, 'null');
+
+  reset role;
+  raise notice 'channel: a member topic and a call topic are derived, never chosen';
+end $$$block$, 'channel: a member topic and a call topic are derived, never chosen');
+
+select lives_ok($block$do $$
+declare
+  claimed_company uuid;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
+  select public.my_app_company() into claimed_company;
+  assert claimed_company is null,
+    'an ordinary member carries no host company, got ' || coalesce(claimed_company::text, 'null');
+
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-0000-0000-0000ffff0001","app_metadata":{"company_id":"00000000-0000-0000-0000-0000ffffff0e"}}',
+    true);
+  select public.my_app_company() into claimed_company;
+  assert claimed_company = '00000000-0000-0000-0000-0000ffffff0e',
+    'a host reads its company from the token, got ' || coalesce(claimed_company::text, 'null');
+
+  reset role;
+  raise notice 'channel: host powers come from the token, and a member has none';
+end $$$block$, 'channel: host powers come from the token, and a member has none');
 
 select * from finish();
 rollback;
