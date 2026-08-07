@@ -30,8 +30,29 @@ export type MessengerPost = {
 	reactions: MessengerReaction[];
 };
 
-async function ask<Value>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<Value> {
-	const answer = await callCompanyApp({ method, path, body });
+export type LinkPreview = {
+	url: string;
+	title: string;
+	description: string;
+	siteName: string;
+	imageDataURL: string;
+};
+
+type PersonalConversation = { id: string; name: string; kind: 'dm' | 'group'; avatarURL?: string };
+type PersonalReaction = { emoji: string; byExternalIDs: string[] };
+type PersonalMessage = {
+	id: string;
+	conversationID: string;
+	parentID?: string;
+	authorExternalID: string;
+	body: string;
+	postedAt: string;
+	editedAt?: string;
+	reactions: PersonalReaction[];
+};
+
+async function ask<Value>(capability: string, body?: Record<string, unknown>): Promise<Value> {
+	const answer = await callCompanyApp({ capability, body });
 	if (answer.status >= 400) throw new Error(messageOf(answer.body, `the app answered ${answer.status}`));
 	return answer.body as Value;
 }
@@ -43,56 +64,79 @@ function messageOf(body: unknown, fallback: string): string {
 	return fallback;
 }
 
+function asChannel(conversation: PersonalConversation, position: number): MessengerChannel {
+	return {
+		id: conversation.id,
+		platform: 'mattermost',
+		name: conversation.name,
+		isDirect: conversation.kind === 'dm',
+		position,
+		participants: []
+	};
+}
+
+function asPost(message: PersonalMessage): MessengerPost {
+	return {
+		id: message.id,
+		channelID: message.conversationID,
+		parentID: message.parentID,
+		author: { externalID: message.authorExternalID },
+		body: message.body,
+		postedAt: message.postedAt,
+		editedAt: message.editedAt,
+		reactions: message.reactions.map((reaction) => ({
+			emoji: reaction.emoji,
+			people: reaction.byExternalIDs.map((externalID) => ({ externalID }))
+		}))
+	};
+}
+
+export async function fetchChannels(): Promise<MessengerChannel[]> {
+	const answer = await ask<{ conversations: PersonalConversation[] }>('person.conversations.list');
+	return answer.conversations.map(asChannel);
+}
+
+export async function fetchPeople(): Promise<{ externalID: string; name: string }[]> {
+	const answer = await ask<{ people: { externalID: string; name: string }[] }>('person.people.list');
+	return answer.people;
+}
+
+export async function openDirectChannel(externalIDs: string[]): Promise<MessengerChannel> {
+	const conversation = await ask<PersonalConversation>('person.dm.ensure', {
+		counterpartExternalIDs: externalIDs
+	});
+	return asChannel(conversation, 0);
+}
+
+export async function fetchPosts(channelID: string, before?: string): Promise<MessengerPost[]> {
+	const answer = await ask<{ messages: PersonalMessage[] }>('person.messages.list', {
+		conversationID: channelID,
+		before
+	});
+	return answer.messages.map(asPost);
+}
+
+export async function writePost(
+	channelID: string,
+	body: string,
+	parentID?: string
+): Promise<MessengerPost> {
+	const message = await ask<PersonalMessage>('person.message.send', {
+		conversationID: channelID,
+		body,
+		parentID
+	});
+	return asPost(message);
+}
+
 export function fetchCustomEmoji(): Promise<{ name: string; url: string }[]> {
-	return ask<{ name: string; url: string }[]>('GET', '/emoji');
+	return ask<{ name: string; url: string }[]>('asset.emoji');
 }
 
 export function fetchProfilePicture(externalID: string): Promise<{ dataURL: string } | null> {
-	return ask<{ dataURL: string } | null>('GET', `/person/${encodeURIComponent(externalID)}/picture`);
+	return ask<{ dataURL: string } | null>('asset.picture', { externalID });
 }
-
-export function fetchChannels(platform?: string): Promise<MessengerChannel[]> {
-	const query = platform ? `?platform=${encodeURIComponent(platform)}` : '';
-	return ask<MessengerChannel[]>('GET', `/channel${query}`);
-}
-
-export type LinkPreview = {
-	url: string;
-	title: string;
-	description: string;
-	siteName: string;
-	imageDataURL: string;
-};
 
 export function fetchLinkPreview(url: string): Promise<LinkPreview | null> {
-	return ask<LinkPreview | null>('GET', `/link?url=${encodeURIComponent(url)}`);
-}
-
-export function openDirectChannel(people: string[], platform: string): Promise<MessengerChannel> {
-	return ask<MessengerChannel>('POST', '/channel/direct', { platform, memberIDs: people });
-}
-
-export function fetchPosts(channelID: string, before?: string): Promise<MessengerPost[]> {
-	const query = before ? `?before=${encodeURIComponent(before)}` : '';
-	return ask<MessengerPost[]>('GET', `/channel/${encodeURIComponent(channelID)}/post${query}`);
-}
-
-export function writePost(channelID: string, body: string, parentID?: string): Promise<MessengerPost> {
-	return ask<MessengerPost>('POST', `/channel/${encodeURIComponent(channelID)}/post`, { body, parentID });
-}
-
-export function editPost(postID: string, body: string): Promise<MessengerPost> {
-	return ask<MessengerPost>('PUT', `/post/${encodeURIComponent(postID)}`, { body });
-}
-
-export function erasePost(postID: string): Promise<void> {
-	return ask<void>('DELETE', `/post/${encodeURIComponent(postID)}`);
-}
-
-export function addReaction(postID: string, emoji: string): Promise<void> {
-	return ask<void>('POST', `/post/${encodeURIComponent(postID)}/reaction`, { emoji });
-}
-
-export function removeReaction(postID: string, emoji: string): Promise<void> {
-	return ask<void>('DELETE', `/post/${encodeURIComponent(postID)}/reaction?emoji=${encodeURIComponent(emoji)}`);
+	return ask<LinkPreview | null>('asset.link', { url });
 }
