@@ -23,6 +23,7 @@ dist/
 /internkim-messenger-bridge
 .github/*
 !.github/PULL_REQUEST_TEMPLATE.md
+!.github/workflows/
 companion/dist/
 companion/node_modules/
 host/messenger/node_modules/
@@ -45,3 +46,4 @@ __pycache__/
 supabase/.branches/
 supabase/.temp/
 /output/
+docs/private

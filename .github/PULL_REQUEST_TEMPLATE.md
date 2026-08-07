@@ -1,26 +1,26 @@
-## 무엇을
+## What
 
-<!-- 이 PR이 하는 일을 한두 문장으로 요약합니다. -->
+<!-- One or two sentences on what this pull request does. -->
 
-## 왜
+## Why
 
-<!-- 기존 동작의 문제나 배경을 설명합니다. -->
-<!-- UI 변경이면 스크린샷을 이 근처에 첨부합니다 (이미지 드래그 앤 드롭). -->
+<!-- The problem with the current behaviour, or the background a reviewer needs. -->
+<!-- For a UI change, drag a screenshot in here. -->
 
-## 변경 사항
+## Changes
 
-<!-- 변경 내용을 불릿으로 나열합니다. "무엇을"에 다 담기면 이 섹션은 지워도 됩니다. -->
+<!-- A bullet per change. Delete this section when "What" already covers them. -->
 
 -
 
-## 검증 방법
+## Verification
 
-<!-- 실제로 실행한 명령을 그대로 적습니다. 수동 확인 절차도 명령형으로 적습니다. -->
+<!-- The commands you actually ran, as you ran them. Manual steps belong here too. -->
 
 - `cd web && bun test tests/unit`
 - `cd web && bun run check`
 
-## 이슈
+## Issue
 
-<!-- 관련 이슈가 있을 때만 남기고, 없으면 이 섹션은 지웁니다. -->
+<!-- Keep this only when there is one. -->
 <!-- Closes #N / Related to #N -->

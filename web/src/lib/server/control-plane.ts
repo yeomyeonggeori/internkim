@@ -405,3 +405,71 @@ export async function memberOfPlatformIdentity(
 	if (error) throw new Error(`identity ${kind}:${externalID}: ${error.message}`);
 	return data?.member_id ?? null;
 }
+
+export type HostSession = {
+	companyID: string;
+	accessToken: string;
+	expiresAt: number;
+};
+
+export function hostAddressOf(companyID: string): string {
+	return `host.${companyID}@agent.internkim.invalid`;
+}
+
+export async function sessionForHost(
+	credentials: ControlPlaneCredentials,
+	apiKey: string,
+): Promise<HostSession> {
+	const client = controlPlane(credentials);
+	const agent = await agentOfKey(client, apiKey);
+	if (!agent) throw new Error('that key belongs to no agent');
+
+	const address = hostAddressOf(agent.companyID);
+	await keepHostAccount(client, address, agent.companyID);
+
+	const { data: link, error: linkError } = await client.auth.admin.generateLink({
+		type: 'magiclink',
+		email: address,
+	});
+	if (linkError) throw new Error(`link for the host: ${linkError.message}`);
+
+	const redeemer = controlPlane(credentials);
+	const { data: session, error: verifyError } = await redeemer.auth.verifyOtp({
+		token_hash: link.properties.hashed_token,
+		type: 'magiclink',
+	});
+	if (verifyError) throw new Error(`session for the host: ${verifyError.message}`);
+	if (!session.session) throw new Error('no session came back for the host');
+
+	return {
+		companyID: agent.companyID,
+		accessToken: session.session.access_token,
+		expiresAt: session.session.expires_at ?? 0,
+	};
+}
+
+async function keepHostAccount(
+	client: SupabaseClient,
+	address: string,
+	companyID: string,
+): Promise<void> {
+	const { data: accounts, error: listError } = await client.auth.admin.listUsers();
+	if (listError) throw new Error(listError.message);
+	const account = accounts.users.find((user) => user.email === address);
+	const appMetadata = { company_id: companyID };
+
+	if (!account) {
+		const { error } = await client.auth.admin.createUser({
+			email: address,
+			email_confirm: true,
+			app_metadata: appMetadata,
+		});
+		if (error) throw new Error(`host account for ${companyID}: ${error.message}`);
+		return;
+	}
+	if (account.app_metadata?.company_id === companyID) return;
+	const { error } = await client.auth.admin.updateUserById(account.id, {
+		app_metadata: appMetadata,
+	});
+	if (error) throw new Error(`host account for ${companyID}: ${error.message}`);
+}
