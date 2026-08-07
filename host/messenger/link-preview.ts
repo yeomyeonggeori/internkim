@@ -81,7 +81,7 @@ async function readCapped(
 		if (read >= byteCap) break;
 	}
 	await response.body.cancel().catch(() => undefined);
-	return { bytes: Bun.concatArrayBuffers(chunks, byteCap, true), contentType };
+	return { bytes: Bun.concatArrayBuffers(chunks, byteCap, true), contentType, declaredType };
 }
 
 export function decodePage(bytes: Uint8Array, declaredType: string): string {
