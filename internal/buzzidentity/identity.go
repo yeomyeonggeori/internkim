@@ -7,7 +7,7 @@
 //
 // The seed is a critical root secret: losing it makes every derived key and
 // imported message unrecoverable. Persist and back it up; never pass it as a
-// throwaway env var. See docs/buzz-identity-seed.md.
+// throwaway env var. See docs/internal/buzz-identity-seed.md.
 package buzzidentity
 
 import (
