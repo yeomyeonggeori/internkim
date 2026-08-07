@@ -40,6 +40,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   one undoes that. Fixtures, seeds, and documentation use sample names
   (이샘플, 박예시, 최견본) and `example.com` addresses. Real people live in
   the database.
+- A new document goes in `docs/internal/`. `docs/` is what a docs site
+  publishes, `docs/private/` is gitignored and holds what nobody needs to open
+  again. `docs/internal/README.md` has the rule and the one constraint: a
+  document that tracked code links to cannot be private.
 
 ## Working on this repository
 
@@ -387,15 +391,15 @@ and delete the duplicates.
 
 ## Central Plane (Supabase)
 
-- **Read `docs/saas-design.md` §2 and §6 before shaping anything that spans the
-  browser, the central plane and the customer's machine.** The shape is: a daemon
-  on a company computer that stays on — any hardware, Jetson or Mac Studio or a
-  laptop, it does not matter — and users on *other* networks reach the company's
-  messenger through Supabase Realtime and the Supabase database, never by
-  connecting to that machine. The messenger bridge is that daemon; it depends on
-  nothing else in the bundle, so it starts first and survives the agent being
-  down. Self-hosting from source is the destination, so per-company settings stay
-  at four.
+- **Read `docs/internal/saas-design.md` §2 and §6 before shaping anything that
+  spans the browser, the central plane and the customer's machine.** The shape
+  is: a daemon on a company computer that stays on — any hardware, Jetson or
+  Mac Studio or a laptop, it does not matter — and users on *other* networks
+  reach the company's messenger through Supabase Realtime and the Supabase
+  database, never by connecting to that machine. The messenger bridge is that
+  daemon; it depends on nothing else in the bundle, so it starts first and
+  survives the agent being down. Self-hosting from source is the destination,
+  so per-company settings stay at four.
 - `supabase config push` sends the **whole** `config.toml`: any setting the file
   does not name is reset to the CLI default. Before pushing, move anything that
   was only ever set in the dashboard into the file, or pushing one change quietly
