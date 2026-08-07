@@ -1,13 +1,52 @@
 import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { agentOfKey, controlPlane } from '$lib/server/control-plane';
-import { keepMemberCredential, membersOfCompanyByExternalID } from '$lib/server/member-credential';
+import {
+	externalIDsWithACredential,
+	keepMemberCredential,
+	membersOfCompanyByExternalID
+} from '$lib/server/member-credential';
 import type { RequestHandler } from './$types';
 
 type OfferedCredential = { externalID?: unknown; secret?: unknown };
 type CredentialsRequest = { kind?: unknown; credentials?: unknown };
+type CallingAgent = { client: SupabaseClient; companyID: string };
+
+export const GET: RequestHandler = async ({ request, url, platform }) => {
+	const { client, companyID } = await callingAgent(request, platform);
+	const kind = url.searchParams.get('kind') ?? 'mattermost';
+	return json({ have: await externalIDsWithACredential(client, companyID, kind) });
+};
 
 export const POST: RequestHandler = async ({ request, platform }) => {
+	const { client, companyID } = await callingAgent(request, platform);
+
+	const body = (await request.json().catch(() => ({}))) as CredentialsRequest;
+	const kind = typeof body.kind === 'string' && body.kind.trim() ? body.kind.trim() : 'mattermost';
+	const offered = Array.isArray(body.credentials) ? (body.credentials as OfferedCredential[]) : [];
+
+	const memberOf = await membersOfCompanyByExternalID(client, companyID, kind);
+	let kept = 0;
+	for (const credential of offered) {
+		if (typeof credential.externalID !== 'string' || typeof credential.secret !== 'string') continue;
+		const memberID = memberOf.get(credential.externalID);
+		if (!memberID) continue;
+		await keepMemberCredential(client, memberID, {
+			kind,
+			externalID: credential.externalID,
+			secret: credential.secret
+		});
+		kept += 1;
+	}
+
+	return json({ kept, offered: offered.length, linked: memberOf.size });
+};
+
+async function callingAgent(
+	request: Request,
+	platform: App.Platform | undefined
+): Promise<CallingAgent> {
 	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
 	const projectURL = environment.SUPABASE_URL ?? '';
 	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -21,23 +60,5 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const agent = await agentOfKey(client, apiKey);
 	if (!agent) error(403, 'refused');
 
-	const body = (await request.json().catch(() => ({}))) as CredentialsRequest;
-	const kind = typeof body.kind === 'string' && body.kind.trim() ? body.kind.trim() : 'mattermost';
-	const offered = Array.isArray(body.credentials) ? (body.credentials as OfferedCredential[]) : [];
-
-	const memberOf = await membersOfCompanyByExternalID(client, agent.companyID, kind);
-	let kept = 0;
-	for (const credential of offered) {
-		if (typeof credential.externalID !== 'string' || typeof credential.secret !== 'string') continue;
-		const memberID = memberOf.get(credential.externalID);
-		if (!memberID) continue;
-		await keepMemberCredential(client, memberID, {
-			kind,
-			externalID: credential.externalID,
-			secret: credential.secret,
-		});
-		kept += 1;
-	}
-
-	return json({ kept, offered: offered.length, linked: memberOf.size });
-};
+	return { client, companyID: agent.companyID };
+}

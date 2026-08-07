@@ -45,6 +45,24 @@ export async function keepMemberCredential(
 	if (error) throw new Error(error.message);
 }
 
+export async function externalIDsWithACredential(
+	client: SupabaseClient,
+	companyID: string,
+	kind: string,
+): Promise<string[]> {
+	const linked = await membersOfCompanyByExternalID(client, companyID, kind);
+	if (linked.size === 0) return [];
+
+	const { data, error } = await client
+		.from('credential')
+		.select('external_id')
+		.eq('kind', kind)
+		.in('member_id', [...linked.values()])
+		.returns<{ external_id: string | null }[]>();
+	if (error) throw new Error(error.message);
+	return data.map((row) => row.external_id).filter((id): id is string => id !== null);
+}
+
 export async function membersOfCompanyByExternalID(
 	client: SupabaseClient,
 	companyID: string,

@@ -2,6 +2,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreview } from './link-preview';
+import { mintMissingTokens } from './member-tokens';
 import {
 	addReaction,
 	editPost,
@@ -64,6 +65,9 @@ console.log(`acting as member ${memberSession.memberID}`);
 
 await refreshContacts(client, member.data.company_id, session);
 setInterval(() => void keepGoing('contacts', () => refreshContacts(client, member.data.company_id, session)), 600_000);
+
+await keepGoing('credentials', provisionMemberCredentials);
+setInterval(() => void keepGoing('credentials', provisionMemberCredentials), 600_000);
 
 client.realtime.setAuth(memberSession.accessToken);
 const channel = client.channel(`company:${member.data.company_id}`, { config: { private: true } });
@@ -158,6 +162,41 @@ async function route(method: string, path: string, body: unknown): Promise<unkno
 		return null;
 	}
 	throw new Error(`the app has nothing at ${method} ${route}`);
+}
+
+async function provisionMemberCredentials(): Promise<void> {
+	const held = await askTheRecord<{ have?: string[] }>('GET', '/api/agent/messenger-credentials?kind=mattermost');
+	const people = await readPeople(mattermost, session);
+	const { credentials, report } = await mintMissingTokens(
+		mattermost,
+		session,
+		people,
+		new Set(held.have ?? [])
+	);
+
+	if (credentials.length > 0) {
+		const kept = await askTheRecord<{ kept?: number }>('POST', '/api/agent/messenger-credentials', {
+			kind: 'mattermost',
+			credentials
+		});
+		console.log(`${kept.kept ?? 0} member credentials recorded, ${report.alreadyHeld} already held`);
+	}
+	if (report.refused.length > 0) {
+		console.error(`the messenger refused a token for ${report.refused.length} of its people`);
+	}
+}
+
+async function askTheRecord<Value>(method: string, path: string, body?: unknown): Promise<Value> {
+	const response = await fetch(`${appURL}${path}`, {
+		method,
+		headers: {
+			Authorization: `Bearer ${agentKey}`,
+			...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+		},
+		body: body === undefined ? undefined : JSON.stringify(body)
+	});
+	if (!response.ok) throw new Error(`the central plane answered ${response.status} for ${path}`);
+	return (await response.json()) as Value;
 }
 
 async function askForConnection(kind: string): Promise<MattermostSettings> {
