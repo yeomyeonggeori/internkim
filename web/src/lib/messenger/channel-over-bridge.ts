@@ -74,7 +74,7 @@ function channelName(channel: MessengerChannel, people: MessengerDirectory, mine
 }
 
 export async function bridgeConversations(): Promise<ChannelSummary[]> {
-	const [channels, people, mine] = await Promise.all([fetchChannels(platform), knownPeople(), myPersonKey()]);
+	const [channels, people, mine] = await Promise.all([fetchChannels(), knownPeople(), myPersonKey()]);
 	await personPicture.rememberExternals(channels.flatMap((channel) => channel.participants.map((person) => externalIDOf(person, people))));
 	return [...channels]
 		.sort((left, right) => left.position - right.position)
@@ -105,7 +105,9 @@ export async function bridgePeople(): Promise<Person[]> {
 }
 
 export async function bridgeDirectMessage(personID: string): Promise<string> {
-	const channel = await openDirectChannel([personID], platform);
+	const people = await knownPeople();
+	const externalID = people.externalOfMember.get(personID) ?? personID;
+	const channel = await openDirectChannel([externalID]);
 	return channel.id;
 }
 

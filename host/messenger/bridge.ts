@@ -53,27 +53,21 @@ const mattermost = await askForConnection('mattermost');
 const session = await signIn(mattermost);
 console.log(`mattermost ready as ${mattermost.email}`);
 
-let memberSession = await askForSession(session.userID);
+let hostSession = await askForHostSession();
 const client = createClient(projectURL, publishableKey, {
-	accessToken: async () => memberSession.accessToken
+	accessToken: async () => hostSession.accessToken
 });
+const companyID = hostSession.companyID;
+console.log(`acting as the host of company ${companyID}`);
 
-const member = await client
-	.from('member')
-	.select('id, company_id')
-	.eq('id', memberSession.memberID)
-	.single<{ id: string; company_id: string }>();
-if (member.error) throw new Error(member.error.message);
-console.log(`acting as member ${memberSession.memberID}`);
-
-await refreshContacts(client, member.data.company_id, session);
-setInterval(() => void keepGoing('contacts', () => refreshContacts(client, member.data.company_id, session)), 600_000);
+await refreshContacts(client, companyID, session);
+setInterval(() => void keepGoing('contacts', () => refreshContacts(client, companyID, session)), 600_000);
 
 await keepGoing('credentials', provisionMemberCredentials);
 setInterval(() => void keepGoing('credentials', provisionMemberCredentials), 600_000);
 
-client.realtime.setAuth(memberSession.accessToken);
-const channel = client.channel(`company:${member.data.company_id}`, { config: { private: true } });
+client.realtime.setAuth(hostSession.accessToken);
+const channel = client.channel(`company:${companyID}`, { config: { private: true } });
 
 channel.on('broadcast', { event: 'call' }, ({ payload }) => {
 	void answer(payload as Call);
@@ -88,7 +82,7 @@ await new Promise<void>((resolve, reject) => {
 	});
 });
 await channel.track({ startedAt: new Date().toISOString() });
-console.log(`listening on company:${member.data.company_id}`);
+console.log(`listening on company:${companyID}`);
 
 let lastJoinedAt = Date.now();
 setInterval(watchTheChannel, 10_000);
@@ -105,20 +99,48 @@ function watchTheChannel(): void {
 }
 
 async function answer(call: Call): Promise<void> {
-	if (typeof call.callID !== 'string') return;
+	if (typeof call.callID !== 'string' || typeof call.capability !== 'string') return;
+	const callID = call.callID;
 	try {
-		const body = await route(call.method ?? 'GET', call.path ?? '/', call.body);
-		await reply({ callID: call.callID, status: 200, body });
+		const { status, body, replyTo } = await serveCall(dispatch, call);
+		await reply(replyTo ?? reportableTopic(call), { callID, status, body });
 	} catch (error) {
 		const message = error instanceof Error ? error.message : 'the app could not do that';
-		await reply({ callID: call.callID, status: 500, body: { error: message } });
+		await reply(reportableTopic(call), { callID, status: 500, body: { error: message } });
 	}
 }
 
-async function reply(answer: Answer): Promise<void> {
+const dispatch = {
+	serveAsset: asset,
+	askChatd: (capability: string, body: Record<string, unknown>) =>
+		forwardToChatd(chatdBaseURL, 'mattermost', capability, body),
+	memberOfExternalID: async (externalID: string) => {
+		const contact = await client
+			.from('contact')
+			.select('member_id')
+			.eq('company_id', companyID)
+			.eq('platform', 'mattermost')
+			.eq('external_id', externalID)
+			.maybeSingle<{ member_id: string | null }>();
+		if (contact.error) throw new Error(contact.error.message);
+		return contact.data?.member_id ?? null;
+	}
+};
+
+async function asset(capability: string, body: Record<string, unknown>): Promise<unknown> {
+	if (capability === 'asset.emoji') return emojiSet();
+	if (capability === 'asset.picture') return pictureOf(String(body.externalID ?? ''));
+	if (capability === 'asset.link') return previewOf(String(body.url ?? ''));
+	throw new Error(`the app has nothing called ${capability}`);
+}
+
+async function reply(replyTo: string | null, answer: Answer): Promise<void> {
 	const notice = oversizeNotice(answer, answerByteCeiling);
 	if (notice) console.error(`answer for ${answer.callID} is over the ${answerByteCeiling} byte ceiling`);
-	await channel.send({ type: 'broadcast', event: 'answer', payload: notice ?? answer });
+	if (!replyTo) return;
+	await client
+		.channel(`member:${replyTo}`, { config: { private: true } })
+		.send({ type: 'broadcast', event: 'answer', payload: notice ?? answer });
 }
 
 const pictures = new Map<string, { dataURL: string } | null>();
@@ -144,80 +166,6 @@ async function previewOf(link: string): Promise<LinkPreview | null> {
 	return linkPreviews.get(link) ?? null;
 }
 
-async function route(method: string, path: string, body: unknown): Promise<unknown> {
-	const [route, query] = path.split('?');
-	const parameters = new URLSearchParams(query ?? '');
-	const parts = route.split('/').filter(Boolean);
-	const asked = body as { body?: string; parentID?: string; emoji?: string } | null;
-
-	if (method === 'GET' && parts[0] === 'emoji') return emojiSet();
-	if (method === 'GET' && parts[0] === 'link') return previewOf(parameters.get('url') ?? '');
-	if (method === 'GET' && parts[0] === 'person' && parts[2] === 'picture') {
-		return pictureOf(parts[1]);
-	}
-	if (method === 'GET' && parts[0] === 'person') return readPeople(mattermost, session);
-	if (method === 'GET' && parts.length === 1 && parts[0] === 'channel') return readChannels(mattermost, session);
-	if (method === 'POST' && parts[0] === 'channel' && parts[1] === 'direct') {
-		const asked = body as { memberIDs?: string[] } | null;
-		return openDirectChannel(mattermost, session, await externalIDsOf(asked?.memberIDs ?? []));
-	}
-	if (method === 'GET' && parts[0] === 'channel' && parts[2] === 'post') {
-		return readPosts(mattermost, session, parts[1], parameters.get('before') ?? undefined);
-	}
-	if (method === 'POST' && parts[0] === 'channel' && parts[2] === 'post') {
-		return writePost(mattermost, session, parts[1], asked?.body ?? '', asked?.parentID);
-	}
-	if (method === 'PUT' && parts[0] === 'post') return editPost(mattermost, session, parts[1], asked?.body ?? '');
-	if (method === 'DELETE' && parts[0] === 'post' && parts.length === 2) {
-		await erasePost(mattermost, session, parts[1]);
-		return null;
-	}
-	if (method === 'POST' && parts[0] === 'post' && parts[2] === 'reaction') {
-		await addReaction(mattermost, session, parts[1], asked?.emoji ?? '');
-		return null;
-	}
-	if (method === 'DELETE' && parts[0] === 'post' && parts[2] === 'reaction') {
-		await removeReaction(mattermost, session, parts[1], parameters.get('emoji') ?? '');
-		return null;
-	}
-	throw new Error(`the app has nothing at ${method} ${route}`);
-}
-
-async function provisionMemberCredentials(): Promise<void> {
-	const held = await askTheRecord<{ have?: string[] }>('GET', '/api/agent/messenger-credentials?kind=mattermost');
-	const people = await readPeople(mattermost, session);
-	const { credentials, report } = await mintMissingTokens(
-		mattermost,
-		session,
-		people,
-		new Set(held.have ?? [])
-	);
-
-	if (credentials.length > 0) {
-		const kept = await askTheRecord<{ kept?: number }>('POST', '/api/agent/messenger-credentials', {
-			kind: 'mattermost',
-			credentials
-		});
-		console.log(`${kept.kept ?? 0} member credentials recorded, ${report.alreadyHeld} already held`);
-	}
-	if (report.refused.length > 0) {
-		console.error(`the messenger refused a token for ${report.refused.length} of its people`);
-	}
-}
-
-async function askTheRecord<Value>(method: string, path: string, body?: unknown): Promise<Value> {
-	const response = await fetch(`${appURL}${path}`, {
-		method,
-		headers: {
-			Authorization: `Bearer ${agentKey}`,
-			...(body === undefined ? {} : { 'Content-Type': 'application/json' })
-		},
-		body: body === undefined ? undefined : JSON.stringify(body)
-	});
-	if (!response.ok) throw new Error(`the central plane answered ${response.status} for ${path}`);
-	return (await response.json()) as Value;
-}
-
 async function askForConnection(kind: string): Promise<MattermostSettings> {
 	const response = await fetch(`${appURL}/api/agent/connection?kind=${encodeURIComponent(kind)}`, {
 		headers: { Authorization: `Bearer ${agentKey}` }
@@ -234,21 +182,20 @@ async function askForConnection(kind: string): Promise<MattermostSettings> {
 	return { baseURL: connection.host, email: connection.settings.username, password: connection.secret };
 }
 
-async function askForSession(externalID: string): Promise<{ memberID: string; accessToken: string; expiresAt: number }> {
-	const response = await fetch(`${appURL}/api/agent/session`, {
+async function askForHostSession(): Promise<{ companyID: string; accessToken: string; expiresAt: number }> {
+	const response = await fetch(`${appURL}/api/agent/host-session`, {
 		method: 'POST',
-		headers: { Authorization: `Bearer ${agentKey}`, 'Content-Type': 'application/json' },
-		body: JSON.stringify({ kind: 'mattermost', externalID })
+		headers: { Authorization: `Bearer ${agentKey}` }
 	});
 	if (!response.ok) throw new Error(`the central plane refused this agent key (${response.status})`);
-	return (await response.json()) as { memberID: string; accessToken: string; expiresAt: number };
+	return (await response.json()) as { companyID: string; accessToken: string; expiresAt: number };
 }
 
 async function keepSessionFresh(): Promise<void> {
-	const secondsLeft = memberSession.expiresAt - Math.floor(Date.now() / 1000);
+	const secondsLeft = hostSession.expiresAt - Math.floor(Date.now() / 1000);
 	if (secondsLeft > 300) return;
-	memberSession = await askForSession(session.userID);
-	await client.realtime.setAuth(memberSession.accessToken);
+	hostSession = await askForHostSession();
+	await client.realtime.setAuth(hostSession.accessToken);
 	console.log('session renewed');
 }
 
@@ -258,18 +205,6 @@ async function keepGoing(what: string, work: () => Promise<void>): Promise<void>
 	} catch (error) {
 		console.error(`${what} failed, still listening:`, error instanceof Error ? error.message : error);
 	}
-}
-
-async function externalIDsOf(memberIDs: string[]): Promise<string[]> {
-	if (memberIDs.length === 0) return [];
-	const contacts = await client
-		.from('contact')
-		.select('external_id, member_id')
-		.eq('platform', 'mattermost')
-		.in('member_id', memberIDs)
-		.returns<{ external_id: string; member_id: string }[]>();
-	if (contacts.error) throw new Error(contacts.error.message);
-	return contacts.data.map((contact) => contact.external_id);
 }
 
 async function refreshContacts(client: SupabaseClient, companyID: string, session: MattermostSession): Promise<void> {
