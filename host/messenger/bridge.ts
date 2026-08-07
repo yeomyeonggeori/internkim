@@ -102,7 +102,7 @@ async function answer(call: Call): Promise<void> {
 	if (typeof call.callID !== 'string' || typeof call.capability !== 'string') return;
 	const callID = call.callID;
 	try {
-		const { status, body, replyTo } = await serve(call.capability, call);
+		const { status, body, replyTo } = await serveCall(dispatch, call);
 		await reply(replyTo ?? reportableTopic(call), { callID, status, body });
 	} catch (error) {
 		const message = error instanceof Error ? error.message : 'the app could not do that';
@@ -110,40 +110,22 @@ async function answer(call: Call): Promise<void> {
 	}
 }
 
-async function serve(
-	capability: string,
-	call: Call
-): Promise<{ status: number; body: unknown; replyTo: string | null }> {
-	if (!isPersonCapability(capability)) {
-		return { status: 200, body: await asset(capability, call.body ?? {}), replyTo: null };
+const dispatch = {
+	serveAsset: asset,
+	askChatd: (capability: string, body: Record<string, unknown>) =>
+		forwardToChatd(chatdBaseURL, 'mattermost', capability, body),
+	memberOfExternalID: async (externalID: string) => {
+		const contact = await client
+			.from('contact')
+			.select('member_id')
+			.eq('company_id', companyID)
+			.eq('platform', 'mattermost')
+			.eq('external_id', externalID)
+			.maybeSingle<{ member_id: string | null }>();
+		if (contact.error) throw new Error(contact.error.message);
+		return contact.data?.member_id ?? null;
 	}
-	const actor = actorOf(call);
-	if (!actor) {
-		return { status: 400, body: { error: 'this call named no actor' }, replyTo: null };
-	}
-	const replyTo = await memberHolding(actor);
-	if (!replyTo) {
-		return { status: 403, body: { error: 'that credential belongs to nobody here' }, replyTo: null };
-	}
-	const forwarded = await forwardToChatd(chatdBaseURL, 'mattermost', capability, call.body ?? {});
-	return { ...forwarded, replyTo };
-}
-
-async function memberHolding(actor: { secret: string }): Promise<string | null> {
-	const identity = await forwardToChatd(chatdBaseURL, 'mattermost', 'person.identity', { actor });
-	if (identity.status >= 300) return null;
-	const externalID = (identity.body as { externalID?: string } | null)?.externalID;
-	if (!externalID) return null;
-	const contact = await client
-		.from('contact')
-		.select('member_id')
-		.eq('company_id', companyID)
-		.eq('platform', 'mattermost')
-		.eq('external_id', externalID)
-		.maybeSingle<{ member_id: string | null }>();
-	if (contact.error) throw new Error(contact.error.message);
-	return contact.data?.member_id ?? null;
-}
+};
 
 async function asset(capability: string, body: Record<string, unknown>): Promise<unknown> {
 	if (capability === 'asset.emoji') return emojiSet();

@@ -100,6 +100,20 @@ export async function isCompanyAppRunning(): Promise<boolean> {
 	return running;
 }
 
+export function callPayload(
+	callID: string,
+	memberID: string,
+	call: HostCall,
+	actor: { kind: string; secret: string }
+): Record<string, unknown> {
+	return {
+		callID,
+		capability: call.capability,
+		replyTo: memberID,
+		body: { ...call.body, actor }
+	};
+}
+
 export async function callCompanyApp(call: HostCall): Promise<HostAnswer> {
 	const wire = await companyWire();
 	const actor = await messengerCredential();
@@ -116,12 +130,7 @@ export async function callCompanyApp(call: HostCall): Promise<HostAnswer> {
 	await wire.calls.send({
 		type: 'broadcast',
 		event: 'call',
-		payload: {
-			callID,
-			capability: call.capability,
-			replyTo: wire.memberID,
-			body: { ...call.body, actor }
-		}
+		payload: callPayload(callID, wire.memberID, call, actor)
 	});
 
 	const answer = await answered;

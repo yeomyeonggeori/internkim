@@ -46,3 +46,39 @@ export async function forwardToChatd(
 	);
 	return { status: response.status, body: await response.json().catch(() => null) };
 }
+
+export type Served = { status: number; body: unknown; replyTo: string | null };
+
+export type Dispatch = {
+	serveAsset: (capability: string, body: Record<string, unknown>) => Promise<unknown>;
+	askChatd: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
+	memberOfExternalID: (externalID: string) => Promise<string | null>;
+};
+
+export async function serveCall(dispatch: Dispatch, call: Call): Promise<Served> {
+	const capability = call.capability ?? '';
+	const body = call.body ?? {};
+	if (!isPersonCapability(capability)) {
+		return { status: 200, body: await dispatch.serveAsset(capability, body), replyTo: null };
+	}
+
+	const actor = actorOf(call);
+	if (!actor) {
+		return { status: 400, body: { error: 'this call named no actor' }, replyTo: null };
+	}
+
+	const replyTo = await memberHolding(dispatch, actor);
+	if (!replyTo) {
+		return { status: 403, body: { error: 'that credential belongs to nobody here' }, replyTo: null };
+	}
+
+	return { ...(await dispatch.askChatd(capability, body)), replyTo };
+}
+
+async function memberHolding(dispatch: Dispatch, actor: ActorCredential): Promise<string | null> {
+	const identity = await dispatch.askChatd('person.identity', { actor });
+	if (identity.status >= 300) return null;
+	const externalID = (identity.body as { externalID?: string } | null)?.externalID;
+	if (!externalID) return null;
+	return dispatch.memberOfExternalID(externalID);
+}
