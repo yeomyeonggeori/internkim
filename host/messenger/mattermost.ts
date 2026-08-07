@@ -243,7 +243,8 @@ export async function readCustomEmoji(
 export async function readProfilePicture(
 	settings: MattermostSettings,
 	session: MattermostSession,
-	externalID: string
+	externalID: string,
+	largestBytes: number
 ): Promise<{ dataURL: string } | null> {
 	const response = await fetch(`${settings.baseURL}/api/v4/users/${encodeURIComponent(externalID)}/image`, {
 		headers: { Authorization: `Bearer ${session.token}` }
@@ -251,7 +252,7 @@ export async function readProfilePicture(
 	if (!response.ok) return null;
 	const type = response.headers.get('content-type') ?? 'image/png';
 	const bytes = new Uint8Array(await response.arrayBuffer());
-	if (bytes.length === 0 || bytes.length > 200_000) return null;
+	if (bytes.length === 0 || bytes.length > largestBytes) return null;
 	return { dataURL: `data:${type};base64,${Buffer.from(bytes).toString('base64')}` };
 }
 

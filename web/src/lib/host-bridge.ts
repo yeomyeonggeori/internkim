@@ -26,38 +26,56 @@ let running = false;
 const waiting = new Map<string, (answer: HostAnswer) => void>();
 
 async function companyChannel(): Promise<RealtimeChannel> {
-	joined ??= (async () => {
-		const client = supabase();
-		await client.realtime.setAuth();
-		const { data } = await client.auth.getSession();
-		const accountID = data.session?.user.id;
-		if (!accountID) throw new Error('sign in first');
-		const member = await client
-			.from('member')
-			.select('company_id')
-			.eq('user_id', accountID)
-			.single<{ company_id: string }>();
-		if (member.error) throw new Error(member.error.message);
+	if (joined) return joined;
+	const attempt = openCompanyChannel();
+	joined = attempt;
+	attempt.catch(() => forgetChannel(attempt));
+	return attempt;
+}
 
-		const channel = client.channel(`company:${member.data.company_id}`, { config: { private: true } });
-		channel.on('presence', { event: 'sync' }, () => {
-			running = Object.keys(channel.presenceState()).length > 0;
+function forgetChannel(attempt: Promise<RealtimeChannel>): void {
+	if (joined !== attempt) return;
+	joined = undefined;
+	running = false;
+}
+
+async function openCompanyChannel(): Promise<RealtimeChannel> {
+	const client = supabase();
+	await client.realtime.setAuth();
+	const { data } = await client.auth.getSession();
+	const accountID = data.session?.user.id;
+	if (!accountID) throw new Error('sign in first');
+	const member = await client
+		.from('member')
+		.select('company_id')
+		.eq('user_id', accountID)
+		.single<{ company_id: string }>();
+	if (member.error) throw new Error(member.error.message);
+
+	const channel = client.channel(`company:${member.data.company_id}`, { config: { private: true } });
+	channel.on('presence', { event: 'sync' }, () => {
+		running = Object.keys(channel.presenceState()).length > 0;
+	});
+	channel.on('broadcast', { event: 'answer' }, ({ payload }) => {
+		const answer = payload as { callID?: string; status?: number; body?: unknown };
+		if (typeof answer.callID !== 'string') return;
+		waiting.get(answer.callID)?.({ status: answer.status ?? 500, body: answer.body });
+		waiting.delete(answer.callID);
+	});
+	await joinChannel(channel);
+	return channel;
+}
+
+function joinChannel(channel: RealtimeChannel): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		channel.subscribe((status, error) => {
+			if (status === 'SUBSCRIBED') return resolve();
+			if (error) return reject(error);
+			if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+				reject(new Error(`the company channel is ${status}`));
+			}
 		});
-		channel.on('broadcast', { event: 'answer' }, ({ payload }) => {
-			const answer = payload as { callID?: string; status?: number; body?: unknown };
-			if (typeof answer.callID !== 'string') return;
-			waiting.get(answer.callID)?.({ status: answer.status ?? 500, body: answer.body });
-			waiting.delete(answer.callID);
-		});
-		await new Promise<void>((resolve, reject) => {
-			channel.subscribe((status, error) => {
-				if (status === 'SUBSCRIBED') resolve();
-				if (error) reject(error);
-			});
-		});
-		return channel;
-	})();
-	return joined;
+	});
 }
 
 export async function isCompanyAppRunning(): Promise<boolean> {
