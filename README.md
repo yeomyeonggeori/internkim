@@ -160,7 +160,7 @@ CLOUDFLARE_ACCOUNT_ID="$(awk 'BEGIN{FS="="} $1=="CF_ACCOUNT_ID"{sub(/^[^=]*=/,""
 ../../web/node_modules/.bin/wrangler deploy --keep-vars
 ```
 
-맥스튜디오 한 대에서 PoC 테넌트를 추가·제거·운영하는 전체 절차(`internkim host init/add-team/remove-team/console`)는 [docs/poc-host.md](docs/poc-host.md)에 정리되어 있습니다. 아래 명령들은 그 절차가 내부에서 사용하는 저수준 단계입니다.
+맥스튜디오 한 대에서 PoC 테넌트를 추가·제거·운영하는 전체 절차(`internkim host init/add-team/remove-team/console`)는 [docs/internal/poc-host.md](docs/internal/poc-host.md)에 정리되어 있습니다. 아래 명령들은 그 절차가 내부에서 사용하는 저수준 단계입니다.
 
 cloud-shared bootstrap은 runtime model을 명시해서 배포합니다. PoC Worker 경로에서는 `google/gemini-3.5-flash`가 provider region policy로 거절될 수 있으므로, 현재 smoke 통과 모델인 `x-ai/grok-4.3`을 `tenant bootstrap --model x-ai/grok-4.3` 또는 `tenant install-host-runtime --model x-ai/grok-4.3`으로 지정합니다. chat, web tool, embedding 요청은 모두 gateway를 통해야 합니다. 임베딩 자동 fallback은 로컬과 OpenRouter 모델 ID가 같을 때만 허용되며, 둘 다 실패하면 BM25 검색을 사용합니다.
 

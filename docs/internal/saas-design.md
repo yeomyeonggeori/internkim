@@ -12,7 +12,7 @@ Companion document: [`harness-split-design.md`](./harness-split-design.md). This
 document decides *where things run*; that one decides *what plugs into what*
 (blueclaw host / bluecollar harness / `agentcontract`).
 
-Data: [`core-schema.md`](./core-schema.md) is the **canonical** company / member
+Data: [`core-schema.md`](../core-schema.md) is the **canonical** company / member
 / task / attendance / leave model, live in Supabase. The device-era leave code in
 `internal/admind` contradicts it and is rewrite scope, not a reference.
 
