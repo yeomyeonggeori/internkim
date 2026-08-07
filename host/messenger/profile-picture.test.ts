@@ -8,10 +8,10 @@ const session = { token: 'bot-token', userID: 'bot-id' };
 const realFetch = globalThis.fetch;
 
 function servePicture(byteCount: number): void {
-	globalThis.fetch = (async () =>
-		new Response(new Uint8Array(byteCount), {
-			headers: { 'content-type': 'image/png' }
-		})) as typeof fetch;
+	globalThis.fetch = Object.assign(
+		async () => new Response(new Uint8Array(byteCount), { headers: { 'content-type': 'image/png' } }),
+		{ preconnect: realFetch.preconnect }
+	);
 }
 
 afterEach(() => {
