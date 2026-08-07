@@ -4,5 +4,12 @@
 	"type": "module",
 	"dependencies": {
 		"@supabase/supabase-js": "^2.111.0"
+	},
+	"scripts": {
+		"check": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"typescript": "^5"
 	}
 }

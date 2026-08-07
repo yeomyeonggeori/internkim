@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreview } from './link-preview';
 import { largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
 import { mintMissingTokens } from './member-tokens';
+import { forwardToChatd, reportableTopic, serveCall, type Call } from './forward';
 import {
 	addReaction,
 	editPost,
@@ -21,13 +22,13 @@ import {
 	type MattermostSettings
 } from './mattermost';
 
-type Call = { callID?: string; method?: string; path?: string; body?: unknown };
 
 let knownContacts = -1;
 
 const projectURL = required('SUPABASE_URL');
 const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
 const agentKey = await agentKeyFromEnvironmentOrFile();
+const chatdBaseURL = process.env.CHATD_BASE_URL ?? 'http://127.0.0.1:18090';
 const appURL = required('INTERNKIM_APP_URL');
 const answerByteCeiling = Number(process.env.ANSWER_BYTE_CEILING ?? 200_000);
 const rejoinDeadlineMilliseconds = 60_000;
@@ -164,6 +165,41 @@ async function previewOf(link: string): Promise<LinkPreview | null> {
 		linkPreviews.set(link, await readLinkPreview(link).catch(() => null));
 	}
 	return linkPreviews.get(link) ?? null;
+}
+
+async function askTheRecord<Value>(method: string, path: string, body?: unknown): Promise<Value> {
+	const response = await fetch(`${appURL}${path}`, {
+		method,
+		headers: {
+			Authorization: `Bearer ${agentKey}`,
+			...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+		},
+		body: body === undefined ? undefined : JSON.stringify(body)
+	});
+	if (!response.ok) throw new Error(`the central plane answered ${response.status} for ${path}`);
+	return (await response.json()) as Value;
+}
+
+async function provisionMemberCredentials(): Promise<void> {
+	const held = await askTheRecord<{ have?: string[] }>('GET', '/api/agent/messenger-credentials?kind=mattermost');
+	const people = await readPeople(mattermost, session);
+	const { credentials, report } = await mintMissingTokens(
+		mattermost,
+		session,
+		people,
+		new Set(held.have ?? [])
+	);
+
+	if (credentials.length > 0) {
+		const kept = await askTheRecord<{ kept?: number }>('POST', '/api/agent/messenger-credentials', {
+			kind: 'mattermost',
+			credentials
+		});
+		console.log(`${kept.kept ?? 0} member credentials recorded, ${report.alreadyHeld} already held`);
+	}
+	if (report.refused.length > 0) {
+		console.error(`the messenger refused a token for ${report.refused.length} of its people`);
+	}
 }
 
 async function askForConnection(kind: string): Promise<MattermostSettings> {
