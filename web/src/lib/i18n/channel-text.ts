@@ -31,9 +31,9 @@ export const channelText = {
 		noPeople: '대화할 사람이 없습니다'
 	},
 	en: {
-		title: 'InternKim',
+		title: 'internkim',
 		description: 'How can I help you today?',
-		openLabel: 'Chat with InternKim',
+		openLabel: 'Chat with internkim',
 		emptyTitle: 'No messages yet',
 		emptyDescription: 'Send a message to start the conversation.',
 		composerPlaceholder: 'Type a message',
@@ -41,7 +41,7 @@ export const channelText = {
 		send: 'Send',
 		working: 'Working…',
 		loadingOlder: 'Loading earlier messages…',
-		unavailableTitle: 'InternKim is unreachable',
+		unavailableTitle: 'internkim is unreachable',
 		unavailableDescription: 'Please try again in a moment.',
 		retry: 'Retry',
 		you: 'You',

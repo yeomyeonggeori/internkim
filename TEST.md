@@ -162,7 +162,7 @@ ls /root/.internkim/secrets
 
 ## Agent Capability Acceptance
 
-InternKim에서 기능 추가 완료는 내부 API가 아니라 사용자식 요청이 실제 agent 경로를 통과하는 것입니다.
+internkim에서 기능 추가 완료는 내부 API가 아니라 사용자식 요청이 실제 agent 경로를 통과하는 것입니다.
 
 새 tool 기능은 대응 skill을 함께 가져야 합니다. 빠른 회귀는 Blueclaw virtual session에서 확인합니다.
 

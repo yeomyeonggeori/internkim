@@ -50,7 +50,7 @@ func TestWebSearchUsesOpenRouterAutoServerTool(t *testing.T) {
 
 func TestWebSearchExtractsJSONFromMarkdownCodeFence(t *testing.T) {
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
-	content := "```json\n{\"provider\":\"openrouter\",\"remoteLLMInvolved\":true,\"compatibility\":\"openrouter_server_tool_auto\",\"query\":\"internkim\",\"answer\":\"result\",\"results\":[{\"title\":\"InternKim\",\"url\":\"https://internkim.example\",\"snippet\":\"An agent platform\",\"source\":\"internkim.example\"}]}\n```"
+	content := "```json\n{\"provider\":\"openrouter\",\"remoteLLMInvolved\":true,\"compatibility\":\"openrouter_server_tool_auto\",\"query\":\"internkim\",\"answer\":\"result\",\"results\":[{\"title\":\"internkim\",\"url\":\"https://internkim.example\",\"snippet\":\"An agent platform\",\"source\":\"internkim.example\"}]}\n```"
 	service := Service{
 		Configuration: Configuration{
 			OpenRouterKeyPath:    secretPath,
@@ -77,14 +77,14 @@ func TestWebSearchExtractsJSONFromMarkdownCodeFence(t *testing.T) {
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatalf("expected normalized search result: %v", errorValue)
 	}
-	if response.IsError || len(result.Results) != 1 || result.Results[0].Title != "InternKim" {
+	if response.IsError || len(result.Results) != 1 || result.Results[0].Title != "internkim" {
 		t.Fatalf("expected fenced JSON search content to succeed, response=%+v result=%+v", response, result)
 	}
 }
 
 func TestWebSearchExtractsJSONAfterLeadingProse(t *testing.T) {
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
-	content := "Here are the search results you requested:\n{\"provider\":\"openrouter\",\"remoteLLMInvolved\":true,\"compatibility\":\"openrouter_server_tool_auto\",\"query\":\"internkim\",\"answer\":\"result\",\"results\":[{\"title\":\"InternKim\",\"url\":\"https://internkim.example\",\"snippet\":\"An agent platform\",\"source\":\"internkim.example\"}]}\nHope that helps!"
+	content := "Here are the search results you requested:\n{\"provider\":\"openrouter\",\"remoteLLMInvolved\":true,\"compatibility\":\"openrouter_server_tool_auto\",\"query\":\"internkim\",\"answer\":\"result\",\"results\":[{\"title\":\"internkim\",\"url\":\"https://internkim.example\",\"snippet\":\"An agent platform\",\"source\":\"internkim.example\"}]}\nHope that helps!"
 	service := Service{
 		Configuration: Configuration{
 			OpenRouterKeyPath:    secretPath,
@@ -118,7 +118,7 @@ func TestWebSearchExtractsJSONAfterLeadingProse(t *testing.T) {
 
 func TestWebSearchWrapsPlainProseContentAsAnswer(t *testing.T) {
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
-	content := "I could not find structured results, but internkim.com is InternKim's agent platform site."
+	content := "I could not find structured results, but internkim.com is internkim's agent platform site."
 	service := Service{
 		Configuration: Configuration{
 			OpenRouterKeyPath:    secretPath,
@@ -126,7 +126,7 @@ func TestWebSearchWrapsPlainProseContentAsAnswer(t *testing.T) {
 			OpenRouterModel:      "openrouter/search-model",
 		}.WithDefaults(),
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			return jsonResponseBody(`{"choices":[{"message":{"content":"I could not find structured results, but internkim.com is InternKim's agent platform site."}}]}`), nil
+			return jsonResponseBody(`{"choices":[{"message":{"content":"I could not find structured results, but internkim.com is internkim's agent platform site."}}]}`), nil
 		})},
 	}
 
@@ -151,7 +151,7 @@ func TestWebSearchWrapsPlainProseContentAsAnswer(t *testing.T) {
 
 func TestWebSearchFillsMissingEchoFieldsDeterministically(t *testing.T) {
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
-	content := `{"results":[{"title":"InternKim","url":"https://internkim.example","snippet":"An agent platform"}],"extraProviderField":"dropped"}`
+	content := `{"results":[{"title":"internkim","url":"https://internkim.example","snippet":"An agent platform"}],"extraProviderField":"dropped"}`
 	service := Service{
 		Configuration: Configuration{
 			OpenRouterKeyPath:    secretPath,
@@ -184,7 +184,7 @@ func TestWebSearchFillsMissingEchoFieldsDeterministically(t *testing.T) {
 	if response.IsError || result.Provider != "openrouter" || !result.RemoteLLMInvolved || result.Compatibility != "openrouter_server_tool_auto" || result.Query != "internkim" {
 		t.Fatalf("expected deterministic echo fills, response=%+v result=%+v", response, result)
 	}
-	if len(result.Results) != 1 || result.Results[0].Title != "InternKim" || strings.Contains(string(response.Result), "extraProviderField") {
+	if len(result.Results) != 1 || result.Results[0].Title != "internkim" || strings.Contains(string(response.Result), "extraProviderField") {
 		t.Fatalf("expected provider extras dropped and results preserved, result=%s", string(response.Result))
 	}
 }

@@ -1,5 +1,5 @@
 [Unit]
-Description=InternKim messenger bridge
+Description=internkim messenger bridge
 Documentation=https://github.com/yeomyeonggeori/internkim/blob/main/host/README.md
 After=network-online.target
 Wants=network-online.target

@@ -158,7 +158,7 @@
 				viewBox: '0 0 24 24',
 				fill: 'currentColor',
 				role: 'img',
-				'aria-label': 'InternKim boards',
+				'aria-label': 'internkim boards',
 				'data-testid': 'internkim-boards-icon',
 			},
 			React.createElement('rect', { x: 3, y: 3, width: 5, height: 18, rx: 1 }),

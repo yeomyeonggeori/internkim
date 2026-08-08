@@ -108,7 +108,7 @@ function collectQualityIssues(): QualityIssue[] {
 	}
 	if (sourceContainsAny(appSource + styleSource, [
 		"INTERNKIM_SITE_STARTER_REPLACE_ME",
-		"InternKim React prototype",
+		"internkim React prototype",
 		"Beautiful default scaffold",
 		"Replace this starter",
 		"workflowItems",

@@ -4,6 +4,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import {
+		companyConnectionKinds,
 		fetchCompanyConnections,
 		forgetCompanyConnection,
 		saveCompanyConnection,
@@ -18,7 +19,7 @@
 	type Draft = { host: string; port: string; username: string; secret: string; hasSecret: boolean };
 
 	const text = createPageText(companySettingsText);
-	const kinds: CompanyConnectionKind[] = ['mattermost', 'smtp', 'imap', 'caldav'];
+	const kinds: readonly CompanyConnectionKind[] = companyConnectionKinds;
 	const fieldID = $props.id();
 
 	let drafts = $state<Record<string, Draft>>(emptyDrafts());

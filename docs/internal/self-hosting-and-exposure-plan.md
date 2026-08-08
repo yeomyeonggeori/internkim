@@ -12,7 +12,7 @@ cp .env.example .env      # 도메인, LLM 키, exposure 백엔드 설정값, �
 ./internkim selfhost      # 진짜 POSIX 리눅스 호스트를 구성 → 전 서비스 기동 → 끝
 ```
 
-Blueclaw/InternKim을 오픈소스 셀프호스팅 가능하게. "clone → env 채움 → 스크립트 한 방 → 셀프호스팅 완료".
+Blueclaw/internkim을 오픈소스 셀프호스팅 가능하게. "clone → env 채움 → 스크립트 한 방 → 셀프호스팅 완료".
 
 ## 2. 확정된 원칙 (이걸 깨는 설계는 반려)
 

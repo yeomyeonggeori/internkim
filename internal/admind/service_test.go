@@ -3960,7 +3960,7 @@ func TestCORSHeaderIsAddedForInternKimPaths(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Header().Get("Access-Control-Allow-Origin") != "https://device.example.test" {
-		t.Fatalf("unexpected InternKim CORS origin: %s", response.Header().Get("Access-Control-Allow-Origin"))
+		t.Fatalf("unexpected internkim CORS origin: %s", response.Header().Get("Access-Control-Allow-Origin"))
 	}
 }
 

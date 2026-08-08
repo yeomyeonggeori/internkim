@@ -17,7 +17,7 @@ const pluginID = "com.internkim.ephemeral"
 const defaultRuntimeHealthURL = "http://127.0.0.1:8080/admin/api/health"
 const defaultBotUsername = "internkim"
 const unavailableNoticeProperty = "internkim_unavailable_notice"
-const managedChannelPostRejectionMessage = "This channel is managed by InternKim. Use Flow or Calendar to make changes."
+const managedChannelPostRejectionMessage = "This channel is managed by internkim. Use Flow or Calendar to make changes."
 
 type configuration struct {
 	Secret           string `json:"secret"`

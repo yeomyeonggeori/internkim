@@ -67,7 +67,7 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 
 파일 생성, 선택, 공유, platform attachment를 연결한다.
 
-- Mattermost/Slack/Signal 전송은 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로를 사용한다.
+- Mattermost/Slack/Signal 전송은 Blueclaw `FileAttachment`와 internkim `reply.send` attachment 경로를 사용한다.
 - 생성 작업은 `tmp/<slug>`에서 시작하고, 최종본만 `file_deliver`로 전달한다. 장기 보관이 필요한 경우에만 명시된 `artifacts/<slug>`, circle, 또는 shared 위치에 파일을 만든 뒤 전달한다.
 - 외부 공유와 Google Drive publish는 수신자, 권한, 파일명을 요약하고 승인 후 실행한다.
 - 장기 보관이 필요할 때만 artifact registry로 승격한다.
@@ -155,7 +155,7 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 - artifact 생성 실패를 Google/Gamma/Canva 권유로 바꾸기 전에 tool observation의 실제 failure stage와 stderr tail을 확인한다.
 - 새 shell bridge를 만들기 전에 portable artifact path와 `create-gws-file`, `calendar`, `simple-slides`가 처리하는지 확인한다.
 - Google import/export는 기본 생성 후 선택 단계로 둔다.
-- 새 attachment uploader를 만들기 전에 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로가 처리하는지 확인한다.
+- 새 attachment uploader를 만들기 전에 Blueclaw `FileAttachment`와 internkim `reply.send` attachment 경로가 처리하는지 확인한다.
 - 새 browser adapter를 만들기 전에 `browser.*`와 `agent-browser` 경로가 처리하는지 확인한다.
 - 새 memory table을 만들기 전에 Graphiti scope로 해결 가능한지 확인한다.
 - 터미널을 제품 기능으로 승격하기 전에 typed capability로 표현할 수 있는지 확인한다.
