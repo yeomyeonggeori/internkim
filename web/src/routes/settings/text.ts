@@ -1,6 +1,22 @@
 export const companySettingsText = {
 	ko: {
 		title: '설정',
+		signIn: '로그인',
+		signInDescription: '패스키를 등록해 두면 비밀번호 없이 지문이나 얼굴로 들어옵니다.',
+		passkeys: '패스키',
+		noPasskeys: '아직 등록한 패스키가 없습니다.',
+		unnamedPasskey: '이름 없는 패스키',
+		addedOn: '{date}에 등록',
+		lastUsedOn: '마지막 사용 {date}',
+		neverUsed: '아직 쓴 적 없음',
+		addPasskey: '패스키 등록',
+		removePasskey: '삭제',
+		passkeyAdded: '패스키를 등록했습니다.',
+		passkeyRemoved: '패스키를 삭제했습니다.',
+		passkeyAlreadyRegistered: '이 기기의 패스키는 이미 등록되어 있습니다.',
+		passkeyFailed: '패스키를 등록하지 못했습니다.',
+		passkeysUnsupported: '이 브라우저는 패스키를 지원하지 않습니다.',
+		passkeysLoadFailed: '패스키 목록을 불러오지 못했습니다.',
 		connections: '연결',
 		connectionsDescription: '메일과 캘린더는 회사 서버에 그대로 둡니다. 여기에는 접속 정보만 두고, 비밀번호는 암호화해 보관합니다.',
 		mattermost: '메신저 (Mattermost)',
@@ -20,11 +36,26 @@ export const companySettingsText = {
 		forget: '삭제',
 		saved: '저장했습니다.',
 		saveFailed: '저장하지 못했습니다.',
-		loadFailed: '연결 정보를 불러오지 못했습니다.',
-		adminOnly: '관리자만 볼 수 있습니다.'
+		loadFailed: '연결 정보를 불러오지 못했습니다.'
 	},
 	en: {
 		title: 'Settings',
+		signIn: 'Signing in',
+		signInDescription: 'Register a passkey and you come back in with a fingerprint or your face, no password.',
+		passkeys: 'Passkeys',
+		noPasskeys: 'No passkey registered yet.',
+		unnamedPasskey: 'Unnamed passkey',
+		addedOn: 'Added {date}',
+		lastUsedOn: 'Last used {date}',
+		neverUsed: 'Never used',
+		addPasskey: 'Register a passkey',
+		removePasskey: 'Remove',
+		passkeyAdded: 'Passkey registered.',
+		passkeyRemoved: 'Passkey removed.',
+		passkeyAlreadyRegistered: 'This device already has a passkey here.',
+		passkeyFailed: 'That passkey did not register.',
+		passkeysUnsupported: 'This browser does not support passkeys.',
+		passkeysLoadFailed: 'The passkeys did not load.',
 		connections: 'Connections',
 		connectionsDescription: 'Mail and calendar stay on your own servers. Only how to reach them is kept here, with the password encrypted.',
 		mattermost: 'Messenger (Mattermost)',
@@ -44,7 +75,6 @@ export const companySettingsText = {
 		forget: 'Remove',
 		saved: 'Saved.',
 		saveFailed: 'That did not save.',
-		loadFailed: 'The connections did not load.',
-		adminOnly: 'Only an admin can see this.'
+		loadFailed: 'The connections did not load.'
 	}
 };
