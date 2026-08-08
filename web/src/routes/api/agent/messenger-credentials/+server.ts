@@ -1,7 +1,5 @@
-import { env } from '$env/dynamic/private';
-import { error, json } from '@sveltejs/kit';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { agentOfKey, controlPlane } from '$lib/server/control-plane';
+import { json } from '@sveltejs/kit';
+import { callingAgent, environmentOf } from '$lib/server/agent-request';
 import {
 	externalIDsWithACredential,
 	keepMemberCredential,
@@ -11,16 +9,14 @@ import type { RequestHandler } from './$types';
 
 type OfferedCredential = { externalID?: unknown; secret?: unknown };
 type CredentialsRequest = { kind?: unknown; credentials?: unknown };
-type CallingAgent = { client: SupabaseClient; companyID: string };
-
 export const GET: RequestHandler = async ({ request, url, platform }) => {
-	const { client, companyID } = await callingAgent(request, platform);
+	const { client, companyID } = await callingAgent(request, environmentOf(platform));
 	const kind = url.searchParams.get('kind') ?? 'mattermost';
 	return json({ have: await externalIDsWithACredential(client, companyID, kind) });
 };
 
 export const POST: RequestHandler = async ({ request, platform }) => {
-	const { client, companyID } = await callingAgent(request, platform);
+	const { client, companyID } = await callingAgent(request, environmentOf(platform));
 
 	const body = (await request.json().catch(() => ({}))) as CredentialsRequest;
 	const kind = typeof body.kind === 'string' && body.kind.trim() ? body.kind.trim() : 'mattermost';
@@ -42,23 +38,3 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
 	return json({ kept, offered: offered.length, linked: memberOf.size });
 };
-
-async function callingAgent(
-	request: Request,
-	platform: App.Platform | undefined
-): Promise<CallingAgent> {
-	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
-	const projectURL = environment.SUPABASE_URL ?? '';
-	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
-	if (!projectURL || !serviceRoleKey) error(500, 'the control plane is not configured');
-
-	const authorization = request.headers.get('authorization') ?? '';
-	const apiKey = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
-	if (!apiKey) error(401, 'no agent key');
-
-	const client = controlPlane({ projectURL, serviceRoleKey });
-	const agent = await agentOfKey(client, apiKey);
-	if (!agent) error(403, 'refused');
-
-	return { client, companyID: agent.companyID };
-}
