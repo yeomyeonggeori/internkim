@@ -6,18 +6,10 @@ import { largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-si
 import { mintMissingTokens } from './member-tokens';
 import { forwardToChatd, reportableTopic, serveCall, type Call } from './forward';
 import {
-	addReaction,
-	editPost,
-	erasePost,
-	openDirectChannel,
-	readChannels,
-	readPeople,
-	readPosts,
 	readCustomEmoji,
+	readPeople,
 	readProfilePicture,
-	removeReaction,
 	signIn,
-	writePost,
 	type MattermostSession,
 	type MattermostSettings
 } from './mattermost';
@@ -30,6 +22,7 @@ const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
 const agentKey = await agentKeyFromEnvironmentOrFile();
 const chatdBaseURL = process.env.CHATD_BASE_URL ?? 'http://127.0.0.1:18090';
 const appURL = required('INTERNKIM_APP_URL');
+const messengerPlatform = required('MESSENGER_PLATFORM');
 const answerByteCeiling = Number(process.env.ANSWER_BYTE_CEILING ?? 200_000);
 const rejoinDeadlineMilliseconds = 60_000;
 const largestPictureBytes = largestRawBytesThatFit(answerByteCeiling);
@@ -50,9 +43,12 @@ async function agentKeyFromEnvironmentOrFile(): Promise<string> {
 	return kept;
 }
 
-const mattermost = await askForConnection('mattermost');
+if (messengerPlatform !== 'mattermost') {
+	throw new Error(`the relay serves mattermost; this company runs ${messengerPlatform}`);
+}
+const mattermost = await askForConnection(messengerPlatform);
 const session = await signIn(mattermost);
-console.log(`mattermost ready as ${mattermost.email}`);
+console.log(`${messengerPlatform} ready as ${mattermost.email}`);
 
 let hostSession = await askForHostSession();
 const client = createClient(projectURL, publishableKey, {
@@ -114,13 +110,13 @@ async function answer(call: Call): Promise<void> {
 const dispatch = {
 	serveAsset: asset,
 	askChatd: (capability: string, body: Record<string, unknown>) =>
-		forwardToChatd(chatdBaseURL, 'mattermost', capability, body),
+		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body),
 	memberOfExternalID: async (externalID: string) => {
 		const contact = await client
 			.from('contact')
 			.select('member_id')
 			.eq('company_id', companyID)
-			.eq('platform', 'mattermost')
+			.eq('platform', messengerPlatform)
 			.eq('external_id', externalID)
 			.maybeSingle<{ member_id: string | null }>();
 		if (contact.error) throw new Error(contact.error.message);
@@ -181,7 +177,10 @@ async function askTheRecord<Value>(method: string, path: string, body?: unknown)
 }
 
 async function provisionMemberCredentials(): Promise<void> {
-	const held = await askTheRecord<{ have?: string[] }>('GET', '/api/agent/messenger-credentials?kind=mattermost');
+	const held = await askTheRecord<{ have?: string[] }>(
+		'GET',
+		`/api/agent/messenger-credentials?kind=${encodeURIComponent(messengerPlatform)}`
+	);
 	const people = await readPeople(mattermost, session);
 	const { credentials, report } = await mintMissingTokens(
 		mattermost,
@@ -192,7 +191,7 @@ async function provisionMemberCredentials(): Promise<void> {
 
 	if (credentials.length > 0) {
 		const kept = await askTheRecord<{ kept?: number }>('POST', '/api/agent/messenger-credentials', {
-			kind: 'mattermost',
+			kind: messengerPlatform,
 			credentials
 		});
 		console.log(`${kept.kept ?? 0} member credentials recorded, ${report.alreadyHeld} already held`);
@@ -252,7 +251,7 @@ async function refreshContacts(client: SupabaseClient, companyID: string, sessio
 	const { error } = await client.from('contact').upsert(
 		people.map((person) => ({
 			company_id: companyID,
-			platform: 'mattermost',
+			platform: messengerPlatform,
 			external_id: person.externalID,
 			name: person.name,
 			member_id: memberByEmail.get(person.email) ?? null
