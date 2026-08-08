@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(31);
 
 delete from public.company;
 
@@ -924,6 +924,55 @@ begin
   reset role;
   raise notice 'channel: host powers come from the token, and a member has none';
 end $$$block$, 'channel: host powers come from the token, and a member has none');
+
+select lives_ok($block$do $$
+declare
+  mine uuid := '000000ff-0000-0000-0000-000000000001';
+  theirs uuid := '000000ff-0000-0000-0000-000000000009';
+  visible integer;
+  planted boolean := true;
+begin
+  insert into public.push_device (member_id, kind, address) values
+    (mine, 'web-push', 'https://push.example.test/mine'),
+    (theirs, 'web-push', 'https://push.example.test/theirs');
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
+
+  select count(*) into visible from public.push_device;
+  assert visible = 1, 'a member sees only their own devices, got ' || visible;
+
+  begin
+    insert into public.push_device (member_id, kind, address)
+      values (theirs, 'web-push', 'https://push.example.test/planted');
+  exception when others then
+    planted := false;
+  end;
+  assert not planted, 'nobody may point a colleague''s account at a device they hold';
+
+  reset role;
+  raise notice 'push: a device belongs to one member and nobody else may reach it';
+end $$$block$, 'push: a device belongs to one member and nobody else may reach it');
+
+select lives_ok($block$do $$
+declare
+  mine uuid := '000000ff-0000-0000-0000-000000000001';
+  theirs uuid := '000000ff-0000-0000-0000-000000000009';
+  taken boolean := true;
+begin
+  insert into public.push_device (member_id, kind, address)
+    values (theirs, 'web-push', 'https://push.example.test/shared');
+
+  begin
+    insert into public.push_device (member_id, kind, address)
+      values (mine, 'web-push', 'https://push.example.test/shared');
+  exception when unique_violation then
+    taken := false;
+  end;
+  assert not taken, 'one endpoint reaches one browser, so two members cannot both claim it';
+
+  raise notice 'push: an endpoint is claimed once, so a stale row cannot shadow a live one';
+end $$$block$, 'push: an endpoint is claimed once, so a stale row cannot shadow a live one');
 
 select * from finish();
 rollback;
