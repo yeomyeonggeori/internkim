@@ -1,6 +1,6 @@
 //   bun run host/messenger/bridge.ts
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreview } from './link-preview';
 import { largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
 import { mintMissingTokens } from './member-tokens';
@@ -64,34 +64,51 @@ await keepGoing('credentials', provisionMemberCredentials);
 setInterval(() => void keepGoing('credentials', provisionMemberCredentials), 600_000);
 
 client.realtime.setAuth(hostSession.accessToken);
-const channel = client.channel(`company:${companyID}`, { config: { private: true } });
+const presence = client.channel(`company:${companyID}`, { config: { private: true } });
+const listeningTo = new Map<string, RealtimeChannel>();
 
-channel.on('broadcast', { event: 'call' }, ({ payload }) => {
-	void answer(payload as Call);
-});
+async function listenToEveryMember(): Promise<void> {
+	const members = await client.from('member').select('id').returns<{ id: string }[]>();
+	if (members.error) throw new Error(members.error.message);
+	for (const member of members.data) {
+		if (listeningTo.has(member.id)) continue;
+		const theirs = client.channel(`member:${member.id}`, { config: { private: true } });
+		theirs.on('broadcast', { event: 'call' }, ({ payload }) => {
+			void answer(payload as Call);
+		});
+		listeningTo.set(member.id, theirs);
+		await join(theirs);
+	}
+}
 
 setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
 
-await new Promise<void>((resolve, reject) => {
-	channel.subscribe((status, error) => {
-		if (status === 'SUBSCRIBED') resolve();
-		if (error) reject(error);
+await join(presence);
+await presence.track({ startedAt: new Date().toISOString() });
+await listenToEveryMember();
+setInterval(() => void keepGoing('members', listenToEveryMember), 600_000);
+console.log(`listening to ${listeningTo.size} members of company ${companyID}`);
+
+function join(channel: RealtimeChannel): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		channel.subscribe((status, error) => {
+			if (status === 'SUBSCRIBED') resolve();
+			if (error) reject(error);
+		});
 	});
-});
-await channel.track({ startedAt: new Date().toISOString() });
-console.log(`listening on company:${companyID}`);
+}
 
 let lastJoinedAt = Date.now();
 setInterval(watchTheChannel, 10_000);
 
 function watchTheChannel(): void {
-	if (channel.state === 'joined') {
+	if (presence.state === 'joined' && [...listeningTo.values()].every((theirs) => theirs.state === 'joined')) {
 		lastJoinedAt = Date.now();
 		return;
 	}
 	const awayForMilliseconds = Date.now() - lastJoinedAt;
 	if (awayForMilliseconds < rejoinDeadlineMilliseconds) return;
-	console.error(`channel has been ${channel.state} for ${Math.round(awayForMilliseconds / 1000)}s, exiting so the supervisor restarts`);
+	console.error(`presence is ${presence.state} and some member channel is not joined, ${Math.round(awayForMilliseconds / 1000)}s past the deadline; exiting so the supervisor restarts`);
 	process.exit(1);
 }
 
