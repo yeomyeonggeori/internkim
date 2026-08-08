@@ -3,6 +3,7 @@ import { forgetHeldTasks } from '$lib/flow/flow-task-cache';
 import { forgetLastSeenFlow } from '../routes/flow/flow-last-seen';
 import { forgetLastSeenDirectory } from '../routes/organization/organization-last-seen';
 import { signedOutSession, type WebAuthSession } from '$lib/web-auth-session';
+import { stopBeingReached } from '$lib/notifications/subscribe';
 
 export { isSupabaseConfigured };
 
@@ -41,6 +42,7 @@ export async function supabaseMemberRole(): Promise<'admin' | 'member'> {
 }
 
 export async function signOutOfSupabase(): Promise<void> {
+	await stopBeingReached().catch(() => undefined);
 	forgetHeldTasks();
 	forgetLastSeenFlow();
 	forgetLastSeenDirectory();

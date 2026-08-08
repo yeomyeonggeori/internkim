@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(34);
 
 delete from public.company;
 
@@ -973,6 +973,71 @@ begin
 
   raise notice 'push: an endpoint is claimed once, so a stale row cannot shadow a live one';
 end $$$block$, 'push: an endpoint is claimed once, so a stale row cannot shadow a live one');
+
+select lives_ok($block$do $$
+declare
+  mine uuid := '000000ff-0000-0000-0000-000000000001';
+  theirs uuid := '000000ff-0000-0000-0000-000000000009';
+  laptop text := 'https://push.example.test/one-shared-laptop';
+  reached uuid;
+  rows_for_laptop integer;
+begin
+  insert into public.push_device (member_id, kind, address) values (theirs, 'web-push', laptop);
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
+  perform public.claim_push_device('web-push', laptop, '{"auth": "k"}'::jsonb);
+  reset role;
+
+  select count(*) into rows_for_laptop from public.push_device where address = laptop;
+  assert rows_for_laptop = 1, 'a browser answers to one member at a time, got ' || rows_for_laptop;
+
+  select member_id into reached from public.push_device where address = laptop;
+  assert reached = mine,
+    'whoever signed in last owns the browser, or the previous member keeps getting notified on it';
+
+  raise notice 'push: signing in on a colleague''s browser takes it over rather than being refused';
+end $$$block$, 'push: signing in on a colleague''s browser takes it over rather than being refused');
+
+select lives_ok($block$do $$
+declare
+  theirs uuid := '000000ff-0000-0000-0000-000000000009';
+  phone text := 'https://push.example.test/their-phone';
+  surviving integer;
+begin
+  insert into public.push_device (member_id, kind, address) values (theirs, 'web-push', phone);
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
+  perform public.release_push_device('web-push', phone);
+  reset role;
+
+  select count(*) into surviving from public.push_device where address = phone;
+  assert surviving = 1, 'signing out must not unsubscribe a device somebody else holds';
+
+  raise notice 'push: releasing a device only ever releases your own';
+end $$$block$, 'push: releasing a device only ever releases your own');
+
+select lives_ok($block$do $$
+declare
+  mine uuid := '000000ff-0000-0000-0000-000000000001';
+  theirs uuid := '000000ff-0000-0000-0000-000000000009';
+  chosen jsonb;
+  untouched jsonb;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
+  perform public.set_my_notification_settings('{"message": false}'::jsonb);
+  reset role;
+
+  select notification_settings into chosen from public.member where id = mine;
+  assert chosen = '{"message": false}'::jsonb, 'a member sets their own notification settings';
+
+  select notification_settings into untouched from public.member where id = theirs;
+  assert untouched = '{}'::jsonb, 'and only their own';
+
+  raise notice 'push: notification settings are written for the caller, never for a named member';
+end $$$block$, 'push: notification settings are written for the caller, never for a named member');
 
 select * from finish();
 rollback;

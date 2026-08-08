@@ -16,7 +16,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	const centralPlane = {
 		projectURL: env.SUPABASE_URL ?? '',
-		publishableKey: env.SUPABASE_PUBLISHABLE_KEY ?? ''
+		publishableKey: env.SUPABASE_PUBLISHABLE_KEY ?? '',
+		vapidPublicKey: env.VAPID_PUBLIC_KEY ?? ''
 	};
 
 	if (sendsHomeToFlow({ isBuilding: building, ...centralPlane, pathname: event.url.pathname })) {
