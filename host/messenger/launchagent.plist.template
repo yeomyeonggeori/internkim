@@ -26,6 +26,10 @@
         <string>INTERNKIM_APP_URL_VALUE</string>
         <key>AGENT_API_KEY_PATH</key>
         <string>AGENT_KEY_PATH_VALUE</string>
+        <key>MESSENGER_PLATFORM</key>
+        <string>MESSENGER_PLATFORM_VALUE</string>
+        <key>CHATD_BASE_URL</key>
+        <string>CHATD_BASE_URL_VALUE</string>
     </dict>
 </dict>
 </plist>

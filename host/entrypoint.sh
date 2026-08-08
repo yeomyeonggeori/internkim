@@ -19,6 +19,7 @@ agentKeyPath="/secrets/agent-key"
 : "${SUPABASE_PUBLISHABLE_KEY:?set SUPABASE_PUBLISHABLE_KEY}"
 : "${INTERNKIM_APP_URL:?set INTERNKIM_APP_URL}"
 : "${CHATD_BOT_USER_NAME:?set CHATD_BOT_USER_NAME}"
+: "${MESSENGER_PLATFORM:?set MESSENGER_PLATFORM}"
 : "${DATABASE_URL:?set DATABASE_URL}"
 [ -r "${agentKeyPath}" ] || { echo "[host] no agent key at ${agentKeyPath}" >&2; exit 1; }
 
@@ -49,7 +50,8 @@ trap shutdown INT TERM EXIT
 echo "[host] starting messenger bridge"
 keepBridgeRunning() {
   while true; do
-    AGENT_API_KEY_PATH="${agentKeyPath}" CHATD_BASE_URL="http://127.0.0.1:${chatdPort}" internkim-messenger-bridge &
+    AGENT_API_KEY_PATH="${agentKeyPath}" CHATD_BASE_URL="http://127.0.0.1:${chatdPort}" \
+      MESSENGER_PLATFORM="${MESSENGER_PLATFORM}" internkim-messenger-bridge &
     bridgeChild="$!"
     trap 'kill "${bridgeChild}" 2>/dev/null; exit 0' TERM
     wait "${bridgeChild}" || true
