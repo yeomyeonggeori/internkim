@@ -44,6 +44,42 @@ async function canJoin(accessToken: string, topic: string): Promise<boolean> {
 	return joined;
 }
 
+async function reachesTheirScreen(senderToken: string, ownerToken: string, ownerTopic: string): Promise<boolean> {
+	const owner = createClient(projectURL, publishableKey, {
+		auth: { autoRefreshToken: false, persistSession: false }
+	});
+	await owner.realtime.setAuth(ownerToken);
+	const heard: unknown[] = [];
+	const listening = owner.channel(ownerTopic, { config: { private: true } });
+	listening.on('broadcast', { event: 'call' }, ({ payload }) => heard.push(payload));
+	const joined = await new Promise<boolean>((resolve) => {
+		const giveUp = setTimeout(() => resolve(false), 8_000);
+		listening.subscribe((status) => {
+			if (status === 'SUBSCRIBED') {
+				clearTimeout(giveUp);
+				resolve(true);
+			}
+		});
+	});
+	if (!joined) throw new Error(`the owner could not join ${ownerTopic}`);
+
+	const sender = createClient(projectURL, publishableKey, {
+		auth: { autoRefreshToken: false, persistSession: false }
+	});
+	await sender.realtime.setAuth(senderToken);
+	await sender.channel(ownerTopic, { config: { private: true } }).send({
+		type: 'broadcast',
+		event: 'call',
+		payload: { callID: 'isolation-probe' }
+	});
+	await new Promise((resolve) => setTimeout(resolve, 3_000));
+
+	await owner.removeAllChannels();
+	owner.realtime.disconnect();
+	sender.realtime.disconnect();
+	return heard.length > 0;
+}
+
 async function signUp(email: string, memberID: string): Promise<void> {
 	const account = await admin.auth.admin.createUser({ email, email_confirm: true });
 	if (account.error) throw new Error(`${email}: ${account.error.message}`);
@@ -73,8 +109,12 @@ try {
 			await canJoin(first.accessToken, `company:${company.companyID}`)
 		],
 		[
-			'and cannot read the calls anyone makes',
-			!(await canJoin(first.accessToken, `company:${company.companyID}:call`))
+			'nothing a colleague sends reaches that topic',
+			!(await reachesTheirScreen(first.accessToken, second.accessToken, `member:${second.memberID}`))
+		],
+		[
+			'and what its owner sends does, which is how a call travels',
+			await reachesTheirScreen(second.accessToken, second.accessToken, `member:${second.memberID}`)
 		]
 	] as const;
 
