@@ -1,9 +1,9 @@
 ---
-title: What InternKim is
+title: What internkim is
 order: 10
 ---
 
-InternKim is a coworker your company runs itself. It does what an assistant
+internkim is a coworker your company runs itself. It does what an assistant
 does: records attendance, keeps the calendar, drafts and files things, runs what
 needs running.
 
@@ -15,7 +15,7 @@ true tomorrow?**
 
 **The web app is the default, and everything is in it.** Attendance, leave, the
 calendar, work, the org chart, settings, and a messenger screen where people
-talk to InternKim and to each other. Someone who only ever opens the web app is
+talk to internkim and to each other. Someone who only ever opens the web app is
 missing nothing.
 
 **A messenger app works too**, wherever that messenger is reachable from. The
@@ -65,7 +65,7 @@ in your office.
 
 ## What stays yours
 
-**The messenger.** InternKim attaches to the Slack, Mattermost, or Buzz relay
+**The messenger.** internkim attaches to the Slack, Mattermost, or Buzz relay
 you already run. No conversation reaches the records, because the schema has no
 table for one.
 

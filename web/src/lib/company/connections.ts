@@ -1,6 +1,8 @@
 import { supabase } from '$lib/supabase';
 
-export type CompanyConnectionKind = 'smtp' | 'imap' | 'caldav' | 'mattermost';
+export const companyConnectionKinds = ['mattermost'] as const;
+
+export type CompanyConnectionKind = (typeof companyConnectionKinds)[number];
 
 export type CompanyConnection = {
 	kind: string;

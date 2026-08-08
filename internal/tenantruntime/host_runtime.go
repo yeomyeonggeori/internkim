@@ -381,7 +381,7 @@ func writeHostRuntimeSystemdUnits(systemdDirectoryPath string, manifest Manifest
 
 func hostRuntimeAdmindServiceUnit(manifest Manifest, paths RuntimePaths, configuration hostRuntimeConfigurationDocument) string {
 	return `[Unit]
-Description=InternKim tenant admin gateway ` + manifest.TenantID + `
+Description=internkim tenant admin gateway ` + manifest.TenantID + `
 After=network-online.target internkim-mattermost-` + manifest.TenantID + `.service ` + hostRuntimeBlueclawServiceName(manifest) + `
 Wants=network-online.target internkim-mattermost-` + manifest.TenantID + `.service
 
@@ -430,7 +430,7 @@ func hostRuntimeCapabilitydServiceUnit(manifest Manifest, paths RuntimePaths, co
 		command += " --openrouter-gateway-secret " + gatewaySharedSecretPath
 	}
 	return `[Unit]
-Description=InternKim tenant capability daemon ` + manifest.TenantID + `
+Description=internkim tenant capability daemon ` + manifest.TenantID + `
 After=network-online.target internkim-mattermost-` + manifest.TenantID + `.service ` + hostRuntimeAdmindServiceName(manifest) + `
 Wants=network-online.target ` + hostRuntimeAdmindServiceName(manifest) + `
 
@@ -448,7 +448,7 @@ WantedBy=multi-user.target
 
 func hostRuntimeGraphitiServiceUnit(paths RuntimePaths, configuration hostRuntimeConfigurationDocument) string {
 	return `[Unit]
-Description=InternKim tenant Graphiti memory daemon
+Description=internkim tenant Graphiti memory daemon
 After=network-online.target
 Wants=network-online.target
 
@@ -469,7 +469,7 @@ WantedBy=multi-user.target
 
 func hostRuntimeBlueclawServiceUnit(manifest Manifest, paths RuntimePaths) string {
 	return `[Unit]
-Description=InternKim tenant Blueclaw ` + manifest.TenantID + `
+Description=internkim tenant Blueclaw ` + manifest.TenantID + `
 After=network-online.target ` + hostRuntimeCapabilitydServiceName(manifest) + ` ` + hostRuntimeGraphitiServiceName(manifest) + `
 Wants=network-online.target ` + hostRuntimeCapabilitydServiceName(manifest) + ` ` + hostRuntimeGraphitiServiceName(manifest) + `
 

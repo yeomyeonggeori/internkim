@@ -125,12 +125,12 @@ export const appShellText = {
 		attendance: 'Attendance',
 		organization: 'Organization',
 		files: 'Files',
-		assistant: 'InternKim',
+		assistant: 'internkim',
 		messenger: 'Messenger',
 		contact: 'Contact us',
 		changeLanguage: 'Change language',
 		checkingSession: 'Checking your session',
-		signInTitle: 'Sign in to InternKim',
+		signInTitle: 'Sign in to internkim',
 		continueWithMattermost: 'Continue with Mattermost',
 		continueWithCloudflare: 'Continue with email',
 		signInDescription: 'Sign in with your email and password, or a passkey.',
@@ -169,7 +169,7 @@ export const appShellText = {
 		webSessionUnavailable: 'Could not check your session. Please sign in again.',
 		apiTokenSheet: {
 			title: 'API Tokens',
-			description: 'User-scoped tokens for external developer tools that call the InternKim API.',
+			description: 'User-scoped tokens for external developer tools that call the internkim API.',
 			label: 'Token name',
 			labelPlaceholder: 'Claude Code',
 			create: 'Create token',
@@ -186,7 +186,7 @@ export const appShellText = {
 			},
 			scopeDescriptions: {
 				read: 'Read tasks, events, mail, and messages.',
-				write: 'Create/update tasks and events, send DMs, mail, and messages, and message InternKim.',
+				write: 'Create/update tasks and events, send DMs, mail, and messages, and message internkim.',
 				destructive: 'Everything in Write plus irreversible operations such as delete.'
 			}
 		}

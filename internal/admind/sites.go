@@ -2232,7 +2232,7 @@ func (service *Service) ensureSiteEnvironment(site *SiteRecord) error {
 func (service *Service) writeSiteSystemdTemplate() error {
 	templatePath := filepath.Join(service.Configuration.SiteSystemdDirectory, "internkim-site@.service")
 	document := `[Unit]
-Description=InternKim dynamic site %i
+Description=internkim dynamic site %i
 After=network-online.target
 Wants=network-online.target
 
@@ -2550,7 +2550,7 @@ func (service *Service) initializeSiteGitRepository(ctx context.Context, site *S
 	if _, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "init")...); errorValue != nil {
 		return errorValue
 	}
-	_, _ = service.runCommand(ctx, "git", siteGitArguments(site, "config", "user.name", "InternKim")...)
+	_, _ = service.runCommand(ctx, "git", siteGitArguments(site, "config", "user.name", "internkim")...)
 	_, _ = service.runCommand(ctx, "git", siteGitArguments(site, "config", "user.email", "internkim@localhost")...)
 	if _, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "add", ".")...); errorValue != nil {
 		return errorValue

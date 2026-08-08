@@ -1,6 +1,6 @@
 {
-	"name": "InternKim",
-	"short_name": "InternKim",
+	"name": "internkim",
+	"short_name": "internkim",
 	"start_url": "/flow/",
 	"scope": "/",
 	"display": "standalone",

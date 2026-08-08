@@ -162,7 +162,7 @@ func tenantCapabilitydServiceUnit(options BootstrapOptions) string {
 		" --openrouter-key " + tenantDeviceTokenPath +
 		optionalGatewaySecretArgument(options)
 	return `[Unit]
-Description=InternKim Capability Daemon
+Description=internkim Capability Daemon
 After=network-online.target time-sync.target mattermost.service internkim-admind.service
 Wants=network-online.target time-sync.target internkim-admind.service
 
@@ -289,7 +289,7 @@ func installTenantMattermostFirstBootScript(paths RuntimePaths) error {
 
 func tenantMattermostFirstBootServiceUnit() string {
 	return `[Unit]
-Description=InternKim tenant Mattermost first boot
+Description=internkim tenant Mattermost first boot
 After=network-online.target mattermost.service
 Wants=network-online.target mattermost.service
 

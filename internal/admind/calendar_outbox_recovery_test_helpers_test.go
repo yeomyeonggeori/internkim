@@ -24,7 +24,7 @@ func (client *fakeCalDAVUIDQueryPushClient) queryCalendarObjectsByUID(ctx contex
 
 func calendarObjectWithEventUIDs(eventUIDs ...string) calDAVCalendarObject {
 	var builder strings.Builder
-	builder.WriteString("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//InternKim//Calendar//EN\r\n")
+	builder.WriteString("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//internkim//Calendar//EN\r\n")
 	for _, eventUID := range eventUIDs {
 		builder.WriteString("BEGIN:VEVENT\r\nUID:")
 		builder.WriteString(eventUID)
