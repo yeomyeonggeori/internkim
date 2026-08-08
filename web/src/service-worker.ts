@@ -3,6 +3,7 @@
 
 import { build, files, version } from '$service-worker';
 import { isShippedFile } from '$lib/offline-shell';
+import { readArriving } from '$lib/notifications/arriving';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const cacheName = `internkim-${version}`;
@@ -25,6 +26,44 @@ worker.addEventListener('fetch', (event) => {
 	if (!isShippedFile(event.request, location.origin, shipped)) return;
 	event.respondWith(shippedFile(event.request));
 });
+
+worker.addEventListener('push', (event) => {
+	const arriving = readArriving(readPushedJSON(event.data));
+	event.waitUntil(
+		worker.registration.showNotification(arriving.title, {
+			body: arriving.body,
+			tag: arriving.tag,
+			icon: '/icon-192.png',
+			data: { openPath: arriving.openPath }
+		})
+	);
+});
+
+function readPushedJSON(pushed: PushMessageData | null): unknown {
+	if (!pushed) return null;
+	try {
+		return pushed.json();
+	} catch {
+		return null;
+	}
+}
+
+worker.addEventListener('notificationclick', (event) => {
+	event.notification.close();
+	const openPath = (event.notification.data as { openPath?: string } | null)?.openPath ?? '/flow/';
+	event.waitUntil(openTheApp(openPath));
+});
+
+async function openTheApp(openPath: string): Promise<void> {
+	const open = await worker.clients.matchAll({ type: 'window', includeUncontrolled: true });
+	const here = open.find((client) => new URL(client.url).origin === location.origin);
+	if (here) {
+		await here.focus();
+		await here.navigate(openPath).catch(() => undefined);
+		return;
+	}
+	await worker.clients.openWindow(openPath);
+}
 
 async function shippedFile(request: Request): Promise<Response> {
 	const cache = await caches.open(cacheName);
