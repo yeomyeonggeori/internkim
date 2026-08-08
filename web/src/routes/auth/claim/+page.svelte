@@ -7,7 +7,7 @@
 	import { Field, FieldDescription, FieldGroup, FieldLabel } from '$lib/components/ui/field';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { isPasskeySupported, registerPasskey } from '$lib/supabase-passkey';
+	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
 	import { sendClaimLink, setSupabasePassword, verifyClaimCode } from '$lib/supabase-session';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
@@ -74,7 +74,12 @@
 
 	const keepThePasskey = () =>
 		run(async () => {
-			await registerPasskey();
+			try {
+				await registerPasskey();
+			} catch (error) {
+				if (refusalOf(error) === 'cancelled') return;
+				throw new Error(text.claimPasskeyFailed);
+			}
 			await goto('/flow/');
 		});
 
