@@ -55,7 +55,7 @@ messenger, so what appears in it appears in the messenger's own apps too.
 ## A messenger app
 
 Slack's app, Mattermost's app, a Buzz client: the ordinary software a person
-opens to read the chat. The second way to reach InternKim, from anywhere the
+opens to read the chat. The second way to reach internkim, from anywhere the
 messenger server itself is reachable.
 
 Distinct from that server, which is the company's own and may sit in a vendor's

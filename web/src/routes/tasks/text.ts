@@ -79,7 +79,7 @@ export const tasksText = {
 		noMatchingEvents: '조건에 맞는 이벤트가 없습니다.'
 	},
 	en: {
-		pageTitle: 'Task Runs · InternKim',
+		pageTitle: 'Task Runs · internkim',
 		title: 'Task Runs',
 		description: 'Review recent runs, status, and cost in one place.',
 		refresh: 'Refresh',

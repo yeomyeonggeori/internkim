@@ -2421,16 +2421,16 @@ func mattermostSetupCommandPayload(teamID string, commandID string, trigger stri
 	}
 	switch trigger {
 	case "stop":
-		commandRecord.DisplayName = "Stop InternKim task"
-		commandRecord.Description = "Stop your current InternKim task."
+		commandRecord.DisplayName = "Stop internkim task"
+		commandRecord.Description = "Stop your current internkim task."
 		commandRecord.AutocompleteDesc = "Stop your current task"
 	case "stop-all":
-		commandRecord.DisplayName = "Stop all InternKim tasks"
-		commandRecord.Description = "Stop all of your active InternKim tasks."
+		commandRecord.DisplayName = "Stop all internkim tasks"
+		commandRecord.Description = "Stop all of your active internkim tasks."
 		commandRecord.AutocompleteDesc = "Stop all active tasks"
 	default:
 		commandRecord.DisplayName = "Connect Companion"
-		commandRecord.Description = "Connect your InternKim Companion app."
+		commandRecord.Description = "Connect your internkim Companion app."
 		commandRecord.AutocompleteDesc = "Connect your Companion app"
 	}
 	return commandRecord

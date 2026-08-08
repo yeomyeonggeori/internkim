@@ -20,7 +20,7 @@ func main() {
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	request, _ := http.NewRequest("GET", url, nil)
-	request.Header.Set("User-Agent", "InternKim/1.0 (https://example.test; iam@example.test) Go-http-client/1.1")
+	request.Header.Set("User-Agent", "internkim/1.0 (https://example.test; iam@example.test) Go-http-client/1.1")
 	request.Header.Set("Accept", "*/*")
 
 	response, err := client.Do(request)

@@ -21,7 +21,7 @@ install -m 0600 "$modelPath" /root/.internkim/models/bge-m3-Q8_0.gguf
 
 cat >/etc/systemd/system/internkim-llamacpp-embedding.service <<'SERVICE'
 [Unit]
-Description=InternKim llama.cpp Embedding Server
+Description=internkim llama.cpp Embedding Server
 After=network-online.target
 Wants=network-online.target
 

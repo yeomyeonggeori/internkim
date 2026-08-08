@@ -196,7 +196,7 @@ func TestCalDAVClientQueriesCalendarObjectByUID(t *testing.T) {
 	const calendarPath = "/calendars/me/"
 	const objectPath = "/calendars/me/server-generated-42.ics"
 	const eventUID = "query-by-uid@internkim"
-	const calendarData = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//InternKim//Calendar//EN\r\nBEGIN:VEVENT\r\nUID:" + eventUID + "\r\nDTSTAMP:20260716T000000Z\r\nDTSTART:20260716T010000Z\r\nDTEND:20260716T020000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	const calendarData = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//internkim//Calendar//EN\r\nBEGIN:VEVENT\r\nUID:" + eventUID + "\r\nDTSTAMP:20260716T000000Z\r\nDTSTART:20260716T010000Z\r\nDTEND:20260716T020000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 	requestMethod := ""
 	requestPath := ""
 	requestDepth := ""

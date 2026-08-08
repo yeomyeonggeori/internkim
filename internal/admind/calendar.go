@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	calendarProductID                = "-//InternKim//Shared Calendar//EN"
+	calendarProductID                = "-//internkim//Shared Calendar//EN"
 	calendarName                     = "Work"
 	calendarDAVUsername              = "internkim"
 	calendarPrincipalPath            = "/calendar/dav/team/"
