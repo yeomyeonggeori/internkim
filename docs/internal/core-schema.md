@@ -25,6 +25,7 @@ run; this one decides what the data is.
 | `task_participant` | Who attends a task. |
 | `attendance` | Clock-in / clock-out events, with location. |
 | `leave` | Time off. |
+| `push_device` | Somewhere a member can be reached with a notification. |
 
 Tables are singular. Timestamps are `timestamptz` named `_at`. Booleans use an
 `is_` prefix. There are no `created_at` columns — they were removed on purpose;
@@ -180,6 +181,7 @@ go through the central API with the service role.
 | `task`, `task_participant` | company members | any company member |
 | `attendance` | company members | the member themselves |
 | `leave` | company members | requested by the member, approved by an admin |
+| `push_device` | the owning member | the owning member |
 
 `attendance` and `leave` are self-write because they are personal records; tasks
 are shared work. The agent writes as the member it is acting for, using that
