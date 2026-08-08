@@ -108,13 +108,14 @@ job** (`docs/internal/saas-design.md` §7.1).
 
 ## Configuration
 
-`entrypoint.sh` needs five values and passes the rest through:
+`entrypoint.sh` needs six values and passes the rest through:
 
 ```
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<the project's publishable key>
 INTERNKIM_APP_URL=https://<company>.intern.kim
 CHATD_BOT_USER_NAME=<the bot's display name>
+MESSENGER_PLATFORM=mattermost        # or buzz
 DATABASE_URL=postgres://…            # the host's own Postgres
 ```
 
@@ -130,7 +131,8 @@ CHATD_BUZZ_RELAY_URL=wss://…  CHATD_BUZZ_PRIVATE_KEY=<64 hex>
 ```
 
 `runtime.template.json` is rendered with `DATABASE_URL` and `MESSENGER_PLATFORM`
-to `/etc/blueclaw/runtime.json`.
+to `/etc/blueclaw/runtime.json`. `MESSENGER_PLATFORM` names which of the two the
+company runs, and the relay refuses to start rather than guess.
 
 ## Acceptance
 
