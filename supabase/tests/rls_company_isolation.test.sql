@@ -889,20 +889,20 @@ end $$$block$, 'task: joining or leaving marks the task as changed');
 select lives_ok($block$do $$
 declare
   member_topic text;
-  call_topic text;
+  company_presence text;
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
   select public.my_member_topic() into member_topic;
-  select public.my_call_topic() into call_topic;
+  select public.my_company_topic() into company_presence;
   assert member_topic = 'member:000000ff-0000-0000-0000-000000000001',
-    'a member listens on their own topic, got ' || coalesce(member_topic, 'null');
-  assert call_topic = 'company:00000000-0000-0000-0000-0000ffffff00:call',
-    'calls go to the company call topic, got ' || coalesce(call_topic, 'null');
+    'a member calls and is answered on their own topic, got ' || coalesce(member_topic, 'null');
+  assert company_presence = 'company:00000000-0000-0000-0000-0000ffffff00',
+    'presence is the company topic, got ' || coalesce(company_presence, 'null');
 
   reset role;
-  raise notice 'channel: a member topic and a call topic are derived, never chosen';
-end $$$block$, 'channel: a member topic and a call topic are derived, never chosen');
+  raise notice 'channel: both topics are derived, never chosen';
+end $$$block$, 'channel: both topics are derived, never chosen');
 
 select lives_ok($block$do $$
 declare

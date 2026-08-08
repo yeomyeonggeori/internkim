@@ -22,8 +22,7 @@ export class HostUnreachableError extends Error {
 type Wire = {
 	memberID: string;
 	presence: RealtimeChannel;
-	calls: RealtimeChannel;
-	answers: RealtimeChannel;
+	mine: RealtimeChannel;
 };
 
 const answerTimeoutMilliseconds = 20_000;
@@ -67,20 +66,16 @@ async function openWire(): Promise<Wire> {
 	});
 	await joinChannel(presence);
 
-	const answers = client.channel(`member:${member.data.id}`, { config: { private: true } });
-	answers.on('broadcast', { event: 'answer' }, ({ payload }) => {
+	const mine = client.channel(`member:${member.data.id}`, { config: { private: true } });
+	mine.on('broadcast', { event: 'answer' }, ({ payload }) => {
 		const answer = payload as { callID?: string; status?: number; body?: unknown };
 		if (typeof answer.callID !== 'string') return;
 		waiting.get(answer.callID)?.({ status: answer.status ?? 500, body: answer.body });
 		waiting.delete(answer.callID);
 	});
-	await joinChannel(answers);
+	await joinChannel(mine);
 
-	const calls = client.channel(`company:${member.data.company_id}:call`, {
-		config: { private: true }
-	});
-
-	return { memberID: member.data.id, presence, calls, answers };
+	return { memberID: member.data.id, presence, mine };
 }
 
 function joinChannel(channel: RealtimeChannel): Promise<void> {
@@ -127,7 +122,7 @@ export async function callCompanyApp(call: HostCall): Promise<HostAnswer> {
 		}, answerTimeoutMilliseconds);
 	});
 
-	await wire.calls.send({
+	await wire.mine.send({
 		type: 'broadcast',
 		event: 'call',
 		payload: callPayload(callID, wire.memberID, call, actor)
