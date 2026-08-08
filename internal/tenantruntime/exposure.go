@@ -68,7 +68,7 @@ func (service Service) exposeMattermostTenant(ctx context.Context, tenantID stri
 
 func (service Service) mattermostTunnelServiceUnit(manifest Manifest) string {
 	return `[Unit]
-Description=InternKim Mattermost public tunnel ` + manifest.TenantID + `
+Description=internkim Mattermost public tunnel ` + manifest.TenantID + `
 After=network-online.target internkim-mattermost-` + manifest.TenantID + `.service
 Wants=network-online.target internkim-mattermost-` + manifest.TenantID + `.service
 

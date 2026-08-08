@@ -127,7 +127,7 @@ func runPair(arguments []string, httpClient *http.Client) error {
 
 func runPairWithStore(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
 	flags := flag.NewFlagSet("pair", flag.ContinueOnError)
-	deviceURL := flags.String("device-url", "", "InternKim device URL")
+	deviceURL := flags.String("device-url", "", "internkim device URL")
 	code := flags.String("code", "", "pairing code")
 	statePath := registerStateFlag(flags)
 	localOnly := flags.Bool("local-only", false, "advertise local-only mode")
@@ -298,7 +298,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses")
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
 	browserExecutablePath := flags.String("browser-executable", defaultBrowserExecutablePath(), "browser executable path")
-	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
+	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "internkim companion browser profile path")
 	browserExtensionPath := flags.String("browser-extension-path", "", "companion browser extension directory path")
 	localLLMFlags := registerLocalLLMFlags(flags)
 	preferCompanionBrowser := flags.Bool("prefer-companion-browser", false, "ask the device to route browser tools to this companion")

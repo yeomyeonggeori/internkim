@@ -14,8 +14,8 @@ describe('readArriving', () => {
 	});
 
 	test('a push carrying nothing still shows something, because the browser demands one', () => {
-		expect(readArriving(null)).toEqual({ title: 'InternKim', body: '', openPath: '/flow/', tag: 'internkim' });
-		expect(readArriving('a message').title).toBe('InternKim');
+		expect(readArriving(null)).toEqual({ title: 'internkim', body: '', openPath: '/flow/', tag: 'internkim' });
+		expect(readArriving('a message').title).toBe('internkim');
 		expect(readArriving({}).openPath).toBe('/flow/');
 	});
 
@@ -27,7 +27,7 @@ describe('readArriving', () => {
 
 	test('a field of the wrong type is treated as absent', () => {
 		expect(readArriving({ title: 7, body: {}, tag: [] })).toEqual({
-			title: 'InternKim',
+			title: 'internkim',
 			body: '',
 			openPath: '/flow/',
 			tag: 'internkim'

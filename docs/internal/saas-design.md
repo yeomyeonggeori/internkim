@@ -1,8 +1,8 @@
-# InternKim SaaS: Central Identity + Bring-Your-Own Compute, LLM and Messenger — Design
+# internkim SaaS: Central Identity + Bring-Your-Own Compute, LLM and Messenger — Design
 
 Status: **Draft / for discussion** · Owner: TBD · Last updated: 2026-08-02
 
-This document proposes moving InternKim off the per-device (Jetson) hardware
+This document proposes moving internkim off the per-device (Jetson) hardware
 model to a SaaS product with a small centrally-operated plane and a customer-run
 agent client. It captures the decided direction, the trust/isolation model, the
 cost model, open questions, and a phased plan. It is a design doc, not an
@@ -115,7 +115,7 @@ Our marginal cost per customer is near-zero.
 |---|---|---|---|
 | Identity + tenant membership | Central (we) **or the customer's own Supabase** (§8.1) | Supabase Auth + RLS | The identity of record. Messenger credentials are encrypted rows on the user (§5). |
 | Host↔guest capability RPC | Central (we) | Supabase Realtime | Not the messenger — see §6. |
-| Control plane | Central (we) | InternKim (`feat/buzz-invites` grows into it) | Create tenant, provision the chosen messenger, issue the host credential. |
+| Control plane | Central (we) | internkim (`feat/buzz-invites` grows into it) | Create tenant, provision the chosen messenger, issue the host credential. |
 | Messenger | **Customer** | their Slack / their Mattermost / their Buzz relay | Bring-your-own. We attach an adapter and store no conversation. |
 | Web app | Central (we) | SvelteKit (`web/`) | Thin client: static SPA on free-tier host (Vercel/CF Pages). Talks to the central plane + the tenant's messenger. |
 | Company/HR/org data | Central (we) | Supabase (Postgres + RLS) | Per-tenant RLS + tenant-scoped role (never service key in client). |
@@ -322,7 +322,7 @@ companion UI (guest on an employee's machine).
   own or an attached one like Claude Code) **24/7** on a **spare/leftover company
   computer** — no dedicated hardware to buy.
 - **Outbound-only.** It reaches out to the **tenant's messenger** and the
-  **InternKim central plane**; internally it uses **localhost + REST** only. **No
+  **internkim central plane**; internally it uses **localhost + REST** only. **No
   CF tunnel, no inbound ports, no public exposure.** (This removes the per-device
   exposure/NIP-98 pain entirely.)
 - Joins the tenant's workspace as the bot member (Buzz `Bot`, a Slack bot user,
@@ -451,7 +451,7 @@ price of the host having no inbound surface.
 
 ## 8. Open source & self-hosting
 
-- **All source public** (the InternKim stack; Buzz is already Apache-2.0) with one
+- **All source public** (the internkim stack; Buzz is already Apache-2.0) with one
   exception: the **bluecollar** harness (the agent loop) stays private, while the
   contract it plugs into (`agentcontract`) is public — see
   [`harness-split-design.md`](./harness-split-design.md). blueclaw's self-host
@@ -525,7 +525,7 @@ Guiding principles:
 Phases 0–5 are a program, not a goal. The thing to actually finish first is a
 **single vertical slice** that crosses every new seam once, at minimum width:
 
-> An employee messages InternKim from the messenger; InternKim answers from a
+> An employee messages internkim from the messenger; internkim answers from a
 > spare Linux box; the attendance record from that conversation lands in
 > Supabase. **Zero Jetsons, zero tunnels.**
 

@@ -1,4 +1,5 @@
 import { adminCallerOf, asMember, controlPlane } from '$lib/server/control-plane';
+import { companyConnectionKinds } from '$lib/company/connections';
 import {
 	companyConnections,
 	forgetCompanyConnection,
@@ -8,7 +9,7 @@ import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-const connectionKinds = ['smtp', 'imap', 'caldav', 'mattermost'];
+
 
 type Plane = { projectURL: string; publishableKey: string; serviceRoleKey: string };
 
@@ -48,7 +49,7 @@ export const PUT: RequestHandler = async ({ request, platform }) => {
 	const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 	const kind = typeof body.kind === 'string' ? body.kind.trim() : '';
 	const host = typeof body.host === 'string' ? body.host.trim() : '';
-	if (!connectionKinds.includes(kind)) error(400, 'unknown kind of connection');
+	if (!companyConnectionKinds.some((known) => known === kind)) error(400, 'unknown kind of connection');
 	if (!host) error(400, 'a host is required');
 
 	await saveCompanyConnection(controlPlane(plane), caller.companyID, {
@@ -64,7 +65,7 @@ export const DELETE: RequestHandler = async ({ request, platform, url }) => {
 	const plane = planeOf(platform);
 	const caller = await adminOf(request, plane);
 	const kind = url.searchParams.get('kind') ?? '';
-	if (!connectionKinds.includes(kind)) error(400, 'unknown kind of connection');
+	if (!companyConnectionKinds.some((known) => known === kind)) error(400, 'unknown kind of connection');
 	await forgetCompanyConnection(controlPlane(plane), caller.companyID, kind);
 	return json({ kind });
 };

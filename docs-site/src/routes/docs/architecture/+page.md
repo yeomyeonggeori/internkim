@@ -51,7 +51,7 @@ messages live in the company's messenger, which the app cannot reach, so it
 asks the bridge over a Realtime channel and draws what comes back.
 
 **A messenger app** is your messenger's own client, signed in as usual. It
-knows nothing about InternKim and needs to know nothing: the agent is a member
+knows nothing about internkim and needs to know nothing: the agent is a member
 of the chat, so talking to it is talking to a colleague.
 
 The diagram draws that app and the messenger server as separate boxes because

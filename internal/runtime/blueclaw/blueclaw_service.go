@@ -162,7 +162,7 @@ func CapabilitydServiceUnit() string {
 
 func CapabilitydServiceUnitForLocalInferenceMode(localInferenceMode string) string {
 	return fmt.Sprintf(`[Unit]
-Description=InternKim Capability Daemon
+Description=internkim Capability Daemon
 After=network-online.target time-sync.target mattermost.service blueclaw-llmd.service internkim-admind.service
 Wants=network-online.target time-sync.target blueclaw-llmd.service internkim-admind.service
 
@@ -194,7 +194,7 @@ func capabilitydStartCommand(localInferenceMode string) string {
 
 func AdmindServiceUnit() string {
 	return fmt.Sprintf(`[Unit]
-Description=InternKim Admin Gateway
+Description=internkim Admin Gateway
 After=network-online.target time-sync.target mattermost.service
 Wants=network-online.target time-sync.target
 
@@ -307,7 +307,7 @@ func MinioHealthCheckCommand() string {
 
 func LlamaCppServiceUnit() string {
 	return fmt.Sprintf(`[Unit]
-Description=InternKim llama.cpp Server
+Description=internkim llama.cpp Server
 After=network-online.target time-sync.target
 Wants=network-online.target time-sync.target
 
@@ -326,7 +326,7 @@ WantedBy=multi-user.target
 
 func LlamaCppEmbeddingServiceUnit() string {
 	return fmt.Sprintf(`[Unit]
-Description=InternKim llama.cpp Embedding Server
+Description=internkim llama.cpp Embedding Server
 After=network-online.target time-sync.target
 Wants=network-online.target time-sync.target
 

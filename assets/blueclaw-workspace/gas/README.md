@@ -1,7 +1,7 @@
 # internkim-bridge (Google Apps Script)
 
 Google Apps Script webhook the user deploys from their own Google account.
-InternKim stores the returned Web App URL in root-owned secret storage and
+internkim stores the returned Web App URL in root-owned secret storage and
 invokes it through typed capabilityd tools. Blueclaw never reads this URL.
 
 ## One-time deploy (~30 s)
@@ -14,7 +14,7 @@ invokes it through typed capabilityd tools. Blueclaw never reads this URL.
 4. Authorize the prompted scopes (Drive / Slides / Docs / Sheets / Calendar /
    Gmail). Google's native consent screen is never blocked.
 5. Copy the **Web App URL** Apps Script returns after deploying.
-6. Install the Web App URL through InternKim setup or Companion.
+6. Install the Web App URL through internkim setup or Companion.
 
 ## Actions
 

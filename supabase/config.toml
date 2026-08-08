@@ -12,7 +12,7 @@ additional_redirect_urls = ["https://*.intern.kim/auth/claim"]
 enabled = true
 
 [auth.webauthn]
-rp_display_name = "InternKim"
+rp_display_name = "internkim"
 rp_id = "intern.kim"
 rp_origins = ["https://intern.kim", "https://*.intern.kim"]
 
@@ -26,5 +26,5 @@ max_frequency = "1m0s"
 otp_length = 8
 
 [auth.email.template.magic_link]
-subject = "Set up your InternKim sign-in"
+subject = "Set up your internkim sign-in"
 content_path = "./supabase/templates/magic-link.html"

@@ -10,7 +10,7 @@
 - 업무, 출퇴근, DB, 기억, 파일, 이메일 관리
 - 사용자 컴퓨터 브라우저 제어, 파일 선택, 문서 인식, 이미지 생성
 
-핵심 변경은 Blueclaw가 작업 의도를 판단하고, InternKim이 실행 위치와 권한을 선택하며, Companion이 사용자 로컬 자원을 안전하게 다루는 구조를 더 명확히 만드는 것이다.
+핵심 변경은 Blueclaw가 작업 의도를 판단하고, internkim이 실행 위치와 권한을 선택하며, Companion이 사용자 로컬 자원을 안전하게 다루는 구조를 더 명확히 만드는 것이다.
 
 ## 현재 기반
 
@@ -106,7 +106,7 @@ Calendar, email, file sharing, 기억 분리는 모두 "누구의 권한으로 �
 | 외부 공유 | 수신자, 권한, 파일명 확인 후 승인 |
 | 캘린더 참석자 초대 | 참석자 이메일이 외부 도메인이면 승인 |
 | Google import/publish | 대상 계정, 파일명, 공유 범위 확인 후 승인 |
-| InternKim `site.app.publish` | 프로토타입 생성 완료 단계이므로 승인 불필요 |
+| internkim `site.app.publish` | 프로토타입 생성 완료 단계이므로 승인 불필요 |
 | 파일 삭제/이동 | dry-run 요약 후 승인 |
 | 터미널 write 명령 | admin/dev profile에서만 승인 후 실행 |
 | 브라우저 form submit | observe 결과와 제출 요약을 보여준 뒤 승인 |
@@ -305,7 +305,7 @@ assets/blueclaw-workspace/skills/
 └── local-orchestrator/
 ```
 
-기존 `calendar`, `create-gws-file`, `simple-slides`, `pdf`, `agent-browser` skill은 유지한다. 다만 Google 계열 skill은 기본 실행 경로가 아니라 optional import/export/publish 경로로 낮춘다. wrapper는 portable artifact path를 먼저 선택하고, 사용자가 Google 공동 편집이나 공유 URL을 원할 때만 Google path를 선택한다. 플랫폼 파일 전달은 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로가 맡는다.
+기존 `calendar`, `create-gws-file`, `simple-slides`, `pdf`, `agent-browser` skill은 유지한다. 다만 Google 계열 skill은 기본 실행 경로가 아니라 optional import/export/publish 경로로 낮춘다. wrapper는 portable artifact path를 먼저 선택하고, 사용자가 Google 공동 편집이나 공유 URL을 원할 때만 Google path를 선택한다. 플랫폼 파일 전달은 Blueclaw `FileAttachment`와 internkim `reply.send` attachment 경로가 맡는다.
 
 ## 구현 시 주의할 경계
 

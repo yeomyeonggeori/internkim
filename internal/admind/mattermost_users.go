@@ -1446,7 +1446,7 @@ func (service *Service) ensureMattermostBotChannelMember(ctx context.Context, to
 		return errorValue
 	}
 	if !found || botRecord.ID == "" || botRecord.DeleteAt != 0 {
-		return fmt.Errorf("InternKim bot user is not available")
+		return fmt.Errorf("internkim bot user is not available")
 	}
 	return service.ensureMattermostChannelMember(ctx, token, channelID, botRecord.ID)
 }

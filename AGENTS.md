@@ -705,7 +705,7 @@ and delete the duplicates.
   `user_confirm` and `user_input` outside grant reuse.
 - Persist broker jobs under `/root/.internkim/state/companion-jobs.json`; restart
   recovery must not silently drop pending user-local work.
-- `file_pick` must hide user-local paths from InternKim and Blueclaw. Upload
+- `file_pick` must hide user-local paths from internkim and Blueclaw. Upload
   selected files through the signed broker into `/tmp/internkim-companion-files`.
 - Browser capabilities must go through a typed browser runtime adapter; do not
   scatter raw `agent-browser`, Playwright, Chrome, or Obscura calls.
@@ -713,7 +713,7 @@ and delete the duplicates.
   `make build-companion` or `make deps-companion-browser`.
 - Browser observe/screenshot responses must not expose cookies, CDP URLs, local
   profile paths, or local screenshot paths.
-- Keep Blueclaw provider-neutral. Blueclaw requests capabilities; InternKim
+- Keep Blueclaw provider-neutral. Blueclaw requests capabilities; internkim
   chooses device, companion, or remote execution.
 - Local-only mode must not fall back to OpenRouter or another remote provider.
 

@@ -6,7 +6,7 @@ export type Arriving = {
 };
 
 const somethingHappened: Arriving = {
-	title: 'InternKim',
+	title: 'internkim',
 	body: '',
 	openPath: '/flow/',
 	tag: 'internkim'

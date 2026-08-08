@@ -6,7 +6,7 @@
 
 <DocsShell config={siteConfig} content={docs} layout="page" pattern>
 	<Hero
-		title="InternKim"
+		title="internkim"
 		description="A coworker your company runs itself. It works from the messenger you already use, on a computer you already leave on."
 	>
 		{#snippet actions()}
@@ -25,7 +25,7 @@
 			messenger's own apps reach the same conversation from a phone.
 		</Feature>
 		<Feature title="Your messenger stays yours">
-			InternKim attaches to the Slack, Mattermost, or Buzz relay you already run. No
+			internkim attaches to the Slack, Mattermost, or Buzz relay you already run. No
 			conversation is stored centrally, because there is nowhere central to put one.
 		</Feature>
 		<Feature title="Nothing listens on your computer">

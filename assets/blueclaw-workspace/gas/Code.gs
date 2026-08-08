@@ -6,7 +6,7 @@
  * the deploying user's identity, so these calls never hit Google's
  * "unverified app" block that sinks direct third-party OAuth flows.
  *
- * InternKim stores the Web App URL as a root-owned secret and invokes
+ * internkim stores the Web App URL as a root-owned secret and invokes
  * this bridge through typed capability tools. Blueclaw never reads the
  * URL or Google credentials directly.
  */
