@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { decodeBase64URL, encodeBase64URL } from '../../src/lib/notifications/subscribe';
+import { decodeBase64URL, encodeBase64URL } from '../../src/lib/notifications/base64url';
 
 const vapidPublicKey =
 	'BG0w6CuCogoJKa593BzjeAk_VAOmSYtz4Crk7OBQPEYa3_peOcMJEln_GG6LyW-0nl82LPHDClzU8_0nB4Z5dcs';
