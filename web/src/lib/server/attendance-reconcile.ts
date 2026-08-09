@@ -30,7 +30,7 @@ export function reconcileMember(
 	if (fromDevice.length === 0 && inRecord.length > 0) throw new EmptyWindowRefused(memberID, inRecord.length);
 
 	const wanted = new Map<string, DeviceAttendance>();
-	for (const event of fromDevice) wanted.set(keyOf(event.kind, event.occurredAt), event);
+	for (const event of paired(fromDevice)) wanted.set(keyOf(event.kind, event.occurredAt), event);
 
 	const held = new Set(inRecord.map((row) => keyOf(row.kind, row.occurred_at)));
 
@@ -54,4 +54,14 @@ function keyOf(kind: string, moment: string): string {
 function locationFor(event: DeviceAttendance): string | null {
 	if (event.kind !== 'clock_in') return null;
 	return event.location.trim() === '' ? null : event.location;
+}
+
+export function paired(fromDevice: DeviceAttendance[]): DeviceAttendance[] {
+	const inOrder = [...fromDevice].sort((first, second) => first.occurredAt.localeCompare(second.occurredAt));
+	return inOrder.filter((event, index) => {
+		if (event.kind !== 'clock_in') return true;
+		const next = inOrder[index + 1];
+		if (!next || next.kind !== 'clock_in') return true;
+		return next.location !== event.location;
+	});
 }
