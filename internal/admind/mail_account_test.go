@@ -3,13 +3,14 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"net/http"
 	"testing"
 )
 
 func TestMailAccountSavePreservesStoredPasswords(t *testing.T) {
 	service := newMailTestService(t)
-	account := defaultMailAccount("admin@example.com")
+	account := mail.DefaultAccount("admin@example.com")
 	account.IMAPHost = "imap.example.com"
 	account.IMAPUsername = "admin@example.com"
 	account.IMAPPassword = "imap-secret"
@@ -77,7 +78,7 @@ func TestMailAccountSavePersistsForSubsequentRequests(t *testing.T) {
 	if accountResponse.Code != http.StatusOK {
 		t.Fatalf("account status = %d body = %s", accountResponse.Code, accountResponse.Body.String())
 	}
-	var account mailAccountResponse
+	var account mail.AccountResponse
 	if errorValue := json.Unmarshal(accountResponse.Body.Bytes(), &account); errorValue != nil {
 		t.Fatal(errorValue)
 	}

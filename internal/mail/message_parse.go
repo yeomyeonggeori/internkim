@@ -1,4 +1,4 @@
-package admind
+package mail
 
 import (
 	"mime"
@@ -10,43 +10,43 @@ import (
 	"github.com/emersion/go-message/charset"
 )
 
-func mailMessageResponseFromBuffer(mailbox string, message *imapclient.FetchMessageBuffer, bodySection *imap.FetchItemBodySection) mailMessageResponse {
+func messageResponseFromBuffer(mailbox string, message *imapclient.FetchMessageBuffer, bodySection *imap.FetchItemBodySection) MessageResponse {
 	if message == nil {
-		return mailMessageResponse{}
+		return MessageResponse{}
 	}
 	document := bodySectionBytes(message, bodySection)
-	parsedDocument := parseMailDocument(document)
+	parsedDocument := ParseDocument(document)
 	date := message.InternalDate
 	subject := ""
 	from := ""
 	if message.Envelope != nil {
-		subject = decodeMailHeader(message.Envelope.Subject)
-		from = imapAddressListString(message.Envelope.From)
+		subject = DecodeHeader(message.Envelope.Subject)
+		from = IMAPAddressListString(message.Envelope.From)
 		if !message.Envelope.Date.IsZero() {
 			date = message.Envelope.Date
 		}
 	}
-	return mailMessageResponse{
+	return MessageResponse{
 		UID:     uint32(message.UID),
 		Mailbox: mailbox,
 		Subject: subject,
 		From:    from,
-		Date:    formatMailDate(date),
-		Preview: mailPreview(parsedDocument.previewText()),
-		IsRead:  containsMailFlag(message.Flags, imap.FlagSeen),
+		Date:    formatDate(date),
+		Preview: Preview(parsedDocument.previewText()),
+		IsRead:  containsFlag(message.Flags, imap.FlagSeen),
 	}
 }
 
-func mailMessageDetailFromBuffer(mailbox string, message *imapclient.FetchMessageBuffer, bodySection *imap.FetchItemBodySection) mailMessageDetailResponse {
-	response := mailMessageResponseFromBuffer(mailbox, message, bodySection)
-	parsedDocument := parseMailDocument(bodySectionBytes(message, bodySection))
+func messageDetailFromBuffer(mailbox string, message *imapclient.FetchMessageBuffer, bodySection *imap.FetchItemBodySection) MessageDetailResponse {
+	response := messageResponseFromBuffer(mailbox, message, bodySection)
+	parsedDocument := ParseDocument(bodySectionBytes(message, bodySection))
 	to := ""
 	cc := ""
 	if message != nil && message.Envelope != nil {
-		to = imapAddressListString(message.Envelope.To)
-		cc = imapAddressListString(message.Envelope.Cc)
+		to = IMAPAddressListString(message.Envelope.To)
+		cc = IMAPAddressListString(message.Envelope.Cc)
 	}
-	return mailMessageDetailResponse{
+	return MessageDetailResponse{
 		UID:      response.UID,
 		Mailbox:  response.Mailbox,
 		Subject:  response.Subject,
@@ -72,23 +72,23 @@ func bodySectionBytes(message *imapclient.FetchMessageBuffer, bodySection *imap.
 	return nil
 }
 
-func decodeMailHeader(value string) string {
+func DecodeHeader(value string) string {
 	trimmedValue := strings.TrimSpace(value)
 	if trimmedValue == "" {
 		return ""
 	}
-	decodedValue, errorValue := mailWordDecoder().DecodeHeader(trimmedValue)
+	decodedValue, errorValue := wordDecoder().DecodeHeader(trimmedValue)
 	if errorValue != nil {
 		return trimmedValue
 	}
 	return strings.TrimSpace(decodedValue)
 }
 
-func mailWordDecoder() *mime.WordDecoder {
+func wordDecoder() *mime.WordDecoder {
 	return &mime.WordDecoder{CharsetReader: charset.Reader}
 }
 
-func imapAddressListString(addresses []imap.Address) string {
+func IMAPAddressListString(addresses []imap.Address) string {
 	values := []string{}
 	for _, address := range addresses {
 		emailAddress := address.Addr()
@@ -96,7 +96,7 @@ func imapAddressListString(addresses []imap.Address) string {
 			continue
 		}
 		if strings.TrimSpace(address.Name) != "" {
-			values = append(values, displayMailAddress(decodeMailHeader(address.Name), emailAddress))
+			values = append(values, displayAddress(DecodeHeader(address.Name), emailAddress))
 		} else {
 			values = append(values, emailAddress)
 		}
@@ -104,7 +104,7 @@ func imapAddressListString(addresses []imap.Address) string {
 	return strings.Join(values, ", ")
 }
 
-func displayMailAddress(name string, address string) string {
+func displayAddress(name string, address string) string {
 	displayName := strings.TrimSpace(name)
 	emailAddress := strings.TrimSpace(address)
 	if displayName == "" {
@@ -113,7 +113,7 @@ func displayMailAddress(name string, address string) string {
 	return displayName + " <" + emailAddress + ">"
 }
 
-func formatMailDate(value time.Time) string {
+func formatDate(value time.Time) string {
 	if value.IsZero() {
 		return ""
 	}

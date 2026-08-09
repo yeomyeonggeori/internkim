@@ -1,16 +1,16 @@
-package admind
+package mail
 
 import (
 	"context"
 	"database/sql"
 )
 
-func ensureMailMessageListCacheSchema(ctx context.Context, database *sql.DB) error {
-	hasListSchema, errorValue := mailCacheTableHasColumns(ctx, database, "mail_message_list_cache", "before_uid", "page_limit", "next_cursor")
+func EnsureMessageListCacheSchema(ctx context.Context, database *sql.DB) error {
+	hasListSchema, errorValue := cacheTableHasColumns(ctx, database, "mail_message_list_cache", "before_uid", "page_limit", "next_cursor")
 	if errorValue != nil {
 		return errorValue
 	}
-	hasItemSchema, errorValue := mailCacheTableHasColumns(ctx, database, "mail_message_list_cache_item", "page_limit", "uid", "position")
+	hasItemSchema, errorValue := cacheTableHasColumns(ctx, database, "mail_message_list_cache_item", "page_limit", "uid", "position")
 	if errorValue != nil {
 		return errorValue
 	}
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS mail_message_list_cache (
 	return errorValue
 }
 
-func mailCacheTableHasColumns(ctx context.Context, database *sql.DB, tableName string, columnNames ...string) (bool, error) {
+func cacheTableHasColumns(ctx context.Context, database *sql.DB, tableName string, columnNames ...string) (bool, error) {
 	rows, errorValue := database.QueryContext(ctx, `PRAGMA table_info(`+tableName+`)`)
 	if errorValue != nil {
 		return false, errorValue

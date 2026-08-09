@@ -1,4 +1,4 @@
-package admind
+package mail
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestMailMessagePageUIDsReturnNewestFirst(t *testing.T) {
-	uids := mailMessagePageUIDs([]imap.UID{7, 9, 8}, 2)
+	uids := MessagePageUIDs([]imap.UID{7, 9, 8}, 2)
 	if len(uids) != 2 || uids[0] != 9 || uids[1] != 8 {
 		t.Fatalf("uids = %#v", uids)
 	}

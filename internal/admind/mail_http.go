@@ -3,6 +3,7 @@ package admind
 import (
 	"encoding/json"
 	"errors"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"net/http"
 	"strings"
 )
@@ -53,7 +54,7 @@ func (service *Service) writeMailAccount(responseWriter http.ResponseWriter, req
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	service.writeJSON(responseWriter, mailAccountToResponse(account))
+	service.writeJSON(responseWriter, mail.AccountToResponse(account))
 }
 
 func (service *Service) saveMailAccount(responseWriter http.ResponseWriter, request *http.Request) {
@@ -62,17 +63,17 @@ func (service *Service) saveMailAccount(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	var payload mailAccountWriteRequest
+	var payload mail.AccountWriteRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	account, errorValue := mergeMailAccountWriteRequest(existingAccount, payload)
+	account, errorValue := mail.MergeAccountWriteRequest(existingAccount, payload)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	if errorValue := validateMailAccountForSave(account); errorValue != nil {
+	if errorValue := mail.ValidateAccountForSave(account); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
@@ -80,7 +81,7 @@ func (service *Service) saveMailAccount(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	service.writeJSON(responseWriter, mailAccountToResponse(account))
+	service.writeJSON(responseWriter, mail.AccountToResponse(account))
 }
 
 func (service *Service) testMailAccount(responseWriter http.ResponseWriter, request *http.Request) {
@@ -90,18 +91,18 @@ func (service *Service) testMailAccount(responseWriter http.ResponseWriter, requ
 		return
 	}
 	if request.Body != nil && request.ContentLength != 0 {
-		var payload mailAccountWriteRequest
+		var payload mail.AccountWriteRequest
 		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 			return
 		}
-		account, errorValue = mergeMailAccountWriteRequest(account, payload)
+		account, errorValue = mail.MergeAccountWriteRequest(account, payload)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 			return
 		}
 	}
-	if errorValue := validateMailAccountForSave(account); errorValue != nil {
+	if errorValue := mail.ValidateAccountForSave(account); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
@@ -112,21 +113,21 @@ func (service *Service) testMailAccount(responseWriter http.ResponseWriter, requ
 	service.writeJSON(responseWriter, map[string]bool{"ok": true})
 }
 
-func (service *Service) readConfiguredMailAccount(request *http.Request) (mailAccount, bool, error) {
+func (service *Service) readConfiguredMailAccount(request *http.Request) (mail.Account, bool, error) {
 	account, found, errorValue := service.readMailAccountForRequest(request)
 	if errorValue != nil {
-		return mailAccount{}, false, errorValue
+		return mail.Account{}, false, errorValue
 	}
-	if !found || !account.isConfigured() {
-		return mailAccount{}, found, errors.New("mail account is not configured")
+	if !found || !account.IsConfigured() {
+		return mail.Account{}, found, errors.New("mail account is not configured")
 	}
 	return account, found, nil
 }
 
-func (service *Service) readMailAccountForRequest(request *http.Request) (mailAccount, bool, error) {
+func (service *Service) readMailAccountForRequest(request *http.Request) (mail.Account, bool, error) {
 	actorEmail := service.mailActorEmail(request)
 	if actorEmail == "" {
-		return mailAccount{}, false, errors.New("mail actor email is required")
+		return mail.Account{}, false, errors.New("mail actor email is required")
 	}
 	return service.readMailAccount(request.Context(), actorEmail)
 }

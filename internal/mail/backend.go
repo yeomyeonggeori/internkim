@@ -1,4 +1,4 @@
-package admind
+package mail
 
 import (
 	"context"
@@ -10,19 +10,19 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
-type mailBackend interface {
-	TestAccount(ctx context.Context, account mailAccount) error
-	ListMailboxes(ctx context.Context, account mailAccount) ([]mailMailboxResponse, error)
-	ListMessages(ctx context.Context, account mailAccount, input mailMessageListRequest) (mailMessageListResponse, error)
-	ReadMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32) (mailMessageDetailResponse, error)
-	SendMessage(ctx context.Context, account mailAccount, input mailMessageSendRequest) (mailSendResult, error)
-	MoveMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32, targetMailbox string) error
-	MarkMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32, input mailMessageMarkRequest) error
+type Backend interface {
+	TestAccount(ctx context.Context, account Account) error
+	ListMailboxes(ctx context.Context, account Account) ([]MailboxResponse, error)
+	ListMessages(ctx context.Context, account Account, input MessageListRequest) (MessageListResponse, error)
+	ReadMessage(ctx context.Context, account Account, mailbox string, uid uint32) (MessageDetailResponse, error)
+	SendMessage(ctx context.Context, account Account, input MessageSendRequest) (SendResult, error)
+	MoveMessage(ctx context.Context, account Account, mailbox string, uid uint32, targetMailbox string) error
+	MarkMessage(ctx context.Context, account Account, mailbox string, uid uint32, input MessageMarkRequest) error
 }
 
-type standardMailBackend struct{}
+type StandardBackend struct{}
 
-func (backend standardMailBackend) TestAccount(ctx context.Context, account mailAccount) error {
+func (backend StandardBackend) TestAccount(ctx context.Context, account Account) error {
 	imapClient, errorValue := backend.openIMAPClient(account)
 	if errorValue != nil {
 		return fmt.Errorf("imap connection failed: %w", errorValue)
@@ -35,40 +35,40 @@ func (backend standardMailBackend) TestAccount(ctx context.Context, account mail
 	return smtpClient.Quit()
 }
 
-func (backend standardMailBackend) ListMailboxes(ctx context.Context, account mailAccount) ([]mailMailboxResponse, error) {
+func (backend StandardBackend) ListMailboxes(ctx context.Context, account Account) ([]MailboxResponse, error) {
 	imapClient, errorValue := backend.openIMAPClient(account)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	defer closeIMAPClient(imapClient)
-	listData, errorValue := collectMailMailboxListData(ctx, imapClient)
+	listData, errorValue := collectMailboxListData(ctx, imapClient)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	mailboxes := mailMailboxResponsesFromListData(listData)
+	mailboxes := MailboxResponsesFromListData(listData)
 	sort.SliceStable(mailboxes, func(firstIndex int, secondIndex int) bool {
-		return mailMailboxSortKey(mailboxes[firstIndex].Name) < mailMailboxSortKey(mailboxes[secondIndex].Name)
+		return MailboxSortKey(mailboxes[firstIndex].Name) < MailboxSortKey(mailboxes[secondIndex].Name)
 	})
 	return mailboxes, nil
 }
 
-func (backend standardMailBackend) ListMessages(ctx context.Context, account mailAccount, input mailMessageListRequest) (mailMessageListResponse, error) {
+func (backend StandardBackend) ListMessages(ctx context.Context, account Account, input MessageListRequest) (MessageListResponse, error) {
 	imapClient, errorValue := backend.openIMAPClient(account)
 	if errorValue != nil {
-		return mailMessageListResponse{}, errorValue
+		return MessageListResponse{}, errorValue
 	}
 	defer closeIMAPClient(imapClient)
 	selectedMailbox, errorValue := imapClient.Select(input.Mailbox, &imap.SelectOptions{ReadOnly: true}).Wait()
 	if errorValue != nil {
-		return mailMessageListResponse{}, errorValue
+		return MessageListResponse{}, errorValue
 	}
 	pageUIDs, errorValue := messageListUIDs(imapClient, selectedMailbox, input)
 	if errorValue != nil {
-		return mailMessageListResponse{}, errorValue
+		return MessageListResponse{}, errorValue
 	}
-	visibleUIDs, hasMoreMessages := visibleMailMessageUIDs(pageUIDs, input.Limit)
+	visibleUIDs, hasMoreMessages := VisibleMessageUIDs(pageUIDs, input.Limit)
 	if len(visibleUIDs) == 0 {
-		return mailMessageListResponse{}, nil
+		return MessageListResponse{}, nil
 	}
 	fetchOptions := &imap.FetchOptions{
 		UID:          true,
@@ -78,11 +78,11 @@ func (backend standardMailBackend) ListMessages(ctx context.Context, account mai
 	}
 	messages, errorValue := imapClient.Fetch(imap.UIDSetNum(visibleUIDs...), fetchOptions).Collect()
 	if errorValue != nil {
-		return mailMessageListResponse{}, errorValue
+		return MessageListResponse{}, errorValue
 	}
-	responses := make([]mailMessageResponse, 0, len(messages))
+	responses := make([]MessageResponse, 0, len(messages))
 	for _, message := range messages {
-		response := mailMessageResponseFromBuffer(input.Mailbox, message, nil)
+		response := messageResponseFromBuffer(input.Mailbox, message, nil)
 		if response.UID != 0 {
 			responses = append(responses, response)
 		}
@@ -90,22 +90,22 @@ func (backend standardMailBackend) ListMessages(ctx context.Context, account mai
 	sort.SliceStable(responses, func(firstIndex int, secondIndex int) bool {
 		return responses[firstIndex].UID > responses[secondIndex].UID
 	})
-	return mailMessageListResponse{
+	return MessageListResponse{
 		Messages:    responses,
-		NextCursor:  nextMailMessageCursor(input, visibleUIDs, hasMoreMessages),
+		NextCursor:  NextMessageCursor(input, visibleUIDs, hasMoreMessages),
 		UIDNext:     uint32(selectedMailbox.UIDNext),
 		UIDValidity: uint32(selectedMailbox.UIDValidity),
 	}, nil
 }
 
-func (backend standardMailBackend) ReadMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32) (mailMessageDetailResponse, error) {
+func (backend StandardBackend) ReadMessage(ctx context.Context, account Account, mailbox string, uid uint32) (MessageDetailResponse, error) {
 	imapClient, errorValue := backend.openIMAPClient(account)
 	if errorValue != nil {
-		return mailMessageDetailResponse{}, errorValue
+		return MessageDetailResponse{}, errorValue
 	}
 	defer closeIMAPClient(imapClient)
 	if _, errorValue := imapClient.Select(mailbox, &imap.SelectOptions{ReadOnly: true}).Wait(); errorValue != nil {
-		return mailMessageDetailResponse{}, errorValue
+		return MessageDetailResponse{}, errorValue
 	}
 	bodySection := &imap.FetchItemBodySection{Peek: true}
 	messages, errorValue := imapClient.Fetch(imap.UIDSetNum(imap.UID(uid)), &imap.FetchOptions{
@@ -116,23 +116,23 @@ func (backend standardMailBackend) ReadMessage(ctx context.Context, account mail
 		BodySection:  []*imap.FetchItemBodySection{bodySection},
 	}).Collect()
 	if errorValue != nil {
-		return mailMessageDetailResponse{}, errorValue
+		return MessageDetailResponse{}, errorValue
 	}
 	if len(messages) == 0 {
-		return mailMessageDetailResponse{}, errors.New("message not found")
+		return MessageDetailResponse{}, errors.New("message not found")
 	}
-	return mailMessageDetailFromBuffer(mailbox, messages[0], bodySection), nil
+	return messageDetailFromBuffer(mailbox, messages[0], bodySection), nil
 }
 
-func (backend standardMailBackend) SendMessage(ctx context.Context, account mailAccount, input mailMessageSendRequest) (mailSendResult, error) {
-	messageDocument, recipients, errorValue := createMailMessageDocument(account, input)
+func (backend StandardBackend) SendMessage(ctx context.Context, account Account, input MessageSendRequest) (SendResult, error) {
+	messageDocument, recipients, errorValue := createMessageDocument(account, input)
 	if errorValue != nil {
-		return mailSendResult{}, errorValue
+		return SendResult{}, errorValue
 	}
-	if errorValue := backend.sendSMTPMessage(account, recipients, messageDocument); errorValue != nil {
-		return mailSendResult{}, errorValue
+	if errorValue := backend.SendSMTPMessage(account, recipients, messageDocument); errorValue != nil {
+		return SendResult{}, errorValue
 	}
-	result := mailSendResult{Sent: true}
+	result := SendResult{Sent: true}
 	if strings.TrimSpace(account.SentMailbox) == "" {
 		return result, nil
 	}
@@ -144,7 +144,7 @@ func (backend standardMailBackend) SendMessage(ctx context.Context, account mail
 	return result, nil
 }
 
-func (backend standardMailBackend) MoveMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32, targetMailbox string) error {
+func (backend StandardBackend) MoveMessage(ctx context.Context, account Account, mailbox string, uid uint32, targetMailbox string) error {
 	imapClient, errorValue := backend.openIMAPClient(account)
 	if errorValue != nil {
 		return errorValue
@@ -157,7 +157,7 @@ func (backend standardMailBackend) MoveMessage(ctx context.Context, account mail
 	return errorValue
 }
 
-func (backend standardMailBackend) MarkMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32, input mailMessageMarkRequest) error {
+func (backend StandardBackend) MarkMessage(ctx context.Context, account Account, mailbox string, uid uint32, input MessageMarkRequest) error {
 	imapClient, errorValue := backend.openIMAPClient(account)
 	if errorValue != nil {
 		return errorValue
@@ -167,12 +167,12 @@ func (backend standardMailBackend) MarkMessage(ctx context.Context, account mail
 		return errorValue
 	}
 	if input.Seen != nil {
-		if errorValue := storeMailFlag(imapClient, uid, imap.FlagSeen, *input.Seen); errorValue != nil {
+		if errorValue := storeFlag(imapClient, uid, imap.FlagSeen, *input.Seen); errorValue != nil {
 			return errorValue
 		}
 	}
 	if input.Flagged != nil {
-		return storeMailFlag(imapClient, uid, imap.FlagFlagged, *input.Flagged)
+		return storeFlag(imapClient, uid, imap.FlagFlagged, *input.Flagged)
 	}
 	return nil
 }
