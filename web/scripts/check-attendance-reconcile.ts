@@ -67,20 +67,26 @@ try {
 
 	const first = await reconcile(agent.apiKey, [
 		{ externalID: firstExternalID, kind: 'clock_in', occurredAt: '2026-08-07T03:56:00Z', location: '본사' },
+		{ externalID: firstExternalID, kind: 'clock_out', occurredAt: '2026-08-07T09:54:00Z', location: '본사' },
 		{ externalID: secondExternalID, kind: 'clock_in', occurredAt: '2026-08-06T00:10:00Z', location: '' }
 	]);
 
-	findings.push(['the device is the one that decides', first.added === 1 && first.removed === 2]);
+	findings.push(['the device is the one that decides', first.added === 2 && first.removed === 2]);
+	findings.push([
+		'a clock-out the device placed somewhere is stored without a place, which the record requires',
+		(await heldFor(company.adminMemberID)).length === 2
+	]);
 	const mine = await heldFor(company.adminMemberID);
 	findings.push([
 		'a clock-in cancelled on the device stops being in the record',
-		mine.length === 1 && mine[0].occurred_at.startsWith('2026-08-07T03:56')
+		mine.length === 2 && mine[0].occurred_at.startsWith('2026-08-07T03:56')
 	]);
 	const theirs = await heldFor(secondMemberID);
 	findings.push(['a colleague already right is left alone', theirs.length === 1]);
 
 	const again = await reconcile(agent.apiKey, [
 		{ externalID: firstExternalID, kind: 'clock_in', occurredAt: '2026-08-07T03:56:00Z', location: '본사' },
+		{ externalID: firstExternalID, kind: 'clock_out', occurredAt: '2026-08-07T09:54:00Z', location: '본사' },
 		{ externalID: secondExternalID, kind: 'clock_in', occurredAt: '2026-08-06T00:10:00Z', location: '' }
 	]);
 	findings.push(['running it twice changes nothing', again.added === 0 && again.removed === 0]);
@@ -90,7 +96,7 @@ try {
 		'a device reporting nothing is refused rather than obeyed',
 		Array.isArray(emptied.refused) && (emptied.refused as string[]).length === 2 && emptied.removed === 0
 	]);
-	findings.push(['and the record still holds what it held', (await heldFor(company.adminMemberID)).length === 1]);
+	findings.push(['and the record still holds what it held', (await heldFor(company.adminMemberID)).length === 2]);
 
 	const stranger = await reconcile('not-an-agent-key', []);
 	findings.push(['a key belonging to no agent changes nothing', stranger.added === undefined]);

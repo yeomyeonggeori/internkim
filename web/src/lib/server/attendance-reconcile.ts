@@ -11,7 +11,7 @@ export type RecordedAttendance = {
 };
 
 export type Reconciliation = {
-	add: { member_id: string; kind: string; occurred_at: string; location: string }[];
+	add: { member_id: string; kind: string; occurred_at: string; location: string | null }[];
 	remove: string[];
 };
 
@@ -40,7 +40,7 @@ export function reconcileMember(
 			member_id: memberID,
 			kind: event.kind,
 			occurred_at: event.occurredAt,
-			location: event.location
+			location: locationFor(event)
 		}));
 	const remove = inRecord.filter((row) => !wanted.has(keyOf(row.kind, row.occurred_at))).map((row) => row.id);
 
@@ -49,4 +49,9 @@ export function reconcileMember(
 
 function keyOf(kind: string, moment: string): string {
 	return `${kind}|${new Date(moment).toISOString().slice(0, 19)}`;
+}
+
+function locationFor(event: DeviceAttendance): string | null {
+	if (event.kind !== 'clock_in') return null;
+	return event.location.trim() === '' ? null : event.location;
 }
