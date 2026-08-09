@@ -1,7 +1,7 @@
 #!/bin/sh
 # Brings up the company agent on an ordinary Linux box: llmd, capabilityd, blueclaw
 # and chatd, in that order because each waits for the one before it. The messenger
-# bridge starts first and depends on none of them — it talks only to Supabase, the
+# the relay starts first and depends on none of them — it talks only to Supabase, the
 # central plane and the tenant's messenger, so the screen stays alive even when the
 # agent does not. Nothing listens off loopback: the box reaches out and is never
 # reached back.
@@ -32,15 +32,15 @@ llmdPid=""
 capabilitydPid=""
 blueclawPid=""
 chatdPid=""
-bridgePid=""
+relayPid=""
 
 shutdown() {
   exitCode="$?"
   trap - INT TERM EXIT
-  for processID in "${bridgePid}" "${chatdPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
     [ -n "${processID}" ] && kill "${processID}" 2>/dev/null || true
   done
-  for processID in "${bridgePid}" "${chatdPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
     [ -n "${processID}" ] && wait "${processID}" 2>/dev/null || true
   done
   rm -f "${llmdAuthKeyPath}"
@@ -48,20 +48,20 @@ shutdown() {
 }
 trap shutdown INT TERM EXIT
 
-echo "[host] starting messenger bridge"
-keepBridgeRunning() {
+echo "[host] starting the relay"
+keepRelayRunning() {
   while true; do
     AGENT_API_KEY_PATH="${agentKeyPath}" CHATD_BASE_URL="http://127.0.0.1:${chatdPort}" \
-      MESSENGER_PLATFORM="${MESSENGER_PLATFORM}" ARRIVALS_PORT="${arrivalsPort}" internkim-messenger-bridge &
-    bridgeChild="$!"
-    trap 'kill "${bridgeChild}" 2>/dev/null; exit 0' TERM
-    wait "${bridgeChild}" || true
-    echo "[host] messenger bridge stopped — restarting in 5s"
+      MESSENGER_PLATFORM="${MESSENGER_PLATFORM}" ARRIVALS_PORT="${arrivalsPort}" internkim-relay &
+    relayChild="$!"
+    trap 'kill "${relayChild}" 2>/dev/null; exit 0' TERM
+    wait "${relayChild}" || true
+    echo "[host] the relay stopped — restarting in 5s"
     sleep 5
   done
 }
-keepBridgeRunning &
-bridgePid="$!"
+keepRelayRunning &
+relayPid="$!"
 
 echo "[host] waiting for postgres"
 until pg_isready -d "${DATABASE_URL}" >/dev/null 2>&1; do sleep 1; done

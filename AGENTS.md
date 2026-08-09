@@ -396,7 +396,7 @@ and delete the duplicates.
   is: a daemon on a company computer that stays on — any hardware, Jetson or
   Mac Studio or a laptop, it does not matter — and users on *other* networks
   reach the company's messenger through Supabase Realtime and the Supabase
-  database, never by connecting to that machine. The messenger bridge is that
+  database, never by connecting to that machine. The relay is that
   daemon; it depends on nothing else in the bundle, so it starts first and
   survives the agent being down. Self-hosting from source is the destination,
   so per-company settings stay at four.
