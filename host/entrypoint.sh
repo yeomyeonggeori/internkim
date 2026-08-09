@@ -14,6 +14,7 @@ capabilitySocketPath="/run/internkim/capability.sock"
 blueclawAddress="127.0.0.1:8080"
 chatdPort="${CHATD_LISTEN_PORT:-18090}"
 arrivalsPort="${ARRIVALS_PORT:-18091}"
+maildPort="${MAILD_PORT:-18092}"
 agentKeyPath="/secrets/agent-key"
 
 : "${SUPABASE_URL:?set SUPABASE_URL}"
@@ -32,15 +33,16 @@ llmdPid=""
 capabilitydPid=""
 blueclawPid=""
 chatdPid=""
+maildPid=""
 relayPid=""
 
 shutdown() {
   exitCode="$?"
   trap - INT TERM EXIT
-  for processID in "${relayPid}" "${chatdPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
     [ -n "${processID}" ] && kill "${processID}" 2>/dev/null || true
   done
-  for processID in "${relayPid}" "${chatdPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${capabilitydPid}" "${llmdPid}"; do
     [ -n "${processID}" ] && wait "${processID}" 2>/dev/null || true
   done
   rm -f "${llmdAuthKeyPath}"
@@ -52,7 +54,8 @@ echo "[host] starting the relay"
 keepRelayRunning() {
   while true; do
     AGENT_API_KEY_PATH="${agentKeyPath}" CHATD_BASE_URL="http://127.0.0.1:${chatdPort}" \
-      MESSENGER_PLATFORM="${MESSENGER_PLATFORM}" ARRIVALS_PORT="${arrivalsPort}" internkim-relay &
+      MESSENGER_PLATFORM="${MESSENGER_PLATFORM}" ARRIVALS_PORT="${arrivalsPort}" \
+      MAILD_BASE_URL="http://127.0.0.1:${maildPort}" internkim-relay &
     relayChild="$!"
     trap 'kill "${relayChild}" 2>/dev/null; exit 0' TERM
     wait "${relayChild}" || true
@@ -101,6 +104,10 @@ until nc -z 127.0.0.1 8080 >/dev/null 2>&1; do
   kill -0 "${blueclawPid}" 2>/dev/null || { wait "${blueclawPid}"; exit 1; }
   sleep 1
 done
+
+echo "[host] starting maild"
+internkim-maild -listen "127.0.0.1:${maildPort}" &
+maildPid="$!"
 
 echo "[host] starting chatd"
 CHATD_BLUECLAW_BASE_URL="http://${blueclawAddress}" \

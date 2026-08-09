@@ -8,11 +8,14 @@ AGENT_BROWSER_VERSION ?= 0.26.0
 COMPANION_BETA_DIST ?= dist/companion
 COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
-.PHONY: build build-relay build-companion build-companion-shell package-companion-beta build-mattermost-ephemeral-plugin verify-generated-protocol check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-blueclaw-llmd prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast deps-graphiti setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-api verify-browser verify-graphiti-local
+.PHONY: build build-maild build-relay build-companion build-companion-shell package-companion-beta build-mattermost-ephemeral-plugin verify-generated-protocol check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-blueclaw-llmd prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast deps-graphiti setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-api verify-browser verify-graphiti-local
 
 build: verify-generated-protocol build-mattermost-ephemeral-plugin
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-llm-gateway ./cmd/internkim-llm-gateway
+
+build-maild:
+	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-maild ./cmd/internkim-maild
 
 build-relay:
 	cd host/relay && bun install --frozen-lockfile

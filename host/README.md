@@ -80,6 +80,7 @@ Build for whichever that is. `RELAY_TARGET` is empty by default, which builds
 for the machine doing the building:
 
 ```
+make build-maild                             # the mail answerer
 make build-relay                             # this machine
 make build-relay RELAY_TARGET=bun-linux-arm64
 make build-relay RELAY_TARGET=bun-linux-x64
@@ -135,6 +136,11 @@ to `/etc/blueclaw/runtime.json`. `MESSENGER_PLATFORM` names which of the two the
 company runs, and the relay refuses to start rather than guess.
 
 ## Acceptance
+
+`internkim-maild` answers mail for whichever account the call carries, on
+`127.0.0.1:${MAILD_PORT:-18092}`. It holds nothing between calls: the relay
+reads the caller's own mail account from the record and hands it over, so a
+password is never at rest on this box and never in the browser.
 
 The messenger reports every message it accepts to the relay on
 `127.0.0.1:${ARRIVALS_PORT:-18091}`, which resolves the people in that
