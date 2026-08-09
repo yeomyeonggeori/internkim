@@ -1,6 +1,6 @@
 {
-  "scaffoldSourceSHA256": "d7cdb437a87a59cd4049b09814cc0647295aa7b08c7085b2f1473cb309f21477",
-  "generatedAt": "2026-07-08T12:10:20.625924+00:00",
+  "scaffoldSourceSHA256": "c59a8b5d9f189f0a71ac17d388f4d1d0aecd681580c1283a5196e2dcd24b25fc",
+  "generatedAt": "2026-08-08T16:34:25.560454+00:00",
   "files": [
     "index.html",
     "package.json",

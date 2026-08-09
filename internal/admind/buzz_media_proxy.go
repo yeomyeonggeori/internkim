@@ -27,10 +27,6 @@ func (service *Service) buzzMediaOrigin() string {
 	return relayURL
 }
 
-// buzzPublicRelayOrigin is the https origin imported media is stamped with,
-// derived from the device URL the same way the importer does (host -> host with
-// "-relay" before the first label), e.g. https://foo.example.test ->
-// https://foo-relay.example.test.
 func (service *Service) buzzPublicRelayOrigin() string {
 	return relayOriginForDeviceURL(service.mediaPublicBase())
 }

@@ -102,7 +102,7 @@ const { token, user } = await login();
 if (!token) throw new Error("Mattermost login did not return a session token");
 const authorizedFetch = createAuthorizedFetch(token);
 const botResponse = await authorizedFetch("/api/v4/users/username/internkim");
-requireSuccessfulResponse(botResponse, "InternKim account lookup");
+requireSuccessfulResponse(botResponse, "internkim account lookup");
 const botUser = await botResponse.json();
 const channel = await resolveDirectChannel(authorizedFetch, user.id, botUser.id);
 const observation = { requestPostID: "", replyPostID: "", startedAt: 0, typingAt: 0, replyAt: 0 };
@@ -132,8 +132,8 @@ const result = {
 
 const failures = [];
 if (observationError) failures.push(observationError.message);
-if (!result.typingObserved) failures.push("InternKim typing event was not observed");
-if (!result.replyObserved) failures.push("InternKim reply event was not observed");
+if (!result.typingObserved) failures.push("internkim typing event was not observed");
+if (!result.replyObserved) failures.push("internkim reply event was not observed");
 if (!result.requestDeleted) failures.push("Mattermost typing request test post was not deleted");
 if (replyDeletionToken && !result.replyDeleted) failures.push("Mattermost typing reply test post was not deleted");
 if (failures.length > 0) {

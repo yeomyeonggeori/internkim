@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"net/http"
 	"testing"
 )
@@ -10,14 +11,14 @@ import (
 func TestCachedMailMessagesRequireMatchingCursor(t *testing.T) {
 	service := newMailTestService(t)
 	saveConfiguredMailTestAccount(t, service)
-	if errorValue := service.saveCachedMailMessages(context.Background(), "admin@example.com", mailMessageListRequest{
+	if errorValue := service.saveCachedMailMessages(context.Background(), "admin@example.com", mail.MessageListRequest{
 		Mailbox: "INBOX",
 		Limit:   15,
-	}, mailMessageListResponse{Messages: []mailMessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "First page"}}}); errorValue != nil {
+	}, mail.MessageListResponse{Messages: []mail.MessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "First page"}}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	_, found, errorValue := service.readCachedMailMessages(context.Background(), "admin@example.com", mailMessageListRequest{
+	_, found, errorValue := service.readCachedMailMessages(context.Background(), "admin@example.com", mail.MessageListRequest{
 		Mailbox:   "INBOX",
 		Limit:     15,
 		BeforeUID: 42,
@@ -33,14 +34,14 @@ func TestCachedMailMessagesRequireMatchingCursor(t *testing.T) {
 func TestCachedMailMessagesRequireMatchingLimit(t *testing.T) {
 	service := newMailTestService(t)
 	saveConfiguredMailTestAccount(t, service)
-	if errorValue := service.saveCachedMailMessages(context.Background(), "admin@example.com", mailMessageListRequest{
+	if errorValue := service.saveCachedMailMessages(context.Background(), "admin@example.com", mail.MessageListRequest{
 		Mailbox: "INBOX",
 		Limit:   15,
-	}, mailMessageListResponse{Messages: []mailMessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "First page"}}}); errorValue != nil {
+	}, mail.MessageListResponse{Messages: []mail.MessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "First page"}}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	_, found, errorValue := service.readCachedMailMessages(context.Background(), "admin@example.com", mailMessageListRequest{
+	_, found, errorValue := service.readCachedMailMessages(context.Background(), "admin@example.com", mail.MessageListRequest{
 		Mailbox: "INBOX",
 		Limit:   10,
 	})
@@ -55,18 +56,18 @@ func TestCachedMailMessagesRequireMatchingLimit(t *testing.T) {
 func TestCachedMailMessagesKeepSavedNextCursor(t *testing.T) {
 	service := newMailTestService(t)
 	saveConfiguredMailTestAccount(t, service)
-	nextCursor := encodeMailMessageCursor("INBOX", "", 12)
-	if errorValue := service.saveCachedMailMessages(context.Background(), "admin@example.com", mailMessageListRequest{
+	nextCursor := mail.EncodeMessageCursor("INBOX", "", 12)
+	if errorValue := service.saveCachedMailMessages(context.Background(), "admin@example.com", mail.MessageListRequest{
 		Mailbox: "INBOX",
 		Limit:   15,
-	}, mailMessageListResponse{
-		Messages:   []mailMessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "First page"}},
+	}, mail.MessageListResponse{
+		Messages:   []mail.MessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "First page"}},
 		NextCursor: nextCursor,
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	result, found, errorValue := service.readCachedMailMessages(context.Background(), "admin@example.com", mailMessageListRequest{
+	result, found, errorValue := service.readCachedMailMessages(context.Background(), "admin@example.com", mail.MessageListRequest{
 		Mailbox: "INBOX",
 		Limit:   15,
 	})
@@ -84,20 +85,20 @@ func TestCachedMailMessagesKeepSavedNextCursor(t *testing.T) {
 func TestCachedMailMessagesReplacePageSnapshot(t *testing.T) {
 	service := newMailTestService(t)
 	saveConfiguredMailTestAccount(t, service)
-	input := mailMessageListRequest{
+	input := mail.MessageListRequest{
 		Mailbox: "INBOX",
 		Limit:   15,
 	}
-	if errorValue := service.saveCachedMailMessages(context.Background(), "admin@example.com", input, mailMessageListResponse{
-		Messages: []mailMessageResponse{
+	if errorValue := service.saveCachedMailMessages(context.Background(), "admin@example.com", input, mail.MessageListResponse{
+		Messages: []mail.MessageResponse{
 			{UID: 42, Mailbox: "INBOX", Subject: "Old newest"},
 			{UID: 41, Mailbox: "INBOX", Subject: "Old older"},
 		},
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.saveCachedMailMessages(context.Background(), "admin@example.com", input, mailMessageListResponse{
-		Messages: []mailMessageResponse{{UID: 43, Mailbox: "INBOX", Subject: "Current newest"}},
+	if errorValue := service.saveCachedMailMessages(context.Background(), "admin@example.com", input, mail.MessageListResponse{
+		Messages: []mail.MessageResponse{{UID: 43, Mailbox: "INBOX", Subject: "Current newest"}},
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -117,7 +118,7 @@ func TestCachedMailMessagesReplacePageSnapshot(t *testing.T) {
 func TestMailMessageListIgnoresCacheWriteFailure(t *testing.T) {
 	service := newMailTestService(t)
 	backend := &fakeMailBackend{
-		messages: []mailMessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "Remote"}},
+		messages: []mail.MessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "Remote"}},
 	}
 	service.mailBackend = backend
 	saveConfiguredMailTestAccount(t, service)
@@ -128,7 +129,7 @@ func TestMailMessageListIgnoresCacheWriteFailure(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	var result mailMessageListResponse
+	var result mail.MessageListResponse
 	if errorValue := json.Unmarshal(response.Body.Bytes(), &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}

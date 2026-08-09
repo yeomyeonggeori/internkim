@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -31,7 +32,7 @@ func (service *Service) writeMailMessages(responseWriter http.ResponseWriter, re
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	input, errorValue := mailMessageListRequestFromURL(request)
+	input, errorValue := mail.MessageListRequestFromURL(request)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
@@ -53,7 +54,7 @@ func (service *Service) writeMailMessage(responseWriter http.ResponseWriter, req
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	mailbox, uid, errorValue := mailMessagePathParts(request, "")
+	mailbox, uid, errorValue := mail.MessagePathParts(request, "")
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
@@ -75,12 +76,12 @@ func (service *Service) sendMailMessage(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	var payload mailMessageSendRequest
+	var payload mail.MessageSendRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	payload, errorValue = validateMailMessageSendRequest(payload)
+	payload, errorValue = mail.ValidateMessageSendRequest(payload)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
@@ -99,12 +100,12 @@ func (service *Service) moveMailMessage(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	mailbox, uid, errorValue := mailMessagePathParts(request, "/move")
+	mailbox, uid, errorValue := mail.MessagePathParts(request, "/move")
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	var payload mailMessageMoveRequest
+	var payload mail.MessageMoveRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
@@ -131,12 +132,12 @@ func (service *Service) markMailMessage(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	mailbox, uid, errorValue := mailMessagePathParts(request, "/flags")
+	mailbox, uid, errorValue := mail.MessagePathParts(request, "/flags")
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	var payload mailMessageMarkRequest
+	var payload mail.MessageMarkRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return

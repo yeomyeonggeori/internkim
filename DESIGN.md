@@ -1,6 +1,6 @@
 # Interface design
 
-InternKim uses a restrained, neutral interface built from the shared shadcn-svelte components and the semantic colors in `web/src/app.css`.
+internkim uses a restrained, neutral interface built from the shared shadcn-svelte components and the semantic colors in `web/src/app.css`.
 
 ## Foundations
 

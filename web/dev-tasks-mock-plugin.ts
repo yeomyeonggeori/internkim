@@ -151,7 +151,7 @@ function createDevTaskEvents(taskRun: TaskRunSummary): TaskEvent[] {
 		taskEvent('task.created', taskRun.prompt ?? '', taskRun.createdAt),
 		taskEvent('llm.call', {
 			kind: 'structured',
-			schemaName: 'blueclaw_agent_turn_action',
+			schemaName: 'bluecollar_agent_turn_action',
 			provider: 'openrouter',
 			model: 'google/gemini-3.1-flash-lite',
 			latencyMs: 3465,

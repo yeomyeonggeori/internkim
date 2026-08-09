@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strings"
 
+	"gitlab.com/eastriver/internkim/internal/fleetdomain"
+
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
@@ -229,7 +231,7 @@ func (service *Service) mattermostFlowBaseURL() string {
 		return deviceURL
 	}
 	if fleetID := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)); fleetID != "" {
-		return "https://" + strings.ToLower(fleetID) + ".example.test"
+		return fleetdomain.Subdomain(strings.ToLower(fleetID), service.fleetZone())
 	}
 	return ""
 }

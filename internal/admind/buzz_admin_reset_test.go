@@ -46,7 +46,7 @@ func TestBuzzKeyForVersionMatchesVersionedDerivation(t *testing.T) {
 	if first == second {
 		t.Fatal("different versions must produce different keys")
 	}
-	if first != buzzKeyForVersion("seed", "A@Dawn.KIM", 1) {
+	if first != buzzKeyForVersion("seed", "A@Example.com", 1) {
 		t.Fatal("version 1 must be stable across email casing")
 	}
 }
