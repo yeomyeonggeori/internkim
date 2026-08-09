@@ -1,4 +1,4 @@
-package admind
+package mail
 
 import (
 	"crypto/tls"
@@ -15,7 +15,7 @@ import (
 	messagemail "github.com/emersion/go-message/mail"
 )
 
-func (backend standardMailBackend) openIMAPClient(account mailAccount) (*imapclient.Client, error) {
+func (backend StandardBackend) openIMAPClient(account Account) (*imapclient.Client, error) {
 	address := net.JoinHostPort(account.IMAPHost, strconv.Itoa(account.IMAPPort))
 	options := &imapclient.Options{
 		TLSConfig: &tls.Config{ServerName: account.IMAPHost},
@@ -27,11 +27,11 @@ func (backend standardMailBackend) openIMAPClient(account mailAccount) (*imapcli
 	var client *imapclient.Client
 	var errorValue error
 	switch account.IMAPSecurity {
-	case mailSecurityTLS:
+	case securityTLS:
 		client, errorValue = imapclient.DialTLS(address, options)
-	case mailSecurityStartTLS:
+	case securityStartTLS:
 		client, errorValue = imapclient.DialStartTLS(address, options)
-	case mailSecurityNone:
+	case securityNone:
 		client, errorValue = imapclient.DialInsecure(address, options)
 	default:
 		errorValue = errors.New("imapSecurity must be tls, starttls, or none")
@@ -46,19 +46,19 @@ func (backend standardMailBackend) openIMAPClient(account mailAccount) (*imapcli
 	return client, nil
 }
 
-func (backend standardMailBackend) openSMTPClient(account mailAccount) (*smtp.Client, error) {
+func (backend StandardBackend) openSMTPClient(account Account) (*smtp.Client, error) {
 	address := net.JoinHostPort(account.SMTPHost, strconv.Itoa(account.SMTPPort))
 	dialer := net.Dialer{Timeout: 30 * time.Second}
 	var client *smtp.Client
 	var errorValue error
 	switch account.SMTPSecurity {
-	case mailSecurityTLS:
+	case securityTLS:
 		connection, dialError := tls.DialWithDialer(&dialer, "tcp", address, &tls.Config{ServerName: account.SMTPHost})
 		if dialError != nil {
 			return nil, dialError
 		}
 		client, errorValue = smtp.NewClient(connection, account.SMTPHost)
-	case mailSecurityStartTLS:
+	case securityStartTLS:
 		connection, dialError := dialer.Dial("tcp", address)
 		if dialError != nil {
 			return nil, dialError
@@ -67,7 +67,7 @@ func (backend standardMailBackend) openSMTPClient(account mailAccount) (*smtp.Cl
 		if errorValue == nil {
 			errorValue = client.StartTLS(&tls.Config{ServerName: account.SMTPHost})
 		}
-	case mailSecurityNone:
+	case securityNone:
 		connection, dialError := dialer.Dial("tcp", address)
 		if dialError != nil {
 			return nil, dialError
@@ -87,7 +87,7 @@ func (backend standardMailBackend) openSMTPClient(account mailAccount) (*smtp.Cl
 	return client, nil
 }
 
-func (backend standardMailBackend) sendSMTPMessage(account mailAccount, recipients []string, messageDocument []byte) error {
+func (backend StandardBackend) SendSMTPMessage(account Account, recipients []string, messageDocument []byte) error {
 	client, errorValue := backend.openSMTPClient(account)
 	if errorValue != nil {
 		return errorValue
@@ -123,7 +123,7 @@ func (backend standardMailBackend) sendSMTPMessage(account mailAccount, recipien
 	return client.Quit()
 }
 
-func (backend standardMailBackend) appendSentMessage(account mailAccount, messageDocument []byte) error {
+func (backend StandardBackend) appendSentMessage(account Account, messageDocument []byte) error {
 	imapClient, errorValue := backend.openIMAPClient(account)
 	if errorValue != nil {
 		return errorValue

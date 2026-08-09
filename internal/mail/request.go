@@ -1,4 +1,4 @@
-package admind
+package mail
 
 import (
 	"encoding/base64"
@@ -13,20 +13,20 @@ import (
 	messagemail "github.com/emersion/go-message/mail"
 )
 
-type mailMessageListRequest struct {
+type MessageListRequest struct {
 	Mailbox   string
 	Query     string
 	Limit     int
 	BeforeUID uint32
 }
 
-type mailMessageCursor struct {
+type messageCursor struct {
 	Mailbox   string `json:"mailbox"`
 	Query     string `json:"query"`
 	BeforeUID uint32 `json:"beforeUID"`
 }
 
-type mailMessageSendRequest struct {
+type MessageSendRequest struct {
 	To      []string `json:"to"`
 	CC      []string `json:"cc"`
 	BCC     []string `json:"bcc"`
@@ -34,28 +34,28 @@ type mailMessageSendRequest struct {
 	Body    string   `json:"body"`
 }
 
-type mailMessageMoveRequest struct {
+type MessageMoveRequest struct {
 	TargetMailbox string `json:"targetMailbox"`
 }
 
-type mailMessageMarkRequest struct {
+type MessageMarkRequest struct {
 	Seen    *bool `json:"seen"`
 	Flagged *bool `json:"flagged"`
 }
 
-func mailMessageListRequestFromURL(request *http.Request) (mailMessageListRequest, error) {
+func MessageListRequestFromURL(request *http.Request) (MessageListRequest, error) {
 	limit := 50
 	if value := strings.TrimSpace(request.URL.Query().Get("limit")); value != "" {
 		parsedLimit, errorValue := strconv.Atoi(value)
 		if errorValue != nil {
-			return mailMessageListRequest{}, errors.New("limit must be a number")
+			return MessageListRequest{}, errors.New("limit must be a number")
 		}
 		limit = parsedLimit
 	}
 	if limit < 1 || limit > 100 {
-		return mailMessageListRequest{}, errors.New("limit must be between 1 and 100")
+		return MessageListRequest{}, errors.New("limit must be between 1 and 100")
 	}
-	input := mailMessageListRequest{
+	input := MessageListRequest{
 		Mailbox: strings.TrimSpace(firstNonEmpty(request.URL.Query().Get("mailbox"), "INBOX")),
 		Query:   strings.TrimSpace(request.URL.Query().Get("query")),
 		Limit:   limit,
@@ -64,22 +64,22 @@ func mailMessageListRequestFromURL(request *http.Request) (mailMessageListReques
 	if cursor == "" {
 		return input, nil
 	}
-	decodedCursor, errorValue := decodeMailMessageCursor(cursor)
+	decodedCursor, errorValue := DecodeMessageCursor(cursor)
 	if errorValue != nil ||
 		decodedCursor.BeforeUID == 0 ||
 		decodedCursor.Mailbox != input.Mailbox ||
 		decodedCursor.Query != input.Query {
-		return mailMessageListRequest{}, errors.New("invalid cursor")
+		return MessageListRequest{}, errors.New("invalid cursor")
 	}
 	input.BeforeUID = decodedCursor.BeforeUID
 	return input, nil
 }
 
-func encodeMailMessageCursor(mailbox string, query string, beforeUID uint32) string {
+func EncodeMessageCursor(mailbox string, query string, beforeUID uint32) string {
 	if beforeUID == 0 {
 		return ""
 	}
-	document, errorValue := json.Marshal(mailMessageCursor{
+	document, errorValue := json.Marshal(messageCursor{
 		Mailbox:   strings.TrimSpace(mailbox),
 		Query:     strings.TrimSpace(query),
 		BeforeUID: beforeUID,
@@ -90,21 +90,21 @@ func encodeMailMessageCursor(mailbox string, query string, beforeUID uint32) str
 	return base64.RawURLEncoding.EncodeToString(document)
 }
 
-func decodeMailMessageCursor(value string) (mailMessageCursor, error) {
+func DecodeMessageCursor(value string) (messageCursor, error) {
 	document, errorValue := base64.RawURLEncoding.DecodeString(strings.TrimSpace(value))
 	if errorValue != nil {
-		return mailMessageCursor{}, errorValue
+		return messageCursor{}, errorValue
 	}
-	var cursor mailMessageCursor
+	var cursor messageCursor
 	if errorValue := json.Unmarshal(document, &cursor); errorValue != nil {
-		return mailMessageCursor{}, errorValue
+		return messageCursor{}, errorValue
 	}
 	cursor.Mailbox = strings.TrimSpace(cursor.Mailbox)
 	cursor.Query = strings.TrimSpace(cursor.Query)
 	return cursor, nil
 }
 
-func mailMessagePathParts(request *http.Request, suffix string) (string, uint32, error) {
+func MessagePathParts(request *http.Request, suffix string) (string, uint32, error) {
 	trimmedPath := strings.TrimSuffix(strings.TrimPrefix(request.URL.EscapedPath(), "/mail/api/messages/"), suffix)
 	parts := strings.Split(strings.Trim(trimmedPath, "/"), "/")
 	if len(parts) != 2 {
@@ -121,32 +121,32 @@ func mailMessagePathParts(request *http.Request, suffix string) (string, uint32,
 	return mailbox, uint32(uid), nil
 }
 
-func validateMailMessageSendRequest(input mailMessageSendRequest) (mailMessageSendRequest, error) {
+func ValidateMessageSendRequest(input MessageSendRequest) (MessageSendRequest, error) {
 	var errorValue error
-	input.To, errorValue = validateMailAddressList(input.To, "to")
+	input.To, errorValue = validateAddressList(input.To, "to")
 	if errorValue != nil {
-		return mailMessageSendRequest{}, errorValue
+		return MessageSendRequest{}, errorValue
 	}
-	input.CC, errorValue = validateMailAddressList(input.CC, "cc")
+	input.CC, errorValue = validateAddressList(input.CC, "cc")
 	if errorValue != nil {
-		return mailMessageSendRequest{}, errorValue
+		return MessageSendRequest{}, errorValue
 	}
-	input.BCC, errorValue = validateMailAddressList(input.BCC, "bcc")
+	input.BCC, errorValue = validateAddressList(input.BCC, "bcc")
 	if errorValue != nil {
-		return mailMessageSendRequest{}, errorValue
+		return MessageSendRequest{}, errorValue
 	}
 	input.Subject = strings.TrimSpace(input.Subject)
 	input.Body = strings.TrimSpace(input.Body)
 	if len(input.To) == 0 {
-		return mailMessageSendRequest{}, errors.New("to is required")
+		return MessageSendRequest{}, errors.New("to is required")
 	}
 	if input.Subject == "" && input.Body == "" {
-		return mailMessageSendRequest{}, errors.New("subject or body is required")
+		return MessageSendRequest{}, errors.New("subject or body is required")
 	}
 	return input, nil
 }
 
-func validateMailAddressList(values []string, fieldName string) ([]string, error) {
+func validateAddressList(values []string, fieldName string) ([]string, error) {
 	addresses := []string{}
 	seenAddresses := map[string]bool{}
 	for _, value := range values {

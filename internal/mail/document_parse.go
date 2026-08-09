@@ -1,4 +1,4 @@
-package admind
+package mail
 
 import (
 	"bytes"
@@ -11,27 +11,27 @@ import (
 	messagemail "github.com/emersion/go-message/mail"
 )
 
-type parsedMailDocument struct {
+type parsedDocument struct {
 	PlainText string
 	HTML      string
 }
 
-const maxMailPreviewCharacters = 220
+const maxPreviewCharacters = 220
 
-func plainTextFromMailDocument(document []byte) string {
-	return parseMailDocument(document).PlainText
+func plainTextFromDocument(document []byte) string {
+	return ParseDocument(document).PlainText
 }
 
-func parseMailDocument(document []byte) parsedMailDocument {
+func ParseDocument(document []byte) parsedDocument {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return parsedMailDocument{}
+		return parsedDocument{}
 	}
 	reader, errorValue := messagemail.CreateReader(bytes.NewReader(document))
 	if errorValue != nil && reader == nil {
-		return parsedMailDocument{PlainText: strings.TrimSpace(string(document))}
+		return parsedDocument{PlainText: strings.TrimSpace(string(document))}
 	}
 	defer reader.Close()
-	result := parsedMailDocument{}
+	result := parsedDocument{}
 	for {
 		part, errorValue := reader.NextPart()
 		if errors.Is(errorValue, io.EOF) {
@@ -41,7 +41,7 @@ func parseMailDocument(document []byte) parsedMailDocument {
 			continue
 		}
 		body, _ := io.ReadAll(io.LimitReader(part.Body, 1024*1024))
-		contentType := mailPartContentType(part)
+		contentType := partContentType(part)
 		if result.PlainText == "" && contentType == "text/plain" {
 			result.PlainText = strings.TrimSpace(string(body))
 		}
@@ -58,7 +58,7 @@ func parseMailDocument(document []byte) parsedMailDocument {
 	return result
 }
 
-func mailPartContentType(part *messagemail.Part) string {
+func partContentType(part *messagemail.Part) string {
 	if part == nil || part.Header == nil {
 		return ""
 	}
@@ -77,7 +77,7 @@ func mailPartContentType(part *messagemail.Part) string {
 	return strings.ToLower(strings.TrimSpace(part.Header.Get("Content-Type")))
 }
 
-func (document parsedMailDocument) previewText() string {
+func (document parsedDocument) previewText() string {
 	if strings.TrimSpace(document.PlainText) != "" {
 		return document.PlainText
 	}
@@ -103,11 +103,11 @@ func stripHTML(document string) string {
 	return strings.Join(strings.Fields(html.UnescapeString(builder.String())), " ")
 }
 
-func mailPreview(body string) string {
+func Preview(body string) string {
 	preview := strings.Join(strings.Fields(body), " ")
 	runes := []rune(preview)
-	if len(runes) > maxMailPreviewCharacters {
-		return string(runes[:maxMailPreviewCharacters])
+	if len(runes) > maxPreviewCharacters {
+		return string(runes[:maxPreviewCharacters])
 	}
 	return preview
 }

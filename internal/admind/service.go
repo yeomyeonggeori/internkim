@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"io"
 	"log"
 	"net"
@@ -134,7 +135,7 @@ type Service struct {
 	sites                              map[string]*SiteRecord
 	siteRuntimeMutex                   sync.Mutex
 	siteRuntimeActivities              map[string]*siteRuntimeActivity
-	mailBackend                        mailBackend
+	mailBackend                        mail.Backend
 	googleOAuthStates                  sync.Map
 	calendarSyncWakeUp                 chan struct{}
 	calendarDeleteIntentWakeUp         chan struct{}
@@ -353,7 +354,7 @@ func NewService(configuration Configuration) *Service {
 		companionJobs:              map[string]*CompanionJob{},
 		companionFileUploads:       map[string]*CompanionFileUpload{},
 		sites:                      map[string]*SiteRecord{},
-		mailBackend:                standardMailBackend{},
+		mailBackend:                mail.StandardBackend{},
 		calendarSyncWakeUp:         make(chan struct{}, 1),
 		calendarDeleteIntentWakeUp: make(chan struct{}, 1),
 		calendarNotificationStates: map[string]*calendarNotificationReconciliationState{},

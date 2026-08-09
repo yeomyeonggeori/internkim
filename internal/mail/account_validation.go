@@ -1,4 +1,4 @@
-package admind
+package mail
 
 import (
 	"errors"
@@ -8,31 +8,31 @@ import (
 	messagemail "github.com/emersion/go-message/mail"
 )
 
-func defaultMailAccount(actorEmail string) mailAccount {
-	return mailAccount{
+func DefaultAccount(actorEmail string) Account {
+	return Account{
 		ActorEmail:     strings.ToLower(strings.TrimSpace(actorEmail)),
 		Email:          strings.ToLower(strings.TrimSpace(actorEmail)),
 		FromAddress:    strings.ToLower(strings.TrimSpace(actorEmail)),
 		IMAPPort:       993,
-		IMAPSecurity:   mailSecurityTLS,
+		IMAPSecurity:   securityTLS,
 		SMTPPort:       587,
-		SMTPSecurity:   mailSecurityStartTLS,
+		SMTPSecurity:   securityStartTLS,
 		DefaultMailbox: "INBOX",
 		SentMailbox:    "Sent",
 	}
 }
 
-func mergeMailAccountWriteRequest(account mailAccount, payload mailAccountWriteRequest) (mailAccount, error) {
+func MergeAccountWriteRequest(account Account, payload AccountWriteRequest) (Account, error) {
 	account.Email = strings.ToLower(strings.TrimSpace(firstNonEmpty(payload.Email, account.Email, account.ActorEmail)))
 	account.FromAddress = strings.TrimSpace(firstNonEmpty(payload.FromAddress, account.FromAddress, account.Email))
 	account.DisplayName = strings.TrimSpace(payload.DisplayName)
 	account.IMAPHost = strings.ToLower(strings.TrimSpace(payload.IMAPHost))
 	account.IMAPPort = firstPositiveInteger(payload.IMAPPort, account.IMAPPort, 993)
-	account.IMAPSecurity = normalizeMailSecurity(firstNonEmpty(payload.IMAPSecurity, account.IMAPSecurity, mailSecurityTLS))
+	account.IMAPSecurity = normalizeSecurity(firstNonEmpty(payload.IMAPSecurity, account.IMAPSecurity, securityTLS))
 	account.IMAPUsername = strings.TrimSpace(firstNonEmpty(payload.IMAPUsername, account.IMAPUsername, account.Email))
 	account.SMTPHost = strings.ToLower(strings.TrimSpace(payload.SMTPHost))
 	account.SMTPPort = firstPositiveInteger(payload.SMTPPort, account.SMTPPort, 587)
-	account.SMTPSecurity = normalizeMailSecurity(firstNonEmpty(payload.SMTPSecurity, account.SMTPSecurity, mailSecurityStartTLS))
+	account.SMTPSecurity = normalizeSecurity(firstNonEmpty(payload.SMTPSecurity, account.SMTPSecurity, securityStartTLS))
 	account.SMTPUsername = strings.TrimSpace(firstNonEmpty(payload.SMTPUsername, account.SMTPUsername, account.Email))
 	account.DefaultMailbox = strings.TrimSpace(firstNonEmpty(payload.DefaultMailbox, account.DefaultMailbox, "INBOX"))
 	if payload.SentMailbox != nil {
@@ -45,21 +45,21 @@ func mergeMailAccountWriteRequest(account mailAccount, payload mailAccountWriteR
 		account.SMTPPassword = strings.TrimSpace(payload.SMTPPassword)
 	}
 	if account.IMAPSecurity == "" || account.SMTPSecurity == "" {
-		return mailAccount{}, errors.New("mail security must be tls, starttls, or none")
+		return Account{}, errors.New("mail security must be tls, starttls, or none")
 	}
-	return normalizeMailAccount(account), nil
+	return NormalizeAccount(account), nil
 }
 
-func normalizeMailAccount(account mailAccount) mailAccount {
+func NormalizeAccount(account Account) Account {
 	account.ActorEmail = strings.ToLower(strings.TrimSpace(account.ActorEmail))
 	account.Email = strings.ToLower(strings.TrimSpace(account.Email))
 	account.FromAddress = strings.TrimSpace(account.FromAddress)
 	account.DisplayName = strings.TrimSpace(account.DisplayName)
 	account.IMAPHost = strings.ToLower(strings.TrimSpace(account.IMAPHost))
-	account.IMAPSecurity = normalizeMailSecurity(account.IMAPSecurity)
+	account.IMAPSecurity = normalizeSecurity(account.IMAPSecurity)
 	account.IMAPUsername = strings.TrimSpace(account.IMAPUsername)
 	account.SMTPHost = strings.ToLower(strings.TrimSpace(account.SMTPHost))
-	account.SMTPSecurity = normalizeMailSecurity(account.SMTPSecurity)
+	account.SMTPSecurity = normalizeSecurity(account.SMTPSecurity)
 	account.SMTPUsername = strings.TrimSpace(account.SMTPUsername)
 	account.DefaultMailbox = strings.TrimSpace(firstNonEmpty(account.DefaultMailbox, "INBOX"))
 	account.SentMailbox = strings.TrimSpace(account.SentMailbox)
@@ -72,7 +72,7 @@ func normalizeMailAccount(account mailAccount) mailAccount {
 	return account
 }
 
-func validateMailAccountForSave(account mailAccount) error {
+func ValidateAccountForSave(account Account) error {
 	if _, errorValue := messagemail.ParseAddress(account.Email); errorValue != nil {
 		return fmt.Errorf("email is invalid: %w", errorValue)
 	}
@@ -97,20 +97,20 @@ func validateMailAccountForSave(account mailAccount) error {
 	if strings.TrimSpace(account.SMTPPassword) == "" {
 		return errors.New("smtpPassword is required")
 	}
-	if !isValidMailPort(account.IMAPPort) {
+	if !isValidPort(account.IMAPPort) {
 		return errors.New("imapPort must be between 1 and 65535")
 	}
-	if !isValidMailPort(account.SMTPPort) {
+	if !isValidPort(account.SMTPPort) {
 		return errors.New("smtpPort must be between 1 and 65535")
 	}
-	if normalizeMailSecurity(account.IMAPSecurity) == "" || normalizeMailSecurity(account.SMTPSecurity) == "" {
+	if normalizeSecurity(account.IMAPSecurity) == "" || normalizeSecurity(account.SMTPSecurity) == "" {
 		return errors.New("mail security must be tls, starttls, or none")
 	}
 	return nil
 }
 
-func mailAccountToResponse(account mailAccount) mailAccountResponse {
-	return mailAccountResponse{
+func AccountToResponse(account Account) AccountResponse {
+	return AccountResponse{
 		Email:           account.Email,
 		FromAddress:     account.FromAddress,
 		DisplayName:     account.DisplayName,
@@ -124,13 +124,13 @@ func mailAccountToResponse(account mailAccount) mailAccountResponse {
 		SMTPUsername:    account.SMTPUsername,
 		DefaultMailbox:  account.DefaultMailbox,
 		SentMailbox:     account.SentMailbox,
-		IsConfigured:    account.isConfigured(),
+		IsConfigured:    account.IsConfigured(),
 		HasIMAPPassword: strings.TrimSpace(account.IMAPPassword) != "",
 		HasSMTPPassword: strings.TrimSpace(account.SMTPPassword) != "",
 	}
 }
 
-func (account mailAccount) isConfigured() bool {
+func (account Account) IsConfigured() bool {
 	return strings.TrimSpace(account.IMAPHost) != "" &&
 		strings.TrimSpace(account.IMAPUsername) != "" &&
 		strings.TrimSpace(account.IMAPPassword) != "" &&
@@ -139,20 +139,20 @@ func (account mailAccount) isConfigured() bool {
 		strings.TrimSpace(account.SMTPPassword) != ""
 }
 
-func normalizeMailSecurity(value string) string {
+func normalizeSecurity(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "", mailSecurityTLS:
-		return mailSecurityTLS
-	case mailSecurityStartTLS:
-		return mailSecurityStartTLS
-	case mailSecurityNone:
-		return mailSecurityNone
+	case "", securityTLS:
+		return securityTLS
+	case securityStartTLS:
+		return securityStartTLS
+	case securityNone:
+		return securityNone
 	default:
 		return ""
 	}
 }
 
-func isValidMailPort(port int) bool {
+func isValidPort(port int) bool {
 	return port > 0 && port <= 65535
 }
 

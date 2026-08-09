@@ -1,4 +1,4 @@
-package admind
+package mail
 
 import (
 	"context"
@@ -8,14 +8,14 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
-type mailMailboxResponse struct {
+type MailboxResponse struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"displayName"`
 	Unseen      int    `json:"unseen"`
 	Total       int    `json:"total"`
 }
 
-func collectMailMailboxListData(ctx context.Context, imapClient *imapclient.Client) ([]*imap.ListData, error) {
+func collectMailboxListData(ctx context.Context, imapClient *imapclient.Client) ([]*imap.ListData, error) {
 	listData, errorValue := imapClient.List("", "*", &imap.ListOptions{
 		ReturnStatus: &imap.StatusOptions{NumMessages: true, NumUnseen: true},
 	}).Collect()
@@ -25,15 +25,15 @@ func collectMailMailboxListData(ctx context.Context, imapClient *imapclient.Clie
 	return imapClient.List("", "*", nil).Collect()
 }
 
-func mailMailboxResponsesFromListData(listData []*imap.ListData) []mailMailboxResponse {
-	mailboxes := make([]mailMailboxResponse, 0, len(listData))
+func MailboxResponsesFromListData(listData []*imap.ListData) []MailboxResponse {
+	mailboxes := make([]MailboxResponse, 0, len(listData))
 	for _, mailboxData := range listData {
-		if mailboxData == nil || mailboxData.Mailbox == "" || containsMailMailboxAttribute(mailboxData.Attrs, imap.MailboxAttrNoSelect) {
+		if mailboxData == nil || mailboxData.Mailbox == "" || containsMailboxAttribute(mailboxData.Attrs, imap.MailboxAttrNoSelect) {
 			continue
 		}
-		mailboxes = append(mailboxes, mailMailboxResponse{
+		mailboxes = append(mailboxes, MailboxResponse{
 			Name:        mailboxData.Mailbox,
-			DisplayName: displayMailMailboxName(mailboxData),
+			DisplayName: displayMailboxName(mailboxData),
 			Unseen:      statusInteger(mailboxData.Status, "unseen"),
 			Total:       statusInteger(mailboxData.Status, "total"),
 		})
@@ -41,7 +41,7 @@ func mailMailboxResponsesFromListData(listData []*imap.ListData) []mailMailboxRe
 	return mailboxes
 }
 
-func displayMailMailboxName(mailboxData *imap.ListData) string {
+func displayMailboxName(mailboxData *imap.ListData) string {
 	if mailboxData == nil {
 		return ""
 	}
@@ -62,7 +62,7 @@ func displayMailMailboxName(mailboxData *imap.ListData) string {
 	return mailboxData.Mailbox
 }
 
-func mailMailboxSortKey(mailbox string) string {
+func MailboxSortKey(mailbox string) string {
 	normalizedMailbox := strings.ToLower(mailbox)
 	switch {
 	case normalizedMailbox == "inbox":

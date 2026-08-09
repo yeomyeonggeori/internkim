@@ -2,6 +2,7 @@ package admind
 
 import (
 	"encoding/json"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"net/http"
 	"testing"
 )
@@ -9,8 +10,8 @@ import (
 func TestMailBootstrapReturnsCachedState(t *testing.T) {
 	service := newMailTestService(t)
 	service.mailBackend = &fakeMailBackend{
-		mailboxes: []mailMailboxResponse{{Name: "INBOX", DisplayName: "Inbox", Total: 1}},
-		messages:  []mailMessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "Cached", From: "a@example.com"}},
+		mailboxes: []mail.MailboxResponse{{Name: "INBOX", DisplayName: "Inbox", Total: 1}},
+		messages:  []mail.MessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "Cached", From: "a@example.com"}},
 	}
 	saveConfiguredMailTestAccount(t, service)
 
@@ -53,7 +54,7 @@ func TestMailBootstrapKeepsCachedNextCursor(t *testing.T) {
 	if messagesResponse.Code != http.StatusOK {
 		t.Fatalf("messages status = %d body = %s", messagesResponse.Code, messagesResponse.Body.String())
 	}
-	var messagesResult mailMessageListResponse
+	var messagesResult mail.MessageListResponse
 	if errorValue := json.Unmarshal(messagesResponse.Body.Bytes(), &messagesResult); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -77,8 +78,8 @@ func TestMailBootstrapKeepsCachedNextCursor(t *testing.T) {
 func TestMailBootstrapRemembersEmptyCachedMailbox(t *testing.T) {
 	service := newMailTestService(t)
 	service.mailBackend = &fakeMailBackend{
-		mailboxes: []mailMailboxResponse{{Name: "INBOX", DisplayName: "Inbox", Total: 0}},
-		messages:  []mailMessageResponse{},
+		mailboxes: []mail.MailboxResponse{{Name: "INBOX", DisplayName: "Inbox", Total: 0}},
+		messages:  []mail.MessageResponse{},
 	}
 	saveConfiguredMailTestAccount(t, service)
 
@@ -100,10 +101,10 @@ func TestMailBootstrapRemembersEmptyCachedMailbox(t *testing.T) {
 	}
 }
 
-func mailMessageTestPage(count int) []mailMessageResponse {
-	messages := make([]mailMessageResponse, 0, count)
+func mailMessageTestPage(count int) []mail.MessageResponse {
+	messages := make([]mail.MessageResponse, 0, count)
 	for uid := count; uid >= 1; uid-- {
-		messages = append(messages, mailMessageResponse{
+		messages = append(messages, mail.MessageResponse{
 			UID:     uint32(uid),
 			Mailbox: "INBOX",
 			Subject: "Message",

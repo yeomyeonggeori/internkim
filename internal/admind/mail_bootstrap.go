@@ -1,16 +1,17 @@
 package admind
 
 import (
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"net/http"
 )
 
 type mailBootstrapResponse struct {
-	Account            mailAccountResponse   `json:"account"`
-	Mailboxes          []mailMailboxResponse `json:"mailboxes"`
-	Messages           []mailMessageResponse `json:"messages"`
-	NextCursor         string                `json:"nextCursor"`
-	HasCachedMailboxes bool                  `json:"hasCachedMailboxes"`
-	HasCachedMessages  bool                  `json:"hasCachedMessages"`
+	Account            mail.AccountResponse   `json:"account"`
+	Mailboxes          []mail.MailboxResponse `json:"mailboxes"`
+	Messages           []mail.MessageResponse `json:"messages"`
+	NextCursor         string                 `json:"nextCursor"`
+	HasCachedMailboxes bool                   `json:"hasCachedMailboxes"`
+	HasCachedMessages  bool                   `json:"hasCachedMessages"`
 }
 
 func (service *Service) writeMailBootstrap(responseWriter http.ResponseWriter, request *http.Request) {
@@ -19,12 +20,12 @@ func (service *Service) writeMailBootstrap(responseWriter http.ResponseWriter, r
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	response := mailBootstrapResponse{Account: mailAccountToResponse(account)}
-	if !found || !account.isConfigured() {
+	response := mailBootstrapResponse{Account: mail.AccountToResponse(account)}
+	if !found || !account.IsConfigured() {
 		service.writeJSON(responseWriter, response)
 		return
 	}
-	input, errorValue := mailMessageListRequestFromURL(request)
+	input, errorValue := mail.MessageListRequestFromURL(request)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return

@@ -2,6 +2,7 @@ package admind
 
 import (
 	"encoding/json"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"net/http"
 	"strings"
 	"testing"
@@ -10,7 +11,7 @@ import (
 func TestMailMessagesReturnNextCursor(t *testing.T) {
 	service := newMailTestService(t)
 	backend := &fakeMailBackend{
-		messages: []mailMessageResponse{
+		messages: []mail.MessageResponse{
 			{UID: 12, Mailbox: "INBOX", Subject: "Newest"},
 			{UID: 11, Mailbox: "INBOX", Subject: "Older"},
 			{UID: 10, Mailbox: "INBOX", Subject: "Oldest"},
@@ -23,14 +24,14 @@ func TestMailMessagesReturnNextCursor(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	var result mailMessageListResponse
+	var result mail.MessageListResponse
 	if errorValue := json.Unmarshal(response.Body.Bytes(), &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if len(result.Messages) != 2 || result.NextCursor == "" {
 		t.Fatalf("result = %#v", result)
 	}
-	cursor, errorValue := decodeMailMessageCursor(result.NextCursor)
+	cursor, errorValue := mail.DecodeMessageCursor(result.NextCursor)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -44,7 +45,7 @@ func TestMailMessagesApplyCursorToRequest(t *testing.T) {
 	backend := &fakeMailBackend{}
 	service.mailBackend = backend
 	saveConfiguredMailTestAccount(t, service)
-	cursor := encodeMailMessageCursor("INBOX", "invoice", 20)
+	cursor := mail.EncodeMessageCursor("INBOX", "invoice", 20)
 
 	response := performMailRequest(t, service, http.MethodGet, "/mail/api/messages?mailbox=INBOX&query=invoice&limit=5&cursor="+cursor, "")
 	if response.Code != http.StatusOK {
@@ -70,7 +71,7 @@ func TestMailMessagesRejectMismatchedCursor(t *testing.T) {
 	service := newMailTestService(t)
 	service.mailBackend = &fakeMailBackend{}
 	saveConfiguredMailTestAccount(t, service)
-	cursor := encodeMailMessageCursor("Sent", "", 20)
+	cursor := mail.EncodeMessageCursor("Sent", "", 20)
 
 	response := performMailRequest(t, service, http.MethodGet, "/mail/api/messages?mailbox=INBOX&cursor="+cursor, "")
 	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "invalid cursor") {
