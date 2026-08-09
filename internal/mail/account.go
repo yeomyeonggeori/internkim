@@ -1,12 +1,12 @@
-package admind
+package mail
 
 const (
-	mailSecurityTLS      = "tls"
-	mailSecurityStartTLS = "starttls"
-	mailSecurityNone     = "none"
+	securityTLS      = "tls"
+	securityStartTLS = "starttls"
+	securityNone     = "none"
 )
 
-type mailAccount struct {
+type Account struct {
 	ActorEmail     string
 	Email          string
 	FromAddress    string
@@ -26,7 +26,7 @@ type mailAccount struct {
 	UpdatedAt      string
 }
 
-type mailAccountResponse struct {
+type AccountResponse struct {
 	Email           string `json:"email"`
 	FromAddress     string `json:"fromAddress"`
 	DisplayName     string `json:"displayName"`
@@ -40,12 +40,12 @@ type mailAccountResponse struct {
 	SMTPUsername    string `json:"smtpUsername"`
 	DefaultMailbox  string `json:"defaultMailbox"`
 	SentMailbox     string `json:"sentMailbox"`
-	IsConfigured    bool   `json:"isConfigured"`
+	IsConfigured    bool   `json:"IsConfigured"`
 	HasIMAPPassword bool   `json:"hasIMAPPassword"`
 	HasSMTPPassword bool   `json:"hasSMTPPassword"`
 }
 
-type mailAccountWriteRequest struct {
+type AccountWriteRequest struct {
 	Email          string  `json:"email"`
 	FromAddress    string  `json:"fromAddress"`
 	DisplayName    string  `json:"displayName"`

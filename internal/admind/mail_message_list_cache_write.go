@@ -2,11 +2,12 @@ package admind
 
 import (
 	"context"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"strings"
 	"time"
 )
 
-func (service *Service) saveCachedMailMessages(ctx context.Context, actorEmail string, input mailMessageListRequest, result mailMessageListResponse) error {
+func (service *Service) saveCachedMailMessages(ctx context.Context, actorEmail string, input mail.MessageListRequest, result mail.MessageListResponse) error {
 	database, errorValue := service.openMailDatabase(ctx)
 	if errorValue != nil {
 		return errorValue

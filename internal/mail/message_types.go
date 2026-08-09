@@ -1,13 +1,13 @@
-package admind
+package mail
 
-type mailMessageListResponse struct {
-	Messages    []mailMessageResponse `json:"messages"`
-	NextCursor  string                `json:"nextCursor"`
-	UIDNext     uint32                `json:"uidNext,omitempty"`
-	UIDValidity uint32                `json:"uidValidity,omitempty"`
+type MessageListResponse struct {
+	Messages    []MessageResponse `json:"messages"`
+	NextCursor  string            `json:"nextCursor"`
+	UIDNext     uint32            `json:"uidNext,omitempty"`
+	UIDValidity uint32            `json:"uidValidity,omitempty"`
 }
 
-type mailMessageResponse struct {
+type MessageResponse struct {
 	UID     uint32 `json:"uid"`
 	Mailbox string `json:"mailbox"`
 	Subject string `json:"subject"`
@@ -17,7 +17,7 @@ type mailMessageResponse struct {
 	IsRead  bool   `json:"isRead"`
 }
 
-type mailMessageDetailResponse struct {
+type MessageDetailResponse struct {
 	UID      uint32 `json:"uid"`
 	Mailbox  string `json:"mailbox"`
 	Subject  string `json:"subject"`
@@ -30,7 +30,7 @@ type mailMessageDetailResponse struct {
 	IsRead   bool   `json:"isRead"`
 }
 
-type mailSendResult struct {
+type SendResult struct {
 	Sent          bool   `json:"sent"`
 	AppendedTo    string `json:"appendedTo,omitempty"`
 	AppendWarning string `json:"appendWarning,omitempty"`

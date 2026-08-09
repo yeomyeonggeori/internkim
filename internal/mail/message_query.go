@@ -1,4 +1,4 @@
-package admind
+package mail
 
 import (
 	"sort"
@@ -8,22 +8,22 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
-func messageListUIDs(client *imapclient.Client, selectedMailbox *imap.SelectData, input mailMessageListRequest) ([]imap.UID, error) {
+func messageListUIDs(client *imapclient.Client, selectedMailbox *imap.SelectData, input MessageListRequest) ([]imap.UID, error) {
 	if selectedMailbox == nil || selectedMailbox.NumMessages == 0 {
 		return nil, nil
 	}
 	if input.BeforeUID == 1 {
 		return nil, nil
 	}
-	criteria := mailMessageSearchCriteria(selectedMailbox, input)
+	criteria := messageSearchCriteria(selectedMailbox, input)
 	searchData, errorValue := client.UIDSearch(criteria, nil).Wait()
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return mailMessagePageUIDs(searchData.AllUIDs(), input.Limit+1), nil
+	return MessagePageUIDs(searchData.AllUIDs(), input.Limit+1), nil
 }
 
-func mailMessageSearchCriteria(selectedMailbox *imap.SelectData, input mailMessageListRequest) *imap.SearchCriteria {
+func messageSearchCriteria(selectedMailbox *imap.SelectData, input MessageListRequest) *imap.SearchCriteria {
 	criteria := &imap.SearchCriteria{}
 	if strings.TrimSpace(input.Query) != "" {
 		criteria.Text = []string{strings.TrimSpace(input.Query)}
@@ -43,7 +43,7 @@ func mailMessageSearchCriteria(selectedMailbox *imap.SelectData, input mailMessa
 	return criteria
 }
 
-func mailMessagePageUIDs(uids []imap.UID, limit int) []imap.UID {
+func MessagePageUIDs(uids []imap.UID, limit int) []imap.UID {
 	if len(uids) == 0 || limit <= 0 {
 		return nil
 	}
@@ -56,14 +56,14 @@ func mailMessagePageUIDs(uids []imap.UID, limit int) []imap.UID {
 	return uids
 }
 
-func visibleMailMessageUIDs(uids []imap.UID, limit int) ([]imap.UID, bool) {
+func VisibleMessageUIDs(uids []imap.UID, limit int) ([]imap.UID, bool) {
 	if len(uids) <= limit {
 		return uids, false
 	}
 	return uids[:limit], true
 }
 
-func nextMailMessageCursor(input mailMessageListRequest, uids []imap.UID, hasMoreMessages bool) string {
+func NextMessageCursor(input MessageListRequest, uids []imap.UID, hasMoreMessages bool) string {
 	if !hasMoreMessages || len(uids) == 0 || input.Limit <= 0 {
 		return ""
 	}
@@ -71,10 +71,10 @@ func nextMailMessageCursor(input mailMessageListRequest, uids []imap.UID, hasMor
 	if oldestUID <= 1 {
 		return ""
 	}
-	return encodeMailMessageCursor(input.Mailbox, input.Query, uint32(oldestUID))
+	return EncodeMessageCursor(input.Mailbox, input.Query, uint32(oldestUID))
 }
 
-func containsMailFlag(flags []imap.Flag, flag imap.Flag) bool {
+func containsFlag(flags []imap.Flag, flag imap.Flag) bool {
 	for _, value := range flags {
 		if value == flag {
 			return true
@@ -83,7 +83,7 @@ func containsMailFlag(flags []imap.Flag, flag imap.Flag) bool {
 	return false
 }
 
-func containsMailMailboxAttribute(attributes []imap.MailboxAttr, attribute imap.MailboxAttr) bool {
+func containsMailboxAttribute(attributes []imap.MailboxAttr, attribute imap.MailboxAttr) bool {
 	for _, value := range attributes {
 		if value == attribute {
 			return true
@@ -92,7 +92,7 @@ func containsMailMailboxAttribute(attributes []imap.MailboxAttr, attribute imap.
 	return false
 }
 
-func storeMailFlag(client *imapclient.Client, uid uint32, flag imap.Flag, enabled bool) error {
+func storeFlag(client *imapclient.Client, uid uint32, flag imap.Flag, enabled bool) error {
 	operation := imap.StoreFlagsDel
 	if enabled {
 		operation = imap.StoreFlagsAdd

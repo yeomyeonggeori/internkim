@@ -2,11 +2,12 @@ package admind
 
 import (
 	"context"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"strings"
 	"time"
 )
 
-func (service *Service) saveCachedMailMessageDetail(ctx context.Context, actorEmail string, message mailMessageDetailResponse) error {
+func (service *Service) saveCachedMailMessageDetail(ctx context.Context, actorEmail string, message mail.MessageDetailResponse) error {
 	if strings.TrimSpace(message.Mailbox) == "" || message.UID == 0 {
 		return nil
 	}
@@ -69,7 +70,7 @@ WHERE actor_email = ? AND mailbox = ? AND uid = ?`, normalizedActorEmail, normal
 	return transaction.Commit()
 }
 
-func (service *Service) updateCachedMailMessageFlags(ctx context.Context, actorEmail string, mailbox string, uid uint32, input mailMessageMarkRequest) error {
+func (service *Service) updateCachedMailMessageFlags(ctx context.Context, actorEmail string, mailbox string, uid uint32, input mail.MessageMarkRequest) error {
 	if input.Seen == nil {
 		return nil
 	}

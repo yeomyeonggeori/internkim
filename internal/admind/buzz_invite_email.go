@@ -2,6 +2,7 @@ package admind
 
 import (
 	"encoding/json"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"net/http"
 	"strings"
 )
@@ -57,7 +58,7 @@ func (service *Service) handleBuzzInviteEmail(responseWriter http.ResponseWriter
 		return
 	}
 	message := buildBuzzInviteMessage(account.FromAddress, inviteeEmail, strings.TrimSpace(payload.Name), link)
-	if errorValue := (standardMailBackend{}).sendSMTPMessage(account, []string{inviteeEmail}, message); errorValue != nil {
+	if errorValue := (mail.StandardBackend{}).SendSMTPMessage(account, []string{inviteeEmail}, message); errorValue != nil {
 		http.Error(responseWriter, "invite_send_failed", http.StatusBadGateway)
 		return
 	}
