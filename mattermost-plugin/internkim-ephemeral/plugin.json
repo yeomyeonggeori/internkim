@@ -2,7 +2,7 @@
   "id": "com.internkim.ephemeral",
   "name": "internkim",
   "description": "internkim boards inside Mattermost and ephemeral post updates.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "min_server_version": "7.0.0",
   "server": {
     "executables": {
@@ -26,6 +26,12 @@
         "display_name": "Runtime Health URL",
         "type": "text",
         "default": "http://127.0.0.1:8080/admin/api/health"
+      },
+      {
+        "key": "arrivalsURL",
+        "display_name": "Arrivals URL",
+        "type": "text",
+        "default": "http://127.0.0.1:18091"
       },
       {
         "key": "botUsername",

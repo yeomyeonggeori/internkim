@@ -5,6 +5,7 @@ import { readLinkPreview, type LinkPreview } from './link-preview';
 import { largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
 import { mintMissingTokens } from './member-tokens';
 import { forwardToChatd, reportableTopic, serveCall, type Call } from './forward';
+import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import {
 	readCustomEmoji,
 	readPeople,
@@ -21,6 +22,7 @@ const projectURL = required('SUPABASE_URL');
 const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
 const agentKey = await agentKeyFromEnvironmentOrFile();
 const chatdBaseURL = process.env.CHATD_BASE_URL ?? 'http://127.0.0.1:18090';
+const arrivalsPort = Number(process.env.ARRIVALS_PORT ?? 18091);
 const appURL = required('INTERNKIM_APP_URL');
 const messengerPlatform = required('MESSENGER_PLATFORM');
 const answerByteCeiling = Number(process.env.ANSWER_BYTE_CEILING ?? 200_000);
@@ -179,6 +181,45 @@ async function previewOf(link: string): Promise<LinkPreview | null> {
 	}
 	return linkPreviews.get(link) ?? null;
 }
+
+async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
+	if (arrived.recipientExternalIDs.length === 0) return 0;
+	const spoken = await askTheRecord<{ told?: number }>('POST', '/api/agent/notify', {
+		platform: messengerPlatform,
+		externalIDs: arrived.recipientExternalIDs,
+		category: 'message',
+		...tellingOf(arrived, await nameOf(arrived.authorExternalID))
+	});
+	return spoken.told ?? 0;
+}
+
+async function nameOf(externalID: string): Promise<string> {
+	const contact = await client
+		.from('contact')
+		.select('name')
+		.eq('company_id', companyID)
+		.eq('platform', messengerPlatform)
+		.eq('external_id', externalID)
+		.maybeSingle<{ name: string | null }>();
+	if (contact.error) throw new Error(contact.error.message);
+	return contact.data?.name ?? '';
+}
+
+Bun.serve({
+	hostname: '127.0.0.1',
+	port: arrivalsPort,
+	fetch: async (request) => {
+		if (request.method !== 'POST') return new Response('post an arrival', { status: 405 });
+		const arrived = readArrivedMessage(await request.json().catch(() => null));
+		if (!arrived) return new Response('that is not a message', { status: 400 });
+		const told = await tellThoseAddressed(arrived).catch((error) => {
+			console.error('arrival not told:', error instanceof Error ? error.message : error);
+			return 0;
+		});
+		return Response.json({ told });
+	}
+});
+console.log(`arrivals accepted on 127.0.0.1:${arrivalsPort}`);
 
 async function askTheRecord<Value>(method: string, path: string, body?: unknown): Promise<Value> {
 	const response = await fetch(`${appURL}${path}`, {

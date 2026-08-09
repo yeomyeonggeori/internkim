@@ -136,6 +136,11 @@ company runs, and the relay refuses to start rather than guess.
 
 ## Acceptance
 
+The messenger reports every message it accepts to the relay on
+`127.0.0.1:${ARRIVALS_PORT:-18091}`, which resolves the people in that
+conversation to members and notifies the ones whose browsers are subscribed.
+Nothing outside the box can reach that port.
+
 The bundle is only correct if the box is unreachable from outside:
 
 ```
