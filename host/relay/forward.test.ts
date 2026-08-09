@@ -1,5 +1,31 @@
 import { describe, expect, test } from 'bun:test';
-import { actorOf, isPersonCapability, reportableTopic, serveCall } from './forward';
+import { actorOf, isPersonCapability, mailOperationOf, reportableTopic, serveCall } from './forward';
+
+function dispatchThatKnows(externalIDs: Record<string, string>) {
+	const asked: { capability: string; body: Record<string, unknown> }[] = [];
+	return {
+		asked,
+		dispatch: {
+			serveAsset: async (capability: string) => ({ served: capability }),
+			askMaild: async (operation: string, body: Record<string, unknown>) => {
+				asked.push({ capability: `mail.${operation}`, body });
+				return { status: 200, body: { mailboxes: [] } };
+			},
+			mailAccountOf: async (memberID: string) =>
+				memberID === 'member-1' ? { imapHost: 'imap.example.test' } : null,
+			askChatd: async (capability: string, body: Record<string, unknown>) => {
+				asked.push({ capability, body });
+				if (capability === 'person.identity') {
+					const actor = body.actor as { secret?: string } | undefined;
+					const externalID = actor?.secret === 'known' ? 'U-known' : 'U-stranger';
+					return { status: 200, body: { externalID } };
+				}
+				return { status: 200, body: { conversations: [] } };
+			},
+			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null
+		}
+	};
+}
 
 describe('actorOf', () => {
 	test('reads the credential the caller carried', () => {
@@ -46,26 +72,6 @@ describe('reportableTopic', () => {
 });
 
 describe('serveCall', () => {
-	function dispatchThatKnows(externalIDs: Record<string, string>) {
-		const asked: { capability: string; body: Record<string, unknown> }[] = [];
-		return {
-			asked,
-			dispatch: {
-				serveAsset: async (capability: string) => ({ served: capability }),
-				askChatd: async (capability: string, body: Record<string, unknown>) => {
-					asked.push({ capability, body });
-					if (capability === 'person.identity') {
-						const actor = body.actor as { secret?: string } | undefined;
-						const externalID = actor?.secret === 'known' ? 'U-known' : 'U-stranger';
-						return { status: 200, body: { externalID } };
-					}
-					return { status: 200, body: { conversations: [] } };
-				},
-				memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null
-			}
-		};
-	}
-
 	const callFromTheBrowser = {
 		callID: 'c1',
 		capability: 'person.conversations.list',
@@ -119,5 +125,71 @@ describe('serveCall', () => {
 
 		expect(served).toEqual({ status: 200, body: { served: 'asset.emoji' }, replyTo: null });
 		expect(asked).toEqual([]);
+	});
+});
+
+describe('mailOperationOf', () => {
+	test('a mail capability names an operation maild knows', () => {
+		expect(mailOperationOf('person.mail.messages')).toBe('messages');
+		expect(mailOperationOf('person.mail.send')).toBe('send');
+	});
+
+	test('anything else is not mail', () => {
+		expect(mailOperationOf('person.message.send')).toBeNull();
+		expect(mailOperationOf('person.mail.')).toBeNull();
+		expect(mailOperationOf('asset.emoji')).toBeNull();
+	});
+
+	test('an operation cannot be a path', () => {
+		expect(mailOperationOf('person.mail.../secrets')).toBeNull();
+		expect(mailOperationOf('person.mail.send/../test')).toBeNull();
+	});
+});
+
+describe('serveCall for mail', () => {
+	test('the caller is proved by their messenger credential, and their mail account is fetched here', async () => {
+		const { asked, dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
+
+		const served = await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'person.mail.mailboxes',
+			replyTo: '00000000-0000-0000-0000-0000000000ff',
+			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
+		});
+
+		expect(served.status).toBe(200);
+		expect(served.replyTo).toBe('member-1');
+		expect(asked.map((entry) => entry.capability)).toEqual(['person.identity', 'mail.mailboxes']);
+		expect(asked[1]?.body.account).toEqual({ imapHost: 'imap.example.test' });
+	});
+
+	test('the browser never carries the mail password, so one it offers is ignored', async () => {
+		const { asked, dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
+
+		await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'person.mail.mailboxes',
+			replyTo: '00000000-0000-0000-0000-0000000000ff',
+			body: {
+				actor: { kind: 'mattermost-token', secret: 'known' },
+				account: { imapHost: 'imap.attacker.test', imapPassword: 'stolen' }
+			}
+		});
+
+		expect(asked[1]?.body.account).toEqual({ imapHost: 'imap.example.test' });
+	});
+
+	test('a member who connected no mail account is told so, and maild is not asked', async () => {
+		const { asked, dispatch } = dispatchThatKnows({ 'U-stranger': 'member-2' });
+
+		const served = await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'person.mail.mailboxes',
+			replyTo: '00000000-0000-0000-0000-0000000000ff',
+			body: { actor: { kind: 'mattermost-token', secret: 'other' } }
+		});
+
+		expect(served.status).toBe(409);
+		expect(asked.map((entry) => entry.capability)).toEqual(['person.identity']);
 	});
 });
