@@ -1,4 +1,4 @@
-package admind
+package mail
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	messagemail "github.com/emersion/go-message/mail"
 )
 
-func createMailMessageDocument(account mailAccount, input mailMessageSendRequest) ([]byte, []string, error) {
+func createMessageDocument(account Account, input MessageSendRequest) ([]byte, []string, error) {
 	from, errorValue := messagemail.ParseAddress(account.FromAddress)
 	if errorValue != nil {
 		return nil, nil, errorValue
@@ -17,15 +17,15 @@ func createMailMessageDocument(account mailAccount, input mailMessageSendRequest
 	if strings.TrimSpace(account.DisplayName) != "" {
 		from.Name = account.DisplayName
 	}
-	to, errorValue := parseMailAddresses(input.To)
+	to, errorValue := parseAddresses(input.To)
 	if errorValue != nil {
 		return nil, nil, errorValue
 	}
-	cc, errorValue := parseMailAddresses(input.CC)
+	cc, errorValue := parseAddresses(input.CC)
 	if errorValue != nil {
 		return nil, nil, errorValue
 	}
-	bcc, errorValue := parseMailAddresses(input.BCC)
+	bcc, errorValue := parseAddresses(input.BCC)
 	if errorValue != nil {
 		return nil, nil, errorValue
 	}
@@ -48,12 +48,12 @@ func createMailMessageDocument(account mailAccount, input mailMessageSendRequest
 	if errorValue := writer.Close(); errorValue != nil {
 		return nil, nil, errorValue
 	}
-	recipients := append(mailAddressStrings(to), mailAddressStrings(cc)...)
-	recipients = append(recipients, mailAddressStrings(bcc)...)
+	recipients := append(addressStrings(to), addressStrings(cc)...)
+	recipients = append(recipients, addressStrings(bcc)...)
 	return document.Bytes(), recipients, nil
 }
 
-func parseMailAddresses(values []string) ([]*messagemail.Address, error) {
+func parseAddresses(values []string) ([]*messagemail.Address, error) {
 	addresses := make([]*messagemail.Address, 0, len(values))
 	for _, value := range values {
 		address, errorValue := messagemail.ParseAddress(value)
@@ -65,7 +65,7 @@ func parseMailAddresses(values []string) ([]*messagemail.Address, error) {
 	return addresses, nil
 }
 
-func mailAddressStrings(addresses []*messagemail.Address) []string {
+func addressStrings(addresses []*messagemail.Address) []string {
 	values := make([]string, 0, len(addresses))
 	for _, address := range addresses {
 		values = append(values, address.String())

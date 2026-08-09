@@ -2,12 +2,13 @@ package admind
 
 import (
 	"context"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"sort"
 	"strings"
 	"time"
 )
 
-func (service *Service) readCachedMailboxes(ctx context.Context, actorEmail string) ([]mailMailboxResponse, bool, error) {
+func (service *Service) readCachedMailboxes(ctx context.Context, actorEmail string) ([]mail.MailboxResponse, bool, error) {
 	database, errorValue := service.openMailDatabase(ctx)
 	if errorValue != nil {
 		return nil, false, errorValue
@@ -22,9 +23,9 @@ ORDER BY name`, strings.ToLower(strings.TrimSpace(actorEmail)))
 		return nil, false, errorValue
 	}
 	defer rows.Close()
-	mailboxes := []mailMailboxResponse{}
+	mailboxes := []mail.MailboxResponse{}
 	for rows.Next() {
-		var mailbox mailMailboxResponse
+		var mailbox mail.MailboxResponse
 		if errorValue := rows.Scan(&mailbox.Name, &mailbox.DisplayName, &mailbox.Unseen, &mailbox.Total); errorValue != nil {
 			return nil, false, errorValue
 		}
@@ -34,12 +35,12 @@ ORDER BY name`, strings.ToLower(strings.TrimSpace(actorEmail)))
 		return nil, false, errorValue
 	}
 	sort.SliceStable(mailboxes, func(firstIndex int, secondIndex int) bool {
-		return mailMailboxSortKey(mailboxes[firstIndex].Name) < mailMailboxSortKey(mailboxes[secondIndex].Name)
+		return mail.MailboxSortKey(mailboxes[firstIndex].Name) < mail.MailboxSortKey(mailboxes[secondIndex].Name)
 	})
 	return mailboxes, len(mailboxes) > 0, nil
 }
 
-func (service *Service) saveCachedMailboxes(ctx context.Context, actorEmail string, mailboxes []mailMailboxResponse) error {
+func (service *Service) saveCachedMailboxes(ctx context.Context, actorEmail string, mailboxes []mail.MailboxResponse) error {
 	database, errorValue := service.openMailDatabase(ctx)
 	if errorValue != nil {
 		return errorValue

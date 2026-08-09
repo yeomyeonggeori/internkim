@@ -1,4 +1,4 @@
-package admind
+package mail
 
 import (
 	"mime"
@@ -12,7 +12,7 @@ import (
 func TestMailMailboxResponsesFromListDataSkipsNonSelectableMailboxes(t *testing.T) {
 	total := uint32(3)
 	unseen := uint32(1)
-	mailboxes := mailMailboxResponsesFromListData([]*imap.ListData{
+	mailboxes := MailboxResponsesFromListData([]*imap.ListData{
 		{Mailbox: "INBOX", Status: &imap.StatusData{NumMessages: &total, NumUnseen: &unseen}},
 		{Mailbox: "Folders", Attrs: []imap.MailboxAttr{imap.MailboxAttrNoSelect}},
 	})
@@ -25,7 +25,7 @@ func TestMailMailboxResponsesFromListDataSkipsNonSelectableMailboxes(t *testing.
 }
 
 func TestMailMailboxResponsesFromListDataUsesZeroCountsWithoutStatus(t *testing.T) {
-	mailboxes := mailMailboxResponsesFromListData([]*imap.ListData{{Mailbox: "Sent"}})
+	mailboxes := MailboxResponsesFromListData([]*imap.ListData{{Mailbox: "Sent"}})
 	if len(mailboxes) != 1 {
 		t.Fatalf("mailboxes = %#v", mailboxes)
 	}
@@ -36,7 +36,7 @@ func TestMailMailboxResponsesFromListDataUsesZeroCountsWithoutStatus(t *testing.
 
 func TestDecodeMailHeaderDecodesEncodedWords(t *testing.T) {
 	encodedSubject := mime.QEncoding.Encode("utf-8", "테스트 제목")
-	if subject := decodeMailHeader(encodedSubject); subject != "테스트 제목" {
+	if subject := DecodeHeader(encodedSubject); subject != "테스트 제목" {
 		t.Fatalf("subject = %q", subject)
 	}
 }
@@ -44,7 +44,7 @@ func TestDecodeMailHeaderDecodesEncodedWords(t *testing.T) {
 func TestIMAPAddressListStringDecodesDisplayNames(t *testing.T) {
 	encodedName := mime.QEncoding.Encode("utf-8", "네이버")
 	addresses := []imap.Address{{Name: encodedName, Mailbox: "account_noreply", Host: "navercorp.com"}}
-	if value := imapAddressListString(addresses); value != "네이버 <account_noreply@navercorp.com>" {
+	if value := IMAPAddressListString(addresses); value != "네이버 <account_noreply@navercorp.com>" {
 		t.Fatalf("address = %q", value)
 	}
 }
@@ -64,7 +64,7 @@ func TestParseMailDocumentKeepsHTMLBody(t *testing.T) {
 		"--frontier--",
 		"",
 	}, "\r\n")
-	parsedDocument := parseMailDocument([]byte(document))
+	parsedDocument := ParseDocument([]byte(document))
 	if parsedDocument.PlainText != "Plain body" {
 		t.Fatalf("plain text = %q", parsedDocument.PlainText)
 	}
@@ -79,7 +79,7 @@ func TestParseMailDocumentFallsBackToHTMLText(t *testing.T) {
 		"",
 		"<html><body><strong>HTML only</strong></body></html>",
 	}, "\r\n")
-	parsedDocument := parseMailDocument([]byte(document))
+	parsedDocument := ParseDocument([]byte(document))
 	if parsedDocument.PlainText != "HTML only" {
 		t.Fatalf("plain text = %q", parsedDocument.PlainText)
 	}
@@ -89,7 +89,7 @@ func TestParseMailDocumentFallsBackToHTMLText(t *testing.T) {
 }
 
 func TestMailPreviewTruncatesByRune(t *testing.T) {
-	preview := mailPreview(strings.Repeat("가", 221))
+	preview := Preview(strings.Repeat("가", 221))
 	if !utf8.ValidString(preview) {
 		t.Fatalf("preview is invalid UTF-8: %q", preview)
 	}

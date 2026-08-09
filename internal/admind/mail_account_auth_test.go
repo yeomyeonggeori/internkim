@@ -2,6 +2,7 @@ package admind
 
 import (
 	"encoding/json"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,7 +34,7 @@ func TestMailAccountUsesRequesterHeaderForLocalRequests(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	var account mailAccountResponse
+	var account mail.AccountResponse
 	if errorValue := json.Unmarshal(response.Body.Bytes(), &account); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -72,7 +73,7 @@ func TestMailAccountUsesWebSessionForRemoteRequests(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	var account mailAccountResponse
+	var account mail.AccountResponse
 	if errorValue := json.Unmarshal(response.Body.Bytes(), &account); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -89,7 +90,7 @@ func TestMailAccountDoesNotFallbackToAdminForAuthenticatedUser(t *testing.T) {
 	if accountResponse.Code != http.StatusOK {
 		t.Fatalf("account status = %d body = %s", accountResponse.Code, accountResponse.Body.String())
 	}
-	var account mailAccountResponse
+	var account mail.AccountResponse
 	if errorValue := json.Unmarshal(accountResponse.Body.Bytes(), &account); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -113,7 +114,7 @@ func TestMailRequiresConfiguredAccountForMailboxReads(t *testing.T) {
 	if accountResponse.Code != http.StatusOK {
 		t.Fatalf("account status = %d", accountResponse.Code)
 	}
-	var account mailAccountResponse
+	var account mail.AccountResponse
 	if errorValue := json.Unmarshal(accountResponse.Body.Bytes(), &account); errorValue != nil {
 		t.Fatal(errorValue)
 	}
