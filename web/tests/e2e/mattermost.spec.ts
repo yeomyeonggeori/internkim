@@ -33,7 +33,7 @@ test('local Mattermost renders and accepts an admin session', async ({ page }) =
 	await expect(composer).toBeVisible();
 });
 
-test('InternKim boards plugin loads and renders its channel header icon', async ({ page }) => {
+test('internkim boards plugin loads and renders its channel header icon', async ({ page }) => {
 	test.skip(!adminEmail || !adminPassword, 'admin credentials are required');
 
 	await page.route('**/api/v4/properties/groups/access_control/**', (route) =>

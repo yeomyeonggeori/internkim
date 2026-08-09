@@ -141,7 +141,7 @@ func platformDMRecipientsFromResolution(recipients []platformDMResolvedRecipient
 }
 
 func platformDMRecipientNotFoundFailure(personHint string) platformDMFailure {
-	message := fmt.Sprintf("recipient %q was not found among approved InternKim people with active Mattermost accounts", personHint)
+	message := fmt.Sprintf("recipient %q was not found among approved internkim people with active Mattermost accounts", personHint)
 	return platformDMStaticFailure("recipient_not_found", "recipient_resolve", message)
 }
 
@@ -212,7 +212,7 @@ func (service Service) sendMattermostDirectMessageWithDispatch(ctx context.Conte
 		return "", platformDMStaticFailure("recipient_not_found", "recipient_resolve", "mattermost user ID is required"), true
 	}
 	if normalizedUserID == botUser.ID {
-		return "", platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", "cannot send a direct message to the InternKim bot user"), true
+		return "", platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", "cannot send a direct message to the internkim bot user"), true
 	}
 	channelID, errorValue := service.createMattermostDirectChannel(ctx, botUser.ID, normalizedUserID)
 	if errorValue != nil {

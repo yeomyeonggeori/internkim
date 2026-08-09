@@ -41,7 +41,7 @@ export async function registerBuzzPasskey(email: string, displayName: string): P
 	const credential = (await navigator.credentials.create({
 		publicKey: {
 			challenge,
-			rp: { name: "InternKim", id: window.location.hostname },
+			rp: { name: "internkim", id: window.location.hostname },
 			user: { id: new TextEncoder().encode(email), name: email, displayName: displayName || email },
 			pubKeyCredParams: [
 				{ type: "public-key", alg: -7 },

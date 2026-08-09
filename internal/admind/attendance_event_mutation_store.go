@@ -47,6 +47,15 @@ func withAttendanceEventMutationOnDatabase(
 }
 
 func (service *Service) insertAttendanceEvent(ctx context.Context, database *sql.DB, event attendanceEvent) error {
+	errorValue := service.recordAttendanceEventLocally(ctx, database, event)
+	if errorValue != nil {
+		return errorValue
+	}
+	service.alsoRecordAttendanceCentrally(event)
+	return nil
+}
+
+func (service *Service) recordAttendanceEventLocally(ctx context.Context, database *sql.DB, event attendanceEvent) error {
 	return service.withAttendanceEventMutation(ctx, database, func(transaction *sql.Tx) ([]string, error) {
 		_, errorValue := transaction.ExecContext(ctx, `
 INSERT INTO attendance_events (

@@ -8,7 +8,7 @@ BOT_USERNAME="internkim"
 NONCE="${E2E_NONCE:-x}"
 E2E_USERNAME="e2ecrud$NONCE"
 E2E_EMAIL="e2ecrud$NONCE@internkim.test"
-E2E_PASSWORD="E2eCrud!InternKim-Mattermost"
+E2E_PASSWORD="E2eCrud!internkim-Mattermost"
 E2E_CHANNEL_NAME="e2e-crud-$NONCE"
 
 admin_password() { sudo cat /root/.internkim/secrets/mm-admin-pass; }

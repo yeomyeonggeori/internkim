@@ -11,3 +11,13 @@ export function setCachedMessages(channelID: string | undefined, messages: Chann
 	if (!channelID) return;
 	messagesByChannel.set(channelID, messages);
 }
+
+let readerID = '';
+
+export function getCachedReaderID(): string {
+	return readerID;
+}
+
+export function setCachedReaderID(id: string): void {
+	readerID = id;
+}

@@ -270,6 +270,10 @@ func (service Service) restartPolicySurvivalScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("restart-policy-survival"))
 }
 
+func (service Service) workspacePersistenceScenarioPlans() []CommandPlan {
+	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("workspace-persistence"))
+}
+
 func (service Service) webBackedScenarioPlans(scenario string) []CommandPlan {
 	return append(service.upPlans(false), service.shellPlan("run "+scenario, service.verifyCommand("browser --local")))
 }
@@ -557,7 +561,7 @@ func safeIdentifier(value string) string {
 
 func virtualSessionNeedsBunValue(scenario string) string {
 	switch strings.ToLower(strings.TrimSpace(scenario)) {
-	case "slides", "slides_local_multiturn_success", "site", "site_artifact_acceptance", "site_prototype_acceptance", "site_edit_redeploy_acceptance", "site_lifecycle_acceptance":
+	case "presentation", "presentation_local_multiturn_success", "site_artifact_acceptance", "site_edit_redeploy_acceptance", "site_custom_structure_acceptance", "site_lifecycle_acceptance":
 		return "1"
 	default:
 		return "0"

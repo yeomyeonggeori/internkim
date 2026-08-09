@@ -98,7 +98,7 @@ def parse_arguments() -> argparse.Namespace:
 
     runParser = subcommands.add_parser("run", help="Run fixed evaluations and save timestamped artifacts.")
     runParser.add_argument("--evaluation", action="append", default=[], help="Evaluation ID to run. Repeatable.")
-    runParser.add_argument("--dry-run", action="store_true", help="Write run files without executing InternKim.")
+    runParser.add_argument("--dry-run", action="store_true", help="Write run files without executing internkim.")
     runParser.add_argument("--reuse", action="store_true", help="Reuse the shared Local Fleet while still sending prompts through Mattermost.")
     runParser.add_argument("--model", default=DEFAULT_GENERATION_MODEL, help="OpenRouter model pinned across every tier for the run.")
     runParser.add_argument("--seed", type=int, default=DEFAULT_GENERATION_SEED, help="Fixed generation seed passed through internkim test.")
@@ -1407,7 +1407,7 @@ def call_openrouter_judge(apiKey: str, model: str, prompt: str, imageDataUrls: l
             "Authorization": "Bearer " + apiKey,
             "Content-Type": "application/json",
             "HTTP-Referer": "https://internkim.local/skill-artifact-evals",
-            "X-Title": "InternKim Skill Artifact Evals",
+            "X-Title": "internkim Skill Artifact Evals",
         },
         method="POST",
     )

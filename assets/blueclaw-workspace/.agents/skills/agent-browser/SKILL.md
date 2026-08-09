@@ -1,13 +1,13 @@
 ---
 name: agent-browser
-description: Use InternKim browser capability operations for web navigation, page snapshots, interaction, and screenshots. The runtime is backed by agent-browser, but Blueclaw invokes browser.* through the capability bridge.
+description: Use internkim browser capability operations for web navigation, page snapshots, interaction, and screenshots. The runtime is backed by agent-browser, but Blueclaw invokes browser.* through the capability bridge.
 ---
 
 # Browser Automation
 
 Browser automation is an interactive fallback, not the default web research path. Prefer search/fetch capabilities for ordinary public lookup and source retrieval. Use browser operations only when the user needs to see or operate a browser, user input such as login/MFA/captcha is required, you are guiding the user through a web flow, page state/screenshot/interaction is the actual task, or search/fetch capabilities are unavailable, insufficient, or failing.
 
-Invoke `browser.*` operations through the capability bridge. InternKim runs the browser runtime behind these operations.
+Invoke `browser.*` operations through the capability bridge. internkim runs the browser runtime behind these operations.
 
 Core workflow:
 

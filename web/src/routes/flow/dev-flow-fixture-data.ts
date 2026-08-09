@@ -19,24 +19,6 @@ export const devFlowTypes = ['운동', '마케팅', '데이터 분석', '운영'
 export const devFlowStatuses = ['요청', '예정', '진행', '완료', '일시정지', '기각', '중단'];
 export const devFlowBaselineWeekStartISO = '2026-06-01';
 
-export const devFlowSizes: FlowSizeDefinition[] = [
-	sizeDefinition('XS', 1, 1, '아주 사소한 변경', '전화 / 10분 회의 / 전달 / 정리 / 일정 조율', '잠깐이면 끝낼 것'),
-	sizeDefinition('S', 2, 2, '난이도 낮고 영향 범위 좁은 변경', '30분 내외 회의 / 간단 문서 초안 / 고객 및 파트너 대응 / 브리핑', '하루 여러 번도 처리 가능한 것'),
-	sizeDefinition('M', 3, 8, '소형 기능 추가 / 영향 있는 변경', '보고서 작성 / 2시간 이내 회의 / 외부 미팅 / 팀 간 조율 / 문서 작성', '하루 날 잡고 해야 할 것'),
-	sizeDefinition('L', 5, 16, '중형 기능 추가 / 다수 영향 있는 변경', '중요 외부 미팅 / 중형 리서치 / 기획서 초안 / 정책 변경', '이틀은 걸릴 것'),
-	sizeDefinition('XL', 8, 32, '대형 기능 추가 / 복잡한 변경 / 외부 연동', '재정비 / 협상 / 장시간 미팅 / 워크샵', '일주일은 걸릴 것'),
-	sizeDefinition('XXL', 13, 128, '마일스톤', '파트너십 설계 / 계약 구조 설계 / 서비스 기획 / 정책 개편', '반드시 하위 항목으로 쪼갤 것')
-];
-
-export const devFlowSizesEnglish: FlowSizeDefinition[] = [
-	englishSizeDefinition('XS', 1, 1, 'Trivial change', 'Call / 10 minute meeting / handoff / tidy-up / scheduling', 'Done in a moment'),
-	englishSizeDefinition('S', 2, 2, 'Low risk change with a narrow blast radius', 'Half hour meeting / short draft / customer or partner reply / briefing', 'Several fit in a day'),
-	englishSizeDefinition('M', 3, 8, 'Small feature / change with real impact', 'Report / meeting under two hours / external meeting / cross-team alignment / document', 'Takes a dedicated day'),
-	englishSizeDefinition('L', 5, 16, 'Mid-size feature / change touching many areas', 'Important external meeting / mid-size research / proposal draft / policy change', 'Takes about two days'),
-	englishSizeDefinition('XL', 8, 32, 'Large feature / complex change / external integration', 'Restructuring / negotiation / long meeting / workshop', 'Takes about a week'),
-	englishSizeDefinition('XXL', 13, 128, 'Milestone', 'Partnership design / contract structure / service planning / policy overhaul', 'Must be split into smaller items')
-];
-
 export const devFlowMembers: FlowMember[] = [
 	member('kim-intern', '김철수', 'kim@example.com', 'admin', '2026-03-02'),
 	member('designer', '이영희', 'designer@example.com', 'member', '2026-03-09'),
@@ -73,26 +55,6 @@ export const devFlowFutureTaskSpecs: DevFlowTaskSpec[] = [
 	taskSpec('release-review', 'writer', ['writer'], '여명거리', '문서', '릴리즈 문구 검수', '변경 내용을 팀이 같은 표현으로 안내한다.', 'M', '완료', 4, 4),
 	taskSpec('support-cleanup', 'support', ['support', 'operator'], '김인턴', '운영', '운영 문의 정리', '반복 문의와 답변 기준을 정리한다.', 'S', '완료', 5, 5)
 ];
-
-function englishSizeDefinition(name: string, distanceKm: number, maxHours: number, developmentExample: string, otherExample: string, note: string): FlowSizeDefinition {
-	return {
-		...sizeDefinition(name, distanceKm, maxHours, developmentExample, otherExample, note),
-		label: `${distanceKm}km · max ${maxHours}h`
-	};
-}
-
-function sizeDefinition(name: string, distanceKm: number, maxHours: number, developmentExample: string, otherExample: string, note: string): FlowSizeDefinition {
-	return {
-		name,
-		distanceKm,
-		maxHours,
-		developmentExample,
-		otherExample,
-		note,
-		score: distanceKm,
-		label: `${distanceKm}km · 최대 ${maxHours}h`
-	};
-}
 
 function member(id: string, name: string, email: string, role: string, hireDate: string): FlowMember {
 	return { id, name, email, role, hireDate, mattermostStatus: 'active', distance: 0, score: 0, activeTaskCount: 0, completeTaskCount: 0 };

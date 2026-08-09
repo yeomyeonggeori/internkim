@@ -1,3 +1,4 @@
+import { isSupabaseConfigured } from '$lib/supabase';
 export type CalendarConflict = {
 	id: number;
 	eventID: string;
@@ -9,6 +10,7 @@ export type CalendarConflict = {
 };
 
 export async function fetchCalendarConflicts(): Promise<CalendarConflict[]> {
+	if (isSupabaseConfigured()) return [];
 	const response = await fetch('/calendar/api/conflicts', { credentials: 'include' });
 	if (!response.ok) return [];
 	const payload = (await response.json()) as { conflicts?: CalendarConflict[] };

@@ -62,7 +62,7 @@ func TestOpenRouterLiveAgentActionSchemaFromEnv(t *testing.T) {
 	request := StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "Call browser_open for https://example.com."}},
 		StructuredOutputSchema: StructuredOutputSchema{
-			Name:               "blueclaw_agent_turn_action",
+			Name:               "bluecollar_agent_turn_action",
 			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.CompanionToolDescriptors(), "browser_open")}),
 			IsStrictlyEnforced: true,
 		},
@@ -90,7 +90,7 @@ func TestOpenRouterLiveCalendarActionSchemaFromEnv(t *testing.T) {
 	request := StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "Add vacation to the calendar."}},
 		StructuredOutputSchema: StructuredOutputSchema{
-			Name:               "blueclaw_agent_turn_action",
+			Name:               "bluecollar_agent_turn_action",
 			Document:           testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
 			IsStrictlyEnforced: true,
 		},
@@ -107,7 +107,7 @@ func TestOpenRouterLiveSingleCalendarActionSchemaFromEnv(t *testing.T) {
 	request := StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "Add vacation to the calendar."}},
 		StructuredOutputSchema: StructuredOutputSchema{
-			Name:               "blueclaw_agent_turn_action",
+			Name:               "bluecollar_agent_turn_action",
 			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.CalendarDescriptors(), "calendar_add")}),
 			IsStrictlyEnforced: true,
 		},
@@ -132,7 +132,7 @@ func TestOpenRouterLiveLargePerToolActionSchemaFromEnv(t *testing.T) {
 	request := StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "Call one available probe tool."}},
 		StructuredOutputSchema: StructuredOutputSchema{
-			Name:               "blueclaw_agent_turn_action",
+			Name:               "bluecollar_agent_turn_action",
 			Document:           testActionSchemaForDescriptors(t, descriptors),
 			IsStrictlyEnforced: true,
 		},

@@ -621,7 +621,7 @@ func (service Service) resolveMattermostDirectMessageSearchHandle(ctx context.Co
 	}
 	if !service.requesterMayReadDirectMessagesWith(toolContext, recipient) {
 		recipientLabel := firstNonEmpty(recipient.DisplayName, recipient.MattermostUsername, recipient.PersonID)
-		message := "current account can only read its own direct messages, not the ones between InternKim and " + recipientLabel
+		message := "current account can only read its own direct messages, not the ones between internkim and " + recipientLabel
 		return platformHandle{}, nil, mattermostToolStaticFailure("dm_read_not_authorized", "authorization", message), true
 	}
 	channel, toolFailure, hasToolFailure := service.mattermostDirectChannelForRecipient(ctx, recipient)
@@ -935,7 +935,7 @@ func (service Service) mattermostToolPost(ctx context.Context, postID string) (m
 
 func (service Service) validateMattermostPostUpdate(ctx context.Context, post mattermostToolPost, input mattermostPostUpdateInput) (mattermostToolFailure, bool) {
 	if isProtectedMattermostToolPost(post) {
-		return mattermostToolStaticFailure("protected_post", "guardrail", "automated InternKim Flow, calendar, and attendance posts cannot be changed"), true
+		return mattermostToolStaticFailure("protected_post", "guardrail", "automated internkim Flow, calendar, and attendance posts cannot be changed"), true
 	}
 	if input.Message == nil {
 		return mattermostToolFailure{}, false
@@ -943,7 +943,7 @@ func (service Service) validateMattermostPostUpdate(ctx context.Context, post ma
 	if service.isMattermostToolBotPost(ctx, post) {
 		return mattermostToolFailure{}, false
 	}
-	return mattermostToolStaticFailure("not_bot_post", "authorization", "message updates are allowed only for InternKim bot posts"), true
+	return mattermostToolStaticFailure("not_bot_post", "authorization", "message updates are allowed only for internkim bot posts"), true
 }
 
 func (service Service) validateMattermostPostDelete(ctx context.Context, post mattermostToolPost) (mattermostToolFailure, bool) {
@@ -956,12 +956,12 @@ func (service Service) validateMattermostPostDelete(ctx context.Context, post ma
 
 func (service Service) validateMattermostPostDeleteWithBotUserID(post mattermostToolPost, botUserID string) (mattermostToolFailure, bool) {
 	if isProtectedMattermostToolPost(post) {
-		return mattermostToolStaticFailure("protected_post", "guardrail", "automated InternKim Flow, calendar, and attendance posts cannot be deleted"), true
+		return mattermostToolStaticFailure("protected_post", "guardrail", "automated internkim Flow, calendar, and attendance posts cannot be deleted"), true
 	}
 	if strings.TrimSpace(botUserID) != "" && strings.TrimSpace(post.UserID) == strings.TrimSpace(botUserID) {
 		return mattermostToolFailure{}, false
 	}
-	return mattermostToolStaticFailure("not_bot_post", "authorization", "post deletion is allowed only for InternKim bot posts"), true
+	return mattermostToolStaticFailure("not_bot_post", "authorization", "post deletion is allowed only for internkim bot posts"), true
 }
 
 func (service Service) deleteMattermostPost(ctx context.Context, postID string) (mattermostToolFailure, bool) {

@@ -17,11 +17,12 @@ const pluginID = "com.internkim.ephemeral"
 const defaultRuntimeHealthURL = "http://127.0.0.1:8080/admin/api/health"
 const defaultBotUsername = "internkim"
 const unavailableNoticeProperty = "internkim_unavailable_notice"
-const managedChannelPostRejectionMessage = "This channel is managed by InternKim. Use Flow or Calendar to make changes."
+const managedChannelPostRejectionMessage = "This channel is managed by internkim. Use Flow or Calendar to make changes."
 
 type configuration struct {
 	Secret           string `json:"secret"`
 	RuntimeHealthURL string `json:"runtimeHealthURL"`
+	ArrivalsURL      string `json:"arrivalsURL"`
 	BotUsername      string `json:"botUsername"`
 }
 
@@ -80,6 +81,7 @@ func (pluginValue *Plugin) MessageHasBeenPosted(_ *plugin.Context, post *model.P
 	if botUser == nil || post.UserId == botUser.Id {
 		return
 	}
+	go pluginValue.reportArrival(post)
 	if !pluginValue.isPostDirectedAtBot(post, botUser) {
 		return
 	}
@@ -119,6 +121,10 @@ func (pluginValue *Plugin) sharedSecret() string {
 
 func (pluginValue *Plugin) runtimeHealthURL() string {
 	return firstNonEmptyString(pluginValue.configurationSnapshot().RuntimeHealthURL, defaultRuntimeHealthURL)
+}
+
+func (pluginValue *Plugin) arrivalsURL() string {
+	return firstNonEmptyString(pluginValue.configurationSnapshot().ArrivalsURL, defaultArrivalsURL)
 }
 
 func (pluginValue *Plugin) botUsername() string {

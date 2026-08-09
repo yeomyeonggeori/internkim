@@ -357,7 +357,7 @@ func TestAgentBrowserRuntimeRealChromeSmoke(t *testing.T) {
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		responseWriter.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = responseWriter.Write([]byte(`<html><head><title>InternKim Chrome Smoke</title></head><body><button>Chrome smoke ready</button></body></html>`))
+		_, _ = responseWriter.Write([]byte(`<html><head><title>internkim Chrome Smoke</title></head><body><button>Chrome smoke ready</button></body></html>`))
 	}))
 	defer server.Close()
 	sessionName := "internkim-real-chrome-smoke-" + time.Now().UTC().Format("20060102T150405")
@@ -446,7 +446,7 @@ func TestAgentBrowserRuntimeObserveParsesSafeSnapshotShape(t *testing.T) {
 		"title":"Example",
 		"snapshotText":"- link \"More\" [ref=e2]",
 		"nodes":[{"ref":"e1"}],
-		"profilePath":"/Users/lee/Library/Application Support/InternKim/BrowserProfile",
+		"profilePath":"/Users/lee/Library/Application Support/internkim/BrowserProfile",
 		"hasMore":true
 	}`)}
 	runtime := AgentBrowserRuntime{
@@ -472,7 +472,7 @@ func TestAgentBrowserRuntimeObserveParsesSafeSnapshotShape(t *testing.T) {
 func TestAgentBrowserRuntimeObserveAvoidsRawJSONLeak(t *testing.T) {
 	runner := &fakeCommandRunner{output: []byte(`{
 		"title":"Example",
-		"profilePath":"/Users/lee/Library/Application Support/InternKim/BrowserProfile",
+		"profilePath":"/Users/lee/Library/Application Support/internkim/BrowserProfile",
 		"cdpWebSocketURL":"ws://127.0.0.1:9222/devtools/browser",
 		"nodes":[{"ref":"e1","name":"Visible button"}]
 	}`)}

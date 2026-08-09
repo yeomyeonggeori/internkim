@@ -25,7 +25,7 @@ func TestIssuedBuzzIdentityIsSealedIntoTheVault(t *testing.T) {
 func TestBuzzIdentityVaultLookupIsCaseInsensitiveOnEmail(t *testing.T) {
 	service := newIdentityVaultService(t)
 	secretHex := strings.Repeat("9f", 32)
-	if errorValue := service.storeBuzzIdentitySecret("Newcomer@Dawn.KIM", secretHex); errorValue != nil {
+	if errorValue := service.storeBuzzIdentitySecret("Newcomer@Example.com", secretHex); errorValue != nil {
 		t.Fatalf("seal issued identity: %v", errorValue)
 	}
 	if !service.hasBuzzIdentitySecret("newcomer@example.com") {

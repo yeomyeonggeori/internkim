@@ -1,3 +1,4 @@
+import { isSupabaseConfigured } from '$lib/supabase';
 import type {
 	CalendarAccountStatusResponse,
 	GoogleCalendarListResponse,
@@ -6,12 +7,24 @@ import type {
 } from './calendar-layout-types';
 
 export async function fetchCalendarSyncInformation(): Promise<CalendarSyncResponse | null> {
+	if (isSupabaseConfigured()) return null;
 	const response = await fetch('/calendar/api/sync', { credentials: 'include' });
 	if (!response.ok) return null;
 	return (await response.json()) as CalendarSyncResponse;
 }
 
 export async function fetchCalendarAccountStatus(): Promise<CalendarAccountStatusResponse> {
+	if (isSupabaseConfigured()) {
+		return {
+			connected: false,
+			needsReauth: false,
+			needsCalendarSelection: false,
+			initialSyncCompleted: true,
+			calendarSyncReady: false,
+			googleOAuthConfigured: false,
+			canManageGoogleOAuth: false
+		};
+	}
 	const response = await fetch('/calendar/api/account-status', { credentials: 'include' });
 	if (!response.ok) throw new Error('Calendar account status request failed');
 	return (await response.json()) as CalendarAccountStatusResponse;

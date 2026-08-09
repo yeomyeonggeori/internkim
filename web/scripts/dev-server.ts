@@ -1,0 +1,19 @@
+//   bun run web/scripts/dev-server.ts --port 5185
+
+function argument(name: string): string | undefined {
+	const index = process.argv.indexOf(`--${name}`);
+	return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+const port = argument('port') ?? '5173';
+
+const running = Bun.spawn(['bunx', 'vite', 'dev', '--port', port], {
+	cwd: new URL('..', import.meta.url).pathname,
+	env: process.env,
+	stdout: 'inherit',
+	stderr: 'inherit',
+});
+
+process.on('SIGINT', () => running.kill());
+process.on('SIGTERM', () => running.kill());
+await running.exited;

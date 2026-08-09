@@ -5,6 +5,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 
 ## Core Rules
 
+- The product is moving off per-device hardware onto a central plane the
+  customer signs into, with the agent running on a computer they bring. Device
+  paths still ship and must keep working; when a section speaks of Jetson,
+  OTA, or Firecracker it is describing that older half, not the direction.
 - Prefer existing codebase patterns over new abstractions.
 - Use `rg` or `rg --files` for searches.
 - Use `apply_patch` for manual edits.
@@ -38,6 +42,106 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   and clean it up or say why it remains.
 - Keep generated test artifacts, platform users, memories, and remote messages
   cleaned up after real-platform tests.
+- No real person's name, address, or phone number belongs in a tracked file.
+  `main`'s history was rewritten once to take them back out, so reintroducing
+  one undoes that. Fixtures, seeds, and documentation use sample names
+  (이샘플, 박예시, 최견본) and `example.com` addresses. Real people live in
+  the database.
+- A new document goes in `docs/internal/`. `docs/` is what a docs site
+  publishes, `docs/private/` is gitignored and holds what nobody needs to open
+  again. `docs/internal/README.md` has the rule and the one constraint: a
+  document that tracked code links to cannot be private.
+
+## Working on this repository
+
+Nothing lands on `main` or `design/saas` by direct push. Branch, open a pull
+request, let the checks run, merge.
+
+### Branch names
+
+`<type>/<subject-in-kebab-case>` — the type is the same word the commit will
+carry, and the subject says what changes, not what you did to it.
+
+```
+feat/attendance-absence-counts
+fix/mattermost-recipient-resolution
+docs/readme-and-conventions
+refactor/connector-runtime-split
+test/expensive-calendar-lifecycle
+chore/prune-expensive-artifacts
+ci/skip-docs-only-runs
+```
+
+Branch off the line you are targeting — product work off `design/saas`, device
+and runtime work off `main` — rebase rather than merge when it moves under you,
+and delete the branch once the pull request is merged.
+
+### Commit messages
+
+```
+<type>: <what changes, imperative, lowercase, no trailing period>
+
+<why it changes: the problem the reader would otherwise have to reconstruct.
+Wrap at 72 columns. Say what you deliberately did not do.>
+```
+
+`type` is one of `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`. A
+scope is allowed when it disambiguates (`fix(admind): …`) and omitted when it
+does not.
+
+The subject line is a claim about the code, not a description of the work:
+`fix: keep boot diagnosis usable during the crash it diagnoses` rather than
+`fix: fixed the admind bug`. The body answers *why*; a commit whose body only
+repeats the subject should not have one.
+
+Run `git config commit.template .gitmessage` once to get the template.
+
+### Prose in documents
+
+The README and the docs are read by people deciding whether to trust this
+thing. Prose that reads as machine-written costs that trust, and it drifts back
+in every time someone lets a model write a paragraph. Grep for it before
+committing.
+
+- **One negative-parallel construction per 500 words.** `X, not Y` ·
+  `rather than` · `not merely … but`. Keep the ones where the alternative is
+  what a reader would actually assume; cut the rest. They stop registering when
+  they repeat, which wastes the ones that matter.
+- **Under three em dashes per 500 words.** An em dash that bolts an appositive
+  onto a finished sentence should be a period.
+- **No sentence praising the document's own honesty.** "worth stating plainly",
+  "to be clear", "honest list". Be plain and say nothing about it.
+- **No section-closing restatement.** If the last sentence of a section adds no
+  fact, delete it.
+- **Three or more `A X is a Y that …` in a row is a definition list.**
+- **A fact stated in a table is not restated in prose.**
+- **Bold whole blocks, never words inside a sentence.**
+
+Check with:
+
+```bash
+python3 - <<'EOF'
+import re, pathlib
+text = pathlib.Path("README.md").read_text()
+words = len(text.split())
+negations = len(re.findall(r", not |rather than |not merely", text))
+print(f"{words} words · {negations} negations (1 per {words // max(negations, 1)}) · {text.count(chr(8212))} em dashes")
+EOF
+```
+
+### Pull requests
+
+One reviewable change per pull request. The description says what the reader
+should look at and what evidence exists that it works — the test that fails
+without the change, the scenario that was run, the screenshot. A pull request
+that touches unrelated files should be split.
+
+Branch names, commit messages, pull request titles and pull request
+descriptions are written in English. Discussion in review can be in whatever
+language the reviewers share; the repository's permanent record is English.
+
+Say a thing once. Edit the existing review comment rather than adding another,
+and delete the duplicates.
 
 ## Engineering Discipline (no cheating, no blind retries)
 
@@ -282,11 +386,88 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   `cd web && bun test tests/unit`.
 - Add or update a `web/package.json` script when adding a new test category, and
   wire important regression tests into the normal verification path.
-- When the user asks to run a local web page for them to inspect, start the dev
-  server with the relevant `VITE_MOCK_*` flag so the app is already past the
-  login gate. For attendance UI work, use `VITE_MOCK_ATTENDANCE=1` and an
-  explicit `VITE_DEV_USER_EMAIL`, then verify `/auth/session` returns
-  `authenticated: true` before giving the URL.
+- When the user asks to run a local web page for them to inspect, prefer the
+  central plane: `supabase db reset` then `bun run dev`, and hand over a real
+  sign-in. Mock flags (`VITE_MOCK_ATTENDANCE=1` with an explicit
+  `VITE_DEV_USER_EMAIL`) are for device-backed screens that have no Supabase
+  path yet; with those, verify `/auth/session` returns `authenticated: true`
+  before giving the URL.
+- Unit tests must not see the central plane. `web/.env.test` blanks it so the
+  device paths stay under test; without it a local `web/.env` leaks in and the
+  suites silently exercise the wrong branch.
+
+## Central Plane (Supabase)
+
+- **Read `docs/internal/saas-design.md` §2 and §6 before shaping anything that
+  spans the browser, the central plane and the customer's machine.** The shape
+  is: a daemon on a company computer that stays on — any hardware, Jetson or
+  Mac Studio or a laptop, it does not matter — and users on *other* networks
+  reach the company's messenger through Supabase Realtime and the Supabase
+  database, never by connecting to that machine. The relay is that
+  daemon; it depends on nothing else in the bundle, so it starts first and
+  survives the agent being down. Self-hosting from source is the destination,
+  so per-company settings stay at four.
+- `supabase config push` sends the **whole** `config.toml`: any setting the file
+  does not name is reset to the CLI default. Before pushing, move anything that
+  was only ever set in the dashboard into the file, or pushing one change quietly
+  reverts the rest. There is no dry run. The push output is a unified diff where
+  `-` is the live state and `+` is what you are sending; read it before trusting
+  a green exit.
+- The company web app runs on Supabase, not on a device. `supabase/migrations`
+  is the schema of record and `docs/core-schema.md` explains it. Never edit an
+  applied migration; add the next one.
+- Local loop, in this order: `supabase db reset` (schema plus fixtures),
+  `supabase test db` (pgTAP), `cd web && bun run dev`. The reset alone gives a
+  company you can sign into — `lee@example.com` / `seed-password`.
+- `supabase/seed.dev.sql` is the only place local fixtures live, wired through
+  `[db.seed]` in `config.toml`. Do not write a second seeding script; a reset
+  wipes anything the file does not carry.
+- Run `supabase test db` after every schema change, and add a case for the
+  invariant you just introduced. It is the only thing that catches a function
+  body left pointing at a renamed column: SQL function bodies resolve at call
+  time, so `alter ... rename` inside the same migration that created the
+  function silently breaks it, and nothing complains until a user does.
+- A migration that creates tables must also grant them. `anon`,
+  `authenticated` and `service_role` get no privileges by default on a fresh or
+  self-hosted database — see `20260803000016_api_grants.sql`. RLS is the
+  boundary; grants are what let the API reach the table at all.
+- Row level security is the access boundary. Read on someone's behalf with
+  their own token (`asMember`); the service key is only for what security
+  cannot reach, and it never leaves a server route.
+- Passkeys are Supabase's own (`auth.registerPasskey`, `auth.signInWithPasskey`).
+  A WebAuthn relying party is one domain: `rp_id` must match the registrable
+  domain of every origin it serves, so a passkey registered on `pages.dev`
+  cannot work on `example.test`.
+
+## SaaS Web Deployment (Cloudflare Pages)
+
+- Which Supabase project the app talks to is decided at **runtime**, injected by
+  `hooks.server.ts` into the `#central-plane` element, not baked in by `VITE_*`.
+  One build therefore serves both a device host and a company host — keep it
+  that way, and reach the values through `$env/dynamic/private`.
+- Custom domains always serve the **production** deployment; preview builds only
+  ever answer on `*.pages.dev`. A hostname cannot point at a preview.
+- `web/scripts/deploy-pages.ts` deploys a preview unless `--production` is
+  passed. Keep that default.
+- The `internkim` Pages project serves `api.example.test`. Never deploy to it from
+  a branch that does not contain `origin/main`; that replaces a live API with a
+  stale build and the deploy reports success.
+- Pages custom domains do not accept wildcards. Each company hostname is
+  attached explicitly (`web/scripts/pages-domains.ts`), so creating a company
+  includes creating its hostname.
+
+## Bringing Device Data Across
+
+- Pull a device's data over **HTTP**, not SSH: sign into its own web app and
+  read the endpoints it already serves (`/flow/api/state`,
+  `/attendance/api/summary`, `/calendar/api/events`), then feed the JSON to
+  `web/scripts/import-flow-state.ts` and `import-attendance-events.ts`. Short
+  requests survive a flapping uplink; an SSH session does not.
+- Import history as it happened. When the record refuses a row the past
+  violated, report it rather than reshaping it into something the device never
+  recorded, and keep the export so the decision stays reversible.
+- Work whose every named person belongs to no member of the company is somebody
+  else's; skip it instead of adopting it. Never filter by a person's name.
 
 ## Web UI Components
 
@@ -321,6 +502,13 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   that `command-link-item` has.
 
 ## Deployment Hygiene
+
+- The fleet domain lives in exactly one place: `fleetdomain.defaultZone`.
+  Everything that needs it — the origin allowlist, the release registry,
+  device hosts, Flow action URLs — derives it rather than spelling it out.
+  Configuration wins over that default: a device takes it from the `api-url`
+  file setup writes, and self-hosting replaces it with `INTERNKIM_DOMAIN` or
+  `-api-url`.
 
 - When told to deploy, make it the default to: (1) check each relevant
   component's currently-deployed version first, (2) rebuild the changes fresh
@@ -385,7 +573,9 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   Bazel/CUDA builds OOM the 8GB Jetson.
 - Stop if the plan unexpectedly includes `binaries`, on-device model-runtime *builds*,
   CUDA, or Jetson model runtime work that is not part of an intended local-LLM change.
-- For Admin/Flow web UI-only changes, rebuild the board UI before deploying:
+- Everything in this section is the **device** path. A company on the central
+  plane is deployed by `web/scripts/deploy-pages.ts`; see SaaS Web Deployment.
+- For Admin/Flow web UI-only changes on a device, rebuild the board UI first:
   run `cd web && bun install` when dependencies may have changed, then
   `cd web && bun run build:board`, then `./internkim deploy --components web`
   from the repository root. The OTA web deploy packages the pre-built
@@ -522,7 +712,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   `user_confirm` and `user_input` outside grant reuse.
 - Persist broker jobs under `/root/.internkim/state/companion-jobs.json`; restart
   recovery must not silently drop pending user-local work.
-- `file_pick` must hide user-local paths from InternKim and Blueclaw. Upload
+- `file_pick` must hide user-local paths from internkim and Blueclaw. Upload
   selected files through the signed broker into `/tmp/internkim-companion-files`.
 - Browser capabilities must go through a typed browser runtime adapter; do not
   scatter raw `agent-browser`, Playwright, Chrome, or Obscura calls.
@@ -530,7 +720,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   `make build-companion` or `make deps-companion-browser`.
 - Browser observe/screenshot responses must not expose cookies, CDP URLs, local
   profile paths, or local screenshot paths.
-- Keep Blueclaw provider-neutral. Blueclaw requests capabilities; InternKim
+- Keep Blueclaw provider-neutral. Blueclaw requests capabilities; internkim
   chooses device, companion, or remote execution.
 - Local-only mode must not fall back to OpenRouter or another remote provider.
 

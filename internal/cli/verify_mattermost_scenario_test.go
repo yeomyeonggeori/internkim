@@ -260,14 +260,14 @@ func TestMattermostScenarioRequiresAuthoritativeLLMDProvenance(t *testing.T) {
 	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"blueclaw_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"bluecollar_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"bluecollar_agent_turn_action","transport":"llmd","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
 		t.Fatalf("validate LLMD provenance: %v", errorValue)
 	}
-	result.Steps[0].TaskEvents[1].Body = `{"kind":"chat","schemaName":"blueclaw_agent_turn_action","transport":"capability","provider":"openrouter","model":"low-model","selectedBackend":"remote","usedFallback":true}`
+	result.Steps[0].TaskEvents[1].Body = `{"kind":"chat","schemaName":"bluecollar_agent_turn_action","transport":"capability","provider":"openrouter","model":"low-model","selectedBackend":"remote","usedFallback":true}`
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil {
 		t.Fatal("expected legacy fallback provenance to fail")
 	}
@@ -279,9 +279,9 @@ func TestMattermostScenarioRejectsOperationContractFallback(t *testing.T) {
 	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"llmd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","transport":"llmd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
 			{Name: "llm.call", Body: `{"schemaName":"` + schemaName + `","transport":"capability","provider":"openrouter","model":"model","selectedBackend":"remote","usedFallback":true}`},
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_agent_turn_action","transport":"llmd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
 		},
 	}}}
 
@@ -296,8 +296,8 @@ func TestMattermostScenarioRequiresModelTierAtOrBelowMaximum(t *testing.T) {
 	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","modelTier":"low","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"low-model","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_agent_turn_action","transport":"llmd","provider":"openrouter","model":"low-model","modelTier":"low","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
@@ -324,14 +324,14 @@ func TestMattermostScenarioAcceptsInCeilingModelSubstitution(t *testing.T) {
 	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_turn_router","transport":"llmd","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"deepseek/deepseek-v4-flash","modelTier":"xlow","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","transport":"llmd","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_agent_turn_action","transport":"llmd","provider":"openrouter","model":"deepseek/deepseek-v4-flash","modelTier":"xlow","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
 		t.Fatalf("expected in-ceiling model substitution to pass, got %v", errorValue)
 	}
-	result.Steps[0].TaskEvents[1].Body = `{"schemaName":"blueclaw_agent_turn_action","transport":"llmd","provider":"openrouter","model":"openai/gpt-5.6-luna","modelTier":"xhigh","selectedBackend":"remote"}`
+	result.Steps[0].TaskEvents[1].Body = `{"schemaName":"bluecollar_agent_turn_action","transport":"llmd","provider":"openrouter","model":"openai/gpt-5.6-luna","modelTier":"xhigh","selectedBackend":"remote"}`
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "above maximum") {
 		t.Fatalf("expected above-ceiling tier failure, got %v", errorValue)
 	}
@@ -460,12 +460,12 @@ func TestMattermostScenarioDoesNotAcceptRecoveryChatInsteadOfAgentAction(t *test
 	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"blueclaw_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"blueclaw_agent_turn_action","transport":"llmd","isError":true}`},
+			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"bluecollar_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"bluecollar_agent_turn_action","transport":"llmd","isError":true}`},
 			{Name: "llm.call", Body: `{"kind":"recovery_chat","transport":"llmd","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
 		},
 	}}}
-	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "blueclaw_agent_turn_action") {
+	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "bluecollar_agent_turn_action") {
 		t.Fatalf("expected failed agent action to remain a failure, got %v", errorValue)
 	}
 }

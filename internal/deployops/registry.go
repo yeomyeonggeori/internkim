@@ -111,7 +111,7 @@ func defaultTargetSSHProxyCommand(target Target) string {
 		return ""
 	}
 	hostname := strings.ToLower(strings.TrimSuffix(target.SSHHost, "."))
-	if strings.HasPrefix(hostname, "ssh-") && strings.HasSuffix(hostname, ".example.test") {
+	if strings.HasPrefix(hostname, "ssh-") && strings.Contains(hostname, ".") {
 		return "cloudflared access ssh --hostname %h"
 	}
 	return ""

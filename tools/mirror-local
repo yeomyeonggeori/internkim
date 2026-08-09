@@ -12,7 +12,7 @@ set -euo pipefail
 # to a local seed file and reused on later runs, so no env is needed after that.
 # The seed is a critical root secret — persist and back it up; an inline env var
 # used for one command is not persisted and is how it gets lost. See
-# docs/buzz-identity-seed.md.
+# docs/internal/buzz-identity-seed.md.
 #
 # Optional:
 #   INTERNKIM_MM_ADMIN_PASSWORD_PATH  override the MM admin password file;
