@@ -1,4 +1,4 @@
-//   bun run web/scripts/check-relay.ts --url http://127.0.0.1:54321 --key <service role> --publishable <publishable key> --app http://localhost:5178 --bridge ./internkim-messenger-bridge
+//   bun run web/scripts/check-relay.ts --url http://127.0.0.1:54321 --key <service role> --publishable <publishable key> --app http://localhost:5178 --relay ./internkim-relay
 
 import { createClient } from '@supabase/supabase-js';
 import { addMember, issueAgentKey, provisionCompany } from '../src/lib/server/control-plane';
@@ -14,7 +14,7 @@ const projectURL = argument('url') ?? '';
 const serviceRoleKey = argument('key') ?? '';
 const publishableKey = argument('publishable') ?? '';
 const appURL = argument('app') ?? 'http://localhost:5178';
-const bridgePath = argument('bridge') ?? './internkim-messenger-bridge';
+const relayPath = argument('relay') ?? './internkim-relay';
 const arrivalsPort = 18094;
 if (!projectURL || !serviceRoleKey || !publishableKey) throw new Error('pass --url, --key and --publishable');
 
@@ -99,7 +99,7 @@ const company = await provisionCompany(
 const messenger = aMessengerNobodyRuns(0);
 const connector = aConnectorNobodyRuns(0);
 const findings: [string, boolean][] = [];
-let bridge: Bun.Subprocess | undefined;
+let relay: Bun.Subprocess | undefined;
 
 try {
 	const secondMemberID = await addMember(admin, company.companyID, `second-${stamp}@example.test`);
@@ -113,7 +113,7 @@ try {
 	});
 	const agent = await issueAgentKey(admin, company.companyID, `relay-check-${stamp}`);
 
-	bridge = Bun.spawn([bridgePath], {
+	relay = Bun.spawn([relayPath], {
 		env: {
 			...process.env,
 			SUPABASE_URL: projectURL,
@@ -238,7 +238,7 @@ try {
 	await asMember.removeAllChannels();
 	asMember.realtime.disconnect();
 } finally {
-	bridge?.kill();
+	relay?.kill();
 	messenger.stop();
 	connector.stop();
 	await admin.from('company').delete().eq('id', company.companyID);

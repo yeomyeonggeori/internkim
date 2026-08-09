@@ -90,7 +90,7 @@ Two planes:
 
    The messenger the browser draws comes back the same way, over Realtime:
 
-     Browser ──call──▶ Supabase Realtime ──▶ host's messenger bridge ──▶ tenant's messenger
+     Browser ──call──▶ Supabase Realtime ──▶ host's relay ──▶ tenant's messenger
      Browser ◀─answer── Supabase Realtime ◀──         (outbound only, still no inbound port)
 ```
 
@@ -338,7 +338,7 @@ companion UI (guest on an employee's machine).
 - Started in **`host` mode** (headless): the same app via CLI/package, or the
   desktop app set to host mode.
 
-### The messenger bridge — the daemon the web app talks to
+### The relay — the daemon the web app talks to
 
 The web app holds no messenger of its own and has no fallback: every channel,
 person, profile picture and custom emoji it draws is **answered by a daemon on

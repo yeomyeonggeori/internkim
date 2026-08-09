@@ -36,11 +36,11 @@ jobs:
       - run: bun run check
       - run: bun test tests/unit
 
-  messenger-bridge:
+  relay:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: host/messenger
+        working-directory: host/relay
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

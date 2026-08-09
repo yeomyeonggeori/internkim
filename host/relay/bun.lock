@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "internkim-messenger-bridge",
+      "name": "internkim-relay",
       "dependencies": {
         "@supabase/supabase-js": "^2.111.0",
       },
