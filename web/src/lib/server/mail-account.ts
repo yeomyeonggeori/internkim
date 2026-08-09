@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { memberCredential } from './member-credential';
+import { keepMemberCredential, memberCredential } from './member-credential';
 
 export const mailCredentialKind = 'mail';
 
@@ -18,7 +18,93 @@ export type MailAccount = {
 	SMTPSecurity: string;
 	SMTPUsername: string;
 	SMTPPassword: string;
+	DefaultMailbox: string;
+	SentMailbox: string;
 };
+
+export type MailAccountAsShown = {
+	email: string;
+	fromAddress: string;
+	displayName: string;
+	imapHost: string;
+	imapPort: number;
+	imapSecurity: string;
+	imapUsername: string;
+	smtpHost: string;
+	smtpPort: number;
+	smtpSecurity: string;
+	smtpUsername: string;
+	defaultMailbox: string;
+	sentMailbox: string;
+	isConfigured: boolean;
+	hasIMAPPassword: boolean;
+	hasSMTPPassword: boolean;
+};
+
+export type MailAccountAsWritten = {
+	email?: unknown;
+	fromAddress?: unknown;
+	displayName?: unknown;
+	imapHost?: unknown;
+	imapPort?: unknown;
+	imapSecurity?: unknown;
+	imapUsername?: unknown;
+	imapPassword?: unknown;
+	smtpHost?: unknown;
+	smtpPort?: unknown;
+	smtpSecurity?: unknown;
+	smtpUsername?: unknown;
+	smtpPassword?: unknown;
+	defaultMailbox?: unknown;
+	sentMailbox?: unknown;
+};
+
+export function asShown(account: MailAccount | null): MailAccountAsShown | null {
+	if (!account) return null;
+	return {
+		email: account.Email,
+		fromAddress: account.FromAddress,
+		displayName: account.DisplayName,
+		imapHost: account.IMAPHost,
+		imapPort: account.IMAPPort,
+		imapSecurity: account.IMAPSecurity,
+		imapUsername: account.IMAPUsername,
+		smtpHost: account.SMTPHost,
+		smtpPort: account.SMTPPort,
+		smtpSecurity: account.SMTPSecurity,
+		smtpUsername: account.SMTPUsername,
+		defaultMailbox: account.DefaultMailbox,
+		sentMailbox: account.SentMailbox,
+		isConfigured: Boolean(account.IMAPHost && account.SMTPHost && account.IMAPPassword && account.SMTPPassword),
+		hasIMAPPassword: account.IMAPPassword !== '',
+		hasSMTPPassword: account.SMTPPassword !== ''
+	};
+}
+
+export function asWritten(
+	written: MailAccountAsWritten,
+	actorEmail: string,
+	held: MailAccount | null
+): MailAccount {
+	return {
+		ActorEmail: actorEmail,
+		Email: text(written.email) || held?.Email || '',
+		FromAddress: text(written.fromAddress) || text(written.email) || held?.FromAddress || '',
+		DisplayName: text(written.displayName),
+		IMAPHost: text(written.imapHost),
+		IMAPPort: port(written.imapPort, 993),
+		IMAPSecurity: text(written.imapSecurity) || 'tls',
+		IMAPUsername: text(written.imapUsername),
+		IMAPPassword: text(written.imapPassword) || held?.IMAPPassword || '',
+		SMTPHost: text(written.smtpHost),
+		SMTPPort: port(written.smtpPort, 587),
+		SMTPSecurity: text(written.smtpSecurity) || 'starttls',
+		SMTPUsername: text(written.smtpUsername),
+		SMTPPassword: text(written.smtpPassword) || held?.SMTPPassword || '',
+		DefaultMailbox: text(written.defaultMailbox) || 'INBOX',
+		SentMailbox: text(written.sentMailbox) || 'Sent'
+	};
+}
 
 export async function mailAccountOfMember(
 	client: SupabaseClient,
@@ -26,10 +112,19 @@ export async function mailAccountOfMember(
 ): Promise<MailAccount | null> {
 	const credential = await memberCredential(client, memberID, mailCredentialKind);
 	if (!credential) return null;
+	return readStored(credential.secret);
+}
 
-	const stored = readStored(credential.secret);
-	if (!stored) return null;
-	return stored;
+export async function keepMailAccount(
+	client: SupabaseClient,
+	memberID: string,
+	account: MailAccount
+): Promise<void> {
+	await keepMemberCredential(client, memberID, {
+		kind: mailCredentialKind,
+		externalID: memberID,
+		secret: JSON.stringify(account)
+	});
 }
 
 function readStored(secret: string): MailAccount | null {
@@ -37,7 +132,7 @@ function readStored(secret: string): MailAccount | null {
 	if (typeof parsed !== 'object' || parsed === null) return null;
 
 	const held = parsed as Partial<MailAccount>;
-	if (!held.IMAPHost || !held.IMAPUsername || !held.SMTPHost || !held.SMTPUsername) return null;
+	if (!text(held.IMAPHost) || !text(held.SMTPHost)) return null;
 	return {
 		ActorEmail: text(held.ActorEmail),
 		Email: text(held.Email),
@@ -52,7 +147,9 @@ function readStored(secret: string): MailAccount | null {
 		SMTPPort: port(held.SMTPPort, 587),
 		SMTPSecurity: text(held.SMTPSecurity) || 'starttls',
 		SMTPUsername: text(held.SMTPUsername),
-		SMTPPassword: text(held.SMTPPassword)
+		SMTPPassword: text(held.SMTPPassword),
+		DefaultMailbox: text(held.DefaultMailbox) || 'INBOX',
+		SentMailbox: text(held.SentMailbox) || 'Sent'
 	};
 }
 
