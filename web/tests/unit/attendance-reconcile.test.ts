@@ -92,3 +92,27 @@ describe('reconcileMember', () => {
 		expect(plan.add.every((row) => row.member_id === 'member-2')).toBe(true);
 	});
 });
+
+describe('where a clock happened', () => {
+	test('a clock-out carries no location, because the record refuses one', () => {
+		const plan = reconcileMember(
+			'member-1',
+			onTheDevice([{ kind: 'clock_out', occurredAt: '2026-08-05T18:00:00Z', location: '본사' }]),
+			[]
+		);
+
+		expect(plan.add[0].location).toBeNull();
+	});
+
+	test('a clock-in with nowhere named stores nothing rather than an empty string', () => {
+		const plan = reconcileMember('member-1', onTheDevice([{ kind: 'clock_in', location: '  ' }]), []);
+
+		expect(plan.add[0].location).toBeNull();
+	});
+
+	test('a clock-in somewhere keeps where', () => {
+		const plan = reconcileMember('member-1', onTheDevice([{ kind: 'clock_in', location: '본사' }]), []);
+
+		expect(plan.add[0].location).toBe('본사');
+	});
+});
