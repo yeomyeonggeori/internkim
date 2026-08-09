@@ -565,7 +565,7 @@ func (client mattermostBootstrapClient) ensureBot(adminToken string, teamID stri
 		return "", "", errorValue
 	}
 	if !isSuccessStatus(userResponse.StatusCode) || !userResponse.boolField("is_bot") {
-		return "", "", errors.New("Mattermost InternKim account exists but is not a bot")
+		return "", "", errors.New("Mattermost internkim account exists but is not a bot")
 	}
 	if errorValue := client.patchBotProfile(adminToken, botUserID); errorValue != nil {
 		return "", "", errorValue

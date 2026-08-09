@@ -31,7 +31,7 @@ find "$PEOPLE_PATH" \
 
 func InternKimBlueclawTemporaryCleanupServiceUnit() string {
 	return fmt.Sprintf(`[Unit]
-Description=InternKim Blueclaw user temporary workspace cleanup
+Description=internkim Blueclaw user temporary workspace cleanup
 
 [Service]
 Type=oneshot
@@ -42,7 +42,7 @@ ExecStart=%s
 
 func InternKimBlueclawTemporaryCleanupTimerUnit() string {
 	return `[Unit]
-Description=InternKim Blueclaw user temporary workspace cleanup timer
+Description=internkim Blueclaw user temporary workspace cleanup timer
 
 [Timer]
 OnBootSec=20m

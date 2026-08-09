@@ -2,6 +2,7 @@ package admind
 
 import (
 	"encoding/json"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"net/http"
 	"strings"
 )
@@ -57,7 +58,7 @@ func (service *Service) handleBuzzInviteEmail(responseWriter http.ResponseWriter
 		return
 	}
 	message := buildBuzzInviteMessage(account.FromAddress, inviteeEmail, strings.TrimSpace(payload.Name), link)
-	if errorValue := (standardMailBackend{}).sendSMTPMessage(account, []string{inviteeEmail}, message); errorValue != nil {
+	if errorValue := (mail.StandardBackend{}).SendSMTPMessage(account, []string{inviteeEmail}, message); errorValue != nil {
 		http.Error(responseWriter, "invite_send_failed", http.StatusBadGateway)
 		return
 	}
@@ -71,11 +72,11 @@ func buildBuzzInviteMessage(fromAddress string, toAddress string, name string, l
 	}
 	headers := "From: " + fromAddress + "\r\n" +
 		"To: " + toAddress + "\r\n" +
-		"Subject: You're invited to InternKim\r\n" +
+		"Subject: You're invited to internkim\r\n" +
 		"MIME-Version: 1.0\r\n" +
 		"Content-Type: text/plain; charset=UTF-8\r\n\r\n"
 	body := greeting + ",\r\n\r\n" +
-		"You've been invited to InternKim.\r\n\r\n" +
+		"You've been invited to internkim.\r\n\r\n" +
 		"Open " + link + " and sign in with your work account.\r\n" +
 		"Your messenger identity is set up automatically on first sign-in; you'll be asked to protect it with a passkey or password.\r\n"
 	return []byte(headers + body)

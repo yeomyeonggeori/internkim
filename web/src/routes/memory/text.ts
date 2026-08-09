@@ -187,7 +187,7 @@ export const memoryText = {
 		memoryUnavailable: 'memory unavailable',
 		searchFailed: 'search failed',
 		ingestionFailed: 'ingestion failed',
-		scheduleDescription: 'Scheduled work InternKim will run later.',
+		scheduleDescription: 'Scheduled work internkim will run later.',
 		scheduleIncludeExpired: 'Include expired',
 		scheduleTitle: 'Schedule',
 		schedulePrompt: 'Prompt',

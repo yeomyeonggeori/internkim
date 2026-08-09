@@ -1,8 +1,10 @@
+import { isSupabaseConfigured } from '$lib/supabase';
 import { responseErrorMessage } from './calendar-event-persistence';
 
 let remoteSyncInFlight: Promise<void> | null = null;
 
 export async function syncRemoteCalendar(errorFallback: string): Promise<void> {
+	if (isSupabaseConfigured()) return;
 	if (remoteSyncInFlight) return remoteSyncInFlight;
 	remoteSyncInFlight = fetch('/calendar/api/remote-sync', {
 		method: 'POST',

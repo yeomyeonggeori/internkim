@@ -191,6 +191,8 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 		return service.runPlans(contextValue, logger, service.mattermostDocxAttachmentScenarioPlans(keepArtifacts))
 	case "restart-policy-survival":
 		return service.runPlans(contextValue, logger, service.restartPolicySurvivalScenarioPlans())
+	case "workspace-persistence":
+		return service.runPlans(contextValue, logger, service.workspacePersistenceScenarioPlans())
 	case "web-backed-ui", "regression-proof":
 		return service.runPlans(contextValue, logger, service.webBackedScenarioPlans(normalizedScenario))
 	default:

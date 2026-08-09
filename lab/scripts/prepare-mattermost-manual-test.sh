@@ -125,19 +125,19 @@ if [ "$team_member_status" != "200" ]; then
     "$(jq -cn --arg teamID "$test_team_identifier" --arg userID "$test_user_identifier" '{team_id:$teamID,user_id:$userID}')" >/dev/null
 fi
 
-printf 'Inviting fixed test account to InternKim\n' >&2
+printf 'Inviting fixed test account to internkim\n' >&2
 blueclaw_request POST /admin/api/people/invite \
   "$(jq -cn --arg personID "$test_user_identifier" --arg email "$test_email" --arg displayName "$test_username" '{personID:$personID,email:$email,displayName:$displayName}')" >/dev/null
 
 test_user_token="$(login_user "$test_username" "$test_password")"
 test -n "$test_user_token"
-printf 'Opening direct message with InternKim\n' >&2
+printf 'Opening direct message with internkim\n' >&2
 test_channel_identifier="$(mattermost_request POST /api/v4/channels/direct "$test_user_token" \
   "$(jq -cn --arg testUserIdentifier "$test_user_identifier" --arg botUserIdentifier "$bot_user_identifier" '[$testUserIdentifier,$botUserIdentifier]')" |
   jq -r '.id // empty')"
 test -n "$test_channel_identifier"
 
-printf 'Verifying InternKim typing and reply events\n' >&2
+printf 'Verifying internkim typing and reply events\n' >&2
 typing_verification="$(
   MATTERMOST_BASE_URL="http://$mattermost_listen_address" \
     MATTERMOST_USERNAME="$test_username" \

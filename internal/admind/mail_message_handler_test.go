@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"net/http"
 	"strings"
 	"testing"
@@ -9,9 +10,9 @@ import (
 func TestMailHandlersUseBackendForActions(t *testing.T) {
 	service := newMailTestService(t)
 	backend := &fakeMailBackend{
-		mailboxes: []mailMailboxResponse{{Name: "INBOX", DisplayName: "Inbox", Total: 1}},
-		messages:  []mailMessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "Demo", From: "a@example.com"}},
-		messageDetail: mailMessageDetailResponse{
+		mailboxes: []mail.MailboxResponse{{Name: "INBOX", DisplayName: "Inbox", Total: 1}},
+		messages:  []mail.MessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "Demo", From: "a@example.com"}},
+		messageDetail: mail.MessageDetailResponse{
 			UID:     42,
 			Mailbox: "INBOX",
 			Subject: "Demo",

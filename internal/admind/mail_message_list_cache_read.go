@@ -4,34 +4,35 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"strings"
 )
 
-func (service *Service) readCachedMailMessages(ctx context.Context, actorEmail string, input mailMessageListRequest) (mailMessageListResponse, bool, error) {
+func (service *Service) readCachedMailMessages(ctx context.Context, actorEmail string, input mail.MessageListRequest) (mail.MessageListResponse, bool, error) {
 	database, errorValue := service.openMailDatabase(ctx)
 	if errorValue != nil {
-		return mailMessageListResponse{}, false, errorValue
+		return mail.MessageListResponse{}, false, errorValue
 	}
 	defer database.Close()
 	normalizedActorEmail := strings.ToLower(strings.TrimSpace(actorEmail))
 	nextCursor, hasCachedList, errorValue := readCachedMailMessageListCursor(ctx, database, normalizedActorEmail, input)
 	if errorValue != nil {
-		return mailMessageListResponse{}, false, errorValue
+		return mail.MessageListResponse{}, false, errorValue
 	}
 	if !hasCachedList {
-		return mailMessageListResponse{}, false, nil
+		return mail.MessageListResponse{}, false, nil
 	}
 	messages, errorValue := queryCachedMailMessagePageSnapshot(ctx, database, normalizedActorEmail, input)
 	if errorValue != nil {
-		return mailMessageListResponse{}, true, errorValue
+		return mail.MessageListResponse{}, true, errorValue
 	}
-	return mailMessageListResponse{
+	return mail.MessageListResponse{
 		Messages:   messages,
 		NextCursor: nextCursor,
 	}, true, nil
 }
 
-func readCachedMailMessageListCursor(ctx context.Context, database *sql.DB, actorEmail string, input mailMessageListRequest) (string, bool, error) {
+func readCachedMailMessageListCursor(ctx context.Context, database *sql.DB, actorEmail string, input mail.MessageListRequest) (string, bool, error) {
 	row := database.QueryRowContext(ctx, `
 	SELECT next_cursor
 	FROM mail_message_list_cache
@@ -47,7 +48,7 @@ func readCachedMailMessageListCursor(ctx context.Context, database *sql.DB, acto
 	return nextCursor, true, nil
 }
 
-func queryCachedMailMessagePageSnapshot(ctx context.Context, database *sql.DB, actorEmail string, input mailMessageListRequest) ([]mailMessageResponse, error) {
+func queryCachedMailMessagePageSnapshot(ctx context.Context, database *sql.DB, actorEmail string, input mail.MessageListRequest) ([]mail.MessageResponse, error) {
 	rows, errorValue := database.QueryContext(ctx, `
 SELECT message.uid, message.mailbox, message.subject, message.from_address, message.date, message.preview, message.is_read
 	FROM mail_message_list_cache_item item
@@ -58,9 +59,9 @@ SELECT message.uid, message.mailbox, message.subject, message.from_address, mess
 		return nil, errorValue
 	}
 	defer rows.Close()
-	messages := []mailMessageResponse{}
+	messages := []mail.MessageResponse{}
 	for rows.Next() {
-		var message mailMessageResponse
+		var message mail.MessageResponse
 		var isRead int
 		if errorValue := rows.Scan(&message.UID, &message.Mailbox, &message.Subject, &message.From, &message.Date, &message.Preview, &isRead); errorValue != nil {
 			return nil, errorValue

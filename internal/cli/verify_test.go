@@ -319,7 +319,7 @@ func TestVerifyAPIScriptChecksRemoteStructuredLLM(t *testing.T) {
 		`http://internkim/v1/llm/structured`,
 		`--argjson schema "$schema"`,
 		`structuredOutputSchema: {name:"smoke_reply", document:$schema, isStrictlyEnforced:true}`,
-		`structuredOutputSchema: {name:"blueclaw_agent_turn_action", document:$schema, isStrictlyEnforced:true}`,
+		`structuredOutputSchema: {name:"bluecollar_agent_turn_action", document:$schema, isStrictlyEnforced:true}`,
 		`.provider == "openrouter" and .selectedBackend == "remote"`,
 		`.constraintMode == "native_tool_call"`,
 	}

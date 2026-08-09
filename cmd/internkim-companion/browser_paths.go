@@ -13,7 +13,7 @@ import (
 func defaultBrowserProfilePath() string {
 	configurationDirectory, errorValue := os.UserConfigDir()
 	if errorValue == nil && strings.TrimSpace(configurationDirectory) != "" {
-		return filepath.Join(configurationDirectory, "InternKim", "BrowserProfile")
+		return filepath.Join(configurationDirectory, "internkim", "BrowserProfile")
 	}
 	homeDirectory, homeError := os.UserHomeDir()
 	if homeError == nil && strings.TrimSpace(homeDirectory) != "" {

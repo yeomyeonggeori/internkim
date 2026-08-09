@@ -9,6 +9,9 @@
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
+	import ChannelCode from './channel-code.svelte';
+	import ChannelLinkPreview from './channel-link-preview.svelte';
+	import { firstLinkIn } from './channel-link';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import { channelText } from '$lib/i18n/channel-text';
@@ -25,7 +28,7 @@
 		type ThreadSummary
 	} from './channel-api';
 	import { fileToAttachment, formatAttachmentMeta } from './channel-attachments';
-	import { getCachedMessages, setCachedMessages } from './channel-message-cache';
+	import { getCachedMessages, getCachedReaderID, setCachedMessages, setCachedReaderID } from './channel-message-cache';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
 	import FileIcon from '@lucide/svelte/icons/file';
@@ -63,7 +66,7 @@
 	// ponytail: 전환 중 메시지 입력 임시 잠금 (되돌리려면 false)
 	const messageInputDisabled = false;
 	let messages = $state<ChannelMessage[]>([]);
-	let currentUserID = $state('');
+	let currentUserID = $state(getCachedReaderID());
 	let currentUserEmail = $state('');
 	let currentUserImage = $state('');
 	let isAgentWorking = $state(false);
@@ -215,6 +218,7 @@
 		try {
 			const conversation = await fetchChannelConversation(channelId);
 			currentUserID = conversation.currentUserID;
+			setCachedReaderID(conversation.currentUserID);
 			const latestIncoming = conversation.messages.at(-1);
 			if (latestIncoming && !isMine(latestIncoming) && latestIncoming.id !== messages.at(-1)?.id) {
 				isAgentWorking = false;
@@ -674,9 +678,11 @@
 			class={`max-w-[min(80%,32rem)] ${reactions.length > 0 ? 'mt-5' : ''}`}
 		>
 			<Bubble.Content>
-				<div class="chat-markdown">
+				<div class="chat-markdown prose prose-sm dark:prose-invert max-w-none">
 					<SvelteMarkdown
 						source={applyCustomEmoji(content.text, message.customEmoji, customEmoji.nameToURL)}
+						options={{ breaks: true, gfm: true }}
+						renderers={{ code: ChannelCode }}
 					/>
 				</div>
 			</Bubble.Content>
@@ -685,6 +691,9 @@
 			{/if}
 			{@render timeStamp(message)}
 		</Bubble.Root>
+		{#if firstLinkIn(content.text)}
+			<ChannelLinkPreview url={firstLinkIn(content.text)} />
+		{/if}
 	{/if}
 	{#if message.thread}
 		{@render threadChip(message)}
@@ -1107,28 +1116,15 @@
 	.chat-markdown {
 		overflow-wrap: anywhere;
 	}
-	.chat-markdown :global(p) {
-		margin: 0;
+	.chat-markdown,
+	.chat-markdown :global(*) {
+		color: inherit;
 	}
-	.chat-markdown :global(p + p) {
-		margin-top: 0.5rem;
+	.chat-markdown :global(p:first-child) {
+		margin-top: 0;
 	}
-	.chat-markdown :global(a) {
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-	.chat-markdown :global(ul),
-	.chat-markdown :global(ol) {
-		margin: 0.25rem 0;
-		padding-left: 1.25rem;
-	}
-	.chat-markdown :global(pre) {
-		overflow-x: auto;
-		white-space: pre-wrap;
-		word-break: break-word;
-	}
-	.chat-markdown :global(code) {
-		font-size: 0.85em;
+	.chat-markdown :global(p:last-child) {
+		margin-bottom: 0;
 	}
 	.chat-markdown :global(table) {
 		display: block;
@@ -1137,26 +1133,27 @@
 		border-collapse: collapse;
 		margin: 0.5rem 0;
 		font-size: 0.9em;
-		border: 1px solid hsl(var(--border));
+		border: 1px solid currentColor;
 	}
 	.chat-markdown :global(th),
 	.chat-markdown :global(td) {
-		border: 1px solid hsl(var(--border));
+		border: 1px solid currentColor;
 		padding: 0.375rem 0.625rem;
 		text-align: left;
 		white-space: nowrap;
 	}
 	.chat-markdown :global(thead th) {
-		background: hsl(var(--muted));
+		background: color-mix(in srgb, currentColor 12%, transparent);
 		font-weight: 600;
 	}
 	.chat-markdown :global(tbody tr:nth-child(even)) {
-		background: hsl(var(--muted) / 0.4);
+		background: color-mix(in srgb, currentColor 6%, transparent);
 	}
 	.chat-markdown :global(img) {
 		display: inline-block;
 		height: 1.4em;
 		width: auto;
+		margin: 0;
 		vertical-align: text-bottom;
 	}
 </style>

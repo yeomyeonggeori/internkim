@@ -412,7 +412,7 @@ func chatToolChoiceTrace(request ChatRequest) string {
 }
 
 func isActionTurnStructuredRequest(request StructuredRequest) bool {
-	return strings.TrimSpace(request.StructuredOutputSchema.Name) == "blueclaw_agent_turn_action"
+	return strings.TrimSpace(request.StructuredOutputSchema.Name) == "bluecollar_agent_turn_action"
 }
 
 func hashTraceValue(value any) string {

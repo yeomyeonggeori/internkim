@@ -1790,16 +1790,16 @@ def slide_layout_xml() -> str:
 
 def theme_xml() -> str:
     return xml_document(
-        '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="InternKim">'
-        '<a:themeElements><a:clrScheme name="InternKim">'
+        '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="internkim">'
+        '<a:themeElements><a:clrScheme name="internkim">'
         '<a:dk1><a:srgbClr val="111827"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>'
         '<a:dk2><a:srgbClr val="374151"/></a:dk2><a:lt2><a:srgbClr val="F8FAFC"/></a:lt2>'
         '<a:accent1><a:srgbClr val="2563EB"/></a:accent1><a:accent2><a:srgbClr val="64748B"/></a:accent2>'
         '<a:accent3><a:srgbClr val="CBD5E1"/></a:accent3><a:accent4><a:srgbClr val="0F172A"/></a:accent4>'
         '<a:accent5><a:srgbClr val="475569"/></a:accent5><a:accent6><a:srgbClr val="E2E8F0"/></a:accent6>'
         '<a:hlink><a:srgbClr val="2563EB"/></a:hlink><a:folHlink><a:srgbClr val="7C3AED"/></a:folHlink>'
-        '</a:clrScheme><a:fontScheme name="InternKim"><a:majorFont><a:latin typeface="Arial"/><a:ea typeface="Apple SD Gothic Neo"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/><a:ea typeface="Apple SD Gothic Neo"/></a:minorFont></a:fontScheme>'
-        '<a:fmtScheme name="InternKim"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>'
+        '</a:clrScheme><a:fontScheme name="internkim"><a:majorFont><a:latin typeface="Arial"/><a:ea typeface="Apple SD Gothic Neo"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/><a:ea typeface="Apple SD Gothic Neo"/></a:minorFont></a:fontScheme>'
+        '<a:fmtScheme name="internkim"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>'
         '<a:lnStyleLst><a:ln w="63500"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>'
         '<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme>'
         "</a:themeElements><a:objectDefaults/><a:extraClrSchemeLst/></a:theme>"
@@ -1814,7 +1814,7 @@ def core_properties_xml() -> str:
         'xmlns:dcmitype="http://purl.org/dc/dcmitype/" '
         'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
         "<dc:title>HTML-first slide deck</dc:title>"
-        "<dc:creator>InternKim</dc:creator>"
+        "<dc:creator>internkim</dc:creator>"
         "</cp:coreProperties>"
     )
 
@@ -1823,7 +1823,7 @@ def app_properties_xml(slide_count: int) -> str:
     return xml_document(
         '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" '
         'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">'
-        "<Application>InternKim HTML Slides</Application>"
+        "<Application>internkim HTML Slides</Application>"
         f"<Slides>{slide_count}</Slides>"
         "</Properties>"
     )

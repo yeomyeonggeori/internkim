@@ -56,7 +56,16 @@
 		const currentFleetID = fleetID();
 		if (fleetIDFromHost() || isMockAdminAPI) return '/admin/api';
 		if (isLocalBrowserHost() && currentFleetID) return '/admin/api';
-		return currentFleetID ? `https://${currentFleetID}.example.test/admin/api` : '';
+		return currentFleetID ? `${deviceURL(currentFleetID)}/admin/api` : '';
+	}
+
+	function fleetZone() {
+		if (!browser) return '';
+		return location.hostname.split('.').slice(-2).join('.');
+	}
+
+	function deviceURL(deviceFleetID: string) {
+		return `https://${deviceFleetID}.${fleetZone()}`;
 	}
 
 	const showDeviceSection = $derived(adminSession?.deviceManaged !== false);
@@ -84,7 +93,7 @@
 		const queryFleetID = urlParams.get('fleet_id')?.trim().toLowerCase() ?? '';
 		const querySection = urlParams.get('section')?.trim() ?? '';
 		if (queryFleetID && !fleetIDFromHost() && !isLocalBrowserHost()) {
-			location.replace(`https://${queryFleetID}.example.test/admin/`);
+			location.replace(`${deviceURL(queryFleetID)}/admin/`);
 			return;
 		}
 		if (querySection === 'attendanceSettings') {
@@ -113,7 +122,7 @@
 		if (!browser) return '';
 		const host = location.hostname;
 		if (isLocalBrowserHost()) return '';
-		const suffix = '.example.test';
+		const suffix = `.${fleetZone()}`;
 		if (!host.endsWith(suffix)) return '';
 		const currentFleetID = host.slice(0, -suffix.length);
 		if (!currentFleetID || currentFleetID === 'api' || currentFleetID.includes('.')) return '';
