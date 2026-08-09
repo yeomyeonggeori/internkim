@@ -854,10 +854,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeAdminHealth(responseWriter)
 		return
 	}
-	if path == "/attendance/backfill" {
-		service.backfillAttendanceCentrally(responseWriter, request)
-		return
-	}
 	if strings.HasPrefix(path, "/recovery/ssh-tunnel") {
 		service.handleSSHRecovery(responseWriter, request, path)
 		return
@@ -891,6 +887,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 			http.Error(responseWriter, "admin access required", http.StatusForbidden)
 			return
 		}
+	}
+	if path == "/attendance/backfill" {
+		service.backfillAttendanceCentrally(responseWriter, request)
+		return
 	}
 	if service.rejectOperationsAdminRestrictedMutation(responseWriter, request, path) {
 		return
