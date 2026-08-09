@@ -32,6 +32,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
@@ -74,10 +75,11 @@ type config struct {
 
 func loadConfig() config {
 	loadEnvFile()
+	domain := envOr("INTERNKIM_DOMAIN", envOr("CF_DOMAIN", fleetdomain.Default()))
 	return config{
-		APIBaseURL:     envOr("INTERNKIM_API_URL", "https://api.example.test"),
+		APIBaseURL:     envOr("INTERNKIM_API_URL", fleetdomain.Subdomain("api", domain)),
 		RegisterSecret: envOr("INTERNKIM_REGISTER_SECRET", ""),
-		CFDomain:       envOr("INTERNKIM_DOMAIN", "example.test"),
+		CFDomain:       domain,
 	}
 }
 
@@ -278,7 +280,7 @@ func Main() {
 		}
 		return
 	}
-	runSetup()
+	printUsage()
 }
 
 func printUsage() {
@@ -2419,16 +2421,16 @@ func mattermostSetupCommandPayload(teamID string, commandID string, trigger stri
 	}
 	switch trigger {
 	case "stop":
-		commandRecord.DisplayName = "Stop InternKim task"
-		commandRecord.Description = "Stop your current InternKim task."
+		commandRecord.DisplayName = "Stop internkim task"
+		commandRecord.Description = "Stop your current internkim task."
 		commandRecord.AutocompleteDesc = "Stop your current task"
 	case "stop-all":
-		commandRecord.DisplayName = "Stop all InternKim tasks"
-		commandRecord.Description = "Stop all of your active InternKim tasks."
+		commandRecord.DisplayName = "Stop all internkim tasks"
+		commandRecord.Description = "Stop all of your active internkim tasks."
 		commandRecord.AutocompleteDesc = "Stop all active tasks"
 	default:
 		commandRecord.DisplayName = "Connect Companion"
-		commandRecord.Description = "Connect your InternKim Companion app."
+		commandRecord.Description = "Connect your internkim Companion app."
 		commandRecord.AutocompleteDesc = "Connect your Companion app"
 	}
 	return commandRecord

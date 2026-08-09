@@ -51,7 +51,7 @@ type actionSchemaVariant struct {
 }
 
 func nativeActionToolsForSchema(schema StructuredOutputSchema) (nativeActionToolSet, bool, error) {
-	if strings.TrimSpace(schema.Name) != "blueclaw_agent_turn_action" {
+	if strings.TrimSpace(schema.Name) != "bluecollar_agent_turn_action" {
 		return nativeActionToolSet{}, false, nil
 	}
 	var document actionSchemaDocument

@@ -1,7 +1,7 @@
 # Local Fleet Scenarios
 
 Local Fleet scenarios verify the current checkout against an apple/container-hosted local
-InternKim fleet. They are for localhost-only validation, not deployment.
+internkim fleet. They are for localhost-only validation, not deployment.
 
 ## Commands
 
@@ -26,7 +26,7 @@ For a browser-ready manual Mattermost session, run:
 ```
 
 This provisions the full Blueclaw runtime, creates an invited test account,
-opens its direct message with InternKim, verifies real typing and reply events,
+opens its direct message with internkim, verifies real typing and reply events,
 removes the verification posts, and prints
 the username, password, and direct-message channel to use for continued manual
 testing. It also prints the localhost Mattermost URL and cleanup command. No
@@ -67,7 +67,7 @@ Mattermost artifacts after review.
 - `mattermost-direct-message-send`: verifies real Mattermost DM recipient
   resolution, approval, platform.message.send, and recipient DM delivery.
 - `mattermost-manual`: prepares and preserves an invited browser login with a
-  verified typing event and direct message reply from InternKim.
+  verified typing event and direct message reply from internkim.
 - `mattermost-docx-attachment`: verifies a real Mattermost prompt, DOCX
   generation, native `file.attach` delivery, and local attachment download.
 - `--without-mattermost --scenario <virtual-session>`: verifies Blueclaw's Linux

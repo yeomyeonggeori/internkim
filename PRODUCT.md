@@ -6,11 +6,11 @@ product
 
 ## Users
 
-InternKim serves employees and administrators operating an internal AI workspace. Its shared company page is an external storytelling surface for intended recipients who know its password.
+internkim serves employees and administrators operating an internal AI workspace. Its shared company page is an external storytelling surface for intended recipients who know its password.
 
 ## Product Purpose
 
-InternKim brings company operations, collaboration, attendance, and AI-assisted work into one dependable system. The shared company page turns administrator-approved company data into a safe, current-feeling view without exposing internal records.
+internkim brings company operations, collaboration, attendance, and AI-assisted work into one dependable system. The shared company page turns administrator-approved company data into a safe, current-feeling view without exposing internal records.
 
 ## Brand Personality
 

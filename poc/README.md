@@ -1,4 +1,4 @@
-# InternKim PoC — Apple Container 멀티테넌트
+# internkim PoC — Apple Container 멀티테넌트
 
 M1/M2 맥에서 Firecracker 없이 N개의 독립 인턴김 테넌트를 Apple Container로 실행.
 Postgres 하나, Mattermost 하나를 공유하고 테넌트당 컨테이너 한 개.

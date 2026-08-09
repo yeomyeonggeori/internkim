@@ -1,3 +1,4 @@
+import { isSupabaseConfigured } from '$lib/supabase';
 import { responseErrorMessage } from './calendar-event-persistence';
 
 export type CalendarHoliday = {
@@ -38,6 +39,7 @@ export async function fetchCalendarHolidays(
 		endISO: endDate.toISOString(),
 		locale
 	});
+	if (isSupabaseConfigured()) return { holidays: [], degraded: false };
 	const response = await fetch(`/calendar/api/holidays?${query}`, { credentials: 'include' });
 	if (!response.ok) throw new Error(await responseErrorMessage(response, errorFallback));
 	const document = (await response.json()) as CalendarHolidaysResponse;

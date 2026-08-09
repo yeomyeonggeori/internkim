@@ -75,7 +75,7 @@ describe('buildFlowReportSections', () => {
 		expect(sections.memberDistance.unit).toBe('점');
 		expect(sections.memberDistance.total).toBe(279);
 		expect(sections.memberDistance.averageValue).toBe(140);
-		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시', '최견본', '장석민', '정의']);
+		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시', '장석민', '정의', '최견본']);
 		expect(sections.memberDistance.rows[0].total).toBe(flowReportFixtureMetrics.memberScoreDetails['member-kim'].currentScore);
 		expect(sections.memberDistance.rows[0]).toMatchObject({ label: '김여명', total: 144, percent: 52 });
 		expect(sections.memberDistance.rows[0].summary).toBe('주간 115점 · 월간 173점');
@@ -159,9 +159,9 @@ describe('buildFlowReportSections', () => {
 		expect(sections.memberDistance.rows.map((row) => [row.label, row.total, row.summary])).toEqual([
 			['김여명', 144, '주간 115점 · 월간 173점'],
 			['박예시', 135, '주간 155점 · 월간 115점'],
-			['최견본', 0, '주간 0점 · 월간 0점'],
 			['장석민', 0, '주간 0점 · 월간 0점'],
-			['정의', 0, '주간 0점 · 월간 0점']
+			['정의', 0, '주간 0점 · 월간 0점'],
+			['최견본', 0, '주간 0점 · 월간 0점']
 		]);
 	});
 
@@ -245,7 +245,7 @@ describe('buildFlowReportSections', () => {
 
 		expect(sections.memberDistance.total).toBe(279);
 		expect(sections.memberDistance.averageValue).toBe(140);
-		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시', '최견본', '장석민', '정의']);
+		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시', '장석민', '정의', '최견본']);
 	});
 
 	test('localizes report system labels without translating user definitions', () => {

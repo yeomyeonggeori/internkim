@@ -165,7 +165,7 @@ func TestOpenRouterNativeActionErrorIncludesSchemaLintDiagnostics(t *testing.T) 
 		Model:    "google/gemini-test",
 		Messages: []Message{{Role: "user", Content: "publish"}},
 		StructuredOutputSchema: StructuredOutputSchema{
-			Name: "blueclaw_agent_turn_action",
+			Name: "bluecollar_agent_turn_action",
 			Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{{
 				Name:        "file_write",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":["string","null"]}},"required":["path","content"]}`),
@@ -185,7 +185,7 @@ func TestOpenRouterNativeActionErrorIncludesSchemaLintDiagnostics(t *testing.T) 
 
 func TestNativeActionToolSchemasArePortableAfterNormalization(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-		Name: "blueclaw_agent_turn_action",
+		Name: "bluecollar_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{{
 			Name:        "file_write",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":["string","null"]},"retries":{"type":"integer","minimum":0}},"required":["path","content","retries"],"additionalProperties":false}`),

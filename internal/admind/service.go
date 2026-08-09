@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"io"
 	"log"
 	"net"
@@ -30,6 +31,8 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -56,6 +59,10 @@ type Configuration struct {
 	CalendarSecretsDirectory       string
 	MailDatabasePath               string
 	AttendanceDatabasePath         string
+	CentralPlaneAppURL             string
+	CentralPlaneAgentKeyPath       string
+	CentralPlaneProjectURL         string
+	CentralPlanePublishableKey     string
 	BridgeMapDatabasePath          string
 	MattermostAdminPasswordPath    string
 	MattermostTokenPath            string
@@ -72,6 +79,7 @@ type Configuration struct {
 	MattermostConfigFilePath       string
 	AdminEmailPath                 string
 	ClaimedAdminEmailPath          string
+	APIURLPath                     string
 	FleetIDPath                    string
 	DeviceURLPath                  string
 	FleetSecretPath                string
@@ -127,7 +135,7 @@ type Service struct {
 	sites                              map[string]*SiteRecord
 	siteRuntimeMutex                   sync.Mutex
 	siteRuntimeActivities              map[string]*siteRuntimeActivity
-	mailBackend                        mailBackend
+	mailBackend                        mail.Backend
 	googleOAuthStates                  sync.Map
 	calendarSyncWakeUp                 chan struct{}
 	calendarDeleteIntentWakeUp         chan struct{}
@@ -288,7 +296,6 @@ func DefaultConfiguration() Configuration {
 		MattermostBaseURL:              "http://127.0.0.1:8065",
 		MattermostTeamName:             "internkim",
 		BotUsername:                    "internkim",
-		APIBaseURL:                     "https://api.example.test",
 		BlueclawBaseURL:                "http://127.0.0.1:8080",
 		CapabilitySocketPath:           blueclawruntime.CapabilitySocketPath,
 		StateDirectory:                 "/root/.internkim/state/admin",
@@ -306,7 +313,6 @@ func DefaultConfiguration() Configuration {
 		MattermostOAuthClientPath:      "/root/.internkim/secrets/mattermost-oauth-client.json",
 		OpenRouterKeyPath:              "/root/.internkim/secrets/openrouter-api-key",
 		OpenRouterModelsURL:            "https://openrouter.ai/api/v1/models",
-		ReleaseRegistryURL:             "https://updates.example.test",
 		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
 		ReleaseSigningKeyPath:          "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
@@ -314,6 +320,10 @@ func DefaultConfiguration() Configuration {
 		MattermostConfigFilePath:       "/opt/mattermost/config/config.json",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
+		APIURLPath:                     "/root/.internkim/env/api-url",
+		CentralPlaneAgentKeyPath:       "/root/.internkim/secrets/central-plane-agent-key",
+		CentralPlaneProjectURL:         centralplane.DefaultProjectURL,
+		CentralPlanePublishableKey:     centralplane.DefaultPublishableKey,
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		DeviceURLPath:                  "/root/.internkim/env/device-url",
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
@@ -344,7 +354,7 @@ func NewService(configuration Configuration) *Service {
 		companionJobs:              map[string]*CompanionJob{},
 		companionFileUploads:       map[string]*CompanionFileUpload{},
 		sites:                      map[string]*SiteRecord{},
-		mailBackend:                standardMailBackend{},
+		mailBackend:                mail.StandardBackend{},
 		calendarSyncWakeUp:         make(chan struct{}, 1),
 		calendarDeleteIntentWakeUp: make(chan struct{}, 1),
 		calendarNotificationStates: map[string]*calendarNotificationReconciliationState{},
@@ -369,6 +379,8 @@ func (service *Service) Run(ctx context.Context) error {
 		return fmt.Errorf("reconcile LLMD release bootstrap: %w", errorValue)
 	}
 	go service.reconcileBlueclawRuntimeConfiguration(ctx)
+	go service.centralPlane()
+	go service.keepAttendanceReconciled(ctx)
 	service.reconcileSiteSourcesToStaffCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
@@ -601,7 +613,7 @@ func (service *Service) router() http.Handler {
 func (service *Service) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		origin := request.Header.Get("Origin")
-		if isInternKimCORSPath(request.URL.Path) && isAllowedOrigin(origin) {
+		if isInternKimCORSPath(request.URL.Path) && service.isAllowedOrigin(origin) {
 			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
 			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
 			responseWriter.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, CF-Access-Authenticated-User-Email, X-InternKim-Companion-ID, X-InternKim-Companion-Token")
@@ -840,6 +852,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	}
 	if request.Method == http.MethodGet && path == "/health" {
 		service.writeAdminHealth(responseWriter)
+		return
+	}
+	if path == "/attendance/backfill" {
+		service.backfillAttendanceCentrally(responseWriter, request)
 		return
 	}
 	if strings.HasPrefix(path, "/recovery/ssh-tunnel") {
@@ -2725,9 +2741,6 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.OpenRouterModelsURL == "" {
 		configuration.OpenRouterModelsURL = defaultConfiguration.OpenRouterModelsURL
 	}
-	if configuration.ReleaseRegistryURL == "" {
-		configuration.ReleaseRegistryURL = defaultConfiguration.ReleaseRegistryURL
-	}
 	if configuration.ReleaseDownloadTokenPath == "" {
 		configuration.ReleaseDownloadTokenPath = defaultConfiguration.ReleaseDownloadTokenPath
 	}
@@ -2742,6 +2755,27 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.ClaimedAdminEmailPath == "" {
 		configuration.ClaimedAdminEmailPath = defaultConfiguration.ClaimedAdminEmailPath
+	}
+	if configuration.APIURLPath == "" {
+		configuration.APIURLPath = defaultConfiguration.APIURLPath
+	}
+	if configuration.APIBaseURL == "" {
+		configuration.APIBaseURL = strings.TrimSpace(readTrimmedFile(configuration.APIURLPath))
+	}
+	if configuration.CentralPlaneAgentKeyPath == "" {
+		configuration.CentralPlaneAgentKeyPath = defaultConfiguration.CentralPlaneAgentKeyPath
+	}
+	if configuration.CentralPlaneProjectURL == "" {
+		configuration.CentralPlaneProjectURL = defaultConfiguration.CentralPlaneProjectURL
+	}
+	if configuration.CentralPlanePublishableKey == "" {
+		configuration.CentralPlanePublishableKey = defaultConfiguration.CentralPlanePublishableKey
+	}
+	if configuration.CentralPlaneAppURL == "" {
+		configuration.CentralPlaneAppURL = configuration.APIBaseURL
+	}
+	if configuration.ReleaseRegistryURL == "" {
+		configuration.ReleaseRegistryURL = fleetdomain.Subdomain("updates", fleetdomain.Zone(configuration.APIBaseURL))
 	}
 	if configuration.FleetIDPath == "" {
 		configuration.FleetIDPath = defaultConfiguration.FleetIDPath
@@ -3073,7 +3107,11 @@ func copyRegularFile(sourcePath string, targetPath string) error {
 	return closeErrorValue
 }
 
-func isAllowedOrigin(origin string) bool {
+func (service *Service) fleetZone() string {
+	return fleetdomain.Zone(service.Configuration.APIBaseURL)
+}
+
+func (service *Service) isAllowedOrigin(origin string) bool {
 	if origin == "" {
 		return false
 	}
@@ -3082,7 +3120,7 @@ func isAllowedOrigin(origin string) bool {
 		return false
 	}
 	host := strings.ToLower(parsedURL.Hostname())
-	return host == "example.test" || strings.HasSuffix(host, ".example.test") || host == "localhost" || host == "127.0.0.1"
+	return fleetdomain.Covers(service.fleetZone(), host) || host == "localhost" || host == "127.0.0.1"
 }
 
 func isSafeTarPath(path string) bool {

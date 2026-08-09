@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"time"
 )
 
@@ -64,14 +65,14 @@ CREATE TABLE IF NOT EXISTS mail_message_cache (
 	if errorValue != nil {
 		return errorValue
 	}
-	return ensureMailMessageListCacheSchema(ctx, database)
+	return mail.EnsureMessageListCacheSchema(ctx, database)
 }
 
-func (service *Service) readMailAccount(ctx context.Context, actorEmail string) (mailAccount, bool, error) {
-	account := defaultMailAccount(actorEmail)
+func (service *Service) readMailAccount(ctx context.Context, actorEmail string) (mail.Account, bool, error) {
+	account := mail.DefaultAccount(actorEmail)
 	database, errorValue := service.openMailDatabase(ctx)
 	if errorValue != nil {
-		return mailAccount{}, false, errorValue
+		return mail.Account{}, false, errorValue
 	}
 	defer database.Close()
 	row := database.QueryRowContext(ctx, `
@@ -101,18 +102,18 @@ WHERE actor_email = ?`, actorEmail)
 		return account, false, nil
 	}
 	if errorValue != nil {
-		return mailAccount{}, false, errorValue
+		return mail.Account{}, false, errorValue
 	}
-	return normalizeMailAccount(account), true, nil
+	return mail.NormalizeAccount(account), true, nil
 }
 
-func (service *Service) saveMailAccountRecord(ctx context.Context, account mailAccount) error {
+func (service *Service) saveMailAccountRecord(ctx context.Context, account mail.Account) error {
 	database, errorValue := service.openMailDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
 	defer database.Close()
-	account = normalizeMailAccount(account)
+	account = mail.NormalizeAccount(account)
 	account.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	_, errorValue = database.ExecContext(ctx, `
 INSERT INTO mail_accounts(actor_email, email, from_address, display_name, imap_host, imap_port, imap_security, imap_username, imap_password, smtp_host, smtp_port, smtp_security, smtp_username, smtp_password, default_mailbox, sent_mailbox, updated_at)

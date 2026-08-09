@@ -17,7 +17,7 @@ func newIdentityVaultService(t *testing.T) *Service {
 func TestBuzzIdentitySecretRoundTrips(t *testing.T) {
 	service := newIdentityVaultService(t)
 	secretHex := strings.Repeat("a1", 32)
-	if errorValue := service.storeBuzzIdentitySecret("Lee@Dawn.kim", secretHex); errorValue != nil {
+	if errorValue := service.storeBuzzIdentitySecret("Lee@Example.com", secretHex); errorValue != nil {
 		t.Fatalf("store identity secret: %v", errorValue)
 	}
 	if !service.hasBuzzIdentitySecret("lee@example.com") {

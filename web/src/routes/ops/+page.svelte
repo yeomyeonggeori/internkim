@@ -285,7 +285,7 @@
 </script>
 
 <svelte:head>
-	<title>InternKim Ops</title>
+	<title>internkim Ops</title>
 </svelte:head>
 
 <main class="min-h-svh bg-background text-foreground">
