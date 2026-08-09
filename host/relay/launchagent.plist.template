@@ -3,19 +3,19 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>kim.intern.messenger-bridge</string>
+    <string>kim.intern.relay</string>
     <key>ProgramArguments</key>
     <array>
-        <string>BRIDGE_BINARY</string>
+        <string>RELAY_BINARY</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>HOME_DIR/Library/Logs/internkim-messenger-bridge.log</string>
+    <string>HOME_DIR/Library/Logs/internkim-relay.log</string>
     <key>StandardErrorPath</key>
-    <string>HOME_DIR/Library/Logs/internkim-messenger-bridge.log</string>
+    <string>HOME_DIR/Library/Logs/internkim-relay.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>SUPABASE_URL</key>

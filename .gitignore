@@ -20,13 +20,13 @@ dist/
 /internkim-capabilityd
 /internkim-companion
 /internkim-llm-gateway
-/internkim-messenger-bridge
+/internkim-relay
 .github/*
 !.github/PULL_REQUEST_TEMPLATE.md
 !.github/workflows/
 companion/dist/
 companion/node_modules/
-host/messenger/node_modules/
+host/relay/node_modules/
 companion/src-tauri/binaries/
 companion/src-tauri/gen/
 companion/src-tauri/target/

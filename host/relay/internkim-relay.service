@@ -1,12 +1,12 @@
 [Unit]
-Description=internkim messenger bridge
+Description=internkim relay
 Documentation=https://github.com/yeomyeonggeori/internkim/blob/main/host/README.md
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/internkim-messenger-bridge
-EnvironmentFile=/etc/internkim/messenger-bridge.env
+ExecStart=/usr/local/bin/internkim-relay
+EnvironmentFile=/etc/internkim/relay.env
 Restart=always
 RestartSec=5s
 User=internkim

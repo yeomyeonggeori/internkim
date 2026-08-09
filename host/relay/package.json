@@ -1,5 +1,5 @@
 {
-	"name": "internkim-messenger-bridge",
+	"name": "internkim-relay",
 	"private": true,
 	"type": "module",
 	"dependencies": {

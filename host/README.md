@@ -16,28 +16,28 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | the agent binary | — |
 | **capabilityd** | optional — `not_configured` is a passing state, but the calendar, task, mail and site tools disappear without it |
 | **chatd** | optional — only if a messenger is attached |
-| **the messenger bridge** | everything the web messenger shows — channels, people, pictures, emoji — is answered by this process; when it is not running the screen is empty, by design, because the company holds its own messenger |
+| **the relay** | everything the web messenger shows — channels, people, pictures, emoji — is answered by this process; when it is not running the screen is empty, by design, because the company holds its own messenger |
 
 Firecracker, the POSIX helper, Mattermost, a relay and cloudflared are **not**
 needed. The device stack required them; this does not.
 
-## The messenger bridge
+## The relay
 
 `docs/internal/saas-design.md` §6 has the shape; the part that matters here is
-that the bridge **depends on nothing else in this bundle**. It never speaks to
+that the relay **depends on nothing else in this bundle**. It never speaks to
 blueclaw, chatd, capabilityd, llmd or Postgres — only Supabase, the central
 plane and the tenant's messenger. So `entrypoint.sh` starts it **first**, before
 the postgres wait: the agent can be down and the messenger screen still answers.
 
 That independence is also why it runs anywhere. The POSIX boundary below
-constrains where the *agent* runs; the bridge only needs an outbound network and
+constrains where the *agent* runs; the relay only needs an outbound network and
 a machine that stays on. A Jetson, a Mac Studio and a laptop are all fine.
 
 ### How big an answer may be
 
 Realtime drops a broadcast frame that is too large without telling either side,
 which surfaces as a 20-second timeout and "the company app is not running". That
-diagnosis sends you looking at the wrong machine, so the bridge measures every
+diagnosis sends you looking at the wrong machine, so the relay measures every
 answer first and replies `413` with the byte count instead.
 
 `ANSWER_BYTE_CEILING` sets the limit, default `200000`. **Measure it; the
@@ -52,8 +52,8 @@ base64 inflates by a third and the two used to disagree: pictures were accepted
 up to 200,000 raw bytes, which is about 267 KB on the wire. Anything larger now
 comes back without a picture, and the call survives.
 
-`make build-messenger-bridge` compiles it into a single
-`internkim-messenger-bridge` executable, so the box needs no Bun and no
+`make build-relay` compiles it into a single
+`internkim-relay` executable, so the box needs no Bun and no
 `node_modules`. It requires four settings, plus the optional
 `ANSWER_BYTE_CEILING` above:
 
@@ -71,19 +71,19 @@ with different settings.
 
 ### Any always-on computer will do
 
-The bridge has no operating-system-specific code: it reads four settings and
+The relay has no operating-system-specific code: it reads four settings and
 talks to Supabase, the central plane and the messenger over the network. A
 Linux server, a Jetson, a Mac that stays awake — whichever the company already
 leaves running.
 
-Build for whichever that is. `BRIDGE_TARGET` is empty by default, which builds
+Build for whichever that is. `RELAY_TARGET` is empty by default, which builds
 for the machine doing the building:
 
 ```
-make build-messenger-bridge                             # this machine
-make build-messenger-bridge BRIDGE_TARGET=bun-linux-arm64
-make build-messenger-bridge BRIDGE_TARGET=bun-linux-x64
-make build-messenger-bridge BRIDGE_TARGET=bun-darwin-arm64
+make build-relay                             # this machine
+make build-relay RELAY_TARGET=bun-linux-arm64
+make build-relay RELAY_TARGET=bun-linux-x64
+make build-relay RELAY_TARGET=bun-darwin-arm64
 ```
 
 Then hand it to whatever supervises things on that computer, so it comes back
@@ -91,11 +91,11 @@ after a crash or a reboot:
 
 | | |
 |---|---|
-| systemd | `internkim-messenger-bridge.service` — settings in `/etc/internkim/messenger-bridge.env`, `Restart=always` |
+| systemd | `internkim-relay.service` — settings in `/etc/internkim/relay.env`, `Restart=always` |
 | launchd | `launchagent.plist.template` — `KeepAlive` |
 | the bundle | `entrypoint.sh` already starts and restarts it |
 
-Restarting matters: the bridge is the only thing answering the messenger
+Restarting matters: the relay is the only thing answering the messenger
 screen, and a process that dies without coming back leaves that screen empty.
 
 ## What it holds
@@ -120,7 +120,7 @@ DATABASE_URL=postgres://…            # the host's own Postgres
 ```
 
 The agent key is never a value in the environment. It lives in
-`/secrets/agent-key`, mode 0600, beside `/secrets/openrouter-key`, and the bridge
+`/secrets/agent-key`, mode 0600, beside `/secrets/openrouter-key`, and the relay
 is handed the path; rotating the file is enough.
 
 Plus the messenger the tenant runs, one of:
