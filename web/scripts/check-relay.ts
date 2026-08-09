@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { addMember, issueAgentKey, provisionCompany } from '../src/lib/server/control-plane';
 import { saveCompanyConnection } from '../src/lib/server/company-credential';
+import { aBrowserThatSubscribed } from '../tests/support/read-as-the-browser-would';
 
 function argument(name: string): string | undefined {
 	const index = process.argv.indexOf(`--${name}`);
@@ -14,6 +15,7 @@ const serviceRoleKey = argument('key') ?? '';
 const publishableKey = argument('publishable') ?? '';
 const appURL = argument('app') ?? 'http://localhost:5178';
 const bridgePath = argument('bridge') ?? './internkim-messenger-bridge';
+const arrivalsPort = 18094;
 if (!projectURL || !serviceRoleKey || !publishableKey) throw new Error('pass --url, --key and --publishable');
 
 const admin = createClient(projectURL, serviceRoleKey, {
@@ -119,6 +121,7 @@ try {
 			INTERNKIM_APP_URL: appURL,
 			MESSENGER_PLATFORM: 'mattermost',
 			CHATD_BASE_URL: connector.url,
+			ARRIVALS_PORT: String(arrivalsPort),
 			AGENT_API_KEY: agent.apiKey
 		},
 		stdout: 'inherit',
@@ -205,6 +208,32 @@ try {
 		'the relay proved who the caller was before doing the work',
 		connector.asked[0]?.capability === 'person.identity'
 	]);
+
+	const subscriber = await aBrowserThatSubscribed();
+	const pushService = Bun.serve({
+		port: 0,
+		fetch: () => new Response(null, { status: 201 })
+	});
+	await admin.from('push_device').insert({
+		member_id: company.adminMemberID,
+		kind: 'web-push',
+		address: `http://127.0.0.1:${pushService.port}/push`,
+		keys: subscriber.keys
+	});
+	const arrival = await fetch(`http://127.0.0.1:${arrivalsPort}`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			conversationID: 'channel-1',
+			messageID: `post-${stamp}`,
+			authorExternalID: secondExternalID,
+			recipientExternalIDs: [firstExternalID, secondExternalID],
+			preview: '오늘 회의 30분 미뤄도 될까요'
+		})
+	});
+	const reported = (await arrival.json()) as { told?: number };
+	findings.push(['a message the messenger accepted becomes a notification', reported.told === 1]);
+	pushService.stop(true);
 
 	await asMember.removeAllChannels();
 	asMember.realtime.disconnect();

@@ -13,6 +13,7 @@ llmdAuthKeyPath="${llmdRuntimeDirectory}/llmd-auth-key"
 capabilitySocketPath="/run/internkim/capability.sock"
 blueclawAddress="127.0.0.1:8080"
 chatdPort="${CHATD_LISTEN_PORT:-18090}"
+arrivalsPort="${ARRIVALS_PORT:-18091}"
 agentKeyPath="/secrets/agent-key"
 
 : "${SUPABASE_URL:?set SUPABASE_URL}"
@@ -51,7 +52,7 @@ echo "[host] starting messenger bridge"
 keepBridgeRunning() {
   while true; do
     AGENT_API_KEY_PATH="${agentKeyPath}" CHATD_BASE_URL="http://127.0.0.1:${chatdPort}" \
-      MESSENGER_PLATFORM="${MESSENGER_PLATFORM}" internkim-messenger-bridge &
+      MESSENGER_PLATFORM="${MESSENGER_PLATFORM}" ARRIVALS_PORT="${arrivalsPort}" internkim-messenger-bridge &
     bridgeChild="$!"
     trap 'kill "${bridgeChild}" 2>/dev/null; exit 0' TERM
     wait "${bridgeChild}" || true

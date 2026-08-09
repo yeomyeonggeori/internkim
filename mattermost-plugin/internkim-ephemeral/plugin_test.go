@@ -240,6 +240,14 @@ func (api *testPluginAPI) GetChannel(channelID string) (*model.Channel, *model.A
 	return api.channel, nil
 }
 
+func (api *testPluginAPI) GetChannelMembers(channelID string, page, perPage int) (model.ChannelMembers, *model.AppError) {
+	members := model.ChannelMembers{}
+	for _, user := range api.channelUsers {
+		members = append(members, model.ChannelMember{ChannelId: channelID, UserId: user.Id})
+	}
+	return members, nil
+}
+
 func (api *testPluginAPI) GetUserByUsername(username string) (*model.User, *model.AppError) {
 	if api.botUser == nil || api.botUser.Username != username {
 		return nil, nil

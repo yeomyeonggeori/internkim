@@ -1,0 +1,52 @@
+export type ArrivedMessage = {
+	conversationID: string;
+	messageID: string;
+	authorExternalID: string;
+	recipientExternalIDs: string[];
+	preview: string;
+};
+
+export type Told = {
+	title: string;
+	body: string;
+	openPath: string;
+	tag: string;
+};
+
+const previewLimit = 140;
+
+export function readArrivedMessage(offered: unknown): ArrivedMessage | null {
+	if (typeof offered !== 'object' || offered === null) return null;
+	const held = offered as Record<string, unknown>;
+
+	const messageID = text(held.messageID);
+	const authorExternalID = text(held.authorExternalID);
+	if (!messageID || !authorExternalID) return null;
+
+	return {
+		conversationID: text(held.conversationID),
+		messageID,
+		authorExternalID,
+		recipientExternalIDs: externalIDs(held.recipientExternalIDs, authorExternalID),
+		preview: text(held.preview).slice(0, previewLimit)
+	};
+}
+
+export function tellingOf(arrived: ArrivedMessage, authorName: string): Told {
+	return {
+		title: authorName || 'internkim',
+		body: arrived.preview,
+		openPath: '/messenger/',
+		tag: `message:${arrived.conversationID}`
+	};
+}
+
+function text(offered: unknown): string {
+	return typeof offered === 'string' ? offered.trim() : '';
+}
+
+function externalIDs(offered: unknown, author: string): string[] {
+	if (!Array.isArray(offered)) return [];
+	const named = offered.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '');
+	return [...new Set(named.map((entry) => entry.trim()))].filter((entry) => entry !== author);
+}
