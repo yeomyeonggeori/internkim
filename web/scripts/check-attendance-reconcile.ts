@@ -98,6 +98,17 @@ try {
 	]);
 	findings.push(['and the record still holds what it held', (await heldFor(company.adminMemberID)).length === 2]);
 
+	const outside = await reconcile(agent.apiKey, [
+		{ externalID: firstExternalID, kind: 'clock_in', occurredAt: '2026-08-07T03:56:00Z', location: '본사' },
+		{ externalID: firstExternalID, kind: 'clock_out', occurredAt: '2026-08-07T09:54:00Z', location: '본사' },
+		{ externalID: firstExternalID, kind: 'clock_in', occurredAt: '2026-09-02T01:00:00Z', location: '본사' },
+		{ externalID: secondExternalID, kind: 'clock_in', occurredAt: '2026-08-06T00:10:00Z', location: '' }
+	]);
+	findings.push([
+		'an event outside the window is not this window to reconcile',
+		outside.added === 0 && outside.removed === 0 && (outside.rejected as string[]).length === 0
+	]);
+
 	const stranger = await reconcile('not-an-agent-key', []);
 	findings.push(['a key belonging to no agent changes nothing', stranger.added === undefined]);
 } finally {
