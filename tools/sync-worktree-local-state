@@ -110,6 +110,7 @@ fi
 syncLocalState ".env"
 syncLocalState "web/.dev.vars"
 syncLocalState ".local/secrets"
+syncLocalState ".local/ops"
 syncLocalState ".agents"
 syncLocalState "secrets"
 syncLocalState "docs/private"
