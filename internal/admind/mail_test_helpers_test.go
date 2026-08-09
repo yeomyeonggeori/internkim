@@ -3,6 +3,7 @@ package admind
 import (
 	"bytes"
 	"context"
+	"gitlab.com/eastriver/internkim/internal/mail"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -34,7 +35,7 @@ func writeUsersSyncTestCache(t *testing.T, service *Service, email string) {
 
 func saveConfiguredMailTestAccount(t *testing.T, service *Service) {
 	t.Helper()
-	account := defaultMailAccount("admin@example.com")
+	account := mail.DefaultAccount("admin@example.com")
 	account.FromAddress = "admin@example.com"
 	account.IMAPHost = "imap.example.com"
 	account.IMAPUsername = "admin@example.com"

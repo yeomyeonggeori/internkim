@@ -14,7 +14,7 @@ func TestGenerateTenantCredentialsIssuesUnbrandedAdminPassword(t *testing.T) {
 	if credentials.AdminUsername != TenantInitialAdminUsername {
 		t.Fatalf("admin username = %q", credentials.AdminUsername)
 	}
-	if strings.HasPrefix(credentials.AdminPassword, "InternKim") {
+	if strings.HasPrefix(strings.ToLower(credentials.AdminPassword), "internkim") {
 		t.Fatalf("admin password has predictable prefix: %q", credentials.AdminPassword)
 	}
 	if len(credentials.AdminPassword) < 36 {

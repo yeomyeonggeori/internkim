@@ -113,7 +113,7 @@ test.describe('app rail', () => {
 
 	test('opens the contact form from the rail footer', async ({ page, context }) => {
 		await context.route('https://forms.gle/**', async (route) => {
-			await route.fulfill({ contentType: 'text/html', body: '<title>InternKim feedback</title>' });
+			await route.fulfill({ contentType: 'text/html', body: '<title>internkim feedback</title>' });
 		});
 		await page.setViewportSize({ width: 930, height: 1904 });
 		await page.goto('/memory/');

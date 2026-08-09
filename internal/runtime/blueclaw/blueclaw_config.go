@@ -222,7 +222,13 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"enabled":       true,
 			"executionMode": "auto",
 		},
-		"defaultTaskLevel":    firstNonEmptyString(options.DefaultTaskLevel, "low"),
+		"defaultTaskLevel": firstNonEmptyString(options.DefaultTaskLevel, "low"),
+		"optionalFileReadPathSuffixes": []string{
+			".internkim/site.json",
+			".internkim/idea.md",
+			".internkim/artifact-brief.md",
+			".internkim/review-log.json",
+		},
 		"skillTaskLevelFloor": "high",
 		"toolResultMaxBytes":  32768,
 		"failureRecovery": map[string]any{

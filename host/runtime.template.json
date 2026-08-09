@@ -1,0 +1,42 @@
+{
+  "baseURL": "http://127.0.0.1:8080",
+  "languageModel": {
+    "defaultProvider": "llmd",
+    "llmd": {
+      "unixSocketPath": "/run/internkim/llmd/llmd.sock",
+      "authKeyPath": "/run/internkim/llmd/llmd-auth-key",
+      "executionMode": "remote",
+      "timeoutSecond": 60
+    }
+  },
+  "capabilities": {
+    "unixSocketPath": "/run/internkim/capability.sock",
+    "timeoutSecond": 30
+  },
+  "database": {
+    "driver": "postgres",
+    "connectionString": "${DATABASE_URL}",
+    "migrationDirectoryPath": "/opt/blueclaw/migrations"
+  },
+  "agent": {
+    "intake": { "enabled": true, "executionMode": "remote" },
+    "defaultEffortLevel": "standard"
+  },
+  "connectors": {
+    "chatd": {
+      "endpoint": "http://127.0.0.1:18090",
+      "enabledPlatforms": ["${MESSENGER_PLATFORM}"],
+      "timeoutSecond": 30
+    }
+  },
+  "logging": { "directoryPath": "/var/log/internkim", "retentionDays": 7 },
+  "terminal": {
+    "mode": "native",
+    "workspaceRootPath": "/workspace",
+    "timeoutSecond": 120,
+    "outputMaxBytes": 32768,
+    "sessionMaxCount": 4,
+    "allowNetwork": true
+  },
+  "scheduler": { "retentionCheckIntervalMinute": 60, "taskSchedulePollIntervalSecond": 30 }
+}

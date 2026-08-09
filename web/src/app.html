@@ -4,9 +4,27 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<link rel="manifest" href="/manifest.webmanifest" />
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+		<meta name="apple-mobile-web-app-title" content="internkim" />
+		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
 		<script>
 			if (window.self !== window.top) document.documentElement.classList.add('internkim-embedded');
+			addEventListener(
+				'error',
+				(event) => {
+					const source = event.target;
+					if (!source || source.tagName !== 'SCRIPT' || !source.src.includes('/_app/immutable/')) return;
+					if (sessionStorage.getItem('internkim-reloaded-for-release')) return;
+					sessionStorage.setItem('internkim-reloaded-for-release', '1');
+					location.reload();
+				},
+				true
+			);
+			addEventListener('load', () => sessionStorage.removeItem('internkim-reloaded-for-release'));
 		</script>
+		<script id="central-plane" type="application/json">{}</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

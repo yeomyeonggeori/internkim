@@ -391,7 +391,7 @@ export const adminText = {
 		openBuzz: 'Open Buzz',
 		buzzSubtitle: 'Internal AI hardware for Buzz',
 		buzzHeroTitle: 'Start conversations in Buzz.',
-		buzzHeroDescription: 'Invited teammates can hand work to InternKim straight from Buzz.',
+		buzzHeroDescription: 'Invited teammates can hand work to internkim straight from Buzz.',
 		devicePending: 'After device registration, the dedicated Mattermost address and invite controls will appear here.',
 		sections: {
 			device: 'Device',

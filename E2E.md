@@ -10,10 +10,10 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | 가상 세션 | `./internkim dev simulate --scenario <name>` | `.dependency/blueclaw/internal/e2e/scenarios.go` (등록: `virtual_session.go`) | 스크립트 응답에 대한 에이전트 루프·상태 전이·이벤트 invariant |
 | Mattermost 제외 Linux | `./internkim dev fleet run --without-mattermost --scenario <name>` | Blueclaw virtual-session을 Linux VM 내부에서 실행 | Mattermost 서버 없이 Linux toolchain·agent 경로 검증 |
 | 로컬 플릿 | `./internkim dev fleet run` | `internal/localfleet/plans.go` | 일회용 Linux+Mattermost+Kim 서버에서 predeploy API·Mattermost·browser 스모크 |
-| 플릿 시나리오 | `./internkim dev fleet run --scenario <name>` | `internal/localfleet/service.go` + `.dependency/blueclaw/lab/scripts/scenario-*.sh` | 일회용 실제 커넥터 경유 메시징·재시작 후 정책 보존 |
+| 플릿 시나리오 | `./internkim dev fleet run --scenario <name>` | `internal/localfleet/service.go` + `lab/scripts/scenario-*.sh`, `.dependency/blueclaw/lab/scripts/scenario-*.sh` | 일회용 실제 커넥터 경유 메시징·재시작 후 정책과 태스크 원장 보존 |
 | 재사용 플릿 | `./internkim dev fleet run --reuse --scenario <name>` | `internal/localfleet` shared VM/state/tunnel | 수동 디버깅용 공유 로컬 플릿 |
 
-가상 세션 시나리오는 `internal/agenttest/scripted_language_model.go`의
+가상 세션 시나리오는 `.dependency/blueclaw/agenttest/scripted_language_model.go`의
 응답에 대한 상태 전이, 승인, 취소, 부작용, 증거 연결을 결정적으로 검증한다.
 실 LLM의 툴·스킬 판단 품질이나 AI SDK 경로는 보증하지 않는다. AI SDK
 acceptance는 LLMD authoritative로 실행되는 `./internkim test expensive` 또는
@@ -24,35 +24,47 @@ lab runner의 `--llm-provider llmd --live-llm --strict-assertions` 조합으로
 
 | 시나리오 | 별칭 | 보증하는 행동 |
 |---|---|---|
-| `slides_local_multiturn_success` | `slides` | simple-slides 스킬 선택, Marp 빌드, 산출물 첨부, DESIGN.md 작성 |
+| `presentation_local_multiturn_success` | `presentation` | presentation 스킬 선택, `scripts/build.sh` 빌드, pptx/pdf/html/노트 첨부, DESIGN.md 작성과 슬라이드 렌더 리뷰 통과 |
 | `memory_guided_followup` | `memory` | 1턴 기억 저장 → 2턴 회상해 답변 반영 |
 | `tool_permission_hides_skill` | — | 허용 툴 없는 스킬 억제 + 거짓 거절 없음 |
 | `gws_disabled` | — | 비허용 GWS 툴 차단과 거부 설명 |
 | `schedule_create_acceptance` | — | scheduled-task 스킬로 interval `schedule_create` |
-| `site_prototype_acceptance` | `site` | `terminal_run` 스캐폴드/빌드 → `site_serve`, URL 회신 |
-| `ask_choice_reply_acceptance` | — | `ask_choice` 발행과 다음 턴 선택 해석 |
-| `ask_confirm_reply_acceptance` | — | `ask_confirm`(external_send) 발행과 승인 후 계속 |
+| `site_artifact_acceptance` | — | `file_write` 콘텐츠 작성 → `site_serve` 배포, URL 회신 (`terminal_run` 0회) |
+| `ask_choice_reply_acceptance` | — | 선택지 있는 `ask_input` 발행과 다음 턴 선택 해석 |
 | `attachment_material_read` | — | 컨텍스트 첨부를 `image_read`로 읽기 |
 | `attachment_html_preview_recovery` | — | 현재 메시지 HTML 첨부 `file_preview` |
 | `attachment_html_previous_preview_recovery` | — | 이전 메시지 첨부 경로 복구 |
 | `attachment_current_image_input` | — | 현재 이미지 첨부의 직접 이미지 파트 주입 |
+| `xlow_image_vision_fallback` | — | xlow 티어 이미지 첨부의 비전 폴백 답변 |
+| `file_write_acceptance` | — | `file_write`로 JSON 메모 저장 후 `file_deliver` 첨부 |
+| `document_create_acceptance` | — | document 스킬로 DOCX 작성 후 `file_deliver` 첨부 |
 | `plain_question_acceptance` | — | 도구 없이 일반질문 직접 회신 |
 | `web_search_acceptance` | — | `web_search` 1회 후 결과 기반 답변 |
 | `schedule_lifecycle_acceptance` | — | 반복 예약 생성→`schedule_update` 수정→취소 |
 | `one_time_schedule_acceptance` | — | `kind:"once"`+`runAt` 일회성 예약 생성 |
-| `dm_send_confirm_acceptance` | — | ask_confirm 승인 후 `platform.message.send` DM 송신 |
-| `channel_post_acceptance` | — | 채널 타깃 `platform.message.send` 포스트 작성 |
-| `calendar_event_lifecycle_acceptance` | — | 일정 생성→시간 변경→삭제 3턴 |
-| `platform_message_edit_acceptance` | — | `platform.message.update`로 기존 포스트 수정 |
+| `dm_send_confirm_acceptance` | — | 승인 게이트 통과 후 `message_send` DM 송신 |
+| `channel_post_acceptance` | — | 채널 타깃 `message_send` 포스트 작성 |
+| `calendar_event_lifecycle_acceptance` | — | `calendar_add` 생성→`calendar_update` 시간 변경→`calendar_delete` 승인→삭제 4턴 |
+| `calendar_false_finish_recovery_acceptance` | — | 툴 없이 끝낸 거짓 완료를 `calendar_add` 재시도로 복구 |
+| `ambient_duty_calendar_acceptance` | — | 나를 향하지 않은 채널 메시지를 상시 업무로 잡아 회신 없이 `calendar_add` |
+| `ambient_task_capture_acceptance` | — | 상시 업무로 회신 없이 `task_add` 후 다음 턴 `task_update` 마감 변경 |
+| `platform_message_edit_acceptance` | — | `message_update`로 기존 포스트 수정 |
 | `skill_lifecycle_acceptance` | — | `skill_add` 등록 후 `skill_remove` 삭제 |
 | `capability_question_acceptance` | — | 빈 쿼리 `skill_search`로 능력 질문 답변 |
-| `task_history_question_acceptance` | — | `task.history`로 선행 작업 질문 답변 |
-| `site_edit_redeploy_acceptance` | — | 배포된 사이트 수정→빌드→재배포 |
-| `site_lifecycle_acceptance` | — | PENDING: structured `requiredEvidence` 기반 웹사이트 생성→배포→수정→재배포→삭제 승인→삭제 |
+| `task_history_question_acceptance` | — | `conversation_history`로 선행 작업 질문 답변 |
+| `site_edit_redeploy_acceptance` | — | 사이트 배포 후 같은 사이트 수정→재배포 (`terminal_run` 0회) |
+| `site_custom_structure_acceptance` | — | 커스텀 레이아웃 `file_write`+`terminal_run` 빌드 후 `site_serve` 재배포 |
+| `site_lifecycle_acceptance` | — | structured `requiredEvidence` 기반 웹사이트 생성→배포→수정→재배포→삭제 승인→삭제 |
 | `memory_explicit_tool_acceptance` | — | `memory_remember` 저장과 `memory_search` 회상 명시 단언 |
-| `failure_explanation_acceptance` | — | 실패 태스크 사유를 `task.history`로 설명 |
+| `failure_explanation_acceptance` | — | 실패 태스크 사유를 `conversation_history`로 설명 |
 
-플릿 시나리오: `dm-recipient-resolve`, `mattermost-bot-invited`, `restart-policy-survival`, `web-backed-ui`, `regression-proof`.
+플릿 시나리오: `dm-recipient-resolve`, `mattermost-bot-invited`,
+`mattermost-direct-message-send`, `mattermost-manual`(`--keep` 필수),
+`mattermost-ask-ephemeral`, `mattermost-docx-attachment`,
+`restart-policy-survival`, `workspace-persistence`, `web-backed-ui`,
+`regression-proof`.
+`--without-mattermost` 경로는 `llmd-host-topology`와 위 가상 세션 시나리오
+이름을 받는다.
 
 ## 요구 커버리지 매트릭스
 
@@ -60,23 +72,23 @@ lab runner의 `--llm-provider llmd --live-llm --strict-assertions` 조합으로
 
 | # | 요구 행동 | 상태 | 근거 / 부족분 |
 |---|---|---|---|
-| 1 | 웹사이트 생성+배포 | COVERED | `site_prototype_acceptance` |
+| 1 | 웹사이트 생성+배포 | COVERED | `site_artifact_acceptance` |
 | 2 | 배포된 웹사이트 수정 | COVERED | `site_edit_redeploy_acceptance` |
 | 2a | 배포된 웹사이트 삭제 | COVERED | `site_lifecycle_acceptance` (structured `requiredEvidence:["site_unserve"]` 승인 후 삭제) |
 | 3 | DM 보내기 (confirm + 상대 수신 확인) | PARTIAL | `dm_send_confirm_acceptance` (confirm 게이트→송신→messageID 관측 단언); `dm-recipient-resolve`가 실 Mattermost 계정 이메일과 Blueclaw 정책 사람 연결을 통해 수신자 해석을 단언. 실제 상대 수신 확인은 실플랫폼 스모크 영역 |
 | 4 | 채널 포스트 작성 | COVERED | `channel_post_acceptance` |
-| 5 | 포스트 수정 | COVERED | `platform_message_edit_acceptance` (`platform.message.update`) |
+| 5 | 포스트 수정 | COVERED | `platform_message_edit_acceptance` (`message_update`) |
 | 6 | 반복 예약 생성/수정/삭제 | COVERED | `schedule_lifecycle_acceptance` (생성→`schedule_update` 수정→취소) |
 | 7 | 일회성 예약 생성/수정/삭제 | PARTIAL | 생성은 `one_time_schedule_acceptance` (`kind:"once"`+`runAt`); 수정·삭제 흐름은 6과 동일 패턴이라 미중복 |
-| 8 | 일정/업무 생성/수정/삭제 | COVERED | `calendar_event_lifecycle_acceptance` (`calendar.event.add/update/delete` 3턴) |
+| 8 | 일정/업무 생성/수정/삭제 | COVERED | `calendar_event_lifecycle_acceptance` (`calendar_add`/`calendar_update`/`calendar_delete` 승인 포함 4턴) |
 | 9 | 기억 추가 | COVERED | `memory_explicit_tool_acceptance` (`memory_remember` 호출·입력 단언) |
 | 10 | 기억해내기 | COVERED | `memory_explicit_tool_acceptance` (`memory_search` 호출·반영 단언) + `memory_guided_followup` |
 | 11 | 스킬 생성/삭제 | COVERED | `skill_lifecycle_acceptance` (`skill_add`/`skill_remove`) |
 | 12 | 검색 | COVERED | `web_search_acceptance` |
 | 13 | 일반질문 | COVERED | `plain_question_acceptance` |
 | 14 | introspection: 뭘 할 수 있어? | COVERED | `capability_question_acceptance` (빈 쿼리 `skill_search` 전체 로스터) |
-| 15 | introspection: 아까 뭐 했어? | COVERED | `task_history_question_acceptance` (`task.history` 2턴) |
-| 16 | introspection: 왜 실패했어? | COVERED | `failure_explanation_acceptance` (실패 태스크 후 `task.history`로 사유 설명) |
+| 15 | introspection: 아까 뭐 했어? | COVERED | `task_history_question_acceptance` (`conversation_history` 2턴) |
+| 16 | introspection: 왜 실패했어? | COVERED | `failure_explanation_acceptance` (실패 태스크 후 `conversation_history`로 사유 설명) |
 | 17 | Mattermost DM 수신자 해석 | COVERED | `dm-recipient-resolve` (실 Mattermost 사용자 생성→정책 초대→인바운드 계정 링크→부분 이름으로 `/admin/api/identity/resolve-recipient` resolved 단언) |
 | 18 | Blueclaw 재시작 후 정책 사람 보존 | COVERED | `restart-policy-survival` (재시작 직전/직후 `/admin/api/policy` 사람 수 동일 단언; 서비스 재시작이 있어 기본 `dev fleet run` 게이트 제외) |
 

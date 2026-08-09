@@ -5,6 +5,8 @@ import { feedbackFormURL } from '$lib/components/app-rail-config';
 import type { AppRailItem } from '$lib/components/app-rail-types';
 import { appShellText } from '$lib/i18n/app-shell-text';
 import { createPageText } from '$lib/i18n/page-text.svelte';
+import { isSupabaseConfigured, signOutOfSupabase, supabaseMember } from '$lib/supabase-session';
+import { isMessengerConnected } from '$lib/messenger/messenger-directory';
 import type { UserRole } from '$lib/types';
 import type { WebAuthSession } from '$lib/web-auth-session';
 import ActivityIcon from '@lucide/svelte/icons/activity';
@@ -35,16 +37,17 @@ class AppNavigation {
 	userEmail = $state('');
 	userName = $state('');
 	userImage = $state('');
+	userMemberID = $state('');
 	adminRole = $state<UserRole>('member');
 	canViewTasks = $state(false);
 	isPocSuperAdmin = $state(false);
-	buzzEnabled = $state(false);
+	hasMessenger = $state(false);
 
 	currentPath = $derived(page.url.pathname);
 	displayUserName = $derived(this.userName || text.workspace);
 
 	apps = $derived<AppRailItem[]>([
-		...(this.buzzEnabled ? [{ href: '/messenger/', label: text.messenger, icon: MessagesSquareIcon }] : []),
+		...(this.hasMessenger ? [{ href: '/messenger/', label: text.messenger, icon: MessagesSquareIcon }] : []),
 		{ href: '/flow/', label: text.flow, icon: ListChecksIcon, badgeCount: appBadgeCounts.requestedTasks },
 		{ href: '/memory/', label: text.memory, icon: BrainIcon },
 		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon, badgeCount: appBadgeCounts.participatingEvents },
@@ -84,8 +87,15 @@ class AppNavigation {
 		this.userImage = session.image;
 		this.canViewTasks = session.canViewTasks;
 		this.isPocSuperAdmin = session.isPocSuperAdmin;
+		if (isSupabaseConfigured()) {
+			const member = await supabaseMember();
+			this.userMemberID = member.memberID;
+			this.adminRole = member.role;
+			this.hasMessenger = await isMessengerConnected();
+			return;
+		}
 		void appBadgeCounts.load(session.email);
-		await this.loadBuzzEnabled();
+		await this.loadDeviceMessenger();
 		try {
 			const response = await adminApiFetch('/admin/api/session');
 			if (!response.ok) {
@@ -110,6 +120,11 @@ class AppNavigation {
 	};
 
 	logOut = async () => {
+		if (isSupabaseConfigured()) {
+			await signOutOfSupabase();
+			location.replace('/flow/');
+			return;
+		}
 		let redirectURL = '/flow/';
 		try {
 			const response = await fetch(`/auth/logout?return=${encodeURIComponent(this.currentPath)}`, {
@@ -129,26 +144,24 @@ class AppNavigation {
 		this.userEmail = '';
 		this.userName = '';
 		this.userImage = '';
+		this.userMemberID = '';
 		this.adminRole = 'member';
 		this.canViewTasks = false;
 		this.isPocSuperAdmin = false;
-		this.buzzEnabled = false;
+		this.hasMessenger = false;
 	}
 
-	// The messenger runs on Buzz, which only exists where a relay is provisioned
-	// (the company device), never on the PoC tenants. The relay config endpoint
-	// returns a URL there and nothing on the PoC, so it doubles as the feature gate.
-	private async loadBuzzEnabled() {
+	private async loadDeviceMessenger() {
 		try {
 			const response = await fetch('/agent/api/buzz-relay-config', { credentials: 'include' });
 			if (!response.ok) {
-				this.buzzEnabled = false;
+				this.hasMessenger = false;
 				return;
 			}
 			const document = (await response.json()) as { relayURL?: string };
-			this.buzzEnabled = Boolean(document.relayURL?.trim());
+			this.hasMessenger = Boolean(document.relayURL?.trim());
 		} catch {
-			this.buzzEnabled = false;
+			this.hasMessenger = false;
 		}
 	}
 

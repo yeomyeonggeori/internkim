@@ -3,7 +3,7 @@ package admind
 import "testing"
 
 func TestVersionedSubjectKeepsVersionOneAsBareEmail(t *testing.T) {
-	if got := versionedSubject("Lee@Dawn.kim", 1); got != "lee@example.com" {
+	if got := versionedSubject("Lee@Example.com", 1); got != "lee@example.com" {
 		t.Fatalf("version 1 must be the bare normalized email, got %q", got)
 	}
 	if got := versionedSubject("lee@example.com", 0); got != "lee@example.com" {

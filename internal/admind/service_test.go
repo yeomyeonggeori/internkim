@@ -3820,6 +3820,7 @@ func TestMattermostConnectCommandCreatesEphemeralOwnerPairing(t *testing.T) {
 		StateDirectory:              stateDirectory,
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
+		APIBaseURL:                  "https://api.example.test",
 		FleetIDPath:                 fleetIDPath,
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 	})
@@ -3950,7 +3951,7 @@ func TestCORSHeaderIsLimitedToInternKimPaths(t *testing.T) {
 }
 
 func TestCORSHeaderIsAddedForInternKimPaths(t *testing.T) {
-	service := NewService(Configuration{})
+	service := NewService(Configuration{APIBaseURL: "https://api.example.test"})
 	handler := service.withCORS(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		responseWriter.WriteHeader(http.StatusOK)
 	}))
@@ -3959,7 +3960,7 @@ func TestCORSHeaderIsAddedForInternKimPaths(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Header().Get("Access-Control-Allow-Origin") != "https://device.example.test" {
-		t.Fatalf("unexpected InternKim CORS origin: %s", response.Header().Get("Access-Control-Allow-Origin"))
+		t.Fatalf("unexpected internkim CORS origin: %s", response.Header().Get("Access-Control-Allow-Origin"))
 	}
 }
 
@@ -4035,7 +4036,7 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/staff-1":
 			return jsonResponse(http.StatusOK, `{"id":"staff-1","email":"staff@example.com","username":"staff"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
-			assertMattermostRuntimeSettingsPatch(t, request, "https://device-1.example.test")
+			assertMattermostRuntimeSettingsPatch(t, request, "https://device-1.intern.test")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
 			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
@@ -4073,7 +4074,7 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 			return nil, nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
 			flowChannelPatched = true
-			assertMattermostFlowChannelPatch(t, request, "[업무 열기](https://device-1.example.test/flow/)")
+			assertMattermostFlowChannelPatch(t, request, "[업무 열기](https://device-1.intern.test/flow/)")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
 			assertMattermostFlowChannelModerationPatch(t, request)
@@ -4089,7 +4090,7 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/patch" && request.Method == http.MethodPut:
 			calendarChannelPatched = true
-			assertMattermostCalendarChannelPatch(t, request, "[일정 열기](https://device-1.example.test/calendar/)")
+			assertMattermostCalendarChannelPatch(t, request, "[일정 열기](https://device-1.intern.test/calendar/)")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/posts?per_page=100":
 			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil

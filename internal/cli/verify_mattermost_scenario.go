@@ -942,12 +942,12 @@ func missingMattermostScenarioEventError(stepIndex int, expectation mattermostSc
 }
 
 func validateMattermostScenarioLLMD(stepIndex int, events []mattermostScenarioTaskEvent, scenario mattermostScenario) error {
-	requiredSchemaNames := []string{"blueclaw_turn_router", "blueclaw_agent_turn_action"}
+	requiredSchemaNames := []string{"bluecollar_turn_router", "bluecollar_agent_turn_action"}
 	authoritativeSchemaNameSet := testStringSet([]string{
-		"blueclaw_agent_turn_action",
-		"blueclaw_agent_turn_finalizer",
-		"blueclaw_turn_router",
-		"blueclaw_recovery_decision",
+		"bluecollar_agent_turn_action",
+		"bluecollar_agent_turn_finalizer",
+		"bluecollar_turn_router",
+		"bluecollar_recovery_decision",
 		"blueclaw_operation_contract",
 	})
 	successfulSchemaNames := map[string]bool{}

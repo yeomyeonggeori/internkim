@@ -261,6 +261,7 @@ func TestSitePublishBlockedByPublishedSiteLimit(t *testing.T) {
 func TestSitePublishedURLFallsBackToFleetDomainWithoutDeviceURL(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	rootPath := t.TempDir()
+	service.Configuration.APIBaseURL = "https://api.example.test"
 	service.Configuration.DeviceURLPath = filepath.Join(rootPath, "missing-device-url")
 	fleetIDPath := filepath.Join(rootPath, "fleet-id")
 	writeFile(t, fleetIDPath, "9rrfolb86o61")

@@ -1,8 +1,14 @@
 # Intern Kim
 
-Jetson Orin Nano Super에 Blueclaw 런타임과 InternKim capability layer를 올리고, Cloudflare Tunnel로 어디서든 접속 가능한 edge AI appliance입니다.
+Jetson Orin Nano Super에 Blueclaw 런타임과 internkim capability layer를 올리고, Cloudflare Tunnel로 어디서든 접속 가능한 edge AI appliance입니다.
 
 전원과 네트워크만 연결하면 기기가 독립적으로 동작합니다. 사용자 컴퓨터는 companion을 통한 로컬 브라우저, 파일 선택, 승인 입력이 필요할 때만 연결됩니다.
+
+에이전트 호스트와 루프는 별도 공개 저장소에 있습니다.
+[blueclaw](https://github.com/Dawn-kim-official/blueclaw)가 요청자의 POSIX 신원으로
+툴을 실행하고 승인·원장을 소유하며,
+[bluecollar](https://github.com/Dawn-kim-official/bluecollar)가 그 안에서 도는
+에이전트 루프입니다. 이 저장소는 그 둘을 기기 위에 올리고 운영하는 층입니다.
 
 ## 아키텍처
 
@@ -75,7 +81,7 @@ Built-in `file.*` tools도 service-user fallback 없이 requester actor로 실�
 
 ```mermaid
 flowchart LR
-  User["Requester message"] --> Connector["InternKim connector"]
+  User["Requester message"] --> Connector["internkim connector"]
   Connector --> Blueclaw["Blueclaw service as blueclaw"]
   Blueclaw --> Policy["Policy, path resolver, tool schema"]
   Policy --> Actor["WorkspaceActor"]
@@ -130,7 +136,7 @@ Graphiti는 memory sidecar로만 동작하고 secrets 디렉토리를 직접 읽
 
 `OPENROUTER_MANAGEMENT_KEY`는 OpenRouter API key를 생성/회수하는 운영 키이며 운영자 머신 또는 제한된 CI secret에만 둡니다. `tenant create-fleet --openrouter-management-key <path>`는 이 키로 tenant별 upstream OpenRouter key를 발급하고, 발급된 upstream key는 gateway token store에만 저장합니다.
 
-tenant와 Jetson에는 OpenRouter 원본 키를 넣지 않습니다. 각 runtime은 InternKim이 발급한 OpenRouter-compatible `LLM_DEVICE_TOKEN`만 사용하고, Worker/LLM Gateway가 token revoke, request-per-minute, hard cap, usage ledger를 provider 호출 전에 강제합니다.
+tenant와 Jetson에는 OpenRouter 원본 키를 넣지 않습니다. 각 runtime은 internkim이 발급한 OpenRouter-compatible `LLM_DEVICE_TOKEN`만 사용하고, Worker/LLM Gateway가 token revoke, request-per-minute, hard cap, usage ledger를 provider 호출 전에 강제합니다.
 
 LLM Gateway Worker는 `/health`만 public으로 둡니다. LLM 호출과 admin seed endpoint는 `X-InternKim-Gateway-Secret` shared header를 먼저 확인하고, 그 다음 `Authorization: Bearer <LLM_DEVICE_TOKEN>` 또는 `GATEWAY_ADMIN_TOKEN`을 검증합니다. shared header는 무작위 인터넷 요청을 먼저 거르는 coarse gate이며, device 탈취까지 막는 강한 경계는 아닙니다. 강한 네트워크 경계가 필요하면 Cloudflare Access service token을 추가합니다.
 
@@ -154,7 +160,7 @@ CLOUDFLARE_ACCOUNT_ID="$(awk 'BEGIN{FS="="} $1=="CF_ACCOUNT_ID"{sub(/^[^=]*=/,""
 ../../web/node_modules/.bin/wrangler deploy --keep-vars
 ```
 
-맥스튜디오 한 대에서 PoC 테넌트를 추가·제거·운영하는 전체 절차(`internkim host init/add-team/remove-team/console`)는 [docs/poc-host.md](docs/poc-host.md)에 정리되어 있습니다. 아래 명령들은 그 절차가 내부에서 사용하는 저수준 단계입니다.
+맥스튜디오 한 대에서 PoC 테넌트를 추가·제거·운영하는 전체 절차(`internkim host init/add-team/remove-team/console`)는 [docs/internal/poc-host.md](docs/internal/poc-host.md)에 정리되어 있습니다. 아래 명령들은 그 절차가 내부에서 사용하는 저수준 단계입니다.
 
 cloud-shared bootstrap은 runtime model을 명시해서 배포합니다. PoC Worker 경로에서는 `google/gemini-3.5-flash`가 provider region policy로 거절될 수 있으므로, 현재 smoke 통과 모델인 `x-ai/grok-4.3`을 `tenant bootstrap --model x-ai/grok-4.3` 또는 `tenant install-host-runtime --model x-ai/grok-4.3`으로 지정합니다. chat, web tool, embedding 요청은 모두 gateway를 통해야 합니다. 임베딩 자동 fallback은 로컬과 OpenRouter 모델 ID가 같을 때만 허용되며, 둘 다 실패하면 BM25 검색을 사용합니다.
 
@@ -437,7 +443,7 @@ Ops 콘솔에서도 같은 Local Fleet engine을 실행할 수 있습니다:
 
 ### 로컬 Graphiti Smoke
 
-보드 없이 macOS 로컬에서 실제 `graphiti-core[kuzu]` sidecar, InternKim capabilityd, OpenRouter LLM, llama.cpp BGE-M3 경로를 함께 검증합니다. `.env` 또는 환경변수에 `OPENROUTER_API_KEY`가 필요합니다.
+보드 없이 macOS 로컬에서 실제 `graphiti-core[kuzu]` sidecar, internkim capabilityd, OpenRouter LLM, llama.cpp BGE-M3 경로를 함께 검증합니다. `.env` 또는 환경변수에 `OPENROUTER_API_KEY`가 필요합니다.
 
 ```bash
 make verify-graphiti-local
@@ -478,11 +484,11 @@ make build-companion-shell
 ./internkim-companion status
 ```
 
-Primary flow는 Mattermost 어디서나 실행할 수 있는 `/connect`입니다. 일반 사용자는 Admin 권한 없이 자기 Mattermost identity에 묶인 10분짜리 one-time pairing code를 ephemeral 응답으로 받고 Companion 앱을 연결합니다. slash command가 아직 provision되지 않은 환경에서는 InternKim DM의 `connect` 또는 `컴패니언 연결` 텍스트 fallback도 동작합니다. Pages 관리자 화면은 다운로드, 상태 확인, revoke, 진단용으로 남깁니다. 연결된 companion은 inbound port를 열지 않고 device broker를 long-poll합니다.
+Primary flow는 Mattermost 어디서나 실행할 수 있는 `/connect`입니다. 일반 사용자는 Admin 권한 없이 자기 Mattermost identity에 묶인 10분짜리 one-time pairing code를 ephemeral 응답으로 받고 Companion 앱을 연결합니다. slash command가 아직 provision되지 않은 환경에서는 internkim DM의 `connect` 또는 `컴패니언 연결` 텍스트 fallback도 동작합니다. Pages 관리자 화면은 다운로드, 상태 확인, revoke, 진단용으로 남깁니다. 연결된 companion은 inbound port를 열지 않고 device broker를 long-poll합니다.
 
 관리자 화면은 `https://<deviceID>.example.test/admin`에서 엽니다. 이 주소는 Cloudflare Access 인증 뒤 기기 안의 관리자 UI를 same-origin으로 서빙하므로 초대, Companion 연결, 백업/복구가 브라우저에서 바로 동작합니다. `https://api.example.test/?device_id=<deviceID>`는 배포/진입용 Pages 주소이며, 실제 작업은 기기 주소의 `/admin`으로 이동합니다.
 
-Flow, 일정, 근태 웹앱은 Admin/SSH와 같은 Cloudflare Access application으로 직접 막지 않습니다. 브라우저 요청은 Mattermost session, InternKim web session, Cloudflare Access email 중 하나로 신원을 확인한 뒤 현재 InternKim people/policy에서 active staff인지 다시 판정합니다. Mattermost 앱에서 이미 로그인되어 있으면 Mattermost session으로 통과하고, 없으면 Mattermost OAuth 또는 Cloudflare Access email OTP로 `internkim_session`을 발급합니다. Admin API는 일반 web session만으로 열지 않고 기존 admin 권한 경계를 유지합니다.
+Flow, 일정, 근태 웹앱은 Admin/SSH와 같은 Cloudflare Access application으로 직접 막지 않습니다. 브라우저 요청은 Mattermost session, internkim web session, Cloudflare Access email 중 하나로 신원을 확인한 뒤 현재 internkim people/policy에서 active staff인지 다시 판정합니다. Mattermost 앱에서 이미 로그인되어 있으면 Mattermost session으로 통과하고, 없으면 Mattermost OAuth 또는 Cloudflare Access email OTP로 `internkim_session`을 발급합니다. Admin API는 일반 web session만으로 열지 않고 기존 admin 권한 경계를 유지합니다.
 
 김인턴 내부 호출은 사용자 웹 인증에 의존하지 않습니다. admind와 capabilityd는 Mattermost API, Blueclaw API, Flow/일정/근태 내부 경로를 로컬 루프백 또는 내부 서비스 경계로 호출합니다. 사용자-facing 웹 API를 강화할 때도 local/internal 호출 예외는 유지해야 합니다.
 
@@ -494,9 +500,9 @@ Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 
 현재 companion executor는 `user_confirm`, `user_input`, approval grant, `file_pick`, `browser_open`, `browser_snapshot`, `browser_screenshot`, `browser_handoff`, `browser_click`, `browser_fill`, `browser_select`, `browser_press`, `browser_wait`, 개발용 mock `llm_text`, 개발용 mock `llm_structured`를 처리합니다. requester identity가 있는 Companion LLM job은 같은 owner의 Companion만 claim할 수 있고, embedding은 기본적으로 Jetson 내부 embedding service를 계속 사용합니다. Tauri shell은 confirmation/input/approval/file picker UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
 
-`file_pick`은 사용자 로컬 경로를 InternKim/Blueclaw에 넘기지 않습니다. companion이 선택된 파일을 signed broker upload로 device의 `/tmp/internkim-companion-files/{filename}`에 복사하고, 응답에는 device-local temporary path와 TTL만 포함합니다. 같은 이름은 덮어쓰며 metadata TTL이 지나면 `internkim-admind`가 자동 삭제합니다.
+`file_pick`은 사용자 로컬 경로를 internkim/Blueclaw에 넘기지 않습니다. companion이 선택된 파일을 signed broker upload로 device의 `/tmp/internkim-companion-files/{filename}`에 복사하고, 응답에는 device-local temporary path와 TTL만 포함합니다. 같은 이름은 덮어쓰며 metadata TTL이 지나면 `internkim-admind`가 자동 삭제합니다.
 
-브라우저 capability는 Companion-first로 라우팅합니다. 발화자 소유 Companion이 available하면 headed mode와 InternKim 전용 persistent profile을 갖춘 Companion browser에서 실행합니다. Companion이 없을 때만 device Lightpanda fallback을 단순 공개 페이지 텍스트 탐색에 사용합니다. 로그인/MFA처럼 사용자가 직접 처리해야 하는 단계는 `browser_handoff`가 Chrome 위에 Companion OS overlay window로 `완료` 버튼을 띄우고, 사용자가 누르면 snapshot을 검증해 같은 세션에서 이어갑니다. Linux는 X11만 지원하며 Wayland에서는 browser handoff가 unavailable로 표시됩니다. snapshot 결과에는 URL, title, snapshot text, interactive refs만 담습니다. click/fill/select/press/wait는 snapshot에서 얻은 ref나 selector를 입력으로 받습니다. screenshot은 Companion browser에서만 허용하고, fallback에서는 Companion 연결 안내를 반환합니다. Browser download는 파일 이동 보안 정책을 별도로 닫은 뒤 추가합니다. Companion 앱 bundle에는 현재 OS/arch용 `agent-browser`가 포함되며, 첫 실행 때 managed browser install을 자동으로 시도합니다. 실패해도 user/file/mock LLM capability는 계속 동작하고 browser capability만 unavailable로 표시됩니다. 개발 환경에서는 `make deps-companion-browser`로 bundle source와 browser install smoke를 확인합니다.
+브라우저 capability는 Companion-first로 라우팅합니다. 발화자 소유 Companion이 available하면 headed mode와 internkim 전용 persistent profile을 갖춘 Companion browser에서 실행합니다. Companion이 없을 때만 device Lightpanda fallback을 단순 공개 페이지 텍스트 탐색에 사용합니다. 로그인/MFA처럼 사용자가 직접 처리해야 하는 단계는 `browser_handoff`가 Chrome 위에 Companion OS overlay window로 `완료` 버튼을 띄우고, 사용자가 누르면 snapshot을 검증해 같은 세션에서 이어갑니다. Linux는 X11만 지원하며 Wayland에서는 browser handoff가 unavailable로 표시됩니다. snapshot 결과에는 URL, title, snapshot text, interactive refs만 담습니다. click/fill/select/press/wait는 snapshot에서 얻은 ref나 selector를 입력으로 받습니다. screenshot은 Companion browser에서만 허용하고, fallback에서는 Companion 연결 안내를 반환합니다. Browser download는 파일 이동 보안 정책을 별도로 닫은 뒤 추가합니다. Companion 앱 bundle에는 현재 OS/arch용 `agent-browser`가 포함되며, 첫 실행 때 managed browser install을 자동으로 시도합니다. 실패해도 user/file/mock LLM capability는 계속 동작하고 browser capability만 unavailable로 표시됩니다. 개발 환경에서는 `make deps-companion-browser`로 bundle source와 browser install smoke를 확인합니다.
 
 Pairing signing key는 state file에 평문으로 저장하지 않습니다. state에는 key reference만 남기고 macOS에서는 Keychain을 사용합니다. secure storage를 쓸 수 없는 개발 환경에서만 `INTERNKIM_COMPANION_DEV_FILE_STORE=1`을 켜서 파일 기반 fallback을 허용합니다.
 
@@ -513,7 +519,7 @@ macOS beta artifact는 `make package-companion-beta`로 만듭니다. 결과물 
 ./internkim-companion run --dev-mock-llm --allow-stdin-prompts
 ```
 
-InternKim `capabilityd`는 companion URL을 직접 호출하지 않고 local `internkim-admind` broker로 job을 생성합니다. companion이 online이고 capability를 advertise할 때만 `browser.*`, `user.*`, `file_pick`, companion LLM capability를 provider-neutral하게 라우팅합니다. Blueclaw는 provider 구현, 브라우저 바이너리, 로컬 모델 경로, 사용자 브라우저 쿠키를 보지 않습니다.
+internkim `capabilityd`는 companion URL을 직접 호출하지 않고 local `internkim-admind` broker로 job을 생성합니다. companion이 online이고 capability를 advertise할 때만 `browser.*`, `user.*`, `file_pick`, companion LLM capability를 provider-neutral하게 라우팅합니다. Blueclaw는 provider 구현, 브라우저 바이너리, 로컬 모델 경로, 사용자 브라우저 쿠키를 보지 않습니다.
 
 Terminal은 제품 기능에서도 쓰되 requester actor/POSIX boundary 안에서만 실행합니다. 외부 서비스, 로컬 브라우저, 파일 선택, 사용자 확인처럼 더 좁은 typed capability가 있는 작업은 terminal 대신 capability adapter를 우선 사용합니다.
 
@@ -529,7 +535,7 @@ Terminal은 제품 기능에서도 쓰되 requester actor/POSIX boundary 안에�
 
 기본 reset은 Blueclaw task, raw event, conversation, legacy memory, Graphiti mirror, Kuzu memory files와 Mattermost 화면에 보이는 post/reaction/thread 기록을 함께 지웁니다. 초대 사용자, policy, platform account link, secrets, Mattermost 사용자, 팀, 채널은 유지합니다. 디버깅 때문에 Mattermost 화면 기록만 남겨야 할 때는 `--keep-mattermost-posts`를 명시합니다. Mattermost 검증에서 만든 테스트 메시지와 봇 답변은 검증 직후 삭제해야 하며, Slack/Signal 선택 채널을 검증할 때도 같은 정리 원칙을 적용합니다.
 
-Slack과 Signal 선택 채널은 외부 플랫폼이므로, 해당 검증을 추가하더라도 이 reset이 원격 서비스의 전체 메시지 기록을 강제로 비우지는 않습니다. InternKim이 만든 테스트 메시지와 봇 답변은 가능한 범위에서 삭제하고, Blueclaw/Graphiti 쪽 기억과 작업 기록은 항상 reset 대상에 포함합니다.
+Slack과 Signal 선택 채널은 외부 플랫폼이므로, 해당 검증을 추가하더라도 이 reset이 원격 서비스의 전체 메시지 기록을 강제로 비우지는 않습니다. internkim이 만든 테스트 메시지와 봇 답변은 가능한 범위에서 삭제하고, Blueclaw/Graphiti 쪽 기억과 작업 기록은 항상 reset 대상에 포함합니다.
 
 ### 웹앱 (Cloudflare Pages)
 
