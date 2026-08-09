@@ -18,12 +18,14 @@
 		displayUserName,
 		userEmail,
 		userImage,
+		userMemberID,
 		labels,
 		logOut
 	}: {
 		displayUserName: string;
 		userEmail: string;
 		userImage?: string;
+		userMemberID?: string;
 		labels: AppRailProfileMenuLabels;
 		logOut: () => void | Promise<void>;
 	} = $props();
@@ -42,7 +44,7 @@
 								aria-label={displayUserName}
 								class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
 							>
-								<PersonAvatar name={displayUserName} email={userEmail} image={userImage ?? ''} class="size-8 rounded-lg" />
+								<PersonAvatar name={displayUserName} email={userEmail} memberID={userMemberID ?? ''} image={userImage ?? ''} class="size-8 rounded-lg" />
 								<div class="grid flex-1 text-left text-sm leading-tight">
 									<span class="truncate font-medium">{displayUserName}</span>
 									<span class="truncate text-xs">{userEmail || labels.activeWorkspace}</span>
@@ -67,7 +69,7 @@
 		>
 			<DropdownMenu.Label class="p-0 font-normal">
 				<div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
-					<PersonAvatar name={displayUserName} email={userEmail} image={userImage ?? ''} class="size-8 rounded-lg" />
+					<PersonAvatar name={displayUserName} email={userEmail} memberID={userMemberID ?? ''} image={userImage ?? ''} class="size-8 rounded-lg" />
 					<div class="grid flex-1 text-start text-sm leading-tight">
 						<span class="truncate font-medium">{displayUserName}</span>
 						<span class="truncate text-xs">{userEmail || labels.activeWorkspace}</span>

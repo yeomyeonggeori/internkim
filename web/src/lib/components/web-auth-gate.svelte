@@ -12,16 +12,20 @@
 	import { onMount } from 'svelte';
 	import { buzzPasskeyLogin, buzzPasswordLogin, mattermostPasswordLogin } from '$lib/buzz-key-login';
 	import { createBuzzIdentityTransport, enrollKnownBuzzIdentity } from '$lib/buzz-identity-session';
-	import { isPasskeySupported } from '$lib/buzz-passkey';
+	import { isPasskeySupported as isBuzzPasskeySupported } from '$lib/buzz-passkey';
+	import { isPasskeySupported as isSupabasePasskeySupported } from '$lib/supabase-passkey';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
+	import { isSupabaseConfigured, signInWithSupabase } from '$lib/supabase-session';
+	import { signInWithPasskey } from '$lib/supabase-passkey';
 
 	let { children, session, returnPath }: { children?: Snippet; session: WebAuthSession | null; returnPath: string } = $props();
 
 	const text = createPageText(appShellText);
 	const fieldId = $props.id();
-	const passkeyAvailable = isPasskeySupported();
 	const identityTransport = createBuzzIdentityTransport();
-	let buzzEnabled = $state(false);
+	let servesCompanies = $state(false);
+	let buzzEnabled = $state<boolean | null>(null);
+	const passkeyAvailable = $derived(servesCompanies ? isSupabasePasskeySupported() : isBuzzPasskeySupported());
 	let email = $state('');
 	let password = $state('');
 	let busy = $state(false);
@@ -30,11 +34,12 @@
 	const mattermostLoginURL = $derived(session?.mattermostLoginURL || mattermostLoginURLFor(returnPath));
 	const cloudflareLoginURL = $derived(session?.cloudflareLoginURL || cloudflareLoginURLFor(returnPath));
 
-	// The company device runs Buzz identity (email/password/passkey signed in the
-	// browser); the PoC tenants still authenticate through Mattermost/Cloudflare
-	// SSO. The relay-config endpoint is unauthenticated, so the login screen can
-	// pick the right flow before anyone signs in.
 	onMount(async () => {
+		servesCompanies = isSupabaseConfigured();
+		if (servesCompanies) {
+			buzzEnabled = true;
+			return;
+		}
 		try {
 			const response = await fetch('/agent/api/buzz-relay-config', { credentials: 'include' });
 			if (response.ok) {
@@ -62,12 +67,27 @@
 		}
 	}
 
+	async function runSupabaseLogin(work: () => Promise<void>) {
+		busy = true;
+		errorMessage = '';
+		try {
+			await work();
+			location.reload();
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : text.webSessionUnavailable;
+			busy = false;
+		}
+	}
+
 	function loginWithPassword() {
 		if (email.trim().length === 0) {
 			errorMessage = text.emailRequired;
 			return;
 		}
 		const normalizedEmail = email.trim().toLowerCase();
+		if (servesCompanies) {
+			return runSupabaseLogin(() => signInWithSupabase(normalizedEmail, password));
+		}
 		return runLogin(async () => {
 			try {
 				return await buzzPasswordLogin(normalizedEmail, password);
@@ -83,12 +103,17 @@
 	}
 
 	function loginWithPasskey() {
+		if (servesCompanies) return runSupabaseLogin(signInWithPasskey);
 		return runLogin(buzzPasskeyLogin);
 	}
 </script>
 
 {#if session?.authenticated}
 	{@render children?.()}
+{:else if buzzEnabled === null}
+	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
+		<p class="text-sm text-muted-foreground">{text.checkingSession}</p>
+	</div>
 {:else if buzzEnabled}
 	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
 		<Card.Root class="mx-auto w-full max-w-sm">
@@ -123,10 +148,17 @@
 							<Button type="submit" class="w-full" disabled={busy || password.length === 0}>
 								{text.signInWithPassword}
 							</Button>
-							<FieldDescription class="text-center">
-								{text.firstTimePrompt}
-								<a class="underline" href={signupURL()} data-sveltekit-reload>{text.signUpWithCloudflare}</a>
-							</FieldDescription>
+							{#if servesCompanies}
+								<FieldDescription class="text-center">
+									{text.firstTimePrompt}
+									<a class="underline" href="/auth/claim">{text.claimAccount}</a>
+								</FieldDescription>
+							{:else}
+								<FieldDescription class="text-center">
+									{text.firstTimePrompt}
+									<a class="underline" href={signupURL()} data-sveltekit-reload>{text.signUpWithCloudflare}</a>
+								</FieldDescription>
+							{/if}
 						</Field>
 					</FieldGroup>
 				</form>

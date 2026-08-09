@@ -1,4 +1,4 @@
-import { devFlowSizes, devFlowSizesEnglish } from './src/routes/flow/dev-flow-fixture-data';
+import { taskSizes } from './src/lib/flow/task-sizes';
 import { devLocale, setDevLocale } from './dev-locale-state';
 import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -161,7 +161,7 @@ export async function createDevFlowMockResponse(
 }
 
 function localizedDefinitions(definitions: FlowDefinitions): FlowDefinitions {
-	return { ...definitions, sizes: devLocale() === 'en' ? devFlowSizesEnglish : devFlowSizes };
+	return { ...definitions, sizes: taskSizes(devLocale() === 'en' ? 'en' : 'ko') };
 }
 
 function resetDevFlowMockState(state: DevFlowMockState): void {

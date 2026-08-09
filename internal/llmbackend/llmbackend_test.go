@@ -290,7 +290,7 @@ func TestOpenRouterBackendAcceptsProviderReturnedToolName(t *testing.T) {
 	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "내일 휴가 등록해줘"}},
 		StructuredOutputSchema: StructuredOutputSchema{
-			Name:     "blueclaw_agent_turn_action",
+			Name:     "bluecollar_agent_turn_action",
 			Document: testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
 		},
 	})
@@ -683,7 +683,7 @@ func TestNativeActionToolsExposeFinishAsFinish(t *testing.T) {
 
 func TestNativeActionToolsRejectFunctionNameCollisions(t *testing.T) {
 	_, _, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-		Name: "blueclaw_agent_turn_action",
+		Name: "bluecollar_agent_turn_action",
 		Document: json.RawMessage(`{"oneOf":[
 			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["a.b"]},"toolInput":{"type":"object"}},"required":["action","toolName","toolInput"]},
 			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["a/b"]},"toolInput":{"type":"object"}},"required":["action","toolName","toolInput"]}
@@ -696,7 +696,7 @@ func TestNativeActionToolsRejectFunctionNameCollisions(t *testing.T) {
 
 func TestNativeActionToolsPreserveFlattenedToolInputOptionalityForProviderCompatibility(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-		Name:     "blueclaw_agent_turn_action",
+		Name:     "bluecollar_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
 	})
 	if errorValue != nil {
@@ -733,7 +733,7 @@ func TestNativeActionToolsProjectEveryDefaultCapabilitySchema(t *testing.T) {
 	descriptors := append(capabilities.DefaultToolDescriptors(), capabilities.GoogleWorkspaceDescriptors()...)
 	for _, descriptor := range descriptors {
 		toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-			Name:     "blueclaw_agent_turn_action",
+			Name:     "bluecollar_agent_turn_action",
 			Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{descriptor}),
 		})
 		if errorValue != nil {
@@ -760,7 +760,7 @@ func TestNativeActionToolsKeepLargeToolSetsPerToolWithoutDispatcher(t *testing.T
 		})
 	}
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-		Name:     "blueclaw_agent_turn_action",
+		Name:     "bluecollar_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, descriptors),
 	})
 	if errorValue != nil {
@@ -779,7 +779,7 @@ func TestNativeActionToolsKeepLargeToolSetsPerToolWithoutDispatcher(t *testing.T
 
 func TestNativeActionToolsKeepRepresentativeSiteWorkingSetPerTool(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-		Name:     "blueclaw_agent_turn_action",
+		Name:     "bluecollar_agent_turn_action",
 		Document: testActionSchemaWithControlActionsAndToolCount(t, 13),
 	})
 	if errorValue != nil {
@@ -798,7 +798,7 @@ func TestNativeActionToolsKeepRepresentativeSiteWorkingSetPerTool(t *testing.T) 
 
 func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-		Name: "blueclaw_agent_turn_action",
+		Name: "bluecollar_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{{
 			Name:        "file_write",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`),
@@ -1389,7 +1389,7 @@ func TestStructuredRequestTraceIncludesReproductionMetadata(t *testing.T) {
 		ExecutionMode: "remote",
 		Messages:      []Message{{Role: "user", Content: "hello"}},
 		StructuredOutputSchema: StructuredOutputSchema{
-			Name:     "blueclaw_agent_turn_action",
+			Name:     "bluecollar_agent_turn_action",
 			Document: json.RawMessage(`{"type":"object","properties":{"reply":{"type":"string"}}}`),
 		},
 		GenerationOptions: &GenerationOptions{Seed: &seed, Temperature: &temperature},
@@ -1402,7 +1402,7 @@ func TestStructuredRequestTraceIncludesReproductionMetadata(t *testing.T) {
 		"executionMode=remote",
 		"provider=openrouter",
 		"model=openrouter/model",
-		"schemaName=blueclaw_agent_turn_action",
+		"schemaName=bluecollar_agent_turn_action",
 		"schemaHash=",
 		"messagesHash=",
 		"seed=1234",
@@ -1542,7 +1542,7 @@ func TestOllamaStreamTextEmitsTokens(t *testing.T) {
 
 func testAgentActionSchema() StructuredOutputSchema {
 	return StructuredOutputSchema{
-		Name: "blueclaw_agent_turn_action",
+		Name: "bluecollar_agent_turn_action",
 		Document: json.RawMessage(`{"oneOf":[
 			{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"message":{"type":"string"},"goalStatus":{"type":"string","enum":["satisfied"]},"goalSatisfied":{"type":"boolean"},"completionEvidence":{"type":"array"},"qualityReview":{"type":"array"},"executionStateUpdate":{"type":"object"}},"required":["action","message","goalStatus","goalSatisfied","completionEvidence","qualityReview","executionStateUpdate"]},
 			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["site_serve"]},"toolInput":{"type":"object","properties":{"siteID":{"type":"string"}},"required":["siteID"]},"message":{"type":"string"},"executionStateUpdate":{"type":"object"},"nextStepPlan":{"type":"object","properties":{"objective":{"type":"string"},"expectedTools":{"type":"array","items":{"type":"string"}},"doneCriteria":{"type":"array","items":{"type":"string"}},"risk":{"type":"string"},"workingSetReason":{"type":"string"}},"required":["objective","expectedTools","doneCriteria","risk","workingSetReason"]}},"required":["action","toolName","toolInput","executionStateUpdate","nextStepPlan"]}

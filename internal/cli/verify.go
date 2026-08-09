@@ -73,7 +73,7 @@ func runVerifyMattermost(arguments []string) error {
 	expectBrowserOpen := flagSet.Bool("expect-browser-open", false, "Require a successful browser_open tool result for prompt verification")
 	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL in the final bot reply and verify it returns site HTML")
 	htmlAttachmentFollowupE2E := flagSet.Bool("html-attachment-followup-e2e", false, "Upload an HTML file through Mattermost and verify current and follow-up attachment preview")
-	messageDeleteE2E := flagSet.Bool("message-delete-e2e", false, "Create Mattermost test posts and verify InternKim deletes only its own posts")
+	messageDeleteE2E := flagSet.Bool("message-delete-e2e", false, "Create Mattermost test posts and verify internkim deletes only its own posts")
 	directMessageE2E := flagSet.Bool("direct-message-e2e", false, "Create Mattermost probe users and verify message_send sends a direct message")
 	expectedTools := repeatedStringFlag{}
 	expectedEvents := repeatedStringFlag{}
@@ -963,7 +963,7 @@ llm_action_body="$(jq -cn --arg model "$model" --argjson schema "$action_schema"
     {role:"system", content:"You must finish this smoke test now. Use the finish action with message ok, goalStatus satisfied, goalSatisfied true, and empty evidence/review arrays."},
     {role:"user", content:"Finish now."}
   ],
-  structuredOutputSchema: {name:"blueclaw_agent_turn_action", document:$schema, isStrictlyEnforced:true},
+  structuredOutputSchema: {name:"bluecollar_agent_turn_action", document:$schema, isStrictlyEnforced:true},
   requireParameters: true,
   enableResponseHealing: true
 }')"
@@ -1059,7 +1059,7 @@ invited_email="verify-invited-$timestamp@internkim.test"
 uninvited_email="verify-uninvited-$timestamp@internkim.test"
 invited_username="verifyinvited$timestamp"
 uninvited_username="verifyuninvited$timestamp"
-password="VerifyPass!$timestamp-InternKim-Mattermost"
+password="VerifyPass!$timestamp-internkim-Mattermost"
 team_name="internkim"
 verify_channel_name="verify-$timestamp"
 verify_channel_display_name="Verify $timestamp"
@@ -1411,7 +1411,7 @@ blueclaw_request "invite policy" POST http://127.0.0.1:8080/admin/api/people/inv
 
 phase "invited post"
 before_count="$(task_count)"
-invited_message="InternKim Mattermost verification $timestamp: please reply briefly."
+invited_message="internkim Mattermost verification $timestamp: please reply briefly."
 invited_post="$(post_message "$invited_token" "$invited_message")"
 invited_post_id="$(printf '%s' "$invited_post" | jq -r '.id')"
 invited_post_create_at="$(printf '%s' "$invited_post" | jq -r '.create_at')"
@@ -1423,7 +1423,7 @@ wait_for_model_reply "$invited_post_create_at"
 after_count="$(task_count)"
 
 phase "uninvited post"
-uninvited_message="@$bot_username InternKim uninvited Mattermost verification $timestamp: please reply briefly."
+uninvited_message="@$bot_username internkim uninvited Mattermost verification $timestamp: please reply briefly."
 uninvited_post="$(post_message "$uninvited_token" "$uninvited_message")"
 uninvited_post_id="$(printf '%s' "$uninvited_post" | jq -r '.id')"
 uninvited_post_create_at="$(printf '%s' "$uninvited_post" | jq -r '.create_at')"
@@ -1473,7 +1473,7 @@ func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, 
 timestamp="$(date +%%s)"
 email="probe-mattermost-$timestamp@internkim.test"
 username="probemm$timestamp"
-password="ProbePass!$timestamp-InternKim-Mattermost"
+password="ProbePass!$timestamp-internkim-Mattermost"
 prompt="$(printf '%%s' %s | base64 -d)"
 expected_tools_json="$(printf '%%s' %s | base64 -d)"
 expected_events_json="$(printf '%%s' %s | base64 -d)"
@@ -2294,8 +2294,8 @@ requester_email="probe-mattermost-dm-requester-$timestamp@internkim.test"
 requester_username="probedmreq$timestamp"
 recipient_email="probe-mattermost-dm-recipient-$timestamp@internkim.test"
 recipient_username="probedmto$timestamp"
-password="ProbePass!$timestamp-InternKim-Mattermost"
-target_message="InternKim DM E2E $timestamp"
+password="ProbePass!$timestamp-internkim-Mattermost"
+target_message="internkim DM E2E $timestamp"
 prompt="${recipient_username}에게 ${target_message}라고 DM 보내줘"
 keep_artifacts=%s
 timeout_seconds=%d
@@ -2473,7 +2473,7 @@ recipient_channel_id="$(api_request "create recipient dm" POST http://localhost:
 test -n "$request_channel_id"
 test -n "$recipient_channel_id"
 
-recipient_identity_message="InternKim DM recipient identity $timestamp"
+recipient_identity_message="internkim DM recipient identity $timestamp"
 recipient_identity_post="$(api_request "post recipient identity" POST http://localhost:8065/api/v4/posts "$recipient_token" \
   "$(jq -cn --arg channel_id "$recipient_channel_id" --arg message "$recipient_identity_message" '{channel_id:$channel_id,message:$message}')")"
 recipient_identity_post_id="$(printf '%%s' "$recipient_identity_post" | jq -r '.id')"
@@ -2615,7 +2615,7 @@ func verifyMattermostMessageDeleteE2EScript(keep bool, timeoutSeconds int) strin
 timestamp="$(date +%%s)"
 email="probe-mattermost-delete-$timestamp@internkim.test"
 username="probedelete$timestamp"
-password="ProbePass!$timestamp-InternKim-Mattermost"
+password="ProbePass!$timestamp-internkim-Mattermost"
 marker="internkim-delete-e2e-$timestamp"
 target_count=24
 prompt="방금 김인턴이 보낸 $marker 테스트 메시지들을 모두 삭제해줘. 내가 보낸 $marker 메시지는 삭제하지 마."
@@ -2960,10 +2960,10 @@ func verifyMattermostHTMLAttachmentFollowupScript(keep bool, timeoutSeconds int)
 timestamp="$(date +%%s)"
 email="probe-mattermost-attachment-$timestamp@internkim.test"
 username="probeattach$timestamp"
-password="ProbePass!$timestamp-InternKim-Mattermost"
+password="ProbePass!$timestamp-internkim-Mattermost"
 root_prompt="이 HTML 파일 내용 보고 개선점 말해줘. probe-$timestamp"
 followup_prompt="다시 시도해보자. probe-$timestamp"
-unique_title="InternKim Attachment Preview $timestamp"
+unique_title="internkim Attachment Preview $timestamp"
 keep_artifacts=%s
 timeout_seconds=%d
 test_started_at="$(date +%%s%%3N)"
@@ -3224,7 +3224,7 @@ func prepareMattermostBrowserOpenE2EScript() string {
 timestamp="$(date +%s)"
 email="probe-browser-open-$timestamp@internkim.test"
 username="probebrowser$timestamp"
-password="ProbePass!$timestamp-InternKim-Mattermost"
+password="ProbePass!$timestamp-internkim-Mattermost"
 
 api_request() {
   local phase_name="$1"

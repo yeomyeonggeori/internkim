@@ -643,7 +643,7 @@ func (service *Service) ensureMattermostBotDirectChannelID(ctx context.Context, 
 		return "", errorValue
 	}
 	if !found || botRecord.ID == "" || botRecord.DeleteAt != 0 || botRecord.ID == normalizedUserID {
-		return "", fmt.Errorf("InternKim bot user is not available")
+		return "", fmt.Errorf("internkim bot user is not available")
 	}
 	body := []string{normalizedUserID, botRecord.ID}
 	var channelRecord mattermostChannelRecord

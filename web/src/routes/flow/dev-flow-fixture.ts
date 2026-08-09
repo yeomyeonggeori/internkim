@@ -1,5 +1,6 @@
 import { buildFlowWeek } from './dev-flow-fixture-date';
-import { devFlowMembers, devFlowSizes, devFlowSizesEnglish, devFlowStatuses, devFlowTypes } from './dev-flow-fixture-data';
+import { devFlowMembers, devFlowStatuses, devFlowTypes } from './dev-flow-fixture-data';
+import { taskSizes } from '../../lib/flow/task-sizes';
 import { buildDevFlowMemberScoreDetails, currentDevFlowMemberScores } from './dev-flow-fixture-score';
 import { createDevFlowScoreTasks } from './dev-flow-fixture-score-tasks';
 import {
@@ -99,7 +100,7 @@ export function createDevFlowState(currentUserEmail = 'kim@example.com', locale:
 }
 
 function createDevFlowDefinitions(locale: 'ko' | 'en' = 'ko'): FlowDefinitions {
-	return { categories: ['여명거리', '김인턴'], types: devFlowTypes, sizes: locale === 'en' ? devFlowSizesEnglish : devFlowSizes };
+	return { categories: ['여명거리', '김인턴'], types: devFlowTypes, sizes: taskSizes(locale === 'en' ? 'en' : 'ko') };
 }
 
 function createGlobalFixtureTasks(currentWeek: FlowWeek): FlowTask[] {
