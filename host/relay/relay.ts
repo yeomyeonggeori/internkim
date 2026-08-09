@@ -23,6 +23,7 @@ const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
 const agentKey = await agentKeyFromEnvironmentOrFile();
 const chatdBaseURL = process.env.CHATD_BASE_URL ?? 'http://127.0.0.1:18090';
 const arrivalsPort = Number(process.env.ARRIVALS_PORT ?? 18091);
+const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
 const appURL = required('INTERNKIM_APP_URL');
 const messengerPlatform = required('MESSENGER_PLATFORM');
 const answerByteCeiling = Number(process.env.ANSWER_BYTE_CEILING ?? 200_000);
@@ -130,6 +131,21 @@ const dispatch = {
 	serveAsset: asset,
 	askChatd: (capability: string, body: Record<string, unknown>) =>
 		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body),
+	askMaild: async (operation: string, body: Record<string, unknown>) => {
+		const response = await fetch(`${maildBaseURL}/v1/mail/${encodeURIComponent(operation)}`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+		return { status: response.status, body: await response.json().catch(() => null) };
+	},
+	mailAccountOf: async (memberID: string) => {
+		const held = await askTheRecord<{ account?: Record<string, unknown> | null }>(
+			'GET',
+			`/api/agent/mail-account?memberID=${encodeURIComponent(memberID)}`
+		);
+		return held.account ?? null;
+	},
 	memberOfExternalID: async (externalID: string) => {
 		const contact = await client
 			.from('contact')

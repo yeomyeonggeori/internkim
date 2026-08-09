@@ -14,10 +14,10 @@ import (
 )
 
 type MessageListRequest struct {
-	Mailbox   string
-	Query     string
-	Limit     int
-	BeforeUID uint32
+	Mailbox   string `json:"mailbox"`
+	Query     string `json:"query"`
+	Limit     int    `json:"limit"`
+	BeforeUID uint32 `json:"beforeUID"`
 }
 
 type messageCursor struct {

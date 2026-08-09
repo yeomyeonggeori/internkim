@@ -10,6 +10,13 @@ export type Call = {
 export type Answer = { callID: string; status: number; body: unknown };
 
 const personPrefix = 'person.';
+const mailPrefix = 'person.mail.';
+
+export function mailOperationOf(capability: string): string | null {
+	if (!capability.startsWith(mailPrefix)) return null;
+	const operation = capability.slice(mailPrefix.length);
+	return /^[a-z]+$/.test(operation) ? operation : null;
+}
 
 export function isPersonCapability(capability: string): boolean {
 	return capability.startsWith(personPrefix);
@@ -52,7 +59,9 @@ export type Served = { status: number; body: unknown; replyTo: string | null };
 export type Dispatch = {
 	serveAsset: (capability: string, body: Record<string, unknown>) => Promise<unknown>;
 	askChatd: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
+	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	memberOfExternalID: (externalID: string) => Promise<string | null>;
+	mailAccountOf: (memberID: string) => Promise<Record<string, unknown> | null>;
 };
 
 export async function serveCall(dispatch: Dispatch, call: Call): Promise<Served> {
@@ -72,7 +81,23 @@ export async function serveCall(dispatch: Dispatch, call: Call): Promise<Served>
 		return { status: 403, body: { error: 'that credential belongs to nobody here' }, replyTo: null };
 	}
 
+	const operation = mailOperationOf(capability);
+	if (operation) return { ...(await serveMail(dispatch, operation, body, replyTo)), replyTo };
+
 	return { ...(await dispatch.askChatd(capability, body)), replyTo };
+}
+
+async function serveMail(
+	dispatch: Dispatch,
+	operation: string,
+	body: Record<string, unknown>,
+	memberID: string
+): Promise<{ status: number; body: unknown }> {
+	const account = await dispatch.mailAccountOf(memberID);
+	if (!account) {
+		return { status: 409, body: { error: 'this member has connected no mail account' } };
+	}
+	return dispatch.askMaild(operation, { ...body, account });
 }
 
 async function memberHolding(dispatch: Dispatch, actor: ActorCredential): Promise<string | null> {
