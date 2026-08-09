@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	EmptyWindowRefused,
+	paired,
 	reconcileMember,
 	type DeviceAttendance,
 	type RecordedAttendance
@@ -114,5 +115,68 @@ describe('where a clock happened', () => {
 		const plan = reconcileMember('member-1', onTheDevice([{ kind: 'clock_in', location: '본사' }]), []);
 
 		expect(plan.add[0].location).toBe('본사');
+	});
+});
+
+describe('paired', () => {
+	test('a day at the same place that nobody clocked out of is dropped', () => {
+		const kept = paired(
+			onTheDevice([
+				{ kind: 'clock_in', occurredAt: '2026-06-18T02:17:00Z', location: '사무실' },
+				{ kind: 'clock_in', occurredAt: '2026-06-19T02:36:00Z', location: '사무실' },
+				{ kind: 'clock_out', occurredAt: '2026-06-19T09:00:00Z' }
+			])
+		);
+
+		expect(kept.map((event) => event.occurredAt)).toEqual(['2026-06-19T02:36:00Z', '2026-06-19T09:00:00Z']);
+	});
+
+	test('the same click twice is one arrival', () => {
+		const kept = paired(
+			onTheDevice([
+				{ kind: 'clock_in', occurredAt: '2026-06-19T02:31:00Z', location: '사무실' },
+				{ kind: 'clock_in', occurredAt: '2026-06-19T02:31:30Z', location: '사무실' }
+			])
+		);
+
+		expect(kept.map((event) => event.occurredAt)).toEqual(['2026-06-19T02:31:30Z']);
+	});
+
+	test('moving from one place to another is two days of work, and both are kept', () => {
+		const kept = paired(
+			onTheDevice([
+				{ kind: 'clock_in', occurredAt: '2026-06-18T02:00:00Z', location: '사무실' },
+				{ kind: 'clock_in', occurredAt: '2026-06-19T02:00:00Z', location: '재택' }
+			])
+		);
+
+		expect(kept).toHaveLength(2);
+	});
+
+	test('the last clock-in stays, because somebody may be at work right now', () => {
+		const kept = paired(onTheDevice([{ kind: 'clock_in', occurredAt: '2026-08-09T02:00:00Z' }]));
+
+		expect(kept).toHaveLength(1);
+	});
+
+	test('a day that was clocked out of is untouched', () => {
+		const day = onTheDevice([
+			{ kind: 'clock_in', occurredAt: '2026-06-18T02:00:00Z' },
+			{ kind: 'clock_out', occurredAt: '2026-06-18T09:00:00Z' }
+		]);
+
+		expect(paired(day)).toHaveLength(2);
+	});
+
+	test('events out of order are read in order before pairing', () => {
+		const kept = paired(
+			onTheDevice([
+				{ kind: 'clock_out', occurredAt: '2026-06-19T09:00:00Z' },
+				{ kind: 'clock_in', occurredAt: '2026-06-18T02:00:00Z' },
+				{ kind: 'clock_in', occurredAt: '2026-06-19T02:00:00Z' }
+			])
+		);
+
+		expect(kept.map((event) => event.occurredAt)).toEqual(['2026-06-19T02:00:00Z', '2026-06-19T09:00:00Z']);
 	});
 });
