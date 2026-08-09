@@ -380,6 +380,7 @@ func (service *Service) Run(ctx context.Context) error {
 	}
 	go service.reconcileBlueclawRuntimeConfiguration(ctx)
 	go service.centralPlane()
+	go service.keepAttendanceReconciled(ctx)
 	service.reconcileSiteSourcesToStaffCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
@@ -851,6 +852,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	}
 	if request.Method == http.MethodGet && path == "/health" {
 		service.writeAdminHealth(responseWriter)
+		return
+	}
+	if path == "/attendance/backfill" {
+		service.backfillAttendanceCentrally(responseWriter, request)
 		return
 	}
 	if strings.HasPrefix(path, "/recovery/ssh-tunnel") {
