@@ -1,4 +1,6 @@
+import { isSupabaseConfigured } from '$lib/supabase';
 import { mailRequestHeaders } from './mail-request-actor';
+import { keepRecordMailAccount, recordMailAccount, testRecordMailAccount } from './mail-account-api';
 import {
 	normalizeMailBootstrapResponse,
 	normalizeMailAccountResponse,
@@ -24,6 +26,7 @@ export async function fetchMailBootstrap(actorEmail: string, query: URLSearchPar
 }
 
 export async function fetchMailAccount(actorEmail: string, errors: MailErrorMessages) {
+	if (isSupabaseConfigured()) return recordMailAccount();
 	const response = await fetchMailResponse('/mail/api/account', {
 		credentials: 'include',
 		headers: mailRequestHeaders(actorEmail)
@@ -60,6 +63,7 @@ export async function fetchMailMessage(actorEmail: string, message: MailMessage,
 }
 
 export async function saveMailAccount(actorEmail: string, payload: MailAccountWritePayload, errors: MailErrorMessages) {
+	if (isSupabaseConfigured()) return keepRecordMailAccount(payload);
 	const response = await fetchMailResponse('/mail/api/account', {
 		method: 'PUT',
 		credentials: 'include',
@@ -71,6 +75,7 @@ export async function saveMailAccount(actorEmail: string, payload: MailAccountWr
 }
 
 export async function testMailAccount(actorEmail: string, payload: MailAccountWritePayload, errors: MailErrorMessages) {
+	if (isSupabaseConfigured()) return testRecordMailAccount();
 	const response = await fetchMailResponse('/mail/api/account/test', {
 		method: 'POST',
 		credentials: 'include',
