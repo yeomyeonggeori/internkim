@@ -77,6 +77,17 @@ syncRootMatches() {
   done
 }
 
+syncSharedDependencyArtifacts() {
+  syncLocalState ".dependency/blueclaw-runtime"
+  syncLocalState ".dependency/container-kernel"
+  syncLocalState ".dependency/device-browser"
+  syncLocalState ".dependency/agent-browser"
+  syncLocalState ".dependency/llama-cpp"
+  syncLocalState ".dependency/llama-cpp-models"
+  syncLocalState ".dependency/litert-models"
+  syncLocalState ".dependency/local-fleet-embedding"
+}
+
 syncMode="link"
 if [ "${1:-}" = "--copy" ]; then
   syncMode="copy"
@@ -105,3 +116,4 @@ syncLocalState "docs/private"
 syncRootMatches "*.token.enc"
 syncRootMatches "*.key"
 syncRootMatches "client_secret_*.apps.googleusercontent.com.json"
+syncSharedDependencyArtifacts
