@@ -1,4 +1,4 @@
-//   bun run host/messenger/bridge.ts
+//   bun run host/relay/relay.ts
 
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreview } from './link-preview';
