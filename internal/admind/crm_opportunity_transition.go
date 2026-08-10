@@ -9,18 +9,9 @@ import (
 )
 
 func (service *Service) transitionCRMOpportunityStage(ctx context.Context, transition crmOpportunityStageTransition) error {
-	transition.OpportunityID = strings.TrimSpace(transition.OpportunityID)
-	transition.Stage = strings.TrimSpace(transition.Stage)
-	transition.BeforeOpportunityID = strings.TrimSpace(transition.BeforeOpportunityID)
-	transition.ActorPersonID = strings.TrimSpace(transition.ActorPersonID)
-	if transition.OpportunityID == "" || transition.Stage == "" || transition.ActorPersonID == "" {
-		return fmt.Errorf("CRM stage transition opportunity, stage, and actor are required")
-	}
-	if errorValue := crmValidateTimestamp(transition.OccurredAt); errorValue != nil {
-		return fmt.Errorf("invalid CRM stage transition time: %w", errorValue)
-	}
-	if math.IsNaN(transition.StagePosition) || math.IsInf(transition.StagePosition, 0) {
-		return fmt.Errorf("invalid CRM stage position")
+	transition, errorValue := normalizeCRMOpportunityStageTransition(transition)
+	if errorValue != nil {
+		return errorValue
 	}
 	database, errorValue := service.openCRMDatabase(ctx)
 	if errorValue != nil {
@@ -40,9 +31,41 @@ func (service *Service) transitionCRMOpportunityStage(ctx context.Context, trans
 		_ = transaction.Rollback()
 		return errorValue
 	}
-	if opportunity.Stage == transition.Stage {
+	if errorValue := applyCRMOpportunityStageTransitionInTransaction(ctx, transaction, opportunity, transition); errorValue != nil {
 		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := transaction.Commit(); errorValue != nil {
+		return fmt.Errorf("commit CRM stage transition %s: %w", transition.OpportunityID, errorValue)
+	}
+	return nil
+}
+
+func normalizeCRMOpportunityStageTransition(transition crmOpportunityStageTransition) (crmOpportunityStageTransition, error) {
+	transition.OpportunityID = strings.TrimSpace(transition.OpportunityID)
+	transition.Stage = strings.TrimSpace(transition.Stage)
+	transition.BeforeOpportunityID = strings.TrimSpace(transition.BeforeOpportunityID)
+	transition.ActorPersonID = strings.TrimSpace(transition.ActorPersonID)
+	transition.LostReason = strings.TrimSpace(transition.LostReason)
+	transition.BaseCurrencyCode = strings.TrimSpace(transition.BaseCurrencyCode)
+	if transition.OpportunityID == "" || transition.Stage == "" || transition.ActorPersonID == "" {
+		return crmOpportunityStageTransition{}, fmt.Errorf("CRM stage transition opportunity, stage, and actor are required")
+	}
+	if errorValue := crmValidateTimestamp(transition.OccurredAt); errorValue != nil {
+		return crmOpportunityStageTransition{}, fmt.Errorf("invalid CRM stage transition time: %w", errorValue)
+	}
+	if math.IsNaN(transition.StagePosition) || math.IsInf(transition.StagePosition, 0) {
+		return crmOpportunityStageTransition{}, fmt.Errorf("invalid CRM stage position")
+	}
+	return transition, nil
+}
+
+func applyCRMOpportunityStageTransitionInTransaction(ctx context.Context, transaction *sql.Tx, opportunity crmOpportunity, transition crmOpportunityStageTransition) error {
+	if opportunity.Stage == transition.Stage {
 		return newCRMConflict(fmt.Sprintf("CRM opportunity is already in stage %s", transition.Stage))
+	}
+	if errorValue := validateCRMOpportunityStageOutcomeTransition(ctx, transaction, opportunity, transition); errorValue != nil {
+		return errorValue
 	}
 	if transition.StagePosition == 0 {
 		transition.StagePosition = 1024
@@ -56,15 +79,12 @@ WHERE id = ?`, transition.Stage, transition.StagePosition, transition.OccurredAt
 		crmNullableString(transition.BaseCurrencyCode), transition.OccurredAt, transition.ActorPersonID,
 		transition.OpportunityID)
 	if errorValue != nil {
-		_ = transaction.Rollback()
 		return fmt.Errorf("transition CRM opportunity %s: %w", transition.OpportunityID, errorValue)
 	}
 	if errorValue := crmRequireAffectedRecord(result); errorValue != nil {
-		_ = transaction.Rollback()
 		return errorValue
 	}
 	if errorValue := rebalanceCRMStagePositionsOnCollision(ctx, transaction, opportunity.Pipeline, transition.Stage, transition.OpportunityID, transition.StagePosition, transition.BeforeOpportunityID, transition.OccurredAt, transition.ActorPersonID); errorValue != nil {
-		_ = transaction.Rollback()
 		return errorValue
 	}
 	activity := crmActivity{
@@ -83,11 +103,25 @@ WHERE id = ?`, transition.Stage, transition.StagePosition, transition.OccurredAt
 		},
 	}
 	if errorValue := insertCRMActivityInTransaction(ctx, transaction, activity); errorValue != nil {
-		_ = transaction.Rollback()
 		return errorValue
 	}
-	if errorValue := transaction.Commit(); errorValue != nil {
-		return fmt.Errorf("commit CRM stage transition %s: %w", transition.OpportunityID, errorValue)
+	return nil
+}
+
+func validateCRMOpportunityStageOutcomeTransition(ctx context.Context, transaction *sql.Tx, opportunity crmOpportunity, transition crmOpportunityStageTransition) error {
+	var currentOutcome string
+	var targetOutcome string
+	if errorValue := transaction.QueryRowContext(ctx, "SELECT outcome FROM pipeline_stage WHERE pipeline = ? AND stage = ?", opportunity.Pipeline, opportunity.Stage).Scan(&currentOutcome); errorValue != nil {
+		return fmt.Errorf("read CRM current stage outcome: %w", errorValue)
+	}
+	if errorValue := transaction.QueryRowContext(ctx, "SELECT outcome FROM pipeline_stage WHERE pipeline = ? AND stage = ?", opportunity.Pipeline, transition.Stage).Scan(&targetOutcome); errorValue != nil {
+		if errorValue == sql.ErrNoRows {
+			return newCRMConflict(fmt.Sprintf("CRM stage %s does not belong to pipeline %s", transition.Stage, opportunity.Pipeline))
+		}
+		return fmt.Errorf("read CRM target stage outcome: %w", errorValue)
+	}
+	if (currentOutcome == "won" || currentOutcome == "lost") && (targetOutcome == "open" || targetOutcome == "on_hold") {
+		return newCRMConflict("realized CRM opportunity cannot return to an unrealized stage")
 	}
 	return nil
 }

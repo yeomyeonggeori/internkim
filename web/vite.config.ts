@@ -40,11 +40,12 @@ export default defineConfig(({ mode }) => {
 	const devUserRole = devUserRoleFromEnv(env.VITE_DEV_USER_ROLE);
 	const isAttendanceMockEnabled = env.VITE_MOCK_ATTENDANCE === '1';
 	const isFlowMockEnabled = env.VITE_MOCK_FLOW === '1';
-		const devUserEmail = env.VITE_DEV_USER_EMAIL;
+	const isAdminMockEnabled = env.VITE_MOCK_ADMIN === '1' || env.VITE_MOCK_CRM === '1';
+	const devUserEmail = env.VITE_DEV_USER_EMAIL;
 	return {
 		plugins: [
 			devAdminUsersMockPlugin({
-				isEnabled: env.VITE_MOCK_ADMIN === '1',
+				isEnabled: isAdminMockEnabled,
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devAdminOrganizationMockPlugin({
@@ -98,6 +99,7 @@ export default defineConfig(({ mode }) => {
 				'/calendar/dav': admindProxy(admindTarget),
 				'/calendar/ics': admindProxy(admindTarget),
 				'/calendar/oauth': admindProxy(admindTarget),
+				'/crm/api': admindProxy(admindTarget, devUserEmail),
 				'/flow/api': admindProxy(admindTarget),
 				'/mail/api': admindProxy(admindTarget),
 				'/memory/api': admindProxy(admindTarget),

@@ -1,0 +1,59 @@
+<script lang="ts">
+	import * as Field from '$lib/components/ui/field';
+	import { Input } from '$lib/components/ui/input';
+	import * as Select from '$lib/components/ui/select';
+	import { crmCurrencies, crmCurrencySymbols, formatAmountInput, isCRMCurrency } from './crm-money';
+	import type { CRMCurrency } from './crm-types';
+
+	type Props = {
+		id: string;
+		label: string;
+		currencyLabel: string;
+		value: string;
+		currency: CRMCurrency;
+		disabled?: boolean;
+	};
+
+	let { id, label, currencyLabel, value = $bindable(), currency = $bindable(), disabled = false }: Props = $props();
+
+	function updateAmount(event: Event & { currentTarget: HTMLInputElement }): void {
+		value = formatAmountInput(event.currentTarget.value);
+	}
+
+	function updateCurrency(value: string): void {
+		if (isCRMCurrency(value)) currency = value;
+	}
+</script>
+
+<Field.Field>
+	<Field.Label for={id}>{label}</Field.Label>
+	<div class="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
+		<Select.Root type="single" value={currency} onValueChange={updateCurrency} {disabled}>
+			<Select.Trigger id={`${id}-currency`} class="w-full" aria-label={currencyLabel}>{currency}</Select.Trigger>
+			<Select.Content>
+				{#each crmCurrencies as option (option)}
+					<Select.Item value={option} label={option}>{option}</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
+		<div class="relative">
+			<span
+				class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground"
+				data-crm-currency-symbol={currency}
+				aria-hidden="true"
+			>
+				{crmCurrencySymbols[currency]}
+			</span>
+			<Input
+				{id}
+				class="pl-8"
+				type="text"
+				inputmode="numeric"
+				autocomplete="off"
+				value={value}
+				oninput={updateAmount}
+				{disabled}
+			/>
+		</div>
+	</div>
+</Field.Field>
