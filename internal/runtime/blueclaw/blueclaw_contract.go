@@ -147,6 +147,8 @@ const (
 	RelayServicePath                      = "/etc/systemd/system/internkim-relay.service"
 	RelayBinaryPath                       = "/usr/local/bin/internkim-relay"
 	RelayEnvironmentFilePath              = "/etc/internkim/relay.env"
+	RelayAgentKeyPath                     = "/etc/internkim/agent-key"
+	RelayUserName                         = "internkim"
 	BuzzPremigrateSnapshotPath            = "/root/.internkim/state/buzz-premigrate.sql"
 )
 

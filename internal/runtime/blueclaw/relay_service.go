@@ -18,8 +18,8 @@ ExecStart=%s
 EnvironmentFile=%s
 Restart=always
 RestartSec=5s
-User=internkim
-Group=internkim
+User=%s
+Group=%s
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
@@ -27,5 +27,5 @@ ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target
-`, RelayEnvironmentFilePath, RelayBinaryPath, RelayEnvironmentFilePath)
+`, RelayEnvironmentFilePath, RelayBinaryPath, RelayEnvironmentFilePath, RelayUserName, RelayUserName)
 }
