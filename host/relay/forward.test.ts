@@ -6,7 +6,11 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 	return {
 		asked,
 		dispatch: {
-			serveAsset: async (capability: string) => ({ served: capability }),
+			serveAsset: async (
+				capability: string,
+				_body: Record<string, unknown>,
+				reader: { memberID: string; token: string }
+			) => ({ served: capability, readAs: reader }),
 			askMaild: async (operation: string, body: Record<string, unknown>) => {
 				asked.push({ capability: `mail.${operation}`, body });
 				return { status: 200, body: { mailboxes: [] } };
@@ -118,13 +122,41 @@ describe('serveCall', () => {
 		expect(asked).toEqual([]);
 	});
 
-	test('an asset needs no actor and is answered without addressing anyone', async () => {
+	test('an asset is read as the person who asked for it', async () => {
+		const { dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
+
+		const served = await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'asset.emoji',
+			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
+		});
+
+		expect(served).toEqual({
+			status: 200,
+			body: { served: 'asset.emoji', readAs: { memberID: 'member-1', token: 'known' } },
+			replyTo: 'member-1'
+		});
+	});
+
+	test('an asset call naming no actor is refused, so nothing reads on a shared account', async () => {
 		const { asked, dispatch } = dispatchThatKnows({});
 
 		const served = await serveCall(dispatch, { callID: 'c1', capability: 'asset.emoji' });
 
-		expect(served).toEqual({ status: 200, body: { served: 'asset.emoji' }, replyTo: null });
+		expect(served.status).toBe(400);
 		expect(asked).toEqual([]);
+	});
+
+	test('an asset call from a credential nobody here holds is refused', async () => {
+		const { dispatch } = dispatchThatKnows({});
+
+		const served = await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'asset.picture',
+			body: { actor: { kind: 'mattermost-token', secret: 'stranger' } }
+		});
+
+		expect(served.status).toBe(403);
 	});
 });
 
