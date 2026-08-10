@@ -116,6 +116,8 @@ type Service struct {
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
 	mutex                              sync.Mutex
+	mattermostAdminSessionMutex        sync.Mutex
+	mattermostAdminSession             mattermostAdminSession
 	jobs                               map[string]*Job
 	uploads                            map[string]*RestoreUpload
 	blueclawUpdateUploads              map[string]*BlueclawUpdateUpload
