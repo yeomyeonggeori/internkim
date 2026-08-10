@@ -289,6 +289,14 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 			return errorValue
 		}
 	}
+	if errorValue := service.installReleaseBinary(stagingPath, "relay", blueclawruntime.RelayBinaryPath); errorValue != nil {
+		return errorValue
+	}
+	if _, hasRelay := manifest.Components["relay"]; hasRelay {
+		if errorValue := service.installReleaseRelayService(ctx); errorValue != nil {
+			return errorValue
+		}
+	}
 	if errorValue := service.installReleaseBinary(stagingPath, "buzzMigrate", blueclawruntime.BuzzMigrateBinaryPath); errorValue != nil {
 		return errorValue
 	}

@@ -3,6 +3,7 @@ Description=internkim relay
 Documentation=https://github.com/yeomyeonggeori/internkim/blob/main/host/README.md
 After=network-online.target
 Wants=network-online.target
+ConditionPathExists=/etc/internkim/relay.env
 
 [Service]
 ExecStart=/usr/local/bin/internkim-relay
