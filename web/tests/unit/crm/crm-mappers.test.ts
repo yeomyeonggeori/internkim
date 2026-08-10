@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	accountPayloadFromDraft,
 	contactPayload,
 	CRMOwnerResolutionError,
 	localDateToUTC,
@@ -19,6 +20,44 @@ describe('CRM service mappers', () => {
 		] as const) {
 			expect(utcToLocalDate(localDateToUTC(date, timeZone), timeZone)).toBe(date);
 		}
+	});
+
+	test('stores date-only due dates at the end of the selected local day', () => {
+		expect(localDateToUTC('2026-08-10', 'Asia/Seoul')).toBe('2026-08-10T14:59:59.000Z');
+		expect(localDateToUTC('2026-08-10', 'America/New_York')).toBe('2026-08-11T03:59:59.000Z');
+		expect(localDateToUTC('2026-03-08', 'America/New_York')).toBe('2026-03-09T03:59:59.000Z');
+	});
+
+	test('displays a due date in its stored time zone regardless of viewer time zone', () => {
+		const data = serviceData();
+		data.opportunities[0] = {
+			...data.opportunities[0]!,
+			dueAt: '2026-08-11T03:59:59.000Z',
+			dueTimeZone: 'America/New_York'
+		};
+
+		expect(mapCRMViewData(data, [], 'Asia/Seoul').opportunities[0]?.targetDate).toBe('2026-08-10');
+	});
+
+	test('preserves empty and multiple relationship types in create payloads', () => {
+		const owner = { userID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' };
+		const draft = {
+			kind: 'relationship' as const,
+			name: '관계처',
+			types: [] as const,
+			status: 'prospect' as const,
+			importance: 'medium' as const,
+			ownerName: '담당자',
+			team: '',
+			address: '',
+			tags: [],
+			description: '',
+			lastContactDate: '',
+			nextActionDate: ''
+		};
+
+		expect(accountPayloadFromDraft({ ...draft, types: [] }, owner).types).toEqual([]);
+		expect(accountPayloadFromDraft({ ...draft, types: ['partner', 'portfolio'] }, owner).types).toEqual(['partner', 'portfolio']);
 	});
 
 	test('derives display names and account metrics from service records', () => {

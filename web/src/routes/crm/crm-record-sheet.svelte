@@ -26,6 +26,7 @@
 		CRMProgressKind,
 		CRMRecordKind
 	} from './crm-types';
+	import { crmAccountTypes } from './crm-types';
 	import { findAccountByID, opportunityStageLabel } from './crm-view-model';
 	import type { CRMText } from './text';
 
@@ -44,7 +45,6 @@
 	};
 
 	let { open = $bindable(false), initialKind, accounts, opportunities, pipelines, stages, lostReasons, businessOptions, defaultOwnerName, text, onCreate }: Props = $props();
-	const accountTypes: CRMAccountType[] = ['customer', 'partner', 'sponsor', 'vendor', 'investor', 'other'];
 	const accountStatuses: CRMAccountStatus[] = ['prospect', 'active', 'paused'];
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	const activityKinds: Array<Exclude<CRMActivityKind, 'stage_change'>> = ['note', 'email', 'meeting', 'call', 'task', 'file', 'event'];
@@ -52,7 +52,7 @@
 	let kind = $state<CRMRecordKind>('relationship');
 	let name = $state('');
 	let accountID = $state('');
-	let accountType = $state<CRMAccountType>('customer');
+	let accountTypes = $state<CRMAccountType[]>([]);
 	let status = $state<CRMAccountStatus>('prospect');
 	let importance = $state<CRMImportance>('medium');
 	let ownerName = $state('');
@@ -84,7 +84,7 @@
 		kind = initialKind;
 		name = '';
 		accountID = accounts[0]?.id ?? '';
-		accountType = 'customer';
+		accountTypes = [];
 		status = 'prospect';
 		importance = 'medium';
 		ownerName = defaultOwnerName;
@@ -133,6 +133,14 @@
 		business = reference.business;
 	}
 
+	function setAccountType(accountType: CRMAccountType, checked: boolean): void {
+		if (checked) {
+			if (!accountTypes.includes(accountType)) accountTypes = [...accountTypes, accountType];
+			return;
+		}
+		accountTypes = accountTypes.filter((type) => type !== accountType);
+	}
+
 	async function submit(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
 		if (!name.trim()) {
@@ -147,7 +155,7 @@
 		errorMessage = '';
 		try {
 			if (kind === 'relationship') {
-				await onCreate({ kind, name: name.trim(), accountType, status, importance, ownerName: ownerName.trim(), team: team.trim(), address: address.trim(), tags, description: description.trim(), lastContactDate: '', nextActionDate: '' });
+				await onCreate({ kind, name: name.trim(), types: accountTypes, status, importance, ownerName: ownerName.trim(), team: team.trim(), address: address.trim(), tags, description: description.trim(), lastContactDate: '', nextActionDate: '' });
 			} else if (kind === 'contact') {
 				await onCreate({ kind, accountID, name: name.trim(), title: contactTitle.trim(), email: email.trim(), phone: phone.trim(), isPrimary, note: description.trim() });
 			} else if (kind === 'progress') {
@@ -185,7 +193,15 @@
 					{/if}
 					<Field.Field><Field.Label for="crm-record-name">{kind === 'contact' ? text.contactName : kind === 'activity' ? text.activityTitle : text.name}</Field.Label><Input id="crm-record-name" bind:value={name} required /></Field.Field>
 					{#if kind === 'relationship'}
-						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.type}</Field.Label><Select.Root type="single" value={accountType} onValueChange={(value) => (accountType = value as CRMAccountType)}><Select.Trigger class="w-full">{text.accountTypes[accountType]}</Select.Trigger><Select.Content>{#each accountTypes as option (option)}<Select.Item value={option} label={text.accountTypes[option]}>{text.accountTypes[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label>{text.status}</Field.Label><Select.Root type="single" value={status} onValueChange={(value) => (status = value as CRMAccountStatus)}><Select.Trigger class="w-full">{text.accountStatuses[status]}</Select.Trigger><Select.Content>{#each accountStatuses as option (option)}<Select.Item value={option} label={text.accountStatuses[option]}>{text.accountStatuses[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field></div>
+						<Field.Field>
+							<Field.Label>{text.type}</Field.Label>
+							<div class="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
+								{#each crmAccountTypes as accountType (accountType)}
+									<label class="flex items-center gap-2 text-sm"><Checkbox checked={accountTypes.includes(accountType)} onCheckedChange={(checked) => setAccountType(accountType, checked)} />{text.accountTypes[accountType]}</label>
+								{/each}
+							</div>
+						</Field.Field>
+						<Field.Field><Field.Label>{text.status}</Field.Label><Select.Root type="single" value={status} onValueChange={(value) => (status = value as CRMAccountStatus)}><Select.Trigger class="w-full">{text.accountStatuses[status]}</Select.Trigger><Select.Content>{#each accountStatuses as option (option)}<Select.Item value={option} label={text.accountStatuses[option]}>{text.accountStatuses[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
 						<Field.Field><Field.Label for="crm-record-owner">{text.owner}</Field.Label><Input id="crm-record-owner" bind:value={ownerName} /></Field.Field>
 						<Field.Field><Field.Label for="crm-record-address">{text.address}</Field.Label><Input id="crm-record-address" bind:value={address} /></Field.Field>
 						<Field.Field><Field.Label for="crm-record-tags">{text.tags}</Field.Label><TagsInput id="crm-record-tags" bind:value={tags} /></Field.Field>

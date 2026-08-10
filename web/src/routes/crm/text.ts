@@ -74,6 +74,7 @@ export const crmText = {
 		ownerNotFound: '담당자를 조직도에서 찾을 수 없습니다.',
 		ownerAmbiguous: '담당자가 여러 명입니다. 이메일을 입력해 주세요.',
 		lostReasonRequired: '손실 단계를 선택할 때는 손실 사유가 필요합니다.',
+		baseCurrencyConversionRequired: '외화 진행 건은 기준 통화 환산액이 있어야 종결할 수 있습니다.',
 		lostReason: '손실 사유',
 		selectLostReason: '손실 사유 선택',
 		linkedContacts: '연결 담당자',
@@ -285,6 +286,7 @@ export const crmText = {
 			sponsor: '스폰서',
 			vendor: '협력사',
 			investor: '투자자',
+			portfolio: '투자 대상',
 			other: '기타'
 		},
 		accountStatuses: {
@@ -400,6 +402,7 @@ export const crmText = {
 		ownerNotFound: 'The owner could not be found in the organization directory.',
 		ownerAmbiguous: 'Multiple owners match. Enter an email address.',
 		lostReasonRequired: 'Select a lost reason before moving to a lost stage.',
+		baseCurrencyConversionRequired: 'Foreign-currency progress requires a converted base amount before it can be closed.',
 		lostReason: 'Lost reason',
 		selectLostReason: 'Select lost reason',
 		linkedContacts: 'Linked contacts',
@@ -611,6 +614,7 @@ export const crmText = {
 			sponsor: 'Sponsor',
 			vendor: 'Vendor',
 			investor: 'Investor',
+			portfolio: 'Portfolio',
 			other: 'Other'
 		},
 		accountStatuses: {

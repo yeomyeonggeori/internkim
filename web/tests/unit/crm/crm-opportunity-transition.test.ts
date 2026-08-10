@@ -17,16 +17,40 @@ describe('CRM opportunity transition outcome', () => {
 		expect(opportunityTransitionOutcome(stages, 'sales', 'lead', {
 			amountMinor: 10000,
 			currencyCode: 'KRW',
+			baseAmountMinor: null,
+			baseCurrencyCode: '',
 			lostReason: 'budget'
 		})).toEqual({ lostReason: '', baseAmountMinor: null, baseCurrencyCode: '' });
 	});
 
-	test('uses the recorded amount as the realized amount for a won stage', () => {
+	test('uses the recorded amount when it already uses the server default currency', () => {
+		expect(opportunityTransitionOutcome(stages, 'sales', 'won', {
+			amountMinor: 2500,
+			currencyCode: 'KRW',
+			baseAmountMinor: null,
+			baseCurrencyCode: '',
+			lostReason: ''
+		})).toEqual({ lostReason: '', baseAmountMinor: 2500, baseCurrencyCode: 'KRW' });
+	});
+
+	test('preserves a converted base amount for foreign currency', () => {
 		expect(opportunityTransitionOutcome(stages, 'sales', 'won', {
 			amountMinor: 2500,
 			currencyCode: 'USD',
+			baseAmountMinor: 3400000,
+			baseCurrencyCode: 'KRW',
 			lostReason: ''
-		})).toEqual({ lostReason: '', baseAmountMinor: 2500, baseCurrencyCode: 'USD' });
+		})).toEqual({ lostReason: '', baseAmountMinor: 3400000, baseCurrencyCode: 'KRW' });
+	});
+
+	test('rejects foreign currency without a converted base amount', () => {
+		expect(() => opportunityTransitionOutcome(stages, 'sales', 'won', {
+			amountMinor: 2500,
+			currencyCode: 'USD',
+			baseAmountMinor: null,
+			baseCurrencyCode: '',
+			lostReason: ''
+		})).toThrow(new CRMOpportunityTransitionError('base_currency_conversion_required'));
 	});
 
 	test('requires an explicit lost reason', () => {
@@ -34,6 +58,8 @@ describe('CRM opportunity transition outcome', () => {
 			opportunityTransitionOutcome(stages, 'sales', 'lost', {
 				amountMinor: null,
 				currencyCode: '',
+				baseAmountMinor: null,
+				baseCurrencyCode: '',
 				lostReason: ''
 			});
 			throw new Error('expected lost transition to reject');

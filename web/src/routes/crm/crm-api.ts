@@ -14,13 +14,14 @@ import type {
 	CRMPipelineStageResponse,
 	CRMTransitionPayload
 } from './crm-api-types';
-import type {
-	CRMAccountStatus,
-	CRMAccountType,
-	CRMActivityKind,
-	CRMCurrency,
-	CRMImportance,
-	CRMProgressKind
+import {
+	crmAccountTypes,
+	type CRMAccountStatus,
+	type CRMAccountType,
+	type CRMActivityKind,
+	type CRMCurrency,
+	type CRMImportance,
+	type CRMProgressKind
 } from './crm-types';
 
 export class CRMApiError extends Error {
@@ -162,7 +163,7 @@ function parseAccount(value: unknown): CRMAccountResponse {
 		id: requiredString(record, 'id'),
 		name: requiredString(record, 'name'),
 		status: enumString(record, 'status', ['prospect', 'active', 'paused']),
-		types: enumStringArray(record, 'types', ['customer', 'partner', 'sponsor', 'vendor', 'investor', 'other']),
+		types: enumStringArray(record, 'types', crmAccountTypes),
 		tags: stringArray(record, 'tags'),
 		importance: enumString(record, 'importance', ['high', 'medium', 'low']),
 		ownerPersonID: requiredString(record, 'ownerPersonID'),
