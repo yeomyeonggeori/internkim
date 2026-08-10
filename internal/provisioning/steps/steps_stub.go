@@ -30,6 +30,7 @@ func DefaultRegistry() Registry {
 		StepBuzzMigrate,
 		StepSlackToken,
 		StepServices,
+		StepRelay,
 		StepUsersSync,
 		StepHealth,
 	}
