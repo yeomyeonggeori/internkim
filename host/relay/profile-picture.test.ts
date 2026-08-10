@@ -23,7 +23,7 @@ describe('readProfilePicture against the answer ceiling', () => {
 		const largestBytes = largestRawBytesThatFit(ceiling);
 		servePicture(largestBytes);
 
-		const picture = await readProfilePicture(settings, session, 'person-1', largestBytes);
+		const picture = await readProfilePicture(settings, session.token, 'person-1', largestBytes);
 		expect(picture).not.toBeNull();
 
 		const answer = { callID: 'a', status: 200, body: picture };
@@ -35,13 +35,13 @@ describe('readProfilePicture against the answer ceiling', () => {
 		const largestBytes = largestRawBytesThatFit(ceiling);
 		servePicture(largestBytes + 1);
 
-		expect(await readProfilePicture(settings, session, 'person-1', largestBytes)).toBeNull();
+		expect(await readProfilePicture(settings, session.token, 'person-1', largestBytes)).toBeNull();
 	});
 
 	test('the limit is the one passed in, never a constant of its own', async () => {
 		servePicture(50_000);
 
-		expect(await readProfilePicture(settings, session, 'person-1', 40_000)).toBeNull();
-		expect(await readProfilePicture(settings, session, 'person-1', 60_000)).not.toBeNull();
+		expect(await readProfilePicture(settings, session.token, 'person-1', 40_000)).toBeNull();
+		expect(await readProfilePicture(settings, session.token, 'person-1', 60_000)).not.toBeNull();
 	});
 });
