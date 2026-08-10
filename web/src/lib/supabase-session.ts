@@ -49,16 +49,28 @@ export async function signOutOfSupabase(): Promise<void> {
 	await supabase().auth.signOut({ scope: 'local' });
 }
 
-export type ClaimMailOutcome = 'sent' | 'tooManyLately' | 'failed';
+export type ClaimOutcome =
+	| { kind: 'sent' }
+	| { kind: 'issued'; password: string }
+	| { kind: 'alreadyClaimed' }
+	| { kind: 'tooManyLately' }
+	| { kind: 'failed' };
 
-export async function sendClaimLink(email: string): Promise<ClaimMailOutcome> {
+export async function askToClaim(email: string): Promise<ClaimOutcome> {
 	const response = await fetch('/api/auth/claim', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ email: email.trim().toLowerCase() })
 	});
-	if (response.ok) return 'sent';
-	return response.status === 429 ? 'tooManyLately' : 'failed';
+	if (response.status === 429) return { kind: 'tooManyLately' };
+	if (response.status === 409) return { kind: 'alreadyClaimed' };
+	if (!response.ok) return { kind: 'failed' };
+
+	const answered = (await response.json().catch(() => ({}))) as { password?: unknown };
+	if (typeof answered.password === 'string' && answered.password) {
+		return { kind: 'issued', password: answered.password };
+	}
+	return { kind: 'sent' };
 }
 
 export async function verifyClaimCode(email: string, code: string): Promise<void> {
