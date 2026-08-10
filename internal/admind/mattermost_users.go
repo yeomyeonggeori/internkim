@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"gitlab.com/eastriver/internkim/internal/identity"
@@ -196,7 +197,45 @@ func (service *Service) provisionMattermostUserWithPassword(ctx context.Context,
 	return result, nil
 }
 
+// Every login mints a Mattermost session, and Mattermost drops the oldest once
+// an account holds more than it allows. Signing in per call therefore evicts the
+// sessions the earlier calls are still holding, so the admin session is kept and
+// reused until Mattermost refuses it.
+const mattermostAdminSessionLifetime = 30 * time.Minute
+
+type mattermostAdminSession struct {
+	token    string
+	issuedAt time.Time
+}
+
+func (session mattermostAdminSession) isUsableAt(moment time.Time) bool {
+	return session.token != "" && moment.Sub(session.issuedAt) < mattermostAdminSessionLifetime
+}
+
 func (service *Service) mattermostAdminToken(ctx context.Context) (string, error) {
+	service.mattermostAdminSessionMutex.Lock()
+	defer service.mattermostAdminSessionMutex.Unlock()
+	if service.mattermostAdminSession.isUsableAt(time.Now()) {
+		return service.mattermostAdminSession.token, nil
+	}
+	token, errorValue := service.logInAsMattermostAdmin(ctx)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	service.mattermostAdminSession = mattermostAdminSession{token: token, issuedAt: time.Now()}
+	return token, nil
+}
+
+func (service *Service) forgetMattermostAdminToken(refused string) {
+	service.mattermostAdminSessionMutex.Lock()
+	defer service.mattermostAdminSessionMutex.Unlock()
+	if service.mattermostAdminSession.token != refused {
+		return
+	}
+	service.mattermostAdminSession = mattermostAdminSession{}
+}
+
+func (service *Service) logInAsMattermostAdmin(ctx context.Context) (string, error) {
 	adminPassword := strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath))
 	if adminPassword == "" {
 		return "", fmt.Errorf("Mattermost admin password is not configured")
@@ -1540,6 +1579,9 @@ func (service *Service) mattermostRequest(ctx context.Context, method string, pa
 		return errorValue
 	}
 	defer response.Body.Close()
+	if response.StatusCode == http.StatusUnauthorized {
+		service.forgetMattermostAdminToken(token)
+	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return mattermostStatusError(response)
 	}
