@@ -70,18 +70,22 @@ client.realtime.setAuth(hostSession.accessToken);
 const presence = client.channel(`company:${companyID}`, { config: { private: true } });
 const listeningTo = new Map<string, RealtimeChannel>();
 
+async function listenTo(memberID: string): Promise<RealtimeChannel> {
+	const known = listeningTo.get(memberID);
+	if (known) return known;
+	const theirs = client.channel(`member:${memberID}`, { config: { private: true } });
+	theirs.on('broadcast', { event: 'call' }, ({ payload }) => {
+		void answer(payload as Call);
+	});
+	listeningTo.set(memberID, theirs);
+	await join(theirs);
+	return theirs;
+}
+
 async function listenToEveryMember(): Promise<void> {
 	const members = await client.from('member').select('id').returns<{ id: string }[]>();
 	if (members.error) throw new Error(members.error.message);
-	for (const member of members.data) {
-		if (listeningTo.has(member.id)) continue;
-		const theirs = client.channel(`member:${member.id}`, { config: { private: true } });
-		theirs.on('broadcast', { event: 'call' }, ({ payload }) => {
-			void answer(payload as Call);
-		});
-		listeningTo.set(member.id, theirs);
-		await join(theirs);
-	}
+	for (const member of members.data) await listenTo(member.id);
 }
 
 setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
@@ -170,9 +174,13 @@ async function reply(replyTo: string | null, answer: Answer): Promise<void> {
 	const notice = oversizeNotice(answer, answerByteCeiling);
 	if (notice) console.error(`answer for ${answer.callID} is over the ${answerByteCeiling} byte ceiling`);
 	if (!replyTo) return;
-	await client
-		.channel(`member:${replyTo}`, { config: { private: true } })
-		.send({ type: 'broadcast', event: 'answer', payload: notice ?? answer });
+	try {
+		const theirs = await listenTo(replyTo);
+		await theirs.httpSend('answer', notice ?? answer);
+	} catch (error) {
+		const refusal = error instanceof Error ? error.message : 'the record would not take it';
+		console.error(`answer for ${answer.callID} never reached member:${replyTo}: ${refusal}`);
+	}
 }
 
 const pictures = new Map<string, { dataURL: string } | null>();
