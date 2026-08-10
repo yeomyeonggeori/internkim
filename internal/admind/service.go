@@ -82,6 +82,8 @@ type Configuration struct {
 	APIURLPath                     string
 	FleetIDPath                    string
 	DeviceURLPath                  string
+	FlowPublicURLPath              string
+	MattermostSessionSignInPath    string
 	FleetSecretPath                string
 	AdminUIPath                    string
 	RepositoryRoot                 string
@@ -116,6 +118,8 @@ type Service struct {
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
 	mutex                              sync.Mutex
+	mattermostAdminSessionMutex        sync.Mutex
+	mattermostAdminSession             mattermostAdminSession
 	jobs                               map[string]*Job
 	uploads                            map[string]*RestoreUpload
 	blueclawUpdateUploads              map[string]*BlueclawUpdateUpload
@@ -326,6 +330,8 @@ func DefaultConfiguration() Configuration {
 		CentralPlanePublishableKey:     centralplane.DefaultPublishableKey,
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		DeviceURLPath:                  "/root/.internkim/env/device-url",
+		FlowPublicURLPath:              "/root/.internkim/env/flow-public-url",
+		MattermostSessionSignInPath:    "/root/.internkim/env/mattermost-session-signin",
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
 		AdminUIPath:                    "/opt/internkim/admin-ui",
 		RepositoryRoot:                 "/",
@@ -2782,6 +2788,12 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.DeviceURLPath == "" {
 		configuration.DeviceURLPath = defaultConfiguration.DeviceURLPath
+	}
+	if configuration.FlowPublicURLPath == "" {
+		configuration.FlowPublicURLPath = defaultConfiguration.FlowPublicURLPath
+	}
+	if configuration.MattermostSessionSignInPath == "" {
+		configuration.MattermostSessionSignInPath = defaultConfiguration.MattermostSessionSignInPath
 	}
 	if configuration.FleetSecretPath == "" {
 		configuration.FleetSecretPath = defaultConfiguration.FleetSecretPath

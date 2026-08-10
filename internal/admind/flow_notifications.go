@@ -223,6 +223,9 @@ func (service *Service) flowLinkBaseURL() string {
 	if flowPublicURL := strings.TrimSpace(service.Configuration.FlowPublicURL); flowPublicURL != "" {
 		return flowPublicURL
 	}
+	if written := strings.TrimSpace(readTrimmedFile(service.Configuration.FlowPublicURLPath)); written != "" {
+		return written
+	}
 	return service.mattermostFlowBaseURL()
 }
 

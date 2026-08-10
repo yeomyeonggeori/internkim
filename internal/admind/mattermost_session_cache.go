@@ -34,6 +34,9 @@ func mattermostSessionCacheKey(cookieHeader string) string {
 }
 
 func (cache *mattermostSessionCache) lookup(key string, now time.Time, maximumAge time.Duration) (mattermostUserRecord, bool) {
+	if cache == nil {
+		return mattermostUserRecord{}, false
+	}
 	cache.mutex.Lock()
 	defer cache.mutex.Unlock()
 	entry, found := cache.entries[key]
@@ -44,6 +47,9 @@ func (cache *mattermostSessionCache) lookup(key string, now time.Time, maximumAg
 }
 
 func (cache *mattermostSessionCache) store(key string, userRecord mattermostUserRecord, now time.Time) {
+	if cache == nil {
+		return
+	}
 	cache.mutex.Lock()
 	defer cache.mutex.Unlock()
 	if len(cache.entries) > mattermostSessionPruneSize {
