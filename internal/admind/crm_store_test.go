@@ -220,6 +220,25 @@ END`)
 	if readOpportunity.Stage != "lead" {
 		t.Fatalf("stage after rollback = %q, want lead", readOpportunity.Stage)
 	}
+	changedWithTransition := readOpportunity
+	changedWithTransition.Name = "함께 저장할 이름"
+	changedWithTransition.Audit.UpdatedAt = "2026-08-02T03:30:00Z"
+	if _, errorValue := service.writeCRMOpportunityWithTransition(ctx, changedWithTransition, nil, &crmOpportunityStageTransition{
+		OpportunityID: opportunity.ID,
+		Stage:         "qualified",
+		StagePosition: 1024,
+		OccurredAt:    "2026-08-02T03:30:00Z",
+		ActorPersonID: "person-owner",
+	}); errorValue == nil {
+		t.Fatal("combined CRM opportunity update should roll back when transition history fails")
+	}
+	readOpportunity, _, errorValue = service.readCRMOpportunity(ctx, opportunity.ID, false)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if readOpportunity.Name != opportunity.Name || readOpportunity.Stage != "lead" {
+		t.Fatalf("combined update after rollback = %#v", readOpportunity)
+	}
 
 	database, errorValue = service.openCRMDatabase(ctx)
 	if errorValue != nil {
@@ -316,6 +335,15 @@ func TestCRMRealizedAmountsCannotChange(t *testing.T) {
 				t.Fatalf("realized CRM %s update should fail", testCase.name)
 			}
 		})
+	}
+	if errorValue := service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
+		OpportunityID: opportunity.ID,
+		Stage:         "lead",
+		StagePosition: 1024,
+		OccurredAt:    "2026-08-02T04:32:00Z",
+		ActorPersonID: "person-owner",
+	}); errorValue == nil {
+		t.Fatal("realized CRM opportunity should not return to an unrealized stage")
 	}
 }
 

@@ -64,13 +64,13 @@
 		if (routePath.startsWith('/calendar')) return text.calendar;
 		if (routePath.startsWith('/mail')) return text.mail;
 		if (routePath.startsWith('/attendance')) return text.attendance;
+		if (routePath.startsWith('/crm')) return text.crm;
 		if (routePath.startsWith('/organization')) return text.organization;
 		if (routePath.startsWith('/files')) return text.files;
 		if (routePath.startsWith('/assistant')) return text.assistant;
 		if (routePath.startsWith('/messenger')) return text.messenger;
 		return text.flow;
 	}
-
 	function handleKeydown(event: KeyboardEvent) {
 		if (isCommandPaletteOpen) return;
 		if (isPlainShortcut(event, 'Slash')) {

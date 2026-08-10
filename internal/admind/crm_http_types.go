@@ -119,6 +119,7 @@ type crmHTTPOpportunityPayload struct {
 	DueTimeZone   string                      `json:"dueTimeZone"`
 	Description   string                      `json:"description"`
 	Contacts      []crmHTTPOpportunityContact `json:"contacts"`
+	Transition    *crmHTTPTransitionPayload   `json:"transition,omitempty"`
 }
 
 type crmHTTPActivityPayload struct {

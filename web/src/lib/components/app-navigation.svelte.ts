@@ -16,6 +16,7 @@ import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
 import CogIcon from '@lucide/svelte/icons/cog';
 import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+import HandshakeIcon from '@lucide/svelte/icons/handshake';
 import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 import MailIcon from '@lucide/svelte/icons/mail';
 import MessagesSquareIcon from '@lucide/svelte/icons/messages-square';
@@ -54,6 +55,7 @@ class AppNavigation {
 		{ href: this.link('/calendar/'), label: text.calendar, icon: CalendarDaysIcon, badgeCount: appBadgeCounts.participatingEvents },
 		{ href: this.link('/mail/'), label: text.mail, icon: MailIcon },
 		{ href: this.link('/attendance/'), label: text.attendance, icon: ClipboardCheckIcon },
+		{ href: this.link('/crm/'), label: text.crm, icon: HandshakeIcon },
 		{ href: this.link('/organization/'), label: text.organization, icon: NetworkIcon },
 		{ href: this.link('/files/'), label: text.files, icon: FolderOpenIcon }
 	]);

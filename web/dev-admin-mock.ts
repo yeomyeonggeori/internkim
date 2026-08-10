@@ -33,6 +33,9 @@ export function createDevAdminMockResponse(
 	state: DevAdminMockState,
 	request: DevMockRequest
 ): DevMockResponse | undefined {
+	if (request.method === 'GET' && request.pathname === '/agent/api/buzz-vault') {
+		return { status: 200, body: { found: true } };
+	}
 	if (request.method === 'GET' && request.pathname === '/auth/session') {
 		return { status: 200, body: { authenticated: true, email: state.userEmail, isAdmin: state.userRole === 'admin' } };
 	}
@@ -63,6 +66,7 @@ export function createDevAdminMockResponse(
 }
 
 export function shouldHandleDevAdminMockRequest(method: string, pathname: string): boolean {
+	if (method === 'GET' && pathname === '/agent/api/buzz-vault') return true;
 	if (method === 'GET' && pathname === '/auth/session') return true;
 	if (method === 'GET' && pathname === '/admin/api/session') return true;
 	if (method === 'GET' && pathname === '/admin/api/locale') return true;
