@@ -142,6 +142,11 @@ const (
 	ChatdListenPort                       = "18090"
 	ChatdEndpoint                         = "http://127.0.0.1:18090"
 	ChatdBotUserName                      = "internkim"
+	RelayName                             = "internkim-relay"
+	RelayServiceName                      = "internkim-relay"
+	RelayServicePath                      = "/etc/systemd/system/internkim-relay.service"
+	RelayBinaryPath                       = "/usr/local/bin/internkim-relay"
+	RelayEnvironmentFilePath              = "/etc/internkim/relay.env"
 	BuzzPremigrateSnapshotPath            = "/root/.internkim/state/buzz-premigrate.sql"
 )
 
