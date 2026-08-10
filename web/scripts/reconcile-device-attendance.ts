@@ -1,6 +1,7 @@
 //   bun run web/scripts/reconcile-device-attendance.ts --device https://<device> --url <project> --key <service role> --app https://api.intern.kim --months 2026-05,2026-06 [--apply]
 
 import { createClient } from '@supabase/supabase-js';
+import { windowOf } from './attendance-window';
 import { issueAgentKey, revokeAgent } from '../src/lib/server/control-plane';
 
 function argument(name: string): string | undefined {
@@ -37,12 +38,6 @@ async function deviceEvents(month: string): Promise<DeviceEvent[]> {
 	return answered.events ?? [];
 }
 
-function windowOf(month: string): { from: string; to: string } {
-	const [year, index] = month.split('-').map(Number);
-	const next = index === 12 ? `${year + 1}-01` : `${year}-${String(index + 1).padStart(2, '0')}`;
-	return { from: `${month}-01T00:00:00.000Z`, to: `${next}-01T00:00:00.000Z` };
-}
-
 const companies = await admin.from('company').select('id, name').returns<{ id: string; name: string }[]>();
 if (companies.error) throw new Error(companies.error.message);
 if ((companies.data ?? []).length !== 1) {
@@ -57,6 +52,7 @@ try {
 		const { from, to } = windowOf(month);
 		const events = (await deviceEvents(month))
 			.filter((event) => event.mattermostUserID && event.kind && event.occurredAt && !event.canceledAt)
+			.filter((event) => (event.occurredAt ?? '') >= from && (event.occurredAt ?? '') < to)
 			.map((event) => ({
 				externalID: event.mattermostUserID,
 				kind: event.kind,

@@ -1142,8 +1142,8 @@ func TestNormalizeFlowStatusFilter(t *testing.T) {
 		"done": "완료", "완료": "완료", "in progress": "진행",
 		"": "", "임의값": "임의값",
 	} {
-		if normalized := normalizeFlowStatusFilter(input); normalized != expected {
-			t.Fatalf("normalizeFlowStatusFilter(%q) = %q, want %q", input, normalized, expected)
+		if normalized := normalizeFlowStatus(input); normalized != expected {
+			t.Fatalf("normalizeFlowStatus(%q) = %q, want %q", input, normalized, expected)
 		}
 	}
 }
@@ -1438,5 +1438,44 @@ func flowToolJSONResponse(document string) *http.Response {
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(document)),
+	}
+}
+
+func TestFlowTaskAddTakesTheStatusesTheSchemaPromises(t *testing.T) {
+	for _, promised := range []struct{ english, stored string }{
+		{"planned", "예정"},
+		{"in_progress", "진행"},
+		{"completed", "완료"},
+		{"paused", "일시정지"},
+		{"rejected", "기각"},
+		{"cancelled", "중단"},
+	} {
+		document := json.RawMessage(`{"title":"운동","status":"` + promised.english + `"}`)
+		input, errorValue := decodeFlowTaskAddInput(document)
+		if errorValue != nil {
+			t.Fatalf("the schema offers %q and the tool refused it: %v", promised.english, errorValue)
+		}
+		if input.Status != promised.stored {
+			t.Fatalf("%q became %q, expected %q", promised.english, input.Status, promised.stored)
+		}
+	}
+}
+
+func TestFlowTaskUpdateTakesTheStatusesTheSchemaPromises(t *testing.T) {
+	document := json.RawMessage(`{"taskHint":"운동","status":"completed"}`)
+
+	input, errorValue := decodeFlowTaskUpdateInput(document)
+
+	if errorValue != nil {
+		t.Fatalf("task_update refused a status its schema offers: %v", errorValue)
+	}
+	if input.Status == nil || *input.Status != "완료" {
+		t.Fatalf("status = %v", input.Status)
+	}
+}
+
+func TestFlowTaskAddStillRefusesAStatusNobodyOffers(t *testing.T) {
+	if _, errorValue := decodeFlowTaskAddInput(json.RawMessage(`{"title":"운동","status":"nonsense"}`)); errorValue == nil {
+		t.Fatal("a status outside the vocabulary must still be refused")
 	}
 }
