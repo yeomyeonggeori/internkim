@@ -106,6 +106,17 @@ func TestCRMHTTPCRUDPersistsAcrossServiceRestart(t *testing.T) {
 			opportunityReadDocument.Opportunity.DueTimeZone,
 		)
 	}
+	opportunityListResponse := crmHTTPTestRequest(t, restarted, http.MethodGet, "/crm/api/opportunities", "teammate@example.com", nil)
+	requireCRMHTTPStatus(t, opportunityListResponse, http.StatusOK)
+	var opportunityListDocument struct {
+		Opportunities []crmHTTPOpportunity `json:"opportunities"`
+	}
+	decodeCRMHTTPTestResponse(t, opportunityListResponse, &opportunityListDocument)
+	if len(opportunityListDocument.Opportunities) != 1 || len(opportunityListDocument.Opportunities[0].Contacts) != 1 ||
+		opportunityListDocument.Opportunities[0].Contacts[0].ContactID != contactDocument.Contact.ID ||
+		!opportunityListDocument.Opportunities[0].Contacts[0].IsPrimary {
+		t.Fatalf("persisted opportunity list = %#v", opportunityListDocument.Opportunities)
+	}
 
 	pipelineResponse := crmHTTPTestRequest(t, restarted, http.MethodGet, "/crm/api/pipelines/sales/stages", "other@example.com", nil)
 	requireCRMHTTPStatus(t, pipelineResponse, http.StatusOK)
@@ -238,6 +249,24 @@ func TestCRMHTTPValidatesInputsAndUsesDedicatedOpportunityActions(t *testing.T) 
 	})
 	requireCRMHTTPStatus(t, invalidTimeZone, http.StatusBadRequest)
 
+	terminalCreate := crmHTTPTestRequest(t, service, http.MethodPost, "/crm/api/opportunities", "owner@example.com", map[string]any{
+		"accountID": account.ID, "name": "직접 종결", "pipeline": "sales",
+		"ownerPersonID": "person-owner", "ownerCircleID": "team-sales",
+		"amountMinor": 500000, "currencyCode": "KRW",
+		"transition": map[string]any{
+			"stage": "lost", "stagePosition": 1024, "occurredAt": "2026-08-03T04:30:00Z",
+			"lostReason": "no_budget", "baseAmountMinor": 500000, "baseCurrencyCode": "KRW",
+		},
+	})
+	requireCRMHTTPStatus(t, terminalCreate, http.StatusCreated)
+	var terminalDocument struct {
+		Opportunity crmHTTPOpportunity `json:"opportunity"`
+	}
+	decodeCRMHTTPTestResponse(t, terminalCreate, &terminalDocument)
+	if terminalDocument.Opportunity.Stage != "lost" || terminalDocument.Opportunity.BaseAmountMinor == nil || *terminalDocument.Opportunity.BaseAmountMinor != 500000 {
+		t.Fatalf("terminal opportunity = %#v", terminalDocument.Opportunity)
+	}
+
 	missingReference := crmHTTPTestRequest(t, service, http.MethodPost, "/crm/api/contacts", "owner@example.com", map[string]any{
 		"accountID": "missing", "name": "없는 관계처", "email": "missing@example.com",
 		"ownerPersonID": "person-owner", "ownerCircleID": "team-sales",
@@ -269,6 +298,24 @@ func TestCRMHTTPValidatesInputsAndUsesDedicatedOpportunityActions(t *testing.T) 
 		"stage": "qualified", "stagePosition": 1024, "occurredAt": "2026-08-03T05:05:00Z",
 	})
 	requireCRMHTTPStatus(t, repeatedTransition, http.StatusConflict)
+
+	combinedUpdate := crmHTTPTestRequest(t, service, http.MethodPut, "/crm/api/opportunities/"+opportunityDocument.Opportunity.ID, "owner@example.com", map[string]any{
+		"accountID": account.ID, "name": "원자적 종결", "pipeline": "sales",
+		"ownerPersonID": "person-owner", "ownerCircleID": "team-sales",
+		"amountMinor": 700000, "currencyCode": "KRW",
+		"transition": map[string]any{
+			"stage": "won", "stagePosition": 1024, "occurredAt": "2026-08-03T05:06:00Z",
+			"baseAmountMinor": 700000, "baseCurrencyCode": "KRW",
+		},
+	})
+	requireCRMHTTPStatus(t, combinedUpdate, http.StatusOK)
+	var combinedDocument struct {
+		Opportunity crmHTTPOpportunity `json:"opportunity"`
+	}
+	decodeCRMHTTPTestResponse(t, combinedUpdate, &combinedDocument)
+	if combinedDocument.Opportunity.Name != "원자적 종결" || combinedDocument.Opportunity.Stage != "won" {
+		t.Fatalf("combined opportunity update = %#v", combinedDocument.Opportunity)
+	}
 
 	selfAnchor := crmHTTPTestRequest(t, service, http.MethodPost, "/crm/api/opportunities/"+opportunityDocument.Opportunity.ID+"/position", "owner@example.com", map[string]any{
 		"position": 2048, "beforeOpportunityID": opportunityDocument.Opportunity.ID, "updatedAt": "2026-08-03T05:06:00Z",
