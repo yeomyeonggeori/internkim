@@ -85,7 +85,7 @@ export function accountPayloadFromDraft(
 	return {
 		name: draft.name,
 		status: draft.status,
-		types: [draft.accountType],
+		types: draft.types,
 		tags: draft.tags,
 		importance: draft.importance,
 		ownerPersonID: owner.userID,
@@ -211,11 +211,18 @@ export function browserTimeZone(): string {
 export function localDateToUTC(date: string, timeZone: string): string {
 	const [year, month, day] = date.split('-').map(Number);
 	if (!year || !month || !day) return '';
-	const localNoonAsUTC = Date.UTC(year, month - 1, day, 12, 0, 0);
-	const parts = dateParts(new Date(localNoonAsUTC), timeZone);
-	const representedAsUTC = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-	const offset = representedAsUTC - localNoonAsUTC;
-	return new Date(localNoonAsUTC - offset).toISOString();
+	const desiredAsUTC = Date.UTC(year, month - 1, day, 23, 59, 59);
+	let instant = desiredAsUTC;
+	for (let attempt = 0; attempt < 3; attempt += 1) {
+		const parts = dateParts(new Date(instant), timeZone);
+		const representedAsUTC = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+		instant += desiredAsUTC - representedAsUTC;
+	}
+	const resolved = dateParts(new Date(instant), timeZone);
+	if (resolved.year !== year || resolved.month !== month || resolved.day !== day || resolved.hour !== 23 || resolved.minute !== 59 || resolved.second !== 59) {
+		throw new RangeError(`CRM due date ${date} does not exist in ${timeZone}`);
+	}
+	return new Date(instant).toISOString();
 }
 
 export function utcToLocalDate(dateTime: string | undefined, timeZone: string): string {

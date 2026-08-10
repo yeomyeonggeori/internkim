@@ -10,6 +10,7 @@ import type {
 	CRMOpportunityStage,
 	CRMProgressKind
 } from './crm-types';
+import { crmAccountTypes } from './crm-types';
 import type { CRMText } from './text';
 export { formatMoney, formatMoneyTotals } from './crm-money';
 
@@ -20,7 +21,7 @@ export type CRMBadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline
 
 export const crmNextActionStatusOrder: CRMNextActionStatus[] = ['todo', 'in_progress', 'waiting', 'done'];
 export const crmAccountStatusOptions: CRMAccountStatusFilter[] = ['all', 'prospect', 'active', 'paused'];
-export const crmAccountTypeOptions: CRMAccountTypeFilter[] = ['all', 'customer', 'partner', 'sponsor', 'vendor', 'investor', 'other'];
+export const crmAccountTypeOptions: CRMAccountTypeFilter[] = ['all', ...crmAccountTypes];
 export const crmPrototypeToday = '2026-07-22';
 
 export function accountMatchesFilters(

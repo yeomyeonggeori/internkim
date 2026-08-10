@@ -8,7 +8,7 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { TagsInput } from '$lib/components/ui/tags-input';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import type { CRMAccount, CRMAccountStatus, CRMAccountType, CRMImportance } from './crm-types';
+	import { crmAccountTypes, type CRMAccount, type CRMAccountStatus, type CRMAccountType, type CRMImportance } from './crm-types';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -20,7 +20,6 @@
 	};
 
 	let { open = $bindable(false), account, text, onSave, onArchive }: Props = $props();
-	const accountTypes: CRMAccountType[] = ['customer', 'partner', 'sponsor', 'vendor', 'investor', 'other'];
 	const accountStatuses: CRMAccountStatus[] = ['prospect', 'active', 'paused'];
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	let name = $state('');
@@ -60,12 +59,12 @@
 			if (!types.includes(accountType)) types = [...types, accountType];
 			return;
 		}
-		if (types.length > 1) types = types.filter((type) => type !== accountType);
+		types = types.filter((type) => type !== accountType);
 	}
 
 	async function save(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
-		if (!account || name.trim() === '' || types.length === 0) return;
+		if (!account || name.trim() === '') return;
 		isSaving = true;
 		errorMessage = '';
 		try {
@@ -131,7 +130,7 @@
 					<Field.Field>
 						<Field.Label>{text.type}</Field.Label>
 						<div class="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
-							{#each accountTypes as accountType (accountType)}
+							{#each crmAccountTypes as accountType (accountType)}
 								<label class="flex items-center gap-2 text-sm"><Checkbox checked={types.includes(accountType)} onCheckedChange={(checked) => setType(accountType, checked)} />{text.accountTypes[accountType]}</label>
 							{/each}
 						</div>

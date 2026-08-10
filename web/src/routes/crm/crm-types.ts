@@ -1,4 +1,5 @@
-export type CRMAccountType = 'customer' | 'partner' | 'sponsor' | 'vendor' | 'investor' | 'other';
+export const crmAccountTypes = ['customer', 'partner', 'sponsor', 'vendor', 'investor', 'portfolio', 'other'] as const;
+export type CRMAccountType = (typeof crmAccountTypes)[number];
 export type CRMAccountStatus = 'prospect' | 'active' | 'paused';
 export type CRMOpportunityStage = string;
 export type CRMActivityKind = 'note' | 'email' | 'meeting' | 'call' | 'task' | 'file' | 'event' | 'stage_change';
@@ -10,6 +11,7 @@ export type CRMRecordKind = 'relationship' | 'contact' | 'progress' | 'activity'
 export type CRMImportance = 'high' | 'medium' | 'low';
 export type CRMCalendarRegistrationState = 'registered' | 'failed';
 export type CRMCurrency = 'KRW' | 'USD' | 'JPY' | 'EUR';
+export const crmServerDefaultCurrency: CRMCurrency = 'KRW';
 export type CRMMoneyTotals = Partial<Record<CRMCurrency, number>>;
 
 export type CRMCalendarRegistrationDraft = {
@@ -101,7 +103,7 @@ export type CRMOpportunity = {
 export type CRMRelationshipCreateDraft = {
 	kind: 'relationship';
 	name: string;
-	accountType: CRMAccountType;
+	types: CRMAccountType[];
 	status: CRMAccountStatus;
 	importance: CRMImportance;
 	ownerName: string;
