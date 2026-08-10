@@ -609,3 +609,18 @@ func TestWaitForBlueclawWorkspaceImageReleaseNamesAPersistentHolder(t *testing.T
 		t.Fatalf("expected a holder-naming error, got %v", errorValue)
 	}
 }
+
+func TestDescriptorOpenModeSaysWhetherTheHolderCanWrite(t *testing.T) {
+	if descriptorOpenMode("pos:\t0\nflags:\t0100000\nmnt_id:\t29\n") != "read-only" {
+		t.Fatalf("read-only = %q", descriptorOpenMode("pos:\t0\nflags:\t0100000\n"))
+	}
+	if descriptorOpenMode("flags:\t0100002\n") != "for reading and writing" {
+		t.Fatalf("read-write = %q", descriptorOpenMode("flags:\t0100002\n"))
+	}
+	if descriptorOpenMode("flags:\t0100001\n") != "write-only" {
+		t.Fatalf("write-only = %q", descriptorOpenMode("flags:\t0100001\n"))
+	}
+	if descriptorOpenMode("nothing useful") != "unreadably" {
+		t.Fatal("a document with no flags line cannot say how it was opened")
+	}
+}
