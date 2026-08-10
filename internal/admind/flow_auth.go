@@ -117,7 +117,10 @@ func (service *Service) webActorEmail(request *http.Request) string {
 	if actorEmail := service.authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail
 	}
-	return strings.ToLower(strings.TrimSpace(service.webSessionActorEmail(request)))
+	if actorEmail := strings.ToLower(strings.TrimSpace(service.webSessionActorEmail(request))); actorEmail != "" {
+		return actorEmail
+	}
+	return service.emailOfMattermostSession(request)
 }
 
 func hasWebLogoutMarker(request *http.Request) bool {
