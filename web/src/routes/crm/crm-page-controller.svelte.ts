@@ -130,6 +130,8 @@ export class CRMPageController {
 						...this.transitionPayload('', draft.stage, null, draft.progressKind, {
 							amountMinor: payload.amountMinor,
 							currencyCode: payload.currencyCode,
+							baseAmountMinor: null,
+							baseCurrencyCode: '',
 							lostReason: draft.lostReason
 						}),
 						stagePosition: 0
@@ -169,8 +171,10 @@ export class CRMPageController {
 				...payload,
 				transition: existing && opportunity.stage !== existing.stage
 					? this.transitionPayload(opportunity.id, opportunity.stage, null, opportunity.pipeline, {
-						amountMinor: opportunity.baseAmountMinor ?? payload.amountMinor,
-						currencyCode: opportunity.baseCurrencyCode ?? payload.currencyCode,
+						amountMinor: payload.amountMinor,
+						currencyCode: payload.currencyCode,
+						baseAmountMinor: opportunity.baseAmountMinor ?? null,
+						baseCurrencyCode: opportunity.baseCurrencyCode ?? '',
 						lostReason: opportunity.lostReason ?? ''
 					})
 					: undefined
@@ -196,8 +200,10 @@ export class CRMPageController {
 						request.beforeOpportunityID,
 						opportunity.pipeline ?? opportunity.kind,
 						{
-							amountMinor: opportunity.baseAmountMinor ?? payload.amountMinor,
-							currencyCode: opportunity.baseCurrencyCode ?? payload.currencyCode,
+							amountMinor: payload.amountMinor,
+							currencyCode: payload.currencyCode,
+							baseAmountMinor: opportunity.baseAmountMinor ?? null,
+							baseCurrencyCode: opportunity.baseCurrencyCode ?? '',
 							lostReason: opportunity.lostReason ?? ''
 						}
 					)

@@ -13,6 +13,7 @@ export type CRMErrorText = {
 	ownerNotFound: string;
 	ownerAmbiguous: string;
 	lostReasonRequired: string;
+	baseCurrencyConversionRequired: string;
 };
 
 export class CRMPageError extends Error {
@@ -26,7 +27,9 @@ export function crmErrorMessage(error: unknown, text: CRMErrorText): string {
 	if (error instanceof CRMPageError) {
 		return error.code === 'organization_load_failed' ? text.organizationLoadFailed : text.refreshAfterSaveFailed;
 	}
-	if (error instanceof CRMOpportunityTransitionError) return text.lostReasonRequired;
+	if (error instanceof CRMOpportunityTransitionError) {
+		return error.code === 'lost_reason_required' ? text.lostReasonRequired : text.baseCurrencyConversionRequired;
+	}
 	if (error instanceof CRMOwnerResolutionError) {
 		return error.code === 'owner_not_found' ? text.ownerNotFound : text.ownerAmbiguous;
 	}

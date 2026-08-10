@@ -181,6 +181,7 @@ test.describe('CRM service UI', () => {
 		await createSheet.getByLabel('이름 또는 제목').fill('새 관계처');
 		await createSheet.getByRole('button', { name: '추가', exact: true }).click();
 		await expect(page.getByLabel('관계처').getByText('새 관계처', { exact: true })).toBeVisible();
+		expect(accounts.find((candidate) => candidate.name === '새 관계처')?.types).toEqual([]);
 
 		await page.reload();
 		await expect(page.locator('[data-crm-ready="true"]')).toBeVisible();
@@ -192,8 +193,19 @@ test.describe('CRM service UI', () => {
 		await expect(editSheet.getByLabel('마지막 접촉')).toBeDisabled();
 		await expect(editSheet.getByLabel('다음 연락일')).toBeDisabled();
 		await editSheet.getByLabel('관계처', { exact: true }).fill('수정된 관계처');
+		await editSheet.getByRole('checkbox', { name: '파트너', exact: true }).click();
+		await editSheet.getByRole('checkbox', { name: '투자 대상', exact: true }).click();
 		await editSheet.getByRole('button', { name: '저장', exact: true }).click();
 		await expect(page.getByRole('row', { name: /수정된 관계처/ })).toBeVisible();
+		expect(accounts.find((candidate) => candidate.name === '수정된 관계처')?.types).toEqual(['partner', 'portfolio']);
+
+		await page.getByRole('row', { name: /수정된 관계처/ }).click();
+		await page.getByRole('dialog').getByRole('button', { name: '수정', exact: true }).click();
+		const clearTypesSheet = page.getByRole('dialog', { name: '관계처 수정' });
+		await clearTypesSheet.getByRole('checkbox', { name: '파트너', exact: true }).click();
+		await clearTypesSheet.getByRole('checkbox', { name: '투자 대상', exact: true }).click();
+		await clearTypesSheet.getByRole('button', { name: '저장', exact: true }).click();
+		expect(accounts.find((candidate) => candidate.name === '수정된 관계처')?.types).toEqual([]);
 
 		await page.getByRole('row', { name: /수정된 관계처/ }).click();
 		await page.getByRole('dialog').getByRole('button', { name: '수정', exact: true }).click();
@@ -296,6 +308,26 @@ test.describe('CRM service UI', () => {
 			baseAmountMinor: 1000,
 			baseCurrencyCode: 'KRW'
 		});
+	});
+
+	test('rejects closing foreign-currency progress without a converted base amount', async ({ page }) => {
+		opportunities = [{ ...opportunity('opportunity-foreign', '외화 진행 건', 'qualified', 1024), currencyCode: 'USD' }];
+		await openCRM(page);
+		await page.getByRole('tab', { name: '진행상황' }).click();
+		await page.getByRole('tab', { name: '보드' }).click();
+
+		const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+		const source = page.locator('[data-crm-opportunity-card="opportunity-foreign"]');
+		const target = page.locator('[data-crm-pipeline-column="won"]');
+		await source.dispatchEvent('dragstart', { dataTransfer });
+		await target.dispatchEvent('dragover', { dataTransfer });
+		await target.dispatchEvent('drop', { dataTransfer });
+		await source.dispatchEvent('dragend', { dataTransfer });
+		const sheet = page.getByRole('dialog', { name: '진행 건 수정' });
+		await sheet.getByRole('button', { name: '저장', exact: true }).click();
+
+		await expect(sheet.getByText('외화 진행 건은 기준 통화 환산액이 있어야 종결할 수 있습니다.')).toBeVisible();
+		expect(opportunities[0]?.stage).toBe('qualified');
 	});
 
 	test('creates valued progress directly in a lost stage with its required details', async ({ page }) => {

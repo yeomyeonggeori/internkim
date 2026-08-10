@@ -1,13 +1,15 @@
 import type { CRMTransitionPayload } from './crm-api-types';
-import type { CRMCurrency, CRMPipelineStage, CRMProgressKind } from './crm-types';
+import { crmServerDefaultCurrency, type CRMCurrency, type CRMPipelineStage, type CRMProgressKind } from './crm-types';
 
 export type CRMOpportunityTransitionValues = {
 	amountMinor: number | null;
 	currencyCode: CRMCurrency | '';
+	baseAmountMinor: number | null;
+	baseCurrencyCode: CRMCurrency | '';
 	lostReason: string;
 };
 
-export type CRMOpportunityTransitionErrorCode = 'lost_reason_required';
+export type CRMOpportunityTransitionErrorCode = 'lost_reason_required' | 'base_currency_conversion_required';
 
 export class CRMOpportunityTransitionError extends Error {
 	constructor(readonly code: CRMOpportunityTransitionErrorCode) {
@@ -37,9 +39,16 @@ export function opportunityTransitionOutcome(
 	}
 	const lostReason = outcome === 'lost' ? values.lostReason.trim() : '';
 	if (outcome === 'lost' && !lostReason) throw new CRMOpportunityTransitionError('lost_reason_required');
+	if (values.amountMinor === null) return { lostReason, baseAmountMinor: null, baseCurrencyCode: '' };
+	if (values.baseAmountMinor !== null && values.baseCurrencyCode !== '') {
+		return { lostReason, baseAmountMinor: values.baseAmountMinor, baseCurrencyCode: values.baseCurrencyCode };
+	}
+	if (values.currencyCode !== crmServerDefaultCurrency) {
+		throw new CRMOpportunityTransitionError('base_currency_conversion_required');
+	}
 	return {
 		lostReason,
 		baseAmountMinor: values.amountMinor,
-		baseCurrencyCode: values.amountMinor === null ? '' : values.currencyCode
+		baseCurrencyCode: crmServerDefaultCurrency
 	};
 }
