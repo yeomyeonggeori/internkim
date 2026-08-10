@@ -83,6 +83,7 @@ type Configuration struct {
 	FleetIDPath                    string
 	DeviceURLPath                  string
 	FlowPublicURLPath              string
+	MattermostSessionSignInPath    string
 	FleetSecretPath                string
 	AdminUIPath                    string
 	RepositoryRoot                 string
@@ -330,6 +331,7 @@ func DefaultConfiguration() Configuration {
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		DeviceURLPath:                  "/root/.internkim/env/device-url",
 		FlowPublicURLPath:              "/root/.internkim/env/flow-public-url",
+		MattermostSessionSignInPath:    "/root/.internkim/env/mattermost-session-signin",
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
 		AdminUIPath:                    "/opt/internkim/admin-ui",
 		RepositoryRoot:                 "/",
@@ -2789,6 +2791,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.FlowPublicURLPath == "" {
 		configuration.FlowPublicURLPath = defaultConfiguration.FlowPublicURLPath
+	}
+	if configuration.MattermostSessionSignInPath == "" {
+		configuration.MattermostSessionSignInPath = defaultConfiguration.MattermostSessionSignInPath
 	}
 	if configuration.FleetSecretPath == "" {
 		configuration.FleetSecretPath = defaultConfiguration.FleetSecretPath
