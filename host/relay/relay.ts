@@ -4,7 +4,7 @@ import { createClient, type RealtimeChannel, type SupabaseClient } from '@supaba
 import { readLinkPreview, type LinkPreview } from './link-preview';
 import { largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
 import { mintMissingTokens } from './member-tokens';
-import { forwardToChatd, reportableTopic, serveCall, type Call } from './forward';
+import { forwardToChatd, reportableTopic, serveCall, type AssetReader, type Call } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import {
 	readCustomEmoji,
@@ -163,9 +163,13 @@ const dispatch = {
 	}
 };
 
-async function asset(capability: string, body: Record<string, unknown>): Promise<unknown> {
-	if (capability === 'asset.emoji') return emojiSet();
-	if (capability === 'asset.picture') return pictureOf(String(body.externalID ?? ''));
+async function asset(
+	capability: string,
+	body: Record<string, unknown>,
+	reader: AssetReader
+): Promise<unknown> {
+	if (capability === 'asset.emoji') return emojiSet(reader);
+	if (capability === 'asset.picture') return pictureOf(reader, String(body.externalID ?? ''));
 	if (capability === 'asset.link') return previewOf(String(body.url ?? ''));
 	throw new Error(`the app has nothing called ${capability}`);
 }
@@ -185,18 +189,22 @@ async function reply(replyTo: string | null, answer: Answer): Promise<void> {
 
 const pictures = new Map<string, { dataURL: string } | null>();
 const linkPreviews = new Map<string, LinkPreview | null>();
-let customEmoji: { name: string; url: string }[] | null = null;
+const customEmoji = new Map<string, { name: string; url: string }[]>();
 
-async function emojiSet(): Promise<{ name: string; url: string }[]> {
-	customEmoji ??= await readCustomEmoji(mattermost, session);
-	return customEmoji;
+async function emojiSet(reader: AssetReader): Promise<{ name: string; url: string }[]> {
+	const held = customEmoji.get(reader.memberID);
+	if (held) return held;
+	const drawn = await readCustomEmoji(mattermost, reader.token);
+	customEmoji.set(reader.memberID, drawn);
+	return drawn;
 }
 
-async function pictureOf(externalID: string): Promise<{ dataURL: string } | null> {
-	if (!pictures.has(externalID)) {
-		pictures.set(externalID, await readProfilePicture(mattermost, session, externalID, largestPictureBytes));
+async function pictureOf(reader: AssetReader, externalID: string): Promise<{ dataURL: string } | null> {
+	const key = `${reader.memberID}:${externalID}`;
+	if (!pictures.has(key)) {
+		pictures.set(key, await readProfilePicture(mattermost, reader.token, externalID, largestPictureBytes));
 	}
-	return pictures.get(externalID) ?? null;
+	return pictures.get(key) ?? null;
 }
 
 async function previewOf(link: string): Promise<LinkPreview | null> {
@@ -263,10 +271,10 @@ async function provisionMemberCredentials(): Promise<void> {
 		'GET',
 		`/api/agent/messenger-credentials?kind=${encodeURIComponent(messengerPlatform)}`
 	);
-	const people = await readPeople(mattermost, session);
+	const people = await readPeople(mattermost, session.token);
 	const { credentials, report } = await mintMissingTokens(
 		mattermost,
-		session,
+		session.token,
 		people,
 		new Set(held.have ?? [])
 	);
@@ -325,7 +333,7 @@ async function keepGoing(what: string, work: () => Promise<void>): Promise<void>
 }
 
 async function refreshContacts(client: SupabaseClient, companyID: string, session: MattermostSession): Promise<void> {
-	const people = await readPeople(mattermost, session);
+	const people = await readPeople(mattermost, session.token);
 	const members = await client.from('member').select('id, email').returns<{ id: string; email: string | null }[]>();
 	if (members.error) throw new Error(members.error.message);
 	const memberByEmail = new Map(members.data.map((entry) => [entry.email ?? '', entry.id]));

@@ -56,8 +56,14 @@ export async function forwardToChatd(
 
 export type Served = { status: number; body: unknown; replyTo: string | null };
 
+export type AssetReader = { memberID: string; token: string };
+
 export type Dispatch = {
-	serveAsset: (capability: string, body: Record<string, unknown>) => Promise<unknown>;
+	serveAsset: (
+		capability: string,
+		body: Record<string, unknown>,
+		reader: AssetReader
+	) => Promise<unknown>;
 	askChatd: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	memberOfExternalID: (externalID: string) => Promise<string | null>;
@@ -67,9 +73,6 @@ export type Dispatch = {
 export async function serveCall(dispatch: Dispatch, call: Call): Promise<Served> {
 	const capability = call.capability ?? '';
 	const body = call.body ?? {};
-	if (!isPersonCapability(capability)) {
-		return { status: 200, body: await dispatch.serveAsset(capability, body), replyTo: null };
-	}
 
 	const actor = actorOf(call);
 	if (!actor) {
@@ -79,6 +82,11 @@ export async function serveCall(dispatch: Dispatch, call: Call): Promise<Served>
 	const replyTo = await memberHolding(dispatch, actor);
 	if (!replyTo) {
 		return { status: 403, body: { error: 'that credential belongs to nobody here' }, replyTo: null };
+	}
+
+	if (!isPersonCapability(capability)) {
+		const reader = { memberID: replyTo, token: actor.secret };
+		return { status: 200, body: await dispatch.serveAsset(capability, body, reader), replyTo };
 	}
 
 	const operation = mailOperationOf(capability);
