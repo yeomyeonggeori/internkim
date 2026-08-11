@@ -296,7 +296,7 @@ func (session *mattermostScenarioSession) runStep(contextValue context.Context, 
 		return errorValue
 	}
 	resolvedStep := session.stepWithResolvedWorkspaceGlobs(step)
-	workspaceFiles, errorValue := session.admin.workspaceFiles(contextValue, resolvedStep)
+	workspaceFiles, errorValue := session.admin.workspaceFiles(contextValue, resolvedStep, session.requesterPersonID)
 	if errorValue != nil {
 		stepResult.WorkspaceEvidenceError = errorValue.Error()
 		recordMattermostScenarioAdvisoryFailure(&session.result, stepIndex, "workspace_evidence", errorValue)
@@ -329,7 +329,7 @@ func (session *mattermostScenarioSession) finishApprovalStep(contextValue contex
 	if errorValue != nil {
 		return errorValue
 	}
-	stepResult.WorkspaceFiles, errorValue = session.admin.workspaceFiles(contextValue, session.stepWithResolvedWorkspaceGlobs(session.scenario.Steps[stepIndex]))
+	stepResult.WorkspaceFiles, errorValue = session.admin.workspaceFiles(contextValue, session.stepWithResolvedWorkspaceGlobs(session.scenario.Steps[stepIndex]), session.requesterPersonID)
 	if errorValue != nil {
 		stepResult.WorkspaceEvidenceError = errorValue.Error()
 		recordMattermostScenarioAdvisoryFailure(&session.result, stepIndex, "workspace_evidence", errorValue)
