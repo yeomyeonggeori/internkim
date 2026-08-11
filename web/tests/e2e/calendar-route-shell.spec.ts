@@ -88,6 +88,68 @@ test.describe('calendar route shell', () => {
 		await expect(page.getByText('일정 삭제')).toHaveCount(0);
 	});
 
+	test('renders approved full-day and partial leave as read-only events', async ({ page }) => {
+		await page.unroute('**/calendar/api/events?**');
+		await page.route('**/calendar/api/events?**', async (route) => {
+			await route.fulfill({
+				json: {
+					events: [
+						{
+							id: 'leave:full-day',
+							uid: 'leave:full-day',
+							title: '이샘플 · 휴가',
+							description: '',
+							location: '',
+							startISO: '2026-06-15T00:00:00.000Z',
+							endISO: '2026-06-16T00:00:00.000Z',
+							timeZone: 'Asia/Seoul',
+							isAllDay: true,
+							color: '',
+							createdByEmail: 'sample@example.com',
+							createdByName: '이샘플',
+							updatedAt: '2026-06-14T15:00:00.000Z',
+							readOnly: true,
+							source: 'leave'
+						},
+						{
+							id: 'leave:partial',
+							uid: 'leave:partial',
+							title: '박예시 · 휴가',
+							description: '',
+							location: '',
+							startISO: '2026-06-15T05:00:00.000Z',
+							endISO: '2026-06-15T09:00:00.000Z',
+							timeZone: 'Asia/Seoul',
+							isAllDay: false,
+							color: '',
+							createdByEmail: 'example@example.com',
+							createdByName: '박예시',
+							updatedAt: '2026-06-15T05:00:00.000Z',
+							readOnly: true,
+							source: 'leave'
+						}
+					]
+				}
+			});
+		});
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
+		await page.goto('/calendar/embed');
+
+		const fullDayLeave = page
+			.locator('[data-calendar-event-id="leave:full-day"]:visible')
+			.first();
+		const partialLeave = page
+			.locator('[data-calendar-event-id="leave:partial"]:visible')
+			.first();
+		await expect(fullDayLeave).toContainText('이샘플 · 휴가');
+		await expect(partialLeave).toContainText('박예시 · 휴가');
+		await expect(fullDayLeave).toHaveAttribute('aria-disabled', 'true');
+		await expect(partialLeave).toHaveAttribute('aria-disabled', 'true');
+		await partialLeave.click({ force: true });
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
+	});
+
 	test('keeps calendar events visible and warns when holidays fail to load', async ({ page }) => {
 		await page.unroute('**/calendar/api/holidays?**');
 		await page.route('**/calendar/api/holidays?**', async (route) => {
