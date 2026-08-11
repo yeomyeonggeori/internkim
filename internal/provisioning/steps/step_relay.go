@@ -21,7 +21,7 @@ const (
 
 var StepRelay = Step{
 	Name: "relay",
-	Deps: []string{"services"},
+	Deps: nil,
 	Title: func(context *Context) string {
 		return context.T("릴레이 설정 배치 중...", "Placing the relay's settings...")
 	},
