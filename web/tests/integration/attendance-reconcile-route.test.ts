@@ -106,6 +106,28 @@ if (canReachSupabase) {
 			).rejects.toMatchObject({ status: 400 });
 		});
 
+		test('a window over one month returns 400 before date enumeration or persistence', async () => {
+			const originalSetUTCDate = Date.prototype.setUTCDate;
+			Date.prototype.setUTCDate = function (): number {
+				throw new Error('calendar date enumeration started');
+			};
+			try {
+				await expect(
+					reconcile({
+						platform: 'mattermost',
+						workMode: 'fixed',
+						workCalendar: [],
+						from: '0100-01-01T00:00:00Z',
+						to: '9999-01-01T00:00:00Z',
+						events: []
+					})
+				).rejects.toMatchObject({ status: 400 });
+				expect(await companyRules()).toEqual({ approvals: { required: true } });
+			} finally {
+				Date.prototype.setUTCDate = originalSetUTCDate;
+			}
+		});
+
 		const completeWindow = [
 			{ date: '2027-01-01', workMode: 'fixed', workingDate: true },
 			{ date: '2027-01-02', workMode: 'fixed', workingDate: true },

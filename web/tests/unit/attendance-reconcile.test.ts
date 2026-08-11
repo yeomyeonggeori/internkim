@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	attendanceWorkCalendarFromDevice,
-	attendanceWorkModeFromDevice
+	attendanceWorkModeFromDevice,
+	InvalidAttendanceWorkCalendarError
 } from '../../src/lib/server/attendance-work-calendar-reconcile';
 import {
 	EmptyWindowRefused,
@@ -123,6 +124,27 @@ describe('attendanceWorkCalendarFromDevice', () => {
 				'2027-01-01T12:00:00Z'
 			)
 		).toEqual([]);
+	});
+
+	test('rejects a window over one month before enumerating calendar dates', () => {
+		const originalSetUTCDate = Date.prototype.setUTCDate;
+		Date.prototype.setUTCDate = function (): number {
+			throw new Error('calendar date enumeration started');
+		};
+		let thrown: unknown;
+		try {
+			attendanceWorkCalendarFromDevice(
+				[],
+				'0100-01-01T00:00:00Z',
+				'9999-01-01T00:00:00Z'
+			);
+		} catch (caught) {
+			thrown = caught;
+		} finally {
+			Date.prototype.setUTCDate = originalSetUTCDate;
+		}
+
+		expect(thrown).toBeInstanceOf(InvalidAttendanceWorkCalendarError);
 	});
 });
 
