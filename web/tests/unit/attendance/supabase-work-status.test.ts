@@ -93,6 +93,56 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		expect(current.targetMinutes).toBe(0);
 	});
 
+	test('excludes autonomous work from mixed-period baseline comparisons', () => {
+		const days = [
+			'2027-01-04',
+			'2027-01-05',
+			'2027-01-06',
+			'2027-01-07',
+			'2027-01-08',
+			'2027-01-09',
+			'2027-01-10'
+		];
+		const policy = policyFrom(
+			days.map((date, index) => ({
+				date,
+				workMode: index === 0 ? 'fixed' : 'autonomous',
+				workingDate: index < 5
+			}))
+		);
+
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days,
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{
+					member_id: member.id,
+					kind: 'clock_in',
+					occurred_at: '2027-01-05T00:00:00Z'
+				},
+				{
+					member_id: member.id,
+					kind: 'clock_out',
+					occurred_at: '2027-01-05T08:00:00Z'
+				}
+			],
+			leave: [],
+			policy
+		});
+		const autonomousDay = status.days.find((day) => day.date === '2027-01-05');
+
+		expect(status.remainingMinutes).toBe(480);
+		expect(status.actualMinutes).toBe(480);
+		expect(status.fulfilledMinutes).toBe(0);
+		expect(status.differenceMinutes).toBe(-480);
+		expect(status.overtimeMinutes).toBe(0);
+		expect(autonomousDay?.actualMinutes).toBe(480);
+		expect(autonomousDay?.differenceMinutes).toBe(0);
+		expect(autonomousDay?.remainingMinutes).toBe(0);
+		expect(autonomousDay?.overtimeMinutes).toBe(0);
+	});
+
 	test('falls back to the resolved work-hours cycle when no projection exists', () => {
 		const status = calculateSupabaseEmployeeWorkStatus({
 			member,

@@ -138,8 +138,10 @@ export function calculateSupabaseEmployeeWorkStatus(
 	const actualMinutes = total((day) => day.actualMinutes);
 	const actualSeconds = total((day) => day.actualSeconds);
 	const leaveMinutes = total((day) => day.leaveMinutes);
-	const periodTarget = total((day) => day.targetMinutes);
-	const fulfilledMinutes = actualMinutes + leaveMinutes;
+	const baselineActualMinutes = total((day) => day.hasBaseline ? day.actualMinutes : 0);
+	const baselineLeaveMinutes = total((day) => day.hasBaseline ? day.leaveMinutes : 0);
+	const periodTarget = total((day) => day.hasBaseline ? day.targetMinutes : 0);
+	const fulfilledMinutes = baselineActualMinutes + baselineLeaveMinutes;
 	const email = member.email ?? '';
 	const workMode = dayStatuses.at(-1)?.workMode ?? policy.workMode;
 	const hasBaseline = dayStatuses.some((day) => day.hasBaseline);
@@ -210,6 +212,9 @@ function dayStatusOf(
 	const isOnLeave = leave.some((row) => day >= dateIn(new Date(row.starts_at), timeZone) && day < dateIn(new Date(row.ends_at), timeZone));
 	const leaveMinutes = isOnLeave ? dayTargetMinutes : 0;
 	const fulfilledMinutes = workedMinutes + leaveMinutes;
+	const differenceMinutes = hasBaseline ? fulfilledMinutes - dayTargetMinutes : 0;
+	const remainingMinutes = hasBaseline ? Math.max(0, dayTargetMinutes - fulfilledMinutes) : 0;
+	const overtimeMinutes = hasBaseline ? Math.max(0, fulfilledMinutes - dayTargetMinutes) : 0;
 
 	return {
 		date: day,
@@ -223,9 +228,9 @@ function dayStatusOf(
 		provisionalSeconds,
 		leaveMinutes,
 		fulfilledMinutes,
-		differenceMinutes: fulfilledMinutes - dayTargetMinutes,
-		remainingMinutes: Math.max(0, dayTargetMinutes - fulfilledMinutes),
-		overtimeMinutes: Math.max(0, fulfilledMinutes - dayTargetMinutes),
+		differenceMinutes,
+		remainingMinutes,
+		overtimeMinutes,
 		nightMinutes: 0,
 		isWorking,
 		needsReview: isWorking && provisionalMinutes > 0,
