@@ -8,7 +8,8 @@ export class InvalidAttendanceWorkModeError extends Error {
 	}
 }
 
-export function attendanceWorkModeFromDevice(offered: unknown): AttendanceWorkMode {
+export function attendanceWorkModeFromDevice(offered: unknown): AttendanceWorkMode | undefined {
+	if (offered === undefined) return undefined;
 	if (isAttendanceWorkMode(offered)) return offered;
 	throw new InvalidAttendanceWorkModeError();
 }
