@@ -17,12 +17,19 @@ type ReconciledEvent struct {
 	OccurredAt time.Time `json:"occurredAt"`
 }
 
+type ReconciledWorkCalendarDay struct {
+	Date        string `json:"date"`
+	WorkMode    string `json:"workMode"`
+	WorkingDate bool   `json:"workingDate"`
+}
+
 type ReconcileWindow struct {
-	Platform string
-	WorkMode string
-	From     time.Time
-	To       time.Time
-	Events   []ReconciledEvent
+	Platform     string
+	WorkMode     string
+	From         time.Time
+	To           time.Time
+	Events       []ReconciledEvent
+	WorkCalendar []ReconciledWorkCalendarDay
 }
 
 type ReconcileResult struct {
@@ -35,12 +42,16 @@ func (client *Client) ReconcileAttendance(ctx context.Context, window ReconcileW
 	if window.Events == nil {
 		window.Events = []ReconciledEvent{}
 	}
+	if window.WorkCalendar == nil {
+		window.WorkCalendar = []ReconciledWorkCalendarDay{}
+	}
 	payload, errorValue := json.Marshal(map[string]any{
-		"platform": window.Platform,
-		"workMode": window.WorkMode,
-		"from":     window.From.UTC().Format(time.RFC3339),
-		"to":       window.To.UTC().Format(time.RFC3339),
-		"events":   window.Events,
+		"platform":     window.Platform,
+		"workMode":     window.WorkMode,
+		"from":         window.From.UTC().Format(time.RFC3339),
+		"to":           window.To.UTC().Format(time.RFC3339),
+		"events":       window.Events,
+		"workCalendar": window.WorkCalendar,
 	})
 	if errorValue != nil {
 		return ReconcileResult{}, errorValue

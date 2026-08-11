@@ -49,12 +49,28 @@ func reconciledEventsOf(events []attendanceEvent) []centralplane.ReconciledEvent
 	return reconciled
 }
 
+func reconciledWorkCalendarOf(days []attendanceWorkCalendarDay) []centralplane.ReconciledWorkCalendarDay {
+	reconciled := make([]centralplane.ReconciledWorkCalendarDay, 0, len(days))
+	for _, day := range days {
+		reconciled = append(reconciled, centralplane.ReconciledWorkCalendarDay{
+			Date:        day.Date,
+			WorkMode:    day.WorkMode,
+			WorkingDate: day.WorkingDate,
+		})
+	}
+	return reconciled
+}
+
 func (service *Service) reconcileAttendanceMonth(ctx context.Context, month string) error {
 	client := service.centralPlane()
 	if client == nil {
 		return nil
 	}
 	from, to, errorValue := monthWindow(month)
+	if errorValue != nil {
+		return errorValue
+	}
+	workCalendar, errorValue := service.attendanceWorkCalendarProjection(ctx, from, to)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -68,11 +84,12 @@ func (service *Service) reconcileAttendanceMonth(ctx context.Context, month stri
 	}
 
 	result, errorValue := client.ReconcileAttendance(ctx, centralplane.ReconcileWindow{
-		Platform: "mattermost",
-		WorkMode: workMode,
-		From:     from,
-		To:       to,
-		Events:   reconciledEventsOf(events),
+		Platform:     "mattermost",
+		WorkMode:     workMode,
+		From:         from,
+		To:           to,
+		Events:       reconciledEventsOf(events),
+		WorkCalendar: reconciledWorkCalendarOf(workCalendar),
 	})
 	if errorValue != nil {
 		return errorValue
