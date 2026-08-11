@@ -101,7 +101,7 @@ supabase db reset
 supabase test db
 cd web && bun test tests/unit
 cd web && bun run check
-cd web && bunx playwright test tests/e2e/attendance-approved-leave-calendar.spec.ts
+cd web && bunx playwright test tests/e2e/calendar-route-shell.spec.ts --grep "renders approved full-day and partial leave as read-only events"
 ```
 
 Success means database tests, all web unit tests, type checking, and the focused browser scenario pass from the current branch.

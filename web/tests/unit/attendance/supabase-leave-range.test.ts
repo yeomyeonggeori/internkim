@@ -107,6 +107,17 @@ describe('leaveDisplayRange', () => {
 		).toEqual({ startDate: '2026-08-03', endDate: '2026-08-05' });
 	});
 
+	test('preserves legacy UTC-midnight full-day dates in a negative UTC offset', () => {
+		expect(
+			leaveDisplayRange(
+				'2026-08-03T00:00:00.000Z',
+				'2026-08-04T00:00:00.000Z',
+				1,
+				'America/Los_Angeles'
+			)
+		).toEqual({ startDate: '2026-08-03', endDate: '2026-08-03' });
+	});
+
 	test('reconstructs a standard half-day period and its times', () => {
 		expect(
 			leaveDisplayRange(

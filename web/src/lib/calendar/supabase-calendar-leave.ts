@@ -1,4 +1,4 @@
-import { companyDateOfTimestamp } from '../attendance/supabase-leave-range';
+import { leaveAllDayDate } from '../attendance/supabase-leave-range';
 import { localizedLeaveUnitName } from '../i18n/leave-type-name';
 import type { Locale } from '../i18n/locale.svelte';
 import { supabase } from '../supabase';
@@ -76,5 +76,5 @@ function leaveKindLabel(kind: string, days: number, locale: Locale): string {
 }
 
 function calendarMidnightISO(value: string, timeZone: string): string {
-	return `${companyDateOfTimestamp(value, timeZone)}T00:00:00.000Z`;
+	return `${leaveAllDayDate(value, timeZone)}T00:00:00.000Z`;
 }
