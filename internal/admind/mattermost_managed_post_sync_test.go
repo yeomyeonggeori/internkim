@@ -2,8 +2,10 @@ package admind
 
 import (
 	"context"
+	"net/http"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -103,4 +105,85 @@ func settleCalendarMattermostPost(t *testing.T, service *Service, eventID string
 	if errorValue := service.deleteCalendarMattermostProjectionOutbox(ctx, eventID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+}
+
+func TestFlowMattermostNotificationRetiresPostThatIsGone(t *testing.T) {
+	service, createdPostCount := newRetiredFlowPostTestService(t)
+	task := flowNotificationTestTask("완료")
+	writeFlowTaskWithSettledPost(t, service, task, "flow-post-1")
+
+	task.MattermostPostID = "flow-post-1"
+	task = service.syncFlowMattermostNotification(context.Background(), task)
+
+	if *createdPostCount != 0 {
+		t.Fatalf("a card whose post is already gone was posted again %d time(s)", *createdPostCount)
+	}
+	reloadedTask, found, errorValue := service.readFlowTaskByID(context.Background(), task.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("expected reloaded task: found=%v error=%v", found, errorValue)
+	}
+	if reloadedTask.MattermostPostID != "" {
+		t.Fatalf("stale post id survived retirement: %q", reloadedTask.MattermostPostID)
+	}
+}
+
+func TestFlowMattermostNotificationRepostsWhenProjectionIsPending(t *testing.T) {
+	service, createdPostCount := newRetiredFlowPostTestService(t)
+	task := flowNotificationTestTask("완료")
+	if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.updateFlowTaskMattermostPostID(context.Background(), task.ID, "flow-post-1"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	task.MattermostPostID = "flow-post-1"
+	task = service.syncFlowMattermostNotification(context.Background(), task)
+
+	if *createdPostCount != 1 {
+		t.Fatalf("a task that still owes a projection was posted %d time(s)", *createdPostCount)
+	}
+	if task.MattermostPostID != "flow-post-2" {
+		t.Fatalf("post id = %q", task.MattermostPostID)
+	}
+}
+
+func newRetiredFlowPostTestService(t *testing.T) (*Service, *int) {
+	t.Helper()
+	createdPostCount := 0
+	service := NewService(Configuration{
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: writeTestFile(t, "admin-pass"),
+		MattermostBotTokenPath:      writeTestFile(t, "bot-token"),
+		FlowDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/me":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `[]`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts/flow-post-1" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusNotFound, `{"status_code":404}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts/flow-post-1" && request.Method == http.MethodDelete:
+			return jsonResponse(http.StatusNotFound, `{"status_code":404}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
+			createdPostCount++
+			return jsonResponse(http.StatusCreated, `{"id":"flow-post-2"}`, nil), nil
+		case strings.HasSuffix(request.URL.String(), "/members/bot-1/schemeRoles") && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case isMattermostFlowSetupRequest(request):
+			return mattermostExistingFlowSetupResponse(t, request), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	return service, &createdPostCount
 }
