@@ -1,3 +1,6 @@
+import { callCompanyApp } from '$lib/host-bridge';
+import { isSupabaseConfigured } from '$lib/supabase';
+
 export type MemoryGraphHealth = {
 	configured?: boolean;
 	reachable?: boolean;
@@ -60,8 +63,11 @@ export type MemoryGraphResponse = {
 };
 
 export async function fetchMemoryGraph(memoryGraphQuery: string): Promise<MemoryGraphResponse> {
+	const asked = memoryGraphQuery.trim();
+	if (isSupabaseConfigured()) return normalizeMemoryGraphResponse(await askTheCompanyApp(asked));
+
 	const urlParameters = new URLSearchParams({ limit: '120' });
-	if (memoryGraphQuery.trim()) urlParameters.set('query', memoryGraphQuery.trim());
+	if (asked) urlParameters.set('query', asked);
 	const response = await fetch(`/memory/api/graph?${urlParameters.toString()}`, { credentials: 'include' });
 	if (!response.ok) {
 		throw new Error(`Memory graph request returned ${response.status}`);
@@ -290,4 +296,13 @@ function readNumber(value: unknown): number | undefined {
 function readNullableNumber(value: unknown): number | null | undefined {
 	if (value === null) return null;
 	return readNumber(value);
+}
+
+async function askTheCompanyApp(memoryGraphQuery: string): Promise<unknown> {
+	const answer = await callCompanyApp({
+		capability: 'person.memory.graph',
+		body: memoryGraphQuery ? { limit: 120, query: memoryGraphQuery } : { limit: 120 }
+	});
+	if (answer.status >= 400) throw new Error(`Memory graph request returned ${answer.status}`);
+	return answer.body;
 }

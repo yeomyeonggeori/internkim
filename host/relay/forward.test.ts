@@ -26,6 +26,12 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 				}
 				return { status: 200, body: { conversations: [] } };
 			},
+			askAdmind: async (capability: string, body: Record<string, unknown>, requesterEmail: string) => {
+				asked.push({ capability, body: { ...body, requesterEmail } });
+				return { status: 200, body: { served: capability } };
+			},
+			emailOfMember: async (memberID: string) =>
+				memberID === 'member-1' ? 'sample@example.test' : null,
 			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null
 		}
 	};
@@ -142,6 +148,42 @@ describe('serveCall', () => {
 		const { asked, dispatch } = dispatchThatKnows({});
 
 		const served = await serveCall(dispatch, { callID: 'c1', capability: 'asset.emoji' });
+
+		expect(served.status).toBe(400);
+		expect(asked).toEqual([]);
+	});
+
+	test('a workspace call is asked of the workspace as the person who asked', async () => {
+		const { asked, dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
+
+		const served = await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'person.memory.graph',
+			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
+		});
+
+		expect(served.status).toBe(200);
+		expect(served.replyTo).toBe('member-1');
+		const workspaceCall = asked.find((entry) => entry.capability === 'person.memory.graph');
+		expect(workspaceCall?.body.requesterEmail).toBe('sample@example.test');
+	});
+
+	test('a workspace call for a member the record has no address for is refused', async () => {
+		const { dispatch } = dispatchThatKnows({ 'U-known': 'member-2' });
+
+		const served = await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'person.memory.graph',
+			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
+		});
+
+		expect(served.status).toBe(409);
+	});
+
+	test('a workspace call naming no actor never reaches the workspace', async () => {
+		const { asked, dispatch } = dispatchThatKnows({});
+
+		const served = await serveCall(dispatch, { callID: 'c1', capability: 'person.memory.graph' });
 
 		expect(served.status).toBe(400);
 		expect(asked).toEqual([]);

@@ -1,4 +1,6 @@
 import { adminApiFetch } from '$lib/admin-api';
+import { callCompanyApp } from '$lib/host-bridge';
+import { isSupabaseConfigured } from '$lib/supabase';
 
 export type TaskRunSummary = {
 	taskRunID: string;
@@ -74,6 +76,8 @@ export function taskRunsAPIPath(request: TaskRunsRequest = {}): string {
 }
 
 export async function fetchTaskRuns(request: TaskRunsRequest = {}): Promise<TaskRunsResponse> {
+	if (isSupabaseConfigured()) return readTaskRunsResponse(await askTheCompanyApp(request));
+
 	const response = await adminApiFetch(taskRunsAPIPath(request));
 	if (!response.ok) {
 		throw new Error(`Task list request returned ${response.status}`);
@@ -346,4 +350,18 @@ function readNonNegativeNumber(value: unknown): number {
 function readRecord(value: unknown): Record<string, unknown> | undefined {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
 	return value as Record<string, unknown>;
+}
+
+async function askTheCompanyApp(request: TaskRunsRequest): Promise<unknown> {
+	const body: Record<string, unknown> = {};
+	if (request.limit) body.limit = request.limit;
+	if (request.offset) body.offset = request.offset;
+	if (request.dailyCostTaskRunLimit) body.dailyCostTaskRunLimit = request.dailyCostTaskRunLimit;
+	if (request.includeTotal) body.includeTotal = true;
+	if (request.includeCost) body.includeCost = true;
+	if (request.status) body.status = request.status;
+
+	const answer = await callCompanyApp({ capability: 'person.tasks.list', body });
+	if (answer.status >= 400) throw new Error(`Task list request returned ${answer.status}`);
+	return answer.body;
 }
