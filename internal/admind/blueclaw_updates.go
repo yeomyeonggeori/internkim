@@ -815,12 +815,46 @@ func canonicalBlueclawPayloadInstallTarget() blueclawPayloadInstallTarget {
 }
 
 func syncBlueclawRuntimeConfigurationForTarget(target blueclawPayloadInstallTarget) error {
+	if errorValue := seedWorkspaceRuntimeConfiguration(target); errorValue != nil {
+		return errorValue
+	}
 	for _, configurationPath := range blueclawRuntimeConfigurationPathsForTarget(target) {
 		if errorValue := syncBlueclawRuntimeConfigurationPath(configurationPath); errorValue != nil {
 			return errorValue
 		}
 	}
 	return nil
+}
+
+// The guest boots from the workspace copy, and the workspace sync only
+// refreshes a copy that is already there. A workspace missing one leaves the
+// guest on whatever it first booted with, which no restamp of the host copy
+// can reach.
+func seedWorkspaceRuntimeConfiguration(target blueclawPayloadInstallTarget) error {
+	workspacePath := strings.TrimSpace(target.WorkspaceRuntimeConfigurationPath)
+	hostPath := strings.TrimSpace(target.RuntimeConfigurationPath)
+	if workspacePath == "" || hostPath == "" {
+		return nil
+	}
+	_, errorValue := os.Stat(workspacePath)
+	if errorValue == nil {
+		return nil
+	}
+	if !os.IsNotExist(errorValue) {
+		return errorValue
+	}
+	document, errorValue := os.ReadFile(hostPath)
+	if os.IsNotExist(errorValue) {
+		return nil
+	}
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.MkdirAll(filepath.Dir(workspacePath), 0o750); errorValue != nil {
+		return errorValue
+	}
+	log.Printf("Blueclaw workspace runtime configuration for %s was missing: seeding it from %s", target.Name, hostPath)
+	return os.WriteFile(workspacePath, document, 0o640)
 }
 
 func syncBlueclawRuntimeConfigurationPath(configurationPath string) error {
@@ -902,12 +936,28 @@ func healBlueclawGuestLLMDConfiguration(runtimeDocument map[string]any) {
 }
 
 func isBlueclawRuntimeConfigurationCurrentForTarget(target blueclawPayloadInstallTarget) bool {
+	if workspaceRuntimeConfigurationIsMissing(target) {
+		return false
+	}
 	for _, configurationPath := range blueclawRuntimeConfigurationPathsForTarget(target) {
 		if !isBlueclawRuntimeConfigurationPathCurrent(configurationPath) {
 			return false
 		}
 	}
 	return true
+}
+
+func workspaceRuntimeConfigurationIsMissing(target blueclawPayloadInstallTarget) bool {
+	workspacePath := strings.TrimSpace(target.WorkspaceRuntimeConfigurationPath)
+	hostPath := strings.TrimSpace(target.RuntimeConfigurationPath)
+	if workspacePath == "" || hostPath == "" {
+		return false
+	}
+	if _, errorValue := os.Stat(hostPath); errorValue != nil {
+		return false
+	}
+	_, errorValue := os.Stat(workspacePath)
+	return os.IsNotExist(errorValue)
 }
 
 func isBlueclawRuntimeConfigurationPathCurrent(configurationPath string) bool {
