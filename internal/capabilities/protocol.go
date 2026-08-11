@@ -158,6 +158,7 @@ func FlowDescriptors() []Descriptor {
 		"task_definitions",
 		"task_update",
 		"task_delete",
+		"person_list",
 	))
 }
 

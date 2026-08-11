@@ -9,6 +9,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 func TestGeneratedCapabilityContractIsAcceptedByPocRefresh(t *testing.T) {
@@ -61,8 +62,8 @@ func TestGeneratedCapabilityContractIsAcceptedByPocRefresh(t *testing.T) {
 	if capabilityConfiguration["protocolVersion"] != "0.4.0" {
 		t.Fatalf("protocol version = %v, want 0.4.0", capabilityConfiguration["protocolVersion"])
 	}
-	if capabilityConfiguration["aggregateProtocolHash"] != "fccec45c4b3fc539159b3a293d61275ed2fc4ae738f371ec9122c1546b32a42f" {
-		t.Fatalf("aggregate protocol hash = %v, want generated hash", capabilityConfiguration["aggregateProtocolHash"])
+	if capabilityConfiguration["aggregateProtocolHash"] != capabilityprotocol.GeneratedAggregateProtocolHash() {
+		t.Fatalf("aggregate protocol hash = %v, want %s", capabilityConfiguration["aggregateProtocolHash"], capabilityprotocol.GeneratedAggregateProtocolHash())
 	}
 	for _, value := range toolDescriptors {
 		toolDescriptor := value.(map[string]any)
