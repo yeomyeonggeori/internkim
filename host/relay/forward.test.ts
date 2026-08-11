@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { actorOf, isPersonCapability, mailOperationOf, reportableTopic, serveCall } from './forward';
+import { actorOf, answerBodyOf, isPersonCapability, mailOperationOf, reportableTopic, serveCall } from './forward';
 
 function dispatchThatKnows(externalIDs: Record<string, string>) {
 	const asked: { capability: string; body: Record<string, unknown> }[] = [];
@@ -265,5 +265,30 @@ describe('serveCall for mail', () => {
 
 		expect(served.status).toBe(409);
 		expect(asked.map((entry) => entry.capability)).toEqual(['person.identity']);
+	});
+});
+
+describe('answerBodyOf', () => {
+	test('carries the reason a service wrote as plain text', async () => {
+		const refused = new Response('workspace access required', { status: 403 });
+
+		expect(await answerBodyOf(refused)).toEqual({ error: 'workspace access required' });
+	});
+
+	test('reads a JSON answer as itself', async () => {
+		const answered = new Response(JSON.stringify({ roots: [] }), {
+			status: 200,
+			headers: { 'content-type': 'application/json' }
+		});
+
+		expect(await answerBodyOf(answered)).toEqual({ roots: [] });
+	});
+
+	test('leaves a body that says nothing as nothing', async () => {
+		expect(await answerBodyOf(new Response('', { status: 204 }))).toBe(null);
+	});
+
+	test('keeps plain text that came back with a success', async () => {
+		expect(await answerBodyOf(new Response('done', { status: 200 }))).toBe('done');
 	});
 });

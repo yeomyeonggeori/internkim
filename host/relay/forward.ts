@@ -27,6 +27,16 @@ export function isWorkspaceCapability(capability: string): boolean {
 	return workspacePrefixes.some((prefix) => capability.startsWith(prefix));
 }
 
+export async function answerBodyOf(response: Response): Promise<unknown> {
+	const text = await response.text();
+	if (!text.trim()) return null;
+	try {
+		return JSON.parse(text);
+	} catch {
+		return response.ok ? text : { error: text.trim() };
+	}
+}
+
 export function reportableTopic(call: Call): string | null {
 	const offered = call.replyTo;
 	if (typeof offered !== 'string') return null;
