@@ -3,6 +3,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
 import { membersOfCompanyByExternalID } from '$lib/server/member-credential';
 import {
+	attendanceWorkCalendarFromDevice,
+	attendanceWorkModeFromDevice,
+	InvalidAttendanceWorkCalendarError,
+	InvalidAttendanceWorkModeError,
+	saveAttendanceWorkCalendar
+} from '$lib/server/attendance-work-calendar-reconcile';
+import {
 	EmptyWindowRefused,
 	reconcileMember,
 	type Reconciliation,
@@ -13,6 +20,8 @@ import type { RequestHandler } from './$types';
 
 type ReconcileRequest = {
 	platform?: unknown;
+	workMode?: unknown;
+	workCalendar?: unknown;
 	from?: unknown;
 	to?: unknown;
 	events?: unknown;
@@ -32,6 +41,11 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const from = moment(asked.from, 'from');
 	const to = moment(asked.to, 'to');
 	if (from >= to) error(400, 'the window ends before it begins');
+	askedWorkMode(asked.workMode);
+	const workCalendar = askedWorkCalendar(asked.workCalendar, from, to);
+	if (workCalendar !== undefined) {
+		await saveAttendanceWorkCalendar(client, companyID, workCalendar);
+	}
 
 	const memberOf = await membersOfCompanyByExternalID(client, companyID, askedPlatform(asked.platform));
 	const byMember = groupByMember(asked.events, memberOf, from, to);
@@ -39,6 +53,24 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
 	return json(await makeTheRecordMatch(client, new Set(memberOf.values()), byMember, held));
 };
+
+function askedWorkCalendar(offered: unknown, from: string, to: string) {
+	try {
+		return attendanceWorkCalendarFromDevice(offered, from, to);
+	} catch (thrown) {
+		if (!(thrown instanceof InvalidAttendanceWorkCalendarError)) throw thrown;
+		error(400, thrown.message);
+	}
+}
+
+function askedWorkMode(offered: unknown) {
+	try {
+		return attendanceWorkModeFromDevice(offered);
+	} catch (thrown) {
+		if (!(thrown instanceof InvalidAttendanceWorkModeError)) throw thrown;
+		error(400, thrown.message);
+	}
+}
 
 async function makeTheRecordMatch(
 	client: SupabaseClient,
