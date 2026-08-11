@@ -181,6 +181,10 @@
 			errorMessage = text.contactMethodRequired;
 			return;
 		}
+		if (kind === 'progress' && !accountID && contactIDs.length === 0) {
+			errorMessage = text.opportunityCustomerRequired;
+			return;
+		}
 		if (kind === 'progress' && stageOutcome === 'lost' && !lostReason) {
 			errorMessage = text.lostReasonRequired;
 			return;
