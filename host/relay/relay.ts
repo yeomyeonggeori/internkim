@@ -4,7 +4,7 @@ import { createClient, type RealtimeChannel, type SupabaseClient } from '@supaba
 import { readLinkPreview, type LinkPreview } from './link-preview';
 import { largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
 import { mintMissingTokens } from './member-tokens';
-import { forwardToChatd, reportableTopic, serveCall, type AssetReader, type Call } from './forward';
+import { answerBodyOf, forwardToChatd, reportableTopic, serveCall, type AssetReader, type Call } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import {
 	readCustomEmoji,
@@ -142,7 +142,7 @@ const dispatch = {
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(body)
 		});
-		return { status: response.status, body: await response.json().catch(() => null) };
+		return { status: response.status, body: await answerBodyOf(response) };
 	},
 	mailAccountOf: async (memberID: string) => {
 		const held = await askTheRecord<{ account?: Record<string, unknown> | null }>(
@@ -392,5 +392,5 @@ async function askAdmind(
 	const response = await fetch(`${admindBaseURL}${asked}`, {
 		headers: { 'X-InternKim-Requester-Email': requesterEmail }
 	});
-	return { status: response.status, body: await response.json().catch(() => null) };
+	return { status: response.status, body: await answerBodyOf(response) };
 }
