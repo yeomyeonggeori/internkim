@@ -1,8 +1,7 @@
 import { supabase } from '$lib/supabase';
 import { membersInReadingOrder } from '$lib/member-order';
 import {
-	isScheduledWorkingDate,
-	type WorkHoursCycle
+	resolvedWorkCalendarDay
 } from '$lib/attendance/supabase-work-calendar';
 import {
 	supabaseWorkPolicies,
@@ -15,7 +14,7 @@ import type {
 	AttendanceWorkStatusRequest
 } from '../../routes/attendance/attendance-api';
 
-type MemberRow = {
+export type SupabaseWorkStatusMember = {
 	id: string;
 	name: string | null;
 	email: string | null;
@@ -24,8 +23,26 @@ type MemberRow = {
 	joined_at: string | null;
 };
 type CompanyRow = { timezone: string };
-type AttendanceRow = { member_id: string; kind: 'clock_in' | 'clock_out'; occurred_at: string };
-type LeaveRow = { member_id: string; days: number; starts_at: string; ends_at: string; status: string };
+export type SupabaseWorkStatusAttendance = {
+	member_id: string;
+	kind: 'clock_in' | 'clock_out';
+	occurred_at: string;
+};
+export type SupabaseWorkStatusLeave = {
+	member_id: string;
+	days: number;
+	starts_at: string;
+	ends_at: string;
+	status: string;
+};
+export type SupabaseEmployeeWorkStatusInput = {
+	member: SupabaseWorkStatusMember;
+	days: string[];
+	timeZone: string;
+	attendance: SupabaseWorkStatusAttendance[];
+	leave: SupabaseWorkStatusLeave[];
+	policy: SupabaseWorkPolicy;
+};
 
 type WorkedSegment = { startTime: string; endTime: string; provisional: boolean };
 type WorkedSpan = { segment: WorkedSegment; minutes: number; seconds: number };
@@ -46,7 +63,7 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 		.from('member')
 		.select('id, name, email, is_admin, user_id, joined_at')
 		.neq('status', 'withdrawn')
-		.returns<MemberRow[]>();
+		.returns<SupabaseWorkStatusMember[]>();
 	if (members.error) throw new Error(members.error.message);
 
 	const timeZone = company.data.timezone;
@@ -59,7 +76,7 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 		.gte('occurred_at', instantOf(from))
 		.lt('occurred_at', instantOf(until))
 		.order('occurred_at')
-		.returns<AttendanceRow[]>();
+		.returns<SupabaseWorkStatusAttendance[]>();
 	if (attendance.error) throw new Error(attendance.error.message);
 
 	const leave = await client
@@ -68,21 +85,21 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 		.eq('status', 'approved')
 		.lt('starts_at', instantOf(until))
 		.gte('ends_at', instantOf(from))
-		.returns<LeaveRow[]>();
+		.returns<SupabaseWorkStatusLeave[]>();
 	if (leave.error) throw new Error(leave.error.message);
 
 	const policiesByMember = await supabaseWorkPolicies(client);
 
 	const me = members.data.find((member) => member.user_id === accountID);
 	const employees = membersInReadingOrder(members.data, me?.id).map((member) =>
-		employeeStatusOf(
+		calculateSupabaseEmployeeWorkStatus({
 			member,
 			days,
 			timeZone,
-			attendance.data,
-			leave.data,
-			policiesByMember.get(member.id)
-		)
+			attendance: attendance.data,
+			leave: leave.data,
+			policy: requiredPolicy(policiesByMember.get(member.id), member.id)
+		})
 	);
 
 	return {
@@ -97,20 +114,23 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 	};
 }
 
-function employeeStatusOf(
-	member: MemberRow,
-	days: string[],
-	timeZone: string,
-	attendance: AttendanceRow[],
-	leave: LeaveRow[],
-	policy: SupabaseWorkPolicy | undefined
+function requiredPolicy(
+	policy: SupabaseWorkPolicy | undefined,
+	memberID: string
+): SupabaseWorkPolicy {
+	if (!policy) throw new Error(`work policy is missing for member ${memberID}`);
+	return policy;
+}
+
+export function calculateSupabaseEmployeeWorkStatus(
+	input: SupabaseEmployeeWorkStatusInput
 ): AttendanceEmployeeWorkStatus {
-	if (!policy) throw new Error(`work policy is missing for member ${member.id}`);
+	const { member, days, timeZone, attendance, leave, policy } = input;
 	const targetMinutes = policy.minimumDailyMinutes ?? 0;
 	const mine = attendance.filter((row) => row.member_id === member.id);
 	const myLeave = leave.filter((row) => row.member_id === member.id);
 	const dayStatuses = days.map((day) =>
-		dayStatusOf(day, timeZone, mine, myLeave, targetMinutes, policy.workHours, policy.workMode)
+		dayStatusOf(day, timeZone, mine, myLeave, targetMinutes, policy)
 	);
 	const total = (pick: (day: AttendanceWorkDayStatus) => number) =>
 		dayStatuses.reduce((sum, day) => sum + pick(day), 0);
@@ -121,14 +141,16 @@ function employeeStatusOf(
 	const periodTarget = total((day) => day.targetMinutes);
 	const fulfilledMinutes = actualMinutes + leaveMinutes;
 	const email = member.email ?? '';
+	const workMode = dayStatuses.at(-1)?.workMode ?? policy.workMode;
+	const hasBaseline = dayStatuses.some((day) => day.hasBaseline);
 
 	return {
 		email,
 		displayName: member.name || email.split('@')[0],
 		periodStart: days[0],
 		periodEnd: days[days.length - 1],
-		workMode: policy.workMode,
-		hasBaseline: policy.workMode !== 'autonomous',
+		workMode,
+		hasBaseline,
 		targetMinutes: periodTarget,
 		actualMinutes,
 		actualSeconds,
@@ -157,11 +179,10 @@ function employeeStatusOf(
 function dayStatusOf(
 	day: string,
 	timeZone: string,
-	attendance: AttendanceRow[],
-	leave: LeaveRow[],
+	attendance: SupabaseWorkStatusAttendance[],
+	leave: SupabaseWorkStatusLeave[],
 	targetMinutes: number,
-	workHours: WorkHoursCycle,
-	workMode: SupabaseWorkPolicy['workMode']
+	policy: SupabaseWorkPolicy
 ): AttendanceWorkDayStatus {
 	const onThisDay = attendance.filter((row) => dateIn(new Date(row.occurred_at), timeZone) === day);
 	const { spans, isWorking } = spansOf(onThisDay, timeZone);
@@ -178,8 +199,14 @@ function dayStatusOf(
 	const provisionalSeconds = spans
 		.filter((span) => span.segment.provisional)
 		.reduce((sum, span) => sum + span.seconds, 0);
-	const workingDate = isScheduledWorkingDate(day, workHours);
-	const dayTargetMinutes = workingDate ? targetMinutes : 0;
+	const { workingDate, workMode } = resolvedWorkCalendarDay(
+		day,
+		policy.workHours,
+		policy.workMode,
+		policy.workCalendar
+	);
+	const hasBaseline = workMode !== 'autonomous';
+	const dayTargetMinutes = workingDate && hasBaseline ? targetMinutes : 0;
 	const isOnLeave = leave.some((row) => day >= dateIn(new Date(row.starts_at), timeZone) && day < dateIn(new Date(row.ends_at), timeZone));
 	const leaveMinutes = isOnLeave ? dayTargetMinutes : 0;
 	const fulfilledMinutes = workedMinutes + leaveMinutes;
@@ -187,7 +214,7 @@ function dayStatusOf(
 	return {
 		date: day,
 		workMode,
-		hasBaseline: workMode !== 'autonomous',
+		hasBaseline,
 		workingDate,
 		targetMinutes: dayTargetMinutes,
 		actualMinutes: workedMinutes,
@@ -213,7 +240,10 @@ function dayStatusOf(
 	};
 }
 
-function spansOf(rows: AttendanceRow[], timeZone: string): { spans: WorkedSpan[]; isWorking: boolean } {
+function spansOf(
+	rows: SupabaseWorkStatusAttendance[],
+	timeZone: string
+): { spans: WorkedSpan[]; isWorking: boolean } {
 	const spans: WorkedSpan[] = [];
 	let openedAt: Date | null = null;
 	for (const row of rows) {

@@ -29,7 +29,8 @@ returns table (
   member_id uuid,
   work_hours jsonb,
   minimum_daily_minutes integer,
-  work_mode text
+  work_mode text,
+  work_calendar jsonb
 )
 language sql
 stable
@@ -40,7 +41,8 @@ as $$
     member.id,
     public.member_work_hours(member.id),
     public.member_minimum_daily_minutes(member.id),
-    coalesce(company.rules #>> '{attendanceCalendar,-1,workMode}', 'flexible')
+    coalesce(company.rules #>> '{attendanceCalendar,-1,workMode}', 'flexible'),
+    company.rules -> 'attendanceCalendar'
   from public.member
   join public.company on company.id = member.company_id
   where member.company_id = public.company_of_member(public.my_member())

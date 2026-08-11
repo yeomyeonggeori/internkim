@@ -326,6 +326,64 @@ test.describe('attendance responsive view', () => {
 		);
 	});
 
+	test('uses holiday capacity and preserves a historical mode change', async ({ page }) => {
+		const secondsPerDay = 24 * 60 * 60;
+		let isHistoricalFixedDate = true;
+		await page.unroute('**/attendance/api/work-status?**');
+		await page.route('**/attendance/api/work-status?**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const payload = createDevAttendanceWorkStatus(
+				'tester@example.com',
+				requestURL.searchParams.get('period'),
+				requestURL.searchParams.get('anchor')
+			);
+			payload.personal = payload.personal
+				? {
+						...payload.personal,
+						workMode: isHistoricalFixedDate ? 'fixed' : 'autonomous',
+						hasBaseline: isHistoricalFixedDate,
+						targetMinutes: isHistoricalFixedDate ? 4 * 8 * 60 : 0,
+						actualMinutes: Math.floor(
+							(4 * secondsPerDay + (isHistoricalFixedDate ? 0 : 1)) / 60
+						),
+						actualSeconds: 4 * secondsPerDay + (isHistoricalFixedDate ? 0 : 1),
+						provisionalMinutes: 0,
+						provisionalSeconds: 0,
+						workingCapacitySeconds: 4 * secondsPerDay,
+						calendarCapacitySeconds: 7 * secondsPerDay
+					}
+				: undefined;
+			await route.fulfill({ json: payload });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page
+			.getByTestId('attendance-sidebar-scroll')
+			.getByRole('button', { name: '주별' })
+			.click();
+		const standard = page
+			.getByTestId('attendance-sidebar-scroll')
+			.getByTestId('personal-work-standard');
+		const capacityBar = standard.getByTestId('work-standard-capacity-bar');
+		await expect(standard.getByText('고정 근무제', { exact: true })).toBeVisible();
+		await expect(capacityBar).toHaveAttribute('data-capacity-stage', 'working-days');
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveAttribute(
+			'style',
+			/width:\s*100%/
+		);
+
+		isHistoricalFixedDate = false;
+		await page.reload();
+		await expect(standard.getByText('자율 근무제', { exact: true })).toBeVisible();
+		await expect(capacityBar).toHaveAttribute('data-capacity-stage', 'calendar-days');
+		await expect(standard.getByTestId('work-standard-target-marker')).toHaveCount(0);
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveAttribute(
+			'style',
+			/width:\s*57\.14/
+		);
+	});
+
 	test('shows the administrator employee work status list and review filters', async ({ page }) => {
 		await page.goto('/attendance');
 		await selectKorean(page);

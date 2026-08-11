@@ -1,12 +1,17 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isAttendanceWorkMode, type AttendanceWorkMode } from '$lib/attendance/work-mode';
-import type { WorkHoursCycle } from '$lib/attendance/supabase-work-calendar';
+import type {
+	ProjectedWorkCalendarDay,
+	WorkCalendarProjection,
+	WorkHoursCycle
+} from '$lib/attendance/supabase-work-calendar';
 
 export type SupabaseWorkPolicy = {
 	memberID: string;
 	workHours: WorkHoursCycle;
 	minimumDailyMinutes: number | null;
 	workMode: AttendanceWorkMode;
+	workCalendar: WorkCalendarProjection;
 };
 
 export async function supabaseWorkPolicies(
@@ -42,10 +47,29 @@ export function parseSupabaseWorkPolicies(value: unknown): Map<string, SupabaseW
 			memberID: row.member_id,
 			workHours: workHoursCycle(row.work_hours, row.member_id),
 			minimumDailyMinutes: row.minimum_daily_minutes,
-			workMode: row.work_mode
+			workMode: row.work_mode,
+			workCalendar: workCalendarProjection(
+				'work_calendar' in row ? row.work_calendar : undefined,
+				row.member_id
+			)
 		};
 		return [policy.memberID, policy];
 	}));
+}
+
+function workCalendarProjection(value: unknown, memberID: string): WorkCalendarProjection {
+	if (value === null || value === undefined) return null;
+	if (!Array.isArray(value) || !value.every(isProjectedWorkCalendarDay)) {
+		throw new Error(`attendance work calendar is invalid for member ${memberID}`);
+	}
+	return value;
+}
+
+function isProjectedWorkCalendarDay(value: unknown): value is ProjectedWorkCalendarDay {
+	if (typeof value !== 'object' || value === null) return false;
+	if (!('date' in value) || typeof value.date !== 'string') return false;
+	if (!('workMode' in value) || !isAttendanceWorkMode(value.workMode)) return false;
+	return 'workingDate' in value && typeof value.workingDate === 'boolean';
 }
 
 function workHoursCycle(value: unknown, memberID: string): WorkHoursCycle {
