@@ -56,7 +56,7 @@ func (service *Service) webStaffActorEmail(request *http.Request) string {
 }
 
 func (service *Service) webTaskRunActorEmail(request *http.Request) string {
-	actorEmail := service.webActorEmail(request)
+	actorEmail := service.actorEmailAllowingLoopback(request)
 	if !service.canViewTaskRuns(request.Context(), actorEmail) {
 		return ""
 	}
