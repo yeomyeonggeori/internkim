@@ -1,8 +1,17 @@
 import { supabase } from '$lib/supabase';
 import { flowDefinitionsOf, vocabularyOf } from '$lib/flow/task-vocabulary';
 import { heldTasks, holdTasks, mergeChangedTasks, newestStamp } from '$lib/flow/flow-task-cache';
+import {
+	currentScoresOf,
+	memberScoreDetails,
+	memberTaskTallies,
+	startOfISOWeek,
+	totalScoreOf,
+	type MemberTaskTally
+} from '$lib/flow/flow-scores';
 import type {
 	FlowMember,
+	FlowMemberScoreDetail,
 	FlowMetrics,
 	FlowState,
 	FlowTask,
@@ -76,6 +85,48 @@ function sortedByEnd(tasks: TaskRow[]): TaskRow[] {
 	return [...tasks].sort((left, right) => (right.ends_at ?? '').localeCompare(left.ends_at ?? ''));
 }
 
+type MemberStanding = {
+	key: string;
+	scoreDetails: Record<string, FlowMemberScoreDetail>;
+	tallies: Record<string, MemberTaskTally>;
+};
+
+let heldStanding: MemberStanding | null = null;
+
+function standingOf(tasks: FlowTask[], memberIDs: string[], rows: TaskRow[]): MemberStanding {
+	const weekStart = startOfISOWeek(new Date());
+	const key = standingKey(rows, memberIDs, weekStart);
+	if (heldStanding?.key === key) return heldStanding;
+	heldStanding = {
+		key,
+		scoreDetails: memberScoreDetails(tasks, memberIDs, weekStart),
+		tallies: memberTaskTallies(tasks, memberIDs)
+	};
+	return heldStanding;
+}
+
+function standingKey(rows: TaskRow[], memberIDs: string[], weekStart: Date): string {
+	return [rows.length, newestStamp(rows), dayStringOf(weekStart), memberIDs.join(',')].join('|');
+}
+
+function standingMetricsOf(standing: MemberStanding): Partial<FlowMetrics> {
+	const memberScores = currentScoresOf(standing.scoreDetails);
+	const memberDistances = Object.fromEntries(
+		Object.entries(standing.tallies).map(([memberID, tally]) => [memberID, tally.distance])
+	);
+	return {
+		memberScores,
+		memberScoreDetails: standing.scoreDetails,
+		memberDistances,
+		totalScore: totalScoreOf(memberScores),
+		totalDistance: Object.values(memberDistances).reduce((total, distance) => total + distance, 0)
+	};
+}
+
+function dayStringOf(date: Date): string {
+	return date.toISOString().slice(0, 10);
+}
+
 export async function supabaseFlowState(): Promise<FlowState> {
 	const client = supabase();
 	const { data: auth } = await client.auth.getSession();
@@ -95,13 +146,15 @@ export async function supabaseFlowState(): Promise<FlowState> {
 
 	const nameByID = new Map(members.data.map((member) => [member.id, displayName(member)]));
 	const flowTasks = tasks.map((task) => taskOf(task, nameByID));
+	const memberIDs = members.data.map((member) => member.id);
+	const standing = standingOf(flowTasks, memberIDs, tasks);
 	const me = members.data.find((member) => member.user_id === accountID);
 
 	return {
 		currentWeek: weekOf(new Date()),
-		members: members.data.map((member) => memberOf(member, flowTasks)),
+		members: members.data.map((member) => memberOf(member, standing.tallies[member.id])),
 		tasks: flowTasks,
-		metrics: metricsOf(flowTasks),
+		metrics: { ...metricsOf(flowTasks), ...standingMetricsOf(standing) },
 		definitions: flowDefinitionsOf(vocabularyOf(company.data.task_vocabulary)),
 		statusOptions: flowStatusOptions,
 		currentUserEmail: me?.email ?? '',
@@ -191,8 +244,7 @@ function displayName(member: MemberRow): string {
 	return member.name || (member.email ?? '').split('@')[0];
 }
 
-function memberOf(member: MemberRow, tasks: FlowTask[]): FlowMember {
-	const mine = tasks.filter((task) => task.participantIDs.includes(member.id));
+function memberOf(member: MemberRow, tally: MemberTaskTally | undefined): FlowMember {
 	return {
 		id: member.id,
 		name: displayName(member),
@@ -200,8 +252,9 @@ function memberOf(member: MemberRow, tasks: FlowTask[]): FlowMember {
 		hireDate: member.joined_at ? member.joined_at.slice(0, 10) : undefined,
 		role: member.is_admin ? 'admin' : 'member',
 		mattermostStatus: '',
-		activeTaskCount: mine.filter((task) => task.status === statusWords.in_progress).length,
-		completeTaskCount: mine.filter((task) => task.status === statusWords.done).length
+		distance: tally?.distance ?? 0,
+		activeTaskCount: tally?.activeTaskCount ?? 0,
+		completeTaskCount: tally?.completeTaskCount ?? 0
 	};
 }
 
@@ -258,9 +311,7 @@ function instantOf(day: string | undefined): string | null {
 }
 
 function weekOf(instant: Date): FlowWeek {
-	const monday = new Date(Date.UTC(instant.getUTCFullYear(), instant.getUTCMonth(), instant.getUTCDate()));
-	monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
-	return weekFromMonday(monday, true);
+	return weekFromMonday(startOfISOWeek(instant), true);
 }
 
 function weekOfCode(code: string): FlowWeek {
