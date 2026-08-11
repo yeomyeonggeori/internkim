@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(36);
 
 delete from public.company;
 
@@ -350,6 +350,61 @@ begin
 
   raise notice 'participants: joined, company-scoped, and cleaned up with the member';
 end $$;$block$, 'participants: joined, company-scoped, and cleaned up with the member');
+
+select lives_ok($block$do $$
+declare
+  colleague uuid := '000000aa-0000-0000-0000-000000000001';
+  outsider uuid := '000000bb-0000-0000-0000-000000000001';
+  requested uuid;
+  recorded uuid;
+  outside_requester_blocked boolean := false;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1"}', true);
+
+  insert into public.task (company_id, title, requester_id)
+  values ('00000000-0000-0000-0000-0000000000a0', 'Requested work', colleague)
+  returning id into requested;
+
+  select requester_id into recorded from public.task where id = requested;
+  assert recorded = colleague, 'a task remembers the colleague who asked for it';
+
+  begin
+    insert into public.task (company_id, title, requester_id)
+    values ('00000000-0000-0000-0000-0000000000a0', 'Requested from outside', outsider);
+  exception when insufficient_privilege then
+    outside_requester_blocked := true;
+  end;
+  assert outside_requester_blocked, 'a requester must belong to the company the task belongs to';
+
+  reset role;
+  raise notice 'task: a requester is optional, and always a colleague';
+end $$;$block$, 'task: a requester is optional, and always a colleague');
+
+select lives_ok($block$do $$
+declare
+  departing uuid := '000000aa-0000-0000-0000-0000000000e1';
+  orphaned uuid;
+  remaining uuid;
+  untouched integer;
+begin
+  insert into public.member (id, company_id, email)
+  values (departing, '00000000-0000-0000-0000-0000000000a0', 'departing@example.test');
+
+  insert into public.task (company_id, title, requester_id)
+  values ('00000000-0000-0000-0000-0000000000a0', 'Work whose requester leaves', departing)
+  returning id into orphaned;
+
+  delete from public.member where id = departing;
+
+  select count(*) into untouched from public.task where id = orphaned;
+  assert untouched = 1, 'work outlives the person who asked for it';
+
+  select requester_id into remaining from public.task where id = orphaned;
+  assert remaining is null, 'and forgets them rather than pointing at nobody';
+
+  raise notice 'task: losing the requester never loses the work';
+end $$;$block$, 'task: losing the requester never loses the work');
 
 select lives_ok($block$do $$
 declare
