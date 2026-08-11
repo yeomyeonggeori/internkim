@@ -268,6 +268,13 @@ type RecoveryAction struct {
 	PlatformUserID string `json:"platformUserID,omitempty"`
 }
 
+type RecoveryHint struct {
+	Action        string   `json:"action,omitempty"`
+	ToolNames     []string `json:"toolNames,omitempty"`
+	Reason        string   `json:"reason,omitempty"`
+	Preconditions []string `json:"preconditions,omitempty"`
+}
+
 func RoutingCandidates() []string {
 	return []string{ExecutionModeDevice, ExecutionModeCompanion, ExecutionModeRemote}
 }
