@@ -336,12 +336,13 @@ func flowTaskDuplicateID(result json.RawMessage) string {
 }
 
 type flowTaskAddFailure struct {
-	ErrorCode    string                 `json:"errorCode"`
-	FailureStage string                 `json:"failureStage"`
-	Message      string                 `json:"message"`
-	Candidates   []flowTaskAddCandidate `json:"candidates,omitempty"`
-	Retryable    bool                   `json:"retryable"`
-	SafeRetry    bool                   `json:"safeRetry"`
+	ErrorCode     string                      `json:"errorCode"`
+	FailureStage  string                      `json:"failureStage"`
+	Message       string                      `json:"message"`
+	Candidates    []flowTaskAddCandidate      `json:"candidates,omitempty"`
+	RecoveryHints []capabilities.RecoveryHint `json:"recoveryHints,omitempty"`
+	Retryable     bool                        `json:"retryable"`
+	SafeRetry     bool                        `json:"safeRetry"`
 }
 
 type flowTaskAddCandidate struct {
@@ -583,6 +584,15 @@ func (service Service) getFlow(ctx context.Context, path string, requesterEmail 
 	return body, nil
 }
 
+func flowFailureResponseErrorCode(failure flowTaskAddFailure) string {
+	switch failure.ErrorCode {
+	case "flow_owner_ambiguous", "flow_participant_ambiguous":
+		return "interaction_required"
+	default:
+		return failure.ErrorCode
+	}
+}
+
 func flowTaskAddErrorResponse(toolName string, failure flowTaskAddFailure) capabilities.ToolInvokeResponse {
 	result, _ := json.Marshal(failure)
 	return capabilities.ToolInvokeResponse{
@@ -594,7 +604,7 @@ func flowTaskAddErrorResponse(toolName string, failure flowTaskAddFailure) capab
 		Content:         failure.Message,
 		IsError:         true,
 		Message:         failure.Message,
-		ErrorCode:       failure.ErrorCode,
+		ErrorCode:       flowFailureResponseErrorCode(failure),
 		FailureStage:    failure.FailureStage,
 		Retryable:       failure.Retryable,
 		SafeRetry:       failure.SafeRetry,
@@ -956,7 +966,7 @@ func flowTaskErrorResponse(toolName string, failure flowTaskAddFailure) capabili
 		Result:          result,
 		Content:         failure.Message,
 		IsError:         true,
-		ErrorCode:       failure.ErrorCode,
+		ErrorCode:       flowFailureResponseErrorCode(failure),
 		FailureStage:    failure.FailureStage,
 		Retryable:       failure.Retryable,
 		SafeRetry:       failure.SafeRetry,
