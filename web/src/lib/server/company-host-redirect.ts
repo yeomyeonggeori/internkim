@@ -1,14 +1,25 @@
 export type CompanyHostQuestion = {
 	hostname: string;
 	zone: string;
-	apiHostname: string;
 };
 
+function bareHost(value: string): string {
+	return value.trim().toLowerCase();
+}
+
+export function appHostnameOf(zone: string): string {
+	return `app.${bareHost(zone)}`;
+}
+
+export function apiHostnameOf(zone: string): string {
+	return `api.${bareHost(zone)}`;
+}
+
 export function movesToTheOneAddress(question: CompanyHostQuestion): boolean {
-	const hostname = question.hostname.trim().toLowerCase();
-	const zone = question.zone.trim().toLowerCase();
+	const hostname = bareHost(question.hostname);
+	const zone = bareHost(question.zone);
 	if (!hostname || !zone) return false;
 	if (hostname === zone) return false;
-	if (hostname === question.apiHostname.trim().toLowerCase()) return false;
+	if (hostname === appHostnameOf(zone) || hostname === apiHostnameOf(zone)) return false;
 	return hostname.endsWith(`.${zone}`);
 }
