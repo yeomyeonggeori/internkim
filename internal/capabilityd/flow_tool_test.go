@@ -402,14 +402,20 @@ func TestFlowTaskAddReturnsAmbiguousOwnerError(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "flow_owner_ambiguous" {
+	if !response.IsError || response.ErrorCode != "interaction_required" {
 		t.Fatalf("response = %+v", response)
 	}
 	if postCalled {
 		t.Fatal("post should not be called for ambiguous owner")
 	}
+	if !strings.Contains(string(response.Result), "flow_owner_ambiguous") {
+		t.Fatalf("result should keep the domain code: %s", string(response.Result))
+	}
 	if !strings.Contains(string(response.Result), "@lee") || !strings.Contains(string(response.Result), "@kim") {
 		t.Fatalf("result = %s", string(response.Result))
+	}
+	if !strings.Contains(string(response.Result), `"toolNames":["ask_input"]`) {
+		t.Fatalf("result should steer recovery to ask_input: %s", string(response.Result))
 	}
 }
 
@@ -439,8 +445,14 @@ func TestFlowTaskAddReturnsParticipantResolutionErrorBeforeCreate(t *testing.T) 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "flow_participant_ambiguous" || postCalled {
+	if !response.IsError || response.ErrorCode != "interaction_required" || postCalled {
 		t.Fatalf("response=%+v postCalled=%t", response, postCalled)
+	}
+	if !strings.Contains(string(response.Result), "flow_participant_ambiguous") {
+		t.Fatalf("result should keep the domain code: %s", string(response.Result))
+	}
+	if !strings.Contains(string(response.Result), `"toolNames":["ask_input"]`) {
+		t.Fatalf("result should steer recovery to ask_input: %s", string(response.Result))
 	}
 }
 

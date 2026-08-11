@@ -1,6 +1,10 @@
 package capabilityd
 
-import "strings"
+import (
+	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
+)
 
 type flowOwnerResolution struct {
 	OwnerID string
@@ -39,12 +43,14 @@ func resolveFlowParticipantIDs(personHints []string, ownerID string, members []f
 }
 
 func flowParticipantFailure(personHint string, failure flowTaskAddFailure) *flowTaskAddFailure {
-	failure.Message = "task participant " + strings.TrimSpace(personHint) + " was not uniquely resolved"
+	trimmedHint := strings.TrimSpace(personHint)
 	if failure.ErrorCode == "flow_owner_ambiguous" {
 		failure.ErrorCode = "flow_participant_ambiguous"
+		failure.Message = "participant " + trimmedHint + " matches more than one person; ask the user which one with ask_input, listing the candidates as choices"
 		return &failure
 	}
 	failure.ErrorCode = "flow_participant_not_found"
+	failure.Message = "participant " + trimmedHint + " matched nobody; retry with one candidate's exact name, email, or @handle, or ask the user"
 	return &failure
 }
 
@@ -75,12 +81,21 @@ func missingFlowOwnerResolution(members []flowMemberForTool) flowOwnerResolution
 
 func ambiguousFlowOwnerResolution(matches []flowMemberForTool) flowOwnerResolution {
 	return flowOwnerResolution{Failure: &flowTaskAddFailure{
-		ErrorCode:    "flow_owner_ambiguous",
-		FailureStage: "target_resolution",
-		Message:      "task_add target is ambiguous; ask the user to choose one candidate by @handle",
-		Candidates:   flowTaskAddCandidates(matches),
-		Retryable:    true,
-		SafeRetry:    true,
+		ErrorCode:     "flow_owner_ambiguous",
+		FailureStage:  "target_resolution",
+		Message:       "the name matches more than one person; ask the user which one with ask_input, listing the candidates as choices",
+		Candidates:    flowTaskAddCandidates(matches),
+		RecoveryHints: askTheUserToChooseHint(),
+		Retryable:     true,
+		SafeRetry:     true,
+	}}
+}
+
+func askTheUserToChooseHint() []capabilities.RecoveryHint {
+	return []capabilities.RecoveryHint{{
+		Action:    "ask_the_user_to_choose_a_candidate",
+		ToolNames: []string{"ask_input"},
+		Reason:    "only the user can say which person they meant",
 	}}
 }
 
