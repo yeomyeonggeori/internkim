@@ -31,7 +31,9 @@ export function dayFlowEventFromCalendarEvent(event: CalendarEvent): DayFlowEven
 			updatedByName: event.updatedByName ?? '',
 			updatedByImage: event.updatedByImage ?? '',
 			updatedByAt: event.updatedByAt ?? '',
-			updatedAt: event.updatedAt
+			updatedAt: event.updatedAt,
+			readOnly: event.readOnly ?? false,
+			source: event.source ?? ''
 		}
 	});
 }
