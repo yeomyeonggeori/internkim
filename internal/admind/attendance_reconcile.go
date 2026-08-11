@@ -62,9 +62,14 @@ func (service *Service) reconcileAttendanceMonth(ctx context.Context, month stri
 	if errorValue != nil {
 		return errorValue
 	}
+	workMode, errorValue := service.currentAttendanceWorkMode(ctx, time.Now())
+	if errorValue != nil {
+		return errorValue
+	}
 
 	result, errorValue := client.ReconcileAttendance(ctx, centralplane.ReconcileWindow{
 		Platform: "mattermost",
+		WorkMode: workMode,
 		From:     from,
 		To:       to,
 		Events:   reconciledEventsOf(events),
@@ -77,6 +82,19 @@ func (service *Service) reconcileAttendanceMonth(ctx context.Context, month stri
 			month, result.Added, result.Removed, len(result.Refused))
 	}
 	return nil
+}
+
+func (service *Service) currentAttendanceWorkMode(ctx context.Context, now time.Time) (string, error) {
+	policy, errorValue := service.readAttendanceWorkPolicy(ctx)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	location, _ := service.workspaceTimeLocation()
+	revision, errorValue := attendanceWorkPolicyRevisionForDate(policy, now.In(location).Format(time.DateOnly))
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return revision.WorkMode, nil
 }
 
 func (service *Service) reconcileAttendanceRecently(ctx context.Context) {

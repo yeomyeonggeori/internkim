@@ -3,6 +3,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
 import { membersOfCompanyByExternalID } from '$lib/server/member-credential';
 import {
+	attendanceWorkModeFromDevice,
+	InvalidAttendanceWorkModeError,
+	saveAttendanceWorkMode
+} from '$lib/server/attendance-work-mode-reconcile';
+import {
 	EmptyWindowRefused,
 	reconcileMember,
 	type Reconciliation,
@@ -13,6 +18,7 @@ import type { RequestHandler } from './$types';
 
 type ReconcileRequest = {
 	platform?: unknown;
+	workMode?: unknown;
 	from?: unknown;
 	to?: unknown;
 	events?: unknown;
@@ -32,6 +38,8 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const from = moment(asked.from, 'from');
 	const to = moment(asked.to, 'to');
 	if (from >= to) error(400, 'the window ends before it begins');
+	const workMode = askedWorkMode(asked.workMode);
+	await saveAttendanceWorkMode(client, companyID, workMode);
 
 	const memberOf = await membersOfCompanyByExternalID(client, companyID, askedPlatform(asked.platform));
 	const byMember = groupByMember(asked.events, memberOf, from, to);
@@ -39,6 +47,15 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
 	return json(await makeTheRecordMatch(client, new Set(memberOf.values()), byMember, held));
 };
+
+function askedWorkMode(offered: unknown) {
+	try {
+		return attendanceWorkModeFromDevice(offered);
+	} catch (thrown) {
+		if (!(thrown instanceof InvalidAttendanceWorkModeError)) throw thrown;
+		error(400, thrown.message);
+	}
+}
 
 async function makeTheRecordMatch(
 	client: SupabaseClient,
