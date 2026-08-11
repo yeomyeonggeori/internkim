@@ -26,6 +26,8 @@ export type CalendarEvent = {
 	updatedByImage?: string;
 	updatedByAt?: string;
 	updatedAt: string;
+	readOnly?: boolean;
+	source?: string;
 };
 
 export type CalendarEventPayload = {
