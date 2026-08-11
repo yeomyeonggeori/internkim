@@ -65,7 +65,7 @@ type mattermostScenarioAdminAPI interface {
 	invitePerson(context.Context, string, string, string) error
 	listTasks(context.Context, string) ([]mattermostScenarioTaskSummary, error)
 	taskDetail(context.Context, string) (mattermostScenarioTaskDetail, error)
-	workspaceFiles(context.Context, mattermostScenarioStep) ([]mattermostScenarioWorkspaceResult, error)
+	workspaceFiles(context.Context, mattermostScenarioStep, string) ([]mattermostScenarioWorkspaceResult, error)
 	cleanup(context.Context, mattermostScenarioResult, string) error
 }
 
@@ -142,15 +142,15 @@ func (admin mattermostScenarioAdmin) taskDetail(contextValue context.Context, ta
 	return detail, nil
 }
 
-func (admin mattermostScenarioAdmin) workspaceFiles(contextValue context.Context, step mattermostScenarioStep) ([]mattermostScenarioWorkspaceResult, error) {
+func (admin mattermostScenarioAdmin) workspaceFiles(contextValue context.Context, step mattermostScenarioStep, requesterPersonID string) ([]mattermostScenarioWorkspaceResult, error) {
 	files := []mattermostScenarioWorkspaceResult{}
 	for _, expectation := range step.ExpectedWorkspaceFiles {
-		matches, errorValue := admin.workspaceMatches(contextValue, expectation.PathGlob)
+		matches, errorValue := admin.workspaceMatches(contextValue, requesterPersonID, expectation.PathGlob)
 		if errorValue != nil {
 			return nil, errorValue
 		}
 		for _, filePath := range matches {
-			content, errorValue := admin.workspaceDownload(contextValue, filePath)
+			content, errorValue := admin.workspaceDownload(contextValue, requesterPersonID, filePath)
 			if errorValue != nil {
 				return nil, errorValue
 			}
@@ -158,7 +158,7 @@ func (admin mattermostScenarioAdmin) workspaceFiles(contextValue context.Context
 		}
 	}
 	for _, pathGlob := range step.ForbiddenWorkspaceFiles {
-		matches, errorValue := admin.workspaceMatches(contextValue, pathGlob)
+		matches, errorValue := admin.workspaceMatches(contextValue, requesterPersonID, pathGlob)
 		if errorValue != nil {
 			return nil, errorValue
 		}
@@ -169,16 +169,19 @@ func (admin mattermostScenarioAdmin) workspaceFiles(contextValue context.Context
 	return files, nil
 }
 
-func (admin mattermostScenarioAdmin) workspaceMatches(contextValue context.Context, pathGlob string) ([]string, error) {
+func (admin mattermostScenarioAdmin) workspaceMatches(contextValue context.Context, requesterPersonID string, pathGlob string) ([]string, error) {
 	segments := strings.Split(strings.Trim(strings.TrimSpace(pathGlob), "/"), "/")
 	if len(segments) == 0 || segments[0] == "" {
 		return nil, fmt.Errorf("workspace path glob is empty")
 	}
-	return admin.matchWorkspaceSegments(contextValue, "/workspace", segments)
+	if strings.TrimSpace(requesterPersonID) == "" {
+		return nil, fmt.Errorf("workspace path glob %q needs the requester person to read as", pathGlob)
+	}
+	return admin.matchWorkspaceSegments(contextValue, requesterPersonID, "/workspace", segments)
 }
 
-func (admin mattermostScenarioAdmin) matchWorkspaceSegments(contextValue context.Context, directoryPath string, segments []string) ([]string, error) {
-	entries, errorValue := admin.workspaceEntries(contextValue, directoryPath)
+func (admin mattermostScenarioAdmin) matchWorkspaceSegments(contextValue context.Context, requesterPersonID string, directoryPath string, segments []string) ([]string, error) {
+	entries, errorValue := admin.workspaceEntries(contextValue, requesterPersonID, directoryPath)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -199,7 +202,7 @@ func (admin mattermostScenarioAdmin) matchWorkspaceSegments(contextValue context
 		if !entry.IsDirectory {
 			continue
 		}
-		nestedMatches, nestedError := admin.matchWorkspaceSegments(contextValue, matchedPath, segments[1:])
+		nestedMatches, nestedError := admin.matchWorkspaceSegments(contextValue, requesterPersonID, matchedPath, segments[1:])
 		if nestedError != nil {
 			return nil, nestedError
 		}
@@ -209,19 +212,23 @@ func (admin mattermostScenarioAdmin) matchWorkspaceSegments(contextValue context
 	return matches, nil
 }
 
-func (admin mattermostScenarioAdmin) workspaceEntries(contextValue context.Context, directoryPath string) ([]mattermostScenarioWorkspaceEntry, error) {
+func (admin mattermostScenarioAdmin) workspaceEntries(contextValue context.Context, requesterPersonID string, directoryPath string) ([]mattermostScenarioWorkspaceEntry, error) {
 	var response struct {
 		Entries []mattermostScenarioWorkspaceEntry `json:"entries"`
 	}
-	endpoint := "/admin/api/workspace/list?path=" + url.QueryEscape(directoryPath)
+	endpoint := "/admin/api/workspace/list?" + workspaceReadQuery(requesterPersonID, directoryPath)
 	if errorValue := admin.requestJSON(contextValue, "GET", endpoint, nil, &response); errorValue != nil {
 		return nil, errorValue
 	}
 	return response.Entries, nil
 }
 
-func (admin mattermostScenarioAdmin) workspaceDownload(contextValue context.Context, filePath string) (string, error) {
-	return admin.request(contextValue, "GET", "/admin/api/workspace/download?path="+url.QueryEscape(filePath), nil)
+func (admin mattermostScenarioAdmin) workspaceDownload(contextValue context.Context, requesterPersonID string, filePath string) (string, error) {
+	return admin.request(contextValue, "GET", "/admin/api/workspace/download?"+workspaceReadQuery(requesterPersonID, filePath), nil)
+}
+
+func workspaceReadQuery(requesterPersonID string, workspacePath string) string {
+	return "personID=" + url.QueryEscape(requesterPersonID) + "&path=" + url.QueryEscape(workspacePath)
 }
 
 func (admin mattermostScenarioAdmin) cleanup(contextValue context.Context, result mattermostScenarioResult, email string) error {
