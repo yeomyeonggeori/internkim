@@ -6,6 +6,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { Textarea } from '$lib/components/ui/textarea';
+	import { hasCRMContactMethod } from './crm-contact-validation';
 	import type { CRMAccount, CRMContact } from './crm-types';
 	import { findAccountByID } from './crm-view-model';
 	import type { CRMText } from './text';
@@ -19,6 +20,7 @@
 	};
 
 	let { open = $bindable(false), contact, accounts, text, onSave }: Props = $props();
+	const noAccountValue = '__no_account__';
 	let accountID = $state('');
 	let name = $state('');
 	let title = $state('');
@@ -44,6 +46,10 @@
 	async function save(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
 		if (!contact || name.trim() === '') return;
+		if (!hasCRMContactMethod(email, phone)) {
+			errorMessage = text.contactMethodRequired;
+			return;
+		}
 		isSaving = true;
 		errorMessage = '';
 		try {
@@ -81,9 +87,9 @@
 				<Field.Group>
 					<Field.Field>
 						<Field.Label for="crm-edit-contact-account">{text.accountName}</Field.Label>
-						<Select.Root type="single" value={accountID} onValueChange={(value) => (accountID = value)}>
-							<Select.Trigger id="crm-edit-contact-account" class="w-full">{findAccountByID(accounts, accountID)?.name ?? text.selectRelationship}</Select.Trigger>
-							<Select.Content>{#each accounts as account (account.id)}<Select.Item value={account.id} label={account.name}>{account.name}</Select.Item>{/each}</Select.Content>
+						<Select.Root type="single" value={accountID || noAccountValue} onValueChange={(value) => { accountID = value === noAccountValue ? '' : value; if (!accountID) isPrimary = false; }}>
+							<Select.Trigger id="crm-edit-contact-account" class="w-full">{accountID ? findAccountByID(accounts, accountID)?.name ?? text.selectRelationship : text.none}</Select.Trigger>
+							<Select.Content><Select.Item value={noAccountValue} label={text.none}>{text.none}</Select.Item>{#each accounts as account (account.id)}<Select.Item value={account.id} label={account.name}>{account.name}</Select.Item>{/each}</Select.Content>
 						</Select.Root>
 					</Field.Field>
 					<div class="grid gap-4 sm:grid-cols-2">
@@ -95,7 +101,7 @@
 						<Field.Field><Field.Label for="crm-edit-contact-phone">{text.phone}</Field.Label><Input id="crm-edit-contact-phone" type="tel" bind:value={phone} /></Field.Field>
 					</div>
 					<Field.Field orientation="horizontal">
-						<Checkbox id="crm-edit-contact-primary" bind:checked={isPrimary} />
+						<Checkbox id="crm-edit-contact-primary" bind:checked={isPrimary} disabled={!accountID} />
 						<Field.Content><Field.Label for="crm-edit-contact-primary">{text.markAsPrimaryContact}</Field.Label></Field.Content>
 					</Field.Field>
 					<Field.Field><Field.Label for="crm-edit-contact-note">{text.details}</Field.Label><Textarea id="crm-edit-contact-note" rows={8} bind:value={note} /></Field.Field>
