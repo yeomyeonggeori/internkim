@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -308,4 +310,40 @@ func signedRecoveryRequest(t *testing.T, service *Service, action string, nonce 
 		t.Fatal(errorValue)
 	}
 	return httptest.NewRequest(http.MethodPost, "/admin/api/recovery/ssh-tunnel/restart", bytes.NewReader(document))
+}
+
+func TestEveryAllowedRecoveryActionIsOfferedByTheCommandLine(t *testing.T) {
+	source, errorValue := os.ReadFile(filepath.FromSlash("../cli/recover.go"))
+	if errorValue != nil {
+		t.Skipf("command line source unavailable: %v", errorValue)
+	}
+	helpText := regexp.MustCompile(`"Recovery action: [^"]*"`).Find(source)
+	if helpText == nil {
+		t.Fatal("the recover command no longer states its actions")
+	}
+	for _, action := range allowedSSHRecoveryActionsForTest(t) {
+		if !strings.Contains(string(helpText), action) {
+			t.Fatalf("recovery action %q is allowed but the command line never names it", action)
+		}
+	}
+}
+
+func allowedSSHRecoveryActionsForTest(t *testing.T) []string {
+	t.Helper()
+	source, errorValue := os.ReadFile("recovery.go")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	declaration := regexp.MustCompile(`(?s)func isAllowedSSHRecoveryAction\(action string\) bool \{\n\tswitch action \{\n\tcase (.*?):\n`).FindSubmatch(source)
+	if declaration == nil {
+		t.Fatal("the recovery allowlist is no longer readable")
+	}
+	actions := []string{}
+	for _, match := range regexp.MustCompile(`"([^"]+)"`).FindAllSubmatch(declaration[1], -1) {
+		actions = append(actions, string(match[1]))
+	}
+	if len(actions) == 0 {
+		t.Fatal("the recovery allowlist parsed empty")
+	}
+	return actions
 }
