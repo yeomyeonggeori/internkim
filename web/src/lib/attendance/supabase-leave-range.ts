@@ -85,12 +85,15 @@ export function leaveDisplayRange(
 	days: number,
 	timeZone: string
 ): LeaveDisplayRange {
+	if (days > 0.5) {
+		return {
+			startDate: leaveAllDayDate(startsAt, timeZone),
+			endDate: shiftedDay(leaveAllDayDate(endsAt, timeZone), -1)
+		};
+	}
 	const start = localDateTime(startsAt, timeZone);
 	const end = localDateTime(endsAt, timeZone);
 	const startDate = dateString(start);
-	if (days > 0.5) {
-		return { startDate, endDate: shiftedDay(dateString(end), -1) };
-	}
 	const startTime = timeString(start);
 	const endTime = timeString(end);
 	return {
@@ -103,6 +106,19 @@ export function leaveDisplayRange(
 
 export function companyDateOfTimestamp(value: string, timeZone: string): string {
 	return dateString(localDateTime(value, timeZone));
+}
+
+export function leaveAllDayDate(value: string, timeZone: string): string {
+	const timestamp = new Date(value);
+	if (
+		timestamp.getUTCHours() === 0 &&
+		timestamp.getUTCMinutes() === 0 &&
+		timestamp.getUTCSeconds() === 0 &&
+		timestamp.getUTCMilliseconds() === 0
+	) {
+		return timestamp.toISOString().slice(0, 10);
+	}
+	return companyDateOfTimestamp(value, timeZone);
 }
 
 function partialPeriodOf(
