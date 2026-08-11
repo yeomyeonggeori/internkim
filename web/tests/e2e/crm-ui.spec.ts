@@ -307,6 +307,54 @@ test.describe('CRM service UI', () => {
 		expect(opportunities[0]?.contacts).toEqual([{ contactID: 'contact-b2c', isPrimary: false }]);
 	});
 
+	test('requires a relationship or contact when creating an opportunity', async ({ page }) => {
+		await openCRM(page);
+		await page.getByRole('button', { name: '빠른 추가' }).click();
+		await page.getByRole('menuitem', { name: '진행 건', exact: true }).click();
+		const createSheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
+		await createSheet.getByLabel('관계처').click();
+		await page.getByRole('option', { name: '없음', exact: true }).click();
+		await createSheet.getByLabel('이름 또는 제목').fill('연결 대상 없는 진행 건');
+		await createSheet.getByRole('button', { name: '추가', exact: true }).click();
+
+		await expect(createSheet).toContainText('관계처 또는 연결 담당자를 선택해 주세요.');
+		expect(opportunities).toHaveLength(0);
+	});
+
+	test('localizes the missing opportunity relationship in English', async ({ page }) => {
+		await page.unroute('**/admin/api/locale**');
+		await page.route('**/admin/api/locale**', (route) => route.fulfill({ json: { locale: 'en' } }));
+		await openCRM(page);
+		await page.getByRole('button', { name: 'Quick add' }).click();
+		await page.getByRole('menuitem', { name: 'Opportunity', exact: true }).click();
+		const createSheet = page.getByRole('dialog', { name: 'Add CRM record' });
+		await createSheet.getByLabel('Relationship').click();
+		await page.getByRole('option', { name: 'None', exact: true }).click();
+		await createSheet.getByLabel('Name or title').fill('Unlinked opportunity');
+		await createSheet.getByRole('button', { name: 'Add', exact: true }).click();
+
+		await expect(createSheet).toContainText('Select a relationship or linked contact.');
+		expect(opportunities).toHaveLength(0);
+	});
+
+	test('keeps the last contact on a contact-only opportunity', async ({ page }) => {
+		contacts = [contact('contact-b2c', '개인 고객', '')];
+		opportunities = [{
+			...opportunity('opportunity-b2c', '개인 고객 상담', 'lead', 1024),
+			accountID: '',
+			contacts: [{ contactID: 'contact-b2c', isPrimary: false }]
+		}];
+		await openCRM(page);
+		await page.getByRole('tab', { name: '진행상황' }).click();
+		await page.getByRole('row', { name: /개인 고객 상담/ }).click();
+		const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
+		await editSheet.getByRole('checkbox', { name: '개인 고객', exact: true }).click();
+		await editSheet.getByRole('button', { name: '저장', exact: true }).click();
+
+		await expect(editSheet).toContainText('관계처 또는 연결 담당자를 선택해 주세요.');
+		expect(opportunities[0]?.contacts).toEqual([{ contactID: 'contact-b2c', isPrimary: false }]);
+	});
+
 	test('moves and sorts pipeline cards through service APIs and keeps the order after reload', async ({ page }) => {
 		opportunities = [
 			opportunity('opportunity-a', '첫 번째 진행 건', 'lead', 1024),
