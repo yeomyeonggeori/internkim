@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isAttendanceWorkMode, type AttendanceWorkMode } from '$lib/attendance/work-mode';
 
+const attendanceWorkCalendarDayMilliseconds = 24 * 60 * 60 * 1000;
+const maximumAttendanceWorkCalendarDays = 31;
+
 export type AttendanceWorkCalendarDay = {
 	date: string;
 	workMode: AttendanceWorkMode;
@@ -33,10 +36,10 @@ export function attendanceWorkCalendarFromDevice(
 	to: string
 ): AttendanceWorkCalendarDay[] | undefined {
 	if (offered === undefined) return undefined;
+	const expectedDates = attendanceWorkCalendarDates(from, to);
 	if (!Array.isArray(offered) || !offered.every(isAttendanceWorkCalendarDay)) {
 		throw new InvalidAttendanceWorkCalendarError();
 	}
-	const expectedDates = attendanceWorkCalendarDates(from, to);
 	if (
 		offered.length !== expectedDates.length ||
 		!offered.every((day, index) => day.date === expectedDates[index])
@@ -86,6 +89,12 @@ function attendanceWorkCalendarDates(from: string, to: string): string[] {
 	const date = new Date(
 		Date.UTC(startMoment.getUTCFullYear(), startMoment.getUTCMonth(), startMoment.getUTCDate())
 	);
+	const calendarDaySpan = Math.ceil(
+		(endMoment.valueOf() - date.valueOf()) / attendanceWorkCalendarDayMilliseconds
+	);
+	if (calendarDaySpan > maximumAttendanceWorkCalendarDays) {
+		throw new InvalidAttendanceWorkCalendarError();
+	}
 	const dates: string[] = [];
 	for (; date < endMoment; date.setUTCDate(date.getUTCDate() + 1)) {
 		dates.push(date.toISOString().slice(0, 10));
