@@ -173,6 +173,47 @@ test.describe('CRM service UI', () => {
 		expect(contacts[0]?.department).toBe('파트너십');
 	});
 
+	test('creates a B2C contact without a relationship', async ({ page }) => {
+		await openCRM(page);
+		await page.getByRole('button', { name: '빠른 추가' }).click();
+		await page.getByRole('menuitem', { name: '담당자', exact: true }).click();
+		const createSheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
+		await createSheet.getByLabel('관계처').click();
+		await page.getByRole('option', { name: '없음', exact: true }).click();
+		await createSheet.getByLabel('연락처 이름').fill('개인 고객');
+		await createSheet.getByLabel('이메일').fill('individual@example.com');
+		await createSheet.getByRole('button', { name: '추가', exact: true }).click();
+
+		expect(contacts[0]?.accountID).toBe('');
+		await expect(page.getByRole('row', { name: /연락처 수정 · 개인 고객/ })).toContainText('없음');
+	});
+
+	test('requires an email or phone when creating a contact', async ({ page }) => {
+		await openCRM(page);
+		await page.getByRole('button', { name: '빠른 추가' }).click();
+		await page.getByRole('menuitem', { name: '담당자', exact: true }).click();
+		const createSheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
+		await createSheet.getByLabel('연락처 이름').fill('연락 수단 없음');
+		await createSheet.getByRole('button', { name: '추가', exact: true }).click();
+
+		await expect(createSheet).toContainText('이메일 또는 전화번호를 입력해 주세요.');
+		expect(contacts).toHaveLength(0);
+	});
+
+	test('requires an email or phone when editing a contact', async ({ page }) => {
+		contacts = [contact('contact-1', '기존 담당자', 'account-1')];
+		await openCRM(page);
+		await page.getByRole('tab', { name: '연락처' }).click();
+		await page.getByRole('row', { name: /연락처 수정 · 기존 담당자/ }).press('Enter');
+		const editSheet = page.getByRole('dialog', { name: '연락처 수정' });
+		await editSheet.getByLabel('이메일').fill('');
+		await editSheet.getByLabel('전화번호').fill('');
+		await editSheet.getByRole('button', { name: '저장', exact: true }).click();
+
+		await expect(editSheet).toContainText('이메일 또는 전화번호를 입력해 주세요.');
+		expect(contacts[0]?.email).toBe('contact-1@example.com');
+	});
+
 	test('creates, edits, archives, and reloads a relationship without app fixtures', async ({ page }) => {
 		await openCRM(page);
 		await page.getByRole('button', { name: '빠른 추가' }).click();
@@ -248,6 +289,22 @@ test.describe('CRM service UI', () => {
 		await page.getByRole('dialog', { name: '진행 건 수정' }).getByRole('button', { name: '보관', exact: true }).click();
 		await page.getByRole('alertdialog', { name: '보관' }).getByRole('button', { name: '보관', exact: true }).click();
 		await expect(page.getByRole('row', { name: /진행 건 수정 · 서비스 연결 진행 건/ })).toHaveCount(0);
+	});
+
+	test('creates a contact-only opportunity', async ({ page }) => {
+		contacts = [contact('contact-b2c', '개인 고객', '')];
+		await openCRM(page);
+		await page.getByRole('button', { name: '빠른 추가' }).click();
+		await page.getByRole('menuitem', { name: '진행 건', exact: true }).click();
+		const createSheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
+		await createSheet.getByLabel('관계처').click();
+		await page.getByRole('option', { name: '없음', exact: true }).click();
+		await createSheet.getByLabel('이름 또는 제목').fill('개인 고객 상담');
+		await createSheet.getByRole('checkbox', { name: '개인 고객', exact: true }).click();
+		await createSheet.getByRole('button', { name: '추가', exact: true }).click();
+
+		expect(opportunities[0]?.accountID).toBe('');
+		expect(opportunities[0]?.contacts).toEqual([{ contactID: 'contact-b2c', isPrimary: false }]);
 	});
 
 	test('moves and sorts pipeline cards through service APIs and keeps the order after reload', async ({ page }) => {

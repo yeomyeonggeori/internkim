@@ -129,6 +129,7 @@ export type CRMContactCreateDraft = {
 export type CRMOpportunityCreateDraft = {
 	kind: 'progress';
 	accountID: string;
+	contacts: CRMOpportunityContact[];
 	business: string;
 	name: string;
 	progressKind: CRMProgressKind;
