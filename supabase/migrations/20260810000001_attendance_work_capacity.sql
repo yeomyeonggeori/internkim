@@ -10,9 +10,36 @@ begin
       using errcode = 'check_violation';
   end if;
 
-  update public.company
-    set rules = rules || jsonb_build_object('attendanceCalendar', attendance_calendar)
-    where id = target_company;
+  update public.company as target
+    set rules = target.rules || jsonb_build_object(
+      'attendanceCalendar',
+      (
+        select coalesce(
+          jsonb_agg(unique_entry.entry order by unique_entry.date_value),
+          '[]'::jsonb
+        )
+        from (
+          select distinct on (calendar_entry.entry ->> 'date')
+            calendar_entry.entry,
+            calendar_entry.entry ->> 'date' as date_value
+          from (
+            select stored.entry, 0 as priority, stored.ordinality
+            from jsonb_array_elements(
+              coalesce(target.rules -> 'attendanceCalendar', '[]'::jsonb)
+            ) with ordinality as stored(entry, ordinality)
+            union all
+            select offered.entry, 1 as priority, offered.ordinality
+            from jsonb_array_elements(attendance_calendar)
+              with ordinality as offered(entry, ordinality)
+          ) as calendar_entry
+          order by
+            calendar_entry.entry ->> 'date',
+            calendar_entry.priority desc,
+            calendar_entry.ordinality desc
+        ) as unique_entry
+      )
+    )
+    where target.id = target_company;
 
   if not found then
     raise exception 'company % does not exist', target_company

@@ -46,6 +46,7 @@ func calculateAttendanceWorkStatus(
 		PeriodEnd:   endDate,
 		Days:        []attendanceWorkDayStatus{},
 	}
+	baselineActualMinutes := 0
 	for date := start; !date.After(end); date = date.AddDate(0, 0, 1) {
 		dateValue := date.Format(time.DateOnly)
 		revision, revisionError := attendanceWorkPolicyRevisionForDate(policy, dateValue)
@@ -66,13 +67,16 @@ func calculateAttendanceWorkStatus(
 		status.TargetMinutes += day.TargetMinutes
 		status.ActualMinutes += day.ActualMinutes
 		status.ActualSeconds += day.ActualSeconds
+		if day.HasBaseline {
+			baselineActualMinutes += day.ActualMinutes
+			status.LeaveMinutes += day.LeaveMinutes
+		}
 		status.ProvisionalMinutes += day.ProvisionalMinutes
 		status.ProvisionalSeconds += day.ProvisionalSeconds
 		if day.WorkingDate {
 			status.WorkingCapacitySeconds += attendanceCalendarDaySeconds
 		}
 		status.CalendarCapacitySeconds += attendanceCalendarDaySeconds
-		status.LeaveMinutes += day.LeaveMinutes
 		status.FulfilledMinutes += day.FulfilledMinutes
 		status.NightMinutes += day.NightMinutes
 		status.IsWorking = status.IsWorking || day.IsWorking
@@ -89,10 +93,10 @@ func calculateAttendanceWorkStatus(
 	}
 	status.WorkMode = currentRevision.WorkMode
 	if status.HasBaseline {
-		status.FulfilledMinutes = min(status.TargetMinutes, status.ActualMinutes)
+		status.FulfilledMinutes = min(status.TargetMinutes, baselineActualMinutes)
 		status.RemainingMinutes = max(0, status.TargetMinutes-status.FulfilledMinutes)
-		status.DifferenceMinutes = status.ActualMinutes - status.TargetMinutes
-		status.OvertimeMinutes = max(0, status.ActualMinutes-status.TargetMinutes)
+		status.DifferenceMinutes = baselineActualMinutes - status.TargetMinutes
+		status.OvertimeMinutes = max(0, baselineActualMinutes-status.TargetMinutes)
 	}
 	status.Status = attendanceWorkStatusLabel(status)
 	return status, nil
