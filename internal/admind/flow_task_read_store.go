@@ -156,13 +156,8 @@ func (service *Service) readFlowTasksWithMattermostPosts(ctx context.Context) ([
 	rows, errorValue := database.QueryContext(ctx, `
 	SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
 	FROM flow_tasks
-	WHERE mattermost_post_id != '' OR status IN (?, ?, ?, ?) OR id IN (SELECT task_id FROM flow_channel_outbox)
-	ORDER BY updated_at DESC`,
-		flowStatusRequested,
-		flowStatusCompleted,
-		flowStatusRejected,
-		flowStatusStopped,
-	)
+	WHERE mattermost_post_id != '' OR id IN (SELECT task_id FROM flow_channel_outbox)
+	ORDER BY updated_at DESC`)
 	if errorValue != nil {
 		return nil, errorValue
 	}
