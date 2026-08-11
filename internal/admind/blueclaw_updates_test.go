@@ -624,3 +624,59 @@ func TestDescriptorOpenModeSaysWhetherTheHolderCanWrite(t *testing.T) {
 		t.Fatal("a document with no flags line cannot say how it was opened")
 	}
 }
+
+func TestBlueclawWorkspaceImageHolderIgnoresThisProcess(t *testing.T) {
+	workspaceImagePath := filepath.Join(t.TempDir(), "workspace.ext4")
+	if errorValue := os.WriteFile(workspaceImagePath, []byte("image"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	heldFile, errorValue := os.Open(workspaceImagePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	t.Cleanup(func() { heldFile.Close() })
+
+	if holderDescription, isHeld := blueclawWorkspaceImageHolder(workspaceImagePath); isHeld {
+		t.Fatalf("admind must not count its own descriptor as a holder, got %s", holderDescription)
+	}
+}
+
+func TestStampedGuestProtocolHashReadsTheCapabilitiesBlock(t *testing.T) {
+	stamped, errorValue := stampedGuestProtocolHash([]byte(`{"capabilities":{"aggregateProtocolHash":"abc123","protocolVersion":"0.4.0"}}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if stamped != "abc123" {
+		t.Fatalf("stamped = %q", stamped)
+	}
+}
+
+func TestVerifyGuestProtocolIdentityStampRejectsAStaleStamp(t *testing.T) {
+	expected := blueclawruntime.CurrentCapabilityContract().AggregateProtocolHash
+	if strings.TrimSpace(expected) == "" {
+		t.Skip("this build carries no capability contract hash")
+	}
+	service := &Service{RunCommand: func(context.Context, string, ...string) ([]byte, error) {
+		return []byte(`{"capabilities":{"aggregateProtocolHash":"0000000000000000000000000000000000000000000000000000000000000000"}}`), nil
+	}}
+
+	errorValue := service.verifyGuestProtocolIdentityStamp(context.Background(), canonicalBlueclawPayloadInstallTarget())
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), expected) {
+		t.Fatalf("expected the stale stamp to be named against %s, got %v", expected, errorValue)
+	}
+}
+
+func TestVerifyGuestProtocolIdentityStampAcceptsTheCurrentStamp(t *testing.T) {
+	expected := blueclawruntime.CurrentCapabilityContract().AggregateProtocolHash
+	if strings.TrimSpace(expected) == "" {
+		t.Skip("this build carries no capability contract hash")
+	}
+	service := &Service{RunCommand: func(context.Context, string, ...string) ([]byte, error) {
+		return []byte(`{"capabilities":{"aggregateProtocolHash":"` + expected + `"}}`), nil
+	}}
+
+	if errorValue := service.verifyGuestProtocolIdentityStamp(context.Background(), canonicalBlueclawPayloadInstallTarget()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
