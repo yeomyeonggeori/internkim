@@ -44,6 +44,26 @@ func attendanceWorkMinutesExcludingBreaks(
 	return max(0, minutes)
 }
 
+func attendanceWorkSecondsExcludingBreaks(
+	start time.Time,
+	end time.Time,
+	dayStart time.Time,
+	breakPeriods []attendanceWorkScheduleBreakPeriod,
+) int {
+	seconds := durationSeconds(end.Sub(start))
+	for _, breakPeriod := range breakPeriods {
+		breakStartMinute, startError := attendanceWorkScheduleTimeMinutes(breakPeriod.StartTime)
+		breakEndMinute, endError := attendanceWorkScheduleTimeMinutes(breakPeriod.EndTime)
+		if startError != nil || endError != nil {
+			continue
+		}
+		breakStart := dayStart.Add(time.Duration(breakStartMinute) * time.Minute)
+		breakEnd := dayStart.Add(time.Duration(breakEndMinute) * time.Minute)
+		seconds -= overlapSeconds(start, end, breakStart, breakEnd)
+	}
+	return max(0, seconds)
+}
+
 func attendanceNightMinutesExcludingBreaks(
 	start time.Time,
 	end time.Time,
@@ -99,8 +119,26 @@ func overlapMinutes(
 	return durationMinutes(end.Sub(start))
 }
 
+func overlapSeconds(
+	leftStart time.Time,
+	leftEnd time.Time,
+	rightStart time.Time,
+	rightEnd time.Time,
+) int {
+	start := latestTime(leftStart, rightStart)
+	end := earliestTime(leftEnd, rightEnd)
+	if !end.After(start) {
+		return 0
+	}
+	return durationSeconds(end.Sub(start))
+}
+
 func durationMinutes(duration time.Duration) int {
 	return int(duration / time.Minute)
+}
+
+func durationSeconds(duration time.Duration) int {
+	return int(duration / time.Second)
 }
 
 func latestTime(left time.Time, right time.Time) time.Time {

@@ -60,6 +60,7 @@ func main() {
 	flag.StringVar(&configuration.ClaimedAdminEmailPath, "claimed-admin-email-path", configuration.ClaimedAdminEmailPath, "claimed admin email file")
 	flag.StringVar(&configuration.FleetIDPath, "fleet-id-path", configuration.FleetIDPath, "fleet ID file")
 	flag.StringVar(&configuration.DeviceURLPath, "device-url-path", configuration.DeviceURLPath, "device public URL file")
+	flag.StringVar(&configuration.FlowPublicURLPath, "flow-public-url-path", configuration.FlowPublicURLPath, "public Flow web URL file for channel open links")
 	flag.StringVar(&configuration.FleetSecretPath, "fleet-secret-path", configuration.FleetSecretPath, "fleet secret file")
 	flag.StringVar(&configuration.OpenRouterKeyPath, "openrouter-key", configuration.OpenRouterKeyPath, "OpenRouter key path")
 	flag.StringVar(&configuration.OpenRouterModelsURL, "openrouter-models-url", configuration.OpenRouterModelsURL, "OpenRouter models URL for key validation")

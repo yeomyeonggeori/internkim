@@ -13,7 +13,14 @@ import {
 } from './messenger-api';
 import { fetchMessengerDirectory, personKey, personLabel, type MessengerDirectory } from './messenger-directory';
 
-type ChannelSummary = { id: string; name: string; kind: 'dm' | 'group'; avatarURL?: string };
+type ChannelSummary = {
+	id: string;
+	name: string;
+	kind: 'dm' | 'group';
+	avatarURL?: string;
+	platform?: string;
+	webURL?: string;
+};
 type Person = { id: string; name: string; avatarURL?: string };
 type Participant = { id: string; name: string; avatarURL?: string };
 type Reaction = { emoji: string; count: number; reactedByMe: boolean; imageURL?: string; people?: Participant[] };
@@ -82,7 +89,9 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 			id: channel.id,
 			name: channelName(channel, people, mine),
 			kind: channel.isDirect ? ('dm' as const) : ('group' as const),
-			avatarURL: channel.isDirect ? avatarOfDirect(channel, people, mine) : undefined
+			avatarURL: channel.isDirect ? avatarOfDirect(channel, people, mine) : undefined,
+			platform: channel.platform,
+			webURL: channel.webURL
 		}));
 }
 

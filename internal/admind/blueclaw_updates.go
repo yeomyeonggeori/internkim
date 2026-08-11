@@ -926,10 +926,35 @@ func blueclawWorkspaceImageHolder(workspaceImagePath string) (string, bool) {
 				continue
 			}
 			processName, _ := os.ReadFile(filepath.Join("/proc", processEntry.Name(), "comm"))
-			return "process " + processEntry.Name() + " (" + strings.TrimSpace(string(processName)) + ")", true
+			descriptorDocument, _ := os.ReadFile(filepath.Join("/proc", processEntry.Name(), "fdinfo", descriptorEntry.Name()))
+			return "process " + processEntry.Name() + " (" + strings.TrimSpace(string(processName)) +
+				") on descriptor " + descriptorEntry.Name() + " opened " + descriptorOpenMode(string(descriptorDocument)), true
 		}
 	}
 	return "", false
+}
+
+const descriptorAccessModeMask = 3
+
+func descriptorOpenMode(fdinfoDocument string) string {
+	for _, line := range strings.Split(fdinfoDocument, "\n") {
+		if !strings.HasPrefix(line, "flags:") {
+			continue
+		}
+		flags, errorValue := strconv.ParseInt(strings.TrimSpace(strings.TrimPrefix(line, "flags:")), 8, 64)
+		if errorValue != nil {
+			return "unreadably"
+		}
+		switch flags & descriptorAccessModeMask {
+		case 0:
+			return "read-only"
+		case 1:
+			return "write-only"
+		default:
+			return "for reading and writing"
+		}
+	}
+	return "unreadably"
 }
 
 func stopBlueclawPayloadTargetCommand(target blueclawPayloadInstallTarget) string {

@@ -101,7 +101,7 @@ func (service *Service) handleFiles(responseWriter http.ResponseWriter, request 
 }
 
 func (service *Service) resolveWorkspaceAccess(request *http.Request) (workspaceAccess, bool, error) {
-	actorEmail := service.webActorEmail(request)
+	actorEmail := service.actorEmailAllowingLoopback(request)
 	if actorEmail == "" {
 		return workspaceAccess{}, false, nil
 	}
@@ -168,6 +168,12 @@ func (service *Service) writeWorkspaceRoots(responseWriter http.ResponseWriter, 
 	service.writeJSON(responseWriter, map[string]any{"roots": roots})
 }
 
+// Blueclaw performs the read as the person named here, because a private home is
+// owned by that person's POSIX user and the Blueclaw service cannot read it.
+func workspaceReadQuery(personID string, agentPath string) string {
+	return "personID=" + url.QueryEscape(personID) + "&path=" + url.QueryEscape(agentPath)
+}
+
 // The workspace lives inside the Blueclaw guest image, unreadable from the host,
 // so listings and downloads proxy to Blueclaw's read-only workspace endpoints.
 // admind still authorizes the web actor against the requested agent path first.
@@ -180,7 +186,7 @@ func (service *Service) writeWorkspaceList(responseWriter http.ResponseWriter, r
 	var blueclawResponse struct {
 		Entries []workspaceEntry `json:"entries"`
 	}
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/workspace/list?path="+url.QueryEscape(agentPath), nil, &blueclawResponse); errorValue != nil {
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/workspace/list?"+workspaceReadQuery(access.personID, agentPath), nil, &blueclawResponse); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
@@ -198,7 +204,7 @@ func (service *Service) downloadWorkspaceFile(responseWriter http.ResponseWriter
 		writeWorkspacePathError(responseWriter, errorValue)
 		return
 	}
-	proxyURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/admin/api/workspace/download?path=" + url.QueryEscape(agentPath)
+	proxyURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/admin/api/workspace/download?" + workspaceReadQuery(access.personID, agentPath)
 	proxyRequest, errorValue := http.NewRequestWithContext(request.Context(), http.MethodGet, proxyURL, nil)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)

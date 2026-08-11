@@ -75,7 +75,11 @@ func (service *Service) trySyncCalendarMattermostLog(ctx context.Context, event 
 	if errorValue != nil && !isMattermostNotFound(errorValue) {
 		return event, errorValue
 	}
-	if found && postRecord.UserID != "" && postRecord.UserID != botUserID {
+	if !found {
+		event.MattermostPostID = ""
+		return event, service.updateCalendarEventMattermostPostID(ctx, event.ID, "")
+	}
+	if postRecord.UserID != "" && postRecord.UserID != botUserID {
 		if errorValue := service.deleteMattermostPost(ctx, adminToken, event.MattermostPostID); errorValue != nil {
 			return event, errorValue
 		}

@@ -56,7 +56,7 @@ func (service *Service) webStaffActorEmail(request *http.Request) string {
 }
 
 func (service *Service) webTaskRunActorEmail(request *http.Request) string {
-	actorEmail := service.webActorEmail(request)
+	actorEmail := service.actorEmailAllowingLoopback(request)
 	if !service.canViewTaskRuns(request.Context(), actorEmail) {
 		return ""
 	}
@@ -117,7 +117,10 @@ func (service *Service) webActorEmail(request *http.Request) string {
 	if actorEmail := service.authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail
 	}
-	return strings.ToLower(strings.TrimSpace(service.webSessionActorEmail(request)))
+	if actorEmail := strings.ToLower(strings.TrimSpace(service.webSessionActorEmail(request))); actorEmail != "" {
+		return actorEmail
+	}
+	return service.emailOfMattermostSession(request)
 }
 
 func hasWebLogoutMarker(request *http.Request) bool {

@@ -385,27 +385,7 @@ var buildBlueclawLLMDArtifact = buildBlueclawLLMDReleaseArtifact
 
 func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string, selectedComponentNames map[string]bool) ([]releaseBlob, error) {
 	gitRevision := gitRevision(repositoryRootPath)
-	blobInputs := []struct {
-		name         string
-		revision     string
-		restartGroup string
-		healthCheck  string
-		sourcePath   string
-		builder      func(string, string) error
-	}{
-		{name: "internkim", revision: gitRevision, restartGroup: "admind", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", "internkim"), builder: buildReleaseBinary("./cmd/internkim")},
-		{name: "admind", revision: gitRevision, restartGroup: "admind", healthCheck: "admind", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.AdmindName), builder: buildReleaseBinary("./cmd/" + blueclaw.AdmindName)},
-		{name: "capabilityd", revision: gitRevision, restartGroup: "capabilityd", healthCheck: "capabilityd", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.CapabilitydName), builder: buildReleaseBinary("./cmd/" + blueclaw.CapabilitydName)},
-		{name: "web", revision: webRevision(repositoryRootPath), restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(repositoryRootPath, "build", "board-ui")},
-		{name: "blueclawLLMD", restartGroup: "blueclaw", healthCheck: "blueclawLLMD", sourcePath: filepath.Join(repositoryRootPath, ".dependency", "blueclaw-llmd"), builder: buildBlueclawLLMDArtifact},
-		{name: "blueclawPayload", revision: blueclawPayloadRevision(repositoryRootPath), restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath)},
-		{name: "blueclawSupervisor", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BlueclawSupervisorName), builder: buildBlueclawSupervisorReleaseBinary},
-		{name: "skills", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "skills", sourcePath: deviceAssetSourcePath("skills", repositoryRootPath)},
-		{name: "fonts", revision: gitRevision, restartGroup: "admind", healthCheck: "web", sourcePath: deviceAssetSourcePath("fonts", repositoryRootPath)},
-		{name: "mattermostPlugins", revision: gitRevision, restartGroup: "admind", healthCheck: "mattermostPlugins", sourcePath: filepath.Join(repositoryRootPath, "build", "mattermost-plugins")},
-		{name: "chatd", revision: gitRevision, restartGroup: "chatd", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.ChatdName), builder: buildChatdReleaseBinary},
-		{name: "buzzMigrate", revision: gitRevision, restartGroup: "", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BuzzMigrateName), builder: buildReleaseBinary("./cmd/buzz-migrate")},
-	}
+	blobInputs := releaseBlobInputs(repositoryRootPath, temporaryDirectoryPath)
 	blobs := []releaseBlob{}
 	for _, input := range blobInputs {
 		if len(selectedComponentNames) > 0 && !selectedComponentNames[input.name] {
@@ -416,9 +396,7 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 				return nil, errorValue
 			}
 		}
-		if input.name == "blueclawLLMD" {
-			input.revision = blueclawLLMDRevision(repositoryRootPath)
-		}
+		input.revision = releaseComponentRevision(input.name, repositoryRootPath, gitRevision)
 		if errorValue := validateReleaseSource(input.name, input.sourcePath); errorValue != nil {
 			return nil, errorValue
 		}
@@ -465,6 +443,25 @@ func buildChatdReleaseBinary(repositoryRootPath string, outputPath string) error
 	output, errorValue := command.CombinedOutput()
 	if errorValue != nil {
 		return fmt.Errorf("build chatd: %s", strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func buildRelayReleaseBinary(repositoryRootPath string, outputPath string) error {
+	if errorValue := os.MkdirAll(filepath.Dir(outputPath), 0o755); errorValue != nil {
+		return errorValue
+	}
+	relayPath := filepath.Join(repositoryRootPath, "host", "relay")
+	install := exec.Command("bun", "install", "--frozen-lockfile")
+	install.Dir = relayPath
+	if output, errorValue := install.CombinedOutput(); errorValue != nil {
+		return fmt.Errorf("install the relay's dependencies: %s", strings.TrimSpace(string(output)))
+	}
+	command := exec.Command("bun", "build", "relay.ts", "--compile", "--target=bun-linux-arm64", "--outfile", outputPath)
+	command.Dir = relayPath
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return fmt.Errorf("build relay: %s", strings.TrimSpace(string(output)))
 	}
 	return nil
 }
@@ -892,4 +889,57 @@ func releaseFileSHA256AndSize(path string) (string, int64, error) {
 
 func readAllLimited(reader io.Reader, limit int64) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(reader, limit))
+}
+
+type releaseBlobInput struct {
+	name         string
+	revision     string
+	restartGroup string
+	healthCheck  string
+	sourcePath   string
+	builder      func(string, string) error
+}
+
+func releaseBlobInputs(repositoryRootPath string, temporaryDirectoryPath string) []releaseBlobInput {
+	return []releaseBlobInput{
+		{name: "internkim", restartGroup: "admind", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", "internkim"), builder: buildReleaseBinary("./cmd/internkim")},
+		{name: "admind", restartGroup: "admind", healthCheck: "admind", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.AdmindName), builder: buildReleaseBinary("./cmd/" + blueclaw.AdmindName)},
+		{name: "capabilityd", restartGroup: "capabilityd", healthCheck: "capabilityd", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.CapabilitydName), builder: buildReleaseBinary("./cmd/" + blueclaw.CapabilitydName)},
+		{name: "web", restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(repositoryRootPath, "build", "board-ui")},
+		{name: "blueclawLLMD", restartGroup: "blueclaw", healthCheck: "blueclawLLMD", sourcePath: filepath.Join(repositoryRootPath, ".dependency", "blueclaw-llmd"), builder: buildBlueclawLLMDArtifact},
+		{name: "blueclawPayload", restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath)},
+		{name: "blueclawSupervisor", restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BlueclawSupervisorName), builder: buildBlueclawSupervisorReleaseBinary},
+		{name: "skills", restartGroup: "blueclaw", healthCheck: "skills", sourcePath: deviceAssetSourcePath("skills", repositoryRootPath)},
+		{name: "fonts", restartGroup: "admind", healthCheck: "web", sourcePath: deviceAssetSourcePath("fonts", repositoryRootPath)},
+		{name: "mattermostPlugins", restartGroup: "admind", healthCheck: "mattermostPlugins", sourcePath: filepath.Join(repositoryRootPath, "build", "mattermost-plugins")},
+		{name: "chatd", restartGroup: "chatd", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.ChatdName), builder: buildChatdReleaseBinary},
+		{name: "relay", restartGroup: "relay", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.RelayName), builder: buildRelayReleaseBinary},
+		{name: "buzzMigrate", restartGroup: "", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BuzzMigrateName), builder: buildReleaseBinary("./cmd/buzz-migrate")},
+	}
+}
+
+// ReleaseComponentNames is what the deploy command offers, read off the same
+// list the release builds from.
+func ReleaseComponentNames() []string {
+	inputs := releaseBlobInputs("", "")
+	names := make([]string, 0, len(inputs))
+	for _, input := range inputs {
+		names = append(names, input.name)
+	}
+	sort.Slice(names, func(earlier int, later int) bool {
+		return strings.ToLower(names[earlier]) < strings.ToLower(names[later])
+	})
+	return names
+}
+
+func releaseComponentRevision(name string, repositoryRootPath string, gitRevision string) string {
+	switch name {
+	case "web":
+		return webRevision(repositoryRootPath)
+	case "blueclawPayload":
+		return blueclawPayloadRevision(repositoryRootPath)
+	case "blueclawLLMD":
+		return blueclawLLMDRevision(repositoryRootPath)
+	}
+	return gitRevision
 }

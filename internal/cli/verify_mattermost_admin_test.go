@@ -41,12 +41,32 @@ func TestMattermostScenarioWorkspaceFilesRecursesThroughPathGlob(t *testing.T) {
 	admin := mattermostScenarioAdmin{remote: remote}
 	step := mattermostScenarioStep{ExpectedWorkspaceFiles: []mattermostScenarioWorkspaceFile{{PathGlob: "circles/staff/reports/*/*.docx"}}}
 
-	files, errorValue := admin.workspaceFiles(context.Background(), step)
+	files, errorValue := admin.workspaceFiles(context.Background(), step, "person-requester")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if len(files) != 1 || files[0].Path != "/workspace/circles/staff/reports/quarterly/review.docx" || files[0].Content != "quarterly report" {
 		t.Fatalf("unexpected workspace files: %#v scripts=%#v", files, remote.scripts)
+	}
+	for _, script := range remote.scripts {
+		if !strings.Contains(script, "personID=person-requester") {
+			t.Fatalf("workspace read did not name the person it runs as: %q", script)
+		}
+	}
+}
+
+func TestMattermostScenarioWorkspaceGlobNeedsTheRequesterToReadAs(t *testing.T) {
+	remote := &fakeMattermostScenarioRemote{runValue: func(string) (string, error) {
+		return `{"entries":[]}`, nil
+	}}
+	admin := mattermostScenarioAdmin{remote: remote}
+	step := mattermostScenarioStep{ExpectedWorkspaceFiles: []mattermostScenarioWorkspaceFile{{PathGlob: "private/people/person-me/documents/*.docx"}}}
+
+	if _, errorValue := admin.workspaceFiles(context.Background(), step, ""); errorValue == nil {
+		t.Fatal("expected a workspace glob with no requester person to be refused")
+	}
+	if len(remote.scripts) != 0 {
+		t.Fatalf("expected no guest read without a requester person, got %#v", remote.scripts)
 	}
 }
 

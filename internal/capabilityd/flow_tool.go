@@ -244,7 +244,7 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 	if failure != nil {
 		return flowTaskErrorResponse(request.ToolName, *failure), nil
 	}
-	statusFilter := normalizeFlowStatusFilter(input.Status)
+	statusFilter := normalizeFlowStatus(input.Status)
 	weekCodes, errorValue := flowTaskListWeekCodes(input.WeekFrom, input.WeekTo, summary.Week.Code)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -401,6 +401,7 @@ func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) 
 	if input.Size != "" && !containsString(flowTaskAddSizes(), input.Size) {
 		return flowTaskAddInput{}, fmt.Errorf("size is not allowed")
 	}
+	input.Status = normalizeFlowStatus(input.Status)
 	if input.Status != "" && !containsString(flowTaskAddStatuses(), input.Status) {
 		return flowTaskAddInput{}, fmt.Errorf("status is not allowed")
 	}
@@ -470,8 +471,12 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 	if !hasFlowTaskUpdatePatch(input) {
 		return flowTaskUpdateInput{}, fmt.Errorf("task_update requires at least one mutable field")
 	}
-	if input.Status != nil && !containsString(flowTaskUpdateStatuses(), *input.Status) {
-		return flowTaskUpdateInput{}, fmt.Errorf("status is not allowed")
+	if input.Status != nil {
+		normalizedStatus := normalizeFlowStatus(*input.Status)
+		input.Status = &normalizedStatus
+		if !containsString(flowTaskUpdateStatuses(), normalizedStatus) {
+			return flowTaskUpdateInput{}, fmt.Errorf("status is not allowed")
+		}
 	}
 	if input.Size != nil && !containsString(flowTaskAddSizes(), *input.Size) {
 		return flowTaskUpdateInput{}, fmt.Errorf("size is not allowed")
@@ -789,7 +794,7 @@ func weekCodeForFlowDate(date time.Time) string {
 	return fmt.Sprintf("%02dW%02d", year%100, week)
 }
 
-func normalizeFlowStatusFilter(status string) string {
+func normalizeFlowStatus(status string) string {
 	trimmedStatus := strings.TrimSpace(status)
 	switch strings.ToLower(trimmedStatus) {
 	case "":
