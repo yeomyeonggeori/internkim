@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { attendanceWorkModeFromDevice } from '../../src/lib/server/attendance-work-mode-reconcile';
+import {
+	attendanceWorkCalendarFromDevice,
+	attendanceWorkModeFromDevice
+} from '../../src/lib/server/attendance-work-calendar-reconcile';
 import {
 	EmptyWindowRefused,
 	paired,
@@ -22,6 +25,48 @@ describe('attendanceWorkModeFromDevice', () => {
 	test('rejects a malformed work mode projection', () => {
 		expect(() => attendanceWorkModeFromDevice('hybrid')).toThrow('workMode');
 		expect(() => attendanceWorkModeFromDevice(null)).toThrow('workMode');
+	});
+});
+
+describe('attendanceWorkCalendarFromDevice', () => {
+	test('accepts the date-level work calendar contract', () => {
+		expect(
+			attendanceWorkCalendarFromDevice([
+				{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
+				{ date: '2027-01-05', workMode: 'fixed', workingDate: false }
+			])
+		).toEqual([
+			{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
+			{ date: '2027-01-05', workMode: 'fixed', workingDate: false }
+		]);
+	});
+
+	test('keeps reconciling when an earlier device has no work calendar projection', () => {
+		expect(attendanceWorkCalendarFromDevice(undefined)).toBe(undefined);
+	});
+
+	test('rejects a malformed work calendar projection', () => {
+		expect(() => attendanceWorkCalendarFromDevice(null)).toThrow('workCalendar');
+		expect(() =>
+			attendanceWorkCalendarFromDevice([
+				{ date: '2027-02-30', workMode: 'fixed', workingDate: true }
+			])
+		).toThrow('workCalendar');
+		expect(() =>
+			attendanceWorkCalendarFromDevice([
+				{ date: '2027-01-04', workMode: 'hybrid', workingDate: true }
+			])
+		).toThrow('workCalendar');
+		expect(() =>
+			attendanceWorkCalendarFromDevice([
+				{ date: '2027-01-04', workMode: 'fixed', workingDate: 'yes' }
+			])
+		).toThrow('workCalendar');
+		expect(() =>
+			attendanceWorkCalendarFromDevice([
+				{ date: '2027-01-04', workMode: 'fixed', workingDate: true, holidayName: 'closure' }
+			])
+		).toThrow('workCalendar');
 	});
 });
 
