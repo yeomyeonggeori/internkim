@@ -34,7 +34,7 @@ describe('calendarEventFromApprovedLeave', () => {
 		});
 	});
 
-	test('maps legacy UTC-midnight full-day bounds to an all-day event', () => {
+	test('maps legacy UTC-midnight full-day bounds in a negative UTC offset', () => {
 		const event = calendarEventFromApprovedLeave(
 			{
 				id: 'legacy-full-day',
@@ -46,7 +46,7 @@ describe('calendarEventFromApprovedLeave', () => {
 				ends_at: '2026-08-04T00:00:00.000Z'
 			},
 			members,
-			'Asia/Seoul'
+			'America/Los_Angeles'
 		);
 
 		expect(event).toMatchObject({
