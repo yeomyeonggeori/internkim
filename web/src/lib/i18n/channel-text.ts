@@ -28,7 +28,8 @@ export const channelText = {
 		directMessagesTitle: '개인 메시지',
 		messenger: '메신저',
 		newDirectMessage: '새 개인 메시지',
-		noPeople: '대화할 사람이 없습니다'
+		noPeople: '대화할 사람이 없습니다',
+		openInPlatform: '{platform}에서 열기'
 	},
 	en: {
 		title: 'internkim',
@@ -59,6 +60,7 @@ export const channelText = {
 		directMessagesTitle: 'Direct Messages',
 		messenger: 'Messenger',
 		newDirectMessage: 'New direct message',
-		noPeople: 'No one to message'
+		noPeople: 'No one to message',
+		openInPlatform: 'Open in {platform}'
 	}
 };

@@ -115,6 +115,8 @@ export type ChannelSummary = {
 	name: string;
 	kind: 'dm' | 'group';
 	avatarURL?: string;
+	platform?: string;
+	webURL?: string;
 };
 
 export async function fetchConversations(): Promise<ChannelSummary[]> {
