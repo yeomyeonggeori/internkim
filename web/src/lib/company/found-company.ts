@@ -10,7 +10,6 @@ export type FoundedCompany = {
 	companyID: string;
 	slug: string;
 	invitations: FoundingInvitation[];
-	address: { hostname: string | null; status: string };
 };
 
 export type AddressCheck = {

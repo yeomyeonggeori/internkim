@@ -91,7 +91,7 @@
 			<Card.Header>
 				<Card.Title>{name} 준비됐습니다</Card.Title>
 				<Card.Description>
-					{founded.address.hostname ? `${founded.address.hostname} — ${founded.address.status}` : founded.address.status}
+					로그인 주소는 {addressZone} 하나입니다.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content class="grid gap-3">

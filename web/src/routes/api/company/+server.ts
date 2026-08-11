@@ -1,6 +1,5 @@
 import { env } from '$env/dynamic/private';
 import { asMember, claimMemberFor, controlPlane, foundCompany } from '$lib/server/control-plane';
-import { claimCompanyAddress } from '$lib/server/company-address';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
@@ -21,7 +20,7 @@ export const GET: RequestHandler = async ({ platform, url }) => {
 	return json({ slug, taken: Boolean(data), usable: !data, name: data?.name ?? null });
 };
 
-export const POST: RequestHandler = async ({ request, platform, url }) => {
+export const POST: RequestHandler = async ({ request, platform }) => {
 	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
 	const projectURL = environment.SUPABASE_URL ?? '';
 	const publishableKey = environment.SUPABASE_PUBLISHABLE_KEY ?? '';
@@ -73,6 +72,5 @@ export const POST: RequestHandler = async ({ request, platform, url }) => {
 		invited
 	);
 
-	const address = await claimCompanyAddress(environment, slug, url.hostname);
-	return json({ ...founded, slug, address });
+	return json({ ...founded, slug });
 };

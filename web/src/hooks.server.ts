@@ -2,6 +2,7 @@ import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { redirect, type Handle } from '@sveltejs/kit';
 import { sendsHomeToFlow } from '$lib/server/home-redirect';
+import { movesToTheOneAddress } from '$lib/server/company-host-redirect';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	if (event.request.method === 'OPTIONS') {
@@ -19,6 +20,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 		publishableKey: env.SUPABASE_PUBLISHABLE_KEY ?? '',
 		vapidPublicKey: env.VAPID_PUBLIC_KEY ?? ''
 	};
+
+	const zone = env.CF_DOMAIN ?? '';
+	if (
+		!building &&
+		movesToTheOneAddress({ hostname: event.url.hostname, zone, apiHostname: `api.${zone}` })
+	) {
+		redirect(308, `https://${zone}${event.url.pathname}${event.url.search}`);
+	}
 
 	if (sendsHomeToFlow({ isBuilding: building, ...centralPlane, pathname: event.url.pathname })) {
 		redirect(307, '/flow/');
