@@ -532,6 +532,13 @@ and delete the duplicates.
   and `blueclawPayload` (and `admind`) in the same release — a half-deploy
   (e.g. neutral `capabilityd` against a legacy `blueclaw`) makes the agent call
   names the other side does not know and the task stalls.
+- A component the device has never installed takes **two deploys**. The release
+  is applied by the `admind` already running, so the first deploy installs the
+  new `admind` and silently skips the component it does not yet know — reporting
+  `completed/completed` while installing nothing. Sending `admind,<component>`
+  together does not help, for the same reason. Deploy `admind`, then the
+  component. The second run reaches a `running/installing` status the first
+  never shows, which is how to tell them apart.
 - The Jetson Blueclaw component is `blueclawPayload`, not `blueclaw`. An invalid
   component name is silently dropped, so confirm the deploy log's `Components:`
   line lists everything you intended.
