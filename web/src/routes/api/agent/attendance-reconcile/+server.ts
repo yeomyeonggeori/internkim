@@ -42,7 +42,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const to = moment(asked.to, 'to');
 	if (from >= to) error(400, 'the window ends before it begins');
 	askedWorkMode(asked.workMode);
-	const workCalendar = askedWorkCalendar(asked.workCalendar);
+	const workCalendar = askedWorkCalendar(asked.workCalendar, from, to);
 	if (workCalendar !== undefined) {
 		await saveAttendanceWorkCalendar(client, companyID, workCalendar);
 	}
@@ -54,9 +54,9 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	return json(await makeTheRecordMatch(client, new Set(memberOf.values()), byMember, held));
 };
 
-function askedWorkCalendar(offered: unknown) {
+function askedWorkCalendar(offered: unknown, from: string, to: string) {
 	try {
-		return attendanceWorkCalendarFromDevice(offered);
+		return attendanceWorkCalendarFromDevice(offered, from, to);
 	} catch (thrown) {
 		if (!(thrown instanceof InvalidAttendanceWorkCalendarError)) throw thrown;
 		error(400, thrown.message);

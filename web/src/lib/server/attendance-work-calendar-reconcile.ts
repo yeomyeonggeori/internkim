@@ -28,10 +28,19 @@ export function attendanceWorkModeFromDevice(offered: unknown): AttendanceWorkMo
 }
 
 export function attendanceWorkCalendarFromDevice(
-	offered: unknown
+	offered: unknown,
+	from: string,
+	to: string
 ): AttendanceWorkCalendarDay[] | undefined {
 	if (offered === undefined) return undefined;
 	if (!Array.isArray(offered) || !offered.every(isAttendanceWorkCalendarDay)) {
+		throw new InvalidAttendanceWorkCalendarError();
+	}
+	const expectedDates = attendanceWorkCalendarDates(from, to);
+	if (
+		offered.length !== expectedDates.length ||
+		!offered.every((day, index) => day.date === expectedDates[index])
+	) {
 		throw new InvalidAttendanceWorkCalendarError();
 	}
 	return offered;
@@ -61,4 +70,25 @@ function isDateOnly(offered: unknown): offered is string {
 	if (typeof offered !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(offered)) return false;
 	const date = new Date(`${offered}T00:00:00Z`);
 	return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === offered;
+}
+
+function attendanceWorkCalendarDates(from: string, to: string): string[] {
+	const startMoment = new Date(from);
+	const endMoment = new Date(to);
+	if (
+		Number.isNaN(startMoment.valueOf()) ||
+		Number.isNaN(endMoment.valueOf()) ||
+		startMoment > endMoment
+	) {
+		throw new InvalidAttendanceWorkCalendarError();
+	}
+	if (startMoment.valueOf() === endMoment.valueOf()) return [];
+	const date = new Date(
+		Date.UTC(startMoment.getUTCFullYear(), startMoment.getUTCMonth(), startMoment.getUTCDate())
+	);
+	const dates: string[] = [];
+	for (; date < endMoment; date.setUTCDate(date.getUTCDate() + 1)) {
+		dates.push(date.toISOString().slice(0, 10));
+	}
+	return dates;
 }

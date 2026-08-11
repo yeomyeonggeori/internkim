@@ -34,7 +34,7 @@ describe('attendanceWorkCalendarFromDevice', () => {
 			attendanceWorkCalendarFromDevice([
 				{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
 				{ date: '2027-01-05', workMode: 'fixed', workingDate: false }
-			])
+			], '2027-01-04T00:00:00Z', '2027-01-06T00:00:00Z')
 		).toEqual([
 			{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
 			{ date: '2027-01-05', workMode: 'fixed', workingDate: false }
@@ -42,31 +42,87 @@ describe('attendanceWorkCalendarFromDevice', () => {
 	});
 
 	test('keeps reconciling when an earlier device has no work calendar projection', () => {
-		expect(attendanceWorkCalendarFromDevice(undefined)).toBe(undefined);
+		expect(
+			attendanceWorkCalendarFromDevice(
+				undefined,
+				'2027-01-04T00:00:00Z',
+				'2027-01-06T00:00:00Z'
+			)
+		).toBe(undefined);
 	});
 
 	test('rejects a malformed work calendar projection', () => {
-		expect(() => attendanceWorkCalendarFromDevice(null)).toThrow('workCalendar');
+		const from = '2027-01-04T00:00:00Z';
+		const to = '2027-01-05T00:00:00Z';
+		expect(() => attendanceWorkCalendarFromDevice(null, from, to)).toThrow('workCalendar');
 		expect(() =>
 			attendanceWorkCalendarFromDevice([
 				{ date: '2027-02-30', workMode: 'fixed', workingDate: true }
-			])
+			], from, to)
 		).toThrow('workCalendar');
 		expect(() =>
 			attendanceWorkCalendarFromDevice([
 				{ date: '2027-01-04', workMode: 'hybrid', workingDate: true }
-			])
+			], from, to)
 		).toThrow('workCalendar');
 		expect(() =>
 			attendanceWorkCalendarFromDevice([
 				{ date: '2027-01-04', workMode: 'fixed', workingDate: 'yes' }
-			])
+			], from, to)
 		).toThrow('workCalendar');
 		expect(() =>
 			attendanceWorkCalendarFromDevice([
 				{ date: '2027-01-04', workMode: 'fixed', workingDate: true, holidayName: 'closure' }
-			])
+			], from, to)
 		).toThrow('workCalendar');
+	});
+
+	const completeWindow = [
+		{ date: '2027-01-01', workMode: 'fixed', workingDate: true },
+		{ date: '2027-01-02', workMode: 'fixed', workingDate: true },
+		{ date: '2027-01-03', workMode: 'fixed', workingDate: false }
+	];
+	const invalidCalendars = [
+		{ name: 'empty', workCalendar: [] },
+		{ name: 'duplicate', workCalendar: [completeWindow[0], completeWindow[0], completeWindow[2]] },
+		{ name: 'missing', workCalendar: [completeWindow[0], completeWindow[2]] },
+		{ name: 'reversed', workCalendar: [completeWindow[1], completeWindow[0], completeWindow[2]] },
+		{
+			name: 'out-of-window',
+			workCalendar: [
+				{ date: '2026-12-31', workMode: 'fixed', workingDate: true },
+				completeWindow[0],
+				completeWindow[1]
+			]
+		},
+		{
+			name: 'oversized',
+			workCalendar: [
+				...completeWindow,
+				{ date: '2027-01-04', workMode: 'fixed', workingDate: true }
+			]
+		}
+	];
+	for (const invalid of invalidCalendars) {
+		test(`rejects an explicitly ${invalid.name} calendar for the reconciliation window`, () => {
+			expect(() =>
+				attendanceWorkCalendarFromDevice(
+					invalid.workCalendar,
+					'2027-01-01T00:00:00Z',
+					'2027-01-04T00:00:00Z'
+				)
+			).toThrow('workCalendar');
+		});
+	}
+
+	test('accepts an empty calendar for a zero-day parser window', () => {
+		expect(
+			attendanceWorkCalendarFromDevice(
+				[],
+				'2027-01-01T12:00:00Z',
+				'2027-01-01T12:00:00Z'
+			)
+		).toEqual([]);
 	});
 });
 

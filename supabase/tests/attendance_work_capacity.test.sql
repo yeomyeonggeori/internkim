@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(9);
 
 insert into auth.users (id, email) values
 	('10000000-0000-0000-0000-000000000001', 'capacity-a@example.com'),
@@ -59,6 +59,20 @@ select is(
 	'attendance calendar persistence replaces only the projected calendar'
 );
 
+select lives_ok(
+	$$select public.save_attendance_calendar(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		'[{"date":"2027-02-02","workMode":"autonomous","workingDate":true},{"date":"2027-02-01","workMode":"fixed","workingDate":false},{"date":"2027-02-01","workMode":"flexible","workingDate":true}]'::jsonb
+	)$$,
+	'attendance calendar persistence accepts a consecutive monthly projection'
+);
+
+select is(
+	(select rules -> 'attendanceCalendar' from public.company where id = '10000000-0000-0000-0000-000000000000'),
+	'[{"date":"2027-01-01","workMode":"fixed","workingDate":false},{"date":"2027-02-01","workMode":"flexible","workingDate":true},{"date":"2027-02-02","workMode":"autonomous","workingDate":true}]'::jsonb,
+	'attendance calendar persistence retains prior dates and sorts the unique merged projection'
+);
+
 select is(
 	(select rules from public.company where id = '20000000-0000-0000-0000-000000000000'),
 	'{"branding":{"accent":"blue"}}'::jsonb,
@@ -80,7 +94,7 @@ select is(
 		from public.attendance_work_policies()
 		where member_id = '10000000-0000-0000-0000-000000000011'
 	),
-	'[{"date":"2027-01-01","workMode":"fixed","workingDate":false}]'::jsonb,
+	'[{"date":"2027-01-01","workMode":"fixed","workingDate":false},{"date":"2027-02-01","workMode":"flexible","workingDate":true},{"date":"2027-02-02","workMode":"autonomous","workingDate":true}]'::jsonb,
 	'attendance work policies expose the stored date-level projection'
 );
 
