@@ -122,7 +122,7 @@ func (fake *fakeMattermostScenarioAdminAPI) taskDetail(_ context.Context, taskRu
 	return fake.taskDetailValue(taskRunID), nil
 }
 
-func (fake *fakeMattermostScenarioAdminAPI) workspaceFiles(_ context.Context, step mattermostScenarioStep) ([]mattermostScenarioWorkspaceResult, error) {
+func (fake *fakeMattermostScenarioAdminAPI) workspaceFiles(_ context.Context, step mattermostScenarioStep, _ string) ([]mattermostScenarioWorkspaceResult, error) {
 	if fake.workspaceFileError != nil {
 		return nil, fake.workspaceFileError
 	}
