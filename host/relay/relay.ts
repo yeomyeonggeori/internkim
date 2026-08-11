@@ -24,6 +24,7 @@ const agentKey = await agentKeyFromEnvironmentOrFile();
 const chatdBaseURL = process.env.CHATD_BASE_URL ?? 'http://127.0.0.1:18090';
 const arrivalsPort = Number(process.env.ARRIVALS_PORT ?? 18091);
 const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
+const admindBaseURL = process.env.ADMIND_BASE_URL ?? 'http://127.0.0.1:18080';
 const appURL = required('INTERNKIM_APP_URL');
 const messengerPlatform = required('MESSENGER_PLATFORM');
 const answerByteCeiling = Number(process.env.ANSWER_BYTE_CEILING ?? 200_000);
@@ -149,6 +150,16 @@ const dispatch = {
 			`/api/agent/mail-account?memberID=${encodeURIComponent(memberID)}`
 		);
 		return held.account ?? null;
+	},
+	askAdmind,
+	emailOfMember: async (memberID: string) => {
+		const member = await client
+			.from('member')
+			.select('email')
+			.eq('id', memberID)
+			.maybeSingle<{ email: string | null }>();
+		if (member.error) throw new Error(member.error.message);
+		return member.data?.email ?? null;
 	},
 	memberOfExternalID: async (externalID: string) => {
 		const contact = await client
@@ -353,4 +364,33 @@ async function refreshContacts(client: SupabaseClient, companyID: string, sessio
 		console.log(`${people.length} contacts recorded`);
 		knownContacts = people.length;
 	}
+}
+
+const workspacePaths: Record<string, string> = {
+	'person.memory.graph': '/memory/api/graph',
+	'person.memory.schedules': '/memory/api/schedules',
+	'person.files.roots': '/files/api/roots',
+	'person.files.list': '/files/api/list',
+	'person.tasks.list': '/tasks/api/runs',
+	'person.tasks.detail': '/tasks/api/run-detail'
+};
+
+async function askAdmind(
+	capability: string,
+	body: Record<string, unknown>,
+	requesterEmail: string
+): Promise<{ status: number; body: unknown }> {
+	const path = workspacePaths[capability];
+	if (!path) return { status: 404, body: { error: `the app has nothing called ${capability}` } };
+
+	const query = new URLSearchParams();
+	for (const [name, value] of Object.entries(body)) {
+		if (name === 'actor' || value === undefined || value === null) continue;
+		query.set(name, String(value));
+	}
+	const asked = query.toString() ? `${path}?${query}` : path;
+	const response = await fetch(`${admindBaseURL}${asked}`, {
+		headers: { 'X-InternKim-Requester-Email': requesterEmail }
+	});
+	return { status: response.status, body: await response.json().catch(() => null) };
 }
