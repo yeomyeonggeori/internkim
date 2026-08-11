@@ -1,0 +1,117 @@
+import { describe, expect, test } from 'bun:test';
+import { parseSupabaseWorkPolicies } from '../../../src/lib/attendance/supabase-work-policy';
+import { calculateSupabaseEmployeeWorkStatus } from '../../../src/lib/attendance/supabase-work-status';
+
+const secondsPerDay = 24 * 60 * 60;
+const weekdayWorkHours = [[[], [], [], [], [], null, null]];
+
+const member = {
+	id: 'member-one',
+	name: '이샘플',
+	email: 'sample@example.com',
+	is_admin: false,
+	user_id: 'user-one',
+	joined_at: '2026-01-01T00:00:00Z'
+};
+
+function policyFrom(workCalendar: unknown) {
+	const policies = parseSupabaseWorkPolicies([
+		{
+			member_id: member.id,
+			work_hours: weekdayWorkHours,
+			minimum_daily_minutes: 480,
+			work_mode: 'autonomous',
+			work_calendar: workCalendar
+		}
+	]);
+	const policy = policies.get(member.id);
+	if (!policy) throw new Error('expected work policy fixture');
+	return policy;
+}
+
+describe('calculateSupabaseEmployeeWorkStatus', () => {
+	test('counts only projected working dates in stage-two capacity for a holiday week', () => {
+		const days = [
+			'2027-01-04',
+			'2027-01-05',
+			'2027-01-06',
+			'2027-01-07',
+			'2027-01-08',
+			'2027-01-09',
+			'2027-01-10'
+		];
+		const policy = policyFrom(
+			days.map((date, index) => ({
+				date,
+				workMode: 'fixed',
+				workingDate: index < 5 && date !== '2027-01-06'
+			}))
+		);
+
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days,
+			timeZone: 'Asia/Seoul',
+			attendance: [],
+			leave: [],
+			policy
+		});
+
+		expect(status.workingCapacitySeconds).toBe(4 * secondsPerDay);
+		expect(status.calendarCapacitySeconds).toBe(7 * secondsPerDay);
+		expect(status.days.find((day) => day.date === '2027-01-06')?.workingDate).toBe(false);
+	});
+
+	test('uses each projected date mode instead of the current compatibility mode', () => {
+		const policy = policyFrom([
+			{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
+			{ date: '2027-01-05', workMode: 'autonomous', workingDate: true }
+		]);
+
+		const historical = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2027-01-04'],
+			timeZone: 'Asia/Seoul',
+			attendance: [],
+			leave: [],
+			policy
+		});
+		const current = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2027-01-05'],
+			timeZone: 'Asia/Seoul',
+			attendance: [],
+			leave: [],
+			policy
+		});
+
+		expect(historical.workMode).toBe('fixed');
+		expect(historical.hasBaseline).toBe(true);
+		expect(historical.targetMinutes).toBe(480);
+		expect(current.workMode).toBe('autonomous');
+		expect(current.hasBaseline).toBe(false);
+		expect(current.targetMinutes).toBe(0);
+	});
+
+	test('falls back to the resolved work-hours cycle when no projection exists', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: [
+				'2027-01-04',
+				'2027-01-05',
+				'2027-01-06',
+				'2027-01-07',
+				'2027-01-08',
+				'2027-01-09',
+				'2027-01-10'
+			],
+			timeZone: 'Asia/Seoul',
+			attendance: [],
+			leave: [],
+			policy: policyFrom(null)
+		});
+
+		expect(status.workingCapacitySeconds).toBe(5 * secondsPerDay);
+		expect(status.calendarCapacitySeconds).toBe(7 * secondsPerDay);
+	});
+});
