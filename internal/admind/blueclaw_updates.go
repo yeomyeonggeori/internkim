@@ -418,14 +418,8 @@ func (service *Service) verifyGuestProtocolIdentityStamp(ctx context.Context, ta
 	if strings.TrimSpace(expected) == "" {
 		return nil
 	}
-	document, errorValue := service.runCommand(ctx, "sh", "-lc", guestRuntimeConfigurationReadCommand(target.WorkspaceImagePath))
-	if errorValue != nil {
-		log.Printf("Blueclaw guest protocol identity stamp for %s could not be read from %s: %v", target.Name, target.WorkspaceImagePath, errorValue)
-		return nil
-	}
-	stamped, errorValue := stampedGuestProtocolHash(document)
-	if errorValue != nil || stamped == "" {
-		log.Printf("Blueclaw guest protocol identity stamp for %s could not be parsed from %s: %v", target.Name, target.WorkspaceImagePath, errorValue)
+	stamped, hasStamp := service.guestProtocolIdentityStamp(ctx, target)
+	if !hasStamp {
 		return nil
 	}
 	if stamped != expected {
@@ -435,6 +429,21 @@ func (service *Service) verifyGuestProtocolIdentityStamp(ctx context.Context, ta
 		)
 	}
 	return nil
+}
+
+func (service *Service) guestProtocolIdentityStamp(ctx context.Context, target blueclawPayloadInstallTarget) (string, bool) {
+	document, errorValue := service.runCommand(ctx, "sh", "-lc", guestRuntimeConfigurationReadCommand(target.WorkspaceImagePath))
+	if errorValue != nil {
+		log.Printf("Blueclaw guest protocol identity stamp for %s could not be read from %s: %v", target.Name, target.WorkspaceImagePath, errorValue)
+		return "", false
+	}
+	stamped, errorValue := stampedGuestProtocolHash(document)
+	if errorValue != nil || stamped == "" {
+		log.Printf("Blueclaw guest protocol identity stamp for %s could not be parsed from %s: %v", target.Name, target.WorkspaceImagePath, errorValue)
+		return "", false
+	}
+	log.Printf("Blueclaw guest for %s boots with aggregateProtocolHash %s", target.Name, stamped)
+	return stamped, true
 }
 
 func guestRuntimeConfigurationReadCommand(workspaceImagePath string) string {
