@@ -1,8 +1,7 @@
 package capabilityd
 
 import (
-	"context"
-	"encoding/json"
+	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
@@ -19,49 +18,99 @@ type flowSizeDefinitionForTool struct {
 	Name string `json:"name"`
 }
 
-type flowDefinitionLabel struct {
-	Value string `json:"value"`
-	Color string `json:"color,omitempty"`
+func resolveFlowTaskLabels(input flowTaskUpdateInput, definitions flowDefinitionsForTool) (flowTaskUpdateInput, *flowTaskLabelFailure) {
+	if input.Category != nil {
+		resolvedCategory, failure := resolveFlowLabel(*input.Category, "category", definitions.Categories)
+		if failure != nil {
+			return flowTaskUpdateInput{}, failure
+		}
+		input.Category = &resolvedCategory
+	}
+	if input.Type != nil {
+		resolvedType, failure := resolveFlowLabel(*input.Type, "type", definitions.Types)
+		if failure != nil {
+			return flowTaskUpdateInput{}, failure
+		}
+		input.Type = &resolvedType
+	}
+	return input, nil
 }
 
-func (service Service) invokeFlowTaskDefinitions(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	definitions, statuses, errorValue := service.fetchFlowDefinitions(ctx, request.Context.RequesterEmail)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
+func resolveFlowLabel(value string, fieldName string, registeredLabels []string) (string, *flowTaskLabelFailure) {
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" || len(registeredLabels) == 0 {
+		return trimmedValue, nil
 	}
-	result, errorValue := json.Marshal(map[string]any{
-		"businesses": flowDefinitionLabels(definitions.Categories, definitions.CategoryColors),
-		"types":      flowDefinitionLabels(definitions.Types, definitions.TypeColors),
-		"sizes":      flowSizeNames(definitions.Sizes),
-		"statuses":   nonNilStrings(statuses),
-	})
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
+	matches := matchingFlowLabels(trimmedValue, registeredLabels)
+	if len(matches) == 1 {
+		return matches[0], nil
 	}
-	return capabilitySuccessResponse(request.ToolName, "ok", result)
+	return "", unregisteredFlowLabelFailure(trimmedValue, fieldName, matches, registeredLabels)
 }
 
-func (service Service) fetchFlowDefinitions(ctx context.Context, requesterEmail string) (flowDefinitionsForTool, []string, error) {
-	body, errorValue := service.getFlow(ctx, "/flow/api/state", requesterEmail)
-	if errorValue != nil {
-		return flowDefinitionsForTool{}, nil, errorValue
+func matchingFlowLabels(value string, registeredLabels []string) []string {
+	normalizedValue := strings.ToLower(value)
+	for _, label := range registeredLabels {
+		if strings.ToLower(strings.TrimSpace(label)) == normalizedValue {
+			return []string{label}
+		}
 	}
-	var state struct {
-		Definitions   flowDefinitionsForTool `json:"definitions"`
-		StatusOptions []string               `json:"statusOptions"`
+	matches := []string{}
+	for _, label := range registeredLabels {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(label)), normalizedValue) {
+			matches = append(matches, label)
+		}
 	}
-	if errorValue := json.Unmarshal(body, &state); errorValue != nil {
-		return flowDefinitionsForTool{}, nil, errorValue
-	}
-	return state.Definitions, state.StatusOptions, nil
+	return matches
 }
 
-func flowDefinitionLabels(values []string, colors map[string]string) []flowDefinitionLabel {
-	labels := make([]flowDefinitionLabel, 0, len(values))
-	for _, value := range values {
-		labels = append(labels, flowDefinitionLabel{Value: value, Color: colors[value]})
+func unregisteredFlowLabelFailure(value string, fieldName string, matches []string, registeredLabels []string) *flowTaskLabelFailure {
+	if len(matches) > 1 {
+		return &flowTaskLabelFailure{
+			ErrorCode:     "flow_label_ambiguous",
+			FailureStage:  "label_resolution",
+			Message:       fieldName + " " + value + " matches more than one registered label; retry with one of them exactly",
+			Field:         fieldName,
+			Candidates:    matches,
+			RecoveryHints: retryWithARegisteredLabelHint(fieldName),
+			Retryable:     true,
+			SafeRetry:     true,
+		}
 	}
-	return labels
+	return &flowTaskLabelFailure{
+		ErrorCode:     "flow_label_not_registered",
+		FailureStage:  "label_resolution",
+		Message:       fieldName + " " + value + " is not registered in this workspace; retry with one of the registered labels or leave the field unchanged",
+		Field:         fieldName,
+		Candidates:    registeredLabels,
+		RecoveryHints: retryWithARegisteredLabelHint(fieldName),
+		Retryable:     true,
+		SafeRetry:     true,
+	}
+}
+
+func retryWithARegisteredLabelHint(fieldName string) []capabilities.RecoveryHint {
+	return []capabilities.RecoveryHint{{
+		Action:    "retry_with_a_registered_label",
+		ToolNames: []string{"task_update"},
+		Reason:    "only labels this workspace registers are accepted for " + fieldName,
+	}}
+}
+
+type registeredFlowLabelsForTool struct {
+	Businesses []string `json:"businesses"`
+	Types      []string `json:"types"`
+	Sizes      []string `json:"sizes"`
+	Statuses   []string `json:"statuses"`
+}
+
+func registeredFlowLabels(definitions flowDefinitionsForTool) registeredFlowLabelsForTool {
+	return registeredFlowLabelsForTool{
+		Businesses: nonNilStrings(definitions.Categories),
+		Types:      nonNilStrings(definitions.Types),
+		Sizes:      flowSizeNames(definitions.Sizes),
+		Statuses:   flowTaskUpdateStatuses(),
+	}
 }
 
 func flowSizeNames(sizes []flowSizeDefinitionForTool) []string {

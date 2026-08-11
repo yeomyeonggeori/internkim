@@ -1,6 +1,8 @@
 package capabilityd
 
 import (
+	"errors"
+	"net/http"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -28,6 +30,17 @@ func resolveFlowOwnerHint(personHint string, members []flowMemberForTool) flowOw
 		return ambiguousFlowOwnerResolution(matches)
 	}
 	return missingFlowOwnerResolution(members)
+}
+
+func resolveFlowTaskUpdateParticipants(input flowTaskUpdateInput, task flowTaskForTool, members []flowMemberForTool) (*[]string, *flowTaskAddFailure) {
+	if input.ParticipantPersonHints == nil {
+		return nil, nil
+	}
+	participantIDs, failure := resolveFlowParticipantIDs(*input.ParticipantPersonHints, task.OwnerID, members)
+	if failure != nil {
+		return nil, failure
+	}
+	return &participantIDs, nil
 }
 
 func resolveFlowParticipantIDs(personHints []string, ownerID string, members []flowMemberForTool) ([]string, *flowTaskAddFailure) {
@@ -70,12 +83,21 @@ func uniqueFlowParticipantIDs(participantIDs []string) []string {
 
 func missingFlowOwnerResolution(members []flowMemberForTool) flowOwnerResolution {
 	return flowOwnerResolution{Failure: &flowTaskAddFailure{
-		ErrorCode:    "flow_owner_not_found",
-		FailureStage: "target_resolution",
-		Message:      "task owner was not found; retry with one candidate's exact name, email, or @handle, or ask the user",
-		Candidates:   flowTaskAddCandidates(members),
-		Retryable:    true,
-		SafeRetry:    true,
+		ErrorCode:     "flow_owner_not_found",
+		FailureStage:  "target_resolution",
+		Message:       "task owner was not found; retry with one candidate's exact name, email, or @handle, or ask the user",
+		Candidates:    flowTaskAddCandidates(members),
+		RecoveryHints: retryWithAnExactNameHint(),
+		Retryable:     true,
+		SafeRetry:     true,
+	}}
+}
+
+func retryWithAnExactNameHint() []capabilities.RecoveryHint {
+	return []capabilities.RecoveryHint{{
+		Action:    "retry_with_an_exact_name_from_the_candidates",
+		ToolNames: []string{"person_list", "ask_input"},
+		Reason:    "the person the user named is still required; dropping them from the call answers a different request than the one that was made",
 	}}
 }
 
@@ -193,4 +215,36 @@ func requesterFlowOwnerID(requesterEmail string, members []flowMemberForTool) st
 		return ""
 	}
 	return resolution.OwnerID
+}
+
+func flowTaskWriteRefusal(errorValue error, task flowTaskForTool, participantIDs *[]string, members []flowMemberForTool) (flowTaskWriteRefusalFailure, bool) {
+	var statusError flowAPIStatusError
+	if !errors.As(errorValue, &statusError) || statusError.StatusCode != http.StatusForbidden {
+		return flowTaskWriteRefusalFailure{}, false
+	}
+	if participantIDs == nil {
+		return flowTaskWriteRefusalFailure{
+			ErrorCode:    "flow_task_write_forbidden",
+			FailureStage: "authorization",
+			Message:      "the requester may not change this task; only its owner, a participant, or an admin can",
+		}, true
+	}
+	return flowTaskWriteRefusalFailure{
+		ErrorCode:    "flow_task_assignment_forbidden",
+		FailureStage: "authorization",
+		Message: "only " + flowTaskOwnerLabel(task, members) + " or an admin can change who takes part in this task, " +
+			"so the requester cannot. Tell the user who has to make this change instead of retrying.",
+	}, true
+}
+
+func flowTaskOwnerLabel(task flowTaskForTool, members []flowMemberForTool) string {
+	if ownerName := strings.TrimSpace(task.OwnerName); ownerName != "" {
+		return ownerName
+	}
+	for _, member := range members {
+		if member.ID == strings.TrimSpace(task.OwnerID) {
+			return strings.TrimSpace(member.Name)
+		}
+	}
+	return "the task owner"
 }

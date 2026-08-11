@@ -1578,3 +1578,101 @@ func TestPersonListReturnsTheRosterHintsResolveAgainst(t *testing.T) {
 		}
 	}
 }
+
+func flowTaskParticipantService(t *testing.T, capturedPayload *string) Service {
+	t.Helper()
+	return Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+				return flowToolJSONResponse(`{"members":[{"id":"lee","name":"이동하","email":"lee@example.com"},{"id":"shin","name":"신우경","email":"shin@example.com"}],"tasks":[{"id":"task-1","ownerID":"lee","ownerName":"이동하","participantIDs":["lee"],"content":"운동","status":"완료"}]}`), nil
+			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
+				body, _ := io.ReadAll(request.Body)
+				*capturedPayload = string(body)
+				var payload struct {
+					OwnerID        string   `json:"ownerID"`
+					ParticipantIDs []string `json:"participantIDs"`
+					Content        string   `json:"content"`
+				}
+				if json.Unmarshal(body, &payload) != nil {
+					t.Fatalf("payload = %s", body)
+				}
+				participants, _ := json.Marshal(payload.ParticipantIDs)
+				return flowToolJSONResponse(`{"id":"task-1","ownerID":"` + payload.OwnerID + `","participantIDs":` + string(participants) + `,"content":"` + payload.Content + `","status":"완료"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+}
+
+func TestFlowTaskUpdateReplacesParticipantsFromPersonHints(t *testing.T) {
+	capturedPayload := ""
+	service := flowTaskParticipantService(t, &capturedPayload)
+
+	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task_update",
+		Input:    []byte(`{"taskHint":"운동","participantPersonHints":["우경"]}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.IsError {
+		t.Fatalf("response = %+v", response)
+	}
+	if !strings.Contains(capturedPayload, `"participantIDs":["lee","shin"]`) {
+		t.Fatalf("payload = %s", capturedPayload)
+	}
+}
+
+func TestFlowTaskUpdateRefusesAnUnknownParticipantBeforeWriting(t *testing.T) {
+	capturedPayload := ""
+	service := flowTaskParticipantService(t, &capturedPayload)
+
+	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task_update",
+		Input:    []byte(`{"taskHint":"운동","participantPersonHints":["없는사람"]}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || capturedPayload != "" {
+		t.Fatalf("response=%+v payload=%s", response, capturedPayload)
+	}
+	for _, expected := range []string{"flow_participant_not_found", `"toolNames":["person_list","ask_input"]`, `"name":"신우경"`} {
+		if !strings.Contains(string(response.Result), expected) {
+			t.Fatalf("result missing %s: %s", expected, string(response.Result))
+		}
+	}
+}
+
+func TestFlowTaskUpdateExplainsWhoMayChangeParticipants(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method == http.MethodGet {
+				return flowToolJSONResponse(`{"members":[{"id":"lee","name":"이동하","email":"lee@example.com"},{"id":"shin","name":"신우경","email":"shin@example.com"}],"tasks":[{"id":"task-1","ownerID":"lee","ownerName":"이동하","participantIDs":["lee","shin"],"content":"운동","status":"완료"}]}`), nil
+			}
+			return &http.Response{StatusCode: http.StatusForbidden, Body: io.NopCloser(strings.NewReader("flow access required")), Header: http.Header{}}, nil
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task_update",
+		Input:    []byte(`{"taskHint":"운동","participantPersonHints":["신우경"]}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "shin@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatalf("a refusal must be a typed tool failure, not a transport error: %v", errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "flow_task_assignment_forbidden" {
+		t.Fatalf("response = %+v", response)
+	}
+	if !strings.Contains(response.Message, "이동하") {
+		t.Fatalf("message must name who can make the change: %q", response.Message)
+	}
+}
