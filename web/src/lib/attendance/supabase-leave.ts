@@ -14,6 +14,11 @@ import type {
 	LeaveApprovalInbox,
 	LeaveApprovalRequest
 } from '../../routes/attendance/approval/leave-approval-types';
+import {
+	leaveDisplayRange,
+	leavePreviewPeriod,
+	leaveTimestampRange
+} from './supabase-leave-range';
 
 type LeaveStatus = 'requested' | 'approved' | 'rejected';
 
@@ -35,8 +40,6 @@ const statusWords: Record<LeaveStatus, EmployeeLeaveStatus> = {
 	rejected: 'rejected'
 };
 
-const dayInMilliseconds = 24 * 60 * 60 * 1000;
-
 const theOnlyLeaveType: EmployeeLeaveType = {
 	id: 'leave',
 	name: '휴가',
@@ -56,12 +59,13 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 		.order('starts_at', { ascending: false })
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
+	const timeZone = await companyTimeZone();
 
 	return {
 		balanceTrackingMode: 'unlimited',
 		leaveTypes: [theOnlyLeaveType],
 		summary: { usedMilliDays: 0, reservedMilliDays: 0, availableMilliDays: 0 },
-		requests: leave.data.map(requestOf),
+		requests: leave.data.map((row) => requestOf(row, timeZone)),
 		ledgerEntries: [],
 		hireDateRequired: false
 	};
@@ -70,28 +74,29 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 export async function supabaseLeavePreview(request: EmployeeLeavePreviewRequest): Promise<EmployeeLeavePreview> {
 	const startDate = request.startDate;
 	const endDate = request.endDate || startDate;
-	const perDay = deductionOf(request.unit);
+	const period = leavePreviewPeriod(request);
 	const occurrences = [];
 	for (let date = startDate; date <= endDate; date = shiftedDay(date, 1)) {
-		occurrences.push({ date, startTime: request.startTime ?? '', endTime: '', deductionMilliDays: perDay });
+		occurrences.push({ date, ...period });
 	}
 	return {
 		occurrences,
 		excludedDates: [],
-		totalDeductionMilliDays: occurrences.length * perDay
+		totalDeductionMilliDays: occurrences.length * period.deductionMilliDays
 	};
 }
 
 export async function createSupabaseLeaveRequest(request: EmployeeLeaveSubmission): Promise<void> {
 	const preview = await supabaseLeavePreview(request);
+	const range = leaveTimestampRange(request, await companyTimeZone());
 	const { error } = await supabase().from('leave').insert({
 		member_id: await myMemberID(),
 		kind: theOnlyLeaveType.id,
 		is_paid: true,
 		days: preview.totalDeductionMilliDays / 1000,
 		status: 'requested',
-		starts_at: new Date(`${request.startDate}T00:00:00Z`).toISOString(),
-		ends_at: new Date(`${shiftedDay(request.endDate || request.startDate, 1)}T00:00:00Z`).toISOString(),
+		starts_at: range.startsAt,
+		ends_at: range.endsAt,
 		note: request.reason
 	});
 	if (error) throw new Error(error.message);
@@ -112,7 +117,8 @@ export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> 
 	if (leave.error) throw new Error(leave.error.message);
 
 	const emails = await emailsByMemberID();
-	const pending = leave.data.map((row) => approvalOf(row, emails));
+	const timeZone = await companyTimeZone();
+	const pending = leave.data.map((row) => approvalOf(row, emails, timeZone));
 	return { pendingCount: pending.length, pending, recentChanges: [] };
 }
 
@@ -127,19 +133,19 @@ export async function decideSupabaseLeave(
 		.select('id, member_id, kind, is_paid, days, status, starts_at, ends_at, note')
 		.single<LeaveRow>();
 	if (decided.error) throw new Error(decided.error.message);
-	return approvalOf(decided.data, await emailsByMemberID());
+	return approvalOf(decided.data, await emailsByMemberID(), await companyTimeZone());
 }
 
-function requestOf(row: LeaveRow): EmployeeLeaveRequest {
+function requestOf(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
 	const status = statusWords[row.status];
+	const range = leaveDisplayRange(row.starts_at, row.ends_at, row.days, timeZone);
 	return {
 		id: row.id,
 		leaveTypeID: theOnlyLeaveType.id,
 		leaveTypeName: theOnlyLeaveType.name,
 		status,
 		unit: unitOf(row.days),
-		startDate: row.starts_at.slice(0, 10),
-		endDate: lastDayOf(row),
+		...range,
 		deductionMilliDays: Math.round(row.days * 1000),
 		reason: row.note ?? '',
 		attachments: [],
@@ -151,7 +157,11 @@ function requestOf(row: LeaveRow): EmployeeLeaveRequest {
 	};
 }
 
-function approvalOf(row: LeaveRow, emails: Map<string, string>): LeaveApprovalRequest {
+function approvalOf(
+	row: LeaveRow,
+	emails: Map<string, string>,
+	timeZone: string
+): LeaveApprovalRequest {
 	return {
 		id: row.id,
 		employeeEmail: emails.get(row.member_id) ?? '',
@@ -160,8 +170,7 @@ function approvalOf(row: LeaveRow, emails: Map<string, string>): LeaveApprovalRe
 		balanceMode: 'none',
 		status: statusWords[row.status],
 		unit: unitOf(row.days),
-		startDate: row.starts_at.slice(0, 10),
-		endDate: lastDayOf(row),
+		...leaveDisplayRange(row.starts_at, row.ends_at, row.days, timeZone),
 		deductionMilliDays: Math.round(row.days * 1000),
 		reason: row.note ?? '',
 		attachments: [],
@@ -171,26 +180,22 @@ function approvalOf(row: LeaveRow, emails: Map<string, string>): LeaveApprovalRe
 	};
 }
 
-function lastDayOf(row: LeaveRow): string {
-	return new Date(new Date(row.ends_at).getTime() - dayInMilliseconds).toISOString().slice(0, 10);
-}
-
 function unitOf(days: number): EmployeeLeaveUnit {
 	if (days <= 0.25) return 'quarterDay';
 	if (days <= 0.5) return 'halfDay';
 	return 'fullDay';
 }
 
-function deductionOf(unit: EmployeeLeaveUnit): number {
-	if (unit === 'quarterDay') return 250;
-	if (unit === 'halfDay') return 500;
-	return 1000;
-}
-
 function shiftedDay(date: string, days: number): string {
 	const moved = new Date(`${date}T00:00:00Z`);
 	moved.setUTCDate(moved.getUTCDate() + days);
 	return moved.toISOString().slice(0, 10);
+}
+
+async function companyTimeZone(): Promise<string> {
+	const company = await supabase().from('company').select('timezone').limit(1).single<{ timezone: string }>();
+	if (company.error) throw new Error(company.error.message);
+	return company.data.timezone;
 }
 
 async function myMemberID(): Promise<string> {

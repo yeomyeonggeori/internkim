@@ -66,7 +66,7 @@ export function createCalendarEventLoader(
 		context.setErrorMessage('');
 		try {
 			const [calendarEvents, holidayResult] = await Promise.all([
-				fetchEvents(startDate, endDate, context.errorFallback()),
+				fetchEvents(startDate, endDate, context.errorFallback(), context.getLocale()),
 				fetchHolidays(startDate, endDate, context.getLocale(), context.holidayErrorFallback())
 					.then((result) => ({ ...result, error: null }))
 					.catch((error: unknown) => ({ holidays: [], degraded: false, error }))
