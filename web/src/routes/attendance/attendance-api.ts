@@ -1,5 +1,6 @@
 import { recordSupabaseAttendance, setSupabaseTeamViewVisibility, supabaseAttendanceSummary } from '$lib/attendance/supabase-attendance';
 import { supabaseWorkStatus } from '$lib/attendance/supabase-work-status';
+import type { AttendanceWorkMode } from '$lib/attendance/work-mode';
 import { isSupabaseConfigured } from '$lib/supabase';
 import type {
 	AttendanceAbsence,
@@ -16,11 +17,14 @@ export type AttendanceWorkStatusPeriod = 'day' | 'week' | 'month';
 
 export type AttendanceWorkDayStatus = {
 	date: string;
-	workMode: 'autonomous' | 'flexible' | 'fixed';
+	workMode: AttendanceWorkMode;
 	hasBaseline: boolean;
+	workingDate: boolean;
 	targetMinutes: number;
 	actualMinutes: number;
+	actualSeconds: number;
 	provisionalMinutes: number;
+	provisionalSeconds: number;
 	leaveMinutes: number;
 	fulfilledMinutes: number;
 	differenceMinutes: number;
@@ -44,11 +48,15 @@ export type AttendanceEmployeeWorkStatus = {
 	displayName: string;
 	periodStart: string;
 	periodEnd: string;
-	workMode: 'autonomous' | 'flexible' | 'fixed';
+	workMode: AttendanceWorkMode;
 	hasBaseline: boolean;
 	targetMinutes: number;
 	actualMinutes: number;
+	actualSeconds: number;
 	provisionalMinutes: number;
+	provisionalSeconds: number;
+	workingCapacitySeconds: number;
+	calendarCapacitySeconds: number;
 	leaveMinutes: number;
 	fulfilledMinutes: number;
 	differenceMinutes: number;

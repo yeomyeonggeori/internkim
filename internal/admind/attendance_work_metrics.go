@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const attendanceCalendarDaySeconds = 24 * 60 * 60
+
 func calculateAttendanceWorkStatus(
 	email string,
 	displayName string,
@@ -63,7 +65,13 @@ func calculateAttendanceWorkStatus(
 		status.HasBaseline = status.HasBaseline || day.HasBaseline
 		status.TargetMinutes += day.TargetMinutes
 		status.ActualMinutes += day.ActualMinutes
+		status.ActualSeconds += day.ActualSeconds
 		status.ProvisionalMinutes += day.ProvisionalMinutes
+		status.ProvisionalSeconds += day.ProvisionalSeconds
+		if day.WorkingDate {
+			status.WorkingCapacitySeconds += attendanceCalendarDaySeconds
+		}
+		status.CalendarCapacitySeconds += attendanceCalendarDaySeconds
 		status.LeaveMinutes += day.LeaveMinutes
 		status.FulfilledMinutes += day.FulfilledMinutes
 		status.NightMinutes += day.NightMinutes
@@ -113,6 +121,7 @@ func calculateAttendanceWorkDayStatus(
 	dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, location)
 	dayEnd := dayStart.AddDate(0, 0, 1)
 	actualMinutes := 0
+	actualSeconds := 0
 	nightMinutes := 0
 	daySegments := make([]attendanceWorkSegment, 0)
 	workSegmentDetails := make([]attendanceWorkIntervalDetail, 0)
@@ -133,6 +142,12 @@ func calculateAttendanceWorkDayStatus(
 			dayStart,
 			revision.BreakPeriods,
 		)
+		actualSeconds += attendanceWorkSecondsExcludingBreaks(
+			start,
+			end,
+			dayStart,
+			revision.BreakPeriods,
+		)
 		nightMinutes += attendanceNightMinutesExcludingBreaks(
 			start,
 			end,
@@ -141,6 +156,7 @@ func calculateAttendanceWorkDayStatus(
 		)
 	}
 	provisionalMinutes := 0
+	provisionalSeconds := 0
 	isWorking := false
 	if records.Provisional != nil {
 		start := latestTime(records.Provisional.Start, dayStart)
@@ -148,6 +164,12 @@ func calculateAttendanceWorkDayStatus(
 		if end.After(start) {
 			isWorking = true
 			provisionalMinutes = attendanceWorkMinutesExcludingBreaks(
+				start,
+				end,
+				dayStart,
+				revision.BreakPeriods,
+			)
+			provisionalSeconds = attendanceWorkSecondsExcludingBreaks(
 				start,
 				end,
 				dayStart,
@@ -206,9 +228,12 @@ func calculateAttendanceWorkDayStatus(
 		Date:                    dateValue,
 		WorkMode:                revision.WorkMode,
 		HasBaseline:             hasBaseline,
+		WorkingDate:             workingDate,
 		TargetMinutes:           targetMinutes,
 		ActualMinutes:           actualMinutes,
+		ActualSeconds:           actualSeconds,
 		ProvisionalMinutes:      provisionalMinutes,
+		ProvisionalSeconds:      provisionalSeconds,
 		LeaveMinutes:            leaveMinutes,
 		FulfilledMinutes:        fulfilledMinutes,
 		DifferenceMinutes:       differenceMinutes,

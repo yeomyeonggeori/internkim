@@ -28,7 +28,7 @@ func TestAttendanceWorkMetricsSubtractBreaksAndReduceTargetByApprovedLeave(t *te
 
 	status, errorValue := calculateAttendanceWorkStatus(
 		"kim@example.com",
-		"김철수",
+		"이샘플",
 		"2026-07-31",
 		"2026-07-31",
 		events,
@@ -218,6 +218,39 @@ func TestAttendanceWorkMetricsAutonomousHasNoBaseline(t *testing.T) {
 		status.RemainingMinutes != 0 ||
 		status.OvertimeMinutes != 0 {
 		t.Fatalf("status = %+v", status)
+	}
+}
+
+func TestAttendanceWorkMetricsPreserveSecondsAndPeriodCapacities(t *testing.T) {
+	location, errorValue := time.LoadLocation("Asia/Seoul")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policy := defaultAttendanceWorkPolicy()
+	policy.Revisions[0].BreakPeriods = nil
+	status, errorValue := calculateAttendanceWorkStatus(
+		"kim@example.com",
+		"이샘플",
+		"2026-07-27",
+		"2026-08-02",
+		[]attendanceEvent{
+			workMetricEvent("in", attendanceKindClockIn, "2026-07-27T00:00:00Z"),
+			workMetricEvent("out", attendanceKindClockOut, "2026-07-27T08:00:01Z"),
+		},
+		nil,
+		policy,
+		map[string]struct{}{"2026-07-29": {}},
+		location,
+		time.Date(2026, time.August, 3, 0, 0, 0, 0, location),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if status.ActualMinutes != 480 || status.ActualSeconds != 8*60*60+1 {
+		t.Fatalf("actual duration = %d minutes, %d seconds", status.ActualMinutes, status.ActualSeconds)
+	}
+	if status.WorkingCapacitySeconds != 4*24*60*60 || status.CalendarCapacitySeconds != 7*24*60*60 {
+		t.Fatalf("capacity = %d working, %d calendar", status.WorkingCapacitySeconds, status.CalendarCapacitySeconds)
 	}
 }
 
@@ -547,7 +580,7 @@ func workMetricEvent(id string, kind string, occurredAt string) attendanceEvent 
 	return attendanceEvent{
 		ID:          id,
 		Email:       "kim@example.com",
-		DisplayName: "김철수",
+		DisplayName: "이샘플",
 		Kind:        kind,
 		OccurredAt:  occurredAt,
 	}
