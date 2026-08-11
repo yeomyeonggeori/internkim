@@ -91,12 +91,58 @@ func TestResolveFlowOwnerReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestResolveFlowOwnerRejectsContainedNameMatch(t *testing.T) {
-	members := []flowMemberForTool{{ID: "kim", Name: "김인턴", Email: "kim@example.com", MattermostUsername: "internkim"}}
-	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "인턴"}, "", members)
+func sampleFlowMembers() []flowMemberForTool {
+	return []flowMemberForTool{
+		{ID: "person-sample", Name: "이샘플", Email: "sample@example.com", MattermostUsername: "sampleuser"},
+		{ID: "person-specimen", Name: "최견본", Email: "specimen@example.com", MattermostUsername: "specimenuser"},
+	}
+}
+
+func TestResolveFlowOwnerAcceptsUniqueNameFragment(t *testing.T) {
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "견본"}, "", sampleFlowMembers())
+
+	if resolution.OwnerID != "person-specimen" {
+		t.Fatalf("resolution = %+v", resolution)
+	}
+}
+
+func TestResolveFlowOwnerOffersCandidatesForAmbiguousNameFragment(t *testing.T) {
+	members := []flowMemberForTool{
+		{ID: "person-example", Name: "박예시", Email: "example@example.com", MattermostUsername: "exampleuser"},
+		{ID: "person-other-example", Name: "이예시", Email: "other@example.com", MattermostUsername: "otheruser"},
+	}
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "예시"}, "", members)
+
+	if resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_ambiguous" || len(resolution.Failure.Candidates) != 2 {
+		t.Fatalf("resolution = %+v", resolution)
+	}
+}
+
+func TestResolveFlowOwnerRejectsHintContainingTheName(t *testing.T) {
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "최견본이랑 방금 운동함"}, "", sampleFlowMembers())
 
 	if resolution.OwnerID != "" || resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_not_found" {
 		t.Fatalf("resolution = %+v", resolution)
+	}
+}
+
+func TestResolveFlowOwnerKeepsHandleAndEmailExact(t *testing.T) {
+	for _, personHint := range []string{"specimenuser", "specimen", "@specimen", "specimen@exam", "example.com"} {
+		resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: personHint}, "", sampleFlowMembers())
+		if resolution.OwnerID != "" || resolution.Failure == nil {
+			t.Fatalf("personHint %q resolved to %+v", personHint, resolution)
+		}
+	}
+}
+
+func TestResolveFlowOwnerNotFoundListsTheRoster(t *testing.T) {
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "박예시"}, "", sampleFlowMembers())
+
+	if resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_not_found" {
+		t.Fatalf("resolution = %+v", resolution)
+	}
+	if len(resolution.Failure.Candidates) != 2 || resolution.Failure.Candidates[0].Mention != "@sampleuser" {
+		t.Fatalf("candidates = %+v", resolution.Failure.Candidates)
 	}
 }
 
@@ -114,11 +160,23 @@ func TestResolveFlowParticipantIDsUsesSharedPersonHints(t *testing.T) {
 	}
 }
 
-func TestResolveFlowParticipantIDsRejectsContainedNameMatch(t *testing.T) {
-	members := []flowMemberForTool{{ID: "kim", Name: "김인턴", Email: "kim@example.com", MattermostUsername: "internkim"}}
-	participantIDs, failure := resolveFlowParticipantIDs([]string{"인턴"}, "owner", members)
+func TestResolveFlowParticipantIDsAcceptsUniqueNameFragment(t *testing.T) {
+	participantIDs, failure := resolveFlowParticipantIDs([]string{"견본"}, "person-sample", sampleFlowMembers())
+	if failure != nil {
+		t.Fatal(failure)
+	}
+	if len(participantIDs) != 2 || participantIDs[1] != "person-specimen" {
+		t.Fatalf("participantIDs = %+v", participantIDs)
+	}
+}
+
+func TestResolveFlowParticipantIDsNotFoundListsTheRoster(t *testing.T) {
+	participantIDs, failure := resolveFlowParticipantIDs([]string{"박예시"}, "person-sample", sampleFlowMembers())
 	if participantIDs != nil || failure == nil || failure.ErrorCode != "flow_participant_not_found" {
 		t.Fatalf("participantIDs=%+v failure=%+v", participantIDs, failure)
+	}
+	if len(failure.Candidates) != 2 || failure.Candidates[0].Mention != "@sampleuser" {
+		t.Fatalf("candidates = %+v", failure.Candidates)
 	}
 }
 
