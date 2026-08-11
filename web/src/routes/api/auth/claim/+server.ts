@@ -1,7 +1,12 @@
 import { env } from '$env/dynamic/private';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { error, json } from '@sveltejs/kit';
 import { controlPlane } from '$lib/server/control-plane';
+import {
+	anIssuedPassword,
+	isAlreadyClaimed,
+	mailCanCarryTheCode,
+} from '$lib/server/claim-without-mail';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, platform, url }) => {
@@ -15,13 +20,18 @@ export const POST: RequestHandler = async ({ request, platform, url }) => {
 	const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
 	if (!email.includes('@')) error(400, 'that is not an address');
 
-	const { data, error: readError } = await controlPlane({ projectURL, serviceRoleKey })
+	const admin = controlPlane({ projectURL, serviceRoleKey });
+	const { data, error: readError } = await admin
 		.from('member')
 		.select('id')
 		.eq('email', email)
 		.maybeSingle();
 	if (readError) error(500, readError.message);
 	if (!data) return json({ sent: true });
+
+	if (!mailCanCarryTheCode(environment)) {
+		return json({ password: await issueTheFirstClaim(admin, email, data.id) });
+	}
 
 	const { error: sendError } = await createClient(projectURL, publishableKey).auth.signInWithOtp({
 		email,
@@ -30,3 +40,27 @@ export const POST: RequestHandler = async ({ request, platform, url }) => {
 	if (sendError) error(429, sendError.message);
 	return json({ sent: true });
 };
+
+async function issueTheFirstClaim(
+	admin: SupabaseClient,
+	email: string,
+	memberID: string,
+): Promise<string> {
+	const accounts = await admin.auth.admin.listUsers();
+	if (accounts.error) error(500, accounts.error.message);
+	const account = (accounts.data.users ?? []).find((user) => user.email === email);
+	if (isAlreadyClaimed(account)) error(409, 'that sign-in is already set up');
+
+	const password = anIssuedPassword();
+	if (!account) {
+		const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+		if (created.error) error(500, created.error.message);
+		const linked = await admin.from('member').update({ user_id: created.data.user.id }).eq('id', memberID);
+		if (linked.error) error(500, linked.error.message);
+		return password;
+	}
+
+	const updated = await admin.auth.admin.updateUserById(account.id, { password });
+	if (updated.error) error(500, updated.error.message);
+	return password;
+}

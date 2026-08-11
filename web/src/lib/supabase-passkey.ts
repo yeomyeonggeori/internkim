@@ -21,6 +21,18 @@ export function refusalOf(error: unknown): PasskeyRefusal {
 	return refusalByCode[code] ?? 'failed';
 }
 
+function refusalReasonOf(error: unknown): string {
+	if (typeof error !== 'object' || error === null) return '';
+	const { code, message } = error as { code?: unknown; message?: unknown };
+	if (typeof code === 'string' && code.trim() !== '') return code;
+	return typeof message === 'string' ? message.trim() : '';
+}
+
+export function passkeyFailureText(failed: string, error: unknown): string {
+	const reason = refusalReasonOf(error);
+	return reason ? `${failed} (${reason})` : failed;
+}
+
 export function isPasskeySupported(): boolean {
 	return typeof window !== 'undefined' && typeof window.PublicKeyCredential !== 'undefined';
 }

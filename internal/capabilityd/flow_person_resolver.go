@@ -23,7 +23,7 @@ func resolveFlowOwnerHint(personHint string, members []flowMemberForTool) flowOw
 	if len(matches) > 1 {
 		return ambiguousFlowOwnerResolution(matches)
 	}
-	return missingFlowOwnerResolution()
+	return missingFlowOwnerResolution(members)
 }
 
 func resolveFlowParticipantIDs(personHints []string, ownerID string, members []flowMemberForTool) ([]string, *flowTaskAddFailure) {
@@ -62,11 +62,12 @@ func uniqueFlowParticipantIDs(participantIDs []string) []string {
 	return uniqueIDs
 }
 
-func missingFlowOwnerResolution() flowOwnerResolution {
+func missingFlowOwnerResolution(members []flowMemberForTool) flowOwnerResolution {
 	return flowOwnerResolution{Failure: &flowTaskAddFailure{
 		ErrorCode:    "flow_owner_not_found",
 		FailureStage: "target_resolution",
-		Message:      "task owner was not found; ask the user for a name, email, or @handle",
+		Message:      "task owner was not found; retry with one candidate's exact name, email, or @handle, or ask the user",
+		Candidates:   flowTaskAddCandidates(members),
 		Retryable:    true,
 		SafeRetry:    true,
 	}}
@@ -88,7 +89,22 @@ func matchingFlowMembers(value string, members []flowMemberForTool) []flowMember
 	if normalizedValue == "" {
 		return nil
 	}
-	return uniqueFlowMembers(exactFlowMemberMatches(normalizedValue, members))
+	exactMatches := uniqueFlowMembers(exactFlowMemberMatches(normalizedValue, members))
+	if len(exactMatches) > 0 {
+		return exactMatches
+	}
+	return uniqueFlowMembers(nameContainingFlowMemberMatches(normalizedValue, members))
+}
+
+func nameContainingFlowMemberMatches(normalizedValue string, members []flowMemberForTool) []flowMemberForTool {
+	matches := make([]flowMemberForTool, 0, len(members))
+	for _, member := range members {
+		memberName := normalizedFlowMemberValue(member.Name)
+		if memberName != "" && strings.Contains(memberName, normalizedValue) {
+			matches = append(matches, member)
+		}
+	}
+	return matches
 }
 
 func exactFlowMemberMatches(normalizedValue string, members []flowMemberForTool) []flowMemberForTool {

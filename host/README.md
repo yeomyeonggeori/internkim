@@ -99,6 +99,19 @@ after a crash or a reboot:
 Restarting matters: the relay is the only thing answering the messenger
 screen, and a process that dies without coming back leaves that screen empty.
 
+On a device this repository deploys to, none of that is done by hand.
+`internkim deploy --components relay` carries the binary and writes the unit,
+and provisioning places the settings:
+
+```
+INTERNKIM_RELAY_ENV=<relay.env> INTERNKIM_RELAY_AGENT_KEY=<agent key> \
+  internkim setup --steps relay
+```
+
+The unit carries `ConditionPathExists`, so a device with no settings leaves it
+stopped. A component the device has never installed takes two deploys; the
+deployment notes in AGENTS.md say why.
+
 ## What it holds
 
 The host's Postgres keeps the agent's working memory: raw events, conversations,

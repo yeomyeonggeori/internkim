@@ -77,6 +77,17 @@ func (service *Service) drainCalendarMattermostProjectionOutbox(ctx context.Cont
 	}
 }
 
+func (service *Service) hasPendingFlowMattermostProjection(ctx context.Context, taskID string) (bool, error) {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	defer database.Close()
+	var pendingCount int
+	errorValue = database.QueryRowContext(ctx, "SELECT COUNT(1) FROM flow_channel_outbox WHERE task_id = ?", strings.TrimSpace(taskID)).Scan(&pendingCount)
+	return pendingCount > 0, errorValue
+}
+
 func (service *Service) pendingFlowMattermostProjectionTaskIDs(ctx context.Context) ([]string, error) {
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {

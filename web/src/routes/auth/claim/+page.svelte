@@ -8,7 +8,7 @@
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
-	import { sendClaimLink, setSupabasePassword, verifyClaimCode } from '$lib/supabase-session';
+	import { askToClaim, setSupabasePassword, signInWithSupabase, verifyClaimCode } from '$lib/supabase-session';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import { onMount } from 'svelte';
@@ -17,22 +17,22 @@
 	const fieldID = $props.id();
 
 	let servesCompanies = $state(true);
-	let step = $state<'address' | 'sent' | 'password' | 'passkey'>('address');
+	let step = $state<'address' | 'sent' | 'issued' | 'password' | 'passkey'>('address');
 	let email = $state('');
 	let code = $state('');
 	let password = $state('');
+	let issuedPassword = $state('');
 	let busy = $state(false);
 	let errorMessage = $state('');
 
-	const description = $derived(
-		step === 'address'
-			? text.claimAddressDescription
-			: step === 'sent'
-				? text.claimSentDescription.replace('{email}', email)
-				: step === 'password'
-					? text.claimPasswordDescription
-					: text.claimPasskeyDescription
-	);
+	const describedStep: Record<typeof step, string> = $derived({
+		address: text.claimAddressDescription,
+		sent: text.claimSentDescription.replace('{email}', email),
+		issued: text.claimIssuedDescription,
+		password: text.claimPasswordDescription,
+		passkey: text.claimPasskeyDescription
+	});
+	const description = $derived(describedStep[step]);
 
 	async function run(work: () => Promise<void>) {
 		busy = true;
@@ -46,14 +46,35 @@
 		}
 	}
 
-	const askForLink = () =>
+	const refusalText: Record<string, string> = {
+		alreadyClaimed: text.claimAlreadyClaimed,
+		tooManyLately: text.claimTooManyLately,
+		failed: text.claimFailed
+	};
+
+	const askToClaimTheAddress = () =>
 		run(async () => {
-			const outcome = await sendClaimLink(email);
-			if (outcome === 'sent') {
+			const outcome = await askToClaim(email);
+			if (outcome.kind === 'sent') {
 				step = 'sent';
 				return;
 			}
-			errorMessage = outcome === 'tooManyLately' ? text.claimTooManyLately : text.claimFailed;
+			if (outcome.kind === 'issued') {
+				issuedPassword = outcome.password;
+				step = 'issued';
+				return;
+			}
+			errorMessage = refusalText[outcome.kind] ?? text.claimFailed;
+		});
+
+	const goInWithTheIssuedPassword = () =>
+		run(async () => {
+			await signInWithSupabase(email, issuedPassword);
+			if (isPasskeySupported()) {
+				step = 'passkey';
+				return;
+			}
+			await goto('/flow/');
 		});
 
 	const proveTheAddress = () =>
@@ -105,7 +126,7 @@
 			{#if !servesCompanies}
 				<p class="text-sm text-destructive">{text.claimFailed}</p>
 			{:else if step === 'address'}
-				<form onsubmit={(event) => { event.preventDefault(); askForLink(); }}>
+				<form onsubmit={(event) => { event.preventDefault(); askToClaimTheAddress(); }}>
 					<FieldGroup>
 						<Field>
 							<FieldLabel for="claim-email-{fieldID}">{text.emailLabel}</FieldLabel>
@@ -146,9 +167,19 @@
 						</Field>
 						{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
 						<Button type="submit" class="w-full" disabled={busy || code.trim().length < 6}>{text.claimVerify}</Button>
-						<Button variant="ghost" class="w-full" onclick={askForLink} disabled={busy}>{text.claimResend}</Button>
+						<Button variant="ghost" class="w-full" onclick={askToClaimTheAddress} disabled={busy}>{text.claimResend}</Button>
 					</FieldGroup>
 				</form>
+			{:else if step === 'issued'}
+				<FieldGroup>
+					<Field>
+						<FieldLabel for="claim-issued-{fieldID}">{text.claimNewPasswordLabel}</FieldLabel>
+						<Input id="claim-issued-{fieldID}" readonly value={issuedPassword} class="font-mono" />
+						<FieldDescription>{text.claimIssuedHint}</FieldDescription>
+					</Field>
+					{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
+					<Button class="w-full" onclick={goInWithTheIssuedPassword} disabled={busy}>{text.claimIssuedContinue}</Button>
+				</FieldGroup>
 			{:else if step === 'password'}
 				<form onsubmit={(event) => { event.preventDefault(); keepThePassword(); }}>
 					<FieldGroup>

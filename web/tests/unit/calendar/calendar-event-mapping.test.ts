@@ -56,3 +56,28 @@ test('maps calendar participants through event meta and payload', () => {
 		{ personID: 'person-yeomyeong', name: '김여명', email: 'yeomyeong@example.com' }
 	]);
 });
+
+test('maps leave source and read-only state into event meta', () => {
+	const event = dayFlowEventFromCalendarEvent({
+		id: 'leave:leave-1',
+		uid: 'leave:leave-1',
+		title: '이샘플 · 휴가',
+		description: '',
+		location: '',
+		startISO: '2026-08-03T00:00:00.000Z',
+		endISO: '2026-08-04T00:00:00.000Z',
+		timeZone: 'Asia/Seoul',
+		isAllDay: true,
+		color: '',
+		createdByEmail: '',
+		createdByName: '',
+		updatedAt: '2026-08-02T15:00:00.000Z',
+		readOnly: true,
+		source: 'leave'
+	});
+
+	expect(event.start).toEqual(new Date(2026, 7, 3));
+	expect(event.end).toEqual(new Date(2026, 7, 3));
+	expect(event.meta?.readOnly).toBe(true);
+	expect(event.meta?.source).toBe('leave');
+});

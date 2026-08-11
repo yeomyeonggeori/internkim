@@ -2,6 +2,8 @@ import { supabase } from '$lib/supabase';
 import { sizeOfHours, sizeOfWholeDays } from '$lib/flow/task-sizes';
 import type { CalendarEvent, CalendarEventPayload } from '../../routes/calendar/embed/calendar-event-persistence';
 import type { CalendarParticipant } from '../../routes/calendar/embed/calendar-participants';
+import type { Locale } from '../i18n/locale.svelte';
+import { approvedLeaveCalendarEvents } from './supabase-calendar-leave';
 
 type MemberRow = { id: string; name: string | null; email: string | null };
 type EventRow = {
@@ -16,11 +18,27 @@ type EventRow = {
 	task_participant: { member_id: string }[];
 };
 
-export async function supabaseCalendarEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
-	const client = supabase();
+export async function supabaseCalendarEvents(
+	startDate: Date,
+	endDate: Date,
+	locale: Locale = 'ko'
+): Promise<CalendarEvent[]> {
 	const members = await membersByID();
+	const timeZone = await companyTimeZone();
+	const [events, leave] = await Promise.all([
+		taskCalendarEvents(startDate, endDate, members, timeZone),
+		approvedLeaveCalendarEvents(startDate, endDate, members, timeZone, locale)
+	]);
+	return [...events, ...leave].sort((left, right) => left.startISO.localeCompare(right.startISO));
+}
 
-	const events = await client
+async function taskCalendarEvents(
+	startDate: Date,
+	endDate: Date,
+	members: Map<string, MemberRow>,
+	timeZone: string
+): Promise<CalendarEvent[]> {
+	const events = await supabase()
 		.from('task')
 		.select('id, title, note, location, starts_at, ends_at, is_whole_day, updated_at, task_participant (member_id)')
 		.eq('is_event', true)
@@ -29,8 +47,6 @@ export async function supabaseCalendarEvents(startDate: Date, endDate: Date): Pr
 		.order('starts_at')
 		.returns<EventRow[]>();
 	if (events.error) throw new Error(events.error.message);
-
-	const timeZone = await companyTimeZone();
 	return events.data.map((event) => eventOf(event, members, timeZone));
 }
 

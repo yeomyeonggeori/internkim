@@ -56,6 +56,7 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "artifact_review", Handler: Service.invokeArtifactReviewTool},
 	{ToolName: "task_add", Handler: Service.invokeFlowTaskTool},
 	{ToolName: "task_list", Handler: Service.invokeFlowTaskTool},
+	{ToolName: "task_definitions", Handler: Service.invokeFlowTaskTool},
 	{ToolName: "task_update", Handler: Service.invokeFlowTaskTool},
 	{ToolName: "task_delete", Handler: Service.invokeFlowTaskTool},
 	{ToolName: "message_context", Handler: Service.invokePlatformMessageTool},

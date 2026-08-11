@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,6 +27,11 @@ const workspaceFilesTestPolicy = `{
 }`
 
 func newWorkspaceFilesTestService(t *testing.T) (*Service, string) {
+	service, workspaceDirectory, _ := newRecordingWorkspaceFilesTestService(t)
+	return service, workspaceDirectory
+}
+
+func newRecordingWorkspaceFilesTestService(t *testing.T) (*Service, string, *[]url.Values) {
 	t.Helper()
 	workspaceDirectory := t.TempDir()
 	seedWorkspaceFile(t, workspaceDirectory, "private/people/person-me/note.txt", "mine")
@@ -39,19 +45,29 @@ func newWorkspaceFilesTestService(t *testing.T) (*Service, string) {
 		BlueclawBaseURL:       "http://blueclaw.local",
 		BlueclawWorkspacePath: workspaceDirectory,
 	})
+	proxiedQueries := &[]url.Values{}
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if strings.HasPrefix(request.URL.Path, "/admin/api/workspace/") {
+			*proxiedQueries = append(*proxiedQueries, request.URL.Query())
+		}
 		if request.URL.Path == "/admin/api/policy" {
 			return jsonResponse(http.StatusOK, workspaceFilesTestPolicy, nil), nil
 		}
 		if request.URL.Path == "/admin/api/workspace/list" {
+			if request.URL.Query().Get("personID") == "" {
+				return jsonResponse(http.StatusBadRequest, `{"error":"personID is required"}`, nil), nil
+			}
 			return workspaceFilesMockList(workspaceDirectory, request.URL.Query().Get("path")), nil
 		}
 		if request.URL.Path == "/admin/api/workspace/download" {
+			if request.URL.Query().Get("personID") == "" {
+				return jsonResponse(http.StatusBadRequest, `{"error":"personID is required"}`, nil), nil
+			}
 			return workspaceFilesMockDownload(workspaceDirectory, request.URL.Query().Get("path")), nil
 		}
 		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 	})}
-	return service, workspaceDirectory
+	return service, workspaceDirectory, proxiedQueries
 }
 
 func workspaceFilesMockHostPath(workspaceDirectory string, agentPath string) string {
@@ -300,6 +316,29 @@ func TestWorkspaceUploadFileNameRejectsTraversal(t *testing.T) {
 		}
 		if accepted && strings.ContainsRune(fileName, '/') {
 			t.Fatalf("accepted name %q still contains a separator: %q", raw, fileName)
+		}
+	}
+}
+
+func TestWorkspaceFilesNameTheReadingPersonToBlueclaw(t *testing.T) {
+	service, _, proxiedQueries := newRecordingWorkspaceFilesTestService(t)
+	reads := []string{
+		"/files/api/list?path=/workspace/private/people/person-me",
+		"/files/api/list?path=/workspace/circles/engineering",
+		"/files/api/download?path=/workspace/private/people/person-me/note.txt",
+	}
+	for _, read := range reads {
+		recorder := workspaceFilesRequest(t, service, http.MethodGet, read, "me@example.com", nil, "")
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s status = %d body = %s", read, recorder.Code, recorder.Body.String())
+		}
+	}
+	if len(*proxiedQueries) != len(reads) {
+		t.Fatalf("expected %d proxied reads, got %+v", len(reads), *proxiedQueries)
+	}
+	for index, proxiedQuery := range *proxiedQueries {
+		if proxiedQuery.Get("personID") != "person-me" {
+			t.Fatalf("%s proxied without the reading person: %+v", reads[index], proxiedQuery)
 		}
 	}
 }

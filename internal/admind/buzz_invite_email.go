@@ -13,10 +13,7 @@ type buzzInviteEmailRequest struct {
 }
 
 func (service *Service) messengerPublicURL() string {
-	base := strings.TrimRight(strings.TrimSpace(service.Configuration.FlowPublicURL), "/")
-	if base == "" {
-		base = strings.TrimRight(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceURLPath)), "/")
-	}
+	base := strings.TrimRight(strings.TrimSpace(service.flowLinkBaseURL()), "/")
 	if base == "" {
 		return ""
 	}

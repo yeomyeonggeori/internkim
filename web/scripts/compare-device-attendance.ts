@@ -1,6 +1,7 @@
 //   bun run web/scripts/compare-device-attendance.ts --device https://<device>/ --url <project> --key <service role> --months 2026-06,2026-07,2026-08
 
 import { createClient } from '@supabase/supabase-js';
+import { windowOf } from './attendance-window';
 
 function argument(name: string): string | undefined {
 	const index = process.argv.indexOf(`--${name}`);
@@ -30,7 +31,11 @@ async function deviceEvents(month: string): Promise<DeviceEvent[]> {
 	const response = await fetch(`${deviceURL}/attendance/api/summary?month=${month}`);
 	if (!response.ok) throw new Error(`the device answered ${response.status} for ${month}`);
 	const answered = (await response.json()) as { events?: DeviceEvent[] };
-	return answered.events ?? [];
+	const { from, to } = windowOf(month);
+	return (answered.events ?? []).filter((event) => {
+		const moment = event.occurredAt ? new Date(event.occurredAt).toISOString() : '';
+		return moment >= from && moment < to;
+	});
 }
 
 async function recordedEvents(month: string): Promise<RecordedEvent[]> {

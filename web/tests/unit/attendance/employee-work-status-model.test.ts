@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { AttendanceEmployeeWorkStatus } from '../../../src/routes/attendance/attendance-api';
 import { filterEmployeeWorkStatuses } from '../../../src/routes/attendance/employee-status/employee-work-status-model';
-import {
-	calculatePeriodCapacityMinutes,
-	formatWorkStatusDuration
-} from '../../../src/routes/attendance/work-status/work-status-format';
+import { formatWorkStatusDuration } from '../../../src/routes/attendance/work-status/work-status-format';
 
 const employee = (
 	displayName: string,
@@ -21,7 +18,11 @@ const employee = (
 	hasBaseline: true,
 	targetMinutes: 2400,
 	actualMinutes: 2400,
+	actualSeconds: 2400 * 60,
 	provisionalMinutes: 0,
+	provisionalSeconds: 0,
+	workingCapacitySeconds: 5 * 24 * 60 * 60,
+	calendarCapacitySeconds: 7 * 24 * 60 * 60,
 	leaveMinutes: 0,
 	fulfilledMinutes: 2400,
 	differenceMinutes: 0,
@@ -44,14 +45,6 @@ describe('formatWorkStatusDuration', () => {
 		expect(formatWorkStatusDuration(0, { hourUnit: '시간', minuteUnit: '분' })).toBe(
 			'00시간 00분'
 		);
-	});
-});
-
-describe('calculatePeriodCapacityMinutes', () => {
-	test('uses every calendar hour in day, week, and month periods', () => {
-		expect(calculatePeriodCapacityMinutes('2026-07-31', '2026-07-31')).toBe(24 * 60);
-		expect(calculatePeriodCapacityMinutes('2026-07-27', '2026-08-02')).toBe(168 * 60);
-		expect(calculatePeriodCapacityMinutes('2026-05-01', '2026-05-31')).toBe(744 * 60);
 	});
 });
 

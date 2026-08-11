@@ -12,6 +12,7 @@ export type MessengerChannel = {
 	isDirect: boolean;
 	position: number;
 	participants: MessengerPerson[];
+	webURL?: string;
 };
 
 export type MessengerReaction = {
@@ -38,7 +39,14 @@ export type LinkPreview = {
 	imageDataURL: string;
 };
 
-type PersonalConversation = { id: string; name: string; kind: 'dm' | 'group'; avatarURL?: string };
+type PersonalConversation = {
+	id: string;
+	name: string;
+	kind: 'dm' | 'group';
+	avatarURL?: string;
+	participantExternalIDs?: string[];
+	webURL?: string;
+};
 type PersonalReaction = { emoji: string; byExternalIDs: string[] };
 type PersonalMessage = {
 	id: string;
@@ -64,14 +72,15 @@ function messageOf(body: unknown, fallback: string): string {
 	return fallback;
 }
 
-function asChannel(conversation: PersonalConversation, position: number): MessengerChannel {
+export function asChannel(conversation: PersonalConversation, position: number): MessengerChannel {
 	return {
 		id: conversation.id,
 		platform: 'mattermost',
 		name: conversation.name,
 		isDirect: conversation.kind === 'dm',
 		position,
-		participants: []
+		participants: (conversation.participantExternalIDs ?? []).map((externalID) => ({ externalID })),
+		webURL: conversation.webURL
 	};
 }
 

@@ -11,6 +11,7 @@ export type Answer = { callID: string; status: number; body: unknown };
 
 const personPrefix = 'person.';
 const mailPrefix = 'person.mail.';
+const workspacePrefixes = ['person.memory.', 'person.files.', 'person.tasks.'];
 
 export function mailOperationOf(capability: string): string | null {
 	if (!capability.startsWith(mailPrefix)) return null;
@@ -20,6 +21,20 @@ export function mailOperationOf(capability: string): string | null {
 
 export function isPersonCapability(capability: string): boolean {
 	return capability.startsWith(personPrefix);
+}
+
+export function isWorkspaceCapability(capability: string): boolean {
+	return workspacePrefixes.some((prefix) => capability.startsWith(prefix));
+}
+
+export async function answerBodyOf(response: Response): Promise<unknown> {
+	const text = await response.text();
+	if (!text.trim()) return null;
+	try {
+		return JSON.parse(text);
+	} catch {
+		return response.ok ? text : { error: text.trim() };
+	}
 }
 
 export function reportableTopic(call: Call): string | null {
@@ -56,8 +71,20 @@ export async function forwardToChatd(
 
 export type Served = { status: number; body: unknown; replyTo: string | null };
 
+export type AssetReader = { memberID: string; token: string };
+
 export type Dispatch = {
-	serveAsset: (capability: string, body: Record<string, unknown>) => Promise<unknown>;
+	serveAsset: (
+		capability: string,
+		body: Record<string, unknown>,
+		reader: AssetReader
+	) => Promise<unknown>;
+	askAdmind: (
+		capability: string,
+		body: Record<string, unknown>,
+		requesterEmail: string
+	) => Promise<{ status: number; body: unknown }>;
+	emailOfMember: (memberID: string) => Promise<string | null>;
 	askChatd: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	memberOfExternalID: (externalID: string) => Promise<string | null>;
@@ -67,9 +94,6 @@ export type Dispatch = {
 export async function serveCall(dispatch: Dispatch, call: Call): Promise<Served> {
 	const capability = call.capability ?? '';
 	const body = call.body ?? {};
-	if (!isPersonCapability(capability)) {
-		return { status: 200, body: await dispatch.serveAsset(capability, body), replyTo: null };
-	}
 
 	const actor = actorOf(call);
 	if (!actor) {
@@ -81,8 +105,17 @@ export async function serveCall(dispatch: Dispatch, call: Call): Promise<Served>
 		return { status: 403, body: { error: 'that credential belongs to nobody here' }, replyTo: null };
 	}
 
+	if (!isPersonCapability(capability)) {
+		const reader = { memberID: replyTo, token: actor.secret };
+		return { status: 200, body: await dispatch.serveAsset(capability, body, reader), replyTo };
+	}
+
 	const operation = mailOperationOf(capability);
 	if (operation) return { ...(await serveMail(dispatch, operation, body, replyTo)), replyTo };
+
+	if (isWorkspaceCapability(capability)) {
+		return { ...(await serveWorkspace(dispatch, capability, body, replyTo)), replyTo };
+	}
 
 	return { ...(await dispatch.askChatd(capability, body)), replyTo };
 }
@@ -106,4 +139,17 @@ async function memberHolding(dispatch: Dispatch, actor: ActorCredential): Promis
 	const externalID = (identity.body as { externalID?: string } | null)?.externalID;
 	if (!externalID) return null;
 	return dispatch.memberOfExternalID(externalID);
+}
+
+async function serveWorkspace(
+	dispatch: Dispatch,
+	capability: string,
+	body: Record<string, unknown>,
+	memberID: string
+): Promise<{ status: number; body: unknown }> {
+	const requesterEmail = await dispatch.emailOfMember(memberID);
+	if (!requesterEmail) {
+		return { status: 409, body: { error: 'this member has no address the workspace knows' } };
+	}
+	return dispatch.askAdmind(capability, body, requesterEmail);
 }
