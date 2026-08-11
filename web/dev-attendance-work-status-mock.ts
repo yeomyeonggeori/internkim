@@ -14,17 +14,17 @@ export function createDevAttendanceWorkStatus(
 	const { start, end, workingDays } = workStatusRange(period, anchor);
 	const targetMinutes = period === 'day' ? 480 : period === 'week' ? 2400 : workingDays * 480;
 	const employees = [
-		workStatusEmployee('김민지', 'minji@internkim.com', start, end, targetMinutes, 0, 0),
-		workStatusEmployee('박지훈', 'jihoon@internkim.com', start, end, targetMinutes, 180, 35),
-		workStatusEmployee('이서연', 'seoyeon@internkim.com', start, end, targetMinutes, -240, 0),
-		workStatusEmployee('최도윤', 'doyoon@internkim.com', start, end, targetMinutes, 0, 70)
+		workStatusEmployee('김민지', 'minji@internkim.com', start, end, workingDays, targetMinutes, 0, 0),
+		workStatusEmployee('박지훈', 'jihoon@internkim.com', start, end, workingDays, targetMinutes, 180, 35),
+		workStatusEmployee('이서연', 'seoyeon@internkim.com', start, end, workingDays, targetMinutes, -240, 0),
+		workStatusEmployee('최도윤', 'doyoon@internkim.com', start, end, workingDays, targetMinutes, 0, 70)
 	];
 	employees[2].coreTimeMissed = true;
 	employees[2].status = 'coreTimeMissed';
 	employees[3].needsReview = true;
 	employees[3].hasIncompleteRecords = true;
 	employees[3].status = 'needsReview';
-	const personal = workStatusEmployee('관리자', userEmail, start, end, targetMinutes, 80, 25, 480);
+	const personal = workStatusEmployee('관리자', userEmail, start, end, workingDays, targetMinutes, 80, 25, 480);
 	return {
 		period,
 		anchor,
@@ -42,6 +42,7 @@ function workStatusEmployee(
 	email: string,
 	periodStart: string,
 	periodEnd: string,
+	workingDays: number,
 	targetMinutes: number,
 	targetDifference: number,
 	nightMinutes: number,
@@ -64,7 +65,11 @@ function workStatusEmployee(
 		hasBaseline: true,
 		targetMinutes: adjustedTargetMinutes,
 		actualMinutes,
+		actualSeconds: actualMinutes * 60,
 		provisionalMinutes: 0,
+		provisionalSeconds: 0,
+		workingCapacitySeconds: workingDays * 24 * 60 * 60,
+		calendarCapacitySeconds: calendarDaysBetween(periodStart, periodEnd) * 24 * 60 * 60,
 		leaveMinutes,
 		fulfilledMinutes,
 		differenceMinutes,
@@ -84,9 +89,12 @@ function workStatusEmployee(
 				date: periodStart,
 				workMode: 'flexible',
 				hasBaseline: true,
+				workingDate: true,
 				targetMinutes: Math.min(480, adjustedTargetMinutes),
 				actualMinutes: Math.min(480, actualMinutes),
+				actualSeconds: Math.min(480, actualMinutes) * 60,
 				provisionalMinutes: 0,
+				provisionalSeconds: 0,
 				leaveMinutes: Math.min(480, leaveMinutes),
 				fulfilledMinutes: Math.min(480, fulfilledMinutes),
 				differenceMinutes,
@@ -153,4 +161,8 @@ function weekdaysBetween(start: Date, end: Date): number {
 		cursor.setUTCDate(cursor.getUTCDate() + 1);
 	}
 	return count;
+}
+
+function calendarDaysBetween(start: string, end: string): number {
+	return Math.floor((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) + 1;
 }

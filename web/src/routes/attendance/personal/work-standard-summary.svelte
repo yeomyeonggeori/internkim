@@ -5,6 +5,7 @@
 	import { getWorkStatusState } from '../work-status/work-status-state.svelte';
 	import DurationText from '../shared/duration-text.svelte';
 	import WorkStandardCapacityBar from './work-standard-capacity-bar.svelte';
+	import { calculateCalendarCapacitySeconds } from './work-standard-capacity';
 
 	const text = createPageText(attendanceText);
 	const workStatus = getWorkStatusState();
@@ -15,8 +16,16 @@
 				Math.max(0, status.provisionalMinutes)
 			: 0
 	);
-	const displayedActualMinutes = $derived(
-		status ? Math.max(0, status.actualMinutes) + Math.max(0, status.provisionalMinutes) : 0
+	const actualSeconds = $derived(status?.actualSeconds ?? (status?.actualMinutes ?? 0) * 60);
+	const provisionalSeconds = $derived(
+		status?.provisionalSeconds ?? (status?.provisionalMinutes ?? 0) * 60
+	);
+	const calendarCapacitySeconds = $derived(
+		status?.calendarCapacitySeconds ??
+			calculateCalendarCapacitySeconds(status?.periodStart ?? '', status?.periodEnd ?? '')
+	);
+	const workingCapacitySeconds = $derived(
+		status?.workingCapacitySeconds ?? calendarCapacitySeconds
 	);
 </script>
 
@@ -33,71 +42,47 @@
 	{#if workStatus.errorMessage}
 		<p class="text-[10px] text-destructive">{text.workStatus.loadFailed}</p>
 	{:else if status}
-		<div class="mb-3">
+		<div class="mb-1">
 			<p class="text-[10px] text-muted-foreground">
 				{status.periodStart === status.periodEnd
 					? status.periodStart
 					: `${status.periodStart}–${status.periodEnd}`}
 			</p>
-			{#if status.hasBaseline}
-				<div class="mt-1 tabular-nums">
-					<p
-						class="flex items-baseline gap-1 whitespace-nowrap"
-						data-testid="work-standard-total-row"
-					>
-						<span class="text-base font-semibold" data-testid="work-standard-total">
-							{formatWorkStatusDuration(totalMinutes, text)}
-						</span>
-						<span class="text-[9px] text-muted-foreground">
-							/ {text.workStatus.target} {formatWorkStatusDuration(status.targetMinutes, text)}
-						</span>
-					</p>
-				</div>
-			{:else}
-				<p class="mt-1 text-lg font-semibold text-muted-foreground">{text.workStatus.noBaseline}</p>
-			{/if}
+			<div class="mt-1 tabular-nums">
+				<p class="whitespace-nowrap" data-testid="work-standard-total-row">
+					<span class="text-base font-semibold" data-testid="work-standard-total">
+						{formatWorkStatusDuration(totalMinutes, text)}
+					</span>
+				</p>
+			</div>
 		</div>
 
+		<WorkStandardCapacityBar
+			actualMinutes={status.actualMinutes}
+			provisionalMinutes={status.provisionalMinutes}
+			targetMinutes={status.targetMinutes}
+			{actualSeconds}
+			{provisionalSeconds}
+			{workingCapacitySeconds}
+			{calendarCapacitySeconds}
+			hasBaseline={status.hasBaseline}
+		/>
+
 		{#if status.hasBaseline}
-			<WorkStandardCapacityBar
-				actualMinutes={status.actualMinutes}
-				provisionalMinutes={status.provisionalMinutes}
-				targetMinutes={status.targetMinutes}
-			/>
-		{:else}
-			<div class="grid grid-cols-2 gap-3 text-[11px]" data-testid="work-standard-no-baseline-values">
-				<div>
-					<p class="text-muted-foreground">{text.workStatus.actual}</p>
-					<p class="mt-1"><DurationText minutes={displayedActualMinutes} showZero size="inherit" tone="default" /></p>
+			<div class="mt-3 grid gap-1 border-t pt-2 text-[11px]">
+				<div class="flex items-baseline justify-between gap-2">
+					<span class="whitespace-nowrap text-muted-foreground">{text.workStatus.nightDuration}</span>
+					<DurationText minutes={status.nightMinutes} showZero size="inherit" tone="default" />
 				</div>
-				<div>
-					<p class="text-muted-foreground">{text.workStatus.leave}</p>
-					<p class="mt-1"><DurationText minutes={status.leaveMinutes} showZero size="inherit" tone="default" /></p>
+				<div class="flex items-baseline justify-between gap-2">
+					<span class="whitespace-nowrap text-muted-foreground">{text.workStatus.overtimeDuration}</span>
+					<DurationText minutes={status.overtimeMinutes} showZero size="inherit" tone="default" />
+				</div>
+				<div class="flex items-baseline justify-between gap-2">
+					<span class="whitespace-nowrap text-muted-foreground">{text.workStatus.shortfallDuration}</span>
+					<DurationText minutes={status.remainingMinutes} showZero size="inherit" tone="default" />
 				</div>
 			</div>
 		{/if}
-
-		<div class="mt-3 grid gap-1 border-t pt-2 text-[11px]">
-			<div class="flex items-baseline justify-between gap-2">
-				<span class="whitespace-nowrap text-muted-foreground">{text.workStatus.nightDuration}</span>
-				<DurationText minutes={status.nightMinutes} showZero size="inherit" tone="default" />
-			</div>
-			<div class="flex items-baseline justify-between gap-2">
-				<span class="whitespace-nowrap text-muted-foreground">{text.workStatus.overtimeDuration}</span>
-				{#if status.hasBaseline}
-					<DurationText minutes={status.overtimeMinutes} showZero size="inherit" tone="default" />
-				{:else}
-					<span class="whitespace-nowrap font-medium">{text.workStatus.noBaseline}</span>
-				{/if}
-			</div>
-			<div class="flex items-baseline justify-between gap-2">
-				<span class="whitespace-nowrap text-muted-foreground">{text.workStatus.shortfallDuration}</span>
-				{#if status.hasBaseline}
-					<DurationText minutes={status.remainingMinutes} showZero size="inherit" tone="default" />
-				{:else}
-					<span class="whitespace-nowrap font-medium">{text.workStatus.noBaseline}</span>
-				{/if}
-			</div>
-		</div>
 	{/if}
 </div>

@@ -49,6 +49,18 @@ func reconciledEventsOf(events []attendanceEvent) []centralplane.ReconciledEvent
 	return reconciled
 }
 
+func reconciledWorkCalendarOf(days []attendanceWorkCalendarDay) []centralplane.ReconciledWorkCalendarDay {
+	reconciled := make([]centralplane.ReconciledWorkCalendarDay, 0, len(days))
+	for _, day := range days {
+		reconciled = append(reconciled, centralplane.ReconciledWorkCalendarDay{
+			Date:        day.Date,
+			WorkMode:    day.WorkMode,
+			WorkingDate: day.WorkingDate,
+		})
+	}
+	return reconciled
+}
+
 func (service *Service) reconcileAttendanceMonth(ctx context.Context, month string) error {
 	client := service.centralPlane()
 	if client == nil {
@@ -58,16 +70,26 @@ func (service *Service) reconcileAttendanceMonth(ctx context.Context, month stri
 	if errorValue != nil {
 		return errorValue
 	}
+	workCalendar, errorValue := service.attendanceWorkCalendarProjection(ctx, from, to)
+	if errorValue != nil {
+		return errorValue
+	}
 	events, errorValue := service.readAttendanceEvents(ctx, month, "")
+	if errorValue != nil {
+		return errorValue
+	}
+	workMode, errorValue := service.currentAttendanceWorkMode(ctx, time.Now())
 	if errorValue != nil {
 		return errorValue
 	}
 
 	result, errorValue := client.ReconcileAttendance(ctx, centralplane.ReconcileWindow{
-		Platform: "mattermost",
-		From:     from,
-		To:       to,
-		Events:   reconciledEventsOf(events),
+		Platform:     "mattermost",
+		WorkMode:     workMode,
+		From:         from,
+		To:           to,
+		Events:       reconciledEventsOf(events),
+		WorkCalendar: reconciledWorkCalendarOf(workCalendar),
 	})
 	if errorValue != nil {
 		return errorValue
@@ -77,6 +99,19 @@ func (service *Service) reconcileAttendanceMonth(ctx context.Context, month stri
 			month, result.Added, result.Removed, len(result.Refused))
 	}
 	return nil
+}
+
+func (service *Service) currentAttendanceWorkMode(ctx context.Context, now time.Time) (string, error) {
+	policy, errorValue := service.readAttendanceWorkPolicy(ctx)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	location, _ := service.workspaceTimeLocation()
+	revision, errorValue := attendanceWorkPolicyRevisionForDate(policy, now.In(location).Format(time.DateOnly))
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return revision.WorkMode, nil
 }
 
 func (service *Service) reconcileAttendanceRecently(ctx context.Context) {

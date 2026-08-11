@@ -2,6 +2,7 @@ package centralplane
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -9,6 +10,67 @@ import (
 	"testing"
 	"time"
 )
+
+func TestAttendanceReconciliationCarriesTheActualWorkMode(t *testing.T) {
+	var carried map[string]any
+	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if errorValue := json.NewDecoder(request.Body).Decode(&carried); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Write([]byte(`{"added":0,"removed":0,"refused":[]}`))
+	}))
+	defer plane.Close()
+
+	client := New(Settings{AppURL: plane.URL, AgentAPIKey: "agent-key"})
+	_, errorValue := client.ReconcileAttendance(context.Background(), ReconcileWindow{
+		Platform: "mattermost",
+		WorkMode: "fixed",
+		From:     time.Date(2026, time.August, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if carried["workMode"] != "fixed" {
+		t.Fatalf("work mode = %v", carried["workMode"])
+	}
+}
+
+func TestAttendanceReconciliationCarriesTheDateLevelWorkCalendar(t *testing.T) {
+	var carried map[string]json.RawMessage
+	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if errorValue := json.NewDecoder(request.Body).Decode(&carried); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Write([]byte(`{"added":0,"removed":0,"refused":[]}`))
+	}))
+	defer plane.Close()
+
+	client := New(Settings{AppURL: plane.URL, AgentAPIKey: "agent-key"})
+	_, errorValue := client.ReconcileAttendance(context.Background(), ReconcileWindow{
+		Platform: "mattermost",
+		From:     time.Date(2027, time.January, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2027, time.January, 2, 0, 0, 0, 0, time.UTC),
+		WorkCalendar: []ReconciledWorkCalendarDay{{
+			Date: "2027-01-01", WorkMode: "flexible", WorkingDate: false,
+		}},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var workCalendar []map[string]any
+	if errorValue := json.Unmarshal(carried["workCalendar"], &workCalendar); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(workCalendar) != 1 ||
+		workCalendar[0]["date"] != "2027-01-01" ||
+		workCalendar[0]["workMode"] != "flexible" ||
+		workCalendar[0]["workingDate"] != false {
+		t.Fatalf("work calendar = %#v", workCalendar)
+	}
+}
 
 func TestSettingsNeedEveryPart(t *testing.T) {
 	complete := Settings{AppURL: "https://app", AgentAPIKey: "key", ProjectURL: "https://plane", PublishableKey: "publishable"}
