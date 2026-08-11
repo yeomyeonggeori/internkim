@@ -24,7 +24,7 @@ export async function signIn(settings: MattermostSettings): Promise<MattermostSe
 
 async function ask<Value>(
 	settings: MattermostSettings,
-	session: MattermostSession,
+	token: string,
 	method: string,
 	path: string,
 	body?: unknown
@@ -32,7 +32,7 @@ async function ask<Value>(
 	const response = await fetch(`${settings.baseURL}/api/v4${path}`, {
 		method,
 		headers: {
-			Authorization: `Bearer ${session.token}`,
+			Authorization: `Bearer ${token}`,
 			...(body === undefined ? {} : { 'Content-Type': 'application/json' })
 		},
 		body: body === undefined ? undefined : JSON.stringify(body)
@@ -46,18 +46,18 @@ type MattermostUser = { id: string; username: string; first_name: string; last_n
 
 export async function readCustomEmoji(
 	settings: MattermostSettings,
-	session: MattermostSession
+	token: string
 ): Promise<{ name: string; url: string }[]> {
 	const listed = await ask<{ id: string; name: string }[]>(
 		settings,
-		session,
+		token,
 		'GET',
 		'/emoji?per_page=200'
 	);
 	const drawn = await Promise.all(
 		listed.map(async (emoji) => {
 			const response = await fetch(`${settings.baseURL}/api/v4/emoji/${encodeURIComponent(emoji.id)}/image`, {
-				headers: { Authorization: `Bearer ${session.token}` }
+				headers: { Authorization: `Bearer ${token}` }
 			});
 			if (!response.ok) return null;
 			const type = response.headers.get('content-type') ?? 'image/png';
@@ -71,12 +71,12 @@ export async function readCustomEmoji(
 
 export async function readProfilePicture(
 	settings: MattermostSettings,
-	session: MattermostSession,
+	token: string,
 	externalID: string,
 	largestBytes: number
 ): Promise<{ dataURL: string } | null> {
 	const response = await fetch(`${settings.baseURL}/api/v4/users/${encodeURIComponent(externalID)}/image`, {
-		headers: { Authorization: `Bearer ${session.token}` }
+		headers: { Authorization: `Bearer ${token}` }
 	});
 	if (!response.ok) return null;
 	const type = response.headers.get('content-type') ?? 'image/png';
@@ -85,8 +85,8 @@ export async function readProfilePicture(
 	return { dataURL: `data:${type};base64,${Buffer.from(bytes).toString('base64')}` };
 }
 
-export async function readPeople(settings: MattermostSettings, session: MattermostSession) {
-	const users = await ask<MattermostUser[]>(settings, session, 'GET', '/users?per_page=200&active=true');
+export async function readPeople(settings: MattermostSettings, token: string) {
+	const users = await ask<MattermostUser[]>(settings, token, 'GET', '/users?per_page=200&active=true');
 	return users.map((user) => ({
 		externalID: user.id,
 		name: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username,
@@ -96,16 +96,16 @@ export async function readPeople(settings: MattermostSettings, session: Mattermo
 
 export async function mintUserAccessToken(
 	settings: MattermostSettings,
-	session: MattermostSession,
+	token: string,
 	externalID: string
 ): Promise<string> {
-	const token = await ask<{ token?: string }>(
+	const minted = await ask<{ token?: string }>(
 		settings,
-		session,
+		token,
 		'POST',
 		`/users/${encodeURIComponent(externalID)}/tokens`,
 		{ description: 'internkim-messenger' }
 	);
-	if (!token.token) throw new Error('mattermost returned no personal access token');
-	return token.token;
+	if (!minted.token) throw new Error('mattermost returned no personal access token');
+	return minted.token;
 }

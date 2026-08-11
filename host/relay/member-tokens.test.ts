@@ -27,7 +27,7 @@ describe('mintMissingTokens', () => {
 
 		const { credentials, report } = await mintMissingTokens(
 			settings,
-			session,
+			session.token,
 			[{ externalID: 'U-one' }, { externalID: 'U-two' }, { externalID: 'U-three' }],
 			new Set(['U-two'])
 		);
@@ -42,7 +42,7 @@ describe('mintMissingTokens', () => {
 
 		const { credentials } = await mintMissingTokens(
 			settings,
-			session,
+			session.token,
 			[{ externalID: 'U-one' }],
 			new Set(['U-one'])
 		);
@@ -56,7 +56,7 @@ describe('mintMissingTokens', () => {
 
 		const { credentials, report } = await mintMissingTokens(
 			settings,
-			session,
+			session.token,
 			[{ externalID: 'U-one' }, { externalID: 'U-two' }, { externalID: 'U-three' }],
 			new Set()
 		);
@@ -71,7 +71,7 @@ describe('mintMissingTokens', () => {
 
 		const { credentials } = await mintMissingTokens(
 			settings,
-			session,
+			session.token,
 			[{ externalID: 'U-one' }],
 			new Set()
 		);

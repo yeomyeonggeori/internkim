@@ -1,4 +1,4 @@
-import { mintUserAccessToken, type MattermostSession, type MattermostSettings } from './mattermost';
+import { mintUserAccessToken, type MattermostSettings } from './mattermost';
 
 export type PersonToProvision = { externalID: string };
 
@@ -12,7 +12,7 @@ export type ProvisionReport = {
 
 export async function mintMissingTokens(
 	settings: MattermostSettings,
-	session: MattermostSession,
+	token: string,
 	people: PersonToProvision[],
 	alreadyHeld: Set<string>
 ): Promise<{ credentials: MintedCredential[]; report: ProvisionReport }> {
@@ -25,7 +25,7 @@ export async function mintMissingTokens(
 			held += 1;
 			continue;
 		}
-		const secret = await mintUserAccessToken(settings, session, person.externalID).catch(() => null);
+		const secret = await mintUserAccessToken(settings, token, person.externalID).catch(() => null);
 		if (!secret) {
 			refused.push(person.externalID);
 			continue;

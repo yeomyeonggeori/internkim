@@ -1,3 +1,6 @@
+import { callCompanyApp } from '$lib/host-bridge';
+import { isSupabaseConfigured } from '$lib/supabase';
+
 export type WorkspaceRootKind = 'personal' | 'circle' | 'public';
 
 export type WorkspaceRoot = {
@@ -24,6 +27,10 @@ async function failedResponseMessage(response: Response): Promise<string> {
 }
 
 export async function fetchWorkspaceRoots(): Promise<WorkspaceRoot[]> {
+	if (isSupabaseConfigured()) {
+		const answered = await askTheCompanyApp('person.files.roots', {});
+		return (answered as { roots?: WorkspaceRoot[] }).roots ?? [];
+	}
 	const response = await fetch('/files/api/roots', { credentials: 'include' });
 	if (!response.ok) throw new Error(await failedResponseMessage(response));
 	const payload = (await response.json()) as { roots: WorkspaceRoot[] };
@@ -31,6 +38,10 @@ export async function fetchWorkspaceRoots(): Promise<WorkspaceRoot[]> {
 }
 
 export async function listWorkspaceDirectory(path: string): Promise<WorkspaceEntry[]> {
+	if (isSupabaseConfigured()) {
+		const answered = await askTheCompanyApp('person.files.list', { path });
+		return (answered as { entries?: WorkspaceEntry[] }).entries ?? [];
+	}
 	const response = await fetch(`/files/api/list?path=${encodeURIComponent(path)}`, { credentials: 'include' });
 	if (!response.ok) throw new Error(await failedResponseMessage(response));
 	const payload = (await response.json()) as { entries: WorkspaceEntry[] };
@@ -52,4 +63,17 @@ export async function uploadWorkspaceFiles(path: string, files: File[]): Promise
 	if (!response.ok) throw new Error(await failedResponseMessage(response));
 	const payload = (await response.json()) as { uploaded: string[] };
 	return payload.uploaded ?? [];
+}
+
+async function askTheCompanyApp(capability: string, body: Record<string, unknown>): Promise<unknown> {
+	const answer = await callCompanyApp({ capability, body });
+	if (answer.status >= 400) throw new Error(companyAppErrorMessage(answer.body, answer.status));
+	return answer.body;
+}
+
+function companyAppErrorMessage(body: unknown, status: number): string {
+	if (typeof body === 'object' && body !== null && typeof (body as { error?: unknown }).error === 'string') {
+		return (body as { error: string }).error;
+	}
+	return `the company app answered ${status}`;
 }

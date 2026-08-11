@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { refusalOf } from '../../src/lib/supabase-passkey';
+import { passkeyFailureText, refusalOf } from '../../src/lib/supabase-passkey';
 
 describe('refusalOf', () => {
 	test('dismissing the prompt is not a failure', () => {
@@ -20,5 +20,24 @@ describe('refusalOf', () => {
 		expect(refusalOf({ code: 7 })).toBe('failed');
 		expect(refusalOf(null)).toBe('failed');
 		expect(refusalOf('ERROR_CEREMONY_ABORTED')).toBe('failed');
+	});
+});
+
+describe('passkeyFailureText', () => {
+	test('names the code the authenticator refused with', () => {
+		expect(passkeyFailureText('등록 실패', { code: 'ERROR_INVALID_RP_ID' })).toBe(
+			'등록 실패 (ERROR_INVALID_RP_ID)'
+		);
+	});
+
+	test('falls back to the message when there is no code', () => {
+		expect(passkeyFailureText('등록 실패', new Error('the relying party is not this origin'))).toBe(
+			'등록 실패 (the relying party is not this origin)'
+		);
+	});
+
+	test('says only what it knows when the failure carries nothing', () => {
+		expect(passkeyFailureText('등록 실패', {})).toBe('등록 실패');
+		expect(passkeyFailureText('등록 실패', null)).toBe('등록 실패');
 	});
 });

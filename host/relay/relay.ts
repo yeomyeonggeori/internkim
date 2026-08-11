@@ -4,7 +4,7 @@ import { createClient, type RealtimeChannel, type SupabaseClient } from '@supaba
 import { readLinkPreview, type LinkPreview } from './link-preview';
 import { largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
 import { mintMissingTokens } from './member-tokens';
-import { forwardToChatd, reportableTopic, serveCall, type Call } from './forward';
+import { answerBodyOf, forwardToChatd, reportableTopic, serveCall, type AssetReader, type Call } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import {
 	readCustomEmoji,
@@ -24,6 +24,7 @@ const agentKey = await agentKeyFromEnvironmentOrFile();
 const chatdBaseURL = process.env.CHATD_BASE_URL ?? 'http://127.0.0.1:18090';
 const arrivalsPort = Number(process.env.ARRIVALS_PORT ?? 18091);
 const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
+const admindBaseURL = process.env.ADMIND_BASE_URL ?? 'http://127.0.0.1:18080';
 const appURL = required('INTERNKIM_APP_URL');
 const messengerPlatform = required('MESSENGER_PLATFORM');
 const answerByteCeiling = Number(process.env.ANSWER_BYTE_CEILING ?? 200_000);
@@ -70,18 +71,22 @@ client.realtime.setAuth(hostSession.accessToken);
 const presence = client.channel(`company:${companyID}`, { config: { private: true } });
 const listeningTo = new Map<string, RealtimeChannel>();
 
+async function listenTo(memberID: string): Promise<RealtimeChannel> {
+	const known = listeningTo.get(memberID);
+	if (known) return known;
+	const theirs = client.channel(`member:${memberID}`, { config: { private: true } });
+	theirs.on('broadcast', { event: 'call' }, ({ payload }) => {
+		void answer(payload as Call);
+	});
+	listeningTo.set(memberID, theirs);
+	await join(theirs);
+	return theirs;
+}
+
 async function listenToEveryMember(): Promise<void> {
 	const members = await client.from('member').select('id').returns<{ id: string }[]>();
 	if (members.error) throw new Error(members.error.message);
-	for (const member of members.data) {
-		if (listeningTo.has(member.id)) continue;
-		const theirs = client.channel(`member:${member.id}`, { config: { private: true } });
-		theirs.on('broadcast', { event: 'call' }, ({ payload }) => {
-			void answer(payload as Call);
-		});
-		listeningTo.set(member.id, theirs);
-		await join(theirs);
-	}
+	for (const member of members.data) await listenTo(member.id);
 }
 
 setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
@@ -137,7 +142,7 @@ const dispatch = {
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(body)
 		});
-		return { status: response.status, body: await response.json().catch(() => null) };
+		return { status: response.status, body: await answerBodyOf(response) };
 	},
 	mailAccountOf: async (memberID: string) => {
 		const held = await askTheRecord<{ account?: Record<string, unknown> | null }>(
@@ -145,6 +150,16 @@ const dispatch = {
 			`/api/agent/mail-account?memberID=${encodeURIComponent(memberID)}`
 		);
 		return held.account ?? null;
+	},
+	askAdmind,
+	emailOfMember: async (memberID: string) => {
+		const member = await client
+			.from('member')
+			.select('email')
+			.eq('id', memberID)
+			.maybeSingle<{ email: string | null }>();
+		if (member.error) throw new Error(member.error.message);
+		return member.data?.email ?? null;
 	},
 	memberOfExternalID: async (externalID: string) => {
 		const contact = await client
@@ -159,9 +174,13 @@ const dispatch = {
 	}
 };
 
-async function asset(capability: string, body: Record<string, unknown>): Promise<unknown> {
-	if (capability === 'asset.emoji') return emojiSet();
-	if (capability === 'asset.picture') return pictureOf(String(body.externalID ?? ''));
+async function asset(
+	capability: string,
+	body: Record<string, unknown>,
+	reader: AssetReader
+): Promise<unknown> {
+	if (capability === 'asset.emoji') return emojiSet(reader);
+	if (capability === 'asset.picture') return pictureOf(reader, String(body.externalID ?? ''));
 	if (capability === 'asset.link') return previewOf(String(body.url ?? ''));
 	throw new Error(`the app has nothing called ${capability}`);
 }
@@ -170,25 +189,33 @@ async function reply(replyTo: string | null, answer: Answer): Promise<void> {
 	const notice = oversizeNotice(answer, answerByteCeiling);
 	if (notice) console.error(`answer for ${answer.callID} is over the ${answerByteCeiling} byte ceiling`);
 	if (!replyTo) return;
-	await client
-		.channel(`member:${replyTo}`, { config: { private: true } })
-		.send({ type: 'broadcast', event: 'answer', payload: notice ?? answer });
+	try {
+		const theirs = await listenTo(replyTo);
+		await theirs.httpSend('answer', notice ?? answer);
+	} catch (error) {
+		const refusal = error instanceof Error ? error.message : 'the record would not take it';
+		console.error(`answer for ${answer.callID} never reached member:${replyTo}: ${refusal}`);
+	}
 }
 
 const pictures = new Map<string, { dataURL: string } | null>();
 const linkPreviews = new Map<string, LinkPreview | null>();
-let customEmoji: { name: string; url: string }[] | null = null;
+const customEmoji = new Map<string, { name: string; url: string }[]>();
 
-async function emojiSet(): Promise<{ name: string; url: string }[]> {
-	customEmoji ??= await readCustomEmoji(mattermost, session);
-	return customEmoji;
+async function emojiSet(reader: AssetReader): Promise<{ name: string; url: string }[]> {
+	const held = customEmoji.get(reader.memberID);
+	if (held) return held;
+	const drawn = await readCustomEmoji(mattermost, reader.token);
+	customEmoji.set(reader.memberID, drawn);
+	return drawn;
 }
 
-async function pictureOf(externalID: string): Promise<{ dataURL: string } | null> {
-	if (!pictures.has(externalID)) {
-		pictures.set(externalID, await readProfilePicture(mattermost, session, externalID, largestPictureBytes));
+async function pictureOf(reader: AssetReader, externalID: string): Promise<{ dataURL: string } | null> {
+	const key = `${reader.memberID}:${externalID}`;
+	if (!pictures.has(key)) {
+		pictures.set(key, await readProfilePicture(mattermost, reader.token, externalID, largestPictureBytes));
 	}
-	return pictures.get(externalID) ?? null;
+	return pictures.get(key) ?? null;
 }
 
 async function previewOf(link: string): Promise<LinkPreview | null> {
@@ -255,10 +282,10 @@ async function provisionMemberCredentials(): Promise<void> {
 		'GET',
 		`/api/agent/messenger-credentials?kind=${encodeURIComponent(messengerPlatform)}`
 	);
-	const people = await readPeople(mattermost, session);
+	const people = await readPeople(mattermost, session.token);
 	const { credentials, report } = await mintMissingTokens(
 		mattermost,
-		session,
+		session.token,
 		people,
 		new Set(held.have ?? [])
 	);
@@ -317,7 +344,7 @@ async function keepGoing(what: string, work: () => Promise<void>): Promise<void>
 }
 
 async function refreshContacts(client: SupabaseClient, companyID: string, session: MattermostSession): Promise<void> {
-	const people = await readPeople(mattermost, session);
+	const people = await readPeople(mattermost, session.token);
 	const members = await client.from('member').select('id, email').returns<{ id: string; email: string | null }[]>();
 	if (members.error) throw new Error(members.error.message);
 	const memberByEmail = new Map(members.data.map((entry) => [entry.email ?? '', entry.id]));
@@ -337,4 +364,33 @@ async function refreshContacts(client: SupabaseClient, companyID: string, sessio
 		console.log(`${people.length} contacts recorded`);
 		knownContacts = people.length;
 	}
+}
+
+const workspacePaths: Record<string, string> = {
+	'person.memory.graph': '/memory/api/graph',
+	'person.memory.schedules': '/memory/api/schedules',
+	'person.files.roots': '/files/api/roots',
+	'person.files.list': '/files/api/list',
+	'person.tasks.list': '/tasks/api/runs',
+	'person.tasks.detail': '/tasks/api/run-detail'
+};
+
+async function askAdmind(
+	capability: string,
+	body: Record<string, unknown>,
+	requesterEmail: string
+): Promise<{ status: number; body: unknown }> {
+	const path = workspacePaths[capability];
+	if (!path) return { status: 404, body: { error: `the app has nothing called ${capability}` } };
+
+	const query = new URLSearchParams();
+	for (const [name, value] of Object.entries(body)) {
+		if (name === 'actor' || value === undefined || value === null) continue;
+		query.set(name, String(value));
+	}
+	const asked = query.toString() ? `${path}?${query}` : path;
+	const response = await fetch(`${admindBaseURL}${asked}`, {
+		headers: { 'X-InternKim-Requester-Email': requesterEmail }
+	});
+	return { status: response.status, body: await answerBodyOf(response) };
 }

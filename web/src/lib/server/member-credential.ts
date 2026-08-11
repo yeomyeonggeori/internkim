@@ -55,12 +55,32 @@ export async function externalIDsWithACredential(
 
 	const { data, error } = await client
 		.from('credential')
-		.select('external_id')
+		.select('member_id, external_id')
 		.eq('kind', kind)
 		.in('member_id', [...linked.values()])
-		.returns<{ external_id: string | null }[]>();
+		.returns<{ member_id: string; external_id: string | null }[]>();
 	if (error) throw new Error(error.message);
-	return data.map((row) => row.external_id).filter((id): id is string => id !== null);
+
+	const held: string[] = [];
+	for (const row of data) {
+		if (!row.external_id) continue;
+		if (!(await secretIsReadable(client, row.member_id, kind))) continue;
+		held.push(row.external_id);
+	}
+	return held;
+}
+
+async function secretIsReadable(
+	client: SupabaseClient,
+	memberID: string,
+	kind: string,
+): Promise<boolean> {
+	const { data, error } = await client.rpc('read_member_secret', {
+		target_member: memberID,
+		target_kind: kind,
+	});
+	if (error) throw new Error(error.message);
+	return typeof data === 'string' && data !== '';
 }
 
 export async function membersOfCompanyByExternalID(

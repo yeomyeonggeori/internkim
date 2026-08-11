@@ -1,10 +1,152 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	attendanceWorkCalendarFromDevice,
+	attendanceWorkModeFromDevice,
+	InvalidAttendanceWorkCalendarError
+} from '../../src/lib/server/attendance-work-calendar-reconcile';
+import {
 	EmptyWindowRefused,
+	paired,
 	reconcileMember,
 	type DeviceAttendance,
 	type RecordedAttendance
 } from '../../src/lib/server/attendance-reconcile';
+
+describe('attendanceWorkModeFromDevice', () => {
+	test('accepts only an actual supported work mode', () => {
+		expect(attendanceWorkModeFromDevice('fixed')).toBe('fixed');
+		expect(attendanceWorkModeFromDevice('flexible')).toBe('flexible');
+		expect(attendanceWorkModeFromDevice('autonomous')).toBe('autonomous');
+	});
+
+	test('keeps reconciling when an earlier device has no work mode projection', () => {
+		expect(attendanceWorkModeFromDevice(undefined)).toBe(undefined);
+	});
+
+	test('rejects a malformed work mode projection', () => {
+		expect(() => attendanceWorkModeFromDevice('hybrid')).toThrow('workMode');
+		expect(() => attendanceWorkModeFromDevice(null)).toThrow('workMode');
+	});
+});
+
+describe('attendanceWorkCalendarFromDevice', () => {
+	test('accepts the date-level work calendar contract', () => {
+		expect(
+			attendanceWorkCalendarFromDevice([
+				{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
+				{ date: '2027-01-05', workMode: 'fixed', workingDate: false }
+			], '2027-01-04T00:00:00Z', '2027-01-06T00:00:00Z')
+		).toEqual([
+			{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
+			{ date: '2027-01-05', workMode: 'fixed', workingDate: false }
+		]);
+	});
+
+	test('keeps reconciling when an earlier device has no work calendar projection', () => {
+		expect(
+			attendanceWorkCalendarFromDevice(
+				undefined,
+				'2027-01-04T00:00:00Z',
+				'2027-01-06T00:00:00Z'
+			)
+		).toBe(undefined);
+	});
+
+	test('rejects a malformed work calendar projection', () => {
+		const from = '2027-01-04T00:00:00Z';
+		const to = '2027-01-05T00:00:00Z';
+		expect(() => attendanceWorkCalendarFromDevice(null, from, to)).toThrow('workCalendar');
+		expect(() =>
+			attendanceWorkCalendarFromDevice([
+				{ date: '2027-02-30', workMode: 'fixed', workingDate: true }
+			], from, to)
+		).toThrow('workCalendar');
+		expect(() =>
+			attendanceWorkCalendarFromDevice([
+				{ date: '2027-01-04', workMode: 'hybrid', workingDate: true }
+			], from, to)
+		).toThrow('workCalendar');
+		expect(() =>
+			attendanceWorkCalendarFromDevice([
+				{ date: '2027-01-04', workMode: 'fixed', workingDate: 'yes' }
+			], from, to)
+		).toThrow('workCalendar');
+		expect(() =>
+			attendanceWorkCalendarFromDevice([
+				{ date: '2027-01-04', workMode: 'fixed', workingDate: true, holidayName: 'closure' }
+			], from, to)
+		).toThrow('workCalendar');
+	});
+
+	const completeWindow = [
+		{ date: '2027-01-01', workMode: 'fixed', workingDate: true },
+		{ date: '2027-01-02', workMode: 'fixed', workingDate: true },
+		{ date: '2027-01-03', workMode: 'fixed', workingDate: false }
+	];
+	const invalidCalendars = [
+		{ name: 'empty', workCalendar: [] },
+		{ name: 'duplicate', workCalendar: [completeWindow[0], completeWindow[0], completeWindow[2]] },
+		{ name: 'missing', workCalendar: [completeWindow[0], completeWindow[2]] },
+		{ name: 'reversed', workCalendar: [completeWindow[1], completeWindow[0], completeWindow[2]] },
+		{
+			name: 'out-of-window',
+			workCalendar: [
+				{ date: '2026-12-31', workMode: 'fixed', workingDate: true },
+				completeWindow[0],
+				completeWindow[1]
+			]
+		},
+		{
+			name: 'oversized',
+			workCalendar: [
+				...completeWindow,
+				{ date: '2027-01-04', workMode: 'fixed', workingDate: true }
+			]
+		}
+	];
+	for (const invalid of invalidCalendars) {
+		test(`rejects an explicitly ${invalid.name} calendar for the reconciliation window`, () => {
+			expect(() =>
+				attendanceWorkCalendarFromDevice(
+					invalid.workCalendar,
+					'2027-01-01T00:00:00Z',
+					'2027-01-04T00:00:00Z'
+				)
+			).toThrow('workCalendar');
+		});
+	}
+
+	test('accepts an empty calendar for a zero-day parser window', () => {
+		expect(
+			attendanceWorkCalendarFromDevice(
+				[],
+				'2027-01-01T12:00:00Z',
+				'2027-01-01T12:00:00Z'
+			)
+		).toEqual([]);
+	});
+
+	test('rejects a window over one month before enumerating calendar dates', () => {
+		const originalSetUTCDate = Date.prototype.setUTCDate;
+		Date.prototype.setUTCDate = function (): number {
+			throw new Error('calendar date enumeration started');
+		};
+		let thrown: unknown;
+		try {
+			attendanceWorkCalendarFromDevice(
+				[],
+				'0100-01-01T00:00:00Z',
+				'9999-01-01T00:00:00Z'
+			);
+		} catch (caught) {
+			thrown = caught;
+		} finally {
+			Date.prototype.setUTCDate = originalSetUTCDate;
+		}
+
+		expect(thrown).toBeInstanceOf(InvalidAttendanceWorkCalendarError);
+	});
+});
 
 function onTheDevice(entries: Partial<DeviceAttendance>[]): DeviceAttendance[] {
 	return entries.map((entry) => ({
@@ -90,5 +232,92 @@ describe('reconcileMember', () => {
 		const plan = reconcileMember('member-2', onTheDevice([{ occurredAt: '2026-08-05T08:29:00Z' }]), []);
 
 		expect(plan.add.every((row) => row.member_id === 'member-2')).toBe(true);
+	});
+});
+
+describe('where a clock happened', () => {
+	test('a clock-out carries no location, because the record refuses one', () => {
+		const plan = reconcileMember(
+			'member-1',
+			onTheDevice([{ kind: 'clock_out', occurredAt: '2026-08-05T18:00:00Z', location: '본사' }]),
+			[]
+		);
+
+		expect(plan.add[0].location).toBeNull();
+	});
+
+	test('a clock-in with nowhere named stores nothing rather than an empty string', () => {
+		const plan = reconcileMember('member-1', onTheDevice([{ kind: 'clock_in', location: '  ' }]), []);
+
+		expect(plan.add[0].location).toBeNull();
+	});
+
+	test('a clock-in somewhere keeps where', () => {
+		const plan = reconcileMember('member-1', onTheDevice([{ kind: 'clock_in', location: '본사' }]), []);
+
+		expect(plan.add[0].location).toBe('본사');
+	});
+});
+
+describe('paired', () => {
+	test('a day at the same place that nobody clocked out of is dropped', () => {
+		const kept = paired(
+			onTheDevice([
+				{ kind: 'clock_in', occurredAt: '2026-06-18T02:17:00Z', location: '사무실' },
+				{ kind: 'clock_in', occurredAt: '2026-06-19T02:36:00Z', location: '사무실' },
+				{ kind: 'clock_out', occurredAt: '2026-06-19T09:00:00Z' }
+			])
+		);
+
+		expect(kept.map((event) => event.occurredAt)).toEqual(['2026-06-19T02:36:00Z', '2026-06-19T09:00:00Z']);
+	});
+
+	test('the same click twice is one arrival', () => {
+		const kept = paired(
+			onTheDevice([
+				{ kind: 'clock_in', occurredAt: '2026-06-19T02:31:00Z', location: '사무실' },
+				{ kind: 'clock_in', occurredAt: '2026-06-19T02:31:30Z', location: '사무실' }
+			])
+		);
+
+		expect(kept.map((event) => event.occurredAt)).toEqual(['2026-06-19T02:31:30Z']);
+	});
+
+	test('moving from one place to another is two days of work, and both are kept', () => {
+		const kept = paired(
+			onTheDevice([
+				{ kind: 'clock_in', occurredAt: '2026-06-18T02:00:00Z', location: '사무실' },
+				{ kind: 'clock_in', occurredAt: '2026-06-19T02:00:00Z', location: '재택' }
+			])
+		);
+
+		expect(kept).toHaveLength(2);
+	});
+
+	test('the last clock-in stays, because somebody may be at work right now', () => {
+		const kept = paired(onTheDevice([{ kind: 'clock_in', occurredAt: '2026-08-09T02:00:00Z' }]));
+
+		expect(kept).toHaveLength(1);
+	});
+
+	test('a day that was clocked out of is untouched', () => {
+		const day = onTheDevice([
+			{ kind: 'clock_in', occurredAt: '2026-06-18T02:00:00Z' },
+			{ kind: 'clock_out', occurredAt: '2026-06-18T09:00:00Z' }
+		]);
+
+		expect(paired(day)).toHaveLength(2);
+	});
+
+	test('events out of order are read in order before pairing', () => {
+		const kept = paired(
+			onTheDevice([
+				{ kind: 'clock_out', occurredAt: '2026-06-19T09:00:00Z' },
+				{ kind: 'clock_in', occurredAt: '2026-06-18T02:00:00Z' },
+				{ kind: 'clock_in', occurredAt: '2026-06-19T02:00:00Z' }
+			])
+		);
+
+		expect(kept.map((event) => event.occurredAt)).toEqual(['2026-06-19T02:00:00Z', '2026-06-19T09:00:00Z']);
 	});
 });

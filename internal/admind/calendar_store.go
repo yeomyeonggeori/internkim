@@ -243,7 +243,7 @@ func (service *Service) readCalendarEventIDsRequiringMattermostProjection(ctx co
 	rows, errorValue := database.QueryContext(ctx, `
 	SELECT id
 	FROM calendar_events
-	WHERE deleted_at = '' OR mattermost_post_id != '' OR id IN (SELECT event_id FROM calendar_channel_outbox)
+	WHERE mattermost_post_id != '' OR id IN (SELECT event_id FROM calendar_channel_outbox)
 	ORDER BY updated_at DESC`)
 	if errorValue != nil {
 		return nil, errorValue

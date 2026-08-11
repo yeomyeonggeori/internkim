@@ -210,6 +210,11 @@ rm -rf /etc/systemd/system/zeroclaw.service.d
 systemctl stop blueclaw-sdkd 2>/dev/null || true
 systemctl disable blueclaw-sdkd 2>/dev/null || true
 rm -f /etc/systemd/system/blueclaw-sdkd.service
+systemctl stop internkim-blueclaw-tmp-clean.timer 2>/dev/null || true
+systemctl disable internkim-blueclaw-tmp-clean.timer 2>/dev/null || true
+rm -f /etc/systemd/system/internkim-blueclaw-tmp-clean.timer
+rm -f /etc/systemd/system/internkim-blueclaw-tmp-clean.service
+rm -f /usr/local/bin/internkim-blueclaw-tmp-clean
 systemctl enable systemd-time-wait-sync.service 2>/dev/null
 `)
 	for _, service := range services {

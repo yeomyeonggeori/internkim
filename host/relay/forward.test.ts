@@ -1,12 +1,16 @@
 import { describe, expect, test } from 'bun:test';
-import { actorOf, isPersonCapability, mailOperationOf, reportableTopic, serveCall } from './forward';
+import { actorOf, answerBodyOf, isPersonCapability, mailOperationOf, reportableTopic, serveCall } from './forward';
 
 function dispatchThatKnows(externalIDs: Record<string, string>) {
 	const asked: { capability: string; body: Record<string, unknown> }[] = [];
 	return {
 		asked,
 		dispatch: {
-			serveAsset: async (capability: string) => ({ served: capability }),
+			serveAsset: async (
+				capability: string,
+				_body: Record<string, unknown>,
+				reader: { memberID: string; token: string }
+			) => ({ served: capability, readAs: reader }),
 			askMaild: async (operation: string, body: Record<string, unknown>) => {
 				asked.push({ capability: `mail.${operation}`, body });
 				return { status: 200, body: { mailboxes: [] } };
@@ -22,6 +26,12 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 				}
 				return { status: 200, body: { conversations: [] } };
 			},
+			askAdmind: async (capability: string, body: Record<string, unknown>, requesterEmail: string) => {
+				asked.push({ capability, body: { ...body, requesterEmail } });
+				return { status: 200, body: { served: capability } };
+			},
+			emailOfMember: async (memberID: string) =>
+				memberID === 'member-1' ? 'sample@example.test' : null,
 			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null
 		}
 	};
@@ -118,13 +128,77 @@ describe('serveCall', () => {
 		expect(asked).toEqual([]);
 	});
 
-	test('an asset needs no actor and is answered without addressing anyone', async () => {
+	test('an asset is read as the person who asked for it', async () => {
+		const { dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
+
+		const served = await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'asset.emoji',
+			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
+		});
+
+		expect(served).toEqual({
+			status: 200,
+			body: { served: 'asset.emoji', readAs: { memberID: 'member-1', token: 'known' } },
+			replyTo: 'member-1'
+		});
+	});
+
+	test('an asset call naming no actor is refused, so nothing reads on a shared account', async () => {
 		const { asked, dispatch } = dispatchThatKnows({});
 
 		const served = await serveCall(dispatch, { callID: 'c1', capability: 'asset.emoji' });
 
-		expect(served).toEqual({ status: 200, body: { served: 'asset.emoji' }, replyTo: null });
+		expect(served.status).toBe(400);
 		expect(asked).toEqual([]);
+	});
+
+	test('a workspace call is asked of the workspace as the person who asked', async () => {
+		const { asked, dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
+
+		const served = await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'person.memory.graph',
+			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
+		});
+
+		expect(served.status).toBe(200);
+		expect(served.replyTo).toBe('member-1');
+		const workspaceCall = asked.find((entry) => entry.capability === 'person.memory.graph');
+		expect(workspaceCall?.body.requesterEmail).toBe('sample@example.test');
+	});
+
+	test('a workspace call for a member the record has no address for is refused', async () => {
+		const { dispatch } = dispatchThatKnows({ 'U-known': 'member-2' });
+
+		const served = await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'person.memory.graph',
+			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
+		});
+
+		expect(served.status).toBe(409);
+	});
+
+	test('a workspace call naming no actor never reaches the workspace', async () => {
+		const { asked, dispatch } = dispatchThatKnows({});
+
+		const served = await serveCall(dispatch, { callID: 'c1', capability: 'person.memory.graph' });
+
+		expect(served.status).toBe(400);
+		expect(asked).toEqual([]);
+	});
+
+	test('an asset call from a credential nobody here holds is refused', async () => {
+		const { dispatch } = dispatchThatKnows({});
+
+		const served = await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'asset.picture',
+			body: { actor: { kind: 'mattermost-token', secret: 'stranger' } }
+		});
+
+		expect(served.status).toBe(403);
 	});
 });
 
@@ -191,5 +265,30 @@ describe('serveCall for mail', () => {
 
 		expect(served.status).toBe(409);
 		expect(asked.map((entry) => entry.capability)).toEqual(['person.identity']);
+	});
+});
+
+describe('answerBodyOf', () => {
+	test('carries the reason a service wrote as plain text', async () => {
+		const refused = new Response('workspace access required', { status: 403 });
+
+		expect(await answerBodyOf(refused)).toEqual({ error: 'workspace access required' });
+	});
+
+	test('reads a JSON answer as itself', async () => {
+		const answered = new Response(JSON.stringify({ roots: [] }), {
+			status: 200,
+			headers: { 'content-type': 'application/json' }
+		});
+
+		expect(await answerBodyOf(answered)).toEqual({ roots: [] });
+	});
+
+	test('leaves a body that says nothing as nothing', async () => {
+		expect(await answerBodyOf(new Response('', { status: 204 }))).toBe(null);
+	});
+
+	test('keeps plain text that came back with a success', async () => {
+		expect(await answerBodyOf(new Response('done', { status: 200 }))).toBe('done');
 	});
 });

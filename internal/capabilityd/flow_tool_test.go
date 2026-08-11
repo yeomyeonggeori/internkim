@@ -91,12 +91,58 @@ func TestResolveFlowOwnerReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestResolveFlowOwnerRejectsContainedNameMatch(t *testing.T) {
-	members := []flowMemberForTool{{ID: "kim", Name: "김인턴", Email: "kim@example.com", MattermostUsername: "internkim"}}
-	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "인턴"}, "", members)
+func sampleFlowMembers() []flowMemberForTool {
+	return []flowMemberForTool{
+		{ID: "person-sample", Name: "이샘플", Email: "sample@example.com", MattermostUsername: "sampleuser"},
+		{ID: "person-specimen", Name: "최견본", Email: "specimen@example.com", MattermostUsername: "specimenuser"},
+	}
+}
+
+func TestResolveFlowOwnerAcceptsUniqueNameFragment(t *testing.T) {
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "견본"}, "", sampleFlowMembers())
+
+	if resolution.OwnerID != "person-specimen" {
+		t.Fatalf("resolution = %+v", resolution)
+	}
+}
+
+func TestResolveFlowOwnerOffersCandidatesForAmbiguousNameFragment(t *testing.T) {
+	members := []flowMemberForTool{
+		{ID: "person-example", Name: "박예시", Email: "example@example.com", MattermostUsername: "exampleuser"},
+		{ID: "person-other-example", Name: "이예시", Email: "other@example.com", MattermostUsername: "otheruser"},
+	}
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "예시"}, "", members)
+
+	if resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_ambiguous" || len(resolution.Failure.Candidates) != 2 {
+		t.Fatalf("resolution = %+v", resolution)
+	}
+}
+
+func TestResolveFlowOwnerRejectsHintContainingTheName(t *testing.T) {
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "최견본이랑 방금 운동함"}, "", sampleFlowMembers())
 
 	if resolution.OwnerID != "" || resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_not_found" {
 		t.Fatalf("resolution = %+v", resolution)
+	}
+}
+
+func TestResolveFlowOwnerKeepsHandleAndEmailExact(t *testing.T) {
+	for _, personHint := range []string{"specimenuser", "specimen", "@specimen", "specimen@exam", "example.com"} {
+		resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: personHint}, "", sampleFlowMembers())
+		if resolution.OwnerID != "" || resolution.Failure == nil {
+			t.Fatalf("personHint %q resolved to %+v", personHint, resolution)
+		}
+	}
+}
+
+func TestResolveFlowOwnerNotFoundListsTheRoster(t *testing.T) {
+	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: "박예시"}, "", sampleFlowMembers())
+
+	if resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_not_found" {
+		t.Fatalf("resolution = %+v", resolution)
+	}
+	if len(resolution.Failure.Candidates) != 2 || resolution.Failure.Candidates[0].Mention != "@sampleuser" {
+		t.Fatalf("candidates = %+v", resolution.Failure.Candidates)
 	}
 }
 
@@ -114,11 +160,23 @@ func TestResolveFlowParticipantIDsUsesSharedPersonHints(t *testing.T) {
 	}
 }
 
-func TestResolveFlowParticipantIDsRejectsContainedNameMatch(t *testing.T) {
-	members := []flowMemberForTool{{ID: "kim", Name: "김인턴", Email: "kim@example.com", MattermostUsername: "internkim"}}
-	participantIDs, failure := resolveFlowParticipantIDs([]string{"인턴"}, "owner", members)
+func TestResolveFlowParticipantIDsAcceptsUniqueNameFragment(t *testing.T) {
+	participantIDs, failure := resolveFlowParticipantIDs([]string{"견본"}, "person-sample", sampleFlowMembers())
+	if failure != nil {
+		t.Fatal(failure)
+	}
+	if len(participantIDs) != 2 || participantIDs[1] != "person-specimen" {
+		t.Fatalf("participantIDs = %+v", participantIDs)
+	}
+}
+
+func TestResolveFlowParticipantIDsNotFoundListsTheRoster(t *testing.T) {
+	participantIDs, failure := resolveFlowParticipantIDs([]string{"박예시"}, "person-sample", sampleFlowMembers())
 	if participantIDs != nil || failure == nil || failure.ErrorCode != "flow_participant_not_found" {
 		t.Fatalf("participantIDs=%+v failure=%+v", participantIDs, failure)
+	}
+	if len(failure.Candidates) != 2 || failure.Candidates[0].Mention != "@sampleuser" {
+		t.Fatalf("candidates = %+v", failure.Candidates)
 	}
 }
 
@@ -1142,8 +1200,8 @@ func TestNormalizeFlowStatusFilter(t *testing.T) {
 		"done": "완료", "완료": "완료", "in progress": "진행",
 		"": "", "임의값": "임의값",
 	} {
-		if normalized := normalizeFlowStatusFilter(input); normalized != expected {
-			t.Fatalf("normalizeFlowStatusFilter(%q) = %q, want %q", input, normalized, expected)
+		if normalized := normalizeFlowStatus(input); normalized != expected {
+			t.Fatalf("normalizeFlowStatus(%q) = %q, want %q", input, normalized, expected)
 		}
 	}
 }
@@ -1438,5 +1496,44 @@ func flowToolJSONResponse(document string) *http.Response {
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(document)),
+	}
+}
+
+func TestFlowTaskAddTakesTheStatusesTheSchemaPromises(t *testing.T) {
+	for _, promised := range []struct{ english, stored string }{
+		{"planned", "예정"},
+		{"in_progress", "진행"},
+		{"completed", "완료"},
+		{"paused", "일시정지"},
+		{"rejected", "기각"},
+		{"cancelled", "중단"},
+	} {
+		document := json.RawMessage(`{"title":"운동","status":"` + promised.english + `"}`)
+		input, errorValue := decodeFlowTaskAddInput(document)
+		if errorValue != nil {
+			t.Fatalf("the schema offers %q and the tool refused it: %v", promised.english, errorValue)
+		}
+		if input.Status != promised.stored {
+			t.Fatalf("%q became %q, expected %q", promised.english, input.Status, promised.stored)
+		}
+	}
+}
+
+func TestFlowTaskUpdateTakesTheStatusesTheSchemaPromises(t *testing.T) {
+	document := json.RawMessage(`{"taskHint":"운동","status":"completed"}`)
+
+	input, errorValue := decodeFlowTaskUpdateInput(document)
+
+	if errorValue != nil {
+		t.Fatalf("task_update refused a status its schema offers: %v", errorValue)
+	}
+	if input.Status == nil || *input.Status != "완료" {
+		t.Fatalf("status = %v", input.Status)
+	}
+}
+
+func TestFlowTaskAddStillRefusesAStatusNobodyOffers(t *testing.T) {
+	if _, errorValue := decodeFlowTaskAddInput(json.RawMessage(`{"title":"운동","status":"nonsense"}`)); errorValue == nil {
+		t.Fatal("a status outside the vocabulary must still be refused")
 	}
 }
