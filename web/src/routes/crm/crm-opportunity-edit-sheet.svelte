@@ -102,6 +102,10 @@
 	async function save(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
 		if (!opportunity || !name.trim()) return;
+		if (!accountID && contactIDs.length === 0) {
+			errorMessage = text.opportunityCustomerRequired;
+			return;
+		}
 		if (stageOutcome === 'lost' && !lostReason) {
 			errorMessage = text.lostReasonRequired;
 			return;
