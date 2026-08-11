@@ -680,3 +680,59 @@ func TestVerifyGuestProtocolIdentityStampAcceptsTheCurrentStamp(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 }
+
+func TestSeedWorkspaceRuntimeConfigurationCreatesTheCopyTheGuestBootsFrom(t *testing.T) {
+	rootPath := t.TempDir()
+	hostPath := filepath.Join(rootPath, "config", "runtime.json")
+	workspacePath := filepath.Join(rootPath, "workspace", ".blueclaw", "config", "runtime.json")
+	if errorValue := os.MkdirAll(filepath.Dir(hostPath), 0o750); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(hostPath, []byte(`{"capabilities":{"aggregateProtocolHash":"abc123"}}`), 0o640); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	target := blueclawPayloadInstallTarget{Name: "blueclaw", RuntimeConfigurationPath: hostPath, WorkspaceRuntimeConfigurationPath: workspacePath}
+
+	if !workspaceRuntimeConfigurationIsMissing(target) {
+		t.Fatal("a workspace without the guest copy must not read as current")
+	}
+	if isBlueclawRuntimeConfigurationCurrentForTarget(target) {
+		t.Fatal("a missing guest copy must make the target stale")
+	}
+	if errorValue := seedWorkspaceRuntimeConfiguration(target); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	document, errorValue := os.ReadFile(workspacePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(string(document), "abc123") {
+		t.Fatalf("seeded document = %s", string(document))
+	}
+	if workspaceRuntimeConfigurationIsMissing(target) {
+		t.Fatal("the seeded copy must settle the staleness that triggered it")
+	}
+}
+
+func TestSeedWorkspaceRuntimeConfigurationLeavesAnExistingCopyAlone(t *testing.T) {
+	rootPath := t.TempDir()
+	hostPath := filepath.Join(rootPath, "runtime.json")
+	workspacePath := filepath.Join(rootPath, "workspace-runtime.json")
+	if errorValue := os.WriteFile(hostPath, []byte(`{"capabilities":{"aggregateProtocolHash":"host"}}`), 0o640); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(workspacePath, []byte(`{"capabilities":{"aggregateProtocolHash":"guest"}}`), 0o640); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	target := blueclawPayloadInstallTarget{Name: "blueclaw", RuntimeConfigurationPath: hostPath, WorkspaceRuntimeConfigurationPath: workspacePath}
+
+	if errorValue := seedWorkspaceRuntimeConfiguration(target); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	document, _ := os.ReadFile(workspacePath)
+	if !strings.Contains(string(document), "guest") {
+		t.Fatalf("seeding must not overwrite an existing guest copy: %s", string(document))
+	}
+}
