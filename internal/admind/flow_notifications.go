@@ -82,11 +82,7 @@ func (service *Service) upsertFlowMattermostNotification(ctx context.Context, ad
 		return task, errorValue
 	}
 	if !found || strings.TrimSpace(postRecord.UserID) != botUserID {
-		task, errorValue = service.deleteFlowMattermostNotification(ctx, adminToken, task)
-		if errorValue != nil {
-			return task, errorValue
-		}
-		return service.createFlowMattermostNotification(ctx, botToken, channelID, task, mattermostUsers)
+		return service.replaceOrRetireFlowMattermostNotification(ctx, adminToken, botToken, channelID, task, mattermostUsers)
 	}
 	body := map[string]any{
 		"message": service.flowMattermostNotificationMessage(task, mattermostUsers),
@@ -97,13 +93,24 @@ func (service *Service) upsertFlowMattermostNotification(ctx context.Context, ad
 		if !isMattermostNotFound(errorValue) && !isMattermostForbidden(errorValue) {
 			return task, errorValue
 		}
-		task, errorValue = service.deleteFlowMattermostNotification(ctx, adminToken, task)
-		if errorValue != nil {
-			return task, errorValue
-		}
-		return service.createFlowMattermostNotification(ctx, botToken, channelID, task, mattermostUsers)
+		return service.replaceOrRetireFlowMattermostNotification(ctx, adminToken, botToken, channelID, task, mattermostUsers)
 	}
 	return task, nil
+}
+
+func (service *Service) replaceOrRetireFlowMattermostNotification(ctx context.Context, adminToken string, botToken string, channelID string, task flowTask, mattermostUsers []mattermostUserRecord) (flowTask, error) {
+	task, errorValue := service.deleteFlowMattermostNotification(ctx, adminToken, task)
+	if errorValue != nil {
+		return task, errorValue
+	}
+	hasPendingProjection, errorValue := service.hasPendingFlowMattermostProjection(ctx, task.ID)
+	if errorValue != nil {
+		return task, errorValue
+	}
+	if !hasPendingProjection {
+		return task, nil
+	}
+	return service.createFlowMattermostNotification(ctx, botToken, channelID, task, mattermostUsers)
 }
 
 func (service *Service) mattermostPostByID(ctx context.Context, token string, postID string) (mattermostPostRecord, bool, error) {
