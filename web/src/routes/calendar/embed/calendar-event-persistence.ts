@@ -5,6 +5,7 @@ import {
 	supabaseCalendarEvents
 } from '$lib/calendar/supabase-calendar';
 import { isSupabaseConfigured } from '$lib/supabase';
+import type { Locale } from '$lib/i18n/locale.svelte';
 
 export type CalendarEvent = {
 	id: string;
@@ -26,6 +27,8 @@ export type CalendarEvent = {
 	updatedByImage?: string;
 	updatedByAt?: string;
 	updatedAt: string;
+	readOnly?: boolean;
+	source?: string;
 };
 
 export type CalendarEventPayload = {
@@ -80,11 +83,17 @@ export function isCalendarPersistenceErrorCode(
 	return error instanceof CalendarPersistenceError && error.code === code;
 }
 
-export async function fetchCalendarEvents(startDate: Date, endDate: Date, errorFallback: string): Promise<CalendarEvent[]> {
-	if (isSupabaseConfigured()) return supabaseCalendarEvents(startDate, endDate);
+export async function fetchCalendarEvents(
+	startDate: Date,
+	endDate: Date,
+	errorFallback: string,
+	locale: Locale = 'ko'
+): Promise<CalendarEvent[]> {
+	if (isSupabaseConfigured()) return supabaseCalendarEvents(startDate, endDate, locale);
 	const query = new URLSearchParams({
 		startISO: startDate.toISOString(),
-		endISO: endDate.toISOString()
+		endISO: endDate.toISOString(),
+		locale
 	});
 	const response = await fetch(`/calendar/api/events?${query}`, { credentials: 'include' });
 	if (!response.ok) throw new Error(await responseErrorMessage(response, errorFallback));
