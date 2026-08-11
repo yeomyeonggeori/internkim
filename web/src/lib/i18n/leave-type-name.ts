@@ -27,3 +27,9 @@ export function localizedLeaveTypeName(id: string, name: string, locale: Locale)
 	if (normalizedName !== names.ko && normalizedName !== names.en) return name;
 	return names[locale];
 }
+
+export function localizedLeaveUnitName(days: number, locale: Locale): string {
+	if (days <= 0.25) return locale === 'ko' ? '반반차' : 'Quarter-day leave';
+	if (days <= 0.5) return locale === 'ko' ? '반차' : 'Half-day leave';
+	return locale === 'ko' ? '휴가' : 'Leave';
+}

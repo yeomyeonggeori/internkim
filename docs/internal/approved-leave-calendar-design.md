@@ -48,8 +48,11 @@ only the identifier, member, kind, deduction, status, and interval. The leave
 note is not part of the calendar payload.
 
 Each leave row becomes a calendar event with an ID prefixed by `leave:`. Local
-midnight boundaries produce an all-day event. Other boundaries produce a timed
-event. The event title contains the member display name and leave kind.
+dates are derived from the interval in the company time zone. Rows deducting
+more than half a day use the all-day lane, including legacy rows stored at UTC
+midnight. Half-day and quarter-day rows keep their stored times. Canonical and
+legacy leave kinds use localized unit labels, while custom kinds keep their
+configured names.
 
 ## Read-only behavior
 
@@ -72,13 +75,12 @@ access allowed by the existing policy.
 Automated coverage includes:
 
 - full-day, morning half-day, afternoon half-day, and custom quarter-day range
-  persistence;
-- approved-only filtering and visible-range overlap;
+  calculation and reconstruction;
 - all-day and timed calendar mapping;
 - read-only metadata and collision-free IDs;
 - absence of leave notes from calendar payloads;
 - preservation of existing task events.
 
-The browser scenario signs in against the local central plane, creates and
-approves representative leave, opens Calendar, and checks placement and
-read-only behavior. Requested and rejected leave remain absent.
+The manual local-central-plane scenario signs in, creates and approves
+representative leave, opens Calendar, and checks placement, localization, and
+read-only behavior. It also confirms that requested leave remains absent.
