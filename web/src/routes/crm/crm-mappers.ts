@@ -164,7 +164,7 @@ export function opportunityPayloadFromDraft(
 		dueAt: draft.targetDate ? localDateToUTC(draft.targetDate, timeZone) : '',
 		dueTimeZone: draft.targetDate ? timeZone : '',
 		description: draft.description,
-		contacts: []
+		contacts: draft.contacts.map((contact) => ({ ...contact }))
 	};
 }
 
