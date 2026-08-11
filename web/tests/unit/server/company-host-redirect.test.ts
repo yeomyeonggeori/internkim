@@ -1,24 +1,31 @@
 import { describe, expect, test } from 'bun:test';
-import { movesToTheOneAddress } from '../../../src/lib/server/company-host-redirect';
+import {
+	apiHostnameOf,
+	appHostnameOf,
+	movesToTheOneAddress
+} from '../../../src/lib/server/company-host-redirect';
 
 const zone = 'intern.kim';
-const apiHostname = 'api.intern.kim';
 
 function asks(hostname: string): boolean {
-	return movesToTheOneAddress({ hostname, zone, apiHostname });
+	return movesToTheOneAddress({ hostname, zone });
 }
 
 describe('the one address every company signs in at', () => {
-	test('moves a company subdomain to the zone', () => {
+	test('moves a company subdomain to the app host', () => {
 		expect(asks('dawnstreet.intern.kim')).toBe(true);
 	});
 
-	test('leaves the zone itself alone', () => {
-		expect(asks('intern.kim')).toBe(false);
+	test('leaves the app host itself alone', () => {
+		expect(asks(appHostnameOf(zone))).toBe(false);
 	});
 
 	test('leaves the api host alone, because the same project serves it', () => {
-		expect(asks('api.intern.kim')).toBe(false);
+		expect(asks(apiHostnameOf(zone))).toBe(false);
+	});
+
+	test('leaves the zone alone, because another site answers there', () => {
+		expect(asks('intern.kim')).toBe(false);
 	});
 
 	test('leaves a preview deployment alone', () => {
@@ -40,6 +47,13 @@ describe('the one address every company signs in at', () => {
 	});
 
 	test('stays put when no zone is configured, rather than moving somewhere wrong', () => {
-		expect(movesToTheOneAddress({ hostname: 'dawnstreet.intern.kim', zone: '', apiHostname: '' })).toBe(false);
+		expect(movesToTheOneAddress({ hostname: 'dawnstreet.intern.kim', zone: '' })).toBe(false);
+	});
+});
+
+describe('the hosts derived from the zone', () => {
+	test('names them from the zone rather than spelling them out', () => {
+		expect(appHostnameOf('example.test')).toBe('app.example.test');
+		expect(apiHostnameOf('example.test')).toBe('api.example.test');
 	});
 });
