@@ -6,6 +6,7 @@ import type { AppRailItem } from '$lib/components/app-rail-types';
 import { appShellText } from '$lib/i18n/app-shell-text';
 import { createPageText } from '$lib/i18n/page-text.svelte';
 import { isSupabaseConfigured, signOutOfSupabase, supabaseMember } from '$lib/supabase-session';
+import { companyPathOf, routePathOf } from '$lib/company-path';
 import { isMessengerConnected } from '$lib/messenger/messenger-directory';
 import type { UserRole } from '$lib/types';
 import type { WebAuthSession } from '$lib/web-auth-session';
@@ -42,38 +43,40 @@ class AppNavigation {
 	canViewTasks = $state(false);
 	isPocSuperAdmin = $state(false);
 	hasMessenger = $state(false);
+	companySlug = $state('');
 
-	currentPath = $derived(page.url.pathname);
+	currentPath = $derived(routePathOf(page.url.pathname));
+	link = (path: string) => companyPathOf(this.companySlug, path);
 	displayUserName = $derived(this.userName || text.workspace);
 
 	apps = $derived<AppRailItem[]>([
-		...(this.hasMessenger ? [{ href: '/messenger/', label: text.messenger, icon: MessagesSquareIcon }] : []),
-		{ href: '/flow/', label: text.flow, icon: ListChecksIcon, badgeCount: appBadgeCounts.requestedTasks },
-		{ href: '/memory/', label: text.memory, icon: BrainIcon },
-		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon, badgeCount: appBadgeCounts.participatingEvents },
-		{ href: '/mail/', label: text.mail, icon: MailIcon },
-		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon },
-		{ href: '/organization/', label: text.organization, icon: NetworkIcon },
-		{ href: '/files/', label: text.files, icon: FolderOpenIcon }
+		...(this.hasMessenger ? [{ href: this.link('/messenger/'), label: text.messenger, icon: MessagesSquareIcon }] : []),
+		{ href: this.link('/flow/'), label: text.flow, icon: ListChecksIcon, badgeCount: appBadgeCounts.requestedTasks },
+		{ href: this.link('/memory/'), label: text.memory, icon: BrainIcon },
+		{ href: this.link('/calendar/'), label: text.calendar, icon: CalendarDaysIcon, badgeCount: appBadgeCounts.participatingEvents },
+		{ href: this.link('/mail/'), label: text.mail, icon: MailIcon },
+		{ href: this.link('/attendance/'), label: text.attendance, icon: ClipboardCheckIcon },
+		{ href: this.link('/organization/'), label: text.organization, icon: NetworkIcon },
+		{ href: this.link('/files/'), label: text.files, icon: FolderOpenIcon }
 	]);
 
 	workspace = $derived<AppRailItem[]>([
 		...(this.canViewTasks
 			? [
 					{
-						href: this.isPocSuperAdmin ? '/poc-admin/' : '/tasks/',
+						href: this.link(this.isPocSuperAdmin ? '/poc-admin/' : '/tasks/'),
 						label: this.isPocSuperAdmin ? text.pocAdmin : text.tasks,
 						icon: ActivityIcon
 					}
 				]
 			: []),
-		{ href: '/settings/', label: text.settings, icon: CogIcon }
+		{ href: this.link('/settings/'), label: text.settings, icon: CogIcon }
 	]);
 
 	contactItem = $derived<AppRailItem>({ href: feedbackFormURL, label: text.contact, icon: CircleHelpIcon });
 
 	isActive = (href: string) => {
-		const base = href.replace(/\/$/, '');
+		const base = routePathOf(href).replace(/\/$/, '');
 		return this.currentPath === base || this.currentPath.startsWith(`${base}/`);
 	};
 
@@ -91,6 +94,7 @@ class AppNavigation {
 			const member = await supabaseMember();
 			this.userMemberID = member.memberID;
 			this.adminRole = member.role;
+			this.companySlug = member.companySlug;
 			this.hasMessenger = await isMessengerConnected();
 			return;
 		}

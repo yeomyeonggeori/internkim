@@ -26,16 +26,16 @@
 	const sidebar = useSidebar();
 
 	const mobilePrimaryItems = $derived<AppMobileNavigationItem[]>([
-		{ href: '/mail/', label: text.mail, icon: MailIcon },
-		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon },
-		{ href: '/flow/', label: text.flow, icon: ListChecksIcon },
-		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon }
+		{ href: appNavigation.link('/mail/'), label: text.mail, icon: MailIcon },
+		{ href: appNavigation.link('/attendance/'), label: text.attendance, icon: ClipboardCheckIcon },
+		{ href: appNavigation.link('/flow/'), label: text.flow, icon: ListChecksIcon },
+		{ href: appNavigation.link('/calendar/'), label: text.calendar, icon: CalendarDaysIcon }
 	]);
 
 	const mobileMoreItems = $derived<AppMobileNavigationItem[]>([
-		{ href: '/memory/', label: text.memory, icon: NetworkIcon },
-		{ href: '/organization/', label: text.organization, icon: UsersRoundIcon },
-		{ href: '/files/', label: text.files, icon: FolderOpenIcon },
+		{ href: appNavigation.link('/memory/'), label: text.memory, icon: NetworkIcon },
+		{ href: appNavigation.link('/organization/'), label: text.organization, icon: UsersRoundIcon },
+		{ href: appNavigation.link('/files/'), label: text.files, icon: FolderOpenIcon },
 		...appNavigation.workspace
 	]);
 
