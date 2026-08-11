@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(6);
+select plan(7);
 
 insert into auth.users (id, email) values
 	('10000000-0000-0000-0000-000000000001', 'capacity-a@example.com'),
@@ -72,6 +72,16 @@ select is(
 	(select count(*) from public.attendance_work_policies()),
 	2::bigint,
 	'attendance work policies resolve every visible colleague through member fallback functions'
+);
+
+select is(
+	(
+		select work_calendar
+		from public.attendance_work_policies()
+		where member_id = '10000000-0000-0000-0000-000000000011'
+	),
+	'[{"date":"2027-01-01","workMode":"fixed","workingDate":false}]'::jsonb,
+	'attendance work policies expose the stored date-level projection'
 );
 
 select * from finish();

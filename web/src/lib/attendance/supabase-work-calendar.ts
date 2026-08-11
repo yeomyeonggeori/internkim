@@ -1,7 +1,30 @@
+import type { AttendanceWorkMode } from '$lib/attendance/work-mode';
+
 const millisecondsPerDay = 24 * 60 * 60 * 1000;
 const cycleAnchorMilliseconds = Date.parse('2000-01-03T00:00:00Z');
 
 export type WorkHoursCycle = unknown[][] | null;
+export type ProjectedWorkCalendarDay = {
+	date: string;
+	workMode: AttendanceWorkMode;
+	workingDate: boolean;
+};
+export type WorkCalendarProjection = ProjectedWorkCalendarDay[] | null;
+
+export function resolvedWorkCalendarDay(
+	day: string,
+	workHours: WorkHoursCycle,
+	workMode: AttendanceWorkMode,
+	workCalendar: WorkCalendarProjection
+): ProjectedWorkCalendarDay {
+	const projected = workCalendar?.find((candidate) => candidate.date === day);
+	if (projected) return projected;
+	return {
+		date: day,
+		workMode,
+		workingDate: isScheduledWorkingDate(day, workHours)
+	};
+}
 
 export function isScheduledWorkingDate(
 	day: string,
