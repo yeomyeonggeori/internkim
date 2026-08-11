@@ -5,6 +5,7 @@
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import HashIcon from '@lucide/svelte/icons/hash';
+	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import {
@@ -128,6 +129,18 @@
 		conversations.find((conversation) => conversation.id === activeID)
 	);
 
+	function platformLabel(platform: string): string {
+		return platform.charAt(0).toUpperCase() + platform.slice(1);
+	}
+
+	const openOnPlatform = $derived.by(() => {
+		if (!activeConversation?.webURL || !activeConversation.platform) return null;
+		return {
+			url: activeConversation.webURL,
+			label: text.openInPlatform.replace('{platform}', platformLabel(activeConversation.platform))
+		};
+	});
+
 	$effect(() => {
 		breadcrumbMeta.value = activeConversation?.name ?? '';
 		return () => {
@@ -228,6 +241,27 @@
 						</Sidebar.GroupContent>
 					</Sidebar.Group>
 				</Sidebar.Content>
+				{#if openOnPlatform}
+					<Sidebar.Footer>
+						<Sidebar.Menu>
+							<Sidebar.MenuItem>
+								<Sidebar.MenuButton>
+									{#snippet child({ props })}
+										<a
+											{...props}
+											href={openOnPlatform.url}
+											target="_blank"
+											rel="noreferrer noopener"
+										>
+											<ExternalLinkIcon />
+											<span>{openOnPlatform.label}</span>
+										</a>
+									{/snippet}
+								</Sidebar.MenuButton>
+							</Sidebar.MenuItem>
+						</Sidebar.Menu>
+					</Sidebar.Footer>
+				{/if}
 			</Sidebar.Root>
 		</Sidebar.Provider>
 		<div class="flex min-h-0 min-w-0 flex-1 flex-col">

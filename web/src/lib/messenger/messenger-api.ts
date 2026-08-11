@@ -12,6 +12,7 @@ export type MessengerChannel = {
 	isDirect: boolean;
 	position: number;
 	participants: MessengerPerson[];
+	webURL?: string;
 };
 
 export type MessengerReaction = {
@@ -44,6 +45,7 @@ type PersonalConversation = {
 	kind: 'dm' | 'group';
 	avatarURL?: string;
 	participantExternalIDs?: string[];
+	webURL?: string;
 };
 type PersonalReaction = { emoji: string; byExternalIDs: string[] };
 type PersonalMessage = {
@@ -77,7 +79,8 @@ export function asChannel(conversation: PersonalConversation, position: number):
 		name: conversation.name,
 		isDirect: conversation.kind === 'dm',
 		position,
-		participants: (conversation.participantExternalIDs ?? []).map((externalID) => ({ externalID }))
+		participants: (conversation.participantExternalIDs ?? []).map((externalID) => ({ externalID })),
+		webURL: conversation.webURL
 	};
 }
 
