@@ -5,6 +5,7 @@
 		forgetPasskey,
 		isPasskeySupported,
 		listPasskeys,
+		passkeyFailureText,
 		refusalOf,
 		registerPasskey,
 		type Passkey
@@ -55,7 +56,7 @@
 		} catch (error) {
 			const refusal = refusalOf(error);
 			if (refusal === 'already-registered') toast.error(text.passkeyAlreadyRegistered);
-			else if (refusal === 'failed') toast.error(text.passkeyFailed);
+			else if (refusal === 'failed') toast.error(passkeyFailureText(text.passkeyFailed, error));
 		} finally {
 			isRegistering = false;
 		}
