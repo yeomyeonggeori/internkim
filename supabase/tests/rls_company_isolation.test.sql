@@ -662,8 +662,8 @@ begin
     values (unregistered_company_member, 'clock_in', 'A client office', base + interval '8 minutes');
 
   select location into free_location
-    from public.attendance where member_id = unregistered_company_member
-    order by occurred_at desc limit 1;
+    from public.attendance
+    where member_id = unregistered_company_member and occurred_at = base + interval '8 minutes';
   assert free_location = 'A client office',
     'a company with no registered locations accepts any location';
 
