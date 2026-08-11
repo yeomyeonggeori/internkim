@@ -13,8 +13,15 @@ describe('attendanceWorkModeFromDevice', () => {
 		expect(attendanceWorkModeFromDevice('fixed')).toBe('fixed');
 		expect(attendanceWorkModeFromDevice('flexible')).toBe('flexible');
 		expect(attendanceWorkModeFromDevice('autonomous')).toBe('autonomous');
+	});
+
+	test('keeps reconciling when an earlier device has no work mode projection', () => {
+		expect(attendanceWorkModeFromDevice(undefined)).toBe(undefined);
+	});
+
+	test('rejects a malformed work mode projection', () => {
 		expect(() => attendanceWorkModeFromDevice('hybrid')).toThrow('workMode');
-		expect(() => attendanceWorkModeFromDevice(undefined)).toThrow('workMode');
+		expect(() => attendanceWorkModeFromDevice(null)).toThrow('workMode');
 	});
 });
 

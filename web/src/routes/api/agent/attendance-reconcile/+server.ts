@@ -39,7 +39,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const to = moment(asked.to, 'to');
 	if (from >= to) error(400, 'the window ends before it begins');
 	const workMode = askedWorkMode(asked.workMode);
-	await saveAttendanceWorkMode(client, companyID, workMode);
+	if (workMode !== undefined) await saveAttendanceWorkMode(client, companyID, workMode);
 
 	const memberOf = await membersOfCompanyByExternalID(client, companyID, askedPlatform(asked.platform));
 	const byMember = groupByMember(asked.events, memberOf, from, to);
