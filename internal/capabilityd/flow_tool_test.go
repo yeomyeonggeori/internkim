@@ -1549,3 +1549,32 @@ func TestFlowTaskAddStillRefusesAStatusNobodyOffers(t *testing.T) {
 		t.Fatal("a status outside the vocabulary must still be refused")
 	}
 }
+
+func TestPersonListReturnsTheRosterHintsResolveAgainst(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/flow/api/state" {
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			}
+			return flowToolJSONResponse(`{"members":[{"id":"person-sample","name":"이샘플","email":"sample@example.com","mattermostUsername":"sampleuser"}]}`), nil
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "person_list",
+		Input:    []byte(`{}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "sample@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.IsError {
+		t.Fatalf("response = %+v", response)
+	}
+	for _, expected := range []string{`"count":1`, `"personID":"person-sample"`, `"name":"이샘플"`, `"mention":"@sampleuser"`} {
+		if !strings.Contains(string(response.Result), expected) {
+			t.Fatalf("result missing %s: %s", expected, string(response.Result))
+		}
+	}
+}

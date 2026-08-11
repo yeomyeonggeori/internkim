@@ -1,7 +1,7 @@
 ---
 name: internkim-flow
 description: Add, find, update, or complete weekly work items when the user asks to add, record, request, find, change, or complete work, todos, 업무, deadlines, or task notes.
-tool-references: task_add task_list task_definitions task_update task_delete
+tool-references: task_add task_list task_definitions task_update task_delete person_list
 ---
 
 # 업무 관리
@@ -17,6 +17,7 @@ Use the typed work capability operations for work items; descriptors define fiel
 - `task_update` and `task_delete` take a single `taskHint`: the exact task ID or the exact task title from a task_list result, resolved server-side to the canonical task. Use `task_list` first when neither is known precisely; if the hint does not uniquely resolve, the runtime fails with a candidates list — retry with the exact ID or title from it instead of guessing.
 - Update with at least one mutable field; completion sets status to `완료`. Delete only on explicit request, passing the exact ID or title as `taskHint`. Approval authorizes deletion but does not identify the target.
 - Current-week listing is the default. Use week offsets for another period, including `weekFrom -1, weekTo -1` for last week, `weekFrom -3, weekTo 0` for the last four weeks, and a wide range such as `weekFrom -520` for history.
+- A person hint resolves against the workspace roster: an exact ID, email, or @handle, otherwise a name that uniquely contains the hint. When a message names someone by a given name alone or by a fragment, call `person_list` and pass the exact name it returns. If a hint matches several people, the runtime returns the candidates and requires `ask_input` — the user chooses, never you.
 - `task_definitions` lists the businesses, task types, sizes, and statuses this workspace accepts. Call it before writing a business or type you have not seen in a `task_list` result, and before bringing records in from another system; a value outside these lists is rejected.
 
 ## Replies and failures
