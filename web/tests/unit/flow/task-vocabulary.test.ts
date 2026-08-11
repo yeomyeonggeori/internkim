@@ -24,8 +24,13 @@ describe('flowDefinitionsOf', () => {
 		expect(definitions.categories).toEqual(['오토케']);
 		expect(definitions.categoryColors?.['오토케']).toBe('#111111');
 		expect(definitions.types).toEqual(['개발']);
-		expect(definitions.typeColors?.['개발']).toMatch(/^hsl\(/);
 		expect(definitions.sizes.map((size) => size.name)).toEqual(['XS', 'S', 'M', 'L', 'XL', 'XXL']);
+	});
+
+	test('leaves a value nobody coloured out of the stored colours', () => {
+		const definitions = flowDefinitionsOf({ types: [{ name: '개발' }, { name: '운영', color: '#222222' }] });
+		expect(definitions.typeColors?.['개발']).toBe(undefined);
+		expect(definitions.typeColors?.['운영']).toBe('#222222');
 	});
 
 	test('sizes are the same for a company that has chosen nothing', () => {

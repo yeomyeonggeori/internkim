@@ -28,7 +28,7 @@ export function flowDefinitionsOf(vocabulary: TaskVocabulary): FlowDefinitions {
 }
 
 function coloursOf(entries: NamedColour[]): Record<string, string> {
-	return Object.fromEntries(entries.map((entry) => [entry.name, colourOf(entry)]));
+	return Object.fromEntries(entries.flatMap((entry) => (entry.color ? [[entry.name, entry.color]] : [])));
 }
 
 export function vocabularyOf(value: unknown): TaskVocabulary {
