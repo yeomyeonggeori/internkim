@@ -131,6 +131,8 @@ func (service Service) invokeFlowTaskTool(ctx context.Context, request capabilit
 		return service.invokeFlowTaskUpdate(ctx, request)
 	case "task_delete":
 		return service.invokeFlowTaskDelete(ctx, request)
+	case "person_list":
+		return service.invokePersonList(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("flow task tool is not configured: %s", request.ToolName)
 	}
