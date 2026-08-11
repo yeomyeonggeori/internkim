@@ -398,11 +398,59 @@ func (service *Service) syncBlueclawWorkspaceImageForTarget(ctx context.Context,
 		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
 		return fmt.Errorf("%s: sync blueclaw workspace image: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
+	if errorValue := service.verifyGuestProtocolIdentityStamp(ctx, target); errorValue != nil {
+		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
+		return fmt.Errorf("%s: %w", target.Name, errorValue)
+	}
 	service.updateJob(jobID, "running", "restarting", "")
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target)); errorValue != nil {
 		return fmt.Errorf("%s: start blueclaw after workspace sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	return nil
+}
+
+// The guest boots from its own copy of the runtime configuration inside the
+// workspace image, not from the host copies admind restamps, so a stamp that
+// fails to cross that boundary is invisible from the host until the guest
+// starts rejecting every capability endpoint and exiting.
+func (service *Service) verifyGuestProtocolIdentityStamp(ctx context.Context, target blueclawPayloadInstallTarget) error {
+	expected := blueclawruntime.CurrentCapabilityContract().AggregateProtocolHash
+	if strings.TrimSpace(expected) == "" {
+		return nil
+	}
+	document, errorValue := service.runCommand(ctx, "sh", "-lc", guestRuntimeConfigurationReadCommand(target.WorkspaceImagePath))
+	if errorValue != nil {
+		log.Printf("Blueclaw guest protocol identity stamp for %s could not be read from %s: %v", target.Name, target.WorkspaceImagePath, errorValue)
+		return nil
+	}
+	stamped, errorValue := stampedGuestProtocolHash(document)
+	if errorValue != nil || stamped == "" {
+		log.Printf("Blueclaw guest protocol identity stamp for %s could not be parsed from %s: %v", target.Name, target.WorkspaceImagePath, errorValue)
+		return nil
+	}
+	if stamped != expected {
+		return fmt.Errorf(
+			"guest runtime configuration still stamps aggregateProtocolHash %q while this release carries %q; the workspace image did not take the restamped configuration",
+			stamped, expected,
+		)
+	}
+	return nil
+}
+
+func guestRuntimeConfigurationReadCommand(workspaceImagePath string) string {
+	return "debugfs -c -R 'cat /.blueclaw/config/runtime.json' " + quoteBlueclawUpdateShellValue(workspaceImagePath) + " 2>/dev/null"
+}
+
+func stampedGuestProtocolHash(document []byte) (string, error) {
+	var runtimeDocument struct {
+		Capabilities struct {
+			AggregateProtocolHash string `json:"aggregateProtocolHash"`
+		} `json:"capabilities"`
+	}
+	if errorValue := json.Unmarshal(document, &runtimeDocument); errorValue != nil {
+		return "", errorValue
+	}
+	return strings.TrimSpace(runtimeDocument.Capabilities.AggregateProtocolHash), nil
 }
 
 func (service *Service) installBlueclawPayloadArtifact(ctx context.Context, jobID string, artifactPath string) error {
@@ -452,6 +500,10 @@ func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Cont
 	installManifestCommand := "install -m 0644 " + quoteBlueclawUpdateShellValue(filepath.Join(artifactPath, "manifest.json")) + " " + quoteBlueclawUpdateShellValue(target.PayloadManifestPath)
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", installManifestCommand); errorValue != nil {
 		return fmt.Errorf("%s: install blueclaw payload manifest: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
+	}
+	if errorValue := service.verifyGuestProtocolIdentityStamp(ctx, target); errorValue != nil {
+		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
+		return fmt.Errorf("%s: %w", target.Name, errorValue)
 	}
 	service.updateJob(jobID, "running", "restarting", "")
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target)); errorValue != nil {
@@ -911,8 +963,12 @@ func blueclawWorkspaceImageHolder(workspaceImagePath string) (string, bool) {
 	if errorValue != nil {
 		return "", false
 	}
+	ownProcessID := strconv.Itoa(os.Getpid())
 	for _, processEntry := range processEntries {
 		if _, errorValue := strconv.Atoi(processEntry.Name()); errorValue != nil {
+			continue
+		}
+		if processEntry.Name() == ownProcessID {
 			continue
 		}
 		descriptorDirectory := filepath.Join("/proc", processEntry.Name(), "fd")
