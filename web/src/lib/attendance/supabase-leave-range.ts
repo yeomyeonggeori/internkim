@@ -33,6 +33,7 @@ type LocalDateTime = {
 
 const lunchStartMinutes = 12 * 60;
 const lunchDurationMinutes = 60;
+const lunchEndMinutes = lunchStartMinutes + lunchDurationMinutes;
 
 export function leavePreviewPeriod(request: EmployeeLeavePreviewRequest): LeavePreviewPeriod {
 	if (request.unit === 'fullDay') {
@@ -100,10 +101,6 @@ export function leaveDisplayRange(
 	};
 }
 
-export function isCompanyAllDayRange(startsAt: string, endsAt: string, timeZone: string): boolean {
-	return isMidnight(localDateTime(startsAt, timeZone)) && isMidnight(localDateTime(endsAt, timeZone));
-}
-
 export function companyDateOfTimestamp(value: string, timeZone: string): string {
 	return dateString(localDateTime(value, timeZone));
 }
@@ -120,8 +117,13 @@ function partialPeriodOf(
 
 function addWorkMinutes(startTime: string, workMinutes: number): string {
 	const [hour, minute] = startTime.split(':').map(Number);
-	let totalMinutes = hour * 60 + minute + workMinutes;
-	if (hour * 60 + minute < lunchStartMinutes && totalMinutes > lunchStartMinutes) {
+	const startMinutes = hour * 60 + minute;
+	const workStartMinutes =
+		startMinutes >= lunchStartMinutes && startMinutes < lunchEndMinutes
+			? lunchEndMinutes
+			: startMinutes;
+	let totalMinutes = workStartMinutes + workMinutes;
+	if (startMinutes < lunchStartMinutes && totalMinutes > lunchStartMinutes) {
 		totalMinutes += lunchDurationMinutes;
 	}
 	if (totalMinutes > 23 * 60 + 59) throw new Error('Leave end time must be within the selected date');
@@ -193,10 +195,6 @@ function shiftedDay(date: string, days: number): string {
 	const moved = new Date(`${date}T00:00:00Z`);
 	moved.setUTCDate(moved.getUTCDate() + days);
 	return moved.toISOString().slice(0, 10);
-}
-
-function isMidnight(value: LocalDateTime): boolean {
-	return value.hour === 0 && value.minute === 0 && value.second === 0;
 }
 
 function isClockTime(value: string): boolean {

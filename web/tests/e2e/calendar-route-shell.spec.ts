@@ -114,7 +114,7 @@ test.describe('calendar route shell', () => {
 						{
 							id: 'leave:partial',
 							uid: 'leave:partial',
-							title: '박예시 · 휴가',
+							title: '박예시 · 반차',
 							description: '',
 							location: '',
 							startISO: '2026-06-15T05:00:00.000Z',
@@ -125,6 +125,23 @@ test.describe('calendar route shell', () => {
 							createdByEmail: 'example@example.com',
 							createdByName: '박예시',
 							updatedAt: '2026-06-15T05:00:00.000Z',
+							readOnly: true,
+							source: 'leave'
+						},
+						{
+							id: 'leave:quarter-day',
+							uid: 'leave:quarter-day',
+							title: '최견본 · 반반차',
+							description: '',
+							location: '',
+							startISO: '2026-06-16T00:00:00.000Z',
+							endISO: '2026-06-16T02:00:00.000Z',
+							timeZone: 'Asia/Seoul',
+							isAllDay: false,
+							color: '',
+							createdByEmail: 'quarter@example.com',
+							createdByName: '최견본',
+							updatedAt: '2026-06-16T00:00:00.000Z',
 							readOnly: true,
 							source: 'leave'
 						}
@@ -141,10 +158,15 @@ test.describe('calendar route shell', () => {
 		const partialLeave = page
 			.locator('[data-calendar-event-id="leave:partial"]:visible')
 			.first();
+		const quarterDayLeave = page
+			.locator('[data-calendar-event-id="leave:quarter-day"]:visible')
+			.first();
 		await expect(fullDayLeave).toContainText('이샘플 · 휴가');
-		await expect(partialLeave).toContainText('박예시 · 휴가');
+		await expect(partialLeave).toContainText('박예시 · 반차');
+		await expect(quarterDayLeave).toContainText('최견본 · 반반차');
 		await expect(fullDayLeave).toHaveAttribute('aria-disabled', 'true');
 		await expect(partialLeave).toHaveAttribute('aria-disabled', 'true');
+		await expect(quarterDayLeave).toHaveAttribute('aria-disabled', 'true');
 		await partialLeave.click({ force: true });
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);

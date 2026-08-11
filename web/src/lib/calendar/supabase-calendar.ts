@@ -2,6 +2,7 @@ import { supabase } from '$lib/supabase';
 import { sizeOfHours, sizeOfWholeDays } from '$lib/flow/task-sizes';
 import type { CalendarEvent, CalendarEventPayload } from '../../routes/calendar/embed/calendar-event-persistence';
 import type { CalendarParticipant } from '../../routes/calendar/embed/calendar-participants';
+import type { Locale } from '../i18n/locale.svelte';
 import { approvedLeaveCalendarEvents } from './supabase-calendar-leave';
 
 type MemberRow = { id: string; name: string | null; email: string | null };
@@ -17,12 +18,16 @@ type EventRow = {
 	task_participant: { member_id: string }[];
 };
 
-export async function supabaseCalendarEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
+export async function supabaseCalendarEvents(
+	startDate: Date,
+	endDate: Date,
+	locale: Locale = 'ko'
+): Promise<CalendarEvent[]> {
 	const members = await membersByID();
 	const timeZone = await companyTimeZone();
 	const [events, leave] = await Promise.all([
 		taskCalendarEvents(startDate, endDate, members, timeZone),
-		approvedLeaveCalendarEvents(startDate, endDate, members, timeZone)
+		approvedLeaveCalendarEvents(startDate, endDate, members, timeZone, locale)
 	]);
 	return [...events, ...leave].sort((left, right) => left.startISO.localeCompare(right.startISO));
 }
