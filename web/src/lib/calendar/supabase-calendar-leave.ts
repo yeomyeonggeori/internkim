@@ -1,7 +1,6 @@
-import {
-	companyDateOfTimestamp,
-	isCompanyAllDayRange
-} from '../attendance/supabase-leave-range';
+import { companyDateOfTimestamp } from '../attendance/supabase-leave-range';
+import { localizedLeaveUnitName } from '../i18n/leave-type-name';
+import type { Locale } from '../i18n/locale.svelte';
 import { supabase } from '../supabase';
 import type { CalendarEvent } from '../../routes/calendar/embed/calendar-event-persistence';
 
@@ -25,7 +24,8 @@ export async function approvedLeaveCalendarEvents(
 	startDate: Date,
 	endDate: Date,
 	members: Map<string, CalendarLeaveMember>,
-	timeZone: string
+	timeZone: string,
+	locale: Locale = 'ko'
 ): Promise<CalendarEvent[]> {
 	const leave = await supabase()
 		.from('leave')
@@ -36,23 +36,24 @@ export async function approvedLeaveCalendarEvents(
 		.order('starts_at')
 		.returns<ApprovedLeaveRow[]>();
 	if (leave.error) throw new Error(`Failed to load approved leave calendar events: ${leave.error.message}`);
-	return leave.data.map((row) => calendarEventFromApprovedLeave(row, members, timeZone));
+	return leave.data.map((row) => calendarEventFromApprovedLeave(row, members, timeZone, locale));
 }
 
 export function calendarEventFromApprovedLeave(
 	leave: ApprovedLeaveRow,
 	members: Map<string, CalendarLeaveMember>,
-	timeZone: string
+	timeZone: string,
+	locale: Locale = 'ko'
 ): CalendarEvent {
 	const member = members.get(leave.member_id);
 	const email = member?.email ?? '';
-	const name = member?.name || email.split('@')[0] || '구성원';
+	const name = member?.name || email.split('@')[0] || (locale === 'ko' ? '구성원' : 'Member');
 	const id = `leave:${leave.id}`;
-	const isAllDay = isCompanyAllDayRange(leave.starts_at, leave.ends_at, timeZone);
+	const isAllDay = leave.days > 0.5;
 	return {
 		id,
 		uid: id,
-		title: `${name} · ${leaveKindLabel(leave.kind)}`,
+		title: `${name} · ${leaveKindLabel(leave.kind, leave.days, locale)}`,
 		description: '',
 		location: '',
 		startISO: isAllDay ? calendarMidnightISO(leave.starts_at, timeZone) : leave.starts_at,
@@ -69,8 +70,9 @@ export function calendarEventFromApprovedLeave(
 	};
 }
 
-function leaveKindLabel(kind: string): string {
-	return kind === 'leave' ? '휴가' : kind;
+function leaveKindLabel(kind: string, days: number, locale: Locale): string {
+	if (kind !== 'leave' && kind !== '연차' && kind !== '반차') return kind;
+	return localizedLeaveUnitName(days, locale);
 }
 
 function calendarMidnightISO(value: string, timeZone: string): string {

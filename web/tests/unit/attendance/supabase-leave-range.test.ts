@@ -36,6 +36,27 @@ describe('leavePreviewPeriod', () => {
 			})
 		).toEqual({ startTime: '11:30', endTime: '14:30', deductionMilliDays: 250 });
 	});
+
+	test('does not count lunch as work when custom leave starts during lunch', () => {
+		expect(
+			leavePreviewPeriod({
+				leaveTypeID: 'leave',
+				unit: 'quarterDay',
+				startDate: '2026-08-03',
+				partialPeriod: 'custom',
+				startTime: '12:00'
+			})
+		).toEqual({ startTime: '12:00', endTime: '15:00', deductionMilliDays: 250 });
+		expect(
+			leavePreviewPeriod({
+				leaveTypeID: 'leave',
+				unit: 'quarterDay',
+				startDate: '2026-08-03',
+				partialPeriod: 'custom',
+				startTime: '12:30'
+			})
+		).toEqual({ startTime: '12:30', endTime: '15:00', deductionMilliDays: 250 });
+	});
 });
 
 describe('leaveTimestampRange', () => {
