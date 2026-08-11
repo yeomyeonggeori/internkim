@@ -19,6 +19,7 @@ type ReconciledEvent struct {
 
 type ReconcileWindow struct {
 	Platform string
+	WorkMode string
 	From     time.Time
 	To       time.Time
 	Events   []ReconciledEvent
@@ -36,6 +37,7 @@ func (client *Client) ReconcileAttendance(ctx context.Context, window ReconcileW
 	}
 	payload, errorValue := json.Marshal(map[string]any{
 		"platform": window.Platform,
+		"workMode": window.WorkMode,
 		"from":     window.From.UTC().Format(time.RFC3339),
 		"to":       window.To.UTC().Format(time.RFC3339),
 		"events":   window.Events,

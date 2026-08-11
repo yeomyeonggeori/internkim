@@ -88,14 +88,16 @@ test.describe('attendance responsive view', () => {
 		const capacityBar = standard.getByTestId('work-standard-capacity-bar');
 		await expect(capacityBar).toHaveAttribute(
 			'aria-label',
-			/실제 근무 01시간 20분, 진행 중 잠정 00시간 00분, 기준 시간 00시간 00분/
+			/실제 근무 01시간 20분, 진행 중 잠정 00시간 00분/
 		);
+		await expect(capacityBar).not.toHaveAttribute('aria-label', /기준 시간/);
 		await expect(standard.getByTestId('work-standard-total')).toHaveText('01시간 20분');
 		await expect(standard.getByTestId('work-standard-leave-segment')).toHaveCount(0);
 		await expect(capacityBar).not.toHaveAttribute('aria-label', /전체 시간|남은 시간/);
-		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute(
+		await expect(standard.getByTestId('work-standard-target-marker')).toHaveCount(0);
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveAttribute(
 			'style',
-			/left:\s*80%/
+			/width:\s*5\.55/
 		);
 		await expect(attendanceSidebar.getByTestId('quick-actions-current-bar')).toHaveAttribute(
 			'data-attendance-progress-bar',
@@ -110,12 +112,16 @@ test.describe('attendance responsive view', () => {
 		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveClass(/bg-yellow-400/);
 		await expect(page.getByTestId('work-standard-bar-tooltip')).toHaveCount(0);
 		await workTimeCard.getByRole('button', { name: '주별' }).click();
-		await expect(standard.getByText(/2026-07-27–2026-08-02/)).toBeVisible();
+		await expect(standard.getByText(/^\d{4}-\d{2}-\d{2}–\d{4}-\d{2}-\d{2}$/)).toBeVisible();
 		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
 			'aria-label',
 			/실제 근무 33시간 20분, 진행 중 잠정 00시간 00분, 기준 시간 32시간 00분/
 		);
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveAttribute(
+			'style',
+			/width:\s*83\.33/
+		);
 		await workTimeCard.getByRole('button', { name: '월별' }).click();
 		await expect(standard.getByText(/2026-05-01–2026-05-31/)).toBeVisible();
 		await expect(standard.getByTestId('work-standard-capacity-bar')).toHaveAttribute(
@@ -123,8 +129,9 @@ test.describe('attendance responsive view', () => {
 			/실제 근무 161시간 20분, 진행 중 잠정 00시간 00분, 기준 시간 160시간 00분/
 		);
 		await expect(standard.getByTestId('work-standard-total-row')).toHaveText(
-			'161시간 20분 / 기준 시간 160시간 00분'
+			'161시간 20분'
 		);
+		await expect(standard.getByText('기준 시간 160시간 00분', { exact: true })).toBeVisible();
 		await expect
 			.poll(() =>
 				standard
@@ -133,6 +140,10 @@ test.describe('attendance responsive view', () => {
 			)
 			.toBe(true);
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute('style', /left:\s*80%/);
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveAttribute(
+			'style',
+			/width:\s*80\.66/
+		);
 	});
 
 	test('distinguishes four work and leave baseline states', async ({ page }) => {
@@ -151,7 +162,15 @@ test.describe('attendance responsive view', () => {
 				requestURL.searchParams.get('period'),
 				requestURL.searchParams.get('anchor')
 			);
-			payload.personal = payload.personal ? { ...payload.personal, ...scenario, nightMinutes: 0 } : undefined;
+			payload.personal = payload.personal
+				? {
+						...payload.personal,
+						...scenario,
+						actualSeconds: scenario.actualMinutes * 60,
+						provisionalSeconds: 0,
+						nightMinutes: 0
+					}
+				: undefined;
 			await route.fulfill({ json: payload });
 		});
 
@@ -175,6 +194,136 @@ test.describe('attendance responsive view', () => {
 			await expect(overtimeRow.getByLabel(currentScenario.overtime ?? '00시간 00분')).toBeVisible();
 			await expect(shortfallRow.getByLabel(currentScenario.shortfall ?? '00시간 00분')).toBeVisible();
 		}
+	});
+
+	test('renders autonomous work time without a baseline target', async ({ page }) => {
+		let actualMinutes = 60;
+		let provisionalMinutes = 30;
+		await page.unroute('**/attendance/api/work-status?**');
+		await page.route('**/attendance/api/work-status?**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const payload = createDevAttendanceWorkStatus(
+				'tester@example.com',
+				requestURL.searchParams.get('period'),
+				requestURL.searchParams.get('anchor')
+			);
+			payload.personal = payload.personal
+				? {
+						...payload.personal,
+						workMode: 'autonomous',
+						hasBaseline: false,
+						targetMinutes: 0,
+						actualMinutes,
+						actualSeconds: actualMinutes * 60,
+						provisionalMinutes,
+						provisionalSeconds: provisionalMinutes * 60,
+						remainingMinutes: 0,
+						overtimeMinutes: 0
+					}
+				: undefined;
+			await route.fulfill({ json: payload });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		const standard = page
+			.getByTestId('attendance-sidebar-scroll')
+			.getByTestId('personal-work-standard');
+		await page
+			.getByTestId('attendance-sidebar-scroll')
+			.getByRole('button', { name: '일별' })
+			.click();
+
+		const capacityBar = standard.getByTestId('work-standard-capacity-bar');
+		await expect(standard.getByTestId('work-standard-total-row')).toHaveText('01시간 30분');
+		await expect(capacityBar).toHaveAttribute(
+			'aria-label',
+			/실제 근무 01시간 00분, 진행 중 잠정 00시간 30분/
+		);
+		await expect(capacityBar).not.toHaveAttribute('aria-label', /기준 시간/);
+		await expect(standard.getByText('기준 시간', { exact: false })).toHaveCount(0);
+		await expect(standard.getByText('기준 없음', { exact: true })).toHaveCount(0);
+		await expect(standard.getByText('휴가', { exact: true })).toHaveCount(0);
+		await expect(standard.getByText('야간 근무', { exact: true })).toHaveCount(0);
+		await expect(standard.getByText('기준 초과', { exact: true })).toHaveCount(0);
+		await expect(standard.getByText('기준 부족', { exact: true })).toHaveCount(0);
+		await expect(standard.getByTestId('work-standard-target-marker')).toHaveCount(0);
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveAttribute(
+			'style',
+			/width:\s*6\.25%/
+		);
+
+		actualMinutes = 1500;
+		provisionalMinutes = 0;
+		await page.reload();
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveAttribute(
+			'style',
+			/width:\s*100%/
+		);
+
+		actualMinutes = 0;
+		provisionalMinutes = 0;
+		await page.reload();
+		await expect(standard.getByTestId('work-standard-total-row')).toHaveText('00시간 00분');
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveAttribute(
+			'style',
+			/width:\s*0%/
+		);
+	});
+
+	test('expands the daily capacity after one second over the baseline buffer', async ({ page }) => {
+		let actualSeconds = 10 * 60 * 60;
+		await page.unroute('**/attendance/api/work-status?**');
+		await page.route('**/attendance/api/work-status?**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const payload = createDevAttendanceWorkStatus(
+				'tester@example.com',
+				requestURL.searchParams.get('period'),
+				requestURL.searchParams.get('anchor')
+			);
+			payload.personal = payload.personal
+				? {
+						...payload.personal,
+						targetMinutes: 8 * 60,
+						actualMinutes: 10 * 60,
+						actualSeconds,
+						provisionalMinutes: 0,
+						provisionalSeconds: 0,
+						leaveMinutes: 0,
+						workingCapacitySeconds: 24 * 60 * 60,
+						calendarCapacitySeconds: 24 * 60 * 60
+					}
+				: undefined;
+			await route.fulfill({ json: payload });
+		});
+
+		await page.goto('/attendance');
+		await selectKorean(page);
+		await page
+			.getByTestId('attendance-sidebar-scroll')
+			.getByRole('button', { name: '일별' })
+			.click();
+		const standard = page
+			.getByTestId('attendance-sidebar-scroll')
+			.getByTestId('personal-work-standard');
+		const capacityBar = standard.getByTestId('work-standard-capacity-bar');
+		await expect(capacityBar).toHaveAttribute('data-capacity-stage', 'baseline-buffer');
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveAttribute(
+			'style',
+			/width:\s*100%/
+		);
+
+		actualSeconds += 1;
+		await page.reload();
+		await expect(capacityBar).toHaveAttribute('data-capacity-stage', 'working-days');
+		await expect(standard.getByTestId('work-standard-target-marker')).toHaveAttribute(
+			'style',
+			/left:\s*33\.33/
+		);
+		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveAttribute(
+			'style',
+			/width:\s*41\.66/
+		);
 	});
 
 	test('shows the administrator employee work status list and review filters', async ({ page }) => {
@@ -280,10 +429,24 @@ test.describe('attendance responsive view', () => {
 				requestURL.searchParams.get('anchor')
 			);
 			payload.personal = payload.personal
-				? { ...payload.personal, actualMinutes: 60, provisionalMinutes: 30 }
+				? {
+						...payload.personal,
+						actualMinutes: 60,
+						actualSeconds: 60 * 60,
+						provisionalMinutes: 30,
+						provisionalSeconds: 30 * 60
+					}
 				: undefined;
 			payload.employees = payload.employees.map((employee, index) =>
-				index === 1 ? { ...employee, actualMinutes: 60, provisionalMinutes: 30 } : employee
+				index === 1
+					? {
+							...employee,
+							actualMinutes: 60,
+							actualSeconds: 60 * 60,
+							provisionalMinutes: 30,
+							provisionalSeconds: 30 * 60
+						}
+					: employee
 			);
 			await route.fulfill({ json: payload });
 		});

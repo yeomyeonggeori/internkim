@@ -25,9 +25,12 @@ type attendanceWorkDayStatus struct {
 	Date                    string                          `json:"date"`
 	WorkMode                string                          `json:"workMode"`
 	HasBaseline             bool                            `json:"hasBaseline"`
+	WorkingDate             bool                            `json:"workingDate"`
 	TargetMinutes           int                             `json:"targetMinutes"`
 	ActualMinutes           int                             `json:"actualMinutes"`
+	ActualSeconds           int                             `json:"actualSeconds"`
 	ProvisionalMinutes      int                             `json:"provisionalMinutes"`
+	ProvisionalSeconds      int                             `json:"provisionalSeconds"`
 	LeaveMinutes            int                             `json:"leaveMinutes"`
 	FulfilledMinutes        int                             `json:"fulfilledMinutes"`
 	DifferenceMinutes       int                             `json:"differenceMinutes"`
@@ -47,28 +50,32 @@ type attendanceWorkDayStatus struct {
 }
 
 type attendanceWorkStatus struct {
-	Email                string                    `json:"email"`
-	DisplayName          string                    `json:"displayName"`
-	PeriodStart          string                    `json:"periodStart"`
-	PeriodEnd            string                    `json:"periodEnd"`
-	WorkMode             string                    `json:"workMode"`
-	HasBaseline          bool                      `json:"hasBaseline"`
-	TargetMinutes        int                       `json:"targetMinutes"`
-	ActualMinutes        int                       `json:"actualMinutes"`
-	ProvisionalMinutes   int                       `json:"provisionalMinutes"`
-	LeaveMinutes         int                       `json:"leaveMinutes"`
-	FulfilledMinutes     int                       `json:"fulfilledMinutes"`
-	DifferenceMinutes    int                       `json:"differenceMinutes"`
-	RemainingMinutes     int                       `json:"remainingMinutes"`
-	OvertimeMinutes      int                       `json:"overtimeMinutes"`
-	NightMinutes         int                       `json:"nightMinutes"`
-	IsWorking            bool                      `json:"isWorking"`
-	NeedsReview          bool                      `json:"needsReview"`
-	CoreTimeMissed       bool                      `json:"coreTimeMissed"`
-	Late                 bool                      `json:"late"`
-	EarlyLeave           bool                      `json:"earlyLeave"`
-	HasLeaveWorkOverlap  bool                      `json:"hasLeaveWorkOverlap"`
-	HasIncompleteRecords bool                      `json:"hasIncompleteRecords"`
-	Status               string                    `json:"status"`
-	Days                 []attendanceWorkDayStatus `json:"days"`
+	Email                   string                    `json:"email"`
+	DisplayName             string                    `json:"displayName"`
+	PeriodStart             string                    `json:"periodStart"`
+	PeriodEnd               string                    `json:"periodEnd"`
+	WorkMode                string                    `json:"workMode"`
+	HasBaseline             bool                      `json:"hasBaseline"`
+	TargetMinutes           int                       `json:"targetMinutes"`
+	ActualMinutes           int                       `json:"actualMinutes"`
+	ActualSeconds           int                       `json:"actualSeconds"`
+	ProvisionalMinutes      int                       `json:"provisionalMinutes"`
+	ProvisionalSeconds      int                       `json:"provisionalSeconds"`
+	WorkingCapacitySeconds  int                       `json:"workingCapacitySeconds"`
+	CalendarCapacitySeconds int                       `json:"calendarCapacitySeconds"`
+	LeaveMinutes            int                       `json:"leaveMinutes"`
+	FulfilledMinutes        int                       `json:"fulfilledMinutes"`
+	DifferenceMinutes       int                       `json:"differenceMinutes"`
+	RemainingMinutes        int                       `json:"remainingMinutes"`
+	OvertimeMinutes         int                       `json:"overtimeMinutes"`
+	NightMinutes            int                       `json:"nightMinutes"`
+	IsWorking               bool                      `json:"isWorking"`
+	NeedsReview             bool                      `json:"needsReview"`
+	CoreTimeMissed          bool                      `json:"coreTimeMissed"`
+	Late                    bool                      `json:"late"`
+	EarlyLeave              bool                      `json:"earlyLeave"`
+	HasLeaveWorkOverlap     bool                      `json:"hasLeaveWorkOverlap"`
+	HasIncompleteRecords    bool                      `json:"hasIncompleteRecords"`
+	Status                  string                    `json:"status"`
+	Days                    []attendanceWorkDayStatus `json:"days"`
 }

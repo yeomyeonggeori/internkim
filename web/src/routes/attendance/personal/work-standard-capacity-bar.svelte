@@ -3,62 +3,78 @@
 	import AttendanceProgressBar, { type AttendanceProgressSegment } from '../shared/attendance-progress-bar.svelte';
 	import { attendanceText } from '../text';
 	import { formatWorkStatusDuration } from '../work-status/work-status-format';
+	import { calculateWorkStandardCapacity } from './work-standard-capacity';
 
 	type Props = {
 		actualMinutes: number;
 		provisionalMinutes: number;
 		targetMinutes: number;
+		actualSeconds: number;
+		provisionalSeconds: number;
+		workingCapacitySeconds: number;
+		calendarCapacitySeconds: number;
+		hasBaseline: boolean;
 	};
 
 	let {
 		actualMinutes,
 		provisionalMinutes,
-		targetMinutes
+		targetMinutes,
+		actualSeconds,
+		provisionalSeconds,
+		workingCapacitySeconds,
+		calendarCapacitySeconds,
+		hasBaseline
 	}: Props = $props();
 	const text = createPageText(attendanceText);
-	const targetPosition = 80;
-	const visualCapacityMinutes = $derived(
-		Math.max(targetMinutes, 1) / (targetPosition / 100)
+	const capacity = $derived(
+		calculateWorkStandardCapacity({
+			actualSeconds,
+			provisionalSeconds,
+			targetSeconds: targetMinutes * 60,
+			workingCapacitySeconds,
+			calendarCapacitySeconds,
+			hasBaseline
+		})
 	);
-	const actualBarMinutes = $derived(
-		Math.min(
-			Math.max(actualMinutes, 0) + Math.max(provisionalMinutes, 0),
-			visualCapacityMinutes
-		)
-	);
-	const actualWidth = $derived((actualBarMinutes / visualCapacityMinutes) * 100);
 	const progressSegments = $derived<AttendanceProgressSegment[]>([
 		{
 			id: 'actual',
-			widthPercent: actualWidth,
+			widthPercent: capacity.actualWidthPercent,
 			className: 'bg-yellow-400',
 			testId: 'work-standard-actual-segment'
 		}
 	]);
+	const showsTarget = $derived(capacity.targetPositionPercent !== undefined);
 	const barLabel = $derived(
-		`${text.workStatus.actual} ${formatWorkStatusDuration(actualMinutes, text)}, ${text.workStatus.provisional} ${formatWorkStatusDuration(provisionalMinutes, text)}, ${text.workStatus.target} ${formatWorkStatusDuration(targetMinutes, text)}`
+		showsTarget
+			? `${text.workStatus.actual} ${formatWorkStatusDuration(actualMinutes, text)}, ${text.workStatus.provisional} ${formatWorkStatusDuration(provisionalMinutes, text)}, ${text.workStatus.target} ${formatWorkStatusDuration(targetMinutes, text)}`
+			: `${text.workStatus.actual} ${formatWorkStatusDuration(actualMinutes, text)}, ${text.workStatus.provisional} ${formatWorkStatusDuration(provisionalMinutes, text)}`
 	);
 </script>
 
 <div
-	class="relative block w-full pt-5"
+	class={`relative block w-full ${showsTarget ? 'pt-5' : ''}`}
 	role="img"
 	aria-label={barLabel}
 	data-testid="work-standard-capacity-bar"
+	data-capacity-stage={capacity.stage}
 >
-	<span
-		class="absolute top-0 -translate-x-1/2 whitespace-nowrap text-[9px] font-medium text-foreground"
-		style={`left:${targetPosition}%`}
-		aria-hidden="true"
-	>
-		{text.workStatus.target} {formatWorkStatusDuration(targetMinutes, text)}
-	</span>
+	{#if showsTarget}
+		<span
+			class="absolute top-0 -translate-x-1/2 whitespace-nowrap text-[9px] font-medium text-foreground"
+			style={`left:${capacity.targetPositionPercent ?? 0}%`}
+			aria-hidden="true"
+		>
+			{text.workStatus.target} {formatWorkStatusDuration(targetMinutes, text)}
+		</span>
+	{/if}
 	<span aria-hidden="true">
 		<AttendanceProgressBar
 			segments={progressSegments}
 			trackTestId="work-standard-progress-track"
-			{targetPosition}
-			targetMarkerTestId="work-standard-target-marker"
+			targetPosition={capacity.targetPositionPercent}
+			targetMarkerTestId={showsTarget ? 'work-standard-target-marker' : undefined}
 		/>
 	</span>
 </div>

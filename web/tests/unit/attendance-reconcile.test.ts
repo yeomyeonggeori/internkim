@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { attendanceWorkModeFromDevice } from '../../src/lib/server/attendance-work-mode-reconcile';
 import {
 	EmptyWindowRefused,
 	paired,
@@ -6,6 +7,16 @@ import {
 	type DeviceAttendance,
 	type RecordedAttendance
 } from '../../src/lib/server/attendance-reconcile';
+
+describe('attendanceWorkModeFromDevice', () => {
+	test('accepts only an actual supported work mode', () => {
+		expect(attendanceWorkModeFromDevice('fixed')).toBe('fixed');
+		expect(attendanceWorkModeFromDevice('flexible')).toBe('flexible');
+		expect(attendanceWorkModeFromDevice('autonomous')).toBe('autonomous');
+		expect(() => attendanceWorkModeFromDevice('hybrid')).toThrow('workMode');
+		expect(() => attendanceWorkModeFromDevice(undefined)).toThrow('workMode');
+	});
+});
 
 function onTheDevice(entries: Partial<DeviceAttendance>[]): DeviceAttendance[] {
 	return entries.map((entry) => ({
