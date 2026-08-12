@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { appSectionPathOf, usesAppShell, usesWebAuthGate } from '../../src/lib/app-shell';
+import { appSectionPathOf, isEmbeddedCalendar, taskListPathOf, usesAppShell, usesWebAuthGate } from '../../src/lib/app-shell';
 
 describe('the app shell on a company address', () => {
 	test('a company-prefixed app path still wears the shell', () => {
@@ -45,5 +45,21 @@ describe('the breadcrumb link back to the section', () => {
 
 	test('stays company-less when the address is', () => {
 		expect(appSectionPathOf('/files/some/folder')).toBe('/files/');
+	});
+});
+
+describe('a question asked of the route, not the address', () => {
+	test('knows an embedded calendar whether or not a company sits in front of it', () => {
+		expect(isEmbeddedCalendar('/calendar/embed')).toBe(true);
+		expect(isEmbeddedCalendar('/dawnstreet/calendar/embed')).toBe(true);
+		expect(isEmbeddedCalendar('/dawnstreet/calendar/embed/week')).toBe(true);
+		expect(isEmbeddedCalendar('/dawnstreet/calendar')).toBe(false);
+	});
+
+	test('sends a task back to its own list, company and all', () => {
+		expect(taskListPathOf('/tasks/abc')).toBe('/tasks');
+		expect(taskListPathOf('/dawnstreet/tasks/abc')).toBe('/dawnstreet/tasks');
+		expect(taskListPathOf('/poc-admin/abc')).toBe('/poc-admin');
+		expect(taskListPathOf('/dawnstreet/poc-admin/abc')).toBe('/dawnstreet/poc-admin');
 	});
 });
