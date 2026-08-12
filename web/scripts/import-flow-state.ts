@@ -1,6 +1,7 @@
 //   bun run web/scripts/import-flow-state.ts --file <flow-state.json> --people <organization-people.json> --company <uuid> [--apply]
 
 import { controlPlane } from '../src/lib/server/control-plane';
+import { readAllRows } from './read-all-rows';
 import { emailByPersonIDOf, matchParticipant, type DevicePerson, type EventCalendar } from '../../host/relay/calendar-event-as-task';
 import { flowTaskAsTask, peopleOnFlowTask, titleOfFlowTask, type DeviceFlowTask } from '../../host/relay/flow-task-as-task';
 
@@ -41,20 +42,25 @@ const { data: company, error: companyError } = await client
 if (companyError) throw new Error(companyError.message);
 const timeZone = company.timezone || 'UTC';
 
-const { data: memberRows, error: memberError } = await client
-	.from('member')
-	.select('id, email')
-	.eq('company_id', companyID);
-if (memberError) throw new Error(memberError.message);
-const memberByEmail = new Map((memberRows ?? []).map((member) => [(member.email ?? '').toLowerCase(), member.id]));
+const memberRows = await readAllRows<{ id: string; email: string | null }>((from, to) =>
+	client
+		.from('member')
+		.select('id, email')
+		.eq('company_id', companyID)
+		.order('id', { ascending: true })
+		.range(from, to)
+);
+const memberByEmail = new Map(memberRows.map((member) => [(member.email ?? '').toLowerCase(), member.id]));
 
-const { data: existing, error: taskError } = await client
-	.from('task')
-	.select('id, title, ends_at, calendar')
-	.eq('company_id', companyID)
-	.eq('is_event', false);
-if (taskError) throw new Error(taskError.message);
-const liveTasks = (existing ?? []) as LiveTask[];
+const liveTasks = await readAllRows<LiveTask>((from, to) =>
+	client
+		.from('task')
+		.select('id, title, ends_at, calendar')
+		.eq('company_id', companyID)
+		.eq('is_event', false)
+		.order('id', { ascending: true })
+		.range(from, to)
+);
 
 const idByExternalID = new Map<string, string>();
 for (const task of liveTasks) {
