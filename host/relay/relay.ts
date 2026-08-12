@@ -2,7 +2,7 @@
 
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreview } from './link-preview';
-import { largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
+import { defaultAnswerByteCeiling, largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
 import { mintMissingTokens } from './member-tokens';
 import { answerBodyOf, forwardToChatd, reportableTopic, serveCall, type AssetReader, type Call } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
@@ -27,7 +27,7 @@ const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
 const admindBaseURL = process.env.ADMIND_BASE_URL ?? 'http://127.0.0.1:18080';
 const appURL = required('INTERNKIM_APP_URL');
 const messengerPlatform = required('MESSENGER_PLATFORM');
-const answerByteCeiling = Number(process.env.ANSWER_BYTE_CEILING ?? 200_000);
+const answerByteCeiling = Number(process.env.ANSWER_BYTE_CEILING ?? defaultAnswerByteCeiling);
 const rejoinDeadlineMilliseconds = 60_000;
 const largestPictureBytes = largestRawBytesThatFit(answerByteCeiling);
 const platformTheDirectoryClientServes = 'mattermost';
