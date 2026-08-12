@@ -77,44 +77,6 @@ export async function connectMessengerAccount(
 	if (error) throw new Error(error.message);
 }
 
-export async function externalIDsWithACredential(
-	client: SupabaseClient,
-	companyID: string,
-	kind: string,
-): Promise<string[]> {
-	const linked = await membersOfCompanyByExternalID(client, companyID, kind);
-	if (linked.size === 0) return [];
-
-	const { data, error } = await client
-		.from('credential')
-		.select('member_id, external_id')
-		.eq('kind', kind)
-		.in('member_id', [...linked.values()])
-		.returns<{ member_id: string; external_id: string | null }[]>();
-	if (error) throw new Error(error.message);
-
-	const held: string[] = [];
-	for (const row of data) {
-		if (!row.external_id) continue;
-		if (!(await secretIsReadable(client, row.member_id, kind))) continue;
-		held.push(row.external_id);
-	}
-	return held;
-}
-
-async function secretIsReadable(
-	client: SupabaseClient,
-	memberID: string,
-	kind: string,
-): Promise<boolean> {
-	const { data, error } = await client.rpc('read_member_secret', {
-		target_member: memberID,
-		target_kind: kind,
-	});
-	if (error) throw new Error(error.message);
-	return typeof data === 'string' && data !== '';
-}
-
 export async function membersOfCompanyByExternalID(
 	client: SupabaseClient,
 	companyID: string,

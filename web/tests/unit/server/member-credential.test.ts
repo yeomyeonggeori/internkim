@@ -1,61 +1,79 @@
 import { describe, expect, test } from 'bun:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { externalIDsWithACredential } from '../../../src/lib/server/member-credential';
+import { connectMessengerAccount } from '../../../src/lib/server/member-credential';
 
-type CredentialRow = { member_id: string; external_id: string | null };
-type ContactRow = { member_id: string | null; external_id: string | null };
+type Written = { table: string; row: Record<string, unknown> };
 
-function aRecordHolding(contacts: ContactRow[], credentials: CredentialRow[], secrets: Record<string, string>) {
-	const rpcCalls: string[] = [];
+function aRecordThatRemembers() {
+	const written: Written[] = [];
+	const vaulted: { member: string; kind: string; secret: string }[] = [];
 	const client = {
 		from(table: string) {
-			const rows = table === 'contact' ? contacts : credentials;
-			const query = {
-				select: () => query,
-				eq: () => query,
-				in: () => query,
-				not: () => query,
-				returns: () => Promise.resolve({ data: rows, error: null }),
-				then: (resolve: (answer: { data: unknown; error: null }) => unknown) =>
-					resolve({ data: rows, error: null })
+			return {
+				upsert: (row: Record<string, unknown>) => {
+					written.push({ table, row });
+					return Promise.resolve({ error: null });
+				}
 			};
-			return query;
 		},
-		rpc(_name: string, parameters: { target_member: string }) {
-			rpcCalls.push(parameters.target_member);
-			return Promise.resolve({ data: secrets[parameters.target_member] ?? '', error: null });
+		rpc(_name: string, parameters: { target_member: string; target_kind: string; secret_value: string }) {
+			vaulted.push({
+				member: parameters.target_member,
+				kind: parameters.target_kind,
+				secret: parameters.secret_value
+			});
+			return Promise.resolve({ data: 'vault-secret-1', error: null });
 		}
 	} as unknown as SupabaseClient;
-	return { client, rpcCalls };
+	return { client, written, vaulted };
 }
 
-describe('externalIDsWithACredential', () => {
-	const contacts: ContactRow[] = [
-		{ member_id: 'member-1', external_id: 'U-one' },
-		{ member_id: 'member-2', external_id: 'U-two' }
-	];
-	const credentials: CredentialRow[] = [
-		{ member_id: 'member-1', external_id: 'U-one' },
-		{ member_id: 'member-2', external_id: 'U-two' }
-	];
+const account = {
+	memberID: 'member-1',
+	kind: 'mattermost',
+	externalID: 'U-one',
+	name: '이샘플',
+	secret: 'a-durable-token'
+};
 
-	test('a row whose secret the vault never took does not count as held', async () => {
-		const { client } = aRecordHolding(contacts, credentials, {});
+describe('connecting a member to their own messenger account', () => {
+	test('the secret goes to the vault rather than into a row', async () => {
+		const { client, written, vaulted } = aRecordThatRemembers();
 
-		expect(await externalIDsWithACredential(client, 'company-1', 'mattermost')).toEqual([]);
+		await connectMessengerAccount(client, 'company-1', account);
+
+		expect(vaulted).toEqual([
+			{ member: 'member-1', kind: 'mattermost', secret: 'a-durable-token' }
+		]);
+		expect(JSON.stringify(written)).not.toContain('a-durable-token');
 	});
 
-	test('only the rows the vault can answer for count', async () => {
-		const { client } = aRecordHolding(contacts, credentials, { 'member-2': 'a-real-token' });
+	test('the contact row is written in the same call, so the member is addressable at once', async () => {
+		const { client, written } = aRecordThatRemembers();
 
-		expect(await externalIDsWithACredential(client, 'company-1', 'mattermost')).toEqual(['U-two']);
+		await connectMessengerAccount(client, 'company-1', account);
+
+		expect(written.map((entry) => entry.table)).toEqual(['credential', 'contact']);
+		expect(written[1]?.row).toEqual({
+			company_id: 'company-1',
+			platform: 'mattermost',
+			external_id: 'U-one',
+			name: '이샘플',
+			member_id: 'member-1'
+		});
 	});
 
-	test('every row is asked about, so one readable secret does not vouch for the rest', async () => {
-		const { client, rpcCalls } = aRecordHolding(contacts, credentials, { 'member-1': 'a-real-token' });
+	test('the credential is keyed to the member, never to a company-wide account', async () => {
+		const { client, written } = aRecordThatRemembers();
 
-		await externalIDsWithACredential(client, 'company-1', 'mattermost');
+		await connectMessengerAccount(client, 'company-1', account);
 
-		expect(rpcCalls).toEqual(['member-1', 'member-2']);
+		expect(written[0]?.row).toEqual({
+			member_id: 'member-1',
+			company_id: null,
+			kind: 'mattermost',
+			external_id: 'U-one',
+			vault_secret_id: 'vault-secret-1'
+		});
 	});
 });
