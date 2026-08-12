@@ -197,7 +197,7 @@ function hasAdminAuthorization(request: Request, adminToken: string | undefined)
 
 function hasSharedSecret(request: Request, sharedSecret: string | undefined): boolean {
 	if (!sharedSecret) return true;
-	return request.headers.get('X-InternKim-Gateway-Secret') === sharedSecret;
+	return request.headers.get('X-INTERNKIM-GATEWAY-SECRET') === sharedSecret;
 }
 
 function failedReservationResponse(failureReason: DeviceTokenReservation['failureReason']): Response {

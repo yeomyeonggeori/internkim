@@ -1,4 +1,4 @@
-export const mailRequesterEmailHeader = 'X-InternKim-Requester-Email';
+export const mailRequesterEmailHeader = 'X-INTERNKIM-REQUESTER-EMAIL';
 export const mailRequesterEmailStorageKey = 'internkim.mail.requesterEmail';
 
 type MailActorStorage = Pick<Storage, 'getItem' | 'setItem'>;

@@ -94,8 +94,8 @@ func (client DeviceClient) httpClient() *http.Client {
 
 func CompanionHeaders(state State) map[string]string {
 	return map[string]string{
-		"X-InternKim-Companion-ID":    state.CompanionID,
-		"X-InternKim-Companion-Token": state.Token,
+		"X-INTERNKIM-COMPANION-ID":    state.CompanionID,
+		"X-INTERNKIM-COMPANION-TOKEN": state.Token,
 	}
 }
 

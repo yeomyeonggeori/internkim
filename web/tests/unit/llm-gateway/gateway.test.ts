@@ -138,7 +138,7 @@ describe('LLM Gateway Worker', () => {
 				method: 'PUT',
 				headers: {
 					Authorization: 'Bearer admin-secret',
-					'X-InternKim-Gateway-Secret': 'gateway-secret',
+					'X-INTERNKIM-GATEWAY-SECRET': 'gateway-secret',
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({
@@ -227,7 +227,7 @@ function chatRequest(token: string, body: string) {
 		method: 'POST',
 		headers: {
 			Authorization: `Bearer ${token}`,
-			'X-InternKim-Gateway-Secret': 'gateway-secret',
+			'X-INTERNKIM-GATEWAY-SECRET': 'gateway-secret',
 			'Content-Type': 'application/json'
 		},
 		body
@@ -250,7 +250,7 @@ function embeddingRequest(token: string, body: string) {
 		method: 'POST',
 		headers: {
 			Authorization: `Bearer ${token}`,
-			'X-InternKim-Gateway-Secret': 'gateway-secret',
+			'X-INTERNKIM-GATEWAY-SECRET': 'gateway-secret',
 			'Content-Type': 'application/json'
 		},
 		body

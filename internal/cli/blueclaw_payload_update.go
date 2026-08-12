@@ -201,7 +201,7 @@ func postBlueclawUpdateJSON(endpointURL string, requestPayload any, token string
 	}
 	request.Header.Set("Content-Type", "application/json")
 	if token != "" {
-		request.Header.Set("X-InternKim-Upload-Token", token)
+		request.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", token)
 	}
 	attachCloudflareAccessCookie(request)
 	response, errorValue := blueclawUpdateHTTPClient.Do(request)
@@ -221,7 +221,7 @@ func putBlueclawUpdateChunk(endpointURL string, token string, document []byte) e
 	if errorValue != nil {
 		return errorValue
 	}
-	request.Header.Set("X-InternKim-Upload-Token", token)
+	request.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", token)
 	attachCloudflareAccessCookie(request)
 	response, errorValue := blueclawUpdateHTTPClient.Do(request)
 	if errorValue != nil {

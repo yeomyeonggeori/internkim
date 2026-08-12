@@ -8,7 +8,7 @@ import type { Device, UserRecord, UserRole } from '$lib/types';
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
 	'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-	'Access-Control-Allow-Headers': 'Content-Type, X-InternKim-Fleet-ID, X-InternKim-Fleet-Secret, X-InternKim-Device-ID, X-InternKim-Device-Secret'
+	'Access-Control-Allow-Headers': 'Content-Type, X-INTERNKIM-FLEET-ID, X-INTERNKIM-FLEET-SECRET, X-INTERNKIM-DEVICE-ID, X-INTERNKIM-DEVICE-SECRET'
 };
 
 export const OPTIONS: RequestHandler = async () => {

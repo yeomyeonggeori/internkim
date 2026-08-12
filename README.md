@@ -138,7 +138,7 @@ Graphiti는 memory sidecar로만 동작하고 secrets 디렉토리를 직접 읽
 
 tenant와 Jetson에는 OpenRouter 원본 키를 넣지 않습니다. 각 runtime은 internkim이 발급한 OpenRouter-compatible `LLM_DEVICE_TOKEN`만 사용하고, Worker/LLM Gateway가 token revoke, request-per-minute, hard cap, usage ledger를 provider 호출 전에 강제합니다.
 
-LLM Gateway Worker는 `/health`만 public으로 둡니다. LLM 호출과 admin seed endpoint는 `X-InternKim-Gateway-Secret` shared header를 먼저 확인하고, 그 다음 `Authorization: Bearer <LLM_DEVICE_TOKEN>` 또는 `GATEWAY_ADMIN_TOKEN`을 검증합니다. shared header는 무작위 인터넷 요청을 먼저 거르는 coarse gate이며, device 탈취까지 막는 강한 경계는 아닙니다. 강한 네트워크 경계가 필요하면 Cloudflare Access service token을 추가합니다.
+LLM Gateway Worker는 `/health`만 public으로 둡니다. LLM 호출과 admin seed endpoint는 `X-INTERNKIM-GATEWAY-SECRET` shared header를 먼저 확인하고, 그 다음 `Authorization: Bearer <LLM_DEVICE_TOKEN>` 또는 `GATEWAY_ADMIN_TOKEN`을 검증합니다. shared header는 무작위 인터넷 요청을 먼저 거르는 coarse gate이며, device 탈취까지 막는 강한 경계는 아닙니다. 강한 네트워크 경계가 필요하면 Cloudflare Access service token을 추가합니다.
 
 운영자가 로컬에서 준비하는 secret 파일은 `.local/secrets/` 아래에 두고 git에 올리지 않습니다.
 
@@ -296,7 +296,7 @@ make prepare-blueclaw-payload
 
 R2는 여러 기기가 가져갈 stable release channel을 publish할 때 사용합니다.
 
-Release bucket은 `internkim-releases`, public base URL은 `https://updates.example.test`을 사용합니다. `updates.example.test`은 R2 직접 공개가 아니라 `internkim-release-registry` Worker를 통해서만 읽히며, Worker는 `X-InternKim-Release-Token`이 맞는 요청만 R2에서 내려줍니다. token 없는 다운로드는 401이어야 합니다.
+Release bucket은 `internkim-releases`, public base URL은 `https://updates.example.test`을 사용합니다. `updates.example.test`은 R2 직접 공개가 아니라 `internkim-release-registry` Worker를 통해서만 읽히며, Worker는 `X-INTERNKIM-RELEASE-TOKEN`이 맞는 요청만 R2에서 내려줍니다. token 없는 다운로드는 401이어야 합니다.
 
 운영자 로컬 secret:
 
