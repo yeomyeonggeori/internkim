@@ -67,7 +67,7 @@ func runRecoverArguments(arguments []string) error {
 
 func runRecoverSSH(arguments []string) error {
 	flagSet := flag.NewFlagSet("recover ssh", flag.ContinueOnError)
-	action := flagSet.String("action", "restart-cloudflared-node-ssh", "Recovery action: status, snapshot, restart-ssh, restart-cloudflared-node-ssh, journal-tail, unlock-mattermost-admin, reboot, stop-tenant-pilots, remove-tenant-pilots, limit-blueclaw, restart-blueclaw, blueclaw-boot-diagnose, blueclaw-journal, blueclaw-workspace-repair, blueclaw-postgres-salvage, repair-buzz-relay, buzz-relay-journal, enable-buzz-mirror, buzz-mirror-status, buzz-orphan-inspect, buzz-snapshot, buzz-membership-recover, buzz-restore, buzz-repair-dryrun, buzz-repair-apply, buzz-reimport, buzz-reimport-log, buzz-read-test, buzz-chatd-repair, mattermost-unlock-users, postgres-repair")
+	action := flagSet.String("action", "restart-cloudflared-node-ssh", "Recovery action: status, snapshot, restart-ssh, restart-cloudflared-node-ssh, journal-tail, unlock-mattermost-admin, reboot, stop-tenant-pilots, remove-tenant-pilots, limit-blueclaw, restart-blueclaw, blueclaw-boot-diagnose, blueclaw-journal, blueclaw-workspace-repair, blueclaw-postgres-salvage, blueclaw-postgres-inspect, repair-buzz-relay, buzz-relay-journal, enable-buzz-mirror, buzz-mirror-status, buzz-orphan-inspect, buzz-snapshot, buzz-membership-recover, buzz-restore, buzz-repair-dryrun, buzz-repair-apply, buzz-reimport, buzz-reimport-log, buzz-read-test, buzz-chatd-repair, mattermost-unlock-users, postgres-repair")
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
