@@ -10,6 +10,7 @@ import {
 import { publishBuzzMessage } from '$lib/buzz-relay-client';
 import { imetaTag, uploadBlob } from '$lib/buzz-blossom';
 import { shortcodePattern } from '$lib/messenger/custom-emoji-names';
+import type { OutgoingAttachment } from '$lib/messenger/messenger-api';
 import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 
 export type ChannelParticipant = {
@@ -187,11 +188,7 @@ export async function fetchChannelConversation(
 	};
 }
 
-export type ChannelOutgoingAttachment = {
-	filename: string;
-	contentType: string;
-	contentBase64: string;
-};
+export type ChannelOutgoingAttachment = OutgoingAttachment;
 
 let cachedRelayURL: string | null | undefined;
 
@@ -262,10 +259,6 @@ async function clientSignChannelMessage(
 // message publishes straight to Buzz with their imeta tags, so nothing is signed
 // server-side on their behalf. The server path is only a fallback before the
 // identity is unlocked or when the relay is unknown.
-export function canSendAttachments(): boolean {
-	return !isSupabaseConfigured();
-}
-
 export async function sendChannelMessage(
 	message: string,
 	attachments: ChannelOutgoingAttachment[] = [],
@@ -273,10 +266,7 @@ export async function sendChannelMessage(
 	replyToRootID?: string
 ): Promise<void> {
 	if (isSupabaseConfigured()) {
-		if (attachments.length > 0) {
-			throw new Error('the company app carries no attachment yet, so this message was not sent');
-		}
-		await bridgeSendMessage(message, channelID, replyToRootID);
+		await bridgeSendMessage(message, channelID, replyToRootID, attachments);
 		return;
 	}
 	await sendServerSignedMessage(message, attachments, channelID, replyToRootID);

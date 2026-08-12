@@ -8,6 +8,7 @@ import {
 	fetchPosts,
 	openDirectChannel,
 	writePost,
+	type OutgoingAttachment,
 	type MessengerChannel,
 	type MessengerPerson,
 	type MessengerPost
@@ -156,7 +157,12 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, mine: string
 	};
 }
 
-export async function bridgeSendMessage(text: string, channelID?: string, replyToRootID?: string): Promise<void> {
+export async function bridgeSendMessage(
+	text: string,
+	channelID?: string,
+	replyToRootID?: string,
+	attachments: OutgoingAttachment[] = []
+): Promise<void> {
 	if (!channelID) throw new Error('choose a conversation first');
-	await writePost(channelID, text, replyToRootID);
+	await writePost(channelID, text, replyToRootID, attachments);
 }
