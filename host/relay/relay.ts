@@ -212,9 +212,14 @@ async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
 		platform: messengerPlatform,
 		externalIDs: arrived.recipientExternalIDs,
 		category: 'message',
-		...tellingOf(arrived, await nameOf(arrived.authorExternalID))
+		...tellingOf(arrived, await authorNameOf(arrived))
 	});
 	return spoken.told ?? 0;
+}
+
+async function authorNameOf(arrived: ArrivedMessage): Promise<string> {
+	if (arrived.authorName) return arrived.authorName;
+	return nameOf(arrived.authorExternalID);
 }
 
 async function nameOf(externalID: string): Promise<string> {
