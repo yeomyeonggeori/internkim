@@ -2,8 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	answerByteLength,
 	defaultAnswerByteCeiling,
-	largestMessageTheChannelCarries,
-	largestRawBytesThatFit,
+	largestMessageTheProPlanCarries,
 	oversizeNotice
 } from './answer-size';
 
@@ -29,12 +28,19 @@ describe('oversizeNotice', () => {
 	});
 });
 
-describe('the ceiling the channel actually has', () => {
-	test('leaves the broadcast envelope room inside what Realtime carries', () => {
-		expect(defaultAnswerByteCeiling).toBeLessThan(largestMessageTheChannelCarries);
+describe('the ceiling the plan actually has', () => {
+	test('spends the whole of it, because httpSend wraps the answer in no envelope', () => {
+		expect(defaultAnswerByteCeiling).toBe(largestMessageTheProPlanCarries);
 	});
 
-	test('is worth raising, because base64 costs a third of what it carries', () => {
-		expect(largestRawBytesThatFit(defaultAnswerByteCeiling)).toBeGreaterThan(600_000);
+	test('an answer at the default ceiling is sent, and one byte past it is refused', () => {
+		const room = defaultAnswerByteCeiling - answerByteLength({ callID: 'a', status: 200, body: { dataURL: '' } });
+		const fits = { callID: 'a', status: 200, body: { dataURL: 'x'.repeat(room) } };
+
+		expect(answerByteLength(fits)).toBe(defaultAnswerByteCeiling);
+		expect(oversizeNotice(fits, defaultAnswerByteCeiling)).toBeNull();
+
+		const over = { callID: 'a', status: 200, body: { dataURL: 'x'.repeat(room + 1) } };
+		expect(oversizeNotice(over, defaultAnswerByteCeiling)?.status).toBe(413);
 	});
 });

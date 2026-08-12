@@ -35,22 +35,43 @@ a machine that stays on. A Jetson, a Mac Studio and a laptop are all fine.
 
 ### How big an answer may be
 
-Realtime drops a broadcast frame that is too large without telling either side,
-which surfaces as a 20-second timeout and "the company app is not running". That
-diagnosis sends you looking at the wrong machine, so the relay measures every
-answer first and replies `413` with the byte count instead.
+The broadcast endpoint refuses an oversize frame with `422 Payload size exceeds
+tenant limit`, which reaches the relay's log and nobody else. The caller is left
+waiting on an answer that will never arrive, so the relay measures every answer
+first and replies `413` with the byte count, which does reach them.
 
-`ANSWER_BYTE_CEILING` sets the limit, default `200000`. **Measure it; the
-default is only a conservative guess.** Supabase's own limit differs
-between the hosted platform and a self-hosted install, so measure it against the
-project you are running and set the variable. The one thing not to do is raise
-it past what the project carries: over the real limit the frame vanishes again
-and the 413 never arrives.
+How much a broadcast carries is set by the Supabase plan:
 
-The profile-picture limit is derived from it (`largestRawBytesThatFit`), because
-base64 inflates by a third and the two used to disagree: pictures were accepted
-up to 200,000 raw bytes, which is about 267 KB on the wire. Anything larger now
-comes back without a picture, and the call survives.
+| Plan | Realtime message size |
+| --- | --- |
+| Free | 256 KB |
+| Pro, Team | 3 MB, meaning 3,000,000 |
+| Enterprise | negotiated |
+| Self-hosted | whatever the proxy in front of it accepts |
+
+Those figures are decimal, which is worth knowing before somebody writes
+`3 * 1024 * 1024` and lands 145 KB over. `measure-broadcast-ceiling.ts` settles
+it against a project by binary search. The local tenant and the hosted Pro
+project both accepted 3,000,491 bytes and answered the next with the 422, to the
+byte, so the wall is a fixed 3,000,000 rather than something a plan tunes
+upward.
+
+The default ceiling is the whole Pro figure, because `httpSend` puts the topic
+and the event in the URL and sends the answer as the entire body, so there is no
+envelope to keep room for. `ANSWER_BYTE_CEILING` overrides it, and **a
+deployment on any other row has to set it.** Self-hosted Realtime publishes no
+payload setting (`ENVS.md` carries only `MAX_HEADER_LENGTH`, which is headers),
+so run the script against it.
+
+Unset or empty takes the default; anything that is not a positive number stops
+the boot. A value like `1MB` used to become `NaN` and an empty one `0`, either
+of which refused every answer for as long as the process ran.
+
+The profile-picture limit is derived from the ceiling
+(`largestRawBytesThatFit`), because base64 inflates by a third and the two used
+to disagree: pictures were accepted up to 200,000 raw bytes, which is about
+267 KB on the wire. Anything larger comes back without a picture, and the call
+survives.
 
 `make build-relay` compiles it into a single
 `internkim-relay` executable, so the box needs no Bun and no
