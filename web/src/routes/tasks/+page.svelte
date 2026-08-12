@@ -163,7 +163,7 @@
 	}
 
 	function taskRunDetailPath(taskRunID: string): string {
-		const basePath = location.pathname.startsWith('/poc-admin') ? '/poc-admin' : '/tasks';
+		const basePath = '/tasks';
 		return `${basePath}/${encodeURIComponent(taskRunID)}`;
 	}
 

@@ -15,7 +15,6 @@ export const reservedFirstSegments = [
 	'openapi',
 	'ops',
 	'organization',
-	'poc-admin',
 	'settings',
 	'start',
 	'tasks'

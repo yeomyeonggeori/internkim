@@ -28,7 +28,6 @@ type AdminSession = {
 	isAdmin?: boolean;
 	role?: UserRole;
 	canViewTasks?: boolean;
-	isPocSuperAdmin?: boolean;
 	image?: string;
 };
 
@@ -41,7 +40,6 @@ class AppNavigation {
 	userMemberID = $state('');
 	adminRole = $state<UserRole>('member');
 	canViewTasks = $state(false);
-	isPocSuperAdmin = $state(false);
 	hasMessenger = $state(false);
 	companySlug = $state('');
 
@@ -63,11 +61,7 @@ class AppNavigation {
 	workspace = $derived<AppRailItem[]>([
 		...(this.canViewTasks
 			? [
-					{
-						href: this.link(this.isPocSuperAdmin ? '/poc-admin/' : '/tasks/'),
-						label: this.isPocSuperAdmin ? text.pocAdmin : text.tasks,
-						icon: ActivityIcon
-					}
+					{ href: this.link('/tasks/'), label: text.tasks, icon: ActivityIcon }
 				]
 			: []),
 		{ href: this.link('/settings/'), label: text.settings, icon: CogIcon }
@@ -89,7 +83,6 @@ class AppNavigation {
 		this.userName = session.email ? session.email.split('@')[0] : '';
 		this.userImage = session.image;
 		this.canViewTasks = session.canViewTasks;
-		this.isPocSuperAdmin = session.isPocSuperAdmin;
 		if (isSupabaseConfigured()) {
 			const member = await supabaseMember();
 			this.userMemberID = member.memberID;
@@ -109,7 +102,6 @@ class AppNavigation {
 			const session = (await response.json()) as AdminSession;
 			this.adminRole = normalizeSessionRole(session);
 			this.canViewTasks = session.canViewTasks === true || this.adminRole === 'admin';
-			this.isPocSuperAdmin = session.isPocSuperAdmin === true;
 			const adminEmail = session.email || session.claimedAdminEmail || '';
 			if (!adminEmail) {
 				this.adminRole = 'member';
@@ -151,7 +143,6 @@ class AppNavigation {
 		this.userMemberID = '';
 		this.adminRole = 'member';
 		this.canViewTasks = false;
-		this.isPocSuperAdmin = false;
 		this.hasMessenger = false;
 	}
 

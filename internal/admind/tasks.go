@@ -43,28 +43,6 @@ func (service *Service) serveTasksIndex(responseWriter http.ResponseWriter, requ
 	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
 }
 
-func (service *Service) serveProofOfConceptAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
-	if request.URL.Path == "/poc-admin" {
-		http.Redirect(responseWriter, request, "/poc-admin/", http.StatusFound)
-		return
-	}
-	relativePath := strings.TrimPrefix(request.URL.Path, "/poc-admin/")
-	if relativePath != "" {
-		filePath := filepath.Join(service.Configuration.AdminUIPath, "poc-admin", relativePath)
-		fileInformation, errorValue := os.Stat(filePath)
-		if errorValue == nil && !fileInformation.IsDir() {
-			http.ServeFile(responseWriter, request, filePath)
-			return
-		}
-	}
-	proofOfConceptAdminIndexPath := filepath.Join(service.Configuration.AdminUIPath, "poc-admin", "index.html")
-	if fileInformation, errorValue := os.Stat(proofOfConceptAdminIndexPath); errorValue == nil && !fileInformation.IsDir() {
-		http.ServeFile(responseWriter, request, proofOfConceptAdminIndexPath)
-		return
-	}
-	service.serveTasksIndex(responseWriter, request)
-}
-
 func (service *Service) handleTasks(responseWriter http.ResponseWriter, request *http.Request) {
 	viewerEmail := service.webTaskRunActorEmail(request)
 	if viewerEmail == "" {
