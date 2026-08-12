@@ -4,6 +4,7 @@
 	import { mergeProps } from 'bits-ui';
 	import DurationText from '../shared/duration-text.svelte';
 	import WorkSegmentSummary from '../shared/work-segment-summary.svelte';
+	import { ABSENCE_TONE } from '../shared/color-tokens';
 	import TeamStatusLeaveSegmentSummary from './team-status-leave-segment-summary.svelte';
 	import type { TeamStatusPersonDay } from './team-status-table-model';
 
@@ -45,18 +46,16 @@
 	}
 
 	function segmentBarColor(segment: TeamStatusPersonDay['timelineSegments'][number]): string {
-		if (segment.kind === 'leave') return 'var(--color-info)';
-		return segment.locationColor ?? 'var(--color-muted-foreground)';
+		if (segment.kind === 'leave') return ABSENCE_TONE.leave.bar;
+		return segment.locationColor ?? ABSENCE_TONE.other.bar;
 	}
 
 	function absenceLabelClass(dayToStyle: TeamStatusPersonDay): string {
-		if (dayToStyle.absenceTone === 'other') return 'text-muted-foreground';
-		return 'text-info';
+		return ABSENCE_TONE[dayToStyle.absenceTone ?? 'other'].label;
 	}
 
 	function absenceMeterClass(dayToStyle: TeamStatusPersonDay): string {
-		if (dayToStyle.absenceTone === 'other') return 'bg-muted-foreground/30';
-		return 'bg-info/30';
+		return ABSENCE_TONE[dayToStyle.absenceTone ?? 'other'].meter;
 	}
 
 	function daySegmentsTotalPercent(dayToMeasure: TeamStatusPersonDay): number {
