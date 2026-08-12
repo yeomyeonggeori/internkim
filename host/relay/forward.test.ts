@@ -4,16 +4,23 @@ import {
 	answerBodyOf,
 	forwardToChatd,
 	isPersonCapability,
+	isRegistrationCapability,
 	mailOperationOf,
 	reportableTopic,
-	serveCall
+	serveCall,
+	type ConnectedAccount
 } from './forward';
 
 function dispatchThatKnows(externalIDs: Record<string, string>) {
 	const asked: { capability: string; body: Record<string, unknown> }[] = [];
+	const connected: { memberID: string; account: ConnectedAccount }[] = [];
 	return {
 		asked,
+		connected,
 		dispatch: {
+			connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
+				connected.push({ memberID, account });
+			},
 			serveAsset: async (capability: string) => ({ served: capability }),
 			askMaild: async (operation: string, body: Record<string, unknown>) => {
 				asked.push({ capability: `mail.${operation}`, body });
@@ -27,6 +34,15 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 					const actor = body.actor as { secret?: string } | undefined;
 					const externalID = actor?.secret === 'known' ? 'U-known' : 'U-stranger';
 					return { status: 200, body: { externalID } };
+				}
+				if (capability === 'person.credential.issue') {
+					return {
+						status: 200,
+						body: {
+							credential: { kind: 'mattermost-token', secret: 'a-durable-token' },
+							identity: { externalID: 'U-new', name: '이샘플' }
+						}
+					};
 				}
 				return { status: 200, body: { conversations: [] } };
 			},
@@ -324,5 +340,84 @@ describe('forwardToChatd', () => {
 
 	test('a caller cannot raise the limit past what this transport carries', async () => {
 		expect((await bodySentFor({ largestBytes: 99_000_000 })).largestBytes).toBe(674_000);
+	});
+});
+
+
+describe('a member connects their own messenger account', () => {
+	test('registration is answered on the channel it arrived on, with no credential at all', async () => {
+		const { connected, dispatch } = dispatchThatKnows({});
+
+		const served = await serveCall(
+			dispatch,
+			{ callID: 'c1', capability: 'person.credential.requirement' },
+			'member-1'
+		);
+
+		expect(served.status).toBe(200);
+		expect(served.replyTo).toBe('member-1');
+		expect(connected).toEqual([]);
+	});
+
+	test('an issued credential is kept for the member the channel belongs to', async () => {
+		const { connected, dispatch } = dispatchThatKnows({});
+
+		await serveCall(
+			dispatch,
+			{ callID: 'c1', capability: 'person.credential.issue', body: { answers: { password: 'x' } } },
+			'member-1'
+		);
+
+		expect(connected).toEqual([
+			{
+				memberID: 'member-1',
+				account: { externalID: 'U-new', name: '이샘플', secret: 'a-durable-token' }
+			}
+		]);
+	});
+
+	test('the answer never carries the secret back to the browser', async () => {
+		const { dispatch } = dispatchThatKnows({});
+
+		const served = await serveCall(
+			dispatch,
+			{ callID: 'c1', capability: 'person.credential.issue', body: { answers: { password: 'x' } } },
+			'member-1'
+		);
+
+		expect(served.body).toEqual({ externalID: 'U-new', name: '이샘플' });
+		expect(JSON.stringify(served)).not.toContain('a-durable-token');
+	});
+
+	test('a registration call on nobody\'s channel is refused, so a stranger cannot claim a member', async () => {
+		const { connected, dispatch } = dispatchThatKnows({});
+
+		const served = await serveCall(dispatch, {
+			callID: 'c1',
+			capability: 'person.credential.issue',
+			body: { answers: { password: 'x' } }
+		});
+
+		expect(served.status).toBe(403);
+		expect(connected).toEqual([]);
+	});
+
+	test('every other capability still needs an actor, however it arrived', async () => {
+		const { dispatch } = dispatchThatKnows({});
+
+		const served = await serveCall(
+			dispatch,
+			{ callID: 'c1', capability: 'person.conversations.list' },
+			'member-1'
+		);
+
+		expect(served.status).toBe(400);
+	});
+
+	test('only the credential pair authenticates by channel', () => {
+		expect(isRegistrationCapability('person.credential.requirement')).toBe(true);
+		expect(isRegistrationCapability('person.credential.issue')).toBe(true);
+		expect(isRegistrationCapability('person.message.send')).toBe(false);
+		expect(isRegistrationCapability('person.identity')).toBe(false);
 	});
 });

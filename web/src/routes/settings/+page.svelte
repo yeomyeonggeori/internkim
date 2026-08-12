@@ -3,6 +3,7 @@
 	import CompanyConnections from './company-connections.svelte';
 	import SignInPasskeys from './sign-in-passkeys.svelte';
 	import Notifications from './notifications.svelte';
+	import MyMessengerAccount from './my-messenger-account.svelte';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
@@ -34,6 +35,7 @@
 			</header>
 			<SignInPasskeys />
 			<Notifications />
+			<MyMessengerAccount />
 			{#if !isLoading && isAdmin}
 				<header class="grid gap-1 pt-2">
 					<h2 class="text-xl font-semibold">{text.connections}</h2>

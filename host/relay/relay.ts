@@ -4,7 +4,14 @@ import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreview } from './link-preview';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
 import { mintMissingTokens } from './member-tokens';
-import { answerBodyOf, forwardToChatd, reportableTopic, serveCall, type Call } from './forward';
+import {
+	answerBodyOf,
+	forwardToChatd,
+	reportableTopic,
+	serveCall,
+	type Call,
+	type ConnectedAccount
+} from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import { keepMessengerAccount, type MessengerAccount } from './messenger-account';
 import { readPeople, signIn, type MattermostSettings } from './mattermost';
@@ -67,7 +74,7 @@ async function listenTo(memberID: string): Promise<RealtimeChannel> {
 	if (known) return known;
 	const theirs = client.channel(`member:${memberID}`, { config: { private: true } });
 	theirs.on('broadcast', { event: 'call' }, ({ payload }) => {
-		void answer(payload as Call);
+		void answer(payload as Call, memberID);
 	});
 	listeningTo.set(memberID, theirs);
 	await join(theirs);
@@ -111,11 +118,11 @@ function watchTheChannel(): void {
 	process.exit(1);
 }
 
-async function answer(call: Call): Promise<void> {
+async function answer(call: Call, channelMemberID: string): Promise<void> {
 	if (typeof call.callID !== 'string' || typeof call.capability !== 'string') return;
 	const callID = call.callID;
 	try {
-		const { status, body, replyTo } = await serveCall(dispatch, call);
+		const { status, body, replyTo } = await serveCall(dispatch, call, channelMemberID);
 		await reply(replyTo ?? reportableTopic(call), { callID, status, body });
 	} catch (error) {
 		const message = error instanceof Error ? error.message : 'the app could not do that';
@@ -151,6 +158,13 @@ const dispatch = {
 			.maybeSingle<{ email: string | null }>();
 		if (member.error) throw new Error(member.error.message);
 		return member.data?.email ?? null;
+	},
+	connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
+		await askTheRecord('POST', '/api/agent/messenger-account', {
+			kind: messengerPlatform,
+			memberID,
+			...account
+		});
 	},
 	memberOfExternalID: async (externalID: string) => {
 		const contact = await client

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { callPayload } from '../../../src/lib/host-bridge';
+import { callPayload, channelPayload } from '../../../src/lib/host-bridge';
 
 const actor = { kind: 'mattermost-token', secret: 'the-person-token' };
 
@@ -33,5 +33,26 @@ describe('callPayload', () => {
 		const payload = callPayload('c1', 'member-1', { capability: 'person.identity' }, actor);
 
 		expect(payload.replyTo).toBe('member-1');
+	});
+});
+
+describe('channelPayload', () => {
+	test('registration carries no actor, because the channel is what proves who is asking', () => {
+		const payload = channelPayload('c1', 'member-1', {
+			capability: 'person.credential.issue',
+			body: { answers: { password: 'a-password' } }
+		});
+
+		expect(payload.body).toEqual({ answers: { password: 'a-password' } });
+		expect(JSON.stringify(payload)).not.toContain('actor');
+	});
+
+	test('the reply address is still the caller, never something the caller chose', () => {
+		const payload = channelPayload('c1', 'member-1', {
+			capability: 'person.credential.requirement'
+		});
+
+		expect(payload.replyTo).toBe('member-1');
+		expect(payload.body).toEqual({});
 	});
 });
