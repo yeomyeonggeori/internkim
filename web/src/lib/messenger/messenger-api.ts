@@ -138,8 +138,13 @@ export async function writePost(
 	return asPost(message);
 }
 
-export function fetchCustomEmoji(): Promise<{ name: string; url: string }[]> {
-	return ask<{ name: string; url: string }[]>('asset.emoji');
+export async function fetchCustomEmojiNames(): Promise<string[]> {
+	const listed = await ask<{ name: string }[]>('asset.emoji');
+	return listed.map((emoji) => emoji.name);
+}
+
+export function fetchCustomEmojiImage(name: string): Promise<{ dataURL: string } | null> {
+	return ask<{ dataURL: string } | null>('asset.emoji.image', { name });
 }
 
 export function fetchProfilePicture(externalID: string): Promise<{ dataURL: string } | null> {

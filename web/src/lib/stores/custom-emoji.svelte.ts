@@ -1,10 +1,12 @@
 import { isSupabaseConfigured } from '$lib/supabase';
-import { fetchCustomEmoji } from '$lib/messenger/messenger-api';
+import { fetchCustomEmojiImage, fetchCustomEmojiNames } from '$lib/messenger/messenger-api';
 
 type CustomEmojiRecord = { name: string; url: string };
 
 class CustomEmojiStore {
 	nameToURL = $state<Map<string, string>>(new Map());
+	private named = new Set<string>();
+	private beingDrawn = new Map<string, Promise<string | null>>();
 	private hasLoaded = false;
 
 	async load(): Promise<void> {
@@ -12,7 +14,7 @@ class CustomEmojiStore {
 		this.hasLoaded = true;
 		try {
 			if (isSupabaseConfigured()) {
-				this.nameToURL = await this.fromCompanyApp();
+				this.named = new Set(await this.namesFromCompanyApp());
 				return;
 			}
 			const response = await fetch('/agent/api/custom-emoji', { credentials: 'include' });
@@ -21,19 +23,45 @@ class CustomEmojiStore {
 				return;
 			}
 			const document: { emoji?: CustomEmojiRecord[] } = await response.json();
-			this.nameToURL = new Map((document.emoji ?? []).map((record) => [record.name, record.url]));
+			const drawn = document.emoji ?? [];
+			this.named = new Set(drawn.map((record) => record.name));
+			this.nameToURL = new Map(drawn.map((record) => [record.name, record.url]));
 		} catch {
 			this.hasLoaded = false;
 		}
 	}
 
-	private async fromCompanyApp(): Promise<Map<string, string>> {
+	async draw(names: Iterable<string>): Promise<void> {
+		const wanted = [...new Set(names)].filter(
+			(name) => this.named.has(name) && !this.nameToURL.has(name)
+		);
+		if (wanted.length === 0) return;
+		const drawn = await Promise.all(
+			wanted.map(async (name) => [name, await this.drawOnce(name)] as const)
+		);
+		const filled = new Map(this.nameToURL);
+		for (const [name, url] of drawn) {
+			if (url) filled.set(name, url);
+		}
+		this.nameToURL = filled;
+	}
+
+	private drawOnce(name: string): Promise<string | null> {
+		const already = this.beingDrawn.get(name);
+		if (already) return already;
+		const drawing = fetchCustomEmojiImage(name)
+			.then((image) => image?.dataURL ?? null)
+			.catch(() => null);
+		this.beingDrawn.set(name, drawing);
+		return drawing;
+	}
+
+	private async namesFromCompanyApp(): Promise<string[]> {
 		for (let attempt = 0; attempt < 4; attempt += 1) {
 			try {
-				const drawn = await fetchCustomEmoji();
-				if (drawn.length > 0) return new Map(drawn.map((record) => [record.name, record.url]));
+				const named = await fetchCustomEmojiNames();
+				if (named.length > 0) return named;
 			} catch {
-				// the app answers once its presence reaches this page
 			}
 			await new Promise((wait) => setTimeout(wait, 2000));
 		}
