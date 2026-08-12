@@ -20,7 +20,7 @@ func runLLM() {
 	target := registerTargetFlags(flagSet)
 	flagArguments, positionalArguments := splitFlagsAndPositionals(os.Args[2:], map[string]bool{
 		"remote":         true,
-		"cloudflare-ssh": true,
+		"remote-ssh": true,
 		"sim":            true,
 	}, map[string]bool{
 		"mode":        true,

@@ -475,7 +475,7 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
 	flagSet.String("node", "", "Fleet node target")
-	flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
+	flagSet.Bool("remote-ssh", false, "Reach the device by its ssh hostname instead of probing the local network")
 	flagSet.String("board", "", "Board target")
 	flagSet.Bool("sim", false, "Use simulation target")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
@@ -529,9 +529,6 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 }
 
 func newVerifySSHClient(sshpassBin string, target commandTarget) *sshClient {
-	if target.useRemoteSSH {
-		return newCloudflareSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
-	}
 	return newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
 }
 
