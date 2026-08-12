@@ -1304,7 +1304,7 @@ func (service *Service) markBlueclawUpdateUploadChunk(uploadID string, chunkInde
 }
 
 func blueclawUpdateUploadTokenMatches(request *http.Request, upload *BlueclawUpdateUpload) bool {
-	token := strings.TrimSpace(request.Header.Get("X-InternKim-Upload-Token"))
+	token := strings.TrimSpace(request.Header.Get("X-INTERNKIM-UPLOAD-TOKEN"))
 	if token == "" {
 		token = strings.TrimPrefix(strings.TrimSpace(request.Header.Get("Authorization")), "Bearer ")
 	}

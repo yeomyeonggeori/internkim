@@ -96,7 +96,7 @@ func (pluginValue *Plugin) ServeHTTP(_ *plugin.Context, responseWriter http.Resp
 		http.NotFound(responseWriter, request)
 		return
 	}
-	if !pluginValue.isValidToken(request.Header.Get("X-InternKim-Token")) {
+	if !pluginValue.isValidToken(request.Header.Get("X-INTERNKIM-TOKEN")) {
 		pluginValue.API.LogWarn("delete-ephemeral rejected: token mismatch", "hasConfiguredSecret", pluginValue.sharedSecret() != "")
 		http.Error(responseWriter, "invalid token", http.StatusUnauthorized)
 		return

@@ -49,8 +49,8 @@ func (service *Service) askCentralPlaneForAgentKey() (string, error) {
 	if errorValue != nil {
 		return "", errorValue
 	}
-	request.Header.Set("X-InternKim-Fleet-ID", fleetID)
-	request.Header.Set("X-InternKim-Fleet-Secret", fleetSecret)
+	request.Header.Set("X-INTERNKIM-FLEET-ID", fleetID)
+	request.Header.Set("X-INTERNKIM-FLEET-SECRET", fleetSecret)
 
 	client := service.HTTPClient
 	if client == nil {

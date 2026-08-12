@@ -22,7 +22,7 @@ func TestServeHTTPDeletesEphemeralPost(t *testing.T) {
 	pluginValue := &Plugin{deleter: deleter, activeConfiguration: &configuration{Secret: "shared-secret"}}
 	pluginValue.API = &testPluginAPI{secret: "shared-secret"}
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/delete-ephemeral", strings.NewReader(`{"userID":"user-1","postID":"post-1"}`))
-	request.Header.Set("X-InternKim-Token", "shared-secret")
+	request.Header.Set("X-INTERNKIM-TOKEN", "shared-secret")
 	responseRecorder := httptest.NewRecorder()
 
 	pluginValue.ServeHTTP(nil, responseRecorder, request)
@@ -39,7 +39,7 @@ func TestServeHTTPRejectsInvalidSecret(t *testing.T) {
 	pluginValue := &Plugin{deleter: &testEphemeralPostDeleter{}, activeConfiguration: &configuration{Secret: "shared-secret"}}
 	pluginValue.API = &testPluginAPI{secret: "shared-secret"}
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/delete-ephemeral", strings.NewReader(`{"userID":"user-1","postID":"post-1"}`))
-	request.Header.Set("X-InternKim-Token", "wrong")
+	request.Header.Set("X-INTERNKIM-TOKEN", "wrong")
 	responseRecorder := httptest.NewRecorder()
 
 	pluginValue.ServeHTTP(nil, responseRecorder, request)
@@ -53,7 +53,7 @@ func TestServeHTTPRejectsInvalidInput(t *testing.T) {
 	pluginValue := &Plugin{deleter: &testEphemeralPostDeleter{}, activeConfiguration: &configuration{Secret: "shared-secret"}}
 	pluginValue.API = &testPluginAPI{secret: "shared-secret"}
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/delete-ephemeral", strings.NewReader(`{"userID":"user-1"}`))
-	request.Header.Set("X-InternKim-Token", "shared-secret")
+	request.Header.Set("X-INTERNKIM-TOKEN", "shared-secret")
 	responseRecorder := httptest.NewRecorder()
 
 	pluginValue.ServeHTTP(nil, responseRecorder, request)

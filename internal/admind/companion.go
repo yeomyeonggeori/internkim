@@ -847,8 +847,8 @@ func (service *Service) denyCompanionJobResult(companionID string, jobID string,
 }
 
 func (service *Service) authorizedCompanion(request *http.Request) *CompanionRecord {
-	companionID := strings.TrimSpace(request.Header.Get("X-InternKim-Companion-ID"))
-	token := strings.TrimSpace(request.Header.Get("X-InternKim-Companion-Token"))
+	companionID := strings.TrimSpace(request.Header.Get("X-INTERNKIM-COMPANION-ID"))
+	token := strings.TrimSpace(request.Header.Get("X-INTERNKIM-COMPANION-TOKEN"))
 	if companionID == "" || token == "" {
 		return nil
 	}

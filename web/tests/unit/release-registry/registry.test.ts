@@ -19,7 +19,7 @@ describe('Release Registry Worker', () => {
 
 		const response = await handleReleaseRegistryRequest(
 			new Request('https://updates.example.test/channels/stable.json', {
-				headers: { 'X-InternKim-Release-Token': 'download-token' }
+				headers: { 'X-INTERNKIM-RELEASE-TOKEN': 'download-token' }
 			}),
 			{
 				RELEASE_BUCKET: bucket as unknown as R2Bucket,
@@ -37,7 +37,7 @@ describe('Release Registry Worker', () => {
 
 		const response = await handleReleaseRegistryRequest(
 			new Request('https://updates.example.test/%252E%252E/secret', {
-				headers: { 'X-InternKim-Release-Token': 'download-token' }
+				headers: { 'X-INTERNKIM-RELEASE-TOKEN': 'download-token' }
 			}),
 			{
 				RELEASE_BUCKET: bucket as unknown as R2Bucket,

@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	SignatureHeader = "X-InternKim-Companion-Signature"
-	TimestampHeader = "X-InternKim-Companion-Timestamp"
+	SignatureHeader = "X-INTERNKIM-COMPANION-SIGNATURE"
+	TimestampHeader = "X-INTERNKIM-COMPANION-TIMESTAMP"
 )
 
 type KeyPair struct {
