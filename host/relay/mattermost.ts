@@ -9,12 +9,20 @@ export type MattermostSession = {
 	userID: string;
 };
 
+export class RefusedAccount extends Error {
+	constructor(status: number) {
+		super(`mattermost refused this account (${status})`);
+		this.name = 'RefusedAccount';
+	}
+}
+
 export async function signIn(settings: MattermostSettings): Promise<MattermostSession> {
 	const response = await fetch(`${settings.baseURL}/api/v4/users/login`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ login_id: settings.email, password: settings.password })
 	});
+	if (response.status === 401 || response.status === 403) throw new RefusedAccount(response.status);
 	if (!response.ok) throw new Error(`mattermost login returned ${response.status}`);
 	const token = response.headers.get('token');
 	if (!token) throw new Error('mattermost returned no session token');
