@@ -1,3 +1,13 @@
+set search_path = public, extensions;
+
+do $$
+begin
+  if exists (select 1 from public.company where id <> '000000cc-0000-0000-0000-000000000001') then
+    raise exception 'seed.dev.sql builds a fixture company and refuses to run where a real one already exists. You are pointed at a database with real data.';
+  end if;
+end
+$$;
+
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password,
   email_confirmed_at, created_at, updated_at,
@@ -37,9 +47,9 @@ insert into public.company (
   work_locations, task_vocabulary, minimum_daily_minutes, leave_days
 ) values (
   '000000cc-0000-0000-0000-000000000001',
-  '여명거리', 'dawnstreet', 'KR', 'ko', 'Asia/Seoul',
+  '예시회사', 'example-co', 'KR', 'ko', 'Asia/Seoul',
   '[{"name": "사무실", "color": "#9929bd"}, {"name": "재택", "color": "#669c35"}, {"name": "외부", "color": "#0ea5e9"}]',
-  '{"businesses": [{"name": "여명거리", "color": "#216fe4"}, {"name": "오토케", "color": "#475569"}],
+  '{"businesses": [{"name": "사업하나", "color": "#216fe4"}, {"name": "사업둘", "color": "#475569"}],
     "types": [{"name": "기능"}, {"name": "개선"}, {"name": "회의"}]}',
   480, 15
 ) on conflict (id) do nothing;
@@ -56,7 +66,7 @@ insert into public.member (
    '000000dd-0000-0000-0000-000000000001', '이샘플', 'CTO', '000000bb-0000-0000-0000-000000000001',
    'active', true, '2024-03-01T00:00:00+09'),
   ('000000ee-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', 'iam@example.com',
-   '000000dd-0000-0000-0000-000000000002', '김표본', 'CEO', null,
+   '000000dd-0000-0000-0000-000000000002', '김예시', 'CEO', null,
    'active', true, '2024-01-02T00:00:00+09'),
   ('000000ee-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', 'gyeonyang@example.com',
    '000000dd-0000-0000-0000-000000000003', '박예시', '연구원', '000000bb-0000-0000-0000-000000000002',
@@ -70,13 +80,13 @@ insert into public.task (
   id, company_id, title, status, business, type, size, starts_at, ends_at, is_whole_day, note
 ) values
   ('000000f0-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001',
-   '오토케 API 사용법 문서 작성', 'todo', '오토케', '기능', 'M',
+   '예시 API 문서 작성', 'todo', '사업둘', '기능', 'M',
    now() - interval '1 day', now() + interval '2 days', true, '목표: 외부 개발자가 붙일 수 있게'),
   ('000000f0-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001',
-   '근태 화면 리디자인', 'in_progress', '여명거리', '개선', 'L',
+   '예시 화면 리디자인', 'in_progress', '사업하나', '개선', 'L',
    now() - interval '3 days', now() + interval '4 days', true, null),
   ('000000f0-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001',
-   '언제 끝날지 모르는 일', 'in_progress', '여명거리', '개선', 'XL',
+   '끝이 정해지지 않은 예시 일', 'in_progress', '사업하나', '개선', 'XL',
    now() - interval '5 days', null, false, null)
 on conflict (id) do nothing;
 
