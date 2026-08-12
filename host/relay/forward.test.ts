@@ -1,16 +1,20 @@
-import { describe, expect, test } from 'bun:test';
-import { actorOf, answerBodyOf, isPersonCapability, mailOperationOf, reportableTopic, serveCall } from './forward';
+import { afterEach, describe, expect, test } from 'bun:test';
+import {
+	actorOf,
+	answerBodyOf,
+	forwardToChatd,
+	isPersonCapability,
+	mailOperationOf,
+	reportableTopic,
+	serveCall
+} from './forward';
 
 function dispatchThatKnows(externalIDs: Record<string, string>) {
 	const asked: { capability: string; body: Record<string, unknown> }[] = [];
 	return {
 		asked,
 		dispatch: {
-			serveAsset: async (
-				capability: string,
-				_body: Record<string, unknown>,
-				reader: { memberID: string; token: string }
-			) => ({ served: capability, readAs: reader }),
+			serveAsset: async (capability: string) => ({ served: capability }),
 			askMaild: async (operation: string, body: Record<string, unknown>) => {
 				asked.push({ capability: `mail.${operation}`, body });
 				return { status: 200, body: { mailboxes: [] } };
@@ -62,8 +66,9 @@ describe('isPersonCapability', () => {
 	test('person capabilities need an actor, assets do not', () => {
 		expect(isPersonCapability('person.conversations.list')).toBe(true);
 		expect(isPersonCapability('person.message.send')).toBe(true);
-		expect(isPersonCapability('asset.emoji')).toBe(false);
-		expect(isPersonCapability('asset.picture')).toBe(false);
+		expect(isPersonCapability('person.emoji.list')).toBe(true);
+		expect(isPersonCapability('person.picture')).toBe(true);
+		expect(isPersonCapability('asset.link')).toBe(false);
 	});
 });
 
@@ -128,18 +133,18 @@ describe('serveCall', () => {
 		expect(asked).toEqual([]);
 	});
 
-	test('an asset is read as the person who asked for it', async () => {
+	test('an asset the messenger does not own is served without a credential', async () => {
 		const { dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
 
 		const served = await serveCall(dispatch, {
 			callID: 'c1',
-			capability: 'asset.emoji',
+			capability: 'asset.link',
 			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
 		});
 
 		expect(served).toEqual({
 			status: 200,
-			body: { served: 'asset.emoji', readAs: { memberID: 'member-1', token: 'known' } },
+			body: { served: 'asset.link' },
 			replyTo: 'member-1'
 		});
 	});
@@ -147,7 +152,7 @@ describe('serveCall', () => {
 	test('an asset call naming no actor is refused, so nothing reads on a shared account', async () => {
 		const { asked, dispatch } = dispatchThatKnows({});
 
-		const served = await serveCall(dispatch, { callID: 'c1', capability: 'asset.emoji' });
+		const served = await serveCall(dispatch, { callID: 'c1', capability: 'asset.link' });
 
 		expect(served.status).toBe(400);
 		expect(asked).toEqual([]);
@@ -211,7 +216,7 @@ describe('mailOperationOf', () => {
 	test('anything else is not mail', () => {
 		expect(mailOperationOf('person.message.send')).toBeNull();
 		expect(mailOperationOf('person.mail.')).toBeNull();
-		expect(mailOperationOf('asset.emoji')).toBeNull();
+		expect(mailOperationOf('asset.link')).toBeNull();
 	});
 
 	test('an operation cannot be a path', () => {
@@ -290,5 +295,34 @@ describe('answerBodyOf', () => {
 
 	test('keeps plain text that came back with a success', async () => {
 		expect(await answerBodyOf(new Response('done', { status: 200 }))).toBe('done');
+	});
+});
+
+describe('forwardToChatd', () => {
+	const realFetch = globalThis.fetch;
+
+	afterEach(() => {
+		globalThis.fetch = realFetch;
+	});
+
+	async function bodySentFor(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+		let sent: Record<string, unknown> = {};
+		globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+			sent = JSON.parse(String(init?.body));
+			return Response.json({ image: null });
+		}) as typeof fetch;
+		await forwardToChatd('http://chatd.test', 'mattermost', 'person.picture', body, 674_000);
+		return sent;
+	}
+
+	test('tells chatd what this transport can carry, so a drawing is never too large to send', async () => {
+		expect(await bodySentFor({ externalID: 'U1' })).toEqual({
+			externalID: 'U1',
+			largestBytes: 674_000
+		});
+	});
+
+	test('a caller cannot raise the limit past what this transport carries', async () => {
+		expect((await bodySentFor({ largestBytes: 99_000_000 })).largestBytes).toBe(674_000);
 	});
 });
