@@ -1,6 +1,7 @@
 export const reservedFirstSegments = [
 	'admin',
 	'api',
+	'api-docs',
 	'assistant',
 	'attendance',
 	'auth',
@@ -11,6 +12,7 @@ export const reservedFirstSegments = [
 	'mail',
 	'memory',
 	'messenger',
+	'openapi',
 	'ops',
 	'organization',
 	'poc-admin',
