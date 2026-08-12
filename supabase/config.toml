@@ -5,8 +5,8 @@ enabled = true
 sql_paths = ['./seed.dev.sql']
 
 [auth]
-site_url = "https://app.intern.kim"
-additional_redirect_urls = ["https://app.intern.kim/auth/claim"]
+site_url = "https://space.intern.kim"
+additional_redirect_urls = ["https://space.intern.kim/auth/claim", "https://app.intern.kim/auth/claim"]
 
 [auth.passkey]
 enabled = true
@@ -14,7 +14,7 @@ enabled = true
 [auth.webauthn]
 rp_display_name = "internkim"
 rp_id = "intern.kim"
-rp_origins = ["https://app.intern.kim"]
+rp_origins = ["https://space.intern.kim", "https://app.intern.kim"]
 
 [auth.mfa.totp]
 enroll_enabled = true
