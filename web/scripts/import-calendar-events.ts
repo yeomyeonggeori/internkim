@@ -1,8 +1,12 @@
-//   bun run web/scripts/import-calendar-events.ts --file <calendar-events.json> --company <uuid> [--apply]
+//   bun run web/scripts/import-calendar-events.ts --file <calendar-events.json> --people <organization-people.json> --company <uuid> [--apply]
 
 import { controlPlane } from '../src/lib/server/control-plane';
 
 type DeviceParticipant = { personID?: string; name?: string };
+
+type DevicePerson = { userID?: string; name?: string; handle?: string; email?: string; image?: string };
+
+type ResolvedParticipant = { memberID: string; email: string; by: 'personID' | 'nameOrHandle' | 'givenName' };
 
 type DeviceEvent = {
 	id: string;
@@ -15,15 +19,12 @@ type DeviceEvent = {
 	timeZone?: string;
 	isAllDay?: boolean;
 	color?: string;
-	people?: string[];
 	participants?: DeviceParticipant[];
 	reminderLeadHours?: number;
 	createdByEmail?: string;
 	remoteSource?: string;
 	remoteHref?: string;
 };
-
-type Member = { id: string; name: string | null; email: string | null };
 
 type LiveEvent = { id: string; title: string; starts_at: string; calendar: unknown };
 
@@ -39,9 +40,12 @@ function argument(name: string): string | undefined {
 }
 
 const file = argument('file');
+const peopleFile = argument('people');
 const companyID = argument('company');
 const shouldApply = process.argv.includes('--apply');
-if (!file || !companyID) throw new Error('pass --file <calendar-events.json> --company <uuid>');
+if (!file || !peopleFile || !companyID) {
+	throw new Error('pass --file <calendar-events.json> --people <organization-people.json> --company <uuid>');
+}
 
 const client = controlPlane({
 	projectURL: process.env.SUPABASE_URL ?? '',
@@ -49,14 +53,16 @@ const client = controlPlane({
 });
 
 const events = (JSON.parse(await Bun.file(file).text()) as { events?: DeviceEvent[] }).events ?? [];
+const devicePeople = (JSON.parse(await Bun.file(peopleFile).text()) as { records?: DevicePerson[] }).records ?? [];
 
 const { data: memberRows, error: memberError } = await client
 	.from('member')
-	.select('id, name, email')
+	.select('id, email')
 	.eq('company_id', companyID);
 if (memberError) throw new Error(memberError.message);
-const members = (memberRows ?? []) as Member[];
-const memberByEmail = new Map(members.map((member) => [(member.email ?? '').toLowerCase(), member.id]));
+const memberByEmail = new Map((memberRows ?? []).map((member) => [(member.email ?? '').toLowerCase(), member.id]));
+
+const emailByPersonID = personDirectoryOf(devicePeople);
 
 const { data: existing, error: eventError } = await client
 	.from('task')
@@ -80,7 +86,8 @@ let adopted = 0;
 let updated = 0;
 let inserted = 0;
 const skippedTitles: string[] = [];
-const namesMatchingNobody = new Set<string>();
+const unresolvedParticipants = new Set<string>();
+const matchedByGivenName = new Set<string>();
 const creatorsMatchingNobody = new Set<string>();
 const refusedByTheRecord: string[] = [];
 
@@ -92,18 +99,23 @@ for (const event of events) {
 		continue;
 	}
 
-	const attendeeNames = attendeeNamesOf(event);
+	const writtenParticipants = event.participants ?? [];
 	const attendeeIDs = new Set<string>();
-	for (const name of attendeeNames) {
-		const memberID = resolveMember(name);
-		memberID ? attendeeIDs.add(memberID) : namesMatchingNobody.add(name);
+	for (const participant of writtenParticipants) {
+		const found = resolveParticipant(participant);
+		if (!found) {
+			unresolvedParticipants.add(participant.name?.trim() || '(이름 없음)');
+			continue;
+		}
+		attendeeIDs.add(found.memberID);
+		if (found.by === 'givenName') matchedByGivenName.add(`${participant.name?.trim()} → ${found.email}`);
 	}
 
 	const createdByEmail = (event.createdByEmail ?? '').toLowerCase();
 	const requesterID = memberByEmail.get(createdByEmail);
 	if (createdByEmail && !requesterID) creatorsMatchingNobody.add(createdByEmail);
 
-	if (!requesterID && attendeeIDs.size === 0 && attendeeNames.size > 0) {
+	if (!requesterID && attendeeIDs.size === 0 && writtenParticipants.length > 0) {
 		skippedTitles.push(title);
 		continue;
 	}
@@ -147,7 +159,8 @@ for (const event of events) {
 console.log(`${shouldApply ? 'wrote' : 'would write'}: ${updated} updated, ${inserted} inserted, ${skippedTitles.length} skipped`);
 if (adopted) console.log(`adopted ${adopted} events that an earlier import left without a mirror`);
 if (skippedTitles.length) console.log(`skipped, nobody in this company asked for them or is on them: ${skippedTitles.join(', ')}`);
-if (namesMatchingNobody.size) console.log(`named on an event but not a member, left off: ${[...namesMatchingNobody].join(', ')}`);
+if (matchedByGivenName.size) console.log(`matched by a given name only one member bears: ${[...matchedByGivenName].join(', ')}`);
+if (unresolvedParticipants.size) console.log(`written on an event but not a member, left off: ${[...unresolvedParticipants].join(', ')}`);
 if (creatorsMatchingNobody.size) console.log(`created by an address no member holds, kept without a requester: ${[...creatorsMatchingNobody].join(', ')}`);
 for (const refusal of refusedByTheRecord) console.log(`refused by the record: ${refusal}`);
 
@@ -182,20 +195,45 @@ function countTitles(titles: string[]): Map<string, number> {
 	return counts;
 }
 
-// The device stores an attendee as free text, so a colleague is written both in
-// full and by given name alone. A single member whose name ends with what was
-// written is that person; two would be a guess, so it stays unresolved.
-function resolveMember(writtenName: string): string | undefined {
-	const exact = members.find((member) => member.name === writtenName);
-	if (exact) return exact.id;
-	if (writtenName.length < 2) return undefined;
-	const ending = members.filter((member) => (member.name ?? '').endsWith(writtenName));
-	return ending.length === 1 ? ending[0].id : undefined;
+// A participant is a person the device identified, so their id decides who they
+// are. Two shapes carry that id: the account uuid, and the shorter one the
+// calendar uses, which this export prints only inside the participant image path.
+function personDirectoryOf(people: DevicePerson[]): Map<string, string> {
+	const emailByPersonID = new Map<string, string>();
+	for (const person of people) {
+		const email = (person.email ?? '').toLowerCase();
+		if (!email) continue;
+		if (person.userID) emailByPersonID.set(person.userID, email);
+		const calendarID = /\/participants\/([0-9a-f]+)\/image/.exec(person.image ?? '')?.[1];
+		if (calendarID) emailByPersonID.set(calendarID, email);
+	}
+	return emailByPersonID;
 }
 
-function attendeeNamesOf(event: DeviceEvent): Set<string> {
-	const written = [...(event.people ?? []), ...(event.participants ?? []).map((participant) => participant.name ?? '')];
-	return new Set(written.map((name) => name.trim()).filter(Boolean));
+// Older rows carry a name where a newer one carries an id, so a name still has to
+// resolve. A full name or handle is matched outright; a given name only when one
+// member bears it, because two would be a guess. The rest is nobody we know.
+function resolveParticipant(participant: DeviceParticipant): ResolvedParticipant | undefined {
+	const personID = (participant.personID ?? '').trim();
+	if (personID) {
+		const email = emailByPersonID.get(personID);
+		const memberID = memberByEmail.get(email ?? '');
+		return email && memberID ? { memberID, email, by: 'personID' } : undefined;
+	}
+
+	const name = participant.name?.trim() ?? '';
+	if (name.length < 2) return undefined;
+	const named = devicePeople.find((person) => person.name === name || person.handle === name);
+	if (named) return memberOf(named.email, 'nameOrHandle');
+
+	const bearing = devicePeople.filter((person) => (person.name ?? '').endsWith(name));
+	return bearing.length === 1 ? memberOf(bearing[0].email, 'givenName') : undefined;
+}
+
+function memberOf(email: string | undefined, by: ResolvedParticipant['by']): ResolvedParticipant | undefined {
+	const address = (email ?? '').toLowerCase();
+	const memberID = memberByEmail.get(address);
+	return memberID ? { memberID, email: address, by } : undefined;
 }
 
 function reminderMinutesOf(leadHours: number | undefined): number | null {
