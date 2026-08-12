@@ -29,11 +29,17 @@ const secondExternalID = `U-second-${stamp}`;
 
 function aMessengerNobodyRuns(port: number) {
 	const minted: string[] = [];
+	let refusesLogin = false;
+	let loginAttempts = 0;
 	const server = Bun.serve({
 		port,
 		fetch: async (request) => {
 			const path = new URL(request.url).pathname;
 			if (path === '/api/v4/users/login') {
+				loginAttempts += 1;
+				if (refusesLogin) {
+					return Response.json({ message: 'that password is wrong' }, { status: 401 });
+				}
 				return new Response(JSON.stringify({ id: `bot-${stamp}` }), {
 					headers: { Token: botToken, 'Content-Type': 'application/json' }
 				});
@@ -52,7 +58,16 @@ function aMessengerNobodyRuns(port: number) {
 			return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
 		}
 	});
-	return { url: `http://127.0.0.1:${server.port}`, minted, stop: () => server.stop(true) };
+	return {
+		url: `http://127.0.0.1:${server.port}`,
+		minted,
+		stop: () => server.stop(true),
+		refuseTheAccount: () => {
+			refusesLogin = true;
+			loginAttempts = 0;
+		},
+		loginAttempts: () => loginAttempts
+	};
 }
 
 function aConnectorNobodyRuns(port: number) {
@@ -113,20 +128,17 @@ try {
 	});
 	const agent = await issueAgentKey(admin, company.companyID, `relay-check-${stamp}`);
 
-	relay = Bun.spawn([relayPath], {
-		env: {
-			...process.env,
-			SUPABASE_URL: projectURL,
-			SUPABASE_PUBLISHABLE_KEY: publishableKey,
-			INTERNKIM_APP_URL: appURL,
-			MESSENGER_PLATFORM: 'mattermost',
-			CHATD_BASE_URL: connector.url,
-			ARRIVALS_PORT: String(arrivalsPort),
-			AGENT_API_KEY: agent.apiKey
-		},
-		stdout: 'inherit',
-		stderr: 'inherit'
-	});
+	const relayEnvironment = {
+		...process.env,
+		SUPABASE_URL: projectURL,
+		SUPABASE_PUBLISHABLE_KEY: publishableKey,
+		INTERNKIM_APP_URL: appURL,
+		MESSENGER_PLATFORM: 'mattermost',
+		CHATD_BASE_URL: connector.url,
+		ARRIVALS_PORT: String(arrivalsPort),
+		AGENT_API_KEY: agent.apiKey
+	};
+	relay = Bun.spawn([relayPath], { env: relayEnvironment, stdout: 'inherit', stderr: 'inherit' });
 
 	const joined = await untilTrue(
 		'the relay to record its contacts',
@@ -234,6 +246,35 @@ try {
 	const reported = (await arrival.json()) as { told?: number };
 	findings.push(['a message the messenger accepted becomes a notification', reported.told === 1]);
 	pushService.stop(true);
+
+	relay.kill();
+	await relay.exited;
+	messenger.refuseTheAccount();
+	relay = Bun.spawn([relayPath], { env: relayEnvironment, stdout: 'inherit', stderr: 'inherit' });
+
+	const askedBeforeTheRefusal = connector.asked.length;
+	const servedAnyway = await untilTrue(
+		'the relay to take a call while the messenger refuses the account it was given',
+		async () => {
+			await answers.send({
+				type: 'broadcast',
+				event: 'call',
+				payload: {
+					callID: crypto.randomUUID(),
+					capability: 'person.conversations.list',
+					replyTo: company.adminMemberID,
+					body: { actor: { kind: 'mattermost-token', secret: `personal-${firstExternalID}` } }
+				}
+			});
+			return connector.asked.length > askedBeforeTheRefusal;
+		},
+		30
+	);
+	findings.push(['the relay still serves calls when the messenger refuses its account', servedAnyway]);
+	findings.push([
+		'a refused account is asked for once, not once per job, so the messenger never locks it',
+		messenger.loginAttempts() === 1
+	]);
 
 	await asMember.removeAllChannels();
 	asMember.realtime.disconnect();
