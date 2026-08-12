@@ -110,8 +110,31 @@ export function callPayload(
 }
 
 export async function callCompanyApp(call: HostCall): Promise<HostAnswer> {
-	const wire = await companyWire();
 	const actor = await messengerCredential();
+	return sendCall((callID, memberID) => callPayload(callID, memberID, call, actor));
+}
+
+export function channelPayload(
+	callID: string,
+	memberID: string,
+	call: HostCall
+): Record<string, unknown> {
+	return {
+		callID,
+		capability: call.capability,
+		replyTo: memberID,
+		body: call.body ?? {}
+	};
+}
+
+export function callCompanyAppByChannel(call: HostCall): Promise<HostAnswer> {
+	return sendCall((callID, memberID) => channelPayload(callID, memberID, call));
+}
+
+async function sendCall(
+	payloadOf: (callID: string, memberID: string) => Record<string, unknown>
+): Promise<HostAnswer> {
+	const wire = await companyWire();
 
 	const callID = crypto.randomUUID();
 	const answered = new Promise<HostAnswer | null>((resolve) => {
@@ -125,7 +148,7 @@ export async function callCompanyApp(call: HostCall): Promise<HostAnswer> {
 	await wire.mine.send({
 		type: 'broadcast',
 		event: 'call',
-		payload: callPayload(callID, wire.memberID, call, actor)
+		payload: payloadOf(callID, wire.memberID)
 	});
 
 	const answer = await answered;

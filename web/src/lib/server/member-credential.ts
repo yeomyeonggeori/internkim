@@ -45,6 +45,38 @@ export async function keepMemberCredential(
 	if (error) throw new Error(error.message);
 }
 
+export type ConnectedMessengerAccount = {
+	memberID: string;
+	kind: string;
+	externalID: string;
+	name: string;
+	secret: string;
+};
+
+export async function connectMessengerAccount(
+	client: SupabaseClient,
+	companyID: string,
+	account: ConnectedMessengerAccount,
+): Promise<void> {
+	await keepMemberCredential(client, account.memberID, {
+		kind: account.kind,
+		externalID: account.externalID,
+		secret: account.secret,
+	});
+
+	const { error } = await client.from('contact').upsert(
+		{
+			company_id: companyID,
+			platform: account.kind,
+			external_id: account.externalID,
+			name: account.name,
+			member_id: account.memberID,
+		},
+		{ onConflict: 'company_id,platform,external_id' },
+	);
+	if (error) throw new Error(error.message);
+}
+
 export async function externalIDsWithACredential(
 	client: SupabaseClient,
 	companyID: string,
