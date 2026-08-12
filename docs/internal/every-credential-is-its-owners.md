@@ -153,9 +153,15 @@ The emoji set is not a window. The browser needs every entry to render `:name:`
 at all, so paging it means several round trips to assemble something the caller
 always wants whole. The size comes from putting bytes inside the list: each
 image is inlined as a data URL at up to 100 KB. The split is per item rather
-than per page. An index of names and ids is small and arrives once; an image is
-fetched when it is first drawn and then cached, which costs nothing again
-because emoji do not change.
+than per page. An index of names is small and arrives once; an image is fetched
+when it is first drawn and then held, which costs nothing again because emoji do
+not change. The id an image is fetched by stays inside the relay, which already
+read it while listing, so nothing above has to know how a platform keys an
+emoji.
+
+Both are in place: the byte budget in chatd's `listMessages`, the index and
+`asset.emoji.image` in the relay. When the relay's assets move to chatd in steps
+1 and 2, the emoji capability carries this shape with it.
 
 > Pagination is right when the caller wants a window on a sequence. When the
 > caller wants the whole set and the entries are heavy, split the entry.
@@ -204,12 +210,9 @@ Steps 1–2 and 3–4 are each one deployable contract. Step 6 is what ends the
 outage class this document exists for, and it cannot land before step 4 gives
 new people a way in.
 
-Two more follow, and they are the larger half:
+One more follows, and it is the larger half:
 
-8. **The unbounded collections are bounded.** A message page is cut by bytes;
-   the emoji set becomes an index and a per-item fetch. This is a bug fix and
-   needs nothing else from this list.
-9. **The agent's messenger tools go through the passage.** Today
+8. **The agent's messenger tools go through the passage.** Today
    `chatd_platform_adapter.go` calls `reply.send` as the bot, outside the actor
    boundary entirely. This is the step that makes the agent act as the person
    who asked, and the gate is what it gains on the way.
