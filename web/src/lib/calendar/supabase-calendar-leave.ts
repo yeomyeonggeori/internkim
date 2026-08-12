@@ -1,4 +1,5 @@
 import { leaveAllDayDate } from '../attendance/supabase-leave-range';
+import { dayOffColor } from './day-off-color';
 import { localizedLeaveUnitName } from '../i18n/leave-type-name';
 import type { Locale } from '../i18n/locale.svelte';
 import { supabase } from '../supabase';
@@ -60,7 +61,7 @@ export function calendarEventFromApprovedLeave(
 		endISO: isAllDay ? calendarMidnightISO(leave.ends_at, timeZone) : leave.ends_at,
 		timeZone,
 		isAllDay,
-		color: '',
+		color: dayOffColor,
 		participants: [{ personID: leave.member_id, name, ...(email ? { email } : {}) }],
 		createdByEmail: email,
 		createdByName: name,

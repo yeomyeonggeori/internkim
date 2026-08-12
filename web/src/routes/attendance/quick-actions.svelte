@@ -157,10 +157,10 @@
 		{/if}
 		{#if activeLeave}
 			<div
-				class="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-xs"
+				class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs"
 				data-testid="active-leave-status"
 			>
-				<p class="font-medium text-info">{text.onLeave}</p>
+				<p class="font-medium text-destructive">{text.onLeave}</p>
 				<p class="mt-0.5 text-muted-foreground">
 					{activeLeaveName} · {activeLeave.startTime}–{activeLeave.endTime}
 				</p>
