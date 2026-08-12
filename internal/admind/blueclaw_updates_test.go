@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -269,13 +270,13 @@ func TestSyncBlueclawRuntimeConfigurationForTargetUpdatesMigrationPath(t *testin
 		WorkspaceRuntimeConfigurationPath: workspaceRuntimeConfigurationPath,
 	}
 
-	if isBlueclawRuntimeConfigurationCurrentForTarget(target) {
+	if isBlueclawRuntimeConfigurationCurrentForTarget(target, blueclawruntime.CurrentCapabilityContract()) {
 		t.Fatal("expected stale runtime configuration to be detected")
 	}
-	if errorValue := syncBlueclawRuntimeConfigurationForTarget(target); errorValue != nil {
+	if errorValue := syncBlueclawRuntimeConfigurationForTarget(target, blueclawruntime.CurrentCapabilityContract()); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !isBlueclawRuntimeConfigurationCurrentForTarget(target) {
+	if !isBlueclawRuntimeConfigurationCurrentForTarget(target, blueclawruntime.CurrentCapabilityContract()) {
 		t.Fatal("expected runtime configuration to be current")
 	}
 	for _, path := range []string{runtimeConfigurationPath, workspaceRuntimeConfigurationPath} {
@@ -369,7 +370,7 @@ func TestReconcileBlueclawRuntimeConfigurationForTargetRestampsStaleIdentityAndR
 
 	service.reconcileBlueclawRuntimeConfigurationForTarget(context.Background(), target)
 
-	if !isBlueclawRuntimeConfigurationCurrentForTarget(target) {
+	if !isBlueclawRuntimeConfigurationCurrentForTarget(target, blueclawruntime.CurrentCapabilityContract()) {
 		t.Fatal("expected stale runtime configuration to be restamped")
 	}
 	contract := blueclawruntime.CurrentCapabilityContract()
@@ -436,7 +437,7 @@ func TestRefreshBlueclawCapabilityContractReplacesStaleOperationNames(t *testing
   "firecracker": {"hostWorkspacePath": "/srv/keep/this"}
 }`
 
-	refreshed, errorValue := refreshBlueclawCapabilityContract(staleDocument)
+	refreshed, errorValue := refreshBlueclawCapabilityContract(staleDocument, blueclawruntime.CurrentCapabilityContract())
 	if errorValue != nil {
 		t.Fatalf("refresh returned error: %v", errorValue)
 	}
@@ -471,7 +472,7 @@ func TestRefreshBlueclawCapabilityContractMigratesPreLLMDLineage(t *testing.T) {
   }
 }`
 
-	refreshed, errorValue := refreshBlueclawCapabilityContract(preLLMDDeviceDocument)
+	refreshed, errorValue := refreshBlueclawCapabilityContract(preLLMDDeviceDocument, blueclawruntime.CurrentCapabilityContract())
 	if errorValue != nil {
 		t.Fatalf("refresh returned error: %v", errorValue)
 	}
@@ -508,7 +509,7 @@ func TestRefreshBlueclawCapabilityContractKeepsExplicitLLMDConfiguration(t *test
   }
 }`
 
-	refreshed, errorValue := refreshBlueclawCapabilityContract(configuredDocument)
+	refreshed, errorValue := refreshBlueclawCapabilityContract(configuredDocument, blueclawruntime.CurrentCapabilityContract())
 	if errorValue != nil {
 		t.Fatalf("refresh returned error: %v", errorValue)
 	}
@@ -522,7 +523,7 @@ func TestRefreshBlueclawCapabilityContractKeepsExplicitLLMDConfiguration(t *test
 
 func refreshedDocumentIsCurrent(t *testing.T, document string) bool {
 	t.Helper()
-	refreshedAgain, errorValue := refreshedBlueclawRuntimeConfiguration(document)
+	refreshedAgain, errorValue := refreshedBlueclawRuntimeConfiguration(document, blueclawruntime.CurrentCapabilityContract())
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -696,7 +697,7 @@ func TestSeedWorkspaceRuntimeConfigurationCreatesTheCopyTheGuestBootsFrom(t *tes
 	if !workspaceRuntimeConfigurationIsMissing(target) {
 		t.Fatal("a workspace without the guest copy must not read as current")
 	}
-	if isBlueclawRuntimeConfigurationCurrentForTarget(target) {
+	if isBlueclawRuntimeConfigurationCurrentForTarget(target, blueclawruntime.CurrentCapabilityContract()) {
 		t.Fatal("a missing guest copy must make the target stale")
 	}
 	if errorValue := seedWorkspaceRuntimeConfiguration(target); errorValue != nil {
@@ -734,5 +735,50 @@ func TestSeedWorkspaceRuntimeConfigurationLeavesAnExistingCopyAlone(t *testing.T
 	document, _ := os.ReadFile(workspacePath)
 	if !strings.Contains(string(document), "guest") {
 		t.Fatalf("seeding must not overwrite an existing guest copy: %s", string(document))
+	}
+}
+
+func serveCapabilityRegistryOnSocket(t *testing.T, document string) string {
+	t.Helper()
+	socketDirectory, errorValue := os.MkdirTemp("/tmp", "ik-capability")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(socketDirectory) })
+	socketPath := filepath.Join(socketDirectory, "c.sock")
+	listener, errorValue := net.Listen("unix", socketPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	server := &http.Server{Handler: http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(document))
+	})}
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() { _ = server.Close() })
+	return socketPath
+}
+
+func TestCapabilityContractForStampingFollowsTheRunningCapabilityd(t *testing.T) {
+	socketPath := serveCapabilityRegistryOnSocket(t, `{"protocolVersion":"0.4.0","aggregateProtocolHash":"1111111111111111111111111111111111111111111111111111111111111111","capabilities":[{"name":"task_write"}]}`)
+	service := &Service{Configuration: Configuration{CapabilitySocketPath: socketPath}}
+
+	contract := service.capabilityContractForStamping(context.Background())
+
+	if contract.AggregateProtocolHash != "1111111111111111111111111111111111111111111111111111111111111111" {
+		t.Fatalf("the stamp must follow the running capabilityd, got %q", contract.AggregateProtocolHash)
+	}
+	if len(contract.ToolDescriptors) != 1 || contract.ToolDescriptors[0].Name != "task_write" {
+		t.Fatalf("descriptors = %+v", contract.ToolDescriptors)
+	}
+}
+
+func TestCapabilityContractForStampingFallsBackWhenCapabilitydIsUnreachable(t *testing.T) {
+	service := &Service{Configuration: Configuration{CapabilitySocketPath: filepath.Join(t.TempDir(), "absent.sock")}}
+
+	contract := service.capabilityContractForStamping(context.Background())
+
+	if contract.AggregateProtocolHash != blueclawruntime.CurrentCapabilityContract().AggregateProtocolHash {
+		t.Fatalf("an unreachable capabilityd must leave this admind's own contract in place, got %q", contract.AggregateProtocolHash)
 	}
 }
