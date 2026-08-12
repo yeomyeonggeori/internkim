@@ -119,7 +119,8 @@ as a command the operator runs against a machine they already have a shell on.
 
 ## Order of change
 
-Each step stands alone, and the device keeps working through all of them.
+Each step stands alone, and the device keeps working through all of them. Steps
+1 and 2 are done.
 
 1. **The PoC goes.** `internal/tenantruntime`, the `poc-container` target kind,
    `poc/`, `web/src/routes/poc-admin`, and the two PoC documents. The largest
@@ -127,17 +128,32 @@ Each step stands alone, and the device keeps working through all of them.
    to a machine nobody asked for.
 2. **SSH becomes a proxy command.** Behaviour identical, the transport gone from
    the source.
-3. **Registration stops creating a tunnel, an Access application and a DNS
-   record.** After this the device is reachable on its own network. This is the
-   step that ends browser access to the device, so it lands after the company
-   app serves everything a person opens.
-4. **admind stops trusting an Access email.** Nothing sends that header once
-   step 3 lands. The Mattermost session and the Intern Kim session stay.
-5. **OTA becomes a package.** `internkim deploy` becomes build, ship, restart,
-   verify over the same `ssh` as everything else.
+3. **OTA becomes a package.** `internkim deploy` becomes build, ship, restart,
+   verify over the same `ssh` as everything else. `--legacy-ssh` already does
+   this; the work is making it the only path and deleting the engine the other
+   one drives.
+4. **Registration stops creating a tunnel, an Access application and a DNS
+   record.** After this a newly registered device is reachable on its own
+   network. This is the step that ends browser access to the device.
+5. **admind stops trusting an Access email.** Nothing sends that header once
+   step 4 lands. The Mattermost session and the Intern Kim session stay.
 
-Step 3 is the one with a decision inside it, and it is not a code decision: it
-asks whether anyone still opens the device in a browser.
+The package step comes before registration for a reason worth stating. A device
+registered after step 4 has no tunnel, so it has no Admin HTTPS, so it has no
+OTA upload path; doing them the other way round would leave a device that can
+be set up and never updated.
+
+Step 4 also does less to a running device than it sounds. Registration is what
+*creates* a tunnel, and deleting that code tears none down, so the Jetson in
+production keeps the tunnel it already has and keeps answering on it. What
+changes is that no new device gets one.
+
+Step 4 is the one with a decision inside it, and it is not a code decision: it
+asks whether anyone still opens a device in a browser. Both surfaces are live
+today. `zd2df6qt6jmc.intern.kim/flow/`, `/calendar/`, `/attendance/` and
+`/tasks/` all answer 200 from the device, and `space.intern.kim` answers the
+same screens from the central plane, so the question is which one people
+actually use.
 
 ## What this does not do
 
