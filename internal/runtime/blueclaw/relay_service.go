@@ -12,14 +12,14 @@ Documentation=https://github.com/yeomyeonggeori/internkim/blob/main/host/README.
 After=network-online.target
 Wants=network-online.target
 ConditionPathExists=%s
+StartLimitIntervalSec=600
+StartLimitBurst=5
 
 [Service]
 ExecStart=%s
 EnvironmentFile=%s
 Restart=always
 RestartSec=30s
-StartLimitIntervalSec=600
-StartLimitBurst=5
 User=%s
 Group=%s
 NoNewPrivileges=true
