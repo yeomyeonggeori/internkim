@@ -39,7 +39,7 @@ OAuth sync. Both are **kept** — [`saas-design.md`](./saas-design.md) lists
 | isAllDay | `task.is_whole_day` |
 | location | `task.location` (already jsonb) |
 | reminderLeadHours (1·2·3·6·12·24·48) | `task.notify_minutes_before` — hours × 60 |
-| attendees | `task.participant_ids` — see §5 |
+| attendees | `task_participant` — see §5 |
 | timeZone, color | `task.calendar` |
 | recurrence | `task.calendar` — `seriesID`, `rrule`, `isDetached` |
 | Google / CalDAV identity, ETag, unrecognised ICS properties | `task.calendar` — `mirrors[]` |
@@ -136,39 +136,42 @@ duplicate-import bug would now live. It gets a test.
 `0006_task_participants_only` dropped `assignee_id` because it was singular and
 the reality is plural. That reasoning does not reach the other relation: exactly
 one person asks for a task, and that person is not the same as the people on it.
+`20260811000001_task_requester` already added it:
 
 ```sql
 alter table public.task add column requester_id uuid references public.member on delete set null;
-alter table public.task add column participant_ids uuid[] not null default '{}';
-drop table public.task_participant;
 ```
 
 One asks, several do. `requester_id` is null when nobody asked — a task someone
 made for themselves.
 
-**The join table goes.** Its `on delete cascade` protects against a member row
-disappearing, and member rows do not disappear: the lifecycle is
-`pending → invited → active → departed/withdrawn`, status changes rather than
-deletes, and it is the `auth.users` account that is removed, not the member. So
-the integrity the table was buying is not being spent. Neither shape enforces
-same-company membership anyway — both reference `member`, not the company — so
-that stays with RLS either way.
+**The join table stays.** Folding participants into a `uuid[]` on `task` was
+considered and rejected. The argument for it was that `task_participant`'s
+`on delete cascade` guards against a member row disappearing, and member rows do
+not disappear — the lifecycle is `pending → invited → active → departed/withdrawn`,
+and it is the `auth.users` account that is deleted, not the member. But the table
+buys something else that matters more: its RLS policy checks membership **per
+row**.
 
-"Everything on my plate" becomes `where participant_ids @> array[$me]` on a GIN
-index: one table, no join, which is the same direction as the reason the `event`
-table was rejected.
+```sql
+create policy task_participant_usable_by_colleague on public.task_participant
+  for all using (public.company_of_task(task_id) = public.company_of_member(public.my_member()))
+  with check (
+    public.company_of_task(task_id) = public.company_of_member(public.my_member())
+    and public.company_of_member(member_id) = public.company_of_member(public.my_member())
+  );
+```
 
-**One rule this buys and must not lose.** Adding a participant is
-`set participant_ids = array_append(participant_ids, $x)` in SQL, evaluated under
-the row lock. Reading the array into the application and writing it back loses a
-concurrent add. The join table made that mistake impossible; the array does not.
+An array cannot carry that. Every element would need its own check constraint or
+trigger — hand-built, and easy to get wrong in the direction that leaks one
+company's people into another's task.
 
 **Status carries the request.** The enum gains the two states the request
 workflow needs:
 
 ```sql
-alter type public.task_status add value 'requested';
-alter type public.task_status add value 'rejected';
+alter type public.task_status add value if not exists 'requested';
+alter type public.task_status add value if not exists 'rejected';
 ```
 
 A task someone else asked for starts `requested` and becomes `todo` when it is
@@ -207,15 +210,17 @@ stored strings.
 
 ## 7. What has no canonical home
 
-`size`, `business`/`category`, `type`, `weekCode` and `flag` exist only in the
-device flow model. They are weekly-board concepts, not task concepts. Each needs
-a decision before the migration: move to the board's own storage, or drop. Until
-then the device API keeps enforcing them and `task_list` reports the accepted
-labels in `registeredLabels`.
+`business`, `type` and `size` have a home: `20260803000014_task_vocabulary` put
+them on `task` and their allowed values in `company.task_vocabulary`.
+
+`weekCode` and `flag` do not. They are weekly-board concepts, not task concepts,
+and each needs a decision before the migration: move to the board's own storage,
+or drop. Until then the device API keeps enforcing them and `task_list` reports
+the accepted labels in `registeredLabels`.
 
 ## 8. Order
 
-1. `task.calendar`, `requester_id`, `participant_ids`, and the status enum.
+1. `task.calendar` and the two new status values (`20260812000001`).
 2. Central API writes tasks and events through one surface.
 3. Sync workers move to `mirrors[]`; CalDAV and Google keep working throughout.
 4. Tools renamed to `task_read`/`task_write`/`task_delete`; `calendar_*` retired.
