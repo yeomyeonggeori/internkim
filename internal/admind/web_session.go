@@ -45,7 +45,6 @@ type webSessionResponse struct {
 	SignupURL       string `json:"signupURL,omitempty"`
 	IsAdmin         bool   `json:"isAdmin"`
 	CanViewTasks    bool   `json:"canViewTasks"`
-	IsPoCSuperAdmin bool   `json:"isPocSuperAdmin"`
 }
 
 type webLogoutResponse struct {
@@ -84,7 +83,6 @@ func (service *Service) handleWebSession(responseWriter http.ResponseWriter, req
 		Image:           profileImagePathForEmail(email),
 		IsAdmin:         isTaskRunAdmin || service.isFlowAdminEmail(request.Context(), email),
 		CanViewTasks:    service.canViewTaskRuns(request.Context(), email),
-		IsPoCSuperAdmin: service.isFlowAdminEmail(request.Context(), email),
 	})
 }
 
@@ -414,7 +412,7 @@ func safeWebReturnPath(value string) string {
 	if strings.Contains(parsedURL.Path, "/api/") || strings.HasSuffix(parsedURL.Path, "/api") {
 		return ""
 	}
-	for _, prefix := range []string{"/flow/", "/memory/", "/calendar/", "/mail/", "/attendance/", "/files/", "/tasks/", "/poc-admin/"} {
+	for _, prefix := range []string{"/flow/", "/memory/", "/calendar/", "/mail/", "/attendance/", "/files/", "/tasks/"} {
 		if parsedURL.Path == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(parsedURL.Path, prefix) {
 			return parsedURL.RequestURI()
 		}

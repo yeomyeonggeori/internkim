@@ -200,35 +200,12 @@ func appendFleetIDs(fleetIDs []string, value string) []string {
 }
 
 func deployReleaseToRegistryTargets(repositoryRootPath string, targets []deployops.Target, arguments []string) error {
-	jetsonTargets, pocContainerTargets, errorValue := splitRegistryDeployTargets(targets)
-	if errorValue != nil {
-		return errorValue
-	}
-	if len(pocContainerTargets) > 0 {
-		if _, errorValue := selectedPocContainerComponents(arguments); errorValue != nil {
-			return errorValue
-		}
-	}
-	if errorValue := deployReleaseToJetsonTargets(repositoryRootPath, jetsonTargets, arguments); errorValue != nil {
-		return errorValue
-	}
-	return deployReleaseToPocContainerTargets(pocContainerTargets, arguments)
-}
-
-func splitRegistryDeployTargets(targets []deployops.Target) ([]deployops.Target, []deployops.Target, error) {
-	jetsonTargets := []deployops.Target{}
-	pocContainerTargets := []deployops.Target{}
 	for _, target := range targets {
-		switch target.ResolvedKind() {
-		case "jetson":
-			jetsonTargets = append(jetsonTargets, target)
-		case "poc-container":
-			pocContainerTargets = append(pocContainerTargets, target)
-		default:
-			return nil, nil, fmt.Errorf("unsupported target kind %q for %s", target.ResolvedKind(), target.ID)
+		if target.ResolvedKind() != "jetson" {
+			return fmt.Errorf("unsupported target kind %q for %s", target.ResolvedKind(), target.ID)
 		}
 	}
-	return jetsonTargets, pocContainerTargets, nil
+	return deployReleaseToJetsonTargets(repositoryRootPath, targets, arguments)
 }
 
 func deployReleaseToJetsonTargets(repositoryRootPath string, targets []deployops.Target, arguments []string) error {
@@ -249,23 +226,6 @@ func deployReleaseToJetsonTargets(repositoryRootPath string, targets []deployops
 	for _, target := range targets {
 		fmt.Printf("Target: %s (%s)\n", target.ID, target.ResolvedKind())
 		if errorValue := deployReleaseBundleToTarget(commandTargetFromDeployTarget(target), bundle); errorValue != nil {
-			return errorValue
-		}
-	}
-	return nil
-}
-
-func deployReleaseToPocContainerTargets(targets []deployops.Target, arguments []string) error {
-	if len(targets) == 0 {
-		return nil
-	}
-	components, errorValue := selectedPocContainerComponents(arguments)
-	if errorValue != nil {
-		return errorValue
-	}
-	for _, target := range targets {
-		fmt.Printf("Target: %s (%s)\n", target.ID, target.ResolvedKind())
-		if errorValue := deployPocContainer(target, components); errorValue != nil {
 			return errorValue
 		}
 	}
