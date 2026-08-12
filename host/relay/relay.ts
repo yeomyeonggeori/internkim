@@ -10,7 +10,6 @@ import {
 	type Answer
 } from './answer-size';
 import { positiveNumberSetting } from './settings';
-import { mintMissingTokens } from './member-tokens';
 import {
 	answerBodyOf,
 	forwardToChatd,
@@ -20,11 +19,7 @@ import {
 	type ConnectedAccount
 } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
-import { keepMessengerAccount, type MessengerAccount } from './messenger-account';
-import { readPeople, signIn, type MattermostSettings } from './mattermost';
 
-
-let knownContacts = -1;
 
 const projectURL = required('SUPABASE_URL');
 const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
@@ -42,7 +37,6 @@ const answerByteCeiling = positiveNumberSetting(
 );
 const rejoinDeadlineMilliseconds = 60_000;
 const largestPictureBytes = largestRawBytesThatFit(answerByteCeiling);
-const platformTheDirectoryClientServes = 'mattermost';
 
 if (answerByteCeiling > largestMessageTheProPlanCarries) {
 	console.warn(
@@ -65,15 +59,6 @@ async function agentKeyFromEnvironmentOrFile(): Promise<string> {
 	if (!kept) throw new Error(`${keptAt} holds no agent key`);
 	return kept;
 }
-
-const messenger = keepMessengerAccount(
-	() => askForConnection(messengerPlatform),
-	async (settings) => {
-		const session = await signIn(settings);
-		console.log(`${messengerPlatform} ready as ${settings.email}`);
-		return session;
-	}
-);
 
 let hostSession = await askForHostSession();
 const client = createClient(projectURL, publishableKey, {
@@ -267,15 +252,6 @@ Bun.serve({
 });
 console.log(`arrivals accepted on 127.0.0.1:${arrivalsPort}`);
 
-if (messengerPlatform === platformTheDirectoryClientServes) {
-	await keepGoing('contacts', refreshContacts);
-	setInterval(() => void keepGoing('contacts', refreshContacts), 600_000);
-	await keepGoing('credentials', provisionMemberCredentials);
-	setInterval(() => void keepGoing('credentials', provisionMemberCredentials), 600_000);
-} else {
-	console.log(`no directory client here for ${messengerPlatform}; chatd answers for its people`);
-}
-
 async function askTheRecord<Value>(method: string, path: string, body?: unknown): Promise<Value> {
 	const response = await fetch(`${appURL}${path}`, {
 		method,
@@ -287,63 +263,6 @@ async function askTheRecord<Value>(method: string, path: string, body?: unknown)
 	});
 	if (!response.ok) throw new Error(`the central plane answered ${response.status} for ${path}`);
 	return (await response.json()) as Value;
-}
-
-async function asTheMessengerAdmin<Value>(work: (account: MessengerAccount) => Promise<Value>): Promise<Value> {
-	const account = await messenger.admin();
-	try {
-		return await work(account);
-	} catch (error) {
-		messenger.forgetSession();
-		throw error;
-	}
-}
-
-async function provisionMemberCredentials(): Promise<void> {
-	const held = await askTheRecord<{ have?: string[] }>(
-		'GET',
-		`/api/agent/messenger-credentials?kind=${encodeURIComponent(messengerPlatform)}`
-	);
-	const { credentials, report } = await asTheMessengerAdmin(async ({ settings, session }) => {
-		const people = await readPeople(settings, session.token);
-		return mintMissingTokens(settings, session.token, people, new Set(held.have ?? []));
-	});
-
-	if (credentials.length > 0) {
-		const kept = await askTheRecord<{ kept?: number }>('POST', '/api/agent/messenger-credentials', {
-			kind: messengerPlatform,
-			credentials
-		});
-		console.log(`${kept.kept ?? 0} member credentials recorded, ${report.alreadyHeld} already held`);
-	}
-	if (report.refused.length > 0) {
-		console.error(`the messenger refused a token for ${report.refused.length} of its people`);
-	}
-}
-
-function refusalOf(kind: string, response: Response): string {
-	// fetch drops Authorization across origins, so a redirect turns a good key into no key.
-	const moved = response.redirected ? ` after being sent to ${response.url}` : '';
-	if (response.status === 401) return `the central plane got no agent key${moved}`;
-	if (response.status === 403) return `the central plane refused this agent key${moved}`;
-	if (response.status === 404) return `this company has no ${kind} connection${moved}`;
-	return `the central plane answered ${response.status} for the ${kind} connection${moved}`;
-}
-
-async function askForConnection(kind: string): Promise<MattermostSettings> {
-	const response = await fetch(`${appURL}/api/agent/connection?kind=${encodeURIComponent(kind)}`, {
-		headers: { Authorization: `Bearer ${agentKey}` }
-	});
-	if (!response.ok) throw new Error(refusalOf(kind, response));
-	const connection = (await response.json()) as {
-		host: string;
-		settings: { username?: string };
-		secret: string | null;
-	};
-	if (!connection.settings.username || !connection.secret) {
-		throw new Error(`the ${kind} connection is missing an account`);
-	}
-	return { baseURL: connection.host, email: connection.settings.username, password: connection.secret };
 }
 
 async function askForHostSession(): Promise<{ companyID: string; accessToken: string; expiresAt: number }> {
@@ -368,29 +287,6 @@ async function keepGoing(what: string, work: () => Promise<void>): Promise<void>
 		await work();
 	} catch (error) {
 		console.error(`${what} failed, still listening:`, error instanceof Error ? error.message : error);
-	}
-}
-
-async function refreshContacts(): Promise<void> {
-	const people = await asTheMessengerAdmin(({ settings, session }) => readPeople(settings, session.token));
-	const members = await client.from('member').select('id, email').returns<{ id: string; email: string | null }[]>();
-	if (members.error) throw new Error(members.error.message);
-	const memberByEmail = new Map(members.data.map((entry) => [entry.email ?? '', entry.id]));
-
-	const { error } = await client.from('contact').upsert(
-		people.map((person) => ({
-			company_id: companyID,
-			platform: messengerPlatform,
-			external_id: person.externalID,
-			name: person.name,
-			member_id: memberByEmail.get(person.email) ?? null
-		})),
-		{ onConflict: 'company_id,platform,external_id' }
-	);
-	if (error) throw new Error(error.message);
-	if (people.length !== knownContacts) {
-		console.log(`${people.length} contacts recorded`);
-		knownContacts = people.length;
 	}
 }
 
