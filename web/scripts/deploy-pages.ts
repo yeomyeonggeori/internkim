@@ -2,7 +2,7 @@
 //   bun run web/scripts/deploy-pages.ts --whoami
 
 import { resolve } from 'node:path';
-import { refusalToReplaceProduction } from './production-guard';
+import { mainCommitOfLiveBuild, refusalToReplaceProduction, stampOfMainCommit } from './production-guard';
 
 const token = process.env.CF_API_TOKEN ?? process.env.CLOUDFLARE_API_TOKEN ?? '';
 if (!token) throw new Error('set CF_API_TOKEN');
@@ -25,16 +25,16 @@ function treeHas(commit: string): boolean {
 	return runGit('merge-base', '--is-ancestor', commit, 'HEAD').succeeded;
 }
 
-async function readLiveProductionCommit(accountID: string, projectName: string): Promise<string | null> {
+async function readLiveBuildMessage(accountID: string, projectName: string): Promise<string | null> {
 	const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountID}/pages/projects/${projectName}`, {
 		headers: { Authorization: `Bearer ${token}` }
 	});
 	const body = (await response.json()) as {
 		success: boolean;
-		result?: { canonical_deployment?: { deployment_trigger?: { metadata?: { commit_hash?: string } } } };
+		result?: { canonical_deployment?: { deployment_trigger?: { metadata?: { commit_message?: string } } } };
 	};
 	if (!body.success) return null;
-	return body.result?.canonical_deployment?.deployment_trigger?.metadata?.commit_hash ?? null;
+	return body.result?.canonical_deployment?.deployment_trigger?.metadata?.commit_message ?? null;
 }
 
 const isProduction = process.argv.includes('--production');
@@ -51,11 +51,11 @@ if (!project || !outputArgument) throw new Error('pass --project <name> --output
 
 if (isProduction) {
 	runGit('fetch', '--quiet', 'origin', 'main');
-	const liveCommit = await readLiveProductionCommit(accountID, project);
+	const liveMainCommit = mainCommitOfLiveBuild(await readLiveBuildMessage(accountID, project));
 	const refusal = refusalToReplaceProduction({
 		containsOriginMain: treeHas('origin/main'),
-		liveCommit,
-		treeHasLiveCommit: liveCommit === null ? true : treeHas(liveCommit),
+		liveMainCommit,
+		treeHasLiveMainCommit: liveMainCommit === null ? true : treeHas(liveMainCommit),
 		isReplacingNewerAllowed
 	});
 	if (refusal) {
@@ -75,6 +75,8 @@ runWrangler([
 	isProduction ? 'main' : currentBranch(),
 	'--commit-hash',
 	runGit('rev-parse', 'HEAD').output,
+	'--commit-message',
+	stampOfMainCommit(runGit('rev-parse', 'origin/main').output),
 	'--commit-dirty=true'
 ]);
 
