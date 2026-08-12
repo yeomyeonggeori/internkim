@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair":
 		return true
 	default:
 		return false
@@ -123,6 +123,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "repair Blueclaw workspace image", "sh", "-lc", blueclawWorkspaceRepairCommand()))
 	case "blueclaw-postgres-salvage":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "salvage orphaned Blueclaw postgres cluster", "sh", "-lc", blueclawPostgresSalvageCommand()))
+	case "blueclaw-postgres-inspect":
+		inspectContext, cancelInspect := context.WithTimeout(context.Background(), 600*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(inspectContext, "preserve the workspace image and read the guest cluster", "sh", "-lc", blueclawPostgresInspectCommand()))
+		cancelInspect()
 	case "repair-buzz-relay":
 		repairContext, cancelRepair := context.WithTimeout(context.Background(), 60*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(repairContext, "repair Buzz relay TLS terminator", "sh", "-lc", buzzRelayRepairCommand()))
@@ -366,6 +370,33 @@ printf 'blueclaw health failed\n'
 
 func quoteRecoveryShellValue(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+// Blueclaw is left stopped on purpose: a guest whose postgres cannot reach a
+// checkpoint kills its own init and panics the kernel every two minutes, and
+// each cycle is another unclean shutdown of the cluster being diagnosed.
+func blueclawPostgresInspectCommand() string {
+	return strings.TrimSpace(`
+set +e
+image=/var/lib/blueclaw/workspace.ext4
+preserved=/var/lib/blueclaw/workspace-preserved-$(date -u +%Y%m%dT%H%M%SZ).ext4
+echo "== disk =="; df -h /var/lib/blueclaw 2>&1 | tail -1
+echo "== stop blueclaw (ends the panic loop) =="; systemctl stop blueclaw 2>&1; sleep 3
+echo "== preserve the image =="
+cp --reflink=auto -a "$image" "$preserved" && echo "preserved: $preserved" || echo "preserve FAILED"
+ls -la "$preserved" 2>&1 | tail -1
+echo "== daily backups =="; ls -la /root/.internkim/backups 2>&1 | tail -12
+echo "== read the guest cluster read-only =="
+mountPoint=$(mktemp -d)
+mount -o ro,loop "$image" "$mountPoint" 2>&1 || { echo "read-only mount FAILED"; rmdir "$mountPoint"; exit 1; }
+dataPath="$mountPoint/.blueclaw/postgres/data"
+controlData=$(find /usr/lib/postgresql -path '"'"'*/bin/pg_controldata'"'"' -type f 2>/dev/null | sort -V | tail -1)
+if [ -n "$controlData" ]; then "$controlData" -D "$dataPath" 2>&1 | grep -iE '"'"'state|checkpoint location|redo location|time line|latest checkpoint'"'"' | head -12; else echo "pg_controldata not on host"; fi
+echo "== cluster size and wal =="; du -sh "$dataPath" 2>/dev/null; ls -la "$dataPath/pg_wal" 2>/dev/null | tail -6
+echo "== lost+found =="; ls -la "$mountPoint/lost+found" 2>/dev/null | head -5
+umount "$mountPoint"; rmdir "$mountPoint"
+echo "== blueclaw left stopped on purpose =="; systemctl is-active blueclaw 2>&1
+`)
 }
 
 func blueclawPostgresSalvageCommand() string {
