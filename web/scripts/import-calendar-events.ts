@@ -1,40 +1,24 @@
 //   bun run web/scripts/import-calendar-events.ts --file <calendar-events.json> --people <organization-people.json> --company <uuid> [--apply]
 
 import { controlPlane } from '../src/lib/server/control-plane';
-
-type DeviceParticipant = { personID?: string; name?: string };
-
-type DevicePerson = { userID?: string; name?: string; handle?: string; email?: string; image?: string };
-
-type ResolvedParticipant = { memberID: string; email: string; by: 'personID' | 'nameOrHandle' | 'givenName' };
-
-type DeviceEvent = {
-	id: string;
-	uid: string;
-	title: string;
-	description?: string;
-	location?: string;
-	startISO: string;
-	endISO: string;
-	timeZone?: string;
-	isAllDay?: boolean;
-	color?: string;
-	participants?: DeviceParticipant[];
-	reminderLeadHours?: number;
-	createdByEmail?: string;
-	remoteSource?: string;
-	remoteHref?: string;
-};
+import {
+	emailByPersonIDOf,
+	eventAsTask,
+	matchParticipant,
+	timeRunsBackwards,
+	titleOf,
+	type DeviceCalendarEvent,
+	type DeviceCalendarParticipant,
+	type DevicePerson,
+	type EventCalendar,
+	type ParticipantMatch
+} from '../../host/relay/calendar-event-as-task';
 
 type LiveEvent = { id: string; title: string; starts_at: string; calendar: unknown };
 
+type ResolvedParticipant = { memberID: string; email: string; by: ParticipantMatch['by'] };
+
 type EventFields = { title: string; starts_at: string; calendar: EventCalendar };
-
-type Mirror = { source: string; externalID: string; href?: string };
-
-type EventCalendar = { timeZone?: string; color?: string; mirrors: Mirror[] };
-
-const deviceSource = 'internkim-device';
 
 function argument(name: string): string | undefined {
 	const index = process.argv.indexOf(`--${name}`);
@@ -54,7 +38,7 @@ const client = controlPlane({
 	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 });
 
-const events = (JSON.parse(await Bun.file(file).text()) as { events?: DeviceEvent[] }).events ?? [];
+const events = (JSON.parse(await Bun.file(file).text()) as { events?: DeviceCalendarEvent[] }).events ?? [];
 const devicePeople = (JSON.parse(await Bun.file(peopleFile).text()) as { records?: DevicePerson[] }).records ?? [];
 
 const { data: memberRows, error: memberError } = await client
@@ -64,7 +48,7 @@ const { data: memberRows, error: memberError } = await client
 if (memberError) throw new Error(memberError.message);
 const memberByEmail = new Map((memberRows ?? []).map((member) => [(member.email ?? '').toLowerCase(), member.id]));
 
-const emailByPersonID = personDirectoryOf(devicePeople);
+const emailByPersonID = emailByPersonIDOf(devicePeople);
 
 const { data: existing, error: eventError } = await client
 	.from('task')
@@ -107,9 +91,9 @@ const refusedByTheRecord: string[] = [];
 const heldTwiceByTheDevice: string[] = [];
 
 for (const event of events) {
-	const title = event.title?.trim() || '(제목 없음)';
+	const title = titleOf(event);
 
-	if (!(Date.parse(event.endISO) >= Date.parse(event.startISO))) {
+	if (timeRunsBackwards(event)) {
 		refusedByTheRecord.push(`${title}: ends ${event.endISO} before it starts ${event.startISO}`);
 		continue;
 	}
@@ -135,18 +119,19 @@ for (const event of events) {
 		continue;
 	}
 
+	const asTask = eventAsTask(event);
 	const fields = {
 		company_id: companyID,
-		title,
+		title: asTask.title,
 		is_event: true,
-		is_whole_day: Boolean(event.isAllDay),
-		starts_at: event.startISO,
-		ends_at: event.endISO,
-		note: event.description?.trim() || null,
-		location: event.location?.trim() ? { name: event.location.trim() } : null,
-		notify_minutes_before: reminderMinutesOf(event.reminderLeadHours),
+		is_whole_day: asTask.isWholeDay,
+		starts_at: asTask.startsAt,
+		ends_at: asTask.endsAt,
+		note: asTask.note,
+		location: asTask.location,
+		notify_minutes_before: asTask.notifyMinutesBefore,
 		requester_id: requesterID ?? null,
-		calendar: calendarOf(event)
+		calendar: asTask.calendar
 	};
 
 	const mirrored = idByExternalID.get(event.uid) ?? idByExternalID.get(event.id);
@@ -214,7 +199,7 @@ function rememberWhatIsHere(taskID: string, fields: EventFields, attendeeIDs: Se
 // external id to match on. They are adopted by what the two copies do share, and
 // stamped with a mirror as they are updated, which is why this only ever runs on
 // the first pass. Each row is claimed once so two events cannot adopt the same one.
-function adoptEventImportedBeforeMirrors(event: DeviceEvent): string | undefined {
+function adoptEventImportedBeforeMirrors(event: DeviceCalendarEvent): string | undefined {
 	const unclaimed = liveEvents.filter((live) => !claimedIDs.has(live.id) && !hasMirror(live));
 	const title = event.title?.trim() || '(제목 없음)';
 
@@ -241,61 +226,11 @@ function countTitles(titles: string[]): Map<string, number> {
 	return counts;
 }
 
-// A participant is a person the device identified, so their id decides who they
-// are. Two shapes carry that id: the account uuid, and the shorter one the
-// calendar uses, which this export prints only inside the participant image path.
-function personDirectoryOf(people: DevicePerson[]): Map<string, string> {
-	const emailByPersonID = new Map<string, string>();
-	for (const person of people) {
-		const email = (person.email ?? '').toLowerCase();
-		if (!email) continue;
-		if (person.userID) emailByPersonID.set(person.userID, email);
-		const calendarID = /\/participants\/([0-9a-f]+)\/image/.exec(person.image ?? '')?.[1];
-		if (calendarID) emailByPersonID.set(calendarID, email);
-	}
-	return emailByPersonID;
-}
-
-// Older rows carry a name where a newer one carries an id, so a name still has to
-// resolve. A full name or handle is matched outright; a given name only when one
-// member bears it, because two would be a guess. The rest is nobody we know.
-function resolveParticipant(participant: DeviceParticipant): ResolvedParticipant | undefined {
-	const personID = (participant.personID ?? '').trim();
-	if (personID) {
-		const email = emailByPersonID.get(personID);
-		const memberID = memberByEmail.get(email ?? '');
-		return email && memberID ? { memberID, email, by: 'personID' } : undefined;
-	}
-
-	const name = participant.name?.trim() ?? '';
-	if (name.length < 2) return undefined;
-	const named = devicePeople.find((person) => person.name === name || person.handle === name);
-	if (named) return memberOf(named.email, 'nameOrHandle');
-
-	const bearing = devicePeople.filter((person) => (person.name ?? '').endsWith(name));
-	return bearing.length === 1 ? memberOf(bearing[0].email, 'givenName') : undefined;
-}
-
-function memberOf(email: string | undefined, by: ResolvedParticipant['by']): ResolvedParticipant | undefined {
-	const address = (email ?? '').toLowerCase();
-	const memberID = memberByEmail.get(address);
-	return memberID ? { memberID, email: address, by } : undefined;
-}
-
-function reminderMinutesOf(leadHours: number | undefined): number | null {
-	if (typeof leadHours !== 'number' || !Number.isFinite(leadHours) || leadHours <= 0) return null;
-	return Math.round(leadHours * 60);
-}
-
-function calendarOf(event: DeviceEvent): EventCalendar {
-	const externalID = event.uid || event.id;
-	const mirrors: Mirror[] = [{ source: deviceSource, externalID }];
-	if (event.remoteSource && event.remoteHref) {
-		mirrors.push({ source: event.remoteSource, externalID, href: event.remoteHref });
-	}
-	return {
-		...(event.timeZone ? { timeZone: event.timeZone } : {}),
-		...(event.color ? { color: event.color } : {}),
-		mirrors
-	};
+// Who the participant is comes from the shared reading; which member of this
+// company that address belongs to is the importer's own business.
+function resolveParticipant(participant: DeviceCalendarParticipant): ResolvedParticipant | undefined {
+	const match = matchParticipant(participant, devicePeople, emailByPersonID);
+	if (!match) return undefined;
+	const memberID = memberByEmail.get(match.email);
+	return memberID ? { memberID, email: match.email, by: match.by } : undefined;
 }
