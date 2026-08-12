@@ -148,12 +148,9 @@ function readDailyCostScope(entry: unknown): DailyCostScope | undefined {
 }
 
 export async function fetchTaskDetail(taskRunID: string): Promise<TaskDetail> {
-	const query = new URLSearchParams({ taskRunID });
-	const response = await adminApiFetch(`/tasks/api/run-detail?${query.toString()}`);
-	if (!response.ok) {
-		throw new Error(`Task detail request returned ${response.status}`);
-	}
-	const document: unknown = await response.json();
+	const document = isSupabaseConfigured()
+		? await askTheCompanyAppForDetail(taskRunID)
+		: await askTheDeviceForDetail(taskRunID);
 	const record = readRecord(document);
 	const taskRun = record ? readTaskRunSummary(record.taskRun) : undefined;
 	if (!record || !taskRun) {
@@ -350,6 +347,19 @@ function readNonNegativeNumber(value: unknown): number {
 function readRecord(value: unknown): Record<string, unknown> | undefined {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
 	return value as Record<string, unknown>;
+}
+
+async function askTheDeviceForDetail(taskRunID: string): Promise<unknown> {
+	const query = new URLSearchParams({ taskRunID });
+	const response = await adminApiFetch(`/tasks/api/run-detail?${query.toString()}`);
+	if (!response.ok) throw new Error(`Task detail request returned ${response.status}`);
+	return response.json();
+}
+
+async function askTheCompanyAppForDetail(taskRunID: string): Promise<unknown> {
+	const answer = await callCompanyApp({ capability: 'person.tasks.detail', body: { taskRunID } });
+	if (answer.status >= 400) throw new Error(`Task detail request returned ${answer.status}`);
+	return answer.body;
 }
 
 async function askTheCompanyApp(request: TaskRunsRequest): Promise<unknown> {
