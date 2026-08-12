@@ -321,9 +321,16 @@ func TestEveryAllowedRecoveryActionIsOfferedByTheCommandLine(t *testing.T) {
 	if helpText == nil {
 		t.Fatal("the recover command no longer states its actions")
 	}
+	commandLineAllowlist := regexp.MustCompile(`(?s)func isAllowedCLIRecoveryAction\(action string\) bool \{\n\tswitch action \{\n\tcase (.*?):\n`).FindSubmatch(source)
+	if commandLineAllowlist == nil {
+		t.Fatal("the recover command no longer carries its own allowlist")
+	}
 	for _, action := range allowedSSHRecoveryActionsForTest(t) {
 		if !strings.Contains(string(helpText), action) {
 			t.Fatalf("recovery action %q is allowed but the command line never names it", action)
+		}
+		if !strings.Contains(string(commandLineAllowlist[1]), `"`+action+`"`) {
+			t.Fatalf("recovery action %q is allowed by the device but the command line refuses to send it", action)
 		}
 	}
 }
