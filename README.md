@@ -214,7 +214,7 @@ CLOUDFLARE_ACCOUNT_ID="$(awk 'BEGIN{FS="="} $1=="CF_ACCOUNT_ID"{sub(/^[^=]*=/,""
 | Piece | What it is |
 |---|---|
 | **relay** (`host/relay/`) | The company computer's link to the central plane. Answers member calls over Realtime and forwards messenger arrivals. |
-| **Go CLI** (`cmd/internkim/`) | The operator's command: `setup`, `deploy`/`release`/`update`, `recover`, `verify`, `reset`, `lab`/`dev fleet`, `ops`, `tenant`/`host`, `llm`, `users`/`task`/`invite`. |
+| **Go CLI** (`cmd/internkim/`) | The operator's command: `setup`, `deploy`/`release`/`update`, `recover`, `verify`, `reset`, `lab`/`dev fleet`, `ops`, `llm`, `users`/`task`/`invite`. |
 | **internkim-admind** | The device administrator API: the admin UI reverse proxy, companion pairing and broker, backup and restore, status. |
 | **internkim-capabilityd** | Holds the OpenRouter key, the local model, messenger and companion credentials, and exposes only a capability API. Runs the optional Slack and Signal sidecars on the same boundary. |
 | **local model** | Generation and embedding both on a resident `llama-server`: gemma-4-E2B QAT with MTP drafting (`--chat-template gemma`) for generation, BGE-M3 Q8 on CPU (`-ngl 0`) for embedding. `internkim-local-llm-runner` (LiteRT) is a legacy fallback. |
@@ -404,10 +404,6 @@ make prepare-blueclaw-payload
 `setup --only admind --force` bootstraps a device that has no direct-upload
 route yet, and recovers one whose Admin HTTPS is down.
 `blueclaw-payload-direct` and `deploy --legacy-ssh` are debugging fallbacks.
-
-Running several tenants on one host, with `internkim host` and
-`internkim tenant`, is a proof of concept documented separately in
-`docs/internal/poc-host.md` and `docs/internal/poc-container.md`.
 
 ### Verification
 
