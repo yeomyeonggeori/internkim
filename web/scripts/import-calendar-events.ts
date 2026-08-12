@@ -28,6 +28,8 @@ type DeviceEvent = {
 
 type LiveEvent = { id: string; title: string; starts_at: string; calendar: unknown };
 
+type EventFields = { title: string; starts_at: string; calendar: EventCalendar };
+
 type Mirror = { source: string; externalID: string; href?: string };
 
 type EventCalendar = { timeZone?: string; color?: string; mirrors: Mirror[] };
@@ -79,6 +81,18 @@ for (const task of liveEvents) {
 	}
 }
 
+const { data: participantRows, error: participantReadError } = await client
+	.from('task_participant')
+	.select('task_id, member_id')
+	.in('task_id', liveEvents.map((live) => live.id));
+if (participantReadError) throw new Error(participantReadError.message);
+const peopleByTaskID = new Map<string, Set<string>>();
+for (const row of participantRows ?? []) {
+	const already = peopleByTaskID.get(row.task_id) ?? new Set<string>();
+	already.add(row.member_id);
+	peopleByTaskID.set(row.task_id, already);
+}
+
 const deviceTitleCounts = countTitles(events.map((event) => event.title));
 const claimedIDs = new Set<string>();
 
@@ -90,6 +104,7 @@ const unresolvedParticipants = new Set<string>();
 const matchedByGivenName = new Set<string>();
 const creatorsMatchingNobody = new Set<string>();
 const refusedByTheRecord: string[] = [];
+const heldTwiceByTheDevice: string[] = [];
 
 for (const event of events) {
 	const title = event.title?.trim() || '(제목 없음)';
@@ -138,6 +153,12 @@ for (const event of events) {
 	const known = mirrored ?? adoptEventImportedBeforeMirrors(event);
 	if (known) claimedIDs.add(known);
 	if (known && !mirrored) adopted += 1;
+
+	if (!known && sameEventIsAlreadyHere(fields, attendeeIDs)) {
+		heldTwiceByTheDevice.push(`${title} ${event.startISO}`);
+		continue;
+	}
+
 	if (!shouldApply) {
 		known ? (updated += 1) : (inserted += 1);
 		continue;
@@ -148,6 +169,7 @@ for (const event of events) {
 		: await client.from('task').insert(fields).select('id').single();
 	if (written.error) throw new Error(`${title}: ${written.error.message}`);
 	known ? (updated += 1) : (inserted += 1);
+	rememberWhatIsHere(written.data.id, fields, attendeeIDs);
 
 	if (attendeeIDs.size === 0) continue;
 	const { error: participantError } = await client
@@ -162,7 +184,31 @@ if (skippedTitles.length) console.log(`skipped, nobody in this company asked for
 if (matchedByGivenName.size) console.log(`matched by a given name only one member bears: ${[...matchedByGivenName].join(', ')}`);
 if (unresolvedParticipants.size) console.log(`written on an event but not a member, left off: ${[...unresolvedParticipants].join(', ')}`);
 if (creatorsMatchingNobody.size) console.log(`created by an address no member holds, kept without a requester: ${[...creatorsMatchingNobody].join(', ')}`);
+if (heldTwiceByTheDevice.length) console.log(`the device holds these twice, so only the first came across: ${heldTwiceByTheDevice.join(', ')}`);
 for (const refusal of refusedByTheRecord) console.log(`refused by the record: ${refusal}`);
+
+// One event per title, time and people is what the record allows, so a second
+// copy is refused here rather than left for the database to reject halfway
+// through writing it. The device holds a few of these under separate uids.
+function sameEventIsAlreadyHere(fields: EventFields, attendeeIDs: Set<string>): boolean {
+	return liveEvents.some(
+		(live) =>
+			live.title.trim() === fields.title &&
+			Date.parse(live.starts_at) === Date.parse(fields.starts_at) &&
+			samePeople(peopleByTaskID.get(live.id) ?? new Set(), attendeeIDs)
+	);
+}
+
+function samePeople(here: Set<string>, arriving: Set<string>): boolean {
+	return here.size === arriving.size && [...arriving].every((memberID) => here.has(memberID));
+}
+
+function rememberWhatIsHere(taskID: string, fields: EventFields, attendeeIDs: Set<string>): void {
+	if (!liveEvents.some((live) => live.id === taskID)) {
+		liveEvents.push({ id: taskID, title: fields.title, starts_at: fields.starts_at, calendar: fields.calendar });
+	}
+	peopleByTaskID.set(taskID, new Set(attendeeIDs));
+}
 
 // This calendar was imported once before mirrors existed, so those rows carry no
 // external id to match on. They are adopted by what the two copies do share, and
