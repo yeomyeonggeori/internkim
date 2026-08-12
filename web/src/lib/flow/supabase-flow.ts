@@ -145,7 +145,11 @@ export async function supabaseFlowState(): Promise<FlowState> {
 	const { data: auth } = await client.auth.getSession();
 	const accountID = auth.session?.user.id ?? '';
 
-	const company = await client.from('company').select('task_vocabulary').limit(1).single<{ task_vocabulary: unknown }>();
+	const company = await client
+		.from('company')
+		.select('task_vocabulary, timezone')
+		.limit(1)
+		.single<{ task_vocabulary: unknown; timezone: string | null }>();
 	if (company.error) throw new Error(company.error.message);
 
 	const members = await client
@@ -158,7 +162,8 @@ export async function supabaseFlowState(): Promise<FlowState> {
 	const tasks = await readTasks();
 
 	const nameByID = new Map(members.data.map((member) => [member.id, displayName(member)]));
-	const flowTasks = tasks.map((task) => taskOf(task, nameByID));
+	const timeZone = company.data.timezone || 'UTC';
+	const flowTasks = tasks.map((task) => taskOf(task, nameByID, timeZone));
 	const memberIDs = members.data.map((member) => member.id);
 	const standing = standingOf(flowTasks, memberIDs, tasks);
 	const me = members.data.find((member) => member.user_id === accountID);
@@ -276,9 +281,9 @@ function memberOf(member: MemberRow, tally: MemberTaskTally | undefined): FlowMe
 	};
 }
 
-function taskOf(task: TaskRow, nameByID: Map<string, string>): FlowTask {
+function taskOf(task: TaskRow, nameByID: Map<string, string>, timeZone: string): FlowTask {
 	const participantIDs = task.task_participant.map((participant) => participant.member_id);
-	const endDate = dayOf(task.ends_at ?? task.due_at);
+	const endDate = dayOf(task.ends_at ?? task.due_at, timeZone);
 	return {
 		id: task.id,
 		ownerID: participantIDs[0] ?? '',
@@ -292,7 +297,7 @@ function taskOf(task: TaskRow, nameByID: Map<string, string>): FlowTask {
 		size: task.size ?? '',
 		status: statusWords[task.status],
 		statusRank: 0,
-		startDate: dayOf(task.starts_at),
+		startDate: dayOf(task.starts_at, timeZone),
 		endDate,
 		weekCode: endDate ? weekOf(new Date(`${endDate}T00:00:00Z`)).code : '',
 		flag: 0,
@@ -321,8 +326,20 @@ function metricsOf(tasks: FlowTask[]): FlowMetrics {
 	};
 }
 
-function dayOf(instant: string | null): string | undefined {
-	return instant ? instant.slice(0, 10) : undefined;
+// A stored instant is a moment, and which day it falls on depends on where you
+// stand. Slicing the text reads it in UTC, which puts a Seoul midnight on the
+// day before. The company's own zone decides, so everyone on the board sees the
+// same day for the same row.
+// Postgres prints an hours-only offset, `+00`, which no Date parser accepts.
+function isoInstantOf(instant: string): string {
+	return instant.replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00');
+}
+
+export function dayOf(instant: string | null, timeZone: string): string | undefined {
+	if (!instant) return undefined;
+	const moment = new Date(isoInstantOf(instant));
+	if (Number.isNaN(moment.getTime())) return undefined;
+	return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(moment);
 }
 
 function instantOf(day: string | undefined): string | null {

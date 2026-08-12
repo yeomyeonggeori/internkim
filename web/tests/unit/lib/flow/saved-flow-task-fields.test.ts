@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { savedFlowTaskFields } from '../../../../src/lib/flow/supabase-flow';
+import { dayOf, savedFlowTaskFields } from '../../../../src/lib/flow/supabase-flow';
 import type { FlowTask } from '../../../../src/routes/flow/flow-types';
 
 function taskWith(fields: Partial<FlowTask> = {}): FlowTask {
@@ -42,5 +42,24 @@ describe('what the board writes back', () => {
 		expect(fields.title).toBe('팀 회의');
 		expect(fields.business).toBe('여명거리');
 		expect(fields.size).toBe('XS');
+	});
+});
+
+describe('which day the board puts a row on', () => {
+	test('reads a Seoul midnight as that Seoul day, not the day before', () => {
+		expect(dayOf('2026-06-16 15:00:00+00', 'Asia/Seoul')).toBe('2026-06-17');
+		expect(dayOf('2026-08-19T15:00:00+00:00', 'Asia/Seoul')).toBe('2026-08-20');
+	});
+
+	test('reads a UTC midnight as that day in Seoul too, so both writers agree', () => {
+		expect(dayOf('2026-08-20T00:00:00Z', 'Asia/Seoul')).toBe('2026-08-20');
+	});
+
+	test('gives an event the day it is held on rather than the day it is stored on', () => {
+		expect(dayOf('2026-08-20 10:00:00+00', 'Asia/Seoul')).toBe('2026-08-20');
+	});
+
+	test('answers with nothing when there is no instant', () => {
+		expect(dayOf(null, 'Asia/Seoul')).toBeUndefined();
 	});
 });
