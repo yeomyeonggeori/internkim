@@ -1,9 +1,8 @@
 create table public.circle (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.company on delete cascade,
-  slug text not null check (slug ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'),
   name text not null,
-  unique (company_id, slug)
+  unique (company_id, name)
 );
 
 create table public.circle_member (
