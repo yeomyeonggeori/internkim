@@ -55,7 +55,7 @@ func registerTargetFlags(flagSet *flag.FlagSet) targetFlags {
 		user:          flagSet.String("user", "", "SSH user"),
 		password:      flagSet.String("password", "", "SSH password"),
 		node:          flagSet.String("node", "", "Fleet node target"),
-		cloudflareSSH: flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH"),
+		cloudflareSSH: flagSet.Bool("remote-ssh", false, "Reach the device by its ssh hostname instead of probing the local network"),
 		board:         flagSet.String("board", "", "Board target"),
 		simulation:    flagSet.Bool("sim", false, "Use simulation target"),
 	}
@@ -98,7 +98,7 @@ func resolveCommandTarget(arguments []string) commandTarget {
 		sshPassword:    sshPassword,
 		deviceURL:      firstNonEmptyString(commandArgumentValue(arguments, "--device-url", ""), loadState(stateDir, "device_url")),
 		sshHostname:    loadState(stateDir, "ssh_hostname"),
-		useRemoteSSH:   hasCommandArgument(arguments, "--cloudflare-ssh"),
+		useRemoteSSH:   hasCommandArgument(arguments, "--remote-ssh"),
 	}
 }
 

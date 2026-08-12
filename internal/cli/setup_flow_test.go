@@ -359,18 +359,22 @@ func TestUploadMoveCommandIsNotPreWrappedWithSudo(t *testing.T) {
 	}
 }
 
-func TestCloudflareSSHUsesAccessProxyCommand(t *testing.T) {
-	client := newCloudflareSSH("sshpass", "internkim", "blueclaw", "ssh.device.example.test")
+func TestRemoteSSHNamesNoTransport(t *testing.T) {
+	client := newSSH("sshpass", "internkim", "blueclaw", "ssh.device.example.test")
 	sshArguments := strings.Join(client.sshArgs("internkim@ssh.device.example.test", "true"), "\n")
 	scpArguments := strings.Join(client.scpArgs("local", "internkim@ssh.device.example.test:/tmp/file"), "\n")
 	rsyncCommand := client.rsyncSSHCommand("ssh")
 
 	for _, value := range []string{sshArguments, scpArguments, rsyncCommand} {
-		if !strings.Contains(value, "ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh") {
-			t.Fatalf("expected Cloudflare Access ProxyCommand, got %s", value)
+		for _, forbidden := range []string{"ProxyCommand", "cloudflared", "TUNNEL_EDGE_IP_VERSION"} {
+			if strings.Contains(value, forbidden) {
+				t.Fatalf("ssh must name no transport, found %q in %s", forbidden, value)
+			}
 		}
-		if !strings.Contains(value, "--hostname %h") {
-			t.Fatalf("expected hostname placeholder in ProxyCommand, got %s", value)
+	}
+	for _, value := range []string{sshArguments, scpArguments} {
+		if !strings.Contains(value, "ssh.device.example.test") {
+			t.Fatalf("expected the hostname to reach ssh, got %s", value)
 		}
 	}
 }
