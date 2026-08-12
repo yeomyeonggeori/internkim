@@ -55,8 +55,7 @@ export const PUT: RequestHandler = async ({ request, platform }) => {
 	await saveCompanyConnection(controlPlane(plane), caller.companyID, {
 		kind,
 		host,
-		settings: isRecord(body.settings) ? body.settings : {},
-		secret: typeof body.secret === 'string' && body.secret ? body.secret : undefined
+		settings: isRecord(body.settings) ? body.settings : {}
 	});
 	return json({ kind, host });
 };

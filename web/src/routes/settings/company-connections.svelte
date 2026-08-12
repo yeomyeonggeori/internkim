@@ -16,7 +16,7 @@
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 
-	type Draft = { host: string; port: string; username: string; secret: string; hasSecret: boolean };
+	type Draft = { host: string; port: string };
 
 	const text = createPageText(companySettingsText);
 	const kinds: readonly CompanyConnectionKind[] = companyConnectionKinds;
@@ -28,18 +28,15 @@
 
 	function emptyDrafts(): Record<string, Draft> {
 		return Object.fromEntries(
-			kinds.map((kind) => [kind, { host: '', port: '', username: '', secret: '', hasSecret: false }])
+			kinds.map((kind) => [kind, { host: '', port: '' }])
 		);
 	}
 
 	function draftOf(connection: CompanyConnection): Draft {
-		const settings = connection.settings as { port?: unknown; username?: unknown };
+		const settings = connection.settings as { port?: unknown };
 		return {
 			host: connection.host,
-			port: typeof settings.port === 'number' ? String(settings.port) : '',
-			username: typeof settings.username === 'string' ? settings.username : '',
-			secret: '',
-			hasSecret: connection.hasSecret
+			port: typeof settings.port === 'number' ? String(settings.port) : ''
 		};
 	}
 
@@ -64,11 +61,7 @@
 			await saveCompanyConnection({
 				kind,
 				host: draft.host.trim(),
-				settings: {
-					...(draft.port.trim() ? { port: Number(draft.port) } : {}),
-					...(draft.username.trim() ? { username: draft.username.trim() } : {})
-				},
-				secret: draft.secret || undefined
+				settings: draft.port.trim() ? { port: Number(draft.port) } : {}
 			});
 			toast.success(text.saved);
 			await load();
@@ -109,21 +102,6 @@
 				<div class="grid gap-1.5">
 					<Label for="{kind}-port-{fieldID}">{text.port}</Label>
 					<Input id="{kind}-port-{fieldID}" bind:value={drafts[kind].port} disabled={isLoading} inputmode="numeric" autocomplete="off" />
-				</div>
-				<div class="grid gap-1.5">
-					<Label for="{kind}-username-{fieldID}">{text.username}</Label>
-					<Input id="{kind}-username-{fieldID}" bind:value={drafts[kind].username} disabled={isLoading} autocomplete="off" />
-				</div>
-				<div class="grid gap-1.5">
-					<Label for="{kind}-secret-{fieldID}">{text.password}</Label>
-					<Input
-						id="{kind}-secret-{fieldID}"
-						type="password"
-						bind:value={drafts[kind].secret}
-						disabled={isLoading}
-						placeholder={drafts[kind].hasSecret ? text.passwordKept : ''}
-						autocomplete="new-password"
-					/>
 				</div>
 			</Card.Content>
 			<Card.Footer class="gap-2">

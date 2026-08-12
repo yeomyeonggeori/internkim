@@ -8,14 +8,12 @@ export type CompanyConnection = {
 	kind: string;
 	host: string;
 	settings: Record<string, unknown>;
-	hasSecret: boolean;
 };
 
 export type CompanyConnectionInput = {
 	kind: CompanyConnectionKind;
 	host: string;
 	settings: Record<string, unknown>;
-	secret?: string;
 };
 
 async function withToken(path: string, init: RequestInit = {}): Promise<Response> {
