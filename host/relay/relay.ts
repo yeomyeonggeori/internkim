@@ -2,7 +2,14 @@
 
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreview } from './link-preview';
-import { defaultAnswerByteCeiling, largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
+import {
+	defaultAnswerByteCeiling,
+	largestMessageTheProPlanCarries,
+	largestRawBytesThatFit,
+	oversizeNotice,
+	type Answer
+} from './answer-size';
+import { positiveNumberSetting } from './settings';
 import { mintMissingTokens } from './member-tokens';
 import {
 	answerBodyOf,
@@ -23,15 +30,25 @@ const projectURL = required('SUPABASE_URL');
 const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
 const agentKey = await agentKeyFromEnvironmentOrFile();
 const chatdBaseURL = process.env.CHATD_BASE_URL ?? 'http://127.0.0.1:18090';
-const arrivalsPort = Number(process.env.ARRIVALS_PORT ?? 18091);
+const arrivalsPort = positiveNumberSetting('ARRIVALS_PORT', process.env.ARRIVALS_PORT, 18091);
 const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
 const admindBaseURL = process.env.ADMIND_BASE_URL ?? 'http://127.0.0.1:18080';
 const appURL = required('INTERNKIM_APP_URL');
 const messengerPlatform = required('MESSENGER_PLATFORM');
-const answerByteCeiling = Number(process.env.ANSWER_BYTE_CEILING ?? defaultAnswerByteCeiling);
+const answerByteCeiling = positiveNumberSetting(
+	'ANSWER_BYTE_CEILING',
+	process.env.ANSWER_BYTE_CEILING,
+	defaultAnswerByteCeiling
+);
 const rejoinDeadlineMilliseconds = 60_000;
 const largestPictureBytes = largestRawBytesThatFit(answerByteCeiling);
 const platformTheDirectoryClientServes = 'mattermost';
+
+if (answerByteCeiling > largestMessageTheProPlanCarries) {
+	console.warn(
+		`ANSWER_BYTE_CEILING is ${answerByteCeiling}, past the ${largestMessageTheProPlanCarries} a Pro project carries; if this project carries no more, answers over that vanish instead of coming back 413`
+	);
+}
 
 function required(name: string): string {
 	const value = process.env[name];
