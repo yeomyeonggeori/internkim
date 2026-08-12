@@ -44,6 +44,7 @@ type TaskRow = {
 	business: string | null;
 	type: string | null;
 	size: string | null;
+	is_event: boolean;
 	starts_at: string | null;
 	ends_at: string | null;
 	due_at: string | null;
@@ -52,31 +53,43 @@ type TaskRow = {
 };
 
 const taskColumns =
-	'id, title, status, note, business, type, size, starts_at, ends_at, due_at, updated_at, task_participant (member_id)';
+	'id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, task_participant (member_id)';
+
+// The API caps an unbounded select and says nothing about having done it, so a
+// company past the cap would quietly lose tasks off its board. Rows are read a
+// page at a time, ordered by id, because ordering by anything that repeats drops
+// rows at a page boundary.
+const rowsPerPage = 500;
+
+async function everyRow<Row>(
+	page: (from: number, to: number) => PromiseLike<{ data: Row[] | null; error: { message: string } | null }>
+): Promise<Row[]> {
+	const rows: Row[] = [];
+	for (let from = 0; ; from += rowsPerPage) {
+		const read = await page(from, from + rowsPerPage - 1);
+		if (read.error) throw new Error(read.error.message);
+		const found = read.data ?? [];
+		rows.push(...found);
+		if (found.length < rowsPerPage) return rows;
+	}
+}
 
 async function readTasks(): Promise<TaskRow[]> {
 	const client = supabase();
 	const held = heldTasks<TaskRow>();
 
 	if (!held) {
-		const everything = await client.from('task').select(taskColumns).eq('is_event', false).returns<TaskRow[]>();
-		if (everything.error) throw new Error(everything.error.message);
-		holdTasks({ tasks: everything.data, fetchedAt: newestStamp(everything.data) });
-		return sortedByEnd(everything.data);
+		const everything = await everyRow<TaskRow>((from, to) => client.from('task').select(taskColumns).order('id').range(from, to));
+		holdTasks({ tasks: everything, fetchedAt: newestStamp(everything) });
+		return sortedByEnd(everything);
 	}
 
-	const changed = await client
-		.from('task')
-		.select(taskColumns)
-		.eq('is_event', false)
-		.gte('updated_at', held.fetchedAt)
-		.returns<TaskRow[]>();
-	if (changed.error) throw new Error(changed.error.message);
+	const changed = await everyRow<TaskRow>((from, to) =>
+		client.from('task').select(taskColumns).gte('updated_at', held.fetchedAt).order('id').range(from, to)
+	);
+	const live = await everyRow<{ id: string }>((from, to) => client.from('task').select('id').order('id').range(from, to));
 
-	const live = await client.from('task').select('id').eq('is_event', false).returns<{ id: string }[]>();
-	if (live.error) throw new Error(live.error.message);
-
-	const merged = mergeChangedTasks(held.tasks, changed.data, new Set(live.data.map((row) => row.id)));
+	const merged = mergeChangedTasks(held.tasks, changed, new Set(live.map((row) => row.id)));
 	holdTasks({ tasks: merged, fetchedAt: newestStamp(merged) });
 	return sortedByEnd(merged);
 }
@@ -177,18 +190,23 @@ export async function supabaseFlowWeeklySummary(week: string): Promise<FlowWeekl
 	};
 }
 
-export async function saveSupabaseFlowTask(task: FlowTask): Promise<void> {
-	const client = supabase();
-	const fields = {
+// The board writes a day. An event was given hours, and rewriting those from a
+// board edit would move a meeting nobody asked to move, so an event keeps its own.
+export function savedFlowTaskFields(task: FlowTask): Record<string, unknown> {
+	return {
 		title: task.content || task.goal || '(제목 없음)',
 		status: statusOf[task.status] ?? 'todo',
 		note: task.goal || null,
 		business: task.business || null,
 		type: task.type || null,
 		size: task.size || null,
-		starts_at: instantOf(task.startDate),
-		ends_at: instantOf(task.endDate)
+		...(task.isEvent ? {} : { starts_at: instantOf(task.startDate), ends_at: instantOf(task.endDate) })
 	};
+}
+
+export async function saveSupabaseFlowTask(task: FlowTask): Promise<void> {
+	const client = supabase();
+	const fields = savedFlowTaskFields(task);
 
 	const saved = task.id
 		? await client.from('task').update(fields).eq('id', task.id).select('id').single<{ id: string }>()
@@ -277,7 +295,8 @@ function taskOf(task: TaskRow, nameByID: Map<string, string>): FlowTask {
 		startDate: dayOf(task.starts_at),
 		endDate,
 		weekCode: endDate ? weekOf(new Date(`${endDate}T00:00:00Z`)).code : '',
-		flag: 0
+		flag: 0,
+		isEvent: task.is_event
 	};
 }
 

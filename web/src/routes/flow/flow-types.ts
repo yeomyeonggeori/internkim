@@ -43,6 +43,7 @@ export type FlowTask = {
 	flag: number;
 	requestReason?: string;
 	decisionReason?: string;
+	isEvent?: boolean;
 };
 
 export type FlowQuickTaskCreateResult = 'created' | 'duplicate' | 'failed' | 'ignored';
