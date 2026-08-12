@@ -26,6 +26,8 @@ run; this one decides what the data is.
 | `attendance` | Clock-in / clock-out events, with location. |
 | `leave` | Time off. |
 | `push_device` | Somewhere a member can be reached with a notification. |
+| `circle` | A named group a member is put in by hand, for sharing. |
+| `circle_member` | Who is in a circle. |
 
 Tables are singular. Timestamps are `timestamptz` named `_at`. Booleans use an
 `is_` prefix. There are no `created_at` columns — they were removed on purpose;
@@ -182,6 +184,16 @@ go through the central API with the service role.
 | `attendance` | company members | the member themselves |
 | `leave` | company members | requested by the member, approved by an admin |
 | `push_device` | the owning member | the owning member |
+| `circle`, `circle_member` | company members | admins, own company only |
+
+A circle is the unit the asset bucket grants on, so a member reads
+`<company>/circle/<circleID>/…` when `circle_member` puts them there. `team` is
+kept separate and grants its own `<company>/team/<teamID>/…`: the two answer
+different questions, one about where somebody sits on the org chart and one
+about who was gathered for a piece of work, and a member is in one team and any
+number of circles. A path opening on a word neither of them defines resolves to
+no scope and is denied, so an unrecognised shape never falls through to a
+company-wide read.
 
 `attendance` and `leave` are self-write because they are personal records; tasks
 are shared work. The agent writes as the member it is acting for, using that
