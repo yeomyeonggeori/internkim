@@ -117,6 +117,38 @@ verification and a health check before it calls a release good, and a package
 manager does the first two but not the third. The health check is worth keeping
 as a command the operator runs against a machine they already have a shell on.
 
+### The device already pulls
+
+Two drafts of this section were wrong in opposite directions, so here is what
+the code does.
+
+`admind` listens on `127.0.0.1:18080`. The tunnel is what makes that public.
+When a release is applied, the device fetches `channels/stable.json` and every
+component blob from the release registry itself, over its own outbound
+connection, with a token header:
+
+```go
+downloadURL := service.releaseRegistryURL(component.BlobPath)
+service.addReleaseDownloadHeaders(request)
+```
+
+It then verifies checksums, stages, installs, restarts the right groups and
+health-checks before calling the release good. That is a package manager, it
+already exists, and **none of it needs an inbound path**.
+
+What needs one is the trigger. `applyReleaseUpdate` is an HTTP handler, so
+today the operator reaches it through the tunnel. Over ssh the same call is a
+loopback request on a machine they already have a shell on.
+
+So the split is not engine against package. It is push against pull:
+
+| | needs an inbound path | |
+|---|---|---|
+| direct upload of a bundle to Admin HTTPS | yes | goes |
+| the inbound trigger | yes | becomes ssh |
+| fetching from the registry | no | stays |
+| verify, stage, install, restart, health check | no | stays |
+
 ### `--legacy-ssh` is not the replacement
 
 An earlier draft of this document said the ssh path already did the job and the
@@ -136,14 +168,10 @@ redesign shipped all day. So the ssh path covers a fraction of the thirteen
 components a release carries, and making it the only path means building the
 rest.
 
-Which points straight at the answer. Rebuilding manifest,
-checksum, staged install and restart over ssh would be writing the apply engine
-again with a different transport. A package manager already does the first
-three and systemd does the fourth, so the step is to produce a package and let
-the machine's own tools install it. What leaves the repository is the transport
-and the channel: the upload over Admin HTTPS, R2, the registry Worker, and the
-on-device engine a push drives. What has to exist first is a packaging pipeline
-with somewhere to serve it from.
+Which is why the step is smaller than it looks. The pull half above is the
+package manager, and it stays. What goes is `release_uploads.go` and the direct
+upload path that carries a bundle over Admin HTTPS, and what changes is where
+the trigger comes from.
 
 ## Order of change
 
@@ -156,9 +184,9 @@ Each step stands alone, and the device keeps working through all of them. Steps
    to a machine nobody asked for.
 2. **SSH becomes a proxy command.** Behaviour identical, the transport gone from
    the source.
-3. **OTA becomes a package.** `internkim deploy` becomes build, ship, restart,
-   verify over the same `ssh` as everything else. There is more to build here than
-   to delete; see below.
+3. **The push half goes.** The device already pulls a release from the registry
+   and installs it; what needs an inbound path is the upload and the trigger.
+   The upload goes, and the trigger becomes a loopback call over `ssh`.
 4. **Registration stops creating a tunnel, an Access application and a DNS
    record.** After this a newly registered device is reachable on its own
    network. This is the step that ends browser access to the device.
