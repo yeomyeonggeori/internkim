@@ -569,6 +569,28 @@ broker, and routes `browser.*`, `user.*`, `file_pick` and companion LLM
 capabilities only while that companion is online and advertising them. Blueclaw
 sees no provider implementation, browser binary, model path or user cookie.
 
+## The API
+
+Every tool Intern Kim uses inside a company is callable from outside it. A token
+belongs to a person, and each call runs as that person, so a token can never do
+more than its owner can. `/api-docs` serves the reference, in Korean or English,
+from an OpenAPI document at `/openapi/<language>.json`.
+
+```bash
+curl https://<host>/api/v1/tools --header "Authorization: Bearer $INTERNKIM_TOKEN"
+
+curl https://<host>/api/v1/tools/task_add/invoke \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{"input":{"title":"draft the quarterly report","size":"M"}}'
+```
+
+`POST /api/v1/tokens` issues the token, from a signed-in staff session. The
+twenty-six base tools in the reference are read from
+`pkg/capabilityprotocol/generated/capability-tools.json`, the same catalog the
+agent runs on; tools that come and go with circumstance, such as the
+companion's, are found through `GET /api/v1/tools`.
+
 ## Pages API — device
 
 | Method | Path | Does |
