@@ -7,34 +7,38 @@ person's work on the messenger is done with a credential that person owns, and
 no part of the product keeps an administrator session to do work on their
 behalf.
 
-## Where it is broken today
+## What it cost to break
 
-The browser already obeys the rule. `messengerCredential()` reads the signed-in
+The browser always obeyed the rule. `messengerCredential()` reads the signed-in
 member's own credential from `/api/member/messenger-credential`, puts it in the
 call as `actor`, and chatd's `PersonalGateway` serves every `person.*` call with
 it. Files, tasks and memory reach admind carrying the requester's own address.
 
-The rule breaks one step earlier, at the point the credential is *made*. The
-relay signs in to Mattermost as one person — a real employee, whose account was
-locked on 2026-08-12 when the recorded password stopped matching — and uses that
+The rule broke one step earlier, at the point the credential was *made*. The
+relay signed in to Mattermost as one person — a real employee — and used that
 session for two jobs:
 
-| job | what it does with the admin session |
+| job | what it did with the admin session |
 |---|---|
-| `provisionMemberCredentials` | mints a personal access token for every user and posts them to the central plane |
-| `refreshContacts` | reads the whole roster and writes the `contact` table |
+| `provisionMemberCredentials` | minted a personal access token for every user and posted them to the central plane |
+| `refreshContacts` | read the whole roster and wrote the `contact` table |
 
-Both are the last places where one account acts for everyone. Two smaller
-dependencies hang off the same connection record: the relay reads the messenger
-base URL from it to fetch emoji and profile pictures, and the connection stores
-the administrator's username and password.
+On 2026-08-12 the recorded password stopped matching. Both jobs retried every
+ten minutes, Mattermost locked that employee's account, and the relay
+crash-looped until files, tasks and memory went down with it. A refusal latch
+stopped the retrying; it could not unfreeze the roster, so nobody who joined
+afterwards could be given a credential at all.
+
+Both jobs are gone now, along with the relay's messenger client and the account
+the connection record kept for them. What follows is the shape that replaced
+them.
 
 ## The shape
 
 ### A member registers their own credential
 
-There is no path today for a person to supply their own credential;
-`NoMessengerCredentialError` is raised and nothing catches it. The path is:
+There was no path for a person to supply their own credential;
+`NoMessengerCredentialError` was raised and nothing caught it. The path is:
 
 ```
 browser (signed in)
@@ -95,9 +99,9 @@ one shape either way.
 The first two only ever concern members, and a member's row is written the
 moment they register. The third is the only one that needs a name for somebody
 who may not be a member. Whatever reports an arrival is already inside the
-messenger and already holds the author; today the Mattermost plugin sends
-`authorExternalID` and stops there. Sending the display name beside it removes
-the last reason for the relay to read a roster.
+messenger and already holds the author, so the Mattermost plugin sends the
+display name beside `authorExternalID`. That removed the last reason for the
+relay to read a roster.
 
 ### The relay stops knowing what a messenger is
 
@@ -186,31 +190,31 @@ seconds and give up the permanence. Emoji and avatars are company-wide already
 and cost little either way; message attachments and file contents are the part
 worth deciding deliberately.
 
-## Order of change
+## How it was done
 
-Each step is safe on its own, and the seven members who already hold credentials
-keep working throughout.
+Each step was safe on its own, and the members who already held credentials kept
+working throughout.
 
-1. **chatd serves a person's emoji and pictures.** Additive; nothing calls it
-   yet.
-2. **The relay reads assets through chatd.** Deletes the relay's messenger
-   client. Ships together with step 1, because it is one contract across two
+1. **chatd serves a person's emoji and pictures.** Additive.
+2. **The relay reads assets through chatd.** Deleted the relay's messenger
+   client. Shipped with step 1, because it is one contract across two
    components.
 3. **chatd issues a credential from a person's own sign-in.**
-   `person.credential.issue`, with a Mattermost adapter and a Buzz adapter.
+   `person.credential.requirement` and `person.credential.issue`, with a
+   Mattermost adapter and a Buzz adapter.
 4. **A member connects their own messenger account.** The relay serves the
    registration call by channel, keeps the credential and writes the contact
-   row; the settings page gains the screen that was missing.
+   row; the settings page gained the screen that was missing.
 5. **The arrival carries the author's name.** Plugin and relay together.
 6. **The relay stops minting and stops sweeping.** `provisionMemberCredentials`,
-   `refreshContacts` and `member-tokens.ts` are removed.
+   `refreshContacts`, `member-tokens.ts`, the Mattermost client and the account
+   keeper are gone. This is what ended the outage class, and it could not land
+   before step 4 gave new people a way in.
 7. **The connection drops the account fields.**
 
-Steps 1–2 and 3–4 are each one deployable contract. Step 6 is what ends the
-outage class this document exists for, and it cannot land before step 4 gives
-new people a way in.
+Steps 1–2 and 3–4 were each one deployable contract.
 
-One more follows, and it is the larger half:
+One thing is left, and it is the larger half:
 
 8. **The agent's messenger tools go through the passage.** Today
    `chatd_platform_adapter.go` calls `reply.send` as the bot, outside the actor
@@ -229,9 +233,11 @@ administrator credential from the relay into chatd. That relocates the problem.
 
 ## Evidence to keep
 
-- A member with no credential can register one and reach their messenger,
-  proven end to end in `web/scripts/check-relay.ts` against a messenger nobody
-  runs.
-- The relay serves every capability with no messenger account configured at all.
-- `TestFleetAccountUpsertPayloadCarriesNoOrganizationFields` has a sibling: the
-  company connection payload carries no account field once step 7 lands.
+- The relay signs in nowhere. `web/scripts/check-relay.ts` asserts
+  `loginAttempts() === 0` against a messenger nobody runs, so no account of
+  anyone else's can be locked by it.
+- A registration call that arrives on nobody's channel is refused, and every
+  other capability still needs an actor however it arrived.
+- The answer to a registration carries the identity and never the secret.
+- The password reaches `/users/login` and no other request.
+- The company connection payload carries no account field.
