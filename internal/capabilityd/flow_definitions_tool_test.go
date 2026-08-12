@@ -3,7 +3,9 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -17,110 +19,132 @@ const flowDefinitionsStateBody = `{
 		"typeColors": {"기능": "#216fe4"},
 		"sizes": [{"name": "XS"}, {"name": "S"}, {"name": "M"}]
 	},
+	"members": [{"id": "staff", "name": "Staff", "email": "staff@example.com"}],
+	"tasks": [{"id": "task-1", "ownerID": "staff", "participantIDs": ["staff"], "content": "운동", "status": "예정"}],
 	"statusOptions": ["예정", "진행", "완료"]
 }`
 
-func flowDefinitionsService(t *testing.T, body string, requesterEmail *string) Service {
+func flowLabelService(t *testing.T, capturedPayload *string) Service {
 	t.Helper()
 	return Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/flow/api/state" {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+				return flowToolJSONResponse(flowDefinitionsStateBody), nil
+			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
+				*capturedPayload = readFlowRequestBody(t, request)
+				return flowToolJSONResponse(echoedFlowTaskResponse(t, *capturedPayload)), nil
+			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
 			}
-			if requesterEmail != nil {
-				*requesterEmail = request.Header.Get(flowRequesterEmailHeader)
-			}
-			return flowToolJSONResponse(body), nil
 		})},
 	}
 }
 
-func invokeFlowDefinitions(t *testing.T, service Service) map[string]any {
+func updateFlowTaskLabel(t *testing.T, service Service, input string) capabilities.ToolInvokeResponse {
 	t.Helper()
-	response, errorValue := service.invokeFlowTaskDefinitions(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "task_definitions",
-		Input:    []byte(`{}`),
+	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task_update",
+		Input:    []byte(input),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	var result map[string]any
-	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return result
+	return response
 }
 
-func TestFlowTaskDefinitionsReturnsWorkspaceValues(t *testing.T) {
-	result := invokeFlowDefinitions(t, flowDefinitionsService(t, flowDefinitionsStateBody, nil))
+func TestFlowTaskUpdateAcceptsARegisteredLabel(t *testing.T) {
+	capturedPayload := ""
+	response := updateFlowTaskLabel(t, flowLabelService(t, &capturedPayload), `{"taskHint":"운동","category":"김인턴","type":"기능"}`)
 
-	businesses, isList := result["businesses"].([]any)
-	if !isList || len(businesses) != 3 {
-		t.Fatalf("businesses = %#v", result["businesses"])
+	if response.IsError {
+		t.Fatalf("response = %+v", response)
 	}
-	first, _ := businesses[0].(map[string]any)
-	if first["value"] != "김인턴" || first["color"] != "#db3333" {
-		t.Fatalf("first business = %#v", businesses[0])
-	}
-	third, _ := businesses[2].(map[string]any)
-	if third["value"] != "기본소득" || third["color"] != "#475569" {
-		t.Fatalf("third business = %#v", businesses[2])
-	}
-
-	types, isList := result["types"].([]any)
-	if !isList || len(types) != 2 {
-		t.Fatalf("types = %#v", result["types"])
-	}
-	uncoloredType, _ := types[1].(map[string]any)
-	if uncoloredType["value"] != "수정" {
-		t.Fatalf("second type = %#v", types[1])
-	}
-	if _, hasColor := uncoloredType["color"]; hasColor {
-		t.Fatalf("uncolored type must omit color: %#v", types[1])
-	}
-
-	sizes, _ := result["sizes"].([]any)
-	if len(sizes) != 3 || sizes[0] != "XS" || sizes[2] != "M" {
-		t.Fatalf("sizes = %#v", result["sizes"])
-	}
-	statuses, _ := result["statuses"].([]any)
-	if len(statuses) != 3 || statuses[0] != "예정" {
-		t.Fatalf("statuses = %#v", result["statuses"])
+	if !strings.Contains(capturedPayload, `"category":"김인턴"`) || !strings.Contains(capturedPayload, `"type":"기능"`) {
+		t.Fatalf("payload = %s", capturedPayload)
 	}
 }
 
-func TestFlowTaskDefinitionsPropagatesRequesterEmail(t *testing.T) {
-	var requesterEmail string
-	invokeFlowDefinitions(t, flowDefinitionsService(t, flowDefinitionsStateBody, &requesterEmail))
-	if requesterEmail != "staff@example.com" {
-		t.Fatalf("requester header = %q", requesterEmail)
-	}
-}
+func TestFlowTaskUpdateReturnsRegisteredLabelsForAnUnknownOne(t *testing.T) {
+	capturedPayload := ""
+	response := updateFlowTaskLabel(t, flowLabelService(t, &capturedPayload), `{"taskHint":"운동","category":"없는사업"}`)
 
-func TestFlowTaskDefinitionsReturnsEmptyListsWhenWorkspaceHasNone(t *testing.T) {
-	result := invokeFlowDefinitions(t, flowDefinitionsService(t, `{}`, nil))
-	for _, field := range []string{"businesses", "types", "sizes", "statuses"} {
-		values, isList := result[field].([]any)
-		if !isList || len(values) != 0 {
-			t.Fatalf("%s = %#v", field, result[field])
+	if !response.IsError || capturedPayload != "" {
+		t.Fatalf("response=%+v payload=%s", response, capturedPayload)
+	}
+	for _, expected := range []string{"flow_label_not_registered", `"field":"category"`, "김인턴", "여명거리", "기본소득"} {
+		if !strings.Contains(string(response.Result), expected) {
+			t.Fatalf("result missing %s: %s", expected, string(response.Result))
 		}
 	}
 }
 
-func TestFlowTaskDefinitionsRoutesThroughFlowTaskTool(t *testing.T) {
-	service := flowDefinitionsService(t, flowDefinitionsStateBody, nil)
-	response, errorValue := service.invokeFlowTaskTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "task_definitions",
-		Input:    []byte(`{}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+func TestFlowTaskUpdateResolvesAUniquePartialLabel(t *testing.T) {
+	capturedPayload := ""
+	response := updateFlowTaskLabel(t, flowLabelService(t, &capturedPayload), `{"taskHint":"운동","category":"여명"}`)
+
+	if response.IsError {
+		t.Fatalf("response = %+v", response)
+	}
+	if !strings.Contains(capturedPayload, `"category":"여명거리"`) {
+		t.Fatalf("payload = %s", capturedPayload)
+	}
+}
+
+func TestFlowTaskUpdateLeavesLabelsAloneWhenTheWorkspaceRegistersNone(t *testing.T) {
+	capturedPayload := ""
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet:
+				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","participantIDs":["staff"],"content":"운동","status":"예정"}]}`), nil
+			default:
+				capturedPayload = readFlowRequestBody(t, request)
+				return flowToolJSONResponse(echoedFlowTaskResponse(t, capturedPayload)), nil
+			}
+		})},
+	}
+	response := updateFlowTaskLabel(t, service, `{"taskHint":"운동","category":"신규사업"}`)
+
+	if response.IsError {
+		t.Fatalf("response = %+v", response)
+	}
+	if !strings.Contains(capturedPayload, `"category":"신규사업"`) {
+		t.Fatalf("payload = %s", capturedPayload)
+	}
+}
+
+func readFlowRequestBody(t *testing.T, request *http.Request) string {
+	t.Helper()
+	body, errorValue := io.ReadAll(request.Body)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return string(body)
+}
+
+func echoedFlowTaskResponse(t *testing.T, payload string) string {
+	t.Helper()
+	var written struct {
+		Category string `json:"category"`
+		Type     string `json:"type"`
+		Content  string `json:"content"`
+		Status   string `json:"status"`
+	}
+	if errorValue := json.Unmarshal([]byte(payload), &written); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	document, errorValue := json.Marshal(map[string]any{
+		"id": "task-1", "ownerID": "staff", "participantIDs": []string{"staff"},
+		"business": written.Category, "type": written.Type,
+		"content": written.Content, "status": written.Status,
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Outcome != capabilities.ToolOutcomeSucceeded || response.Status != "ok" {
-		t.Fatalf("outcome=%q status=%q", response.Outcome, response.Status)
-	}
+	return string(document)
 }
