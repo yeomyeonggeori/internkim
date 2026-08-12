@@ -56,14 +56,15 @@ export async function forwardToChatd(
 	chatdBaseURL: string,
 	platform: string,
 	capability: string,
-	body: Record<string, unknown>
+	body: Record<string, unknown>,
+	largestBytes: number
 ): Promise<{ status: number; body: unknown }> {
 	const response = await fetch(
 		`${chatdBaseURL}/v1/platform/${encodeURIComponent(platform)}/${encodeURIComponent(capability)}`,
 		{
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(body)
+			body: JSON.stringify({ ...body, largestBytes })
 		}
 	);
 	return { status: response.status, body: await response.json().catch(() => null) };
@@ -71,14 +72,8 @@ export async function forwardToChatd(
 
 export type Served = { status: number; body: unknown; replyTo: string | null };
 
-export type AssetReader = { memberID: string; token: string };
-
 export type Dispatch = {
-	serveAsset: (
-		capability: string,
-		body: Record<string, unknown>,
-		reader: AssetReader
-	) => Promise<unknown>;
+	serveAsset: (capability: string, body: Record<string, unknown>) => Promise<unknown>;
 	askAdmind: (
 		capability: string,
 		body: Record<string, unknown>,
@@ -106,8 +101,7 @@ export async function serveCall(dispatch: Dispatch, call: Call): Promise<Served>
 	}
 
 	if (!isPersonCapability(capability)) {
-		const reader = { memberID: replyTo, token: actor.secret };
-		return { status: 200, body: await dispatch.serveAsset(capability, body, reader), replyTo };
+		return { status: 200, body: await dispatch.serveAsset(capability, body), replyTo };
 	}
 
 	const operation = mailOperationOf(capability);

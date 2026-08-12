@@ -4,17 +4,10 @@ import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreview } from './link-preview';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
 import { mintMissingTokens } from './member-tokens';
-import { answerBodyOf, forwardToChatd, reportableTopic, serveCall, type AssetReader, type Call } from './forward';
+import { answerBodyOf, forwardToChatd, reportableTopic, serveCall, type Call } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import { keepMessengerAccount, type MessengerAccount } from './messenger-account';
-import {
-	listCustomEmoji,
-	readCustomEmojiImage,
-	readPeople,
-	readProfilePicture,
-	signIn,
-	type MattermostSettings
-} from './mattermost';
+import { readPeople, signIn, type MattermostSettings } from './mattermost';
 
 
 let knownContacts = -1;
@@ -133,7 +126,7 @@ async function answer(call: Call): Promise<void> {
 const dispatch = {
 	serveAsset: asset,
 	askChatd: (capability: string, body: Record<string, unknown>) =>
-		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body),
+		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body, largestPictureBytes),
 	askMaild: async (operation: string, body: Record<string, unknown>) => {
 		const response = await fetch(`${maildBaseURL}/v1/mail/${encodeURIComponent(operation)}`, {
 			method: 'POST',
@@ -172,14 +165,7 @@ const dispatch = {
 	}
 };
 
-async function asset(
-	capability: string,
-	body: Record<string, unknown>,
-	reader: AssetReader
-): Promise<unknown> {
-	if (capability === 'asset.emoji') return emojiIndex(reader);
-	if (capability === 'asset.emoji.image') return emojiImageOf(reader, String(body.name ?? ''));
-	if (capability === 'asset.picture') return pictureOf(reader, String(body.externalID ?? ''));
+async function asset(capability: string, body: Record<string, unknown>): Promise<unknown> {
 	if (capability === 'asset.link') return previewOf(String(body.url ?? ''));
 	throw new Error(`the app has nothing called ${capability}`);
 }
@@ -197,44 +183,7 @@ async function reply(replyTo: string | null, answer: Answer): Promise<void> {
 	}
 }
 
-const pictures = new Map<string, { dataURL: string } | null>();
 const linkPreviews = new Map<string, LinkPreview | null>();
-const emojiIDsByMember = new Map<string, Map<string, string>>();
-const emojiImages = new Map<string, { dataURL: string } | null>();
-
-async function emojiIndex(reader: AssetReader): Promise<{ name: string }[]> {
-	const known = await knownEmoji(reader);
-	return [...known.keys()].map((name) => ({ name }));
-}
-
-async function emojiImageOf(reader: AssetReader, name: string): Promise<{ dataURL: string } | null> {
-	const emojiID = (await knownEmoji(reader)).get(name);
-	if (!emojiID) return null;
-	const key = `${reader.memberID}:${emojiID}`;
-	if (!emojiImages.has(key)) {
-		const address = await messenger.address();
-		emojiImages.set(key, await readCustomEmojiImage(address, reader.token, emojiID, largestPictureBytes));
-	}
-	return emojiImages.get(key) ?? null;
-}
-
-async function knownEmoji(reader: AssetReader): Promise<Map<string, string>> {
-	const held = emojiIDsByMember.get(reader.memberID);
-	if (held) return held;
-	const listed = await listCustomEmoji(await messenger.address(), reader.token);
-	const byName = new Map(listed.map((emoji) => [emoji.name, emoji.id]));
-	emojiIDsByMember.set(reader.memberID, byName);
-	return byName;
-}
-
-async function pictureOf(reader: AssetReader, externalID: string): Promise<{ dataURL: string } | null> {
-	const key = `${reader.memberID}:${externalID}`;
-	if (!pictures.has(key)) {
-		const address = await messenger.address();
-		pictures.set(key, await readProfilePicture(address, reader.token, externalID, largestPictureBytes));
-	}
-	return pictures.get(key) ?? null;
-}
 
 async function previewOf(link: string): Promise<LinkPreview | null> {
 	if (!linkPreviews.has(link)) {
