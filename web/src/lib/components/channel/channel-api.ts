@@ -262,6 +262,10 @@ async function clientSignChannelMessage(
 // message publishes straight to Buzz with their imeta tags, so nothing is signed
 // server-side on their behalf. The server path is only a fallback before the
 // identity is unlocked or when the relay is unknown.
+export function canSendAttachments(): boolean {
+	return !isSupabaseConfigured();
+}
+
 export async function sendChannelMessage(
 	message: string,
 	attachments: ChannelOutgoingAttachment[] = [],
@@ -269,6 +273,9 @@ export async function sendChannelMessage(
 	replyToRootID?: string
 ): Promise<void> {
 	if (isSupabaseConfigured()) {
+		if (attachments.length > 0) {
+			throw new Error('the company app carries no attachment yet, so this message was not sent');
+		}
 		await bridgeSendMessage(message, channelID, replyToRootID);
 		return;
 	}
