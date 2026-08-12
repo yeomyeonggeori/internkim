@@ -36,7 +36,7 @@ export type LinkPreview = {
 	title: string;
 	description: string;
 	siteName: string;
-	imageDataURL: string;
+	imageURL: string;
 };
 
 type PersonalConversation = {

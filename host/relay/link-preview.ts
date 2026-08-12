@@ -1,9 +1,11 @@
+export type LinkPreviewImage = { bytes: Uint8Array; contentType: string };
+
 export type LinkPreview = {
 	url: string;
 	title: string;
 	description: string;
 	siteName: string;
-	imageDataURL: string;
+	image: LinkPreviewImage | null;
 };
 
 const pageByteCap = 512 * 1024;
@@ -26,7 +28,7 @@ export async function readLinkPreview(link: string): Promise<LinkPreview | null>
 		title,
 		description: tags.get('og:description') ?? tags.get('description') ?? '',
 		siteName: tags.get('og:site_name') ?? address.hostname,
-		imageDataURL: await readImage(tags.get('og:image'), address)
+		image: await readImage(tags.get('og:image'), address)
 	};
 }
 
@@ -127,11 +129,11 @@ async function readMetaTags(html: string): Promise<Map<string, string>> {
 	return tags;
 }
 
-async function readImage(link: string | undefined, page: URL): Promise<string> {
-	if (!link) return '';
+async function readImage(link: string | undefined, page: URL): Promise<LinkPreviewImage | null> {
+	if (!link) return null;
 	const address = reachableAddress(new URL(link, page).toString());
-	if (!address) return '';
+	if (!address) return null;
 	const picture = await readCapped(address, imageByteCap, 'image/');
-	if (!picture) return '';
-	return `data:${picture.contentType};base64,${Buffer.from(picture.bytes).toString('base64')}`;
+	if (!picture) return null;
+	return { bytes: picture.bytes, contentType: picture.contentType };
 }

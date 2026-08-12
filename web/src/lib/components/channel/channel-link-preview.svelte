@@ -27,9 +27,9 @@
 		rel="noreferrer"
 		class="flex w-full max-w-[min(70%,20rem)] flex-col self-start overflow-hidden rounded-lg border bg-card text-card-foreground no-underline transition-colors group-data-[align=end]/message:self-end hover:bg-accent"
 	>
-		{#if preview.imageDataURL}
+		{#if preview.imageURL}
 			<img
-				src={preview.imageDataURL}
+				src={preview.imageURL}
 				alt=""
 				loading="lazy"
 				decoding="async"
