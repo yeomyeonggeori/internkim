@@ -117,6 +117,34 @@ verification and a health check before it calls a release good, and a package
 manager does the first two but not the third. The health check is worth keeping
 as a command the operator runs against a machine they already have a shell on.
 
+### `--legacy-ssh` is not the replacement
+
+An earlier draft of this document said the ssh path already did the job and the
+work was flipping the default. That was wrong, and worth writing down because it
+made the step look like a deletion.
+
+`deploy --legacy-ssh` with no components copies skills and workspace tools and
+no binaries at all. With components it maps five of them to setup steps — `web`,
+`admind`, `capabilityd`, `skills`, `blueclawPayload` — and refuses the rest:
+
+```
+legacy SSH deploy does not support component(s): ...
+```
+
+The eight it refuses include `relay` and `chatd`, which are what the credential
+redesign shipped all day. So the ssh path covers a fraction of the thirteen
+components a release carries, and making it the only path means building the
+rest.
+
+Which points straight at the answer. Rebuilding manifest,
+checksum, staged install and restart over ssh would be writing the apply engine
+again with a different transport. A package manager already does the first
+three and systemd does the fourth, so the step is to produce a package and let
+the machine's own tools install it. What leaves the repository is the transport
+and the channel: the upload over Admin HTTPS, R2, the registry Worker, and the
+on-device engine a push drives. What has to exist first is a packaging pipeline
+with somewhere to serve it from.
+
 ## Order of change
 
 Each step stands alone, and the device keeps working through all of them. Steps
@@ -129,9 +157,8 @@ Each step stands alone, and the device keeps working through all of them. Steps
 2. **SSH becomes a proxy command.** Behaviour identical, the transport gone from
    the source.
 3. **OTA becomes a package.** `internkim deploy` becomes build, ship, restart,
-   verify over the same `ssh` as everything else. `--legacy-ssh` already does
-   this; the work is making it the only path and deleting the engine the other
-   one drives.
+   verify over the same `ssh` as everything else. There is more to build here than
+   to delete; see below.
 4. **Registration stops creating a tunnel, an Access application and a DNS
    record.** After this a newly registered device is reachable on its own
    network. This is the step that ends browser access to the device.
