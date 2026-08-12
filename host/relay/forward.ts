@@ -10,6 +10,8 @@ export type Call = {
 export type Answer = { callID: string; status: number; body: unknown };
 
 const personPrefix = 'person.';
+const registrationPrefix = 'person.credential.';
+const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
 const workspacePrefixes = ['person.memory.', 'person.files.', 'person.tasks.'];
 
@@ -21,6 +23,10 @@ export function mailOperationOf(capability: string): string | null {
 
 export function isPersonCapability(capability: string): boolean {
 	return capability.startsWith(personPrefix);
+}
+
+export function isRegistrationCapability(capability: string): boolean {
+	return capability.startsWith(registrationPrefix);
 }
 
 export function isWorkspaceCapability(capability: string): boolean {
@@ -84,11 +90,28 @@ export type Dispatch = {
 	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	memberOfExternalID: (externalID: string) => Promise<string | null>;
 	mailAccountOf: (memberID: string) => Promise<Record<string, unknown> | null>;
+	connectMessengerAccount: (memberID: string, account: ConnectedAccount) => Promise<void>;
 };
 
-export async function serveCall(dispatch: Dispatch, call: Call): Promise<Served> {
+export type ConnectedAccount = { externalID: string; name: string; secret: string };
+
+export async function serveCall(
+	dispatch: Dispatch,
+	call: Call,
+	channelMemberID?: string
+): Promise<Served> {
 	const capability = call.capability ?? '';
 	const body = call.body ?? {};
+
+	if (isRegistrationCapability(capability)) {
+		if (!channelMemberID) {
+			return { status: 403, body: { error: 'this call arrived on nobody\'s channel' }, replyTo: null };
+		}
+		return {
+			...(await serveRegistration(dispatch, capability, body, channelMemberID)),
+			replyTo: channelMemberID
+		};
+	}
 
 	const actor = actorOf(call);
 	if (!actor) {
@@ -112,6 +135,33 @@ export async function serveCall(dispatch: Dispatch, call: Call): Promise<Served>
 	}
 
 	return { ...(await dispatch.askChatd(capability, body)), replyTo };
+}
+
+async function serveRegistration(
+	dispatch: Dispatch,
+	capability: string,
+	body: Record<string, unknown>,
+	memberID: string
+): Promise<{ status: number; body: unknown }> {
+	const answer = await dispatch.askChatd(capability, body);
+	if (answer.status >= 300) return answer;
+	if (capability !== issueCapability) return answer;
+
+	const issued = issuedAccountOf(answer.body);
+	if (!issued) return { status: 502, body: { error: 'the messenger issued nothing usable' } };
+	await dispatch.connectMessengerAccount(memberID, issued);
+	return { status: 200, body: { externalID: issued.externalID, name: issued.name } };
+}
+
+function issuedAccountOf(body: unknown): ConnectedAccount | null {
+	const issued = body as
+		| { credential?: { secret?: unknown }; identity?: { externalID?: unknown; name?: unknown } }
+		| null;
+	const secret = issued?.credential?.secret;
+	const externalID = issued?.identity?.externalID;
+	if (typeof secret !== 'string' || typeof externalID !== 'string') return null;
+	const name = issued?.identity?.name;
+	return { externalID, name: typeof name === 'string' ? name : '', secret };
 }
 
 async function serveMail(
