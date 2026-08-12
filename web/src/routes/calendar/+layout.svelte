@@ -23,11 +23,12 @@
 	import CalendarLayoutSyncSheet from './calendar-layout-sync-sheet.svelte';
 	import { bumpCalendarRefresh } from './refresh-signal.svelte';
 	import { calendarText } from './text';
+	import { isEmbeddedCalendar } from '$lib/app-shell';
 
 	let { children } = $props();
 
 	const text = createPageText(calendarText);
-	const isEmbed = $derived(page.url.pathname.startsWith('/calendar/embed'));
+	const isEmbed = $derived(isEmbeddedCalendar(page.url.pathname));
 	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
 	const layoutState = new CalendarLayoutState();
 

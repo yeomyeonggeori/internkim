@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { taskListPathOf } from '$lib/app-shell';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
@@ -58,7 +59,7 @@
 	const visibleEventsShareText = $derived(detail ? taskDetailShareText(detail, { events: visibleTaskEvents, title: 'Visible Task Events' }) : '');
 	const eventLaneFilters = $derived(detail ? buildEventLaneFilters(detail.taskEvents) : []);
 	const timelineSummaryRows = $derived(summary && detail ? buildTimelineSummaryRows(summary, detail.taskEvents.length) : []);
-	const taskListPath = $derived(page.url.pathname.startsWith('/poc-admin') ? '/poc-admin' : '/tasks');
+	const taskListPath = $derived(taskListPathOf(page.url.pathname));
 
 	async function load() {
 		loadError = '';
