@@ -6,6 +6,8 @@
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
+	import { appSectionPathOf, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
+	import { routePathOf } from '$lib/company-path';
 	import BuzzIdentityGate from '$lib/components/buzz/buzz-identity-gate.svelte';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
@@ -54,37 +56,20 @@
 		if (code === 'ko' || code === 'en') setLocale(code);
 	}
 
-	function usesAppShell(pathname: string) {
-		if (pathname === '/calendar/embed' || pathname.startsWith('/calendar/embed/')) return false;
-		return ['/settings/', '/poc-admin/', '/messenger/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/organization/', '/files/', '/tasks/', '/assistant/', '/auth/claim/'].some(
-			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
-		);
-	}
-
-	function currentApp(pathname: string) {
-		if (pathname.startsWith('/auth/claim')) return text.claimTitle;
-		if (pathname.startsWith('/settings')) return text.settings;
-		if (pathname.startsWith('/poc-admin')) return text.pocAdmin;
-		if (pathname.startsWith('/tasks')) return text.tasks;
-		if (pathname.startsWith('/memory')) return text.memory;
-		if (pathname.startsWith('/calendar')) return text.calendar;
-		if (pathname.startsWith('/mail')) return text.mail;
-		if (pathname.startsWith('/attendance')) return text.attendance;
-		if (pathname.startsWith('/organization')) return text.organization;
-		if (pathname.startsWith('/files')) return text.files;
-		if (pathname.startsWith('/assistant')) return text.assistant;
-		if (pathname.startsWith('/messenger')) return text.messenger;
+	function currentApp(routePath: string) {
+		if (routePath.startsWith('/auth/claim')) return text.claimTitle;
+		if (routePath.startsWith('/settings')) return text.settings;
+		if (routePath.startsWith('/poc-admin')) return text.pocAdmin;
+		if (routePath.startsWith('/tasks')) return text.tasks;
+		if (routePath.startsWith('/memory')) return text.memory;
+		if (routePath.startsWith('/calendar')) return text.calendar;
+		if (routePath.startsWith('/mail')) return text.mail;
+		if (routePath.startsWith('/attendance')) return text.attendance;
+		if (routePath.startsWith('/organization')) return text.organization;
+		if (routePath.startsWith('/files')) return text.files;
+		if (routePath.startsWith('/assistant')) return text.assistant;
+		if (routePath.startsWith('/messenger')) return text.messenger;
 		return text.flow;
-	}
-
-	function currentAppPath(pathname: string) {
-		return `/${pathname.split('/')[1] ?? ''}/`;
-	}
-
-	function usesWebAuthGate(pathname: string) {
-		return ['/messenger/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/', '/organization/', '/files/', '/tasks/', '/assistant/', '/poc-admin/', '/settings/'].some(
-			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
-		);
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -150,14 +135,14 @@
 									<Breadcrumb.Item>
 										{#if breadcrumbMeta.value}
 											<Breadcrumb.Link
-												href={currentAppPath(page.url.pathname)}
+												href={appSectionPathOf(page.url.pathname)}
 												data-sveltekit-preload-data="off"
 												onclick={breadcrumbMeta.clear}
 											>
-												{currentApp(page.url.pathname)}
+												{currentApp(routePathOf(page.url.pathname))}
 											</Breadcrumb.Link>
 										{:else}
-											<Breadcrumb.Page>{currentApp(page.url.pathname)}</Breadcrumb.Page>
+											<Breadcrumb.Page>{currentApp(routePathOf(page.url.pathname))}</Breadcrumb.Page>
 										{/if}
 									</Breadcrumb.Item>
 									{#if breadcrumbMeta.value}
