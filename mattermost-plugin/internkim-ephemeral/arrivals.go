@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
@@ -18,18 +19,30 @@ type arrivedMessage struct {
 	ConversationID       string   `json:"conversationID"`
 	MessageID            string   `json:"messageID"`
 	AuthorExternalID     string   `json:"authorExternalID"`
+	AuthorName           string   `json:"authorName,omitempty"`
 	RecipientExternalIDs []string `json:"recipientExternalIDs"`
 	Preview              string   `json:"preview"`
 }
 
-func arrivalFromPost(post *model.Post, memberIDs []string) arrivedMessage {
+func arrivalFromPost(post *model.Post, authorName string, memberIDs []string) arrivedMessage {
 	return arrivedMessage{
 		ConversationID:       post.ChannelId,
 		MessageID:            post.Id,
 		AuthorExternalID:     post.UserId,
+		AuthorName:           authorName,
 		RecipientExternalIDs: memberIDs,
 		Preview:              trimPreview(post.Message),
 	}
+}
+
+func displayNameOf(user *model.User) string {
+	if user == nil {
+		return ""
+	}
+	if name := strings.TrimSpace(user.GetFullName()); name != "" {
+		return name
+	}
+	return user.Username
 }
 
 func trimPreview(message string) string {
@@ -60,7 +73,16 @@ func (pluginValue *Plugin) reportArrival(post *model.Post) {
 		pluginValue.API.LogWarn("arrival not reported: member lookup failed", "error", appError.Error())
 		return
 	}
-	pluginValue.postArrival(arrivalFromPost(post, userIDsOf(members)))
+	pluginValue.postArrival(arrivalFromPost(post, pluginValue.authorNameOf(post.UserId), userIDsOf(members)))
+}
+
+func (pluginValue *Plugin) authorNameOf(userID string) string {
+	user, appError := pluginValue.API.GetUser(userID)
+	if appError != nil {
+		pluginValue.API.LogWarn("arrival carries no author name", "error", appError.Error())
+		return ""
+	}
+	return displayNameOf(user)
 }
 
 func (pluginValue *Plugin) postArrival(arrival arrivedMessage) {

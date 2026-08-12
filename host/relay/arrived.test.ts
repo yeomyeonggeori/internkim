@@ -5,6 +5,7 @@ const posted = {
 	conversationID: 'channel-1',
 	messageID: 'post-7',
 	authorExternalID: 'U-author',
+	authorName: '이샘플',
 	recipientExternalIDs: ['U-first', 'U-second'],
 	preview: '오늘 회의 30분 미뤄도 될까요'
 };
@@ -24,6 +25,12 @@ describe('readArrivedMessage', () => {
 		const arrived = readArrivedMessage({ ...posted, recipientExternalIDs: ['U-first', 'U-first', ' U-first '] });
 
 		expect(arrived?.recipientExternalIDs).toEqual(['U-first']);
+	});
+
+	test('an older messenger that reports no name still reports an arrival', () => {
+		const { authorName: _absent, ...withoutTheName } = posted;
+
+		expect(readArrivedMessage(withoutTheName)?.authorName).toBe('');
 	});
 
 	test('a report with no author or no message is not one', () => {

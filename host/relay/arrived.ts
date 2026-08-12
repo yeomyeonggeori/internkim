@@ -2,6 +2,7 @@ export type ArrivedMessage = {
 	conversationID: string;
 	messageID: string;
 	authorExternalID: string;
+	authorName: string;
 	recipientExternalIDs: string[];
 	preview: string;
 };
@@ -27,6 +28,7 @@ export function readArrivedMessage(offered: unknown): ArrivedMessage | null {
 		conversationID: text(held.conversationID),
 		messageID,
 		authorExternalID,
+		authorName: text(held.authorName),
 		recipientExternalIDs: externalIDs(held.recipientExternalIDs, authorExternalID),
 		preview: text(held.preview).slice(0, previewLimit)
 	};
