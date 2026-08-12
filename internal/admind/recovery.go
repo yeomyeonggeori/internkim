@@ -383,12 +383,23 @@ preserved=/var/lib/blueclaw/workspace-preserved-$(date -u +%Y%m%dT%H%M%SZ).ext4
 echo "== disk =="; df -h /var/lib/blueclaw 2>&1 | tail -1
 echo "== stop blueclaw (ends the panic loop) =="; systemctl stop blueclaw 2>&1; sleep 3
 echo "== preserve the image =="
-cp --reflink=auto -a "$image" "$preserved" && echo "preserved: $preserved" || echo "preserve FAILED"
-ls -la "$preserved" 2>&1 | tail -1
+existing=$(ls -t /var/lib/blueclaw/workspace-preserved-*.ext4 2>/dev/null | head -1)
+if [ -n "$existing" ]; then
+  echo "already preserved: $existing"
+else
+  cp --reflink=auto -a "$image" "$preserved" && echo "preserved: $preserved" || echo "preserve FAILED"
+fi
+ls -la /var/lib/blueclaw/workspace-preserved-*.ext4 2>&1 | tail -2
+echo "== drop plain backup intermediates that never got encrypted =="
+for plain in /root/.internkim/backups/.internkim-backup-*.tar.gz; do
+  [ -e "$plain" ] || continue
+  stamp=$(basename "$plain" .tar.gz); stamp=${stamp#.internkim-backup-}
+  if [ -e "/root/.internkim/backups/internkim-backup-$stamp.ikbak" ]; then echo "keeping $plain (encrypted copy exists)"; else rm -f -v "$plain"; fi
+done
 echo "== daily backups =="; ls -la /root/.internkim/backups 2>&1 | tail -12
 echo "== read the guest cluster read-only =="
 mountPoint=$(mktemp -d)
-mount -o ro,loop "$image" "$mountPoint" 2>&1 || { echo "read-only mount FAILED"; rmdir "$mountPoint"; exit 1; }
+mount -o ro,noload,loop "$image" "$mountPoint" 2>&1 || { echo "read-only mount FAILED"; rmdir "$mountPoint"; exit 1; }
 dataPath="$mountPoint/.blueclaw/postgres/data"
 controlData=$(find /usr/lib/postgresql -path '"'"'*/bin/pg_controldata'"'"' -type f 2>/dev/null | sort -V | tail -1)
 if [ -n "$controlData" ]; then "$controlData" -D "$dataPath" 2>&1 | grep -iE '"'"'state|checkpoint location|redo location|time line|latest checkpoint'"'"' | head -12; else echo "pg_controldata not on host"; fi
