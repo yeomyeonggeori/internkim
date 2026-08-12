@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,31 +40,21 @@ func runReleaseUpdateCheck(arguments []string) error {
 
 func runReleaseUpdateApply(arguments []string) error {
 	target := resolveCommandTarget(arguments)
-	endpointURL, errorValue := releaseDeviceEndpointURL(target, "/admin/api/updates/apply")
-	if errorValue != nil {
-		return errorValue
-	}
 	requestDocument, errorValue := releaseUpdateApplyRequestDocument(target)
 	if errorValue != nil {
 		return errorValue
 	}
-	request, errorValue := http.NewRequest(http.MethodPost, endpointURL, bytes.NewReader(requestDocument))
+	connection, _, errorValue := resolveDeviceSSHConnection(loadConfig(), sshpassBinaryPath(), target)
 	if errorValue != nil {
 		return errorValue
 	}
-	request.Header.Set("Content-Type", "application/json")
-	response, errorValue := statusHTTPClient.Do(request)
+	answer, errorValue := connection.runResult(adminLoopbackCommand(http.MethodPost, "/admin/api/updates/apply", requestDocument))
 	if errorValue != nil {
-		return errorValue
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		document, _ := readAllLimitedResponse(response, 4096)
-		return fmt.Errorf("release update apply failed: HTTP %d %s", response.StatusCode, strings.TrimSpace(string(document)))
+		return fmt.Errorf("release update apply failed: %s: %w", strings.TrimSpace(answer), errorValue)
 	}
 	var job blueclawUpdateJobResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&job); errorValue != nil {
-		return errorValue
+	if errorValue := json.Unmarshal([]byte(answer), &job); errorValue != nil {
+		return fmt.Errorf("admind answered something that is not a job: %s", strings.TrimSpace(answer))
 	}
 	fmt.Printf("Job: %s\n", job.JobID)
 	for attempt := 0; attempt < 120; attempt++ {
