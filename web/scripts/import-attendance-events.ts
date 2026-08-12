@@ -1,6 +1,7 @@
 //   bun run web/scripts/import-attendance-events.ts --file <attendance.json> [--apply]
 
 import { controlPlane } from '../src/lib/server/control-plane';
+import { readAllRows } from './read-all-rows';
 
 type DeviceEvent = {
 	email: string;
@@ -27,14 +28,20 @@ const client = controlPlane({
 const document = JSON.parse(await Bun.file(file).text()) as { events?: DeviceEvent[] };
 const deviceEvents = (document.events ?? []).filter((event) => !event.canceledAt);
 
-const { data: members, error: memberError } = await client.from('member').select('id, email');
-if (memberError) throw new Error(memberError.message);
-const memberByEmail = new Map((members ?? []).map((member) => [member.email ?? '', member.id]));
-const emailByMember = new Map((members ?? []).map((member) => [member.id, member.email ?? '']));
+const members = await readAllRows<{ id: string; email: string | null }>((from, to) =>
+	client.from('member').select('id, email').order('id', { ascending: true }).range(from, to)
+);
+const memberByEmail = new Map(members.map((member) => [member.email ?? '', member.id]));
+const emailByMember = new Map(members.map((member) => [member.id, member.email ?? '']));
 
-const { data: rows, error: rowError } = await client.from('attendance').select('member_id, kind, occurred_at');
-if (rowError) throw new Error(rowError.message);
-const here = new Set((rows ?? []).map((row) => keyOf(emailByMember.get(row.member_id) ?? '', row.kind, row.occurred_at)));
+const rows = await readAllRows<{ member_id: string; kind: string; occurred_at: string }>((from, to) =>
+	client
+		.from('attendance')
+		.select('member_id, kind, occurred_at')
+		.order('id', { ascending: true })
+		.range(from, to)
+);
+const here = new Set(rows.map((row) => keyOf(emailByMember.get(row.member_id) ?? '', row.kind, row.occurred_at)));
 
 const seen = new Set<string>();
 const missing = deviceEvents
