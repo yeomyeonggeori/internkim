@@ -108,6 +108,7 @@ if [ "$repositoryRoot" = "$mainWorktreePath" ]; then
 fi
 
 syncLocalState ".env"
+syncLocalState "web/.env"
 syncLocalState "web/.dev.vars"
 syncLocalState ".local/secrets"
 syncLocalState ".local/ops"
