@@ -2,6 +2,11 @@ export type Answer = { callID: string; status: number; body: unknown };
 
 const answerOverheadBytes = 512;
 
+// https://supabase.com/docs/guides/realtime/limits
+export const largestMessageTheChannelCarries = 1_000_000;
+const envelopeShare = 0.1;
+export const defaultAnswerByteCeiling = Math.floor(largestMessageTheChannelCarries * (1 - envelopeShare));
+
 export function answerByteLength(answer: Answer): number {
 	return new TextEncoder().encode(JSON.stringify(answer)).length;
 }
