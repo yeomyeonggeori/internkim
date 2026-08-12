@@ -1,9 +1,8 @@
 import { env } from '$env/dynamic/private';
+import { slugShape } from '$lib/company-path';
 import { asMember, claimMemberFor, controlPlane, foundCompany } from '$lib/server/control-plane';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-
-const slugShape = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
 
 export const GET: RequestHandler = async ({ platform, url }) => {
 	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };

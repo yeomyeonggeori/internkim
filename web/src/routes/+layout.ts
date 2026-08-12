@@ -1,7 +1,8 @@
 import { redirect } from '@sveltejs/kit';
 import { belongsToACompany } from '$lib/company/found-company';
 import { isEmbeddedFrame } from '$lib/embedded';
-import { isSupabaseConfigured, supabaseWebAuthSession } from '$lib/supabase-session';
+import { isSupabaseConfigured, supabaseMember, supabaseWebAuthSession } from '$lib/supabase-session';
+import { companyPathOf, wantsCompanyPrefix } from '$lib/company-path';
 import { signedOutSession, webAuthSessionDependency, webAuthSessionFrom, type WebAuthSession } from '$lib/web-auth-session';
 import type { LayoutLoad } from './$types';
 
@@ -19,6 +20,12 @@ export const load: LayoutLoad<{ session: WebAuthSession | null }> = async ({ fet
 		const settlingIn = returnPath.startsWith('/start') || returnPath.startsWith('/auth/');
 		if (session.authenticated && !settlingIn && !(await belongsToACompany())) {
 			redirect(307, '/start');
+		}
+		if (session.authenticated && wantsCompanyPrefix(window.location.pathname)) {
+			const { companySlug } = await supabaseMember();
+			if (companySlug) {
+				redirect(307, companyPathOf(companySlug, window.location.pathname) + window.location.search);
+			}
 		}
 		return { session };
 	}
