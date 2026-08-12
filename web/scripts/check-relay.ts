@@ -252,6 +252,7 @@ try {
 	messenger.refuseTheAccount();
 	relay = Bun.spawn([relayPath], { env: relayEnvironment, stdout: 'inherit', stderr: 'inherit' });
 
+
 	const askedBeforeTheRefusal = connector.asked.length;
 	const servedAnyway = await untilTrue(
 		'the relay to take a call while the messenger refuses the account it was given',
@@ -272,8 +273,8 @@ try {
 	);
 	findings.push(['the relay still serves calls when the messenger refuses its account', servedAnyway]);
 	findings.push([
-		'a refused account is asked for once, not once per job, so the messenger never locks it',
-		messenger.loginAttempts() === 1
+		'the relay never signs in to the messenger at all, so no account of anyone else can be locked',
+		messenger.loginAttempts() === 0
 	]);
 
 	await asMember.removeAllChannels();
