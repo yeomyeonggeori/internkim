@@ -15,9 +15,9 @@ insert into public.team (id, company_id, name) values
   ('43000000-0000-0000-0000-0000000000c1', '43000000-0000-0000-0000-0000000000a0', 'Makers'),
   ('43000000-0000-0000-0000-0000000000c2', '43000000-0000-0000-0000-0000000000a0', 'Sellers');
 
-insert into public.circle (id, company_id, slug, name) values
-  ('43000000-0000-0000-0000-0000000000f1', '43000000-0000-0000-0000-0000000000a0', 'incident', 'Incident'),
-  ('43000000-0000-0000-0000-0000000000f2', '43000000-0000-0000-0000-0000000000a0', 'hiring', 'Hiring');
+insert into public.circle (id, company_id, name) values
+  ('43000000-0000-0000-0000-0000000000f1', '43000000-0000-0000-0000-0000000000a0', 'Incident'),
+  ('43000000-0000-0000-0000-0000000000f2', '43000000-0000-0000-0000-0000000000a0', 'Hiring');
 
 insert into public.member (id, company_id, email, user_id, status, team_id) values
   (

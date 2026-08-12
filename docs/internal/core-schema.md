@@ -26,7 +26,7 @@ run; this one decides what the data is.
 | `attendance` | Clock-in / clock-out events, with location. |
 | `leave` | Time off. |
 | `push_device` | Somewhere a member can be reached with a notification. |
-| `circle` | A named group a member is put in by hand, for sharing. |
+| `circle` | A named group a member is put in by hand, for sharing. Named the way `team` is, unique per company. |
 | `circle_member` | Who is in a circle. |
 
 Tables are singular. Timestamps are `timestamptz` named `_at`. Booleans use an
