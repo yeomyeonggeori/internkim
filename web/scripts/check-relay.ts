@@ -123,8 +123,7 @@ try {
 	await saveCompanyConnection(admin, company.companyID, {
 		kind: 'mattermost',
 		host: messenger.url,
-		settings: { username: `bot-${stamp}@example.test` },
-		secret: 'bot-password'
+		settings: {}
 	});
 	const agent = await issueAgentKey(admin, company.companyID, `relay-check-${stamp}`);
 
