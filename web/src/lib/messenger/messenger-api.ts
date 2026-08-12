@@ -139,16 +139,18 @@ export async function writePost(
 }
 
 export async function fetchCustomEmojiNames(): Promise<string[]> {
-	const listed = await ask<{ name: string }[]>('asset.emoji');
-	return listed.map((emoji) => emoji.name);
+	const answer = await ask<{ emoji: { name: string }[] }>('person.emoji.list');
+	return answer.emoji.map((emoji) => emoji.name);
 }
 
-export function fetchCustomEmojiImage(name: string): Promise<{ dataURL: string } | null> {
-	return ask<{ dataURL: string } | null>('asset.emoji.image', { name });
+export async function fetchCustomEmojiImage(name: string): Promise<{ dataURL: string } | null> {
+	const answer = await ask<{ image: { dataURL: string } | null }>('person.emoji.image', { name });
+	return answer.image;
 }
 
-export function fetchProfilePicture(externalID: string): Promise<{ dataURL: string } | null> {
-	return ask<{ dataURL: string } | null>('asset.picture', { externalID });
+export async function fetchProfilePicture(externalID: string): Promise<{ dataURL: string } | null> {
+	const answer = await ask<{ image: { dataURL: string } | null }>('person.picture', { externalID });
+	return answer.image;
 }
 
 export function fetchLinkPreview(url: string): Promise<LinkPreview | null> {
