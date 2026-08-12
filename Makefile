@@ -71,7 +71,6 @@ check: build build-companion
 	cd .dependency/blueclaw/llmd && bun install --frozen-lockfile
 	cd .dependency/blueclaw/llmd && bun run build
 	cd .dependency/blueclaw/llmd && bun test
-	python3 -m unittest discover -s poc -p '*_test.py'
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test ./...
 	cd .dependency/blueclaw && GOCACHE=$(BLUECLAW_GO_CACHE) go test ./...
 

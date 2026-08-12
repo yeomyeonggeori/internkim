@@ -2,7 +2,6 @@ import { companyPathOf, companySlugOf, routePathOf } from '$lib/company-path';
 
 const appShellSections = [
 	'/settings/',
-	'/poc-admin/',
 	'/messenger/',
 	'/flow/',
 	'/memory/',
@@ -38,8 +37,7 @@ export function isEmbeddedCalendar(pathname: string): boolean {
 }
 
 export function taskListPathOf(pathname: string): string {
-	const list = routePathOf(pathname).startsWith('/poc-admin') ? '/poc-admin' : '/tasks';
-	return companyPathOf(companySlugOf(pathname), list);
+	return companyPathOf(companySlugOf(pathname), '/tasks');
 }
 
 export function appSectionPathOf(pathname: string): string {

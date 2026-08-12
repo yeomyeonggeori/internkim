@@ -59,7 +59,5 @@ describe('a question asked of the route, not the address', () => {
 	test('sends a task back to its own list, company and all', () => {
 		expect(taskListPathOf('/tasks/abc')).toBe('/tasks');
 		expect(taskListPathOf('/dawnstreet/tasks/abc')).toBe('/dawnstreet/tasks');
-		expect(taskListPathOf('/poc-admin/abc')).toBe('/poc-admin');
-		expect(taskListPathOf('/dawnstreet/poc-admin/abc')).toBe('/dawnstreet/poc-admin');
 	});
 });

@@ -92,8 +92,6 @@ func isTaskRunWebPath(path string) bool {
 	switch {
 	case parsedURL.Path == "/tasks" || strings.HasPrefix(parsedURL.Path, "/tasks/"):
 		return true
-	case parsedURL.Path == "/poc-admin" || strings.HasPrefix(parsedURL.Path, "/poc-admin/"):
-		return true
 	default:
 		return false
 	}

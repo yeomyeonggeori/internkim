@@ -265,10 +265,6 @@ func Main() {
 			runLLM()
 		case "ops":
 			runOps()
-		case "tenant":
-			runTenant()
-		case "host":
-			runHost()
 		case "dev":
 			runDev()
 		case "lab":
@@ -307,8 +303,6 @@ func printUsage() {
 	fmt.Println("  test     Run a prompt through disposable Local Fleet; use -o <file> for one returned attachment")
 	fmt.Println("  llm      One-shot LLM ping (local by default, --remote for OpenRouter)")
 	fmt.Println("  ops      Serve the local personal fleet console")
-	fmt.Println("  tenant   Manage PoC tenant runtime manifests")
-	fmt.Println("  host     Manage Mac-hosted tenant VM plumbing")
 	fmt.Println("  lab      Run container-based Blueclaw-aligned lab workflows")
 	fmt.Println("  sim      Deprecated alias for lab")
 }
