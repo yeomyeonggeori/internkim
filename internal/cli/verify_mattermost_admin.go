@@ -265,7 +265,7 @@ func (admin mattermostScenarioAdmin) deleteCreatedResources(contextValue context
 	}
 	cleanupErrors := []error{}
 	for _, taskID := range resourceIDs.TaskIDs {
-		if errorValue := admin.deleteCreatedResource(contextValue, "/flow/api/tasks/"+url.PathEscape(taskID), "X-InternKim-Requester-Email", normalizedEmail); errorValue != nil {
+		if errorValue := admin.deleteCreatedResource(contextValue, "/flow/api/tasks/"+url.PathEscape(taskID), "X-INTERNKIM-REQUESTER-EMAIL", normalizedEmail); errorValue != nil {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("delete Mattermost scenario task %s: %w", taskID, errorValue))
 		}
 	}

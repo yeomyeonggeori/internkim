@@ -114,7 +114,7 @@ type flowTaskForTool struct {
 	CreatedAt                string                      `json:"createdAt,omitempty"`
 }
 
-const flowRequesterEmailHeader = "X-InternKim-Requester-Email"
+const flowRequesterEmailHeader = "X-INTERNKIM-REQUESTER-EMAIL"
 
 var flowTaskDeleteNotFoundError = errors.New("flow task delete target not found")
 

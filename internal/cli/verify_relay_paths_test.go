@@ -43,7 +43,7 @@ func TestVerifyAPIScriptFailsOnARefusedRelayPath(t *testing.T) {
 	if !strings.Contains(script, "403|404)") {
 		t.Error("device verification must fail on a refused relay path; a 403 is what a device missing the loopback actor answers")
 	}
-	if !strings.Contains(script, "X-InternKim-Requester-Email") {
+	if !strings.Contains(script, "X-INTERNKIM-REQUESTER-EMAIL") {
 		t.Error("the relay names its requester in a header, so verification has to ask the same way it does")
 	}
 }

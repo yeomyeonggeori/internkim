@@ -214,7 +214,7 @@ func TestMattermostScenarioCleanupDeletesCreatedDomainResourcesFromToolResults(t
 		t.Fatalf("cleanup selected an unrelated resource:\n%s", joinedScripts)
 	}
 	for _, fragment := range []string{
-		"X-InternKim-Requester-Email: probe@example.com",
+		"X-INTERNKIM-REQUESTER-EMAIL: probe@example.com",
 		"CF-Access-Authenticated-User-Email: probe@example.com",
 	} {
 		if !strings.Contains(joinedScripts, fragment) {

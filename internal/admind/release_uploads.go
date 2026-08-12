@@ -312,7 +312,7 @@ func (service *Service) markReleaseUpdateUploadChunk(uploadID string, chunkIndex
 }
 
 func releaseUpdateUploadTokenMatches(request *http.Request, upload *ReleaseUpdateUpload) bool {
-	token := strings.TrimSpace(request.Header.Get("X-InternKim-Upload-Token"))
+	token := strings.TrimSpace(request.Header.Get("X-INTERNKIM-UPLOAD-TOKEN"))
 	if token == "" {
 		token = strings.TrimPrefix(strings.TrimSpace(request.Header.Get("Authorization")), "Bearer ")
 	}

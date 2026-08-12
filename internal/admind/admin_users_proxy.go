@@ -163,8 +163,8 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		return
 	}
 	proxyRequest.Header.Set("Content-Type", "application/json")
-	proxyRequest.Header.Set("X-InternKim-Fleet-ID", fleetID)
-	proxyRequest.Header.Set("X-InternKim-Fleet-Secret", fleetSecret)
+	proxyRequest.Header.Set("X-INTERNKIM-FLEET-ID", fleetID)
+	proxyRequest.Header.Set("X-INTERNKIM-FLEET-SECRET", fleetSecret)
 	client := service.HTTPClient
 	if client == nil {
 		client = http.DefaultClient

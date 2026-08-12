@@ -1141,7 +1141,7 @@ func (service *Service) addReleaseDownloadHeaders(request *http.Request) {
 	if token == "" {
 		return
 	}
-	request.Header.Set("X-InternKim-Release-Token", token)
+	request.Header.Set("X-INTERNKIM-RELEASE-TOKEN", token)
 }
 
 func (service *Service) releaseSigningKey() string {

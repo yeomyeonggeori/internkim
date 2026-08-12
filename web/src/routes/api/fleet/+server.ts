@@ -8,7 +8,7 @@ import { activeFleetMembers, fleetQuorumSize, pendingFleetMembers } from '$lib/f
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
 	'Access-Control-Allow-Methods': 'GET, OPTIONS',
-	'Access-Control-Allow-Headers': 'Content-Type, X-InternKim-Fleet-ID, X-InternKim-Fleet-Secret'
+	'Access-Control-Allow-Headers': 'Content-Type, X-INTERNKIM-FLEET-ID, X-INTERNKIM-FLEET-SECRET'
 };
 
 export const OPTIONS: RequestHandler = async () => {

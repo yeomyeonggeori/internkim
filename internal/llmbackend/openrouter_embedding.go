@@ -99,7 +99,7 @@ func (backend OpenRouterEmbeddingBackend) send(ctx context.Context, apiKey strin
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
 	if gatewaySecret := readOpenRouterKey(backend.GatewaySecretPath); strings.TrimSpace(gatewaySecret) != "" {
-		httpRequest.Header.Set(firstNonEmpty(backend.GatewaySecretHeader, "X-InternKim-Gateway-Secret"), strings.TrimSpace(gatewaySecret))
+		httpRequest.Header.Set(firstNonEmpty(backend.GatewaySecretHeader, "X-INTERNKIM-GATEWAY-SECRET"), strings.TrimSpace(gatewaySecret))
 	}
 
 	httpResponse, errorValue := backend.client().Do(httpRequest)

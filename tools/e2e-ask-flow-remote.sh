@@ -94,7 +94,7 @@ ask_finish() { # channel_id e2e_token task_run_id root_post_id root_post_created
 
 company_state() {
 	local admind="http://127.0.0.1:18080"
-	local requester_header="X-InternKim-Requester-Email: local-fleet-admin@internkim.test"
+	local requester_header="X-INTERNKIM-REQUESTER-EMAIL: local-fleet-admin@internkim.test"
 	jq -cn \
 		--argjson info "$(curl -s -H "$requester_header" "$admind/admin/api/company-info?language=ko" || echo '{}')" \
 		--argjson metrics "$(curl -s -H "$requester_header" "$admind/admin/api/company-metrics" || echo '{}')" \

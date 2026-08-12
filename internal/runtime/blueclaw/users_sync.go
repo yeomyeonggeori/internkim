@@ -98,8 +98,8 @@ ensure_person_workspace_directories() {
 }
 
 curl -fsS \
-  -H "X-InternKim-Fleet-ID: $FLEET_ID" \
-  -H "X-InternKim-Fleet-Secret: $FLEET_SECRET" \
+  -H "X-INTERNKIM-FLEET-ID: $FLEET_ID" \
+  -H "X-INTERNKIM-FLEET-SECRET: $FLEET_SECRET" \
   "$API_URL/api/users?fleet_id=$FLEET_ID" > "$response_path"
 
 revision="$(jq -r '.revision // empty' "$response_path")"

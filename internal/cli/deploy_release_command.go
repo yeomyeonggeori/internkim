@@ -624,7 +624,7 @@ func postReleaseUpdateJSON(endpointURL string, requestPayload any, token string,
 		}
 		request.Header.Set("Content-Type", "application/json")
 		if token != "" {
-			request.Header.Set("X-InternKim-Upload-Token", token)
+			request.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", token)
 		}
 		attachCloudflareAccessCookie(request)
 		return request, nil
@@ -644,7 +644,7 @@ func putReleaseUpdateChunk(endpointURL string, token string, document []byte) er
 		if buildError != nil {
 			return nil, buildError
 		}
-		request.Header.Set("X-InternKim-Upload-Token", token)
+		request.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", token)
 		attachCloudflareAccessCookie(request)
 		return request, nil
 	})

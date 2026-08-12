@@ -246,11 +246,11 @@ func TestOpenRouterBackendSendsGatewaySecretHeader(t *testing.T) {
 	backend := OpenRouterBackend{
 		KeyPath:             apiKeyPath,
 		GatewaySecretPath:   gatewaySecretPath,
-		GatewaySecretHeader: "X-InternKim-Gateway-Secret",
+		GatewaySecretHeader: "X-INTERNKIM-GATEWAY-SECRET",
 		BaseURL:             "https://openrouter.test/api/v1/chat/completions",
 		ModelName:           "configured-model",
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			receivedGatewaySecret = request.Header.Get("X-InternKim-Gateway-Secret")
+			receivedGatewaySecret = request.Header.Get("X-INTERNKIM-GATEWAY-SECRET")
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"ok"}}]}`)),

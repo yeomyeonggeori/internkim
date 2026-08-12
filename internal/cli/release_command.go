@@ -802,7 +802,7 @@ func addReleaseDownloadHeaders(request *http.Request) {
 	if token == "" {
 		return
 	}
-	request.Header.Set("X-InternKim-Release-Token", token)
+	request.Header.Set("X-INTERNKIM-RELEASE-TOKEN", token)
 }
 
 // Falls back to the local secrets file so a developer with a repo checkout

@@ -413,7 +413,7 @@ async function askAdmind(
 	}
 	const asked = query.toString() ? `${path}?${query}` : path;
 	const response = await fetch(`${admindBaseURL}${asked}`, {
-		headers: { 'X-InternKim-Requester-Email': requesterEmail }
+		headers: { 'X-INTERNKIM-REQUESTER-EMAIL': requesterEmail }
 	});
 	return { status: response.status, body: await answerBodyOf(response) };
 }
