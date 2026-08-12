@@ -46,7 +46,7 @@ func TestCapabilitySuccessResponseProjectsRegisteredResultContracts(t *testing.T
 }
 
 func TestCapabilitySuccessResponseFromCarriesOriginAndValidates(t *testing.T) {
-	result := `{"scope":"self","weekFrom":0,"weekTo":0,"statusFilter":"","ownerID":"member-1","tasks":[{"taskID":"task-1"}],"count":1}`
+	result := `{"scope":"self","weekFrom":0,"weekTo":0,"statusFilter":"","ownerID":"member-1","tasks":[{"taskID":"task-1"}],"count":1,"registeredLabels":{"businesses":[],"types":[],"sizes":[],"statuses":[]}}`
 	response, errorValue := capabilitySuccessResponseFrom("task_list", "ok", []byte(result), capabilityResponseOrigin{
 		Provider:        "internkim-test",
 		SelectedBackend: capabilities.LLMBackendRemote,
