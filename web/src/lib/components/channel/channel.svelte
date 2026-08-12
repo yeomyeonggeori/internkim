@@ -17,7 +17,6 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import {
-		canSendAttachments,
 		fetchChannelConversation,
 		parseMessageContent,
 		applyCustomEmoji,
@@ -74,7 +73,6 @@
 	let composerValue = $state('');
 	let isSending = $state(false);
 	let loadFailed = $state(false);
-	const canAttach = canSendAttachments();
 	let hasLoadedOnce = $state(false);
 	let olderMessages = $state<ChannelMessage[]>([]);
 	let hasMoreBefore = $state(false);
@@ -999,7 +997,7 @@
 					size="icon-sm"
 					aria-label={text.addAttachment}
 					onclick={() => fileInput?.click()}
-					disabled={messageInputDisabled || !canAttach}
+					disabled={messageInputDisabled}
 				>
 					<PlusIcon />
 				</InputGroup.Button>

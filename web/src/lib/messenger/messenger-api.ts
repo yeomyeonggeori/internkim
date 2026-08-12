@@ -125,15 +125,23 @@ export async function fetchPosts(channelID: string, before?: string): Promise<Me
 	return answer.messages.map(asPost);
 }
 
+export type OutgoingAttachment = {
+	filename: string;
+	contentType: string;
+	contentBase64: string;
+};
+
 export async function writePost(
 	channelID: string,
 	body: string,
-	parentID?: string
+	parentID?: string,
+	attachments: OutgoingAttachment[] = []
 ): Promise<MessengerPost> {
 	const message = await ask<PersonalMessage>('person.message.send', {
 		conversationID: channelID,
 		body,
-		parentID
+		parentID,
+		attachments
 	});
 	return asPost(message);
 }
