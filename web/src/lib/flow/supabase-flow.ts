@@ -44,6 +44,7 @@ type TaskRow = {
 	business: string | null;
 	type: string | null;
 	size: string | null;
+	is_event: boolean;
 	starts_at: string | null;
 	ends_at: string | null;
 	due_at: string | null;
@@ -52,31 +53,43 @@ type TaskRow = {
 };
 
 const taskColumns =
-	'id, title, status, note, business, type, size, starts_at, ends_at, due_at, updated_at, task_participant (member_id)';
+	'id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, task_participant (member_id)';
+
+// The API caps an unbounded select and says nothing about having done it, so a
+// company past the cap would quietly lose tasks off its board. Rows are read a
+// page at a time, ordered by id, because ordering by anything that repeats drops
+// rows at a page boundary.
+const rowsPerPage = 500;
+
+async function everyRow<Row>(
+	page: (from: number, to: number) => PromiseLike<{ data: Row[] | null; error: { message: string } | null }>
+): Promise<Row[]> {
+	const rows: Row[] = [];
+	for (let from = 0; ; from += rowsPerPage) {
+		const read = await page(from, from + rowsPerPage - 1);
+		if (read.error) throw new Error(read.error.message);
+		const found = read.data ?? [];
+		rows.push(...found);
+		if (found.length < rowsPerPage) return rows;
+	}
+}
 
 async function readTasks(): Promise<TaskRow[]> {
 	const client = supabase();
 	const held = heldTasks<TaskRow>();
 
 	if (!held) {
-		const everything = await client.from('task').select(taskColumns).eq('is_event', false).returns<TaskRow[]>();
-		if (everything.error) throw new Error(everything.error.message);
-		holdTasks({ tasks: everything.data, fetchedAt: newestStamp(everything.data) });
-		return sortedByEnd(everything.data);
+		const everything = await everyRow<TaskRow>((from, to) => client.from('task').select(taskColumns).order('id').range(from, to));
+		holdTasks({ tasks: everything, fetchedAt: newestStamp(everything) });
+		return sortedByEnd(everything);
 	}
 
-	const changed = await client
-		.from('task')
-		.select(taskColumns)
-		.eq('is_event', false)
-		.gte('updated_at', held.fetchedAt)
-		.returns<TaskRow[]>();
-	if (changed.error) throw new Error(changed.error.message);
+	const changed = await everyRow<TaskRow>((from, to) =>
+		client.from('task').select(taskColumns).gte('updated_at', held.fetchedAt).order('id').range(from, to)
+	);
+	const live = await everyRow<{ id: string }>((from, to) => client.from('task').select('id').order('id').range(from, to));
 
-	const live = await client.from('task').select('id').eq('is_event', false).returns<{ id: string }[]>();
-	if (live.error) throw new Error(live.error.message);
-
-	const merged = mergeChangedTasks(held.tasks, changed.data, new Set(live.data.map((row) => row.id)));
+	const merged = mergeChangedTasks(held.tasks, changed, new Set(live.map((row) => row.id)));
 	holdTasks({ tasks: merged, fetchedAt: newestStamp(merged) });
 	return sortedByEnd(merged);
 }
@@ -132,7 +145,11 @@ export async function supabaseFlowState(): Promise<FlowState> {
 	const { data: auth } = await client.auth.getSession();
 	const accountID = auth.session?.user.id ?? '';
 
-	const company = await client.from('company').select('task_vocabulary').limit(1).single<{ task_vocabulary: unknown }>();
+	const company = await client
+		.from('company')
+		.select('task_vocabulary, timezone')
+		.limit(1)
+		.single<{ task_vocabulary: unknown; timezone: string | null }>();
 	if (company.error) throw new Error(company.error.message);
 
 	const members = await client
@@ -145,7 +162,8 @@ export async function supabaseFlowState(): Promise<FlowState> {
 	const tasks = await readTasks();
 
 	const nameByID = new Map(members.data.map((member) => [member.id, displayName(member)]));
-	const flowTasks = tasks.map((task) => taskOf(task, nameByID));
+	const timeZone = company.data.timezone || 'UTC';
+	const flowTasks = tasks.map((task) => taskOf(task, nameByID, timeZone));
 	const memberIDs = members.data.map((member) => member.id);
 	const standing = standingOf(flowTasks, memberIDs, tasks);
 	const me = members.data.find((member) => member.user_id === accountID);
@@ -177,18 +195,23 @@ export async function supabaseFlowWeeklySummary(week: string): Promise<FlowWeekl
 	};
 }
 
-export async function saveSupabaseFlowTask(task: FlowTask): Promise<void> {
-	const client = supabase();
-	const fields = {
+// The board writes a day. An event was given hours, and rewriting those from a
+// board edit would move a meeting nobody asked to move, so an event keeps its own.
+export function savedFlowTaskFields(task: FlowTask): Record<string, unknown> {
+	return {
 		title: task.content || task.goal || '(제목 없음)',
 		status: statusOf[task.status] ?? 'todo',
 		note: task.goal || null,
 		business: task.business || null,
 		type: task.type || null,
 		size: task.size || null,
-		starts_at: instantOf(task.startDate),
-		ends_at: instantOf(task.endDate)
+		...(task.isEvent ? {} : { starts_at: instantOf(task.startDate), ends_at: instantOf(task.endDate) })
 	};
+}
+
+export async function saveSupabaseFlowTask(task: FlowTask): Promise<void> {
+	const client = supabase();
+	const fields = savedFlowTaskFields(task);
 
 	const saved = task.id
 		? await client.from('task').update(fields).eq('id', task.id).select('id').single<{ id: string }>()
@@ -258,9 +281,9 @@ function memberOf(member: MemberRow, tally: MemberTaskTally | undefined): FlowMe
 	};
 }
 
-function taskOf(task: TaskRow, nameByID: Map<string, string>): FlowTask {
+function taskOf(task: TaskRow, nameByID: Map<string, string>, timeZone: string): FlowTask {
 	const participantIDs = task.task_participant.map((participant) => participant.member_id);
-	const endDate = dayOf(task.ends_at ?? task.due_at);
+	const endDate = dayOf(task.ends_at ?? task.due_at, timeZone);
 	return {
 		id: task.id,
 		ownerID: participantIDs[0] ?? '',
@@ -274,10 +297,11 @@ function taskOf(task: TaskRow, nameByID: Map<string, string>): FlowTask {
 		size: task.size ?? '',
 		status: statusWords[task.status],
 		statusRank: 0,
-		startDate: dayOf(task.starts_at),
+		startDate: dayOf(task.starts_at, timeZone),
 		endDate,
 		weekCode: endDate ? weekOf(new Date(`${endDate}T00:00:00Z`)).code : '',
-		flag: 0
+		flag: 0,
+		isEvent: task.is_event
 	};
 }
 
@@ -302,8 +326,20 @@ function metricsOf(tasks: FlowTask[]): FlowMetrics {
 	};
 }
 
-function dayOf(instant: string | null): string | undefined {
-	return instant ? instant.slice(0, 10) : undefined;
+// A stored instant is a moment, and which day it falls on depends on where you
+// stand. Slicing the text reads it in UTC, which puts a Seoul midnight on the
+// day before. The company's own zone decides, so everyone on the board sees the
+// same day for the same row.
+// Postgres prints an hours-only offset, `+00`, which no Date parser accepts.
+function isoInstantOf(instant: string): string {
+	return instant.replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00');
+}
+
+export function dayOf(instant: string | null, timeZone: string): string | undefined {
+	if (!instant) return undefined;
+	const moment = new Date(isoInstantOf(instant));
+	if (Number.isNaN(moment.getTime())) return undefined;
+	return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(moment);
 }
 
 function instantOf(day: string | undefined): string | null {
