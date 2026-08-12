@@ -44,21 +44,17 @@ func runReleaseUpdateApply(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	connection, _, errorValue := resolveDeviceSSHConnection(loadConfig(), sshpassBinaryPath(), target)
+	admin, errorValue := reachDeviceAdmin(target)
 	if errorValue != nil {
 		return errorValue
 	}
-	answer, errorValue := connection.runResult(adminLoopbackCommand(http.MethodPost, "/admin/api/updates/apply", requestDocument))
-	if errorValue != nil {
-		return fmt.Errorf("release update apply failed: %s: %w", strings.TrimSpace(answer), errorValue)
-	}
 	var job blueclawUpdateJobResponse
-	if errorValue := json.Unmarshal([]byte(answer), &job); errorValue != nil {
-		return fmt.Errorf("admind answered something that is not a job: %s", strings.TrimSpace(answer))
+	if errorValue := admin.ask(http.MethodPost, "/admin/api/updates/apply", requestDocument, &job); errorValue != nil {
+		return errorValue
 	}
 	fmt.Printf("Job: %s\n", job.JobID)
 	for attempt := 0; attempt < 120; attempt++ {
-		job, errorValue = fetchDeviceReleaseUpdateJob(target, job.JobID)
+		errorValue = admin.ask(http.MethodGet, "/admin/api/updates/jobs/"+job.JobID, nil, &job)
 		if errorValue != nil {
 			time.Sleep(1500 * time.Millisecond)
 			continue
@@ -89,24 +85,6 @@ func fetchDeviceReleaseUpdateStatus(arguments []string) (releaseUpdateStatusResp
 	return fetchDeviceReleaseUpdateStatusForTarget(target)
 }
 
-func fetchDeviceReleaseUpdateStatusForTarget(target commandTarget) (releaseUpdateStatusResponse, error) {
-	endpointURL, errorValue := releaseDeviceEndpointURL(target, "/admin/api/updates/status")
-	if errorValue != nil {
-		return releaseUpdateStatusResponse{}, errorValue
-	}
-	var status releaseUpdateStatusResponse
-	return status, getReleaseUpdateJSON(endpointURL, &status)
-}
-
-func fetchDeviceReleaseUpdateJob(target commandTarget, jobID string) (blueclawUpdateJobResponse, error) {
-	endpointURL, errorValue := releaseDeviceEndpointURL(target, "/admin/api/updates/jobs/"+jobID)
-	if errorValue != nil {
-		return blueclawUpdateJobResponse{}, errorValue
-	}
-	var job blueclawUpdateJobResponse
-	return job, getReleaseUpdateJSON(endpointURL, &job)
-}
-
 func releaseDeviceEndpointURL(target commandTarget, endpointPath string) (string, error) {
 	deviceURL := strings.TrimSpace(firstNonEmptyString(target.deviceURL, loadState(target.stateDir, "device_url")))
 	if deviceURL == "" {
@@ -115,22 +93,22 @@ func releaseDeviceEndpointURL(target commandTarget, endpointPath string) (string
 	return publicEndpointURL(deviceURL, endpointPath)
 }
 
-func getReleaseUpdateJSON(endpointURL string, value any) error {
-	request, errorValue := http.NewRequest(http.MethodGet, endpointURL, nil)
+func fetchDeviceReleaseUpdateJob(target commandTarget, jobID string) (blueclawUpdateJobResponse, error) {
+	admin, errorValue := reachDeviceAdmin(target)
 	if errorValue != nil {
-		return errorValue
+		return blueclawUpdateJobResponse{}, errorValue
 	}
-	attachCloudflareAccessCookie(request)
-	response, errorValue := statusHTTPClient.Do(request)
+	var job blueclawUpdateJobResponse
+	return job, admin.ask(http.MethodGet, "/admin/api/updates/jobs/"+jobID, nil, &job)
+}
+
+func fetchDeviceReleaseUpdateStatusForTarget(target commandTarget) (releaseUpdateStatusResponse, error) {
+	admin, errorValue := reachDeviceAdmin(target)
 	if errorValue != nil {
-		return errorValue
+		return releaseUpdateStatusResponse{}, errorValue
 	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		document, _ := readAllLimitedResponse(response, 4096)
-		return fmt.Errorf("release update request failed: HTTP %d %s", response.StatusCode, strings.TrimSpace(string(document)))
-	}
-	return json.NewDecoder(response.Body).Decode(value)
+	var status releaseUpdateStatusResponse
+	return status, admin.ask(http.MethodGet, "/admin/api/updates/status", nil, &status)
 }
 
 func printReleaseUpdateStatus(status releaseUpdateStatusResponse) {
