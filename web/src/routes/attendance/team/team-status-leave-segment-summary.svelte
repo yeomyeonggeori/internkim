@@ -16,7 +16,7 @@
 	<div class="flex min-w-0 items-center justify-between gap-3">
 		<div class="flex min-w-0 items-center gap-1.5">
 			<span
-				class="h-3 w-1 shrink-0 rounded-full bg-info"
+				class="h-3 w-1 shrink-0 rounded-full bg-destructive"
 				aria-hidden="true"
 				data-slot="leave-segment-marker"
 			></span>
