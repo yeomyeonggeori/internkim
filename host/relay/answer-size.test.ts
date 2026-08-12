@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { answerByteLength, oversizeNotice } from './answer-size';
+import {
+	answerByteLength,
+	defaultAnswerByteCeiling,
+	largestMessageTheChannelCarries,
+	largestRawBytesThatFit,
+	oversizeNotice
+} from './answer-size';
 
 const ceiling = 200_000;
 
@@ -20,5 +26,15 @@ describe('oversizeNotice', () => {
 	test('multi-byte characters are counted as bytes, not characters', () => {
 		const answer = { callID: 'a', status: 200, body: { text: '가'.repeat(100) } };
 		expect(answerByteLength(answer)).toBeGreaterThan(300);
+	});
+});
+
+describe('the ceiling the channel actually has', () => {
+	test('leaves the broadcast envelope room inside what Realtime carries', () => {
+		expect(defaultAnswerByteCeiling).toBeLessThan(largestMessageTheChannelCarries);
+	});
+
+	test('is worth raising, because base64 costs a third of what it carries', () => {
+		expect(largestRawBytesThatFit(defaultAnswerByteCeiling)).toBeGreaterThan(600_000);
 	});
 });
