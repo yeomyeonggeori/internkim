@@ -15,8 +15,8 @@ func TestGeneratedCatalogLoadsCanonicalToolDescriptors(t *testing.T) {
 	if catalog.protocolVersion == "" || len(catalog.aggregateHash) != 64 {
 		t.Fatalf("generated protocol identity is incomplete: %+v", catalog)
 	}
-	if len(catalog.tools) != 27 {
-		t.Fatalf("expected twenty-seven generated tool descriptors, got %d", len(catalog.tools))
+	if len(catalog.tools) != 26 {
+		t.Fatalf("expected twenty-six generated tool descriptors, got %d", len(catalog.tools))
 	}
 	if errorValue := ValidateDescriptorSet(catalog.tools); errorValue != nil {
 		t.Fatal(errorValue)
@@ -38,9 +38,9 @@ func TestGeneratedToolDescriptorsReturnClones(t *testing.T) {
 	names := []string{
 		"task_add",
 		"task_list",
-		"task_definitions",
 		"task_update",
 		"task_delete",
+		"person_list",
 		"calendar_add",
 		"calendar_list",
 		"calendar_update",
