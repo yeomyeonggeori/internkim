@@ -65,8 +65,6 @@ type flowTaskUpdateInput struct {
 	Type                   *string   `json:"type"`
 	StartDate              *string   `json:"startDate"`
 	EndDate                *string   `json:"endDate"`
-	RequestReason          *string   `json:"requestReason"`
-	DecisionReason         *string   `json:"decisionReason"`
 	ParticipantPersonHints *[]string `json:"participantPersonHints"`
 }
 
@@ -324,9 +322,7 @@ func flowTaskUpdateResultMatchesInput(result json.RawMessage, input flowTaskUpda
 		stringPatchMatches(input.Category, task.Business) &&
 		stringPatchMatches(input.Type, task.Type) &&
 		stringPatchMatches(input.StartDate, task.StartDate) &&
-		stringPatchMatches(input.EndDate, task.EndDate) &&
-		stringPatchMatches(input.RequestReason, task.RequestReason) &&
-		stringPatchMatches(input.DecisionReason, task.DecisionReason)
+		stringPatchMatches(input.EndDate, task.EndDate)
 }
 
 func stringPatchMatches(expected *string, actual string) bool {
@@ -533,8 +529,6 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 	trimStringPointer(&input.Type)
 	trimStringPointer(&input.StartDate)
 	trimStringPointer(&input.EndDate)
-	trimStringPointer(&input.RequestReason)
-	trimStringPointer(&input.DecisionReason)
 	if input.ParticipantPersonHints != nil {
 		participantPersonHints := uniqueTrimmedStringValues(*input.ParticipantPersonHints)
 		input.ParticipantPersonHints = &participantPersonHints
@@ -1181,12 +1175,6 @@ func applyFlowTaskUpdateInput(task flowTaskForTool, input flowTaskUpdateInput, p
 	if input.EndDate != nil {
 		task.EndDate = *input.EndDate
 	}
-	if input.RequestReason != nil {
-		task.RequestReason = *input.RequestReason
-	}
-	if input.DecisionReason != nil {
-		task.DecisionReason = *input.DecisionReason
-	}
 	return task
 }
 
@@ -1199,7 +1187,5 @@ func hasFlowTaskUpdatePatch(input flowTaskUpdateInput) bool {
 		input.Type != nil ||
 		input.StartDate != nil ||
 		input.EndDate != nil ||
-		input.RequestReason != nil ||
-		input.DecisionReason != nil ||
 		input.ParticipantPersonHints != nil
 }
