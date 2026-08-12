@@ -39,14 +39,14 @@ OAuth sync. Both are **kept** — [`saas-design.md`](./saas-design.md) lists
 | isAllDay | `task.is_whole_day` |
 | location | `task.location` (already jsonb) |
 | reminderLeadHours (1·2·3·6·12·24·48) | `task.notify_minutes_before` — hours × 60 |
-| attendees | `task_participant` |
+| attendees | `task.participant_ids` — see §5 |
 | timeZone, color | `task.calendar` |
 | recurrence | `task.calendar` — `seriesID`, `rrule`, `isDetached` |
 | Google / CalDAV identity, ETag, unrecognised ICS properties | `task.calendar` — `mirrors[]` |
 | `calendar_settings` | Not a task. Company and member preferences. |
 | `calendar_event_notifications`, `calendar_channel_outbox` | Not a task. Delivery machinery. |
 
-Net schema change: **one column.**
+Net schema change for the calendar: **one column.**
 
 ```sql
 alter table public.task add column calendar jsonb;
@@ -131,7 +131,58 @@ writes. Calendar polling runs one worker per credential, so there is no race to
 lose — but a database guarantee has become a code guarantee, and that is where a
 duplicate-import bug would now live. It gets a test.
 
-## 5. Tools
+## 5. Who asked, and who does it
+
+`0006_task_participants_only` dropped `assignee_id` because it was singular and
+the reality is plural. That reasoning does not reach the other relation: exactly
+one person asks for a task, and that person is not the same as the people on it.
+
+```sql
+alter table public.task add column requester_id uuid references public.member on delete set null;
+alter table public.task add column participant_ids uuid[] not null default '{}';
+drop table public.task_participant;
+```
+
+One asks, several do. `requester_id` is null when nobody asked — a task someone
+made for themselves.
+
+**The join table goes.** Its `on delete cascade` protects against a member row
+disappearing, and member rows do not disappear: the lifecycle is
+`pending → invited → active → departed/withdrawn`, status changes rather than
+deletes, and it is the `auth.users` account that is removed, not the member. So
+the integrity the table was buying is not being spent. Neither shape enforces
+same-company membership anyway — both reference `member`, not the company — so
+that stays with RLS either way.
+
+"Everything on my plate" becomes `where participant_ids @> array[$me]` on a GIN
+index: one table, no join, which is the same direction as the reason the `event`
+table was rejected.
+
+**One rule this buys and must not lose.** Adding a participant is
+`set participant_ids = array_append(participant_ids, $x)` in SQL, evaluated under
+the row lock. Reading the array into the application and writing it back loses a
+concurrent add. The join table made that mistake impossible; the array does not.
+
+**Status carries the request.** The enum gains the two states the request
+workflow needs:
+
+```sql
+alter type public.task_status add value 'requested';
+alter type public.task_status add value 'rejected';
+```
+
+A task someone else asked for starts `requested` and becomes `todo` when it is
+taken. `rejected` is a refusal, distinct from `cancelled`, which is work that was
+dropped. The board UI already draws these columns.
+
+`requestReason` and `decisionReason` do not come along. They are device-era
+fields nothing depends on.
+
+**The requester is never a tool input.** The runtime knows who is asking
+(`request.Context.RequesterEmail`) and fills it. A model that could name the
+requester could name somebody else.
+
+## 6. Tools
 
 Once tasks and events are one table, `task_*` and `calendar_*` are one family.
 Naming follows the side-effect class, so MCP annotations derive from the suffix:
@@ -149,21 +200,22 @@ listing destructive to any MCP host, and per-operation `required` fields cannot
 be expressed in a provider-portable schema — the model would learn "this
 operation needs a taskHint" only by failing.
 
-Status vocabulary collapses to the canonical enum — `todo`, `in_progress`,
-`done`, `cancelled`, `paused` — replacing three parallel sets: the protocol's
-English enum, capabilityd's Korean list, and the device's stored strings.
+Status vocabulary collapses to one canonical enum — `todo`, `in_progress`,
+`done`, `cancelled`, `paused`, `requested`, `rejected` — replacing three parallel
+sets: the protocol's English enum, capabilityd's Korean list, and the device's
+stored strings.
 
-## 6. What has no canonical home
+## 7. What has no canonical home
 
-`size`, `business`/`category`, `type`, `weekCode`, `flag`, `requestReason` and
-`decisionReason` exist only in the device flow model. They are weekly-board
-concepts, not task concepts. Each needs a decision before the migration: move to
-the board's own storage, or drop. Until then the device API keeps enforcing them
-and `task_list` reports the accepted labels in `registeredLabels`.
+`size`, `business`/`category`, `type`, `weekCode` and `flag` exist only in the
+device flow model. They are weekly-board concepts, not task concepts. Each needs
+a decision before the migration: move to the board's own storage, or drop. Until
+then the device API keeps enforcing them and `task_list` reports the accepted
+labels in `registeredLabels`.
 
-## 7. Order
+## 8. Order
 
-1. `task.calendar` column, and the canonical status enum.
+1. `task.calendar`, `requester_id`, `participant_ids`, and the status enum.
 2. Central API writes tasks and events through one surface.
 3. Sync workers move to `mirrors[]`; CalDAV and Google keep working throughout.
 4. Tools renamed to `task_read`/`task_write`/`task_delete`; `calendar_*` retired.
