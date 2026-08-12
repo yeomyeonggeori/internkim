@@ -283,7 +283,7 @@ func TestReleaseUpdateUploadAppliesThroughReleaseJob(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	chunkRequest := httptest.NewRequest(http.MethodPut, "/admin/api/updates/uploads/"+upload.UploadID+"/chunks/0", bytes.NewReader(document))
-	chunkRequest.Header.Set("X-InternKim-Upload-Token", upload.UploadToken)
+	chunkRequest.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", upload.UploadToken)
 	chunkResponse := httptest.NewRecorder()
 	service.handleAdmin(chunkResponse, chunkRequest)
 	if chunkResponse.Code != http.StatusOK {
@@ -664,8 +664,8 @@ func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 	tokenPath := filepath.Join(t.TempDir(), "release-download-token")
 	writeFile(t, tokenPath, "download-token")
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		if request.Header.Get("X-InternKim-Release-Token") != "download-token" {
-			t.Fatalf("release token header = %q", request.Header.Get("X-InternKim-Release-Token"))
+		if request.Header.Get("X-INTERNKIM-RELEASE-TOKEN") != "download-token" {
+			t.Fatalf("release token header = %q", request.Header.Get("X-INTERNKIM-RELEASE-TOKEN"))
 		}
 		responseWriter.Header().Set("Content-Type", "application/json")
 		responseWriter.Write([]byte(`{"releaseID":"release-1","manifestURL":"https://updates.test/releases/release-1/manifest.json","updatedAt":"2026-06-09T00:00:00Z"}`))
@@ -1065,7 +1065,7 @@ func TestReleaseUpdateUploadResumesReceivedChunks(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	chunkRequest := httptest.NewRequest(http.MethodPut, "/admin/api/updates/uploads/"+firstUpload.UploadID+"/chunks/0", bytes.NewReader(document))
-	chunkRequest.Header.Set("X-InternKim-Upload-Token", firstUpload.UploadToken)
+	chunkRequest.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", firstUpload.UploadToken)
 	service.handleAdmin(httptest.NewRecorder(), chunkRequest)
 
 	resumePayload := createPayload
@@ -1092,7 +1092,7 @@ func performReleaseUploadJSON(t *testing.T, service *Service, method string, pat
 	request := httptest.NewRequest(method, "/admin/api"+path, bytes.NewReader(document))
 	request.Header.Set("Content-Type", "application/json")
 	if uploadToken != "" {
-		request.Header.Set("X-InternKim-Upload-Token", uploadToken)
+		request.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", uploadToken)
 	}
 	response := httptest.NewRecorder()
 	service.handleAdmin(response, request)

@@ -389,7 +389,7 @@ func (backend OpenRouterBackend) setGatewaySecretHeader(request *http.Request) {
 	}
 	headerName := strings.TrimSpace(backend.GatewaySecretHeader)
 	if headerName == "" {
-		headerName = "X-InternKim-Gateway-Secret"
+		headerName = "X-INTERNKIM-GATEWAY-SECRET"
 	}
 	request.Header.Set(headerName, gatewaySecret)
 }

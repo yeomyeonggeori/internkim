@@ -13,8 +13,8 @@ export async function hashFleetSecret(fleetSecret: string): Promise<string> {
 }
 
 export async function isNodeRequest(request: Request, device: Device, fleetID: string): Promise<boolean> {
-	const headerFleetID = normalizeFleetID(request.headers.get('X-InternKim-Fleet-ID') ?? '');
-	const fleetSecret = request.headers.get('X-InternKim-Fleet-Secret') ?? '';
+	const headerFleetID = normalizeFleetID(request.headers.get('X-INTERNKIM-FLEET-ID') ?? '');
+	const fleetSecret = request.headers.get('X-INTERNKIM-FLEET-SECRET') ?? '';
 	const fleetSecretHash = device.fleet_secret_hash ?? '';
 	if (!headerFleetID || !fleetSecret || headerFleetID !== normalizeFleetID(fleetID)) return false;
 	if (!fleetSecretHash) return false;

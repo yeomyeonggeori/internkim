@@ -622,7 +622,7 @@ func (service *Service) withCORS(next http.Handler) http.Handler {
 		if isInternKimCORSPath(request.URL.Path) && service.isAllowedOrigin(origin) {
 			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
 			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
-			responseWriter.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, CF-Access-Authenticated-User-Email, X-InternKim-Companion-ID, X-InternKim-Companion-Token")
+			responseWriter.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, CF-Access-Authenticated-User-Email, X-INTERNKIM-COMPANION-ID, X-INTERNKIM-COMPANION-TOKEN")
 			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PROPFIND,REPORT")
 			if request.Method == http.MethodOptions {
 				responseWriter.WriteHeader(http.StatusNoContent)
@@ -1502,8 +1502,8 @@ func (service *Service) lookupUserRecords(ctx context.Context, fleetID string, f
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	request.Header.Set("X-InternKim-Fleet-ID", fleetID)
-	request.Header.Set("X-InternKim-Fleet-Secret", fleetSecret)
+	request.Header.Set("X-INTERNKIM-FLEET-ID", fleetID)
+	request.Header.Set("X-INTERNKIM-FLEET-SECRET", fleetSecret)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
 		return nil, errorValue
@@ -2444,8 +2444,8 @@ func (service *Service) writeUserRole(ctx context.Context, fleetID string, fleet
 		return errorValue
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-InternKim-Fleet-ID", fleetID)
-	request.Header.Set("X-InternKim-Fleet-Secret", fleetSecret)
+	request.Header.Set("X-INTERNKIM-FLEET-ID", fleetID)
+	request.Header.Set("X-INTERNKIM-FLEET-SECRET", fleetSecret)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
 		return errorValue

@@ -176,8 +176,8 @@ func TestAddReleaseDownloadHeadersUsesEnvironmentToken(t *testing.T) {
 
 	addReleaseDownloadHeaders(request)
 
-	if request.Header.Get("X-InternKim-Release-Token") != "download-token" {
-		t.Fatalf("release token header = %q", request.Header.Get("X-InternKim-Release-Token"))
+	if request.Header.Get("X-INTERNKIM-RELEASE-TOKEN") != "download-token" {
+		t.Fatalf("release token header = %q", request.Header.Get("X-INTERNKIM-RELEASE-TOKEN"))
 	}
 }
 

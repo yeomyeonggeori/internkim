@@ -1120,11 +1120,11 @@ func TestAdminUsersProxyUsesDeviceAuth(t *testing.T) {
 		if request.URL.String() != "https://api.example.test/api/users?fleet_id=dc719d8e" {
 			t.Fatalf("proxy url = %s", request.URL.String())
 		}
-		if request.Header.Get("X-InternKim-Fleet-ID") != "dc719d8e" {
-			t.Fatalf("fleet id header = %q", request.Header.Get("X-InternKim-Fleet-ID"))
+		if request.Header.Get("X-INTERNKIM-FLEET-ID") != "dc719d8e" {
+			t.Fatalf("fleet id header = %q", request.Header.Get("X-INTERNKIM-FLEET-ID"))
 		}
-		if request.Header.Get("X-InternKim-Fleet-Secret") != "secret-value" {
-			t.Fatalf("fleet secret header = %q", request.Header.Get("X-InternKim-Fleet-Secret"))
+		if request.Header.Get("X-INTERNKIM-FLEET-SECRET") != "secret-value" {
+			t.Fatalf("fleet secret header = %q", request.Header.Get("X-INTERNKIM-FLEET-SECRET"))
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -1296,8 +1296,8 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
-			if request.Header.Get("X-InternKim-Fleet-Secret") != "secret-value" {
-				t.Fatalf("fleet secret header = %q", request.Header.Get("X-InternKim-Fleet-Secret"))
+			if request.Header.Get("X-INTERNKIM-FLEET-SECRET") != "secret-value" {
+				t.Fatalf("fleet secret header = %q", request.Header.Get("X-INTERNKIM-FLEET-SECRET"))
 			}
 			if errorValue := json.NewDecoder(request.Body).Decode(&pagesPayload); errorValue != nil {
 				t.Fatal(errorValue)
@@ -3677,8 +3677,8 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 
 	unsignedResponse := httptest.NewRecorder()
 	unsignedRequest := httptest.NewRequest(http.MethodGet, "/_internkim/companion/jobs/next", nil)
-	unsignedRequest.Header.Set("X-InternKim-Companion-ID", pairResult.CompanionID)
-	unsignedRequest.Header.Set("X-InternKim-Companion-Token", pairResult.Token)
+	unsignedRequest.Header.Set("X-INTERNKIM-COMPANION-ID", pairResult.CompanionID)
+	unsignedRequest.Header.Set("X-INTERNKIM-COMPANION-TOKEN", pairResult.Token)
 	handler.ServeHTTP(unsignedResponse, unsignedRequest)
 	if unsignedResponse.Code != http.StatusForbidden {
 		t.Fatalf("expected unsigned companion request to fail, got %d", unsignedResponse.Code)
@@ -4372,8 +4372,8 @@ func TestCompanionAuthCheckRequiresSignedCompanion(t *testing.T) {
 
 	unsignedResponse := httptest.NewRecorder()
 	unsignedRequest := httptest.NewRequest(http.MethodGet, "/_internkim/companion/auth/check", nil)
-	unsignedRequest.Header.Set("X-InternKim-Companion-ID", pairResult.CompanionID)
-	unsignedRequest.Header.Set("X-InternKim-Companion-Token", pairResult.Token)
+	unsignedRequest.Header.Set("X-INTERNKIM-COMPANION-ID", pairResult.CompanionID)
+	unsignedRequest.Header.Set("X-INTERNKIM-COMPANION-TOKEN", pairResult.Token)
 	handler.ServeHTTP(unsignedResponse, unsignedRequest)
 	if unsignedResponse.Code != http.StatusForbidden {
 		t.Fatalf("expected unsigned auth check to fail, got %d", unsignedResponse.Code)
@@ -5095,8 +5095,8 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 
 	unsignedUploadResponse := httptest.NewRecorder()
 	unsignedUploadRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/files/uploads", strings.NewReader(`{"jobID":"`+companionJob.JobID+`","filename":"report.txt","sizeBytes":11}`))
-	unsignedUploadRequest.Header.Set("X-InternKim-Companion-ID", pairResult.CompanionID)
-	unsignedUploadRequest.Header.Set("X-InternKim-Companion-Token", pairResult.Token)
+	unsignedUploadRequest.Header.Set("X-INTERNKIM-COMPANION-ID", pairResult.CompanionID)
+	unsignedUploadRequest.Header.Set("X-INTERNKIM-COMPANION-TOKEN", pairResult.Token)
 	handler.ServeHTTP(unsignedUploadResponse, unsignedUploadRequest)
 	if unsignedUploadResponse.Code != http.StatusForbidden {
 		t.Fatalf("expected unsigned upload to fail, got %d", unsignedUploadResponse.Code)
@@ -5203,8 +5203,8 @@ func TestCompanionFileUploadOverwriteAndCleanup(t *testing.T) {
 
 func setCompanionHeaders(t *testing.T, request *http.Request, pairResult companionPairResponse, privateKey string) {
 	t.Helper()
-	request.Header.Set("X-InternKim-Companion-ID", pairResult.CompanionID)
-	request.Header.Set("X-InternKim-Companion-Token", pairResult.Token)
+	request.Header.Set("X-INTERNKIM-COMPANION-ID", pairResult.CompanionID)
+	request.Header.Set("X-INTERNKIM-COMPANION-TOKEN", pairResult.Token)
 	body, _ := io.ReadAll(request.Body)
 	request.Body = io.NopCloser(bytes.NewReader(body))
 	if errorValue := companionruntime.SignRequest(request, body, privateKey); errorValue != nil {

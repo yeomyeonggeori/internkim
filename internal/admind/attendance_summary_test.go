@@ -212,11 +212,11 @@ func TestAttendanceSummaryUsesFleetMembersWhenDeviceAuthConfigured(t *testing.T)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "http://admin.local/api/users?fleet_id=fleet-1":
-			if request.Header.Get("X-InternKim-Fleet-ID") != "fleet-1" {
-				t.Fatalf("fleet id header = %q", request.Header.Get("X-InternKim-Fleet-ID"))
+			if request.Header.Get("X-INTERNKIM-FLEET-ID") != "fleet-1" {
+				t.Fatalf("fleet id header = %q", request.Header.Get("X-INTERNKIM-FLEET-ID"))
 			}
-			if request.Header.Get("X-InternKim-Fleet-Secret") != "secret-1" {
-				t.Fatalf("fleet secret header = %q", request.Header.Get("X-InternKim-Fleet-Secret"))
+			if request.Header.Get("X-INTERNKIM-FLEET-SECRET") != "secret-1" {
+				t.Fatalf("fleet secret header = %q", request.Header.Get("X-INTERNKIM-FLEET-SECRET"))
 			}
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"fleet@example.com","name":"Fleet User","mattermostUsername":"fleet","status":"active"}]}`, nil), nil
 		default:

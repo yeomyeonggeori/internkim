@@ -1,6 +1,6 @@
 import type { ReleaseRegistryEnvironment } from './index';
 
-const releaseTokenHeader = 'X-InternKim-Release-Token';
+const releaseTokenHeader = 'X-INTERNKIM-RELEASE-TOKEN';
 
 export async function handleReleaseRegistryRequest(request: Request, environment: ReleaseRegistryEnvironment): Promise<Response> {
 	if (!isAllowedMethod(request.method)) {

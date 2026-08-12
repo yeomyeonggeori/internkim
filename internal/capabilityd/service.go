@@ -234,7 +234,7 @@ func DefaultConfiguration() Configuration {
 		AdmindBaseURL:                  "http://127.0.0.1:18080",
 		OpenRouterBaseURL:              "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterModel:                blueclaw.BlueclawDefaultModelName,
-		OpenRouterGatewaySecretHeader:  "X-InternKim-Gateway-Secret",
+		OpenRouterGatewaySecretHeader:  "X-INTERNKIM-GATEWAY-SECRET",
 		OpenRouterWebBaseURL:           "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterEmbeddingBaseURL:     "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:       llmbackend.DefaultEmbeddingModelName,
