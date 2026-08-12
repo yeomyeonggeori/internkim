@@ -124,7 +124,7 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 		fmt.Println(m.t("재부팅이 예약되었습니다. 약 2분 후 `internkim status`로 확인하세요.", "Reboot scheduled. Check `internkim status` in about two minutes."))
 		return nil
 	}
-	if connection, _, retryError := resolveCloudflareSSHConnection(configuration, sshpassBin, target, false); retryError == nil && connection != nil {
+	if connection, _, retryError := resolveRemoteSSHConnection(configuration, sshpassBin, target, false); retryError == nil && connection != nil {
 		fmt.Println(m.t("SSH 복구 확인 완료", "SSH recovery verified"))
 		return nil
 	}
@@ -135,7 +135,7 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 }
 
 func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, target commandTarget) {
-	connection, _, errorValue := resolveCloudflareSSHConnection(configuration, sshpassBin, target, false)
+	connection, _, errorValue := resolveRemoteSSHConnection(configuration, sshpassBin, target, false)
 	if errorValue != nil || connection == nil {
 		fmt.Printf("  %-22s %s\n", "local admind", "SSH unavailable")
 		return

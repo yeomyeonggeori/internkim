@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -47,80 +46,6 @@ func TestPrintPublicStatusShowsMattermostWhenSSHIsUnavailable(t *testing.T) {
 	}
 }
 
-func writeCloudflareAccessToken(t *testing.T, hostname string) {
-	t.Helper()
-	homeDirectory := t.TempDir()
-	t.Setenv("HOME", homeDirectory)
-	tokenDirectory := filepath.Join(homeDirectory, ".cloudflared")
-	if errorValue := os.MkdirAll(tokenDirectory, 0o700); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.WriteFile(filepath.Join(tokenDirectory, hostname+"-abc123-token"), []byte("token"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-}
-
-func TestFormatCloudflareSSHErrorNamesTheMissingAccessToken(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-
-	errorValue := formatCloudflareSSHError("0.ssh.example.com", "Connection timed out during banner exchange", os.ErrDeadlineExceeded)
-
-	errorMessage := errorValue.Error()
-	if !strings.Contains(errorMessage, "cloudflared access login https://0.ssh.example.com") {
-		t.Fatalf("expected the missing token to be named, because without it cloudflared waits for a browser and the request never reaches the device, got %s", errorMessage)
-	}
-	if strings.Contains(errorMessage, "sshd") {
-		t.Fatalf("expected no hint to inspect the device, because the device is not involved when no stream is ever opened, got %s", errorMessage)
-	}
-}
-
-func TestFormatCloudflareSSHErrorIdentifiesMissingSSHBanner(t *testing.T) {
-	writeCloudflareAccessToken(t, "0.ssh.example.com")
-
-	errorValue := formatCloudflareSSHError("0.ssh.example.com", "Connection timed out during banner exchange", os.ErrDeadlineExceeded)
-	errorMessage := errorValue.Error()
-	for _, expectedText := range []string{
-		"0.ssh.example.com",
-		"Connection timed out during banner exchange",
-		"SSH banner",
-		"sshd",
-		"cloudflared-node-ssh",
-		"./internkim recover ssh",
-	} {
-		if !strings.Contains(errorMessage, expectedText) {
-			t.Fatalf("expected error to contain %q, got %s", expectedText, errorMessage)
-		}
-	}
-}
-
-func TestCloudflareSSHFailureClassDistinguishesBannerTimeout(t *testing.T) {
-	failureClass := cloudflareSSHFailureClass("Connection timed out during banner exchange")
-	if failureClass != "origin_banner_timeout" {
-		t.Fatalf("failure class = %q, expected origin_banner_timeout", failureClass)
-	}
-	summary := cloudflareSSHFailureSummary(os.ErrDeadlineExceeded)
-	if !strings.Contains(summary, "unknown") {
-		t.Fatalf("generic summary should not invent a recovery class, got %s", summary)
-	}
-}
-
-func TestFormatCloudflareSSHErrorKeepsAccessLoginHintForGenericFailures(t *testing.T) {
-	writeCloudflareAccessToken(t, "0.ssh.example.com")
-
-	errorValue := formatCloudflareSSHError("0.ssh.example.com", "access token expired", os.ErrPermission)
-	errorMessage := errorValue.Error()
-	for _, expectedText := range []string{
-		"0.ssh.example.com",
-		"cloudflared access ssh --hostname 0.ssh.example.com",
-	} {
-		if !strings.Contains(errorMessage, expectedText) {
-			t.Fatalf("expected error to contain %q, got %s", expectedText, errorMessage)
-		}
-	}
-}
-
-const setupBoardForStatusTest = "jetson-orin-nano"
-
 func textHTTPResponse(statusCode int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: statusCode,
@@ -154,4 +79,20 @@ func containsString(values []string, expectedValue string) bool {
 		}
 	}
 	return false
+}
+
+const setupBoardForStatusTest = "jetson-orin-nano"
+
+func TestRemoteSSHErrorNamesTheHostAndNoTransport(t *testing.T) {
+	errorValue := remoteSSHError("0.ssh.example.com", "Connection timed out during banner exchange", os.ErrDeadlineExceeded)
+
+	errorMessage := errorValue.Error()
+	for _, expectedText := range []string{"0.ssh.example.com", "Connection timed out during banner exchange"} {
+		if !strings.Contains(errorMessage, expectedText) {
+			t.Fatalf("expected error to contain %q, got %s", expectedText, errorMessage)
+		}
+	}
+	if strings.Contains(errorMessage, "cloudflared") {
+		t.Fatalf("how the operator reaches the host is their configuration, got %s", errorMessage)
+	}
 }

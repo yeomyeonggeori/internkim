@@ -115,7 +115,7 @@ func TestResolveCommandTargetUsesProfileAndNodeScopedState(t *testing.T) {
 	}
 }
 
-func TestResolveCommandTargetReadsCloudflareSSHFlag(t *testing.T) {
+func TestResolveCommandTargetReadsRemoteSSHFlag(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
 	stateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
@@ -124,10 +124,10 @@ func TestResolveCommandTargetReadsCloudflareSSHFlag(t *testing.T) {
 	}
 	saveState(stateDir, "ssh_hostname", "ssh.device.example.test")
 
-	target := resolveCommandTarget([]string{"--cloudflare-ssh"})
+	target := resolveCommandTarget([]string{"--remote-ssh"})
 
 	if !target.useRemoteSSH {
-		t.Fatalf("expected Cloudflare SSH flag")
+		t.Fatalf("expected the remote ssh flag")
 	}
 	if target.sshHostname != "ssh.device.example.test" {
 		t.Fatalf("expected SSH hostname from state, got %q", target.sshHostname)
@@ -397,12 +397,12 @@ func TestResolveVerifyTargetAcceptsNodeArgument(t *testing.T) {
 	}
 }
 
-func TestResolveVerifyTargetUsesCloudflareSSHForExplicitHost(t *testing.T) {
+func TestResolveVerifyTargetReachesAnExplicitHostByName(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
 
 	target, errorValue := resolveVerifyTarget([]string{
-		"--cloudflare-ssh",
+		"--remote-ssh",
 		"--host", "ssh.example.test",
 		"--user", "internkim",
 		"--password", "blueclaw",
@@ -414,12 +414,12 @@ func TestResolveVerifyTargetUsesCloudflareSSHForExplicitHost(t *testing.T) {
 	if target.sshClient == nil {
 		t.Fatal("expected ssh client")
 	}
-	if target.sshClient.proxyCommand == "" {
-		t.Fatal("expected Cloudflare proxy command for explicit host")
+	if target.sshClient.host != "ssh.example.test" {
+		t.Fatalf("expected the explicit host to be reached by name, got %q", target.sshClient.host)
 	}
 }
 
-func TestResolveVerifyTargetUsesCloudflareSSHHostnameWithoutLocalProbe(t *testing.T) {
+func TestResolveVerifyTargetUsesTheSavedHostnameWithoutLocalProbe(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
 	stateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
@@ -428,15 +428,15 @@ func TestResolveVerifyTargetUsesCloudflareSSHHostnameWithoutLocalProbe(t *testin
 	}
 	saveState(stateDir, "ssh_hostname", "0.ssh.example.test")
 
-	target, errorValue := resolveVerifyTarget([]string{"--cloudflare-ssh"})
+	target, errorValue := resolveVerifyTarget([]string{"--remote-ssh"})
 	if errorValue != nil {
 		t.Fatalf("expected verify target: %v", errorValue)
 	}
 
 	if target.host != "0.ssh.example.test" {
-		t.Fatalf("expected Cloudflare SSH hostname, got %q", target.host)
+		t.Fatalf("expected the saved ssh hostname, got %q", target.host)
 	}
-	if target.sshClient == nil || target.sshClient.proxyCommand == "" {
-		t.Fatal("expected Cloudflare proxy command")
+	if target.sshClient == nil {
+		t.Fatal("expected ssh client")
 	}
 }

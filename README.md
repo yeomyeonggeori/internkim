@@ -290,11 +290,11 @@ make build
 ./internkim setup --board jetson-orin-nano --host <jetson-ip> --user <ssh-user>
 ```
 
-Once a device's tunnel exists it can be set up from outside its LAN. With
-`cloudflared` installed locally the CLI tries LAN SSH first and falls back to
-Cloudflare Access SSH at `ssh.<deviceID>.<zone>`. Add `--cloudflare-ssh` to skip
-the LAN attempt. `./internkim ssh` and `./internkim ssh -- uptime -p` use the
-same routing.
+The CLI probes the local network first and otherwise reaches the device by its
+saved ssh hostname; `--remote-ssh` skips the probe. How that hostname is
+reachable is the operator's own `~/.ssh/config`, so a device outside your
+network needs a `ProxyCommand` there and nothing here. `./internkim ssh` and
+`./internkim ssh -- uptime -p` use the same routing.
 
 Managing several companies or devices from one machine, `--profile` separates
 per-company state and `--node` picks a device inside it. The same pair resolves

@@ -389,7 +389,7 @@ func runDeviceSSH() {
 	target.useRemoteSSH = isRemote
 	printCommandTargetEvidence(target)
 	if isRemote {
-		fmt.Printf("Backend: cloudflare ssh\n")
+		fmt.Printf("Backend: remote ssh\n")
 	} else {
 		fmt.Printf("Backend: local ssh\n")
 	}
@@ -400,12 +400,12 @@ func runDeviceSSH() {
 
 func resolveDeviceSSHConnection(configuration config, sshpassBin string, target commandTarget) (*sshClient, bool, error) {
 	if target.useRemoteSSH {
-		return resolveCloudflareSSHConnection(configuration, sshpassBin, target, true)
+		return resolveRemoteSSHConnection(configuration, sshpassBin, target, true)
 	}
 	if connection := resolveLocalSSHConnection(sshpassBin, target); connection != nil {
 		return connection, false, nil
 	}
-	return resolveCloudflareSSHConnection(configuration, sshpassBin, target, false)
+	return resolveRemoteSSHConnection(configuration, sshpassBin, target, false)
 }
 
 func resolveLocalSSHConnection(sshpassBin string, target commandTarget) *sshClient {
@@ -423,7 +423,7 @@ func resolveLocalSSHConnection(sshpassBin string, target commandTarget) *sshClie
 	return newSSH(sshpassBin, target.sshUser, target.sshPassword, host)
 }
 
-func resolveCloudflareSSHConnection(configuration config, sshpassBin string, target commandTarget, isRequired bool) (*sshClient, bool, error) {
+func resolveRemoteSSHConnection(configuration config, sshpassBin string, target commandTarget, isRequired bool) (*sshClient, bool, error) {
 	hostname, errorValue := ensureCloudflareSSHRegistration(configuration, target.stateDir, false)
 	if errorValue != nil && isRequired {
 		return nil, false, errorValue
@@ -435,90 +435,21 @@ func resolveCloudflareSSHConnection(configuration config, sshpassBin string, tar
 		target.sshHostname = resolveCloudflareSSHHostname(configuration, target)
 	}
 	if target.sshHostname == "" {
-		return nil, false, errors.New("device is not reachable locally and no Cloudflare SSH route is registered; run setup once on the device network first")
+		return nil, false, errors.New("device is not reachable locally and no ssh hostname is known; run setup once on the device network first")
 	}
-	if status := cloudflareSSHTLSStatus(target.stateDir); !cloudflareSSHTLSIsReady(status) {
-		message := fmt.Sprintf("Cloudflare SSH TLS certificate is %s for %s; wait a few minutes until it becomes active or run setup over local SSH", status, target.sshHostname)
-		if isRequired {
-			return nil, false, errors.New(message)
-		}
-		return nil, false, nil
-	}
-	if errorValue := ensureCloudflaredAccessSSHAvailable(); errorValue != nil {
-		return nil, false, errorValue
-	}
-	connection := newCloudflareSSH(sshpassBin, target.sshUser, target.sshPassword, target.sshHostname)
+	connection := newSSH(sshpassBin, target.sshUser, target.sshPassword, target.sshHostname)
 	if output, errorValue := connection.runResult("true"); errorValue != nil {
-		return nil, false, formatCloudflareSSHError(target.sshHostname, output, errorValue)
+		return nil, false, remoteSSHError(target.sshHostname, output, errorValue)
 	}
 	return connection, true, nil
 }
 
-func formatCloudflareSSHError(hostname string, output string, errorValue error) error {
+func remoteSSHError(hostname string, output string, errorValue error) error {
 	detail := strings.TrimSpace(output)
-	message := fmt.Sprintf("Cloudflare SSH failed for %s: %v", hostname, errorValue)
-	if detail != "" {
-		message = fmt.Sprintf("Cloudflare SSH failed for %s: %s: %v", hostname, detail, errorValue)
+	if detail == "" {
+		return fmt.Errorf("ssh to %s failed: %w", hostname, errorValue)
 	}
-	return fmt.Errorf("%s\n%s", message, cloudflareSSHRecoveryHint(hostname, detail))
-}
-
-func cloudflareSSHRecoveryHint(hostname string, detail string) string {
-	if !hasCloudflareAccessToken(hostname) {
-		return fmt.Sprintf("이 호스트의 Cloudflare Access 토큰이 ~/.cloudflared 에 없습니다. 토큰 없이는 cloudflared가 브라우저 인증을 기다리며 멈추고, 스트림이 열리지 않아 장비까지 요청이 가지 않습니다(배너 타임아웃으로 보입니다). `cloudflared access login https://%s` 로 인증한 뒤 다시 실행하세요.", hostname)
-	}
-	normalizedDetail := strings.ToLower(detail)
-	if strings.Contains(normalizedDetail, "banner exchange") {
-		return "Cloudflare Access 토큰은 있는데 SSH banner를 받지 못했습니다. 장비의 `sshd` 또는 `cloudflared-node-ssh` 터널 상태를 확인하세요. HTTP가 살아 있으면 `./internkim recover ssh`로 SSH 터널 복구를 시도하세요."
-	}
-	return fmt.Sprintf("Cloudflare Access 인증이 만료되었을 수 있습니다. `cloudflared access ssh --hostname %s`로 브라우저 인증을 갱신한 뒤 다시 실행하세요.", hostname)
-}
-
-func hasCloudflareAccessToken(hostname string) bool {
-	homeDirectory, errorValue := os.UserHomeDir()
-	if errorValue != nil {
-		return true
-	}
-	tokenPaths, errorValue := filepath.Glob(filepath.Join(homeDirectory, ".cloudflared", hostname+"-*-token"))
-	if errorValue != nil {
-		return true
-	}
-	return len(tokenPaths) > 0
-}
-
-func cloudflareSSHFailureClass(message string) string {
-	normalizedMessage := strings.ToLower(message)
-	switch {
-	case strings.Contains(normalizedMessage, "banner exchange"):
-		return "origin_banner_timeout"
-	case strings.Contains(normalizedMessage, "lookup"):
-		return "dns"
-	case strings.Contains(normalizedMessage, "access") || strings.Contains(normalizedMessage, "authenticate") || strings.Contains(normalizedMessage, "forbidden"):
-		return "access_auth"
-	case strings.Contains(normalizedMessage, "connect to host") || strings.Contains(normalizedMessage, "operation timed out"):
-		return "direct_lan_unreachable"
-	default:
-		return "unknown"
-	}
-}
-
-func cloudflareSSHFailureSummary(errorValue error) string {
-	if errorValue == nil {
-		return "ok"
-	}
-	failureClass := cloudflareSSHFailureClass(errorValue.Error())
-	switch failureClass {
-	case "origin_banner_timeout":
-		return "origin_banner_timeout — SSH tunnel origin did not return an SSH banner; try `./internkim recover ssh`."
-	case "access_auth":
-		return "access_auth — refresh Cloudflare Access authentication."
-	case "dns":
-		return "dns — SSH hostname did not resolve."
-	case "direct_lan_unreachable":
-		return "direct_lan_unreachable — direct SSH target did not respond."
-	default:
-		return "unknown — inspect Cloudflare SSH and device network state."
-	}
+	return fmt.Errorf("ssh to %s failed: %s: %w", hostname, detail, errorValue)
 }
 
 func cloudflareSSHTLSStatus(stateDir string) string {
@@ -972,7 +903,7 @@ func runMigrate() {
 
 func runMigrateArguments(arguments []string) error {
 	if len(arguments) == 0 || arguments[0] != "fleet-id" {
-		return errors.New("usage: internkim migrate fleet-id [--new-fleet-id <id>] [--node <number>] [--host <ip>] [--cloudflare-ssh]")
+		return errors.New("usage: internkim migrate fleet-id [--new-fleet-id <id>] [--node <number>] [--host <ip>] [--remote-ssh]")
 	}
 	return runMigrateFleetID(commandControlArguments(arguments[1:]))
 }
@@ -1097,7 +1028,7 @@ func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string
 	if !target.useRemoteSSH && printPublicStatusForCommandTarget(m, target) {
 		return nil
 	}
-	if connection, isRemote, errorValue := resolveCloudflareSSHConnection(configuration, sshpassBin, target, false); errorValue == nil && connection != nil {
+	if connection, isRemote, errorValue := resolveRemoteSSHConnection(configuration, sshpassBin, target, false); errorValue == nil && connection != nil {
 		target.host = connection.host
 		target.useRemoteSSH = isRemote
 		printCommandTargetEvidence(target)
@@ -1106,7 +1037,7 @@ func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string
 		return nil
 	} else if target.useRemoteSSH && errorValue != nil {
 		if printPublicStatusForCommandTarget(m, target) {
-			fmt.Printf("\n  %-20s ✗ %s\n", "SSH", cloudflareSSHFailureSummary(errorValue))
+			fmt.Printf("\n  %-20s ✗ %s\n", "SSH", errorValue)
 			return nil
 		}
 		return errorValue
@@ -4246,12 +4177,11 @@ func getKeychainPassword(ssid string) string {
 // --- SSH helpers ---
 
 type sshClient struct {
-	sshpassBin   string
-	user         string
-	pass         string
-	host         string
-	port         string
-	proxyCommand string
+	sshpassBin string
+	user       string
+	pass       string
+	host       string
+	port       string
 }
 
 func newSSH(sshpassBin, user, pass, host string) *sshClient {
@@ -4260,52 +4190,6 @@ func newSSH(sshpassBin, user, pass, host string) *sshClient {
 
 func newSSHWithPort(sshpassBin, user, pass, host, port string) *sshClient {
 	return &sshClient{sshpassBin: sshpassBin, user: user, pass: pass, host: host, port: port}
-}
-
-func newCloudflareSSH(sshpassBin, user, pass, host string) *sshClient {
-	if port := strings.TrimSpace(os.Getenv("INTERNKIM_CLOUDFLARE_SSH_LOCAL_PORT")); port != "" {
-		return newSSHWithPort(sshpassBin, user, pass, "localhost", port)
-	}
-	client := newSSH(sshpassBin, user, pass, host)
-	client.proxyCommand = "env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh" + cloudflareAccessServiceTokenArguments() + " --hostname %h"
-	return client
-}
-
-type cloudflareAccessServiceToken struct {
-	ClientID     string `json:"clientID"`
-	ClientSecret string `json:"clientSecret"`
-}
-
-func cloudflareAccessServiceTokenArguments() string {
-	token, isFound := loadCloudflareAccessServiceToken()
-	if !isFound {
-		return ""
-	}
-	return " --service-token-id " + token.ClientID + " --service-token-secret " + token.ClientSecret
-}
-
-func loadCloudflareAccessServiceToken() (cloudflareAccessServiceToken, bool) {
-	clientID := strings.TrimSpace(os.Getenv("INTERNKIM_CF_ACCESS_CLIENT_ID"))
-	clientSecret := strings.TrimSpace(os.Getenv("INTERNKIM_CF_ACCESS_CLIENT_SECRET"))
-	if clientID != "" && clientSecret != "" {
-		return cloudflareAccessServiceToken{ClientID: clientID, ClientSecret: clientSecret}, true
-	}
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		return cloudflareAccessServiceToken{}, false
-	}
-	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, ".local", "secrets", "cloudflare-access-service-token.json"))
-	if errorValue != nil {
-		return cloudflareAccessServiceToken{}, false
-	}
-	var token cloudflareAccessServiceToken
-	if json.Unmarshal(document, &token) != nil {
-		return cloudflareAccessServiceToken{}, false
-	}
-	if strings.TrimSpace(token.ClientID) == "" || strings.TrimSpace(token.ClientSecret) == "" {
-		return cloudflareAccessServiceToken{}, false
-	}
-	return token, true
 }
 
 func (s *sshClient) sshArgs(extra ...string) []string {
@@ -4318,9 +4202,6 @@ func (s *sshClient) sshArgs(extra ...string) []string {
 	}
 	if s.pass != "" {
 		base = append(base, "-o", "PreferredAuthentications=password", "-o", "PubkeyAuthentication=no")
-	}
-	if s.proxyCommand != "" {
-		base = append(base, "-o", "ProxyCommand="+s.proxyCommand)
 	}
 	return append(base, extra...)
 }
@@ -4459,9 +4340,6 @@ func (s *sshClient) scpArgs(extra ...string) []string {
 	if s.pass != "" {
 		base = append(base, "-o", "PreferredAuthentications=password", "-o", "PubkeyAuthentication=no")
 	}
-	if s.proxyCommand != "" {
-		base = append(base, "-o", "ProxyCommand="+s.proxyCommand)
-	}
 	return append(base, extra...)
 }
 
@@ -4543,10 +4421,7 @@ func rsyncSparseArguments(sshCommand string, localPath string, target string) []
 
 func (s *sshClient) rsyncSSHCommand(commandName string) string {
 	command := commandName + " -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR -p " + s.port
-	if s.proxyCommand == "" {
-		return command
-	}
-	return command + " -o " + quoteShellValue("ProxyCommand="+s.proxyCommand)
+	return command
 }
 
 func runCommandWithLiveOutput(command *exec.Cmd) (string, error) {
@@ -5102,13 +4977,6 @@ func cloudflareSSHHostnameFromDeviceURL(deviceURL string) string {
 	return "ssh-" + labels[0] + "." + labels[1]
 }
 
-func ensureCloudflaredAccessSSHAvailable() error {
-	if _, errorValue := exec.LookPath("cloudflared"); errorValue == nil {
-		return nil
-	}
-	return errors.New("cloudflared is required for Cloudflare SSH fallback; install it locally, then rerun setup")
-}
-
 func isBlueclawPayloadDirectOnlySetup(arguments []string) bool {
 	onlyNames := setup.ParseNames(commandArgumentValue(arguments, "--only", ""))
 	return len(onlyNames) == 1 && onlyNames[0] == "blueclaw-payload-direct"
@@ -5170,12 +5038,12 @@ func runSetupLive(messenger *msg) {
 func resolveSetupLiveRequest() setupLiveRequest {
 	requestedSSH := containsArg("--ssh")
 	requestedSD := containsArg("--sd")
-	requestedCloudflareSSH := containsArg("--cloudflare-ssh")
+	requestedCloudflareSSH := containsArg("--remote-ssh")
 	if requestedCloudflareSSH {
 		requestedSSH = true
 	}
 	if requestedSSH && requestedSD {
-		fatal("--ssh/--cloudflare-ssh and --sd are mutually exclusive")
+		fatal("--ssh/--remote-ssh and --sd are mutually exclusive")
 	}
 	return setupLiveRequest{
 		requestedSSH:           requestedSSH,
@@ -5391,14 +5259,11 @@ func attemptSetupCloudflareSSH(configuration config, options setupLiveOptions) (
 	if cloudflareSSHHostname == "" {
 		return selection, nil, false
 	}
-	if errorValue := ensureCloudflaredAccessSSHAvailable(); errorValue != nil {
-		return selection, errorValue, false
-	}
 	selection.boardIP = cloudflareSSHHostname
-	selection.sshConnection = newCloudflareSSH(options.sshpassBin, options.target.sshUser, options.target.sshPassword, selection.boardIP)
+	selection.sshConnection = newSSH(options.sshpassBin, options.target.sshUser, options.target.sshPassword, selection.boardIP)
 	output, errorValue := selection.sshConnection.runResult("true")
 	if errorValue != nil {
-		return selection, formatCloudflareSSHError(selection.boardIP, output, errorValue), false
+		return selection, remoteSSHError(selection.boardIP, output, errorValue), false
 	}
 	selection.target.useRemoteSSH = true
 	return selection, nil, true
