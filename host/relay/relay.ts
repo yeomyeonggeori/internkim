@@ -1,17 +1,17 @@
 //   bun run host/relay/relay.ts
 
-import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreview } from './link-preview';
 import { largestRawBytesThatFit, oversizeNotice, type Answer } from './answer-size';
 import { mintMissingTokens } from './member-tokens';
 import { answerBodyOf, forwardToChatd, reportableTopic, serveCall, type AssetReader, type Call } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
+import { keepMessengerAccount, type MessengerAccount } from './messenger-account';
 import {
 	readCustomEmoji,
 	readPeople,
 	readProfilePicture,
 	signIn,
-	type MattermostSession,
 	type MattermostSettings
 } from './mattermost';
 
@@ -30,6 +30,7 @@ const messengerPlatform = required('MESSENGER_PLATFORM');
 const answerByteCeiling = Number(process.env.ANSWER_BYTE_CEILING ?? 200_000);
 const rejoinDeadlineMilliseconds = 60_000;
 const largestPictureBytes = largestRawBytesThatFit(answerByteCeiling);
+const platformTheDirectoryClientServes = 'mattermost';
 
 function required(name: string): string {
 	const value = process.env[name];
@@ -47,12 +48,14 @@ async function agentKeyFromEnvironmentOrFile(): Promise<string> {
 	return kept;
 }
 
-if (messengerPlatform !== 'mattermost') {
-	throw new Error(`the relay serves mattermost; this company runs ${messengerPlatform}`);
-}
-const mattermost = await askForConnection(messengerPlatform);
-const session = await signIn(mattermost);
-console.log(`${messengerPlatform} ready as ${mattermost.email}`);
+const messenger = keepMessengerAccount(
+	() => askForConnection(messengerPlatform),
+	async (settings) => {
+		const session = await signIn(settings);
+		console.log(`${messengerPlatform} ready as ${settings.email}`);
+		return session;
+	}
+);
 
 let hostSession = await askForHostSession();
 const client = createClient(projectURL, publishableKey, {
@@ -60,12 +63,6 @@ const client = createClient(projectURL, publishableKey, {
 });
 const companyID = hostSession.companyID;
 console.log(`acting as the host of company ${companyID}`);
-
-await refreshContacts(client, companyID, session);
-setInterval(() => void keepGoing('contacts', () => refreshContacts(client, companyID, session)), 600_000);
-
-await keepGoing('credentials', provisionMemberCredentials);
-setInterval(() => void keepGoing('credentials', provisionMemberCredentials), 600_000);
 
 client.realtime.setAuth(hostSession.accessToken);
 const presence = client.channel(`company:${companyID}`, { config: { private: true } });
@@ -205,7 +202,7 @@ const customEmoji = new Map<string, { name: string; url: string }[]>();
 async function emojiSet(reader: AssetReader): Promise<{ name: string; url: string }[]> {
 	const held = customEmoji.get(reader.memberID);
 	if (held) return held;
-	const drawn = await readCustomEmoji(mattermost, reader.token);
+	const drawn = await readCustomEmoji(await messenger.address(), reader.token);
 	customEmoji.set(reader.memberID, drawn);
 	return drawn;
 }
@@ -213,7 +210,8 @@ async function emojiSet(reader: AssetReader): Promise<{ name: string; url: strin
 async function pictureOf(reader: AssetReader, externalID: string): Promise<{ dataURL: string } | null> {
 	const key = `${reader.memberID}:${externalID}`;
 	if (!pictures.has(key)) {
-		pictures.set(key, await readProfilePicture(mattermost, reader.token, externalID, largestPictureBytes));
+		const address = await messenger.address();
+		pictures.set(key, await readProfilePicture(address, reader.token, externalID, largestPictureBytes));
 	}
 	return pictures.get(key) ?? null;
 }
@@ -264,6 +262,15 @@ Bun.serve({
 });
 console.log(`arrivals accepted on 127.0.0.1:${arrivalsPort}`);
 
+if (messengerPlatform === platformTheDirectoryClientServes) {
+	await keepGoing('contacts', refreshContacts);
+	setInterval(() => void keepGoing('contacts', refreshContacts), 600_000);
+	await keepGoing('credentials', provisionMemberCredentials);
+	setInterval(() => void keepGoing('credentials', provisionMemberCredentials), 600_000);
+} else {
+	console.log(`no directory client here for ${messengerPlatform}; chatd answers for its people`);
+}
+
 async function askTheRecord<Value>(method: string, path: string, body?: unknown): Promise<Value> {
 	const response = await fetch(`${appURL}${path}`, {
 		method,
@@ -277,18 +284,25 @@ async function askTheRecord<Value>(method: string, path: string, body?: unknown)
 	return (await response.json()) as Value;
 }
 
+async function asTheMessengerAdmin<Value>(work: (account: MessengerAccount) => Promise<Value>): Promise<Value> {
+	const account = await messenger.admin();
+	try {
+		return await work(account);
+	} catch (error) {
+		messenger.forgetSession();
+		throw error;
+	}
+}
+
 async function provisionMemberCredentials(): Promise<void> {
 	const held = await askTheRecord<{ have?: string[] }>(
 		'GET',
 		`/api/agent/messenger-credentials?kind=${encodeURIComponent(messengerPlatform)}`
 	);
-	const people = await readPeople(mattermost, session.token);
-	const { credentials, report } = await mintMissingTokens(
-		mattermost,
-		session.token,
-		people,
-		new Set(held.have ?? [])
-	);
+	const { credentials, report } = await asTheMessengerAdmin(async ({ settings, session }) => {
+		const people = await readPeople(settings, session.token);
+		return mintMissingTokens(settings, session.token, people, new Set(held.have ?? []));
+	});
 
 	if (credentials.length > 0) {
 		const kept = await askTheRecord<{ kept?: number }>('POST', '/api/agent/messenger-credentials', {
@@ -352,8 +366,8 @@ async function keepGoing(what: string, work: () => Promise<void>): Promise<void>
 	}
 }
 
-async function refreshContacts(client: SupabaseClient, companyID: string, session: MattermostSession): Promise<void> {
-	const people = await readPeople(mattermost, session.token);
+async function refreshContacts(): Promise<void> {
+	const people = await asTheMessengerAdmin(({ settings, session }) => readPeople(settings, session.token));
 	const members = await client.from('member').select('id, email').returns<{ id: string; email: string | null }[]>();
 	if (members.error) throw new Error(members.error.message);
 	const memberByEmail = new Map(members.data.map((entry) => [entry.email ?? '', entry.id]));
