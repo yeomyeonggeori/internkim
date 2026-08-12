@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -345,11 +346,12 @@ func (service *Service) reconcileBlueclawRuntimeConfiguration(ctx context.Contex
 }
 
 func (service *Service) reconcileBlueclawRuntimeConfigurationForTarget(ctx context.Context, target blueclawPayloadInstallTarget) {
-	if isBlueclawRuntimeConfigurationCurrentForTarget(target) {
+	contract := service.capabilityContractForStamping(ctx)
+	if isBlueclawRuntimeConfigurationCurrentForTarget(target, contract) {
 		return
 	}
-	log.Printf("Blueclaw runtime configuration for %s is stale: restamping with this admind's capability contract", target.Name)
-	if errorValue := syncBlueclawRuntimeConfigurationForTarget(target); errorValue != nil {
+	log.Printf("Blueclaw runtime configuration for %s is stale: restamping it from the running capability endpoints", target.Name)
+	if errorValue := syncBlueclawRuntimeConfigurationForTarget(target, contract); errorValue != nil {
 		log.Printf("Blueclaw runtime configuration restamp for %s failed: %v", target.Name, errorValue)
 		return
 	}
@@ -479,7 +481,7 @@ func (service *Service) installBlueclawPayloadArtifact(ctx context.Context, jobI
 }
 
 func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Context, jobID string, artifactPath string, target blueclawPayloadInstallTarget) error {
-	if errorValue := syncBlueclawRuntimeConfigurationForTarget(target); errorValue != nil {
+	if errorValue := syncBlueclawRuntimeConfigurationForTarget(target, service.capabilityContractForStamping(ctx)); errorValue != nil {
 		return fmt.Errorf("%s: sync blueclaw runtime configuration: %w", target.Name, errorValue)
 	}
 	service.updateJob(jobID, "running", "stopping", "")
@@ -647,7 +649,7 @@ func (service *Service) isBlueclawPayloadAlreadyCurrent(artifactPath string) boo
 		if matches, _ := service.blueclawWorkspaceManifestMatchesTarget(artifactPath, target); !matches {
 			return false
 		}
-		if !isBlueclawRuntimeConfigurationCurrentForTarget(target) {
+		if !isBlueclawRuntimeConfigurationCurrentForTarget(target, blueclawruntime.CurrentCapabilityContract()) {
 			return false
 		}
 	}
@@ -814,16 +816,45 @@ func canonicalBlueclawPayloadInstallTarget() blueclawPayloadInstallTarget {
 	}
 }
 
-func syncBlueclawRuntimeConfigurationForTarget(target blueclawPayloadInstallTarget) error {
+func syncBlueclawRuntimeConfigurationForTarget(target blueclawPayloadInstallTarget, contract blueclawruntime.CapabilityContract) error {
 	if errorValue := seedWorkspaceRuntimeConfiguration(target); errorValue != nil {
 		return errorValue
 	}
 	for _, configurationPath := range blueclawRuntimeConfigurationPathsForTarget(target) {
-		if errorValue := syncBlueclawRuntimeConfigurationPath(configurationPath); errorValue != nil {
+		if errorValue := syncBlueclawRuntimeConfigurationPath(configurationPath, contract); errorValue != nil {
 			return errorValue
 		}
 	}
 	return nil
+}
+
+// capabilityContractForStamping reads the contract from the capabilityd that is
+// actually running, because that is the endpoint the guest compares itself
+// against. Stamping from this binary's own compiled contract lags by one
+// release: the process applying a release is always the admind the previous
+// release installed.
+func (service *Service) capabilityContractForStamping(ctx context.Context) blueclawruntime.CapabilityContract {
+	contract := blueclawruntime.CurrentCapabilityContract()
+	registry, errorValue := service.fetchCapabilityRegistry(ctx)
+	if errorValue != nil {
+		log.Printf("Blueclaw capability contract stamp falls back to this admind's own contract: %v", errorValue)
+		return contract
+	}
+	if strings.TrimSpace(registry.ProtocolVersion) == "" || strings.TrimSpace(registry.AggregateProtocolHash) == "" {
+		return contract
+	}
+	contract.ProtocolIdentity = registry.ProtocolIdentity
+	if descriptors := registryStampDescriptors(registry); len(descriptors) > 0 {
+		contract.ToolDescriptors = descriptors
+	}
+	return contract
+}
+
+func registryStampDescriptors(registry capabilities.RegistryResponse) []capabilities.Descriptor {
+	if len(registry.Capabilities) > 0 {
+		return registry.Capabilities
+	}
+	return registry.DeviceCapabilities
 }
 
 // The guest boots from the workspace copy, and the workspace sync only
@@ -857,7 +888,7 @@ func seedWorkspaceRuntimeConfiguration(target blueclawPayloadInstallTarget) erro
 	return os.WriteFile(workspacePath, document, 0o640)
 }
 
-func syncBlueclawRuntimeConfigurationPath(configurationPath string) error {
+func syncBlueclawRuntimeConfigurationPath(configurationPath string, contract blueclawruntime.CapabilityContract) error {
 	if strings.TrimSpace(configurationPath) == "" {
 		return nil
 	}
@@ -868,7 +899,7 @@ func syncBlueclawRuntimeConfigurationPath(configurationPath string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	updatedDocument, errorValue := refreshedBlueclawRuntimeConfiguration(string(document))
+	updatedDocument, errorValue := refreshedBlueclawRuntimeConfiguration(string(document), contract)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -878,17 +909,16 @@ func syncBlueclawRuntimeConfigurationPath(configurationPath string) error {
 	return os.WriteFile(configurationPath, []byte(updatedDocument), 0o640)
 }
 
-func refreshedBlueclawRuntimeConfiguration(document string) (string, error) {
+func refreshedBlueclawRuntimeConfiguration(document string, contract blueclawruntime.CapabilityContract) (string, error) {
 	migratedDocument := strings.ReplaceAll(document, legacyBlueclawGuestMigrationPath, blueclawruntime.BlueclawGuestMigrationPath)
-	return refreshBlueclawCapabilityContract(migratedDocument)
+	return refreshBlueclawCapabilityContract(migratedDocument, contract)
 }
 
-func refreshBlueclawCapabilityContract(document string) (string, error) {
+func refreshBlueclawCapabilityContract(document string, contract blueclawruntime.CapabilityContract) (string, error) {
 	var runtimeDocument map[string]any
 	if errorValue := json.Unmarshal([]byte(document), &runtimeDocument); errorValue != nil {
 		return "", errorValue
 	}
-	contract := blueclawruntime.CurrentCapabilityContract()
 	if capabilitiesSection, ok := runtimeDocument["capabilities"].(map[string]any); ok {
 		delete(capabilitiesSection, "toolNames")
 		capabilitiesSection["protocolVersion"] = contract.ProtocolVersion
@@ -935,12 +965,12 @@ func healBlueclawGuestLLMDConfiguration(runtimeDocument map[string]any) {
 	}
 }
 
-func isBlueclawRuntimeConfigurationCurrentForTarget(target blueclawPayloadInstallTarget) bool {
+func isBlueclawRuntimeConfigurationCurrentForTarget(target blueclawPayloadInstallTarget, contract blueclawruntime.CapabilityContract) bool {
 	if workspaceRuntimeConfigurationIsMissing(target) {
 		return false
 	}
 	for _, configurationPath := range blueclawRuntimeConfigurationPathsForTarget(target) {
-		if !isBlueclawRuntimeConfigurationPathCurrent(configurationPath) {
+		if !isBlueclawRuntimeConfigurationPathCurrent(configurationPath, contract) {
 			return false
 		}
 	}
@@ -960,7 +990,7 @@ func workspaceRuntimeConfigurationIsMissing(target blueclawPayloadInstallTarget)
 	return os.IsNotExist(errorValue)
 }
 
-func isBlueclawRuntimeConfigurationPathCurrent(configurationPath string) bool {
+func isBlueclawRuntimeConfigurationPathCurrent(configurationPath string, contract blueclawruntime.CapabilityContract) bool {
 	if strings.TrimSpace(configurationPath) == "" {
 		return true
 	}
@@ -971,7 +1001,7 @@ func isBlueclawRuntimeConfigurationPathCurrent(configurationPath string) bool {
 	if errorValue != nil {
 		return false
 	}
-	refreshedDocument, errorValue := refreshedBlueclawRuntimeConfiguration(string(document))
+	refreshedDocument, errorValue := refreshedBlueclawRuntimeConfiguration(string(document), contract)
 	return errorValue == nil && refreshedDocument == string(document)
 }
 
