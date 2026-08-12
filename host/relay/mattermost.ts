@@ -52,29 +52,26 @@ async function ask<Value>(
 
 type MattermostUser = { id: string; username: string; first_name: string; last_name: string; email: string };
 
-export async function readCustomEmoji(
+export async function listCustomEmoji(
 	settings: MattermostSettings,
 	token: string
-): Promise<{ name: string; url: string }[]> {
+): Promise<{ name: string; id: string }[]> {
 	const listed = await ask<{ id: string; name: string }[]>(
 		settings,
 		token,
 		'GET',
 		'/emoji?per_page=200'
 	);
-	const drawn = await Promise.all(
-		listed.map(async (emoji) => {
-			const response = await fetch(`${settings.baseURL}/api/v4/emoji/${encodeURIComponent(emoji.id)}/image`, {
-				headers: { Authorization: `Bearer ${token}` }
-			});
-			if (!response.ok) return null;
-			const type = response.headers.get('content-type') ?? 'image/png';
-			const bytes = new Uint8Array(await response.arrayBuffer());
-			if (bytes.length === 0 || bytes.length > 100_000) return null;
-			return { name: emoji.name, url: `data:${type};base64,${Buffer.from(bytes).toString('base64')}` };
-		})
-	);
-	return drawn.filter((emoji): emoji is { name: string; url: string } => emoji !== null);
+	return listed.map((emoji) => ({ name: emoji.name, id: emoji.id }));
+}
+
+export async function readCustomEmojiImage(
+	settings: MattermostSettings,
+	token: string,
+	emojiID: string,
+	largestBytes: number
+): Promise<{ dataURL: string } | null> {
+	return readImage(`/emoji/${encodeURIComponent(emojiID)}/image`, settings, token, largestBytes);
 }
 
 export async function readProfilePicture(
@@ -83,7 +80,16 @@ export async function readProfilePicture(
 	externalID: string,
 	largestBytes: number
 ): Promise<{ dataURL: string } | null> {
-	const response = await fetch(`${settings.baseURL}/api/v4/users/${encodeURIComponent(externalID)}/image`, {
+	return readImage(`/users/${encodeURIComponent(externalID)}/image`, settings, token, largestBytes);
+}
+
+async function readImage(
+	path: string,
+	settings: MattermostSettings,
+	token: string,
+	largestBytes: number
+): Promise<{ dataURL: string } | null> {
+	const response = await fetch(`${settings.baseURL}/api/v4${path}`, {
 		headers: { Authorization: `Bearer ${token}` }
 	});
 	if (!response.ok) return null;
