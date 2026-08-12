@@ -12,10 +12,6 @@ export function spaceHostnameOf(zone: string): string {
 	return `space.${bareHost(zone)}`;
 }
 
-export function apiHostnameOf(zone: string): string {
-	return `api.${bareHost(zone)}`;
-}
-
 // fetch drops Authorization across origins, and every attached hostname is the
 // same deployment, so these are answered where they land.
 function carriesACallerCredential(pathname: string): boolean {
@@ -28,6 +24,6 @@ export function movesToTheOneAddress(question: CompanyHostQuestion): boolean {
 	if (!hostname || !zone) return false;
 	if (carriesACallerCredential(question.pathname)) return false;
 	if (hostname === zone) return false;
-	if (hostname === spaceHostnameOf(zone) || hostname === apiHostnameOf(zone)) return false;
+	if (hostname === spaceHostnameOf(zone)) return false;
 	return hostname.endsWith(`.${zone}`);
 }

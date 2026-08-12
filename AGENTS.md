@@ -449,9 +449,13 @@ and delete the duplicates.
   ever answer on `*.pages.dev`. A hostname cannot point at a preview.
 - `web/scripts/deploy-pages.ts` deploys a preview unless `--production` is
   passed. Keep that default.
-- The `internkim` Pages project serves `api.example.test`. Never deploy to it from
-  a branch that does not contain `origin/main`; that replaces a live API with a
-  stale build and the deploy reports success.
+- Everyone signs in at one address, `space.<zone>`. Every other hostname on the
+  zone answers `308` to it, so a company hostname is a way in rather than a
+  place. The exception is any path under `/api/`, which is answered where it
+  landed because a cross-origin redirect drops the caller's bearer token.
+- The `internkim` Pages project serves all of them. Never deploy to it from a
+  branch that does not contain `origin/main`; that replaces what every company
+  signs in at with a stale build, and the deploy reports success.
 - Pages custom domains do not accept wildcards. Each company hostname is
   attached explicitly (`web/scripts/pages-domains.ts`), so creating a company
   includes creating its hostname.
