@@ -45,6 +45,39 @@ func TestTheShippedRelayUnitMatchesTheDocumentedOne(t *testing.T) {
 	}
 }
 
+func sectionOfEachSetting(unit string) map[string]string {
+	sections := map[string]string{}
+	section := ""
+	for _, line := range strings.Split(unit, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			section = strings.Trim(trimmed, "[]")
+			continue
+		}
+		name, _, found := strings.Cut(trimmed, "=")
+		if !found {
+			continue
+		}
+		sections[name] = section
+	}
+	return sections
+}
+
+func TestTheRestartLimitSitsWhereSystemdReadsIt(t *testing.T) {
+	units := map[string]string{
+		"the unit this deploys":              RelayServiceUnit(),
+		"host/relay/internkim-relay.service": documentedRelayUnit(t),
+	}
+	for what, unit := range units {
+		sections := sectionOfEachSetting(unit)
+		for _, name := range []string{"StartLimitIntervalSec", "StartLimitBurst"} {
+			if sections[name] != "Unit" {
+				t.Errorf("%s carries %s in [%s]; systemd reads it only in [Unit] and ignores it silently anywhere else, so the relay would restart without a limit", what, name, sections[name])
+			}
+		}
+	}
+}
+
 func TestTheRelayWaitsForItsSettings(t *testing.T) {
 	shipped := settingsOf(RelayServiceUnit())
 	if shipped["ConditionPathExists"] != RelayEnvironmentFilePath {
