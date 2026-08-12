@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair":
 		return true
 	default:
 		return false
@@ -127,6 +127,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		inspectContext, cancelInspect := context.WithTimeout(context.Background(), 600*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(inspectContext, "preserve the workspace image and read the guest cluster", "sh", "-lc", blueclawPostgresInspectCommand()))
 		cancelInspect()
+	case "blueclaw-postgres-restore-previous":
+		restoreContext, cancelRestore := context.WithTimeout(context.Background(), 900*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(restoreContext, "restore the guest cluster from the previous workspace image", "sh", "-lc", blueclawPostgresRestorePreviousCommand()))
+		cancelRestore()
 	case "repair-buzz-relay":
 		repairContext, cancelRepair := context.WithTimeout(context.Background(), 60*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(repairContext, "repair Buzz relay TLS terminator", "sh", "-lc", buzzRelayRepairCommand()))
@@ -375,6 +379,41 @@ func quoteRecoveryShellValue(value string) string {
 // Blueclaw is left stopped on purpose: a guest whose postgres cannot reach a
 // checkpoint kills its own init and panics the kernel every two minutes, and
 // each cycle is another unclean shutdown of the cluster being diagnosed.
+func blueclawPostgresRestorePreviousCommand() string {
+	return strings.TrimSpace(`
+set +e
+image=/var/lib/blueclaw/workspace.ext4
+previous=/var/lib/blueclaw/workspace.ext4.previous
+dataInsideImage=.blueclaw/postgres/data
+rollback=/var/lib/blueclaw/postgres-data-before-restore-$(date -u +%Y%m%dT%H%M%SZ)
+[ -e "$previous" ] || { echo "no previous image at $previous"; exit 1; }
+echo "== stop blueclaw =="; systemctl stop blueclaw 2>&1; sleep 3
+previousMount=$(mktemp -d); currentMount=$(mktemp -d)
+mount -o ro,noload,loop "$previous" "$previousMount" 2>&1 || { echo "previous mount FAILED"; exit 1; }
+mount -o loop "$image" "$currentMount" 2>&1 || { echo "current mount FAILED"; umount "$previousMount"; exit 1; }
+previousControl="$previousMount/$dataInsideImage/global/pg_control"
+currentControl="$currentMount/$dataInsideImage/global/pg_control"
+[ -f "$previousControl" ] || { echo "previous image carries no cluster"; umount "$currentMount"; umount "$previousMount"; exit 1; }
+echo "== control file ages =="
+echo "previous: $(date -u -r "$previousControl" +%FT%TZ)"
+echo "current:  $(date -u -r "$currentControl" +%FT%TZ 2>/dev/null || echo missing)"
+if [ -f "$currentControl" ] && [ ! "$previousControl" -nt "$currentControl" ]; then
+  echo "previous cluster is not newer; refusing to overwrite a newer cluster with an older one"
+  umount "$currentMount"; umount "$previousMount"; exit 1
+fi
+echo "== keep the current cluster on the host so this is reversible =="
+cp -a "$currentMount/$dataInsideImage" "$rollback" 2>&1 && echo "rollback copy: $rollback" || { echo "rollback copy FAILED"; umount "$currentMount"; umount "$previousMount"; exit 1; }
+du -sh "$rollback" 2>&1
+echo "== install the previous cluster =="
+rm -rf "$currentMount/$dataInsideImage" && cp -a "$previousMount/$dataInsideImage" "$currentMount/$dataInsideImage" && echo "installed" || echo "install FAILED"
+sync
+ls -la "$currentMount/$dataInsideImage/global/pg_control" 2>&1
+umount "$currentMount"; umount "$previousMount"; rmdir "$currentMount" "$previousMount"
+echo "== blueclaw stays stopped; start it with restart-blueclaw =="
+systemctl is-active blueclaw 2>&1
+`)
+}
+
 func blueclawPostgresInspectCommand() string {
 	return strings.TrimSpace(`
 set +e
@@ -401,11 +440,21 @@ echo "== read the guest cluster read-only =="
 mountPoint=$(mktemp -d)
 mount -o ro,noload,loop "$image" "$mountPoint" 2>&1 || { echo "read-only mount FAILED"; rmdir "$mountPoint"; exit 1; }
 dataPath="$mountPoint/.blueclaw/postgres/data"
-controlData=$(find /usr/lib/postgresql -path '"'"'*/bin/pg_controldata'"'"' -type f 2>/dev/null | sort -V | tail -1)
-if [ -n "$controlData" ]; then "$controlData" -D "$dataPath" 2>&1 | grep -iE '"'"'state|checkpoint location|redo location|time line|latest checkpoint'"'"' | head -12; else echo "pg_controldata not on host"; fi
+echo "== candidate images =="; ls -la --time-style=+%FT%TZ /var/lib/blueclaw/*.ext4 /var/lib/blueclaw/*.previous 2>/dev/null
+controlData=$(find /usr/lib/postgresql -path "*/bin/pg_controldata" -type f 2>/dev/null | sort -V | tail -1)
+if [ -n "$controlData" ]; then "$controlData" -D "$dataPath" 2>&1 | grep -iE "state|checkpoint location|redo location|time line|latest checkpoint" | head -12; else echo "pg_controldata not on host"; fi
 echo "== cluster size and wal =="; du -sh "$dataPath" 2>/dev/null; ls -la "$dataPath/pg_wal" 2>/dev/null | tail -6
 echo "== lost+found =="; ls -la "$mountPoint/lost+found" 2>/dev/null | head -5
-umount "$mountPoint"; rmdir "$mountPoint"
+umount "$mountPoint"
+for candidate in /var/lib/blueclaw/workspace.ext4.previous /var/lib/blueclaw/workspace-preserved-*.ext4; do
+  [ -e "$candidate" ] || continue
+  echo "== $candidate =="
+  mount -o ro,noload,loop "$candidate" "$mountPoint" 2>&1 || { echo "  mount failed"; continue; }
+  ls -la "$mountPoint/.blueclaw/postgres/data/pg_wal" 2>/dev/null | tail -4
+  ls -la "$mountPoint/.blueclaw/postgres/data/global/pg_control" 2>/dev/null
+  umount "$mountPoint"
+done
+rmdir "$mountPoint"
 echo "== blueclaw left stopped on purpose =="; systemctl is-active blueclaw 2>&1
 `)
 }
