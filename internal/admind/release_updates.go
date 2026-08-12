@@ -266,6 +266,20 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 	if errorValue := service.installReleaseLLMDService(ctx, manifest); errorValue != nil {
 		return errorValue
 	}
+	// The capability endpoints must carry this release's contract before anything
+	// stamps it into the guest's runtime configuration. The stamp is read back
+	// from whichever capabilityd is running, so one taken before the restart
+	// describes the release this one replaces.
+	if _, hasLLMD := manifest.Components["blueclawLLMD"]; hasLLMD {
+		if errorValue := service.restartReleaseLLMD(ctx); errorValue != nil {
+			return errorValue
+		}
+	}
+	if _, hasCapabilityd := manifest.Components["capabilityd"]; hasCapabilityd {
+		if errorValue := service.restartReleaseCapabilitydServices(ctx); errorValue != nil {
+			return errorValue
+		}
+	}
 	if errorValue := service.installReleaseWeb(stagingPath); errorValue != nil {
 		return errorValue
 	}
@@ -308,16 +322,6 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 			if errorValue := service.restartReleaseBlueclawServices(ctx); errorValue != nil {
 				return errorValue
 			}
-		}
-	}
-	if _, hasLLMD := manifest.Components["blueclawLLMD"]; hasLLMD {
-		if errorValue := service.restartReleaseLLMD(ctx); errorValue != nil {
-			return errorValue
-		}
-	}
-	if _, hasCapabilityd := manifest.Components["capabilityd"]; hasCapabilityd {
-		if errorValue := service.restartReleaseCapabilitydServices(ctx); errorValue != nil {
-			return errorValue
 		}
 	}
 	if releaseProtocolDependencyComponentsPresent(manifest) {
