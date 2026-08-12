@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import {
-	apiHostnameOf,
 	movesToTheOneAddress,
 	spaceHostnameOf
 } from '../../../src/lib/server/company-host-redirect';
@@ -24,8 +23,8 @@ describe('the one address every company signs in at', () => {
 		expect(asks('app.intern.kim')).toBe(true);
 	});
 
-	test('leaves the api host alone, because the same project serves it', () => {
-		expect(asks(apiHostnameOf(zone))).toBe(false);
+	test('moves the api host too, because it served the same pages under a second name', () => {
+		expect(asks('api.intern.kim')).toBe(true);
 	});
 
 	test('leaves the zone alone, because another site answers there', () => {
@@ -59,6 +58,7 @@ describe('a caller that carries its own credential', () => {
 	test('is answered where it landed, because a redirect would drop its bearer token', () => {
 		expect(asks('dawnstreet.intern.kim', '/api/agent/connection')).toBe(false);
 		expect(asks('app.intern.kim', '/api/agent/host-session')).toBe(false);
+		expect(asks('api.intern.kim', '/api/agent/host-session')).toBe(false);
 	});
 
 	test('still moves a page request on the same host', () => {
@@ -66,9 +66,8 @@ describe('a caller that carries its own credential', () => {
 	});
 });
 
-describe('the hosts derived from the zone', () => {
-	test('names them from the zone rather than spelling them out', () => {
+describe('the host derived from the zone', () => {
+	test('names it from the zone rather than spelling it out', () => {
 		expect(spaceHostnameOf('example.test')).toBe('space.example.test');
-		expect(apiHostnameOf('example.test')).toBe('api.example.test');
 	});
 });
