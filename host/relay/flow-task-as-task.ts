@@ -60,10 +60,10 @@ export function titleOfFlowTask(task: DeviceFlowTask): string {
 export function peopleOnFlowTask(task: DeviceFlowTask): DeviceCalendarParticipant[] {
 	const identifiers = task.participantIDs ?? [];
 	const names = task.participantNames ?? [];
-	const written = Array.from({ length: Math.max(identifiers.length, names.length) }, (_unused, index) => ({
-		personID: identifiers[index],
-		name: names[index]
-	}));
+	const written: DeviceCalendarParticipant[] = Array.from(
+		{ length: Math.max(identifiers.length, names.length) },
+		(_unused, index) => ({ personID: identifiers[index], name: names[index] })
+	);
 	if (task.ownerID || task.ownerName) written.unshift({ personID: task.ownerID, name: task.ownerName });
 	return written;
 }
