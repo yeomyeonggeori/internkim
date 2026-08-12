@@ -2,6 +2,7 @@ import { supabaseMember } from '$lib/supabase-session';
 import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 import { personPicture } from '$lib/stores/person-picture.svelte';
 import { emojify, get as glyphOf } from 'node-emoji';
+import { customEmojiNamesIn } from './custom-emoji-names';
 import {
 	fetchChannels,
 	fetchPosts,
@@ -127,6 +128,7 @@ export async function bridgeConversation(channelID?: string, before?: string): P
 	}
 	const posts = await fetchPosts(channelID, before);
 	await customEmoji.load();
+	await customEmoji.draw(customEmojiNamesIn(posts));
 	await personPicture.rememberExternals(posts.map((post) => externalIDOf(post.author, people)));
 	return {
 		conversationID: channelID,

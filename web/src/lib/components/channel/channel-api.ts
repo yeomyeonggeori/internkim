@@ -9,6 +9,7 @@ import {
 
 import { publishBuzzMessage } from '$lib/buzz-relay-client';
 import { imetaTag, uploadBlob } from '$lib/buzz-blossom';
+import { shortcodePattern } from '$lib/messenger/custom-emoji-names';
 import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 
 export type ChannelParticipant = {
@@ -94,8 +95,6 @@ export function parseMessageContent(text: string): MessageContent {
 	return { text: stripped.trim(), imageURLs };
 }
 
-const emojiShortcodePattern = /:([^:\s]+):/g;
-
 export function applyCustomEmoji(
 	text: string,
 	perMessageEmoji?: ChannelCustomEmoji[],
@@ -104,7 +103,7 @@ export function applyCustomEmoji(
 	const urlByName = new Map(globalEmoji ?? []);
 	for (const emoji of perMessageEmoji ?? []) urlByName.set(emoji.name, emoji.url);
 	if (urlByName.size === 0) return text;
-	return text.replace(emojiShortcodePattern, (whole, name: string) => {
+	return text.replace(shortcodePattern(), (whole, name: string) => {
 		const url = urlByName.get(name);
 		return url ? `![${name}](${url})` : whole;
 	});
