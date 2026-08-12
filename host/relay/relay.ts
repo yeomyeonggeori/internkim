@@ -302,11 +302,20 @@ async function provisionMemberCredentials(): Promise<void> {
 	}
 }
 
+function refusalOf(kind: string, response: Response): string {
+	// fetch drops Authorization across origins, so a redirect turns a good key into no key.
+	const moved = response.redirected ? ` after being sent to ${response.url}` : '';
+	if (response.status === 401) return `the central plane got no agent key${moved}`;
+	if (response.status === 403) return `the central plane refused this agent key${moved}`;
+	if (response.status === 404) return `this company has no ${kind} connection${moved}`;
+	return `the central plane answered ${response.status} for the ${kind} connection${moved}`;
+}
+
 async function askForConnection(kind: string): Promise<MattermostSettings> {
 	const response = await fetch(`${appURL}/api/agent/connection?kind=${encodeURIComponent(kind)}`, {
 		headers: { Authorization: `Bearer ${agentKey}` }
 	});
-	if (!response.ok) throw new Error(`the central plane has no ${kind} connection for this company (${response.status})`);
+	if (!response.ok) throw new Error(refusalOf(kind, response));
 	const connection = (await response.json()) as {
 		host: string;
 		settings: { username?: string };
