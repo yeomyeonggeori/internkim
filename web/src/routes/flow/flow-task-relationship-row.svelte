@@ -4,26 +4,17 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { personProfileImagePath } from '$lib/person-profile-image';
-	import BanIcon from '@lucide/svelte/icons/ban';
+	import CircleIcon from '@lucide/svelte/icons/circle';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
-	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
-	import CircleDotIcon from '@lucide/svelte/icons/circle-dot';
-	import CirclePauseIcon from '@lucide/svelte/icons/circle-pause';
-	import CircleQuestionMarkIcon from '@lucide/svelte/icons/circle-question-mark';
-	import CircleXIcon from '@lucide/svelte/icons/circle-x';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import Unlink2Icon from '@lucide/svelte/icons/unlink-2';
 	import { flowDefinitionOutlineBadgeStyle } from './flow-definition-colors';
 	import {
 		isFlowStatusCompleted,
-		isFlowStatusInProgress,
-		isFlowStatusPaused,
-		isFlowStatusPlanned,
 		isFlowStatusRejected,
-		isFlowStatusRequested,
 		isFlowStatusStopped
 	} from './flow-status';
-	import { statusIconClass } from './flow-style';
+	import { relationshipStatusIconClass } from './flow-style';
 	import type { FlowTask } from './flow-types';
 
 	type RelationshipResult = void | boolean;
@@ -57,6 +48,14 @@
 	function stopPropagation(event: Event): void {
 		event.stopPropagation();
 	}
+
+	let statusKind = $derived(
+		isFlowStatusCompleted(task.status)
+			? 'completed'
+			: isFlowStatusRejected(task.status) || isFlowStatusStopped(task.status)
+				? 'excluded'
+				: 'incomplete'
+	);
 </script>
 
 <div
@@ -77,23 +76,15 @@
 		</button>
 	{/if}
 
-	<span class={`pointer-events-none relative z-[1] inline-flex size-5 shrink-0 items-center justify-center ${statusIconClass(task.status)}`} aria-label={task.status}>
+	<span
+		class={`pointer-events-none relative z-[1] inline-flex size-5 shrink-0 items-center justify-center ${relationshipStatusIconClass(task.status)}`}
+		aria-label={task.status}
+		data-relationship-status-kind={statusKind}
+	>
 		{#if isFlowStatusCompleted(task.status)}
 			<CircleCheckIcon class="size-5" />
-		{:else if isFlowStatusInProgress(task.status)}
-			<CircleDashedIcon class="size-5" />
-		{:else if isFlowStatusPlanned(task.status)}
-			<CircleDotIcon class="size-5" />
-		{:else if isFlowStatusRequested(task.status)}
-			<CircleQuestionMarkIcon class="size-5" />
-		{:else if isFlowStatusPaused(task.status)}
-			<CirclePauseIcon class="size-5" />
-		{:else if isFlowStatusRejected(task.status)}
-			<CircleXIcon class="size-5" />
-		{:else if isFlowStatusStopped(task.status)}
-			<BanIcon class="size-5" />
 		{:else}
-			<CircleDotIcon class="size-5" />
+			<CircleIcon class="size-5" />
 		{/if}
 	</span>
 
