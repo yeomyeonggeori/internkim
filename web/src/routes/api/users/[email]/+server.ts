@@ -1,6 +1,5 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { syncFleetAccessPolicies } from '$lib/fleet-access';
 import { isNodeRequest, normalizeFleetID } from '$lib/device-auth';
 import { adminEmails, kv, userEmails } from '$lib/kv';
 import type { Device, UserRecord } from '$lib/types';
@@ -61,10 +60,6 @@ export const DELETE: RequestHandler = async ({ params, request, url, platform })
 
 	const filtered = records.filter((item) => item.email !== email);
 	await kv.putUserRecords(env.KV, fleetID, filtered);
-	const syncedDevice = await syncFleetAccessPolicies(env, fleetID, device, filtered);
-	if (syncedDevice.access_app_id !== device.access_app_id || syncedDevice.access_policy_id !== device.access_policy_id) {
-		await kv.putDevice(env.KV, fleetID, syncedDevice);
-	}
 
 	return json({ users: userEmails(filtered), records: filtered, revision: await usersRevision(filtered) }, { headers: corsHeaders });
 };

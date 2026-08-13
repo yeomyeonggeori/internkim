@@ -174,3 +174,17 @@ The host proves this about itself with one command:
 ```bash
 ss -ltnp | grep -v '127.0.0.1\|::1'    # prints nothing
 ```
+
+Administering the machine is a separate question with a separate answer. On the
+same network, `ssh` reaches it and nothing else is needed. From elsewhere, put
+whatever you already use in your own `~/.ssh/config`:
+
+```
+Host my-company-host
+  ProxyCommand cloudflared access ssh --hostname %h
+```
+
+A Cloudflare Tunnel is one convenient answer, and the one we use while
+developing. Tailscale, a jump host and WireGuard are others. Intern Kim installs
+none of them, asks for none of them, and cannot tell which you chose — the choice
+is yours and it stays outside the product.

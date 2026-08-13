@@ -27,6 +27,11 @@ agent is down or restarting.
 Firecracker, a POSIX helper, a Mattermost of its own, a relay, and a tunnel are
 all absent. The earlier hardware-based version required them.
 
+Nothing here opens a way in, so administering the box is your own arrangement: a
+shell on the same network, or a `ProxyCommand` in your `~/.ssh/config` from
+anywhere else. A Cloudflare Tunnel is a convenient option there and the one we
+develop against, and it is only that.
+
 ## Settings
 
 The process bundle takes five values:
