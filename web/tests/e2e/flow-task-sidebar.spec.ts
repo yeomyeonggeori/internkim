@@ -40,15 +40,27 @@ test.describe('flow task sidebar', () => {
 		await expect(page.getByRole('listbox').getByRole('option')).toHaveText(normalStatusLabels);
 	});
 
+	test('shows distinct participants with the same display name in task detail', async ({ page }) => {
+		await addDuplicateParticipantNames(page);
+		await openFlowBoard(page);
+
+		await taskCard(page, flowDashboardTaskID).click();
+		const participants = page.getByRole('dialog').getByText('김철수', { exact: true });
+		await expect(participants).toHaveCount(2);
+		await expect(participants.nth(0)).toBeVisible();
+		await expect(participants.nth(1)).toBeVisible();
+	});
+
 	test('shows requester as read-only and keeps seven statuses after a status change', async ({ page }) => {
 		await addRequesterProvenance(page);
 		await openFlowBoard(page);
 
 		await taskCard(page, requestedTaskID).click();
 		const sidebar = page.getByRole('dialog');
-		await expect(sidebar.getByText('요청자', { exact: true })).toBeVisible();
+		const requesterLabel = sidebar.getByText('요청자', { exact: true });
+		await expect(requesterLabel).toBeVisible();
 		await expect(sidebar.getByText('이영희', { exact: true })).toBeVisible();
-		await expect(sidebar.getByRole('button', { name: '요청자', exact: true })).toHaveCount(0);
+		await expect(requesterLabel.locator('..').locator('input, select, button, [role="combobox"]')).toHaveCount(0);
 		await sidebar.getByRole('button', { name: '업무 수정', exact: true }).click();
 
 		const statusTrigger = sidebar.getByRole('button', { name: '상태', exact: true });
@@ -100,6 +112,20 @@ test.describe('flow task sidebar', () => {
 		}
 	});
 });
+
+async function addDuplicateParticipantNames(page: Page): Promise<void> {
+	await page.route('**/flow/api/state**', async (route) => {
+		const response = await route.fetch();
+		const state: unknown = await response.json();
+		if (!isUnknownRecord(state)) throw new Error('flow state response was not an object');
+		const tasks = Array.isArray(state.tasks)
+			? state.tasks.map((task) => isUnknownRecord(task) && task.id === flowDashboardTaskID
+				? { ...task, participantNames: ['김철수', '김철수'] }
+				: task)
+			: [];
+		await route.fulfill({ response, json: { ...state, tasks } });
+	});
+}
 
 async function addRequesterProvenance(page: Page): Promise<void> {
 	await page.route('**/flow/api/state**', async (route) => {
