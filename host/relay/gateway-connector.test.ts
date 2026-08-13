@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { parseRoutedCall, serveRoutedCall } from './gateway-connector';
 import type { Dispatch } from './forward';
 
+const ceiling = 3_000_000;
 const call = {
 	kind: 'call' as const,
 	requestID: 'r1',
@@ -21,8 +22,7 @@ function dispatchAnswering(answer: unknown, seen: { capability?: string } = {}):
 		askAdmind: async () => ({ status: 200, body: null }),
 		mailAccountOf: async () => null,
 		emailOfMember: async () => 'someone@example.com',
-		connectMessengerAccount: async () => {},
-		memberOfExternalID: async () => null
+		connectMessengerAccount: async () => {}
 	} as unknown as Dispatch;
 }
 
@@ -42,13 +42,13 @@ describe('parseRoutedCall', () => {
 describe('serveRoutedCall', () => {
 	test('serves the capability as the member the gateway named', async () => {
 		const seen: { capability?: string } = {};
-		const result = await serveRoutedCall(call, dispatchAnswering({ channels: [] }, seen));
+		const result = await serveRoutedCall(call, dispatchAnswering({ channels: [] }, seen), ceiling);
 		expect(result).toEqual({ kind: 'result', requestID: 'r1', status: 200, body: { channels: [] } });
 		expect(seen.capability).toBe('person.messenger.channels');
 	});
 
 	test('needs no credential in the body to know who is asking', async () => {
-		const result = await serveRoutedCall({ ...call, body: {} }, dispatchAnswering({ channels: [] }));
+		const result = await serveRoutedCall({ ...call, body: {} }, dispatchAnswering({ channels: [] }), ceiling);
 		expect(result.status).toBe(200);
 	});
 
@@ -58,7 +58,7 @@ describe('serveRoutedCall', () => {
 			...dispatch,
 			askChatd: () => Promise.reject(new Error('chatd is not running'))
 		} as unknown as Dispatch;
-		expect(await serveRoutedCall(call, throwing)).toEqual({
+		expect(await serveRoutedCall(call, throwing, ceiling)).toEqual({
 			kind: 'result',
 			requestID: 'r1',
 			status: 500,
@@ -66,3 +66,13 @@ describe('serveRoutedCall', () => {
 		});
 	});
 });
+
+describe('an answer too big for the socket', () => {
+	test('comes back as a refusal naming the size, rather than vanishing', async () => {
+		const wide = { rows: 'x'.repeat(2_000) };
+		const result = await serveRoutedCall(call, dispatchAnswering(wide), 500);
+
+		expect(result.status).toBe(413);
+		expect(String((result.body as { error: string }).error)).toContain('500');
+	});
+})

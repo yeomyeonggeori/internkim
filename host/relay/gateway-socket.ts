@@ -26,6 +26,7 @@ export function connectToGateway(settings: {
 	companyID: string;
 	serverKey: string;
 	dispatch: Dispatch;
+	byteCeiling: number;
 	report?: (line: string) => void;
 }): GatewayConnection {
 	const report = settings.report ?? ((line: string) => console.error(line));
@@ -55,7 +56,7 @@ export function connectToGateway(settings: {
 	const answerOne = async (data: unknown) => {
 		const call = parseRoutedCall(readJSON(data));
 		if (!call) return;
-		const answer = await serveRoutedCall(call, settings.dispatch);
+		const answer = await serveRoutedCall(call, settings.dispatch, settings.byteCeiling);
 		send(answer);
 	};
 

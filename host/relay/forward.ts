@@ -1,9 +1,6 @@
-export type ActorCredential = { kind: string; secret: string };
-
 export type Call = {
 	callID?: string;
 	capability?: string;
-	replyTo?: string;
 	body?: Record<string, unknown>;
 };
 
@@ -43,21 +40,6 @@ export async function answerBodyOf(response: Response): Promise<unknown> {
 	}
 }
 
-export function reportableTopic(call: Call): string | null {
-	const offered = call.replyTo;
-	if (typeof offered !== 'string') return null;
-	return /^[0-9a-f-]{36}$/i.test(offered) ? offered : null;
-}
-
-export function actorOf(call: Call): ActorCredential | null {
-	const offered = call.body?.actor;
-	if (typeof offered !== 'object' || offered === null) return null;
-	const { kind, secret } = offered as { kind?: unknown; secret?: unknown };
-	if (typeof kind !== 'string' || typeof secret !== 'string') return null;
-	if (!kind.trim() || !secret.trim()) return null;
-	return { kind, secret };
-}
-
 export async function forwardToChatd(
 	chatdBaseURL: string,
 	platform: string,
@@ -88,48 +70,12 @@ export type Dispatch = {
 	emailOfMember: (memberID: string) => Promise<string | null>;
 	askChatd: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
-	memberOfExternalID: (externalID: string) => Promise<string | null>;
 	mailAccountOf: (memberID: string) => Promise<Record<string, unknown> | null>;
 	connectMessengerAccount: (memberID: string, account: ConnectedAccount) => Promise<void>;
 };
 
 export type ConnectedAccount = { externalID: string; name: string; secret: string };
 
-export async function serveCall(
-	dispatch: Dispatch,
-	call: Call,
-	channelMemberID?: string
-): Promise<Served> {
-	const capability = call.capability ?? '';
-	const body = call.body ?? {};
-
-	if (isRegistrationCapability(capability)) {
-		if (!channelMemberID) {
-			return { status: 403, body: { error: 'this call arrived on nobody\'s channel' }, replyTo: null };
-		}
-		return {
-			...(await serveRegistration(dispatch, capability, body, channelMemberID)),
-			replyTo: channelMemberID
-		};
-	}
-
-	const actor = actorOf(call);
-	if (!actor) {
-		return { status: 400, body: { error: 'this call named no actor' }, replyTo: null };
-	}
-
-	const replyTo = await memberHolding(dispatch, actor);
-	if (!replyTo) {
-		return { status: 403, body: { error: 'that credential belongs to nobody here' }, replyTo: null };
-	}
-
-	return serveForMember(dispatch, capability, body, replyTo);
-}
-
-// The Realtime bridge takes calls on a topic every colleague may write to, so
-// it cannot tell who sent one and makes the caller prove it by attaching a
-// credential. A transport that authenticates the caller itself has already
-// answered that question, and calls this instead.
 export async function serveCallForMember(
 	dispatch: Dispatch,
 	call: Call,
@@ -202,14 +148,6 @@ async function serveMail(
 		return { status: 409, body: { error: 'this member has connected no mail account' } };
 	}
 	return dispatch.askMaild(operation, { ...body, account });
-}
-
-async function memberHolding(dispatch: Dispatch, actor: ActorCredential): Promise<string | null> {
-	const identity = await dispatch.askChatd('person.identity', { actor });
-	if (identity.status >= 300) return null;
-	const externalID = (identity.body as { externalID?: string } | null)?.externalID;
-	if (!externalID) return null;
-	return dispatch.memberOfExternalID(externalID);
 }
 
 async function serveWorkspace(
