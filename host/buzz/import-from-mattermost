@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# The seed is read from a file rather than taken as an argument on purpose: a
+# second import under a different seed derives different channel ids and lands
+# a complete duplicate set of channels beside the originals, which is what
+# happened to this company's first import.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repository="$here/../.."
+state="${BUZZ_STATE_DIRECTORY:-$repository/.local/buzz}"
+
+seedPath="$state/key-seed"
+credentialPath="$state/mattermost.env"
+importer="$state/buzz-migrate"
+
+for required in "$seedPath" "$credentialPath"; do
+	if [[ ! -f $required ]]; then
+		echo "missing $required — see host/buzz/README.md" >&2
+		exit 1
+	fi
+done
+
+if [[ ! -x $importer ]]; then
+	echo "building the importer" >&2
+	(cd "$repository" && go build -o "$importer" ./cmd/buzz-migrate)
+fi
+
+set -a
+# shellcheck disable=SC1090
+. "$credentialPath"
+set +a
+
+for name in MATTERMOST_URL MATTERMOST_TOKEN MATTERMOST_TEAM; do
+	if [[ -z ${!name:-} ]]; then
+		echo "$credentialPath sets no $name" >&2
+		exit 1
+	fi
+done
+
+"$importer" \
+	-mattermost-url "$MATTERMOST_URL" \
+	-mattermost-token "$MATTERMOST_TOKEN" \
+	-team "$MATTERMOST_TEAM" \
+	-key-seed "$(cat "$seedPath")" \
+	-buzz-database-url "${BUZZ_DATABASE_URL:-postgres://buzz:buzz_dev@127.0.0.1:5432/buzz?sslmode=disable}" \
+	-buzz-admin "$here/buzz-admin" \
+	-relay-url "${BUZZ_RELAY_WS_URL:-ws://127.0.0.1:3000}" \
+	-relay-http-url "${BUZZ_RELAY_HTTP_URL:-http://127.0.0.1:3000}" \
+	-community-host "${BUZZ_COMMUNITY_HOST:-localhost:3000}" \
+	"$@"
