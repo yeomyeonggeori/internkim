@@ -19,7 +19,7 @@ export type FlowTaskRelationships = {
 export function buildFlowTaskRelationships(task: FlowTask, tasks: FlowTask[]): FlowTaskRelationships {
 	return {
 		parent: tasks.find((candidate) => candidate.id === task.parentTaskID),
-		children: directFlowTaskChildren(task.id, tasks)
+		children: directFlowTaskChildren(task.id, tasks).filter(isProgressEligibleChild)
 	};
 }
 
@@ -28,9 +28,7 @@ export function directFlowTaskChildren(parentTaskID: string, tasks: FlowTask[]):
 }
 
 export function buildFlowTaskChildProgress(parentTaskID: string, tasks: FlowTask[]): FlowTaskChildProgress | undefined {
-	const activeChildren = directFlowTaskChildren(parentTaskID, tasks).filter((task) =>
-		!isFlowStatusRejected(task.status) && !isFlowStatusStopped(task.status)
-	);
+	const activeChildren = directFlowTaskChildren(parentTaskID, tasks).filter(isProgressEligibleChild);
 	if (activeChildren.length === 0) return undefined;
 	const completed = activeChildren.filter((task) => isFlowStatusCompleted(task.status)).length;
 	return {
@@ -38,6 +36,10 @@ export function buildFlowTaskChildProgress(parentTaskID: string, tasks: FlowTask
 		total: activeChildren.length,
 		percent: Math.round((completed / activeChildren.length) * 100)
 	};
+}
+
+function isProgressEligibleChild(task: FlowTask): boolean {
+	return !isFlowStatusRejected(task.status) && !isFlowStatusStopped(task.status);
 }
 
 export function buildFlowTaskChildProgressByParent(tasks: FlowTask[]): Map<string, FlowTaskChildProgress> {

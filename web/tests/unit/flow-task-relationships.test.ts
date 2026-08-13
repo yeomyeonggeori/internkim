@@ -39,6 +39,17 @@ describe('flow task relationships', () => {
 		expect(progress).toEqual({ completed: 2, total: 6, percent: 33 });
 	});
 
+	test('shows only children that contribute to progress', () => {
+		const relationships = buildFlowTaskRelationships(flowTask({ id: 'parent' }), [
+			flowTask({ id: 'done', parentTaskID: 'parent', status: '완료' }),
+			flowTask({ id: 'progress', parentTaskID: 'parent', status: '진행' }),
+			flowTask({ id: 'rejected', parentTaskID: 'parent', status: '기각' }),
+			flowTask({ id: 'stopped', parentTaskID: 'parent', status: '중단' })
+		]);
+
+		expect(relationships.children.map((task) => task.id)).toEqual(['done', 'progress']);
+	});
+
 	test('hides progress when no active child remains', () => {
 		expect(buildFlowTaskChildProgress('parent', [
 			flowTask({ id: 'rejected', parentTaskID: 'parent', status: '기각' }),

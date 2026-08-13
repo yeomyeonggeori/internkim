@@ -22,7 +22,6 @@ export function statusIconClass(status: string): string {
 
 export function relationshipStatusIconClass(status: string): string {
 	if (isFlowStatusCompleted(status)) return 'text-[#16a34a]';
-	if (isFlowStatusRejected(status) || isFlowStatusStopped(status)) return 'text-muted-foreground/60';
 	return 'text-[#7c3aed]';
 }
 
