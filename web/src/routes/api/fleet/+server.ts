@@ -55,7 +55,6 @@ function fleetMemberResponse(member: FleetMember) {
 	return {
 		node_id: member.nodeID,
 		status: member.status,
-		ssh_hostname: member.sshHostname ?? '',
 		joined_at: member.joinedAt,
 		activated_at: member.activatedAt ?? ''
 	};

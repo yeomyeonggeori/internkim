@@ -51,22 +51,21 @@ cannot reach, and it never leaves a server route.
 ### The device path
 
 Before the central plane there was one appliance per company: a Jetson Orin Nano
-Super behind a Cloudflare Tunnel, with Firecracker, Mattermost and an OTA update
-engine on board. That path still ships and still works. Sections below marked
-**device** describe it.
+Super with Firecracker, Mattermost and an update engine on board. That path still
+ships and still works. Sections below marked **device** describe it.
 
 ```
-browser ── Cloudflare Access ── Cloudflare Tunnel ── Jetson Orin Nano Super
-                                                      ├── Mattermost :8065
-                                                      ├── internkim-admind
-                                                      ├── internkim-capabilityd
-                                                      ├── graphiti-memoryd :7791
-                                                      ├── Firecracker blueclaw guest
-                                                      └── /root/.internkim
-                                                            ├── secrets/
-                                                            ├── config/
-                                                            ├── state/
-                                                            └── models/
+operator on the same network ── Jetson Orin Nano Super
+                                 ├── Mattermost :8065
+                                 ├── internkim-admind (127.0.0.1:18080)
+                                 ├── internkim-capabilityd
+                                 ├── graphiti-memoryd :7791
+                                 ├── Firecracker blueclaw guest
+                                 └── /root/.internkim
+                                       ├── secrets/
+                                       ├── config/
+                                       ├── state/
+                                       └── models/
 
 the user's own computer
   └── internkim-companion
@@ -77,6 +76,25 @@ the user's own computer
 
 Slack and Signal are optional channels on the same boundary. Both connectors
 exist; capabilityd starts them when their credentials are present.
+
+### Reaching a device from somewhere else
+
+The product does not open a way in. `admind` listens on loopback, the agent's
+connections are outbound, and nothing here creates a tunnel, a DNS record or an
+access policy.
+
+An operator on the same network needs nothing. From elsewhere, put whatever you
+use in your own `~/.ssh/config` and every command follows it:
+
+```
+Host device-*
+  ProxyCommand cloudflared access ssh --hostname %h
+```
+
+A Cloudflare Tunnel is one answer and a convenient one during development.
+Tailscale, a jump host and WireGuard are others, and this repository cannot tell
+which you picked. `--remote-ssh` skips the local-network probe when you know the
+device is not on it.
 
 ## Security
 
@@ -322,10 +340,9 @@ INTERNKIM_BLUECLAW_USE_LOCAL=1 ./internkim setup --only binaries,blueclaw-payloa
 ```
 
 The steps a full setup runs: connect over SSH; build and deploy the web app;
-prepare Jetson packages and runtime; install blueclaw and cloudflared and create
-system users; write the OpenRouter key; prepare the local model runtime;
-register the device and start its tunnel; install only the Google Workspace
-credentials the user supplied; configure Mattermost, which can be skipped;
+prepare Jetson packages and runtime; install blueclaw and create system users;
+write the OpenRouter key; prepare the local model runtime; register the device;
+install only the Google Workspace credentials the user supplied; configure Mattermost, which can be skipped;
 configure user sync and the optional Slack and Signal channels; start
 `blueclaw.service` and run the final health check.
 
@@ -591,22 +608,17 @@ companion's, are found through `GET /api/v1/tools`.
 
 | Method | Path | Does |
 |---|---|---|
-| POST | `/api/register` | registers a device and creates its tunnel and Access app and policy |
-| GET/POST | `/api/users` | lists and adds allowed users, syncing the Access policy |
-| DELETE | `/api/users/{email}` | removes an allowed user, syncing the Access policy |
+| POST | `/api/register` | records a device and its place in a fleet |
+| GET/POST | `/api/users` | lists and adds allowed users |
+| DELETE | `/api/users/{email}` | removes an allowed user |
 | GET/POST | `/api/ota/*` | OTA checks and reports for blueclaw and the CLI |
 
-The device web app itself is not behind that Access application. A browser
-request proves identity through a Mattermost session, an Intern Kim web session
-or a Cloudflare Access email, and is then checked again against current policy
-for active staff. Admin APIs keep their own boundary on top of that. Internal
-calls between admind, capabilityd, Mattermost and blueclaw go over loopback and
-stay exempt.
-
-Cloudflare Access email OTP needs One-time PIN enabled under Zero Trust →
-Integrations → Identity providers, and a `CF_API_TOKEN` that can configure it
-needs `Access: Organizations, Identity Providers, and Groups Write` on top of
-the Applications and Policies permissions.
+A browser request to a device proves identity through a Mattermost session or an
+Intern Kim web session, and is then checked again against current policy for
+active staff. A Cloudflare Access email is accepted where somebody has put one
+in front, which the product no longer sets up. Admin APIs keep their own
+boundary on top of that, and internal calls between admind, capabilityd,
+Mattermost and blueclaw go over loopback and stay exempt.
 
 ## Repository layout
 
