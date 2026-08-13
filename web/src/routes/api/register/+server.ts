@@ -1,27 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { kv } from '$lib/kv';
-import {
-	createNodeSSHTunnel,
-	createTunnel,
-	configureNodeSSHTunnel,
-	configureTunnel,
-	createDNSRecord,
-	ensureFleetDNSRecord,
-	ensureNodeSSHDNSRecord,
-	ensureWildcardDNSRecord,
-	ensureOneTimePinIdentityProvider,
-	ensureCompanionBypassApplication,
-	ensureMaintenanceBypassApplication,
-	ensureReleaseUpdateBypassApplication,
-	ensureReleaseUploadBypassApplication,
-	ensureFleetCertificateCoverage,
-	ensureNodeSSHAccessApplication,
-	deleteDNSRecord,
-	deleteTunnel,
-	nodeSSHHostname
-} from '$lib/cloudflare';
-import { cloudflareEnvironment, ensureFleetAccessApplications, fleetAdminAccessEmails } from '$lib/fleet-access';
 import type { Device, FleetMember } from '$lib/types';
 import { hashFleetSecret, normalizeFleetID } from '$lib/device-auth';
 import {
@@ -105,72 +84,43 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	if (requestedNodeID && !isValidDNSLabel(requestedNodeID)) throw error(400, 'node_id must be a valid DNS label');
 	if (!nodeKey) throw error(400, 'node_key required');
 
-	const cfEnv = cloudflareEnvironment(env);
 	const existing = await kv.getDevice(env.KV, fleetID);
 	const registerSecret = env.INTERNKIM_REGISTER_SECRET.trim();
 	const hasRegisterSecret = registerSecret !== '' && auth === `Bearer ${registerSecret}`;
 	if (!existing && !hasRegisterSecret) {
 		throw error(401, 'Invalid registration secret');
 	}
-	const identityProviderId = await ensureOneTimePinIdentityProvider(cfEnv);
 	if (existing) {
 		const ownedDevice = await ensureSameFleet(existing, fleetSecret);
 		validateExistingFleetRegistrationAuthority(hasRegisterSecret, ownedDevice, newFleetID, adminEmail);
 		if (newFleetID && newFleetID !== fleetID) {
-			return migrateRegisteredFleet(env, cfEnv, ownedDevice, fleetID, newFleetID, requestedNodeID, nodeKey, adminEmail, identityProviderId);
+			return migrateRegisteredFleet(env, ownedDevice, fleetID, newFleetID, requestedNodeID, nodeKey, adminEmail);
 		}
-		const records = await kv.getUserRecords(env.KV, fleetID);
 		const resolvedAdminEmail = existingFleetAdminEmail(hasRegisterSecret, ownedDevice, adminEmail);
 		const nodeID = resolveFleetNodeID(ownedDevice.fleet, requestedNodeID, nodeKey);
-		const accessAdminEmails = accessAdminEmailsForRegistration(records, resolvedAdminEmail);
-		const certificateCoverage = await ensureFleetCertificateCoverage(cfEnv, fleetID, nodeID);
-		const memberSSH = await ensureFleetMemberSSH(cfEnv, ownedDevice.fleet, fleetID, nodeID, identityProviderId, accessAdminEmails);
-		const fleet = registerFleetNode(ownedDevice.fleet, fleetID, nodeID, nodeKey, new Date(), memberSSH);
-		const deviceWithFleet = { ...ownedDevice, admin_email: resolvedAdminEmail, fleet };
-		await configureTunnel(cfEnv, ownedDevice.tunnel_id, fleetID);
-		await ensureWildcardDNSRecord(cfEnv, ownedDevice.tunnel_id, fleetID);
-		await ensurePublicBypassApplications(cfEnv, fleetID);
-		const device = await ensureFleetAccessApplications(cfEnv, fleetID, identityProviderId, deviceWithFleet, records, resolvedAdminEmail);
+		const fleet = registerFleetNode(ownedDevice.fleet, fleetID, nodeID, nodeKey, new Date());
+		const device = { ...ownedDevice, admin_email: resolvedAdminEmail, fleet };
 		await kv.putDevice(env.KV, fleetID, device);
 		return json({
 			fleet_id: fleetID,
 			node_id: nodeID,
-			tunnel_token: device.tunnel_token,
-			node_tunnel_token: memberSSH.nodeTunnelToken,
-			url: `https://${fleetID}.${env.CF_DOMAIN}`,
-			mattermost_url: `https://${fleetID}.${env.CF_DOMAIN}`,
-			ssh_hostname: memberSSH.sshHostname,
-			tls_certificate_status: certificateCoverage.status,
 			...fleetResponseFields(device.fleet, nodeID)
 		});
 	}
 
 	const fleetSecretHash = await hashFleetSecret(fleetSecret);
-	const accessAdminEmails = accessAdminEmailsForRegistration([], adminEmail);
-	const { tunnelId, tunnelToken } = await createTunnel(cfEnv, fleetID);
-	await configureTunnel(cfEnv, tunnelId, fleetID);
-	const dnsRecordId = await createDNSRecord(cfEnv, tunnelId, fleetID);
-	await ensureWildcardDNSRecord(cfEnv, tunnelId, fleetID);
-	await ensurePublicBypassApplications(cfEnv, fleetID);
 	const nodeID = resolveFleetNodeID(undefined, requestedNodeID, nodeKey);
-	const certificateCoverage = await ensureFleetCertificateCoverage(cfEnv, fleetID, nodeID);
-	const memberSSH = await ensureFleetMemberSSH(cfEnv, undefined, fleetID, nodeID, identityProviderId, accessAdminEmails);
-
-	const deviceWithoutAccess: Device = {
+	const device: Device = {
 		fleet_id: fleetID,
 		fleet_secret_hash: fleetSecretHash,
-		tunnel_id: tunnelId,
-		tunnel_token: tunnelToken,
-		dns_record_id: dnsRecordId,
 		admin_email: adminEmail,
 		created_at: new Date().toISOString(),
 		versions: {
 			blueclaw: '',
 			cli: ''
 		},
-		fleet: registerFleetNode(undefined, fleetID, nodeID, nodeKey, new Date(), memberSSH)
+		fleet: registerFleetNode(undefined, fleetID, nodeID, nodeKey, new Date())
 	};
-	const device = await ensureFleetAccessApplications(cfEnv, fleetID, identityProviderId, deviceWithoutAccess, [], adminEmail);
 
 	await kv.putDevice(env.KV, fleetID, device);
 	await kv.putUserRecords(env.KV, fleetID, []);
@@ -178,12 +128,6 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	return json({
 		fleet_id: fleetID,
 		node_id: nodeID,
-		tunnel_token: tunnelToken,
-		node_tunnel_token: memberSSH.nodeTunnelToken,
-		url: `https://${fleetID}.${env.CF_DOMAIN}`,
-		mattermost_url: `https://${fleetID}.${env.CF_DOMAIN}`,
-		ssh_hostname: memberSSH.sshHostname,
-		tls_certificate_status: certificateCoverage.status,
 		...fleetResponseFields(device.fleet, nodeID)
 	});
 }
@@ -227,47 +171,20 @@ async function handleRegistrationDelete(request: Request, platform: App.Platform
 	}
 	await ensureSameFleet(device, fleetSecret);
 
-	const cfEnv = cloudflareEnvironment(env);
-	const deletedResources: string[] = [];
-	if (device.dns_record_id) {
-		await deleteDNSRecord(cfEnv, device.dns_record_id);
-		deletedResources.push('dns_record');
-	}
-	if (device.ssh_dns_record_id) {
-		await deleteDNSRecord(cfEnv, device.ssh_dns_record_id);
-		deletedResources.push('ssh_dns_record');
-	}
-	for (const member of device.fleet?.members ?? []) {
-		if (member.sshDNSRecordID && member.sshDNSRecordID !== device.ssh_dns_record_id) {
-			await deleteDNSRecord(cfEnv, member.sshDNSRecordID);
-			deletedResources.push(`node_ssh_dns_record:${member.nodeID}`);
-		}
-		if (member.nodeTunnelID && member.nodeTunnelID !== device.tunnel_id) {
-			await deleteTunnel(cfEnv, member.nodeTunnelID);
-			deletedResources.push(`node_tunnel:${member.nodeID}`);
-		}
-	}
-	if (device.tunnel_id) {
-		await deleteTunnel(cfEnv, device.tunnel_id);
-		deletedResources.push('tunnel');
-	}
-
 	await kv.deleteDevice(env.KV, fleetID);
 	await kv.deleteUserRecords(env.KV, fleetID);
 
-	return json({ deleted: true, fleet_id: fleetID, resources: deletedResources });
+	return json({ deleted: true, fleet_id: fleetID });
 }
 
 async function migrateRegisteredFleet(
 	env: App.Platform['env'],
-	cfEnv: Parameters<typeof createDNSRecord>[0],
 	ownedDevice: Device,
 	oldFleetID: string,
 	newFleetID: string,
 	requestedNodeID: string,
 	nodeKey: string,
-	adminEmail: string,
-	identityProviderId: string
+	adminEmail: string
 ) {
 	if (await kv.getDevice(env.KV, newFleetID)) {
 		throw error(409, 'New fleet ID already registered');
@@ -277,39 +194,21 @@ async function migrateRegisteredFleet(
 	const resolvedAdminEmail = adminEmail || ownedDevice.admin_email || '';
 	const nodeID = resolveFleetNodeID(ownedDevice.fleet, requestedNodeID, nodeKey);
 	const fleet = registerFleetNode(renameFleet(ownedDevice.fleet, newFleetID), newFleetID, nodeID, nodeKey, new Date());
-	const accessAdminEmails = accessAdminEmailsForRegistration(records, resolvedAdminEmail);
-	const certificateCoverage = await ensureFleetCertificateCoverage(cfEnv, newFleetID, nodeID);
-	const memberSSH = await ensureFleetMemberSSH(cfEnv, fleet, newFleetID, nodeID, identityProviderId, accessAdminEmails, [oldFleetID]);
-	const migratedFleet = registerFleetNode(fleet, newFleetID, nodeID, nodeKey, new Date(), memberSSH);
-	const deviceWithoutAccess: Device = {
+	const device: Device = {
 		...ownedDevice,
 		fleet_id: newFleetID,
-		access_app_id: undefined,
-		access_policy_id: undefined,
 		admin_email: resolvedAdminEmail,
-		fleet: migratedFleet
+		fleet
 	};
-
-	await configureTunnel(cfEnv, ownedDevice.tunnel_id, newFleetID, [oldFleetID]);
-	await ensureFleetDNSRecord(cfEnv, ownedDevice.tunnel_id, newFleetID);
-	await ensureWildcardDNSRecord(cfEnv, ownedDevice.tunnel_id, newFleetID);
-	await ensurePublicBypassApplications(cfEnv, newFleetID);
-	const device = await ensureFleetAccessApplications(cfEnv, newFleetID, identityProviderId, deviceWithoutAccess, records, resolvedAdminEmail);
 
 	await kv.putDevice(env.KV, newFleetID, device);
 	await kv.putUserRecords(env.KV, newFleetID, records);
+	await kv.deleteDevice(env.KV, oldFleetID);
+	await kv.deleteUserRecords(env.KV, oldFleetID);
 
 	return json({
 		fleet_id: newFleetID,
-		old_fleet_id: oldFleetID,
 		node_id: nodeID,
-		tunnel_token: device.tunnel_token,
-		node_tunnel_token: memberSSH.nodeTunnelToken,
-		url: `https://${newFleetID}.${env.CF_DOMAIN}`,
-		mattermost_url: `https://${newFleetID}.${env.CF_DOMAIN}`,
-		alias_url: `https://${oldFleetID}.${env.CF_DOMAIN}`,
-		ssh_hostname: memberSSH.sshHostname,
-		tls_certificate_status: certificateCoverage.status,
 		...fleetResponseFields(device.fleet, nodeID)
 	});
 }
@@ -336,43 +235,5 @@ function fleetResponseFields(fleet: Device['fleet'], nodeID: string) {
 		fleet_active_count: activeFleetMembers(fleet).length,
 		fleet_pending_count: pendingFleetMembers(fleet).length,
 		fleet_quorum_size: fleetQuorumSize(fleet)
-	};
-}
-
-function accessAdminEmailsForRegistration(records: Parameters<typeof fleetAdminAccessEmails>[0], fallbackAdminEmail: string) {
-	const emails = fleetAdminAccessEmails(records, fallbackAdminEmail);
-	if (emails.length > 0) return emails;
-	throw error(400, 'admin_email is required for SSH and admin access');
-}
-
-async function ensurePublicBypassApplications(cfEnv: Parameters<typeof ensureCompanionBypassApplication>[0], fleetID: string) {
-	await ensureCompanionBypassApplication(cfEnv, fleetID);
-	await ensureMaintenanceBypassApplication(cfEnv, fleetID);
-	await ensureReleaseUpdateBypassApplication(cfEnv, fleetID);
-	await ensureReleaseUploadBypassApplication(cfEnv, fleetID);
-}
-
-async function ensureFleetMemberSSH(
-	cfEnv: Parameters<typeof createDNSRecord>[0],
-	fleet: Device['fleet'],
-	fleetID: string,
-	nodeID: string,
-	identityProviderId: string,
-	emails: string[] | string,
-	aliasFleetIDs: string[] = []
-): Promise<Pick<FleetMember, 'nodeTunnelID' | 'nodeTunnelToken' | 'sshDNSRecordID' | 'sshAccessAppID' | 'sshHostname'>> {
-	const existingMember = findFleetMember(fleet, nodeID);
-	const nodeTunnel = existingMember?.nodeTunnelID && existingMember.nodeTunnelToken
-		? { tunnelId: existingMember.nodeTunnelID, tunnelToken: existingMember.nodeTunnelToken }
-		: await createNodeSSHTunnel(cfEnv, fleetID, nodeID);
-	await configureNodeSSHTunnel(cfEnv, nodeTunnel.tunnelId, fleetID, nodeID, aliasFleetIDs);
-	const sshDNSRecordID = await ensureNodeSSHDNSRecord(cfEnv, nodeTunnel.tunnelId, fleetID, nodeID);
-	const sshAccessAppID = await ensureNodeSSHAccessApplication(cfEnv, fleetID, nodeID, identityProviderId, emails);
-	return {
-		nodeTunnelID: nodeTunnel.tunnelId,
-		nodeTunnelToken: nodeTunnel.tunnelToken,
-		sshDNSRecordID,
-		sshAccessAppID,
-		sshHostname: nodeSSHHostname(cfEnv, fleetID, nodeID)
 	};
 }

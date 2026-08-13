@@ -2353,13 +2353,11 @@ func (state *setupFlowState) ensureFleetRegistration(force bool) error {
 	state.nodeTunnelToken = loadState(state.stateDir, "node_tunnel_token")
 	state.tlsCertificateStatus = loadState(state.stateDir, "tls_certificate_status")
 	state.deviceURL = loadState(state.stateDir, "device_url")
-	tunnelOrigin := loadState(state.stateDir, "tunnel_origin")
-	tunnelRevision := loadState(state.stateDir, "tunnel_revision")
 
 	fmt.Printf("  %s: %s\n", state.messenger.t("플릿 ID", "Fleet ID"), state.fleetID)
 	fmt.Printf("  %s: %s\n", state.messenger.t("노드 ID", "Node ID"), firstNonEmptyString(state.nodeID, "auto"))
 
-	if force || state.tunnelToken == "" || state.nodeTunnelToken == "" || tunnelOrigin != setup.MattermostTunnelOrigin || tunnelRevision != setup.TunnelConfigurationRevision {
+	if force || state.fleetID == "" || state.deviceURL == "" {
 		registrationResponse, err := registerFleetNodeWithCollisionRetry(
 			state.configuration,
 			state.stateDir,
