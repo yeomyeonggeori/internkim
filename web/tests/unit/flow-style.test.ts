@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { statusIconClass } from '../../src/routes/flow/flow-style';
+import {
+	relationshipStatusIconClass,
+	statusIconClass
+} from '../../src/routes/flow/flow-style';
 
 describe('flow status icon styles', () => {
 	const cases: Array<[string, string]> = [
@@ -20,5 +23,23 @@ describe('flow status icon styles', () => {
 
 	test('uses the muted icon color for an unknown status', () => {
 		expect(statusIconClass('알 수 없음')).toBe('text-muted-foreground');
+	});
+});
+
+describe('flow relationship status icon styles', () => {
+	test('uses completed styling only for completed work', () => {
+		expect(relationshipStatusIconClass('완료')).toBe('text-[#16a34a]');
+	});
+
+	test('uses one incomplete style for active statuses', () => {
+		for (const status of ['요청', '예정', '진행', '일시정지']) {
+			expect(relationshipStatusIconClass(status)).toBe('text-[#7c3aed]');
+		}
+	});
+
+	test('mutes statuses excluded from progress', () => {
+		for (const status of ['기각', '중단']) {
+			expect(relationshipStatusIconClass(status)).toBe('text-muted-foreground/60');
+		}
 	});
 });

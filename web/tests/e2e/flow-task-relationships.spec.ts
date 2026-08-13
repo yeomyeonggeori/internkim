@@ -29,6 +29,9 @@ test.describe('flow task relationships', () => {
 			'button'
 		);
 		await expect(relationships.locator('[data-flow-relationship-task]')).toHaveCount(8);
+		await expect(relationships.locator('[data-relationship-status-kind="completed"]')).toHaveCount(2);
+		await expect(relationships.locator('[data-relationship-status-kind="incomplete"]')).toHaveCount(4);
+		await expect(relationships.locator('[data-relationship-status-kind="excluded"]')).toHaveCount(2);
 		await expect(relationships.locator('[data-flow-relationship-list]')).toHaveClass(/divide-y/);
 		const firstChild = relationships.locator('[data-flow-relationship-task]').first();
 		await expect(firstChild.locator('[data-slot="avatar"]')).toBeVisible();
