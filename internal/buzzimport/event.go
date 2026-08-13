@@ -80,10 +80,8 @@ func streamEventTags(message ImportedMessage) nostr.Tags {
 		parentEventID = rootEventID
 	}
 	if rootEventID != "" {
-		if parentEventID == rootEventID {
-			tags = append(tags, nostr.Tag{"e", rootEventID, "", "reply"})
-		} else {
-			tags = append(tags, nostr.Tag{"e", rootEventID, "", "root"})
+		tags = append(tags, nostr.Tag{"e", rootEventID, "", "root"})
+		if parentEventID != rootEventID {
 			tags = append(tags, nostr.Tag{"e", parentEventID, "", "reply"})
 		}
 	}
