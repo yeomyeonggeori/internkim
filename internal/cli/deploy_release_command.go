@@ -356,9 +356,11 @@ func writeDirectReleaseBundleFile(writer *tar.Writer, name string, path string) 
 }
 
 func waitForReleaseUpdateJob(target commandTarget, job blueclawUpdateJobResponse, expectedReleaseID string) (blueclawUpdateJobResponse, error) {
+	lastObservedJob := job
 	for attempt := 0; attempt < 240; attempt++ {
 		currentJob, errorValue := fetchDeviceReleaseUpdateJob(target, job.JobID)
 		if errorValue == nil {
+			lastObservedJob = currentJob
 			fmt.Printf("Status: %s/%s\n", currentJob.Status, currentJob.Phase)
 			switch currentJob.Status {
 			case "completed", "already_current":
@@ -378,7 +380,23 @@ func waitForReleaseUpdateJob(target commandTarget, job blueclawUpdateJobResponse
 	if releaseUpdateReachedTarget(target, expectedReleaseID) {
 		return blueclawUpdateJobResponse{Status: "completed", Phase: "verified"}, nil
 	}
-	return job, errors.New("release deploy did not finish before timeout")
+	return lastObservedJob, releaseUpdateTimeoutError(target, lastObservedJob)
+}
+
+func releaseUpdateTimeoutError(target commandTarget, lastObservedJob blueclawUpdateJobResponse) error {
+	lastPhase := strings.TrimSpace(lastObservedJob.Phase)
+	if lastPhase == "" {
+		lastPhase = "unreported"
+	}
+	servingReleaseID := "an unreadable release"
+	if status, errorValue := fetchDeviceReleaseUpdateStatusForTarget(target); errorValue == nil {
+		servingReleaseID = releaseUpdateID(status.Current)
+	}
+	return fmt.Errorf(
+		"release deploy did not finish before timeout at phase %q; the device is still serving %s",
+		lastPhase,
+		servingReleaseID,
+	)
 }
 
 func releaseUpdateReachedTarget(target commandTarget, expectedReleaseID string) bool {

@@ -151,3 +151,24 @@ func TestValidateDeployArgumentsRejectsUnknownFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestAppliedReleaseIDReadsWhatTheDeviceRecorded(t *testing.T) {
+	testCases := []struct {
+		name     string
+		document string
+		expected string
+	}{
+		{"a recorded release", `{"releaseID":"20260813T095456Z-260a31b48b0c"}`, "20260813T095456Z-260a31b48b0c"},
+		{"no file", "", "none recorded"},
+		{"an empty identifier", `{"releaseID":""}`, "none recorded"},
+		{"a truncated write", `{"releaseID":`, "unreadable"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			actual := appliedReleaseID(func(string) string { return testCase.document })
+			if actual != testCase.expected {
+				t.Fatalf("expected %q, got %q", testCase.expected, actual)
+			}
+		})
+	}
+}
