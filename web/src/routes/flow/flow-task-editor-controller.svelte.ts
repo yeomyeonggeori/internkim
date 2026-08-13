@@ -82,6 +82,7 @@ export class FlowTaskEditorController {
 			const isRequest = status === '요청';
 			this.taskDraft.requesterID = isRequest ? owner.id : '';
 			this.taskDraft.requesterName = isRequest ? owner.name : '';
+			this.taskDraft.wasRequested = isRequest;
 			if (isRequest) {
 				const targetIDs = targetParticipantIDs.length > 0 ? targetParticipantIDs : [owner.id];
 				this.taskDraft = updateFlowTaskParticipantIDs(this.taskDraft, this.members(), targetIDs, this.summary.source);

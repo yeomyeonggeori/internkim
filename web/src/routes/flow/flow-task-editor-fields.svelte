@@ -2,6 +2,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import { isFlowStatusRejected, isFlowStatusRequested, isFlowStatusStopped } from './flow-status';
+	import { hasFlowTaskRequestProvenance } from './flow-task-options';
 	import { flowBusinessLabel, flowBusinessOptionValue, flowBusinessValueFromOption } from './flow-task-workspace-model';
 	import type { FlowTaskEditorOption, FlowTaskEditorText } from './flow-task-editor-types';
 	import type { FlowTask } from './flow-types';
@@ -43,10 +44,10 @@
 	{text.goal}
 	<Input bind:value={taskDraft.goal} placeholder={text.goalPlaceholder} disabled={!canEditTask} />
 </label>
-{#if taskDraft.requesterID}
+{#if hasFlowTaskRequestProvenance(taskDraft)}
 	<div class="grid gap-1 text-xs font-medium text-muted-foreground">
 		<span>{text.requester}</span>
-		<span class="text-sm font-normal text-foreground">{taskDraft.requesterName || taskDraft.requesterID}</span>
+		<span class="text-sm font-normal text-foreground">{taskDraft.requesterName || taskDraft.requesterID || text.requesterUnavailable}</span>
 	</div>
 {/if}
 <div class="grid gap-3 md:grid-cols-2">
