@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import { personProfileImagePath } from '$lib/person-profile-image';
 	import BanIcon from '@lucide/svelte/icons/ban';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
@@ -95,16 +97,25 @@
 		{/if}
 	</span>
 
-	<div class="pointer-events-none relative z-[1] min-w-0 flex-1">
-		<div class="truncate text-sm font-medium text-foreground">{task.content}</div>
-		<div class="mt-1 flex min-w-0 items-center gap-2">
+	<div class="pointer-events-none relative z-[1] min-w-0 flex-1 space-y-1.5">
+		<div class="flex min-w-0 items-center gap-2">
 			<Badge
 				variant="outline"
-				class="h-5 max-w-28 rounded-md px-1.5 py-0 text-[11px] font-medium shadow-none"
+				class="h-5 max-w-24 shrink-0 rounded-md px-1.5 py-0 text-[11px] font-medium shadow-none"
 				style={flowDefinitionOutlineBadgeStyle(taskTypeColor(task.type))}
 			>
 				<span class="truncate">{task.type}</span>
 			</Badge>
+			<div class="truncate text-sm font-medium text-foreground">{task.content}</div>
+		</div>
+		<div class="flex min-w-0 items-center gap-1.5">
+			<PersonAvatar
+				name={task.ownerName}
+				seed={task.ownerID || task.ownerName}
+				memberID={task.ownerID}
+				image={personProfileImagePath(task.ownerID)}
+				class="size-4 ring-1 ring-border/60"
+			/>
 			<span class="truncate text-xs text-muted-foreground">{task.ownerName}</span>
 		</div>
 	</div>
