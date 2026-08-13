@@ -1681,6 +1681,7 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 		fmt.Println("failed")
 		return fmt.Errorf("stop blueclaw before payload sync: %s: %w", strings.TrimSpace(output), errorValue)
 	}
+	defer state.startBlueclawAfterPayloadSync()
 	state.sshClient.run("rm -rf " + temporaryPayloadPath + " && mkdir -p " + temporaryPayloadPath + " " + blueclaw.BlueclawRuntimeInstallPath)
 	if errorValue := state.sshClient.scpDir(blueclaw.PayloadWorkspacePath(artifactDirectoryPath), temporaryPayloadPath+"/workspace"); errorValue != nil {
 		fmt.Println("failed")
@@ -1711,14 +1712,16 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 		fmt.Println("failed")
 		return fmt.Errorf("install blueclaw payload manifest: %s: %w", strings.TrimSpace(output), errorValue)
 	}
-	output, errorValue = state.sshClient.runResult(blueclawStartAfterPayloadSyncCommand())
-	if errorValue != nil {
-		fmt.Println("failed")
-		return fmt.Errorf("start blueclaw after payload sync: %s: %w", strings.TrimSpace(output), errorValue)
-	}
-
 	fmt.Println("installed")
 	return nil
+}
+
+func (state *setupFlowState) startBlueclawAfterPayloadSync() {
+	output, errorValue := state.sshClient.runResult(blueclawStartAfterPayloadSyncCommand())
+	if errorValue == nil {
+		return
+	}
+	fmt.Printf("\n  WARNING: blueclaw is stopped and did not start: %s\n", strings.TrimSpace(output))
 }
 
 func (state *setupFlowState) installBlueclawPayloadDirectHTTPS() error {
@@ -1769,10 +1772,25 @@ func blueclawStartAfterPayloadSyncCommand() string {
 	return blueclaw.StartAfterPayloadSyncCommand()
 }
 
+type remoteCommandRunner interface {
+	runResult(command string) (string, error)
+}
+
 func (state *setupFlowState) syncBlueclawWorkspaceImage() error {
-	if stopOutput, errorValue := state.sshClient.runResult(blueclawStopForPayloadSyncCommand()); errorValue != nil {
+	return syncBlueclawWorkspaceImageOn(state.sshClient)
+}
+
+func syncBlueclawWorkspaceImageOn(runner remoteCommandRunner) (returnedError error) {
+	if stopOutput, errorValue := runner.runResult(blueclawStopForPayloadSyncCommand()); errorValue != nil {
 		return fmt.Errorf("stop blueclaw before workspace sync: %s: %w", strings.TrimSpace(stopOutput), errorValue)
 	}
+	defer func() {
+		startOutput, startError := runner.runResult(blueclawStartAfterPayloadSyncCommand())
+		if startError == nil || returnedError != nil {
+			return
+		}
+		returnedError = fmt.Errorf("start blueclaw after workspace sync: %s: %w", strings.TrimSpace(startOutput), startError)
+	}()
 	syncCommand := strings.Join([]string{
 		blueclaw.BlueclawSupervisorBinaryPath,
 		"sync-workspace",
@@ -1781,7 +1799,7 @@ func (state *setupFlowState) syncBlueclawWorkspaceImage() error {
 		"--workspace-image", quoteShellValue(blueclaw.BlueclawWorkspaceImagePath),
 		"--source", quoteShellValue(blueclaw.BlueclawWorkspacePath),
 	}, " ")
-	syncOutput, errorValue := state.sshClient.runResult(syncCommand)
+	syncOutput, errorValue := runner.runResult(syncCommand)
 	if errorValue != nil {
 		return fmt.Errorf("%s: %w", strings.TrimSpace(syncOutput), errorValue)
 	}
