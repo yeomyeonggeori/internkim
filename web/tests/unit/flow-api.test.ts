@@ -6,7 +6,9 @@ import {
 	fetchFlowWeeklySummary,
 	mergeFlowSummary,
 	moveFlowTaskOnBoard,
-	saveFlowTask
+	saveFlowTask,
+	updateFlowTaskParent,
+	updateFlowTaskParents
 } from '../../src/routes/flow/flow-api';
 
 type FetchWithPreconnect = typeof fetch & { preconnect?: unknown };
@@ -16,6 +18,30 @@ function fetchPreconnect(fetchValue: typeof fetch) {
 }
 
 describe('flow API', () => {
+	test('updates multiple parent relationships with one request', async () => {
+		const originalFetch = globalThis.fetch;
+		let requestedURL = '';
+		let requestBody: unknown = null;
+
+		try {
+			globalThis.fetch = Object.assign(
+				async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+					requestedURL = String(input);
+					requestBody = JSON.parse(String(init?.body ?? '{}'));
+					return new Response(null, { status: 204 });
+				},
+				{ preconnect: fetchPreconnect(originalFetch) }
+			);
+
+			await updateFlowTaskParents(['child-1', 'child-2'], 'parent', 'Could not update relationships.');
+
+			expect(requestedURL).toBe('/flow/api/tasks/parents');
+			expect(requestBody).toEqual({ taskIDs: ['child-1', 'child-2'], parentTaskID: 'parent' });
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
 	test('returns skipped duplicate quick task responses', async () => {
 		const originalFetch = globalThis.fetch;
 
@@ -164,9 +190,14 @@ describe('flow API', () => {
 				{ preconnect: fetchPreconnect(originalFetch) }
 			);
 
-			await saveFlowTask({ ...flowTask('task-1'), createdAt: '2026-06-01T10:00:00Z' }, 'Could not save the task.');
+			await saveFlowTask({
+				...flowTask('task-1'),
+				parentTaskID: 'stale-parent',
+				createdAt: '2026-06-01T10:00:00Z'
+			}, 'Could not save the task.');
 
 			expect('createdAt' in requestBody).toBe(false);
+			expect('parentTaskID' in requestBody).toBe(false);
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
@@ -226,6 +257,43 @@ describe('flow API', () => {
 
 			expect(requestedURL).toBe('/flow/api/tasks/task-1');
 			expect(requestMethod).toBe('DELETE');
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test('updates only the parent relationship through the task parent endpoint', async () => {
+		const originalFetch = globalThis.fetch;
+		const requests: Array<{ url: string; method: string; body: unknown }> = [];
+
+		try {
+			globalThis.fetch = Object.assign(
+				async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+					requests.push({
+						url: String(input),
+						method: init?.method ?? '',
+						body: JSON.parse(String(init?.body ?? '{}'))
+					});
+					return new Response(null, { status: 204 });
+				},
+				{ preconnect: fetchPreconnect(originalFetch) }
+			);
+
+			await updateFlowTaskParent('child/task', 'parent-1', 'Could not update the task relationship.');
+			await updateFlowTaskParent('child/task', undefined, 'Could not update the task relationship.');
+
+			expect(requests).toEqual([
+				{
+					url: '/flow/api/tasks/child%2Ftask/parent',
+					method: 'PATCH',
+					body: { parentTaskID: 'parent-1' }
+				},
+				{
+					url: '/flow/api/tasks/child%2Ftask/parent',
+					method: 'PATCH',
+					body: { parentTaskID: null }
+				}
+			]);
 		} finally {
 			globalThis.fetch = originalFetch;
 		}

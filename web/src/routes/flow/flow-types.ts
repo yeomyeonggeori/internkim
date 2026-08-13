@@ -25,6 +25,7 @@ export type FlowMember = {
 
 export type FlowTask = {
 	id: string;
+	parentTaskID?: string;
 	ownerID: string;
 	ownerName: string;
 	participantIDs: string[];

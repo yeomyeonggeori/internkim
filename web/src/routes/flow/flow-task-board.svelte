@@ -7,6 +7,7 @@
 	import type { FlowTaskBoardMoveRequest } from './flow-task-board-drag';
 	import { flowTaskBoardViewportHeight } from './flow-task-board-viewport-height';
 	import { buildFlowTaskBoard, isFlowTaskBoardStatus, isOverdueFlowPlan, type FlowTaskBoardWeekPosition } from './flow-task-board-model';
+	import { buildFlowTaskChildProgressByParent } from './flow-task-relationships';
 	import {
 		canCreateFlowTaskInColumn,
 		shouldHideEmptyRequestColumn,
@@ -20,6 +21,7 @@
 
 	type Props = {
 		tasks: FlowTask[];
+		allTasks: FlowTask[];
 		boardText: BoardText;
 		businessFallback: string;
 		statusLabel: (status: string) => string;
@@ -33,12 +35,14 @@
 		weekPosition?: FlowTaskBoardWeekPosition;
 		businessColor: (business: string) => string;
 		taskTypeColor: (type: string) => string;
+		childProgressLabel: string;
 		memberEmail: (memberID: string) => string;
 		participantScope: FlowBoardParticipantScope;
 	};
 
 	let {
 		tasks,
+		allTasks,
 		boardText,
 		businessFallback,
 		statusLabel,
@@ -52,6 +56,7 @@
 		weekPosition = 'current',
 		businessColor,
 		taskTypeColor,
+		childProgressLabel,
 		memberEmail,
 		participantScope
 	}: Props = $props();
@@ -75,6 +80,7 @@
 		weekPosition,
 		hideEmptyRequestColumn: shouldHideEmptyRequestColumn(participantScope)
 	}));
+	let childProgressByParent = $derived(buildFlowTaskChildProgressByParent(allTasks));
 
 	$effect(() => {
 		boardDrag.sync({ pendingTaskIDs, canUpdateTask, moveTask });
@@ -169,10 +175,12 @@
 								<div role="listitem">
 									<FlowTaskBoardCard
 										{task}
+										childProgress={childProgressByParent.get(task.id)}
 										{memberEmail}
 										isOverduePlan={isOverdueFlowPlan(task, weekStartISO)}
 										{businessColor}
 										{taskTypeColor}
+										{childProgressLabel}
 										{businessFallback}
 										{openTask}
 										isPending={isTaskPending(task.id)}

@@ -8,6 +8,7 @@
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import FlowTaskEditorParticipants from './flow-task-editor-participants.svelte';
 	import FlowTaskEditorSummary from './flow-task-editor-summary.svelte';
+	import FlowTaskRelationshipsSection from './flow-task-relationships-section.svelte';
 	import type { FlowTaskEditorOption, FlowTaskEditorText } from './flow-task-editor-types';
 	import type { FlowMember, FlowTask } from './flow-types';
 
@@ -27,6 +28,10 @@
 		statusLabel: (status: string) => string;
 		businessColor: (business: string) => string;
 		taskTypeColor: (type: string) => string;
+		tasks: FlowTask[];
+		currentMemberID: string;
+		canUseTaskRelationships: boolean;
+		pendingRelationshipTaskIDs: string[];
 		memberEmail: (memberID: string) => string;
 		setParticipantIDs: (memberIDs: string[]) => void;
 		removeParticipantID: (memberID: string) => void;
@@ -39,6 +44,13 @@
 		isOwnTask: (task: FlowTask) => boolean;
 		startEditingTask: () => void;
 		closeEditor: () => void;
+		openRelatedTask: (task: FlowTask) => void;
+		setTaskParent: (
+			taskID: string,
+			parentTaskID?: string
+		) => void | boolean | Promise<void | boolean>;
+		setTaskParents: (taskIDs: string[], parentTaskID: string) => boolean | Promise<boolean>;
+		createChildTask: (parentTaskID: string) => void;
 	};
 
 	let {
@@ -57,6 +69,10 @@
 		statusLabel,
 		businessColor,
 		taskTypeColor,
+		tasks,
+		currentMemberID,
+		canUseTaskRelationships,
+		pendingRelationshipTaskIDs,
 		memberEmail,
 		setParticipantIDs,
 		removeParticipantID,
@@ -68,7 +84,11 @@
 		canManageTaskAssignment,
 		isOwnTask,
 		startEditingTask,
-		closeEditor
+		closeEditor,
+		openRelatedTask,
+		setTaskParent,
+		setTaskParents,
+		createChildTask
 	}: Props = $props();
 
 	let canEditTask = $derived(taskDraft ? canUpdateTask(taskDraft) : false);
@@ -104,6 +124,23 @@
 			{#if !isEditingTask}
 				<div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
 					<FlowTaskDetailView task={taskDraft} {text} {statusLabel} {businessColor} {taskTypeColor} {memberEmail} />
+					{#if canUseTaskRelationships && taskDraft.id}
+						<FlowTaskRelationshipsSection
+							task={taskDraft}
+							{tasks}
+							{currentMemberID}
+							editable={false}
+							canManageRelationships={false}
+							pendingTaskIDs={pendingRelationshipTaskIDs}
+							text={text.relationships}
+							{taskTypeColor}
+							onOpenTask={openRelatedTask}
+							onSetParent={setTaskParent}
+							onSetParents={setTaskParents}
+							onCreateChild={createChildTask}
+							allowTaskSwitching={true}
+						/>
+					{/if}
 				</div>
 				<Sheet.Footer class="border-t">
 					{#if canEditTask}
@@ -139,6 +176,23 @@
 						{removeParticipantID}
 						{canRemoveParticipant}
 					/>
+					{#if canUseTaskRelationships && taskDraft.id}
+						<FlowTaskRelationshipsSection
+							task={taskDraft}
+							{tasks}
+							{currentMemberID}
+							editable={canEditTask}
+							canManageRelationships={canEditTask}
+							pendingTaskIDs={pendingRelationshipTaskIDs}
+							text={text.relationships}
+							{taskTypeColor}
+							onOpenTask={openRelatedTask}
+							onSetParent={setTaskParent}
+							onSetParents={setTaskParents}
+							onCreateChild={createChildTask}
+							allowTaskSwitching={false}
+						/>
+					{/if}
 					<Separator />
 					<div class="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
 						{text.dateRule}

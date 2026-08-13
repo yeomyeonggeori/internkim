@@ -191,6 +191,7 @@ export type SupabaseFlowTaskRPCArguments = {
 	target_write_dates: boolean;
 	target_requester_id: string | null;
 	target_participant_ids: string[];
+	target_parent_task_id: string | null;
 };
 
 export function supabaseFlowTaskRPCArguments(task: FlowTask): SupabaseFlowTaskRPCArguments {
@@ -208,7 +209,8 @@ export function supabaseFlowTaskRPCArguments(task: FlowTask): SupabaseFlowTaskRP
 		target_ends_at: nullableStringField(fields, 'ends_at'),
 		target_write_dates: !task.isEvent,
 		target_requester_id: operation === 'insert' ? nullableStringField(fields, 'requester_id') : null,
-		target_participant_ids: task.participantIDs
+		target_participant_ids: task.participantIDs,
+		target_parent_task_id: operation === 'insert' ? nullableStringField(fields, 'parent_task_id') : null
 	};
 }
 

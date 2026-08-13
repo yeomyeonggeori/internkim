@@ -72,7 +72,7 @@ export class FlowTaskEditorController {
 		this.isEditingTask = true;
 	};
 
-	createTask = (status?: string, targetParticipantIDs: string[] = []): void => {
+	createTask = (status?: string, targetParticipantIDs: string[] = [], parentTaskID?: string): void => {
 		const owner = this.defaultTaskOwner();
 		if (!owner || !this.summary) return;
 		this.taskDraft = createFlowTaskDraft(owner, definitionsFromSummary(this.summary), this.taskWeek());
@@ -88,6 +88,7 @@ export class FlowTaskEditorController {
 				this.taskDraft = updateFlowTaskParticipantIDs(this.taskDraft, this.members(), targetIDs, this.summary.source);
 			}
 		}
+		this.taskDraft.parentTaskID = parentTaskID;
 		this.taskErrorMessage = '';
 	};
 

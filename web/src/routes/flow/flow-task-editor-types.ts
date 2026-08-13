@@ -3,6 +3,24 @@ export type FlowTaskEditorOption = {
 	label: string;
 };
 
+export type FlowTaskRelationshipsText = {
+	title: string;
+	parent: string;
+	children: string;
+	add: string;
+	searchParent: string;
+	searchChildren: string;
+	noCandidates: string;
+	createChild: string;
+	connectSelected: string;
+	removeRelationship: string;
+	moreActions: string;
+	closeSelector: string;
+	updateError: string;
+	progressLabel: string;
+	discardChanges: string;
+};
+
 export type FlowTaskEditorText = {
 	editTitle: string;
 	detailTitle: string;
@@ -24,6 +42,7 @@ export type FlowTaskEditorText = {
 	participants: string;
 	participantsPlaceholder: string;
 	removeParticipantAction: string;
+	relationships: FlowTaskRelationshipsText;
 	requestReason: string;
 	reason: string;
 	dateRule: string;
