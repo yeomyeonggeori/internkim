@@ -5,9 +5,11 @@
 	import * as Card from '$lib/components/ui/card';
 	import { personProfileImagePath } from '$lib/person-profile-image';
 	import { buildFlowTaskBoardCardDisplay } from './flow-task-board-card-model';
+	import FlowTaskChildProgress from './flow-task-child-progress.svelte';
 	import FlowTaskDateRange from './flow-task-date-range.svelte';
 	import { sizeBadgeClass } from './flow-style';
 	import { flowDefinitionBadgeStyle, flowDefinitionOutlineBadgeStyle } from './flow-definition-colors';
+	import type { FlowTaskChildProgress as ChildProgress } from './flow-task-relationships';
 	import type { FlowTask } from './flow-types';
 	import type { Snippet } from 'svelte';
 
@@ -28,6 +30,8 @@
 		isOverduePlan?: boolean;
 		businessColor?: (business: string) => string;
 		taskTypeColor?: (type: string) => string;
+		childProgress?: ChildProgress;
+		childProgressLabel?: string;
 	};
 
 	let {
@@ -46,7 +50,9 @@
 		memberEmail = () => '',
 		isOverduePlan = false,
 		businessColor = () => '#64748b',
-		taskTypeColor = () => '#64748b'
+		taskTypeColor = () => '#64748b',
+		childProgress,
+		childProgressLabel = '{completed} / {total}'
 	}: Props = $props();
 
 	let canDrag = $derived(isInteractive && isDraggable && !isPending && !isReadOnly);
@@ -188,6 +194,15 @@
 					</Badge>
 				{/if}
 			</div>
+		{/if}
+
+		{#if childProgress}
+			<FlowTaskChildProgress
+				progress={childProgress}
+				label={childProgressLabel
+					.replace('{completed}', String(childProgress.completed))
+					.replace('{total}', String(childProgress.total))}
+			/>
 		{/if}
 	</div>
 </Card.Root>

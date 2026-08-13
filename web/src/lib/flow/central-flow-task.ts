@@ -12,6 +12,7 @@ export type CentralTaskStatus =
 
 export type CentralFlowTaskRow = {
 	id: string;
+	parent_task_id: string | null;
 	title: string;
 	status: string;
 	note: string | null;
@@ -46,7 +47,7 @@ const centralStatusByWord = new Map<string, CentralTaskStatus>(
 const centralStatusWordByStatus = new Map<string, string>(centralStatusPairs);
 
 export const centralFlowTaskSelection =
-	'id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester_name, was_requested, task_participant (member_id)';
+	'id, parent_task_id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester_name, was_requested, task_participant (member_id)';
 
 export const centralFlowStatusOptions = centralStatusPairs.map(([, word]) => word);
 
@@ -65,6 +66,7 @@ export function centralFlowTaskFromRow(
 	const requesterID = row.requester_id ?? '';
 	return {
 		id: row.id,
+		parentTaskID: row.parent_task_id ?? undefined,
 		ownerID: owner.id,
 		ownerName: owner.name,
 		participantIDs: participants.map(({ id }) => id),
@@ -93,6 +95,7 @@ export function centralFlowTaskWriteFields(
 ): Record<string, unknown> {
 	return {
 		title: task.content || task.goal || '(제목 없음)',
+		...(operation === 'insert' ? { parent_task_id: task.parentTaskID ?? null } : {}),
 		status: centralStatusFromWord(task.status),
 		note: task.goal || null,
 		business: task.business || null,

@@ -99,6 +99,18 @@ describe('what the board writes back', () => {
 		expect(fields.business).toBe('여명거리');
 		expect(fields.size).toBe('XS');
 	});
+
+	test('writes the parent relationship only when creating a task', () => {
+		expect(savedFlowTaskFields(taskWith({ id: '', parentTaskID: 'parent-task' }), 'insert').parent_task_id).toBe('parent-task');
+		expect(savedFlowTaskFields(taskWith({ id: '', parentTaskID: undefined }), 'insert').parent_task_id).toBeNull();
+		expect('parent_task_id' in savedFlowTaskFields(taskWith({ parentTaskID: 'stale-parent' }), 'update')).toBe(false);
+	});
+
+	test('writes every user-facing workflow status to its Supabase enum value', () => {
+		expect(savedFlowTaskFields(taskWith({ status: '요청' })).status).toBe('requested');
+		expect(savedFlowTaskFields(taskWith({ status: '기각' })).status).toBe('rejected');
+		expect(savedFlowTaskFields(taskWith({ status: '중단' })).status).toBe('cancelled');
+	});
 });
 
 describe('which day the board puts a row on', () => {
