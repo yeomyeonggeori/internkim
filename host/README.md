@@ -11,7 +11,7 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 
 | | Why |
 |---|---|
-| **llmd** | the model path; blueclaw refuses to start without it |
+| **llmd** | capabilityd counts it in its own health, so it still has to be up. It is no longer the model path: the agent reaches the model itself, through bluecollar's OpenAI-compatible client |
 | **Postgres** | the agent's own store; without it health stays unhealthy |
 | the agent binary | — |
 | **capabilityd** | optional — `not_configured` is a passing state, but the calendar, task, mail and site tools disappear without it |
