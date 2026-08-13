@@ -257,7 +257,7 @@ func TestJetsonDefaultResolveIncludesLocalLLMAndSkipsGoogle(t *testing.T) {
 	}
 
 	joinedPlan := strings.Join(plan, ",")
-	for _, expectedName := range []string{"preflight", "binaries", "skills", "blueclaw-runtime-base", "blueclaw-config", "blueclaw-payload", "openrouter", "local-llm", "tunnel", "mattermost", "services", "users-sync", "health"} {
+	for _, expectedName := range []string{"preflight", "binaries", "skills", "blueclaw-runtime-base", "blueclaw-config", "blueclaw-payload", "openrouter", "local-llm", "mattermost", "services", "users-sync", "health"} {
 		if !strings.Contains(joinedPlan, expectedName) {
 			t.Fatalf("expected plan to include %s, got %s", expectedName, joinedPlan)
 		}
@@ -316,7 +316,7 @@ func TestOnlyCloudflareAccessDoesNotIncludeRuntimeOrTunnelSteps(t *testing.T) {
 	if joinedPlan != "web,cloudflare-access" {
 		t.Fatalf("unexpected plan: %s", joinedPlan)
 	}
-	for _, disallowedName := range []string{"preflight", "board", "binaries", "local-llm", "tunnel"} {
+	for _, disallowedName := range []string{"preflight", "board", "binaries", "local-llm"} {
 		if strings.Contains(joinedPlan, disallowedName) {
 			t.Fatalf("cloudflare-access sync must not include %s, got %s", disallowedName, joinedPlan)
 		}

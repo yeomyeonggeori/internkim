@@ -11,7 +11,7 @@ import (
 
 var StepMattermost = Step{
 	Name: "mattermost",
-	Deps: []string{"binaries", "tunnel"},
+	Deps: []string{"binaries"},
 	Title: func(context *Context) string {
 		return context.T("Mattermost 설치 및 설정...", "Installing and configuring Mattermost...")
 	},
