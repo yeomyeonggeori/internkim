@@ -16,9 +16,13 @@ export type FlowTaskRelationships = {
 };
 
 export function buildFlowTaskRelationships(task: FlowTask, tasks: FlowTask[]): FlowTaskRelationships {
+	const children = directFlowTaskChildren(task.id, tasks);
 	return {
 		parent: tasks.find((candidate) => candidate.id === task.parentTaskID),
-		children: directFlowTaskChildren(task.id, tasks)
+		children: [
+			...children.filter((child) => !isFlowStatusCompleted(child.status)),
+			...children.filter((child) => isFlowStatusCompleted(child.status))
+		]
 	};
 }
 

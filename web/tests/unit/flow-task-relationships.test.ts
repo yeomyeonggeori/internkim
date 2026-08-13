@@ -39,7 +39,7 @@ describe('flow task relationships', () => {
 		expect(progress).toEqual({ completed: 2, total: 7, percent: 29 });
 	});
 
-	test('shows every direct child regardless of progress eligibility', () => {
+	test('shows every direct child with incomplete work before completed work', () => {
 		const relationships = buildFlowTaskRelationships(flowTask({ id: 'parent' }), [
 			flowTask({ id: 'done', parentTaskID: 'parent', status: '완료' }),
 			flowTask({ id: 'progress', parentTaskID: 'parent', status: '진행' }),
@@ -47,7 +47,7 @@ describe('flow task relationships', () => {
 			flowTask({ id: 'stopped', parentTaskID: 'parent', status: '중단' })
 		]);
 
-		expect(relationships.children.map((task) => task.id)).toEqual(['done', 'progress', 'rejected', 'stopped']);
+		expect(relationships.children.map((task) => task.id)).toEqual(['progress', 'rejected', 'stopped', 'done']);
 	});
 
 	test('keeps rejected children in progress and hides progress when only stopped children remain', () => {
