@@ -23,7 +23,6 @@ const (
 	BlueclawTestMinimumModelTierEnvironment             = "INTERNKIM_TEST_MINIMUM_MODEL_TIER"
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
-	BlueclawLLMDModeEnvironment                         = "INTERNKIM_BLUECLAW_LLMD_MODE"
 	BlueclawAdminTaskDiagnosticEnvironment              = "INTERNKIM_BLUECLAW_ADMIN_TASK_DIAGNOSTIC"
 	BlueclawLLMDTopologyDiagnosticProfileName           = "llmd-diagnostic"
 	BlueclawLLMDTopologyDiagnosticToolSentinel          = "llmd.diagnostic.no_tools"
@@ -72,7 +71,6 @@ type RuntimeConfigOptions struct {
 	ShouldUseModelForAllTiers bool
 	DefaultTaskLevel          string
 	VirtualCPUCount           int
-	LLMDMode                  string
 	AllowAdminTaskDiagnostic  bool
 	LocalOnly                 bool
 }
@@ -132,7 +130,6 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 		DefaultTaskLevel:          modelTier,
 		GenerationSeed:            seed,
 		GenerationTemperature:     temperature,
-		LLMDMode:                  optionalStringEnvironment(BlueclawLLMDModeEnvironment),
 		AllowAdminTaskDiagnostic:  allowAdminTaskDiagnostic,
 		LocalOnly:                 LocalOnlyEnabled(),
 		MaximumModelTier:          maximumModelTier,
@@ -256,22 +253,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		"defaultProvider":  "capabilityLLM",
 		"fallbackProvider": "",
 		"capability":       capabilityLanguageModel,
-	}
-	llmdEndpoint := "http://127.0.0.1:18081/_internkim/llmd"
-	llmdUnixSocketPath := ""
-	if options.DirectExecution {
-		llmdEndpoint = "http://internkim/_internkim/llmd"
-		llmdUnixSocketPath = capabilitySocketPath
-	}
-	languageModelConfiguration["llmd"] = map[string]any{
-		"endpoint":       llmdEndpoint,
-		"unixSocketPath": llmdUnixSocketPath,
-		"authKeyPath":    "",
-		"executionMode":  languageModelExecutionMode,
-		"localOnly":      options.LocalOnly,
-	}
-	if options.DirectExecution || strings.EqualFold(options.LLMDMode, "authoritative") {
-		languageModelConfiguration["defaultProvider"] = "llmd"
 	}
 	capabilityContract := CurrentCapabilityContract()
 

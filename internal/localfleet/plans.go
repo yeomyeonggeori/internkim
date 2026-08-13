@@ -165,10 +165,8 @@ func (service Service) withoutMattermostScenarioPlans(scenario string) []Command
 func (service Service) llmdHostTopologyScenarioPlans() []CommandPlan {
 	service.options.ShouldUseRealModels = true
 	service.options.MaximumModelTier = ""
-	service.options.LLMDMode = LLMDModeAuthoritative
 	plans := service.upPlansWithSkippedSetupSteps(true, []string{"mattermost"})
 	for index := range plans {
-		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawLLMDModeEnvironment+"="+string(LLMDModeAuthoritative))
 		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawAdminTaskDiagnosticEnvironment+"=true")
 	}
 	return append(
@@ -365,9 +363,6 @@ func (service Service) setupEnvironmentAssignments() []string {
 	}
 	if maximumModelTier := strings.TrimSpace(service.options.MaximumModelTier); maximumModelTier != "" {
 		assignments = append(assignments, blueclaw.BlueclawTestMaximumModelTierEnvironment+"="+quoteShell(maximumModelTier))
-	}
-	if service.options.LLMDMode != "" {
-		assignments = append(assignments, blueclaw.BlueclawLLMDModeEnvironment+"="+quoteShell(string(service.options.LLMDMode)))
 	}
 	if generationSeed := strings.TrimSpace(service.options.GenerationSeed); generationSeed != "" {
 		assignments = append(assignments, "INTERNKIM_TEST_GENERATION_SEED="+quoteShell(generationSeed))

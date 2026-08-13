@@ -197,7 +197,6 @@ func devFleetReprovisionEnvironment(environment []string, moduleCachePath string
 		"INTERNKIM_TEST_MODEL_TIER=low",
 		blueclaw.BlueclawTestMaximumModelTierEnvironment+"="+normalizedModelTier,
 		blueclaw.BlueclawTestMinimumModelTierEnvironment+"="+normalizedModelTier,
-		blueclaw.BlueclawLLMDModeEnvironment+"=authoritative",
 		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
 	if moduleCachePath == "" {
 		return environment

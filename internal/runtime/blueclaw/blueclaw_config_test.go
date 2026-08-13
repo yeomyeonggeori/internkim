@@ -91,12 +91,11 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 	}
 
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
-	if languageModel["defaultProvider"] != "llmd" {
-		t.Fatalf("expected direct execution to use LLMD, got %+v", languageModel)
+	if languageModel["defaultProvider"] != "capabilityLLM" {
+		t.Fatalf("expected direct execution to reach the model through capabilityd, got %+v", languageModel)
 	}
-	llmd := languageModel["llmd"].(map[string]any)
-	if llmd["endpoint"] != "http://internkim/_internkim/llmd" || llmd["unixSocketPath"] != "/run/internkim/capability.sock" {
-		t.Fatalf("expected direct execution to use the capabilityd LLMD bridge, got %+v", llmd)
+	if _, namesLLMD := languageModel["llmd"]; namesLLMD {
+		t.Fatalf("expected no llmd endpoint, because naming one makes blueclaw check a bridge that is gone: %+v", languageModel)
 	}
 	capabilityLanguageModel := languageModel["capability"].(map[string]any)
 	if capabilityLanguageModel["executionMode"] != "remote" {
@@ -111,31 +110,6 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 	databaseConfiguration := runtimeConfiguration["database"].(map[string]any)
 	if databaseConfiguration["connectionString"] != "postgres://internkim@postgres/tenant_01?sslmode=disable" {
 		t.Fatalf("expected tenant database connection string, got %q", databaseConfiguration["connectionString"])
-	}
-}
-
-func TestBlueclawRuntimeConfigIncludesCredentiallessLLMDBridge(t *testing.T) {
-	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	var runtimeConfiguration map[string]any
-	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
-	llmd := languageModel["llmd"].(map[string]any)
-	if llmd["endpoint"] != "http://127.0.0.1:18081/_internkim/llmd" {
-		t.Fatalf("unexpected LLMD bridge configuration: %+v", llmd)
-	}
-	if llmd["authKeyPath"] != "" || llmd["unixSocketPath"] != "" {
-		t.Fatalf("expected no host LLMD paths in guest configuration: %+v", llmd)
-	}
-	if _, hasStructuredSchemaNames := llmd["structuredSchemaNames"]; hasStructuredSchemaNames {
-		t.Fatalf("expected structured schema names to come from the Blueclaw default, got %+v", llmd["structuredSchemaNames"])
-	}
-	if strings.Contains(document, LLMDSocketPath) || strings.Contains(document, LLMDAuthKeyPath) {
-		t.Fatal("expected host LLMD secrets and socket to stay out of guest configuration")
 	}
 }
 
@@ -474,11 +448,6 @@ func TestLocalOnlyEnvironmentConfiguresRuntimeAndServices(t *testing.T) {
 	routing := capabilityConfiguration["routing"].(map[string]any)
 	if routing["localOnly"] != true {
 		t.Fatalf("expected local-only capability routing, got %+v", routing)
-	}
-	languageModelConfiguration := runtimeConfiguration["languageModel"].(map[string]any)
-	llmdConfiguration := languageModelConfiguration["llmd"].(map[string]any)
-	if llmdConfiguration["localOnly"] != true {
-		t.Fatalf("expected local-only LLMD fallback policy, got %+v", llmdConfiguration)
 	}
 	if !strings.Contains(CapabilitydServiceUnit(), " --local-only") {
 		t.Fatalf("expected capabilityd local-only flag, got %s", CapabilitydServiceUnit())
