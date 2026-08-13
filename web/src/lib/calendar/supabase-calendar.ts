@@ -51,33 +51,50 @@ async function taskCalendarEvents(
 }
 
 export async function saveSupabaseCalendarEvent(payload: CalendarEventPayload): Promise<CalendarEvent> {
-	const client = supabase();
-	const fields = {
-		title: payload.title,
-		note: payload.description || null,
-		location: payload.location ? { name: payload.location } : null,
-		starts_at: payload.startISO,
-		ends_at: payload.endISO,
-		is_event: true,
-		is_whole_day: payload.isAllDay,
-		size: sizeOfEvent(payload.startISO, payload.endISO, payload.isAllDay)
-	};
-
-	const saved = payload.eventID
-		? await client.from('task').update(fields).eq('id', payload.eventID).select('id').single<{ id: string }>()
-		: await client
-				.from('task')
-				.insert({ ...fields, company_id: await companyIDOfMe() })
-				.select('id')
-				.single<{ id: string }>();
+	const saved = await supabase().rpc(
+		'save_calendar_event',
+		supabaseCalendarEventRPCArguments(payload)
+	);
 	if (saved.error) throw new Error(saved.error.message);
+	if (typeof saved.data !== 'string') throw new Error('calendar event save returned no event ID');
+	return readEvent(saved.data);
+}
 
-	await replaceParticipants(saved.data.id, payload.participants.map((participant) => participant.personID));
-	return readEvent(saved.data.id);
+export type SupabaseCalendarEventRPCArguments = {
+	target_task_id: string | null;
+	target_title: string;
+	target_note: string | null;
+	target_location: { name: string } | null;
+	target_starts_at: string;
+	target_ends_at: string;
+	target_is_whole_day: boolean;
+	target_size: string;
+	target_participant_ids: string[];
+};
+
+export function supabaseCalendarEventRPCArguments(
+	payload: CalendarEventPayload
+): SupabaseCalendarEventRPCArguments {
+	return {
+		target_task_id: payload.eventID || null,
+		target_title: payload.title,
+		target_note: payload.description || null,
+		target_location: payload.location ? { name: payload.location } : null,
+		target_starts_at: payload.startISO,
+		target_ends_at: payload.endISO,
+		target_is_whole_day: payload.isAllDay,
+		target_size: sizeOfEvent(payload.startISO, payload.endISO, payload.isAllDay),
+		target_participant_ids: payload.participants.map((participant) => participant.personID)
+	};
 }
 
 export async function deleteSupabaseCalendarEvent(eventID: string): Promise<void> {
-	const { error } = await supabase().from('task').delete().eq('id', eventID);
+	const { error } = await supabase()
+		.from('task')
+		.delete()
+		.eq('id', eventID)
+		.select('id')
+		.single<{ id: string }>();
 	if (error) throw new Error(error.message);
 }
 
@@ -125,17 +142,6 @@ function participantOf(memberID: string, members: Map<string, MemberRow>): Calen
 	return { personID: memberID, name: member?.name || email.split('@')[0], email: email || undefined };
 }
 
-async function replaceParticipants(taskID: string, participantIDs: string[]): Promise<void> {
-	const client = supabase();
-	const removed = await client.from('task_participant').delete().eq('task_id', taskID);
-	if (removed.error) throw new Error(removed.error.message);
-	if (participantIDs.length === 0) return;
-	const added = await client
-		.from('task_participant')
-		.insert(participantIDs.map((memberID) => ({ task_id: taskID, member_id: memberID })));
-	if (added.error) throw new Error(added.error.message);
-}
-
 function sizeOfEvent(startISO: string, endISO: string, isAllDay: boolean): string {
 	const hours = (new Date(endISO).getTime() - new Date(startISO).getTime()) / 3600000;
 	if (!isAllDay) return sizeOfHours(hours);
@@ -156,18 +162,4 @@ async function companyTimeZone(): Promise<string> {
 	const company = await supabase().from('company').select('timezone').limit(1).single<{ timezone: string }>();
 	if (company.error) throw new Error(company.error.message);
 	return company.data.timezone;
-}
-
-async function companyIDOfMe(): Promise<string> {
-	const client = supabase();
-	const { data: auth } = await client.auth.getSession();
-	const accountID = auth.session?.user.id;
-	if (!accountID) throw new Error('sign in first');
-	const member = await client
-		.from('member')
-		.select('company_id')
-		.eq('user_id', accountID)
-		.single<{ company_id: string }>();
-	if (member.error) throw new Error(member.error.message);
-	return member.data.company_id;
 }

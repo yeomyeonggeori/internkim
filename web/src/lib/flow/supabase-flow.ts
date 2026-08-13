@@ -178,24 +178,65 @@ export function savedFlowTaskFields(task: FlowTask, operation: 'insert' | 'updat
 	return centralFlowTaskWriteFields(task, operation);
 }
 
+export type SupabaseFlowTaskRPCArguments = {
+	target_task_id: string | null;
+	target_title: string;
+	target_status: string;
+	target_note: string | null;
+	target_business: string | null;
+	target_type: string | null;
+	target_size: string | null;
+	target_starts_at: string | null;
+	target_ends_at: string | null;
+	target_write_dates: boolean;
+	target_requester_id: string | null;
+	target_participant_ids: string[];
+};
+
+export function supabaseFlowTaskRPCArguments(task: FlowTask): SupabaseFlowTaskRPCArguments {
+	const operation = task.id ? 'update' : 'insert';
+	const fields = savedFlowTaskFields(task, operation);
+	return {
+		target_task_id: task.id || null,
+		target_title: requiredStringField(fields, 'title'),
+		target_status: requiredStringField(fields, 'status'),
+		target_note: nullableStringField(fields, 'note'),
+		target_business: nullableStringField(fields, 'business'),
+		target_type: nullableStringField(fields, 'type'),
+		target_size: nullableStringField(fields, 'size'),
+		target_starts_at: nullableStringField(fields, 'starts_at'),
+		target_ends_at: nullableStringField(fields, 'ends_at'),
+		target_write_dates: !task.isEvent,
+		target_requester_id: operation === 'insert' ? nullableStringField(fields, 'requester_id') : null,
+		target_participant_ids: task.participantIDs
+	};
+}
+
+function requiredStringField(fields: Record<string, unknown>, field: string): string {
+	const value = fields[field];
+	if (typeof value !== 'string') throw new Error(`task ${field} must be a string`);
+	return value;
+}
+
+function nullableStringField(fields: Record<string, unknown>, field: string): string | null {
+	const value = fields[field];
+	if (value === undefined || value === null) return null;
+	if (typeof value !== 'string') throw new Error(`task ${field} must be a string or null`);
+	return value;
+}
+
 export async function saveSupabaseFlowTask(task: FlowTask): Promise<void> {
-	const client = supabase();
-	const fields = savedFlowTaskFields(task, task.id ? 'update' : 'insert');
-
-	const saved = task.id
-		? await client.from('task').update(fields).eq('id', task.id).select('id').single<{ id: string }>()
-		: await client
-				.from('task')
-				.insert({ ...fields, company_id: await companyIDOfMe() })
-				.select('id')
-				.single<{ id: string }>();
+	const saved = await supabase().rpc('save_flow_task', supabaseFlowTaskRPCArguments(task));
 	if (saved.error) throw new Error(saved.error.message);
-
-	await replaceParticipants(saved.data.id, task.participantIDs);
 }
 
 export async function deleteSupabaseFlowTask(taskID: string): Promise<void> {
-	const { error } = await supabase().from('task').delete().eq('id', taskID);
+	const { error } = await supabase()
+		.from('task')
+		.delete()
+		.eq('id', taskID)
+		.select('id')
+		.single<{ id: string }>();
 	if (error) throw new Error(error.message);
 }
 
@@ -203,33 +244,10 @@ export async function moveSupabaseFlowTask(taskID: string, status: string): Prom
 	const { error } = await supabase()
 		.from('task')
 		.update({ status: centralStatusFromWord(status) })
-		.eq('id', taskID);
+		.eq('id', taskID)
+		.select('id')
+		.single<{ id: string }>();
 	if (error) throw new Error(error.message);
-}
-
-async function replaceParticipants(taskID: string, participantIDs: string[]): Promise<void> {
-	const client = supabase();
-	const removed = await client.from('task_participant').delete().eq('task_id', taskID);
-	if (removed.error) throw new Error(removed.error.message);
-	if (participantIDs.length === 0) return;
-	const added = await client
-		.from('task_participant')
-		.insert(participantIDs.map((memberID) => ({ task_id: taskID, member_id: memberID })));
-	if (added.error) throw new Error(added.error.message);
-}
-
-async function companyIDOfMe(): Promise<string> {
-	const client = supabase();
-	const { data: auth } = await client.auth.getSession();
-	const accountID = auth.session?.user.id;
-	if (!accountID) throw new Error('sign in first');
-	const member = await client
-		.from('member')
-		.select('company_id')
-		.eq('user_id', accountID)
-		.single<{ company_id: string }>();
-	if (member.error) throw new Error(member.error.message);
-	return member.data.company_id;
 }
 
 function displayName(member: MemberRow): string {
