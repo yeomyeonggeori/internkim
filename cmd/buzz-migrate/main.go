@@ -123,7 +123,7 @@ func main() {
 		if !incremental {
 			memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
 			failOn(errorValue, "read members for "+channel.Name)
-			errorValue = publisher.CreateChannel(ctx, bootstrapSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose)
+			errorValue = publisher.CreateChannel(ctx, bootstrapSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel))
 			if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
 				failOn(errorValue, "create channel "+channel.Name)
 			}
@@ -420,6 +420,16 @@ func registerRelayMember(buzzAdminCommand string, pubkey string) {
 	if output, errorValue := command.CombinedOutput(); errorValue != nil && !strings.Contains(string(output), "already") {
 		log.Printf("add-member %s: %v (%s)", pubkey, errorValue, strings.TrimSpace(string(output)))
 	}
+}
+
+// A relay tells a direct conversation from a channel by its type, and a client
+// that reads "stream" shows a room named after whoever is in it instead of the
+// person on the other side.
+func relayChannelTypeOf(channel buzzimport.MattermostChannel) string {
+	if buzzimport.IsConversationChannelType(channel.Type) {
+		return "dm"
+	}
+	return "stream"
 }
 
 // Mattermost gives a direct conversation no display name and names it after the
