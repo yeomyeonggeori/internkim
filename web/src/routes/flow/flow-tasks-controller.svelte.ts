@@ -7,6 +7,7 @@ import { flowBoardParticipantScope } from './flow-board-participant-scope';
 import { flowBusinessColor, flowTaskTypeColor } from './flow-definition-colors';
 import { updateFlowTaskStatus } from './flow-task-persistence';
 import { FlowTaskQuickCreateController } from './flow-task-quick-create-controller.svelte';
+import { FlowTaskRelationshipController } from './flow-task-relationship-controller.svelte';
 import type { LoadFlow } from './flow-load-tracker';
 import {
 	categorySelectOptions,
@@ -44,6 +45,7 @@ class FlowTasksController {
 	editor = new FlowTaskEditorController();
 	filters = new FlowTaskFiltersController();
 	quickTask = new FlowTaskQuickCreateController();
+	relationships = new FlowTaskRelationshipController();
 	pendingStatusTaskID = $state('');
 
 	private loadFlow: LoadFlow;
@@ -103,6 +105,15 @@ class FlowTasksController {
 			taskWeek: this.taskWeek,
 			setPageErrorMessage: this.setPageErrorMessage
 		});
+		this.relationships.sync({
+			loadFlow: this.loadFlow,
+			weekCode: this.currentWeek,
+			fallbackMessage: () => this.text.task.relationships.updateError,
+			setErrorMessage: (message) => {
+				this.editor.taskErrorMessage = message;
+				if (message) this.setPageErrorMessage(message);
+			}
+		});
 	};
 
 	currentWeek = () => this.summary?.week.code ?? '';
@@ -123,6 +134,8 @@ class FlowTasksController {
 	taskTypeColor = (type: string) => flowTaskTypeColor(type, this.definitions());
 	participantScope = () => flowBoardParticipantScope(this.filters.participantFilterIDs, currentFlowMember(this.summary)?.id);
 	memberEmail = (memberID: string) => this.members().find((member) => member.id === memberID)?.email ?? '';
+	currentMemberID = () => currentFlowMember(this.summary)?.id ?? '';
+	canUseTaskRelationships = () => this.summary?.source === 'supabase' || this.summary?.source === 'dev-mock';
 
 	filteredTasks = () => this.filters.tasks(this.tasks());
 
@@ -138,6 +151,24 @@ class FlowTasksController {
 
 	createTask = (status?: string): void => {
 		this.editor.createTask(status, this.filters.participantFilterIDs);
+	};
+
+	createChildTask = (parentTaskID: string): void => {
+		this.editor.createTask(undefined, [], parentTaskID);
+	};
+
+	setTaskParent = async (taskID: string, parentTaskID?: string): Promise<boolean> => {
+		if (!this.canUseTaskRelationships()) return false;
+		const updated = await this.relationships.setParent(taskID, parentTaskID);
+		if (updated && this.editor.taskDraft?.id === taskID) {
+			this.editor.taskDraft = { ...this.editor.taskDraft, parentTaskID };
+		}
+		return updated;
+	};
+
+	setTaskParents = async (taskIDs: string[], parentTaskID: string): Promise<boolean> => {
+		if (!this.canUseTaskRelationships()) return false;
+		return this.relationships.setParents(taskIDs, parentTaskID);
 	};
 
 	createQuickTask = (allowDuplicate = false): Promise<FlowQuickTaskCreateResult> => this.quickTask.createQuickTask(allowDuplicate);

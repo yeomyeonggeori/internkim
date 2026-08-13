@@ -10,6 +10,21 @@ export function statusBadgeClass(status: string): string {
 	return 'bg-muted text-muted-foreground border-transparent';
 }
 
+export function statusIconClass(status: string): string {
+	if (isFlowStatusCompleted(status)) return 'text-[#16a34a]';
+	if (isFlowStatusInProgress(status)) return 'text-[#0284c7]';
+	if (isFlowStatusPlanned(status)) return 'text-[#d97706]';
+	if (isFlowStatusRequested(status)) return 'text-[#7c3aed]';
+	if (isFlowStatusPaused(status)) return 'text-[#e11d48]';
+	if (isFlowStatusRejected(status) || isFlowStatusStopped(status)) return 'text-[#dc2626]';
+	return 'text-muted-foreground';
+}
+
+export function relationshipStatusIconClass(status: string): string {
+	if (isFlowStatusCompleted(status)) return 'text-[#16a34a]';
+	return 'text-[#7c3aed]';
+}
+
 export function sizeBadgeClass(size: string): string {
 	const baseClass = 'rounded-md border border-transparent font-mono tabular-nums text-white shadow-none';
 	switch (size) {

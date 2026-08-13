@@ -6,6 +6,10 @@ import { createFlowTaskBoardMove, type FlowTaskBoardMoveRequest } from './src/ro
 import { isFlowTaskBoardStatus } from './src/routes/flow/flow-task-board-model';
 import { createDevFlowState, createDevFlowWeeklySummary } from './src/routes/flow/dev-flow-fixture';
 import type { FlowDefinitions, FlowSizeDefinition, FlowState, FlowTask } from './src/routes/flow/flow-types';
+import {
+	updateDevFlowTaskParent,
+	updateDevFlowTaskParents
+} from './dev-flow-task-relationship-mock';
 
 type DevFlowMockPluginOptions = {
 	isEnabled: boolean;
@@ -71,6 +75,8 @@ function shouldHandleDevFlowMockRequest(method: string, pathname: string): boole
 	if (method === 'POST' && pathname === '/flow/api/test/reset') return true;
 	if (method === 'POST' && pathname === '/flow/api/tasks/move') return true;
 	if (method === 'POST' && pathname === '/flow/api/tasks') return true;
+	if (method === 'PATCH' && pathname === '/flow/api/tasks/parents') return true;
+	if (method === 'PATCH' && pathname.startsWith('/flow/api/tasks/') && pathname.endsWith('/parent')) return true;
 	if (method === 'PUT' && pathname.startsWith('/flow/api/tasks/')) return true;
 	if (method === 'DELETE' && pathname.startsWith('/flow/api/tasks/')) return true;
 	if (method === 'PUT' && pathname === '/flow/api/definitions') return true;
@@ -114,6 +120,23 @@ export async function createDevFlowMockResponse(
 	if (request.method === 'POST' && request.pathname === '/flow/api/tasks/move') {
 		return createFlowTaskBoardMoveMockResponse(state, parseJSONRecord(request.body));
 	}
+	if (request.method === 'PATCH' && request.pathname === '/flow/api/tasks/parents') {
+		const update = updateDevFlowTaskParents(state.flowState.tasks, parseJSONRecord(request.body));
+		state.flowState.tasks = update.tasks;
+		return update.response;
+	}
+	if (
+		request.method === 'PATCH'
+		&& request.pathname.startsWith('/flow/api/tasks/')
+		&& request.pathname.endsWith('/parent')
+	) {
+		const taskID = decodeURIComponent(
+			request.pathname.slice('/flow/api/tasks/'.length, -'/parent'.length)
+		);
+		const update = updateDevFlowTaskParent(state.flowState.tasks, taskID, parseJSONRecord(request.body));
+		state.flowState.tasks = update.tasks;
+		return update.response;
+	}
 	if (request.method === 'PUT' && request.pathname.startsWith('/flow/api/tasks/')) {
 		const taskID = decodeURIComponent(request.pathname.slice('/flow/api/tasks/'.length));
 		const existingTask = state.flowState.tasks.find((task) => task.id === taskID);
@@ -128,7 +151,9 @@ export async function createDevFlowMockResponse(
 		const taskID = decodeURIComponent(request.pathname.slice('/flow/api/tasks/'.length));
 		const hasTask = state.flowState.tasks.some((task) => task.id === taskID);
 		if (!hasTask) return { status: 404, body: { error: 'task not found' } };
-		state.flowState.tasks = state.flowState.tasks.filter((task) => task.id !== taskID);
+		state.flowState.tasks = state.flowState.tasks
+			.filter((task) => task.id !== taskID)
+			.map((task) => task.parentTaskID === taskID ? { ...task, parentTaskID: undefined } : task);
 		return { status: 200, body: { ok: true } };
 	}
 	if (request.method === 'PUT' && request.pathname === '/flow/api/definitions') {
@@ -206,6 +231,7 @@ function flowTaskFromRecord(parsed: Record<string, unknown>, fallback: FlowTask)
 		size: stringFromValue(parsed.size, fallback.size),
 		status: stringFromValue(parsed.status, fallback.status),
 		statusRank: numberFromValue(parsed.statusRank, fallback.statusRank),
+		parentTaskID: optionalStringFromValue(parsed.parentTaskID, fallback.parentTaskID),
 		startDate: optionalStringFromValue(parsed.startDate, fallback.startDate),
 		endDate: optionalStringFromValue(parsed.endDate, fallback.endDate),
 		createdAt: optionalStringFromValue(parsed.createdAt, fallback.createdAt),

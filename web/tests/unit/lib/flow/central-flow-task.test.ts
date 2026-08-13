@@ -17,8 +17,12 @@ const statuses = [
 describe('central flow task rows', () => {
 	test('selects requester provenance with participants', () => {
 		expect(centralFlowTaskSelection).toBe(
-			'id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester_name, was_requested, task_participant (member_id)'
+			'id, parent_task_id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester_name, was_requested, task_participant (member_id)'
 		);
+	});
+
+	test('maps the parent relationship', () => {
+		expect(centralFlowTaskFromRow(row({ parent_task_id: 'parent-1' }), names, dayOf).parentTaskID).toBe('parent-1');
 	});
 
 	test('maps every central status without losing request state', () => {
@@ -78,6 +82,7 @@ function dayOf(value: string | null): string | undefined {
 function row(overrides: Record<string, unknown> = {}) {
 	return {
 		id: 'task-1',
+		parent_task_id: null,
 		title: '업무',
 		status: 'todo' as const,
 		note: null,

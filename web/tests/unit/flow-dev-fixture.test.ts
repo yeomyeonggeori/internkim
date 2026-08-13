@@ -4,10 +4,23 @@ import {
 	devPopupOverflowDate,
 	devPopupOverflowDisplayName
 } from '../../dev-popup-overflow-fixture';
-import { createDevFlowSummary } from '../../src/routes/flow/dev-flow-fixture';
+import { createDevFlowState, createDevFlowSummary } from '../../src/routes/flow/dev-flow-fixture';
 import { buildDevFlowMemberScoreDetails } from '../../src/routes/flow/dev-flow-fixture-score';
+import { buildFlowTaskChildProgress } from '../../src/routes/flow/flow-task-relationships';
 
 describe('createDevFlowSummary', () => {
+	test('keeps a visible parent task with two of seven counted children completed', () => {
+		const state = createDevFlowState('kim@example.com');
+		const parent = state.tasks.find((task) => task.id.endsWith('-flow-dashboard'));
+
+		expect(Boolean(parent)).toBe(true);
+		expect(buildFlowTaskChildProgress(parent?.id ?? '', state.tasks)).toEqual({
+			completed: 2,
+			total: 7,
+			percent: 29
+		});
+	});
+
 	test('builds a populated local Flow summary for the requested week', () => {
 		const summary = createDevFlowSummary('26W16', 'kim@example.com');
 
@@ -36,7 +49,7 @@ describe('createDevFlowSummary', () => {
 		expect(summary.metrics.memberScoreDetails.qa).toMatchObject({
 			currentScore: 101
 		});
-		expect(summary.metrics.totalScore).toBe(603);
+		expect(summary.metrics.totalScore).toBe(703);
 		expect(summary.members.find((member) => member.name === '윤도현')?.score).toBe(101);
 		expect(summary.tasks.length > 0).toBe(true);
 		expect((summary.weeklyTasks?.length ?? 0) > 0).toBe(true);

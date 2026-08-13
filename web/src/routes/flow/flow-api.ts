@@ -7,6 +7,10 @@ import {
 	supabaseFlowState,
 	supabaseFlowWeeklySummary
 } from '$lib/flow/supabase-flow';
+import {
+	updateSupabaseTaskParent,
+	updateSupabaseTaskParents
+} from '$lib/flow/supabase-task-relationships';
 import { isSupabaseConfigured } from '$lib/supabase';
 
 export type FlowQuickTaskRequest = {
@@ -104,6 +108,37 @@ export async function deleteFlowTask(taskID: string, fallbackMessage: string): P
 	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
 }
 
+export async function updateFlowTaskParent(
+	taskID: string,
+	parentTaskID: string | undefined,
+	fallbackMessage: string
+): Promise<void> {
+	if (isSupabaseConfigured()) return updateSupabaseTaskParent(taskID, parentTaskID ?? null);
+	const response = await fetch(`/flow/api/tasks/${encodeURIComponent(taskID)}/parent`, {
+		method: 'PATCH',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ parentTaskID: parentTaskID ?? null })
+	});
+	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
+}
+
+export async function updateFlowTaskParents(
+	taskIDs: string[],
+	parentTaskID: string,
+	fallbackMessage: string
+): Promise<void> {
+	if (taskIDs.length === 0) return;
+	if (isSupabaseConfigured()) return updateSupabaseTaskParents(taskIDs, parentTaskID);
+	const response = await fetch('/flow/api/tasks/parents', {
+		method: 'PATCH',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ taskIDs, parentTaskID })
+	});
+	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
+}
+
 export async function saveFlowDefinitions(definitions: FlowDefinitions, fallbackMessage: string): Promise<void> {
 	const response = await fetch('/flow/api/definitions', {
 		method: 'PUT',
@@ -137,7 +172,10 @@ function quickTaskResultFromResponse(value: unknown): FlowQuickTaskResult {
 
 function flowTaskSavePayload(task: FlowTask): Partial<FlowTask> {
 	const { createdAt: _createdAt, ...taskPayload } = task;
-	if (taskPayload.id) return taskPayload;
+	if (taskPayload.id) {
+		const { parentTaskID: _parentTaskID, ...existingTaskPayload } = taskPayload;
+		return existingTaskPayload;
+	}
 	const { id: _id, statusRank, ...payload } = taskPayload;
 	if (statusRank !== 0) return { ...payload, statusRank };
 	return payload;
