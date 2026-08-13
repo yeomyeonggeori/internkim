@@ -1,12 +1,10 @@
 {
   "baseURL": "http://127.0.0.1:8080",
   "languageModel": {
-    "defaultProvider": "llmd",
-    "llmd": {
-      "unixSocketPath": "/run/internkim/llmd/llmd.sock",
-      "authKeyPath": "/run/internkim/llmd/llmd-auth-key",
-      "executionMode": "remote",
-      "timeoutSecond": 60
+    "defaultProvider": "direct",
+    "direct": {
+      "endpoint": "https://openrouter.ai/api/v1",
+      "apiKeyPath": "/secrets/openrouter-key"
     }
   },
   "capabilities": {
