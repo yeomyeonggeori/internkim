@@ -194,10 +194,8 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		InstallBlueclawPayloadSSH:   state.installBlueclawPayloadSSH,
 		AdminWebVersion:             state.adminWebVersion,
 		DeployAdminWeb:              state.deployAdminWeb,
-		SyncCloudflareAccess:        state.syncCloudflareAccess,
 		ConfigureWifiSSH:            state.configureWifiSSH,
 		StageWifiSD:                 state.stageWifiSD,
-		ProvisionTunnelSSH:          state.provisionTunnelSSH,
 		StageTunnelSD:               state.stageTunnelSD,
 		ConfigureSlackTokenSSH:      state.configureSlackTokenSSH,
 		StageSlackTokenSD:           state.stageSlackTokenSD,
@@ -2421,140 +2419,6 @@ func (state *setupFlowState) ensureFleetRegistration(force bool) error {
 
 	state.registrationResolved = true
 	return nil
-}
-
-func (state *setupFlowState) syncCloudflareAccess(context *setup.Context) error {
-	fleetID := strings.TrimSpace(loadState(state.stateDir, "fleet_id"))
-	fleetSecret := strings.TrimSpace(loadState(state.stateDir, "fleet_secret"))
-	nodeID := strings.TrimSpace(loadState(state.stateDir, "node_id"))
-	nodeKey := strings.TrimSpace(loadState(state.stateDir, "node_key"))
-	adminEmail := state.cloudflareAccessAdminEmail()
-	if fleetID == "" || fleetSecret == "" || nodeID == "" || nodeKey == "" {
-		return errors.New("cloudflare access sync requires fleet_id, fleet_secret, node_id, and node_key in local state")
-	}
-	response, errorValue := registerFleetNode(state.configuration, fleetID, nodeID, nodeKey, fleetSecret, adminEmail)
-	if errorValue != nil {
-		return errorValue
-	}
-	saveRegistrationResponse(state.stateDir, response)
-	saveDefaultFleetNode(state.stateDir, response)
-	if context.Callbacks.SaveState != nil {
-		context.Callbacks.SaveState("tunnel_origin", setup.MattermostTunnelOrigin)
-		context.Callbacks.SaveState("tunnel_revision", setup.TunnelConfigurationRevision)
-	}
-	fmt.Printf("  %s\n", state.messenger.t("Cloudflare Access 정책 동기화 완료", "Cloudflare Access policies synced"))
-	return nil
-}
-
-func (state *setupFlowState) cloudflareAccessAdminEmail() string {
-	return firstNonEmptyString(
-		state.parameters.AdminEmail,
-		strings.TrimSpace(os.Getenv("INTERNKIM_ADMIN_EMAIL")),
-		loadState(state.stateDir, "claimed_admin_email"),
-		loadState(state.stateDir, "google_email"),
-	)
-}
-
-func (state *setupFlowState) provisionTunnelSSH(context *setup.Context) error {
-	if err := state.ensureFleetRegistration(context.Force); err != nil {
-		return err
-	}
-
-	state.writeFleetAuthFilesSSH()
-
-	state.sshClient.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env /root/.internkim/config
-printf '%%s' %s > /root/.internkim/secrets/tunnel-token
-printf '%%s' %s > /root/.internkim/secrets/node-tunnel-token
-chmod 600 /root/.internkim/secrets/tunnel-token
-chmod 600 /root/.internkim/secrets/node-tunnel-token
-printf '%%s' %s > /root/.internkim/env/device-url
-printf '%%s' %s > /root/.internkim/env/mattermost-url
-printf '%%s' %s > /root/.internkim/env/tunnel-origin
-printf '%%s' %s > /root/.internkim/env/tunnel-revision
-printf '%%s' %s > /root/.internkim/config/admin-email
-chown root:root /root/.internkim/config/admin-email
-chmod 600 /root/.internkim/config/admin-email
-chown root:blueclaw /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision
-chmod 640 /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision`,
-		quoteShellValue(state.tunnelToken),
-		quoteShellValue(firstNonEmptyString(state.nodeTunnelToken, state.tunnelToken)),
-		quoteShellValue(state.deviceURL),
-		quoteShellValue(state.deviceURL),
-		quoteShellValue(setup.MattermostTunnelOrigin),
-		quoteShellValue(setup.TunnelConfigurationRevision),
-		quoteShellValue(state.adminEmail),
-	))
-
-	state.sshClient.run(`cat > /etc/systemd/system/cloudflared-node-ssh.service <<'SVCEOF'
-[Unit]
-Description=Cloudflare Node SSH Tunnel
-After=network-online.target time-sync.target
-Wants=network-online.target time-sync.target
-
-[Service]
-Type=simple
-ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol quic --token "$(cat /root/.internkim/secrets/node-tunnel-token)"'
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-rm -f /etc/init.d/S98cloudflared 2>/dev/null
-systemctl stop cloudflared cloudflared-node-ssh 2>/dev/null || true
-killall cloudflared 2>/dev/null || true
-systemctl daemon-reload
-systemctl enable --now cloudflared-node-ssh
-for i in $(seq 1 45); do
-  [ "$(systemctl is-active cloudflared-node-ssh 2>/dev/null)" = "active" ] && break
-  sleep 2
-done`)
-
-	if strings.TrimSpace(state.sshClient.run("systemctl is-active cloudflared-node-ssh 2>/dev/null || true")) != "active" {
-		return fmt.Errorf("cloudflared node ssh tunnel failed to start")
-	}
-
-	if state.isPendingFleetMember() {
-		state.sshClient.run(`systemctl disable --now cloudflared 2>/dev/null || true
-systemctl daemon-reload`)
-		fmt.Printf("  %s\n", state.messenger.t("pending 보드 — public 터널은 닫고 node SSH 터널만 유지", "pending board — public tunnel stays closed, node SSH tunnel stays available"))
-		return nil
-	}
-
-	state.sshClient.run(`systemctl enable systemd-time-wait-sync.service 2>/dev/null
-cat > /etc/systemd/system/cloudflared.service <<'SVCEOF'
-[Unit]
-Description=Cloudflare Tunnel
-After=network-online.target time-sync.target
-Wants=network-online.target time-sync.target
-
-[Service]
-Type=simple
-ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol quic --token "$(cat /root/.internkim/secrets/tunnel-token)"'
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-systemctl stop cloudflared 2>/dev/null || true
-systemctl daemon-reload
-systemctl enable --now cloudflared cloudflared-node-ssh
-for i in $(seq 1 45); do
-  [ "$(systemctl is-active cloudflared 2>/dev/null)" = "active" ] && break
-  sleep 2
-done`)
-
-	if strings.TrimSpace(state.sshClient.run("for i in $(seq 1 15); do [ \"$(systemctl is-active cloudflared 2>/dev/null)\" = active ] && [ \"$(systemctl is-active cloudflared-node-ssh 2>/dev/null)\" = active ] && echo active && exit 0; sleep 1; done; echo inactive")) == "active" {
-		fmt.Printf("  %s\n", state.messenger.t("cloudflared 실행 중", "cloudflared running"))
-		return nil
-	}
-
-	return fmt.Errorf("cloudflared failed to start")
 }
 
 func (state *setupFlowState) writeFleetAuthFilesSSH() {
