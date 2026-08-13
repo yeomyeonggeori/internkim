@@ -536,6 +536,19 @@ and delete the duplicates.
   and `blueclawPayload` (and `admind`) in the same release — a half-deploy
   (e.g. neutral `capabilityd` against a legacy `blueclaw`) makes the agent call
   names the other side does not know and the task stalls.
+- **A running process holds the configuration it started with.** Shipping the
+  component that writes a config and the component that removes what the config
+  names is not enough: whatever was already running keeps the old file until it
+  restarts. Send the reader too. Removing capabilityd's llmd bridge alongside
+  the `admind` that stops naming it left the running `blueclaw` pointed at a
+  bridge that was gone, its protocol identity check failed, and it went to
+  `serveWithoutStartingWork` — process up, `systemctl` green, Admin URL 200, and
+  no message turned into a task for forty minutes. `blueclawPayload` in the same
+  release would have restarted it onto the matching config.
+- **`systemctl is-active` is not "doing its job".** `blueclaw` answers HTTP and
+  reports active while refusing all work. When a deploy touches what it reads,
+  check `internkim task list` for a run newer than the deploy. The service table
+  says healthy either way.
 - A component the device has never installed takes **two deploys**. The release
   is applied by the `admind` already running, so the first deploy installs the
   new `admind` and silently skips the component it does not yet know — reporting
