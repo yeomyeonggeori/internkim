@@ -457,8 +457,8 @@ func TestRefreshBlueclawCapabilityContractReplacesStaleOperationNames(t *testing
 	}
 }
 
-func TestRefreshBlueclawCapabilityContractMigratesPreLLMDLineage(t *testing.T) {
-	preLLMDDeviceDocument := `{
+func TestRefreshBlueclawCapabilityContractRetiresLLMDLineage(t *testing.T) {
+	llmdDeviceDocument := `{
   "capabilities": {
     "transport": "vsock",
     "protocolVersion": "stale",
@@ -467,12 +467,13 @@ func TestRefreshBlueclawCapabilityContractMigratesPreLLMDLineage(t *testing.T) {
     "routing": {"candidates": [], "localOnly": false}
   },
   "languageModel": {
-    "defaultProvider": "capabilityLLM",
+    "defaultProvider": "llmd",
+    "llmd": {"endpoint": "http://127.0.0.1:18081/_internkim/llmd"},
     "capability": {"model": "preserve-me"}
   }
 }`
 
-	refreshed, errorValue := refreshBlueclawCapabilityContract(preLLMDDeviceDocument, blueclawruntime.CurrentCapabilityContract())
+	refreshed, errorValue := refreshBlueclawCapabilityContract(llmdDeviceDocument, blueclawruntime.CurrentCapabilityContract())
 	if errorValue != nil {
 		t.Fatalf("refresh returned error: %v", errorValue)
 	}
@@ -484,15 +485,11 @@ func TestRefreshBlueclawCapabilityContractMigratesPreLLMDLineage(t *testing.T) {
 	if !ok {
 		t.Fatalf("languageModel section missing:\n%s", refreshed)
 	}
-	if languageModel["defaultProvider"] != "llmd" {
-		t.Fatalf("pre-llmd device must migrate to the authoritative provider, got %v", languageModel["defaultProvider"])
+	if languageModel["defaultProvider"] != "capabilityLLM" {
+		t.Fatalf("a device left on llmd must move back to the capability path, got %v", languageModel["defaultProvider"])
 	}
-	llmdSection, ok := languageModel["llmd"].(map[string]any)
-	if !ok {
-		t.Fatalf("llmd section missing:\n%s", refreshed)
-	}
-	if llmdSection["endpoint"] != blueclawGuestLLMDBridgeEndpoint {
-		t.Fatalf("guest bridge endpoint missing, got %v", llmdSection["endpoint"])
+	if _, isPresent := languageModel["llmd"]; isPresent {
+		t.Fatalf("the retired llmd section must not survive a refresh:\n%s", refreshed)
 	}
 	capability, _ := languageModel["capability"].(map[string]any)
 	if capability["model"] != "preserve-me" {
@@ -500,12 +497,12 @@ func TestRefreshBlueclawCapabilityContractMigratesPreLLMDLineage(t *testing.T) {
 	}
 }
 
-func TestRefreshBlueclawCapabilityContractKeepsExplicitLLMDConfiguration(t *testing.T) {
+func TestRefreshBlueclawCapabilityContractLeavesAnExplicitProviderAlone(t *testing.T) {
 	configuredDocument := `{
   "capabilities": {"routing": {"candidates": []}},
   "languageModel": {
-    "defaultProvider": "llmd",
-    "llmd": {"endpoint": "", "unixSocketPath": "/run/internkim/capability.sock"}
+    "defaultProvider": "direct",
+    "direct": {"apiKeyPath": "/srv/keep/this"}
   }
 }`
 
@@ -513,11 +510,11 @@ func TestRefreshBlueclawCapabilityContractKeepsExplicitLLMDConfiguration(t *test
 	if errorValue != nil {
 		t.Fatalf("refresh returned error: %v", errorValue)
 	}
-	if !strings.Contains(refreshed, `"unixSocketPath": "/run/internkim/capability.sock"`) {
-		t.Fatalf("existing socket transport must be preserved:\n%s", refreshed)
+	if !strings.Contains(refreshed, `"defaultProvider": "direct"`) {
+		t.Fatalf("an explicitly chosen provider must be preserved:\n%s", refreshed)
 	}
-	if strings.Contains(refreshed, blueclawGuestLLMDBridgeEndpoint) {
-		t.Fatalf("socket-configured llmd must not gain the bridge endpoint:\n%s", refreshed)
+	if !strings.Contains(refreshed, `"apiKeyPath": "/srv/keep/this"`) {
+		t.Fatalf("that provider's own configuration must be preserved:\n%s", refreshed)
 	}
 }
 
