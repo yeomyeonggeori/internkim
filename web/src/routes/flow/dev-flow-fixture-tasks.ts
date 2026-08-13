@@ -33,6 +33,8 @@ function taskFromSpec(spec: DevFlowTaskSpec, week: FlowWeek): FlowTask {
 
 	return {
 		id: spec.id,
+		parentTaskID: spec.parentTaskID,
+		requesterID: spec.requesterID,
 		ownerID: spec.ownerID,
 		ownerName: owner.name,
 		participantIDs: spec.participantIDs,

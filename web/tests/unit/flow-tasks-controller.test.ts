@@ -193,6 +193,36 @@ describe('flow tasks controller', () => {
 
 		expect('setTaskOwnerID' in controller).toBe(false);
 	});
+
+	test('creates a child draft with the selected parent relationship', async () => {
+		const originalState = Reflect.get(globalThis, '$state');
+		Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
+		const { createFlowTasksController } = await import('../../src/routes/flow/flow-tasks-controller.svelte');
+		const controller = createFlowTasksController();
+
+		try {
+			controller.sync({
+				summary: flowSummary({
+					currentUserEmail: 'owner@example.com',
+					members: [flowMember({ id: 'owner', email: 'owner@example.com' })]
+				}),
+				text: flowText.ko,
+				loadFlow: async () => true,
+				setPageErrorMessage: () => {}
+			});
+
+			controller.createChildTask('parent-task');
+
+			expect(controller.taskDraft?.parentTaskID).toBe('parent-task');
+			expect(controller.editor.isEditingTask).toBe(true);
+		} finally {
+			if (originalState === undefined) {
+				Reflect.deleteProperty(globalThis, '$state');
+			} else {
+				Reflect.set(globalThis, '$state', originalState);
+			}
+		}
+	});
 });
 
 async function syncedController(members: FlowMember[] = [

@@ -17,7 +17,9 @@ describe('dev flow mock plugin', () => {
 	test('creates a task with a generated id when the draft sends a blank id', async () => {
 		const state = createDevFlowMockState('admin@example.com');
 		const member = state.flowState.members[0];
+		const parent = state.flowState.tasks[0];
 		if (!member) throw new Error('expected mock member');
+		if (!parent) throw new Error('expected mock task');
 
 		const response = await createDevFlowMockResponse(state, {
 			method: 'POST',
@@ -29,6 +31,7 @@ describe('dev flow mock plugin', () => {
 				ownerName: member.name,
 				participantIDs: [member.id],
 				participantNames: [member.name],
+				parentTaskID: parent.id,
 				content: '새 업무',
 				status: '진행'
 			})
@@ -38,6 +41,7 @@ describe('dev flow mock plugin', () => {
 		expect(response).toEqual({ status: 200, body: { ok: true } });
 		expect(createdTask?.id.startsWith('dev-flow-task-')).toBe(true);
 		expect(createdTask?.status).toBe('진행');
+		expect(createdTask?.parentTaskID).toBe(parent.id);
 	});
 
 	test('updates a development task through the mock task endpoint', async () => {
@@ -68,6 +72,53 @@ describe('dev flow mock plugin', () => {
 		});
 	});
 
+	test('updates and clears only a development task parent relationship', async () => {
+		const state = createDevFlowMockState('admin@example.com');
+		const child = state.flowState.tasks[0] as FlowTask;
+		const parent = state.flowState.tasks[1] as FlowTask;
+		const originalChild = { ...child };
+
+		const linkedResponse = await createDevFlowMockResponse(state, {
+			method: 'PATCH',
+			pathname: `/flow/api/tasks/${encodeURIComponent(child.id)}/parent`,
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({ parentTaskID: parent.id })
+		});
+		const linkedChild = state.flowState.tasks.find((task) => task.id === child.id);
+
+		expect(linkedResponse).toEqual({ status: 200, body: { ok: true } });
+		expect(linkedChild).toEqual({ ...originalChild, parentTaskID: parent.id });
+
+		const unlinkedResponse = await createDevFlowMockResponse(state, {
+			method: 'PATCH',
+			pathname: `/flow/api/tasks/${encodeURIComponent(child.id)}/parent`,
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({ parentTaskID: null })
+		});
+		const unlinkedChild = state.flowState.tasks.find((task) => task.id === child.id);
+
+		expect(unlinkedResponse).toEqual({ status: 200, body: { ok: true } });
+		expect(unlinkedChild).toEqual({ ...originalChild, parentTaskID: undefined });
+	});
+
+	test('updates multiple development task parent relationships together', async () => {
+		const state = createDevFlowMockState('admin@example.com');
+		const [parent, firstChild, secondChild] = state.flowState.tasks;
+		if (!parent || !firstChild || !secondChild) throw new Error('expected mock tasks');
+
+		const response = await createDevFlowMockResponse(state, {
+			method: 'PATCH',
+			pathname: '/flow/api/tasks/parents',
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({ taskIDs: [firstChild.id, secondChild.id], parentTaskID: parent.id })
+		});
+
+		expect(response).toEqual({ status: 200, body: { ok: true } });
+		expect(state.flowState.tasks
+			.filter((task) => task.id === firstChild.id || task.id === secondChild.id)
+			.every((task) => task.parentTaskID === parent.id)).toBe(true);
+	});
+
 	test('deletes a development task through the mock task endpoint', async () => {
 		const state = createDevFlowMockState('admin@example.com');
 		const currentState = (await createDevFlowMockResponse(state, {
@@ -90,6 +141,23 @@ describe('dev flow mock plugin', () => {
 
 		expect(response).toEqual({ status: 200, body: { ok: true } });
 		expect(updatedState.tasks.some((value) => value.id === task.id)).toBe(false);
+	});
+
+	test('clears child relationships when deleting their development parent', async () => {
+		const state = createDevFlowMockState('admin@example.com');
+		const parent = state.flowState.tasks.find((task) =>
+			state.flowState.tasks.some((candidate) => candidate.parentTaskID === task.id)
+		);
+		if (!parent) throw new Error('expected mock parent task');
+
+		const response = await createDevFlowMockResponse(state, {
+			method: 'DELETE',
+			pathname: `/flow/api/tasks/${parent.id}`,
+			searchParams: new URLSearchParams()
+		});
+
+		expect(response).toEqual({ status: 200, body: { ok: true } });
+		expect(state.flowState.tasks.some((task) => task.parentTaskID === parent.id)).toBe(false);
 	});
 
 	test('moves a development task through the mock board move endpoint', async () => {
