@@ -120,7 +120,7 @@
 				taskTypeColor={page.taskTypeColor}
 				tasks={page.filteredTasks()}
 				{text}
-				statusOptions={page.statusSelectOptions()}
+				statusOptionsForTask={page.statusSelectOptions}
 				pendingStatusTaskID={page.pendingStatusTaskID}
 				statusLabel={page.statusLabel}
 				updateTaskStatus={page.updateTaskStatus}

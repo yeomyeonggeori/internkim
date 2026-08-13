@@ -43,6 +43,12 @@
 	{text.goal}
 	<Input bind:value={taskDraft.goal} placeholder={text.goalPlaceholder} disabled={!canEditTask} />
 </label>
+{#if taskDraft.requesterID}
+	<div class="grid gap-1 text-xs font-medium text-muted-foreground">
+		<span>{text.requester}</span>
+		<span class="text-sm font-normal text-foreground">{taskDraft.requesterName || taskDraft.requesterID}</span>
+	</div>
+{/if}
 <div class="grid gap-3 md:grid-cols-2">
 	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 		{text.status}

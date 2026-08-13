@@ -6,7 +6,6 @@
 	import { personProfileImagePath } from '$lib/person-profile-image';
 	import { buildFlowTaskBoardCardDisplay } from './flow-task-board-card-model';
 	import FlowTaskDateRange from './flow-task-date-range.svelte';
-	import FlowTaskPersonChip from './flow-task-person-chip.svelte';
 	import { sizeBadgeClass } from './flow-style';
 	import { flowDefinitionBadgeStyle, flowDefinitionOutlineBadgeStyle } from './flow-definition-colors';
 	import type { FlowTask } from './flow-types';
@@ -23,7 +22,7 @@
 		onTaskDragEnd?: (event: DragEvent, task: FlowTask) => void;
 		onTaskDragOver?: (event: DragEvent, task: FlowTask) => void;
 		onTaskDrop?: (event: DragEvent, task: FlowTask) => void;
-		ownerChip?: Snippet;
+		primaryParticipantChip?: Snippet;
 		isInteractive?: boolean;
 		memberEmail?: (memberID: string) => string;
 		isOverduePlan?: boolean;
@@ -42,7 +41,7 @@
 		onTaskDragEnd,
 		onTaskDragOver,
 		onTaskDrop,
-		ownerChip,
+		primaryParticipantChip,
 		isInteractive = true,
 		memberEmail = () => '',
 		isOverduePlan = false,
@@ -137,12 +136,9 @@
 	<div class="space-y-1 px-3 py-2">
 		<div class="flex min-w-0 items-center justify-between gap-2">
 			<div class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-				{#if ownerChip}
-					{@render ownerChip()}
-				{:else}
-					<FlowTaskPersonChip name={display.ownerName} email={memberEmail(task.ownerID)} seed={task.ownerID || display.ownerName} image={personProfileImagePath(task.ownerID)} />
-				{/if}
-				{#if primaryParticipantName}
+				{#if primaryParticipantChip}
+					{@render primaryParticipantChip()}
+				{:else if primaryParticipantName}
 					<span class="inline-flex min-w-0 max-w-24 items-center gap-1.5">
 						<PersonAvatar name={primaryParticipantName} email={memberEmail(primaryParticipantID)} seed={primaryParticipantID || primaryParticipantName} image={personProfileImagePath(primaryParticipantID)} class="size-3.5 ring-1 ring-border/60" />
 						<span class="truncate">{primaryParticipantName}</span>

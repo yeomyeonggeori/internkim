@@ -35,12 +35,12 @@
 	{/if}
 
 	<div class="grid gap-4 sm:grid-cols-2">
-		<div>
-			<p class="text-xs text-muted-foreground">{text.owner}</p>
-			<div class="mt-1 flex flex-wrap gap-1">
-				<FlowTaskPersonChip name={task.ownerName} email={memberEmail(task.ownerID)} seed={task.ownerID} image={personProfileImagePath(task.ownerID)} />
+		{#if task.requesterID}
+			<div>
+				<p class="text-xs text-muted-foreground">{text.requester}</p>
+				<p class="mt-1 text-sm">{task.requesterName || memberEmail(task.requesterID) || task.requesterID}</p>
 			</div>
-		</div>
+		{/if}
 		{#if task.participantNames.length}
 			<div>
 				<p class="text-xs text-muted-foreground">{text.participants}</p>
