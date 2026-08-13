@@ -16,28 +16,31 @@ test.describe('flow task relationships', () => {
 		await expect(relationships.getByRole('heading', { name: '업무 관계' })).toBeVisible();
 		await expect(relationships.getByText('연결된 부모 업무가 없습니다.')).toHaveCount(0);
 		await expect(relationships.getByText('연결된 자녀 업무가 없습니다.')).toHaveCount(0);
-		await expect(relationships.getByRole('button', { name: '부모 업무 추가', exact: true })).toBeVisible();
-		await expect(relationships.getByRole('button', { name: '자녀 업무 추가', exact: true })).toBeVisible();
+		await expect(relationships.getByRole('button', { name: '부모 업무 추가', exact: true })).toHaveCount(0);
+		await expect(relationships.getByRole('button', { name: '자녀 업무 추가', exact: true })).toHaveCount(0);
 		await expect(relationships.getByRole('heading', { name: '자녀 업무', exact: true })).toBeVisible();
 		const progress = relationships.getByLabel('자녀 업무 2 / 7 완료, 29%');
 		await expect(progress).toBeVisible();
 		await expect(progress).toHaveAttribute('data-slot', 'badge');
 		await expect(progress.locator('[data-flow-relationship-progress-ring]')).toBeVisible();
 		await expect(relationships.locator('[data-slot="separator"]')).toHaveCount(1);
-		await expect(relationships.getByRole('button', { name: '부모 업무 추가', exact: true })).toHaveAttribute(
-			'data-slot',
-			'button'
-		);
 		await expect(relationships.locator('[data-flow-relationship-task]')).toHaveCount(8);
 		await expect(relationships.locator('[data-relationship-status-kind="completed"]')).toHaveCount(2);
 		await expect(relationships.locator('[data-relationship-status-kind="incomplete"]')).toHaveCount(6);
 		await expect(relationships.locator('[data-relationship-status-kind="excluded"]')).toHaveCount(0);
 		await expect(relationships.locator('[data-flow-relationship-list]')).toHaveClass(/divide-y/);
+		const childRows = relationships.locator('[data-flow-relationship-task]');
+		for (let index = 0; index < 6; index += 1) {
+			await expect(childRows.nth(index).locator('[data-relationship-status-kind="incomplete"]')).toBeVisible();
+		}
+		for (let index = 6; index < 8; index += 1) {
+			await expect(childRows.nth(index).locator('[data-relationship-status-kind="completed"]')).toBeVisible();
+		}
 		const firstChild = relationships.locator('[data-flow-relationship-task]').first();
 		await expect(firstChild.locator('[data-slot="avatar"]')).toBeVisible();
 	});
 
-	test('hides parent add after a parent is connected and keeps child add available', async ({ page }) => {
+	test('shows relationship actions only after entering edit mode', async ({ page }) => {
 		await page.goto('/flow/');
 		await taskCard(page, flowDashboardTaskID).click();
 		const relationships = page.locator('[data-flow-task-relationships]');
@@ -45,8 +48,12 @@ test.describe('flow task relationships', () => {
 
 		await expect(relationships.getByRole('button', { name: '부모 업무 추가', exact: true })).toHaveCount(0);
 		await expect(relationships.getByText('Flow 주간 리포트 카드 정리', { exact: true })).toBeVisible();
-		await expect(relationships.getByRole('button', { name: '자녀 업무 추가', exact: true })).toBeVisible();
+		await expect(relationships.getByRole('button', { name: '자녀 업무 추가', exact: true })).toHaveCount(0);
 		await expect(relationships.getByText('연결된 자녀 업무가 없습니다.')).toHaveCount(0);
+
+		await page.getByRole('button', { name: '업무 수정', exact: true }).click();
+		await expect(relationships.getByRole('button', { name: '부모 업무 추가', exact: true })).toHaveCount(0);
+		await expect(relationships.getByRole('button', { name: '자녀 업무 추가', exact: true })).toBeVisible();
 	});
 
 	test('connects multiple existing child tasks from the edit sheet', async ({ page }) => {
