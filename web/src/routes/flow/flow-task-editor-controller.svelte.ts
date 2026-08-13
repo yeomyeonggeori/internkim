@@ -3,7 +3,6 @@ import {
 	createFlowTaskDraft,
 	defaultFlowTaskOwner,
 	removeFlowTaskParticipant,
-	updateFlowTaskOwner,
 	updateFlowTaskParticipantNames
 } from './flow-task-draft';
 import { definitionsFromSummary } from './flow-task-options';
@@ -72,12 +71,24 @@ export class FlowTaskEditorController {
 		this.isEditingTask = true;
 	};
 
-	createTask = (status?: string): void => {
+	createTask = (status?: string, targetParticipantIDs: string[] = []): void => {
 		const owner = this.defaultTaskOwner();
 		if (!owner || !this.summary) return;
 		this.taskDraft = createFlowTaskDraft(owner, definitionsFromSummary(this.summary), this.taskWeek());
 		this.isEditingTask = true;
 		if (typeof status === 'string' && status) this.taskDraft.status = status;
+		if (this.summary.source === 'supabase') {
+			const isRequest = status === '요청';
+			this.taskDraft.requesterID = isRequest ? owner.id : '';
+			this.taskDraft.requesterName = isRequest ? owner.name : '';
+			if (isRequest) {
+				const targetNames = targetParticipantIDs
+					.map((memberID) => this.members().find((member) => member.id === memberID)?.name)
+					.filter((name): name is string => Boolean(name));
+				if (targetNames.length === 0) targetNames.push(owner.name);
+				this.taskDraft = updateFlowTaskParticipantNames(this.taskDraft, this.members(), targetNames);
+			}
+		}
 		this.taskErrorMessage = '';
 	};
 
@@ -116,7 +127,9 @@ export class FlowTaskEditorController {
 
 	setTaskOwnerID = (memberID: string): void => {
 		if (!this.taskDraft) return;
-		this.taskDraft = updateFlowTaskOwner(this.taskDraft, this.members(), memberID);
+		const member = this.members().find((candidate) => candidate.id === memberID);
+		if (!member) return;
+		this.taskDraft = updateFlowTaskParticipantNames(this.taskDraft, this.members(), [member.name]);
 	};
 
 	setParticipantNames = (names: string[]): void => {

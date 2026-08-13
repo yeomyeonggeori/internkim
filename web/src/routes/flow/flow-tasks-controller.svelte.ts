@@ -111,7 +111,7 @@ class FlowTasksController {
 	members = () => this.summary?.members ?? [];
 	tasks = () => this.summary?.tasks ?? [];
 	definitions = () => definitionsFromSummary(this.summary);
-	statusOptions = () => statusOptionsFromSummary(this.summary);
+	statusOptions = (task?: FlowTask | null) => statusOptionsFromSummary(this.summary, task);
 	categoryOptions = () => categorySelectOptions(this.definitions(), this.text.report.fallbackBusiness);
 	typeOptions = () => typeSelectOptions(this.definitions());
 	sizeOptions = () => sizeSelectOptions(this.definitions());
@@ -119,7 +119,7 @@ class FlowTasksController {
 	memberFilterOptions = () => this.filters.memberOptions(this.summary, this.text);
 	categoryFilterOptions = () => this.filters.businessOptions(this.summary, this.text);
 	typeFilterOptions = () => this.filters.typeOptions(this.summary, this.text);
-	statusSelectOptions = () => statusSelectOptions(this.statusOptions(), this.statusLabel);
+	statusSelectOptions = (task?: FlowTask | null) => statusSelectOptions(this.statusOptions(task ?? this.taskDraft), this.statusLabel);
 	memberSelectOptions = () => memberSelectOptions(this.members());
 	businessColor = (business: string) => flowBusinessColor(business, this.definitions());
 	taskTypeColor = (type: string) => flowTaskTypeColor(type, this.definitions());
@@ -139,7 +139,7 @@ class FlowTasksController {
 	};
 
 	createTask = (status?: string): void => {
-		this.editor.createTask(status);
+		this.editor.createTask(status, this.filters.participantFilterIDs);
 	};
 
 	createQuickTask = (allowDuplicate = false): Promise<FlowQuickTaskCreateResult> => this.quickTask.createQuickTask(allowDuplicate);

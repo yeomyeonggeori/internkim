@@ -1,6 +1,7 @@
 import { buildBusinessSelectOptions } from './flow-task-workspace-model';
+import { flowStatus } from './flow-status';
 import { flowText } from './text';
-import type { FlowDefinitions, FlowMember, FlowSummary } from './flow-types';
+import type { FlowDefinitions, FlowMember, FlowSummary, FlowTask } from './flow-types';
 
 type FlowPageText = typeof flowText.ko;
 
@@ -14,8 +15,20 @@ export function definitionsFromSummary(summary: FlowSummary | null): FlowDefinit
 	return summary?.definitions ?? emptyDefinitions;
 }
 
-export function statusOptionsFromSummary(summary: FlowSummary | null): string[] {
-	return summary?.statusOptions ?? [];
+export function statusOptionsFromSummary(summary: FlowSummary | null, task?: FlowTask | null): string[] {
+	if (!summary) return [];
+	if (task?.requesterID) {
+		return [
+			flowStatus.requested,
+			flowStatus.planned,
+			flowStatus.inProgress,
+			flowStatus.completed,
+			flowStatus.paused,
+			flowStatus.rejected,
+			flowStatus.stopped
+		];
+	}
+	return [flowStatus.planned, flowStatus.inProgress, flowStatus.completed, flowStatus.paused, flowStatus.stopped];
 }
 
 export function flowTaskStatusLabel(text: FlowPageText, status: string): string {

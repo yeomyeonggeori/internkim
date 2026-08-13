@@ -88,32 +88,24 @@ describe('flow task workspace model', () => {
 		]);
 	});
 
-	test('matches server task update and delete permission rules', () => {
+	test('grants the sole participant task and assignment authority', () => {
 		const summary = flowSummary({
 			currentUserEmail: 'lee@example.com',
 			isAdmin: false,
 			members: [
-				flowMember({ id: 'owner', email: 'owner@example.com' }),
 				flowMember({ id: 'participant', email: 'lee@example.com' }),
 				flowMember({ id: 'viewer', email: 'viewer@example.com' })
 			]
 		});
-		const participantTask = flowTask({
-			ownerID: 'owner',
-			participantIDs: ['participant']
-		});
-		const viewerTask = flowTask({
-			ownerID: 'owner',
-			participantIDs: ['viewer']
-		});
+		const task = flowTask({ ownerID: 'participant', participantIDs: ['participant'] });
 
-		expect(canUpdateFlowTask(summary, participantTask)).toBe(true);
-		expect(canDeleteFlowTask(summary, participantTask)).toBe(false);
-		expect(canUpdateFlowTask(summary, viewerTask)).toBe(false);
-		expect(canDeleteFlowTask({ ...summary, isAdmin: true }, viewerTask)).toBe(true);
+		expect(canUpdateFlowTask(summary, task)).toBe(true);
+		expect(canDeleteFlowTask(summary, task)).toBe(true);
+		expect(canManageFlowTaskAssignment(summary, task)).toBe(true);
+		expect(canRemoveFlowTaskParticipant(task, 'participant')).toBe(false);
 	});
 
-	test('allows only admins or owners to change task assignment fields', () => {
+	test('lets every participant update shared tasks without order-based authority', () => {
 		const summary = flowSummary({
 			currentUserEmail: 'lee@example.com',
 			isAdmin: false,
@@ -123,26 +115,56 @@ describe('flow task workspace model', () => {
 			]
 		});
 		const task = flowTask({
-			ownerID: 'owner',
+			ownerID: '',
 			participantIDs: ['owner', 'participant']
 		});
 
 		expect(canUpdateFlowTask(summary, task)).toBe(true);
 		expect(canManageFlowTaskAssignment(summary, task)).toBe(false);
-		expect(canManageFlowTaskAssignment({ ...summary, currentUserEmail: 'owner@example.com' }, task)).toBe(true);
+		expect(canDeleteFlowTask(summary, task)).toBe(false);
+		expect(canUpdateFlowTask({ ...summary, currentUserEmail: 'owner@example.com' }, task)).toBe(true);
+		expect(canManageFlowTaskAssignment({ ...summary, currentUserEmail: 'owner@example.com' }, task)).toBe(false);
+		expect(canDeleteFlowTask({ ...summary, currentUserEmail: 'owner@example.com' }, task)).toBe(false);
 		expect(canManageFlowTaskAssignment({ ...summary, isAdmin: true }, task)).toBe(true);
+		expect(canDeleteFlowTask({ ...summary, isAdmin: true }, task)).toBe(true);
 	});
 
-	test('keeps the owner locked in the participant list', () => {
-		const task = flowTask({
-			ownerID: 'owner',
-			participantIDs: ['owner', 'participant'],
-			participantNames: ['담당자', '참여자']
+	test('does not grant task authority without participation', () => {
+		const summary = flowSummary({
+			currentUserEmail: 'lee@example.com',
+			isAdmin: false,
+			members: [flowMember({ id: 'viewer', email: 'lee@example.com' })]
+		});
+		const task = flowTask({ ownerID: '', participantIDs: [], participantNames: [] });
+
+		expect(canUpdateFlowTask(summary, task)).toBe(false);
+		expect(canDeleteFlowTask(summary, task)).toBe(false);
+		expect(canManageFlowTaskAssignment(summary, task)).toBe(false);
+		expect(canRemoveFlowTaskParticipant(task, 'viewer')).toBe(false);
+	});
+
+	test('lets a requester edit their unsaved request draft without becoming a participant', () => {
+		const summary = flowSummary({
+			currentUserEmail: 'requester@example.com',
+			members: [flowMember({ id: 'requester', email: 'requester@example.com' })]
+		});
+		const draft = flowTask({
+			id: '',
+			ownerID: 'target',
+			requesterID: 'requester',
+			participantIDs: ['target']
 		});
 
-		expect(canRemoveFlowTaskParticipant(task, 'owner')).toBe(false);
-		expect(canRemoveFlowTaskParticipant(task, 'participant')).toBe(true);
-		expect(canRemoveFlowTaskParticipant(task, 'viewer')).toBe(false);
+		expect(canUpdateFlowTask(summary, draft)).toBe(true);
+	});
+
+	test('allows participant removal only when another participant remains', () => {
+		const soleTask = flowTask({ ownerID: 'owner', participantIDs: ['owner'] });
+		const sharedTask = flowTask({ ownerID: '', participantIDs: ['owner', 'participant'] });
+
+		expect(canRemoveFlowTaskParticipant(soleTask, 'owner')).toBe(false);
+		expect(canRemoveFlowTaskParticipant(sharedTask, 'owner')).toBe(true);
+		expect(canRemoveFlowTaskParticipant(sharedTask, 'participant')).toBe(true);
 	});
 
 	test('sorts the task list by status group, end date, and created date', () => {
