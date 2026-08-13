@@ -41,7 +41,9 @@ test.describe('flow task child progress', () => {
 		await expect(parentCard).toBeVisible();
 		await expect(taskCard(page, completedChildTaskID)).toHaveCount(0);
 		await expect(taskCard(page, marketScanTaskID)).toHaveCount(0);
-		await expect(progress).toContainText('자녀 업무 2 / 6 완료');
+		await expect(progress).toContainText('2/6');
+		await expect(progress).not.toContainText('자녀 업무');
+		await expect(progress).not.toContainText('완료');
 		await expect(progress).toContainText('33%');
 		await expect(progress.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2');
 		await expect(progress.getByRole('progressbar')).toHaveAttribute('aria-valuemax', '6');

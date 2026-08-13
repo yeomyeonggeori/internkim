@@ -18,6 +18,8 @@ test.describe('flow task relationships', () => {
 		await expect(relationships.getByRole('heading', { name: '자녀 업무', exact: true })).toBeVisible();
 		await expect(relationships.getByText('2 / 6')).toBeVisible();
 		await expect(relationships.locator('[data-flow-relationship-task]')).toHaveCount(8);
+		const firstChild = relationships.locator('[data-flow-relationship-task]').first();
+		await expect(firstChild.locator('[data-slot="avatar"]')).toBeVisible();
 	});
 
 	test('connects multiple existing child tasks from the edit sheet', async ({ page }) => {

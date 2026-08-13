@@ -11,7 +11,7 @@
 
 <div class="space-y-1.5 border-t border-border/60 pt-1.5" data-flow-task-child-progress>
 	<div class="flex items-center justify-between gap-2 text-[11px] leading-4 text-muted-foreground">
-		<span>{label}</span>
+		<span class="tabular-nums">{progress.completed}/{progress.total}</span>
 		<span class="shrink-0 tabular-nums">{progress.percent}%</span>
 	</div>
 	<div
