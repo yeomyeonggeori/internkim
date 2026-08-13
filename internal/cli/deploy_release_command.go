@@ -206,7 +206,7 @@ func applyPublishedRelease(target commandTarget, releaseID string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	requestDocument, errorValue := json.Marshal(map[string]string{"releaseID": releaseID})
+	requestDocument, errorValue := json.Marshal(map[string]string{"releaseID": releaseID, "channel": deployReleaseChannel})
 	if errorValue != nil {
 		return errorValue
 	}
@@ -223,6 +223,7 @@ func applyPublishedRelease(target commandTarget, releaseID string) error {
 }
 
 func commandTargetFromDeployTarget(target deployops.Target) commandTarget {
+	sshUser, sshPassword := resolveSetupSSHCredentials(setup.BoardJetsonOrinNano, "", "")
 	return commandTarget{
 		mode:           commandTargetModePhysical,
 		profile:        target.Profile,
@@ -231,6 +232,9 @@ func commandTargetFromDeployTarget(target deployops.Target) commandTarget {
 		nodeID:         target.NodeID,
 		isNodeExplicit: target.NodeArgument != "" || target.NodeID != "",
 		deviceURL:      target.AdminURL,
+		sshUser:        sshUser,
+		sshPassword:    sshPassword,
+		sshHostname:    loadState(target.StatePath, "ssh_hostname"),
 	}
 }
 

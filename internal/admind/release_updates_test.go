@@ -1016,3 +1016,32 @@ func fileSize(t *testing.T, path string) int64 {
 	}
 	return information.Size()
 }
+
+func TestReleaseUpdateApplyReadsTheChannelItWasGiven(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/updates/apply",
+		strings.NewReader(`{"releaseID":"r-1","channel":"direct"}`))
+
+	releaseID, channel, errorValue := decodeReleaseUpdateApplyRequest(request)
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if releaseID != "r-1" || channel != "direct" {
+		t.Fatalf("release %q channel %q", releaseID, channel)
+	}
+}
+
+func TestReleaseUpdateApplyFallsBackToStable(t *testing.T) {
+	for _, body := range []string{"", `{"releaseID":"r-1"}`} {
+		request := httptest.NewRequest(http.MethodPost, "/admin/api/updates/apply", strings.NewReader(body))
+
+		_, channel, errorValue := decodeReleaseUpdateApplyRequest(request)
+
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if channel != "stable" {
+			t.Fatalf("a request that names no channel takes stable, got %q for body %q", channel, body)
+		}
+	}
+}
