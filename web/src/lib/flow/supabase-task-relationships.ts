@@ -2,11 +2,7 @@ import { supabase } from '$lib/supabase';
 
 export async function updateSupabaseTaskParent(taskID: string, parentTaskID: string | null): Promise<void> {
 	const result = await supabase()
-		.from('task')
-		.update({ parent_task_id: parentTaskID })
-		.eq('id', taskID)
-		.select('id')
-		.single<{ id: string }>();
+		.rpc('set_task_parent', { target_task_id: taskID, target_parent_task_id: parentTaskID });
 	if (result.error) {
 		throw new Error(`Could not update the parent relationship for task ${taskID}: ${result.error.message}`);
 	}

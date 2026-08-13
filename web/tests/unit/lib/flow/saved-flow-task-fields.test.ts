@@ -72,13 +72,18 @@ describe('what the board writes back', () => {
 			target_ends_at: '2026-08-20T00:00:00.000Z',
 			target_write_dates: true,
 			target_requester_id: null,
-			target_participant_ids: ['member-1', 'member-2']
+			target_participant_ids: ['member-1', 'member-2'],
+			target_parent_task_id: null
 		});
 
 		expect(
 			supabaseFlowTaskRPCArguments(taskWith({ id: '', status: '요청', requesterID: 'requester-1' }))
 				.target_requester_id
 		).toBe('requester-1');
+		expect(
+			supabaseFlowTaskRPCArguments(taskWith({ id: '', parentTaskID: 'parent-task' }))
+				.target_parent_task_id
+		).toBe('parent-task');
 	});
 
 	test('gives a task the days the board holds', () => {
