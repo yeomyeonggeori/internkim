@@ -1,0 +1,133 @@
+export type CallerIdentity = {
+	accountID: string;
+	memberID: string;
+	companyID: string;
+};
+
+export type TokenClaims = {
+	sub: string;
+	iss: string;
+	exp: number;
+};
+
+export class TokenRefused extends Error {
+	constructor(reason: string) {
+		super(reason);
+		this.name = 'TokenRefused';
+	}
+}
+
+function decodeBase64URL(segment: string): Uint8Array<ArrayBuffer> {
+	const padded = segment.replace(/-/g, '+').replace(/_/g, '/');
+	const binary = atob(padded.padEnd(padded.length + ((4 - (padded.length % 4)) % 4), '='));
+	return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+function decodeSegment(segment: string): unknown {
+	return JSON.parse(new TextDecoder().decode(decodeBase64URL(segment)));
+}
+
+function claimsOf(payload: unknown, expectedIssuer: string, nowSeconds: number): TokenClaims {
+	if (typeof payload !== 'object' || payload === null) throw new TokenRefused('the token carries no claims');
+	const { sub, iss, exp } = payload as Record<string, unknown>;
+	if (typeof sub !== 'string' || sub.trim() === '') throw new TokenRefused('the token names no account');
+	if (iss !== expectedIssuer) throw new TokenRefused(`the token was issued by ${String(iss)}`);
+	if (typeof exp !== 'number') throw new TokenRefused('the token carries no expiry');
+	if (exp <= nowSeconds) throw new TokenRefused('the token has expired');
+	return { sub, iss, exp };
+}
+
+const algorithms: Record<string, { name: string; namedCurve?: string; hash: string }> = {
+	ES256: { name: 'ECDSA', namedCurve: 'P-256', hash: 'SHA-256' },
+	RS256: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }
+};
+
+export type JSONWebKeySet = { keys: JsonWebKey[] };
+
+// Narrower than the global fetch on purpose: the only dependency here is
+// "something that reads a document", which a test can stand in for.
+export type FetchDocument = (
+	url: string,
+	options?: { headers?: Record<string, string> }
+) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
+
+export class JSONWebKeyCache {
+	private keys: Promise<JSONWebKeySet> | undefined;
+
+	constructor(
+		private readonly jwksURL: string,
+		private readonly fetchDocument: FetchDocument = fetch
+	) {}
+
+	async keySet(): Promise<JSONWebKeySet> {
+		this.keys ??= this.readKeySet();
+		return this.keys;
+	}
+
+	forget(): void {
+		this.keys = undefined;
+	}
+
+	private async readKeySet(): Promise<JSONWebKeySet> {
+		const response = await this.fetchDocument(this.jwksURL);
+		if (!response.ok) {
+			this.keys = undefined;
+			throw new TokenRefused(`the issuer's key set answered ${response.status}`);
+		}
+		return (await response.json()) as JSONWebKeySet;
+	}
+}
+
+export async function verifyToken(
+	token: string,
+	keyCache: JSONWebKeyCache,
+	expectedIssuer: string,
+	nowSeconds: number
+): Promise<TokenClaims> {
+	const [headerSegment, payloadSegment, signatureSegment] = token.split('.');
+	if (!headerSegment || !payloadSegment || !signatureSegment) throw new TokenRefused('the token is not a jwt');
+
+	const header = decodeSegment(headerSegment) as { alg?: string; kid?: string };
+	const algorithm = header.alg ? algorithms[header.alg] : undefined;
+	if (!algorithm) throw new TokenRefused(`the token is signed with ${header.alg ?? 'nothing'}`);
+
+	const { keys } = await keyCache.keySet();
+	const jsonWebKey = keys.find((candidate) => (candidate as { kid?: string }).kid === header.kid);
+	if (!jsonWebKey) {
+		keyCache.forget();
+		throw new TokenRefused('the issuer published no key with that id');
+	}
+
+	const key = await crypto.subtle.importKey('jwk', jsonWebKey, algorithm, false, ['verify']);
+	const isSigned = await crypto.subtle.verify(
+		algorithm.name === 'ECDSA' ? { name: 'ECDSA', hash: algorithm.hash } : algorithm.name,
+		key,
+		decodeBase64URL(signatureSegment),
+		new TextEncoder().encode(`${headerSegment}.${payloadSegment}`)
+	);
+	if (!isSigned) throw new TokenRefused('the token signature does not verify');
+
+	return claimsOf(decodeSegment(payloadSegment), expectedIssuer, nowSeconds);
+}
+
+type MemberRow = { id: string; company_id: string };
+
+// The member row is read with the caller's own token, so row level security is
+// what decides the answer; the gateway holds no key that could read another
+// company's rows.
+export async function resolveMember(
+	supabaseURL: string,
+	publishableKey: string,
+	token: string,
+	accountID: string,
+	fetchDocument: FetchDocument = fetch
+): Promise<CallerIdentity> {
+	const url = `${supabaseURL.replace(/\/+$/, '')}/rest/v1/member?user_id=eq.${encodeURIComponent(accountID)}&select=id,company_id`;
+	const response = await fetchDocument(url, {
+		headers: { apikey: publishableKey, Authorization: `Bearer ${token}` }
+	});
+	if (!response.ok) throw new TokenRefused(`the record answered ${response.status} for this account`);
+	const rows = (await response.json()) as MemberRow[];
+	if (!Array.isArray(rows) || rows.length !== 1) throw new TokenRefused('this account belongs to no company');
+	return { accountID, memberID: rows[0].id, companyID: rows[0].company_id };
+}
