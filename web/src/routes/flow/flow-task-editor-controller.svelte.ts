@@ -3,8 +3,7 @@ import {
 	createFlowTaskDraft,
 	defaultFlowTaskOwner,
 	removeFlowTaskParticipant,
-	updateFlowTaskOwner,
-	updateFlowTaskParticipantNames
+	updateFlowTaskParticipantIDs
 } from './flow-task-draft';
 import { definitionsFromSummary } from './flow-task-options';
 import { deleteFlowTaskDraft, saveFlowTaskDraft } from './flow-task-persistence';
@@ -17,6 +16,7 @@ import {
 	currentFlowMember
 } from './flow-task-workspace-model';
 import { flowText } from './text';
+import { isCentralFlowSource } from './flow-source';
 import type { FlowMember, FlowSummary, FlowTask } from './flow-types';
 
 type FlowPageText = typeof flowText.ko;
@@ -72,12 +72,22 @@ export class FlowTaskEditorController {
 		this.isEditingTask = true;
 	};
 
-	createTask = (status?: string): void => {
+	createTask = (status?: string, targetParticipantIDs: string[] = []): void => {
 		const owner = this.defaultTaskOwner();
 		if (!owner || !this.summary) return;
 		this.taskDraft = createFlowTaskDraft(owner, definitionsFromSummary(this.summary), this.taskWeek());
 		this.isEditingTask = true;
 		if (typeof status === 'string' && status) this.taskDraft.status = status;
+		if (this.summary.source === 'supabase') {
+			const isRequest = status === '요청';
+			this.taskDraft.requesterID = isRequest ? owner.id : '';
+			this.taskDraft.requesterName = isRequest ? owner.name : '';
+			this.taskDraft.wasRequested = isRequest;
+			if (isRequest) {
+				const targetIDs = targetParticipantIDs.length > 0 ? targetParticipantIDs : [owner.id];
+				this.taskDraft = updateFlowTaskParticipantIDs(this.taskDraft, this.members(), targetIDs, this.summary.source);
+			}
+		}
 		this.taskErrorMessage = '';
 	};
 
@@ -114,19 +124,14 @@ export class FlowTaskEditorController {
 		this.isDeletingTask = false;
 	};
 
-	setTaskOwnerID = (memberID: string): void => {
+	setParticipantIDs = (memberIDs: string[]): void => {
 		if (!this.taskDraft) return;
-		this.taskDraft = updateFlowTaskOwner(this.taskDraft, this.members(), memberID);
-	};
-
-	setParticipantNames = (names: string[]): void => {
-		if (!this.taskDraft) return;
-		this.taskDraft = updateFlowTaskParticipantNames(this.taskDraft, this.members(), names);
+		this.taskDraft = updateFlowTaskParticipantIDs(this.taskDraft, this.members(), memberIDs, this.summary?.source ?? '');
 	};
 
 	removeParticipantID = (memberID: string): void => {
-		if (!this.taskDraft || !canRemoveFlowTaskParticipant(this.taskDraft, memberID)) return;
-		this.taskDraft = removeFlowTaskParticipant(this.taskDraft, memberID);
+		if (!this.taskDraft || !this.canRemoveParticipant(this.taskDraft, memberID)) return;
+		this.taskDraft = removeFlowTaskParticipant(this.taskDraft, memberID, this.summary?.source ?? '');
 	};
 
 	closeEditor = (): void => {
@@ -138,6 +143,10 @@ export class FlowTaskEditorController {
 	canUpdateTask = (task: FlowTask): boolean => canUpdateFlowTask(this.summary, task);
 	canDeleteTask = (task: FlowTask): boolean => canDeleteFlowTask(this.summary, task);
 	canManageTaskAssignment = (task: FlowTask): boolean => canManageFlowTaskAssignment(this.summary, task);
+	canRemoveParticipant = (task: FlowTask, memberID: string): boolean => {
+		if (!canRemoveFlowTaskParticipant(task, memberID)) return false;
+		return isCentralFlowSource(this.summary?.source ?? '') || memberID !== task.ownerID;
+	};
 
 	private members(): FlowMember[] {
 		return this.summary?.members ?? [];

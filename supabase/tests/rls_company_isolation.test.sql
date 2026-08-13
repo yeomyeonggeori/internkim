@@ -362,16 +362,16 @@ begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1"}', true);
 
-  insert into public.task (company_id, title, requester_id)
-  values ('00000000-0000-0000-0000-0000000000a0', 'Requested work', colleague)
+  insert into public.task (company_id, title, status, requester_id)
+  values ('00000000-0000-0000-0000-0000000000a0', 'Requested work', 'requested', colleague)
   returning id into requested;
 
   select requester_id into recorded from public.task where id = requested;
   assert recorded = colleague, 'a task remembers the colleague who asked for it';
 
   begin
-    insert into public.task (company_id, title, requester_id)
-    values ('00000000-0000-0000-0000-0000000000a0', 'Requested from outside', outsider);
+    insert into public.task (company_id, title, status, requester_id)
+    values ('00000000-0000-0000-0000-0000000000a0', 'Requested from outside', 'requested', outsider);
   exception when insufficient_privilege then
     outside_requester_blocked := true;
   end;
@@ -388,11 +388,13 @@ declare
   remaining uuid;
   untouched integer;
 begin
+  perform set_config('request.jwt.claims', '{}', true);
+
   insert into public.member (id, company_id, email)
   values (departing, '00000000-0000-0000-0000-0000000000a0', 'departing@example.test');
 
-  insert into public.task (company_id, title, requester_id)
-  values ('00000000-0000-0000-0000-0000000000a0', 'Work whose requester leaves', departing)
+  insert into public.task (company_id, title, status, requester_id)
+  values ('00000000-0000-0000-0000-0000000000a0', 'Work whose requester leaves', 'requested', departing)
   returning id into orphaned;
 
   delete from public.member where id = departing;
