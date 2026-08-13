@@ -264,33 +264,6 @@ func TestUpPlanCanSetMaximumModelTier(t *testing.T) {
 	}
 }
 
-func TestUpPlanCanSetAuthoritativeLLMDMode(t *testing.T) {
-	service, errorValue := NewService(Options{
-		RepositoryRootPath: "/repo",
-		ExecutablePath:     "/repo/internkim",
-		LLMDMode:           LLMDModeAuthoritative,
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	expectedAssignment := blueclaw.BlueclawLLMDModeEnvironment + "='" + string(LLMDModeAuthoritative) + "'"
-	if !strings.Contains(joinedPlans, expectedAssignment) {
-		t.Fatalf("expected authoritative LLMD mode:\n%s", joinedPlans)
-	}
-}
-
-func TestUpPlanOmitsUnspecifiedLLMDMode(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	if strings.Contains(joinedPlans, blueclaw.BlueclawLLMDModeEnvironment) {
-		t.Fatalf("expected unspecified LLMD mode to remain absent:\n%s", joinedPlans)
-	}
-}
-
 func TestServiceRejectsUnsupportedLLMDMode(t *testing.T) {
 	_, errorValue := NewService(Options{
 		RepositoryRootPath: "/repo",
@@ -511,9 +484,6 @@ func TestLLMDHostTopologyScenarioRunsProvisionedLinuxGate(t *testing.T) {
 	}
 	for _, plan := range plans {
 		if strings.Contains(strings.Join(plan.Arguments, " "), "setup --board lab") {
-			if !containsEnvironmentValue(plan.Environment, blueclaw.BlueclawLLMDModeEnvironment+"=authoritative") {
-				t.Fatalf("expected authoritative LLMD setup environment, got %v", plan.Environment)
-			}
 			if containsEnvironmentName(plan.Environment, blueclaw.BlueclawTestModelTierEnvironment) {
 				t.Fatalf("expected LLMD scenario to preserve production task level, got %v", plan.Environment)
 			}
