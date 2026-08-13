@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -94,7 +95,7 @@ func main() {
 	injector := buzzimport.ChannelInjector{Database: buzzDatabase, CommunityID: communityID}
 	uploader := media.Uploader{HTTPBaseURL: strings.TrimRight(*relayHTTPURL, "/")}
 
-	channels, errorValue := client.PublicChannels(ctx, teamID)
+	channels, errorValue := everyChannel(ctx, client, teamID, authorsByID)
 	failOn(errorValue, "read channels")
 
 	var publisher *relaypublish.Publisher
@@ -108,21 +109,20 @@ func main() {
 	totalSkipped := 0
 	postedEmails := map[string]bool{}
 	customEmojiCache := map[string]string{}
-	for _, restChannel := range channels {
-		channel := restChannel.ToImport()
+	for _, channel := range channels {
 		if len(channelFilter) > 0 && !channelFilter[channel.Name] {
 			continue
 		}
 		buzzChannelID := deriveChannelID(*keySeed, channel.ID)
 		if !incremental {
-			errorValue := publisher.CreateChannel(ctx, bootstrapSecret, buzzChannelID, channelDisplayName(channel), channel.Purpose)
+			memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
+			failOn(errorValue, "read members for "+channel.Name)
+			errorValue = publisher.CreateChannel(ctx, bootstrapSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose)
 			if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
 				failOn(errorValue, "create channel "+channel.Name)
 			}
 			failOn(waitForChannelRow(ctx, buzzDatabase, communityID, buzzChannelID), "wait for channel "+channel.Name)
-			memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
-			failOn(errorValue, "read members for "+channel.Name)
-			syncChannelMembers(ctx, publisher, bootstrapSecret, buzzChannelID, memberUserIDs, authorPubkeys, *viewerPubkey)
+			syncChannelMembers(ctx, publisher, bootstrapSecret, buzzChannelID, memberUserIDs, authorPubkeys, readerPubkeyFor(channel, *viewerPubkey))
 		}
 
 		posts, errorValue := client.Posts(ctx, channel.ID, *sinceMillis)
@@ -416,11 +416,77 @@ func registerRelayMember(buzzAdminCommand string, pubkey string) {
 	}
 }
 
-func channelDisplayName(channel buzzimport.MattermostChannel) string {
+// Mattermost gives a direct conversation no display name and names it after the
+// user ids it joins, so the people in the room are the only name it has.
+func channelDisplayName(
+	channel buzzimport.MattermostChannel,
+	memberUserIDs []string,
+	authorsByID map[string]mattermostrest.MattermostAuthor,
+) string {
 	if displayName := strings.TrimSpace(channel.DisplayName); displayName != "" {
 		return displayName
 	}
+	if names := participantNames(memberUserIDs, authorsByID); len(names) > 0 {
+		return strings.Join(names, ", ")
+	}
 	return channel.Name
+}
+
+func participantNames(memberUserIDs []string, authorsByID map[string]mattermostrest.MattermostAuthor) []string {
+	names := []string{}
+	for _, userID := range memberUserIDs {
+		author, isKnown := authorsByID[userID]
+		if !isKnown {
+			continue
+		}
+		if name := strings.TrimSpace(author.DisplayName); name != "" {
+			names = append(names, name)
+			continue
+		}
+		names = append(names, author.Username)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func everyChannel(
+	ctx context.Context,
+	client mattermostrest.Client,
+	teamID string,
+	authorsByID map[string]mattermostrest.MattermostAuthor,
+) ([]buzzimport.MattermostChannel, error) {
+	userIDs := make([]string, 0, len(authorsByID))
+	for userID := range authorsByID {
+		userIDs = append(userIDs, userID)
+	}
+	sort.Strings(userIDs)
+
+	public, errorValue := client.PublicChannels(ctx, teamID)
+	if errorValue != nil {
+		return nil, fmt.Errorf("public channels: %w", errorValue)
+	}
+	private, errorValue := client.PrivateChannels(ctx, teamID)
+	if errorValue != nil {
+		return nil, fmt.Errorf("private channels: %w", errorValue)
+	}
+	direct, errorValue := client.DirectChannels(ctx, teamID, userIDs)
+	if errorValue != nil {
+		return nil, fmt.Errorf("direct channels: %w", errorValue)
+	}
+
+	channels := mattermostrest.ChannelsToImport(public)
+	channels = append(channels, mattermostrest.ChannelsToImport(private)...)
+	channels = append(channels, mattermostrest.ChannelsToImport(direct)...)
+	return channels, nil
+}
+
+// Adding the standing reader to a direct conversation would hand someone else's
+// private messages to a key that was never in the room.
+func readerPubkeyFor(channel buzzimport.MattermostChannel, viewerPubkey string) string {
+	if channel.Type == buzzimport.OpenChannelType {
+		return viewerPubkey
+	}
+	return ""
 }
 
 func deriveSecret(seed, email string) string {

@@ -100,11 +100,40 @@ func (client Client) Users(ctx context.Context) ([]restUser, error) {
 }
 
 func (client Client) PublicChannels(ctx context.Context, teamID string) ([]restChannel, error) {
+	return client.pagedChannels(ctx, "/api/v4/teams/"+url.PathEscape(teamID)+"/channels")
+}
+
+func (client Client) PrivateChannels(ctx context.Context, teamID string) ([]restChannel, error) {
+	return client.pagedChannels(ctx, "/api/v4/teams/"+url.PathEscape(teamID)+"/channels/private")
+}
+
+// Mattermost hangs direct and group conversations off each person rather than
+// off the team, so there is no single listing to read.
+func (client Client) DirectChannels(ctx context.Context, teamID string, userIDs []string) ([]restChannel, error) {
+	channels := []restChannel{}
+	seen := map[string]bool{}
+	for _, userID := range userIDs {
+		var theirChannels []restChannel
+		path := "/api/v4/users/" + url.PathEscape(userID) + "/teams/" + url.PathEscape(teamID) + "/channels"
+		if errorValue := client.get(ctx, path, &theirChannels); errorValue != nil {
+			return nil, errorValue
+		}
+		for _, channel := range theirChannels {
+			if !buzzimport.IsConversationChannelType(channel.Type) || seen[channel.ID] {
+				continue
+			}
+			seen[channel.ID] = true
+			channels = append(channels, channel)
+		}
+	}
+	return channels, nil
+}
+
+func (client Client) pagedChannels(ctx context.Context, basePath string) ([]restChannel, error) {
 	channels := []restChannel{}
 	for page := 0; ; page++ {
 		var pageChannels []restChannel
-		path := "/api/v4/teams/" + url.PathEscape(teamID) + "/channels?per_page=200&page=" + strconv.Itoa(page)
-		if errorValue := client.get(ctx, path, &pageChannels); errorValue != nil {
+		if errorValue := client.get(ctx, basePath+"?per_page=200&page="+strconv.Itoa(page), &pageChannels); errorValue != nil {
 			return nil, errorValue
 		}
 		if len(pageChannels) == 0 {
