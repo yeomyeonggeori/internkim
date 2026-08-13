@@ -1,6 +1,5 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { syncFleetAccessPolicies } from '$lib/fleet-access';
 import { isNodeRequest, normalizeFleetID } from '$lib/device-auth';
 import { adminEmails, kv, userEmails } from '$lib/kv';
 import type { Device, UserRecord, UserRole } from '$lib/types';
@@ -185,10 +184,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const duplicatedHandle = duplicateHandle(nextRecords);
 	if (duplicatedHandle) throw error(400, `Duplicate handle: ${duplicatedHandle}`);
 	await kv.putUserRecords(env.KV, fleetID, nextRecords);
-	const syncedDevice = await syncFleetAccessPolicies(env, fleetID, device, nextRecords);
-	if (syncedDevice.access_app_id !== device.access_app_id || syncedDevice.access_policy_id !== device.access_policy_id) {
-		await kv.putDevice(env.KV, fleetID, syncedDevice);
-	}
 
 	return json(await usersResponse(nextRecords), { headers: corsHeaders });
 };

@@ -123,7 +123,7 @@ function normalizeDevice(value: unknown, fleetID: string): Device | null {
 	if (!value || typeof value !== 'object') return null;
 	const record = value as Partial<Device>;
 	const resolvedFleetID = record.fleet_id ?? fleetID;
-	if (!resolvedFleetID || !record.tunnel_id || !record.tunnel_token || !record.dns_record_id) return null;
+	if (!resolvedFleetID) return null;
 	return {
 		...record,
 		fleet_id: resolvedFleetID,
