@@ -23,7 +23,7 @@
 		isFlowStatusRequested,
 		isFlowStatusStopped
 	} from './flow-status';
-	import { statusOutlineClass } from './flow-style';
+	import { statusIconClass } from './flow-style';
 	import type { FlowTask } from './flow-types';
 
 	type RelationshipResult = void | boolean;
@@ -77,23 +77,23 @@
 		</button>
 	{/if}
 
-	<span class={`pointer-events-none relative z-[1] inline-flex size-6 shrink-0 items-center justify-center rounded-full border ${statusOutlineClass(task.status)}`} aria-label={task.status}>
+	<span class={`pointer-events-none relative z-[1] inline-flex size-5 shrink-0 items-center justify-center ${statusIconClass(task.status)}`} aria-label={task.status}>
 		{#if isFlowStatusCompleted(task.status)}
-			<CircleCheckIcon class="size-3.5" />
+			<CircleCheckIcon class="size-5" />
 		{:else if isFlowStatusInProgress(task.status)}
-			<CircleDashedIcon class="size-3.5" />
+			<CircleDashedIcon class="size-5" />
 		{:else if isFlowStatusPlanned(task.status)}
-			<CircleDotIcon class="size-3.5" />
+			<CircleDotIcon class="size-5" />
 		{:else if isFlowStatusRequested(task.status)}
-			<CircleQuestionMarkIcon class="size-3.5" />
+			<CircleQuestionMarkIcon class="size-5" />
 		{:else if isFlowStatusPaused(task.status)}
-			<CirclePauseIcon class="size-3.5" />
+			<CirclePauseIcon class="size-5" />
 		{:else if isFlowStatusRejected(task.status)}
-			<CircleXIcon class="size-3.5" />
+			<CircleXIcon class="size-5" />
 		{:else if isFlowStatusStopped(task.status)}
-			<BanIcon class="size-3.5" />
+			<BanIcon class="size-5" />
 		{:else}
-			<CircleDotIcon class="size-3.5" />
+			<CircleDotIcon class="size-5" />
 		{/if}
 	</span>
 
