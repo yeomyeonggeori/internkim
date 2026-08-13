@@ -123,7 +123,8 @@ func main() {
 		if !incremental {
 			memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
 			failOn(errorValue, "read members for "+channel.Name)
-			errorValue = publisher.CreateChannel(ctx, bootstrapSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel))
+			creatorSecret := creatorSecretFor(channel, memberUserIDs, authorsByID, authorSecrets, bootstrapSecret)
+			errorValue = publisher.CreateChannel(ctx, creatorSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel))
 			if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
 				failOn(errorValue, "create channel "+channel.Name)
 			}
@@ -420,6 +421,32 @@ func registerRelayMember(buzzAdminCommand string, pubkey string) {
 	if output, errorValue := command.CombinedOutput(); errorValue != nil && !strings.Contains(string(output), "already") {
 		log.Printf("add-member %s: %v (%s)", pubkey, errorValue, strings.TrimSpace(string(output)))
 	}
+}
+
+// Whoever creates a channel becomes its owner and a member of it. In a stream
+// that is the importer and harmless; in a direct conversation it is a third
+// party in a room meant for two, and the client picking "whoever is not me"
+// picks it instead of the person being talked to.
+func creatorSecretFor(
+	channel buzzimport.MattermostChannel,
+	memberUserIDs []string,
+	authorsByID map[string]mattermostrest.MattermostAuthor,
+	authorSecrets map[string]string,
+	bootstrapSecret string,
+) string {
+	if !buzzimport.IsConversationChannelType(channel.Type) {
+		return bootstrapSecret
+	}
+	for _, userID := range memberUserIDs {
+		author, isKnown := authorsByID[userID]
+		if !isKnown {
+			continue
+		}
+		if secret := authorSecrets[author.Email]; secret != "" {
+			return secret
+		}
+	}
+	return bootstrapSecret
 }
 
 // A relay tells a direct conversation from a channel by its type, and a client
