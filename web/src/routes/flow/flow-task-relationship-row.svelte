@@ -4,16 +4,13 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { personProfileImagePath } from '$lib/person-profile-image';
-	import CircleIcon from '@lucide/svelte/icons/circle';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import CircleDotIcon from '@lucide/svelte/icons/circle-dot';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import Unlink2Icon from '@lucide/svelte/icons/unlink-2';
 	import { flowDefinitionOutlineBadgeStyle } from './flow-definition-colors';
 	import {
-		isFlowStatusCompleted,
-		isFlowStatusRejected,
-		isFlowStatusStopped
+		isFlowStatusCompleted
 	} from './flow-status';
 	import { relationshipStatusIconClass } from './flow-style';
 	import type { FlowTask } from './flow-types';
@@ -51,11 +48,7 @@
 	}
 
 	let statusKind = $derived(
-		isFlowStatusCompleted(task.status)
-			? 'completed'
-			: isFlowStatusRejected(task.status) || isFlowStatusStopped(task.status)
-				? 'excluded'
-				: 'incomplete'
+		isFlowStatusCompleted(task.status) ? 'completed' : 'incomplete'
 	);
 </script>
 
@@ -84,10 +77,8 @@
 	>
 		{#if isFlowStatusCompleted(task.status)}
 			<CircleCheckIcon class="size-5" />
-		{:else if statusKind === 'incomplete'}
-			<CircleDotIcon class="size-5" />
 		{:else}
-			<CircleIcon class="size-5" />
+			<CircleDotIcon class="size-5" />
 		{/if}
 	</span>
 
