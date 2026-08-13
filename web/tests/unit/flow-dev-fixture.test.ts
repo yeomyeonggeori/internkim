@@ -9,15 +9,15 @@ import { buildDevFlowMemberScoreDetails } from '../../src/routes/flow/dev-flow-f
 import { buildFlowTaskChildProgress } from '../../src/routes/flow/flow-task-relationships';
 
 describe('createDevFlowSummary', () => {
-	test('keeps a visible parent task with two of six active children completed', () => {
+	test('keeps a visible parent task with two of seven counted children completed', () => {
 		const state = createDevFlowState('kim@example.com');
 		const parent = state.tasks.find((task) => task.id.endsWith('-flow-dashboard'));
 
 		expect(Boolean(parent)).toBe(true);
 		expect(buildFlowTaskChildProgress(parent?.id ?? '', state.tasks)).toEqual({
 			completed: 2,
-			total: 6,
-			percent: 33
+			total: 7,
+			percent: 29
 		});
 	});
 

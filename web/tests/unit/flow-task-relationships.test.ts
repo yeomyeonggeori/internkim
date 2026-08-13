@@ -24,7 +24,7 @@ describe('flow task relationships', () => {
 		]);
 	});
 
-	test('counts completed children and excludes rejected and stopped children', () => {
+	test('counts completed children and excludes only stopped children', () => {
 		const progress = buildFlowTaskChildProgress('parent', [
 			flowTask({ id: 'done-1', parentTaskID: 'parent', status: '완료' }),
 			flowTask({ id: 'done-2', parentTaskID: 'parent', status: '완료' }),
@@ -36,10 +36,10 @@ describe('flow task relationships', () => {
 			flowTask({ id: 'stopped', parentTaskID: 'parent', status: '중단' })
 		]);
 
-		expect(progress).toEqual({ completed: 2, total: 6, percent: 33 });
+		expect(progress).toEqual({ completed: 2, total: 7, percent: 29 });
 	});
 
-	test('shows only children that contribute to progress', () => {
+	test('shows every direct child regardless of progress eligibility', () => {
 		const relationships = buildFlowTaskRelationships(flowTask({ id: 'parent' }), [
 			flowTask({ id: 'done', parentTaskID: 'parent', status: '완료' }),
 			flowTask({ id: 'progress', parentTaskID: 'parent', status: '진행' }),
@@ -47,12 +47,14 @@ describe('flow task relationships', () => {
 			flowTask({ id: 'stopped', parentTaskID: 'parent', status: '중단' })
 		]);
 
-		expect(relationships.children.map((task) => task.id)).toEqual(['done', 'progress']);
+		expect(relationships.children.map((task) => task.id)).toEqual(['done', 'progress', 'rejected', 'stopped']);
 	});
 
-	test('hides progress when no active child remains', () => {
+	test('keeps rejected children in progress and hides progress when only stopped children remain', () => {
 		expect(buildFlowTaskChildProgress('parent', [
-			flowTask({ id: 'rejected', parentTaskID: 'parent', status: '기각' }),
+			flowTask({ id: 'rejected', parentTaskID: 'parent', status: '기각' })
+		])).toEqual({ completed: 0, total: 1, percent: 0 });
+		expect(buildFlowTaskChildProgress('parent', [
 			flowTask({ id: 'stopped', parentTaskID: 'parent', status: '중단' })
 		])).toBeUndefined();
 	});
