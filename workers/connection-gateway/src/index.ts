@@ -41,7 +41,7 @@ async function joinAsClient(
 	environment: WorkerEnvironment,
 	companyID: string
 ): Promise<Response> {
-	const token = bearerOf(request);
+	const token = bearerOf(request) ?? tokenOfferedByBrowser(request);
 	if (!token) return jsonResponse({ error: 'this call carried no token' }, 401);
 	try {
 		const claims = await verifyToken(
@@ -108,6 +108,20 @@ function connectionFor(environment: WorkerEnvironment, companyID: string): Durab
 function bearerOf(request: Request): string | null {
 	const offered = request.headers.get('Authorization') ?? '';
 	return offered.startsWith('Bearer ') ? offered.slice('Bearer '.length).trim() || null : null;
+}
+
+const browserTokenProtocol = 'internkim.bearer.';
+
+// A browser cannot put a header on a websocket handshake, so it carries the
+// token as a subprotocol instead. The chosen protocol has to be echoed back or
+// the browser closes the connection it just opened.
+function tokenOfferedByBrowser(request: Request): string | null {
+	const offered = request.headers.get('Sec-WebSocket-Protocol') ?? '';
+	for (const protocol of offered.split(',')) {
+		const trimmed = protocol.trim();
+		if (trimmed.startsWith(browserTokenProtocol)) return trimmed.slice(browserTokenProtocol.length) || null;
+	}
+	return null;
 }
 
 function headersOf(request: Request): Record<string, string> {
@@ -178,7 +192,12 @@ export class CompanyConnectionObject {
 		server.addEventListener('message', (message) => this.onClientMessage(memberID, server, message));
 		server.addEventListener('close', () => this.forgetClient(memberID, server));
 		server.send(JSON.stringify(this.presence()));
-		return new Response(null, { status: 101, webSocket: client });
+		const spoken = request.headers.get('Sec-WebSocket-Protocol')?.split(',')[0]?.trim();
+		return new Response(null, {
+			status: 101,
+			webSocket: client,
+			headers: spoken ? { 'Sec-WebSocket-Protocol': spoken } : undefined
+		});
 	}
 
 	private onClientMessage(memberID: string, socket: WebSocket, message: MessageEvent): void {
