@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { personProfileImagePath } from '$lib/person-profile-image';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
+	import FlowTaskPersonChip from './flow-task-person-chip.svelte';
 	import { isFlowStatusRejected, isFlowStatusRequested, isFlowStatusStopped } from './flow-status';
 	import { hasFlowTaskRequestProvenance } from './flow-task-options';
 	import { flowBusinessLabel, flowBusinessOptionValue, flowBusinessValueFromOption } from './flow-task-workspace-model';
@@ -16,6 +18,7 @@
 		canEditTask: boolean;
 		text: FlowTaskEditorText;
 		statusLabel: (status: string) => string;
+		memberEmail: (memberID: string) => string;
 	};
 
 	let {
@@ -26,7 +29,8 @@
 		statusOptions,
 		canEditTask,
 		text,
-		statusLabel
+		statusLabel,
+		memberEmail
 	}: Props = $props();
 
 	let businessSelectValue = $derived(flowBusinessOptionValue(taskDraft.business));
@@ -44,13 +48,20 @@
 	{text.goal}
 	<Input bind:value={taskDraft.goal} placeholder={text.goalPlaceholder} disabled={!canEditTask} />
 </label>
-{#if hasFlowTaskRequestProvenance(taskDraft)}
-	<div class="grid gap-1 text-xs font-medium text-muted-foreground">
-		<span>{text.requester}</span>
-		<span class="text-sm font-normal text-foreground">{taskDraft.requesterName || taskDraft.requesterID || text.requesterUnavailable}</span>
-	</div>
-{/if}
 <div class="grid gap-3 md:grid-cols-2">
+	{#if hasFlowTaskRequestProvenance(taskDraft)}
+		<div class="grid gap-1 text-xs font-medium text-muted-foreground">
+			<span>{text.requester}</span>
+			<div class="flex h-8 w-full items-center rounded-lg border border-input bg-transparent px-2.5 text-sm font-normal text-foreground">
+				<FlowTaskPersonChip
+					name={taskDraft.requesterName || memberEmail(taskDraft.requesterID || '') || taskDraft.requesterID || text.requesterUnavailable}
+					email={memberEmail(taskDraft.requesterID || '')}
+					seed={taskDraft.requesterID || taskDraft.requesterName || text.requesterUnavailable}
+					image={personProfileImagePath(taskDraft.requesterID || '')}
+				/>
+			</div>
+		</div>
+	{/if}
 	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 		{text.status}
 		<Select.Root type="single" bind:value={taskDraft.status} disabled={!canEditTask}>
