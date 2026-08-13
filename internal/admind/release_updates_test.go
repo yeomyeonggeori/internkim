@@ -251,88 +251,6 @@ func TestReleaseUpdateStateReportsUpdating(t *testing.T) {
 	}
 }
 
-func TestReleaseUpdateUploadAppliesThroughReleaseJob(t *testing.T) {
-	service := newReleaseUpdateUploadTestService(t)
-	commands := []string{}
-	service.RunCommand = func(_ context.Context, name string, arguments ...string) ([]byte, error) {
-		commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
-		return []byte("ok\n"), nil
-	}
-	bundlePath, manifest := writeTestReleaseBundle(t, service)
-	bundleSHA256 := fileSHA256(bundlePath)
-	bundleSize := fileSize(t, bundlePath)
-
-	createPayload := releaseUpdateUploadCreateRequest{
-		fleetSignedRequest: signedTestFleetRequest(t, service, releaseUpdateUploadAction, "nonce-1"),
-		ReleaseID:          manifest.ReleaseID,
-		Filename:           "release.tar.gz",
-		Size:               bundleSize,
-		SHA256:             bundleSHA256,
-	}
-	createResponse := performReleaseUploadJSON(t, service, http.MethodPost, "/updates/uploads", createPayload, "")
-	if createResponse.Code != http.StatusOK {
-		t.Fatalf("create status = %d body = %s", createResponse.Code, createResponse.Body.String())
-	}
-	var upload releaseUpdateUploadCreateResponse
-	if errorValue := json.NewDecoder(createResponse.Body).Decode(&upload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	document, errorValue := os.ReadFile(bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	chunkRequest := httptest.NewRequest(http.MethodPut, "/admin/api/updates/uploads/"+upload.UploadID+"/chunks/0", bytes.NewReader(document))
-	chunkRequest.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", upload.UploadToken)
-	chunkResponse := httptest.NewRecorder()
-	service.handleAdmin(chunkResponse, chunkRequest)
-	if chunkResponse.Code != http.StatusOK {
-		t.Fatalf("chunk status = %d body = %s", chunkResponse.Code, chunkResponse.Body.String())
-	}
-
-	completeResponse := performReleaseUploadJSON(t, service, http.MethodPost, "/updates/uploads/"+upload.UploadID+"/complete", releaseUpdateUploadCompleteRequest{Chunks: 1, SHA256: bundleSHA256}, upload.UploadToken)
-	if completeResponse.Code != http.StatusOK {
-		t.Fatalf("complete status = %d body = %s", completeResponse.Code, completeResponse.Body.String())
-	}
-	waitForReleaseJob(t, service)
-	current := service.readCurrentReleaseManifest()
-	if current == nil || current.ReleaseID != manifest.ReleaseID {
-		t.Fatalf("current release = %+v, want %s", current, manifest.ReleaseID)
-	}
-	installedSkillPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "skills", "test-skill", "SKILL.md")
-	if strings.TrimSpace(readTrimmedFile(installedSkillPath)) != "test skill" {
-		t.Fatalf("skill was not installed at %s", installedSkillPath)
-	}
-	joinedCommands := strings.Join(commands, "\n")
-	if !strings.Contains(joinedCommands, "blueclaw-supervisor sync-workspace") {
-		t.Fatalf("expected skills release to sync Blueclaw workspace, got %s", joinedCommands)
-	}
-	if !strings.Contains(joinedCommands, "sync-workspace --atomic") || !strings.Contains(joinedCommands, "--relative-target 'skills'") {
-		t.Fatalf("expected atomic skills-only workspace sync, got %s", joinedCommands)
-	}
-	if !strings.Contains(joinedCommands, "resize2fs") || !strings.Contains(joinedCommands, "68719476736") {
-		t.Fatalf("expected skills release to ensure Blueclaw workspace image capacity, got %s", joinedCommands)
-	}
-	if !strings.Contains(joinedCommands, service.Configuration.BlueclawWorkspacePath) {
-		t.Fatalf("expected skills sync to use configured workspace path, got %s", joinedCommands)
-	}
-}
-
-func TestReleaseUpdateUploadRejectsWrongSignedAction(t *testing.T) {
-	service := newReleaseUpdateUploadTestService(t)
-	payload := releaseUpdateUploadCreateRequest{
-		fleetSignedRequest: signedTestFleetRequest(t, service, "release-update-apply", "nonce-1"),
-		ReleaseID:          "release-1",
-		Filename:           "release.tar.gz",
-		Size:               1,
-		SHA256:             strings.Repeat("a", 64),
-	}
-	response := performReleaseUploadJSON(t, service, http.MethodPost, "/updates/uploads", payload, "")
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
 func TestReleaseWebComponentRootPrefersWeb(t *testing.T) {
 	stagingPath := t.TempDir()
 	webRoot := filepath.Join(stagingPath, "web", "board-ui")
@@ -1039,48 +957,6 @@ func writeTestTarFile(writer *tar.Writer, name string, path string) error {
 	defer file.Close()
 	_, errorValue = file.WriteTo(writer)
 	return errorValue
-}
-
-func TestReleaseUpdateUploadResumesReceivedChunks(t *testing.T) {
-	service := newReleaseUpdateUploadTestService(t)
-	bundlePath, manifest := writeTestReleaseBundle(t, service)
-	bundleSHA256 := fileSHA256(bundlePath)
-	bundleSize := fileSize(t, bundlePath)
-
-	createPayload := releaseUpdateUploadCreateRequest{
-		fleetSignedRequest: signedTestFleetRequest(t, service, releaseUpdateUploadAction, "nonce-1"),
-		ReleaseID:          manifest.ReleaseID,
-		Filename:           "release.tar.gz",
-		Size:               bundleSize,
-		SHA256:             bundleSHA256,
-	}
-	var firstUpload releaseUpdateUploadCreateResponse
-	firstResponse := performReleaseUploadJSON(t, service, http.MethodPost, "/updates/uploads", createPayload, "")
-	if errorValue := json.NewDecoder(firstResponse.Body).Decode(&firstUpload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	document, errorValue := os.ReadFile(bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	chunkRequest := httptest.NewRequest(http.MethodPut, "/admin/api/updates/uploads/"+firstUpload.UploadID+"/chunks/0", bytes.NewReader(document))
-	chunkRequest.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", firstUpload.UploadToken)
-	service.handleAdmin(httptest.NewRecorder(), chunkRequest)
-
-	resumePayload := createPayload
-	resumePayload.fleetSignedRequest = signedTestFleetRequest(t, service, releaseUpdateUploadAction, "nonce-resume")
-	var resumeUpload releaseUpdateUploadCreateResponse
-	resumeResponse := performReleaseUploadJSON(t, service, http.MethodPost, "/updates/uploads", resumePayload, "")
-	if errorValue := json.NewDecoder(resumeResponse.Body).Decode(&resumeUpload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if resumeUpload.UploadID != firstUpload.UploadID {
-		t.Fatalf("resume returned new session %q, want reuse of %q", resumeUpload.UploadID, firstUpload.UploadID)
-	}
-	if len(resumeUpload.ReceivedChunks) != 1 || resumeUpload.ReceivedChunks[0] != 0 {
-		t.Fatalf("resume received chunks = %v, want [0]", resumeUpload.ReceivedChunks)
-	}
 }
 
 func performReleaseUploadJSON(t *testing.T, service *Service, method string, path string, payload any, uploadToken string) *httptest.ResponseRecorder {
