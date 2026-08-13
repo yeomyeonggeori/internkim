@@ -70,7 +70,6 @@ func main() {
 	users, errorValue := client.Users(ctx)
 	failOn(errorValue, "read users")
 	authorEmails, authorsByID := mattermostrest.UsersToChannelAuthorEmails(users)
-	botUserIDs := mattermostrest.BotUserIDs(users)
 
 	authorSecrets := map[string]string{}
 	authorPubkeys := map[string]string{}
@@ -136,7 +135,7 @@ func main() {
 		failOn(errorValue, "read posts for "+channel.Name)
 		imported, skipped := importChannelPosts(ctx, importDependencies{
 			injector: injector, uploader: uploader, client: client,
-			orphanRootTitle: *orphanRootTitle, bootstrapSecret: bootstrapSecret, botUserIDs: botUserIDs,
+			orphanRootTitle: *orphanRootTitle, bootstrapSecret: bootstrapSecret,
 			fileCacheDir:     *fileCacheDir,
 			customEmojiCache: customEmojiCache,
 		}, buzzChannelID, posts, authorEmails, authorSecrets, postedEmails)
@@ -154,7 +153,6 @@ type importDependencies struct {
 	client           mattermostrest.Client
 	orphanRootTitle  string
 	bootstrapSecret  string
-	botUserIDs       map[string]bool
 	fileCacheDir     string
 	customEmojiCache map[string]string
 }
@@ -192,9 +190,6 @@ func importChannelPosts(
 	for _, post := range posts {
 		authorEmail := authorEmails[post.UserID]
 		authorSecret := authorSecrets[authorEmail]
-		if authorSecret == "" && dependencies.botUserIDs[post.UserID] {
-			authorSecret = dependencies.bootstrapSecret
-		}
 		if authorSecret == "" {
 			skipped++
 			continue

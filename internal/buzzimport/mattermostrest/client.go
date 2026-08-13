@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/buzzimport"
@@ -321,24 +322,14 @@ func (client Client) Post(ctx context.Context, postID string) (buzzimport.Matter
 	}, true, nil
 }
 
-// BotUserIDs returns the set of Mattermost user ids that are bots, so an import
-// can attribute their posts to the shared bot buzz identity instead of skipping
-// them (a bot-authored thread root left unimported strands every human reply).
-func BotUserIDs(users []restUser) map[string]bool {
-	botUserIDs := map[string]bool{}
-	for _, user := range users {
-		if user.IsBot {
-			botUserIDs[user.ID] = true
-		}
-	}
-	return botUserIDs
-}
-
+// An agent posts as itself, so it takes an identity of its own rather than
+// borrowing the importer's. Everything that reads a message — a name, a
+// picture, the person it is addressed to — needs one to point at.
 func UsersToChannelAuthorEmails(users []restUser) (map[string]string, map[string]MattermostAuthor) {
 	authorEmails := map[string]string{}
 	authorsByID := map[string]MattermostAuthor{}
 	for _, user := range users {
-		if user.IsBot {
+		if strings.TrimSpace(user.Email) == "" {
 			continue
 		}
 		authorEmails[user.ID] = user.Email
