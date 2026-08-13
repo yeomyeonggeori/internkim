@@ -928,7 +928,7 @@ func refreshBlueclawCapabilityContract(document string, contract blueclawruntime
 			routing["candidates"] = contract.RoutingCandidates
 		}
 	}
-	healBlueclawGuestLLMDConfiguration(runtimeDocument)
+	retireBlueclawGuestLLMDConfiguration(runtimeDocument)
 	refreshedBytes, errorValue := json.MarshalIndent(runtimeDocument, "", "  ")
 	if errorValue != nil {
 		return "", errorValue
@@ -936,32 +936,17 @@ func refreshBlueclawCapabilityContract(document string, contract blueclawruntime
 	return string(refreshedBytes) + "\n", nil
 }
 
-const blueclawGuestLLMDBridgeEndpoint = "http://127.0.0.1:18081/_internkim/llmd"
+const blueclawCapabilityLanguageModelProvider = "capabilityLLM"
 
-func healBlueclawGuestLLMDConfiguration(runtimeDocument map[string]any) {
+func retireBlueclawGuestLLMDConfiguration(runtimeDocument map[string]any) {
 	languageModelSection, ok := runtimeDocument["languageModel"].(map[string]any)
 	if !ok {
 		return
 	}
-	llmdSection, ok := languageModelSection["llmd"].(map[string]any)
-	if !ok {
-		llmdSection = map[string]any{
-			"endpoint":       blueclawGuestLLMDBridgeEndpoint,
-			"unixSocketPath": "",
-			"authKeyPath":    "",
-			"executionMode":  "auto",
-			"localOnly":      false,
-		}
-		languageModelSection["llmd"] = llmdSection
-	}
-	endpoint, _ := llmdSection["endpoint"].(string)
-	unixSocketPath, _ := llmdSection["unixSocketPath"].(string)
-	if strings.TrimSpace(endpoint) == "" && strings.TrimSpace(unixSocketPath) == "" {
-		llmdSection["endpoint"] = blueclawGuestLLMDBridgeEndpoint
-	}
+	delete(languageModelSection, "llmd")
 	defaultProvider, _ := languageModelSection["defaultProvider"].(string)
-	if strings.TrimSpace(defaultProvider) == "" || defaultProvider == "capabilityLLM" {
-		languageModelSection["defaultProvider"] = "llmd"
+	if strings.TrimSpace(defaultProvider) == "" || defaultProvider == "llmd" {
+		languageModelSection["defaultProvider"] = blueclawCapabilityLanguageModelProvider
 	}
 }
 
