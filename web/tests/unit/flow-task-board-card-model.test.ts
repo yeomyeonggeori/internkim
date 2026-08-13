@@ -3,11 +3,11 @@ import { buildFlowTaskBoardCardDisplay } from '../../src/routes/flow/flow-task-b
 import type { FlowTask } from '../../src/routes/flow/flow-types';
 
 describe('flow task board card model', () => {
-	test('keeps participants next to the owner', () => {
+	test('keeps every participant in one uniform list without a separate owner', () => {
 		const display = buildFlowTaskBoardCardDisplay(flowTask({
-			ownerName: '김철수',
+			ownerName: '이샘플',
 			participantIDs: ['member-1', 'member-2', 'member-3'],
-			participantNames: ['김철수', '박민준', '최서연'],
+			participantNames: ['이샘플', '박예시', '최견본'],
 			business: '여명거리',
 			type: '기능',
 			startDate: '2026-06-01',
@@ -15,21 +15,24 @@ describe('flow task board card model', () => {
 			flag: 2
 		}));
 
-		expect(display.ownerName).toBe('김철수');
-		expect(display.participantNames).toEqual(['박민준', '최서연']);
-		expect(display.businessLabel).toBe('여명거리');
-		expect(display.metadataLabels).toEqual(['기능']);
+		expect(display).toEqual({
+			participantNames: ['이샘플', '박예시', '최견본'],
+			participantIDs: ['member-1', 'member-2', 'member-3'],
+			businessLabel: '여명거리',
+			metadataLabels: ['기능']
+		});
 	});
 
-	test('keeps a different participant who has the same display name as the owner', () => {
+	test('keeps distinct participants who have the same display name', () => {
 		const display = buildFlowTaskBoardCardDisplay(flowTask({
 			ownerID: 'member-1',
-			ownerName: '김철수',
+			ownerName: '이샘플',
 			participantIDs: ['member-1', 'member-2'],
-			participantNames: ['김철수', '김철수']
+			participantNames: ['이샘플', '이샘플']
 		}));
 
-		expect(display.participantNames).toEqual(['김철수']);
+		expect(display.participantNames).toEqual(['이샘플', '이샘플']);
+		expect(display.participantIDs).toEqual(['member-1', 'member-2']);
 	});
 
 	test('labels empty business as 기타', () => {

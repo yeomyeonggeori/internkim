@@ -1,4 +1,13 @@
 import type { FlowDefinitions, FlowMember, FlowTask } from './flow-types';
+import { compatibilityOwnerOf } from '$lib/flow/central-flow-task';
+import { isCentralFlowSource } from './flow-source';
+
+type FlowTaskParticipantIdentity = {
+	id: string;
+	name: string;
+};
+
+type FlowTaskParticipantSelection = Pick<FlowTask, 'ownerID' | 'ownerName' | 'participantIDs' | 'participantNames'>;
 
 export function createFlowTaskDraft(owner: FlowMember, definitions: FlowDefinitions, weekCode: string): FlowTask {
 	return {
@@ -27,6 +36,12 @@ export function cloneFlowTask(task: FlowTask): FlowTask {
 	};
 }
 
+export function toggleFlowTaskParticipantID(task: FlowTask, memberID: string, canRemoveParticipant: boolean): string[] {
+	if (!task.participantIDs.includes(memberID)) return [...task.participantIDs, memberID];
+	if (!canRemoveParticipant) return [...task.participantIDs];
+	return task.participantIDs.filter((participantID) => participantID !== memberID);
+}
+
 export function defaultFlowTaskOwner(members: FlowMember[], currentUserEmail: string, activeMemberID: string): FlowMember | undefined {
 	if (activeMemberID) {
 		const activeMember = members.find((member) => member.id === activeMemberID);
@@ -35,54 +50,32 @@ export function defaultFlowTaskOwner(members: FlowMember[], currentUserEmail: st
 	return members.find((member) => member.email === currentUserEmail) ?? members[0];
 }
 
-export function participantSelectionFromNames(
-	names: string[],
-	members: FlowMember[],
-	ownerID: string
-): Pick<FlowTask, 'participantIDs' | 'participantNames'> {
-	const owner = members.find((member) => member.id === ownerID);
-	const memberByName = new Map(members.map((member) => [member.name, member]));
-	const ordered: FlowMember[] = [];
-	if (owner) ordered.push(owner);
-	for (const name of names) {
-		const candidate = memberByName.get(name);
-		if (candidate && !ordered.some((member) => member.id === candidate.id)) {
-			ordered.push(candidate);
+export function participantSelectionFromIDs(
+	memberIDs: string[],
+	members: FlowMember[]
+): FlowTaskParticipantIdentity[] {
+	const memberByID = new Map(members.map((member) => [member.id, member]));
+	const participants: FlowTaskParticipantIdentity[] = [];
+	for (const memberID of memberIDs) {
+		const member = memberByID.get(memberID);
+		if (member && !participants.some((participant) => participant.id === member.id)) {
+			participants.push({ id: member.id, name: member.name });
 		}
 	}
-	return {
-		participantIDs: ordered.map((member) => member.id),
-		participantNames: ordered.map((member) => member.name)
-	};
+	return participants;
 }
 
-export function updateFlowTaskOwner(task: FlowTask, members: FlowMember[], ownerID: string): FlowTask {
-	const owner = members.find((member) => member.id === ownerID);
-	if (!owner) return task;
-	const memberByID = new Map(members.map((member) => [member.id, member]));
-	const participantIDs = Array.from(new Set([owner.id, ...task.participantIDs]));
-	const participants = participantIDs
-		.map((participantID) => memberByID.get(participantID))
-		.filter((member): member is FlowMember => Boolean(member));
+export function updateFlowTaskParticipantIDs(task: FlowTask, members: FlowMember[], memberIDs: string[], source: string): FlowTask {
+	const participants = participantSelectionFromIDs(memberIDs, members);
+	const selection = participantSelectionForSource(task, participants, source);
 	return {
 		...task,
-		ownerID: owner.id,
-		ownerName: owner.name,
-		participantIDs: participants.map((participant) => participant.id),
-		participantNames: participants.map((participant) => participant.name)
+		...selection
 	};
 }
 
-export function updateFlowTaskParticipantNames(task: FlowTask, members: FlowMember[], names: string[]): FlowTask {
-	const selection = participantSelectionFromNames(names, members, task.ownerID);
-	return {
-		...task,
-		participantIDs: selection.participantIDs,
-		participantNames: selection.participantNames
-	};
-}
-
-export function removeFlowTaskParticipant(task: FlowTask, memberID: string): FlowTask {
+export function removeFlowTaskParticipant(task: FlowTask, memberID: string, source: string): FlowTask {
+	if (!isCentralFlowSource(source) && memberID === task.ownerID) return task;
 	const participants = task.participantIDs
 		.map((participantID, index) => ({
 			id: participantID,
@@ -91,6 +84,51 @@ export function removeFlowTaskParticipant(task: FlowTask, memberID: string): Flo
 		.filter((participant) => participant.id !== memberID);
 	return {
 		...task,
+		...participantSelectionForSource(task, participants, source)
+	};
+}
+
+function participantSelectionForSource(
+	task: FlowTask,
+	participants: FlowTaskParticipantIdentity[],
+	source: string
+): FlowTaskParticipantSelection {
+	if (isCentralFlowSource(source)) return centralParticipantSelection(participants);
+	return deviceParticipantSelection(task, participants);
+}
+
+function centralParticipantSelection(participants: FlowTaskParticipantIdentity[]): FlowTaskParticipantSelection {
+	const owner = compatibilityOwnerOf(participants);
+	return participantSelection(owner, participants);
+}
+
+function deviceParticipantSelection(task: FlowTask, participants: FlowTaskParticipantIdentity[]): FlowTaskParticipantSelection {
+	const owner = deviceTaskOwner(task, participants);
+	const orderedParticipants = owner.id
+		? [owner, ...participants.filter((participant) => participant.id !== owner.id)]
+		: participants;
+	return participantSelection(owner, orderedParticipants);
+}
+
+function deviceTaskOwner(task: FlowTask, participants: FlowTaskParticipantIdentity[]): FlowTaskParticipantIdentity {
+	if (task.ownerID) {
+		const selectedOwner = participants.find((participant) => participant.id === task.ownerID);
+		const existingOwnerIndex = task.participantIDs.indexOf(task.ownerID);
+		return {
+			id: task.ownerID,
+			name: selectedOwner?.name ?? task.ownerName ?? task.participantNames[existingOwnerIndex] ?? ''
+		};
+	}
+	return participants[0] ?? { id: '', name: '' };
+}
+
+function participantSelection(
+	owner: FlowTaskParticipantIdentity,
+	participants: FlowTaskParticipantIdentity[]
+): FlowTaskParticipantSelection {
+	return {
+		ownerID: owner.id,
+		ownerName: owner.name,
 		participantIDs: participants.map((participant) => participant.id),
 		participantNames: participants.map((participant) => participant.name)
 	};

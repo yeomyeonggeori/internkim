@@ -7,10 +7,11 @@ export const marketScanTaskID = '26W23-market-scan';
 
 export async function openFlowBoard(page: Page): Promise<void> {
 	await page.goto('/flow/');
-	await expect(page.getByRole('button', { name: '업무', exact: true })).toBeVisible();
+	await expect(page.getByRole('tab', { name: '업무', exact: true })).toBeVisible();
 	await expect(page.getByRole('tab', { name: '보드', exact: true })).toHaveAttribute('aria-selected', 'true');
 	await page.getByRole('button', { name: /필터/ }).click();
-	await page.locator('[data-flow-filter-panel]').getByRole('button', { name: '전체 참여자', exact: true }).click();
+	await page.locator('[data-flow-filter-panel]').getByRole('combobox', { name: '참여자', exact: true }).click();
+	await page.getByRole('option', { name: '전체', exact: true }).click();
 	await page.keyboard.press('Escape');
 	await expect(taskColumn(page, '진행')).toBeVisible();
 }

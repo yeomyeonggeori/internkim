@@ -104,23 +104,24 @@ export function canUpdateFlowTask(summary: FlowSummary | null, task: FlowTask): 
 	if (summary?.isAdmin) return true;
 	const member = currentFlowMember(summary);
 	if (!member) return false;
-	return member.id === task.ownerID || task.participantIDs.includes(member.id);
+	if (!task.id && task.requesterID === member.id) return true;
+	return task.participantIDs.includes(member.id);
 }
 
 export function canDeleteFlowTask(summary: FlowSummary | null, task: FlowTask): boolean {
 	if (summary?.isAdmin) return true;
 	const member = currentFlowMember(summary);
-	return member?.id === task.ownerID;
+	return task.participantIDs.length === 1 && member?.id === task.participantIDs[0];
 }
 
 export function canManageFlowTaskAssignment(summary: FlowSummary | null, task: FlowTask): boolean {
 	if (summary?.isAdmin) return true;
 	const member = currentFlowMember(summary);
-	return member?.id === task.ownerID;
+	return task.participantIDs.length === 1 && member?.id === task.participantIDs[0];
 }
 
 export function canRemoveFlowTaskParticipant(task: FlowTask, memberID: string): boolean {
-	return Boolean(memberID) && memberID !== task.ownerID && task.participantIDs.includes(memberID);
+	return Boolean(memberID) && task.participantIDs.length > 1 && task.participantIDs.includes(memberID);
 }
 
 function matchesParticipantFilter(task: FlowTask, participantFilterIDs: string[]): boolean {
