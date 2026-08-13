@@ -67,6 +67,16 @@ It needs two files under `.local/buzz/`, neither of them tracked:
 | `key-seed` | 64 hex characters, from `openssl rand -hex 32` |
 | `mattermost.env` | `MATTERMOST_URL`, `MATTERMOST_TOKEN`, `MATTERMOST_TEAM` |
 
+`./host/buzz/mattermost-token` writes the second one. It asks for a login and a
+password, reads the password from the terminal into a pipe so it is never an
+argument to anything, and fills in the team when the account belongs to exactly
+one. A refused login prints the reason Mattermost gave rather than an empty
+file.
+
+A device serves Mattermost on its own hostname, so `MATTERMOST_URL` is the same
+address the admin API answers on. `./internkim status` prints it and says
+whether it is up.
+
 Anything the importer takes can be overridden on the command line, so
 `--channels 광장` imports one channel while you are checking the result, and
 `--since <unix-millis>` picks up where a previous run stopped instead of
