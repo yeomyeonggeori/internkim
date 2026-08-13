@@ -153,7 +153,7 @@
 		{/if}
 
 		{#if relationships.children.length > 0}
-			<div class="space-y-0.5">
+			<div class="divide-y divide-border/60" data-flow-relationship-list>
 				{#each relationships.children as child (child.id)}
 					<FlowTaskRelationshipRow
 						task={child}
