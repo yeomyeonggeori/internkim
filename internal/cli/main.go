@@ -1115,7 +1115,9 @@ func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
 		fmt.Printf("  %-20s %s %s\n", svc.label, marker, state)
 	}
 
-	// Uptime + memory
+	fmt.Println()
+	fmt.Printf("  %-20s %s\n", m.t("적용된 릴리스", "Applied release"), appliedReleaseID(sshCmd))
+
 	fmt.Println()
 	uptime := sshCmd("uptime -p 2>/dev/null || uptime")
 	fmt.Printf("  %-20s %s\n", m.t("업타임", "Uptime"), uptime)
@@ -1128,6 +1130,25 @@ func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
 		fmt.Printf("  %-20s %s\n", m.t("디스크", "Disk"), disk)
 	}
 	printPublicStatusSection(m, target)
+}
+
+const deviceCurrentReleaseManifestPath = "/root/.internkim/state/admin/release-updates/current.json"
+
+func appliedReleaseID(sshCmd func(string) string) string {
+	document := sshCmd("cat " + deviceCurrentReleaseManifestPath + " 2>/dev/null")
+	if strings.TrimSpace(document) == "" {
+		return "none recorded"
+	}
+	var manifest struct {
+		ReleaseID string `json:"releaseID"`
+	}
+	if errorValue := json.Unmarshal([]byte(document), &manifest); errorValue != nil {
+		return "unreadable"
+	}
+	if strings.TrimSpace(manifest.ReleaseID) == "" {
+		return "none recorded"
+	}
+	return manifest.ReleaseID
 }
 
 func printPublicStatusForCommandTarget(m *msg, target commandTarget) bool {
