@@ -8,8 +8,6 @@ export type FlowTaskRelationshipsText = {
 	parent: string;
 	children: string;
 	add: string;
-	emptyParent: string;
-	emptyChildren: string;
 	searchParent: string;
 	searchChildren: string;
 	noCandidates: string;
