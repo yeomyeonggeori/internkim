@@ -87,10 +87,16 @@ test.describe('flow task sidebar', () => {
 		const requesterLabel = sidebar.getByText('요청자', { exact: true });
 		await expect(requesterLabel).toBeVisible();
 		await expect(sidebar.getByText('박예시', { exact: true })).toBeVisible();
+		await expect(requesterLabel.locator('..').locator('svg')).toBeVisible();
 		await expect(requesterLabel.locator('..').locator('input, select, button, [role="combobox"]')).toHaveCount(0);
 		await sidebar.getByRole('button', { name: '업무 수정', exact: true }).click();
-
+		await expect(requesterLabel.locator('..').locator('svg')).toBeVisible();
+		await expect(requesterLabel.locator('..').locator('input, select, button, [role="combobox"]')).toHaveCount(0);
 		const statusTrigger = sidebar.getByRole('button', { name: '상태', exact: true });
+		const requesterBox = await requesterLabel.locator('..').boundingBox();
+		const statusBox = await statusTrigger.locator('..').boundingBox();
+		expect(requesterBox?.y).toBe(statusBox?.y);
+
 		await statusTrigger.click();
 		await expect(page.getByRole('listbox').getByRole('option')).toHaveText(requestedStatusLabels);
 		await page.getByRole('option', { name: '진행', exact: true }).click();

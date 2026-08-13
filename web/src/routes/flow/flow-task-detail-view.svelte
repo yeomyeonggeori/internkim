@@ -39,7 +39,14 @@
 		{#if hasFlowTaskRequestProvenance(task)}
 			<div>
 				<p class="text-xs text-muted-foreground">{text.requester}</p>
-				<p class="mt-1 text-sm">{task.requesterName || memberEmail(task.requesterID || '') || task.requesterID || text.requesterUnavailable}</p>
+				<div class="mt-1 text-sm">
+					<FlowTaskPersonChip
+						name={task.requesterName || memberEmail(task.requesterID || '') || task.requesterID || text.requesterUnavailable}
+						email={memberEmail(task.requesterID || '')}
+						seed={task.requesterID || task.requesterName || text.requesterUnavailable}
+						image={personProfileImagePath(task.requesterID || '')}
+					/>
+				</div>
 			</div>
 		{/if}
 		{#if task.participantNames.length}

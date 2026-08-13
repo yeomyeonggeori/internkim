@@ -127,6 +127,7 @@
 						{canEditTask}
 						{text}
 						{statusLabel}
+						{memberEmail}
 					/>
 					<FlowTaskEditorParticipants
 						{taskDraft}
