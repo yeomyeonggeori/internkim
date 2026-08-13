@@ -152,7 +152,6 @@
 	bind:taskDraft={page.editor.taskDraft}
 	isEditingTask={page.editor.isEditingTask}
 	members={page.members()}
-	memberOptions={page.memberSelectOptions()}
 	categoryOptions={page.categoryOptions()}
 	typeOptions={page.typeOptions()}
 	sizeOptions={page.sizeOptions()}
@@ -163,7 +162,6 @@
 	pageTitle={text.title}
 	text={text.task}
 	statusLabel={page.statusLabel}
-	setTaskOwnerID={page.setTaskOwnerID}
 	setParticipantNames={page.setParticipantNames}
 	removeParticipantID={page.removeParticipantID}
 	saveTask={page.saveTask}

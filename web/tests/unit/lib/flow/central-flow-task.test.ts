@@ -27,6 +27,12 @@ describe('central flow task rows', () => {
 		}
 	});
 
+	test('rejects an unknown inbound central status', () => {
+		expect(() => centralFlowTaskFromRow(row({ status: 'blocked' }), names, dayOf)).toThrow(
+			'unsupported central task status: blocked'
+		);
+	});
+
 	test('maps requester identity and display name', () => {
 		const task = centralFlowTaskFromRow(row({ requester_id: 'requester-1' }), names, dayOf);
 

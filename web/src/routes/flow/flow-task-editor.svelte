@@ -15,7 +15,6 @@
 		taskDraft: FlowTask | null;
 		isEditingTask: boolean;
 		members: FlowMember[];
-		memberOptions: FlowTaskEditorOption[];
 		categoryOptions: FlowTaskEditorOption[];
 		typeOptions: FlowTaskEditorOption[];
 		sizeOptions: FlowTaskEditorOption[];
@@ -29,7 +28,6 @@
 		businessColor: (business: string) => string;
 		taskTypeColor: (type: string) => string;
 		memberEmail: (memberID: string) => string;
-		setTaskOwnerID: (memberID: string) => void;
 		setParticipantNames: (names: string[]) => void;
 		removeParticipantID: (memberID: string) => void;
 		saveTask: () => void;
@@ -46,7 +44,6 @@
 		taskDraft = $bindable<FlowTask | null>(null),
 		isEditingTask,
 		members,
-		memberOptions,
 		categoryOptions,
 		typeOptions,
 		sizeOptions,
@@ -60,7 +57,6 @@
 		businessColor,
 		taskTypeColor,
 		memberEmail,
-		setTaskOwnerID,
 		setParticipantNames,
 		removeParticipantID,
 		saveTask,
@@ -122,17 +118,13 @@
 					<FlowTaskEditorSummary {taskDraft} {text} {statusLabel} {businessColor} {taskTypeColor} />
 					<FlowTaskEditorFields
 						bind:taskDraft
-						{members}
-						{memberOptions}
 						{categoryOptions}
 						{typeOptions}
 						{sizeOptions}
 						{statusOptions}
 						{canEditTask}
-						{canEditTaskAssignment}
 						{text}
 						{statusLabel}
-						{setTaskOwnerID}
 					/>
 					<FlowTaskEditorParticipants
 						{taskDraft}

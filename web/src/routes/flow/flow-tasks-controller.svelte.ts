@@ -12,7 +12,6 @@ import {
 	categorySelectOptions,
 	definitionsFromSummary,
 	flowTaskStatusLabel,
-	memberSelectOptions,
 	sizeSelectOptions,
 	statusOptionsFromSummary,
 	statusSelectOptions,
@@ -120,7 +119,6 @@ class FlowTasksController {
 	categoryFilterOptions = () => this.filters.businessOptions(this.summary, this.text);
 	typeFilterOptions = () => this.filters.typeOptions(this.summary, this.text);
 	statusSelectOptions = (task?: FlowTask | null) => statusSelectOptions(this.statusOptions(task ?? this.taskDraft), this.statusLabel);
-	memberSelectOptions = () => memberSelectOptions(this.members());
 	businessColor = (business: string) => flowBusinessColor(business, this.definitions());
 	taskTypeColor = (type: string) => flowTaskTypeColor(type, this.definitions());
 	participantScope = () => flowBoardParticipantScope(this.filters.participantFilterIDs, currentFlowMember(this.summary)?.id);
@@ -176,7 +174,6 @@ class FlowTasksController {
 		this.filters.setParticipantIDs(memberIDs);
 	};
 
-	setTaskOwnerID = this.editor.setTaskOwnerID;
 	setParticipantNames = this.editor.setParticipantNames;
 	removeParticipantID = this.editor.removeParticipantID;
 	closeEditor = this.editor.closeEditor;

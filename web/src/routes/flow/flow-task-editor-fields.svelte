@@ -1,55 +1,34 @@
 <script lang="ts">
-	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import { isFlowStatusRejected, isFlowStatusRequested, isFlowStatusStopped } from './flow-status';
 	import { flowBusinessLabel, flowBusinessOptionValue, flowBusinessValueFromOption } from './flow-task-workspace-model';
 	import type { FlowTaskEditorOption, FlowTaskEditorText } from './flow-task-editor-types';
-	import type { FlowMember, FlowTask } from './flow-types';
+	import type { FlowTask } from './flow-types';
 
 	type Props = {
 		taskDraft: FlowTask;
-		members: FlowMember[];
-		memberOptions: FlowTaskEditorOption[];
 		categoryOptions: FlowTaskEditorOption[];
 		typeOptions: FlowTaskEditorOption[];
 		sizeOptions: FlowTaskEditorOption[];
 		statusOptions: FlowTaskEditorOption[];
 		canEditTask: boolean;
-		canEditTaskAssignment: boolean;
 		text: FlowTaskEditorText;
 		statusLabel: (status: string) => string;
-		setTaskOwnerID: (memberID: string) => void;
 	};
 
 	let {
 		taskDraft = $bindable<FlowTask>(),
-		members,
-		memberOptions,
 		categoryOptions,
 		typeOptions,
 		sizeOptions,
 		statusOptions,
 		canEditTask,
-		canEditTaskAssignment,
 		text,
-		statusLabel,
-		setTaskOwnerID
+		statusLabel
 	}: Props = $props();
 
 	let businessSelectValue = $derived(flowBusinessOptionValue(taskDraft.business));
-
-	function memberOptionLabel(memberID: string): string {
-		return memberOptions.find((option) => option.value === memberID)?.label ?? '-';
-	}
-
-	function memberOptionEmail(memberID: string): string {
-		return members.find((member) => member.id === memberID)?.email ?? '';
-	}
-
-	function memberOptionImage(memberID: string): string {
-		return members.find((member) => member.id === memberID)?.image ?? '';
-	}
 
 	function updateBusiness(value: string): void {
 		taskDraft.business = flowBusinessValueFromOption(value);
@@ -65,27 +44,6 @@
 	<Input bind:value={taskDraft.goal} placeholder={text.goalPlaceholder} disabled={!canEditTask} />
 </label>
 <div class="grid gap-3 md:grid-cols-2">
-	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-		{text.owner}
-		<Select.Root type="single" value={taskDraft.ownerID} onValueChange={setTaskOwnerID} disabled={!canEditTask || !canEditTaskAssignment}>
-			<Select.Trigger class="w-full">
-				<span class="flex min-w-0 items-center gap-2">
-					<PersonAvatar name={memberOptionLabel(taskDraft.ownerID)} email={memberOptionEmail(taskDraft.ownerID)} seed={taskDraft.ownerID} image={memberOptionImage(taskDraft.ownerID)} class="size-5" />
-					<span class="truncate">{memberOptionLabel(taskDraft.ownerID)}</span>
-				</span>
-			</Select.Trigger>
-			<Select.Content>
-				{#each memberOptions as option (option.value)}
-					<Select.Item value={option.value} label={option.label}>
-						<span class="flex min-w-0 items-center gap-2">
-							<PersonAvatar name={option.label} email={memberOptionEmail(option.value)} seed={option.value} image={memberOptionImage(option.value)} class="size-5" />
-							<span class="truncate">{option.label}</span>
-						</span>
-					</Select.Item>
-				{/each}
-			</Select.Content>
-		</Select.Root>
-	</label>
 	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 		{text.status}
 		<Select.Root type="single" bind:value={taskDraft.status} disabled={!canEditTask}>
