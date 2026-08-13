@@ -97,6 +97,7 @@
 			<FlowTaskBoard
 				memberEmail={page.memberEmail}
 				tasks={page.filteredTasks()}
+				allTasks={page.tasks()}
 				boardText={text.task.board}
 				businessFallback={text.task.businessFallback}
 				statusLabel={page.statusLabel}
@@ -111,6 +112,7 @@
 				weekPosition={flowTaskBoardWeekPosition(summary)}
 				businessColor={page.businessColor}
 				taskTypeColor={page.taskTypeColor}
+				childProgressLabel={text.task.relationships.progressLabel}
 			/>
 		</Tabs.Content>
 		<Tabs.Content value="list" class="min-h-[36rem]">
@@ -148,6 +150,10 @@
 <FlowTaskEditor
 	businessColor={page.businessColor}
 	taskTypeColor={page.taskTypeColor}
+	tasks={page.tasks()}
+	currentMemberID={page.currentMemberID()}
+	canUseTaskRelationships={page.canUseTaskRelationships()}
+	pendingRelationshipTaskIDs={page.relationships.pendingTaskIDs}
 	memberEmail={page.memberEmail}
 	bind:taskDraft={page.editor.taskDraft}
 	isEditingTask={page.editor.isEditingTask}
@@ -173,4 +179,8 @@
 	isOwnTask={page.editor.isOwnTask}
 	startEditingTask={page.editor.startEditingTask}
 	closeEditor={page.closeEditor}
+	openRelatedTask={page.openTask}
+	setTaskParent={page.setTaskParent}
+	setTaskParents={page.setTaskParents}
+	createChildTask={page.createChildTask}
 />

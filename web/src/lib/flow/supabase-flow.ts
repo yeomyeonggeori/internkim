@@ -17,6 +17,7 @@ import {
 	totalScoreOf,
 	type MemberTaskTally
 } from '$lib/flow/flow-scores';
+import { updateSupabaseTaskParent } from '$lib/flow/supabase-task-relationships';
 import type {
 	FlowMember,
 	FlowMemberScoreDetail,
@@ -228,6 +229,9 @@ function nullableStringField(fields: Record<string, unknown>, field: string): st
 export async function saveSupabaseFlowTask(task: FlowTask): Promise<void> {
 	const saved = await supabase().rpc('save_flow_task', supabaseFlowTaskRPCArguments(task));
 	if (saved.error) throw new Error(saved.error.message);
+	if (!task.id && task.parentTaskID && typeof saved.data === 'string') {
+		await updateSupabaseTaskParent(saved.data, task.parentTaskID);
+	}
 }
 
 export async function deleteSupabaseFlowTask(taskID: string): Promise<void> {
