@@ -20,6 +20,7 @@ import {
 	type ConnectedAccount
 } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
+import { buzzPublisherOn, connectToGateway } from './gateway-socket';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -97,6 +98,34 @@ await presence.track({ startedAt: new Date().toISOString() });
 await listenToEveryMember();
 setInterval(() => void keepGoing('members', listenToEveryMember), 600_000);
 console.log(`listening to ${listeningTo.size} members of company ${companyID}`);
+
+openGatewayConnection();
+
+function openGatewayConnection(): void {
+	const gatewayURL = process.env.GATEWAY_URL?.trim();
+	const serverKey = process.env.GATEWAY_SERVER_KEY?.trim();
+	const buzzRelayURL = process.env.BUZZ_RELAY_URL?.trim();
+	if (!gatewayURL || !serverKey || !buzzRelayURL) return;
+
+	connectToGateway({
+		gatewayURL,
+		companyID,
+		serverKey,
+		publisher: buzzPublisherOn(buzzRelayURL, pubkeyOfMember)
+	});
+}
+
+async function pubkeyOfMember(memberID: string): Promise<string | null> {
+	const contact = await client
+		.from('contact')
+		.select('external_id')
+		.eq('company_id', companyID)
+		.eq('platform', messengerPlatform)
+		.eq('member_id', memberID)
+		.maybeSingle<{ external_id: string | null }>();
+	if (contact.error) throw new Error(contact.error.message);
+	return contact.data?.external_id ?? null;
+}
 
 function join(channel: RealtimeChannel): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
