@@ -13,7 +13,7 @@ export type CentralTaskStatus =
 export type CentralFlowTaskRow = {
 	id: string;
 	title: string;
-	status: CentralTaskStatus;
+	status: string;
 	note: string | null;
 	business: string | null;
 	type: string | null;
@@ -27,30 +27,26 @@ export type CentralFlowTaskRow = {
 	task_participant: { member_id: string }[];
 };
 
-const centralStatusWords: Record<CentralTaskStatus, string> = {
-	requested: flowStatus.requested,
-	todo: flowStatus.planned,
-	in_progress: flowStatus.inProgress,
-	done: flowStatus.completed,
-	paused: flowStatus.paused,
-	rejected: flowStatus.rejected,
-	cancelled: flowStatus.stopped
-};
+const centralStatusPairs: readonly (readonly [CentralTaskStatus, string])[] = [
+	['requested', flowStatus.requested],
+	['todo', flowStatus.planned],
+	['in_progress', flowStatus.inProgress],
+	['done', flowStatus.completed],
+	['paused', flowStatus.paused],
+	['rejected', flowStatus.rejected],
+	['cancelled', flowStatus.stopped]
+];
 
-const centralStatusByWord = new Map<string, CentralTaskStatus>([
-	[flowStatus.requested, 'requested'],
-	[flowStatus.planned, 'todo'],
-	[flowStatus.inProgress, 'in_progress'],
-	[flowStatus.completed, 'done'],
-	[flowStatus.paused, 'paused'],
-	[flowStatus.rejected, 'rejected'],
-	[flowStatus.stopped, 'cancelled']
-]);
+const centralStatusByWord = new Map<string, CentralTaskStatus>(
+	centralStatusPairs.map(([status, word]) => [word, status])
+);
+
+const centralStatusWordByStatus = new Map<string, string>(centralStatusPairs);
 
 export const centralFlowTaskSelection =
 	'id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, task_participant (member_id)';
 
-export const centralFlowStatusOptions = Object.values(centralStatusWords);
+export const centralFlowStatusOptions = centralStatusPairs.map(([, word]) => word);
 
 export function centralFlowTaskFromRow(
 	row: CentralFlowTaskRow,
@@ -78,7 +74,7 @@ export function centralFlowTaskFromRow(
 		content: row.title,
 		goal: row.note ?? '',
 		size: row.size ?? '',
-		status: centralStatusWords[row.status],
+		status: centralStatusWord(row.status),
 		statusRank: 0,
 		startDate: dayOf(row.starts_at),
 		endDate,
@@ -108,6 +104,12 @@ export function centralStatusFromWord(status: string): CentralTaskStatus {
 	const centralStatus = centralStatusByWord.get(status);
 	if (!centralStatus) throw new Error(`unsupported Flow task status: ${status}`);
 	return centralStatus;
+}
+
+function centralStatusWord(status: string): string {
+	const word = centralStatusWordByStatus.get(status);
+	if (!word) throw new Error(`unsupported central task status: ${status}`);
+	return word;
 }
 
 export function compatibilityOwnerOf(participants: { id: string; name: string }[]): { id: string; name: string } {

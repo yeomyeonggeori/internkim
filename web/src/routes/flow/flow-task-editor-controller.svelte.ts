@@ -3,6 +3,7 @@ import {
 	createFlowTaskDraft,
 	defaultFlowTaskOwner,
 	removeFlowTaskParticipant,
+	updateFlowTaskParticipantIDs,
 	updateFlowTaskParticipantNames
 } from './flow-task-draft';
 import { definitionsFromSummary } from './flow-task-options';
@@ -82,11 +83,8 @@ export class FlowTaskEditorController {
 			this.taskDraft.requesterID = isRequest ? owner.id : '';
 			this.taskDraft.requesterName = isRequest ? owner.name : '';
 			if (isRequest) {
-				const targetNames = targetParticipantIDs
-					.map((memberID) => this.members().find((member) => member.id === memberID)?.name)
-					.filter((name): name is string => Boolean(name));
-				if (targetNames.length === 0) targetNames.push(owner.name);
-				this.taskDraft = updateFlowTaskParticipantNames(this.taskDraft, this.members(), targetNames);
+				const targetIDs = targetParticipantIDs.length > 0 ? targetParticipantIDs : [owner.id];
+				this.taskDraft = updateFlowTaskParticipantIDs(this.taskDraft, this.members(), targetIDs);
 			}
 		}
 		this.taskErrorMessage = '';
@@ -123,13 +121,6 @@ export class FlowTaskEditorController {
 			this.setPageErrorMessage(result.errorMessage);
 		}
 		this.isDeletingTask = false;
-	};
-
-	setTaskOwnerID = (memberID: string): void => {
-		if (!this.taskDraft) return;
-		const member = this.members().find((candidate) => candidate.id === memberID);
-		if (!member) return;
-		this.taskDraft = updateFlowTaskParticipantNames(this.taskDraft, this.members(), [member.name]);
 	};
 
 	setParticipantNames = (names: string[]): void => {

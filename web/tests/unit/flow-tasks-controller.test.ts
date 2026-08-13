@@ -125,7 +125,21 @@ describe('flow tasks controller', () => {
 		expect(controller.taskDraft?.ownerName).toBe('대상자');
 	});
 
-	test('falls back to the current member when a request has no selected target', async () => {
+	test('preserves selected member IDs when request targets share a display name', async () => {
+		const controller = await syncedController([
+			flowMember({ id: 'requester', name: '요청자', email: 'requester@example.com' }),
+			flowMember({ id: 'target-left', name: '동명이인', email: 'left@example.com' }),
+			flowMember({ id: 'target-right', name: '동명이인', email: 'right@example.com' })
+		]);
+		controller.setParticipantFilterIDs(['target-left']);
+
+		controller.createTask('요청');
+
+		expect(controller.taskDraft?.participantIDs).toEqual(['target-left']);
+		expect(controller.taskDraft?.ownerID).toBe('target-left');
+	});
+
+	test('treats an empty everyone viewing filter as no assignment consent and falls back to requester', async () => {
 		const controller = await syncedController();
 		controller.setParticipantFilterIDs([]);
 
@@ -134,10 +148,20 @@ describe('flow tasks controller', () => {
 		expect(controller.taskDraft?.requesterID).toBe('requester');
 		expect(controller.taskDraft?.participantIDs).toEqual(['requester']);
 		expect(controller.taskDraft?.ownerID).toBe('requester');
+		expect(controller.taskDraft?.participantIDs).not.toContain('target');
+	});
+
+	test('does not expose an explicit compatibility owner mutation', async () => {
+		const controller = await syncedController();
+
+		expect('setTaskOwnerID' in controller).toBe(false);
 	});
 });
 
-async function syncedController() {
+async function syncedController(members: FlowMember[] = [
+	flowMember({ id: 'requester', name: '요청자', email: 'requester@example.com' }),
+	flowMember({ id: 'target', name: '대상자', email: 'target@example.com' })
+]) {
 	const originalState = Reflect.get(globalThis, '$state');
 	Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
 	const { createFlowTasksController } = await import('../../src/routes/flow/flow-tasks-controller.svelte');
@@ -146,10 +170,7 @@ async function syncedController() {
 		summary: flowSummary({
 			currentUserEmail: 'requester@example.com',
 			source: 'supabase',
-			members: [
-				flowMember({ id: 'requester', name: '요청자', email: 'requester@example.com' }),
-				flowMember({ id: 'target', name: '대상자', email: 'target@example.com' })
-			]
+			members
 		}),
 		text: flowText.ko,
 		loadFlow: async () => true,
