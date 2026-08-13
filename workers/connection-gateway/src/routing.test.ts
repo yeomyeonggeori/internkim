@@ -7,17 +7,27 @@ import {
 	serverOfflineStatus
 } from './routing';
 
-const call = { kind: 'publish', requestID: 'r1', event: { id: 'e1', sig: 'a' } };
+const call = { kind: 'call', requestID: 'r1', capability: 'person.messenger.channels', body: { limit: 20 } };
 
 describe('parseClientCall', () => {
-	test('takes a publish naming a request and an event', () => {
+	test('takes a call naming a request and a capability', () => {
 		expect(parseClientCall(call)).toEqual(call as never);
 	});
 
+	test('a call with no body carries an empty one', () => {
+		expect(parseClientCall({ kind: 'call', requestID: 'r1', capability: 'asset.link' })).toEqual({
+			kind: 'call',
+			requestID: 'r1',
+			capability: 'asset.link',
+			body: {}
+		} as never);
+	});
+
 	test('refuses anything else', () => {
-		expect(parseClientCall({ ...call, kind: 'terminal_run' })).toBeNull();
+		expect(parseClientCall({ ...call, kind: 'publish' })).toBeNull();
 		expect(parseClientCall({ ...call, requestID: '  ' })).toBeNull();
-		expect(parseClientCall({ ...call, event: 'an event' })).toBeNull();
+		expect(parseClientCall({ ...call, capability: '' })).toBeNull();
+		expect(parseClientCall({ ...call, body: 'a body' })).toBeNull();
 		expect(parseClientCall(null)).toBeNull();
 	});
 });
@@ -48,7 +58,7 @@ describe('decideCall', () => {
 		const decision = decideCall(call as never, 'm1', new CallLedger(), true);
 		expect(decision).toEqual({
 			action: 'forward',
-			routed: { kind: 'publish', requestID: 'r1', memberID: 'm1', event: call.event }
+			routed: { kind: 'call', requestID: 'r1', memberID: 'm1', capability: call.capability, body: call.body }
 		});
 	});
 

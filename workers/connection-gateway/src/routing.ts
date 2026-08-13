@@ -1,7 +1,11 @@
+// The envelope is the one the company machine already answers: a capability
+// name and a body, replied to by request id. The gateway adds the member,
+// which the browser used to assert by attaching its own messenger credential.
 export type ClientCall = {
-	kind: 'publish';
+	kind: 'call';
 	requestID: string;
-	event: unknown;
+	capability: string;
+	body: Record<string, unknown>;
 };
 
 export type ServerAnswer = {
@@ -18,21 +22,23 @@ export type ServerDelivery = {
 };
 
 export type RoutedCall = {
-	kind: 'publish';
+	kind: 'call';
 	requestID: string;
 	memberID: string;
-	event: unknown;
+	capability: string;
+	body: Record<string, unknown>;
 };
 
 export const serverOfflineStatus = 503;
 
 export function parseClientCall(payload: unknown): ClientCall | null {
 	if (typeof payload !== 'object' || payload === null) return null;
-	const { kind, requestID, event } = payload as Record<string, unknown>;
-	if (kind !== 'publish') return null;
+	const { kind, requestID, capability, body } = payload as Record<string, unknown>;
+	if (kind !== 'call') return null;
 	if (typeof requestID !== 'string' || requestID.trim() === '') return null;
-	if (typeof event !== 'object' || event === null) return null;
-	return { kind, requestID, event };
+	if (typeof capability !== 'string' || capability.trim() === '') return null;
+	if (body !== undefined && (typeof body !== 'object' || body === null)) return null;
+	return { kind, requestID, capability, body: (body as Record<string, unknown>) ?? {} };
 }
 
 export function parseServerMessage(payload: unknown): ServerAnswer | ServerDelivery | null {
@@ -61,7 +67,7 @@ export function serverOfflineAnswer(requestID: string): ServerAnswer {
 }
 
 export function routedCallOf(call: ClientCall, memberID: string): RoutedCall {
-	return { kind: 'publish', requestID: call.requestID, memberID, event: call.event };
+	return { kind: 'call', requestID: call.requestID, memberID, capability: call.capability, body: call.body };
 }
 
 // A reconnecting client resends the call it never saw answered, and the same

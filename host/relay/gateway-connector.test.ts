@@ -1,71 +1,68 @@
 import { describe, expect, test } from 'bun:test';
-import { parseRoutedCall, serveRoutedCall, signedEventOf, type BuzzPublisher } from './gateway-connector';
+import { parseRoutedCall, serveRoutedCall } from './gateway-connector';
+import type { Dispatch } from './forward';
 
-const theirPubkey = 'a'.repeat(64);
-const signedEvent = { id: 'b'.repeat(64), pubkey: theirPubkey, sig: 'c'.repeat(128) };
-const call = { kind: 'publish' as const, requestID: 'r1', memberID: 'm1', event: signedEvent };
+const call = {
+	kind: 'call' as const,
+	requestID: 'r1',
+	memberID: 'm1',
+	capability: 'person.messenger.channels',
+	body: { limit: 20 }
+};
 
-function publisherThat(published: Record<string, unknown>[], pubkey: string | null = theirPubkey): BuzzPublisher {
+function dispatchAnswering(answer: unknown, seen: { capability?: string } = {}): Dispatch {
 	return {
-		publish: async (event) => {
-			published.push(event);
+		serveAsset: async () => answer,
+		askChatd: async (capability: string) => {
+			seen.capability = capability;
+			return { status: 200, body: answer };
 		},
-		pubkeyOfMember: async () => pubkey
-	};
+		askMaild: async () => ({ status: 200, body: null }),
+		askAdmind: async () => ({ status: 200, body: null }),
+		mailAccountOf: async () => null,
+		emailOfMember: async () => 'someone@example.com',
+		connectMessengerAccount: async () => {},
+		memberOfExternalID: async () => null
+	} as unknown as Dispatch;
 }
 
 describe('parseRoutedCall', () => {
-	test('takes a publish naming a member and an event', () => {
+	test('takes a call naming a member and a capability', () => {
 		expect(parseRoutedCall(call)).toEqual(call);
 	});
 
 	test('refuses a call missing what it needs', () => {
 		expect(parseRoutedCall({ ...call, memberID: '' })).toBeNull();
-		expect(parseRoutedCall({ ...call, kind: 'deliver' })).toBeNull();
-		expect(parseRoutedCall('publish')).toBeNull();
-	});
-});
-
-describe('signedEventOf', () => {
-	test('refuses anything not carrying a full id, pubkey and signature', () => {
-		expect(signedEventOf({ ...signedEvent, sig: 'c'.repeat(64) })).toBeNull();
-		expect(signedEventOf({ ...signedEvent, pubkey: 'short' })).toBeNull();
-		expect(signedEventOf({ id: signedEvent.id })).toBeNull();
+		expect(parseRoutedCall({ ...call, capability: '  ' })).toBeNull();
+		expect(parseRoutedCall({ ...call, kind: 'result' })).toBeNull();
+		expect(parseRoutedCall('call')).toBeNull();
 	});
 });
 
 describe('serveRoutedCall', () => {
-	test('publishes what the asking member signed', async () => {
-		const published: Record<string, unknown>[] = [];
-		const result = await serveRoutedCall(call, publisherThat(published));
-		expect(result).toEqual({ kind: 'result', requestID: 'r1', status: 200, body: { eventID: signedEvent.id } });
-		expect(published).toEqual([signedEvent]);
+	test('serves the capability as the member the gateway named', async () => {
+		const seen: { capability?: string } = {};
+		const result = await serveRoutedCall(call, dispatchAnswering({ channels: [] }, seen));
+		expect(result).toEqual({ kind: 'result', requestID: 'r1', status: 200, body: { channels: [] } });
+		expect(seen.capability).toBe('person.messenger.channels');
 	});
 
-	test('refuses an event another key signed', async () => {
-		const published: Record<string, unknown>[] = [];
-		const result = await serveRoutedCall(call, publisherThat(published, 'd'.repeat(64)));
-		expect(result.status).toBe(403);
-		expect(published).toEqual([]);
+	test('needs no credential in the body to know who is asking', async () => {
+		const result = await serveRoutedCall({ ...call, body: {} }, dispatchAnswering({ channels: [] }));
+		expect(result.status).toBe(200);
 	});
 
-	test('refuses a member with no buzz identity', async () => {
-		const result = await serveRoutedCall(call, publisherThat([], null));
-		expect(result.status).toBe(403);
-	});
-
-	test('reports a relay that would not take the event', async () => {
-		const result = await serveRoutedCall(call, {
-			publish: () => Promise.reject(new Error('relay closed the socket')),
-			pubkeyOfMember: async () => theirPubkey
-		});
-		expect(result).toEqual({
+	test('reports a capability that threw rather than dropping the caller', async () => {
+		const dispatch = dispatchAnswering(null);
+		const throwing = {
+			...dispatch,
+			askChatd: () => Promise.reject(new Error('chatd is not running'))
+		} as unknown as Dispatch;
+		expect(await serveRoutedCall(call, throwing)).toEqual({
 			kind: 'result',
 			requestID: 'r1',
-			status: 502,
-			body: { error: 'relay closed the socket' }
+			status: 500,
+			body: { error: 'chatd is not running' }
 		});
 	});
 });
-
-

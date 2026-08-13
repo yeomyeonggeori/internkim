@@ -123,6 +123,33 @@ export async function serveCall(
 		return { status: 403, body: { error: 'that credential belongs to nobody here' }, replyTo: null };
 	}
 
+	return serveForMember(dispatch, capability, body, replyTo);
+}
+
+// The Realtime bridge takes calls on a topic every colleague may write to, so
+// it cannot tell who sent one and makes the caller prove it by attaching a
+// credential. A transport that authenticates the caller itself has already
+// answered that question, and calls this instead.
+export async function serveCallForMember(
+	dispatch: Dispatch,
+	call: Call,
+	memberID: string
+): Promise<Served> {
+	const capability = call.capability ?? '';
+	const body = call.body ?? {};
+
+	if (isRegistrationCapability(capability)) {
+		return { ...(await serveRegistration(dispatch, capability, body, memberID)), replyTo: memberID };
+	}
+	return serveForMember(dispatch, capability, body, memberID);
+}
+
+async function serveForMember(
+	dispatch: Dispatch,
+	capability: string,
+	body: Record<string, unknown>,
+	replyTo: string
+): Promise<Served> {
 	if (!isPersonCapability(capability)) {
 		return { status: 200, body: await dispatch.serveAsset(capability, body), replyTo };
 	}
