@@ -424,16 +424,7 @@ func resolveLocalSSHConnection(sshpassBin string, target commandTarget) *sshClie
 }
 
 func resolveRemoteSSHConnection(configuration config, sshpassBin string, target commandTarget, isRequired bool) (*sshClient, bool, error) {
-	hostname, errorValue := ensureCloudflareSSHRegistration(configuration, target.stateDir, false)
-	if errorValue != nil && isRequired {
-		return nil, false, errorValue
-	}
-	if errorValue == nil && hostname != "" {
-		target.sshHostname = hostname
-	}
-	if target.sshHostname == "" {
-		target.sshHostname = resolveCloudflareSSHHostname(configuration, target)
-	}
+	target.sshHostname = savedRemoteSSHHostname(target)
 	if target.sshHostname == "" {
 		return nil, false, errors.New("device is not reachable locally and no ssh hostname is known; run setup once on the device network first")
 	}
@@ -450,18 +441,6 @@ func remoteSSHError(hostname string, output string, errorValue error) error {
 		return fmt.Errorf("ssh to %s failed: %w", hostname, errorValue)
 	}
 	return fmt.Errorf("ssh to %s failed: %s: %w", hostname, detail, errorValue)
-}
-
-func cloudflareSSHTLSStatus(stateDir string) string {
-	status := strings.TrimSpace(loadState(stateDir, "tls_certificate_status"))
-	if status == "" {
-		return "unknown"
-	}
-	return status
-}
-
-func cloudflareSSHTLSIsReady(status string) bool {
-	return status == "active" || status == "covered" || status == "unknown"
 }
 
 func commandControlArguments(arguments []string) []string {
@@ -4780,62 +4759,14 @@ func findSDStagingRoot() string {
 	return ""
 }
 
-func resolveCloudflareSSHHostname(configuration config, target commandTarget) string {
+func savedRemoteSSHHostname(target commandTarget) string {
 	if target.useRemoteSSH && strings.TrimSpace(target.host) != "" {
 		return strings.TrimSpace(target.host)
 	}
-	if strings.TrimSpace(target.sshHostname) != "" && !isLegacyCloudflareSSHHostname(configuration, target.sshHostname) {
+	if strings.TrimSpace(target.sshHostname) != "" {
 		return strings.TrimSpace(target.sshHostname)
 	}
-	if hostname := cloudflareSSHHostnameFromDeviceURL(target.deviceURL); hostname != "" {
-		return hostname
-	}
-	fleetID := loadState(target.stateDir, "fleet_id")
-	if strings.TrimSpace(fleetID) == "" {
-		return ""
-	}
-	if strings.TrimSpace(target.nodeID) != "" {
-		return cloudflareNodeSSHHostname(configuration, strings.TrimSpace(fleetID), strings.TrimSpace(target.nodeID))
-	}
-	return cloudflareSSHHostname(configuration, strings.TrimSpace(fleetID))
-}
-
-func ensureCloudflareSSHRegistration(configuration config, stateDir string, force bool) (string, error) {
-	savedSSHHostname := loadState(stateDir, "ssh_hostname")
-	if canReuseCloudflareSSHRegistration(configuration, stateDir, savedSSHHostname, force) {
-		return savedSSHHostname, nil
-	}
-	fleetID := loadState(stateDir, "fleet_id")
-	nodeID := loadNodeID(stateDir)
-	nodeKey := loadOrCreateNodeKey(stateDir)
-	fleetSecret := loadState(stateDir, "fleet_secret")
-	if fleetID == "" || fleetSecret == "" {
-		return "", errors.New("Cloudflare SSH requires an already registered fleet; run setup once on the local network first")
-	}
-	if strings.TrimSpace(configuration.RegisterSecret) == "" {
-		return "", errors.New("Cloudflare SSH migration requires INTERNKIM_REGISTER_SECRET")
-	}
-	response, errorValue := registerFleetNode(configuration, fleetID, nodeID, nodeKey, fleetSecret, remoteSetupAdminEmail(stateDir))
-	if errorValue != nil {
-		return "", errorValue
-	}
-	sshHostname := response.SSHHostname
-	if sshHostname == "" {
-		sshHostname = cloudflareSSHHostnameFromDeviceURL(response.publicURL())
-	}
-	response.SSHHostname = sshHostname
-	saveRegistrationResponse(stateDir, response)
-	saveState(stateDir, "ssh_hostname", sshHostname)
-	saveDefaultFleetNode(stateDir, response)
-	return sshHostname, nil
-}
-
-func canReuseCloudflareSSHRegistration(configuration config, stateDir string, savedSSHHostname string, force bool) bool {
-	return savedSSHHostname != "" &&
-		loadState(stateDir, "node_tunnel_token") != "" &&
-		loadState(stateDir, "tunnel_revision") == setup.TunnelConfigurationRevision &&
-		cloudflareSSHTLSIsReady(cloudflareSSHTLSStatus(stateDir)) &&
-		!isLegacyCloudflareSSHHostname(configuration, savedSSHHostname)
+	return strings.TrimSpace(loadState(target.stateDir, "ssh_hostname"))
 }
 
 func updateRemoteDeviceRegistration(connection *sshClient, configuration config, response *registerResponse) {
@@ -4916,41 +4847,6 @@ func saveDefaultFleetNode(stateDir string, response *registerResponse) {
 	saveState(baseStateDir, "default_node_id", nodeID)
 }
 
-func cloudflareSSHHostname(configuration config, fleetID string) string {
-	cfDomain := strings.TrimSpace(configuration.CFDomain)
-	if cfDomain == "" || strings.TrimSpace(fleetID) == "" {
-		return ""
-	}
-	return "ssh-" + strings.TrimSpace(fleetID) + "." + cfDomain
-}
-
-func cloudflareNodeSSHHostname(configuration config, fleetID string, nodeID string) string {
-	cfDomain := strings.TrimSpace(configuration.CFDomain)
-	if cfDomain == "" || strings.TrimSpace(fleetID) == "" || strings.TrimSpace(nodeID) == "" {
-		return ""
-	}
-	return strings.TrimSpace(nodeID) + ".ssh." + strings.TrimSpace(fleetID) + "." + cfDomain
-}
-
-func isLegacyCloudflareSSHHostname(configuration config, hostname string) bool {
-	cfDomain := strings.TrimSpace(configuration.CFDomain)
-	trimmedHostname := strings.TrimSpace(hostname)
-	if cfDomain == "" || trimmedHostname == "" {
-		return false
-	}
-	withoutDomain, found := strings.CutSuffix(trimmedHostname, "."+cfDomain)
-	if !found {
-		return false
-	}
-	if strings.HasPrefix(trimmedHostname, "ssh.") && strings.Count(withoutDomain, ".") == 1 {
-		return true
-	}
-	if strings.HasPrefix(withoutDomain, "ssh-") && strings.Count(withoutDomain, ".") > 0 {
-		return true
-	}
-	return strings.HasPrefix(withoutDomain, "ssh-") && strings.Count(withoutDomain, "-") > 1
-}
-
 func remoteSetupAdminEmail(stateDir string) string {
 	for _, value := range []string{
 		strings.TrimSpace(os.Getenv("INTERNKIM_ADMIN_EMAIL")),
@@ -4962,19 +4858,6 @@ func remoteSetupAdminEmail(stateDir string) string {
 		}
 	}
 	return ""
-}
-
-func cloudflareSSHHostnameFromDeviceURL(deviceURL string) string {
-	parsedURL, errorValue := url.Parse(strings.TrimSpace(deviceURL))
-	if errorValue != nil || strings.TrimSpace(parsedURL.Hostname()) == "" {
-		return ""
-	}
-	hostname := strings.TrimSpace(parsedURL.Hostname())
-	labels := strings.SplitN(hostname, ".", 2)
-	if len(labels) != 2 || labels[0] == "" || labels[1] == "" {
-		return ""
-	}
-	return "ssh-" + labels[0] + "." + labels[1]
 }
 
 func isBlueclawPayloadDirectOnlySetup(arguments []string) bool {
@@ -5068,7 +4951,7 @@ func resolveSetupLiveOptions(configuration config, scriptDir string, setupBuildI
 		requestedCloudflareSSH: request.requestedCloudflareSSH,
 		nonInteractive:         containsArg("--non-interactive"),
 		canRunWithoutSSH:       setupCanRunWithoutSSH(os.Args[2:]),
-		cloudflareSSHHostname:  resolveCloudflareSSHHostname(configuration, target),
+		cloudflareSSHHostname:  savedRemoteSSHHostname(target),
 	}
 }
 
@@ -5158,9 +5041,9 @@ func resolveRequestedSetupSSHBackend(messenger *msg, configuration config, optio
 	var cloudflareSSHError error
 	var sshReady bool
 	if options.requestedCloudflareSSH {
-		selection, cloudflareSSHError, sshReady = attemptSetupCloudflareSSH(configuration, options)
+		selection, cloudflareSSHError, sshReady = attemptSetupRemoteSSH(options)
 	} else if selection, sshReady = attemptSetupBackend(options, setup.BackendSSH); !sshReady {
-		selection, cloudflareSSHError, sshReady = attemptSetupCloudflareSSH(configuration, options)
+		selection, cloudflareSSHError, sshReady = attemptSetupRemoteSSH(options)
 	}
 	if sshReady {
 		return selection
@@ -5196,7 +5079,7 @@ func resolveAutomaticSetupBackend(messenger *msg, configuration config, options 
 	if selection, ok := attemptSetupBackend(options, setup.BackendSSH); ok {
 		return selection
 	}
-	selection, cloudflareSSHError, cloudflareSSHReady := attemptSetupCloudflareSSH(configuration, options)
+	selection, cloudflareSSHError, cloudflareSSHReady := attemptSetupRemoteSSH(options)
 	if cloudflareSSHReady {
 		return selection
 	}
@@ -5248,18 +5131,13 @@ func setupSSHBackendIsReady(options setupLiveOptions, selection *setupBackendSel
 	return true
 }
 
-func attemptSetupCloudflareSSH(configuration config, options setupLiveOptions) (setupBackendSelection, error, bool) {
+func attemptSetupRemoteSSH(options setupLiveOptions) (setupBackendSelection, error, bool) {
 	selection := setupBackendSelection{backend: setup.BackendSSH, target: options.target}
-	cloudflareSSHHostname := options.cloudflareSSHHostname
-	if hostname, errorValue := ensureCloudflareSSHRegistration(configuration, options.target.stateDir, containsArg("--force") || containsArg("--force-all")); errorValue == nil && hostname != "" {
-		cloudflareSSHHostname = hostname
-	} else if options.requestedCloudflareSSH && errorValue != nil {
-		return selection, errorValue, false
-	}
-	if cloudflareSSHHostname == "" {
+	remoteSSHHostname := options.cloudflareSSHHostname
+	if remoteSSHHostname == "" {
 		return selection, nil, false
 	}
-	selection.boardIP = cloudflareSSHHostname
+	selection.boardIP = remoteSSHHostname
 	selection.sshConnection = newSSH(options.sshpassBin, options.target.sshUser, options.target.sshPassword, selection.boardIP)
 	output, errorValue := selection.sshConnection.runResult("true")
 	if errorValue != nil {
