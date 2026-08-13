@@ -50,6 +50,7 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			},
 			emailOfMember: async (memberID: string) =>
 				memberID === 'member-1' ? 'sample@example.test' : null,
+			messengerCredentialOf: async () => ({ kind: 'buzz-token', secret: 'a-held-secret' }),
 			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null
 		}
 	};

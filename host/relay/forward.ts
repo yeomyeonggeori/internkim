@@ -72,9 +72,12 @@ export type Dispatch = {
 	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	mailAccountOf: (memberID: string) => Promise<Record<string, unknown> | null>;
 	connectMessengerAccount: (memberID: string, account: ConnectedAccount) => Promise<void>;
+	messengerCredentialOf: (memberID: string) => Promise<ActorCredential | null>;
 };
 
 export type ConnectedAccount = { externalID: string; name: string; secret: string };
+
+export type ActorCredential = { kind: string; secret: string };
 
 export async function serveCallForMember(
 	dispatch: Dispatch,
@@ -107,7 +110,14 @@ async function serveForMember(
 		return { ...(await serveWorkspace(dispatch, capability, body, replyTo)), replyTo };
 	}
 
-	return { ...(await dispatch.askChatd(capability, body)), replyTo };
+	// Acting as a person on their messenger means holding their credential.
+	// The company's own server resolves it; the browser used to carry it, and
+	// that is the whole reason it had to be handed one in the clear.
+	const actor = await dispatch.messengerCredentialOf(replyTo);
+	if (!actor) {
+		return { status: 409, body: { error: 'this member has connected no messenger account' }, replyTo };
+	}
+	return { ...(await dispatch.askChatd(capability, { ...body, actor })), replyTo };
 }
 
 async function serveRegistration(

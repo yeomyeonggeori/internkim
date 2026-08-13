@@ -51,12 +51,16 @@ export type FetchDocument = (
 	options?: { headers?: Record<string, string> }
 ) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
 
+// The runtime's fetch refuses to be called with any other `this`, which is what
+// holding it in a field or a default parameter does to it.
+const fetchThroughTheRuntime: FetchDocument = (url, options) => fetch(url, options);
+
 export class JSONWebKeyCache {
 	private keys: Promise<JSONWebKeySet> | undefined;
 
 	constructor(
 		private readonly jwksURL: string,
-		private readonly fetchDocument: FetchDocument = fetch
+		private readonly fetchDocument: FetchDocument = fetchThroughTheRuntime
 	) {}
 
 	async keySet(): Promise<JSONWebKeySet> {
@@ -120,7 +124,7 @@ export async function resolveMember(
 	publishableKey: string,
 	token: string,
 	accountID: string,
-	fetchDocument: FetchDocument = fetch
+	fetchDocument: FetchDocument = fetchThroughTheRuntime
 ): Promise<CallerIdentity> {
 	const url = `${supabaseURL.replace(/\/+$/, '')}/rest/v1/member?user_id=eq.${encodeURIComponent(accountID)}&select=id,company_id`;
 	const response = await fetchDocument(url, {

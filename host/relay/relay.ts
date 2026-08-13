@@ -52,7 +52,6 @@ console.log(`acting as the host of company ${companyID}`);
 
 setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
 
-openGatewayConnection();
 
 function openGatewayConnection(): void {
 	const gatewayURL = process.env.GATEWAY_URL?.trim();
@@ -91,6 +90,14 @@ const dispatch = {
 		if (member.error) throw new Error(member.error.message);
 		return member.data?.email ?? null;
 	},
+	messengerCredentialOf: async (memberID: string) => {
+		const held = await askTheRecord<{ credential?: { kind: string; secret: string } | null }>(
+			'GET',
+			`/api/agent/messenger-credential?memberID=${encodeURIComponent(memberID)}`
+		);
+		if (!held.credential) return null;
+		return { kind: held.credential.kind, secret: held.credential.secret };
+	},
 	connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 		await askTheRecord('POST', '/api/agent/messenger-account', {
 			kind: messengerPlatform,
@@ -99,6 +106,8 @@ const dispatch = {
 		});
 	}
 };
+
+openGatewayConnection();
 
 async function asset(capability: string, body: Record<string, unknown>): Promise<unknown> {
 	if (capability === 'asset.link') return previewOf(String(body.url ?? ''));
