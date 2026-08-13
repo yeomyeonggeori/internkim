@@ -123,7 +123,6 @@ type Service struct {
 	jobs                               map[string]*Job
 	uploads                            map[string]*RestoreUpload
 	blueclawUpdateUploads              map[string]*BlueclawUpdateUpload
-	releaseUpdateUploads               map[string]*ReleaseUpdateUpload
 	pairingCodes                       map[string]*CompanionPairingCode
 	companions                         map[string]*CompanionRecord
 	companionJobs                      map[string]*CompanionJob
@@ -353,7 +352,6 @@ func NewService(configuration Configuration) *Service {
 		jobs:                       map[string]*Job{},
 		uploads:                    map[string]*RestoreUpload{},
 		blueclawUpdateUploads:      map[string]*BlueclawUpdateUpload{},
-		releaseUpdateUploads:       map[string]*ReleaseUpdateUpload{},
 		pairingCodes:               map[string]*CompanionPairingCode{},
 		companions:                 map[string]*CompanionRecord{},
 		companionJobs:              map[string]*CompanionJob{},
@@ -861,10 +859,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	}
 	if strings.HasPrefix(path, "/updates/blueclaw/uploads") {
 		service.handleBlueclawUpdateUpload(responseWriter, request, path)
-		return
-	}
-	if strings.HasPrefix(path, "/updates/uploads") {
-		service.handleReleaseUpdateUpload(responseWriter, request, path)
 		return
 	}
 	if request.Method == http.MethodGet && path == "/updates/status" {

@@ -79,18 +79,28 @@ func runReleasePublish(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	releaseID := firstNonEmptyString(commandArgumentValue(arguments, "--release", ""), defaultReleaseID(repositoryRootPath))
-	channel := firstNonEmptyString(commandArgumentValue(arguments, "--channel", ""), "stable")
 	retainedReleaseCount, errorValue := releaseRetentionLimit(arguments)
 	if errorValue != nil {
 		return errorValue
 	}
+	releaseID := firstNonEmptyString(commandArgumentValue(arguments, "--release", ""), defaultReleaseID(repositoryRootPath))
+	channel := firstNonEmptyString(commandArgumentValue(arguments, "--channel", ""), "stable")
+	return publishRelease(repositoryRootPath, releaseID, channel, nil, retainedReleaseCount)
+}
+
+func publishRelease(
+	repositoryRootPath string,
+	releaseID string,
+	channel string,
+	selectedComponentNames map[string]bool,
+	retainedReleaseCount int,
+) error {
 	temporaryDirectoryPath, errorValue := os.MkdirTemp("", "internkim-release-*")
 	if errorValue != nil {
 		return errorValue
 	}
 	defer os.RemoveAll(temporaryDirectoryPath)
-	blobs, errorValue := createReleaseBlobs(repositoryRootPath, temporaryDirectoryPath, nil)
+	blobs, errorValue := createReleaseBlobs(repositoryRootPath, temporaryDirectoryPath, selectedComponentNames)
 	if errorValue != nil {
 		return errorValue
 	}
