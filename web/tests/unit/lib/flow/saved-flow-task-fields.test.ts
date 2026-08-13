@@ -72,13 +72,18 @@ describe('what the board writes back', () => {
 			target_ends_at: '2026-08-20T00:00:00.000Z',
 			target_write_dates: true,
 			target_requester_id: null,
-			target_participant_ids: ['member-1', 'member-2']
+			target_participant_ids: ['member-1', 'member-2'],
+			target_parent_task_id: null
 		});
 
 		expect(
 			supabaseFlowTaskRPCArguments(taskWith({ id: '', status: '요청', requesterID: 'requester-1' }))
 				.target_requester_id
 		).toBe('requester-1');
+		expect(
+			supabaseFlowTaskRPCArguments(taskWith({ id: '', parentTaskID: 'parent-task' }))
+				.target_parent_task_id
+		).toBe('parent-task');
 	});
 
 	test('gives a task the days the board holds', () => {
@@ -98,6 +103,18 @@ describe('what the board writes back', () => {
 		expect(fields.title).toBe('팀 회의');
 		expect(fields.business).toBe('여명거리');
 		expect(fields.size).toBe('XS');
+	});
+
+	test('writes the parent relationship only when creating a task', () => {
+		expect(savedFlowTaskFields(taskWith({ id: '', parentTaskID: 'parent-task' }), 'insert').parent_task_id).toBe('parent-task');
+		expect(savedFlowTaskFields(taskWith({ id: '', parentTaskID: undefined }), 'insert').parent_task_id).toBeNull();
+		expect('parent_task_id' in savedFlowTaskFields(taskWith({ parentTaskID: 'stale-parent' }), 'update')).toBe(false);
+	});
+
+	test('writes every user-facing workflow status to its Supabase enum value', () => {
+		expect(savedFlowTaskFields(taskWith({ status: '요청' })).status).toBe('requested');
+		expect(savedFlowTaskFields(taskWith({ status: '기각' })).status).toBe('rejected');
+		expect(savedFlowTaskFields(taskWith({ status: '중단' })).status).toBe('cancelled');
 	});
 });
 

@@ -106,7 +106,11 @@ function createDevFlowDefinitions(locale: 'ko' | 'en' = 'ko'): FlowDefinitions {
 function createGlobalFixtureTasks(currentWeek: FlowWeek): FlowTask[] {
 	const weeks = [buildFlowWeek(currentWeek.previous), currentWeek, buildFlowWeek(currentWeek.next)];
 	return [
-		...weeks.flatMap((week) => createFixtureTasks(week).map((task) => ({ ...task, id: `${week.code}-${task.id}` }))),
+		...weeks.flatMap((week) => createFixtureTasks(week).map((task) => ({
+			...task,
+			id: `${week.code}-${task.id}`,
+			parentTaskID: task.parentTaskID ? `${week.code}-${task.parentTaskID}` : undefined
+		}))),
 		...createPopupOverflowTasks(),
 		...createAttendancePreviewTasks()
 	];
