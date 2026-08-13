@@ -905,44 +905,6 @@ else
 %sSYNCSERVICEEOF
   cat > %s <<'SYNCTIMEREOF'
 %sSYNCTIMEREOF
-  cat > /etc/systemd/system/cloudflared.service <<'CLOUDFLARED_FLEET_EOF'
-[Unit]
-Description=Cloudflare Fleet Tunnel
-After=network-online.target time-sync.target
-Wants=network-online.target time-sync.target
-
-[Service]
-Type=simple
-ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol quic --token "$(cat /root/.internkim/secrets/tunnel-token)"'
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-CLOUDFLARED_FLEET_EOF
-  cat > /etc/systemd/system/cloudflared-node-ssh.service <<'CLOUDFLARED_NODE_EOF'
-[Unit]
-Description=Cloudflare Node SSH Tunnel
-After=network-online.target time-sync.target
-Wants=network-online.target time-sync.target
-
-[Service]
-Type=simple
-ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol quic --token "$(cat /root/.internkim/secrets/node-tunnel-token)"'
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-CLOUDFLARED_NODE_EOF
-  if [ ! -f /root/.internkim/secrets/node-tunnel-token ]; then
-    cp -f /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/node-tunnel-token
-    chmod 600 /root/.internkim/secrets/node-tunnel-token
-  fi
   systemctl daemon-reload
   systemctl disable %s 2>/dev/null || true
   systemctl disable %s 2>/dev/null || true
@@ -961,22 +923,11 @@ CLOUDFLARED_NODE_EOF
   systemctl enable %s
   systemctl start %s
   systemctl enable --now internkim-users-sync.timer
-  systemctl enable cloudflared-node-ssh
-  systemctl start cloudflared-node-ssh
-  cloudflaredServiceNames="cloudflared"
-  if [ "$(cat /root/.internkim/env/fleet-role 2>/dev/null || true)" = "pending" ]; then
-    systemctl disable --now cloudflared 2>/dev/null || true
-    cloudflaredServiceNames="cloudflared-node-ssh"
-  else
-    systemctl enable cloudflared
-    systemctl start cloudflared
-    cloudflaredServiceNames="cloudflared cloudflared-node-ssh"
-  fi
 
   echo "Waiting for services..."
   for attemptIndex in $(seq 1 150); do
     allServicesActive=true
-    for serviceName in mattermost %s %s %s %s %s %s $cloudflaredServiceNames postgresql; do
+    for serviceName in mattermost %s %s %s %s %s %s postgresql; do
       if ! systemctl is-active --quiet "$serviceName" 2>/dev/null; then
         allServicesActive=false
         break

@@ -66,13 +66,10 @@ type Callbacks struct {
 	AdminWebVersion func() string
 	DeployAdminWeb  func(context *Context) error
 
-	SyncCloudflareAccess func(context *Context) error
-
 	ConfigureWifiSSH func(context *Context) error
 	StageWifiSD      func(context *Context) error
 
-	ProvisionTunnelSSH func(context *Context) error
-	StageTunnelSD      func(context *Context) error
+	StageTunnelSD func(context *Context) error
 
 	StageBootstrapSD func(context *Context) error
 

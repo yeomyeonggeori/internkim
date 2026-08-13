@@ -5,7 +5,6 @@ func DefaultRegistry() Registry {
 		StepPreflight,
 		StepBoard,
 		StepAdminWeb,
-		StepCloudflareAccess,
 		StepWifi,
 		StepBinaries,
 		StepAdmind,
