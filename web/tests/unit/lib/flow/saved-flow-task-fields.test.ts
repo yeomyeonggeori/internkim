@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { dayOf, savedFlowTaskFields } from '../../../../src/lib/flow/supabase-flow';
+import {
+	dayOf,
+	savedFlowTaskFields,
+	supabaseFlowTaskRPCArguments
+} from '../../../../src/lib/flow/supabase-flow';
 import type { FlowTask } from '../../../../src/routes/flow/flow-types';
 
 function taskWith(fields: Partial<FlowTask> = {}): FlowTask {
@@ -25,6 +29,58 @@ function taskWith(fields: Partial<FlowTask> = {}): FlowTask {
 }
 
 describe('what the board writes back', () => {
+	test('maps every task status to its central status without falling back', () => {
+		const mappings = [
+			['요청', 'requested'],
+			['예정', 'todo'],
+			['진행', 'in_progress'],
+			['일시정지', 'paused'],
+			['중단', 'cancelled'],
+			['기각', 'rejected'],
+			['완료', 'done']
+		] as const;
+
+		for (const [status, storedStatus] of mappings) {
+			expect(savedFlowTaskFields(taskWith({ status }), 'update').status).toBe(storedStatus);
+		}
+	});
+
+	test('includes requester provenance only in central inserts', () => {
+		const task = taskWith({ requesterID: 'requester-1', requesterName: '요청자' });
+
+		expect(savedFlowTaskFields(task, 'insert').requester_id).toBe('requester-1');
+		expect('requester_id' in savedFlowTaskFields(task, 'update')).toBe(false);
+		expect(savedFlowTaskFields(taskWith({ requesterID: '' }), 'insert').requester_id).toBeNull();
+	});
+
+	test('sends task fields and the complete participant set through one RPC', () => {
+		const task = taskWith({
+			participantIDs: ['member-1', 'member-2'],
+			participantNames: ['첫 번째', '두 번째'],
+			requesterID: 'requester-1'
+		});
+
+		expect(supabaseFlowTaskRPCArguments(task)).toEqual({
+			target_task_id: 'task-1',
+			target_title: '마켓컬리 CMO 미팅',
+			target_status: 'todo',
+			target_note: null,
+			target_business: '여명거리',
+			target_type: '기능',
+			target_size: 'XS',
+			target_starts_at: '2026-08-20T00:00:00.000Z',
+			target_ends_at: '2026-08-20T00:00:00.000Z',
+			target_write_dates: true,
+			target_requester_id: null,
+			target_participant_ids: ['member-1', 'member-2']
+		});
+
+		expect(
+			supabaseFlowTaskRPCArguments(taskWith({ id: '', status: '요청', requesterID: 'requester-1' }))
+				.target_requester_id
+		).toBe('requester-1');
+	});
+
 	test('gives a task the days the board holds', () => {
 		const fields = savedFlowTaskFields(taskWith());
 		expect(typeof fields.starts_at).toBe('string');

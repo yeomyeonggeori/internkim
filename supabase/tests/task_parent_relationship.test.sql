@@ -129,6 +129,9 @@ insert into public.task (id, company_id, title) values
   ('42000000-0000-0000-0000-000000000104', '42000000-0000-0000-0000-0000000000a0', 'RLS parent'),
   ('42000000-0000-0000-0000-000000000105', '42000000-0000-0000-0000-0000000000a0', 'RLS child');
 
+insert into public.task_participant (task_id, member_id) values
+  ('42000000-0000-0000-0000-000000000105', '42000000-0000-0000-0000-0000000000a1');
+
 select lives_ok($block$do $$
 declare
   visible_outside integer;
@@ -150,7 +153,7 @@ begin
   from public.task
   where id = '42000000-0000-0000-0000-000000000105';
   assert recorded_parent = '42000000-0000-0000-0000-000000000104',
-    'a colleague can link tasks in their company';
+    'a participant can link tasks in their company';
 
   select count(*) into visible_outside
   from public.task

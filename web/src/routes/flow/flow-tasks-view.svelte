@@ -120,7 +120,7 @@
 				taskTypeColor={page.taskTypeColor}
 				tasks={page.filteredTasks()}
 				{text}
-				statusOptions={page.statusSelectOptions()}
+				statusOptionsForTask={page.statusSelectOptions}
 				pendingStatusTaskID={page.pendingStatusTaskID}
 				statusLabel={page.statusLabel}
 				updateTaskStatus={page.updateTaskStatus}
@@ -152,7 +152,6 @@
 	bind:taskDraft={page.editor.taskDraft}
 	isEditingTask={page.editor.isEditingTask}
 	members={page.members()}
-	memberOptions={page.memberSelectOptions()}
 	categoryOptions={page.categoryOptions()}
 	typeOptions={page.typeOptions()}
 	sizeOptions={page.sizeOptions()}
@@ -163,9 +162,9 @@
 	pageTitle={text.title}
 	text={text.task}
 	statusLabel={page.statusLabel}
-	setTaskOwnerID={page.setTaskOwnerID}
-	setParticipantNames={page.setParticipantNames}
+	setParticipantIDs={page.setParticipantIDs}
 	removeParticipantID={page.removeParticipantID}
+	canRemoveParticipant={page.canRemoveParticipant}
 	saveTask={page.saveTask}
 	deleteTask={page.deleteTask}
 	canUpdateTask={page.canUpdateTask}

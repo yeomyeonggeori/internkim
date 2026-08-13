@@ -19,7 +19,7 @@
 	type Props = {
 		tasks: FlowTask[];
 		text: FlowPageText;
-		statusOptions: FlowTaskListStatusOption[];
+		statusOptionsForTask: (task: FlowTask) => FlowTaskListStatusOption[];
 		pendingStatusTaskID: string;
 		statusLabel: (status: string) => string;
 		updateTaskStatus: (task: FlowTask, nextStatus: string) => Promise<void>;
@@ -34,7 +34,7 @@
 	let {
 		tasks,
 		text,
-		statusOptions,
+		statusOptionsForTask,
 		pendingStatusTaskID,
 		statusLabel,
 		updateTaskStatus,
@@ -51,7 +51,7 @@
 
 	let taskColumns: ColumnDef<FlowTask>[] = $derived(createFlowTaskListColumns({
 		text,
-		statusOptions,
+		statusOptionsForTask,
 		pendingStatusTaskID,
 		statusLabel,
 		updateTaskStatus,

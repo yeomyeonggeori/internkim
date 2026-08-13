@@ -29,6 +29,9 @@ export type FlowTask = {
 	ownerName: string;
 	participantIDs: string[];
 	participantNames: string[];
+	requesterID?: string;
+	requesterName?: string;
+	wasRequested?: boolean;
 	business: string;
 	type: string;
 	content: string;

@@ -15,7 +15,6 @@
 		taskDraft: FlowTask | null;
 		isEditingTask: boolean;
 		members: FlowMember[];
-		memberOptions: FlowTaskEditorOption[];
 		categoryOptions: FlowTaskEditorOption[];
 		typeOptions: FlowTaskEditorOption[];
 		sizeOptions: FlowTaskEditorOption[];
@@ -29,9 +28,9 @@
 		businessColor: (business: string) => string;
 		taskTypeColor: (type: string) => string;
 		memberEmail: (memberID: string) => string;
-		setTaskOwnerID: (memberID: string) => void;
-		setParticipantNames: (names: string[]) => void;
+		setParticipantIDs: (memberIDs: string[]) => void;
 		removeParticipantID: (memberID: string) => void;
+		canRemoveParticipant: (task: FlowTask, memberID: string) => boolean;
 		saveTask: () => void;
 		deleteTask: (task: FlowTask) => Promise<void>;
 		canUpdateTask: (task: FlowTask) => boolean;
@@ -46,7 +45,6 @@
 		taskDraft = $bindable<FlowTask | null>(null),
 		isEditingTask,
 		members,
-		memberOptions,
 		categoryOptions,
 		typeOptions,
 		sizeOptions,
@@ -60,9 +58,9 @@
 		businessColor,
 		taskTypeColor,
 		memberEmail,
-		setTaskOwnerID,
-		setParticipantNames,
+		setParticipantIDs,
 		removeParticipantID,
+		canRemoveParticipant,
 		saveTask,
 		deleteTask,
 		canUpdateTask,
@@ -122,17 +120,14 @@
 					<FlowTaskEditorSummary {taskDraft} {text} {statusLabel} {businessColor} {taskTypeColor} />
 					<FlowTaskEditorFields
 						bind:taskDraft
-						{members}
-						{memberOptions}
 						{categoryOptions}
 						{typeOptions}
 						{sizeOptions}
 						{statusOptions}
 						{canEditTask}
-						{canEditTaskAssignment}
 						{text}
 						{statusLabel}
-						{setTaskOwnerID}
+						{memberEmail}
 					/>
 					<FlowTaskEditorParticipants
 						{taskDraft}
@@ -140,8 +135,9 @@
 						{canEditTask}
 						{canEditTaskAssignment}
 						{text}
-						{setParticipantNames}
+						{setParticipantIDs}
 						{removeParticipantID}
+						{canRemoveParticipant}
 					/>
 					<Separator />
 					<div class="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">

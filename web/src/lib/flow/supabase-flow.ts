@@ -2,6 +2,14 @@ import { supabase } from '$lib/supabase';
 import { flowDefinitionsOf, vocabularyOf } from '$lib/flow/task-vocabulary';
 import { heldTasks, holdTasks, mergeChangedTasks, newestStamp } from '$lib/flow/flow-task-cache';
 import {
+	centralFlowStatusOptions,
+	centralFlowTaskFromRow,
+	centralFlowTaskSelection,
+	centralFlowTaskWriteFields,
+	centralStatusFromWord,
+	type CentralFlowTaskRow
+} from '$lib/flow/central-flow-task';
+import {
 	currentScoresOf,
 	memberScoreDetails,
 	memberTaskTallies,
@@ -19,41 +27,10 @@ import type {
 	FlowWeeklySummary
 } from '../../routes/flow/flow-types';
 
-type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled' | 'paused';
-
-const statusWords: Record<TaskStatus, string> = {
-	todo: '예정',
-	in_progress: '진행',
-	done: '완료',
-	paused: '일시정지',
-	cancelled: '중단'
-};
-
-const statusOf = Object.fromEntries(
-	Object.entries(statusWords).map(([status, word]) => [word, status])
-) as Record<string, TaskStatus>;
-
-export const flowStatusOptions = Object.values(statusWords);
+export const flowStatusOptions = centralFlowStatusOptions;
 
 type MemberRow = { id: string; name: string | null; email: string | null; is_admin: boolean; user_id: string | null; joined_at: string | null };
-type TaskRow = {
-	id: string;
-	title: string;
-	status: TaskStatus;
-	note: string | null;
-	business: string | null;
-	type: string | null;
-	size: string | null;
-	is_event: boolean;
-	starts_at: string | null;
-	ends_at: string | null;
-	due_at: string | null;
-	updated_at: string;
-	task_participant: { member_id: string }[];
-};
-
-const taskColumns =
-	'id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, task_participant (member_id)';
+type TaskRow = CentralFlowTaskRow;
 
 // The API caps an unbounded select and says nothing about having done it, so a
 // company past the cap would quietly lose tasks off its board. Rows are read a
@@ -79,13 +56,13 @@ async function readTasks(): Promise<TaskRow[]> {
 	const held = heldTasks<TaskRow>();
 
 	if (!held) {
-		const everything = await everyRow<TaskRow>((from, to) => client.from('task').select(taskColumns).order('id').range(from, to));
+		const everything = await everyRow<TaskRow>((from, to) => client.from('task').select(centralFlowTaskSelection).order('id').range(from, to));
 		holdTasks({ tasks: everything, fetchedAt: newestStamp(everything) });
 		return sortedByEnd(everything);
 	}
 
 	const changed = await everyRow<TaskRow>((from, to) =>
-		client.from('task').select(taskColumns).gte('updated_at', held.fetchedAt).order('id').range(from, to)
+		client.from('task').select(centralFlowTaskSelection).gte('updated_at', held.fetchedAt).order('id').range(from, to)
 	);
 	const live = await everyRow<{ id: string }>((from, to) => client.from('task').select('id').order('id').range(from, to));
 
@@ -197,70 +174,80 @@ export async function supabaseFlowWeeklySummary(week: string): Promise<FlowWeekl
 
 // The board writes a day. An event was given hours, and rewriting those from a
 // board edit would move a meeting nobody asked to move, so an event keeps its own.
-export function savedFlowTaskFields(task: FlowTask): Record<string, unknown> {
+export function savedFlowTaskFields(task: FlowTask, operation: 'insert' | 'update' = 'update'): Record<string, unknown> {
+	return centralFlowTaskWriteFields(task, operation);
+}
+
+export type SupabaseFlowTaskRPCArguments = {
+	target_task_id: string | null;
+	target_title: string;
+	target_status: string;
+	target_note: string | null;
+	target_business: string | null;
+	target_type: string | null;
+	target_size: string | null;
+	target_starts_at: string | null;
+	target_ends_at: string | null;
+	target_write_dates: boolean;
+	target_requester_id: string | null;
+	target_participant_ids: string[];
+};
+
+export function supabaseFlowTaskRPCArguments(task: FlowTask): SupabaseFlowTaskRPCArguments {
+	const operation = task.id ? 'update' : 'insert';
+	const fields = savedFlowTaskFields(task, operation);
 	return {
-		title: task.content || task.goal || '(제목 없음)',
-		status: statusOf[task.status] ?? 'todo',
-		note: task.goal || null,
-		business: task.business || null,
-		type: task.type || null,
-		size: task.size || null,
-		...(task.isEvent ? {} : { starts_at: instantOf(task.startDate), ends_at: instantOf(task.endDate) })
+		target_task_id: task.id || null,
+		target_title: requiredStringField(fields, 'title'),
+		target_status: requiredStringField(fields, 'status'),
+		target_note: nullableStringField(fields, 'note'),
+		target_business: nullableStringField(fields, 'business'),
+		target_type: nullableStringField(fields, 'type'),
+		target_size: nullableStringField(fields, 'size'),
+		target_starts_at: nullableStringField(fields, 'starts_at'),
+		target_ends_at: nullableStringField(fields, 'ends_at'),
+		target_write_dates: !task.isEvent,
+		target_requester_id: operation === 'insert' ? nullableStringField(fields, 'requester_id') : null,
+		target_participant_ids: task.participantIDs
 	};
 }
 
+function requiredStringField(fields: Record<string, unknown>, field: string): string {
+	const value = fields[field];
+	if (typeof value !== 'string') throw new Error(`task ${field} must be a string`);
+	return value;
+}
+
+function nullableStringField(fields: Record<string, unknown>, field: string): string | null {
+	const value = fields[field];
+	if (value === undefined || value === null) return null;
+	if (typeof value !== 'string') throw new Error(`task ${field} must be a string or null`);
+	return value;
+}
+
 export async function saveSupabaseFlowTask(task: FlowTask): Promise<void> {
-	const client = supabase();
-	const fields = savedFlowTaskFields(task);
-
-	const saved = task.id
-		? await client.from('task').update(fields).eq('id', task.id).select('id').single<{ id: string }>()
-		: await client
-				.from('task')
-				.insert({ ...fields, company_id: await companyIDOfMe() })
-				.select('id')
-				.single<{ id: string }>();
+	const saved = await supabase().rpc('save_flow_task', supabaseFlowTaskRPCArguments(task));
 	if (saved.error) throw new Error(saved.error.message);
-
-	await replaceParticipants(saved.data.id, task.participantIDs);
 }
 
 export async function deleteSupabaseFlowTask(taskID: string): Promise<void> {
-	const { error } = await supabase().from('task').delete().eq('id', taskID);
+	const { error } = await supabase()
+		.from('task')
+		.delete()
+		.eq('id', taskID)
+		.select('id')
+		.single<{ id: string }>();
 	if (error) throw new Error(error.message);
 }
 
 export async function moveSupabaseFlowTask(taskID: string, status: string): Promise<void> {
 	const { error } = await supabase()
 		.from('task')
-		.update({ status: statusOf[status] ?? 'todo' })
-		.eq('id', taskID);
+		.update({ status: centralStatusFromWord(status) })
+		.eq('id', taskID)
+		.select('id')
+		.single<{ id: string }>();
 	if (error) throw new Error(error.message);
-}
-
-async function replaceParticipants(taskID: string, participantIDs: string[]): Promise<void> {
-	const client = supabase();
-	const removed = await client.from('task_participant').delete().eq('task_id', taskID);
-	if (removed.error) throw new Error(removed.error.message);
-	if (participantIDs.length === 0) return;
-	const added = await client
-		.from('task_participant')
-		.insert(participantIDs.map((memberID) => ({ task_id: taskID, member_id: memberID })));
-	if (added.error) throw new Error(added.error.message);
-}
-
-async function companyIDOfMe(): Promise<string> {
-	const client = supabase();
-	const { data: auth } = await client.auth.getSession();
-	const accountID = auth.session?.user.id;
-	if (!accountID) throw new Error('sign in first');
-	const member = await client
-		.from('member')
-		.select('company_id')
-		.eq('user_id', accountID)
-		.single<{ company_id: string }>();
-	if (member.error) throw new Error(member.error.message);
-	return member.data.company_id;
 }
 
 function displayName(member: MemberRow): string {
@@ -282,27 +269,12 @@ function memberOf(member: MemberRow, tally: MemberTaskTally | undefined): FlowMe
 }
 
 function taskOf(task: TaskRow, nameByID: Map<string, string>, timeZone: string): FlowTask {
-	const participantIDs = task.task_participant.map((participant) => participant.member_id);
-	const endDate = dayOf(task.ends_at ?? task.due_at, timeZone);
-	return {
-		id: task.id,
-		ownerID: participantIDs[0] ?? '',
-		ownerName: nameByID.get(participantIDs[0] ?? '') ?? '',
-		participantIDs,
-		participantNames: participantIDs.map((memberID) => nameByID.get(memberID) ?? ''),
-		business: task.business ?? '',
-		type: task.type ?? '',
-		content: task.title,
-		goal: task.note ?? '',
-		size: task.size ?? '',
-		status: statusWords[task.status],
-		statusRank: 0,
-		startDate: dayOf(task.starts_at, timeZone),
-		endDate,
-		weekCode: endDate ? weekOf(new Date(`${endDate}T00:00:00Z`)).code : '',
-		flag: 0,
-		isEvent: task.is_event
-	};
+	return centralFlowTaskFromRow(
+		task,
+		nameByID,
+		(instant) => dayOf(instant, timeZone),
+		(day) => weekOf(new Date(`${day}T00:00:00Z`)).code
+	);
 }
 
 function metricsOf(tasks: FlowTask[]): FlowMetrics {
@@ -316,10 +288,10 @@ function metricsOf(tasks: FlowTask[]): FlowMetrics {
 	}
 	return {
 		totalTasks: tasks.length,
-		completedTasks: statusCounts[statusWords.done] ?? 0,
-		requestedTasks: 0,
-		pausedTasks: statusCounts[statusWords.paused] ?? 0,
-		stoppedTasks: statusCounts[statusWords.cancelled] ?? 0,
+		completedTasks: statusCounts['완료'] ?? 0,
+		requestedTasks: statusCounts['요청'] ?? 0,
+		pausedTasks: statusCounts['일시정지'] ?? 0,
+		stoppedTasks: statusCounts['중단'] ?? 0,
 		statusCounts,
 		businessCounts,
 		typeCounts
@@ -340,10 +312,6 @@ export function dayOf(instant: string | null, timeZone: string): string | undefi
 	const moment = new Date(isoInstantOf(instant));
 	if (Number.isNaN(moment.getTime())) return undefined;
 	return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(moment);
-}
-
-function instantOf(day: string | undefined): string | null {
-	return day ? new Date(`${day}T00:00:00Z`).toISOString() : null;
 }
 
 function weekOf(instant: Date): FlowWeek {
