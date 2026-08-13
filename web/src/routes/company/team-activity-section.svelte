@@ -68,7 +68,10 @@
 			id: `company-${work.memberSeed}-${work.date}-${work.title}`,
 			ownerID: work.memberSeed,
 			ownerName: memberLabel(member.surname, member.jobTitle),
-			participantIDs: [], participantNames: [], business: work.business ?? '', type: work.type ?? '',
+			participantIDs: [work.memberSeed],
+			participantNames: [memberLabel(member.surname, member.jobTitle)],
+			business: work.business ?? '',
+			type: work.type ?? '',
 			content: work.title, goal: '', size: work.size ?? '', status: work.status, statusRank: 0,
 			startDate: work.startDate, endDate: work.endDate, weekCode: '', flag: 0
 		};
@@ -175,7 +178,7 @@
 						{@const member = activity.members.find((candidate) => candidate.seed === work.memberSeed)}
 						{@const publicMember = member ?? { seed: work.memberSeed, surname: '' }}
 						{@const task = publicFlowTask(work, publicMember)}
-						{#snippet ownerChip()}
+						{#snippet primaryParticipantChip()}
 							<FlowTaskPersonChip name={memberLabel(publicMember.surname, publicMember.jobTitle)} seed={publicMember.seed} image={publicMember.image ?? ''} />
 						{/snippet}
 						<FlowTaskBoardCard
@@ -185,7 +188,7 @@
 							isReadOnly
 							isDraggable={false}
 							isInteractive={false}
-							{ownerChip}
+							{primaryParticipantChip}
 						/>
 					{/each}
 				</div>

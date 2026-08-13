@@ -11,7 +11,7 @@
 
 	type Props = {
 		task: FlowTask;
-		statusOptions: Option[];
+		statusOptionsForTask: (task: FlowTask) => Option[];
 		pendingStatusTaskID: string;
 		statusLabel: (status: string) => string;
 		updateTaskStatus: (task: FlowTask, nextStatus: string) => Promise<void>;
@@ -20,12 +20,14 @@
 
 	let {
 		task,
-		statusOptions,
+		statusOptionsForTask,
 		pendingStatusTaskID,
 		statusLabel,
 		updateTaskStatus,
 		canUpdateTask
 	}: Props = $props();
+
+	let statusOptions = $derived(statusOptionsForTask(task));
 </script>
 
 <div onclick={(event) => event.stopPropagation()} role="presentation">

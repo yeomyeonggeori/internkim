@@ -20,7 +20,7 @@ export type FlowTaskListStatusOption = {
 
 type FlowTaskListColumnsInput = {
 	text: FlowPageText;
-	statusOptions: FlowTaskListStatusOption[];
+	statusOptionsForTask: (task: FlowTask) => FlowTaskListStatusOption[];
 	pendingStatusTaskID: string;
 	statusLabel: (status: string) => string;
 	updateTaskStatus: (task: FlowTask, nextStatus: string) => Promise<void>;
@@ -33,7 +33,7 @@ type FlowTaskListColumnsInput = {
 export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): ColumnDef<FlowTask>[] {
 	const {
 		text,
-		statusOptions,
+		statusOptionsForTask,
 		pendingStatusTaskID,
 		statusLabel,
 		updateTaskStatus,
@@ -83,7 +83,7 @@ export function createFlowTaskListColumns(input: FlowTaskListColumnsInput): Colu
 			header: (context) => renderHeader(text.table.status, context.column),
 			cell: (info) => renderComponent(FlowTaskListStatusCell, {
 				task: info.row.original,
-				statusOptions,
+				statusOptionsForTask,
 				pendingStatusTaskID,
 				statusLabel,
 				updateTaskStatus,
