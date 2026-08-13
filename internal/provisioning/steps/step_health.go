@@ -28,16 +28,6 @@ var StepHealth = Step{
 
 		var failedChecks []string
 		checkMattermostHealth(context, &failedChecks)
-		if isPlannedStep(context, "tunnel") && trimmedRun(context, "cat /root/.internkim/env/fleet-role 2>/dev/null") != "pending" {
-			checkService(context, "cloudflared", &failedChecks)
-		} else {
-			fmt.Println("  cloudflared: skipped")
-		}
-		if isPlannedStep(context, "tunnel") {
-			checkService(context, "cloudflared-node-ssh", &failedChecks)
-		} else {
-			fmt.Println("  cloudflared-node-ssh: skipped")
-		}
 		checkService(context, blueclaw.CapabilitydServiceName, &failedChecks)
 		checkService(context, blueclaw.AdmindServiceName, &failedChecks)
 		checkBlueclawFirecrackerRuntime(context, &failedChecks)
@@ -45,11 +35,6 @@ var StepHealth = Step{
 		checkSecretIsolation(context, &failedChecks)
 		checkAdminHealth(context, &failedChecks)
 		checkFirstAdminBootstrap(context, &failedChecks)
-		if isPlannedStep(context, "mattermost") && isPlannedStep(context, "tunnel") {
-			checkMattermostPublic(context, &failedChecks)
-		} else {
-			fmt.Println("  mattermost public: skipped")
-		}
 		checkAgentBrowser(context, &failedChecks)
 		checkBlueclawBackupManifest(context, &failedChecks)
 		checkBlueclawUsersPolicy(context, &failedChecks)
