@@ -162,8 +162,9 @@
 	pageTitle={text.title}
 	text={text.task}
 	statusLabel={page.statusLabel}
-	setParticipantNames={page.setParticipantNames}
+	setParticipantIDs={page.setParticipantIDs}
 	removeParticipantID={page.removeParticipantID}
+	canRemoveParticipant={page.canRemoveParticipant}
 	saveTask={page.saveTask}
 	deleteTask={page.deleteTask}
 	canUpdateTask={page.canUpdateTask}

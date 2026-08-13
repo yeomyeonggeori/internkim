@@ -70,9 +70,9 @@ async function addRequesterProvenance(page: Page): Promise<void> {
 		if (!isUnknownRecord(state)) throw new Error('flow state response was not an object');
 		const tasks = Array.isArray(state.tasks)
 			? state.tasks.map((task) => isUnknownRecord(task) && task.id === requestedTaskID
-				? { ...task, requesterID: 'designer', requesterName: '이영희' }
+				? { ...task, requesterID: 'designer', requesterName: '박예시' }
 				: task)
 			: [];
-		await route.fulfill({ response, json: { ...state, tasks } });
+		await route.fulfill({ response, json: { ...state, source: 'supabase', tasks } });
 	});
 }
