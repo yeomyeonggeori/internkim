@@ -84,8 +84,6 @@ type Configuration struct {
 	FleetIDPath                    string
 	BlueclawWorkspacePath          string
 	FileReadPythonPath             string
-	LLMDSocketPath                 string
-	LLMDAuthKeyPath                string
 }
 
 type Service struct {
@@ -96,8 +94,6 @@ type Service struct {
 	ProgressManager   *platformProgressManager
 	HealthState       *platformHealthState
 	MattermostLimiter *mattermostRateLimiter
-	LLMDHTTPClient    *http.Client
-	LLMDAuthKey       string
 }
 
 type userLookupRequest struct {
@@ -262,8 +258,6 @@ func DefaultConfiguration() Configuration {
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		BlueclawWorkspacePath:          "/root/.blueclaw/workspace",
 		FileReadPythonPath:             "/opt/blueclaw/builtin-skills-venv/bin/python",
-		LLMDSocketPath:                 blueclaw.LLMDSocketPath,
-		LLMDAuthKeyPath:                blueclaw.LLMDAuthKeyPath,
 	}
 }
 
@@ -272,8 +266,6 @@ func (service Service) Run(ctx context.Context) error {
 		service.HealthState = &platformHealthState{}
 	}
 	service.applyLocalInferenceMode(ctx)
-	service.LLMDAuthKey = readSecretValue(service.Configuration.LLMDAuthKeyPath)
-	service.LLMDHTTPClient = service.newLLMDHTTPClient()
 	listener, errorValue := service.listen()
 	if errorValue != nil {
 		return errorValue
@@ -323,8 +315,6 @@ func (service Service) Run(ctx context.Context) error {
 func (service Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("POST /v1/llm/structured", service.handleStructuredLLM)
-	multiplexer.HandleFunc("POST /_internkim/llmd/v1/llm/structured", service.handleLLMDStructured)
-	multiplexer.HandleFunc("POST /_internkim/llmd/v1/llm/chat", service.handleLLMDChat)
 	multiplexer.HandleFunc("POST /v1/llm/chat", service.handleChatLLM)
 	multiplexer.HandleFunc("POST /v1/llm/text", service.handleTextLLM)
 	multiplexer.HandleFunc("POST /v1/embedding/create", service.handleEmbeddingCreate)
@@ -339,7 +329,6 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
 	multiplexer.HandleFunc("GET /v1/capabilities", service.handleCapabilities)
-	multiplexer.HandleFunc("GET /_internkim/llmd/health", service.handleLLMDHealth)
 	multiplexer.HandleFunc("GET /health", service.handleHealth)
 	return multiplexer
 }
@@ -357,13 +346,9 @@ func (service Service) handleHealth(responseWriter http.ResponseWriter, request 
 
 func (service Service) platformHealth(ctx context.Context) map[string]any {
 	mattermost := service.mattermostHealth(ctx)
-	llmd := service.llmdHealth(ctx)
 	protocolIdentity := capabilityprotocol.GeneratedProtocolIdentity()
 	status := "ok"
 	if value, _ := mattermost["ok"].(bool); !value {
-		status = "unhealthy"
-	}
-	if value, _ := llmd["ok"].(bool); !value {
 		status = "unhealthy"
 	}
 	return map[string]any{
@@ -371,7 +356,6 @@ func (service Service) platformHealth(ctx context.Context) map[string]any {
 		"protocolVersion":       protocolIdentity.ProtocolVersion,
 		"aggregateProtocolHash": protocolIdentity.AggregateProtocolHash,
 		"mattermost":            mattermost,
-		"llmd":                  llmd,
 		"providers":             service.providerHealth(ctx),
 		"checkedAt":             time.Now().UTC(),
 	}
@@ -1936,12 +1920,6 @@ func deriveMattermostWebSocketURL(baseURL string) string {
 
 func (configuration Configuration) WithDefaults() Configuration {
 	defaultConfiguration := DefaultConfiguration()
-	if configuration.LLMDSocketPath == "" {
-		configuration.LLMDSocketPath = defaultConfiguration.LLMDSocketPath
-	}
-	if configuration.LLMDAuthKeyPath == "" {
-		configuration.LLMDAuthKeyPath = defaultConfiguration.LLMDAuthKeyPath
-	}
 	if configuration.SocketPath == "" {
 		configuration.SocketPath = defaultConfiguration.SocketPath
 	}

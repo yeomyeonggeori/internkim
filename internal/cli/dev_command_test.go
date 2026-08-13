@@ -110,7 +110,6 @@ func TestDevFleetReprovisionPreservesModelRuntime(t *testing.T) {
 		"INTERNKIM_TEST_MODEL_TIER=low",
 		blueclaw.BlueclawTestMaximumModelTierEnvironment + "=low",
 		blueclaw.BlueclawTestMinimumModelTierEnvironment + "=low",
-		blueclaw.BlueclawLLMDModeEnvironment + "=authoritative",
 	}
 	for _, expectedValue := range expectedValues {
 		if !slices.Contains(environment, expectedValue) {
