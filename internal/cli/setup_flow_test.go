@@ -391,13 +391,6 @@ func TestBlueclawPayloadDirectOnlySetupUsesHTTPMaintenancePath(t *testing.T) {
 	}
 }
 
-func TestCloudflareSSHHostnameFromDeviceURL(t *testing.T) {
-	hostname := cloudflareSSHHostnameFromDeviceURL("https://device-1.example.test/admin")
-	if hostname != "ssh-device-1.example.test" {
-		t.Fatalf("expected SSH hostname from device URL, got %q", hostname)
-	}
-}
-
 func TestRsyncSparseArgumentsAvoidUncheckedAppend(t *testing.T) {
 	arguments := strings.Join(rsyncSparseArguments("ssh", "rootfs.ext4", "host:/tmp/rootfs.ext4"), "\n")
 	if strings.Contains(arguments, "\n--append\n") || strings.Contains(arguments, "\n--append-verify\n") {
@@ -412,95 +405,6 @@ func TestRetryableSSHFailureIncludesNetworkRouteFailure(t *testing.T) {
 	output := "dial tcp [2606:4700:3031::ac43:d168]:443: connect: no route to host"
 	if !isRetryableSSHFailure(output) {
 		t.Fatalf("expected network route failure to be retryable")
-	}
-}
-
-func TestResolveCloudflareSSHHostnameIgnoresLegacyNestedHostname(t *testing.T) {
-	homeDirectory := t.TempDir()
-	t.Setenv("HOME", homeDirectory)
-	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
-	saveState(stateDirectory, "ssh_hostname", "ssh.device-1.example.test")
-	saveState(stateDirectory, "fleet_id", "device-1")
-	target := commandTarget{
-		stateDir:     stateDirectory,
-		sshHostname:  "ssh.device-1.example.test",
-		useRemoteSSH: true,
-	}
-
-	hostname := resolveCloudflareSSHHostname(config{CFDomain: "example.test"}, target)
-
-	if hostname != "ssh-device-1.example.test" {
-		t.Fatalf("expected flat SSH hostname, got %q", hostname)
-	}
-}
-
-func TestResolveCloudflareSSHHostnameIgnoresLegacyNodeHostname(t *testing.T) {
-	homeDirectory := t.TempDir()
-	t.Setenv("HOME", homeDirectory)
-	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
-	saveState(stateDirectory, "ssh_hostname", "ssh-1.device-1.example.test")
-	saveState(stateDirectory, "fleet_id", "device-1")
-	saveState(stateDirectory, "node_id", "1")
-	target := commandTarget{
-		stateDir:    stateDirectory,
-		nodeID:      "1",
-		sshHostname: "ssh-1.device-1.example.test",
-	}
-
-	hostname := resolveCloudflareSSHHostname(config{CFDomain: "example.test"}, target)
-
-	if hostname != "1.ssh.device-1.example.test" {
-		t.Fatalf("expected node SSH hostname, got %q", hostname)
-	}
-}
-
-func TestResolveCloudflareSSHHostnameIgnoresLegacyFlatNodeHostname(t *testing.T) {
-	homeDirectory := t.TempDir()
-	t.Setenv("HOME", homeDirectory)
-	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
-	saveState(stateDirectory, "ssh_hostname", "ssh-1-device-1.example.test")
-	saveState(stateDirectory, "fleet_id", "device-1")
-	saveState(stateDirectory, "node_id", "1")
-	target := commandTarget{
-		stateDir:    stateDirectory,
-		nodeID:      "1",
-		sshHostname: "ssh-1-device-1.example.test",
-	}
-
-	hostname := resolveCloudflareSSHHostname(config{CFDomain: "example.test"}, target)
-
-	if hostname != "1.ssh.device-1.example.test" {
-		t.Fatalf("expected node SSH hostname, got %q", hostname)
-	}
-}
-
-func TestCloudflareSSHRegistrationCacheIsReusableWhenSetupIsForced(t *testing.T) {
-	homeDirectory := t.TempDir()
-	t.Setenv("HOME", homeDirectory)
-	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
-	saveState(stateDirectory, "node_tunnel_token", "node-token")
-	saveState(stateDirectory, "tunnel_revision", setup.TunnelConfigurationRevision)
-	savedSSHHostname := "1.ssh.device-1.example.test"
-
-	if !canReuseCloudflareSSHRegistration(config{CFDomain: "example.test"}, stateDirectory, savedSSHHostname, false) {
-		t.Fatalf("expected current SSH registration cache to be reusable")
-	}
-	if !canReuseCloudflareSSHRegistration(config{CFDomain: "example.test"}, stateDirectory, savedSSHHostname, true) {
-		t.Fatalf("expected forced setup to reuse valid SSH registration cache")
-	}
-}
-
-func TestCloudflareSSHRegistrationCacheIsBypassedWhenTLSIsPending(t *testing.T) {
-	homeDirectory := t.TempDir()
-	t.Setenv("HOME", homeDirectory)
-	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
-	saveState(stateDirectory, "node_tunnel_token", "node-token")
-	saveState(stateDirectory, "tunnel_revision", setup.TunnelConfigurationRevision)
-	saveState(stateDirectory, "tls_certificate_status", "initializing")
-	savedSSHHostname := "1.ssh.device-1.example.test"
-
-	if canReuseCloudflareSSHRegistration(config{CFDomain: "example.test"}, stateDirectory, savedSSHHostname, false) {
-		t.Fatalf("expected pending TLS state to refresh SSH registration")
 	}
 }
 
@@ -934,5 +838,29 @@ func TestJetsonWiFiCommandHostCandidatesPreferUSB(t *testing.T) {
 	candidates := jetsonWiFiCommandHostCandidates(stateDirectory)
 	if len(candidates) == 0 || candidates[0] != jetsonUSBHostAddress {
 		t.Fatalf("expected USB host first, got %+v", candidates)
+	}
+}
+
+func TestSavedRemoteSSHHostnameTakesWhatWasSavedAndInventsNothing(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
+	saveState(stateDirectory, "fleet_id", "device-1")
+
+	if hostname := savedRemoteSSHHostname(commandTarget{stateDir: stateDirectory}); hostname != "" {
+		t.Fatalf("a fleet id is not a hostname; nothing should be derived from it, got %q", hostname)
+	}
+
+	saveState(stateDirectory, "ssh_hostname", "whatever.the.operator.set")
+	if hostname := savedRemoteSSHHostname(commandTarget{stateDir: stateDirectory}); hostname != "whatever.the.operator.set" {
+		t.Fatalf("expected the saved hostname, got %q", hostname)
+	}
+}
+
+func TestSavedRemoteSSHHostnamePrefersAnExplicitHost(t *testing.T) {
+	target := commandTarget{host: "192.0.2.10", useRemoteSSH: true, sshHostname: "saved.example.test"}
+
+	if hostname := savedRemoteSSHHostname(target); hostname != "192.0.2.10" {
+		t.Fatalf("expected the explicit host, got %q", hostname)
 	}
 }
