@@ -16,6 +16,7 @@
 		tasks: FlowTask[];
 		currentMemberID: string;
 		editable: boolean;
+		canManageRelationships?: boolean;
 		pendingTaskIDs?: string[];
 		text: FlowTaskRelationshipsText;
 		taskTypeColor: (type: string) => string;
@@ -31,6 +32,7 @@
 		tasks,
 		currentMemberID,
 		editable,
+		canManageRelationships = editable,
 		pendingTaskIDs = [],
 		text,
 		taskTypeColor,
@@ -63,11 +65,11 @@
 	}
 </script>
 
-<section class="space-y-5 py-5" data-flow-task-relationships>
+<section class="space-y-2 py-5" data-flow-task-relationships>
 	<h3 class="text-sm font-semibold text-foreground">{text.title}</h3>
 
 	<div class="space-y-1">
-		{#if editable}
+		{#if canManageRelationships && !relationships.parent}
 			<button
 				type="button"
 				class="flex min-h-9 w-full items-center justify-between gap-3 rounded-lg px-2 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
@@ -100,13 +102,11 @@
 				canOpenTask={allowTaskSwitching}
 				onRemoveRelationship={() => onSetParent(task.id, undefined)}
 			/>
-		{:else}
-			<p class="px-2 py-3 text-sm text-muted-foreground">{text.emptyParent}</p>
 		{/if}
 	</div>
 
-	<div class="space-y-1 border-t border-border/60 pt-5">
-		{#if editable}
+	<div class="space-y-1 border-t border-border/60 pt-4">
+		{#if canManageRelationships}
 			<button
 				type="button"
 				class="flex min-h-9 w-full items-center justify-between gap-3 rounded-lg px-2 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
@@ -169,13 +169,11 @@
 					/>
 				{/each}
 			</div>
-		{:else}
-			<p class="px-2 py-3 text-sm text-muted-foreground">{text.emptyChildren}</p>
 		{/if}
 	</div>
 </section>
 
-{#if editable}
+{#if canManageRelationships}
 	<FlowTaskRelationshipSelector
 		bind:open={parentSelectorOpen}
 		mode="parent"

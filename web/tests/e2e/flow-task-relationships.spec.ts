@@ -14,13 +14,28 @@ test.describe('flow task relationships', () => {
 
 		const relationships = page.locator('[data-flow-task-relationships]');
 		await expect(relationships.getByRole('heading', { name: '업무 관계' })).toBeVisible();
-		await expect(relationships.getByText('연결된 부모 업무가 없습니다.')).toBeVisible();
+		await expect(relationships.getByText('연결된 부모 업무가 없습니다.')).toHaveCount(0);
+		await expect(relationships.getByText('연결된 자녀 업무가 없습니다.')).toHaveCount(0);
+		await expect(relationships.getByRole('button', { name: '부모 업무 추가', exact: true })).toBeVisible();
+		await expect(relationships.getByRole('button', { name: '자녀 업무 추가', exact: true })).toBeVisible();
 		await expect(relationships.getByRole('heading', { name: '자녀 업무', exact: true })).toBeVisible();
 		await expect(relationships.getByText('2 / 6')).toBeVisible();
 		await expect(relationships.locator('[data-flow-relationship-task]')).toHaveCount(8);
 		await expect(relationships.locator('[data-flow-relationship-list]')).toHaveClass(/divide-y/);
 		const firstChild = relationships.locator('[data-flow-relationship-task]').first();
 		await expect(firstChild.locator('[data-slot="avatar"]')).toBeVisible();
+	});
+
+	test('hides parent add after a parent is connected and keeps child add available', async ({ page }) => {
+		await page.goto('/flow/');
+		await taskCard(page, flowDashboardTaskID).click();
+		const relationships = page.locator('[data-flow-task-relationships]');
+		await relationships.getByRole('button', { name: /자녀 업무: 캘린더 원격 동기화 재시도 점검/ }).click();
+
+		await expect(relationships.getByRole('button', { name: '부모 업무 추가', exact: true })).toHaveCount(0);
+		await expect(relationships.getByText('Flow 주간 리포트 카드 정리', { exact: true })).toBeVisible();
+		await expect(relationships.getByRole('button', { name: '자녀 업무 추가', exact: true })).toBeVisible();
+		await expect(relationships.getByText('연결된 자녀 업무가 없습니다.')).toHaveCount(0);
 	});
 
 	test('connects multiple existing child tasks from the edit sheet', async ({ page }) => {
