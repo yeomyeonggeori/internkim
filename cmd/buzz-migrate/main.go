@@ -30,14 +30,14 @@ import (
 
 func main() {
 	mattermostBaseURL := flag.String("mattermost-url", "", "Mattermost base URL")
-	mattermostToken := flag.String("mattermost-token", "", "Mattermost session token")
+	mattermostTokenPath := flag.String("mattermost-token-path", "", "file holding the Mattermost session token")
 	teamName := flag.String("team", "", "Mattermost team name")
 	relayURL := flag.String("relay-url", "ws://localhost:3000", "buzz relay websocket URL")
 	relayHTTPURL := flag.String("relay-http-url", "http://localhost:3000", "buzz relay HTTP base URL for media upload")
 	buzzDatabaseURL := flag.String("buzz-database-url", "", "buzz relay postgres URL")
 	buzzAdminCommand := flag.String("buzz-admin", "", "path to the buzz-admin binary")
 	viewerPubkey := flag.String("viewer-pubkey", "", "pubkey to add to every imported channel")
-	keySeed := flag.String("key-seed", "", "seed mixed into per-author key derivation")
+	keySeedPath := flag.String("key-seed-path", "", "file holding the seed mixed into per-author key derivation")
 	communityHost := flag.String("community-host", "localhost:3000", "buzz community host to import into")
 	onlyChannels := flag.String("channels", "", "comma-separated Mattermost channel names to import; empty imports every public channel")
 	orphanRootTitle := flag.String("orphan-root-title", "", "when set, replies whose Mattermost root was not imported are threaded under one synthesized root message carrying this title, per original root; otherwise such replies are skipped")
@@ -52,12 +52,18 @@ func main() {
 		}
 	}
 
-	if *mattermostBaseURL == "" || *mattermostToken == "" || *teamName == "" || *buzzDatabaseURL == "" || *buzzAdminCommand == "" || *keySeed == "" {
-		log.Fatal("mattermost-url, mattermost-token, team, buzz-database-url, buzz-admin and key-seed are required")
+	// The token and the seed are read from files rather than taken as flags:
+	// an argument is visible to anyone who can run ps, and the seed alone is
+	// enough to sign as any person this import creates.
+	mattermostToken := secretFromFile(*mattermostTokenPath, "mattermost-token-path")
+	keySeed := secretFromFile(*keySeedPath, "key-seed-path")
+
+	if *mattermostBaseURL == "" || *teamName == "" || *buzzDatabaseURL == "" || *buzzAdminCommand == "" {
+		log.Fatal("mattermost-url, team, buzz-database-url and buzz-admin are required")
 	}
 
 	ctx := context.Background()
-	client := mattermostrest.Client{BaseURL: strings.TrimRight(*mattermostBaseURL, "/"), Token: *mattermostToken}
+	client := mattermostrest.Client{BaseURL: strings.TrimRight(*mattermostBaseURL, "/"), Token: mattermostToken}
 
 	teamID, errorValue := client.Team(ctx, *teamName)
 	failOn(errorValue, "resolve team")
@@ -69,7 +75,7 @@ func main() {
 	authorSecrets := map[string]string{}
 	authorPubkeys := map[string]string{}
 	for userID, author := range authorsByID {
-		secretHex := deriveSecret(*keySeed, author.Email)
+		secretHex := deriveSecret(keySeed, author.Email)
 		authorSecrets[author.Email] = secretHex
 		pubkey, errorValue := nostr.GetPublicKey(secretHex)
 		failOn(errorValue, "derive pubkey for "+author.Email)
@@ -78,7 +84,7 @@ func main() {
 
 	incremental := *sinceMillis > 0
 
-	bootstrapSecret := deriveSecret(*keySeed, buzzidentity.BootstrapSubject)
+	bootstrapSecret := deriveSecret(keySeed, buzzidentity.BootstrapSubject)
 	bootstrapPubkey, errorValue := nostr.GetPublicKey(bootstrapSecret)
 	failOn(errorValue, "derive bootstrap pubkey")
 	if !incremental {
@@ -113,7 +119,7 @@ func main() {
 		if len(channelFilter) > 0 && !channelFilter[channel.Name] {
 			continue
 		}
-		buzzChannelID := deriveChannelID(*keySeed, channel.ID)
+		buzzChannelID := deriveChannelID(keySeed, channel.ID)
 		if !incremental {
 			memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
 			failOn(errorValue, "read members for "+channel.Name)
@@ -539,4 +545,19 @@ func failOn(errorValue error, context string) {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", context, errorValue)
 		os.Exit(1)
 	}
+}
+
+func secretFromFile(path string, flagName string) string {
+	if strings.TrimSpace(path) == "" {
+		log.Fatalf("%s is required", flagName)
+	}
+	content, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		log.Fatalf("read %s: %v", flagName, errorValue)
+	}
+	secret := strings.TrimSpace(string(content))
+	if secret == "" {
+		log.Fatalf("%s holds nothing", flagName)
+	}
+	return secret
 }
