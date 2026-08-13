@@ -37,9 +37,9 @@ describe('flow relationship status icon styles', () => {
 		}
 	});
 
-	test('mutes statuses excluded from progress', () => {
+	test('uses the incomplete style for statuses excluded from progress', () => {
 		for (const status of ['기각', '중단']) {
-			expect(relationshipStatusIconClass(status)).toBe('text-muted-foreground/60');
+			expect(relationshipStatusIconClass(status)).toBe('text-[#7c3aed]');
 		}
 	});
 });
