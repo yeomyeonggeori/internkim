@@ -9,8 +9,18 @@ relayDirectory="$here/../../.dependency/buzz-relay"
 network="${BUZZ_NETWORK:-buzz_default}"
 databaseURL="${DATABASE_URL:-postgres://buzz:buzz_dev@postgres:5432/buzz}"
 
+# add-member publishes a kind:13534 event, which the relay identity has to sign,
+# so the same key the compose file gives the relay is read from the same place.
+if [[ -z ${BUZZ_RELAY_PRIVATE_KEY:-} && -f $here/.env ]]; then
+	set -a
+	# shellcheck disable=SC1091
+	. "$here/.env"
+	set +a
+fi
+
 exec docker run --rm --platform linux/arm64 \
 	--network "$network" \
 	-v "$relayDirectory:/opt/buzz:ro" \
 	-e DATABASE_URL="$databaseURL" \
+	-e BUZZ_RELAY_PRIVATE_KEY="${BUZZ_RELAY_PRIVATE_KEY:-}" \
 	debian:bookworm-slim /opt/buzz/buzz-admin "$@"
