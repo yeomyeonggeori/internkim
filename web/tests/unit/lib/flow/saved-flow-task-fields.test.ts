@@ -25,6 +25,30 @@ function taskWith(fields: Partial<FlowTask> = {}): FlowTask {
 }
 
 describe('what the board writes back', () => {
+	test('maps every task status to its central status without falling back', () => {
+		const mappings = [
+			['요청', 'requested'],
+			['예정', 'todo'],
+			['진행', 'in_progress'],
+			['일시정지', 'paused'],
+			['중단', 'cancelled'],
+			['기각', 'rejected'],
+			['완료', 'done']
+		] as const;
+
+		for (const [status, storedStatus] of mappings) {
+			expect(savedFlowTaskFields(taskWith({ status }), 'update').status).toBe(storedStatus);
+		}
+	});
+
+	test('includes requester provenance only in central inserts', () => {
+		const task = taskWith({ requesterID: 'requester-1', requesterName: '요청자' });
+
+		expect(savedFlowTaskFields(task, 'insert').requester_id).toBe('requester-1');
+		expect('requester_id' in savedFlowTaskFields(task, 'update')).toBe(false);
+		expect(savedFlowTaskFields(taskWith({ requesterID: '' }), 'insert').requester_id).toBeNull();
+	});
+
 	test('gives a task the days the board holds', () => {
 		const fields = savedFlowTaskFields(taskWith());
 		expect(typeof fields.starts_at).toBe('string');

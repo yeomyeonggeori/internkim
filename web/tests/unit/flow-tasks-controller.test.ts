@@ -53,25 +53,21 @@ describe('flow tasks controller', () => {
 		}
 	});
 
-	test('normalizes owner and participants when changing the task owner', async () => {
+	test('recomputes compatibility owner from every participant edit', async () => {
 		const originalState = Reflect.get(globalThis, '$state');
 		Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
 		const { createFlowTasksController } = await import('../../src/routes/flow/flow-tasks-controller.svelte');
 		const controller = createFlowTasksController();
-		const task = flowTask({
-			ownerID: 'owner',
-			ownerName: '담당자',
-			participantIDs: ['owner', 'participant'],
-			participantNames: ['담당자', '참여자']
-		});
+		const task = flowTask({ ownerID: '', ownerName: '', participantIDs: [], participantNames: [] });
 
 		try {
 			controller.sync({
 				summary: flowSummary({
-					currentUserEmail: 'owner@example.com',
+					currentUserEmail: 'admin@example.com',
+					isAdmin: true,
 					members: [
+						flowMember({ id: 'admin', name: '관리자', email: 'admin@example.com' }),
 						flowMember({ id: 'owner', name: '담당자', email: 'owner@example.com' }),
-						flowMember({ id: 'new-owner', name: '새 담당자', email: 'new-owner@example.com' }),
 						flowMember({ id: 'participant', name: '참여자', email: 'participant@example.com' })
 					],
 					tasks: [task]
@@ -81,12 +77,19 @@ describe('flow tasks controller', () => {
 				setPageErrorMessage: () => {}
 			});
 			controller.openTask(task);
-			controller.setTaskOwnerID('new-owner');
 
-			expect(controller.taskDraft?.ownerID).toBe('new-owner');
-			expect(controller.taskDraft?.ownerName).toBe('새 담당자');
-			expect(controller.taskDraft?.participantIDs).toEqual(['new-owner', 'owner', 'participant']);
-			expect(controller.taskDraft?.participantNames).toEqual(['새 담당자', '담당자', '참여자']);
+			controller.setParticipantNames(['담당자']);
+			expect(controller.taskDraft?.ownerID).toBe('owner');
+			expect(controller.taskDraft?.ownerName).toBe('담당자');
+
+			controller.setParticipantNames(['담당자', '참여자']);
+			expect(controller.taskDraft?.ownerID).toBe('');
+			expect(controller.taskDraft?.ownerName).toBe('');
+
+			controller.setParticipantNames([]);
+			expect(controller.taskDraft?.ownerID).toBe('');
+			expect(controller.taskDraft?.ownerName).toBe('');
+			expect(controller.taskDraft?.participantIDs).toEqual([]);
 		} finally {
 			if (originalState === undefined) {
 				Reflect.deleteProperty(globalThis, '$state');
@@ -95,7 +98,67 @@ describe('flow tasks controller', () => {
 			}
 		}
 	});
+
+	test('creates normal work for the current member without requester provenance', async () => {
+		const controller = await syncedController();
+		controller.setParticipantFilterIDs(['target']);
+
+		controller.createTask('예정');
+
+		expect(controller.taskDraft?.participantIDs).toEqual(['requester']);
+		expect(controller.taskDraft?.ownerID).toBe('requester');
+		expect(controller.taskDraft?.requesterID).toBe('');
+		expect(controller.taskDraft?.requesterName).toBe('');
+	});
+
+	test('creates a request for selected targets without adding the requester', async () => {
+		const controller = await syncedController();
+		controller.setParticipantFilterIDs(['target']);
+
+		controller.createTask('요청');
+
+		expect(controller.taskDraft?.requesterID).toBe('requester');
+		expect(controller.taskDraft?.requesterName).toBe('요청자');
+		expect(controller.taskDraft?.participantIDs).toEqual(['target']);
+		expect(controller.taskDraft?.participantNames).toEqual(['대상자']);
+		expect(controller.taskDraft?.ownerID).toBe('target');
+		expect(controller.taskDraft?.ownerName).toBe('대상자');
+	});
+
+	test('falls back to the current member when a request has no selected target', async () => {
+		const controller = await syncedController();
+		controller.setParticipantFilterIDs([]);
+
+		controller.createTask('요청');
+
+		expect(controller.taskDraft?.requesterID).toBe('requester');
+		expect(controller.taskDraft?.participantIDs).toEqual(['requester']);
+		expect(controller.taskDraft?.ownerID).toBe('requester');
+	});
 });
+
+async function syncedController() {
+	const originalState = Reflect.get(globalThis, '$state');
+	Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
+	const { createFlowTasksController } = await import('../../src/routes/flow/flow-tasks-controller.svelte');
+	const controller = createFlowTasksController();
+	controller.sync({
+		summary: flowSummary({
+			currentUserEmail: 'requester@example.com',
+			source: 'supabase',
+			members: [
+				flowMember({ id: 'requester', name: '요청자', email: 'requester@example.com' }),
+				flowMember({ id: 'target', name: '대상자', email: 'target@example.com' })
+			]
+		}),
+		text: flowText.ko,
+		loadFlow: async () => true,
+		setPageErrorMessage: () => {}
+	});
+	if (originalState === undefined) Reflect.deleteProperty(globalThis, '$state');
+	else Reflect.set(globalThis, '$state', originalState);
+	return controller;
+}
 
 function flowSummary(overrides: Partial<FlowSummary>): FlowSummary {
 	return {
