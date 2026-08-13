@@ -1,5 +1,6 @@
 import { buildBusinessSelectOptions } from './flow-task-workspace-model';
 import { flowStatus } from './flow-status';
+import { isCentralFlowSource } from './flow-source';
 import { flowText } from './text';
 import type { FlowDefinitions, FlowSummary, FlowTask } from './flow-types';
 
@@ -17,6 +18,7 @@ export function definitionsFromSummary(summary: FlowSummary | null): FlowDefinit
 
 export function statusOptionsFromSummary(summary: FlowSummary | null, task?: FlowTask | null): string[] {
 	if (!summary) return [];
+	if (!isCentralFlowSource(summary.source)) return summary.statusOptions;
 	if (task?.requesterID) {
 		return [
 			flowStatus.requested,

@@ -9,7 +9,6 @@ import {
 	useMemberFlowSession
 } from './flow-task-helpers';
 
-const normalStatusLabels = ['예정', '진행', '완료', '일시정지', '중단'];
 const requestedStatusLabels = ['요청', '예정', '진행', '완료', '일시정지', '기각', '중단'];
 
 test.describe('flow task sidebar', () => {
@@ -19,7 +18,7 @@ test.describe('flow task sidebar', () => {
 	});
 
 	test('explains why a non-participant task editor is read-only', async ({ page }) => {
-		await useMemberFlowSession(page, 'designer@example.com', '이영희');
+		await useMemberFlowSession(page, 'designer@example.com', '박예시');
 		await openFlowBoard(page);
 
 		await taskCard(page, marketScanTaskID).click();
@@ -28,7 +27,7 @@ test.describe('flow task sidebar', () => {
 		await expect(page.getByRole('button', { name: '업무 삭제', exact: true })).toHaveCount(0);
 	});
 
-	test('shows no owner or requester for normal work and offers five statuses', async ({ page }) => {
+	test('shows no owner or requester for device work and preserves its seven-status contract', async ({ page }) => {
 		await openFlowBoard(page);
 
 		await taskCard(page, flowDashboardTaskID).click();
@@ -37,7 +36,7 @@ test.describe('flow task sidebar', () => {
 		await expect(sidebar.getByText('요청자', { exact: true })).toHaveCount(0);
 		await sidebar.getByRole('button', { name: '업무 수정', exact: true }).click();
 		await sidebar.getByRole('button', { name: '상태', exact: true }).click();
-		await expect(page.getByRole('listbox').getByRole('option')).toHaveText(normalStatusLabels);
+		await expect(page.getByRole('listbox').getByRole('option')).toHaveText(requestedStatusLabels);
 	});
 
 	test('shows distinct participants with the same display name in task detail', async ({ page }) => {
@@ -45,10 +44,38 @@ test.describe('flow task sidebar', () => {
 		await openFlowBoard(page);
 
 		await taskCard(page, flowDashboardTaskID).click();
-		const participants = page.getByRole('dialog').getByText('김철수', { exact: true });
+		const participants = page.getByRole('dialog').getByText('이샘플', { exact: true });
 		await expect(participants).toHaveCount(2);
 		await expect(participants.nth(0)).toBeVisible();
 		await expect(participants.nth(1)).toBeVisible();
+	});
+
+	test('edits duplicate-named participants by canonical ID and preserves the device owner payload', async ({ page }) => {
+		let savedPayload: unknown = null;
+		await addDuplicateParticipantNames(page, true);
+		await page.route(`**/flow/api/tasks/${flowDashboardTaskID}`, async (route) => {
+			if (route.request().method() !== 'PUT') return route.continue();
+			const document = route.request().postData();
+			savedPayload = document ? JSON.parse(document) as unknown : null;
+			await route.fulfill({ status: 200 });
+		});
+		await openFlowBoard(page);
+
+		await taskCard(page, flowDashboardTaskID).click();
+		const sidebar = page.getByRole('dialog');
+		await sidebar.getByRole('button', { name: '업무 수정', exact: true }).click();
+		await sidebar.getByRole('combobox', { name: '참여자', exact: true }).click();
+		await expect(page.getByRole('option').filter({ hasText: 'kim@example.com' })).toBeVisible();
+		const engineerOption = page.getByRole('option').filter({ hasText: 'engineer@example.com' });
+		await expect(engineerOption).toContainText('이샘플');
+		await engineerOption.click();
+		await page.keyboard.press('Escape');
+		await sidebar.getByRole('button', { name: '업무 저장', exact: true }).click();
+
+		expect(isUnknownRecord(savedPayload)).toBe(true);
+		if (!isUnknownRecord(savedPayload)) throw new Error('saved flow task payload was not an object');
+		expect(savedPayload.ownerID).toBe('kim-intern');
+		expect(savedPayload.participantIDs).toEqual(['kim-intern']);
 	});
 
 	test('shows requester as read-only and keeps seven statuses after a status change', async ({ page }) => {
@@ -59,7 +86,7 @@ test.describe('flow task sidebar', () => {
 		const sidebar = page.getByRole('dialog');
 		const requesterLabel = sidebar.getByText('요청자', { exact: true });
 		await expect(requesterLabel).toBeVisible();
-		await expect(sidebar.getByText('이영희', { exact: true })).toBeVisible();
+		await expect(sidebar.getByText('박예시', { exact: true })).toBeVisible();
 		await expect(requesterLabel.locator('..').locator('input, select, button, [role="combobox"]')).toHaveCount(0);
 		await sidebar.getByRole('button', { name: '업무 수정', exact: true }).click();
 
@@ -72,16 +99,23 @@ test.describe('flow task sidebar', () => {
 	});
 
 	test('lets a sole participant manage task assignment', async ({ page }) => {
-		await useMemberFlowSession(page, 'researcher@example.com', '임수아');
+		await useMemberFlowSession(page, 'researcher@example.com', '최견본');
 		await openFlowBoard(page);
 
 		await taskCard(page, marketScanTaskID).click();
-		await page.getByRole('dialog').getByRole('button', { name: '업무 수정', exact: true }).click();
-		await expect(page.getByPlaceholder('이름을 입력해 추가')).toBeEnabled();
+		const sidebar = page.getByRole('dialog');
+		await sidebar.getByRole('button', { name: '업무 수정', exact: true }).click();
+		const participantPicker = sidebar.getByRole('combobox', { name: '참여자', exact: true });
+		await expect(participantPicker).toBeEnabled();
+		await participantPicker.click();
+		const selfOption = page.getByRole('option').filter({ hasText: 'researcher@example.com' });
+		await expect(selfOption).toHaveAttribute('data-checked', 'true');
+		await selfOption.click();
+		await expect(selfOption).toHaveAttribute('data-checked', 'true');
 	});
 
 	test('does not give assignment authority to one participant in a multi-participant task', async ({ page }) => {
-		await useMemberFlowSession(page, 'engineer@example.com', '박민준');
+		await useMemberFlowSession(page, 'engineer@example.com', '이샘플');
 		await openFlowBoard(page);
 
 		await taskCard(page, flowDashboardTaskID).click();
@@ -89,7 +123,7 @@ test.describe('flow task sidebar', () => {
 		await expect(page.getByPlaceholder('업무 내용')).toBeEnabled();
 		await expect(page.getByRole('button', { name: '업무 저장', exact: true })).toBeVisible();
 		await expect(page.getByText('관리자 또는 참여자만 수정할 수 있습니다.')).toHaveCount(0);
-		await expect(page.getByPlaceholder('이름을 입력해 추가')).toBeDisabled();
+		await expect(page.getByRole('dialog').getByRole('combobox', { name: '참여자', exact: true })).toBeDisabled();
 		await expect(page.getByRole('button', { name: /제거$/ })).toHaveCount(0);
 	});
 
@@ -113,17 +147,22 @@ test.describe('flow task sidebar', () => {
 	});
 });
 
-async function addDuplicateParticipantNames(page: Page): Promise<void> {
+async function addDuplicateParticipantNames(page: Page, renameMembers = false): Promise<void> {
 	await page.route('**/flow/api/state**', async (route) => {
 		const response = await route.fetch();
 		const state: unknown = await response.json();
 		if (!isUnknownRecord(state)) throw new Error('flow state response was not an object');
+		const members = renameMembers && Array.isArray(state.members)
+			? state.members.map((member) => isUnknownRecord(member) && ['kim-intern', 'engineer'].includes(String(member.id))
+				? { ...member, name: '이샘플' }
+				: member)
+			: state.members;
 		const tasks = Array.isArray(state.tasks)
 			? state.tasks.map((task) => isUnknownRecord(task) && task.id === flowDashboardTaskID
-				? { ...task, participantNames: ['김철수', '김철수'] }
+				? { ...task, ownerName: '이샘플', participantNames: ['이샘플', '이샘플'] }
 				: task)
 			: [];
-		await route.fulfill({ response, json: { ...state, tasks } });
+		await route.fulfill({ response, json: { ...state, members, tasks } });
 	});
 }
 
@@ -134,9 +173,9 @@ async function addRequesterProvenance(page: Page): Promise<void> {
 		if (!isUnknownRecord(state)) throw new Error('flow state response was not an object');
 		const tasks = Array.isArray(state.tasks)
 			? state.tasks.map((task) => isUnknownRecord(task) && task.id === requestedTaskID
-				? { ...task, requesterID: 'designer', requesterName: '이영희' }
+				? { ...task, requesterID: 'designer', requesterName: '박예시' }
 				: task)
 			: [];
-		await route.fulfill({ response, json: { ...state, tasks } });
+		await route.fulfill({ response, json: { ...state, source: 'supabase', tasks } });
 	});
 }

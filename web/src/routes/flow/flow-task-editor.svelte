@@ -28,8 +28,9 @@
 		businessColor: (business: string) => string;
 		taskTypeColor: (type: string) => string;
 		memberEmail: (memberID: string) => string;
-		setParticipantNames: (names: string[]) => void;
+		setParticipantIDs: (memberIDs: string[]) => void;
 		removeParticipantID: (memberID: string) => void;
+		canRemoveParticipant: (task: FlowTask, memberID: string) => boolean;
 		saveTask: () => void;
 		deleteTask: (task: FlowTask) => Promise<void>;
 		canUpdateTask: (task: FlowTask) => boolean;
@@ -57,8 +58,9 @@
 		businessColor,
 		taskTypeColor,
 		memberEmail,
-		setParticipantNames,
+		setParticipantIDs,
 		removeParticipantID,
+		canRemoveParticipant,
 		saveTask,
 		deleteTask,
 		canUpdateTask,
@@ -132,8 +134,9 @@
 						{canEditTask}
 						{canEditTaskAssignment}
 						{text}
-						{setParticipantNames}
+						{setParticipantIDs}
 						{removeParticipantID}
+						{canRemoveParticipant}
 					/>
 					<Separator />
 					<div class="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
