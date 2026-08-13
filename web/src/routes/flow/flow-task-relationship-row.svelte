@@ -6,6 +6,7 @@
 	import { personProfileImagePath } from '$lib/person-profile-image';
 	import CircleIcon from '@lucide/svelte/icons/circle';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
+	import CircleDotIcon from '@lucide/svelte/icons/circle-dot';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import Unlink2Icon from '@lucide/svelte/icons/unlink-2';
 	import { flowDefinitionOutlineBadgeStyle } from './flow-definition-colors';
@@ -83,6 +84,8 @@
 	>
 		{#if isFlowStatusCompleted(task.status)}
 			<CircleCheckIcon class="size-5" />
+		{:else if statusKind === 'incomplete'}
+			<CircleDotIcon class="size-5" />
 		{:else}
 			<CircleIcon class="size-5" />
 		{/if}
