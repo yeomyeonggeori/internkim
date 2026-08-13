@@ -19,7 +19,7 @@ test.describe('flow task relationships', () => {
 		await expect(relationships.getByRole('button', { name: '부모 업무 추가', exact: true })).toBeVisible();
 		await expect(relationships.getByRole('button', { name: '자녀 업무 추가', exact: true })).toBeVisible();
 		await expect(relationships.getByRole('heading', { name: '자녀 업무', exact: true })).toBeVisible();
-		const progress = relationships.getByLabel('자녀 업무 2 / 6 완료, 33%');
+		const progress = relationships.getByLabel('자녀 업무 2 / 7 완료, 29%');
 		await expect(progress).toBeVisible();
 		await expect(progress).toHaveAttribute('data-slot', 'badge');
 		await expect(progress.locator('[data-flow-relationship-progress-ring]')).toBeVisible();
@@ -28,9 +28,9 @@ test.describe('flow task relationships', () => {
 			'data-slot',
 			'button'
 		);
-		await expect(relationships.locator('[data-flow-relationship-task]')).toHaveCount(6);
+		await expect(relationships.locator('[data-flow-relationship-task]')).toHaveCount(8);
 		await expect(relationships.locator('[data-relationship-status-kind="completed"]')).toHaveCount(2);
-		await expect(relationships.locator('[data-relationship-status-kind="incomplete"]')).toHaveCount(4);
+		await expect(relationships.locator('[data-relationship-status-kind="incomplete"]')).toHaveCount(6);
 		await expect(relationships.locator('[data-relationship-status-kind="excluded"]')).toHaveCount(0);
 		await expect(relationships.locator('[data-flow-relationship-list]')).toHaveClass(/divide-y/);
 		const firstChild = relationships.locator('[data-flow-relationship-task]').first();
