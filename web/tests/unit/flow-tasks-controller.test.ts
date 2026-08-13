@@ -65,6 +65,7 @@ describe('flow tasks controller', () => {
 				summary: flowSummary({
 					currentUserEmail: 'admin@example.com',
 					isAdmin: true,
+					source: 'supabase',
 					members: [
 						flowMember({ id: 'admin', name: '관리자', email: 'admin@example.com' }),
 						flowMember({ id: 'owner', name: '담당자', email: 'owner@example.com' }),
@@ -78,15 +79,15 @@ describe('flow tasks controller', () => {
 			});
 			controller.openTask(task);
 
-			controller.setParticipantNames(['담당자']);
+			controller.setParticipantIDs(['owner']);
 			expect(controller.taskDraft?.ownerID).toBe('owner');
 			expect(controller.taskDraft?.ownerName).toBe('담당자');
 
-			controller.setParticipantNames(['담당자', '참여자']);
+			controller.setParticipantIDs(['owner', 'participant']);
 			expect(controller.taskDraft?.ownerID).toBe('');
 			expect(controller.taskDraft?.ownerName).toBe('');
 
-			controller.setParticipantNames([]);
+			controller.setParticipantIDs([]);
 			expect(controller.taskDraft?.ownerID).toBe('');
 			expect(controller.taskDraft?.ownerName).toBe('');
 			expect(controller.taskDraft?.participantIDs).toEqual([]);
@@ -97,6 +98,42 @@ describe('flow tasks controller', () => {
 				Reflect.set(globalThis, '$state', originalState);
 			}
 		}
+	});
+
+	test('preserves canonical IDs when edited participants share a display name', async () => {
+		const controller = await syncedController([
+			flowMember({ id: 'requester', name: '요청자', email: 'requester@example.com' }),
+			flowMember({ id: 'target-left', name: '동명이인', email: 'left@example.com' }),
+			flowMember({ id: 'target-right', name: '동명이인', email: 'right@example.com' })
+		]);
+		const task = flowTask({ ownerID: '', ownerName: '', participantIDs: [], participantNames: [] });
+		controller.openTask(task);
+
+		controller.setParticipantIDs(['target-left', 'target-right']);
+
+		expect(controller.taskDraft?.participantIDs).toEqual(['target-left', 'target-right']);
+		expect(controller.taskDraft?.participantNames).toEqual(['동명이인', '동명이인']);
+		expect(controller.taskDraft?.ownerID).toBe('');
+	});
+
+	test('keeps the legacy device owner in participant edits without exposing an owner mutation', async () => {
+		const controller = await syncedController([
+			flowMember({ id: 'owner', name: '담당자', email: 'owner@example.com' }),
+			flowMember({ id: 'participant', name: '참여자', email: 'participant@example.com' })
+		], 'sqlite', 'owner@example.com');
+		const task = flowTask({
+			ownerID: 'owner',
+			ownerName: '담당자',
+			participantIDs: ['owner', 'participant'],
+			participantNames: ['담당자', '참여자']
+		});
+		controller.openTask(task);
+
+		controller.setParticipantIDs(['participant']);
+
+		expect(controller.taskDraft?.ownerID).toBe('owner');
+		expect(controller.taskDraft?.ownerName).toBe('담당자');
+		expect(controller.taskDraft?.participantIDs).toEqual(['owner', 'participant']);
 	});
 
 	test('creates normal work for the current member without requester provenance', async () => {
@@ -161,15 +198,15 @@ describe('flow tasks controller', () => {
 async function syncedController(members: FlowMember[] = [
 	flowMember({ id: 'requester', name: '요청자', email: 'requester@example.com' }),
 	flowMember({ id: 'target', name: '대상자', email: 'target@example.com' })
-]) {
+], source = 'supabase', currentUserEmail = 'requester@example.com') {
 	const originalState = Reflect.get(globalThis, '$state');
 	Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
 	const { createFlowTasksController } = await import('../../src/routes/flow/flow-tasks-controller.svelte');
 	const controller = createFlowTasksController();
 	controller.sync({
 		summary: flowSummary({
-			currentUserEmail: 'requester@example.com',
-			source: 'supabase',
+			currentUserEmail,
+			source,
 			members
 		}),
 		text: flowText.ko,

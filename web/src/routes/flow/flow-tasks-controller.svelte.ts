@@ -174,13 +174,14 @@ class FlowTasksController {
 		this.filters.setParticipantIDs(memberIDs);
 	};
 
-	setParticipantNames = this.editor.setParticipantNames;
+	setParticipantIDs = this.editor.setParticipantIDs;
 	removeParticipantID = this.editor.removeParticipantID;
 	closeEditor = this.editor.closeEditor;
 
 	canUpdateTask = (task: FlowTask): boolean => canUpdateFlowTask(this.summary, task);
 	canDeleteTask = this.editor.canDeleteTask;
 	canManageTaskAssignment = this.editor.canManageTaskAssignment;
+	canRemoveParticipant = this.editor.canRemoveParticipant;
 	deleteTask = this.editor.deleteTask;
 
 }
