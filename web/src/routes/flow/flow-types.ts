@@ -31,6 +31,7 @@ export type FlowTask = {
 	participantNames: string[];
 	requesterID?: string;
 	requesterName?: string;
+	wasRequested?: boolean;
 	business: string;
 	type: string;
 	content: string;
