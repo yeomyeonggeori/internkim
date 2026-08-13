@@ -130,6 +130,7 @@
 							{tasks}
 							{currentMemberID}
 							editable={false}
+							canManageRelationships={canEditTask}
 							pendingTaskIDs={pendingRelationshipTaskIDs}
 							text={text.relationships}
 							{taskTypeColor}
@@ -181,6 +182,7 @@
 							{tasks}
 							{currentMemberID}
 							editable={canEditTask}
+							canManageRelationships={canEditTask}
 							pendingTaskIDs={pendingRelationshipTaskIDs}
 							text={text.relationships}
 							{taskTypeColor}
