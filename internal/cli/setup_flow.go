@@ -2377,9 +2377,6 @@ func (state *setupFlowState) ensureFleetRegistration(force bool) error {
 		state.tlsCertificateStatus = registrationResponse.TLSStatus
 		state.deviceURL = registrationResponse.publicURL()
 		sshHostname := registrationResponse.SSHHostname
-		if sshHostname == "" {
-			sshHostname = cloudflareSSHHostnameFromDeviceURL(state.deviceURL)
-		}
 
 		saveState(state.stateDir, "tunnel_token", state.tunnelToken)
 		saveState(state.stateDir, "node_tunnel_token", state.nodeTunnelToken)

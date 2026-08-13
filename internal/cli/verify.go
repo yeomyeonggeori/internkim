@@ -497,7 +497,7 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	target = simulationHostTarget(repositoryRootPath, target)
 	configuration := loadConfig()
 	if target.useRemoteSSH && strings.TrimSpace(target.host) == "" {
-		target.host = firstNonEmptyString(target.sshHostname, resolveCloudflareSSHHostname(configuration, target))
+		target.host = savedRemoteSSHHostname(target)
 	}
 	if !target.useRemoteSSH && strings.TrimSpace(target.host) == "" && target.mode != commandTargetModeSimulation {
 		target.host = findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
