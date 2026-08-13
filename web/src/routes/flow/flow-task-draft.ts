@@ -57,6 +57,25 @@ export function participantSelectionFromNames(
 	};
 }
 
+export function participantSelectionFromIDs(
+	memberIDs: string[],
+	members: FlowMember[]
+): Pick<FlowTask, 'ownerID' | 'ownerName' | 'participantIDs' | 'participantNames'> {
+	const memberByID = new Map(members.map((member) => [member.id, member]));
+	const participants: FlowMember[] = [];
+	for (const memberID of memberIDs) {
+		const member = memberByID.get(memberID);
+		if (member && !participants.some((participant) => participant.id === member.id)) participants.push(member);
+	}
+	const owner = compatibilityOwnerOf(participants);
+	return {
+		ownerID: owner.id,
+		ownerName: owner.name,
+		participantIDs: participants.map((participant) => participant.id),
+		participantNames: participants.map((participant) => participant.name)
+	};
+}
+
 export function updateFlowTaskParticipantNames(task: FlowTask, members: FlowMember[], names: string[]): FlowTask {
 	const selection = participantSelectionFromNames(names, members);
 	return {
@@ -65,6 +84,14 @@ export function updateFlowTaskParticipantNames(task: FlowTask, members: FlowMemb
 		ownerName: selection.ownerName,
 		participantIDs: selection.participantIDs,
 		participantNames: selection.participantNames
+	};
+}
+
+export function updateFlowTaskParticipantIDs(task: FlowTask, members: FlowMember[], memberIDs: string[]): FlowTask {
+	const selection = participantSelectionFromIDs(memberIDs, members);
+	return {
+		...task,
+		...selection
 	};
 }
 

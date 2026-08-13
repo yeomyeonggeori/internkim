@@ -1,7 +1,7 @@
 import { buildBusinessSelectOptions } from './flow-task-workspace-model';
 import { flowStatus } from './flow-status';
 import { flowText } from './text';
-import type { FlowDefinitions, FlowMember, FlowSummary, FlowTask } from './flow-types';
+import type { FlowDefinitions, FlowSummary, FlowTask } from './flow-types';
 
 type FlowPageText = typeof flowText.ko;
 
@@ -50,8 +50,4 @@ export function sizeSelectOptions(definitions: FlowDefinitions) {
 
 export function statusSelectOptions(statuses: string[], statusLabel: (status: string) => string) {
 	return statuses.map((status) => ({ value: status, label: statusLabel(status) }));
-}
-
-export function memberSelectOptions(members: FlowMember[]) {
-	return members.map((member) => ({ value: member.id, label: member.name }));
 }
