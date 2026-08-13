@@ -19,7 +19,15 @@ test.describe('flow task relationships', () => {
 		await expect(relationships.getByRole('button', { name: '부모 업무 추가', exact: true })).toBeVisible();
 		await expect(relationships.getByRole('button', { name: '자녀 업무 추가', exact: true })).toBeVisible();
 		await expect(relationships.getByRole('heading', { name: '자녀 업무', exact: true })).toBeVisible();
-		await expect(relationships.getByText('2 / 6')).toBeVisible();
+		const progress = relationships.getByLabel('자녀 업무 2 / 6 완료, 33%');
+		await expect(progress).toBeVisible();
+		await expect(progress).toHaveAttribute('data-slot', 'badge');
+		await expect(progress.locator('[data-flow-relationship-progress-ring]')).toBeVisible();
+		await expect(relationships.locator('[data-slot="separator"]')).toHaveCount(1);
+		await expect(relationships.getByRole('button', { name: '부모 업무 추가', exact: true })).toHaveAttribute(
+			'data-slot',
+			'button'
+		);
 		await expect(relationships.locator('[data-flow-relationship-task]')).toHaveCount(8);
 		await expect(relationships.locator('[data-flow-relationship-list]')).toHaveClass(/divide-y/);
 		const firstChild = relationships.locator('[data-flow-relationship-task]').first();
