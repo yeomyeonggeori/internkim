@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# The seed is read from a file rather than taken as an argument on purpose: a
-# second import under a different seed derives different channel ids and lands
-# a complete duplicate set of channels beside the originals, which is what
-# happened to this company's first import.
+# Two reasons the seed lives in a file rather than in an argument. A second
+# import under a different seed derives different channel ids and lands a
+# complete duplicate set of channels beside the originals, which is what
+# happened to this company's first import. And an argument is visible to
+# anyone who can run ps, while the seed alone signs as any person the import
+# creates. The token travels the same way for the second reason.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,6 +14,11 @@ state="${BUZZ_STATE_DIRECTORY:-$repository/.local/buzz}"
 seedPath="$state/key-seed"
 credentialPath="$state/mattermost.env"
 importer="$state/buzz-migrate"
+
+# The relay picks a community from the Host header, so the address it is dialed
+# on has to be the community's own host. Reaching the same process on
+# 127.0.0.1 answers 404 to the websocket upgrade and nothing explains why.
+communityHost="${BUZZ_COMMUNITY_HOST:-localhost:3000}"
 
 for required in "$seedPath" "$credentialPath"; do
 	if [[ ! -f $required ]]; then
@@ -37,14 +44,18 @@ for name in MATTERMOST_URL MATTERMOST_TOKEN MATTERMOST_TEAM; do
 	fi
 done
 
+tokenPath="$state/mattermost-token"
+printf '%s\n' "$MATTERMOST_TOKEN" > "$tokenPath"
+chmod 600 "$tokenPath"
+
 "$importer" \
 	-mattermost-url "$MATTERMOST_URL" \
-	-mattermost-token "$MATTERMOST_TOKEN" \
+	-mattermost-token-path "$tokenPath" \
 	-team "$MATTERMOST_TEAM" \
-	-key-seed "$(cat "$seedPath")" \
+	-key-seed-path "$seedPath" \
 	-buzz-database-url "${BUZZ_DATABASE_URL:-postgres://buzz:buzz_dev@127.0.0.1:5432/buzz?sslmode=disable}" \
 	-buzz-admin "$here/buzz-admin" \
-	-relay-url "${BUZZ_RELAY_WS_URL:-ws://127.0.0.1:3000}" \
-	-relay-http-url "${BUZZ_RELAY_HTTP_URL:-http://127.0.0.1:3000}" \
-	-community-host "${BUZZ_COMMUNITY_HOST:-localhost:3000}" \
+	-relay-url "ws://$communityHost" \
+	-relay-http-url "http://$communityHost" \
+	-community-host "$communityHost" \
 	"$@"
