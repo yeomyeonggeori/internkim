@@ -45,12 +45,12 @@
 			<div>
 				<p class="text-xs text-muted-foreground">{text.participants}</p>
 				<div class="mt-1 flex flex-wrap gap-1">
-					{#each task.participantNames as participantName, index (participantName)}
+					{#each task.participantIDs as participantID, index (participantID)}
 						<FlowTaskPersonChip
-								name={participantName}
-								email={memberEmail(task.participantIDs[index] ?? '')}
-								seed={task.participantIDs[index] ?? participantName}
-								image={personProfileImagePath(task.participantIDs[index])}
+								name={task.participantNames[index] ?? participantID}
+								email={memberEmail(participantID)}
+								seed={participantID}
+								image={personProfileImagePath(participantID)}
 							/>
 					{/each}
 				</div>
