@@ -19,7 +19,6 @@ func DefaultRegistry() Registry {
 		StepBuzzSeed,
 		StepBuzzRelayKey,
 		StepLocalLLM,
-		StepTunnel,
 		StepGoogle,
 		StepStaging,
 		StepMattermost,
