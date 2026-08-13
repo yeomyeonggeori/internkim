@@ -4,7 +4,7 @@ import "errors"
 
 var StepSlackToken = Step{
 	Name: "slack",
-	Deps: []string{"tunnel"},
+	Deps: []string{"binaries"},
 	Title: func(context *Context) string {
 		return context.T("Slack 토큰 설정...", "Configuring Slack token...")
 	},
