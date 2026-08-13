@@ -89,6 +89,20 @@ insert into public.task (id, company_id, title) values
     'Normal task'
   );
 
+insert into public.task_participant (task_id, member_id) values
+  (
+    '45000000-0000-0000-0000-000000000101',
+    '45000000-0000-0000-0000-0000000000a1'
+  ),
+  (
+    '45000000-0000-0000-0000-000000000103',
+    '45000000-0000-0000-0000-0000000000a1'
+  ),
+  (
+    '45000000-0000-0000-0000-000000000104',
+    '45000000-0000-0000-0000-0000000000a1'
+  );
+
 select lives_ok($block$do $$
 begin
   set local role authenticated;
@@ -237,6 +251,8 @@ select is(
   null,
   'normal task: its requester remains null'
 );
+
+select set_config('request.jwt.claims', '{}', true);
 
 insert into public.member (id, company_id, email, status) values
   (
