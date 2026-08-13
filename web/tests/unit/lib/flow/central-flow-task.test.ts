@@ -17,7 +17,7 @@ const statuses = [
 describe('central flow task rows', () => {
 	test('selects requester provenance with participants', () => {
 		expect(centralFlowTaskSelection).toBe(
-			'id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, task_participant (member_id)'
+			'id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester_name, was_requested, task_participant (member_id)'
 		);
 	});
 
@@ -38,6 +38,18 @@ describe('central flow task rows', () => {
 
 		expect(task.requesterID).toBe('requester-1');
 		expect(task.requesterName).toBe('요청자');
+	});
+
+	test('maps durable requester provenance after the requester leaves', () => {
+		const task = centralFlowTaskFromRow(row({
+			requester_id: null,
+			requester_name: '퇴사한 요청자',
+			was_requested: true
+		}), names, dayOf);
+
+		expect(task.wasRequested).toBe(true);
+		expect(task.requesterID).toBe('');
+		expect(task.requesterName).toBe('퇴사한 요청자');
 	});
 
 	test('derives compatibility owner only for one participant', () => {
@@ -78,6 +90,8 @@ function row(overrides: Record<string, unknown> = {}) {
 		due_at: null,
 		updated_at: '2026-08-13T00:00:00Z',
 		requester_id: null,
+		requester_name: null,
+		was_requested: false,
 		task_participant: [],
 		...overrides
 	};

@@ -2,6 +2,7 @@
 	import { personProfileImagePath } from '$lib/person-profile-image';
 	import FlowTaskEditorSummary from './flow-task-editor-summary.svelte';
 	import FlowTaskPersonChip from './flow-task-person-chip.svelte';
+	import { hasFlowTaskRequestProvenance } from './flow-task-options';
 	import type { FlowTaskEditorText } from './flow-task-editor-types';
 	import type { FlowTask } from './flow-types';
 
@@ -35,10 +36,10 @@
 	{/if}
 
 	<div class="grid gap-4 sm:grid-cols-2">
-		{#if task.requesterID}
+		{#if hasFlowTaskRequestProvenance(task)}
 			<div>
 				<p class="text-xs text-muted-foreground">{text.requester}</p>
-				<p class="mt-1 text-sm">{task.requesterName || memberEmail(task.requesterID) || task.requesterID}</p>
+				<p class="mt-1 text-sm">{task.requesterName || memberEmail(task.requesterID || '') || task.requesterID || text.requesterUnavailable}</p>
 			</div>
 		{/if}
 		{#if task.participantNames.length}

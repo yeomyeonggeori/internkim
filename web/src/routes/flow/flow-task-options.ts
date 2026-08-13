@@ -19,7 +19,7 @@ export function definitionsFromSummary(summary: FlowSummary | null): FlowDefinit
 export function statusOptionsFromSummary(summary: FlowSummary | null, task?: FlowTask | null): string[] {
 	if (!summary) return [];
 	if (!isCentralFlowSource(summary.source)) return summary.statusOptions;
-	if (task?.requesterID) {
+	if (hasFlowTaskRequestProvenance(task)) {
 		return [
 			flowStatus.requested,
 			flowStatus.planned,
@@ -31,6 +31,10 @@ export function statusOptionsFromSummary(summary: FlowSummary | null, task?: Flo
 		];
 	}
 	return [flowStatus.planned, flowStatus.inProgress, flowStatus.completed, flowStatus.paused, flowStatus.stopped];
+}
+
+export function hasFlowTaskRequestProvenance(task?: FlowTask | null): boolean {
+	return Boolean(task?.wasRequested || task?.requesterID);
 }
 
 export function flowTaskStatusLabel(text: FlowPageText, status: string): string {

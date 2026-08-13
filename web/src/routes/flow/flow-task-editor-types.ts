@@ -13,6 +13,7 @@ export type FlowTaskEditorText = {
 	goal: string;
 	goalPlaceholder: string;
 	requester: string;
+	requesterUnavailable: string;
 	status: string;
 	business: string;
 	businessFallback: string;

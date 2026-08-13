@@ -24,6 +24,8 @@ export type CentralFlowTaskRow = {
 	due_at: string | null;
 	updated_at: string;
 	requester_id: string | null;
+	requester_name: string | null;
+	was_requested: boolean;
 	task_participant: { member_id: string }[];
 };
 
@@ -44,7 +46,7 @@ const centralStatusByWord = new Map<string, CentralTaskStatus>(
 const centralStatusWordByStatus = new Map<string, string>(centralStatusPairs);
 
 export const centralFlowTaskSelection =
-	'id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, task_participant (member_id)';
+	'id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester_name, was_requested, task_participant (member_id)';
 
 export const centralFlowStatusOptions = centralStatusPairs.map(([, word]) => word);
 
@@ -68,7 +70,8 @@ export function centralFlowTaskFromRow(
 		participantIDs: participants.map(({ id }) => id),
 		participantNames: participants.map(({ name }) => name),
 		requesterID,
-		requesterName: nameByID.get(requesterID) ?? '',
+		requesterName: row.requester_name ?? nameByID.get(requesterID) ?? '',
+		wasRequested: row.was_requested,
 		business: row.business ?? '',
 		type: row.type ?? '',
 		content: row.title,
