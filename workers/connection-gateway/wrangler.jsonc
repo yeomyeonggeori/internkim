@@ -1,0 +1,14 @@
+{
+	"$schema": "../../web/node_modules/wrangler/config-schema.json",
+	"name": "internkim-connection-gateway",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-04-04",
+	"durable_objects": {
+		"bindings": [
+			{ "name": "COMPANY_CONNECTIONS", "class_name": "CompanyConnectionObject" }
+		]
+	},
+	"migrations": [
+		{ "tag": "v1", "new_sqlite_classes": ["CompanyConnectionObject"] }
+	]
+}

@@ -1,13 +1,11 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
-	actorOf,
 	answerBodyOf,
 	forwardToChatd,
 	isPersonCapability,
 	isRegistrationCapability,
 	mailOperationOf,
-	reportableTopic,
-	serveCall,
+	serveCallForMember,
 	type ConnectedAccount
 } from './forward';
 
@@ -52,31 +50,11 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			},
 			emailOfMember: async (memberID: string) =>
 				memberID === 'member-1' ? 'sample@example.test' : null,
+			messengerCredentialOf: async () => ({ kind: 'buzz-token', secret: 'a-held-secret' }),
 			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null
 		}
 	};
 }
-
-describe('actorOf', () => {
-	test('reads the credential the caller carried', () => {
-		expect(actorOf({ body: { actor: { kind: 'mattermost-token', secret: 'abc' } } })).toEqual({
-			kind: 'mattermost-token',
-			secret: 'abc'
-		});
-	});
-
-	test('a call with no actor carries nobody', () => {
-		expect(actorOf({ body: { conversationID: 'c' } })).toBeNull();
-		expect(actorOf({})).toBeNull();
-	});
-
-	test('a half-written actor is nobody', () => {
-		expect(actorOf({ body: { actor: { kind: 'mattermost-token' } } })).toBeNull();
-		expect(actorOf({ body: { actor: { secret: 'abc' } } })).toBeNull();
-		expect(actorOf({ body: { actor: { kind: '', secret: 'abc' } } })).toBeNull();
-		expect(actorOf({ body: { actor: 'mattermost-token' } })).toBeNull();
-	});
-});
 
 describe('isPersonCapability', () => {
 	test('person capabilities need an actor, assets do not', () => {
@@ -88,75 +66,21 @@ describe('isPersonCapability', () => {
 	});
 });
 
-describe('reportableTopic', () => {
-	test('an error can be reported to the address the caller named', () => {
-		expect(reportableTopic({ replyTo: '00000000-0000-0000-0000-00000000000a' })).toBe(
-			'00000000-0000-0000-0000-00000000000a'
-		);
-	});
-
-	test('anything that is not a member id is nowhere', () => {
-		expect(reportableTopic({ replyTo: 'company:1:call' })).toBeNull();
-		expect(reportableTopic({ replyTo: '../../etc' })).toBeNull();
-		expect(reportableTopic({})).toBeNull();
-	});
-});
-
-describe('serveCall', () => {
+describe('serveCallForMember', () => {
 	const callFromTheBrowser = {
 		callID: 'c1',
 		capability: 'person.conversations.list',
-		replyTo: '00000000-0000-0000-0000-0000000000ff',
-		body: { actor: { kind: 'mattermost-token', secret: 'known' } }
+		body: {}
 	};
-
-	test('the payload the web sends reaches chatd with its actor intact', async () => {
-		const { asked, dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
-
-		const served = await serveCall(dispatch, callFromTheBrowser);
-
-		expect(served.status).toBe(200);
-		expect(asked.map((entry) => entry.capability)).toEqual([
-			'person.identity',
-			'person.conversations.list'
-		]);
-		expect(asked[1]?.body.actor).toEqual({ kind: 'mattermost-token', secret: 'known' });
-	});
-
-	test('the answer is addressed to the member the credential belongs to', async () => {
-		const { dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
-
-		const served = await serveCall(dispatch, callFromTheBrowser);
-
-		expect(served.replyTo).toBe('member-1');
-	});
-
-	test('a credential nobody here holds is refused before the work is done', async () => {
-		const { asked, dispatch } = dispatchThatKnows({});
-
-		const served = await serveCall(dispatch, callFromTheBrowser);
-
-		expect(served.status).toBe(403);
-		expect(asked.map((entry) => entry.capability)).toEqual(['person.identity']);
-	});
-
-	test('a call with no actor never reaches chatd', async () => {
-		const { asked, dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
-
-		const served = await serveCall(dispatch, { callID: 'c1', capability: 'person.message.send' });
-
-		expect(served.status).toBe(400);
-		expect(asked).toEqual([]);
-	});
 
 	test('an asset the messenger does not own is served without a credential', async () => {
 		const { dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
 
-		const served = await serveCall(dispatch, {
+		const served = await serveCallForMember(dispatch, {
 			callID: 'c1',
 			capability: 'asset.link',
-			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
-		});
+			body: {}
+		}, 'member-1');
 
 		expect(served).toEqual({
 			status: 200,
@@ -165,23 +89,14 @@ describe('serveCall', () => {
 		});
 	});
 
-	test('an asset call naming no actor is refused, so nothing reads on a shared account', async () => {
-		const { asked, dispatch } = dispatchThatKnows({});
-
-		const served = await serveCall(dispatch, { callID: 'c1', capability: 'asset.link' });
-
-		expect(served.status).toBe(400);
-		expect(asked).toEqual([]);
-	});
-
 	test('a workspace call is asked of the workspace as the person who asked', async () => {
 		const { asked, dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
 
-		const served = await serveCall(dispatch, {
+		const served = await serveCallForMember(dispatch, {
 			callID: 'c1',
 			capability: 'person.memory.graph',
-			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
-		});
+			body: {}
+		}, 'member-1');
 
 		expect(served.status).toBe(200);
 		expect(served.replyTo).toBe('member-1');
@@ -190,37 +105,17 @@ describe('serveCall', () => {
 	});
 
 	test('a workspace call for a member the record has no address for is refused', async () => {
-		const { dispatch } = dispatchThatKnows({ 'U-known': 'member-2' });
+		const { dispatch } = dispatchThatKnows({});
 
-		const served = await serveCall(dispatch, {
+		const served = await serveCallForMember(dispatch, {
 			callID: 'c1',
 			capability: 'person.memory.graph',
-			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
-		});
+			body: {}
+		}, 'member-2');
 
 		expect(served.status).toBe(409);
 	});
 
-	test('a workspace call naming no actor never reaches the workspace', async () => {
-		const { asked, dispatch } = dispatchThatKnows({});
-
-		const served = await serveCall(dispatch, { callID: 'c1', capability: 'person.memory.graph' });
-
-		expect(served.status).toBe(400);
-		expect(asked).toEqual([]);
-	});
-
-	test('an asset call from a credential nobody here holds is refused', async () => {
-		const { dispatch } = dispatchThatKnows({});
-
-		const served = await serveCall(dispatch, {
-			callID: 'c1',
-			capability: 'asset.picture',
-			body: { actor: { kind: 'mattermost-token', secret: 'stranger' } }
-		});
-
-		expect(served.status).toBe(403);
-	});
 });
 
 describe('mailOperationOf', () => {
@@ -241,51 +136,45 @@ describe('mailOperationOf', () => {
 	});
 });
 
-describe('serveCall for mail', () => {
-	test('the caller is proved by their messenger credential, and their mail account is fetched here', async () => {
+describe('serveCallForMember for mail', () => {
+	test('the mail account is fetched for the member the gateway named', async () => {
 		const { asked, dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
 
-		const served = await serveCall(dispatch, {
+		const served = await serveCallForMember(dispatch, {
 			callID: 'c1',
 			capability: 'person.mail.mailboxes',
-			replyTo: '00000000-0000-0000-0000-0000000000ff',
-			body: { actor: { kind: 'mattermost-token', secret: 'known' } }
-		});
+			body: {}
+		}, 'member-1');
 
 		expect(served.status).toBe(200);
 		expect(served.replyTo).toBe('member-1');
-		expect(asked.map((entry) => entry.capability)).toEqual(['person.identity', 'mail.mailboxes']);
-		expect(asked[1]?.body.account).toEqual({ imapHost: 'imap.example.test' });
+		expect(asked.map((entry) => entry.capability)).toEqual(['mail.mailboxes']);
+		expect(asked[0]?.body.account).toEqual({ imapHost: 'imap.example.test' });
 	});
 
 	test('the browser never carries the mail password, so one it offers is ignored', async () => {
-		const { asked, dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
+		const { asked, dispatch } = dispatchThatKnows({});
 
-		await serveCall(dispatch, {
+		await serveCallForMember(dispatch, {
 			callID: 'c1',
 			capability: 'person.mail.mailboxes',
-			replyTo: '00000000-0000-0000-0000-0000000000ff',
-			body: {
-				actor: { kind: 'mattermost-token', secret: 'known' },
-				account: { imapHost: 'imap.attacker.test', imapPassword: 'stolen' }
-			}
-		});
+			body: { account: { imapHost: 'imap.attacker.test', imapPassword: 'stolen' } }
+		}, 'member-1');
 
-		expect(asked[1]?.body.account).toEqual({ imapHost: 'imap.example.test' });
+		expect(asked[0]?.body.account).toEqual({ imapHost: 'imap.example.test' });
 	});
 
 	test('a member who connected no mail account is told so, and maild is not asked', async () => {
-		const { asked, dispatch } = dispatchThatKnows({ 'U-stranger': 'member-2' });
+		const { asked, dispatch } = dispatchThatKnows({});
 
-		const served = await serveCall(dispatch, {
+		const served = await serveCallForMember(dispatch, {
 			callID: 'c1',
 			capability: 'person.mail.mailboxes',
-			replyTo: '00000000-0000-0000-0000-0000000000ff',
-			body: { actor: { kind: 'mattermost-token', secret: 'other' } }
-		});
+			body: {}
+		}, 'member-2');
 
 		expect(served.status).toBe(409);
-		expect(asked.map((entry) => entry.capability)).toEqual(['person.identity']);
+		expect(asked).toEqual([]);
 	});
 });
 
@@ -348,7 +237,7 @@ describe('a member connects their own messenger account', () => {
 	test('registration is answered on the channel it arrived on, with no credential at all', async () => {
 		const { connected, dispatch } = dispatchThatKnows({});
 
-		const served = await serveCall(
+		const served = await serveCallForMember(
 			dispatch,
 			{ callID: 'c1', capability: 'person.credential.requirement' },
 			'member-1'
@@ -362,7 +251,7 @@ describe('a member connects their own messenger account', () => {
 	test('an issued credential is kept for the member the channel belongs to', async () => {
 		const { connected, dispatch } = dispatchThatKnows({});
 
-		await serveCall(
+		await serveCallForMember(
 			dispatch,
 			{ callID: 'c1', capability: 'person.credential.issue', body: { answers: { password: 'x' } } },
 			'member-1'
@@ -379,7 +268,7 @@ describe('a member connects their own messenger account', () => {
 	test('the answer never carries the secret back to the browser', async () => {
 		const { dispatch } = dispatchThatKnows({});
 
-		const served = await serveCall(
+		const served = await serveCallForMember(
 			dispatch,
 			{ callID: 'c1', capability: 'person.credential.issue', body: { answers: { password: 'x' } } },
 			'member-1'
@@ -387,31 +276,6 @@ describe('a member connects their own messenger account', () => {
 
 		expect(served.body).toEqual({ externalID: 'U-new', name: '이샘플' });
 		expect(JSON.stringify(served)).not.toContain('a-durable-token');
-	});
-
-	test('a registration call on nobody\'s channel is refused, so a stranger cannot claim a member', async () => {
-		const { connected, dispatch } = dispatchThatKnows({});
-
-		const served = await serveCall(dispatch, {
-			callID: 'c1',
-			capability: 'person.credential.issue',
-			body: { answers: { password: 'x' } }
-		});
-
-		expect(served.status).toBe(403);
-		expect(connected).toEqual([]);
-	});
-
-	test('every other capability still needs an actor, however it arrived', async () => {
-		const { dispatch } = dispatchThatKnows({});
-
-		const served = await serveCall(
-			dispatch,
-			{ callID: 'c1', capability: 'person.conversations.list' },
-			'member-1'
-		);
-
-		expect(served.status).toBe(400);
 	});
 
 	test('only the credential pair authenticates by channel', () => {

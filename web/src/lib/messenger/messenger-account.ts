@@ -1,4 +1,4 @@
-import { callCompanyAppByChannel } from '$lib/host-bridge';
+import { callCompanyApp } from '$lib/host-bridge';
 
 export type CredentialField = { name: string; label: string; isSecret: boolean };
 
@@ -14,7 +14,7 @@ async function askTheCompanyApp<Value>(
 	capability: string,
 	body?: Record<string, unknown>
 ): Promise<Value> {
-	const answer = await callCompanyAppByChannel({ capability, body });
+	const answer = await callCompanyApp({ capability, body });
 	if (answer.status >= 300) {
 		const refusal = (answer.body as { error?: string } | null)?.error;
 		throw new Error(refusal ?? `the company app answered ${answer.status}`);
