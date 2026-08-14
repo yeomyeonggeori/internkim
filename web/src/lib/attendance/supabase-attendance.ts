@@ -12,7 +12,14 @@ import type {
 
 type MemberRow = { id: string; name: string | null; email: string | null; is_admin: boolean; user_id: string | null; joined_at: string | null };
 type CompanyRow = { id: string; timezone: string; work_locations: NamedColour[] | null; rules: { teamViewVisibleToAll?: boolean } };
-type AttendanceRow = { id: string; member_id: string; kind: AttendanceKind; location: string | null; occurred_at: string };
+type AttendanceRow = {
+	id: string;
+	member_id: string;
+	kind: AttendanceKind;
+	location: string | null;
+	occurred_at: string;
+	original_occurred_at: string | null;
+};
 type LeaveRow = {
 	id: string;
 	member_id: string;
@@ -51,7 +58,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 
 	const attendance = await client
 		.from('attendance')
-		.select('id, member_id, kind, location, occurred_at')
+		.select('id, member_id, kind, location, occurred_at, original_occurred_at')
 		.gte('occurred_at', from.toISOString())
 		.lt('occurred_at', until.toISOString())
 		.order('occurred_at')
@@ -75,6 +82,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		month: selectedMonth,
 		serverTime: new Date().toISOString(),
 		timeZoneAuthoritative: true,
+		correctionWindowMinutes: 60,
 		currentUserEmail: me?.email ?? '',
 		isAdmin: me?.is_admin ?? false,
 		timeZone,
@@ -161,6 +169,7 @@ function eventOf(row: AttendanceRow, member: MemberRow | undefined, timeZone: st
 		displayName: member?.name || email.split('@')[0],
 		kind: row.kind,
 		occurredAt: row.occurred_at,
+		originalOccurredAt: row.original_occurred_at ?? undefined,
 		localDate: dateIn(new Date(row.occurred_at), timeZone),
 		localTime: timeIn(new Date(row.occurred_at), timeZone),
 		timeZoneAtEvent: timeZone,
