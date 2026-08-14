@@ -76,6 +76,7 @@ const (
 	BlueclawDefaultModelContextTokens     = 1048576
 	BlueclawFirecrackerPath               = "/usr/local/bin/firecracker"
 	BlueclawJailerPath                    = "/usr/local/bin/jailer"
+	BlueclawCloudHypervisorPath           = "/usr/local/bin/cloud-hypervisor"
 	BlueclawRuntimeInstallPath            = "/opt/internkim/blueclaw-runtime"
 	BlueclawRuntimeManifestPath           = "/opt/internkim/blueclaw-runtime/manifest.json"
 	BlueclawPayloadManifestPath           = "/opt/internkim/blueclaw-runtime/payload-manifest.json"

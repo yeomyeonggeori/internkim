@@ -10,10 +10,11 @@ import (
 func TestBlueclawRuntimeInstallPlanSkipsCurrentArtifacts(t *testing.T) {
 	localManifest := blueclawRuntimeInstallManifestFixture("rootfs-sha")
 	plan := buildBlueclawRuntimeInstallPlan(localManifest, blueclawRuntimeInstallManifestDocumentFixture("rootfs-sha"), map[string]bool{
-		"firecracker": true,
-		"jailer":      true,
-		"vmlinux.bin": true,
-		"rootfs.ext4": true,
+		"firecracker":      true,
+		"jailer":           true,
+		"cloud-hypervisor": true,
+		"vmlinux.bin":      true,
+		"rootfs.ext4":      true,
 	}, true, true)
 
 	if plan.shouldInstallManifest {
@@ -32,10 +33,11 @@ func TestBlueclawRuntimeInstallPlanSkipsCurrentArtifacts(t *testing.T) {
 func TestBlueclawRuntimeInstallPlanReinstallsBrokenRootfs(t *testing.T) {
 	localManifest := blueclawRuntimeInstallManifestFixture("rootfs-sha")
 	plan := buildBlueclawRuntimeInstallPlan(localManifest, blueclawRuntimeInstallManifestDocumentFixture("rootfs-sha"), map[string]bool{
-		"firecracker": true,
-		"jailer":      true,
-		"vmlinux.bin": true,
-		"rootfs.ext4": true,
+		"firecracker":      true,
+		"jailer":           true,
+		"cloud-hypervisor": true,
+		"vmlinux.bin":      true,
+		"rootfs.ext4":      true,
 	}, false, true)
 
 	if !plan.shouldInstallManifest {
@@ -57,10 +59,11 @@ func TestBlueclawRuntimeInstallPlanReinstallsBrokenRootfs(t *testing.T) {
 func TestBlueclawRuntimeInstallPlanInstallsChangedArtifact(t *testing.T) {
 	localManifest := blueclawRuntimeInstallManifestFixture("new-rootfs-sha")
 	plan := buildBlueclawRuntimeInstallPlan(localManifest, blueclawRuntimeInstallManifestDocumentFixture("old-rootfs-sha"), map[string]bool{
-		"firecracker": true,
-		"jailer":      true,
-		"vmlinux.bin": true,
-		"rootfs.ext4": true,
+		"firecracker":      true,
+		"jailer":           true,
+		"cloud-hypervisor": true,
+		"vmlinux.bin":      true,
+		"rootfs.ext4":      true,
 	}, true, false)
 
 	if !plan.shouldInstallManifest {
@@ -79,10 +82,11 @@ func TestBlueclawRuntimeInstallPlanInstallsChangedArtifact(t *testing.T) {
 func TestBlueclawRuntimeInstallPlanRecordsMissingRemoteFile(t *testing.T) {
 	localManifest := blueclawRuntimeInstallManifestFixture("rootfs-sha")
 	plan := buildBlueclawRuntimeInstallPlan(localManifest, blueclawRuntimeInstallManifestDocumentFixture("rootfs-sha"), map[string]bool{
-		"firecracker": false,
-		"jailer":      true,
-		"vmlinux.bin": true,
-		"rootfs.ext4": true,
+		"firecracker":      false,
+		"jailer":           true,
+		"cloud-hypervisor": true,
+		"vmlinux.bin":      true,
+		"rootfs.ext4":      true,
 	}, true, true)
 
 	for _, artifact := range plan.artifacts {
@@ -127,6 +131,7 @@ func blueclawRuntimeInstallManifestFixture(rootfsSHA256 string) blueclaw.Runtime
 		Files: []blueclaw.RuntimeArtifactManifestFile{
 			{Name: "firecracker", Path: "firecracker", SHA256: "firecracker-sha", Mode: "0755"},
 			{Name: "jailer", Path: "jailer", SHA256: "jailer-sha", Mode: "0755"},
+			{Name: "cloud-hypervisor", Path: "cloud-hypervisor", SHA256: "cloud-hypervisor-sha", Mode: "0755"},
 			{Name: "vmlinux.bin", Path: "vmlinux.bin", SHA256: "kernel-sha", Mode: "0644"},
 			{Name: "rootfs.ext4", Path: "rootfs.ext4", SHA256: rootfsSHA256, Mode: "0644"},
 		},
@@ -141,6 +146,7 @@ func blueclawRuntimeInstallManifestDocumentFixture(rootfsSHA256 string) string {
   "files": [
     {"name": "firecracker", "path": "firecracker", "sha256": "firecracker-sha", "mode": "0755"},
     {"name": "jailer", "path": "jailer", "sha256": "jailer-sha", "mode": "0755"},
+    {"name": "cloud-hypervisor", "path": "cloud-hypervisor", "sha256": "cloud-hypervisor-sha", "mode": "0755"},
     {"name": "vmlinux.bin", "path": "vmlinux.bin", "sha256": "kernel-sha", "mode": "0644"},
     {"name": "rootfs.ext4", "path": "rootfs.ext4", "sha256": "` + rootfsSHA256 + `", "mode": "0644"}
   ]
