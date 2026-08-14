@@ -3,6 +3,7 @@ package blueclaw
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
@@ -22,10 +23,40 @@ Restart=on-failure
 RestartSec=2
 KillMode=mixed
 TimeoutStopSec=30
-
+%s
 [Install]
 WantedBy=multi-user.target
-`, BlueclawRuntimeLogLevel, BlueclawSupervisorBinaryPath, BlueclawRuntimeConfigPath)
+`, BlueclawRuntimeLogLevel, BlueclawSupervisorBinaryPath, BlueclawRuntimeConfigPath, blueclawFilesystemConfinement())
+}
+
+// The jailer stages the kernel and both images into its chroot by hard link, and the
+// bind mounts ProtectSystem= introduces put source and destination on different
+// devices, so confinement and Firecracker cannot both hold. Cloud Hypervisor opens
+// the same paths where they already are.
+func blueclawFilesystemConfinement() string {
+	if BlueclawVirtualMachineMonitor != CloudHypervisorMonitorName {
+		return ""
+	}
+	return `NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+PrivateTmp=true
+ReadWritePaths=` + strings.Join(blueclawWritablePaths(), " ") + `
+`
+}
+
+// Cloud Hypervisor opens the guest rootfs where it is installed, and the guest boots
+// it writable. The jailer reached the same inode through a hard link, so the image was
+// always mutated in place; only the path that opens it is new.
+func blueclawWritablePaths() []string {
+	return []string{
+		BlueclawRuntimeInstallPath,
+		BlueclawRuntimeInstanceDirectoryPath,
+		filepath.Dir(BlueclawWorkspaceImagePath),
+		BlueclawSupervisorLogDirectoryPath,
+		BlueclawWorkspacePath,
+		"/run",
+	}
 }
 
 func GraphitiMemorydServiceUnit() string {
