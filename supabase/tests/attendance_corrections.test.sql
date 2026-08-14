@@ -71,7 +71,8 @@ select has_column(
 
 select lives_ok($block$do $$
 declare
-	blocked boolean := false;
+	metadata_blocked boolean := false;
+	custom_time_blocked boolean := false;
 begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
@@ -90,9 +91,25 @@ begin
 			now()
 		);
 	exception when insufficient_privilege then
-		blocked := true;
+		metadata_blocked := true;
 	end;
-	assert blocked, 'an owner must not set correction metadata while inserting attendance';
+	assert metadata_blocked, 'an owner must not set correction metadata while inserting attendance';
+	begin
+		insert into public.attendance (
+			member_id,
+			kind,
+			location,
+			occurred_at
+		) values (
+			'31000000-0000-0000-0000-000000000011',
+			'clock_in',
+			'Office',
+			now() + interval '2 hours'
+		);
+	exception when insufficient_privilege then
+		custom_time_blocked := true;
+	end;
+	assert custom_time_blocked, 'an owner attendance insert must use the database occurrence time';
 end $$;$block$, 'attendance inserts cannot forge the correction window anchor');
 
 select lives_ok($block$do $$
