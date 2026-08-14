@@ -275,8 +275,10 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		},
 		"languageModel": languageModelConfiguration,
 		"firecracker": map[string]any{
+			"virtualMachineMonitor":  BlueclawVirtualMachineMonitor,
 			"firecrackerPath":        BlueclawFirecrackerPath,
 			"jailerPath":             BlueclawJailerPath,
+			"cloudHypervisorPath":    BlueclawCloudHypervisorPath,
 			"kernelImagePath":        BlueclawKernelImagePath,
 			"rootfsImagePath":        rootFilesystemImagePath,
 			"workspaceImagePath":     workspaceImagePath,
