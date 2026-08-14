@@ -26,6 +26,7 @@ type ChannelSummary = {
 type Person = { id: string; name: string; avatarURL?: string };
 type Participant = { id: string; name: string; avatarURL?: string };
 type Reaction = { emoji: string; count: number; reactedByMe: boolean; imageURL?: string; people?: Participant[] };
+type Attachment = { kind: 'image' | 'file'; url: string; filename?: string; mimeType?: string; sizeBytes?: number };
 type Message = {
 	id: string;
 	threadRootId?: string;
@@ -33,6 +34,7 @@ type Message = {
 	text: string;
 	sentAt: string;
 	reactions?: Reaction[];
+	attachments?: Attachment[];
 };
 type Conversation = {
 	conversationID: string;
@@ -75,11 +77,13 @@ function participantOf(person: MessengerPerson, people: MessengerDirectory): Par
 	};
 }
 
+// A conversation is never called after the person reading it, however few
+// people are left in it once the viewer is taken out.
 function channelName(channel: MessengerChannel, people: MessengerDirectory, mine: string): string {
-	if (!channel.isDirect) return channel.name;
+	if (channel.name) return channel.name;
+	if (!channel.isDirect) return '';
 	const others = channel.participants.filter((person) => canonicalKey(person, people) !== mine);
-	const named = (others.length > 0 ? others : channel.participants).map((person) => personLabel(person, people));
-	return named.filter(Boolean).join(', ') || channel.name;
+	return others.map((person) => personLabel(person, people)).filter(Boolean).join(', ');
 }
 
 export async function bridgeConversations(): Promise<ChannelSummary[]> {
@@ -153,6 +157,13 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, mine: string
 			imageURL: reaction.imageURL ?? customEmoji.nameToURL.get(reaction.emoji),
 			reactedByMe: reaction.people.some((person) => canonicalKey(person, people) === mine),
 			people: reaction.people.map((person) => participantOf(person, people))
+		})),
+		attachments: post.attachments.map((attachment) => ({
+			kind: attachment.contentType.startsWith('image/') ? ('image' as const) : ('file' as const),
+			url: attachment.url,
+			filename: attachment.filename,
+			mimeType: attachment.contentType,
+			sizeBytes: attachment.sizeBytes
 		}))
 	};
 }
