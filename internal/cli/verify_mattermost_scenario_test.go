@@ -255,19 +255,19 @@ func TestDocumentLifecycleUsesCanonicalReadAndButtonApproval(t *testing.T) {
 	}
 }
 
-func TestMattermostScenarioRequiresAuthoritativeLLMDProvenance(t *testing.T) {
-	scenario := mattermostScenario{Name: "llmd", RequiresLLMD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+func TestMattermostScenarioRequiresAuthoritativeModelProvenance(t *testing.T) {
+	scenario := mattermostScenario{Name: "llmd", RequiresModelProvenance: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
 	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"bluecollar_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"bluecollar_agent_turn_action","transport":"llmd","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"bluecollar_turn_router","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"bluecollar_agent_turn_action","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
-		t.Fatalf("validate LLMD provenance: %v", errorValue)
+		t.Fatalf("validate model provenance: %v", errorValue)
 	}
-	result.Steps[0].TaskEvents[1].Body = `{"kind":"chat","schemaName":"bluecollar_agent_turn_action","transport":"capability","provider":"openrouter","model":"low-model","selectedBackend":"remote","usedFallback":true}`
+	result.Steps[0].TaskEvents[1].Body = `{"kind":"chat","schemaName":"bluecollar_agent_turn_action","provider":"openrouter","model":"low-model","selectedBackend":"remote","usedFallback":true}`
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil {
 		t.Fatal("expected legacy fallback provenance to fail")
 	}
@@ -275,13 +275,13 @@ func TestMattermostScenarioRequiresAuthoritativeLLMDProvenance(t *testing.T) {
 
 func TestMattermostScenarioRejectsOperationContractFallback(t *testing.T) {
 	schemaName := "blueclaw_operation_contract"
-	scenario := mattermostScenario{Name: "llmd", RequiresLLMD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+	scenario := mattermostScenario{Name: "llmd", RequiresModelProvenance: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
 	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","transport":"llmd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"schemaName":"` + schemaName + `","transport":"capability","provider":"openrouter","model":"model","selectedBackend":"remote","usedFallback":true}`},
-			{Name: "llm.call", Body: `{"schemaName":"bluecollar_agent_turn_action","transport":"llmd","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"` + schemaName + `","provider":"openrouter","model":"model","selectedBackend":"remote","usedFallback":true}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_agent_turn_action","provider":"openrouter","model":"model","selectedBackend":"remote"}`},
 		},
 	}}}
 
@@ -292,12 +292,12 @@ func TestMattermostScenarioRejectsOperationContractFallback(t *testing.T) {
 }
 
 func TestMattermostScenarioRequiresModelTierAtOrBelowMaximum(t *testing.T) {
-	scenario := mattermostScenario{Name: "llmd", RequiresLLMD: true, MaximumModelTier: "low", Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+	scenario := mattermostScenario{Name: "llmd", RequiresModelProvenance: true, MaximumModelTier: "low", Steps: []mattermostScenarioStep{{Prompt: "work"}}}
 	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","modelTier":"low","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"schemaName":"bluecollar_agent_turn_action","transport":"llmd","provider":"openrouter","model":"low-model","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","provider":"openrouter","model":"router-model","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_agent_turn_action","provider":"openrouter","model":"low-model","modelTier":"low","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
@@ -315,23 +315,23 @@ func TestMattermostScenarioRequiresModelTierAtOrBelowMaximum(t *testing.T) {
 
 func TestMattermostScenarioAcceptsInCeilingModelSubstitution(t *testing.T) {
 	scenario := mattermostScenario{
-		Name:                "llmd",
-		RequiresLLMD:        true,
-		MaximumModelTier:    "low",
-		ExpectedLLMProvider: "openrouter",
-		Steps:               []mattermostScenarioStep{{Prompt: "work"}},
+		Name:                    "llmd",
+		RequiresModelProvenance: true,
+		MaximumModelTier:        "low",
+		ExpectedLLMProvider:     "openrouter",
+		Steps:                   []mattermostScenarioStep{{Prompt: "work"}},
 	}
 	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","transport":"llmd","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"schemaName":"bluecollar_agent_turn_action","transport":"llmd","provider":"openrouter","model":"deepseek/deepseek-v4-flash","modelTier":"xlow","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","provider":"openrouter","model":"xiaomi/mimo-v2.5","modelTier":"low","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"schemaName":"bluecollar_agent_turn_action","provider":"openrouter","model":"deepseek/deepseek-v4-flash","modelTier":"xlow","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue != nil {
 		t.Fatalf("expected in-ceiling model substitution to pass, got %v", errorValue)
 	}
-	result.Steps[0].TaskEvents[1].Body = `{"schemaName":"bluecollar_agent_turn_action","transport":"llmd","provider":"openrouter","model":"openai/gpt-5.6-luna","modelTier":"xhigh","selectedBackend":"remote"}`
+	result.Steps[0].TaskEvents[1].Body = `{"schemaName":"bluecollar_agent_turn_action","provider":"openrouter","model":"openai/gpt-5.6-luna","modelTier":"xhigh","selectedBackend":"remote"}`
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "above maximum") {
 		t.Fatalf("expected above-ceiling tier failure, got %v", errorValue)
 	}
@@ -456,13 +456,13 @@ func TestMattermostScenarioCalendarMutationRequiresListBeforeMutation(t *testing
 }
 
 func TestMattermostScenarioDoesNotAcceptRecoveryChatInsteadOfAgentAction(t *testing.T) {
-	scenario := mattermostScenario{Name: "llmd", RequiresLLMD: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
+	scenario := mattermostScenario{Name: "llmd", RequiresModelProvenance: true, Steps: []mattermostScenarioStep{{Prompt: "work"}}}
 	result := mattermostScenarioResult{ScenarioName: "llmd", Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"bluecollar_turn_router","transport":"llmd","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
-			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"bluecollar_agent_turn_action","transport":"llmd","isError":true}`},
-			{Name: "llm.call", Body: `{"kind":"recovery_chat","transport":"llmd","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"structured","schemaName":"bluecollar_turn_router","provider":"openrouter","model":"router-model","selectedBackend":"remote"}`},
+			{Name: "llm.call", Body: `{"kind":"chat","schemaName":"bluecollar_agent_turn_action","isError":true}`},
+			{Name: "llm.call", Body: `{"kind":"recovery_chat","provider":"openrouter","model":"low-model","selectedBackend":"remote"}`},
 		},
 	}}}
 	if errorValue := validateMattermostScenarioResult(scenario, &result); errorValue == nil || !strings.Contains(errorValue.Error(), "bluecollar_agent_turn_action") {

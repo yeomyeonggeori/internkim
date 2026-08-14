@@ -2,11 +2,17 @@ package blueclaw
 
 import (
 	"path/filepath"
+	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
 const (
+	retiredLLMDServiceName             = "blueclaw-llmd"
+	retiredLLMDServicePath             = "/etc/systemd/system/blueclaw-llmd.service"
+	retiredLLMDBinaryPath              = "/usr/local/bin/blueclaw-llmd"
+	retiredLLMDCredentialDirectoryPath = "/var/lib/internkim/llmd-credentials"
+
 	BlueclawName                          = "blueclaw"
 	BlueclawSupervisorName                = "blueclaw-supervisor"
 	BlueclawServiceName                   = "blueclaw"
@@ -17,8 +23,6 @@ const (
 	CapabilitydServiceName                = "internkim-capabilityd"
 	AdmindServiceName                     = "internkim-admind"
 	GraphitiMemorydServiceName            = "graphiti-memoryd"
-	LLMDName                              = "blueclaw-llmd"
-	LLMDServiceName                       = "blueclaw-llmd"
 	BlueclawUser                          = "blueclaw"
 	BlueclawHomePath                      = "/home/blueclaw"
 	BlueclawRootPath                      = "/root/.blueclaw"
@@ -31,7 +35,6 @@ const (
 	CapabilitydServicePath                = "/etc/systemd/system/internkim-capabilityd.service"
 	AdmindServicePath                     = "/etc/systemd/system/internkim-admind.service"
 	GraphitiMemorydServicePath            = "/etc/systemd/system/graphiti-memoryd.service"
-	LLMDServicePath                       = "/etc/systemd/system/blueclaw-llmd.service"
 	BlueclawBinaryPath                    = "/usr/local/bin/blueclaw"
 	BlueclawSupervisorBinaryPath          = "/usr/local/bin/blueclaw-supervisor"
 	BlueclawPOSIXHelperPath               = "/usr/local/bin/blueclaw-posix-helper"
@@ -40,15 +43,6 @@ const (
 	LocalLLMRunnerBinaryPath              = "/usr/local/bin/internkim-local-llm-runner"
 	GraphitiMemorydPath                   = "/usr/local/bin/graphiti-memoryd"
 	GraphitiMemorydPackagePath            = "/opt/internkim/graphiti_memoryd"
-	LLMDBinaryPath                        = "/usr/local/bin/blueclaw-llmd"
-	LLMDRuntimeDirectoryPath              = "/run/blueclaw-llmd"
-	LLMDSocketPath                        = LLMDRuntimeDirectoryPath + "/llmd.sock"
-	LLMDRuntimeAuthKeyPath                = LLMDRuntimeDirectoryPath + "/llmd-auth-key"
-	LLMDRuntimeOpenRouterKeyPath          = LLMDRuntimeDirectoryPath + "/openrouter-api-key"
-	LLMDAuthKeyPath                       = "/root/.internkim/secrets/llmd-auth-key"
-	LLMDServiceCredentialDirectoryPath    = "/var/lib/internkim/llmd-credentials"
-	LLMDServiceAuthKeyPath                = "/var/lib/internkim/llmd-credentials/llmd-auth-key"
-	LLMDServiceOpenRouterKeyPath          = "/var/lib/internkim/llmd-credentials/openrouter-api-key"
 	OpenRouterKeyPath                     = "/root/.internkim/secrets/openrouter-api-key"
 	GraphitiKuzuPath                      = "/root/.blueclaw/workspace/.blueclaw/graphiti/kuzu"
 	GraphitiEndpoint                      = "http://127.0.0.1:7791"
@@ -164,8 +158,18 @@ func CapabilitydHealthCheckCommand() string {
 	return "curl --max-time 5 -fsS --unix-socket " + CapabilitySocketPath + " http://internkim/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
 }
 
-func LLMDHealthCheckCommand() string {
-	return "curl --max-time 5 -fsS --unix-socket " + LLMDSocketPath + " http://blueclaw-llmd/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
+func RetireLLMDLeftByEarlierReleasesCommand() string {
+	return strings.Join([]string{
+		"systemctl disable --now " + retiredLLMDServiceName + " >/dev/null 2>&1 || true",
+		"rm -f " + retiredLLMDServicePath,
+		"rm -rf " + retiredLLMDCredentialDirectoryPath,
+		"rm -f " + retiredLLMDBinaryPath,
+		"systemctl daemon-reload",
+	}, "\n")
+}
+
+func RetiredLLMDServiceIsGoneCommand() string {
+	return "systemctl is-active " + retiredLLMDServiceName + " 2>/dev/null || true"
 }
 
 func GraphitiMemorydHealthCheckCommand() string {

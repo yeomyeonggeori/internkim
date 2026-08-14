@@ -409,11 +409,11 @@ func TestBlueclawRuntimeConfigGatesAdminTaskDiagnostic(t *testing.T) {
 		t.Fatalf("expected diagnostic profile, got %+v", agentProfiles)
 	}
 	diagnosticProfile := agentProfiles[0].(map[string]any)
-	if diagnosticProfile["name"] != BlueclawLLMDTopologyDiagnosticProfileName {
-		t.Fatalf("expected LLMD diagnostic profile, got %+v", diagnosticProfile)
+	if diagnosticProfile["name"] != BlueclawModelPathDiagnosticProfileName {
+		t.Fatalf("expected model-path diagnostic profile, got %+v", diagnosticProfile)
 	}
 	allowedToolNames := diagnosticProfile["allowedToolNames"].([]any)
-	if len(allowedToolNames) != 1 || allowedToolNames[0] != BlueclawLLMDTopologyDiagnosticToolSentinel {
+	if len(allowedToolNames) != 1 || allowedToolNames[0] != BlueclawModelPathDiagnosticToolSentinel {
 		t.Fatalf("expected diagnostic deny-all sentinel, got %+v", diagnosticProfile)
 	}
 }
@@ -451,9 +451,6 @@ func TestLocalOnlyEnvironmentConfiguresRuntimeAndServices(t *testing.T) {
 	}
 	if !strings.Contains(CapabilitydServiceUnit(), " --local-only") {
 		t.Fatalf("expected capabilityd local-only flag, got %s", CapabilitydServiceUnit())
-	}
-	if !strings.Contains(LLMDServiceUnit(true), "Environment=BLUECLAW_LLMD_LOCAL_ONLY=1") {
-		t.Fatalf("expected LLMD local-only environment, got %s", LLMDServiceUnit(true))
 	}
 }
 
@@ -812,107 +809,6 @@ func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T
 	}
 	if strings.Contains(serviceDocument, "ExecStart="+BlueclawBinaryPath+" ") {
 		t.Fatal("expected Blueclaw service not to run the host blueclaw binary directly")
-	}
-}
-
-func TestLLMDServiceUsesCredentialsAndSystemdHardening(t *testing.T) {
-	t.Setenv(LocalOnlyEnvironment, "")
-	serviceDocument := LLMDServiceUnit(true)
-	for _, expectedValue := range []string{
-		"DynamicUser=yes",
-		"RuntimeDirectory=blueclaw-llmd",
-		"RuntimeDirectoryMode=0700",
-		"UMask=0077",
-		"Environment=BLUECLAW_LLMD_AUTH_KEY_PATH=" + LLMDRuntimeAuthKeyPath,
-		"Environment=OPENROUTER_API_KEY_PATH=" + LLMDRuntimeOpenRouterKeyPath,
-		"ExecStartPre=+/bin/sh -c 'set -eu; install -m 0400 " + LLMDServiceAuthKeyPath + " " + LLMDRuntimeAuthKeyPath,
-		"chown --reference=" + LLMDRuntimeDirectoryPath + " " + LLMDRuntimeAuthKeyPath,
-		"ExecStartPre=+/bin/sh -c 'set -eu; if [ -s " + LLMDServiceOpenRouterKeyPath + " ]; then install -m 0400 " + LLMDServiceOpenRouterKeyPath + " " + LLMDRuntimeOpenRouterKeyPath,
-		"chown --reference=" + LLMDRuntimeDirectoryPath + " " + LLMDRuntimeOpenRouterKeyPath,
-		"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true",
-		"Environment=BLUECLAW_LLMD_LOCAL_ONLY=0",
-		"NoNewPrivileges=yes",
-		"PrivateTmp=yes",
-		"ProtectSystem=strict",
-		"ProtectHome=read-only",
-		"CapabilityBoundingSet=",
-	} {
-		if !strings.Contains(serviceDocument, expectedValue) {
-			t.Fatalf("expected LLMD service unit to contain %q, got %s", expectedValue, serviceDocument)
-		}
-	}
-	if strings.Contains(serviceDocument, "EnvironmentFile=") {
-		t.Fatal("expected LLMD credentials to stay out of environment files")
-	}
-	if strings.Contains(serviceDocument, "LoadCredential=") || strings.Contains(serviceDocument, "CREDENTIALS_DIRECTORY") {
-		t.Fatal("expected LLMD service to avoid unsupported systemd credential transport")
-	}
-	if strings.Contains(serviceDocument, "IPAddressDeny=") {
-		t.Fatal("expected remote-capable LLMD service to retain provider network access")
-	}
-	runtimeDirectoryIndex := strings.Index(serviceDocument, "RuntimeDirectory=blueclaw-llmd")
-	authStageIndex := strings.Index(serviceDocument, "install -m 0400 "+LLMDServiceAuthKeyPath+" "+LLMDRuntimeAuthKeyPath)
-	openRouterStageIndex := strings.Index(serviceDocument, "install -m 0400 "+LLMDServiceOpenRouterKeyPath+" "+LLMDRuntimeOpenRouterKeyPath)
-	serviceStartIndex := strings.Index(serviceDocument, "\nExecStart="+LLMDBinaryPath)
-	if runtimeDirectoryIndex < 0 || authStageIndex < runtimeDirectoryIndex || openRouterStageIndex < authStageIndex || serviceStartIndex < openRouterStageIndex {
-		t.Fatalf("expected runtime directory and private credential copies before LLMD activation, got %s", serviceDocument)
-	}
-}
-
-func TestLLMDServiceWithholdsLlamaEnvironmentWhenLocalLlamaIsNotProvisioned(t *testing.T) {
-	t.Setenv(LocalOnlyEnvironment, "")
-	serviceDocument := LLMDServiceUnit(false)
-	for _, unexpectedValue := range []string{
-		"Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=",
-		"Environment=BLUECLAW_LLMD_LLAMA_MODEL=",
-		"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=",
-	} {
-		if strings.Contains(serviceDocument, unexpectedValue) {
-			t.Fatalf("expected LLMD service without local llama provisioning to omit %q, got %s", unexpectedValue, serviceDocument)
-		}
-	}
-}
-
-func TestLLMDLocalOnlyServiceWithholdsRemoteCredentialAndNetwork(t *testing.T) {
-	serviceDocument := LLMDServiceUnitForLocalOnly(true, true)
-	for _, expectedValue := range []string{
-		"Environment=BLUECLAW_LLMD_LOCAL_ONLY=1",
-		"Environment=BLUECLAW_LLMD_AUTH_KEY_PATH=" + LLMDRuntimeAuthKeyPath,
-		"ExecStartPre=+/bin/sh -c 'set -eu; install -m 0400 " + LLMDServiceAuthKeyPath + " " + LLMDRuntimeAuthKeyPath,
-		"ExecStartPre=+/bin/sh -c 'rm -f " + LLMDRuntimeOpenRouterKeyPath + "'",
-		"IPAddressDeny=any",
-		"IPAddressAllow=localhost",
-	} {
-		if !strings.Contains(serviceDocument, expectedValue) {
-			t.Fatalf("expected local-only LLMD service to contain %q, got %s", expectedValue, serviceDocument)
-		}
-	}
-	if strings.Contains(serviceDocument, "OPENROUTER_API_KEY_PATH=") || strings.Contains(serviceDocument, LLMDServiceOpenRouterKeyPath) {
-		t.Fatalf("expected local-only LLMD service to withhold the staged OpenRouter credential, got %s", serviceDocument)
-	}
-	remoteRemovalIndex := strings.Index(serviceDocument, "rm -f "+LLMDRuntimeOpenRouterKeyPath)
-	serviceStartIndex := strings.Index(serviceDocument, "\nExecStart="+LLMDBinaryPath)
-	if remoteRemovalIndex < 0 || serviceStartIndex < remoteRemovalIndex {
-		t.Fatalf("expected local-only LLMD service to remove the remote credential before activation, got %s", serviceDocument)
-	}
-}
-
-func TestLLMDServiceCredentialInstallCommandStagesRequiredCredentials(t *testing.T) {
-	remoteCommand := LLMDServiceCredentialInstallCommand(false)
-	for _, expectedValue := range []string{
-		LLMDAuthKeyPath,
-		LLMDServiceCredentialDirectoryPath,
-		LLMDServiceAuthKeyPath,
-		OpenRouterKeyPath,
-		LLMDServiceOpenRouterKeyPath,
-	} {
-		if !strings.Contains(remoteCommand, expectedValue) {
-			t.Fatalf("expected LLMD credential command to contain %q, got %s", expectedValue, remoteCommand)
-		}
-	}
-	localCommand := LLMDServiceCredentialInstallCommand(true)
-	if !strings.Contains(localCommand, "rm -f "+LLMDServiceOpenRouterKeyPath) || strings.Contains(localCommand, "install -o root -g root -m 600 "+OpenRouterKeyPath) {
-		t.Fatalf("expected local-only credential command to remove remote credential, got %s", localCommand)
 	}
 }
 

@@ -1,6 +1,6 @@
 {
  "name": "document-lifecycle",
- "requiresLLMD": true,
+ "requiresModelProvenance": true,
  "expectedLLMProvider": "openrouter",
  "skillDirectoryPaths": [
   "../../assets/blueclaw-workspace/skills/document"
