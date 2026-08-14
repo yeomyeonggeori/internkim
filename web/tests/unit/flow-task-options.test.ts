@@ -14,14 +14,6 @@ describe('flow task status options', () => {
 		expect(statusOptionsFromSummary(summary({ source: 'supabase' }), task({ requesterID: 'requester-1' }))).toEqual(allStatuses);
 	});
 
-	test('keeps request choices after the requester member is deleted', () => {
-		expect(statusOptionsFromSummary(summary({ source: 'supabase' }), task({
-			requesterID: '',
-			requesterName: '퇴사한 요청자',
-			wasRequested: true
-		}))).toEqual(allStatuses);
-	});
-
 	test('keeps legacy request statuses available for device tasks without requester provenance', () => {
 		const deviceSummary = summary({ source: 'sqlite', statusOptions: allStatuses });
 		expect(statusOptionsFromSummary(deviceSummary, task({ status: '요청', requesterID: '' }))).toEqual(allStatuses);

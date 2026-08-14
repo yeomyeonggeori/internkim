@@ -15,9 +15,9 @@ const statuses = [
 ] as const;
 
 describe('central flow task rows', () => {
-	test('selects requester provenance with participants', () => {
+	test('selects requester identity with participants', () => {
 		expect(centralFlowTaskSelection).toBe(
-			'id, parent_task_id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester_name, was_requested, task_participant (member_id)'
+			'id, parent_task_id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester:member!task_requester_id_fkey (name, email), task_participant (member_id)'
 		);
 	});
 
@@ -38,22 +38,51 @@ describe('central flow task rows', () => {
 	});
 
 	test('maps requester identity and display name', () => {
-		const task = centralFlowTaskFromRow(row({ requester_id: 'requester-1' }), names, dayOf);
+		const task = centralFlowTaskFromRow(row({
+			requester_id: 'requester-1',
+			requester: { name: '요청자', email: 'requester@example.com' }
+		}), names, dayOf);
 
 		expect(task.requesterID).toBe('requester-1');
 		expect(task.requesterName).toBe('요청자');
 	});
 
-	test('maps durable requester provenance after the requester leaves', () => {
+	test('maps requester identity from the Supabase inferred array shape', () => {
 		const task = centralFlowTaskFromRow(row({
-			requester_id: null,
-			requester_name: '퇴사한 요청자',
-			was_requested: true
+			requester_id: 'requester-1',
+			requester: [{ name: '배열 요청자', email: 'requester@example.com' }]
+		}), new Map(), dayOf);
+
+		expect(task.requesterID).toBe('requester-1');
+		expect(task.requesterName).toBe('배열 요청자');
+	});
+
+	test('prefers the freshly loaded member name over a cached requester join', () => {
+		const task = centralFlowTaskFromRow(row({
+			requester_id: 'requester-1',
+			requester: { name: '이전 이름', email: 'requester@example.com' }
 		}), names, dayOf);
 
-		expect(task.wasRequested).toBe(true);
-		expect(task.requesterID).toBe('');
-		expect(task.requesterName).toBe('퇴사한 요청자');
+		expect(task.requesterName).toBe('요청자');
+	});
+
+	test('uses requester email when the joined member has no name', () => {
+		const task = centralFlowTaskFromRow(row({
+			requester_id: 'requester-1',
+			requester: { name: '', email: 'requester@example.com' }
+		}), new Map(), dayOf);
+
+		expect(task.requesterName).toBe('requester@example.com');
+	});
+
+	test('keeps the requester id when the joined member has no display identity', () => {
+		const task = centralFlowTaskFromRow(row({
+			requester_id: 'requester-1',
+			requester: { name: null, email: null }
+		}), new Map(), dayOf);
+
+		expect(task.requesterID).toBe('requester-1');
+		expect(task.requesterName).toBe('');
 	});
 
 	test('derives compatibility owner only for one participant', () => {
@@ -95,8 +124,7 @@ function row(overrides: Record<string, unknown> = {}) {
 		due_at: null,
 		updated_at: '2026-08-13T00:00:00Z',
 		requester_id: null,
-		requester_name: null,
-		was_requested: false,
+		requester: null,
 		task_participant: [],
 		...overrides
 	};

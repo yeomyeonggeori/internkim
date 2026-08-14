@@ -34,7 +34,7 @@ export function statusOptionsFromSummary(summary: FlowSummary | null, task?: Flo
 }
 
 export function hasFlowTaskRequestProvenance(task?: FlowTask | null): boolean {
-	return Boolean(task?.wasRequested || task?.requesterID);
+	return Boolean(task?.requesterID);
 }
 
 export function flowTaskStatusLabel(text: FlowPageText, status: string): string {
