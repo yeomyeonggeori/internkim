@@ -24,10 +24,10 @@ var StepBuzzChatd = Step{
 		if context.Backend != BackendSSH {
 			return nil
 		}
-		if context.Callbacks.InstallBuzzRelayBinariesSSH == nil || context.Callbacks.GetBuzzBootstrapSecret == nil {
+		if context.Callbacks.InstallBuzzRelayBinariesSSH == nil || context.Callbacks.GetBuzzAgentSecret == nil {
 			return errors.New("buzz chatd callbacks missing")
 		}
-		bootstrapSecret, errorValue := context.Callbacks.GetBuzzBootstrapSecret()
+		agentSecret, errorValue := context.Callbacks.GetBuzzAgentSecret()
 		if errorValue != nil {
 			return errorValue
 		}
@@ -36,7 +36,7 @@ var StepBuzzChatd = Step{
 		}
 
 		connection := context.SSH
-		connection.Run(chatdEnvironmentCommand(bootstrapSecret))
+		connection.Run(chatdEnvironmentCommand(agentSecret))
 		connection.Run(chatdUnitInstallCommand(blueclaw.DeriveRelayPublicURL(context.PublicURL)))
 
 		fmt.Println("  " + context.T("Buzz chatd 설치 완료", "Buzz chatd installed"))
@@ -47,9 +47,9 @@ var StepBuzzChatd = Step{
 	},
 }
 
-func chatdEnvironmentCommand(bootstrapSecret string) string {
+func chatdEnvironmentCommand(agentSecret string) string {
 	return `mkdir -p /root/.internkim/secrets
-printf 'CHATD_BUZZ_PRIVATE_KEY=%s\n' '` + bootstrapSecret + `' > ` + blueclaw.ChatdEnvironmentFilePath + `
+printf 'CHATD_BUZZ_PRIVATE_KEY=%s\n' '` + agentSecret + `' > ` + blueclaw.ChatdEnvironmentFilePath + `
 chmod 600 ` + blueclaw.ChatdEnvironmentFilePath
 }
 
