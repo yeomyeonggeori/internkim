@@ -24,8 +24,8 @@ const (
 	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
 	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
 	BlueclawAdminTaskDiagnosticEnvironment              = "INTERNKIM_BLUECLAW_ADMIN_TASK_DIAGNOSTIC"
-	BlueclawLLMDTopologyDiagnosticProfileName           = "llmd-diagnostic"
-	BlueclawLLMDTopologyDiagnosticToolSentinel          = "llmd.diagnostic.no_tools"
+	BlueclawModelPathDiagnosticProfileName              = "model-path-diagnostic"
+	BlueclawModelPathDiagnosticToolSentinel             = "model_path.diagnostic.no_tools"
 	LocalOnlyEnvironment                                = "INTERNKIM_LOCAL_ONLY"
 	BlueclawVirtualCPUCountEnvironment                  = "INTERNKIM_BLUECLAW_VCPU_COUNT"
 )
@@ -88,8 +88,8 @@ func blueclawAgentProfiles(allowAdminTaskDiagnostic bool) []map[string]any {
 		return nil
 	}
 	return []map[string]any{{
-		"name":             BlueclawLLMDTopologyDiagnosticProfileName,
-		"allowedToolNames": []string{BlueclawLLMDTopologyDiagnosticToolSentinel},
+		"name":             BlueclawModelPathDiagnosticProfileName,
+		"allowedToolNames": []string{BlueclawModelPathDiagnosticToolSentinel},
 	}}
 }
 

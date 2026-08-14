@@ -591,7 +591,7 @@ func TestMattermostScenarioPreservesTaskEvidenceWhenPollingFails(t *testing.T) {
 	pollError := errors.New("poll failed")
 	detailCalls := 0
 	oldEvent := mattermostScenarioTaskEvent{TaskEventID: "old", Name: "task.created"}
-	newEvent := mattermostScenarioTaskEvent{TaskEventID: "new", Name: "llm.call", Body: `{"provider":"llmd"}`}
+	newEvent := mattermostScenarioTaskEvent{TaskEventID: "new", Name: "llm.call", Body: `{"provider":"capability"}`}
 	admin := &fakeMattermostScenarioAdminAPI{
 		listTasksValue: func() []mattermostScenarioTaskSummary {
 			return []mattermostScenarioTaskSummary{{TaskRunID: "task", UpdatedAt: "updated"}}
@@ -969,7 +969,7 @@ func TestMattermostScenarioTokenUsageGuardsZeroPromptDivision(t *testing.T) {
 
 func TestMattermostScenarioTokenUsageTreatsOmittedFieldsAsZero(t *testing.T) {
 	result := mattermostScenarioStepResult{TaskEvents: []mattermostScenarioTaskEvent{
-		{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","transport":"llmd"}`},
+		{Name: "llm.call", Body: `{"schemaName":"bluecollar_turn_router","transport":"capability"}`},
 		{Name: "agent.action"},
 	}}
 	setMattermostScenarioStepMetrics(&result)

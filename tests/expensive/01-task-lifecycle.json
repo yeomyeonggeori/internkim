@@ -1,6 +1,6 @@
 {
   "name": "task-lifecycle",
-  "requiresLLMD": true,
+  "requiresModelProvenance": true,
   "expectedLLMProvider": "openrouter",
   "skillDirectoryPaths": [
     "../../assets/blueclaw-workspace/skills/internkim-flow"

@@ -31,14 +31,13 @@ browser, any network
     ├── relay ───────── answers calls, carries messenger arrivals
     ├── blueclaw ────── agent runtime, task ledger, approval, workspace
     ├── chatd ───────── messenger adapters: Mattermost, Buzz
-    ├── capabilityd ─── calendar, tasks, mail, sites
-    ├── llmd ────────── the model path
+    ├── capabilityd ─── calendar, tasks, mail, the model path
     └── Postgres ────── the agent's own store
 ```
 
 The relay depends on nothing else in the bundle. It speaks to Supabase, the
 central plane and the company's messenger, and never to blueclaw, chatd,
-capabilityd, llmd or Postgres. `host/entrypoint.sh` therefore starts it first:
+capabilityd or Postgres. `host/entrypoint.sh` therefore starts it first:
 the agent can be down while the messenger screen still answers. `host/README.md`
 has what the box needs and which parts are optional; `docs/internal/saas-design.md`
 §2 and §6 have the design.

@@ -18,7 +18,7 @@ import (
 
 type mattermostScenario struct {
 	Name                      string                             `json:"name"`
-	RequiresLLMD              bool                               `json:"requiresLLMD"`
+	RequiresModelProvenance   bool                               `json:"requiresModelProvenance"`
 	ExpectedLLMProvider       string                             `json:"expectedLLMProvider"`
 	SkillDirectoryPaths       []string                           `json:"skillDirectoryPaths"`
 	AllowedTools              []string                           `json:"allowedTools"`
@@ -372,8 +372,8 @@ func validateMattermostScenarioResult(scenario mattermostScenario, result *matte
 		return fmt.Errorf("Mattermost scenario returned %d steps, expected %d", len(result.Steps), len(scenario.Steps))
 	}
 	for stepIndex, expectedStep := range scenario.Steps {
-		if scenario.RequiresLLMD {
-			if errorValue := validateMattermostScenarioLLMD(stepIndex, result.Steps[stepIndex].TaskEvents, scenario); errorValue != nil {
+		if scenario.RequiresModelProvenance {
+			if errorValue := validateMattermostScenarioModelProvenance(stepIndex, result.Steps[stepIndex].TaskEvents, scenario); errorValue != nil {
 				return errorValue
 			}
 		}
@@ -941,7 +941,7 @@ func missingMattermostScenarioEventError(stepIndex int, expectation mattermostSc
 	return fmt.Errorf("Mattermost scenario step %d is missing event %q", stepIndex, expectation.eventNamesLabel())
 }
 
-func validateMattermostScenarioLLMD(stepIndex int, events []mattermostScenarioTaskEvent, scenario mattermostScenario) error {
+func validateMattermostScenarioModelProvenance(stepIndex int, events []mattermostScenarioTaskEvent, scenario mattermostScenario) error {
 	requiredSchemaNames := []string{"bluecollar_turn_router", "bluecollar_agent_turn_action"}
 	authoritativeSchemaNameSet := testStringSet([]string{
 		"bluecollar_agent_turn_action",
@@ -957,7 +957,6 @@ func validateMattermostScenarioLLMD(stepIndex int, events []mattermostScenarioTa
 		}
 		var call struct {
 			SchemaName      string `json:"schemaName"`
-			Transport       string `json:"transport"`
 			Provider        string `json:"provider"`
 			Model           string `json:"model"`
 			ModelTier       string `json:"modelTier"`
@@ -971,8 +970,8 @@ func validateMattermostScenarioLLMD(stepIndex int, events []mattermostScenarioTa
 		if !authoritativeSchemaNameSet[call.SchemaName] {
 			continue
 		}
-		if call.Transport != "llmd" {
-			return fmt.Errorf("Mattermost scenario step %d used %s transport for authoritative AI SDK call %s", stepIndex, call.Transport, call.SchemaName)
+		if call.UsedFallback {
+			return fmt.Errorf("Mattermost scenario step %d fell back on authoritative AI SDK call %s", stepIndex, call.SchemaName)
 		}
 		if call.IsError {
 			continue

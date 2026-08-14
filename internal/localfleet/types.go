@@ -15,11 +15,7 @@ const (
 	ActionRunScenario      = "runScenario"
 	ActionUpgradeGate      = "upgradeGate"
 	ActionVerifyRegression = "verifyRegression"
-
-	LLMDModeAuthoritative LLMDMode = "authoritative"
 )
-
-type LLMDMode string
 
 type Options struct {
 	RepositoryRootPath    string
@@ -32,7 +28,6 @@ type Options struct {
 	GenerationSeed        string
 	GenerationTemperature string
 	MaximumModelTier      string
-	LLMDMode              LLMDMode
 	IsEphemeral           bool
 	ShouldUseRealModels   bool
 }
