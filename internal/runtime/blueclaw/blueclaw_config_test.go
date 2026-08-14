@@ -409,11 +409,11 @@ func TestBlueclawRuntimeConfigGatesAdminTaskDiagnostic(t *testing.T) {
 		t.Fatalf("expected diagnostic profile, got %+v", agentProfiles)
 	}
 	diagnosticProfile := agentProfiles[0].(map[string]any)
-	if diagnosticProfile["name"] != BlueclawLLMDTopologyDiagnosticProfileName {
-		t.Fatalf("expected LLMD diagnostic profile, got %+v", diagnosticProfile)
+	if diagnosticProfile["name"] != BlueclawModelPathDiagnosticProfileName {
+		t.Fatalf("expected model-path diagnostic profile, got %+v", diagnosticProfile)
 	}
 	allowedToolNames := diagnosticProfile["allowedToolNames"].([]any)
-	if len(allowedToolNames) != 1 || allowedToolNames[0] != BlueclawLLMDTopologyDiagnosticToolSentinel {
+	if len(allowedToolNames) != 1 || allowedToolNames[0] != BlueclawModelPathDiagnosticToolSentinel {
 		t.Fatalf("expected diagnostic deny-all sentinel, got %+v", diagnosticProfile)
 	}
 }
