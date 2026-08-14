@@ -57,6 +57,31 @@ keepRelayRunning() {
 keepRelayRunning &
 relayPid="$!"
 
+# runtime.template.json is the runtime document with the two values only this
+# box knows left as holes. A configuration mounted at /etc/blueclaw wins, so a
+# company that outgrows the template keeps its own.
+runtimeConfigurationPath="/etc/blueclaw/runtime.json"
+if [ ! -r "${runtimeConfigurationPath}" ]; then
+  runtimeConfigurationPath="/run/internkim/runtime.json"
+  sed -e "s|\${DATABASE_URL}|${DATABASE_URL}|g" \
+      -e "s|\${MESSENGER_PLATFORM}|${MESSENGER_PLATFORM}|g" \
+      /opt/internkim/runtime.template.json > /run/internkim/runtime.rendered.json
+  # The capabilities block is whatever the installed capabilityd speaks. The
+  # agent refuses a document naming a different protocol, so it is read from the
+  # binary rather than kept in the template, where it would age out of step.
+  internkim-capabilityd --print-capabilities --socket "${capabilitySocketPath}" > /run/internkim/capabilities.json
+  jq -s '.[0] * {capabilities: .[1]}' \
+      /run/internkim/runtime.rendered.json /run/internkim/capabilities.json > "${runtimeConfigurationPath}"
+  echo "[host] wrote ${runtimeConfigurationPath} from the template and capabilityd's contract"
+fi
+
+policyPath="/etc/blueclaw/policy.json"
+if [ ! -r "${policyPath}" ]; then
+  policyPath="/run/internkim/policy.json"
+  printf '{"people":[],"circles":[],"circleSync":{},"resourceAccess":[],"channels":[],"retention":{}}\n' > "${policyPath}"
+  echo "[host] no policy mounted; started with nobody in it"
+fi
+
 echo "[host] waiting for postgres"
 until pg_isready -d "${DATABASE_URL}" >/dev/null 2>&1; do sleep 1; done
 
@@ -74,7 +99,7 @@ while [ ! -S "${capabilitySocketPath}" ]; do
 done
 
 echo "[host] starting blueclaw"
-blueclaw -runtime /etc/blueclaw/runtime.json -policy /etc/blueclaw/policy.json &
+blueclaw -runtime "${runtimeConfigurationPath}" -policy "${policyPath}" &
 blueclawPid="$!"
 
 until nc -z 127.0.0.1 8080 >/dev/null 2>&1; do
