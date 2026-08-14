@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { verifyEvent } from "nostr-tools/pure";
-import { buzzPublicKeyOf, signBuzzEvent } from "../../src/lib/buzz-relay-client";
+import { buzzPublicKeyOf, signBuzzEvent, streamMessageTags } from "../../src/lib/buzz-relay-client";
 
 const SECRET_KEY_HEX = "1178851e7a60684098157ea8fd4ef624c4fd094b41e274194843de1cd39c5aa8";
 
@@ -31,5 +31,23 @@ describe("buzz relay client — signing", () => {
 		});
 		const tampered = { ...JSON.parse(JSON.stringify(event)), tags: [["h", "other-channel"]] };
 		expect(verifyEvent(tampered)).toBe(false);
+	});
+});
+
+describe("buzz relay client — thread tags", () => {
+	test("a reply names the root it answers", () => {
+		const tags = streamMessageTags({ channelId: "channel-1", content: "x", replyToRootId: "root-1" });
+		expect(tags).toEqual([["h", "channel-1"], ["e", "root-1", "", "root"]]);
+	});
+
+	test("a message that answers nothing carries no thread tag", () => {
+		const tags = streamMessageTags({ channelId: "channel-1", content: "x" });
+		expect(tags).toEqual([["h", "channel-1"]]);
+	});
+
+	test("keeps the attachment tags it was given", () => {
+		const imeta = ["imeta", "url https://example.com/a.png"];
+		const tags = streamMessageTags({ channelId: "channel-1", content: "x", extraTags: [imeta] });
+		expect(tags).toEqual([["h", "channel-1"], imeta]);
 	});
 });
