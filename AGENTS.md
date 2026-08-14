@@ -20,9 +20,9 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   across worktrees (`blueclaw-runtime`, `container-kernel`, `device-browser`,
   `agent-browser`, `llama-cpp`, `llama-cpp-models`, `litert-models`,
   `local-fleet-embedding`) — about 6.4 GB a worktree no longer duplicates.
-  Per-worktree build outputs stay excluded: `blueclaw-payload`, `blueclaw-llmd`,
-  `buzz-relay`, and `role-memory-arm64` carry a release SHA, so each worktree
-  builds its own through the matching `make prepare-*` target. Missing paths are
+  Per-worktree build outputs stay excluded: `blueclaw-payload`, `buzz-relay`,
+  and `role-memory-arm64` carry a release SHA, so each worktree builds its own
+  through the matching `make prepare-*` target. Missing paths are
   reported as skipped, and re-running is idempotent (`kept`). Use `--copy`
   before the path only when symlinks are not appropriate; it copies the shared
   artifacts too.
@@ -558,16 +558,15 @@ and delete the duplicates.
 - The Jetson Blueclaw component is `blueclawPayload`, not `blueclaw`. An invalid
   component name is silently dropped, so confirm the deploy log's `Components:`
   line lists everything you intended.
-- The agent reaches a model through `capabilityd`, not through `llmd`. The
-  guest's `runtime.json` names `capabilityLLM` as its only provider, and
-  `capabilityd` picks between the device's llama.cpp, the companion, and
-  OpenRouter by execution mode. `llmd` (directory `.dependency/blueclaw/llmd/`,
-  deploy component `blueclawLLMD`, systemd unit `blueclaw-llmd`) is still
-  installed, started and health-checked by provisioning, but nothing calls it:
-  `capabilityd` stopped proxying it and the runtime never pointed at it
-  directly. Treat it as a leftover to remove, not a path to build on. Blueclaw's
-  own README documents an `llmd` standalone deployment; that is for running
-  blueclaw without an appliance and is not how a device is configured.
+- The agent reaches a model through `capabilityd`. The guest's `runtime.json`
+  names `capabilityLLM` as its only provider, and `capabilityd` picks between
+  the device's llama.cpp, the companion, and OpenRouter by execution mode.
+  `llmd` was removed: no device installs or starts it, and every release apply
+  stops and deletes whatever an earlier one left. The only `llmd` in this
+  repository is the code that removes it. `.dependency/blueclaw/llmd/` stays,
+  because blueclaw's own README documents a standalone `llmd` deployment for
+  running blueclaw without an appliance; that is upstream's, and not how a
+  device is configured.
 - After changing Go setup, provisioning, runtime, or service code, run
   `make build` before deployment.
 - Prefer `./internkim deploy --components <components>` for normal device
