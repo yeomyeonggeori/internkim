@@ -43,6 +43,7 @@ func main() {
 	keySeedPath := flag.String("key-seed-path", "", "file holding the seed mixed into per-author key derivation")
 	communityHost := flag.String("community-host", "localhost:3000", "buzz community host to import into")
 	onlyChannels := flag.String("channels", "", "comma-separated Mattermost channel names to import; empty imports every public channel")
+	agentEmail := flag.String("agent-email", "", "messenger address of the agent, whose history is signed with the agent identity")
 	orphanRootTitle := flag.String("orphan-root-title", "", "when set, replies whose Mattermost root was not imported are threaded under one synthesized root message carrying this title, per original root; otherwise such replies are skipped")
 	fileCacheDir := flag.String("file-cache-dir", "", "directory of {fileID}.{jpg|png} images used as a fallback when the Mattermost server no longer serves a file")
 	sinceMillis := flag.Int64("since", 0, "when >0, import only Mattermost posts created after this unix-millis timestamp (incremental sync; skips the wipe)")
@@ -74,10 +75,17 @@ func main() {
 	failOn(errorValue, "read users")
 	authorEmails, authorsByID := mattermostrest.UsersToChannelAuthorEmails(users)
 
+	// The agent is one identity across the import and everything after it, so its
+	// history is signed with the key chatd goes on to answer with rather than one
+	// derived from whatever address the old messenger gave its bot account.
+	agentEmailAddress := strings.ToLower(strings.TrimSpace(*agentEmail))
 	authorSecrets := map[string]string{}
 	authorPubkeys := map[string]string{}
 	for userID, author := range authorsByID {
 		secretHex := deriveSecret(keySeed, author.Email)
+		if agentEmailAddress != "" && strings.EqualFold(author.Email, agentEmailAddress) {
+			secretHex = deriveSecret(keySeed, buzzidentity.AgentSubject)
+		}
 		authorSecrets[author.Email] = secretHex
 		pubkey, errorValue := nostr.GetPublicKey(secretHex)
 		failOn(errorValue, "derive pubkey for "+author.Email)

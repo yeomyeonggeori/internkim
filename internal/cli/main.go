@@ -5311,16 +5311,18 @@ func buildBuzzKeySeedCallback() func(force bool) (string, error) {
 	}
 }
 
-func buildBuzzBootstrapSecretCallback() func() (string, error) {
+// chatd signs what the agent says, so it holds the agent's identity rather than
+// the one that owns the relay.
+func buildBuzzAgentSecretCallback() func() (string, error) {
 	return func() (string, error) {
 		seed, errorValue := buildBuzzKeySeedCallback()(false)
 		if errorValue != nil {
 			return "", errorValue
 		}
 		if strings.TrimSpace(seed) == "" {
-			return "", errors.New("buzz key seed unavailable; cannot derive chatd bootstrap secret")
+			return "", errors.New("buzz key seed unavailable; cannot derive the agent secret")
 		}
-		return buzzidentity.Secret(seed, buzzidentity.BootstrapSubject), nil
+		return buzzidentity.Secret(seed, buzzidentity.AgentSubject), nil
 	}
 }
 
