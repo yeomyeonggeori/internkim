@@ -19,6 +19,7 @@ import {
 	leavePreviewPeriod,
 	leaveTimestampRange
 } from './supabase-leave-range';
+import { summarizeSupabaseLeave } from './supabase-leave-summary';
 
 type LeaveStatus = 'requested' | 'approved' | 'rejected';
 
@@ -27,6 +28,7 @@ type LeaveRow = {
 	member_id: string;
 	kind: string;
 	is_paid: boolean;
+	is_deducted: boolean;
 	days: number;
 	status: LeaveStatus;
 	starts_at: string;
@@ -54,18 +56,38 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 	const memberID = await myMemberID();
 	const leave = await supabase()
 		.from('leave')
-		.select('id, member_id, kind, is_paid, days, status, starts_at, ends_at, note')
+		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
 		.eq('member_id', memberID)
 		.order('starts_at', { ascending: false })
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
 	const timeZone = await companyTimeZone();
+	const mappedLeave = leave.data.map((row) => ({ row, request: requestOf(row, timeZone) }));
+	const requests = mappedLeave.map(({ request }) => request);
+	const targetYear = await memberCurrentYear(memberID);
+	const remainingDays = await memberLeaveRemaining(memberID, targetYear);
+	const balance = summarizeSupabaseLeave(
+		mappedLeave.map(({ row, request }) => ({
+			days: row.days,
+			status: row.status,
+			isDeducted: row.is_deducted,
+			localStartDate: request.startDate
+		})),
+		targetYear,
+		remainingDays
+	);
+	const leaveType: EmployeeLeaveType = {
+		...theOnlyLeaveType,
+		balanceMode: balance.trackingMode === 'managed' ? 'annual' : 'none',
+		includeInSummary: true,
+		balance: balance.summary
+	};
 
 	return {
-		balanceTrackingMode: 'unlimited',
-		leaveTypes: [theOnlyLeaveType],
-		summary: { usedMilliDays: 0, reservedMilliDays: 0, availableMilliDays: 0 },
-		requests: leave.data.map((row) => requestOf(row, timeZone)),
+		balanceTrackingMode: balance.trackingMode,
+		leaveTypes: [leaveType],
+		summary: balance.summary,
+		requests,
 		ledgerEntries: [],
 		hireDateRequired: false
 	};
@@ -110,7 +132,7 @@ export async function cancelSupabaseLeaveRequest(requestID: string): Promise<voi
 export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> {
 	const leave = await supabase()
 		.from('leave')
-		.select('id, member_id, kind, is_paid, days, status, starts_at, ends_at, note')
+		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
 		.eq('status', 'requested')
 		.order('starts_at')
 		.returns<LeaveRow[]>();
@@ -130,7 +152,7 @@ export async function decideSupabaseLeave(
 		.from('leave')
 		.update({ status: decision.action === 'approve' ? 'approved' : 'rejected' })
 		.eq('id', requestID)
-		.select('id, member_id, kind, is_paid, days, status, starts_at, ends_at, note')
+		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
 		.single<LeaveRow>();
 	if (decided.error) throw new Error(decided.error.message);
 	return approvalOf(decided.data, await emailsByMemberID(), await companyTimeZone());
@@ -206,6 +228,29 @@ async function myMemberID(): Promise<string> {
 	const member = await client.from('member').select('id').eq('user_id', accountID).single<{ id: string }>();
 	if (member.error) throw new Error(member.error.message);
 	return member.data.id;
+}
+
+async function memberCurrentYear(memberID: string): Promise<number> {
+	const today = await supabase().rpc('member_today', { target_member: memberID });
+	if (today.error) throw new Error(today.error.message);
+	if (typeof today.data !== 'string') throw new Error('member_today returned an invalid date');
+	const year = Number(today.data.slice(0, 4));
+	if (!Number.isInteger(year)) throw new Error(`member_today returned an invalid date: ${today.data}`);
+	return year;
+}
+
+async function memberLeaveRemaining(memberID: string, targetYear: number): Promise<number | null> {
+	const remaining = await supabase().rpc('member_leave_remaining', {
+		target_member: memberID,
+		target_year: targetYear
+	});
+	if (remaining.error) throw new Error(remaining.error.message);
+	if (remaining.data === null) return null;
+	const days = Number(remaining.data);
+	if (!Number.isFinite(days)) {
+		throw new Error(`member_leave_remaining returned an invalid balance: ${String(remaining.data)}`);
+	}
+	return days;
 }
 
 async function emailsByMemberID(): Promise<Map<string, string>> {

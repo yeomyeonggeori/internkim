@@ -54,6 +54,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 	const leave = await client
 		.from('leave')
 		.select('id, member_id, kind, is_paid, starts_at, ends_at, note')
+		.eq('status', 'approved')
 		.lt('starts_at', until.toISOString())
 		.gte('ends_at', from.toISOString())
 		.returns<LeaveRow[]>();
