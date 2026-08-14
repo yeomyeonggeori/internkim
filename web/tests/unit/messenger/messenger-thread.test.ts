@@ -11,7 +11,8 @@ function post(id: string, parentID?: string): MessengerPost {
 		author: { externalID: 'U1' },
 		body: id,
 		postedAt: '2026-08-04T00:00:00Z',
-		reactions: []
+		reactions: [],
+		attachments: []
 	};
 }
 
