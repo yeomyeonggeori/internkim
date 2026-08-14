@@ -14,6 +14,7 @@ func TestValidateRuntimeArtifactDirectoryRequiresManifestAndChecksums(t *testing
 	artifactDirectoryPath := t.TempDir()
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "firecracker", "firecracker")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "jailer", "jailer")
+	writeRuntimeArtifactFile(t, artifactDirectoryPath, "cloud-hypervisor", "cloud-hypervisor")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "vmlinux.bin", "kernel")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "rootfs.ext4", "rootfs")
 
@@ -24,6 +25,7 @@ func TestValidateRuntimeArtifactDirectoryRequiresManifestAndChecksums(t *testing
   "files": [
     {"name": "firecracker", "path": "firecracker", "sha256": "` + runtimeArtifactTestSHA256("firecracker") + `", "mode": "0755"},
     {"name": "jailer", "path": "jailer", "sha256": "` + runtimeArtifactTestSHA256("jailer") + `", "mode": "0755"},
+    {"name": "cloud-hypervisor", "path": "cloud-hypervisor", "sha256": "` + runtimeArtifactTestSHA256("cloud-hypervisor") + `", "mode": "0755"},
     {"name": "vmlinux.bin", "path": "vmlinux.bin", "sha256": "` + runtimeArtifactTestSHA256("kernel") + `", "mode": "0644"},
     {"name": "rootfs.ext4", "path": "rootfs.ext4", "sha256": "` + runtimeArtifactTestSHA256("rootfs") + `", "mode": "0644"}
   ]
@@ -46,6 +48,7 @@ func TestValidateRuntimeArtifactDirectoryRejectsChecksumMismatch(t *testing.T) {
 	artifactDirectoryPath := t.TempDir()
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "firecracker", "firecracker")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "jailer", "jailer")
+	writeRuntimeArtifactFile(t, artifactDirectoryPath, "cloud-hypervisor", "cloud-hypervisor")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "vmlinux.bin", "kernel")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "rootfs.ext4", "rootfs")
 
@@ -56,6 +59,7 @@ func TestValidateRuntimeArtifactDirectoryRejectsChecksumMismatch(t *testing.T) {
   "files": [
     {"name": "firecracker", "path": "firecracker", "sha256": "bad", "mode": "0755"},
     {"name": "jailer", "path": "jailer", "sha256": "` + runtimeArtifactTestSHA256("jailer") + `", "mode": "0755"},
+    {"name": "cloud-hypervisor", "path": "cloud-hypervisor", "sha256": "` + runtimeArtifactTestSHA256("cloud-hypervisor") + `", "mode": "0755"},
     {"name": "vmlinux.bin", "path": "vmlinux.bin", "sha256": "` + runtimeArtifactTestSHA256("kernel") + `", "mode": "0644"},
     {"name": "rootfs.ext4", "path": "rootfs.ext4", "sha256": "` + runtimeArtifactTestSHA256("rootfs") + `", "mode": "0644"}
   ]
@@ -98,9 +102,9 @@ func TestPrepareRuntimeScriptReusesExistingArtifactKernel(t *testing.T) {
 	}
 	script := string(document)
 	expectedFragments := []string{
-		`artifact_kernel_path="$artifact_directory/vmlinux.bin"`,
-		`install -m 0644 "$artifact_kernel_path" "$stage_directory/vmlinux.bin"`,
-		`kernel_cache_path="$cache_directory/vmlinux-6.1-aarch64.bin"`,
+		`if published_kernel_matches_configuration; then`,
+		`install -m 0644 "$artifact_directory/vmlinux.bin" "$stage_directory/vmlinux.bin"`,
+		`kernel_cache_path="$cache_directory/vmlinux-$(guest_kernel_build_identifier)-aarch64.bin"`,
 	}
 	for _, fragment := range expectedFragments {
 		if !strings.Contains(script, fragment) {
@@ -109,6 +113,51 @@ func TestPrepareRuntimeScriptReusesExistingArtifactKernel(t *testing.T) {
 	}
 	if strings.Index(script, expectedFragments[0]) > strings.Index(script, expectedFragments[2]) {
 		t.Fatalf("expected artifact kernel reuse before cache fallback")
+	}
+}
+
+func TestPrepareRuntimeScriptKeysTheGuestKernelToItsConfiguration(t *testing.T) {
+	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
+	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-runtime"))
+	if errorValue != nil {
+		t.Fatalf("expected prepare script: %v", errorValue)
+	}
+	script := string(document)
+	expectedFragments := []string{
+		`guest_kernel_configuration_path="$repository_root/assets/blueclaw-runtime/guest-kernel-aarch64.config"`,
+		`"guestKernelConfigurationSHA256": guest_kernel_configuration_sha256,`,
+		`manifest.get("guestKernelConfigurationSHA256") == configuration_sha`,
+	}
+	for _, fragment := range expectedFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected prepare script to contain %q", fragment)
+		}
+	}
+	if strings.Contains(script, "microvm-kernel-ci-aarch64") {
+		t.Fatal("expected the guest kernel configuration to be carried here, not borrowed from Firecracker")
+	}
+}
+
+func TestGuestKernelConfigurationCarriesBothVirtioTransports(t *testing.T) {
+	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
+	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-runtime", "guest-kernel-aarch64.config"))
+	if errorValue != nil {
+		t.Fatalf("expected guest kernel configuration: %v", errorValue)
+	}
+	configuration := string(document)
+	for _, symbol := range []string{
+		"CONFIG_VIRTIO_MMIO=y",
+		"CONFIG_SERIAL_8250_CONSOLE=y",
+		"CONFIG_PCI=y",
+		"CONFIG_PCI_HOST_GENERIC=y",
+		"CONFIG_VIRTIO_PCI=y",
+		"CONFIG_SERIAL_AMBA_PL011_CONSOLE=y",
+		"CONFIG_FUSE_FS=y",
+		"CONFIG_VIRTIO_FS=y",
+	} {
+		if !strings.Contains(configuration, "\n"+symbol+"\n") {
+			t.Fatalf("expected guest kernel configuration to set %s", symbol)
+		}
 	}
 }
 
