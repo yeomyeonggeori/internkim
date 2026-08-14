@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(11);
 
 insert into auth.users (id, email) values
 	('31000000-0000-0000-0000-000000000001', 'correction-owner@example.test'),
@@ -40,7 +40,11 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
 insert into public.attendance (id, member_id, kind, location, occurred_at) values
 	(
 		'31000000-0000-0000-0000-000000000101', '31000000-0000-0000-0000-000000000011',
-		'clock_in', 'Office', '2026-08-10 09:00:00+09'
+		'clock_in', 'Office', now() - interval '30 minutes'
+	),
+	(
+		'31000000-0000-0000-0000-000000000103', '31000000-0000-0000-0000-000000000011',
+		'clock_in', 'Office', '2026-08-10 08:00:00+09'
 	),
 	(
 		'31000000-0000-0000-0000-000000000102', '31000000-0000-0000-0000-000000000013',
@@ -75,7 +79,7 @@ begin
 		'출근 시간 정정'
 	);
 	assert (
-		select original_occurred_at = '2026-08-10 09:00:00+09'
+		select original_occurred_at between now() - interval '31 minutes' and now() - interval '29 minutes'
 			and occurred_at = '2026-08-10 09:30:00+09'
 			and location = 'Branch'
 			and edit_reason = '출근 시간 정정'
@@ -88,13 +92,30 @@ begin
 		'재확인 후 수정'
 	);
 	assert (
-		select original_occurred_at = '2026-08-10 09:00:00+09'
+		select original_occurred_at between now() - interval '31 minutes' and now() - interval '29 minutes'
 			and occurred_at = '2026-08-10 09:45:00+09'
 			and edit_reason = '재확인 후 수정'
 		from public.attendance
 		where id = '31000000-0000-0000-0000-000000000101'
 	), 'a later correction must retain the first time and replace the reason';
 end $$;$block$, 'an owner can correct their own attendance twice');
+
+select lives_ok($block$do $$
+declare
+	blocked boolean := false;
+begin
+	set local role authenticated;
+	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
+	begin
+		perform public.correct_attendance_events(
+			'[{"event_id":"31000000-0000-0000-0000-000000000103","local_date":"2026-08-10","local_time":"08:30","location":"Branch"}]'::jsonb,
+			'수정 가능 시간 초과'
+		);
+	exception when insufficient_privilege then
+		blocked := true;
+	end;
+	assert blocked, 'an owner must not correct attendance more than one hour after the original event time';
+end $$;$block$, 'an owner cannot correct attendance after one hour');
 
 select lives_ok($block$do $$
 begin
