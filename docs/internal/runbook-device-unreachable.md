@@ -25,13 +25,49 @@ distinct errors — learn to read them:
 
 | Signal | Meaning |
 |---|---|
-| SSH `banner exchange timeout` | tunnel connected but `sshd` did not answer — either CPU starvation OR an unstable tunnel |
+| SSH `banner exchange timeout`, admin HTTPS answers `200` | your machine never opened a stream: no Access token for the SSH hostname. See "Check your own machine first" |
+| SSH `banner exchange timeout`, admin HTTPS also dead or flapping | tunnel connected but `sshd` did not answer — either CPU starvation OR an unstable tunnel |
 | Cloudflare `530` / `error code: 1033` | tunnel connector (`cloudflared`) is **not connected** to the Cloudflare edge |
 | Cloudflare `502` (fast) | tunnel is up, but the **origin** (`admind`) is down / not answering |
 | `HTTP 000` / `context deadline exceeded` | no response at all (edge or DNS path dead) |
 
 A flapping sequence `1033 → 502 → brief 200 → 1033` means the tunnel keeps
 dropping and reconnecting. That is usually a **network** problem, not CPU.
+
+### Check your own machine first
+
+A banner timeout is reported by your SSH client, so it also appears when the
+request never left your laptop. `cloudflared access ssh` needs an Access token
+for the SSH hostname; without one it waits on a browser login that may never
+have finished, and the stream never opens.
+
+The tell is the asymmetry in the first table row. HTTP and SSH use **separate**
+tokens, so admin HTTPS keeps answering `200` on the HTTP token while SSH dies.
+A device problem takes both down together.
+
+```bash
+ls ~/.cloudflared/ | grep "$FLEET"
+```
+
+A hostname carrying a `-token.lock` with no matching `-token` is a login that
+was started and never completed. Finish it:
+
+```bash
+cloudflared access login https://0.ssh.<fleet>.intern.kim
+```
+
+It often prints a token and exits without opening a browser window, because the
+org token is still valid and only the per-hostname token was missing. Silence is
+success here; re-run the failed command.
+
+Nothing in the product will tell you this. `internkim` deliberately knows no
+transport (`nothing-reaches-in.md`): it runs `ssh <host>`, and the diagnostic
+that used to name `cloudflared access login` went out with the hard-coded
+`ProxyCommand`. This runbook is where that knowledge lives now.
+
+Two incidents (2026-08-04, 2026-08-14) were this. Both times the device, `sshd`,
+WiFi, DNS, and the tunnel were healthy, and reading the timeout as CPU
+starvation cost hours before anyone listed `~/.cloudflared`.
 
 ## Diagnose without SSH (HTTP recovery actions)
 
@@ -66,6 +102,10 @@ done
 ```
 
 ## Decision tree
+
+0. If admin HTTPS answers `200` while SSH times out, run the `~/.cloudflared`
+   check above before anything else. It costs one `ls` and rules out the case
+   where the device was never the problem.
 
 1. Run `journal-tail` (retry until a window catches it).
    - **Journal is full of `cloudflared` errors** — `Failed to refresh DNS local
