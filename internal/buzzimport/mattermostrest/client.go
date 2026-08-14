@@ -269,6 +269,19 @@ func (client Client) FileBytes(ctx context.Context, fileID string) ([]byte, stri
 	return client.getBytes(ctx, "/api/v4/files/"+url.PathEscape(fileID))
 }
 
+type FileInfo struct {
+	Name     string `json:"name"`
+	MimeType string `json:"mime_type"`
+}
+
+func (client Client) FileInfo(ctx context.Context, fileID string) (FileInfo, error) {
+	var info FileInfo
+	if errorValue := client.get(ctx, "/api/v4/files/"+url.PathEscape(fileID)+"/info", &info); errorValue != nil {
+		return FileInfo{}, errorValue
+	}
+	return info, nil
+}
+
 func (client Client) EmojiImage(ctx context.Context, emojiName string) ([]byte, string, error) {
 	var emojiRecord struct {
 		ID string `json:"id"`
