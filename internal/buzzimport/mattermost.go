@@ -22,6 +22,16 @@ type MattermostChannel struct {
 	Type        string
 }
 
+const (
+	OpenChannelType   = "O"
+	DirectChannelType = "D"
+	GroupChannelType  = "G"
+)
+
+func IsConversationChannelType(channelType string) bool {
+	return channelType == DirectChannelType || channelType == GroupChannelType
+}
+
 type MattermostPost struct {
 	ID           string
 	ChannelID    string

@@ -13,7 +13,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/enescakir/emoji"
@@ -27,16 +29,18 @@ import (
 	"gitlab.com/eastriver/internkim/internal/buzzimport/relaypublish"
 )
 
+const channelWorkers = 6
+
 func main() {
 	mattermostBaseURL := flag.String("mattermost-url", "", "Mattermost base URL")
-	mattermostToken := flag.String("mattermost-token", "", "Mattermost session token")
+	mattermostTokenPath := flag.String("mattermost-token-path", "", "file holding the Mattermost session token")
 	teamName := flag.String("team", "", "Mattermost team name")
 	relayURL := flag.String("relay-url", "ws://localhost:3000", "buzz relay websocket URL")
 	relayHTTPURL := flag.String("relay-http-url", "http://localhost:3000", "buzz relay HTTP base URL for media upload")
 	buzzDatabaseURL := flag.String("buzz-database-url", "", "buzz relay postgres URL")
 	buzzAdminCommand := flag.String("buzz-admin", "", "path to the buzz-admin binary")
 	viewerPubkey := flag.String("viewer-pubkey", "", "pubkey to add to every imported channel")
-	keySeed := flag.String("key-seed", "", "seed mixed into per-author key derivation")
+	keySeedPath := flag.String("key-seed-path", "", "file holding the seed mixed into per-author key derivation")
 	communityHost := flag.String("community-host", "localhost:3000", "buzz community host to import into")
 	onlyChannels := flag.String("channels", "", "comma-separated Mattermost channel names to import; empty imports every public channel")
 	orphanRootTitle := flag.String("orphan-root-title", "", "when set, replies whose Mattermost root was not imported are threaded under one synthesized root message carrying this title, per original root; otherwise such replies are skipped")
@@ -51,24 +55,29 @@ func main() {
 		}
 	}
 
-	if *mattermostBaseURL == "" || *mattermostToken == "" || *teamName == "" || *buzzDatabaseURL == "" || *buzzAdminCommand == "" || *keySeed == "" {
-		log.Fatal("mattermost-url, mattermost-token, team, buzz-database-url, buzz-admin and key-seed are required")
+	// The token and the seed are read from files rather than taken as flags:
+	// an argument is visible to anyone who can run ps, and the seed alone is
+	// enough to sign as any person this import creates.
+	mattermostToken := secretFromFile(*mattermostTokenPath, "mattermost-token-path")
+	keySeed := secretFromFile(*keySeedPath, "key-seed-path")
+
+	if *mattermostBaseURL == "" || *teamName == "" || *buzzDatabaseURL == "" || *buzzAdminCommand == "" {
+		log.Fatal("mattermost-url, team, buzz-database-url and buzz-admin are required")
 	}
 
 	ctx := context.Background()
-	client := mattermostrest.Client{BaseURL: strings.TrimRight(*mattermostBaseURL, "/"), Token: *mattermostToken}
+	client := mattermostrest.Client{BaseURL: strings.TrimRight(*mattermostBaseURL, "/"), Token: mattermostToken}
 
 	teamID, errorValue := client.Team(ctx, *teamName)
 	failOn(errorValue, "resolve team")
 	users, errorValue := client.Users(ctx)
 	failOn(errorValue, "read users")
 	authorEmails, authorsByID := mattermostrest.UsersToChannelAuthorEmails(users)
-	botUserIDs := mattermostrest.BotUserIDs(users)
 
 	authorSecrets := map[string]string{}
 	authorPubkeys := map[string]string{}
 	for userID, author := range authorsByID {
-		secretHex := deriveSecret(*keySeed, author.Email)
+		secretHex := deriveSecret(keySeed, author.Email)
 		authorSecrets[author.Email] = secretHex
 		pubkey, errorValue := nostr.GetPublicKey(secretHex)
 		failOn(errorValue, "derive pubkey for "+author.Email)
@@ -77,14 +86,11 @@ func main() {
 
 	incremental := *sinceMillis > 0
 
-	bootstrapSecret := deriveSecret(*keySeed, buzzidentity.BootstrapSubject)
+	bootstrapSecret := deriveSecret(keySeed, buzzidentity.BootstrapSubject)
 	bootstrapPubkey, errorValue := nostr.GetPublicKey(bootstrapSecret)
 	failOn(errorValue, "derive bootstrap pubkey")
 	if !incremental {
-		registerRelayMember(*buzzAdminCommand, bootstrapPubkey)
-		for _, pubkey := range authorPubkeys {
-			registerRelayMember(*buzzAdminCommand, pubkey)
-		}
+		registerRelayMembers(*buzzAdminCommand, append([]string{bootstrapPubkey}, pubkeysOf(authorPubkeys)...))
 	}
 
 	buzzDatabase, errorValue := sql.Open("postgres", *buzzDatabaseURL)
@@ -94,51 +100,115 @@ func main() {
 	injector := buzzimport.ChannelInjector{Database: buzzDatabase, CommunityID: communityID}
 	uploader := media.Uploader{HTTPBaseURL: strings.TrimRight(*relayHTTPURL, "/")}
 
-	channels, errorValue := client.PublicChannels(ctx, teamID)
+	channels, errorValue := everyChannel(ctx, client, teamID, authorsByID)
 	failOn(errorValue, "read channels")
 
-	var publisher *relaypublish.Publisher
+	var publishers *publisherPool
 	if !incremental {
-		publisher, errorValue = relaypublish.Connect(ctx, *relayURL, bootstrapSecret)
+		publishers = newPublisherPool(*relayURL)
+		defer publishers.closeAll()
+		_, errorValue = publishers.as(ctx, bootstrapSecret)
 		failOn(errorValue, "connect relay")
-		defer publisher.Close()
 	}
 
 	totalImported := 0
 	totalSkipped := 0
-	postedEmails := map[string]bool{}
-	customEmojiCache := map[string]string{}
-	for _, restChannel := range channels {
-		channel := restChannel.ToImport()
+	postedEmails := newSharedNames()
+	customEmojiCache := newSharedStrings()
+	// Channels do not depend on each other; a reply resolves its root inside the
+	// channel it was written in. Most of a channel's time is spent waiting on
+	// Mattermost, so several move at once.
+	var tally sync.Mutex
+	var running sync.WaitGroup
+	slots := make(chan struct{}, channelWorkers)
+	for _, channel := range channels {
 		if len(channelFilter) > 0 && !channelFilter[channel.Name] {
 			continue
 		}
-		buzzChannelID := deriveChannelID(*keySeed, channel.ID)
+		running.Add(1)
+		slots <- struct{}{}
+		go func(channel buzzimport.MattermostChannel) {
+			defer running.Done()
+			defer func() { <-slots }()
+		buzzChannelID := deriveChannelID(keySeed, channel.ID)
 		if !incremental {
-			errorValue := publisher.CreateChannel(ctx, bootstrapSecret, buzzChannelID, channelDisplayName(channel), channel.Purpose)
+			memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
+			failOn(errorValue, "read members for "+channel.Name)
+			creatorSecret := creatorSecretFor(channel, memberUserIDs, authorsByID, authorSecrets, bootstrapSecret)
+			creator, errorValue := publishers.as(ctx, creatorSecret)
+			failOn(errorValue, "connect as the creator of "+channel.Name)
+			errorValue = creator.CreateChannel(ctx, creatorSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel))
 			if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
 				failOn(errorValue, "create channel "+channel.Name)
 			}
 			failOn(waitForChannelRow(ctx, buzzDatabase, communityID, buzzChannelID), "wait for channel "+channel.Name)
-			memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
-			failOn(errorValue, "read members for "+channel.Name)
-			syncChannelMembers(ctx, publisher, bootstrapSecret, buzzChannelID, memberUserIDs, authorPubkeys, *viewerPubkey)
+			syncChannelMembers(ctx, creator, creatorSecret, buzzChannelID, memberUserIDs, authorPubkeys, readerPubkeyFor(channel, *viewerPubkey))
 		}
 
 		posts, errorValue := client.Posts(ctx, channel.ID, *sinceMillis)
 		failOn(errorValue, "read posts for "+channel.Name)
 		imported, skipped := importChannelPosts(ctx, importDependencies{
 			injector: injector, uploader: uploader, client: client,
-			orphanRootTitle: *orphanRootTitle, bootstrapSecret: bootstrapSecret, botUserIDs: botUserIDs,
+			orphanRootTitle: *orphanRootTitle, bootstrapSecret: bootstrapSecret,
 			fileCacheDir:     *fileCacheDir,
 			customEmojiCache: customEmojiCache,
 		}, buzzChannelID, posts, authorEmails, authorSecrets, postedEmails)
-		totalImported += imported
-		totalSkipped += skipped
-		fmt.Printf("%-24s %-40s imported=%d skipped=%d\n", channel.Name, buzzChannelID, imported, skipped)
+			tally.Lock()
+			totalImported += imported
+			totalSkipped += skipped
+			tally.Unlock()
+			fmt.Printf("%-24s %-40s imported=%d skipped=%d\n", channel.Name, buzzChannelID, imported, skipped)
+		}(channel)
 	}
+	running.Wait()
 	injectAuthorProfiles(ctx, injector, uploader, client, authorSecrets, authorsByID, postedEmails)
 	fmt.Printf("done: %d channels, %d messages imported, %d skipped\n", len(channels), totalImported, totalSkipped)
+}
+
+// Two facts outlive the channel that discovers them: which emoji has already
+// been uploaded, and who has already posted. Workers share both, and a Go map
+// written from two of them at once takes the process down.
+type sharedStrings struct {
+	guard  sync.Mutex
+	byName map[string]string
+}
+
+func newSharedStrings() *sharedStrings {
+	return &sharedStrings{byName: map[string]string{}}
+}
+
+func (shared *sharedStrings) get(name string) (string, bool) {
+	shared.guard.Lock()
+	defer shared.guard.Unlock()
+	value, isKnown := shared.byName[name]
+	return value, isKnown
+}
+
+func (shared *sharedStrings) put(name string, value string) {
+	shared.guard.Lock()
+	defer shared.guard.Unlock()
+	shared.byName[name] = value
+}
+
+type sharedNames struct {
+	guard sync.Mutex
+	named map[string]bool
+}
+
+func newSharedNames() *sharedNames {
+	return &sharedNames{named: map[string]bool{}}
+}
+
+func (shared *sharedNames) add(name string) {
+	shared.guard.Lock()
+	defer shared.guard.Unlock()
+	shared.named[name] = true
+}
+
+func (shared *sharedNames) has(name string) bool {
+	shared.guard.Lock()
+	defer shared.guard.Unlock()
+	return shared.named[name]
 }
 
 type importDependencies struct {
@@ -147,9 +217,8 @@ type importDependencies struct {
 	client           mattermostrest.Client
 	orphanRootTitle  string
 	bootstrapSecret  string
-	botUserIDs       map[string]bool
 	fileCacheDir     string
-	customEmojiCache map[string]string
+	customEmojiCache *sharedStrings
 }
 
 func fetchFileBytes(ctx context.Context, dependencies importDependencies, fileID string) ([]byte, string, error) {
@@ -176,7 +245,7 @@ func importChannelPosts(
 	posts []buzzimport.MattermostPost,
 	authorEmails map[string]string,
 	authorSecrets map[string]string,
-	postedEmails map[string]bool,
+	postedEmails *sharedNames,
 ) (int, int) {
 	injector := dependencies.injector
 	eventIDByPostID := map[string]string{}
@@ -185,9 +254,6 @@ func importChannelPosts(
 	for _, post := range posts {
 		authorEmail := authorEmails[post.UserID]
 		authorSecret := authorSecrets[authorEmail]
-		if authorSecret == "" && dependencies.botUserIDs[post.UserID] {
-			authorSecret = dependencies.bootstrapSecret
-		}
 		if authorSecret == "" {
 			skipped++
 			continue
@@ -223,7 +289,7 @@ func importChannelPosts(
 			continue
 		}
 		eventIDByPostID[post.ID] = event.ID
-		postedEmails[authorEmail] = true
+		postedEmails.add(authorEmail)
 		imported++
 		if post.HasReactions {
 			importPostReactions(ctx, dependencies, buzzChannelID, event.ID, post.ID, authorEmails, authorSecrets)
@@ -268,7 +334,7 @@ func importPostReactions(ctx context.Context, dependencies importDependencies, b
 }
 
 func (dependencies importDependencies) customEmojiURL(ctx context.Context, authorSecret, emojiName string) string {
-	if cached, isKnown := dependencies.customEmojiCache[emojiName]; isKnown {
+	if cached, isKnown := dependencies.customEmojiCache.get(emojiName); isKnown {
 		return cached
 	}
 	url := ""
@@ -281,14 +347,14 @@ func (dependencies importDependencies) customEmojiURL(ctx context.Context, autho
 			}
 		}
 	}
-	dependencies.customEmojiCache[emojiName] = url
+	dependencies.customEmojiCache.put(emojiName, url)
 	return url
 }
 
-func injectAuthorProfiles(ctx context.Context, injector buzzimport.ChannelInjector, uploader media.Uploader, client mattermostrest.Client, authorSecrets map[string]string, authorsByID map[string]mattermostrest.MattermostAuthor, postedEmails map[string]bool) {
+func injectAuthorProfiles(ctx context.Context, injector buzzimport.ChannelInjector, uploader media.Uploader, client mattermostrest.Client, authorSecrets map[string]string, authorsByID map[string]mattermostrest.MattermostAuthor, postedEmails *sharedNames) {
 	seen := map[string]bool{}
 	for userID, author := range authorsByID {
-		if seen[author.Email] || !postedEmails[author.Email] {
+		if seen[author.Email] || !postedEmails.has(author.Email) {
 			continue
 		}
 		seen[author.Email] = true
@@ -401,7 +467,6 @@ func syncChannelMembers(ctx context.Context, publisher *relaypublish.Publisher, 
 		if errorValue := publisher.AddMember(ctx, actorSecret, buzzChannelID, pubkey); errorValue != nil {
 			log.Printf("add member %s failed: %v", pubkey, errorValue)
 		}
-		time.Sleep(120 * time.Millisecond)
 	}
 	for _, userID := range memberUserIDs {
 		addOne(authorPubkeys[userID])
@@ -409,18 +474,204 @@ func syncChannelMembers(ctx context.Context, publisher *relaypublish.Publisher, 
 	addOne(viewerPubkey)
 }
 
-func registerRelayMember(buzzAdminCommand string, pubkey string) {
-	command := exec.Command(buzzAdminCommand, "add-member", "--pubkey", pubkey)
-	if output, errorValue := command.CombinedOutput(); errorValue != nil && !strings.Contains(string(output), "already") {
-		log.Printf("add-member %s: %v (%s)", pubkey, errorValue, strings.TrimSpace(string(output)))
+// Every add-member is a process, and on a workspace of any size the run spends
+// longer starting them than importing. The roster is read once and only the
+// people missing from it are added.
+func registerRelayMembers(buzzAdminCommand string, pubkeys []string) {
+	known := relayMembers(buzzAdminCommand)
+	for _, pubkey := range pubkeys {
+		if known[strings.ToLower(pubkey)] {
+			continue
+		}
+		command := exec.Command(buzzAdminCommand, "add-member", "--pubkey", pubkey)
+		if output, errorValue := command.CombinedOutput(); errorValue != nil && !strings.Contains(string(output), "already") {
+			log.Printf("add-member %s: %v (%s)", pubkey, errorValue, strings.TrimSpace(string(output)))
+		}
 	}
 }
 
-func channelDisplayName(channel buzzimport.MattermostChannel) string {
+func relayMembers(buzzAdminCommand string) map[string]bool {
+	known := map[string]bool{}
+	output, errorValue := exec.Command(buzzAdminCommand, "list-members").CombinedOutput()
+	if errorValue != nil {
+		log.Printf("list-members: %v", errorValue)
+		return known
+	}
+	for _, line := range strings.Split(string(output), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		if pubkey := strings.ToLower(fields[0]); isPubkeyHex(pubkey) {
+			known[pubkey] = true
+		}
+	}
+	return known
+}
+
+func isPubkeyHex(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	for _, character := range value {
+		isHex := (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')
+		if !isHex {
+			return false
+		}
+	}
+	return true
+}
+
+func pubkeysOf(byUserID map[string]string) []string {
+	pubkeys := make([]string, 0, len(byUserID))
+	for _, pubkey := range byUserID {
+		pubkeys = append(pubkeys, pubkey)
+	}
+	sort.Strings(pubkeys)
+	return pubkeys
+}
+
+// Whoever creates a channel becomes its owner and a member of it. In a stream
+// that is the importer and harmless; in a direct conversation it is a third
+// party in a room meant for two, and the client picking "whoever is not me"
+// picks it instead of the person being talked to.
+// The relay refuses an event whose author is not the identity the connection
+// authenticated as, so creating a channel on someone's behalf means connecting
+// as them. A workspace has as many creators as it has people, and each keeps
+// one connection for the whole run.
+type publisherPool struct {
+	relayURL string
+	guard    sync.Mutex
+	open     map[string]*relaypublish.Publisher
+}
+
+func newPublisherPool(relayURL string) *publisherPool {
+	return &publisherPool{relayURL: relayURL, open: map[string]*relaypublish.Publisher{}}
+}
+
+func (pool *publisherPool) as(ctx context.Context, actorSecretHex string) (*relaypublish.Publisher, error) {
+	pool.guard.Lock()
+	defer pool.guard.Unlock()
+	if known, isOpen := pool.open[actorSecretHex]; isOpen {
+		return known, nil
+	}
+	publisher, errorValue := relaypublish.Connect(ctx, pool.relayURL, actorSecretHex)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	pool.open[actorSecretHex] = publisher
+	return publisher, nil
+}
+
+func (pool *publisherPool) closeAll() {
+	for _, publisher := range pool.open {
+		publisher.Close()
+	}
+}
+
+func creatorSecretFor(
+	channel buzzimport.MattermostChannel,
+	memberUserIDs []string,
+	authorsByID map[string]mattermostrest.MattermostAuthor,
+	authorSecrets map[string]string,
+	bootstrapSecret string,
+) string {
+	if !buzzimport.IsConversationChannelType(channel.Type) {
+		return bootstrapSecret
+	}
+	for _, userID := range memberUserIDs {
+		author, isKnown := authorsByID[userID]
+		if !isKnown {
+			continue
+		}
+		if secret := authorSecrets[author.Email]; secret != "" {
+			return secret
+		}
+	}
+	return bootstrapSecret
+}
+
+// A relay tells a direct conversation from a channel by its type, and a client
+// that reads "stream" shows a room named after whoever is in it instead of the
+// person on the other side.
+func relayChannelTypeOf(channel buzzimport.MattermostChannel) string {
+	if buzzimport.IsConversationChannelType(channel.Type) {
+		return "dm"
+	}
+	return "stream"
+}
+
+// Mattermost gives a direct conversation no display name and names it after the
+// user ids it joins, so the people in the room are the only name it has.
+func channelDisplayName(
+	channel buzzimport.MattermostChannel,
+	memberUserIDs []string,
+	authorsByID map[string]mattermostrest.MattermostAuthor,
+) string {
 	if displayName := strings.TrimSpace(channel.DisplayName); displayName != "" {
 		return displayName
 	}
+	if names := participantNames(memberUserIDs, authorsByID); len(names) > 0 {
+		return strings.Join(names, ", ")
+	}
 	return channel.Name
+}
+
+func participantNames(memberUserIDs []string, authorsByID map[string]mattermostrest.MattermostAuthor) []string {
+	names := []string{}
+	for _, userID := range memberUserIDs {
+		author, isKnown := authorsByID[userID]
+		if !isKnown {
+			continue
+		}
+		if name := strings.TrimSpace(author.DisplayName); name != "" {
+			names = append(names, name)
+			continue
+		}
+		names = append(names, author.Username)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func everyChannel(
+	ctx context.Context,
+	client mattermostrest.Client,
+	teamID string,
+	authorsByID map[string]mattermostrest.MattermostAuthor,
+) ([]buzzimport.MattermostChannel, error) {
+	userIDs := make([]string, 0, len(authorsByID))
+	for userID := range authorsByID {
+		userIDs = append(userIDs, userID)
+	}
+	sort.Strings(userIDs)
+
+	public, errorValue := client.PublicChannels(ctx, teamID)
+	if errorValue != nil {
+		return nil, fmt.Errorf("public channels: %w", errorValue)
+	}
+	private, errorValue := client.PrivateChannels(ctx, teamID)
+	if errorValue != nil {
+		return nil, fmt.Errorf("private channels: %w", errorValue)
+	}
+	direct, errorValue := client.DirectChannels(ctx, teamID, userIDs)
+	if errorValue != nil {
+		return nil, fmt.Errorf("direct channels: %w", errorValue)
+	}
+
+	channels := mattermostrest.ChannelsToImport(public)
+	channels = append(channels, mattermostrest.ChannelsToImport(private)...)
+	channels = append(channels, mattermostrest.ChannelsToImport(direct)...)
+	return channels, nil
+}
+
+// Adding the standing reader to a direct conversation would hand someone else's
+// private messages to a key that was never in the room.
+func readerPubkeyFor(channel buzzimport.MattermostChannel, viewerPubkey string) string {
+	if channel.Type == buzzimport.OpenChannelType {
+		return viewerPubkey
+	}
+	return ""
 }
 
 func deriveSecret(seed, email string) string {
@@ -473,4 +724,19 @@ func failOn(errorValue error, context string) {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", context, errorValue)
 		os.Exit(1)
 	}
+}
+
+func secretFromFile(path string, flagName string) string {
+	if strings.TrimSpace(path) == "" {
+		log.Fatalf("%s is required", flagName)
+	}
+	content, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		log.Fatalf("read %s: %v", flagName, errorValue)
+	}
+	secret := strings.TrimSpace(string(content))
+	if secret == "" {
+		log.Fatalf("%s holds nothing", flagName)
+	}
+	return secret
 }
