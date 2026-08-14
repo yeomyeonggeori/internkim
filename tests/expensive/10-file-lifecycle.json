@@ -1,6 +1,6 @@
 {
   "name": "file-lifecycle",
-  "requiresLLMD": true,
+  "requiresModelProvenance": true,
   "expectedLLMProvider": "openrouter",
   "allowedTools": [
     "file_write",

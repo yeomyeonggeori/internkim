@@ -368,12 +368,6 @@ chmod 755 /root/.internkim
 chmod 750 /root/.internkim/sites /root/.internkim/secrets/sites
 chown root:root /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
 chmod 600 /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
-if [ ! -s /root/.internkim/secrets/llmd-auth-key ]; then
-  umask 077
-  head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > /root/.internkim/secrets/llmd-auth-key
-fi
-chown root:root /root/.internkim/secrets/llmd-auth-key
-chmod 600 /root/.internkim/secrets/llmd-auth-key
 if [ -f /root/.internkim/secrets/google-sa.json ]; then
   chown root:root /root/.internkim/secrets/google-sa.json
   chmod 600 /root/.internkim/secrets/google-sa.json
@@ -888,8 +882,6 @@ else
 %sSVCEOF
   cat > %s <<'CAPABILITYEOF'
 %sCAPABILITYEOF
-  cat > %s <<'LLMDEOF'
-%sLLMDEOF
   cat > %s <<'GRAPHITIEOF'
 %sGRAPHITIEOF
   cat > %s <<'ADMINDEOF'
@@ -920,14 +912,12 @@ else
   systemctl start %s
   systemctl enable %s
   systemctl start %s
-  systemctl enable %s
-  systemctl start %s
   systemctl enable --now internkim-users-sync.timer
 
   echo "Waiting for services..."
   for attemptIndex in $(seq 1 150); do
     allServicesActive=true
-    for serviceName in mattermost %s %s %s %s %s %s postgresql; do
+    for serviceName in mattermost %s %s %s %s %s postgresql; do
       if ! systemctl is-active --quiet "$serviceName" 2>/dev/null; then
         allServicesActive=false
         break
@@ -944,13 +934,11 @@ else
 
   mark_phase_done services
 fi`,
-		blueclaw.LLMDServiceCredentialInstallCommand(blueclaw.LocalOnlyEnabled()),
+		blueclaw.RetireLLMDLeftByEarlierReleasesCommand(),
 		blueclaw.BlueclawServicePath,
 		blueclaw.BlueclawServiceUnit(),
 		blueclaw.CapabilitydServicePath,
 		blueclaw.CapabilitydServiceUnit(),
-		blueclaw.LLMDServicePath,
-		blueclaw.LLMDServiceUnit(isLocalLlamaProvisioned),
 		blueclaw.GraphitiMemorydServicePath,
 		blueclaw.GraphitiMemorydServiceUnit(),
 		blueclaw.AdmindServicePath,
@@ -968,8 +956,6 @@ fi`,
 		blueclaw.InternKimUsersSyncTimerUnit(),
 		locallm.LlamaCppServiceName,
 		locallm.LlamaCppEmbeddingServiceName,
-		blueclaw.LLMDServiceName,
-		blueclaw.LLMDServiceName,
 		locallm.LlamaCppServiceName,
 		locallm.LlamaCppServiceName,
 		locallm.LlamaCppEmbeddingServiceName,
@@ -983,7 +969,6 @@ fi`,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
 		locallm.LlamaCppEmbeddingServiceName,
-		blueclaw.LLMDServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,
 		blueclaw.GraphitiMemorydServiceName,

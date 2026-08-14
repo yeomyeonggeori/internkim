@@ -146,7 +146,7 @@ func (service Service) upgradePathGatePlans(scenario string) []CommandPlan {
 
 func (service Service) upgradeReleaseApplyPlan() CommandPlan {
 	return service.command(service.options.ExecutablePath, "deploy",
-		"--components", "admind,capabilityd,blueclawPayload,blueclawLLMD",
+		"--components", "admind,capabilityd,blueclawPayload",
 		"--board", "lab",
 		"--device-url", service.adminHostURL(),
 	)
@@ -160,19 +160,6 @@ func (service Service) withoutMattermostScenarioPlans(scenario string) []Command
 		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
 		service.withoutMattermostVirtualSessionPlan(scenario),
 	}
-}
-
-func (service Service) llmdHostTopologyScenarioPlans() []CommandPlan {
-	service.options.ShouldUseRealModels = true
-	service.options.MaximumModelTier = ""
-	plans := service.upPlansWithSkippedSetupSteps(true, []string{"mattermost"})
-	for index := range plans {
-		plans[index].Environment = append(plans[index].Environment, blueclaw.BlueclawAdminTaskDiagnosticEnvironment+"=true")
-	}
-	return append(
-		plans,
-		service.labCommand("vm-ssh", "sudo bash "+quoteShell("/mnt/shared/workspace/lab/scripts/scenario-llmd-host-topology.sh")),
-	)
 }
 
 func (service Service) prepareContainerKernelPlan() CommandPlan {

@@ -260,12 +260,6 @@ func coupleBlueclawWithSkills(selectedComponentNames map[string]bool) map[string
 	if selectedComponentNames["blueclawPayload"] {
 		selectedComponentNames["skills"] = true
 	}
-	if selectedComponentNames["blueclawLLMD"] {
-		selectedComponentNames["admind"] = true
-		selectedComponentNames["blueclawPayload"] = true
-		selectedComponentNames["capabilityd"] = true
-		selectedComponentNames["skills"] = true
-	}
 	return selectedComponentNames
 }
 
