@@ -48,6 +48,15 @@ export type PublishBuzzMessageOptions = {
 	timeoutMs?: number;
 };
 
+// The browser only ever replies to a thread's root, and NIP-10 marks a direct
+// reply with the root it answers rather than with a reply marker; the second
+// tag exists only for a reply to a reply, which has no way in from here.
+export function streamMessageTags(options: PublishBuzzMessageOptions): string[][] {
+	const tags: string[][] = [["h", options.channelId], ...(options.extraTags ?? [])];
+	if (options.replyToRootId) tags.push(["e", options.replyToRootId, "", "root"]);
+	return tags;
+}
+
 // Publishes a channel message to the Buzz relay signed by the person's own key
 // in the browser. NIP-42 AUTH is answered with the same key. Single-shot: it
 // opens a socket, authenticates, publishes, resolves on the relay's OK, and
@@ -58,9 +67,11 @@ export function publishBuzzMessage(
 	options: PublishBuzzMessageOptions
 ): Promise<string> {
 	return new Promise<string>((resolve, reject) => {
-		const tags: string[][] = [["h", options.channelId], ...(options.extraTags ?? [])];
-		if (options.replyToRootId) tags.push(["e", options.replyToRootId, "", "reply"]);
-		const event = signBuzzEvent(secretHex, { kind: STREAM_MESSAGE_KIND, content: options.content, tags });
+		const event = signBuzzEvent(secretHex, {
+			kind: STREAM_MESSAGE_KIND,
+			content: options.content,
+			tags: streamMessageTags(options)
+		});
 
 		const socket = new WebSocket(relayURL);
 		let settled = false;
