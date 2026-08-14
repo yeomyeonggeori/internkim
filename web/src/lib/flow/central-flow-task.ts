@@ -10,6 +10,11 @@ export type CentralTaskStatus =
 	| 'rejected'
 	| 'done';
 
+type CentralRequesterIdentity = {
+	name: string | null;
+	email: string | null;
+};
+
 export type CentralFlowTaskRow = {
 	id: string;
 	parent_task_id: string | null;
@@ -25,8 +30,7 @@ export type CentralFlowTaskRow = {
 	due_at: string | null;
 	updated_at: string;
 	requester_id: string | null;
-	requester_name: string | null;
-	was_requested: boolean;
+	requester: CentralRequesterIdentity | CentralRequesterIdentity[] | null;
 	task_participant: { member_id: string }[];
 };
 
@@ -47,7 +51,7 @@ const centralStatusByWord = new Map<string, CentralTaskStatus>(
 const centralStatusWordByStatus = new Map<string, string>(centralStatusPairs);
 
 export const centralFlowTaskSelection =
-	'id, parent_task_id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester_name, was_requested, task_participant (member_id)';
+	'id, parent_task_id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester:member!task_requester_id_fkey (name, email), task_participant (member_id)';
 
 export const centralFlowStatusOptions = centralStatusPairs.map(([, word]) => word);
 
@@ -64,6 +68,7 @@ export function centralFlowTaskFromRow(
 	const owner = compatibilityOwnerOf(participants);
 	const endDate = dayOf(row.ends_at ?? row.due_at);
 	const requesterID = row.requester_id ?? '';
+	const requester = Array.isArray(row.requester) ? row.requester[0] : row.requester;
 	return {
 		id: row.id,
 		parentTaskID: row.parent_task_id ?? undefined,
@@ -72,8 +77,7 @@ export function centralFlowTaskFromRow(
 		participantIDs: participants.map(({ id }) => id),
 		participantNames: participants.map(({ name }) => name),
 		requesterID,
-		requesterName: row.requester_name ?? nameByID.get(requesterID) ?? '',
-		wasRequested: row.was_requested,
+		requesterName: nameByID.get(requesterID) || requester?.name || requester?.email || '',
 		business: row.business ?? '',
 		type: row.type ?? '',
 		content: row.title,
