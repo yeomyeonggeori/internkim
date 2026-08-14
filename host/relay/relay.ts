@@ -1,25 +1,13 @@
 //   bun run host/relay/relay.ts
 
-import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreviewImage } from './link-preview';
 import { assetBucket, keepSharedAsset } from './asset-store';
-import {
-	defaultAnswerByteCeiling,
-	largestMessageTheProPlanCarries,
-	largestRawBytesThatFit,
-	oversizeNotice,
-	type Answer
-} from './answer-size';
+import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
-import {
-	answerBodyOf,
-	forwardToChatd,
-	reportableTopic,
-	serveCall,
-	type Call,
-	type ConnectedAccount
-} from './forward';
+import { answerBodyOf, forwardToChatd, type ConnectedAccount } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
+import { connectToGateway } from './gateway-socket';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -36,14 +24,8 @@ const answerByteCeiling = positiveNumberSetting(
 	process.env.ANSWER_BYTE_CEILING,
 	defaultAnswerByteCeiling
 );
-const rejoinDeadlineMilliseconds = 60_000;
 const largestPictureBytes = largestRawBytesThatFit(answerByteCeiling);
 
-if (answerByteCeiling > largestMessageTheProPlanCarries) {
-	console.warn(
-		`ANSWER_BYTE_CEILING is ${answerByteCeiling}, past the ${largestMessageTheProPlanCarries} a Pro project carries; if this project carries no more, answers over that vanish instead of coming back 413`
-	);
-}
 
 function required(name: string): string {
 	const value = process.env[name];
@@ -68,69 +50,15 @@ const client = createClient(projectURL, publishableKey, {
 const companyID = hostSession.companyID;
 console.log(`acting as the host of company ${companyID}`);
 
-client.realtime.setAuth(hostSession.accessToken);
-const presence = client.channel(`company:${companyID}`, { config: { private: true } });
-const listeningTo = new Map<string, RealtimeChannel>();
-
-async function listenTo(memberID: string): Promise<RealtimeChannel> {
-	const known = listeningTo.get(memberID);
-	if (known) return known;
-	const theirs = client.channel(`member:${memberID}`, { config: { private: true } });
-	theirs.on('broadcast', { event: 'call' }, ({ payload }) => {
-		void answer(payload as Call, memberID);
-	});
-	listeningTo.set(memberID, theirs);
-	await join(theirs);
-	return theirs;
-}
-
-async function listenToEveryMember(): Promise<void> {
-	const members = await client.from('member').select('id').returns<{ id: string }[]>();
-	if (members.error) throw new Error(members.error.message);
-	for (const member of members.data) await listenTo(member.id);
-}
-
 setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
 
-await join(presence);
-await presence.track({ startedAt: new Date().toISOString() });
-await listenToEveryMember();
-setInterval(() => void keepGoing('members', listenToEveryMember), 600_000);
-console.log(`listening to ${listeningTo.size} members of company ${companyID}`);
 
-function join(channel: RealtimeChannel): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
-		channel.subscribe((status, error) => {
-			if (status === 'SUBSCRIBED') resolve();
-			if (error) reject(error);
-		});
-	});
-}
+function openGatewayConnection(): void {
+	const gatewayURL = process.env.GATEWAY_URL?.trim();
+	const serverKey = process.env.GATEWAY_SERVER_KEY?.trim();
+	if (!gatewayURL || !serverKey) return;
 
-let lastJoinedAt = Date.now();
-setInterval(watchTheChannel, 10_000);
-
-function watchTheChannel(): void {
-	if (presence.state === 'joined' && [...listeningTo.values()].every((theirs) => theirs.state === 'joined')) {
-		lastJoinedAt = Date.now();
-		return;
-	}
-	const awayForMilliseconds = Date.now() - lastJoinedAt;
-	if (awayForMilliseconds < rejoinDeadlineMilliseconds) return;
-	console.error(`presence is ${presence.state} and some member channel is not joined, ${Math.round(awayForMilliseconds / 1000)}s past the deadline; exiting so the supervisor restarts`);
-	process.exit(1);
-}
-
-async function answer(call: Call, channelMemberID: string): Promise<void> {
-	if (typeof call.callID !== 'string' || typeof call.capability !== 'string') return;
-	const callID = call.callID;
-	try {
-		const { status, body, replyTo } = await serveCall(dispatch, call, channelMemberID);
-		await reply(replyTo ?? reportableTopic(call), { callID, status, body });
-	} catch (error) {
-		const message = error instanceof Error ? error.message : 'the app could not do that';
-		await reply(reportableTopic(call), { callID, status: 500, body: { error: message } });
-	}
+	connectToGateway({ gatewayURL, companyID, serverKey, dispatch, byteCeiling: answerByteCeiling });
 }
 
 const dispatch = {
@@ -162,42 +90,28 @@ const dispatch = {
 		if (member.error) throw new Error(member.error.message);
 		return member.data?.email ?? null;
 	},
+	messengerCredentialOf: async (memberID: string) => {
+		const held = await askTheRecord<{ credential?: { kind: string; secret: string } | null }>(
+			'GET',
+			`/api/agent/messenger-credential?memberID=${encodeURIComponent(memberID)}`
+		);
+		if (!held.credential) return null;
+		return { kind: held.credential.kind, secret: held.credential.secret };
+	},
 	connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 		await askTheRecord('POST', '/api/agent/messenger-account', {
 			kind: messengerPlatform,
 			memberID,
 			...account
 		});
-	},
-	memberOfExternalID: async (externalID: string) => {
-		const contact = await client
-			.from('contact')
-			.select('member_id')
-			.eq('company_id', companyID)
-			.eq('platform', messengerPlatform)
-			.eq('external_id', externalID)
-			.maybeSingle<{ member_id: string | null }>();
-		if (contact.error) throw new Error(contact.error.message);
-		return contact.data?.member_id ?? null;
 	}
 };
+
+openGatewayConnection();
 
 async function asset(capability: string, body: Record<string, unknown>): Promise<unknown> {
 	if (capability === 'asset.link') return previewOf(String(body.url ?? ''));
 	throw new Error(`the app has nothing called ${capability}`);
-}
-
-async function reply(replyTo: string | null, answer: Answer): Promise<void> {
-	const notice = oversizeNotice(answer, answerByteCeiling);
-	if (notice) console.error(`answer for ${answer.callID} is over the ${answerByteCeiling} byte ceiling`);
-	if (!replyTo) return;
-	try {
-		const theirs = await listenTo(replyTo);
-		await theirs.httpSend('answer', notice ?? answer);
-	} catch (error) {
-		const refusal = error instanceof Error ? error.message : 'the record would not take it';
-		console.error(`answer for ${answer.callID} never reached member:${replyTo}: ${refusal}`);
-	}
 }
 
 type ServedLinkPreview = {
@@ -302,7 +216,6 @@ async function keepSessionFresh(): Promise<void> {
 	const secondsLeft = hostSession.expiresAt - Math.floor(Date.now() / 1000);
 	if (secondsLeft > 300) return;
 	hostSession = await askForHostSession();
-	await client.realtime.setAuth(hostSession.accessToken);
 	console.log('session renewed');
 }
 

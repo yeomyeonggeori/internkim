@@ -1,6 +1,4 @@
-import { supabase } from '$lib/supabase';
-import { messengerCredential } from '$lib/messenger-credential';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import { gatewayURL, supabase } from '$lib/supabase';
 
 export type HostCall = {
 	capability: string;
@@ -19,19 +17,14 @@ export class HostUnreachableError extends Error {
 	}
 }
 
-type Wire = {
-	memberID: string;
-	presence: RealtimeChannel;
-	mine: RealtimeChannel;
-};
-
 const answerTimeoutMilliseconds = 20_000;
+const tokenProtocol = 'internkim.bearer.';
 
-let joined: Promise<Wire> | undefined;
-let running = false;
+let joined: Promise<WebSocket> | undefined;
+let isServerConnected = false;
 const waiting = new Map<string, (answer: HostAnswer) => void>();
 
-async function companyWire(): Promise<Wire> {
+async function companyWire(): Promise<WebSocket> {
 	if (joined) return joined;
 	const attempt = openWire();
 	joined = attempt;
@@ -39,117 +32,84 @@ async function companyWire(): Promise<Wire> {
 	return attempt;
 }
 
-function forgetWire(attempt: Promise<Wire>): void {
+function forgetWire(attempt: Promise<WebSocket>): void {
 	if (joined !== attempt) return;
-	joined = undefined;
-	running = false;
+	dropTheWire();
 }
 
-async function openWire(): Promise<Wire> {
+function dropTheWire(): void {
+	joined = undefined;
+	isServerConnected = false;
+}
+
+async function openWire(): Promise<WebSocket> {
+	const address = gatewayURL();
+	if (!address) throw new HostUnreachableError();
+
 	const client = supabase();
-	await client.realtime.setAuth();
 	const { data } = await client.auth.getSession();
-	const accountID = data.session?.user.id;
-	if (!accountID) throw new Error('sign in first');
+	const token = data.session?.access_token;
+	if (!token) throw new Error('sign in first');
+
 	const member = await client
 		.from('member')
-		.select('id, company_id')
-		.eq('user_id', accountID)
-		.single<{ id: string; company_id: string }>();
+		.select('company_id')
+		.eq('user_id', data.session?.user.id ?? '')
+		.single<{ company_id: string }>();
 	if (member.error) throw new Error(member.error.message);
 
-	const presence = client.channel(`company:${member.data.company_id}`, {
-		config: { private: true }
-	});
-	presence.on('presence', { event: 'sync' }, () => {
-		running = Object.keys(presence.presenceState()).length > 0;
-	});
-	await joinChannel(presence);
+	const url = `${address.replace(/\/+$/, '')}/company/${encodeURIComponent(member.data.company_id)}/client`;
+	const socket = new WebSocket(url, [tokenProtocol + token]);
+	socket.addEventListener('message', (message) => receive(message.data));
+	socket.addEventListener('close', dropTheWire);
 
-	const mine = client.channel(`member:${member.data.id}`, { config: { private: true } });
-	mine.on('broadcast', { event: 'answer' }, ({ payload }) => {
-		const answer = payload as { callID?: string; status?: number; body?: unknown };
-		if (typeof answer.callID !== 'string') return;
-		waiting.get(answer.callID)?.({ status: answer.status ?? 500, body: answer.body });
-		waiting.delete(answer.callID);
+	await new Promise<void>((resolve, reject) => {
+		socket.addEventListener('open', () => resolve(), { once: true });
+		socket.addEventListener('error', () => reject(new HostUnreachableError()), { once: true });
 	});
-	await joinChannel(mine);
-
-	return { memberID: member.data.id, presence, mine };
+	return socket;
 }
 
-function joinChannel(channel: RealtimeChannel): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
-		channel.subscribe((status, error) => {
-			if (status === 'SUBSCRIBED') return resolve();
-			if (error) return reject(error);
-			if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-				reject(new Error(`the ${channel.topic} channel is ${status}`));
-			}
-		});
+function receive(data: unknown): void {
+	if (typeof data !== 'string') return;
+	let payload: Record<string, unknown>;
+	try {
+		payload = JSON.parse(data) as Record<string, unknown>;
+	} catch {
+		return;
+	}
+	if (payload.kind === 'presence') {
+		isServerConnected = payload.isServerConnected === true;
+		return;
+	}
+	if (payload.kind !== 'result' || typeof payload.requestID !== 'string') return;
+	waiting.get(payload.requestID)?.({
+		status: typeof payload.status === 'number' ? payload.status : 500,
+		body: payload.body
 	});
+	waiting.delete(payload.requestID);
 }
 
 export async function isCompanyAppRunning(): Promise<boolean> {
 	await companyWire();
-	return running;
-}
-
-export function callPayload(
-	callID: string,
-	memberID: string,
-	call: HostCall,
-	actor: { kind: string; secret: string }
-): Record<string, unknown> {
-	return {
-		callID,
-		capability: call.capability,
-		replyTo: memberID,
-		body: { ...call.body, actor }
-	};
+	return isServerConnected;
 }
 
 export async function callCompanyApp(call: HostCall): Promise<HostAnswer> {
-	const actor = await messengerCredential();
-	return sendCall((callID, memberID) => callPayload(callID, memberID, call, actor));
-}
-
-export function channelPayload(
-	callID: string,
-	memberID: string,
-	call: HostCall
-): Record<string, unknown> {
-	return {
-		callID,
-		capability: call.capability,
-		replyTo: memberID,
-		body: call.body ?? {}
-	};
-}
-
-export function callCompanyAppByChannel(call: HostCall): Promise<HostAnswer> {
-	return sendCall((callID, memberID) => channelPayload(callID, memberID, call));
-}
-
-async function sendCall(
-	payloadOf: (callID: string, memberID: string) => Record<string, unknown>
-): Promise<HostAnswer> {
 	const wire = await companyWire();
+	const requestID = crypto.randomUUID();
 
-	const callID = crypto.randomUUID();
 	const answered = new Promise<HostAnswer | null>((resolve) => {
-		waiting.set(callID, resolve);
+		waiting.set(requestID, resolve);
 		setTimeout(() => {
-			if (!waiting.delete(callID)) return;
+			if (!waiting.delete(requestID)) return;
 			resolve(null);
 		}, answerTimeoutMilliseconds);
 	});
 
-	await wire.mine.send({
-		type: 'broadcast',
-		event: 'call',
-		payload: payloadOf(callID, wire.memberID)
-	});
+	wire.send(
+		JSON.stringify({ kind: 'call', requestID, capability: call.capability, body: call.body ?? {} })
+	);
 
 	const answer = await answered;
 	if (!answer) throw new HostUnreachableError();

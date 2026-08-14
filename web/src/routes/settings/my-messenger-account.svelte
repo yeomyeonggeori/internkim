@@ -3,7 +3,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { forgetMessengerCredential, messengerCredential } from '$lib/messenger-credential';
+	import { haveIConnectedMyMessenger } from '$lib/messenger/messenger-directory';
 	import {
 		connectMessengerAccount,
 		whatTheMessengerNeeds,
@@ -31,7 +31,7 @@
 	});
 
 	async function readWhetherIAmConnected() {
-		hasConnected = (await messengerCredential().catch(() => null)) !== null;
+		hasConnected = await haveIConnectedMyMessenger();
 	}
 
 	async function readWhatIsNeeded() {
@@ -49,7 +49,6 @@
 			const identity = await connectMessengerAccount(answers);
 			connectedAs = identity.name || identity.externalID;
 			hasConnected = true;
-			forgetMessengerCredential();
 			answers = Object.fromEntries(Object.keys(answers).map((field) => [field, '']));
 			toast.success(text.messengerConnected);
 		} catch (refusal) {

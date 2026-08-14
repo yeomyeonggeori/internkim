@@ -1,9 +1,6 @@
-export type ActorCredential = { kind: string; secret: string };
-
 export type Call = {
 	callID?: string;
 	capability?: string;
-	replyTo?: string;
 	body?: Record<string, unknown>;
 };
 
@@ -43,21 +40,6 @@ export async function answerBodyOf(response: Response): Promise<unknown> {
 	}
 }
 
-export function reportableTopic(call: Call): string | null {
-	const offered = call.replyTo;
-	if (typeof offered !== 'string') return null;
-	return /^[0-9a-f-]{36}$/i.test(offered) ? offered : null;
-}
-
-export function actorOf(call: Call): ActorCredential | null {
-	const offered = call.body?.actor;
-	if (typeof offered !== 'object' || offered === null) return null;
-	const { kind, secret } = offered as { kind?: unknown; secret?: unknown };
-	if (typeof kind !== 'string' || typeof secret !== 'string') return null;
-	if (!kind.trim() || !secret.trim()) return null;
-	return { kind, secret };
-}
-
 export async function forwardToChatd(
 	chatdBaseURL: string,
 	platform: string,
@@ -88,41 +70,35 @@ export type Dispatch = {
 	emailOfMember: (memberID: string) => Promise<string | null>;
 	askChatd: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
-	memberOfExternalID: (externalID: string) => Promise<string | null>;
 	mailAccountOf: (memberID: string) => Promise<Record<string, unknown> | null>;
 	connectMessengerAccount: (memberID: string, account: ConnectedAccount) => Promise<void>;
+	messengerCredentialOf: (memberID: string) => Promise<ActorCredential | null>;
 };
 
 export type ConnectedAccount = { externalID: string; name: string; secret: string };
 
-export async function serveCall(
+export type ActorCredential = { kind: string; secret: string };
+
+export async function serveCallForMember(
 	dispatch: Dispatch,
 	call: Call,
-	channelMemberID?: string
+	memberID: string
 ): Promise<Served> {
 	const capability = call.capability ?? '';
 	const body = call.body ?? {};
 
 	if (isRegistrationCapability(capability)) {
-		if (!channelMemberID) {
-			return { status: 403, body: { error: 'this call arrived on nobody\'s channel' }, replyTo: null };
-		}
-		return {
-			...(await serveRegistration(dispatch, capability, body, channelMemberID)),
-			replyTo: channelMemberID
-		};
+		return { ...(await serveRegistration(dispatch, capability, body, memberID)), replyTo: memberID };
 	}
+	return serveForMember(dispatch, capability, body, memberID);
+}
 
-	const actor = actorOf(call);
-	if (!actor) {
-		return { status: 400, body: { error: 'this call named no actor' }, replyTo: null };
-	}
-
-	const replyTo = await memberHolding(dispatch, actor);
-	if (!replyTo) {
-		return { status: 403, body: { error: 'that credential belongs to nobody here' }, replyTo: null };
-	}
-
+async function serveForMember(
+	dispatch: Dispatch,
+	capability: string,
+	body: Record<string, unknown>,
+	replyTo: string
+): Promise<Served> {
 	if (!isPersonCapability(capability)) {
 		return { status: 200, body: await dispatch.serveAsset(capability, body), replyTo };
 	}
@@ -134,7 +110,14 @@ export async function serveCall(
 		return { ...(await serveWorkspace(dispatch, capability, body, replyTo)), replyTo };
 	}
 
-	return { ...(await dispatch.askChatd(capability, body)), replyTo };
+	// Acting as a person on their messenger means holding their credential.
+	// The company's own server resolves it; the browser used to carry it, and
+	// that is the whole reason it had to be handed one in the clear.
+	const actor = await dispatch.messengerCredentialOf(replyTo);
+	if (!actor) {
+		return { status: 409, body: { error: 'this member has connected no messenger account' }, replyTo };
+	}
+	return { ...(await dispatch.askChatd(capability, { ...body, actor })), replyTo };
 }
 
 async function serveRegistration(
@@ -175,14 +158,6 @@ async function serveMail(
 		return { status: 409, body: { error: 'this member has connected no mail account' } };
 	}
 	return dispatch.askMaild(operation, { ...body, account });
-}
-
-async function memberHolding(dispatch: Dispatch, actor: ActorCredential): Promise<string | null> {
-	const identity = await dispatch.askChatd('person.identity', { actor });
-	if (identity.status >= 300) return null;
-	const externalID = (identity.body as { externalID?: string } | null)?.externalID;
-	if (!externalID) return null;
-	return dispatch.memberOfExternalID(externalID);
 }
 
 async function serveWorkspace(

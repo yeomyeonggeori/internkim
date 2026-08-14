@@ -47,3 +47,26 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bun test
+
+  connection-gateway:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/connection-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun test
+
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase db start
+      - run: supabase db reset
+      - run: supabase test db

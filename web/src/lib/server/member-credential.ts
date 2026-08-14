@@ -123,3 +123,20 @@ async function storeSecret(
 	if (typeof data !== 'string') throw new Error('the vault returned no secret id');
 	return data;
 }
+
+// A company runs one messenger, so a member holds one credential for it, and
+// which kind that is belongs to the messenger rather than to the caller.
+export async function memberMessengerCredential(
+	client: SupabaseClient,
+	memberID: string,
+): Promise<MemberCredential | null> {
+	const { data, error } = await client
+		.from('credential')
+		.select('kind')
+		.eq('member_id', memberID)
+		.limit(1)
+		.maybeSingle<{ kind: string }>();
+	if (error) throw new Error(error.message);
+	if (!data) return null;
+	return memberCredential(client, memberID, data.kind);
+}

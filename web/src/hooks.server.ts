@@ -18,7 +18,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const centralPlane = {
 		projectURL: env.SUPABASE_URL ?? '',
 		publishableKey: env.SUPABASE_PUBLISHABLE_KEY ?? '',
-		vapidPublicKey: env.VAPID_PUBLIC_KEY ?? ''
+		vapidPublicKey: env.VAPID_PUBLIC_KEY ?? '',
+		gatewayURL: env.GATEWAY_URL ?? ''
 	};
 
 	const zone = env.CF_DOMAIN ?? '';
