@@ -17,6 +17,7 @@ export type MessengerChannel = {
 
 export type MessengerReaction = {
 	emoji: string;
+	imageURL?: string;
 	people: MessengerPerson[];
 };
 
@@ -47,7 +48,7 @@ type PersonalConversation = {
 	participantExternalIDs?: string[];
 	webURL?: string;
 };
-type PersonalReaction = { emoji: string; byExternalIDs: string[] };
+type PersonalReaction = { emoji: string; imageURL?: string; byExternalIDs: string[] };
 type PersonalMessage = {
 	id: string;
 	conversationID: string;
@@ -95,6 +96,7 @@ function asPost(message: PersonalMessage): MessengerPost {
 		editedAt: message.editedAt,
 		reactions: message.reactions.map((reaction) => ({
 			emoji: reaction.emoji,
+			imageURL: reaction.imageURL,
 			people: reaction.byExternalIDs.map((externalID) => ({ externalID }))
 		}))
 	};

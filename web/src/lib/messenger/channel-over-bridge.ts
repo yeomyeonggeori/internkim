@@ -150,7 +150,7 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, mine: string
 		reactions: post.reactions.map((reaction) => ({
 			emoji: glyphOf(reaction.emoji) ?? reaction.emoji,
 			count: reaction.people.length,
-			imageURL: customEmoji.nameToURL.get(reaction.emoji),
+			imageURL: reaction.imageURL ?? customEmoji.nameToURL.get(reaction.emoji),
 			reactedByMe: reaction.people.some((person) => canonicalKey(person, people) === mine),
 			people: reaction.people.map((person) => participantOf(person, people))
 		}))
