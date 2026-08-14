@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 
 	"gitlab.com/eastriver/internkim/internal/capabilityd"
+	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 func main() {
@@ -48,12 +50,40 @@ func main() {
 	flag.BoolVar(&configuration.PreferCompanionLLM, "prefer-companion-llm", defaultConfiguration.PreferCompanionLLM, "prefer companion local LLM when available")
 	flag.StringVar(&configuration.LocalInferenceMode, "local-inference-mode", defaultConfiguration.LocalInferenceMode, "local inference mode: device, companion_preferred, companion_only, remote")
 	flag.BoolVar(&configuration.LocalOnly, "local-only", defaultConfiguration.LocalOnly, "disable remote LLM fallback")
+	shouldPrintCapabilities := flag.Bool("print-capabilities", false, "print the capabilities block the agent's runtime document needs, and exit")
 	flag.Parse()
+	if *shouldPrintCapabilities {
+		printCapabilities(configuration.SocketPath)
+		return
+	}
 	if environmentDeviceBrowserPath := os.Getenv("INTERNKIM_DEVICE_BROWSER_PATH"); environmentDeviceBrowserPath != "" {
 		configuration.DeviceBrowserPath = environmentDeviceBrowserPath
 	}
 
 	if errorValue := capabilityd.Run(configuration); errorValue != nil {
+		fmt.Fprintln(os.Stderr, errorValue.Error())
+		os.Exit(1)
+	}
+}
+
+// The capability contract belongs to this binary: the agent refuses to boot
+// against a runtime document that does not name the same protocol, so the
+// document has to be written from whatever capabilityd is actually installed
+// rather than copied into a template that ages.
+func printCapabilities(socketPath string) {
+	contract := blueclawruntime.CurrentCapabilityContract()
+	document := map[string]any{
+		"transport":             "unix",
+		"unixSocketPath":        socketPath,
+		"endpoint":              "http://internkim-capability",
+		"timeoutSecond":         30,
+		"protocolVersion":       contract.ProtocolVersion,
+		"aggregateProtocolHash": contract.AggregateProtocolHash,
+		"toolDescriptors":       contract.ToolDescriptors,
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if errorValue := encoder.Encode(document); errorValue != nil {
 		fmt.Fprintln(os.Stderr, errorValue.Error())
 		os.Exit(1)
 	}
