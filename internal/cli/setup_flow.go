@@ -1504,10 +1504,6 @@ func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) e
 	if errorValue != nil {
 		return fmt.Errorf("blueclaw Firecracker base runtime artifact invalid: %w; run `make prepare-blueclaw-runtime-base` before setup", errorValue)
 	}
-	if errorValue := blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest); errorValue != nil {
-		return fmt.Errorf("blueclaw Firecracker base runtime artifact invalid: %w", errorValue)
-	}
-
 	fmt.Print("  blueclaw Firecracker base runtime... ")
 	remoteManifestDocument := state.sshClient.run("cat " + blueclaw.BlueclawRuntimeManifestPath + " 2>/dev/null || true")
 	installPlan := buildBlueclawRuntimeInstallPlan(
@@ -1519,6 +1515,15 @@ func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) e
 	)
 	if context.Force {
 		installPlan = forceBlueclawRuntimeInstallPlan(installPlan)
+	}
+	// guestInitSHA256, prepareScriptSHA256 and baseSourceSHA256 all describe what went into
+	// the guest image. The kernel answers for itself through guestKernelConfigurationSHA256,
+	// so a kernel-only install must not be refused for the age of an image it does not carry.
+	if blueclawRuntimeInstallPlanInstallsRootFilesystem(installPlan) {
+		if errorValue := blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest); errorValue != nil {
+			fmt.Println("failed")
+			return fmt.Errorf("blueclaw Firecracker base runtime artifact invalid: %w", errorValue)
+		}
 	}
 	printBlueclawRuntimeInstallPlan(installPlan)
 	if blueclawRuntimeInstallPlanIsCurrent(installPlan) {
@@ -1604,17 +1609,22 @@ mkdir -p /var/log/blueclaw-supervisor
 	return nil
 }
 
+func blueclawRuntimeInstallPlanInstallsRootFilesystem(plan blueclawRuntimeInstallPlan) bool {
+	for _, artifact := range plan.artifacts {
+		if artifact.name == "rootfs.ext4" && artifact.shouldInstall {
+			return true
+		}
+	}
+	return false
+}
+
 func (state *setupFlowState) blueclawRuntimeManifest() string {
 	manifestPath := filepath.Join(state.scriptDir, blueclaw.BlueclawRuntimeArtifactPath, "manifest.json")
 	document, errorValue := os.ReadFile(manifestPath)
 	if errorValue != nil {
 		return ""
 	}
-	manifest, errorValue := blueclaw.ParseRuntimeArtifactManifest(document)
-	if errorValue != nil {
-		return ""
-	}
-	if errorValue := blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest); errorValue != nil {
+	if _, errorValue := blueclaw.ParseRuntimeArtifactManifest(document); errorValue != nil {
 		return ""
 	}
 	return string(document)
@@ -1806,33 +1816,26 @@ func (state *setupFlowState) blueclawPayloadManifest() string {
 	return string(document)
 }
 
+// Whether the artifact is well formed and whether its guest image is current are
+// different questions. A rebuild answers the first; the second only matters when the
+// guest image is about to ship, and rebuilding for it would replace an image the device
+// is running well with one nobody has booted.
 func (state *setupFlowState) ensureBlueclawRuntimeBaseArtifact() (string, error) {
 	artifactDirectoryPath := filepath.Join(state.scriptDir, blueclaw.BlueclawRuntimeArtifactPath)
-	manifest, errorValue := blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath)
-	if errorValue == nil {
-		errorValue = blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest)
-	}
+	_, errorValue := blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath)
 	if errorValue == nil {
 		return artifactDirectoryPath, nil
 	}
 	if reuseError := state.reuseBlueclawRuntimeBaseArtifact(artifactDirectoryPath); reuseError == nil {
-		manifest, errorValue = blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath)
-		if errorValue == nil {
-			errorValue = blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest)
-		}
-		if errorValue == nil {
+		if _, errorValue = blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath); errorValue == nil {
 			return artifactDirectoryPath, nil
 		}
 	}
 	if makeError := state.runMakeTarget("prepare-blueclaw-runtime-base"); makeError != nil {
 		return "", fmt.Errorf("blueclaw Firecracker base runtime artifact invalid: %w; automatic preparation failed: %w", errorValue, makeError)
 	}
-	manifest, errorValue = blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath)
-	if errorValue != nil {
+	if _, errorValue = blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath); errorValue != nil {
 		return "", fmt.Errorf("blueclaw Firecracker base runtime artifact invalid after automatic preparation: %w", errorValue)
-	}
-	if errorValue := blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest); errorValue != nil {
-		return "", fmt.Errorf("blueclaw Firecracker base runtime artifact source invalid after automatic preparation: %w", errorValue)
 	}
 	return artifactDirectoryPath, nil
 }
