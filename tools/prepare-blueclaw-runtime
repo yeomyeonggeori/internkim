@@ -19,6 +19,7 @@ blueclaw_bun_version="${BLUECLAW_BUN_VERSION:-1.3.10}"
 marp_cli_version="${BLUECLAW_MARP_CLI_VERSION:-4.3.1}"
 blueclaw_uv_version="${BLUECLAW_UV_VERSION:-0.11.11}"
 kernel_source="${BLUECLAW_KERNEL_IMAGE_SOURCE:-}"
+rootfs_source="${BLUECLAW_ROOTFS_IMAGE_SOURCE:-}"
 builder="local"
 ssh_host=""
 ssh_user="${USER:-admin}"
@@ -326,33 +327,47 @@ case "$builder" in
     ;;
 esac
 
-if [ "$(uname -s)" != "Linux" ]; then
+builds_a_guest_image=1
+if [ -n "$kernel_source" ] && [ -n "$rootfs_source" ]; then
+  builds_a_guest_image=0
+fi
+
+if [ "$builds_a_guest_image" = "1" ] && [ "$(uname -s)" != "Linux" ]; then
   echo "Blueclaw runtime artifact build requires a prepared Linux arm64 builder." >&2
   echo "Run: make prepare-blueclaw-runtime-builder && tools/prepare-blueclaw-runtime --builder container" >&2
   echo "Or: tools/prepare-blueclaw-runtime --builder ssh --host <linux-arm64>" >&2
+  echo "Given both BLUECLAW_KERNEL_IMAGE_SOURCE and BLUECLAW_ROOTFS_IMAGE_SOURCE this only repackages, and runs anywhere." >&2
   exit 1
 fi
 
-if [ "$(uname -m)" != "aarch64" ] && [ "$(uname -m)" != "arm64" ]; then
+if [ "$builds_a_guest_image" = "1" ] && [ "$(uname -m)" != "aarch64" ] && [ "$(uname -m)" != "arm64" ]; then
   echo "Blueclaw runtime artifacts must be prepared on Linux arm64" >&2
   exit 1
 fi
 
 require_command curl
-require_command tar
-require_command unzip
 require_command sha256sum
-require_command mkfs.ext4
-require_command rsync
 require_command find
-require_command go
 require_command python3
-require_command make
-require_command git
 
-run_root mkdir -p "$scratch_directory" "$cache_directory" "$work_directory"
-run_root chown "$(id -u):$(id -g)" "$scratch_directory" "$cache_directory" "$work_directory"
-run_root rm -rf "$stage_directory"
+if [ "$builds_a_guest_image" = "1" ]; then
+  require_command tar
+  require_command unzip
+  require_command mkfs.ext4
+  require_command rsync
+  require_command go
+  require_command make
+  require_command git
+fi
+
+if [ "$builds_a_guest_image" = "1" ]; then
+  run_root mkdir -p "$scratch_directory" "$cache_directory" "$work_directory"
+  run_root chown "$(id -u):$(id -g)" "$scratch_directory" "$cache_directory" "$work_directory"
+  run_root rm -rf "$stage_directory"
+else
+  mkdir -p "$scratch_directory" "$cache_directory" "$work_directory"
+  rm -rf "$stage_directory"
+fi
 mkdir -p "$artifact_directory" "$stage_directory"
 
 prepare_firecracker() {
@@ -756,6 +771,42 @@ SCRIPT
   run_root chmod 0755 "$rootfs_directory/usr/local/bin/graphiti-memoryd"
 }
 
+prepare_rootfs() {
+  if [ -n "$rootfs_source" ]; then
+    install -m 0644 "$rootfs_source" "$rootfs_image_path"
+    return
+  fi
+  build_blueclaw_base_binaries
+  prepare_rootfs_directory
+  prepare_rootfs_image
+}
+
+# A supplied guest image was built somewhere else, so the manifest states that build's
+# sources rather than this checkout's. Inventing them here would let a stale image pass
+# the freshness gate that exists to catch exactly that.
+supplied_rootfs_provenance() {
+  local field="$1"
+  local source_manifest_path
+  source_manifest_path="$(dirname "$rootfs_source")/manifest.json"
+  if [ ! -s "$source_manifest_path" ]; then
+    echo "BLUECLAW_ROOTFS_IMAGE_SOURCE needs a manifest.json beside it to state where the image came from" >&2
+    exit 1
+  fi
+  python3 - "$source_manifest_path" "$field" <<'PROVENANCE'
+import json
+import sys
+
+manifest_path, field = sys.argv[1:3]
+with open(manifest_path, encoding="utf-8") as file:
+    manifest = json.load(file)
+value = manifest.get(field, "")
+if not value:
+    print(f"the manifest beside the supplied guest image states no {field}", file=sys.stderr)
+    raise SystemExit(1)
+print(value)
+PROVENANCE
+}
+
 prepare_rootfs_image() {
   run_root rm -f "$rootfs_image_path"
   truncate -s "$rootfs_size" "$rootfs_image_path"
@@ -766,6 +817,13 @@ write_manifest() {
   local guest_init_sha
   local prepare_script_sha
   local base_source_sha
+  if [ -n "$rootfs_source" ]; then
+    guest_init_sha="$(supplied_rootfs_provenance guestInitSHA256)"
+    prepare_script_sha="$(supplied_rootfs_provenance prepareScriptSHA256)"
+    base_source_sha="$(supplied_rootfs_provenance baseSourceSHA256)"
+    write_manifest_document
+    return
+  fi
   guest_init_sha="$(sha256sum "$repository_root/assets/blueclaw-runtime/guest-init" | cut -d' ' -f1)"
   prepare_script_sha="$(sha256sum "$repository_root/tools/prepare-blueclaw-runtime" | cut -d' ' -f1)"
   base_source_sha="$(python3 - "$repository_root/.dependency/blueclaw" <<'PY'
@@ -814,6 +872,10 @@ for relative_path in paths:
 print(hash_value.hexdigest())
 PY
 )"
+  write_manifest_document
+}
+
+write_manifest_document() {
   python3 - "$stage_directory" "$artifact_directory/manifest.json" "$firecracker_version" "$guest_init_sha" "$prepare_script_sha" "$base_source_sha" "$(guest_kernel_configuration_sha)" <<'PY'
 import hashlib
 import json
@@ -865,9 +927,7 @@ publish_artifacts() {
 prepare_firecracker
 prepare_cloud_hypervisor
 prepare_kernel
-build_blueclaw_base_binaries
-prepare_rootfs_directory
-prepare_rootfs_image
+prepare_rootfs
 write_manifest
 publish_artifacts
 
