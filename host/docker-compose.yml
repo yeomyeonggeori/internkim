@@ -1,0 +1,63 @@
+# The whole company side on one machine: the agent's own Postgres and the
+# bundle entrypoint.sh brings up. The tenant's messenger is a separate stack —
+# host/buzz/docker-compose.yml — because a company that already runs one does
+# not want a second.
+#
+#   cp .env.sample .env      # then fill in what the agent needs
+#   docker compose -f host/docker-compose.yml up
+name: internkim-host
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: internkim-postgres
+    environment:
+      POSTGRES_USER: ${HOST_POSTGRES_USER:-blueclaw}
+      POSTGRES_PASSWORD: ${HOST_POSTGRES_PASSWORD:-blueclaw_dev}
+      POSTGRES_DB: ${HOST_POSTGRES_DB:-blueclaw}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${HOST_POSTGRES_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${HOST_POSTGRES_USER:-blueclaw}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  agent:
+    build:
+      context: ..
+      dockerfile: host/Dockerfile
+    container_name: internkim-agent
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${HOST_POSTGRES_USER:-blueclaw}:${HOST_POSTGRES_PASSWORD:-blueclaw_dev}@127.0.0.1:${HOST_POSTGRES_PORT:-5433}/${HOST_POSTGRES_DB:-blueclaw}?sslmode=disable
+      SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in .env}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?set SUPABASE_PUBLISHABLE_KEY in .env}
+      INTERNKIM_APP_URL: ${INTERNKIM_APP_URL:-https://space.intern.kim}
+      CHATD_BOT_USER_NAME: ${CHATD_BOT_USER_NAME:-internkim}
+      MESSENGER_PLATFORM: ${MESSENGER_PLATFORM:-buzz}
+      CHATD_BUZZ_RELAY_URL: ${CHATD_BUZZ_RELAY_URL:-ws://localhost:3000}
+      CHATD_BUZZ_PRIVATE_KEY: ${CHATD_BUZZ_PRIVATE_KEY:-}
+      CHATD_BUZZ_ACCOUNT_LINKS_PATH: ${CHATD_BUZZ_ACCOUNT_LINKS_PATH:-/etc/blueclaw/buzz-account-links.json}
+      GATEWAY_URL: ${GATEWAY_URL:-}
+      GATEWAY_SERVER_KEY: ${GATEWAY_SERVER_KEY:-}
+    volumes:
+      - ./secrets:/secrets:ro
+      - ./runtime:/etc/blueclaw:ro
+      - workspace:/workspace
+    # Host mode's whole shape is that everything answers on loopback and nothing
+    # listens off it. Sharing the host's network keeps that true inside the
+    # container: the messenger, the agent and the connector all reach each other
+    # at 127.0.0.1, and a relay that picks its community from the Host header
+    # sees the name it was created under.
+    network_mode: host
+
+volumes:
+  postgres-data:
+    name: internkim-host-postgres-data
+  workspace:
+    name: internkim-host-workspace
