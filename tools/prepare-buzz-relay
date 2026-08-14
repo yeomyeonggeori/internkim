@@ -7,12 +7,19 @@ source_directory="$artifact_directory/src"
 pinned_revision="485d03a358b6d695aaf97879f3fbaf2f308d0755"
 source_repository="https://github.com/block/buzz"
 
+# rust-s3 puts the endpoint's path in the Host header, so an S3 endpoint that
+# has one answers 400 before it reads the signature. Supabase Storage's is
+# https://<project>.supabase.co/storage/v1/s3. Fix: durch/rust-s3#474.
+patched_s3_repository="https://github.com/eastriverlee/rust-s3.git"
+patched_s3_revision="786653e1b4abd47cb046ef1227aa646d97073c2c"
+built_revision="$pinned_revision+rust-s3-$patched_s3_revision"
+
 relay_binary="$artifact_directory/buzz-relay"
 admin_binary="$artifact_directory/buzz-admin"
 revision_file="$artifact_directory/REVISION"
 
-if [ -x "$relay_binary" ] && [ -x "$admin_binary" ] && [ "$(cat "$revision_file" 2>/dev/null)" = "$pinned_revision" ]; then
-  echo "buzz-relay artifact already up to date at $pinned_revision"
+if [ -x "$relay_binary" ] && [ -x "$admin_binary" ] && [ "$(cat "$revision_file" 2>/dev/null)" = "$built_revision" ]; then
+  echo "buzz-relay artifact already up to date at $built_revision"
   exit 0
 fi
 
@@ -24,6 +31,20 @@ fi
 git -C "$source_directory" fetch --depth 1 origin "$pinned_revision"
 git -C "$source_directory" checkout --detach "$pinned_revision"
 
+python3 - "$source_directory/Cargo.toml" "$patched_s3_repository" "$patched_s3_revision" <<'PATCH'
+import pathlib
+import sys
+
+manifest, repository, revision = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+entry = f'rust-s3 = {{ git = "{repository}", rev = "{revision}" }}'
+text = manifest.read_text()
+if entry in text:
+    sys.exit(0)
+if "[patch.crates-io]" not in text:
+    raise SystemExit("buzz no longer patches crates.io; place the rust-s3 patch by hand")
+manifest.write_text(text.replace("[patch.crates-io]\n", f"[patch.crates-io]\n{entry}\n", 1))
+PATCH
+
 container run --rm --platform linux/arm64 --memory 8G \
   -v "$source_directory:/build" -w /build rust:1.95-bookworm \
   bash -c '
@@ -31,11 +52,12 @@ container run --rm --platform linux/arm64 --memory 8G \
     export PATH=/usr/local/cargo/bin:$PATH
     apt-get update -qq
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential pkg-config libssl-dev git >/dev/null
+    cargo update --package rust-s3
     cargo build --release --locked -p buzz-relay --bin buzz-relay -p buzz-admin --bin buzz-admin
   '
 
 cp "$source_directory/target/release/buzz-relay" "$relay_binary"
 cp "$source_directory/target/release/buzz-admin" "$admin_binary"
 chmod +x "$relay_binary" "$admin_binary"
-printf '%s\n' "$pinned_revision" > "$revision_file"
-echo "buzz-relay artifact prepared at $pinned_revision"
+printf '%s\n' "$built_revision" > "$revision_file"
+echo "buzz-relay artifact prepared at $built_revision"
