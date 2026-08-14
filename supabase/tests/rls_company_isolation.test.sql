@@ -387,6 +387,7 @@ declare
   orphaned uuid;
   remaining uuid;
   untouched integer;
+  requester_deletion_blocked boolean := false;
 begin
   perform set_config('request.jwt.claims', '{}', true);
 
@@ -397,16 +398,25 @@ begin
   values ('00000000-0000-0000-0000-0000000000a0', 'Work whose requester leaves', 'requested', departing)
   returning id into orphaned;
 
-  delete from public.member where id = departing;
+  begin
+    delete from public.member where id = departing;
+  exception when foreign_key_violation then
+    requester_deletion_blocked := true;
+  end;
+
+  assert requester_deletion_blocked, 'a recorded requester cannot be deleted';
 
   select count(*) into untouched from public.task where id = orphaned;
   assert untouched = 1, 'work outlives the person who asked for it';
 
   select requester_id into remaining from public.task where id = orphaned;
-  assert remaining is null, 'and forgets them rather than pointing at nobody';
+  assert remaining = departing, 'the work keeps its requester identity';
 
-  raise notice 'task: losing the requester never loses the work';
-end $$;$block$, 'task: losing the requester never loses the work');
+  delete from public.task where id = orphaned;
+  delete from public.member where id = departing;
+
+  raise notice 'task: requester identity remains attached to requested work';
+end $$;$block$, 'task: requester identity remains attached to requested work');
 
 select lives_ok($block$do $$
 declare
