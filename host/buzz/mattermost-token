@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Writes the credentials the importer needs into .local/buzz/mattermost.env.
+# The password is read from the terminal and reaches curl through a pipe, so it
+# is never an argument to anything and never lands in shell history.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+state="${BUZZ_STATE_DIRECTORY:-$here/../../.local/buzz}"
+credentialPath="$state/mattermost.env"
+mattermostURL="${MATTERMOST_URL:-https://zd2df6qt6jmc.intern.kim}"
+
+mkdir -p "$state"
+
+read -r -p "Mattermost ($mattermostURL) — email or username: " loginID
+read -r -s -p "password: " password
+echo
+
+loginBody() {
+	LOGIN_ID="$loginID" PASSWORD="$password" python3 -c \
+		'import json, os; print(json.dumps({"login_id": os.environ["LOGIN_ID"], "password": os.environ["PASSWORD"]}))'
+}
+
+response="$(loginBody | curl -sS -i -H 'Content-Type: application/json' --data-binary @- \
+	"$mattermostURL/api/v4/users/login" | tr -d '\r')"
+
+token="$(printf '%s\n' "$response" | awk '/^[Tt]oken:/ { print $2; exit }')"
+if [[ -z $token ]]; then
+	echo "Mattermost refused the login:" >&2
+	printf '%s\n' "$response" | tail -1 >&2
+	exit 1
+fi
+
+printf 'MATTERMOST_URL=%s\n' "$mattermostURL" > "$credentialPath"
+printf 'MATTERMOST_TOKEN=%s\n' "$token" >> "$credentialPath"
+chmod 600 "$credentialPath"
+
+teamNames="$(curl -sS -H "Authorization: Bearer $token" "$mattermostURL/api/v4/teams?per_page=200" \
+	| grep -oE '"name":"[^"]+"' | cut -d'"' -f4 || true)"
+
+teamCount=0
+if [[ -n $teamNames ]]; then
+	teamCount="$(printf '%s\n' "$teamNames" | wc -l | tr -d ' ')"
+fi
+
+if [[ $teamCount -eq 1 ]]; then
+	printf 'MATTERMOST_TEAM=%s\n' "$teamNames" >> "$credentialPath"
+	echo "signed in — team $teamNames"
+	exit 0
+fi
+
+echo "signed in — $teamCount teams:" >&2
+printf '%s\n' "$teamNames" | sed 's/^/  /' >&2
+echo "put the one to import in $credentialPath as MATTERMOST_TEAM" >&2
