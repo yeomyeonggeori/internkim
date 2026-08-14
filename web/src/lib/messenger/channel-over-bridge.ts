@@ -66,11 +66,13 @@ function participantOf(person: MessengerPerson, people: MessengerDirectory): Par
 	};
 }
 
+// A conversation is never called after the person reading it, however few
+// people are left in it once the viewer is taken out.
 function channelName(channel: MessengerChannel, people: MessengerDirectory, mine: string): string {
-	if (!channel.isDirect) return channel.name;
+	if (channel.name) return channel.name;
+	if (!channel.isDirect) return '';
 	const others = channel.participants.filter((person) => canonicalKey(person, people) !== mine);
-	const named = (others.length > 0 ? others : channel.participants).map((person) => personLabel(person, people));
-	return named.filter(Boolean).join(', ') || channel.name;
+	return others.map((person) => personLabel(person, people)).filter(Boolean).join(', ');
 }
 
 export async function bridgeConversations(): Promise<ChannelSummary[]> {
