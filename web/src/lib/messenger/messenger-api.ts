@@ -21,6 +21,13 @@ export type MessengerReaction = {
 	people: MessengerPerson[];
 };
 
+export type MessengerAttachment = {
+	url: string;
+	filename: string;
+	contentType: string;
+	sizeBytes: number;
+};
+
 export type MessengerPost = {
 	id: string;
 	channelID: string;
@@ -30,6 +37,7 @@ export type MessengerPost = {
 	postedAt: string;
 	editedAt?: string;
 	reactions: MessengerReaction[];
+	attachments: MessengerAttachment[];
 };
 
 export type LinkPreview = {
@@ -49,6 +57,12 @@ type PersonalConversation = {
 	webURL?: string;
 };
 type PersonalReaction = { emoji: string; imageURL?: string; byExternalIDs: string[] };
+type PersonalAttachment = {
+	id: string;
+	filename: string;
+	contentType: string;
+	sizeBytes: number;
+};
 type PersonalMessage = {
 	id: string;
 	conversationID: string;
@@ -58,6 +72,7 @@ type PersonalMessage = {
 	postedAt: string;
 	editedAt?: string;
 	reactions: PersonalReaction[];
+	attachments: PersonalAttachment[];
 };
 
 async function ask<Value>(capability: string, body?: Record<string, unknown>): Promise<Value> {
@@ -98,6 +113,12 @@ function asPost(message: PersonalMessage): MessengerPost {
 			emoji: reaction.emoji,
 			imageURL: reaction.imageURL,
 			people: reaction.byExternalIDs.map((externalID) => ({ externalID }))
+		})),
+		attachments: (message.attachments ?? []).map((attachment) => ({
+			url: attachment.id,
+			filename: attachment.filename,
+			contentType: attachment.contentType,
+			sizeBytes: attachment.sizeBytes
 		}))
 	};
 }
