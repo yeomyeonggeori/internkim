@@ -18,7 +18,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import {
 		fetchChannelConversation,
-		parseMessageContent,
+		messageTextBeside,
 		applyCustomEmoji,
 		sendChannelMessage,
 		type ChannelMessage,
@@ -583,13 +583,16 @@
 {/snippet}
 
 {#snippet messageBody(message: ChannelMessage)}
-	{@const content = parseMessageContent(message.text)}
 	{@const attachments = message.attachments ?? []}
+	{@const bodyText = messageTextBeside(
+		message.text,
+		attachments.map((attachment) => attachment.url)
+	)}
 	{@const reactions = message.reactions ?? []}
 	{@const mine = isMine(message)}
 	{@const reactionAlign = mine ? 'start' : 'end'}
 	{@const reactionSide = 'top' as const}
-	{@const imageReactionSpacing = !content.text && reactions.length > 0 ? 'mt-5' : ''}
+	{@const imageReactionSpacing = !bodyText && reactions.length > 0 ? 'mt-5' : ''}
 	{@const imageAttachmentURLs = attachments
 		.filter((attachment) => attachment.kind === 'image')
 		.map((attachment) => attachment.url)}
@@ -636,10 +639,10 @@
 				</Attachment.Root>
 			{/each}
 			</Attachment.Group>
-			{#if !content.text && reactions.length > 0}
+			{#if !bodyText && reactions.length > 0}
 				{@render reactionRow(reactions, reactionAlign, reactionSide)}
 			{/if}
-			{#if !content.text}{@render timeStamp(message)}{/if}
+			{#if !bodyText}{@render timeStamp(message)}{/if}
 		</div>
 	{/if}
 	{#if message.isError}
@@ -664,7 +667,7 @@
 						<Popover.Header>
 							<Popover.Title class="text-sm">{text.errorDetailsTitle}</Popover.Title>
 							<Popover.Description class="text-sm break-words whitespace-pre-wrap">
-								{content.text}
+								{bodyText}
 							</Popover.Description>
 						</Popover.Header>
 					</Popover.Content>
@@ -672,7 +675,7 @@
 			</Bubble.Reactions>
 			{@render timeStamp(message)}
 		</Bubble.Root>
-	{:else if content.text}
+	{:else if bodyText}
 		<Bubble.Root
 			variant={mine ? 'default' : 'muted'}
 			class={`max-w-[min(80%,32rem)] ${reactions.length > 0 ? 'mt-5' : ''}`}
@@ -680,7 +683,7 @@
 			<Bubble.Content>
 				<div class="chat-markdown prose prose-sm dark:prose-invert max-w-none">
 					<SvelteMarkdown
-						source={applyCustomEmoji(content.text, message.customEmoji, customEmoji.nameToURL)}
+						source={applyCustomEmoji(bodyText, message.customEmoji, customEmoji.nameToURL)}
 						options={{ breaks: true, gfm: true }}
 						renderers={{ code: ChannelCode }}
 					/>
@@ -691,8 +694,8 @@
 			{/if}
 			{@render timeStamp(message)}
 		</Bubble.Root>
-		{#if firstLinkIn(content.text)}
-			<ChannelLinkPreview url={firstLinkIn(content.text)} />
+		{#if firstLinkIn(bodyText)}
+			<ChannelLinkPreview url={firstLinkIn(bodyText)} />
 		{/if}
 	{/if}
 	{#if message.thread}

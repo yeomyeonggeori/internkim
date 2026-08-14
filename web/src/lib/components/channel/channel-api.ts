@@ -80,20 +80,18 @@ export type ChannelConversation = {
 	historyCursor: string;
 };
 
-export type MessageContent = {
-	text: string;
-	imageURLs: string[];
-};
-
 const imageMarkdownPattern = /!\[[^\]]*\]\((\S+?)\)/g;
+const linkMarkdownPattern = /\[[^\]]*\]\((\S+?)\)/g;
 
-export function parseMessageContent(text: string): MessageContent {
-	const imageURLs: string[] = [];
-	const stripped = text.replace(imageMarkdownPattern, (_match, url: string) => {
-		imageURLs.push(url);
-		return '';
-	});
-	return { text: stripped.trim(), imageURLs };
+// An imported message names each file it carries in its body, so a client that
+// reads nothing but text still has them. This one draws them itself, and a
+// reference to something already on screen is not text.
+export function messageTextBeside(text: string, attachmentURLs: string[]): string {
+	const withoutImages = text.replace(imageMarkdownPattern, '');
+	const withoutFiles = withoutImages.replace(linkMarkdownPattern, (link, url: string) =>
+		attachmentURLs.includes(url) ? '' : link
+	);
+	return withoutFiles.trim();
 }
 
 export function applyCustomEmoji(
