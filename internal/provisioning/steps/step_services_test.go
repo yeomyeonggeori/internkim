@@ -13,46 +13,6 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
-func TestServiceUnitDocumentsOmitsLlamaEnvironmentWhenLocalLLMIsNotPlanned(t *testing.T) {
-	context := &Context{Backend: BackendSSH, BoardType: BoardJetsonOrinNano, PlannedSteps: map[string]bool{}}
-	for _, service := range serviceUnitDocuments(context) {
-		if service.path != blueclaw.LLMDServicePath {
-			continue
-		}
-		for _, unexpectedValue := range []string{
-			"Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=",
-			"Environment=BLUECLAW_LLMD_LLAMA_MODEL=",
-			"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=",
-		} {
-			if strings.Contains(service.document, unexpectedValue) {
-				t.Fatalf("expected LLMD unit without a planned local-llm step to omit %q, got %s", unexpectedValue, service.document)
-			}
-		}
-		return
-	}
-	t.Fatal("expected LLMD service unit to be present")
-}
-
-func TestServiceUnitDocumentsEmitsLlamaEnvironmentWhenLocalLLMIsPlanned(t *testing.T) {
-	context := &Context{Backend: BackendSSH, BoardType: BoardJetsonOrinNano, PlannedSteps: map[string]bool{"local-llm": true}}
-	for _, service := range serviceUnitDocuments(context) {
-		if service.path != blueclaw.LLMDServicePath {
-			continue
-		}
-		for _, expectedValue := range []string{
-			"Environment=BLUECLAW_LLMD_LLAMA_BASE_URL=",
-			"Environment=BLUECLAW_LLMD_LLAMA_MODEL=",
-			"Environment=BLUECLAW_LLMD_LLAMA_STRUCTURED_OUTPUTS_ENABLED=true",
-		} {
-			if !strings.Contains(service.document, expectedValue) {
-				t.Fatalf("expected LLMD unit with a planned local-llm step to contain %q, got %s", expectedValue, service.document)
-			}
-		}
-		return
-	}
-	t.Fatal("expected LLMD service unit to be present")
-}
-
 func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T) {
 	command := blueclawRuntimeContractCheckCommand()
 	for _, expectedFragment := range []string{
@@ -588,10 +548,8 @@ func (connection serviceSatisfiedWithoutGraphitiBoardConnection) Run(command str
 		return "ok"
 	case strings.Contains(command, "rootfs_path="):
 		return "ok"
-	case strings.Contains(command, "systemctl is-active "+blueclaw.LLMDServiceName):
-		return "active"
-	case strings.Contains(command, blueclaw.LLMDHealthCheckCommand()):
-		return "ok"
+	case strings.Contains(command, blueclaw.RetiredLLMDServiceIsGoneCommand()):
+		return "inactive"
 	case strings.Contains(command, "systemctl is-active graphiti-memoryd"):
 		return "inactive"
 	case strings.Contains(command, "systemctl is-active blueclaw"):
@@ -647,4 +605,34 @@ func (connection serviceHealthFailureBoardConnection) Run(command string) string
 
 func (connection serviceHealthFailureBoardConnection) SCP(localPath, remotePath string) error {
 	return nil
+}
+
+func TestNoServiceUnitInstallsTheRetiredLLMD(t *testing.T) {
+	for _, boardType := range []string{BoardJetsonOrinNano, BoardSimulation} {
+		context := &Context{Backend: BackendSSH, BoardType: boardType, PlannedSteps: map[string]bool{"local-llm": true}}
+		for _, service := range serviceUnitDocuments(context) {
+			if strings.Contains(service.path, "blueclaw-llmd") {
+				t.Fatalf("%s still installs a unit at %s", boardType, service.path)
+			}
+		}
+		for _, serviceName := range enabledServiceNames(context) {
+			if serviceName == "blueclaw-llmd" {
+				t.Fatalf("%s still enables blueclaw-llmd", boardType)
+			}
+		}
+	}
+}
+
+func TestRetirementStopsDisablesAndRemovesLLMD(t *testing.T) {
+	command := blueclaw.RetireLLMDLeftByEarlierReleasesCommand()
+	for _, expectedFragment := range []string{
+		"systemctl disable --now blueclaw-llmd",
+		"rm -f /etc/systemd/system/blueclaw-llmd.service",
+		"rm -f /usr/local/bin/blueclaw-llmd",
+		"systemctl daemon-reload",
+	} {
+		if !strings.Contains(command, expectedFragment) {
+			t.Fatalf("a deploy that leaves llmd running is the failure this guards; %q is missing from:\n%s", expectedFragment, command)
+		}
+	}
 }

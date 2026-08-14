@@ -391,8 +391,6 @@ func deviceAssetSourcePath(assetName string, repositoryRootPath string) string {
 	return asset.SourcePath(repositoryRootPath)
 }
 
-var buildBlueclawLLMDArtifact = buildBlueclawLLMDReleaseArtifact
-
 func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string, selectedComponentNames map[string]bool) ([]releaseBlob, error) {
 	gitRevision := gitRevision(repositoryRootPath)
 	blobInputs := releaseBlobInputs(repositoryRootPath, temporaryDirectoryPath)
@@ -409,11 +407,6 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 		input.revision = releaseComponentRevision(input.name, repositoryRootPath, gitRevision)
 		if errorValue := validateReleaseSource(input.name, input.sourcePath); errorValue != nil {
 			return nil, errorValue
-		}
-		if input.name == "blueclawLLMD" {
-			if errorValue := validateBlueclawLLMDFreshness(repositoryRootPath, input.sourcePath); errorValue != nil {
-				return nil, errorValue
-			}
 		}
 		if input.name == "blueclawPayload" {
 			if errorValue := validateBlueclawPayloadFreshness(repositoryRootPath, input.sourcePath); errorValue != nil {
@@ -492,61 +485,8 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 	}
 }
 
-func buildBlueclawLLMDReleaseArtifact(repositoryRootPath string, outputPath string) error {
-	command := exec.Command(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-llmd"))
-	command.Dir = repositoryRootPath
-	output, errorValue := command.CombinedOutput()
-	if errorValue != nil {
-		return fmt.Errorf("build blueclaw LLMD: %s", strings.TrimSpace(string(output)))
-	}
-	return validateReleaseSource("blueclawLLMD", outputPath)
-}
-
 func buildBlueclawSupervisorReleaseBinary(repositoryRootPath string, outputPath string) error {
 	return blueclaw.EnsureBlueclawSupervisorBinary(outputPath, repositoryRootPath)
-}
-
-func validateBlueclawLLMDFreshness(repositoryRootPath string, artifactDirectoryPath string) error {
-	document, errorValue := os.ReadFile(filepath.Join(artifactDirectoryPath, "manifest.json"))
-	if errorValue != nil {
-		return fmt.Errorf("read blueclaw LLMD manifest: %w", errorValue)
-	}
-	var manifest struct {
-		BlueclawRevision string `json:"blueclawRevision"`
-		SHA256           string `json:"sha256"`
-	}
-	if errorValue := json.Unmarshal(document, &manifest); errorValue != nil {
-		return fmt.Errorf("parse blueclaw LLMD manifest: %w", errorValue)
-	}
-	expectedRevision, errorValue := blueclawLLMDSourceRevision(repositoryRootPath)
-	if errorValue != nil {
-		return errorValue
-	}
-	if strings.TrimSpace(manifest.BlueclawRevision) != expectedRevision {
-		return fmt.Errorf("blueclaw LLMD artifact revision %q does not match current protocol and LLMD source %q; run `make prepare-blueclaw-llmd`", manifest.BlueclawRevision, expectedRevision)
-	}
-	binarySHA256, _, errorValue := releaseFileSHA256AndSize(filepath.Join(artifactDirectoryPath, blueclaw.LLMDName))
-	if errorValue != nil {
-		return errorValue
-	}
-	if strings.TrimSpace(manifest.SHA256) != binarySHA256 {
-		return errors.New("blueclaw LLMD artifact checksum does not match its manifest")
-	}
-	return nil
-}
-
-func blueclawLLMDSourceRevision(repositoryRootPath string) (string, error) {
-	command := exec.Command(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-llmd"), "--print-source-revision")
-	command.Dir = repositoryRootPath
-	output, errorValue := command.CombinedOutput()
-	if errorValue != nil {
-		return "", fmt.Errorf("resolve blueclaw LLMD source revision: %s: %w", strings.TrimSpace(string(output)), errorValue)
-	}
-	revision := strings.TrimSpace(string(output))
-	if revision == "" {
-		return "", errors.New("resolve blueclaw LLMD source revision: empty revision")
-	}
-	return revision, nil
 }
 
 func validateBlueclawPayloadFreshness(repositoryRootPath string, artifactDirectoryPath string) error {
@@ -855,20 +795,6 @@ func webRevision(repositoryRootPath string) string {
 	return gitRevision(repositoryRootPath)
 }
 
-func blueclawLLMDRevision(repositoryRootPath string) string {
-	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, ".dependency", "blueclaw-llmd", "manifest.json"))
-	if errorValue != nil {
-		return blueclawPayloadRevision(repositoryRootPath)
-	}
-	var manifest struct {
-		BlueclawRevision string `json:"blueclawRevision"`
-	}
-	if errorValue := json.Unmarshal(document, &manifest); errorValue != nil {
-		return blueclawPayloadRevision(repositoryRootPath)
-	}
-	return firstNonEmptyString(manifest.BlueclawRevision, blueclawPayloadRevision(repositoryRootPath))
-}
-
 func blueclawPayloadRevision(repositoryRootPath string) string {
 	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath, "manifest.json"))
 	if errorValue != nil {
@@ -916,7 +842,6 @@ func releaseBlobInputs(repositoryRootPath string, temporaryDirectoryPath string)
 		{name: "admind", restartGroup: "admind", healthCheck: "admind", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.AdmindName), builder: buildReleaseBinary("./cmd/" + blueclaw.AdmindName)},
 		{name: "capabilityd", restartGroup: "capabilityd", healthCheck: "capabilityd", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.CapabilitydName), builder: buildReleaseBinary("./cmd/" + blueclaw.CapabilitydName)},
 		{name: "web", restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(repositoryRootPath, "build", "board-ui")},
-		{name: "blueclawLLMD", restartGroup: "blueclaw", healthCheck: "blueclawLLMD", sourcePath: filepath.Join(repositoryRootPath, ".dependency", "blueclaw-llmd"), builder: buildBlueclawLLMDArtifact},
 		{name: "blueclawPayload", restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath)},
 		{name: "blueclawSupervisor", restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BlueclawSupervisorName), builder: buildBlueclawSupervisorReleaseBinary},
 		{name: "skills", restartGroup: "blueclaw", healthCheck: "skills", sourcePath: deviceAssetSourcePath("skills", repositoryRootPath)},
@@ -948,8 +873,6 @@ func releaseComponentRevision(name string, repositoryRootPath string, gitRevisio
 		return webRevision(repositoryRootPath)
 	case "blueclawPayload":
 		return blueclawPayloadRevision(repositoryRootPath)
-	case "blueclawLLMD":
-		return blueclawLLMDRevision(repositoryRootPath)
 	}
 	return gitRevision
 }

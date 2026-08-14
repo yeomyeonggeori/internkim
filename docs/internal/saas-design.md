@@ -123,7 +123,7 @@ Our marginal cost per customer is near-zero.
 | Agent runtime | Customer | `blueclaw` (Go) | Agent loop, tools, terminal, POSIX permission boundary. Runs on customer compute. |
 | Messenger connector | Customer | `chatd` (Chat SDK, pluggable adapters) | Agent joins the tenant's workspace as its bot member. Buzz is one adapter; others are addable without runtime changes. |
 | Capability boundary | Customer | `capabilityd` | Tool/permission enforcement local to the agent. |
-| LLM | Customer | `llmd` / local / Claude Code | BYO. Not our cost. |
+| LLM | Customer | capabilityd / local / Claude Code | BYO. Not our cost. |
 
 ### 3.1 Component placement — proposed (open question #1)
 
@@ -330,10 +330,10 @@ companion UI (guest on an employee's machine).
 - Linux/POSIX is required for the in-tenant permission boundary; on a
   Windows/Mac spare box, run it inside a bundled container/VM (WSL, etc.).
 - **What the host actually needs** (verified by booting `cmd/blueclaw` on an
-  ordinary machine to `status: ok`): the agent binary, **llmd** and **a
+  ordinary machine to `status: ok`): the agent binary and **a
   Postgres**. Firecracker, the POSIX helper, `capabilityd`, Mattermost, a relay
   and cloudflared are all unnecessary — `capabilityd: not_configured` is a
-  passing state. llmd and Postgres are hard startup gates, so the installable
+  passing state. Postgres is a hard startup gate, so the installable
   bundle must carry both; "localhost + REST" understated this.
 - Started in **`host` mode** (headless): the same app via CLI/package, or the
   desktop app set to host mode.
@@ -351,7 +351,7 @@ see the conversation.
 What matters about this daemon:
 
 - **It depends on nothing else in the bundle.** It never speaks to blueclaw,
-  chatd, capabilityd, llmd or Postgres — only Supabase, the central plane and
+  chatd, capabilityd or Postgres — only Supabase, the central plane and
   the tenant's messenger. It therefore starts first and outlives them: the agent
   can be down and the messenger still works.
 - **The hardware is irrelevant.** A Jetson, a Mac Studio, a spare Linux box or
@@ -456,7 +456,7 @@ price of the host having no inbound surface.
   contract it plugs into (`agentcontract`) is public — see
   [`harness-split-design.md`](./harness-split-design.md). blueclaw's self-host
   path must therefore stay green with an **AI SDK harness** (Claude Code, Codex,
-  opencode via llmd) instead of bluecollar, so the open-source stack has no hole
+  opencode) instead of bluecollar, so the open-source stack has no hole
   where the agent loop should be.
 - **Self-host path:** a customer can run the whole thing themselves — their own
   messenger (already true, §3), their own agent (already true, §6), their own web

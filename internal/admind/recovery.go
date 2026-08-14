@@ -264,8 +264,6 @@ for logDirectory in $(printf '%s\n' "$newestLogDirectories" | head -2); do
   tail -c 4000 "$logDirectory/stdout.log" 2>/dev/null || printf '(missing)\n'
 done
 newestJailerRoot=$(ls -dt /var/lib/bc/firecracker/*/root 2>/dev/null | head -1)
-printf '\n== llmd journal ==\n'
-journalctl -u blueclaw-llmd -n 80 --no-pager 2>/dev/null | tail -n 60
 printf '\n== live guest task runs ==\n'
 curl -s -m 6 http://127.0.0.1:8080/admin/api/task 2>&1 | head -c 1500
 printf '\n== live guest failure detail ==\n'
