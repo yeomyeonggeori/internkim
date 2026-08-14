@@ -6,6 +6,7 @@ import {
 	fetchAttendanceSummary,
 	toggleAttendanceOnServer,
 	updateAttendanceEvent,
+	updateAttendanceEvents,
 	type UpdateAttendanceEventRequest
 } from './attendance-api';
 import { readPersistedAttendanceFilters, writePersistedAttendanceFilters } from './attendance-storage';
@@ -325,7 +326,7 @@ export class AttendanceState {
 	}
 
 	async updateEvents(updates: { eventID: string; request: UpdateAttendanceEventRequest }[]) {
-		await Promise.all(updates.map((update) => updateAttendanceEvent(update.eventID, update.request)));
+		await updateAttendanceEvents(updates);
 		await this.load();
 	}
 }

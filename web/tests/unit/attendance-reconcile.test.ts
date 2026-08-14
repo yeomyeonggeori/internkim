@@ -6,12 +6,21 @@ import {
 	InvalidAttendanceWorkCalendarError
 } from '../../src/lib/server/attendance-work-calendar-reconcile';
 import {
+	attendanceIdentityWindowFilter,
 	EmptyWindowRefused,
 	paired,
 	reconcileMember,
 	type DeviceAttendance,
 	type RecordedAttendance
 } from '../../src/lib/server/attendance-reconcile';
+
+test('the reconciliation window includes corrected rows by their original time', () => {
+	expect(
+		attendanceIdentityWindowFilter('2026-01-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z')
+	).toBe(
+		'and(original_occurred_at.gte.2026-01-01T00:00:00.000Z,original_occurred_at.lt.2026-02-01T00:00:00.000Z),and(original_occurred_at.is.null,occurred_at.gte.2026-01-01T00:00:00.000Z,occurred_at.lt.2026-02-01T00:00:00.000Z)'
+	);
+});
 
 describe('attendanceWorkModeFromDevice', () => {
 	test('accepts only an actual supported work mode', () => {
@@ -204,7 +213,8 @@ function inTheRecord(entries: Partial<RecordedAttendance>[]): RecordedAttendance
 	return entries.map((entry, index) => ({
 		id: entry.id ?? `row-${index}`,
 		kind: entry.kind ?? 'clock_in',
-		occurred_at: entry.occurred_at ?? '2026-08-05T08:29:00Z'
+		occurred_at: entry.occurred_at ?? '2026-08-05T08:29:00Z',
+		original_occurred_at: entry.original_occurred_at ?? null
 	}));
 }
 
@@ -236,6 +246,22 @@ describe('reconcileMember', () => {
 			'member-1',
 			onTheDevice([{ occurredAt: '2026-08-05T08:29:00Z' }]),
 			inTheRecord([{ id: 'same', occurred_at: '2026-08-05T08:29:00Z' }])
+		);
+
+		expect(plan).toEqual({ add: [], remove: [] });
+	});
+
+	test('a centrally corrected row still matches the device time it originally carried', () => {
+		const plan = reconcileMember(
+			'member-1',
+			onTheDevice([{ occurredAt: '2026-08-05T08:29:00Z' }]),
+			inTheRecord([
+				{
+					id: 'corrected',
+					occurred_at: '2026-08-05T08:45:00Z',
+					original_occurred_at: '2026-08-05T08:29:00Z'
+				}
+			])
 		);
 
 		expect(plan).toEqual({ add: [], remove: [] });
