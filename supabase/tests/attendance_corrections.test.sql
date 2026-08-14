@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(12);
 
 insert into auth.users (id, email) values
 	('31000000-0000-0000-0000-000000000001', 'correction-owner@example.test'),
@@ -68,6 +68,32 @@ select has_column(
 	'edit_reason',
 	'attendance stores the latest correction reason'
 );
+
+select lives_ok($block$do $$
+declare
+	blocked boolean := false;
+begin
+	set local role authenticated;
+	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
+	begin
+		insert into public.attendance (
+			member_id,
+			kind,
+			location,
+			occurred_at,
+			original_occurred_at
+		) values (
+			'31000000-0000-0000-0000-000000000011',
+			'clock_in',
+			'Office',
+			now() - interval '2 hours',
+			now()
+		);
+	exception when insufficient_privilege then
+		blocked := true;
+	end;
+	assert blocked, 'an owner must not set correction metadata while inserting attendance';
+end $$;$block$, 'attendance inserts cannot forge the correction window anchor');
 
 select lives_ok($block$do $$
 begin
