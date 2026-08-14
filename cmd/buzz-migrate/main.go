@@ -386,19 +386,18 @@ func uploadPostAttachments(ctx context.Context, dependencies importDependencies,
 			log.Printf("fetch file %s failed: %v", fileID, errorValue)
 			continue
 		}
-		if !strings.HasPrefix(mimeType, "image/") {
-			continue
+		uploadContent, uploadMime := content, mimeType
+		if strings.HasPrefix(mimeType, "image/") {
+			if stripped, strippedMime, isImage := media.StripMetadata(content, mimeType); isImage {
+				uploadContent, uploadMime = stripped, strippedMime
+			}
 		}
-		strippedContent, strippedMime, isImage := media.StripMetadata(content, mimeType)
-		if !isImage {
-			continue
-		}
-		blob, errorValue := dependencies.uploader.Upload(ctx, authorSecret, strippedContent, strippedMime)
+		blob, errorValue := dependencies.uploader.Upload(ctx, authorSecret, uploadContent, uploadMime)
 		if errorValue != nil {
 			log.Printf("upload file %s failed: %v", fileID, errorValue)
 			continue
 		}
-		mediaTags = append(mediaTags, blob.IMetaTag())
+		mediaTags = append(mediaTags, blob.Named(fileNameOf(ctx, dependencies, fileID)).IMetaTag())
 	}
 	return mediaTags
 }
@@ -425,18 +424,61 @@ func ensureSyntheticRoot(ctx context.Context, dependencies importDependencies, b
 	return event.ID, true
 }
 
+type describedMedia struct {
+	url      string
+	mimeType string
+	filename string
+}
+
+// An imeta entry is a "name value" string rather than a position, so the tag is
+// read by name.
+func describeMediaTag(mediaTag []string) describedMedia {
+	described := describedMedia{}
+	for _, field := range mediaTag {
+		name, value, isPair := strings.Cut(field, " ")
+		if !isPair {
+			continue
+		}
+		switch name {
+		case "url":
+			described.url = strings.TrimSpace(value)
+		case "m":
+			described.mimeType = strings.TrimSpace(value)
+		case "filename":
+			described.filename = strings.TrimSpace(value)
+		}
+	}
+	return described
+}
+
+func labelOr(filename string, fallback string) string {
+	if filename == "" {
+		return fallback
+	}
+	return filename
+}
+
+func fileNameOf(ctx context.Context, dependencies importDependencies, fileID string) string {
+	info, errorValue := dependencies.client.FileInfo(ctx, fileID)
+	if errorValue != nil {
+		log.Printf("file info for %s failed: %v", fileID, errorValue)
+		return ""
+	}
+	return info.Name
+}
+
 func appendMediaMarkdown(text string, mediaTags [][]string) string {
 	lines := []string{}
 	for _, mediaTag := range mediaTags {
-		mediaURL := ""
-		for _, field := range mediaTag {
-			if strings.HasPrefix(field, "url ") {
-				mediaURL = strings.TrimSpace(strings.TrimPrefix(field, "url "))
-			}
+		described := describeMediaTag(mediaTag)
+		if described.url == "" {
+			continue
 		}
-		if mediaURL != "" {
-			lines = append(lines, "![image]("+mediaURL+")")
+		if strings.HasPrefix(described.mimeType, "image/") {
+			lines = append(lines, "!["+labelOr(described.filename, "image")+"]("+described.url+")")
+			continue
 		}
+		lines = append(lines, "["+labelOr(described.filename, "file")+"]("+described.url+")")
 	}
 	if len(lines) == 0 {
 		return text
