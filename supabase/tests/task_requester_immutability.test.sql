@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(19);
 
 insert into auth.users (id, email) values
   ('45000000-0000-0000-0000-000000000001', 'requester-a@example.test'),
@@ -53,17 +53,9 @@ select is(
   'requested task: creation records the authenticated member'
 );
 
-select is(
-  (select requester_name from public.task where id = '45000000-0000-0000-0000-000000000101'),
-  'Requester A',
-  'requested task: creation snapshots the requester name'
-);
+select hasnt_column('public', 'task', 'requester_name', 'task: requester name snapshots are removed');
 
-select is(
-  (select was_requested from public.task where id = '45000000-0000-0000-0000-000000000101'),
-  true,
-  'requested task: creation records durable request provenance'
-);
+select hasnt_column('public', 'task', 'was_requested', 'task: request provenance snapshots are removed');
 
 select lives_ok($block$do $$
 begin
@@ -192,47 +184,6 @@ select throws_ok(
     );
 
     update public.task
-    set was_requested = true
-    where id = '45000000-0000-0000-0000-000000000104';
-  end $$;$block$,
-  '42501',
-  null,
-  'requester spoofing: an update cannot create request provenance'
-);
-
-select throws_ok(
-  $block$do $$
-  begin
-    set local role authenticated;
-    perform set_config(
-      'request.jwt.claims',
-      '{"sub":"45000000-0000-0000-0000-000000000001"}',
-      true
-    );
-
-    insert into public.task (company_id, title, requester_name)
-    values (
-      '45000000-0000-0000-0000-0000000000a0',
-      'Spoofed requester name',
-      'Spoofed Name'
-    );
-  end $$;$block$,
-  '42501',
-  null,
-  'requester spoofing: creation cannot supply a requester snapshot'
-);
-
-select throws_ok(
-  $block$do $$
-  begin
-    set local role authenticated;
-    perform set_config(
-      'request.jwt.claims',
-      '{"sub":"45000000-0000-0000-0000-000000000001"}',
-      true
-    );
-
-    update public.task
     set requester_id = '45000000-0000-0000-0000-0000000000a2'
     where id = '45000000-0000-0000-0000-000000000101';
   end $$;$block$,
@@ -327,9 +278,11 @@ insert into public.task (id, company_id, title, status, requester_id) values
     '45000000-0000-0000-0000-0000000000a3'
   );
 
-select lives_ok(
+select throws_ok(
   $$delete from public.member where id = '45000000-0000-0000-0000-0000000000a3'$$,
-  'requester cleanup: deleting the member still succeeds'
+  '23503',
+  null,
+  'requester immutability: deleting the requester is blocked'
 );
 
 select is(
@@ -340,20 +293,8 @@ select is(
 
 select is(
   (select requester_id from public.task where id = '45000000-0000-0000-0000-000000000106'),
-  null,
-  'requester cleanup: deleting the member clears the requester'
-);
-
-select is(
-  (select requester_name from public.task where id = '45000000-0000-0000-0000-000000000106'),
-  'Departing Requester',
-  'requester cleanup: deleting the member preserves the requester name'
-);
-
-select is(
-  (select was_requested from public.task where id = '45000000-0000-0000-0000-000000000106'),
-  true,
-  'requester cleanup: deleting the member preserves request provenance'
+  '45000000-0000-0000-0000-0000000000a3'::uuid,
+  'requester immutability: a blocked member deletion preserves the requester'
 );
 
 select * from finish();
