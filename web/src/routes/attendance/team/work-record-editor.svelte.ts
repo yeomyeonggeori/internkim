@@ -6,6 +6,7 @@ import {
 	todayDateInTimeZone
 } from '../shared/attendance-date';
 import { localTimeMinutes } from '../shared/day-timeline';
+import { editableAttendanceEventIDs } from './attendance-correction-access';
 import type { TeamStatusPersonDaySegment } from './team-status-table-model';
 
 export type WorkEventDraft = {
@@ -38,6 +39,8 @@ export class WorkRecordEditorState {
 	errorMessage = $state('');
 	currentTime = $state(new Date(Number.NaN));
 	timeZone = $state('');
+	editableEventIDs = $state<Set<string>>(new Set<string>());
+	segments = $state<TeamStatusPersonDaySegment[]>([]);
 
 	constructor(private readonly dependencies: WorkRecordEditorDependencies) {}
 
@@ -58,6 +61,17 @@ export class WorkRecordEditorState {
 		);
 	}
 
+	canEdit(segments: TeamStatusPersonDaySegment[]): boolean {
+		const summary = this.dependencies.getSummary();
+		const currentTime = this.currentTime;
+		return (
+			summary !== null &&
+			this.canUse &&
+			Number.isFinite(currentTime.getTime()) &&
+			editableAttendanceEventIDs(summary, segments, currentTime).size > 0
+		);
+	}
+
 	open(segments: TeamStatusPersonDaySegment[]): boolean {
 		const summary = this.dependencies.getSummary();
 		const currentTime = this.dependencies.getCurrentServerTime();
@@ -65,6 +79,9 @@ export class WorkRecordEditorState {
 
 		this.currentTime = currentTime;
 		this.timeZone = summary.timeZone;
+		this.segments = segments;
+		this.editableEventIDs = editableAttendanceEventIDs(summary, segments, currentTime);
+		if (this.editableEventIDs.size === 0) return false;
 		this.drafts = createWorkEventDrafts(summary.events, segments, summary.locations[0]?.id ?? '');
 		this.reason = '';
 		this.errorMessage = '';
@@ -84,10 +101,16 @@ export class WorkRecordEditorState {
 		this.errorMessage = '';
 		this.currentTime = new Date(Number.NaN);
 		this.timeZone = '';
+		this.editableEventIDs = new Set<string>();
+		this.segments = [];
 	}
 
 	setCurrentTime(currentTime: Date): void {
 		this.currentTime = currentTime;
+		const summary = this.dependencies.getSummary();
+		if (summary && this.isEditing) {
+			this.editableEventIDs = editableAttendanceEventIDs(summary, this.segments, currentTime);
+		}
 	}
 
 	matchesTimeZone(timeZone: string | undefined): boolean {
@@ -96,6 +119,15 @@ export class WorkRecordEditorState {
 
 	draftFor(eventID: string | undefined): WorkEventDraft | undefined {
 		return eventID ? this.drafts[eventID] : undefined;
+	}
+
+	isEventEditable(eventID: string | undefined): boolean {
+		return eventID !== undefined && this.editableEventIDs.has(eventID);
+	}
+
+	isSegmentLocationEditable(segment: TeamStatusPersonDaySegment): boolean {
+		if (!this.isEventEditable(segment.startEventID)) return false;
+		return segment.endEventID === undefined || this.isEventEditable(segment.endEventID);
 	}
 
 	displayTime(
@@ -120,7 +152,7 @@ export class WorkRecordEditorState {
 
 	updateEventTime(eventID: string | undefined, localTime: string): string {
 		const draft = this.draftFor(eventID);
-		if (!draft) return localTime;
+		if (!draft || !this.isEventEditable(eventID)) return localTime;
 		const currentTime = this.dependencies.getCurrentServerTime();
 		this.currentTime = currentTime;
 		draft.localTime = fallbackFutureAttendanceLocalTime(
@@ -133,6 +165,7 @@ export class WorkRecordEditorState {
 	}
 
 	updateSegmentLocation(segment: TeamStatusPersonDaySegment, locationID: string): void {
+		if (!this.isSegmentLocationEditable(segment)) return;
 		const startDraft = this.draftFor(segment.startEventID);
 		if (startDraft) startDraft.locationID = locationID;
 		if (segment.endReason !== 'clock_out') return;
@@ -155,13 +188,15 @@ export class WorkRecordEditorState {
 	}
 
 	private hasChanges(): boolean {
-		return Object.values(this.drafts).some(isChangedDraft);
+		return Object.values(this.drafts).some(
+			(draft) => this.isEventEditable(draft.eventID) && isChangedDraft(draft)
+		);
 	}
 
 	private changedUpdates(): WorkRecordUpdate[] {
 		const reason = this.reason.trim();
 		return Object.values(this.drafts)
-			.filter(isChangedDraft)
+			.filter((draft) => this.isEventEditable(draft.eventID) && isChangedDraft(draft))
 			.map((draft) => ({
 				eventID: draft.eventID,
 				request: {
