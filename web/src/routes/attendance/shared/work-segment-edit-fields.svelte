@@ -10,6 +10,9 @@
 		locationID: string;
 		locations: AttendanceLocation[];
 		isSaving: boolean;
+		startDisabled: boolean;
+		endDisabled: boolean;
+		locationDisabled: boolean;
 		startMaximumTime?: string;
 		endMaximumTime?: string;
 		text: AttendanceText;
@@ -24,6 +27,9 @@
 		locationID,
 		locations,
 		isSaving,
+		startDisabled,
+		endDisabled,
+		locationDisabled,
 		startMaximumTime,
 		endMaximumTime,
 		text,
@@ -50,7 +56,7 @@
 				type="time"
 				value={startTime}
 				max={startMaximumTime}
-				disabled={isSaving}
+				disabled={isSaving || startDisabled}
 				oninput={(event) => updateTimeInput(event, onStartTimeChange)}
 				class="w-full"
 			/>
@@ -62,7 +68,7 @@
 					type="time"
 					value={endTime}
 					max={endMaximumTime}
-					disabled={isSaving}
+					disabled={isSaving || endDisabled}
 					oninput={(event) => updateTimeInput(event, onEndTimeChange)}
 					class="w-full"
 				/>
@@ -71,7 +77,7 @@
 	</div>
 	<label class="grid gap-1 text-[11px] font-medium text-muted-foreground">
 		<span>{text.location}</span>
-		<Select.Root type="single" value={locationID} onValueChange={onLocationChange} disabled={isSaving}>
+		<Select.Root type="single" value={locationID} onValueChange={onLocationChange} disabled={isSaving || locationDisabled}>
 			<Select.Trigger class="w-full">{locationName()}</Select.Trigger>
 			<Select.Content>
 				<Select.Group>

@@ -35,17 +35,26 @@
 	});
 	const attendanceLocations = $derived(attendance.summary?.locations ?? []);
 	const isOwnDay = $derived(detail.email === attendance.summary?.currentUserEmail);
+	const hasCentralCorrectionPolicy = $derived(
+		attendance.summary?.correctionWindowMinutes !== undefined
+	);
 	const canEditWorkRecords = $derived(
-		isOwnDay && detail.day.segments.length > 0 && attendanceLocations.length > 0
+		(isOwnDay || attendance.summary?.isAdmin === true) &&
+		detail.day.segments.length > 0 &&
+		attendanceLocations.length > 0 &&
+		(!hasCentralCorrectionPolicy || workRecordEditor.canEdit(detail.day.segments))
 	);
 	const displayedSegmentCount = $derived(
 		detail.day.timelineSegments.length || detail.day.segments.length
 	);
 
 	$effect(() => {
-		if (!workRecordEditor.isEditing) return;
-		if (!workRecordEditor.canUse || !workRecordEditor.matchesTimeZone(attendance.summary?.timeZone)) {
-			workRecordEditor.reset();
+		if (
+			!workRecordEditor.canUse ||
+			(workRecordEditor.isEditing &&
+				!workRecordEditor.matchesTimeZone(attendance.summary?.timeZone))
+		) {
+			if (workRecordEditor.isEditing) workRecordEditor.reset();
 			return;
 		}
 		return startAttendanceMinuteClock(
@@ -180,6 +189,9 @@
 									locationID={startDraft.locationID}
 									locations={attendanceLocations}
 									isSaving={workRecordEditor.isSaving}
+									startDisabled={!workRecordEditor.isEventEditable(segment.startEventID)}
+									endDisabled={!workRecordEditor.isEventEditable(segment.endEventID)}
+									locationDisabled={!workRecordEditor.isSegmentLocationEditable(segment)}
 									startMaximumTime={workRecordEditor.maximumTimeFor(startDraft.localDate)}
 									endMaximumTime={workRecordEditor.maximumTimeFor(endDraft?.localDate)}
 									{text}
