@@ -23,6 +23,13 @@ type LeaveRow = {
 	note: string | null;
 };
 
+export type SupabaseAttendanceCorrection = {
+	eventID: string;
+	localDate: string;
+	localTime: string;
+	locationID: string;
+};
+
 export async function supabaseAttendanceSummary(month: string): Promise<AttendanceSummary> {
 	const client = supabase();
 	const { data: auth } = await client.auth.getSession();
@@ -106,6 +113,23 @@ export async function recordSupabaseAttendance(kind?: AttendanceKind, locationID
 		member_id: member.data.id,
 		kind: recorded,
 		location: recorded === 'clock_in' ? (locationID || null) : null
+	});
+	if (error) throw new Error(error.message);
+}
+
+export async function correctSupabaseAttendanceEvents(
+	corrections: SupabaseAttendanceCorrection[],
+	reason: string
+): Promise<void> {
+	if (corrections.length === 0) return;
+	const { error } = await supabase().rpc('correct_attendance_events', {
+		corrections: corrections.map((correction) => ({
+			event_id: correction.eventID,
+			local_date: correction.localDate,
+			local_time: correction.localTime,
+			location: correction.locationID
+		})),
+		reason
 	});
 	if (error) throw new Error(error.message);
 }
