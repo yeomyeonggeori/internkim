@@ -13,13 +13,14 @@ import (
 )
 
 type RuntimeArtifactManifest struct {
-	RuntimeName         string                        `json:"runtimeName"`
-	Platform            string                        `json:"platform"`
-	Version             string                        `json:"version"`
-	GuestInitSHA256     string                        `json:"guestInitSHA256,omitempty"`
-	PrepareScriptSHA256 string                        `json:"prepareScriptSHA256,omitempty"`
-	BaseSourceSHA256    string                        `json:"baseSourceSHA256,omitempty"`
-	Files               []RuntimeArtifactManifestFile `json:"files"`
+	RuntimeName                    string                        `json:"runtimeName"`
+	Platform                       string                        `json:"platform"`
+	Version                        string                        `json:"version"`
+	GuestInitSHA256                string                        `json:"guestInitSHA256,omitempty"`
+	PrepareScriptSHA256            string                        `json:"prepareScriptSHA256,omitempty"`
+	BaseSourceSHA256               string                        `json:"baseSourceSHA256,omitempty"`
+	GuestKernelConfigurationSHA256 string                        `json:"guestKernelConfigurationSHA256,omitempty"`
+	Files                          []RuntimeArtifactManifestFile `json:"files"`
 }
 
 type RuntimeArtifactManifestFile struct {
@@ -59,10 +60,11 @@ func ParseRuntimeArtifactManifest(manifestDocument []byte) (RuntimeArtifactManif
 
 func validateRuntimeArtifactDirectory(artifactDirectoryPath string, manifest RuntimeArtifactManifest) (RuntimeArtifactManifest, error) {
 	requiredFileNames := map[string]bool{
-		"firecracker": true,
-		"jailer":      true,
-		"vmlinux.bin": true,
-		"rootfs.ext4": true,
+		"firecracker":      true,
+		"jailer":           true,
+		"cloud-hypervisor": true,
+		"vmlinux.bin":      true,
+		"rootfs.ext4":      true,
 	}
 	for _, manifestFile := range manifest.Files {
 		if !requiredFileNames[manifestFile.Name] {

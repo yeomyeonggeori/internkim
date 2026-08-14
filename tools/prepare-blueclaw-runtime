@@ -11,7 +11,9 @@ stage_directory="$work_directory/stage"
 rootfs_directory="$work_directory/rootfs"
 rootfs_image_path="$stage_directory/rootfs.ext4"
 firecracker_version="${FIRECRACKER_VERSION:-1.12.1}"
+cloud_hypervisor_version="${CLOUD_HYPERVISOR_VERSION:-53.0}"
 linux_kernel_version="${BLUECLAW_LINUX_KERNEL_VERSION:-6.1.129}"
+guest_kernel_configuration_path="$repository_root/assets/blueclaw-runtime/guest-kernel-aarch64.config"
 rootfs_size="${BLUECLAW_RUNTIME_ROOTFS_SIZE:-4G}"
 blueclaw_bun_version="${BLUECLAW_BUN_VERSION:-1.3.10}"
 marp_cli_version="${BLUECLAW_MARP_CLI_VERSION:-4.3.1}"
@@ -384,40 +386,76 @@ prepare_firecracker() {
   install -m 0755 "$jailer_binary" "$stage_directory/jailer"
 }
 
+prepare_cloud_hypervisor() {
+  local binary_path="$cache_directory/cloud-hypervisor-v$cloud_hypervisor_version-aarch64"
+  local download_url="https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v$cloud_hypervisor_version/cloud-hypervisor-static-aarch64"
+
+  if [ -x "$artifact_directory/cloud-hypervisor" ]; then
+    install -m 0755 "$artifact_directory/cloud-hypervisor" "$stage_directory/cloud-hypervisor"
+    return
+  fi
+
+  if [ ! -s "$binary_path" ]; then
+    curl --fail --location --retry 3 --output "$binary_path.tmp" "$download_url"
+    mv "$binary_path.tmp" "$binary_path"
+  fi
+
+  install -m 0755 "$binary_path" "$stage_directory/cloud-hypervisor"
+}
+
+guest_kernel_configuration_sha() {
+  sha256sum "$guest_kernel_configuration_path" | cut -d' ' -f1
+}
+
+published_kernel_matches_configuration() {
+  local published_manifest_path="$artifact_directory/manifest.json"
+  [ -s "$artifact_directory/vmlinux.bin" ] || return 1
+  [ -s "$published_manifest_path" ] || return 1
+  python3 - "$published_manifest_path" "$(guest_kernel_configuration_sha)" <<'PY'
+import json
+import sys
+
+manifest_path, configuration_sha = sys.argv[1:3]
+with open(manifest_path, encoding="utf-8") as file:
+    manifest = json.load(file)
+sys.exit(0 if manifest.get("guestKernelConfigurationSHA256") == configuration_sha else 1)
+PY
+}
+
+guest_kernel_build_identifier() {
+  echo "$linux_kernel_version-$(guest_kernel_configuration_sha | cut -c1-16)"
+}
+
 prepare_kernel() {
   if [ -n "$kernel_source" ]; then
     install -m 0644 "$kernel_source" "$stage_directory/vmlinux.bin"
     return
   fi
 
-  local artifact_kernel_path="$artifact_directory/vmlinux.bin"
-  if [ -s "$artifact_kernel_path" ]; then
-    install -m 0644 "$artifact_kernel_path" "$stage_directory/vmlinux.bin"
+  if [ ! -s "$guest_kernel_configuration_path" ]; then
+    echo "missing guest kernel configuration at $guest_kernel_configuration_path" >&2
+    exit 1
+  fi
+
+  if published_kernel_matches_configuration; then
+    install -m 0644 "$artifact_directory/vmlinux.bin" "$stage_directory/vmlinux.bin"
     return
   fi
 
-  local kernel_cache_path="$cache_directory/vmlinux-6.1-aarch64.bin"
+  local kernel_cache_path="$cache_directory/vmlinux-$(guest_kernel_build_identifier)-aarch64.bin"
   if [ -s "$kernel_cache_path" ]; then
     install -m 0644 "$kernel_cache_path" "$stage_directory/vmlinux.bin"
     return
   fi
 
   if [ "${BLUECLAW_BUILD_KERNEL:-0}" != "1" ]; then
-    echo "missing Blueclaw guest kernel image" >&2
-    echo "set BLUECLAW_KERNEL_IMAGE_SOURCE to a Firecracker-compatible arm64 kernel image, or set BLUECLAW_BUILD_KERNEL=1" >&2
-    echo "Firecracker documents arm64 kernel builds with tools/devtool build_ci_artifacts kernels 6.1" >&2
+    echo "missing Blueclaw guest kernel image for $(guest_kernel_build_identifier)" >&2
+    echo "set BLUECLAW_KERNEL_IMAGE_SOURCE to an arm64 kernel image built from $guest_kernel_configuration_path, or set BLUECLAW_BUILD_KERNEL=1" >&2
     exit 1
   fi
 
-  require_command git
   require_command curl
   require_command tar
-
-  local firecracker_source_directory="$work_directory/firecracker-source-v$firecracker_version"
-  if [ ! -d "$firecracker_source_directory/.git" ]; then
-    rm -rf "$firecracker_source_directory"
-    git clone --depth 1 --branch "v$firecracker_version" https://github.com/firecracker-microvm/firecracker.git "$firecracker_source_directory"
-  fi
 
   local kernel_archive_path="$cache_directory/linux-$linux_kernel_version.tar.xz"
   local kernel_source_directory="$work_directory/linux-$linux_kernel_version"
@@ -431,18 +469,14 @@ prepare_kernel() {
   rm -rf "$kernel_source_directory"
   tar -xJf "$kernel_archive_path" -C "$work_directory"
 
-  local kernel_configuration_path="$firecracker_source_directory/resources/guest_configs/microvm-kernel-ci-aarch64-6.1.config"
-  if [ ! -s "$kernel_configuration_path" ]; then
-    echo "Firecracker source did not contain the aarch64 6.1 guest kernel configuration" >&2
-    exit 1
-  fi
-
-  cp "$kernel_configuration_path" "$kernel_source_directory/.config"
+  cp "$guest_kernel_configuration_path" "$kernel_source_directory/.config"
   (
     cd "$kernel_source_directory"
     make olddefconfig
     make -j"$(nproc)" Image
   )
+
+  assert_guest_kernel_supports_both_vmms "$kernel_source_directory/.config"
 
   local built_kernel_path="$kernel_source_directory/arch/arm64/boot/Image"
   if [ ! -s "$built_kernel_path" ]; then
@@ -452,6 +486,30 @@ prepare_kernel() {
 
   install -m 0644 "$built_kernel_path" "$kernel_cache_path"
   install -m 0644 "$kernel_cache_path" "$stage_directory/vmlinux.bin"
+}
+
+assert_guest_kernel_supports_both_vmms() {
+  local resolved_configuration_path="$1"
+  local missing_symbols=()
+  local symbol
+  for symbol in \
+    CONFIG_VIRTIO_MMIO \
+    CONFIG_SERIAL_8250_CONSOLE \
+    CONFIG_PCI \
+    CONFIG_PCI_HOST_GENERIC \
+    CONFIG_VIRTIO_PCI \
+    CONFIG_SERIAL_AMBA_PL011_CONSOLE \
+    CONFIG_FUSE_FS \
+    CONFIG_VIRTIO_FS; do
+    if ! grep -q "^$symbol=y$" "$resolved_configuration_path"; then
+      missing_symbols+=("$symbol")
+    fi
+  done
+  if [ "${#missing_symbols[@]}" -gt 0 ]; then
+    echo "guest kernel configuration resolved without ${missing_symbols[*]}" >&2
+    echo "Firecracker reaches virtio over MMIO and Cloud Hypervisor over PCI, so the guest kernel carries both" >&2
+    exit 1
+  fi
 }
 
 build_blueclaw_base_binaries() {
@@ -756,17 +814,18 @@ for relative_path in paths:
 print(hash_value.hexdigest())
 PY
 )"
-  python3 - "$stage_directory" "$artifact_directory/manifest.json" "$firecracker_version" "$guest_init_sha" "$prepare_script_sha" "$base_source_sha" <<'PY'
+  python3 - "$stage_directory" "$artifact_directory/manifest.json" "$firecracker_version" "$guest_init_sha" "$prepare_script_sha" "$base_source_sha" "$(guest_kernel_configuration_sha)" <<'PY'
 import hashlib
 import json
 import os
 import sys
 
-stage_directory, manifest_path, version, guest_init_sha256, prepare_script_sha256, base_source_sha256 = sys.argv[1:7]
+stage_directory, manifest_path, version, guest_init_sha256, prepare_script_sha256, base_source_sha256, guest_kernel_configuration_sha256 = sys.argv[1:8]
 files = []
 for name, mode in [
     ("firecracker", "0755"),
     ("jailer", "0755"),
+    ("cloud-hypervisor", "0755"),
     ("vmlinux.bin", "0644"),
     ("rootfs.ext4", "0644"),
 ]:
@@ -786,6 +845,7 @@ manifest = {
     "guestInitSHA256": guest_init_sha256,
     "prepareScriptSHA256": prepare_script_sha256,
     "baseSourceSHA256": base_source_sha256,
+    "guestKernelConfigurationSHA256": guest_kernel_configuration_sha256,
     "files": files,
 }
 document = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
@@ -797,12 +857,13 @@ PY
 }
 
 publish_artifacts() {
-  for file_name in firecracker jailer vmlinux.bin rootfs.ext4 manifest.json; do
+  for file_name in firecracker jailer cloud-hypervisor vmlinux.bin rootfs.ext4 manifest.json; do
     mv "$stage_directory/$file_name" "$artifact_directory/$file_name"
   done
 }
 
 prepare_firecracker
+prepare_cloud_hypervisor
 prepare_kernel
 build_blueclaw_base_binaries
 prepare_rootfs_directory
