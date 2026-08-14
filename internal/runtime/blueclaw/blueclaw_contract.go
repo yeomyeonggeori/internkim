@@ -79,7 +79,7 @@ const (
 	BlueclawCloudHypervisorPath           = "/usr/local/bin/cloud-hypervisor"
 	FirecrackerMonitorName                = "firecracker"
 	CloudHypervisorMonitorName            = "cloudHypervisor"
-	BlueclawVirtualMachineMonitor         = FirecrackerMonitorName
+	BlueclawVirtualMachineMonitor         = CloudHypervisorMonitorName
 	BlueclawRuntimeInstanceDirectoryPath  = "/var/lib/bc"
 	BlueclawRuntimeInstallPath            = "/opt/internkim/blueclaw-runtime"
 	BlueclawRuntimeManifestPath           = "/opt/internkim/blueclaw-runtime/manifest.json"
