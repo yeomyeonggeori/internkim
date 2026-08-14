@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Writes one person's Buzz secret key to a file, derived the same way the
+# importer derived it, so a client can sign in as the identity the imported
+# history already belongs to. The key is never printed.
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+	echo "usage: ${BASH_SOURCE[0]##*/} <email>" >&2
+	exit 1
+fi
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+state="${BUZZ_STATE_DIRECTORY:-$here/../../.local/buzz}"
+seedPath="$state/key-seed"
+keyPath="$state/buzz-key-$(printf '%s' "$1" | tr -c 'a-zA-Z0-9._-' '_').txt"
+
+if [[ ! -f $seedPath ]]; then
+	echo "missing $seedPath — see README.md" >&2
+	exit 1
+fi
+
+EMAIL="$1" SEED_PATH="$seedPath" python3 - "$keyPath" <<'PY'
+import hashlib, os, pathlib, sys
+
+seed = pathlib.Path(os.environ["SEED_PATH"]).read_text().strip()
+email = os.environ["EMAIL"].strip().lower()
+secret = hashlib.sha256(f"{seed}|secret|{email}".encode()).hexdigest()
+pathlib.Path(sys.argv[1]).write_text(secret + "\n")
+PY
+
+chmod 600 "$keyPath"
+echo "wrote the key for $1 to $keyPath"
