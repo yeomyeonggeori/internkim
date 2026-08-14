@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/buzzimport"
@@ -28,20 +29,31 @@ func (client Client) httpClient() *http.Client {
 }
 
 func (client Client) get(ctx context.Context, path string, target any) error {
+	_, errorValue := client.getReportingAbsence(ctx, path, target)
+	return errorValue
+}
+
+// getReportingAbsence separates "the server has nothing under this path" from
+// "the request failed", which the caller needs when a path exists only for some
+// of the ids it is asked about.
+func (client Client) getReportingAbsence(ctx context.Context, path string, target any) (bool, error) {
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, client.BaseURL+path, nil)
 	if errorValue != nil {
-		return errorValue
+		return false, errorValue
 	}
 	request.Header.Set("Authorization", "Bearer "+client.Token)
 	response, errorValue := client.httpClient().Do(request)
 	if errorValue != nil {
-		return errorValue
+		return false, errorValue
 	}
 	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("mattermost %s returned %d", path, response.StatusCode)
+	if response.StatusCode == http.StatusNotFound {
+		return false, nil
 	}
-	return json.NewDecoder(response.Body).Decode(target)
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return false, fmt.Errorf("mattermost %s returned %d", path, response.StatusCode)
+	}
+	return true, json.NewDecoder(response.Body).Decode(target)
 }
 
 type restUser struct {
@@ -100,11 +112,46 @@ func (client Client) Users(ctx context.Context) ([]restUser, error) {
 }
 
 func (client Client) PublicChannels(ctx context.Context, teamID string) ([]restChannel, error) {
+	return client.pagedChannels(ctx, "/api/v4/teams/"+url.PathEscape(teamID)+"/channels")
+}
+
+func (client Client) PrivateChannels(ctx context.Context, teamID string) ([]restChannel, error) {
+	return client.pagedChannels(ctx, "/api/v4/teams/"+url.PathEscape(teamID)+"/channels/private")
+}
+
+// Mattermost hangs direct and group conversations off each person rather than
+// off the team, so there is no single listing to read. A person who was never
+// on the team answers 404 rather than an empty list, and holds no conversation
+// this import is looking for.
+func (client Client) DirectChannels(ctx context.Context, teamID string, userIDs []string) ([]restChannel, error) {
+	channels := []restChannel{}
+	seen := map[string]bool{}
+	for _, userID := range userIDs {
+		var theirChannels []restChannel
+		path := "/api/v4/users/" + url.PathEscape(userID) + "/teams/" + url.PathEscape(teamID) + "/channels"
+		isOnTheTeam, errorValue := client.getReportingAbsence(ctx, path, &theirChannels)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		if !isOnTheTeam {
+			continue
+		}
+		for _, channel := range theirChannels {
+			if !buzzimport.IsConversationChannelType(channel.Type) || seen[channel.ID] {
+				continue
+			}
+			seen[channel.ID] = true
+			channels = append(channels, channel)
+		}
+	}
+	return channels, nil
+}
+
+func (client Client) pagedChannels(ctx context.Context, basePath string) ([]restChannel, error) {
 	channels := []restChannel{}
 	for page := 0; ; page++ {
 		var pageChannels []restChannel
-		path := "/api/v4/teams/" + url.PathEscape(teamID) + "/channels?per_page=200&page=" + strconv.Itoa(page)
-		if errorValue := client.get(ctx, path, &pageChannels); errorValue != nil {
+		if errorValue := client.get(ctx, basePath+"?per_page=200&page="+strconv.Itoa(page), &pageChannels); errorValue != nil {
 			return nil, errorValue
 		}
 		if len(pageChannels) == 0 {
@@ -275,24 +322,14 @@ func (client Client) Post(ctx context.Context, postID string) (buzzimport.Matter
 	}, true, nil
 }
 
-// BotUserIDs returns the set of Mattermost user ids that are bots, so an import
-// can attribute their posts to the shared bot buzz identity instead of skipping
-// them (a bot-authored thread root left unimported strands every human reply).
-func BotUserIDs(users []restUser) map[string]bool {
-	botUserIDs := map[string]bool{}
-	for _, user := range users {
-		if user.IsBot {
-			botUserIDs[user.ID] = true
-		}
-	}
-	return botUserIDs
-}
-
+// An agent posts as itself, so it takes an identity of its own rather than
+// borrowing the importer's. Everything that reads a message — a name, a
+// picture, the person it is addressed to — needs one to point at.
 func UsersToChannelAuthorEmails(users []restUser) (map[string]string, map[string]MattermostAuthor) {
 	authorEmails := map[string]string{}
 	authorsByID := map[string]MattermostAuthor{}
 	for _, user := range users {
-		if user.IsBot {
+		if strings.TrimSpace(user.Email) == "" {
 			continue
 		}
 		authorEmails[user.ID] = user.Email
