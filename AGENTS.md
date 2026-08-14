@@ -353,13 +353,12 @@ and delete the duplicates.
   `confirmation.requested`), and user-visible side-effect results stay
   required; implementation-detail expectations (exact tool output content,
   internal event bodies) get `"advisory": true`. Never pin an exact model
-  (the tier ceiling plus llmd transport is the contract; the runtime may
-  ladder within the ceiling). Never require a `*.list` call before a
+  (the tier ceiling plus the capability transport is the contract; the runtime
+  may ladder within the ceiling). Never require a `*.list` call before a
   hint-based mutation (`taskHint` tools resolve server-side without listing).
 - A gate binary/payload pairs with the Blueclaw HEAD it was built from: after
   any `.dependency/blueclaw` commit, rebuild `make prepare-blueclaw-payload`
-  and `make prepare-blueclaw-llmd` before launching, or the run ships the old
-  agent.
+  before launching, or the run ships the old agent.
 
 ## Blueclaw Skill Size Budget
 
@@ -559,11 +558,16 @@ and delete the duplicates.
 - The Jetson Blueclaw component is `blueclawPayload`, not `blueclaw`. An invalid
   component name is silently dropped, so confirm the deploy log's `Components:`
   line lists everything you intended.
-- The AI SDK sidecar is `llmd` (directory `.dependency/blueclaw/llmd/`, deploy
-  component `blueclawLLMD`, artifact `make prepare-blueclaw-llmd`, systemd unit
-  `blueclaw-llmd`). Any llmd TypeScript change ships only through a rebuilt
-  llmd artifact; any llmd protocol/schema change is a contract change and
-  ships coupled with `capabilityd` and `blueclawPayload`.
+- The agent reaches a model through `capabilityd`, not through `llmd`. The
+  guest's `runtime.json` names `capabilityLLM` as its only provider, and
+  `capabilityd` picks between the device's llama.cpp, the companion, and
+  OpenRouter by execution mode. `llmd` (directory `.dependency/blueclaw/llmd/`,
+  deploy component `blueclawLLMD`, systemd unit `blueclaw-llmd`) is still
+  installed, started and health-checked by provisioning, but nothing calls it:
+  `capabilityd` stopped proxying it and the runtime never pointed at it
+  directly. Treat it as a leftover to remove, not a path to build on. Blueclaw's
+  own README documents an `llmd` standalone deployment; that is for running
+  blueclaw without an appliance and is not how a device is configured.
 - After changing Go setup, provisioning, runtime, or service code, run
   `make build` before deployment.
 - Prefer `./internkim deploy --components <components>` for normal device
