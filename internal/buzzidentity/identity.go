@@ -17,10 +17,16 @@ import (
 	"strings"
 )
 
+// BootstrapSubject names the identity that owns the relay and administers it.
+// AgentSubject names the one the agent talks to people as. They were the same
+// key once, which put the relay's owner in every conversation and made the
+// agent's blast radius the whole community.
+const BootstrapSubject = "__bootstrap__"
+const AgentSubject = "__agent__"
+
 // Secret derives a person's Buzz secret key from a seed and their email.
 // Email is lowercased and trimmed so the same person always resolves to the
 // same key regardless of casing or surrounding whitespace.
-const BootstrapSubject = "__bootstrap__"
 
 func Secret(seed, email string) string {
 	digest := sha256.Sum256([]byte(seed + "|secret|" + strings.ToLower(strings.TrimSpace(email))))

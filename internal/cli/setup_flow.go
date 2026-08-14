@@ -177,7 +177,7 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		GetLiteRTModelPath:          buildLiteRTModelPathCallback(state.parameters.LiteRTModelPath),
 		GetBuzzKeySeed:              buildBuzzKeySeedCallback(),
 		GetBuzzRelayOwnerPubkey:     buildBuzzRelayOwnerPubkeyCallback(),
-		GetBuzzBootstrapSecret:      buildBuzzBootstrapSecretCallback(),
+		GetBuzzAgentSecret:          buildBuzzAgentSecretCallback(),
 		GetGasWebhookURL:            state.provisionGasWebhook,
 		BinariesVersion:             state.binariesVersion,
 		InstallBinariesSSH:          state.installBinariesSSH,
