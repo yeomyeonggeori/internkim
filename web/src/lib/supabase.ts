@@ -1,13 +1,13 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-type CentralPlane = { projectURL: string; publishableKey: string; vapidPublicKey: string };
+type CentralPlane = { projectURL: string; publishableKey: string; vapidPublicKey: string; gatewayURL: string };
 
 let resolved: CentralPlane | undefined;
 let client: SupabaseClient | undefined;
 
 function centralPlane(): CentralPlane {
 	if (resolved) return resolved;
-	resolved = { projectURL: '', publishableKey: '', vapidPublicKey: '' };
+	resolved = { projectURL: '', publishableKey: '', vapidPublicKey: '', gatewayURL: '' };
 	if (typeof document === 'undefined') return resolved;
 	const carried = document.getElementById('central-plane')?.textContent;
 	if (!carried) return resolved;
@@ -16,16 +16,21 @@ function centralPlane(): CentralPlane {
 		resolved = {
 			projectURL: typeof parsed.projectURL === 'string' ? parsed.projectURL : '',
 			publishableKey: typeof parsed.publishableKey === 'string' ? parsed.publishableKey : '',
-			vapidPublicKey: typeof parsed.vapidPublicKey === 'string' ? parsed.vapidPublicKey : ''
+			vapidPublicKey: typeof parsed.vapidPublicKey === 'string' ? parsed.vapidPublicKey : '',
+			gatewayURL: typeof parsed.gatewayURL === 'string' ? parsed.gatewayURL : ''
 		};
 	} catch {
-		resolved = { projectURL: '', publishableKey: '', vapidPublicKey: '' };
+		resolved = { projectURL: '', publishableKey: '', vapidPublicKey: '', gatewayURL: '' };
 	}
 	return resolved;
 }
 
 export function vapidPublicKey(): string {
 	return centralPlane().vapidPublicKey;
+}
+
+export function gatewayURL(): string {
+	return centralPlane().gatewayURL;
 }
 
 export function isSupabaseConfigured(): boolean {

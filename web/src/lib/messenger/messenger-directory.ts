@@ -67,3 +67,17 @@ export async function isMessengerConnected(): Promise<boolean> {
 	if (error) return false;
 	return (count ?? 0) > 0;
 }
+
+export async function haveIConnectedMyMessenger(): Promise<boolean> {
+	const client = supabase();
+	const { data } = await client.auth.getSession();
+	const accountID = data.session?.user.id;
+	if (!accountID) return false;
+	const member = await client.from('member').select('id').eq('user_id', accountID).maybeSingle<{ id: string }>();
+	if (member.error || !member.data) return false;
+	const { count } = await client
+		.from('contact')
+		.select('external_id', { count: 'exact', head: true })
+		.eq('member_id', member.data.id);
+	return (count ?? 0) > 0;
+}

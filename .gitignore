@@ -27,6 +27,7 @@ dist/
 companion/dist/
 companion/node_modules/
 host/relay/node_modules/
+workers/*/node_modules/
 companion/src-tauri/binaries/
 companion/src-tauri/gen/
 companion/src-tauri/target/
