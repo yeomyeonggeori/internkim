@@ -23,6 +23,12 @@ type Blob struct {
 	Size     int64  `json:"size"`
 	MimeType string `json:"type"`
 	Dim      string `json:"dim"`
+	Name     string `json:"-"`
+}
+
+func (blob Blob) Named(filename string) Blob {
+	blob.Name = strings.TrimSpace(filename)
+	return blob
 }
 
 type Uploader struct {
@@ -115,6 +121,9 @@ func (blob Blob) IMetaTag() []string {
 	}
 	if strings.TrimSpace(blob.Dim) != "" {
 		tag = append(tag, "dim "+blob.Dim)
+	}
+	if blob.Name != "" {
+		tag = append(tag, "filename "+blob.Name)
 	}
 	return tag
 }
