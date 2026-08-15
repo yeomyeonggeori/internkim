@@ -56,3 +56,34 @@ export async function keepSharedAsset(
 	}
 	return signed.data.signedUrl;
 }
+
+export const attachmentKind = 'attachment';
+
+// A file the relay would not take still belongs to the conversation it was sent
+// to, so it is kept where the company can read it and named by what it is. The
+// address is the object's own, not a signed one: whoever reads it signs for
+// themselves with their own session, so nothing long-lived is written into a
+// message that cannot be edited afterwards.
+export function attachmentAddress(projectURL: string, path: string): string {
+	return `${projectURL.replace(/\/+$/, '')}/storage/v1/object/${assetBucket}/${path}`;
+}
+
+export function attachmentPathOfAddress(projectURL: string, address: string): string | null {
+	const prefix = attachmentAddress(projectURL, '');
+	return address.startsWith(prefix) ? address.slice(prefix.length) : null;
+}
+
+export async function keepMessageAttachment(
+	uploader: AssetUploader,
+	companyID: string,
+	bytes: Uint8Array,
+	contentType: string
+): Promise<{ path: string; digest: string }> {
+	const digest = await digestOf(bytes);
+	const path = sharedAssetPath(companyID, attachmentKind, digest, contentType);
+	const written = await uploader.upload(path, bytes, { contentType, upsert: false });
+	if (written.error && !isAlreadyStored(written.error.message)) {
+		throw new Error(`the asset store refused ${path}: ${written.error.message}`);
+	}
+	return { path, digest };
+}

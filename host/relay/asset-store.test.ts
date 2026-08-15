@@ -1,5 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { digestOf, extensionOf, keepSharedAsset, sharedAssetPath, type AssetUploader } from './asset-store';
+import {
+	attachmentAddress,
+	attachmentPathOfAddress,
+	digestOf,
+	extensionOf,
+	keepMessageAttachment,
+	keepSharedAsset,
+	sharedAssetPath,
+	type AssetUploader
+} from './asset-store';
 
 const company = '43000000-0000-0000-0000-0000000000a0';
 
@@ -67,5 +76,61 @@ describe('keepSharedAsset', () => {
 		await expect(
 			keepSharedAsset(uploaderThat('payload too large'), company, 'link', new Uint8Array([1]), 'image/png')
 		).rejects.toThrow('payload too large');
+	});
+});
+
+describe('keepMessageAttachment', () => {
+	test('keeps a file the relay would refuse, under the company that sent it', async () => {
+		const uploader = uploaderThat(null);
+		const kept = await keepMessageAttachment(uploader, company, new Uint8Array([1, 2]), 'text/html');
+		expect(kept.path.startsWith(`${company}/shared/attachment/`)).toBe(true);
+		expect(kept.path).toContain(kept.digest);
+		expect(uploader.written).toEqual([kept.path]);
+	});
+
+	test('gives back the path rather than a signed url, so nothing long-lived is written down', async () => {
+		const kept = await keepMessageAttachment(uploaderThat(null), company, new Uint8Array([1]), 'audio/mpeg');
+		expect(kept.path).not.toContain('token');
+		expect(kept.path).not.toContain('http');
+	});
+
+	test('the same file sent twice is stored once', async () => {
+		const first = await keepMessageAttachment(uploaderThat(null), company, new Uint8Array([7]), 'text/html');
+		const again = await keepMessageAttachment(
+			uploaderThat('The resource already exists'),
+			company,
+			new Uint8Array([7]),
+			'text/html'
+		);
+		expect(again.path).toBe(first.path);
+	});
+
+	test('a refusal that is not about it already being there is raised', async () => {
+		await expect(
+			keepMessageAttachment(uploaderThat('payload too large'), company, new Uint8Array([1]), 'text/html')
+		).rejects.toThrow('payload too large');
+	});
+});
+
+describe('the address a message carries', () => {
+	const projectURL = 'https://project.supabase.co';
+
+	test('names the object itself, so a reader signs for it with their own session', () => {
+		expect(attachmentAddress(projectURL, `${company}/shared/attachment/abc`)).toBe(
+			`${projectURL}/storage/v1/object/asset/${company}/shared/attachment/abc`
+		);
+	});
+
+	test('survives a project url written with a trailing slash', () => {
+		expect(attachmentAddress(`${projectURL}/`, 'a/b')).toBe(attachmentAddress(projectURL, 'a/b'));
+	});
+
+	test('reads the path back out of it', () => {
+		const path = `${company}/shared/attachment/abc.html`;
+		expect(attachmentPathOfAddress(projectURL, attachmentAddress(projectURL, path))).toBe(path);
+	});
+
+	test('an address from somewhere else is not one of ours', () => {
+		expect(attachmentPathOfAddress(projectURL, 'http://localhost:3000/media/abc.png')).toBeNull();
 	});
 });
