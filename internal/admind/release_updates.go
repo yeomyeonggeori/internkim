@@ -136,11 +136,11 @@ func (service *Service) startReleaseUpdate(responseWriter http.ResponseWriter, r
 	}
 	current := service.readCurrentReleaseManifest()
 	if current != nil && current.ReleaseID == manifest.ReleaseID {
-		log.Printf("release update %s already current: component install and blueclaw workspace image sync skipped", manifest.ReleaseID)
+		log.Printf("release update %s already current: component install and blueclaw delivery refresh skipped", manifest.ReleaseID)
 		job := service.newJob("release-update")
 		service.finishReleaseUpdateJob(job.JobID, "already_current", map[string]string{
 			"releaseID": manifest.ReleaseID,
-			"skipped":   "component install and blueclaw workspace image sync",
+			"skipped":   "component install and blueclaw delivery refresh",
 		})
 		service.writeJSON(responseWriter, job)
 		return

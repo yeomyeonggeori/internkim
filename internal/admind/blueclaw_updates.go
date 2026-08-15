@@ -291,7 +291,7 @@ func (service *Service) runBlueclawUpdateJob(ctx context.Context, jobID string, 
 		return
 	}
 	if service.isBlueclawPayloadAlreadyCurrent(artifactPath) {
-		if errorValue := service.syncBlueclawWorkspaceImages(ctx, jobID); errorValue != nil {
+		if errorValue := service.refreshBlueclawDeliveryShares(ctx, jobID); errorValue != nil {
 			_, _ = service.runCommand(ctx, "sh", "-lc", blueclawruntime.StartAfterPayloadSyncCommand())
 			service.updateJob(jobID, "failed", "workspace_sync", errorValue.Error())
 			return
@@ -356,16 +356,16 @@ func (service *Service) reconcileBlueclawRuntimeConfigurationForTarget(ctx conte
 		return
 	}
 	job := service.newJob("blueclaw-runtime-reconcile")
-	if errorValue := service.syncBlueclawWorkspaceImageForTarget(ctx, job.JobID, target); errorValue != nil {
+	if errorValue := service.refreshBlueclawDeliveryForTarget(ctx, job.JobID, target); errorValue != nil {
 		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
 		service.updateJob(job.JobID, "failed", "workspace_sync", errorValue.Error())
-		log.Printf("Blueclaw workspace image sync after runtime configuration restamp for %s failed: %v", target.Name, errorValue)
+		log.Printf("Blueclaw delivery refresh after runtime configuration restamp for %s failed: %v", target.Name, errorValue)
 		return
 	}
 	service.finishBlueclawUpdateJob(job.JobID, "completed", map[string]string{"runtimeConfigurationRestamped": "true"})
 }
 
-func (service *Service) syncBlueclawWorkspaceImages(ctx context.Context, jobID string) error {
+func (service *Service) refreshBlueclawDeliveryShares(ctx context.Context, jobID string) error {
 	targets := service.blueclawPayloadInstallTargets()
 	if len(targets) == 0 {
 		targets = []blueclawPayloadInstallTarget{canonicalBlueclawPayloadInstallTarget()}
@@ -374,17 +374,17 @@ func (service *Service) syncBlueclawWorkspaceImages(ctx context.Context, jobID s
 		if service.tenantServiceIsDisabled(ctx, target.ServiceName) {
 			continue
 		}
-		if errorValue := service.syncBlueclawWorkspaceImageForTarget(ctx, jobID, target); errorValue != nil {
+		if errorValue := service.refreshBlueclawDeliveryForTarget(ctx, jobID, target); errorValue != nil {
 			return errorValue
 		}
 	}
 	return nil
 }
 
-func (service *Service) syncBlueclawWorkspaceImageForTarget(ctx context.Context, jobID string, target blueclawPayloadInstallTarget) error {
+func (service *Service) refreshBlueclawDeliveryForTarget(ctx context.Context, jobID string, target blueclawPayloadInstallTarget) error {
 	log.Printf("Blueclaw payload already current for %s: refreshing the delivery share", target.Name)
 	service.updateJob(jobID, "running", "workspace_sync", "")
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawPayloadWorkspaceSyncCommand(target)); errorValue != nil {
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawDeliveryRefreshCommandForTarget(target)); errorValue != nil {
 		return fmt.Errorf("%s: refresh delivery share: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	service.updateJob(jobID, "running", "restarting", "")
@@ -483,8 +483,8 @@ func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Cont
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", hostWorkspacePayloadSyncCommandForTarget(artifactPath, target)); errorValue != nil {
 		return fmt.Errorf("%s: sync blueclaw payload host workspace: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
-	syncCommand := blueclawPayloadWorkspaceSyncCommand(target)
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", syncCommand); errorValue != nil {
+	refreshCommand := blueclawDeliveryRefreshCommandForTarget(target)
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", refreshCommand); errorValue != nil {
 		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
 		return fmt.Errorf("%s: sync blueclaw payload workspace: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
@@ -506,7 +506,7 @@ func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Cont
 	return nil
 }
 
-func blueclawPayloadWorkspaceSyncCommand(target blueclawPayloadInstallTarget) string {
+func blueclawDeliveryRefreshCommandForTarget(target blueclawPayloadInstallTarget) string {
 	return "set -e" + blueclawruntime.BlueclawDeliveryRefreshCommand()
 }
 
