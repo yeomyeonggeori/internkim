@@ -718,6 +718,7 @@ func (service *Service) syncReleaseSkillsWorkspace(ctx context.Context) error {
 		"--source", quoteBlueclawUpdateShellValue(filepath.Join(target.HostWorkspacePath, "skills")),
 		"--relative-target", quoteBlueclawUpdateShellValue("skills"),
 	}, " ")
+	syncCommand = "set -e\n" + syncCommand + blueclawruntime.BlueclawDeliveryRefreshCommand()
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", syncCommand); errorValue != nil {
 		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
 		return fmt.Errorf("sync blueclaw skills workspace: %s: %w", strings.TrimSpace(string(output)), errorValue)
