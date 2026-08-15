@@ -1,14 +1,8 @@
 //   bun run host/relay/relay.ts
 
 import { createClient } from '@supabase/supabase-js';
-import { readLinkPreview, type LinkPreviewImage } from './link-preview';
-import {
-	assetBucket,
-	attachmentAddress,
-	attachmentAlreadyKept,
-	keepMessageAttachment,
-	keepSharedAsset
-} from './asset-store';
+import { readLinkPreview, type LinkPreview } from './link-preview';
+import { assetBucket, attachmentAddress, attachmentAlreadyKept, keepMessageAttachment } from './asset-store';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
 import { answerBodyOf, forwardToChatd, type ConnectedAccount, type KeptAttachment } from './forward';
@@ -152,36 +146,13 @@ async function keepAttachment(contentBase64: string, contentType: string): Promi
 	};
 }
 
-type ServedLinkPreview = {
-	url: string;
-	title: string;
-	description: string;
-	siteName: string;
-	imageURL: string;
-};
+const linkPreviews = new Map<string, LinkPreview | null>();
 
-const linkPreviews = new Map<string, ServedLinkPreview | null>();
-
-async function previewOf(link: string): Promise<ServedLinkPreview | null> {
+async function previewOf(link: string): Promise<LinkPreview | null> {
 	if (!linkPreviews.has(link)) {
-		linkPreviews.set(link, await servePreview(link).catch(() => null));
+		linkPreviews.set(link, await readLinkPreview(link).catch(() => null));
 	}
 	return linkPreviews.get(link) ?? null;
-}
-
-async function servePreview(link: string): Promise<ServedLinkPreview | null> {
-	const preview = await readLinkPreview(link);
-	if (!preview) return null;
-	const { image, ...described } = preview;
-	return { ...described, imageURL: image ? await storedImageURL(image) : '' };
-}
-
-async function storedImageURL(image: LinkPreviewImage): Promise<string> {
-	const store = client.storage.from(assetBucket);
-	return keepSharedAsset(store, companyID, 'link', image.bytes, image.contentType).catch((error: unknown) => {
-		console.error(`link preview image not stored: ${error instanceof Error ? error.message : error}`);
-		return '';
-	});
 }
 
 async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { decodePage, reachableAddress } from './link-preview';
+import { decodePage, imageAddress, reachableAddress } from './link-preview';
 
 describe('reachableAddress', () => {
 	test('an ordinary web address is fetched', () => {
@@ -26,6 +26,31 @@ describe('reachableAddress', () => {
 		]) {
 			expect(reachableAddress(link)).toBeNull();
 		}
+	});
+});
+
+describe('the picture a preview names', () => {
+	const page = new URL('https://example.com/articles/one');
+
+	test('is where the page keeps it, because that is already a copy', () => {
+		expect(imageAddress('https://cdn.example.com/one.png', page)).toBe('https://cdn.example.com/one.png');
+	});
+
+	test('is resolved against the page when the page names it relatively', () => {
+		expect(imageAddress('../covers/one.png', page)).toBe('https://example.com/covers/one.png');
+	});
+
+	test('is left out when the page names none', () => {
+		expect(imageAddress(undefined, page)).toBe('');
+		expect(imageAddress('', page)).toBe('');
+	});
+
+	// A reader's browser opens this address, so a page naming somewhere on their
+	// own network would have them reach it.
+	test('is left out when it points at a network the reader should not be aimed at', () => {
+		expect(imageAddress('http://169.254.169.254/latest/meta-data', page)).toBe('');
+		expect(imageAddress('http://192.168.1.1/', page)).toBe('');
+		expect(imageAddress('file:///etc/passwd', page)).toBe('');
 	});
 });
 
