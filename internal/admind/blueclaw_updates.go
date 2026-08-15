@@ -524,7 +524,7 @@ func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Cont
 }
 
 func blueclawPayloadWorkspaceSyncCommand(target blueclawPayloadInstallTarget) string {
-	return strings.Join([]string{
+	syncCommand := strings.Join([]string{
 		blueclawruntime.BlueclawSupervisorBinaryPath,
 		"sync-workspace",
 		"--atomic",
@@ -532,6 +532,7 @@ func blueclawPayloadWorkspaceSyncCommand(target blueclawPayloadInstallTarget) st
 		"--workspace-image", quoteBlueclawUpdateShellValue(target.WorkspaceImagePath),
 		"--source", quoteBlueclawUpdateShellValue(target.HostWorkspacePath),
 	}, " ")
+	return "set -e\n" + syncCommand + blueclawruntime.BlueclawDeliveryRefreshCommand()
 }
 
 func (service *Service) drainBlueclawTasksBeforeStop(ctx context.Context, target blueclawPayloadInstallTarget, timeout time.Duration) {

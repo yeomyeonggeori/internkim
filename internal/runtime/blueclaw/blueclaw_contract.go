@@ -81,6 +81,8 @@ const (
 	BlueclawDeliveryPath                  = "/var/lib/blueclaw/delivery"
 	BlueclawDeliveryReadOnlyPath          = "/var/lib/blueclaw/delivery-ro"
 	BlueclawDeliveryConfigPath            = "/var/lib/blueclaw/delivery/config"
+	BlueclawDeliveryRuntimePath           = "/var/lib/blueclaw/delivery/runtime/current"
+	BlueclawGuestDeliveryRuntimePath      = "/delivery/runtime/current"
 	BlueclawDeliveryServiceName           = "internkim-blueclaw-delivery.service"
 	BlueclawDeliveryServicePath           = "/etc/systemd/system/internkim-blueclaw-delivery.service"
 	FirecrackerMonitorName                = "firecracker"
@@ -197,4 +199,21 @@ func BlueclawWorkspaceBinaryPath(binaryName string) string {
 
 func BlueclawSubmoduleRoot(scriptDir string) string {
 	return filepath.Join(scriptDir, BlueclawSubmodulePath)
+}
+
+// The guest runs its payload from the share and reads its migrations there, so the tree
+// the host writes has to be mirrored where virtiofsd serves it. Ownership is the host's
+// and passes through untranslated, so root owns it and the mode carries the access: the
+// binary has to be executable by the guest's blueclaw, which is not root.
+//
+// It is appended to a sync command, so the caller runs the pair under set -e; without it
+// the pair reports this command's status and a failed sync would read as success.
+func BlueclawDeliveryRefreshCommand() string {
+	return "\n" +
+		"mkdir -p " + BlueclawDeliveryRuntimePath + "\n" +
+		"rsync -a --delete " + BlueclawWorkspacePath + "/.blueclaw/runtime/current/ " + BlueclawDeliveryRuntimePath + "/\n" +
+		"chown -R root:root " + BlueclawDeliveryPath + "\n" +
+		"find " + BlueclawDeliveryPath + " -type d -exec chmod 0755 {} +\n" +
+		"find " + BlueclawDeliveryPath + " -type f -exec chmod 0644 {} +\n" +
+		"find " + BlueclawDeliveryRuntimePath + "/bin -type f -exec chmod 0755 {} + 2>/dev/null || true"
 }

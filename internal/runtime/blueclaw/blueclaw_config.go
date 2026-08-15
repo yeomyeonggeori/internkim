@@ -191,7 +191,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		terminalPOSIXHelperPath = strings.TrimSpace(options.POSIXHelperPath)
 	}
 	databaseConnectionString := firstNonEmptyString(options.DatabaseConnectionString, BlueclawGuestDatabaseConnectionString)
-	migrationDirectoryPath := firstNonEmptyString(options.MigrationDirectoryPath, BlueclawGuestMigrationPath)
+	migrationDirectoryPath := firstNonEmptyString(options.MigrationDirectoryPath, guestMigrationDirectoryPath())
 	graphitiEndpoint := firstNonEmptyString(options.GraphitiEndpoint, GraphitiEndpoint)
 	if options.DirectExecution && strings.TrimSpace(options.GraphitiEndpoint) == "" {
 		graphitiEndpoint = ""
@@ -588,4 +588,12 @@ func deliveryDirectoryPathForMonitor() string {
 		return ""
 	}
 	return BlueclawDeliveryReadOnlyPath
+}
+
+// The migrations travel with the payload, so they are wherever it is.
+func guestMigrationDirectoryPath() string {
+	if deliveryDirectoryPathForMonitor() == "" {
+		return BlueclawGuestMigrationPath
+	}
+	return BlueclawGuestDeliveryRuntimePath + "/migrations"
 }
