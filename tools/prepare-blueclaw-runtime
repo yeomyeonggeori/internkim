@@ -12,6 +12,7 @@ rootfs_directory="$work_directory/rootfs"
 rootfs_image_path="$stage_directory/rootfs.ext4"
 firecracker_version="${FIRECRACKER_VERSION:-1.12.1}"
 cloud_hypervisor_version="${CLOUD_HYPERVISOR_VERSION:-53.0}"
+virtiofsd_version="${VIRTIOFSD_VERSION:-1.10.0-1ubuntu0.1}"
 linux_kernel_version="${BLUECLAW_LINUX_KERNEL_VERSION:-6.1.129}"
 guest_kernel_configuration_path="$repository_root/assets/blueclaw-runtime/guest-kernel-aarch64.config"
 rootfs_size="${BLUECLAW_RUNTIME_ROOTFS_SIZE:-4G}"
@@ -353,6 +354,7 @@ require_command python3
 if [ "$builds_a_guest_image" = "1" ]; then
   require_command tar
   require_command unzip
+  require_command ar
   require_command mkfs.ext4
   require_command rsync
   require_command go
@@ -439,6 +441,36 @@ PY
 
 guest_kernel_build_identifier() {
   echo "$linux_kernel_version-$(guest_kernel_configuration_sha | cut -c1-16)"
+}
+
+# Cloud Hypervisor reaches a shared directory through a vhost-user daemon rather than
+# serving it itself. Ubuntu 22.04 carries no virtiofsd, so the binary travels with the
+# runtime the way the VMMs do; the 24.04 build runs there unchanged.
+prepare_virtiofsd() {
+  local archive_path="$cache_directory/virtiofsd-$virtiofsd_version-arm64.deb"
+  local extract_directory="$work_directory/virtiofsd-$virtiofsd_version"
+  local download_url="http://ports.ubuntu.com/ubuntu-ports/pool/universe/r/rust-virtiofsd/virtiofsd_${virtiofsd_version}_arm64.deb"
+
+  if [ -x "$artifact_directory/virtiofsd" ]; then
+    install -m 0755 "$artifact_directory/virtiofsd" "$stage_directory/virtiofsd"
+    return
+  fi
+
+  if [ ! -s "$archive_path" ]; then
+    curl --fail --location --retry 3 --output "$archive_path.tmp" "$download_url"
+    mv "$archive_path.tmp" "$archive_path"
+  fi
+
+  rm -rf "$extract_directory"
+  mkdir -p "$extract_directory"
+  ( cd "$extract_directory" && ar x "$archive_path" && tar -xf data.tar.* )
+
+  local virtiofsd_binary="$extract_directory/usr/libexec/virtiofsd"
+  if [ ! -s "$virtiofsd_binary" ]; then
+    echo "virtiofsd package did not contain usr/libexec/virtiofsd" >&2
+    exit 1
+  fi
+  install -m 0755 "$virtiofsd_binary" "$stage_directory/virtiofsd"
 }
 
 prepare_kernel() {
@@ -889,6 +921,7 @@ for name, mode in [
     ("firecracker", "0755"),
     ("jailer", "0755"),
     ("cloud-hypervisor", "0755"),
+    ("virtiofsd", "0755"),
     ("vmlinux.bin", "0644"),
     ("rootfs.ext4", "0644"),
 ]:
@@ -920,13 +953,14 @@ PY
 }
 
 publish_artifacts() {
-  for file_name in firecracker jailer cloud-hypervisor vmlinux.bin rootfs.ext4 manifest.json; do
+  for file_name in firecracker jailer cloud-hypervisor virtiofsd vmlinux.bin rootfs.ext4 manifest.json; do
     mv "$stage_directory/$file_name" "$artifact_directory/$file_name"
   done
 }
 
 prepare_firecracker
 prepare_cloud_hypervisor
+prepare_virtiofsd
 prepare_kernel
 prepare_rootfs
 write_manifest
