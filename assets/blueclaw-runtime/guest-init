@@ -184,8 +184,16 @@ nameserver 8.8.8.8
 EOF
 }
 
+blueclaw_runtime_directory() {
+  if [ -x /delivery/runtime/current/bin/blueclaw ]; then
+    echo /delivery/runtime/current
+    return
+  fi
+  echo /workspace/.blueclaw/runtime/current
+}
+
 blueclaw_binary_path() {
-  local payload_binary_path="/workspace/.blueclaw/runtime/current/bin/blueclaw"
+  local payload_binary_path="$(blueclaw_runtime_directory)/bin/blueclaw"
   if [ ! -x "$payload_binary_path" ]; then
     log_guest_init "missing executable Blueclaw runtime payload at $payload_binary_path"
     exit 1
