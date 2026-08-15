@@ -48,6 +48,23 @@ tokenPath="$state/mattermost-token"
 printf '%s\n' "$MATTERMOST_TOKEN" > "$tokenPath"
 chmod 600 "$tokenPath"
 
+# The messenger's store refuses a few content types outright, and those files
+# go to the company's own asset bucket instead. Reaching it needs what the relay
+# needs — an agent key that buys a session acting as the company's host, and the
+# project it belongs to. Without all four the import still runs and says which
+# files it left out.
+#
+# macOS ships bash 3.2, where an empty array expanded under `set -u` is an
+# unbound variable rather than nothing, so the settings are held as a string
+# that is word-split at the call.
+agentKeyPath="$state/agent-key"
+keepArguments=""
+if [[ -f $agentKeyPath && -n ${INTERNKIM_APP_URL:-} && -n ${SUPABASE_URL:-} && -n ${SUPABASE_PUBLISHABLE_KEY:-} ]]; then
+	keepArguments="-app-url $INTERNKIM_APP_URL -agent-key-path $agentKeyPath"
+	keepArguments="$keepArguments -supabase-url $SUPABASE_URL"
+	keepArguments="$keepArguments -supabase-publishable-key $SUPABASE_PUBLISHABLE_KEY"
+fi
+
 "$importer" \
 	-mattermost-url "$MATTERMOST_URL" \
 	-mattermost-token-path "$tokenPath" \
@@ -58,4 +75,5 @@ chmod 600 "$tokenPath"
 	-relay-url "ws://$communityHost" \
 	-relay-http-url "http://$communityHost" \
 	-community-host "$communityHost" \
+	$keepArguments \
 	"$@"
