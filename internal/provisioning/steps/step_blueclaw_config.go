@@ -54,7 +54,7 @@ var StepBlueclawConfiguration = Step{
 				return errorValue
 			}
 		}
-		installOutput := context.SSH.Run(buildBlueclawConfigurationPermissionCommand() + "\n" + buildBlueclawDeliveryPermissionCommand() + "\necho blueclaw-config-installed")
+		installOutput := context.SSH.Run(buildBlueclawConfigurationInstallCommand())
 		if !strings.Contains(installOutput, "blueclaw-config-installed") {
 			return fmt.Errorf("blueclaw configuration install failed: %s", strings.TrimSpace(installOutput))
 		}
@@ -86,7 +86,20 @@ func blueclawConfigurationFilesMatchGenerated(context *Context) bool {
 		remoteFileMatchesContent(context, blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/runtime.json", runtimeConfiguration) &&
 		remoteFileMatchesContent(context, blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/policy.json", policyConfiguration) &&
 		remoteFileMatchesContent(context, blueclaw.BlueclawDeliveryConfigPath+"/runtime.json", runtimeConfiguration) &&
-		remoteFileMatchesContent(context, blueclaw.BlueclawDeliveryConfigPath+"/policy.json", policyConfiguration)
+		remoteFileMatchesContent(context, blueclaw.BlueclawDeliveryConfigPath+"/policy.json", policyConfiguration) &&
+		deliveredRuntimeIsPresent(context)
+}
+
+func deliveredRuntimeIsPresent(context *Context) bool {
+	return trimmedRun(context, deliveredRuntimeCheckCommand()) == "ok"
+}
+
+func deliveredRuntimeCheckCommand() string {
+	workspaceRuntimePath := blueclaw.BlueclawWorkspacePath + "/.blueclaw/runtime/current"
+	return "if [ ! -d " + shellQuote(workspaceRuntimePath) + " ]; then echo ok; exit 0; fi\n" +
+		"test -d " + shellQuote(blueclaw.BlueclawDeliveryRuntimePath+"/migrations") +
+		" && test -x " + shellQuote(blueclaw.BlueclawDeliveryRuntimePath+"/bin/blueclaw") +
+		" && echo ok || echo missing"
 }
 
 func remoteFileMatchesContent(context *Context, path string, content string) bool {
@@ -179,6 +192,13 @@ findmnt -no OPTIONS %s | grep -q '\bro\b'`,
 		blueclaw.BlueclawDeliveryServiceName,
 		blueclaw.BlueclawDeliveryReadOnlyPath,
 	)
+}
+
+func buildBlueclawConfigurationInstallCommand() string {
+	return buildBlueclawConfigurationPermissionCommand() +
+		blueclaw.BlueclawDeliveryRefreshCommand() + "\n" +
+		buildBlueclawDeliveryPermissionCommand() +
+		"\necho blueclaw-config-installed"
 }
 
 func buildBlueclawConfigurationPermissionCommand() string {

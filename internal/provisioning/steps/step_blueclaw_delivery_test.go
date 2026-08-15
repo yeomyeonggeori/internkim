@@ -89,3 +89,45 @@ func deliveryRepositoryRoot(t *testing.T) string {
 	t.Fatal("expected the repository root")
 	return ""
 }
+
+func TestTheConfigurationNeverPromisesARuntimeTheShareLacks(t *testing.T) {
+	runtimeConfiguration := blueclaw.BlueclawGuestDeliveryRuntimePath
+	if !strings.Contains(deliveredRuntimeCheckCommand(), blueclaw.BlueclawDeliveryRuntimePath+"/migrations") {
+		t.Fatalf("the guest opens %s/migrations on every boot, so that is what has to be checked", runtimeConfiguration)
+	}
+	if !strings.Contains(deliveredRuntimeCheckCommand(), blueclaw.BlueclawDeliveryRuntimePath+"/bin/blueclaw") {
+		t.Fatal("a share carrying migrations and no binary is the same outage in the other order")
+	}
+}
+
+func TestTheStepThatWritesTheConfigurationAlsoFillsTheShare(t *testing.T) {
+	installCommand := buildBlueclawConfigurationInstallCommand()
+
+	for _, fragment := range []string{
+		blueclaw.BlueclawDeliveryRuntimePath,
+		blueclaw.BlueclawDeliverySkillsPath,
+		"rsync -a --delete",
+	} {
+		if !strings.Contains(installCommand, fragment) {
+			t.Fatalf("the configuration names the share's runtime, so the same step has to put one there: missing %q", fragment)
+		}
+	}
+	if strings.Contains(blueclaw.BlueclawDeliveryRefreshCommand(), "set -e") {
+		t.Fatal("the refresh is joined onto a command that already set -e; its own would mask the caller's")
+	}
+}
+
+func TestAFreshDeviceIsNotBehindOnAPayloadItHasNeverHad(t *testing.T) {
+	checkCommand := deliveredRuntimeCheckCommand()
+	workspaceRuntimePath := blueclaw.BlueclawWorkspacePath + "/.blueclaw/runtime/current"
+
+	if !strings.Contains(checkCommand, "[ ! -d "+shellQuote(workspaceRuntimePath)+" ]") {
+		t.Fatal("blueclaw-config runs before blueclaw-payload, so a device with no payload yet must not be reported as a share that fell behind")
+	}
+	if strings.Index(checkCommand, "echo ok; exit 0") > strings.Index(checkCommand, "migrations") {
+		t.Fatal("the fresh-device answer has to come before the check it would fail")
+	}
+	if !strings.Contains(blueclaw.BlueclawDeliveryRefreshCommand(), "if [ -d "+blueclaw.BlueclawWorkspacePath+"/.blueclaw/runtime/current ]") {
+		t.Fatal("the refresh runs under set -e on a device that may have nothing to deliver yet")
+	}
+}
