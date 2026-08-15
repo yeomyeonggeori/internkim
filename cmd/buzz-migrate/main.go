@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -24,6 +25,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 	"gitlab.com/eastriver/internkim/internal/buzzimport"
+	"gitlab.com/eastriver/internkim/internal/buzzimport/assetkeep"
 	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostrest"
 	"gitlab.com/eastriver/internkim/internal/buzzimport/media"
 	"gitlab.com/eastriver/internkim/internal/buzzimport/relaypublish"
@@ -47,6 +49,10 @@ func main() {
 	orphanRootTitle := flag.String("orphan-root-title", "", "when set, replies whose Mattermost root was not imported are threaded under one synthesized root message carrying this title, per original root; otherwise such replies are skipped")
 	fileCacheDir := flag.String("file-cache-dir", "", "directory of {fileID}.{jpg|png} images used as a fallback when the Mattermost server no longer serves a file")
 	sinceMillis := flag.Int64("since", 0, "when >0, import only Mattermost posts created after this unix-millis timestamp (incremental sync; skips the wipe)")
+	appURL := flag.String("app-url", "", "central plane app URL, which issues the session this import keeps refused files under")
+	agentKeyPath := flag.String("agent-key-path", "", "file holding the company's agent key")
+	supabaseURL := flag.String("supabase-url", "", "the company's Supabase project URL")
+	supabasePublishableKey := flag.String("supabase-publishable-key", "", "the company's Supabase publishable key")
 	flag.Parse()
 
 	channelFilter := map[string]bool{}
@@ -64,6 +70,11 @@ func main() {
 
 	if *mattermostBaseURL == "" || *teamName == "" || *buzzDatabaseURL == "" || *buzzAdminCommand == "" {
 		log.Fatal("mattermost-url, team, buzz-database-url and buzz-admin are required")
+	}
+
+	keeper := keeperFrom(*appURL, *agentKeyPath, *supabaseURL, *supabasePublishableKey)
+	if keeper == nil {
+		log.Print("no asset store was given, so a file the messenger refuses will be reported and left out")
 	}
 
 	ctx := context.Background()
@@ -160,6 +171,7 @@ func main() {
 				orphanRootTitle: *orphanRootTitle, bootstrapSecret: bootstrapSecret,
 				fileCacheDir:     *fileCacheDir,
 				customEmojiCache: customEmojiCache,
+				keeper:           keeper,
 			}, buzzChannelID, posts, authorEmails, authorSecrets, postedEmails)
 			tally.Lock()
 			totalImported += imported
@@ -227,6 +239,7 @@ type importDependencies struct {
 	bootstrapSecret  string
 	fileCacheDir     string
 	customEmojiCache *sharedStrings
+	keeper           *assetkeep.Keeper
 }
 
 func fetchFileBytes(ctx context.Context, dependencies importDependencies, fileID string) ([]byte, string, error) {
@@ -394,12 +407,64 @@ func uploadPostAttachments(ctx context.Context, dependencies importDependencies,
 		}
 		blob, errorValue := dependencies.uploader.Upload(ctx, authorSecret, uploadContent, uploadMime)
 		if errorValue != nil {
-			log.Printf("upload file %s failed: %v", fileID, errorValue)
-			continue
+			blob, errorValue = keptWhereTheStoreWouldNot(ctx, dependencies.keeper, uploadContent, uploadMime, errorValue)
+			if errorValue != nil {
+				log.Printf("upload file %s failed: %v", fileID, errorValue)
+				continue
+			}
 		}
 		mediaTags = append(mediaTags, blob.Named(fileNameOf(ctx, dependencies, fileID)).IMetaTag())
 	}
 	return mediaTags
+}
+
+// Keeping a refused file is optional: an import against a buzz relay with no
+// central plane behind it still runs, and says which files it left out. All
+// four settings or none — three of them address nothing on their own.
+func keeperFrom(appURL, agentKeyPath, supabaseURL, publishableKey string) *assetkeep.Keeper {
+	if appURL == "" && agentKeyPath == "" && supabaseURL == "" && publishableKey == "" {
+		return nil
+	}
+	if appURL == "" || agentKeyPath == "" || supabaseURL == "" || publishableKey == "" {
+		log.Fatal("app-url, agent-key-path, supabase-url and supabase-publishable-key are given together or not at all")
+	}
+	return &assetkeep.Keeper{
+		AppURL:         appURL,
+		AgentKey:       secretFromFile(agentKeyPath, "agent-key-path"),
+		ProjectURL:     supabaseURL,
+		PublishableKey: publishableKey,
+	}
+}
+
+// A file the messenger's store will not carry still belongs to the conversation
+// it was sent to. It goes to the company's own bucket instead, and the message
+// names it there, so the history is whole even where the store is particular.
+// A store that is only busy is not refusing: the same file goes later, and
+// keeping a copy of it here would be a second home for bytes that have one.
+func keptWhereTheStoreWouldNot(
+	ctx context.Context,
+	keeper *assetkeep.Keeper,
+	content []byte,
+	contentType string,
+	refusal error,
+) (media.Blob, error) {
+	var refused media.Refusal
+	if !errors.As(refusal, &refused) || !refused.WillRefuseAgain() {
+		return media.Blob{}, refusal
+	}
+	if keeper == nil {
+		return media.Blob{}, fmt.Errorf("%w, and no asset store was given to keep it in", refusal)
+	}
+	kept, errorValue := keeper.Keep(ctx, content, contentType)
+	if errorValue != nil {
+		return media.Blob{}, fmt.Errorf("%w, and keeping it failed too: %w", refusal, errorValue)
+	}
+	return media.Blob{
+		URL:      kept.Address,
+		SHA256:   kept.Digest,
+		Size:     kept.SizeBytes,
+		MimeType: contentType,
+	}, nil
 }
 
 func ensureSyntheticRoot(ctx context.Context, dependencies importDependencies, buzzChannelID, rootPostID string, replyTime time.Time, eventIDByPostID map[string]string) (string, bool) {

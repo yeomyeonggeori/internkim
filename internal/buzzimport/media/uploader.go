@@ -36,6 +36,22 @@ type Uploader struct {
 	HTTPClient  *http.Client
 }
 
+// Refusal is the store declining the file itself rather than failing to take
+// it. WillRefuseAgain separates the two: a store that is busy or broken takes
+// the same file later, and one that carries no such file never will.
+type Refusal struct {
+	Status int
+	Reason string
+}
+
+func (refusal Refusal) Error() string {
+	return fmt.Sprintf("blossom upload returned %d: %s", refusal.Status, refusal.Reason)
+}
+
+func (refusal Refusal) WillRefuseAgain() bool {
+	return refusal.Status < 500 && refusal.Status != http.StatusTooManyRequests
+}
+
 func (uploader Uploader) httpClient() *http.Client {
 	if uploader.HTTPClient != nil {
 		return uploader.HTTPClient
@@ -93,7 +109,7 @@ func (uploader Uploader) Upload(ctx context.Context, actorSecretHex string, cont
 	defer response.Body.Close()
 	body, _ := io.ReadAll(response.Body)
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return Blob{}, fmt.Errorf("blossom upload returned %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
+		return Blob{}, Refusal{Status: response.StatusCode, Reason: strings.TrimSpace(string(body))}
 	}
 	var blob Blob
 	if errorValue := json.Unmarshal(body, &blob); errorValue != nil {
