@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -113,6 +113,8 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove tenant pilots", "sh", "-lc", removeTenantPilotsCommand()))
 	case "limit-blueclaw":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "limit Blueclaw Firecracker", "sh", "-lc", blueclawResourceLimitCommand()))
+	case "release-setup-lock":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "release a setup lock nobody holds", "sh", "-lc", releaseSetupLockCommand()))
 	case "restart-blueclaw":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "restart Blueclaw", "sh", "-lc", blueclawRestartDiagnosticCommand()))
 	case "blueclaw-boot-diagnose":
@@ -1144,4 +1146,25 @@ func redactRecoveryLine(value string) string {
 		}
 	}
 	return strings.Join(fields, " ")
+}
+
+// setup takes the lock by creating a directory and releases it by name, so a run that
+// dies between the two leaves it behind and every later setup is refused. /var/lock is
+// sticky and the directory is root's, so the user setup connects as cannot clear it.
+func releaseSetupLockCommand() string {
+	return `set -eu
+lock_directory=/var/lock/internkim-setup.lock
+if [ ! -d "$lock_directory" ]; then
+  echo "no setup lock is held"
+  exit 0
+fi
+echo "== lock metadata =="
+cat "$lock_directory/metadata.json" 2>/dev/null || echo "(no metadata)"
+if pgrep -af "internkim setup" | grep -qv pgrep; then
+  echo "== a setup is still running; leaving the lock alone =="
+  pgrep -af "internkim setup" | grep -v pgrep
+  exit 1
+fi
+rm -rf "$lock_directory"
+echo "== released =="`
 }
