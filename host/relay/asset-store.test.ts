@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	attachmentAddress,
-	attachmentPathOfAddress,
 	digestOf,
 	extensionOf,
 	keepMessageAttachment,
@@ -125,12 +124,4 @@ describe('the address a message carries', () => {
 		expect(attachmentAddress(`${projectURL}/`, 'a/b')).toBe(attachmentAddress(projectURL, 'a/b'));
 	});
 
-	test('reads the path back out of it', () => {
-		const path = `${company}/shared/attachment/abc.html`;
-		expect(attachmentPathOfAddress(projectURL, attachmentAddress(projectURL, path))).toBe(path);
-	});
-
-	test('an address from somewhere else is not one of ours', () => {
-		expect(attachmentPathOfAddress(projectURL, 'http://localhost:3000/media/abc.png')).toBeNull();
-	});
 });

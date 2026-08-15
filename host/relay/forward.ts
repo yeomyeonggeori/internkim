@@ -7,6 +7,8 @@ export type Call = {
 export type Answer = { callID: string; status: number; body: unknown };
 
 const personPrefix = 'person.';
+const sendCapability = 'person.message.send';
+const refusedStatus = 415;
 const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
@@ -69,6 +71,7 @@ export type Dispatch = {
 	) => Promise<{ status: number; body: unknown }>;
 	emailOfMember: (memberID: string) => Promise<string | null>;
 	askChatd: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
+	keepAttachment: (contentBase64: string, contentType: string) => Promise<KeptAttachment>;
 	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	mailAccountOf: (memberID: string) => Promise<Record<string, unknown> | null>;
 	connectMessengerAccount: (memberID: string, account: ConnectedAccount) => Promise<void>;
@@ -78,6 +81,10 @@ export type Dispatch = {
 export type ConnectedAccount = { externalID: string; name: string; secret: string };
 
 export type ActorCredential = { kind: string; secret: string };
+
+export type SentAttachment = { filename: string; contentType: string; contentBase64: string };
+
+export type KeptAttachment = { address: string; sizeBytes: number; digest: string };
 
 export async function serveCallForMember(
 	dispatch: Dispatch,
@@ -117,7 +124,55 @@ async function serveForMember(
 	if (!actor) {
 		return { status: 409, body: { error: 'this member has connected no messenger account' }, replyTo };
 	}
+	if (capability === sendCapability) {
+		return { ...(await sendKeepingWhatIsRefused(dispatch, body, actor)), replyTo };
+	}
 	return { ...(await dispatch.askChatd(capability, { ...body, actor })), replyTo };
+}
+
+// The messenger's own store takes most files and refuses some by type. One it
+// refuses still belongs to the conversation, so it is kept where the company
+// can read it and the message is sent again naming it there.
+async function sendKeepingWhatIsRefused(
+	dispatch: Dispatch,
+	body: Record<string, unknown>,
+	actor: ActorCredential
+): Promise<{ status: number; body: unknown }> {
+	const answer = await dispatch.askChatd(sendCapability, { ...body, actor });
+	const refused = refusedAttachmentsOf(answer);
+	if (refused.length === 0) return answer;
+
+	const attachments = await keptInsteadOfUploaded(dispatch, sentAttachmentsOf(body), refused);
+	return dispatch.askChatd(sendCapability, { ...body, attachments, actor });
+}
+
+function refusedAttachmentsOf(answer: { status: number; body: unknown }): number[] {
+	if (answer.status !== refusedStatus) return [];
+	const refused = (answer.body as { refusedAttachments?: unknown } | null)?.refusedAttachments;
+	if (!Array.isArray(refused)) return [];
+	return refused
+		.map((one) => (one as { index?: unknown }).index)
+		.filter((index): index is number => typeof index === 'number');
+}
+
+function sentAttachmentsOf(body: Record<string, unknown>): SentAttachment[] {
+	const sent = body.attachments;
+	return Array.isArray(sent) ? (sent as SentAttachment[]) : [];
+}
+
+async function keptInsteadOfUploaded(
+	dispatch: Dispatch,
+	attachments: SentAttachment[],
+	refused: number[]
+): Promise<(SentAttachment | KeptAttachment)[]> {
+	const toKeep = new Set(refused);
+	return Promise.all(
+		attachments.map(async (attachment, index) => {
+			if (!toKeep.has(index)) return attachment;
+			const kept = await dispatch.keepAttachment(attachment.contentBase64, attachment.contentType);
+			return { filename: attachment.filename, contentType: attachment.contentType, ...kept };
+		})
+	);
 }
 
 async function serveRegistration(

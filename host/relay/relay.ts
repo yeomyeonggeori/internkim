@@ -5,7 +5,7 @@ import { readLinkPreview, type LinkPreviewImage } from './link-preview';
 import { assetBucket, attachmentAddress, keepMessageAttachment, keepSharedAsset } from './asset-store';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
-import { answerBodyOf, forwardToChatd, type ConnectedAccount } from './forward';
+import { answerBodyOf, forwardToChatd, type ConnectedAccount, type KeptAttachment } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import { connectToGateway } from './gateway-socket';
 
@@ -65,6 +65,7 @@ const dispatch = {
 	serveAsset: asset,
 	askChatd: (capability: string, body: Record<string, unknown>) =>
 		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body, largestPictureBytes),
+	keepAttachment,
 	askMaild: async (operation: string, body: Record<string, unknown>) => {
 		const response = await fetch(`${maildBaseURL}/v1/mail/${encodeURIComponent(operation)}`, {
 			method: 'POST',
@@ -111,17 +112,22 @@ openGatewayConnection();
 
 async function asset(capability: string, body: Record<string, unknown>): Promise<unknown> {
 	if (capability === 'asset.link') return previewOf(String(body.url ?? ''));
-	if (capability === 'asset.keep') return keptAttachment(body);
 	throw new Error(`the app has nothing called ${capability}`);
 }
 
-async function keptAttachment(body: Record<string, unknown>): Promise<{ address: string; digest: string }> {
-	const contentBase64 = String(body.contentBase64 ?? '');
-	const contentType = String(body.contentType ?? '').trim() || 'application/octet-stream';
-	if (contentBase64 === '') throw new Error('asset.keep needs contentBase64');
+async function keepAttachment(contentBase64: string, contentType: string): Promise<KeptAttachment> {
 	const bytes = new Uint8Array(Buffer.from(contentBase64, 'base64'));
-	const kept = await keepMessageAttachment(client.storage.from(assetBucket), companyID, bytes, contentType);
-	return { address: attachmentAddress(projectURL, kept.path), digest: kept.digest };
+	const kept = await keepMessageAttachment(
+		client.storage.from(assetBucket),
+		companyID,
+		bytes,
+		contentType.trim() || 'application/octet-stream'
+	);
+	return {
+		address: attachmentAddress(projectURL, kept.path),
+		sizeBytes: bytes.byteLength,
+		digest: kept.digest
+	};
 }
 
 type ServedLinkPreview = {
