@@ -184,6 +184,12 @@ nameserver 8.8.8.8
 EOF
 }
 
+blueclaw_bundled_skills_environment() {
+  if [ -d /delivery/skills ]; then
+    echo "BLUECLAW_BUNDLED_SKILLS_PATH=/delivery/skills "
+  fi
+}
+
 blueclaw_runtime_directory() {
   if [ -x /delivery/runtime/current/bin/blueclaw ]; then
     echo /delivery/runtime/current
@@ -341,7 +347,7 @@ log_guest_init "graphiti started pid=$graphiti_process_id"
 wait_for_graphiti_health "$graphiti_process_id" &
 
 blueclaw_binary="$(blueclaw_binary_path)"
-su -s /bin/bash blueclaw -c "$blueclaw_binary -runtime $(blueclaw_configuration_directory)/runtime.json -policy $(blueclaw_configuration_directory)/policy.json" >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
+su -s /bin/bash blueclaw -c "$(blueclaw_bundled_skills_environment)$blueclaw_binary -runtime $(blueclaw_configuration_directory)/runtime.json -policy $(blueclaw_configuration_directory)/policy.json" >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
 blueclaw_process_id="$!"
 log_guest_init "blueclaw started"
 

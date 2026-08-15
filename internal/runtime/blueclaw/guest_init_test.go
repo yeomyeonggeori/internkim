@@ -31,7 +31,8 @@ func TestGuestInitRunsBlueclawAsNonRootUser(t *testing.T) {
 		"blueclaw-posix-helper sync",
 		"check_blueclaw_posix_helper",
 		"posix helper is not executable by blueclaw",
-		"su -s /bin/bash blueclaw -c \"$blueclaw_binary",
+		"su -s /bin/bash blueclaw -c \"$(blueclaw_bundled_skills_environment)$blueclaw_binary",
+		"BLUECLAW_BUNDLED_SKILLS_PATH=/delivery/skills",
 		"su -s /bin/bash blueclaw -c 'INTERNKIM_CAPABILITY_ENDPOINT=",
 	} {
 		if !strings.Contains(document, expectedFragment) {
