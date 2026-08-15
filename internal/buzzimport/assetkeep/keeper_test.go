@@ -87,19 +87,32 @@ func TestKeepWritesTheFileWhereTheCompanyCanReadIt(t *testing.T) {
 	}
 }
 
-func TestTheSameBytesAreKeptOnce(t *testing.T) {
-	keeper, done := keeperAgainst(t, func(writer http.ResponseWriter, _ *http.Request) {
-		writer.WriteHeader(http.StatusConflict)
+// The same file posted in two conversations is kept twice. Supabase refuses a
+// second write to an existing object with HTTP 400 whose body says 409, so
+// asking it to overwrite is what keeps the second message's attachment: the
+// object is named by the hash of its own contents, so the bytes do not change.
+func TestTheSameBytesAreKeptTwiceWithoutLosingTheSecondMessage(t *testing.T) {
+	upserts := []string{}
+	keeper, done := keeperAgainst(t, func(writer http.ResponseWriter, request *http.Request) {
+		upserts = append(upserts, request.Header.Get("x-upsert"))
+		writer.WriteHeader(http.StatusOK)
 	})
 	defer done()
 
-	kept, errorValue := keeper.Keep(context.Background(), []byte("a page"), "text/html")
-
+	first, errorValue := keeper.Keep(context.Background(), []byte("a page"), "text/html")
+	if errorValue != nil {
+		t.Fatalf("first keep: %v", errorValue)
+	}
+	second, errorValue := keeper.Keep(context.Background(), []byte("a page"), "text/html")
 	if errorValue != nil {
 		t.Fatalf("a file the bucket already holds was reported as a failure: %v", errorValue)
 	}
-	if kept.Address == "" {
-		t.Error("a file the bucket already holds was not addressed")
+
+	if second.Address != first.Address {
+		t.Errorf("the same bytes were addressed twice: %q then %q", first.Address, second.Address)
+	}
+	if upserts[0] != "true" || upserts[1] != "true" {
+		t.Errorf("x-upsert = %v, so a second write would be refused", upserts)
 	}
 }
 
