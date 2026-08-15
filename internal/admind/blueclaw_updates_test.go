@@ -244,7 +244,7 @@ func TestHostWorkspacePayloadSyncCommandUsesTenantTarget(t *testing.T) {
 
 func TestBlueclawPayloadIsDeliveredWithoutTouchingTheImage(t *testing.T) {
 	target := canonicalBlueclawPayloadInstallTarget()
-	command := blueclawPayloadWorkspaceSyncCommand(target)
+	command := blueclawDeliveryRefreshCommandForTarget(target)
 	if !strings.Contains(command, "rsync -a --delete") {
 		t.Fatalf("expected the share to be refreshed, got %s", command)
 	}
@@ -314,8 +314,8 @@ func TestSyncBlueclawWorkspaceImageForTargetRefreshesTheShareAndRestarts(t *test
 	target := canonicalBlueclawPayloadInstallTarget()
 	jobID := service.newJob("blueclaw-update").JobID
 
-	if errorValue := service.syncBlueclawWorkspaceImageForTarget(context.Background(), jobID, target); errorValue != nil {
-		t.Fatalf("expected workspace image sync to succeed: %v", errorValue)
+	if errorValue := service.refreshBlueclawDeliveryForTarget(context.Background(), jobID, target); errorValue != nil {
+		t.Fatalf("expected the delivery refresh to succeed: %v", errorValue)
 	}
 
 	commandIndex := func(expectedText string) int {
