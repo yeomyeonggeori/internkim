@@ -1,15 +1,33 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	attachmentAddress,
+	attachmentAlreadyKept,
 	digestOf,
 	extensionOf,
 	keepMessageAttachment,
 	keepSharedAsset,
 	sharedAssetPath,
+	type AssetLister,
 	type AssetUploader
 } from './asset-store';
 
 const company = '43000000-0000-0000-0000-0000000000a0';
+
+function listerHolding(names: string[]): AssetLister & { looked: { path: string; search: string }[] } {
+	const looked: { path: string; search: string }[] = [];
+	return {
+		looked,
+		list: async (path, options) => {
+			looked.push({ path, search: options.search });
+			return {
+				data: names
+					.filter((name) => name === options.search)
+					.map((name) => ({ name, metadata: { size: 91_000_000 } })),
+				error: null
+			};
+		}
+	};
+}
 
 function uploaderThat(refusal: string | null): AssetUploader & { written: string[] } {
 	const written: string[] = [];
@@ -124,4 +142,35 @@ describe('the address a message carries', () => {
 		expect(attachmentAddress(`${projectURL}/`, 'a/b')).toBe(attachmentAddress(projectURL, 'a/b'));
 	});
 
+});
+
+describe('recognising a file the company already keeps', () => {
+	test('looks for the object those exact bytes would be, and reports its size', async () => {
+		const lister = listerHolding(['9f2c']);
+
+		const kept = await attachmentAlreadyKept(lister, company, '9f2c', 'application/pdf');
+
+		expect(lister.looked).toEqual([{ path: `${company}/shared/attachment`, search: '9f2c' }]);
+		expect(kept).toEqual({ path: `${company}/shared/attachment/9f2c`, sizeBytes: 91_000_000 });
+	});
+
+	test('a picture is looked for under the extension it was kept with', async () => {
+		const lister = listerHolding(['9f2c.png']);
+
+		const kept = await attachmentAlreadyKept(lister, company, '9f2c', 'image/png');
+
+		expect(kept?.path).toBe(`${company}/shared/attachment/9f2c.png`);
+	});
+
+	test('bytes the company has never kept are not there', async () => {
+		expect(await attachmentAlreadyKept(listerHolding([]), company, '9f2c', 'application/pdf')).toBeNull();
+	});
+
+	test('a listing that answers with a longer name is not a match', async () => {
+		const lister: AssetLister = {
+			list: async () => ({ data: [{ name: '9f2caaa', metadata: { size: 1 } }], error: null })
+		};
+
+		expect(await attachmentAlreadyKept(lister, company, '9f2c', 'application/pdf')).toBeNull();
+	});
 });
