@@ -68,6 +68,31 @@ export function attachmentAddress(projectURL: string, path: string): string {
 	return `${projectURL.replace(/\/+$/, '')}/storage/v1/object/${assetBucket}/${path}`;
 }
 
+export type AssetLister = {
+	list: (
+		path: string,
+		options: { search: string; limit: number }
+	) => Promise<{ data: { name: string; metadata?: { size?: number } | null }[] | null; error: unknown }>;
+};
+
+// The bucket is addressed by content, so the same bytes are always the same
+// object. A file the company has kept before needs no second copy and no second
+// read of it from the messenger.
+export async function attachmentAlreadyKept(
+	lister: AssetLister,
+	companyID: string,
+	digest: string,
+	contentType: string
+): Promise<{ path: string; sizeBytes: number } | null> {
+	const path = sharedAssetPath(companyID, attachmentKind, digest, contentType);
+	const directory = path.slice(0, path.lastIndexOf('/'));
+	const name = path.slice(path.lastIndexOf('/') + 1);
+	const listed = await lister.list(directory, { search: name, limit: 1 });
+	const found = listed.data?.find((one) => one.name === name);
+	if (!found) return null;
+	return { path, sizeBytes: found.metadata?.size ?? 0 };
+}
+
 export async function keepMessageAttachment(
 	uploader: AssetUploader,
 	companyID: string,

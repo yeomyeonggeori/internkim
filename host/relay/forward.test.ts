@@ -52,13 +52,19 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 				memberID === 'member-1' ? 'sample@example.test' : null,
 			messengerCredentialOf: async () => ({ kind: 'buzz-token', secret: 'a-held-secret' }),
 			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null,
-			keepAttachment: async (contentBase64: string, contentType: string) => ({
-				address: `https://company.supabase.co/storage/v1/object/asset/company-1/shared/attachment/${contentBase64}`,
+			keepAttachment: async (contentBase64: string) => ({
+				address: keptAddress(contentBase64),
 				sizeBytes: Buffer.from(contentBase64, 'base64').byteLength,
 				digest: contentBase64
-			})
+			}),
+			keptAlready: async () => null,
+			largestFileBytes: 200_000_000
 		}
 	};
+}
+
+function keptAddress(digest: string): string {
+	return `https://company.supabase.co/storage/v1/object/asset/company-1/shared/attachment/${digest}`;
 }
 
 function dispatchThatRefuses(refusedAttachments: { index: number; filename: string }[]) {
@@ -84,6 +90,20 @@ function dispatchThatRefuses(refusedAttachments: { index: number; filename: stri
 						}))
 					}
 				};
+			}
+		}
+	};
+}
+
+function dispatchHolding(file: { filename: string; contentType: string; contentBase64: string } | null) {
+	const { asked, dispatch } = dispatchThatKnows({});
+	return {
+		asked,
+		dispatch: {
+			...dispatch,
+			askChatd: async (capability: string, body: Record<string, unknown>, largestBytes?: number) => {
+				asked.push({ capability, body: { ...body, largestBytes } });
+				return { status: 200, body: { file } };
 			}
 		}
 	};
@@ -220,6 +240,101 @@ describe('a message carrying a file the messenger will not store', () => {
 
 		expect(served.status).toBe(415);
 		expect(asked.filter((entry) => entry.capability === 'person.message.send')).toHaveLength(1);
+	});
+});
+
+describe('opening a file the messenger holds on this machine', () => {
+	const read = {
+		callID: 'c1',
+		capability: 'person.message.attachment',
+		body: {
+			messageID: 'http://localhost:3000/media/9f2c.pdf',
+			filename: '2026 예산.pdf',
+			contentType: 'application/pdf',
+			digest: '9f2c'
+		}
+	};
+	const file = { filename: '9f2c.pdf', contentType: 'application/pdf', contentBase64: 'AAAA' };
+
+	test('is answered with an address in the company bucket, never with the file', async () => {
+		const { dispatch } = dispatchHolding(file);
+
+		const served = await serveCallForMember(dispatch, read, 'member-1');
+
+		expect(served.status).toBe(200);
+		expect(served.body).toEqual({
+			attachment: {
+				address: keptAddress('AAAA'),
+				sizeBytes: 3,
+				digest: 'AAAA',
+				filename: '9f2c.pdf',
+				contentType: 'application/pdf'
+			}
+		});
+	});
+
+	test('one already kept is answered without the messenger being asked at all', async () => {
+		const { asked, dispatch } = dispatchHolding(file);
+
+		const served = await serveCallForMember(
+			{
+				...dispatch,
+				keptAlready: async (digest: string) => ({
+					address: keptAddress(digest),
+					sizeBytes: 91_000_000,
+					digest
+				})
+			},
+			read,
+			'member-1'
+		);
+
+		expect(asked).toEqual([]);
+		expect(served.body).toEqual({
+			attachment: {
+				address: keptAddress('9f2c'),
+				sizeBytes: 91_000_000,
+				digest: '9f2c',
+				filename: '2026 예산.pdf',
+				contentType: 'application/pdf'
+			}
+		});
+	});
+
+	test('a message that names no hash is read rather than guessed at', async () => {
+		const { asked, dispatch } = dispatchHolding(file);
+		let askedFor = '';
+
+		await serveCallForMember(
+			{
+				...dispatch,
+				keptAlready: async (digest: string) => {
+					askedFor = digest;
+					return null;
+				}
+			},
+			{ ...read, body: { ...read.body, digest: '' } },
+			'member-1'
+		);
+
+		expect(askedFor).toBe('');
+		expect(asked).toHaveLength(1);
+	});
+
+	test('the messenger is asked for the whole file, not what a picture may weigh', async () => {
+		const { asked, dispatch } = dispatchHolding(file);
+
+		await serveCallForMember(dispatch, read, 'member-1');
+
+		expect(asked[0]?.body.largestBytes).toBe(200_000_000);
+	});
+
+	test('a file the messenger will not serve is answered as no attachment', async () => {
+		const { dispatch } = dispatchHolding(null);
+
+		const served = await serveCallForMember(dispatch, read, 'member-1');
+
+		expect(served.body).toEqual({ attachment: null });
 	});
 });
 
