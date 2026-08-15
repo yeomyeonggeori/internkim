@@ -210,11 +210,15 @@ func BlueclawSubmoduleRoot(scriptDir string) string {
 //
 // It is appended to a sync command, so the caller runs the pair under set -e; without it
 // the pair reports this command's status and a failed sync would read as success.
+func deliverySourceRsyncCommand(sourcePath string, deliveredPath string) string {
+	return "if [ -d " + sourcePath + " ]; then rsync -a --delete " + sourcePath + "/ " + deliveredPath + "/; fi\n"
+}
+
 func BlueclawDeliveryRefreshCommand() string {
 	return "\n" +
 		"mkdir -p " + BlueclawDeliveryRuntimePath + " " + BlueclawDeliverySkillsPath + "\n" +
-		"rsync -a --delete " + BlueclawWorkspacePath + "/.blueclaw/runtime/current/ " + BlueclawDeliveryRuntimePath + "/\n" +
-		"rsync -a --delete " + BlueclawWorkspacePath + "/skills/ " + BlueclawDeliverySkillsPath + "/\n" +
+		deliverySourceRsyncCommand(BlueclawWorkspacePath+"/.blueclaw/runtime/current", BlueclawDeliveryRuntimePath) +
+		deliverySourceRsyncCommand(BlueclawWorkspacePath+"/skills", BlueclawDeliverySkillsPath) +
 		"chown -R root:root " + BlueclawDeliveryPath + "\n" +
 		"find " + BlueclawDeliveryPath + " -type d -exec chmod 0755 {} +\n" +
 		"find " + BlueclawDeliveryPath + " -type f -exec chmod 0644 {} +\n" +
