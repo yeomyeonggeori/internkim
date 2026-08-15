@@ -1657,11 +1657,11 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 	remoteManifestDocument := state.sshClient.run("cat " + blueclaw.BlueclawPayloadManifestPath + " 2>/dev/null || true")
 	remoteWorkspaceManifestDocument := state.sshClient.run(blueclawWorkspaceManifestCommand())
 	if manifestDocument == remoteManifestDocument && manifestDocument == remoteWorkspaceManifestDocument {
-		if errorValue := state.syncBlueclawWorkspaceImage(); errorValue != nil {
+		if errorValue := state.refreshBlueclawDelivery(); errorValue != nil {
 			fmt.Println("failed")
-			return fmt.Errorf("sync workspace image for the current payload: %w", errorValue)
+			return fmt.Errorf("refresh the delivery share for the current payload: %w", errorValue)
 		}
-		fmt.Println("already current (workspace image synced)")
+		fmt.Println("already current (delivery share refreshed)")
 		return nil
 	}
 
@@ -1688,14 +1688,14 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 		return fmt.Errorf("sync blueclaw payload host workspace: %s: %w", strings.TrimSpace(output), errorValue)
 	}
 
-	if errorValue := state.syncBlueclawWorkspaceImage(); errorValue != nil {
+	if errorValue := state.refreshBlueclawDelivery(); errorValue != nil {
 		fmt.Println("failed")
-		return fmt.Errorf("sync blueclaw payload workspace: %w", errorValue)
+		return fmt.Errorf("refresh the delivery share for the payload: %w", errorValue)
 	}
 	remoteWorkspaceManifestDocument = state.sshClient.run(blueclawWorkspaceManifestCommand())
 	if manifestDocument != remoteWorkspaceManifestDocument {
 		fmt.Println("failed")
-		return fmt.Errorf("sync blueclaw payload workspace: workspace manifest mismatch")
+		return fmt.Errorf("refresh the delivery share for the payload: delivered manifest mismatch")
 	}
 	output, errorValue = state.sshClient.runResult("install -m 0644 " + temporaryPayloadPath + "/manifest.json " + blueclaw.BlueclawPayloadManifestPath)
 	if errorValue != nil {
@@ -1739,14 +1739,14 @@ func (state *setupFlowState) reportBlueclawPayloadHTTPSOutcome(outcome blueclawP
 	}
 	if state.sshClient == nil {
 		fmt.Println(outcome.Summary)
-		fmt.Println("  WARNING: the device did not re-sync the blueclaw workspace image; skills and workspace assets inside the image may be stale until the device admind is updated or an SSH deploy runs")
+		fmt.Println("  WARNING: the device did not refresh its delivery share; the payload and skills the guest reads may be stale until the device admind is updated or an SSH deploy runs")
 		return nil
 	}
-	if errorValue := state.syncBlueclawWorkspaceImage(); errorValue != nil {
+	if errorValue := state.refreshBlueclawDelivery(); errorValue != nil {
 		fmt.Println("failed")
-		return fmt.Errorf("sync workspace image for the current payload: %w", errorValue)
+		return fmt.Errorf("refresh the delivery share for the current payload: %w", errorValue)
 	}
-	fmt.Println("already current (workspace image synced)")
+	fmt.Println("already current (delivery share refreshed)")
 	return nil
 }
 
@@ -1766,39 +1766,20 @@ type remoteCommandRunner interface {
 	runResult(command string) (string, error)
 }
 
-func (state *setupFlowState) syncBlueclawWorkspaceImage() error {
-	return syncBlueclawWorkspaceImageOn(state.sshClient)
+func (state *setupFlowState) refreshBlueclawDelivery() error {
+	return refreshBlueclawDeliveryOn(state.sshClient)
 }
 
-func syncBlueclawWorkspaceImageOn(runner remoteCommandRunner) (returnedError error) {
-	if stopOutput, errorValue := runner.runResult(blueclawStopForPayloadSyncCommand()); errorValue != nil {
-		return fmt.Errorf("stop blueclaw before workspace sync: %s: %w", strings.TrimSpace(stopOutput), errorValue)
-	}
-	defer func() {
-		startOutput, startError := runner.runResult(blueclawStartAfterPayloadSyncCommand())
-		if startError == nil || returnedError != nil {
-			return
-		}
-		returnedError = fmt.Errorf("start blueclaw after workspace sync: %s: %w", strings.TrimSpace(startOutput), startError)
-	}()
-	syncCommand := strings.Join([]string{
-		blueclaw.BlueclawSupervisorBinaryPath,
-		"sync-workspace",
-		"--atomic",
-		"--preserve-guest-state",
-		"--workspace-image", quoteShellValue(blueclaw.BlueclawWorkspaceImagePath),
-		"--source", quoteShellValue(blueclaw.BlueclawWorkspacePath),
-	}, " ")
-	syncCommand = "set -e\n" + syncCommand + blueclaw.BlueclawDeliveryRefreshCommand()
-	syncOutput, errorValue := runner.runResult(syncCommand)
+func refreshBlueclawDeliveryOn(runner remoteCommandRunner) error {
+	refreshOutput, errorValue := runner.runResult("set -e" + blueclaw.BlueclawDeliveryRefreshCommand())
 	if errorValue != nil {
-		return fmt.Errorf("%s: %w", strings.TrimSpace(syncOutput), errorValue)
+		return fmt.Errorf("%s: %w", strings.TrimSpace(refreshOutput), errorValue)
 	}
 	return nil
 }
 
 func blueclawWorkspaceManifestCommand() string {
-	return "debugfs -R " + quoteShellValue("cat /.blueclaw/runtime/current/manifest.json") + " " + quoteShellValue(blueclaw.BlueclawWorkspaceImagePath) + " 2>/dev/null || true"
+	return "cat " + quoteShellValue(blueclaw.BlueclawDeliveryRuntimePath+"/manifest.json") + " 2>/dev/null || true"
 }
 
 func (state *setupFlowState) blueclawPayloadManifest() string {
