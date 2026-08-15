@@ -1789,6 +1789,7 @@ func syncBlueclawWorkspaceImageOn(runner remoteCommandRunner) (returnedError err
 		"--workspace-image", quoteShellValue(blueclaw.BlueclawWorkspaceImagePath),
 		"--source", quoteShellValue(blueclaw.BlueclawWorkspacePath),
 	}, " ")
+	syncCommand = "set -e\n" + syncCommand + blueclaw.BlueclawDeliveryRefreshCommand()
 	syncOutput, errorValue := runner.runResult(syncCommand)
 	if errorValue != nil {
 		return fmt.Errorf("%s: %w", strings.TrimSpace(syncOutput), errorValue)
