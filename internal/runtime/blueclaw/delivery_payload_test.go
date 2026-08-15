@@ -52,3 +52,14 @@ func TestDeliveryRefreshDoesNotSwallowAFailedSync(t *testing.T) {
 		t.Fatal("expected the refresh to begin on its own line, since it is appended to a command")
 	}
 }
+
+func TestDeliveryRefreshMirrorsTheBundledSkills(t *testing.T) {
+	command := BlueclawDeliveryRefreshCommand()
+
+	if !strings.Contains(command, BlueclawWorkspacePath+"/skills/ "+BlueclawDeliverySkillsPath+"/") {
+		t.Fatal("the bundled skills are the host's, so they belong on the share with the payload")
+	}
+	if strings.Contains(command, ".agents/skills") {
+		t.Fatal("the skills the agent writes are its own and stay in the workspace, where it can write them")
+	}
+}
