@@ -68,11 +68,6 @@ export function attachmentAddress(projectURL: string, path: string): string {
 	return `${projectURL.replace(/\/+$/, '')}/storage/v1/object/${assetBucket}/${path}`;
 }
 
-export function attachmentPathOfAddress(projectURL: string, address: string): string | null {
-	const prefix = attachmentAddress(projectURL, '');
-	return address.startsWith(prefix) ? address.slice(prefix.length) : null;
-}
-
 export async function keepMessageAttachment(
 	uploader: AssetUploader,
 	companyID: string,

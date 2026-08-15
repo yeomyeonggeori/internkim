@@ -1,4 +1,6 @@
 import { callCompanyApp } from '$lib/host-bridge';
+import { isSupabaseConfigured, projectURL, supabase } from '$lib/supabase';
+import { readableAddresses } from './kept-attachment';
 
 export type MessengerPerson = {
 	memberID?: string;
@@ -145,7 +147,21 @@ export async function fetchPosts(channelID: string, before?: string): Promise<Me
 		conversationID: channelID,
 		before
 	});
-	return answer.messages.map(asPost);
+	return openable(answer.messages.map(asPost));
+}
+
+async function openable(posts: MessengerPost[]): Promise<MessengerPost[]> {
+	if (!isSupabaseConfigured()) return posts;
+	const addresses = posts.flatMap((post) => post.attachments.map((attachment) => attachment.url));
+	const readable = await readableAddresses(supabase().storage.from('asset'), projectURL(), addresses);
+	if (readable.size === 0) return posts;
+	return posts.map((post) => ({
+		...post,
+		attachments: post.attachments.map((attachment) => ({
+			...attachment,
+			url: readable.get(attachment.url) ?? attachment.url
+		}))
+	}));
 }
 
 export type OutgoingAttachment = {
@@ -166,7 +182,8 @@ export async function writePost(
 		parentID,
 		attachments
 	});
-	return asPost(message);
+	const [post] = await openable([asPost(message)]);
+	return post;
 }
 
 export async function fetchCustomEmojiNames(): Promise<string[]> {

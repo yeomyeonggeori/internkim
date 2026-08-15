@@ -33,6 +33,10 @@ export function gatewayURL(): string {
 	return centralPlane().gatewayURL;
 }
 
+export function projectURL(): string {
+	return centralPlane().projectURL;
+}
+
 export function isSupabaseConfigured(): boolean {
 	const plane = centralPlane();
 	return Boolean(plane.projectURL && plane.publishableKey);

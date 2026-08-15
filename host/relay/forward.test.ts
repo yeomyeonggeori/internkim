@@ -51,7 +51,40 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			emailOfMember: async (memberID: string) =>
 				memberID === 'member-1' ? 'sample@example.test' : null,
 			messengerCredentialOf: async () => ({ kind: 'buzz-token', secret: 'a-held-secret' }),
-			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null
+			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null,
+			keepAttachment: async (contentBase64: string, contentType: string) => ({
+				address: `https://company.supabase.co/storage/v1/object/asset/company-1/shared/attachment/${contentBase64}`,
+				sizeBytes: Buffer.from(contentBase64, 'base64').byteLength,
+				digest: contentBase64
+			})
+		}
+	};
+}
+
+function dispatchThatRefuses(refusedAttachments: { index: number; filename: string }[]) {
+	const { asked, dispatch } = dispatchThatKnows({});
+	let sends = 0;
+	return {
+		asked,
+		dispatch: {
+			...dispatch,
+			askChatd: async (capability: string, body: Record<string, unknown>) => {
+				asked.push({ capability, body });
+				if (capability !== 'person.message.send') return { status: 200, body: {} };
+				sends += 1;
+				if (sends > 1) return { status: 200, body: { id: 'event-1' } };
+				return {
+					status: 415,
+					body: {
+						error: 'the store refused them',
+						refusedAttachments: refusedAttachments.map((one) => ({
+							...one,
+							status: 415,
+							reason: 'disallowed content type'
+						}))
+					}
+				};
+			}
 		}
 	};
 }
@@ -116,6 +149,78 @@ describe('serveCallForMember', () => {
 		expect(served.status).toBe(409);
 	});
 
+});
+
+describe('a message carrying a file the messenger will not store', () => {
+	const send = {
+		callID: 'c1',
+		capability: 'person.message.send',
+		body: {
+			conversationID: 'channel-1',
+			body: 'here it is',
+			attachments: [
+				{ filename: 'notes.pdf', contentType: 'application/pdf', contentBase64: 'AAAA' },
+				{ filename: 'page.html', contentType: 'text/html', contentBase64: 'BBBB' }
+			]
+		}
+	};
+
+	test('is sent again with that file kept where the company can read it', async () => {
+		const { asked, dispatch } = dispatchThatRefuses([{ index: 1, filename: 'page.html' }]);
+
+		const served = await serveCallForMember(dispatch, send, 'member-1');
+
+		expect(served.status).toBe(200);
+		const sent = asked.filter((entry) => entry.capability === 'person.message.send');
+		expect(sent).toHaveLength(2);
+		expect(sent[1]?.body.attachments).toEqual([
+			{ filename: 'notes.pdf', contentType: 'application/pdf', contentBase64: 'AAAA' },
+			{
+				filename: 'page.html',
+				contentType: 'text/html',
+				address: 'https://company.supabase.co/storage/v1/object/asset/company-1/shared/attachment/BBBB',
+				sizeBytes: 3,
+				digest: 'BBBB'
+			}
+		]);
+	});
+
+	test('the files it did store are not kept a second time', async () => {
+		const kept: string[] = [];
+		const { dispatch } = dispatchThatRefuses([{ index: 1, filename: 'page.html' }]);
+
+		await serveCallForMember(
+			{
+				...dispatch,
+				keepAttachment: async (contentBase64: string) => {
+					kept.push(contentBase64);
+					return { address: 'https://company.supabase.co/a', sizeBytes: 3, digest: 'a' };
+				}
+			},
+			send,
+			'member-1'
+		);
+
+		expect(kept).toEqual(['BBBB']);
+	});
+
+	test('a message the messenger took whole is sent once', async () => {
+		const { asked, dispatch } = dispatchThatKnows({});
+
+		const served = await serveCallForMember(dispatch, send, 'member-1');
+
+		expect(served.status).toBe(200);
+		expect(asked.filter((entry) => entry.capability === 'person.message.send')).toHaveLength(1);
+	});
+
+	test('a refusal that names no file is handed back as it came', async () => {
+		const { asked, dispatch } = dispatchThatRefuses([]);
+
+		const served = await serveCallForMember(dispatch, send, 'member-1');
+
+		expect(served.status).toBe(415);
+		expect(asked.filter((entry) => entry.capability === 'person.message.send')).toHaveLength(1);
+	});
 });
 
 describe('mailOperationOf', () => {
