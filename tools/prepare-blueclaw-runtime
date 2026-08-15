@@ -640,6 +640,7 @@ ensure_rootfs_graphiti_python() {
   run_root install -m 0644 "$requirements_path" "$base_directory/opt/blueclaw/graphiti-requirements.txt"
   run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv venv --clear --python /usr/bin/python3 /opt/blueclaw/graphiti-venv >/dev/null
   run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv pip install --python /opt/blueclaw/graphiti-venv/bin/python -r /opt/blueclaw/graphiti-requirements.txt >/dev/null
+  run_chroot_with_runtime_mounts "$base_directory" /opt/blueclaw/graphiti-venv/bin/python -c "from graphiti_core import Graphiti; from graphiti_core.llm_client.client import LLMClient; LLMClient.set_tracer" >/dev/null
   run_root rm -f "$base_directory/opt/blueclaw/graphiti-requirements.txt"
 }
 
