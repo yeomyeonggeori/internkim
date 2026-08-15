@@ -38,6 +38,7 @@ var StepBlueclawConfiguration = Step{
 		}
 
 		context.SSH.Run(buildBlueclawConfigurationDirectoryCommand())
+		context.SSH.Run(buildBlueclawDeliveryMountCommand())
 		for _, file := range []struct {
 			path    string
 			content string
@@ -46,6 +47,8 @@ var StepBlueclawConfiguration = Step{
 			{path: blueclaw.BlueclawPolicyConfigPath, content: policyConfiguration},
 			{path: blueclaw.BlueclawWorkspacePath + "/.blueclaw/config/runtime.json", content: runtimeConfiguration},
 			{path: blueclaw.BlueclawWorkspacePath + "/.blueclaw/config/policy.json", content: policyConfiguration},
+			{path: blueclaw.BlueclawDeliveryConfigPath + "/runtime.json", content: runtimeConfiguration},
+			{path: blueclaw.BlueclawDeliveryConfigPath + "/policy.json", content: policyConfiguration},
 		} {
 			if errorValue := uploadBlueclawConfigurationFile(context, file.path, file.content); errorValue != nil {
 				return errorValue
@@ -81,7 +84,9 @@ func blueclawConfigurationFilesMatchGenerated(context *Context) bool {
 	return remoteFileMatchesContent(context, blueclaw.BlueclawRuntimeConfigPath, runtimeConfiguration) &&
 		remoteFileMatchesContent(context, blueclaw.BlueclawPolicyConfigPath, policyConfiguration) &&
 		remoteFileMatchesContent(context, blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/runtime.json", runtimeConfiguration) &&
-		remoteFileMatchesContent(context, blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/policy.json", policyConfiguration)
+		remoteFileMatchesContent(context, blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/policy.json", policyConfiguration) &&
+		remoteFileMatchesContent(context, blueclaw.BlueclawDeliveryConfigPath+"/runtime.json", runtimeConfiguration) &&
+		remoteFileMatchesContent(context, blueclaw.BlueclawDeliveryConfigPath+"/policy.json", policyConfiguration)
 }
 
 func remoteFileMatchesContent(context *Context, path string, content string) bool {
@@ -129,9 +134,41 @@ func uploadBlueclawConfigurationFile(context *Context, path string, content stri
 }
 
 func buildBlueclawConfigurationDirectoryCommand() string {
-	return fmt.Sprintf(`mkdir -p %s %s`,
+	return fmt.Sprintf(`mkdir -p %s %s %s`,
 		blueclaw.BlueclawConfigPath,
 		blueclaw.BlueclawWorkspacePath+"/.blueclaw/config",
+		blueclaw.BlueclawDeliveryConfigPath,
+	)
+}
+
+// virtiofsd has no read-only mode, so the directory it serves is bound read-only and the
+// guest cannot write the share whatever it asks for at mount time. A mount unit keeps
+// that true across a reboot rather than only until one.
+func buildBlueclawDeliveryMountCommand() string {
+	return fmt.Sprintf(`set -e
+mkdir -p %s %s
+cat > %s <<'UNIT'
+[Unit]
+Description=Blueclaw delivery share, read only
+Before=blueclaw.service
+
+[Mount]
+What=%s
+Where=%s
+Type=none
+Options=bind,ro
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now %s`,
+		blueclaw.BlueclawDeliveryPath,
+		blueclaw.BlueclawDeliveryReadOnlyPath,
+		blueclaw.BlueclawDeliveryMountUnitPath,
+		blueclaw.BlueclawDeliveryPath,
+		blueclaw.BlueclawDeliveryReadOnlyPath,
+		blueclaw.BlueclawDeliveryMountUnitName,
 	)
 }
 

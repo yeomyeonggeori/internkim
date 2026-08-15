@@ -77,6 +77,12 @@ const (
 	BlueclawFirecrackerPath               = "/usr/local/bin/firecracker"
 	BlueclawJailerPath                    = "/usr/local/bin/jailer"
 	BlueclawCloudHypervisorPath           = "/usr/local/bin/cloud-hypervisor"
+	BlueclawVirtiofsdPath                 = "/usr/local/bin/virtiofsd"
+	BlueclawDeliveryPath                  = "/var/lib/blueclaw/delivery"
+	BlueclawDeliveryReadOnlyPath          = "/var/lib/blueclaw/delivery-ro"
+	BlueclawDeliveryConfigPath            = "/var/lib/blueclaw/delivery/config"
+	BlueclawDeliveryMountUnitName         = "var-lib-blueclaw-delivery\\x2dro.mount"
+	BlueclawDeliveryMountUnitPath         = "/etc/systemd/system/var-lib-blueclaw-delivery\\x2dro.mount"
 	FirecrackerMonitorName                = "firecracker"
 	CloudHypervisorMonitorName            = "cloudHypervisor"
 	BlueclawVirtualMachineMonitor         = CloudHypervisorMonitorName
