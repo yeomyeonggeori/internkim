@@ -543,7 +543,9 @@ group = Path(sys.argv[3]).read_text()
 
 for name, marker in {
     "blueclaw-workspace-owner": "chown blueclaw:blueclaw /workspace /workspace/.blueclaw",
-    "blueclaw-payload-launch": "/workspace/.blueclaw/runtime/current/bin/blueclaw",
+    "blueclaw-payload-launch": "$(blueclaw_runtime_directory)/bin/blueclaw",
+    "blueclaw-payload-from-the-image": "/workspace/.blueclaw/runtime/current",
+    "blueclaw-payload-from-the-share": "/delivery/runtime/current/bin/blueclaw",
     "blueclaw-runtime-directory": "/workspace/.blueclaw/runtime",
     "blueclaw-posix-sync": "blueclaw-posix-helper sync",
     "blueclaw-posix-helper-preflight": "posix helper is not executable by blueclaw",
