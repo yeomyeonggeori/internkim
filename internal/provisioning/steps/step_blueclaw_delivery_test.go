@@ -36,3 +36,21 @@ func TestDeliveredConfigurationIsWrittenWhereTheShareServesIt(t *testing.T) {
 		t.Fatal("expected the delivered configuration directory to be created")
 	}
 }
+
+func TestDeliveredConfigurationIsReadableByModeNotByGroup(t *testing.T) {
+	permissionCommand := buildBlueclawDeliveryPermissionCommand()
+
+	for _, fragment := range []string{
+		"chmod 0644 " + blueclaw.BlueclawDeliveryConfigPath + "/runtime.json",
+		"chmod 0755 " + blueclaw.BlueclawDeliveryPath,
+		"chown -R root:root " + blueclaw.BlueclawDeliveryPath,
+	} {
+		if !strings.Contains(permissionCommand, fragment) {
+			t.Fatalf("a uid means nothing across virtio-fs, so the guest reads the share by mode: missing %q", fragment)
+		}
+	}
+
+	if strings.Contains(permissionCommand, "root:blueclaw") {
+		t.Fatal("the host's blueclaw and the guest's are different numbers, so group ownership cannot carry access")
+	}
+}
