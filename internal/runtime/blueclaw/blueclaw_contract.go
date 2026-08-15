@@ -83,6 +83,8 @@ const (
 	BlueclawDeliveryConfigPath            = "/var/lib/blueclaw/delivery/config"
 	BlueclawDeliveryRuntimePath           = "/var/lib/blueclaw/delivery/runtime/current"
 	BlueclawGuestDeliveryRuntimePath      = "/delivery/runtime/current"
+	BlueclawDeliverySkillsPath            = "/var/lib/blueclaw/delivery/skills"
+	BlueclawGuestDeliverySkillsPath       = "/delivery/skills"
 	BlueclawDeliveryServiceName           = "internkim-blueclaw-delivery.service"
 	BlueclawDeliveryServicePath           = "/etc/systemd/system/internkim-blueclaw-delivery.service"
 	FirecrackerMonitorName                = "firecracker"
@@ -210,8 +212,9 @@ func BlueclawSubmoduleRoot(scriptDir string) string {
 // the pair reports this command's status and a failed sync would read as success.
 func BlueclawDeliveryRefreshCommand() string {
 	return "\n" +
-		"mkdir -p " + BlueclawDeliveryRuntimePath + "\n" +
+		"mkdir -p " + BlueclawDeliveryRuntimePath + " " + BlueclawDeliverySkillsPath + "\n" +
 		"rsync -a --delete " + BlueclawWorkspacePath + "/.blueclaw/runtime/current/ " + BlueclawDeliveryRuntimePath + "/\n" +
+		"rsync -a --delete " + BlueclawWorkspacePath + "/skills/ " + BlueclawDeliverySkillsPath + "/\n" +
 		"chown -R root:root " + BlueclawDeliveryPath + "\n" +
 		"find " + BlueclawDeliveryPath + " -type d -exec chmod 0755 {} +\n" +
 		"find " + BlueclawDeliveryPath + " -type f -exec chmod 0644 {} +\n" +
