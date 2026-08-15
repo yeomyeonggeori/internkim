@@ -53,7 +53,7 @@ func TestDeliveredConfigurationIsReadableByModeNotByGroup(t *testing.T) {
 	}
 }
 
-func TestRootfsContractHoldsWhereverThePayloadIs(t *testing.T) {
+func TestRootfsContractRefusesAGuestThatReadsAnywhereButTheShare(t *testing.T) {
 	repositoryRootPath := deliveryRepositoryRoot(t)
 	guestInit, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-runtime", "guest-init"))
 	if errorValue != nil {
@@ -62,12 +62,12 @@ func TestRootfsContractHoldsWhereverThePayloadIs(t *testing.T) {
 	contractCommand := BlueclawRootfsBaseContractCheckCommand()
 
 	for _, marker := range []string{
-		"$(blueclaw_runtime_directory)/bin/blueclaw",
 		"/delivery/runtime/current/bin/blueclaw",
-		"/workspace/.blueclaw/runtime/current",
+		"-runtime /delivery/config/runtime.json",
+		"mount -t virtiofs -o ro delivery /delivery",
 	} {
 		if !strings.Contains(contractCommand, marker) {
-			t.Fatalf("the contract has to name where the payload can be, missing %q", marker)
+			t.Fatalf("the share is the only delivery path, so the contract has to name it: missing %q", marker)
 		}
 		if !strings.Contains(string(guestInit), marker) {
 			t.Fatalf("guest init no longer carries %q, so the contract would refuse the image it just built", marker)
