@@ -511,36 +511,39 @@ func TestSkillsManifestCheckRequiresSuccessfulSyncMarker(t *testing.T) {
 	}
 }
 
-func TestSkillsWorkspaceSyncRecordsManifestAfterSuccess(t *testing.T) {
+func TestSkillsAreRecordedOnlyAfterTheShareCarriesThem(t *testing.T) {
 	command := blueclawWorkspaceSkillsSyncCommand()
-	syncIndex := strings.Index(command, "sync-workspace --atomic")
+	refreshIndex := strings.Index(command, "rsync -a --delete")
 	markerIndex := strings.Index(command, "mv -f")
-	if syncIndex < 0 || markerIndex < syncIndex || !strings.Contains(command, skillsSyncManifestPath) {
-		t.Fatalf("expected successful workspace sync before atomic manifest marker update:\n%s", command)
-	}
-	for _, expectedText := range []string{
-		"systemctl stop blueclaw",
-		"systemctl is-active --quiet blueclaw",
-		"systemctl kill blueclaw",
-		"systemctl start blueclaw",
-		"systemctl is-active blueclaw",
-	} {
-		if !strings.Contains(command, expectedText) {
-			t.Fatalf("expected active service path to include %q:\n%s", expectedText, command)
-		}
+	if refreshIndex < 0 || markerIndex < refreshIndex || !strings.Contains(command, skillsSyncManifestPath) {
+		t.Fatalf("a manifest written before the skills land claims a delivery that did not happen:\n%s", command)
 	}
 }
 
-func TestSkillsWorkspaceSyncHandlesMissingServiceAfterSync(t *testing.T) {
+func TestDeliveringSkillsRestartsTheGuestRatherThanStoppingIt(t *testing.T) {
 	command := blueclawWorkspaceSkillsSyncCommand()
-	syncIndex := strings.Index(command, "sync-workspace --atomic")
-	missingIndex := strings.Index(command, `if [ "$service_status" = "missing" ]; then`)
-	startIndex := strings.Index(command, "systemctl start blueclaw")
-	if syncIndex < 0 || missingIndex < syncIndex || startIndex < missingIndex {
-		t.Fatalf("expected missing service path to sync before exiting and starting:\n%s", command)
+
+	for _, forbidden := range []string{"systemctl stop blueclaw", "systemctl kill blueclaw", "sync-workspace"} {
+		if strings.Contains(command, forbidden) {
+			t.Fatalf("skills are a directory on the host now, so %q has no reason to run:\n%s", forbidden, command)
+		}
 	}
-	if !strings.Contains(command[missingIndex:startIndex], "echo missing\n  exit 0") {
-		t.Fatalf("expected missing service path to exit without starting:\n%s", command)
+	restartIndex := strings.Index(command, "systemctl restart blueclaw")
+	refreshIndex := strings.Index(command, "rsync -a --delete")
+	if restartIndex < 0 || restartIndex < refreshIndex {
+		t.Fatalf("the guest picks up new skills when it restarts, which has to come after they arrive:\n%s", command)
+	}
+}
+
+func TestDeliveringSkillsToADeviceWithNoServiceSaysSo(t *testing.T) {
+	command := blueclawWorkspaceSkillsSyncCommand()
+	missingIndex := strings.Index(command, "systemctl cat")
+	restartIndex := strings.Index(command, "systemctl restart blueclaw")
+	if missingIndex < 0 || restartIndex < missingIndex {
+		t.Fatalf("a device with no blueclaw service must report missing rather than fail a restart:\n%s", command)
+	}
+	if !strings.Contains(command[missingIndex:restartIndex], "echo missing") {
+		t.Fatalf("expected the missing service path to report and stop:\n%s", command)
 	}
 }
 

@@ -20,9 +20,7 @@ func TestGuestInitRunsBlueclawAsNonRootUser(t *testing.T) {
 		"chown postgres:blueclaw /workspace/.blueclaw/postgres",
 		"/workspace/.blueclaw/tmp",
 		"blueclaw_binary_path",
-		"blueclaw_runtime_directory",
 		"/delivery/runtime/current/bin/blueclaw",
-		"/workspace/.blueclaw/runtime/current",
 		"mount -o remount,rw /",
 		"configure_outbound_network",
 		"ip addr replace 172.31.0.2/30 dev eth0",
@@ -31,8 +29,8 @@ func TestGuestInitRunsBlueclawAsNonRootUser(t *testing.T) {
 		"blueclaw-posix-helper sync",
 		"check_blueclaw_posix_helper",
 		"posix helper is not executable by blueclaw",
-		"su -s /bin/bash blueclaw -c \"$(blueclaw_bundled_skills_environment)$blueclaw_binary",
-		"BLUECLAW_BUNDLED_SKILLS_PATH=/delivery/skills",
+		"su -s /bin/bash blueclaw -c \"BLUECLAW_BUNDLED_SKILLS_PATH=/delivery/skills $blueclaw_binary",
+		"-runtime /delivery/config/runtime.json",
 		"su -s /bin/bash blueclaw -c 'INTERNKIM_CAPABILITY_ENDPOINT=",
 	} {
 		if !strings.Contains(document, expectedFragment) {

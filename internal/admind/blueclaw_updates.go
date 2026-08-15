@@ -382,31 +382,14 @@ func (service *Service) syncBlueclawWorkspaceImages(ctx context.Context, jobID s
 }
 
 func (service *Service) syncBlueclawWorkspaceImageForTarget(ctx context.Context, jobID string, target blueclawPayloadInstallTarget) error {
-	log.Printf("Blueclaw payload already current for %s: re-syncing workspace image", target.Name)
-	service.updateJob(jobID, "running", "stopping", "")
-	service.drainBlueclawTasksBeforeStop(ctx, target, drainTimeoutDefault)
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", stopBlueclawPayloadTargetCommand(target)); errorValue != nil {
-		return fmt.Errorf("%s: stop blueclaw before workspace sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
-	}
-	if errorValue := service.waitForBlueclawWorkspaceImageRelease(ctx, target.WorkspaceImagePath); errorValue != nil {
-		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
-		return fmt.Errorf("%s: wait for workspace image release: %w", target.Name, errorValue)
-	}
-	if errorValue := service.repairWorkspaceImageIfUnhealthy(ctx, jobID, target); errorValue != nil {
-		return errorValue
-	}
+	log.Printf("Blueclaw payload already current for %s: refreshing the delivery share", target.Name)
 	service.updateJob(jobID, "running", "workspace_sync", "")
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawPayloadWorkspaceSyncCommand(target)); errorValue != nil {
-		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
-		return fmt.Errorf("%s: sync blueclaw workspace image: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
-	}
-	if errorValue := service.verifyGuestProtocolIdentityStamp(ctx, target); errorValue != nil {
-		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
-		return fmt.Errorf("%s: %w", target.Name, errorValue)
+		return fmt.Errorf("%s: refresh delivery share: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	service.updateJob(jobID, "running", "restarting", "")
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target)); errorValue != nil {
-		return fmt.Errorf("%s: start blueclaw after workspace sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", restartBlueclawPayloadTargetCommand(target)); errorValue != nil {
+		return fmt.Errorf("%s: restart blueclaw after delivery refresh: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	return nil
 }
@@ -524,15 +507,7 @@ func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Cont
 }
 
 func blueclawPayloadWorkspaceSyncCommand(target blueclawPayloadInstallTarget) string {
-	syncCommand := strings.Join([]string{
-		blueclawruntime.BlueclawSupervisorBinaryPath,
-		"sync-workspace",
-		"--atomic",
-		"--preserve-guest-state",
-		"--workspace-image", quoteBlueclawUpdateShellValue(target.WorkspaceImagePath),
-		"--source", quoteBlueclawUpdateShellValue(target.HostWorkspacePath),
-	}, " ")
-	return "set -e\n" + syncCommand + blueclawruntime.BlueclawDeliveryRefreshCommand()
+	return "set -e" + blueclawruntime.BlueclawDeliveryRefreshCommand()
 }
 
 func (service *Service) drainBlueclawTasksBeforeStop(ctx context.Context, target blueclawPayloadInstallTarget, timeout time.Duration) {
@@ -1100,6 +1075,19 @@ done
 systemctl kill ` + serviceName + ` --kill-who=all --signal=KILL >/dev/null 2>&1 || true
 for _ in $(seq 1 20); do
   if ! systemctl is-active --quiet ` + serviceName + `; then
+    exit 0
+  fi
+  sleep 1
+done
+systemctl status ` + serviceName + ` --no-pager -l 2>/dev/null || true
+exit 1`
+}
+
+func restartBlueclawPayloadTargetCommand(target blueclawPayloadInstallTarget) string {
+	serviceName := quoteBlueclawUpdateShellValue(target.ServiceName)
+	return `systemctl restart ` + serviceName + `
+for _ in $(seq 1 20); do
+  if systemctl is-active --quiet ` + serviceName + `; then
     exit 0
   fi
   sleep 1

@@ -103,15 +103,14 @@ func TestParseGitWorktreePaths(t *testing.T) {
 	}
 }
 
-func TestBlueclawWorkspaceManifestCommandReadsPayloadManifestInsideImage(t *testing.T) {
+func TestBlueclawDeliveredManifestIsReadFromTheShare(t *testing.T) {
 	command := blueclawWorkspaceManifestCommand()
 	for _, expectedText := range []string{
-		"debugfs -R",
-		"cat /.blueclaw/runtime/current/manifest.json",
-		"/var/lib/blueclaw/workspace.ext4",
+		"cat ",
+		"/var/lib/blueclaw/delivery/runtime/current/manifest.json",
 	} {
 		if !strings.Contains(command, expectedText) {
-			t.Fatalf("expected workspace manifest command to include %q, got:\n%s", expectedText, command)
+			t.Fatalf("the payload manifest is on the share now, expected %q, got:\n%s", expectedText, command)
 		}
 	}
 }
