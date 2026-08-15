@@ -2,7 +2,13 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreviewImage } from './link-preview';
-import { assetBucket, attachmentAddress, keepMessageAttachment, keepSharedAsset } from './asset-store';
+import {
+	assetBucket,
+	attachmentAddress,
+	attachmentAlreadyKept,
+	keepMessageAttachment,
+	keepSharedAsset
+} from './asset-store';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
 import { answerBodyOf, forwardToChatd, type ConnectedAccount, type KeptAttachment } from './forward';
@@ -25,6 +31,14 @@ const answerByteCeiling = positiveNumberSetting(
 	defaultAnswerByteCeiling
 );
 const largestPictureBytes = largestRawBytesThatFit(answerByteCeiling);
+// A file never crosses the gateway — it is kept in the bucket and read from
+// there — so this bounds only what the relay will hold in memory while copying
+// one across. The largest attachment in a real company's history was 91 MB.
+const largestFileBytes = positiveNumberSetting(
+	'LARGEST_FILE_BYTES',
+	process.env.LARGEST_FILE_BYTES,
+	200_000_000
+);
 
 
 function required(name: string): string {
@@ -63,9 +77,11 @@ function openGatewayConnection(): void {
 
 const dispatch = {
 	serveAsset: asset,
-	askChatd: (capability: string, body: Record<string, unknown>) =>
-		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body, largestPictureBytes),
+	askChatd: (capability: string, body: Record<string, unknown>, largestBytes?: number) =>
+		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body, largestBytes ?? largestPictureBytes),
 	keepAttachment,
+	keptAlready,
+	largestFileBytes,
 	askMaild: async (operation: string, body: Record<string, unknown>) => {
 		const response = await fetch(`${maildBaseURL}/v1/mail/${encodeURIComponent(operation)}`, {
 			method: 'POST',
@@ -113,6 +129,12 @@ openGatewayConnection();
 async function asset(capability: string, body: Record<string, unknown>): Promise<unknown> {
 	if (capability === 'asset.link') return previewOf(String(body.url ?? ''));
 	throw new Error(`the app has nothing called ${capability}`);
+}
+
+async function keptAlready(digest: string, contentType: string): Promise<KeptAttachment | null> {
+	const kept = await attachmentAlreadyKept(client.storage.from(assetBucket), companyID, digest, contentType);
+	if (!kept) return null;
+	return { address: attachmentAddress(projectURL, kept.path), sizeBytes: kept.sizeBytes, digest };
 }
 
 async function keepAttachment(contentBase64: string, contentType: string): Promise<KeptAttachment> {

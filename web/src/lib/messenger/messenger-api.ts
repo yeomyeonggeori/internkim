@@ -1,6 +1,4 @@
 import { callCompanyApp } from '$lib/host-bridge';
-import { isSupabaseConfigured, projectURL, supabase } from '$lib/supabase';
-import { readableAddresses } from './kept-attachment';
 
 export type MessengerPerson = {
 	memberID?: string;
@@ -28,6 +26,15 @@ export type MessengerAttachment = {
 	filename: string;
 	contentType: string;
 	sizeBytes: number;
+	digest: string;
+};
+
+export type KeptAttachment = {
+	address: string;
+	sizeBytes: number;
+	digest: string;
+	filename: string;
+	contentType: string;
 };
 
 export type MessengerPost = {
@@ -64,6 +71,7 @@ type PersonalAttachment = {
 	filename: string;
 	contentType: string;
 	sizeBytes: number;
+	digest?: string;
 };
 type PersonalMessage = {
 	id: string;
@@ -120,7 +128,8 @@ function asPost(message: PersonalMessage): MessengerPost {
 			url: attachment.id,
 			filename: attachment.filename,
 			contentType: attachment.contentType,
-			sizeBytes: attachment.sizeBytes
+			sizeBytes: attachment.sizeBytes,
+			digest: attachment.digest ?? ''
 		}))
 	};
 }
@@ -147,21 +156,22 @@ export async function fetchPosts(channelID: string, before?: string): Promise<Me
 		conversationID: channelID,
 		before
 	});
-	return openable(answer.messages.map(asPost));
+	return answer.messages.map(asPost);
 }
 
-async function openable(posts: MessengerPost[]): Promise<MessengerPost[]> {
-	if (!isSupabaseConfigured()) return posts;
-	const addresses = posts.flatMap((post) => post.attachments.map((attachment) => attachment.url));
-	const readable = await readableAddresses(supabase().storage.from('asset'), projectURL(), addresses);
-	if (readable.size === 0) return posts;
-	return posts.map((post) => ({
-		...post,
-		attachments: post.attachments.map((attachment) => ({
-			...attachment,
-			url: readable.get(attachment.url) ?? attachment.url
-		}))
-	}));
+// The messenger holds the file on the company's own machine, which a browser
+// somewhere else cannot reach. The relay puts a copy in the company's bucket
+// and names it; the reader signs for that with their own session.
+export async function keepAttachmentForReading(
+	attachment: MessengerAttachment
+): Promise<KeptAttachment | null> {
+	const answer = await ask<{ attachment: KeptAttachment | null }>('person.message.attachment', {
+		messageID: attachment.url,
+		filename: attachment.filename,
+		contentType: attachment.contentType,
+		digest: attachment.digest
+	});
+	return answer.attachment;
 }
 
 export type OutgoingAttachment = {
@@ -182,8 +192,7 @@ export async function writePost(
 		parentID,
 		attachments
 	});
-	const [post] = await openable([asPost(message)]);
-	return post;
+	return asPost(message);
 }
 
 export async function fetchCustomEmojiNames(): Promise<string[]> {

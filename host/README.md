@@ -72,6 +72,20 @@ to disagree: pictures were accepted up to 200,000 raw bytes, which is about
 267 KB on the wire. Anything larger comes back without a picture, and the call
 survives.
 
+### Files never cross it
+
+A message attachment is not answered with the file. The messenger stores it on
+this machine and the browser asking for it is somewhere else, so the relay puts
+a copy in the company's `asset` bucket and answers with its address; the reader
+signs for that with their own session. Nothing about the file's size touches the
+ceiling above, and the 91 MB archive in one company's history opens the same way
+a screenshot does.
+
+`LARGEST_FILE_BYTES` bounds only what the relay holds in memory while copying
+one across, and defaults to 200,000,000. The bucket is addressed by content and
+the message names the hash, so a file already copied is answered for without the
+messenger being read at all.
+
 `make build-relay` compiles it into a single
 `internkim-relay` executable, so the box needs no Bun and no
 `node_modules`. It requires four settings, plus the optional

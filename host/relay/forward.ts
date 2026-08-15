@@ -8,6 +8,7 @@ export type Answer = { callID: string; status: number; body: unknown };
 
 const personPrefix = 'person.';
 const sendCapability = 'person.message.send';
+const readCapability = 'person.message.attachment';
 const refusedStatus = 415;
 const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
@@ -70,8 +71,14 @@ export type Dispatch = {
 		requesterEmail: string
 	) => Promise<{ status: number; body: unknown }>;
 	emailOfMember: (memberID: string) => Promise<string | null>;
-	askChatd: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
+	askChatd: (
+		capability: string,
+		body: Record<string, unknown>,
+		largestBytes?: number
+	) => Promise<{ status: number; body: unknown }>;
 	keepAttachment: (contentBase64: string, contentType: string) => Promise<KeptAttachment>;
+	keptAlready: (digest: string, contentType: string) => Promise<KeptAttachment | null>;
+	largestFileBytes: number;
 	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	mailAccountOf: (memberID: string) => Promise<Record<string, unknown> | null>;
 	connectMessengerAccount: (memberID: string, account: ConnectedAccount) => Promise<void>;
@@ -85,6 +92,8 @@ export type ActorCredential = { kind: string; secret: string };
 export type SentAttachment = { filename: string; contentType: string; contentBase64: string };
 
 export type KeptAttachment = { address: string; sizeBytes: number; digest: string };
+
+type ReadFile = { filename: string; contentType: string; contentBase64: string };
 
 export async function serveCallForMember(
 	dispatch: Dispatch,
@@ -127,7 +136,54 @@ async function serveForMember(
 	if (capability === sendCapability) {
 		return { ...(await sendKeepingWhatIsRefused(dispatch, body, actor)), replyTo };
 	}
+	if (capability === readCapability) {
+		return { ...(await keptForReading(dispatch, body, actor)), replyTo };
+	}
 	return { ...(await dispatch.askChatd(capability, { ...body, actor })), replyTo };
+}
+
+// The messenger stores a file on this machine, and the browser asking for it is
+// somewhere else entirely. So the answer is never the file: it is an address in
+// the company's own bucket, which the reader signs for with their own session.
+// The bucket is addressed by content, so a file already kept is answered for
+// without the messenger being asked for a single byte.
+async function keptForReading(
+	dispatch: Dispatch,
+	body: Record<string, unknown>,
+	actor: ActorCredential
+): Promise<{ status: number; body: unknown }> {
+	const named = describedFile(body);
+	const already = named.digest ? await dispatch.keptAlready(named.digest, named.contentType) : null;
+	if (already) return { status: 200, body: { attachment: { ...already, ...named } } };
+
+	const answer = await dispatch.askChatd(readCapability, { ...body, actor }, dispatch.largestFileBytes);
+	const read = fileOf(answer);
+	if (!read) return { status: answer.status, body: { attachment: null } };
+
+	const kept = await dispatch.keepAttachment(read.contentBase64, read.contentType);
+	return {
+		status: 200,
+		body: { attachment: { ...kept, filename: read.filename, contentType: read.contentType } }
+	};
+}
+
+function describedFile(body: Record<string, unknown>): { filename: string; contentType: string; digest: string } {
+	return {
+		filename: typeof body.filename === 'string' ? body.filename : '',
+		contentType: typeof body.contentType === 'string' ? body.contentType : '',
+		digest: typeof body.digest === 'string' ? body.digest.trim() : ''
+	};
+}
+
+function fileOf(answer: { status: number; body: unknown }): ReadFile | null {
+	if (answer.status !== 200) return null;
+	const file = (answer.body as { file?: unknown } | null)?.file as Partial<ReadFile> | null | undefined;
+	if (!file || typeof file.contentBase64 !== 'string' || file.contentBase64 === '') return null;
+	return {
+		filename: typeof file.filename === 'string' ? file.filename : '',
+		contentType: typeof file.contentType === 'string' ? file.contentType : 'application/octet-stream',
+		contentBase64: file.contentBase64
+	};
 }
 
 // The messenger's own store takes most files and refuses some by type. One it

@@ -1,6 +1,7 @@
 import { supabaseMember } from '$lib/supabase-session';
 import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 import { personPicture } from '$lib/stores/person-picture.svelte';
+import { attachmentSource } from '$lib/stores/attachment-source.svelte';
 import { emojify, get as glyphOf } from 'node-emoji';
 import { customEmojiNamesIn } from './custom-emoji-names';
 import {
@@ -26,7 +27,17 @@ type ChannelSummary = {
 type Person = { id: string; name: string; avatarURL?: string };
 type Participant = { id: string; name: string; avatarURL?: string };
 type Reaction = { emoji: string; count: number; reactedByMe: boolean; imageURL?: string; people?: Participant[] };
-type Attachment = { kind: 'image' | 'file'; url: string; filename?: string; mimeType?: string; sizeBytes?: number };
+// url is where the message says the file is, which names it and is what the
+// body's own link is stripped against; source is where this browser can
+// actually open it.
+type Attachment = {
+	kind: 'image' | 'file';
+	url: string;
+	source: string;
+	filename?: string;
+	mimeType?: string;
+	sizeBytes?: number;
+};
 type Message = {
 	id: string;
 	threadRootId?: string;
@@ -135,6 +146,7 @@ export async function bridgeConversation(channelID?: string, before?: string): P
 	await customEmoji.load();
 	await customEmoji.draw(customEmojiNamesIn(posts));
 	await personPicture.rememberExternals(posts.map((post) => externalIDOf(post.author, people)));
+	await attachmentSource.wants(posts.flatMap((post) => post.attachments));
 	return {
 		conversationID: channelID,
 		currentUserID: mine,
@@ -161,6 +173,7 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, mine: string
 		attachments: post.attachments.map((attachment) => ({
 			kind: attachment.contentType.startsWith('image/') ? ('image' as const) : ('file' as const),
 			url: attachment.url,
+			source: attachmentSource.openable(attachment.url),
 			filename: attachment.filename,
 			mimeType: attachment.contentType,
 			sizeBytes: attachment.sizeBytes

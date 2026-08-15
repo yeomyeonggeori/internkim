@@ -39,9 +39,13 @@ export type ChannelMessageReaction = {
 	imageURL?: string;
 };
 
+// url is where the message says the file is; source is where this browser can
+// open it, which is somewhere else whenever the message points at the company's
+// own machine. Empty until that copy exists.
 export type ChannelMessageAttachment = {
 	kind: 'image' | 'file';
 	url: string;
+	source?: string;
 	filename?: string;
 	mimeType?: string;
 	sizeBytes?: number;
