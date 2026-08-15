@@ -54,7 +54,7 @@ var StepBlueclawConfiguration = Step{
 				return errorValue
 			}
 		}
-		installOutput := context.SSH.Run(buildBlueclawConfigurationPermissionCommand() + "\necho blueclaw-config-installed")
+		installOutput := context.SSH.Run(buildBlueclawConfigurationPermissionCommand() + "\n" + buildBlueclawDeliveryPermissionCommand() + "\necho blueclaw-config-installed")
 		if !strings.Contains(installOutput, "blueclaw-config-installed") {
 			return fmt.Errorf("blueclaw configuration install failed: %s", strings.TrimSpace(installOutput))
 		}
@@ -197,5 +197,22 @@ chmod 640 %s %s`,
 		blueclaw.BlueclawWorkspacePath+"/.blueclaw/config",
 		blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/runtime.json",
 		blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/policy.json",
+	)
+}
+
+// A uid means nothing across virtio-fs: the host's blueclaw and the guest's are different
+// numbers, and virtiofsd passes the number through. The guest reads the share by mode or
+// not at all, which is why these are world readable where the workspace copies are group
+// readable. Nothing writes here — the share is bound read-only.
+func buildBlueclawDeliveryPermissionCommand() string {
+	return fmt.Sprintf(`set -e
+chown -R root:root %s
+chmod 0755 %s %s
+chmod 0644 %s %s`,
+		blueclaw.BlueclawDeliveryPath,
+		blueclaw.BlueclawDeliveryPath,
+		blueclaw.BlueclawDeliveryConfigPath,
+		blueclaw.BlueclawDeliveryConfigPath+"/runtime.json",
+		blueclaw.BlueclawDeliveryConfigPath+"/policy.json",
 	)
 }
