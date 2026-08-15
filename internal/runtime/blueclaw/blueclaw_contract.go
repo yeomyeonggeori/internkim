@@ -81,8 +81,8 @@ const (
 	BlueclawDeliveryPath                  = "/var/lib/blueclaw/delivery"
 	BlueclawDeliveryReadOnlyPath          = "/var/lib/blueclaw/delivery-ro"
 	BlueclawDeliveryConfigPath            = "/var/lib/blueclaw/delivery/config"
-	BlueclawDeliveryMountUnitName         = "var-lib-blueclaw-delivery\\x2dro.mount"
-	BlueclawDeliveryMountUnitPath         = "/etc/systemd/system/var-lib-blueclaw-delivery\\x2dro.mount"
+	BlueclawDeliveryServiceName           = "internkim-blueclaw-delivery.service"
+	BlueclawDeliveryServicePath           = "/etc/systemd/system/internkim-blueclaw-delivery.service"
 	FirecrackerMonitorName                = "firecracker"
 	CloudHypervisorMonitorName            = "cloudHypervisor"
 	BlueclawVirtualMachineMonitor         = CloudHypervisorMonitorName
