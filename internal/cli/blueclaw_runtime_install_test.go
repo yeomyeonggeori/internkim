@@ -13,6 +13,7 @@ func TestBlueclawRuntimeInstallPlanSkipsCurrentArtifacts(t *testing.T) {
 		"firecracker":      true,
 		"jailer":           true,
 		"cloud-hypervisor": true,
+		"virtiofsd":        true,
 		"vmlinux.bin":      true,
 		"rootfs.ext4":      true,
 	}, true, true)
@@ -36,6 +37,7 @@ func TestBlueclawRuntimeInstallPlanReinstallsBrokenRootfs(t *testing.T) {
 		"firecracker":      true,
 		"jailer":           true,
 		"cloud-hypervisor": true,
+		"virtiofsd":        true,
 		"vmlinux.bin":      true,
 		"rootfs.ext4":      true,
 	}, false, true)
@@ -62,6 +64,7 @@ func TestBlueclawRuntimeInstallPlanInstallsChangedArtifact(t *testing.T) {
 		"firecracker":      true,
 		"jailer":           true,
 		"cloud-hypervisor": true,
+		"virtiofsd":        true,
 		"vmlinux.bin":      true,
 		"rootfs.ext4":      true,
 	}, true, false)
@@ -85,6 +88,7 @@ func TestBlueclawRuntimeInstallPlanRecordsMissingRemoteFile(t *testing.T) {
 		"firecracker":      false,
 		"jailer":           true,
 		"cloud-hypervisor": true,
+		"virtiofsd":        true,
 		"vmlinux.bin":      true,
 		"rootfs.ext4":      true,
 	}, true, true)
@@ -132,6 +136,7 @@ func blueclawRuntimeInstallManifestFixture(rootfsSHA256 string) blueclaw.Runtime
 			{Name: "firecracker", Path: "firecracker", SHA256: "firecracker-sha", Mode: "0755"},
 			{Name: "jailer", Path: "jailer", SHA256: "jailer-sha", Mode: "0755"},
 			{Name: "cloud-hypervisor", Path: "cloud-hypervisor", SHA256: "cloud-hypervisor-sha", Mode: "0755"},
+			{Name: "virtiofsd", Path: "virtiofsd", SHA256: "virtiofsd-sha", Mode: "0755"},
 			{Name: "vmlinux.bin", Path: "vmlinux.bin", SHA256: "kernel-sha", Mode: "0644"},
 			{Name: "rootfs.ext4", Path: "rootfs.ext4", SHA256: rootfsSHA256, Mode: "0644"},
 		},
@@ -147,6 +152,7 @@ func blueclawRuntimeInstallManifestDocumentFixture(rootfsSHA256 string) string {
     {"name": "firecracker", "path": "firecracker", "sha256": "firecracker-sha", "mode": "0755"},
     {"name": "jailer", "path": "jailer", "sha256": "jailer-sha", "mode": "0755"},
     {"name": "cloud-hypervisor", "path": "cloud-hypervisor", "sha256": "cloud-hypervisor-sha", "mode": "0755"},
+    {"name": "virtiofsd", "path": "virtiofsd", "sha256": "virtiofsd-sha", "mode": "0755"},
     {"name": "vmlinux.bin", "path": "vmlinux.bin", "sha256": "kernel-sha", "mode": "0644"},
     {"name": "rootfs.ext4", "path": "rootfs.ext4", "sha256": "` + rootfsSHA256 + `", "mode": "0644"}
   ]

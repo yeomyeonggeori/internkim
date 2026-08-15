@@ -63,6 +63,7 @@ func validateRuntimeArtifactDirectory(artifactDirectoryPath string, manifest Run
 		"firecracker":      true,
 		"jailer":           true,
 		"cloud-hypervisor": true,
+		"virtiofsd":        true,
 		"vmlinux.bin":      true,
 		"rootfs.ext4":      true,
 	}
