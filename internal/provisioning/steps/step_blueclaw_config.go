@@ -200,10 +200,11 @@ chmod 640 %s %s`,
 	)
 }
 
-// A uid means nothing across virtio-fs: the host's blueclaw and the guest's are different
-// numbers, and virtiofsd passes the number through. The guest reads the share by mode or
-// not at all, which is why these are world readable where the workspace copies are group
-// readable. Nothing writes here — the share is bound read-only.
+// The configuration is written over SSH and lands owned by that user at 0600, which no
+// one in the guest can open. virtiofsd passes uid and gid through untranslated, so the
+// numbers the guest sees are the host's: root-owned and world readable is what makes the
+// file readable there without depending on a group both sides happen to agree on.
+// Nothing writes here — the share is bound read-only.
 func buildBlueclawDeliveryPermissionCommand() string {
 	return fmt.Sprintf(`set -e
 chown -R root:root %s

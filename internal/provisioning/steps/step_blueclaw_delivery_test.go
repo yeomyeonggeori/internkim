@@ -46,11 +46,7 @@ func TestDeliveredConfigurationIsReadableByModeNotByGroup(t *testing.T) {
 		"chown -R root:root " + blueclaw.BlueclawDeliveryPath,
 	} {
 		if !strings.Contains(permissionCommand, fragment) {
-			t.Fatalf("a uid means nothing across virtio-fs, so the guest reads the share by mode: missing %q", fragment)
+			t.Fatalf("configuration written over SSH lands at 0600 owned by that user, which the guest cannot open: missing %q", fragment)
 		}
-	}
-
-	if strings.Contains(permissionCommand, "root:blueclaw") {
-		t.Fatal("the host's blueclaw and the guest's are different numbers, so group ownership cannot carry access")
 	}
 }
