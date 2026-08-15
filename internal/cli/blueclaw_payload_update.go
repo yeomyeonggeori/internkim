@@ -66,9 +66,9 @@ type blueclawUpdateJobResponse struct {
 }
 
 type blueclawPayloadInstallOutcome struct {
-	Summary              string
-	AlreadyCurrent       bool
-	WorkspaceImageSynced bool
+	Summary                string
+	AlreadyCurrent         bool
+	DeliveryShareRefreshed bool
 }
 
 func (state *setupFlowState) installBlueclawPayloadHTTPS(artifactDirectoryPath string, manifest blueclaw.PayloadArtifactManifest) (blueclawPayloadInstallOutcome, error) {
@@ -101,7 +101,7 @@ func (state *setupFlowState) installBlueclawPayloadHTTPS(artifactDirectoryPath s
 	}
 	switch job.Status {
 	case "completed":
-		return blueclawPayloadInstallOutcome{Summary: "installed", WorkspaceImageSynced: true}, nil
+		return blueclawPayloadInstallOutcome{Summary: "installed", DeliveryShareRefreshed: true}, nil
 	case "already_current":
 		return alreadyCurrentBlueclawPayloadInstallOutcome(job), nil
 	default:
@@ -112,9 +112,9 @@ func (state *setupFlowState) installBlueclawPayloadHTTPS(artifactDirectoryPath s
 func alreadyCurrentBlueclawPayloadInstallOutcome(job blueclawUpdateJobResponse) blueclawPayloadInstallOutcome {
 	if job.Result["workspaceImageSynced"] == "true" {
 		return blueclawPayloadInstallOutcome{
-			Summary:              "already current (workspace image synced)",
-			AlreadyCurrent:       true,
-			WorkspaceImageSynced: true,
+			Summary:                "already current (delivery share refreshed)",
+			AlreadyCurrent:         true,
+			DeliveryShareRefreshed: true,
 		}
 	}
 	return blueclawPayloadInstallOutcome{

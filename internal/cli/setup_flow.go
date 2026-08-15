@@ -1733,7 +1733,7 @@ func (state *setupFlowState) installBlueclawPayloadDirectHTTPS() error {
 }
 
 func (state *setupFlowState) reportBlueclawPayloadHTTPSOutcome(outcome blueclawPayloadInstallOutcome) error {
-	if !outcome.AlreadyCurrent || outcome.WorkspaceImageSynced {
+	if !outcome.AlreadyCurrent || outcome.DeliveryShareRefreshed {
 		fmt.Println(outcome.Summary)
 		return nil
 	}
