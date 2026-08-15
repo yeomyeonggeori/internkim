@@ -4,14 +4,9 @@ export type AssetUploader = {
 		body: Uint8Array,
 		options: { contentType: string; upsert: boolean }
 	) => Promise<{ error: { message: string } | null }>;
-	createSignedUrl: (
-		path: string,
-		expiresIn: number
-	) => Promise<{ data: { signedUrl: string } | null; error: { message: string } | null }>;
 };
 
 export const assetBucket = 'asset';
-const signedURLSeconds = 60 * 60 * 24;
 
 const extensions: Record<string, string> = {
 	'image/png': '.png',
@@ -34,30 +29,11 @@ export function sharedAssetPath(companyID: string, kind: string, digest: string,
 	return `${companyID}/shared/${kind}/${digest}${extensionOf(contentType)}`;
 }
 
+export const attachmentKind = 'attachment';
+
 function isAlreadyStored(refusal: string): boolean {
 	return refusal.toLowerCase().includes('already exists') || refusal.includes('409');
 }
-
-export async function keepSharedAsset(
-	uploader: AssetUploader,
-	companyID: string,
-	kind: string,
-	bytes: Uint8Array,
-	contentType: string
-): Promise<string> {
-	const path = sharedAssetPath(companyID, kind, await digestOf(bytes), contentType);
-	const written = await uploader.upload(path, bytes, { contentType, upsert: false });
-	if (written.error && !isAlreadyStored(written.error.message)) {
-		throw new Error(`the asset store refused ${path}: ${written.error.message}`);
-	}
-	const signed = await uploader.createSignedUrl(path, signedURLSeconds);
-	if (signed.error || !signed.data) {
-		throw new Error(`the asset store would not sign ${path}: ${signed.error?.message ?? 'no url'}`);
-	}
-	return signed.data.signedUrl;
-}
-
-export const attachmentKind = 'attachment';
 
 // A file the relay would not take still belongs to the conversation it was sent
 // to, so it is kept where the company can read it and named by what it is. The

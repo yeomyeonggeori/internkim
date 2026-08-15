@@ -1,15 +1,12 @@
-export type LinkPreviewImage = { bytes: Uint8Array; contentType: string };
-
 export type LinkPreview = {
 	url: string;
 	title: string;
 	description: string;
 	siteName: string;
-	image: LinkPreviewImage | null;
+	imageURL: string;
 };
 
 const pageByteCap = 512 * 1024;
-const imageByteCap = 256 * 1024;
 const timeoutMillisecond = 5000;
 
 export async function readLinkPreview(link: string): Promise<LinkPreview | null> {
@@ -28,7 +25,7 @@ export async function readLinkPreview(link: string): Promise<LinkPreview | null>
 		title,
 		description: tags.get('og:description') ?? tags.get('description') ?? '',
 		siteName: tags.get('og:site_name') ?? address.hostname,
-		image: await readImage(tags.get('og:image'), address)
+		imageURL: imageAddress(tags.get('og:image'), address)
 	};
 }
 
@@ -129,11 +126,13 @@ async function readMetaTags(html: string): Promise<Map<string, string>> {
 	return tags;
 }
 
-async function readImage(link: string | undefined, page: URL): Promise<LinkPreviewImage | null> {
-	if (!link) return null;
-	const address = reachableAddress(new URL(link, page).toString());
-	if (!address) return null;
-	const picture = await readCapped(address, imageByteCap, 'image/');
-	if (!picture) return null;
-	return { bytes: picture.bytes, contentType: picture.contentType };
+// The picture already has a home, on the page the link points at, so nobody
+// needs a second copy of it. It is still resolved and checked here, because
+// handing a browser an address this process would refuse to open itself is a
+// way to have it reach somewhere on the reader's own network.
+export function imageAddress(link: string | undefined, page: URL): string {
+	if (!link) return '';
+	const relative = URL.parse(link, page);
+	if (!relative) return '';
+	return reachableAddress(relative.toString())?.toString() ?? '';
 }
