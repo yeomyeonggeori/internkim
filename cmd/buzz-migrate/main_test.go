@@ -48,3 +48,25 @@ func TestAppendMediaMarkdownFallsBackWhenTheFileHasNoName(t *testing.T) {
 		t.Fatalf("markdown = %q", text)
 	}
 }
+
+func TestLoopbackCommunityHostIsRefused(t *testing.T) {
+	for _, host := range []string{"localhost:3000", "LOCALHOST", "127.0.0.1:3000", "127.0.0.53", "[::1]:3000"} {
+		if loopbackCommunityHostRefusal(host, false) == "" {
+			t.Errorf("community host %q was accepted", host)
+		}
+	}
+}
+
+func TestReachableCommunityHostIsAccepted(t *testing.T) {
+	for _, host := range []string{"buzz.example.com", "relay.example.com:3000", "10.0.0.4:3000", "[2001:db8::1]:3000"} {
+		if refusal := loopbackCommunityHostRefusal(host, false); refusal != "" {
+			t.Errorf("community host %q was refused: %s", host, refusal)
+		}
+	}
+}
+
+func TestAThrowawayImportMayUseLoopback(t *testing.T) {
+	if refusal := loopbackCommunityHostRefusal("localhost:3000", true); refusal != "" {
+		t.Errorf("throwaway import was refused: %s", refusal)
+	}
+}
