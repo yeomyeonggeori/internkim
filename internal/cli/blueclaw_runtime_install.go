@@ -149,11 +149,15 @@ func printBlueclawRuntimeArtifactInstalling(artifact blueclawRuntimeInstallArtif
 }
 
 func (state *setupFlowState) remoteBlueclawRuntimeFilePresence() map[string]bool {
-	output := state.sshClient.run(`for entry in \
-firecracker:/usr/local/bin/firecracker:x \
-jailer:/usr/local/bin/jailer:x \
-vmlinux.bin:/opt/internkim/blueclaw-runtime/vmlinux.bin:s \
-rootfs.ext4:/opt/internkim/blueclaw-runtime/rootfs.ext4:s; do
+	return parseBlueclawRuntimeFilePresence(state.sshClient.run(blueclawRuntimeFilePresenceCommand()))
+}
+
+func blueclawRuntimeFilePresenceCommand() string {
+	entries := []string{}
+	for _, artifact := range requiredBlueclawRuntimeInstallArtifacts() {
+		entries = append(entries, artifact.name+":"+artifact.remotePath+":"+blueclawRuntimePresenceTest(artifact.mode))
+	}
+	return `for entry in ` + strings.Join(entries, " ") + `; do
   name="${entry%%:*}"
   rest="${entry#*:}"
   path="${rest%:*}"
@@ -163,8 +167,14 @@ rootfs.ext4:/opt/internkim/blueclaw-runtime/rootfs.ext4:s; do
   else
     echo "$name=missing"
   fi
-done`)
-	return parseBlueclawRuntimeFilePresence(output)
+done`
+}
+
+func blueclawRuntimePresenceTest(mode string) string {
+	if mode == "0755" {
+		return "x"
+	}
+	return "s"
 }
 
 func parseBlueclawRuntimeFilePresence(output string) map[string]bool {
