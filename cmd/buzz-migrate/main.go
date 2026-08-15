@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -47,6 +48,7 @@ func main() {
 	orphanRootTitle := flag.String("orphan-root-title", "", "when set, replies whose Mattermost root was not imported are threaded under one synthesized root message carrying this title, per original root; otherwise such replies are skipped")
 	fileCacheDir := flag.String("file-cache-dir", "", "directory of {fileID}.{jpg|png} images used as a fallback when the Mattermost server no longer serves a file")
 	sinceMillis := flag.Int64("since", 0, "when >0, import only Mattermost posts created after this unix-millis timestamp (incremental sync; skips the wipe)")
+	throwawayImport := flag.Bool("throwaway", false, "allow a loopback community host; the attachment addresses this writes resolve only on this machine")
 	flag.Parse()
 
 	channelFilter := map[string]bool{}
@@ -64,6 +66,9 @@ func main() {
 
 	if *mattermostBaseURL == "" || *teamName == "" || *buzzDatabaseURL == "" || *buzzAdminCommand == "" {
 		log.Fatal("mattermost-url, team, buzz-database-url and buzz-admin are required")
+	}
+	if refusal := loopbackCommunityHostRefusal(*communityHost, *throwawayImport); refusal != "" {
+		log.Fatal(refusal)
 	}
 
 	ctx := context.Background()
@@ -138,29 +143,29 @@ func main() {
 		go func(channel buzzimport.MattermostChannel) {
 			defer running.Done()
 			defer func() { <-slots }()
-		buzzChannelID := deriveChannelID(keySeed, channel.ID)
-		if !incremental {
-			memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
-			failOn(errorValue, "read members for "+channel.Name)
-			creatorSecret := creatorSecretFor(channel, memberUserIDs, authorsByID, authorSecrets, bootstrapSecret)
-			creator, errorValue := publishers.as(ctx, creatorSecret)
-			failOn(errorValue, "connect as the creator of "+channel.Name)
-			errorValue = creator.CreateChannel(ctx, creatorSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel))
-			if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
-				failOn(errorValue, "create channel "+channel.Name)
+			buzzChannelID := deriveChannelID(keySeed, channel.ID)
+			if !incremental {
+				memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
+				failOn(errorValue, "read members for "+channel.Name)
+				creatorSecret := creatorSecretFor(channel, memberUserIDs, authorsByID, authorSecrets, bootstrapSecret)
+				creator, errorValue := publishers.as(ctx, creatorSecret)
+				failOn(errorValue, "connect as the creator of "+channel.Name)
+				errorValue = creator.CreateChannel(ctx, creatorSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel))
+				if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
+					failOn(errorValue, "create channel "+channel.Name)
+				}
+				failOn(waitForChannelRow(ctx, buzzDatabase, communityID, buzzChannelID), "wait for channel "+channel.Name)
+				syncChannelMembers(ctx, creator, creatorSecret, buzzChannelID, memberUserIDs, authorPubkeys, readerPubkeyFor(channel, *viewerPubkey))
 			}
-			failOn(waitForChannelRow(ctx, buzzDatabase, communityID, buzzChannelID), "wait for channel "+channel.Name)
-			syncChannelMembers(ctx, creator, creatorSecret, buzzChannelID, memberUserIDs, authorPubkeys, readerPubkeyFor(channel, *viewerPubkey))
-		}
 
-		posts, errorValue := client.Posts(ctx, channel.ID, *sinceMillis)
-		failOn(errorValue, "read posts for "+channel.Name)
-		imported, skipped := importChannelPosts(ctx, importDependencies{
-			injector: injector, uploader: uploader, client: client,
-			orphanRootTitle: *orphanRootTitle, bootstrapSecret: bootstrapSecret,
-			fileCacheDir:     *fileCacheDir,
-			customEmojiCache: customEmojiCache,
-		}, buzzChannelID, posts, authorEmails, authorSecrets, postedEmails)
+			posts, errorValue := client.Posts(ctx, channel.ID, *sinceMillis)
+			failOn(errorValue, "read posts for "+channel.Name)
+			imported, skipped := importChannelPosts(ctx, importDependencies{
+				injector: injector, uploader: uploader, client: client,
+				orphanRootTitle: *orphanRootTitle, bootstrapSecret: bootstrapSecret,
+				fileCacheDir:     *fileCacheDir,
+				customEmojiCache: customEmojiCache,
+			}, buzzChannelID, posts, authorEmails, authorSecrets, postedEmails)
 			tally.Lock()
 			totalImported += imported
 			totalSkipped += skipped
@@ -465,6 +470,36 @@ func fileNameOf(ctx context.Context, dependencies importDependencies, fileID str
 		return ""
 	}
 	return info.Name
+}
+
+// The relay addresses every blob it stores under the host the uploader reached
+// it by, and that address is signed into the message and cannot be edited
+// afterwards. Importing through loopback therefore writes history whose
+// attachments resolve on this machine and nowhere else, which no client
+// recovers from: both buzz apps read the address on the tag and neither falls
+// back to the sha256 beside it.
+func loopbackCommunityHostRefusal(communityHost string, throwawayImport bool) string {
+	if throwawayImport || !isLoopbackHost(communityHost) {
+		return ""
+	}
+	return fmt.Sprintf(
+		"community-host is %s, so every attachment this import writes would be addressed there permanently and would open on this machine only. "+
+			"Import through the address people reach the relay by, or pass -throwaway if this history is going to be discarded.",
+		communityHost,
+	)
+}
+
+func isLoopbackHost(communityHost string) bool {
+	host := strings.TrimSpace(communityHost)
+	if withoutPort, _, errorValue := net.SplitHostPort(host); errorValue == nil {
+		host = withoutPort
+	}
+	host = strings.ToLower(strings.Trim(host, "[]"))
+	if host == "localhost" {
+		return true
+	}
+	address := net.ParseIP(host)
+	return address != nil && address.IsLoopback()
 }
 
 func appendMediaMarkdown(text string, mediaTags [][]string) string {
