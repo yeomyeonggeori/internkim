@@ -594,24 +594,24 @@
 	{@const reactionSide = 'top' as const}
 	{@const imageReactionSpacing = !bodyText && reactions.length > 0 ? 'mt-5' : ''}
 	{@const imageAttachmentURLs = attachments
-		.filter((attachment) => attachment.kind === 'image')
-		.map((attachment) => attachment.url)}
+		.filter((attachment) => attachment.kind === 'image' && attachment.source)
+		.map((attachment) => attachment.source ?? '')}
 	{#if attachments.length > 0}
 		<div class="relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end">
 			<Attachment.Group class={`relative w-fit max-w-full ${imageReactionSpacing}`}>
 			{#each attachments as attachment (attachment.url)}
 				<Attachment.Root orientation="vertical">
-					{#if attachment.kind === 'image'}
+					{#if attachment.kind === 'image' && attachment.source}
 						<Attachment.Media variant="image">
 							<button
 								type="button"
 								class="block h-full w-full cursor-zoom-in"
 								aria-label={attachment.filename ?? '이미지 크게 보기'}
 								onclick={() =>
-									openLightbox(imageAttachmentURLs, imageAttachmentURLs.indexOf(attachment.url))}
+									openLightbox(imageAttachmentURLs, imageAttachmentURLs.indexOf(attachment.source ?? ''))}
 							>
 								<img
-									src={attachment.url}
+									src={attachment.source}
 									alt={attachment.filename ?? ''}
 									loading="lazy"
 									decoding="async"
@@ -625,9 +625,13 @@
 						</Attachment.Media>
 						<Attachment.Content>
 							<Attachment.Title>
-								<a href={attachment.url} target="_blank" rel="noreferrer">
+								{#if attachment.source}
+									<a href={attachment.source} target="_blank" rel="noreferrer">
+										{attachment.filename ?? attachment.url}
+									</a>
+								{:else}
 									{attachment.filename ?? attachment.url}
-								</a>
+								{/if}
 							</Attachment.Title>
 							{#if formatAttachmentMeta(attachment)}
 								<Attachment.Description>

@@ -1,4 +1,4 @@
-const assetBucket = 'asset';
+export const assetBucket = 'asset';
 const objectPrefix = `/storage/v1/object/${assetBucket}/`;
 const readableForSeconds = 60 * 60 * 24;
 
@@ -18,10 +18,31 @@ export function keptAssetPathOf(projectURL: string, address: string): string | n
 	return address.startsWith(prefix) ? address.slice(prefix.length) : null;
 }
 
-// A file the messenger's own store would not take is kept in the company's
-// bucket instead, and the message names the object rather than a link that
-// outlives it. Row level security decides who may read it, so the reader signs
-// for it here with their own session.
+export type AttachmentToOpen = { url: string };
+
+// A file the messenger refused at send time is already an object in the
+// company's bucket. Everything else is addressed on the company's own machine,
+// which this browser cannot reach, so the relay is asked to put a copy where it
+// can. Either way what comes back is an object nobody may read unsigned.
+export async function addressesToSign<Attachment extends AttachmentToOpen>(
+	attachments: Attachment[],
+	projectURL: string,
+	keep: (attachment: Attachment) => Promise<{ address: string } | null>
+): Promise<Map<string, string>> {
+	const found = await Promise.all(
+		attachments.map(async (attachment) => {
+			if (keptAssetPathOf(projectURL, attachment.url)) return [attachment.url, attachment.url] as const;
+			const kept = await keep(attachment).catch(() => null);
+			return [attachment.url, kept?.address ?? ''] as const;
+		})
+	);
+	return new Map(found.filter(([, address]) => address !== ''));
+}
+
+// Row level security decides who may read an object in the company's bucket, so
+// the reader signs for it here with their own session. The address in the
+// message is the object's own: a message cannot be edited when a link inside it
+// expires.
 export async function readableAddresses(
 	signer: AttachmentSigner,
 	projectURL: string,
