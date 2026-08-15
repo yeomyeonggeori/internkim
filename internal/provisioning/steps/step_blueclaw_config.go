@@ -142,8 +142,9 @@ func buildBlueclawConfigurationDirectoryCommand() string {
 }
 
 // virtiofsd has no read-only mode, so the directory it serves is bound read-only and the
-// guest cannot write the share whatever it asks for at mount time. A mount unit keeps
-// that true across a reboot rather than only until one.
+// guest cannot write the share whatever it asks for at mount time. A bind takes its flags
+// on a second remount rather than on the bind itself, which a .mount unit cannot express,
+// and the unit would also have to carry systemd's escaping of the path in its filename.
 func buildBlueclawDeliveryMountCommand() string {
 	return fmt.Sprintf(`set -e
 mkdir -p %s %s
@@ -151,24 +152,32 @@ cat > %s <<'UNIT'
 [Unit]
 Description=Blueclaw delivery share, read only
 Before=blueclaw.service
+RequiredBy=blueclaw.service
 
-[Mount]
-What=%s
-Where=%s
-Type=none
-Options=bind,ro
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'mountpoint -q %s || mount --bind %s %s'
+ExecStart=/bin/mount -o remount,bind,ro %s
+ExecStop=/bin/sh -c 'mountpoint -q %s && umount %s || true'
 
 [Install]
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
-systemctl enable --now %s`,
+systemctl enable --now %s
+findmnt -no OPTIONS %s | grep -q '\bro\b'`,
 		blueclaw.BlueclawDeliveryPath,
 		blueclaw.BlueclawDeliveryReadOnlyPath,
-		blueclaw.BlueclawDeliveryMountUnitPath,
+		blueclaw.BlueclawDeliveryServicePath,
+		blueclaw.BlueclawDeliveryReadOnlyPath,
 		blueclaw.BlueclawDeliveryPath,
 		blueclaw.BlueclawDeliveryReadOnlyPath,
-		blueclaw.BlueclawDeliveryMountUnitName,
+		blueclaw.BlueclawDeliveryReadOnlyPath,
+		blueclaw.BlueclawDeliveryReadOnlyPath,
+		blueclaw.BlueclawDeliveryReadOnlyPath,
+		blueclaw.BlueclawDeliveryServiceName,
+		blueclaw.BlueclawDeliveryReadOnlyPath,
 	)
 }
 
