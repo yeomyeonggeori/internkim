@@ -700,46 +700,14 @@ func (service *Service) installReleaseFonts(stagingPath string) error {
 func (service *Service) syncReleaseSkillsWorkspace(ctx context.Context) error {
 	target := canonicalBlueclawPayloadInstallTarget()
 	target.HostWorkspacePath = service.Configuration.BlueclawWorkspacePath
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", stopBlueclawPayloadTargetCommand(target)); errorValue != nil {
-		return fmt.Errorf("sync blueclaw skills workspace: stop %s: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
+	refreshCommand := "set -e" + blueclawruntime.BlueclawDeliveryRefreshCommand()
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", refreshCommand); errorValue != nil {
+		return fmt.Errorf("deliver blueclaw skills: %s: %w", strings.TrimSpace(string(output)), errorValue)
 	}
-	if errorValue := service.waitForBlueclawWorkspaceImageRelease(ctx, target.WorkspaceImagePath); errorValue != nil {
-		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
-		return fmt.Errorf("sync blueclaw skills workspace: %w", errorValue)
-	}
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawWorkspaceResizeCommand(target.WorkspaceImagePath)); errorValue != nil {
-		return fmt.Errorf("sync blueclaw skills workspace: resize workspace: %s: %w", strings.TrimSpace(string(output)), errorValue)
-	}
-	syncCommand := strings.Join([]string{
-		blueclawruntime.BlueclawSupervisorBinaryPath,
-		"sync-workspace",
-		"--atomic",
-		"--workspace-image", quoteBlueclawUpdateShellValue(target.WorkspaceImagePath),
-		"--source", quoteBlueclawUpdateShellValue(filepath.Join(target.HostWorkspacePath, "skills")),
-		"--relative-target", quoteBlueclawUpdateShellValue("skills"),
-	}, " ")
-	syncCommand = "set -e\n" + syncCommand + blueclawruntime.BlueclawDeliveryRefreshCommand()
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", syncCommand); errorValue != nil {
-		_, _ = service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target))
-		return fmt.Errorf("sync blueclaw skills workspace: %s: %w", strings.TrimSpace(string(output)), errorValue)
-	}
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target)); errorValue != nil {
-		return fmt.Errorf("sync blueclaw skills workspace: start %s: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", restartBlueclawPayloadTargetCommand(target)); errorValue != nil {
+		return fmt.Errorf("deliver blueclaw skills: restart %s: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	return nil
-}
-
-func blueclawWorkspaceResizeCommand(workspaceImagePath string) string {
-	return strings.Join([]string{
-		"minimum_workspace_bytes=68719476736",
-		"workspace_image=" + quoteBlueclawUpdateShellValue(workspaceImagePath),
-		`workspace_bytes="$(stat -c '%s' "$workspace_image" 2>/dev/null || echo 0)"`,
-		`if [ "$workspace_bytes" -lt "$minimum_workspace_bytes" ]; then`,
-		`  truncate -s "$minimum_workspace_bytes" "$workspace_image"`,
-		`  e2fsck -fy "$workspace_image" >/dev/null`,
-		`  resize2fs "$workspace_image" >/dev/null`,
-		"fi",
-	}, "\n")
 }
 
 func (service *Service) installReleaseMattermostPlugins(stagingPath string) error {

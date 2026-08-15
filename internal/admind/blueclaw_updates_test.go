@@ -242,15 +242,15 @@ func TestHostWorkspacePayloadSyncCommandUsesTenantTarget(t *testing.T) {
 	}
 }
 
-func TestBlueclawPayloadWorkspaceSyncCommandPreservesGuestState(t *testing.T) {
+func TestBlueclawPayloadIsDeliveredWithoutTouchingTheImage(t *testing.T) {
 	target := canonicalBlueclawPayloadInstallTarget()
 	command := blueclawPayloadWorkspaceSyncCommand(target)
-	for _, expectedText := range []string{
-		"sync-workspace --atomic --preserve-guest-state",
-		"--source '/root/.blueclaw/workspace'",
-	} {
-		if !strings.Contains(command, expectedText) {
-			t.Fatalf("expected %q in %s", expectedText, command)
+	if !strings.Contains(command, "rsync -a --delete") {
+		t.Fatalf("expected the share to be refreshed, got %s", command)
+	}
+	for _, forbidden := range []string{"sync-workspace", "workspace.ext4"} {
+		if strings.Contains(command, forbidden) {
+			t.Fatalf("the payload arrives on the share, so %q has no reason to appear in %s", forbidden, command)
 		}
 	}
 }
@@ -298,7 +298,7 @@ func writeBlueclawTaskDrainResponse(t *testing.T, responseWriter http.ResponseWr
 	}
 }
 
-func TestSyncBlueclawWorkspaceImageForTargetStopsSyncsAndRestarts(t *testing.T) {
+func TestSyncBlueclawWorkspaceImageForTargetRefreshesTheShareAndRestarts(t *testing.T) {
 	_ = captureBlueclawTaskDrainLogs(t)
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
 		http.Error(responseWriter, "unavailable", http.StatusBadGateway)
@@ -326,14 +326,16 @@ func TestSyncBlueclawWorkspaceImageForTargetStopsSyncsAndRestarts(t *testing.T) 
 		}
 		return -1
 	}
-	stopIndex := commandIndex("systemctl stop ")
-	syncIndex := commandIndex("sync-workspace --atomic --preserve-guest-state")
-	startIndex := commandIndex("systemctl start ")
-	if stopIndex == -1 || syncIndex == -1 || startIndex == -1 {
-		t.Fatalf("expected stop, sync, and start commands, got:\n%s", strings.Join(commands, "\n"))
+	refreshIndex := commandIndex("rsync -a --delete")
+	restartIndex := commandIndex("systemctl restart ")
+	if refreshIndex == -1 || restartIndex == -1 {
+		t.Fatalf("expected the share to be refreshed and the guest restarted, got:\n%s", strings.Join(commands, "\n"))
 	}
-	if stopIndex > syncIndex || syncIndex > startIndex {
-		t.Fatalf("expected stop before sync before start, got:\n%s", strings.Join(commands, "\n"))
+	if refreshIndex > restartIndex {
+		t.Fatalf("the guest reads the share when it starts, so the refresh has to come first:\n%s", strings.Join(commands, "\n"))
+	}
+	if commandIndex("systemctl stop ") != -1 {
+		t.Fatalf("nothing writes into the image any more, so the guest need not be stopped:\n%s", strings.Join(commands, "\n"))
 	}
 }
 
@@ -383,8 +385,8 @@ func TestReconcileBlueclawRuntimeConfigurationForTargetRestampsStaleIdentityAndR
 			t.Fatalf("expected current aggregate protocol hash in %s: %s", path, string(document))
 		}
 	}
-	if !strings.Contains(strings.Join(commands, "\n"), "sync-workspace --atomic --preserve-guest-state") {
-		t.Fatalf("expected workspace image sync after restamp, got:\n%s", strings.Join(commands, "\n"))
+	if !strings.Contains(strings.Join(commands, "\n"), "rsync -a --delete") {
+		t.Fatalf("expected the share to be refreshed after restamp, got:\n%s", strings.Join(commands, "\n"))
 	}
 
 	commandsBeforeSecondRun := len(commands)

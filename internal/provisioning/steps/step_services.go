@@ -543,10 +543,10 @@ group = Path(sys.argv[3]).read_text()
 
 for name, marker in {
     "blueclaw-workspace-owner": "chown blueclaw:blueclaw /workspace /workspace/.blueclaw",
-    "blueclaw-payload-launch": "$(blueclaw_runtime_directory)/bin/blueclaw",
-    "blueclaw-payload-from-the-image": "/workspace/.blueclaw/runtime/current",
-    "blueclaw-payload-from-the-share": "/delivery/runtime/current/bin/blueclaw",
-    "blueclaw-runtime-directory": "/workspace/.blueclaw/runtime",
+    "blueclaw-payload-launch": "/delivery/runtime/current/bin/blueclaw",
+    "blueclaw-delivered-configuration": "-runtime /delivery/config/runtime.json",
+    "blueclaw-delivered-skills": "BLUECLAW_BUNDLED_SKILLS_PATH=/delivery/skills",
+    "blueclaw-delivery-share-required": "mount -t virtiofs -o ro delivery /delivery",
     "blueclaw-posix-sync": "blueclaw-posix-helper sync",
     "blueclaw-posix-helper-preflight": "posix helper is not executable by blueclaw",
     "blueclaw-outbound-network": "configure_outbound_network",

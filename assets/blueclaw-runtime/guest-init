@@ -105,9 +105,9 @@ seed_blueclaw_bun_cache() {
 }
 
 sync_blueclaw_posix_policy() {
-  if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s "$(blueclaw_configuration_directory)/policy.json" ]; then
+  if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s /delivery/config/policy.json ]; then
     /usr/local/bin/blueclaw-posix-helper sync \
-      --policy "$(blueclaw_configuration_directory)/policy.json" \
+      --policy /delivery/config/policy.json \
       --workspace /workspace >/workspace/.blueclaw/logs/posix-sync.log 2>&1 || true
   fi
 }
@@ -184,22 +184,8 @@ nameserver 8.8.8.8
 EOF
 }
 
-blueclaw_bundled_skills_environment() {
-  if [ -d /delivery/skills ]; then
-    echo "BLUECLAW_BUNDLED_SKILLS_PATH=/delivery/skills "
-  fi
-}
-
-blueclaw_runtime_directory() {
-  if [ -x /delivery/runtime/current/bin/blueclaw ]; then
-    echo /delivery/runtime/current
-    return
-  fi
-  echo /workspace/.blueclaw/runtime/current
-}
-
 blueclaw_binary_path() {
-  local payload_binary_path="$(blueclaw_runtime_directory)/bin/blueclaw"
+  local payload_binary_path=/delivery/runtime/current/bin/blueclaw
   if [ ! -x "$payload_binary_path" ]; then
     log_guest_init "missing executable Blueclaw runtime payload at $payload_binary_path"
     exit 1
@@ -228,28 +214,17 @@ log_guest_init "network configured"
 # its configuration from the workspace image as it always has. A guest offered the share
 # reads from it instead, and cannot write it.
 mount_delivery_share() {
-  if ! grep -q virtiofs /proc/filesystems 2>/dev/null; then
-    return 0
-  fi
   mkdir -p /delivery
   if mountpoint -q /delivery; then
     return 0
   fi
-  if mount -t virtiofs -o ro delivery /delivery 2>/dev/null; then
-    log_guest_init "delivery share mounted"
-    return 0
+  if ! mount -t virtiofs -o ro delivery /delivery; then
+    log_guest_init "the delivery share carries the configuration, the payload and the skills, and it did not mount"
+    exit 1
   fi
-  log_guest_init "no delivery share offered"
-  return 0
+  log_guest_init "delivery share mounted"
 }
 
-blueclaw_configuration_directory() {
-  if [ -s /delivery/config/runtime.json ]; then
-    echo /delivery/config
-    return
-  fi
-  echo /workspace/.blueclaw/config
-}
 
 if ! mountpoint -q /workspace; then
   log_guest_init "workspace mount starting"
@@ -347,7 +322,7 @@ log_guest_init "graphiti started pid=$graphiti_process_id"
 wait_for_graphiti_health "$graphiti_process_id" &
 
 blueclaw_binary="$(blueclaw_binary_path)"
-su -s /bin/bash blueclaw -c "$(blueclaw_bundled_skills_environment)$blueclaw_binary -runtime $(blueclaw_configuration_directory)/runtime.json -policy $(blueclaw_configuration_directory)/policy.json" >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
+su -s /bin/bash blueclaw -c "BLUECLAW_BUNDLED_SKILLS_PATH=/delivery/skills $blueclaw_binary -runtime /delivery/config/runtime.json -policy /delivery/config/policy.json" >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
 blueclaw_process_id="$!"
 log_guest_init "blueclaw started"
 
