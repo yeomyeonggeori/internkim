@@ -104,6 +104,10 @@ func (keeper *Keeper) write(ctx context.Context, session hostSession, path strin
 	request.Header.Set("Authorization", "Bearer "+session.AccessToken)
 	request.Header.Set("apikey", keeper.PublishableKey)
 	request.Header.Set("Content-Type", contentType)
+	// The bucket is addressed by content, so the object this writes over holds
+	// the same bytes it is being given. The same file posted in two
+	// conversations is written twice and read once.
+	request.Header.Set("x-upsert", "true")
 
 	response, errorValue := keeper.httpClient().Do(request)
 	if errorValue != nil {
@@ -112,11 +116,6 @@ func (keeper *Keeper) write(ctx context.Context, session hostSession, path strin
 	defer response.Body.Close()
 	body, _ := io.ReadAll(response.Body)
 
-	// The bucket is addressed by content, so the same bytes are always the same
-	// object and a second import writes nothing.
-	if response.StatusCode == http.StatusConflict {
-		return nil
-	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fmt.Errorf("the asset store refused %s: %d %s", path, response.StatusCode, strings.TrimSpace(string(body)))
 	}
