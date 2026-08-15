@@ -1532,6 +1532,7 @@ func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) e
 	}
 	blueclawWasActive := strings.TrimSpace(state.sshClient.run("systemctl is-active blueclaw 2>/dev/null || true")) == "active"
 	state.sshClient.run("systemctl stop blueclaw 2>/dev/null || true")
+	defer startBlueclawIfTheInstallLeftItStopped(state.sshClient, blueclawWasActive)
 	state.sshClient.run("rm -rf /tmp/internkim-blueclaw-runtime && mkdir -p /tmp/internkim-blueclaw-runtime/runtime " + blueclaw.BlueclawRuntimeInstallPath + " /var/lib/blueclaw /var/log/blueclaw-supervisor")
 	for _, artifact := range installPlan.artifacts {
 		if !artifact.shouldInstall {
@@ -1607,6 +1608,23 @@ mkdir -p /var/log/blueclaw-supervisor
 	}
 	fmt.Println("installed")
 	return nil
+}
+
+type blueclawServiceRunner interface {
+	run(command string) string
+	runResult(command string) (string, error)
+}
+
+func startBlueclawIfTheInstallLeftItStopped(runner blueclawServiceRunner, blueclawWasActive bool) {
+	if !blueclawWasActive {
+		return
+	}
+	if strings.TrimSpace(runner.run("systemctl is-active blueclaw 2>/dev/null || true")) == "active" {
+		return
+	}
+	if _, startError := runner.runResult("systemctl start blueclaw"); startError != nil {
+		fmt.Printf("\n  WARNING: blueclaw was stopped for the runtime install and did not start again: %v\n", startError)
+	}
 }
 
 func blueclawRuntimeInstallPlanInstallsRootFilesystem(plan blueclawRuntimeInstallPlan) bool {
