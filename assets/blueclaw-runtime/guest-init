@@ -105,9 +105,9 @@ seed_blueclaw_bun_cache() {
 }
 
 sync_blueclaw_posix_policy() {
-  if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s /workspace/.blueclaw/config/policy.json ]; then
+  if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s "$(blueclaw_configuration_directory)/policy.json" ]; then
     /usr/local/bin/blueclaw-posix-helper sync \
-      --policy /workspace/.blueclaw/config/policy.json \
+      --policy "$(blueclaw_configuration_directory)/policy.json" \
       --workspace /workspace >/workspace/.blueclaw/logs/posix-sync.log 2>&1 || true
   fi
 }
@@ -210,12 +210,40 @@ log_guest_init "loopback ready"
 configure_outbound_network
 log_guest_init "network configured"
 
+# Firecracker emulates no virtio-fs, so a guest under it finds no device here and reads
+# its configuration from the workspace image as it always has. A guest offered the share
+# reads from it instead, and cannot write it.
+mount_delivery_share() {
+  if ! grep -q virtiofs /proc/filesystems 2>/dev/null; then
+    return 0
+  fi
+  mkdir -p /delivery
+  if mountpoint -q /delivery; then
+    return 0
+  fi
+  if mount -t virtiofs -o ro delivery /delivery 2>/dev/null; then
+    log_guest_init "delivery share mounted"
+    return 0
+  fi
+  log_guest_init "no delivery share offered"
+  return 0
+}
+
+blueclaw_configuration_directory() {
+  if [ -s /delivery/config/runtime.json ]; then
+    echo /delivery/config
+    return
+  fi
+  echo /workspace/.blueclaw/config
+}
+
 if ! mountpoint -q /workspace; then
   log_guest_init "workspace mount starting"
   mount -t ext4 /dev/vdb /workspace
 fi
 
 log_guest_init "workspace mounted"
+mount_delivery_share
 ensure_blueclaw_account
 log_guest_init "blueclaw account ready"
 prepare_blueclaw_workspace
@@ -305,7 +333,7 @@ log_guest_init "graphiti started pid=$graphiti_process_id"
 wait_for_graphiti_health "$graphiti_process_id" &
 
 blueclaw_binary="$(blueclaw_binary_path)"
-su -s /bin/bash blueclaw -c "$blueclaw_binary -runtime /workspace/.blueclaw/config/runtime.json -policy /workspace/.blueclaw/config/policy.json" >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
+su -s /bin/bash blueclaw -c "$blueclaw_binary -runtime $(blueclaw_configuration_directory)/runtime.json -policy $(blueclaw_configuration_directory)/policy.json" >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
 blueclaw_process_id="$!"
 log_guest_init "blueclaw started"
 

@@ -205,6 +205,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	guestHTTPPortOrService := firstNonEmptyString(options.GuestHTTPPortOrService, "8081")
 	logDirectoryPath := firstNonEmptyString(options.LogDirectoryPath, BlueclawSupervisorLogDirectoryPath)
 	runtimeDirectoryPath := firstNonEmptyString(options.RuntimeDirectoryPath, "/var/lib/bc")
+	deliveryDirectoryPath := deliveryDirectoryPathForMonitor()
 	outboundHostDeviceName := firstNonEmptyString(options.OutboundHostDeviceName, "bctap0")
 	outboundGuestMACAddress := firstNonEmptyString(options.OutboundGuestMACAddress, "AA:FC:00:00:00:01")
 	outboundNetworkCIDR := firstNonEmptyString(options.OutboundNetworkCIDR, "172.31.0.0/30")
@@ -279,6 +280,8 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"firecrackerPath":        BlueclawFirecrackerPath,
 			"jailerPath":             BlueclawJailerPath,
 			"cloudHypervisorPath":    BlueclawCloudHypervisorPath,
+			"virtiofsdPath":          BlueclawVirtiofsdPath,
+			"deliveryDirectoryPath":  deliveryDirectoryPath,
 			"kernelImagePath":        BlueclawKernelImagePath,
 			"rootfsImagePath":        rootFilesystemImagePath,
 			"workspaceImagePath":     workspaceImagePath,
@@ -576,4 +579,13 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:site_unserve", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:company.broadcast.send", "actions": []string{"execute"}, "circles": []string{"representative"}},
 	}...)
+}
+
+// Firecracker emulates no virtio-fs, so naming a delivery directory under it would ask
+// for a device the VMM cannot offer and the guest would never see.
+func deliveryDirectoryPathForMonitor() string {
+	if BlueclawVirtualMachineMonitor == FirecrackerMonitorName {
+		return ""
+	}
+	return BlueclawDeliveryReadOnlyPath
 }
