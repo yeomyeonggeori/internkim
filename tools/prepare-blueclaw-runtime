@@ -354,7 +354,7 @@ require_command python3
 if [ "$builds_a_guest_image" = "1" ]; then
   require_command tar
   require_command unzip
-  require_command ar
+  require_command dpkg-deb
   require_command mkfs.ext4
   require_command rsync
   require_command go
@@ -463,7 +463,7 @@ prepare_virtiofsd() {
 
   rm -rf "$extract_directory"
   mkdir -p "$extract_directory"
-  ( cd "$extract_directory" && ar x "$archive_path" && tar -xf data.tar.* )
+  ( cd "$extract_directory" && dpkg-deb --fsys-tarfile "$archive_path" | tar -x ./usr/libexec/virtiofsd )
 
   local virtiofsd_binary="$extract_directory/usr/libexec/virtiofsd"
   if [ ! -s "$virtiofsd_binary" ]; then

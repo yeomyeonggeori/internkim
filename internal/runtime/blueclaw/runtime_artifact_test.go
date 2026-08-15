@@ -15,6 +15,7 @@ func TestValidateRuntimeArtifactDirectoryRequiresManifestAndChecksums(t *testing
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "firecracker", "firecracker")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "jailer", "jailer")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "cloud-hypervisor", "cloud-hypervisor")
+	writeRuntimeArtifactFile(t, artifactDirectoryPath, "virtiofsd", "virtiofsd")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "vmlinux.bin", "kernel")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "rootfs.ext4", "rootfs")
 
@@ -26,6 +27,7 @@ func TestValidateRuntimeArtifactDirectoryRequiresManifestAndChecksums(t *testing
     {"name": "firecracker", "path": "firecracker", "sha256": "` + runtimeArtifactTestSHA256("firecracker") + `", "mode": "0755"},
     {"name": "jailer", "path": "jailer", "sha256": "` + runtimeArtifactTestSHA256("jailer") + `", "mode": "0755"},
     {"name": "cloud-hypervisor", "path": "cloud-hypervisor", "sha256": "` + runtimeArtifactTestSHA256("cloud-hypervisor") + `", "mode": "0755"},
+    {"name": "virtiofsd", "path": "virtiofsd", "sha256": "` + runtimeArtifactTestSHA256("virtiofsd") + `", "mode": "0755"},
     {"name": "vmlinux.bin", "path": "vmlinux.bin", "sha256": "` + runtimeArtifactTestSHA256("kernel") + `", "mode": "0644"},
     {"name": "rootfs.ext4", "path": "rootfs.ext4", "sha256": "` + runtimeArtifactTestSHA256("rootfs") + `", "mode": "0644"}
   ]
@@ -49,6 +51,7 @@ func TestValidateRuntimeArtifactDirectoryRejectsChecksumMismatch(t *testing.T) {
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "firecracker", "firecracker")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "jailer", "jailer")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "cloud-hypervisor", "cloud-hypervisor")
+	writeRuntimeArtifactFile(t, artifactDirectoryPath, "virtiofsd", "virtiofsd")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "vmlinux.bin", "kernel")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "rootfs.ext4", "rootfs")
 
@@ -60,6 +63,7 @@ func TestValidateRuntimeArtifactDirectoryRejectsChecksumMismatch(t *testing.T) {
     {"name": "firecracker", "path": "firecracker", "sha256": "bad", "mode": "0755"},
     {"name": "jailer", "path": "jailer", "sha256": "` + runtimeArtifactTestSHA256("jailer") + `", "mode": "0755"},
     {"name": "cloud-hypervisor", "path": "cloud-hypervisor", "sha256": "` + runtimeArtifactTestSHA256("cloud-hypervisor") + `", "mode": "0755"},
+    {"name": "virtiofsd", "path": "virtiofsd", "sha256": "` + runtimeArtifactTestSHA256("virtiofsd") + `", "mode": "0755"},
     {"name": "vmlinux.bin", "path": "vmlinux.bin", "sha256": "` + runtimeArtifactTestSHA256("kernel") + `", "mode": "0644"},
     {"name": "rootfs.ext4", "path": "rootfs.ext4", "sha256": "` + runtimeArtifactTestSHA256("rootfs") + `", "mode": "0644"}
   ]

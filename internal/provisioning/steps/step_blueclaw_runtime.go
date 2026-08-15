@@ -31,6 +31,7 @@ var StepBlueclawRuntimeBase = Step{
 			"test -x "+shellQuote(blueclaw.BlueclawFirecrackerPath)+" && "+
 			"test -x "+shellQuote(blueclaw.BlueclawJailerPath)+" && "+
 			"test -x "+shellQuote(blueclaw.BlueclawCloudHypervisorPath)+" && "+
+			"test -x "+shellQuote(blueclaw.BlueclawVirtiofsdPath)+" && "+
 			"test -s "+shellQuote(blueclaw.BlueclawKernelImagePath)+" && "+
 			"test -s "+shellQuote(blueclaw.BlueclawRootFilesystemImagePath)+" && "+
 			"test -s "+shellQuote(blueclaw.BlueclawRuntimeManifestPath)+" && "+
