@@ -1,7 +1,7 @@
 //   bun run web/scripts/pages-domains.ts --project <name> [--attach <hostname>]
 
-const token = process.env.CF_API_TOKEN ?? process.env.CLOUDFLARE_API_TOKEN ?? '';
-if (!token) throw new Error('set CF_API_TOKEN');
+const token = process.env.CLOUDFLARE_API_TOKEN ?? '';
+if (!token) throw new Error('set CLOUDFLARE_API_TOKEN');
 
 function argument(name: string): string | undefined {
 	const index = process.argv.indexOf(`--${name}`);

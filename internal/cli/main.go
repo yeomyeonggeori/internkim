@@ -75,7 +75,7 @@ type config struct {
 
 func loadConfig() config {
 	loadEnvFile()
-	domain := envOr("INTERNKIM_DOMAIN", envOr("CF_DOMAIN", fleetdomain.Default()))
+	domain := envOr("INTERNKIM_DOMAIN", envOr("CLOUDFLARE_DOMAIN", fleetdomain.Default()))
 	return config{
 		APIBaseURL:     envOr("INTERNKIM_API_URL", fleetdomain.Subdomain("api", domain)),
 		RegisterSecret: envOr("INTERNKIM_REGISTER_SECRET", ""),
