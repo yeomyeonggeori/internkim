@@ -438,9 +438,31 @@ func resolveRemoteSSHConnection(configuration config, sshpassBin string, target 
 func remoteSSHError(hostname string, output string, errorValue error) error {
 	detail := strings.TrimSpace(output)
 	if detail == "" {
-		return fmt.Errorf("ssh to %s failed: %w", hostname, errorValue)
+		return fmt.Errorf("ssh to %s failed: %w%s", hostname, errorValue, missingAccessTokenHint(hostname))
 	}
-	return fmt.Errorf("ssh to %s failed: %s: %w", hostname, detail, errorValue)
+	return fmt.Errorf("ssh to %s failed: %s: %w%s", hostname, detail, errorValue, missingAccessTokenHint(hostname))
+}
+
+func missingAccessTokenHint(hostname string) string {
+	if hasCloudflareAccessToken(hostname) {
+		return ""
+	}
+	return fmt.Sprintf("\n  이 호스트의 Cloudflare Access 토큰이 ~/.cloudflared 에 없습니다."+
+		" 토큰이 없으면 cloudflared가 브라우저 인증을 기다리며 멈추고, 스트림이 열리지 않아"+
+		" 요청이 장비까지 가지 않습니다 — 장비가 아니라 이 컴퓨터의 문제입니다."+
+		"\n  cloudflared access login https://%s", hostname)
+}
+
+func hasCloudflareAccessToken(hostname string) bool {
+	homeDirectory, errorValue := os.UserHomeDir()
+	if errorValue != nil {
+		return true
+	}
+	tokenPaths, errorValue := filepath.Glob(filepath.Join(homeDirectory, ".cloudflared", hostname+"-*-token"))
+	if errorValue != nil {
+		return true
+	}
+	return len(tokenPaths) > 0
 }
 
 func commandControlArguments(arguments []string) []string {
