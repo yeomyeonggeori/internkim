@@ -72,17 +72,18 @@ func deliverySourcesFor(request InstallRequest, monitorPath string) (DeliverySou
 
 func runtimeConfigOptionsFor(request InstallRequest, monitorPath string) blueclaw.RuntimeConfigOptions {
 	return blueclaw.RuntimeConfigOptions{
-		ModelName:               request.ModelName,
-		VirtualMachineMonitor:   blueclaw.VfkitMonitorName,
-		VfkitPath:               monitorPath,
-		KernelImagePath:         request.Layout.KernelImagePath(),
-		RootFilesystemImagePath: request.Layout.RootFilesystemImagePath(),
-		WorkspaceImagePath:      request.Layout.WorkspaceImagePath(),
-		DeliveryDirectoryPath:   request.Layout.DeliveryPath(),
-		LogDirectoryPath:        request.Layout.LogDirectoryPath(),
-		RuntimeDirectoryPath:    request.Layout.RuntimeRootPath,
-		HostHTTPListenAddress:   request.HostHTTPListenAddress,
-		WorkspaceMinimumBytes:   request.WorkspaceMinimumBytes,
-		BaseURL:                 "http://" + request.HostHTTPListenAddress,
+		ModelName:                  request.ModelName,
+		VirtualMachineMonitor:      blueclaw.VfkitMonitorName,
+		VfkitPath:                  monitorPath,
+		KernelImagePath:            request.Layout.KernelImagePath(),
+		RootFilesystemImagePath:    request.Layout.RootFilesystemImagePath(),
+		WorkspaceImagePath:         request.Layout.WorkspaceImagePath(),
+		DeliveryDirectoryPath:      request.Layout.DeliveryPath(),
+		LogDirectoryPath:           request.Layout.LogDirectoryPath(),
+		RuntimeDirectoryPath:       request.Layout.RuntimeRootPath,
+		HostHTTPListenAddress:      request.HostHTTPListenAddress,
+		WorkspaceMinimumBytes:      request.WorkspaceMinimumBytes,
+		HostRunsNoCapabilityDaemon: true,
+		BaseURL:                    "http://" + request.HostHTTPListenAddress,
 	}
 }

@@ -37,47 +37,48 @@ type defaultCircleDefinition struct {
 }
 
 type RuntimeConfigOptions struct {
-	ModelName                 string
-	AdminTaskLinkBaseURL      string
-	BaseURL                   string
-	DirectExecution           bool
-	WorkspaceRootPath         string
-	POSIXHelperPath           string
-	DatabaseConnectionString  string
-	MigrationDirectoryPath    string
-	CapabilitySocketPath      string
-	CapabilityVSockPort       int
-	GraphitiEndpoint          string
-	MattermostBaseURL         string
-	HostWorkspacePath         string
-	RootFilesystemImagePath   string
-	WorkspaceImagePath        string
-	HostHTTPListenAddress     string
-	HealthPortOrService       string
-	GuestHTTPPortOrService    string
-	LogDirectoryPath          string
-	RuntimeDirectoryPath      string
-	OutboundHostDeviceName    string
-	OutboundGuestMACAddress   string
-	OutboundNetworkCIDR       string
-	OutboundHostAddressCIDR   string
-	OutboundGuestAddressCIDR  string
-	OutboundGuestGateway      string
-	BridgeListenAddress       string
-	GenerationSeed            *int64
-	GenerationTemperature     *float64
-	MaximumModelTier          string
-	MinimumModelTier          string
-	ShouldUseModelForAllTiers bool
-	DefaultTaskLevel          string
-	VirtualMachineMonitor     string
-	KernelImagePath           string
-	VfkitPath                 string
-	DeliveryDirectoryPath     string
-	WorkspaceMinimumBytes     int64
-	VirtualCPUCount           int
-	AllowAdminTaskDiagnostic  bool
-	LocalOnly                 bool
+	ModelName                  string
+	AdminTaskLinkBaseURL       string
+	BaseURL                    string
+	DirectExecution            bool
+	WorkspaceRootPath          string
+	POSIXHelperPath            string
+	DatabaseConnectionString   string
+	MigrationDirectoryPath     string
+	CapabilitySocketPath       string
+	CapabilityVSockPort        int
+	GraphitiEndpoint           string
+	MattermostBaseURL          string
+	HostWorkspacePath          string
+	RootFilesystemImagePath    string
+	WorkspaceImagePath         string
+	HostHTTPListenAddress      string
+	HealthPortOrService        string
+	GuestHTTPPortOrService     string
+	LogDirectoryPath           string
+	RuntimeDirectoryPath       string
+	OutboundHostDeviceName     string
+	OutboundGuestMACAddress    string
+	OutboundNetworkCIDR        string
+	OutboundHostAddressCIDR    string
+	OutboundGuestAddressCIDR   string
+	OutboundGuestGateway       string
+	BridgeListenAddress        string
+	GenerationSeed             *int64
+	GenerationTemperature      *float64
+	MaximumModelTier           string
+	MinimumModelTier           string
+	ShouldUseModelForAllTiers  bool
+	DefaultTaskLevel           string
+	VirtualMachineMonitor      string
+	KernelImagePath            string
+	VfkitPath                  string
+	DeliveryDirectoryPath      string
+	WorkspaceMinimumBytes      int64
+	HostRunsNoCapabilityDaemon bool
+	VirtualCPUCount            int
+	AllowAdminTaskDiagnostic   bool
+	LocalOnly                  bool
 }
 
 var defaultCircleDefinitions = []defaultCircleDefinition{
@@ -314,12 +315,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 				"guestAddressCIDR": outboundGuestAddressCIDR,
 				"guestGateway":     outboundGuestGateway,
 			},
-			"guestListenerProxies": []map[string]any{
-				{
-					"guestPort":            capabilityVSockPort,
-					"targetUnixSocketPath": capabilitySocketPath,
-				},
-			},
+			"guestListenerProxies": guestListenerProxiesFor(options.HostRunsNoCapabilityDaemon, capabilityVSockPort, capabilitySocketPath),
 		},
 		"bridge": map[string]any{
 			"mode":                     "localAgent",
@@ -594,6 +590,21 @@ func defaultResourceAccessPolicies() []map[string]any {
 
 // Firecracker emulates no virtio-fs, so naming a delivery directory under it would ask
 // for a device the VMM cannot offer and the guest would never see.
+// The proxy exists to carry the guest's capability calls to capabilityd's socket. A host
+// running no capabilityd has no socket, and a proxy to one reports a failure every boot for
+// work nobody asked for.
+func guestListenerProxiesFor(hostRunsNoCapabilityDaemon bool, capabilityVSockPort int, capabilitySocketPath string) []map[string]any {
+	if hostRunsNoCapabilityDaemon {
+		return []map[string]any{}
+	}
+	return []map[string]any{
+		{
+			"guestPort":            capabilityVSockPort,
+			"targetUnixSocketPath": capabilitySocketPath,
+		},
+	}
+}
+
 func deliveryReadOnlyEnforcementForMonitor(virtualMachineMonitor string) string {
 	switch virtualMachineMonitor {
 	case FirecrackerMonitorName:

@@ -993,3 +993,30 @@ func TestADeviceKeepsEveryPathItAlwaysHad(t *testing.T) {
 		}
 	}
 }
+
+func TestAHostWithNoCapabilityDaemonAsksForNoProxyToIt(t *testing.T) {
+	for _, testCase := range []struct {
+		hostRunsNoCapabilityDaemon bool
+		expectedProxyCount         int
+	}{
+		{false, 1},
+		{true, 0},
+	} {
+		document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{
+			ModelName:                  "x-ai/grok-4.3",
+			HostRunsNoCapabilityDaemon: testCase.hostRunsNoCapabilityDaemon,
+		})
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		var runtimeConfiguration map[string]any
+		if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		proxies := runtimeConfiguration["firecracker"].(map[string]any)["guestListenerProxies"].([]any)
+
+		if len(proxies) != testCase.expectedProxyCount {
+			t.Fatalf("a proxy to a socket nobody serves reports a failure every boot for work nobody asked for, got %d", len(proxies))
+		}
+	}
+}

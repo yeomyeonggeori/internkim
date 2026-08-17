@@ -61,3 +61,25 @@ func TestOnlyAStatusOfOkCountsAsHealthy(t *testing.T) {
 		}
 	}
 }
+
+func TestAStartThatDiesAtOnceIsNotAStart(t *testing.T) {
+	layout := NewLayout(t.TempDir(), "/tmp/bc")
+	if errorValue := os.MkdirAll(layout.LogDirectoryPath(), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.MkdirAll(filepath.Dir(layout.SupervisorBinaryPath()), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(layout.SupervisorBinaryPath(), []byte("#!/bin/sh\necho cannot bind >&2\nexit 1\n"), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	errorValue := StartSupervisor(layout)
+
+	if errorValue == nil {
+		t.Fatal("a supervisor reported as started is believed, and then whatever else listens on the address answers for the guest")
+	}
+	if !strings.Contains(errorValue.Error(), "cannot bind") {
+		t.Fatalf("the reason has to travel with the failure, got %v", errorValue)
+	}
+}

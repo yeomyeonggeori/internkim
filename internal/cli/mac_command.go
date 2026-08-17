@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	macHostDefaultListenAddress  = "127.0.0.1:18080"
+	macHostDefaultListenAddress  = "127.0.0.1:18110"
 	macHostWorkspaceMinimumBytes = 8 * 1024 * 1024 * 1024
 )
 
@@ -133,6 +133,9 @@ func runMacVerify(arguments []string) error {
 		return errorValue
 	}
 
+	if machost.RunningSupervisorProcessID(layout) == 0 {
+		return fmt.Errorf("no supervisor is running, so whatever answers %s is not this guest: %s", *listenAddress, machost.SupervisorLogTail(layout))
+	}
 	document, errorValue := machost.WaitForGuestHealth(*listenAddress, *timeout)
 	if errorValue != nil {
 		printMacGuestConsoleTail(layout)

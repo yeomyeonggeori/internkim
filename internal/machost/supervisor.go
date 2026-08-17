@@ -31,7 +31,32 @@ func StartSupervisor(layout Layout) error {
 	if errorValue := supervisorCommand.Start(); errorValue != nil {
 		return errorValue
 	}
-	return os.WriteFile(supervisorProcessIDPath(layout), []byte(fmt.Sprintf("%d", supervisorCommand.Process.Pid)), deliveryFileMode)
+	if errorValue := os.WriteFile(supervisorProcessIDPath(layout), []byte(fmt.Sprintf("%d", supervisorCommand.Process.Pid)), deliveryFileMode); errorValue != nil {
+		return errorValue
+	}
+	return requireSupervisorSurvivedItsStart(layout)
+}
+
+// A supervisor that cannot bind its listen address exits in well under a second, and the
+// caller would otherwise be told it started and go on to believe whatever else answers there.
+func requireSupervisorSurvivedItsStart(layout Layout) error {
+	time.Sleep(time.Second)
+	if RunningSupervisorProcessID(layout) != 0 {
+		return nil
+	}
+	return fmt.Errorf("the supervisor exited immediately: %s", SupervisorLogTail(layout))
+}
+
+func SupervisorLogTail(layout Layout) string {
+	document, errorValue := os.ReadFile(filepath.Join(layout.LogDirectoryPath(), "supervisor.log"))
+	if errorValue != nil {
+		return "no supervisor log"
+	}
+	lines := strings.Split(strings.TrimSpace(string(document)), "\n")
+	if len(lines) > 5 {
+		lines = lines[len(lines)-5:]
+	}
+	return strings.Join(lines, "; ")
 }
 
 func StopSupervisor(layout Layout) error {
