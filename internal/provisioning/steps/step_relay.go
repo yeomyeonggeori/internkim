@@ -1,6 +1,8 @@
 package setup
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,8 +28,16 @@ var StepRelay = Step{
 		return context.T("릴레이 설정 배치 중...", "Placing the relay's settings...")
 	},
 	IsSatisfied: func(context *Context) bool {
-		if context.Backend != BackendSSH || namedFile(relaySettingsEnvironmentName) == "" {
+		settingsPath := namedFile(relaySettingsEnvironmentName)
+		if context.Backend != BackendSSH || settingsPath == "" {
 			return true
+		}
+		settings, errorValue := os.ReadFile(settingsPath)
+		if errorValue != nil {
+			return false
+		}
+		if deviceFileDigest(context, blueclaw.RelayEnvironmentFilePath) != asPlacedDigest(string(settings)) {
+			return false
 		}
 		return trimmedRun(context, "systemctl is-active "+blueclaw.RelayServiceName) == "active"
 	},
@@ -70,6 +80,21 @@ func namedFile(environmentName string) string {
 	return strings.TrimSpace(os.Getenv(environmentName))
 }
 
+// A running relay is not the same as a relay running on the settings an operator
+// just handed over — changing one is the whole reason to run this step. What the
+// device holds is compared to what would be placed, so a settings change is
+// never mistaken for a device that is already done.
+func asPlacedDigest(settings string) string {
+	sum := sha256.Sum256([]byte(asPlaced(settings)))
+	return hex.EncodeToString(sum[:])
+}
+
+func deviceFileDigest(context *Context, path string) string {
+	answer := trimmedRun(context, "sha256sum "+path+" 2>/dev/null")
+	digest, _, _ := strings.Cut(answer, " ")
+	return digest
+}
+
 // Settings that stop the relay from starting are the ordinary reason to place
 // new ones, and by then systemd has usually latched the unit: five failures
 // inside the start-limit window and every later restart is refused for the rest
@@ -77,6 +102,10 @@ func namedFile(environmentName string) string {
 func restartAfterClearingTheFailure(serviceName string) string {
 	return `systemctl reset-failed ` + serviceName + ` 2>/dev/null || true
 systemctl restart ` + serviceName
+}
+
+func asPlaced(content string) string {
+	return strings.TrimRight(content, "\n") + "\n"
 }
 
 func placeForTheRelay(path string, content string) string {
