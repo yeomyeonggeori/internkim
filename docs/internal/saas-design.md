@@ -363,8 +363,9 @@ What matters about this daemon:
   company's machine. That is what keeps "no inbound port" true while people work
   from anywhere.
 - **Self-hosting is the destination** (§8). Whoever runs it builds one executable
-  and gives it four settings — the Supabase project, its publishable key, their
-  company's app URL and a path to their agent key. Nothing else is per-company.
+  and gives it five settings — the Supabase project, its publishable key, their
+  company's app URL, a path to their agent key, and which messenger they run.
+  Nothing else is per-company.
 - **One company, one process.** It subscribes to a single `company:<id>` channel
   and signs in as that company's bot. Running several companies from the same
   computer means starting the executable once per company with different
