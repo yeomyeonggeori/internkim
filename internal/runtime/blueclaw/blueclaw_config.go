@@ -74,6 +74,7 @@ type RuntimeConfigOptions struct {
 	KernelImagePath           string
 	VfkitPath                 string
 	DeliveryDirectoryPath     string
+	WorkspaceMinimumBytes     int64
 	VirtualCPUCount           int
 	AllowAdminTaskDiagnostic  bool
 	LocalOnly                 bool
@@ -294,6 +295,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"kernelImagePath":             kernelImagePath,
 			"rootfsImagePath":             rootFilesystemImagePath,
 			"workspaceImagePath":          workspaceImagePath,
+			"workspaceMinimumBytes":       options.WorkspaceMinimumBytes,
 			"hostWorkspacePath":           hostWorkspacePath,
 			"vcpuCount":                   virtualCPUCount,
 			"memoryMiB":                   BlueclawFirecrackerDefaultMemoryMiB,

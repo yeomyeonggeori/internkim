@@ -213,6 +213,15 @@ log_guest_init "network configured"
 # Firecracker emulates no virtio-fs, so a guest under it finds no device here and reads
 # its configuration from the workspace image as it always has. A guest offered the share
 # reads from it instead, and cannot write it.
+format_workspace_disk_if_blank() {
+  if blkid -o value -s TYPE /dev/vdb 2>/dev/null | grep -qx ext4; then
+    return 0
+  fi
+  log_guest_init "workspace disk carries no filesystem; formatting"
+  mkfs.ext4 -F -L blueclaw-workspace /dev/vdb >/dev/null
+  log_guest_init "workspace disk formatted"
+}
+
 mount_delivery_share() {
   mkdir -p /delivery
   if mountpoint -q /delivery; then
@@ -228,6 +237,7 @@ mount_delivery_share() {
 
 if ! mountpoint -q /workspace; then
   log_guest_init "workspace mount starting"
+  format_workspace_disk_if_blank
   mount -t ext4 /dev/vdb /workspace
 fi
 
