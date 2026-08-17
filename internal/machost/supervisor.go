@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -28,23 +29,28 @@ func StartSupervisor(layout Layout) error {
 	supervisorCommand := exec.Command(layout.SupervisorBinaryPath(), "-runtime", layout.RuntimeConfigurationPath())
 	supervisorCommand.Stdout = logFile
 	supervisorCommand.Stderr = logFile
+	supervisorCommand.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if errorValue := supervisorCommand.Start(); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := os.WriteFile(supervisorProcessIDPath(layout), []byte(fmt.Sprintf("%d", supervisorCommand.Process.Pid)), deliveryFileMode); errorValue != nil {
 		return errorValue
 	}
-	return requireSupervisorSurvivedItsStart(layout)
+	return requireSupervisorSurvivedItsStart(layout, supervisorCommand.Process.Pid)
 }
 
 // A supervisor that cannot bind its listen address exits in well under a second, and the
 // caller would otherwise be told it started and go on to believe whatever else answers there.
-func requireSupervisorSurvivedItsStart(layout Layout) error {
+// A child that exits stays a zombie until it is reaped, and a zombie answers signal 0, so its
+// own parent has to ask through wait rather than through the liveness check everyone else uses.
+func requireSupervisorSurvivedItsStart(layout Layout, processID int) error {
 	time.Sleep(time.Second)
-	if RunningSupervisorProcessID(layout) != 0 {
-		return nil
+	var waitStatus syscall.WaitStatus
+	exitedProcessID, errorValue := syscall.Wait4(processID, &waitStatus, syscall.WNOHANG, nil)
+	if errorValue == nil && exitedProcessID == processID {
+		return fmt.Errorf("the supervisor exited immediately: %s", SupervisorLogTail(layout))
 	}
-	return fmt.Errorf("the supervisor exited immediately: %s", SupervisorLogTail(layout))
+	return nil
 }
 
 func SupervisorLogTail(layout Layout) string {
@@ -64,11 +70,7 @@ func StopSupervisor(layout Layout) error {
 	if processID == 0 {
 		return nil
 	}
-	process, errorValue := os.FindProcess(processID)
-	if errorValue != nil {
-		return errorValue
-	}
-	if errorValue := process.Signal(os.Interrupt); errorValue != nil && !errors.Is(errorValue, os.ErrProcessDone) {
+	if errorValue := syscall.Kill(-processID, syscall.SIGINT); errorValue != nil && !errors.Is(errorValue, syscall.ESRCH) {
 		return errorValue
 	}
 	return os.Remove(supervisorProcessIDPath(layout))
@@ -83,11 +85,7 @@ func RunningSupervisorProcessID(layout Layout) int {
 	if _, errorValue := fmt.Sscanf(strings.TrimSpace(string(document)), "%d", &processID); errorValue != nil {
 		return 0
 	}
-	process, errorValue := os.FindProcess(processID)
-	if errorValue != nil {
-		return 0
-	}
-	if errorValue := process.Signal(nil); errorValue != nil {
+	if errorValue := syscall.Kill(processID, syscall.Signal(0)); errorValue != nil {
 		return 0
 	}
 	return processID
