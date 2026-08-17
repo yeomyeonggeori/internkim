@@ -124,6 +124,10 @@ func publishRelease(
 		return errorValue
 	}
 	for _, blob := range blobs {
+		if alreadyPublished(publisher, blob.component.BlobPath) {
+			fmt.Printf("kept %s %s\n", blob.component.Name, blob.component.SHA256[:12])
+			continue
+		}
 		document, errorValue := os.ReadFile(blob.path)
 		if errorValue != nil {
 			return errorValue
@@ -902,6 +906,25 @@ func ReleaseComponentNames() []string {
 		return strings.ToLower(names[earlier]) < strings.ToLower(names[later])
 	})
 	return names
+}
+
+// A blob is named by the hash of what is in it, so one that is already
+// published is the same bytes and sending them again buys nothing. On a slow
+// uplink it costs the whole deploy: a 100 MB component takes minutes at
+// 0.5 MB/s and the upload gives up before it lands, over and over, for a
+// component that had not changed since the last release.
+func alreadyPublished(publisher releaseObjectPublisher, blobPath string) bool {
+	request, errorValue := http.NewRequest(http.MethodHead, publisher.PublicURL(blobPath), nil)
+	if errorValue != nil {
+		return false
+	}
+	addReleaseDownloadHeaders(request)
+	response, errorValue := statusHTTPClient.Do(request)
+	if errorValue != nil {
+		return false
+	}
+	defer response.Body.Close()
+	return response.StatusCode >= 200 && response.StatusCode < 300
 }
 
 // A release names every component the device runs, not only the ones this
