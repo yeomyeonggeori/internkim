@@ -14,13 +14,18 @@ const buzzRelayStunnelServiceUnitPath = "/etc/systemd/system/buzz-relay-stunnel.
 const buzzRelayStunnelServiceName = "buzz-relay-stunnel"
 const buzzRelayStunnelAcceptAddress = "127.0.0.1:443"
 const buzzRelayServiceDropInDirectory = "/etc/systemd/system/buzz-relay.service.d"
+const buzzRelayEnvironmentDirectory = "/root/.internkim/env"
 const buzzRelayPublicURLDropInPath = "/etc/systemd/system/buzz-relay.service.d/public-url.conf"
 
-// StepBuzzPublicHost makes the loopback relay reachable at its public host P
-// (derived from the device URL). Internal clients resolve P to loopback via
-// /etc/hosts, terminate TLS at a stunnel4 daemon on 127.0.0.1:443, and reach
-// the relay at 127.0.0.1:3000. The community row is re-keyed to P so the relay
-// advertises the public host. Every action is idempotent.
+// StepBuzzPublicHost makes the loopback relay reachable at the public host P the
+// company chose for it. Internal clients resolve P to loopback via /etc/hosts,
+// terminate TLS at a stunnel4 daemon on 127.0.0.1:443, and reach the relay at
+// 127.0.0.1:3000. The community row is re-keyed to P so the relay advertises the
+// public host, and P is recorded so admind presents the same name.
+//
+// Without a chosen domain the step does nothing: the relay stays on loopback,
+// which is where a company that reaches its messenger through the central plane
+// wants it.
 var StepBuzzPublicHost = Step{
 	Name: "buzz-public-host",
 	Deps: []string{"buzz-relay"},
@@ -31,7 +36,7 @@ var StepBuzzPublicHost = Step{
 		if context.Backend != BackendSSH {
 			return true
 		}
-		publicHost := blueclaw.DeriveRelayPublicHost(context.PublicURL)
+		publicHost := blueclaw.RelayPublicHost(context.RelayDomain)
 		if publicHost == "" {
 			return true
 		}
@@ -44,23 +49,28 @@ var StepBuzzPublicHost = Step{
 		if !sshFileExists(context, buzzRelayPublicURLDropInPath) {
 			return false
 		}
+		if buzzRelayRecordedPublicHost(context) != publicHost {
+			return false
+		}
 		return trimmedRun(context, "systemctl is-active "+buzzRelayStunnelServiceName) == "active"
 	},
 	Run: func(context *Context) error {
 		if context.Backend != BackendSSH {
 			return nil
 		}
-		publicHost := blueclaw.DeriveRelayPublicHost(context.PublicURL)
+		publicHost := blueclaw.RelayPublicHost(context.RelayDomain)
 		if publicHost == "" {
 			return nil
 		}
+		previousHost := buzzRelayRecordedPublicHost(context)
 		connection := context.SSH
 		connection.Run(buzzHostsAliasCommand(publicHost))
 		connection.Run(buzzRelayCertificateCommand(publicHost))
 		connection.Run(buzzRelayStunnelCommand())
 		connection.Run("systemctl stop " + blueclaw.BuzzRelayServiceName)
-		connection.Run(buzzCommunityRekeyCommand(publicHost))
+		connection.Run(buzzCommunityRekeyCommand(publicHost, previousHost))
 		connection.Run(buzzRelayPublicURLDropInCommand(publicHost))
+		connection.Run(buzzRelayPublicURLRecordCommand(publicHost))
 		connection.Run("systemctl start " + blueclaw.BuzzRelayServiceName)
 
 		fmt.Println("  " + context.T("Buzz 공개 호스트 구성 완료", "Buzz public host configured"))
@@ -121,9 +131,18 @@ systemctl enable ` + buzzRelayStunnelServiceName + `
 systemctl restart ` + buzzRelayStunnelServiceName + ``
 }
 
-func buzzCommunityRekeyCommand(publicHost string) string {
+// The community the relay serves is keyed by the Host header, so it has to
+// follow the public host. A relay that has never had one is keyed by its bind
+// address; one that is being moved to a new domain is keyed by the name this
+// step recorded last time, which is how a rename reaches the row that a company
+// created rather than any other.
+func buzzCommunityRekeyCommand(publicHost string, previousHost string) string {
+	rekeyedFrom := "'" + blueclaw.BuzzRelayBindAddress + "'"
+	if previousHost != "" && previousHost != publicHost {
+		rekeyedFrom += ",'" + previousHost + "'"
+	}
 	return `if su - postgres -c "psql -d ` + blueclaw.BuzzRelayDatabaseName + ` -tAc \"SELECT to_regclass('public.communities')\"" 2>/dev/null | grep -q communities; then
-  su - postgres -c "psql -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"UPDATE communities SET host='` + publicHost + `' WHERE host='` + blueclaw.BuzzRelayBindAddress + `' AND NOT EXISTS (SELECT 1 FROM communities WHERE lower(host)=lower('` + publicHost + `'))\""
+  su - postgres -c "psql -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"UPDATE communities SET host='` + publicHost + `' WHERE host IN (` + rekeyedFrom + `) AND NOT EXISTS (SELECT 1 FROM communities WHERE lower(host)=lower('` + publicHost + `'))\""
 fi`
 }
 
@@ -131,4 +150,14 @@ func buzzRelayPublicURLDropInCommand(publicHost string) string {
 	return `mkdir -p ` + buzzRelayServiceDropInDirectory + `
 printf '[Service]\nEnvironment=RELAY_URL=wss://%s\n' '` + publicHost + `' > ` + buzzRelayPublicURLDropInPath + `
 systemctl daemon-reload`
+}
+
+func buzzRelayRecordedPublicHost(context *Context) string {
+	return blueclaw.RelayPublicHost(trimmedRun(context, "cat "+blueclaw.BuzzRelayPublicURLFilePath+" 2>/dev/null"))
+}
+
+func buzzRelayPublicURLRecordCommand(publicHost string) string {
+	return `mkdir -p ` + buzzRelayEnvironmentDirectory + `
+printf 'wss://%s' '` + publicHost + `' > ` + blueclaw.BuzzRelayPublicURLFilePath + `
+chmod 640 ` + blueclaw.BuzzRelayPublicURLFilePath
 }

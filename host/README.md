@@ -4,6 +4,10 @@ The company agent on a spare Linux box. It reaches the tenant's messenger and th
 central plane **outbound only** — nothing listens off loopback, so there is no
 tunnel, no inbound port and no public hostname to maintain.
 
+The one part a company may choose to put on a domain of its own is the Buzz
+relay, a separate stack in `host/buzz/` whose README says what that takes.
+Everything here stays on loopback either way.
+
 ## What the box needs
 
 Verified by booting `cmd/blueclaw` on an ordinary machine until it reported

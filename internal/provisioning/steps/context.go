@@ -95,6 +95,7 @@ type Context struct {
 	BoardType    string
 	BoardIP      string
 	PublicURL    string
+	RelayDomain  string
 	SetupCommand string
 	SetupSteps   string
 	SetupLockID  string
