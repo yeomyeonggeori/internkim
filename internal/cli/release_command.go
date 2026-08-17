@@ -108,6 +108,9 @@ func publishRelease(
 	for _, blob := range blobs {
 		components[blob.component.Name] = blob.component
 	}
+	if errorValue := carryTheRestOfTheDevice(repositoryRootPath, channel, components); errorValue != nil {
+		return errorValue
+	}
 	manifest, errorValue := releaseset.NewManifest(releaseID, channel, components).Sign(os.Getenv("INTERNKIM_RELEASE_SIGNING_KEY"))
 	if errorValue != nil {
 		return errorValue
@@ -167,6 +170,37 @@ func runReleaseStatus(arguments []string) error {
 	fmt.Printf("Channel: %s\n", channel)
 	fmt.Printf("Release: %s\n", pointer.ReleaseID)
 	fmt.Printf("Manifest: %s\n", pointer.ManifestURL)
+	return printReleaseComponentDrift(pointer.ManifestURL, channel)
+}
+
+// Which components the release holds, and which of them this tree has moved
+// past. A device is only as current as its oldest component, and until this
+// printed nothing said which one that was.
+func printReleaseComponentDrift(manifestURL string, channel string) error {
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		return nil
+	}
+	manifest, errorValue := fetchReleaseManifestDocument(manifestURL)
+	if errorValue != nil {
+		return errorValue
+	}
+	treeRevision := gitRevision(repositoryRootPath)
+	names := make([]string, 0, len(manifest.Components))
+	for name := range manifest.Components {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	fmt.Println()
+	for _, name := range names {
+		expected := releaseComponentRevision(name, repositoryRootPath, treeRevision)
+		carried := manifest.Components[name].Revision
+		mark := "  "
+		if carried != expected {
+			mark = "! "
+		}
+		fmt.Printf("%s%-20s release %s   tree %s\n", mark, name, shortRevision(carried), shortRevision(expected))
+	}
 	return nil
 }
 
@@ -870,12 +904,111 @@ func ReleaseComponentNames() []string {
 	return names
 }
 
+// A release names every component the device runs, not only the ones this
+// invocation rebuilt. The device installs what the manifest names and keeps
+// whatever the manifest is silent about, so a release describing a subset lets
+// the parts drift apart from each other, each one reporting a successful
+// deploy on its way.
+//
+// Carrying a component forward is free — the blob is addressed by its content
+// and is already published — but only honest while it still matches this tree.
+// When it does not, the deploy stops and says which component to rebuild,
+// rather than shipping a device that half agrees with itself.
+func carryTheRestOfTheDevice(repositoryRootPath string, channel string, components map[string]releaseset.Component) error {
+	published, errorValue := currentReleaseComponents(channel)
+	if errorValue != nil || len(published) == 0 {
+		return nil
+	}
+	treeRevision := gitRevision(repositoryRootPath)
+	return carryComponentsForward(components, published, func(name string) string {
+		return releaseComponentRevision(name, repositoryRootPath, treeRevision)
+	})
+}
+
+func carryComponentsForward(
+	rebuilt map[string]releaseset.Component,
+	published map[string]releaseset.Component,
+	revisionOf func(string) string,
+) error {
+	stale := []string{}
+	for name, carried := range published {
+		if _, wasRebuilt := rebuilt[name]; wasRebuilt {
+			continue
+		}
+		expected := revisionOf(name)
+		if carried.Revision != expected {
+			stale = append(stale, fmt.Sprintf("%s (the device would keep %s, this tree builds %s)",
+				name, shortRevision(carried.Revision), shortRevision(expected)))
+			continue
+		}
+		rebuilt[name] = carried
+	}
+	if len(stale) == 0 {
+		return nil
+	}
+	sort.Strings(stale)
+	return fmt.Errorf(
+		"this release would leave the device holding components the tree has moved past:\n  %s\nname them in --components so the device gets one consistent set",
+		strings.Join(stale, "\n  "),
+	)
+}
+
+func currentReleaseComponents(channel string) (map[string]releaseset.Component, error) {
+	pointer, errorValue := fetchReleaseStablePointer(channel)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	manifest, errorValue := fetchReleaseManifestDocument(pointer.ManifestURL)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return manifest.Components, nil
+}
+
+// A component's revision has to be the revision of what it is built from, or
+// nothing can tell a stale one from a current one. chatd is built from the
+// blueclaw submodule, and stamping it with this repository's HEAD made a
+// submodule that had moved look like no change at all: a device ended up
+// running a relay that asked for capabilities its chatd had never heard of,
+// and every deploy reported success.
 func releaseComponentRevision(name string, repositoryRootPath string, gitRevision string) string {
 	switch name {
 	case "web":
 		return webRevision(repositoryRootPath)
 	case "blueclawPayload":
 		return blueclawPayloadRevision(repositoryRootPath)
+	case "chatd":
+		return blueclawSubmoduleRevision(repositoryRootPath)
 	}
-	return gitRevision
+	return revisionOfPaths(repositoryRootPath, componentSourcePaths[name], gitRevision)
+}
+
+// Where each component's source lives, so a commit that does not touch it does
+// not make it look changed. A component with no entry keeps the repository's
+// own revision, which is the conservative answer.
+var componentSourcePaths = map[string][]string{
+	"internkim":          {"cmd/internkim", "internal/cli", "internal/deviceassets", "internal/releaseset"},
+	"admind":             {"cmd/internkim-admind", "internal/admind", "internal/runtime"},
+	"capabilityd":        {"cmd/internkim-capabilityd", "internal/capabilityd"},
+	"blueclawSupervisor": {"cmd/blueclaw-supervisor", "internal/runtime"},
+	"skills":             {"assets/skills"},
+	"fonts":              {"assets/fonts"},
+	"mattermostPlugins":  {"mattermost-plugin"},
+	"relay":              {"host/relay"},
+	"buzzMigrate":        {"cmd/buzz-migrate", "internal/buzzimport"},
+}
+
+func revisionOfPaths(repositoryRootPath string, paths []string, fallback string) string {
+	if len(paths) == 0 {
+		return fallback
+	}
+	arguments := append([]string{"-C", repositoryRootPath, "log", "-1", "--format=%H", "--"}, paths...)
+	return firstNonEmptyString(strings.TrimSpace(runCmd("git", arguments...)), fallback)
+}
+
+func blueclawSubmoduleRevision(repositoryRootPath string) string {
+	return firstNonEmptyString(
+		strings.TrimSpace(runCmd("git", "-C", filepath.Join(repositoryRootPath, blueclaw.BlueclawSubmodulePath), "rev-parse", "HEAD")),
+		gitRevision(repositoryRootPath),
+	)
 }
