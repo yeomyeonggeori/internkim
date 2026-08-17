@@ -90,6 +90,7 @@ type Service struct {
 	Configuration     Configuration
 	HTTPClient        *http.Client
 	RunCommand        func(context.Context, string, []string, []byte) ([]byte, error)
+	LookupExecutable  func(string) (string, error)
 	EventLocker       *platformEventLocker
 	ProgressManager   *platformProgressManager
 	HealthState       *platformHealthState

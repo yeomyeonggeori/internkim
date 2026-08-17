@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"context"
 	"log"
+	"os/exec"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
@@ -21,7 +22,19 @@ func (service Service) runLocalInferenceServiceCommand(ctx context.Context, argu
 	if len(arguments) == 0 {
 		return
 	}
+	if !service.hasServiceManager() {
+		return
+	}
 	if _, errorValue := service.runCommand(ctx, "systemctl", arguments, nil); errorValue != nil {
 		log.Printf("local inference service command failed: systemctl %v: %v", arguments, errorValue)
 	}
+}
+
+func (service Service) hasServiceManager() bool {
+	lookupExecutable := service.LookupExecutable
+	if lookupExecutable == nil {
+		lookupExecutable = exec.LookPath
+	}
+	_, errorValue := lookupExecutable("systemctl")
+	return errorValue == nil
 }
