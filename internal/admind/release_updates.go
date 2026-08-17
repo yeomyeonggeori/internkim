@@ -185,13 +185,20 @@ func (service *Service) runReleaseUpdateJobWithProvider(ctx context.Context, job
 		service.updateJob(jobID, "failed", "staging", errorValue.Error())
 		return
 	}
+	// A release names every component the device runs, so most of them are the
+	// bytes it is already running. Installing those again is work at best; when
+	// one of them cannot be installed by the version currently on the device, it
+	// is a wall that no later release can get past, because every release
+	// carries it forward. Only what differs is fetched and installed. The
+	// manifest recorded at the end is still the whole release.
+	changed := componentsNotAlreadyInstalled(manifest, service.readCurrentReleaseManifest())
 	service.updateJob(jobID, "running", "downloading", "")
-	if errorValue := provider(ctx, manifest, stagingPath); errorValue != nil {
+	if errorValue := provider(ctx, changed, stagingPath); errorValue != nil {
 		service.updateJob(jobID, "failed", "downloading", errorValue.Error())
 		return
 	}
 	service.updateJob(jobID, "running", "installing", "")
-	if errorValue := service.installReleaseComponents(ctx, jobID, manifest, stagingPath); errorValue != nil {
+	if errorValue := service.installReleaseComponents(ctx, jobID, changed, stagingPath); errorValue != nil {
 		service.updateJob(jobID, "failed", "installing", errorValue.Error())
 		return
 	}
@@ -206,6 +213,25 @@ func (service *Service) runReleaseUpdateJobWithProvider(ctx context.Context, job
 	}
 	service.finishReleaseUpdateJob(jobID, "completed", map[string]string{"releaseID": manifest.ReleaseID})
 	service.restartAdmindAfterReleaseUpdate(ctx, manifest)
+}
+
+// The same release with only the components whose bytes differ from what is
+// installed. A component is the same when its digest is, which is what names
+// its blob, so this asks nothing of the component itself.
+func componentsNotAlreadyInstalled(wanted *releaseset.Manifest, installed *releaseset.Manifest) *releaseset.Manifest {
+	if installed == nil {
+		return wanted
+	}
+	changed := map[string]releaseset.Component{}
+	for name, component := range wanted.Components {
+		if current, held := installed.Components[name]; held && current.SHA256 == component.SHA256 {
+			continue
+		}
+		changed[name] = component
+	}
+	reduced := *wanted
+	reduced.Components = changed
+	return &reduced
 }
 
 func (service *Service) downloadReleaseComponents(ctx context.Context, manifest *releaseset.Manifest, stagingPath string) error {
