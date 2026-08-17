@@ -907,10 +907,11 @@ func TestAMacGetsTheMonitorItHasAndNoHostTap(t *testing.T) {
 		monitor                    string
 		expectedMonitor            string
 		expectedOutboundNetworking bool
+		expectedEnforcement        string
 	}{
-		{"", CloudHypervisorMonitorName, true},
-		{CloudHypervisorMonitorName, CloudHypervisorMonitorName, true},
-		{VfkitMonitorName, VfkitMonitorName, false},
+		{"", CloudHypervisorMonitorName, true, "hostBindMount"},
+		{CloudHypervisorMonitorName, CloudHypervisorMonitorName, true, "hostBindMount"},
+		{VfkitMonitorName, VfkitMonitorName, false, "immutableFlags"},
 	}
 
 	for _, testCase := range testCases {
@@ -933,9 +934,62 @@ func TestAMacGetsTheMonitorItHasAndNoHostTap(t *testing.T) {
 		if firecracker["vfkitPath"] != BlueclawVfkitPath {
 			t.Fatalf("a document naming vfkit without its path cannot start one: %+v", firecracker)
 		}
+		if firecracker["deliveryReadOnlyEnforcement"] != testCase.expectedEnforcement {
+			t.Fatalf("expected %q, got %+v", testCase.expectedEnforcement, firecracker["deliveryReadOnlyEnforcement"])
+		}
 		outboundNetwork := firecracker["outboundNetwork"].(map[string]any)
 		if outboundNetwork["enabled"] != testCase.expectedOutboundNetworking {
 			t.Fatalf("a Mac has no tap device to build, so %q must not ask for one: %+v", testCase.monitor, outboundNetwork)
+		}
+	}
+}
+
+func TestAHostThatIsNotADeviceNamesItsOwnPaths(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{
+		ModelName:             "x-ai/grok-4.3",
+		VirtualMachineMonitor: VfkitMonitorName,
+		KernelImagePath:       "/Users/someone/.internkim/blueclaw/vmlinux.bin",
+		VfkitPath:             "/opt/homebrew/bin/vfkit",
+		DeliveryDirectoryPath: "/Users/someone/.internkim/blueclaw/delivery",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	firecracker := runtimeConfiguration["firecracker"].(map[string]any)
+
+	for field, expected := range map[string]string{
+		"kernelImagePath":       "/Users/someone/.internkim/blueclaw/vmlinux.bin",
+		"vfkitPath":             "/opt/homebrew/bin/vfkit",
+		"deliveryDirectoryPath": "/Users/someone/.internkim/blueclaw/delivery",
+	} {
+		if firecracker[field] != expected {
+			t.Fatalf("a Mac has none of the device paths, so %s must be the one given: %+v", field, firecracker[field])
+		}
+	}
+}
+
+func TestADeviceKeepsEveryPathItAlwaysHad(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{ModelName: "x-ai/grok-4.3"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	firecracker := runtimeConfiguration["firecracker"].(map[string]any)
+
+	for field, expected := range map[string]string{
+		"kernelImagePath":       BlueclawKernelImagePath,
+		"vfkitPath":             BlueclawVfkitPath,
+		"deliveryDirectoryPath": BlueclawDeliveryReadOnlyPath,
+	} {
+		if firecracker[field] != expected {
+			t.Fatalf("a device that names no paths keeps its own %s, got %+v", field, firecracker[field])
 		}
 	}
 }

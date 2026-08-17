@@ -29,16 +29,26 @@ func TestDeliveryRefreshMakesThePayloadRunnableByTheGuest(t *testing.T) {
 }
 
 func TestMigrationsFollowThePayload(t *testing.T) {
-	migrationPath := guestMigrationDirectoryPath()
-
-	if deliveryDirectoryPathForMonitor() == "" {
-		if migrationPath != BlueclawGuestMigrationPath {
-			t.Fatalf("with no share the migrations stay in the image, got %q", migrationPath)
-		}
-		return
+	if migrationPath := guestMigrationDirectoryPath(FirecrackerMonitorName); migrationPath != BlueclawGuestMigrationPath {
+		t.Fatalf("Firecracker offers no share, so the migrations stay in the image, got %q", migrationPath)
 	}
-	if !strings.HasPrefix(migrationPath, BlueclawGuestDeliveryRuntimePath) {
-		t.Fatalf("the migrations travel with the payload, got %q", migrationPath)
+	for _, virtualMachineMonitor := range []string{CloudHypervisorMonitorName, VfkitMonitorName} {
+		migrationPath := guestMigrationDirectoryPath(virtualMachineMonitor)
+		if !strings.HasPrefix(migrationPath, BlueclawGuestDeliveryRuntimePath) {
+			t.Fatalf("the migrations travel with the payload under %s, got %q", virtualMachineMonitor, migrationPath)
+		}
+	}
+}
+
+func TestOnlyAHostThatCanBindReadOnlyIsGivenTheReadOnlyPath(t *testing.T) {
+	if deliveryPath := deliveryDirectoryPathForMonitor(CloudHypervisorMonitorName); deliveryPath != BlueclawDeliveryReadOnlyPath {
+		t.Fatalf("a Linux host binds the share read-only and serves that, got %q", deliveryPath)
+	}
+	if deliveryPath := deliveryDirectoryPathForMonitor(VfkitMonitorName); deliveryPath != BlueclawDeliveryPath {
+		t.Fatalf("macOS has no bind mount, so delivery-ro never exists there and naming it would serve nothing, got %q", deliveryPath)
+	}
+	if deliveryPath := deliveryDirectoryPathForMonitor(FirecrackerMonitorName); deliveryPath != "" {
+		t.Fatalf("Firecracker has no virtio-fs at all, got %q", deliveryPath)
 	}
 }
 
