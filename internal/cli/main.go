@@ -798,6 +798,7 @@ func runLegacySSHSetupDeploy(configuration config, scriptDir string, target comm
 		BoardType:    target.boardType,
 		BoardIP:      ssh.host,
 		PublicURL:    target.deviceURL,
+		RelayDomain:  relayDomainForTarget(target.stateDir),
 		SetupCommand: commandLineForSetupLock(os.Args[2:]),
 		SetupSteps:   strings.Join(stepNames, ","),
 		SetupLockID:  randomHexString(12),
@@ -2627,7 +2628,7 @@ func setupControlArguments(arguments []string) []string {
 			if argument != "--sim" && index+1 < len(arguments) {
 				index++
 			}
-		case "--password", "--admin-email", "--openrouter-api-key", "--litert-model-path", "--gas-webhook-url", "--google-access-token", "--slack-bot-token", "--slack-app-token", "--signal-jsonrpc-url", "--signal-account":
+		case "--password", "--admin-email", "--openrouter-api-key", "--litert-model-path", "--gas-webhook-url", "--google-access-token", "--slack-bot-token", "--slack-app-token", "--signal-jsonrpc-url", "--signal-account", "--relay-domain":
 			if index+1 < len(arguments) {
 				if argument != "--password" {
 					filteredArguments = append(filteredArguments, argument)
@@ -2657,7 +2658,8 @@ func setupControlArguments(arguments []string) []string {
 				strings.HasPrefix(argument, "--slack-bot-token=") ||
 				strings.HasPrefix(argument, "--slack-app-token=") ||
 				strings.HasPrefix(argument, "--signal-jsonrpc-url=") ||
-				strings.HasPrefix(argument, "--signal-account=") {
+				strings.HasPrefix(argument, "--signal-account=") ||
+				strings.HasPrefix(argument, "--relay-domain=") {
 				filteredArguments = append(filteredArguments, argument)
 			}
 		}
@@ -3105,6 +3107,23 @@ func randomHexString(byteCount int) string {
 		panic(fmt.Sprintf("crypto random failed: %v", randomError))
 	}
 	return hex.EncodeToString(randomBytes)
+}
+
+const relayDomainStateKey = "relay_domain"
+
+// relayDomainForTarget is the domain a company chose to reach its own Buzz relay
+// on, given once with --relay-domain and remembered for later runs. Empty is the
+// ordinary answer and leaves the relay on loopback: reaching a relay from
+// outside means owning a domain and pointing a tunnel at it, which belongs to
+// the company and cannot be worked out from anything here. See
+// blueclaw.RelayPublicHost.
+func relayDomainForTarget(stateDir string) string {
+	chosen := strings.TrimSpace(argString("--relay-domain", ""))
+	if chosen == "" {
+		return loadState(stateDir, relayDomainStateKey)
+	}
+	saveState(stateDir, relayDomainStateKey, chosen)
+	return chosen
 }
 
 func saveState(dir, key, value string) {
@@ -5204,6 +5223,7 @@ func prepareSetupPipelineContext(messenger *msg, options setupLiveOptions, selec
 		BoardType:    options.target.boardType,
 		BoardIP:      selection.boardIP,
 		PublicURL:    options.target.deviceURL,
+		RelayDomain:  relayDomainForTarget(options.target.stateDir),
 		SetupCommand: commandLineForSetupLock(os.Args[2:]),
 		SetupSteps:   setupLockSelectedSteps(os.Args[2:]),
 		SetupLockID:  randomHexString(12),

@@ -18,12 +18,14 @@ func (service *Service) relayLoopbackHost() string {
 	return strings.TrimSuffix(relayURL, "/")
 }
 
+// A relay is reachable from outside only when the company put it behind a tunnel
+// on a domain of its own, and provisioning records that name here when it does.
+// Empty is the ordinary answer: the relay is loopback-only.
 func (service *Service) buzzRelayPublicURL() string {
 	if configured := strings.TrimSpace(service.Configuration.BuzzRelayPublicURL); configured != "" {
 		return configured
 	}
-	deviceURL := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceURLPath))
-	return blueclaw.DeriveRelayPublicURL(deviceURL)
+	return blueclaw.RelayPublicURL(readTrimmedFile(service.Configuration.BuzzRelayPublicURLPath))
 }
 
 func (service *Service) buzzRelayPublicHost() string {

@@ -101,6 +101,7 @@ type Configuration struct {
 	BuzzCommunityID                string
 	BuzzRelayURL                   string
 	BuzzRelayPublicURL             string
+	BuzzRelayPublicURLPath         string
 	BuzzLandingBaseURL             string
 	BuzzAdminCommandPath           string
 	BuzzDatabaseURL                string
@@ -328,6 +329,7 @@ func DefaultConfiguration() Configuration {
 		CentralPlanePublishableKey:     centralplane.DefaultPublishableKey,
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		DeviceURLPath:                  "/root/.internkim/env/device-url",
+		BuzzRelayPublicURLPath:         blueclawruntime.BuzzRelayPublicURLFilePath,
 		FlowPublicURLPath:              "/root/.internkim/env/flow-public-url",
 		MattermostSessionSignInPath:    "/root/.internkim/env/mattermost-session-signin",
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
@@ -2772,6 +2774,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.DeviceURLPath == "" {
 		configuration.DeviceURLPath = defaultConfiguration.DeviceURLPath
+	}
+	if configuration.BuzzRelayPublicURLPath == "" {
+		configuration.BuzzRelayPublicURLPath = defaultConfiguration.BuzzRelayPublicURLPath
 	}
 	if configuration.FlowPublicURLPath == "" {
 		configuration.FlowPublicURLPath = defaultConfiguration.FlowPublicURLPath
