@@ -1,4 +1,5 @@
 import { personLabel, type MessengerDirectory } from './messenger-directory';
+import type { Locale } from '$lib/i18n/locale.svelte';
 import type { MessengerChannel, MessengerPerson } from './messenger-api';
 
 // A direct conversation is called after the person on the other side, and the
@@ -12,10 +13,11 @@ export function channelName(
 	channel: MessengerChannel,
 	people: MessengerDirectory,
 	mine: string,
-	canonicalKey: (person: MessengerPerson, people: MessengerDirectory) => string
+	canonicalKey: (person: MessengerPerson, people: MessengerDirectory) => string,
+	locale: Locale
 ): string {
 	if (!channel.isDirect) return channel.name;
 	const others = channel.participants.filter((person) => canonicalKey(person, people) !== mine);
-	const asRecorded = others.map((person) => personLabel(person, people)).filter(Boolean).join(', ');
+	const asRecorded = others.map((person) => personLabel(person, people, locale)).filter(Boolean).join(', ');
 	return asRecorded || channel.name;
 }

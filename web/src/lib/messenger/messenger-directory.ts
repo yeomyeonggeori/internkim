@@ -1,4 +1,6 @@
 import { supabase } from '$lib/supabase';
+import { personName } from '$lib/person-name';
+import type { Locale } from '$lib/i18n/locale.svelte';
 import type { MessengerPerson } from './messenger-api';
 
 export type MessengerDirectory = {
@@ -52,7 +54,13 @@ export function personKey(person: MessengerPerson): string {
 	return `external:${person.externalID ?? ''}`;
 }
 
-export function personLabel(person: MessengerPerson, directory: MessengerDirectory): string {
+// The record holds a name given name first; how it is written belongs to the
+// language the reader picked. See personName.
+export function personLabel(person: MessengerPerson, directory: MessengerDirectory, locale: Locale): string {
+	return personName(recordedNameOf(person, directory), locale);
+}
+
+function recordedNameOf(person: MessengerPerson, directory: MessengerDirectory): string {
 	const memberID = person.memberID ?? (person.externalID ? directory.memberOfExternal.get(person.externalID) : undefined);
 	if (memberID) return directory.nameOfMember.get(memberID) ?? '';
 	return directory.nameOfExternal.get(person.externalID ?? '') ?? '';

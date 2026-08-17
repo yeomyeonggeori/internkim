@@ -9,7 +9,7 @@ function canonicalKeyForTest(person: MessengerPerson, people: MessengerDirectory
 }
 
 const directory: MessengerDirectory = {
-	nameOfMember: new Map([['member-1', '김여명']]),
+	nameOfMember: new Map([['member-1', '여명 김']]),
 	nameOfExternal: new Map([
 		['external-1', '여명 김'],
 		['bot-1', 'Intern Kim']
@@ -33,16 +33,16 @@ function conversationWith(externalIDs: string[], name: string): MessengerChannel
 describe('channelName', () => {
 	test('calls a direct conversation what the company calls that person', () => {
 		const conversation = conversationWith(['external-1', 'mine'], '여명 김');
-		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest)).toBe('김여명');
+		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko')).toBe('김여명');
 	});
 
 	test('falls back to the messenger for somebody the record does not know', () => {
 		const conversation = conversationWith(['bot-1', 'mine'], 'Intern Kim');
-		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest)).toBe('Intern Kim');
+		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko')).toBe('Intern Kim');
 	});
 
 	test('leaves a group conversation with the name it was given', () => {
 		const conversation = { ...conversationWith([], '광장'), isDirect: false };
-		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest)).toBe('광장');
+		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko')).toBe('광장');
 	});
 });
