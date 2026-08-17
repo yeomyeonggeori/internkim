@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -83,7 +84,9 @@ func containsString(values []string, expectedValue string) bool {
 
 const setupBoardForStatusTest = "jetson-orin-nano"
 
-func TestRemoteSSHErrorNamesTheHostAndNoTransport(t *testing.T) {
+func TestRemoteSSHErrorNamesTheHostAndNeverGuessesAtTransport(t *testing.T) {
+	writeCloudflareAccessToken(t, "0.ssh.example.com")
+
 	errorValue := remoteSSHError("0.ssh.example.com", "Connection timed out during banner exchange", os.ErrDeadlineExceeded)
 
 	errorMessage := errorValue.Error()
@@ -94,5 +97,44 @@ func TestRemoteSSHErrorNamesTheHostAndNoTransport(t *testing.T) {
 	}
 	if strings.Contains(errorMessage, "cloudflared") {
 		t.Fatalf("how the operator reaches the host is their configuration, got %s", errorMessage)
+	}
+}
+
+func writeCloudflareAccessToken(t *testing.T, hostname string) {
+	t.Helper()
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	tokenDirectory := filepath.Join(homeDirectory, ".cloudflared")
+	if errorValue := os.MkdirAll(tokenDirectory, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(tokenDirectory, hostname+"-abc123-token"), []byte("token"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func TestABannerTimeoutWithNoAccessTokenNamesTheClient(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	if errorValue := os.MkdirAll(filepath.Join(homeDirectory, ".cloudflared"), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	errorValue := remoteSSHError("0.ssh.example.com", "Connection timed out during banner exchange", os.ErrDeadlineExceeded)
+
+	for _, expectedText := range []string{"Cloudflare Access 토큰", "cloudflared access login https://0.ssh.example.com"} {
+		if !strings.Contains(errorValue.Error(), expectedText) {
+			t.Fatalf("a banner timeout with no token is this computer's problem and the message has to say so, missing %q: %v", expectedText, errorValue)
+		}
+	}
+}
+
+func TestABannerTimeoutWithATokenDoesNotBlameTheClient(t *testing.T) {
+	writeCloudflareAccessToken(t, "0.ssh.example.com")
+
+	errorValue := remoteSSHError("0.ssh.example.com", "Connection timed out during banner exchange", os.ErrDeadlineExceeded)
+
+	if strings.Contains(errorValue.Error(), "cloudflared access login") {
+		t.Fatalf("a token is present, so the device is the thing to look at: %v", errorValue)
 	}
 }
