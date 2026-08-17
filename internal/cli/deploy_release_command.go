@@ -256,13 +256,6 @@ func runDirectReleaseDeploy(arguments []string) error {
 	return applyPublishedRelease(target, releaseID)
 }
 
-func coupleBlueclawWithSkills(selectedComponentNames map[string]bool) map[string]bool {
-	if selectedComponentNames["blueclawPayload"] {
-		selectedComponentNames["skills"] = true
-	}
-	return selectedComponentNames
-}
-
 func selectedReleaseComponentNames(arguments []string) (map[string]bool, error) {
 	value := commandArgumentValue(arguments, "--components", "")
 	if strings.TrimSpace(value) == "" {
