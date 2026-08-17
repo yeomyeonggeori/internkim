@@ -9,14 +9,20 @@ import (
 )
 
 func EnsureBlueclawBinary(targetPath string, scriptDir string) error {
-	return ensureBlueclawCommandBinary(targetPath, scriptDir, "./cmd/blueclaw")
+	return ensureBlueclawCommandBinary(targetPath, scriptDir, "./cmd/blueclaw", "linux", "arm64")
 }
 
 func EnsureBlueclawSupervisorBinary(targetPath string, scriptDir string) error {
-	return ensureBlueclawCommandBinary(targetPath, scriptDir, "./cmd/blueclaw-supervisor")
+	return ensureBlueclawCommandBinary(targetPath, scriptDir, "./cmd/blueclaw-supervisor", "linux", "arm64")
 }
 
-func ensureBlueclawCommandBinary(targetPath string, scriptDir string, packagePath string) error {
+// A Mac runs the supervisor itself and the guest inside vfkit, so the supervisor is the one
+// binary in the pair that is not built for the guest's platform.
+func EnsureBlueclawSupervisorBinaryForHost(targetPath string, scriptDir string, operatingSystem string, architecture string) error {
+	return ensureBlueclawCommandBinary(targetPath, scriptDir, "./cmd/blueclaw-supervisor", operatingSystem, architecture)
+}
+
+func ensureBlueclawCommandBinary(targetPath string, scriptDir string, packagePath string, operatingSystem string, architecture string) error {
 	blueclawDirectory := BlueclawSubmoduleRoot(scriptDir)
 	if _, error := os.Stat(filepath.Join(blueclawDirectory, "go.mod")); error != nil {
 		return fmt.Errorf("blueclaw submodule missing at %s", blueclawDirectory)
@@ -32,7 +38,7 @@ func ensureBlueclawCommandBinary(targetPath string, scriptDir string, packagePat
 
 	buildCommand := exec.Command("go", "build", "-o", targetPath, packagePath)
 	buildCommand.Dir = blueclawDirectory
-	buildCommand.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
+	buildCommand.Env = append(os.Environ(), "GOOS="+operatingSystem, "GOARCH="+architecture)
 	output, error := buildCommand.CombinedOutput()
 	if error != nil {
 		return fmt.Errorf("build %s: %s", packagePath, string(output))
