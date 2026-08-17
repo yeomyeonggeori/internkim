@@ -1,10 +1,10 @@
 //   bun run web/scripts/set-pages-secrets.ts --project internkim
 
-const token = process.env.CF_API_TOKEN ?? process.env.CLOUDFLARE_API_TOKEN ?? '';
+const token = process.env.CLOUDFLARE_API_TOKEN ?? '';
 const projectURL = process.env.SUPABASE_URL ?? '';
 const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
 const secretKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-if (!token) throw new Error('set CF_API_TOKEN');
+if (!token) throw new Error('set CLOUDFLARE_API_TOKEN');
 if (!projectURL || !publishableKey || !secretKey) throw new Error('set SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY and SUPABASE_SECRET_KEY');
 
 function argument(name: string): string | undefined {

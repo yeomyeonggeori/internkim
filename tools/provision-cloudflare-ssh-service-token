@@ -7,12 +7,25 @@ import urllib.request
 
 repositoryRoot = pathlib.Path(__file__).resolve().parent.parent
 secretsDirectory = repositoryRoot / ".local" / "secrets"
-apiTokenPath = secretsDirectory / "cloudflare-api-token"
 serviceTokenPath = secretsDirectory / "cloudflare-access-service-token.json"
 serviceTokenName = "internkim-cli-ssh"
 sshApplicationDomainSuffix = ".ssh." if len(sys.argv) < 2 else sys.argv[1]
 
-apiToken = apiTokenPath.read_text().strip()
+
+# The token is written in one place, .env, and read from there. A copy of it
+# under .local was a second thing to rotate and the first to go stale.
+def apiTokenFromEnvironment():
+    given = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+    if given:
+        return given
+    for line in (repositoryRoot / ".env").read_text().splitlines():
+        name, separator, value = line.partition("=")
+        if separator and name.strip() == "CLOUDFLARE_API_TOKEN":
+            return value.strip().strip("'\"")
+    raise SystemExit("set CLOUDFLARE_API_TOKEN, in the environment or in .env")
+
+
+apiToken = apiTokenFromEnvironment()
 base = "https://api.cloudflare.com/client/v4"
 
 
