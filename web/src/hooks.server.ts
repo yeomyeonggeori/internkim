@@ -22,7 +22,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		gatewayURL: env.GATEWAY_URL ?? ''
 	};
 
-	const zone = env.CF_DOMAIN ?? '';
+	const zone = env.CLOUDFLARE_DOMAIN ?? '';
 	if (!building && movesToTheOneAddress({ hostname: event.url.hostname, zone, pathname: event.url.pathname })) {
 		redirect(308, `https://${spaceHostnameOf(zone)}${event.url.pathname}${event.url.search}`);
 	}

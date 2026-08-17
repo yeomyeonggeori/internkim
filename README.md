@@ -207,22 +207,17 @@ checks the `X-INTERNKIM-GATEWAY-SECRET` shared header first, then
 header is a coarse gate against untargeted internet traffic; a Cloudflare Access
 service token is what to add when a real network boundary is wanted.
 
-Operator secrets stay under `.local/secrets/`, which git ignores.
-
-```bash
-mkdir -p .local/secrets
-awk 'BEGIN{FS="="} $1=="OPENROUTER_MANAGEMENT_KEY"{sub(/^[^=]*=/,""); print}' .env > .local/secrets/openrouter-management-key
-awk 'BEGIN{FS="="} $1=="CF_API_TOKEN"{sub(/^[^=]*=/,""); print}' .env > .local/secrets/cloudflare-api-token
-chmod 600 .local/secrets/openrouter-management-key .local/secrets/cloudflare-api-token
-```
+Operator secrets are written in `.env`, which git ignores, and read from there.
+Copying one into a second file under `.local/` gave the value two homes, one of
+which nobody remembers to rotate.
 
 Deploying the Worker needs the account ID alongside the token, because Wrangler
-otherwise fails authenticating against `/memberships`.
+otherwise fails authenticating against `/memberships`. Wrangler reads both under
+the names `.env` already uses, so handing it the file is the whole step.
 
 ```bash
 cd workers/llm-gateway
-CLOUDFLARE_API_TOKEN="$(awk 'BEGIN{FS="="} $1=="CF_API_TOKEN"{sub(/^[^=]*=/,""); print}' ../../.env)" \
-CLOUDFLARE_ACCOUNT_ID="$(awk 'BEGIN{FS="="} $1=="CF_ACCOUNT_ID"{sub(/^[^=]*=/,""); print}' ../../.env)" \
+set -a && . ../../.env && set +a
 ../../web/node_modules/.bin/wrangler deploy --keep-vars
 ```
 
@@ -393,8 +388,8 @@ cd workers/release-registry
 
 Publishing from a development machine with a Wrangler OAuth session needs the
 bucket and base URL. `INTERNKIM_RELEASE_R2_ACCOUNT_ID` falls back to
-`CF_ACCOUNT_ID` in `.env`, and `INTERNKIM_RELEASE_DOWNLOAD_TOKEN` falls back to
-`.local/secrets/release-download-token`.
+`CLOUDFLARE_ACCOUNT_ID` in `.env`, and `INTERNKIM_RELEASE_DOWNLOAD_TOKEN` falls
+back to `.local/secrets/release-download-token`.
 
 ```bash
 export INTERNKIM_RELEASE_R2_BUCKET=internkim-releases

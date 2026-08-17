@@ -64,7 +64,7 @@ func printReleaseUsage() {
 	fmt.Println("Usage: internkim release <publish|status>")
 	fmt.Println()
 	fmt.Println("Environment for publish:")
-	fmt.Println("  INTERNKIM_RELEASE_R2_ACCOUNT_ID falls back to CF_ACCOUNT_ID")
+	fmt.Println("  INTERNKIM_RELEASE_R2_ACCOUNT_ID falls back to CLOUDFLARE_ACCOUNT_ID")
 	fmt.Println("  INTERNKIM_RELEASE_R2_BUCKET")
 	fmt.Println("  INTERNKIM_RELEASE_R2_ACCESS_KEY_ID")
 	fmt.Println("  INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY")
@@ -594,12 +594,12 @@ func releaseR2Client() (releaseset.R2Client, error) {
 	})
 }
 
-// R2 shares the same Cloudflare account as the rest of the workspace, so CF_ACCOUNT_ID is a valid fallback.
+// R2 shares the same Cloudflare account as the rest of the workspace, so CLOUDFLARE_ACCOUNT_ID is a valid fallback.
 func releaseR2AccountID() string {
 	if accountID := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_R2_ACCOUNT_ID")); accountID != "" {
 		return accountID
 	}
-	return strings.TrimSpace(os.Getenv("CF_ACCOUNT_ID"))
+	return strings.TrimSpace(os.Getenv("CLOUDFLARE_ACCOUNT_ID"))
 }
 
 func releasePublisherFromEnvironment(repositoryRootPath string) (releaseObjectPublisher, error) {
@@ -697,18 +697,21 @@ func wranglerObjectDeleteArguments(bucket string, objectKey string) []string {
 	}
 }
 
+// The CF_-prefixed names are no longer ours to read, but wrangler still honours
+// them and only warns that they are deprecated, so one left over in a shell
+// would quietly outrank what is passed here. They are dropped, never read.
 func wranglerObjectPutEnvironment(environment []string, accountID string) []string {
 	filteredEnvironment := []string{}
 	apiToken := ""
 	for _, value := range environment {
 		name, variableValue, _ := strings.Cut(value, "=")
-		if name == "CF_API_TOKEN" || name == "CLOUDFLARE_API_TOKEN" {
+		if name == "CLOUDFLARE_API_TOKEN" {
 			if strings.TrimSpace(variableValue) != "" {
 				apiToken = strings.TrimSpace(variableValue)
 			}
 			continue
 		}
-		if name == "CF_ACCOUNT_ID" || name == "CLOUDFLARE_ACCOUNT_ID" {
+		if name == "CLOUDFLARE_ACCOUNT_ID" || name == "CF_API_TOKEN" || name == "CF_ACCOUNT_ID" {
 			continue
 		}
 		filteredEnvironment = append(filteredEnvironment, value)
