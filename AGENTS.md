@@ -555,6 +555,32 @@ and delete the duplicates.
   together does not help, for the same reason. Deploy `admind`, then the
   component. The second run reaches a `running/installing` status the first
   never shows, which is how to tell them apart.
+- **A change to how a release installs can lock the device out of its own fix.**
+  The release is applied by the `admind` already running, so when new code
+  changes what an install verifies, the old `admind` keeps verifying the old
+  thing — and once a release carries a component it cannot accept, *every*
+  release fails, including the one carrying the `admind` that would fix it.
+  `--components admind` alone does not help: a release describes the whole
+  device, so it inherits the component that fails. The door out is the SSH
+  path, which does not go through the release engine at all:
+
+  ```
+  make build
+  ./internkim setup --only admind --force
+  ```
+
+  `--force` is required because the step is satisfied by "the file exists and
+  the service is active", which is true of a device running months-old code.
+  Verify with `systemctl show internkim-admind -p ExecMainStartTimestamp`; a
+  timestamp older than the deploy means the old process is still the one
+  applying releases. Then deploy normally.
+
+  This cost a working day: #560 moved the payload to the delivery share and
+  left `blueclawWorkspaceManifestMatchesTarget` reading the workspace image,
+  so the check compared the artifact against a copy nothing writes. It passed
+  only while the payload never changed, and the first release that changed it
+  stopped every deploy and stopped blueclaw on a device people were using.
+  When you move where something is written, grep for what reads it.
 - The Jetson Blueclaw component is `blueclawPayload`, not `blueclaw`. An invalid
   component name is silently dropped, so confirm the deploy log's `Components:`
   line lists everything you intended.

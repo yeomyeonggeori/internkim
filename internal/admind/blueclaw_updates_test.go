@@ -807,3 +807,18 @@ func TestThePayloadIsVerifiedWhereItWasDelivered(t *testing.T) {
 		t.Fatalf("expected the check to read the share the guest runs from: %s", joined)
 	}
 }
+
+func TestNothingOnThePayloadPathReadsTheWorkspaceImage(t *testing.T) {
+	target := canonicalBlueclawPayloadInstallTarget()
+
+	for name, command := range map[string]string{
+		"delivery refresh":  blueclawDeliveryRefreshCommandForTarget(target),
+		"guest stamp read":  guestRuntimeConfigurationReadCommand(),
+		"stop before apply": stopBlueclawPayloadTargetCommand(target),
+		"start after apply": startBlueclawPayloadTargetCommand(target),
+	} {
+		if strings.Contains(command, "debugfs") || strings.Contains(command, target.WorkspaceImagePath) {
+			t.Fatalf("the payload and the configuration reach the guest through the share, so %s reading the image compares against a copy nothing writes: %s", name, command)
+		}
+	}
+}
