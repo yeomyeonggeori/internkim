@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -171,6 +172,7 @@ func TestCompanionInferenceModeStopsOnlyJetsonGenerationService(t *testing.T) {
 			commands = append(commands, executablePath+" "+strings.Join(arguments, " "))
 			return []byte("ok"), nil
 		},
+		LookupExecutable: func(string) (string, error) { return "/usr/bin/systemctl", nil },
 	}
 	service.applyLocalInferenceMode(context.Background())
 
@@ -490,5 +492,23 @@ func TestRemoteEmbeddingModePreservesRequestedEmbeddingModel(t *testing.T) {
 	_, errorValue := service.createEmbedding(context.Background(), EmbeddingRequest{Input: "hello", Model: "embeddinggemma", ExecutionMode: "auto"})
 	if errorValue != nil {
 		t.Fatalf("expected remote embedding creation to succeed: %v", errorValue)
+	}
+}
+
+func TestAMachineWithoutSystemdIsNotReportedAsAFailure(t *testing.T) {
+	commands := []string{}
+	service := Service{
+		Configuration: Configuration{LocalInferenceMode: "companion_only"},
+		RunCommand: func(_ context.Context, executablePath string, arguments []string, _ []byte) ([]byte, error) {
+			commands = append(commands, executablePath+" "+strings.Join(arguments, " "))
+			return []byte("ok"), nil
+		},
+		LookupExecutable: func(string) (string, error) { return "", exec.ErrNotFound },
+	}
+
+	service.applyLocalInferenceMode(context.Background())
+
+	if len(commands) != 0 {
+		t.Fatalf("a host with no systemd has no llama.cpp service to stop, and saying so on every start reads as a defect: %+v", commands)
 	}
 }
