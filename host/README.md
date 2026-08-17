@@ -92,14 +92,18 @@ messenger being read at all.
 
 `make build-relay` compiles it into a single
 `internkim-relay` executable, so the box needs no Bun and no
-`node_modules`. It requires four settings, plus the optional
+`node_modules`. It requires five settings, plus the optional
 `ANSWER_BYTE_CEILING` above:
 
 ```
 SUPABASE_URL  SUPABASE_PUBLISHABLE_KEY  INTERNKIM_APP_URL  AGENT_API_KEY_PATH
+MESSENGER_PLATFORM
 ```
 
-Only the last two are per-company. Give it the agent key as a **path**, not a
+`INTERNKIM_APP_URL` is where everyone signs in, `https://space.<zone>` unless
+the company serves the app itself; the agent key is what decides which company
+the relay acts for. `MESSENGER_PLATFORM` names which messenger the company runs,
+and without it the relay refuses to start. Only the last three are per-company. Give it the agent key as a **path**, not a
 value, so the key never lands in the process environment where `ps eww` can read
 it; `AGENT_API_KEY` still works for a shell you are driving by hand.
 
@@ -109,7 +113,7 @@ with different settings.
 
 ### Any always-on computer will do
 
-The relay has no operating-system-specific code: it reads four settings and
+The relay has no operating-system-specific code: it reads those settings and
 talks to Supabase, the central plane and the messenger over the network. A
 Linux server, a Jetson, a Mac that stays awake — whichever the company already
 leaves running.
