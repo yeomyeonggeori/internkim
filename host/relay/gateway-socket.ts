@@ -53,10 +53,16 @@ export function connectToGateway(settings: {
 		setTimeout(dial, retryDelayMilliseconds(consecutiveFailures));
 	};
 
+	// A refused call reaches the person as an empty screen and nothing else, so
+	// the reason is said here. Without it the only evidence that the messenger
+	// was even asked for anything is on the other side of the gateway.
 	const answerOne = async (data: unknown) => {
 		const call = parseRoutedCall(readJSON(data));
 		if (!call) return;
 		const answer = await serveRoutedCall(call, settings.dispatch, settings.byteCeiling);
+		if (answer.status >= 400) {
+			report(`${call.capability} for member ${call.memberID} answered ${answer.status}: ${reasonOf(answer.body)}`);
+		}
 		send(answer);
 	};
 
@@ -75,6 +81,14 @@ export function connectToGateway(settings: {
 			socket?.close();
 		}
 	};
+}
+
+export function reasonOf(body: unknown): string {
+	if (typeof body === 'object' && body !== null) {
+		const said = (body as { error?: unknown }).error;
+		if (typeof said === 'string' && said.trim() !== '') return said;
+	}
+	return 'no reason given';
 }
 
 function readJSON(data: unknown): unknown {
