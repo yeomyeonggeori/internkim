@@ -417,22 +417,22 @@ func (service *Service) verifyGuestProtocolIdentityStamp(ctx context.Context, ta
 }
 
 func (service *Service) guestProtocolIdentityStamp(ctx context.Context, target blueclawPayloadInstallTarget) (string, bool) {
-	document, errorValue := service.runCommand(ctx, "sh", "-lc", guestRuntimeConfigurationReadCommand(target.WorkspaceImagePath))
+	document, errorValue := service.runCommand(ctx, "sh", "-lc", guestRuntimeConfigurationReadCommand())
 	if errorValue != nil {
-		log.Printf("Blueclaw guest protocol identity stamp for %s could not be read from %s: %v", target.Name, target.WorkspaceImagePath, errorValue)
+		log.Printf("Blueclaw guest protocol identity stamp for %s could not be read from the share: %v", target.Name, errorValue)
 		return "", false
 	}
 	stamped, errorValue := stampedGuestProtocolHash(document)
 	if errorValue != nil || stamped == "" {
-		log.Printf("Blueclaw guest protocol identity stamp for %s could not be parsed from %s: %v", target.Name, target.WorkspaceImagePath, errorValue)
+		log.Printf("Blueclaw guest protocol identity stamp for %s could not be parsed from the share: %v", target.Name, errorValue)
 		return "", false
 	}
 	log.Printf("Blueclaw guest for %s boots with aggregateProtocolHash %s", target.Name, stamped)
 	return stamped, true
 }
 
-func guestRuntimeConfigurationReadCommand(workspaceImagePath string) string {
-	return "debugfs -c -R 'cat /.blueclaw/config/runtime.json' " + quoteBlueclawUpdateShellValue(workspaceImagePath) + " 2>/dev/null"
+func guestRuntimeConfigurationReadCommand() string {
+	return "cat " + quoteBlueclawUpdateShellValue(blueclawruntime.BlueclawDeliveryConfigPath+"/runtime.json") + " 2>/dev/null"
 }
 
 func stampedGuestProtocolHash(document []byte) (string, error) {
@@ -642,21 +642,20 @@ func (service *Service) blueclawWorkspaceManifestMatchesTarget(artifactPath stri
 	if errorValue != nil {
 		return false, "artifact manifest unreadable: " + errorValue.Error()
 	}
-	command := "debugfs -R " + quoteBlueclawUpdateShellValue("cat /.blueclaw/runtime/current/manifest.json") + " " + quoteBlueclawUpdateShellValue(target.WorkspaceImagePath) + " 2>/dev/null || true"
+	deliveredManifestPath := blueclawruntime.BlueclawDeliveryRuntimePath + "/manifest.json"
+	command := "cat " + quoteBlueclawUpdateShellValue(deliveredManifestPath) + " 2>/dev/null || true"
 	output, errorValue := service.runCommand(context.Background(), "sh", "-lc", command)
 	if errorValue != nil {
-		return false, "image manifest read failed: " + errorValue.Error()
+		return false, "delivered manifest read failed: " + errorValue.Error()
 	}
 	if string(manifestDocument) == string(output) {
 		return true, ""
 	}
-	diagnosticCommand := "debugfs -R " + quoteBlueclawUpdateShellValue("stat /.blueclaw/runtime/current") + " " + quoteBlueclawUpdateShellValue(target.WorkspaceImagePath) + " 2>&1 | head -3"
-	diagnosticOutput, _ := service.runCommand(context.Background(), "sh", "-lc", diagnosticCommand)
 	return false, fmt.Sprintf(
-		"image manifest %d bytes %q vs artifact %d bytes %q; current stat: %s",
+		"the share at %s carries %d bytes %q and the artifact is %d bytes %q",
+		deliveredManifestPath,
 		len(output), truncateBlueclawUpdateDetail(string(output)),
 		len(manifestDocument), truncateBlueclawUpdateDetail(string(manifestDocument)),
-		truncateBlueclawUpdateDetail(string(diagnosticOutput)),
 	)
 }
 

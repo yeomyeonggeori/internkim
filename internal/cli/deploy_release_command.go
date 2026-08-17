@@ -353,7 +353,7 @@ func waitForReleaseUpdateJob(target commandTarget, job blueclawUpdateJobResponse
 			case "completed", "already_current":
 				return currentJob, nil
 			case "failed":
-				return currentJob, errors.New(strings.TrimSpace(currentJob.Error))
+				return currentJob, releaseApplyFailure(currentJob)
 			}
 		} else if releaseUpdateReachedTarget(target, expectedReleaseID) {
 			// The job record is gone (an admind-containing release restarts admind and
@@ -368,6 +368,20 @@ func waitForReleaseUpdateJob(target commandTarget, job blueclawUpdateJobResponse
 		return blueclawUpdateJobResponse{Status: "completed", Phase: "verified"}, nil
 	}
 	return lastObservedJob, releaseUpdateTimeoutError(target, lastObservedJob)
+}
+
+// A release is applied by the admind already on the device, so an install the running
+// admind cannot accept fails for every release after it — including one carrying the
+// admind that would fix it. The SSH path installs admind outside the release engine,
+// which is the only way out once that happens.
+func releaseApplyFailure(job blueclawUpdateJobResponse) error {
+	detail := strings.TrimSpace(job.Error)
+	if !strings.Contains(detail, "manifest mismatch") {
+		return errors.New(detail)
+	}
+	return fmt.Errorf("%s\n  the admind on the device could not accept this install, and it applies every release,"+
+		" so no release can replace it — install admind over ssh instead:\n"+
+		"    make build && ./internkim setup --only admind --force", detail)
 }
 
 func releaseUpdateTimeoutError(target commandTarget, lastObservedJob blueclawUpdateJobResponse) error {
