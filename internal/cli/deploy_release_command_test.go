@@ -149,3 +149,22 @@ func TestAppliedReleaseIDReadsWhatTheDeviceRecorded(t *testing.T) {
 		})
 	}
 }
+
+func TestAnApplyTheRunningAdmindCannotAcceptNamesTheWayOut(t *testing.T) {
+	errorValue := releaseApplyFailure(blueclawUpdateJobResponse{
+		Status: "failed",
+		Error:  "blueclaw: sync blueclaw payload workspace: workspace manifest mismatch: image manifest ...",
+	})
+
+	if !strings.Contains(errorValue.Error(), "setup --only admind --force") {
+		t.Fatalf("every release after this one fails the same way, so the message has to carry the escape: %v", errorValue)
+	}
+}
+
+func TestAnOrdinaryFailureIsLeftAlone(t *testing.T) {
+	errorValue := releaseApplyFailure(blueclawUpdateJobResponse{Status: "failed", Error: "download timed out"})
+
+	if errorValue.Error() != "download timed out" {
+		t.Fatalf("a failure with a different cause must not be dressed up as this one: %v", errorValue)
+	}
+}
