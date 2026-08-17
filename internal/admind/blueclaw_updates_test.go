@@ -781,3 +781,29 @@ func TestCapabilityContractForStampingFallsBackWhenCapabilitydIsUnreachable(t *t
 		t.Fatalf("an unreachable capabilityd must leave this admind's own contract in place, got %q", contract.AggregateProtocolHash)
 	}
 }
+
+func TestThePayloadIsVerifiedWhereItWasDelivered(t *testing.T) {
+	commands := []string{}
+	service := &Service{}
+	service.RunCommand = func(_ context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, strings.Join(append([]string{name}, arguments...), " "))
+		return []byte("{}"), nil
+	}
+	artifactPath := t.TempDir()
+	if errorValue := os.WriteFile(filepath.Join(artifactPath, "manifest.json"), []byte("{}"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	matches, detail := service.blueclawWorkspaceManifestMatchesTarget(artifactPath, canonicalBlueclawPayloadInstallTarget())
+
+	if !matches {
+		t.Fatalf("expected the delivered manifest to match, got %s", detail)
+	}
+	joined := strings.Join(commands, "\n")
+	if strings.Contains(joined, "debugfs") || strings.Contains(joined, "workspace.ext4") {
+		t.Fatalf("the payload no longer reaches the workspace image, so reading it there compares against something that stopped being written: %s", joined)
+	}
+	if !strings.Contains(joined, blueclawruntime.BlueclawDeliveryRuntimePath) {
+		t.Fatalf("expected the check to read the share the guest runs from: %s", joined)
+	}
+}
