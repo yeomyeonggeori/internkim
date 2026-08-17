@@ -61,6 +61,41 @@ func TestTheAgentKeyIsPlacedWhereOnlyTheRelayCanReadIt(t *testing.T) {
 	}
 }
 
+type relaySettingsConnection struct{ deviceDigest string }
+
+func (connection relaySettingsConnection) Run(command string) string {
+	if strings.HasPrefix(command, "sha256sum") {
+		return connection.deviceDigest + "  " + blueclaw.RelayEnvironmentFilePath
+	}
+	if strings.Contains(command, "is-active") {
+		return "active"
+	}
+	return ""
+}
+
+func (connection relaySettingsConnection) SCP(localPath, remotePath string) error {
+	return nil
+}
+
+func TestChangedSettingsReachARunningRelay(t *testing.T) {
+	settingsPath := filepath.Join(t.TempDir(), "settings")
+	settings := "MESSENGER_PLATFORM=buzz\nINTERNKIM_APP_URL=https://space.example.test\n"
+	if errorValue := os.WriteFile(settingsPath, []byte(settings), 0o600); errorValue != nil {
+		t.Fatalf("write the settings: %v", errorValue)
+	}
+	t.Setenv(relaySettingsEnvironmentName, settingsPath)
+
+	stale := &Context{Backend: BackendSSH, SSH: relaySettingsConnection{deviceDigest: asPlacedDigest("MESSENGER_PLATFORM=buzz\n")}}
+	if StepRelay.IsSatisfied(stale) {
+		t.Fatal("a relay running on settings the operator just replaced was called done")
+	}
+
+	current := &Context{Backend: BackendSSH, SSH: relaySettingsConnection{deviceDigest: asPlacedDigest(settings)}}
+	if !StepRelay.IsSatisfied(current) {
+		t.Fatal("a relay already running on these settings would be restarted for nothing")
+	}
+}
+
 func TestALatchedUnitIsClearedBeforeItIsRestarted(t *testing.T) {
 	command := restartAfterClearingTheFailure(blueclaw.RelayServiceName)
 
