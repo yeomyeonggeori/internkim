@@ -3,9 +3,9 @@ import { appSectionPathOf, isEmbeddedCalendar, taskListPathOf, usesAppShell, use
 
 describe('the app shell on a company address', () => {
 	test('a company-prefixed app path still wears the shell', () => {
-		expect(usesAppShell('/dawnstreet/calendar')).toBe(true);
-		expect(usesAppShell('/dawnstreet/files/some/folder')).toBe(true);
-		expect(usesAppShell('/dawnstreet/flow/')).toBe(true);
+		expect(usesAppShell('/samplecompany/calendar')).toBe(true);
+		expect(usesAppShell('/samplecompany/files/some/folder')).toBe(true);
+		expect(usesAppShell('/samplecompany/flow/')).toBe(true);
 	});
 
 	test('an app path without a company keeps working', () => {
@@ -15,8 +15,8 @@ describe('the app shell on a company address', () => {
 
 	test('the embedded calendar wears no shell, under a company or not', () => {
 		expect(usesAppShell('/calendar/embed')).toBe(false);
-		expect(usesAppShell('/dawnstreet/calendar/embed')).toBe(false);
-		expect(usesAppShell('/dawnstreet/calendar/embed/abc')).toBe(false);
+		expect(usesAppShell('/samplecompany/calendar/embed')).toBe(false);
+		expect(usesAppShell('/samplecompany/calendar/embed/abc')).toBe(false);
 	});
 
 	test('pages outside the apps wear no shell', () => {
@@ -28,19 +28,19 @@ describe('the app shell on a company address', () => {
 
 describe('the web auth gate on a company address', () => {
 	test('a company-prefixed app path is still gated', () => {
-		expect(usesWebAuthGate('/dawnstreet/calendar')).toBe(true);
-		expect(usesWebAuthGate('/dawnstreet/memory/graph')).toBe(true);
+		expect(usesWebAuthGate('/samplecompany/calendar')).toBe(true);
+		expect(usesWebAuthGate('/samplecompany/memory/graph')).toBe(true);
 	});
 
 	test('claiming an account is not gated, under a company or not', () => {
 		expect(usesWebAuthGate('/auth/claim/token')).toBe(false);
-		expect(usesWebAuthGate('/dawnstreet/auth/claim/token')).toBe(false);
+		expect(usesWebAuthGate('/samplecompany/auth/claim/token')).toBe(false);
 	});
 });
 
 describe('the breadcrumb link back to the section', () => {
 	test('keeps the company it was read at', () => {
-		expect(appSectionPathOf('/dawnstreet/files/some/folder')).toBe('/dawnstreet/files/');
+		expect(appSectionPathOf('/samplecompany/files/some/folder')).toBe('/samplecompany/files/');
 	});
 
 	test('stays company-less when the address is', () => {
@@ -51,13 +51,13 @@ describe('the breadcrumb link back to the section', () => {
 describe('a question asked of the route, not the address', () => {
 	test('knows an embedded calendar whether or not a company sits in front of it', () => {
 		expect(isEmbeddedCalendar('/calendar/embed')).toBe(true);
-		expect(isEmbeddedCalendar('/dawnstreet/calendar/embed')).toBe(true);
-		expect(isEmbeddedCalendar('/dawnstreet/calendar/embed/week')).toBe(true);
-		expect(isEmbeddedCalendar('/dawnstreet/calendar')).toBe(false);
+		expect(isEmbeddedCalendar('/samplecompany/calendar/embed')).toBe(true);
+		expect(isEmbeddedCalendar('/samplecompany/calendar/embed/week')).toBe(true);
+		expect(isEmbeddedCalendar('/samplecompany/calendar')).toBe(false);
 	});
 
 	test('sends a task back to its own list, company and all', () => {
 		expect(taskListPathOf('/tasks/abc')).toBe('/tasks');
-		expect(taskListPathOf('/dawnstreet/tasks/abc')).toBe('/dawnstreet/tasks');
+		expect(taskListPathOf('/samplecompany/tasks/abc')).toBe('/samplecompany/tasks');
 	});
 });
