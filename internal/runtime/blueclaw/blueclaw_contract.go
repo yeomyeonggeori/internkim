@@ -123,6 +123,7 @@ const (
 	BuzzRelayLocalURL                     = "ws://127.0.0.1:3000"
 	BuzzRelayCanonicalWssURL              = "wss://127.0.0.1:3000"
 	BuzzRelayCertificatePath              = "/root/.internkim/tls/relay.crt"
+	BuzzRelayPublicURLFilePath            = "/root/.internkim/env/buzz-relay-public-url"
 	DeviceURLFilePath                     = "/root/.internkim/env/device-url"
 	BuzzRelayRedisURL                     = "redis://127.0.0.1:6379"
 	BuzzRelayArtifactPath                 = ".dependency/buzz-relay"

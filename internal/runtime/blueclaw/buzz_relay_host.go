@@ -2,34 +2,27 @@ package blueclaw
 
 import "strings"
 
-func DeriveRelayPublicHost(deviceHost string) string {
-	host := relayHostOnly(deviceHost)
-	if host == "" {
-		return ""
+// RelayPublicHost is the name a company's Buzz relay answers on for clients
+// outside the machine it runs on. Most companies have none: the relay listens on
+// loopback, and everyone reaches the messenger through the central plane. A
+// company that wants its own Buzz app to connect puts the relay behind a tunnel
+// on a domain it owns, and that domain is a setting — nothing here derives it,
+// because nothing here knows what the company bought.
+func RelayPublicHost(relayDomain string) string {
+	host := strings.TrimSpace(relayDomain)
+	for _, scheme := range []string{"https://", "http://", "wss://", "ws://"} {
+		host = strings.TrimPrefix(host, scheme)
 	}
-	dotIndex := strings.IndexByte(host, '.')
-	if dotIndex < 0 {
-		return host + "-relay"
-	}
-	return host[:dotIndex] + "-relay" + host[dotIndex:]
-}
-
-func DeriveRelayPublicURL(deviceHost string) string {
-	publicHost := DeriveRelayPublicHost(deviceHost)
-	if publicHost == "" {
-		return ""
-	}
-	return "wss://" + publicHost
-}
-
-func relayHostOnly(value string) string {
-	host := strings.TrimSpace(value)
-	host = strings.TrimPrefix(host, "https://")
-	host = strings.TrimPrefix(host, "http://")
-	host = strings.TrimPrefix(host, "wss://")
-	host = strings.TrimPrefix(host, "ws://")
 	if slashIndex := strings.IndexByte(host, '/'); slashIndex >= 0 {
 		host = host[:slashIndex]
 	}
 	return host
+}
+
+func RelayPublicURL(relayDomain string) string {
+	host := RelayPublicHost(relayDomain)
+	if host == "" {
+		return ""
+	}
+	return "wss://" + host
 }
