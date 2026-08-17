@@ -3,10 +3,10 @@ declare global {
 		interface Platform {
 			env: {
 				KV: KVNamespace;
-				CF_API_TOKEN: string;
-				CF_ACCOUNT_ID: string;
-				CF_ZONE_ID: string;
-				CF_DOMAIN: string;
+				CLOUDFLARE_API_TOKEN: string;
+				CLOUDFLARE_ACCOUNT_ID: string;
+				CLOUDFLARE_ZONE_ID: string;
+				CLOUDFLARE_DOMAIN: string;
 				INTERNKIM_REGISTER_SECRET: string;
 			};
 		}
