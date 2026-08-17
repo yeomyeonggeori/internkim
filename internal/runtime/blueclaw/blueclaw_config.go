@@ -70,6 +70,7 @@ type RuntimeConfigOptions struct {
 	MinimumModelTier          string
 	ShouldUseModelForAllTiers bool
 	DefaultTaskLevel          string
+	VirtualMachineMonitor     string
 	VirtualCPUCount           int
 	AllowAdminTaskDiagnostic  bool
 	LocalOnly                 bool
@@ -206,6 +207,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	logDirectoryPath := firstNonEmptyString(options.LogDirectoryPath, BlueclawSupervisorLogDirectoryPath)
 	runtimeDirectoryPath := firstNonEmptyString(options.RuntimeDirectoryPath, "/var/lib/bc")
 	deliveryDirectoryPath := deliveryDirectoryPathForMonitor()
+	virtualMachineMonitor := firstNonEmptyString(options.VirtualMachineMonitor, BlueclawVirtualMachineMonitor)
 	outboundHostDeviceName := firstNonEmptyString(options.OutboundHostDeviceName, "bctap0")
 	outboundGuestMACAddress := firstNonEmptyString(options.OutboundGuestMACAddress, "AA:FC:00:00:00:01")
 	outboundNetworkCIDR := firstNonEmptyString(options.OutboundNetworkCIDR, "172.31.0.0/30")
@@ -276,11 +278,12 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		},
 		"languageModel": languageModelConfiguration,
 		"firecracker": map[string]any{
-			"virtualMachineMonitor":  BlueclawVirtualMachineMonitor,
+			"virtualMachineMonitor":  virtualMachineMonitor,
 			"firecrackerPath":        BlueclawFirecrackerPath,
 			"jailerPath":             BlueclawJailerPath,
 			"cloudHypervisorPath":    BlueclawCloudHypervisorPath,
 			"virtiofsdPath":          BlueclawVirtiofsdPath,
+			"vfkitPath":              BlueclawVfkitPath,
 			"deliveryDirectoryPath":  deliveryDirectoryPath,
 			"kernelImagePath":        BlueclawKernelImagePath,
 			"rootfsImagePath":        rootFilesystemImagePath,
@@ -295,7 +298,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"logDirectoryPath":       logDirectoryPath,
 			"runtimeDirectoryPath":   runtimeDirectoryPath,
 			"outboundNetwork": map[string]any{
-				"enabled":          true,
+				"enabled":          monitorReachesTheNetworkThroughAHostTap(virtualMachineMonitor),
 				"hostDeviceName":   outboundHostDeviceName,
 				"guestMACAddress":  outboundGuestMACAddress,
 				"networkCIDR":      outboundNetworkCIDR,
@@ -596,4 +599,8 @@ func guestMigrationDirectoryPath() string {
 		return BlueclawGuestMigrationPath
 	}
 	return BlueclawGuestDeliveryRuntimePath + "/migrations"
+}
+
+func monitorReachesTheNetworkThroughAHostTap(virtualMachineMonitor string) bool {
+	return virtualMachineMonitor != VfkitMonitorName
 }

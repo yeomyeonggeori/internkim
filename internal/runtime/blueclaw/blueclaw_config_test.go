@@ -901,3 +901,41 @@ func TestLlamaCppEmbeddingServiceUnitRunsEmbeddingServer(t *testing.T) {
 		}
 	}
 }
+
+func TestAMacGetsTheMonitorItHasAndNoHostTap(t *testing.T) {
+	testCases := []struct {
+		monitor                    string
+		expectedMonitor            string
+		expectedOutboundNetworking bool
+	}{
+		{"", CloudHypervisorMonitorName, true},
+		{CloudHypervisorMonitorName, CloudHypervisorMonitorName, true},
+		{VfkitMonitorName, VfkitMonitorName, false},
+	}
+
+	for _, testCase := range testCases {
+		document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{
+			ModelName:             "x-ai/grok-4.3",
+			VirtualMachineMonitor: testCase.monitor,
+		})
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		var runtimeConfiguration map[string]any
+		if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		firecracker := runtimeConfiguration["firecracker"].(map[string]any)
+
+		if firecracker["virtualMachineMonitor"] != testCase.expectedMonitor {
+			t.Fatalf("expected %q, got %+v", testCase.expectedMonitor, firecracker["virtualMachineMonitor"])
+		}
+		if firecracker["vfkitPath"] != BlueclawVfkitPath {
+			t.Fatalf("a document naming vfkit without its path cannot start one: %+v", firecracker)
+		}
+		outboundNetwork := firecracker["outboundNetwork"].(map[string]any)
+		if outboundNetwork["enabled"] != testCase.expectedOutboundNetworking {
+			t.Fatalf("a Mac has no tap device to build, so %q must not ask for one: %+v", testCase.monitor, outboundNetwork)
+		}
+	}
+}
