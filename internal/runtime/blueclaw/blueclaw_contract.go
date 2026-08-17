@@ -78,6 +78,7 @@ const (
 	BlueclawJailerPath                    = "/usr/local/bin/jailer"
 	BlueclawCloudHypervisorPath           = "/usr/local/bin/cloud-hypervisor"
 	BlueclawVirtiofsdPath                 = "/usr/local/bin/virtiofsd"
+	BlueclawVfkitPath                     = "/usr/local/bin/vfkit"
 	BlueclawDeliveryPath                  = "/var/lib/blueclaw/delivery"
 	BlueclawDeliveryReadOnlyPath          = "/var/lib/blueclaw/delivery-ro"
 	BlueclawDeliveryConfigPath            = "/var/lib/blueclaw/delivery/config"
@@ -89,6 +90,7 @@ const (
 	BlueclawDeliveryServicePath           = "/etc/systemd/system/internkim-blueclaw-delivery.service"
 	FirecrackerMonitorName                = "firecracker"
 	CloudHypervisorMonitorName            = "cloudHypervisor"
+	VfkitMonitorName                      = "vfkit"
 	BlueclawVirtualMachineMonitor         = CloudHypervisorMonitorName
 	BlueclawRuntimeInstanceDirectoryPath  = "/var/lib/bc"
 	BlueclawRuntimeInstallPath            = "/opt/internkim/blueclaw-runtime"
