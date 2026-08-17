@@ -71,6 +71,9 @@ type RuntimeConfigOptions struct {
 	ShouldUseModelForAllTiers bool
 	DefaultTaskLevel          string
 	VirtualMachineMonitor     string
+	KernelImagePath           string
+	VfkitPath                 string
+	DeliveryDirectoryPath     string
 	VirtualCPUCount           int
 	AllowAdminTaskDiagnostic  bool
 	LocalOnly                 bool
@@ -191,8 +194,9 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	if options.DirectExecution {
 		terminalPOSIXHelperPath = strings.TrimSpace(options.POSIXHelperPath)
 	}
+	virtualMachineMonitor := firstNonEmptyString(options.VirtualMachineMonitor, BlueclawVirtualMachineMonitor)
 	databaseConnectionString := firstNonEmptyString(options.DatabaseConnectionString, BlueclawGuestDatabaseConnectionString)
-	migrationDirectoryPath := firstNonEmptyString(options.MigrationDirectoryPath, guestMigrationDirectoryPath())
+	migrationDirectoryPath := firstNonEmptyString(options.MigrationDirectoryPath, guestMigrationDirectoryPath(virtualMachineMonitor))
 	graphitiEndpoint := firstNonEmptyString(options.GraphitiEndpoint, GraphitiEndpoint)
 	if options.DirectExecution && strings.TrimSpace(options.GraphitiEndpoint) == "" {
 		graphitiEndpoint = ""
@@ -206,8 +210,9 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	guestHTTPPortOrService := firstNonEmptyString(options.GuestHTTPPortOrService, "8081")
 	logDirectoryPath := firstNonEmptyString(options.LogDirectoryPath, BlueclawSupervisorLogDirectoryPath)
 	runtimeDirectoryPath := firstNonEmptyString(options.RuntimeDirectoryPath, "/var/lib/bc")
-	deliveryDirectoryPath := deliveryDirectoryPathForMonitor()
-	virtualMachineMonitor := firstNonEmptyString(options.VirtualMachineMonitor, BlueclawVirtualMachineMonitor)
+	deliveryDirectoryPath := firstNonEmptyString(options.DeliveryDirectoryPath, deliveryDirectoryPathForMonitor(virtualMachineMonitor))
+	kernelImagePath := firstNonEmptyString(options.KernelImagePath, BlueclawKernelImagePath)
+	vfkitPath := firstNonEmptyString(options.VfkitPath, BlueclawVfkitPath)
 	outboundHostDeviceName := firstNonEmptyString(options.OutboundHostDeviceName, "bctap0")
 	outboundGuestMACAddress := firstNonEmptyString(options.OutboundGuestMACAddress, "AA:FC:00:00:00:01")
 	outboundNetworkCIDR := firstNonEmptyString(options.OutboundNetworkCIDR, "172.31.0.0/30")
@@ -278,25 +283,26 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		},
 		"languageModel": languageModelConfiguration,
 		"firecracker": map[string]any{
-			"virtualMachineMonitor":  virtualMachineMonitor,
-			"firecrackerPath":        BlueclawFirecrackerPath,
-			"jailerPath":             BlueclawJailerPath,
-			"cloudHypervisorPath":    BlueclawCloudHypervisorPath,
-			"virtiofsdPath":          BlueclawVirtiofsdPath,
-			"vfkitPath":              BlueclawVfkitPath,
-			"deliveryDirectoryPath":  deliveryDirectoryPath,
-			"kernelImagePath":        BlueclawKernelImagePath,
-			"rootfsImagePath":        rootFilesystemImagePath,
-			"workspaceImagePath":     workspaceImagePath,
-			"hostWorkspacePath":      hostWorkspacePath,
-			"vcpuCount":              virtualCPUCount,
-			"memoryMiB":              BlueclawFirecrackerDefaultMemoryMiB,
-			"vsockCID":               52,
-			"healthPortOrService":    healthPortOrService,
-			"guestHTTPPortOrService": guestHTTPPortOrService,
-			"hostHTTPListenAddress":  hostHTTPListenAddress,
-			"logDirectoryPath":       logDirectoryPath,
-			"runtimeDirectoryPath":   runtimeDirectoryPath,
+			"virtualMachineMonitor":       virtualMachineMonitor,
+			"firecrackerPath":             BlueclawFirecrackerPath,
+			"jailerPath":                  BlueclawJailerPath,
+			"cloudHypervisorPath":         BlueclawCloudHypervisorPath,
+			"virtiofsdPath":               BlueclawVirtiofsdPath,
+			"vfkitPath":                   vfkitPath,
+			"deliveryDirectoryPath":       deliveryDirectoryPath,
+			"deliveryReadOnlyEnforcement": deliveryReadOnlyEnforcementForMonitor(virtualMachineMonitor),
+			"kernelImagePath":             kernelImagePath,
+			"rootfsImagePath":             rootFilesystemImagePath,
+			"workspaceImagePath":          workspaceImagePath,
+			"hostWorkspacePath":           hostWorkspacePath,
+			"vcpuCount":                   virtualCPUCount,
+			"memoryMiB":                   BlueclawFirecrackerDefaultMemoryMiB,
+			"vsockCID":                    52,
+			"healthPortOrService":         healthPortOrService,
+			"guestHTTPPortOrService":      guestHTTPPortOrService,
+			"hostHTTPListenAddress":       hostHTTPListenAddress,
+			"logDirectoryPath":            logDirectoryPath,
+			"runtimeDirectoryPath":        runtimeDirectoryPath,
 			"outboundNetwork": map[string]any{
 				"enabled":          monitorReachesTheNetworkThroughAHostTap(virtualMachineMonitor),
 				"hostDeviceName":   outboundHostDeviceName,
@@ -586,16 +592,29 @@ func defaultResourceAccessPolicies() []map[string]any {
 
 // Firecracker emulates no virtio-fs, so naming a delivery directory under it would ask
 // for a device the VMM cannot offer and the guest would never see.
-func deliveryDirectoryPathForMonitor() string {
-	if BlueclawVirtualMachineMonitor == FirecrackerMonitorName {
+func deliveryReadOnlyEnforcementForMonitor(virtualMachineMonitor string) string {
+	switch virtualMachineMonitor {
+	case FirecrackerMonitorName:
+		return "noShare"
+	case VfkitMonitorName:
+		return "immutableFlags"
+	}
+	return "hostBindMount"
+}
+
+func deliveryDirectoryPathForMonitor(virtualMachineMonitor string) string {
+	switch virtualMachineMonitor {
+	case FirecrackerMonitorName:
 		return ""
+	case VfkitMonitorName:
+		return BlueclawDeliveryPath
 	}
 	return BlueclawDeliveryReadOnlyPath
 }
 
 // The migrations travel with the payload, so they are wherever it is.
-func guestMigrationDirectoryPath() string {
-	if deliveryDirectoryPathForMonitor() == "" {
+func guestMigrationDirectoryPath(virtualMachineMonitor string) string {
+	if deliveryDirectoryPathForMonitor(virtualMachineMonitor) == "" {
 		return BlueclawGuestMigrationPath
 	}
 	return BlueclawGuestDeliveryRuntimePath + "/migrations"
