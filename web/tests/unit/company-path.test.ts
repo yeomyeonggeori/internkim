@@ -11,8 +11,8 @@ import {
 
 describe('the company slug in the path', () => {
 	test('reads the slug a company address leads with', () => {
-		expect(companySlugOf('/dawnstreet/flow')).toBe('dawnstreet');
-		expect(companySlugOf('/dawnstreet')).toBe('dawnstreet');
+		expect(companySlugOf('/samplecompany/flow')).toBe('samplecompany');
+		expect(companySlugOf('/samplecompany')).toBe('samplecompany');
 	});
 
 	test('does not read a route name as a slug', () => {
@@ -30,12 +30,12 @@ describe('the company slug in the path', () => {
 
 describe('routing a company path to the route that serves it', () => {
 	test('takes the slug off the front', () => {
-		expect(routePathOf('/dawnstreet/flow')).toBe('/flow');
-		expect(routePathOf('/dawnstreet/files/api/roots')).toBe('/files/api/roots');
+		expect(routePathOf('/samplecompany/flow')).toBe('/flow');
+		expect(routePathOf('/samplecompany/files/api/roots')).toBe('/files/api/roots');
 	});
 
 	test('sends a bare company address to the root route', () => {
-		expect(routePathOf('/dawnstreet')).toBe('/');
+		expect(routePathOf('/samplecompany')).toBe('/');
 	});
 
 	test('leaves a path that names no company alone', () => {
@@ -47,8 +47,8 @@ describe('routing a company path to the route that serves it', () => {
 
 describe('building a company path', () => {
 	test('puts the slug in front', () => {
-		expect(companyPathOf('dawnstreet', '/flow')).toBe('/dawnstreet/flow');
-		expect(companyPathOf('dawnstreet', '/')).toBe('/dawnstreet');
+		expect(companyPathOf('samplecompany', '/flow')).toBe('/samplecompany/flow');
+		expect(companyPathOf('samplecompany', '/')).toBe('/samplecompany');
 	});
 
 	test('leaves the path alone when no company is known yet', () => {
@@ -57,7 +57,7 @@ describe('building a company path', () => {
 
 	test('round-trips with the routing it is the inverse of', () => {
 		for (const path of ['/flow', '/files/api/roots', '/attendance']) {
-			expect(routePathOf(companyPathOf('dawnstreet', path))).toBe(path);
+			expect(routePathOf(companyPathOf('samplecompany', path))).toBe(path);
 		}
 	});
 });
@@ -82,7 +82,7 @@ describe('paths that still need a company in front of them', () => {
 	});
 
 	test('leaves a path that already names a company alone', () => {
-		expect(wantsCompanyPrefix('/dawnstreet/flow')).toBe(false);
+		expect(wantsCompanyPrefix('/samplecompany/flow')).toBe(false);
 	});
 
 	test('leaves signing in and founding a company outside any company', () => {
