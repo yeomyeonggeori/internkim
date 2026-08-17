@@ -1,3 +1,4 @@
+import { channelName } from './channel-name';
 import { supabaseMember } from '$lib/supabase-session';
 import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 import { personPicture } from '$lib/stores/person-picture.svelte';
@@ -88,14 +89,6 @@ function participantOf(person: MessengerPerson, people: MessengerDirectory): Par
 	};
 }
 
-// A conversation is never called after the person reading it, however few
-// people are left in it once the viewer is taken out.
-function channelName(channel: MessengerChannel, people: MessengerDirectory, mine: string): string {
-	if (channel.name) return channel.name;
-	if (!channel.isDirect) return '';
-	const others = channel.participants.filter((person) => canonicalKey(person, people) !== mine);
-	return others.map((person) => personLabel(person, people)).filter(Boolean).join(', ');
-}
 
 export async function bridgeConversations(): Promise<ChannelSummary[]> {
 	const [channels, people, mine] = await Promise.all([fetchChannels(), knownPeople(), myPersonKey()]);
@@ -104,7 +97,7 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 		.sort((left, right) => left.position - right.position)
 		.map((channel) => ({
 			id: channel.id,
-			name: channelName(channel, people, mine),
+			name: channelName(channel, people, mine, canonicalKey),
 			kind: channel.isDirect ? ('dm' as const) : ('group' as const),
 			avatarURL: channel.isDirect ? avatarOfDirect(channel, people, mine) : undefined,
 			platform: channel.platform,
