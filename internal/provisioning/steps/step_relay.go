@@ -57,7 +57,7 @@ var StepRelay = Step{
 			context.SSH.Run(placeForTheRelay(blueclaw.RelayAgentKeyPath, string(agentKey)))
 		}
 
-		context.SSH.Run("systemctl restart " + blueclaw.RelayServiceName)
+		context.SSH.Run(restartAfterClearingTheFailure(blueclaw.RelayServiceName))
 		fmt.Println("  " + context.T("릴레이 설정 배치 완료", "relay settings placed"))
 		return nil
 	},
@@ -68,6 +68,15 @@ var StepRelay = Step{
 
 func namedFile(environmentName string) string {
 	return strings.TrimSpace(os.Getenv(environmentName))
+}
+
+// Settings that stop the relay from starting are the ordinary reason to place
+// new ones, and by then systemd has usually latched the unit: five failures
+// inside the start-limit window and every later restart is refused for the rest
+// of it. Clearing that first is what makes placing settings a fix.
+func restartAfterClearingTheFailure(serviceName string) string {
+	return `systemctl reset-failed ` + serviceName + ` 2>/dev/null || true
+systemctl restart ` + serviceName
 }
 
 func placeForTheRelay(path string, content string) string {

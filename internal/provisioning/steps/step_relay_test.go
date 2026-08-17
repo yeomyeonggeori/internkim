@@ -61,6 +61,19 @@ func TestTheAgentKeyIsPlacedWhereOnlyTheRelayCanReadIt(t *testing.T) {
 	}
 }
 
+func TestALatchedUnitIsClearedBeforeItIsRestarted(t *testing.T) {
+	command := restartAfterClearingTheFailure(blueclaw.RelayServiceName)
+
+	clearedAt := strings.Index(command, "reset-failed "+blueclaw.RelayServiceName)
+	restartedAt := strings.Index(command, "restart "+blueclaw.RelayServiceName)
+	if clearedAt < 0 {
+		t.Fatalf("settings placed on a unit systemd has latched would never take:\n%s", command)
+	}
+	if restartedAt < clearedAt {
+		t.Fatalf("the restart runs before the failure is cleared:\n%s", command)
+	}
+}
+
 func TestSettingsAreCarriedAcrossExactly(t *testing.T) {
 	directory := t.TempDir()
 	settingsPath := filepath.Join(directory, "relay.env")

@@ -143,7 +143,7 @@ and provisioning places the settings:
 
 ```
 INTERNKIM_RELAY_ENV=<relay.env> INTERNKIM_RELAY_AGENT_KEY=<agent key> \
-  internkim setup --steps relay
+  internkim setup --only relay
 ```
 
 The unit carries `ConditionPathExists`, so a device with no settings leaves it
