@@ -29,6 +29,39 @@ that anyone outside the machine can reach must override at least
 `BUZZ_POSTGRES_PASSWORD`, `BUZZ_S3_ACCESS_KEY`, `BUZZ_S3_SECRET_KEY`,
 `BUZZ_CORS_ORIGINS`, and set `BUZZ_REQUIRE_AUTH_TOKEN`.
 
+## Reaching it from outside
+
+Nothing outside the machine reaches this stack, and for most companies nothing
+has to. People sign in at `space.<zone>`, the same address for every company, and
+the messenger they see is answered by a relay that talks outbound only. No
+hostname to buy, no port to open, no certificate to renew.
+
+The exception is a company that wants to use a Buzz client app, because an app
+connects to the relay itself. Then the relay needs a name on the public internet,
+and that name belongs to the company: point a tunnel (Cloudflare Tunnel, a
+Tailscale funnel, an ordinary reverse proxy) at `127.0.0.1:3000` on the machine
+this stack runs on, and hand the domain to whatever configures the relay.
+
+| Where the relay runs | How the name gets in |
+|---|---|
+| this compose stack | `BUZZ_MEDIA_BASE_URL=https://<domain>/media`, and `CHATD_BUZZ_RELAY_URL=wss://<domain>` for the agent beside it |
+| a device this repository provisions | `internkim setup --steps buzz-public-host,buzz-chatd --relay-domain <domain>` |
+
+Nothing works the domain out for you. A relay with no domain stays on loopback,
+which is what the paragraph above describes, and the provisioning step that would
+configure one does nothing.
+
+The device path does the rest of what a public name needs: an `/etc/hosts` alias
+so clients on the box resolve it to loopback, a self-signed certificate for it,
+stunnel terminating TLS on `127.0.0.1:443`, and the community row re-keyed to it,
+since the relay picks the community from the `Host` header. Setup remembers the
+domain, so later runs keep it, and a run with a different `--relay-domain` moves
+the community across.
+
+Pick the name once if you can. Every attachment the relay has stored is addressed
+at the name it carried at the time, so a rename leaves those addresses pointing
+at the old one.
+
 ## Three settings that fail in ways worth knowing
 
 `BUZZ_MEDIA_BASE_URL` must end in `/media`. The relay refuses to start

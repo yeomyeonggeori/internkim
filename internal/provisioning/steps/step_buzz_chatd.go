@@ -37,7 +37,7 @@ var StepBuzzChatd = Step{
 
 		connection := context.SSH
 		connection.Run(chatdEnvironmentCommand(agentSecret))
-		connection.Run(chatdUnitInstallCommand(blueclaw.DeriveRelayPublicURL(context.PublicURL)))
+		connection.Run(chatdUnitInstallCommand(blueclaw.RelayPublicURL(context.RelayDomain)))
 
 		fmt.Println("  " + context.T("Buzz chatd 설치 완료", "Buzz chatd installed"))
 		return nil

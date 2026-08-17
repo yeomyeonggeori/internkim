@@ -2,30 +2,31 @@ package blueclaw
 
 import "testing"
 
-func TestDeriveRelayPublicHost(t *testing.T) {
+func TestRelayPublicHost(t *testing.T) {
 	cases := map[string]string{
-		"example-device.example.test":          "example-device-relay.example.test",
-		"https://example-device.example.test":  "example-device-relay.example.test",
-		"https://example-device.example.test/": "example-device-relay.example.test",
-		"localhost":                        "localhost-relay",
-		"":                                 "",
-		"   ":                              "",
+		"relay.example.test":         "relay.example.test",
+		"https://relay.example.test": "relay.example.test",
+		"wss://relay.example.test":   "relay.example.test",
+		"wss://relay.example.test/":  "relay.example.test",
+		"  relay.example.test  ":     "relay.example.test",
+		"":                           "",
+		"   ":                        "",
 	}
 	for input, expected := range cases {
-		if actual := DeriveRelayPublicHost(input); actual != expected {
-			t.Errorf("DeriveRelayPublicHost(%q) = %q, want %q", input, actual, expected)
+		if actual := RelayPublicHost(input); actual != expected {
+			t.Errorf("RelayPublicHost(%q) = %q, want %q", input, actual, expected)
 		}
 	}
 }
 
-func TestDeriveRelayPublicURL(t *testing.T) {
-	if actual := DeriveRelayPublicURL("example-device.example.test"); actual != "wss://example-device-relay.example.test" {
-		t.Errorf("DeriveRelayPublicURL host = %q", actual)
+func TestRelayPublicURL(t *testing.T) {
+	if actual := RelayPublicURL("relay.example.test"); actual != "wss://relay.example.test" {
+		t.Errorf("RelayPublicURL host = %q", actual)
 	}
-	if actual := DeriveRelayPublicURL("wss://example-device.example.test"); actual != "wss://example-device-relay.example.test" {
-		t.Errorf("DeriveRelayPublicURL url = %q", actual)
+	if actual := RelayPublicURL("wss://relay.example.test"); actual != "wss://relay.example.test" {
+		t.Errorf("RelayPublicURL url = %q", actual)
 	}
-	if actual := DeriveRelayPublicURL(""); actual != "" {
-		t.Errorf("DeriveRelayPublicURL empty = %q, want empty", actual)
+	if actual := RelayPublicURL(""); actual != "" {
+		t.Errorf("RelayPublicURL without a domain = %q, want empty", actual)
 	}
 }

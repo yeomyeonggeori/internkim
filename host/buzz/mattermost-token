@@ -7,9 +7,13 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 state="${BUZZ_STATE_DIRECTORY:-$here/../../.local/buzz}"
 credentialPath="$state/mattermost.env"
-mattermostURL="${MATTERMOST_URL:-https://zd2df6qt6jmc.intern.kim}"
+mattermostURL="${MATTERMOST_URL:-}"
 
 mkdir -p "$state"
+
+if [[ -z $mattermostURL ]]; then
+	read -r -p "Mattermost URL (https://…): " mattermostURL
+fi
 
 read -r -p "Mattermost ($mattermostURL) — email or username: " loginID
 read -r -s -p "password: " password
