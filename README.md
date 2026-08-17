@@ -286,6 +286,12 @@ domains always serve the production deployment, so a hostname can never point at
 a preview, and each company hostname is attached explicitly through
 `scripts/pages-domains.ts`.
 
+Every project variable has to be a **secret**, even the ones that are not
+secret. `wrangler pages deploy` rewrites the plain-text variables from its own
+config and keeps only the secrets, so a plain-text one survives until the next
+deploy — which is usually the deploy that was supposed to start using it.
+`scripts/show-pages-env.ts` prints the type of each.
+
 ### A device
 
 **device.** What the appliance path needs:
