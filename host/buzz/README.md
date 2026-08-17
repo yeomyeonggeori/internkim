@@ -45,7 +45,7 @@ this stack runs on, and hand the domain to whatever configures the relay.
 | Where the relay runs | How the name gets in |
 |---|---|
 | this compose stack | `BUZZ_MEDIA_BASE_URL=https://<domain>/media`, and `CHATD_BUZZ_RELAY_URL=wss://<domain>` for the agent beside it |
-| a device this repository provisions | `internkim setup --steps buzz-public-host,buzz-chatd --relay-domain <domain>` |
+| a device this repository provisions | `internkim setup --only buzz-public-host,buzz-chatd --relay-domain <domain>` |
 
 Nothing works the domain out for you. A relay with no domain stays on loopback,
 which is what the paragraph above describes, and the provisioning step that would
