@@ -40,6 +40,23 @@ describe('summarizeSupabaseLeave', () => {
 		});
 	});
 
+	test('excludes cancelled deducted leave from used and reserved balances', () => {
+		const balance = summarizeSupabaseLeave(
+			[
+				{ days: 1, status: 'approved', isDeducted: true, localStartDate: '2026-08-04', cancelled: true },
+				{ days: 0.5, status: 'requested', isDeducted: true, localStartDate: '2026-08-05', cancelled: true }
+			],
+			2026,
+			8
+		);
+
+		expect(balance.summary).toEqual({
+			usedMilliDays: 0,
+			reservedMilliDays: 0,
+			availableMilliDays: 8000
+		});
+	});
+
 	test('uses unlimited mode when no entitlement is configured', () => {
 		const balance = summarizeSupabaseLeave(
 			[

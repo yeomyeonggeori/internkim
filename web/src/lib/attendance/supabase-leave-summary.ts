@@ -10,6 +10,7 @@ export type SupabaseLeaveSummaryRow = {
 	status: SupabaseLeaveStatus;
 	isDeducted: boolean;
 	localStartDate: string;
+	cancelled?: boolean;
 };
 
 export type SupabaseLeaveBalance = {
@@ -26,7 +27,7 @@ export function summarizeSupabaseLeave(
 	let reservedMilliDays = 0;
 
 	for (const row of rows) {
-		if (!row.isDeducted || Number(row.localStartDate.slice(0, 4)) !== targetYear) continue;
+		if (row.cancelled || !row.isDeducted || Number(row.localStartDate.slice(0, 4)) !== targetYear) continue;
 		const milliDays = Math.round(row.days * 1000);
 		if (row.status === 'approved') usedMilliDays += milliDays;
 		if (row.status === 'requested') reservedMilliDays += milliDays;

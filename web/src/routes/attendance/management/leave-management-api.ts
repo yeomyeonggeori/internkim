@@ -8,10 +8,19 @@ import type {
 } from './leave-management-types';
 import { EmployeeLeaveAPIError } from '../leave/employee-leave-api';
 import { isEmployeeLeaveErrorCode } from '../leave/employee-leave-types';
+import {
+	adjustSupabaseManagedLeave,
+	cancelSupabaseManagedLeave,
+	correctSupabaseManagedLeaveTime,
+	createSupabaseManagedPastLeave,
+	supabaseLeaveManagement
+} from '$lib/attendance/supabase-leave-management';
+import { isSupabaseConfigured } from '$lib/supabase';
 
 export async function fetchLeaveManagement(
 	employeeEmail = ''
 ): Promise<LeaveManagementPayload> {
+	if (isSupabaseConfigured()) return supabaseLeaveManagement(employeeEmail);
 	const query = new URLSearchParams();
 	if (employeeEmail) query.set('email', employeeEmail);
 	const queryString = query.toString();
@@ -50,6 +59,7 @@ export async function applyLegacyAbsenceMigration(
 export async function adjustManagedLeave(
 	input: LeaveManagementAdjustment
 ): Promise<void> {
+	if (isSupabaseConfigured()) return adjustSupabaseManagedLeave(input);
 	const response = await fetch('/attendance/api/leave-management/adjustments', {
 		method: 'POST',
 		credentials: 'include',
@@ -62,6 +72,7 @@ export async function adjustManagedLeave(
 export async function createManagedPastLeave(
 	input: LeaveManagementPastLeave
 ): Promise<void> {
+	if (isSupabaseConfigured()) return createSupabaseManagedPastLeave(input);
 	const response = await fetch('/attendance/api/leave-management/past-leaves', {
 		method: 'POST',
 		credentials: 'include',
@@ -75,6 +86,7 @@ export async function cancelManagedLeaveRequest(
 	requestID: string,
 	employeeEmail: string
 ): Promise<void> {
+	if (isSupabaseConfigured()) return cancelSupabaseManagedLeave(requestID, employeeEmail);
 	const response = await fetch(
 		`/attendance/api/leave-management/requests/${encodeURIComponent(requestID)}/cancel`,
 		{
@@ -91,6 +103,7 @@ export async function correctManagedLeaveTime(
 	requestID: string,
 	input: LeaveManagementTimeCorrection
 ): Promise<void> {
+	if (isSupabaseConfigured()) return correctSupabaseManagedLeaveTime(requestID, input);
 	const response = await fetch(
 		`/attendance/api/leave-management/requests/${encodeURIComponent(requestID)}/time`,
 		{

@@ -9,6 +9,7 @@
 	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { isSupabaseConfigured } from '$lib/supabase';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { milliDaysValue } from '../leave/leave-history-model';
 	import { attendanceText } from '../text';
@@ -80,7 +81,9 @@
 			</p>
 		</div>
 		<div class="flex flex-wrap gap-2">
-			<LegacyAbsenceMigrationDialog />
+			{#if !isSupabaseConfigured()}
+				<LegacyAbsenceMigrationDialog />
+			{/if}
 			{#if !isUnlimited}
 				<LeaveAdjustmentDialog />
 			{/if}

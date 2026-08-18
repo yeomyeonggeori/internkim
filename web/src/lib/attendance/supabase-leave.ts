@@ -34,6 +34,7 @@ type LeaveRow = {
 	starts_at: string;
 	ends_at: string;
 	note: string | null;
+	cancelled_at: string | null;
 };
 
 const statusWords: Record<LeaveStatus, EmployeeLeaveStatus> = {
@@ -56,7 +57,7 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 	const memberID = await myMemberID();
 	const leave = await supabase()
 		.from('leave')
-		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
+		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note, cancelled_at')
 		.eq('member_id', memberID)
 		.order('starts_at', { ascending: false })
 		.returns<LeaveRow[]>();
@@ -71,7 +72,8 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 			days: row.days,
 			status: row.status,
 			isDeducted: row.is_deducted,
-			localStartDate: request.startDate
+			localStartDate: request.startDate,
+			cancelled: Boolean(row.cancelled_at)
 		})),
 		targetYear,
 		remainingDays
@@ -125,15 +127,16 @@ export async function createSupabaseLeaveRequest(request: EmployeeLeaveSubmissio
 }
 
 export async function cancelSupabaseLeaveRequest(requestID: string): Promise<void> {
-	const { error } = await supabase().from('leave').delete().eq('id', requestID);
+	const { error } = await supabase().rpc('cancel_own_leave', { target_leave: requestID });
 	if (error) throw new Error(error.message);
 }
 
 export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> {
 	const leave = await supabase()
 		.from('leave')
-		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
+		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note, cancelled_at')
 		.eq('status', 'requested')
+		.is('cancelled_at', null)
 		.order('starts_at')
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
@@ -152,14 +155,14 @@ export async function decideSupabaseLeave(
 		.from('leave')
 		.update({ status: decision.action === 'approve' ? 'approved' : 'rejected' })
 		.eq('id', requestID)
-		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
+		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note, cancelled_at')
 		.single<LeaveRow>();
 	if (decided.error) throw new Error(decided.error.message);
 	return approvalOf(decided.data, await emailsByMemberID(), await companyTimeZone());
 }
 
 function requestOf(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
-	const status = statusWords[row.status];
+	const status = row.cancelled_at ? 'cancelled' : statusWords[row.status];
 	const range = leaveDisplayRange(row.starts_at, row.ends_at, row.days, timeZone);
 	return {
 		id: row.id,
