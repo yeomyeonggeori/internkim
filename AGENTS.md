@@ -76,6 +76,21 @@ Branch off the line you are targeting — product work off `design/saas`, device
 and runtime work off `main` — rebase rather than merge when it moves under you,
 and delete the branch once the pull request is merged.
 
+A branch that moves `.dependency/blueclaw` rebases with
+
+```
+git rebase --reapply-cherry-picks origin/main
+```
+
+A submodule bump is a one-line diff, so it has a patch identity like any other
+commit. Once the same bump has been on `main` and `main` has moved off it — which
+a reverted or re-made branch does — a plain rebase calls the branch's copy
+"previously applied", drops it, and leaves the tree pointing at whatever `main`
+holds. It says so in one hint line and reports success, and the branch now
+carries a *backwards* pointer. There is no config for this: `git help --config`
+lists no `rebase.reapplyCherryPicks`, so it has to be typed. CI refuses a
+backwards pointer, which is the backstop, not the fix.
+
 ### Commit messages
 
 ```
