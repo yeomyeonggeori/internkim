@@ -96,6 +96,12 @@ reimplement it at a call site.
 on the member, read through the `member_*()` function. Never read the columns
 directly, or the fallback goes missing in one place and that is the bug.
 
+**A task carries two timestamps.** `updated_at` is stamped by a trigger on every
+write, including a participant change, and the sync drain uses it to decide
+which side of an offline edit wins. `created_at` defaults to `now()` because
+creation goes through the central plane, so the only writer that supplies it is
+an import carrying history the device recorded first.
+
 **Calendar questions need a zone.** `timestamptz` stores an instant and forgets
 the zone it came from, so "which day/year is this for this person" always
 applies `member_timezone()`. `member_today(member)` exists so nobody reaches for
