@@ -49,7 +49,9 @@
 
 	const weeksBeforeVisibleDate = 26;
 	const weeksAfterVisibleDate = 26;
-	const laneHeightPixels = 22;
+	const monthEventRowHeightPixels = 18;
+	const monthEventRowGapPixels = 1;
+	const monthEventLaneHeightPixels = monthEventRowHeightPixels + monthEventRowGapPixels;
 	const visibleChipCount = 3;
 	const scrollOverlayHideDelayMilliseconds = 700;
 	const windowExtendWeeks = 26;
@@ -201,6 +203,12 @@
 		};
 	}
 
+	function laneSpacerHeightPixels(layout: CalendarGridWeekLayout, dayIndex: number): number {
+		const laneCount = dayLaneCount(layout, dayIndex);
+		if (laneCount === 0) return 0;
+		return laneCount * monthEventLaneHeightPixels - monthEventRowGapPixels;
+	}
+
 	function isOutsideVisibleMonth(day: Date): boolean {
 		return day.getMonth() !== activeMonth.getMonth() || day.getFullYear() !== activeMonth.getFullYear();
 	}
@@ -336,43 +344,48 @@
 						addEventOnDay={(selectedDay) => addEventOnDay(selectedDay)}
 						selectDay={(selectedDay) => selectDay(selectedDay)}
 					>
-						<div style={`height: ${dayLaneCount(layout, dayIndex) * laneHeightPixels}px`}></div>
-						{#each timed.visible as entry (entry.event.id)}
-							<CalendarEventChip
-								event={entry.event}
-								timeLabel={entry.event.isAllDay ? '' : timeFormatter.format(entry.event.start)}
-								isSelected={selectedEventID === entry.event.id}
-								placeholder={draftPreviewTitle}
-								{openEvent}
-							/>
-						{/each}
-						{#if timed.hiddenCount > 0}
-							<button
-								type="button"
-								class="text-muted-foreground hover:text-foreground px-1.5 text-left text-xs"
-								onclick={() => openDay(day)}
-							>
-								{moreEventsText.replace('{count}', String(timed.hiddenCount))}
-							</button>
-						{/if}
+						<div class="flex min-h-0 flex-col gap-px">
+							{#if dayLaneCount(layout, dayIndex) > 0}
+								<div class="shrink-0" style={`height: ${laneSpacerHeightPixels(layout, dayIndex)}px`}></div>
+							{/if}
+							{#each timed.visible as entry (entry.event.id)}
+								<CalendarEventChip
+									event={entry.event}
+									timeLabel={entry.event.isAllDay ? '' : timeFormatter.format(entry.event.start)}
+									isSelected={selectedEventID === entry.event.id}
+									placeholder={draftPreviewTitle}
+									class="h-[18px] shrink-0"
+									{openEvent}
+								/>
+							{/each}
+							{#if timed.hiddenCount > 0}
+								<button
+									type="button"
+									class="text-muted-foreground hover:text-foreground h-[18px] shrink-0 px-1.5 text-left text-xs"
+									onclick={() => openDay(day)}
+								>
+									{moreEventsText.replace('{count}', String(timed.hiddenCount))}
+								</button>
+							{/if}
+						</div>
 					</CalendarDayCell>
 				{/each}
 				{#if draftRangeForWeek(week)}
 					{@const draftRange = draftRangeForWeek(week)}
 					<div class="pointer-events-none absolute inset-x-0 top-8 grid grid-cols-7">
 						<div
-							class="px-1"
-							style={`grid-column: ${(draftRange?.startColumn ?? 0) + 1} / span ${draftRange?.columnCount ?? 1}; grid-row: 1; margin-top: ${layout.laneCount * laneHeightPixels}px`}
+							class="px-1.5"
+							style={`grid-column: ${(draftRange?.startColumn ?? 0) + 1} / span ${draftRange?.columnCount ?? 1}; grid-row: 1; margin-top: ${layout.laneCount * monthEventLaneHeightPixels}px`}
 						>
-							<CalendarEventChip event={draftEventPreview} isSelected openEvent={() => {}} />
+							<CalendarEventChip event={draftEventPreview} isSelected class="h-[18px] shrink-0" openEvent={() => {}} />
 						</div>
 					</div>
 				{/if}
 				<div class="pointer-events-none absolute inset-x-0 top-8 grid grid-cols-7">
 					{#each layout.spans as span (span.event.id)}
 						<div
-							class="pointer-events-auto px-1"
-							style={`grid-column: ${span.startColumn + 1} / span ${span.columnCount}; grid-row: 1; margin-top: ${span.lane * laneHeightPixels}px`}
+							class="pointer-events-auto px-1.5"
+							style={`grid-column: ${span.startColumn + 1} / span ${span.columnCount}; grid-row: 1; margin-top: ${span.lane * monthEventLaneHeightPixels}px`}
 						>
 							<CalendarEventChip
 								event={span.event}
@@ -380,6 +393,7 @@
 								placeholder={draftPreviewTitle}
 								continuesBefore={span.continuesBefore}
 								continuesAfter={span.continuesAfter}
+								class="h-[18px] shrink-0"
 								{openEvent}
 							/>
 						</div>
