@@ -9,12 +9,17 @@ const client = controlPlane({
 	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
 });
 
-const contacts = await client
-	.from('contact')
-	.select('platform, external_id, name, member_id')
-	.not('member_id', 'is', null)
-	.returns<{ platform: string; external_id: string; name: string; member_id: string }[]>();
-if (contacts.error) throw new Error(contacts.error.message);
+const members = await client
+	.from('member')
+	.select('id, name, messenger')
+	.returns<{ id: string; name: string | null; messenger: Record<string, string> | null }[]>();
+if (members.error) throw new Error(members.error.message);
+
+const accounts = members.data.flatMap((member) =>
+	Object.entries(member.messenger ?? {})
+		.filter(([, externalID]) => Boolean(externalID))
+		.map(([platform, externalID]) => ({ platform, externalID, name: member.name ?? '', memberID: member.id })),
+);
 
 const existing = await client
 	.from('credential')
@@ -26,14 +31,14 @@ const linked = new Set(existing.data.map((row) => `${row.member_id}|${row.kind}`
 
 let written = 0;
 let already = 0;
-for (const contact of contacts.data) {
-	if (linked.has(`${contact.member_id}|${contact.platform}`)) {
+for (const account of accounts) {
+	if (linked.has(`${account.memberID}|${account.platform}`)) {
 		already += 1;
 		continue;
 	}
-	if (shouldApply) await linkCredential(client, contact.member_id, contact.platform, contact.external_id);
+	if (shouldApply) await linkCredential(client, account.memberID, account.platform, account.externalID);
 	written += 1;
-	console.log(`  ${contact.name} → ${contact.platform} ${contact.external_id}`);
+	console.log(`  ${account.name} → ${account.platform} ${account.externalID}`);
 }
 
 console.log(`${shouldApply ? 'linked' : 'would link'}: ${written}, already linked: ${already}`);

@@ -59,13 +59,7 @@ try {
 	const agent = await issueAgentKey(admin, company.companyID, `notify-check-${stamp}`);
 	const agentKey = agent.apiKey;
 	const externalID = `U-${stamp}`;
-	await admin.from('contact').insert({
-		company_id: company.companyID,
-		platform: 'mattermost',
-		external_id: externalID,
-		name: '이샘플',
-		member_id: company.adminMemberID
-	});
+	await admin.from('member').update({ messenger: { mattermost: externalID } }).eq('id', company.adminMemberID);
 
 	const subscriber = await aBrowserThatSubscribed();
 	const pushService = await aPushServiceThatRecords(201);

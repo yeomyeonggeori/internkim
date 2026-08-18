@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(37);
 
 delete from public.company;
 
@@ -848,10 +848,12 @@ begin
   insert into public.member (id, company_id, email, user_id, status, is_admin) values
     ('000000ff-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000ffffff00', 'contact-a@example.test', '00000000-0000-0000-0000-0000ffff0001', 'active', false),
     ('000000ff-0000-0000-0000-000000000009', '00000000-0000-0000-0000-0000ffffff00', 'contact-admin@example.test', '00000000-0000-0000-0000-0000ffff0009', 'active', true);
-  insert into public.contact (company_id, platform, external_id, name, member_id) values
-    ('00000000-0000-0000-0000-0000ffffff00', 'mattermost', 'U-d1', 'D One', '000000ff-0000-0000-0000-000000000001'),
-    ('00000000-0000-0000-0000-0000ffffff00', 'mattermost', 'U-guest', 'Outside Guest', null),
-    ('00000000-0000-0000-0000-0000ffffff0e', 'mattermost', 'U-e1', 'E One', null);
+  update public.member set messenger = '{"mattermost": "U-d1"}'::jsonb
+    where id = '000000ff-0000-0000-0000-000000000001';
+  insert into public.contact (company_id, platform, external_id, name) values
+    ('00000000-0000-0000-0000-0000ffffff00', 'mattermost', 'U-guest', 'Outside Guest'),
+    ('00000000-0000-0000-0000-0000ffffff00', 'mattermost', 'U-supplier', 'A Supplier'),
+    ('00000000-0000-0000-0000-0000ffffff0e', 'mattermost', 'U-e1', 'E One');
 
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
@@ -1105,6 +1107,38 @@ begin
 
   raise notice 'push: notification settings are written for the caller, never for a named member';
 end $$$block$, 'push: notification settings are written for the caller, never for a named member');
+
+select lives_ok($block$do $$
+declare
+  employee uuid := '000000aa-0000-0000-0000-000000000001';
+  colleague uuid := '000000aa-0000-0000-0000-000000000002';
+  a_list_blocked boolean := false;
+  an_empty_account_blocked boolean := false;
+begin
+  assert (select messenger from public.member where id = employee) = '{}'::jsonb,
+    'a member starts with no messenger account';
+
+  update public.member set messenger = '{"mattermost": "U-1", "buzz": "pubkey-1"}'::jsonb
+    where id = employee;
+  assert (select messenger->>'mattermost' from public.member where id = employee) = 'U-1',
+    'a member holds one account per messenger';
+
+  begin
+    update public.member set messenger = '{"mattermost": ["U-1", "U-2"]}'::jsonb where id = colleague;
+  exception when check_violation then
+    a_list_blocked := true;
+  end;
+  assert a_list_blocked, 'a member is one account on a messenger, not a list of them';
+
+  begin
+    update public.member set messenger = '{"mattermost": ""}'::jsonb where id = colleague;
+  exception when check_violation then
+    an_empty_account_blocked := true;
+  end;
+  assert an_empty_account_blocked, 'an empty account id is not an account';
+
+  raise notice 'messenger: a member holds one account per messenger, on the member';
+end $$;$block$, 'messenger: a member holds one account per messenger, on the member');
 
 select * from finish();
 rollback;

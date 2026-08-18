@@ -64,16 +64,29 @@ export async function connectMessengerAccount(
 		secret: account.secret,
 	});
 
-	const { error } = await client.from('contact').upsert(
-		{
-			company_id: companyID,
-			platform: account.kind,
-			external_id: account.externalID,
-			name: account.name,
-			member_id: account.memberID,
-		},
-		{ onConflict: 'company_id,platform,external_id' },
-	);
+	await rememberMessengerAccount(client, account.memberID, account.kind, account.externalID);
+}
+
+// Which account on which messenger this member is, kept on the member. The name
+// the messenger has for them is not carried across: the member row already says
+// what this company calls them.
+async function rememberMessengerAccount(
+	client: SupabaseClient,
+	memberID: string,
+	platform: string,
+	externalID: string,
+): Promise<void> {
+	const member = await client
+		.from('member')
+		.select('messenger')
+		.eq('id', memberID)
+		.single<{ messenger: Record<string, string> | null }>();
+	if (member.error) throw new Error(member.error.message);
+
+	const { error } = await client
+		.from('member')
+		.update({ messenger: { ...(member.data.messenger ?? {}), [platform]: externalID } })
+		.eq('id', memberID);
 	if (error) throw new Error(error.message);
 }
 
@@ -83,14 +96,16 @@ export async function membersOfCompanyByExternalID(
 	platform: string,
 ): Promise<Map<string, string>> {
 	const { data, error } = await client
-		.from('contact')
-		.select('external_id, member_id')
+		.from('member')
+		.select('id, messenger')
 		.eq('company_id', companyID)
-		.eq('platform', platform)
-		.not('member_id', 'is', null)
-		.returns<{ external_id: string; member_id: string }[]>();
+		.returns<{ id: string; messenger: Record<string, string> | null }[]>();
 	if (error) throw new Error(error.message);
-	return new Map(data.map((contact) => [contact.external_id, contact.member_id]));
+	return new Map(
+		data
+			.map((member) => [member.messenger?.[platform] ?? '', member.id] as const)
+			.filter(([externalID]) => externalID !== ''),
+	);
 }
 
 async function readRow(
