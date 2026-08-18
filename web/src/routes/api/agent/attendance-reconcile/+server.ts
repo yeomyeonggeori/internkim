@@ -12,6 +12,7 @@ import {
 	saveAttendanceReconciliationSettings
 } from '$lib/server/attendance-work-calendar-reconcile';
 import {
+	attendanceIdentityWindowFilter,
 	EmptyWindowRefused,
 	reconcileMember,
 	type Reconciliation,
@@ -191,10 +192,9 @@ async function heldInWindow(
 
 	const { data, error: failed } = await client
 		.from('attendance')
-		.select('id, member_id, kind, occurred_at')
+		.select('id, member_id, kind, occurred_at, original_occurred_at')
 		.in('member_id', memberIDs)
-		.gte('occurred_at', from)
-		.lt('occurred_at', to)
+		.or(attendanceIdentityWindowFilter(from, to))
 		.returns<(RecordedAttendance & { member_id: string })[]>();
 	if (failed) throw new Error(failed.message);
 

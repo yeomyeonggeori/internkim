@@ -8,6 +8,7 @@ export type RecordedAttendance = {
 	id: string;
 	kind: string;
 	occurred_at: string;
+	original_occurred_at: string | null;
 };
 
 export type Reconciliation = {
@@ -32,7 +33,7 @@ export function reconcileMember(
 	const wanted = new Map<string, DeviceAttendance>();
 	for (const event of paired(fromDevice)) wanted.set(keyOf(event.kind, event.occurredAt), event);
 
-	const held = new Set(inRecord.map((row) => keyOf(row.kind, row.occurred_at)));
+	const held = new Set(inRecord.map((row) => keyOf(row.kind, identityMomentOf(row))));
 
 	const add = [...wanted]
 		.filter(([key]) => !held.has(key))
@@ -42,9 +43,20 @@ export function reconcileMember(
 			occurred_at: event.occurredAt,
 			location: locationFor(event)
 		}));
-	const remove = inRecord.filter((row) => !wanted.has(keyOf(row.kind, row.occurred_at))).map((row) => row.id);
+	const remove = inRecord.filter((row) => !wanted.has(keyOf(row.kind, identityMomentOf(row)))).map((row) => row.id);
 
 	return { add, remove };
+}
+
+export function attendanceIdentityWindowFilter(from: string, to: string): string {
+	return [
+		`and(original_occurred_at.gte.${from},original_occurred_at.lt.${to})`,
+		`and(original_occurred_at.is.null,occurred_at.gte.${from},occurred_at.lt.${to})`
+	].join(',');
+}
+
+function identityMomentOf(row: RecordedAttendance): string {
+	return row.original_occurred_at ?? row.occurred_at;
 }
 
 function keyOf(kind: string, moment: string): string {

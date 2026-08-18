@@ -71,14 +71,37 @@ describe('work record editor state', () => {
 		expect(fixture.editor.maximumTimeFor(localDate)).toBe('10:30');
 	});
 
-	test('updates both clock events when a closed segment location changes', () => {
+	test('keeps a segment clock-in and clock-out in chronological order', () => {
+		const lateStart = createEditorFixture();
+		lateStart.editor.open([segment]);
+		expect(lateStart.editor.updateEventTime(segment.startEventID, '10:15')).toBe('10:00');
+
+		const earlyEnd = createEditorFixture();
+		earlyEnd.editor.open([segment]);
+		expect(earlyEnd.editor.updateEventTime(segment.endEventID, '08:45')).toBe('09:00');
+	});
+
+	test('saves a closed segment location change on the clock-in event only', async () => {
 		const fixture = createEditorFixture();
 		fixture.editor.open([segment]);
 
 		fixture.editor.updateSegmentLocation(segment, 'remote');
+		fixture.editor.reason = '  corrected location  ';
+		await fixture.editor.save();
 
-		expect(fixture.editor.draftFor(segment.startEventID)?.locationID).toBe('remote');
-		expect(fixture.editor.draftFor(segment.endEventID)?.locationID).toBe('remote');
+		expect(fixture.updates).toEqual([
+			[
+				{
+					eventID: 'clock-in',
+					request: {
+						localDate,
+						localTime: '09:00',
+						locationID: 'remote',
+						reason: 'corrected location'
+					}
+				}
+			]
+		]);
 	});
 
 	test('saves only changed events with a trimmed reason', async () => {
@@ -186,10 +209,10 @@ function createEvent(
 ): AttendanceEvent {
 	return {
 		id,
-		mattermostUserID: 'kim',
-		mattermostUsername: 'kim',
-		email: 'kim@example.com',
-		displayName: '김철수',
+		mattermostUserID: 'sample',
+		mattermostUsername: 'sample',
+		email: 'sample@example.com',
+		displayName: '이샘플',
 		kind,
 		occurredAt: `${localDate}T${localTime}:00+09:00`,
 		localDate,
