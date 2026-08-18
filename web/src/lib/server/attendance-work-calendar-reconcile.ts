@@ -1,4 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+	currentAttendanceWorkPolicy,
+	type CurrentAttendanceWorkPolicy
+} from '../attendance/current-work-policy';
 import { isAttendanceWorkMode, type AttendanceWorkMode } from '$lib/attendance/work-mode';
 
 const attendanceWorkCalendarDayMilliseconds = 24 * 60 * 60 * 1000;
@@ -21,6 +25,26 @@ export class InvalidAttendanceWorkCalendarError extends Error {
 	constructor() {
 		super('workCalendar must contain valid date, workMode, and workingDate entries');
 		this.name = 'InvalidAttendanceWorkCalendarError';
+	}
+}
+
+export class InvalidAttendanceWorkPolicyError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'InvalidAttendanceWorkPolicyError';
+	}
+}
+
+export function attendanceWorkPolicyFromDevice(
+	offered: unknown
+): CurrentAttendanceWorkPolicy | undefined {
+	if (offered === undefined) return undefined;
+	try {
+		return currentAttendanceWorkPolicy(offered);
+	} catch (thrown) {
+		throw new InvalidAttendanceWorkPolicyError(
+			thrown instanceof Error ? thrown.message : 'workPolicy is invalid'
+		);
 	}
 }
 
@@ -57,6 +81,18 @@ export async function saveAttendanceWorkCalendar(
 	const { error: failed } = await client.rpc('save_attendance_calendar', {
 		target_company: companyID,
 		attendance_calendar: workCalendar
+	});
+	if (failed) throw new Error(failed.message);
+}
+
+export async function saveAttendanceWorkPolicy(
+	client: SupabaseClient,
+	companyID: string,
+	workPolicy: CurrentAttendanceWorkPolicy
+): Promise<void> {
+	const { error: failed } = await client.rpc('save_attendance_work_policy', {
+		target_company: companyID,
+		attendance_work_policy: workPolicy
 	});
 	if (failed) throw new Error(failed.message);
 }

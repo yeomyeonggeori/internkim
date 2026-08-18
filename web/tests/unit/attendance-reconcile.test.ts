@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	attendanceWorkCalendarFromDevice,
 	attendanceWorkModeFromDevice,
+	attendanceWorkPolicyFromDevice,
 	InvalidAttendanceWorkCalendarError
 } from '../../src/lib/server/attendance-work-calendar-reconcile';
 import {
@@ -26,6 +27,22 @@ describe('attendanceWorkModeFromDevice', () => {
 	test('rejects a malformed work mode projection', () => {
 		expect(() => attendanceWorkModeFromDevice('hybrid')).toThrow('workMode');
 		expect(() => attendanceWorkModeFromDevice(null)).toThrow('workMode');
+	});
+});
+
+describe('attendanceWorkPolicyFromDevice', () => {
+	test('accepts one current work policy with editable night hours', () => {
+		expect(attendanceWorkPolicyFromDevice(currentPolicy())).toEqual(currentPolicy());
+	});
+
+	test('keeps reconciling with an older device that sends no current policy', () => {
+		expect(attendanceWorkPolicyFromDevice(undefined)).toBe(undefined);
+	});
+
+	test('rejects a malformed current policy', () => {
+		expect(() => attendanceWorkPolicyFromDevice({ ...currentPolicy(), nightEndTime: 6 })).toThrow(
+			'nightEndTime'
+		);
 	});
 });
 
@@ -147,6 +164,24 @@ describe('attendanceWorkCalendarFromDevice', () => {
 		expect(thrown).toBeInstanceOf(InvalidAttendanceWorkCalendarError);
 	});
 });
+
+function currentPolicy() {
+	return {
+		workMode: 'fixed',
+		workingWeekdays: [1, 2, 3, 4, 5],
+		dailyTargetMinutes: 480,
+		weeklyTargetMinutes: 2400,
+		referenceStartTime: '09:00',
+		fixedStartTime: '09:00',
+		fixedEndTime: '18:00',
+		coreTimeEnabled: false,
+		coreStartTime: '',
+		coreEndTime: '',
+		breakPeriods: [{ startTime: '12:00', endTime: '13:00' }],
+		nightStartTime: '22:00',
+		nightEndTime: '06:00'
+	};
+}
 
 function onTheDevice(entries: Partial<DeviceAttendance>[]): DeviceAttendance[] {
 	return entries.map((entry) => ({

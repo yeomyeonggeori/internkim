@@ -15,14 +15,34 @@ const member = {
 	joined_at: '2026-01-01T00:00:00Z'
 };
 
-function policyFrom(workCalendar: unknown) {
+function policyFrom(
+	workCalendar: unknown,
+	workMode: 'autonomous' | 'flexible' | 'fixed' = 'autonomous',
+	overrides: Record<string, unknown> = {}
+) {
 	const policies = parseSupabaseWorkPolicies([
 		{
 			member_id: member.id,
 			work_hours: weekdayWorkHours,
 			minimum_daily_minutes: 480,
-			work_mode: 'autonomous',
-			work_calendar: workCalendar
+			work_mode: workMode,
+			work_calendar: workCalendar,
+			work_policy: {
+				workMode,
+				workingWeekdays: [1, 2, 3, 4, 5],
+				dailyTargetMinutes: workMode === 'autonomous' ? 0 : 480,
+				weeklyTargetMinutes: workMode === 'autonomous' ? 0 : 2400,
+				referenceStartTime: '09:00',
+				fixedStartTime: workMode === 'fixed' ? '09:00' : '',
+				fixedEndTime: workMode === 'fixed' ? '18:00' : '',
+				coreTimeEnabled: workMode === 'flexible',
+				coreStartTime: workMode === 'flexible' ? '11:00' : '',
+				coreEndTime: workMode === 'flexible' ? '16:00' : '',
+				breakPeriods: [{ startTime: '12:00', endTime: '13:00' }],
+				nightStartTime: '22:00',
+				nightEndTime: '06:00',
+				...overrides
+			}
 		}
 	]);
 	const policy = policies.get(member.id);
@@ -77,7 +97,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 				date,
 				workMode: 'fixed',
 				workingDate: index < 5 && date !== '2027-01-06'
-			}))
+			})),
+			'fixed'
 		);
 
 		const status = calculateSupabaseEmployeeWorkStatus({
@@ -94,7 +115,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		expect(status.days.find((day) => day.date === '2027-01-06')?.workingDate).toBe(false);
 	});
 
-	test('uses each projected date mode instead of the current compatibility mode', () => {
+	test('uses the one current mode for every historical date', () => {
 		const policy = policyFrom([
 			{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
 			{ date: '2027-01-05', workMode: 'autonomous', workingDate: true }
@@ -117,15 +138,15 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			policy
 		});
 
-		expect(historical.workMode).toBe('fixed');
-		expect(historical.hasBaseline).toBe(true);
-		expect(historical.targetMinutes).toBe(480);
+		expect(historical.workMode).toBe('autonomous');
+		expect(historical.hasBaseline).toBe(false);
+		expect(historical.targetMinutes).toBe(0);
 		expect(current.workMode).toBe('autonomous');
 		expect(current.hasBaseline).toBe(false);
 		expect(current.targetMinutes).toBe(0);
 	});
 
-	test('excludes autonomous work from mixed-period baseline comparisons', () => {
+	test('applies the current fixed baseline across the whole period', () => {
 		const days = [
 			'2027-01-04',
 			'2027-01-05',
@@ -140,7 +161,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 				date,
 				workMode: index === 0 ? 'fixed' : 'autonomous',
 				workingDate: index < 5
-			}))
+			})),
+			'fixed'
 		);
 
 		const status = calculateSupabaseEmployeeWorkStatus({
@@ -156,7 +178,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 				{
 					member_id: member.id,
 					kind: 'clock_out',
-					occurred_at: '2027-01-05T08:00:00Z'
+					occurred_at: '2027-01-05T09:00:00Z'
 				}
 			],
 			leave: [],
@@ -164,18 +186,42 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		});
 		const autonomousDay = status.days.find((day) => day.date === '2027-01-05');
 
-		expect(status.remainingMinutes).toBe(480);
+		expect(status.remainingMinutes).toBe(1920);
 		expect(status.actualMinutes).toBe(480);
-		expect(status.fulfilledMinutes).toBe(0);
-		expect(status.differenceMinutes).toBe(-480);
+		expect(status.fulfilledMinutes).toBe(480);
+		expect(status.differenceMinutes).toBe(-1920);
 		expect(status.overtimeMinutes).toBe(0);
 		expect(autonomousDay?.actualMinutes).toBe(480);
+		expect(autonomousDay?.workMode).toBe('fixed');
 		expect(autonomousDay?.differenceMinutes).toBe(0);
 		expect(autonomousDay?.remainingMinutes).toBe(0);
 		expect(autonomousDay?.overtimeMinutes).toBe(0);
 	});
 
-	test('falls back to the resolved work-hours cycle when no projection exists', () => {
+	test('uses the editable overnight window and excludes configured breaks', () => {
+		const policy = policyFrom(null, 'fixed', {
+			nightStartTime: '21:00',
+			nightEndTime: '05:00',
+			breakPeriods: [{ startTime: '22:30', endTime: '23:00' }]
+		});
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2027-01-04'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2027-01-04T12:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2027-01-04T15:00:00Z' }
+			],
+			leave: [],
+			policy
+		});
+
+		expect(status.actualMinutes).toBe(150);
+		expect(status.nightMinutes).toBe(150);
+		expect(status.days[0]?.nightMinutes).toBe(150);
+	});
+
+	test('uses the current policy weekdays when no calendar projection exists', () => {
 		const status = calculateSupabaseEmployeeWorkStatus({
 			member,
 			days: [
@@ -190,10 +236,10 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			timeZone: 'Asia/Seoul',
 			attendance: [],
 			leave: [],
-			policy: policyFrom(null)
+			policy: policyFrom(null, 'fixed', { workingWeekdays: [6] })
 		});
 
-		expect(status.workingCapacitySeconds).toBe(5 * secondsPerDay);
+		expect(status.workingCapacitySeconds).toBe(secondsPerDay);
 		expect(status.calendarCapacitySeconds).toBe(7 * secondsPerDay);
 	});
 });

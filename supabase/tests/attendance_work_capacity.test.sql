@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(13);
 
 insert into auth.users (id, email) values
 	('10000000-0000-0000-0000-000000000001', 'capacity-a@example.com'),
@@ -73,6 +73,30 @@ select is(
 	'attendance calendar persistence retains prior dates and sorts the unique merged projection'
 );
 
+select lives_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		'{"workMode":"fixed","workingWeekdays":[1,2,3,4,5],"dailyTargetMinutes":480,"nightStartTime":"22:00","nightEndTime":"06:00"}'::jsonb
+	)$$,
+	'attendance work policy persistence accepts one current JSON policy'
+);
+
+select is(
+	(select rules -> 'approvals' from public.company where id = '10000000-0000-0000-0000-000000000000'),
+	'{"required": true}'::jsonb,
+	'attendance work policy persistence preserves unrelated company rules'
+);
+
+select throws_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		'[]'::jsonb
+	)$$,
+	'23514',
+	'attendance work policy must be an object',
+	'attendance work policy persistence rejects a non-object value'
+);
+
 select is(
 	(select rules from public.company where id = '20000000-0000-0000-0000-000000000000'),
 	'{"branding":{"accent":"blue"}}'::jsonb,
@@ -96,6 +120,16 @@ select is(
 	),
 	'[{"date":"2027-01-01","workMode":"fixed","workingDate":false},{"date":"2027-02-01","workMode":"flexible","workingDate":true},{"date":"2027-02-02","workMode":"autonomous","workingDate":true}]'::jsonb,
 	'attendance work policies expose the stored date-level projection'
+);
+
+select is(
+	(
+		select jsonb_build_object('workMode', work_mode, 'workPolicy', work_policy)
+		from public.attendance_work_policies()
+		where member_id = '10000000-0000-0000-0000-000000000011'
+	),
+	'{"workMode":"fixed","workPolicy":{"workMode":"fixed","workingWeekdays":[1,2,3,4,5],"dailyTargetMinutes":480,"nightStartTime":"22:00","nightEndTime":"06:00"}}'::jsonb,
+	'attendance work policies use and expose the single current policy'
 );
 
 select * from finish();

@@ -23,9 +23,31 @@ type ReconciledWorkCalendarDay struct {
 	WorkingDate bool   `json:"workingDate"`
 }
 
+type ReconciledWorkBreakPeriod struct {
+	StartTime string `json:"startTime"`
+	EndTime   string `json:"endTime"`
+}
+
+type ReconciledWorkPolicy struct {
+	WorkMode            string                      `json:"workMode"`
+	WorkingWeekdays     []int                       `json:"workingWeekdays"`
+	DailyTargetMinutes  int                         `json:"dailyTargetMinutes"`
+	WeeklyTargetMinutes int                         `json:"weeklyTargetMinutes"`
+	ReferenceStartTime  string                      `json:"referenceStartTime"`
+	FixedStartTime      string                      `json:"fixedStartTime"`
+	FixedEndTime        string                      `json:"fixedEndTime"`
+	CoreTimeEnabled     bool                        `json:"coreTimeEnabled"`
+	CoreStartTime       string                      `json:"coreStartTime"`
+	CoreEndTime         string                      `json:"coreEndTime"`
+	BreakPeriods        []ReconciledWorkBreakPeriod `json:"breakPeriods"`
+	NightStartTime      string                      `json:"nightStartTime"`
+	NightEndTime        string                      `json:"nightEndTime"`
+}
+
 type ReconcileWindow struct {
 	Platform     string
 	WorkMode     string
+	WorkPolicy   *ReconciledWorkPolicy
 	From         time.Time
 	To           time.Time
 	Events       []ReconciledEvent
@@ -45,14 +67,18 @@ func (client *Client) ReconcileAttendance(ctx context.Context, window ReconcileW
 	if window.WorkCalendar == nil {
 		window.WorkCalendar = []ReconciledWorkCalendarDay{}
 	}
-	payload, errorValue := json.Marshal(map[string]any{
+	offered := map[string]any{
 		"platform":     window.Platform,
 		"workMode":     window.WorkMode,
 		"from":         window.From.UTC().Format(time.RFC3339),
 		"to":           window.To.UTC().Format(time.RFC3339),
 		"events":       window.Events,
 		"workCalendar": window.WorkCalendar,
-	})
+	}
+	if window.WorkPolicy != nil {
+		offered["workPolicy"] = window.WorkPolicy
+	}
+	payload, errorValue := json.Marshal(offered)
 	if errorValue != nil {
 		return ReconcileResult{}, errorValue
 	}
