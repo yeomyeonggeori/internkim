@@ -75,8 +75,8 @@ if (canReachSupabase) {
 				platform: 'mattermost',
 				workMode: 'fixed',
 				workCalendar: [
-					{ date: '2027-01-01', workMode: 'fixed', workingDate: false },
-					{ date: '2027-01-02', workMode: 'fixed', workingDate: true }
+					{ date: '2027-01-01', workMode: 'fixed', workingDate: false, holiday: true },
+					{ date: '2027-01-02', workMode: 'fixed', workingDate: true, holiday: false }
 				],
 				from: '2027-01-01T00:00:00Z',
 				to: '2027-01-03T00:00:00Z',
@@ -87,17 +87,21 @@ if (canReachSupabase) {
 			expect(await companyRules()).toEqual({
 				approvals: { required: true },
 				attendanceCalendar: [
-					{ date: '2027-01-01', workMode: 'fixed', workingDate: false },
-					{ date: '2027-01-02', workMode: 'fixed', workingDate: true }
+					{ date: '2027-01-01', workMode: 'fixed', workingDate: false, holiday: true },
+					{ date: '2027-01-02', workMode: 'fixed', workingDate: true, holiday: false }
 				]
 			});
 		});
 
-		test('one current work policy is persisted without replacing unrelated rules', async () => {
+		test('current policy and calendar are persisted together without replacing unrelated rules', async () => {
 			const workPolicy = currentPolicy();
+			const workCalendar = [
+				{ date: '2027-01-01', workMode: 'fixed', workingDate: false, holiday: true }
+			];
 			const response = await reconcile({
 				platform: 'mattermost',
 				workPolicy,
+				workCalendar,
 				from: '2027-01-01T00:00:00Z',
 				to: '2027-01-02T00:00:00Z',
 				events: []
@@ -106,8 +110,22 @@ if (canReachSupabase) {
 			expect(response.status).toBe(200);
 			expect(await companyRules()).toEqual({
 				approvals: { required: true },
+				attendanceCalendar: workCalendar,
 				attendanceWorkPolicy: workPolicy
 			});
+		});
+
+		test('an invalid platform returns 400 before settings persistence', async () => {
+			await expect(
+				reconcile({
+					platform: '',
+					workPolicy: currentPolicy(),
+					from: '2027-01-01T00:00:00Z',
+					to: '2027-01-02T00:00:00Z',
+					events: []
+				})
+			).rejects.toMatchObject({ status: 400 });
+			expect(await companyRules()).toEqual({ approvals: { required: true } });
 		});
 
 		test('a malformed current work policy returns 400 before persistence', async () => {
@@ -115,6 +133,19 @@ if (canReachSupabase) {
 				reconcile({
 					platform: 'mattermost',
 					workPolicy: { ...currentPolicy(), workMode: 'hybrid' },
+					from: '2027-01-01T00:00:00Z',
+					to: '2027-01-02T00:00:00Z',
+					events: []
+				})
+			).rejects.toMatchObject({ status: 400 });
+			expect(await companyRules()).toEqual({ approvals: { required: true } });
+		});
+
+		test('an invalid current policy time returns 400 before persistence', async () => {
+			await expect(
+				reconcile({
+					platform: 'mattermost',
+					workPolicy: { ...currentPolicy(), nightStartTime: '99:99' },
 					from: '2027-01-01T00:00:00Z',
 					to: '2027-01-02T00:00:00Z',
 					events: []

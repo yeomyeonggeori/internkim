@@ -12,6 +12,7 @@ export type AttendanceWorkCalendarDay = {
 	date: string;
 	workMode: AttendanceWorkMode;
 	workingDate: boolean;
+	holiday?: boolean;
 };
 
 export class InvalidAttendanceWorkModeError extends Error {
@@ -73,36 +74,29 @@ export function attendanceWorkCalendarFromDevice(
 	return offered;
 }
 
-export async function saveAttendanceWorkCalendar(
+export async function saveAttendanceReconciliationSettings(
 	client: SupabaseClient,
 	companyID: string,
-	workCalendar: AttendanceWorkCalendarDay[]
+	workPolicy: CurrentAttendanceWorkPolicy | undefined,
+	workCalendar: AttendanceWorkCalendarDay[] | undefined
 ): Promise<void> {
-	const { error: failed } = await client.rpc('save_attendance_calendar', {
+	const { error: failed } = await client.rpc('save_attendance_reconciliation_settings', {
 		target_company: companyID,
-		attendance_calendar: workCalendar
-	});
-	if (failed) throw new Error(failed.message);
-}
-
-export async function saveAttendanceWorkPolicy(
-	client: SupabaseClient,
-	companyID: string,
-	workPolicy: CurrentAttendanceWorkPolicy
-): Promise<void> {
-	const { error: failed } = await client.rpc('save_attendance_work_policy', {
-		target_company: companyID,
-		attendance_work_policy: workPolicy
+		attendance_work_policy: workPolicy ?? null,
+		attendance_calendar: workCalendar ?? null
 	});
 	if (failed) throw new Error(failed.message);
 }
 
 function isAttendanceWorkCalendarDay(offered: unknown): offered is AttendanceWorkCalendarDay {
 	if (typeof offered !== 'object' || offered === null) return false;
-	if (Object.keys(offered).length !== 3) return false;
+	if (Object.keys(offered).some((key) => !['date', 'workMode', 'workingDate', 'holiday'].includes(key))) {
+		return false;
+	}
 	if (!('date' in offered) || !isDateOnly(offered.date)) return false;
 	if (!('workMode' in offered) || !isAttendanceWorkMode(offered.workMode)) return false;
-	return 'workingDate' in offered && typeof offered.workingDate === 'boolean';
+	if (!('workingDate' in offered) || typeof offered.workingDate !== 'boolean') return false;
+	return !('holiday' in offered) || typeof offered.holiday === 'boolean';
 }
 
 function isDateOnly(offered: unknown): offered is string {

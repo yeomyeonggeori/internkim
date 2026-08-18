@@ -8,6 +8,7 @@ export type ProjectedWorkCalendarDay = {
 	date: string;
 	workMode: AttendanceWorkMode;
 	workingDate: boolean;
+	holiday?: boolean;
 };
 export type WorkCalendarProjection = ProjectedWorkCalendarDay[] | null;
 

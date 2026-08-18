@@ -46,7 +46,7 @@ export function supabaseWorkedDay(
 		actualSeconds: durationSeconds(completed, day, timeZone, policy.breakPeriods),
 		provisionalMinutes: durationMinutes(provisional, day, timeZone, policy.breakPeriods),
 		provisionalSeconds: durationSeconds(provisional, day, timeZone, policy.breakPeriods),
-		nightMinutes: nightMinutes(completed, day, timeZone, policy),
+		nightMinutes: nightMinutes(spans, day, timeZone, policy),
 		isWorking: provisional.length > 0
 	};
 }

@@ -55,7 +55,10 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		const timeRange = supabaseWorkStatusTimeRange(['2026-08-14'], 'Asia/Seoul');
 		const clockIn = '2026-08-13T22:44:00Z';
 		const now = new Date('2026-08-14T00:00:00Z');
-		const policy = policyFrom([{ date: '2026-08-14', workMode: 'fixed', workingDate: true }]);
+		const policy = policyFrom(
+			[{ date: '2026-08-14', workMode: 'fixed', workingDate: true }],
+			'fixed'
+		);
 		const status = calculateSupabaseEmployeeWorkStatus({
 			member,
 			days: ['2026-08-14'],
@@ -77,9 +80,34 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		expect(day.provisionalSeconds).toBe(76 * 60);
 		expect(day.provisionalMinutes).toBe(76);
 		expect(day.actualMinutes).toBe(0);
+		expect(day.fulfilledMinutes).toBe(76);
+		expect(day.remainingMinutes).toBe(404);
+		expect(status.fulfilledMinutes).toBe(76);
+		expect(status.remainingMinutes).toBe(404);
 		expect(day.workSegments).toEqual([
 			{ startTime: '07:44', endTime: '09:00', provisional: true }
 		]);
+	});
+
+	test('includes active overnight work in night and baseline calculations', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2027-01-04'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2027-01-04T13:00:00Z' }
+			],
+			leave: [],
+			policy: policyFrom(null, 'flexible'),
+			now: new Date('2027-01-04T14:30:00Z')
+		});
+
+		expect(status.actualMinutes).toBe(0);
+		expect(status.provisionalMinutes).toBe(90);
+		expect(status.fulfilledMinutes).toBe(90);
+		expect(status.remainingMinutes).toBe(390);
+		expect(status.nightMinutes).toBe(90);
+		expect(status.days[0]?.nightMinutes).toBe(90);
 	});
 
 	test('counts only projected working dates in stage-two capacity for a holiday week', () => {
@@ -96,7 +124,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			days.map((date, index) => ({
 				date,
 				workMode: 'fixed',
-				workingDate: index < 5 && date !== '2027-01-06'
+				workingDate: index < 5 && date !== '2027-01-06',
+				holiday: date === '2027-01-06'
 			})),
 			'fixed'
 		);
@@ -199,7 +228,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 	});
 
 	test('uses the editable overnight window and excludes configured breaks', () => {
-		const policy = policyFrom(null, 'fixed', {
+		const policy = policyFrom(null, 'flexible', {
 			nightStartTime: '21:00',
 			nightEndTime: '05:00',
 			breakPeriods: [{ startTime: '22:30', endTime: '23:00' }]
@@ -236,10 +265,33 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			timeZone: 'Asia/Seoul',
 			attendance: [],
 			leave: [],
-			policy: policyFrom(null, 'fixed', { workingWeekdays: [6] })
+			policy: policyFrom(null, 'fixed', { workingWeekdays: [6], weeklyTargetMinutes: 480 })
 		});
 
 		expect(status.workingCapacitySeconds).toBe(secondsPerDay);
 		expect(status.calendarCapacitySeconds).toBe(7 * secondsPerDay);
+	});
+
+	test('uses current weekdays and policy-independent holidays instead of a stale projection', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2027-01-09', '2027-01-10'],
+			timeZone: 'Asia/Seoul',
+			attendance: [],
+			leave: [],
+			policy: policyFrom(
+				[
+					{ date: '2027-01-09', workMode: 'fixed', workingDate: false },
+					{ date: '2027-01-10', workMode: 'fixed', workingDate: false, holiday: true }
+				],
+				'fixed',
+				{ workingWeekdays: [6, 7], weeklyTargetMinutes: 960 }
+			)
+		});
+
+		expect(status.days[0]?.workingDate).toBe(true);
+		expect(status.days[0]?.targetMinutes).toBe(480);
+		expect(status.days[1]?.workingDate).toBe(false);
+		expect(status.days[1]?.targetMinutes).toBe(0);
 	});
 });

@@ -93,7 +93,7 @@ func TestAttendanceReconciliationCarriesTheDateLevelWorkCalendar(t *testing.T) {
 		From:     time.Date(2027, time.January, 1, 0, 0, 0, 0, time.UTC),
 		To:       time.Date(2027, time.January, 2, 0, 0, 0, 0, time.UTC),
 		WorkCalendar: []ReconciledWorkCalendarDay{{
-			Date: "2027-01-01", WorkMode: "flexible", WorkingDate: false,
+			Date: "2027-01-01", WorkMode: "flexible", WorkingDate: false, Holiday: true,
 		}},
 	})
 	if errorValue != nil {
@@ -106,7 +106,8 @@ func TestAttendanceReconciliationCarriesTheDateLevelWorkCalendar(t *testing.T) {
 	if len(workCalendar) != 1 ||
 		workCalendar[0]["date"] != "2027-01-01" ||
 		workCalendar[0]["workMode"] != "flexible" ||
-		workCalendar[0]["workingDate"] != false {
+		workCalendar[0]["workingDate"] != false ||
+		workCalendar[0]["holiday"] != true {
 		t.Fatalf("work calendar = %#v", workCalendar)
 	}
 }
