@@ -29,7 +29,7 @@
 	}
 
 	async function submit(): Promise<void> {
-		if (!startTime || !endTime || !reason.trim()) return;
+		if (!startTime || !endTime || endTime <= startTime || !reason.trim()) return;
 		await management.correctTime(request.id, {
 			startTime,
 			endTime,
@@ -73,7 +73,11 @@
 			</Dialog.Close>
 			<Button
 				onclick={submit}
-				disabled={management.isMutating || !startTime || !endTime || !reason.trim()}
+				disabled={management.isMutating ||
+					!startTime ||
+					!endTime ||
+					endTime <= startTime ||
+					!reason.trim()}
 			>
 				{text.management.saveTimeCorrection}
 			</Button>

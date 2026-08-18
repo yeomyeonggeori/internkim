@@ -1,6 +1,99 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(37);
+
+select ok(
+  not has_function_privilege(
+    'anon', to_regprocedure('public.admin_adjust_leave_balance(uuid,numeric,text,date,date)'), 'EXECUTE'
+  ),
+  'anonymous callers cannot adjust leave balances'
+);
+select ok(
+  not has_function_privilege(
+    'anon', to_regprocedure('public.admin_create_past_leave(uuid,numeric,timestamptz,timestamptz,text)'), 'EXECUTE'
+  ),
+  'anonymous callers cannot create past leave'
+);
+select ok(
+  not has_function_privilege(
+    'anon', to_regprocedure('public.admin_cancel_leave(uuid,text)'), 'EXECUTE'
+  ),
+  'anonymous callers cannot cancel managed leave'
+);
+select ok(
+  not has_function_privilege(
+    'anon', to_regprocedure('public.admin_correct_leave_time(uuid,timestamptz,timestamptz,text)'), 'EXECUTE'
+  ),
+  'anonymous callers cannot correct leave time'
+);
+select ok(
+  not has_function_privilege(
+    'anon', to_regprocedure('public.cancel_own_leave(uuid)'), 'EXECUTE'
+  ),
+  'anonymous callers cannot cancel member leave'
+);
+
+select ok(
+  has_function_privilege(
+    'authenticated', to_regprocedure('public.admin_adjust_leave_balance(uuid,numeric,text,date,date)'), 'EXECUTE'
+  ),
+  'authenticated callers can reach guarded balance adjustments'
+);
+select ok(
+  has_function_privilege(
+    'authenticated', to_regprocedure('public.admin_create_past_leave(uuid,numeric,timestamptz,timestamptz,text)'), 'EXECUTE'
+  ),
+  'authenticated callers can reach guarded past leave creation'
+);
+select ok(
+  has_function_privilege(
+    'authenticated', to_regprocedure('public.admin_cancel_leave(uuid,text)'), 'EXECUTE'
+  ),
+  'authenticated callers can reach guarded managed leave cancellation'
+);
+select ok(
+  has_function_privilege(
+    'authenticated', to_regprocedure('public.admin_correct_leave_time(uuid,timestamptz,timestamptz,text)'), 'EXECUTE'
+  ),
+  'authenticated callers can reach guarded leave time correction'
+);
+select ok(
+  has_function_privilege(
+    'authenticated', to_regprocedure('public.cancel_own_leave(uuid)'), 'EXECUTE'
+  ),
+  'authenticated callers can cancel their own pending leave'
+);
+
+select ok(
+  not has_function_privilege(
+    'service_role', to_regprocedure('public.admin_adjust_leave_balance(uuid,numeric,text,date,date)'), 'EXECUTE'
+  ),
+  'service role cannot adjust leave balances without a member actor'
+);
+select ok(
+  not has_function_privilege(
+    'service_role', to_regprocedure('public.admin_create_past_leave(uuid,numeric,timestamptz,timestamptz,text)'), 'EXECUTE'
+  ),
+  'service role cannot create past leave without a member actor'
+);
+select ok(
+  not has_function_privilege(
+    'service_role', to_regprocedure('public.admin_cancel_leave(uuid,text)'), 'EXECUTE'
+  ),
+  'service role cannot cancel managed leave without a member actor'
+);
+select ok(
+  not has_function_privilege(
+    'service_role', to_regprocedure('public.admin_correct_leave_time(uuid,timestamptz,timestamptz,text)'), 'EXECUTE'
+  ),
+  'service role cannot correct leave time without a member actor'
+);
+select ok(
+  not has_function_privilege(
+    'service_role', to_regprocedure('public.cancel_own_leave(uuid)'), 'EXECUTE'
+  ),
+  'service role cannot cancel member leave without a member actor'
+);
 
 delete from public.company;
 
@@ -10,8 +103,8 @@ insert into auth.users (id, email) values
   ('40000000-0000-0000-0000-000000000001', 'admin-b@example.test');
 
 insert into public.company (id, name, slug, country, locale, timezone, leave_days) values
-  ('30000000-0000-0000-0000-000000000000', 'Leave A', 'leave-a', 'KR', 'ko', 'Asia/Seoul', 10),
-  ('40000000-0000-0000-0000-000000000000', 'Leave B', 'leave-b', 'KR', 'ko', 'Asia/Seoul', 10);
+  ('30000000-0000-0000-0000-000000000000', 'Sample Company A', 'sample-company-a', 'KR', 'ko', 'Asia/Seoul', 10),
+  ('40000000-0000-0000-0000-000000000000', 'Sample Company B', 'sample-company-b', 'KR', 'ko', 'Asia/Seoul', 10);
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values
   (
@@ -73,6 +166,40 @@ select is(
 );
 
 select lives_ok(
+  $$select public.admin_correct_leave_time(
+    (select id from public.leave where member_id = '30000000-0000-0000-0000-000000000012'),
+    date_trunc('year', current_date)::timestamptz + interval '10 days 1 hour',
+    date_trunc('year', current_date)::timestamptz + interval '10 days 5 hours',
+    'correct recorded time'
+  )$$,
+  'a company admin can correct active leave time'
+);
+
+select is(
+  (select starts_at from public.leave where member_id = '30000000-0000-0000-0000-000000000012'),
+  date_trunc('year', current_date)::timestamptz + interval '10 days 1 hour',
+  'a legal correction updates the leave start'
+);
+
+select is(
+  (select count(*) from public.leave_ledger_entry where operation_type = 'legal_correction'),
+  1::bigint,
+  'a legal correction creates one audit entry'
+);
+
+select throws_ok(
+  $$select public.admin_correct_leave_time(
+    (select id from public.leave where member_id = '30000000-0000-0000-0000-000000000012'),
+    date_trunc('year', current_date)::timestamptz + interval '10 days 2 hours',
+    date_trunc('year', current_date)::timestamptz + interval '10 days 2 hours',
+    'zero duration'
+  )$$,
+  '23514',
+  'corrected leave end must follow its start',
+  'a leave correction must keep a positive duration'
+);
+
+select lives_ok(
   $$select public.admin_cancel_leave(
     (select id from public.leave where member_id = '30000000-0000-0000-0000-000000000012'),
     'recorded in error'
@@ -90,6 +217,18 @@ select isnt(
   (select cancelled_at from public.leave where member_id = '30000000-0000-0000-0000-000000000012'),
   null::timestamptz,
   'cancellation keeps the leave row and records when it was cancelled'
+);
+
+select throws_ok(
+  $$select public.admin_correct_leave_time(
+    (select id from public.leave where member_id = '30000000-0000-0000-0000-000000000012'),
+    date_trunc('year', current_date)::timestamptz + interval '10 days 2 hours',
+    date_trunc('year', current_date)::timestamptz + interval '10 days 6 hours',
+    'late correction'
+  )$$,
+  '42501',
+  'only a company admin can correct a colleague leave time',
+  'a cancelled leave cannot be corrected'
 );
 
 select throws_ok(
@@ -140,6 +279,20 @@ select throws_ok(
   '42501',
   null,
   'a member cannot approve their own leave during insertion'
+);
+
+select set_config('request.jwt.claim.sub', '30000000-0000-0000-0000-000000000001', true);
+
+update public.leave
+set status = 'approved'
+where note = 'own request'
+  and status = 'requested'
+  and cancelled_at is null;
+
+select is(
+  (select status::text from public.leave where note = 'own request'),
+  'requested',
+  'a stale approval cannot change a cancelled pending request'
 );
 
 select set_config('request.jwt.claim.sub', '40000000-0000-0000-0000-000000000001', true);

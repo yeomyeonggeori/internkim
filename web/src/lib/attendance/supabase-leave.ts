@@ -155,6 +155,8 @@ export async function decideSupabaseLeave(
 		.from('leave')
 		.update({ status: decision.action === 'approve' ? 'approved' : 'rejected' })
 		.eq('id', requestID)
+		.eq('status', 'requested')
+		.is('cancelled_at', null)
 		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note, cancelled_at')
 		.single<LeaveRow>();
 	if (decided.error) throw new Error(decided.error.message);
