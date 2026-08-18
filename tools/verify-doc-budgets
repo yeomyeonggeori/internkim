@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""Fail when a standing document outgrows the ceiling AGENTS.md sets for it."""
+
+import json
+import pathlib
+import sys
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+MANIFEST_PATH = REPOSITORY_ROOT / "docs" / "internal" / "doc-budgets.json"
+
+
+def main():
+    budgets = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    failures = []
+    for relative_path, ceiling in sorted(budgets.items()):
+        document_path = REPOSITORY_ROOT / relative_path
+        if not document_path.is_file():
+            failures.append(f"{relative_path}: named in the manifest, not in the repository")
+            continue
+        word_count = len(document_path.read_text(encoding="utf-8").split())
+        if word_count > ceiling:
+            failures.append(f"{relative_path}: {word_count} words over a ceiling of {ceiling}")
+        else:
+            print(f"ok   {relative_path}: {word_count}/{ceiling}")
+    if not failures:
+        return 0
+    for failure in failures:
+        print(f"FAIL {failure}", file=sys.stderr)
+    print(
+        "\nRelocate, condense, or raise the ceiling in docs/internal/doc-budgets.json "
+        "and say why in the pull request.",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
