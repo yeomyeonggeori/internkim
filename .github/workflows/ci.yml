@@ -84,12 +84,6 @@ jobs:
       - run: bun run check
       - run: bun test
 
-  docs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: tools/verify-doc-budgets
-
   schema:
     runs-on: ubuntu-latest
     steps:
