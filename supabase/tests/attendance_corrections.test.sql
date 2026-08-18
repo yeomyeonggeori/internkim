@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(25);
 
 insert into auth.users (id, email) values
 	('31000000-0000-0000-0000-000000000001', 'correction-owner@example.test'),
@@ -122,6 +122,36 @@ select ok(
 	'anonymous users cannot read the attendance correction window'
 );
 
+select ok(
+	not has_column_privilege('authenticated', 'public.attendance', 'occurred_at', 'UPDATE')
+		and not has_column_privilege('authenticated', 'public.attendance', 'location', 'UPDATE')
+		and not has_column_privilege('authenticated', 'public.attendance', 'edit_reason', 'UPDATE'),
+	'authenticated users must correct attendance through the RPC'
+);
+
+select ok(
+	has_function_privilege(
+		'authenticated',
+		to_regprocedure('public.correct_attendance_events(jsonb,text)'),
+		'EXECUTE'
+	),
+	'authenticated users can call the attendance correction RPC'
+);
+
+select ok(
+	not has_function_privilege(
+		'anon',
+		to_regprocedure('public.correct_attendance_events(jsonb,text)'),
+		'EXECUTE'
+	)
+		and not has_function_privilege(
+			'service_role',
+			to_regprocedure('public.correct_attendance_events(jsonb,text)'),
+			'EXECUTE'
+		),
+	'attendance correction RPC execution is limited to authenticated users'
+);
+
 select lives_ok($block$do $$
 declare
 	metadata_blocked boolean := false;
@@ -229,16 +259,16 @@ begin
 		set occurred_at = '2026-08-10 07:30:00+09',
 			edit_reason = '직접 순서 변경'
 		where id = '31000000-0000-0000-0000-000000000101';
-	exception when check_violation then
+	exception when insufficient_privilege then
 		blocked := true;
 	end;
-	assert blocked, 'a direct update must not bypass attendance event order validation';
+	assert blocked, 'a direct update must not bypass the attendance correction RPC';
 	assert (
 		select occurred_at = '2026-08-10 09:45:00+09'
 		from public.attendance
 		where id = '31000000-0000-0000-0000-000000000101'
-	), 'a rejected direct reorder must leave the attendance event unchanged';
-end $$;$block$, 'direct attendance updates preserve event order');
+	), 'a rejected direct update must leave the attendance event unchanged';
+end $$;$block$, 'authenticated users cannot update attendance directly');
 
 select lives_ok($block$do $$
 declare
@@ -372,25 +402,19 @@ begin
 		update public.attendance
 		set edit_reason = '사유만 변경'
 		where id = '31000000-0000-0000-0000-000000000101';
-	exception when check_violation then
+	exception when insufficient_privilege then
 		blocked := true;
 	end;
-	assert blocked, 'a correction reason must not change without a time or location correction';
-end $$;$block$, 'attendance correction reasons cannot be overwritten independently');
+	assert blocked, 'a correction reason must only change through the correction RPC';
+end $$;$block$, 'attendance correction reasons cannot be updated directly');
 
 select lives_ok($block$do $$
 begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000002', true);
-	update public.attendance
-	set occurred_at = case id
-			when '31000000-0000-0000-0000-000000000103' then '2026-08-10 08:15:00+09'::timestamptz
-			when '31000000-0000-0000-0000-000000000101' then '2026-08-10 10:00:00+09'::timestamptz
-		end,
-		edit_reason = '순서 유지 일괄 수정'
-	where id in (
-		'31000000-0000-0000-0000-000000000103',
-		'31000000-0000-0000-0000-000000000101'
+	perform public.correct_attendance_events(
+		'[{"event_id":"31000000-0000-0000-0000-000000000103","local_date":"2026-08-10","local_time":"08:15","location":"Office"},{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"10:00","location":"Office"}]'::jsonb,
+		'순서 유지 일괄 수정'
 	);
 	assert (
 		select array_agg(id order by occurred_at, id) = array[
@@ -399,8 +423,8 @@ begin
 		]
 		from public.attendance
 		where member_id = '31000000-0000-0000-0000-000000000011'
-	), 'a valid batch update must keep the previous event order';
-end $$;$block$, 'direct attendance batches may move events while preserving their order');
+	), 'a valid RPC batch must keep the previous event order';
+end $$;$block$, 'attendance RPC batches may move events while preserving their order');
 
 select * from finish();
 rollback;
