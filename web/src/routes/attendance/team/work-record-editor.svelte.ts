@@ -155,12 +155,13 @@ export class WorkRecordEditorState {
 		if (!draft || !this.isEventEditable(eventID)) return localTime;
 		const currentTime = this.dependencies.getCurrentServerTime();
 		this.currentTime = currentTime;
-		draft.localTime = fallbackFutureAttendanceLocalTime(
+		const currentTimeBounded = fallbackFutureAttendanceLocalTime(
 			draft.localDate,
 			localTime,
 			this.dependencies.getSummary()?.timeZone,
 			currentTime
 		);
+		draft.localTime = this.timeWithinSegmentOrder(draft.eventID, currentTimeBounded);
 		return draft.localTime;
 	}
 
@@ -203,6 +204,22 @@ export class WorkRecordEditorState {
 					reason
 				}
 			}));
+	}
+
+	private timeWithinSegmentOrder(eventID: string, localTime: string): string {
+		let boundedTime = localTime;
+		for (const segment of this.segments) {
+			const startDraft = this.draftFor(segment.startEventID);
+			const endDraft = this.draftFor(segment.endEventID);
+			if (!startDraft || !endDraft || startDraft.localDate !== endDraft.localDate) continue;
+			if (eventID === segment.startEventID && boundedTime > endDraft.localTime) {
+				boundedTime = endDraft.localTime;
+			}
+			if (eventID === segment.endEventID && boundedTime < startDraft.localTime) {
+				boundedTime = startDraft.localTime;
+			}
+		}
+		return boundedTime;
 	}
 }
 

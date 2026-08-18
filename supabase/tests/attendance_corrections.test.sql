@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(20);
 
 insert into auth.users (id, email) values
 	('31000000-0000-0000-0000-000000000001', 'correction-owner@example.test'),
@@ -80,6 +80,12 @@ select ok(
 	'attendance server time comes from the database clock'
 );
 
+select is(
+	public.attendance_correction_window_minutes(),
+	60,
+	'attendance exposes the correction window from the database policy'
+);
+
 select ok(
 	has_function_privilege(
 		'authenticated',
@@ -96,6 +102,24 @@ select ok(
 		'EXECUTE'
 	),
 	'anonymous users cannot read attendance server time'
+);
+
+select ok(
+	has_function_privilege(
+		'authenticated',
+		to_regprocedure('public.attendance_correction_window_minutes()'),
+		'EXECUTE'
+	),
+	'authenticated users can read the attendance correction window'
+);
+
+select ok(
+	not has_function_privilege(
+		'anon',
+		to_regprocedure('public.attendance_correction_window_minutes()'),
+		'EXECUTE'
+	),
+	'anonymous users cannot read the attendance correction window'
 );
 
 select lives_ok($block$do $$
@@ -171,6 +195,28 @@ begin
 		where id = '31000000-0000-0000-0000-000000000101'
 	), 'a later correction must retain the first time and replace the reason';
 end $$;$block$, 'an owner can correct their own attendance twice');
+
+select lives_ok($block$do $$
+declare
+	blocked boolean := false;
+begin
+	set local role authenticated;
+	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
+	begin
+		perform public.correct_attendance_events(
+			'[{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"07:30","location":"Office"}]'::jsonb,
+			'이벤트 순서 변경'
+		);
+	exception when check_violation then
+		blocked := true;
+	end;
+	assert blocked, 'a correction must not move an event across another attendance event';
+	assert (
+		select occurred_at = '2026-08-10 09:45:00+09'
+		from public.attendance
+		where id = '31000000-0000-0000-0000-000000000101'
+	), 'a rejected reorder must leave the corrected event unchanged';
+end $$;$block$, 'attendance corrections preserve event order');
 
 select lives_ok($block$do $$
 declare

@@ -43,8 +43,9 @@ const client = {
 		};
 	},
 	rpc: (name: string) => {
-		if (name !== 'attendance_server_time') throw new Error(`Unexpected RPC ${name}`);
-		return response(databaseServerTime);
+		if (name === 'attendance_server_time') return response(databaseServerTime);
+		if (name === 'attendance_correction_window_minutes') return response(60);
+		throw new Error(`Unexpected RPC ${name}`);
 	}
 };
 
@@ -59,5 +60,6 @@ describe('supabaseAttendanceSummary', () => {
 
 		expect(summary.serverTime).toBe(databaseServerTime);
 		expect(summary.serverTime).not.toBe(browserTime.toISOString());
+		expect(summary.correctionWindowMinutes).toBe(60);
 	});
 });
