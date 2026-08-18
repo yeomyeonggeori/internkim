@@ -294,4 +294,27 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		expect(status.days[1]?.workingDate).toBe(false);
 		expect(status.days[1]?.targetMinutes).toBe(0);
 	});
+
+	test('does not count cancelled approved leave as leave time', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2027-01-04'],
+			timeZone: 'Asia/Seoul',
+			attendance: [],
+			leave: [
+				{
+					member_id: member.id,
+					days: 1,
+					starts_at: '2027-01-03T15:00:00Z',
+					ends_at: '2027-01-04T15:00:00Z',
+					status: 'approved',
+					cancelled_at: '2027-01-01T00:00:00Z'
+				}
+			],
+			policy: policyFrom(null)
+		});
+
+		expect(status.leaveMinutes).toBe(0);
+		expect(status.days[0].status).toBe('off');
+	});
 });

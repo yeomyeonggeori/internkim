@@ -1,6 +1,25 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(43);
+
+select ok(
+  not has_function_privilege(
+    'anon', to_regprocedure('public.member_leave_remaining(uuid,integer)'), 'EXECUTE'
+  ),
+  'anonymous callers cannot read leave balances'
+);
+select ok(
+  has_function_privilege(
+    'authenticated', to_regprocedure('public.member_leave_remaining(uuid,integer)'), 'EXECUTE'
+  ),
+  'authenticated callers can reach guarded leave balances'
+);
+select ok(
+  not has_function_privilege(
+    'service_role', to_regprocedure('public.member_leave_remaining(uuid,integer)'), 'EXECUTE'
+  ),
+  'service role cannot read leave balances without a member actor'
+);
 
 select ok(
   not has_function_privilege(
@@ -123,6 +142,15 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '30000000-0000-0000-0000-000000000001', true);
 
+select throws_ok(
+  $$select public.member_leave_remaining(
+    '40000000-0000-0000-0000-000000000011', extract(year from current_date)::integer
+  )$$,
+  '42501',
+  'leave balance is only available to its owner or a company admin',
+  'a company admin cannot read another company balance'
+);
+
 select lives_ok(
   $$select public.admin_adjust_leave_balance(
     '30000000-0000-0000-0000-000000000012', 2, 'carryover', current_date, null
@@ -242,6 +270,21 @@ select throws_ok(
 );
 
 select set_config('request.jwt.claim.sub', '30000000-0000-0000-0000-000000000002', true);
+
+select is(
+  public.member_leave_remaining('30000000-0000-0000-0000-000000000012', extract(year from current_date)::integer),
+  12::numeric,
+  'a member can read their own leave balance'
+);
+
+select throws_ok(
+  $$select public.member_leave_remaining(
+    '30000000-0000-0000-0000-000000000011', extract(year from current_date)::integer
+  )$$,
+  '42501',
+  'leave balance is only available to its owner or a company admin',
+  'a regular member cannot read a colleague balance'
+);
 
 select throws_ok(
   $$select public.admin_adjust_leave_balance(

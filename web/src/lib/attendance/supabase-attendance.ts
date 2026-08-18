@@ -1,6 +1,7 @@
 import { supabase } from '$lib/supabase';
 import { colourOf, type NamedColour } from '$lib/flow/task-vocabulary';
 import { membersInReadingOrder } from '$lib/member-order';
+import { leaveDisplayRange } from '$lib/attendance/supabase-leave-range';
 import type {
 	AttendanceAbsence,
 	AttendanceEvent,
@@ -20,14 +21,16 @@ type AttendanceRow = {
 	occurred_at: string;
 	original_occurred_at: string | null;
 };
-type LeaveRow = {
+export type SupabaseAttendanceLeave = {
 	id: string;
 	member_id: string;
 	kind: string;
 	is_paid: boolean;
+	days: number;
 	starts_at: string;
 	ends_at: string;
 	note: string | null;
+	cancelled_at: string | null;
 };
 
 export type SupabaseAttendanceCorrection = {
@@ -67,11 +70,12 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 
 	const leave = await client
 		.from('leave')
-		.select('id, member_id, kind, is_paid, starts_at, ends_at, note')
+		.select('id, member_id, kind, is_paid, days, starts_at, ends_at, note, cancelled_at')
 		.eq('status', 'approved')
+		.is('cancelled_at', null)
 		.lt('starts_at', until.toISOString())
 		.gte('ends_at', from.toISOString())
-		.returns<LeaveRow[]>();
+		.returns<SupabaseAttendanceLeave[]>();
 	if (leave.error) throw new Error(leave.error.message);
 	const [serverTime, correctionWindow] = await Promise.all([
 		client.rpc('attendance_server_time'),
@@ -97,7 +101,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		isAdmin: me?.is_admin ?? false,
 		timeZone,
 		events,
-		absences: leave.data.flatMap((row) => absencesOf(row, byID.get(row.member_id), timeZone)),
+		absences: leave.data.flatMap((row) => supabaseAttendanceAbsences(row, byID.get(row.member_id), timeZone)),
 		members: membersInReadingOrder(members.data, me?.id).map(memberOf),
 		todayStatus: todayStatusOf(events, me?.email ?? '', timeZone),
 		locations: locationsOf(company.data.work_locations),
@@ -190,9 +194,15 @@ function eventOf(row: AttendanceRow, member: MemberRow | undefined, timeZone: st
 	};
 }
 
-function absencesOf(row: LeaveRow, member: MemberRow | undefined, timeZone: string): AttendanceAbsence[] {
-	const startDate = dateIn(new Date(row.starts_at), timeZone);
-	const endDate = dateIn(new Date(row.ends_at), timeZone);
+export function supabaseAttendanceAbsences(
+	row: SupabaseAttendanceLeave,
+	member: MemberRow | undefined,
+	timeZone: string
+): AttendanceAbsence[] {
+	if (row.cancelled_at) return [];
+	const range = leaveDisplayRange(row.starts_at, row.ends_at, row.days, timeZone);
+	const startDate = range.startDate;
+	const endDate = range.endDate ?? startDate;
 	const email = member?.email ?? '';
 	const days: AttendanceAbsence[] = [];
 	for (let date = startDate; date <= endDate; date = nextDate(date)) {

@@ -1,6 +1,7 @@
 import type { Locale } from './locale.svelte';
 
 const defaultLeaveTypeNames = {
+	leave: { ko: '휴가', en: 'Leave' },
 	annual: { ko: '연차', en: 'Annual leave' },
 	sick: { ko: '병가', en: 'Sick leave' },
 	bereavement: { ko: '경조휴가', en: 'Bereavement leave' },

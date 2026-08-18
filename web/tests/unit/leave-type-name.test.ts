@@ -3,6 +3,7 @@ import { localizedLeaveTypeName } from '../../src/lib/i18n/leave-type-name';
 
 describe('localized leave type name', () => {
 	test('localizes canonical system leave names', () => {
+		expect(localizedLeaveTypeName('leave', '휴가', 'en')).toBe('Leave');
 		expect(localizedLeaveTypeName('annual', '연차', 'en')).toBe('Annual leave');
 		expect(localizedLeaveTypeName('annual', 'Annual leave', 'ko')).toBe('연차');
 		expect(localizedLeaveTypeName('legacy-leave', 'Legacy leave', 'ko')).toBe('기존 휴가');

@@ -33,6 +33,7 @@ export type SupabaseWorkStatusLeave = {
 	starts_at: string;
 	ends_at: string;
 	status: string;
+	cancelled_at: string | null;
 };
 export type SupabaseEmployeeWorkStatusInput = {
 	member: SupabaseWorkStatusMember;
@@ -80,10 +81,11 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 
 	const leave = await client
 		.from('leave')
-		.select('member_id, days, starts_at, ends_at, status')
+		.select('member_id, days, starts_at, ends_at, status, cancelled_at')
 		.eq('status', 'approved')
-		.lt('starts_at', until)
-		.gte('ends_at', from)
+		.is('cancelled_at', null)
+		.lt('starts_at', instantOf(until))
+		.gte('ends_at', instantOf(from))
 		.returns<SupabaseWorkStatusLeave[]>();
 	if (leave.error) throw new Error(leave.error.message);
 
@@ -129,7 +131,9 @@ export function calculateSupabaseEmployeeWorkStatus(
 	const now = input.now ?? new Date();
 	const targetMinutes = policy.currentPolicy.dailyTargetMinutes;
 	const mine = attendance.filter((row) => row.member_id === member.id);
-	const myLeave = leave.filter((row) => row.member_id === member.id);
+	const myLeave = leave.filter(
+		(row) => row.member_id === member.id && row.status === 'approved' && !row.cancelled_at
+	);
 	const dayStatuses = days.map((day) =>
 		dayStatusOf(day, timeZone, mine, myLeave, targetMinutes, policy, now)
 	);
