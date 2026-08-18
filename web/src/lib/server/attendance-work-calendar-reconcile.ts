@@ -1,4 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+	currentAttendanceWorkPolicy,
+	type CurrentAttendanceWorkPolicy
+} from '../attendance/current-work-policy';
 import { isAttendanceWorkMode, type AttendanceWorkMode } from '$lib/attendance/work-mode';
 
 const attendanceWorkCalendarDayMilliseconds = 24 * 60 * 60 * 1000;
@@ -8,6 +12,7 @@ export type AttendanceWorkCalendarDay = {
 	date: string;
 	workMode: AttendanceWorkMode;
 	workingDate: boolean;
+	holiday?: boolean;
 };
 
 export class InvalidAttendanceWorkModeError extends Error {
@@ -21,6 +26,26 @@ export class InvalidAttendanceWorkCalendarError extends Error {
 	constructor() {
 		super('workCalendar must contain valid date, workMode, and workingDate entries');
 		this.name = 'InvalidAttendanceWorkCalendarError';
+	}
+}
+
+export class InvalidAttendanceWorkPolicyError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'InvalidAttendanceWorkPolicyError';
+	}
+}
+
+export function attendanceWorkPolicyFromDevice(
+	offered: unknown
+): CurrentAttendanceWorkPolicy | undefined {
+	if (offered === undefined) return undefined;
+	try {
+		return currentAttendanceWorkPolicy(offered);
+	} catch (thrown) {
+		throw new InvalidAttendanceWorkPolicyError(
+			thrown instanceof Error ? thrown.message : 'workPolicy is invalid'
+		);
 	}
 }
 
@@ -49,24 +74,29 @@ export function attendanceWorkCalendarFromDevice(
 	return offered;
 }
 
-export async function saveAttendanceWorkCalendar(
+export async function saveAttendanceReconciliationSettings(
 	client: SupabaseClient,
 	companyID: string,
-	workCalendar: AttendanceWorkCalendarDay[]
+	workPolicy: CurrentAttendanceWorkPolicy | undefined,
+	workCalendar: AttendanceWorkCalendarDay[] | undefined
 ): Promise<void> {
-	const { error: failed } = await client.rpc('save_attendance_calendar', {
+	const { error: failed } = await client.rpc('save_attendance_reconciliation_settings', {
 		target_company: companyID,
-		attendance_calendar: workCalendar
+		attendance_work_policy: workPolicy ?? null,
+		attendance_calendar: workCalendar ?? null
 	});
 	if (failed) throw new Error(failed.message);
 }
 
 function isAttendanceWorkCalendarDay(offered: unknown): offered is AttendanceWorkCalendarDay {
 	if (typeof offered !== 'object' || offered === null) return false;
-	if (Object.keys(offered).length !== 3) return false;
+	if (Object.keys(offered).some((key) => !['date', 'workMode', 'workingDate', 'holiday'].includes(key))) {
+		return false;
+	}
 	if (!('date' in offered) || !isDateOnly(offered.date)) return false;
 	if (!('workMode' in offered) || !isAttendanceWorkMode(offered.workMode)) return false;
-	return 'workingDate' in offered && typeof offered.workingDate === 'boolean';
+	if (!('workingDate' in offered) || typeof offered.workingDate !== 'boolean') return false;
+	return !('holiday' in offered) || typeof offered.holiday === 'boolean';
 }
 
 function isDateOnly(offered: unknown): offered is string {

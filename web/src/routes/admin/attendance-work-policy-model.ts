@@ -84,7 +84,8 @@ export function attendanceMonthlyTargetMinutes(
 	for (let day = 1; day <= finalDay; day += 1) {
 		const date = new Date(Date.UTC(year, monthNumber - 1, day));
 		const dateValue = date.toISOString().slice(0, 10);
-		if (workingWeekdays.has(date.getUTCDay()) && !holidays.has(dateValue)) {
+		const weekday = date.getUTCDay() || 7;
+		if (workingWeekdays.has(weekday) && !holidays.has(dateValue)) {
 			workingDayCount += 1;
 		}
 	}

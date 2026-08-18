@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	attendanceWorkCalendarFromDevice,
 	attendanceWorkModeFromDevice,
+	attendanceWorkPolicyFromDevice,
 	InvalidAttendanceWorkCalendarError
 } from '../../src/lib/server/attendance-work-calendar-reconcile';
 import {
@@ -29,16 +30,41 @@ describe('attendanceWorkModeFromDevice', () => {
 	});
 });
 
+describe('attendanceWorkPolicyFromDevice', () => {
+	test('accepts one current work policy with editable night hours', () => {
+		expect(attendanceWorkPolicyFromDevice(currentPolicy())).toEqual(currentPolicy());
+	});
+
+	test('keeps reconciling with an older device that sends no current policy', () => {
+		expect(attendanceWorkPolicyFromDevice(undefined)).toBe(undefined);
+	});
+
+	test('rejects a malformed current policy', () => {
+		expect(() => attendanceWorkPolicyFromDevice({ ...currentPolicy(), nightEndTime: 6 })).toThrow(
+			'nightEndTime'
+		);
+		expect(() => attendanceWorkPolicyFromDevice({ ...currentPolicy(), nightStartTime: '99:99' })).toThrow(
+			'nightStartTime'
+		);
+		expect(() => attendanceWorkPolicyFromDevice({ ...currentPolicy(), workingWeekdays: [0, 1] })).toThrow(
+			'workingWeekdays'
+		);
+		expect(() => attendanceWorkPolicyFromDevice({ ...currentPolicy(), weeklyTargetMinutes: 1 })).toThrow(
+			'weeklyTargetMinutes'
+		);
+	});
+});
+
 describe('attendanceWorkCalendarFromDevice', () => {
 	test('accepts the date-level work calendar contract', () => {
 		expect(
 			attendanceWorkCalendarFromDevice([
-				{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
-				{ date: '2027-01-05', workMode: 'fixed', workingDate: false }
+				{ date: '2027-01-04', workMode: 'fixed', workingDate: true, holiday: false },
+				{ date: '2027-01-05', workMode: 'fixed', workingDate: false, holiday: true }
 			], '2027-01-04T00:00:00Z', '2027-01-06T00:00:00Z')
 		).toEqual([
-			{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
-			{ date: '2027-01-05', workMode: 'fixed', workingDate: false }
+			{ date: '2027-01-04', workMode: 'fixed', workingDate: true, holiday: false },
+			{ date: '2027-01-05', workMode: 'fixed', workingDate: false, holiday: true }
 		]);
 	});
 
@@ -147,6 +173,24 @@ describe('attendanceWorkCalendarFromDevice', () => {
 		expect(thrown).toBeInstanceOf(InvalidAttendanceWorkCalendarError);
 	});
 });
+
+function currentPolicy() {
+	return {
+		workMode: 'fixed',
+		workingWeekdays: [1, 2, 3, 4, 5],
+		dailyTargetMinutes: 480,
+		weeklyTargetMinutes: 2400,
+		referenceStartTime: '09:00',
+		fixedStartTime: '09:00',
+		fixedEndTime: '18:00',
+		coreTimeEnabled: false,
+		coreStartTime: '',
+		coreEndTime: '',
+		breakPeriods: [{ startTime: '12:00', endTime: '13:00' }],
+		nightStartTime: '22:00',
+		nightEndTime: '06:00'
+	};
+}
 
 function onTheDevice(entries: Partial<DeviceAttendance>[]): DeviceAttendance[] {
 	return entries.map((entry) => ({

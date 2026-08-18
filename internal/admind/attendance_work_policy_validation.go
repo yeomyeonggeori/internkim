@@ -2,7 +2,6 @@ package admind
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 )
@@ -23,18 +22,14 @@ func validateAndNormalizeAttendanceWorkPolicy(policy *attendanceWorkPolicy) erro
 			return fmt.Errorf("invalid revision %d: %w", index, errorValue)
 		}
 	}
-	sort.Slice(revisions, func(left int, right int) bool {
-		return revisions[left].EffectiveDate < revisions[right].EffectiveDate
-	})
-	for index := 1; index < len(revisions); index++ {
-		if revisions[index-1].EffectiveDate == revisions[index].EffectiveDate {
-			return fmt.Errorf("revision effective dates must be unique")
+	latest := revisions[0]
+	for _, revision := range revisions[1:] {
+		if revision.EffectiveDate > latest.EffectiveDate {
+			latest = revision
 		}
 	}
-	if revisions[0].EffectiveDate != attendanceWorkPolicyInitialEffectiveDate {
-		return fmt.Errorf("initial revision must start on %s", attendanceWorkPolicyInitialEffectiveDate)
-	}
-	policy.Revisions = revisions
+	latest.EffectiveDate = attendanceWorkPolicyInitialEffectiveDate
+	policy.Revisions = []attendanceWorkPolicyRevision{latest}
 	return nil
 }
 
@@ -140,12 +135,5 @@ func attendanceWorkPolicyRevisionForDate(
 	if errorValue := validateAndNormalizeAttendanceWorkPolicy(&policy); errorValue != nil {
 		return attendanceWorkPolicyRevision{}, errorValue
 	}
-	selected := policy.Revisions[0]
-	for _, revision := range policy.Revisions {
-		if revision.EffectiveDate > date {
-			break
-		}
-		selected = revision
-	}
-	return selected, nil
+	return policy.Revisions[0], nil
 }

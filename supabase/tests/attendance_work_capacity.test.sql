@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(23);
 
 insert into auth.users (id, email) values
 	('10000000-0000-0000-0000-000000000001', 'capacity-a@example.com'),
@@ -73,6 +73,137 @@ select is(
 	'attendance calendar persistence retains prior dates and sorts the unique merged projection'
 );
 
+select lives_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		'{"workMode":"fixed","workingWeekdays":[1,2,3,4,5],"dailyTargetMinutes":480,"weeklyTargetMinutes":2400,"referenceStartTime":"09:00","fixedStartTime":"09:00","fixedEndTime":"18:00","coreTimeEnabled":false,"coreStartTime":"","coreEndTime":"","breakPeriods":[{"startTime":"12:00","endTime":"13:00"}],"nightStartTime":"22:00","nightEndTime":"06:00"}'::jsonb
+	)$$,
+	'attendance work policy persistence accepts one current JSON policy'
+);
+
+select is(
+	(select rules -> 'approvals' from public.company where id = '10000000-0000-0000-0000-000000000000'),
+	'{"required": true}'::jsonb,
+	'attendance work policy persistence preserves unrelated company rules'
+);
+
+select throws_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		'[]'::jsonb
+	)$$,
+	'23514',
+	'attendance work policy must be an object',
+	'attendance work policy persistence rejects a non-object value'
+);
+
+select throws_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		'{"workMode":"fixed"}'::jsonb
+	)$$,
+	'23514',
+	'attendance work policy is missing required fields',
+	'attendance work policy persistence rejects an incomplete object'
+);
+
+select throws_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		'{"workMode":"fixed","workingWeekdays":[1,2,3,4,5],"dailyTargetMinutes":480,"weeklyTargetMinutes":2400,"referenceStartTime":"09:00","fixedStartTime":"09:00","fixedEndTime":"18:00","coreTimeEnabled":false,"coreStartTime":"","coreEndTime":"","breakPeriods":[],"nightStartTime":"99:99","nightEndTime":"06:00"}'::jsonb
+	)$$,
+	'23514',
+	'attendance work policy times are invalid',
+	'attendance work policy persistence rejects an invalid night time'
+);
+
+select throws_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		(select rules -> 'attendanceWorkPolicy' || '{"workingWeekdays":[0]}'::jsonb
+		 from public.company where id = '10000000-0000-0000-0000-000000000000')
+	)$$,
+	'23514',
+	'attendance work policy weekdays are invalid',
+	'attendance work policy persistence rejects an out-of-range weekday'
+);
+
+select throws_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		(select rules -> 'attendanceWorkPolicy' || '{"dailyTargetMinutes":480.5}'::jsonb
+		 from public.company where id = '10000000-0000-0000-0000-000000000000')
+	)$$,
+	'23514',
+	'attendance work policy targets are invalid',
+	'attendance work policy persistence rejects a fractional target'
+);
+
+select throws_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		(select rules -> 'attendanceWorkPolicy' || '{"dailyTargetMinutes":-1,"weeklyTargetMinutes":-5}'::jsonb
+		 from public.company where id = '10000000-0000-0000-0000-000000000000')
+	)$$,
+	'23514',
+	'attendance work policy targets are invalid',
+	'attendance work policy persistence rejects a negative target'
+);
+
+select throws_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		(select rules -> 'attendanceWorkPolicy' || '{"weeklyTargetMinutes":2300}'::jsonb
+		 from public.company where id = '10000000-0000-0000-0000-000000000000')
+	)$$,
+	'23514',
+	'attendance work policy targets are invalid',
+	'attendance work policy persistence rejects an inconsistent weekly target'
+);
+
+select throws_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		(select rules -> 'attendanceWorkPolicy' ||
+		 '{"breakPeriods":[{"startTime":"12:00","endTime":"13:00"},{"startTime":"12:30","endTime":"13:30"}]}'::jsonb
+		 from public.company where id = '10000000-0000-0000-0000-000000000000')
+	)$$,
+	'23514',
+	'attendance work policy break periods overlap',
+	'attendance work policy persistence rejects overlapping breaks'
+);
+
+select throws_ok(
+	$$select public.save_attendance_work_policy(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		(select rules -> 'attendanceWorkPolicy' ||
+		 '{"coreTimeEnabled":true,"coreStartTime":"11:00","coreEndTime":"16:00"}'::jsonb
+		 from public.company where id = '10000000-0000-0000-0000-000000000000')
+	)$$,
+	'23514',
+	'attendance fixed work policy is invalid',
+	'attendance work policy persistence rejects fixed work with core hours'
+);
+
+select throws_ok(
+	$$select public.save_attendance_reconciliation_settings(
+		'10000000-0000-0000-0000-000000000000'::uuid,
+		(select rules -> 'attendanceWorkPolicy' || '{"nightStartTime":"21:00"}'::jsonb
+		 from public.company where id = '10000000-0000-0000-0000-000000000000'),
+		'{}'::jsonb
+	)$$,
+	'23514',
+	'attendance calendar must be an array',
+	'attendance reconciliation settings roll back when calendar persistence fails'
+);
+
+select is(
+	(select rules #>> '{attendanceWorkPolicy,nightStartTime}'
+	 from public.company where id = '10000000-0000-0000-0000-000000000000'),
+	'22:00',
+	'attendance reconciliation settings keep the prior policy after rollback'
+);
+
 select is(
 	(select rules from public.company where id = '20000000-0000-0000-0000-000000000000'),
 	'{"branding":{"accent":"blue"}}'::jsonb,
@@ -96,6 +227,16 @@ select is(
 	),
 	'[{"date":"2027-01-01","workMode":"fixed","workingDate":false},{"date":"2027-02-01","workMode":"flexible","workingDate":true},{"date":"2027-02-02","workMode":"autonomous","workingDate":true}]'::jsonb,
 	'attendance work policies expose the stored date-level projection'
+);
+
+select is(
+	(
+		select jsonb_build_object('workMode', work_mode, 'workPolicy', work_policy)
+		from public.attendance_work_policies()
+		where member_id = '10000000-0000-0000-0000-000000000011'
+	),
+		'{"workMode":"fixed","workPolicy":{"workMode":"fixed","workingWeekdays":[1,2,3,4,5],"dailyTargetMinutes":480,"weeklyTargetMinutes":2400,"referenceStartTime":"09:00","fixedStartTime":"09:00","fixedEndTime":"18:00","coreTimeEnabled":false,"coreStartTime":"","coreEndTime":"","breakPeriods":[{"startTime":"12:00","endTime":"13:00"}],"nightStartTime":"22:00","nightEndTime":"06:00"}}'::jsonb,
+	'attendance work policies use and expose the single current policy'
 );
 
 select * from finish();
