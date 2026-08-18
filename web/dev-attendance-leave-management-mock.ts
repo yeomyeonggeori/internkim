@@ -32,9 +32,9 @@ export function createDevLeaveManagementMockState(
 	return {
 		leave,
 		employees: [
-			employee('kim@example.com', '김철수', 15000, 1000, 500, 13500, 13500),
-			employee('seohee@example.com', '이서희', 15000, 3500, 0, 11500, 11500),
-			employee('park@example.com', '박민준', 15000, 7500, 500, 7000, 7000)
+			employee('kim@example.com', '이샘플', 15000, 1000, 500, 13500, 13500),
+			employee('seohee@example.com', '박예시', 15000, 3500, 0, 11500, 11500),
+			employee('park@example.com', '최견본', 15000, 7500, 500, 7000, 7000)
 		],
 		ledgerByEmail: {
 			'kim@example.com': [
