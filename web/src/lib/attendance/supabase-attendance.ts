@@ -12,7 +12,14 @@ import type {
 
 type MemberRow = { id: string; name: string | null; email: string | null; is_admin: boolean; user_id: string | null; joined_at: string | null };
 type CompanyRow = { id: string; timezone: string; work_locations: NamedColour[] | null; rules: { teamViewVisibleToAll?: boolean } };
-type AttendanceRow = { id: string; member_id: string; kind: AttendanceKind; location: string | null; occurred_at: string };
+type AttendanceRow = {
+	id: string;
+	member_id: string;
+	kind: AttendanceKind;
+	location: string | null;
+	occurred_at: string;
+	original_occurred_at: string | null;
+};
 type LeaveRow = {
 	id: string;
 	member_id: string;
@@ -21,6 +28,13 @@ type LeaveRow = {
 	starts_at: string;
 	ends_at: string;
 	note: string | null;
+};
+
+export type SupabaseAttendanceCorrection = {
+	eventID: string;
+	localDate: string;
+	localTime: string;
+	locationID: string;
 };
 
 export async function supabaseAttendanceSummary(month: string): Promise<AttendanceSummary> {
@@ -44,7 +58,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 
 	const attendance = await client
 		.from('attendance')
-		.select('id, member_id, kind, location, occurred_at')
+		.select('id, member_id, kind, location, occurred_at, original_occurred_at')
 		.gte('occurred_at', from.toISOString())
 		.lt('occurred_at', until.toISOString())
 		.order('occurred_at')
@@ -59,6 +73,16 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		.gte('ends_at', from.toISOString())
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
+	const [serverTime, correctionWindow] = await Promise.all([
+		client.rpc('attendance_server_time'),
+		client.rpc('attendance_correction_window_minutes')
+	]);
+	if (serverTime.error) throw new Error(serverTime.error.message);
+	if (correctionWindow.error) throw new Error(correctionWindow.error.message);
+	const correctionWindowMinutes = Number(correctionWindow.data);
+	if (!Number.isInteger(correctionWindowMinutes) || correctionWindowMinutes <= 0) {
+		throw new Error('attendance correction window must be a positive integer');
+	}
 
 	const byID = new Map(members.data.map((member) => [member.id, member]));
 	const me = members.data.find((member) => member.user_id === accountID);
@@ -66,8 +90,9 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 
 	return {
 		month: selectedMonth,
-		serverTime: new Date().toISOString(),
+		serverTime: serverTime.data,
 		timeZoneAuthoritative: true,
+		correctionWindowMinutes,
 		currentUserEmail: me?.email ?? '',
 		isAdmin: me?.is_admin ?? false,
 		timeZone,
@@ -110,6 +135,23 @@ export async function recordSupabaseAttendance(kind?: AttendanceKind, locationID
 	if (error) throw new Error(error.message);
 }
 
+export async function correctSupabaseAttendanceEvents(
+	corrections: SupabaseAttendanceCorrection[],
+	reason: string
+): Promise<void> {
+	if (corrections.length === 0) return;
+	const { error } = await supabase().rpc('correct_attendance_events', {
+		corrections: corrections.map((correction) => ({
+			event_id: correction.eventID,
+			local_date: correction.localDate,
+			local_time: correction.localTime,
+			location: correction.locationID
+		})),
+		reason
+	});
+	if (error) throw new Error(error.message);
+}
+
 async function nextKindFor(memberID: string): Promise<AttendanceKind> {
 	const last = await supabase()
 		.from('attendance')
@@ -137,6 +179,7 @@ function eventOf(row: AttendanceRow, member: MemberRow | undefined, timeZone: st
 		displayName: member?.name || email.split('@')[0],
 		kind: row.kind,
 		occurredAt: row.occurred_at,
+		originalOccurredAt: row.original_occurred_at ?? undefined,
 		localDate: dateIn(new Date(row.occurred_at), timeZone),
 		localTime: timeIn(new Date(row.occurred_at), timeZone),
 		timeZoneAtEvent: timeZone,

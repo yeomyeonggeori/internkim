@@ -3,7 +3,8 @@ import {
 	createAttendanceAbsence,
 	deleteAttendanceAbsence,
 	fetchAttendanceSummary,
-	fetchAttendanceWorkStatus
+	fetchAttendanceWorkStatus,
+	updateAttendanceEvents
 } from '../../../src/routes/attendance/attendance-api';
 import { createMockFetch } from '../test-fetch';
 
@@ -159,6 +160,66 @@ describe('deleteAttendanceAbsence', () => {
 
 			expect(requestedURL).toBe('/attendance/api/absences/absence%201');
 			expect(requestMethod).toBe('DELETE');
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+});
+
+describe('updateAttendanceEvents', () => {
+	test('keeps device mode compatible by patching every changed event', async () => {
+		const originalFetch = globalThis.fetch;
+		const requests: { url: string; body: unknown }[] = [];
+		try {
+			globalThis.fetch = createMockFetch(async (input, init) => {
+				requests.push({
+					url: String(input),
+					body: JSON.parse(String(init?.body)) as unknown
+				});
+				return Response.json({ ok: true });
+			});
+
+			await updateAttendanceEvents([
+				{
+					eventID: 'clock in',
+					request: {
+						localDate: '2026-08-10',
+						localTime: '09:30',
+						locationID: 'Office',
+						reason: '시간 확인'
+					}
+				},
+				{
+					eventID: 'clock-out',
+					request: {
+						localDate: '2026-08-10',
+						localTime: '18:10',
+						locationID: 'Office',
+						reason: '시간 확인'
+					}
+				}
+			]);
+
+			expect(requests).toEqual([
+				{
+					url: '/attendance/api/events/clock%20in',
+					body: {
+						localDate: '2026-08-10',
+						localTime: '09:30',
+						locationID: 'Office',
+						reason: '시간 확인'
+					}
+				},
+				{
+					url: '/attendance/api/events/clock-out',
+					body: {
+						localDate: '2026-08-10',
+						localTime: '18:10',
+						locationID: 'Office',
+						reason: '시간 확인'
+					}
+				}
+			]);
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
