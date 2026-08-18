@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(16);
 
 insert into auth.users (id, email) values
 	('31000000-0000-0000-0000-000000000001', 'correction-owner@example.test'),
@@ -67,6 +67,35 @@ select has_column(
 	'attendance',
 	'edit_reason',
 	'attendance stores the latest correction reason'
+);
+
+select is(
+	pg_typeof(public.attendance_server_time()),
+	'timestamp with time zone'::regtype,
+	'attendance server time returns a timestamptz'
+);
+
+select ok(
+	public.attendance_server_time() <= clock_timestamp(),
+	'attendance server time comes from the database clock'
+);
+
+select ok(
+	has_function_privilege(
+		'authenticated',
+		to_regprocedure('public.attendance_server_time()'),
+		'EXECUTE'
+	),
+	'authenticated users can read attendance server time'
+);
+
+select ok(
+	not has_function_privilege(
+		'anon',
+		to_regprocedure('public.attendance_server_time()'),
+		'EXECUTE'
+	),
+	'anonymous users cannot read attendance server time'
 );
 
 select lives_ok($block$do $$
