@@ -66,10 +66,10 @@ test.describe('administrator employee leave management', () => {
 
 		const view = page.getByTestId('leave-management-view');
 		const kimButton = view.getByRole('button', {
-			name: '김철수 kim@example.com'
+			name: '이샘플 kim@example.com'
 		});
 		const seoheeButton = view.getByRole('button', {
-			name: '이서희 seohee@example.com'
+			name: '박예시 seohee@example.com'
 		});
 		await kimButton.click();
 		await firstSelectionRequested;
@@ -77,12 +77,12 @@ test.describe('administrator employee leave management', () => {
 
 		const detailHeader = view.getByTestId('leave-management-employee-detail-header');
 		await expect(seoheeButton).toHaveAttribute('aria-current', 'true');
-		await expect(detailHeader.getByText('이서희', { exact: true })).toBeVisible();
+		await expect(detailHeader.getByText('박예시', { exact: true })).toBeVisible();
 		await expect(detailHeader.getByText('seohee@example.com', { exact: true })).toBeVisible();
 
 		releaseFirstSelection();
 		await expect(seoheeButton).toHaveAttribute('aria-current', 'true');
-		await expect(detailHeader.getByText('이서희', { exact: true })).toBeVisible();
+		await expect(detailHeader.getByText('박예시', { exact: true })).toBeVisible();
 		await expect(view.getByText('남음 11.5일')).toBeVisible();
 	});
 
@@ -120,10 +120,10 @@ test.describe('administrator employee leave management', () => {
 		await expect(view.getByRole('columnheader', { name: '사용' })).toBeVisible();
 		await expect(view.getByRole('columnheader', { name: '대기' })).toBeVisible();
 
-		await view.getByRole('button', { name: '김철수 kim@example.com' }).click();
+		await view.getByRole('button', { name: '이샘플 kim@example.com' }).click();
 		await expect(view.getByText('잔여량 변동')).toHaveCount(0);
 		await expect(
-			view.getByTestId('leave-management-employee-detail-header').getByText('김철수')
+			view.getByTestId('leave-management-employee-detail-header').getByText('이샘플')
 		).toBeVisible();
 		await expect(view.getByText('사용 1일')).toBeVisible();
 		await expect(view.getByText('대기 0.5일')).toBeVisible();
@@ -170,10 +170,10 @@ test.describe('administrator employee leave management', () => {
 
 		const view = page.getByTestId('leave-management-view');
 		await expect(view).toBeVisible();
-		await expect(view.getByText('김철수', { exact: true })).toBeVisible();
-		await expect(view.getByText('이서희', { exact: true })).toBeVisible();
+		await expect(view.getByText('이샘플', { exact: true })).toBeVisible();
+		await expect(view.getByText('박예시', { exact: true })).toBeVisible();
 		const employeeButton = view.getByRole('button', {
-			name: '김철수 kim@example.com'
+			name: '이샘플 kim@example.com'
 		});
 		await expect(employeeButton.locator('[data-slot="avatar"]')).toHaveCount(1);
 		await employeeButton.click();
