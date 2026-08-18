@@ -116,6 +116,17 @@ committing.
 - **Three or more `A X is a Y that …` in a row is a definition list.**
 - **A fact stated in a table is not restated in prose.**
 - **Bold whole blocks, never words inside a sentence.**
+- **No implementation-status annotations.** "implemented!", "future:", "for now".
+  Status rots in prose; the repository and its manifests carry it.
+- **Nothing hand-restates what a generator owns.** A catalog, a schema dump, or
+  an inventory of what exists is copied from its source or linked, never
+  retyped, because a retyped one drifts silently.
+
+Standing documents carry word ceilings in `docs/internal/doc-budgets.json`,
+enforced by `tools/verify-doc-budgets` in CI. A red ceiling is fixed by moving
+what belongs elsewhere, then by condensing, and only then by raising the number
+with a reason in the pull request. A ceiling too low for what the document must
+say is a bug in the ceiling.
 
 Check with:
 
@@ -135,6 +146,12 @@ One reviewable change per pull request. The description says what the reader
 should look at and what evidence exists that it works — the test that fails
 without the change, the scenario that was run, the screenshot. A pull request
 that touches unrelated files should be split.
+
+A change to a skill, a tool descriptor, or a prompt says what the model now sees
+that it did not see before, and roughly what it costs: the added text itself if
+it is short, otherwise its size and where it sits in the request. Prompt weight
+is invisible in a diff that reads as documentation, and it is charged on every
+turn forever.
 
 Branch names, commit messages, pull request titles and pull request
 descriptions are written in English. Discussion in review can be in whatever
@@ -538,12 +555,10 @@ and delete the duplicates.
 - **A running process holds the configuration it started with.** Shipping the
   component that writes a config and the component that removes what the config
   names is not enough: whatever was already running keeps the old file until it
-  restarts. Send the reader too. Removing capabilityd's llmd bridge alongside
-  the `admind` that stops naming it left the running `blueclaw` pointed at a
-  bridge that was gone, its protocol identity check failed, and it went to
-  `serveWithoutStartingWork` — process up, `systemctl` green, Admin URL 200, and
-  no message turned into a task for forty minutes. `blueclawPayload` in the same
-  release would have restarted it onto the matching config.
+  restarts. Send the reader too: removing a bridge alongside the `admind` that
+  stops naming it, without the `blueclaw` that reads it, cost forty minutes of a
+  healthy-looking device turning no message into a task
+  ([postmortem 0002](docs/internal/postmortem/0002-a-running-process-kept-a-config-that-was-gone.md)).
 - **`systemctl is-active` is not "doing its job".** `blueclaw` answers HTTP and
   reports active while refusing all work. When a deploy touches what it reads,
   check `internkim task list` for a run newer than the deploy. The service table
@@ -575,12 +590,9 @@ and delete the duplicates.
   timestamp older than the deploy means the old process is still the one
   applying releases. Then deploy normally.
 
-  This cost a working day: #560 moved the payload to the delivery share and
-  left `blueclawWorkspaceManifestMatchesTarget` reading the workspace image,
-  so the check compared the artifact against a copy nothing writes. It passed
-  only while the payload never changed, and the first release that changed it
-  stopped every deploy and stopped blueclaw on a device people were using.
-  When you move where something is written, grep for what reads it.
+  When you move where something is written, grep for what reads it: a check left
+  reading a copy nothing writes cost a working day
+  ([postmortem 0001](docs/internal/postmortem/0001-a-release-check-read-a-copy-nothing-writes.md)).
 - The Jetson Blueclaw component is `blueclawPayload`, not `blueclaw`. An invalid
   component name is silently dropped, so confirm the deploy log's `Components:`
   line lists everything you intended.
