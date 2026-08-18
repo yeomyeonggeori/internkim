@@ -836,18 +836,22 @@ func webRevision(repositoryRootPath string) string {
 	return gitRevision(repositoryRootPath)
 }
 
+// Without the artifact this tree cannot say what a payload it would build is,
+// and saying the repository's own revision instead reports a component as
+// changed on every commit. Unknown is the honest answer; what is done with it
+// is carryComponentsForward's business.
 func blueclawPayloadRevision(repositoryRootPath string) string {
 	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath, "manifest.json"))
 	if errorValue != nil {
-		return gitRevision(repositoryRootPath)
+		return ""
 	}
 	var manifest struct {
 		BlueclawRevision string `json:"blueclawRevision"`
 	}
 	if errorValue := json.Unmarshal(document, &manifest); errorValue != nil {
-		return gitRevision(repositoryRootPath)
+		return ""
 	}
-	return firstNonEmptyString(manifest.BlueclawRevision, gitRevision(repositoryRootPath))
+	return manifest.BlueclawRevision
 }
 
 func releaseFileSHA256AndSize(path string) (string, int64, error) {
@@ -958,7 +962,14 @@ func carryComponentsForward(
 		if _, wasRebuilt := rebuilt[name]; wasRebuilt {
 			continue
 		}
+		// A tree that cannot build a component has no opinion about it. Reporting
+		// one anyway turns a missing artifact into drift and stops every deploy,
+		// including the ones that have nothing to do with that component.
 		expected := revisionOf(name)
+		if expected == "" {
+			rebuilt[name] = carried
+			continue
+		}
 		if carried.Revision != expected {
 			stale = append(stale, fmt.Sprintf("%s (the device would keep %s, this tree builds %s)",
 				name, shortRevision(carried.Revision), shortRevision(expected)))
