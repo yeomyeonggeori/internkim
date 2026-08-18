@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(22);
 
 insert into auth.users (id, email) values
 	('31000000-0000-0000-0000-000000000001', 'correction-owner@example.test'),
@@ -225,6 +225,28 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
 	begin
+		update public.attendance
+		set occurred_at = '2026-08-10 07:30:00+09',
+			edit_reason = '직접 순서 변경'
+		where id = '31000000-0000-0000-0000-000000000101';
+	exception when check_violation then
+		blocked := true;
+	end;
+	assert blocked, 'a direct update must not bypass attendance event order validation';
+	assert (
+		select occurred_at = '2026-08-10 09:45:00+09'
+		from public.attendance
+		where id = '31000000-0000-0000-0000-000000000101'
+	), 'a rejected direct reorder must leave the attendance event unchanged';
+end $$;$block$, 'direct attendance updates preserve event order');
+
+select lives_ok($block$do $$
+declare
+	blocked boolean := false;
+begin
+	set local role authenticated;
+	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
+	begin
 		perform public.correct_attendance_events(
 			'[{"event_id":"31000000-0000-0000-0000-000000000103","local_date":"2026-08-10","local_time":"08:30","location":"Branch"}]'::jsonb,
 			'수정 가능 시간 초과'
@@ -355,6 +377,30 @@ begin
 	end;
 	assert blocked, 'a correction reason must not change without a time or location correction';
 end $$;$block$, 'attendance correction reasons cannot be overwritten independently');
+
+select lives_ok($block$do $$
+begin
+	set local role authenticated;
+	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000002', true);
+	update public.attendance
+	set occurred_at = case id
+			when '31000000-0000-0000-0000-000000000103' then '2026-08-10 08:15:00+09'::timestamptz
+			when '31000000-0000-0000-0000-000000000101' then '2026-08-10 10:00:00+09'::timestamptz
+		end,
+		edit_reason = '순서 유지 일괄 수정'
+	where id in (
+		'31000000-0000-0000-0000-000000000103',
+		'31000000-0000-0000-0000-000000000101'
+	);
+	assert (
+		select array_agg(id order by occurred_at, id) = array[
+			'31000000-0000-0000-0000-000000000103'::uuid,
+			'31000000-0000-0000-0000-000000000101'::uuid
+		]
+		from public.attendance
+		where member_id = '31000000-0000-0000-0000-000000000011'
+	), 'a valid batch update must keep the previous event order';
+end $$;$block$, 'direct attendance batches may move events while preserving their order');
 
 select * from finish();
 rollback;
