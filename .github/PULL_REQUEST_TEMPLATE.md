@@ -17,7 +17,7 @@
 
 <!-- The commands you actually ran, as you ran them. Manual steps belong here too. -->
 
-- `cd web && bun test --isolate tests/unit`
+- `cd web && bun test tests/unit`
 - `cd web && bun run check`
 
 ## Issue
