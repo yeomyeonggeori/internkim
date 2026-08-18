@@ -56,15 +56,14 @@ export function personKey(person: MessengerPerson): string {
 	return `external:${person.externalID ?? ''}`;
 }
 
-// The record holds a name given name first; how it is written belongs to the
-// language the reader picked. See personName.
+// A member's name is recorded given name first, so how it is written belongs to
+// the language the reader picked; see personName. Everyone else in the address
+// book keeps the name they arrived with — an entry there need not be a person's
+// name at all, and rejoining "Intern Kim" or "Google Meet" as though it were
+// one produces something nobody has ever been called.
 export function personLabel(person: MessengerPerson, directory: MessengerDirectory, locale: Locale): string {
-	return personName(recordedNameOf(person, directory), locale);
-}
-
-function recordedNameOf(person: MessengerPerson, directory: MessengerDirectory): string {
 	const memberID = person.memberID ?? (person.externalID ? directory.memberOfExternal.get(person.externalID) : undefined);
-	if (memberID) return directory.nameOfMember.get(memberID) ?? '';
+	if (memberID) return personName(directory.nameOfMember.get(memberID) ?? '', locale);
 	return directory.nameOfExternal.get(person.externalID ?? '') ?? '';
 }
 
