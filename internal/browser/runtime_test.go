@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+const testChromeExecutablePath = "/opt/test/chrome"
+
 type fakeCommandRunner struct {
 	output     []byte
 	errorValue error

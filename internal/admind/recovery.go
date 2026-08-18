@@ -287,8 +287,9 @@ debugfs -c -R 'cat /.blueclaw/logs/postgres.log' /var/lib/blueclaw/workspace.ext
 debugfs -c -R 'cat /.blueclaw/logs/postgres-init.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -10
 printf '\n== guest blueclaw log ==\n'
 debugfs -c -R 'cat /.blueclaw/logs/blueclaw.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -40
-printf '\n== guest runtime current ==\n'
-debugfs -c -R 'stat /.blueclaw/runtime/current' /var/lib/blueclaw/workspace.ext4 2>&1 | head -8
+printf '\n== delivered runtime ==\n'
+ls -la ` + quoteBlueclawUpdateShellValue(blueclaw.BlueclawDeliveryRuntimePath) + ` 2>&1 | head -8
+cat ` + quoteBlueclawUpdateShellValue(blueclaw.BlueclawDeliveryRuntimePath+"/manifest.json") + ` 2>&1 | head -12
 printf '\n== workspace lost+found ==\n'
 debugfs -c -R 'ls -l /lost+found' /var/lib/blueclaw/workspace.ext4 2>/dev/null | head -30
 printf '\n== current postgres cluster age ==\n'

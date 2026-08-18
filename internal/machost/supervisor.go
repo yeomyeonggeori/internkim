@@ -14,7 +14,12 @@ import (
 	"time"
 )
 
-const supervisorProcessIDFileName = "supervisor.pid"
+const (
+	supervisorProcessIDFileName = "supervisor.pid"
+	supervisorStartPollInterval = 50 * time.Millisecond
+)
+
+var supervisorStartWindow = 3 * time.Second
 
 func StartSupervisor(layout Layout) error {
 	if processID := RunningSupervisorProcessID(layout); processID != 0 {
@@ -44,13 +49,20 @@ func StartSupervisor(layout Layout) error {
 // A child that exits stays a zombie until it is reaped, and a zombie answers signal 0, so its
 // own parent has to ask through wait rather than through the liveness check everyone else uses.
 func requireSupervisorSurvivedItsStart(layout Layout, processID int) error {
-	time.Sleep(time.Second)
-	var waitStatus syscall.WaitStatus
-	exitedProcessID, errorValue := syscall.Wait4(processID, &waitStatus, syscall.WNOHANG, nil)
-	if errorValue == nil && exitedProcessID == processID {
-		return fmt.Errorf("the supervisor exited immediately: %s", SupervisorLogTail(layout))
+	deadline := time.Now().Add(supervisorStartWindow)
+	for time.Now().Before(deadline) {
+		time.Sleep(supervisorStartPollInterval)
+		if supervisorProcessHasExited(processID) {
+			return fmt.Errorf("the supervisor exited during its start: %s", SupervisorLogTail(layout))
+		}
 	}
 	return nil
+}
+
+func supervisorProcessHasExited(processID int) bool {
+	var waitStatus syscall.WaitStatus
+	exitedProcessID, errorValue := syscall.Wait4(processID, &waitStatus, syscall.WNOHANG, nil)
+	return errorValue == nil && exitedProcessID == processID
 }
 
 func SupervisorLogTail(layout Layout) string {
