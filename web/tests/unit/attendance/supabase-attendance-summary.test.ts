@@ -37,7 +37,9 @@ const client = {
 		return {
 			select: () => ({
 				eq: () => ({
-					lt: () => ({ gte: () => ({ returns: () => response([]) }) })
+					is: () => ({
+						lt: () => ({ gte: () => ({ returns: () => response([]) }) })
+					})
 				})
 			})
 		};
