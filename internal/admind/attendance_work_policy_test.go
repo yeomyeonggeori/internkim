@@ -59,8 +59,11 @@ func TestAttendanceWorkPolicySavePreservesLeavePolicy(t *testing.T) {
 	if document.LeavePolicy.FiscalYearStartMonth != 4 {
 		t.Fatalf("leave policy changed = %+v", document.LeavePolicy)
 	}
-	if len(document.WorkPolicy.Revisions) != 2 {
+	if len(document.WorkPolicy.Revisions) != 1 {
 		t.Fatalf("work policy revisions = %+v", document.WorkPolicy.Revisions)
+	}
+	if document.WorkPolicy.Revisions[0].EffectiveDate != attendanceWorkPolicyInitialEffectiveDate {
+		t.Fatalf("work policy revision = %+v", document.WorkPolicy.Revisions[0])
 	}
 	encodedWorkPolicy, errorValue := json.Marshal(document.WorkPolicy)
 	if errorValue != nil {
@@ -71,27 +74,34 @@ func TestAttendanceWorkPolicySavePreservesLeavePolicy(t *testing.T) {
 	}
 }
 
-func TestAttendanceWorkPolicyReplacesSameDateAndKeepsPastRevision(t *testing.T) {
+func TestAttendanceWorkPolicySaveReplacesTheCurrentPolicyForEveryDate(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	now := time.Date(2026, time.July, 31, 3, 0, 0, 0, time.UTC)
 
-	flexible := defaultAttendanceWorkPolicyRevision()
+	fixed := defaultAttendanceWorkPolicyRevision()
+	fixed.WorkMode = attendanceWorkModeFixed
+	fixed.FixedStartTime = "08:00"
+	fixed.FixedEndTime = "17:00"
+	fixed.CoreTimeEnabled = false
+	fixed.CoreStartTime = ""
+	fixed.CoreEndTime = ""
 	if _, errorValue := service.saveAttendanceWorkPolicyRevision(
 		t.Context(),
-		flexible,
+		fixed,
 		"2026-07-31",
 		now,
 	); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	fixed := defaultAttendanceWorkPolicyRevision()
-	fixed.WorkMode = attendanceWorkModeFixed
-	fixed.FixedStartTime = "08:00"
-	fixed.FixedEndTime = "17:00"
+	autonomous := fixed
+	autonomous.WorkMode = attendanceWorkModeAutonomous
+	autonomous.WeeklyTargetMinutes = 0
+	autonomous.FixedStartTime = ""
+	autonomous.FixedEndTime = ""
 	policy, errorValue := service.saveAttendanceWorkPolicyRevision(
 		t.Context(),
-		fixed,
+		autonomous,
 		"2026-07-31",
 		now.Add(time.Hour),
 	)
@@ -99,27 +109,54 @@ func TestAttendanceWorkPolicyReplacesSameDateAndKeepsPastRevision(t *testing.T) 
 		t.Fatal(errorValue)
 	}
 
-	if len(policy.Revisions) != 2 {
+	if len(policy.Revisions) != 1 {
 		t.Fatalf("revisions = %+v", policy.Revisions)
 	}
 	current, errorValue := attendanceWorkPolicyRevisionForDate(policy, "2026-07-31")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if current.WorkMode != attendanceWorkModeFixed || current.FixedStartTime != "08:00" {
+	if current.WorkMode != attendanceWorkModeAutonomous || current.WeeklyTargetMinutes != 0 {
 		t.Fatalf("current revision = %+v", current)
 	}
 	past, errorValue := attendanceWorkPolicyRevisionForDate(policy, "2026-07-30")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if past.WorkMode != attendanceWorkModeFlexible ||
+	if past.WorkMode != attendanceWorkModeAutonomous ||
 		past.EffectiveDate != attendanceWorkPolicyInitialEffectiveDate {
 		t.Fatalf("past revision = %+v", past)
 	}
 }
 
-func TestAttendanceReconciliationReadsTheCurrentCompanyWorkMode(t *testing.T) {
+func TestAttendanceWorkPolicyNormalizesLegacyRevisionsToLatestCurrentPolicy(t *testing.T) {
+	fixed := defaultAttendanceWorkPolicyRevision()
+	fixed.WorkMode = attendanceWorkModeFixed
+	fixed.FixedStartTime = "08:00"
+	fixed.FixedEndTime = "17:00"
+	fixed.CoreTimeEnabled = false
+	fixed.CoreStartTime = ""
+	fixed.CoreEndTime = ""
+	autonomous := fixed
+	autonomous.EffectiveDate = "2026-08-01"
+	autonomous.WorkMode = attendanceWorkModeAutonomous
+	autonomous.WeeklyTargetMinutes = 0
+	autonomous.FixedStartTime = ""
+	autonomous.FixedEndTime = ""
+	policy := defaultAttendanceWorkPolicy()
+	policy.Revisions = []attendanceWorkPolicyRevision{autonomous, fixed}
+
+	if errorValue := validateAndNormalizeAttendanceWorkPolicy(&policy); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(policy.Revisions) != 1 ||
+		policy.Revisions[0].EffectiveDate != attendanceWorkPolicyInitialEffectiveDate ||
+		policy.Revisions[0].WorkMode != attendanceWorkModeAutonomous {
+		t.Fatalf("policy = %+v", policy)
+	}
+}
+
+func TestAttendanceReconciliationReadsTheCurrentCompanyWorkPolicy(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	fixed := defaultAttendanceWorkPolicyRevision()
 	fixed.WorkMode = attendanceWorkModeFixed
@@ -135,12 +172,12 @@ func TestAttendanceReconciliationReadsTheCurrentCompanyWorkMode(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	workMode, errorValue := service.currentAttendanceWorkMode(t.Context(), now)
+	workPolicy, errorValue := service.currentAttendanceWorkPolicyRevision(t.Context(), now)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if workMode != attendanceWorkModeFixed {
-		t.Fatalf("work mode = %q", workMode)
+	if workPolicy.WorkMode != attendanceWorkModeFixed {
+		t.Fatalf("work policy = %+v", workPolicy)
 	}
 }
 
@@ -227,12 +264,13 @@ func TestAttendanceWorkPolicyHTTPRoundtripUsesCompanyDate(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	saved := savedResponse.Policy
-	expectedDate := now.In(service.workspaceTimeZone().location).Format(time.DateOnly)
-	current, errorValue := attendanceWorkPolicyRevisionForDate(saved, expectedDate)
+	current, errorValue := attendanceWorkPolicyRevisionForDate(saved, now.In(service.workspaceTimeZone().location).Format(time.DateOnly))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if current.WorkMode != attendanceWorkModeFixed || current.EffectiveDate != expectedDate {
+	if len(saved.Revisions) != 1 ||
+		current.WorkMode != attendanceWorkModeFixed ||
+		current.EffectiveDate != attendanceWorkPolicyInitialEffectiveDate {
 		t.Fatalf("current revision = %+v", current)
 	}
 

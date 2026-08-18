@@ -10,6 +10,7 @@ type attendanceWorkCalendarDay struct {
 	Date        string
 	WorkMode    string
 	WorkingDate bool
+	Holiday     bool
 }
 
 func (service *Service) attendanceWorkCalendarProjection(
@@ -56,7 +57,13 @@ func (service *Service) attendanceWorkCalendarProjection(
 			Date:        dateValue,
 			WorkMode:    revision.WorkMode,
 			WorkingDate: workingDate,
+			Holiday:     containsAttendanceHolidayDate(holidayDates, dateValue),
 		})
 	}
 	return projection, nil
+}
+
+func containsAttendanceHolidayDate(holidayDates map[string]struct{}, date string) bool {
+	_, found := holidayDates[date]
+	return found
 }

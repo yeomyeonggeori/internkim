@@ -99,7 +99,7 @@ func TestAttendanceLeaveRequestPreviewExcludesCompanyHolidays(t *testing.T) {
 	}
 }
 
-func TestAttendanceLeaveRequestPreviewUsesDateEffectiveWorkPolicy(t *testing.T) {
+func TestAttendanceLeaveRequestPreviewUsesCurrentWorkPolicyForEveryDate(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	revision := defaultAttendanceWorkPolicyRevision()
 	revision.WorkMode = attendanceWorkModeFixed
@@ -135,8 +135,8 @@ func TestAttendanceLeaveRequestPreviewUsesDateEffectiveWorkPolicy(t *testing.T) 
 	}
 	if len(preview.Occurrences) != 2 ||
 		preview.Occurrences[0].Date != "2027-05-07" ||
-		preview.Occurrences[0].StartTime != "09:00" ||
-		preview.Occurrences[0].EndTime != "18:00" ||
+		preview.Occurrences[0].StartTime != "10:00" ||
+		preview.Occurrences[0].EndTime != "16:00" ||
 		preview.Occurrences[1].Date != "2027-05-10" ||
 		preview.Occurrences[1].StartTime != "10:00" ||
 		preview.Occurrences[1].EndTime != "16:00" {

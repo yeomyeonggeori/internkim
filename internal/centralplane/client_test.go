@@ -37,6 +37,45 @@ func TestAttendanceReconciliationCarriesTheActualWorkMode(t *testing.T) {
 	}
 }
 
+func TestAttendanceReconciliationCarriesOneCurrentWorkPolicy(t *testing.T) {
+	var carried map[string]json.RawMessage
+	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if errorValue := json.NewDecoder(request.Body).Decode(&carried); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Write([]byte(`{"added":0,"removed":0,"refused":[]}`))
+	}))
+	defer plane.Close()
+
+	policy := ReconciledWorkPolicy{
+		WorkMode:            "fixed",
+		WorkingWeekdays:     []int{1, 2, 3, 4, 5},
+		DailyTargetMinutes:  480,
+		WeeklyTargetMinutes: 2400,
+		NightStartTime:      "22:00",
+		NightEndTime:        "06:00",
+	}
+	client := New(Settings{AppURL: plane.URL, AgentAPIKey: "agent-key"})
+	_, errorValue := client.ReconcileAttendance(context.Background(), ReconcileWindow{
+		Platform:   "mattermost",
+		WorkPolicy: &policy,
+		From:       time.Date(2026, time.August, 1, 0, 0, 0, 0, time.UTC),
+		To:         time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	var decoded ReconciledWorkPolicy
+	if errorValue := json.Unmarshal(carried["workPolicy"], &decoded); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if decoded.WorkMode != "fixed" || decoded.NightStartTime != "22:00" || decoded.NightEndTime != "06:00" {
+		t.Fatalf("work policy = %+v", decoded)
+	}
+}
+
 func TestAttendanceReconciliationCarriesTheDateLevelWorkCalendar(t *testing.T) {
 	var carried map[string]json.RawMessage
 	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -54,7 +93,7 @@ func TestAttendanceReconciliationCarriesTheDateLevelWorkCalendar(t *testing.T) {
 		From:     time.Date(2027, time.January, 1, 0, 0, 0, 0, time.UTC),
 		To:       time.Date(2027, time.January, 2, 0, 0, 0, 0, time.UTC),
 		WorkCalendar: []ReconciledWorkCalendarDay{{
-			Date: "2027-01-01", WorkMode: "flexible", WorkingDate: false,
+			Date: "2027-01-01", WorkMode: "flexible", WorkingDate: false, Holiday: true,
 		}},
 	})
 	if errorValue != nil {
@@ -67,7 +106,8 @@ func TestAttendanceReconciliationCarriesTheDateLevelWorkCalendar(t *testing.T) {
 	if len(workCalendar) != 1 ||
 		workCalendar[0]["date"] != "2027-01-01" ||
 		workCalendar[0]["workMode"] != "flexible" ||
-		workCalendar[0]["workingDate"] != false {
+		workCalendar[0]["workingDate"] != false ||
+		workCalendar[0]["holiday"] != true {
 		t.Fatalf("work calendar = %#v", workCalendar)
 	}
 }
