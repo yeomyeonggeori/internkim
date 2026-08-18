@@ -168,9 +168,6 @@ export class WorkRecordEditorState {
 		if (!this.isSegmentLocationEditable(segment)) return;
 		const startDraft = this.draftFor(segment.startEventID);
 		if (startDraft) startDraft.locationID = locationID;
-		if (segment.endReason !== 'clock_out') return;
-		const endDraft = this.draftFor(segment.endEventID);
-		if (endDraft) endDraft.locationID = locationID;
 	}
 
 	async save(): Promise<void> {
