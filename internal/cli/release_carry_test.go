@@ -60,3 +60,22 @@ func TestTheFirstReleaseOfAComponentIsNotMissed(t *testing.T) {
 		t.Fatal("a component that was never published cannot be carried forward")
 	}
 }
+
+func TestAComponentThisTreeCannotBuildIsCarriedRatherThanBlocking(t *testing.T) {
+	rebuilt := map[string]releaseset.Component{"chatd": {Name: "chatd", Revision: "blueclaw-2"}}
+	published := map[string]releaseset.Component{
+		"chatd":           {Name: "chatd", Revision: "blueclaw-1"},
+		"blueclawPayload": {Name: "blueclawPayload", Revision: "payload-7"},
+	}
+
+	// The payload artifact is not in this tree, so it has no revision to offer.
+	carried, errorValue := carriedComponents(t, rebuilt, published, func(name string) string {
+		return map[string]string{"chatd": "blueclaw-2", "blueclawPayload": ""}[name]
+	})
+	if errorValue != nil {
+		t.Fatalf("a component this tree cannot speak for stopped an unrelated deploy: %v", errorValue)
+	}
+	if carried["blueclawPayload"].Revision != "payload-7" {
+		t.Fatalf("the device must keep the payload it has, got %+v", carried["blueclawPayload"])
+	}
+}
