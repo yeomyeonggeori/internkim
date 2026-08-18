@@ -139,7 +139,8 @@ func runMacVerify(arguments []string) error {
 	document, errorValue := machost.WaitForGuestHealth(*listenAddress, *timeout)
 	if errorValue != nil {
 		printMacGuestConsoleTail(layout)
-		return errorValue
+		return fmt.Errorf("%w\n  a guest that boots but never opens its port is usually blueclaw serving health only,"+
+			" which is what it does when the capability protocol identity check fails — this host runs no capabilityd", errorValue)
 	}
 	fmt.Printf("  the guest answers: %s\n", document)
 	fmt.Println("  this says the guest booted and serves, not that it can do company work")
