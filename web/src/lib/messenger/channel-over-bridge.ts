@@ -1,5 +1,6 @@
 import { channelName } from './channel-name';
 import { currentLocale } from '$lib/i18n/locale.svelte';
+import { channelText } from '$lib/i18n/channel-text';
 import { supabaseMember } from '$lib/supabase-session';
 import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 import { personPicture } from '$lib/stores/person-picture.svelte';
@@ -98,7 +99,7 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 		.sort((left, right) => left.position - right.position)
 		.map((channel) => ({
 			id: channel.id,
-			name: channelName(channel, people, mine, canonicalKey, currentLocale.value),
+			name: channelName(channel, people, mine, canonicalKey, currentLocale.value, channelText[currentLocale.value].title),
 			kind: channel.isDirect ? ('dm' as const) : ('group' as const),
 			avatarURL: channel.isDirect ? avatarOfDirect(channel, people, mine) : undefined,
 			platform: channel.platform,

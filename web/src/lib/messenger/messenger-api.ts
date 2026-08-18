@@ -12,6 +12,7 @@ export type MessengerChannel = {
 	isDirect: boolean;
 	position: number;
 	participants: MessengerPerson[];
+	isWithTheAgent?: boolean;
 	webURL?: string;
 };
 
@@ -63,6 +64,7 @@ type PersonalConversation = {
 	kind: 'dm' | 'group';
 	avatarURL?: string;
 	participantExternalIDs?: string[];
+	isWithTheAgent?: boolean;
 	webURL?: string;
 };
 type PersonalReaction = { emoji: string; imageURL?: string; byExternalIDs: string[] };
@@ -105,6 +107,7 @@ export function asChannel(conversation: PersonalConversation, position: number):
 		name: conversation.name,
 		isDirect: conversation.kind === 'dm',
 		position,
+		isWithTheAgent: conversation.isWithTheAgent,
 		participants: (conversation.participantExternalIDs ?? []).map((externalID) => ({ externalID })),
 		webURL: conversation.webURL
 	};
