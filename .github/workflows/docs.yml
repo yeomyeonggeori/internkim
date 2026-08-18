@@ -1,0 +1,20 @@
+name: Docs
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['**.md', 'docs/**', 'tools/verify-doc-budgets', '.github/workflows/docs.yml']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  budgets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: tools/verify-doc-budgets
