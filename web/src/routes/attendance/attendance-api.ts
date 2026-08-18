@@ -1,4 +1,9 @@
-import { recordSupabaseAttendance, setSupabaseTeamViewVisibility, supabaseAttendanceSummary } from '$lib/attendance/supabase-attendance';
+import {
+	correctSupabaseAttendanceEvents,
+	recordSupabaseAttendance,
+	setSupabaseTeamViewVisibility,
+	supabaseAttendanceSummary
+} from '$lib/attendance/supabase-attendance';
 import { supabaseWorkStatus } from '$lib/attendance/supabase-work-status';
 import type { AttendanceWorkMode } from '$lib/attendance/work-mode';
 import { isSupabaseConfigured } from '$lib/supabase';
@@ -104,6 +109,11 @@ export type UpdateAttendanceEventRequest = {
 	reason: string;
 };
 
+export type UpdateAttendanceEvent = {
+	eventID: string;
+	request: UpdateAttendanceEventRequest;
+};
+
 export async function fetchAttendanceSummary(request: AttendanceSummaryRequest): Promise<AttendanceSummary> {
 	if (isSupabaseConfigured()) return supabaseAttendanceSummary(request.month);
 	const path = attendanceSummaryPath(request);
@@ -149,6 +159,28 @@ export async function deleteAttendanceAbsence(absenceID: string): Promise<void> 
 }
 
 export async function updateAttendanceEvent(eventID: string, request: UpdateAttendanceEventRequest): Promise<void> {
+	return updateAttendanceEvents([{ eventID, request }]);
+}
+
+export async function updateAttendanceEvents(updates: UpdateAttendanceEvent[]): Promise<void> {
+	if (updates.length === 0) return;
+	if (isSupabaseConfigured()) {
+		const reasons = new Set(updates.map((update) => update.request.reason.trim()));
+		if (reasons.size !== 1) throw new Error('attendance corrections must share one reason');
+		return correctSupabaseAttendanceEvents(
+			updates.map((update) => ({
+				eventID: update.eventID,
+				localDate: update.request.localDate,
+				localTime: update.request.localTime,
+				locationID: update.request.locationID
+			})),
+			[...reasons][0]
+		);
+	}
+	await Promise.all(updates.map((update) => patchAttendanceEvent(update.eventID, update.request)));
+}
+
+async function patchAttendanceEvent(eventID: string, request: UpdateAttendanceEventRequest): Promise<void> {
 	const response = await fetch(`/attendance/api/events/${encodeURIComponent(eventID)}`, {
 		method: 'PATCH',
 		credentials: 'include',
