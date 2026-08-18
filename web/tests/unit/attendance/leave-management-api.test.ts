@@ -2,11 +2,44 @@ import { describe, expect, test } from 'bun:test';
 import {
 	adjustManagedLeave,
 	applyLegacyAbsenceMigration,
-	fetchLegacyAbsenceMigrationPreview
+	fetchLegacyAbsenceMigrationPreview,
+	routeLeaveManagement
 } from '../../../src/routes/attendance/management/leave-management-api';
 import { createMockFetch } from '../test-fetch';
 
 describe('leave management API', () => {
+	test('routes one source without evaluating the other source', async () => {
+		const calls: string[] = [];
+		const central = await routeLeaveManagement(
+			true,
+			async () => {
+				calls.push('central');
+				return 'central';
+			},
+			async () => {
+				calls.push('device');
+				return 'device';
+			}
+		);
+		const device = await routeLeaveManagement(
+			false,
+			async () => {
+				calls.push('central');
+				return 'central';
+			},
+			async () => {
+				calls.push('device');
+				return 'device';
+			}
+		);
+
+		expect({ central, device, calls }).toEqual({
+			central: 'central',
+			device: 'device',
+			calls: ['central', 'device']
+		});
+	});
+
 	test('loads and applies the legacy leave migration with its preview fingerprint', async () => {
 		const originalFetch = globalThis.fetch;
 		const requests: Array<{ url: string; init?: RequestInit }> = [];

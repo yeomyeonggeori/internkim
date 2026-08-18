@@ -14,23 +14,28 @@ import {
 	correctSupabaseManagedLeaveTime,
 	createSupabaseManagedPastLeave,
 	supabaseLeaveManagement
-} from '$lib/attendance/supabase-leave-management';
-import { isSupabaseConfigured } from '$lib/supabase';
+} from '../../../lib/attendance/supabase-leave-management';
+import { isSupabaseConfigured } from '../../../lib/supabase';
 
 export async function fetchLeaveManagement(
 	employeeEmail = ''
 ): Promise<LeaveManagementPayload> {
-	if (isSupabaseConfigured()) return supabaseLeaveManagement(employeeEmail);
-	const query = new URLSearchParams();
-	if (employeeEmail) query.set('email', employeeEmail);
-	const queryString = query.toString();
-	const response = await fetch(
-		queryString
-			? `/attendance/api/leave-management?${queryString}`
-			: '/attendance/api/leave-management',
-		{ credentials: 'include', cache: 'no-store' }
+	return routeLeaveManagement(
+		isSupabaseConfigured(),
+		() => supabaseLeaveManagement(employeeEmail),
+		async () => {
+			const query = new URLSearchParams();
+			if (employeeEmail) query.set('email', employeeEmail);
+			const queryString = query.toString();
+			const response = await fetch(
+				queryString
+					? `/attendance/api/leave-management?${queryString}`
+					: '/attendance/api/leave-management',
+				{ credentials: 'include', cache: 'no-store' }
+			);
+			return readJSON<LeaveManagementPayload>(response);
+		}
 	);
-	return readJSON<LeaveManagementPayload>(response);
 }
 
 export async function fetchLegacyAbsenceMigrationPreview(): Promise<
@@ -59,61 +64,89 @@ export async function applyLegacyAbsenceMigration(
 export async function adjustManagedLeave(
 	input: LeaveManagementAdjustment
 ): Promise<void> {
-	if (isSupabaseConfigured()) return adjustSupabaseManagedLeave(input);
-	const response = await fetch('/attendance/api/leave-management/adjustments', {
-		method: 'POST',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(input)
-	});
-	await readJSON(response);
+	return routeLeaveManagement(
+		isSupabaseConfigured(),
+		() => adjustSupabaseManagedLeave(input),
+		async () => {
+			const response = await fetch('/attendance/api/leave-management/adjustments', {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(input)
+			});
+			await readJSON(response);
+		}
+	);
 }
 
 export async function createManagedPastLeave(
 	input: LeaveManagementPastLeave
 ): Promise<void> {
-	if (isSupabaseConfigured()) return createSupabaseManagedPastLeave(input);
-	const response = await fetch('/attendance/api/leave-management/past-leaves', {
-		method: 'POST',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(input)
-	});
-	await readJSON(response);
+	return routeLeaveManagement(
+		isSupabaseConfigured(),
+		() => createSupabaseManagedPastLeave(input),
+		async () => {
+			const response = await fetch('/attendance/api/leave-management/past-leaves', {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(input)
+			});
+			await readJSON(response);
+		}
+	);
 }
 
 export async function cancelManagedLeaveRequest(
 	requestID: string,
 	employeeEmail: string
 ): Promise<void> {
-	if (isSupabaseConfigured()) return cancelSupabaseManagedLeave(requestID, employeeEmail);
-	const response = await fetch(
-		`/attendance/api/leave-management/requests/${encodeURIComponent(requestID)}/cancel`,
-		{
-			method: 'POST',
-			credentials: 'include',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ employeeEmail })
+	return routeLeaveManagement(
+		isSupabaseConfigured(),
+		() => cancelSupabaseManagedLeave(requestID, employeeEmail),
+		async () => {
+			const response = await fetch(
+				`/attendance/api/leave-management/requests/${encodeURIComponent(requestID)}/cancel`,
+				{
+					method: 'POST',
+					credentials: 'include',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ employeeEmail })
+				}
+			);
+			await readJSON(response);
 		}
 	);
-	await readJSON(response);
 }
 
 export async function correctManagedLeaveTime(
 	requestID: string,
 	input: LeaveManagementTimeCorrection
 ): Promise<void> {
-	if (isSupabaseConfigured()) return correctSupabaseManagedLeaveTime(requestID, input);
-	const response = await fetch(
-		`/attendance/api/leave-management/requests/${encodeURIComponent(requestID)}/time`,
-		{
-			method: 'POST',
-			credentials: 'include',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(input)
+	return routeLeaveManagement(
+		isSupabaseConfigured(),
+		() => correctSupabaseManagedLeaveTime(requestID, input),
+		async () => {
+			const response = await fetch(
+				`/attendance/api/leave-management/requests/${encodeURIComponent(requestID)}/time`,
+				{
+					method: 'POST',
+					credentials: 'include',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(input)
+				}
+			);
+			await readJSON(response);
 		}
 	);
-	await readJSON(response);
+}
+
+export function routeLeaveManagement<Value>(
+	centralConfigured: boolean,
+	centralAction: () => Promise<Value>,
+	deviceAction: () => Promise<Value>
+): Promise<Value> {
+	return centralConfigured ? centralAction() : deviceAction();
 }
 
 async function readJSON<Value = unknown>(response: Response): Promise<Value> {

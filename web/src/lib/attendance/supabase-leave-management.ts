@@ -1,4 +1,4 @@
-import { supabase } from '$lib/supabase';
+import { supabase } from '../supabase';
 import type { EmployeeLeaveUnit } from '../../routes/attendance/leave/employee-leave-types';
 import type {
 	LeaveManagementAdjustment,
