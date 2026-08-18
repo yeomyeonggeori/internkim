@@ -56,6 +56,7 @@ func reconciledWorkCalendarOf(days []attendanceWorkCalendarDay) []centralplane.R
 			Date:        day.Date,
 			WorkMode:    day.WorkMode,
 			WorkingDate: day.WorkingDate,
+			Holiday:     day.Holiday,
 		})
 	}
 	return reconciled
@@ -103,15 +104,7 @@ func (service *Service) reconcileAttendanceMonth(ctx context.Context, month stri
 	if errorValue != nil {
 		return errorValue
 	}
-	policy, errorValue := service.readAttendanceWorkPolicy(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	location, _ := service.workspaceTimeLocation()
-	currentPolicy, errorValue := attendanceWorkPolicyRevisionForDate(
-		policy,
-		time.Now().In(location).Format(time.DateOnly),
-	)
+	currentPolicy, errorValue := service.currentAttendanceWorkPolicyRevision(ctx, time.Now())
 	if errorValue != nil {
 		return errorValue
 	}
@@ -136,17 +129,20 @@ func (service *Service) reconcileAttendanceMonth(ctx context.Context, month stri
 	return nil
 }
 
-func (service *Service) currentAttendanceWorkMode(ctx context.Context, now time.Time) (string, error) {
+func (service *Service) currentAttendanceWorkPolicyRevision(
+	ctx context.Context,
+	now time.Time,
+) (attendanceWorkPolicyRevision, error) {
 	policy, errorValue := service.readAttendanceWorkPolicy(ctx)
 	if errorValue != nil {
-		return "", errorValue
+		return attendanceWorkPolicyRevision{}, errorValue
 	}
 	location, _ := service.workspaceTimeLocation()
 	revision, errorValue := attendanceWorkPolicyRevisionForDate(policy, now.In(location).Format(time.DateOnly))
 	if errorValue != nil {
-		return "", errorValue
+		return attendanceWorkPolicyRevision{}, errorValue
 	}
-	return revision.WorkMode, nil
+	return revision, nil
 }
 
 func (service *Service) reconcileAttendanceRecently(ctx context.Context) {

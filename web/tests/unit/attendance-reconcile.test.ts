@@ -43,6 +43,15 @@ describe('attendanceWorkPolicyFromDevice', () => {
 		expect(() => attendanceWorkPolicyFromDevice({ ...currentPolicy(), nightEndTime: 6 })).toThrow(
 			'nightEndTime'
 		);
+		expect(() => attendanceWorkPolicyFromDevice({ ...currentPolicy(), nightStartTime: '99:99' })).toThrow(
+			'nightStartTime'
+		);
+		expect(() => attendanceWorkPolicyFromDevice({ ...currentPolicy(), workingWeekdays: [0, 1] })).toThrow(
+			'workingWeekdays'
+		);
+		expect(() => attendanceWorkPolicyFromDevice({ ...currentPolicy(), weeklyTargetMinutes: 1 })).toThrow(
+			'weeklyTargetMinutes'
+		);
 	});
 });
 
@@ -50,12 +59,12 @@ describe('attendanceWorkCalendarFromDevice', () => {
 	test('accepts the date-level work calendar contract', () => {
 		expect(
 			attendanceWorkCalendarFromDevice([
-				{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
-				{ date: '2027-01-05', workMode: 'fixed', workingDate: false }
+				{ date: '2027-01-04', workMode: 'fixed', workingDate: true, holiday: false },
+				{ date: '2027-01-05', workMode: 'fixed', workingDate: false, holiday: true }
 			], '2027-01-04T00:00:00Z', '2027-01-06T00:00:00Z')
 		).toEqual([
-			{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
-			{ date: '2027-01-05', workMode: 'fixed', workingDate: false }
+			{ date: '2027-01-04', workMode: 'fixed', workingDate: true, holiday: false },
+			{ date: '2027-01-05', workMode: 'fixed', workingDate: false, holiday: true }
 		]);
 	});
 
