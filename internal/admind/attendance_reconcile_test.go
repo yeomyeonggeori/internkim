@@ -79,6 +79,24 @@ func TestReconciledEventsLeaveOutWhatNobodyCanBeMatchedBy(t *testing.T) {
 	}
 }
 
+func TestReconciledWorkPolicyCarriesTheCurrentCalculationSettings(t *testing.T) {
+	revision := defaultAttendanceWorkPolicyRevision()
+	revision.WorkMode = attendanceWorkModeFixed
+	revision.NightStartTime = "21:30"
+	revision.NightEndTime = "05:30"
+
+	reconciled := reconciledWorkPolicyOf(revision)
+
+	if reconciled.WorkMode != attendanceWorkModeFixed ||
+		reconciled.NightStartTime != "21:30" ||
+		reconciled.NightEndTime != "05:30" {
+		t.Fatalf("work policy = %+v", reconciled)
+	}
+	if len(reconciled.WorkingWeekdays) != 5 || len(reconciled.BreakPeriods) != 1 {
+		t.Fatalf("work policy schedule = %+v", reconciled)
+	}
+}
+
 func TestBackfillMonthsDefaultsToAYearAndIsBounded(t *testing.T) {
 	if backfillMonths("") != 11 {
 		t.Fatalf("empty = %d", backfillMonths(""))

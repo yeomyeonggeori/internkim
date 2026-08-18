@@ -61,6 +61,31 @@ func reconciledWorkCalendarOf(days []attendanceWorkCalendarDay) []centralplane.R
 	return reconciled
 }
 
+func reconciledWorkPolicyOf(revision attendanceWorkPolicyRevision) centralplane.ReconciledWorkPolicy {
+	breakPeriods := make([]centralplane.ReconciledWorkBreakPeriod, 0, len(revision.BreakPeriods))
+	for _, period := range revision.BreakPeriods {
+		breakPeriods = append(breakPeriods, centralplane.ReconciledWorkBreakPeriod{
+			StartTime: period.StartTime,
+			EndTime:   period.EndTime,
+		})
+	}
+	return centralplane.ReconciledWorkPolicy{
+		WorkMode:            revision.WorkMode,
+		WorkingWeekdays:     append([]int(nil), revision.WorkingWeekdays...),
+		DailyTargetMinutes:  revision.DailyTargetMinutes,
+		WeeklyTargetMinutes: revision.WeeklyTargetMinutes,
+		ReferenceStartTime:  revision.ReferenceStartTime,
+		FixedStartTime:      revision.FixedStartTime,
+		FixedEndTime:        revision.FixedEndTime,
+		CoreTimeEnabled:     revision.CoreTimeEnabled,
+		CoreStartTime:       revision.CoreStartTime,
+		CoreEndTime:         revision.CoreEndTime,
+		BreakPeriods:        breakPeriods,
+		NightStartTime:      revision.NightStartTime,
+		NightEndTime:        revision.NightEndTime,
+	}
+}
+
 func (service *Service) reconcileAttendanceMonth(ctx context.Context, month string) error {
 	client := service.centralPlane()
 	if client == nil {
@@ -78,14 +103,24 @@ func (service *Service) reconcileAttendanceMonth(ctx context.Context, month stri
 	if errorValue != nil {
 		return errorValue
 	}
-	workMode, errorValue := service.currentAttendanceWorkMode(ctx, time.Now())
+	policy, errorValue := service.readAttendanceWorkPolicy(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
+	location, _ := service.workspaceTimeLocation()
+	currentPolicy, errorValue := attendanceWorkPolicyRevisionForDate(
+		policy,
+		time.Now().In(location).Format(time.DateOnly),
+	)
+	if errorValue != nil {
+		return errorValue
+	}
+	reconciledPolicy := reconciledWorkPolicyOf(currentPolicy)
 
 	result, errorValue := client.ReconcileAttendance(ctx, centralplane.ReconcileWindow{
 		Platform:     "mattermost",
-		WorkMode:     workMode,
+		WorkMode:     currentPolicy.WorkMode,
+		WorkPolicy:   &reconciledPolicy,
 		From:         from,
 		To:           to,
 		Events:       reconciledEventsOf(events),

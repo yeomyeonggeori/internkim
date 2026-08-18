@@ -43,6 +43,37 @@ describe('parseSupabaseWorkPolicies', () => {
 		expect(policies.get('member-legacy')?.workCalendar).toBe(null);
 	});
 
+	test('uses the one current JSON policy instead of a historical calendar mode', () => {
+		const policies = parseSupabaseWorkPolicies([
+			{
+				member_id: 'member-current',
+				work_hours: [[[], [], [], [], [], null, null]],
+				minimum_daily_minutes: 480,
+				work_mode: 'autonomous',
+				work_calendar: [{ date: '2027-01-01', workMode: 'fixed', workingDate: true }],
+				work_policy: {
+					workMode: 'autonomous',
+					workingWeekdays: [1, 2, 3, 4, 5],
+					dailyTargetMinutes: 0,
+					weeklyTargetMinutes: 0,
+					referenceStartTime: '09:00',
+					fixedStartTime: '',
+					fixedEndTime: '',
+					coreTimeEnabled: false,
+					coreStartTime: '',
+					coreEndTime: '',
+					breakPeriods: [],
+					nightStartTime: '21:00',
+					nightEndTime: '05:00'
+				}
+			}
+		]);
+
+		expect(policies.get('member-current')?.workMode).toBe('autonomous');
+		expect(policies.get('member-current')?.currentPolicy.nightStartTime).toBe('21:00');
+		expect(policies.get('member-current')?.currentPolicy.nightEndTime).toBe('05:00');
+	});
+
 	test('rejects a work mode outside the supported company policy', () => {
 		expect(() =>
 			parseSupabaseWorkPolicies([

@@ -11,8 +11,8 @@ export function supabaseWorkStatusTimeRange(
 	const lastDay = days.at(-1);
 	if (!firstDay || !lastDay) throw new Error('work status time range requires at least one day');
 	return {
-		from: localMidnightInstant(firstDay, timeZone),
-		until: localMidnightInstant(shiftedDay(lastDay, 1), timeZone)
+		from: companyTimeInstant(firstDay, '00:00', timeZone),
+		until: companyTimeInstant(shiftedDay(lastDay, 1), '00:00', timeZone)
 	};
 }
 
@@ -22,8 +22,11 @@ export function shiftedDay(day: string, days: number): string {
 	return moved.toISOString().slice(0, 10);
 }
 
-function localMidnightInstant(day: string, timeZone: string): string {
-	const expectedEpoch = new Date(`${day}T00:00:00Z`).getTime();
+export function companyTimeInstant(day: string, time: string, timeZone: string): string {
+	if (!/^\d{2}:\d{2}$/.test(time)) throw new Error(`invalid company time: ${time}`);
+	const [hour, minute] = time.split(':').map(Number);
+	if (hour > 23 || minute > 59) throw new Error(`invalid company time: ${time}`);
+	const expectedEpoch = new Date(`${day}T${time}:00Z`).getTime();
 	if (Number.isNaN(expectedEpoch)) throw new Error(`invalid work status date: ${day}`);
 
 	let resolvedEpoch = expectedEpoch;
@@ -48,8 +51,8 @@ function localMidnightInstant(day: string, timeZone: string): string {
 		local.year !== Number(day.slice(0, 4)) ||
 		local.month !== Number(day.slice(5, 7)) ||
 		local.day !== Number(day.slice(8, 10)) ||
-		local.hour !== 0 ||
-		local.minute !== 0 ||
+		local.hour !== hour ||
+		local.minute !== minute ||
 		local.second !== 0
 	) {
 		throw new Error(`work status date does not exist in company timezone: ${day} ${timeZone}`);
