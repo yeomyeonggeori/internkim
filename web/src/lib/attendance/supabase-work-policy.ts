@@ -17,6 +17,7 @@ export type SupabaseWorkPolicy = {
 	workMode: AttendanceWorkMode;
 	workCalendar: WorkCalendarProjection;
 	currentPolicy: CurrentAttendanceWorkPolicy;
+	currentPolicyStored: boolean;
 };
 
 export async function supabaseWorkPolicies(
@@ -48,10 +49,11 @@ export function parseSupabaseWorkPolicies(value: unknown): Map<string, SupabaseW
 		if (!('work_mode' in row) || !isAttendanceWorkMode(row.work_mode)) {
 			throw new Error(`attendance work mode is invalid for member ${row.member_id}`);
 		}
-		const currentPolicy =
-			'work_policy' in row && row.work_policy !== null
-				? currentAttendanceWorkPolicy(row.work_policy)
-				: legacyCurrentPolicy(row.work_mode, row.minimum_daily_minutes);
+			const currentPolicyStored = 'work_policy' in row && row.work_policy !== null;
+			const currentPolicy =
+				currentPolicyStored
+					? currentAttendanceWorkPolicy(row.work_policy)
+					: legacyCurrentPolicy(row.work_mode, row.minimum_daily_minutes);
 		const policy: SupabaseWorkPolicy = {
 			memberID: row.member_id,
 			workHours: workHoursCycle(row.work_hours, row.member_id),
@@ -60,8 +62,9 @@ export function parseSupabaseWorkPolicies(value: unknown): Map<string, SupabaseW
 			workCalendar: workCalendarProjection(
 				'work_calendar' in row ? row.work_calendar : undefined,
 				row.member_id
-			),
-			currentPolicy
+				),
+				currentPolicy,
+				currentPolicyStored
 		};
 		return [policy.memberID, policy];
 	}));
@@ -101,7 +104,8 @@ function isProjectedWorkCalendarDay(value: unknown): value is ProjectedWorkCalen
 	if (typeof value !== 'object' || value === null) return false;
 	if (!('date' in value) || typeof value.date !== 'string') return false;
 	if (!('workMode' in value) || !isAttendanceWorkMode(value.workMode)) return false;
-	return 'workingDate' in value && typeof value.workingDate === 'boolean';
+	if (!('workingDate' in value) || typeof value.workingDate !== 'boolean') return false;
+	return !('holiday' in value) || typeof value.holiday === 'boolean';
 }
 
 function workHoursCycle(value: unknown, memberID: string): WorkHoursCycle {

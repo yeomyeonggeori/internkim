@@ -9,8 +9,7 @@ import {
 	InvalidAttendanceWorkCalendarError,
 	InvalidAttendanceWorkModeError,
 	InvalidAttendanceWorkPolicyError,
-	saveAttendanceWorkCalendar,
-	saveAttendanceWorkPolicy
+	saveAttendanceReconciliationSettings
 } from '$lib/server/attendance-work-calendar-reconcile';
 import {
 	EmptyWindowRefused,
@@ -48,16 +47,13 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	askedWorkMode(asked.workMode);
 	const workPolicy = askedWorkPolicy(asked.workPolicy);
 	const workCalendar = askedWorkCalendar(asked.workCalendar, from, to);
-	if (workPolicy !== undefined) {
-		await saveAttendanceWorkPolicy(client, companyID, workPolicy);
-	}
-	if (workCalendar !== undefined) {
-		await saveAttendanceWorkCalendar(client, companyID, workCalendar);
-	}
-
-	const memberOf = await membersOfCompanyByExternalID(client, companyID, askedPlatform(asked.platform));
+	const platformName = askedPlatform(asked.platform);
+	const memberOf = await membersOfCompanyByExternalID(client, companyID, platformName);
 	const byMember = groupByMember(asked.events, memberOf, from, to);
 	const held = await heldInWindow(client, [...memberOf.values()], from, to);
+	if (workPolicy !== undefined || workCalendar !== undefined) {
+		await saveAttendanceReconciliationSettings(client, companyID, workPolicy, workCalendar);
+	}
 
 	return json(await makeTheRecordMatch(client, new Set(memberOf.values()), byMember, held));
 };

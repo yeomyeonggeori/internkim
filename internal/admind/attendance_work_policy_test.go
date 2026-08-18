@@ -156,7 +156,7 @@ func TestAttendanceWorkPolicyNormalizesLegacyRevisionsToLatestCurrentPolicy(t *t
 	}
 }
 
-func TestAttendanceReconciliationReadsTheCurrentCompanyWorkMode(t *testing.T) {
+func TestAttendanceReconciliationReadsTheCurrentCompanyWorkPolicy(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	fixed := defaultAttendanceWorkPolicyRevision()
 	fixed.WorkMode = attendanceWorkModeFixed
@@ -172,12 +172,12 @@ func TestAttendanceReconciliationReadsTheCurrentCompanyWorkMode(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	workMode, errorValue := service.currentAttendanceWorkMode(t.Context(), now)
+	workPolicy, errorValue := service.currentAttendanceWorkPolicyRevision(t.Context(), now)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if workMode != attendanceWorkModeFixed {
-		t.Fatalf("work mode = %q", workMode)
+	if workPolicy.WorkMode != attendanceWorkModeFixed {
+		t.Fatalf("work policy = %+v", workPolicy)
 	}
 }
 

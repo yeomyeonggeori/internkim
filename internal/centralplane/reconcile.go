@@ -21,6 +21,7 @@ type ReconciledWorkCalendarDay struct {
 	Date        string `json:"date"`
 	WorkMode    string `json:"workMode"`
 	WorkingDate bool   `json:"workingDate"`
+	Holiday     bool   `json:"holiday"`
 }
 
 type ReconciledWorkBreakPeriod struct {

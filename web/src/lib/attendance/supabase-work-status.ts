@@ -139,7 +139,9 @@ export function calculateSupabaseEmployeeWorkStatus(
 	const actualMinutes = total((day) => day.actualMinutes);
 	const actualSeconds = total((day) => day.actualSeconds);
 	const leaveMinutes = total((day) => day.leaveMinutes);
-	const baselineActualMinutes = total((day) => day.hasBaseline ? day.actualMinutes : 0);
+	const baselineActualMinutes = total((day) =>
+		day.hasBaseline ? day.actualMinutes + day.provisionalMinutes : 0
+	);
 	const baselineLeaveMinutes = total((day) => day.hasBaseline ? day.leaveMinutes : 0);
 	const periodTarget = total((day) => day.hasBaseline ? day.targetMinutes : 0);
 	const fulfilledMinutes = baselineActualMinutes + baselineLeaveMinutes;
@@ -199,15 +201,16 @@ function dayStatusOf(
 	const provisionalMinutes = worked.provisionalMinutes;
 	const provisionalSeconds = worked.provisionalSeconds;
 	const projected = policy.workCalendar?.find((candidate) => candidate.date === day);
-	const workingDate =
-		projected?.workingDate ??
-		policy.currentPolicy.workingWeekdays.includes(new Date(`${day}T00:00:00Z`).getUTCDay());
+	const currentWorkingDate = policy.currentPolicy.workingWeekdays.includes(companyWeekday(day));
+	const workingDate = policy.currentPolicyStored
+		? currentWorkingDate && projected?.holiday !== true
+		: projected?.workingDate ?? currentWorkingDate;
 	const workMode = policy.currentPolicy.workMode;
 	const hasBaseline = workMode !== 'autonomous';
 	const dayTargetMinutes = workingDate && hasBaseline ? targetMinutes : 0;
 	const isOnLeave = leave.some((row) => day >= dateIn(new Date(row.starts_at), timeZone) && day < dateIn(new Date(row.ends_at), timeZone));
 	const leaveMinutes = isOnLeave ? dayTargetMinutes : 0;
-	const fulfilledMinutes = workedMinutes + leaveMinutes;
+	const fulfilledMinutes = workedMinutes + provisionalMinutes + leaveMinutes;
 	const differenceMinutes = hasBaseline ? fulfilledMinutes - dayTargetMinutes : 0;
 	const remainingMinutes = hasBaseline ? Math.max(0, dayTargetMinutes - fulfilledMinutes) : 0;
 	const overtimeMinutes = hasBaseline ? Math.max(0, fulfilledMinutes - dayTargetMinutes) : 0;
@@ -233,7 +236,7 @@ function dayStatusOf(
 		coreTimeMissed: false,
 		late: false,
 		earlyLeave: false,
-		hasLeaveWorkOverlap: isOnLeave && workedMinutes > 0,
+		hasLeaveWorkOverlap: isOnLeave && workedMinutes + provisionalMinutes > 0,
 		hasIncompleteWorkRecord: worked.isWorking,
 		status: isOnLeave ? 'leave' : workedMinutes > 0 ? 'worked' : 'off',
 		workSegments: segments,
@@ -260,4 +263,9 @@ function dateIn(instant: Date, timeZone: string): string {
 
 function timeIn(instant: Date, timeZone: string): string {
 	return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).format(instant);
+}
+
+function companyWeekday(day: string): number {
+	const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
+	return weekday === 0 ? 7 : weekday;
 }
