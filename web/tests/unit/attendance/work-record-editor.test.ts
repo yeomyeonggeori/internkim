@@ -71,6 +71,16 @@ describe('work record editor state', () => {
 		expect(fixture.editor.maximumTimeFor(localDate)).toBe('10:30');
 	});
 
+	test('keeps a segment clock-in and clock-out in chronological order', () => {
+		const lateStart = createEditorFixture();
+		lateStart.editor.open([segment]);
+		expect(lateStart.editor.updateEventTime(segment.startEventID, '10:15')).toBe('10:00');
+
+		const earlyEnd = createEditorFixture();
+		earlyEnd.editor.open([segment]);
+		expect(earlyEnd.editor.updateEventTime(segment.endEventID, '08:45')).toBe('09:00');
+	});
+
 	test('saves a closed segment location change on the clock-in event only', async () => {
 		const fixture = createEditorFixture();
 		fixture.editor.open([segment]);

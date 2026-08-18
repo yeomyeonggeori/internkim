@@ -73,8 +73,16 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		.gte('ends_at', from.toISOString())
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
-	const serverTime = await client.rpc('attendance_server_time');
+	const [serverTime, correctionWindow] = await Promise.all([
+		client.rpc('attendance_server_time'),
+		client.rpc('attendance_correction_window_minutes')
+	]);
 	if (serverTime.error) throw new Error(serverTime.error.message);
+	if (correctionWindow.error) throw new Error(correctionWindow.error.message);
+	const correctionWindowMinutes = Number(correctionWindow.data);
+	if (!Number.isInteger(correctionWindowMinutes) || correctionWindowMinutes <= 0) {
+		throw new Error('attendance correction window must be a positive integer');
+	}
 
 	const byID = new Map(members.data.map((member) => [member.id, member]));
 	const me = members.data.find((member) => member.user_id === accountID);
@@ -84,7 +92,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		month: selectedMonth,
 		serverTime: serverTime.data,
 		timeZoneAuthoritative: true,
-		correctionWindowMinutes: 60,
+		correctionWindowMinutes,
 		currentUserEmail: me?.email ?? '',
 		isAdmin: me?.is_admin ?? false,
 		timeZone,
