@@ -73,6 +73,8 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		.gte('ends_at', from.toISOString())
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
+	const serverTime = await client.rpc('attendance_server_time');
+	if (serverTime.error) throw new Error(serverTime.error.message);
 
 	const byID = new Map(members.data.map((member) => [member.id, member]));
 	const me = members.data.find((member) => member.user_id === accountID);
@@ -80,7 +82,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 
 	return {
 		month: selectedMonth,
-		serverTime: new Date().toISOString(),
+		serverTime: serverTime.data,
 		timeZoneAuthoritative: true,
 		correctionWindowMinutes: 60,
 		currentUserEmail: me?.email ?? '',
