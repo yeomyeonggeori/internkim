@@ -1,7 +1,5 @@
 import type {
 	LeaveManagementAdjustment,
-	LeaveManagementLegacyMigrationBatch,
-	LeaveManagementLegacyMigrationPreview,
 	LeaveManagementPastLeave,
 	LeaveManagementPayload,
 	LeaveManagementTimeCorrection
@@ -22,29 +20,6 @@ export async function fetchLeaveManagement(
 		{ credentials: 'include', cache: 'no-store' }
 	);
 	return readJSON<LeaveManagementPayload>(response);
-}
-
-export async function fetchLegacyAbsenceMigrationPreview(): Promise<
-	LeaveManagementLegacyMigrationPreview
-> {
-	const response = await fetch('/attendance/api/leave-management/legacy-migration', {
-		credentials: 'include',
-		cache: 'no-store'
-	});
-	return readJSON<LeaveManagementLegacyMigrationPreview>(response);
-}
-
-export async function applyLegacyAbsenceMigration(
-	fingerprint: string
-): Promise<LeaveManagementLegacyMigrationBatch> {
-	const response = await fetch('/attendance/api/leave-management/legacy-migration/apply', {
-		method: 'POST',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ fingerprint })
-	});
-	const payload = await readJSON<{ batch: LeaveManagementLegacyMigrationBatch }>(response);
-	return payload.batch;
 }
 
 export async function adjustManagedLeave(

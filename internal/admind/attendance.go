@@ -107,12 +107,6 @@ func (service *Service) handleAttendance(responseWriter http.ResponseWriter, req
 		service.writeAttendanceLeaveApprovalDecision(responseWriter, request, leaveApprovalRequestID)
 	case request.Method == http.MethodGet && path == "/leave-management":
 		service.writeAttendanceLeaveManagement(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/leave-management/legacy-migration":
-		service.writeAttendanceLegacyAbsenceMigrationPreview(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/leave-management/legacy-migration/apply":
-		service.writeAttendanceLegacyAbsenceMigrationApply(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/leave-management/legacy-migration/rollback":
-		service.writeAttendanceLegacyAbsenceMigrationRollback(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/leave-management/adjustments":
 		service.writeAttendanceLeaveManagementAdjustment(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/leave-management/past-leaves":
@@ -173,8 +167,7 @@ func attendanceLeaveAPIAllowedMethod(
 	case path == "/leave",
 		isAttachment,
 		path == "/leave-approvals",
-		path == "/leave-management",
-		path == "/leave-management/legacy-migration":
+		path == "/leave-management":
 		return http.MethodGet, true
 	case path == "/leave-requests",
 		path == "/leave-requests/preview",
@@ -182,8 +175,6 @@ func attendanceLeaveAPIAllowedMethod(
 		isResubmit,
 		isUpdate,
 		isApprovalRequest,
-		path == "/leave-management/legacy-migration/apply",
-		path == "/leave-management/legacy-migration/rollback",
 		path == "/leave-management/adjustments",
 		path == "/leave-management/past-leaves",
 		isLeaveManagementCancel,

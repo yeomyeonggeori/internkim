@@ -13,8 +13,6 @@ export const employeeLeaveErrorCodes = [
 	'invalidAttachment',
 	'requestNotFound',
 	'invalidStatus',
-	'legacyMigrationStale',
-	'legacyMigrationConflict',
 	'internal'
 ] as const;
 export type EmployeeLeaveErrorCode = (typeof employeeLeaveErrorCodes)[number];
