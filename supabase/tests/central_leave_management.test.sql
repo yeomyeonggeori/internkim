@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(43);
+select plan(44);
 
 select ok(
   not has_function_privilege(
@@ -175,6 +175,18 @@ select is(
   public.member_leave_remaining('30000000-0000-0000-0000-000000000012', extract(year from current_date)::integer),
   12::numeric,
   'an expired adjustment does not change the current balance'
+);
+
+select throws_ok(
+  $$select public.admin_create_past_leave(
+    '30000000-0000-0000-0000-000000000012', 1,
+    date_trunc('year', current_date)::timestamptz + interval '10 days',
+    date_trunc('year', current_date)::timestamptz + interval '10 days',
+    'zero duration'
+  )$$,
+  '23514',
+  'past leave end must follow its start',
+  'a past leave record must have a positive duration'
 );
 
 select lives_ok(

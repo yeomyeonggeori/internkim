@@ -17,6 +17,7 @@ export type ApprovedLeaveRow = {
 	kind: string;
 	days: number;
 	status: 'approved';
+	cancelled_at: string | null;
 	starts_at: string;
 	ends_at: string;
 };
@@ -30,14 +31,26 @@ export async function approvedLeaveCalendarEvents(
 ): Promise<CalendarEvent[]> {
 	const leave = await supabase()
 		.from('leave')
-		.select('id, member_id, kind, days, status, starts_at, ends_at')
+		.select('id, member_id, kind, days, status, cancelled_at, starts_at, ends_at')
 		.eq('status', 'approved')
+		.is('cancelled_at', null)
 		.lt('starts_at', endDate.toISOString())
 		.gte('ends_at', startDate.toISOString())
 		.order('starts_at')
 		.returns<ApprovedLeaveRow[]>();
 	if (leave.error) throw new Error(`Failed to load approved leave calendar events: ${leave.error.message}`);
-	return leave.data.map((row) => calendarEventFromApprovedLeave(row, members, timeZone, locale));
+	return calendarEventsFromApprovedLeaveRows(leave.data, members, timeZone, locale);
+}
+
+export function calendarEventsFromApprovedLeaveRows(
+	leaveRows: ApprovedLeaveRow[],
+	members: Map<string, CalendarLeaveMember>,
+	timeZone: string,
+	locale: Locale = 'ko'
+): CalendarEvent[] {
+	return leaveRows
+		.filter((leave) => leave.cancelled_at === null)
+		.map((leave) => calendarEventFromApprovedLeave(leave, members, timeZone, locale));
 }
 
 export function calendarEventFromApprovedLeave(

@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { calendarEventFromApprovedLeave } from '../../../src/lib/calendar/supabase-calendar-leave';
+import {
+	calendarEventFromApprovedLeave,
+	calendarEventsFromApprovedLeaveRows,
+	type ApprovedLeaveRow
+} from '../../../src/lib/calendar/supabase-calendar-leave';
 
 const members = new Map([
 	['member-1', { id: 'member-1', name: '이샘플', email: 'sample@example.com' }]
@@ -14,6 +18,7 @@ describe('calendarEventFromApprovedLeave', () => {
 				kind: '연차',
 				days: 1,
 				status: 'approved',
+				cancelled_at: null,
 				starts_at: '2026-08-02T15:00:00.000Z',
 				ends_at: '2026-08-03T15:00:00.000Z'
 			},
@@ -42,6 +47,7 @@ describe('calendarEventFromApprovedLeave', () => {
 				kind: 'leave',
 				days: 1,
 				status: 'approved',
+				cancelled_at: null,
 				starts_at: '2026-08-03T00:00:00.000Z',
 				ends_at: '2026-08-04T00:00:00.000Z'
 			},
@@ -65,6 +71,7 @@ describe('calendarEventFromApprovedLeave', () => {
 				kind: 'leave',
 				days: 0.25,
 				status: 'approved',
+				cancelled_at: null,
 				starts_at: '2026-08-03T02:30:00.000Z',
 				ends_at: '2026-08-03T05:30:00.000Z'
 			},
@@ -88,6 +95,7 @@ describe('calendarEventFromApprovedLeave', () => {
 				kind: 'leave',
 				days: 0.5,
 				status: 'approved',
+				cancelled_at: null,
 				starts_at: '2026-08-03T05:00:00.000Z',
 				ends_at: '2026-08-03T09:00:00.000Z'
 			},
@@ -101,6 +109,7 @@ describe('calendarEventFromApprovedLeave', () => {
 				kind: 'leave',
 				days: 0.25,
 				status: 'approved',
+				cancelled_at: null,
 				starts_at: '2026-08-04T00:00:00.000Z',
 				ends_at: '2026-08-04T02:00:00.000Z'
 			},
@@ -120,6 +129,7 @@ describe('calendarEventFromApprovedLeave', () => {
 				kind: 'leave',
 				days: 1,
 				status: 'approved',
+				cancelled_at: null,
 				starts_at: '2026-08-02T15:00:00.000Z',
 				ends_at: '2026-08-03T15:00:00.000Z'
 			},
@@ -134,6 +144,7 @@ describe('calendarEventFromApprovedLeave', () => {
 				kind: 'leave',
 				days: 0.5,
 				status: 'approved',
+				cancelled_at: null,
 				starts_at: '2026-08-03T05:00:00.000Z',
 				ends_at: '2026-08-03T09:00:00.000Z'
 			},
@@ -148,6 +159,7 @@ describe('calendarEventFromApprovedLeave', () => {
 				kind: 'leave',
 				days: 0.25,
 				status: 'approved',
+				cancelled_at: null,
 				starts_at: '2026-08-04T00:00:00.000Z',
 				ends_at: '2026-08-04T02:00:00.000Z'
 			},
@@ -169,6 +181,7 @@ describe('calendarEventFromApprovedLeave', () => {
 				kind: 'leave',
 				days: 1,
 				status: 'approved',
+				cancelled_at: null,
 				starts_at: '2026-08-02T15:00:00.000Z',
 				ends_at: '2026-08-03T15:00:00.000Z'
 			},
@@ -188,6 +201,7 @@ describe('calendarEventFromApprovedLeave', () => {
 				kind: 'other',
 				days: 0.5,
 				status: 'approved',
+				cancelled_at: null,
 				starts_at: '2026-08-03T00:00:00.000Z',
 				ends_at: '2026-08-03T05:00:00.000Z'
 			},
@@ -197,5 +211,30 @@ describe('calendarEventFromApprovedLeave', () => {
 
 		expect(event.id).toBe('leave:same-id');
 		expect(event.title).toBe('이샘플 · other');
+	});
+});
+
+describe('calendarEventsFromApprovedLeaveRows', () => {
+	test('excludes cancelled approved leave from calendar events', () => {
+		const activeLeave: ApprovedLeaveRow = {
+			id: 'active-leave',
+			member_id: 'member-1',
+			kind: 'leave',
+			days: 1,
+			status: 'approved',
+			cancelled_at: null,
+			starts_at: '2026-08-02T15:00:00.000Z',
+			ends_at: '2026-08-03T15:00:00.000Z'
+		};
+		const events = calendarEventsFromApprovedLeaveRows(
+			[
+				activeLeave,
+				{ ...activeLeave, id: 'cancelled-leave', cancelled_at: '2026-08-01T00:00:00.000Z' }
+			],
+			members,
+			'Asia/Seoul'
+		);
+
+		expect(events.map((event) => event.id)).toEqual(['leave:active-leave']);
 	});
 });

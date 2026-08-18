@@ -742,6 +742,8 @@ declare
   veteran uuid := '000000aa-0000-0000-0000-000000000001';
   newcomer uuid := '000000aa-0000-0000-0000-000000000003';
 begin
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a9"}', true);
+
   assert public.member_leave_remaining(veteran, 2026) is null,
     'with no entitlement set, there is nothing to count against';
 

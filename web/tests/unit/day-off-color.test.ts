@@ -19,6 +19,7 @@ describe('a day off is one colour', () => {
 				kind: 'leave',
 				days: 1,
 				status: 'approved',
+				cancelled_at: null,
 				starts_at: '2026-06-19T00:00:00.000Z',
 				ends_at: '2026-06-19T23:59:59.000Z'
 			},
