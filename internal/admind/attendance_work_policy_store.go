@@ -19,25 +19,14 @@ func (service *Service) saveAttendanceWorkPolicyRevision(
 	effectiveDate string,
 	now time.Time,
 ) (attendanceWorkPolicy, error) {
-	revision.EffectiveDate = effectiveDate
+	revision.EffectiveDate = attendanceWorkPolicyInitialEffectiveDate
 	if errorValue := validateAndNormalizeAttendanceWorkPolicyRevision(&revision); errorValue != nil {
 		return attendanceWorkPolicy{}, errorValue
 	}
 	var saved attendanceWorkPolicy
 	errorValue := service.updateAttendanceSettingsDocument(ctx, func(document *attendanceSettingsDocument) error {
 		policy := document.WorkPolicy
-		replaced := false
-		for index := range policy.Revisions {
-			if policy.Revisions[index].EffectiveDate != effectiveDate {
-				continue
-			}
-			policy.Revisions[index] = revision
-			replaced = true
-			break
-		}
-		if !replaced {
-			policy.Revisions = append(policy.Revisions, revision)
-		}
+		policy.Revisions = []attendanceWorkPolicyRevision{revision}
 		policy.UpdatedAt = now.UTC().Format(time.RFC3339)
 		if errorValue := validateAndNormalizeAttendanceWorkPolicy(&policy); errorValue != nil {
 			return errorValue
