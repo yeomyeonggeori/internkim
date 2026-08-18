@@ -356,9 +356,10 @@ func TestExtensionInputRuntimeStartSessionWritesRuntimeConfigBeforeLaunch(t *tes
 	}
 	runner := &fakeCommandRunner{}
 	runtime := &ExtensionInputRuntime{
-		Bridge:        bridge,
-		ExtensionPath: extensionDirectory,
-		Runner:        runner,
+		Bridge:               bridge,
+		ExtensionPath:        extensionDirectory,
+		Runner:               runner,
+		ChromeExecutablePath: testChromeExecutablePath,
 	}
 
 	if _, errorValue := runtime.StartSession(context.Background(), SessionStartRequest{URL: "https://example.com"}); errorValue != nil {
@@ -409,7 +410,7 @@ func TestExtensionInputRuntimeStartSessionSurfacesBridgeStartError(t *testing.T)
 
 func TestExtensionInputRuntimeStartSessionSurfacesReadyTimeoutError(t *testing.T) {
 	bridge := &fakeExtensionBridge{readyError: context.DeadlineExceeded}
-	runtime := &ExtensionInputRuntime{Bridge: bridge, ExtensionPath: t.TempDir(), Runner: &fakeCommandRunner{}}
+	runtime := &ExtensionInputRuntime{Bridge: bridge, ExtensionPath: t.TempDir(), Runner: &fakeCommandRunner{}, ChromeExecutablePath: testChromeExecutablePath}
 
 	_, errorValue := runtime.StartSession(context.Background(), SessionStartRequest{URL: "https://example.com"})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "did not connect") {

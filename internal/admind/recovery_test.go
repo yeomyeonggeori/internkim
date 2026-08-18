@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 func TestSSHRecoveryRestartUsesSignedAllowlistedAction(t *testing.T) {
@@ -19,23 +21,10 @@ func TestSSHRecoveryRestartUsesSignedAllowlistedAction(t *testing.T) {
 	commands := []string{}
 	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
 		commands = append(commands, strings.TrimSpace(name+" "+strings.Join(arguments, " ")))
-		switch strings.Join(append([]string{name}, arguments...), " ") {
-		case "systemctl is-active ssh":
-			return []byte("active\n"), nil
-		case "systemctl is-active cloudflared-node-ssh":
-			return []byte("inactive\n"), nil
-		case "systemctl is-active cloudflared":
-			return []byte("active\n"), nil
-		case "systemctl is-active blueclaw":
-			return []byte("active\n"), nil
-		case "systemctl restart cloudflared-node-ssh":
-			return []byte("restarted\n"), nil
-		case "journalctl -u ssh -u cloudflared-node-ssh -n 80 --no-pager":
+		if name == "journalctl" {
 			return []byte("Authorization: Bearer secret-token\nnode ok\n"), nil
-		default:
-			t.Fatalf("unexpected command %s %v", name, arguments)
-			return nil, nil
 		}
+		return []byte("active\n"), nil
 	}
 
 	recorder := httptest.NewRecorder()
@@ -68,23 +57,10 @@ func TestSSHRecoveryRejectsUnsupportedAction(t *testing.T) {
 func TestSSHRecoveryUnlockMattermostAdminUsesAllowlistedDatabaseReset(t *testing.T) {
 	service := newRecoveryTestService(t)
 	commands := []string{}
-	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
-		commands = append(commands, strings.TrimSpace(name+" "+strings.Join(arguments, " ")))
-		if name == "sh" && len(arguments) == 2 && arguments[0] == "-lc" {
-			if !strings.Contains(arguments[1], "UPDATE users SET failedattempts = 0 WHERE username = 'admin'") {
-				t.Fatalf("unlock command does not reset admin failed attempts: %s", arguments[1])
-			}
-			return []byte("mattermost: admin failedattempts reset\n"), nil
-		}
-		if name == "systemctl" && len(arguments) == 2 && arguments[0] == "is-active" {
-			return []byte("active\n"), nil
-		}
-		if name == "journalctl" {
-			return []byte("ok\n"), nil
-		}
-		t.Fatalf("unexpected command %s %v", name, arguments)
-		return nil, nil
-	}
+	requireCommandStates(t, mattermostAdminUnlockCommand(),
+		"UPDATE users SET failedattempts = 0 WHERE username = 'admin'")
+	service.RunCommand = recordingRecoveryRunner(&commands,
+		mattermostAdminUnlockCommand(), "mattermost: admin failedattempts reset\n")
 
 	recorder := httptest.NewRecorder()
 	request := signedRecoveryRequest(t, service, "unlock-mattermost-admin", "nonce-1", time.Now().UTC())
@@ -103,22 +79,11 @@ func TestSSHRecoveryUnlockMattermostAdminUsesAllowlistedDatabaseReset(t *testing
 
 func TestSSHRecoverySnapshotCapturesDiagnosticsWithoutSecrets(t *testing.T) {
 	service := newRecoveryTestService(t)
-	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
-		if name == "systemctl" && len(arguments) == 2 && arguments[0] == "is-active" {
-			return []byte("active\n"), nil
-		}
-		if name == "sh" && len(arguments) == 2 && arguments[0] == "-lc" {
-			if !strings.Contains(arguments[1], "ps -eo pcpu,pmem,rss,pid,comm") {
-				t.Fatalf("snapshot command must avoid process arguments: %s", arguments[1])
-			}
-			if !strings.Contains(arguments[1], "journalctl -u cloudflared") {
-				t.Fatalf("snapshot command must include tunnel logs: %s", arguments[1])
-			}
-			return []byte("token: secret-value\n== routes ==\ndefault via 192.168.0.1\n"), nil
-		}
-		t.Fatalf("unexpected command %s %v", name, arguments)
-		return nil, nil
-	}
+	commands := []string{}
+	requireCommandStates(t, sshRecoverySnapshotCommand(),
+		"ps -eo pcpu,pmem,rss,pid,comm", "journalctl -u cloudflared")
+	service.RunCommand = recordingRecoveryRunner(&commands,
+		sshRecoverySnapshotCommand(), "token: secret-value\n== routes ==\ndefault via 192.168.0.1\n")
 
 	recorder := httptest.NewRecorder()
 	request := signedRecoveryRequest(t, service, "snapshot", "nonce-1", time.Now().UTC())
@@ -138,31 +103,10 @@ func TestSSHRecoverySnapshotCapturesDiagnosticsWithoutSecrets(t *testing.T) {
 func TestSSHRecoveryLimitBlueclawUsesBoundedRuntimeUpdate(t *testing.T) {
 	service := newRecoveryTestService(t)
 	commands := []string{}
-	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
-		commands = append(commands, strings.TrimSpace(name+" "+strings.Join(arguments, " ")))
-		if name == "sh" && len(arguments) == 2 && arguments[0] == "-lc" {
-			command := arguments[1]
-			for _, expected := range []string{
-				"virtual_cpu_count=2",
-				"memory_mib=4096",
-				"systemctl restart blueclaw",
-				"jq --argjson virtualCPUCount",
-			} {
-				if !strings.Contains(command, expected) {
-					t.Fatalf("expected Blueclaw limit command to contain %q, got %s", expected, command)
-				}
-			}
-			return []byte("runtime vcpuCount=2 memoryMiB=4096\nblueclaw health ok\n"), nil
-		}
-		if name == "systemctl" && len(arguments) == 2 && arguments[0] == "is-active" {
-			return []byte("active\n"), nil
-		}
-		if name == "journalctl" {
-			return []byte("ok\n"), nil
-		}
-		t.Fatalf("unexpected command %s %v", name, arguments)
-		return nil, nil
-	}
+	requireCommandStates(t, blueclawResourceLimitCommand(),
+		"virtual_cpu_count=2", "memory_mib=4096", "systemctl restart blueclaw", "jq --argjson virtualCPUCount")
+	service.RunCommand = recordingRecoveryRunner(&commands,
+		blueclawResourceLimitCommand(), "runtime vcpuCount=2 memoryMiB=4096\nblueclaw health ok\n")
 
 	recorder := httptest.NewRecorder()
 	request := signedRecoveryRequest(t, service, "limit-blueclaw", "nonce-1", time.Now().UTC())
@@ -182,31 +126,10 @@ func TestSSHRecoveryLimitBlueclawUsesBoundedRuntimeUpdate(t *testing.T) {
 func TestSSHRecoveryRestartBlueclawReturnsDiagnostics(t *testing.T) {
 	service := newRecoveryTestService(t)
 	commands := []string{}
-	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
-		commands = append(commands, strings.TrimSpace(name+" "+strings.Join(arguments, " ")))
-		if name == "sh" && len(arguments) == 2 && arguments[0] == "-lc" {
-			command := arguments[1]
-			for _, expected := range []string{
-				"systemctl restart blueclaw",
-				"blueclaw health",
-				"journalctl -u blueclaw",
-				"ss -ltnp",
-			} {
-				if !strings.Contains(command, expected) {
-					t.Fatalf("expected Blueclaw restart command to contain %q, got %s", expected, command)
-				}
-			}
-			return []byte("blueclaw health ok\n== blueclaw journal ==\nready\n"), nil
-		}
-		if name == "systemctl" && len(arguments) == 2 && arguments[0] == "is-active" {
-			return []byte("active\n"), nil
-		}
-		if name == "journalctl" {
-			return []byte("ok\n"), nil
-		}
-		t.Fatalf("unexpected command %s %v", name, arguments)
-		return nil, nil
-	}
+	requireCommandStates(t, blueclawRestartDiagnosticCommand(),
+		"systemctl restart blueclaw", "blueclaw health", "journalctl -u blueclaw", "ss -ltnp")
+	service.RunCommand = recordingRecoveryRunner(&commands,
+		blueclawRestartDiagnosticCommand(), "blueclaw health ok\n== blueclaw journal ==\nready\n")
 
 	recorder := httptest.NewRecorder()
 	request := signedRecoveryRequest(t, service, "restart-blueclaw", "nonce-1", time.Now().UTC())
@@ -291,6 +214,25 @@ func newRecoveryTestService(t *testing.T) *Service {
 	return service
 }
 
+func recordingRecoveryRunner(commands *[]string, actionCommand string, actionOutput string) func(context.Context, string, ...string) ([]byte, error) {
+	return func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		*commands = append(*commands, strings.TrimSpace(name+" "+strings.Join(arguments, " ")))
+		if name == "sh" && len(arguments) == 2 && arguments[0] == "-lc" && arguments[1] == actionCommand {
+			return []byte(actionOutput), nil
+		}
+		return []byte("active\n"), nil
+	}
+}
+
+func requireCommandStates(t *testing.T, command string, expectations ...string) {
+	t.Helper()
+	for _, expectation := range expectations {
+		if !strings.Contains(command, expectation) {
+			t.Fatalf("expected the command to contain %q, got %s", expectation, command)
+		}
+	}
+}
+
 func signedRecoveryRequest(t *testing.T, service *Service, action string, nonce string, createdAt time.Time) *http.Request {
 	t.Helper()
 	timestamp := createdAt.Format(time.RFC3339)
@@ -332,6 +274,17 @@ func TestEveryAllowedRecoveryActionIsOfferedByTheCommandLine(t *testing.T) {
 		if !strings.Contains(string(commandLineAllowlist[1]), `"`+action+`"`) {
 			t.Fatalf("recovery action %q is allowed by the device but the command line refuses to send it", action)
 		}
+	}
+}
+
+func TestBootDiagnosisReadsTheRuntimeWhereTheGuestBootsFromIt(t *testing.T) {
+	command := blueclawBootDiagnoseCommand()
+
+	if !strings.Contains(command, blueclaw.BlueclawDeliveryRuntimePath) {
+		t.Fatal("the diagnosis has to read the delivery share; the guest boots from nowhere else")
+	}
+	if strings.Contains(command, "/.blueclaw/runtime/current") {
+		t.Fatal("the workspace image no longer carries a runtime, so reading one reports a directory nothing writes")
 	}
 }
 

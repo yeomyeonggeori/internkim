@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAMonitorWithoutTheVirtualizationEntitlementIsRefused(t *testing.T) {
@@ -73,6 +74,10 @@ func TestAStartThatDiesAtOnceIsNotAStart(t *testing.T) {
 	if errorValue := os.WriteFile(layout.SupervisorBinaryPath(), []byte("#!/bin/sh\necho cannot bind >&2\nexit 1\n"), 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+
+	restoreWindow := supervisorStartWindow
+	supervisorStartWindow = 30 * time.Second
+	t.Cleanup(func() { supervisorStartWindow = restoreWindow })
 
 	errorValue := StartSupervisor(layout)
 
