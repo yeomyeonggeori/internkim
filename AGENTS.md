@@ -76,6 +76,12 @@ Branch off the line you are targeting — product work off `design/saas`, device
 and runtime work off `main` — rebase rather than merge when it moves under you,
 and delete the branch once the pull request is merged.
 
+`main` and `design/saas` are checked out in one worktree each and nowhere else.
+Every other worktree reads them as `origin/main` and `origin/design/saas` after a
+fetch, and never checks them out: git refuses the second checkout, and the reason
+it refuses is that two working trees on one branch pointer means two dirty states
+and a silent winner. Wanting to see what merged is a fetch, not a checkout.
+
 A branch that moves `.dependency/blueclaw` rebases with
 
 ```
