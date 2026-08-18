@@ -1,4 +1,6 @@
 import { supabase } from '$lib/supabase';
+import { personName } from '$lib/person-name';
+import type { Locale } from '$lib/i18n/locale.svelte';
 import type { MessengerPerson } from './messenger-api';
 
 export type MessengerDirectory = {
@@ -9,33 +11,35 @@ export type MessengerDirectory = {
 	memberOfEmail: Map<string, string>;
 };
 
-type ContactRow = { platform: string; external_id: string; name: string; member_id: string | null };
-type MemberRow = { id: string; name: string | null; email: string | null };
+type ContactRow = { platform: string; external_id: string; name: string };
+type MemberRow = { id: string; name: string | null; email: string | null; messenger: Record<string, string> | null };
 
+// A member's messenger account is part of who they are, and is kept on the
+// member. contact is the company's address book for people who are not members
+// of it, so a contact never names one.
 export async function fetchMessengerDirectory(): Promise<MessengerDirectory> {
 	const client = supabase();
 	const members = await client
 		.from('member')
-		.select('id, name, email')
+		.select('id, name, email, messenger')
 		.neq('status', 'withdrawn')
 		.returns<MemberRow[]>();
 	if (members.error) throw new Error(members.error.message);
 
-	const people = await client
-		.from('contact')
-		.select('platform, external_id, name, member_id')
-		.returns<ContactRow[]>();
+	const people = await client.from('contact').select('platform, external_id, name').returns<ContactRow[]>();
 	if (people.error) throw new Error(people.error.message);
+
+	const accounts = members.data.flatMap((member) =>
+		Object.values(member.messenger ?? {})
+			.filter(Boolean)
+			.map((externalID) => [externalID, member.id] as const)
+	);
 
 	return {
 		nameOfMember: new Map(members.data.map((member) => [member.id, displayNameOf(member)])),
 		nameOfExternal: new Map(people.data.map((person) => [person.external_id, person.name])),
-		memberOfExternal: new Map(
-			people.data.filter((person) => person.member_id).map((person) => [person.external_id, person.member_id as string])
-		),
-		externalOfMember: new Map(
-			people.data.filter((person) => person.member_id).map((person) => [person.member_id as string, person.external_id])
-		),
+		memberOfExternal: new Map(accounts),
+		externalOfMember: new Map(accounts.map(([externalID, memberID]) => [memberID, externalID])),
 		memberOfEmail: new Map(
 			members.data.filter((member) => member.email).map((member) => [(member.email as string).toLowerCase(), member.id])
 		)
@@ -52,9 +56,14 @@ export function personKey(person: MessengerPerson): string {
 	return `external:${person.externalID ?? ''}`;
 }
 
-export function personLabel(person: MessengerPerson, directory: MessengerDirectory): string {
+// A member's name is recorded given name first, so how it is written belongs to
+// the language the reader picked; see personName. Everyone else in the address
+// book keeps the name they arrived with — an entry there need not be a person's
+// name at all, and rejoining "Intern Kim" or "Google Meet" as though it were
+// one produces something nobody has ever been called.
+export function personLabel(person: MessengerPerson, directory: MessengerDirectory, locale: Locale): string {
 	const memberID = person.memberID ?? (person.externalID ? directory.memberOfExternal.get(person.externalID) : undefined);
-	if (memberID) return directory.nameOfMember.get(memberID) ?? '';
+	if (memberID) return personName(directory.nameOfMember.get(memberID) ?? '', locale);
 	return directory.nameOfExternal.get(person.externalID ?? '') ?? '';
 }
 
