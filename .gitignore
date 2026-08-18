@@ -53,3 +53,5 @@ docs/private
 # What a company puts in its own agent: who works there, and the document
 # the entrypoint would otherwise write for it.
 host/runtime/
+
+.wrangler/
