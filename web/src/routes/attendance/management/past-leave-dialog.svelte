@@ -31,6 +31,9 @@
 	);
 	const allowedUnits = $derived(selectedLeaveType?.allowedUnits ?? ['fullDay']);
 	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
+	const hasFutureDate = $derived(
+		startDate > today || (unit === 'fullDay' && endDate > today)
+	);
 
 	function reset(): void {
 		leaveTypeID = leaveTypes[0]?.id ?? '';
@@ -61,6 +64,7 @@
 			!management.selectedEmployeeEmail ||
 			!leaveTypeID ||
 			!startDate ||
+			hasFutureDate ||
 			(unit !== 'fullDay' && !startTime)
 		) {
 			return;
@@ -174,6 +178,7 @@
 				disabled={management.isMutating ||
 					!leaveTypeID ||
 					!startDate ||
+					hasFutureDate ||
 					(unit !== 'fullDay' && !startTime)}
 			>
 				{text.management.addPastLeaveSubmit}

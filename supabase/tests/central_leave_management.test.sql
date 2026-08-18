@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(45);
 
 select ok(
   not has_function_privilege(
@@ -187,6 +187,20 @@ select throws_ok(
   '23514',
   'past leave end must follow its start',
   'a past leave record must have a positive duration'
+);
+
+select throws_ok(
+  $$select public.admin_create_past_leave(
+    '30000000-0000-0000-0000-000000000012', 1,
+    (public.member_today('30000000-0000-0000-0000-000000000012') + 1)::timestamp
+      at time zone public.member_timezone('30000000-0000-0000-0000-000000000012'),
+    (public.member_today('30000000-0000-0000-0000-000000000012') + 1)::timestamp
+      at time zone public.member_timezone('30000000-0000-0000-0000-000000000012') + interval '8 hours',
+    'future leave'
+  )$$,
+  '23514',
+  'past leave start must not be in the future',
+  'a past leave record cannot start on a future local date'
 );
 
 select lives_ok(

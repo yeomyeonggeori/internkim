@@ -381,6 +381,9 @@ test.describe('administrator employee leave management', () => {
 		const pastLeaveDialog = page.getByTestId('past-leave-dialog');
 		await expect(pastLeaveDialog.getByLabel('시작일')).toHaveAttribute('max', /\d{4}-\d{2}-\d{2}/);
 		await expect(pastLeaveDialog.getByLabel('종료일')).toHaveAttribute('max', /\d{4}-\d{2}-\d{2}/);
+		await pastLeaveDialog.getByLabel('시작일').fill('2099-01-01');
+		await pastLeaveDialog.getByLabel('종료일').fill('2099-01-01');
+		await expect(pastLeaveDialog.getByRole('button', { name: '휴가 등록' })).toBeDisabled();
 		await pastLeaveDialog.getByLabel('시작일').fill('2026-07-24');
 		await pastLeaveDialog.getByLabel('종료일').fill('2026-07-24');
 		await expect(pastLeaveDialog.getByLabel('사유 (선택)')).toHaveValue('');
