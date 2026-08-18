@@ -140,14 +140,14 @@ try {
 	relay = Bun.spawn([relayPath], { env: relayEnvironment, stdout: 'inherit', stderr: 'inherit' });
 
 	const joined = await untilTrue(
-		'the relay to record its contacts',
+		'the relay to record whose messenger account is whose',
 		async () => {
-			const contacts = await admin
-				.from('contact')
-				.select('external_id')
+			const members = await admin
+				.from('member')
+				.select('messenger')
 				.eq('company_id', company.companyID)
-				.returns<{ external_id: string }[]>();
-			return (contacts.data ?? []).length === 2;
+				.returns<{ messenger: Record<string, string> | null }[]>();
+			return (members.data ?? []).filter((member) => member.messenger?.mattermost).length === 2;
 		},
 		30
 	);

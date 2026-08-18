@@ -54,10 +54,8 @@ async function heldFor(memberID: string): Promise<{ kind: string; occurred_at: s
 try {
 	const secondMemberID = await addMember(admin, company.companyID, `second-${stamp}@example.test`);
 	const agent = await issueAgentKey(admin, company.companyID, `reconcile-${stamp}`);
-	await admin.from('contact').insert([
-		{ company_id: company.companyID, platform: 'mattermost', external_id: firstExternalID, name: '이샘플', member_id: company.adminMemberID },
-		{ company_id: company.companyID, platform: 'mattermost', external_id: secondExternalID, name: '박예시', member_id: secondMemberID }
-	]);
+	await admin.from('member').update({ messenger: { mattermost: firstExternalID } }).eq('id', company.adminMemberID);
+	await admin.from('member').update({ messenger: { mattermost: secondExternalID } }).eq('id', secondMemberID);
 
 	await admin.from('attendance').insert([
 		{ member_id: company.adminMemberID, kind: 'clock_in', occurred_at: '2026-08-05T08:29:00Z' },

@@ -1,5 +1,4 @@
 import type { MessengerChannel, MessengerPost } from '$lib/messenger/messenger-api';
-import { personLabel, type MessengerDirectory } from '$lib/messenger/messenger-directory';
 
 export type ThreadedPost = {
 	post: MessengerPost;
@@ -25,9 +24,3 @@ export function threadsOf(posts: MessengerPost[]): ThreadedPost[] {
 	return [...ordered, ...loose.map((post) => ({ post, replies: [] }))];
 }
 
-export function channelLabel(channel: MessengerChannel, directory: MessengerDirectory | null): string {
-	if (!channel.isDirect) return channel.name;
-	if (!directory) return channel.name;
-	const names = channel.participants.map((person) => personLabel(person, directory)).filter(Boolean);
-	return names.length > 0 ? names.join(', ') : channel.name;
-}
