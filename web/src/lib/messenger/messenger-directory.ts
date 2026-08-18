@@ -11,7 +11,7 @@ export type MessengerDirectory = {
 	memberOfEmail: Map<string, string>;
 };
 
-type ContactRow = { platform: string; external_id: string; name: string };
+type ContactRow = { name: string; messenger: Record<string, string> | null };
 type MemberRow = { id: string; name: string | null; email: string | null; messenger: Record<string, string> | null };
 
 // A member's messenger account is part of who they are, and is kept on the
@@ -26,7 +26,7 @@ export async function fetchMessengerDirectory(): Promise<MessengerDirectory> {
 		.returns<MemberRow[]>();
 	if (members.error) throw new Error(members.error.message);
 
-	const people = await client.from('contact').select('platform, external_id, name').returns<ContactRow[]>();
+	const people = await client.from('contact').select('name, messenger').returns<ContactRow[]>();
 	if (people.error) throw new Error(people.error.message);
 
 	const accounts = members.data.flatMap((member) =>
@@ -37,7 +37,13 @@ export async function fetchMessengerDirectory(): Promise<MessengerDirectory> {
 
 	return {
 		nameOfMember: new Map(members.data.map((member) => [member.id, displayNameOf(member)])),
-		nameOfExternal: new Map(people.data.map((person) => [person.external_id, person.name])),
+		nameOfExternal: new Map(
+			people.data.flatMap((person) =>
+				Object.values(person.messenger ?? {})
+					.filter(Boolean)
+					.map((externalID) => [externalID, person.name] as const)
+			)
+		),
 		memberOfExternal: new Map(accounts),
 		externalOfMember: new Map(accounts.map(([externalID, memberID]) => [memberID, externalID])),
 		memberOfEmail: new Map(
@@ -72,7 +78,7 @@ function displayNameOf(member: MemberRow): string {
 }
 
 export async function isMessengerConnected(): Promise<boolean> {
-	const { count, error } = await supabase().from('contact').select('external_id', { count: 'exact', head: true });
+	const { count, error } = await supabase().from('contact').select('id', { count: 'exact', head: true });
 	if (error) return false;
 	return (count ?? 0) > 0;
 }
@@ -82,11 +88,11 @@ export async function haveIConnectedMyMessenger(): Promise<boolean> {
 	const { data } = await client.auth.getSession();
 	const accountID = data.session?.user.id;
 	if (!accountID) return false;
-	const member = await client.from('member').select('id').eq('user_id', accountID).maybeSingle<{ id: string }>();
+	const member = await client
+		.from('member')
+		.select('messenger')
+		.eq('user_id', accountID)
+		.maybeSingle<{ messenger: Record<string, string> | null }>();
 	if (member.error || !member.data) return false;
-	const { count } = await client
-		.from('contact')
-		.select('external_id', { count: 'exact', head: true })
-		.eq('member_id', member.data.id);
-	return (count ?? 0) > 0;
+	return Object.values(member.data.messenger ?? {}).some(Boolean);
 }

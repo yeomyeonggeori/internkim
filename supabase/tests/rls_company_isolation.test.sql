@@ -850,10 +850,10 @@ begin
     ('000000ff-0000-0000-0000-000000000009', '00000000-0000-0000-0000-0000ffffff00', 'contact-admin@example.test', '00000000-0000-0000-0000-0000ffff0009', 'active', true);
   update public.member set messenger = '{"mattermost": "U-d1"}'::jsonb
     where id = '000000ff-0000-0000-0000-000000000001';
-  insert into public.contact (company_id, platform, external_id, name) values
-    ('00000000-0000-0000-0000-0000ffffff00', 'mattermost', 'U-guest', 'Outside Guest'),
-    ('00000000-0000-0000-0000-0000ffffff00', 'mattermost', 'U-supplier', 'A Supplier'),
-    ('00000000-0000-0000-0000-0000ffffff0e', 'mattermost', 'U-e1', 'E One');
+  insert into public.contact (company_id, name, messenger) values
+    ('00000000-0000-0000-0000-0000ffffff00', 'Outside Guest', '{"mattermost": "U-guest"}'::jsonb),
+    ('00000000-0000-0000-0000-0000ffffff00', 'A Supplier', '{"mattermost": "U-supplier"}'::jsonb),
+    ('00000000-0000-0000-0000-0000ffffff0e', 'E One', '{"mattermost": "U-e1"}'::jsonb);
 
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
@@ -867,8 +867,8 @@ begin
   assert rows_changed = 0, 'a member must not rename another company contact';
 
   begin
-    insert into public.contact (company_id, platform, external_id, name)
-    values ('00000000-0000-0000-0000-0000ffffff0e', 'mattermost', 'U-planted', 'Planted');
+    insert into public.contact (company_id, name, messenger)
+    values ('00000000-0000-0000-0000-0000ffffff0e', 'Planted', '{"mattermost": "U-planted"}'::jsonb);
   exception when insufficient_privilege then
     foreign_contact_blocked := true;
   end;

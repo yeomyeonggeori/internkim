@@ -187,8 +187,7 @@ async function nameOf(externalID: string): Promise<string> {
 		.from('contact')
 		.select('name')
 		.eq('company_id', companyID)
-		.eq('platform', messengerPlatform)
-		.eq('external_id', externalID)
+		.eq(`messenger->>${messengerPlatform}`, externalID)
 		.maybeSingle<{ name: string | null }>();
 	if (contact.error) throw new Error(contact.error.message);
 	return contact.data?.name ?? '';

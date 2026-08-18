@@ -39,3 +39,30 @@ where accounts.member_id = public.member.id;
 delete from public.contact where member_id is not null;
 
 alter table public.contact drop column member_id;
+
+-- contact becomes member's sibling: one row per person the company deals with,
+-- holding their accounts the same way a member holds theirs. Keyed by platform
+-- and account id, the same person reached on two messengers was two contacts
+-- and there was nowhere to say they were one.
+alter table public.contact add column id uuid not null default gen_random_uuid();
+alter table public.contact add column messenger jsonb not null default '{}'::jsonb;
+alter table public.contact add constraint contact_messenger_is_platform_to_account
+  check (public.is_messenger_accounts(messenger));
+
+update public.contact set messenger = jsonb_build_object(platform, external_id);
+
+do $$
+declare
+  current_key text;
+begin
+  select constraint_name into current_key
+  from information_schema.table_constraints
+  where table_schema = 'public' and table_name = 'contact' and constraint_type = 'PRIMARY KEY';
+  if current_key is not null then
+    execute format('alter table public.contact drop constraint %I', current_key);
+  end if;
+end $$;
+
+alter table public.contact add primary key (id);
+alter table public.contact drop column platform;
+alter table public.contact drop column external_id;
