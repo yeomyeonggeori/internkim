@@ -33,16 +33,22 @@ function conversationWith(externalIDs: string[], name: string): MessengerChannel
 describe('channelName', () => {
 	test('calls a direct conversation what the company calls that person', () => {
 		const conversation = conversationWith(['external-1', 'mine'], '여명 김');
-		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko')).toBe('김여명');
+		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko', '김인턴')).toBe('김여명');
 	});
 
 	test('falls back to the messenger for somebody the record does not know', () => {
 		const conversation = conversationWith(['bot-1', 'mine'], 'Intern Kim');
-		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko')).toBe('Intern Kim');
+		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko', '김인턴')).toBe('Intern Kim');
+	});
+
+	test('calls the agent by the name the product goes by in this language', () => {
+		const conversation = { ...conversationWith(['bot-1', 'mine'], 'Intern Kim'), isWithTheAgent: true };
+		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko', '김인턴')).toBe('김인턴');
+		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'en', 'internkim')).toBe('internkim');
 	});
 
 	test('leaves a group conversation with the name it was given', () => {
 		const conversation = { ...conversationWith([], '광장'), isDirect: false };
-		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko')).toBe('광장');
+		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko', '김인턴')).toBe('광장');
 	});
 });
