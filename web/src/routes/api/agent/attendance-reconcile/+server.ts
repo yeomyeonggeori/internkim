@@ -5,9 +5,12 @@ import { membersOfCompanyByExternalID } from '$lib/server/member-credential';
 import {
 	attendanceWorkCalendarFromDevice,
 	attendanceWorkModeFromDevice,
+	attendanceWorkPolicyFromDevice,
 	InvalidAttendanceWorkCalendarError,
 	InvalidAttendanceWorkModeError,
-	saveAttendanceWorkCalendar
+	InvalidAttendanceWorkPolicyError,
+	saveAttendanceWorkCalendar,
+	saveAttendanceWorkPolicy
 } from '$lib/server/attendance-work-calendar-reconcile';
 import {
 	EmptyWindowRefused,
@@ -22,6 +25,7 @@ type ReconcileRequest = {
 	platform?: unknown;
 	workMode?: unknown;
 	workCalendar?: unknown;
+	workPolicy?: unknown;
 	from?: unknown;
 	to?: unknown;
 	events?: unknown;
@@ -42,7 +46,11 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const to = moment(asked.to, 'to');
 	if (from >= to) error(400, 'the window ends before it begins');
 	askedWorkMode(asked.workMode);
+	const workPolicy = askedWorkPolicy(asked.workPolicy);
 	const workCalendar = askedWorkCalendar(asked.workCalendar, from, to);
+	if (workPolicy !== undefined) {
+		await saveAttendanceWorkPolicy(client, companyID, workPolicy);
+	}
 	if (workCalendar !== undefined) {
 		await saveAttendanceWorkCalendar(client, companyID, workCalendar);
 	}
@@ -53,6 +61,15 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
 	return json(await makeTheRecordMatch(client, new Set(memberOf.values()), byMember, held));
 };
+
+function askedWorkPolicy(offered: unknown) {
+	try {
+		return attendanceWorkPolicyFromDevice(offered);
+	} catch (thrown) {
+		if (!(thrown instanceof InvalidAttendanceWorkPolicyError)) throw thrown;
+		error(400, thrown.message);
+	}
+}
 
 function askedWorkCalendar(offered: unknown, from: string, to: string) {
 	try {

@@ -326,9 +326,9 @@ test.describe('attendance responsive view', () => {
 		);
 	});
 
-	test('uses holiday capacity and preserves a historical mode change', async ({ page }) => {
+	test('uses holiday capacity and reflects the current mode after it changes', async ({ page }) => {
 		const secondsPerDay = 24 * 60 * 60;
-		let isHistoricalFixedDate = true;
+		let isCurrentModeFixed = true;
 		await page.unroute('**/attendance/api/work-status?**');
 		await page.route('**/attendance/api/work-status?**', async (route) => {
 			const requestURL = new URL(route.request().url());
@@ -340,13 +340,13 @@ test.describe('attendance responsive view', () => {
 			payload.personal = payload.personal
 				? {
 						...payload.personal,
-						workMode: isHistoricalFixedDate ? 'fixed' : 'autonomous',
-						hasBaseline: isHistoricalFixedDate,
-						targetMinutes: isHistoricalFixedDate ? 4 * 8 * 60 : 0,
+						workMode: isCurrentModeFixed ? 'fixed' : 'autonomous',
+						hasBaseline: isCurrentModeFixed,
+						targetMinutes: isCurrentModeFixed ? 4 * 8 * 60 : 0,
 						actualMinutes: Math.floor(
-							(4 * secondsPerDay + (isHistoricalFixedDate ? 0 : 1)) / 60
+							(4 * secondsPerDay + (isCurrentModeFixed ? 0 : 1)) / 60
 						),
-						actualSeconds: 4 * secondsPerDay + (isHistoricalFixedDate ? 0 : 1),
+						actualSeconds: 4 * secondsPerDay + (isCurrentModeFixed ? 0 : 1),
 						provisionalMinutes: 0,
 						provisionalSeconds: 0,
 						workingCapacitySeconds: 4 * secondsPerDay,
@@ -373,7 +373,7 @@ test.describe('attendance responsive view', () => {
 			/width:\s*100%/
 		);
 
-		isHistoricalFixedDate = false;
+		isCurrentModeFixed = false;
 		await page.reload();
 		await expect(standard.getByText('자율 근무제', { exact: true })).toBeVisible();
 		await expect(capacityBar).toHaveAttribute('data-capacity-stage', 'calendar-days');
