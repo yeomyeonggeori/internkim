@@ -84,8 +84,8 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 		.select('member_id, days, starts_at, ends_at, status, cancelled_at')
 		.eq('status', 'approved')
 		.is('cancelled_at', null)
-		.lt('starts_at', instantOf(until))
-		.gte('ends_at', instantOf(from))
+		.lt('starts_at', until)
+		.gte('ends_at', from)
 		.returns<SupabaseWorkStatusLeave[]>();
 	if (leave.error) throw new Error(leave.error.message);
 
