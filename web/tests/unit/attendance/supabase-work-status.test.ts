@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { parseSupabaseWorkPolicies } from '../../../src/lib/attendance/supabase-work-policy';
+import { supabaseWorkStatusTimeRange } from '../../../src/lib/attendance/supabase-work-status-range';
 import { calculateSupabaseEmployeeWorkStatus } from '../../../src/lib/attendance/supabase-work-status';
 
 const secondsPerDay = 24 * 60 * 60;
@@ -30,6 +31,37 @@ function policyFrom(workCalendar: unknown) {
 }
 
 describe('calculateSupabaseEmployeeWorkStatus', () => {
+	test('includes an early Asia/Seoul clock-in in the requested day as provisional work', () => {
+		const timeRange = supabaseWorkStatusTimeRange(['2026-08-14'], 'Asia/Seoul');
+		const clockIn = '2026-08-13T22:44:00Z';
+		const now = new Date('2026-08-14T00:00:00Z');
+		const policy = policyFrom([{ date: '2026-08-14', workMode: 'fixed', workingDate: true }]);
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-14'],
+			timeZone: 'Asia/Seoul',
+			attendance: [{ member_id: member.id, kind: 'clock_in', occurred_at: clockIn }],
+			leave: [],
+			policy,
+			now
+		});
+		const day = status.days[0];
+		if (!day) throw new Error('expected requested day status');
+
+		expect(timeRange).toEqual({
+			from: '2026-08-13T15:00:00.000Z',
+			until: '2026-08-14T15:00:00.000Z'
+		});
+		expect(Date.parse(clockIn) >= Date.parse(timeRange.from)).toBe(true);
+		expect(Date.parse(clockIn) < Date.parse(timeRange.until)).toBe(true);
+		expect(day.provisionalSeconds).toBe(76 * 60);
+		expect(day.provisionalMinutes).toBe(76);
+		expect(day.actualMinutes).toBe(0);
+		expect(day.workSegments).toEqual([
+			{ startTime: '07:44', endTime: '09:00', provisional: true }
+		]);
+	});
+
 	test('counts only projected working dates in stage-two capacity for a holiday week', () => {
 		const days = [
 			'2027-01-04',
