@@ -9,18 +9,16 @@ import (
 )
 
 const (
-	attendanceLeaveErrorInvalidInput            = "invalidInput"
-	attendanceLeaveErrorHireDateRequired        = "hireDateRequired"
-	attendanceLeaveErrorLeaveConflict           = "leaveConflict"
-	attendanceLeaveErrorWorkConflict            = "workConflict"
-	attendanceLeaveErrorInsufficientBalance     = "insufficientBalance"
-	attendanceLeaveErrorInvalidAttachment       = "invalidAttachment"
-	attendanceLeaveErrorRequestNotFound         = "requestNotFound"
-	attendanceLeaveErrorInvalidStatus           = "invalidStatus"
-	attendanceLeaveErrorAccessDenied            = "accessDenied"
-	attendanceLeaveErrorInternal                = "internal"
-	attendanceLeaveErrorLegacyMigrationStale    = "legacyMigrationStale"
-	attendanceLeaveErrorLegacyMigrationConflict = "legacyMigrationConflict"
+	attendanceLeaveErrorInvalidInput        = "invalidInput"
+	attendanceLeaveErrorHireDateRequired    = "hireDateRequired"
+	attendanceLeaveErrorLeaveConflict       = "leaveConflict"
+	attendanceLeaveErrorWorkConflict        = "workConflict"
+	attendanceLeaveErrorInsufficientBalance = "insufficientBalance"
+	attendanceLeaveErrorInvalidAttachment   = "invalidAttachment"
+	attendanceLeaveErrorRequestNotFound     = "requestNotFound"
+	attendanceLeaveErrorInvalidStatus       = "invalidStatus"
+	attendanceLeaveErrorAccessDenied        = "accessDenied"
+	attendanceLeaveErrorInternal            = "internal"
 )
 
 var errAttendanceLeaveInvalidInput = errors.New("invalid leave request input")
@@ -30,8 +28,6 @@ var errAttendanceLeaveMethodNotAllowed = errors.New("leave request method is not
 var errAttendanceLeaveWorkConflict = errors.New("leave request conflicts with confirmed work")
 var errAttendanceLeaveInvalidAttachment = errors.New("invalid leave request attachment")
 var errAttendanceLeaveAccessDenied = errors.New("attendance leave access required")
-var errAttendanceLegacyMigrationStale = errors.New("legacy absence migration preview is stale")
-var errAttendanceLegacyMigrationConflict = errors.New("legacy absence migration has conflicts")
 
 type attendanceLeaveErrorResponse struct {
 	Code  string `json:"code"`
@@ -85,10 +81,6 @@ func attendanceLeaveErrorCodeAndStatus(errorValue error) (string, int) {
 		return attendanceLeaveErrorInvalidStatus, http.StatusConflict
 	case errors.Is(errorValue, errAttendanceLeaveAccessDenied):
 		return attendanceLeaveErrorAccessDenied, http.StatusForbidden
-	case errors.Is(errorValue, errAttendanceLegacyMigrationStale):
-		return attendanceLeaveErrorLegacyMigrationStale, http.StatusConflict
-	case errors.Is(errorValue, errAttendanceLegacyMigrationConflict):
-		return attendanceLeaveErrorLegacyMigrationConflict, http.StatusConflict
 	default:
 		return attendanceLeaveErrorInternal, http.StatusInternalServerError
 	}
