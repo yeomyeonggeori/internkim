@@ -32,7 +32,7 @@ func ensureBlueclawCommandBinary(targetPath string, scriptDir string, packagePat
 		return error
 	}
 
-	if error := EnsureBlueclawSubmoduleMain(scriptDir); error != nil {
+	if error := RequireBlueclawSubmoduleOnMain(scriptDir); error != nil {
 		return error
 	}
 
@@ -47,7 +47,7 @@ func ensureBlueclawCommandBinary(targetPath string, scriptDir string, packagePat
 	return os.Chmod(targetPath, 0o755)
 }
 
-func EnsureBlueclawSubmoduleMain(scriptDir string) error {
+func RequireBlueclawSubmoduleOnMain(scriptDir string) error {
 	if shouldUseLocalBlueclawSubmodule() {
 		return nil
 	}
@@ -63,17 +63,42 @@ func EnsureBlueclawSubmoduleMain(scriptDir string) error {
 		return fmt.Errorf("blueclaw submodule has local changes; commit or stash them before setup pulls main")
 	}
 
-	for _, commandArguments := range [][]string{
-		{"fetch", "origin", "main"},
-		{"checkout", "main"},
-		{"pull", "--ff-only", "origin", "main"},
-	} {
-		if errorValue := runBlueclawGitCommand(blueclawDirectory, commandArguments...); errorValue != nil {
-			return errorValue
-		}
+	if errorValue := runBlueclawGitCommand(blueclawDirectory, "fetch", "origin", "main"); errorValue != nil {
+		return errorValue
 	}
+	return requireBlueclawCheckoutIsOnMain(blueclawDirectory)
+}
 
-	return nil
+// Moving the checkout here would discard whatever the parent pinned, and a build that
+// silently rewinds the submodule is how a pointer bump becomes a backwards deploy.
+func requireBlueclawCheckoutIsOnMain(blueclawDirectory string) error {
+	checkedOutRevision, errorValue := blueclawGitOutput(blueclawDirectory, "rev-parse", "HEAD")
+	if errorValue != nil {
+		return errorValue
+	}
+	if isAncestorOfBlueclawMain(blueclawDirectory, checkedOutRevision) {
+		return nil
+	}
+	return fmt.Errorf(
+		"the blueclaw submodule is at %s, which is not on blueclaw's main; merge it there and move the pointer, or set INTERNKIM_BLUECLAW_USE_LOCAL=1 to build what is checked out",
+		checkedOutRevision[:12],
+	)
+}
+
+func isAncestorOfBlueclawMain(blueclawDirectory string, revision string) bool {
+	command := exec.Command("git", "merge-base", "--is-ancestor", revision, "origin/main")
+	command.Dir = blueclawDirectory
+	return command.Run() == nil
+}
+
+func blueclawGitOutput(blueclawDirectory string, arguments ...string) (string, error) {
+	command := exec.Command("git", arguments...)
+	command.Dir = blueclawDirectory
+	output, errorValue := command.Output()
+	if errorValue != nil {
+		return "", fmt.Errorf("blueclaw submodule git %v: %w", arguments, errorValue)
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 func shouldUseLocalBlueclawSubmodule() bool {
