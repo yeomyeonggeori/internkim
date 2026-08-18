@@ -30,7 +30,14 @@
 		leaveTypes.find((leaveType) => leaveType.id === leaveTypeID)
 	);
 	const allowedUnits = $derived(selectedLeaveType?.allowedUnits ?? ['fullDay']);
-	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
+	const selectedEmployee = $derived(
+		management.payload?.employees.find(
+			(employee) => employee.email === management.selectedEmployeeEmail
+		)
+	);
+	const today = $derived(
+		selectedEmployee?.currentDate ?? todayDateInTimeZone(attendance.summary?.timeZone)
+	);
 	const hasFutureDate = $derived(
 		startDate > today || (unit === 'fullDay' && endDate > today)
 	);

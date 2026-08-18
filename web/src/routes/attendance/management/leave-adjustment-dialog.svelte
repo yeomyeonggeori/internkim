@@ -27,12 +27,18 @@
 			(leaveType) => leaveType.balanceMode !== 'none'
 		)
 	);
+	const selectedEmployee = $derived(
+		management.payload?.employees.find(
+			(employee) => employee.email === management.selectedEmployeeEmail
+		)
+	);
 
 	function reset(): void {
 		leaveTypeID = balanceTypes[0]?.id ?? '';
 		amountDays = '';
 		reason = '';
-		effectiveOn = todayDateInTimeZone(attendance.summary?.timeZone);
+		effectiveOn =
+			selectedEmployee?.currentDate ?? todayDateInTimeZone(attendance.summary?.timeZone);
 		expiresOn = '';
 	}
 

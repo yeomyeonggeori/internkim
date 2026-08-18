@@ -14,6 +14,7 @@ export type SupabaseLeaveManagementMember = {
 	id: string;
 	name: string | null;
 	email: string | null;
+	timezone: string | null;
 };
 
 export type SupabaseLeaveManagementRow = {
@@ -51,10 +52,11 @@ export const centralLeaveType: EmployeeLeaveType = {
 export function leaveManagementEmployee(
 	member: SupabaseLeaveManagementMember,
 	leave: readonly SupabaseLeaveManagementRow[],
-	targetYear: number,
+	currentDate: string,
 	remainingDays: number | null,
 	timeZone: string
 ): LeaveManagementEmployee {
+	const targetYear = Number(currentDate.slice(0, 4));
 	const active = leave.filter(
 		(row) => !row.cancelled_at && row.is_deducted && yearOf(row, timeZone) === targetYear
 	);
@@ -75,6 +77,7 @@ export function leaveManagementEmployee(
 	return {
 		email: member.email ?? '',
 		displayName: member.name || (member.email ?? '').split('@')[0],
+		currentDate,
 		grantedMilliDays,
 		availableMilliDays,
 		reservedMilliDays,
@@ -82,6 +85,13 @@ export function leaveManagementEmployee(
 		expiringMilliDays: 0,
 		balances: remainingDays === null ? [] : [balance]
 	};
+}
+
+export function leaveManagementMemberTimeZone(
+	member: SupabaseLeaveManagementMember,
+	companyTimeZone: string
+): string {
+	return member.timezone ?? companyTimeZone;
 }
 
 export function leaveManagementRequest(

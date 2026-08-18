@@ -12,6 +12,7 @@ import {
 	centralLeaveType,
 	leaveManagementEmployee,
 	leaveManagementLedgerEntry,
+	leaveManagementMemberTimeZone,
 	leaveManagementRequest,
 	leaveRowsByMemberID,
 	type SupabaseLeaveManagementLedgerRow,
@@ -21,28 +22,33 @@ import {
 import { leaveDisplayRange, leaveTimestampRange } from './supabase-leave-range';
 
 export async function supabaseLeaveManagement(employeeEmail = ''): Promise<LeaveManagementPayload> {
-	const [members, timeZone, leave] = await Promise.all([visibleMembers(), companyTimeZone(), leaveRows()]);
-	const years = await Promise.all(members.map(async (member) => [member.id, await memberCurrentYear(member.id)] as const));
-	const yearByMemberID = new Map(years);
+	const [members, companyZone, leave] = await Promise.all([visibleMembers(), companyTimeZone(), leaveRows()]);
+	const currentDates = await Promise.all(
+		members.map(async (member) => [member.id, await memberToday(member.id)] as const)
+	);
+	const currentDateByMemberID = new Map(currentDates);
 	const leaveByMemberID = leaveRowsByMemberID(leave);
 	const remaining = await Promise.all(
-		members.map(async (member) => [
-			member.id,
-			await memberLeaveRemaining(member.id, yearByMemberID.get(member.id) ?? new Date().getUTCFullYear())
-		] as const)
+		members.map(async (member) => {
+			const currentDate = currentDateByMemberID.get(member.id);
+			if (!currentDate) throw new Error('member_today did not return a date for a visible member');
+			return [member.id, await memberLeaveRemaining(member.id, Number(currentDate.slice(0, 4)))] as const;
+		})
 	);
 	const remainingByMemberID = new Map(remaining);
-	const employees = members.map((member) =>
-		leaveManagementEmployee(
+	const employees = members.map((member) => {
+		const currentDate = currentDateByMemberID.get(member.id);
+		if (!currentDate) throw new Error('member_today did not return a date for a visible member');
+		return leaveManagementEmployee(
 			member,
 			leaveByMemberID.get(member.id) ?? [],
-			yearByMemberID.get(member.id) ?? new Date().getUTCFullYear(),
+			currentDate,
 			remainingByMemberID.get(member.id) ?? null,
-			timeZone
-		)
-	);
+			leaveManagementMemberTimeZone(member, companyZone)
+		);
+	});
 	const detail = employeeEmail
-		? await detailFor(employeeEmail, members, employees, leaveByMemberID, timeZone)
+		? await detailFor(employeeEmail, members, employees, leaveByMemberID, companyZone)
 		: undefined;
 	const managed = employees.some((employee) => employee.balances.length > 0);
 	return {
@@ -67,6 +73,7 @@ export async function adjustSupabaseManagedLeave(input: LeaveManagementAdjustmen
 
 export async function createSupabaseManagedPastLeave(input: LeaveManagementPastLeave): Promise<void> {
 	const member = await memberByEmail(input.employeeEmail);
+	const timeZone = leaveManagementMemberTimeZone(member, await companyTimeZone());
 	const range = leaveTimestampRange(
 		{
 			leaveTypeID: input.leaveTypeID,
@@ -76,7 +83,7 @@ export async function createSupabaseManagedPastLeave(input: LeaveManagementPastL
 			partialPeriod: input.partialPeriod || undefined,
 			startTime: input.startTime || undefined
 		},
-		await companyTimeZone()
+		timeZone
 	);
 	const { error } = await supabase().rpc('admin_create_past_leave', {
 		target_member: member.id,
@@ -104,7 +111,7 @@ export async function correctSupabaseManagedLeaveTime(
 ): Promise<void> {
 	const member = await memberByEmail(input.employeeEmail);
 	const leave = await leaveForMember(requestID, member.id);
-	const timeZone = await companyTimeZone();
+	const timeZone = leaveManagementMemberTimeZone(member, await companyTimeZone());
 	const date = leaveDisplayRange(leave.starts_at, leave.ends_at, leave.days, timeZone).startDate;
 	const { error } = await supabase().rpc('admin_correct_leave_time', {
 		target_leave: requestID,
@@ -120,9 +127,10 @@ async function detailFor(
 	members: readonly SupabaseLeaveManagementMember[],
 	employees: readonly LeaveManagementEmployee[],
 	leaveByMemberID: ReadonlyMap<string, SupabaseLeaveManagementRow[]>,
-	timeZone: string
+	companyZone: string
 ): Promise<LeaveManagementDetail> {
 	const member = memberFromVisibleMembers(employeeEmail, members);
+	const timeZone = leaveManagementMemberTimeZone(member, companyZone);
 	const employee = employees.find((candidate) => candidate.email === employeeEmail);
 	if (!employee) throw new Error('employee is not visible in this company');
 	const ledger = await supabase()
@@ -142,7 +150,7 @@ async function detailFor(
 async function visibleMembers(): Promise<SupabaseLeaveManagementMember[]> {
 	const members = await supabase()
 		.from('member')
-		.select('id, name, email')
+		.select('id, name, email, timezone')
 		.neq('status', 'withdrawn')
 		.returns<SupabaseLeaveManagementMember[]>();
 	if (members.error) throw new Error(members.error.message);
@@ -189,12 +197,11 @@ async function companyTimeZone(): Promise<string> {
 	return company.data.timezone;
 }
 
-async function memberCurrentYear(memberID: string): Promise<number> {
+async function memberToday(memberID: string): Promise<string> {
 	const today = await supabase().rpc('member_today', { target_member: memberID });
 	if (today.error || typeof today.data !== 'string') throw new Error(today.error?.message ?? 'member_today returned an invalid date');
-	const year = Number(today.data.slice(0, 4));
-	if (!Number.isInteger(year)) throw new Error('member_today returned an invalid date');
-	return year;
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(today.data)) throw new Error('member_today returned an invalid date');
+	return today.data;
 }
 
 async function memberLeaveRemaining(memberID: string, targetYear: number): Promise<number | null> {

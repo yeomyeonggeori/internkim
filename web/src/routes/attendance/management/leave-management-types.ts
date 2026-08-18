@@ -19,6 +19,7 @@ export type LeaveManagementBalance = {
 export type LeaveManagementEmployee = {
 	email: string;
 	displayName: string;
+	currentDate?: string;
 	grantedMilliDays: number;
 	availableMilliDays: number;
 	reservedMilliDays: number;

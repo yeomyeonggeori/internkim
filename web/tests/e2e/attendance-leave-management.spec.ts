@@ -222,10 +222,10 @@ test.describe('administrator employee leave management', () => {
 
 		const view = page.getByTestId('leave-management-view');
 		const kimButton = view.getByRole('button', {
-			name: '김철수 kim@example.com'
+			name: '이샘플 kim@example.com'
 		});
 		const seoheeButton = view.getByRole('button', {
-			name: '이서희 seohee@example.com'
+			name: '박예시 seohee@example.com'
 		});
 		await kimButton.click();
 		await firstSelectionRequested;
@@ -233,12 +233,12 @@ test.describe('administrator employee leave management', () => {
 
 		const detailHeader = view.getByTestId('leave-management-employee-detail-header');
 		await expect(seoheeButton).toHaveAttribute('aria-current', 'true');
-		await expect(detailHeader.getByText('이서희', { exact: true })).toBeVisible();
+		await expect(detailHeader.getByText('박예시', { exact: true })).toBeVisible();
 		await expect(detailHeader.getByText('seohee@example.com', { exact: true })).toBeVisible();
 
 		releaseFirstSelection();
 		await expect(seoheeButton).toHaveAttribute('aria-current', 'true');
-		await expect(detailHeader.getByText('이서희', { exact: true })).toBeVisible();
+		await expect(detailHeader.getByText('박예시', { exact: true })).toBeVisible();
 		await expect(view.getByText('남음 11.5일')).toBeVisible();
 	});
 
@@ -276,10 +276,10 @@ test.describe('administrator employee leave management', () => {
 		await expect(view.getByRole('columnheader', { name: '사용' })).toBeVisible();
 		await expect(view.getByRole('columnheader', { name: '대기' })).toBeVisible();
 
-		await view.getByRole('button', { name: '김철수 kim@example.com' }).click();
+		await view.getByRole('button', { name: '이샘플 kim@example.com' }).click();
 		await expect(view.getByText('잔여량 변동')).toHaveCount(0);
 		await expect(
-			view.getByTestId('leave-management-employee-detail-header').getByText('김철수')
+			view.getByTestId('leave-management-employee-detail-header').getByText('이샘플')
 		).toBeVisible();
 		await expect(view.getByText('사용 1일')).toBeVisible();
 		await expect(view.getByText('대기 0.5일')).toBeVisible();
@@ -326,10 +326,10 @@ test.describe('administrator employee leave management', () => {
 
 		const view = page.getByTestId('leave-management-view');
 		await expect(view).toBeVisible();
-		await expect(view.getByText('김철수', { exact: true })).toBeVisible();
-		await expect(view.getByText('이서희', { exact: true })).toBeVisible();
+		await expect(view.getByText('이샘플', { exact: true })).toBeVisible();
+		await expect(view.getByText('박예시', { exact: true })).toBeVisible();
 		const employeeButton = view.getByRole('button', {
-			name: '김철수 kim@example.com'
+			name: '이샘플 kim@example.com'
 		});
 		await expect(employeeButton.locator('[data-slot="avatar"]')).toHaveCount(1);
 		await employeeButton.click();
@@ -370,6 +370,7 @@ test.describe('administrator employee leave management', () => {
 
 		await view.getByRole('button', { name: '휴가 잔여량 조정' }).click();
 		const adjustmentDialog = page.getByTestId('leave-adjustment-dialog');
+		await expect(adjustmentDialog.getByLabel('적용일')).toHaveValue('2026-08-18');
 		await adjustmentDialog.getByLabel('조정 일수').fill('1');
 		await expect(adjustmentDialog.getByLabel('사유 (선택)')).toHaveValue('');
 		await adjustmentDialog.getByRole('button', { name: '조정 저장' }).click();
@@ -379,8 +380,8 @@ test.describe('administrator employee leave management', () => {
 
 		await view.getByRole('button', { name: '과거 휴가 등록' }).click();
 		const pastLeaveDialog = page.getByTestId('past-leave-dialog');
-		await expect(pastLeaveDialog.getByLabel('시작일')).toHaveAttribute('max', /\d{4}-\d{2}-\d{2}/);
-		await expect(pastLeaveDialog.getByLabel('종료일')).toHaveAttribute('max', /\d{4}-\d{2}-\d{2}/);
+		await expect(pastLeaveDialog.getByLabel('시작일')).toHaveAttribute('max', '2026-08-18');
+		await expect(pastLeaveDialog.getByLabel('종료일')).toHaveAttribute('max', '2026-08-18');
 		await pastLeaveDialog.getByLabel('시작일').fill('2099-01-01');
 		await pastLeaveDialog.getByLabel('종료일').fill('2099-01-01');
 		await expect(pastLeaveDialog.getByRole('button', { name: '휴가 등록' })).toBeDisabled();
