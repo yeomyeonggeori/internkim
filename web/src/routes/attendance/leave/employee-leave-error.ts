@@ -10,8 +10,6 @@ type EmployeeLeaveErrorText = {
 	errorInvalidAttachment: string;
 	errorRequestNotFound: string;
 	errorInvalidStatus: string;
-	errorLegacyMigrationStale?: string;
-	errorLegacyMigrationConflict?: string;
 	errorInternal: string;
 };
 
@@ -30,8 +28,6 @@ export function employeeLeaveErrorMessage(
 		invalidAttachment: text.errorInvalidAttachment,
 		requestNotFound: text.errorRequestNotFound,
 		invalidStatus: text.errorInvalidStatus,
-		legacyMigrationStale: text.errorLegacyMigrationStale ?? fallbackMessage,
-		legacyMigrationConflict: text.errorLegacyMigrationConflict ?? fallbackMessage,
 		internal: text.errorInternal
 	};
 	return messages[error.code];
