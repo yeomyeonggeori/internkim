@@ -7,176 +7,20 @@ import { expect, test } from './attendance-page-test-fixture';
 import { selectKorean } from './attendance-test-helpers';
 
 test.describe('administrator employee leave management', () => {
-	test('migrates existing leave after a count-only confirmation', async ({ page }) => {
-		await page.setViewportSize({ width: 390, height: 844 });
-		const managementState = createDevLeaveManagementMockState(createDevEmployeeLeaveMockState());
-		managementState.legacyMigration = {
-			candidateLeaveCount: 3,
-			candidateOccurrenceCount: 4,
-			alreadyMigratedCount: 0,
-			conflictCount: 0,
-			preservedOtherCount: 1,
-			fingerprint: 'sha256:e2e-preview'
-		};
-		let applyCount = 0;
-		await page.route('**/attendance/api/leave-management**', async (route) => {
-			const request = route.request();
-			const requestURL = new URL(request.url());
-			if (
-				request.method() === 'POST' &&
-				requestURL.pathname.endsWith('/legacy-migration/apply')
-			) {
-				applyCount += 1;
+	test('does not expose the retired legacy leave migration', async ({ page }) => {
+		let legacyMigrationRequestCount = 0;
+		page.on('request', (request) => {
+			if (new URL(request.url()).pathname.includes('/legacy-migration')) {
+				legacyMigrationRequestCount += 1;
 			}
-			const response = createDevLeaveManagementMockResponse(managementState, {
-				method: request.method(),
-				pathname: requestURL.pathname,
-				searchParams: requestURL.searchParams,
-				body: request.postData() ?? undefined
-			});
-			if (!response) {
-				await route.fallback();
-				return;
-			}
-			await route.fulfill({
-				status: response.status,
-				contentType: 'application/json',
-				body: JSON.stringify(response.body)
-			});
 		});
-		await page.goto('/attendance');
-		await selectKorean(page);
-		await page.getByRole('tab', { name: '직원별 휴가' }).click();
 
-		const action = page.getByTestId('legacy-leave-migration-action');
-		await expect(action).toBeVisible();
-		await action.click();
-		const dialog = page.getByTestId('legacy-leave-migration-dialog');
-		await expect(dialog.getByText('기존 휴가 3건을 연차로 이관하시겠습니까?')).toBeVisible();
-		await dialog.getByRole('button', { name: '이관하기' }).click();
-
-		await expect(page.getByText('기존 휴가 3건을 이관했습니다.')).toBeVisible();
-		await expect(action).toHaveCount(0);
-		expect(applyCount).toBe(1);
-	});
-
-	test('blocks migration when existing leave needs review', async ({ page }) => {
-		const managementState = createDevLeaveManagementMockState(createDevEmployeeLeaveMockState());
-		managementState.legacyMigration = {
-			candidateLeaveCount: 2,
-			candidateOccurrenceCount: 2,
-			alreadyMigratedCount: 0,
-			conflictCount: 1,
-			preservedOtherCount: 0,
-			fingerprint: 'sha256:e2e-conflict'
-		};
-		await page.route('**/attendance/api/leave-management**', async (route) => {
-			const request = route.request();
-			const requestURL = new URL(request.url());
-			const response = createDevLeaveManagementMockResponse(managementState, {
-				method: request.method(),
-				pathname: requestURL.pathname,
-				searchParams: requestURL.searchParams,
-				body: request.postData() ?? undefined
-			});
-			if (!response) {
-				await route.fallback();
-				return;
-			}
-			await route.fulfill({
-				status: response.status,
-				contentType: 'application/json',
-				body: JSON.stringify(response.body)
-			});
-		});
 		await page.goto('/attendance');
 		await selectKorean(page);
 		await page.getByTestId('leave-management-navigation').click();
 
-		await page.getByTestId('legacy-leave-migration-action').click();
-		const dialog = page.getByTestId('legacy-leave-migration-dialog');
-		await expect(dialog.getByText('확인이 필요한 기존 휴가 1건이 있어 이관할 수 없습니다.')).toBeVisible();
-		await expect(dialog.getByRole('button', { name: '이관하기' })).toHaveCount(0);
-		await expect(dialog.getByRole('button', { name: '닫기' })).toBeVisible();
-	});
-
-	test('refreshes a stale migration preview and requires another confirmation', async ({ page }) => {
-		const managementState = createDevLeaveManagementMockState(createDevEmployeeLeaveMockState());
-		const initialPreview = {
-			candidateLeaveCount: 3,
-			candidateOccurrenceCount: 4,
-			alreadyMigratedCount: 0,
-			conflictCount: 0,
-			preservedOtherCount: 1,
-			fingerprint: 'sha256:initial-preview'
-		};
-		const refreshedPreview = {
-			candidateLeaveCount: 4,
-			candidateOccurrenceCount: 5,
-			alreadyMigratedCount: 0,
-			conflictCount: 0,
-			preservedOtherCount: 1,
-			fingerprint: 'sha256:refreshed-preview'
-		};
-		managementState.legacyMigration = initialPreview;
-		let previewCount = 0;
-		let applyCount = 0;
-		await page.route('**/attendance/api/leave-management**', async (route) => {
-			const request = route.request();
-			const requestURL = new URL(request.url());
-			if (requestURL.pathname.endsWith('/legacy-migration') && request.method() === 'GET') {
-				previewCount += 1;
-				if (previewCount === 3) managementState.legacyMigration = refreshedPreview;
-			}
-			if (
-				request.method() === 'POST' &&
-				requestURL.pathname.endsWith('/legacy-migration/apply')
-			) {
-				applyCount += 1;
-				if (applyCount === 1) {
-					await route.fulfill({
-						status: 409,
-						contentType: 'application/json',
-						body: JSON.stringify({ code: 'legacyMigrationStale', error: 'stale preview' })
-					});
-					return;
-				}
-			}
-			const response = createDevLeaveManagementMockResponse(managementState, {
-				method: request.method(),
-				pathname: requestURL.pathname,
-				searchParams: requestURL.searchParams,
-				body: request.postData() ?? undefined
-			});
-			if (!response) {
-				await route.fallback();
-				return;
-			}
-			await route.fulfill({
-				status: response.status,
-				contentType: 'application/json',
-				body: JSON.stringify(response.body)
-			});
-		});
-		await page.goto('/attendance');
-		await selectKorean(page);
-		await page.getByTestId('leave-management-navigation').click();
-
-		const action = page.getByTestId('legacy-leave-migration-action');
-		await action.click();
-		const dialog = page.getByTestId('legacy-leave-migration-dialog');
-		await expect(dialog.getByText('기존 휴가 3건을 연차로 이관하시겠습니까?')).toBeVisible();
-		await dialog.getByRole('button', { name: '이관하기' }).click();
-
-		await expect(
-			page.getByText('이관 대상이 변경되어 최신 정보를 불러왔습니다. 다시 확인하세요.')
-		).toBeVisible();
-		await expect(dialog.getByText('기존 휴가 4건을 연차로 이관하시겠습니까?')).toBeVisible();
-		expect(applyCount).toBe(1);
-
-		await dialog.getByRole('button', { name: '이관하기' }).click();
-		await expect(page.getByText('기존 휴가 4건을 이관했습니다.')).toBeVisible();
-		expect(applyCount).toBe(2);
+		await expect(page.getByTestId('legacy-leave-migration-action')).toHaveCount(0);
+		expect(legacyMigrationRequestCount).toBe(0);
 	});
 
 	test('keeps the latest employee selection when responses finish out of order', async ({
