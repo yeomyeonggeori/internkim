@@ -14,9 +14,15 @@ export function channelName(
 	people: MessengerDirectory,
 	mine: string,
 	canonicalKey: (person: MessengerPerson, people: MessengerDirectory) => string,
-	locale: Locale
+	locale: Locale,
+	agentName: string
 ): string {
 	if (!channel.isDirect) return channel.name;
+	// The agent is the product, not a person on the messenger. Its account is
+	// called whatever was typed into that messenger's profile — "Intern Kim" —
+	// while the product is 김인턴 to a Korean reader and internkim to an English
+	// one. chatd says which conversation is its own; the name comes from here.
+	if (channel.isWithTheAgent) return agentName;
 	const others = channel.participants.filter((person) => canonicalKey(person, people) !== mine);
 	const asRecorded = others.map((person) => personLabel(person, people, locale)).filter(Boolean).join(', ');
 	return asRecorded || channel.name;
