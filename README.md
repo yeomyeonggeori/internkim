@@ -211,6 +211,10 @@ Operator secrets are written in `.env`, which git ignores, and read from there.
 Copying one into a second file under `.local/` gave the value two homes, one of
 which nobody remembers to rotate.
 
+`.env.example` is the list of names, with fake values. It is what to copy when
+setting up a second machine, and where to add a name when the code starts
+reading one.
+
 Deploying the Worker needs the account ID alongside the token, because Wrangler
 otherwise fails authenticating against `/memberships`. Wrangler reads both under
 the names `.env` already uses, so handing it the file is the whole step.
