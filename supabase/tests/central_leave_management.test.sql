@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(16);
 
 delete from public.company;
 
@@ -111,6 +111,35 @@ select throws_ok(
   '42501',
   'only a company admin can adjust a colleague leave balance',
   'a regular member cannot adjust leave balances'
+);
+
+select lives_ok(
+  $$insert into public.leave (
+    member_id, kind, is_paid, days, status, starts_at, ends_at, note
+  ) values (
+    '30000000-0000-0000-0000-000000000012', 'leave', true, 1, 'requested',
+    now() + interval '10 days', now() + interval '10 days 8 hours', 'own request'
+  )$$,
+  'a member can still create a pending own leave request'
+);
+
+select lives_ok(
+  $$select public.cancel_own_leave(
+    (select id from public.leave where note = 'own request')
+  )$$,
+  'a member can cancel a pending own leave without deleting it'
+);
+
+select throws_ok(
+  $$insert into public.leave (
+    member_id, kind, is_paid, days, status, starts_at, ends_at
+  ) values (
+    '30000000-0000-0000-0000-000000000012', 'leave', true, 1, 'approved',
+    now() + interval '20 days', now() + interval '20 days 8 hours'
+  )$$,
+  '42501',
+  null,
+  'a member cannot approve their own leave during insertion'
 );
 
 select set_config('request.jwt.claim.sub', '40000000-0000-0000-0000-000000000001', true);
