@@ -33,7 +33,7 @@ export type LeaveManagementLedgerEntry = {
 	leaveTypeID: string;
 	leaveTypeName: string;
 	deltaMilliDays: number;
-	balanceAfterMilliDays: number;
+	balanceAfterMilliDays?: number;
 	effectiveOn: string;
 	occurredAt: string;
 	reason?: string;

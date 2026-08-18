@@ -267,9 +267,11 @@
 									<p class={entry.deltaMilliDays < 0 ? 'text-destructive' : 'text-foreground'}>
 										{signedDayValue(entry.deltaMilliDays)}
 									</p>
-									<p class="text-xs text-muted-foreground">
-										{text.management.balanceAfter} {dayValue(entry.balanceAfterMilliDays)}
-									</p>
+									{#if entry.balanceAfterMilliDays !== undefined}
+										<p class="text-xs text-muted-foreground">
+											{text.management.balanceAfter} {dayValue(entry.balanceAfterMilliDays)}
+										</p>
+									{/if}
 								</div>
 							</div>
 							{:else}

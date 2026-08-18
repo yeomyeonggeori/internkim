@@ -1,66 +1,30 @@
 import { supabase } from '$lib/supabase';
-import type {
-	EmployeeLeaveRequest,
-	EmployeeLeaveType,
-	EmployeeLeaveUnit
-} from '../../routes/attendance/leave/employee-leave-types';
+import type { EmployeeLeaveUnit } from '../../routes/attendance/leave/employee-leave-types';
 import type {
 	LeaveManagementAdjustment,
-	LeaveManagementBalance,
 	LeaveManagementDetail,
 	LeaveManagementEmployee,
-	LeaveManagementLedgerEntry,
 	LeaveManagementPastLeave,
 	LeaveManagementPayload,
 	LeaveManagementTimeCorrection
 } from '../../routes/attendance/management/leave-management-types';
+import {
+	centralLeaveType,
+	leaveManagementEmployee,
+	leaveManagementLedgerEntry,
+	leaveManagementRequest,
+	leaveRowsByMemberID,
+	type SupabaseLeaveManagementLedgerRow,
+	type SupabaseLeaveManagementMember,
+	type SupabaseLeaveManagementRow
+} from './supabase-leave-management-model';
 import { leaveDisplayRange, leaveTimestampRange } from './supabase-leave-range';
-
-type LeaveStatus = 'requested' | 'approved' | 'rejected';
-
-type MemberRow = {
-	id: string;
-	name: string | null;
-	email: string | null;
-};
-
-type LeaveRow = {
-	id: string;
-	member_id: string;
-	kind: string;
-	is_deducted: boolean;
-	days: number;
-	status: LeaveStatus;
-	starts_at: string;
-	ends_at: string;
-	note: string | null;
-	cancelled_at: string | null;
-};
-
-type LedgerRow = {
-	id: string;
-	operation_type: 'adjustment' | 'legal_correction';
-	delta_days: number | null;
-	effective_on: string;
-	occurred_at: string;
-	reason: string | null;
-};
-
-const leaveType: EmployeeLeaveType = {
-	id: 'leave',
-	name: '휴가',
-	balanceMode: 'annual',
-	allowedUnits: ['fullDay', 'halfDay', 'quarterDay'],
-	includeInSummary: true,
-	isActive: true,
-	requiresHireDate: false
-};
 
 export async function supabaseLeaveManagement(employeeEmail = ''): Promise<LeaveManagementPayload> {
 	const [members, timeZone, leave] = await Promise.all([visibleMembers(), companyTimeZone(), leaveRows()]);
 	const years = await Promise.all(members.map(async (member) => [member.id, await memberCurrentYear(member.id)] as const));
 	const yearByMemberID = new Map(years);
-	const leaveByMemberID = groupByMemberID(leave);
+	const leaveByMemberID = leaveRowsByMemberID(leave);
 	const remaining = await Promise.all(
 		members.map(async (member) => [
 			member.id,
@@ -69,7 +33,7 @@ export async function supabaseLeaveManagement(employeeEmail = ''): Promise<Leave
 	);
 	const remainingByMemberID = new Map(remaining);
 	const employees = members.map((member) =>
-		employeeOf(
+		leaveManagementEmployee(
 			member,
 			leaveByMemberID.get(member.id) ?? [],
 			yearByMemberID.get(member.id) ?? new Date().getUTCFullYear(),
@@ -83,7 +47,7 @@ export async function supabaseLeaveManagement(employeeEmail = ''): Promise<Leave
 	const managed = employees.some((employee) => employee.balances.length > 0);
 	return {
 		balanceTrackingMode: managed ? 'managed' : 'unlimited',
-		leaveTypes: [{ ...leaveType, balanceMode: managed ? 'annual' : 'none' }],
+		leaveTypes: [{ ...centralLeaveType, balanceMode: managed ? 'annual' : 'none' }],
 		employees,
 		detail
 	};
@@ -151,45 +115,11 @@ export async function correctSupabaseManagedLeaveTime(
 	if (error) throw new Error(error.message);
 }
 
-function employeeOf(
-	member: MemberRow,
-	leave: readonly LeaveRow[],
-	targetYear: number,
-	remainingDays: number | null,
-	timeZone: string
-): LeaveManagementEmployee {
-	const active = leave.filter((row) => !row.cancelled_at && row.is_deducted && yearOf(row, timeZone) === targetYear);
-	const usedMilliDays = milliDays(active.filter((row) => row.status === 'approved'));
-	const reservedMilliDays = milliDays(active.filter((row) => row.status === 'requested'));
-	const availableMilliDays = remainingDays === null ? 0 : Math.round(remainingDays * 1000) - reservedMilliDays;
-	const grantedMilliDays = remainingDays === null ? 0 : availableMilliDays + reservedMilliDays + usedMilliDays;
-	const balance: LeaveManagementBalance = {
-		leaveTypeID: leaveType.id,
-		leaveTypeName: leaveType.name,
-		grantedMilliDays,
-		availableMilliDays,
-		reservedMilliDays,
-		usedMilliDays,
-		expiredMilliDays: 0,
-		nextExpiryMilliDays: 0
-	};
-	return {
-		email: member.email ?? '',
-		displayName: member.name || (member.email ?? '').split('@')[0],
-		grantedMilliDays,
-		availableMilliDays,
-		reservedMilliDays,
-		usedMilliDays,
-		expiringMilliDays: 0,
-		balances: remainingDays === null ? [] : [balance]
-	};
-}
-
 async function detailFor(
 	employeeEmail: string,
-	members: readonly MemberRow[],
+	members: readonly SupabaseLeaveManagementMember[],
 	employees: readonly LeaveManagementEmployee[],
-	leaveByMemberID: ReadonlyMap<string, LeaveRow[]>,
+	leaveByMemberID: ReadonlyMap<string, SupabaseLeaveManagementRow[]>,
 	timeZone: string
 ): Promise<LeaveManagementDetail> {
 	const member = memberFromVisibleMembers(employeeEmail, members);
@@ -200,88 +130,55 @@ async function detailFor(
 		.select('id, operation_type, delta_days, effective_on, occurred_at, reason')
 		.eq('member_id', member.id)
 		.order('occurred_at', { ascending: false })
-		.returns<LedgerRow[]>();
+		.returns<SupabaseLeaveManagementLedgerRow[]>();
 	if (ledger.error) throw new Error(ledger.error.message);
 	return {
 		employee,
-		requests: (leaveByMemberID.get(member.id) ?? []).map((row) => requestOf(row, timeZone)),
-		ledgerEntries: ledger.data.map((entry) => ledgerOf(entry, employee.availableMilliDays))
+		requests: (leaveByMemberID.get(member.id) ?? []).map((row) => leaveManagementRequest(row, timeZone)),
+		ledgerEntries: ledger.data.map(leaveManagementLedgerEntry)
 	};
 }
 
-function requestOf(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
-	const cancelled = Boolean(row.cancelled_at);
-	const range = leaveDisplayRange(row.starts_at, row.ends_at, row.days, timeZone);
-	return {
-		id: row.id,
-		leaveTypeID: leaveType.id,
-		leaveTypeName: leaveType.name,
-		status: cancelled ? 'cancelled' : row.status === 'requested' ? 'pending' : row.status,
-		unit: unitOf(row.days),
-		...range,
-		deductionMilliDays: Math.round(row.days * 1000),
-		reason: row.note ?? '',
-		attachments: [],
-		canCancel: !cancelled && row.status === 'requested',
-		canEdit: false,
-		canResubmit: false,
-		revision: 0,
-		createdAt: row.starts_at,
-		updatedAt: row.starts_at
-	};
-}
-
-function ledgerOf(entry: LedgerRow, balanceAfterMilliDays: number): LeaveManagementLedgerEntry {
-	return {
-		id: entry.id,
-		operationType: entry.operation_type === 'legal_correction' ? 'legalCorrection' : 'adjustment',
-		leaveTypeID: leaveType.id,
-		leaveTypeName: leaveType.name,
-		deltaMilliDays: Math.round((entry.delta_days ?? 0) * 1000),
-		balanceAfterMilliDays,
-		effectiveOn: entry.effective_on,
-		occurredAt: entry.occurred_at,
-		reason: entry.reason ?? undefined
-	};
-}
-
-async function visibleMembers(): Promise<MemberRow[]> {
+async function visibleMembers(): Promise<SupabaseLeaveManagementMember[]> {
 	const members = await supabase()
 		.from('member')
 		.select('id, name, email')
 		.neq('status', 'withdrawn')
-		.returns<MemberRow[]>();
+		.returns<SupabaseLeaveManagementMember[]>();
 	if (members.error) throw new Error(members.error.message);
 	return members.data.filter((member) => Boolean(member.email));
 }
 
-async function memberByEmail(email: string): Promise<MemberRow> {
+async function memberByEmail(email: string): Promise<SupabaseLeaveManagementMember> {
 	return memberFromVisibleMembers(email, await visibleMembers());
 }
 
-function memberFromVisibleMembers(email: string, members: readonly MemberRow[]): MemberRow {
+function memberFromVisibleMembers(
+	email: string,
+	members: readonly SupabaseLeaveManagementMember[]
+): SupabaseLeaveManagementMember {
 	const member = members.find((candidate) => candidate.email === email);
 	if (!member) throw new Error('employee is not visible in this company');
 	return member;
 }
 
-async function leaveRows(): Promise<LeaveRow[]> {
+async function leaveRows(): Promise<SupabaseLeaveManagementRow[]> {
 	const leave = await supabase()
 		.from('leave')
 		.select('id, member_id, kind, is_deducted, days, status, starts_at, ends_at, note, cancelled_at')
 		.order('starts_at', { ascending: false })
-		.returns<LeaveRow[]>();
+		.returns<SupabaseLeaveManagementRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
 	return leave.data;
 }
 
-async function leaveForMember(requestID: string, memberID: string): Promise<LeaveRow> {
+async function leaveForMember(requestID: string, memberID: string): Promise<SupabaseLeaveManagementRow> {
 	const leave = await supabase()
 		.from('leave')
 		.select('id, member_id, kind, is_deducted, days, status, starts_at, ends_at, note, cancelled_at')
 		.eq('id', requestID)
 		.eq('member_id', memberID)
-		.single<LeaveRow>();
+		.single<SupabaseLeaveManagementRow>();
 	if (leave.error) throw new Error(leave.error.message);
 	return leave.data;
 }
@@ -312,25 +209,6 @@ async function memberLeaveRemaining(memberID: string, targetYear: number): Promi
 	return days;
 }
 
-function groupByMemberID(rows: readonly LeaveRow[]): Map<string, LeaveRow[]> {
-	const grouped = new Map<string, LeaveRow[]>();
-	for (const row of rows) grouped.set(row.member_id, [...(grouped.get(row.member_id) ?? []), row]);
-	return grouped;
-}
-
-function yearOf(row: LeaveRow, timeZone: string): number {
-	return Number(leaveDisplayRange(row.starts_at, row.ends_at, row.days, timeZone).startDate.slice(0, 4));
-}
-
-function milliDays(rows: readonly LeaveRow[]): number {
-	return rows.reduce((total, row) => total + Math.round(row.days * 1000), 0);
-}
-
-function unitOf(days: number): EmployeeLeaveUnit {
-	if (days <= 0.25) return 'quarterDay';
-	if (days <= 0.5) return 'halfDay';
-	return 'fullDay';
-}
 
 function daysFor(unit: EmployeeLeaveUnit, startDate: string, endDate: string): number {
 	if (unit === 'halfDay') return 0.5;
@@ -342,7 +220,7 @@ function daysFor(unit: EmployeeLeaveUnit, startDate: string, endDate: string): n
 
 function dateTimeInZone(date: string, time: string, timeZone: string): string {
 	return leaveTimestampRange(
-		{ leaveTypeID: leaveType.id, unit: 'quarterDay', startDate: date, partialPeriod: 'custom', startTime: time },
+		{ leaveTypeID: centralLeaveType.id, unit: 'quarterDay', startDate: date, partialPeriod: 'custom', startTime: time },
 		timeZone
 	).startsAt;
 }
