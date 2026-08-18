@@ -54,11 +54,15 @@ async function recordedEvents(month: string): Promise<RecordedEvent[]> {
 
 async function membersByExternalID(): Promise<Map<string, string>> {
 	const { data, error } = await admin
-		.from('contact')
-		.select('external_id, member_id')
-		.returns<{ external_id: string; member_id: string | null }[]>();
+		.from('member')
+		.select('id, messenger')
+		.returns<{ id: string; messenger: Record<string, string> | null }[]>();
 	if (error) throw new Error(error.message);
-	return new Map((data ?? []).filter((row) => row.member_id).map((row) => [row.external_id, row.member_id ?? '']));
+	return new Map(
+		(data ?? [])
+			.map((member) => [member.messenger?.mattermost ?? '', member.id] as const)
+			.filter(([externalID]) => externalID !== '')
+	);
 }
 
 const memberOf = await membersByExternalID();

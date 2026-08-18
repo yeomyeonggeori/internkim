@@ -11,33 +11,35 @@ export type MessengerDirectory = {
 	memberOfEmail: Map<string, string>;
 };
 
-type ContactRow = { platform: string; external_id: string; name: string; member_id: string | null };
-type MemberRow = { id: string; name: string | null; email: string | null };
+type ContactRow = { platform: string; external_id: string; name: string };
+type MemberRow = { id: string; name: string | null; email: string | null; messenger: Record<string, string> | null };
 
+// A member's messenger account is part of who they are, and is kept on the
+// member. contact is the company's address book for people who are not members
+// of it, so a contact never names one.
 export async function fetchMessengerDirectory(): Promise<MessengerDirectory> {
 	const client = supabase();
 	const members = await client
 		.from('member')
-		.select('id, name, email')
+		.select('id, name, email, messenger')
 		.neq('status', 'withdrawn')
 		.returns<MemberRow[]>();
 	if (members.error) throw new Error(members.error.message);
 
-	const people = await client
-		.from('contact')
-		.select('platform, external_id, name, member_id')
-		.returns<ContactRow[]>();
+	const people = await client.from('contact').select('platform, external_id, name').returns<ContactRow[]>();
 	if (people.error) throw new Error(people.error.message);
+
+	const accounts = members.data.flatMap((member) =>
+		Object.values(member.messenger ?? {})
+			.filter(Boolean)
+			.map((externalID) => [externalID, member.id] as const)
+	);
 
 	return {
 		nameOfMember: new Map(members.data.map((member) => [member.id, displayNameOf(member)])),
 		nameOfExternal: new Map(people.data.map((person) => [person.external_id, person.name])),
-		memberOfExternal: new Map(
-			people.data.filter((person) => person.member_id).map((person) => [person.external_id, person.member_id as string])
-		),
-		externalOfMember: new Map(
-			people.data.filter((person) => person.member_id).map((person) => [person.member_id as string, person.external_id])
-		),
+		memberOfExternal: new Map(accounts),
+		externalOfMember: new Map(accounts.map(([externalID, memberID]) => [memberID, externalID])),
 		memberOfEmail: new Map(
 			members.data.filter((member) => member.email).map((member) => [(member.email as string).toLowerCase(), member.id])
 		)

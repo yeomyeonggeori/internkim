@@ -171,7 +171,18 @@ async function authorNameOf(arrived: ArrivedMessage): Promise<string> {
 	return nameOf(arrived.authorExternalID);
 }
 
+// A member of the company is named by the member row; anyone else the company
+// deals with is named by its address book.
 async function nameOf(externalID: string): Promise<string> {
+	const member = await client
+		.from('member')
+		.select('name')
+		.eq('company_id', companyID)
+		.eq(`messenger->>${messengerPlatform}`, externalID)
+		.maybeSingle<{ name: string | null }>();
+	if (member.error) throw new Error(member.error.message);
+	if (member.data?.name) return member.data.name;
+
 	const contact = await client
 		.from('contact')
 		.select('name')
