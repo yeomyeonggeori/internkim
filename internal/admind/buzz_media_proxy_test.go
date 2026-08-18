@@ -7,8 +7,8 @@ func TestRewriteBuzzMedia(t *testing.T) {
 	service.Configuration.BuzzRelayURL = "ws://127.0.0.1:3000"
 
 	cases := map[string]string{
-		"![photo](http://127.0.0.1:3000/media/abc.png)": "![photo](/buzz-media/media/abc.png)",
-		"http://127.0.0.1:3000/media/avatar.png":        "/buzz-media/media/avatar.png",
+		"![photo](http://127.0.0.1:3000/media/abc.png)": "![photo](" + mediaProxyPrefix + "media/abc.png)",
+		"http://127.0.0.1:3000/media/avatar.png":        mediaProxyPrefix + "media/avatar.png",
 		"":                                              "",
 		"https://external.example/x.png":                "https://external.example/x.png",
 	}

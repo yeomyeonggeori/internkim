@@ -452,6 +452,9 @@ func TestApplyReleaseUpdateWithReleaseIDUsesHistoryManifest(t *testing.T) {
 		CompanionJobPath:       filepath.Join(t.TempDir(), "jobs.json"),
 		CompanionFileDirectory: t.TempDir(),
 	})
+	service.RunCommand = func(context.Context, string, ...string) ([]byte, error) {
+		return []byte("ok\n"), nil
+	}
 	releaseOne := testReleaseManifestWithBlob("release-1", blobSHA256, blobSize)
 	releaseTwo := testReleaseManifestWithBlob("release-2", blobSHA256, blobSize)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
