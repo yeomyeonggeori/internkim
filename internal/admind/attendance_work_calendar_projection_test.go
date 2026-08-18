@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestAttendanceWorkCalendarProjectionUsesHolidaysAndDateEffectiveWorkModes(t *testing.T) {
+func TestAttendanceWorkCalendarProjectionUsesHolidaysAndCurrentWorkMode(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	if _, errorValue := service.createCalendarCompanyHoliday(
 		t.Context(),
@@ -41,11 +41,11 @@ func TestAttendanceWorkCalendarProjectionUsesHolidaysAndDateEffectiveWorkModes(t
 	}
 
 	want := []attendanceWorkCalendarDay{
-		{Date: "2027-01-01", WorkMode: attendanceWorkModeFlexible, WorkingDate: false},
-		{Date: "2027-01-02", WorkMode: attendanceWorkModeFlexible, WorkingDate: false},
-		{Date: "2027-01-03", WorkMode: attendanceWorkModeFlexible, WorkingDate: false},
-		{Date: "2027-01-04", WorkMode: attendanceWorkModeFixed, WorkingDate: true},
-		{Date: "2027-01-05", WorkMode: attendanceWorkModeFixed, WorkingDate: false},
+		{Date: "2027-01-01", WorkMode: attendanceWorkModeFixed, WorkingDate: false, Holiday: true},
+		{Date: "2027-01-02", WorkMode: attendanceWorkModeFixed, WorkingDate: false, Holiday: false},
+		{Date: "2027-01-03", WorkMode: attendanceWorkModeFixed, WorkingDate: false, Holiday: false},
+		{Date: "2027-01-04", WorkMode: attendanceWorkModeFixed, WorkingDate: true, Holiday: false},
+		{Date: "2027-01-05", WorkMode: attendanceWorkModeFixed, WorkingDate: false, Holiday: true},
 	}
 	if !equalAttendanceWorkCalendarDays(projection, want) {
 		t.Fatalf("projection = %#v, want %#v", projection, want)

@@ -221,7 +221,7 @@ func TestAttendanceWorkMetricsAutonomousHasNoBaseline(t *testing.T) {
 	}
 }
 
-func TestAttendanceWorkMetricsExcludeAutonomousActualAndLeaveFromMixedBaseline(t *testing.T) {
+func TestAttendanceWorkMetricsAppliesCurrentAutonomousPolicyToEveryDate(t *testing.T) {
 	location, errorValue := time.LoadLocation("Asia/Seoul")
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -267,12 +267,13 @@ func TestAttendanceWorkMetricsExcludeAutonomousActualAndLeaveFromMixedBaseline(t
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if status.TargetMinutes != 480 ||
+	if status.HasBaseline ||
+		status.TargetMinutes != 0 ||
 		status.ActualMinutes != 720 ||
 		status.LeaveMinutes != 0 ||
-		status.FulfilledMinutes != 240 ||
-		status.DifferenceMinutes != -240 ||
-		status.RemainingMinutes != 240 ||
+		status.FulfilledMinutes != 720 ||
+		status.DifferenceMinutes != 0 ||
+		status.RemainingMinutes != 0 ||
 		status.OvertimeMinutes != 0 {
 		t.Fatalf("status = %+v", status)
 	}
