@@ -13,6 +13,30 @@ permissions:
   contents: read
 
 jobs:
+  blueclaw-pointer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: true
+      - name: the pointer may only move forward, and only onto blueclaw's main
+        run: |
+          set -euo pipefail
+          git -C .dependency/blueclaw fetch --quiet origin main
+          base=$(git rev-parse "origin/${{ github.base_ref }}:.dependency/blueclaw")
+          head=$(git rev-parse "HEAD:.dependency/blueclaw")
+          if [ "$base" = "$head" ]; then exit 0; fi
+          if ! git -C .dependency/blueclaw merge-base --is-ancestor "$base" "$head"; then
+            echo "::error::.dependency/blueclaw would move backwards, $base -> $head."
+            echo "::error::A rebase drops a pointer bump whose patch already appeared upstream. Redo the bump on top of the base branch."
+            exit 1
+          fi
+          if ! git -C .dependency/blueclaw merge-base --is-ancestor "$head" origin/main; then
+            echo "::error::$head is not on blueclaw's main yet; merge it there first."
+            exit 1
+          fi
+
   go:
     runs-on: ubuntu-latest
     steps:
