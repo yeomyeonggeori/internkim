@@ -72,11 +72,12 @@ func TestExtensionInputRuntimeEndToEndOverRealBridge(t *testing.T) {
 	bridge := &ExtensionWebSocketBridge{ListenAddress: "127.0.0.1:0", RequestTimeout: 5 * time.Second}
 	synthesizer := &fakeInputSynthesizer{}
 	runtime := &ExtensionInputRuntime{
-		Bridge:           bridge,
-		ExtensionPath:    extensionDirectory,
-		Runner:           &fakeCommandRunner{},
-		InputSynthesizer: synthesizer,
-		ReadyTimeout:     5 * time.Second,
+		Bridge:               bridge,
+		ExtensionPath:        extensionDirectory,
+		Runner:               &fakeCommandRunner{},
+		ChromeExecutablePath: testChromeExecutablePath,
+		InputSynthesizer:     synthesizer,
+		ReadyTimeout:         5 * time.Second,
 	}
 
 	snapshot := ExtensionDOMSnapshot{
