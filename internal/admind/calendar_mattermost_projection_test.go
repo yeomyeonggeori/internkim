@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -114,7 +115,7 @@ func TestCalendarNotificationPostsDirectMessageForPeopleLine(t *testing.T) {
 	service.processDueCalendarNotifications(context.Background(), time.Now().UTC().Add(time.Second))
 
 	if strings.Join(directChannelMembers, "|") != "user-1|bot-1" {
-		t.Fatalf("direct members = %+v", directChannelMembers)
+		t.Fatalf("direct members = %+v; notifications = %s", directChannelMembers, calendarNotificationStateForTest(t, service))
 	}
 	if !strings.Contains(postedMessage, "[Online sync](") || !strings.Contains(postedMessage, "Bring agenda") || strings.Contains(postedMessage, "샘플") || strings.Contains(postedMessage, "일정 열기") {
 		t.Fatalf("posted message = %q", postedMessage)
@@ -271,4 +272,32 @@ func TestCalendarNotificationCancelsWhenEventIsDeleted(t *testing.T) {
 	if status != "canceled" {
 		t.Fatalf("status = %q", status)
 	}
+}
+
+func calendarNotificationStateForTest(t *testing.T, service *Service) string {
+	t.Helper()
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		return "calendar database unreadable: " + errorValue.Error()
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(context.Background(),
+		"SELECT event_id, recipient_key, target_type, target_value, notify_at, status, error FROM calendar_event_notifications")
+	if errorValue != nil {
+		return "notification read failed: " + errorValue.Error()
+	}
+	defer rows.Close()
+	states := []string{}
+	for rows.Next() {
+		var eventID, recipientKey, targetType, targetValue, notifyAt, status, failure string
+		if errorValue := rows.Scan(&eventID, &recipientKey, &targetType, &targetValue, &notifyAt, &status, &failure); errorValue != nil {
+			return "notification scan failed: " + errorValue.Error()
+		}
+		states = append(states, fmt.Sprintf("{event:%s recipient:%s target:%s/%s notifyAt:%s status:%s error:%q}",
+			eventID, recipientKey, targetType, targetValue, notifyAt, status, failure))
+	}
+	if len(states) == 0 {
+		return "no notification rows were written at all"
+	}
+	return strings.Join(states, " ")
 }
