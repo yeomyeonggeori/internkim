@@ -8,6 +8,7 @@ import type {
 	CRMNextActionStatus,
 	CRMOpportunity,
 	CRMOpportunityStage,
+	CRMPipelineStage,
 	CRMProgressKind
 } from './crm-types';
 import { crmOrganizationTypes } from './crm-types';
@@ -84,7 +85,9 @@ export function getStageVariant(stage: CRMOpportunityStage): CRMBadgeVariant {
 	return 'secondary';
 }
 
-export function opportunityStageLabel(stage: string, text: CRMText): string {
+export function opportunityStageLabel(stages: readonly CRMPipelineStage[], stage: string, text: CRMText): string {
+	const named = stages.find((candidate) => candidate.stage === stage);
+	if (named && named.label !== named.stage) return named.label;
 	const labels: Readonly<Record<string, string>> = text.opportunityStages;
 	return labels[stage] ?? stage.replaceAll('_', ' ');
 }

@@ -12,7 +12,8 @@
 	import CRMOwnerSelect from './crm-owner-select.svelte';
 	import CRMRelationshipContactManager from './crm-relationship-contact-manager.svelte';
 	import { type CRMOrganization, type CRMOrganizationStatus, type CRMOrganizationType, type CRMContact, type CRMImportance } from './crm-types';
-	import { crmLabel } from './crm-labels';
+	import type { CRMDefinition } from './crm-api-types';
+	import { crmDefinitionLabel, crmLabel } from './crm-labels';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -22,6 +23,7 @@
 		groups: OrgGroup[];
 		contacts: CRMContact[];
 		organizationTypeOptions: CRMOrganizationType[];
+		organizationTypeDefinitions: CRMDefinition[];
 		text: CRMText;
 		onSave: (organization: CRMOrganization) => Promise<void>;
 		onArchive: (organizationID: string) => Promise<void>;
@@ -29,7 +31,7 @@
 		onCreateContact: (organizationID: string) => void;
 	};
 
-	let { open = $bindable(false), organization, people, groups, contacts, organizationTypeOptions, text, onSave, onArchive, onEditContact, onCreateContact }: Props = $props();
+	let { open = $bindable(false), organization, people, groups, contacts, organizationTypeOptions, organizationTypeDefinitions, text, onSave, onArchive, onEditContact, onCreateContact }: Props = $props();
 	const organizationStatuses: CRMOrganizationStatus[] = ['prospect', 'active', 'paused'];
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	let name = $state('');
@@ -161,7 +163,7 @@
 						<Field.Label>{text.type}</Field.Label>
 						<div class="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
 							{#each organizationTypeOptions as organizationType (organizationType)}
-								<label class="flex items-center gap-2 text-sm"><Checkbox checked={types.includes(organizationType)} onCheckedChange={(checked) => setType(organizationType, checked)} />{crmLabel(text.organizationTypes, organizationType)}</label>
+								<label class="flex items-center gap-2 text-sm"><Checkbox checked={types.includes(organizationType)} onCheckedChange={(checked) => setType(organizationType, checked)} />{crmDefinitionLabel(organizationTypeDefinitions, text.organizationTypes, organizationType)}</label>
 							{/each}
 						</div>
 					</Field.Field>

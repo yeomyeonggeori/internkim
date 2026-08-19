@@ -7,9 +7,9 @@ import {
 import type { CRMPipelineStage } from '../../../src/routes/crm/crm-types';
 
 const stages: CRMPipelineStage[] = [
-	{ pipeline: 'sales', stage: 'lead', position: 1, outcome: 'open' },
-	{ pipeline: 'sales', stage: 'won', position: 2, outcome: 'won' },
-	{ pipeline: 'sales', stage: 'lost', position: 3, outcome: 'lost' }
+	{ pipeline: 'sales', stage: 'lead', label: 'lead', position: 1, outcome: 'open' },
+	{ pipeline: 'sales', stage: 'won', label: 'won', position: 2, outcome: 'won' },
+	{ pipeline: 'sales', stage: 'lost', label: 'lost', position: 3, outcome: 'lost' }
 ];
 
 describe('CRM opportunity transition outcome', () => {

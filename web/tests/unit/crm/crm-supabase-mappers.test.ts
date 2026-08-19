@@ -108,7 +108,7 @@ describe('Supabase CRM mapper', () => {
 			occurredAt: '2026-08-20T03:00:00.000Z'
 		});
 		expect(data.pipelines).toEqual([{ pipeline: 'partnership', label: '파트너십', direction: '', isActive: true }]);
-		expect(data.stages[0]).toMatchObject({ pipeline: 'partnership', stage: 'review', position: 0 });
+		expect(data.stages[0]).toMatchObject({ pipeline: 'partnership', stage: 'review', label: '검토', position: 0 });
 		expect(data.lostReasons[0]).toEqual({ reason: 'schedule', label: '일정 불일치', isActive: true });
 	});
 

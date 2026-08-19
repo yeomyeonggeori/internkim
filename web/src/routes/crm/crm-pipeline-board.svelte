@@ -58,16 +58,16 @@
 				<section
 					class={columnClass}
 					role="group"
-					aria-label={opportunityStageLabel(stage, text)}
+					aria-label={opportunityStageLabel(stages, stage, text)}
 					data-crm-pipeline-column={stage}
 					ondragover={(event) => boardDrag.handleColumnDragOver(event, stage, stageOpportunities)}
 					ondrop={(event) => boardDrag.handleColumnDrop(event, stage, stageOpportunities)}
 				>
 					<header class="flex h-11 items-center justify-between gap-3 border-b bg-card px-3">
-						<h2 class="truncate text-sm font-semibold text-foreground">{opportunityStageLabel(stage, text)}</h2>
+						<h2 class="truncate text-sm font-semibold text-foreground">{opportunityStageLabel(stages, stage, text)}</h2>
 						<span
 							class="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground"
-							aria-label={`${opportunityStageLabel(stage, text)} ${stageOpportunities.length}`}
+							aria-label={`${opportunityStageLabel(stages, stage, text)} ${stageOpportunities.length}`}
 							data-crm-pipeline-count
 						>
 							{stageOpportunities.length}
@@ -77,7 +77,7 @@
 					<div
 						class="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3 pt-3"
 						role="list"
-						aria-label={opportunityStageLabel(stage, text)}
+						aria-label={opportunityStageLabel(stages, stage, text)}
 						ondragover={(event) => boardDrag.handleColumnDragOver(event, stage, stageOpportunities)}
 						ondrop={(event) => boardDrag.handleColumnDrop(event, stage, stageOpportunities)}
 					>

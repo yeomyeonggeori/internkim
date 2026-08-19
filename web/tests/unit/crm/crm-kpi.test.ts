@@ -36,10 +36,10 @@ describe('CRM KPI money details', () => {
 			opportunity('on-hold-jpy', 'JPY', 3200000, 'on_hold', 4)
 		];
 		const stages: CRMPipelineStage[] = [
-			{ pipeline: 'sales', stage: 'qualified', position: 1, outcome: 'open' },
-			{ pipeline: 'sales', stage: 'proposal', position: 2, outcome: 'open' },
-			{ pipeline: 'sales', stage: 'negotiation', position: 3, outcome: 'open' },
-			{ pipeline: 'sales', stage: 'on_hold', position: 4, outcome: 'on_hold' }
+			{ pipeline: 'sales', stage: 'qualified', label: 'qualified', position: 1, outcome: 'open' },
+			{ pipeline: 'sales', stage: 'proposal', label: 'proposal', position: 2, outcome: 'open' },
+			{ pipeline: 'sales', stage: 'negotiation', label: 'negotiation', position: 3, outcome: 'open' },
+			{ pipeline: 'sales', stage: 'on_hold', label: 'on_hold', position: 4, outcome: 'on_hold' }
 		];
 
 		const pipelineHealth = buildCRMKPICards([], opportunities, [], stages, crmText.ko)[0];
