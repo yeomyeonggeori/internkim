@@ -145,3 +145,31 @@ describe('recognising a file the company already keeps', () => {
 		expect(await attachmentAlreadyKept(lister, company, '9f2c', 'application/pdf')).toBeNull();
 	});
 });
+
+describe('a refusal from the asset store', () => {
+	test('says how big the file was and what it claimed to be', async () => {
+		const uploader = {
+			upload: async () => ({ error: { message: 'The object exceeded the maximum allowed size' } })
+		} as unknown as Parameters<typeof keepMessageAttachment>[0];
+
+		const refusal = await keepMessageAttachment(uploader, 'company-1', new Uint8Array(213_000), 'image/png').catch(
+			(error: Error) => error.message
+		);
+
+		expect(refusal).toContain('213000 bytes');
+		expect(refusal).toContain('image/png');
+		expect(refusal).toContain('exceeded the maximum allowed size');
+	});
+
+	test('names the missing content type rather than leaving a blank', async () => {
+		const uploader = {
+			upload: async () => ({ error: { message: 'refused' } })
+		} as unknown as Parameters<typeof keepMessageAttachment>[0];
+
+		const refusal = await keepMessageAttachment(uploader, 'company-1', new Uint8Array(10), '').catch(
+			(error: Error) => error.message
+		);
+
+		expect(refusal).toContain('no content type');
+	});
+});
