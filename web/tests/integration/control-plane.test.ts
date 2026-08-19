@@ -3,15 +3,19 @@ import {
 	addMember,
 	controlPlane,
 	inviteMember,
-	linkCredential,
-	memberOfPlatformIdentity,
 	provisionCompany,
 } from '../../src/lib/server/control-plane';
+import {
+	connectMessengerAccount,
+	membersOfCompanyByExternalID,
+} from '../../src/lib/server/member-credential';
+
+const networkHookTimeout = 60_000;
 
 // Runs against a local Supabase stack:
 //   supabase start && SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... bun test tests/integration
 const projectURL = process.env.SUPABASE_URL ?? '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const canReachSupabase = Boolean(projectURL && serviceRoleKey);
 
 const client = canReachSupabase ? controlPlane({ projectURL, serviceRoleKey }) : null;
@@ -35,7 +39,7 @@ beforeAll(async () => {
 		adminEmail,
 	);
 	companyID = provisioned.companyID;
-});
+}, networkHookTimeout);
 
 afterAll(async () => {
 	if (!client || !companyID) return;
@@ -44,7 +48,7 @@ afterAll(async () => {
 	for (const member of members ?? []) {
 		if (member.user_id) await client.auth.admin.deleteUser(member.user_id);
 	}
-});
+}, networkHookTimeout);
 
 if (!canReachSupabase) {
 	test('supabase is not reachable, so provisioning is not exercised', () => {
@@ -83,9 +87,17 @@ if (canReachSupabase)
 
 	test('a platform identity resolves back to its member', async () => {
 		const memberID = await addMember(client!, companyID, colleagueEmail);
-		await linkCredential(client!, memberID, 'buzz', `pubkey-${slug}`);
+		await connectMessengerAccount(client!, companyID, {
+			memberID,
+			kind: 'buzz',
+			externalID: `pubkey-${slug}`,
+			name: 'Colleague',
+			secret: `colleague-secret-${slug}`,
+		});
 
-		expect(await memberOfPlatformIdentity(client!, 'buzz', `pubkey-${slug}`)).toBe(memberID);
-		expect(await memberOfPlatformIdentity(client!, 'buzz', 'nobody')).toBeNull();
+		const byExternalID = await membersOfCompanyByExternalID(client!, companyID, 'buzz');
+
+		expect(byExternalID.get(`pubkey-${slug}`)).toBe(memberID);
+		expect(byExternalID.get('nobody')).toBeUndefined();
 	});
 });
