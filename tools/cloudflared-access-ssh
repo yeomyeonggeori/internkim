@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""ProxyCommand for reaching a device over Cloudflare Access without a browser.
+
+`cloudflared access login` writes a token that lasts a day, so an operator who
+works on a device signs in again every day, and a command that runs unattended
+cannot sign in at all. A service token does not expire for a year and needs no
+browser; `tools/provision-cloudflare-ssh-service-token` creates one and attaches
+the policy that admits it.
+
+The token is read from the file rather than written into ~/.ssh/config, so the
+secret stays in one 0600 file:
+
+    Host 0.ssh.*.intern.kim 1.ssh.*.intern.kim
+      ProxyCommand /path/to/tools/cloudflared-access-ssh %h
+
+Without the file this falls back to plain `cloudflared access ssh`, which is the
+browser path, so nothing breaks before the token exists.
+"""
+import json
+import os
+import pathlib
+import sys
+
+repositoryRoot = pathlib.Path(__file__).resolve().parent.parent
+serviceTokenPath = repositoryRoot / ".local" / "secrets" / "cloudflare-access-service-token.json"
+
+if len(sys.argv) < 2:
+    raise SystemExit("usage: cloudflared-access-ssh <hostname>")
+hostname = sys.argv[1]
+
+arguments = ["cloudflared", "access", "ssh", "--hostname", hostname]
+if serviceTokenPath.exists():
+    held = json.loads(serviceTokenPath.read_text())
+    clientID = held.get("clientID", "")
+    clientSecret = held.get("clientSecret", "")
+    if clientID and clientSecret:
+        arguments += ["--service-token-id", clientID, "--service-token-secret", clientSecret]
+
+os.execvp(arguments[0], arguments)
