@@ -31,6 +31,18 @@ function coloursOf(entries: NamedColour[]): Record<string, string> {
 	return Object.fromEntries(entries.flatMap((entry) => (entry.color ? [[entry.name, entry.color]] : [])));
 }
 
+export function taskVocabularyOfDefinitions(definitions: FlowDefinitions): TaskVocabulary {
+	return {
+		businesses: definitions.categories.map((name) => namedColourFor(name, definitions.categoryColors)),
+		types: definitions.types.map((name) => namedColourFor(name, definitions.typeColors))
+	};
+}
+
+function namedColourFor(name: string, colors: Record<string, string> | undefined): NamedColour {
+	const color = colors?.[name];
+	return color ? { name, color } : { name };
+}
+
 export function vocabularyOf(value: unknown): TaskVocabulary {
 	if (typeof value !== 'object' || value === null) return {};
 	const record = value as Record<string, unknown>;
