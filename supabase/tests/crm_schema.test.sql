@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(32);
 
 select has_table('public', 'organization', 'crm: organization table exists');
 select has_table('public', 'opportunity', 'crm: opportunity table exists');
@@ -16,6 +16,18 @@ select hasnt_column(
   'contact_id',
   'crm: task participants remain internal members only'
 );
+select has_function(
+  'public',
+  'save_crm_task',
+  array['uuid', 'text', 'task_status', 'text', 'text', 'text', 'timestamp with time zone', 'timestamp with time zone', 'timestamp with time zone', 'boolean', 'boolean', 'integer', 'jsonb', 'uuid', 'uuid[]', 'uuid', 'uuid', 'uuid'],
+  'crm: CRM task writes use an authenticated transactional function'
+);
+select has_function(
+  'public',
+  'save_crm_vocabulary',
+  array['jsonb'],
+  'crm: CRM definitions use an authenticated admin function'
+);
 
 insert into auth.users (id, email) values
   ('59400000-0000-0000-0000-000000000001', 'crm-a@example.test'),
@@ -25,9 +37,9 @@ insert into public.company (id, name, slug, country, locale, timezone) values
   ('59400000-0000-0000-0000-0000000000a0', 'CRM Company A', 'crm-company-a', 'KR', 'ko', 'Asia/Seoul'),
   ('59400000-0000-0000-0000-0000000000b0', 'CRM Company B', 'crm-company-b', 'US', 'en-US', 'America/New_York');
 
-insert into public.member (id, company_id, email, user_id, status) values
-  ('59400000-0000-0000-0000-0000000000a1', '59400000-0000-0000-0000-0000000000a0', 'crm-a@example.test', '59400000-0000-0000-0000-000000000001', 'active'),
-  ('59400000-0000-0000-0000-0000000000b1', '59400000-0000-0000-0000-0000000000b0', 'crm-b@example.test', '59400000-0000-0000-0000-000000000002', 'active');
+insert into public.member (id, company_id, email, user_id, status, is_admin) values
+  ('59400000-0000-0000-0000-0000000000a1', '59400000-0000-0000-0000-0000000000a0', 'crm-a@example.test', '59400000-0000-0000-0000-000000000001', 'active', true),
+  ('59400000-0000-0000-0000-0000000000b1', '59400000-0000-0000-0000-0000000000b0', 'crm-b@example.test', '59400000-0000-0000-0000-000000000002', 'active', false);
 
 insert into public.organization (id, company_id, name) values
   ('59400000-0000-0000-0000-000000000101', '59400000-0000-0000-0000-0000000000a0', 'Sample Organization A'),
@@ -74,6 +86,109 @@ insert into public.opportunity (
   );
 
 set constraints all immediate;
+
+update public.organization
+set types = array['partner']
+where id = '59400000-0000-0000-0000-000000000101';
+
+update public.opportunity
+set lost_reason_id = 'budget'
+where id = '59400000-0000-0000-0000-000000000121';
+
+select lives_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
+    true
+  );
+  perform public.save_crm_vocabulary('{
+    "organization_types":[{"id":"partner","name":"Partner"},{"id":"unused_type","name":"Unused"}],
+    "pipelines":[
+      {"id":"partnership","name":"Partnership","stages":[{"id":"review","name":"Review","outcome":"open"},{"id":"unused_stage","name":"Unused","outcome":"open"}]},
+      {"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]},
+      {"id":"unused_pipeline","name":"Unused","stages":[]}
+    ],
+    "lost_reasons":[{"id":"budget","name":"Budget"},{"id":"unused_reason","name":"Unused"}]
+  }'::jsonb);
+  reset role;
+end $$;$block$, 'crm: an admin can save a valid CRM vocabulary');
+
+select lives_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
+    true
+  );
+  perform public.save_crm_vocabulary('{
+    "organization_types":[{"id":"partner","name":"Partner"}],
+    "pipelines":[
+      {"id":"partnership","name":"Partnership","stages":[{"id":"review","name":"Review","outcome":"open"}]},
+      {"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]}
+    ],
+    "lost_reasons":[{"id":"budget","name":"Budget"}]
+  }'::jsonb);
+  reset role;
+end $$;$block$, 'crm: an admin can delete CRM definitions with no usage history');
+
+select throws_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"59400000-0000-0000-0000-000000000002","role":"authenticated"}',
+    true
+  );
+  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[],"lost_reasons":[]}'::jsonb);
+  reset role;
+end $$;$block$, '42501', null, 'crm: a non-admin cannot save CRM definitions');
+
+select throws_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
+    true
+  );
+  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[]}'::jsonb);
+  reset role;
+end $$;$block$, '22023', null, 'crm: malformed CRM definitions are rejected');
+
+select throws_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[{"id":"partnership","name":"Partnership","stages":[{"id":"review","name":"Review","outcome":"open"}]},{"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
+  reset role;
+end $$;$block$, '2BP01', null, 'crm: a used organization type cannot be deleted');
+
+select throws_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
+  reset role;
+end $$;$block$, '2BP01', null, 'crm: a used pipeline cannot be deleted');
+
+select throws_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"partnership","name":"Partnership","stages":[]},{"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
+  reset role;
+end $$;$block$, '2BP01', null, 'crm: a used pipeline stage cannot be deleted');
+
+select throws_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"partnership","name":"Partnership","stages":[{"id":"review","name":"Review","outcome":"open"}]},{"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]}],"lost_reasons":[]}'::jsonb);
+  reset role;
+end $$;$block$, '2BP01', null, 'crm: a used lost reason cannot be deleted');
 
 select lives_ok(
   $$insert into public.task (company_id, title) values ('59400000-0000-0000-0000-0000000000a0', 'General task')$$,
@@ -231,6 +346,137 @@ select lives_ok(
   $$,
   'crm: a task may link only an organization'
 );
+
+select lives_ok($block$do $$
+declare
+  saved_task uuid;
+  saved_participants integer;
+begin
+  set local role authenticated;
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
+    true
+  );
+
+  saved_task := public.save_crm_task(
+    null,
+    'CRM calendar task',
+    'todo',
+    'Shared CRM and Flow content',
+    'Sample business',
+    'meeting',
+    null,
+    '2026-08-20 09:00:00+09',
+    '2026-08-20 10:00:00+09',
+    true,
+    false,
+    30,
+    '{"name":"Sample meeting room"}'::jsonb,
+    null,
+    array['59400000-0000-0000-0000-0000000000a1']::uuid[],
+    '59400000-0000-0000-0000-000000000101',
+    '59400000-0000-0000-0000-000000000121',
+    '59400000-0000-0000-0000-000000000111'
+  );
+
+  assert exists (
+    select 1 from public.task
+    where id = saved_task
+      and is_event
+      and organization_id = '59400000-0000-0000-0000-000000000101'
+      and opportunity_id = '59400000-0000-0000-0000-000000000121'
+      and contact_id = '59400000-0000-0000-0000-000000000111'
+  ), 'the shared task keeps all CRM and calendar fields';
+
+  select count(*) into saved_participants
+  from public.task_participant
+  where task_id = saved_task
+    and member_id = '59400000-0000-0000-0000-0000000000a1';
+  assert saved_participants = 1, 'the internal member remains a task participant';
+
+  reset role;
+end $$;$block$, 'crm: a CRM task is saved atomically with its internal participant');
+
+select throws_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
+    true
+  );
+  perform public.save_crm_task(
+    null,
+    'Manual stage change',
+    'todo',
+    null,
+    null,
+    'stage_change',
+    now(),
+    null,
+    null,
+    false,
+    false,
+    null,
+    null,
+    null,
+    array['59400000-0000-0000-0000-0000000000a1']::uuid[],
+    '59400000-0000-0000-0000-000000000101',
+    null,
+    null
+  );
+  reset role;
+end $$;$block$, '42501', null, 'crm: users cannot create a stage change task manually');
+
+select lives_ok($block$do $$
+declare
+  history_task uuid;
+begin
+  set local role authenticated;
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
+    true
+  );
+
+  update public.opportunity
+  set stage_id = 'proposal',
+      stage_changed_at = '2026-08-21 11:00:00+09'
+  where id = '59400000-0000-0000-0000-000000000121';
+
+  select id into history_task
+  from public.task
+  where opportunity_id = '59400000-0000-0000-0000-000000000121'
+    and type = 'stage_change';
+  assert history_task is not null, 'a stage transition creates a shared task history row';
+
+  update public.task set note = 'Edited history note' where id = history_task;
+  assert (
+    select stage_id = 'proposal'
+    from public.opportunity
+    where id = '59400000-0000-0000-0000-000000000121'
+  ), 'editing the history task does not change the opportunity stage';
+
+  reset role;
+end $$;$block$, 'crm: stage history is created automatically and remains independently editable');
+
+select throws_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
+    true
+  );
+
+  update public.task
+  set is_event = true
+  where company_id = '59400000-0000-0000-0000-0000000000a0'
+    and title = 'General task';
+
+  reset role;
+end $$;$block$, '42501', null, 'crm: a signed-in browser still cannot change a task event kind directly');
 
 select * from finish();
 rollback;
