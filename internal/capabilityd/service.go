@@ -456,6 +456,9 @@ func (service Service) handleIdentityResolve(responseWriter http.ResponseWriter,
 		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
 		return
 	}
+	if resolved, isResolved := response.(map[string]string); isResolved && errorValue == nil {
+		service.ensureDirectoryPerson(request.Context(), resolved)
+	}
 	service.writeResponse(responseWriter, response, errorValue)
 }
 
