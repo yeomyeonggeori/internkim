@@ -5,13 +5,15 @@ import {
 	controlPlane,
 	issueAgentKey,
 	revokeAgent,
-	linkCredential,
 	provisionCompany,
 	sessionForPlatformIdentity,
 } from '../../src/lib/server/control-plane';
+import { connectMessengerAccount } from '../../src/lib/server/member-credential';
+
+const networkHookTimeout = 60_000;
 
 const projectURL = process.env.SUPABASE_URL ?? '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
 const canReachSupabase = Boolean(projectURL && serviceRoleKey && publishableKey);
 const credentials = { projectURL, serviceRoleKey };
@@ -47,7 +49,13 @@ beforeAll(async () => {
 
 	speakerID = await addMember(client, ourCompanyID, `agent-speaker-${stamp}@example.test`);
 	await withAccount(speakerID);
-	await linkCredential(client, speakerID, 'buzz', `speaker-${stamp}`);
+	await connectMessengerAccount(client, ourCompanyID, {
+		memberID: speakerID,
+		kind: 'buzz',
+		externalID: `speaker-${stamp}`,
+		name: 'Speaker',
+		secret: `speaker-secret-${stamp}`,
+	});
 
 	const theirs = await provisionCompany(
 		client,
@@ -57,8 +65,14 @@ beforeAll(async () => {
 	theirCompanyID = theirs.companyID;
 	const outsiderID = await addMember(client, theirCompanyID, `agent-outsider-${stamp}@example.test`);
 	await withAccount(outsiderID);
-	await linkCredential(client, outsiderID, 'buzz', `outsider-${stamp}`);
-});
+	await connectMessengerAccount(client, theirCompanyID, {
+		memberID: outsiderID,
+		kind: 'buzz',
+		externalID: `outsider-${stamp}`,
+		name: 'Outsider',
+		secret: `outsider-secret-${stamp}`,
+	});
+}, networkHookTimeout);
 
 afterAll(async () => {
 	if (!client) return;
@@ -69,7 +83,7 @@ afterAll(async () => {
 			if (member.user_id) await client.auth.admin.deleteUser(member.user_id);
 		}
 	}
-});
+}, networkHookTimeout);
 
 if (!canReachSupabase) {
 	test('supabase is not reachable, so the agent path is not exercised', () => {
@@ -95,7 +109,7 @@ if (canReachSupabase) {
 	test('an agent cannot act for somebody at another company', async () => {
 		await expect(
 			sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `outsider-${stamp}`),
-		).rejects.toThrow('another company');
+		).rejects.toThrow('no member here');
 	});
 
 	test('an identity nobody claims is refused', async () => {
