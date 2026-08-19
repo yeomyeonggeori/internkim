@@ -52,7 +52,7 @@ func (service *Service) createCRMActivityHTTP(responseWriter http.ResponseWriter
 	if !decodeCRMHTTPJSON(responseWriter, request, &payload) {
 		return
 	}
-	if errorValue := validateCRMHTTPActivity(payload); errorValue != nil {
+	if errorValue := validateCRMHTTPActivity(payload, ""); errorValue != nil {
 		writeCRMHTTPError(responseWriter, http.StatusBadRequest, "invalid_request", errorValue.Error())
 		return
 	}
@@ -92,7 +92,7 @@ func (service *Service) updateCRMActivityHTTP(responseWriter http.ResponseWriter
 	if !decodeCRMHTTPJSON(responseWriter, request, &payload) {
 		return
 	}
-	if errorValue := validateCRMHTTPActivity(payload); errorValue != nil {
+	if errorValue := validateCRMHTTPActivity(payload, existing.Kind); errorValue != nil {
 		writeCRMHTTPError(responseWriter, http.StatusBadRequest, "invalid_request", errorValue.Error())
 		return
 	}
