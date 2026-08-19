@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { membersOfCompanyByExternalID } from './member-credential';
 
 export type ControlPlaneCredentials = {
 	projectURL: string;
@@ -375,35 +376,11 @@ export async function sessionForPlatformIdentity(
 	const agent = await agentOfKey(client, apiKey);
 	if (!agent) throw new Error('that key belongs to no agent');
 
-	const memberID = await memberOfPlatformIdentity(client, kind, externalID);
-	if (!memberID) throw new Error(`no member has ${kind} identity ${externalID}`);
-
-	const { data: member, error } = await client
-		.from('member')
-		.select('company_id')
-		.eq('id', memberID)
-		.single();
-	if (error) throw new Error(error.message);
-	if (member.company_id !== agent.companyID) {
-		throw new Error('that member belongs to another company');
-	}
+	const membersByExternalID = await membersOfCompanyByExternalID(client, agent.companyID, kind);
+	const memberID = membersByExternalID.get(externalID);
+	if (!memberID) throw new Error(`no member here has ${kind} identity ${externalID}`);
 
 	return sessionForMember(credentials, memberID);
-}
-
-export async function memberOfPlatformIdentity(
-	client: SupabaseClient,
-	kind: string,
-	externalID: string,
-): Promise<string | null> {
-	const { data, error } = await client
-		.from('credential')
-		.select('member_id')
-		.eq('kind', kind)
-		.eq('external_id', externalID)
-		.maybeSingle();
-	if (error) throw new Error(`identity ${kind}:${externalID}: ${error.message}`);
-	return data?.member_id ?? null;
 }
 
 export type HostSession = {

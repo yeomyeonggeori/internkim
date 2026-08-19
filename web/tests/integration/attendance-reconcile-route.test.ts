@@ -11,7 +11,7 @@ type AttendanceReconcileHandler = (typeof import('../../src/routes/api/agent/att
 type AttendanceReconcileEvent = Parameters<AttendanceReconcileHandler>[0];
 
 const projectURL = process.env.SUPABASE_URL ?? '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const canReachSupabase = Boolean(projectURL && serviceRoleKey);
 const client = canReachSupabase ? controlPlane({ projectURL, serviceRoleKey }) : null;
 const stamp = Date.now();
