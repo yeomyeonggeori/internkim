@@ -2,7 +2,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
-	import type { CRMOrganization, CRMNextAction, CRMOpportunity } from './crm-types';
+	import type { CRMOrganization, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
 	import { daysLabel, findOrganizationByID, findNextActionByID, formatMoney, getStageVariant, opportunityStageLabel } from './crm-view-model';
 	import type { CRMText } from './text';
 
@@ -10,11 +10,12 @@
 		opportunities: CRMOpportunity[];
 		organizations: CRMOrganization[];
 		nextActions: CRMNextAction[];
+		stages: CRMPipelineStage[];
 		text: CRMText;
 		onEdit: (opportunityID: string) => void;
 	};
 
-	let { opportunities, organizations, nextActions, text, onEdit }: Props = $props();
+	let { opportunities, organizations, nextActions, stages, text, onEdit }: Props = $props();
 
 	const pageSize = 10;
 	const attentionThresholdDays = 14;
@@ -89,7 +90,7 @@
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal xl:table-cell"><p class="truncate">{opportunity.business}</p></Table.Cell>
 						<Table.Cell class="whitespace-normal text-center">
-							<Badge variant={getStageVariant(opportunity.stage)} data-crm-centered-pill>{opportunityStageLabel(opportunity.stage, text)}</Badge>
+							<Badge variant={getStageVariant(opportunity.stage)} data-crm-centered-pill>{opportunityStageLabel(stages, opportunity.stage, text)}</Badge>
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal md:table-cell">
 							<p class="truncate">{opportunity.ownerName}</p>

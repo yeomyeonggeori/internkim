@@ -405,7 +405,7 @@ export class CRMPageController {
 		this.stages = pipelineNames.flatMap((pipeline) => [...new Set(this.opportunities
 			.filter((opportunity) => (opportunity.kind ?? 'sales') === pipeline)
 			.map((opportunity) => opportunity.stage))]
-			.map((stage, index) => ({ pipeline, stage, position: index + 1, outcome: fixtureOutcome(stage) })));
+			.map((stage, index) => ({ pipeline, stage, label: stage, position: index + 1, outcome: fixtureOutcome(stage) })));
 		this.lostReasons = [];
 		this.vocabulary = {
 			organization_types: [],

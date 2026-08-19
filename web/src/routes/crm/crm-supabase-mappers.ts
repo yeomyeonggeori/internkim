@@ -235,6 +235,7 @@ function stageResponses(vocabulary: CRMVocabulary): CRMPipelineStageResponse[] {
 	return vocabulary.pipelines.flatMap((pipeline) => pipeline.stages.map((stage, position) => ({
 		pipeline: pipeline.id as CRMProgressKind,
 		stage: stage.id,
+		label: stage.name,
 		position,
 		outcome: stage.outcome
 	})));

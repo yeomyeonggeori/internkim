@@ -294,6 +294,7 @@ function parsePipelineStage(value: unknown): CRMPipelineStageResponse {
 	return {
 		pipeline: enumString(record, 'pipeline', ['sales', 'fundraising', 'investment', 'sponsorship', 'partnership', 'procurement']),
 		stage: requiredString(record, 'stage'),
+		label: requiredString(record, 'stage'),
 		position: requiredNumber(record, 'position'),
 		outcome: enumString(record, 'outcome', ['open', 'won', 'lost', 'on_hold'])
 	};

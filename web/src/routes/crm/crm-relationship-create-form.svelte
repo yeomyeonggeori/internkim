@@ -12,7 +12,8 @@
 		type CRMOrganizationType,
 		type CRMImportance
 	} from './crm-types';
-	import { crmLabel } from './crm-labels';
+	import type { CRMDefinition } from './crm-api-types';
+	import { crmDefinitionLabel, crmLabel } from './crm-labels';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -35,6 +36,7 @@
 		groups: OrgGroup[];
 		text: CRMText;
 		organizationTypeOptions: CRMOrganizationType[];
+		organizationTypeDefinitions: CRMDefinition[];
 	};
 
 	let {
@@ -56,7 +58,7 @@
 		people,
 		groups,
 		text,
-		organizationTypeOptions
+		organizationTypeOptions, organizationTypeDefinitions
 	}: Props = $props();
 	const organizationStatuses: CRMOrganizationStatus[] = ['prospect', 'active', 'paused'];
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
@@ -82,7 +84,7 @@
 		<Field.Label>{text.type}</Field.Label>
 		<div class="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
 			{#each organizationTypeOptions as organizationType (organizationType)}
-				<label class="flex items-center gap-2 text-sm"><Checkbox checked={organizationTypes.includes(organizationType)} onCheckedChange={(checked) => setOrganizationType(organizationType, checked)} />{crmLabel(text.organizationTypes, organizationType)}</label>
+				<label class="flex items-center gap-2 text-sm"><Checkbox checked={organizationTypes.includes(organizationType)} onCheckedChange={(checked) => setOrganizationType(organizationType, checked)} />{crmDefinitionLabel(organizationTypeDefinitions, text.organizationTypes, organizationType)}</label>
 			{/each}
 		</div>
 	</Field.Field>

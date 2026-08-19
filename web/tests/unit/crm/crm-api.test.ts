@@ -68,6 +68,6 @@ function documentFor(path: string): object {
 	if (path.endsWith('/activities')) return { activities: [] };
 	if (path.endsWith('/pipelines')) return { pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }] };
 	if (path.endsWith('/lost-reasons')) return { lostReasons: [] };
-	if (path.endsWith('/pipelines/sales/stages')) return { stages: [{ pipeline: 'sales', stage: 'lead', position: 1, outcome: 'open' }, { pipeline: 'sales', stage: 'qualified', position: 2, outcome: 'open' }] };
+	if (path.endsWith('/pipelines/sales/stages')) return { stages: [{ pipeline: 'sales', stage: 'lead', label: 'lead', position: 1, outcome: 'open' }, { pipeline: 'sales', stage: 'qualified', label: 'qualified', position: 2, outcome: 'open' }] };
 	throw new Error(`unexpected CRM test path: ${path}`);
 }
