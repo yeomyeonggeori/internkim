@@ -387,6 +387,7 @@ func (service *Service) Run(ctx context.Context) error {
 	go service.reconcileBlueclawRuntimeConfiguration(ctx)
 	go service.centralPlane()
 	go service.keepAttendanceReconciled(ctx)
+	go service.keepBlueclawRosterDerived(ctx)
 	service.reconcileSiteSourcesToStaffCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
