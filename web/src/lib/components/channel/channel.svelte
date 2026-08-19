@@ -596,7 +596,45 @@
 	{@const imageAttachmentURLs = attachments
 		.filter((attachment) => attachment.kind === 'image' && attachment.source)
 		.map((attachment) => attachment.source ?? '')}
-	{#if attachments.length > 0}
+	{@const loneImage =
+		attachments.length === 1 && attachments[0].kind === 'image' && attachments[0].source
+			? attachments[0]
+			: undefined}
+	{#if loneImage}
+		<!-- One photograph is a photograph, not a thumbnail in a grid: it keeps its
+		     own proportions, bounded so a tall one cannot take the whole screen.
+		     Attachment.Media squares whatever it holds, which is right for a row of
+		     files and wrong for this.
+		     A wide picture runs out of width first and a tall one runs out of height,
+		     so both bounds are here. The height is read from the window as well as
+		     fixed, because 26rem of a laptop is a picture and 26rem of a short
+		     window is the whole conversation.
+		     The proportions come from the message when the messenger reported them,
+		     so the browser holds the space before the file arrives and nothing below
+		     jumps when it does. -->
+		<div class="relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end">
+			<button
+				type="button"
+				class={`block cursor-zoom-in overflow-hidden rounded-lg ${imageReactionSpacing}`}
+				aria-label={loneImage.filename ?? '이미지 크게 보기'}
+				onclick={() => openLightbox(imageAttachmentURLs, 0)}
+			>
+				<img
+					src={loneImage.source}
+					alt={loneImage.filename ?? ''}
+					width={loneImage.widthPixels}
+					height={loneImage.heightPixels}
+					loading="lazy"
+					decoding="async"
+					class="h-auto max-h-[min(60vh,26rem)] w-auto max-w-full rounded-lg object-contain"
+				/>
+			</button>
+			{#if !bodyText && reactions.length > 0}
+				{@render reactionRow(reactions, reactionAlign, reactionSide)}
+			{/if}
+			{#if !bodyText}{@render timeStamp(message)}{/if}
+		</div>
+	{:else if attachments.length > 0}
 		<div class="relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end">
 			<Attachment.Group class={`relative w-fit max-w-full ${imageReactionSpacing}`}>
 			{#each attachments as attachment (attachment.url)}

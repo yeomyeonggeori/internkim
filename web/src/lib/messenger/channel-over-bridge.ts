@@ -5,8 +5,7 @@ import { supabaseMember } from '$lib/supabase-session';
 import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 import { personPicture } from '$lib/stores/person-picture.svelte';
 import { attachmentSource } from '$lib/stores/attachment-source.svelte';
-import { emojify } from 'node-emoji';
-import { glyphOfEmojiName } from './emoji-glyph';
+import { emojifyText, glyphOfEmojiName } from './emoji-glyph';
 import { customEmojiNamesIn } from './custom-emoji-names';
 import {
 	fetchChannels,
@@ -41,6 +40,8 @@ type Attachment = {
 	filename?: string;
 	mimeType?: string;
 	sizeBytes?: number;
+	widthPixels?: number;
+	heightPixels?: number;
 };
 type Message = {
 	id: string;
@@ -157,7 +158,7 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, mine: string
 		id: post.id,
 		threadRootId: post.parentID,
 		sender: participantOf(post.author, people),
-		text: emojify(post.body),
+		text: emojifyText(post.body),
 		sentAt: post.postedAt,
 		reactions: post.reactions.map((reaction) => ({
 			emoji: glyphOfEmojiName(reaction.emoji) ?? reaction.emoji,
@@ -172,7 +173,9 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, mine: string
 			source: attachmentSource.openable(attachment.url),
 			filename: attachment.filename,
 			mimeType: attachment.contentType,
-			sizeBytes: attachment.sizeBytes
+			sizeBytes: attachment.sizeBytes,
+			widthPixels: attachment.widthPixels,
+			heightPixels: attachment.heightPixels
 		}))
 	};
 }
