@@ -44,13 +44,14 @@ on conflict (provider, provider_id) do nothing;
 
 insert into public.company (
   id, name, slug, country, locale, timezone,
-  work_locations, task_vocabulary, minimum_daily_minutes, leave_days
+  work_locations, task_vocabulary, crm_vocabulary, minimum_daily_minutes, leave_days
 ) values (
   '000000cc-0000-0000-0000-000000000001',
   '예시회사', 'example-co', 'KR', 'ko', 'Asia/Seoul',
   '[{"name": "사무실", "color": "#9929bd"}, {"name": "재택", "color": "#669c35"}, {"name": "외부", "color": "#0ea5e9"}]',
   '{"businesses": [{"name": "사업하나", "color": "#216fe4"}, {"name": "사업둘", "color": "#475569"}],
-    "types": [{"name": "기능"}, {"name": "개선"}, {"name": "회의"}]}',
+    "types": [{"name": "기능"}, {"name": "개선"}, {"name": "회의"}, {"name": "통화"}, {"name": "메일"}, {"name": "메모"}]}',
+  '{"organization_types":[{"id":"partner","name":"파트너","color":"#2563eb"},{"id":"sponsor","name":"스폰서","color":"#16a34a"}],"pipelines":[{"id":"partnership","name":"파트너십","color":"#2563eb","direction":"outbound","stages":[{"id":"review","name":"검토","outcome":"open","color":"#64748b"},{"id":"proposal","name":"제안","outcome":"open","color":"#7c3aed"},{"id":"negotiation","name":"협의","outcome":"open","color":"#ea580c"},{"id":"won","name":"성사","outcome":"won","color":"#16a34a"},{"id":"lost","name":"불발","outcome":"lost","color":"#dc2626"}]}],"lost_reasons":[{"id":"budget","name":"예산 부족","color":"#dc2626"},{"id":"schedule","name":"일정 불일치","color":"#ea580c"}]}',
   480, 15
 ) on conflict (id) do nothing;
 
@@ -76,6 +77,27 @@ on conflict (id) do nothing;
 update public.member set supervisor_id = '000000ee-0000-0000-0000-000000000002'
   where id = '000000ee-0000-0000-0000-000000000001';
 
+insert into public.organization (
+  id, company_id, name, status, types, tags, importance, owner_id, address, description
+) values
+  ('000000a0-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', '예시 협력 기관', 'active', array['partner'], array['장기 협력'], 'high', '000000ee-0000-0000-0000-000000000001', '서울특별시 성동구', '로컬 CRM 검증용 관계처입니다.'),
+  ('000000a0-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', '예시 후원 기관', 'prospect', array['sponsor'], array[]::text[], 'medium', '000000ee-0000-0000-0000-000000000003', null, '로컬 CRM 검증용 잠재 관계처입니다.')
+on conflict (id) do nothing;
+
+insert into public.contact (
+  id, company_id, organization_id, name, email, phone, title, department, description
+) values
+  ('000000c0-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000001', '최견본', 'contact.one@example.com', '000-0000-0001', '프로그램 매니저', '협력팀', '주요 연락 창구입니다.'),
+  ('000000c0-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000002', '박견본', 'contact.two@example.com', null, '운영 담당', '운영팀', null)
+on conflict (id) do nothing;
+
+insert into public.opportunity (
+  id, company_id, organization_id, contact_id, name, business, pipeline_id, stage_id,
+  stage_position, owner_id, amount_minor, currency_code, importance, due_at, due_time_zone, description
+) values
+  ('0000000a-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000001', '000000c0-0000-0000-0000-000000000001', '상반기 협력 제안', '사업하나', 'partnership', 'proposal', 1024, '000000ee-0000-0000-0000-000000000001', 18000000, 'KRW', 'high', now() + interval '7 days', 'Asia/Seoul', '협력 범위와 일정을 조율합니다.')
+on conflict (id) do nothing;
+
 insert into public.task (
   id, company_id, title, status, business, type, size, starts_at, ends_at, is_whole_day, note
 ) values
@@ -99,13 +121,23 @@ insert into public.task (
   '{"name": "사무실"}'
 ) on conflict (id) do nothing;
 
+insert into public.task (
+  id, company_id, organization_id, opportunity_id, contact_id, title, status,
+  business, type, note, due_at, starts_at, ends_at, is_event, is_whole_day, location
+) values
+  ('000000f0-0000-0000-0000-0000000000c1', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000001', '0000000a-0000-0000-0000-000000000001', '000000c0-0000-0000-0000-000000000001', '협력 조건 검토 미팅', 'done', '사업하나', '회의', '예산과 운영 범위를 확인했습니다.', now() - interval '2 days', null, null, false, false, null),
+  ('000000f0-0000-0000-0000-0000000000c2', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000001', '0000000a-0000-0000-0000-000000000001', '000000c0-0000-0000-0000-000000000001', '후속 조건 확인 통화', 'todo', '사업하나', '통화', '다음 단계와 담당 일정을 확정합니다.', null, date_trunc('day', now()) + interval '2 days 14 hours', date_trunc('day', now()) + interval '2 days 14 hours 30 minutes', true, false, '{"name":"온라인"}')
+on conflict (id) do nothing;
+
 insert into public.task_participant (task_id, member_id) values
   ('000000f0-0000-0000-0000-000000000001', '000000ee-0000-0000-0000-000000000001'),
   ('000000f0-0000-0000-0000-000000000002', '000000ee-0000-0000-0000-000000000001'),
   ('000000f0-0000-0000-0000-000000000002', '000000ee-0000-0000-0000-000000000003'),
   ('000000f0-0000-0000-0000-000000000003', '000000ee-0000-0000-0000-000000000002'),
   ('000000f0-0000-0000-0000-0000000000e1', '000000ee-0000-0000-0000-000000000001'),
-  ('000000f0-0000-0000-0000-0000000000e1', '000000ee-0000-0000-0000-000000000002')
+  ('000000f0-0000-0000-0000-0000000000e1', '000000ee-0000-0000-0000-000000000002'),
+  ('000000f0-0000-0000-0000-0000000000c1', '000000ee-0000-0000-0000-000000000001'),
+  ('000000f0-0000-0000-0000-0000000000c2', '000000ee-0000-0000-0000-000000000001')
 on conflict do nothing;
 
 insert into public.attendance (member_id, kind, location, occurred_at)
