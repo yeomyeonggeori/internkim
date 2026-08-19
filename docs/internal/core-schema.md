@@ -1,8 +1,9 @@
 # Core schema — the source of truth
 
 Status: **canonical**. Owner: this document plus
-[`supabase/migrations/20260803000001_core_schema.sql`](../supabase/migrations/20260803000001_core_schema.sql).
-Verified by [`supabase/tests/rls_company_isolation.sql`](../supabase/tests/rls_company_isolation.sql)
+[`supabase/migrations/20260803000001_core_schema.sql`](../../supabase/migrations/20260803000001_core_schema.sql)
+and the later additive migrations in that directory.
+Verified by [`supabase/tests/rls_company_isolation.test.sql`](../../supabase/tests/rls_company_isolation.test.sql)
 (21 blocks, all green against a real Postgres).
 
 Every new surface — the SaaS web app, the host agent, the central API — targets
@@ -21,7 +22,10 @@ run; this one decides what the data is.
 | `company` | One customer. The tenant boundary every RLS policy resolves to. |
 | `member` | One person in a company. Exists before they have an account. |
 | `credential` | A member's identity or secret on an external system. |
-| `task` | Work. Also carries events — see §3. |
+| `organization` | An external institution, company, group, or prospect. |
+| `contact` | An external person and their messenger accounts. |
+| `opportunity` | A deal or ongoing case for an organization. |
+| `task` | Work. Also carries events and CRM activities — see §3. |
 | `task_participant` | Who attends a task. |
 | `attendance` | Clock-in / clock-out events, with location. |
 | `leave` | Time off. |
@@ -30,8 +34,8 @@ run; this one decides what the data is.
 | `circle_member` | Who is in a circle. |
 
 Tables are singular. Timestamps are `timestamptz` named `_at`. Booleans use an
-`is_` prefix. There are no `created_at` columns — they were removed on purpose;
-add one only where somebody reads it.
+`is_` prefix. Creation timestamps exist only where product behavior or audit
+history reads them: tasks and the CRM records are the current exceptions.
 
 ## 2. Identity and lifecycle
 
@@ -76,6 +80,11 @@ The calendar index is partial (`where is_event`) for exactly that reason.
 There is no recurrence. Each occurrence is its own row — that decision is why
 splitting `event` out was rejected, and why "everything on my plate" is one
 query instead of a permanent `UNION`.
+
+There is no CRM activity table either. A task with `organization_id` is the
+activity record. `opportunity_id` and `contact_id` add optional context, and
+database constraints keep every supplied reference in the same company and
+organization. See [`crm-backend-schema-design.md`](./crm-backend-schema-design.md).
 
 ## 4. Time, and the units
 
