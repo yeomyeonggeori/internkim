@@ -306,6 +306,43 @@ Nothing here needs a public host of ours. The host reaches the messenger and the
 central plane outbound, which is what removes the per-device tunnel and the
 NIP-98 URL-mismatch problem altogether.
 
+### 5.1 The host's roster is derived, and an empty derivation is a fault
+
+§7.1 puts people centrally. The host still needs a roster to answer with, because
+an inbound message has to be matched to a person before any work starts, and that
+match cannot wait on the network. So the host keeps one, and the whole of its
+correctness comes from one rule: **the host's roster is derived from central
+`member` and is never edited on the host.**
+
+That rule is what today's implementation breaks. There are three copies of who
+works here — central `member`, the fleet users index the host CLI edits, and the
+agent's own policy people — and each is written by a different path. A copy that
+drifts is invisible until someone is refused, which is how a company of seven
+arrived at an agent whose roster held one bootstrap account
+([postmortem 0003](postmortem/0003-the-agent-roster-fell-back-to-its-bootstrap-account.md)).
+
+The shape that replaces it:
+
+| | Rule |
+|---|---|
+| Owner | Central `member`. One writer, one place a person is added or removed. |
+| Host copy | A projection. Refreshed at boot, on a schedule, and whenever the central plane reports a change. |
+| Matching | Answers from the projection, so a dead uplink refuses nobody who is already known. |
+| A miss | Asks central once before refusing, then records what it learned, so a person added centrally works on their first message. |
+| Editing on the host | Gone. The host CLI writes through to central or stops offering the verb. |
+
+The last row is the one that costs something: an operator standing at the box
+loses the ability to add a person while the uplink is down. That is the correct
+trade for a product whose account directory is central, and the alternative is
+the drift above.
+
+**An empty derivation is a fault, not an answer.** A host that has served real
+people and now holds only its bootstrap account has lost its projection, and it
+must say so, with an event on the ledger and a visible degraded state, instead of
+turning every inbound message into a polite refusal. The refusal text is honest
+about what it checked (`unmatched_account`), but no wording repairs a roster that
+silently emptied.
+
 ---
 
 ## 6. Runtime topology: one app, two modes (host + optional guest)
