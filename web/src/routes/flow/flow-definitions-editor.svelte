@@ -133,7 +133,8 @@
 					typeColors: colorsForValues(typeDrafts, typeColorDrafts),
 					sizes
 				},
-				text.saveError
+				text.saveError,
+				text.definitionInUse
 			);
 			await loadFlow(currentWeek());
 			definitionSaveState = 'saved';
