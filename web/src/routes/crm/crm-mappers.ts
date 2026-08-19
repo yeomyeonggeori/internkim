@@ -1,7 +1,7 @@
-import type { UserRecord } from '$lib/organization/types';
+import type { OrgGroup, UserRecord } from '$lib/organization/types';
 import type {
-	CRMAccountPayload,
-	CRMAccountResponse,
+	CRMOrganizationPayload,
+	CRMOrganizationResponse,
 	CRMActivityPayload,
 	CRMActivityResponse,
 	CRMContactPayload,
@@ -10,8 +10,10 @@ import type {
 	CRMOpportunityPayload,
 	CRMOpportunityResponse
 } from './crm-api-types';
+import type { CRMVocabulary } from './crm-api-types';
+import type { TaskVocabulary } from '$lib/flow/task-vocabulary';
 import type {
-	CRMAccount,
+	CRMOrganization,
 	CRMActivity,
 	CRMContact,
 	CRMCreateDraft,
@@ -24,7 +26,7 @@ import type {
 } from './crm-types';
 
 export type CRMViewData = {
-	accounts: CRMAccount[];
+	organizations: CRMOrganization[];
 	contacts: CRMContact[];
 	opportunities: CRMOpportunity[];
 	activities: CRMActivity[];
@@ -32,6 +34,8 @@ export type CRMViewData = {
 	pipelines: CRMPipeline[];
 	stages: CRMPipelineStage[];
 	lostReasons: CRMLostReason[];
+	vocabulary: CRMVocabulary;
+	taskVocabulary: TaskVocabulary;
 };
 
 export type CRMOwnerResolutionErrorCode = 'owner_not_found' | 'owner_ambiguous';
@@ -46,42 +50,45 @@ export class CRMOwnerResolutionError extends Error {
 export function mapCRMViewData(
 	data: CRMDataResponse,
 	people: UserRecord[],
-	timeZone = browserTimeZone()
+	timeZone = browserTimeZone(),
+	groups: OrgGroup[] = []
 ): CRMViewData {
 	const stages = data.stages.map((stage) => ({ ...stage }));
 	const opportunities = data.opportunities.map((opportunity) => mapOpportunity(opportunity, people));
 	const activities = data.activities.map((activity) => mapActivity(activity));
-	const accounts = data.accounts.map((account) => mapAccount(account, people, opportunities, activities, stages, timeZone));
+	const organizations = data.organizations.map((organization) => mapOrganization(organization, people, opportunities, activities, stages, timeZone, groups));
 	return {
-		accounts,
+		organizations,
 		contacts: data.contacts.map((contact) => mapContact(contact)),
 		opportunities,
 		activities,
 		nextActions: [],
 		pipelines: data.pipelines.map((pipeline) => ({ ...pipeline })),
 		stages,
-		lostReasons: data.lostReasons.map((reason) => ({ ...reason }))
+		lostReasons: data.lostReasons.map((reason) => ({ ...reason })),
+		vocabulary: structuredClone(data.vocabulary),
+		taskVocabulary: structuredClone(data.taskVocabulary)
 	};
 }
 
-export function accountPayload(account: CRMAccount): CRMAccountPayload {
+export function organizationPayload(organization: CRMOrganization): CRMOrganizationPayload {
 	return {
-		name: account.name,
-		status: account.status,
-		types: account.types,
-		tags: account.tags,
-		importance: account.importance,
-		ownerPersonID: account.ownerPersonID ?? '',
-		ownerCircleID: account.ownerCircleID,
-		address: account.address,
-		description: account.description
+		name: organization.name,
+		status: organization.status,
+		types: organization.types,
+		tags: organization.tags,
+		importance: organization.importance,
+		ownerPersonID: organization.ownerPersonID ?? '',
+		ownerCircleID: organization.ownerCircleID,
+		address: organization.address,
+		description: organization.description
 	};
 }
 
-export function accountPayloadFromDraft(
+export function organizationPayloadFromDraft(
 	draft: Extract<CRMCreateDraft, { kind: 'relationship' }>,
 	owner: UserRecord
-): CRMAccountPayload {
+): CRMOrganizationPayload {
 	return {
 		name: draft.name,
 		status: draft.status,
@@ -89,7 +96,7 @@ export function accountPayloadFromDraft(
 		tags: draft.tags,
 		importance: draft.importance,
 		ownerPersonID: owner.userID,
-		ownerCircleID: '',
+		ownerCircleID: owner.groupID ?? '',
 		address: draft.address,
 		description: draft.description
 	};
@@ -97,13 +104,12 @@ export function accountPayloadFromDraft(
 
 export function contactPayload(contact: CRMContact): CRMContactPayload {
 	return {
-		accountID: contact.accountID,
+		organizationID: contact.organizationID,
 		name: contact.name,
 		email: contact.email,
 		phone: contact.phone,
 		title: contact.title,
 		department: contact.department,
-		isPrimary: contact.isPrimary,
 		ownerPersonID: contact.ownerPersonID ?? '',
 		ownerCircleID: contact.ownerCircleID,
 		description: contact.note
@@ -115,22 +121,21 @@ export function contactPayloadFromDraft(
 	owner: UserRecord
 ): CRMContactPayload {
 	return {
-		accountID: draft.accountID,
+		organizationID: draft.organizationID,
 		name: draft.name,
 		email: draft.email,
 		phone: draft.phone,
 		title: draft.title,
 		department: '',
-		isPrimary: draft.isPrimary,
 		ownerPersonID: owner.userID,
-		ownerCircleID: '',
+		ownerCircleID: owner.groupID ?? '',
 		description: draft.note
 	};
 }
 
 export function opportunityPayload(opportunity: CRMOpportunity): CRMOpportunityPayload {
 	return {
-		accountID: opportunity.accountID,
+		organizationID: opportunity.organizationID,
 		business: opportunity.business,
 		name: opportunity.name,
 		pipeline: opportunity.pipeline ?? opportunity.kind ?? 'sales',
@@ -152,12 +157,12 @@ export function opportunityPayloadFromDraft(
 	timeZone: string
 ): CRMOpportunityPayload {
 	return {
-		accountID: draft.accountID,
+		organizationID: draft.organizationID,
 		business: draft.business,
 		name: draft.name,
 		pipeline: draft.progressKind,
 		ownerPersonID: owner.userID,
-		ownerCircleID: '',
+		ownerCircleID: owner.groupID ?? '',
 		amountMinor: majorToMinor(draft.amount, draft.currency),
 		currencyCode: draft.amount === undefined ? '' : draft.currency,
 		importance: draft.importance,
@@ -170,27 +175,43 @@ export function opportunityPayloadFromDraft(
 
 export function activityPayload(activity: CRMActivity): CRMActivityPayload {
 	return {
-		accountID: activity.accountID,
+		organizationID: activity.organizationID,
 		contactID: activity.contactID ?? '',
 		opportunityID: activity.opportunityID ?? '',
 		business: activity.business,
-		kind: activity.kind === 'stage_change' ? 'event' : activity.kind,
+		kind: activity.kind,
 		title: activity.title,
 		occurredAt: activity.occurredAt,
-		content: activity.summary
+		content: activity.summary,
+		taskStatus: activity.taskStatus ?? 'todo',
+		taskOwnerID: activity.taskOwnerID ?? '',
+		isEvent: Boolean(activity.calendarEventID),
+		isWholeDay: activity.isWholeDay ?? false,
+		startsAt: activity.calendarEventDate ?? '',
+		endsAt: activity.calendarEndsAt ?? activity.calendarEventDate ?? '',
+		notifyMinutesBefore: null,
+		location: activity.calendarLocation ?? ''
 	};
 }
 
 export function activityPayloadFromDraft(draft: Extract<CRMCreateDraft, { kind: 'activity' }>): CRMActivityPayload {
 	return {
-		accountID: draft.accountID,
-		contactID: '',
+		organizationID: draft.organizationID,
+		contactID: draft.contactID ?? '',
 		opportunityID: draft.opportunityID ?? '',
 		business: draft.business,
 		kind: draft.activityKind === 'stage_change' ? 'event' : draft.activityKind,
 		title: draft.title,
 		occurredAt: new Date(draft.occurredAt).toISOString(),
-		content: draft.summary
+		content: draft.summary,
+		taskStatus: draft.taskStatus || 'todo',
+		taskOwnerID: draft.taskOwnerID,
+		isEvent: draft.calendar.isRequested,
+		isWholeDay: draft.calendar.isAllDay,
+		startsAt: draft.calendar.isRequested ? new Date(draft.calendar.startTime || draft.occurredAt).toISOString() : '',
+		endsAt: draft.calendar.isRequested ? new Date(draft.calendar.endTime || draft.calendar.startTime || draft.occurredAt).toISOString() : '',
+		notifyMinutesBefore: null,
+		location: draft.calendar.location
 	};
 }
 
@@ -233,38 +254,39 @@ export function utcToLocalDate(dateTime: string | undefined, timeZone: string): 
 	return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
 }
 
-function mapAccount(
-	account: CRMAccountResponse,
+function mapOrganization(
+	organization: CRMOrganizationResponse,
 	people: UserRecord[],
 	opportunities: CRMOpportunity[],
 	activities: CRMActivity[],
 	stages: CRMPipelineStage[],
-	timeZone: string
-): CRMAccount {
-	const owner = people.find((person) => person.userID === account.ownerPersonID);
-	const accountOpportunities = opportunities.filter((opportunity) => opportunity.accountID === account.id);
-	const openOpportunities = accountOpportunities.filter((opportunity) => stageOutcome(stages, opportunity) === 'open');
+	timeZone: string,
+	groups: OrgGroup[]
+): CRMOrganization {
+	const owner = people.find((person) => person.userID === organization.ownerPersonID);
+	const organizationOpportunities = opportunities.filter((opportunity) => opportunity.organizationID === organization.id);
+	const openOpportunities = organizationOpportunities.filter((opportunity) => stageOutcome(stages, opportunity) === 'open');
 	const activityDates = activities
-		.filter((activity) => activity.accountID === account.id)
+		.filter((activity) => activity.organizationID === organization.id)
 		.map((activity) => utcToLocalDate(activity.occurredAt, timeZone))
 		.filter(Boolean)
 		.sort();
 	const dueDates = openOpportunities.map((opportunity) => opportunity.targetDate).filter(Boolean).sort();
 	return {
-		id: account.id,
-		name: account.name,
-		types: account.types,
-		status: account.status,
-		importance: account.importance,
-		ownerPersonID: account.ownerPersonID,
-		ownerCircleID: account.ownerCircleID,
-		ownerName: owner?.name || owner?.email || account.ownerPersonID,
+		id: organization.id,
+		name: organization.name,
+		types: organization.types,
+		status: organization.status,
+		importance: organization.importance,
+		ownerPersonID: organization.ownerPersonID,
+		ownerCircleID: organization.ownerCircleID,
+		ownerName: owner?.name || owner?.email || organization.ownerPersonID,
 		ownerEmail: owner?.email ?? '',
-		team: account.ownerCircleID ?? '',
-		address: account.address,
-		tags: account.tags,
-		description: account.description ?? '',
-		lastContactDate: activityDates.at(-1) ?? utcToLocalDate(account.audit.createdAt, timeZone),
+		team: groups.find((group) => group.id === organization.ownerCircleID)?.name ?? organization.ownerCircleID ?? '',
+		address: organization.address,
+		tags: organization.tags,
+		description: organization.description ?? '',
+		lastContactDate: activityDates.at(-1) ?? utcToLocalDate(organization.audit.createdAt, timeZone),
 		nextActionDate: dueDates[0] ?? '',
 		openOpportunityCount: openOpportunities.length,
 		expectedValues: moneyTotals(openOpportunities)
@@ -274,13 +296,12 @@ function mapAccount(
 function mapContact(contact: CRMContactResponse): CRMContact {
 	return {
 		id: contact.id,
-		accountID: contact.accountID,
+		organizationID: contact.organizationID,
 		name: contact.name,
 		title: contact.title ?? '',
 		department: contact.department,
 		email: contact.email ?? '',
 		phone: contact.phone,
-		isPrimary: contact.isPrimary,
 		note: contact.description,
 		ownerPersonID: contact.ownerPersonID,
 		ownerCircleID: contact.ownerCircleID
@@ -292,7 +313,7 @@ function mapOpportunity(opportunity: CRMOpportunityResponse, people: UserRecord[
 	const timeZone = opportunity.dueTimeZone || 'UTC';
 	return {
 		id: opportunity.id,
-		accountID: opportunity.accountID ?? '',
+		organizationID: opportunity.organizationID ?? '',
 		business: opportunity.business ?? '',
 		name: opportunity.name,
 		pipeline: opportunity.pipeline,
@@ -320,7 +341,7 @@ function mapOpportunity(opportunity: CRMOpportunityResponse, people: UserRecord[
 function mapActivity(activity: CRMActivityResponse): CRMActivity {
 	return {
 		id: activity.id,
-		accountID: activity.accountID ?? '',
+		organizationID: activity.organizationID ?? '',
 		contactID: activity.contactID,
 		opportunityID: activity.opportunityID,
 		business: activity.business ?? '',
@@ -328,7 +349,16 @@ function mapActivity(activity: CRMActivityResponse): CRMActivity {
 		title: activity.title,
 		occurredAt: activity.occurredAt,
 		summary: activity.content ?? '',
-		taskID: ''
+		taskID: activity.id,
+		taskStatus: activity.taskStatus,
+		taskOwnerID: activity.taskOwnerID,
+		taskOwnerName: activity.taskOwnerID,
+		calendarEventID: activity.isEvent ? activity.id : undefined,
+		calendarEventDate: activity.startsAt,
+		isWholeDay: activity.isWholeDay,
+		calendarEndsAt: activity.endsAt,
+		calendarLocation: activity.location,
+		calendarRegistrationState: activity.isEvent ? 'registered' : undefined
 	};
 }
 

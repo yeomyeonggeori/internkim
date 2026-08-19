@@ -5,22 +5,22 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import * as Sheet from '$lib/components/ui/sheet';
-	import { TagsInput } from '$lib/components/ui/tags-input';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import { activityReferenceAfterAccountChange, activityReferenceAfterOpportunityChange } from './crm-activity-reference';
+	import type { OrgGroup, UserRecord } from '$lib/organization/types';
+	import { untrack } from 'svelte';
+	import { activityReferenceAfterOrganizationChange, activityReferenceAfterOpportunityChange } from './crm-activity-reference';
 	import { hasCRMContactMethod } from './crm-contact-validation';
 	import { currentCRMDate } from './crm-date';
+	import { crmLabel } from './crm-labels';
 	import { parseAmountInput } from './crm-money';
 	import CRMMoneyField from './crm-money-field.svelte';
-	import {
-		opportunityContactLinks,
-		opportunityContactSelectionForAccount,
-		toggleOpportunityContact
-	} from './crm-opportunity-contact-links';
+	import CRMOwnerSelect from './crm-owner-select.svelte';
+	import { CRMRelationshipContactCreateError } from './crm-relationship-create';
+	import CRMRelationshipCreateForm from './crm-relationship-create-form.svelte';
 	import type {
-		CRMAccount,
-		CRMAccountStatus,
-		CRMAccountType,
+		CRMOrganization,
+		CRMOrganizationStatus,
+		CRMOrganizationType,
 		CRMActivityKind,
 		CRMContact,
 		CRMCurrency,
@@ -33,49 +33,56 @@
 		CRMProgressKind,
 		CRMRecordKind
 	} from './crm-types';
-	import { crmAccountTypes } from './crm-types';
-	import { findAccountByID, opportunityStageLabel } from './crm-view-model';
+	import { findOrganizationByID, opportunityStageLabel } from './crm-view-model';
 	import type { CRMText } from './text';
 
 	type Props = {
 		open: boolean;
 		initialKind: CRMRecordKind;
-		accounts: CRMAccount[];
+		initialOrganizationID?: string;
+		organizations: CRMOrganization[];
 		contacts: CRMContact[];
 		opportunities: CRMOpportunity[];
 		pipelines: CRMPipeline[];
 		stages: CRMPipelineStage[];
 		lostReasons: CRMLostReason[];
 		businessOptions: string[];
-		defaultOwnerName: string;
+		organizationTypeOptions: CRMOrganizationType[];
+		activityKindOptions: CRMActivityKind[];
+		defaultOwnerPersonID: string;
+		people: UserRecord[];
+		groups: OrgGroup[];
 		text: CRMText;
 		onCreate: (draft: CRMCreateDraft) => Promise<void>;
 	};
 
-	let { open = $bindable(false), initialKind, accounts, contacts, opportunities, pipelines, stages, lostReasons, businessOptions, defaultOwnerName, text, onCreate }: Props = $props();
-	const accountStatuses: CRMAccountStatus[] = ['prospect', 'active', 'paused'];
+	let { open = $bindable(false), initialKind, initialOrganizationID = '', organizations, contacts, opportunities, pipelines, stages, lostReasons, businessOptions, organizationTypeOptions, activityKindOptions, defaultOwnerPersonID, people, groups, text, onCreate }: Props = $props();
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
-	const activityKinds: Array<Exclude<CRMActivityKind, 'stage_change'>> = ['note', 'email', 'meeting', 'call', 'task', 'file', 'event'];
+	let activityKinds = $derived(activityKindOptions.filter((kind) => kind !== 'stage_change'));
 	const noLostReasonValue = '__none__';
-	const noAccountValue = '__no_account__';
-	const noPrimaryContactValue = '__no_primary_contact__';
+	const noOrganizationValue = '__no_organization__';
+	const noContactValue = '__no_contact__';
 	let kind = $state<CRMRecordKind>('relationship');
 	let name = $state('');
-	let accountID = $state('');
-	let accountTypes = $state<CRMAccountType[]>([]);
-	let status = $state<CRMAccountStatus>('prospect');
+	let organizationID = $state('');
+	let organizationTypes = $state<CRMOrganizationType[]>([]);
+	let status = $state<CRMOrganizationStatus>('prospect');
 	let importance = $state<CRMImportance>('medium');
-	let ownerName = $state('');
-	let team = $state('');
+	let ownerPersonID = $state('');
 	let address = $state('');
 	let tags = $state<string[]>([]);
 	let description = $state('');
 	let contactTitle = $state('');
 	let email = $state('');
 	let phone = $state('');
-	let isPrimary = $state(false);
-	let contactIDs = $state<string[]>([]);
-	let primaryContactID = $state('');
+	let addExternalContact = $state(false);
+	let externalContactName = $state('');
+	let externalContactTitle = $state('');
+	let externalContactEmail = $state('');
+	let externalContactPhone = $state('');
+	let externalContactNote = $state('');
+	let createdOrganizationID = $state('');
+	let progressContactID = $state('');
 	let business = $state('general');
 	let pipeline = $state<CRMProgressKind>('sales');
 	let stage = $state('lead');
@@ -84,33 +91,45 @@
 	let currency = $state<CRMCurrency>('KRW');
 	let targetDate = $state('');
 	let opportunityID = $state('');
+	let activityContactID = $state('');
 	let activityKind = $state<Exclude<CRMActivityKind, 'stage_change'>>('note');
 	let occurredAt = $state('');
+	let taskOwnerID = $state('');
+	let taskStatus = $state('todo');
+	let registerCalendar = $state(false);
+	let isAllDay = $state(false);
+	let calendarStart = $state('');
+	let calendarEnd = $state('');
+	let calendarLocation = $state('');
 	let errorMessage = $state('');
 	let isSaving = $state(false);
 	let pipelineStages = $derived(stages.filter((candidate) => candidate.pipeline === pipeline).sort((left, right) => left.position - right.position));
-	let relatedOpportunities = $derived(opportunities.filter((opportunity) => opportunity.accountID === accountID));
-	let accountContacts = $derived(contacts.filter((contact) => contact.accountID === accountID));
+	let relatedOpportunities = $derived(opportunities.filter((opportunity) => opportunity.organizationID === organizationID));
+	let organizationContacts = $derived(contacts.filter((contact) => contact.organizationID === organizationID));
 	let stageOutcome = $derived(pipelineStages.find((candidate) => candidate.stage === stage)?.outcome ?? 'open');
 
 	function resetForm(): void {
 		kind = initialKind;
 		name = '';
-		accountID = accounts[0]?.id ?? '';
-		accountTypes = [];
+		organizationID = initialOrganizationID || organizations[0]?.id || '';
+		organizationTypes = [];
 		status = 'prospect';
 		importance = 'medium';
-		ownerName = defaultOwnerName;
-		team = '';
+		ownerPersonID = defaultOwnerPersonID;
 		address = '';
 		tags = [];
 		description = '';
 		contactTitle = '';
 		email = '';
 		phone = '';
-		isPrimary = false;
-		contactIDs = [];
-		primaryContactID = '';
+		addExternalContact = false;
+		externalContactName = '';
+		externalContactTitle = '';
+		externalContactEmail = '';
+		externalContactPhone = '';
+		externalContactNote = '';
+		createdOrganizationID = '';
+		progressContactID = '';
 		business = businessOptions[0] ?? 'general';
 		pipeline = pipelines[0]?.pipeline ?? 'sales';
 		stage = stages.find((candidate) => candidate.pipeline === pipeline)?.stage ?? 'lead';
@@ -119,8 +138,16 @@
 		currency = 'KRW';
 		targetDate = currentCRMDate();
 		opportunityID = '';
-		activityKind = 'note';
+		activityContactID = '';
+		activityKind = activityKinds[0] ?? 'note';
 		occurredAt = localDateTimeValue(new Date());
+		taskOwnerID = defaultOwnerPersonID;
+		taskStatus = 'todo';
+		registerCalendar = false;
+		isAllDay = false;
+		calendarStart = occurredAt;
+		calendarEnd = occurredAt;
+		calendarLocation = '';
 		errorMessage = '';
 		isSaving = false;
 	}
@@ -130,45 +157,30 @@
 		stage = stages.find((candidate) => candidate.pipeline === pipeline)?.stage ?? '';
 	}
 
-	function selectAccount(value: string): void {
-		const nextAccountID = value === noAccountValue ? '' : value;
+	function selectOrganization(value: string): void {
+		const nextOrganizationID = value === noOrganizationValue ? '' : value;
 		if (kind === 'contact') {
-			accountID = nextAccountID;
-			if (!accountID) isPrimary = false;
+			organizationID = nextOrganizationID;
 			return;
 		}
 		if (kind === 'progress') {
-			accountID = nextAccountID;
-			const selection = opportunityContactSelectionForAccount({ contactIDs, primaryContactID }, contacts, accountID);
-			contactIDs = selection.contactIDs;
-			primaryContactID = selection.primaryContactID;
+			organizationID = nextOrganizationID;
+			if (!contacts.some((contact) => contact.id === progressContactID && contact.organizationID === organizationID)) progressContactID = '';
 			return;
 		}
-		const reference = activityReferenceAfterAccountChange(opportunities, nextAccountID, opportunityID, business);
-		accountID = reference.accountID;
+		const reference = activityReferenceAfterOrganizationChange(opportunities, nextOrganizationID, opportunityID, business);
+		organizationID = reference.organizationID;
 		opportunityID = reference.opportunityID;
 		business = reference.business;
-	}
-
-	function toggleContact(contactID: string, checked: boolean): void {
-		const selection = toggleOpportunityContact({ contactIDs, primaryContactID }, contactID, checked);
-		contactIDs = selection.contactIDs;
-		primaryContactID = selection.primaryContactID;
+		if (!contacts.some((contact) => contact.id === activityContactID && contact.organizationID === organizationID)) activityContactID = '';
 	}
 
 	function selectOpportunity(value: string): void {
-		const reference = activityReferenceAfterOpportunityChange(opportunities, value, accountID, business);
-		accountID = reference.accountID;
+		const reference = activityReferenceAfterOpportunityChange(opportunities, value, organizationID, business);
+		organizationID = reference.organizationID;
 		opportunityID = reference.opportunityID;
 		business = reference.business;
-	}
-
-	function setAccountType(accountType: CRMAccountType, checked: boolean): void {
-		if (checked) {
-			if (!accountTypes.includes(accountType)) accountTypes = [...accountTypes, accountType];
-			return;
-		}
-		accountTypes = accountTypes.filter((type) => type !== accountType);
+		if (!contacts.some((contact) => contact.id === activityContactID && contact.organizationID === organizationID)) activityContactID = '';
 	}
 
 	async function submit(event: SubmitEvent): Promise<void> {
@@ -181,28 +193,63 @@
 			errorMessage = text.contactMethodRequired;
 			return;
 		}
-		if (kind === 'progress' && !accountID && contactIDs.length === 0) {
+		if (kind === 'relationship' && !ownerPersonID) {
+			errorMessage = text.selectInternalOwner;
+			return;
+		}
+		if (kind === 'relationship' && addExternalContact && (!externalContactName.trim() || !hasCRMContactMethod(externalContactEmail, externalContactPhone))) {
+			errorMessage = !externalContactName.trim() ? text.requiredField : text.contactMethodRequired;
+			return;
+		}
+		if (kind === 'progress' && !organizationID && !progressContactID) {
 			errorMessage = text.opportunityCustomerRequired;
+			return;
+		}
+		if (kind === 'progress' && !ownerPersonID) {
+			errorMessage = text.selectInternalOwner;
 			return;
 		}
 		if (kind === 'progress' && stageOutcome === 'lost' && !lostReason) {
 			errorMessage = text.lostReasonRequired;
 			return;
 		}
+		if (kind === 'activity' && registerCalendar && calendarStart && calendarEnd && calendarEnd < calendarStart) {
+			errorMessage = text.endTimeAfterStart;
+			return;
+		}
 		isSaving = true;
 		errorMessage = '';
 		try {
 			if (kind === 'relationship') {
-				await onCreate({ kind, name: name.trim(), types: accountTypes, status, importance, ownerName: ownerName.trim(), team: team.trim(), address: address.trim(), tags, description: description.trim(), lastContactDate: '', nextActionDate: '' });
+				await onCreate({
+					kind,
+					name: name.trim(),
+					types: organizationTypes,
+					status,
+					importance,
+					ownerPersonID,
+					address: address.trim(),
+					tags,
+					description: description.trim(),
+					createdOrganizationID: createdOrganizationID || undefined,
+					contact: addExternalContact ? {
+						name: externalContactName.trim(),
+						title: externalContactTitle.trim(),
+						email: externalContactEmail.trim(),
+						phone: externalContactPhone.trim(),
+						note: externalContactNote.trim()
+					} : undefined
+				});
 			} else if (kind === 'contact') {
-				await onCreate({ kind, accountID, name: name.trim(), title: contactTitle.trim(), email: email.trim(), phone: phone.trim(), isPrimary, note: description.trim() });
+				await onCreate({ kind, organizationID, name: name.trim(), title: contactTitle.trim(), email: email.trim(), phone: phone.trim(), note: description.trim() });
 			} else if (kind === 'progress') {
-				await onCreate({ kind, accountID, contacts: opportunityContactLinks({ contactIDs, primaryContactID }), business, name: name.trim(), progressKind: pipeline, stage, lostReason: stageOutcome === 'lost' ? lostReason : '', ownerName: ownerName.trim(), amount: parseAmountInput(amount), currency, importance, targetDate, description: description.trim(), calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' } });
+				await onCreate({ kind, organizationID, contacts: progressContactID ? [{ contactID: progressContactID }] : [], business, name: name.trim(), progressKind: pipeline, stage, lostReason: stageOutcome === 'lost' ? lostReason : '', ownerPersonID, amount: parseAmountInput(amount), currency, importance, targetDate, description: description.trim(), calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' } });
 			} else {
-				await onCreate({ kind, accountID, opportunityID: opportunityID || undefined, business, activityKind, title: name.trim(), occurredAt, summary: description.trim(), taskOwnerID: '', taskStatus: '', calendar: { isRequested: false, isAllDay: false, startTime: '', endTime: '', location: '' } });
+				await onCreate({ kind, organizationID, contactID: activityContactID || undefined, opportunityID: opportunityID || undefined, business, activityKind, title: name.trim(), occurredAt, summary: description.trim(), taskOwnerID, taskStatus, calendar: { isRequested: registerCalendar, isAllDay, startTime: calendarStart, endTime: calendarEnd, location: calendarLocation.trim() } });
 			}
 			open = false;
 		} catch (error) {
+			if (error instanceof CRMRelationshipContactCreateError) createdOrganizationID = error.organizationID;
 			errorMessage = error instanceof Error ? error.message : text.requiredField;
 		} finally {
 			isSaving = false;
@@ -210,7 +257,7 @@
 	}
 
 	$effect(() => {
-		if (open) resetForm();
+		if (open) untrack(resetForm);
 	});
 
 	function localDateTimeValue(date: Date): string {
@@ -227,41 +274,41 @@
 				<Field.Group>
 					<Field.Field><Field.Label for="crm-record-kind">{text.recordKind}</Field.Label><Select.Root type="single" value={kind} onValueChange={(value) => (kind = value as CRMRecordKind)}><Select.Trigger id="crm-record-kind" class="w-full">{kind === 'relationship' ? text.newRelationship : kind === 'contact' ? text.newContact : kind === 'progress' ? text.newOpportunity : text.logActivity}</Select.Trigger><Select.Content><Select.Item value="relationship" label={text.newRelationship}>{text.newRelationship}</Select.Item><Select.Item value="contact" label={text.newContact}>{text.newContact}</Select.Item><Select.Item value="progress" label={text.newOpportunity}>{text.newOpportunity}</Select.Item><Select.Item value="activity" label={text.logActivity}>{text.logActivity}</Select.Item></Select.Content></Select.Root></Field.Field>
 					{#if kind !== 'relationship'}
-							<Field.Field><Field.Label for="crm-record-account">{text.accountName}</Field.Label><Select.Root type="single" value={accountID || noAccountValue} onValueChange={selectAccount}><Select.Trigger id="crm-record-account" class="w-full">{accountID ? findAccountByID(accounts, accountID)?.name ?? text.selectRelationship : text.none}</Select.Trigger><Select.Content>{#if kind === 'contact' || kind === 'progress'}<Select.Item value={noAccountValue} label={text.none}>{text.none}</Select.Item>{/if}{#each accounts as account (account.id)}<Select.Item value={account.id} label={account.name}>{account.name}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
+							<Field.Field><Field.Label for="crm-record-organization">{text.organizationName}</Field.Label><Select.Root type="single" value={organizationID || noOrganizationValue} onValueChange={selectOrganization}><Select.Trigger id="crm-record-organization" class="w-full">{organizationID ? findOrganizationByID(organizations, organizationID)?.name ?? text.selectRelationship : text.none}</Select.Trigger><Select.Content>{#if kind === 'contact' || kind === 'progress'}<Select.Item value={noOrganizationValue} label={text.none}>{text.none}</Select.Item>{/if}{#each organizations as organization (organization.id)}<Select.Item value={organization.id} label={organization.name}>{organization.name}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
 					{/if}
-					<Field.Field><Field.Label for="crm-record-name">{kind === 'contact' ? text.contactName : kind === 'activity' ? text.activityTitle : text.name}</Field.Label><Input id="crm-record-name" bind:value={name} required /></Field.Field>
 					{#if kind === 'relationship'}
-						<Field.Field>
-							<Field.Label>{text.type}</Field.Label>
-							<div class="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
-								{#each crmAccountTypes as accountType (accountType)}
-									<label class="flex items-center gap-2 text-sm"><Checkbox checked={accountTypes.includes(accountType)} onCheckedChange={(checked) => setAccountType(accountType, checked)} />{text.accountTypes[accountType]}</label>
-								{/each}
-							</div>
-						</Field.Field>
-						<Field.Field><Field.Label>{text.status}</Field.Label><Select.Root type="single" value={status} onValueChange={(value) => (status = value as CRMAccountStatus)}><Select.Trigger class="w-full">{text.accountStatuses[status]}</Select.Trigger><Select.Content>{#each accountStatuses as option (option)}<Select.Item value={option} label={text.accountStatuses[option]}>{text.accountStatuses[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
-						<Field.Field><Field.Label for="crm-record-owner">{text.owner}</Field.Label><Input id="crm-record-owner" bind:value={ownerName} /></Field.Field>
-						<Field.Field><Field.Label for="crm-record-address">{text.address}</Field.Label><Input id="crm-record-address" bind:value={address} /></Field.Field>
-						<Field.Field><Field.Label for="crm-record-tags">{text.tags}</Field.Label><TagsInput id="crm-record-tags" bind:value={tags} /></Field.Field>
+						<CRMRelationshipCreateForm
+							bind:name bind:organizationTypes bind:status bind:importance bind:ownerPersonID bind:address bind:tags bind:description
+							bind:addExternalContact bind:contactName={externalContactName} bind:contactTitle={externalContactTitle}
+							bind:contactEmail={externalContactEmail} bind:contactPhone={externalContactPhone}
+							bind:contactNote={externalContactNote}
+							{createdOrganizationID} {people} {groups} {text}
+							{organizationTypeOptions}
+						/>
 					{:else if kind === 'contact'}
+						<Field.Field><Field.Label for="crm-record-name">{text.contactName}</Field.Label><Input id="crm-record-name" bind:value={name} required /></Field.Field>
 						<Field.Field><Field.Label for="crm-record-contact-title">{text.contactTitle}</Field.Label><Input id="crm-record-contact-title" bind:value={contactTitle} /></Field.Field>
 						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-record-email">{text.email}</Field.Label><Input id="crm-record-email" type="email" bind:value={email} /></Field.Field><Field.Field><Field.Label for="crm-record-phone">{text.phone}</Field.Label><Input id="crm-record-phone" type="tel" bind:value={phone} /></Field.Field></div>
-							<Field.Field orientation="horizontal"><Checkbox id="crm-record-primary" bind:checked={isPrimary} disabled={!accountID} /><Field.Content><Field.Label for="crm-record-primary">{text.markAsPrimaryContact}</Field.Label></Field.Content></Field.Field>
 					{:else if kind === 'progress'}
+						<Field.Field><Field.Label for="crm-record-name">{text.name}</Field.Label><Input id="crm-record-name" bind:value={name} required /></Field.Field>
 						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.progressKind}</Field.Label><Select.Root type="single" value={pipeline} onValueChange={selectPipeline}><Select.Trigger class="w-full">{pipelines.find((candidate) => candidate.pipeline === pipeline)?.label ?? pipeline}</Select.Trigger><Select.Content>{#each pipelines as option (option.pipeline)}<Select.Item value={option.pipeline} label={option.label}>{option.label}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-stage">{text.stage}</Field.Label><Select.Root type="single" bind:value={stage}><Select.Trigger id="crm-record-stage" class="w-full">{opportunityStageLabel(stage, text)}</Select.Trigger><Select.Content>{#each pipelineStages as option (option.stage)}<Select.Item value={option.stage} label={opportunityStageLabel(option.stage, text)}>{opportunityStageLabel(option.stage, text)}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field></div>
 						{#if stageOutcome === 'lost'}<Field.Field><Field.Label for="crm-record-lost-reason">{text.lostReason}</Field.Label><Select.Root type="single" value={lostReason || noLostReasonValue} onValueChange={(value) => (lostReason = value === noLostReasonValue ? '' : value)}><Select.Trigger id="crm-record-lost-reason" class="w-full">{lostReasons.find((reason) => reason.reason === lostReason)?.label ?? text.selectLostReason}</Select.Trigger><Select.Content><Select.Item value={noLostReasonValue} label={text.selectLostReason}>{text.selectLostReason}</Select.Item>{#each lostReasons.filter((reason) => reason.isActive) as reason (reason.reason)}<Select.Item value={reason.reason} label={reason.label}>{reason.label}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>{/if}
 						<Field.Field><Field.Label>{text.business}</Field.Label><Select.Root type="single" bind:value={business}><Select.Trigger class="w-full">{business}</Select.Trigger><Select.Content>{#each businessOptions as option (option)}<Select.Item value={option} label={option}>{option}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
 						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-target">{text.targetDate}</Field.Label><Input id="crm-record-target" type="date" bind:value={targetDate} /></Field.Field></div>
 							<CRMMoneyField id="crm-record-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency />
-							<Field.Field><Field.Label>{text.linkedContacts}</Field.Label>{#if accountContacts.length === 0}<p class="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{text.noAccountContacts}</p>{:else}<div class="grid gap-2">{#each accountContacts as contact (contact.id)}<label class="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"><Checkbox checked={contactIDs.includes(contact.id)} onCheckedChange={(checked) => toggleContact(contact.id, checked)} />{contact.name}</label>{/each}</div>{/if}</Field.Field>
-							{#if contactIDs.length > 0}<Field.Field><Field.Label>{text.primaryContact}</Field.Label><Select.Root type="single" value={primaryContactID || noPrimaryContactValue} onValueChange={(value) => (primaryContactID = value === noPrimaryContactValue ? '' : value)}><Select.Trigger class="w-full">{accountContacts.find((contact) => contact.id === primaryContactID)?.name ?? text.noPrimaryContact}</Select.Trigger><Select.Content><Select.Item value={noPrimaryContactValue} label={text.noPrimaryContact}>{text.noPrimaryContact}</Select.Item>{#each accountContacts.filter((contact) => contactIDs.includes(contact.id)) as contact (contact.id)}<Select.Item value={contact.id} label={contact.name}>{contact.name}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>{/if}
-						<Field.Field><Field.Label for="crm-record-progress-owner">{text.progressOwner}</Field.Label><Input id="crm-record-progress-owner" bind:value={ownerName} /></Field.Field>
+							<Field.Field><Field.Label>{text.externalContact}</Field.Label><Select.Root type="single" value={progressContactID || noContactValue} onValueChange={(value) => (progressContactID = value === noContactValue ? '' : value)}><Select.Trigger class="w-full">{organizationContacts.find((contact) => contact.id === progressContactID)?.name ?? text.none}</Select.Trigger><Select.Content><Select.Item value={noContactValue} label={text.none}>{text.none}</Select.Item>{#each organizationContacts as contact (contact.id)}<Select.Item value={contact.id} label={contact.name}>{contact.name}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
+						<Field.Field><Field.Label for="crm-record-progress-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-record-progress-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
 					{:else}
+						<Field.Field><Field.Label for="crm-record-name">{text.activityTitle}</Field.Label><Input id="crm-record-name" bind:value={name} required /></Field.Field>
 							<Field.Field><Field.Label for="crm-record-opportunity">{text.relatedProgress}</Field.Label><Select.Root type="single" value={opportunityID} onValueChange={selectOpportunity}><Select.Trigger id="crm-record-opportunity" class="w-full">{relatedOpportunities.find((opportunity) => opportunity.id === opportunityID)?.name ?? text.noRelatedProgress}</Select.Trigger><Select.Content><Select.Item value="" label={text.noRelatedProgress}>{text.noRelatedProgress}</Select.Item>{#each relatedOpportunities as opportunity (opportunity.id)}<Select.Item value={opportunity.id} label={opportunity.name}>{opportunity.name}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
-						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.activityKind}</Field.Label><Select.Root type="single" value={activityKind} onValueChange={(value) => (activityKind = value as Exclude<CRMActivityKind, 'stage_change'>)}><Select.Trigger class="w-full">{text.activityKinds[activityKind]}</Select.Trigger><Select.Content>{#each activityKinds as option (option)}<Select.Item value={option} label={text.activityKinds[option]}>{text.activityKinds[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-occurred">{text.occurredAt}</Field.Label><Input id="crm-record-occurred" type="datetime-local" bind:value={occurredAt} /></Field.Field></div>
+						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.activityKind}</Field.Label><Select.Root type="single" value={activityKind} onValueChange={(value) => (activityKind = value as Exclude<CRMActivityKind, 'stage_change'>)}><Select.Trigger class="w-full">{crmLabel(text.activityKinds, activityKind)}</Select.Trigger><Select.Content>{#each activityKinds as option (option)}<Select.Item value={option} label={crmLabel(text.activityKinds, option)}>{crmLabel(text.activityKinds, option)}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-occurred">{text.occurredAt}</Field.Label><Input id="crm-record-occurred" type="datetime-local" bind:value={occurredAt} /></Field.Field></div>
 							<Field.Field><Field.Label for="crm-record-activity-business">{text.business}</Field.Label><Select.Root type="single" bind:value={business} disabled={opportunityID !== ''}><Select.Trigger id="crm-record-activity-business" class="w-full">{business}</Select.Trigger><Select.Content>{#each businessOptions as option (option)}<Select.Item value={option} label={option}>{option}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
+							<Field.Field><Field.Label>{text.externalContact}</Field.Label><Select.Root type="single" value={activityContactID || noContactValue} onValueChange={(value) => (activityContactID = value === noContactValue ? '' : value)}><Select.Trigger class="w-full">{organizationContacts.find((contact) => contact.id === activityContactID)?.name ?? text.none}</Select.Trigger><Select.Content><Select.Item value={noContactValue} label={text.none}>{text.none}</Select.Item>{#each organizationContacts as contact (contact.id)}<Select.Item value={contact.id} label={contact.name}>{contact.name}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
+							<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-record-task-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-record-task-owner" bind:value={taskOwnerID} {people} {groups} {text} /></Field.Field><Field.Field><Field.Label>{text.activityStatus}</Field.Label><Select.Root type="single" bind:value={taskStatus}><Select.Trigger class="w-full">{crmLabel(text.nextActionStatuses, taskStatus)}</Select.Trigger><Select.Content>{#each ['todo', 'in_progress', 'done', 'paused', 'cancelled'] as option (option)}<Select.Item value={option} label={crmLabel(text.nextActionStatuses, option)}>{crmLabel(text.nextActionStatuses, option)}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field></div>
+							<Field.Field orientation="horizontal"><Checkbox id="crm-record-calendar" bind:checked={registerCalendar} /><Field.Content><Field.Label for="crm-record-calendar">{text.registerCalendar}</Field.Label><Field.Description>{text.registerCalendarDescription}</Field.Description></Field.Content></Field.Field>
+							{#if registerCalendar}<Field.Field orientation="horizontal"><Checkbox id="crm-record-all-day" bind:checked={isAllDay} /><Field.Content><Field.Label for="crm-record-all-day">{text.allDay}</Field.Label></Field.Content></Field.Field><div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-record-calendar-start">{text.startTime}</Field.Label><Input id="crm-record-calendar-start" type="datetime-local" bind:value={calendarStart} /></Field.Field><Field.Field><Field.Label for="crm-record-calendar-end">{text.endTime}</Field.Label><Input id="crm-record-calendar-end" type="datetime-local" bind:value={calendarEnd} /></Field.Field></div><Field.Field><Field.Label for="crm-record-calendar-location">{text.location}</Field.Label><Input id="crm-record-calendar-location" bind:value={calendarLocation} /></Field.Field>{/if}
 					{/if}
-					<Field.Field><Field.Label for="crm-record-details">{text.details}</Field.Label><Textarea id="crm-record-details" rows={6} bind:value={description} /></Field.Field>
+					{#if kind !== 'relationship'}<Field.Field><Field.Label for="crm-record-details">{text.details}</Field.Label><Textarea id="crm-record-details" rows={6} bind:value={description} /></Field.Field>{/if}
 					{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
 				</Field.Group>
 			</div>

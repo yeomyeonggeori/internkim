@@ -8,25 +8,36 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { TagsInput } from '$lib/components/ui/tags-input';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import { crmAccountTypes, type CRMAccount, type CRMAccountStatus, type CRMAccountType, type CRMImportance } from './crm-types';
+	import type { OrgGroup, UserRecord } from '$lib/organization/types';
+	import CRMOwnerSelect from './crm-owner-select.svelte';
+	import CRMRelationshipContactManager from './crm-relationship-contact-manager.svelte';
+	import { type CRMOrganization, type CRMOrganizationStatus, type CRMOrganizationType, type CRMContact, type CRMImportance } from './crm-types';
+	import { crmLabel } from './crm-labels';
 	import type { CRMText } from './text';
 
 	type Props = {
 		open: boolean;
-		account: CRMAccount | undefined;
+		organization: CRMOrganization | undefined;
+		people: UserRecord[];
+		groups: OrgGroup[];
+		contacts: CRMContact[];
+		organizationTypeOptions: CRMOrganizationType[];
 		text: CRMText;
-		onSave: (account: CRMAccount) => Promise<void>;
-		onArchive: (accountID: string) => Promise<void>;
+		onSave: (organization: CRMOrganization) => Promise<void>;
+		onArchive: (organizationID: string) => Promise<void>;
+		onEditContact: (contactID: string) => void;
+		onCreateContact: (organizationID: string) => void;
 	};
 
-	let { open = $bindable(false), account, text, onSave, onArchive }: Props = $props();
-	const accountStatuses: CRMAccountStatus[] = ['prospect', 'active', 'paused'];
+	let { open = $bindable(false), organization, people, groups, contacts, organizationTypeOptions, text, onSave, onArchive, onEditContact, onCreateContact }: Props = $props();
+	const organizationStatuses: CRMOrganizationStatus[] = ['prospect', 'active', 'paused'];
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	let name = $state('');
-	let types = $state<CRMAccountType[]>([]);
-	let status = $state<CRMAccountStatus>('prospect');
+	let types = $state<CRMOrganizationType[]>([]);
+	let status = $state<CRMOrganizationStatus>('prospect');
 	let importance = $state<CRMImportance>('medium');
 	let ownerName = $state('');
+	let ownerPersonID = $state('');
 	let ownerEmail = $state('');
 	let team = $state('');
 	let address = $state('');
@@ -36,45 +47,54 @@
 	let nextActionDate = $state('');
 	let isSaving = $state(false);
 	let errorMessage = $state('');
+	let selectedOwner = $derived(people.find((person) => person.userID === ownerPersonID));
+	let selectedTeam = $derived(groups.find((group) => group.id === selectedOwner?.groupID)?.name ?? '');
 
-	function resetForm(selectedAccount: CRMAccount): void {
-		name = selectedAccount.name;
-		types = [...selectedAccount.types];
-		status = selectedAccount.status;
-		importance = selectedAccount.importance;
-		ownerName = selectedAccount.ownerName;
-		ownerEmail = selectedAccount.ownerEmail;
-		team = selectedAccount.team;
-		address = selectedAccount.address ?? '';
-		tags = [...selectedAccount.tags];
-		description = selectedAccount.description;
-		lastContactDate = selectedAccount.lastContactDate;
-		nextActionDate = selectedAccount.nextActionDate;
+	function resetForm(selectedOrganization: CRMOrganization): void {
+		const owner = people.find((person) => person.userID === selectedOrganization.ownerPersonID);
+		const ownerTeam = groups.find((group) => group.id === owner?.groupID)?.name;
+		name = selectedOrganization.name;
+		types = [...selectedOrganization.types];
+		status = selectedOrganization.status;
+		importance = selectedOrganization.importance;
+		ownerName = selectedOrganization.ownerName;
+		ownerPersonID = selectedOrganization.ownerPersonID ?? '';
+		ownerEmail = owner?.email ?? selectedOrganization.ownerEmail;
+		team = ownerTeam || selectedOrganization.team;
+		address = selectedOrganization.address ?? '';
+		tags = [...selectedOrganization.tags];
+		description = selectedOrganization.description;
+		lastContactDate = selectedOrganization.lastContactDate;
+		nextActionDate = selectedOrganization.nextActionDate;
 		isSaving = false;
 		errorMessage = '';
 	}
 
-	function setType(accountType: CRMAccountType, checked: boolean): void {
+	function setType(organizationType: CRMOrganizationType, checked: boolean): void {
 		if (checked) {
-			if (!types.includes(accountType)) types = [...types, accountType];
+			if (!types.includes(organizationType)) types = [...types, organizationType];
 			return;
 		}
-		types = types.filter((type) => type !== accountType);
+		types = types.filter((type) => type !== organizationType);
 	}
 
 	async function save(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
-		if (!account || name.trim() === '') return;
+		if (!organization || name.trim() === '') return;
 		isSaving = true;
 		errorMessage = '';
 		try {
 			await onSave({
-				...account,
+				...organization,
 				name: name.trim(),
 				types,
 				status,
 				importance,
-				ownerName: ownerName.trim(),
+				ownerPersonID,
+				ownerCircleID: selectedOwner?.groupID,
+				ownerName: selectedOwner?.name || selectedOwner?.email || ownerName.trim(),
+				ownerEmail: selectedOwner?.email ?? ownerEmail,
+				team: selectedTeam || team,
 				address: address.trim() || undefined,
 				tags,
 				description: description.trim()
@@ -88,7 +108,7 @@
 	}
 
 	function archive(): void {
-		if (!account) return;
+		if (!organization) return;
 		open = false;
 		confirmDelete({
 			title: text.archive,
@@ -100,7 +120,7 @@
 				isSaving = true;
 				errorMessage = '';
 				try {
-					await onArchive(account.id);
+					await onArchive(organization.id);
 					open = false;
 				} catch (error) {
 					errorMessage = error instanceof Error ? error.message : text.requiredField;
@@ -112,8 +132,18 @@
 		});
 	}
 
+	function editContact(contactID: string): void {
+		open = false;
+		onEditContact(contactID);
+	}
+
+	function createContact(organizationID: string): void {
+		open = false;
+		onCreateContact(organizationID);
+	}
+
 	$effect(() => {
-		if (open && account) resetForm(account);
+		if (open && organization) resetForm(organization);
 	});
 </script>
 
@@ -126,31 +156,32 @@
 			</Sheet.Header>
 			<div class="min-h-0 flex-1 overflow-y-auto px-4 py-5">
 				<Field.Group>
-					<Field.Field><Field.Label for="crm-edit-account-name">{text.accountName}</Field.Label><Input id="crm-edit-account-name" bind:value={name} required /></Field.Field>
+					<Field.Field><Field.Label for="crm-edit-organization-name">{text.organizationName}</Field.Label><Input id="crm-edit-organization-name" bind:value={name} required /></Field.Field>
 					<Field.Field>
 						<Field.Label>{text.type}</Field.Label>
 						<div class="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
-							{#each crmAccountTypes as accountType (accountType)}
-								<label class="flex items-center gap-2 text-sm"><Checkbox checked={types.includes(accountType)} onCheckedChange={(checked) => setType(accountType, checked)} />{text.accountTypes[accountType]}</label>
+							{#each organizationTypeOptions as organizationType (organizationType)}
+								<label class="flex items-center gap-2 text-sm"><Checkbox checked={types.includes(organizationType)} onCheckedChange={(checked) => setType(organizationType, checked)} />{crmLabel(text.organizationTypes, organizationType)}</label>
 							{/each}
 						</div>
 					</Field.Field>
 					<div class="grid gap-4 sm:grid-cols-2">
-						<Field.Field><Field.Label for="crm-edit-account-status">{text.status}</Field.Label><Select.Root type="single" value={status} onValueChange={(value) => (status = value as CRMAccountStatus)}><Select.Trigger id="crm-edit-account-status" class="w-full">{text.accountStatuses[status]}</Select.Trigger><Select.Content>{#each accountStatuses as option (option)}<Select.Item value={option} label={text.accountStatuses[option]}>{text.accountStatuses[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
-						<Field.Field><Field.Label for="crm-edit-account-importance">{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger id="crm-edit-account-importance" class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
+						<Field.Field><Field.Label for="crm-edit-organization-status">{text.status}</Field.Label><Select.Root type="single" value={status} onValueChange={(value) => (status = value as CRMOrganizationStatus)}><Select.Trigger id="crm-edit-organization-status" class="w-full">{text.organizationStatuses[status]}</Select.Trigger><Select.Content>{#each organizationStatuses as option (option)}<Select.Item value={option} label={text.organizationStatuses[option]}>{text.organizationStatuses[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
+						<Field.Field><Field.Label for="crm-edit-organization-importance">{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger id="crm-edit-organization-importance" class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
 					</div>
 					<div class="grid gap-4 sm:grid-cols-2">
-						<Field.Field><Field.Label for="crm-edit-account-owner">{text.owner}</Field.Label><Input id="crm-edit-account-owner" bind:value={ownerName} /></Field.Field>
-						<Field.Field><Field.Label for="crm-edit-account-team">{text.team}</Field.Label><Input id="crm-edit-account-team" bind:value={team} disabled /></Field.Field>
+						<Field.Field><Field.Label for="crm-edit-organization-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-edit-organization-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
+						<Field.Field><Field.Label for="crm-edit-organization-team">{text.team}</Field.Label><Input id="crm-edit-organization-team" value={selectedTeam || team} disabled /></Field.Field>
 					</div>
-					<Field.Field><Field.Label for="crm-edit-account-email">{text.ownerEmail}</Field.Label><Input id="crm-edit-account-email" type="email" bind:value={ownerEmail} disabled /></Field.Field>
-					<Field.Field><Field.Label for="crm-edit-account-address">{text.address}</Field.Label><Input id="crm-edit-account-address" bind:value={address} placeholder={text.addressPlaceholder} /></Field.Field>
-					<Field.Field><Field.Label for="crm-edit-account-tags">{text.tags}</Field.Label><TagsInput id="crm-edit-account-tags" bind:value={tags} placeholder={tags.length === 0 ? text.tagsPlaceholder : undefined} /></Field.Field>
+					<Field.Field><Field.Label for="crm-edit-organization-email">{text.ownerEmail}</Field.Label><Input id="crm-edit-organization-email" type="email" value={selectedOwner?.email ?? ownerEmail} disabled /></Field.Field>
+					{#if organization}<CRMRelationshipContactManager organizationID={organization.id} {contacts} {text} onEdit={editContact} onCreate={createContact} />{/if}
+					<Field.Field><Field.Label for="crm-edit-organization-address">{text.address}</Field.Label><Input id="crm-edit-organization-address" bind:value={address} placeholder={text.addressPlaceholder} /></Field.Field>
+					<Field.Field><Field.Label for="crm-edit-organization-tags">{text.tags}</Field.Label><TagsInput id="crm-edit-organization-tags" bind:value={tags} placeholder={tags.length === 0 ? text.tagsPlaceholder : undefined} /></Field.Field>
 					<div class="grid gap-4 sm:grid-cols-2">
-						<Field.Field><Field.Label for="crm-edit-account-last-contact">{text.lastContact}</Field.Label><Input id="crm-edit-account-last-contact" type="date" bind:value={lastContactDate} disabled /></Field.Field>
-						<Field.Field><Field.Label for="crm-edit-account-next-action">{text.nextContactDate}</Field.Label><Input id="crm-edit-account-next-action" type="date" bind:value={nextActionDate} disabled /></Field.Field>
+						<Field.Field><Field.Label for="crm-edit-organization-last-contact">{text.lastContact}</Field.Label><Input id="crm-edit-organization-last-contact" type="date" bind:value={lastContactDate} disabled /></Field.Field>
+						<Field.Field><Field.Label for="crm-edit-organization-next-action">{text.nextContactDate}</Field.Label><Input id="crm-edit-organization-next-action" type="date" bind:value={nextActionDate} disabled /></Field.Field>
 					</div>
-					<Field.Field><Field.Label for="crm-edit-account-details">{text.details}</Field.Label><Textarea id="crm-edit-account-details" rows={6} bind:value={description} /></Field.Field>
+					<Field.Field><Field.Label for="crm-edit-organization-details">{text.details}</Field.Label><Textarea id="crm-edit-organization-details" rows={6} bind:value={description} /></Field.Field>
 					{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
 				</Field.Group>
 			</div>

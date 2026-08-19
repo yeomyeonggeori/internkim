@@ -7,37 +7,37 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { hasCRMContactMethod } from './crm-contact-validation';
-	import type { CRMAccount, CRMContact } from './crm-types';
-	import { findAccountByID } from './crm-view-model';
+	import { incompatibleCRMOpportunityNames } from './crm-contact-relationship-change';
+	import type { CRMOrganization, CRMContact, CRMOpportunity } from './crm-types';
+	import { findOrganizationByID } from './crm-view-model';
 	import type { CRMText } from './text';
 
 	type Props = {
 		open: boolean;
 		contact: CRMContact | undefined;
-		accounts: CRMAccount[];
+		organizations: CRMOrganization[];
+		opportunities: CRMOpportunity[];
 		text: CRMText;
 		onSave: (contact: CRMContact) => Promise<void>;
 	};
 
-	let { open = $bindable(false), contact, accounts, text, onSave }: Props = $props();
-	const noAccountValue = '__no_account__';
-	let accountID = $state('');
+	let { open = $bindable(false), contact, organizations, opportunities, text, onSave }: Props = $props();
+	const noOrganizationValue = '__no_organization__';
+	let organizationID = $state('');
 	let name = $state('');
 	let title = $state('');
 	let email = $state('');
 	let phone = $state('');
-	let isPrimary = $state(false);
 	let note = $state('');
 	let isSaving = $state(false);
 	let errorMessage = $state('');
 
 	function resetForm(selectedContact: CRMContact): void {
-		accountID = selectedContact.accountID;
+		organizationID = selectedContact.organizationID;
 		name = selectedContact.name;
 		title = selectedContact.title;
 		email = selectedContact.email;
 		phone = selectedContact.phone ?? '';
-		isPrimary = selectedContact.isPrimary;
 		note = selectedContact.note ?? '';
 		isSaving = false;
 		errorMessage = '';
@@ -50,17 +50,21 @@
 			errorMessage = text.contactMethodRequired;
 			return;
 		}
+		const incompatibleNames = incompatibleCRMOpportunityNames(contact.id, organizationID, opportunities);
+		if (incompatibleNames.length > 0) {
+			errorMessage = text.contactRelationshipConflict.replace('{names}', incompatibleNames.join(', '));
+			return;
+		}
 		isSaving = true;
 		errorMessage = '';
 		try {
 			await onSave({
 				...contact,
-				accountID,
+				organizationID,
 				name: name.trim(),
 				title: title.trim(),
 				email: email.trim(),
 				phone: phone.trim() || undefined,
-				isPrimary,
 				note: note.trim() || undefined
 			});
 			open = false;
@@ -86,10 +90,10 @@
 			<div class="min-h-0 flex-1 overflow-y-auto px-4 py-5">
 				<Field.Group>
 					<Field.Field>
-						<Field.Label for="crm-edit-contact-account">{text.accountName}</Field.Label>
-						<Select.Root type="single" value={accountID || noAccountValue} onValueChange={(value) => { accountID = value === noAccountValue ? '' : value; if (!accountID) isPrimary = false; }}>
-							<Select.Trigger id="crm-edit-contact-account" class="w-full">{accountID ? findAccountByID(accounts, accountID)?.name ?? text.selectRelationship : text.none}</Select.Trigger>
-							<Select.Content><Select.Item value={noAccountValue} label={text.none}>{text.none}</Select.Item>{#each accounts as account (account.id)}<Select.Item value={account.id} label={account.name}>{account.name}</Select.Item>{/each}</Select.Content>
+						<Field.Label for="crm-edit-contact-organization">{text.organizationName}</Field.Label>
+						<Select.Root type="single" value={organizationID || noOrganizationValue} onValueChange={(value) => (organizationID = value === noOrganizationValue ? '' : value)}>
+							<Select.Trigger id="crm-edit-contact-organization" class="w-full">{organizationID ? findOrganizationByID(organizations, organizationID)?.name ?? text.selectRelationship : text.none}</Select.Trigger>
+							<Select.Content><Select.Item value={noOrganizationValue} label={text.none}>{text.none}</Select.Item>{#each organizations as organization (organization.id)}<Select.Item value={organization.id} label={organization.name}>{organization.name}</Select.Item>{/each}</Select.Content>
 						</Select.Root>
 					</Field.Field>
 					<div class="grid gap-4 sm:grid-cols-2">
@@ -100,10 +104,6 @@
 						<Field.Field><Field.Label for="crm-edit-contact-email">{text.email}</Field.Label><Input id="crm-edit-contact-email" type="email" bind:value={email} /></Field.Field>
 						<Field.Field><Field.Label for="crm-edit-contact-phone">{text.phone}</Field.Label><Input id="crm-edit-contact-phone" type="tel" bind:value={phone} /></Field.Field>
 					</div>
-					<Field.Field orientation="horizontal">
-						<Checkbox id="crm-edit-contact-primary" bind:checked={isPrimary} disabled={!accountID} />
-						<Field.Content><Field.Label for="crm-edit-contact-primary">{text.markAsPrimaryContact}</Field.Label></Field.Content>
-					</Field.Field>
 					<Field.Field><Field.Label for="crm-edit-contact-note">{text.details}</Field.Label><Textarea id="crm-edit-contact-note" rows={8} bind:value={note} /></Field.Field>
 					{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
 				</Field.Group>
