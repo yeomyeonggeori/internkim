@@ -28,6 +28,8 @@ export type MessengerAttachment = {
 	contentType: string;
 	sizeBytes: number;
 	digest: string;
+	widthPixels?: number;
+	heightPixels?: number;
 };
 
 export type KeptAttachment = {
@@ -74,6 +76,8 @@ type PersonalAttachment = {
 	contentType: string;
 	sizeBytes: number;
 	digest?: string;
+	widthPixels?: number;
+	heightPixels?: number;
 };
 type PersonalMessage = {
 	id: string;
@@ -132,7 +136,9 @@ function asPost(message: PersonalMessage): MessengerPost {
 			filename: attachment.filename,
 			contentType: attachment.contentType,
 			sizeBytes: attachment.sizeBytes,
-			digest: attachment.digest ?? ''
+			digest: attachment.digest ?? '',
+			widthPixels: attachment.widthPixels,
+			heightPixels: attachment.heightPixels
 		}))
 	};
 }

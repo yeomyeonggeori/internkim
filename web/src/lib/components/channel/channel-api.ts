@@ -49,6 +49,8 @@ export type ChannelMessageAttachment = {
 	filename?: string;
 	mimeType?: string;
 	sizeBytes?: number;
+	widthPixels?: number;
+	heightPixels?: number;
 };
 
 export type ChannelCustomEmoji = {
