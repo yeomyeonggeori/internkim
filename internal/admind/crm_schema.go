@@ -233,6 +233,19 @@ var crmSchemaStatements = []string{
 			THEN RAISE(ABORT, 'opportunity contact account mismatch')
 		END;
 	END`,
+	`CREATE TRIGGER IF NOT EXISTS contact_validate_opportunities_after_account_update
+	BEFORE UPDATE OF account_id ON contact
+	WHEN EXISTS (
+		SELECT 1
+		FROM opportunity_contact oc
+		JOIN opportunity o ON o.id = oc.opportunity_id
+		WHERE oc.contact_id = OLD.id
+			AND o.account_id IS NOT NULL
+			AND o.account_id IS NOT NEW.account_id
+	)
+	BEGIN
+		SELECT RAISE(ABORT, 'opportunity contact account mismatch');
+	END`,
 	`CREATE TRIGGER IF NOT EXISTS opportunity_validate_contacts_after_insert
 	AFTER INSERT ON opportunity
 	BEGIN
@@ -290,11 +303,13 @@ var crmSchemaStatements = []string{
 			) THEN RAISE(ABORT, 'activity contact is not linked to opportunity')
 			END;
 		END`,
-	`CREATE TRIGGER IF NOT EXISTS activity_stage_change_immutable_update
-		BEFORE UPDATE ON activity
-		WHEN OLD.kind = 'stage_change'
+	`DROP TRIGGER IF EXISTS activity_stage_change_immutable_update`,
+	`DROP TRIGGER IF EXISTS activity_stage_change_reentry_update`,
+	`CREATE TRIGGER activity_stage_change_reentry_update
+		BEFORE UPDATE OF kind ON activity
+		WHEN NEW.kind = 'stage_change' AND OLD.kind != 'stage_change'
 		BEGIN
-			SELECT RAISE(ABORT, 'stage change activity is immutable');
+			SELECT RAISE(ABORT, 'stage change activity is system generated');
 		END`,
 	`CREATE TRIGGER IF NOT EXISTS activity_stage_change_immutable_delete
 		BEFORE DELETE ON activity

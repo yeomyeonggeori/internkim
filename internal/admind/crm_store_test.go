@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -347,7 +348,7 @@ func TestCRMRealizedAmountsCannotChange(t *testing.T) {
 	}
 }
 
-func TestCRMStageChangeActivityCannotBeRewritten(t *testing.T) {
+func TestCRMStageChangeActivityCanBeEditedButCannotReturnAfterKindChange(t *testing.T) {
 	ctx := context.Background()
 	service, opportunity := createCRMOpportunityForStoreTest(t)
 	if errorValue := service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
@@ -370,8 +371,24 @@ func TestCRMStageChangeActivityCannotBeRewritten(t *testing.T) {
 	activity.Kind = "note"
 	activity.Title = "변경된 기록"
 	activity.Audit.UpdatedAt = "2026-08-02T04:31:00Z"
+	written, errorValue := service.writeCRMActivity(ctx, activity)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if written.Kind != "note" || written.Title != "변경된 기록" {
+		t.Fatalf("rewritten stage change activity = %#v", written)
+	}
+	updatedOpportunity, _, errorValue := service.readCRMOpportunity(ctx, opportunity.ID, false)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if updatedOpportunity.Stage != "qualified" || updatedOpportunity.StageChangedAt != "2026-08-02T04:30:00Z" {
+		t.Fatalf("opportunity stage changed while editing activity = %#v", updatedOpportunity)
+	}
+	activity.Kind = "stage_change"
+	activity.Audit.UpdatedAt = "2026-08-02T04:32:00Z"
 	if _, errorValue := service.writeCRMActivity(ctx, activity); errorValue == nil {
-		t.Fatal("CRM stage change activity rewrite should fail")
+		t.Fatal("normal activity must not become stage change")
 	}
 }
 
@@ -653,6 +670,33 @@ func TestCRMOpportunityCanReplaceAccountAndContactsTogether(t *testing.T) {
 	}
 	if updated.AccountID != secondAccount.ID || len(contacts) != 1 || contacts[0].ContactID != secondContact.ID {
 		t.Fatalf("updated opportunity = %#v, contacts = %#v", updated, contacts)
+	}
+}
+
+func TestCRMContactRejectsAccountChangeThatBreaksOpportunityLink(t *testing.T) {
+	ctx := context.Background()
+	service, opportunity := createCRMOpportunityForStoreTest(t)
+	contact, errorValue := service.writeCRMContact(ctx, crmContact{
+		ID: "contact-linked-account", AccountID: opportunity.AccountID, Name: "연결 담당자", Email: "linked-account@example.com",
+		OwnerPersonID: "person-owner", Audit: opportunity.Audit,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.writeCRMOpportunity(ctx, opportunity, []crmOpportunityContact{{ContactID: contact.ID, IsPrimary: true}}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	secondAccount, errorValue := service.writeCRMAccount(ctx, crmAccount{
+		ID: "account-contact-target", Name: "이동 대상 관계처", Status: "active", Tags: []string{},
+		Importance: "medium", OwnerPersonID: "person-owner", Audit: opportunity.Audit,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	contact.AccountID = secondAccount.ID
+	contact.Audit.UpdatedAt = "2026-08-02T05:00:00Z"
+	if _, errorValue := service.writeCRMContact(ctx, contact); errorValue == nil || !strings.Contains(errorValue.Error(), "opportunity contact account mismatch") {
+		t.Fatalf("contact account change error = %v", errorValue)
 	}
 }
 
