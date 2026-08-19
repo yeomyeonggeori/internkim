@@ -79,7 +79,11 @@ export async function keepMessageAttachment(
 	const path = sharedAssetPath(companyID, attachmentKind, digest, contentType);
 	const written = await uploader.upload(path, bytes, { contentType, upsert: false });
 	if (written.error && !isAlreadyStored(written.error.message)) {
-		throw new Error(`the asset store refused ${path}: ${written.error.message}`);
+		// The size and the type are what a refusal usually turns on, and neither is
+		// in the store's own message. A reader left with "refused" has to guess.
+		throw new Error(
+			`the asset store refused ${path} (${bytes.byteLength} bytes, ${contentType || 'no content type'}): ${written.error.message}`
+		);
 	}
 	return { path, digest };
 }
