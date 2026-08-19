@@ -90,6 +90,22 @@ Host device-*
   ProxyCommand cloudflared access ssh --hostname %h
 ```
 
+`cloudflared access login` writes a token that lasts a day, so that line means
+signing in again every morning and it cannot be used by anything unattended. A
+Cloudflare Access **service token** lasts a year and needs no browser:
+
+```bash
+tools/provision-cloudflare-ssh-service-token     # creates it, attaches the policy
+```
+
+Then point the proxy at the wrapper, which reads the token from the file it was
+written to rather than putting a secret in this config:
+
+```
+Host device-*
+  ProxyCommand /path/to/tools/cloudflared-access-ssh %h
+```
+
 A Cloudflare Tunnel is one answer and a convenient one during development.
 Tailscale, a jump host and WireGuard are others, and this repository cannot tell
 which you picked. `--remote-ssh` skips the local-network probe when you know the
