@@ -6,6 +6,7 @@
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
 	import AlertCircleIcon from '@lucide/svelte/icons/alert-circle';
 	import CheckCircle2Icon from '@lucide/svelte/icons/check-circle-2';
 	import HandshakeIcon from '@lucide/svelte/icons/handshake';
@@ -18,7 +19,9 @@
 	import CRMActivityTable from './crm-activity-table.svelte';
 	import CRMContactEditSheet from './crm-contact-edit-sheet.svelte';
 	import CRMContactTable from './crm-contact-table.svelte';
+	import CRMDefinitionsEditor from './crm-definitions-editor.svelte';
 	import { currentCRMDate, shiftCRMDate } from './crm-date';
+	import { crmLabel } from './crm-labels';
 	import CRMKPICard from './crm-kpi-card.svelte';
 	import CRMOpportunityEditSheet from './crm-opportunity-edit-sheet.svelte';
 	import { CRMPageController } from './crm-page-controller.svelte';
@@ -33,8 +36,8 @@
 	import CRMReportDashboard from './crm-report-dashboard.svelte';
 	import { buildCRMKPICards } from './crm-kpi';
 	import type {
-		CRMAccount,
-		CRMAccountStatus,
+		CRMOrganization,
+		CRMOrganizationStatus,
 		CRMActivity,
 		CRMActivityEditDraft,
 		CRMActivityKind,
@@ -45,19 +48,18 @@
 		CRMRecordKind
 	} from './crm-types';
 	import {
-		accountMatchesFilters,
-		crmAccountStatusOptions,
-		crmAccountTypeOptions,
-		findAccountByID,
-		type CRMAccountStatusFilter,
-		type CRMAccountTypeFilter,
+		organizationMatchesFilters,
+		crmOrganizationStatusOptions,
+		findOrganizationByID,
+		type CRMOrganizationStatusFilter,
+		type CRMOrganizationTypeFilter,
 		type CRMTab
 	} from './crm-view-model';
 	import { crmText } from './text';
 
 	type RelationshipView = 'all' | 'mine' | 'attention' | 'recent';
 	type PipelineView = 'table' | 'board';
-	type ContactView = 'all' | 'primary';
+	type PipelineFilter = CRMProgressKind | 'all';
 	type ActivityView = CRMActivityKind | 'all';
 
 	const text = createPageText(crmText);
@@ -67,9 +69,9 @@
 		{ value: 'contacts', label: text.contactDirectory },
 		{ value: 'pipeline', label: text.pipeline },
 		{ value: 'activities', label: text.activities },
-		{ value: 'reports', label: text.reports }
+		{ value: 'reports', label: text.reports },
+		{ value: 'definitions', label: text.definitions }
 	];
-	const activityKinds: CRMActivityKind[] = ['note', 'email', 'meeting', 'call', 'task', 'file', 'event', 'stage_change'];
 	const relationshipViews: Array<{ value: RelationshipView; label: string }> = [
 		{ value: 'all', label: text.allRelationships },
 		{ value: 'mine', label: text.myRelationships },
@@ -80,77 +82,83 @@
 
 	let selectedTab = $state<CRMTab>('relationships');
 	let searchQuery = $state('');
-	let selectedStatus = $state<CRMAccountStatusFilter>('all');
-	let selectedType = $state<CRMAccountTypeFilter>('all');
+	let selectedStatus = $state<CRMOrganizationStatusFilter>('all');
+	let selectedType = $state<CRMOrganizationTypeFilter>('all');
 	let relationshipView = $state<RelationshipView>('all');
-	let contactView = $state<ContactView>('all');
 	let activityView = $state<ActivityView>('all');
 	let pipelineView = $state<PipelineView>('table');
-	let selectedPipeline = $state<CRMProgressKind>('sales');
-	let selectedAccountID = $state<string | null>(null);
+	let selectedPipeline = $state<PipelineFilter>('all');
+	let selectedOrganizationID = $state<string | null>(null);
 	let selectedContactID = $state<string | null>(null);
 	let selectedOpportunityID = $state<string | null>(null);
 	let requestedOpportunityStage = $state<string | undefined>();
 	let selectedActivityID = $state<string | null>(null);
-	let isAccountSheetOpen = $state(false);
+	let isOrganizationSheetOpen = $state(false);
 	let isRelationshipEditOpen = $state(false);
 	let isContactEditOpen = $state(false);
 	let isOpportunityEditOpen = $state(false);
 	let isActivityEditOpen = $state(false);
 	let isRecordSheetOpen = $state(false);
 	let createKind = $state<CRMRecordKind>('relationship');
+	let createOrganizationID = $state('');
 	let feedbackMessage = $state('');
+	let isAdmin = $state(false);
+	let activityKinds = $derived(controller.activityKindOptions);
+	let organizationTypeFilters = $derived<CRMOrganizationTypeFilter[]>(['all', ...controller.organizationTypeOptions]);
 
 	onMount(() => {
 		void controller.load(page.data.session?.email ?? '');
+		if (isSupabaseConfigured()) void supabaseMemberRole().then((role) => (isAdmin = role === 'admin'));
 	});
 
 	$effect(() => {
-		if (!controller.pipelines.some((pipeline) => pipeline.pipeline === selectedPipeline) && controller.pipelines[0]) {
-			selectedPipeline = controller.pipelines[0].pipeline;
+		if (selectedPipeline !== 'all' && !controller.pipelines.some((pipeline) => pipeline.pipeline === selectedPipeline)) {
+			selectedPipeline = 'all';
 		}
-		selectedAccountID ??= controller.accounts[0]?.id ?? null;
+		if (selectedPipeline === 'all') pipelineView = 'table';
+		selectedOrganizationID ??= controller.organizations[0]?.id ?? null;
 		selectedContactID ??= controller.contacts[0]?.id ?? null;
 		selectedOpportunityID ??= controller.opportunities[0]?.id ?? null;
 		selectedActivityID ??= controller.activities[0]?.id ?? null;
 	});
 
-	let filteredAccounts = $derived(controller.accounts.filter((account) => {
-		if (!accountMatchesFilters(account, searchQuery, selectedStatus, selectedType)) return false;
-		if (relationshipView === 'mine') return account.ownerName === controller.currentOwnerName;
-		if (relationshipView === 'attention') return account.status === 'paused' || account.importance === 'low';
-		if (relationshipView === 'recent') return account.lastContactDate >= recentContactThreshold;
+	let filteredOrganizations = $derived(controller.organizations.filter((organization) => {
+		if (!organizationMatchesFilters(organization, searchQuery, selectedStatus, selectedType)) return false;
+		if (relationshipView === 'mine') return organization.ownerName === controller.currentOwnerName;
+		if (relationshipView === 'attention') return organization.status === 'paused' || organization.importance === 'low';
+		if (relationshipView === 'recent') return organization.lastContactDate >= recentContactThreshold;
 		return true;
 	}));
 	let filteredContacts = $derived(controller.contacts.filter((contact) => {
-		if (contactView === 'primary' && !contact.isPrimary) return false;
-		const account = findAccountByID(controller.accounts, contact.accountID);
+		const organization = findOrganizationByID(controller.organizations, contact.organizationID);
 		const query = searchQuery.trim().toLowerCase();
-		return query === '' || [contact.name, contact.title, contact.email, contact.phone ?? '', contact.note ?? '', account?.name ?? '']
+		return query === '' || [contact.name, contact.title, contact.email, contact.phone ?? '', contact.note ?? '', organization?.name ?? '']
 			.some((value) => value.toLowerCase().includes(query));
 	}));
 	let filteredActivities = $derived(controller.activities.filter((activity) => {
 		if (activityView !== 'all' && activity.kind !== activityView) return false;
-		const account = findAccountByID(controller.accounts, activity.accountID);
+		const organization = findOrganizationByID(controller.organizations, activity.organizationID);
 		const query = searchQuery.trim().toLowerCase();
-		return query === '' || [activity.title, activity.summary, account?.name ?? ''].some((value) => value.toLowerCase().includes(query));
+		return query === '' || [activity.title, activity.summary, organization?.name ?? ''].some((value) => value.toLowerCase().includes(query));
 	}));
-	let pipelineOpportunities = $derived(controller.opportunities.filter((opportunity) => (opportunity.pipeline ?? opportunity.kind) === selectedPipeline));
-	let selectedPipelineStages = $derived(controller.stagesFor(selectedPipeline));
-	let selectedAccount = $derived(selectedAccountID ? findAccountByID(controller.accounts, selectedAccountID) : undefined);
+	let pipelineOpportunities = $derived(selectedPipeline === 'all'
+		? controller.opportunities
+		: controller.opportunities.filter((opportunity) => (opportunity.pipeline ?? opportunity.kind) === selectedPipeline));
+	let selectedPipelineStages = $derived(selectedPipeline === 'all' ? [] : controller.stagesFor(selectedPipeline));
+	let selectedOrganization = $derived(selectedOrganizationID ? findOrganizationByID(controller.organizations, selectedOrganizationID) : undefined);
 	let selectedContact = $derived(selectedContactID ? controller.contacts.find((contact) => contact.id === selectedContactID) : undefined);
 	let selectedOpportunity = $derived(selectedOpportunityID ? controller.opportunities.find((opportunity) => opportunity.id === selectedOpportunityID) : undefined);
 	let selectedActivity = $derived(selectedActivityID ? controller.activities.find((activity) => activity.id === selectedActivityID) : undefined);
-	let kpiCards = $derived(buildCRMKPICards(controller.accounts, controller.opportunities, controller.nextActions, controller.stages, text));
+	let kpiCards = $derived(buildCRMKPICards(controller.organizations, controller.opportunities, controller.nextActions, controller.stages, text));
 
-	function openAccount(accountID: string): void {
-		selectedAccountID = accountID;
-		isAccountSheetOpen = true;
+	function openOrganization(organizationID: string): void {
+		selectedOrganizationID = organizationID;
+		isOrganizationSheetOpen = true;
 	}
 
-	function openAccountEdit(accountID: string): void {
-		selectedAccountID = accountID;
-		isAccountSheetOpen = false;
+	function openOrganizationEdit(organizationID: string): void {
+		selectedOrganizationID = organizationID;
+		isOrganizationSheetOpen = false;
 		isRelationshipEditOpen = true;
 	}
 
@@ -165,6 +173,18 @@
 		isContactEditOpen = true;
 	}
 
+	function openRelationshipContactEdit(contactID: string): void {
+		isRelationshipEditOpen = false;
+		openContactEdit(contactID);
+	}
+
+	function openRelationshipContactCreate(organizationID: string): void {
+		isRelationshipEditOpen = false;
+		createKind = 'contact';
+		createOrganizationID = organizationID;
+		isRecordSheetOpen = true;
+	}
+
 	function openActivityEdit(activityID: string): void {
 		selectedActivityID = activityID;
 		isActivityEditOpen = true;
@@ -172,7 +192,13 @@
 
 	function openCreateSheet(kind: CRMRecordKind): void {
 		createKind = kind;
+		createOrganizationID = '';
 		isRecordSheetOpen = true;
+	}
+
+	function selectPipeline(value: string): void {
+		selectedPipeline = value as PipelineFilter;
+		if (selectedPipeline === 'all') pipelineView = 'table';
 	}
 
 	async function handleCreate(draft: CRMCreateDraft): Promise<void> {
@@ -181,13 +207,13 @@
 		feedbackMessage = text.savedToService;
 	}
 
-	async function saveAccount(account: CRMAccount): Promise<void> {
-		await controller.saveAccount(account);
+	async function saveOrganization(organization: CRMOrganization): Promise<void> {
+		await controller.saveOrganization(organization);
 		feedbackMessage = text.savedToService;
 	}
 
-	async function archiveAccount(accountID: string): Promise<void> {
-		await controller.archiveAccount(accountID);
+	async function archiveOrganization(organizationID: string): Promise<void> {
+		await controller.archiveOrganization(organizationID);
 		isRelationshipEditOpen = false;
 		feedbackMessage = text.archivedFromService;
 	}
@@ -214,8 +240,9 @@
 	}
 
 	function moveOpportunity(request: CRMPipelineBoardMoveRequest): void {
+		const opportunity = controller.opportunities.find((candidate) => candidate.id === request.opportunityID);
 		const outcome = controller.stages.find((stage) =>
-			stage.pipeline === selectedPipeline && stage.stage === request.targetStage
+			stage.pipeline === (opportunity?.pipeline ?? opportunity?.kind) && stage.stage === request.targetStage
 		)?.outcome;
 		if (outcome === 'won' || outcome === 'lost') {
 			selectedOpportunityID = request.opportunityID;
@@ -271,52 +298,52 @@
 			<UnderlineTabs.Content value="relationships" class="grid min-w-0 gap-4 pb-24">
 				<div class="flex min-w-0 flex-col gap-3 rounded-md border bg-card p-3 lg:flex-row lg:items-center lg:justify-end">
 					<Select.Root type="single" value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)}><Select.Trigger class="w-full lg:w-44">{relationshipViews.find((view) => view.value === relationshipView)?.label}</Select.Trigger><Select.Content>{#each relationshipViews as view (view.value)}<Select.Item value={view.value} label={view.label}>{view.label}</Select.Item>{/each}</Select.Content></Select.Root>
-					<Select.Root type="single" value={selectedStatus} onValueChange={(value) => (selectedStatus = value as CRMAccountStatusFilter)}><Select.Trigger class="w-full lg:w-40">{selectedStatus === 'all' ? text.allStatuses : text.accountStatuses[selectedStatus as CRMAccountStatus]}</Select.Trigger><Select.Content>{#each crmAccountStatusOptions as status (status)}<Select.Item value={status} label={status === 'all' ? text.allStatuses : text.accountStatuses[status]}>{status === 'all' ? text.allStatuses : text.accountStatuses[status]}</Select.Item>{/each}</Select.Content></Select.Root>
-					<Select.Root type="single" value={selectedType} onValueChange={(value) => (selectedType = value as CRMAccountTypeFilter)}><Select.Trigger class="w-full lg:w-40">{selectedType === 'all' ? text.allTypes : text.accountTypes[selectedType]}</Select.Trigger><Select.Content>{#each crmAccountTypeOptions as accountType (accountType)}<Select.Item value={accountType} label={accountType === 'all' ? text.allTypes : text.accountTypes[accountType]}>{accountType === 'all' ? text.allTypes : text.accountTypes[accountType]}</Select.Item>{/each}</Select.Content></Select.Root>
+					<Select.Root type="single" value={selectedStatus} onValueChange={(value) => (selectedStatus = value as CRMOrganizationStatusFilter)}><Select.Trigger class="w-full lg:w-40">{selectedStatus === 'all' ? text.allStatuses : text.organizationStatuses[selectedStatus as CRMOrganizationStatus]}</Select.Trigger><Select.Content>{#each crmOrganizationStatusOptions as status (status)}<Select.Item value={status} label={status === 'all' ? text.allStatuses : text.organizationStatuses[status]}>{status === 'all' ? text.allStatuses : text.organizationStatuses[status]}</Select.Item>{/each}</Select.Content></Select.Root>
+					<Select.Root type="single" value={selectedType} onValueChange={(value) => (selectedType = value as CRMOrganizationTypeFilter)}><Select.Trigger class="w-full lg:w-40">{selectedType === 'all' ? text.allTypes : crmLabel(text.organizationTypes, selectedType)}</Select.Trigger><Select.Content>{#each organizationTypeFilters as organizationType (organizationType)}<Select.Item value={organizationType} label={organizationType === 'all' ? text.allTypes : crmLabel(text.organizationTypes, organizationType)}>{organizationType === 'all' ? text.allTypes : crmLabel(text.organizationTypes, organizationType)}</Select.Item>{/each}</Select.Content></Select.Root>
 					<Button type="button" size="sm" onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
 				</div>
-				<CRMRelationshipTable accounts={filteredAccounts} contacts={controller.contacts} {text} {openAccount} />
+				<CRMRelationshipTable organizations={filteredOrganizations} contacts={controller.contacts} {text} {openOrganization} />
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="contacts" class="grid min-w-0 gap-4 pb-24">
 				<div class="flex min-w-0 flex-col gap-3 rounded-md border bg-card p-3 sm:flex-row sm:items-center sm:justify-end">
-					<Select.Root type="single" value={contactView} onValueChange={(value) => (contactView = value as ContactView)}><Select.Trigger class="w-full sm:w-44">{contactView === 'all' ? text.allContacts : text.primaryContacts}</Select.Trigger><Select.Content><Select.Item value="all" label={text.allContacts}>{text.allContacts}</Select.Item><Select.Item value="primary" label={text.primaryContacts}>{text.primaryContacts}</Select.Item></Select.Content></Select.Root>
 					<Button type="button" size="sm" onclick={() => openCreateSheet('contact')}><PlusIcon data-icon="inline-start" />{text.newContact}</Button>
 				</div>
-				<CRMContactTable contacts={filteredContacts} accounts={controller.accounts} {text} onEdit={openContactEdit} />
+				<CRMContactTable contacts={filteredContacts} organizations={controller.organizations} {text} onEdit={openContactEdit} />
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="pipeline" class="grid min-w-0 gap-4 pb-24">
 				<div class="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
 					<div class="flex flex-wrap items-center gap-3">
-						<Select.Root type="single" value={selectedPipeline} onValueChange={(value) => (selectedPipeline = value as CRMProgressKind)}><Select.Trigger class="w-44">{controller.pipelines.find((pipeline) => pipeline.pipeline === selectedPipeline)?.label ?? selectedPipeline}</Select.Trigger><Select.Content>{#each controller.pipelines as pipeline (pipeline.pipeline)}<Select.Item value={pipeline.pipeline} label={pipeline.label}>{pipeline.label}</Select.Item>{/each}</Select.Content></Select.Root>
-							<Tabs.Root bind:value={pipelineView} aria-label={text.pipeline}><Tabs.List><Tabs.Trigger value="table">{text.tableView}</Tabs.Trigger><Tabs.Trigger value="board">{text.boardView}</Tabs.Trigger></Tabs.List></Tabs.Root>
+						<Select.Root type="single" value={selectedPipeline} onValueChange={selectPipeline}><Select.Trigger class="w-44" aria-label={text.progressKind}>{selectedPipeline === 'all' ? text.allProgressKinds : controller.pipelines.find((pipeline) => pipeline.pipeline === selectedPipeline)?.label ?? selectedPipeline}</Select.Trigger><Select.Content><Select.Item value="all" label={text.allProgressKinds}>{text.allProgressKinds}</Select.Item>{#each controller.pipelines as pipeline (pipeline.pipeline)}<Select.Item value={pipeline.pipeline} label={pipeline.label}>{pipeline.label}</Select.Item>{/each}</Select.Content></Select.Root>
+							<Tabs.Root bind:value={pipelineView} aria-label={text.pipeline}><Tabs.List><Tabs.Trigger value="table">{text.tableView}</Tabs.Trigger><Tabs.Trigger value="board" disabled={selectedPipeline === 'all'}>{text.boardView}</Tabs.Trigger></Tabs.List></Tabs.Root>
 					</div>
 					<Button type="button" size="sm" onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 				</div>
 				{#if pipelineView === 'table'}
-					<CRMProgressTable opportunities={pipelineOpportunities} accounts={controller.accounts} nextActions={controller.nextActions} {text} onEdit={openOpportunityEdit} />
+					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} {text} onEdit={openOpportunityEdit} />
 				{:else}
-					<CRMPipelineBoard opportunities={pipelineOpportunities} accounts={controller.accounts} nextActions={controller.nextActions} stages={selectedPipelineStages} {text} onMove={moveOpportunity} />
+					<CRMPipelineBoard opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={selectedPipelineStages} {text} onMove={moveOpportunity} />
 				{/if}
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="activities" class="grid min-w-0 gap-4 pb-24">
 				<div class="flex min-w-0 flex-col gap-3 rounded-md border bg-card p-3 sm:flex-row sm:items-center sm:justify-end">
-					<Select.Root type="single" value={activityView} onValueChange={(value) => (activityView = value as ActivityView)}><Select.Trigger class="w-full sm:w-44">{activityView === 'all' ? text.allActivityKinds : text.activityKinds[activityView]}</Select.Trigger><Select.Content><Select.Item value="all" label={text.allActivityKinds}>{text.allActivityKinds}</Select.Item>{#each activityKinds as activityKind (activityKind)}<Select.Item value={activityKind} label={text.activityKinds[activityKind]}>{text.activityKinds[activityKind]}</Select.Item>{/each}</Select.Content></Select.Root>
+					<Select.Root type="single" value={activityView} onValueChange={(value) => (activityView = value as ActivityView)}><Select.Trigger class="w-full sm:w-44">{activityView === 'all' ? text.allActivityKinds : crmLabel(text.activityKinds, activityView)}</Select.Trigger><Select.Content><Select.Item value="all" label={text.allActivityKinds}>{text.allActivityKinds}</Select.Item>{#each activityKinds as activityKind (activityKind)}<Select.Item value={activityKind} label={crmLabel(text.activityKinds, activityKind)}>{crmLabel(text.activityKinds, activityKind)}</Select.Item>{/each}</Select.Content></Select.Root>
 					<Button type="button" size="sm" onclick={() => openCreateSheet('activity')}><PlusIcon data-icon="inline-start" />{text.logActivity}</Button>
 				</div>
-				<CRMActivityTable activities={filteredActivities} accounts={controller.accounts} {text} onEdit={openActivityEdit} />
+				<CRMActivityTable activities={filteredActivities} organizations={controller.organizations} {text} onEdit={openActivityEdit} />
 			</UnderlineTabs.Content>
 
-			<UnderlineTabs.Content value="reports" class="min-w-0 pb-24"><CRMReportDashboard accounts={controller.accounts} opportunities={controller.opportunities} nextActions={controller.nextActions} stages={controller.stages} {text} onOpenAccount={openAccount} /></UnderlineTabs.Content>
+			<UnderlineTabs.Content value="reports" class="min-w-0 pb-24"><CRMReportDashboard organizations={controller.organizations} opportunities={controller.opportunities} nextActions={controller.nextActions} stages={controller.stages} {text} onOpenOrganization={openOrganization} /></UnderlineTabs.Content>
+			<UnderlineTabs.Content value="definitions" class="min-w-0 pb-24"><CRMDefinitionsEditor vocabulary={controller.vocabulary} {isAdmin} isSaving={controller.isSaving} errorMessage={controller.errorMessage} onSave={(vocabulary) => controller.saveVocabulary(vocabulary)} onDelete={(_request, vocabulary) => controller.saveVocabulary(vocabulary)} /></UnderlineTabs.Content>
 		</UnderlineTabs.Root>
 	{/if}
 </main>
 
-<CRMRelationshipDetailSheet bind:open={isAccountSheetOpen} account={selectedAccount} contacts={controller.contacts} opportunities={controller.opportunities} activities={controller.activities} {text} onEdit={openAccountEdit} />
-<CRMRelationshipEditSheet bind:open={isRelationshipEditOpen} account={selectedAccount} {text} onSave={saveAccount} onArchive={archiveAccount} />
-<CRMContactEditSheet bind:open={isContactEditOpen} contact={selectedContact} accounts={controller.accounts} {text} onSave={saveContact} />
-<CRMOpportunityEditSheet bind:open={isOpportunityEditOpen} opportunity={selectedOpportunity} accounts={controller.accounts} contacts={controller.contacts} pipelines={controller.pipelines} stages={controller.stages} lostReasons={controller.lostReasons} businessOptions={controller.businessOptions} requestedStage={requestedOpportunityStage} {text} onSave={saveOpportunity} onArchive={archiveOpportunity} />
-<CRMActivityDetailSheet bind:open={isActivityEditOpen} activity={selectedActivity} accounts={controller.accounts} opportunities={controller.opportunities} businessOptions={controller.businessOptions} {text} onSave={saveActivity} />
-<CRMRecordSheet bind:open={isRecordSheetOpen} initialKind={createKind} accounts={controller.accounts} contacts={controller.contacts} opportunities={controller.opportunities} pipelines={controller.pipelines} stages={controller.stages} lostReasons={controller.lostReasons} businessOptions={controller.businessOptions} defaultOwnerName={controller.currentOwnerName} {text} onCreate={handleCreate} />
+<CRMRelationshipDetailSheet bind:open={isOrganizationSheetOpen} organization={selectedOrganization} contacts={controller.contacts} opportunities={controller.opportunities} activities={controller.activities} {text} onEdit={openOrganizationEdit} />
+<CRMRelationshipEditSheet bind:open={isRelationshipEditOpen} organization={selectedOrganization} contacts={controller.contacts} organizationTypeOptions={controller.organizationTypeOptions} people={controller.people} groups={controller.groups} {text} onSave={saveOrganization} onArchive={archiveOrganization} onEditContact={openRelationshipContactEdit} onCreateContact={openRelationshipContactCreate} />
+<CRMContactEditSheet bind:open={isContactEditOpen} contact={selectedContact} organizations={controller.organizations} opportunities={controller.opportunities} {text} onSave={saveContact} />
+<CRMOpportunityEditSheet bind:open={isOpportunityEditOpen} opportunity={selectedOpportunity} organizations={controller.organizations} contacts={controller.contacts} pipelines={controller.pipelines} stages={controller.stages} lostReasons={controller.lostReasons} businessOptions={controller.businessOptions} people={controller.people} groups={controller.groups} requestedStage={requestedOpportunityStage} {text} onSave={saveOpportunity} onArchive={archiveOpportunity} />
+<CRMActivityDetailSheet bind:open={isActivityEditOpen} activity={selectedActivity} organizations={controller.organizations} opportunities={controller.opportunities} contacts={controller.contacts} businessOptions={controller.businessOptions} activityKindOptions={controller.activityKindOptions} people={controller.people} groups={controller.groups} {text} onSave={saveActivity} />
+<CRMRecordSheet bind:open={isRecordSheetOpen} initialKind={createKind} initialOrganizationID={createOrganizationID} organizations={controller.organizations} contacts={controller.contacts} opportunities={controller.opportunities} pipelines={controller.pipelines} stages={controller.stages} lostReasons={controller.lostReasons} businessOptions={controller.businessOptions} organizationTypeOptions={controller.organizationTypeOptions} activityKindOptions={controller.activityKindOptions} defaultOwnerPersonID={controller.currentOwnerPersonID} people={controller.people} groups={controller.groups} {text} onCreate={handleCreate} />

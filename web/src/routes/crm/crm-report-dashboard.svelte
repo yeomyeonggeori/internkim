@@ -5,10 +5,11 @@
 	import * as Table from '$lib/components/ui/table';
 	import CRMCurrencyComparisonChart from './crm-currency-comparison-chart.svelte';
 	import { buildCRMReportPeriodBounds } from './crm-date';
-	import type { CRMAccount, CRMMoneyTotals, CRMNextAction, CRMOpportunity, CRMPipelineStage, CRMProgressKind } from './crm-types';
+	import { crmLabel } from './crm-labels';
+	import type { CRMOrganization, CRMMoneyTotals, CRMNextAction, CRMOpportunity, CRMPipelineStage, CRMProgressKind } from './crm-types';
 	import { formatMoneyTotals, sumOpportunityMoney } from './crm-money';
 	import {
-		findAccountByID,
+		findOrganizationByID,
 		formatCRMDate,
 		getProgressKind,
 		opportunityStageLabel
@@ -19,22 +20,22 @@
 	type MetricRow = { key: string; label: string; count: number; values: CRMMoneyTotals };
 	type OwnerRow = {
 		name: string;
-		accountCount: number;
+		organizationCount: number;
 		openCount: number;
 		openValues: CRMMoneyTotals;
 		missingActionCount: number;
 	};
 
 	type Props = {
-		accounts: CRMAccount[];
+		organizations: CRMOrganization[];
 		opportunities: CRMOpportunity[];
 		nextActions: CRMNextAction[];
 		stages: CRMPipelineStage[];
 		text: CRMText;
-		onOpenAccount: (accountID: string) => void;
+		onOpenOrganization: (organizationID: string) => void;
 	};
 
-	let { accounts, opportunities, nextActions, stages, text, onOpenAccount }: Props = $props();
+	let { organizations, opportunities, nextActions, stages, text, onOpenOrganization }: Props = $props();
 	const { today, next90DaysEnd, quarterStart, quarterEnd } = buildCRMReportPeriodBounds();
 	let period = $state<ReportPeriod>('all');
 
@@ -77,24 +78,24 @@
 		return kinds.map((kind) => {
 			const matching = periodOpportunities.filter(
 				(opportunity) =>
-					getProgressKind(opportunity, findAccountByID(accounts, opportunity.accountID)) === kind
+					getProgressKind(opportunity, findOrganizationByID(organizations, opportunity.organizationID)) === kind
 			);
 			return {
 				key: kind,
-				label: text.progressKinds[kind],
+				label: crmLabel(text.progressKinds, kind),
 				count: matching.length,
 				values: sumOpportunityMoney(matching)
 			};
 		});
 	});
 	let ownerRows = $derived.by(() => {
-		const ownerNames = [...new Set([...accounts.map((account) => account.ownerName), ...periodOpportunities.map((opportunity) => opportunity.ownerName)])];
+		const ownerNames = [...new Set([...organizations.map((organization) => organization.ownerName), ...periodOpportunities.map((opportunity) => opportunity.ownerName)])];
 		return ownerNames
 			.map<OwnerRow>((name) => {
 				const ownerOpportunities = openOpportunities.filter((opportunity) => opportunity.ownerName === name);
 				return {
 					name,
-					accountCount: accounts.filter((account) => account.ownerName === name).length,
+					organizationCount: organizations.filter((organization) => organization.ownerName === name).length,
 					openCount: ownerOpportunities.length,
 					openValues: sumOpportunityMoney(ownerOpportunities),
 					missingActionCount: ownerOpportunities.filter(
@@ -106,8 +107,8 @@
 			})
 			.sort((left, right) => right.openCount - left.openCount);
 	});
-	let quietAccounts = $derived(
-		[...accounts]
+	let quietOrganizations = $derived(
+		[...organizations]
 			.sort((left, right) => left.lastContactDate.localeCompare(right.lastContactDate))
 			.slice(0, 5)
 	);
@@ -191,12 +192,12 @@
 		</Card.Root>
 
 		<Card.Root class="h-full min-w-0 lg:col-span-2 xl:col-span-1" data-crm-report-card="quiet">
-			<Card.Header><Card.Title class="text-base">{text.quietAccounts}</Card.Title><Card.Description>{text.quietAccountsDescription}</Card.Description></Card.Header>
+			<Card.Header><Card.Title class="text-base">{text.quietOrganizations}</Card.Title><Card.Description>{text.quietOrganizationsDescription}</Card.Description></Card.Header>
 			<Card.Content class="grid gap-1">
-				{#each quietAccounts as account (account.id)}
-					<button type="button" class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted" onclick={() => onOpenAccount(account.id)}>
-						<span class="truncate text-sm font-medium">{account.name}</span>
-						<span class="text-xs text-muted-foreground">{formatCRMDate(account.lastContactDate)}</span>
+				{#each quietOrganizations as organization (organization.id)}
+					<button type="button" class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted" onclick={() => onOpenOrganization(organization.id)}>
+						<span class="truncate text-sm font-medium">{organization.name}</span>
+						<span class="text-xs text-muted-foreground">{formatCRMDate(organization.lastContactDate)}</span>
 					</button>
 				{/each}
 			</Card.Content>
@@ -212,7 +213,7 @@
 					{#each ownerRows as owner (owner.name)}
 						<Table.Row>
 							<Table.Cell class="whitespace-normal pl-6 font-medium"><p class="truncate">{owner.name}</p></Table.Cell>
-							<Table.Cell class="hidden sm:table-cell">{owner.accountCount}</Table.Cell>
+							<Table.Cell class="hidden sm:table-cell">{owner.organizationCount}</Table.Cell>
 							<Table.Cell>{owner.openCount}</Table.Cell>
 							<Table.Cell class="whitespace-normal">{formatMoneyTotals(owner.openValues, text.noValue)}</Table.Cell>
 							<Table.Cell class="hidden pr-6 md:table-cell"><Badge variant={owner.missingActionCount > 0 ? 'secondary' : 'outline'}>{owner.missingActionCount}</Badge></Table.Cell>

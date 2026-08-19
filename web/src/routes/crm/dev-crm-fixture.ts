@@ -1,11 +1,11 @@
-import type { CRMAccount, CRMActivity, CRMContact, CRMIntakeDraft, CRMNextAction, CRMOpportunity, CRMOpportunityStage, CRMReportSummary } from './crm-types';
+import type { CRMOrganization, CRMActivity, CRMContact, CRMIntakeDraft, CRMNextAction, CRMOpportunity, CRMOpportunityStage, CRMReportSummary } from './crm-types';
 
 const defaultCRMBusiness = '여명거리';
 
-export const crmAccounts: CRMAccount[] = [
+export const crmOrganizations: CRMOrganization[] = [
 	{
-		id: 'account-hanyang-startup',
-		name: '한양 스타트업 지원단',
+		id: 'organization-hanyang-startup',
+		name: '예시 스타트업 지원단',
 		types: ['partner', 'sponsor'],
 		status: 'active',
 		importance: 'high',
@@ -21,8 +21,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 18000000 }
 	},
 	{
-		id: 'account-seoul-impact',
-		name: '서울 임팩트 랩',
+		id: 'organization-seoul-impact',
+		name: '샘플 임팩트 랩',
 		types: ['customer', 'partner'],
 		status: 'prospect',
 		importance: 'high',
@@ -37,8 +37,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 8500000, USD: 40000 }
 	},
 	{
-		id: 'account-blue-campus',
-		name: '블루캠퍼스 재단',
+		id: 'organization-blue-campus',
+		name: '예시캠퍼스 재단',
 		types: ['sponsor'],
 		status: 'paused',
 		importance: 'medium',
@@ -53,8 +53,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 15000000, JPY: 5500000 }
 	},
 	{
-		id: 'account-maker-house',
-		name: '메이커하우스',
+		id: 'organization-maker-house',
+		name: '샘플메이커하우스',
 		types: ['vendor'],
 		status: 'active',
 		importance: 'medium',
@@ -69,8 +69,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 4200000, EUR: 20000 }
 	},
 	{
-		id: 'account-ascend-ventures',
-		name: '어센드 벤처스',
+		id: 'organization-ascend-ventures',
+		name: '예시 벤처스',
 		types: ['investor', 'partner'],
 		status: 'prospect',
 		importance: 'high',
@@ -85,8 +85,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 50000000 }
 	},
 	{
-		id: 'account-campus-cloud',
-		name: '캠퍼스클라우드',
+		id: 'organization-campus-cloud',
+		name: '샘플클라우드',
 		types: ['customer'],
 		status: 'active',
 		importance: 'medium',
@@ -101,8 +101,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 6500000 }
 	},
 	{
-		id: 'account-green-catering',
-		name: '그린케이터링',
+		id: 'organization-green-catering',
+		name: '예시케이터링',
 		types: ['vendor'],
 		status: 'active',
 		importance: 'medium',
@@ -117,8 +117,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 3200000 }
 	},
 	{
-		id: 'account-root-finance',
-		name: '루트파이낸스',
+		id: 'organization-root-finance',
+		name: '샘플파이낸스',
 		types: ['investor'],
 		status: 'prospect',
 		importance: 'high',
@@ -133,8 +133,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 120000000, USD: 250000 }
 	},
 	{
-		id: 'account-design-lab-one',
-		name: '디자인랩 원',
+		id: 'organization-design-lab-one',
+		name: '예시디자인랩',
 		types: ['partner'],
 		status: 'paused',
 		importance: 'low',
@@ -149,8 +149,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { USD: 20000 }
 	},
 	{
-		id: 'account-youth-foundation',
-		name: '청년성장재단',
+		id: 'organization-youth-foundation',
+		name: '샘플성장재단',
 		types: ['sponsor', 'partner'],
 		status: 'prospect',
 		importance: 'high',
@@ -165,8 +165,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 22000000 }
 	},
 	{
-		id: 'account-k-edu-network',
-		name: 'K-에듀 네트워크',
+		id: 'organization-k-edu-network',
+		name: '예시에듀 네트워크',
 		types: ['customer'],
 		status: 'active',
 		importance: 'medium',
@@ -181,8 +181,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 18000000 }
 	},
 	{
-		id: 'account-motion-stage',
-		name: '모션스테이지',
+		id: 'organization-motion-stage',
+		name: '샘플스테이지',
 		types: ['vendor'],
 		status: 'paused',
 		importance: 'medium',
@@ -197,8 +197,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 7000000 }
 	},
 	{
-		id: 'account-future-alumni',
-		name: '미래동문회',
+		id: 'organization-future-alumni',
+		name: '예시동문회',
 		types: ['sponsor'],
 		status: 'paused',
 		importance: 'medium',
@@ -213,8 +213,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 10000000 }
 	},
 	{
-		id: 'account-delta-impact',
-		name: '델타임팩트',
+		id: 'organization-delta-impact',
+		name: '샘플임팩트',
 		types: ['investor'],
 		status: 'paused',
 		importance: 'medium',
@@ -229,8 +229,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: {}
 	},
 	{
-		id: 'account-campus-media',
-		name: '캠퍼스미디어',
+		id: 'organization-campus-media',
+		name: '예시미디어',
 		types: ['partner', 'vendor'],
 		status: 'active',
 		importance: 'low',
@@ -245,8 +245,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 3000000, JPY: 3200000 }
 	},
 	{
-		id: 'account-ai-learning',
-		name: 'AI러닝코리아',
+		id: 'organization-ai-learning',
+		name: '샘플러닝랩',
 		types: ['customer'],
 		status: 'prospect',
 		importance: 'high',
@@ -261,8 +261,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 28000000, EUR: 50000 }
 	},
 	{
-		id: 'account-volunteer-union',
-		name: '자원봉사연합',
+		id: 'organization-volunteer-union',
+		name: '예시봉사연합',
 		types: ['partner'],
 		status: 'active',
 		importance: 'low',
@@ -277,8 +277,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 7500000 }
 	},
 	{
-		id: 'account-blue-river-hotel',
-		name: '블루리버호텔',
+		id: 'organization-blue-river-hotel',
+		name: '샘플호텔',
 		types: ['vendor'],
 		status: 'prospect',
 		importance: 'medium',
@@ -293,8 +293,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 9000000, JPY: 8000000 }
 	},
 	{
-		id: 'account-social-innovation-fund',
-		name: '소셜이노베이션 펀드',
+		id: 'organization-social-innovation-fund',
+		name: '예시이노베이션 펀드',
 		types: ['investor', 'sponsor'],
 		status: 'active',
 		importance: 'high',
@@ -309,8 +309,8 @@ export const crmAccounts: CRMAccount[] = [
 		expectedValues: { KRW: 70000000 }
 	},
 	{
-		id: 'account-city-office',
-		name: '성동구청 청년정책과',
+		id: 'organization-city-office',
+		name: '예시구청 청년정책과',
 		types: ['customer', 'partner'],
 		status: 'paused',
 		importance: 'high',
@@ -329,191 +329,171 @@ export const crmAccounts: CRMAccount[] = [
 export const crmContacts: CRMContact[] = [
 	{
 		id: 'contact-hanyang-lee',
-		accountID: 'account-hanyang-startup',
+		organizationID: 'organization-hanyang-startup',
 		name: '김테스트17',
 		title: '프로그램 매니저',
 		email: 'contact01@example.com',
 		phone: '000-0000-0101',
-		isPrimary: true,
 		note: '행사 운영 일정과 멘토 매칭을 함께 조율합니다.'
 	},
 	{
 		id: 'contact-seoul-impact-choi',
-		accountID: 'account-seoul-impact',
+		organizationID: 'organization-seoul-impact',
 		name: '김테스트25',
 		title: '운영 리드',
 		email: 'contact02@example.com',
 		phone: '000-0000-0102',
-		isPrimary: true,
 		note: '데모 이후 비용 범위와 도입 일정에 민감합니다.'
 	},
 	{
 		id: 'contact-blue-campus-kang',
-		accountID: 'account-blue-campus',
+		organizationID: 'organization-blue-campus',
 		name: '김테스트01',
 		title: '파트너십 디렉터',
 		email: 'contact03@example.com',
 		phone: '000-0000-0103',
-		isPrimary: true
 	},
 	{
 		id: 'contact-maker-house-yoon',
-		accountID: 'account-maker-house',
+		organizationID: 'organization-maker-house',
 		name: '김테스트16',
 		title: '공간 운영 매니저',
 		email: 'contact04@example.com',
 		phone: '000-0000-0104',
-		isPrimary: true
 	},
 	{
 		id: 'contact-ascend-kim',
-		accountID: 'account-ascend-ventures',
+		organizationID: 'organization-ascend-ventures',
 		name: '김테스트03',
 		title: '파트너',
 		email: 'contact05@example.com',
 		phone: '000-0000-0105',
-		isPrimary: true,
 		note: '월간 운영 지표와 다음 분기 후원 계획을 함께 확인합니다.'
 	},
 	{
 		id: 'contact-campus-cloud-han',
-		accountID: 'account-campus-cloud',
+		organizationID: 'organization-campus-cloud',
 		name: '김테스트27',
 		title: '제품 운영 매니저',
 		email: 'contact06@example.com',
 		phone: '000-0000-0106',
-		isPrimary: true
 	},
 	{
 		id: 'contact-green-catering-jang',
-		accountID: 'account-green-catering',
+		organizationID: 'organization-green-catering',
 		name: '김테스트21',
 		title: '영업 담당',
 		email: 'contact07@example.com',
 		phone: '000-0000-0107',
-		isPrimary: true,
 		note: '알레르기 표기 파일은 행사 5일 전까지 받아야 합니다.'
 	},
 	{
 		id: 'contact-root-finance-moon',
-		accountID: 'account-root-finance',
+		organizationID: 'organization-root-finance',
 		name: '김테스트07',
 		title: '투자심사역',
 		email: 'contact08@example.com',
 		phone: '000-0000-0108',
-		isPrimary: true
 	},
 	{
 		id: 'contact-design-lab-one-rha',
-		accountID: 'account-design-lab-one',
+		organizationID: 'organization-design-lab-one',
 		name: '김테스트06',
 		title: '크리에이티브 디렉터',
 		email: 'contact09@example.com',
-		isPrimary: true
 	},
 	{
 		id: 'contact-youth-foundation-song',
-		accountID: 'account-youth-foundation',
+		organizationID: 'organization-youth-foundation',
 		name: '김테스트11',
 		title: '사업기획팀장',
 		email: 'contact10@example.com',
 		phone: '000-0000-0110',
-		isPrimary: true
 	},
 	{
 		id: 'contact-k-edu-network-kwon',
-		accountID: 'account-k-edu-network',
+		organizationID: 'organization-k-edu-network',
 		name: '김테스트02',
 		title: 'DX 추진팀장',
 		email: 'contact11@example.com',
 		phone: '000-0000-0111',
-		isPrimary: true
 	},
 	{
 		id: 'contact-motion-stage-oh',
-		accountID: 'account-motion-stage',
+		organizationID: 'organization-motion-stage',
 		name: '김테스트14',
 		title: '프로덕션 매니저',
 		email: 'contact12@example.com',
-		isPrimary: true
 	},
 	{
 		id: 'contact-future-alumni-yang',
-		accountID: 'account-future-alumni',
+		organizationID: 'organization-future-alumni',
 		name: '김테스트13',
 		title: '사무국장',
 		email: 'contact13@example.com',
 		phone: '000-0000-0113',
-		isPrimary: true
 	},
 	{
 		id: 'contact-delta-impact-park',
-		accountID: 'account-delta-impact',
+		organizationID: 'organization-delta-impact',
 		name: '김테스트08',
 		title: '어소시에이트',
 		email: 'contact14@example.com',
-		isPrimary: true
 	},
 	{
 		id: 'contact-campus-media-lim',
-		accountID: 'account-campus-media',
+		organizationID: 'organization-campus-media',
 		name: '김테스트20',
 		title: '콘텐츠 PD',
 		email: 'contact15@example.com',
 		phone: '000-0000-0115',
-		isPrimary: true
 	},
 	{
 		id: 'contact-ai-learning-shin',
-		accountID: 'account-ai-learning',
+		organizationID: 'organization-ai-learning',
 		name: '김테스트12',
 		title: 'B2B 사업개발 리드',
 		email: 'contact16@example.com',
 		phone: '000-0000-0116',
-		isPrimary: true,
 		note: '파일 업로드 후 자동 분류 정확도를 가장 중요하게 봅니다.'
 	},
 	{
 		id: 'contact-volunteer-union-jeon',
-		accountID: 'account-volunteer-union',
+		organizationID: 'organization-volunteer-union',
 		name: '김테스트22',
 		title: '교육 코디네이터',
 		email: 'contact17@example.com',
-		isPrimary: true
 	},
 	{
 		id: 'contact-blue-river-hotel-baek',
-		accountID: 'account-blue-river-hotel',
+		organizationID: 'organization-blue-river-hotel',
 		name: '김테스트10',
 		title: '세일즈 매니저',
 		email: 'contact18@example.com',
 		phone: '000-0000-0118',
-		isPrimary: true
 	},
 	{
 		id: 'contact-social-innovation-fund-cho',
-		accountID: 'account-social-innovation-fund',
+		organizationID: 'organization-social-innovation-fund',
 		name: '김테스트24',
 		title: '임팩트 파트너',
 		email: 'contact19@example.com',
 		phone: '000-0000-0119',
-		isPrimary: true
 	},
 	{
 		id: 'contact-city-office-hong',
-		accountID: 'account-city-office',
+		organizationID: 'organization-city-office',
 		name: '김테스트28',
 		title: '주무관',
 		email: 'contact20@example.com',
 		phone: '000-0000-0120',
-		isPrimary: true
 	}
 ];
 
 const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	{
 		id: 'opportunity-hanyang-mentoring',
-		accountID: 'account-hanyang-startup',
+		organizationID: 'organization-hanyang-startup',
 		name: '하반기 멘토링 운영 계약',
 		stage: 'negotiation',
 		currency: 'KRW',
@@ -527,7 +507,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-hanyang-demo-day',
-		accountID: 'account-hanyang-startup',
+		organizationID: 'organization-hanyang-startup',
 		name: '데모데이 운영 후원',
 		stage: 'proposal',
 		currency: 'KRW',
@@ -541,7 +521,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-design-lab-global',
-		accountID: 'account-design-lab-one',
+		organizationID: 'organization-design-lab-one',
 		name: '글로벌 브랜드 디자인 리뉴얼',
 		stage: 'negotiation',
 		currency: 'USD',
@@ -556,7 +536,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-campus-media-japan',
-		accountID: 'account-campus-media',
+		organizationID: 'organization-campus-media',
 		name: '일본 캠퍼스 콘텐츠 배급',
 		stage: 'won',
 		currency: 'JPY',
@@ -570,7 +550,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-ai-learning-europe',
-		accountID: 'account-ai-learning',
+		organizationID: 'organization-ai-learning',
 		name: '유럽 교육기관 라이선스',
 		stage: 'proposal',
 		currency: 'EUR',
@@ -585,7 +565,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-seoul-impact-pilot',
-		accountID: 'account-seoul-impact',
+		organizationID: 'organization-seoul-impact',
 		name: '운영 자동화 파일럿',
 		stage: 'proposal',
 		currency: 'KRW',
@@ -599,7 +579,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-blue-campus-sponsor',
-		accountID: 'account-blue-campus',
+		organizationID: 'organization-blue-campus',
 		name: '하반기 후원 패키지',
 		stage: 'on_hold',
 		currency: 'KRW',
@@ -613,7 +593,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-maker-house-space',
-		accountID: 'account-maker-house',
+		organizationID: 'organization-maker-house',
 		name: '8월 행사 공간 예약',
 		stage: 'qualified',
 		currency: 'KRW',
@@ -627,7 +607,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-ascend-followup',
-		accountID: 'account-ascend-ventures',
+		organizationID: 'organization-ascend-ventures',
 		name: '하반기 투자자 업데이트',
 		stage: 'qualified',
 		currency: 'KRW',
@@ -641,7 +621,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-campus-cloud-quarter',
-		accountID: 'account-campus-cloud',
+		organizationID: 'organization-campus-cloud',
 		name: '분기 운영 패키지',
 		stage: 'negotiation',
 		currency: 'KRW',
@@ -655,7 +635,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-green-catering-order',
-		accountID: 'account-green-catering',
+		organizationID: 'organization-green-catering',
 		name: '8월 워크숍 케이터링',
 		stage: 'qualified',
 		currency: 'KRW',
@@ -669,7 +649,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-root-finance-round',
-		accountID: 'account-root-finance',
+		organizationID: 'organization-root-finance',
 		name: '시드 브릿지 투자 검토',
 		stage: 'lead',
 		currency: 'KRW',
@@ -683,7 +663,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-youth-foundation-sponsor',
-		accountID: 'account-youth-foundation',
+		organizationID: 'organization-youth-foundation',
 		name: '학생 성장 프로그램 후원',
 		stage: 'proposal',
 		currency: 'KRW',
@@ -697,7 +677,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-k-edu-dashboard',
-		accountID: 'account-k-edu-network',
+		organizationID: 'organization-k-edu-network',
 		name: '운영 대시보드 도입',
 		stage: 'negotiation',
 		currency: 'KRW',
@@ -711,7 +691,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-k-edu-training',
-		accountID: 'account-k-edu-network',
+		organizationID: 'organization-k-edu-network',
 		name: '관리자 교육 패키지',
 		stage: 'qualified',
 		currency: 'KRW',
@@ -725,7 +705,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-motion-stage-equipment',
-		accountID: 'account-motion-stage',
+		organizationID: 'organization-motion-stage',
 		name: '무대 음향 장비 계약',
 		stage: 'on_hold',
 		currency: 'KRW',
@@ -739,7 +719,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-future-alumni-scholarship',
-		accountID: 'account-future-alumni',
+		organizationID: 'organization-future-alumni',
 		name: '장학 후원 확정',
 		stage: 'won',
 		currency: 'KRW',
@@ -753,7 +733,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-delta-impact-round',
-		accountID: 'account-delta-impact',
+		organizationID: 'organization-delta-impact',
 		name: '전략 투자 검토',
 		stage: 'lost',
 		currency: 'KRW',
@@ -766,7 +746,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-campus-media-video',
-		accountID: 'account-campus-media',
+		organizationID: 'organization-campus-media',
 		name: '행사 홍보 영상 제작',
 		stage: 'qualified',
 		currency: 'KRW',
@@ -780,7 +760,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-ai-learning-enterprise',
-		accountID: 'account-ai-learning',
+		organizationID: 'organization-ai-learning',
 		name: '기업 교육 CRM 파일럿',
 		stage: 'proposal',
 		currency: 'KRW',
@@ -794,7 +774,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-blue-river-room',
-		accountID: 'account-blue-river-hotel',
+		organizationID: 'organization-blue-river-hotel',
 		name: '외부 연사 숙박 예약',
 		stage: 'qualified',
 		currency: 'KRW',
@@ -808,7 +788,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-social-innovation-fund',
-		accountID: 'account-social-innovation-fund',
+		organizationID: 'organization-social-innovation-fund',
 		name: '임팩트 투자 및 후원 검토',
 		stage: 'negotiation',
 		currency: 'KRW',
@@ -822,7 +802,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-city-office-program',
-		accountID: 'account-city-office',
+		organizationID: 'organization-city-office',
 		name: '청년 행사 운영 시스템',
 		stage: 'lead',
 		currency: 'KRW',
@@ -836,7 +816,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-volunteer-operation',
-		accountID: 'account-volunteer-union',
+		organizationID: 'organization-volunteer-union',
 		name: '지역 봉사단 운영 협약',
 		stage: 'qualified',
 		currency: 'KRW',
@@ -851,7 +831,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-seoul-impact-asia',
-		accountID: 'account-seoul-impact',
+		organizationID: 'organization-seoul-impact',
 		name: '동남아 운영 자동화 확장',
 		stage: 'qualified',
 		currency: 'USD',
@@ -865,7 +845,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-blue-campus-japan',
-		accountID: 'account-blue-campus',
+		organizationID: 'organization-blue-campus',
 		name: '일본 교류 프로그램 후원',
 		stage: 'on_hold',
 		currency: 'JPY',
@@ -879,7 +859,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-maker-house-global',
-		accountID: 'account-maker-house',
+		organizationID: 'organization-maker-house',
 		name: '글로벌 메이커톤 장비 패키지',
 		stage: 'proposal',
 		currency: 'EUR',
@@ -894,7 +874,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-root-finance-overseas',
-		accountID: 'account-root-finance',
+		organizationID: 'organization-root-finance',
 		name: '해외 투자자 공동 라운드',
 		stage: 'lead',
 		currency: 'USD',
@@ -909,7 +889,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-blue-river-japan',
-		accountID: 'account-blue-river-hotel',
+		organizationID: 'organization-blue-river-hotel',
 		name: '일본 참가자 숙박 블록',
 		stage: 'negotiation',
 		currency: 'JPY',
@@ -924,7 +904,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	},
 	{
 		id: 'opportunity-future-alumni-europe',
-		accountID: 'account-future-alumni',
+		organizationID: 'organization-future-alumni',
 		name: '유럽 동문 네트워크 후원',
 		stage: 'lead',
 		currency: 'EUR',
@@ -945,7 +925,7 @@ export const crmOpportunities: CRMOpportunity[] = crmOpportunityFixtures.map((op
 export const crmNextActions: CRMNextAction[] = [
 	{
 		id: 'action-hanyang-contract',
-		accountID: 'account-hanyang-startup',
+		organizationID: 'organization-hanyang-startup',
 		opportunityID: 'opportunity-hanyang-mentoring',
 		title: '계약서 수정본 확인 요청',
 		ownerName: '김테스트04',
@@ -954,7 +934,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-hanyang-demo-day',
-		accountID: 'account-hanyang-startup',
+		organizationID: 'organization-hanyang-startup',
 		opportunityID: 'opportunity-hanyang-demo-day',
 		title: '데모데이 후원 노출 범위 회신',
 		ownerName: '김테스트04',
@@ -963,7 +943,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-seoul-impact-demo',
-		accountID: 'account-seoul-impact',
+		organizationID: 'organization-seoul-impact',
 		opportunityID: 'opportunity-seoul-impact-pilot',
 		title: '출결 리포트 데모 일정 확정',
 		ownerName: '김테스트09',
@@ -972,7 +952,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-blue-campus-renew',
-		accountID: 'account-blue-campus',
+		organizationID: 'organization-blue-campus',
 		opportunityID: 'opportunity-blue-campus-sponsor',
 		title: '후원 범위 축소안 공유',
 		ownerName: '김테스트18',
@@ -981,7 +961,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-maker-house-hold',
-		accountID: 'account-maker-house',
+		organizationID: 'organization-maker-house',
 		opportunityID: 'opportunity-maker-house-space',
 		title: '8월 2주차 공간 홀드 가능 여부 확인',
 		ownerName: '김테스트23',
@@ -990,7 +970,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-ascend-report',
-		accountID: 'account-ascend-ventures',
+		organizationID: 'organization-ascend-ventures',
 		opportunityID: 'opportunity-ascend-followup',
 		title: '6월 운영 지표와 행사 성과 파일 공유',
 		ownerName: '김테스트15',
@@ -999,7 +979,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-campus-cloud-security',
-		accountID: 'account-campus-cloud',
+		organizationID: 'organization-campus-cloud',
 		opportunityID: 'opportunity-campus-cloud-quarter',
 		title: '보안 체크리스트 답변 정리',
 		ownerName: '김테스트09',
@@ -1008,7 +988,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-green-catering-menu',
-		accountID: 'account-green-catering',
+		organizationID: 'organization-green-catering',
 		opportunityID: 'opportunity-green-catering-order',
 		title: '채식 옵션과 알레르기 표기 파일 요청',
 		ownerName: '김테스트23',
@@ -1017,7 +997,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-root-finance-data-room',
-		accountID: 'account-root-finance',
+		organizationID: 'organization-root-finance',
 		opportunityID: 'opportunity-root-finance-round',
 		title: '데이터룸 권한과 월간 지표 업로드',
 		ownerName: '김테스트15',
@@ -1026,7 +1006,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-design-lab-reconnect',
-		accountID: 'account-design-lab-one',
+		organizationID: 'organization-design-lab-one',
 		title: '하반기 브랜딩 가능 일정 확인',
 		ownerName: '김테스트04',
 		dueDate: '2026-08-05',
@@ -1034,7 +1014,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-youth-foundation-report',
-		accountID: 'account-youth-foundation',
+		organizationID: 'organization-youth-foundation',
 		opportunityID: 'opportunity-youth-foundation-sponsor',
 		title: '성과 리포트 샘플과 홍보 문구 공유',
 		ownerName: '김테스트18',
@@ -1043,7 +1023,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-k-edu-procurement',
-		accountID: 'account-k-edu-network',
+		organizationID: 'organization-k-edu-network',
 		opportunityID: 'opportunity-k-edu-dashboard',
 		title: '구매 절차와 보안 검토 담당자 확인',
 		ownerName: '김테스트09',
@@ -1052,7 +1032,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-k-edu-training',
-		accountID: 'account-k-edu-network',
+		organizationID: 'organization-k-edu-network',
 		opportunityID: 'opportunity-k-edu-training',
 		title: '관리자 교육 범위 산정',
 		ownerName: '김테스트09',
@@ -1061,7 +1041,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-motion-stage-estimate',
-		accountID: 'account-motion-stage',
+		organizationID: 'organization-motion-stage',
 		opportunityID: 'opportunity-motion-stage-equipment',
 		title: '행사 규모별 견적 2안 요청',
 		ownerName: '김테스트23',
@@ -1070,7 +1050,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-future-alumni-thanks',
-		accountID: 'account-future-alumni',
+		organizationID: 'organization-future-alumni',
 		opportunityID: 'opportunity-future-alumni-scholarship',
 		title: '후원 확정 감사 메일 발송',
 		ownerName: '김테스트18',
@@ -1079,7 +1059,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-delta-impact-update',
-		accountID: 'account-delta-impact',
+		organizationID: 'organization-delta-impact',
 		opportunityID: 'opportunity-delta-impact-round',
 		title: '분기 업데이트 수신 목록 유지 확인',
 		ownerName: '김테스트15',
@@ -1088,7 +1068,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-campus-media-brief',
-		accountID: 'account-campus-media',
+		organizationID: 'organization-campus-media',
 		opportunityID: 'opportunity-campus-media-video',
 		title: '촬영 브리프와 레퍼런스 영상 전달',
 		ownerName: '김테스트04',
@@ -1097,7 +1077,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-ai-learning-sample',
-		accountID: 'account-ai-learning',
+		organizationID: 'organization-ai-learning',
 		opportunityID: 'opportunity-ai-learning-enterprise',
 		title: '샘플 파일 30건 자동 입력 결과 공유',
 		ownerName: '김테스트09',
@@ -1106,7 +1086,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-volunteer-union-training',
-		accountID: 'account-volunteer-union',
+		organizationID: 'organization-volunteer-union',
 		title: '봉사자 사전 교육 일정표 확인',
 		ownerName: '김테스트23',
 		dueDate: '2026-07-26',
@@ -1114,7 +1094,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-blue-river-contract',
-		accountID: 'account-blue-river-hotel',
+		organizationID: 'organization-blue-river-hotel',
 		opportunityID: 'opportunity-blue-river-room',
 		title: '객실 블록 계약서와 취소 조건 확인',
 		ownerName: '김테스트23',
@@ -1123,7 +1103,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-social-innovation-impact',
-		accountID: 'account-social-innovation-fund',
+		organizationID: 'organization-social-innovation-fund',
 		opportunityID: 'opportunity-social-innovation-fund',
 		title: '임팩트 지표 산식과 데이터 출처 설명',
 		ownerName: '김테스트15',
@@ -1132,7 +1112,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-city-office-review',
-		accountID: 'account-city-office',
+		organizationID: 'organization-city-office',
 		opportunityID: 'opportunity-city-office-program',
 		title: '내부 심의 일정과 제안서 수정 범위 확인',
 		ownerName: '김테스트04',
@@ -1141,7 +1121,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-design-global-proposal',
-		accountID: 'account-design-lab-one',
+		organizationID: 'organization-design-lab-one',
 		opportunityID: 'opportunity-design-lab-global',
 		title: '영문 브랜드 가이드 수정 견적 확인',
 		ownerName: '김테스트04',
@@ -1150,7 +1130,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-volunteer-operation-scope',
-		accountID: 'account-volunteer-union',
+		organizationID: 'organization-volunteer-union',
 		opportunityID: 'opportunity-volunteer-operation',
 		title: '봉사자 역할과 현장 책임 범위 합의',
 		ownerName: '김테스트23',
@@ -1159,7 +1139,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-ai-learning-europe-license',
-		accountID: 'account-ai-learning',
+		organizationID: 'organization-ai-learning',
 		opportunityID: 'opportunity-ai-learning-europe',
 		title: '유럽 기관별 라이선스 조건 회신',
 		ownerName: '김테스트09',
@@ -1168,7 +1148,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-root-finance-overseas-round',
-		accountID: 'account-root-finance',
+		organizationID: 'organization-root-finance',
 		opportunityID: 'opportunity-root-finance-overseas',
 		title: '해외 투자자용 영문 데이터룸 준비',
 		ownerName: '김테스트15',
@@ -1177,7 +1157,7 @@ export const crmNextActions: CRMNextAction[] = [
 	},
 	{
 		id: 'action-blue-river-japan-room',
-		accountID: 'account-blue-river-hotel',
+		organizationID: 'organization-blue-river-hotel',
 		opportunityID: 'opportunity-blue-river-japan',
 		title: '일본 참가자 객실 배정표 전달',
 		ownerName: '김테스트23',
@@ -1190,7 +1170,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-future-alumni-won',
 		taskID: 'crm-task-future-alumni-won',
-		accountID: 'account-future-alumni',
+		organizationID: 'organization-future-alumni',
 		kind: 'stage_change',
 		title: '장학 후원 성사 처리',
 		occurredAt: '2026-07-21T16:40:00+09:00',
@@ -1199,7 +1179,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-k-edu-meeting',
 		taskID: 'crm-task-k-edu-meeting',
-		accountID: 'account-k-edu-network',
+		organizationID: 'organization-k-edu-network',
 		kind: 'meeting',
 		title: '다중 조직 권한 구조 협의',
 		occurredAt: '2026-07-20T13:20:00+09:00',
@@ -1208,7 +1188,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-campus-cloud-call',
 		taskID: 'crm-task-campus-cloud-call',
-		accountID: 'account-campus-cloud',
+		organizationID: 'organization-campus-cloud',
 		kind: 'call',
 		title: '보안 체크리스트 수신',
 		occurredAt: '2026-07-19T10:10:00+09:00',
@@ -1217,7 +1197,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-hanyang-meeting',
 		taskID: 'crm-task-hanyang-meeting',
-		accountID: 'account-hanyang-startup',
+		organizationID: 'organization-hanyang-startup',
 		kind: 'meeting',
 		title: '멘토링 운영 범위 협의',
 		occurredAt: '2026-07-18T14:30:00+09:00',
@@ -1226,7 +1206,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-maker-call',
 		taskID: 'crm-task-maker-call',
-		accountID: 'account-maker-house',
+		organizationID: 'organization-maker-house',
 		kind: 'call',
 		title: '행사 공간 가능 일정 확인',
 		occurredAt: '2026-07-17T11:00:00+09:00',
@@ -1235,7 +1215,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-seoul-email',
 		taskID: 'crm-task-seoul-email',
-		accountID: 'account-seoul-impact',
+		organizationID: 'organization-seoul-impact',
 		kind: 'email',
 		title: '파일럿 제안서 발송',
 		occurredAt: '2026-07-16T10:15:00+09:00',
@@ -1244,7 +1224,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-ascend-file',
 		taskID: 'crm-task-ascend-file',
-		accountID: 'account-ascend-ventures',
+		organizationID: 'organization-ascend-ventures',
 		kind: 'file',
 		title: '투자자 업데이트 초안 업로드',
 		occurredAt: '2026-07-15T17:40:00+09:00',
@@ -1253,7 +1233,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-youth-foundation-note',
 		taskID: 'crm-task-youth-foundation-note',
-		accountID: 'account-youth-foundation',
+		organizationID: 'organization-youth-foundation',
 		kind: 'note',
 		title: '공동 홍보 문구 수정 요청',
 		occurredAt: '2026-07-14T15:35:00+09:00',
@@ -1262,7 +1242,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-campus-media-file',
 		taskID: 'crm-task-campus-media-file',
-		accountID: 'account-campus-media',
+		organizationID: 'organization-campus-media',
 		kind: 'file',
 		title: '촬영 구성안 업로드',
 		occurredAt: '2026-07-13T18:05:00+09:00',
@@ -1271,7 +1251,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-green-catering-email',
 		taskID: 'crm-task-green-catering-email',
-		accountID: 'account-green-catering',
+		organizationID: 'organization-green-catering',
 		kind: 'email',
 		title: '단가표와 메뉴 후보 수신',
 		occurredAt: '2026-07-12T09:30:00+09:00',
@@ -1280,7 +1260,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-ai-learning-demo',
 		taskID: 'crm-task-ai-learning-demo',
-		accountID: 'account-ai-learning',
+		organizationID: 'organization-ai-learning',
 		kind: 'meeting',
 		title: '입력 자동화 데모 진행',
 		occurredAt: '2026-07-11T16:10:00+09:00',
@@ -1289,7 +1269,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-root-finance-request',
 		taskID: 'crm-task-root-finance-request',
-		accountID: 'account-root-finance',
+		organizationID: 'organization-root-finance',
 		kind: 'email',
 		title: '데이터룸 권한 요청',
 		occurredAt: '2026-07-10T12:50:00+09:00',
@@ -1298,7 +1278,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-volunteer-union-task',
 		taskID: 'crm-task-volunteer-union-task',
-		accountID: 'account-volunteer-union',
+		organizationID: 'organization-volunteer-union',
 		kind: 'task',
 		title: '봉사자 교육 일정 조율',
 		occurredAt: '2026-07-09T14:00:00+09:00',
@@ -1307,7 +1287,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-blue-river-call',
 		taskID: 'crm-task-blue-river-call',
-		accountID: 'account-blue-river-hotel',
+		organizationID: 'organization-blue-river-hotel',
 		kind: 'call',
 		title: '객실 블록 가능 여부 확인',
 		occurredAt: '2026-07-08T11:25:00+09:00',
@@ -1316,7 +1296,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-social-innovation-meeting',
 		taskID: 'crm-task-social-innovation-meeting',
-		accountID: 'account-social-innovation-fund',
+		organizationID: 'organization-social-innovation-fund',
 		kind: 'meeting',
 		title: '임팩트 지표 검토 미팅',
 		occurredAt: '2026-07-06T15:00:00+09:00',
@@ -1325,7 +1305,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-blue-note',
 		taskID: 'crm-task-blue-note',
-		accountID: 'account-blue-campus',
+		organizationID: 'organization-blue-campus',
 		kind: 'note',
 		title: '후원 검토 일시 보류',
 		occurredAt: '2026-07-03T16:20:00+09:00',
@@ -1334,7 +1314,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-city-office-meeting',
 		taskID: 'crm-task-city-office-meeting',
-		accountID: 'account-city-office',
+		organizationID: 'organization-city-office',
 		kind: 'meeting',
 		title: '공공기관 제안 범위 협의',
 		occurredAt: '2026-06-29T10:30:00+09:00',
@@ -1343,7 +1323,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-motion-stage-note',
 		taskID: 'crm-task-motion-stage-note',
-		accountID: 'account-motion-stage',
+		organizationID: 'organization-motion-stage',
 		kind: 'note',
 		title: '장비 견적 보류',
 		occurredAt: '2026-06-25T13:45:00+09:00',
@@ -1352,7 +1332,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-delta-impact-lost',
 		taskID: 'crm-task-delta-impact-lost',
-		accountID: 'account-delta-impact',
+		organizationID: 'organization-delta-impact',
 		kind: 'stage_change',
 		title: '이번 라운드 참여 보류',
 		occurredAt: '2026-06-18T17:10:00+09:00',
@@ -1361,7 +1341,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 	{
 		id: 'activity-design-lab-reconnect',
 		taskID: 'crm-task-design-lab-reconnect',
-		accountID: 'account-design-lab-one',
+		organizationID: 'organization-design-lab-one',
 		kind: 'note',
 		title: '재접촉 후보로 표시',
 		occurredAt: '2026-05-28T09:20:00+09:00',
@@ -1370,7 +1350,7 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 ];
 
 export const crmActivities: CRMActivity[] = crmActivityFixtures.map((activity) => {
-	const opportunity = crmOpportunities.find((candidate) => candidate.accountID === activity.accountID);
+	const opportunity = crmOpportunities.find((candidate) => candidate.organizationID === activity.organizationID);
 	return {
 		...activity,
 		opportunityID: opportunity?.id,
@@ -1383,7 +1363,7 @@ export const crmIntakeDrafts: CRMIntakeDraft[] = [
 		id: 'draft-mail-seoul-impact',
 		source: 'mail',
 		title: '메일에서 파일럿 미팅 요청 감지',
-		accountName: '서울 임팩트 랩',
+		organizationName: '샘플 임팩트 랩',
 		summary: '김테스트25 리드가 다음 주 수요일 데모 가능 여부와 예상 비용 범위를 요청했습니다.',
 		confidence: 91,
 		suggestedAction: '다음 액션으로 데모 일정 확정 추가'
@@ -1392,7 +1372,7 @@ export const crmIntakeDrafts: CRMIntakeDraft[] = [
 		id: 'draft-file-blue-campus',
 		source: 'file',
 		title: '후원 제안서 PDF에서 금액 후보 추출',
-		accountName: '블루캠퍼스 재단',
+		organizationName: '예시캠퍼스 재단',
 		summary: '하반기 후원 패키지 1,500만 원과 참여 학생 리포트 제공 조건이 발견되었습니다.',
 		confidence: 84,
 		suggestedAction: '진행 건 금액과 세부 메모 업데이트'
@@ -1401,7 +1381,7 @@ export const crmIntakeDrafts: CRMIntakeDraft[] = [
 		id: 'draft-calendar-hanyang',
 		source: 'calendar',
 		title: '캘린더 회의록 초안 생성',
-		accountName: '한양 스타트업 지원단',
+		organizationName: '예시 스타트업 지원단',
 		summary: '멘토 12명 기준 운영 범위와 계약서 수정 요청이 회의 제목과 참석자에서 확인되었습니다.',
 		confidence: 76,
 		suggestedAction: '활동 기록에 회의 메모 추가'
@@ -1410,7 +1390,7 @@ export const crmIntakeDrafts: CRMIntakeDraft[] = [
 		id: 'draft-file-ai-learning',
 		source: 'file',
 		title: '샘플 CSV에서 신규 관계처 후보 감지',
-		accountName: 'AI러닝코리아',
+		organizationName: '샘플러닝랩',
 		summary: '교육 운영팀, 담당자 3명, 예상 파일럿 금액 2,800만 원이 같은 파일에서 추출되었습니다.',
 		confidence: 88,
 		suggestedAction: '진행 건과 외부 담당자 후보로 저장'
@@ -1419,7 +1399,7 @@ export const crmIntakeDrafts: CRMIntakeDraft[] = [
 		id: 'draft-mail-root-finance',
 		source: 'mail',
 		title: '투자심사 자료 요청 분류',
-		accountName: '루트파이낸스',
+		organizationName: '샘플파이낸스',
 		summary: '월간 매출, 리텐션, 운영 비용 자료 요청이 투자 검토 진행 건과 연결되었습니다.',
 		confidence: 86,
 		suggestedAction: '다음 액션에 데이터룸 업로드 추가'
@@ -1428,7 +1408,7 @@ export const crmIntakeDrafts: CRMIntakeDraft[] = [
 		id: 'draft-calendar-k-edu',
 		source: 'calendar',
 		title: '구매 검토 회의 참석자 매칭',
-		accountName: 'K-에듀 네트워크',
+		organizationName: '예시에듀 네트워크',
 		summary: 'DX 추진팀과 보안 담당자가 참석한 회의가 운영 대시보드 도입 건으로 연결되었습니다.',
 		confidence: 79,
 		suggestedAction: '활동 기록에 구매 검토 미팅 추가'
@@ -1437,7 +1417,7 @@ export const crmIntakeDrafts: CRMIntakeDraft[] = [
 		id: 'draft-mail-green-catering',
 		source: 'mail',
 		title: '케이터링 단가표 첨부 감지',
-		accountName: '그린케이터링',
+		organizationName: '예시케이터링',
 		summary: '도시락, 핑거푸드, 음료 패키지 금액과 최소 주문 수량이 첨부파일에서 확인되었습니다.',
 		confidence: 82,
 		suggestedAction: '진행 건 금액과 파일 기록 업데이트'
@@ -1446,7 +1426,7 @@ export const crmIntakeDrafts: CRMIntakeDraft[] = [
 		id: 'draft-file-city-office',
 		source: 'file',
 		title: '공공기관 제안서 양식 확인',
-		accountName: '성동구청 청년정책과',
+		organizationName: '예시구청 청년정책과',
 		summary: '개인정보 처리 항목과 내부 심의 일정이 제안서 양식에서 추출되었습니다.',
 		confidence: 74,
 		suggestedAction: '관계처 주의사항과 다음 액션에 반영'
@@ -1473,17 +1453,17 @@ function buildStageCounts(opportunities: CRMOpportunity[]): Record<string, numbe
 	return stageCounts;
 }
 
-function buildOwnerSummaries(accounts: CRMAccount[], opportunities: CRMOpportunity[]): CRMReportSummary['ownerSummaries'] {
-	const ownerNames = [...new Set(accounts.map((account) => account.ownerName))];
+function buildOwnerSummaries(organizations: CRMOrganization[], opportunities: CRMOpportunity[]): CRMReportSummary['ownerSummaries'] {
+	const ownerNames = [...new Set(organizations.map((organization) => organization.ownerName))];
 
 	return ownerNames.map((ownerName) => {
-		const ownerAccounts = accounts.filter((account) => account.ownerName === ownerName);
+		const ownerOrganizations = organizations.filter((organization) => organization.ownerName === ownerName);
 		const ownerOpportunities = opportunities.filter((opportunity) => opportunity.ownerName === ownerName && openStages.includes(opportunity.stage));
 		const missingActionCount = ownerOpportunities.filter((opportunity) => !opportunity.nextActionID).length;
 
 		return {
 			ownerName,
-			accountCount: ownerAccounts.length,
+			organizationCount: ownerOrganizations.length,
 			openOpportunityCount: ownerOpportunities.length,
 			missingActionCount
 		};
@@ -1492,5 +1472,5 @@ function buildOwnerSummaries(accounts: CRMAccount[], opportunities: CRMOpportuni
 
 export const crmReportSummary: CRMReportSummary = {
 	stageCounts: buildStageCounts(crmOpportunities),
-	ownerSummaries: buildOwnerSummaries(crmAccounts, crmOpportunities)
+	ownerSummaries: buildOwnerSummaries(crmOrganizations, crmOpportunities)
 };

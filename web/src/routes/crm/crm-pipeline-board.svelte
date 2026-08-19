@@ -1,21 +1,22 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
-	import type { CRMAccount, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
+	import type { CRMOrganization, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
 	import { CRMPipelineBoardDragController } from './crm-pipeline-board-drag-controller.svelte';
+	import { crmLabel } from './crm-labels';
 	import type { CRMPipelineBoardMoveRequest } from './crm-pipeline-board-drag';
-	import { findAccountByID, findNextActionByID, formatCRMDate, formatMoney, getProgressKind, opportunityStageLabel } from './crm-view-model';
+	import { findOrganizationByID, findNextActionByID, formatCRMDate, formatMoney, getProgressKind, opportunityStageLabel } from './crm-view-model';
 	import type { CRMText } from './text';
 
 	type Props = {
 		opportunities: CRMOpportunity[];
-		accounts: CRMAccount[];
+		organizations: CRMOrganization[];
 		nextActions: CRMNextAction[];
 		stages: CRMPipelineStage[];
 		text: CRMText;
 		onMove: (request: CRMPipelineBoardMoveRequest) => void;
 	};
 
-	let { opportunities, accounts, nextActions, stages, text, onMove }: Props = $props();
+	let { opportunities, organizations, nextActions, stages, text, onMove }: Props = $props();
 
 	const columnClass = [
 		'crm-pipeline-board-column group flex h-full min-h-0',
@@ -91,7 +92,7 @@
 									</div>
 								{/if}
 
-								{@const account = findAccountByID(accounts, opportunity.accountID)}
+								{@const organization = findOrganizationByID(organizations, opportunity.organizationID)}
 								{@const action = findNextActionByID(nextActions, opportunity.nextActionID)}
 									<article
 										class={`${cardClass} ${canDrag ? '' : 'cursor-default active:cursor-default'}`}
@@ -105,11 +106,11 @@
 								>
 									<div class="min-w-0">
 										<p class="line-clamp-2 text-sm font-semibold leading-5 text-card-foreground">{opportunity.name}</p>
-										<p class="mt-1 truncate text-xs text-muted-foreground">{account?.name ?? text.none}</p>
+										<p class="mt-1 truncate text-xs text-muted-foreground">{organization?.name ?? text.none}</p>
 									</div>
 									<div class="flex flex-wrap gap-1.5">
 										<Badge variant="outline" class="h-5 rounded-md border-border/70 bg-muted/30 px-1.5 py-0 text-[11px] font-normal text-muted-foreground shadow-none">
-											{text.progressKinds[getProgressKind(opportunity, account)]}
+											{crmLabel(text.progressKinds, getProgressKind(opportunity, organization))}
 										</Badge>
 										<Badge variant="secondary" class="h-5 rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">
 											{formatMoney(opportunity.expectedValue, opportunity.currency, text.noValue)}

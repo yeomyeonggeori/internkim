@@ -1,7 +1,7 @@
-import type { CRMAccount, CRMCurrency, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
+import type { CRMOrganization, CRMCurrency, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
 import { currentCRMDate, shiftCRMDate } from './crm-date';
 import { crmCurrencies, formatMoney, formatMoneyTotals, sumOpportunityMoney } from './crm-money';
-import { findAccountByID, getActionUrgency, getProgressKind } from './crm-view-model';
+import { findOrganizationByID, getActionUrgency, getProgressKind } from './crm-view-model';
 import type { CRMText } from './text';
 
 export type CRMKPIMoneyDetail = {
@@ -94,20 +94,20 @@ function buildPipelineHealth(opportunities: CRMOpportunity[], stages: CRMPipelin
 	};
 }
 
-function buildRelationshipHealth(accounts: CRMAccount[], text: CRMText, today: string): CRMKPICardData {
-	const activeAccounts = accounts.filter((account) => account.status !== 'paused');
-	const needsAttention = accounts.filter((account) => account.status === 'paused' || account.importance === 'low');
-	const attentionIDs = new Set(needsAttention.map((account) => account.id));
+function buildRelationshipHealth(organizations: CRMOrganization[], text: CRMText, today: string): CRMKPICardData {
+	const activeOrganizations = organizations.filter((organization) => organization.status !== 'paused');
+	const needsAttention = organizations.filter((organization) => organization.status === 'paused' || organization.importance === 'low');
+	const attentionIDs = new Set(needsAttention.map((organization) => organization.id));
 	const recentContactThreshold = shiftCRMDate(today, -recentContactWindowDays);
-	const recentlyContacted = activeAccounts.filter((account) => !attentionIDs.has(account.id) && account.lastContactDate >= recentContactThreshold);
-	const recentIDs = new Set(recentlyContacted.map((account) => account.id));
-	const stable = activeAccounts.filter((account) => !attentionIDs.has(account.id) && !recentIDs.has(account.id));
+	const recentlyContacted = activeOrganizations.filter((organization) => !attentionIDs.has(organization.id) && organization.lastContactDate >= recentContactThreshold);
+	const recentIDs = new Set(recentlyContacted.map((organization) => organization.id));
+	const stable = activeOrganizations.filter((organization) => !attentionIDs.has(organization.id) && !recentIDs.has(organization.id));
 
 	return {
 		id: 'relationship-health',
 		title: text.kpiRelationshipHealth,
 		description: text.kpiRelationshipHealthDescription,
-		totalValue: String(activeAccounts.length),
+		totalValue: String(activeOrganizations.length),
 		totalLabel: text.kpiActiveRelationships,
 		segments: [
 			countSegment(text.kpiRecentlyContacted, recentlyContacted.length, movingColor, text.kpiCountSuffix),
@@ -137,12 +137,12 @@ function buildFollowUpHealth(nextActions: CRMNextAction[], text: CRMText): CRMKP
 	};
 }
 
-function buildPipelineComposition(accounts: CRMAccount[], opportunities: CRMOpportunity[], stages: CRMPipelineStage[], text: CRMText): CRMKPICardData {
+function buildPipelineComposition(organizations: CRMOrganization[], opportunities: CRMOpportunity[], stages: CRMPipelineStage[], text: CRMText): CRMKPICardData {
 	const openOpportunities = opportunities.filter((opportunity) => opportunityOutcome(stages, opportunity) === 'open');
-	const sales = openOpportunities.filter((opportunity) => getProgressKind(opportunity, findAccountByID(accounts, opportunity.accountID)) === 'sales');
-	const investment = openOpportunities.filter((opportunity) => getProgressKind(opportunity, findAccountByID(accounts, opportunity.accountID)) === 'investment');
+	const sales = openOpportunities.filter((opportunity) => getProgressKind(opportunity, findOrganizationByID(organizations, opportunity.organizationID)) === 'sales');
+	const investment = openOpportunities.filter((opportunity) => getProgressKind(opportunity, findOrganizationByID(organizations, opportunity.organizationID)) === 'investment');
 	const collaboration = openOpportunities.filter((opportunity) => {
-		const kind = getProgressKind(opportunity, findAccountByID(accounts, opportunity.accountID));
+		const kind = getProgressKind(opportunity, findOrganizationByID(organizations, opportunity.organizationID));
 		return ['sponsorship', 'partnership', 'procurement'].includes(kind);
 	});
 
@@ -161,7 +161,7 @@ function buildPipelineComposition(accounts: CRMAccount[], opportunities: CRMOppo
 }
 
 export function buildCRMKPICards(
-	accounts: CRMAccount[],
+	organizations: CRMOrganization[],
 	opportunities: CRMOpportunity[],
 	nextActions: CRMNextAction[],
 	stages: CRMPipelineStage[],
@@ -170,8 +170,8 @@ export function buildCRMKPICards(
 ): CRMKPICardData[] {
 	return [
 		buildPipelineHealth(opportunities, stages, text),
-		buildRelationshipHealth(accounts, text, today),
+		buildRelationshipHealth(organizations, text, today),
 		buildFollowUpHealth(nextActions, text),
-		buildPipelineComposition(accounts, opportunities, stages, text)
+		buildPipelineComposition(organizations, opportunities, stages, text)
 	];
 }

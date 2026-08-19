@@ -64,6 +64,7 @@ test.describe('CRM service UI', () => {
 	let activities: Activity[];
 	let permissionDenied: boolean;
 	let failNextCRMList: boolean;
+	let failNextContactCreate: boolean;
 
 	test.beforeEach(async ({ page }) => {
 		accounts = [account('account-1', '기존 관계처')];
@@ -72,10 +73,14 @@ test.describe('CRM service UI', () => {
 		activities = [];
 		permissionDenied = false;
 		failNextCRMList = false;
+		failNextContactCreate = false;
 		await installSessionRoutes(page);
 		await page.route('**/organization/api/people', (route) => route.fulfill({ json: {
-			records: [{ userID: 'person-crm', handle: 'crm', name: 'CRM 담당자', email: 'crm@example.com', groupID: 'team-sales' }],
-			availableGroups: [{ id: 'team-sales', name: '영업팀' }]
+			records: [
+				{ userID: 'person-crm', handle: 'crm', name: 'CRM 담당자', email: 'crm@example.com', groupID: 'team-sales' },
+				{ userID: 'person-ops', handle: 'ops', name: '운영 담당자', email: 'ops@example.com', groupID: 'team-ops' }
+			],
+			availableGroups: [{ id: 'team-sales', name: '영업팀' }, { id: 'team-ops', name: '운영팀' }]
 		} }));
 		await page.route('**/crm/api/**', async (route) => {
 			if (permissionDenied) {
@@ -85,6 +90,11 @@ test.describe('CRM service UI', () => {
 			if (failNextCRMList && route.request().method() === 'GET') {
 				failNextCRMList = false;
 				await route.fulfill({ status: 500, json: { error: { code: 'request_failed', message: 'refresh failed' } } });
+				return;
+			}
+			if (failNextContactCreate && new URL(route.request().url()).pathname === '/crm/api/contacts' && route.request().method() === 'POST') {
+				failNextContactCreate = false;
+				await route.fulfill({ status: 500, json: { error: { code: 'request_failed', message: 'contact create failed' } } });
 				return;
 			}
 			await handleCRMRoute(route, accounts, contacts, opportunities, activities);
@@ -112,7 +122,7 @@ test.describe('CRM service UI', () => {
 		expect(overflow).toBeLessThanOrEqual(1);
 	});
 
-	test('keeps CRM tables left-aligned with intentional column ratios and no horizontal overflow', async ({ page }) => {
+	test('keeps CRM table alignment intentional with stable column ratios and no horizontal overflow', async ({ page }) => {
 		accounts = [{ ...account('account-1', '긴 이름의 기존 관계처'), description: '긴 설명이 있어도 화면 안에서 자연스럽게 줄바꿈되는 관계처입니다.' }];
 		contacts = [{ ...contact('contact-1', '박예시 담당자', 'account-1'), title: '사업 개발 및 구매 담당', note: '이메일과 전화번호, 비고를 좁은 화면에서도 모두 확인합니다.' }];
 		opportunities = [{ ...opportunity('opportunity-1', '장기 도입 검토 및 파트너십 진행 건', 'lead', 1024), description: '긴 진행 건 설명' }];
@@ -232,13 +242,18 @@ test.describe('CRM service UI', () => {
 		const editSheet = page.getByRole('dialog', { name: '관계처 수정' });
 		await expect(editSheet.getByLabel('담당자 이메일')).toBeDisabled();
 		await expect(editSheet.getByLabel('마지막 접촉')).toBeDisabled();
-		await expect(editSheet.getByLabel('다음 연락일')).toBeDisabled();
+		await expect(editSheet.getByLabel('다음 진행일')).toBeDisabled();
+		await editSheet.getByLabel('내부 담당자').click();
+		await page.getByRole('option', { name: /운영 담당자/ }).click();
+		await expect(editSheet.getByLabel('담당자 이메일')).toHaveValue('ops@example.com');
+		await expect(editSheet.getByLabel('팀')).toHaveValue('운영팀');
 		await editSheet.getByLabel('관계처', { exact: true }).fill('수정된 관계처');
 		await editSheet.getByRole('checkbox', { name: '파트너', exact: true }).click();
 		await editSheet.getByRole('checkbox', { name: '투자 대상', exact: true }).click();
 		await editSheet.getByRole('button', { name: '저장', exact: true }).click();
 		await expect(page.getByRole('row', { name: /수정된 관계처/ })).toBeVisible();
 		expect(accounts.find((candidate) => candidate.name === '수정된 관계처')?.types).toEqual(['partner', 'portfolio']);
+		expect(accounts.find((candidate) => candidate.name === '수정된 관계처')).toMatchObject({ ownerPersonID: 'person-ops', ownerCircleID: 'team-ops' });
 
 		await page.getByRole('row', { name: /수정된 관계처/ }).click();
 		await page.getByRole('dialog').getByRole('button', { name: '수정', exact: true }).click();
@@ -255,6 +270,108 @@ test.describe('CRM service UI', () => {
 		await expect(page.getByLabel('관계처').getByText('수정된 관계처', { exact: true })).toHaveCount(0);
 	});
 
+	test('creates a relationship with a selected internal owner and external contact', async ({ page }) => {
+		await openCRM(page);
+		await page.getByRole('button', { name: '빠른 추가' }).click();
+		await page.getByRole('menuitem', { name: '관계처', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
+		await sheet.getByLabel('이름 또는 제목').fill('연락처 연결 관계처');
+		await expect(sheet.getByLabel('내부 담당자')).toContainText('CRM 담당자');
+		await expect(sheet.getByLabel('담당자 이메일')).toHaveValue('crm@example.com');
+		await expect(sheet.getByLabel('팀')).toHaveValue('영업팀');
+		await sheet.getByRole('checkbox', { name: '외부 담당자 함께 등록' }).click();
+		await sheet.getByLabel('연락처 이름').fill('박예시');
+		await sheet.getByLabel('이메일', { exact: true }).fill('contact-linked@example.com');
+		await sheet.getByRole('button', { name: '추가', exact: true }).click();
+
+		await expect(sheet).not.toBeVisible();
+		await page.getByRole('tab', { name: '연락처' }).click();
+		await expect(page.getByRole('row', { name: /연락처 수정 · 박예시/ })).toContainText('연락처 연결 관계처');
+		const createdAccount = accounts.find((candidate) => candidate.name === '연락처 연결 관계처');
+		expect(createdAccount?.ownerPersonID).toBe('person-crm');
+		expect(contacts[0]).toMatchObject({ accountID: createdAccount?.id, name: '박예시' });
+	});
+
+	test('keeps the searchable internal owner menu aligned to its trigger', async ({ page }) => {
+		await openCRM(page);
+		await page.getByRole('button', { name: '빠른 추가' }).click();
+		await page.getByRole('menuitem', { name: '관계처', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
+		const trigger = sheet.getByLabel('내부 담당자');
+		await trigger.click();
+		const menu = page.locator('[data-slot="popover-content"]:visible');
+		await expect(menu).toBeVisible();
+		await expect.poll(async () => {
+			const triggerWidth = await trigger.evaluate((element) => element.getBoundingClientRect().width);
+			const menuWidth = await menu.evaluate((element) => element.getBoundingClientRect().width);
+			return Math.abs(menuWidth - triggerWidth);
+		}).toBeLessThanOrEqual(2);
+	});
+
+	test('manages external contacts from relationship edit', async ({ page }) => {
+		contacts = [contact('contact-1', '기존 외부 담당자', 'account-1')];
+		await openCRM(page);
+		await page.getByLabel('관계처').getByText('기존 관계처', { exact: true }).click();
+		await page.getByRole('dialog').getByRole('button', { name: '수정', exact: true }).click();
+		const relationshipSheet = page.getByRole('dialog', { name: '관계처 수정' });
+		await expect(relationshipSheet.getByText('외부 담당자', { exact: true })).toBeVisible();
+		await relationshipSheet.getByRole('button', { name: /기존 외부 담당자/ }).click();
+
+		const contactSheet = page.getByRole('dialog', { name: '연락처 수정' });
+		await contactSheet.getByLabel('연락처 이름').fill('변경된 외부 담당자');
+		await contactSheet.getByRole('button', { name: '저장', exact: true }).click();
+		await expect(contactSheet).not.toBeVisible();
+		expect(contacts[0]?.name).toBe('변경된 외부 담당자');
+
+		await page.getByRole('row', { name: /기존 관계처/ }).click();
+		await page.getByRole('dialog').getByRole('button', { name: '수정', exact: true }).click();
+		const reopenedSheet = page.getByRole('dialog', { name: '관계처 수정' });
+		await expect(reopenedSheet.getByRole('button', { name: /변경된 외부 담당자/ })).toBeVisible();
+		await reopenedSheet.getByRole('button', { name: '외부 담당자 추가', exact: true }).click();
+		const createSheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
+		await expect(createSheet.getByLabel('관계처')).toContainText('기존 관계처');
+		await createSheet.getByLabel('연락처 이름').fill('추가 외부 담당자');
+		await createSheet.getByLabel('이메일').fill('added@example.com');
+		await createSheet.getByRole('button', { name: '추가', exact: true }).click();
+
+		expect(contacts.find((candidate) => candidate.name === '추가 외부 담당자')).toMatchObject({ accountID: 'account-1' });
+	});
+
+	test('retries only the external contact after a partial relationship create', async ({ page }) => {
+		await openCRM(page);
+		await page.getByRole('button', { name: '빠른 추가' }).click();
+		await page.getByRole('menuitem', { name: '관계처', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
+		await sheet.getByLabel('이름 또는 제목').fill('부분 저장 관계처');
+		await sheet.getByRole('checkbox', { name: '외부 담당자 함께 등록' }).click();
+		await sheet.getByLabel('연락처 이름').fill('최견본');
+		await sheet.getByLabel('전화번호').fill('02-000-0000');
+		failNextContactCreate = true;
+		await sheet.getByRole('button', { name: '추가', exact: true }).click();
+
+		await expect(sheet).toContainText('관계처는 저장했지만 외부 담당자를 저장하지 못했습니다.');
+		await expect(sheet.getByLabel('이름 또는 제목')).toBeDisabled();
+		expect(accounts.filter((candidate) => candidate.name === '부분 저장 관계처')).toHaveLength(1);
+		expect(contacts).toHaveLength(0);
+		await sheet.getByRole('button', { name: '추가', exact: true }).click();
+
+		expect(accounts.filter((candidate) => candidate.name === '부분 저장 관계처')).toHaveLength(1);
+		expect(contacts[0]).toMatchObject({ name: '최견본', accountID: accounts.find((candidate) => candidate.name === '부분 저장 관계처')?.id });
+	});
+
+	test('shows all progress types first and enables the board for a specific type', async ({ page }) => {
+		await openCRM(page);
+		await page.getByRole('tab', { name: '진행상황' }).click();
+		const progressType = page.getByLabel('진행 유형');
+		await expect(progressType).toContainText('전체');
+		await expect(page.getByRole('tab', { name: '보드' })).toBeDisabled();
+		await progressType.click();
+		const options = page.getByRole('option');
+		await expect(options.first()).toHaveText('전체');
+		await page.getByRole('option', { name: '판매', exact: true }).click();
+		await expect(page.getByRole('tab', { name: '보드' })).toBeEnabled();
+	});
+
 	test('creates an opportunity, moves its stage, and records an activity', async ({ page }) => {
 		await openCRM(page);
 		await page.getByRole('button', { name: '빠른 추가' }).click();
@@ -263,7 +380,7 @@ test.describe('CRM service UI', () => {
 		await progressSheet.getByLabel('이름 또는 제목').fill('서비스 연결 진행 건');
 		await progressSheet.getByRole('button', { name: '추가', exact: true }).click();
 		await expect(page.getByText('서비스 연결 진행 건', { exact: true })).toBeVisible();
-		opportunities[0] = { ...opportunities[0], contacts: [{ contactID: 'contact-linked', isPrimary: true }] };
+		opportunities[0] = { ...opportunities[0], contacts: [{ contactID: 'contact-linked' }] };
 		await page.reload();
 		await expect(page.locator('[data-crm-ready="true"]')).toBeVisible();
 		await page.getByRole('tab', { name: '진행상황' }).click();
@@ -275,7 +392,7 @@ test.describe('CRM service UI', () => {
 		await editSheet.getByRole('button', { name: '저장', exact: true }).click();
 		await expect(page.getByRole('row', { name: /진행 건 수정 · 서비스 연결 진행 건/ })).toContainText('검토');
 		await expect(page.getByRole('row', { name: /진행 건 수정 · 서비스 연결 진행 건/ })).not.toContainText('qualified');
-		expect(opportunities[0]?.contacts).toEqual([{ contactID: 'contact-linked', isPrimary: true }]);
+		expect(opportunities[0]?.contacts).toEqual([{ contactID: 'contact-linked' }]);
 
 		await page.getByRole('button', { name: '빠른 추가' }).click();
 		await page.getByRole('menuitem', { name: '활동 기록', exact: true }).click();
@@ -291,6 +408,52 @@ test.describe('CRM service UI', () => {
 		await expect(page.getByRole('row', { name: /진행 건 수정 · 서비스 연결 진행 건/ })).toHaveCount(0);
 	});
 
+	test.fixme('edits an automatic stage-change activity without changing its opportunity stage (issue #623)', async ({ page }) => {
+		opportunities = [opportunity('opportunity-1', '단계 변경 진행 건', 'qualified', 1024)];
+		activities = [{
+			id: 'activity-stage-change', accountID: 'account-1', opportunityID: 'opportunity-1', business: 'general',
+			kind: 'stage_change', title: '단계 변경 기록', occurredAt: '2026-08-03T09:30:00Z', content: '자동 생성', audit
+		}];
+		await openCRM(page);
+		await page.getByRole('tab', { name: '활동', exact: true }).click();
+		await page.getByRole('row', { name: /활동 수정 · 단계 변경 기록/ }).click();
+		const sheet = page.getByRole('dialog', { name: '활동 수정' });
+		await sheet.getByLabel('활동 제목').fill('수정된 단계 변경 기록');
+		await sheet.getByText('단계 변경', { exact: true }).click();
+		await expect(page.getByRole('option', { name: '단계 변경', exact: true })).toHaveCount(0);
+		await sheet.getByRole('button', { name: '저장', exact: true }).click();
+		expect(activities[0]).toMatchObject({ kind: 'stage_change', title: '수정된 단계 변경 기록' });
+		expect(opportunities[0]?.stage).toBe('qualified');
+
+		await page.getByRole('row', { name: /활동 수정 · 수정된 단계 변경 기록/ }).click();
+		await sheet.getByText('단계 변경', { exact: true }).click();
+		await page.getByRole('option', { name: '메모', exact: true }).click();
+		await sheet.getByRole('button', { name: '저장', exact: true }).click();
+		expect(activities[0]).toMatchObject({ kind: 'note' });
+		expect(opportunities[0]?.stage).toBe('qualified');
+	});
+
+	test('selects external and internal owners when creating an opportunity', async ({ page }) => {
+		contacts = [contact('contact-1', '외부 담당자 예시', 'account-1')];
+		await openCRM(page);
+		await page.getByRole('button', { name: '빠른 추가' }).click();
+		await page.getByRole('menuitem', { name: '진행 건', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
+		await expect(sheet.getByText('외부 담당자', { exact: true })).toBeVisible();
+		await sheet.getByRole('group').filter({ hasText: '외부 담당자' }).getByRole('button').click();
+		await page.getByRole('option', { name: '외부 담당자 예시', exact: true }).click();
+		await sheet.getByLabel('내부 담당자').click();
+		await page.getByRole('option', { name: /운영 담당자/ }).click();
+		await sheet.getByLabel('이름 또는 제목').fill('담당자 구분 진행 건');
+		await sheet.getByRole('button', { name: '추가', exact: true }).click();
+
+		expect(opportunities[0]).toMatchObject({
+			ownerPersonID: 'person-ops',
+			ownerCircleID: 'team-ops',
+			contacts: [{ contactID: 'contact-1' }]
+		});
+	});
+
 	test('creates a contact-only opportunity', async ({ page }) => {
 		contacts = [contact('contact-b2c', '개인 고객', '')];
 		await openCRM(page);
@@ -300,11 +463,12 @@ test.describe('CRM service UI', () => {
 		await createSheet.getByLabel('관계처').click();
 		await page.getByRole('option', { name: '없음', exact: true }).click();
 		await createSheet.getByLabel('이름 또는 제목').fill('개인 고객 상담');
-		await createSheet.getByRole('checkbox', { name: '개인 고객', exact: true }).click();
+		await createSheet.getByRole('group').filter({ hasText: '외부 담당자' }).getByRole('button').click();
+		await page.getByRole('option', { name: '개인 고객', exact: true }).click();
 		await createSheet.getByRole('button', { name: '추가', exact: true }).click();
 
 		expect(opportunities[0]?.accountID).toBe('');
-		expect(opportunities[0]?.contacts).toEqual([{ contactID: 'contact-b2c', isPrimary: false }]);
+		expect(opportunities[0]?.contacts).toEqual([{ contactID: 'contact-b2c' }]);
 	});
 
 	test('requires a relationship or contact when creating an opportunity', async ({ page }) => {
@@ -342,17 +506,18 @@ test.describe('CRM service UI', () => {
 		opportunities = [{
 			...opportunity('opportunity-b2c', '개인 고객 상담', 'lead', 1024),
 			accountID: '',
-			contacts: [{ contactID: 'contact-b2c', isPrimary: false }]
+			contacts: [{ contactID: 'contact-b2c' }]
 		}];
 		await openCRM(page);
 		await page.getByRole('tab', { name: '진행상황' }).click();
 		await page.getByRole('row', { name: /개인 고객 상담/ }).click();
 		const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
-		await editSheet.getByRole('checkbox', { name: '개인 고객', exact: true }).click();
+		await editSheet.getByLabel('외부 담당자').click();
+		await page.getByRole('option', { name: '없음', exact: true }).click();
 		await editSheet.getByRole('button', { name: '저장', exact: true }).click();
 
 		await expect(editSheet).toContainText('관계처 또는 연결 담당자를 선택해 주세요.');
-		expect(opportunities[0]?.contacts).toEqual([{ contactID: 'contact-b2c', isPrimary: false }]);
+		expect(opportunities[0]?.contacts).toEqual([{ contactID: 'contact-b2c' }]);
 	});
 
 	test('moves and sorts pipeline cards through service APIs and keeps the order after reload', async ({ page }) => {
@@ -363,6 +528,7 @@ test.describe('CRM service UI', () => {
 		];
 		await openCRM(page);
 		await page.getByRole('tab', { name: '진행상황' }).click();
+		await selectSalesPipeline(page);
 		await page.getByRole('tab', { name: '보드' }).click();
 
 		await page.locator('[data-crm-opportunity-card="opportunity-a"]').dragTo(
@@ -380,6 +546,7 @@ test.describe('CRM service UI', () => {
 		await page.reload();
 		await expect(page.locator('[data-crm-ready="true"]')).toBeVisible();
 		await page.getByRole('tab', { name: '진행상황' }).click();
+		await selectSalesPipeline(page);
 		await page.getByRole('tab', { name: '보드' }).click();
 		await expect(page.locator('[data-crm-pipeline-column="qualified"] [data-crm-opportunity-card]').first()).toHaveAttribute(
 			'data-crm-opportunity-card',
@@ -391,6 +558,7 @@ test.describe('CRM service UI', () => {
 		opportunities = [opportunity('opportunity-terminal', '종결할 진행 건', 'qualified', 1024)];
 		await openCRM(page);
 		await page.getByRole('tab', { name: '진행상황' }).click();
+		await selectSalesPipeline(page);
 		await page.getByRole('tab', { name: '보드' }).click();
 
 		const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
@@ -419,6 +587,7 @@ test.describe('CRM service UI', () => {
 		opportunities = [{ ...opportunity('opportunity-foreign', '외화 진행 건', 'qualified', 1024), currencyCode: 'USD' }];
 		await openCRM(page);
 		await page.getByRole('tab', { name: '진행상황' }).click();
+		await selectSalesPipeline(page);
 		await page.getByRole('tab', { name: '보드' }).click();
 
 		const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
@@ -484,6 +653,7 @@ test.describe('CRM service UI', () => {
 		await expect(page.getByRole('option', { name: '검토', exact: true })).toHaveCount(0);
 		await page.keyboard.press('Escape');
 		await page.keyboard.press('Escape');
+		await selectSalesPipeline(page);
 		await page.getByRole('tab', { name: '보드' }).click();
 		await expect(page.locator('[data-crm-opportunity-card="opportunity-realized"]')).toHaveAttribute('draggable', 'false');
 	});
@@ -496,7 +666,7 @@ test.describe('CRM service UI', () => {
 		];
 		opportunities = [{
 			...opportunity('opportunity-reassign', '관계처 변경 진행 건', 'lead', 1024),
-			contacts: [{ contactID: 'contact-old', isPrimary: true }]
+			contacts: [{ contactID: 'contact-old' }]
 		}];
 		await openCRM(page);
 		await page.getByRole('tab', { name: '진행상황' }).click();
@@ -505,15 +675,33 @@ test.describe('CRM service UI', () => {
 
 		await sheet.getByLabel('관계처').click();
 		await page.getByRole('option', { name: '새 관계처', exact: true }).click();
-		await sheet.getByText('새 담당자', { exact: true }).click();
-		await sheet.getByLabel('주 담당자').click();
+		await sheet.getByLabel('외부 담당자').click();
 		await page.getByRole('option', { name: '새 담당자', exact: true }).click();
 		await sheet.getByRole('button', { name: '저장', exact: true }).click();
 
 		expect(opportunities[0]).toMatchObject({
 			accountID: 'account-2',
-			contacts: [{ contactID: 'contact-new', isPrimary: true }]
+			contacts: [{ contactID: 'contact-new' }]
 		});
+	});
+
+	test('blocks moving a contact away from its linked account opportunity', async ({ page }) => {
+		accounts.push(account('account-2', '새 관계처'));
+		contacts = [contact('contact-linked', '연결 담당자', 'account-1')];
+		opportunities = [{
+			...opportunity('opportunity-linked-contact', '연결된 진행 건', 'lead', 1024),
+			contacts: [{ contactID: 'contact-linked' }]
+		}];
+		await openCRM(page);
+		await page.getByRole('tab', { name: '연락처' }).click();
+		await page.getByRole('row', { name: /연락처 수정 · 연결 담당자/ }).press('Enter');
+		const sheet = page.getByRole('dialog', { name: '연락처 수정' });
+		await sheet.getByLabel('관계처').click();
+		await page.getByRole('option', { name: '새 관계처', exact: true }).click();
+		await sheet.getByRole('button', { name: '저장', exact: true }).click();
+
+		await expect(sheet).toContainText('연결된 진행 건의 관계처와 달라서 변경할 수 없습니다: 연결된 진행 건');
+		expect(contacts[0]?.accountID).toBe('account-1');
 	});
 
 	test('keeps activity references consistent when the relationship changes', async ({ page }) => {
@@ -588,6 +776,14 @@ async function openCRM(page: Page): Promise<void> {
 	await expect(page.locator('[data-crm-ready="true"]')).toBeVisible();
 }
 
+async function selectSalesPipeline(page: Page): Promise<void> {
+	const progressType = page.getByLabel('진행 유형');
+	if (await progressType.getByText('전체', { exact: true }).count()) {
+		await progressType.click();
+		await page.getByRole('option', { name: '판매', exact: true }).click();
+	}
+}
+
 async function expectNoHorizontalOverflow(locator: Locator): Promise<void> {
 	const overflow = await locator.evaluate((element) => element.scrollWidth - element.clientWidth);
 	expect(overflow).toBeLessThanOrEqual(1);
@@ -598,6 +794,9 @@ async function expectTableColumns(panel: Locator, expectedRatios: number[], cont
 		headers
 			.filter((header) => (header as HTMLElement).offsetParent !== null)
 			.map((header) => ({
+				contentLeft: header.getBoundingClientRect().left + Number.parseFloat(getComputedStyle(header).paddingLeft),
+				center: header.getBoundingClientRect().left + header.getBoundingClientRect().width / 2,
+				label: header.textContent?.trim() ?? '',
 				width: header.getBoundingClientRect().width,
 				textAlign: getComputedStyle(header).textAlign
 			}))
@@ -605,19 +804,81 @@ async function expectTableColumns(panel: Locator, expectedRatios: number[], cont
 	expect(measurements).toHaveLength(expectedRatios.length);
 	const totalWidth = measurements.reduce((total, measurement) => total + measurement.width, 0);
 	for (let index = 0; index < expectedRatios.length; index += 1) {
-		expect(measurements[index].textAlign).toBe('left');
+		const expectedAlignment = ['단계', '활동 종류', '활동 상태'].includes(measurements[index].label) ? 'center' : 'left';
+		expect(measurements[index].textAlign).toBe(expectedAlignment);
 		expect(
 			Math.abs(measurements[index].width / totalWidth - expectedRatios[index]),
 			`${context} column ${index + 1}`
 		).toBeLessThanOrEqual(0.025);
 	}
-	const cellAlignments = await panel.locator('tbody tr').first().getByRole('cell').evaluateAll((cells) =>
+	const cellMeasurements = await panel.locator('tbody tr').first().getByRole('cell').evaluateAll((cells) =>
 		cells
 			.filter((cell) => (cell as HTMLElement).offsetParent !== null)
-			.map((cell) => getComputedStyle(cell).textAlign)
+			.map((cell) => ({
+				contentLeft: cell.getBoundingClientRect().left + Number.parseFloat(getComputedStyle(cell).paddingLeft),
+				center: cell.getBoundingClientRect().left + cell.getBoundingClientRect().width / 2,
+				textAlign: getComputedStyle(cell).textAlign
+			}))
 	);
-	expect(cellAlignments).toHaveLength(expectedRatios.length);
-	expect(cellAlignments.every((alignment) => alignment === 'left')).toBe(true);
+	expect(cellMeasurements).toHaveLength(expectedRatios.length);
+	for (let index = 0; index < cellMeasurements.length; index += 1) {
+		const expectedAlignment = ['단계', '활동 종류', '활동 상태'].includes(measurements[index].label) ? 'center' : 'left';
+		expect(cellMeasurements[index].textAlign).toBe(expectedAlignment);
+		if (expectedAlignment === 'center') {
+			expect(Math.abs(cellMeasurements[index].center - measurements[index].center), `${context} column ${index + 1} center`).toBeLessThanOrEqual(1);
+		} else if (measurements[index].label !== '유형') {
+			expect(Math.abs(cellMeasurements[index].contentLeft - measurements[index].contentLeft), `${context} column ${index + 1} content start`).toBeLessThanOrEqual(1);
+		}
+	}
+	const leadingPills = await panel.locator('tbody tr').first().locator('[data-crm-leading-pill]:visible').evaluateAll((pills) =>
+		pills.map((pill) => {
+			const cell = pill.closest('td');
+			if (!(cell instanceof HTMLTableCellElement)) throw new Error('CRM leading pill must be inside a table cell');
+			const header = cell.closest('table')?.tHead?.rows[0]?.cells[cell.cellIndex];
+			if (!(header instanceof HTMLTableCellElement)) throw new Error('CRM leading pill column header is missing');
+			return {
+				headerTextLeft: header.getBoundingClientRect().left + Number.parseFloat(getComputedStyle(header).paddingLeft),
+				pillLeft: pill.getBoundingClientRect().left
+			};
+		})
+	);
+	for (const [index, pill] of leadingPills.entries()) {
+		expect(Math.abs(pill.pillLeft - pill.headerTextLeft), `${context} leading pill ${index + 1} start`).toBeLessThanOrEqual(1);
+	}
+	const leadingPillTexts = await panel.locator('tbody tr').first().locator('[data-crm-leading-pill-text]:visible').evaluateAll((pills) =>
+		pills.map((pill) => {
+			const cell = pill.closest('td');
+			if (!(cell instanceof HTMLTableCellElement)) throw new Error('CRM text-aligned pill must be inside a table cell');
+			const header = cell.closest('table')?.tHead?.rows[0]?.cells[cell.cellIndex];
+			if (!(header instanceof HTMLTableCellElement)) throw new Error('CRM text-aligned pill column header is missing');
+			const textNode = [...pill.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
+			if (!textNode) throw new Error('CRM text-aligned pill text is missing');
+			const range = document.createRange();
+			range.selectNodeContents(textNode);
+			return {
+				headerTextLeft: header.getBoundingClientRect().left + Number.parseFloat(getComputedStyle(header).paddingLeft),
+				pillTextLeft: range.getBoundingClientRect().left
+			};
+		})
+	);
+	for (const [index, pill] of leadingPillTexts.entries()) {
+		expect(Math.abs(pill.pillTextLeft - pill.headerTextLeft), `${context} leading pill text ${index + 1} start`).toBeLessThanOrEqual(1);
+	}
+	const centeredPills = await panel.locator('tbody tr').first().locator('[data-crm-centered-pill]:visible').evaluateAll((pills) =>
+		pills.map((pill) => {
+			const cell = pill.closest('td');
+			if (!(cell instanceof HTMLTableCellElement)) throw new Error('CRM centered pill must be inside a table cell');
+			const header = cell.closest('table')?.tHead?.rows[0]?.cells[cell.cellIndex];
+			if (!(header instanceof HTMLTableCellElement)) throw new Error('CRM centered pill column header is missing');
+			return {
+				headerCenter: header.getBoundingClientRect().left + header.getBoundingClientRect().width / 2,
+				pillCenter: pill.getBoundingClientRect().left + pill.getBoundingClientRect().width / 2
+			};
+		})
+	);
+	for (const [index, pill] of centeredPills.entries()) {
+		expect(Math.abs(pill.pillCenter - pill.headerCenter), `${context} centered pill ${index + 1}`).toBeLessThanOrEqual(1);
+	}
 }
 
 async function installSessionRoutes(page: Page): Promise<void> {
@@ -745,6 +1006,14 @@ async function handleCRMRoute(route: Route, accounts: Account[], contacts: Conta
 		activities.unshift(created);
 		return fulfill(route, { activity: created }, 201);
 	}
+	const activityMatch = path.match(/^\/crm\/api\/activities\/([^/]+)$/);
+	if (activityMatch && method === 'PUT') {
+		const index = activities.findIndex((activity) => activity.id === activityMatch[1]);
+		const payload = recordPayload(request.postDataJSON());
+		const updated: Activity = { ...activities[index], ...payload, id: activityMatch[1], title: stringPayload(payload, 'title'), audit };
+		activities[index] = updated;
+		return fulfill(route, { activity: updated });
+	}
 	if (path === '/crm/api/pipelines' && method === 'GET') return fulfill(route, { pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }] });
 	if (path === '/crm/api/pipelines/sales/stages' && method === 'GET') return fulfill(route, { stages: [{ pipeline: 'sales', stage: 'lead', position: 1, outcome: 'open' }, { pipeline: 'sales', stage: 'qualified', position: 2, outcome: 'open' }, { pipeline: 'sales', stage: 'won', position: 3, outcome: 'won' }, { pipeline: 'sales', stage: 'lost', position: 4, outcome: 'lost' }] });
 	if (path === '/crm/api/lost-reasons' && method === 'GET') return fulfill(route, { lostReasons: [{ reason: 'budget', label: '예산 부족', isActive: true }] });
@@ -783,7 +1052,6 @@ function contact(id: string, name: string, accountID: string): Contact {
 		phone: '',
 		title: '',
 		department: '',
-		isPrimary: false,
 		ownerPersonID: 'person-crm',
 		ownerCircleID: 'team-sales',
 		description: '',

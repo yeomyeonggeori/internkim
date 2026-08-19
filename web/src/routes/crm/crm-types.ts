@@ -1,16 +1,16 @@
-export const crmAccountTypes = ['customer', 'partner', 'sponsor', 'vendor', 'investor', 'portfolio', 'other'] as const;
-export type CRMAccountType = (typeof crmAccountTypes)[number];
-export type CRMAccountStatus = 'prospect' | 'active' | 'paused';
+export const crmOrganizationTypes = ['customer', 'partner', 'sponsor', 'vendor', 'investor', 'portfolio', 'other'] as const;
+export type CRMOrganizationType = string;
+export type CRMOrganizationStatus = 'prospect' | 'active' | 'paused';
 export type CRMOpportunityStage = string;
-export type CRMActivityKind = 'note' | 'email' | 'meeting' | 'call' | 'task' | 'file' | 'event' | 'stage_change';
+export type CRMActivityKind = string;
 export type CRMNextActionStatus = 'todo' | 'in_progress' | 'waiting' | 'done';
 export type CRMActionUrgency = 'overdue' | 'today' | 'due_soon' | 'scheduled' | 'done';
 export type CRMIntakeDraftSource = 'file' | 'mail' | 'calendar';
-export type CRMProgressKind = 'sales' | 'fundraising' | 'investment' | 'sponsorship' | 'partnership' | 'procurement';
+export type CRMProgressKind = string;
 export type CRMRecordKind = 'relationship' | 'contact' | 'progress' | 'activity';
 export type CRMImportance = 'high' | 'medium' | 'low';
 export type CRMCalendarRegistrationState = 'registered' | 'failed';
-export type CRMCurrency = 'KRW' | 'USD' | 'JPY' | 'EUR';
+export type CRMCurrency = string;
 export const crmServerDefaultCurrency: CRMCurrency = 'KRW';
 export type CRMMoneyTotals = Partial<Record<CRMCurrency, number>>;
 
@@ -24,13 +24,12 @@ export type CRMCalendarRegistrationDraft = {
 
 export type CRMContact = {
 	id: string;
-	accountID: string;
+	organizationID: string;
 	name: string;
 	title: string;
 	department?: string;
 	email: string;
 	phone?: string;
-	isPrimary: boolean;
 	note?: string;
 	ownerPersonID?: string;
 	ownerCircleID?: string;
@@ -38,14 +37,13 @@ export type CRMContact = {
 
 export type CRMOpportunityContact = {
 	contactID: string;
-	isPrimary: boolean;
 };
 
-export type CRMAccount = {
+export type CRMOrganization = {
 	id: string;
 	name: string;
-	types: CRMAccountType[];
-	status: CRMAccountStatus;
+	types: CRMOrganizationType[];
+	status: CRMOrganizationStatus;
 	importance: CRMImportance;
 	ownerPersonID?: string;
 	ownerCircleID?: string;
@@ -65,7 +63,7 @@ export type CRMIntakeDraft = {
 	id: string;
 	source: CRMIntakeDraftSource;
 	title: string;
-	accountName: string;
+	organizationName: string;
 	summary: string;
 	confidence: number;
 	suggestedAction: string;
@@ -73,7 +71,7 @@ export type CRMIntakeDraft = {
 
 export type CRMOpportunity = {
 	id: string;
-	accountID: string;
+	organizationID: string;
 	business: string;
 	name: string;
 	pipeline?: CRMProgressKind;
@@ -103,39 +101,37 @@ export type CRMOpportunity = {
 export type CRMRelationshipCreateDraft = {
 	kind: 'relationship';
 	name: string;
-	types: CRMAccountType[];
-	status: CRMAccountStatus;
+	types: CRMOrganizationType[];
+	status: CRMOrganizationStatus;
 	importance: CRMImportance;
-	ownerName: string;
-	team: string;
+	ownerPersonID: string;
 	address: string;
 	tags: string[];
 	description: string;
-	lastContactDate: string;
-	nextActionDate: string;
+	createdOrganizationID?: string;
+	contact?: Omit<CRMContactCreateDraft, 'kind' | 'organizationID'>;
 };
 
 export type CRMContactCreateDraft = {
 	kind: 'contact';
-	accountID: string;
+	organizationID: string;
 	name: string;
 	title: string;
 	email: string;
 	phone: string;
-	isPrimary: boolean;
 	note: string;
 };
 
 export type CRMOpportunityCreateDraft = {
 	kind: 'progress';
-	accountID: string;
+	organizationID: string;
 	contacts: CRMOpportunityContact[];
 	business: string;
 	name: string;
 	progressKind: CRMProgressKind;
 	stage: CRMOpportunityStage;
 	lostReason: string;
-	ownerName: string;
+	ownerPersonID: string;
 	amount?: number;
 	currency: CRMCurrency;
 	importance: CRMImportance;
@@ -146,7 +142,8 @@ export type CRMOpportunityCreateDraft = {
 
 export type CRMActivityCreateDraft = {
 	kind: 'activity';
-	accountID: string;
+	organizationID: string;
+	contactID?: string;
 	opportunityID?: string;
 	business: string;
 	activityKind: CRMActivityKind;
@@ -159,7 +156,8 @@ export type CRMActivityCreateDraft = {
 };
 
 export type CRMActivityEditDraft = {
-	accountID: string;
+	organizationID: string;
+	contactID?: string;
 	opportunityID?: string;
 	business: string;
 	kind: CRMActivityKind;
@@ -168,14 +166,18 @@ export type CRMActivityEditDraft = {
 	summary: string;
 	taskOwnerID: string;
 	taskStatus: string;
-	shouldUpdateLinkedCalendar: boolean;
+	isEvent: boolean;
+	isWholeDay: boolean;
+	startsAt: string;
+	endsAt: string;
+	location: string;
 };
 
 export type CRMCreateDraft = CRMRelationshipCreateDraft | CRMContactCreateDraft | CRMOpportunityCreateDraft | CRMActivityCreateDraft;
 
 export type CRMNextAction = {
 	id: string;
-	accountID: string;
+	organizationID: string;
 	opportunityID?: string;
 	title: string;
 	ownerName: string;
@@ -185,7 +187,7 @@ export type CRMNextAction = {
 
 export type CRMActivity = {
 	id: string;
-	accountID: string;
+	organizationID: string;
 	contactID?: string;
 	opportunityID?: string;
 	business: string;
@@ -195,9 +197,13 @@ export type CRMActivity = {
 	summary: string;
 	taskID: string;
 	taskStatus?: string;
+	taskOwnerID?: string;
 	taskOwnerName?: string;
 	calendarEventID?: string;
 	calendarEventDate?: string;
+	isWholeDay?: boolean;
+	calendarEndsAt?: string;
+	calendarLocation?: string;
 	calendarRegistrationState?: CRMCalendarRegistrationState;
 };
 
@@ -225,7 +231,7 @@ export type CRMReportSummary = {
 	stageCounts: Record<string, number>;
 	ownerSummaries: Array<{
 		ownerName: string;
-		accountCount: number;
+		organizationCount: number;
 		openOpportunityCount: number;
 		missingActionCount: number;
 	}>;

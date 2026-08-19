@@ -1,15 +1,15 @@
-import type { CRMAccount, CRMOpportunity } from './crm-types';
+import type { CRMOrganization, CRMOpportunity } from './crm-types';
 import { sumOpportunityMoney } from './crm-money';
 
 const closedStages = new Set(['won', 'lost']);
 
-export function synchronizeAccountPipeline(accounts: CRMAccount[], opportunities: CRMOpportunity[]): CRMAccount[] {
-	return accounts.map((account) => {
+export function synchronizeOrganizationPipeline(organizations: CRMOrganization[], opportunities: CRMOpportunity[]): CRMOrganization[] {
+	return organizations.map((organization) => {
 		const openOpportunities = opportunities.filter(
-			(opportunity) => opportunity.accountID === account.id && !closedStages.has(opportunity.stage)
+			(opportunity) => opportunity.organizationID === organization.id && !closedStages.has(opportunity.stage)
 		);
 		return {
-			...account,
+			...organization,
 			openOpportunityCount: openOpportunities.length,
 			expectedValues: sumOpportunityMoney(openOpportunities)
 		};

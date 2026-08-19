@@ -6,6 +6,7 @@ const appShellSections = [
 	'/flow/',
 	'/memory/',
 	'/calendar/',
+	'/crm/',
 	'/mail/',
 	'/attendance/',
 	'/organization/',
