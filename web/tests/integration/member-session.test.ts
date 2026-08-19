@@ -3,14 +3,18 @@ import { createClient } from '@supabase/supabase-js';
 import {
 	addMember,
 	controlPlane,
-	linkCredential,
-	memberOfPlatformIdentity,
 	provisionCompany,
 	sessionForMember,
 } from '../../src/lib/server/control-plane';
+import {
+	connectMessengerAccount,
+	membersOfCompanyByExternalID,
+} from '../../src/lib/server/member-credential';
+
+const networkHookTimeout = 60_000;
 
 const projectURL = process.env.SUPABASE_URL ?? '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
 const canReachSupabase = Boolean(projectURL && serviceRoleKey && publishableKey);
 
@@ -43,8 +47,14 @@ beforeAll(async () => {
 		});
 		await client.from('member').update({ user_id: account.user!.id }).eq('id', memberID);
 	}
-	await linkCredential(client, speakerID, 'buzz', `pubkey-${slug}`);
-});
+	await connectMessengerAccount(client, companyID, {
+		memberID: speakerID,
+		kind: 'buzz',
+		externalID: `pubkey-${slug}`,
+		name: 'Speaker',
+		secret: `speaker-secret-${slug}`,
+	});
+}, networkHookTimeout);
 
 afterAll(async () => {
 	if (!client || !companyID) return;
@@ -53,7 +63,7 @@ afterAll(async () => {
 	for (const member of members ?? []) {
 		if (member.user_id) await client.auth.admin.deleteUser(member.user_id);
 	}
-});
+}, networkHookTimeout);
 
 if (!canReachSupabase) {
 	test('supabase is not reachable, so acting for a member is not exercised', () => {
@@ -63,7 +73,9 @@ if (!canReachSupabase) {
 
 if (canReachSupabase) {
 	test('a platform identity resolves to the member who owns it', async () => {
-		expect(await memberOfPlatformIdentity(client!, 'buzz', `pubkey-${slug}`)).toBe(speakerID);
+		const byExternalID = await membersOfCompanyByExternalID(client!, companyID, 'buzz');
+
+		expect(byExternalID.get(`pubkey-${slug}`)).toBe(speakerID);
 	});
 
 	test('the session acts as that member and nobody else', async () => {
