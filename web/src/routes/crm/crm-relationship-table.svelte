@@ -2,7 +2,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
-	import { crmLabel } from './crm-labels';
+	import type { CRMDefinition } from './crm-api-types';
+	import { crmDefinitionLabel, crmLabel } from './crm-labels';
 	import type { CRMOrganization, CRMContact } from './crm-types';
 	import { findOrganizationContactLabel, formatMoneyTotals, getStatusVariant } from './crm-view-model';
 	import type { CRMText } from './text';
@@ -10,11 +11,12 @@
 	type Props = {
 		organizations: CRMOrganization[];
 		contacts: CRMContact[];
+		organizationTypeDefinitions: CRMDefinition[];
 		text: CRMText;
 		openOrganization: (organizationID: string) => void;
 	};
 
-	let { organizations, contacts, text, openOrganization }: Props = $props();
+	let { organizations, contacts, organizationTypeDefinitions, text, openOrganization }: Props = $props();
 
 	const pageSize = 10;
 	let pageIndex = $state(0);
@@ -61,7 +63,7 @@
 						<Table.Cell class="hidden whitespace-normal pl-0 md:table-cell">
 							<div class="flex flex-wrap gap-1.5">
 								{#each organization.types as organizationType, index (organizationType)}
-									<Badge variant="outline" data-crm-leading-pill-text={index === 0 ? '' : undefined}>{crmLabel(text.organizationTypes, organizationType)}</Badge>
+									<Badge variant="outline" data-crm-leading-pill-text={index === 0 ? '' : undefined}>{crmDefinitionLabel(organizationTypeDefinitions, text.organizationTypes, organizationType)}</Badge>
 								{/each}
 							</div>
 						</Table.Cell>

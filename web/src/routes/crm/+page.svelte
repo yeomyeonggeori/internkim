@@ -21,7 +21,7 @@
 	import CRMContactTable from './crm-contact-table.svelte';
 	import CRMDefinitionsEditor from './crm-definitions-editor.svelte';
 	import { currentCRMDate, shiftCRMDate } from './crm-date';
-	import { crmLabel } from './crm-labels';
+	import { crmDefinitionLabel, crmLabel } from './crm-labels';
 	import CRMKPICard from './crm-kpi-card.svelte';
 	import CRMOpportunityEditSheet from './crm-opportunity-edit-sheet.svelte';
 	import { CRMPageController } from './crm-page-controller.svelte';
@@ -64,6 +64,7 @@
 
 	const text = createPageText(crmText);
 	const controller = new CRMPageController(text);
+	const organizationTypeDefinitions = $derived(controller.vocabulary.organization_types);
 	const tabItems: Array<{ value: CRMTab; label: string }> = [
 		{ value: 'relationships', label: text.relationships },
 		{ value: 'contacts', label: text.contactDirectory },
@@ -299,10 +300,10 @@
 				<div class="flex min-w-0 flex-col gap-3 rounded-md border bg-card p-3 lg:flex-row lg:items-center lg:justify-end">
 					<Select.Root type="single" value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)}><Select.Trigger class="w-full lg:w-44">{relationshipViews.find((view) => view.value === relationshipView)?.label}</Select.Trigger><Select.Content>{#each relationshipViews as view (view.value)}<Select.Item value={view.value} label={view.label}>{view.label}</Select.Item>{/each}</Select.Content></Select.Root>
 					<Select.Root type="single" value={selectedStatus} onValueChange={(value) => (selectedStatus = value as CRMOrganizationStatusFilter)}><Select.Trigger class="w-full lg:w-40">{selectedStatus === 'all' ? text.allStatuses : text.organizationStatuses[selectedStatus as CRMOrganizationStatus]}</Select.Trigger><Select.Content>{#each crmOrganizationStatusOptions as status (status)}<Select.Item value={status} label={status === 'all' ? text.allStatuses : text.organizationStatuses[status]}>{status === 'all' ? text.allStatuses : text.organizationStatuses[status]}</Select.Item>{/each}</Select.Content></Select.Root>
-					<Select.Root type="single" value={selectedType} onValueChange={(value) => (selectedType = value as CRMOrganizationTypeFilter)}><Select.Trigger class="w-full lg:w-40">{selectedType === 'all' ? text.allTypes : crmLabel(text.organizationTypes, selectedType)}</Select.Trigger><Select.Content>{#each organizationTypeFilters as organizationType (organizationType)}<Select.Item value={organizationType} label={organizationType === 'all' ? text.allTypes : crmLabel(text.organizationTypes, organizationType)}>{organizationType === 'all' ? text.allTypes : crmLabel(text.organizationTypes, organizationType)}</Select.Item>{/each}</Select.Content></Select.Root>
+					<Select.Root type="single" value={selectedType} onValueChange={(value) => (selectedType = value as CRMOrganizationTypeFilter)}><Select.Trigger class="w-full lg:w-40">{selectedType === 'all' ? text.allTypes : crmDefinitionLabel(organizationTypeDefinitions, text.organizationTypes, selectedType)}</Select.Trigger><Select.Content>{#each organizationTypeFilters as organizationType (organizationType)}<Select.Item value={organizationType} label={organizationType === 'all' ? text.allTypes : crmDefinitionLabel(organizationTypeDefinitions, text.organizationTypes, organizationType)}>{organizationType === 'all' ? text.allTypes : crmDefinitionLabel(organizationTypeDefinitions, text.organizationTypes, organizationType)}</Select.Item>{/each}</Select.Content></Select.Root>
 					<Button type="button" size="sm" onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
 				</div>
-				<CRMRelationshipTable organizations={filteredOrganizations} contacts={controller.contacts} {text} {openOrganization} />
+				<CRMRelationshipTable organizations={filteredOrganizations} contacts={controller.contacts} {organizationTypeDefinitions} {text} {openOrganization} />
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="contacts" class="grid min-w-0 gap-4 pb-24">
@@ -321,7 +322,7 @@
 					<Button type="button" size="sm" onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 				</div>
 				{#if pipelineView === 'table'}
-					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} {text} onEdit={openOpportunityEdit} />
+					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={controller.stages} {text} onEdit={openOpportunityEdit} />
 				{:else}
 					<CRMPipelineBoard opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={selectedPipelineStages} {text} onMove={moveOpportunity} />
 				{/if}
@@ -341,9 +342,9 @@
 	{/if}
 </main>
 
-<CRMRelationshipDetailSheet bind:open={isOrganizationSheetOpen} organization={selectedOrganization} contacts={controller.contacts} opportunities={controller.opportunities} activities={controller.activities} {text} onEdit={openOrganizationEdit} />
-<CRMRelationshipEditSheet bind:open={isRelationshipEditOpen} organization={selectedOrganization} contacts={controller.contacts} organizationTypeOptions={controller.organizationTypeOptions} people={controller.people} groups={controller.groups} {text} onSave={saveOrganization} onArchive={archiveOrganization} onEditContact={openRelationshipContactEdit} onCreateContact={openRelationshipContactCreate} />
+<CRMRelationshipDetailSheet bind:open={isOrganizationSheetOpen} organization={selectedOrganization} contacts={controller.contacts} opportunities={controller.opportunities} activities={controller.activities} stages={controller.stages} {organizationTypeDefinitions} {text} onEdit={openOrganizationEdit} />
+<CRMRelationshipEditSheet bind:open={isRelationshipEditOpen} organization={selectedOrganization} contacts={controller.contacts} organizationTypeOptions={controller.organizationTypeOptions} {organizationTypeDefinitions} people={controller.people} groups={controller.groups} {text} onSave={saveOrganization} onArchive={archiveOrganization} onEditContact={openRelationshipContactEdit} onCreateContact={openRelationshipContactCreate} />
 <CRMContactEditSheet bind:open={isContactEditOpen} contact={selectedContact} organizations={controller.organizations} opportunities={controller.opportunities} {text} onSave={saveContact} />
 <CRMOpportunityEditSheet bind:open={isOpportunityEditOpen} opportunity={selectedOpportunity} organizations={controller.organizations} contacts={controller.contacts} pipelines={controller.pipelines} stages={controller.stages} lostReasons={controller.lostReasons} businessOptions={controller.businessOptions} people={controller.people} groups={controller.groups} requestedStage={requestedOpportunityStage} {text} onSave={saveOpportunity} onArchive={archiveOpportunity} />
 <CRMActivityDetailSheet bind:open={isActivityEditOpen} activity={selectedActivity} organizations={controller.organizations} opportunities={controller.opportunities} contacts={controller.contacts} businessOptions={controller.businessOptions} activityKindOptions={controller.activityKindOptions} people={controller.people} groups={controller.groups} {text} onSave={saveActivity} />
-<CRMRecordSheet bind:open={isRecordSheetOpen} initialKind={createKind} initialOrganizationID={createOrganizationID} organizations={controller.organizations} contacts={controller.contacts} opportunities={controller.opportunities} pipelines={controller.pipelines} stages={controller.stages} lostReasons={controller.lostReasons} businessOptions={controller.businessOptions} organizationTypeOptions={controller.organizationTypeOptions} activityKindOptions={controller.activityKindOptions} defaultOwnerPersonID={controller.currentOwnerPersonID} people={controller.people} groups={controller.groups} {text} onCreate={handleCreate} />
+<CRMRecordSheet bind:open={isRecordSheetOpen} initialKind={createKind} initialOrganizationID={createOrganizationID} organizations={controller.organizations} contacts={controller.contacts} opportunities={controller.opportunities} pipelines={controller.pipelines} stages={controller.stages} lostReasons={controller.lostReasons} businessOptions={controller.businessOptions} organizationTypeOptions={controller.organizationTypeOptions} {organizationTypeDefinitions} activityKindOptions={controller.activityKindOptions} defaultOwnerPersonID={controller.currentOwnerPersonID} people={controller.people} groups={controller.groups} {text} onCreate={handleCreate} />

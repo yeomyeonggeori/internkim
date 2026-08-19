@@ -103,6 +103,7 @@ export type CRMPipelineResponse = {
 export type CRMPipelineStageResponse = {
 	pipeline: CRMProgressKind;
 	stage: string;
+	label: string;
 	position: number;
 	outcome: 'open' | 'won' | 'lost' | 'on_hold';
 };

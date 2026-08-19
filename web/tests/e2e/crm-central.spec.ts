@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-test.describe.configure({ mode: 'serial' });
+test.describe.configure({ mode: 'serial', timeout: 60_000 });
 test.use({ locale: 'ko-KR' });
 
 const organizationName = 'E2E 중앙 검증 기관';

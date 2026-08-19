@@ -11,6 +11,7 @@
 	import { activityReferenceAfterOrganizationChange, activityReferenceAfterOpportunityChange } from './crm-activity-reference';
 	import { hasCRMContactMethod } from './crm-contact-validation';
 	import { currentCRMDate } from './crm-date';
+	import type { CRMDefinition } from './crm-api-types';
 	import { crmLabel } from './crm-labels';
 	import { parseAmountInput } from './crm-money';
 	import CRMMoneyField from './crm-money-field.svelte';
@@ -48,6 +49,7 @@
 		lostReasons: CRMLostReason[];
 		businessOptions: string[];
 		organizationTypeOptions: CRMOrganizationType[];
+		organizationTypeDefinitions: CRMDefinition[];
 		activityKindOptions: CRMActivityKind[];
 		defaultOwnerPersonID: string;
 		people: UserRecord[];
@@ -56,7 +58,7 @@
 		onCreate: (draft: CRMCreateDraft) => Promise<void>;
 	};
 
-	let { open = $bindable(false), initialKind, initialOrganizationID = '', organizations, contacts, opportunities, pipelines, stages, lostReasons, businessOptions, organizationTypeOptions, activityKindOptions, defaultOwnerPersonID, people, groups, text, onCreate }: Props = $props();
+	let { open = $bindable(false), initialKind, initialOrganizationID = '', organizations, contacts, opportunities, pipelines, stages, lostReasons, businessOptions, organizationTypeOptions, organizationTypeDefinitions, activityKindOptions, defaultOwnerPersonID, people, groups, text, onCreate }: Props = $props();
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	let activityKinds = $derived(activityKindOptions.filter((kind) => kind !== 'stage_change'));
 	const noLostReasonValue = '__none__';
@@ -284,6 +286,7 @@
 							bind:contactNote={externalContactNote}
 							{createdOrganizationID} {people} {groups} {text}
 							{organizationTypeOptions}
+							{organizationTypeDefinitions}
 						/>
 					{:else if kind === 'contact'}
 						<Field.Field><Field.Label for="crm-record-name">{text.contactName}</Field.Label><Input id="crm-record-name" bind:value={name} required /></Field.Field>
@@ -291,7 +294,7 @@
 						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-record-email">{text.email}</Field.Label><Input id="crm-record-email" type="email" bind:value={email} /></Field.Field><Field.Field><Field.Label for="crm-record-phone">{text.phone}</Field.Label><Input id="crm-record-phone" type="tel" bind:value={phone} /></Field.Field></div>
 					{:else if kind === 'progress'}
 						<Field.Field><Field.Label for="crm-record-name">{text.name}</Field.Label><Input id="crm-record-name" bind:value={name} required /></Field.Field>
-						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.progressKind}</Field.Label><Select.Root type="single" value={pipeline} onValueChange={selectPipeline}><Select.Trigger class="w-full">{pipelines.find((candidate) => candidate.pipeline === pipeline)?.label ?? pipeline}</Select.Trigger><Select.Content>{#each pipelines as option (option.pipeline)}<Select.Item value={option.pipeline} label={option.label}>{option.label}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-stage">{text.stage}</Field.Label><Select.Root type="single" bind:value={stage}><Select.Trigger id="crm-record-stage" class="w-full">{opportunityStageLabel(stage, text)}</Select.Trigger><Select.Content>{#each pipelineStages as option (option.stage)}<Select.Item value={option.stage} label={opportunityStageLabel(option.stage, text)}>{opportunityStageLabel(option.stage, text)}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field></div>
+						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.progressKind}</Field.Label><Select.Root type="single" value={pipeline} onValueChange={selectPipeline}><Select.Trigger class="w-full">{pipelines.find((candidate) => candidate.pipeline === pipeline)?.label ?? pipeline}</Select.Trigger><Select.Content>{#each pipelines as option (option.pipeline)}<Select.Item value={option.pipeline} label={option.label}>{option.label}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-stage">{text.stage}</Field.Label><Select.Root type="single" bind:value={stage}><Select.Trigger id="crm-record-stage" class="w-full">{opportunityStageLabel(pipelineStages, stage, text)}</Select.Trigger><Select.Content>{#each pipelineStages as option (option.stage)}<Select.Item value={option.stage} label={opportunityStageLabel(pipelineStages, option.stage, text)}>{opportunityStageLabel(pipelineStages, option.stage, text)}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field></div>
 						{#if stageOutcome === 'lost'}<Field.Field><Field.Label for="crm-record-lost-reason">{text.lostReason}</Field.Label><Select.Root type="single" value={lostReason || noLostReasonValue} onValueChange={(value) => (lostReason = value === noLostReasonValue ? '' : value)}><Select.Trigger id="crm-record-lost-reason" class="w-full">{lostReasons.find((reason) => reason.reason === lostReason)?.label ?? text.selectLostReason}</Select.Trigger><Select.Content><Select.Item value={noLostReasonValue} label={text.selectLostReason}>{text.selectLostReason}</Select.Item>{#each lostReasons.filter((reason) => reason.isActive) as reason (reason.reason)}<Select.Item value={reason.reason} label={reason.label}>{reason.label}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>{/if}
 						<Field.Field><Field.Label>{text.business}</Field.Label><Select.Root type="single" bind:value={business}><Select.Trigger class="w-full">{business}</Select.Trigger><Select.Content>{#each businessOptions as option (option)}<Select.Item value={option} label={option}>{option}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
 						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-target">{text.targetDate}</Field.Label><Input id="crm-record-target" type="date" bind:value={targetDate} /></Field.Field></div>

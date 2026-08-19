@@ -67,7 +67,7 @@
 			const matching = periodOpportunities.filter((opportunity) => opportunity.stage === stage);
 			return {
 				key: stage,
-				label: opportunityStageLabel(stage, text),
+				label: opportunityStageLabel(stages, stage, text),
 				count: matching.length,
 				values: sumOpportunityMoney(matching)
 			};
