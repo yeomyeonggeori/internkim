@@ -1,12 +1,13 @@
 import type {
-	CRMAccountStatus,
-	CRMAccountType,
+	CRMOrganizationStatus,
+	CRMOrganizationType,
 	CRMActivityKind,
 	CRMCurrency,
 	CRMImportance,
 	CRMOpportunityContact,
 	CRMProgressKind
 } from './crm-types';
+import type { TaskVocabulary } from '$lib/flow/task-vocabulary';
 
 export type CRMAuditResponse = {
 	createdAt: string;
@@ -17,11 +18,11 @@ export type CRMAuditResponse = {
 	archivedByPersonID?: string;
 };
 
-export type CRMAccountResponse = {
+export type CRMOrganizationResponse = {
 	id: string;
 	name: string;
-	status: CRMAccountStatus;
-	types: CRMAccountType[];
+	status: CRMOrganizationStatus;
+	types: CRMOrganizationType[];
 	tags: string[];
 	importance: CRMImportance;
 	ownerPersonID: string;
@@ -33,13 +34,12 @@ export type CRMAccountResponse = {
 
 export type CRMContactResponse = {
 	id: string;
-	accountID: string;
+	organizationID: string;
 	name: string;
 	email?: string;
 	phone?: string;
 	title?: string;
 	department?: string;
-	isPrimary: boolean;
 	ownerPersonID: string;
 	ownerCircleID?: string;
 	description?: string;
@@ -50,7 +50,7 @@ export type CRMOpportunityContactResponse = CRMOpportunityContact;
 
 export type CRMOpportunityResponse = {
 	id: string;
-	accountID?: string;
+	organizationID?: string;
 	business?: string;
 	name: string;
 	pipeline: CRMProgressKind;
@@ -74,7 +74,7 @@ export type CRMOpportunityResponse = {
 
 export type CRMActivityResponse = {
 	id: string;
-	accountID?: string;
+	organizationID?: string;
 	contactID?: string;
 	opportunityID?: string;
 	business?: string;
@@ -82,6 +82,14 @@ export type CRMActivityResponse = {
 	title: string;
 	occurredAt: string;
 	content?: string;
+	taskStatus?: string;
+	taskOwnerID?: string;
+	isEvent?: boolean;
+	isWholeDay?: boolean;
+	startsAt?: string;
+	endsAt?: string;
+	notifyMinutesBefore?: number;
+	location?: string;
 	audit: CRMAuditResponse;
 };
 
@@ -105,10 +113,31 @@ export type CRMLostReasonResponse = {
 	isActive: boolean;
 };
 
-export type CRMAccountPayload = Omit<CRMAccountResponse, 'id' | 'audit'>;
+export type CRMDefinition = {
+	id: string;
+	name: string;
+	color?: string;
+};
+
+export type CRMStageDefinition = CRMDefinition & {
+	outcome: 'open' | 'won' | 'lost' | 'on_hold';
+};
+
+export type CRMPipelineDefinition = CRMDefinition & {
+	direction?: string;
+	stages: CRMStageDefinition[];
+};
+
+export type CRMVocabulary = {
+	organization_types: CRMDefinition[];
+	pipelines: CRMPipelineDefinition[];
+	lost_reasons: CRMDefinition[];
+};
+
+export type CRMOrganizationPayload = Omit<CRMOrganizationResponse, 'id' | 'audit'>;
 export type CRMContactPayload = Omit<CRMContactResponse, 'id' | 'audit'>;
 export type CRMOpportunityPayload = {
-	accountID: string;
+	organizationID: string;
 	business: string;
 	name: string;
 	pipeline: CRMProgressKind;
@@ -124,14 +153,22 @@ export type CRMOpportunityPayload = {
 	transition?: CRMTransitionPayload;
 };
 export type CRMActivityPayload = {
-	accountID: string;
+	organizationID: string;
 	contactID: string;
 	opportunityID: string;
 	business: string;
-	kind: Exclude<CRMActivityKind, 'stage_change'>;
+	kind: CRMActivityKind;
 	title: string;
 	occurredAt: string;
 	content: string;
+	taskStatus: string;
+	taskOwnerID: string;
+	isEvent: boolean;
+	isWholeDay: boolean;
+	startsAt: string;
+	endsAt: string;
+	notifyMinutesBefore: number | null;
+	location: string;
 };
 
 export type CRMTransitionPayload = {
@@ -151,11 +188,13 @@ export type CRMPositionPayload = {
 };
 
 export type CRMDataResponse = {
-	accounts: CRMAccountResponse[];
+	organizations: CRMOrganizationResponse[];
 	contacts: CRMContactResponse[];
 	opportunities: CRMOpportunityResponse[];
 	activities: CRMActivityResponse[];
 	pipelines: CRMPipelineResponse[];
 	stages: CRMPipelineStageResponse[];
 	lostReasons: CRMLostReasonResponse[];
+	vocabulary: CRMVocabulary;
+	taskVocabulary: TaskVocabulary;
 };

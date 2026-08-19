@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import {
-	accountPayloadFromDraft,
+	activityPayload,
+	activityPayloadFromDraft,
+	organizationPayloadFromDraft,
 	contactPayload,
 	CRMOwnerResolutionError,
 	localDateToUTC,
 	mapCRMViewData,
 	opportunityPayload,
+	opportunityPayloadFromDraft,
 	resolveOwner,
 	utcToLocalDate
 } from '../../../src/routes/crm/crm-mappers';
@@ -47,30 +50,27 @@ describe('CRM service mappers', () => {
 			types: [] as const,
 			status: 'prospect' as const,
 			importance: 'medium' as const,
-			ownerName: '담당자',
-			team: '',
+			ownerPersonID: 'person-owner',
 			address: '',
 			tags: [],
-			description: '',
-			lastContactDate: '',
-			nextActionDate: ''
+			description: ''
 		};
 
-		expect(accountPayloadFromDraft({ ...draft, types: [] }, owner).types).toEqual([]);
-		expect(accountPayloadFromDraft({ ...draft, types: ['partner', 'portfolio'] }, owner).types).toEqual(['partner', 'portfolio']);
+		expect(organizationPayloadFromDraft({ ...draft, types: [] }, owner).types).toEqual([]);
+		expect(organizationPayloadFromDraft({ ...draft, types: ['partner', 'portfolio'] }, owner).types).toEqual(['partner', 'portfolio']);
 	});
 
-	test('derives display names and account metrics from service records', () => {
+	test('derives display names and organization metrics from service records', () => {
 		const view = mapCRMViewData(
 			serviceData(),
 			[{ userID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }],
 			'Asia/Seoul'
 		);
 
-		expect(view.accounts[0]?.ownerName).toBe('담당자');
-		expect(view.accounts[0]?.openOpportunityCount).toBe(1);
-		expect(view.accounts[0]?.expectedValues).toEqual({ KRW: 5000 });
-		expect(view.accounts[0]?.lastContactDate).toBe('2026-08-04');
+		expect(view.organizations[0]?.ownerName).toBe('담당자');
+		expect(view.organizations[0]?.openOpportunityCount).toBe(1);
+		expect(view.organizations[0]?.expectedValues).toEqual({ KRW: 5000 });
+		expect(view.organizations[0]?.lastContactDate).toBe('2026-08-04');
 		expect(view.opportunities[0]?.targetDate).toBe('2026-08-10');
 	});
 
@@ -94,8 +94,42 @@ describe('CRM service mappers', () => {
 
 		expect(contactPayload(view.contacts[0]!)).toMatchObject({ department: '파트너십' });
 		expect(opportunityPayload(view.opportunities[0]!)).toMatchObject({
-			contacts: [{ contactID: 'contact-1', isPrimary: true }]
+			contacts: [{ contactID: 'contact-1' }]
 		});
+	});
+
+	test('preserves stage-change kinds for updates while excluding them from create payloads', () => {
+		const activity = mapCRMViewData(serviceData(), [], 'Asia/Seoul').activities[0]!;
+		activity.kind = 'stage_change';
+
+		expect(activityPayload(activity).kind).toBe('stage_change');
+		expect(activityPayloadFromDraft({
+			kind: 'activity', organizationID: 'organization-1', opportunityID: 'opportunity-1', business: 'general',
+			activityKind: 'stage_change', title: '직접 생성 불가', occurredAt: '2026-08-03T15:30', summary: '',
+			taskOwnerID: '', taskStatus: '', calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' }
+		}).kind).toBe('event');
+	});
+
+	test('stores the selected internal owner team on opportunity creation', () => {
+		const owner = { userID: 'person-ops', handle: 'ops', name: '운영 담당자', email: 'ops@example.com', groupID: 'team-ops' };
+		const payload = opportunityPayloadFromDraft({
+			kind: 'progress',
+			organizationID: 'organization-1',
+			contacts: [],
+			business: 'general',
+			name: '신규 진행 건',
+			progressKind: 'sales',
+			stage: 'lead',
+			lostReason: '',
+			ownerPersonID: 'person-ops',
+			currency: 'KRW',
+			importance: 'medium',
+			targetDate: '',
+			description: '',
+			calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' }
+		}, owner, 'Asia/Seoul');
+
+		expect(payload).toMatchObject({ ownerPersonID: 'person-ops', ownerCircleID: 'team-ops' });
 	});
 
 	test('rejects a non-empty owner hint that does not match the directory', () => {
@@ -113,8 +147,8 @@ describe('CRM service mappers', () => {
 	test('derives activity dates in the selected display time zone', () => {
 		const people = [{ userID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }];
 
-		expect(mapCRMViewData(serviceData(), people, 'Asia/Seoul').accounts[0]?.lastContactDate).toBe('2026-08-04');
-		expect(mapCRMViewData(serviceData(), people, 'America/New_York').accounts[0]?.lastContactDate).toBe('2026-08-03');
+		expect(mapCRMViewData(serviceData(), people, 'Asia/Seoul').organizations[0]?.lastContactDate).toBe('2026-08-04');
+		expect(mapCRMViewData(serviceData(), people, 'America/New_York').organizations[0]?.lastContactDate).toBe('2026-08-03');
 	});
 });
 
@@ -126,12 +160,14 @@ function serviceData(): CRMDataResponse {
 		updatedByPersonID: 'person-owner'
 	};
 	return {
-		accounts: [{ id: 'account-1', name: '관계처', status: 'active', types: ['customer'], tags: [], importance: 'high', ownerPersonID: 'person-owner', audit }],
-		contacts: [{ id: 'contact-1', accountID: 'account-1', name: '담당 연락처', department: '파트너십', isPrimary: true, ownerPersonID: 'person-owner', audit }],
-		opportunities: [{ id: 'opportunity-1', accountID: 'account-1', name: '진행 건', pipeline: 'sales', stage: 'lead', stagePosition: 1024, stageChangedAt: '2026-08-02T00:00:00Z', ownerPersonID: 'person-owner', amountMinor: 5000, currencyCode: 'KRW', importance: 'high', dueAt: '2026-08-10T03:00:00Z', dueTimeZone: 'Asia/Seoul', contacts: [{ contactID: 'contact-1', isPrimary: true }], audit }],
-		activities: [{ id: 'activity-1', accountID: 'account-1', kind: 'meeting', title: '미팅', occurredAt: '2026-08-03T15:30:00Z', content: '논의', audit }],
+		organizations: [{ id: 'organization-1', name: '관계처', status: 'active', types: ['customer'], tags: [], importance: 'high', ownerPersonID: 'person-owner', audit }],
+		contacts: [{ id: 'contact-1', organizationID: 'organization-1', name: '담당 연락처', department: '파트너십', ownerPersonID: 'person-owner', audit }],
+		opportunities: [{ id: 'opportunity-1', organizationID: 'organization-1', name: '진행 건', pipeline: 'sales', stage: 'lead', stagePosition: 1024, stageChangedAt: '2026-08-02T00:00:00Z', ownerPersonID: 'person-owner', amountMinor: 5000, currencyCode: 'KRW', importance: 'high', dueAt: '2026-08-10T03:00:00Z', dueTimeZone: 'Asia/Seoul', contacts: [{ contactID: 'contact-1' }], audit }],
+		activities: [{ id: 'activity-1', organizationID: 'organization-1', kind: 'meeting', title: '미팅', occurredAt: '2026-08-03T15:30:00Z', content: '논의', audit }],
 		pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }],
 		stages: [{ pipeline: 'sales', stage: 'lead', position: 1, outcome: 'open' }],
-		lostReasons: []
+		lostReasons: [],
+		vocabulary: { organization_types: [{ id: 'customer', name: '고객사' }], pipelines: [], lost_reasons: [] },
+		taskVocabulary: { businesses: [{ name: 'general' }], types: [{ name: 'meeting' }] }
 	};
 }

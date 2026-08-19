@@ -18,10 +18,11 @@ describe('CRM API client', () => {
 
 		const data = await loadCRMData();
 
-		expect(data.accounts).toHaveLength(1);
-		expect(data.accounts[0]?.types).toEqual(['portfolio']);
+		expect(data.organizations).toHaveLength(1);
+		expect(data.organizations[0]?.types).toEqual(['portfolio']);
 		expect(data.opportunities[0]?.dueTimeZone).toBe('Asia/Seoul');
-		expect(data.opportunities[0]?.contacts).toEqual([{ contactID: 'contact-1', isPrimary: true }]);
+		expect(data.opportunities[0]?.organizationID).toBe('account-1');
+		expect(data.opportunities[0]?.contacts).toEqual([{ contactID: 'contact-1' }]);
 		expect(data.stages.map((stage) => stage.stage)).toEqual(['lead', 'qualified']);
 		expect(requestedPaths).toContain('/crm/api/pipelines/sales/stages');
 	});
@@ -63,7 +64,7 @@ function documentFor(path: string): object {
 	};
 	if (path.endsWith('/accounts')) return { accounts: [{ id: 'account-1', name: '테스트 관계처', status: 'active', types: ['portfolio'], tags: [], importance: 'high', ownerPersonID: 'person-owner', audit }] };
 	if (path.endsWith('/contacts')) return { contacts: [] };
-	if (path.endsWith('/opportunities')) return { opportunities: [{ id: 'opportunity-1', accountID: 'account-1', name: '테스트 진행 건', pipeline: 'sales', stage: 'lead', stagePosition: 1024, stageChangedAt: '2026-08-03T00:00:00Z', ownerPersonID: 'person-owner', amountMinor: 1000, currencyCode: 'KRW', importance: 'high', dueAt: '2026-08-10T03:00:00Z', dueTimeZone: 'Asia/Seoul', contacts: [{ contactID: 'contact-1', isPrimary: true }], audit }] };
+	if (path.endsWith('/opportunities')) return { opportunities: [{ id: 'opportunity-1', accountID: 'account-1', name: '테스트 진행 건', pipeline: 'sales', stage: 'lead', stagePosition: 1024, stageChangedAt: '2026-08-03T00:00:00Z', ownerPersonID: 'person-owner', amountMinor: 1000, currencyCode: 'KRW', importance: 'high', dueAt: '2026-08-10T03:00:00Z', dueTimeZone: 'Asia/Seoul', contacts: [{ contactID: 'contact-1' }], audit }] };
 	if (path.endsWith('/activities')) return { activities: [] };
 	if (path.endsWith('/pipelines')) return { pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }] };
 	if (path.endsWith('/lost-reasons')) return { lostReasons: [] };

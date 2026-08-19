@@ -1,34 +1,34 @@
 import type { CRMOpportunity } from './crm-types';
 
 export type CRMActivityReferenceState = {
-	accountID: string;
+	organizationID: string;
 	opportunityID: string;
 	business: string;
 };
 
-export type CRMActivityOpportunityReference = Pick<CRMOpportunity, 'id' | 'accountID' | 'business'>;
+export type CRMActivityOpportunityReference = Pick<CRMOpportunity, 'id' | 'organizationID' | 'business'>;
 
-export function activityReferenceAfterAccountChange(
+export function activityReferenceAfterOrganizationChange(
 	opportunities: CRMActivityOpportunityReference[],
-	accountID: string,
+	organizationID: string,
 	opportunityID: string,
 	business: string
 ): CRMActivityReferenceState {
 	const opportunity = opportunities.find((candidate) => candidate.id === opportunityID);
-	if (!opportunity || opportunity.accountID !== accountID) return { accountID, opportunityID: '', business };
-	return { accountID, opportunityID: opportunity.id, business: opportunity.business };
+	if (!opportunity || opportunity.organizationID !== organizationID) return { organizationID, opportunityID: '', business };
+	return { organizationID, opportunityID: opportunity.id, business: opportunity.business };
 }
 
 export function activityReferenceAfterOpportunityChange(
 	opportunities: CRMActivityOpportunityReference[],
 	opportunityID: string,
-	accountID: string,
+	organizationID: string,
 	business: string
 ): CRMActivityReferenceState {
 	const opportunity = opportunities.find((candidate) => candidate.id === opportunityID);
-	if (!opportunity) return { accountID, opportunityID: '', business };
+	if (!opportunity) return { organizationID, opportunityID: '', business };
 	return {
-		accountID: opportunity.accountID,
+		organizationID: opportunity.organizationID,
 		opportunityID: opportunity.id,
 		business: opportunity.business
 	};

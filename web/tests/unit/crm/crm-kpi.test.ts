@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { buildCRMKPICards } from '../../../src/routes/crm/crm-kpi';
-import type { CRMAccount, CRMCurrency, CRMOpportunity, CRMOpportunityStage, CRMPipelineStage } from '../../../src/routes/crm/crm-types';
+import type { CRMOrganization, CRMCurrency, CRMOpportunity, CRMOpportunityStage, CRMPipelineStage } from '../../../src/routes/crm/crm-types';
 import { crmText } from '../../../src/routes/crm/text';
 
 function opportunity(
@@ -12,7 +12,7 @@ function opportunity(
 ): CRMOpportunity {
 	return {
 		id,
-		accountID: 'account',
+		organizationID: 'organization',
 		business: '여명거리',
 		name: id,
 		pipeline: 'sales',
@@ -75,16 +75,16 @@ describe('CRM KPI money details', () => {
 	});
 
 	test('derives the recent-contact segment from the supplied current date', () => {
-		const accounts = [account('recent', '2026-08-02'), account('threshold', '2026-07-04'), account('older', '2026-07-03')];
+		const organizations = [organization('recent', '2026-08-02'), organization('threshold', '2026-07-04'), organization('older', '2026-07-03')];
 
-		const relationshipHealth = buildCRMKPICards(accounts, [], [], [], crmText.ko, '2026-08-03')[1];
+		const relationshipHealth = buildCRMKPICards(organizations, [], [], [], crmText.ko, '2026-08-03')[1];
 
 		expect(relationshipHealth?.segments[0]?.value).toBe(2);
 		expect(relationshipHealth?.segments[1]?.value).toBe(1);
 	});
 });
 
-function account(id: string, lastContactDate: string): CRMAccount {
+function organization(id: string, lastContactDate: string): CRMOrganization {
 	return {
 		id,
 		name: id,

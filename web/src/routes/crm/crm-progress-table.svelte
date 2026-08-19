@@ -2,19 +2,19 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
-	import type { CRMAccount, CRMNextAction, CRMOpportunity } from './crm-types';
-	import { daysLabel, findAccountByID, findNextActionByID, formatMoney, getStageVariant, opportunityStageLabel } from './crm-view-model';
+	import type { CRMOrganization, CRMNextAction, CRMOpportunity } from './crm-types';
+	import { daysLabel, findOrganizationByID, findNextActionByID, formatMoney, getStageVariant, opportunityStageLabel } from './crm-view-model';
 	import type { CRMText } from './text';
 
 	type Props = {
 		opportunities: CRMOpportunity[];
-		accounts: CRMAccount[];
+		organizations: CRMOrganization[];
 		nextActions: CRMNextAction[];
 		text: CRMText;
 		onEdit: (opportunityID: string) => void;
 	};
 
-	let { opportunities, accounts, nextActions, text, onEdit }: Props = $props();
+	let { opportunities, organizations, nextActions, text, onEdit }: Props = $props();
 
 	const pageSize = 10;
 	const attentionThresholdDays = 14;
@@ -50,22 +50,22 @@
 
 <div class="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card shadow-sm">
 	<div class="min-w-0">
-		<Table.Root class="table-fixed text-left">
-			<Table.Header class="bg-muted/50">
+		<Table.Root class="table-fixed">
+			<Table.Header class="bg-muted/50 text-left">
 				<Table.Row class="hover:bg-transparent">
 					<Table.Head class="w-[65%] sm:w-[40%] md:w-[35%] lg:w-[27%] xl:w-[19%]">{text.opportunity}</Table.Head>
-					<Table.Head class="hidden w-[25%] sm:table-cell md:w-[20%] lg:w-[17%] xl:w-[14%]">{text.accountName}</Table.Head>
+					<Table.Head class="hidden w-[25%] sm:table-cell md:w-[20%] lg:w-[17%] xl:w-[14%]">{text.organizationName}</Table.Head>
 					<Table.Head class="hidden w-[9%] xl:table-cell">{text.business}</Table.Head>
-					<Table.Head class="w-[35%] sm:w-[20%] md:w-[15%] lg:w-[12%] xl:w-[9%]">{text.stage}</Table.Head>
+					<Table.Head class="w-[35%] text-center sm:w-[20%] md:w-[15%] lg:w-[12%] xl:w-[9%]">{text.stage}</Table.Head>
 					<Table.Head class="hidden w-[15%] md:table-cell lg:w-[12%] xl:w-[11%]">{text.progressOwner}</Table.Head>
 					<Table.Head class="hidden w-[15%] sm:table-cell lg:w-[14%] xl:w-[12%]">{text.expectedValue}</Table.Head>
 					<Table.Head class="hidden w-[18%] lg:table-cell">{text.nextAction}</Table.Head>
 					<Table.Head class="hidden w-[8%] xl:table-cell" title={text.stageElapsedDescription}>{text.staleDays}</Table.Head>
 				</Table.Row>
 			</Table.Header>
-			<Table.Body>
+			<Table.Body class="text-left">
 				{#each visibleOpportunities as opportunity (opportunity.id)}
-					{@const account = findAccountByID(accounts, opportunity.accountID)}
+					{@const organization = findOrganizationByID(organizations, opportunity.organizationID)}
 					{@const action = findNextActionByID(nextActions, opportunity.nextActionID)}
 					<Table.Row
 						class="cursor-pointer align-top hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
@@ -85,11 +85,11 @@
 							</div>
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal text-muted-foreground sm:table-cell">
-							<p class="truncate">{account?.name ?? text.none}</p>
+							<p class="truncate">{organization?.name ?? text.none}</p>
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal xl:table-cell"><p class="truncate">{opportunity.business}</p></Table.Cell>
-						<Table.Cell class="whitespace-normal">
-							<Badge variant={getStageVariant(opportunity.stage)}>{opportunityStageLabel(opportunity.stage, text)}</Badge>
+						<Table.Cell class="whitespace-normal text-center">
+							<Badge variant={getStageVariant(opportunity.stage)} data-crm-centered-pill>{opportunityStageLabel(opportunity.stage, text)}</Badge>
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal md:table-cell">
 							<p class="truncate">{opportunity.ownerName}</p>

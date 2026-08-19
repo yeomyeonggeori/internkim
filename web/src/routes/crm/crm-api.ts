@@ -1,6 +1,6 @@
 import type {
-	CRMAccountPayload,
-	CRMAccountResponse,
+	CRMOrganizationPayload,
+	CRMOrganizationResponse,
 	CRMActivityPayload,
 	CRMActivityResponse,
 	CRMContactPayload,
@@ -15,9 +15,9 @@ import type {
 	CRMTransitionPayload
 } from './crm-api-types';
 import {
-	crmAccountTypes,
-	type CRMAccountStatus,
-	type CRMAccountType,
+	crmOrganizationTypes,
+	type CRMOrganizationStatus,
+	type CRMOrganizationType,
 	type CRMActivityKind,
 	type CRMCurrency,
 	type CRMImportance,
@@ -36,8 +36,8 @@ export class CRMApiError extends Error {
 }
 
 export async function loadCRMData(): Promise<CRMDataResponse> {
-	const [accounts, contacts, opportunities, activities, pipelines, lostReasons] = await Promise.all([
-		listDocument('/crm/api/accounts', 'accounts', parseAccount),
+	const [organizations, contacts, opportunities, activities, pipelines, lostReasons] = await Promise.all([
+		listDocument('/crm/api/accounts', 'accounts', parseOrganization),
 		listDocument('/crm/api/contacts', 'contacts', parseContact),
 		listDocument('/crm/api/opportunities', 'opportunities', parseOpportunity),
 		listDocument('/crm/api/activities', 'activities', parseActivity),
@@ -51,18 +51,44 @@ export async function loadCRMData(): Promise<CRMDataResponse> {
 			parsePipelineStage
 		))
 	)).flat();
-	return { accounts, contacts, opportunities, activities, pipelines, stages, lostReasons };
+	return {
+		organizations,
+		contacts,
+		opportunities,
+		activities,
+		pipelines,
+		stages,
+		lostReasons,
+		vocabulary: {
+			organization_types: crmOrganizationTypes.map((id) => ({ id, name: id })),
+			pipelines: pipelines.map((pipeline) => ({
+				id: pipeline.pipeline,
+				name: pipeline.label,
+				direction: pipeline.direction,
+				stages: stages.filter((stage) => stage.pipeline === pipeline.pipeline).map((stage) => ({
+					id: stage.stage,
+					name: stage.stage,
+					outcome: stage.outcome
+				}))
+			})),
+			lost_reasons: lostReasons.map((reason) => ({ id: reason.reason, name: reason.label }))
+		},
+		taskVocabulary: {
+			businesses: [...new Set(opportunities.map((opportunity) => opportunity.business).filter((value): value is string => Boolean(value)))].map((name) => ({ name })),
+			types: [...new Set(activities.map((activity) => activity.kind))].map((name) => ({ name }))
+		}
+	};
 }
 
-export async function createCRMAccount(payload: CRMAccountPayload): Promise<CRMAccountResponse> {
-	return recordDocument('/crm/api/accounts', 'POST', payload, 'account', parseAccount);
+export async function createCRMOrganization(payload: CRMOrganizationPayload): Promise<CRMOrganizationResponse> {
+	return recordDocument('/crm/api/accounts', 'POST', payload, 'account', parseOrganization);
 }
 
-export async function updateCRMAccount(id: string, payload: CRMAccountPayload): Promise<CRMAccountResponse> {
-	return recordDocument(`/crm/api/accounts/${encodeURIComponent(id)}`, 'PUT', payload, 'account', parseAccount);
+export async function updateCRMOrganization(id: string, payload: CRMOrganizationPayload): Promise<CRMOrganizationResponse> {
+	return recordDocument(`/crm/api/accounts/${encodeURIComponent(id)}`, 'PUT', payload, 'account', parseOrganization);
 }
 
-export async function archiveCRMAccount(id: string): Promise<void> {
+export async function archiveCRMOrganization(id: string): Promise<void> {
 	await mutationDocument(`/crm/api/accounts/${encodeURIComponent(id)}/archive`, {});
 }
 
@@ -131,9 +157,15 @@ async function recordDocument<T>(
 	const document = await requestDocument(path, {
 		method,
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify(payload)
+		body: JSON.stringify(deviceWireBody(payload))
 	});
 	return parse(document[key]);
+}
+
+function deviceWireBody(payload: object): object {
+	if (!('organizationID' in payload)) return payload;
+	const { organizationID, ...rest } = payload as { organizationID?: string } & Record<string, unknown>;
+	return { ...rest, accountID: organizationID };
 }
 
 async function mutationDocument(path: string, payload: object): Promise<Record<string, unknown>> {
@@ -157,13 +189,13 @@ async function requestDocument(path: string, init?: RequestInit): Promise<Record
 	return value;
 }
 
-function parseAccount(value: unknown): CRMAccountResponse {
+function parseOrganization(value: unknown): CRMOrganizationResponse {
 	const record = requiredRecord(value, 'account');
 	return {
 		id: requiredString(record, 'id'),
 		name: requiredString(record, 'name'),
 		status: enumString(record, 'status', ['prospect', 'active', 'paused']),
-		types: enumStringArray(record, 'types', crmAccountTypes),
+		types: enumStringArray(record, 'types', crmOrganizationTypes),
 		tags: stringArray(record, 'tags'),
 		importance: enumString(record, 'importance', ['high', 'medium', 'low']),
 		ownerPersonID: requiredString(record, 'ownerPersonID'),
@@ -178,13 +210,12 @@ function parseContact(value: unknown): CRMContactResponse {
 	const record = requiredRecord(value, 'contact');
 	return {
 		id: requiredString(record, 'id'),
-		accountID: requiredString(record, 'accountID'),
+		organizationID: requiredString(record, 'accountID'),
 		name: requiredString(record, 'name'),
 		email: optionalString(record, 'email'),
 		phone: optionalString(record, 'phone'),
 		title: optionalString(record, 'title'),
 		department: optionalString(record, 'department'),
-		isPrimary: requiredBoolean(record, 'isPrimary'),
 		ownerPersonID: requiredString(record, 'ownerPersonID'),
 		ownerCircleID: optionalString(record, 'ownerCircleID'),
 		description: optionalString(record, 'description'),
@@ -196,7 +227,7 @@ function parseOpportunity(value: unknown): CRMOpportunityResponse {
 	const record = requiredRecord(value, 'opportunity');
 	return {
 		id: requiredString(record, 'id'),
-		accountID: optionalString(record, 'accountID'),
+		organizationID: optionalString(record, 'accountID'),
 		business: optionalString(record, 'business'),
 		name: requiredString(record, 'name'),
 		pipeline: enumString(record, 'pipeline', ['sales', 'fundraising', 'investment', 'sponsorship', 'partnership', 'procurement']),
@@ -219,16 +250,16 @@ function parseOpportunity(value: unknown): CRMOpportunityResponse {
 	};
 }
 
-function parseOpportunityContact(value: unknown): { contactID: string; isPrimary: boolean } {
+function parseOpportunityContact(value: unknown): { contactID: string } {
 	const record = requiredRecord(value, 'opportunity contact');
-	return { contactID: requiredString(record, 'contactID'), isPrimary: requiredBoolean(record, 'isPrimary') };
+	return { contactID: requiredString(record, 'contactID') };
 }
 
 function parseActivity(value: unknown): CRMActivityResponse {
 	const record = requiredRecord(value, 'activity');
 	return {
 		id: requiredString(record, 'id'),
-		accountID: optionalString(record, 'accountID'),
+		organizationID: optionalString(record, 'accountID'),
 		contactID: optionalString(record, 'contactID'),
 		opportunityID: optionalString(record, 'opportunityID'),
 		business: optionalString(record, 'business'),
@@ -236,6 +267,14 @@ function parseActivity(value: unknown): CRMActivityResponse {
 		title: requiredString(record, 'title'),
 		occurredAt: requiredString(record, 'occurredAt'),
 		content: optionalString(record, 'content'),
+		taskStatus: optionalString(record, 'taskStatus'),
+		taskOwnerID: optionalString(record, 'taskOwnerID'),
+		isEvent: optionalBoolean(record, 'isEvent'),
+		isWholeDay: optionalBoolean(record, 'isWholeDay'),
+		startsAt: optionalString(record, 'startsAt'),
+		endsAt: optionalString(record, 'endsAt'),
+		notifyMinutesBefore: optionalNumber(record, 'notifyMinutesBefore'),
+		location: optionalString(record, 'location'),
 		audit: parseAudit(record.audit)
 	};
 }
@@ -322,6 +361,13 @@ function requiredBoolean(record: Record<string, unknown>, key: string): boolean 
 	return value;
 }
 
+function optionalBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
+	const value = record[key];
+	if (value === undefined || value === null) return undefined;
+	if (typeof value !== 'boolean') throw invalidResponse('CRM API', `${key} must be a boolean`);
+	return value;
+}
+
 function stringArray(record: Record<string, unknown>, key: string): string[] {
 	const values = record[key];
 	if (!Array.isArray(values) || values.some((value) => typeof value !== 'string')) {
@@ -361,8 +407,8 @@ function invalidResponse(source: string, reason: string): CRMApiError {
 }
 
 export type {
-	CRMAccountPayload,
-	CRMAccountResponse,
+	CRMOrganizationPayload,
+	CRMOrganizationResponse,
 	CRMActivityPayload,
 	CRMActivityResponse,
 	CRMContactPayload,
@@ -371,8 +417,8 @@ export type {
 	CRMOpportunityResponse,
 	CRMPositionPayload,
 	CRMTransitionPayload,
-	CRMAccountStatus,
-	CRMAccountType,
+	CRMOrganizationStatus,
+	CRMOrganizationType,
 	CRMActivityKind,
 	CRMCurrency,
 	CRMImportance,
