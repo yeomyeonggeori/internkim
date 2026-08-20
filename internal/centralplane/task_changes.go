@@ -29,6 +29,8 @@ type ChangedTask struct {
 
 const changedTaskSelection = "id,title,status,note,business,type,size,starts_at,ends_at,updated_at,calendar,task_participant(member(email))"
 
+// Calendar events live in the same table and carry the device's event uid as their
+// mirror, so a mirror that read them would make a flow task out of every meeting.
 // TasksChangedSince answers the tasks written after that moment, oldest first, so
 // a caller that keeps the last one it saw asks only for what it has not seen.
 func (client *Client) TasksChangedSince(ctx context.Context, platform string, externalID string, since string, limit int) ([]ChangedTask, error) {
@@ -39,6 +41,7 @@ func (client *Client) TasksChangedSince(ctx context.Context, platform string, ex
 	query := url.Values{}
 	query.Set("select", changedTaskSelection)
 	query.Set("order", "updated_at.asc")
+	query.Set("is_event", "eq.false")
 	query.Set("limit", fmt.Sprintf("%d", limit))
 	if strings.TrimSpace(since) != "" {
 		query.Set("updated_at", "gt."+since)
