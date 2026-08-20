@@ -84,6 +84,14 @@ func (service *Service) mirrorOneFlowTask(ctx context.Context, client *centralpl
 		deviceTaskID = known
 	}
 
+	queuedForDeletion, errorValue := service.flowTaskIsQueuedForDeletion(ctx, deviceTaskID)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	if queuedForDeletion {
+		return false, nil
+	}
+
 	existing, found, errorValue := service.flowTaskIfPresent(ctx, deviceTaskID)
 	if errorValue != nil {
 		return false, errorValue
