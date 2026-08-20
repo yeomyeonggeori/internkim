@@ -74,3 +74,27 @@ func TestARowWithTheRightDatesIsLeftAlone(t *testing.T) {
 		t.Fatal("nothing to repair here, so nothing should have been written")
 	}
 }
+
+func TestTheRepairAlsoCatchesUpADayTheBoardNeverLearned(t *testing.T) {
+	service := newFlowCentralTestService(t)
+	existing := flowNotificationTestTask("예정")
+	existing.ID = "dated-here-only"
+	existing.StartDate = "2026-08-20"
+	existing.EndDate = ""
+	if errorValue := service.writeMirroredFlowTask(context.Background(), existing); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if _, errorValue := service.repairOneFlowTaskDate(context.Background(), centralplane.ChangedTask{
+		CentralID:    "central-dateless",
+		DeviceTaskID: existing.ID,
+		Status:       "todo",
+	}, map[string]adminUserMutation{}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	entries := flowCentralOutboxEntries(t, service)
+	if len(entries) != 1 || entries[0].TaskID != existing.ID {
+		t.Fatalf("the mirror will not visit this task again, so the repair is where the board learns the day: %+v", entries)
+	}
+}
