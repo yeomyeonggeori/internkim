@@ -19,6 +19,10 @@ import (
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
+const releaseDownloadAttempts = 4
+
+var releaseDownloadRetryDelay = 2 * time.Second
+
 const releaseProtocolIdentityReadinessTimeout = 5 * time.Minute
 const releaseProtocolIdentityPollInterval = time.Second
 
@@ -241,17 +245,41 @@ func (service *Service) downloadReleaseComponents(ctx context.Context, manifest 
 		if errorValue := os.MkdirAll(componentStagingPath, 0o700); errorValue != nil {
 			return errorValue
 		}
-		if errorValue := service.downloadReleaseBlob(ctx, component, archivePath); errorValue != nil {
+		if errorValue := service.fetchReleaseBlob(ctx, componentName, component, archivePath); errorValue != nil {
 			return errorValue
-		}
-		if actualSHA256 := fileSHA256(archivePath); actualSHA256 != component.SHA256 {
-			return fmt.Errorf("release component %s checksum mismatch", componentName)
 		}
 		if errorValue := extractTarGzip(archivePath, componentStagingPath); errorValue != nil {
 			return fmt.Errorf("extract release component %s: %w", componentName, errorValue)
 		}
 	}
 	return nil
+}
+
+// The device's uplink drops often enough that one reset stream used to cost the
+// whole release, and every component after it. Cloudflare answers a dropped
+// stream with INTERNAL_ERROR, which says nothing about the blob, so the same
+// request is worth making again. A checksum that does not match is the same
+// story told later, by a body that arrived short.
+func (service *Service) fetchReleaseBlob(ctx context.Context, componentName string, component releaseset.Component, archivePath string) error {
+	var errorValue error
+	for attempt := 0; attempt < releaseDownloadAttempts; attempt++ {
+		if attempt > 0 {
+			log.Printf("release component %s did not arrive on attempt %d, asking again: %v", componentName, attempt, errorValue)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(attempt) * releaseDownloadRetryDelay):
+			}
+		}
+		errorValue = service.downloadReleaseBlob(ctx, component, archivePath)
+		if errorValue == nil && fileSHA256(archivePath) != component.SHA256 {
+			errorValue = fmt.Errorf("release component %s checksum mismatch", componentName)
+		}
+		if errorValue == nil {
+			return nil
+		}
+	}
+	return errorValue
 }
 
 func (service *Service) downloadReleaseBlob(ctx context.Context, component releaseset.Component, archivePath string) error {
