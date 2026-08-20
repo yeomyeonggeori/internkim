@@ -75,12 +75,12 @@ func TestACalendarHintNamingPartOfOneEventResolvesToIt(t *testing.T) {
 		{EventID: "event-2", Title: "휴가"},
 	}
 
-	eventID, failure := resolveCalendarEventHint("상하이 acme 미팅", "", events)
+	event, failure := resolveCalendarEventHint("상하이 acme 미팅", "", events)
 	if failure != nil {
 		t.Fatalf("expected the only event naming the meeting to resolve, got failure = %+v", failure)
 	}
-	if eventID != "event-1" {
-		t.Fatalf("resolved the wrong event: %q", eventID)
+	if event.EventID != "event-1" {
+		t.Fatalf("resolved the wrong event: %q", event.EventID)
 	}
 }
 
