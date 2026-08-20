@@ -71,8 +71,8 @@ test('links the same external contact to two opportunities', async ({ page }) =>
 		await sheet.getByLabel('관계처').click();
 		await page.getByRole('option', { name: organizationName, exact: true }).click();
 		await sheet.getByLabel('이름 또는 제목').fill(name);
-		await sheet.getByRole('group').filter({ hasText: '외부 담당자' }).getByRole('button').first().click();
-		await page.getByRole('option', { name: contactName, exact: true }).click();
+		await sheet.locator('#crm-record-progress-contact').click();
+		await page.getByRole('option', { name: new RegExp(contactName) }).click();
 		await sheet.getByRole('button', { name: '추가', exact: true }).click();
 		await expect(sheet).not.toBeVisible();
 	}
