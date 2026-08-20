@@ -150,21 +150,27 @@ export async function archiveSupabaseCRMOpportunity(id: string): Promise<void> {
 }
 
 export async function transitionSupabaseCRMOpportunity(id: string, payload: CRMTransitionPayload): Promise<CRMOpportunityResponse> {
-	const result = await supabase()
-		.from('opportunity')
-		.update({
-			stage_id: payload.stage,
-			stage_position: payload.stagePosition,
-			stage_changed_at: payload.occurredAt,
-			lost_reason_id: payload.lostReason || null,
-			base_amount_minor: payload.baseAmountMinor,
-			base_currency_code: payload.baseCurrencyCode || null
+	const session = await supabase().auth.getSession();
+	const accessToken = session.data.session?.access_token;
+	if (!accessToken) throw new CRMApiError('sign in first', 401, 'unauthenticated');
+
+	const response = await fetch('/api/crm/opportunity-close', {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			opportunityID: id,
+			stage: payload.stage,
+			stagePosition: payload.stagePosition,
+			occurredAt: payload.occurredAt,
+			lostReason: payload.lostReason
 		})
-		.eq('id', id)
-		.select(opportunitySelection)
-		.single<OpportunityRow>();
-	throwResultError(result.error);
-	return opportunityFrom(requiredData(result.data, 'opportunity'));
+	});
+	if (!response.ok) {
+		const detail = (await response.text()).trim();
+		throw new CRMApiError(detail || `closing returned ${response.status}`, response.status, 'close_failed');
+	}
+	const settled = (await response.json()) as { opportunity: OpportunityRow };
+	return opportunityFrom(requiredData(settled.opportunity, 'opportunity'));
 }
 
 export async function positionSupabaseCRMOpportunity(id: string, payload: CRMPositionPayload): Promise<CRMOpportunityResponse> {
