@@ -2,10 +2,26 @@ import type { AttendanceText } from '../text';
 
 type LeaveText = AttendanceText['leave'];
 
-const balanceOwnOperations = new Set(['grant', 'expire', 'adjustment', 'adminAdjustment']);
+export const requestDerivedLedgerOperations = [
+	'reserve',
+	'release',
+	'restore',
+	'use',
+	'untrackedUse'
+] as const;
+
+export const balanceOwnLedgerOperations = [
+	'grant',
+	'expire',
+	'carryover',
+	'legalCorrection',
+	'adjustment'
+] as const;
+
+const requestDerived = new Set<string>(requestDerivedLedgerOperations);
 
 export function isBalanceOwnLedgerOperation(operationType: string): boolean {
-	return balanceOwnOperations.has(operationType);
+	return !requestDerived.has(operationType);
 }
 
 export function ledgerOperationLabel(text: LeaveText, operationType: string): string {
@@ -14,8 +30,11 @@ export function ledgerOperationLabel(text: LeaveText, operationType: string): st
 			return text.operationGrant;
 		case 'expire':
 			return text.operationExpire;
+		case 'carryover':
+			return text.operationCarryover;
+		case 'legalCorrection':
+			return text.operationLegalCorrection;
 		case 'adjustment':
-		case 'adminAdjustment':
 			return text.operationAdjustment;
 		case 'reserve':
 			return text.operationReserve;
@@ -24,6 +43,7 @@ export function ledgerOperationLabel(text: LeaveText, operationType: string): st
 		case 'restore':
 			return text.operationRestore;
 		case 'use':
+		case 'untrackedUse':
 			return text.operationUse;
 		default:
 			return text.operationOther;
