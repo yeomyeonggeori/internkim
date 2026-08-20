@@ -49,6 +49,9 @@ func (service *Service) resolveBridgeChannel(ctx context.Context, platform strin
 	if errorValue := service.recordBridgeChannel(ctx, database, mapping); errorValue != nil {
 		return "", errorValue
 	}
+	if errorValue := service.ensureBridgeRelayChannel(ctx, buzzChannelID, platform, externalChannelID); errorValue != nil {
+		return "", errorValue
+	}
 	return buzzChannelID, nil
 }
 

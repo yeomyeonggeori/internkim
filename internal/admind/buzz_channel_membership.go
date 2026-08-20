@@ -16,9 +16,7 @@ import (
 )
 
 func (service *Service) startStaffChannelMembershipSync(ctx context.Context) {
-	if service.buzzKeySeed() == "" ||
-		strings.TrimSpace(service.Configuration.BuzzRelayURL) == "" ||
-		strings.TrimSpace(service.Configuration.BuzzDatabaseURL) == "" {
+	if !service.canWriteToBuzzRelay() {
 		return
 	}
 	go service.ensureStaffChannelMembership(ctx)
