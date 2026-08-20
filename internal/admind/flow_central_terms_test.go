@@ -51,3 +51,10 @@ func TestATaskWithNeitherHasNoNote(t *testing.T) {
 		t.Fatalf("an empty note is stored as nothing, not as blank lines: %q", note)
 	}
 }
+
+func TestEveryDeviceWordHasAnEnumValueOfItsOwn(t *testing.T) {
+	if len(deviceStatusOfCentralStatus) != len(centralStatusOfDeviceStatus) {
+		t.Fatalf("%d device words share %d central ones; a word that shares cannot come back",
+			len(centralStatusOfDeviceStatus), len(deviceStatusOfCentralStatus))
+	}
+}

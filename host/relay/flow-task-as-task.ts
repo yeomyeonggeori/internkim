@@ -39,14 +39,14 @@ const deviceSource = 'internkim-device';
 const untitledTask = '(제목 없음)';
 
 // The device's own words for a status, which are what its API returns and what
-// its board draws. `todo` covers both of the two it has for work not started.
+// its board draws. The enum has one for each of them.
 const statusOfDevice: Record<string, string> = {
-	요청: 'todo',
+	요청: 'requested',
 	예정: 'todo',
 	진행: 'in_progress',
 	완료: 'done',
 	일시정지: 'paused',
-	기각: 'cancelled',
+	기각: 'rejected',
 	중단: 'cancelled'
 };
 
