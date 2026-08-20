@@ -23,6 +23,7 @@
 		CRMPipelineStage
 	} from './crm-types';
 	import { findOrganizationByID, opportunityStageLabel } from './crm-view-model';
+	import type { CRMCurrencyCatalogue } from './crm-money';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -38,11 +39,12 @@
 		groups: OrgGroup[];
 		requestedStage?: string;
 		text: CRMText;
+		currencyCatalogue: CRMCurrencyCatalogue;
 		onSave: (opportunity: CRMOpportunity) => Promise<void>;
 		onArchive: (opportunityID: string) => Promise<void>;
 	};
 
-	let { open = $bindable(false), opportunity, organizations, contacts, pipelines, stages, lostReasons, businessOptions, people, groups, requestedStage, text, onSave, onArchive }: Props = $props();
+	let { open = $bindable(false), opportunity, organizations, contacts, pipelines, stages, lostReasons, businessOptions, people, groups, requestedStage, text, currencyCatalogue, onSave, onArchive }: Props = $props();
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	const noContactValue = '__none__';
 	let organizationID = $state('');
@@ -176,7 +178,7 @@
 				{#if stageOutcome === 'lost'}<Field.Field><Field.Label for="crm-edit-opportunity-lost-reason">{text.lostReason}</Field.Label><Select.Root type="single" value={lostReason || noContactValue} onValueChange={(value) => (lostReason = value === noContactValue ? '' : value)}><Select.Trigger id="crm-edit-opportunity-lost-reason" class="w-full">{lostReasons.find((reason) => reason.reason === lostReason)?.label ?? text.selectLostReason}</Select.Trigger><Select.Content><Select.Item value={noContactValue} label={text.selectLostReason}>{text.selectLostReason}</Select.Item>{#each lostReasons.filter((reason) => reason.isActive) as reason (reason.reason)}<Select.Item value={reason.reason} label={reason.label}>{reason.label}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>{/if}
 				<Field.Field><Field.Label>{text.business}</Field.Label><Select.Root type="single" bind:value={business}><Select.Trigger class="w-full">{business}</Select.Trigger><Select.Content>{#each businessOptions as option (option)}<Select.Item value={option} label={option}>{option}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
 				<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-edit-opportunity-target">{text.targetDate}</Field.Label><Input id="crm-edit-opportunity-target" type="date" bind:value={targetDate} /></Field.Field></div>
-				<CRMMoneyField id="crm-edit-opportunity-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency disabled={isRealized} />
+				<CRMMoneyField {currencyCatalogue} id="crm-edit-opportunity-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency disabled={isRealized} />
 				{#if isRealized}<p class="text-sm text-muted-foreground">{text.realizedAmountReadonly}</p>{/if}
 				<Field.Field><Field.Label for="crm-edit-opportunity-contact">{text.externalContact}</Field.Label><CRMContactSelect id="crm-edit-opportunity-contact" bind:value={contactID} contacts={organizationContacts} {text} /></Field.Field>
 				<Field.Field><Field.Label for="crm-edit-opportunity-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-edit-opportunity-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>

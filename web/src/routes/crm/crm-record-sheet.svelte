@@ -36,6 +36,7 @@
 		CRMRecordKind
 	} from './crm-types';
 	import { findOrganizationByID, opportunityStageLabel } from './crm-view-model';
+	import type { CRMCurrencyCatalogue } from './crm-money';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -56,10 +57,11 @@
 		people: UserRecord[];
 		groups: OrgGroup[];
 		text: CRMText;
+		currencyCatalogue: CRMCurrencyCatalogue;
 		onCreate: (draft: CRMCreateDraft) => Promise<void>;
 	};
 
-	let { open = $bindable(false), initialKind, initialOrganizationID = '', organizations, contacts, opportunities, pipelines, stages, lostReasons, businessOptions, organizationTypeOptions, organizationTypeDefinitions, activityKindOptions, defaultOwnerPersonID, people, groups, text, onCreate }: Props = $props();
+	let { open = $bindable(false), initialKind, initialOrganizationID = '', organizations, contacts, opportunities, pipelines, stages, lostReasons, businessOptions, organizationTypeOptions, organizationTypeDefinitions, activityKindOptions, defaultOwnerPersonID, people, groups, text, currencyCatalogue, onCreate }: Props = $props();
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	let activityKinds = $derived(activityKindOptions.filter((kind) => kind !== 'stage_change'));
 	const noLostReasonValue = '__none__';
@@ -299,7 +301,7 @@
 						{#if stageOutcome === 'lost'}<Field.Field><Field.Label for="crm-record-lost-reason">{text.lostReason}</Field.Label><Select.Root type="single" value={lostReason || noLostReasonValue} onValueChange={(value) => (lostReason = value === noLostReasonValue ? '' : value)}><Select.Trigger id="crm-record-lost-reason" class="w-full">{lostReasons.find((reason) => reason.reason === lostReason)?.label ?? text.selectLostReason}</Select.Trigger><Select.Content><Select.Item value={noLostReasonValue} label={text.selectLostReason}>{text.selectLostReason}</Select.Item>{#each lostReasons.filter((reason) => reason.isActive) as reason (reason.reason)}<Select.Item value={reason.reason} label={reason.label}>{reason.label}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>{/if}
 						<Field.Field><Field.Label>{text.business}</Field.Label><Select.Root type="single" bind:value={business}><Select.Trigger class="w-full">{business}</Select.Trigger><Select.Content>{#each businessOptions as option (option)}<Select.Item value={option} label={option}>{option}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
 						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-target">{text.targetDate}</Field.Label><Input id="crm-record-target" type="date" bind:value={targetDate} /></Field.Field></div>
-							<CRMMoneyField id="crm-record-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency />
+							<CRMMoneyField {currencyCatalogue} id="crm-record-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency />
 							<Field.Field><Field.Label for="crm-record-progress-contact">{text.externalContact}</Field.Label><CRMContactSelect id="crm-record-progress-contact" bind:value={progressContactID} contacts={organizationContacts} {text} /></Field.Field>
 						<Field.Field><Field.Label for="crm-record-progress-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-record-progress-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
 					{:else}

@@ -4,7 +4,8 @@
 	import { CRMPipelineBoardDragController } from './crm-pipeline-board-drag-controller.svelte';
 	import { crmLabel } from './crm-labels';
 	import type { CRMPipelineBoardMoveRequest } from './crm-pipeline-board-drag';
-	import { crmInterimCurrencyCatalogue, findOrganizationByID, findNextActionByID, formatCRMDate, formatMoney, getProgressKind, opportunityStageLabel } from './crm-view-model';
+	import { findOrganizationByID, findNextActionByID, formatCRMDate, formatMoney, getProgressKind, opportunityStageLabel } from './crm-view-model';
+	import type { CRMCurrencyCatalogue } from './crm-money';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -12,11 +13,12 @@
 		organizations: CRMOrganization[];
 		nextActions: CRMNextAction[];
 		stages: CRMPipelineStage[];
+		currencyCatalogue: CRMCurrencyCatalogue;
 		text: CRMText;
 		onMove: (request: CRMPipelineBoardMoveRequest) => void;
 	};
 
-	let { opportunities, organizations, nextActions, stages, text, onMove }: Props = $props();
+	let { opportunities, organizations, nextActions, stages, currencyCatalogue, text, onMove }: Props = $props();
 
 	const columnClass = [
 		'crm-pipeline-board-column group flex h-full min-h-0',
@@ -113,7 +115,7 @@
 											{crmLabel(text.progressKinds, getProgressKind(opportunity, organization))}
 										</Badge>
 										<Badge variant="secondary" class="h-5 rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">
-											{formatMoney(opportunity.expectedValue, opportunity.currency, crmInterimCurrencyCatalogue, text.noValue)}
+											{formatMoney(opportunity.expectedValue, opportunity.currency, currencyCatalogue, text.noValue)}
 										</Badge>
 									</div>
 									<div class="text-xs leading-5 text-muted-foreground">
