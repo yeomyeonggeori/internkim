@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+	"time"
 )
 
 type flowTaskQueryer interface {
@@ -179,4 +180,78 @@ func (service *Service) existingFlowMattermostPostID(ctx context.Context, taskID
 		return ""
 	}
 	return task.MattermostPostID
+}
+
+func (service *Service) readFlowTaskShareActivity(ctx context.Context, startDate string, endDate string) ([]companyShareWorkRow, error) {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT owner_id, owner_name, content, business, type, size, status, start_date, end_date, substr(updated_at, 1, 10)
+FROM flow_tasks
+WHERE substr(updated_at, 1, 10) >= ? AND substr(updated_at, 1, 10) <= ?
+ORDER BY updated_at DESC`, startDate, endDate)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	activity := []companyShareWorkRow{}
+	for rows.Next() {
+		var row companyShareWorkRow
+		if errorValue := rows.Scan(
+			&row.MemberID, &row.Name, &row.Title, &row.Business, &row.Type, &row.Size,
+			&row.Status, &row.StartDate, &row.EndDate, &row.Date,
+		); errorValue != nil {
+			return nil, errorValue
+		}
+		activity = append(activity, row)
+	}
+	return activity, rows.Err()
+}
+
+func (service *Service) readExpiredFlowMattermostPostTaskIDs(ctx context.Context, cutoff time.Time) ([]string, error) {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id
+FROM flow_tasks
+WHERE mattermost_post_id != '' AND mattermost_post_created_at != '' AND mattermost_post_created_at < ?`,
+		cutoff.Format(time.RFC3339))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	taskIDs := []string{}
+	for rows.Next() {
+		var taskID string
+		if errorValue := rows.Scan(&taskID); errorValue != nil {
+			return nil, errorValue
+		}
+		taskIDs = append(taskIDs, strings.TrimSpace(taskID))
+	}
+	return taskIDs, rows.Err()
+}
+
+func readAllFlowTasksInTransaction(ctx context.Context, transaction *sql.Tx) ([]flowTask, error) {
+	rows, errorValue := transaction.QueryContext(ctx, `
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
+FROM flow_tasks`)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	tasks := []flowTask{}
+	for rows.Next() {
+		task, errorValue := scanFlowTask(rows)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, rows.Err()
 }

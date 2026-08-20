@@ -39,7 +39,7 @@ func (service *Service) writeFlowTaskBoardMove(ctx context.Context, request flow
 	if errorValue != nil {
 		return flowTask{}, errorValue
 	}
-	tasks, errorValue := readFlowTasksForBoardMoveInTransaction(ctx, transaction)
+	tasks, errorValue := readAllFlowTasksInTransaction(ctx, transaction)
 	if errorValue != nil {
 		_ = transaction.Rollback()
 		return flowTask{}, errorValue
@@ -108,25 +108,6 @@ func validateFlowTaskBoardMoveRequest(request flowTaskBoardMoveRequest) error {
 		return fmt.Errorf("%w: before task cannot be the moved task", errFlowTaskBoardMoveInvalidRequest)
 	}
 	return nil
-}
-
-func readFlowTasksForBoardMoveInTransaction(ctx context.Context, transaction *sql.Tx) ([]flowTask, error) {
-	rows, errorValue := transaction.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
-FROM flow_tasks`)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer rows.Close()
-	tasks := []flowTask{}
-	for rows.Next() {
-		task, errorValue := scanFlowTask(rows)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		tasks = append(tasks, task)
-	}
-	return tasks, rows.Err()
 }
 
 func createFlowTaskBoardMove(tasks []flowTask, request flowTaskBoardMoveRequest, now time.Time) (flowTaskBoardMove, error) {
