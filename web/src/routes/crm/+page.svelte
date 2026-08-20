@@ -35,7 +35,7 @@
 	import CRMRelationshipTable from './crm-relationship-table.svelte';
 	import CRMReportDashboard from './crm-report-dashboard.svelte';
 	import { buildCRMKPICards } from './crm-kpi';
-	import type { CRMCurrencyCatalogue } from './crm-money';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type {
 		CRMOrganization,
 		CRMOrganizationStatus,

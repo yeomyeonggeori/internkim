@@ -1,5 +1,5 @@
 import type { CRMCurrency, CRMMoneyTotals } from './crm-types';
-import type { CRMCurrencyCatalogue } from './crm-money';
+import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 
 export type CRMCurrencyComparisonRow = {
 	currency: CRMCurrency;
@@ -10,7 +10,7 @@ export type CRMCurrencyComparisonRow = {
 };
 
 export function buildCRMCurrencyComparisonRows(
-	catalogue: CRMCurrencyCatalogue,
+	catalogue: CurrencyCatalogue,
 	expectedTotals: CRMMoneyTotals,
 	wonTotals: CRMMoneyTotals
 ): CRMCurrencyComparisonRow[] {

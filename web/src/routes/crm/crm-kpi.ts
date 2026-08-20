@@ -1,6 +1,7 @@
 import type { CRMOrganization, CRMCurrency, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
 import { currentCRMDate, shiftCRMDate } from './crm-date';
-import { formatMoney, formatMoneyTotals, sumOpportunityMoney, type CRMCurrencyCatalogue } from './crm-money';
+import { formatMoney, formatMoneyTotals, sumOpportunityMoney } from './crm-money';
+import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 import { findOrganizationByID, getActionUrgency, getProgressKind } from './crm-view-model';
 import type { CRMText } from './text';
 
@@ -37,7 +38,7 @@ function countSegment(label: string, value: number, color: string, suffix: strin
 }
 
 function buildMoneySummary(
-	catalogue: CRMCurrencyCatalogue,
+	catalogue: CurrencyCatalogue,
 	opportunities: CRMOpportunity[],
 	text: CRMText
 ): { displayValue: string; moneyDetails?: CRMKPIMoneyDetail[] } {
@@ -57,7 +58,7 @@ function buildMoneySummary(
 	};
 }
 
-function amountSegment(catalogue: CRMCurrencyCatalogue, label: string, opportunities: CRMOpportunity[], color: string, text: CRMText): CRMKPISegment {
+function amountSegment(catalogue: CurrencyCatalogue, label: string, opportunities: CRMOpportunity[], color: string, text: CRMText): CRMKPISegment {
 	const moneySummary = buildMoneySummary(catalogue, opportunities, text);
 	return {
 		label,
@@ -76,7 +77,7 @@ function opportunityOutcome(stages: CRMPipelineStage[], opportunity: CRMOpportun
 	)?.outcome;
 }
 
-function buildPipelineHealth(catalogue: CRMCurrencyCatalogue, opportunities: CRMOpportunity[], stages: CRMPipelineStage[], text: CRMText): CRMKPICardData {
+function buildPipelineHealth(catalogue: CurrencyCatalogue, opportunities: CRMOpportunity[], stages: CRMPipelineStage[], text: CRMText): CRMKPICardData {
 	const openOpportunities = opportunities.filter((opportunity) => opportunityOutcome(stages, opportunity) === 'open');
 	const onHold = opportunities.filter((opportunity) => opportunityOutcome(stages, opportunity) === 'on_hold');
 	const stalled = openOpportunities.filter((opportunity) => opportunity.staleDays >= 14);
@@ -165,7 +166,7 @@ function buildPipelineComposition(organizations: CRMOrganization[], opportunitie
 }
 
 export function buildCRMKPICards(
-	catalogue: CRMCurrencyCatalogue,
+	catalogue: CurrencyCatalogue,
 	organizations: CRMOrganization[],
 	opportunities: CRMOpportunity[],
 	nextActions: CRMNextAction[],

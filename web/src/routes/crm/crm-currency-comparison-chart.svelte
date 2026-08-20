@@ -1,14 +1,15 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
 	import { buildCRMCurrencyComparisonRows } from './crm-currency-comparison';
-	import { formatMoney, type CRMCurrencyCatalogue } from './crm-money';
+	import { formatMoney } from './crm-money';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMMoneyTotals } from './crm-types';
 	import type { CRMText } from './text';
 
 	type Props = {
 		expectedTotals: CRMMoneyTotals;
 		wonTotals: CRMMoneyTotals;
-		currencyCatalogue: CRMCurrencyCatalogue;
+		currencyCatalogue: CurrencyCatalogue;
 		text: CRMText;
 	};
 
