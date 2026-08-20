@@ -11,7 +11,6 @@ export type CRMRecordKind = 'relationship' | 'contact' | 'progress' | 'activity'
 export type CRMImportance = 'high' | 'medium' | 'low';
 export type CRMCalendarRegistrationState = 'registered' | 'failed';
 export type CRMCurrency = string;
-export const crmServerDefaultCurrency: CRMCurrency = 'KRW';
 export type CRMMoneyTotals = Partial<Record<CRMCurrency, number>>;
 
 export type CRMCalendarRegistrationDraft = {
