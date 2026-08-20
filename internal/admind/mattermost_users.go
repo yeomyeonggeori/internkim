@@ -45,7 +45,11 @@ type mattermostTeamRecord struct {
 }
 
 type mattermostChannelRecord struct {
-	ID string `json:"id"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	Purpose     string `json:"purpose"`
+	Type        string `json:"type"`
 }
 
 type mattermostChannelMemberRecord struct {
