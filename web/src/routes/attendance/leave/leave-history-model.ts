@@ -3,8 +3,7 @@ import type {
 	EmployeeLeaveRequest,
 	EmployeeLeaveType
 } from './employee-leave-types';
-
-export type LeaveHistoryFilter = 'requests' | 'balance';
+import { isBalanceOwnLedgerOperation } from './leave-ledger-operations';
 
 export type LeaveHistoryRequestItem = {
 	kind: 'request';
@@ -56,25 +55,19 @@ export function buildLeaveHistory(
 			isUntracked: typeByID.get(request.leaveTypeID)?.balanceMode === 'none'
 		};
 	});
-	const ledgerItems: LeaveHistoryLedgerItem[] = ledgerEntries.map((entry) => ({
-		kind: 'ledger',
-		id: `ledger:${entry.id}`,
-		occurredAt: entry.occurredAt,
-		entry,
-		balanceAfterMilliDays: entry.balanceAfterMilliDays,
-		isUntracked: entry.isUntracked
-	}));
+	const ledgerItems: LeaveHistoryLedgerItem[] = ledgerEntries
+		.filter((entry) => isBalanceOwnLedgerOperation(entry.operationType))
+		.map((entry) => ({
+			kind: 'ledger',
+			id: `ledger:${entry.id}`,
+			occurredAt: entry.occurredAt,
+			entry,
+			balanceAfterMilliDays: entry.balanceAfterMilliDays,
+			isUntracked: entry.isUntracked
+		}));
 	return [...requestItems, ...ledgerItems].sort((first, second) =>
 		second.occurredAt.localeCompare(first.occurredAt)
 	);
-}
-
-export function filterLeaveHistory(
-	items: LeaveHistoryItem[],
-	filter: LeaveHistoryFilter
-): LeaveHistoryItem[] {
-	if (filter === 'requests') return items.filter((item) => item.kind === 'request');
-	return items.filter((item) => item.kind === 'ledger');
 }
 
 export function milliDaysValue(milliDays: number): string {
