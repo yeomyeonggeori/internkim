@@ -157,14 +157,15 @@ func participantAddresses(task flowTask, people map[string]adminUserMutation) []
 	return addresses
 }
 
-// organizationChartUserRecords reads nothing from the request but its context.
+// A session is issued for a messenger account, which the account directory
+// carries and the organization chart drops. Only the request's context is read.
 func (service *Service) flowPeopleByID(ctx context.Context) map[string]adminUserMutation {
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost", nil)
 	if errorValue != nil {
 		return map[string]adminUserMutation{}
 	}
 	people := map[string]adminUserMutation{}
-	for _, record := range service.organizationChartUserRecords(request) {
+	for _, record := range service.accountDirectoryUserRecords(request) {
 		people[flowMemberIdentifier(record)] = record
 	}
 	return people
