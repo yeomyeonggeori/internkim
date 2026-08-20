@@ -9,6 +9,11 @@ export type CRMOpportunityTransitionValues = {
 	lostReason: string;
 };
 
+export type CRMOpportunitySettlement = {
+	baseCurrency: CRMCurrency;
+	isConvertedByServer: boolean;
+};
+
 export type CRMOpportunityTransitionErrorCode = 'lost_reason_required' | 'base_currency_conversion_required';
 
 export class CRMOpportunityTransitionError extends Error {
@@ -16,6 +21,23 @@ export class CRMOpportunityTransitionError extends Error {
 		super(code);
 		this.name = 'CRMOpportunityTransitionError';
 	}
+}
+
+export function opportunityStageOutcome(
+	stages: CRMPipelineStage[],
+	pipeline: CRMProgressKind,
+	stage: string
+): CRMPipelineStage['outcome'] | undefined {
+	return stages.find((candidate) => candidate.pipeline === pipeline && candidate.stage === stage)?.outcome;
+}
+
+export function opportunitySettlesOnTransition(
+	stages: CRMPipelineStage[],
+	pipeline: CRMProgressKind,
+	stage: string
+): boolean {
+	const outcome = opportunityStageOutcome(stages, pipeline, stage);
+	return outcome === 'won' || outcome === 'lost';
 }
 
 export function opportunityAvailableTransitionStages(
@@ -32,9 +54,9 @@ export function opportunityTransitionOutcome(
 	pipeline: CRMProgressKind,
 	stage: string,
 	values: CRMOpportunityTransitionValues,
-	companyBaseCurrency: CRMCurrency
+	settlement: CRMOpportunitySettlement
 ): Pick<CRMTransitionPayload, 'lostReason' | 'baseAmountMinor' | 'baseCurrencyCode'> {
-	const outcome = stages.find((candidate) => candidate.pipeline === pipeline && candidate.stage === stage)?.outcome;
+	const outcome = opportunityStageOutcome(stages, pipeline, stage);
 	if (outcome !== 'won' && outcome !== 'lost') {
 		return { lostReason: '', baseAmountMinor: null, baseCurrencyCode: '' };
 	}
@@ -44,12 +66,13 @@ export function opportunityTransitionOutcome(
 	if (values.baseAmountMinor !== null && values.baseCurrencyCode !== '') {
 		return { lostReason, baseAmountMinor: values.baseAmountMinor, baseCurrencyCode: values.baseCurrencyCode };
 	}
-	if (values.currencyCode !== companyBaseCurrency) {
+	if (settlement.isConvertedByServer) return { lostReason, baseAmountMinor: null, baseCurrencyCode: '' };
+	if (values.currencyCode !== settlement.baseCurrency) {
 		throw new CRMOpportunityTransitionError('base_currency_conversion_required');
 	}
 	return {
 		lostReason,
 		baseAmountMinor: values.amountMinor,
-		baseCurrencyCode: companyBaseCurrency
+		baseCurrencyCode: settlement.baseCurrency
 	};
 }
