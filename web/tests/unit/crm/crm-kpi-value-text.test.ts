@@ -16,7 +16,7 @@ describe('donutValueTextClass', () => {
 
 	test('steps down again for a multi-currency total', () => {
 		const totals = formatMoneyTotals({ KRW: 93000000, USD: 12000 });
-		expect(totals).toBe('₩9,300만 · $1만');
+		expect(totals).toBe('₩9,300만 · $12K');
 		expect(donutValueTextClass(totals)).toContain('text-xs');
 	});
 });

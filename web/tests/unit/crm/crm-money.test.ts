@@ -16,12 +16,23 @@ describe('CRM money formatting', () => {
 		expect(parseAmountInput('')).toBe(undefined);
 	});
 
-	test('formats each supported currency without applying exchange rates', () => {
+	test('compacts myriad-grouped currencies by 만 and 억', () => {
 		expect(formatMoney(12000000, 'KRW')).toBe('₩1,200만');
-		expect(formatMoney(12000000, 'USD')).toBe('$1,200만');
 		expect(formatMoney(12000000, 'JPY')).toBe('¥1,200만');
-		expect(formatMoney(12000000, 'EUR')).toBe('€1,200만');
-		expect(formatMoneyTotals({ KRW: 12000000, USD: 2500 })).toBe('₩1,200만 · $2,500');
+		expect(formatMoney(250000000, 'KRW')).toBe('₩2.5억');
+		expect(formatMoney(8000, 'KRW')).toBe('₩8,000');
+	});
+
+	test('compacts thousand-grouped currencies by K and M', () => {
+		expect(formatMoney(12000000, 'USD')).toBe('$12M');
+		expect(formatMoney(12000000, 'EUR')).toBe('€12M');
+		expect(formatMoney(12000, 'USD')).toBe('$12K');
+		expect(formatMoney(2500, 'USD')).toBe('$2.5K');
+		expect(formatMoney(750, 'USD')).toBe('$750');
+	});
+
+	test('keeps each currency in its own scale without applying exchange rates', () => {
+		expect(formatMoneyTotals({ KRW: 12000000, USD: 2500 })).toBe('₩1,200만 · $2.5K');
 	});
 
 	test('groups opportunity totals by their selected currency', () => {
