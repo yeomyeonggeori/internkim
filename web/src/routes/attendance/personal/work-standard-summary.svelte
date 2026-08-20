@@ -10,15 +10,12 @@
 	const text = createPageText(attendanceText);
 	const workStatus = getWorkStatusState();
 	const status = $derived(workStatus.payload?.personal);
-	const totalMinutes = $derived(
-		status
-			? Math.max(0, status.actualMinutes) +
-				Math.max(0, status.provisionalMinutes)
-			: 0
-	);
 	const actualSeconds = $derived(status?.actualSeconds ?? (status?.actualMinutes ?? 0) * 60);
 	const provisionalSeconds = $derived(
 		status?.provisionalSeconds ?? (status?.provisionalMinutes ?? 0) * 60
+	);
+	const totalMinutes = $derived(
+		Math.max(0, Math.floor((actualSeconds + provisionalSeconds) / 60))
 	);
 	const calendarCapacitySeconds = $derived(
 		status?.calendarCapacitySeconds ??
@@ -65,6 +62,7 @@
 			{provisionalSeconds}
 			{workingCapacitySeconds}
 			{calendarCapacitySeconds}
+			referenceDailyMinutes={status.referenceDailyMinutes}
 			hasBaseline={status.hasBaseline}
 		/>
 
