@@ -9,8 +9,6 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-const calendarEventHintCandidateLimit = 20
-
 type calendarEventHintFailure struct {
 	ErrorCode    string                       `json:"errorCode"`
 	FailureStage string                       `json:"failureStage"`
@@ -47,79 +45,48 @@ func (service Service) resolveCalendarEventHintTarget(ctx context.Context, reque
 	return eventID, failure, nil
 }
 
+func (event calendarEventForTool) hintID() string { return event.EventID }
+
+func (event calendarEventForTool) hintTitle() string { return event.Title }
+
 func resolveCalendarEventHint(eventHint string, requesterEmail string, events []calendarEventForTool) (string, *calendarEventHintFailure) {
-	trimmedHint := strings.TrimSpace(eventHint)
-	if event, found := findCalendarEventByID(trimmedHint, events); found {
-		return event.EventID, nil
+	resolution := resolveHint(eventHint, events, calendarEventParticipation(requesterEmail))
+	if resolution.IsResolved {
+		return resolution.Match.EventID, nil
 	}
-	titleMatches := findCalendarEventsByTitle(trimmedHint, events)
-	if len(titleMatches) == 1 {
-		return titleMatches[0].EventID, nil
-	}
-	if participatingMatch, isUnique := uniqueParticipatingCalendarEvent(titleMatches, requesterEmail); isUnique {
-		return participatingMatch.EventID, nil
-	}
-	failure := calendarEventHintUnresolvedFailure(events)
+	failure := calendarEventHintUnresolvedFailure(resolution)
 	return "", &failure
 }
 
-func uniqueParticipatingCalendarEvent(events []calendarEventForTool, requesterEmail string) (calendarEventForTool, bool) {
-	requesterEmail = strings.ToLower(strings.TrimSpace(requesterEmail))
-	if requesterEmail == "" {
-		return calendarEventForTool{}, false
+func calendarEventParticipation(requesterEmail string) func(calendarEventForTool) bool {
+	normalizedRequesterEmail := strings.ToLower(strings.TrimSpace(requesterEmail))
+	if normalizedRequesterEmail == "" {
+		return nil
 	}
-	participatingMatches := make([]calendarEventForTool, 0, 1)
-	for _, event := range events {
+	return func(event calendarEventForTool) bool {
 		for _, participant := range event.Participants {
-			if strings.ToLower(strings.TrimSpace(participant.Email)) == requesterEmail {
-				participatingMatches = append(participatingMatches, event)
-				break
+			if strings.ToLower(strings.TrimSpace(participant.Email)) == normalizedRequesterEmail {
+				return true
 			}
 		}
+		return false
 	}
-	if len(participatingMatches) != 1 {
-		return calendarEventForTool{}, false
-	}
-	return participatingMatches[0], true
 }
 
-func findCalendarEventByID(eventID string, events []calendarEventForTool) (calendarEventForTool, bool) {
-	for _, event := range events {
-		if event.EventID == eventID {
-			return event, true
-		}
-	}
-	return calendarEventForTool{}, false
-}
-
-func findCalendarEventsByTitle(title string, events []calendarEventForTool) []calendarEventForTool {
-	matches := make([]calendarEventForTool, 0, 1)
-	for _, event := range events {
-		if event.Title == title {
-			matches = append(matches, event)
-		}
-	}
-	return matches
-}
-
-func calendarEventHintUnresolvedFailure(events []calendarEventForTool) calendarEventHintFailure {
+func calendarEventHintUnresolvedFailure(resolution hintResolution[calendarEventForTool]) calendarEventHintFailure {
 	return calendarEventHintFailure{
 		ErrorCode:    "calendar_event_hint_unresolved",
 		FailureStage: "target_resolution",
-		Message:      "eventHint did not uniquely resolve to a calendar event; retry with the exact eventID or exact title from one of the candidates",
-		Candidates:   calendarEventHintCandidates(events),
+		Message:      unresolvedHintMessage("calendar event", "eventHint", "eventID", resolution.IsAmbiguous),
+		Candidates:   calendarEventHintCandidates(resolution.Candidates),
 		Retryable:    true,
 		SafeRetry:    true,
 	}
 }
 
 func calendarEventHintCandidates(events []calendarEventForTool) []calendarEventHintCandidate {
-	limit := calendarEventHintCandidateLimit
-	if len(events) < limit {
-		limit = len(events)
-	}
-	candidates := make([]calendarEventHintCandidate, 0, limit)
-	for _, event := range events[:limit] {
+	candidates := make([]calendarEventHintCandidate, 0, len(events))
+	for _, event := range events {
 		candidates = append(candidates, calendarEventHintCandidate{EventID: event.EventID, Title: event.Title, StartsAt: event.StartISO})
 	}
 	return candidates
