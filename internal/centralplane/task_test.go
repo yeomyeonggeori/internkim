@@ -10,17 +10,26 @@ import (
 )
 
 type centralPlaneStub struct {
-	server         *httptest.Server
-	membersByEmail map[string]string
-	savedArguments map[string]any
-	savedAs        string
-	deleted        []string
+	server          *httptest.Server
+	membersByEmail  map[string]string
+	tasksByDeviceID map[string]string
+	patched         map[string]string
+	savedArguments  map[string]any
+	savedAs         string
+	deleted         []string
 }
 
 func newCentralPlaneStub(t *testing.T) *centralPlaneStub {
 	t.Helper()
-	stub := &centralPlaneStub{membersByEmail: map[string]string{}}
+	stub := &centralPlaneStub{
+		membersByEmail:  map[string]string{},
+		tasksByDeviceID: map[string]string{},
+		patched:         map[string]string{},
+	}
 	stub.server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if mirrorStubRoutes(stub, writer, request) {
+			return
+		}
 		switch {
 		case request.URL.Path == "/api/agent/session":
 			var asked struct{ ExternalID string }
