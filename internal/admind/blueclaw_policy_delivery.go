@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 )
 
 // deliveredPolicyMode matches what provisioning writes. The agent runs as its own user
@@ -23,8 +24,27 @@ func (service *Service) deliverBlueclawPolicy(ctx context.Context, policyDocumen
 		return errorValue
 	}
 	policyPath := service.Configuration.BlueclawPolicyDeliveryPath
-	if errorValue := writeFileAtomically(policyPath, document, deliveredPolicyMode); errorValue != nil {
+	if errorValue := rewriteInPlace(policyPath, document); errorValue != nil {
 		return fmt.Errorf("writing the roster to %s failed: %w", policyPath, errorValue)
 	}
 	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/reload", nil, nil)
+}
+
+// rewriteInPlace keeps the file's identity. The agent reads this across a virtiofs share,
+// and replacing the file by rename leaves the guest holding the inode it already opened,
+// so the host writes a new roster and the agent keeps answering from the old one.
+func rewriteInPlace(path string, document []byte) error {
+	file, errorValue := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, deliveredPolicyMode)
+	if errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := file.Write(document); errorValue != nil {
+		_ = file.Close()
+		return errorValue
+	}
+	if errorValue := file.Sync(); errorValue != nil {
+		_ = file.Close()
+		return errorValue
+	}
+	return file.Close()
 }
