@@ -16,6 +16,7 @@ import {
 	loadCRMData,
 	saveCRMVocabulary,
 	positionCRMOpportunity,
+	settlementIsConvertedByServer,
 	transitionCRMOpportunity,
 	updateCRMOrganization,
 	updateCRMActivity,
@@ -56,6 +57,7 @@ import { crmErrorMessage, CRMPageError } from './crm-error-text';
 import { crmLabel } from './crm-labels';
 import {
 	opportunityTransitionOutcome,
+	opportunitySettlesOnTransition,
 	type CRMOpportunityTransitionValues
 } from './crm-opportunity-transition';
 import type { CRMText } from './text';
@@ -155,19 +157,20 @@ export class CRMPageController {
 			}
 			if (draft.kind === 'progress') {
 				const payload = opportunityPayloadFromDraft(draft, owner, browserTimeZone());
-				await createCRMOpportunity({
-					...payload,
-					transition: {
-						...this.transitionPayload('', draft.stage, null, draft.progressKind, {
-							amountMinor: payload.amountMinor,
-							currencyCode: payload.currencyCode,
-							baseAmountMinor: null,
-							baseCurrencyCode: '',
-							lostReason: draft.lostReason
-						}),
-						stagePosition: 0
-					}
-				});
+				const transition = {
+					...this.transitionPayload('', draft.stage, null, draft.progressKind, {
+						amountMinor: payload.amountMinor,
+						currencyCode: payload.currencyCode,
+						baseAmountMinor: null,
+						baseCurrencyCode: '',
+						lostReason: draft.lostReason
+					}),
+					stagePosition: 0
+				};
+				const created = await createCRMOpportunity({ ...payload, transition });
+				if (this.settlesThroughCloseEndpoint('', draft.progressKind, draft.stage)) {
+					await transitionCRMOpportunity(created.id, transition);
+				}
 				return;
 			}
 			await createCRMActivity(activityPayloadFromDraft(draft));
@@ -198,18 +201,23 @@ export class CRMPageController {
 		await this.mutate(async () => {
 			const existing = this.opportunities.find((candidate) => candidate.id === opportunity.id);
 			const payload = opportunityPayload(opportunity);
-			await updateCRMOpportunity(opportunity.id, {
-				...payload,
-				transition: existing && opportunity.stage !== existing.stage
-					? this.transitionPayload(opportunity.id, opportunity.stage, null, opportunity.pipeline, {
-						amountMinor: payload.amountMinor,
-						currencyCode: payload.currencyCode,
-						baseAmountMinor: opportunity.baseAmountMinor ?? null,
-						baseCurrencyCode: opportunity.baseCurrencyCode ?? '',
-						lostReason: opportunity.lostReason ?? ''
-					})
-					: undefined
+			if (!existing || opportunity.stage === existing.stage) {
+				await updateCRMOpportunity(opportunity.id, payload);
+				return;
+			}
+			const transition = this.transitionPayload(opportunity.id, opportunity.stage, null, opportunity.pipeline, {
+				amountMinor: payload.amountMinor,
+				currencyCode: payload.currencyCode,
+				baseAmountMinor: opportunity.baseAmountMinor ?? null,
+				baseCurrencyCode: opportunity.baseCurrencyCode ?? '',
+				lostReason: opportunity.lostReason ?? ''
 			});
+			if (!this.settlesThroughCloseEndpoint(opportunity.id, opportunity.pipeline, opportunity.stage)) {
+				await updateCRMOpportunity(opportunity.id, { ...payload, transition });
+				return;
+			}
+			await updateCRMOpportunity(opportunity.id, payload);
+			await transitionCRMOpportunity(opportunity.id, transition);
 		});
 	}
 
@@ -382,14 +390,27 @@ export class CRMPageController {
 		values: CRMOpportunityTransitionValues
 	): CRMTransitionPayload {
 		const opportunity = this.opportunities.find((candidate) => candidate.id === opportunityID);
-		const pipeline = opportunity?.pipeline ?? opportunity?.kind ?? pipelineHint ?? 'sales';
+		const pipeline = this.pipelineOf(opportunityID, pipelineHint);
 		return {
 			stage,
 			stagePosition: this.nextPosition(opportunity, beforeOpportunityID, stage, pipelineHint),
 			beforeOpportunityID: beforeOpportunityID ?? '',
 			occurredAt: new Date().toISOString(),
-			...opportunityTransitionOutcome(this.stages, pipeline, stage, values, this.companyBaseCurrency)
+			...opportunityTransitionOutcome(this.stages, pipeline, stage, values, {
+				baseCurrency: this.companyBaseCurrency,
+				isConvertedByServer: settlementIsConvertedByServer()
+			})
 		};
+	}
+
+	private pipelineOf(opportunityID: string, pipelineHint: CRMProgressKind | undefined): CRMProgressKind {
+		const opportunity = this.opportunities.find((candidate) => candidate.id === opportunityID);
+		return opportunity?.pipeline ?? opportunity?.kind ?? pipelineHint ?? 'sales';
+	}
+
+	private settlesThroughCloseEndpoint(opportunityID: string, pipelineHint: CRMProgressKind | undefined, stage: string): boolean {
+		if (!settlementIsConvertedByServer()) return false;
+		return opportunitySettlesOnTransition(this.stages, this.pipelineOf(opportunityID, pipelineHint), stage);
 	}
 
 	private nextPosition(

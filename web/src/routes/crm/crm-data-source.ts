@@ -13,6 +13,10 @@ import * as central from './crm-supabase';
 
 export { CRMApiError } from './crm-api';
 
+export function settlementIsConvertedByServer(): boolean {
+	return isSupabaseConfigured();
+}
+
 export function loadCRMData() {
 	return isSupabaseConfigured() ? central.loadSupabaseCRMData() : device.loadCRMData();
 }
