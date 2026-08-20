@@ -16,6 +16,7 @@ func TestNothingReadsTheFlowTasksTableBehindTheStores(t *testing.T) {
 		"flow_task_write_store.go":     true,
 		"flow_central_mirror_mark.go":  true,
 		"flow_central_event_repair.go": true,
+		"flow_central_backfill.go":     true,
 	}
 
 	entries, errorValue := os.ReadDir(".")
