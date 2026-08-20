@@ -139,3 +139,33 @@ func TestMirroringDoesNotQueueTheTaskStraightBack(t *testing.T) {
 		t.Fatalf("sending it back would arrive as another change, and so on: %+v", entries)
 	}
 }
+
+func TestTheMirrorDoesNotUndoADeleteWaitingToBeSent(t *testing.T) {
+	service := newFlowCentralTestService(t)
+	task := flowNotificationTestTask("진행")
+	task.ID = "deleted-here"
+	if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.deleteFlowTaskByID(context.Background(), task.ID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	landed, errorValue := service.mirrorOneFlowTask(context.Background(), nil, "reader", centralplane.ChangedTask{
+		CentralID:    "central-deleted",
+		DeviceTaskID: task.ID,
+		Title:        "보드가 아직 들고 있는 업무",
+		Status:       "in_progress",
+		UpdatedAt:    "2036-01-01T00:00:00Z",
+	}, map[string]adminUserMutation{})
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if landed {
+		t.Fatal("the drain has not sent the delete yet, so writing the board's copy back undoes it")
+	}
+	if _, found, errorValue := service.readFlowTaskByID(context.Background(), task.ID); errorValue != nil || found {
+		t.Fatalf("the task came back: found=%v error=%v", found, errorValue)
+	}
+}
