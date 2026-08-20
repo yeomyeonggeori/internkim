@@ -31,14 +31,13 @@ const { data: companies, error: companyError } = await client
 	.returns<CompanyRow[]>();
 if (companyError) throw new Error(companyError.message);
 
-// An agent key belongs to one company and the resolver only looks inside it, so
-// a run that guesses the company answers about the wrong people. A project with
-// a leftover test company is exactly when the answer matters.
-const company = wantedSlug
-	? companies.find((row) => row.slug === wantedSlug)
-	: companies.length === 1
-		? companies[0]
-		: undefined;
+function companyToAskAbout(): CompanyRow | undefined {
+	if (wantedSlug) return companies.find((row) => row.slug === wantedSlug);
+	if (companies.length === 1) return companies[0];
+	return undefined;
+}
+
+const company = companyToAskAbout();
 if (!company) {
 	console.log('name the company with --company <slug>. This project holds:');
 	for (const row of companies) console.log(`  ${row.slug}  ${row.name}`);
@@ -53,7 +52,14 @@ const { data: members, error: memberError } = await client
 	.returns<{ email: string; messenger: Record<string, string> | null }[]>();
 if (memberError) throw new Error(memberError.message);
 
-const issued = await issueAgentKey(client, company.id, 'session reach check');
+// Revoking keeps the row and the row keeps the name, which is unique per
+// company, so a key made only to ask this question is revoked and then deleted:
+// a run that dies between the two leaves a dead key rather than a live one.
+const agentName = 'session reach check';
+const cleared = await client.from('agent').delete().eq('company_id', company.id).eq('name', agentName);
+if (cleared.error) throw new Error(`clearing ${agentName}: ${cleared.error.message}`);
+
+const issued = await issueAgentKey(client, company.id, agentName);
 
 let reached = 0;
 for (const member of members) {
@@ -76,4 +82,7 @@ for (const member of members) {
 	}
 }
 await revokeAgent(client, issued.agentID);
+const removed = await client.from('agent').delete().eq('id', issued.agentID);
+if (removed.error) throw new Error(`removing ${agentName}: ${removed.error.message}`);
+
 console.log(`\n${reached}/${members.length} members of ${company.slug} the device can act for`);
