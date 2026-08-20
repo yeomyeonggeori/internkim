@@ -169,3 +169,21 @@ func TestTheMirrorDoesNotUndoADeleteWaitingToBeSent(t *testing.T) {
 		t.Fatalf("the task came back: found=%v error=%v", found, errorValue)
 	}
 }
+
+func TestADayComesBackAsTheDayItWasMeantToBe(t *testing.T) {
+	for _, moment := range []string{
+		"2026-06-17T15:00:00+00:00",
+		"2026-06-17 15:00:00+00",
+		"2026-06-18T00:00:00+09:00",
+	} {
+		if day := flowDayOf(moment); day != "2026-06-18" {
+			t.Fatalf("%s is 2026-06-18 where this company works, got %q", moment, day)
+		}
+	}
+}
+
+func TestAnEndOfDayStillNamesItsOwnDay(t *testing.T) {
+	if day := flowDayOf("2026-06-22T14:59:00+00:00"); day != "2026-06-22" {
+		t.Fatalf("23:59 in Seoul does not cross midnight going west: %q", day)
+	}
+}
