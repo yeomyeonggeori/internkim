@@ -11,21 +11,21 @@ func TestEveryDeviceStatusSurvivesTheRoundTrip(t *testing.T) {
 	for _, deviceStatus := range []string{"요청", "예정", "진행", "완료", "일시정지", "기각", "중단"} {
 		central := centralFlowStatus(deviceStatus)
 
-		if back := deviceFlowStatus(central, deviceStatus); back != deviceStatus {
-			t.Fatalf("%s went out as %s and came back as %s; a board that says nothing about a status must not move it",
+		if back := deviceFlowStatus(central); back != deviceStatus {
+			t.Fatalf("%s went out as %s and came back as %s; each word has one of its own",
 				deviceStatus, central, back)
 		}
 	}
 }
 
-func TestAStatusTheBoardActuallyChangedIsTaken(t *testing.T) {
-	if moved := deviceFlowStatus("done", "진행"); moved != "완료" {
+func TestAStatusTheBoardChangedIsTaken(t *testing.T) {
+	if moved := deviceFlowStatus("done"); moved != "완료" {
 		t.Fatalf("the board finished it, so the device has to agree: %q", moved)
 	}
 }
 
-func TestATaskTheBoardMadeArrivesAsPlanned(t *testing.T) {
-	if status := deviceFlowStatus("todo", ""); status != "예정" {
+func TestAStatusFromNowhereIsPlanned(t *testing.T) {
+	if status := deviceFlowStatus(""); status != "예정" {
 		t.Fatalf("status = %q", status)
 	}
 }

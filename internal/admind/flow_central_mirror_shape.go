@@ -7,25 +7,21 @@ import (
 	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
-var deviceStatusOfCentralStatus = map[string]string{
-	"todo":        "예정",
-	"in_progress": "진행",
-	"done":        "완료",
-	"paused":      "일시정지",
-	"cancelled":   "중단",
+// One word each way, so the reverse is the inverse and there is no second map to
+// keep in step by hand.
+var deviceStatusOfCentralStatus = invertStatusWords()
+
+func invertStatusWords() map[string]string {
+	inverted := map[string]string{}
+	for deviceStatus, centralStatus := range centralStatusOfDeviceStatus {
+		inverted[centralStatus] = deviceStatus
+	}
+	return inverted
 }
 
-// The five the enum has become five of the device's seven. 요청 and 기각 are the
-// two the central plane cannot tell apart, so a task already sitting in one of
-// them keeps it rather than being moved by a change that said nothing about it.
-func deviceFlowStatus(centralStatus string, existingDeviceStatus string) string {
-	central := strings.TrimSpace(centralStatus)
-	existing := strings.TrimSpace(existingDeviceStatus)
-	if centralFlowStatus(existing) == central && existing != "" {
-		return existing
-	}
-	if device, known := deviceStatusOfCentralStatus[central]; known {
-		return device
+func deviceFlowStatus(centralStatus string) string {
+	if deviceStatus, known := deviceStatusOfCentralStatus[strings.TrimSpace(centralStatus)]; known {
+		return deviceStatus
 	}
 	return "예정"
 }
@@ -36,7 +32,7 @@ func deviceFlowTaskOf(changed centralplane.ChangedTask, existing flowTask, found
 		task = flowTask{ID: changed.DeviceTaskID}
 	}
 	task.Content = changed.Title
-	task.Status = deviceFlowStatus(changed.Status, existing.Status)
+	task.Status = deviceFlowStatus(changed.Status)
 	task.Business = changed.Business
 	task.Type = changed.Type
 	task.Size = changed.Size
