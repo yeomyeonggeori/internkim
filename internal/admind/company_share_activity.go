@@ -258,32 +258,15 @@ func maxTime(left time.Time, right time.Time) time.Time {
 }
 
 func (service *Service) readCompanyShareWorkActivity(ctx context.Context, startDate string, endDate string) (map[string]int, []companyShareWorkRow, map[string]int, []companyShareMemberSource, error) {
-	database, errorValue := service.openFlowDatabase(ctx)
+	activity, errorValue := service.readFlowTaskShareActivity(ctx, startDate, endDate)
 	if errorValue != nil {
 		return nil, nil, nil, nil, errorValue
 	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
-SELECT owner_id, owner_name, content, business, type, size, status, start_date, end_date, substr(updated_at, 1, 10)
-FROM flow_tasks
-WHERE substr(updated_at, 1, 10) >= ? AND substr(updated_at, 1, 10) <= ?
-ORDER BY updated_at DESC`, startDate, endDate)
-	if errorValue != nil {
-		return nil, nil, nil, nil, errorValue
-	}
-	defer rows.Close()
 	counts := map[string]int{}
 	statusCounts := map[string]int{}
 	members := []companyShareMemberSource{}
 	workRows := []companyShareWorkRow{}
-	for rows.Next() {
-		var row companyShareWorkRow
-		if errorValue := rows.Scan(
-			&row.MemberID, &row.Name, &row.Title, &row.Business, &row.Type, &row.Size,
-			&row.Status, &row.StartDate, &row.EndDate, &row.Date,
-		); errorValue != nil {
-			return nil, nil, nil, nil, errorValue
-		}
+	for _, row := range activity {
 		row.MemberID = companySharePersonID(row.MemberID)
 		row.Title = strings.TrimSpace(row.Title)
 		row.Status = publicCompanyShareWorkStatus(row.Status)
@@ -295,7 +278,7 @@ ORDER BY updated_at DESC`, startDate, endDate)
 		members = append(members, companyShareMemberSource{MemberID: row.MemberID, Name: row.Name})
 		workRows = append(workRows, row)
 	}
-	return counts, workRows, statusCounts, members, rows.Err()
+	return counts, workRows, statusCounts, members, nil
 }
 
 func buildCompanyShareActivityDays(now time.Time, attendanceByDate map[string]int, workByDate map[string]int, workMinutesByDate map[string]int) []companyShareActivityDay {
