@@ -183,14 +183,14 @@ func (service Service) invokeCalendarEventUpdate(ctx context.Context, request ca
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	eventID, hintFailure, errorValue := service.resolveCalendarEventHintTarget(ctx, request, updateInput.EventHint)
+	hintedEvent, hintFailure, errorValue := service.resolveCalendarEventHintTarget(ctx, request, updateInput.EventHint)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	if hintFailure != nil {
 		return calendarEventHintFailureResponse(request.ToolName, *hintFailure), nil
 	}
-	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request, eventID)
+	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request, hintedEvent.EventID)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -223,14 +223,14 @@ func (service Service) invokeCalendarEventDelete(ctx context.Context, request ca
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	eventID, hintFailure, errorValue := service.resolveCalendarEventHintTarget(ctx, request, input.EventHint)
+	hintedEvent, hintFailure, errorValue := service.resolveCalendarEventHintTarget(ctx, request, input.EventHint)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	if hintFailure != nil {
 		return calendarEventHintFailureResponse(request.ToolName, *hintFailure), nil
 	}
-	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request, eventID)
+	target, failure, errorValue := service.resolveCalendarEventTarget(ctx, request, hintedEvent.EventID)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
