@@ -1,4 +1,6 @@
 import type { OrgGroup, UserRecord } from '$lib/organization/types';
+import { loadCRMCurrencyCatalogue } from './crm-currency-catalogue';
+import { crmInterimCurrencyCatalogue, type CRMCurrencyCatalogue } from './crm-money';
 import { fetchOrganizationDirectory } from '../organization/organization-api';
 import {
 	CRMApiError,
@@ -70,6 +72,7 @@ export class CRMPageController {
 	stages = $state<CRMPipelineStage[]>([]);
 	lostReasons = $state<CRMLostReason[]>([]);
 	vocabulary = $state<CRMVocabulary>({ organization_types: [], pipelines: [], lost_reasons: [] });
+	currencyCatalogue = $state<CRMCurrencyCatalogue>(crmInterimCurrencyCatalogue);
 	taskVocabulary = $state<TaskVocabulary>({});
 	people = $state<UserRecord[]>([]);
 	groups = $state<OrgGroup[]>([]);
@@ -341,6 +344,11 @@ export class CRMPageController {
 		this.lostReasons = data.lostReasons;
 		this.vocabulary = data.vocabulary;
 		this.taskVocabulary = data.taskVocabulary;
+		void this.refreshCurrencyCatalogue();
+	}
+
+	private async refreshCurrencyCatalogue(): Promise<void> {
+		this.currencyCatalogue = await loadCRMCurrencyCatalogue();
 	}
 
 	private applyError(error: unknown): void {

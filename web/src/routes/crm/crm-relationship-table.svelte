@@ -5,18 +5,20 @@
 	import type { CRMDefinition } from './crm-api-types';
 	import { crmDefinitionLabel, crmLabel } from './crm-labels';
 	import type { CRMOrganization, CRMContact } from './crm-types';
-	import { crmInterimCurrencyCatalogue, findOrganizationContactLabel, formatMoneyTotals, getStatusVariant } from './crm-view-model';
+	import { findOrganizationContactLabel, formatMoneyTotals, getStatusVariant } from './crm-view-model';
+	import type { CRMCurrencyCatalogue } from './crm-money';
 	import type { CRMText } from './text';
 
 	type Props = {
 		organizations: CRMOrganization[];
 		contacts: CRMContact[];
 		organizationTypeDefinitions: CRMDefinition[];
+		currencyCatalogue: CRMCurrencyCatalogue;
 		text: CRMText;
 		openOrganization: (organizationID: string) => void;
 	};
 
-	let { organizations, contacts, organizationTypeDefinitions, text, openOrganization }: Props = $props();
+	let { organizations, contacts, organizationTypeDefinitions, currencyCatalogue, text, openOrganization }: Props = $props();
 
 	const pageSize = 10;
 	let pageIndex = $state(0);
@@ -78,7 +80,7 @@
 							<p class="truncate">{findOrganizationContactLabel(organization.id, contacts) || text.none}</p>
 						</Table.Cell>
 						<Table.Cell class="hidden font-medium lg:table-cell">
-							{formatMoneyTotals(organization.expectedValues, crmInterimCurrencyCatalogue, text.noValue)}
+							{formatMoneyTotals(organization.expectedValues, currencyCatalogue, text.noValue)}
 						</Table.Cell>
 						<Table.Cell class="hidden pr-6 font-medium lg:table-cell">
 							{organization.openOpportunityCount}
