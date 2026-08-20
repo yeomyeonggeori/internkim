@@ -303,7 +303,7 @@ func DefaultConfiguration() Configuration {
 		MattermostTeamName:             "internkim",
 		BotUsername:                    "internkim",
 		BlueclawBaseURL:                "http://127.0.0.1:8080",
-		BlueclawPolicyDeliveryPath:     filepath.Join(blueclaw.BlueclawDeliveryConfigPath, "policy.json"),
+		BlueclawPolicyDeliveryPath:     blueclaw.BlueclawWorkspacePath + "/.blueclaw/config/policy.json",
 		CapabilitySocketPath:           blueclawruntime.CapabilitySocketPath,
 		StateDirectory:                 "/root/.internkim/state/admin",
 		CompanionJobPath:               "/root/.internkim/state/companion-jobs.json",
