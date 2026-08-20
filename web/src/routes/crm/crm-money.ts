@@ -1,30 +1,5 @@
 import type { CRMCurrency, CRMMoneyTotals, CRMOpportunity } from './crm-types';
-
-export type CRMCurrencyGrouping = 'myriad' | 'thousand';
-
-export type CRMCurrencyCatalogueEntry = {
-	code: CRMCurrency;
-	name: string;
-	symbol: string;
-	minorUnitDigits: number;
-	grouping: CRMCurrencyGrouping;
-};
-
-export type CRMCurrencyCatalogue = CRMCurrencyCatalogueEntry[];
-
-export const crmInterimCurrencyCatalogue: CRMCurrencyCatalogue = [
-	{ code: 'KRW', name: 'Korean Won', symbol: '₩', minorUnitDigits: 0, grouping: 'myriad' },
-	{ code: 'USD', name: 'US Dollar', symbol: '$', minorUnitDigits: 2, grouping: 'thousand' },
-	{ code: 'JPY', name: 'Japanese Yen', symbol: '¥', minorUnitDigits: 0, grouping: 'myriad' },
-	{ code: 'EUR', name: 'Euro', symbol: '€', minorUnitDigits: 2, grouping: 'thousand' }
-];
-
-export function findCurrencyCatalogueEntry(
-	catalogue: CRMCurrencyCatalogue,
-	currency: CRMCurrency
-): CRMCurrencyCatalogueEntry | undefined {
-	return catalogue.find((entry) => entry.code === currency);
-}
+import { findCurrencyCatalogueEntry, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 
 export function formatAmountInput(value: string): string {
 	const digits = value.replace(/\D/g, '');
@@ -44,7 +19,7 @@ export function parseAmountInput(value: string): number | undefined {
 export function formatMoney(
 	value: number | undefined,
 	currency: CRMCurrency,
-	catalogue: CRMCurrencyCatalogue,
+	catalogue: CurrencyCatalogue,
 	noValue = '-'
 ): string {
 	if (value === undefined) return noValue;
@@ -55,7 +30,7 @@ export function formatMoney(
 		: formatThousandGroupedMoney(value, entry.symbol);
 }
 
-export function formatMoneyTotals(totals: CRMMoneyTotals, catalogue: CRMCurrencyCatalogue, noValue = '-'): string {
+export function formatMoneyTotals(totals: CRMMoneyTotals, catalogue: CurrencyCatalogue, noValue = '-'): string {
 	const values = catalogue
 		.filter((entry) => totals[entry.code] !== undefined)
 		.map((entry) => formatMoney(totals[entry.code], entry.code, catalogue, noValue));

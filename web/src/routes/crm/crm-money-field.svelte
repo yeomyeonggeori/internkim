@@ -2,7 +2,8 @@
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
-	import { findCurrencyCatalogueEntry, formatAmountInput, type CRMCurrencyCatalogue } from './crm-money';
+	import { formatAmountInput } from './crm-money';
+	import { findCurrencyCatalogueEntry, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMCurrency } from './crm-types';
 
 	type Props = {
@@ -11,7 +12,7 @@
 		currencyLabel: string;
 		value: string;
 		currency: CRMCurrency;
-		currencyCatalogue: CRMCurrencyCatalogue;
+		currencyCatalogue: CurrencyCatalogue;
 		disabled?: boolean;
 	};
 

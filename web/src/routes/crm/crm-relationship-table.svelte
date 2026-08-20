@@ -6,14 +6,14 @@
 	import { crmDefinitionLabel, crmLabel } from './crm-labels';
 	import type { CRMOrganization, CRMContact } from './crm-types';
 	import { findOrganizationContactLabel, formatMoneyTotals, getStatusVariant } from './crm-view-model';
-	import type { CRMCurrencyCatalogue } from './crm-money';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
 	type Props = {
 		organizations: CRMOrganization[];
 		contacts: CRMContact[];
 		organizationTypeDefinitions: CRMDefinition[];
-		currencyCatalogue: CRMCurrencyCatalogue;
+		currencyCatalogue: CurrencyCatalogue;
 		text: CRMText;
 		openOrganization: (organizationID: string) => void;
 	};

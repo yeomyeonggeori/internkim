@@ -6,10 +6,10 @@
 	import { crmLabel } from './crm-labels';
 	import type { CRMOrganization, CRMActivity, CRMContact, CRMOpportunity, CRMPipelineStage } from './crm-types';
 	import { formatCRMDate, formatCRMDateTime, formatMoney, formatMoneyTotals, getActivitiesByOrganization, getOpportunitiesByOrganization, getProgressKind, getStageVariant, opportunityStageLabel } from './crm-view-model';
-	import type { CRMCurrencyCatalogue } from './crm-money';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
-	type Props = { organization: CRMOrganization; contacts: CRMContact[]; opportunities: CRMOpportunity[]; activities: CRMActivity[]; stages: CRMPipelineStage[]; organizationTypeDefinitions: CRMDefinition[]; currencyCatalogue: CRMCurrencyCatalogue; text: CRMText };
+	type Props = { organization: CRMOrganization; contacts: CRMContact[]; opportunities: CRMOpportunity[]; activities: CRMActivity[]; stages: CRMPipelineStage[]; organizationTypeDefinitions: CRMDefinition[]; currencyCatalogue: CurrencyCatalogue; text: CRMText };
 	let { organization, contacts, opportunities, activities, stages, organizationTypeDefinitions, currencyCatalogue, text }: Props = $props();
 	let organizationContacts = $derived(contacts.filter((contact) => contact.organizationID === organization.id));
 	let organizationOpportunities = $derived(getOpportunitiesByOrganization(organization.id, opportunities));
