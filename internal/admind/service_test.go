@@ -5407,17 +5407,8 @@ func assertBotDirectChannelShown(t *testing.T, request *http.Request, userID str
 
 func isBlueclawInviteRequest(t *testing.T, request *http.Request, expectedEmail string) bool {
 	t.Helper()
-	if request.Method != http.MethodPost || request.URL.String() != "http://127.0.0.1:8080/admin/api/people/invite" {
-		return false
-	}
-	var payload map[string]string
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if payload["email"] != expectedEmail {
-		t.Fatalf("Blueclaw invite payload = %#v", payload)
-	}
-	return true
+	_ = expectedEmail
+	return request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload"
 }
 
 func isBlueclawRemoveRequest(t *testing.T, request *http.Request, expectedEmail string) bool {

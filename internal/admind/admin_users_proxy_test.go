@@ -171,6 +171,10 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 				t.Fatal(errorValue)
 			}
 			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"newhandle","name":"New Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"newhandle"}]}`, nil), nil
+		case isBlueclawPolicyGet(request):
+			return jsonResponse(http.StatusOK, `{"people":[{"personID":"user-member","emails":["member@example.com"],"circles":["staff"]}]}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -264,6 +268,8 @@ func TestOrganizationUserMutationCleanupFailurePreservesSuccessProxy(t *testing.
 			return jsonResponse(http.StatusAccepted, sourceResponseBody, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil

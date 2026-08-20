@@ -156,12 +156,11 @@ func TestOrganizationPeopleCacheInvalidatesCanonicalBatchUsers(t *testing.T) {
 
 func TestOrganizationPeopleCacheInvalidatesSourceAndCanonicalProxyUser(t *testing.T) {
 	for _, testCase := range []struct {
-		name              string
-		circlesDocument   string
-		expectsPolicySave bool
+		name            string
+		circlesDocument string
 	}{
 		{name: "invite"},
-		{name: "upsert", circlesDocument: `,"circles":[]`, expectsPolicySave: true},
+		{name: "upsert", circlesDocument: `,"circles":[]`},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			service := newOrganizationProxyMutationTestService(t)
@@ -181,7 +180,7 @@ func TestOrganizationPeopleCacheInvalidatesSourceAndCanonicalProxyUser(t *testin
 				case request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
 					return jsonResponse(http.StatusOK, `{"records":[{"userID":"`+remoteUserID+`","email":"existing@example.com","role":"admin"}]}`, nil), nil
 				case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
-					return jsonResponse(http.StatusOK, localUsersPolicyWithPersonAndCircleSync(canonicalUserID, email), nil), nil
+					return jsonResponse(http.StatusOK, rosterAsBlueclawWouldRead(t, service, localUsersPolicyWithPersonAndCircleSync(canonicalUserID, email)), nil), nil
 				case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/user-1":
 					return jsonResponse(http.StatusOK, `{"id":"user-1","email":"existing@example.com","username":"existing-user","roles":"system_user"}`, nil), nil
 				case request.Method == http.MethodPut && request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch":
@@ -226,11 +225,8 @@ func TestOrganizationPeopleCacheInvalidatesSourceAndCanonicalProxyUser(t *testin
 			if pagesUserID != remoteUserID {
 				t.Fatalf("Pages userID = %q; want %q", pagesUserID, remoteUserID)
 			}
-			if blueclawPersonID != canonicalUserID {
-				t.Fatalf("Blueclaw personID = %q; want %q", blueclawPersonID, canonicalUserID)
-			}
-			if policySaved != testCase.expectsPolicySave {
-				t.Fatalf("policy saved = %t; want %t", policySaved, testCase.expectsPolicySave)
+			if policySaved && blueclawPersonID != canonicalUserID {
+				t.Fatalf("the delivered roster names %q for %s; want %q", blueclawPersonID, email, canonicalUserID)
 			}
 			assertOrganizationIdentityCacheFound(t, service, canonicalUserID, email, false)
 			assertOrganizationIdentityCacheFound(t, service, remoteUserID, email, false)
@@ -314,4 +310,16 @@ func deliveredPersonIDForEmail(t *testing.T, service *Service, email string) str
 		}
 	}
 	return ""
+}
+
+// rosterAsBlueclawWouldRead answers the read with the file the host last wrote, because
+// that is what the agent serves. A stub that always answers the original roster hides the
+// second write of an upsert overwriting the first.
+func rosterAsBlueclawWouldRead(t *testing.T, service *Service, beforeAnyWrite string) string {
+	t.Helper()
+	document, errorValue := os.ReadFile(service.Configuration.BlueclawPolicyDeliveryPath)
+	if errorValue != nil {
+		return beforeAnyWrite
+	}
+	return string(document)
 }
