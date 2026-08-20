@@ -120,3 +120,24 @@ func (service *Service) deleteFlowCentralOutbox(ctx context.Context, taskID stri
 	_, errorValue = database.ExecContext(ctx, "DELETE FROM flow_central_outbox WHERE task_id = ?", taskID)
 	return errorValue
 }
+
+// The device removed the task and the central plane has not been told yet, so
+// the row the mirror is reading is one this device already deleted. Writing it
+// back would undo the delete a moment before the drain carries it out.
+func (service *Service) flowTaskIsQueuedForDeletion(ctx context.Context, taskID string) (bool, error) {
+	if strings.TrimSpace(taskID) == "" {
+		return false, nil
+	}
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	defer database.Close()
+	intent := ""
+	errorValue = database.QueryRowContext(ctx,
+		"SELECT intent FROM flow_central_outbox WHERE task_id = ?", taskID).Scan(&intent)
+	if errorValue == sql.ErrNoRows {
+		return false, nil
+	}
+	return intent == flowCentralDeleteIntent, errorValue
+}
