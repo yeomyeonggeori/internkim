@@ -4,6 +4,7 @@ import {
 	loadCurrencyCatalogue,
 	type CurrencyCatalogue
 } from '$lib/currency/currency-catalogue';
+import { interimCompanyBaseCurrency, loadCompanyBaseCurrency } from '$lib/company/base-currency';
 import { fetchOrganizationDirectory } from '../organization/organization-api';
 import {
 	CRMApiError,
@@ -76,6 +77,7 @@ export class CRMPageController {
 	lostReasons = $state<CRMLostReason[]>([]);
 	vocabulary = $state<CRMVocabulary>({ organization_types: [], pipelines: [], lost_reasons: [] });
 	currencyCatalogue = $state<CurrencyCatalogue>(interimCurrencyCatalogue);
+	companyBaseCurrency = $state<string>(interimCompanyBaseCurrency);
 	taskVocabulary = $state<TaskVocabulary>({});
 	people = $state<UserRecord[]>([]);
 	groups = $state<OrgGroup[]>([]);
@@ -348,10 +350,15 @@ export class CRMPageController {
 		this.vocabulary = data.vocabulary;
 		this.taskVocabulary = data.taskVocabulary;
 		void this.refreshCurrencyCatalogue();
+		void this.refreshCompanyBaseCurrency();
 	}
 
 	private async refreshCurrencyCatalogue(): Promise<void> {
 		this.currencyCatalogue = await loadCurrencyCatalogue();
+	}
+
+	private async refreshCompanyBaseCurrency(): Promise<void> {
+		this.companyBaseCurrency = await loadCompanyBaseCurrency();
 	}
 
 	private applyError(error: unknown): void {
@@ -381,7 +388,7 @@ export class CRMPageController {
 			stagePosition: this.nextPosition(opportunity, beforeOpportunityID, stage, pipelineHint),
 			beforeOpportunityID: beforeOpportunityID ?? '',
 			occurredAt: new Date().toISOString(),
-			...opportunityTransitionOutcome(this.stages, pipeline, stage, values)
+			...opportunityTransitionOutcome(this.stages, pipeline, stage, values, this.companyBaseCurrency)
 		};
 	}
 

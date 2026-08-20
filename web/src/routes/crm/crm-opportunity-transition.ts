@@ -1,5 +1,5 @@
 import type { CRMTransitionPayload } from './crm-api-types';
-import { crmServerDefaultCurrency, type CRMCurrency, type CRMPipelineStage, type CRMProgressKind } from './crm-types';
+import type { CRMCurrency, CRMPipelineStage, CRMProgressKind } from './crm-types';
 
 export type CRMOpportunityTransitionValues = {
 	amountMinor: number | null;
@@ -31,7 +31,8 @@ export function opportunityTransitionOutcome(
 	stages: CRMPipelineStage[],
 	pipeline: CRMProgressKind,
 	stage: string,
-	values: CRMOpportunityTransitionValues
+	values: CRMOpportunityTransitionValues,
+	companyBaseCurrency: CRMCurrency
 ): Pick<CRMTransitionPayload, 'lostReason' | 'baseAmountMinor' | 'baseCurrencyCode'> {
 	const outcome = stages.find((candidate) => candidate.pipeline === pipeline && candidate.stage === stage)?.outcome;
 	if (outcome !== 'won' && outcome !== 'lost') {
@@ -43,12 +44,12 @@ export function opportunityTransitionOutcome(
 	if (values.baseAmountMinor !== null && values.baseCurrencyCode !== '') {
 		return { lostReason, baseAmountMinor: values.baseAmountMinor, baseCurrencyCode: values.baseCurrencyCode };
 	}
-	if (values.currencyCode !== crmServerDefaultCurrency) {
+	if (values.currencyCode !== companyBaseCurrency) {
 		throw new CRMOpportunityTransitionError('base_currency_conversion_required');
 	}
 	return {
 		lostReason,
 		baseAmountMinor: values.amountMinor,
-		baseCurrencyCode: crmServerDefaultCurrency
+		baseCurrencyCode: companyBaseCurrency
 	};
 }
