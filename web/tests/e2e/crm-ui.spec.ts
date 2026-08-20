@@ -440,8 +440,8 @@ test.describe('CRM service UI', () => {
 		await page.getByRole('menuitem', { name: '진행 건', exact: true }).click();
 		const sheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
 		await expect(sheet.getByText('외부 담당자', { exact: true })).toBeVisible();
-		await sheet.getByRole('group').filter({ hasText: '외부 담당자' }).getByRole('button').click();
-		await page.getByRole('option', { name: '외부 담당자 예시', exact: true }).click();
+		await sheet.locator('#crm-record-progress-contact').click();
+		await page.getByRole('option', { name: /외부 담당자 예시/ }).click();
 		await sheet.getByLabel('내부 담당자').click();
 		await page.getByRole('option', { name: /운영 담당자/ }).click();
 		await sheet.getByLabel('이름 또는 제목').fill('담당자 구분 진행 건');
@@ -463,8 +463,8 @@ test.describe('CRM service UI', () => {
 		await createSheet.getByLabel('관계처').click();
 		await page.getByRole('option', { name: '없음', exact: true }).click();
 		await createSheet.getByLabel('이름 또는 제목').fill('개인 고객 상담');
-		await createSheet.getByRole('group').filter({ hasText: '외부 담당자' }).getByRole('button').click();
-		await page.getByRole('option', { name: '개인 고객', exact: true }).click();
+		await createSheet.locator('#crm-record-progress-contact').click();
+		await page.getByRole('option', { name: /개인 고객/ }).click();
 		await createSheet.getByRole('button', { name: '추가', exact: true }).click();
 
 		expect(opportunities[0]?.accountID).toBe('');
@@ -675,8 +675,8 @@ test.describe('CRM service UI', () => {
 
 		await sheet.getByLabel('관계처').click();
 		await page.getByRole('option', { name: '새 관계처', exact: true }).click();
-		await sheet.getByLabel('외부 담당자').click();
-		await page.getByRole('option', { name: '새 담당자', exact: true }).click();
+		await sheet.locator('#crm-edit-opportunity-contact').click();
+		await page.getByRole('option', { name: /새 담당자/ }).click();
 		await sheet.getByRole('button', { name: '저장', exact: true }).click();
 
 		expect(opportunities[0]).toMatchObject({
