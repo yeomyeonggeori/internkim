@@ -1,5 +1,6 @@
 export type WorkStandardCapacityStage =
 	| 'baseline-buffer'
+	| 'reference-hours'
 	| 'working-days'
 	| 'calendar-days';
 
@@ -9,6 +10,7 @@ type WorkStandardCapacityInput = {
 	targetSeconds: number;
 	workingCapacitySeconds: number;
 	calendarCapacitySeconds: number;
+	referenceCapacitySeconds: number;
 	hasBaseline: boolean;
 };
 
@@ -39,12 +41,20 @@ export function calculateWorkStandardCapacity(
 	const baselineCapacitySeconds = Math.ceil(targetSeconds * baselineCapacityMultiplier);
 	const workingCapacitySeconds = Math.max(0, input.workingCapacitySeconds);
 	const calendarCapacitySeconds = Math.max(workingCapacitySeconds, input.calendarCapacitySeconds, 1);
+	const referenceCapacitySeconds = Math.max(0, input.referenceCapacitySeconds);
 
 	let stage: WorkStandardCapacityStage;
 	let capacitySeconds: number;
 	if (input.hasBaseline && baselineCapacitySeconds > 0 && actualSeconds <= baselineCapacitySeconds) {
 		stage = 'baseline-buffer';
 		capacitySeconds = baselineCapacitySeconds;
+	} else if (
+		!input.hasBaseline &&
+		referenceCapacitySeconds > 0 &&
+		actualSeconds <= referenceCapacitySeconds
+	) {
+		stage = 'reference-hours';
+		capacitySeconds = referenceCapacitySeconds;
 	} else if (workingCapacitySeconds > 0 && actualSeconds <= workingCapacitySeconds) {
 		stage = 'working-days';
 		capacitySeconds = workingCapacitySeconds;
