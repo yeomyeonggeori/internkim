@@ -368,13 +368,8 @@ test.describe('employee leave requests', () => {
 			historyView.getByText('방문 일정을 확인할 수 있는 자료를 보완해 주세요.')
 		).toBeVisible();
 		await expect(historyView.getByText('appointment.pdf')).toBeVisible();
-		await historyView.getByRole('button', { name: '잔여량 변동' }).click();
-		await expect(historyRows).toHaveCount(3);
-		await expect(historyView.getByText('1 / 3')).toBeVisible();
-		await expect(historyRows.first()).toContainText('신청 예약');
-		await expect(historyView.getByRole('button', { name: '전체' })).toHaveCount(0);
-		await historyView.getByRole('button', { name: '신청' }).click();
-		await expect(historyRows).toHaveCount(3);
+		await expect(historyView.getByRole('button', { name: '잔여량 변동' })).toHaveCount(0);
+		await expect(historyView.getByRole('button', { name: '신청', exact: true })).toHaveCount(0);
 		await historyView.getByRole('button', { name: '다음' }).click();
 		await expect(historyRows.filter({ hasText: '일정 취소' }).getByText('취소됨')).toBeVisible();
 		await expect(
@@ -478,9 +473,7 @@ test.describe('employee leave requests', () => {
 		).toBeVisible();
 	});
 
-	test('paginates each leave history tab by three items and resets on tab changes', async ({
-		page
-	}) => {
+	test('paginates the unified leave history by three items', async ({ page }) => {
 		const leaveState = await installLeaveMock(page);
 		const sourceRequest = leaveState.payload.requests[0];
 		if (!sourceRequest) throw new Error('leave request fixture is missing');
@@ -499,19 +492,15 @@ test.describe('employee leave requests', () => {
 		const historyRows = historyView.getByTestId('leave-history-row');
 
 		await expect(historyRows).toHaveCount(3);
-		await expect(historyView.getByText('전체 12개 중 1–3')).toBeVisible();
-		await expect(historyView.getByText('1 / 4')).toBeVisible();
+		await expect(historyView.getByText('전체 13개 중 1–3')).toBeVisible();
+		await expect(historyView.getByText('1 / 5')).toBeVisible();
 		await historyView.getByRole('button', { name: '다음' }).click();
-		await expect(historyView.getByText('전체 12개 중 4–6')).toBeVisible();
+		await expect(historyView.getByText('전체 13개 중 4–6')).toBeVisible();
 		await historyView.getByRole('button', { name: '다음' }).click();
 		await historyView.getByRole('button', { name: '다음' }).click();
 		await expect(historyRows).toHaveCount(3);
-		await expect(historyView.getByText('전체 12개 중 10–12')).toBeVisible();
-		await historyView.getByRole('button', { name: '잔여량 변동' }).click();
-		await expect(historyView.getByText('1 / 3')).toBeVisible();
-		await historyView.getByRole('button', { name: '신청' }).click();
-		await expect(historyRows).toHaveCount(3);
-		await expect(historyView.getByText('1 / 4')).toBeVisible();
+		await expect(historyView.getByText('전체 13개 중 10–12')).toBeVisible();
+		await expect(historyView.getByRole('button', { name: '잔여량 변동' })).toHaveCount(0);
 	});
 
 	test('refreshes the latest request when an administrator wins an edit race', async ({ page }) => {

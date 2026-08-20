@@ -12,6 +12,7 @@ import {
 	employeeLeaveTypeBalance,
 	synchronizeUnlimitedEmployeeLeaveUsage
 } from './dev-attendance-leave-balance';
+import { buildTeamLeaveApprovalRequests } from './dev-attendance-leave-approval-fixture';
 
 type DevLeaveApprovalRequest = {
 	method: string;
@@ -26,6 +27,7 @@ type DevLeaveApprovalResponse = {
 
 export type DevLeaveApprovalMockState = {
 	leave: DevEmployeeLeaveMockState;
+	teamRequests: LeaveApprovalRequest[];
 	recentChanges: LeaveApprovalChange[];
 };
 
@@ -41,7 +43,7 @@ export function createDevLeaveApprovalMockState(
 			changedAt: request.updatedAt ?? request.createdAt
 		}))
 		.sort((first, second) => second.changedAt.localeCompare(first.changedAt));
-	return { leave, recentChanges };
+	return { leave, teamRequests: buildTeamLeaveApprovalRequests(), recentChanges };
 }
 
 export function createDevLeaveApprovalMockResponse(
@@ -54,6 +56,10 @@ export function createDevLeaveApprovalMockResponse(
 	const decisionMatch = request.pathname.match(/^\/attendance\/api\/leave-approvals\/([^/]+)$/);
 	if (request.method !== 'POST' || !decisionMatch) return undefined;
 	const requestID = decodeURIComponent(decisionMatch[1] ?? '');
+	const teamRequest = state.teamRequests.find((candidate) => candidate.id === requestID);
+	if (teamRequest) {
+		return decideTeamRequest(state, teamRequest, request.body);
+	}
 	const employeeRequest = state.leave.payload.requests.find(
 		(candidate) => candidate.id === requestID
 	);
@@ -84,10 +90,43 @@ export function createDevLeaveApprovalMockResponse(
 	return { status: 200, body: { request: approvalRequest } };
 }
 
+function decideTeamRequest(
+	state: DevLeaveApprovalMockState,
+	teamRequest: LeaveApprovalRequest,
+	body: string | undefined
+): DevLeaveApprovalResponse {
+	if (teamRequest.status !== 'pending') {
+		return errorResponse(409, 'invalidStatus', 'leave request is no longer pending');
+	}
+	const decision = decisionFromBody(body);
+	if (!decision) {
+		return errorResponse(400, 'invalidInput', 'unsupported leave approval action');
+	}
+	if (decision.action === 'needsChanges' && !decision.response) {
+		return errorResponse(400, 'invalidInput', 'response is required when requesting changes');
+	}
+	teamRequest.status = approvalStatus(decision.action);
+	teamRequest.adminResponse = decision.response || undefined;
+	teamRequest.updatedAt = new Date().toISOString();
+	state.recentChanges = [
+		{
+			request: structuredClone(teamRequest),
+			change: teamRequest.status as Exclude<LeaveApprovalStatus, 'pending'>,
+			response: decision.response || undefined,
+			changedAt: teamRequest.updatedAt
+		},
+		...state.recentChanges
+	];
+	return { status: 200, body: { request: structuredClone(teamRequest) } };
+}
+
 function buildLeaveApprovalInbox(state: DevLeaveApprovalMockState): LeaveApprovalInbox {
-	const pending = state.leave.payload.requests
-		.filter((request) => request.status === 'pending')
-		.map((request) => projectLeaveApprovalRequest(state.leave, request));
+	const pending = [
+		...state.leave.payload.requests
+			.filter((request) => request.status === 'pending')
+			.map((request) => projectLeaveApprovalRequest(state.leave, request)),
+		...state.teamRequests.filter((request) => request.status === 'pending')
+	].sort((first, second) => second.createdAt.localeCompare(first.createdAt));
 	const currentRequestChanges = state.leave.payload.requests
 		.filter((request) => request.status !== 'pending')
 		.map((request) => ({
