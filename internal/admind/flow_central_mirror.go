@@ -110,6 +110,9 @@ func (service *Service) mirrorOneFlowTask(ctx context.Context, client *centralpl
 	if errorValue := service.writeMirroredFlowTask(ctx, task); errorValue != nil {
 		return false, errorValue
 	}
+	if errorValue := service.tellTheBoardTheDayItDidNotHave(ctx, changed, task); errorValue != nil {
+		return false, errorValue
+	}
 	if errorValue := service.rememberFlowCentralIdentityForTask(ctx, task.ID, changed.CentralID); errorValue != nil {
 		return false, errorValue
 	}
@@ -152,4 +155,26 @@ func (service *Service) flowTaskIfPresent(ctx context.Context, taskID string) (f
 		return flowTask{}, false, nil
 	}
 	return service.readFlowTaskByID(ctx, taskID)
+}
+
+// The device places work in a week, so a task the board gave no dates gets the
+// day it was written. Today that day lives only here, and a read from the
+// central plane after retirement would compute a new one every morning and walk
+// the task forward. Sending it back once makes it a fact the board holds.
+//
+// This is the one mirrored write that queues, so it is bounded: the board then
+// has dates, the next pass invents nothing, and nothing queues again.
+func (service *Service) tellTheBoardTheDayItDidNotHave(ctx context.Context, changed centralplane.ChangedTask, task flowTask) error {
+	if strings.TrimSpace(changed.StartsAt) != "" || strings.TrimSpace(changed.EndsAt) != "" {
+		return nil
+	}
+	if strings.TrimSpace(task.StartDate) == "" && strings.TrimSpace(task.EndDate) == "" {
+		return nil
+	}
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	return enqueueFlowCentralWrite(ctx, database, task.ID)
 }
