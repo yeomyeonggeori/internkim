@@ -8,6 +8,7 @@ export type ExchangeRateProvider = {
 const providerName = 'Frankfurter';
 const frankfurterBaseURL = 'https://api.frankfurter.dev/v1';
 const cacheLifetimeInMilliseconds = 12 * 60 * 60 * 1000;
+const rateCacheLifetimeInMilliseconds = 60 * 60 * 1000;
 
 const zeroDecimalCurrencyCodes = new Set([
 	'BIF',
@@ -46,7 +47,19 @@ type SupportedCurrenciesCache = {
 	fetchedAtInMilliseconds: number;
 };
 
-let supportedCurrenciesCache: SupportedCurrenciesCache | null = null;
+type RateCache = {
+	rate: ExchangeRate;
+	fetchedAtInMilliseconds: number;
+};
+
+type ProviderCaches = {
+	supportedCurrencies: SupportedCurrenciesCache | null;
+	ratesByPairKey: Map<string, RateCache>;
+};
+
+function pairKeyOf(base: string, quote: string): string {
+	return `${base}:${quote}`;
+}
 
 type FrankfurterCurrenciesPayload = Record<string, string>;
 
@@ -121,17 +134,18 @@ async function fetchedSupportedCurrencies(fetchImplementation: typeof fetch): Pr
 }
 
 async function cachedSupportedCurrencies(
+	caches: ProviderCaches,
 	fetchImplementation: typeof fetch,
 	nowInMilliseconds: number
 ): Promise<SupportedCurrency[]> {
-	const cache = supportedCurrenciesCache;
+	const cache = caches.supportedCurrencies;
 	if (cache && nowInMilliseconds - cache.fetchedAtInMilliseconds < cacheLifetimeInMilliseconds) {
 		return cache.currencies;
 	}
 
 	try {
 		const currencies = await fetchedSupportedCurrencies(fetchImplementation);
-		supportedCurrenciesCache = { currencies, fetchedAtInMilliseconds: nowInMilliseconds };
+		caches.supportedCurrencies = { currencies, fetchedAtInMilliseconds: nowInMilliseconds };
 		return currencies;
 	} catch (cause) {
 		if (cache) return cache.currencies;
@@ -160,11 +174,37 @@ async function fetchedLatestRate(
 	return { base: parsed.base, quote, rate: parsed.rate, asOf: parsed.date };
 }
 
+async function cachedLatestRate(
+	caches: ProviderCaches,
+	fetchImplementation: typeof fetch,
+	base: string,
+	quote: string,
+	nowInMilliseconds: number
+): Promise<ExchangeRate> {
+	if (base === quote) return fetchedLatestRate(fetchImplementation, base, quote, nowInMilliseconds);
+
+	const pairKey = pairKeyOf(base, quote);
+	const cache = caches.ratesByPairKey.get(pairKey);
+	if (cache && nowInMilliseconds - cache.fetchedAtInMilliseconds < rateCacheLifetimeInMilliseconds) {
+		return cache.rate;
+	}
+
+	try {
+		const rate = await fetchedLatestRate(fetchImplementation, base, quote, nowInMilliseconds);
+		caches.ratesByPairKey.set(pairKey, { rate, fetchedAtInMilliseconds: nowInMilliseconds });
+		return rate;
+	} catch (cause) {
+		if (cache) return cache.rate;
+		throw cause;
+	}
+}
+
 export function frankfurterProvider(options?: { fetch?: typeof fetch; now?: () => number }): ExchangeRateProvider {
 	const fetchImplementation = options?.fetch ?? fetch;
 	const now = options?.now ?? Date.now;
+	const caches: ProviderCaches = { supportedCurrencies: null, ratesByPairKey: new Map() };
 	return {
-		supportedCurrencies: () => cachedSupportedCurrencies(fetchImplementation, now()),
-		latestRate: (base, quote) => fetchedLatestRate(fetchImplementation, base, quote, now())
+		supportedCurrencies: () => cachedSupportedCurrencies(caches, fetchImplementation, now()),
+		latestRate: (base, quote) => cachedLatestRate(caches, fetchImplementation, base, quote, now())
 	};
 }

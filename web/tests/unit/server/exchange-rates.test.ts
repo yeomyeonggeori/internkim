@@ -166,4 +166,35 @@ describe('frankfurterProvider().latestRate', () => {
 			expect(error.message).toContain('network unreachable');
 		}
 	});
+
+	test('caches a rate for one hour, refetches after expiry, and falls back to the cache on a later failure', async () => {
+		let fetchCallCount = 0;
+		let fetchShouldFail = false;
+		let currentTimeInMilliseconds = epochInMilliseconds;
+		const provider = frankfurterProvider({
+			fetch: createMockFetch(async () => {
+				fetchCallCount += 1;
+				if (fetchShouldFail) return new Response('service unavailable', { status: 503 });
+				return Response.json({ amount: 1, base: 'USD', date: '2026-08-19', rates: { KRW: 1350.12 } });
+			}),
+			now: () => currentTimeInMilliseconds
+		});
+		const expectedRate = { base: 'USD', quote: 'KRW', rate: 1350.12, asOf: '2026-08-19' };
+
+		expect(await provider.latestRate('USD', 'KRW')).toEqual(expectedRate);
+		expect(fetchCallCount).toBe(1);
+
+		currentTimeInMilliseconds = epochInMilliseconds + 30 * 60 * 1000;
+		expect(await provider.latestRate('USD', 'KRW')).toEqual(expectedRate);
+		expect(fetchCallCount).toBe(1);
+
+		currentTimeInMilliseconds = epochInMilliseconds + oneHourInMilliseconds + 1;
+		expect(await provider.latestRate('USD', 'KRW')).toEqual(expectedRate);
+		expect(fetchCallCount).toBe(2);
+
+		fetchShouldFail = true;
+		currentTimeInMilliseconds = epochInMilliseconds + 2 * oneHourInMilliseconds + 2;
+		expect(await provider.latestRate('USD', 'KRW')).toEqual(expectedRate);
+		expect(fetchCallCount).toBe(3);
+	});
 });
