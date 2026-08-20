@@ -1,7 +1,12 @@
 import { supabase } from '$lib/supabase';
 import { membersInReadingOrder } from '$lib/member-order';
 import { shiftedDay, supabaseWorkStatusTimeRange } from '$lib/attendance/supabase-work-status-range';
-import { supabaseWorkedDay } from '$lib/attendance/supabase-work-time';
+import {
+	companyLocalDate,
+	supabaseWorkedDay,
+	supabaseWorkRecordsFromEvents,
+	type SupabaseWorkRecords
+} from '$lib/attendance/supabase-work-time';
 import {
 	supabaseWorkPolicies,
 	type SupabaseWorkPolicy
@@ -130,24 +135,27 @@ export function calculateSupabaseEmployeeWorkStatus(
 	const targetMinutes = policy.currentPolicy.dailyTargetMinutes;
 	const mine = attendance.filter((row) => row.member_id === member.id);
 	const myLeave = leave.filter((row) => row.member_id === member.id);
+	const records = supabaseWorkRecordsFromEvents(mine, now, timeZone);
 	const dayStatuses = days.map((day) =>
-		dayStatusOf(day, timeZone, mine, myLeave, targetMinutes, policy, now)
+		dayStatusOf(day, timeZone, records, myLeave, targetMinutes, policy)
 	);
 	const total = (pick: (day: AttendanceWorkDayStatus) => number) =>
 		dayStatuses.reduce((sum, day) => sum + pick(day), 0);
 
 	const actualMinutes = total((day) => day.actualMinutes);
 	const actualSeconds = total((day) => day.actualSeconds);
-	const leaveMinutes = total((day) => day.leaveMinutes);
+	const leaveMinutes = total((day) => (day.hasBaseline ? day.leaveMinutes : 0));
 	const baselineActualMinutes = total((day) =>
 		day.hasBaseline ? day.actualMinutes + day.provisionalMinutes : 0
 	);
-	const baselineLeaveMinutes = total((day) => day.hasBaseline ? day.leaveMinutes : 0);
-	const periodTarget = total((day) => day.hasBaseline ? day.targetMinutes : 0);
-	const fulfilledMinutes = baselineActualMinutes + baselineLeaveMinutes;
+	const periodTarget = total((day) => (day.hasBaseline ? day.targetMinutes : 0));
+	const fulfilledMinutes = Math.min(periodTarget, baselineActualMinutes);
 	const email = member.email ?? '';
 	const workMode = dayStatuses.at(-1)?.workMode ?? policy.workMode;
 	const hasBaseline = dayStatuses.some((day) => day.hasBaseline);
+	const referenceDailyMinutes =
+		policy.minimumDailyMinutes ??
+		(policy.currentPolicy.dailyTargetMinutes > 0 ? policy.currentPolicy.dailyTargetMinutes : 480);
 
 	return {
 		email,
@@ -163,11 +171,12 @@ export function calculateSupabaseEmployeeWorkStatus(
 		provisionalSeconds: total((day) => day.provisionalSeconds),
 		workingCapacitySeconds: dayStatuses.filter((day) => day.workingDate).length * 24 * 60 * 60,
 		calendarCapacitySeconds: dayStatuses.length * 24 * 60 * 60,
+		referenceDailyMinutes,
 		leaveMinutes,
 		fulfilledMinutes,
-		differenceMinutes: fulfilledMinutes - periodTarget,
+		differenceMinutes: baselineActualMinutes - periodTarget,
 		remainingMinutes: Math.max(0, periodTarget - fulfilledMinutes),
-		overtimeMinutes: Math.max(0, fulfilledMinutes - periodTarget),
+		overtimeMinutes: Math.max(0, baselineActualMinutes - periodTarget),
 		nightMinutes: total((day) => day.nightMinutes),
 		isWorking: dayStatuses.some((day) => day.isWorking),
 		needsReview: dayStatuses.some((day) => day.needsReview),
@@ -184,13 +193,12 @@ export function calculateSupabaseEmployeeWorkStatus(
 function dayStatusOf(
 	day: string,
 	timeZone: string,
-	attendance: SupabaseWorkStatusAttendance[],
+	records: SupabaseWorkRecords,
 	leave: SupabaseWorkStatusLeave[],
 	targetMinutes: number,
-	policy: SupabaseWorkPolicy,
-	now: Date
+	policy: SupabaseWorkPolicy
 ): AttendanceWorkDayStatus {
-	const worked = supabaseWorkedDay(attendance, day, timeZone, now, policy.currentPolicy);
+	const worked = supabaseWorkedDay(records, day, timeZone, policy.currentPolicy);
 	const segments = worked.spans.map((span) => ({
 		startTime: timeIn(span.startAt, timeZone),
 		endTime: timeIn(span.endAt, timeZone),
@@ -207,13 +215,20 @@ function dayStatusOf(
 		: projected?.workingDate ?? currentWorkingDate;
 	const workMode = policy.currentPolicy.workMode;
 	const hasBaseline = workMode !== 'autonomous';
-	const dayTargetMinutes = workingDate && hasBaseline ? targetMinutes : 0;
-	const isOnLeave = leave.some((row) => day >= dateIn(new Date(row.starts_at), timeZone) && day < dateIn(new Date(row.ends_at), timeZone));
-	const leaveMinutes = isOnLeave ? dayTargetMinutes : 0;
-	const fulfilledMinutes = workedMinutes + provisionalMinutes + leaveMinutes;
-	const differenceMinutes = hasBaseline ? fulfilledMinutes - dayTargetMinutes : 0;
+	const grossTargetMinutes = workingDate && hasBaseline ? targetMinutes : 0;
+	const dayLeave = leave.filter((row) => leaveRowAppliesToDay(row, day, timeZone));
+	const isOnLeave = dayLeave.length > 0;
+	const leaveMinutes = leaveMinutesForDay(dayLeave, grossTargetMinutes);
+	const dayTargetMinutes = grossTargetMinutes - leaveMinutes;
+	const creditedMinutes = workedMinutes + provisionalMinutes;
+	const fulfilledMinutes = hasBaseline
+		? Math.min(dayTargetMinutes, creditedMinutes)
+		: creditedMinutes;
+	const differenceMinutes = hasBaseline ? creditedMinutes - dayTargetMinutes : 0;
 	const remainingMinutes = hasBaseline ? Math.max(0, dayTargetMinutes - fulfilledMinutes) : 0;
-	const overtimeMinutes = hasBaseline ? Math.max(0, fulfilledMinutes - dayTargetMinutes) : 0;
+	const overtimeMinutes = hasBaseline ? Math.max(0, creditedMinutes - dayTargetMinutes) : 0;
+	const hasLeaveWorkOverlap = isOnLeave && workedMinutes + provisionalMinutes > 0;
+	const needsReview = worked.hasIncompleteWorkRecord || hasLeaveWorkOverlap;
 
 	return {
 		date: day,
@@ -232,20 +247,40 @@ function dayStatusOf(
 		overtimeMinutes,
 		nightMinutes: worked.nightMinutes,
 		isWorking: worked.isWorking,
-		needsReview: worked.isWorking && provisionalMinutes > 0,
+		needsReview,
 		coreTimeMissed: false,
 		late: false,
 		earlyLeave: false,
-		hasLeaveWorkOverlap: isOnLeave && workedMinutes + provisionalMinutes > 0,
-		hasIncompleteWorkRecord: worked.isWorking,
+		hasLeaveWorkOverlap,
+		hasIncompleteWorkRecord: worked.hasIncompleteWorkRecord,
 		status: isOnLeave ? 'leave' : workedMinutes > 0 ? 'worked' : 'off',
 		workSegments: segments,
 		leaveSegments: []
 	};
 }
 
+function leaveRowAppliesToDay(row: SupabaseWorkStatusLeave, day: string, timeZone: string): boolean {
+	if (row.days > 0.5) {
+		return (
+			day >= companyLocalDate(new Date(row.starts_at), timeZone) &&
+			day < companyLocalDate(new Date(row.ends_at), timeZone)
+		);
+	}
+	return day === companyLocalDate(new Date(row.starts_at), timeZone);
+}
+
+function leaveMinutesForDay(dayLeave: SupabaseWorkStatusLeave[], dayTargetMinutes: number): number {
+	const totalMinutes = dayLeave.reduce((total, row) => {
+		if (row.days > 0.5) return total + dayTargetMinutes;
+		const milliDays = Math.round(row.days * 1000);
+		const partialMinutes = Math.ceil((dayTargetMinutes * milliDays) / 1000);
+		return total + Math.min(dayTargetMinutes, partialMinutes);
+	}, 0);
+	return Math.min(dayTargetMinutes, totalMinutes);
+}
+
 function daysOf(request: AttendanceWorkStatusRequest, timeZone: string, now: Date): string[] {
-	const anchor = request.anchor || dateIn(now, timeZone);
+	const anchor = request.anchor || companyLocalDate(now, timeZone);
 	if (request.period === 'day') return [anchor];
 	if (request.period === 'week') {
 		const weekday = new Date(`${anchor}T00:00:00Z`).getUTCDay();
@@ -255,10 +290,6 @@ function daysOf(request: AttendanceWorkStatusRequest, timeZone: string, now: Dat
 	const [year, month] = anchor.split('-').map(Number);
 	const dayCount = new Date(Date.UTC(year, month, 0)).getUTCDate();
 	return Array.from({ length: dayCount }, (_, index) => `${anchor.slice(0, 7)}-${String(index + 1).padStart(2, '0')}`);
-}
-
-function dateIn(instant: Date, timeZone: string): string {
-	return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(instant);
 }
 
 function timeIn(instant: Date, timeZone: string): string {

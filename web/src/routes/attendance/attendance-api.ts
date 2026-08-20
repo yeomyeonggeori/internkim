@@ -62,6 +62,7 @@ export type AttendanceEmployeeWorkStatus = {
 	provisionalSeconds: number;
 	workingCapacitySeconds: number;
 	calendarCapacitySeconds: number;
+	referenceDailyMinutes?: number;
 	leaveMinutes: number;
 	fulfilledMinutes: number;
 	differenceMinutes: number;
