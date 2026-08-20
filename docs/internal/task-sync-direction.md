@@ -206,7 +206,7 @@ The differences that remain, and what each is:
 | `status` | 4 | 기각 read back as 중단; the enum has five words and the device has seven |
 | `size` | 3 | genuine divergence, written on one side before the outbox existed |
 
-Three gates follow.
+Two gates follow, and a third that turned out to be a bug.
 
 **A dateless task does not stay dateless.** The device places work in a week, so
 `normalizeFlowStatusDates` gives a task without dates the day it was written.
@@ -222,7 +222,11 @@ the switch.
 learned to write `calendar.mirrors` back, so the central plane cannot say which
 device task it holds. Re-stamping them is a write to production data.
 
-**요청 and 기각 have nowhere to go.** Four tasks sit in them. Retirement either
-widens the enum or accepts that the two words stop existing.
+**요청 and 기각 had somewhere to go all along.** `task_status` has held
+`requested` and `rejected` since it was written; both mappings used five of the
+seven and sent 요청 out as `todo` and 기각 as `cancelled`. There was no decision
+to make, only a mapping to correct, and the round-trip rule §6 records was
+scaffolding for a loss that did not need to happen. Corrected in #678; the four
+tasks were re-saved and both sides now count 4 기각/`rejected` and 9 중단/`cancelled`.
 
 Read staleness, §4's open question, did not come up.
