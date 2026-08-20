@@ -27,6 +27,7 @@ type AttendanceWorkConformancePolicy = {
 type AttendanceWorkConformanceEvent = {
 	kind: 'clock_in' | 'clock_out';
 	occurredAt: string;
+	location?: string;
 };
 
 type AttendanceWorkConformanceLeave = {
@@ -135,7 +136,8 @@ function conformanceEvents(
 		return {
 			member_id: conformanceMember.id,
 			kind: event.kind,
-			occurred_at: event.occurredAt
+			occurred_at: event.occurredAt,
+			location: event.location ?? null
 		};
 	});
 }

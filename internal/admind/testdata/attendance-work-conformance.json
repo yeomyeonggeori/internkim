@@ -1556,6 +1556,67 @@
         "hasIncompleteRecords": false,
         "needsReview": false
       }
+    },
+    {
+      "name": "site-move",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-20",
+      "policy": {
+        "workMode": "fixed",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 540,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "13:00",
+        "fixedEndTime": "22:00",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T04:00:00Z",
+          "location": "Headquarters"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T08:00:00Z",
+          "location": "Branch"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T13:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 32400,
+        "actualMinutes": 540,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 540,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
     }
   ]
 }

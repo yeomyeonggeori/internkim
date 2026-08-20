@@ -28,6 +28,7 @@ type attendanceWorkConformancePolicy struct {
 type attendanceWorkConformanceEvent struct {
 	Kind       string `json:"kind"`
 	OccurredAt string `json:"occurredAt"`
+	Location   string `json:"location,omitempty"`
 }
 
 type attendanceWorkConformanceLeave struct {
@@ -150,6 +151,7 @@ func attendanceWorkConformanceEvents(
 			DisplayName: "이샘플",
 			Kind:        event.Kind,
 			OccurredAt:  event.OccurredAt,
+			LocationID:  event.Location,
 		})
 	}
 	return events, nil
