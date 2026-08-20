@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	crmInterimCurrencyCatalogue,
 	formatAmountInput,
 	formatMoney,
 	formatMoneyTotals,
@@ -17,22 +18,27 @@ describe('CRM money formatting', () => {
 	});
 
 	test('compacts myriad-grouped currencies by 만 and 억', () => {
-		expect(formatMoney(12000000, 'KRW')).toBe('₩1,200만');
-		expect(formatMoney(12000000, 'JPY')).toBe('¥1,200만');
-		expect(formatMoney(250000000, 'KRW')).toBe('₩2.5억');
-		expect(formatMoney(8000, 'KRW')).toBe('₩8,000');
+		expect(formatMoney(12000000, 'KRW', crmInterimCurrencyCatalogue)).toBe('₩1,200만');
+		expect(formatMoney(12000000, 'JPY', crmInterimCurrencyCatalogue)).toBe('¥1,200만');
+		expect(formatMoney(250000000, 'KRW', crmInterimCurrencyCatalogue)).toBe('₩2.5억');
+		expect(formatMoney(8000, 'KRW', crmInterimCurrencyCatalogue)).toBe('₩8,000');
 	});
 
 	test('compacts thousand-grouped currencies by K and M', () => {
-		expect(formatMoney(12000000, 'USD')).toBe('$12M');
-		expect(formatMoney(12000000, 'EUR')).toBe('€12M');
-		expect(formatMoney(12000, 'USD')).toBe('$12K');
-		expect(formatMoney(2500, 'USD')).toBe('$2.5K');
-		expect(formatMoney(750, 'USD')).toBe('$750');
+		expect(formatMoney(12000000, 'USD', crmInterimCurrencyCatalogue)).toBe('$12M');
+		expect(formatMoney(12000000, 'EUR', crmInterimCurrencyCatalogue)).toBe('€12M');
+		expect(formatMoney(12000, 'USD', crmInterimCurrencyCatalogue)).toBe('$12K');
+		expect(formatMoney(2500, 'USD', crmInterimCurrencyCatalogue)).toBe('$2.5K');
+		expect(formatMoney(750, 'USD', crmInterimCurrencyCatalogue)).toBe('$750');
+	});
+
+	test('renders a currency the catalogue does not know with plain separators and its code as the prefix', () => {
+		expect(formatMoney(12000000, 'XAG', crmInterimCurrencyCatalogue)).toBe('XAG12,000,000');
+		expect(formatMoney(undefined, 'XAG', crmInterimCurrencyCatalogue)).toBe('-');
 	});
 
 	test('keeps each currency in its own scale without applying exchange rates', () => {
-		expect(formatMoneyTotals({ KRW: 12000000, USD: 2500 })).toBe('₩1,200만 · $2.5K');
+		expect(formatMoneyTotals({ KRW: 12000000, USD: 2500 }, crmInterimCurrencyCatalogue)).toBe('₩1,200만 · $2.5K');
 	});
 
 	test('groups opportunity totals by their selected currency', () => {

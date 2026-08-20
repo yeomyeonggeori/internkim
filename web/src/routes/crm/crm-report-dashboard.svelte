@@ -7,7 +7,7 @@
 	import { buildCRMReportPeriodBounds } from './crm-date';
 	import { crmLabel } from './crm-labels';
 	import type { CRMOrganization, CRMMoneyTotals, CRMNextAction, CRMOpportunity, CRMPipelineStage, CRMProgressKind } from './crm-types';
-	import { formatMoneyTotals, sumOpportunityMoney } from './crm-money';
+	import { crmInterimCurrencyCatalogue, formatMoneyTotals, sumOpportunityMoney } from './crm-money';
 	import {
 		findOrganizationByID,
 		formatCRMDate,
@@ -153,8 +153,8 @@
 					<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-3">
 						<span class="text-sm font-medium">{row.month.replace('-', '. ')}</span>
 						<div class="grid gap-2">
-							<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-xs"><span class="text-muted-foreground">{text.openValue}</span><span class="text-right font-medium">{formatMoneyTotals(row.openValues, text.noValue)}</span></div>
-							<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-xs"><span class="text-muted-foreground">{text.won}</span><span class="text-right font-medium">{formatMoneyTotals(row.wonValues, text.noValue)}</span></div>
+							<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-xs"><span class="text-muted-foreground">{text.openValue}</span><span class="text-right font-medium">{formatMoneyTotals(row.openValues, crmInterimCurrencyCatalogue, text.noValue)}</span></div>
+							<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-xs"><span class="text-muted-foreground">{text.won}</span><span class="text-right font-medium">{formatMoneyTotals(row.wonValues, crmInterimCurrencyCatalogue, text.noValue)}</span></div>
 						</div>
 					</div>
 				{:else}
@@ -172,7 +172,7 @@
 					<div class="grid grid-cols-[5.5rem_minmax(0,1fr)_minmax(7rem,auto)] items-center gap-2 text-sm">
 						<span class="text-muted-foreground">{row.label} <strong class="text-foreground">{row.count}</strong></span>
 						<div class="h-2 overflow-hidden rounded-full bg-muted"><div class="h-full rounded-full bg-primary/75" style={`width: ${(row.count / maximumValue(progressKindRows)) * 100}%`}></div></div>
-						<span class="text-right font-medium">{formatMoneyTotals(row.values, text.noValue)}</span>
+						<span class="text-right font-medium">{formatMoneyTotals(row.values, crmInterimCurrencyCatalogue, text.noValue)}</span>
 					</div>
 				{/each}
 			</Card.Content>
@@ -185,7 +185,7 @@
 					<div class="grid grid-cols-[5rem_minmax(0,1fr)_minmax(7rem,auto)] items-center gap-2 text-sm">
 						<span class="truncate text-muted-foreground">{row.label} <strong class="text-foreground">{row.count}</strong></span>
 						<div class="h-2 overflow-hidden rounded-full bg-muted"><div class="h-full rounded-full bg-foreground" style={`width: ${(row.count / maximumValue(stageRows)) * 100}%`}></div></div>
-						<span class="text-right font-medium">{formatMoneyTotals(row.values, text.noValue)}</span>
+						<span class="text-right font-medium">{formatMoneyTotals(row.values, crmInterimCurrencyCatalogue, text.noValue)}</span>
 					</div>
 				{/each}
 			</Card.Content>
@@ -215,7 +215,7 @@
 							<Table.Cell class="whitespace-normal pl-6 font-medium"><p class="truncate">{owner.name}</p></Table.Cell>
 							<Table.Cell class="hidden sm:table-cell">{owner.organizationCount}</Table.Cell>
 							<Table.Cell>{owner.openCount}</Table.Cell>
-							<Table.Cell class="whitespace-normal">{formatMoneyTotals(owner.openValues, text.noValue)}</Table.Cell>
+							<Table.Cell class="whitespace-normal">{formatMoneyTotals(owner.openValues, crmInterimCurrencyCatalogue, text.noValue)}</Table.Cell>
 							<Table.Cell class="hidden pr-6 md:table-cell"><Badge variant={owner.missingActionCount > 0 ? 'secondary' : 'outline'}>{owner.missingActionCount}</Badge></Table.Cell>
 						</Table.Row>
 					{/each}

@@ -5,7 +5,7 @@
 	import type { CRMDefinition } from './crm-api-types';
 	import { crmDefinitionLabel, crmLabel } from './crm-labels';
 	import type { CRMOrganization, CRMContact } from './crm-types';
-	import { findOrganizationContactLabel, formatMoneyTotals, getStatusVariant } from './crm-view-model';
+	import { crmInterimCurrencyCatalogue, findOrganizationContactLabel, formatMoneyTotals, getStatusVariant } from './crm-view-model';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -78,7 +78,7 @@
 							<p class="truncate">{findOrganizationContactLabel(organization.id, contacts) || text.none}</p>
 						</Table.Cell>
 						<Table.Cell class="hidden font-medium lg:table-cell">
-							{formatMoneyTotals(organization.expectedValues, text.noValue)}
+							{formatMoneyTotals(organization.expectedValues, crmInterimCurrencyCatalogue, text.noValue)}
 						</Table.Cell>
 						<Table.Cell class="hidden pr-6 font-medium lg:table-cell">
 							{organization.openOpportunityCount}
