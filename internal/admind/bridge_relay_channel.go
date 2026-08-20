@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 	"gitlab.com/eastriver/internkim/internal/buzzimport"
@@ -46,6 +48,40 @@ func (service *Service) ensureBridgeRelayChannel(ctx context.Context, buzzChanne
 	errorValue = publisher.CreateChannel(ctx, bootstrapSecret, buzzChannelID, shape.Name, shape.Purpose, shape.ChannelType, shape.Visibility)
 	if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
 		return errorValue
+	}
+	return service.addBridgeChannelMembers(ctx, publisher, bootstrapSecret, buzzChannelID, externalChannelID)
+}
+
+// A private channel admits only its members, so the people in the Mattermost
+// room have to be in the Buzz one before the mirror can publish as them.
+func (service *Service) addBridgeChannelMembers(
+	ctx context.Context,
+	publisher *relaypublish.Publisher,
+	bootstrapSecret string,
+	buzzChannelID string,
+	externalChannelID string,
+) error {
+	token, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	emails, errorValue := service.mattermostChannelMemberEmails(ctx, token, externalChannelID)
+	if errorValue != nil {
+		return errorValue
+	}
+	for email := range emails {
+		secretHex := service.buzzSecretForEmail(ctx, email)
+		if secretHex == "" {
+			continue
+		}
+		pubkey, errorValue := buzzPublicKey(secretHex)
+		if errorValue != nil {
+			continue
+		}
+		if errorValue := publisher.AddMember(ctx, bootstrapSecret, buzzChannelID, pubkey); errorValue != nil {
+			log.Printf("bridge channel %s: add member %s failed: %v", buzzChannelID, pubkey, errorValue)
+		}
+		time.Sleep(60 * time.Millisecond)
 	}
 	return nil
 }
