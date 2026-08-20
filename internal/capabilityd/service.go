@@ -330,6 +330,7 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
+	multiplexer.HandleFunc("POST /v1/tools/{toolName}/target.resolve", service.handleToolTargetResolve)
 	multiplexer.HandleFunc("GET /v1/capabilities", service.handleCapabilities)
 	multiplexer.HandleFunc("GET /health", service.handleHealth)
 	return multiplexer
@@ -395,6 +396,16 @@ func (service Service) handleToolInvoke(responseWriter http.ResponseWriter, requ
 		return
 	}
 	response, errorValue := service.invokeCapabilityTool(request.Context(), toolName, request.Body)
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleToolTargetResolve(responseWriter http.ResponseWriter, request *http.Request) {
+	toolName := strings.TrimSpace(request.PathValue("toolName"))
+	if toolName == "" {
+		http.Error(responseWriter, "tool name is required", http.StatusBadRequest)
+		return
+	}
+	response, errorValue := service.resolveCapabilityToolTarget(request.Context(), toolName, request.Body)
 	service.writeResponse(responseWriter, response, errorValue)
 }
 

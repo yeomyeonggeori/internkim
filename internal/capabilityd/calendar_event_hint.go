@@ -36,26 +36,26 @@ func (service Service) fetchCalendarAllEvents(ctx context.Context, requesterEmai
 	return events.Events, nil
 }
 
-func (service Service) resolveCalendarEventHintTarget(ctx context.Context, request capabilities.ToolInvokeRequest, eventHint string) (string, *calendarEventHintFailure, error) {
+func (service Service) resolveCalendarEventHintTarget(ctx context.Context, request capabilities.ToolInvokeRequest, eventHint string) (calendarEventForTool, *calendarEventHintFailure, error) {
 	events, errorValue := service.fetchCalendarAllEvents(ctx, request.Context.RequesterEmail)
 	if errorValue != nil {
-		return "", nil, errorValue
+		return calendarEventForTool{}, nil, errorValue
 	}
-	eventID, failure := resolveCalendarEventHint(eventHint, request.Context.RequesterEmail, events)
-	return eventID, failure, nil
+	event, failure := resolveCalendarEventHint(eventHint, request.Context.RequesterEmail, events)
+	return event, failure, nil
 }
 
 func (event calendarEventForTool) hintID() string { return event.EventID }
 
 func (event calendarEventForTool) hintTitle() string { return event.Title }
 
-func resolveCalendarEventHint(eventHint string, requesterEmail string, events []calendarEventForTool) (string, *calendarEventHintFailure) {
+func resolveCalendarEventHint(eventHint string, requesterEmail string, events []calendarEventForTool) (calendarEventForTool, *calendarEventHintFailure) {
 	resolution := resolveHint(eventHint, events, calendarEventParticipation(requesterEmail))
 	if resolution.IsResolved {
-		return resolution.Match.EventID, nil
+		return resolution.Match, nil
 	}
 	failure := calendarEventHintUnresolvedFailure(resolution)
-	return "", &failure
+	return calendarEventForTool{}, &failure
 }
 
 func calendarEventParticipation(requesterEmail string) func(calendarEventForTool) bool {
