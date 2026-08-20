@@ -91,8 +91,13 @@ func (service *Service) applyReleaseUpdate(responseWriter http.ResponseWriter, r
 }
 
 func (service *Service) applyReleaseUpdateSigned(responseWriter http.ResponseWriter, request *http.Request) {
+	document, errorValue := io.ReadAll(io.LimitReader(request.Body, releaseUpdateApplyRequestLimit))
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
 	var payload releaseUpdateApplyRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
@@ -100,7 +105,12 @@ func (service *Service) applyReleaseUpdateSigned(responseWriter http.ResponseWri
 		http.Error(responseWriter, errorValue.Error(), http.StatusForbidden)
 		return
 	}
-	service.startReleaseUpdate(responseWriter, request, "", defaultReleaseChannel)
+	channel, errorValue := releaseUpdateChannelName(payload.Channel)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	service.startReleaseUpdate(responseWriter, request, strings.TrimSpace(payload.ReleaseID), channel)
 }
 
 func isAllowedReleaseUpdateSignedAction(action string) bool {
@@ -109,8 +119,26 @@ func isAllowedReleaseUpdateSignedAction(action string) bool {
 
 const defaultReleaseChannel = "stable"
 
+const releaseUpdateApplyRequestLimit = 4096
+
+// The channel becomes a path segment of the release registry URL, so anything
+// that is not a channel name would address a different object in the bucket.
+func releaseUpdateChannelName(value string) (string, error) {
+	channel := strings.TrimSpace(value)
+	if channel == "" {
+		return defaultReleaseChannel, nil
+	}
+	for _, character := range channel {
+		isNameCharacter := character >= 'a' && character <= 'z' || character >= '0' && character <= '9' || character == '-'
+		if !isNameCharacter {
+			return "", fmt.Errorf("release channel %q is not a channel name", channel)
+		}
+	}
+	return channel, nil
+}
+
 func decodeReleaseUpdateApplyRequest(request *http.Request) (string, string, error) {
-	document, errorValue := io.ReadAll(io.LimitReader(request.Body, 4096))
+	document, errorValue := io.ReadAll(io.LimitReader(request.Body, releaseUpdateApplyRequestLimit))
 	if errorValue != nil {
 		return "", "", errorValue
 	}
@@ -121,9 +149,9 @@ func decodeReleaseUpdateApplyRequest(request *http.Request) (string, string, err
 	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
 		return "", "", errorValue
 	}
-	channel := strings.TrimSpace(payload.Channel)
-	if channel == "" {
-		channel = defaultReleaseChannel
+	channel, errorValue := releaseUpdateChannelName(payload.Channel)
+	if errorValue != nil {
+		return "", "", errorValue
 	}
 	return strings.TrimSpace(payload.ReleaseID), channel, nil
 }
