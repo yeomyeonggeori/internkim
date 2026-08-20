@@ -696,6 +696,7 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 		return nil, errorValue
 	}
 	message = service.normalizeMattermostReplyMentions(ctx, message)
+	message = mattermostAskOptionsAppended(message, request)
 	message = service.mattermostAskMentionPrefix(ctx, handle, request) + message
 	service.stopMattermostProgress(request.ReplyTargetID)
 	defer service.stopMattermostProgress(request.ReplyTargetID)
@@ -799,9 +800,6 @@ func (service Service) mattermostReplyProperties(request replyRequest, handle pl
 		"internkim_raw_event_id": request.RawEventID,
 		"internkim_outbox_id":    request.OutboxID,
 	}
-	if attachment := service.mattermostAskAttachment(request, handle); attachment != nil {
-		properties["attachments"] = []any{attachment}
-	}
 	return properties
 }
 
@@ -809,7 +807,7 @@ func (service Service) mattermostAskMentionPrefix(ctx context.Context, handle pl
 	if strings.EqualFold(strings.TrimSpace(handle.ChannelType), "D") {
 		return ""
 	}
-	if service.mattermostAskAttachment(request, handle) == nil {
+	if request.Interaction == nil || strings.TrimSpace(request.Interaction.Kind) == "" {
 		return ""
 	}
 	targetUserID := request.mattermostAskTargetUserID()
@@ -837,54 +835,19 @@ func (request replyRequest) mattermostAskTargetUserID() string {
 	)
 }
 
-func (service Service) mattermostAskAttachment(request replyRequest, handle platformHandle) *mattermostinteractive.Attachment {
+// mattermostAskMessage puts everything the person needs into the message itself. The
+// options used to live in an attachment beside the buttons, and removing the buttons would
+// have taken the choices with them.
+func mattermostAskOptionsAppended(message string, request replyRequest) string {
+	message = strings.TrimSpace(message)
 	if request.Interaction == nil {
-		return nil
+		return message
 	}
-	switch strings.TrimSpace(request.Interaction.Kind) {
-	case "ask_confirm":
-		return service.mattermostConfirmAttachment(request, handle)
-	case "ask_input", "ask_choice_single", "ask_choice_multiple":
-		if len(trimNonEmptyPlatformAskOptions(request.Interaction.Options)) == 0 {
-			return nil
-		}
-		return service.mattermostChoiceAttachment(request, handle)
-	default:
-		return nil
+	optionLines := strings.TrimSpace(mattermostChoiceAttachmentText(request.Interaction))
+	if optionLines == "" {
+		return message
 	}
-}
-
-func (service Service) mattermostConfirmAttachment(request replyRequest, handle platformHandle) *mattermostinteractive.Attachment {
-	return &mattermostinteractive.Attachment{
-		Fallback: strings.TrimSpace(request.Message),
-		Actions: []mattermostinteractive.Action{
-			service.mattermostAskButton("askConfirm", "확인", "primary", request, handle, "ask_confirm", "", ""),
-			service.mattermostAskButton("askCancel", "취소", "danger", request, handle, "ask.cancel", "", ""),
-		},
-	}
-}
-
-func (service Service) mattermostChoiceAttachment(request replyRequest, handle platformHandle) *mattermostinteractive.Attachment {
-	options := trimNonEmptyPlatformAskOptions(request.Interaction.Options)
-	if len(options) <= 3 && request.Interaction.SelectionMode != "multiple" {
-		actions := []mattermostinteractive.Action{}
-		for _, option := range options {
-			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, mattermostChoiceDisplayLabel(option), "", request, handle, "ask_choice", option.Key, mattermostChoiceResolvedLabel(option)))
-		}
-		return &mattermostinteractive.Attachment{Fallback: strings.TrimSpace(request.Message), Text: mattermostChoiceAttachmentText(request.Interaction), Actions: actions}
-	}
-	return &mattermostinteractive.Attachment{
-		Fallback: strings.TrimSpace(request.Message),
-		Text:     mattermostChoiceAttachmentText(request.Interaction),
-		Actions: []mattermostinteractive.Action{
-			service.mattermostAskActionBuilder().Select(
-				"askChoiceMenu",
-				"선택",
-				service.mattermostAskActionContext(request, handle, "ask_choice", "", ""),
-				mattermostAskMenuOptions(options),
-			),
-		},
-	}
+	return strings.TrimSpace(message + "\n\n" + optionLines)
 }
 
 func mattermostChoiceAttachmentText(interaction *platformAskInteraction) string {
@@ -944,33 +907,6 @@ func truncateMattermostChoiceLabel(label string, maximumLength int) string {
 		return words[0]
 	}
 	return string(runes[:maximumLength])
-}
-
-func (service Service) mattermostAskButton(id string, name string, style string, request replyRequest, handle platformHandle, action string, choiceKey string, choiceLabel string) mattermostinteractive.Action {
-	context := service.mattermostAskActionContext(request, handle, action, choiceKey, choiceLabel)
-	return service.mattermostAskActionBuilder().Button(id, name, "", style, context)
-}
-
-func (service Service) mattermostAskActionBuilder() mattermostinteractive.ActionBuilder {
-	return mattermostinteractive.NewActionBuilder(
-		service.ensureMattermostInteractiveActionToken(),
-		service.Configuration.MattermostInteractiveBaseURL,
-		service.Configuration.AdmindBaseURL,
-	)
-}
-
-func (service Service) mattermostAskActionContext(request replyRequest, handle platformHandle, action string, choiceKey string, choiceLabel string) mattermostinteractive.Context {
-	return mattermostinteractive.Context{
-		Action:           action,
-		InteractionID:    request.Interaction.InteractionID,
-		TaskRunID:        request.Interaction.TaskRunID,
-		ConversationID:   handle.ConversationID,
-		ReplyTargetID:    request.ReplyTargetID,
-		ChoiceKey:        choiceKey,
-		ChoiceLabel:      choiceLabel,
-		ResponseLanguage: request.Interaction.ResponseLanguage,
-		TargetUserID:     request.mattermostAskTargetUserID(),
-	}
 }
 
 func mattermostAskMenuOptions(options []platformAskChoiceOption) []mattermostinteractive.Option {

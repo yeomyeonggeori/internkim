@@ -25,19 +25,6 @@ func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
 	}
 }
 
-func TestMattermostAskActionURLUsesConfiguredPublicBaseURL(t *testing.T) {
-	configuration := Configuration{
-		AdmindBaseURL:                "http://127.0.0.1:18080",
-		MattermostInteractiveBaseURL: " https://poc0-t15.example.test/ ",
-	}
-	service := Service{Configuration: configuration}
-
-	actualURL := service.mattermostAskActionBuilder().URL
-	if actualURL != "https://poc0-t15.example.test/_internkim/mattermost/actions" {
-		t.Fatalf("ask action URL = %q", actualURL)
-	}
-}
-
 func TestMattermostHealthRejectsHumanTokenUser(t *testing.T) {
 	tokenPath := filepath.Join(t.TempDir(), "mattermost-token")
 	if errorValue := os.WriteFile(tokenPath, []byte("human-token"), 0o600); errorValue != nil {
