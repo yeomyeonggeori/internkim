@@ -40,8 +40,10 @@ func deviceFlowTaskOf(changed centralplane.ChangedTask, existing flowTask, found
 	task.Business = changed.Business
 	task.Type = changed.Type
 	task.Size = changed.Size
-	task.StartDate = flowDayOf(changed.StartsAt)
-	task.EndDate = flowDayOf(changed.EndsAt)
+	dates := normalizeFlowStatusDates(flowDayOf(changed.StartsAt), flowDayOf(changed.EndsAt), existing.WeekCode, task.Status, flowDateNow())
+	task.StartDate = dates.StartDate
+	task.EndDate = dates.EndDate
+	task.WeekCode = dates.WeekCode
 	task.Goal, task.RequestReason = flowGoalAndReasonOf(changed.Note)
 	task.ParticipantIDs, task.ParticipantNames = flowPeopleOf(changed.ParticipantMails, people)
 	if len(task.ParticipantIDs) > 0 && strings.TrimSpace(task.OwnerID) == "" {
