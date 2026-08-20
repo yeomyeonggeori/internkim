@@ -8,6 +8,7 @@
 	import type { CRMOrganization, CRMActivity, CRMContact, CRMOpportunity, CRMPipelineStage } from './crm-types';
 	import CRMRelationshipDetailView from './crm-relationship-detail-view.svelte';
 	import { getStatusVariant } from './crm-view-model';
+	import type { CRMCurrencyCatalogue } from './crm-money';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -18,10 +19,11 @@
 		activities: CRMActivity[];
 		stages: CRMPipelineStage[];
 		organizationTypeDefinitions: CRMDefinition[];
+		currencyCatalogue: CRMCurrencyCatalogue;
 		text: CRMText;
 		onEdit: (organizationID: string) => void;
 	};
-	let { open = $bindable(false), organization, contacts, opportunities, activities, stages, organizationTypeDefinitions, text, onEdit }: Props = $props();
+	let { open = $bindable(false), organization, contacts, opportunities, activities, stages, organizationTypeDefinitions, currencyCatalogue, text, onEdit }: Props = $props();
 </script>
 
 <Sheet.Root bind:open>
@@ -35,7 +37,7 @@
 				<Sheet.Title>{organization.name}</Sheet.Title>
 				<Sheet.Description>{organization.description}</Sheet.Description>
 			</Sheet.Header>
-				<div class="px-4 pb-24 pt-4"><CRMRelationshipDetailView {organization} {contacts} {opportunities} {activities} {stages} {organizationTypeDefinitions} {text} /></div>
+				<div class="px-4 pb-24 pt-4"><CRMRelationshipDetailView {organization} {contacts} {opportunities} {activities} {stages} {organizationTypeDefinitions} {currencyCatalogue} {text} /></div>
 		{/if}
 	</Sheet.Content>
 </Sheet.Root>

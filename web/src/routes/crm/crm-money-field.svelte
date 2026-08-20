@@ -2,7 +2,7 @@
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
-	import { crmInterimCurrencyCatalogue, findCurrencyCatalogueEntry, formatAmountInput } from './crm-money';
+	import { findCurrencyCatalogueEntry, formatAmountInput, type CRMCurrencyCatalogue } from './crm-money';
 	import type { CRMCurrency } from './crm-types';
 
 	type Props = {
@@ -11,17 +11,18 @@
 		currencyLabel: string;
 		value: string;
 		currency: CRMCurrency;
+		currencyCatalogue: CRMCurrencyCatalogue;
 		disabled?: boolean;
 	};
 
-	let { id, label, currencyLabel, value = $bindable(), currency = $bindable(), disabled = false }: Props = $props();
+	let { id, label, currencyLabel, value = $bindable(), currency = $bindable(), currencyCatalogue, disabled = false }: Props = $props();
 
 	function updateAmount(event: Event & { currentTarget: HTMLInputElement }): void {
 		value = formatAmountInput(event.currentTarget.value);
 	}
 
 	function updateCurrency(value: string): void {
-		if (findCurrencyCatalogueEntry(crmInterimCurrencyCatalogue, value)) currency = value;
+		if (findCurrencyCatalogueEntry(currencyCatalogue, value)) currency = value;
 	}
 </script>
 
@@ -31,7 +32,7 @@
 		<Select.Root type="single" value={currency} onValueChange={updateCurrency} {disabled}>
 			<Select.Trigger id={`${id}-currency`} class="w-full" aria-label={currencyLabel}>{currency}</Select.Trigger>
 			<Select.Content>
-				{#each crmInterimCurrencyCatalogue as option (option.code)}
+				{#each currencyCatalogue as option (option.code)}
 					<Select.Item value={option.code} label={option.code}>{option.code}</Select.Item>
 				{/each}
 			</Select.Content>
@@ -42,7 +43,7 @@
 				data-crm-currency-symbol={currency}
 				aria-hidden="true"
 			>
-				{findCurrencyCatalogueEntry(crmInterimCurrencyCatalogue, currency)?.symbol}
+				{findCurrencyCatalogueEntry(currencyCatalogue, currency)?.symbol}
 			</span>
 			<Input
 				{id}
