@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { buildEmployeeLeaveFixture } from '../../../dev-attendance-leave-fixture';
 import {
 	buildLeaveHistory,
-	filterLeaveHistory,
 	milliDaysValue
 } from '../../../src/routes/attendance/leave/leave-history-model';
 
@@ -29,11 +28,23 @@ describe('employee leave history model', () => {
 		expect(history[0].occurredAt).toBe('2026-07-27T13:20:00+09:00');
 		expect(history.some((item) => item.kind === 'request')).toBe(true);
 		expect(history.some((item) => item.kind === 'ledger')).toBe(true);
-		expect(filterLeaveHistory(history, 'requests').every((item) => item.kind === 'request')).toBe(
-			true
-		);
-		expect(filterLeaveHistory(history, 'balance').every((item) => item.kind === 'ledger')).toBe(
-			true
+
+		const timestamps = history.map((item) => item.occurredAt);
+		expect([...timestamps].sort((first, second) => second.localeCompare(first))).toEqual(timestamps);
+	});
+
+	test('keeps a request-linked ledger entry out of the list the request already summarises', () => {
+		const fixture = buildEmployeeLeaveFixture();
+		const history = buildLeaveHistory(fixture.requests, fixture.ledgerEntries, fixture.leaveTypes);
+
+		const ledgerItems = history.filter((item) => item.kind === 'ledger');
+		expect(ledgerItems.length > 0).toBe(true);
+		for (const item of ledgerItems) {
+			if (item.kind !== 'ledger') continue;
+			expect(item.entry.requestID ?? '').toBe('');
+		}
+		expect(history.filter((item) => item.kind === 'request')).toHaveLength(
+			fixture.requests.length
 		);
 	});
 
