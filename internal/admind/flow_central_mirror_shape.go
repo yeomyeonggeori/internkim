@@ -53,12 +53,16 @@ func deviceFlowTaskOf(changed centralplane.ChangedTask, existing flowTask, found
 	return flowTaskWithCreatedAt(flowTaskWithIdentifier(task))
 }
 
+// The central plane stores a day as its first instant in the company's timezone,
+// which is the previous day in UTC. Slicing the string a PostgREST read returns
+// therefore names the day before the one meant, for a start but not for an end,
+// because 23:59 does not cross midnight going west.
 func flowDayOf(moment string) string {
-	trimmed := strings.TrimSpace(moment)
-	if len(trimmed) < 10 {
+	instant, readable := readFlowTimestamp(moment)
+	if !readable {
 		return ""
 	}
-	return trimmed[:10]
+	return instant.In(flowDateTimezone).Format("2006-01-02")
 }
 
 // centralFlowNote joins them with the goal first, so they come apart the same way.

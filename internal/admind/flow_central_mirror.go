@@ -134,7 +134,12 @@ func centralChangeIsNewer(centralUpdatedAt string, deviceUpdatedAt string) bool 
 }
 
 func readFlowTimestamp(value string) (time.Time, bool) {
-	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05.999999-07:00"} {
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999-07:00",
+		"2006-01-02 15:04:05.999999-07",
+	} {
 		if moment, errorValue := time.Parse(layout, strings.TrimSpace(value)); errorValue == nil {
 			return moment.UTC(), true
 		}
