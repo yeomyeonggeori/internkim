@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { interimCurrencyCatalogue } from '../../../src/lib/currency/currency-catalogue';
+import {
+	interimCurrencyCatalogue,
+	majorAmountOf,
+	minorAmountOf,
+	type CurrencyCatalogue
+} from '../../../src/lib/currency/currency-catalogue';
 import {
 	formatAmountInput,
 	formatMoney,
@@ -49,5 +54,34 @@ describe('CRM money formatting', () => {
 		];
 
 		expect(sumOpportunityMoney(opportunities)).toEqual({ KRW: 1500000, USD: 2500 });
+	});
+});
+
+describe('minor and major amounts follow the catalogue', () => {
+	const catalogue: CurrencyCatalogue = [
+		...interimCurrencyCatalogue,
+		{ code: 'GBP', name: 'British Pound', symbol: '£', minorUnitDigits: 2, grouping: 'thousand' },
+		{ code: 'CLP', name: 'Chilean Peso', symbol: '$', minorUnitDigits: 0, grouping: 'thousand' },
+		{ code: 'BHD', name: 'Bahraini Dinar', symbol: 'BHD', minorUnitDigits: 3, grouping: 'thousand' }
+	];
+
+	test('a currency with no minor unit keeps the amount as it was entered', () => {
+		expect(minorAmountOf(18000000, 'KRW', catalogue)).toBe(18000000);
+		expect(majorAmountOf(18000000, 'KRW', catalogue)).toBe(18000000);
+		expect(minorAmountOf(1200, 'CLP', catalogue)).toBe(1200);
+	});
+
+	test('a two-digit currency the seed never carried still scales by a hundred', () => {
+		expect(minorAmountOf(1200, 'GBP', catalogue)).toBe(120000);
+		expect(majorAmountOf(120000, 'GBP', catalogue)).toBe(1200);
+	});
+
+	test('a three-digit currency scales by a thousand', () => {
+		expect(minorAmountOf(12, 'BHD', catalogue)).toBe(12000);
+		expect(majorAmountOf(12000, 'BHD', catalogue)).toBe(12);
+	});
+
+	test('an unknown currency is assumed to have two minor digits', () => {
+		expect(minorAmountOf(1200, 'ZZZ', catalogue)).toBe(120000);
 	});
 });
