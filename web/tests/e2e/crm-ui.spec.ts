@@ -769,6 +769,29 @@ test.describe('CRM service UI', () => {
 		await expect(page.getByRole('alert')).toContainText('저장했지만 목록을 새로 불러오지 못했습니다.');
 		expect(accounts.filter((item) => item.name === '새로고침 실패 관계처')).toHaveLength(1);
 	});
+
+	test('keeps a picker popover above the sheet that opened it', async ({ page }) => {
+		contacts = [contact('contact-1', '가려짐 확인 담당자', 'account-1')];
+		await openCRM(page);
+		await page.getByRole('button', { name: '빠른 추가' }).click();
+		await page.getByRole('menuitem', { name: '진행 건', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
+		await sheet.locator('#crm-record-progress-contact').click();
+		await expect(page.getByRole('option', { name: /가려짐 확인 담당자/ })).toBeVisible();
+
+		const topmost = await page.evaluate(() => {
+			const popover = document.querySelector('[data-slot="popover-content"]');
+			if (!(popover instanceof HTMLElement)) return 'popover missing';
+			const box = popover.getBoundingClientRect();
+			const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+			if (!hit) return 'nothing at the popover centre';
+			if (popover.contains(hit)) return 'popover';
+			const sheetContent = hit.closest('[data-slot="sheet-content"]');
+			return sheetContent ? 'sheet' : 'other';
+		});
+
+		expect(topmost).toBe('popover');
+	});
 });
 
 async function openCRM(page: Page): Promise<void> {
