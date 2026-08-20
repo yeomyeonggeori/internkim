@@ -95,6 +95,9 @@ CREATE TABLE IF NOT EXISTS flow_size_definitions (
 	if errorValue := ensureFlowTaskIndexes(ctx, database); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureFlowCentralIdentityTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := ensureFlowCentralOutboxTable(ctx, database); errorValue != nil {
 		return errorValue
 	}
