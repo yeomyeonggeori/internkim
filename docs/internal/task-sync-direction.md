@@ -130,3 +130,44 @@ a task already in one keeps it unless the board actually changed the status.
 
 Reads still come from the device's copy, which is what §2 asks for until
 retirement. The importers remain for history that predates this.
+
+## 7. What retirement needs first
+
+§2 ends at `retirement → stop mirroring, delete the local copy`. Deleting the
+copy is the last step. Until the readers move, removing it stops the agent. This is the list, taken from the code rather than from memory.
+
+Two consumers sit outside admind, and both reach the copy the same way — over
+admind's flow HTTP API:
+
+| Consumer | Through |
+|---|---|
+| the agent's flow tools in capabilityd | `/flow/api/state`, `/flow/api/summary`, `/flow/api/tasks` |
+| the device board UI | the same three |
+
+So there is one seam, the way `calendar_event_persistence.go` is the seam for
+events: admind's flow read path. Nine readers sit behind it, six of them through
+`flow_task_read_store.go`:
+
+| Reader | What it is for |
+|---|---|
+| `flow_summary_read_model.go` | the weekly summary |
+| `flow_report.go` | reports |
+| `flow_duplicate_guard.go` | refusing a task that already exists |
+| `flow_api_handlers.go` | the state and date-range endpoints |
+| `flow_calendar_pairing.go` | pairing a task with its calendar event |
+| `mattermost_channel_projection.go` | the post that stands for a task |
+| `mattermost_managed_post_sync.go` | keeping those posts current |
+| `flow_channel_expiry.go` | expiring them |
+| `company_share_activity.go` | the share activity view |
+
+Three of those — `company_share_activity.go`, `flow_channel_expiry.go` and
+`flow_task_board_move.go` — write their own SQL against `flow_tasks` instead of
+going through the read store. They have to join it before the seam can move, or
+the seam is not one.
+
+The sync machinery itself (`flow_central_drain.go`, `flow_central_mirror.go`,
+the outbox, the identity table and the mirror mark) retires with the copy.
+
+The order that follows: fold the three stragglers into the read store, give the
+read store a central-plane implementation behind an explicit switch, run both
+and compare, then turn the switch and stop the mirror. The tables go last.
