@@ -184,15 +184,15 @@
 	</Card.Content>
 	{#if !change}
 		<Card.Footer class="flex flex-wrap justify-end gap-2 border-t pt-4">
-			<Button size="sm" onclick={approve} disabled={approval.isMutating}>
-				{approval.isMutating ? text.processing : text.approveAction}
-			</Button>
+			<LeaveApprovalDecisionDialog requestID={request.id} action="reject" {text} />
 			<LeaveApprovalDecisionDialog
 				requestID={request.id}
 				action="needsChanges"
 				{text}
 			/>
-			<LeaveApprovalDecisionDialog requestID={request.id} action="reject" {text} />
+			<Button size="sm" onclick={approve} disabled={approval.isMutating}>
+				{approval.isMutating ? text.processing : text.approveAction}
+			</Button>
 		</Card.Footer>
 	{/if}
 </Card.Root>
