@@ -14,6 +14,7 @@
 	import type { CRMDefinition } from './crm-api-types';
 	import { crmLabel } from './crm-labels';
 	import { parseAmountInput } from './crm-money';
+	import CRMConversionPreview from './crm-conversion-preview.svelte';
 	import CRMMoneyField from './crm-money-field.svelte';
 	import CRMOwnerSelect from './crm-owner-select.svelte';
 	import CRMContactSelect from './crm-contact-select.svelte';
@@ -58,10 +59,11 @@
 		groups: OrgGroup[];
 		text: CRMText;
 		currencyCatalogue: CurrencyCatalogue;
+		companyBaseCurrency: string;
 		onCreate: (draft: CRMCreateDraft) => Promise<void>;
 	};
 
-	let { open = $bindable(false), initialKind, initialOrganizationID = '', organizations, contacts, opportunities, pipelines, stages, lostReasons, businessOptions, organizationTypeOptions, organizationTypeDefinitions, activityKindOptions, defaultOwnerPersonID, people, groups, text, currencyCatalogue, onCreate }: Props = $props();
+	let { open = $bindable(false), initialKind, initialOrganizationID = '', organizations, contacts, opportunities, pipelines, stages, lostReasons, businessOptions, organizationTypeOptions, organizationTypeDefinitions, activityKindOptions, defaultOwnerPersonID, people, groups, text, currencyCatalogue, companyBaseCurrency, onCreate }: Props = $props();
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	let activityKinds = $derived(activityKindOptions.filter((kind) => kind !== 'stage_change'));
 	const noLostReasonValue = '__none__';
@@ -93,7 +95,7 @@
 	let stage = $state('lead');
 	let lostReason = $state('');
 	let amount = $state('');
-	let currency = $state<CRMCurrency>('KRW');
+	let currency = $state<CRMCurrency>('');
 	let targetDate = $state('');
 	let opportunityID = $state('');
 	let activityContactID = $state('');
@@ -140,7 +142,7 @@
 		stage = stages.find((candidate) => candidate.pipeline === pipeline)?.stage ?? 'lead';
 		lostReason = '';
 		amount = '';
-		currency = 'KRW';
+		currency = companyBaseCurrency;
 		targetDate = currentCRMDate();
 		opportunityID = '';
 		activityContactID = '';
@@ -302,6 +304,15 @@
 						<Field.Field><Field.Label>{text.business}</Field.Label><Select.Root type="single" bind:value={business}><Select.Trigger class="w-full">{business}</Select.Trigger><Select.Content>{#each businessOptions as option (option)}<Select.Item value={option} label={option}>{option}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
 						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-target">{text.targetDate}</Field.Label><Input id="crm-record-target" type="date" bind:value={targetDate} /></Field.Field></div>
 							<CRMMoneyField {currencyCatalogue} id="crm-record-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency />
+							<CRMConversionPreview
+								amountMinor={parseAmountInput(amount) ?? null}
+								{currency}
+								baseCurrency={companyBaseCurrency}
+								settledAmountMinor={null}
+								settledCurrency=""
+								{currencyCatalogue}
+								{text}
+							/>
 							<Field.Field><Field.Label for="crm-record-progress-contact">{text.externalContact}</Field.Label><CRMContactSelect id="crm-record-progress-contact" bind:value={progressContactID} contacts={organizationContacts} {text} /></Field.Field>
 						<Field.Field><Field.Label for="crm-record-progress-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-record-progress-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
 					{:else}
