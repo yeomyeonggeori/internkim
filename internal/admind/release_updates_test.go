@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -815,5 +816,155 @@ func TestReleaseUpdateApplyFallsBackToStable(t *testing.T) {
 		if channel != "stable" {
 			t.Fatalf("a request that names no channel takes stable, got %q for body %q", channel, body)
 		}
+	}
+}
+
+func TestSignedReleaseApplyAppliesTheReleaseAndChannelItNames(t *testing.T) {
+	requestedPaths := &[]string{}
+	service := newSignedReleaseUpdateTestService(t, requestedPaths)
+
+	response := performSignedReleaseApply(t, service, "nonce-names-a-release", "release-1", "direct")
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	waitForReleaseJob(t, service)
+	current := service.readCurrentReleaseManifest()
+	if current == nil || current.ReleaseID != "release-1" {
+		t.Fatalf("current release = %+v", current)
+	}
+}
+
+func TestSignedReleaseApplyCannotNameAReleaseTheChannelDoesNotCarry(t *testing.T) {
+	requestedPaths := &[]string{}
+	service := newSignedReleaseUpdateTestService(t, requestedPaths)
+
+	response := performSignedReleaseApply(t, service, "nonce-names-a-foreign-release", "release-1", "stable")
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("a release the named channel does not list has to be refused, got %d body = %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "unknown releaseID") {
+		t.Fatalf("body = %s", response.Body.String())
+	}
+	if current := service.readCurrentReleaseManifest(); current == nil || current.ReleaseID != "release-2" {
+		t.Fatalf("current release = %+v", current)
+	}
+}
+
+func TestSignedReleaseApplyRefusesAChannelThatIsNotAChannelName(t *testing.T) {
+	for index, channel := range []string{"../stable", "direct/../../secrets", "https://evil.test/channels/direct"} {
+		requestedPaths := &[]string{}
+		service := newSignedReleaseUpdateTestService(t, requestedPaths)
+
+		response := performSignedReleaseApply(t, service, fmt.Sprintf("nonce-refused-channel-%d", index), "release-1", channel)
+
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("channel %q has to be refused, got %d body = %s", channel, response.Code, response.Body.String())
+		}
+		for _, path := range *requestedPaths {
+			if strings.Contains(path, "channels/") {
+				t.Fatalf("channel %q reached the registry at %s", channel, path)
+			}
+		}
+	}
+}
+
+func TestSignedReleaseApplyStillRefusesAnUnsignedRelease(t *testing.T) {
+	requestedPaths := &[]string{}
+	service := newSignedReleaseUpdateTestService(t, requestedPaths)
+	document, errorValue := json.Marshal(releaseUpdateApplyRequest{
+		fleetSignedRequest: fleetSignedRequest{
+			Action:    "release-update-apply",
+			DeviceID:  "dc719d8e",
+			Nonce:     "nonce-without-a-signature",
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+			Signature: "0000000000000000000000000000000000000000000000000000000000000000",
+		},
+		ReleaseID: "release-1",
+		Channel:   "direct",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/updates/apply", bytes.NewReader(document))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	service.handleAdmin(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func performSignedReleaseApply(t *testing.T, service *Service, nonce string, releaseID string, channel string) *httptest.ResponseRecorder {
+	t.Helper()
+	document, errorValue := json.Marshal(releaseUpdateApplyRequest{
+		fleetSignedRequest: signedTestFleetRequest(t, service, "release-update-apply", nonce),
+		ReleaseID:          releaseID,
+		Channel:            channel,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/updates/apply", bytes.NewReader(document))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	service.handleAdmin(response, request)
+	return response
+}
+
+func newSignedReleaseUpdateTestService(t *testing.T, requestedPaths *[]string) *Service {
+	t.Helper()
+	blobDocument, blobSHA256, blobSize := testReleaseBlobDocument(t)
+	service := NewService(Configuration{
+		ReleaseRegistryURL:     "https://updates.test",
+		StateDirectory:         t.TempDir(),
+		ReleaseSigningKeyPath:  writeTestFile(t, ""),
+		AdminEmailPath:         writeTestFile(t, "admin@example.com"),
+		FleetIDPath:            writeTestFile(t, "dc719d8e"),
+		FleetSecretPath:        writeTestFile(t, "secret-value"),
+		BlueclawWorkspacePath:  t.TempDir(),
+		CompanionJobPath:       filepath.Join(t.TempDir(), "jobs.json"),
+		CompanionFileDirectory: t.TempDir(),
+	})
+	service.RunCommand = func(context.Context, string, ...string) ([]byte, error) {
+		return []byte("ok\n"), nil
+	}
+	releaseOne := testReleaseManifestWithBlob("release-1", blobSHA256, blobSize)
+	releaseTwo := testReleaseManifestWithBlob("release-2", blobSHA256, blobSize)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		*requestedPaths = append(*requestedPaths, request.URL.Path)
+		switch request.URL.Path {
+		case "/channels/direct-history.json":
+			return testJSONHTTPResponse(t, testReleaseChannelHistory("direct", "release-1")), nil
+		case "/channels/stable-history.json":
+			return testJSONHTTPResponse(t, testReleaseChannelHistory("stable", "release-2")), nil
+		case "/releases/release-1/manifest.json":
+			return testJSONHTTPResponse(t, releaseOne), nil
+		case "/releases/release-2/manifest.json":
+			return testJSONHTTPResponse(t, releaseTwo), nil
+		case "/blobs/sha256/" + blobSHA256:
+			return testHTTPResponse(http.StatusOK, blobDocument), nil
+		default:
+			return testHTTPResponse(http.StatusNotFound, nil), nil
+		}
+	})}
+	if errorValue := service.writeCurrentReleaseManifest(&releaseTwo); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return service
+}
+
+func testReleaseChannelHistory(channel string, releaseID string) releaseset.ChannelHistory {
+	return releaseset.ChannelHistory{
+		Channel: channel,
+		Entries: []releaseset.ChannelHistoryEntry{{
+			ReleaseID:   releaseID,
+			ManifestURL: "https://updates.test/releases/" + releaseID + "/manifest.json",
+			CreatedAt:   "2026-06-12T00:00:00Z",
+		}},
+		UpdatedAt: "2026-06-12T00:00:00Z",
 	}
 }

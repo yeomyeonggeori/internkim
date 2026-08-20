@@ -1,12 +1,9 @@
 package cli
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
-	"time"
 )
 
 type releaseUpdateStatusResponse struct {
@@ -40,44 +37,17 @@ func runReleaseUpdateCheck(arguments []string) error {
 
 func runReleaseUpdateApply(arguments []string) error {
 	target := resolveCommandTarget(arguments)
-	requestDocument, errorValue := releaseUpdateApplyRequestDocument(target)
+	api, errorValue := reachDeviceReleaseAPI(target)
 	if errorValue != nil {
 		return errorValue
 	}
-	admin, errorValue := reachDeviceAdmin(target)
+	job, errorValue := api.applyRelease("", defaultReleaseUpdateChannel)
 	if errorValue != nil {
-		return errorValue
-	}
-	var job blueclawUpdateJobResponse
-	if errorValue := admin.ask(http.MethodPost, "/admin/api/updates/apply", requestDocument, &job); errorValue != nil {
 		return errorValue
 	}
 	fmt.Printf("Job: %s\n", job.JobID)
-	for attempt := 0; attempt < 120; attempt++ {
-		errorValue = admin.ask(http.MethodGet, "/admin/api/updates/jobs/"+job.JobID, nil, &job)
-		if errorValue != nil {
-			time.Sleep(1500 * time.Millisecond)
-			continue
-		}
-		fmt.Printf("Status: %s/%s\n", job.Status, job.Phase)
-		if job.Status == "completed" || job.Status == "already_current" {
-			return nil
-		}
-		if job.Status == "failed" {
-			return errors.New(strings.TrimSpace(job.Error))
-		}
-		time.Sleep(1500 * time.Millisecond)
-	}
-	return errors.New("release update did not finish before timeout")
-}
-
-func releaseUpdateApplyRequestDocument(target commandTarget) ([]byte, error) {
-	fleetID := strings.TrimSpace(loadState(target.stateDir, "fleet_id"))
-	fleetSecret := strings.TrimSpace(loadState(target.stateDir, "fleet_secret"))
-	if fleetID == "" || fleetSecret == "" {
-		return nil, errors.New("fleet identity is not configured in local device state")
-	}
-	return json.Marshal(signedRecoveryRequestPayload(fleetSecret, "release-update-apply", fleetID))
+	_, errorValue = waitForReleaseUpdateJob(api, job, "")
+	return errorValue
 }
 
 func fetchDeviceReleaseUpdateStatus(arguments []string) (releaseUpdateStatusResponse, error) {
@@ -86,29 +56,23 @@ func fetchDeviceReleaseUpdateStatus(arguments []string) (releaseUpdateStatusResp
 }
 
 func releaseDeviceEndpointURL(target commandTarget, endpointPath string) (string, error) {
-	deviceURL := strings.TrimSpace(firstNonEmptyString(target.deviceURL, loadState(target.stateDir, "device_url")))
+	deviceURL := deviceURLForTarget(target)
 	if deviceURL == "" {
 		return "", errors.New("device URL is not configured; run setup or pass a saved target")
 	}
 	return publicEndpointURL(deviceURL, endpointPath)
 }
 
-func fetchDeviceReleaseUpdateJob(target commandTarget, jobID string) (blueclawUpdateJobResponse, error) {
-	admin, errorValue := reachDeviceAdmin(target)
-	if errorValue != nil {
-		return blueclawUpdateJobResponse{}, errorValue
-	}
-	var job blueclawUpdateJobResponse
-	return job, admin.ask(http.MethodGet, "/admin/api/updates/jobs/"+jobID, nil, &job)
+func deviceURLForTarget(target commandTarget) string {
+	return strings.TrimSpace(firstNonEmptyString(target.deviceURL, loadState(target.stateDir, "device_url")))
 }
 
 func fetchDeviceReleaseUpdateStatusForTarget(target commandTarget) (releaseUpdateStatusResponse, error) {
-	admin, errorValue := reachDeviceAdmin(target)
+	api, errorValue := reachDeviceReleaseAPI(target)
 	if errorValue != nil {
 		return releaseUpdateStatusResponse{}, errorValue
 	}
-	var status releaseUpdateStatusResponse
-	return status, admin.ask(http.MethodGet, "/admin/api/updates/status", nil, &status)
+	return api.releaseUpdateStatus()
 }
 
 func printReleaseUpdateStatus(status releaseUpdateStatusResponse) {
@@ -125,8 +89,4 @@ func releaseUpdateID(summary *releaseUpdateSummary) string {
 		return "none"
 	}
 	return summary.ReleaseID
-}
-
-func readAllLimitedResponse(response *http.Response, limit int64) ([]byte, error) {
-	return readAllLimited(response.Body, limit)
 }
