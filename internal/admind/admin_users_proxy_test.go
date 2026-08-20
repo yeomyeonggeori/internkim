@@ -304,6 +304,7 @@ func newAdminUsersProxyTestService(t *testing.T, transport roundTripFunc) *Servi
 		APIBaseURL:                  "https://api.example.test",
 		MattermostBaseURL:           "http://mattermost.local",
 		BlueclawBaseURL:             "http://127.0.0.1:8080",
+		BlueclawPolicyDeliveryPath:  filepath.Join(t.TempDir(), "policy.json"),
 		MattermostAdminPasswordPath: writeTestFile(t, "admin-password"),
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 		ClaimedAdminEmailPath:       writeTestFile(t, "admin@example.com"),

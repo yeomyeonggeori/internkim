@@ -24,6 +24,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,6 +52,7 @@ type Configuration struct {
 	FlowPublicURL                  string
 	APIBaseURL                     string
 	BlueclawBaseURL                string
+	BlueclawPolicyDeliveryPath     string
 	CapabilitySocketPath           string
 	StateDirectory                 string
 	CompanionJobPath               string
@@ -300,6 +303,7 @@ func DefaultConfiguration() Configuration {
 		MattermostTeamName:             "internkim",
 		BotUsername:                    "internkim",
 		BlueclawBaseURL:                "http://127.0.0.1:8080",
+		BlueclawPolicyDeliveryPath:     filepath.Join(blueclaw.BlueclawDeliveryConfigPath, "policy.json"),
 		CapabilitySocketPath:           blueclawruntime.CapabilitySocketPath,
 		StateDirectory:                 "/root/.internkim/state/admin",
 		CompanionJobPath:               "/root/.internkim/state/companion-jobs.json",

@@ -229,6 +229,7 @@ func newLocalUsersTestService(t *testing.T) *Service {
 	t.Helper()
 	service := NewService(Configuration{
 		BlueclawBaseURL:             "http://blueclaw.local",
+		BlueclawPolicyDeliveryPath:  t.TempDir() + "/policy.json",
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: writeTestFile(t, "admin-pass"),
 		FleetIDPath:                 t.TempDir() + "/missing-fleet-id",
