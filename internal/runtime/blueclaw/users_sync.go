@@ -17,6 +17,40 @@ const (
 	InternKimFleetSecretPath       = "/root/.internkim/secrets/fleet-secret"
 )
 
+func internKimUsersSyncRequestHelpers() string {
+	return `http_status_code=""
+
+send_request() {
+  request_label="$1"
+  response_body_path="$2"
+  shift 2
+  if ! http_status_code="$(curl -sS --output "$response_body_path" --write-out '%{http_code}' "$@")"; then
+    http_status_code=""
+    echo "users-sync: $request_label never reached the server" >&2
+    return 1
+  fi
+  return 0
+}
+
+report_response_body() {
+  echo "users-sync: $1 answered $http_status_code" >&2
+  head -c 2000 "$2" | sed 's/^/users-sync:   /' >&2
+}
+
+request_or_exit() {
+  request_label="$1"
+  response_body_path="$2"
+  shift 2
+  send_request "$request_label" "$response_body_path" "$@" || exit 1
+  case "$http_status_code" in
+    2??) return 0 ;;
+  esac
+  report_response_body "$request_label" "$response_body_path"
+  exit 1
+}
+`
+}
+
 func InternKimUsersSyncScript() string {
 	return `#!/bin/sh
 set -eu
@@ -33,6 +67,7 @@ if [ -z "$FLEET_ID" ] || [ -z "$FLEET_SECRET" ]; then
   exit 1
 fi
 
+` + internKimUsersSyncRequestHelpers() + `
 install -d -m 700 /root/.internkim/state
 response_path="$(mktemp)"
 desired_records_path="$(mktemp)"
@@ -41,10 +76,12 @@ previous_path="$(mktemp)"
 policy_all_path="$(mktemp)"
 policy_removable_path="$(mktemp)"
 current_policy_path="$(mktemp)"
+invite_response_path="$(mktemp)"
+removal_response_path="$(mktemp)"
 removal_source_path="$(mktemp)"
 next_state_path="$(mktemp)"
 cleanup() {
-  rm -f "$response_path" "$desired_records_path" "$desired_path" "$previous_path" "$policy_all_path" "$policy_removable_path" "$current_policy_path" "$removal_source_path" "$next_state_path"
+  rm -f "$response_path" "$desired_records_path" "$desired_path" "$previous_path" "$policy_all_path" "$policy_removable_path" "$current_policy_path" "$invite_response_path" "$removal_response_path" "$removal_source_path" "$next_state_path"
 }
 trap cleanup EXIT
 
@@ -68,7 +105,17 @@ write_removable_policy_emails() {
 }
 
 refresh_current_policy() {
-  curl -fsS "$BLUECLAW_URL/admin/api/policy" > "$current_policy_path"
+  request_or_exit "blueclaw policy read" "$current_policy_path" "$BLUECLAW_URL/admin/api/policy"
+}
+
+read_policy_snapshot() {
+  if send_request "blueclaw policy snapshot" "$current_policy_path" "$BLUECLAW_URL/admin/api/policy"; then
+    case "$http_status_code" in
+      2??) return 0 ;;
+    esac
+    report_response_body "blueclaw policy snapshot" "$current_policy_path"
+  fi
+  : > "$current_policy_path"
 }
 
 sync_posix_policy() {
@@ -97,10 +144,10 @@ ensure_person_workspace_directories() {
   done
 }
 
-curl -fsS \
+request_or_exit "fleet user list" "$response_path" \
   -H "X-INTERNKIM-FLEET-ID: $FLEET_ID" \
   -H "X-INTERNKIM-FLEET-SECRET: $FLEET_SECRET" \
-  "$API_URL/api/users?fleet_id=$FLEET_ID" > "$response_path"
+  "$API_URL/api/users?fleet_id=$FLEET_ID"
 
 revision="$(jq -r '.revision // empty' "$response_path")"
 last_revision="$(jq -r '.revision // empty' "$STATE_PATH" 2>/dev/null || true)"
@@ -117,7 +164,7 @@ jq -r '
 ' "$response_path" | sort -u > "$desired_records_path"
 cut -f2 "$desired_records_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
 jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$previous_path" || true
-curl -fsS "$BLUECLAW_URL/admin/api/policy" > "$current_policy_path" 2>/dev/null || true
+read_policy_snapshot
 jq -r '.people[]?.emails[]?' "$current_policy_path" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_all_path" || true
 write_removable_policy_emails || true
 
@@ -136,10 +183,10 @@ while IFS="$(printf '\t')" read -r person_id email display_name role circle_list
   [ -n "$person_id" ] || continue
   [ -n "$email" ] || continue
   body="$(jq -cn --arg personID "$person_id" --arg email "$email" --arg displayName "$display_name" --arg role "$role" --arg circles "$circle_list" '{personID:$personID,email:$email,circles:((($circles | split(",") | map(select(. != ""))) + ["staff"]) | unique)} + (if $displayName == "" then {} else {displayName:$displayName} end) + (if $role == "admin" then {isAdmin:true} else {} end)')"
-  curl -fsS -X POST \
+  request_or_exit "invite $email" "$invite_response_path" -X POST \
     -H "Content-Type: application/json" \
     -d "$body" \
-    "$BLUECLAW_URL/admin/api/people/invite" >/dev/null
+    "$BLUECLAW_URL/admin/api/people/invite"
 done < "$desired_records_path"
 
 cat "$previous_path" "$policy_removable_path" | sort -u > "$removal_source_path"
@@ -152,13 +199,11 @@ if [ -s "$removal_source_path" ]; then
     fi
     if ! grep -Fxq "$email" "$desired_path"; then
       encoded_email="$(printf '%s' "$email" | jq -sRr @uri)"
-      status_code="$(curl -sS -X DELETE \
-        --output /dev/null \
-        --write-out '%{http_code}' \
-        "$BLUECLAW_URL/admin/api/people?email=$encoded_email" || true)"
-      case "$status_code" in
+      send_request "remove $email" "$removal_response_path" -X DELETE \
+        "$BLUECLAW_URL/admin/api/people?email=$encoded_email" || exit 1
+      case "$http_status_code" in
         200|404) ;;
-        *) echo "users-sync: failed to remove $email ($status_code)" >&2; exit 1 ;;
+        *) report_response_body "remove $email" "$removal_response_path"; exit 1 ;;
       esac
     fi
   done < "$removal_source_path"
