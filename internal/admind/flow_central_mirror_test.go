@@ -87,6 +87,45 @@ func TestABoardTaskBecomesADeviceTaskWithSomebodyOwningIt(t *testing.T) {
 	}
 }
 
+func TestATaskTheBoardGaveNoDatesStillLandsInAWeek(t *testing.T) {
+	task := deviceFlowTaskOf(centralplane.ChangedTask{
+		CentralID: "central-2",
+		Title:     "보드에서 만든 업무",
+		Status:    "in_progress",
+	}, flowTask{}, false, map[string]adminUserMutation{})
+
+	if task.WeekCode != weekCodeForDate(flowDateNow()) {
+		t.Fatalf("the week board is where the agent reads work, and this one is filed under %q", task.WeekCode)
+	}
+}
+
+func TestAPlannedTaskIsFiledUnderTheWeekItStartsIn(t *testing.T) {
+	task := deviceFlowTaskOf(centralplane.ChangedTask{
+		CentralID: "central-3",
+		Title:     "다음 주 업무",
+		Status:    "todo",
+		StartsAt:  "2026-08-24T00:00:00+09:00",
+	}, flowTask{}, false, map[string]adminUserMutation{})
+
+	if task.StartDate != "2026-08-24" || task.WeekCode != "26W35" {
+		t.Fatalf("start = %q week = %q", task.StartDate, task.WeekCode)
+	}
+}
+
+func TestATaskTheDeviceAlreadyFiledKeepsItsWeek(t *testing.T) {
+	existing := flowTask{ID: "kept", WeekCode: "26W20", Status: "진행"}
+
+	task := deviceFlowTaskOf(centralplane.ChangedTask{
+		CentralID: "central-4",
+		Title:     "제목만 바뀐 업무",
+		Status:    "in_progress",
+	}, existing, true, map[string]adminUserMutation{})
+
+	if task.WeekCode != "26W20" {
+		t.Fatalf("a title change must not move the task to another week: %q", task.WeekCode)
+	}
+}
+
 func TestMirroringDoesNotQueueTheTaskStraightBack(t *testing.T) {
 	service := newFlowCentralTestService(t)
 	task := flowNotificationTestTask("진행")
