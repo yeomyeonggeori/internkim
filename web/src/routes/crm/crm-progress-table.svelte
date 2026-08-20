@@ -3,7 +3,7 @@
 	import * as Table from '$lib/components/ui/table';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import type { CRMOrganization, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
-	import { daysLabel, findOrganizationByID, findNextActionByID, formatMoney, getStageVariant, opportunityStageLabel } from './crm-view-model';
+	import { crmInterimCurrencyCatalogue, daysLabel, findOrganizationByID, findNextActionByID, formatMoney, getStageVariant, opportunityStageLabel } from './crm-view-model';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -95,7 +95,7 @@
 						<Table.Cell class="hidden whitespace-normal md:table-cell">
 							<p class="truncate">{opportunity.ownerName}</p>
 						</Table.Cell>
-						<Table.Cell class="hidden font-medium sm:table-cell">{formatMoney(opportunity.expectedValue, opportunity.currency, text.noValue)}</Table.Cell>
+						<Table.Cell class="hidden font-medium sm:table-cell">{formatMoney(opportunity.expectedValue, opportunity.currency, crmInterimCurrencyCatalogue, text.noValue)}</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal text-muted-foreground lg:table-cell">
 							<p class="truncate">{action?.title ?? text.none}</p>
 						</Table.Cell>

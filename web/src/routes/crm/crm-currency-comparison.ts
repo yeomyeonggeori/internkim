@@ -1,4 +1,4 @@
-import { crmCurrencies } from './crm-money';
+import { crmInterimCurrencyCatalogue } from './crm-money';
 import type { CRMCurrency, CRMMoneyTotals } from './crm-types';
 
 export type CRMCurrencyComparisonRow = {
@@ -13,7 +13,8 @@ export function buildCRMCurrencyComparisonRows(
 	expectedTotals: CRMMoneyTotals,
 	wonTotals: CRMMoneyTotals
 ): CRMCurrencyComparisonRow[] {
-	return crmCurrencies
+	return crmInterimCurrencyCatalogue
+		.map((entry) => entry.code)
 		.filter((currency) => expectedTotals[currency] !== undefined || wonTotals[currency] !== undefined)
 		.map((currency) => {
 			const expectedValue = expectedTotals[currency];

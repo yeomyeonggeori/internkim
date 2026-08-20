@@ -1,17 +1,29 @@
 import type { CRMCurrency, CRMMoneyTotals, CRMOpportunity } from './crm-types';
 
-export const crmCurrencies: CRMCurrency[] = ['KRW', 'USD', 'JPY', 'EUR'];
-const crmCurrencySet = new Set<string>(crmCurrencies);
-const myriadGroupedCurrencies = new Set<CRMCurrency>(['KRW', 'JPY']);
-export const crmCurrencySymbols: Record<CRMCurrency, string> = {
-	KRW: '₩',
-	USD: '$',
-	JPY: '¥',
-	EUR: '€'
+export type CRMCurrencyGrouping = 'myriad' | 'thousand';
+
+export type CRMCurrencyCatalogueEntry = {
+	code: CRMCurrency;
+	name: string;
+	symbol: string;
+	minorUnitDigits: number;
+	grouping: CRMCurrencyGrouping;
 };
 
-export function isCRMCurrency(value: string): value is CRMCurrency {
-	return crmCurrencySet.has(value);
+export type CRMCurrencyCatalogue = CRMCurrencyCatalogueEntry[];
+
+export const crmInterimCurrencyCatalogue: CRMCurrencyCatalogue = [
+	{ code: 'KRW', name: 'Korean Won', symbol: '₩', minorUnitDigits: 0, grouping: 'myriad' },
+	{ code: 'USD', name: 'US Dollar', symbol: '$', minorUnitDigits: 2, grouping: 'thousand' },
+	{ code: 'JPY', name: 'Japanese Yen', symbol: '¥', minorUnitDigits: 0, grouping: 'myriad' },
+	{ code: 'EUR', name: 'Euro', symbol: '€', minorUnitDigits: 2, grouping: 'thousand' }
+];
+
+export function findCurrencyCatalogueEntry(
+	catalogue: CRMCurrencyCatalogue,
+	currency: CRMCurrency
+): CRMCurrencyCatalogueEntry | undefined {
+	return catalogue.find((entry) => entry.code === currency);
 }
 
 export function formatAmountInput(value: string): string {
@@ -29,18 +41,24 @@ export function parseAmountInput(value: string): number | undefined {
 	return amount;
 }
 
-export function formatMoney(value: number | undefined, currency: CRMCurrency, noValue = '-'): string {
+export function formatMoney(
+	value: number | undefined,
+	currency: CRMCurrency,
+	catalogue: CRMCurrencyCatalogue,
+	noValue = '-'
+): string {
 	if (value === undefined) return noValue;
-	const symbol = crmCurrencySymbols[currency];
-	return myriadGroupedCurrencies.has(currency)
-		? formatMyriadMoney(value, symbol)
-		: formatThousandGroupedMoney(value, symbol);
+	const entry = findCurrencyCatalogueEntry(catalogue, currency);
+	if (!entry) return `${currency}${value.toLocaleString()}`;
+	return entry.grouping === 'myriad'
+		? formatMyriadMoney(value, entry.symbol)
+		: formatThousandGroupedMoney(value, entry.symbol);
 }
 
-export function formatMoneyTotals(totals: CRMMoneyTotals, noValue = '-'): string {
-	const values = crmCurrencies
-		.filter((currency) => totals[currency] !== undefined)
-		.map((currency) => formatMoney(totals[currency], currency, noValue));
+export function formatMoneyTotals(totals: CRMMoneyTotals, catalogue: CRMCurrencyCatalogue, noValue = '-'): string {
+	const values = catalogue
+		.filter((entry) => totals[entry.code] !== undefined)
+		.map((entry) => formatMoney(totals[entry.code], entry.code, catalogue, noValue));
 	return values.length === 0 ? noValue : values.join(' · ');
 }
 

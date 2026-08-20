@@ -2,7 +2,7 @@
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
-	import { crmCurrencies, crmCurrencySymbols, formatAmountInput, isCRMCurrency } from './crm-money';
+	import { crmInterimCurrencyCatalogue, findCurrencyCatalogueEntry, formatAmountInput } from './crm-money';
 	import type { CRMCurrency } from './crm-types';
 
 	type Props = {
@@ -21,7 +21,7 @@
 	}
 
 	function updateCurrency(value: string): void {
-		if (isCRMCurrency(value)) currency = value;
+		if (findCurrencyCatalogueEntry(crmInterimCurrencyCatalogue, value)) currency = value;
 	}
 </script>
 
@@ -31,8 +31,8 @@
 		<Select.Root type="single" value={currency} onValueChange={updateCurrency} {disabled}>
 			<Select.Trigger id={`${id}-currency`} class="w-full" aria-label={currencyLabel}>{currency}</Select.Trigger>
 			<Select.Content>
-				{#each crmCurrencies as option (option)}
-					<Select.Item value={option} label={option}>{option}</Select.Item>
+				{#each crmInterimCurrencyCatalogue as option (option.code)}
+					<Select.Item value={option.code} label={option.code}>{option.code}</Select.Item>
 				{/each}
 			</Select.Content>
 		</Select.Root>
@@ -42,7 +42,7 @@
 				data-crm-currency-symbol={currency}
 				aria-hidden="true"
 			>
-				{crmCurrencySymbols[currency]}
+				{findCurrencyCatalogueEntry(crmInterimCurrencyCatalogue, currency)?.symbol}
 			</span>
 			<Input
 				{id}

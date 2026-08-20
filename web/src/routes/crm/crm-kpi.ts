@@ -1,6 +1,6 @@
 import type { CRMOrganization, CRMCurrency, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
 import { currentCRMDate, shiftCRMDate } from './crm-date';
-import { crmCurrencies, formatMoney, formatMoneyTotals, sumOpportunityMoney } from './crm-money';
+import { crmInterimCurrencyCatalogue, formatMoney, formatMoneyTotals, sumOpportunityMoney } from './crm-money';
 import { findOrganizationByID, getActionUrgency, getProgressKind } from './crm-view-model';
 import type { CRMText } from './text';
 
@@ -41,12 +41,15 @@ function buildMoneySummary(
 	text: CRMText
 ): { displayValue: string; moneyDetails?: CRMKPIMoneyDetail[] } {
 	const totals = sumOpportunityMoney(opportunities);
-	const moneyDetails = crmCurrencies.reduce<CRMKPIMoneyDetail[]>((details, currency) => {
-		const amount = totals[currency];
+	const moneyDetails = crmInterimCurrencyCatalogue.reduce<CRMKPIMoneyDetail[]>((details, entry) => {
+		const amount = totals[entry.code];
 		if (amount === undefined) return details;
-		return [...details, { currency, displayValue: formatMoney(amount, currency, text.noValue) }];
+		return [
+			...details,
+			{ currency: entry.code, displayValue: formatMoney(amount, entry.code, crmInterimCurrencyCatalogue, text.noValue) }
+		];
 	}, []);
-	if (moneyDetails.length <= 1) return { displayValue: formatMoneyTotals(totals, text.noValue) };
+	if (moneyDetails.length <= 1) return { displayValue: formatMoneyTotals(totals, crmInterimCurrencyCatalogue, text.noValue) };
 	return {
 		displayValue: text.currencyCount.replace('{count}', String(moneyDetails.length)),
 		moneyDetails
