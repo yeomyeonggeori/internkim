@@ -6,12 +6,6 @@ import type { RequestHandler } from './$types';
 const provider: ExchangeRateProvider = frankfurterProvider();
 const currencyCodePattern = /^[A-Z]{3}$/;
 
-function requireAccessToken(request: Request): void {
-	const authorization = request.headers.get('authorization') ?? '';
-	const accessToken = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
-	if (!accessToken) error(401, 'sign in first');
-}
-
 function requiredAmountMinor(url: URL): number {
 	const rawAmountMinor = url.searchParams.get('amountMinor');
 	if (rawAmountMinor === null) error(400, 'amountMinor is required');
@@ -26,8 +20,7 @@ function requiredCurrencyCode(url: URL, key: string): string {
 	return currencyCode;
 }
 
-export const GET: RequestHandler = async ({ request, url }) => {
-	requireAccessToken(request);
+export const GET: RequestHandler = async ({ url }) => {
 	const amountMinor = requiredAmountMinor(url);
 	const from = requiredCurrencyCode(url, 'from');
 	const to = requiredCurrencyCode(url, 'to');
