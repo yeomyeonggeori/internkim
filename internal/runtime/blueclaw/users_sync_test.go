@@ -52,7 +52,7 @@ func TestUsersSyncScriptMaintainsWorkspaceDirectoriesWithoutHostPolicySync(t *te
 	for _, fragment := range []string{
 		`{personID:$personID,email:$email,circles:`,
 		"refresh_current_policy()",
-		"curl -fsS \"$BLUECLAW_URL/admin/api/policy\" > \"$current_policy_path\"",
+		`request_or_exit "blueclaw policy read" "$current_policy_path" "$BLUECLAW_URL/admin/api/policy"`,
 		"blueclaw-posix-helper sync",
 		"--policy \"$current_policy_path\"",
 		"install -d -m 0711 \"$WORKSPACE_PATH/private\" \"$WORKSPACE_PATH/private/people\" \"$WORKSPACE_PATH/circles\"",
