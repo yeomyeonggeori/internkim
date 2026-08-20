@@ -237,9 +237,9 @@ function parseOpportunity(value: unknown): CRMOpportunityResponse {
 		ownerPersonID: requiredString(record, 'ownerPersonID'),
 		ownerCircleID: optionalString(record, 'ownerCircleID'),
 		amountMinor: optionalNumber(record, 'amountMinor'),
-		currencyCode: enumString(record, 'currencyCode', ['', 'KRW', 'USD', 'JPY', 'EUR']),
+		currencyCode: currencyCodeString(record, 'currencyCode'),
 		baseAmountMinor: optionalNumber(record, 'baseAmountMinor'),
-		baseCurrencyCode: optionalEnumString(record, 'baseCurrencyCode', ['KRW', 'USD', 'JPY', 'EUR']),
+		baseCurrencyCode: optionalCurrencyCodeString(record, 'baseCurrencyCode'),
 		importance: enumString(record, 'importance', ['high', 'medium', 'low']),
 		dueAt: optionalString(record, 'dueAt'),
 		dueTimeZone: optionalString(record, 'dueTimeZone'),
@@ -381,6 +381,19 @@ function enumString<const T extends string>(record: Record<string, unknown>, key
 	const value = requiredString(record, key);
 	if (!values.includes(value as T)) throw invalidResponse('CRM API', `${key} has an unsupported value`);
 	return value as T;
+}
+
+const isoCurrencyCodePattern = /^[A-Z]{3}$/;
+
+function currencyCodeString(record: Record<string, unknown>, key: string): string {
+	const value = optionalString(record, key) ?? '';
+	if (value !== '' && !isoCurrencyCodePattern.test(value)) throw invalidResponse('CRM API', `${key} is not an ISO 4217 code`);
+	return value;
+}
+
+function optionalCurrencyCodeString(record: Record<string, unknown>, key: string): string | undefined {
+	const value = currencyCodeString(record, key);
+	return value === '' ? undefined : value;
 }
 
 function optionalEnumString<const T extends string>(record: Record<string, unknown>, key: string, values: readonly T[]): T | undefined {

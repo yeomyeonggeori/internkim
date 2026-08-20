@@ -135,7 +135,7 @@ export class CRMPageController {
 			]);
 			this.people = directory.records ?? [];
 			this.groups = directory.availableGroups ?? [];
-			this.applyViewData(mapCRMViewData(data, this.people, browserTimeZone(), this.groups));
+			this.applyViewData(mapCRMViewData(data, this.people, this.currencyCatalogue, browserTimeZone(), this.groups));
 		} catch (error) {
 			this.applyError(error);
 		} finally {
@@ -156,7 +156,7 @@ export class CRMPageController {
 				return;
 			}
 			if (draft.kind === 'progress') {
-				const payload = opportunityPayloadFromDraft(draft, owner, browserTimeZone());
+				const payload = opportunityPayloadFromDraft(draft, owner, browserTimeZone(), this.currencyCatalogue);
 				const transition = {
 					...this.transitionPayload('', draft.stage, null, draft.progressKind, {
 						amountMinor: payload.amountMinor,
@@ -200,7 +200,7 @@ export class CRMPageController {
 	async saveOpportunity(opportunity: CRMOpportunity): Promise<void> {
 		await this.mutate(async () => {
 			const existing = this.opportunities.find((candidate) => candidate.id === opportunity.id);
-			const payload = opportunityPayload(opportunity);
+			const payload = opportunityPayload(opportunity, this.currencyCatalogue);
 			if (!existing || opportunity.stage === existing.stage) {
 				await updateCRMOpportunity(opportunity.id, payload);
 				return;
@@ -234,7 +234,7 @@ export class CRMPageController {
 		if (!opportunity) return;
 		await this.mutate(async () => {
 			if (opportunity.stage !== request.targetStage) {
-				const payload = opportunityPayload(opportunity);
+				const payload = opportunityPayload(opportunity, this.currencyCatalogue);
 				await transitionCRMOpportunity(
 					opportunity.id,
 					this.transitionPayload(
@@ -313,7 +313,7 @@ export class CRMPageController {
 
 	private async reloadRemote(): Promise<void> {
 		const data = await loadCRMData();
-		this.applyViewData(mapCRMViewData(data, this.people, browserTimeZone(), this.groups));
+		this.applyViewData(mapCRMViewData(data, this.people, this.currencyCatalogue, browserTimeZone(), this.groups));
 	}
 
 	private async createRelationship(draft: Extract<CRMCreateDraft, { kind: 'relationship' }>): Promise<void> {

@@ -37,7 +37,7 @@
 		CRMRecordKind
 	} from './crm-types';
 	import { findOrganizationByID, opportunityStageLabel } from './crm-view-model';
-	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
+	import { minorAmountOf, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -96,6 +96,10 @@
 	let lostReason = $state('');
 	let amount = $state('');
 	let currency = $state<CRMCurrency>('');
+	let typedAmountMinor = $derived.by(() => {
+		const typedAmount = parseAmountInput(amount);
+		return typedAmount === undefined ? null : minorAmountOf(typedAmount, currency, currencyCatalogue);
+	});
 	let targetDate = $state('');
 	let opportunityID = $state('');
 	let activityContactID = $state('');
@@ -305,7 +309,7 @@
 						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-target">{text.targetDate}</Field.Label><Input id="crm-record-target" type="date" bind:value={targetDate} /></Field.Field></div>
 							<CRMMoneyField {currencyCatalogue} id="crm-record-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency />
 							<CRMConversionPreview
-								amountMinor={parseAmountInput(amount) ?? null}
+								amountMinor={typedAmountMinor}
 								{currency}
 								baseCurrency={companyBaseCurrency}
 								settledAmountMinor={null}

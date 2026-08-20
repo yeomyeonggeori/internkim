@@ -26,13 +26,18 @@ export function findCurrencyCatalogueEntry(
 	return catalogue.find((entry) => entry.code === currency);
 }
 
-export function majorAmountOf(
-	amountMinor: number,
-	currency: string,
-	catalogue: CurrencyCatalogue
-): number {
-	const entry = findCurrencyCatalogueEntry(catalogue, currency);
-	return amountMinor / 10 ** (entry?.minorUnitDigits ?? 2);
+const assumedMinorUnitDigits = 2;
+
+function minorUnitDigitsOf(currency: string, catalogue: CurrencyCatalogue): number {
+	return findCurrencyCatalogueEntry(catalogue, currency)?.minorUnitDigits ?? assumedMinorUnitDigits;
+}
+
+export function majorAmountOf(amountMinor: number, currency: string, catalogue: CurrencyCatalogue): number {
+	return amountMinor / 10 ** minorUnitDigitsOf(currency, catalogue);
+}
+
+export function minorAmountOf(amountMajor: number, currency: string, catalogue: CurrencyCatalogue): number {
+	return Math.round(amountMajor * 10 ** minorUnitDigitsOf(currency, catalogue));
 }
 
 export async function loadCurrencyCatalogue(): Promise<CurrencyCatalogue> {

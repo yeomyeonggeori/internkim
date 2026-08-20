@@ -1,3 +1,4 @@
+import { majorAmountOf, minorAmountOf, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 import type { OrgGroup, UserRecord } from '$lib/organization/types';
 import type {
 	CRMOrganizationPayload,
@@ -50,11 +51,12 @@ export class CRMOwnerResolutionError extends Error {
 export function mapCRMViewData(
 	data: CRMDataResponse,
 	people: UserRecord[],
+	catalogue: CurrencyCatalogue,
 	timeZone = browserTimeZone(),
 	groups: OrgGroup[] = []
 ): CRMViewData {
 	const stages = data.stages.map((stage) => ({ ...stage }));
-	const opportunities = data.opportunities.map((opportunity) => mapOpportunity(opportunity, people));
+	const opportunities = data.opportunities.map((opportunity) => mapOpportunity(opportunity, people, catalogue));
 	const activities = data.activities.map((activity) => mapActivity(activity));
 	const organizations = data.organizations.map((organization) => mapOrganization(organization, people, opportunities, activities, stages, timeZone, groups));
 	return {
@@ -133,7 +135,7 @@ export function contactPayloadFromDraft(
 	};
 }
 
-export function opportunityPayload(opportunity: CRMOpportunity): CRMOpportunityPayload {
+export function opportunityPayload(opportunity: CRMOpportunity, catalogue: CurrencyCatalogue): CRMOpportunityPayload {
 	return {
 		organizationID: opportunity.organizationID,
 		business: opportunity.business,
@@ -141,7 +143,7 @@ export function opportunityPayload(opportunity: CRMOpportunity): CRMOpportunityP
 		pipeline: opportunity.pipeline ?? opportunity.kind ?? 'sales',
 		ownerPersonID: opportunity.ownerPersonID ?? '',
 		ownerCircleID: opportunity.ownerCircleID ?? '',
-		amountMinor: majorToMinor(opportunity.expectedValue, opportunity.currency),
+		amountMinor: majorToMinor(opportunity.expectedValue, opportunity.currency, catalogue),
 		currencyCode: opportunity.expectedValue === undefined ? '' : opportunity.currency,
 		importance: opportunity.importance,
 		dueAt: opportunity.targetDate ? localDateToUTC(opportunity.targetDate, opportunity.dueTimeZone ?? browserTimeZone()) : '',
@@ -154,7 +156,8 @@ export function opportunityPayload(opportunity: CRMOpportunity): CRMOpportunityP
 export function opportunityPayloadFromDraft(
 	draft: Extract<CRMCreateDraft, { kind: 'progress' }>,
 	owner: UserRecord,
-	timeZone: string
+	timeZone: string,
+	catalogue: CurrencyCatalogue
 ): CRMOpportunityPayload {
 	return {
 		organizationID: draft.organizationID,
@@ -163,7 +166,7 @@ export function opportunityPayloadFromDraft(
 		pipeline: draft.progressKind,
 		ownerPersonID: owner.userID,
 		ownerCircleID: owner.groupID ?? '',
-		amountMinor: majorToMinor(draft.amount, draft.currency),
+		amountMinor: majorToMinor(draft.amount, draft.currency, catalogue),
 		currencyCode: draft.amount === undefined ? '' : draft.currency,
 		importance: draft.importance,
 		dueAt: draft.targetDate ? localDateToUTC(draft.targetDate, timeZone) : '',
@@ -308,7 +311,11 @@ function mapContact(contact: CRMContactResponse): CRMContact {
 	};
 }
 
-function mapOpportunity(opportunity: CRMOpportunityResponse, people: UserRecord[]): CRMOpportunity {
+function mapOpportunity(
+	opportunity: CRMOpportunityResponse,
+	people: UserRecord[],
+	catalogue: CurrencyCatalogue
+): CRMOpportunity {
 	const owner = people.find((person) => person.userID === opportunity.ownerPersonID);
 	const timeZone = opportunity.dueTimeZone || 'UTC';
 	return {
@@ -323,7 +330,7 @@ function mapOpportunity(opportunity: CRMOpportunityResponse, people: UserRecord[
 		ownerPersonID: opportunity.ownerPersonID,
 		ownerCircleID: opportunity.ownerCircleID,
 		ownerName: owner?.name || owner?.email || opportunity.ownerPersonID,
-		expectedValue: minorToMajor(opportunity.amountMinor, opportunity.currencyCode),
+		expectedValue: minorToMajor(opportunity.amountMinor, opportunity.currencyCode, catalogue),
 		currency: opportunity.currencyCode || 'KRW',
 		baseAmountMinor: opportunity.baseAmountMinor,
 		baseCurrencyCode: opportunity.baseCurrencyCode,
@@ -373,18 +380,18 @@ function moneyTotals(opportunities: CRMOpportunity[]) {
 	}, {});
 }
 
-function majorToMinor(value: number | undefined, currency: CRMCurrency): number | null {
+function majorToMinor(value: number | undefined, currency: CRMCurrency, catalogue: CurrencyCatalogue): number | null {
 	if (value === undefined) return null;
-	return Math.round(value * currencyMultiplier(currency));
+	return minorAmountOf(value, currency, catalogue);
 }
 
-function minorToMajor(value: number | undefined, currency: CRMCurrency | ''): number | undefined {
+function minorToMajor(
+	value: number | undefined,
+	currency: CRMCurrency | '',
+	catalogue: CurrencyCatalogue
+): number | undefined {
 	if (value === undefined) return undefined;
-	return value / currencyMultiplier(currency || 'KRW');
-}
-
-function currencyMultiplier(currency: CRMCurrency): number {
-	return currency === 'USD' || currency === 'EUR' ? 100 : 1;
+	return majorAmountOf(value, currency || 'KRW', catalogue);
 }
 
 function daysSince(dateTime: string): number {
