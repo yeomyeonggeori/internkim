@@ -30,7 +30,7 @@ func (service *Service) handleDirectoryPerson(responseWriter http.ResponseWriter
 	known, errorValue := service.ensurePersonFromDirectory(request.Context(), payload.Email, payload.Name)
 	if errorValue != nil {
 		log.Printf("directory.person.failed: %v", errorValue)
-		http.Error(responseWriter, "the company directory could not be reached", http.StatusBadGateway)
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")
