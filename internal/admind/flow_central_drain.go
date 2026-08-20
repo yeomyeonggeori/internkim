@@ -42,6 +42,7 @@ func (service *Service) drainFlowTasksToCentralPlane(ctx context.Context) {
 	}
 	for _, entry := range entries {
 		if errorValue := service.drainOneFlowTask(ctx, client, entry); errorValue != nil {
+			log.Printf("flow task %s did not reach the central plane on attempt %d: %v", entry.TaskID, entry.AttemptCount+1, errorValue)
 			if markError := service.markFlowCentralOutboxAttempt(ctx, entry.TaskID, errorValue); markError != nil {
 				log.Printf("flow queue attempt unrecorded for %s: %v", entry.TaskID, markError)
 			}
