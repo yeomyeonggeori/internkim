@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test';
+import { devAttendancePeople } from '../../dev-attendance-fixture-data';
 import { buildAttendanceSummaryFixture } from '../../dev-attendance-summary-fixture';
 import type {
 	LeaveApprovalChange,
@@ -7,6 +8,8 @@ import type {
 } from '../../src/routes/attendance/approval/leave-approval-types';
 import { expect, test } from './attendance-page-test-fixture';
 import { selectKorean } from './attendance-test-helpers';
+
+const requester = devAttendancePeople[0];
 
 test.describe('administrator leave approvals', () => {
 	test('shows the admin inbox and moves an approved request to recent changes', async ({ page }) => {
@@ -22,7 +25,8 @@ test.describe('administrator leave approvals', () => {
 		const view = page.getByTestId('leave-approval-view');
 		await expect(view).toBeVisible();
 		const requestCard = view.getByTestId('leave-approval-request-leave-approval-pending');
-		await expect(requestCard.getByText('kim@example.com')).toBeVisible();
+		await expect(requestCard.getByText(requester.name)).toBeVisible();
+		await expect(requestCard.getByText(requester.email)).toHaveCount(0);
 		await expect(requestCard.getByText('개인 일정')).toBeVisible();
 		await expect(requestCard.getByText('첨부자료 없음')).toBeVisible();
 		await requestCard.getByRole('button', { name: '승인', exact: true }).click();
@@ -211,7 +215,8 @@ test.describe('administrator leave approvals', () => {
 		await approvalTab.click();
 		const approvalView = page.getByTestId('leave-approval-view');
 		await expect(approvalView).toBeVisible();
-		await expect(approvalView.getByText('kim@example.com')).toBeVisible();
+		await expect(approvalView.getByText(requester.name)).toBeVisible();
+		await expect(approvalView.getByText(requester.email)).toHaveCount(0);
 	});
 });
 
@@ -286,7 +291,7 @@ function approvalInboxFixture(): LeaveApprovalInbox {
 		pending: [
 			{
 				id: 'leave-approval-pending',
-				employeeEmail: 'kim@example.com',
+				employeeEmail: requester.email,
 				leaveTypeID: 'annual',
 				leaveTypeName: '연차',
 				balanceMode: 'annual',
