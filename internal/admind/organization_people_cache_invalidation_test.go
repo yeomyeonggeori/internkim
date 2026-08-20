@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -192,19 +193,13 @@ func TestOrganizationPeopleCacheInvalidatesSourceAndCanonicalProxyUser(t *testin
 					}
 					pagesUserID = payload.UserID
 					return jsonResponse(http.StatusOK, `{"records":[{"userID":"`+remoteUserID+`","email":"existing@example.com","role":"admin"}]}`, nil), nil
-				case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/people/invite":
+				case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/reload":
 					assertOrganizationIdentityMutationActive(t, service, canonicalUserID, email)
 					assertOrganizationIdentityMutationActive(t, service, remoteUserID, email)
-					var payload map[string]string
-					if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-						t.Fatal(errorValue)
-					}
-					blueclawPersonID = payload["personID"]
+					blueclawPersonID = deliveredPersonIDForEmail(t, service, email)
 					if blueclawPersonID != canonicalUserID {
-						t.Fatalf("Blueclaw personID = %q; want %q", blueclawPersonID, canonicalUserID)
+						t.Fatalf("the delivered roster names %q for %s; want %q", blueclawPersonID, email, canonicalUserID)
 					}
-					return jsonResponse(http.StatusOK, `{}`, nil), nil
-				case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/save":
 					policySaved = true
 					return jsonResponse(http.StatusOK, `{}`, nil), nil
 				case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/circle-staff":
@@ -292,4 +287,31 @@ func TestOrganizationPeopleCacheInvalidatesSourceAndCanonicalProxyDeletedUser(t 
 	}
 	assertOrganizationIdentityCacheFound(t, service, canonicalUserID, email, false)
 	assertOrganizationIdentityCacheFound(t, service, remoteUserID, email, false)
+}
+
+// deliveredPersonIDForEmail reads the roster the host wrote, which is what the agent reads
+// when it is told to reload. Asserting on the reload request would only prove a call fired.
+func deliveredPersonIDForEmail(t *testing.T, service *Service, email string) string {
+	t.Helper()
+	document, errorValue := os.ReadFile(service.Configuration.BlueclawPolicyDeliveryPath)
+	if errorValue != nil {
+		t.Fatalf("the host writes the roster before telling the agent to reload: %v", errorValue)
+	}
+	var policyDocument struct {
+		People []struct {
+			PersonID string   `json:"personID"`
+			Emails   []string `json:"emails"`
+		} `json:"people"`
+	}
+	if errorValue := json.Unmarshal(document, &policyDocument); errorValue != nil {
+		t.Fatalf("a roster the agent cannot parse refuses everybody: %v", errorValue)
+	}
+	for _, person := range policyDocument.People {
+		for _, personEmail := range person.Emails {
+			if strings.EqualFold(strings.TrimSpace(personEmail), strings.TrimSpace(email)) {
+				return person.PersonID
+			}
+		}
+	}
+	return ""
 }

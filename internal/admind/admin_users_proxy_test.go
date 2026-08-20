@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -170,8 +171,6 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 				t.Fatal(errorValue)
 			}
 			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"newhandle","name":"New Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"newhandle"}]}`, nil), nil
-		case isBlueclawInviteRequest(t, request, "member@example.com"):
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -201,7 +200,8 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 
 func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 	var savedPerson map[string]any
-	service := newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
+	var service *Service
+	service = newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
 		if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
 			return response, nil
 		}
@@ -214,20 +214,10 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member"}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
-		case isBlueclawInviteRequest(t, request, "member@example.com"):
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, `{"people":[{"personID":"user-member","displayName":"Member User","emails":["member@example.com"],"circles":["staff"],"isAdmin":false,"note":"Existing note"}],"channels":[],"circleSync":{"mattermostPrivateChannels":[{"circleID":"staff","channelName":"circle-staff"}]},"retention":{"rawEventDays":60}}`, nil), nil
-		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/save":
-			var policyDocument map[string]any
-			if errorValue := json.NewDecoder(request.Body).Decode(&policyDocument); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			people, _ := policyDocument["people"].([]any)
-			if len(people) != 1 {
-				t.Fatalf("Blueclaw people = %#v", policyDocument["people"])
-			}
-			savedPerson, _ = people[0].(map[string]any)
+		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload":
+			savedPerson = onlyDeliveredPerson(t, service)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/circle-staff":
 			return jsonResponse(http.StatusOK, `{"id":"circle-staff-channel"}`, nil), nil
@@ -258,7 +248,8 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 
 func TestOrganizationUserMutationCleanupFailurePreservesSuccessProxy(t *testing.T) {
 	sourceResponseBody := `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}],"source":"pages"}`
-	service := newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
+	var service *Service
+	service = newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
 		if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
 			return response, nil
 		}
@@ -273,8 +264,6 @@ func TestOrganizationUserMutationCleanupFailurePreservesSuccessProxy(t *testing.
 			return jsonResponse(http.StatusAccepted, sourceResponseBody, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
-		case isBlueclawInviteRequest(t, request, "member@example.com"):
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -354,4 +343,24 @@ func adminUsersProxyCommonMattermostResponse(t *testing.T, request *http.Request
 	default:
 		return nil, false
 	}
+}
+
+// onlyDeliveredPerson reads the roster the host wrote. The reload call says the file
+// changed; the file is what decides who the agent knows.
+func onlyDeliveredPerson(t *testing.T, service *Service) map[string]any {
+	t.Helper()
+	document, errorValue := os.ReadFile(service.Configuration.BlueclawPolicyDeliveryPath)
+	if errorValue != nil {
+		t.Fatalf("the host writes the roster before telling the agent to reload: %v", errorValue)
+	}
+	var policyDocument map[string]any
+	if errorValue := json.Unmarshal(document, &policyDocument); errorValue != nil {
+		t.Fatalf("a roster the agent cannot parse refuses everybody: %v", errorValue)
+	}
+	people, _ := policyDocument["people"].([]any)
+	if len(people) != 1 {
+		t.Fatalf("delivered people = %#v", policyDocument["people"])
+	}
+	person, _ := people[0].(map[string]any)
+	return person
 }

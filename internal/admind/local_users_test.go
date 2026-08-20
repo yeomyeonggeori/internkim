@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -108,8 +109,25 @@ func TestLocalUpsertUser(t *testing.T) {
 		t.Fatal("Mattermost user create call did not fire")
 	}
 	if !blueclawSaved {
-		t.Fatal("Blueclaw policy save call did not fire")
+		t.Fatal("the agent was never told its roster changed, so it keeps answering from the old one")
 	}
+	delivered := deliveredPolicyDocument(t, service)
+	for _, expected := range []string{`"new@example.com"`, `"isAdmin": true`, `"Local note"`} {
+		if !strings.Contains(delivered, expected) {
+			t.Fatalf("the delivered roster is what the agent reads, and it is missing %s: %s", expected, delivered)
+		}
+	}
+}
+
+// deliveredPolicyDocument reads the roster the host wrote. The reload call only says the
+// file changed; the file is what decides who the agent knows.
+func deliveredPolicyDocument(t *testing.T, service *Service) string {
+	t.Helper()
+	document, errorValue := os.ReadFile(service.Configuration.BlueclawPolicyDeliveryPath)
+	if errorValue != nil {
+		t.Fatalf("the host writes the roster before telling the agent to reload: %v", errorValue)
+	}
+	return string(document)
 }
 
 func TestLocalUpsertUsersBatchRejectsDuplicateNormalizedEmailsBeforeExternalRequests(t *testing.T) {
@@ -294,17 +312,7 @@ func localUsersBlueclawUpsertResponse(t *testing.T, request *http.Request, bluec
 	switch {
 	case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 		return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
-	case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/people/invite":
-		body := readLocalUsersTestBody(t, request)
-		if !strings.Contains(body, `"email":"new@example.com"`) {
-			t.Fatalf("unexpected invite body %s", body)
-		}
-		return jsonResponse(http.StatusOK, `{}`, nil), nil
-	case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/save":
-		body := readLocalUsersTestBody(t, request)
-		if !strings.Contains(body, `"emails":["new@example.com"]`) || !strings.Contains(body, `"isAdmin":true`) || !strings.Contains(body, `"note":"Local note"`) {
-			t.Fatalf("unexpected policy save body %s", body)
-		}
+	case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/reload":
 		*blueclawSaved = true
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
 	default:

@@ -243,9 +243,7 @@ func newOrganizationCleanupFailureLocalDeleteClient(t *testing.T) *http.Client {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
-		case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/people/invite":
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/save":
+		case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/reload":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.Method == http.MethodDelete && request.URL.String() == "http://blueclaw.local/admin/api/people?email=member%40example.com":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
