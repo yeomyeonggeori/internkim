@@ -26,6 +26,15 @@ export function findCurrencyCatalogueEntry(
 	return catalogue.find((entry) => entry.code === currency);
 }
 
+export function majorAmountOf(
+	amountMinor: number,
+	currency: string,
+	catalogue: CurrencyCatalogue
+): number {
+	const entry = findCurrencyCatalogueEntry(catalogue, currency);
+	return amountMinor / 10 ** (entry?.minorUnitDigits ?? 2);
+}
+
 export async function loadCurrencyCatalogue(): Promise<CurrencyCatalogue> {
 	if (!isSupabaseConfigured()) return interimCurrencyCatalogue;
 	const response = await fetch('/api/currencies');
