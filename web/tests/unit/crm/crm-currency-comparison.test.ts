@@ -5,7 +5,7 @@ import { buildCRMCurrencyComparisonRows } from '../../../src/routes/crm/crm-curr
 describe('CRM currency comparison', () => {
 	test('compares expected and won values within each currency', () => {
 		expect(
-			buildCRMCurrencyComparisonRows(interimCurrencyCatalogue, 
+			buildCRMCurrencyComparisonRows(interimCurrencyCatalogue,
 				{ KRW: 200, USD: 80 },
 				{ KRW: 100, EUR: 50 }
 			)

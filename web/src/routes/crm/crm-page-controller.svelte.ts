@@ -129,12 +129,16 @@ export class CRMPageController {
 				this.loadFixture(currentEmail);
 				return;
 			}
-			const [data, directory] = await Promise.all([
+			const [data, directory, catalogue, baseCurrency] = await Promise.all([
 				loadCRMData(),
-				this.loadOrganizationDirectory()
+				this.loadOrganizationDirectory(),
+				loadCurrencyCatalogue(),
+				loadCompanyBaseCurrency()
 			]);
 			this.people = directory.records ?? [];
 			this.groups = directory.availableGroups ?? [];
+			this.currencyCatalogue = catalogue;
+			this.companyBaseCurrency = baseCurrency;
 			this.applyViewData(mapCRMViewData(data, this.people, this.currencyCatalogue, browserTimeZone(), this.groups));
 		} catch (error) {
 			this.applyError(error);
@@ -357,16 +361,6 @@ export class CRMPageController {
 		this.lostReasons = data.lostReasons;
 		this.vocabulary = data.vocabulary;
 		this.taskVocabulary = data.taskVocabulary;
-		void this.refreshCurrencyCatalogue();
-		void this.refreshCompanyBaseCurrency();
-	}
-
-	private async refreshCurrencyCatalogue(): Promise<void> {
-		this.currencyCatalogue = await loadCurrencyCatalogue();
-	}
-
-	private async refreshCompanyBaseCurrency(): Promise<void> {
-		this.companyBaseCurrency = await loadCompanyBaseCurrency();
 	}
 
 	private applyError(error: unknown): void {
