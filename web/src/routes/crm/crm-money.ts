@@ -2,6 +2,7 @@ import type { CRMCurrency, CRMMoneyTotals, CRMOpportunity } from './crm-types';
 
 export const crmCurrencies: CRMCurrency[] = ['KRW', 'USD', 'JPY', 'EUR'];
 const crmCurrencySet = new Set<string>(crmCurrencies);
+const myriadGroupedCurrencies = new Set<CRMCurrency>(['KRW', 'JPY']);
 export const crmCurrencySymbols: Record<CRMCurrency, string> = {
 	KRW: '₩',
 	USD: '$',
@@ -30,7 +31,10 @@ export function parseAmountInput(value: string): number | undefined {
 
 export function formatMoney(value: number | undefined, currency: CRMCurrency, noValue = '-'): string {
 	if (value === undefined) return noValue;
-	return formatCompactMoney(value, crmCurrencySymbols[currency]);
+	const symbol = crmCurrencySymbols[currency];
+	return myriadGroupedCurrencies.has(currency)
+		? formatMyriadMoney(value, symbol)
+		: formatThousandGroupedMoney(value, symbol);
 }
 
 export function formatMoneyTotals(totals: CRMMoneyTotals, noValue = '-'): string {
@@ -50,13 +54,25 @@ export function sumOpportunityMoney(
 	}, {});
 }
 
-function formatCompactMoney(value: number, currencySymbol: string): string {
+function formatMyriadMoney(value: number, currencySymbol: string): string {
 	if (value >= 100000000) {
 		const hundredMillions = Number((value / 100000000).toFixed(1));
 		return `${currencySymbol}${hundredMillions.toLocaleString()}억`;
 	}
 	if (value >= 10000) {
 		return `${currencySymbol}${Math.round(value / 10000).toLocaleString()}만`;
+	}
+	return `${currencySymbol}${value.toLocaleString()}`;
+}
+
+function formatThousandGroupedMoney(value: number, currencySymbol: string): string {
+	if (value >= 1000000) {
+		const millions = Number((value / 1000000).toFixed(1));
+		return `${currencySymbol}${millions.toLocaleString()}M`;
+	}
+	if (value >= 1000) {
+		const thousands = Number((value / 1000).toFixed(1));
+		return `${currencySymbol}${thousands.toLocaleString()}K`;
 	}
 	return `${currencySymbol}${value.toLocaleString()}`;
 }
