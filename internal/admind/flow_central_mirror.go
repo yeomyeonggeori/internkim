@@ -49,50 +49,59 @@ func (service *Service) mirrorFlowTasksFromCentralPlane(ctx context.Context) {
 		return
 	}
 	people := service.flowPeopleByID(ctx)
+	carried := 0
 	for _, task := range changed {
-		if errorValue := service.mirrorOneFlowTask(ctx, task, people); errorValue != nil {
+		landed, errorValue := service.mirrorOneFlowTask(ctx, task, people)
+		if errorValue != nil {
 			log.Printf("task %s did not reach this device: %v", task.CentralID, errorValue)
 			return
+		}
+		if landed {
+			carried++
 		}
 		if errorValue := service.writeFlowMirrorMark(ctx, task.UpdatedAt); errorValue != nil {
 			log.Printf("flow mirror mark unwritten: %v", errorValue)
 			return
 		}
 	}
+	if len(changed) > 0 {
+		log.Printf("the board had %d changes for this device and %d were newer than what it holds, now read up to %s",
+			len(changed), carried, changed[len(changed)-1].UpdatedAt)
+	}
 }
 
 // A task the device already holds keeps its own identifier, so the copy the
 // agent reads is the same row it has always been. One the board made arrives
 // with none, and is given one.
-func (service *Service) mirrorOneFlowTask(ctx context.Context, changed centralplane.ChangedTask, people map[string]adminUserMutation) error {
+func (service *Service) mirrorOneFlowTask(ctx context.Context, changed centralplane.ChangedTask, people map[string]adminUserMutation) (bool, error) {
 	deviceTaskID := strings.TrimSpace(changed.DeviceTaskID)
 	if deviceTaskID == "" {
 		known, errorValue := service.deviceTaskIDForCentralTask(ctx, changed.CentralID)
 		if errorValue != nil {
-			return errorValue
+			return false, errorValue
 		}
 		deviceTaskID = known
 	}
 
 	existing, found, errorValue := service.flowTaskIfPresent(ctx, deviceTaskID)
 	if errorValue != nil {
-		return errorValue
+		return false, errorValue
 	}
 	if found {
 		writtenAt, errorValue := service.flowTaskWrittenAt(ctx, deviceTaskID)
 		if errorValue != nil {
-			return errorValue
+			return false, errorValue
 		}
 		if !centralChangeIsNewer(changed.UpdatedAt, writtenAt) {
-			return nil
+			return false, nil
 		}
 	}
 
 	task := deviceFlowTaskOf(changed, existing, found, people)
 	if errorValue := service.writeMirroredFlowTask(ctx, task); errorValue != nil {
-		return errorValue
+		return false, errorValue
 	}
-	return service.rememberFlowCentralIdentityForTask(ctx, task.ID, changed.CentralID)
+	return true, service.rememberFlowCentralIdentityForTask(ctx, task.ID, changed.CentralID)
 }
 
 // Both sides may have written while the link was down, and the later write wins.
