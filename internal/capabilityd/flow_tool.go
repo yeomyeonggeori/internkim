@@ -1044,78 +1044,41 @@ func setFlowRequesterEmailHeader(request *http.Request, requesterEmail string) {
 	request.Header.Set(flowRequesterEmailHeader, normalizedEmail)
 }
 
-const flowTaskHintCandidateLimit = 20
+func (task flowTaskForTool) hintID() string { return task.ID }
+
+func (task flowTaskForTool) hintTitle() string { return task.Content }
 
 func resolveFlowTaskHint(taskHint string, requesterOwnerID string, tasks []flowTaskForTool) (flowTaskForTool, *flowTaskUpdateFailure) {
-	trimmedHint := strings.TrimSpace(taskHint)
-	if task, found := findFlowTaskByID(trimmedHint, tasks); found {
-		return task, nil
+	resolution := resolveHint(taskHint, tasks, flowTaskOwnership(requesterOwnerID))
+	if resolution.IsResolved {
+		return resolution.Match, nil
 	}
-	titleMatches := findFlowTasksByTitle(trimmedHint, tasks)
-	if len(titleMatches) == 1 {
-		return titleMatches[0], nil
-	}
-	if ownedMatch, isUnique := uniqueOwnedFlowTask(titleMatches, requesterOwnerID); isUnique {
-		return ownedMatch, nil
-	}
-	failure := flowTaskHintUnresolvedFailure(tasks)
+	failure := flowTaskHintUnresolvedFailure(resolution)
 	return flowTaskForTool{}, &failure
 }
 
-func uniqueOwnedFlowTask(tasks []flowTaskForTool, requesterOwnerID string) (flowTaskForTool, bool) {
-	requesterOwnerID = strings.TrimSpace(requesterOwnerID)
-	if requesterOwnerID == "" {
-		return flowTaskForTool{}, false
+func flowTaskOwnership(requesterOwnerID string) func(flowTaskForTool) bool {
+	trimmedRequesterOwnerID := strings.TrimSpace(requesterOwnerID)
+	if trimmedRequesterOwnerID == "" {
+		return nil
 	}
-	ownedMatches := make([]flowTaskForTool, 0, 1)
-	for _, task := range tasks {
-		if task.OwnerID == requesterOwnerID {
-			ownedMatches = append(ownedMatches, task)
-		}
-	}
-	if len(ownedMatches) != 1 {
-		return flowTaskForTool{}, false
-	}
-	return ownedMatches[0], true
+	return func(task flowTaskForTool) bool { return task.OwnerID == trimmedRequesterOwnerID }
 }
 
-func findFlowTaskByID(taskID string, tasks []flowTaskForTool) (flowTaskForTool, bool) {
-	for _, task := range tasks {
-		if task.ID == taskID {
-			return task, true
-		}
-	}
-	return flowTaskForTool{}, false
-}
-
-func findFlowTasksByTitle(title string, tasks []flowTaskForTool) []flowTaskForTool {
-	matches := make([]flowTaskForTool, 0, 1)
-	for _, task := range tasks {
-		if task.Content == title {
-			matches = append(matches, task)
-		}
-	}
-	return matches
-}
-
-func flowTaskHintUnresolvedFailure(tasks []flowTaskForTool) flowTaskUpdateFailure {
+func flowTaskHintUnresolvedFailure(resolution hintResolution[flowTaskForTool]) flowTaskUpdateFailure {
 	return flowTaskUpdateFailure{
 		ErrorCode:    "flow_task_hint_unresolved",
 		FailureStage: "target_resolution",
-		Message:      "taskHint did not uniquely resolve to a task; retry with the exact taskID or exact title from one of the candidates",
-		Candidates:   flowTaskHintCandidates(tasks),
+		Message:      unresolvedHintMessage("task", "taskHint", "taskID", resolution.IsAmbiguous),
+		Candidates:   flowTaskHintCandidates(resolution.Candidates),
 		Retryable:    true,
 		SafeRetry:    true,
 	}
 }
 
 func flowTaskHintCandidates(tasks []flowTaskForTool) []flowTaskHintCandidate {
-	limit := flowTaskHintCandidateLimit
-	if len(tasks) < limit {
-		limit = len(tasks)
-	}
-	candidates := make([]flowTaskHintCandidate, 0, limit)
-	for _, task := range tasks[:limit] {
+	candidates := make([]flowTaskHintCandidate, 0, len(tasks))
+	for _, task := range tasks {
 		candidates = append(candidates, flowTaskHintCandidate{TaskID: task.ID, Title: task.Content})
 	}
 	return candidates
