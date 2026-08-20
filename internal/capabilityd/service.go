@@ -320,6 +320,7 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/llm/text", service.handleTextLLM)
 	multiplexer.HandleFunc("POST /v1/embedding/create", service.handleEmbeddingCreate)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
+	multiplexer.HandleFunc("POST /v1/directory/person", service.handleDirectoryPerson)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/interaction.resolve", service.handleInteractionResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.add", service.handleReactionAdd)
@@ -455,9 +456,6 @@ func (service Service) handleIdentityResolve(responseWriter http.ResponseWriter,
 	default:
 		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
 		return
-	}
-	if resolved, isResolved := response.(map[string]string); isResolved && errorValue == nil {
-		service.ensureDirectoryPerson(request.Context(), resolved)
 	}
 	service.writeResponse(responseWriter, response, errorValue)
 }
