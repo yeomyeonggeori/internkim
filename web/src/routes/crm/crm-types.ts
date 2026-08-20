@@ -3,6 +3,8 @@ export type CRMOrganizationType = string;
 export type CRMOrganizationStatus = 'prospect' | 'active' | 'paused';
 export type CRMOpportunityStage = string;
 export type CRMActivityKind = string;
+
+export const deviceCRMActivityKinds: CRMActivityKind[] = ['note', 'email', 'meeting', 'call', 'task', 'file', 'event'];
 export type CRMNextActionStatus = 'todo' | 'in_progress' | 'waiting' | 'done';
 export type CRMActionUrgency = 'overdue' | 'today' | 'due_soon' | 'scheduled' | 'done';
 export type CRMIntakeDraftSource = 'file' | 'mail' | 'calendar';
