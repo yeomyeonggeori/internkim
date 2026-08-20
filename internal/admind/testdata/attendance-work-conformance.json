@@ -1,0 +1,1561 @@
+{
+  "scenarios": [
+    {
+      "name": "autonomous-day",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-20",
+      "policy": {
+        "workMode": "autonomous",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T09:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 28800,
+        "actualMinutes": 480,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 0,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": false,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "autonomous-week",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-17",
+      "periodEnd": "2026-08-23",
+      "policy": {
+        "workMode": "autonomous",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-17T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-17T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-18T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-18T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-19T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-19T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-21T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-21T09:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 144000,
+        "actualMinutes": 2400,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 0,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": false,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "autonomous-month",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-01",
+      "periodEnd": "2026-08-31",
+      "policy": {
+        "workMode": "autonomous",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-03T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-03T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-04T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-04T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-05T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-05T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-06T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-06T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-07T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-07T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-10T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-10T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-11T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-11T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-12T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-12T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-13T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-13T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-14T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-14T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-17T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-17T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-18T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-18T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-19T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-19T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-21T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-21T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-24T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-24T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-25T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-25T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-26T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-26T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-27T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-27T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-28T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-28T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-31T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-31T09:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 604800,
+        "actualMinutes": 10080,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 0,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": false,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "flexible-day",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-20",
+      "policy": {
+        "workMode": "flexible",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T09:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 28800,
+        "actualMinutes": 480,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 480,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "flexible-week",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-17",
+      "periodEnd": "2026-08-23",
+      "policy": {
+        "workMode": "flexible",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-17T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-17T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-18T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-18T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-19T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-19T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-21T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-21T09:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 144000,
+        "actualMinutes": 2400,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 2400,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "flexible-month",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-01",
+      "periodEnd": "2026-08-31",
+      "policy": {
+        "workMode": "flexible",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-03T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-03T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-04T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-04T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-05T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-05T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-06T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-06T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-07T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-07T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-10T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-10T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-11T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-11T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-12T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-12T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-13T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-13T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-14T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-14T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-17T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-17T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-18T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-18T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-19T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-19T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-21T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-21T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-24T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-24T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-25T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-25T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-26T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-26T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-27T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-27T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-28T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-28T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-31T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-31T09:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 604800,
+        "actualMinutes": 10080,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 10080,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "fixed-day",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-20",
+      "policy": {
+        "workMode": "fixed",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "09:00",
+        "fixedEndTime": "18:00",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T09:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 28800,
+        "actualMinutes": 480,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 480,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "fixed-week",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-17",
+      "periodEnd": "2026-08-23",
+      "policy": {
+        "workMode": "fixed",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "09:00",
+        "fixedEndTime": "18:00",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-17T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-17T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-18T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-18T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-19T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-19T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-21T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-21T09:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 144000,
+        "actualMinutes": 2400,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 2400,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "fixed-month",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-01",
+      "periodEnd": "2026-08-31",
+      "policy": {
+        "workMode": "fixed",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "09:00",
+        "fixedEndTime": "18:00",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-03T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-03T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-04T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-04T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-05T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-05T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-06T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-06T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-07T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-07T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-10T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-10T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-11T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-11T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-12T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-12T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-13T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-13T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-14T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-14T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-17T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-17T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-18T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-18T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-19T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-19T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-21T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-21T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-24T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-24T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-25T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-25T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-26T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-26T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-27T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-27T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-28T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-28T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-31T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-31T09:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 604800,
+        "actualMinutes": 10080,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 10080,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "multi-segment-day",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-08-20T02:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-20",
+      "policy": {
+        "workMode": "autonomous",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T00:20:40Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T01:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T01:20:40Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 2480,
+        "actualMinutes": 41,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 0,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": false,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "abandoned-open-session",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-08-20T00:00:00Z",
+      "periodStart": "2026-08-16",
+      "periodEnd": "2026-08-16",
+      "policy": {
+        "workMode": "autonomous",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-16T00:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 0,
+        "actualMinutes": 0,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 0,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": false,
+        "hasIncompleteRecords": true,
+        "needsReview": true
+      }
+    },
+    {
+      "name": "open-session-today",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-08-20T02:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-20",
+      "policy": {
+        "workMode": "autonomous",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 0,
+        "actualMinutes": 0,
+        "provisionalSeconds": 7200,
+        "provisionalMinutes": 120,
+        "targetMinutes": 0,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": false,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "double-clock-in",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-08-20T03:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-20",
+      "policy": {
+        "workMode": "autonomous",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T01:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T02:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 3600,
+        "actualMinutes": 60,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 0,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": false,
+        "hasIncompleteRecords": true,
+        "needsReview": true
+      }
+    },
+    {
+      "name": "orphan-clock-out",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-08-20T03:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-20",
+      "policy": {
+        "workMode": "autonomous",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 0,
+        "actualMinutes": 0,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 0,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": false,
+        "hasIncompleteRecords": true,
+        "needsReview": true
+      }
+    },
+    {
+      "name": "night-work",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-08-21T02:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-21",
+      "policy": {
+        "workMode": "autonomous",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T12:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T16:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 14400,
+        "actualMinutes": 240,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 0,
+        "leaveMinutes": 0,
+        "nightMinutes": 180,
+        "hasBaseline": false,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "half-day-leave",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-17",
+      "periodEnd": "2026-08-23",
+      "policy": {
+        "workMode": "fixed",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "09:00",
+        "fixedEndTime": "18:00",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [],
+      "leave": [
+        {
+          "startDate": "2026-08-19",
+          "endDate": "2026-08-19",
+          "days": 0.5
+        }
+      ],
+      "expected": {
+        "actualSeconds": 0,
+        "actualMinutes": 0,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 2160,
+        "leaveMinutes": 240,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "quarter-day-leave",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-17",
+      "periodEnd": "2026-08-23",
+      "policy": {
+        "workMode": "fixed",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "09:00",
+        "fixedEndTime": "18:00",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [],
+      "leave": [
+        {
+          "startDate": "2026-08-19",
+          "endDate": "2026-08-19",
+          "days": 0.25
+        }
+      ],
+      "expected": {
+        "actualSeconds": 0,
+        "actualMinutes": 0,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 2280,
+        "leaveMinutes": 120,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    },
+    {
+      "name": "multi-day-all-day-leave",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-17",
+      "periodEnd": "2026-08-23",
+      "policy": {
+        "workMode": "fixed",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "09:00",
+        "fixedEndTime": "18:00",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [],
+      "leave": [
+        {
+          "startDate": "2026-08-18",
+          "endDate": "2026-08-20",
+          "days": 3
+        }
+      ],
+      "expected": {
+        "actualSeconds": 0,
+        "actualMinutes": 0,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 960,
+        "leaveMinutes": 1440,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
+    }
+  ]
+}
