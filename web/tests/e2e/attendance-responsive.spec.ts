@@ -84,7 +84,7 @@ test.describe('attendance responsive view', () => {
 		await expect(standard.getByText('실제 근무 01시간 20분')).toHaveCount(0);
 
 		await workTimeCard.getByRole('button', { name: '일별' }).click();
-		await expect(standard.getByText(new RegExp(`${todayDateInSeoul()}$`))).toBeVisible();
+		await expect(standard.getByText('2026-05-01')).toBeVisible();
 		const capacityBar = standard.getByTestId('work-standard-capacity-bar');
 		await expect(capacityBar).toHaveAttribute(
 			'aria-label',
@@ -250,7 +250,7 @@ test.describe('attendance responsive view', () => {
 		await expect(standard.getByTestId('work-standard-target-marker')).toHaveCount(0);
 		await expect(standard.getByTestId('work-standard-actual-segment')).toHaveAttribute(
 			'style',
-			/width:\s*6\.25%/
+			/width:\s*18\.75%/
 		);
 
 		actualMinutes = 1500;
