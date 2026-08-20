@@ -25,6 +25,39 @@ func (service *Service) writeFlowTask(ctx context.Context, task flowTask) error 
 	return transaction.Commit()
 }
 
+// A task the central plane already holds is written without being queued back to
+// it. Queueing it would send it straight out again, and the answer would arrive
+// as another change, and so on.
+func (service *Service) writeMirroredFlowTask(ctx context.Context, task flowTask) error {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	transaction, errorValue := database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	existingTask, found, errorValue := readFlowTaskByIDInTransaction(ctx, transaction, task.ID)
+	if errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := writeFlowTaskRowInTransaction(ctx, transaction, task); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	sourceTasks := []flowTask{task}
+	if found {
+		sourceTasks = append(sourceTasks, existingTask)
+	}
+	if errorValue := incrementFlowSummarySourceRevisions(ctx, transaction, flowTasksSummarySourceKeys(sourceTasks)); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	return transaction.Commit()
+}
+
 func (service *Service) writeFlowTaskAtStatusEnd(ctx context.Context, task flowTask) (flowTask, error) {
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {
@@ -89,6 +122,16 @@ func flowTaskWithCreatedAt(task flowTask) flowTask {
 }
 
 func writeFlowTaskInTransaction(ctx context.Context, transaction *sql.Tx, task flowTask) error {
+	if errorValue := writeFlowTaskRowInTransaction(ctx, transaction, task); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := enqueueFlowChannelProjection(ctx, transaction, task.ID); errorValue != nil {
+		return errorValue
+	}
+	return enqueueFlowCentralWrite(ctx, transaction, task.ID)
+}
+
+func writeFlowTaskRowInTransaction(ctx context.Context, transaction *sql.Tx, task flowTask) error {
 	participantIDs, errorValue := json.Marshal(task.ParticipantIDs)
 	if errorValue != nil {
 		return errorValue
@@ -151,12 +194,6 @@ ON CONFLICT(id) DO UPDATE SET
 		now,
 	)
 	if errorValue != nil {
-		return errorValue
-	}
-	if errorValue := enqueueFlowChannelProjection(ctx, transaction, task.ID); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := enqueueFlowCentralWrite(ctx, transaction, task.ID); errorValue != nil {
 		return errorValue
 	}
 	return nil
