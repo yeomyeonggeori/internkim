@@ -257,8 +257,10 @@ function importanceOf(value: string): CRMImportance {
 	return value === 'high' || value === 'low' ? value : 'medium';
 }
 
+const isoCurrencyCodePattern = /^[A-Z]{3}$/;
+
 function currencyOf(value: string | null): CRMCurrency | '' {
-	return value === 'KRW' || value === 'USD' || value === 'JPY' || value === 'EUR' ? value : '';
+	return value !== null && isoCurrencyCodePattern.test(value) ? value : '';
 }
 
 function optionalCurrencyOf(value: string | null): CRMCurrency | undefined {

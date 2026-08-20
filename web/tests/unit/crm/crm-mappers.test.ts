@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { interimCurrencyCatalogue } from '../../../src/lib/currency/currency-catalogue';
 import {
 	activityPayload,
 	activityPayloadFromDraft,
@@ -39,7 +40,7 @@ describe('CRM service mappers', () => {
 			dueTimeZone: 'America/New_York'
 		};
 
-		expect(mapCRMViewData(data, [], 'Asia/Seoul').opportunities[0]?.targetDate).toBe('2026-08-10');
+		expect(mapCRMViewData(data, [], interimCurrencyCatalogue, 'Asia/Seoul').opportunities[0]?.targetDate).toBe('2026-08-10');
 	});
 
 	test('preserves empty and multiple relationship types in create payloads', () => {
@@ -64,6 +65,7 @@ describe('CRM service mappers', () => {
 		const view = mapCRMViewData(
 			serviceData(),
 			[{ userID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }],
+			interimCurrencyCatalogue,
 			'Asia/Seoul'
 		);
 
@@ -83,23 +85,23 @@ describe('CRM service mappers', () => {
 			baseCurrencyCode: 'USD'
 		};
 		data.stages = [{ pipeline: 'sales', stage: 'won', label: 'won', position: 1, outcome: 'won' }];
-		const opportunity = mapCRMViewData(data, [], 'Asia/Seoul').opportunities[0];
+		const opportunity = mapCRMViewData(data, [], interimCurrencyCatalogue, 'Asia/Seoul').opportunities[0];
 
 		expect(opportunity?.baseAmountMinor).toBe(4500);
 		expect(opportunity?.baseCurrencyCode).toBe('USD');
 	});
 
 	test('preserves contact and opportunity relationships in update payloads', () => {
-		const view = mapCRMViewData(serviceData(), [], 'Asia/Seoul');
+		const view = mapCRMViewData(serviceData(), [], interimCurrencyCatalogue, 'Asia/Seoul');
 
 		expect(contactPayload(view.contacts[0]!)).toMatchObject({ department: '파트너십' });
-		expect(opportunityPayload(view.opportunities[0]!)).toMatchObject({
+		expect(opportunityPayload(view.opportunities[0]!, interimCurrencyCatalogue)).toMatchObject({
 			contacts: [{ contactID: 'contact-1' }]
 		});
 	});
 
 	test('preserves stage-change kinds for updates while excluding them from create payloads', () => {
-		const activity = mapCRMViewData(serviceData(), [], 'Asia/Seoul').activities[0]!;
+		const activity = mapCRMViewData(serviceData(), [], interimCurrencyCatalogue, 'Asia/Seoul').activities[0]!;
 		activity.kind = 'stage_change';
 
 		expect(activityPayload(activity).kind).toBe('stage_change');
@@ -127,7 +129,7 @@ describe('CRM service mappers', () => {
 			targetDate: '',
 			description: '',
 			calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' }
-		}, owner, 'Asia/Seoul');
+		}, owner, 'Asia/Seoul', interimCurrencyCatalogue);
 
 		expect(payload).toMatchObject({ ownerPersonID: 'person-ops', ownerCircleID: 'team-ops' });
 	});
@@ -147,8 +149,8 @@ describe('CRM service mappers', () => {
 	test('derives activity dates in the selected display time zone', () => {
 		const people = [{ userID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }];
 
-		expect(mapCRMViewData(serviceData(), people, 'Asia/Seoul').organizations[0]?.lastContactDate).toBe('2026-08-04');
-		expect(mapCRMViewData(serviceData(), people, 'America/New_York').organizations[0]?.lastContactDate).toBe('2026-08-03');
+		expect(mapCRMViewData(serviceData(), people, interimCurrencyCatalogue, 'Asia/Seoul').organizations[0]?.lastContactDate).toBe('2026-08-04');
+		expect(mapCRMViewData(serviceData(), people, interimCurrencyCatalogue, 'America/New_York').organizations[0]?.lastContactDate).toBe('2026-08-03');
 	});
 });
 

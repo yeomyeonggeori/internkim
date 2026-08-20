@@ -24,7 +24,7 @@
 		CRMPipelineStage
 	} from './crm-types';
 	import { findOrganizationByID, opportunityStageLabel } from './crm-view-model';
-	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
+	import { minorAmountOf, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -56,6 +56,10 @@
 	let stage = $state('');
 	let amount = $state('');
 	let currency = $state<CRMCurrency>('');
+	let typedAmountMinor = $derived.by(() => {
+		const typedAmount = parseAmountInput(amount);
+		return typedAmount === undefined ? null : minorAmountOf(typedAmount, currency, currencyCatalogue);
+	});
 	let importance = $state<CRMImportance>('medium');
 	let targetDate = $state('');
 	let description = $state('');
@@ -183,7 +187,7 @@
 				<CRMMoneyField {currencyCatalogue} id="crm-edit-opportunity-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency disabled={isRealized} />
 				{#if isRealized}<p class="text-sm text-muted-foreground">{text.realizedAmountReadonly}</p>{/if}
 				<CRMConversionPreview
-					amountMinor={parseAmountInput(amount) ?? null}
+					amountMinor={typedAmountMinor}
 					{currency}
 					baseCurrency={companyBaseCurrency}
 					settledAmountMinor={opportunity?.baseAmountMinor ?? null}
