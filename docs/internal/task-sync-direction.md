@@ -230,3 +230,34 @@ scaffolding for a loss that did not need to happen. Corrected in #678; the four
 tasks were re-saved and both sides now count 4 기각/`rejected` and 9 중단/`cancelled`.
 
 Read staleness, §4's open question, did not come up.
+
+## 9. When the copy can actually go
+
+The two directions are built and the copies agree: `internkim recover -action
+flow-compare-central` on 2026-08-20 reports 633 compared, 633 identical. What is
+left of §2's line is `stop mirroring, delete the local copy`, and that step has a
+precondition this document never stated.
+
+§3 argues that a device write must land locally first, because the uplink drops
+and the agent runs there. The same argument covers reads, and §3 says only that
+"reads stay local throughout" — throughout the transition. Delete the copy and
+every read the agent makes crosses that link.
+
+That day supplied the numbers. The Jetson's LAN stopped answering ARP for hours
+while its tunnel stayed up; the tunnel measured 1.4 MB/s; blueclaw was down 81
+minutes during a transfer over it. An agent reading its own task list across that
+link is an agent that stops when the link does, which is the failure §3 exists to
+prevent.
+
+So the copy goes when the agent stops running on hardware like this, not when the
+sync is finished. `saas-design.md` §2 puts the agent on the customer's own
+machine with the central plane holding identity and authorization; that machine
+is the one that can read Supabase for every task list. Retirement of the copy and
+retirement of the device are the same event.
+
+Until then the sync is the product: both directions run, the comparison is a
+command anybody can run, and a difference is a bug rather than a surprise waiting
+for the switch. What would change this is the agent moving to a machine with a
+link worth trusting, and then the remaining work is a central implementation
+behind the read store §7 collected, which is small because the shaping already
+exists — the mirror does it on every pass.
