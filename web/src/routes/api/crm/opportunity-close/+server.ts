@@ -1,11 +1,7 @@
 import { env } from '$env/dynamic/private';
 import { asMember } from '$lib/server/control-plane';
-import {
-	convertMinorAmount,
-	frankfurterProvider,
-	minorUnitDigitsOf,
-	type ExchangeRateProvider
-} from '$lib/server/exchange-rates';
+import { convertedAmount, type ConvertedAmount } from '$lib/server/converted-amount';
+import { frankfurterProvider, type ExchangeRateProvider } from '$lib/server/exchange-rates';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
@@ -72,22 +68,12 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 async function convertedAmountOf(
 	opportunity: OpportunityAmount,
 	companyCurrency: string
-): Promise<{ amountMinor: number; currencyCode: string; asOf: string } | null> {
+): Promise<ConvertedAmount | null> {
 	if (opportunity.base_amount_minor !== null) return null;
 	if (opportunity.amount_minor === null || opportunity.currency_code === null) return null;
 	if (opportunity.currency_code === companyCurrency) return null;
 
-	const rate = await provider.latestRate(opportunity.currency_code, companyCurrency);
-	return {
-		amountMinor: convertMinorAmount(
-			opportunity.amount_minor,
-			rate.rate,
-			minorUnitDigitsOf(opportunity.currency_code),
-			minorUnitDigitsOf(companyCurrency)
-		),
-		currencyCode: companyCurrency,
-		asOf: rate.asOf
-	};
+	return convertedAmount(provider, opportunity.amount_minor, opportunity.currency_code, companyCurrency);
 }
 
 function closeRequestOf(value: unknown): CloseRequest {
