@@ -97,8 +97,36 @@ share: which person a participant is, and what instants, reminder, location and
 mirrors an event carries. The flow task mapping wants the same treatment before
 a second writer appears.
 
-## 6. Until it exists
+## 6. What exists
 
-The device is the origin in practice, because nothing carries its writes across.
-The importers stay the only bridge and someone runs them. Every run prints
-what it refused, so a divergence shows up in the output.
+Both directions run on the device, a minute apart, and stop at the same gate
+attendance uses: a device with no central plane configured keeps what it
+recorded and sends nothing.
+
+| Piece | Where |
+|---|---|
+| the queue a device write enters | `internal/admind/flow_central_outbox.go` |
+| the drain that empties it | `internal/admind/flow_central_drain.go` |
+| what the central plane called a task | `internal/admind/flow_central_identity.go` |
+| the mirror that carries the board back | `internal/admind/flow_central_mirror.go` |
+| how far the mirror has read | `internal/admind/flow_central_mirror_mark.go` |
+| the calls, as the member they are for | `internal/centralplane/task.go` |
+
+Three rules the implementation had to keep, beyond §4's:
+
+**A mirrored write does not queue back.** The row write and the queueing are
+separate functions, and only a device's own write queues. Sending a mirrored
+task out again would return as another change, and the two would keep each
+other busy.
+
+**A first edit must not make a second copy.** The device's tasks were carried
+over once by hand and the central plane records which row came from which
+device task; the device does not. The drain asks what it remembers, then what
+the central plane already carries, and only then writes something new.
+
+**A round trip must not move a status.** The device has seven words and the
+enum has five. 요청 and 기각 are the two the central plane cannot tell apart, so
+a task already in one keeps it unless the board actually changed the status.
+
+Reads still come from the device's copy, which is what §2 asks for until
+retirement. The importers remain for history that predates this.
