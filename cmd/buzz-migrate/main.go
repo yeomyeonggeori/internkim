@@ -156,7 +156,10 @@ func main() {
 				creatorSecret := creatorSecretFor(channel, memberUserIDs, authorsByID, authorSecrets, bootstrapSecret)
 				creator, errorValue := publishers.as(ctx, creatorSecret)
 				failOn(errorValue, "connect as the creator of "+channel.Name)
-				errorValue = creator.CreateChannel(ctx, creatorSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel))
+				// An import replays posts by people who have since left the room,
+				// and syncChannelMembers can only add who is in it now, so a
+				// private channel would reject their history.
+				errorValue = creator.CreateChannel(ctx, creatorSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel), "open")
 				if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
 					failOn(errorValue, "create channel "+channel.Name)
 				}

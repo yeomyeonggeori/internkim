@@ -39,11 +39,11 @@ func (publisher *Publisher) Close() {
 	publisher.relay.Close()
 }
 
-func (publisher *Publisher) CreateChannel(ctx context.Context, actorSecretHex, channelID, name, purpose, channelType string) error {
+func (publisher *Publisher) CreateChannel(ctx context.Context, actorSecretHex, channelID, name, purpose, channelType, visibility string) error {
 	tags := nostr.Tags{
 		nostr.Tag{"h", channelID},
 		nostr.Tag{"name", name},
-		nostr.Tag{"visibility", "open"},
+		nostr.Tag{"visibility", visibility},
 		nostr.Tag{"channel_type", channelType},
 	}
 	if strings.TrimSpace(purpose) != "" {
