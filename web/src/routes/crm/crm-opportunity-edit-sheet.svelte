@@ -10,6 +10,7 @@
 	import { formatAmountInput, parseAmountInput } from './crm-money';
 	import CRMMoneyField from './crm-money-field.svelte';
 	import CRMOwnerSelect from './crm-owner-select.svelte';
+	import CRMContactSelect from './crm-contact-select.svelte';
 	import { opportunityAvailableTransitionStages } from './crm-opportunity-transition';
 	import type {
 		CRMOrganization,
@@ -177,7 +178,7 @@
 				<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-edit-opportunity-target">{text.targetDate}</Field.Label><Input id="crm-edit-opportunity-target" type="date" bind:value={targetDate} /></Field.Field></div>
 				<CRMMoneyField id="crm-edit-opportunity-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency disabled={isRealized} />
 				{#if isRealized}<p class="text-sm text-muted-foreground">{text.realizedAmountReadonly}</p>{/if}
-				<Field.Field><Field.Label for="crm-edit-opportunity-contact">{text.externalContact}</Field.Label><Select.Root type="single" value={contactID || noContactValue} onValueChange={(value) => (contactID = value === noContactValue ? '' : value)}><Select.Trigger id="crm-edit-opportunity-contact" class="w-full">{organizationContacts.find((contact) => contact.id === contactID)?.name ?? text.none}</Select.Trigger><Select.Content><Select.Item value={noContactValue} label={text.none}>{text.none}</Select.Item>{#each organizationContacts as contact (contact.id)}<Select.Item value={contact.id} label={contact.name}>{contact.name}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
+				<Field.Field><Field.Label for="crm-edit-opportunity-contact">{text.externalContact}</Field.Label><CRMContactSelect id="crm-edit-opportunity-contact" bind:value={contactID} contacts={organizationContacts} {text} /></Field.Field>
 				<Field.Field><Field.Label for="crm-edit-opportunity-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-edit-opportunity-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
 				<Field.Field><Field.Label for="crm-edit-opportunity-details">{text.details}</Field.Label><Textarea id="crm-edit-opportunity-details" rows={8} bind:value={description} /></Field.Field>
 				{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
