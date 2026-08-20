@@ -51,7 +51,7 @@ func (service *Service) mirrorFlowTasksFromCentralPlane(ctx context.Context) {
 	people := service.flowPeopleByID(ctx)
 	carried := 0
 	for _, task := range changed {
-		landed, errorValue := service.mirrorOneFlowTask(ctx, task, people)
+		landed, errorValue := service.mirrorOneFlowTask(ctx, client, reader, task, people)
 		if errorValue != nil {
 			log.Printf("task %s did not reach this device: %v", task.CentralID, errorValue)
 			return
@@ -72,8 +72,9 @@ func (service *Service) mirrorFlowTasksFromCentralPlane(ctx context.Context) {
 
 // A task the device already holds keeps its own identifier, so the copy the
 // agent reads is the same row it has always been. One the board made arrives
-// with none, and is given one.
-func (service *Service) mirrorOneFlowTask(ctx context.Context, changed centralplane.ChangedTask, people map[string]adminUserMutation) (bool, error) {
+// with none, is given one, and the central plane is told which one, because
+// that is where docs/internal/task-sync-direction.md §6 keeps the link.
+func (service *Service) mirrorOneFlowTask(ctx context.Context, client *centralplane.Client, reader string, changed centralplane.ChangedTask, people map[string]adminUserMutation) (bool, error) {
 	deviceTaskID := strings.TrimSpace(changed.DeviceTaskID)
 	if deviceTaskID == "" {
 		known, errorValue := service.deviceTaskIDForCentralTask(ctx, changed.CentralID)
@@ -101,7 +102,13 @@ func (service *Service) mirrorOneFlowTask(ctx context.Context, changed centralpl
 	if errorValue := service.writeMirroredFlowTask(ctx, task); errorValue != nil {
 		return false, errorValue
 	}
-	return true, service.rememberFlowCentralIdentityForTask(ctx, task.ID, changed.CentralID)
+	if errorValue := service.rememberFlowCentralIdentityForTask(ctx, task.ID, changed.CentralID); errorValue != nil {
+		return false, errorValue
+	}
+	if strings.TrimSpace(changed.DeviceTaskID) != "" {
+		return true, nil
+	}
+	return true, client.MarkCarriedFrom(ctx, "mattermost", reader, changed.CentralID, task.ID)
 }
 
 // Both sides may have written while the link was down, and the later write wins.
