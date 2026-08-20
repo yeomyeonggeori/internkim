@@ -112,7 +112,9 @@ func (service *Service) finishCalendarNotificationReconciliationJob(ctx context.
 		job.state.retryDelay = nextCalendarNotificationRetryDelay(job.state.retryDelay)
 		job.state.retryAt = time.Now().Add(retryDelay)
 		service.calendarNotificationMutex.Unlock()
-		slog.WarnContext(ctx, "calendar notification reconciliation failed", "event_id", job.eventID, "error", reconciliationError)
+		if ctx.Err() == nil {
+			slog.WarnContext(ctx, "calendar notification reconciliation failed", "event_id", job.eventID, "error", reconciliationError)
+		}
 		return
 	}
 	job.state.retryDelay = calendarNotificationRetryBaseDelay
