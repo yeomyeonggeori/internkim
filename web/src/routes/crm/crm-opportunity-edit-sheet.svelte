@@ -8,6 +8,7 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import type { OrgGroup, UserRecord } from '$lib/organization/types';
 	import { formatAmountInput, parseAmountInput } from './crm-money';
+	import CRMConversionPreview from './crm-conversion-preview.svelte';
 	import CRMMoneyField from './crm-money-field.svelte';
 	import CRMOwnerSelect from './crm-owner-select.svelte';
 	import CRMContactSelect from './crm-contact-select.svelte';
@@ -40,11 +41,12 @@
 		requestedStage?: string;
 		text: CRMText;
 		currencyCatalogue: CurrencyCatalogue;
+		companyBaseCurrency: string;
 		onSave: (opportunity: CRMOpportunity) => Promise<void>;
 		onArchive: (opportunityID: string) => Promise<void>;
 	};
 
-	let { open = $bindable(false), opportunity, organizations, contacts, pipelines, stages, lostReasons, businessOptions, people, groups, requestedStage, text, currencyCatalogue, onSave, onArchive }: Props = $props();
+	let { open = $bindable(false), opportunity, organizations, contacts, pipelines, stages, lostReasons, businessOptions, people, groups, requestedStage, text, currencyCatalogue, companyBaseCurrency, onSave, onArchive }: Props = $props();
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	const noContactValue = '__none__';
 	let organizationID = $state('');
@@ -53,7 +55,7 @@
 	let name = $state('');
 	let stage = $state('');
 	let amount = $state('');
-	let currency = $state<CRMCurrency>('KRW');
+	let currency = $state<CRMCurrency>('');
 	let importance = $state<CRMImportance>('medium');
 	let targetDate = $state('');
 	let description = $state('');
@@ -180,6 +182,15 @@
 				<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-edit-opportunity-target">{text.targetDate}</Field.Label><Input id="crm-edit-opportunity-target" type="date" bind:value={targetDate} /></Field.Field></div>
 				<CRMMoneyField {currencyCatalogue} id="crm-edit-opportunity-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency disabled={isRealized} />
 				{#if isRealized}<p class="text-sm text-muted-foreground">{text.realizedAmountReadonly}</p>{/if}
+				<CRMConversionPreview
+					amountMinor={parseAmountInput(amount) ?? null}
+					{currency}
+					baseCurrency={companyBaseCurrency}
+					settledAmountMinor={opportunity?.baseAmountMinor ?? null}
+					settledCurrency={opportunity?.baseCurrencyCode ?? ''}
+					{currencyCatalogue}
+					{text}
+				/>
 				<Field.Field><Field.Label for="crm-edit-opportunity-contact">{text.externalContact}</Field.Label><CRMContactSelect id="crm-edit-opportunity-contact" bind:value={contactID} contacts={organizationContacts} {text} /></Field.Field>
 				<Field.Field><Field.Label for="crm-edit-opportunity-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-edit-opportunity-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
 				<Field.Field><Field.Label for="crm-edit-opportunity-details">{text.details}</Field.Label><Textarea id="crm-edit-opportunity-details" rows={8} bind:value={description} /></Field.Field>
