@@ -255,3 +255,14 @@ FROM flow_tasks`)
 	}
 	return tasks, rows.Err()
 }
+
+func (service *Service) countFlowTasks(ctx context.Context) (int, error) {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return 0, errorValue
+	}
+	defer database.Close()
+	count := 0
+	errorValue = database.QueryRowContext(ctx, "SELECT COUNT(1) FROM flow_tasks").Scan(&count)
+	return count, errorValue
+}
