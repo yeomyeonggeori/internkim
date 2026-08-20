@@ -3,9 +3,9 @@
 
 import { resolve } from 'node:path';
 import { mainCommitOfLiveBuild, refusalToReplaceProduction, stampOfMainCommit } from './production-guard';
+import { requiredSetting } from './repository-setting';
 
-const token = process.env.CLOUDFLARE_API_TOKEN ?? '';
-if (!token) throw new Error('set CLOUDFLARE_API_TOKEN');
+const token = requiredSetting('CLOUDFLARE_API_TOKEN');
 
 function argument(name: string): string | undefined {
 	const index = process.argv.indexOf(`--${name}`);
