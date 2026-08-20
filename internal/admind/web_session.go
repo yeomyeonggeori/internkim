@@ -37,14 +37,14 @@ type webSessionPayload struct {
 }
 
 type webSessionResponse struct {
-	Authenticated   bool   `json:"authenticated"`
-	Email           string `json:"email,omitempty"`
-	IdentityEmail   string `json:"identityEmail,omitempty"`
-	NotInvited      bool   `json:"notInvited,omitempty"`
-	Image           string `json:"image,omitempty"`
-	SignupURL       string `json:"signupURL,omitempty"`
-	IsAdmin         bool   `json:"isAdmin"`
-	CanViewTasks    bool   `json:"canViewTasks"`
+	Authenticated bool   `json:"authenticated"`
+	Email         string `json:"email,omitempty"`
+	IdentityEmail string `json:"identityEmail,omitempty"`
+	NotInvited    bool   `json:"notInvited,omitempty"`
+	Image         string `json:"image,omitempty"`
+	SignupURL     string `json:"signupURL,omitempty"`
+	IsAdmin       bool   `json:"isAdmin"`
+	CanViewTasks  bool   `json:"canViewTasks"`
 }
 
 type webLogoutResponse struct {
@@ -78,11 +78,11 @@ func (service *Service) handleWebSession(responseWriter http.ResponseWriter, req
 	service.renewWebSessionCookieIfExpiringSoon(responseWriter, request)
 	isTaskRunAdmin := service.canManageTaskRuns(request.Context(), email)
 	service.writeJSON(responseWriter, webSessionResponse{
-		Authenticated:   true,
-		Email:           email,
-		Image:           profileImagePathForEmail(email),
-		IsAdmin:         isTaskRunAdmin || service.isFlowAdminEmail(request.Context(), email),
-		CanViewTasks:    service.canViewTaskRuns(request.Context(), email),
+		Authenticated: true,
+		Email:         email,
+		Image:         profileImagePathForEmail(email),
+		IsAdmin:       isTaskRunAdmin || service.isFlowAdminEmail(request.Context(), email),
+		CanViewTasks:  service.canViewTaskRuns(request.Context(), email),
 	})
 }
 
