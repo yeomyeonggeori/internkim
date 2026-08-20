@@ -129,14 +129,17 @@ export class CRMPageController {
 				this.loadFixture(currentEmail);
 				return;
 			}
-			const [data, directory, catalogue, baseCurrency] = await Promise.all([
-				loadCRMData(),
-				this.loadOrganizationDirectory(),
-				loadCurrencyCatalogue(),
-				loadCompanyBaseCurrency()
-			]);
+			const pendingData = loadCRMData();
+			const pendingCatalogue = loadCurrencyCatalogue();
+			const pendingBaseCurrency = loadCompanyBaseCurrency();
+			const directory = await this.loadOrganizationDirectory();
 			this.people = directory.records ?? [];
 			this.groups = directory.availableGroups ?? [];
+			const [data, catalogue, baseCurrency] = await Promise.all([
+				pendingData,
+				pendingCatalogue,
+				pendingBaseCurrency
+			]);
 			this.currencyCatalogue = catalogue;
 			this.companyBaseCurrency = baseCurrency;
 			this.applyViewData(mapCRMViewData(data, this.people, this.currencyCatalogue, browserTimeZone(), this.groups));
