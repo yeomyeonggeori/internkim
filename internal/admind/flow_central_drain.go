@@ -42,16 +42,28 @@ func (service *Service) drainFlowTasksToCentralPlane(ctx context.Context) {
 	}
 	for _, entry := range entries {
 		if errorValue := service.drainOneFlowTask(ctx, client, entry); errorValue != nil {
-			log.Printf("flow task %s did not reach the central plane on attempt %d: %v", entry.TaskID, entry.AttemptCount+1, errorValue)
-			if markError := service.markFlowCentralOutboxAttempt(ctx, entry.TaskID, errorValue); markError != nil {
-				log.Printf("flow queue attempt unrecorded for %s: %v", entry.TaskID, markError)
-			}
+			service.recordFlowCentralDrainFailure(ctx, entry, errorValue)
 			continue
 		}
 		if errorValue := service.deleteFlowCentralOutbox(ctx, entry.TaskID); errorValue != nil {
 			log.Printf("flow queue entry for %s stayed after it was carried: %v", entry.TaskID, errorValue)
 		}
 	}
+}
+
+func (service *Service) recordFlowCentralDrainFailure(ctx context.Context, entry flowCentralOutboxEntry, failure error) {
+	log.Print(flowCentralDrainFailureLine(entry, failure))
+	if markError := service.markFlowCentralOutboxAttempt(ctx, entry.TaskID, failure); markError != nil {
+		log.Printf("flow queue attempt unrecorded for %s: %v", entry.TaskID, markError)
+	}
+}
+
+func flowCentralDrainFailureLine(entry flowCentralOutboxEntry, failure error) string {
+	attempt := entry.AttemptCount + 1
+	if attempt < flowCentralOutboxAttemptLimit {
+		return fmt.Sprintf("flow task %s did not reach the central plane on attempt %d: %v", entry.TaskID, attempt, failure)
+	}
+	return fmt.Sprintf("flow task %s is held back after %d attempts and will not be tried again: %v; `internkim recover ssh --action flow-central-held` lists what the queue is holding", entry.TaskID, attempt, failure)
 }
 
 func (service *Service) drainOneFlowTask(ctx context.Context, client *centralplane.Client, entry flowCentralOutboxEntry) error {
