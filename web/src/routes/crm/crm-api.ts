@@ -25,6 +25,10 @@ import {
 	type CRMProgressKind
 } from './crm-types';
 
+type CRMDefinitions = {
+	businesses: string[];
+};
+
 export class CRMApiError extends Error {
 	constructor(
 		message: string,
@@ -37,13 +41,14 @@ export class CRMApiError extends Error {
 }
 
 export async function loadCRMData(): Promise<CRMDataResponse> {
-	const [organizations, contacts, opportunities, activities, pipelines, lostReasons] = await Promise.all([
+	const [organizations, contacts, opportunities, activities, pipelines, lostReasons, definitions] = await Promise.all([
 		listDocument('/crm/api/accounts', 'accounts', parseOrganization),
 		listDocument('/crm/api/contacts', 'contacts', parseContact),
 		listDocument('/crm/api/opportunities', 'opportunities', parseOpportunity),
 		listDocument('/crm/api/activities', 'activities', parseActivity),
 		listDocument('/crm/api/pipelines', 'pipelines', parsePipeline),
-		listDocument('/crm/api/lost-reasons', 'lostReasons', parseLostReason)
+		listDocument('/crm/api/lost-reasons', 'lostReasons', parseLostReason),
+		fetchCRMDefinitions()
 	]);
 	const stages = (await Promise.all(
 		pipelines.map((pipeline) => listDocument(
@@ -75,7 +80,7 @@ export async function loadCRMData(): Promise<CRMDataResponse> {
 			lost_reasons: lostReasons.map((reason) => ({ id: reason.reason, name: reason.label }))
 		},
 		taskVocabulary: {
-			businesses: [...new Set(opportunities.map((opportunity) => opportunity.business).filter((value): value is string => Boolean(value)))].map((name) => ({ name })),
+			businesses: definitions.businesses.map((name) => ({ name })),
 			types: deviceCRMActivityKinds.map((name) => ({ name }))
 		}
 	};
@@ -146,6 +151,16 @@ async function listDocument<T>(path: string, key: string, parse: (value: unknown
 	const values = document[key];
 	if (!Array.isArray(values)) throw invalidResponse(path, `${key} must be an array`);
 	return values.map(parse);
+}
+
+async function fetchCRMDefinitions(): Promise<CRMDefinitions> {
+	const document = await requestDocument('/crm/api/definitions');
+	return parseDefinitions(document.definitions);
+}
+
+function parseDefinitions(value: unknown): CRMDefinitions {
+	const record = requiredRecord(value, 'definitions');
+	return { businesses: stringArray(record, 'businesses') };
 }
 
 async function recordDocument<T>(

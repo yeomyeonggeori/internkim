@@ -27,6 +27,14 @@ describe('CRM API client', () => {
 		expect(requestedPaths).toContain('/crm/api/pipelines/sales/stages');
 	});
 
+	test('offers a business from the device definitions even when no opportunity has used it', async () => {
+		setFetch(async (input) => Response.json(documentFor(String(input))));
+
+		const data = await loadCRMData();
+
+		expect(data.taskVocabulary.businesses).toEqual([{ name: '제조업' }, { name: '유통업' }]);
+	});
+
 	test('fails closed when a response does not match the CRM contract', async () => {
 		setFetch(async (input) => Response.json(String(input).includes('/accounts') ? { accounts: [{ id: 42 }] } : documentFor(String(input))));
 
@@ -69,5 +77,6 @@ function documentFor(path: string): object {
 	if (path.endsWith('/pipelines')) return { pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }] };
 	if (path.endsWith('/lost-reasons')) return { lostReasons: [] };
 	if (path.endsWith('/pipelines/sales/stages')) return { stages: [{ pipeline: 'sales', stage: 'lead', label: 'lead', position: 1, outcome: 'open' }, { pipeline: 'sales', stage: 'qualified', label: 'qualified', position: 2, outcome: 'open' }] };
+	if (path.endsWith('/definitions')) return { definitions: { businesses: ['제조업', '유통업'] } };
 	throw new Error(`unexpected CRM test path: ${path}`);
 }

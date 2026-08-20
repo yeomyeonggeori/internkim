@@ -39,6 +39,24 @@ func (service *Service) listCRMPipelineStagesHTTP(responseWriter http.ResponseWr
 	writeCRMHTTPJSON(responseWriter, http.StatusOK, map[string]any{"stages": responses})
 }
 
+func (service *Service) listCRMDefinitionsHTTP(responseWriter http.ResponseWriter, request *http.Request) {
+	if _, ok := service.crmHTTPActor(responseWriter, request); !ok {
+		return
+	}
+	definitions, errorValue := service.readFlowDefinitions(request.Context())
+	if errorValue != nil {
+		writeCRMHTTPReadError(responseWriter, errorValue)
+		return
+	}
+	businesses := definitions.Categories
+	if businesses == nil {
+		businesses = []string{}
+	}
+	writeCRMHTTPJSON(responseWriter, http.StatusOK, map[string]any{
+		"definitions": map[string]any{"businesses": businesses},
+	})
+}
+
 func (service *Service) listCRMLostReasonsHTTP(responseWriter http.ResponseWriter, request *http.Request) {
 	if _, ok := service.crmHTTPActor(responseWriter, request); !ok {
 		return
