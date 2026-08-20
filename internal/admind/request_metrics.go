@@ -210,7 +210,7 @@ func isAdminControlPath(path string) bool {
 
 func isAdminStaticPath(path string) bool {
 	switch path {
-	case "/admin", "/flow", "/memory", "/calendar", "/mail", "/attendance", "/tasks","/company", "/logo.svg":
+	case "/admin", "/flow", "/memory", "/calendar", "/mail", "/attendance", "/tasks", "/company", "/logo.svg":
 		return true
 	default:
 		return strings.HasPrefix(path, "/_app/") ||
