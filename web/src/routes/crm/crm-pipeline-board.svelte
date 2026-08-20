@@ -4,7 +4,7 @@
 	import { CRMPipelineBoardDragController } from './crm-pipeline-board-drag-controller.svelte';
 	import { crmLabel } from './crm-labels';
 	import type { CRMPipelineBoardMoveRequest } from './crm-pipeline-board-drag';
-	import { findOrganizationByID, findNextActionByID, formatCRMDate, formatMoney, getProgressKind, opportunityStageLabel } from './crm-view-model';
+	import { crmInterimCurrencyCatalogue, findOrganizationByID, findNextActionByID, formatCRMDate, formatMoney, getProgressKind, opportunityStageLabel } from './crm-view-model';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -113,7 +113,7 @@
 											{crmLabel(text.progressKinds, getProgressKind(opportunity, organization))}
 										</Badge>
 										<Badge variant="secondary" class="h-5 rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">
-											{formatMoney(opportunity.expectedValue, opportunity.currency, text.noValue)}
+											{formatMoney(opportunity.expectedValue, opportunity.currency, crmInterimCurrencyCatalogue, text.noValue)}
 										</Badge>
 									</div>
 									<div class="text-xs leading-5 text-muted-foreground">

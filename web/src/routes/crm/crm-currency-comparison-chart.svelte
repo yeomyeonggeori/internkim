@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
 	import { buildCRMCurrencyComparisonRows } from './crm-currency-comparison';
-	import { formatMoney } from './crm-money';
+	import { crmInterimCurrencyCatalogue, formatMoney } from './crm-money';
 	import type { CRMMoneyTotals } from './crm-types';
 	import type { CRMText } from './text';
 
@@ -26,7 +26,7 @@
 				class="grid min-w-0 gap-2"
 				data-crm-currency-row={row.currency}
 				role="group"
-				aria-label={`${row.currency} ${text.openValue} ${formatMoney(row.expectedValue, row.currency, text.noValue)}, ${text.wonValue} ${formatMoney(row.wonValue, row.currency, text.noValue)}`}
+				aria-label={`${row.currency} ${text.openValue} ${formatMoney(row.expectedValue, row.currency, crmInterimCurrencyCatalogue, text.noValue)}, ${text.wonValue} ${formatMoney(row.wonValue, row.currency, crmInterimCurrencyCatalogue, text.noValue)}`}
 			>
 				<p class="text-sm font-semibold">{row.currency}</p>
 				<div class="grid gap-2">
@@ -39,7 +39,7 @@
 								style={`width: ${row.expectedPercent}%`}
 							></div>
 						</div>
-						<span class="text-right font-medium tabular-nums">{formatMoney(row.expectedValue, row.currency, text.noValue)}</span>
+						<span class="text-right font-medium tabular-nums">{formatMoney(row.expectedValue, row.currency, crmInterimCurrencyCatalogue, text.noValue)}</span>
 					</div>
 					<div class="grid grid-cols-[4.75rem_minmax(0,1fr)_minmax(5rem,auto)] items-center gap-2 text-xs">
 						<span class="text-muted-foreground">{text.wonValue}</span>
@@ -50,7 +50,7 @@
 								style={`width: ${row.wonPercent}%`}
 							></div>
 						</div>
-						<span class="text-right font-medium tabular-nums">{formatMoney(row.wonValue, row.currency, text.noValue)}</span>
+						<span class="text-right font-medium tabular-nums">{formatMoney(row.wonValue, row.currency, crmInterimCurrencyCatalogue, text.noValue)}</span>
 					</div>
 				</div>
 			</div>
