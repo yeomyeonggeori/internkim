@@ -24,26 +24,6 @@ func maxWorkScheduleMode(workMode string) string {
 	return attendanceWorkModeFlexible
 }
 
-func attendanceWorkMinutesExcludingBreaks(
-	start time.Time,
-	end time.Time,
-	dayStart time.Time,
-	breakPeriods []attendanceWorkScheduleBreakPeriod,
-) int {
-	minutes := durationMinutes(end.Sub(start))
-	for _, breakPeriod := range breakPeriods {
-		breakStartMinute, startError := attendanceWorkScheduleTimeMinutes(breakPeriod.StartTime)
-		breakEndMinute, endError := attendanceWorkScheduleTimeMinutes(breakPeriod.EndTime)
-		if startError != nil || endError != nil {
-			continue
-		}
-		breakStart := dayStart.Add(time.Duration(breakStartMinute) * time.Minute)
-		breakEnd := dayStart.Add(time.Duration(breakEndMinute) * time.Minute)
-		minutes -= overlapMinutes(start, end, breakStart, breakEnd)
-	}
-	return max(0, minutes)
-}
-
 func attendanceWorkSecondsExcludingBreaks(
 	start time.Time,
 	end time.Time,
@@ -64,7 +44,7 @@ func attendanceWorkSecondsExcludingBreaks(
 	return max(0, seconds)
 }
 
-func attendanceNightMinutesExcludingBreaks(
+func attendanceNightSecondsExcludingBreaks(
 	start time.Time,
 	end time.Time,
 	dayStart time.Time,
@@ -95,7 +75,7 @@ func attendanceNightMinutesExcludingBreaks(
 		if !overlapEnd.After(overlapStart) {
 			continue
 		}
-		total += attendanceWorkMinutesExcludingBreaks(
+		total += attendanceWorkSecondsExcludingBreaks(
 			overlapStart,
 			overlapEnd,
 			dayStart,

@@ -5,6 +5,9 @@
 	import { formatWorkStatusDuration } from '../work-status/work-status-format';
 	import { calculateWorkStandardCapacity } from './work-standard-capacity';
 
+	const secondsPerDay = 24 * 60 * 60;
+	const defaultReferenceDailyMinutes = 480;
+
 	type Props = {
 		actualMinutes: number;
 		provisionalMinutes: number;
@@ -13,6 +16,7 @@
 		provisionalSeconds: number;
 		workingCapacitySeconds: number;
 		calendarCapacitySeconds: number;
+		referenceDailyMinutes: number | undefined;
 		hasBaseline: boolean;
 	};
 
@@ -24,9 +28,19 @@
 		provisionalSeconds,
 		workingCapacitySeconds,
 		calendarCapacitySeconds,
+		referenceDailyMinutes,
 		hasBaseline
 	}: Props = $props();
 	const text = createPageText(attendanceText);
+	const workingDayCount = $derived(Math.round(workingCapacitySeconds / secondsPerDay));
+	const resolvedReferenceDailyMinutes = $derived(
+		referenceDailyMinutes !== undefined && referenceDailyMinutes > 0
+			? referenceDailyMinutes
+			: defaultReferenceDailyMinutes
+	);
+	const referenceCapacitySeconds = $derived(
+		workingDayCount > 0 ? resolvedReferenceDailyMinutes * 60 * workingDayCount : 0
+	);
 	const capacity = $derived(
 		calculateWorkStandardCapacity({
 			actualSeconds,
@@ -34,6 +48,7 @@
 			targetSeconds: targetMinutes * 60,
 			workingCapacitySeconds,
 			calendarCapacitySeconds,
+			referenceCapacitySeconds,
 			hasBaseline
 		})
 	);
