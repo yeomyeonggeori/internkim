@@ -8,6 +8,7 @@ const contactName = 'E2E 외부 담당자';
 const firstOpportunityName = 'E2E 진행 건 하나';
 const secondOpportunityName = 'E2E 진행 건 둘';
 const activityTitle = 'E2E 캘린더 활동';
+const settledOpportunityName = 'E2E 확정 진행 건';
 
 async function signIn(page: Page): Promise<void> {
 	await page.goto('/example-co/crm');
@@ -158,4 +159,75 @@ test('rejects deleting an in-use flow business with guidance', async ({ page }) 
 	await expect(
 		page.getByText('등록된 업무나 진행 건에서 사용 중인 항목입니다. 연결된 기록의 값을 변경한 후 삭제해 주세요.')
 	).toBeVisible({ timeout: 10000 });
+});
+
+async function chooseCurrencyOption(page: Page, code: string): Promise<void> {
+	const option = page.getByRole('option', { name: new RegExp(`\\b${code}\\b`) }).first();
+	await option.scrollIntoViewIfNeeded();
+	await option.click();
+}
+
+async function settledNoteOf(page: Page): Promise<string> {
+	await page.getByRole('tab', { name: '진행상황' }).click();
+	await page.getByRole('row', { name: new RegExp(settledOpportunityName) }).click();
+	const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
+	const note = editSheet.getByText(/확정$/);
+	await expect(note).toBeVisible({ timeout: 20000 });
+	return (await note.innerText()).trim();
+}
+
+test('an administrator moves the company onto another base currency', async ({ page }) => {
+	await signIn(page);
+	await page.goto('/example-co/settings');
+	const currency = page.getByLabel('기준 통화');
+	await expect(currency).toContainText('KRW', { timeout: 20000 });
+
+	await currency.click();
+	await chooseCurrencyOption(page, 'USD');
+	await expect(currency).toContainText('USD');
+	await page.getByRole('button', { name: '저장', exact: true }).first().click();
+
+	await page.reload();
+	await expect(page.getByLabel('기준 통화')).toContainText('USD', { timeout: 20000 });
+});
+
+test('closing a deal priced in another currency settles it in the base currency', async ({ page }) => {
+	await signIn(page);
+	await openQuickAdd(page, '진행 건');
+	const sheet = recordSheet(page);
+	await sheet.getByLabel('관계처').click();
+	await page.getByRole('option', { name: organizationName, exact: true }).click();
+	await sheet.getByLabel('이름 또는 제목').fill(settledOpportunityName);
+	await sheet.locator('#crm-record-amount-currency').click();
+	await chooseCurrencyOption(page, 'KRW');
+	await sheet.locator('#crm-record-amount').fill('18000000');
+	await sheet.getByRole('button', { name: '추가', exact: true }).click();
+	await expect(sheet).not.toBeVisible();
+
+	await page.getByRole('tab', { name: '진행상황' }).click();
+	await page.getByRole('row', { name: new RegExp(settledOpportunityName) }).click();
+	const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
+	await editSheet.getByLabel('단계').click();
+	await page.getByRole('option', { name: '성사', exact: true }).click();
+	await editSheet.getByRole('button', { name: '저장', exact: true }).click();
+	await expect(editSheet).not.toBeVisible();
+
+	const settled = await settledNoteOf(page);
+	expect(settled).toContain('확정');
+	expect(settled).toContain('$');
+});
+
+test('a settled amount survives a move between terminal stages', async ({ page }) => {
+	await signIn(page);
+	const before = await settledNoteOf(page);
+
+	const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
+	await editSheet.getByLabel('단계').click();
+	await page.getByRole('option', { name: '불발', exact: true }).click();
+	await editSheet.getByLabel('손실 사유').click();
+	await page.getByRole('option', { name: '예산 부족', exact: true }).click();
+	await editSheet.getByRole('button', { name: '저장', exact: true }).click();
+	await expect(editSheet).not.toBeVisible();
+
+	expect(await settledNoteOf(page)).toBe(before);
 });
