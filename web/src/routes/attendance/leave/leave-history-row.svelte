@@ -8,6 +8,7 @@
 	import type { EmployeeLeaveRequest, EmployeeLeaveStatus, EmployeeLeaveUnit } from './employee-leave-types';
 	import type { LeaveHistoryItem } from './leave-history-model';
 	import { milliDaysValue } from './leave-history-model';
+	import { ledgerOperationLabel } from './leave-ledger-operations';
 
 	type Props = {
 		item: LeaveHistoryItem;
@@ -48,19 +49,6 @@
 				: request.startDate;
 		if (!request.startTime || !request.endTime) return dateRange;
 		return `${dateRange} · ${request.startTime}–${request.endTime}`;
-	}
-
-	function operationLabel(operationType: string): string {
-		if (operationType === 'grant') return text.operationGrant;
-		if (operationType === 'expire') return text.operationExpire;
-		if (operationType === 'adjustment' || operationType === 'adminAdjustment') {
-			return text.operationAdjustment;
-		}
-		if (operationType === 'reserve') return text.operationReserve;
-		if (operationType === 'release') return text.operationRelease;
-		if (operationType === 'restore') return text.operationRestore;
-		if (operationType === 'use') return text.operationUse;
-		return text.operationOther;
 	}
 
 	function balanceAfter(): string {
@@ -192,7 +180,7 @@
 					{leaveTypeName(item.entry.leaveTypeID, item.entry.leaveTypeName)}
 				</p>
 				<p class="mt-1 text-xs text-muted-foreground">
-					{operationLabel(item.entry.operationType)}
+					{ledgerOperationLabel(text, item.entry.operationType)}
 					<span class="ml-1 font-medium tabular-nums text-foreground">
 						{item.entry.deltaMilliDays > 0 ? '+' : ''}{milliDaysValue(item.entry.deltaMilliDays)}{text.dayUnit}
 					</span>
