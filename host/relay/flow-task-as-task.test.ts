@@ -43,11 +43,20 @@ describe('who is on a flow task', () => {
 });
 
 describe('the task a flow task becomes', () => {
-	test('translates every status the device has', () => {
+	test('gives every status the device has one of its own', () => {
 		const statuses = ['요청', '예정', '진행', '완료', '일시정지', '기각', '중단'].map(
 			(status) => flowTaskAsTask(taskWith({ status }), seoul).status
 		);
-		expect(statuses).toEqual(['todo', 'todo', 'in_progress', 'done', 'paused', 'cancelled', 'cancelled']);
+		expect(statuses).toEqual([
+			'requested',
+			'todo',
+			'in_progress',
+			'done',
+			'paused',
+			'rejected',
+			'cancelled'
+		]);
+		expect(new Set(statuses).size).toBe(statuses.length);
 	});
 
 	test('treats a status it has never seen as work not started', () => {
