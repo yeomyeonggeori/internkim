@@ -74,7 +74,7 @@ func (service *Service) carryFlowTaskWrite(ctx context.Context, client *centralp
 		return fmt.Errorf("task %s belongs to %s, who has no messenger account here", taskID, task.OwnerID)
 	}
 
-	centralID, errorValue := service.readFlowCentralIdentityByTaskID(ctx, taskID)
+	centralID, errorValue := service.centralIdentityOfFlowTask(ctx, client, taskID, owner.MattermostUserID)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -96,7 +96,31 @@ func (service *Service) carryFlowTaskWrite(ctx context.Context, client *centralp
 	if errorValue != nil {
 		return errorValue
 	}
+	if centralID == "" {
+		if errorValue := client.MarkCarriedFrom(ctx, "mattermost", owner.MattermostUserID, saved, taskID); errorValue != nil {
+			return errorValue
+		}
+	}
 	return service.rememberFlowCentralIdentityForTask(ctx, taskID, saved)
+}
+
+// The device's tasks were carried over once by hand, so the central plane knows
+// which of its rows came from which device task while the device does not. Asking
+// before writing is what keeps a first edit from making a second copy, and it
+// restores the link after the device loses what it remembered.
+func (service *Service) centralIdentityOfFlowTask(ctx context.Context, client *centralplane.Client, taskID string, ownerAccount string) (string, error) {
+	remembered, errorValue := service.readFlowCentralIdentityByTaskID(ctx, taskID)
+	if errorValue != nil || remembered != "" {
+		return remembered, errorValue
+	}
+	carried, errorValue := client.TaskCarrying(ctx, "mattermost", ownerAccount, taskID)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if carried == "" {
+		return "", nil
+	}
+	return carried, service.rememberFlowCentralIdentityForTask(ctx, taskID, carried)
 }
 
 func (service *Service) carryFlowTaskRemoval(ctx context.Context, client *centralplane.Client, taskID string) error {
