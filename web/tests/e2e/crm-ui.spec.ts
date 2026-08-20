@@ -1040,6 +1040,7 @@ async function handleCRMRoute(route: Route, accounts: Account[], contacts: Conta
 	if (path === '/crm/api/pipelines' && method === 'GET') return fulfill(route, { pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }] });
 	if (path === '/crm/api/pipelines/sales/stages' && method === 'GET') return fulfill(route, { stages: [{ pipeline: 'sales', stage: 'lead', position: 1, outcome: 'open' }, { pipeline: 'sales', stage: 'qualified', position: 2, outcome: 'open' }, { pipeline: 'sales', stage: 'won', position: 3, outcome: 'won' }, { pipeline: 'sales', stage: 'lost', position: 4, outcome: 'lost' }] });
 	if (path === '/crm/api/lost-reasons' && method === 'GET') return fulfill(route, { lostReasons: [{ reason: 'budget', label: '예산 부족', isActive: true }] });
+	if (path === '/crm/api/definitions' && method === 'GET') return fulfill(route, { definitions: { businesses: ['general'] } });
 	await route.fulfill({ status: 404, json: { error: { code: 'not_found', message: path } } });
 }
 

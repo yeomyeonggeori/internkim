@@ -32,4 +32,5 @@ func (service *Service) registerCRMRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("GET /crm/api/pipelines", service.listCRMPipelinesHTTP)
 	multiplexer.HandleFunc("GET /crm/api/pipelines/{pipeline}/stages", service.listCRMPipelineStagesHTTP)
 	multiplexer.HandleFunc("GET /crm/api/lost-reasons", service.listCRMLostReasonsHTTP)
+	multiplexer.HandleFunc("GET /crm/api/definitions", service.listCRMDefinitionsHTTP)
 }

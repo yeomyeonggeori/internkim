@@ -461,6 +461,48 @@ func TestCRMHTTPRejectsWhitespaceOnlyRequiredFields(t *testing.T) {
 	}
 }
 
+func TestCRMHTTPDefinitionsListsBusinessesAndRequiresAuthorization(t *testing.T) {
+	service := newCRMHTTPTestService(t)
+
+	emptyResponse := crmHTTPTestRequest(t, service, http.MethodGet, "/crm/api/definitions", "owner@example.com", nil)
+	requireCRMHTTPStatus(t, emptyResponse, http.StatusOK)
+	var emptyDocument struct {
+		Definitions struct {
+			Businesses []string `json:"businesses"`
+		} `json:"definitions"`
+	}
+	decodeCRMHTTPTestResponse(t, emptyResponse, &emptyDocument)
+	if emptyDocument.Definitions.Businesses == nil || len(emptyDocument.Definitions.Businesses) != 0 {
+		t.Fatalf("businesses with no categories = %#v", emptyDocument.Definitions.Businesses)
+	}
+
+	definitions, errorValue := service.readFlowDefinitions(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	definitions.Categories = []string{"제조업", "유통업"}
+	if errorValue := service.writeFlowDefinitions(context.Background(), definitions); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	populatedResponse := crmHTTPTestRequest(t, service, http.MethodGet, "/crm/api/definitions", "owner@example.com", nil)
+	requireCRMHTTPStatus(t, populatedResponse, http.StatusOK)
+	var populatedDocument struct {
+		Definitions struct {
+			Businesses []string `json:"businesses"`
+		} `json:"definitions"`
+	}
+	decodeCRMHTTPTestResponse(t, populatedResponse, &populatedDocument)
+	if len(populatedDocument.Definitions.Businesses) != 2 ||
+		populatedDocument.Definitions.Businesses[0] != "제조업" ||
+		populatedDocument.Definitions.Businesses[1] != "유통업" {
+		t.Fatalf("populated businesses = %#v", populatedDocument.Definitions.Businesses)
+	}
+
+	unauthorizedResponse := crmHTTPTestRequest(t, service, http.MethodGet, "/crm/api/definitions", "", nil)
+	requireCRMHTTPStatus(t, unauthorizedResponse, http.StatusUnauthorized)
+}
+
 func newCRMHTTPTestService(t *testing.T) *Service {
 	t.Helper()
 	stateDirectory := t.TempDir()
