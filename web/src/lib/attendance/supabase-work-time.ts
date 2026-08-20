@@ -7,6 +7,7 @@ import {
 export type SupabaseWorkEvent = {
 	kind: 'clock_in' | 'clock_out';
 	occurred_at: string;
+	location?: string | null;
 };
 
 export type SupabaseWorkedSpan = {
@@ -48,11 +49,21 @@ export function supabaseWorkRecordsFromEvents(
 	const completedSegments: SupabaseWorkRecordSegment[] = [];
 	const incompleteDates = new Set<string>();
 	let openedAt: Date | null = null;
+	let openedLocation: string | null = null;
 	for (const event of sortedEvents) {
 		const occurredAt = new Date(event.occurred_at);
+		const eventLocation = event.location ?? null;
 		if (event.kind === 'clock_in') {
-			if (openedAt) incompleteDates.add(companyLocalDate(openedAt, timeZone));
+			if (openedAt) {
+				if (attendanceLocationsMatch(openedLocation, eventLocation)) {
+					incompleteDates.add(companyLocalDate(openedAt, timeZone));
+					openedAt = occurredAt;
+				}
+				openedLocation = eventLocation;
+				continue;
+			}
 			openedAt = occurredAt;
+			openedLocation = eventLocation;
 			continue;
 		}
 		if (!openedAt || occurredAt.getTime() <= openedAt.getTime()) {
@@ -61,6 +72,7 @@ export function supabaseWorkRecordsFromEvents(
 		}
 		completedSegments.push({ startAt: openedAt, endAt: occurredAt });
 		openedAt = null;
+		openedLocation = null;
 	}
 	let provisionalSegment: SupabaseWorkRecordSegment | null = null;
 	if (openedAt && now.getTime() > openedAt.getTime()) {
@@ -71,6 +83,10 @@ export function supabaseWorkRecordsFromEvents(
 		}
 	}
 	return { completedSegments, provisionalSegment, incompleteDates };
+}
+
+function attendanceLocationsMatch(left: string | null, right: string | null): boolean {
+	return (left ?? '').trim() === (right ?? '').trim();
 }
 
 export function companyLocalDate(instant: Date, timeZone: string): string {

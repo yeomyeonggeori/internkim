@@ -39,16 +39,24 @@ func attendanceWorkRecordsForEmail(
 		IncompleteDates:   make(map[string]struct{}),
 	}
 	var startedAt time.Time
+	var startedLocationID string
 	for _, event := range filtered {
 		occurredAt, errorValue := parseAttendanceEventTime(event.OccurredAt)
 		if errorValue != nil {
 			continue
 		}
 		if event.Kind == attendanceKindClockIn {
+			eventLocationID := strings.TrimSpace(event.LocationID)
 			if !startedAt.IsZero() {
-				result.IncompleteDates[startedAt.In(location).Format(time.DateOnly)] = struct{}{}
+				if startedLocationID == eventLocationID {
+					result.IncompleteDates[startedAt.In(location).Format(time.DateOnly)] = struct{}{}
+					startedAt = occurredAt
+				}
+				startedLocationID = eventLocationID
+				continue
 			}
 			startedAt = occurredAt
+			startedLocationID = eventLocationID
 			continue
 		}
 		if event.Kind != attendanceKindClockOut {
@@ -63,6 +71,7 @@ func attendanceWorkRecordsForEmail(
 			attendanceWorkSegment{Start: startedAt, End: occurredAt},
 		)
 		startedAt = time.Time{}
+		startedLocationID = ""
 	}
 	if !startedAt.IsZero() && now.After(startedAt) {
 		if startedAt.In(location).Format(time.DateOnly) == now.In(location).Format(time.DateOnly) {
