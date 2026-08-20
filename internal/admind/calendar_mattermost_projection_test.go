@@ -58,6 +58,7 @@ func TestCalendarNotificationPostsAnnouncementsForAllHands(t *testing.T) {
 	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	waitForCalendarNotificationReconciliation(t, service, event.ID)
 	service.processDueCalendarNotifications(context.Background(), time.Now().UTC().Add(time.Second))
 	service.processDueCalendarNotifications(context.Background(), time.Now().UTC().Add(2*time.Second))
 
@@ -112,6 +113,7 @@ func TestCalendarNotificationPostsDirectMessageForPeopleLine(t *testing.T) {
 	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	waitForCalendarNotificationReconciliation(t, service, event.ID)
 	service.processDueCalendarNotifications(context.Background(), time.Now().UTC().Add(time.Second))
 
 	if strings.Join(directChannelMembers, "|") != "user-1|bot-1" {
