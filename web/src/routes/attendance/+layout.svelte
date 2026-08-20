@@ -110,9 +110,7 @@
 		if (!summary) return;
 		const today = todayDateInTimeZone(summary.timeZone);
 		const anchor =
-			period === 'month' && selectedMonth && !today.startsWith(selectedMonth)
-				? `${selectedMonth}-01`
-				: today;
+			selectedMonth && !today.startsWith(selectedMonth) ? `${selectedMonth}-01` : today;
 		untrack(() => void personalWorkStatus.load(period, anchor));
 	});
 

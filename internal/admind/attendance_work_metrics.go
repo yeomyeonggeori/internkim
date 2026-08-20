@@ -68,7 +68,7 @@ func calculateAttendanceWorkStatus(
 		status.ActualMinutes += day.ActualMinutes
 		status.ActualSeconds += day.ActualSeconds
 		if day.HasBaseline {
-			baselineActualMinutes += day.ActualMinutes
+			baselineActualMinutes += day.ActualMinutes + day.ProvisionalMinutes
 			status.LeaveMinutes += day.LeaveMinutes
 		}
 		status.ProvisionalMinutes += day.ProvisionalMinutes
@@ -124,9 +124,8 @@ func calculateAttendanceWorkDayStatus(
 	}
 	dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, location)
 	dayEnd := dayStart.AddDate(0, 0, 1)
-	actualMinutes := 0
 	actualSeconds := 0
-	nightMinutes := 0
+	nightSeconds := 0
 	daySegments := make([]attendanceWorkSegment, 0)
 	workSegmentDetails := make([]attendanceWorkIntervalDetail, 0)
 	for _, segment := range records.CompletedSegments {
@@ -140,26 +139,21 @@ func calculateAttendanceWorkDayStatus(
 			StartTime: start.In(location).Format("15:04"),
 			EndTime:   end.In(location).Format("15:04"),
 		})
-		actualMinutes += attendanceWorkMinutesExcludingBreaks(
-			start,
-			end,
-			dayStart,
-			revision.BreakPeriods,
-		)
 		actualSeconds += attendanceWorkSecondsExcludingBreaks(
 			start,
 			end,
 			dayStart,
 			revision.BreakPeriods,
 		)
-		nightMinutes += attendanceNightMinutesExcludingBreaks(
+		nightSeconds += attendanceNightSecondsExcludingBreaks(
 			start,
 			end,
 			dayStart,
 			revision,
 		)
 	}
-	provisionalMinutes := 0
+	actualMinutes := actualSeconds / 60
+	nightMinutes := nightSeconds / 60
 	provisionalSeconds := 0
 	isWorking := false
 	if records.Provisional != nil {
@@ -167,12 +161,6 @@ func calculateAttendanceWorkDayStatus(
 		end := earliestTime(records.Provisional.End, dayEnd)
 		if end.After(start) {
 			isWorking = true
-			provisionalMinutes = attendanceWorkMinutesExcludingBreaks(
-				start,
-				end,
-				dayStart,
-				revision.BreakPeriods,
-			)
 			provisionalSeconds = attendanceWorkSecondsExcludingBreaks(
 				start,
 				end,
@@ -187,6 +175,7 @@ func calculateAttendanceWorkDayStatus(
 			})
 		}
 	}
+	provisionalMinutes := provisionalSeconds / 60
 	leaveIntervals := attendanceLeaveIntervals(date, leaveOccurrences, location)
 	leaveSegmentDetails := make([]attendanceLeaveIntervalDetail, 0, len(leaveOccurrences))
 	for _, occurrence := range leaveOccurrences {
@@ -204,7 +193,8 @@ func calculateAttendanceWorkDayStatus(
 		leaveMinutes = min(targetMinutes, leaveMinutes)
 		targetMinutes -= leaveMinutes
 	}
-	fulfilledMinutes := actualMinutes
+	creditedMinutes := actualMinutes + provisionalMinutes
+	fulfilledMinutes := creditedMinutes
 	if hasBaseline {
 		fulfilledMinutes = min(targetMinutes, fulfilledMinutes)
 	}
@@ -214,8 +204,8 @@ func calculateAttendanceWorkDayStatus(
 	status := "actualOnly"
 	if hasBaseline {
 		remainingMinutes = max(0, targetMinutes-fulfilledMinutes)
-		overtimeMinutes = max(0, actualMinutes-targetMinutes)
-		differenceMinutes = actualMinutes - targetMinutes
+		overtimeMinutes = max(0, creditedMinutes-targetMinutes)
+		differenceMinutes = creditedMinutes - targetMinutes
 	}
 	_, hasIncompleteWorkRecord := records.IncompleteDates[dateValue]
 	hasLeaveWorkOverlap := attendanceSegmentsOverlap(daySegments, leaveIntervals)
