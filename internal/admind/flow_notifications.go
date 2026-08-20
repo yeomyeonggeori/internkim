@@ -148,11 +148,8 @@ func (service *Service) deleteFlowMattermostNotification(ctx context.Context, to
 	if strings.TrimSpace(task.MattermostPostID) == "" {
 		return task, nil
 	}
-	errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(task.MattermostPostID), token, nil, nil)
-	if errorValue != nil {
-		if !isMattermostNotFound(errorValue) {
-			return task, errorValue
-		}
+	if errorValue := service.deleteMattermostPost(ctx, token, task.MattermostPostID); errorValue != nil {
+		return task, errorValue
 	}
 	task.MattermostPostID = ""
 	return task, service.updateFlowTaskMattermostPostID(ctx, task.ID, "")
