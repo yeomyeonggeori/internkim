@@ -31,7 +31,8 @@ var releaseUpdateHTTPClient = &http.Client{
 func deployUsageText() string {
 	return `Usage: internkim deploy [OPTIONS]
 
-Publish a release to the registry, then have the device apply it over ssh.
+Publish a release to the registry, then have the device apply it over ssh,
+or over its public endpoint with a signed request when ssh is unreachable.
 
 Options:
   --components <list>  Comma-separated component names to include.
@@ -202,19 +203,15 @@ func deployReleaseToJetsonTargets(repositoryRootPath string, targets []deployops
 }
 
 func applyPublishedRelease(target commandTarget, releaseID string) error {
-	admin, errorValue := reachDeviceAdmin(target)
+	api, errorValue := reachDeviceReleaseAPI(target)
 	if errorValue != nil {
 		return errorValue
 	}
-	requestDocument, errorValue := json.Marshal(map[string]string{"releaseID": releaseID, "channel": deployReleaseChannel})
+	job, errorValue := api.applyRelease(releaseID, deployReleaseChannel)
 	if errorValue != nil {
 		return errorValue
 	}
-	var job blueclawUpdateJobResponse
-	if errorValue := admin.ask(http.MethodPost, "/admin/api/updates/apply", requestDocument, &job); errorValue != nil {
-		return errorValue
-	}
-	completedJob, errorValue := waitForReleaseUpdateJob(target, job, releaseID)
+	completedJob, errorValue := waitForReleaseUpdateJob(api, job, releaseID)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -342,10 +339,10 @@ func writeDirectReleaseBundleFile(writer *tar.Writer, name string, path string) 
 	return errorValue
 }
 
-func waitForReleaseUpdateJob(target commandTarget, job blueclawUpdateJobResponse, expectedReleaseID string) (blueclawUpdateJobResponse, error) {
+func waitForReleaseUpdateJob(api deviceReleaseAPI, job blueclawUpdateJobResponse, expectedReleaseID string) (blueclawUpdateJobResponse, error) {
 	lastObservedJob := job
 	for attempt := 0; attempt < 240; attempt++ {
-		currentJob, errorValue := fetchDeviceReleaseUpdateJob(target, job.JobID)
+		currentJob, errorValue := api.releaseUpdateJob(job.JobID)
 		if errorValue == nil {
 			lastObservedJob = currentJob
 			fmt.Printf("Status: %s/%s\n", currentJob.Status, currentJob.Phase)
@@ -355,7 +352,7 @@ func waitForReleaseUpdateJob(target commandTarget, job blueclawUpdateJobResponse
 			case "failed":
 				return currentJob, releaseApplyFailure(currentJob)
 			}
-		} else if releaseUpdateReachedTarget(target, expectedReleaseID) {
+		} else if releaseUpdateReachedTarget(api, expectedReleaseID) {
 			// The job record is gone (an admind-containing release restarts admind and
 			// wipes the in-memory job store), but the device's current release already
 			// matches the target, so the deploy actually landed.
@@ -364,10 +361,10 @@ func waitForReleaseUpdateJob(target commandTarget, job blueclawUpdateJobResponse
 		}
 		time.Sleep(1500 * time.Millisecond)
 	}
-	if releaseUpdateReachedTarget(target, expectedReleaseID) {
+	if releaseUpdateReachedTarget(api, expectedReleaseID) {
 		return blueclawUpdateJobResponse{Status: "completed", Phase: "verified"}, nil
 	}
-	return lastObservedJob, releaseUpdateTimeoutError(target, lastObservedJob)
+	return lastObservedJob, releaseUpdateTimeoutError(api, lastObservedJob)
 }
 
 // A release is applied by the admind already on the device, so an install the running
@@ -384,13 +381,13 @@ func releaseApplyFailure(job blueclawUpdateJobResponse) error {
 		"    make build && ./internkim setup --only admind --force", detail)
 }
 
-func releaseUpdateTimeoutError(target commandTarget, lastObservedJob blueclawUpdateJobResponse) error {
+func releaseUpdateTimeoutError(api deviceReleaseAPI, lastObservedJob blueclawUpdateJobResponse) error {
 	lastPhase := strings.TrimSpace(lastObservedJob.Phase)
 	if lastPhase == "" {
 		lastPhase = "unreported"
 	}
 	servingReleaseID := "an unreadable release"
-	if status, errorValue := fetchDeviceReleaseUpdateStatusForTarget(target); errorValue == nil {
+	if status, errorValue := api.releaseUpdateStatus(); errorValue == nil {
 		servingReleaseID = releaseUpdateID(status.Current)
 	}
 	return fmt.Errorf(
@@ -400,12 +397,12 @@ func releaseUpdateTimeoutError(target commandTarget, lastObservedJob blueclawUpd
 	)
 }
 
-func releaseUpdateReachedTarget(target commandTarget, expectedReleaseID string) bool {
+func releaseUpdateReachedTarget(api deviceReleaseAPI, expectedReleaseID string) bool {
 	trimmedExpected := strings.TrimSpace(expectedReleaseID)
 	if trimmedExpected == "" {
 		return false
 	}
-	status, errorValue := fetchDeviceReleaseUpdateStatusForTarget(target)
+	status, errorValue := api.releaseUpdateStatus()
 	if errorValue != nil {
 		return false
 	}
