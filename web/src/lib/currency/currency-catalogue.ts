@@ -40,11 +40,19 @@ export function minorAmountOf(amountMajor: number, currency: string, catalogue: 
 	return Math.round(amountMajor * 10 ** minorUnitDigitsOf(currency, catalogue));
 }
 
+const providerPatienceInMilliseconds = 5000;
+
 export async function loadCurrencyCatalogue(): Promise<CurrencyCatalogue> {
 	if (!isSupabaseConfigured()) return interimCurrencyCatalogue;
-	const response = await fetch('/api/currencies');
-	if (!response.ok) return interimCurrencyCatalogue;
-	const payload = (await response.json()) as { currencies?: CurrencyCatalogue };
-	const currencies = payload.currencies;
-	return currencies && currencies.length > 0 ? currencies : interimCurrencyCatalogue;
+	try {
+		const response = await fetch('/api/currencies', {
+			signal: AbortSignal.timeout(providerPatienceInMilliseconds)
+		});
+		if (!response.ok) return interimCurrencyCatalogue;
+		const payload = (await response.json()) as { currencies?: CurrencyCatalogue };
+		const currencies = payload.currencies;
+		return currencies && currencies.length > 0 ? currencies : interimCurrencyCatalogue;
+	} catch {
+		return interimCurrencyCatalogue;
+	}
 }

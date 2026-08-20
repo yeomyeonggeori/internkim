@@ -24,11 +24,18 @@ restart_gateway() {
   docker restart "$container" >/dev/null
 }
 
+central_plane_serves() {
+  curl --silent --fail --output /dev/null --header "apikey: $PUBLISHABLE_KEY" "$API_URL/auth/v1/settings" \
+    && curl --silent --fail --output /dev/null --header "apikey: $PUBLISHABLE_KEY" "$API_URL/rest/v1/company?select=id&limit=1"
+}
+
 wait_until_central_plane_serves() {
-  for _ in $(seq 1 60); do
-    if curl --silent --fail --output /dev/null --header "apikey: $PUBLISHABLE_KEY" "$API_URL/auth/v1/settings" \
-      && curl --silent --fail --output /dev/null --header "apikey: $PUBLISHABLE_KEY" "$API_URL/rest/v1/company?select=id&limit=1"; then
+  for attempt in $(seq 1 60); do
+    if central_plane_serves; then
       return 0
+    fi
+    if [ $((attempt % 10)) -eq 0 ]; then
+      restart_gateway
     fi
     sleep 1
   done
@@ -36,7 +43,6 @@ wait_until_central_plane_serves() {
   return 1
 }
 
-restart_gateway
 wait_until_central_plane_serves
 
 cd web
