@@ -29,6 +29,15 @@ function createWebServer(serverBaseURL: string) {
 		command: `bun run dev --host ${serverURL.hostname} --port ${serverURL.port}`,
 		url: serverBaseURL,
 		timeout: 120_000,
-		reuseExistingServer: false
+		reuseExistingServer: false,
+		env: withoutCentralPlane()
+	};
+}
+
+function withoutCentralPlane(): Record<string, string> {
+	return {
+		SUPABASE_URL: '',
+		SUPABASE_PUBLISHABLE_KEY: '',
+		SUPABASE_SECRET_KEY: ''
 	};
 }

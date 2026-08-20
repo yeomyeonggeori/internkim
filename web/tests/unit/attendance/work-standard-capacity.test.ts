@@ -20,6 +20,7 @@ describe('calculateWorkStandardCapacity', () => {
 			targetSeconds: 8 * hour,
 			workingCapacitySeconds: 24 * hour,
 			calendarCapacitySeconds: 24 * hour,
+			referenceCapacitySeconds: 8 * hour,
 			hasBaseline: true
 		});
 
@@ -36,6 +37,7 @@ describe('calculateWorkStandardCapacity', () => {
 			targetSeconds: 8 * hour,
 			workingCapacitySeconds: 5 * 24 * hour,
 			calendarCapacitySeconds: 7 * 24 * hour,
+			referenceCapacitySeconds: 8 * hour,
 			hasBaseline: true
 		});
 
@@ -50,6 +52,7 @@ describe('calculateWorkStandardCapacity', () => {
 			targetSeconds: 40 * hour,
 			workingCapacitySeconds: 5 * 24 * hour,
 			calendarCapacitySeconds: 7 * 24 * hour,
+			referenceCapacitySeconds: 40 * hour,
 			hasBaseline: true
 		});
 
@@ -57,20 +60,96 @@ describe('calculateWorkStandardCapacity', () => {
 		expect(capacity.capacitySeconds).toBe(7 * 24 * hour);
 	});
 
-	test('starts autonomous work at working-day capacity and has no target marker', () => {
+	test('starts autonomous work at reference-hour capacity and has no target marker', () => {
 		const capacity = calculateWorkStandardCapacity({
 			actualSeconds: hour,
 			provisionalSeconds: 30 * 60,
 			targetSeconds: 0,
 			workingCapacitySeconds: 5 * 24 * hour,
 			calendarCapacitySeconds: 7 * 24 * hour,
+			referenceCapacitySeconds: 40 * hour,
+			hasBaseline: false
+		});
+
+		expect(capacity.stage).toBe('reference-hours');
+		expect(capacity.capacitySeconds).toBe(40 * hour);
+		expect(capacity.targetPositionPercent).toBe(undefined);
+		expect(capacity.actualWidthPercent).toBe(3.75);
+	});
+
+	test('selects reference-hours for 1h48m of work against a 5-working-day period at 480 reference minutes', () => {
+		const capacity = calculateWorkStandardCapacity({
+			actualSeconds: hour + 48 * 60,
+			provisionalSeconds: 0,
+			targetSeconds: 0,
+			workingCapacitySeconds: 5 * 24 * hour,
+			calendarCapacitySeconds: 7 * 24 * hour,
+			referenceCapacitySeconds: 40 * hour,
+			hasBaseline: false
+		});
+
+		expect(capacity.stage).toBe('reference-hours');
+		expect(capacity.capacitySeconds).toBe(40 * hour);
+		expect(capacity.actualWidthPercent).toBe(4.5);
+	});
+
+	test('autonomous escalates to working-days once actual exceeds reference capacity by one second', () => {
+		const capacity = calculateWorkStandardCapacity({
+			actualSeconds: 40 * hour + 1,
+			provisionalSeconds: 0,
+			targetSeconds: 0,
+			workingCapacitySeconds: 5 * 24 * hour,
+			calendarCapacitySeconds: 7 * 24 * hour,
+			referenceCapacitySeconds: 40 * hour,
 			hasBaseline: false
 		});
 
 		expect(capacity.stage).toBe('working-days');
 		expect(capacity.capacitySeconds).toBe(5 * 24 * hour);
-		expect(capacity.targetPositionPercent).toBe(undefined);
-		expect(capacity.actualWidthPercent).toBe(1.25);
+	});
+
+	test('autonomous with zero reference capacity falls through to working-days', () => {
+		const capacity = calculateWorkStandardCapacity({
+			actualSeconds: hour,
+			provisionalSeconds: 0,
+			targetSeconds: 0,
+			workingCapacitySeconds: 5 * 24 * hour,
+			calendarCapacitySeconds: 7 * 24 * hour,
+			referenceCapacitySeconds: 0,
+			hasBaseline: false
+		});
+
+		expect(capacity.stage).toBe('working-days');
+		expect(capacity.capacitySeconds).toBe(5 * 24 * hour);
+	});
+
+	test('autonomous with zero reference and zero working capacity falls through to calendar-days', () => {
+		const capacity = calculateWorkStandardCapacity({
+			actualSeconds: 1,
+			provisionalSeconds: 0,
+			targetSeconds: 0,
+			workingCapacitySeconds: 0,
+			calendarCapacitySeconds: 24 * hour,
+			referenceCapacitySeconds: 0,
+			hasBaseline: false
+		});
+
+		expect(capacity.stage).toBe('calendar-days');
+		expect(capacity.capacitySeconds).toBe(24 * hour);
+	});
+
+	test('hasBaseline true never selects reference-hours even when reference capacity is supplied', () => {
+		const capacity = calculateWorkStandardCapacity({
+			actualSeconds: hour,
+			provisionalSeconds: 0,
+			targetSeconds: 0,
+			workingCapacitySeconds: 5 * 24 * hour,
+			calendarCapacitySeconds: 7 * 24 * hour,
+			referenceCapacitySeconds: 40 * hour,
+			hasBaseline: true
+		});
+
+		expect(capacity.stage).not.toBe('reference-hours');
 	});
 
 	test('uses calendar capacity when the period has no working date', () => {
@@ -80,6 +159,7 @@ describe('calculateWorkStandardCapacity', () => {
 			targetSeconds: 0,
 			workingCapacitySeconds: 0,
 			calendarCapacitySeconds: 24 * hour,
+			referenceCapacitySeconds: 0,
 			hasBaseline: false
 		});
 

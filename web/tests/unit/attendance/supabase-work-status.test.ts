@@ -294,4 +294,74 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		expect(status.days[1]?.workingDate).toBe(false);
 		expect(status.days[1]?.targetMinutes).toBe(0);
 	});
+
+	test('credits a half-day partial leave with proportional minutes instead of dropping it', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-19'],
+			timeZone: 'Asia/Seoul',
+			attendance: [],
+			leave: [
+				{
+					member_id: member.id,
+					days: 0.5,
+					starts_at: '2026-08-19T00:00:00Z',
+					ends_at: '2026-08-19T05:00:00Z',
+					status: 'approved'
+				}
+			],
+			policy: policyFrom(null, 'fixed')
+		});
+
+		expect(status.days[0]?.leaveMinutes).toBe(240);
+		expect(status.leaveMinutes).toBe(240);
+		expect(status.referenceDailyMinutes).toBe(480);
+	});
+
+	test('credits a quarter-day partial leave with proportional minutes', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-20'],
+			timeZone: 'Asia/Seoul',
+			attendance: [],
+			leave: [
+				{
+					member_id: member.id,
+					days: 0.25,
+					starts_at: '2026-08-20T00:00:00Z',
+					ends_at: '2026-08-20T02:00:00Z',
+					status: 'approved'
+				}
+			],
+			policy: policyFrom(null, 'fixed')
+		});
+
+		expect(status.days[0]?.leaveMinutes).toBe(120);
+		expect(status.leaveMinutes).toBe(120);
+	});
+
+	test('still credits the full daily target per day for a multi-day all-day leave', () => {
+		const days = ['2026-08-24', '2026-08-25', '2026-08-26'];
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days,
+			timeZone: 'Asia/Seoul',
+			attendance: [],
+			leave: [
+				{
+					member_id: member.id,
+					days: 3,
+					starts_at: '2026-08-23T15:00:00Z',
+					ends_at: '2026-08-26T15:00:00Z',
+					status: 'approved'
+				}
+			],
+			policy: policyFrom(null, 'fixed')
+		});
+
+		expect(status.days[0]?.leaveMinutes).toBe(480);
+		expect(status.days[1]?.leaveMinutes).toBe(480);
+		expect(status.days[2]?.leaveMinutes).toBe(480);
+		expect(status.leaveMinutes).toBe(1440);
+	});
 });
