@@ -175,46 +175,54 @@ and compare, then turn the switch and stop the mirror. The tables go last.
 ## 8. What the two copies actually say
 
 The comparison §7 asks for, run on 2026-08-20 against 630 device tasks and 621
-central ones. It is recorded because the differences are the gates: a switch
-thrown before they close moves real work.
+central ones, joined on `calendar->'mirrors'->>'externalID'`.
+
+The first run found 539 of 610 linked tasks disagreeing on their start date, and
+the cause was the mirror, one deploy old. `flowDayOf` took the day by slicing a
+PostgREST timestamp, which arrives in UTC; a day is stored as its first instant
+in Asia/Seoul, so a start at `15:00+00` is the next day there and the slice named
+the day before. Ends were untouched because 23:59 does not cross midnight going
+west, which is why it read as one-sided data drift and not as a reader bug. It
+is the whole argument for running this step before the switch: the damage was
+invisible on the board and would have become everyone's problem the day the
+device stopped serving it.
+
+After the fix and `recover -action flow-date-repair`, which moved 574 rows:
 
 | | count |
 |---|---|
-| linked on both sides, identical | 64 |
-| linked on both sides, differing in some field | 546 |
+| linked, identical | 570 |
+| linked, differing | 40 |
 | on the device with no central row | 9 |
 | in the central plane with no device link | 11 |
 | in the central plane with no device copy | 0 |
 
-The differences, by field:
+The differences that remain, and what each is:
 
 | Field | Rows | What it is |
 |---|---|---|
-| `startDate` | 539 | the central value names the day after the device's — [#670](https://github.com/yeomyeonggeori/internkim/issues/670) |
-| `endDate` | 5 | genuine divergence, written on one side before the outbox existed |
+| `endDate` | 33 | the central row carries no date and the device filled one in |
+| `startDate` | 19 | the same, a subset of the above |
 | `status` | 4 | 기각 read back as 중단; the enum has five words and the device has seven |
-| `size` | 3 | genuine divergence, same cause as `endDate` |
+| `size` | 3 | genuine divergence, written on one side before the outbox existed |
 
-Four things follow, and each is a gate.
+Three gates follow.
 
-**The device holds the right dates and the central plane does not.** 539 of 610
-is not drift, and 583 rows of the whole table carry the encoding behind it.
-Until #670 lands and its rows are corrected, a central read moves every one of
-them a day.
+**A dateless task does not stay dateless.** The device places work in a week, so
+`normalizeFlowStatusDates` gives a task without dates the day it was written.
+Mirroring a dateless central row therefore invents a date the board never had.
+Today that is an improvement, because such a task had no week and appeared
+nowhere; after retirement it has to be a decision.
 
 **Nine tasks exist only on the device.** They predate the outbox and were never
 hand-imported, so a central read loses them outright. They have to drain before
-the switch, not after.
+the switch.
 
-**Eleven links live only on the device.** These were adopted by the mirror
-before it learned to write `calendar.mirrors` back, so the central plane cannot
-say which device task it holds. Re-stamping them is a write to production data
-and wants doing deliberately.
+**Eleven links live only on the device.** The mirror adopted them before it
+learned to write `calendar.mirrors` back, so the central plane cannot say which
+device task it holds. Re-stamping them is a write to production data.
 
-**요청 and 기각 have nowhere to go.** Four tasks sit in them today. Retirement
-either widens the enum or accepts that the two words stop existing; §6 records
-the round-trip rule that has been hiding this, and it stops hiding it the day
-the device's copy goes.
+**요청 and 기각 have nowhere to go.** Four tasks sit in them. Retirement either
+widens the enum or accepts that the two words stop existing.
 
-Read staleness, §4's open question, did not come up: nothing was found that only
-one side had seen recently.
+Read staleness, §4's open question, did not come up.
