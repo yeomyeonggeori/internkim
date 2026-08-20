@@ -2,6 +2,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as HoverCard from '$lib/components/ui/hover-card';
 	import type { CRMKPICardData, CRMKPIMoneyDetail } from './crm-kpi';
+	import { donutValueTextClass } from './crm-kpi-value-text';
 
 	type Props = {
 		card: CRMKPICardData;
@@ -81,7 +82,7 @@
 			<div class="grid justify-items-center">
 				<div data-crm-kpi-chart class="relative size-24 rounded-full" style={`background: ${donutBackground()}`}>
 					<div class="absolute inset-[0.45rem] flex flex-col items-center justify-center gap-0.5 rounded-full bg-card px-1 text-center">
-						<p data-crm-kpi-value class="max-w-full text-xl font-semibold leading-6 tabular-nums">
+						<p data-crm-kpi-value class={`max-w-full font-semibold tabular-nums ${donutValueTextClass(card.totalValue)}`}>
 							{@render MoneyValue({
 								displayValue: card.totalValue,
 								label: card.totalLabel,
