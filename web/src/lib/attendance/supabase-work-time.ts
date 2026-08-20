@@ -15,6 +15,17 @@ export type SupabaseWorkedSpan = {
 	provisional: boolean;
 };
 
+export type SupabaseWorkRecordSegment = {
+	startAt: Date;
+	endAt: Date;
+};
+
+export type SupabaseWorkRecords = {
+	completedSegments: SupabaseWorkRecordSegment[];
+	provisionalSegment: SupabaseWorkRecordSegment | null;
+	incompleteDates: Set<string>;
+};
+
 export type SupabaseWorkedDay = {
 	spans: SupabaseWorkedSpan[];
 	actualMinutes: number;
@@ -23,19 +34,70 @@ export type SupabaseWorkedDay = {
 	provisionalSeconds: number;
 	nightMinutes: number;
 	isWorking: boolean;
+	hasIncompleteWorkRecord: boolean;
 };
 
-export function supabaseWorkedDay(
+export function supabaseWorkRecordsFromEvents(
 	events: SupabaseWorkEvent[],
+	now: Date,
+	timeZone: string
+): SupabaseWorkRecords {
+	const sortedEvents = [...events].sort(
+		(left, right) => Date.parse(left.occurred_at) - Date.parse(right.occurred_at)
+	);
+	const completedSegments: SupabaseWorkRecordSegment[] = [];
+	const incompleteDates = new Set<string>();
+	let openedAt: Date | null = null;
+	for (const event of sortedEvents) {
+		const occurredAt = new Date(event.occurred_at);
+		if (event.kind === 'clock_in') {
+			if (openedAt) incompleteDates.add(companyLocalDate(openedAt, timeZone));
+			openedAt = occurredAt;
+			continue;
+		}
+		if (!openedAt || occurredAt.getTime() <= openedAt.getTime()) {
+			incompleteDates.add(companyLocalDate(occurredAt, timeZone));
+			continue;
+		}
+		completedSegments.push({ startAt: openedAt, endAt: occurredAt });
+		openedAt = null;
+	}
+	let provisionalSegment: SupabaseWorkRecordSegment | null = null;
+	if (openedAt && now.getTime() > openedAt.getTime()) {
+		if (companyLocalDate(openedAt, timeZone) === companyLocalDate(now, timeZone)) {
+			provisionalSegment = { startAt: openedAt, endAt: now };
+		} else {
+			incompleteDates.add(companyLocalDate(openedAt, timeZone));
+		}
+	}
+	return { completedSegments, provisionalSegment, incompleteDates };
+}
+
+export function companyLocalDate(instant: Date, timeZone: string): string {
+	return new Intl.DateTimeFormat('en-CA', {
+		timeZone,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	}).format(instant);
+}
+
+export function supabaseWorkedDay(
+	records: SupabaseWorkRecords,
 	day: string,
 	timeZone: string,
-	now: Date,
 	policy: CurrentAttendanceWorkPolicy
 ): SupabaseWorkedDay {
 	const dayRange = supabaseWorkStatusTimeRange([day], timeZone);
 	const dayStart = new Date(dayRange.from);
 	const dayEnd = new Date(dayRange.until);
-	const spans = pairedSpans(events, now)
+	const allSpans: SupabaseWorkedSpan[] = [
+		...records.completedSegments.map((segment) => ({ ...segment, provisional: false })),
+		...(records.provisionalSegment
+			? [{ ...records.provisionalSegment, provisional: true }]
+			: [])
+	];
+	const spans = allSpans
 		.map((span) => clippedSpan(span, dayStart, dayEnd))
 		.filter((span): span is SupabaseWorkedSpan => span !== null);
 	const completed = spans.filter((span) => !span.provisional);
@@ -47,24 +109,9 @@ export function supabaseWorkedDay(
 		provisionalMinutes: durationMinutes(provisional, day, timeZone, policy.breakPeriods),
 		provisionalSeconds: durationSeconds(provisional, day, timeZone, policy.breakPeriods),
 		nightMinutes: nightMinutes(spans, day, timeZone, policy),
-		isWorking: provisional.length > 0
+		isWorking: provisional.length > 0,
+		hasIncompleteWorkRecord: records.incompleteDates.has(day)
 	};
-}
-
-function pairedSpans(events: SupabaseWorkEvent[], now: Date): SupabaseWorkedSpan[] {
-	const spans: SupabaseWorkedSpan[] = [];
-	let openedAt: Date | null = null;
-	for (const event of events) {
-		if (event.kind === 'clock_in') {
-			openedAt = new Date(event.occurred_at);
-			continue;
-		}
-		if (!openedAt) continue;
-		spans.push({ startAt: openedAt, endAt: new Date(event.occurred_at), provisional: false });
-		openedAt = null;
-	}
-	if (openedAt) spans.push({ startAt: openedAt, endAt: now, provisional: true });
-	return spans;
 }
 
 function clippedSpan(
