@@ -31,6 +31,7 @@ export type SupabaseWorkStatusAttendance = {
 	member_id: string;
 	kind: 'clock_in' | 'clock_out';
 	occurred_at: string;
+	location?: string | null;
 };
 export type SupabaseWorkStatusLeave = {
 	member_id: string;
@@ -76,7 +77,7 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 
 	const attendance = await client
 		.from('attendance')
-		.select('member_id, kind, occurred_at')
+		.select('member_id, kind, occurred_at, location')
 		.gte('occurred_at', attendanceFrom)
 		.lt('occurred_at', until)
 		.order('occurred_at')

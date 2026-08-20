@@ -125,4 +125,106 @@ describe('calculateSupabaseEmployeeWorkStatus event pairing', () => {
 		expect(day.needsReview).toBe(false);
 		expect(day.isWorking).toBe(true);
 	});
+
+	test('a clock-in at a different location while a session is open continues that session', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-10'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{
+					member_id: member.id,
+					kind: 'clock_in',
+					occurred_at: '2026-08-10T04:00:00Z',
+					location: 'Headquarters'
+				},
+				{
+					member_id: member.id,
+					kind: 'clock_in',
+					occurred_at: '2026-08-10T08:00:00Z',
+					location: 'Branch'
+				},
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-10T13:00:00Z' }
+			],
+			leave: [],
+			policy: fixedPolicy(),
+			now: new Date('2026-08-15T00:00:00Z')
+		});
+		const day = status.days[0];
+		if (!day) throw new Error('expected requested day status');
+
+		expect(day.actualMinutes).toBe(540);
+		expect(day.hasIncompleteWorkRecord).toBe(false);
+		expect(day.needsReview).toBe(false);
+	});
+
+	test('a clock-in at the same location while a session is open still marks the date incomplete', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-10'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{
+					member_id: member.id,
+					kind: 'clock_in',
+					occurred_at: '2026-08-10T04:00:00Z',
+					location: 'Headquarters'
+				},
+				{
+					member_id: member.id,
+					kind: 'clock_in',
+					occurred_at: '2026-08-10T08:00:00Z',
+					location: 'Headquarters'
+				},
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-10T13:00:00Z' }
+			],
+			leave: [],
+			policy: fixedPolicy(),
+			now: new Date('2026-08-15T00:00:00Z')
+		});
+		const day = status.days[0];
+		if (!day) throw new Error('expected requested day status');
+
+		expect(day.hasIncompleteWorkRecord).toBe(true);
+		expect(day.needsReview).toBe(true);
+		expect(day.actualMinutes).toBe(300);
+	});
+
+	test('two location moves in a day still total one continuous stretch', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-10'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{
+					member_id: member.id,
+					kind: 'clock_in',
+					occurred_at: '2026-08-10T04:00:00Z',
+					location: 'Headquarters'
+				},
+				{
+					member_id: member.id,
+					kind: 'clock_in',
+					occurred_at: '2026-08-10T06:00:00Z',
+					location: 'Branch'
+				},
+				{
+					member_id: member.id,
+					kind: 'clock_in',
+					occurred_at: '2026-08-10T08:00:00Z',
+					location: 'Client Site'
+				},
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-10T13:00:00Z' }
+			],
+			leave: [],
+			policy: fixedPolicy(),
+			now: new Date('2026-08-15T00:00:00Z')
+		});
+		const day = status.days[0];
+		if (!day) throw new Error('expected requested day status');
+
+		expect(day.actualMinutes).toBe(540);
+		expect(day.hasIncompleteWorkRecord).toBe(false);
+		expect(day.needsReview).toBe(false);
+	});
 });
