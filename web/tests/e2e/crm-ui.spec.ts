@@ -408,7 +408,7 @@ test.describe('CRM service UI', () => {
 		await expect(page.getByRole('row', { name: /진행 건 수정 · 서비스 연결 진행 건/ })).toHaveCount(0);
 	});
 
-	test.fixme('edits an automatic stage-change activity without changing its opportunity stage (issue #623)', async ({ page }) => {
+	test('edits an automatic stage-change activity without changing its opportunity stage', async ({ page }) => {
 		opportunities = [opportunity('opportunity-1', '단계 변경 진행 건', 'qualified', 1024)];
 		activities = [{
 			id: 'activity-stage-change', accountID: 'account-1', opportunityID: 'opportunity-1', business: 'general',

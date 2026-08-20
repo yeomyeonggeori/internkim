@@ -18,6 +18,7 @@ import {
 	crmOrganizationTypes,
 	type CRMOrganizationStatus,
 	type CRMOrganizationType,
+	deviceCRMActivityKinds,
 	type CRMActivityKind,
 	type CRMCurrency,
 	type CRMImportance,
@@ -75,7 +76,7 @@ export async function loadCRMData(): Promise<CRMDataResponse> {
 		},
 		taskVocabulary: {
 			businesses: [...new Set(opportunities.map((opportunity) => opportunity.business).filter((value): value is string => Boolean(value)))].map((name) => ({ name })),
-			types: [...new Set(activities.map((activity) => activity.kind))].map((name) => ({ name }))
+			types: deviceCRMActivityKinds.map((name) => ({ name }))
 		}
 	};
 }
