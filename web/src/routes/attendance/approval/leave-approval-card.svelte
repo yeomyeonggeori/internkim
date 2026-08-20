@@ -7,7 +7,9 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import PaperclipIcon from '@lucide/svelte/icons/paperclip';
 	import type { AttendanceText } from '../text';
+	import { getAttendanceState } from '../attendance-context.svelte';
 	import { milliDaysValue } from '../leave/leave-history-model';
+	import { leaveApprovalEmployeeName } from './leave-approval-employee-name';
 	import LeaveApprovalDecisionDialog from './leave-approval-decision-dialog.svelte';
 	import { getLeaveApprovalState } from './leave-approval-state.svelte';
 	import type {
@@ -25,6 +27,10 @@
 	let { request, text, change }: Props = $props();
 
 	const approval = getLeaveApprovalState();
+	const attendance = getAttendanceState();
+	const employeeName = $derived(
+		leaveApprovalEmployeeName(attendance.summary?.members ?? [], request.employeeEmail)
+	);
 
 	function days(value: number): string {
 		return `${milliDaysValue(value)}${text.dayUnit}`;
@@ -103,13 +109,13 @@
 		<div class="flex flex-wrap items-start justify-between gap-3">
 			<div class="flex min-w-0 items-center gap-3">
 				<PersonAvatar
-					name={request.employeeEmail}
+					name={employeeName}
 					email={request.employeeEmail}
 					seed={request.employeeEmail}
 					class="size-9 shrink-0"
 				/>
 				<div class="min-w-0">
-					<Card.Title class="truncate text-base">{request.employeeEmail}</Card.Title>
+					<Card.Title class="truncate text-base">{employeeName}</Card.Title>
 					<Card.Description class="mt-1 flex flex-wrap items-center gap-2">
 						<span>{leaveTypeName()}</span>
 						<span aria-hidden="true">·</span>
