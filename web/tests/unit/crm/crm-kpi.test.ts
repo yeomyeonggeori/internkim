@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { crmInterimCurrencyCatalogue } from '../../../src/routes/crm/crm-money';
+import { interimCurrencyCatalogue } from '../../../src/lib/currency/currency-catalogue';
 import { buildCRMKPICards } from '../../../src/routes/crm/crm-kpi';
 import type { CRMOrganization, CRMCurrency, CRMOpportunity, CRMOpportunityStage, CRMPipelineStage } from '../../../src/routes/crm/crm-types';
 import { crmText } from '../../../src/routes/crm/text';
@@ -43,7 +43,7 @@ describe('CRM KPI money details', () => {
 			{ pipeline: 'sales', stage: 'on_hold', label: 'on_hold', position: 4, outcome: 'on_hold' }
 		];
 
-		const pipelineHealth = buildCRMKPICards(crmInterimCurrencyCatalogue, [], opportunities, [], stages, crmText.ko)[0];
+		const pipelineHealth = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], stages, crmText.ko)[0];
 
 		expect(pipelineHealth?.totalValue).toBe('4개 통화');
 		expect(pipelineHealth?.totalMoneyDetails).toEqual([
@@ -78,7 +78,7 @@ describe('CRM KPI money details', () => {
 	test('derives the recent-contact segment from the supplied current date', () => {
 		const organizations = [organization('recent', '2026-08-02'), organization('threshold', '2026-07-04'), organization('older', '2026-07-03')];
 
-		const relationshipHealth = buildCRMKPICards(crmInterimCurrencyCatalogue, organizations, [], [], [], crmText.ko, '2026-08-03')[1];
+		const relationshipHealth = buildCRMKPICards(interimCurrencyCatalogue, organizations, [], [], [], crmText.ko, '2026-08-03')[1];
 
 		expect(relationshipHealth?.segments[0]?.value).toBe(2);
 		expect(relationshipHealth?.segments[1]?.value).toBe(1);

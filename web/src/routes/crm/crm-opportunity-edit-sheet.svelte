@@ -23,7 +23,7 @@
 		CRMPipelineStage
 	} from './crm-types';
 	import { findOrganizationByID, opportunityStageLabel } from './crm-view-model';
-	import type { CRMCurrencyCatalogue } from './crm-money';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -39,7 +39,7 @@
 		groups: OrgGroup[];
 		requestedStage?: string;
 		text: CRMText;
-		currencyCatalogue: CRMCurrencyCatalogue;
+		currencyCatalogue: CurrencyCatalogue;
 		onSave: (opportunity: CRMOpportunity) => Promise<void>;
 		onArchive: (opportunityID: string) => Promise<void>;
 	};

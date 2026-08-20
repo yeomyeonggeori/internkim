@@ -13,7 +13,8 @@ import type {
 } from './crm-types';
 import { crmOrganizationTypes } from './crm-types';
 import type { CRMText } from './text';
-export { crmInterimCurrencyCatalogue, formatMoney, formatMoneyTotals } from './crm-money';
+export { formatMoney, formatMoneyTotals } from './crm-money';
+export { interimCurrencyCatalogue } from '$lib/currency/currency-catalogue';
 
 export type CRMTab = 'relationships' | 'contacts' | 'pipeline' | 'activities' | 'reports' | 'definitions';
 export type CRMOrganizationStatusFilter = CRMOrganizationStatus | 'all';

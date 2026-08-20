@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { crmInterimCurrencyCatalogue } from '../../../src/routes/crm/crm-money';
+import { interimCurrencyCatalogue } from '../../../src/lib/currency/currency-catalogue';
 import { buildCRMCurrencyComparisonRows } from '../../../src/routes/crm/crm-currency-comparison';
 
 describe('CRM currency comparison', () => {
 	test('compares expected and won values within each currency', () => {
 		expect(
-			buildCRMCurrencyComparisonRows(crmInterimCurrencyCatalogue, 
+			buildCRMCurrencyComparisonRows(interimCurrencyCatalogue, 
 				{ KRW: 200, USD: 80 },
 				{ KRW: 100, EUR: 50 }
 			)
@@ -35,7 +35,7 @@ describe('CRM currency comparison', () => {
 	});
 
 	test('keeps recorded zero values without creating an invalid scale', () => {
-		expect(buildCRMCurrencyComparisonRows(crmInterimCurrencyCatalogue, { KRW: 0 }, {})).toEqual([
+		expect(buildCRMCurrencyComparisonRows(interimCurrencyCatalogue, { KRW: 0 }, {})).toEqual([
 			{
 				currency: 'KRW',
 				expectedValue: 0,
@@ -47,6 +47,6 @@ describe('CRM currency comparison', () => {
 	});
 
 	test('returns no rows when both totals are empty', () => {
-		expect(buildCRMCurrencyComparisonRows(crmInterimCurrencyCatalogue, {}, {})).toEqual([]);
+		expect(buildCRMCurrencyComparisonRows(interimCurrencyCatalogue, {}, {})).toEqual([]);
 	});
 });

@@ -36,7 +36,7 @@
 		CRMRecordKind
 	} from './crm-types';
 	import { findOrganizationByID, opportunityStageLabel } from './crm-view-model';
-	import type { CRMCurrencyCatalogue } from './crm-money';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -57,7 +57,7 @@
 		people: UserRecord[];
 		groups: OrgGroup[];
 		text: CRMText;
-		currencyCatalogue: CRMCurrencyCatalogue;
+		currencyCatalogue: CurrencyCatalogue;
 		onCreate: (draft: CRMCreateDraft) => Promise<void>;
 	};
 

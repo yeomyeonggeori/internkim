@@ -4,7 +4,7 @@
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import type { CRMOrganization, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
 	import { daysLabel, findOrganizationByID, findNextActionByID, formatMoney, getStageVariant, opportunityStageLabel } from './crm-view-model';
-	import type { CRMCurrencyCatalogue } from './crm-money';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -12,7 +12,7 @@
 		organizations: CRMOrganization[];
 		nextActions: CRMNextAction[];
 		stages: CRMPipelineStage[];
-		currencyCatalogue: CRMCurrencyCatalogue;
+		currencyCatalogue: CurrencyCatalogue;
 		text: CRMText;
 		onEdit: (opportunityID: string) => void;
 	};

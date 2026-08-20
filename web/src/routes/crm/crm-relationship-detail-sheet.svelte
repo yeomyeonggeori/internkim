@@ -8,7 +8,7 @@
 	import type { CRMOrganization, CRMActivity, CRMContact, CRMOpportunity, CRMPipelineStage } from './crm-types';
 	import CRMRelationshipDetailView from './crm-relationship-detail-view.svelte';
 	import { getStatusVariant } from './crm-view-model';
-	import type { CRMCurrencyCatalogue } from './crm-money';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -19,7 +19,7 @@
 		activities: CRMActivity[];
 		stages: CRMPipelineStage[];
 		organizationTypeDefinitions: CRMDefinition[];
-		currencyCatalogue: CRMCurrencyCatalogue;
+		currencyCatalogue: CurrencyCatalogue;
 		text: CRMText;
 		onEdit: (organizationID: string) => void;
 	};

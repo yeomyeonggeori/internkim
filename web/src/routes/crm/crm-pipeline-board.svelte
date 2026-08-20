@@ -5,7 +5,7 @@
 	import { crmLabel } from './crm-labels';
 	import type { CRMPipelineBoardMoveRequest } from './crm-pipeline-board-drag';
 	import { findOrganizationByID, findNextActionByID, formatCRMDate, formatMoney, getProgressKind, opportunityStageLabel } from './crm-view-model';
-	import type { CRMCurrencyCatalogue } from './crm-money';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -13,7 +13,7 @@
 		organizations: CRMOrganization[];
 		nextActions: CRMNextAction[];
 		stages: CRMPipelineStage[];
-		currencyCatalogue: CRMCurrencyCatalogue;
+		currencyCatalogue: CurrencyCatalogue;
 		text: CRMText;
 		onMove: (request: CRMPipelineBoardMoveRequest) => void;
 	};

@@ -7,7 +7,8 @@
 	import { buildCRMReportPeriodBounds } from './crm-date';
 	import { crmLabel } from './crm-labels';
 	import type { CRMOrganization, CRMMoneyTotals, CRMNextAction, CRMOpportunity, CRMPipelineStage, CRMProgressKind } from './crm-types';
-	import { formatMoneyTotals, sumOpportunityMoney, type CRMCurrencyCatalogue } from './crm-money';
+	import { formatMoneyTotals, sumOpportunityMoney } from './crm-money';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import {
 		findOrganizationByID,
 		formatCRMDate,
@@ -31,7 +32,7 @@
 		opportunities: CRMOpportunity[];
 		nextActions: CRMNextAction[];
 		stages: CRMPipelineStage[];
-		currencyCatalogue: CRMCurrencyCatalogue;
+		currencyCatalogue: CurrencyCatalogue;
 		text: CRMText;
 		onOpenOrganization: (organizationID: string) => void;
 	};
