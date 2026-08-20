@@ -187,3 +187,42 @@ func TestAnEndOfDayStillNamesItsOwnDay(t *testing.T) {
 		t.Fatalf("23:59 in Seoul does not cross midnight going west: %q", day)
 	}
 }
+
+func TestADayTheDeviceDecidedGoesBackToTheBoard(t *testing.T) {
+	service := newFlowCentralTestService(t)
+
+	landed, errorValue := service.mirrorOneFlowTask(context.Background(), nil, "reader", centralplane.ChangedTask{
+		CentralID:    "dateless",
+		DeviceTaskID: "dateless-here",
+		Title:        "보드가 날짜를 안 준 업무",
+		Status:       "todo",
+		UpdatedAt:    "2026-08-20T00:00:00Z",
+	}, map[string]adminUserMutation{})
+
+	if errorValue != nil || !landed {
+		t.Fatalf("landed=%v error=%v", landed, errorValue)
+	}
+	entries := flowCentralOutboxEntries(t, service)
+	if len(entries) != 1 || entries[0].Intent != flowCentralWriteIntent {
+		t.Fatalf("the day only exists here until the board is told: %+v", entries)
+	}
+}
+
+func TestATaskTheBoardDatedDoesNotQueueBack(t *testing.T) {
+	service := newFlowCentralTestService(t)
+
+	if _, errorValue := service.mirrorOneFlowTask(context.Background(), nil, "reader", centralplane.ChangedTask{
+		CentralID:    "dated",
+		DeviceTaskID: "dated-here",
+		Title:        "보드가 날짜를 준 업무",
+		Status:       "todo",
+		StartsAt:     "2026-08-19T15:00:00+00:00",
+		UpdatedAt:    "2026-08-20T00:00:00Z",
+	}, map[string]adminUserMutation{}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if entries := flowCentralOutboxEntries(t, service); len(entries) != 0 {
+		t.Fatalf("sending it back would arrive as another change, and so on: %+v", entries)
+	}
+}

@@ -11,6 +11,9 @@ import (
 // one, so §4's later-write-wins rule will never revisit them. Correcting the
 // mirror's own damage is why this is allowed to ignore that rule, and why it
 // takes only the dates: every other field the device holds may be its own edit.
+//
+// The same walk catches up the other direction, for the tasks the board still
+// has no dates for and the mirror will not visit again.
 func (service *Service) repairFlowTaskDatesFromCentralPlane(ctx context.Context) (int, error) {
 	client := service.centralPlane()
 	if client == nil {
@@ -54,6 +57,10 @@ func (service *Service) repairOneFlowTaskDate(ctx context.Context, changed centr
 	}
 	existing, found, errorValue := service.flowTaskIfPresent(ctx, deviceTaskID)
 	if errorValue != nil || !found {
+		return false, errorValue
+	}
+
+	if errorValue := service.tellTheBoardTheDayItDidNotHave(ctx, changed, existing); errorValue != nil {
 		return false, errorValue
 	}
 
