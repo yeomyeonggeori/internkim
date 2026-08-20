@@ -132,7 +132,7 @@ func (service *Service) tryDeleteCalendarMattermostLog(ctx context.Context, even
 	if errorValue != nil {
 		return errorValue
 	}
-	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(event.MattermostPostID), adminToken, nil, nil)
+	return service.deleteMattermostPost(ctx, adminToken, event.MattermostPostID)
 }
 
 func (service *Service) calendarMattermostLogMessage(event calendarEvent) string {
