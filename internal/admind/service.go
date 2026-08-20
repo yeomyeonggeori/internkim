@@ -2674,6 +2674,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.BlueclawBaseURL == "" {
 		configuration.BlueclawBaseURL = defaultConfiguration.BlueclawBaseURL
 	}
+	if configuration.BlueclawPolicyDeliveryPath == "" {
+		configuration.BlueclawPolicyDeliveryPath = defaultConfiguration.BlueclawPolicyDeliveryPath
+	}
 	if configuration.CapabilitySocketPath == "" {
 		configuration.CapabilitySocketPath = defaultConfiguration.CapabilitySocketPath
 	}

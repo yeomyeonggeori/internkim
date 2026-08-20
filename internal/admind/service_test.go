@@ -1218,6 +1218,7 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 	var pagesPayload map[string]any
 	blueclawInvited := false
 	service := NewService(Configuration{
+		BlueclawPolicyDeliveryPath:  filepath.Join(t.TempDir(), "policy.json"),
 		APIBaseURL:                  "https://api.example.test",
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
@@ -1452,6 +1453,7 @@ func TestAdminInvitePreservesCurrentAdminRole(t *testing.T) {
 
 	var pagesPayload map[string]any
 	service := NewService(Configuration{
+		BlueclawPolicyDeliveryPath:  filepath.Join(t.TempDir(), "policy.json"),
 		APIBaseURL:                  "https://api.example.test",
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
