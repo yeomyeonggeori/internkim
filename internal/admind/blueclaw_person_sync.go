@@ -16,11 +16,22 @@ func (service *Service) inviteBlueclawPerson(ctx context.Context, userID string,
 	if normalizedEmail == "" {
 		return fmt.Errorf("email required")
 	}
-	body := map[string]string{"personID": normalizedUserID, "email": normalizedEmail}
-	if strings.TrimSpace(name) != "" {
-		body["displayName"] = strings.TrimSpace(name)
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return errorValue
 	}
-	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/people/invite", body, nil)
+	people, _ := policyDocument["people"].([]any)
+	for _, value := range people {
+		if person, isPerson := value.(map[string]any); isPerson && blueclawPersonHasEmail(person, normalizedEmail) {
+			return nil
+		}
+	}
+	person := map[string]any{"personID": normalizedUserID, "emails": []string{normalizedEmail}}
+	if strings.TrimSpace(name) != "" {
+		person["displayName"] = strings.TrimSpace(name)
+	}
+	policyDocument["people"] = append(people, person)
+	return service.deliverBlueclawPolicy(ctx, policyDocument)
 }
 
 func (service *Service) upsertBlueclawPerson(ctx context.Context, userID string, email string, name string, role string, circles []string, note *string) error {
@@ -71,5 +82,5 @@ func (service *Service) updateBlueclawPersonCircles(ctx context.Context, email s
 		}
 		break
 	}
-	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
+	return service.deliverBlueclawPolicy(ctx, policyDocument)
 }
