@@ -5,6 +5,8 @@ import type { CRMViewAmount, CRMViewCurrencyReader } from './crm-view-currency.s
 
 export const rateHintAnchorCurrency = 'USD';
 
+const roundedMyriadThreshold = 100;
+
 export function formatAmountInput(value: string): string {
 	const digits = value.replace(/\D/g, '');
 	if (digits === '') return '';
@@ -49,11 +51,7 @@ function formatAmount(
 	prefix: string
 ): string {
 	if (value === undefined) return noValue;
-	const entry = findCurrencyCatalogueEntry(catalogue, currency);
-	if (!entry) return `${prefix}${value.toLocaleString()}`;
-	return entry.grouping === 'myriad' && locale === 'ko'
-		? formatMyriadMoney(value, prefix)
-		: formatThousandGroupedMoney(value, prefix);
+	return locale === 'ko' ? formatMyriadMoney(value, prefix) : formatThousandGroupedMoney(value, prefix);
 }
 
 export function formatMoneyTotals(
@@ -133,7 +131,9 @@ function formatMyriadMoney(value: number, prefix: string): string {
 		return `${prefix}${hundredMillions.toLocaleString()}억`;
 	}
 	if (value >= 10000) {
-		return `${prefix}${Math.round(value / 10000).toLocaleString()}만`;
+		const tenThousands = value / 10000;
+		const shown = tenThousands >= roundedMyriadThreshold ? Math.round(tenThousands) : Number(tenThousands.toFixed(1));
+		return `${prefix}${shown.toLocaleString()}만`;
 	}
 	return `${prefix}${value.toLocaleString()}`;
 }
