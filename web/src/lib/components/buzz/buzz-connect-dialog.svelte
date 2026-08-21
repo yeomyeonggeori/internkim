@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
+	import { claimCentralBuzzSecret } from '$lib/buzz-identity-central-login';
 	import { buzzPublicKeyOf } from '$lib/buzz-relay-client';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
@@ -26,7 +27,8 @@
 			reveal: '키 보기',
 			warning: '이 키는 계정 전체에 대한 접근 권한입니다. 누구에게도 공유하지 마세요.',
 			scanHint: '모바일 Buzz 앱에서 이 QR을 스캔해 키를 가져올 수 있습니다.',
-			locked: '먼저 로그인해 신원을 잠금 해제하세요.'
+			loading: '신원을 불러오는 중입니다…',
+			locked: '이 회사의 신원을 불러오지 못했습니다. 회사 컴퓨터가 응답하지 않는 동안에는 앱을 연결할 수 없습니다.'
 		},
 		en: {
 			title: 'Connect Buzz app',
@@ -38,12 +40,14 @@
 			reveal: 'Reveal key',
 			warning: 'This key grants full access to your account. Never share it with anyone.',
 			scanHint: 'Scan this QR in a mobile Buzz app to import your key.',
-			locked: 'Sign in first to unlock your identity.'
+			loading: 'Fetching your identity…',
+			locked: 'Your identity could not be fetched. The Buzz app cannot be connected while the company machine is unreachable.'
 		}
 	});
 
 	let relayURL = $state('');
 	let revealed = $state(false);
+	let isFetching = $state(false);
 
 	const secretHex = $derived(buzzIdentity.secretHex);
 	const npub = $derived(secretHex ? npubEncode(buzzPublicKeyOf(secretHex)) : '');
@@ -70,17 +74,27 @@
 
 	// A returning session may not carry the unlocked key in memory (the identity
 	// gate only sets it at enrollment). It is a deterministic function of the
-	// signed-in email, so the session-gated endpoint hands it back on request.
+	// signed-in email, so it can be asked for again: a device answers on its own
+	// session-gated route, and a company through the bridge to the machine that
+	// holds the seed.
 	async function loadIdentity() {
 		if (buzzIdentity.secretHex) return;
+		isFetching = true;
 		try {
 			const response = await fetch('/auth/identity', { credentials: 'include' });
-			if (!response.ok) return;
-			const document: { secretHex?: string } = await response.json();
-			if (document.secretHex) buzzIdentity.secretHex = document.secretHex;
+			if (response.ok) {
+				const document: { secretHex?: string } = await response.json();
+				if (document.secretHex) {
+					buzzIdentity.secretHex = document.secretHex;
+					isFetching = false;
+					return;
+				}
+			}
 		} catch {
-			// leave locked; the dialog shows the sign-in hint
+			// the device route is absent on a company host; the bridge answers there
 		}
+		buzzIdentity.secretHex = await claimCentralBuzzSecret();
+		isFetching = false;
 	}
 
 	$effect(() => {
@@ -101,7 +115,9 @@
 		</Dialog.Header>
 
 		{#if !secretHex}
-			<p class="text-muted-foreground rounded-md border bg-muted/30 px-3 py-2 text-sm">{text.locked}</p>
+			<p class="text-muted-foreground rounded-md border bg-muted/30 px-3 py-2 text-sm">
+				{isFetching ? text.loading : text.locked}
+			</p>
 		{:else}
 			<div class="flex flex-col gap-4">
 				<div class="flex flex-col gap-1.5">
