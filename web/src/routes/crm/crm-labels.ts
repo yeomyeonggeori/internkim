@@ -10,5 +10,6 @@ export function crmDefinitionLabel(
 
 export function crmLabel(labels: object, value: string): string {
 	const dictionary = labels as Record<string, unknown>;
-	return typeof dictionary[value] === 'string' ? dictionary[value] : value;
+	const translated = dictionary[value];
+	return typeof translated === 'string' && translated !== '' ? translated : value;
 }
