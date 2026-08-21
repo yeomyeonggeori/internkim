@@ -846,3 +846,42 @@ func createCRMOpportunityForStoreTest(t *testing.T) (*Service, crmOpportunity) {
 func crmInt64(value int64) *int64 {
 	return &value
 }
+
+func TestCRMRecordsSurviveAServiceRestart(t *testing.T) {
+	ctx := context.Background()
+	stateDirectory := t.TempDir()
+	audit := crmAuditFields{
+		CreatedAt:         "2026-08-02T00:00:00Z",
+		CreatedByPersonID: "person-owner",
+		UpdatedAt:         "2026-08-02T00:00:00Z",
+		UpdatedByPersonID: "person-owner",
+	}
+
+	writer := Service{Configuration: Configuration{StateDirectory: stateDirectory}}
+	account, errorValue := writer.writeCRMAccount(ctx, crmAccount{
+		ID: "account-restart", Name: "재시작 관계처", Status: "active", Tags: []string{},
+		Importance: "medium", OwnerPersonID: "person-owner", Audit: audit,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	opportunity, errorValue := writer.writeCRMOpportunity(ctx, crmOpportunity{
+		ID: "opportunity-restart", AccountID: account.ID, Name: "재시작 진행 건", Pipeline: "sales",
+		Stage: "waiting", StagePosition: 1024, OwnerPersonID: "person-owner", AmountMinor: crmInt64(500000), Audit: audit,
+	}, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	reader := Service{Configuration: Configuration{StateDirectory: stateDirectory}}
+	opportunities, errorValue := reader.listCRMOpportunities(ctx, false)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(opportunities) != 1 || opportunities[0].ID != opportunity.ID || opportunities[0].Name != "재시작 진행 건" {
+		t.Fatalf("opportunities after restart = %#v", opportunities)
+	}
+	if opportunities[0].AccountID != account.ID || opportunities[0].Stage != "waiting" {
+		t.Fatalf("opportunity lost its links after restart = %#v", opportunities[0])
+	}
+}
