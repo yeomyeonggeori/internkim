@@ -147,7 +147,7 @@ func (service *Service) syncCompanySnapshotToBlueclaw(ctx context.Context, info 
 		return errorValue
 	}
 	policyDocument["company"] = companyPolicySnapshot(info)
-	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
+	return service.deliverBlueclawPolicy(ctx, policyDocument)
 }
 
 func applyCompanyInfoUpdate(info *companyInfo, update companyInfoUpdate, language string) {
