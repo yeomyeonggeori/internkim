@@ -55,15 +55,18 @@ export function mapCRMViewData(
 	groups: OrgGroup[] = []
 ): CRMViewData {
 	const stages = crmStages;
-	const opportunities = data.opportunities.map((opportunity) => mapOpportunity(opportunity, people, catalogue));
 	const activities = data.activities.map((activity) => mapActivity(activity));
+	const nextActions = nextActionsOf(activities, timeZone);
+	const opportunities = data.opportunities.map((opportunity) =>
+		withNextAction(mapOpportunity(opportunity, people, catalogue), nextActions)
+	);
 	const organizations = data.organizations.map((organization) => mapOrganization(organization, people, opportunities, activities, stages, timeZone, groups));
 	return {
 		organizations,
 		contacts: data.contacts.map((contact) => mapContact(contact)),
 		opportunities,
 		activities,
-		nextActions: nextActionsOf(activities, timeZone),
+		nextActions,
 		pipelines: data.pipelines.map((pipeline) => ({ ...pipeline })),
 		stages,
 		vocabulary: structuredClone(data.vocabulary),
@@ -357,6 +360,13 @@ function nextActionsOf(activities: CRMActivity[], timeZone: string): CRMNextActi
 			dueDate: utcToLocalDate(activity.occurredAt, timeZone),
 			status: (activity.taskStatus ?? 'todo') as CRMNextAction['status']
 		}));
+}
+
+function withNextAction(opportunity: CRMOpportunity, nextActions: CRMNextAction[]): CRMOpportunity {
+	const [soonest] = nextActions
+		.filter((action) => action.opportunityID === opportunity.id)
+		.sort((left, right) => left.dueDate.localeCompare(right.dueDate));
+	return soonest ? { ...opportunity, nextActionID: soonest.id } : opportunity;
 }
 
 function mapActivity(activity: CRMActivityResponse): CRMActivity {
