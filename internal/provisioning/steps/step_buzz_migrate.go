@@ -88,7 +88,6 @@ echo "=== buzz DB wiped, relay in import mode (membership off, limits relaxed), 
 
 func buzzMigrateLaunchCommand() string {
 	return `MM_TOKEN=$(cat ` + blueclaw.BlueclawMattermostTokenPath + `)
-SEED=$(cat /root/.internkim/secrets/buzz-key-seed)
 DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
 TEAM=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
 AGENT_EMAIL=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/users/me | jq -r '.email // empty')
@@ -99,11 +98,11 @@ cat > /tmp/buzz-migrate-run.sh <<RUNEOF
 export DATABASE_URL="$DB_URL"
 ` + blueclaw.BuzzMigrateBinaryPath + ` \
   --mattermost-url ` + blueclaw.BlueclawMattermostLocalURL + ` \
-  --mattermost-token "$MM_TOKEN" \
+  --mattermost-token-path ` + blueclaw.BlueclawMattermostTokenPath + ` \
   --team "$TEAM" \
   --buzz-database-url "$DB_URL" \
   --buzz-admin ` + blueclaw.BuzzAdminBinaryPath + ` \
-  --key-seed "$SEED" \
+  --key-seed-path /root/.internkim/secrets/buzz-key-seed \
   --agent-email "$AGENT_EMAIL" \
   --relay-url wss://$PUBLIC_HOST \
   --relay-http-url https://$PUBLIC_HOST \
