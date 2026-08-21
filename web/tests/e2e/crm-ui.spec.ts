@@ -135,6 +135,8 @@ test.describe('CRM service UI', () => {
 			kind: 'meeting',
 			occurredAt: '2026-08-03T09:30:00Z',
 			content: '후속 일정과 담당자를 함께 확인하는 긴 활동 비고입니다.',
+			isEvent: true,
+			startsAt: '2026-08-03T09:30:00Z',
 			audit
 		}];
 
@@ -852,7 +854,7 @@ async function expectTableColumns(panel: Locator, expectedRatios: number[], cont
 		expect(cellMeasurements[index].textAlign).toBe(expectedAlignment);
 		if (expectedAlignment === 'center') {
 			expect(Math.abs(cellMeasurements[index].center - measurements[index].center), `${context} column ${index + 1} center`).toBeLessThanOrEqual(1);
-		} else if (measurements[index].label !== '유형') {
+		} else if (!['유형', '연결 일정'].includes(measurements[index].label)) {
 			expect(Math.abs(cellMeasurements[index].contentLeft - measurements[index].contentLeft), `${context} column ${index + 1} content start`).toBeLessThanOrEqual(1);
 		}
 	}

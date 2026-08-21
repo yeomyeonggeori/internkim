@@ -83,14 +83,14 @@
 						</Table.Cell>
 						<Table.Cell class="whitespace-normal font-medium"><span class="line-clamp-2">{activity.title}</span></Table.Cell>
 						<Table.Cell class="hidden whitespace-normal text-sm text-muted-foreground lg:table-cell"><p class="line-clamp-2">{activity.summary}</p></Table.Cell>
-						<Table.Cell class="hidden whitespace-normal xl:table-cell">
+						<Table.Cell class="hidden whitespace-normal pl-0 xl:table-cell">
 							<div class="flex justify-start">
 								{#if activity.calendarEventID}
-									<Badge variant="outline" data-crm-leading-pill>{text.calendarRegistered}</Badge>
+									<Badge variant="outline" data-crm-leading-pill-text>{text.calendarRegistered}</Badge>
 								{:else if activity.calendarRegistrationState === 'failed'}
-									<Badge variant="destructive" data-crm-leading-pill>{text.calendarCreateError}</Badge>
+									<Badge variant="destructive" data-crm-leading-pill-text>{text.calendarCreateError}</Badge>
 								{:else}
-									<span class="text-sm text-muted-foreground">{text.none}</span>
+									<span class="pl-2 text-sm text-muted-foreground">{text.none}</span>
 								{/if}
 							</div>
 						</Table.Cell>
