@@ -25,4 +25,11 @@ describe('crmLabel', () => {
 		expect(crmLabel({ meeting: '회의' }, 'meeting')).toBe('회의');
 		expect(crmLabel({}, 'meeting')).toBe('meeting');
 	});
+
+	test('shows a value the dictionary has no wording for', () => {
+		const translations = new Proxy({}, { get: (_target, key) => (key === 'meeting' ? '회의' : '') });
+
+		expect(crmLabel(translations, 'meeting')).toBe('회의');
+		expect(crmLabel(translations, '통화')).toBe('통화');
+	});
 });
