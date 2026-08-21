@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"strings"
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/buzzimport"
@@ -59,5 +62,45 @@ func TestEveryImportedChannelCarriesAName(t *testing.T) {
 
 	if name := channelDisplayName(conversation, []string{"user-1", "user-2"}, authors); name == "" {
 		t.Error("a conversation imported with no name is refused by the relay")
+	}
+}
+
+// The relay finds a conversation by the people in it, and the hash it uses must
+// match byte for byte or the import cannot learn the id of the room it opened.
+func TestTheParticipantHashIgnoresOrderAndRepeats(t *testing.T) {
+	first := "aa" + strings.Repeat("11", 31)
+	second := "bb" + strings.Repeat("22", 31)
+
+	oneWay, errorValue := participantHash([]string{first, second})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	otherWay, errorValue := participantHash([]string{second, first, first})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !bytes.Equal(oneWay, otherWay) {
+		t.Error("the same people hashed to two rooms")
+	}
+	if len(oneWay) != sha256.Size {
+		t.Errorf("hash is %d bytes", len(oneWay))
+	}
+}
+
+func TestAGroupTooBigForTheRelayIsImportedAsAChannel(t *testing.T) {
+	creatorSecret := strings.Repeat("1", 64)
+	pubkeys := map[string]string{}
+	crowd := []string{}
+	for index := 0; index < 9; index++ {
+		userID := "user-" + string(rune('a'+index))
+		crowd = append(crowd, userID)
+		pubkeys[userID] = string(rune('a'+index)) + strings.Repeat("0", 63)
+	}
+	group := buzzimport.MattermostChannel{Type: buzzimport.GroupChannelType, Name: "crowd"}
+
+	_, isConversation := conversationParticipants(group, crowd, pubkeys, creatorSecret)
+
+	if isConversation {
+		t.Error("a group of nine others was sent to a verb that takes eight")
 	}
 }
