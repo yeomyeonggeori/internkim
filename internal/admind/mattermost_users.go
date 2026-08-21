@@ -1169,9 +1169,12 @@ func (service *Service) mattermostCircleEmails(ctx context.Context, token string
 	}
 	circleEmailsByID := map[string]map[string]bool{}
 	for _, circleChannel := range circleChannels {
-		channelID, errorValue := service.ensureMattermostPrivateChannel(ctx, token, teamID, circleChannel.ChannelName)
-		if errorValue != nil {
+		channelID, errorValue := service.mattermostChannelIDByName(ctx, token, teamID, circleChannel.ChannelName)
+		if errorValue != nil && !isMattermostNotFound(errorValue) {
 			return nil, errorValue
+		}
+		if channelID == "" {
+			continue
 		}
 		emails, errorValue := service.mattermostChannelMemberEmails(ctx, token, channelID)
 		if errorValue != nil {
@@ -1270,10 +1273,12 @@ func (service *Service) applyCircleEmailsToBlueclawPolicy(ctx context.Context, c
 		if !isPerson {
 			continue
 		}
+		currentCircles := policyStringList(person["circles"])
 		syncedCircles := mattermostSyncedPersonCircles(person, circleEmailsByID)
-		if mattermostCircleSetsEqual(policyStringList(person["circles"]), syncedCircles) {
+		if mattermostCircleSetsEqual(currentCircles, syncedCircles) {
 			continue
 		}
+		reportCircleMembershipChange(person, currentCircles, syncedCircles)
 		person["circles"] = syncedCircles
 		hasPolicyChange = true
 	}
@@ -1281,6 +1286,33 @@ func (service *Service) applyCircleEmailsToBlueclawPolicy(ctx context.Context, c
 		return nil
 	}
 	return service.deliverBlueclawPolicy(ctx, policyDocument)
+}
+
+// A circle is what a person can reach on the workspace, so taking one away names
+// which one and whose.
+func reportCircleMembershipChange(person map[string]any, current []string, synced []string) {
+	kept := map[string]bool{}
+	for _, circle := range synced {
+		kept[circle] = true
+	}
+	removed := []string{}
+	for _, circle := range current {
+		if !kept[circle] {
+			removed = append(removed, circle)
+		}
+	}
+	if len(removed) == 0 {
+		return
+	}
+	log.Printf("Mattermost circle sync removes %s from %s", strings.Join(removed, ","), policyPersonLabel(person))
+}
+
+func policyPersonLabel(person map[string]any) string {
+	if emails := policyStringList(person["emails"]); len(emails) > 0 {
+		return emails[0]
+	}
+	personID, _ := person["personID"].(string)
+	return personID
 }
 
 func mattermostCircleSetsEqual(current []string, synced []string) bool {
