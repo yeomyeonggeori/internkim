@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -157,6 +157,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read Buzz<->Mattermost mirror status", "sh", "-lc", buzzMirrorStatusCommand()))
 	case "buzz-channel-visibility":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count what the community can read", "sh", "-lc", buzzChannelVisibilityCommand()))
+	case "buzz-reconcile-channels":
+		reconcileContext, cancelReconcile := context.WithTimeout(context.Background(), 120*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(reconcileContext, "emit the discovery events a nostr client needs to see a channel", "sh", "-lc", buzzReconcileChannelsCommand()))
+		cancelReconcile()
 	case "buzz-orphan-inspect":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "inspect imported orphan-thread roots", "sh", "-lc", buzzOrphanInspectCommand()))
 	case "buzz-membership-recover":
@@ -1002,6 +1006,22 @@ printf '== every open channel that is not a stream ==\n'
 q "SELECT id::text, channel_type, name FROM channels WHERE visibility='open' AND channel_type <> 'stream' ORDER BY name"
 printf '== members per open non-stream channel ==\n'
 q "SELECT c.id::text, c.name, count(m.*) FILTER (WHERE m.removed_at IS NULL) AS members, count(m.*) FILTER (WHERE m.removed_at IS NOT NULL) AS left_since FROM channels c LEFT JOIN channel_members m ON m.channel_id = c.id WHERE c.visibility='open' AND c.channel_type <> 'stream' GROUP BY 1,2 ORDER BY 3 DESC"
+`)
+}
+
+// A channel the importer wrote straight into the database has no kind:39000 or
+// kind:39002 event, so a nostr client has nothing to discover it by. chatd finds
+// those channels anyway because it queries membership directly, which is why the
+// web messenger shows what the app cannot.
+func buzzReconcileChannelsCommand() string {
+	return strings.TrimSpace(`
+set -e
+export BUZZ_RELAY_PRIVATE_KEY=$(grep '^BUZZ_RELAY_PRIVATE_KEY=' ` + blueclaw.BuzzRelayKeyEnvironmentFilePath + ` | head -1 | sed 's/^BUZZ_RELAY_PRIVATE_KEY=//')
+if [ -z "$BUZZ_RELAY_PRIVATE_KEY" ]; then echo "no relay signing key on this device; reconcile would sign with a key that dies at restart"; exit 1; fi
+export DATABASE_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
+` + blueclaw.BuzzAdminBinaryPath + ` reconcile-channels
+echo "== channels carrying discovery metadata =="
+su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"SELECT kind, count(*) FROM events WHERE kind IN (39000,39002) GROUP BY kind ORDER BY kind\""
 `)
 }
 
