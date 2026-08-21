@@ -222,12 +222,6 @@ export type CRMPipelineStage = {
 	outcome: 'open' | 'won' | 'lost' | 'on_hold';
 };
 
-export type CRMLostReason = {
-	reason: string;
-	label: string;
-	isActive: boolean;
-};
-
 export type CRMReportSummary = {
 	stageCounts: Record<string, number>;
 	ownerSummaries: Array<{

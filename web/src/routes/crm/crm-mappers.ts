@@ -13,6 +13,7 @@ import type {
 } from './crm-api-types';
 import type { CRMVocabulary } from './crm-api-types';
 import type { TaskVocabulary } from '$lib/flow/task-vocabulary';
+import { crmStages } from './crm-stages';
 import type {
 	CRMOrganization,
 	CRMActivity,
@@ -22,8 +23,7 @@ import type {
 	CRMNextAction,
 	CRMOpportunity,
 	CRMPipeline,
-	CRMPipelineStage,
-	CRMLostReason
+	CRMPipelineStage
 } from './crm-types';
 
 export type CRMViewData = {
@@ -34,7 +34,6 @@ export type CRMViewData = {
 	nextActions: CRMNextAction[];
 	pipelines: CRMPipeline[];
 	stages: CRMPipelineStage[];
-	lostReasons: CRMLostReason[];
 	vocabulary: CRMVocabulary;
 	taskVocabulary: TaskVocabulary;
 };
@@ -55,7 +54,7 @@ export function mapCRMViewData(
 	timeZone = browserTimeZone(),
 	groups: OrgGroup[] = []
 ): CRMViewData {
-	const stages = data.stages.map((stage) => ({ ...stage }));
+	const stages = crmStages;
 	const opportunities = data.opportunities.map((opportunity) => mapOpportunity(opportunity, people, catalogue));
 	const activities = data.activities.map((activity) => mapActivity(activity));
 	const organizations = data.organizations.map((organization) => mapOrganization(organization, people, opportunities, activities, stages, timeZone, groups));
@@ -67,7 +66,6 @@ export function mapCRMViewData(
 		nextActions: [],
 		pipelines: data.pipelines.map((pipeline) => ({ ...pipeline })),
 		stages,
-		lostReasons: data.lostReasons.map((reason) => ({ ...reason })),
 		vocabulary: structuredClone(data.vocabulary),
 		taskVocabulary: structuredClone(data.taskVocabulary)
 	};

@@ -283,6 +283,77 @@ END`)
 	}
 }
 
+func TestCRMStageTransitionRejectsEmptyLostReason(t *testing.T) {
+	ctx := context.Background()
+	service, opportunity := createCRMOpportunityForStoreTest(t)
+
+	errorValue := service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
+		OpportunityID: opportunity.ID,
+		Stage:         "lost",
+		StagePosition: 1024,
+		OccurredAt:    "2026-08-02T03:00:00Z",
+		ActorPersonID: "person-owner",
+		LostReason:    "   ",
+	})
+	if errorValue == nil {
+		t.Fatal("lost transition without a reason should fail")
+	}
+
+	readOpportunity, _, errorValue := service.readCRMOpportunity(ctx, opportunity.ID, false)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if readOpportunity.Stage != "waiting" || readOpportunity.LostReason != "" {
+		t.Fatalf("opportunity after rejected lost transition = %#v", readOpportunity)
+	}
+}
+
+func TestCRMStageTransitionStoresFreeTextLostReasonAndClearsItForNonLostTransitions(t *testing.T) {
+	ctx := context.Background()
+	service, opportunity := createCRMOpportunityForStoreTest(t)
+	freeTextReason := "고객 예산 축소로 계약 보류"
+
+	if errorValue := service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
+		OpportunityID:    opportunity.ID,
+		Stage:            "lost",
+		StagePosition:    1024,
+		OccurredAt:       "2026-08-02T03:00:00Z",
+		ActorPersonID:    "person-owner",
+		LostReason:       "  " + freeTextReason + "  ",
+		BaseAmountMinor:  crmInt64(500000),
+		BaseCurrencyCode: "KRW",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	afterLostTransition, _, errorValue := service.readCRMOpportunity(ctx, opportunity.ID, false)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if afterLostTransition.Stage != "lost" || afterLostTransition.LostReason != freeTextReason {
+		t.Fatalf("opportunity after free-text lost transition = %#v, want lost reason %q", afterLostTransition, freeTextReason)
+	}
+
+	if errorValue := service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
+		OpportunityID:    opportunity.ID,
+		Stage:            "done",
+		StagePosition:    2048,
+		OccurredAt:       "2026-08-02T03:30:00Z",
+		ActorPersonID:    "person-owner",
+		LostReason:       "should be dropped for a non-lost transition",
+		BaseAmountMinor:  crmInt64(500000),
+		BaseCurrencyCode: "KRW",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	afterWonTransition, _, errorValue := service.readCRMOpportunity(ctx, opportunity.ID, false)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if afterWonTransition.Stage != "done" || afterWonTransition.LostReason != "" {
+		t.Fatalf("opportunity after non-lost transition = %#v, want lost reason cleared", afterWonTransition)
+	}
+}
+
 func TestCRMOpportunityGenericUpdatePreservesStagePosition(t *testing.T) {
 	ctx := context.Background()
 	service, opportunity := createCRMOpportunityForStoreTest(t)
@@ -706,14 +777,6 @@ func TestCRMReferenceStoreUsesDynamicListsAndUnlimitedLinks(t *testing.T) {
 	pipelines, errorValue := service.listCRMPipelines(ctx, true)
 	if errorValue != nil || len(pipelines) != 6 {
 		t.Fatalf("pipelines = %#v, error = %v", pipelines, errorValue)
-	}
-	stages, errorValue := service.listCRMPipelineStageDefinitions(ctx)
-	if errorValue != nil || len(stages) != 6 || stages[0].Stage != "waiting" {
-		t.Fatalf("pipeline stage definitions = %#v, error = %v", stages, errorValue)
-	}
-	reasons, errorValue := service.listCRMLostReasons(ctx, true)
-	if errorValue != nil || len(reasons) != 7 {
-		t.Fatalf("lost reasons = %#v, error = %v", reasons, errorValue)
 	}
 
 	first, errorValue := service.writeCRMResourceLink(ctx, crmResourceLink{

@@ -100,27 +100,10 @@ export type CRMPipelineResponse = {
 	isActive: boolean;
 };
 
-export type CRMPipelineStageResponse = {
-	stage: string;
-	label: string;
-	position: number;
-	outcome: 'open' | 'won' | 'lost' | 'on_hold';
-};
-
-export type CRMLostReasonResponse = {
-	reason: string;
-	label: string;
-	isActive: boolean;
-};
-
 export type CRMDefinition = {
 	id: string;
 	name: string;
 	color?: string;
-};
-
-export type CRMStageDefinition = CRMDefinition & {
-	outcome: 'open' | 'won' | 'lost' | 'on_hold';
 };
 
 export type CRMPipelineDefinition = CRMDefinition & {
@@ -130,8 +113,6 @@ export type CRMPipelineDefinition = CRMDefinition & {
 export type CRMVocabulary = {
 	organization_types: CRMDefinition[];
 	pipelines: CRMPipelineDefinition[];
-	stages: CRMStageDefinition[];
-	lost_reasons: CRMDefinition[];
 };
 
 export type CRMOrganizationPayload = Omit<CRMOrganizationResponse, 'id' | 'audit'>;
@@ -193,8 +174,6 @@ export type CRMDataResponse = {
 	opportunities: CRMOpportunityResponse[];
 	activities: CRMActivityResponse[];
 	pipelines: CRMPipelineResponse[];
-	stages: CRMPipelineStageResponse[];
-	lostReasons: CRMLostReasonResponse[];
 	vocabulary: CRMVocabulary;
 	taskVocabulary: TaskVocabulary;
 };

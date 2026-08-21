@@ -14,18 +14,6 @@ type crmPipeline struct {
 	IsActive  bool
 }
 
-type crmPipelineStageDefinition struct {
-	Stage    string
-	Position int
-	Outcome  string
-}
-
-type crmLostReason struct {
-	Reason   string
-	Label    string
-	IsActive bool
-}
-
 func (service *Service) listCRMPipelines(ctx context.Context, activeOnly bool) ([]crmPipeline, error) {
 	database, errorValue := service.openCRMDatabase(ctx)
 	if errorValue != nil {
@@ -55,66 +43,6 @@ ORDER BY pipeline`, crmBooleanInteger(activeOnly))
 		return nil, errorValue
 	}
 	return pipelines, nil
-}
-
-func (service *Service) listCRMPipelineStageDefinitions(ctx context.Context) ([]crmPipelineStageDefinition, error) {
-	database, errorValue := service.openCRMDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
-SELECT stage, outcome, MIN(position) AS position
-FROM pipeline_stage
-GROUP BY stage, outcome
-ORDER BY position`)
-	if errorValue != nil {
-		return nil, fmt.Errorf("list CRM pipeline stage definitions: %w", errorValue)
-	}
-	defer rows.Close()
-	stages := []crmPipelineStageDefinition{}
-	for rows.Next() {
-		var stage crmPipelineStageDefinition
-		if errorValue := rows.Scan(&stage.Stage, &stage.Outcome, &stage.Position); errorValue != nil {
-			return nil, errorValue
-		}
-		stages = append(stages, stage)
-	}
-	if errorValue := rows.Err(); errorValue != nil {
-		return nil, errorValue
-	}
-	return stages, nil
-}
-
-func (service *Service) listCRMLostReasons(ctx context.Context, activeOnly bool) ([]crmLostReason, error) {
-	database, errorValue := service.openCRMDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
-SELECT reason, label, is_active
-FROM lost_reason
-WHERE ? = 0 OR is_active = 1
-ORDER BY label`, crmBooleanInteger(activeOnly))
-	if errorValue != nil {
-		return nil, fmt.Errorf("list CRM lost reasons: %w", errorValue)
-	}
-	defer rows.Close()
-	reasons := []crmLostReason{}
-	for rows.Next() {
-		var reason crmLostReason
-		var isActive int
-		if errorValue := rows.Scan(&reason.Reason, &reason.Label, &isActive); errorValue != nil {
-			return nil, errorValue
-		}
-		reason.IsActive = isActive == 1
-		reasons = append(reasons, reason)
-	}
-	if errorValue := rows.Err(); errorValue != nil {
-		return nil, errorValue
-	}
-	return reasons, nil
 }
 
 func (service *Service) writeCRMResourceLink(ctx context.Context, link crmResourceLink) (crmResourceLink, error) {

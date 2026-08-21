@@ -117,12 +117,25 @@ func (service *Service) writeCRMOpportunityWithTransition(ctx context.Context, o
 		}
 	}
 	if existingCount == 0 && transition != nil {
-		opportunity.Stage = transition.Stage
-		opportunity.StagePosition = transition.StagePosition
-		opportunity.StageChangedAt = transition.OccurredAt
-		opportunity.LostReason = transition.LostReason
-		opportunity.BaseAmountMinor = transition.BaseAmountMinor
-		opportunity.BaseCurrencyCode = transition.BaseCurrencyCode
+		var targetOutcome string
+		if errorValue := transaction.QueryRowContext(ctx, "SELECT outcome FROM pipeline_stage WHERE pipeline = ? AND stage = ?", opportunity.Pipeline, transition.Stage).Scan(&targetOutcome); errorValue != nil {
+			_ = transaction.Rollback()
+			if errorValue == sql.ErrNoRows {
+				return crmOpportunity{}, newCRMConflict(fmt.Sprintf("CRM stage %s does not belong to pipeline %s", transition.Stage, opportunity.Pipeline))
+			}
+			return crmOpportunity{}, fmt.Errorf("read CRM target stage outcome: %w", errorValue)
+		}
+		guardedTransition, errorValue := requireCRMLostReasonOnlyForLostOutcome(*transition, targetOutcome)
+		if errorValue != nil {
+			_ = transaction.Rollback()
+			return crmOpportunity{}, errorValue
+		}
+		opportunity.Stage = guardedTransition.Stage
+		opportunity.StagePosition = guardedTransition.StagePosition
+		opportunity.StageChangedAt = guardedTransition.OccurredAt
+		opportunity.LostReason = guardedTransition.LostReason
+		opportunity.BaseAmountMinor = guardedTransition.BaseAmountMinor
+		opportunity.BaseCurrencyCode = guardedTransition.BaseCurrencyCode
 	}
 	if opportunity.Stage == "" {
 		if errorValue := transaction.QueryRowContext(ctx, `
