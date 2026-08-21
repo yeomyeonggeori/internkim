@@ -69,3 +69,23 @@ func TestUsersSyncScriptLeavesRosterRemovalToTheHost(t *testing.T) {
 		}
 	}
 }
+
+func TestUsersSyncScriptMaintainsThePosixBoundaryBeforeReachingTheNetwork(t *testing.T) {
+	script := InternKimUsersSyncScript()
+
+	posixIndex := strings.Index(script, "\nsync_posix_policy\nensure_person_workspace_directories\n")
+	if posixIndex < 0 {
+		t.Fatal("expected the POSIX sync and the workspace directories to run together as the script's first work")
+	}
+	credentialGuardIndex := strings.Index(script, `echo "users-sync: missing fleet credentials"`)
+	if credentialGuardIndex < posixIndex {
+		t.Fatal("a device without fleet credentials still has a POSIX boundary to maintain; the guard belongs after that work")
+	}
+	fetchIndex := strings.Index(script, `request_or_exit "fleet user list"`)
+	if fetchIndex < 0 {
+		t.Fatal("expected the script to record the directory answer the roster reconcile is checked against")
+	}
+	if posixIndex > fetchIndex {
+		t.Fatal("the POSIX boundary is the only thing this loop still owns and it needs nothing from the central API; a fetch that fails must not take it down")
+	}
+}

@@ -62,11 +62,6 @@ STATE_PATH="/root/.internkim/state/users-sync.json"
 BLUECLAW_URL="http://127.0.0.1:8080"
 WORKSPACE_PATH="/root/.blueclaw/workspace"
 
-if [ -z "$FLEET_ID" ] || [ -z "$FLEET_SECRET" ]; then
-  echo "users-sync: missing fleet credentials" >&2
-  exit 1
-fi
-
 ` + internKimUsersSyncRequestHelpers() + `
 install -d -m 700 /root/.internkim/state
 response_path="$(mktemp)"
@@ -108,6 +103,14 @@ ensure_person_workspace_directories() {
   done
 }
 
+sync_posix_policy
+ensure_person_workspace_directories
+
+if [ -z "$FLEET_ID" ] || [ -z "$FLEET_SECRET" ]; then
+  echo "users-sync: missing fleet credentials" >&2
+  exit 1
+fi
+
 request_or_exit "fleet user list" "$response_path" \
   -H "X-INTERNKIM-FLEET-ID: $FLEET_ID" \
   -H "X-INTERNKIM-FLEET-SECRET: $FLEET_SECRET" \
@@ -130,8 +133,6 @@ jq -cn \
   --argjson users "$jusers" \
   '{revision:$revision, users:$users}' > "$next_state_path"
 install -m 600 "$next_state_path" "$STATE_PATH"
-sync_posix_policy
-ensure_person_workspace_directories
 echo "users-sync: recorded $(wc -l < "$desired_path" | tr -d ' ') users"
 `
 }
