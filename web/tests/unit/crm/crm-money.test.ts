@@ -27,41 +27,41 @@ describe('CRM money formatting', () => {
 	});
 
 	test('compacts every currency by 만 and 억 while the reader is on Korean', () => {
-		expect(formatMoney(12000000, 'KRW', interimCurrencyCatalogue)).toBe('KRW 1,200만');
-		expect(formatMoney(12000000, 'JPY', interimCurrencyCatalogue)).toBe('JPY 1,200만');
-		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue)).toBe('USD 1,200만');
-		expect(formatMoney(250000000, 'KRW', interimCurrencyCatalogue)).toBe('KRW 2.5억');
-		expect(formatMoney(8000, 'KRW', interimCurrencyCatalogue)).toBe('KRW 8,000');
+		expect(formatMoney(12000000, 'KRW')).toBe('KRW 1,200만');
+		expect(formatMoney(12000000, 'JPY')).toBe('JPY 1,200만');
+		expect(formatMoney(12000000, 'USD')).toBe('USD 1,200만');
+		expect(formatMoney(250000000, 'KRW')).toBe('KRW 2.5억');
+		expect(formatMoney(8000, 'KRW')).toBe('KRW 8,000');
 	});
 
 	test('keeps a tenth of 만 so a small amount is not rounded away', () => {
-		expect(formatMoney(13500, 'USD', interimCurrencyCatalogue)).toBe('USD 1.4만');
-		expect(formatMoney(42000, 'USD', interimCurrencyCatalogue)).toBe('USD 4.2만');
+		expect(formatMoney(13500, 'USD')).toBe('USD 1.4만');
+		expect(formatMoney(42000, 'USD')).toBe('USD 4.2만');
 	});
 
 	test('compacts every currency by K and M while the reader is on English', () => {
-		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue, '-', 'en')).toBe('USD 12M');
-		expect(formatMoney(12000000, 'EUR', interimCurrencyCatalogue, '-', 'en')).toBe('EUR 12M');
-		expect(formatMoney(12000, 'USD', interimCurrencyCatalogue, '-', 'en')).toBe('USD 12K');
-		expect(formatMoney(2500, 'USD', interimCurrencyCatalogue, '-', 'en')).toBe('USD 2.5K');
-		expect(formatMoney(750, 'USD', interimCurrencyCatalogue, '-', 'en')).toBe('USD 750');
+		expect(formatMoney(12000000, 'USD', '-', 'en')).toBe('USD 12M');
+		expect(formatMoney(12000000, 'EUR', '-', 'en')).toBe('EUR 12M');
+		expect(formatMoney(12000, 'USD', '-', 'en')).toBe('USD 12K');
+		expect(formatMoney(2500, 'USD', '-', 'en')).toBe('USD 2.5K');
+		expect(formatMoney(750, 'USD', '-', 'en')).toBe('USD 750');
 	});
 
 	test('never emits Hangul for the en locale, even for myriad currencies', () => {
-		expect(formatMoney(12000000, 'KRW', interimCurrencyCatalogue, '-', 'en')).toBe('KRW 12M');
-		expect(formatMoney(250000000, 'KRW', interimCurrencyCatalogue, '-', 'en')).toBe('KRW 250M');
+		expect(formatMoney(12000000, 'KRW', '-', 'en')).toBe('KRW 12M');
+		expect(formatMoney(250000000, 'KRW', '-', 'en')).toBe('KRW 250M');
 	});
 
 	test('lets the reader locale, not the currency, choose the compact unit', () => {
-		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue, '-', 'ko')).toBe('USD 1,200만');
-		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue, '-', 'en')).toBe('USD 12M');
-		expect(formatMoney(12000000, 'KRW', interimCurrencyCatalogue, '-', 'ko')).toBe('KRW 1,200만');
-		expect(formatMoney(12000000, 'KRW', interimCurrencyCatalogue, '-', 'en')).toBe('KRW 12M');
+		expect(formatMoney(12000000, 'USD', '-', 'ko')).toBe('USD 1,200만');
+		expect(formatMoney(12000000, 'USD', '-', 'en')).toBe('USD 12M');
+		expect(formatMoney(12000000, 'KRW', '-', 'ko')).toBe('KRW 1,200만');
+		expect(formatMoney(12000000, 'KRW', '-', 'en')).toBe('KRW 12M');
 	});
 
 	test('compacts a currency the catalogue does not know and keeps its code as the prefix', () => {
-		expect(formatMoney(12000000, 'XAG', interimCurrencyCatalogue)).toBe('XAG 1,200만');
-		expect(formatMoney(undefined, 'XAG', interimCurrencyCatalogue)).toBe('-');
+		expect(formatMoney(12000000, 'XAG')).toBe('XAG 1,200만');
+		expect(formatMoney(undefined, 'XAG')).toBe('-');
 	});
 
 	test('keeps each currency in its own scale without applying exchange rates', () => {
@@ -81,8 +81,8 @@ describe('CRM money formatting', () => {
 
 describe('view-currency-aware money formatting', () => {
 	test('formats converted and exact amounts alike', () => {
-		expect(formatViewMoney({ value: 18000000, currency: 'KRW', isConverted: false }, interimCurrencyCatalogue)).toBe('KRW 1,800만');
-		expect(formatViewMoney({ value: 13500, currency: 'USD', isConverted: true }, interimCurrencyCatalogue)).toBe('USD 1.4만');
+		expect(formatViewMoney({ value: 18000000, currency: 'KRW', isConverted: false })).toBe('KRW 1,800만');
+		expect(formatViewMoney({ value: 13500, currency: 'USD', isConverted: true })).toBe('USD 1.4만');
 	});
 
 	test('collapses every currency total into one converted estimate when a view currency is active', () => {
@@ -127,18 +127,18 @@ describe('view-currency-aware money formatting', () => {
 
 describe('formatViewRateHint always reads one dollar in the chosen currency', () => {
 	test('names what a dollar buys, rounding whole units and keeping small rates precise', () => {
-		expect(formatViewRateHint('KRW', { USD: 1396.35 }, interimCurrencyCatalogue)).toBe('USD 1 = KRW 1,396');
-		expect(formatViewRateHint('EUR', { USD: 0.857 }, interimCurrencyCatalogue)).toBe('USD 1 = EUR 0.86');
+		expect(formatViewRateHint('KRW', { USD: 1396.35 })).toBe('USD 1 = KRW 1,396');
+		expect(formatViewRateHint('EUR', { USD: 0.857 })).toBe('USD 1 = EUR 0.86');
 	});
 
 	test('ignores every source currency that is not the dollar', () => {
-		expect(formatViewRateHint('KRW', { USD: 1396.35, JPY: 9.19, EUR: 0.86 }, interimCurrencyCatalogue)).toBe('USD 1 = KRW 1,396');
+		expect(formatViewRateHint('KRW', { USD: 1396.35, JPY: 9.19, EUR: 0.86 })).toBe('USD 1 = KRW 1,396');
 	});
 
 	test('stays silent for the dollar itself, for no view, and before the rate loads', () => {
-		expect(formatViewRateHint('USD', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('');
-		expect(formatViewRateHint('', { USD: 1396.35 }, interimCurrencyCatalogue)).toBe('');
-		expect(formatViewRateHint('KRW', {}, interimCurrencyCatalogue)).toBe('');
+		expect(formatViewRateHint('USD', { KRW: 0.00072 })).toBe('');
+		expect(formatViewRateHint('', { USD: 1396.35 })).toBe('');
+		expect(formatViewRateHint('KRW', {})).toBe('');
 	});
 });
 

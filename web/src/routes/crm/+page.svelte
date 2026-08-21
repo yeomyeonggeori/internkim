@@ -355,9 +355,9 @@
 					<Button type="button" size="sm" onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 				</div>
 				{#if pipelineView === 'table'}
-					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={controller.stages} {currencyCatalogue} {text} onEdit={openOpportunityEdit} />
+					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={controller.stages} {text} onEdit={openOpportunityEdit} />
 				{:else}
-					<CRMPipelineBoard opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={controller.stages} {currencyCatalogue} {text} onMove={moveOpportunity} />
+					<CRMPipelineBoard opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={controller.stages} {text} onMove={moveOpportunity} />
 				{/if}
 			</UnderlineTabs.Content>
 

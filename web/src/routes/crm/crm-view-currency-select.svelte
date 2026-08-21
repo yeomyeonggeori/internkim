@@ -30,7 +30,7 @@
 	}
 
 	const rateHint = $derived(
-		formatViewRateHint(crmViewCurrency.selected, crmViewCurrency.ratesBySource, currencyCatalogue)
+		formatViewRateHint(crmViewCurrency.selected, crmViewCurrency.ratesBySource)
 	);
 
 	$effect(() => {
