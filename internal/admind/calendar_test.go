@@ -416,6 +416,8 @@ func mattermostCalendarLogTestResponse(t *testing.T, request *http.Request) (*ht
 		return jsonResponse(http.StatusOK, `{}`, nil), true
 	case request.Method == http.MethodPost && request.URL.Path == "/api/v4/posts" && mattermostPostChannelID(t, request) == "calendar-channel":
 		return jsonResponse(http.StatusCreated, `{"id":"calendar-post-1"}`, nil), true
+	case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/api/v4/users/username/"):
+		return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), true
 	default:
 		return nil, false
 	}
@@ -455,6 +457,12 @@ func mattermostCalendarLogLifecycleResponse(t *testing.T, request *http.Request,
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
 	case request.Method == http.MethodDelete && request.URL.Path == "/api/v4/posts/calendar-post-1":
 		requests.deletedPostIDs = append(requests.deletedPostIDs, "calendar-post-1")
+		return jsonResponse(http.StatusOK, `{}`, nil), nil
+	case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/api/v4/users/username/"):
+		return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
+	case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels/direct":
+		return jsonResponse(http.StatusCreated, `{"id":"direct-channel-1"}`, nil), nil
+	case request.Method == http.MethodPut && strings.HasSuffix(request.URL.Path, "/preferences"):
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
 	default:
 		t.Fatalf("unexpected Mattermost request %s %s", request.Method, request.URL.String())
