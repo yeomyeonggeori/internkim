@@ -20,6 +20,8 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 	hasManualChoice = $state(false);
 	baseCurrency = $state<string>('');
 
+	private lastFailedFollowKey = '';
+
 	constructor(private readonly loadRate: typeof loadConvertedAmount = loadConvertedAmount) {}
 
 	async choose(view: string, sourceCurrencies: string[]): Promise<boolean> {
@@ -33,7 +35,10 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 		const view = this.hasManualChoice ? this.selected : baseCurrency;
 		if (!view) return;
 		if (this.selected === view && this.hasRatesFor(sourceCurrencies)) return;
-		await this.apply(view, sourceCurrencies);
+		const followKey = `${view}|${[...new Set(sourceCurrencies)].sort().join(',')}`;
+		if (followKey === this.lastFailedFollowKey) return;
+		const succeeded = await this.apply(view, sourceCurrencies);
+		this.lastFailedFollowKey = succeeded ? '' : followKey;
 	}
 
 	private hasRatesFor(sourceCurrencies: string[]): boolean {
