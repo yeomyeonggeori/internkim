@@ -34,6 +34,7 @@
 	);
 
 	$effect(() => {
+		if (!isSupabaseConfigured()) return;
 		void crmViewCurrency.follow(companyBaseCurrency, sourceCurrencies);
 	});
 

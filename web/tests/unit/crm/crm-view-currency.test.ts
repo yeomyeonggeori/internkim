@@ -62,6 +62,26 @@ describe('CRM view currency state', () => {
 		expect(view.viewAmount(800000, 'JPY')).toEqual({ value: 800000 * 9.2, currency: 'KRW', isConverted: true });
 	});
 
+	test('retries a failed follow only when its inputs change', async () => {
+		const calls: Array<[string, string]> = [];
+		const view = new CRMViewCurrency(stubRateLoader({ USD: 1350 }, calls));
+
+		await view.follow('KRW', ['KRW', 'EUR']);
+		await view.follow('KRW', ['KRW', 'EUR']);
+		expect(view.selected).toBe('');
+		expect(calls).toEqual([['EUR', 'KRW']]);
+
+		await view.follow('KRW', ['KRW', 'USD']);
+		expect(view.selected).toBe('KRW');
+		expect(calls).toEqual([
+			['EUR', 'KRW'],
+			['USD', 'KRW']
+		]);
+
+		await view.follow('KRW', ['KRW', 'USD']);
+		expect(calls.length).toBe(2);
+	});
+
 	test('prices the company base currency even when no deal is priced in it', async () => {
 		const calls: Array<[string, string]> = [];
 		const view = new CRMViewCurrency(stubRateLoader({ KRW: 0.00075, USD: 1350 }, calls));
