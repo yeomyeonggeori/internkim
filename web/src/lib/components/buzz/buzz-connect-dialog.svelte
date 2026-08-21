@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 	import { claimCentralBuzzSecret } from '$lib/buzz-identity-central-login';
+	import { centralBuzzRelayURL } from '$lib/buzz-relay-central-address';
 	import { buzzPublicKeyOf } from '$lib/buzz-relay-client';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
@@ -67,9 +68,11 @@
 				credentials: 'include'
 			}).then((response) => response.json());
 			relayURL = document.relayURL?.trim() ?? '';
+			if (relayURL) return;
 		} catch {
 			relayURL = '';
 		}
+		relayURL = await centralBuzzRelayURL();
 	}
 
 	// A returning session may not carry the unlocked key in memory (the identity
