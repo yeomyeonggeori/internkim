@@ -21,24 +21,6 @@ func TestAConversationIsImportedClosed(t *testing.T) {
 	}
 }
 
-// Both people in a conversation would read the same stored name, so it would
-// name one of them after themselves.
-func TestAConversationCarriesNoNameOfItsOwn(t *testing.T) {
-	authors := map[string]mattermostrest.MattermostAuthor{
-		"user-1": {DisplayName: "이샘플"},
-		"user-2": {DisplayName: "박예시"},
-	}
-	conversation := buzzimport.MattermostChannel{Type: buzzimport.DirectChannelType, Name: "user-1__user-2"}
-
-	if name := importedChannelName(conversation, []string{"user-1", "user-2"}, authors); name != "" {
-		t.Errorf("conversation name = %q", name)
-	}
-	channel := buzzimport.MattermostChannel{Type: buzzimport.OpenChannelType, DisplayName: "광장"}
-	if name := importedChannelName(channel, nil, authors); name != "광장" {
-		t.Errorf("channel name = %q", name)
-	}
-}
-
 // A closed room refuses a post from someone who is no longer in it, and an
 // import is mostly such posts.
 func TestEveryoneWhoEverWroteIsAMemberForTheImport(t *testing.T) {
@@ -62,5 +44,20 @@ func TestEveryoneWhoEverWroteIsAMemberForTheImport(t *testing.T) {
 		if !seen[expected] {
 			t.Errorf("%s is not a member, so their history would be refused", expected)
 		}
+	}
+}
+
+// The relay refuses kind:9007 without a name — "invalid: channel name is
+// required" — so a conversation carries the participants as its stored name and
+// each client renames it after the other side when it reads one.
+func TestEveryImportedChannelCarriesAName(t *testing.T) {
+	authors := map[string]mattermostrest.MattermostAuthor{
+		"user-1": {DisplayName: "이샘플"},
+		"user-2": {DisplayName: "박예시"},
+	}
+	conversation := buzzimport.MattermostChannel{Type: buzzimport.DirectChannelType, Name: "user-1__user-2"}
+
+	if name := channelDisplayName(conversation, []string{"user-1", "user-2"}, authors); name == "" {
+		t.Error("a conversation imported with no name is refused by the relay")
 	}
 }
