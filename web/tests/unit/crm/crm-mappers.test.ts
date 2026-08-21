@@ -32,6 +32,19 @@ describe('CRM service mappers', () => {
 		expect(localDateToUTC('2026-03-08', 'America/New_York')).toBe('2026-03-09T03:59:59.000Z');
 	});
 
+	test('offers an unfinished activity as a next action and leaves a finished one out', () => {
+		const data = serviceData();
+		data.activities = [
+			{ ...data.activities[0]!, id: 'open-call', taskStatus: 'todo', occurredAt: '2026-08-23T05:00:00Z' },
+			{ ...data.activities[0]!, id: 'finished-meeting', taskStatus: 'done', occurredAt: '2026-08-19T05:00:00Z' }
+		];
+
+		const view = mapCRMViewData(data, [], interimCurrencyCatalogue, 'Asia/Seoul');
+
+		expect(view.nextActions.map((action) => action.id)).toEqual(['open-call']);
+		expect(view.nextActions[0]?.dueDate).toBe('2026-08-23');
+	});
+
 	test('displays a due date in its stored time zone regardless of viewer time zone', () => {
 		const data = serviceData();
 		data.opportunities[0] = {
