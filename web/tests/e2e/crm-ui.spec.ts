@@ -125,7 +125,7 @@ test.describe('CRM service UI', () => {
 	test('keeps CRM table alignment intentional with stable column ratios and no horizontal overflow', async ({ page }) => {
 		accounts = [{ ...account('account-1', '긴 이름의 기존 관계처'), description: '긴 설명이 있어도 화면 안에서 자연스럽게 줄바꿈되는 관계처입니다.' }];
 		contacts = [{ ...contact('contact-1', '박예시 담당자', 'account-1'), title: '사업 개발 및 구매 담당', note: '이메일과 전화번호, 비고를 좁은 화면에서도 모두 확인합니다.' }];
-		opportunities = [{ ...opportunity('opportunity-1', '장기 도입 검토 및 파트너십 진행 건', 'lead', 1024), description: '긴 진행 건 설명' }];
+		opportunities = [{ ...opportunity('opportunity-1', '장기 도입 검토 및 파트너십 진행 건', 'waiting', 1024), description: '긴 진행 건 설명' }];
 		activities = [{
 			id: 'activity-1',
 			title: '도입 검토 후속 미팅과 요구사항 확인',
@@ -359,17 +359,21 @@ test.describe('CRM service UI', () => {
 		expect(contacts[0]).toMatchObject({ name: '최견본', accountID: accounts.find((candidate) => candidate.name === '부분 저장 관계처')?.id });
 	});
 
-	test('shows all progress types first and enables the board for a specific type', async ({ page }) => {
+	test('shows all progress types first and renders the board for every progress type', async ({ page }) => {
+		opportunities = [opportunity('opportunity-sales', '판매 진행 건', 'waiting', 1024)];
 		await openCRM(page);
 		await page.getByRole('tab', { name: '진행상황' }).click();
 		const progressType = page.getByLabel('진행 유형');
 		await expect(progressType).toContainText('전체');
-		await expect(page.getByRole('tab', { name: '보드' })).toBeDisabled();
+		await expect(page.getByRole('tab', { name: '보드' })).toBeEnabled();
+		await page.getByRole('tab', { name: '보드' }).click();
+		await expect(page.locator('[data-crm-pipeline-column="waiting"] [data-crm-opportunity-card="opportunity-sales"]')).toBeVisible();
 		await progressType.click();
 		const options = page.getByRole('option');
 		await expect(options.first()).toHaveText('전체');
 		await page.getByRole('option', { name: '판매', exact: true }).click();
 		await expect(page.getByRole('tab', { name: '보드' })).toBeEnabled();
+		await expect(page.locator('[data-crm-pipeline-column="waiting"] [data-crm-opportunity-card="opportunity-sales"]')).toBeVisible();
 	});
 
 	test('creates an opportunity, moves its stage, and records an activity', async ({ page }) => {
@@ -387,11 +391,11 @@ test.describe('CRM service UI', () => {
 
 		await page.getByText('서비스 연결 진행 건', { exact: true }).click();
 		const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
-		await editSheet.getByText('리드', { exact: true }).click();
+		await editSheet.getByText('대기', { exact: true }).click();
 		await page.getByRole('option', { name: '검토', exact: true }).click();
 		await editSheet.getByRole('button', { name: '저장', exact: true }).click();
 		await expect(page.getByRole('row', { name: /진행 건 수정 · 서비스 연결 진행 건/ })).toContainText('검토');
-		await expect(page.getByRole('row', { name: /진행 건 수정 · 서비스 연결 진행 건/ })).not.toContainText('qualified');
+		await expect(page.getByRole('row', { name: /진행 건 수정 · 서비스 연결 진행 건/ })).not.toContainText('review');
 		expect(opportunities[0]?.contacts).toEqual([{ contactID: 'contact-linked' }]);
 
 		await page.getByRole('button', { name: '빠른 추가' }).click();
@@ -409,7 +413,7 @@ test.describe('CRM service UI', () => {
 	});
 
 	test('edits an automatic stage-change activity without changing its opportunity stage', async ({ page }) => {
-		opportunities = [opportunity('opportunity-1', '단계 변경 진행 건', 'qualified', 1024)];
+		opportunities = [opportunity('opportunity-1', '단계 변경 진행 건', 'in_progress', 1024)];
 		activities = [{
 			id: 'activity-stage-change', accountID: 'account-1', opportunityID: 'opportunity-1', business: 'general',
 			kind: 'stage_change', title: '단계 변경 기록', occurredAt: '2026-08-03T09:30:00Z', content: '자동 생성', audit
@@ -423,14 +427,14 @@ test.describe('CRM service UI', () => {
 		await expect(page.getByRole('option', { name: '단계 변경', exact: true })).toHaveCount(0);
 		await sheet.getByRole('button', { name: '저장', exact: true }).click();
 		expect(activities[0]).toMatchObject({ kind: 'stage_change', title: '수정된 단계 변경 기록' });
-		expect(opportunities[0]?.stage).toBe('qualified');
+		expect(opportunities[0]?.stage).toBe('in_progress');
 
 		await page.getByRole('row', { name: /활동 수정 · 수정된 단계 변경 기록/ }).click();
 		await sheet.getByText('단계 변경', { exact: true }).click();
 		await page.getByRole('option', { name: '메모', exact: true }).click();
 		await sheet.getByRole('button', { name: '저장', exact: true }).click();
 		expect(activities[0]).toMatchObject({ kind: 'note' });
-		expect(opportunities[0]?.stage).toBe('qualified');
+		expect(opportunities[0]?.stage).toBe('in_progress');
 	});
 
 	test('selects external and internal owners when creating an opportunity', async ({ page }) => {
@@ -504,7 +508,7 @@ test.describe('CRM service UI', () => {
 	test('keeps the last contact on a contact-only opportunity', async ({ page }) => {
 		contacts = [contact('contact-b2c', '개인 고객', '')];
 		opportunities = [{
-			...opportunity('opportunity-b2c', '개인 고객 상담', 'lead', 1024),
+			...opportunity('opportunity-b2c', '개인 고객 상담', 'waiting', 1024),
 			accountID: '',
 			contacts: [{ contactID: 'contact-b2c' }]
 		}];
@@ -522,9 +526,9 @@ test.describe('CRM service UI', () => {
 
 	test('moves and sorts pipeline cards through service APIs and keeps the order after reload', async ({ page }) => {
 		opportunities = [
-			opportunity('opportunity-a', '첫 번째 진행 건', 'lead', 1024),
-			opportunity('opportunity-b', '두 번째 진행 건', 'lead', 2048),
-			opportunity('opportunity-c', '세 번째 진행 건', 'qualified', 1024)
+			opportunity('opportunity-a', '첫 번째 진행 건', 'waiting', 1024),
+			opportunity('opportunity-b', '두 번째 진행 건', 'waiting', 2048),
+			opportunity('opportunity-c', '세 번째 진행 건', 'in_progress', 1024)
 		];
 		await openCRM(page);
 		await page.getByRole('tab', { name: '진행상황' }).click();
@@ -532,30 +536,30 @@ test.describe('CRM service UI', () => {
 		await page.getByRole('tab', { name: '보드' }).click();
 
 		await page.locator('[data-crm-opportunity-card="opportunity-a"]').dragTo(
-			page.locator('[data-crm-pipeline-drop-zone="qualified"]')
+			page.locator('[data-crm-pipeline-drop-zone="in_progress"]')
 		);
-		await expect(page.locator('[data-crm-pipeline-column="qualified"] [data-crm-opportunity-card="opportunity-a"]')).toBeVisible();
-		expect(opportunities.find((item) => item.id === 'opportunity-a')?.stage).toBe('qualified');
+		await expect(page.locator('[data-crm-pipeline-column="in_progress"] [data-crm-opportunity-card="opportunity-a"]')).toBeVisible();
+		expect(opportunities.find((item) => item.id === 'opportunity-a')?.stage).toBe('in_progress');
 
 		await page.locator('[data-crm-opportunity-card="opportunity-c"]').dragTo(
 			page.locator('[data-crm-opportunity-card="opportunity-a"]'),
 			{ targetPosition: { x: 10, y: 1 } }
 		);
-		await expect.poll(() => qualifiedOpportunityIDs(opportunities)).toEqual(['opportunity-c', 'opportunity-a']);
+		await expect.poll(() => inProgressOpportunityIDs(opportunities)).toEqual(['opportunity-c', 'opportunity-a']);
 
 		await page.reload();
 		await expect(page.locator('[data-crm-ready="true"]')).toBeVisible();
 		await page.getByRole('tab', { name: '진행상황' }).click();
 		await selectSalesPipeline(page);
 		await page.getByRole('tab', { name: '보드' }).click();
-		await expect(page.locator('[data-crm-pipeline-column="qualified"] [data-crm-opportunity-card]').first()).toHaveAttribute(
+		await expect(page.locator('[data-crm-pipeline-column="in_progress"] [data-crm-opportunity-card]').first()).toHaveAttribute(
 			'data-crm-opportunity-card',
 			/opportunity-c/
 		);
 	});
 
 	test('collects terminal-stage details when a board move closes progress', async ({ page }) => {
-		opportunities = [opportunity('opportunity-terminal', '종결할 진행 건', 'qualified', 1024)];
+		opportunities = [opportunity('opportunity-terminal', '종결할 진행 건', 'in_progress', 1024)];
 		await openCRM(page);
 		await page.getByRole('tab', { name: '진행상황' }).click();
 		await selectSalesPipeline(page);
@@ -570,7 +574,7 @@ test.describe('CRM service UI', () => {
 		await source.dispatchEvent('dragend', { dataTransfer });
 		const sheet = page.getByRole('dialog', { name: '진행 건 수정' });
 		await expect(sheet).toBeVisible();
-		await expect(sheet.getByLabel('단계')).toContainText('실패');
+		await expect(sheet.getByLabel('단계')).toContainText('무산');
 		await sheet.getByLabel('손실 사유').click();
 		await page.getByRole('option', { name: '예산 부족', exact: true }).click();
 		await sheet.getByRole('button', { name: '저장', exact: true }).click();
@@ -584,7 +588,7 @@ test.describe('CRM service UI', () => {
 	});
 
 	test('rejects closing foreign-currency progress without a converted base amount', async ({ page }) => {
-		opportunities = [{ ...opportunity('opportunity-foreign', '외화 진행 건', 'qualified', 1024), currencyCode: 'USD' }];
+		opportunities = [{ ...opportunity('opportunity-foreign', '외화 진행 건', 'in_progress', 1024), currencyCode: 'USD' }];
 		await openCRM(page);
 		await page.getByRole('tab', { name: '진행상황' }).click();
 		await selectSalesPipeline(page);
@@ -592,7 +596,7 @@ test.describe('CRM service UI', () => {
 
 		const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
 		const source = page.locator('[data-crm-opportunity-card="opportunity-foreign"]');
-		const target = page.locator('[data-crm-pipeline-column="won"]');
+		const target = page.locator('[data-crm-pipeline-column="done"]');
 		await source.dispatchEvent('dragstart', { dataTransfer });
 		await target.dispatchEvent('dragover', { dataTransfer });
 		await target.dispatchEvent('drop', { dataTransfer });
@@ -601,7 +605,7 @@ test.describe('CRM service UI', () => {
 		await sheet.getByRole('button', { name: '저장', exact: true }).click();
 
 		await expect(sheet.getByText('외화 진행 건은 기준 통화 환산액이 있어야 종결할 수 있습니다.')).toBeVisible();
-		expect(opportunities[0]?.stage).toBe('qualified');
+		expect(opportunities[0]?.stage).toBe('in_progress');
 	});
 
 	test('creates valued progress directly in a lost stage with its required details', async ({ page }) => {
@@ -618,7 +622,7 @@ test.describe('CRM service UI', () => {
 		const sheet = page.getByRole('dialog', { name: 'CRM 기록 추가' });
 		await sheet.getByLabel('이름 또는 제목').fill('손실 단계 생성 진행 건');
 		await sheet.getByLabel('단계').click();
-		await page.getByRole('option', { name: '실패', exact: true }).click();
+		await page.getByRole('option', { name: '무산', exact: true }).click();
 		await sheet.getByLabel('손실 사유').click();
 		await page.getByRole('option', { name: '예산 부족', exact: true }).click();
 		await sheet.getByLabel('금액').fill('1000');
@@ -638,7 +642,7 @@ test.describe('CRM service UI', () => {
 
 	test('keeps realized progress within terminal stages', async ({ page }) => {
 		opportunities = [{
-			...opportunity('opportunity-realized', '종결된 진행 건', 'won', 1024),
+			...opportunity('opportunity-realized', '종결된 진행 건', 'done', 1024),
 			baseAmountMinor: 1000,
 			baseCurrencyCode: 'KRW'
 		}];
@@ -647,9 +651,10 @@ test.describe('CRM service UI', () => {
 		await page.getByRole('row', { name: /종결된 진행 건/ }).click();
 		const sheet = page.getByRole('dialog', { name: '진행 건 수정' });
 		await sheet.getByLabel('단계').click();
-		await expect(page.getByRole('option', { name: '성사', exact: true })).toBeVisible();
-		await expect(page.getByRole('option', { name: '실패', exact: true })).toBeVisible();
-		await expect(page.getByRole('option', { name: '리드', exact: true })).toHaveCount(0);
+		await expect(page.getByRole('option', { name: '완료', exact: true })).toBeVisible();
+		await expect(page.getByRole('option', { name: '무산', exact: true })).toBeVisible();
+		await expect(page.getByRole('option', { name: '대기', exact: true })).toHaveCount(0);
+		await expect(page.getByRole('option', { name: '진행', exact: true })).toHaveCount(0);
 		await expect(page.getByRole('option', { name: '검토', exact: true })).toHaveCount(0);
 		await page.keyboard.press('Escape');
 		await page.keyboard.press('Escape');
@@ -665,7 +670,7 @@ test.describe('CRM service UI', () => {
 			contact('contact-new', '새 담당자', 'account-2')
 		];
 		opportunities = [{
-			...opportunity('opportunity-reassign', '관계처 변경 진행 건', 'lead', 1024),
+			...opportunity('opportunity-reassign', '관계처 변경 진행 건', 'waiting', 1024),
 			contacts: [{ contactID: 'contact-old' }]
 		}];
 		await openCRM(page);
@@ -689,7 +694,7 @@ test.describe('CRM service UI', () => {
 		accounts.push(account('account-2', '새 관계처'));
 		contacts = [contact('contact-linked', '연결 담당자', 'account-1')];
 		opportunities = [{
-			...opportunity('opportunity-linked-contact', '연결된 진행 건', 'lead', 1024),
+			...opportunity('opportunity-linked-contact', '연결된 진행 건', 'waiting', 1024),
 			contacts: [{ contactID: 'contact-linked' }]
 		}];
 		await openCRM(page);
@@ -706,7 +711,7 @@ test.describe('CRM service UI', () => {
 
 	test('keeps activity references consistent when the relationship changes', async ({ page }) => {
 		accounts.push(account('account-2', '다른 관계처'));
-		opportunities = [opportunity('opportunity-linked', '연결 진행 건', 'lead', 1024)];
+		opportunities = [opportunity('opportunity-linked', '연결 진행 건', 'waiting', 1024)];
 		await openCRM(page);
 		await page.getByRole('button', { name: '빠른 추가' }).click();
 		await page.getByRole('menuitem', { name: '활동 기록', exact: true }).click();
@@ -961,7 +966,7 @@ async function handleCRMRoute(route: Route, accounts: Account[], contacts: Conta
 		const payload = recordPayload(request.postDataJSON());
 		const { transition: transitionValue, ...fields } = payload;
 		const transition = isRecord(transitionValue) ? transitionValue : undefined;
-		const transitionStage = transition ? stringPayload(transition, 'stage') : 'lead';
+		const transitionStage = transition ? stringPayload(transition, 'stage') : 'waiting';
 		const requestedStagePosition = transition ? numberPayload(transition, 'stagePosition') : 0;
 		const created: Opportunity = {
 			...fields,
@@ -1038,9 +1043,15 @@ async function handleCRMRoute(route: Route, accounts: Account[], contacts: Conta
 		return fulfill(route, { activity: updated });
 	}
 	if (path === '/crm/api/pipelines' && method === 'GET') return fulfill(route, { pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }] });
-	if (path === '/crm/api/pipelines/sales/stages' && method === 'GET') return fulfill(route, { stages: [{ pipeline: 'sales', stage: 'lead', position: 1, outcome: 'open' }, { pipeline: 'sales', stage: 'qualified', position: 2, outcome: 'open' }, { pipeline: 'sales', stage: 'won', position: 3, outcome: 'won' }, { pipeline: 'sales', stage: 'lost', position: 4, outcome: 'lost' }] });
 	if (path === '/crm/api/lost-reasons' && method === 'GET') return fulfill(route, { lostReasons: [{ reason: 'budget', label: '예산 부족', isActive: true }] });
-	if (path === '/crm/api/definitions' && method === 'GET') return fulfill(route, { definitions: { businesses: ['general'] } });
+	if (path === '/crm/api/definitions' && method === 'GET') return fulfill(route, { definitions: { businesses: ['general'], stages: [
+		{ id: 'waiting', outcome: 'open', position: 1 },
+		{ id: 'in_progress', outcome: 'open', position: 2 },
+		{ id: 'review', outcome: 'open', position: 3 },
+		{ id: 'done', outcome: 'won', position: 4 },
+		{ id: 'on_hold', outcome: 'on_hold', position: 5 },
+		{ id: 'lost', outcome: 'lost', position: 6 }
+	] } });
 	await route.fulfill({ status: 404, json: { error: { code: 'not_found', message: path } } });
 }
 
@@ -1083,8 +1094,8 @@ function contact(id: string, name: string, accountID: string): Contact {
 	};
 }
 
-function qualifiedOpportunityIDs(opportunities: Opportunity[]): string[] {
-	return opportunities.filter((opportunity) => opportunity.stage === 'qualified').map((opportunity) => opportunity.id);
+function inProgressOpportunityIDs(opportunities: Opportunity[]): string[] {
+	return opportunities.filter((opportunity) => opportunity.stage === 'in_progress').map((opportunity) => opportunity.id);
 }
 
 function createStagePosition(opportunities: Opportunity[], stage: string, requestedPosition: number): number {

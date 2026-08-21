@@ -101,7 +101,6 @@ export type CRMPipelineResponse = {
 };
 
 export type CRMPipelineStageResponse = {
-	pipeline: CRMProgressKind;
 	stage: string;
 	label: string;
 	position: number;
@@ -126,12 +125,12 @@ export type CRMStageDefinition = CRMDefinition & {
 
 export type CRMPipelineDefinition = CRMDefinition & {
 	direction?: string;
-	stages: CRMStageDefinition[];
 };
 
 export type CRMVocabulary = {
 	organization_types: CRMDefinition[];
 	pipelines: CRMPipelineDefinition[];
+	stages: CRMStageDefinition[];
 	lost_reasons: CRMDefinition[];
 };
 

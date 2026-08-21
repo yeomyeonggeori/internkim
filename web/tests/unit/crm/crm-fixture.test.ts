@@ -13,10 +13,9 @@ import type {
 } from '../../../src/routes/crm/crm-types';
 
 const openStages = new Set<CRMOpportunityStage>([
-	'lead',
-	'qualified',
-	'proposal',
-	'negotiation',
+	'waiting',
+	'in_progress',
+	'review',
 	'on_hold'
 ]);
 
@@ -32,11 +31,10 @@ describe('CRM fixture integrity', () => {
 		expect(currencies).toEqual(new Set<CRMCurrency>(['KRW', 'USD', 'JPY', 'EUR']));
 		expect(stages).toEqual(
 			new Set<CRMOpportunityStage>([
-				'lead',
-				'qualified',
-				'proposal',
-				'negotiation',
-				'won',
+				'waiting',
+				'in_progress',
+				'review',
+				'done',
 				'lost',
 				'on_hold'
 			])

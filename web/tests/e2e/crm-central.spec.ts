@@ -109,7 +109,7 @@ test('stage change records an automatic activity and editing it keeps the stage'
 	await page.getByRole('row', { name: new RegExp(firstOpportunityName) }).click();
 	const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
 	await editSheet.getByLabel('단계').click();
-	await page.getByRole('option', { name: '협의', exact: true }).click();
+	await page.getByRole('option', { name: '진행', exact: true }).click();
 	await editSheet.getByRole('button', { name: '저장', exact: true }).click();
 	await expect(editSheet).not.toBeVisible();
 
@@ -123,7 +123,7 @@ test('stage change records an automatic activity and editing it keeps the stage'
 	await expect(activitySheet).not.toBeVisible();
 
 	await page.getByRole('tab', { name: '진행상황' }).click();
-	await expect(page.getByRole('row', { name: new RegExp(firstOpportunityName) })).toContainText('협의');
+	await expect(page.getByRole('row', { name: new RegExp(firstOpportunityName) })).toContainText('진행');
 });
 
 test('rejects deleting an in-use CRM definition with guidance', async ({ page }) => {
@@ -208,7 +208,7 @@ test('closing a deal priced in another currency settles it in the base currency'
 	await page.getByRole('row', { name: new RegExp(settledOpportunityName) }).click();
 	const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
 	await editSheet.getByLabel('단계').click();
-	await page.getByRole('option', { name: '성사', exact: true }).click();
+	await page.getByRole('option', { name: '완료', exact: true }).click();
 	await editSheet.getByRole('button', { name: '저장', exact: true }).click();
 	await expect(editSheet).not.toBeVisible();
 
@@ -223,7 +223,7 @@ test('a settled amount survives a move between terminal stages', async ({ page }
 
 	const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
 	await editSheet.getByLabel('단계').click();
-	await page.getByRole('option', { name: '불발', exact: true }).click();
+	await page.getByRole('option', { name: '무산', exact: true }).click();
 	await editSheet.getByLabel('손실 사유').click();
 	await page.getByRole('option', { name: '예산 부족', exact: true }).click();
 	await editSheet.getByRole('button', { name: '저장', exact: true }).click();

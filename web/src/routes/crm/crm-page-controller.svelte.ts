@@ -48,7 +48,6 @@ import type {
 	CRMOpportunity,
 	CRMPipeline,
 	CRMPipelineStage,
-	CRMProgressKind
 } from './crm-types';
 import type { CRMTransitionPayload, CRMVocabulary } from './crm-api-types';
 import type { TaskVocabulary } from '$lib/flow/task-vocabulary';
@@ -77,7 +76,7 @@ export class CRMPageController {
 	pipelines = $state<CRMPipeline[]>([]);
 	stages = $state<CRMPipelineStage[]>([]);
 	lostReasons = $state<CRMLostReason[]>([]);
-	vocabulary = $state<CRMVocabulary>({ organization_types: [], pipelines: [], lost_reasons: [] });
+	vocabulary = $state<CRMVocabulary>({ organization_types: [], pipelines: [], stages: [], lost_reasons: [] });
 	currencyCatalogue = $state<CurrencyCatalogue>(interimCurrencyCatalogue);
 	companyBaseCurrency = $state<string>(interimCompanyBaseCurrency);
 	taskVocabulary = $state<TaskVocabulary>({});
@@ -165,7 +164,7 @@ export class CRMPageController {
 			if (draft.kind === 'progress') {
 				const payload = opportunityPayloadFromDraft(draft, owner, browserTimeZone(), this.currencyCatalogue);
 				const transition = {
-					...this.transitionPayload('', draft.stage, null, draft.progressKind, {
+					...this.transitionPayload('', draft.stage, null, {
 						amountMinor: payload.amountMinor,
 						currencyCode: payload.currencyCode,
 						baseAmountMinor: null,
@@ -175,7 +174,7 @@ export class CRMPageController {
 					stagePosition: 0
 				};
 				const created = await createCRMOpportunity({ ...payload, transition });
-				if (this.settlesThroughCloseEndpoint('', draft.progressKind, draft.stage)) {
+				if (this.settlesThroughCloseEndpoint(draft.stage)) {
 					await transitionCRMOpportunity(created.id, transition);
 				}
 				return;
@@ -212,14 +211,14 @@ export class CRMPageController {
 				await updateCRMOpportunity(opportunity.id, payload);
 				return;
 			}
-			const transition = this.transitionPayload(opportunity.id, opportunity.stage, null, opportunity.pipeline, {
+			const transition = this.transitionPayload(opportunity.id, opportunity.stage, null, {
 				amountMinor: payload.amountMinor,
 				currencyCode: payload.currencyCode,
 				baseAmountMinor: opportunity.baseAmountMinor ?? null,
 				baseCurrencyCode: opportunity.baseCurrencyCode ?? '',
 				lostReason: opportunity.lostReason ?? ''
 			});
-			if (!this.settlesThroughCloseEndpoint(opportunity.id, opportunity.pipeline, opportunity.stage)) {
+			if (!this.settlesThroughCloseEndpoint(opportunity.stage)) {
 				await updateCRMOpportunity(opportunity.id, { ...payload, transition });
 				return;
 			}
@@ -248,7 +247,6 @@ export class CRMPageController {
 						opportunity.id,
 						request.targetStage,
 						request.beforeOpportunityID,
-						opportunity.pipeline ?? opportunity.kind,
 						{
 							amountMinor: payload.amountMinor,
 							currencyCode: payload.currencyCode,
@@ -290,10 +288,6 @@ export class CRMPageController {
 			taskOwnerID: draft.taskOwnerID || activity.taskOwnerID || '',
 			taskStatus: draft.taskStatus || activity.taskStatus || 'todo'
 		}));
-	}
-
-	stagesFor(pipeline: CRMProgressKind): CRMPipelineStage[] {
-		return this.stages.filter((stage) => stage.pipeline === pipeline).sort((left, right) => left.position - right.position);
 	}
 
 	private async mutate(operation: () => Promise<unknown>): Promise<void> {
@@ -383,42 +377,33 @@ export class CRMPageController {
 		opportunityID: string,
 		stage: string,
 		beforeOpportunityID: string | null,
-		pipelineHint: CRMProgressKind | undefined,
 		values: CRMOpportunityTransitionValues
 	): CRMTransitionPayload {
 		const opportunity = this.opportunities.find((candidate) => candidate.id === opportunityID);
-		const pipeline = this.pipelineOf(opportunityID, pipelineHint);
 		return {
 			stage,
-			stagePosition: this.nextPosition(opportunity, beforeOpportunityID, stage, pipelineHint),
+			stagePosition: this.nextPosition(opportunity, beforeOpportunityID, stage),
 			beforeOpportunityID: beforeOpportunityID ?? '',
 			occurredAt: new Date().toISOString(),
-			...opportunityTransitionOutcome(this.stages, pipeline, stage, values, {
+			...opportunityTransitionOutcome(this.stages, stage, values, {
 				baseCurrency: this.companyBaseCurrency,
 				isConvertedByServer: settlementIsConvertedByServer()
 			})
 		};
 	}
 
-	private pipelineOf(opportunityID: string, pipelineHint: CRMProgressKind | undefined): CRMProgressKind {
-		const opportunity = this.opportunities.find((candidate) => candidate.id === opportunityID);
-		return opportunity?.pipeline ?? opportunity?.kind ?? pipelineHint ?? 'sales';
-	}
-
-	private settlesThroughCloseEndpoint(opportunityID: string, pipelineHint: CRMProgressKind | undefined, stage: string): boolean {
+	private settlesThroughCloseEndpoint(stage: string): boolean {
 		if (!settlementIsConvertedByServer()) return false;
-		return opportunitySettlesOnTransition(this.stages, this.pipelineOf(opportunityID, pipelineHint), stage);
+		return opportunitySettlesOnTransition(this.stages, stage);
 	}
 
 	private nextPosition(
 		opportunity: CRMOpportunity | undefined,
 		beforeOpportunityID: string | null,
-		targetStage = opportunity?.stage ?? '',
-		pipelineHint?: CRMProgressKind
+		targetStage = opportunity?.stage ?? ''
 	): number {
-		const pipeline = opportunity?.pipeline ?? opportunity?.kind ?? pipelineHint ?? 'sales';
 		const sameStage = this.opportunities
-			.filter((candidate) => (candidate.pipeline ?? candidate.kind) === pipeline && candidate.stage === targetStage && candidate.id !== opportunity?.id)
+			.filter((candidate) => candidate.stage === targetStage && candidate.id !== opportunity?.id)
 			.sort((left, right) => (left.stagePosition ?? 0) - (right.stagePosition ?? 0));
 		if (!beforeOpportunityID) return (sameStage.at(-1)?.stagePosition ?? 0) + 1024;
 		const beforeIndex = sameStage.findIndex((candidate) => candidate.id === beforeOpportunityID);
@@ -438,23 +423,17 @@ export class CRMPageController {
 		this.nextActions = structuredClone(crmNextActions);
 		const pipelineNames = [...new Set(this.opportunities.map((opportunity) => opportunity.kind ?? 'sales'))];
 		this.pipelines = pipelineNames.map((pipeline) => ({ pipeline, label: crmLabel(this.text.progressKinds, pipeline), direction: 'outbound', isActive: true }));
-		this.stages = pipelineNames.flatMap((pipeline) => [...new Set(this.opportunities
-			.filter((opportunity) => (opportunity.kind ?? 'sales') === pipeline)
-			.map((opportunity) => opportunity.stage))]
-			.map((stage, index) => ({ pipeline, stage, label: stage, position: index + 1, outcome: fixtureOutcome(stage) })));
+		const stageIDs = [...new Set(this.opportunities.map((opportunity) => opportunity.stage))];
+		this.stages = stageIDs.map((stage, index) => ({ stage, label: stage, position: index + 1, outcome: fixtureOutcome(stage) }));
 		this.lostReasons = [];
 		this.vocabulary = {
 			organization_types: [],
 			pipelines: this.pipelines.map((pipeline) => ({
 				id: pipeline.pipeline,
 				name: pipeline.label,
-				direction: pipeline.direction,
-				stages: this.stages.filter((stage) => stage.pipeline === pipeline.pipeline).map((stage) => ({
-					id: stage.stage,
-					name: stage.stage,
-					outcome: stage.outcome
-				}))
+				direction: pipeline.direction
 			})),
+			stages: this.stages.map((stage) => ({ id: stage.stage, name: stage.stage, outcome: stage.outcome })),
 			lost_reasons: []
 		};
 		this.taskVocabulary = {
@@ -469,7 +448,7 @@ function ownerHint(draft: CRMCreateDraft): string {
 }
 
 function fixtureOutcome(stage: string): CRMPipelineStage['outcome'] {
-	if (stage === 'won' || stage === 'closed' || stage === 'contract_award') return 'won';
+	if (stage === 'done') return 'won';
 	if (stage === 'lost') return 'lost';
 	if (stage === 'on_hold') return 'on_hold';
 	return 'open';

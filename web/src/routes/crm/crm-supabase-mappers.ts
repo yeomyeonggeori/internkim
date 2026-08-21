@@ -124,6 +124,7 @@ export function crmVocabularyOf(value: unknown): CRMVocabulary {
 	return {
 		organization_types: definitionArray(value.organization_types),
 		pipelines: pipelineArray(value.pipelines),
+		stages: stageArray(value.stages),
 		lost_reasons: definitionArray(value.lost_reasons)
 	};
 }
@@ -232,13 +233,12 @@ function pipelineResponses(vocabulary: CRMVocabulary): CRMPipelineResponse[] {
 }
 
 function stageResponses(vocabulary: CRMVocabulary): CRMPipelineStageResponse[] {
-	return vocabulary.pipelines.flatMap((pipeline) => pipeline.stages.map((stage, position) => ({
-		pipeline: pipeline.id as CRMProgressKind,
+	return vocabulary.stages.map((stage, position) => ({
 		stage: stage.id,
 		label: stage.name,
 		position,
 		outcome: stage.outcome
-	})));
+	}));
 }
 
 function lostReasonResponses(vocabulary: CRMVocabulary): CRMLostReasonResponse[] {
@@ -269,7 +269,7 @@ function optionalCurrencyOf(value: string | null): CRMCurrency | undefined {
 }
 
 function emptyVocabulary(): CRMVocabulary {
-	return { organization_types: [], pipelines: [], lost_reasons: [] };
+	return { organization_types: [], pipelines: [], stages: [], lost_reasons: [] };
 }
 
 function definitionArray(value: unknown): Array<{ id: string; name: string; color?: string }> {
@@ -284,12 +284,16 @@ function pipelineArray(value: unknown): CRMVocabulary['pipelines'] {
 	if (!Array.isArray(value)) return [];
 	return value.flatMap((item) => {
 		if (!isRecord(item) || typeof item.id !== 'string' || typeof item.name !== 'string') return [];
-		const stages = Array.isArray(item.stages) ? item.stages.flatMap(stageOf) : [];
-		return [{ id: item.id, name: item.name, direction: typeof item.direction === 'string' ? item.direction : undefined, stages }];
+		return [{ id: item.id, name: item.name, direction: typeof item.direction === 'string' ? item.direction : undefined }];
 	});
 }
 
-function stageOf(value: unknown): CRMVocabulary['pipelines'][number]['stages'] {
+function stageArray(value: unknown): CRMVocabulary['stages'] {
+	if (!Array.isArray(value)) return [];
+	return value.flatMap(stageOf);
+}
+
+function stageOf(value: unknown): CRMVocabulary['stages'] {
 	if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string') return [];
 	const outcome = value.outcome;
 	if (outcome !== 'open' && outcome !== 'won' && outcome !== 'lost' && outcome !== 'on_hold') return [];

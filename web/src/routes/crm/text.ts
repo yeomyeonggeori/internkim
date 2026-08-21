@@ -90,13 +90,11 @@ export const crmText = {
 			pipelines: '진행 유형',
 			pipelinesDescription: '진행 건의 흐름을 구분하고 각 유형별 단계를 관리합니다.',
 			stages: '단계',
-			stagesDescription: '이 진행 유형에서 사용하는 단계입니다.',
+			stagesDescription: 'CRM 전체에서 공통으로 사용하는 단계입니다.',
 			lostReasons: '불발 사유',
 			lostReasonsDescription: '진행 건이 불발되었을 때 선택하는 사유입니다.',
 			add: '추가',
 			remove: '삭제',
-			moveUp: '위로 이동',
-			moveDown: '아래로 이동',
 			color: '색상',
 			nameRequired: '이름을 입력하세요.',
 			readOnly: '관리자만 정의를 수정할 수 있습니다.',
@@ -253,13 +251,12 @@ export const crmText = {
 			paused: '보류'
 		},
 		opportunityStages: {
-			lead: '리드',
-			qualified: '검토',
-			proposal: '제안',
-			negotiation: '협의',
-			won: '성사',
-			lost: '실패',
-			on_hold: '보류'
+			waiting: '대기',
+			in_progress: '진행',
+			review: '검토',
+			done: '완료',
+			on_hold: '중단',
+			lost: '무산'
 		},
 		nextActionStatuses: {
 			todo: '해야 할 일',
@@ -378,13 +375,11 @@ export const crmText = {
 			pipelines: 'Progress types',
 			pipelinesDescription: 'Distinguishes the flow of opportunities and manages the stages for each type.',
 			stages: 'Stages',
-			stagesDescription: 'The stages used by this progress type.',
+			stagesDescription: 'The stages shared across every progress type.',
 			lostReasons: 'Lost reasons',
 			lostReasonsDescription: 'The reason selected when an opportunity is lost.',
 			add: 'Add',
 			remove: 'Remove',
-			moveUp: 'Move up',
-			moveDown: 'Move down',
 			color: 'Color',
 			nameRequired: 'Enter a name.',
 			readOnly: 'Only an administrator can edit definitions.',
@@ -541,13 +536,12 @@ export const crmText = {
 			paused: 'Paused'
 		},
 		opportunityStages: {
-			lead: 'Lead',
-			qualified: 'Qualified',
-			proposal: 'Proposal',
-			negotiation: 'Negotiation',
-			won: 'Won',
-			lost: 'Lost',
-			on_hold: 'On hold'
+			waiting: 'Waiting',
+			in_progress: 'In progress',
+			review: 'Review',
+			done: 'Done',
+			on_hold: 'On hold',
+			lost: 'Lost'
 		},
 		nextActionStatuses: {
 			todo: 'To do',

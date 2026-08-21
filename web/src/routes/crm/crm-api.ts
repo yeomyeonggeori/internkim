@@ -25,8 +25,15 @@ import {
 	type CRMProgressKind
 } from './crm-types';
 
+type CRMStageDefinition = {
+	id: string;
+	outcome: 'open' | 'won' | 'lost' | 'on_hold';
+	position: number;
+};
+
 type CRMDefinitions = {
 	businesses: string[];
+	stages: CRMStageDefinition[];
 };
 
 export class CRMApiError extends Error {
@@ -50,13 +57,9 @@ export async function loadCRMData(): Promise<CRMDataResponse> {
 		listDocument('/crm/api/lost-reasons', 'lostReasons', parseLostReason),
 		fetchCRMDefinitions()
 	]);
-	const stages = (await Promise.all(
-		pipelines.map((pipeline) => listDocument(
-			`/crm/api/pipelines/${encodeURIComponent(pipeline.pipeline)}/stages`,
-			'stages',
-			parsePipelineStage
-		))
-	)).flat();
+	const stages: CRMPipelineStageResponse[] = [...definitions.stages]
+		.sort((left, right) => left.position - right.position)
+		.map((stage) => ({ stage: stage.id, label: stage.id, position: stage.position, outcome: stage.outcome }));
 	return {
 		organizations,
 		contacts,
@@ -70,13 +73,9 @@ export async function loadCRMData(): Promise<CRMDataResponse> {
 			pipelines: pipelines.map((pipeline) => ({
 				id: pipeline.pipeline,
 				name: pipeline.label,
-				direction: pipeline.direction,
-				stages: stages.filter((stage) => stage.pipeline === pipeline.pipeline).map((stage) => ({
-					id: stage.stage,
-					name: stage.stage,
-					outcome: stage.outcome
-				}))
+				direction: pipeline.direction
 			})),
+			stages: stages.map((stage) => ({ id: stage.stage, name: stage.stage, outcome: stage.outcome })),
 			lost_reasons: lostReasons.map((reason) => ({ id: reason.reason, name: reason.label }))
 		},
 		taskVocabulary: {
@@ -160,7 +159,22 @@ async function fetchCRMDefinitions(): Promise<CRMDefinitions> {
 
 function parseDefinitions(value: unknown): CRMDefinitions {
 	const record = requiredRecord(value, 'definitions');
-	return { businesses: stringArray(record, 'businesses') };
+	return { businesses: stringArray(record, 'businesses'), stages: stageDefinitionArray(record, 'stages') };
+}
+
+function stageDefinitionArray(record: Record<string, unknown>, key: string): CRMStageDefinition[] {
+	const values = record[key];
+	if (!Array.isArray(values)) throw invalidResponse('CRM API', `${key} must be an array`);
+	return values.map(parseStageDefinition);
+}
+
+function parseStageDefinition(value: unknown): CRMStageDefinition {
+	const record = requiredRecord(value, 'stage definition');
+	return {
+		id: requiredString(record, 'id'),
+		outcome: enumString(record, 'outcome', ['open', 'won', 'lost', 'on_hold']),
+		position: requiredNumber(record, 'position')
+	};
 }
 
 async function recordDocument<T>(
@@ -302,17 +316,6 @@ function parsePipeline(value: unknown): CRMPipelineResponse {
 		label: requiredString(record, 'label'),
 		direction: requiredString(record, 'direction'),
 		isActive: requiredBoolean(record, 'isActive')
-	};
-}
-
-function parsePipelineStage(value: unknown): CRMPipelineStageResponse {
-	const record = requiredRecord(value, 'pipeline stage');
-	return {
-		pipeline: enumString(record, 'pipeline', ['sales', 'fundraising', 'investment', 'sponsorship', 'partnership', 'procurement']),
-		stage: requiredString(record, 'stage'),
-		label: requiredString(record, 'stage'),
-		position: requiredNumber(record, 'position'),
-		outcome: enumString(record, 'outcome', ['open', 'won', 'lost', 'on_hold'])
 	};
 }
 

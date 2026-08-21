@@ -1,5 +1,5 @@
 import type { CRMTransitionPayload } from './crm-api-types';
-import type { CRMCurrency, CRMPipelineStage, CRMProgressKind } from './crm-types';
+import type { CRMCurrency, CRMPipelineStage } from './crm-types';
 
 export type CRMOpportunityTransitionValues = {
 	amountMinor: number | null;
@@ -25,18 +25,16 @@ export class CRMOpportunityTransitionError extends Error {
 
 export function opportunityStageOutcome(
 	stages: CRMPipelineStage[],
-	pipeline: CRMProgressKind,
 	stage: string
 ): CRMPipelineStage['outcome'] | undefined {
-	return stages.find((candidate) => candidate.pipeline === pipeline && candidate.stage === stage)?.outcome;
+	return stages.find((candidate) => candidate.stage === stage)?.outcome;
 }
 
 export function opportunitySettlesOnTransition(
 	stages: CRMPipelineStage[],
-	pipeline: CRMProgressKind,
 	stage: string
 ): boolean {
-	const outcome = opportunityStageOutcome(stages, pipeline, stage);
+	const outcome = opportunityStageOutcome(stages, stage);
 	return outcome === 'won' || outcome === 'lost';
 }
 
@@ -51,12 +49,11 @@ export function opportunityAvailableTransitionStages(
 
 export function opportunityTransitionOutcome(
 	stages: CRMPipelineStage[],
-	pipeline: CRMProgressKind,
 	stage: string,
 	values: CRMOpportunityTransitionValues,
 	settlement: CRMOpportunitySettlement
 ): Pick<CRMTransitionPayload, 'lostReason' | 'baseAmountMinor' | 'baseCurrencyCode'> {
-	const outcome = opportunityStageOutcome(stages, pipeline, stage);
+	const outcome = opportunityStageOutcome(stages, stage);
 	if (outcome !== 'won' && outcome !== 'lost') {
 		return { lostReason: '', baseAmountMinor: null, baseCurrencyCode: '' };
 	}

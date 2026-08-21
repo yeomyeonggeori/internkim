@@ -59,7 +59,7 @@ ORDER BY name`)
 	}
 
 	assertCRMRowCount(t, database, "pipeline", 6)
-	assertCRMRowCount(t, database, "pipeline_stage", 44)
+	assertCRMRowCount(t, database, "pipeline_stage", 36)
 	assertCRMRowCount(t, database, "lost_reason", 7)
 
 	var foreignKeys int
@@ -155,6 +155,107 @@ WHERE type = 'table' AND name = 'account'`).Scan(&accountTableCount); errorValue
 	}
 	if accountTableCount != 0 {
 		t.Fatalf("account table count = %d, want rollback to 0", accountTableCount)
+	}
+}
+
+func TestCRMSchemaMigratesLegacyPipelineStagesToUniformSet(t *testing.T) {
+	ctx := context.Background()
+	database, errorValue := sql.Open("sqlite", sqliteDatabaseDSN(filepath.Join(t.TempDir(), "crm.sqlite")))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	configureSQLiteDatabase(database)
+	if errorValue := configureSQLiteConnection(ctx, database); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, statement := range crmSchemaStatements {
+		if _, errorValue := database.Exec(statement); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+
+	validTime := "2026-08-02T00:00:00Z"
+	if _, errorValue := database.Exec(`INSERT INTO pipeline(pipeline, label, direction, is_active) VALUES(?, ?, ?, 1)`,
+		"sales", "영업", "inbound"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	legacyStages := []struct {
+		stage    string
+		position int
+		outcome  string
+	}{
+		{stage: "lead", position: 1, outcome: "open"},
+		{stage: "qualified", position: 2, outcome: "open"},
+		{stage: "proposal", position: 3, outcome: "open"},
+		{stage: "negotiation", position: 4, outcome: "open"},
+		{stage: "won", position: 5, outcome: "won"},
+		{stage: "lost", position: 6, outcome: "lost"},
+		{stage: "on_hold", position: 7, outcome: "on_hold"},
+	}
+	for _, legacyStage := range legacyStages {
+		if _, errorValue := database.Exec(`
+INSERT INTO pipeline_stage(pipeline, stage, position, outcome)
+VALUES(?, ?, ?, ?)`, "sales", legacyStage.stage, legacyStage.position, legacyStage.outcome); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	if _, errorValue := database.Exec(`
+INSERT INTO account (
+	id, name, status, tags, importance, owner_person_id,
+	created_at, created_by_person_id, updated_at, updated_by_person_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"account-legacy", "레거시 관계처", "active", "[]", "medium", "person-owner",
+		validTime, "person-owner", validTime, "person-owner"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := database.Exec(`
+INSERT INTO opportunity (
+	id, account_id, name, pipeline, stage, stage_position, stage_changed_at,
+	owner_person_id, currency_code, importance,
+	created_at, created_by_person_id, updated_at, updated_by_person_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"opportunity-legacy", "account-legacy", "레거시 진행 건", "sales", "proposal", 1024.0, validTime,
+		"person-owner", "KRW", "medium", validTime, "person-owner", validTime, "person-owner"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if errorValue := ensureCRMSchema(ctx, database); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	var migratedStage string
+	if errorValue := database.QueryRow("SELECT stage FROM opportunity WHERE id = ?", "opportunity-legacy").Scan(&migratedStage); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if migratedStage != "in_progress" {
+		t.Fatalf("migrated opportunity stage = %q, want in_progress", migratedStage)
+	}
+
+	var legacyStageCount int
+	if errorValue := database.QueryRow(`
+SELECT COUNT(*) FROM pipeline_stage
+WHERE pipeline = ? AND stage NOT IN ('waiting', 'in_progress', 'review', 'done', 'on_hold', 'lost')`, "sales").Scan(&legacyStageCount); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if legacyStageCount != 0 {
+		t.Fatalf("legacy pipeline_stage rows remaining = %d, want 0", legacyStageCount)
+	}
+
+	var uniformStageCount int
+	if errorValue := database.QueryRow("SELECT COUNT(*) FROM pipeline_stage WHERE pipeline = ?", "sales").Scan(&uniformStageCount); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if uniformStageCount != 6 {
+		t.Fatalf("sales pipeline_stage row count = %d, want 6", uniformStageCount)
+	}
+
+	var stageChangeActivityCount int
+	if errorValue := database.QueryRow("SELECT COUNT(*) FROM activity WHERE kind = 'stage_change'").Scan(&stageChangeActivityCount); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if stageChangeActivityCount != 0 {
+		t.Fatalf("stage_change activities created by migration = %d, want 0", stageChangeActivityCount)
 	}
 }
 
