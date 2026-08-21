@@ -86,7 +86,7 @@ describe('view-currency-aware money formatting', () => {
 					: { value: value * 0.00075, currency: 'USD', isConverted: true }
 		};
 
-		expect(formatViewMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue, view)).toBe('USD 11.5K');
+		expect(formatViewMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue, view)).toBe('11.5K');
 		expect(formatViewMoneyTotals({}, interimCurrencyCatalogue, view)).toBe('-');
 	});
 

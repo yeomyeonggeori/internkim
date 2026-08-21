@@ -2,7 +2,7 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { buildCRMCurrencyComparisonRows } from './crm-currency-comparison';
-	import { formatMoney } from './crm-money';
+	import { formatAmountAlone } from './crm-money';
 	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMMoneyTotals } from './crm-types';
 	import type { CRMText } from './text';
@@ -29,7 +29,7 @@
 				class="grid min-w-0 gap-2"
 				data-crm-currency-row={row.currency}
 				role="group"
-				aria-label={`${row.currency} ${text.openValue} ${formatMoney(row.expectedValue, row.currency, currencyCatalogue, text.noValue, currentLocale.value)}, ${text.wonValue} ${formatMoney(row.wonValue, row.currency, currencyCatalogue, text.noValue, currentLocale.value)}`}
+				aria-label={`${row.currency} ${text.openValue} ${formatAmountAlone(row.expectedValue, row.currency, currencyCatalogue, text.noValue, currentLocale.value)}, ${text.wonValue} ${formatAmountAlone(row.wonValue, row.currency, currencyCatalogue, text.noValue, currentLocale.value)}`}
 			>
 				<p class="text-sm font-semibold">{row.currency}</p>
 				<div class="grid gap-2">
@@ -42,7 +42,7 @@
 								style={`width: ${row.expectedPercent}%`}
 							></div>
 						</div>
-						<span class="text-right font-medium tabular-nums">{formatMoney(row.expectedValue, row.currency, currencyCatalogue, text.noValue, currentLocale.value)}</span>
+						<span class="text-right font-medium tabular-nums">{formatAmountAlone(row.expectedValue, row.currency, currencyCatalogue, text.noValue, currentLocale.value)}</span>
 					</div>
 					<div class="grid grid-cols-[4.75rem_minmax(0,1fr)_minmax(5rem,auto)] items-center gap-2 text-xs">
 						<span class="text-muted-foreground">{text.wonValue}</span>
@@ -53,7 +53,7 @@
 								style={`width: ${row.wonPercent}%`}
 							></div>
 						</div>
-						<span class="text-right font-medium tabular-nums">{formatMoney(row.wonValue, row.currency, currencyCatalogue, text.noValue, currentLocale.value)}</span>
+						<span class="text-right font-medium tabular-nums">{formatAmountAlone(row.wonValue, row.currency, currencyCatalogue, text.noValue, currentLocale.value)}</span>
 					</div>
 				</div>
 			</div>

@@ -118,7 +118,7 @@
 											{crmLabel(text.progressKinds, getProgressKind(opportunity, organization))}
 										</Badge>
 										<Badge variant="secondary" class="h-5 rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">
-											{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), currencyCatalogue, text.noValue, currentLocale.value)}
+											{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), currencyCatalogue, text.noValue, currentLocale.value, crmViewCurrency.selected)}
 										</Badge>
 									</div>
 									<div class="text-xs leading-5 text-muted-foreground">
