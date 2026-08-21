@@ -32,10 +32,10 @@
 	<DropdownMenu.Content
 		align="start"
 		sideOffset={8}
-		class="w-[min(24rem,calc(100vw-2rem))] space-y-4 p-3"
+		class="w-[min(18rem,calc(100vw-2rem))] space-y-4 p-3"
 		data-crm-filter-panel
 	>
-		<div class="flex flex-wrap gap-2">
+		<div class="grid gap-2">
 			{@render children()}
 		</div>
 		<div class="flex items-center justify-end border-t pt-3">
