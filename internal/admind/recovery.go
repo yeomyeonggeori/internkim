@@ -831,7 +831,6 @@ systemctl start ` + relay + `
 for attempt in $(seq 1 40); do curl -fsS --max-time 3 http://` + bind + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
 echo "db wiped, relay in import mode (membership off)"
 export MM_TOKEN=$(cat ` + blueclaw.BlueclawMattermostTokenPath + `)
-export SEED=$(cat /root/.internkim/secrets/buzz-key-seed)
 export DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
 export TEAM=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
 export AGENT_EMAIL=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/users/me | jq -r '.email // empty')
@@ -843,11 +842,11 @@ cat > /tmp/buzz-reimport-run.sh <<'RUNEOF'
 export DATABASE_URL="$DB_URL"
 ` + blueclaw.BuzzMigrateBinaryPath + ` \
   --mattermost-url ` + blueclaw.BlueclawMattermostLocalURL + ` \
-  --mattermost-token "$MM_TOKEN" \
+  --mattermost-token-path ` + blueclaw.BlueclawMattermostTokenPath + ` \
   --team "$TEAM" \
   --buzz-database-url "$DB_URL" \
   --buzz-admin ` + blueclaw.BuzzAdminBinaryPath + ` \
-  --key-seed "$SEED" \
+  --key-seed-path /root/.internkim/secrets/buzz-key-seed \
   --agent-email "$AGENT_EMAIL" \
   --relay-url wss://$PUBLIC_HOST \
   --relay-http-url https://$PUBLIC_HOST \
