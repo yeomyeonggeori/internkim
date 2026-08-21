@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
@@ -65,7 +66,7 @@
 						onclick={() => onEdit(activity.id)}
 						onkeydown={(event) => handleRowKeydown(event, activity.id)}
 					>
-						<Table.Cell class="whitespace-normal pl-4 text-muted-foreground">{formatCRMDateTime(activity.occurredAt)}</Table.Cell>
+						<Table.Cell class="whitespace-normal pl-4 text-muted-foreground">{formatCRMDateTime(activity.occurredAt, currentLocale.value)}</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal font-medium sm:table-cell"><p class="truncate">{organization?.name ?? text.none}</p></Table.Cell>
 						<Table.Cell class="hidden whitespace-normal xl:table-cell"><p class="truncate">{activity.business}</p></Table.Cell>
 						<Table.Cell class="hidden whitespace-normal text-center sm:table-cell"><Badge variant="outline" data-crm-centered-pill>{crmLabel(text.activityKinds, activity.kind)}</Badge></Table.Cell>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
@@ -155,8 +156,8 @@
 					<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-3">
 						<span class="text-sm font-medium">{row.month.replace('-', '. ')}</span>
 						<div class="grid gap-2">
-							<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-xs"><span class="text-muted-foreground">{text.openValue}</span><span class="text-right font-medium">{formatMoneyTotals(row.openValues, currencyCatalogue, text.noValue)}</span></div>
-							<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-xs"><span class="text-muted-foreground">{text.won}</span><span class="text-right font-medium">{formatMoneyTotals(row.wonValues, currencyCatalogue, text.noValue)}</span></div>
+							<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-xs"><span class="text-muted-foreground">{text.openValue}</span><span class="text-right font-medium">{formatMoneyTotals(row.openValues, currencyCatalogue, text.noValue, currentLocale.value)}</span></div>
+							<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-xs"><span class="text-muted-foreground">{text.won}</span><span class="text-right font-medium">{formatMoneyTotals(row.wonValues, currencyCatalogue, text.noValue, currentLocale.value)}</span></div>
 						</div>
 					</div>
 				{:else}
@@ -174,7 +175,7 @@
 					<div class="grid grid-cols-[5.5rem_minmax(0,1fr)_minmax(7rem,auto)] items-center gap-2 text-sm">
 						<span class="text-muted-foreground">{row.label} <strong class="text-foreground">{row.count}</strong></span>
 						<div class="h-2 overflow-hidden rounded-full bg-muted"><div class="h-full rounded-full bg-primary/75" style={`width: ${(row.count / maximumValue(progressKindRows)) * 100}%`}></div></div>
-						<span class="text-right font-medium">{formatMoneyTotals(row.values, currencyCatalogue, text.noValue)}</span>
+						<span class="text-right font-medium">{formatMoneyTotals(row.values, currencyCatalogue, text.noValue, currentLocale.value)}</span>
 					</div>
 				{/each}
 			</Card.Content>
@@ -187,7 +188,7 @@
 					<div class="grid grid-cols-[5rem_minmax(0,1fr)_minmax(7rem,auto)] items-center gap-2 text-sm">
 						<span class="truncate text-muted-foreground">{row.label} <strong class="text-foreground">{row.count}</strong></span>
 						<div class="h-2 overflow-hidden rounded-full bg-muted"><div class="h-full rounded-full bg-foreground" style={`width: ${(row.count / maximumValue(stageRows)) * 100}%`}></div></div>
-						<span class="text-right font-medium">{formatMoneyTotals(row.values, currencyCatalogue, text.noValue)}</span>
+						<span class="text-right font-medium">{formatMoneyTotals(row.values, currencyCatalogue, text.noValue, currentLocale.value)}</span>
 					</div>
 				{/each}
 			</Card.Content>
@@ -199,7 +200,7 @@
 				{#each quietOrganizations as organization (organization.id)}
 					<button type="button" class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted" onclick={() => onOpenOrganization(organization.id)}>
 						<span class="truncate text-sm font-medium">{organization.name}</span>
-						<span class="text-xs text-muted-foreground">{formatCRMDate(organization.lastContactDate)}</span>
+						<span class="text-xs text-muted-foreground">{formatCRMDate(organization.lastContactDate, currentLocale.value)}</span>
 					</button>
 				{/each}
 			</Card.Content>
@@ -217,7 +218,7 @@
 							<Table.Cell class="whitespace-normal pl-6 font-medium"><p class="truncate">{owner.name}</p></Table.Cell>
 							<Table.Cell class="hidden sm:table-cell">{owner.organizationCount}</Table.Cell>
 							<Table.Cell>{owner.openCount}</Table.Cell>
-							<Table.Cell class="whitespace-normal">{formatMoneyTotals(owner.openValues, currencyCatalogue, text.noValue)}</Table.Cell>
+							<Table.Cell class="whitespace-normal">{formatMoneyTotals(owner.openValues, currencyCatalogue, text.noValue, currentLocale.value)}</Table.Cell>
 							<Table.Cell class="hidden pr-6 md:table-cell"><Badge variant={owner.missingActionCount > 0 ? 'secondary' : 'outline'}>{owner.missingActionCount}</Badge></Table.Cell>
 						</Table.Row>
 					{/each}

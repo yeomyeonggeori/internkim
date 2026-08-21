@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -68,20 +69,20 @@
 	const currencyCatalogue = $derived(controller.currencyCatalogue);
 	const companyBaseCurrency = $derived(controller.companyBaseCurrency);
 	const organizationTypeDefinitions = $derived(controller.vocabulary.organization_types);
-	const tabItems: Array<{ value: CRMTab; label: string }> = [
+	const tabItems: Array<{ value: CRMTab; label: string }> = $derived([
 		{ value: 'relationships', label: text.relationships },
 		{ value: 'contacts', label: text.contactDirectory },
 		{ value: 'pipeline', label: text.pipeline },
 		{ value: 'activities', label: text.activities },
 		{ value: 'reports', label: text.reports },
-		{ value: 'definitions', label: text.definitions }
-	];
-	const relationshipViews: Array<{ value: RelationshipView; label: string }> = [
+		{ value: 'definitions', label: text.definitions.title }
+	]);
+	const relationshipViews: Array<{ value: RelationshipView; label: string }> = $derived([
 		{ value: 'all', label: text.allRelationships },
 		{ value: 'mine', label: text.myRelationships },
 		{ value: 'attention', label: text.needsAttention },
 		{ value: 'recent', label: text.recentlyContacted }
-	];
+	]);
 	const recentContactThreshold = shiftCRMDate(currentCRMDate(), -30);
 
 	let selectedTab = $state<CRMTab>('relationships');
@@ -153,7 +154,7 @@
 	let selectedContact = $derived(selectedContactID ? controller.contacts.find((contact) => contact.id === selectedContactID) : undefined);
 	let selectedOpportunity = $derived(selectedOpportunityID ? controller.opportunities.find((opportunity) => opportunity.id === selectedOpportunityID) : undefined);
 	let selectedActivity = $derived(selectedActivityID ? controller.activities.find((activity) => activity.id === selectedActivityID) : undefined);
-	let kpiCards = $derived(buildCRMKPICards(currencyCatalogue, controller.organizations, controller.opportunities, controller.nextActions, controller.stages, text));
+	let kpiCards = $derived(buildCRMKPICards(currencyCatalogue, controller.organizations, controller.opportunities, controller.nextActions, controller.stages, text, undefined, currentLocale.value));
 
 	function openOrganization(organizationID: string): void {
 		selectedOrganizationID = organizationID;
@@ -340,7 +341,7 @@
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="reports" class="min-w-0 pb-24"><CRMReportDashboard organizations={controller.organizations} opportunities={controller.opportunities} nextActions={controller.nextActions} stages={controller.stages} {currencyCatalogue} {text} onOpenOrganization={openOrganization} /></UnderlineTabs.Content>
-			<UnderlineTabs.Content value="definitions" class="min-w-0 pb-24"><CRMDefinitionsEditor vocabulary={controller.vocabulary} {isAdmin} isSaving={controller.isSaving} errorMessage={controller.errorMessage} onSave={(vocabulary) => controller.saveVocabulary(vocabulary)} onDelete={(_request, vocabulary) => controller.saveVocabulary(vocabulary)} /></UnderlineTabs.Content>
+			<UnderlineTabs.Content value="definitions" class="min-w-0 pb-24"><CRMDefinitionsEditor vocabulary={controller.vocabulary} {isAdmin} isSaving={controller.isSaving} errorMessage={controller.errorMessage} text={text.definitions} onSave={(vocabulary) => controller.saveVocabulary(vocabulary)} onDelete={(_request, vocabulary) => controller.saveVocabulary(vocabulary)} /></UnderlineTabs.Content>
 		</UnderlineTabs.Root>
 	{/if}
 </main>

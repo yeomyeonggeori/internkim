@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { opportunityStageLabel } from '../../../src/routes/crm/crm-view-model';
-import { crmText } from '../../../src/routes/crm/text';
+import { daysLabel, formatCRMDate, opportunityStageLabel } from '../../../src/routes/crm/crm-view-model';
+import { crmText, type CRMText } from '../../../src/routes/crm/text';
 import type { CRMPipelineStage } from '../../../src/routes/crm/crm-types';
 
 const text = crmText.ko;
@@ -26,5 +26,27 @@ describe('opportunityStageLabel', () => {
 
 	test('shows the raw id when nothing knows it', () => {
 		expect(opportunityStageLabel(stages, 'mystery_stage', text)).toBe('mystery stage');
+	});
+});
+
+describe('formatCRMDate', () => {
+	test('defaults to the ko locale', () => {
+		expect(formatCRMDate('2026-07-22')).toBe('7월 22일');
+	});
+
+	test('renders the en locale without Hangul', () => {
+		expect(formatCRMDate('2026-07-22', 'en')).toBe('Jul 22');
+	});
+});
+
+describe('daysLabel', () => {
+	const minimalText = { daysAgo: '{days}일', daysAgoOne: '1일' } as CRMText;
+
+	test('uses the singular text for exactly one day', () => {
+		expect(daysLabel(1, minimalText)).toBe('1일');
+	});
+
+	test('uses the plural template for more than one day', () => {
+		expect(daysLabel(3, minimalText)).toBe('3일');
 	});
 });

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import type { CRMOrganization, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
 	import { CRMPipelineBoardDragController } from './crm-pipeline-board-drag-controller.svelte';
@@ -115,12 +116,12 @@
 											{crmLabel(text.progressKinds, getProgressKind(opportunity, organization))}
 										</Badge>
 										<Badge variant="secondary" class="h-5 rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">
-											{formatMoney(opportunity.expectedValue, opportunity.currency, currencyCatalogue, text.noValue)}
+											{formatMoney(opportunity.expectedValue, opportunity.currency, currencyCatalogue, text.noValue, currentLocale.value)}
 										</Badge>
 									</div>
 									<div class="text-xs leading-5 text-muted-foreground">
 										<p class="line-clamp-2">{action?.title ?? text.none}</p>
-										<p class="mt-0.5">{text.targetDate} {formatCRMDate(opportunity.targetDate)}</p>
+										<p class="mt-0.5">{text.targetDate} {formatCRMDate(opportunity.targetDate, currentLocale.value)}</p>
 									</div>
 								</article>
 							{:else}

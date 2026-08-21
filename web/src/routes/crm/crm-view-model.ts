@@ -13,6 +13,7 @@ import type {
 } from './crm-types';
 import { crmOrganizationTypes } from './crm-types';
 import type { CRMText } from './text';
+import type { Locale } from '$lib/i18n/locale.svelte';
 export { formatMoney, formatMoneyTotals } from './crm-money';
 export { interimCurrencyCatalogue } from '$lib/currency/currency-catalogue';
 
@@ -57,19 +58,29 @@ export function findOrganizationContactLabel(organizationID: string, contacts: A
 	return `${contact.name} · ${contact.title}`;
 }
 
-export function formatCRMDate(date: string): string {
-	const parsed = new Date(`${date}T00:00:00`);
-	if (Number.isNaN(parsed.getTime())) return date;
-	return new Intl.DateTimeFormat('ko-KR', { month: 'short', day: 'numeric' }).format(parsed);
+function intlLocaleOf(locale: Locale): string {
+	return locale === 'en' ? 'en-US' : 'ko-KR';
 }
 
-export function formatCRMDateTime(dateTime: string): string {
+export function formatCRMDate(date: string, locale: Locale = 'ko'): string {
+	const parsed = new Date(`${date}T00:00:00`);
+	if (Number.isNaN(parsed.getTime())) return date;
+	return new Intl.DateTimeFormat(intlLocaleOf(locale), { month: 'short', day: 'numeric' }).format(parsed);
+}
+
+export function formatCRMDateTime(dateTime: string, locale: Locale = 'ko'): string {
 	const parsed = new Date(dateTime);
 	if (Number.isNaN(parsed.getTime())) return dateTime;
-	return new Intl.DateTimeFormat('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(parsed);
+	return new Intl.DateTimeFormat(intlLocaleOf(locale), {
+		month: 'short',
+		day: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit'
+	}).format(parsed);
 }
 
 export function daysLabel(days: number, text: CRMText): string {
+	if (days === 1) return text.daysAgoOne;
 	return text.daysAgo.replace('{days}', String(days));
 }
 

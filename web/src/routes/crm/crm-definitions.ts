@@ -43,31 +43,6 @@ export type CRMDefinitionsText = {
 	onHold: string;
 };
 
-export const defaultCRMDefinitionsText: CRMDefinitionsText = {
-	title: '정의',
-	description: 'CRM에서 사용하는 관계처 유형, 진행 유형과 단계, 불발 사유를 관리합니다.',
-	organizationTypes: '관계처 유형',
-	organizationTypesDescription: '관계처를 분류할 때 사용하는 항목입니다.',
-	pipelines: '진행 유형',
-	pipelinesDescription: '진행 건의 흐름을 구분하고 각 유형별 단계를 관리합니다.',
-	stages: '단계',
-	stagesDescription: '이 진행 유형에서 사용하는 단계입니다.',
-	lostReasons: '불발 사유',
-	lostReasonsDescription: '진행 건이 불발되었을 때 선택하는 사유입니다.',
-	add: '추가',
-	remove: '삭제',
-	moveUp: '위로 이동',
-	moveDown: '아래로 이동',
-	color: '색상',
-	nameRequired: '이름을 입력하세요.',
-	readOnly: '관리자만 정의를 수정할 수 있습니다.',
-	saving: '저장 중입니다.',
-	open: '진행 중',
-	won: '성사',
-	lost: '불발',
-	onHold: '보류'
-};
-
 export function cloneCRMVocabulary(vocabulary: CRMVocabulary): CRMVocabulary {
 	return {
 		organization_types: vocabulary.organization_types.map((definition) => ({ ...definition })),
