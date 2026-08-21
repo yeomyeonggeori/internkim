@@ -11,38 +11,44 @@ export type CRMViewCurrencyReader = {
 	viewAmount(value: number, currency: string): CRMViewAmount;
 };
 
-export const originalViewCurrency = 'original';
-
 const ratePreviewAmountMinor = 1000000;
-const sameCurrencyRate = 1;
 
 export class CRMViewCurrency implements CRMViewCurrencyReader {
-	selected = $state<string>(originalViewCurrency);
+	selected = $state<string>('');
 	ratesBySource = $state<Record<string, number>>({});
 	isLoading = $state(false);
+	hasManualChoice = $state(false);
 
 	constructor(private readonly loadRate: typeof loadConvertedAmount = loadConvertedAmount) {}
 
 	async choose(view: string, sourceCurrencies: string[]): Promise<boolean> {
-		if (view === originalViewCurrency) {
-			this.selected = originalViewCurrency;
-			this.ratesBySource = {};
-			return true;
-		}
+		this.hasManualChoice = true;
+		return this.apply(view, sourceCurrencies);
+	}
+
+	async follow(baseCurrency: string, sourceCurrencies: string[]): Promise<void> {
+		if (this.isLoading) return;
+		const view = this.hasManualChoice ? this.selected : baseCurrency;
+		if (!view) return;
+		if (this.selected === view && this.hasRatesFor(sourceCurrencies)) return;
+		await this.apply(view, sourceCurrencies);
+	}
+
+	private hasRatesFor(sourceCurrencies: string[]): boolean {
+		return sourceCurrencies.every(
+			(source) => source === this.selected || this.ratesBySource[source] !== undefined
+		);
+	}
+
+	private async apply(view: string, sourceCurrencies: string[]): Promise<boolean> {
+		if (!view) return false;
 		this.isLoading = true;
 		try {
 			const rates: Record<string, number> = {};
 			for (const source of new Set(sourceCurrencies)) {
-				if (source === view) {
-					rates[source] = sameCurrencyRate;
-					continue;
-				}
+				if (source === view) continue;
 				const converted = await this.loadRate(ratePreviewAmountMinor, source, view);
-				if (!converted) {
-					this.selected = originalViewCurrency;
-					this.ratesBySource = {};
-					return false;
-				}
+				if (!converted) return false;
 				rates[source] = converted.rate;
 			}
 			this.selected = view;
@@ -54,7 +60,7 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 	}
 
 	viewAmount(value: number, currency: string): CRMViewAmount {
-		if (this.selected === originalViewCurrency) return { value, currency, isConverted: false };
+		if (this.selected === '' || currency === this.selected) return { value, currency, isConverted: false };
 		const rate = this.ratesBySource[currency];
 		if (rate === undefined) return { value, currency, isConverted: false };
 		return { value: value * rate, currency: this.selected, isConverted: true };

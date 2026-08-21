@@ -231,18 +231,17 @@ test('a settled amount survives a move between terminal stages', async ({ page }
 	expect(await settledNoteOf(page)).toBe(before);
 });
 
-test('a view currency marks the progress table as an estimate without changing the stored amount', async ({ page }) => {
+test('the view opens in the company base currency and a matching currency shows exact', async ({ page }) => {
 	await signIn(page);
 	await page.getByRole('tab', { name: '진행상황' }).click();
 	const row = page.getByRole('row', { name: new RegExp(settledOpportunityName) });
 	await expect(row).toBeVisible();
 
 	const viewCurrency = page.getByLabel('보기 통화');
-	await viewCurrency.click();
-	await chooseCurrencyOption(page, 'USD');
-	await expect(row.getByText(/^≈ \$/)).toBeVisible({ timeout: 20000 });
+	await expect(viewCurrency).toHaveText(/USD/, { timeout: 20000 });
+	await expect(row.getByText(/^\$/)).toBeVisible({ timeout: 20000 });
 
 	await viewCurrency.click();
-	await page.getByRole('option', { name: '원본', exact: true }).click();
-	await expect(row.getByText(/^₩/)).toBeVisible();
+	await chooseCurrencyOption(page, 'KRW');
+	await expect(row.getByText(/^₩/)).toBeVisible({ timeout: 20000 });
 });

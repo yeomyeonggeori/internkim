@@ -53,6 +53,6 @@
 	</p>
 {:else if shouldEstimate && estimate}
 	<p class="text-sm text-muted-foreground">
-		≈ {formatMoney(majorAmountOf(estimate.amountMinor, estimate.currencyCode, currencyCatalogue), estimate.currencyCode, currencyCatalogue, '-', currentLocale.value)} · {text.conversionEstimate.replace('{date}', estimate.asOf)}
+		{formatMoney(majorAmountOf(estimate.amountMinor, estimate.currencyCode, currencyCatalogue), estimate.currencyCode, currencyCatalogue, '-', currentLocale.value)} · {text.conversionEstimate.replace('{date}', estimate.asOf)}
 	</p>
 {/if}

@@ -103,7 +103,7 @@ describe('CRM KPI money details', () => {
 
 		const pipelineHealth = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], stages, crmText.ko, undefined, 'ko', view)[0];
 
-		expect(pipelineHealth?.totalValue).toBe('≈ $29K');
+		expect(pipelineHealth?.totalValue).toBe('$29K');
 		expect(pipelineHealth?.totalMoneyDetails).toBe(undefined);
 	});
 });

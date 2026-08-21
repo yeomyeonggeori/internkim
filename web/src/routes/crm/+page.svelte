@@ -273,7 +273,7 @@
 			<SearchIcon class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 			<Input bind:value={searchQuery} class="h-8 pl-9" placeholder={text.searchPlaceholder} disabled={controller.isLoading} />
 		</label>
-		<div class="ml-auto flex shrink-0 items-center gap-2 lg:ml-0"><CRMViewCurrencySelect {text} {currencyCatalogue} sourceCurrencies={opportunityCurrencies} /><CRMQuickCreateMenu {text} onCreate={openCreateSheet} /></div>
+		<div class="ml-auto flex shrink-0 items-center gap-2 lg:ml-0"><CRMViewCurrencySelect {text} {currencyCatalogue} {companyBaseCurrency} sourceCurrencies={opportunityCurrencies} /><CRMQuickCreateMenu {text} onCreate={openCreateSheet} /></div>
 	</header>
 
 	{#if feedbackMessage}

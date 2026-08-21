@@ -32,7 +32,7 @@
 	<div class="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
 		<Select.Root type="single" value={currency} onValueChange={updateCurrency} {disabled}>
 			<Select.Trigger id={`${id}-currency`} class="w-full" aria-label={currencyLabel}>{currency}</Select.Trigger>
-			<Select.Content>
+			<Select.Content class="max-h-72">
 				{#each currencyCatalogue as option (option.code)}
 					<Select.Item value={option.code} label={option.code}>{option.code}</Select.Item>
 				{/each}

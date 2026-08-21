@@ -12,7 +12,8 @@ import {
 	formatViewMoney,
 	formatViewMoneyTotals,
 	parseAmountInput,
-	sumOpportunityMoney
+	sumOpportunityMoney,
+	formatViewRateHint
 } from '../../../src/routes/crm/crm-money';
 import type { CRMOpportunity } from '../../../src/routes/crm/crm-types';
 import type { CRMViewCurrencyReader } from '../../../src/routes/crm/crm-view-currency.svelte';
@@ -71,9 +72,9 @@ describe('CRM money formatting', () => {
 });
 
 describe('view-currency-aware money formatting', () => {
-	test('prefixes an estimate marker only when the amount was actually converted', () => {
+	test('formats converted and exact amounts alike', () => {
 		expect(formatViewMoney({ value: 18000000, currency: 'KRW', isConverted: false }, interimCurrencyCatalogue)).toBe('₩1,800만');
-		expect(formatViewMoney({ value: 13500, currency: 'USD', isConverted: true }, interimCurrencyCatalogue)).toBe('≈ $13.5K');
+		expect(formatViewMoney({ value: 13500, currency: 'USD', isConverted: true }, interimCurrencyCatalogue)).toBe('$13.5K');
 	});
 
 	test('collapses every currency total into one converted estimate when a view currency is active', () => {
@@ -85,13 +86,27 @@ describe('view-currency-aware money formatting', () => {
 					: { value: value * 0.00075, currency: 'USD', isConverted: true }
 		};
 
-		expect(formatViewMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue, view)).toBe('≈ $11.5K');
+		expect(formatViewMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue, view)).toBe('$11.5K');
 		expect(formatViewMoneyTotals({}, interimCurrencyCatalogue, view)).toBe('-');
 	});
 
-	test('keeps today\'s per-currency breakdown byte-for-byte while the view stays original', () => {
+	test('falls back to the per-currency breakdown while any rate is still missing', () => {
 		const view: CRMViewCurrencyReader = {
-			selected: 'original',
+			selected: 'KRW',
+			viewAmount: (value, currency) =>
+				currency === 'KRW'
+					? { value, currency: 'KRW', isConverted: false }
+					: { value, currency, isConverted: false }
+		};
+
+		expect(formatViewMoneyTotals({ KRW: 18000000, USD: 42000 }, interimCurrencyCatalogue, view, '-', 'ko')).toBe(
+			formatMoneyTotals({ KRW: 18000000, USD: 42000 }, interimCurrencyCatalogue, '-', 'ko')
+		);
+	});
+
+	test('keeps today\'s per-currency breakdown byte-for-byte until a view currency is chosen', () => {
+		const view: CRMViewCurrencyReader = {
+			selected: '',
 			viewAmount: (value, currency) => ({ value, currency, isConverted: false })
 		};
 		const totals = { KRW: 12000000, USD: 2500 };
@@ -99,6 +114,23 @@ describe('view-currency-aware money formatting', () => {
 		expect(formatViewMoneyTotals(totals, interimCurrencyCatalogue, view, '-', 'ko')).toBe(
 			formatMoneyTotals(totals, interimCurrencyCatalogue, '-', 'ko')
 		);
+	});
+});
+
+describe('formatViewRateHint names the single active conversion', () => {
+	test('puts the 1 on the stronger currency whichever direction the rate runs', () => {
+		expect(formatViewRateHint('USD', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,389');
+		expect(formatViewRateHint('KRW', { USD: 1388.9 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,389');
+	});
+
+	test('keeps small rates readable with two decimals', () => {
+		expect(formatViewRateHint('KRW', { JPY: 9.194 }, interimCurrencyCatalogue)).toBe('¥1 = ₩9.19');
+	});
+
+	test('stays silent without a view, without a conversion, or across several sources', () => {
+		expect(formatViewRateHint('', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('');
+		expect(formatViewRateHint('USD', {}, interimCurrencyCatalogue)).toBe('');
+		expect(formatViewRateHint('USD', { KRW: 0.00072, JPY: 0.0067 }, interimCurrencyCatalogue)).toBe('');
 	});
 });
 

@@ -4,26 +4,22 @@
 	import { isSupabaseConfigured } from '$lib/supabase-session';
 	import { toast } from 'svelte-sonner';
 	import type { CurrencyCatalogue, CurrencyCatalogueEntry } from '$lib/currency/currency-catalogue';
-	import { crmViewCurrency, originalViewCurrency } from './crm-view-currency.svelte';
+	import { crmViewCurrency } from './crm-view-currency.svelte';
+	import { formatViewRateHint } from './crm-money';
 	import type { CRMText } from './text';
 
 	type Props = {
 		text: CRMText;
 		currencyCatalogue: CurrencyCatalogue;
+		companyBaseCurrency: string;
 		sourceCurrencies: string[];
 	};
 
-	let { text, currencyCatalogue, sourceCurrencies }: Props = $props();
-
-	const chosenEntry = $derived(currencyCatalogue.find((entry) => entry.code === crmViewCurrency.selected));
+	let { text, currencyCatalogue, companyBaseCurrency, sourceCurrencies }: Props = $props();
 
 	const currencyDisplayNames = $derived(
 		new Intl.DisplayNames([currentLocale.value === 'ko' ? 'ko' : 'en'], { type: 'currency' })
 	);
-
-	function distinctSymbolOf(entry: CurrencyCatalogueEntry): string {
-		return entry.symbol === entry.code ? '' : entry.symbol;
-	}
 
 	function currencyNameOf(entry: CurrencyCatalogueEntry): string {
 		try {
@@ -33,10 +29,13 @@
 		}
 	}
 
-	function triggerLabelOf(entry: CurrencyCatalogueEntry): string {
-		const symbol = distinctSymbolOf(entry);
-		return symbol ? `${symbol} ${entry.code}` : entry.code;
-	}
+	const rateHint = $derived(
+		formatViewRateHint(crmViewCurrency.selected, crmViewCurrency.ratesBySource, currencyCatalogue)
+	);
+
+	$effect(() => {
+		void crmViewCurrency.follow(companyBaseCurrency, sourceCurrencies);
+	});
 
 	async function handleChange(value: string): Promise<void> {
 		const succeeded = await crmViewCurrency.choose(value, sourceCurrencies);
@@ -44,27 +43,24 @@
 	}
 </script>
 
-{#snippet currencyRow(entry: CurrencyCatalogueEntry)}
-	<span class="w-9 shrink-0 text-muted-foreground">{distinctSymbolOf(entry)}</span>
-	<span class="w-12 shrink-0 font-medium">{entry.code}</span>
-	<span class="truncate">{currencyNameOf(entry)}</span>
-{/snippet}
-
 {#if isSupabaseConfigured()}
 	<Select.Root
 		type="single"
 		value={crmViewCurrency.selected}
-		onValueChange={(value) => void handleChange(value)}
+		onValueChange={handleChange}
 		disabled={crmViewCurrency.isLoading}
 	>
-		<Select.Trigger class="w-28 shrink-0 sm:w-32" aria-label={text.viewCurrency}>
-			{chosenEntry ? triggerLabelOf(chosenEntry) : text.viewCurrencyOriginal}
+		<Select.Trigger class="shrink-0" aria-label={text.viewCurrency}>
+			{crmViewCurrency.selected || companyBaseCurrency || text.viewCurrency}
+			{#if rateHint !== ''}
+				<span class="text-xs whitespace-nowrap text-muted-foreground">{rateHint}</span>
+			{/if}
 		</Select.Trigger>
-		<Select.Content class="max-h-72 [mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)]">
-			<Select.Item value={originalViewCurrency} label={text.viewCurrencyOriginal}>{text.viewCurrencyOriginal}</Select.Item>
+		<Select.Content class="max-h-72">
 			{#each currencyCatalogue as option (option.code)}
-				<Select.Item value={option.code} label={`${triggerLabelOf(option)} ${currencyNameOf(option)}`}>
-					{@render currencyRow(option)}
+				<Select.Item value={option.code} label={`${option.code} ${currencyNameOf(option)}`}>
+					<span class="w-12 shrink-0 font-medium">{option.code}</span>
+					<span class="truncate text-muted-foreground">{currencyNameOf(option)}</span>
 				</Select.Item>
 			{/each}
 		</Select.Content>
