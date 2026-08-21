@@ -378,14 +378,14 @@ test.describe('CRM service UI', () => {
 		opportunities = [opportunity('opportunity-sales', '판매 진행 건', 'waiting', 1024)];
 		await openCRM(page);
 		await page.getByRole('tab', { name: '진행상황' }).click();
-		const filterButton = page.locator('[role="tabpanel"]:visible').getByRole('button', { name: '필터' });
-		await expect(filterButton).toHaveText('필터');
+		const progressType = page.locator('[role="tabpanel"]:visible').getByLabel('진행 유형');
+		await expect(progressType).toHaveText('진행 유형');
 		await expect(page.getByRole('tab', { name: '보드' })).toBeEnabled();
 		await page.getByRole('tab', { name: '보드' }).click();
 		await expect(page.locator('[data-crm-pipeline-column="waiting"] [data-crm-opportunity-card="opportunity-sales"]')).toBeVisible();
 
 		await selectSalesPipeline(page);
-		await expect(filterButton).toHaveText('필터 1');
+		await expect(progressType).toHaveText('판매');
 		await expect(page.getByRole('tab', { name: '보드' })).toBeEnabled();
 		await expect(page.locator('[data-crm-pipeline-column="waiting"] [data-crm-opportunity-card="opportunity-sales"]')).toBeVisible();
 	});
@@ -817,12 +817,8 @@ async function openCRM(page: Page): Promise<void> {
 }
 
 async function selectSalesPipeline(page: Page): Promise<void> {
-	const panel = page.locator('[role="tabpanel"]:visible');
-	await panel.getByRole('button', { name: '필터' }).click();
-	const progressType = page.locator('[data-crm-filter-panel]').getByLabel('진행 유형');
-	await progressType.click();
+	await page.locator('[role="tabpanel"]:visible').getByLabel('진행 유형').click();
 	await page.getByRole('option', { name: '판매', exact: true }).click();
-	await page.keyboard.press('Escape');
 }
 
 async function expectNoHorizontalOverflow(locator: Locator): Promise<void> {
