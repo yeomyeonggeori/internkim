@@ -25,6 +25,7 @@ func TestCalendarPullProjectionDoesNotBlockTargetSwitchOrLocalWrite(t *testing.T
 	ctx := context.Background()
 	account := seedAccountWithDiscovery(t, service)
 	event := newLocalTestCalendarEvent("pull-projection-lock", "Before Pull")
+	event.CreatedByName = "김여명"
 	event.RemoteSource = remoteCalendarProviderGoogle
 	event.RemoteHref = "/calendars/me/pull-projection-lock.ics"
 	event.RemoteETag = `"etag-before"`
@@ -99,18 +100,15 @@ func TestCalendarPullProjectionDoesNotBlockTargetSwitchOrLocalWrite(t *testing.T
 	if storedEvent.Title != localEvent.Title {
 		t.Fatalf("event title=%q want latest local title %q", storedEvent.Title, localEvent.Title)
 	}
-	if storedEvent.MattermostPostID != "calendar-post-1" {
-		t.Fatalf("Mattermost post ID=%q", storedEvent.MattermostPostID)
-	}
 	responseMutex.Lock()
 	createdMessages := append([]string(nil), requests.createdMessages...)
 	updatedMessages := append([]string(nil), requests.updatedMessages...)
 	responseMutex.Unlock()
-	if len(createdMessages) != 1 {
-		t.Fatalf("created Mattermost messages=%+v", createdMessages)
+	if len(createdMessages) == 0 || !strings.Contains(createdMessages[len(createdMessages)-1], localEvent.Title) {
+		t.Fatalf("created Mattermost messages=%+v want latest title %q", createdMessages, localEvent.Title)
 	}
-	if len(updatedMessages) != 1 || !strings.Contains(updatedMessages[0], localEvent.Title) {
-		t.Fatalf("updated Mattermost messages=%+v want latest title %q", updatedMessages, localEvent.Title)
+	if len(updatedMessages) != 0 {
+		t.Fatalf("a direct notice must not be edited in place, got %+v", updatedMessages)
 	}
 	assertCalendarProjectionOutboxCount(t, service, 0)
 }
@@ -120,6 +118,7 @@ func TestCalendarLocalProjectionDoesNotHoldStoreMutex(t *testing.T) {
 	ctx := context.Background()
 	account := seedAccountWithDiscovery(t, service)
 	event := newLocalTestCalendarEvent("local-projection-lock", "Before Local Projection")
+	event.CreatedByName = "김여명"
 	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -187,14 +186,14 @@ func TestCalendarLocalProjectionDoesNotHoldStoreMutex(t *testing.T) {
 	if errorValue != nil || !found {
 		t.Fatalf("event found=%v error=%v", found, errorValue)
 	}
-	if storedEvent.Title != latestLocalEvent.Title || storedEvent.MattermostPostID != "calendar-post-1" {
+	if storedEvent.Title != latestLocalEvent.Title {
 		t.Fatalf("stored event=%+v", storedEvent)
 	}
 	responseMutex.Lock()
 	createdMessages := append([]string(nil), requests.createdMessages...)
 	updatedMessages := append([]string(nil), requests.updatedMessages...)
 	responseMutex.Unlock()
-	if len(createdMessages) != 1 || len(updatedMessages) != 1 || !strings.Contains(updatedMessages[0], latestLocalEvent.Title) {
+	if len(createdMessages) == 0 || !strings.Contains(createdMessages[len(createdMessages)-1], latestLocalEvent.Title) || len(updatedMessages) != 0 {
 		t.Fatalf("created=%+v updated=%+v", createdMessages, updatedMessages)
 	}
 	assertCalendarProjectionOutboxCount(t, service, 0)

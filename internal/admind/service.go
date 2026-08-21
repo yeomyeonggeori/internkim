@@ -465,8 +465,6 @@ func (service *Service) startMattermostProjectionOutboxWorker(ctx context.Contex
 		return
 	}
 	go func() {
-		service.repairMattermostProjectionsWithTimeout(ctx)
-		service.sweepExpiredMattermostChannelPostsWithTimeout(ctx)
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		expiryTicker := time.NewTicker(time.Hour)
@@ -477,32 +475,9 @@ func (service *Service) startMattermostProjectionOutboxWorker(ctx context.Contex
 				return
 			case <-ticker.C:
 				service.drainMattermostProjectionOutboxWithTimeout(ctx)
-			case <-expiryTicker.C:
-				service.sweepExpiredMattermostChannelPostsWithTimeout(ctx)
 			}
 		}
 	}()
-}
-
-func (service *Service) repairMattermostProjectionsWithTimeout(ctx context.Context) {
-	service.syncExistingMattermostManagedPosts(ctx)
-}
-
-func (service *Service) sweepExpiredMattermostChannelPostsWithTimeout(ctx context.Context) {
-	service.sweepExpiredFlowMattermostNotificationsWithTimeout(ctx)
-	service.sweepExpiredCalendarMattermostLogsWithTimeout(ctx)
-}
-
-func (service *Service) sweepExpiredFlowMattermostNotificationsWithTimeout(ctx context.Context) {
-	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	service.sweepExpiredFlowMattermostNotifications(syncContext)
-}
-
-func (service *Service) sweepExpiredCalendarMattermostLogsWithTimeout(ctx context.Context) {
-	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	service.sweepExpiredCalendarMattermostLogs(syncContext)
 }
 
 func (service *Service) drainMattermostProjectionOutboxWithTimeout(ctx context.Context) {

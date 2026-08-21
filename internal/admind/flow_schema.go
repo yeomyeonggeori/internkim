@@ -144,7 +144,10 @@ func ensureFlowChannelOutboxTable(ctx context.Context, database *sql.DB) error {
 		updated_at TEXT NOT NULL,
 		last_attempted_at TEXT NOT NULL DEFAULT ''
 	)`)
-	return errorValue
+	if errorValue != nil {
+		return errorValue
+	}
+	return ensureFlowColumn(ctx, database, "flow_channel_outbox", "delivered_recipients", "TEXT NOT NULL DEFAULT ''")
 }
 
 func ensureFlowColumn(ctx context.Context, database *sql.DB, tableName string, columnName string, definition string) error {
