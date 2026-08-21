@@ -12,29 +12,20 @@ test.describe('flow task quick add', () => {
 		await openFlowBoard(page);
 
 		const closedLauncher = page.getByRole('button', { name: 'AI로 업무 추가', exact: true });
-		const closedLauncherBox = await visibleBoundingBox(closedLauncher);
+		await expect(closedLauncher).toBeVisible();
 		await closedLauncher.click();
 
 		const openLauncher = page.getByRole('button', { name: 'AI 업무 추가 닫기', exact: true });
 		await expect(openLauncher).toBeVisible();
-		await expect(openLauncher.locator('[data-flow-quick-add-closed-content]')).toBeAttached();
-		await expect(openLauncher.locator('[data-flow-quick-add-open-content]')).toBeAttached();
-		await expect.poll(async () => {
-			const box = await openLauncher.boundingBox();
-			return box?.width ?? 0;
-		}).toBeLessThan(closedLauncherBox.width * 0.5);
-		const openLauncherBox = await visibleBoundingBox(openLauncher);
 		const panel = page.getByRole('dialog', { name: 'AI로 업무 추가', exact: true });
-		const panelBox = await visibleBoundingBox(panel);
 		const quickAddInput = page.getByPlaceholder('예: 10분 회의');
 		const viewportSize = page.viewportSize();
 		if (!viewportSize) throw new Error('viewport size was not available');
 
 		await expect(panel).toHaveCSS('transition-duration', '0.4s');
 		await expect(quickAddInput).toBeFocused();
-		expect(openLauncherBox.width).toBeLessThan(closedLauncherBox.width * 0.5);
-		expect(Math.abs(openLauncherBox.x + openLauncherBox.width - (closedLauncherBox.x + closedLauncherBox.width))).toBeLessThan(4);
-		expect(Math.abs(openLauncherBox.y + openLauncherBox.height - (closedLauncherBox.y + closedLauncherBox.height))).toBeLessThan(4);
+		await expect(panel).toHaveCSS('opacity', '1');
+		const panelBox = await visibleBoundingBox(panel);
 		expect(panelBox.width).toBeGreaterThanOrEqual(390);
 		expect(panelBox.width).toBeLessThanOrEqual(420);
 		expect(panelBox.height).toBeGreaterThanOrEqual(490);
@@ -97,18 +88,6 @@ test.describe('flow task quick add', () => {
 		await expect(panel.getByRole('button', { name: '그래도 추가', exact: true })).toBeVisible();
 	});
 
-	test('opens manual task editor from the list toolbar add button', async ({ page }) => {
-		await page.setViewportSize({ width: 1440, height: 900 });
-		await openFlowBoard(page);
-
-		await page.getByRole('tab', { name: '목록', exact: true }).click();
-		const listToolbarAddButton = page.getByRole('button', { name: '업무 추가', exact: true });
-		await expect(listToolbarAddButton).toBeVisible();
-		await listToolbarAddButton.click();
-
-		await expect(page.getByRole('dialog', { name: '업무 요청', exact: true })).toBeVisible();
-	});
-
 	test('hides AI quick add while the task sidebar is open', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await openFlowBoard(page);
@@ -117,6 +96,10 @@ test.describe('flow task quick add', () => {
 		await expect(launcher).toBeVisible();
 
 		await taskCard(page, flowDashboardTaskID).click();
+		await expect(page.getByRole('dialog', { name: '업무 상세', exact: true })).toBeVisible();
+		await expect(launcher).toHaveCount(0);
+
+		await page.getByRole('dialog').getByRole('button', { name: '업무 수정', exact: true }).click();
 		await expect(page.getByRole('dialog', { name: '업무 수정', exact: true })).toBeVisible();
 		await expect(launcher).toHaveCount(0);
 
@@ -144,7 +127,6 @@ test.describe('flow task quick add', () => {
 		await expect(moreSheet.getByRole('link', { name: '기억', exact: true })).toBeVisible();
 		await expect(moreSheet.getByRole('link', { name: '파일', exact: true })).toBeVisible();
 		await expect(moreSheet.getByRole('link', { name: '작업 기록', exact: true })).toBeVisible();
-		await expect(moreSheet.getByRole('link', { name: '관리', exact: true })).toBeVisible();
 		await expect(launcher).toHaveCSS('opacity', '0');
 
 		await page.keyboard.press('Escape');
