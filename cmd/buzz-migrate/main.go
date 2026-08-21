@@ -161,7 +161,7 @@ func main() {
 				creatorSecret := creatorSecretFor(channel, memberUserIDs, authorsByID, authorSecrets, bootstrapSecret)
 				creator, errorValue := publishers.as(ctx, creatorSecret)
 				failOn(errorValue, "connect as the creator of "+channel.Name)
-				errorValue = creator.CreateChannel(ctx, creatorSecret, buzzChannelID, importedChannelName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel), importedChannelVisibility(channel))
+				errorValue = creator.CreateChannel(ctx, creatorSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel), importedChannelVisibility(channel))
 				if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
 					failOn(errorValue, "create channel "+channel.Name)
 				}
@@ -740,19 +740,6 @@ func relayChannelTypeOf(channel buzzimport.MattermostChannel) string {
 		return "dm"
 	}
 	return "stream"
-}
-
-// A conversation is named for whoever else is in it, which is a different name
-// for each person reading, so one stored name hands somebody their own.
-func importedChannelName(
-	channel buzzimport.MattermostChannel,
-	memberUserIDs []string,
-	authorsByID map[string]mattermostrest.MattermostAuthor,
-) string {
-	if buzzimport.IsConversationChannelType(channel.Type) {
-		return ""
-	}
-	return channelDisplayName(channel, memberUserIDs, authorsByID)
 }
 
 // A direct conversation the whole company can read is not a direct conversation.
