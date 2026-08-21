@@ -9,6 +9,7 @@ import (
 func newBridgeMapTestService(t *testing.T) *Service {
 	t.Helper()
 	return &Service{Configuration: Configuration{
+		StateDirectory:        t.TempDir(),
 		BridgeMapDatabasePath: filepath.Join(t.TempDir(), "bridge-map.sqlite"),
 	}}
 }
