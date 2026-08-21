@@ -36,7 +36,7 @@ function hexToBytes(hex: string): Uint8Array {
 	return bytes;
 }
 
-export function bytesToHex(bytes: Uint8Array): string {
+function bytesToHex(bytes: Uint8Array): string {
 	let hex = "";
 	for (const byte of bytes) hex += byte.toString(16).padStart(2, "0");
 	return hex;
