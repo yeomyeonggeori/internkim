@@ -49,10 +49,10 @@
 
 {#if isSettled}
 	<p class="text-sm text-muted-foreground">
-		{formatMoney(majorAmountOf(settledAmountMinor ?? 0, settledCurrency, currencyCatalogue), settledCurrency, currencyCatalogue, '-', currentLocale.value)} · {text.conversionSettled}
+		{formatMoney(majorAmountOf(settledAmountMinor ?? 0, settledCurrency, currencyCatalogue), settledCurrency, '-', currentLocale.value)} · {text.conversionSettled}
 	</p>
 {:else if shouldEstimate && estimate}
 	<p class="text-sm text-muted-foreground">
-		{formatMoney(majorAmountOf(estimate.amountMinor, estimate.currencyCode, currencyCatalogue), estimate.currencyCode, currencyCatalogue, '-', currentLocale.value)} · {text.conversionEstimate.replace('{date}', estimate.asOf)}
+		{formatMoney(majorAmountOf(estimate.amountMinor, estimate.currencyCode, currencyCatalogue), estimate.currencyCode, '-', currentLocale.value)} · {text.conversionEstimate.replace('{date}', estimate.asOf)}
 	</p>
 {/if}

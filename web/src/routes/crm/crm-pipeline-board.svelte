@@ -8,20 +8,18 @@
 	import { findOrganizationByID, findNextActionByID, formatCRMDate, getProgressKind, opportunityStageLabel } from './crm-view-model';
 	import { formatViewMoney } from './crm-money';
 	import { crmViewCurrency } from './crm-view-currency.svelte';
-	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
-	import type { CRMText } from './text';
+		import type { CRMText } from './text';
 
 	type Props = {
 		opportunities: CRMOpportunity[];
 		organizations: CRMOrganization[];
 		nextActions: CRMNextAction[];
 		stages: CRMPipelineStage[];
-		currencyCatalogue: CurrencyCatalogue;
 		text: CRMText;
 		onMove: (request: CRMPipelineBoardMoveRequest) => void;
 	};
 
-	let { opportunities, organizations, nextActions, stages, currencyCatalogue, text, onMove }: Props = $props();
+	let { opportunities, organizations, nextActions, stages, text, onMove }: Props = $props();
 
 	const columnClass = [
 		'crm-pipeline-board-column group flex h-full min-h-0',
@@ -118,7 +116,7 @@
 											{crmLabel(text.progressKinds, getProgressKind(opportunity, organization))}
 										</Badge>
 										<Badge variant="secondary" class="h-5 rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">
-											{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), currencyCatalogue, text.noValue, currentLocale.value, crmViewCurrency.selected)}
+											{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.noValue, currentLocale.value, crmViewCurrency.selected)}
 										</Badge>
 									</div>
 									<div class="text-xs leading-5 text-muted-foreground">

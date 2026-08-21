@@ -55,7 +55,7 @@ function buildMoneySummary(
 		if (amount === undefined) return details;
 		return [
 			...details,
-			{ currency: entry.code, displayValue: formatMoney(amount, entry.code, catalogue, text.noValue, locale) }
+			{ currency: entry.code, displayValue: formatMoney(amount, entry.code, text.noValue, locale) }
 		];
 	}, []);
 	if (moneyDetails.length <= 1) return { displayValue: formatMoneyTotals(totals, catalogue, text.noValue, locale) };

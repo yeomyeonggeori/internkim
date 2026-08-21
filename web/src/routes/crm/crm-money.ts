@@ -1,5 +1,5 @@
 import type { CRMCurrency, CRMMoneyTotals, CRMOpportunity } from './crm-types';
-import { findCurrencyCatalogueEntry, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
+import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 import type { Locale } from '$lib/i18n/locale.svelte';
 import type { CRMViewAmount, CRMViewCurrencyReader } from './crm-view-currency.svelte';
 
@@ -25,31 +25,21 @@ export function parseAmountInput(value: string): number | undefined {
 export function formatMoney(
 	value: number | undefined,
 	currency: CRMCurrency,
-	catalogue: CurrencyCatalogue,
 	noValue = '-',
 	locale: Locale = 'ko'
 ): string {
-	return formatAmount(value, currency, catalogue, noValue, locale, `${currency} `);
+	return formatAmount(value, noValue, locale, `${currency} `);
 }
 
 export function formatAmountAlone(
 	value: number | undefined,
-	currency: CRMCurrency,
-	catalogue: CurrencyCatalogue,
 	noValue = '-',
 	locale: Locale = 'ko'
 ): string {
-	return formatAmount(value, currency, catalogue, noValue, locale, '');
+	return formatAmount(value, noValue, locale, '');
 }
 
-function formatAmount(
-	value: number | undefined,
-	currency: CRMCurrency,
-	catalogue: CurrencyCatalogue,
-	noValue: string,
-	locale: Locale,
-	prefix: string
-): string {
+function formatAmount(value: number | undefined, noValue: string, locale: Locale, prefix: string): string {
 	if (value === undefined) return noValue;
 	return locale === 'ko' ? formatMyriadMoney(value, prefix) : formatThousandGroupedMoney(value, prefix);
 }
@@ -62,20 +52,19 @@ export function formatMoneyTotals(
 ): string {
 	const values = catalogue
 		.filter((entry) => totals[entry.code] !== undefined)
-		.map((entry) => formatMoney(totals[entry.code], entry.code, catalogue, noValue, locale));
+		.map((entry) => formatMoney(totals[entry.code], entry.code, noValue, locale));
 	return values.length === 0 ? noValue : values.join(' · ');
 }
 
 export function formatViewMoney(
 	view: CRMViewAmount,
-	catalogue: CurrencyCatalogue,
 	noValue = '-',
 	locale: Locale = 'ko',
 	viewCurrency = ''
 ): string {
 	return viewCurrency !== '' && view.currency === viewCurrency
-		? formatAmountAlone(view.value, view.currency, catalogue, noValue, locale)
-		: formatMoney(view.value, view.currency, catalogue, noValue, locale);
+		? formatAmountAlone(view.value, noValue, locale)
+		: formatMoney(view.value, view.currency, noValue, locale);
 }
 
 export function formatViewMoneyTotals(
@@ -96,14 +85,10 @@ export function formatViewMoneyTotals(
 		return formatMoneyTotals(totals, catalogue, noValue, locale);
 	}
 	const collapsedValue = viewAmounts.reduce((sum, amount) => sum + amount.value, 0);
-	return formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, catalogue, noValue, locale, view.selected);
+	return formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, noValue, locale, view.selected);
 }
 
-export function formatViewRateHint(
-	viewCurrency: string,
-	ratesBySource: Record<string, number>,
-	catalogue: CurrencyCatalogue
-): string {
+export function formatViewRateHint(viewCurrency: string, ratesBySource: Record<string, number>): string {
 	if (viewCurrency === '' || viewCurrency === rateHintAnchorCurrency) return '';
 	const rate = ratesBySource[rateHintAnchorCurrency];
 	if (rate === undefined || !(rate > 0)) return '';
