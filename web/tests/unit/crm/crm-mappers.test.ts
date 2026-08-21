@@ -80,11 +80,11 @@ describe('CRM service mappers', () => {
 		const data = serviceData();
 		data.opportunities[0] = {
 			...data.opportunities[0]!,
-			stage: 'won',
+			stage: 'done',
 			baseAmountMinor: 4500,
 			baseCurrencyCode: 'USD'
 		};
-		data.stages = [{ pipeline: 'sales', stage: 'won', label: 'won', position: 1, outcome: 'won' }];
+		data.stages = [{ stage: 'done', label: 'done', position: 1, outcome: 'won' }];
 		const opportunity = mapCRMViewData(data, [], interimCurrencyCatalogue, 'Asia/Seoul').opportunities[0];
 
 		expect(opportunity?.baseAmountMinor).toBe(4500);
@@ -121,7 +121,7 @@ describe('CRM service mappers', () => {
 			business: 'general',
 			name: '신규 진행 건',
 			progressKind: 'sales',
-			stage: 'lead',
+			stage: 'waiting',
 			lostReason: '',
 			ownerPersonID: 'person-ops',
 			currency: 'KRW',
@@ -164,12 +164,12 @@ function serviceData(): CRMDataResponse {
 	return {
 		organizations: [{ id: 'organization-1', name: '관계처', status: 'active', types: ['customer'], tags: [], importance: 'high', ownerPersonID: 'person-owner', audit }],
 		contacts: [{ id: 'contact-1', organizationID: 'organization-1', name: '담당 연락처', department: '파트너십', ownerPersonID: 'person-owner', audit }],
-		opportunities: [{ id: 'opportunity-1', organizationID: 'organization-1', name: '진행 건', pipeline: 'sales', stage: 'lead', stagePosition: 1024, stageChangedAt: '2026-08-02T00:00:00Z', ownerPersonID: 'person-owner', amountMinor: 5000, currencyCode: 'KRW', importance: 'high', dueAt: '2026-08-10T03:00:00Z', dueTimeZone: 'Asia/Seoul', contacts: [{ contactID: 'contact-1' }], audit }],
+		opportunities: [{ id: 'opportunity-1', organizationID: 'organization-1', name: '진행 건', pipeline: 'sales', stage: 'waiting', stagePosition: 1024, stageChangedAt: '2026-08-02T00:00:00Z', ownerPersonID: 'person-owner', amountMinor: 5000, currencyCode: 'KRW', importance: 'high', dueAt: '2026-08-10T03:00:00Z', dueTimeZone: 'Asia/Seoul', contacts: [{ contactID: 'contact-1' }], audit }],
 		activities: [{ id: 'activity-1', organizationID: 'organization-1', kind: 'meeting', title: '미팅', occurredAt: '2026-08-03T15:30:00Z', content: '논의', audit }],
 		pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }],
-		stages: [{ pipeline: 'sales', stage: 'lead', label: 'lead', position: 1, outcome: 'open' }],
+		stages: [{ stage: 'waiting', label: 'waiting', position: 1, outcome: 'open' }],
 		lostReasons: [],
-		vocabulary: { organization_types: [{ id: 'customer', name: '고객사' }], pipelines: [], lost_reasons: [] },
+		vocabulary: { organization_types: [{ id: 'customer', name: '고객사' }], pipelines: [], stages: [], lost_reasons: [] },
 		taskVocabulary: { businesses: [{ name: 'general' }], types: [{ name: 'meeting' }] }
 	};
 }

@@ -60,7 +60,7 @@ func TestCRMStoresPersistCoreRecords(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if opportunity.Stage != "lead" || opportunity.StagePosition != 1024 || opportunity.CurrencyCode != "KRW" || opportunity.Importance != "medium" {
+	if opportunity.Stage != "waiting" || opportunity.StagePosition != 1024 || opportunity.CurrencyCode != "KRW" || opportunity.Importance != "medium" {
 		t.Fatalf("opportunity defaults = %#v", opportunity)
 	}
 
@@ -183,7 +183,7 @@ func TestCRMStageTransitionIsAtomicAndRecordsActivity(t *testing.T) {
 	ctx := context.Background()
 	service, opportunity := createCRMOpportunityForStoreTest(t)
 	changedWithoutTransition := opportunity
-	changedWithoutTransition.Stage = "qualified"
+	changedWithoutTransition.Stage = "in_progress"
 	changedWithoutTransition.Audit.UpdatedAt = "2026-08-02T02:30:00Z"
 	if _, errorValue := service.writeCRMOpportunity(ctx, changedWithoutTransition, nil); errorValue == nil {
 		t.Fatal("generic CRM opportunity update should not change stage")
@@ -206,7 +206,7 @@ END`)
 
 	errorValue = service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
 		OpportunityID: opportunity.ID,
-		Stage:         "qualified",
+		Stage:         "in_progress",
 		StagePosition: 1024,
 		OccurredAt:    "2026-08-02T03:00:00Z",
 		ActorPersonID: "person-owner",
@@ -218,7 +218,7 @@ END`)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if readOpportunity.Stage != "lead" {
+	if readOpportunity.Stage != "waiting" {
 		t.Fatalf("stage after rollback = %q, want lead", readOpportunity.Stage)
 	}
 	changedWithTransition := readOpportunity
@@ -226,7 +226,7 @@ END`)
 	changedWithTransition.Audit.UpdatedAt = "2026-08-02T03:30:00Z"
 	if _, errorValue := service.writeCRMOpportunityWithTransition(ctx, changedWithTransition, nil, &crmOpportunityStageTransition{
 		OpportunityID: opportunity.ID,
-		Stage:         "qualified",
+		Stage:         "in_progress",
 		StagePosition: 1024,
 		OccurredAt:    "2026-08-02T03:30:00Z",
 		ActorPersonID: "person-owner",
@@ -237,7 +237,7 @@ END`)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if readOpportunity.Name != opportunity.Name || readOpportunity.Stage != "lead" {
+	if readOpportunity.Name != opportunity.Name || readOpportunity.Stage != "waiting" {
 		t.Fatalf("combined update after rollback = %#v", readOpportunity)
 	}
 
@@ -252,7 +252,7 @@ END`)
 
 	errorValue = service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
 		OpportunityID:    opportunity.ID,
-		Stage:            "won",
+		Stage:            "done",
 		StagePosition:    1024,
 		OccurredAt:       "2026-08-02T04:00:00Z",
 		ActorPersonID:    "person-owner",
@@ -266,7 +266,7 @@ END`)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if readOpportunity.Stage != "won" || readOpportunity.StageChangedAt != "2026-08-02T04:00:00Z" || readOpportunity.BaseAmountMinor == nil || *readOpportunity.BaseAmountMinor != 500000 {
+	if readOpportunity.Stage != "done" || readOpportunity.StageChangedAt != "2026-08-02T04:00:00Z" || readOpportunity.BaseAmountMinor == nil || *readOpportunity.BaseAmountMinor != 500000 {
 		t.Fatalf("won opportunity = %#v", readOpportunity)
 	}
 	database, errorValue = service.openCRMDatabase(ctx)
@@ -305,7 +305,7 @@ func TestCRMRealizedAmountsCannotChange(t *testing.T) {
 	service, opportunity := createCRMOpportunityForStoreTest(t)
 	if errorValue := service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
 		OpportunityID:    opportunity.ID,
-		Stage:            "won",
+		Stage:            "done",
 		StagePosition:    1024,
 		OccurredAt:       "2026-08-02T04:30:00Z",
 		ActorPersonID:    "person-owner",
@@ -339,7 +339,7 @@ func TestCRMRealizedAmountsCannotChange(t *testing.T) {
 	}
 	if errorValue := service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
 		OpportunityID: opportunity.ID,
-		Stage:         "lead",
+		Stage:         "waiting",
 		StagePosition: 1024,
 		OccurredAt:    "2026-08-02T04:32:00Z",
 		ActorPersonID: "person-owner",
@@ -353,7 +353,7 @@ func TestCRMStageChangeActivityCanBeEditedButCannotReturnAfterKindChange(t *test
 	service, opportunity := createCRMOpportunityForStoreTest(t)
 	if errorValue := service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
 		OpportunityID: opportunity.ID,
-		Stage:         "qualified",
+		Stage:         "in_progress",
 		StagePosition: 1024,
 		OccurredAt:    "2026-08-02T04:30:00Z",
 		ActorPersonID: "person-owner",
@@ -382,7 +382,7 @@ func TestCRMStageChangeActivityCanBeEditedButCannotReturnAfterKindChange(t *test
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if updatedOpportunity.Stage != "qualified" || updatedOpportunity.StageChangedAt != "2026-08-02T04:30:00Z" {
+	if updatedOpportunity.Stage != "in_progress" || updatedOpportunity.StageChangedAt != "2026-08-02T04:30:00Z" {
 		t.Fatalf("opportunity stage changed while editing activity = %#v", updatedOpportunity)
 	}
 	activity.Kind = "stage_change"
@@ -400,7 +400,7 @@ func TestCRMStagePositionCollisionRebalancesOnlyCurrentStage(t *testing.T) {
 		AccountID:     first.AccountID,
 		Name:          "두 번째 진행 건",
 		Pipeline:      "sales",
-		Stage:         "lead",
+		Stage:         "waiting",
 		StagePosition: 2048,
 		OwnerPersonID: "person-owner",
 		Audit:         first.Audit,
@@ -429,21 +429,21 @@ func TestCRMStagePositionFallbackPreservesInsertionAnchor(t *testing.T) {
 	service, existing := createCRMOpportunityForStoreTest(t)
 	left, errorValue := service.writeCRMOpportunity(ctx, crmOpportunity{
 		ID: "opportunity-left", AccountID: existing.AccountID, Name: "왼쪽 진행 건", Pipeline: "sales",
-		Stage: "lead", StagePosition: 1, OwnerPersonID: "person-owner", Audit: existing.Audit,
+		Stage: "waiting", StagePosition: 1, OwnerPersonID: "person-owner", Audit: existing.Audit,
 	}, nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	right, errorValue := service.writeCRMOpportunity(ctx, crmOpportunity{
 		ID: "opportunity-right", AccountID: existing.AccountID, Name: "오른쪽 진행 건", Pipeline: "sales",
-		Stage: "lead", StagePosition: math.Nextafter(left.StagePosition, math.Inf(1)), OwnerPersonID: "person-owner", Audit: existing.Audit,
+		Stage: "waiting", StagePosition: math.Nextafter(left.StagePosition, math.Inf(1)), OwnerPersonID: "person-owner", Audit: existing.Audit,
 	}, nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	moving, errorValue := service.writeCRMOpportunity(ctx, crmOpportunity{
 		ID: "opportunity-moving", AccountID: existing.AccountID, Name: "이동 진행 건", Pipeline: "sales",
-		Stage: "lead", StagePosition: 0.5, OwnerPersonID: "person-owner", Audit: existing.Audit,
+		Stage: "waiting", StagePosition: 0.5, OwnerPersonID: "person-owner", Audit: existing.Audit,
 	}, nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -480,7 +480,7 @@ func TestCRMOpportunityCreationPositionCollisionRebalancesStage(t *testing.T) {
 		AccountID:     first.AccountID,
 		Name:          "같은 위치의 진행 건",
 		Pipeline:      "sales",
-		Stage:         "lead",
+		Stage:         "waiting",
 		StagePosition: first.StagePosition,
 		OwnerPersonID: "person-owner",
 		Audit:         first.Audit,
@@ -511,7 +511,7 @@ func TestCRMStageTransitionPositionCollisionRebalancesTargetStage(t *testing.T) 
 		AccountID:     moving.AccountID,
 		Name:          "검토 중인 진행 건",
 		Pipeline:      "sales",
-		Stage:         "qualified",
+		Stage:         "in_progress",
 		StagePosition: 1024,
 		OwnerPersonID: "person-owner",
 		Audit:         moving.Audit,
@@ -522,7 +522,7 @@ func TestCRMStageTransitionPositionCollisionRebalancesTargetStage(t *testing.T) 
 
 	if errorValue := service.transitionCRMOpportunityStage(ctx, crmOpportunityStageTransition{
 		OpportunityID:       moving.ID,
-		Stage:               "qualified",
+		Stage:               "in_progress",
 		StagePosition:       existing.StagePosition,
 		BeforeOpportunityID: existing.ID,
 		OccurredAt:          "2026-08-02T05:00:00Z",
@@ -707,9 +707,9 @@ func TestCRMReferenceStoreUsesDynamicListsAndUnlimitedLinks(t *testing.T) {
 	if errorValue != nil || len(pipelines) != 6 {
 		t.Fatalf("pipelines = %#v, error = %v", pipelines, errorValue)
 	}
-	stages, errorValue := service.listCRMPipelineStages(ctx, "investment")
-	if errorValue != nil || len(stages) != 9 || stages[0].Stage != "sourcing" {
-		t.Fatalf("investment stages = %#v, error = %v", stages, errorValue)
+	stages, errorValue := service.listCRMPipelineStageDefinitions(ctx)
+	if errorValue != nil || len(stages) != 6 || stages[0].Stage != "waiting" {
+		t.Fatalf("pipeline stage definitions = %#v, error = %v", stages, errorValue)
 	}
 	reasons, errorValue := service.listCRMLostReasons(ctx, true)
 	if errorValue != nil || len(reasons) != 7 {
@@ -772,7 +772,7 @@ func createCRMOpportunityForStoreTest(t *testing.T) (*Service, crmOpportunity) {
 	}
 	opportunity, errorValue := service.writeCRMOpportunity(ctx, crmOpportunity{
 		ID: "opportunity-stage", AccountID: account.ID, Name: "단계 진행 건", Pipeline: "sales",
-		Stage: "lead", StagePosition: 1024, OwnerPersonID: "person-owner", AmountMinor: crmInt64(500000), Audit: audit,
+		Stage: "waiting", StagePosition: 1024, OwnerPersonID: "person-owner", AmountMinor: crmInt64(500000), Audit: audit,
 	}, nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)

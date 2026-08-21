@@ -106,9 +106,14 @@ begin
   perform public.save_crm_vocabulary('{
     "organization_types":[{"id":"partner","name":"Partner"},{"id":"unused_type","name":"Unused"}],
     "pipelines":[
-      {"id":"partnership","name":"Partnership","stages":[{"id":"review","name":"Review","outcome":"open"},{"id":"unused_stage","name":"Unused","outcome":"open"}]},
-      {"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]},
-      {"id":"unused_pipeline","name":"Unused","stages":[]}
+      {"id":"partnership","name":"Partnership"},
+      {"id":"sponsorship","name":"Sponsorship"},
+      {"id":"unused_pipeline","name":"Unused"}
+    ],
+    "stages":[
+      {"id":"review","name":"Review","outcome":"open"},
+      {"id":"proposal","name":"Proposal","outcome":"open"},
+      {"id":"unused_stage","name":"Unused","outcome":"open"}
     ],
     "lost_reasons":[{"id":"budget","name":"Budget"},{"id":"unused_reason","name":"Unused"}]
   }'::jsonb);
@@ -126,8 +131,12 @@ begin
   perform public.save_crm_vocabulary('{
     "organization_types":[{"id":"partner","name":"Partner"}],
     "pipelines":[
-      {"id":"partnership","name":"Partnership","stages":[{"id":"review","name":"Review","outcome":"open"}]},
-      {"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]}
+      {"id":"partnership","name":"Partnership"},
+      {"id":"sponsorship","name":"Sponsorship"}
+    ],
+    "stages":[
+      {"id":"review","name":"Review","outcome":"open"},
+      {"id":"proposal","name":"Proposal","outcome":"open"}
     ],
     "lost_reasons":[{"id":"budget","name":"Budget"}]
   }'::jsonb);
@@ -142,7 +151,7 @@ begin
     '{"sub":"59400000-0000-0000-0000-000000000002","role":"authenticated"}',
     true
   );
-  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[],"lost_reasons":[]}'::jsonb);
+  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[],"stages":[],"lost_reasons":[]}'::jsonb);
   reset role;
 end $$;$block$, '42501', null, 'crm: a non-admin cannot save CRM definitions');
 
@@ -162,7 +171,7 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[{"id":"partnership","name":"Partnership","stages":[{"id":"review","name":"Review","outcome":"open"}]},{"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
+  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[{"id":"partnership","name":"Partnership"},{"id":"sponsorship","name":"Sponsorship"}],"stages":[{"id":"review","name":"Review","outcome":"open"},{"id":"proposal","name":"Proposal","outcome":"open"}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
   reset role;
 end $$;$block$, '2BP01', null, 'crm: a used organization type cannot be deleted');
 
@@ -170,7 +179,7 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
+  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"sponsorship","name":"Sponsorship"}],"stages":[{"id":"review","name":"Review","outcome":"open"},{"id":"proposal","name":"Proposal","outcome":"open"}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
   reset role;
 end $$;$block$, '2BP01', null, 'crm: a used pipeline cannot be deleted');
 
@@ -178,15 +187,15 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"partnership","name":"Partnership","stages":[]},{"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
+  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"partnership","name":"Partnership"},{"id":"sponsorship","name":"Sponsorship"}],"stages":[{"id":"proposal","name":"Proposal","outcome":"open"}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
   reset role;
-end $$;$block$, '2BP01', null, 'crm: a used pipeline stage cannot be deleted');
+end $$;$block$, '2BP01', null, 'crm: a used global stage cannot be deleted');
 
 select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"partnership","name":"Partnership","stages":[{"id":"review","name":"Review","outcome":"open"}]},{"id":"sponsorship","name":"Sponsorship","stages":[{"id":"proposal","name":"Proposal","outcome":"open"}]}],"lost_reasons":[]}'::jsonb);
+  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"partnership","name":"Partnership"},{"id":"sponsorship","name":"Sponsorship"}],"stages":[{"id":"review","name":"Review","outcome":"open"},{"id":"proposal","name":"Proposal","outcome":"open"}],"lost_reasons":[]}'::jsonb);
   reset role;
 end $$;$block$, '2BP01', null, 'crm: a used lost reason cannot be deleted');
 

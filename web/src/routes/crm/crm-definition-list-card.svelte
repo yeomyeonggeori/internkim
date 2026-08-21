@@ -4,8 +4,6 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
-	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
-	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import type { CRMDefinition, CRMStageOutcome } from './crm-definitions';
@@ -21,15 +19,12 @@
 		disabled: boolean;
 		addLabel: string;
 		removeLabel: string;
-		moveUpLabel: string;
-		moveDownLabel: string;
 		colorLabel: string;
 		outcomeOptions?: OutcomeOption[];
 		onNameInput: (id: string, name: string) => void;
 		onCommit: () => void;
 		onColorChange: (id: string, color: string) => void;
 		onOutcomeChange?: (id: string, outcome: CRMStageOutcome) => void;
-		onMove: (id: string, direction: -1 | 1) => void;
 		onRemove: (id: string) => void;
 		onAdd: (name: string, color: string) => void;
 	};
@@ -42,15 +37,12 @@
 		disabled,
 		addLabel,
 		removeLabel,
-		moveUpLabel,
-		moveDownLabel,
 		colorLabel,
 		outcomeOptions = [],
 		onNameInput,
 		onCommit,
 		onColorChange,
 		onOutcomeChange,
-		onMove,
 		onRemove,
 		onAdd
 	}: Props = $props();
@@ -72,8 +64,8 @@
 		<Card.Description>{description}</Card.Description>
 	</Card.Header>
 	<Card.Content class="space-y-2">
-		{#each items as item, index (item.id)}
-			<div class={`grid items-center gap-2 ${outcomeOptions.length > 0 ? 'grid-cols-[auto_minmax(0,1fr)_8rem_auto_auto_auto]' : 'grid-cols-[auto_minmax(0,1fr)_auto_auto_auto]'}`}>
+		{#each items as item (item.id)}
+			<div class={`grid items-center gap-2 ${outcomeOptions.length > 0 ? 'grid-cols-[auto_minmax(0,1fr)_8rem_auto]' : 'grid-cols-[auto_minmax(0,1fr)_auto]'}`}>
 				{#if isAdmin && !disabled}
 					<ColorPicker
 						value={item.color ?? '#64748b'}
@@ -107,24 +99,6 @@
 						</Select.Content>
 					</Select.Root>
 				{/if}
-				<Button
-					variant="ghost"
-					size="icon"
-					disabled={!isAdmin || disabled || index === 0}
-					onclick={() => onMove(item.id, -1)}
-					aria-label={moveUpLabel}
-				>
-					<ArrowUpIcon class="size-4" />
-				</Button>
-				<Button
-					variant="ghost"
-					size="icon"
-					disabled={!isAdmin || disabled || index === items.length - 1}
-					onclick={() => onMove(item.id, 1)}
-					aria-label={moveDownLabel}
-				>
-					<ArrowDownIcon class="size-4" />
-				</Button>
 				<Button
 					variant="ghost"
 					size="icon"

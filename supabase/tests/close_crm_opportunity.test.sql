@@ -21,7 +21,7 @@ insert into public.company (id, name, slug, country, locale, timezone, currency_
     'ko',
     'Asia/Seoul',
     'KRW',
-    '{"organization_types":[],"lost_reasons":[{"id":"budget","name":"예산 부족"}],"pipelines":[{"id":"partnership","name":"파트너십","stages":[{"id":"review","name":"검토","outcome":"open"},{"id":"won","name":"성사","outcome":"won"},{"id":"lost","name":"불발","outcome":"lost"}]}]}'
+    '{"organization_types":[],"pipelines":[{"id":"partnership","name":"파트너십"}],"stages":[{"id":"review","name":"검토","outcome":"open"},{"id":"won","name":"성사","outcome":"won"},{"id":"lost","name":"불발","outcome":"lost"}],"lost_reasons":[{"id":"budget","name":"예산 부족"}]}'
   );
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values

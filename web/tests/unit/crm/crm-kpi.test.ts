@@ -30,17 +30,16 @@ function opportunity(
 describe('CRM KPI money details', () => {
 	test('keeps compact summaries while exposing every currency total', () => {
 		const opportunities = [
-			opportunity('moving-krw', 'KRW', 12000000, 'proposal', 2),
-			opportunity('moving-usd', 'USD', 20000, 'negotiation', 5),
-			opportunity('stalled-eur', 'EUR', 50000, 'qualified', 15),
+			opportunity('moving-krw', 'KRW', 12000000, 'in_progress', 2),
+			opportunity('moving-usd', 'USD', 20000, 'review', 5),
+			opportunity('stalled-eur', 'EUR', 50000, 'in_progress', 15),
 			opportunity('on-hold-krw', 'KRW', 5000000, 'on_hold', 3),
 			opportunity('on-hold-jpy', 'JPY', 3200000, 'on_hold', 4)
 		];
 		const stages: CRMPipelineStage[] = [
-			{ pipeline: 'sales', stage: 'qualified', label: 'qualified', position: 1, outcome: 'open' },
-			{ pipeline: 'sales', stage: 'proposal', label: 'proposal', position: 2, outcome: 'open' },
-			{ pipeline: 'sales', stage: 'negotiation', label: 'negotiation', position: 3, outcome: 'open' },
-			{ pipeline: 'sales', stage: 'on_hold', label: 'on_hold', position: 4, outcome: 'on_hold' }
+			{ stage: 'in_progress', label: 'in_progress', position: 1, outcome: 'open' },
+			{ stage: 'review', label: 'review', position: 2, outcome: 'open' },
+			{ stage: 'on_hold', label: 'on_hold', position: 3, outcome: 'on_hold' }
 		];
 
 		const pipelineHealth = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], stages, crmText.ko)[0];

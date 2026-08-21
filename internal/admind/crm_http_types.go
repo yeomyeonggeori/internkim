@@ -156,13 +156,6 @@ type crmHTTPPipeline struct {
 	IsActive  bool   `json:"isActive"`
 }
 
-type crmHTTPPipelineStage struct {
-	Pipeline string `json:"pipeline"`
-	Stage    string `json:"stage"`
-	Position int    `json:"position"`
-	Outcome  string `json:"outcome"`
-}
-
 type crmHTTPLostReason struct {
 	Reason   string `json:"reason"`
 	Label    string `json:"label"`

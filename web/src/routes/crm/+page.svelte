@@ -36,7 +36,6 @@
 	import CRMRelationshipTable from './crm-relationship-table.svelte';
 	import CRMReportDashboard from './crm-report-dashboard.svelte';
 	import { buildCRMKPICards } from './crm-kpi';
-	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type {
 		CRMOrganization,
 		CRMOrganizationStatus,
@@ -120,7 +119,6 @@
 		if (selectedPipeline !== 'all' && !controller.pipelines.some((pipeline) => pipeline.pipeline === selectedPipeline)) {
 			selectedPipeline = 'all';
 		}
-		if (selectedPipeline === 'all') pipelineView = 'table';
 		selectedOrganizationID ??= controller.organizations[0]?.id ?? null;
 		selectedContactID ??= controller.contacts[0]?.id ?? null;
 		selectedOpportunityID ??= controller.opportunities[0]?.id ?? null;
@@ -149,7 +147,6 @@
 	let pipelineOpportunities = $derived(selectedPipeline === 'all'
 		? controller.opportunities
 		: controller.opportunities.filter((opportunity) => (opportunity.pipeline ?? opportunity.kind) === selectedPipeline));
-	let selectedPipelineStages = $derived(selectedPipeline === 'all' ? [] : controller.stagesFor(selectedPipeline));
 	let selectedOrganization = $derived(selectedOrganizationID ? findOrganizationByID(controller.organizations, selectedOrganizationID) : undefined);
 	let selectedContact = $derived(selectedContactID ? controller.contacts.find((contact) => contact.id === selectedContactID) : undefined);
 	let selectedOpportunity = $derived(selectedOpportunityID ? controller.opportunities.find((opportunity) => opportunity.id === selectedOpportunityID) : undefined);
@@ -203,7 +200,6 @@
 
 	function selectPipeline(value: string): void {
 		selectedPipeline = value as PipelineFilter;
-		if (selectedPipeline === 'all') pipelineView = 'table';
 	}
 
 	async function handleCreate(draft: CRMCreateDraft): Promise<void> {
@@ -245,10 +241,7 @@
 	}
 
 	function moveOpportunity(request: CRMPipelineBoardMoveRequest): void {
-		const opportunity = controller.opportunities.find((candidate) => candidate.id === request.opportunityID);
-		const outcome = controller.stages.find((stage) =>
-			stage.pipeline === (opportunity?.pipeline ?? opportunity?.kind) && stage.stage === request.targetStage
-		)?.outcome;
+		const outcome = controller.stages.find((stage) => stage.stage === request.targetStage)?.outcome;
 		if (outcome === 'won' || outcome === 'lost') {
 			selectedOpportunityID = request.opportunityID;
 			requestedOpportunityStage = request.targetStage;
@@ -321,14 +314,14 @@
 				<div class="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
 					<div class="flex flex-wrap items-center gap-3">
 						<Select.Root type="single" value={selectedPipeline} onValueChange={selectPipeline}><Select.Trigger class="w-44" aria-label={text.progressKind}>{selectedPipeline === 'all' ? text.allProgressKinds : controller.pipelines.find((pipeline) => pipeline.pipeline === selectedPipeline)?.label ?? selectedPipeline}</Select.Trigger><Select.Content><Select.Item value="all" label={text.allProgressKinds}>{text.allProgressKinds}</Select.Item>{#each controller.pipelines as pipeline (pipeline.pipeline)}<Select.Item value={pipeline.pipeline} label={pipeline.label}>{pipeline.label}</Select.Item>{/each}</Select.Content></Select.Root>
-							<Tabs.Root bind:value={pipelineView} aria-label={text.pipeline}><Tabs.List><Tabs.Trigger value="table">{text.tableView}</Tabs.Trigger><Tabs.Trigger value="board" disabled={selectedPipeline === 'all'}>{text.boardView}</Tabs.Trigger></Tabs.List></Tabs.Root>
+							<Tabs.Root bind:value={pipelineView} aria-label={text.pipeline}><Tabs.List><Tabs.Trigger value="table">{text.tableView}</Tabs.Trigger><Tabs.Trigger value="board">{text.boardView}</Tabs.Trigger></Tabs.List></Tabs.Root>
 					</div>
 					<Button type="button" size="sm" onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 				</div>
 				{#if pipelineView === 'table'}
 					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={controller.stages} {currencyCatalogue} {text} onEdit={openOpportunityEdit} />
 				{:else}
-					<CRMPipelineBoard opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={selectedPipelineStages} {currencyCatalogue} {text} onMove={moveOpportunity} />
+					<CRMPipelineBoard opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={controller.stages} {currencyCatalogue} {text} onMove={moveOpportunity} />
 				{/if}
 			</UnderlineTabs.Content>
 
