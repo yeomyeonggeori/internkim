@@ -328,8 +328,8 @@
 					<div class="flex min-w-0 flex-wrap items-center gap-2">
 						<Select.Root type="single" value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)}><Select.Trigger size="sm" class="w-44">{relationshipViews.find((view) => view.value === relationshipView)?.label}</Select.Trigger><Select.Content>{#each relationshipViews as view (view.value)}<Select.Item value={view.value} label={view.label}>{view.label}</Select.Item>{/each}</Select.Content></Select.Root>
 						<CRMFilterPopover {text} activeCount={relationshipFilterCount} onReset={resetRelationshipFilters}>
-							<FilterCombobox bind:value={selectedStatus} options={statusFilterOptions} label={text.status} clearValue="all" class="w-full sm:w-[calc(50%-0.25rem)]" />
-							<FilterCombobox bind:value={selectedType} options={typeFilterOptions} label={text.type} clearValue="all" class="w-full sm:w-[calc(50%-0.25rem)]" />
+							<FilterCombobox bind:value={selectedStatus} options={statusFilterOptions} label={text.status} clearValue="all" class="w-full" />
+							<FilterCombobox bind:value={selectedType} options={typeFilterOptions} label={text.type} clearValue="all" class="w-full" />
 						</CRMFilterPopover>
 					</div>
 					<Button type="button" size="sm" onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
