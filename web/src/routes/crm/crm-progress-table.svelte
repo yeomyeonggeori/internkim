@@ -7,20 +7,18 @@
 	import { daysLabel, findOrganizationByID, findNextActionByID, getStageVariant, opportunityStageLabel } from './crm-view-model';
 	import { formatViewMoney } from './crm-money';
 	import { crmViewCurrency } from './crm-view-currency.svelte';
-	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
-	import type { CRMText } from './text';
+		import type { CRMText } from './text';
 
 	type Props = {
 		opportunities: CRMOpportunity[];
 		organizations: CRMOrganization[];
 		nextActions: CRMNextAction[];
 		stages: CRMPipelineStage[];
-		currencyCatalogue: CurrencyCatalogue;
 		text: CRMText;
 		onEdit: (opportunityID: string) => void;
 	};
 
-	let { opportunities, organizations, nextActions, stages, currencyCatalogue, text, onEdit }: Props = $props();
+	let { opportunities, organizations, nextActions, stages, text, onEdit }: Props = $props();
 
 	const pageSize = 10;
 	const attentionThresholdDays = 14;
@@ -100,7 +98,7 @@
 						<Table.Cell class="hidden whitespace-normal md:table-cell">
 							<p class="truncate">{opportunity.ownerName}</p>
 						</Table.Cell>
-						<Table.Cell class="hidden font-medium sm:table-cell">{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), currencyCatalogue, text.noValue, currentLocale.value, crmViewCurrency.selected)}</Table.Cell>
+						<Table.Cell class="hidden font-medium sm:table-cell">{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.noValue, currentLocale.value, crmViewCurrency.selected)}</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal text-muted-foreground lg:table-cell">
 							<p class="truncate">{action?.title ?? text.none}</p>
 						</Table.Cell>
