@@ -1019,6 +1019,8 @@ set -e
 export BUZZ_RELAY_PRIVATE_KEY=$(grep '^BUZZ_RELAY_PRIVATE_KEY=' ` + blueclaw.BuzzRelayKeyEnvironmentFilePath + ` | head -1 | sed 's/^BUZZ_RELAY_PRIVATE_KEY=//')
 if [ -z "$BUZZ_RELAY_PRIVATE_KEY" ]; then echo "no relay signing key on this device; reconcile would sign with a key that dies at restart"; exit 1; fi
 export DATABASE_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
+export RELAY_URL=$(systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | sed -n 's/^RELAY_URL=//p' | head -1)
+if [ -z "$RELAY_URL" ]; then echo "the relay names no public host, and buzz-admin works on the community that host names"; exit 1; fi
 ` + blueclaw.BuzzAdminBinaryPath + ` reconcile-channels
 echo "== channels carrying discovery metadata =="
 su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"SELECT kind, count(*) FROM events WHERE kind IN (39000,39002) GROUP BY kind ORDER BY kind\""
