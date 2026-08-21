@@ -466,7 +466,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 
 	messageResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_update",
-		Input:    mustJSON(t, map[string]any{"messageID": "user-post", "message": "changed"}),
+		Input:    mustJSON(t, map[string]any{"messageID": "user-post", "oldText": "user", "newText": "changed"}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "staff@example.com",
 			IsApprovalContinuation: true,
@@ -1109,5 +1109,142 @@ func mattermostToolTestPolicy() mattermostToolPolicyDocument {
 				Circles:  []string{"staff"},
 			},
 		},
+	}
+}
+
+func TestPlatformMessageUpdateReplacesOnlyTheQuotedSpan(t *testing.T) {
+	const currentMessage = "회의록\n5번: 신우경·성민·세현·주정빈\n6번: 이동하"
+	patchedMessage := ""
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/posts/bot-post" && request.Method == http.MethodGet:
+			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "bot-post", UserID: "bot-1", Message: currentMessage}), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/posts/bot-post/patch":
+			var body struct {
+				Message string `json:"message"`
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			patchedMessage = body.Message
+			return testJSONResponse(http.StatusOK, map[string]string{"status": "ok"}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_update",
+		Input:    mustJSON(t, map[string]any{"messageID": "bot-post", "oldText": "성민", "newText": "석민"}),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded {
+		t.Fatalf("expected the edit to apply, got %+v", response)
+	}
+	if patchedMessage != "회의록\n5번: 신우경·석민·세현·주정빈\n6번: 이동하" {
+		t.Fatalf("expected only the quoted span to change, got %q", patchedMessage)
+	}
+}
+
+func TestPlatformMessageUpdateFailsClosedAndReturnsCurrentMessage(t *testing.T) {
+	const currentMessage = "회의록\n5번: 신우경·성민·세현\n6번: 성민"
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/posts/bot-post" && request.Method == http.MethodGet:
+			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "bot-post", UserID: "bot-1", Message: currentMessage}), nil
+		default:
+			if strings.HasSuffix(request.URL.String(), "/patch") {
+				t.Fatalf("a failed match must not change the message: %s", request.URL.String())
+			}
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	for name, oldText := range map[string]string{"missing": "박세은", "ambiguous": "성민"} {
+		t.Run(name, func(t *testing.T) {
+			response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+				ToolName: "message_update",
+				Input:    mustJSON(t, map[string]any{"messageID": "bot-post", "oldText": oldText, "newText": "석민"}),
+				Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+			})
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if response.Outcome != capabilities.ToolOutcomeFailed || response.ErrorCode != "invalid_input" {
+				t.Fatalf("expected the edit to fail closed, got %+v", response)
+			}
+			if !strings.Contains(response.Message, currentMessage) {
+				t.Fatalf("expected the current message in the failure so the retry is informed, got %q", response.Message)
+			}
+		})
+	}
+}
+
+func TestPlatformMessageSearchByIDReturnsFullTextWithinScope(t *testing.T) {
+	const fullMessage = "회의록\n1번 …\n2번 …\n3번 …\n4번 …\n5번: 신우경·성민·세현·주정빈"
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/posts/minutes-post":
+			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "minutes-post", UserID: "bot-1", ChannelID: "channel-1", Message: fullMessage}), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/posts/other-channel-post":
+			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "other-channel-post", UserID: "bot-1", ChannelID: "channel-2", Message: "다른 채널의 비밀"}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+	toolContext := capabilities.ToolInvokeContext{
+		Platform:       "mattermost",
+		ConversationID: "channel:channel-1",
+		ChannelID:      "channel-1",
+		RequesterEmail: "staff@example.com",
+	}
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_search",
+		Input:    mustJSON(t, map[string]any{"scope": "currentChannel", "messageIDs": []string{"minutes-post"}}),
+		Context:  toolContext,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var result platformMessageSearchResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(result.Candidates) != 1 || result.Candidates[0].Text != fullMessage {
+		t.Fatalf("expected the complete message text, got %+v", result.Candidates)
+	}
+	if result.Candidates[0].Preview != "" {
+		t.Fatalf("expected no clipped preview alongside the full text, got %q", result.Candidates[0].Preview)
+	}
+
+	deniedResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_search",
+		Input:    mustJSON(t, map[string]any{"scope": "currentChannel", "messageIDs": []string{"other-channel-post"}}),
+		Context:  toolContext,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if deniedResponse.Outcome != capabilities.ToolOutcomeFailed || strings.Contains(deniedResponse.Message, "비밀") {
+		t.Fatalf("expected a message outside the scoped conversation to stay unreadable, got %+v", deniedResponse)
 	}
 }

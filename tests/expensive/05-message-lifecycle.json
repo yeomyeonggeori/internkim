@@ -28,7 +28,7 @@
   },
   {
    "name": "message_update",
-   "requiresApproval": true
+   "requiresApproval": false
   },
   {
    "name": "message_delete",
@@ -73,7 +73,6 @@
   },
   {
    "prompt": "방금 남긴 고객지원 주간회의 메모를 찾아서 '고객지원 월간회의 자료가 준비됐습니다. 참석 전에 확인해주세요.'로 고쳐줘.",
-   "approvalAction": "approve",
    "expectedToolCalls": [
     "message_search",
     "message_update"
@@ -84,12 +83,17 @@
    "expectedToolCallCounts": {
     "message_search": 1
    },
-   "expectedEvents": [
-    "confirmation.requested",
-    "approval.pending_call",
-    "approval.executed"
-   ],
    "expectedEventCounts": [
+    {
+     "name": "confirmation.requested",
+     "count": 0,
+     "exact": true
+    },
+    {
+     "name": "approval.pending_call",
+     "count": 0,
+     "exact": true
+    },
     {
      "name": "tool.message_search.result",
      "outputFragment": "고객지원 주간회의 자료가 준비됐습니다.",
@@ -97,10 +101,9 @@
     },
     {
      "name": "tool.message_update.requested",
-     "bodyFragment": "고객지원 월간회의 자료가 준비됐습니다. 참석 전에 확인해주세요.",
+     "bodyFragment": "\"oldText\"",
      "count": 1,
-     "exact": true,
-     "advisory": true
+     "exact": true
     },
     {
      "name": "tool.message_update.result",

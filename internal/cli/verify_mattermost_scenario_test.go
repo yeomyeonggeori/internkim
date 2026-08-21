@@ -95,9 +95,12 @@ func TestMessageLifecycleUsesCanonicalSearchMutationLineageAndButtonApproval(t *
 		if !containsMattermostScenarioString(step.ExpectedToolCalls, "message_search") {
 			t.Fatalf("step %d does not search before mutation: %#v", stepIndex+1, step)
 		}
-		if step.ApprovalAction != mattermostScenarioApprovalApprove {
-			t.Fatalf("step %d does not use button approval: %#v", stepIndex+1, step)
-		}
+	}
+	if scenario.Steps[1].ApprovalAction == mattermostScenarioApprovalApprove {
+		t.Fatalf("editing a span of the bot's own message must not wait on approval: %#v", scenario.Steps[1])
+	}
+	if scenario.Steps[3].ApprovalAction != mattermostScenarioApprovalApprove {
+		t.Fatalf("step 4 does not use button approval: %#v", scenario.Steps[3])
 	}
 }
 
@@ -111,13 +114,13 @@ func TestMattermostScenarioMessageMutationRequiresSearchAndScenarioLineage(t *te
 	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"message_search", "message_update"}}
 	events := []mattermostScenarioTaskEvent{
 		{Name: "tool.message_search.result", Body: `{"output":{"data":{"messageIDs":["message-1"],"candidates":[]}}}`},
-		{Name: "tool.message_update.requested", Body: `{"input":{"messageID":"message-1","message":"수정"}}`},
+		{Name: "tool.message_update.requested", Body: `{"input":{"messageID":"message-1","oldText":"원문","newText":"수정"}}`},
 	}
 	if errorValue := validateMattermostScenarioMessageMutationIDs(1, expected, events, &result); errorValue != nil {
 		t.Fatalf("validate exact message lineage: %v", errorValue)
 	}
 
-	events[1].Body = `{"input":{"messageID":"message-2","message":"수정"}}`
+	events[1].Body = `{"input":{"messageID":"message-2","oldText":"원문","newText":"수정"}}`
 	errorValue := validateMattermostScenarioMessageMutationIDs(1, expected, events, &result)
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "message_search returned it") {
 		t.Fatalf("expected unobserved message ID failure, got %v", errorValue)

@@ -24,6 +24,7 @@ type mattermostChannelUpdateInput struct {
 
 type mattermostPostSearchInput struct {
 	Scope       string   `json:"scope"`
+	PostIDs     []string `json:"postIDs"`
 	ChannelID   string   `json:"channelID"`
 	ChannelName string   `json:"channelName"`
 	PersonHint  string   `json:"personHint"`
@@ -99,6 +100,7 @@ type mattermostPostDeleteFailure struct {
 
 type mattermostPostSearchCandidate struct {
 	PostID          string `json:"postID"`
+	Text            string `json:"text,omitempty"`
 	ChannelID       string `json:"channelID"`
 	RootID          string `json:"rootID"`
 	UserID          string `json:"userID"`
@@ -513,6 +515,9 @@ func (service Service) searchMattermostPostCandidates(ctx context.Context, toolC
 	if hasFailure {
 		return mattermostPostSearchResult{}, failure, true
 	}
+	if len(input.PostIDs) > 0 {
+		return service.readMattermostPostsByID(ctx, toolContext, input, searchHandle, channel)
+	}
 	limit := normalizedMattermostToolSearchLimit(input.Limit)
 	cursor := normalizedMattermostToolSearchCursor(input.Cursor)
 	candidates, nextCursor, hasMore, failure, hasFailure := service.scanMattermostPostSearchCandidates(ctx, searchHandle, input, toolContext, limit, cursor)
@@ -531,6 +536,53 @@ func (service Service) searchMattermostPostCandidates(ctx context.Context, toolC
 		Candidates: candidates,
 	}
 	return result, mattermostToolFailure{}, false
+}
+
+func (service Service) readMattermostPostsByID(ctx context.Context, toolContext capabilities.ToolInvokeContext, input mattermostPostSearchInput, searchHandle platformHandle, channel map[string]string) (mattermostPostSearchResult, mattermostToolFailure, bool) {
+	scopedChannelID := firstNonEmpty(searchHandle.ChannelID, channel["id"])
+	if scopedChannelID == "" {
+		failure := mattermostToolStaticFailure("invalid_scope", "post_lookup", "reading messages by ID needs a conversation scope this requester can see")
+		return mattermostPostSearchResult{}, failure, true
+	}
+	candidates, failure, hasFailure := service.mattermostPostsVisibleInScopedChannel(ctx, toolContext, input, scopedChannelID)
+	if hasFailure {
+		return mattermostPostSearchResult{}, failure, true
+	}
+	return mattermostPostSearchResult{
+		Scope:      normalizedMattermostPostSearchScope(input.Scope, toolContext),
+		Channel:    channel,
+		RootPostID: searchHandle.RootID,
+		Queries:    input.Queries,
+		AuthoredBy: input.AuthoredBy,
+		Candidates: candidates,
+	}, mattermostToolFailure{}, false
+}
+
+func (service Service) mattermostPostsVisibleInScopedChannel(ctx context.Context, toolContext capabilities.ToolInvokeContext, input mattermostPostSearchInput, scopedChannelID string) ([]mattermostPostSearchCandidate, mattermostToolFailure, bool) {
+	botUser, _ := service.resolveMattermostBotUser(ctx)
+	candidates := []mattermostPostSearchCandidate{}
+	for _, postID := range input.PostIDs {
+		post, failure, hasFailure := service.mattermostToolPost(ctx, postID)
+		if hasFailure {
+			return nil, failure, true
+		}
+		if strings.TrimSpace(post.ChannelID) != scopedChannelID {
+			failure := mattermostToolStaticFailure("post_not_found", "post_lookup", "message "+postID+" is not in this conversation")
+			return nil, failure, true
+		}
+		if !mattermostPostMatchesSearchAuthor(post, botUser.ID, toolContext.RequesterPlatformUserID, input.AuthoredBy) {
+			continue
+		}
+		candidates = append(candidates, service.completeMattermostPostCandidate(ctx, post, botUser.ID))
+	}
+	return candidates, mattermostToolFailure{}, false
+}
+
+func (service Service) completeMattermostPostCandidate(ctx context.Context, post mattermostToolPost, botUserID string) mattermostPostSearchCandidate {
+	candidate := service.mattermostPostSearchCandidate(ctx, post, botUserID, nil)
+	candidate.Text = post.Message
+	candidate.Preview = ""
+	return candidate
 }
 
 func (service Service) scanMattermostPostSearchCandidates(ctx context.Context, handle platformHandle, input mattermostPostSearchInput, toolContext capabilities.ToolInvokeContext, limit int, cursor mattermostPostSearchCursor) ([]mattermostPostSearchCandidate, mattermostPostSearchCursor, bool, mattermostToolFailure, bool) {
@@ -939,6 +991,13 @@ func (service Service) validateMattermostPostUpdate(ctx context.Context, post ma
 	}
 	if input.Message == nil {
 		return mattermostToolFailure{}, false
+	}
+	return service.validateMattermostPostEdit(ctx, post)
+}
+
+func (service Service) validateMattermostPostEdit(ctx context.Context, post mattermostToolPost) (mattermostToolFailure, bool) {
+	if isProtectedMattermostToolPost(post) {
+		return mattermostToolStaticFailure("protected_post", "guardrail", "automated internkim Flow, calendar, and attendance posts cannot be changed"), true
 	}
 	if service.isMattermostToolBotPost(ctx, post) {
 		return mattermostToolFailure{}, false
