@@ -1009,7 +1009,9 @@ q "SELECT c.id::text, c.name, count(m.*) FILTER (WHERE m.removed_at IS NULL) AS 
 printf '== channels per community ==\n'
 q "SELECT coalesce(community_id::text, '(none)') AS community, channel_type, count(*) FROM channels GROUP BY 1,2 ORDER BY 1,2"
 printf '== the communities a relay host maps to ==\n'
-q "SELECT id::text, name, host FROM communities ORDER BY name"
+q "SELECT c.id::text, c.host, count(ch.*) AS channels FROM communities c LEFT JOIN channels ch ON ch.community_id = c.id GROUP BY 1,2 ORDER BY 2"
+printf '== messages per community ==\n'
+q "SELECT community_id::text, count(*) AS messages FROM events WHERE kind = 9 GROUP BY 1 ORDER BY 2 DESC"
 `)
 }
 
