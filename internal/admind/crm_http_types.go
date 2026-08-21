@@ -119,6 +119,7 @@ type crmHTTPOpportunityPayload struct {
 	DueTimeZone   string                      `json:"dueTimeZone"`
 	Description   string                      `json:"description"`
 	Contacts      []crmHTTPOpportunityContact `json:"contacts"`
+	Transition    *crmHTTPTransitionPayload   `json:"transition,omitempty"`
 }
 
 type crmHTTPActivityPayload struct {
@@ -153,19 +154,6 @@ type crmHTTPPipeline struct {
 	Label     string `json:"label"`
 	Direction string `json:"direction"`
 	IsActive  bool   `json:"isActive"`
-}
-
-type crmHTTPPipelineStage struct {
-	Pipeline string `json:"pipeline"`
-	Stage    string `json:"stage"`
-	Position int    `json:"position"`
-	Outcome  string `json:"outcome"`
-}
-
-type crmHTTPLostReason struct {
-	Reason   string `json:"reason"`
-	Label    string `json:"label"`
-	IsActive bool   `json:"isActive"`
 }
 
 type crmHTTPErrorDocument struct {

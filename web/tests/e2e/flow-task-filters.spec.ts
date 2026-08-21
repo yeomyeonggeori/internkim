@@ -7,7 +7,7 @@ test.describe('flow task filters', () => {
 		expect(response.ok()).toBe(true);
 	});
 
-	test('selects every participant when choosing all participants', async ({ page }) => {
+	test('shows tasks from every participant when the participant filter is set to all', async ({ page }) => {
 		await page.route('**/flow/api/state', async (route) => {
 			const response = await route.fetch();
 			const state: unknown = await response.json();
@@ -42,31 +42,27 @@ test.describe('flow task filters', () => {
 
 		await page.getByRole('button', { name: /필터/ }).click();
 		const filterPanel = page.locator('[data-flow-filter-panel]');
-		const participantCheckboxes = filterPanel.getByRole('checkbox');
-		await expect(participantCheckboxes.first()).toBeVisible();
-		expect(await participantCheckboxes.count()).toBeGreaterThan(1);
+		const participantCombobox = filterPanel.getByRole('combobox', { name: '참여자', exact: true });
+		await expect(participantCombobox).toBeVisible();
 		await expect(page.getByRole('button', { name: '필터 1', exact: true })).toBeVisible();
-		await expect(filterPanel.locator('input[type="checkbox"]:checked')).toHaveCount(1);
 		await expect(taskCard(page, 'stale-participant-task')).toHaveCount(0);
 
-		await filterPanel.getByRole('button', { name: '전체 참여자', exact: true }).click();
+		await participantCombobox.click();
+		const participantOptions = page.getByRole('option');
+		await expect(participantOptions.first()).toBeVisible();
+		expect(await participantOptions.count()).toBeGreaterThan(1);
+		await page.getByRole('option', { name: '전체', exact: true }).click();
 
-		for (const participantCheckbox of await participantCheckboxes.all()) {
-			await expect(participantCheckbox).toBeChecked();
-		}
 		await expect(page.getByRole('button', { name: '필터', exact: true })).toBeVisible();
 		await expect(taskCard(page, 'stale-participant-task')).toBeVisible();
 
-		await participantCheckboxes.first().uncheck();
-		await expect(participantCheckboxes.first()).not.toBeChecked();
+		await participantCombobox.click();
+		await page.getByRole('option').nth(1).click();
 		await expect(page.getByRole('button', { name: '필터 1', exact: true })).toBeVisible();
 		await expect(taskCard(page, 'stale-participant-task')).toHaveCount(0);
 
-		await participantCheckboxes.first().check();
-
-		for (const participantCheckbox of await participantCheckboxes.all()) {
-			await expect(participantCheckbox).toBeChecked();
-		}
+		await participantCombobox.click();
+		await page.getByRole('option', { name: '전체', exact: true }).click();
 		await expect(page.getByRole('button', { name: '필터', exact: true })).toBeVisible();
 		await expect(taskCard(page, 'stale-participant-task')).toBeVisible();
 	});

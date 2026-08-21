@@ -17,6 +17,7 @@ describe('the company slug in the path', () => {
 
 	test('does not read a route name as a slug', () => {
 		expect(companySlugOf('/flow')).toBe('');
+		expect(companySlugOf('/crm')).toBe('');
 		expect(companySlugOf('/files/api/roots')).toBe('');
 		expect(companySlugOf('/auth/claim')).toBe('');
 	});
@@ -40,6 +41,7 @@ describe('routing a company path to the route that serves it', () => {
 
 	test('leaves a path that names no company alone', () => {
 		expect(routePathOf('/flow')).toBe('/flow');
+		expect(routePathOf('/crm')).toBe('/crm');
 		expect(routePathOf('/api/company')).toBe('/api/company');
 		expect(routePathOf('/')).toBe('/');
 	});
@@ -56,7 +58,7 @@ describe('building a company path', () => {
 	});
 
 	test('round-trips with the routing it is the inverse of', () => {
-		for (const path of ['/flow', '/files/api/roots', '/attendance']) {
+		for (const path of ['/flow', '/crm', '/files/api/roots', '/attendance']) {
 			expect(routePathOf(companyPathOf('samplecompany', path))).toBe(path);
 		}
 	});

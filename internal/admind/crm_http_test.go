@@ -2,6 +2,7 @@ package admind
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -106,9 +107,62 @@ func TestCRMHTTPCRUDPersistsAcrossServiceRestart(t *testing.T) {
 			opportunityReadDocument.Opportunity.DueTimeZone,
 		)
 	}
+	opportunityListResponse := crmHTTPTestRequest(t, restarted, http.MethodGet, "/crm/api/opportunities", "teammate@example.com", nil)
+	requireCRMHTTPStatus(t, opportunityListResponse, http.StatusOK)
+	var opportunityListDocument struct {
+		Opportunities []crmHTTPOpportunity `json:"opportunities"`
+	}
+	decodeCRMHTTPTestResponse(t, opportunityListResponse, &opportunityListDocument)
+	if len(opportunityListDocument.Opportunities) != 1 || len(opportunityListDocument.Opportunities[0].Contacts) != 1 ||
+		opportunityListDocument.Opportunities[0].Contacts[0].ContactID != contactDocument.Contact.ID ||
+		!opportunityListDocument.Opportunities[0].Contacts[0].IsPrimary {
+		t.Fatalf("persisted opportunity list = %#v", opportunityListDocument.Opportunities)
+	}
+}
 
-	pipelineResponse := crmHTTPTestRequest(t, restarted, http.MethodGet, "/crm/api/pipelines/sales/stages", "other@example.com", nil)
-	requireCRMHTTPStatus(t, pipelineResponse, http.StatusOK)
+func TestCRMHTTPStageChangeActivityCanStayStageChangeOnlyUntilItsKindChanges(t *testing.T) {
+	service := newCRMHTTPTestService(t)
+	account := createCRMHTTPTestAccount(t, service, "owner@example.com", "person-owner", "team-sales")
+	opportunityResponse := crmHTTPTestRequest(t, service, http.MethodPost, "/crm/api/opportunities", "owner@example.com", map[string]any{
+		"accountID": account.ID, "business": "Enterprise", "name": "계약", "pipeline": "sales",
+		"ownerPersonID": "person-owner", "ownerCircleID": "team-sales",
+	})
+	requireCRMHTTPStatus(t, opportunityResponse, http.StatusCreated)
+	var opportunityDocument struct {
+		Opportunity crmHTTPOpportunity `json:"opportunity"`
+	}
+	decodeCRMHTTPTestResponse(t, opportunityResponse, &opportunityDocument)
+	if errorValue := service.transitionCRMOpportunityStage(context.Background(), crmOpportunityStageTransition{
+		OpportunityID: opportunityDocument.Opportunity.ID, Stage: "in_progress", StagePosition: 1024,
+		OccurredAt: "2026-08-03T04:00:00Z", ActorPersonID: "person-owner",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	activities, errorValue := service.listCRMActivities(context.Background(), false)
+	if errorValue != nil || len(activities) != 1 {
+		t.Fatalf("stage change activities = %#v, error = %v", activities, errorValue)
+	}
+	stageChange := activities[0]
+	payload := map[string]any{
+		"accountID": stageChange.AccountID, "opportunityID": stageChange.OpportunityID,
+		"business": stageChange.Business, "kind": "stage_change", "title": "단계 변경 메모",
+		"occurredAt": stageChange.OccurredAt, "content": "세부 사항 수정",
+	}
+	updateResponse := crmHTTPTestRequest(t, service, http.MethodPut, "/crm/api/activities/"+stageChange.ID, "owner@example.com", payload)
+	requireCRMHTTPStatus(t, updateResponse, http.StatusOK)
+	updatedOpportunity, _, errorValue := service.readCRMOpportunity(context.Background(), opportunityDocument.Opportunity.ID, false)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if updatedOpportunity.Stage != "in_progress" || updatedOpportunity.StageChangedAt != "2026-08-03T04:00:00Z" {
+		t.Fatalf("opportunity stage changed while editing activity = %#v", updatedOpportunity)
+	}
+	manualCreate := crmHTTPTestRequest(t, service, http.MethodPost, "/crm/api/activities", "owner@example.com", payload)
+	requireCRMHTTPStatus(t, manualCreate, http.StatusBadRequest)
+	payload["kind"] = "note"
+	requireCRMHTTPStatus(t, crmHTTPTestRequest(t, service, http.MethodPut, "/crm/api/activities/"+stageChange.ID, "owner@example.com", payload), http.StatusOK)
+	payload["kind"] = "stage_change"
+	requireCRMHTTPStatus(t, crmHTTPTestRequest(t, service, http.MethodPut, "/crm/api/activities/"+stageChange.ID, "owner@example.com", payload), http.StatusBadRequest)
 }
 
 func TestCRMHTTPAuthorizationAndArchiveLifecycle(t *testing.T) {
@@ -238,6 +292,24 @@ func TestCRMHTTPValidatesInputsAndUsesDedicatedOpportunityActions(t *testing.T) 
 	})
 	requireCRMHTTPStatus(t, invalidTimeZone, http.StatusBadRequest)
 
+	terminalCreate := crmHTTPTestRequest(t, service, http.MethodPost, "/crm/api/opportunities", "owner@example.com", map[string]any{
+		"accountID": account.ID, "name": "직접 종결", "pipeline": "sales",
+		"ownerPersonID": "person-owner", "ownerCircleID": "team-sales",
+		"amountMinor": 500000, "currencyCode": "KRW",
+		"transition": map[string]any{
+			"stage": "lost", "stagePosition": 1024, "occurredAt": "2026-08-03T04:30:00Z",
+			"lostReason": "no_budget", "baseAmountMinor": 500000, "baseCurrencyCode": "KRW",
+		},
+	})
+	requireCRMHTTPStatus(t, terminalCreate, http.StatusCreated)
+	var terminalDocument struct {
+		Opportunity crmHTTPOpportunity `json:"opportunity"`
+	}
+	decodeCRMHTTPTestResponse(t, terminalCreate, &terminalDocument)
+	if terminalDocument.Opportunity.Stage != "lost" || terminalDocument.Opportunity.BaseAmountMinor == nil || *terminalDocument.Opportunity.BaseAmountMinor != 500000 {
+		t.Fatalf("terminal opportunity = %#v", terminalDocument.Opportunity)
+	}
+
 	missingReference := crmHTTPTestRequest(t, service, http.MethodPost, "/crm/api/contacts", "owner@example.com", map[string]any{
 		"accountID": "missing", "name": "없는 관계처", "email": "missing@example.com",
 		"ownerPersonID": "person-owner", "ownerCircleID": "team-sales",
@@ -261,14 +333,32 @@ func TestCRMHTTPValidatesInputsAndUsesDedicatedOpportunityActions(t *testing.T) 
 	requireCRMHTTPStatus(t, genericStageChange, http.StatusConflict)
 
 	transition := crmHTTPTestRequest(t, service, http.MethodPost, "/crm/api/opportunities/"+opportunityDocument.Opportunity.ID+"/transition", "owner@example.com", map[string]any{
-		"stage": "qualified", "stagePosition": 1024, "occurredAt": "2026-08-03T05:00:00Z",
+		"stage": "in_progress", "stagePosition": 1024, "occurredAt": "2026-08-03T05:00:00Z",
 	})
 	requireCRMHTTPStatus(t, transition, http.StatusOK)
 
 	repeatedTransition := crmHTTPTestRequest(t, service, http.MethodPost, "/crm/api/opportunities/"+opportunityDocument.Opportunity.ID+"/transition", "owner@example.com", map[string]any{
-		"stage": "qualified", "stagePosition": 1024, "occurredAt": "2026-08-03T05:05:00Z",
+		"stage": "in_progress", "stagePosition": 1024, "occurredAt": "2026-08-03T05:05:00Z",
 	})
 	requireCRMHTTPStatus(t, repeatedTransition, http.StatusConflict)
+
+	combinedUpdate := crmHTTPTestRequest(t, service, http.MethodPut, "/crm/api/opportunities/"+opportunityDocument.Opportunity.ID, "owner@example.com", map[string]any{
+		"accountID": account.ID, "name": "원자적 종결", "pipeline": "sales",
+		"ownerPersonID": "person-owner", "ownerCircleID": "team-sales",
+		"amountMinor": 700000, "currencyCode": "KRW",
+		"transition": map[string]any{
+			"stage": "done", "stagePosition": 1024, "occurredAt": "2026-08-03T05:06:00Z",
+			"baseAmountMinor": 700000, "baseCurrencyCode": "KRW",
+		},
+	})
+	requireCRMHTTPStatus(t, combinedUpdate, http.StatusOK)
+	var combinedDocument struct {
+		Opportunity crmHTTPOpportunity `json:"opportunity"`
+	}
+	decodeCRMHTTPTestResponse(t, combinedUpdate, &combinedDocument)
+	if combinedDocument.Opportunity.Name != "원자적 종결" || combinedDocument.Opportunity.Stage != "done" {
+		t.Fatalf("combined opportunity update = %#v", combinedDocument.Opportunity)
+	}
 
 	selfAnchor := crmHTTPTestRequest(t, service, http.MethodPost, "/crm/api/opportunities/"+opportunityDocument.Opportunity.ID+"/position", "owner@example.com", map[string]any{
 		"position": 2048, "beforeOpportunityID": opportunityDocument.Opportunity.ID, "updatedAt": "2026-08-03T05:06:00Z",
@@ -366,6 +456,48 @@ func TestCRMHTTPRejectsWhitespaceOnlyRequiredFields(t *testing.T) {
 		response := crmHTTPTestRequest(t, service, http.MethodPost, request.path, "owner@example.com", request.payload)
 		requireCRMHTTPStatus(t, response, http.StatusBadRequest)
 	}
+}
+
+func TestCRMHTTPDefinitionsListsBusinessesAndRequiresAuthorization(t *testing.T) {
+	service := newCRMHTTPTestService(t)
+
+	emptyResponse := crmHTTPTestRequest(t, service, http.MethodGet, "/crm/api/definitions", "owner@example.com", nil)
+	requireCRMHTTPStatus(t, emptyResponse, http.StatusOK)
+	var emptyDocument struct {
+		Definitions struct {
+			Businesses []string `json:"businesses"`
+		} `json:"definitions"`
+	}
+	decodeCRMHTTPTestResponse(t, emptyResponse, &emptyDocument)
+	if emptyDocument.Definitions.Businesses == nil || len(emptyDocument.Definitions.Businesses) != 0 {
+		t.Fatalf("businesses with no categories = %#v", emptyDocument.Definitions.Businesses)
+	}
+
+	definitions, errorValue := service.readFlowDefinitions(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	definitions.Categories = []string{"제조업", "유통업"}
+	if errorValue := service.writeFlowDefinitions(context.Background(), definitions); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	populatedResponse := crmHTTPTestRequest(t, service, http.MethodGet, "/crm/api/definitions", "owner@example.com", nil)
+	requireCRMHTTPStatus(t, populatedResponse, http.StatusOK)
+	var populatedDocument struct {
+		Definitions struct {
+			Businesses []string `json:"businesses"`
+		} `json:"definitions"`
+	}
+	decodeCRMHTTPTestResponse(t, populatedResponse, &populatedDocument)
+	if len(populatedDocument.Definitions.Businesses) != 2 ||
+		populatedDocument.Definitions.Businesses[0] != "제조업" ||
+		populatedDocument.Definitions.Businesses[1] != "유통업" {
+		t.Fatalf("populated businesses = %#v", populatedDocument.Definitions.Businesses)
+	}
+
+	unauthorizedResponse := crmHTTPTestRequest(t, service, http.MethodGet, "/crm/api/definitions", "", nil)
+	requireCRMHTTPStatus(t, unauthorizedResponse, http.StatusUnauthorized)
 }
 
 func newCRMHTTPTestService(t *testing.T) *Service {

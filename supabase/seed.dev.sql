@@ -44,13 +44,14 @@ on conflict (provider, provider_id) do nothing;
 
 insert into public.company (
   id, name, slug, country, locale, timezone,
-  work_locations, task_vocabulary, minimum_daily_minutes, leave_days
+  work_locations, task_vocabulary, crm_vocabulary, minimum_daily_minutes, leave_days
 ) values (
   '000000cc-0000-0000-0000-000000000001',
   '예시회사', 'example-co', 'KR', 'ko', 'Asia/Seoul',
   '[{"name": "사무실", "color": "#9929bd"}, {"name": "재택", "color": "#669c35"}, {"name": "외부", "color": "#0ea5e9"}]',
   '{"businesses": [{"name": "사업하나", "color": "#216fe4"}, {"name": "사업둘", "color": "#475569"}],
-    "types": [{"name": "기능"}, {"name": "개선"}, {"name": "회의"}]}',
+    "types": [{"name": "기능"}, {"name": "개선"}, {"name": "회의"}, {"name": "통화"}, {"name": "메일"}, {"name": "메모"}]}',
+  '{"organization_types":[{"id":"partner","name":"파트너","color":"#2563eb"},{"id":"sponsor","name":"스폰서","color":"#16a34a"},{"id":"customer","name":"고객","color":"#f59e0b"},{"id":"investor","name":"투자자","color":"#7c3aed"}],"pipelines":[{"id":"partnership","name":"파트너십","color":"#2563eb","direction":"outbound"},{"id":"sales","name":"판매","color":"#16a34a","direction":"outbound"},{"id":"investment","name":"투자 유치","color":"#7c3aed","direction":"inbound"}]}',
   480, 15
 ) on conflict (id) do nothing;
 
@@ -76,6 +77,46 @@ on conflict (id) do nothing;
 update public.member set supervisor_id = '000000ee-0000-0000-0000-000000000002'
   where id = '000000ee-0000-0000-0000-000000000001';
 
+insert into public.organization (
+  id, company_id, name, status, types, tags, importance, owner_id, address, description
+) values
+  ('000000a0-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', '예시 협력 기관', 'active', array['partner'], array['장기 협력'], 'high', '000000ee-0000-0000-0000-000000000001', '서울특별시 성동구', '로컬 CRM 검증용 관계처입니다.'),
+  ('000000a0-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', '예시 후원 기관', 'prospect', array['sponsor'], array[]::text[], 'medium', '000000ee-0000-0000-0000-000000000003', null, '로컬 CRM 검증용 잠재 관계처입니다.'),
+  ('000000a0-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', '샘플 상사', 'active', array['customer'], array['신규 고객'], 'high', '000000ee-0000-0000-0000-000000000002', '경기도 성남시', '판매 파이프라인 검증용 고객사입니다.'),
+  ('000000a0-0000-0000-0000-000000000004', '000000cc-0000-0000-0000-000000000001', '견본 물산', 'active', array['partner','customer'], array['재계약'], 'medium', '000000ee-0000-0000-0000-000000000001', null, '정산 완료 거래 검증용 관계처입니다.'),
+  ('000000a0-0000-0000-0000-000000000005', '000000cc-0000-0000-0000-000000000001', '예시 벤처스', 'prospect', array['investor'], array['시리즈 A'], 'high', '000000ee-0000-0000-0000-000000000002', '서울특별시 강남구', '투자 유치 파이프라인 검증용 투자사입니다.')
+on conflict (id) do nothing;
+
+insert into public.contact (
+  id, company_id, organization_id, name, email, phone, title, department, description
+) values
+  ('000000c0-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000001', '최견본', 'contact.one@example.com', '000-0000-0001', '프로그램 매니저', '협력팀', '주요 연락 창구입니다.'),
+  ('000000c0-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000002', '박견본', 'contact.two@example.com', null, '운영 담당', '운영팀', null),
+  ('000000c0-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000003', '김샘플', 'contact.three@example.com', '000-0000-0003', '구매 팀장', '구매팀', null),
+  ('000000c0-0000-0000-0000-000000000004', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000004', '정견본', 'contact.four@example.com', null, '재무 이사', '재무팀', null),
+  ('000000c0-0000-0000-0000-000000000005', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000005', '윤예시', 'contact.five@example.com', '000-0000-0005', '심사역', '투자팀', null)
+on conflict (id) do nothing;
+
+insert into public.opportunity (
+  id, company_id, organization_id, contact_id, name, business, pipeline_id, stage_id,
+  stage_position, owner_id, amount_minor, currency_code, importance, due_at, due_time_zone, lost_reason, description
+) values
+  ('0000000a-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000001', '000000c0-0000-0000-0000-000000000001', '상반기 협력 제안', '사업하나', 'partnership', 'in_progress', 2, '000000ee-0000-0000-0000-000000000001', 18000000, 'KRW', 'high', now() + interval '7 days', 'Asia/Seoul', null, '협력 범위와 일정을 조율합니다.'),
+  ('0000000a-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000003', '000000c0-0000-0000-0000-000000000003', '신제품 공급 견적', '사업하나', 'sales', 'waiting', 1, '000000ee-0000-0000-0000-000000000002', 4200000, 'USD', 'medium', now() + interval '14 days', 'Asia/Seoul', null, '견적 회신을 기다리고 있습니다.'),
+  ('0000000a-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000003', '000000c0-0000-0000-0000-000000000003', '연간 유지보수 계약', '사업둘', 'sales', 'review', 3, '000000ee-0000-0000-0000-000000000001', 2500000, 'EUR', 'high', now() + interval '3 days', 'Asia/Seoul', null, '법무 검토 단계입니다.'),
+  ('0000000a-0000-0000-0000-000000000005', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000002', '000000c0-0000-0000-0000-000000000002', '공동 프로모션 제안', '사업하나', 'partnership', 'on_hold', 5, '000000ee-0000-0000-0000-000000000003', 800000, 'JPY', 'low', null, null, null, '상대측 내부 사정으로 보류 중입니다.'),
+  ('0000000a-0000-0000-0000-000000000007', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000005', '000000c0-0000-0000-0000-000000000005', '시리즈 A 브리지 라운드', '사업둘', 'investment', 'waiting', 1, '000000ee-0000-0000-0000-000000000002', 500000000, 'KRW', 'high', now() + interval '30 days', 'Asia/Seoul', null, '투자 검토 자료를 준비합니다.')
+on conflict (id) do nothing;
+
+insert into public.opportunity (
+  id, company_id, organization_id, contact_id, name, business, pipeline_id, stage_id,
+  stage_position, stage_changed_at, owner_id, amount_minor, currency_code,
+  base_amount_minor, base_currency_code, importance, lost_reason, description
+) values
+  ('0000000a-0000-0000-0000-000000000004', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000004', '000000c0-0000-0000-0000-000000000004', '장비 공급 계약', '사업하나', 'sales', 'done', 4, now() - interval '3 days', '000000ee-0000-0000-0000-000000000001', 1200000, 'GBP', 21600000, 'KRW', 'medium', null, '정산이 끝난 수주 건입니다.'),
+  ('0000000a-0000-0000-0000-000000000006', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000002', '000000c0-0000-0000-0000-000000000002', '연말 스폰서십 갱신', '사업하나', 'partnership', 'lost', 6, now() - interval '1 day', '000000ee-0000-0000-0000-000000000003', 1500000, 'USD', 20700000, 'KRW', 'medium', '예산이 줄어 올해는 갱신이 어렵다는 회신을 받았습니다.', '내년 상반기에 다시 제안하기로 했습니다.')
+on conflict (id) do nothing;
+
 insert into public.task (
   id, company_id, title, status, business, type, size, starts_at, ends_at, is_whole_day, note
 ) values
@@ -99,13 +140,29 @@ insert into public.task (
   '{"name": "사무실"}'
 ) on conflict (id) do nothing;
 
+insert into public.task (
+  id, company_id, organization_id, opportunity_id, contact_id, title, status,
+  business, type, note, due_at, starts_at, ends_at, is_event, is_whole_day, location
+) values
+  ('000000f0-0000-0000-0000-0000000000c1', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000001', '0000000a-0000-0000-0000-000000000001', '000000c0-0000-0000-0000-000000000001', '협력 조건 검토 미팅', 'done', '사업하나', '회의', '예산과 운영 범위를 확인했습니다.', now() - interval '2 days', null, null, false, false, null),
+  ('000000f0-0000-0000-0000-0000000000c2', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000001', '0000000a-0000-0000-0000-000000000001', '000000c0-0000-0000-0000-000000000001', '후속 조건 확인 통화', 'todo', '사업하나', '통화', '다음 단계와 담당 일정을 확정합니다.', null, date_trunc('day', now()) + interval '2 days 14 hours', date_trunc('day', now()) + interval '2 days 14 hours 30 minutes', true, false, '{"name":"온라인"}'),
+  ('000000f0-0000-0000-0000-0000000000c3', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000003', '0000000a-0000-0000-0000-000000000003', '000000c0-0000-0000-0000-000000000003', '유지보수 조건 협의 통화', 'done', '사업둘', '통화', '범위를 합의하고 법무 검토로 넘겼습니다.', now() - interval '1 day', null, null, false, false, null),
+  ('000000f0-0000-0000-0000-0000000000c4', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000004', '0000000a-0000-0000-0000-000000000004', '000000c0-0000-0000-0000-000000000004', '납품 검수 확인 미팅', 'done', '사업하나', '회의', '검수를 마치고 정산을 확정했습니다.', now() - interval '3 days', null, null, false, false, null),
+  ('000000f0-0000-0000-0000-0000000000c5', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000005', '0000000a-0000-0000-0000-000000000007', '000000c0-0000-0000-0000-000000000005', 'IR 자료 공유', 'todo', '사업둘', '메일', '검토용 IR 자료를 보냅니다.', now() + interval '2 days', null, null, false, false, null)
+on conflict (id) do nothing;
+
 insert into public.task_participant (task_id, member_id) values
   ('000000f0-0000-0000-0000-000000000001', '000000ee-0000-0000-0000-000000000001'),
   ('000000f0-0000-0000-0000-000000000002', '000000ee-0000-0000-0000-000000000001'),
   ('000000f0-0000-0000-0000-000000000002', '000000ee-0000-0000-0000-000000000003'),
   ('000000f0-0000-0000-0000-000000000003', '000000ee-0000-0000-0000-000000000002'),
   ('000000f0-0000-0000-0000-0000000000e1', '000000ee-0000-0000-0000-000000000001'),
-  ('000000f0-0000-0000-0000-0000000000e1', '000000ee-0000-0000-0000-000000000002')
+  ('000000f0-0000-0000-0000-0000000000e1', '000000ee-0000-0000-0000-000000000002'),
+  ('000000f0-0000-0000-0000-0000000000c1', '000000ee-0000-0000-0000-000000000001'),
+  ('000000f0-0000-0000-0000-0000000000c2', '000000ee-0000-0000-0000-000000000001'),
+  ('000000f0-0000-0000-0000-0000000000c3', '000000ee-0000-0000-0000-000000000001'),
+  ('000000f0-0000-0000-0000-0000000000c4', '000000ee-0000-0000-0000-000000000001'),
+  ('000000f0-0000-0000-0000-0000000000c5', '000000ee-0000-0000-0000-000000000002')
 on conflict do nothing;
 
 insert into public.attendance (member_id, kind, location, occurred_at)

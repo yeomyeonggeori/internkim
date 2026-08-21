@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { colourOf, flowDefinitionsOf, vocabularyOf } from '../../../src/lib/flow/task-vocabulary';
+import { colourOf, flowDefinitionsOf, taskVocabularyOfDefinitions, vocabularyOf } from '../../../src/lib/flow/task-vocabulary';
 
 describe('colourOf', () => {
 	test('keeps the colour someone chose', () => {
@@ -49,5 +49,27 @@ describe('vocabularyOf', () => {
 	test('survives a column that holds nothing useful', () => {
 		expect(vocabularyOf(null)).toEqual({});
 		expect(vocabularyOf('{}')).toEqual({});
+	});
+});
+
+describe('taskVocabularyOfDefinitions', () => {
+	test('turns editor definitions back into the stored vocabulary', () => {
+		const vocabulary = taskVocabularyOfDefinitions({
+			categories: ['오토케', '태스크포스'],
+			categoryColors: { 오토케: '#111111' },
+			types: ['개발'],
+			typeColors: {},
+			sizes: []
+		});
+		expect(vocabulary.businesses).toEqual([{ name: '오토케', color: '#111111' }, { name: '태스크포스' }]);
+		expect(vocabulary.types).toEqual([{ name: '개발' }]);
+	});
+
+	test('round-trips through the definitions the board reads', () => {
+		const stored = {
+			businesses: [{ name: '오토케', color: '#111111' }, { name: '태스크포스' }],
+			types: [{ name: '개발' }, { name: '운영', color: '#222222' }]
+		};
+		expect(taskVocabularyOfDefinitions(flowDefinitionsOf(stored))).toEqual(stored);
 	});
 });

@@ -4,6 +4,7 @@ import {
 	deleteSupabaseFlowTask,
 	moveSupabaseFlowTask,
 	saveSupabaseFlowTask,
+	saveSupabaseTaskVocabulary,
 	supabaseFlowState,
 	supabaseFlowWeeklySummary
 } from '$lib/flow/supabase-flow';
@@ -139,7 +140,14 @@ export async function updateFlowTaskParents(
 	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
 }
 
-export async function saveFlowDefinitions(definitions: FlowDefinitions, fallbackMessage: string): Promise<void> {
+export async function saveFlowDefinitions(
+	definitions: FlowDefinitions,
+	fallbackMessage: string,
+	inUseMessage: string
+): Promise<void> {
+	if (isSupabaseConfigured()) {
+		return saveSupabaseTaskVocabulary(definitions, { failure: fallbackMessage, inUse: inUseMessage });
+	}
 	const response = await fetch('/flow/api/definitions', {
 		method: 'PUT',
 		credentials: 'include',
