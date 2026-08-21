@@ -23,9 +23,12 @@ func (service *Service) handleBuzzClaim(responseWriter http.ResponseWriter, requ
 		http.NotFound(responseWriter, request)
 		return
 	}
-	actorEmail := service.authenticatedCallerEmail(request)
+	actorEmail := service.actorEmailAllowingLoopback(request)
 	if actorEmail == "" {
-		http.Error(responseWriter, "Cloudflare Access authentication is required", http.StatusUnauthorized)
+		actorEmail = service.authenticatedCallerEmail(request)
+	}
+	if actorEmail == "" {
+		http.Error(responseWriter, "authentication is required", http.StatusUnauthorized)
 		return
 	}
 	secretHex, errorValue := service.personBuzzSecret(request.Context(), actorEmail)
