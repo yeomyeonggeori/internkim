@@ -18,6 +18,7 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 	ratesBySource = $state<Record<string, number>>({});
 	isLoading = $state(false);
 	hasManualChoice = $state(false);
+	baseCurrency = $state<string>('');
 
 	constructor(private readonly loadRate: typeof loadConvertedAmount = loadConvertedAmount) {}
 
@@ -28,6 +29,7 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 
 	async follow(baseCurrency: string, sourceCurrencies: string[]): Promise<void> {
 		if (this.isLoading) return;
+		this.baseCurrency = baseCurrency;
 		const view = this.hasManualChoice ? this.selected : baseCurrency;
 		if (!view) return;
 		if (this.selected === view && this.hasRatesFor(sourceCurrencies)) return;
@@ -35,8 +37,8 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 	}
 
 	private hasRatesFor(sourceCurrencies: string[]): boolean {
-		return sourceCurrencies.every(
-			(source) => source === this.selected || this.ratesBySource[source] !== undefined
+		return [...sourceCurrencies, this.baseCurrency].every(
+			(source) => source === '' || source === this.selected || this.ratesBySource[source] !== undefined
 		);
 	}
 
@@ -45,8 +47,8 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 		this.isLoading = true;
 		try {
 			const rates: Record<string, number> = {};
-			for (const source of new Set(sourceCurrencies)) {
-				if (source === view) continue;
+			for (const source of new Set([...sourceCurrencies, this.baseCurrency])) {
+				if (source === '' || source === view) continue;
 				const converted = await this.loadRate(ratePreviewAmountMinor, source, view);
 				if (!converted) return false;
 				rates[source] = converted.rate;
