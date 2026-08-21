@@ -35,6 +35,12 @@ ON CONFLICT (platform, external_id) DO NOTHING`,
 	return errorValue
 }
 
+func (service *Service) forgetBridgeMessage(ctx context.Context, database *sql.DB, platform string, externalID string) error {
+	_, errorValue := database.ExecContext(ctx, `
+DELETE FROM bridge_message_map WHERE platform = ? AND external_id = ?`, platform, externalID)
+	return errorValue
+}
+
 func (service *Service) bridgeMessageByExternal(ctx context.Context, database *sql.DB, platform string, externalID string) (bridgeMessageMapping, bool, error) {
 	row := database.QueryRowContext(ctx, `
 SELECT buzz_event_id, platform, external_id, external_channel_id
