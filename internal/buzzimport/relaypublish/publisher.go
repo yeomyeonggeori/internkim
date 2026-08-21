@@ -12,6 +12,7 @@ const (
 	CreateChannelKind = 9007
 	AddMemberKind     = 9000
 	ProfileKind       = 0
+	OpenDirectKind    = 41010
 )
 
 type Publisher struct {
@@ -50,6 +51,18 @@ func (publisher *Publisher) CreateChannel(ctx context.Context, actorSecretHex, c
 		tags = append(tags, nostr.Tag{"about", purpose})
 	}
 	return publisher.signAndPublish(ctx, actorSecretHex, CreateChannelKind, "", tags)
+}
+
+// The relay makes a direct conversation itself: it types the room dm, closes it,
+// and names it "DM" rather than after the people in it, which is the only name
+// that is right for everyone reading. Creating one as an ordinary channel is
+// what put the reader's own name in the label and left the room open.
+func (publisher *Publisher) OpenDirectMessage(ctx context.Context, actorSecretHex string, counterpartPubkeyHexes []string) error {
+	tags := nostr.Tags{}
+	for _, pubkeyHex := range counterpartPubkeyHexes {
+		tags = append(tags, nostr.Tag{"p", strings.ToLower(strings.TrimSpace(pubkeyHex))})
+	}
+	return publisher.signAndPublish(ctx, actorSecretHex, OpenDirectKind, "", tags)
 }
 
 func (publisher *Publisher) AddMember(ctx context.Context, actorSecretHex, channelID, memberPubkeyHex string) error {
