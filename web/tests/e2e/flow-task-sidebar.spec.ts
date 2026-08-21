@@ -104,7 +104,7 @@ test.describe('flow task sidebar', () => {
 	});
 
 	test('lets a sole participant manage task assignment', async ({ page }) => {
-		await useMemberFlowSession(page, 'planner@example.com', '정하준');
+		await useMemberFlowSession(page, 'planner@example.com', '최견본');
 		await openFlowBoard(page);
 
 		await taskCard(page, '26W23-roadmap-review').click();
