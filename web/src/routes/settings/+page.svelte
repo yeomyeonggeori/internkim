@@ -1,5 +1,6 @@
 <script lang="ts">
 	import DeviceSettingsPage from '../+page.svelte';
+	import CompanyBaseCurrency from './company-base-currency.svelte';
 	import CompanyConnections from './company-connections.svelte';
 	import SignInPasskeys from './sign-in-passkeys.svelte';
 	import Notifications from './notifications.svelte';
@@ -37,6 +38,11 @@
 			<Notifications />
 			<MyMessengerAccount />
 			{#if !isLoading && isAdmin}
+				<header class="grid gap-1 pt-2">
+					<h2 class="text-xl font-semibold">{text.company}</h2>
+					<p class="text-sm text-muted-foreground">{text.companyDescription}</p>
+				</header>
+				<CompanyBaseCurrency />
 				<header class="grid gap-1 pt-2">
 					<h2 class="text-xl font-semibold">{text.connections}</h2>
 					<p class="text-sm text-muted-foreground">{text.connectionsDescription}</p>

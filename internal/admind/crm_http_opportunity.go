@@ -21,9 +21,14 @@ func (service *Service) listCRMOpportunitiesHTTP(responseWriter http.ResponseWri
 		writeCRMHTTPReadError(responseWriter, errorValue)
 		return
 	}
+	contactsByOpportunityID, errorValue := service.listCRMOpportunityContacts(request.Context(), includeArchived)
+	if errorValue != nil {
+		writeCRMHTTPReadError(responseWriter, errorValue)
+		return
+	}
 	responses := make([]crmHTTPOpportunity, 0, len(opportunities))
 	for _, opportunity := range opportunities {
-		responses = append(responses, crmHTTPOpportunityFromDomain(opportunity, nil))
+		responses = append(responses, crmHTTPOpportunityFromDomain(opportunity, contactsByOpportunityID[opportunity.ID]))
 	}
 	writeCRMHTTPJSON(responseWriter, http.StatusOK, map[string]any{"opportunities": responses})
 }
@@ -65,7 +70,12 @@ func (service *Service) createCRMOpportunityHTTP(responseWriter http.ResponseWri
 		CreatedByPersonID: actor.PersonID,
 		UpdatedByPersonID: actor.PersonID,
 	}})
-	written, errorValue := service.writeCRMOpportunity(request.Context(), opportunity, crmOpportunityContactsFromHTTP(payload.Contacts))
+	written, errorValue := service.writeCRMOpportunityWithTransition(
+		request.Context(),
+		opportunity,
+		crmOpportunityContactsFromHTTP(payload.Contacts),
+		crmOpportunityTransitionFromHTTP(payload.Transition, opportunity.ID, actor.PersonID),
+	)
 	if errorValue != nil {
 		writeCRMHTTPMutationError(responseWriter, errorValue)
 		return
@@ -105,7 +115,12 @@ func (service *Service) updateCRMOpportunityHTTP(responseWriter http.ResponseWri
 	existing.Audit.UpdatedAt = crmCurrentTimestamp()
 	existing.Audit.UpdatedByPersonID = actor.PersonID
 	opportunity := crmOpportunityFromHTTP(payload, existing)
-	written, errorValue := service.writeCRMOpportunity(request.Context(), opportunity, crmOpportunityContactsFromHTTP(payload.Contacts))
+	written, errorValue := service.writeCRMOpportunityWithTransition(
+		request.Context(),
+		opportunity,
+		crmOpportunityContactsFromHTTP(payload.Contacts),
+		crmOpportunityTransitionFromHTTP(payload.Transition, opportunity.ID, actor.PersonID),
+	)
 	if errorValue != nil {
 		writeCRMHTTPMutationError(responseWriter, errorValue)
 		return
@@ -222,7 +237,13 @@ func validateCRMHTTPOpportunity(payload crmHTTPOpportunityPayload) error {
 	if errorValue := crmValidateDueTime(payload.DueAt, payload.DueTimeZone); errorValue != nil {
 		return errorValue
 	}
-	return validateCRMOpportunityContacts(crmOpportunityContactsFromHTTP(payload.Contacts))
+	if errorValue := validateCRMOpportunityContacts(crmOpportunityContactsFromHTTP(payload.Contacts)); errorValue != nil {
+		return errorValue
+	}
+	if payload.Transition != nil {
+		return validateCRMHTTPTransition(*payload.Transition)
+	}
+	return nil
 }
 
 func validateCRMHTTPTransition(payload crmHTTPTransitionPayload) error {
@@ -273,6 +294,23 @@ func crmOpportunityContactsFromHTTP(contacts []crmHTTPOpportunityContact) []crmO
 		result = append(result, crmOpportunityContact{ContactID: strings.TrimSpace(contact.ContactID), IsPrimary: contact.IsPrimary})
 	}
 	return result
+}
+
+func crmOpportunityTransitionFromHTTP(payload *crmHTTPTransitionPayload, opportunityID string, actorPersonID string) *crmOpportunityStageTransition {
+	if payload == nil {
+		return nil
+	}
+	return &crmOpportunityStageTransition{
+		OpportunityID:       opportunityID,
+		Stage:               payload.Stage,
+		StagePosition:       payload.StagePosition,
+		BeforeOpportunityID: payload.BeforeOpportunityID,
+		OccurredAt:          payload.OccurredAt,
+		ActorPersonID:       actorPersonID,
+		LostReason:          payload.LostReason,
+		BaseAmountMinor:     payload.BaseAmountMinor,
+		BaseCurrencyCode:    payload.BaseCurrencyCode,
+	}
 }
 
 func crmHTTPOpportunityFromDomain(opportunity crmOpportunity, contacts []crmOpportunityContact) crmHTTPOpportunity {

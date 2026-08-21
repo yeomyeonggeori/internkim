@@ -14,6 +14,7 @@
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+	import HandshakeIcon from '@lucide/svelte/icons/handshake';
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import NetworkIcon from '@lucide/svelte/icons/network';
@@ -34,6 +35,7 @@
 
 	const mobileMoreItems = $derived<AppMobileNavigationItem[]>([
 		{ href: appNavigation.link('/memory/'), label: text.memory, icon: NetworkIcon },
+		{ href: appNavigation.link('/crm/'), label: text.crm, icon: HandshakeIcon },
 		{ href: appNavigation.link('/organization/'), label: text.organization, icon: UsersRoundIcon },
 		{ href: appNavigation.link('/files/'), label: text.files, icon: FolderOpenIcon },
 		...appNavigation.workspace

@@ -33,11 +33,15 @@ func validateCRMHTTPContact(payload crmHTTPContactPayload) error {
 	return nil
 }
 
-func validateCRMHTTPActivity(payload crmHTTPActivityPayload) error {
+func validateCRMHTTPActivity(payload crmHTTPActivityPayload, existingKind string) error {
 	if strings.TrimSpace(payload.Title) == "" || strings.TrimSpace(payload.OccurredAt) == "" {
 		return fmt.Errorf("title and occurredAt are required")
 	}
-	if !crmValueAllowed(strings.TrimSpace(payload.Kind), "note", "email", "meeting", "call", "task", "file", "event") {
+	kind := strings.TrimSpace(payload.Kind)
+	if kind == "stage_change" && existingKind != "stage_change" {
+		return fmt.Errorf("invalid activity kind")
+	}
+	if kind != "stage_change" && !crmValueAllowed(kind, "note", "email", "meeting", "call", "task", "file", "event") {
 		return fmt.Errorf("invalid activity kind")
 	}
 	if strings.TrimSpace(payload.AccountID) == "" && strings.TrimSpace(payload.ContactID) == "" && strings.TrimSpace(payload.OpportunityID) == "" {
