@@ -14,8 +14,7 @@ type crmPipeline struct {
 	IsActive  bool
 }
 
-type crmPipelineStage struct {
-	Pipeline string
+type crmPipelineStageDefinition struct {
 	Stage    string
 	Position int
 	Outcome  string
@@ -58,25 +57,25 @@ ORDER BY pipeline`, crmBooleanInteger(activeOnly))
 	return pipelines, nil
 }
 
-func (service *Service) listCRMPipelineStages(ctx context.Context, pipeline string) ([]crmPipelineStage, error) {
+func (service *Service) listCRMPipelineStageDefinitions(ctx context.Context) ([]crmPipelineStageDefinition, error) {
 	database, errorValue := service.openCRMDatabase(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT pipeline, stage, position, outcome
+SELECT stage, outcome, MIN(position) AS position
 FROM pipeline_stage
-WHERE pipeline = ?
-ORDER BY position`, strings.TrimSpace(pipeline))
+GROUP BY stage, outcome
+ORDER BY position`)
 	if errorValue != nil {
-		return nil, fmt.Errorf("list CRM pipeline %s stages: %w", pipeline, errorValue)
+		return nil, fmt.Errorf("list CRM pipeline stage definitions: %w", errorValue)
 	}
 	defer rows.Close()
-	stages := []crmPipelineStage{}
+	stages := []crmPipelineStageDefinition{}
 	for rows.Next() {
-		var stage crmPipelineStage
-		if errorValue := rows.Scan(&stage.Pipeline, &stage.Stage, &stage.Position, &stage.Outcome); errorValue != nil {
+		var stage crmPipelineStageDefinition
+		if errorValue := rows.Scan(&stage.Stage, &stage.Outcome, &stage.Position); errorValue != nil {
 			return nil, errorValue
 		}
 		stages = append(stages, stage)

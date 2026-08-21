@@ -74,9 +74,7 @@ function amountSegment(catalogue: CurrencyCatalogue, label: string, opportunitie
 }
 
 function opportunityOutcome(stages: CRMPipelineStage[], opportunity: CRMOpportunity): CRMPipelineStage['outcome'] | undefined {
-	return stages.find(
-		(stage) => stage.pipeline === (opportunity.pipeline ?? opportunity.kind) && stage.stage === opportunity.stage
-	)?.outcome;
+	return stages.find((stage) => stage.stage === opportunity.stage)?.outcome;
 }
 
 function buildPipelineHealth(catalogue: CurrencyCatalogue, opportunities: CRMOpportunity[], stages: CRMPipelineStage[], text: CRMText, locale: Locale): CRMKPICardData {

@@ -23,20 +23,10 @@ func (service *Service) listCRMPipelinesHTTP(responseWriter http.ResponseWriter,
 	writeCRMHTTPJSON(responseWriter, http.StatusOK, map[string]any{"pipelines": responses})
 }
 
-func (service *Service) listCRMPipelineStagesHTTP(responseWriter http.ResponseWriter, request *http.Request) {
-	if _, ok := service.crmHTTPActor(responseWriter, request); !ok {
-		return
-	}
-	stages, errorValue := service.listCRMPipelineStages(request.Context(), request.PathValue("pipeline"))
-	if errorValue != nil {
-		writeCRMHTTPReadError(responseWriter, errorValue)
-		return
-	}
-	responses := make([]crmHTTPPipelineStage, 0, len(stages))
-	for _, stage := range stages {
-		responses = append(responses, crmHTTPPipelineStage(stage))
-	}
-	writeCRMHTTPJSON(responseWriter, http.StatusOK, map[string]any{"stages": responses})
+type crmHTTPDefinitionStage struct {
+	ID       string `json:"id"`
+	Outcome  string `json:"outcome"`
+	Position int    `json:"position"`
 }
 
 func (service *Service) listCRMDefinitionsHTTP(responseWriter http.ResponseWriter, request *http.Request) {
@@ -52,8 +42,21 @@ func (service *Service) listCRMDefinitionsHTTP(responseWriter http.ResponseWrite
 	if businesses == nil {
 		businesses = []string{}
 	}
+	stages, errorValue := service.listCRMPipelineStageDefinitions(request.Context())
+	if errorValue != nil {
+		writeCRMHTTPReadError(responseWriter, errorValue)
+		return
+	}
+	stageResponses := make([]crmHTTPDefinitionStage, 0, len(stages))
+	for _, stage := range stages {
+		stageResponses = append(stageResponses, crmHTTPDefinitionStage{
+			ID:       stage.Stage,
+			Outcome:  stage.Outcome,
+			Position: stage.Position,
+		})
+	}
 	writeCRMHTTPJSON(responseWriter, http.StatusOK, map[string]any{
-		"definitions": map[string]any{"businesses": businesses},
+		"definitions": map[string]any{"businesses": businesses, "stages": stageResponses},
 	})
 }
 

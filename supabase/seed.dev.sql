@@ -51,7 +51,7 @@ insert into public.company (
   '[{"name": "사무실", "color": "#9929bd"}, {"name": "재택", "color": "#669c35"}, {"name": "외부", "color": "#0ea5e9"}]',
   '{"businesses": [{"name": "사업하나", "color": "#216fe4"}, {"name": "사업둘", "color": "#475569"}],
     "types": [{"name": "기능"}, {"name": "개선"}, {"name": "회의"}, {"name": "통화"}, {"name": "메일"}, {"name": "메모"}]}',
-  '{"organization_types":[{"id":"partner","name":"파트너","color":"#2563eb"},{"id":"sponsor","name":"스폰서","color":"#16a34a"}],"pipelines":[{"id":"partnership","name":"파트너십","color":"#2563eb","direction":"outbound","stages":[{"id":"review","name":"검토","outcome":"open","color":"#64748b"},{"id":"proposal","name":"제안","outcome":"open","color":"#7c3aed"},{"id":"negotiation","name":"협의","outcome":"open","color":"#ea580c"},{"id":"won","name":"성사","outcome":"won","color":"#16a34a"},{"id":"lost","name":"불발","outcome":"lost","color":"#dc2626"}]}],"lost_reasons":[{"id":"budget","name":"예산 부족","color":"#dc2626"},{"id":"schedule","name":"일정 불일치","color":"#ea580c"}]}',
+  '{"organization_types":[{"id":"partner","name":"파트너","color":"#2563eb"},{"id":"sponsor","name":"스폰서","color":"#16a34a"}],"pipelines":[{"id":"partnership","name":"파트너십","color":"#2563eb","direction":"outbound"}],"stages":[{"id":"waiting","name":"대기","outcome":"open","color":"#64748b"},{"id":"in_progress","name":"진행","outcome":"open","color":"#2563eb"},{"id":"review","name":"검토","outcome":"open","color":"#7c3aed"},{"id":"done","name":"완료","outcome":"won","color":"#16a34a"},{"id":"on_hold","name":"중단","outcome":"on_hold","color":"#f59e0b"},{"id":"lost","name":"무산","outcome":"lost","color":"#dc2626"}],"lost_reasons":[{"id":"budget","name":"예산 부족","color":"#dc2626"},{"id":"schedule","name":"일정 불일치","color":"#ea580c"}]}',
   480, 15
 ) on conflict (id) do nothing;
 
@@ -95,7 +95,7 @@ insert into public.opportunity (
   id, company_id, organization_id, contact_id, name, business, pipeline_id, stage_id,
   stage_position, owner_id, amount_minor, currency_code, importance, due_at, due_time_zone, description
 ) values
-  ('0000000a-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000001', '000000c0-0000-0000-0000-000000000001', '상반기 협력 제안', '사업하나', 'partnership', 'proposal', 1024, '000000ee-0000-0000-0000-000000000001', 18000000, 'KRW', 'high', now() + interval '7 days', 'Asia/Seoul', '협력 범위와 일정을 조율합니다.')
+  ('0000000a-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000001', '000000c0-0000-0000-0000-000000000001', '상반기 협력 제안', '사업하나', 'partnership', 'in_progress', 1024, '000000ee-0000-0000-0000-000000000001', 18000000, 'KRW', 'high', now() + interval '7 days', 'Asia/Seoul', '협력 범위와 일정을 조율합니다.')
 on conflict (id) do nothing;
 
 insert into public.task (

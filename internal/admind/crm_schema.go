@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 var crmSchemaStatements = []string{
@@ -338,50 +339,55 @@ var crmPipelineStageSeeds = []struct {
 	position int
 	outcome  string
 }{
-	{pipeline: "sales", stage: "lead", position: 1, outcome: "open"},
-	{pipeline: "sales", stage: "qualified", position: 2, outcome: "open"},
-	{pipeline: "sales", stage: "proposal", position: 3, outcome: "open"},
-	{pipeline: "sales", stage: "negotiation", position: 4, outcome: "open"},
-	{pipeline: "sales", stage: "won", position: 5, outcome: "won"},
+	{pipeline: "sales", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "sales", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "sales", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "sales", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "sales", stage: "on_hold", position: 5, outcome: "on_hold"},
 	{pipeline: "sales", stage: "lost", position: 6, outcome: "lost"},
-	{pipeline: "sales", stage: "on_hold", position: 7, outcome: "on_hold"},
-	{pipeline: "sponsorship", stage: "lead", position: 1, outcome: "open"},
-	{pipeline: "sponsorship", stage: "qualified", position: 2, outcome: "open"},
-	{pipeline: "sponsorship", stage: "proposal", position: 3, outcome: "open"},
-	{pipeline: "sponsorship", stage: "negotiation", position: 4, outcome: "open"},
-	{pipeline: "sponsorship", stage: "won", position: 5, outcome: "won"},
+	{pipeline: "fundraising", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "fundraising", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "fundraising", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "fundraising", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "fundraising", stage: "on_hold", position: 5, outcome: "on_hold"},
+	{pipeline: "fundraising", stage: "lost", position: 6, outcome: "lost"},
+	{pipeline: "sponsorship", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "sponsorship", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "sponsorship", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "sponsorship", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "sponsorship", stage: "on_hold", position: 5, outcome: "on_hold"},
 	{pipeline: "sponsorship", stage: "lost", position: 6, outcome: "lost"},
-	{pipeline: "sponsorship", stage: "on_hold", position: 7, outcome: "on_hold"},
-	{pipeline: "partnership", stage: "lead", position: 1, outcome: "open"},
-	{pipeline: "partnership", stage: "qualified", position: 2, outcome: "open"},
-	{pipeline: "partnership", stage: "proposal", position: 3, outcome: "open"},
-	{pipeline: "partnership", stage: "negotiation", position: 4, outcome: "open"},
-	{pipeline: "partnership", stage: "won", position: 5, outcome: "won"},
+	{pipeline: "investment", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "investment", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "investment", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "investment", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "investment", stage: "on_hold", position: 5, outcome: "on_hold"},
+	{pipeline: "investment", stage: "lost", position: 6, outcome: "lost"},
+	{pipeline: "procurement", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "procurement", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "procurement", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "procurement", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "procurement", stage: "on_hold", position: 5, outcome: "on_hold"},
+	{pipeline: "procurement", stage: "lost", position: 6, outcome: "lost"},
+	{pipeline: "partnership", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "partnership", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "partnership", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "partnership", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "partnership", stage: "on_hold", position: 5, outcome: "on_hold"},
 	{pipeline: "partnership", stage: "lost", position: 6, outcome: "lost"},
-	{pipeline: "partnership", stage: "on_hold", position: 7, outcome: "on_hold"},
-	{pipeline: "fundraising", stage: "contacted", position: 1, outcome: "open"},
-	{pipeline: "fundraising", stage: "pitched", position: 2, outcome: "open"},
-	{pipeline: "fundraising", stage: "due_diligence", position: 3, outcome: "open"},
-	{pipeline: "fundraising", stage: "committee", position: 4, outcome: "open"},
-	{pipeline: "fundraising", stage: "term_sheet", position: 5, outcome: "open"},
-	{pipeline: "fundraising", stage: "closed", position: 6, outcome: "won"},
-	{pipeline: "fundraising", stage: "lost", position: 7, outcome: "lost"},
-	{pipeline: "fundraising", stage: "on_hold", position: 8, outcome: "on_hold"},
-	{pipeline: "investment", stage: "sourcing", position: 1, outcome: "open"},
-	{pipeline: "investment", stage: "screening", position: 2, outcome: "open"},
-	{pipeline: "investment", stage: "partner_review", position: 3, outcome: "open"},
-	{pipeline: "investment", stage: "due_diligence", position: 4, outcome: "open"},
-	{pipeline: "investment", stage: "committee", position: 5, outcome: "open"},
-	{pipeline: "investment", stage: "term_sheet", position: 6, outcome: "open"},
-	{pipeline: "investment", stage: "closed", position: 7, outcome: "won"},
-	{pipeline: "investment", stage: "lost", position: 8, outcome: "lost"},
-	{pipeline: "investment", stage: "on_hold", position: 9, outcome: "on_hold"},
-	{pipeline: "procurement", stage: "rfx", position: 1, outcome: "open"},
-	{pipeline: "procurement", stage: "evaluation", position: 2, outcome: "open"},
-	{pipeline: "procurement", stage: "negotiation", position: 3, outcome: "open"},
-	{pipeline: "procurement", stage: "contract_award", position: 4, outcome: "won"},
-	{pipeline: "procurement", stage: "lost", position: 5, outcome: "lost"},
-	{pipeline: "procurement", stage: "on_hold", position: 6, outcome: "on_hold"},
+}
+
+var crmUniformPipelineStages = []struct {
+	stage    string
+	position int
+	outcome  string
+}{
+	{stage: "waiting", position: 1, outcome: "open"},
+	{stage: "in_progress", position: 2, outcome: "open"},
+	{stage: "review", position: 3, outcome: "open"},
+	{stage: "done", position: 4, outcome: "won"},
+	{stage: "on_hold", position: 5, outcome: "on_hold"},
+	{stage: "lost", position: 6, outcome: "lost"},
 }
 
 var crmLostReasonSeeds = []struct {
@@ -417,6 +423,10 @@ ON CONFLICT(pipeline) DO NOTHING`, seed.pipeline, seed.label, seed.direction); e
 			return fmt.Errorf("seed CRM pipeline %s: %w", seed.pipeline, errorValue)
 		}
 	}
+	if errorValue := migrateCRMPipelineStagesToUniformSet(ctx, transaction); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
 	for _, seed := range crmPipelineStageSeeds {
 		if _, errorValue := transaction.ExecContext(ctx, `
 INSERT INTO pipeline_stage(pipeline, stage, position, outcome)
@@ -439,4 +449,87 @@ ON CONFLICT(reason) DO NOTHING`, seed.reason, seed.label); errorValue != nil {
 		return fmt.Errorf("commit CRM schema: %w", errorValue)
 	}
 	return nil
+}
+
+const crmUniformPipelineStagePositionOffset = 1000
+
+func migrateCRMPipelineStagesToUniformSet(ctx context.Context, transaction *sql.Tx) error {
+	quotedStages := make([]string, len(crmUniformPipelineStages))
+	for index, stage := range crmUniformPipelineStages {
+		quotedStages[index] = "'" + stage.stage + "'"
+	}
+	uniformStageList := strings.Join(quotedStages, ", ")
+
+	var legacyStageCount int
+	if errorValue := transaction.QueryRowContext(ctx, `
+SELECT COUNT(*) FROM pipeline_stage
+WHERE stage NOT IN (`+uniformStageList+`)`).Scan(&legacyStageCount); errorValue != nil {
+		return fmt.Errorf("count legacy CRM pipeline stages: %w", errorValue)
+	}
+	if legacyStageCount == 0 {
+		return nil
+	}
+
+	pipelines, errorValue := crmDistinctPipelineIdentifiers(ctx, transaction)
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, pipeline := range pipelines {
+		for _, stage := range crmUniformPipelineStages {
+			if _, errorValue := transaction.ExecContext(ctx, `
+INSERT INTO pipeline_stage(pipeline, stage, position, outcome)
+VALUES(?, ?, ?, ?)
+ON CONFLICT(pipeline, stage) DO UPDATE SET position = excluded.position, outcome = excluded.outcome`,
+				pipeline, stage.stage, stage.position+crmUniformPipelineStagePositionOffset, stage.outcome); errorValue != nil {
+				return fmt.Errorf("seed CRM uniform pipeline stage %s/%s: %w", pipeline, stage.stage, errorValue)
+			}
+		}
+	}
+	if _, errorValue := transaction.ExecContext(ctx, `
+UPDATE opportunity
+SET stage = CASE (
+		SELECT outcome FROM pipeline_stage
+		WHERE pipeline_stage.pipeline = opportunity.pipeline AND pipeline_stage.stage = opportunity.stage
+	)
+		WHEN 'open' THEN 'in_progress'
+		WHEN 'won' THEN 'done'
+		WHEN 'lost' THEN 'lost'
+		WHEN 'on_hold' THEN 'on_hold'
+	END
+WHERE stage NOT IN (`+uniformStageList+`)`); errorValue != nil {
+		return fmt.Errorf("remap CRM opportunities off legacy pipeline stages: %w", errorValue)
+	}
+	if _, errorValue := transaction.ExecContext(ctx, `DELETE FROM pipeline_stage WHERE stage NOT IN (`+uniformStageList+`)`); errorValue != nil {
+		return fmt.Errorf("delete legacy CRM pipeline stages: %w", errorValue)
+	}
+	if _, errorValue := transaction.ExecContext(ctx, `
+UPDATE pipeline_stage
+SET position = position - ?
+WHERE position > ?`, crmUniformPipelineStagePositionOffset, crmUniformPipelineStagePositionOffset); errorValue != nil {
+		return fmt.Errorf("finalize CRM uniform pipeline stage positions: %w", errorValue)
+	}
+	return nil
+}
+
+func crmDistinctPipelineIdentifiers(ctx context.Context, transaction *sql.Tx) ([]string, error) {
+	rows, errorValue := transaction.QueryContext(ctx, `
+SELECT pipeline FROM pipeline
+UNION
+SELECT pipeline FROM pipeline_stage`)
+	if errorValue != nil {
+		return nil, fmt.Errorf("list CRM pipelines needing uniform stages: %w", errorValue)
+	}
+	defer rows.Close()
+	pipelines := []string{}
+	for rows.Next() {
+		var pipeline string
+		if errorValue := rows.Scan(&pipeline); errorValue != nil {
+			return nil, errorValue
+		}
+		pipelines = append(pipelines, pipeline)
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return nil, errorValue
+	}
+	return pipelines, nil
 }

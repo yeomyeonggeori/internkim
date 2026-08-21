@@ -7,9 +7,9 @@ const text = crmText.ko;
 
 describe('opportunityStageLabel', () => {
 	const stages: CRMPipelineStage[] = [
-		{ pipeline: 'partnership', stage: 'review', label: '검토', position: 1, outcome: 'open' },
-		{ pipeline: 'partnership', stage: 'stage-9x2', label: '계약 검토', position: 2, outcome: 'open' },
-		{ pipeline: 'sales', stage: 'lead', label: 'lead', position: 1, outcome: 'open' }
+		{ stage: 'review', label: '검토', position: 1, outcome: 'open' },
+		{ stage: 'stage-9x2', label: '계약 검토', position: 2, outcome: 'open' },
+		{ stage: 'waiting', label: 'waiting', position: 3, outcome: 'open' }
 	];
 
 	test('prefers the vocabulary name over the static table', () => {
@@ -21,7 +21,7 @@ describe('opportunityStageLabel', () => {
 	});
 
 	test('falls back to the static table when the label is just the id', () => {
-		expect(opportunityStageLabel(stages, 'lead', text)).toBe('리드');
+		expect(opportunityStageLabel(stages, 'waiting', text)).toBe('대기');
 	});
 
 	test('shows the raw id when nothing knows it', () => {

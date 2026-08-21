@@ -216,7 +216,6 @@ export type CRMPipeline = {
 };
 
 export type CRMPipelineStage = {
-	pipeline: CRMProgressKind;
 	stage: CRMOpportunityStage;
 	label: string;
 	position: number;

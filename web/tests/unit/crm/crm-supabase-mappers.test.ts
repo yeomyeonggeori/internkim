@@ -87,11 +87,8 @@ describe('Supabase CRM mapper', () => {
 			task_participant: [{ member_id: audit.created_by }]
 		}], {
 			organization_types: [{ id: 'partner', name: '파트너' }],
-			pipelines: [{
-				id: 'partnership',
-				name: '파트너십',
-				stages: [{ id: 'review', name: '검토', outcome: 'open' }]
-			}],
+			pipelines: [{ id: 'partnership', name: '파트너십' }],
+			stages: [{ id: 'review', name: '검토', outcome: 'open' }],
 			lost_reasons: [{ id: 'schedule', name: '일정 불일치' }]
 		});
 
@@ -108,7 +105,7 @@ describe('Supabase CRM mapper', () => {
 			occurredAt: '2026-08-20T03:00:00.000Z'
 		});
 		expect(data.pipelines).toEqual([{ pipeline: 'partnership', label: '파트너십', direction: '', isActive: true }]);
-		expect(data.stages[0]).toMatchObject({ pipeline: 'partnership', stage: 'review', label: '검토', position: 0 });
+		expect(data.stages[0]).toMatchObject({ stage: 'review', label: '검토', position: 0 });
 		expect(data.lostReasons[0]).toEqual({ reason: 'schedule', label: '일정 불일치', isActive: true });
 	});
 
@@ -129,11 +126,13 @@ describe('Supabase CRM mapper', () => {
 	test('rejects malformed vocabulary entries without inventing definitions', () => {
 		expect(crmVocabularyOf({
 			organization_types: [{ id: 'partner' }],
-			pipelines: [{ id: 'sales', name: '판매', stages: [{ id: 'won', name: '성사', outcome: 'unknown' }] }],
+			pipelines: [{ id: 'sales', name: '판매' }],
+			stages: [{ id: 'won', name: '성사', outcome: 'unknown' }],
 			lost_reasons: 'invalid'
 		})).toEqual({
 			organization_types: [],
-			pipelines: [{ id: 'sales', name: '판매', direction: undefined, stages: [] }],
+			pipelines: [{ id: 'sales', name: '판매', direction: undefined }],
+			stages: [],
 			lost_reasons: []
 		});
 	});

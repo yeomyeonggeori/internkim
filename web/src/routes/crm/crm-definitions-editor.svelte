@@ -3,7 +3,6 @@
 		appendCRMDefinition,
 		appendCRMStage,
 		cloneCRMVocabulary,
-		moveCRMDefinition,
 		removeCRMDefinition,
 		updateCRMDefinition,
 		type CRMDefinitionCollection,
@@ -38,7 +37,7 @@
 		onDelete
 	}: Props = $props();
 
-	let draft = $state<CRMVocabulary>({ organization_types: [], pipelines: [], lost_reasons: [] });
+	let draft = $state<CRMVocabulary>({ organization_types: [], pipelines: [], stages: [], lost_reasons: [] });
 	let localErrorMessage = $state('');
 	let isSubmitting = $state(false);
 	let disabled = $derived(isSaving || isSubmitting);
@@ -62,7 +61,7 @@
 		return [
 			...value.organization_types,
 			...value.pipelines,
-			...value.pipelines.flatMap((pipeline) => pipeline.stages),
+			...value.stages,
 			...value.lost_reasons
 		].some((definition) => !definition.name.trim());
 	}
@@ -98,10 +97,6 @@
 		void save(updateCRMDefinition(draft, target, { outcome }));
 	}
 
-	function move(target: CRMDefinitionTarget, direction: -1 | 1): void {
-		void save(moveCRMDefinition(draft, target, direction));
-	}
-
 	async function remove(target: CRMDefinitionTarget): Promise<void> {
 		if (!isAdmin || disabled) return;
 		const next = removeCRMDefinition(draft, target);
@@ -122,8 +117,8 @@
 		void save(appendCRMDefinition(draft, collection, { id: createID(), name, color }));
 	}
 
-	function addStage(pipelineID: string, name: string, color: string): void {
-		void save(appendCRMStage(draft, pipelineID, { id: createID(), name, color, outcome: 'open' }));
+	function addStage(name: string, color: string): void {
+		void save(appendCRMStage(draft, { id: createID(), name, color, outcome: 'open' }));
 	}
 </script>
 
@@ -145,7 +140,7 @@
 		<p class="text-sm text-muted-foreground" aria-live="polite">{text.saving}</p>
 	{/if}
 
-	<div class="grid gap-4 xl:grid-cols-2">
+	<div class="grid gap-4 lg:grid-cols-2">
 		<CRMDefinitionListCard
 			title={text.organizationTypes}
 			description={text.organizationTypesDescription}
@@ -154,15 +149,46 @@
 			{disabled}
 			addLabel={text.add}
 			removeLabel={text.remove}
-			moveUpLabel={text.moveUp}
-			moveDownLabel={text.moveDown}
 			colorLabel={text.color}
 			onNameInput={(id, name) => nameInput({ kind: 'organization_type', id }, name)}
 			onCommit={() => void save(draft)}
 			onColorChange={(id, color) => colorChange({ kind: 'organization_type', id }, color)}
-			onMove={(id, direction) => move({ kind: 'organization_type', id }, direction)}
 			onRemove={(id) => void remove({ kind: 'organization_type', id })}
 			onAdd={(name, color) => add('organization_type', name, color)}
+		/>
+
+		<CRMDefinitionListCard
+			title={text.pipelines}
+			description={text.pipelinesDescription}
+			items={draft.pipelines}
+			{isAdmin}
+			{disabled}
+			addLabel={text.add}
+			removeLabel={text.remove}
+			colorLabel={text.color}
+			onNameInput={(id, name) => nameInput({ kind: 'pipeline', id }, name)}
+			onCommit={() => void save(draft)}
+			onColorChange={(id, color) => colorChange({ kind: 'pipeline', id }, color)}
+			onRemove={(id) => void remove({ kind: 'pipeline', id })}
+			onAdd={(name, color) => add('pipeline', name, color)}
+		/>
+
+		<CRMDefinitionListCard
+			title={text.stages}
+			description={text.stagesDescription}
+			items={draft.stages}
+			{isAdmin}
+			{disabled}
+			addLabel={text.add}
+			removeLabel={text.remove}
+			colorLabel={text.color}
+			{outcomeOptions}
+			onNameInput={(id, name) => nameInput({ kind: 'stage', id }, name)}
+			onCommit={() => void save(draft)}
+			onColorChange={(id, color) => colorChange({ kind: 'stage', id }, color)}
+			onOutcomeChange={(id, outcome) => outcomeChange({ kind: 'stage', id }, outcome)}
+			onRemove={(id) => void remove({ kind: 'stage', id })}
+			onAdd={(name, color) => addStage(name, color)}
 		/>
 
 		<CRMDefinitionListCard
@@ -173,61 +199,12 @@
 			{disabled}
 			addLabel={text.add}
 			removeLabel={text.remove}
-			moveUpLabel={text.moveUp}
-			moveDownLabel={text.moveDown}
 			colorLabel={text.color}
 			onNameInput={(id, name) => nameInput({ kind: 'lost_reason', id }, name)}
 			onCommit={() => void save(draft)}
 			onColorChange={(id, color) => colorChange({ kind: 'lost_reason', id }, color)}
-			onMove={(id, direction) => move({ kind: 'lost_reason', id }, direction)}
 			onRemove={(id) => void remove({ kind: 'lost_reason', id })}
 			onAdd={(name, color) => add('lost_reason', name, color)}
 		/>
-	</div>
-
-	<div class="space-y-4">
-		<CRMDefinitionListCard
-			title={text.pipelines}
-			description={text.pipelinesDescription}
-			items={draft.pipelines}
-			{isAdmin}
-			{disabled}
-			addLabel={text.add}
-			removeLabel={text.remove}
-			moveUpLabel={text.moveUp}
-			moveDownLabel={text.moveDown}
-			colorLabel={text.color}
-			onNameInput={(id, name) => nameInput({ kind: 'pipeline', id }, name)}
-			onCommit={() => void save(draft)}
-			onColorChange={(id, color) => colorChange({ kind: 'pipeline', id }, color)}
-			onMove={(id, direction) => move({ kind: 'pipeline', id }, direction)}
-			onRemove={(id) => void remove({ kind: 'pipeline', id })}
-			onAdd={(name, color) => add('pipeline', name, color)}
-		/>
-
-		<div class="grid gap-4 xl:grid-cols-2">
-			{#each draft.pipelines as pipeline (pipeline.id)}
-				<CRMDefinitionListCard
-					title={`${pipeline.name} · ${text.stages}`}
-					description={text.stagesDescription}
-					items={pipeline.stages}
-					{isAdmin}
-					{disabled}
-					addLabel={text.add}
-					removeLabel={text.remove}
-					moveUpLabel={text.moveUp}
-					moveDownLabel={text.moveDown}
-					colorLabel={text.color}
-					{outcomeOptions}
-					onNameInput={(id, name) => nameInput({ kind: 'stage', pipelineID: pipeline.id, id }, name)}
-					onCommit={() => void save(draft)}
-					onColorChange={(id, color) => colorChange({ kind: 'stage', pipelineID: pipeline.id, id }, color)}
-					onOutcomeChange={(id, outcome) => outcomeChange({ kind: 'stage', pipelineID: pipeline.id, id }, outcome)}
-					onMove={(id, direction) => move({ kind: 'stage', pipelineID: pipeline.id, id }, direction)}
-					onRemove={(id) => void remove({ kind: 'stage', pipelineID: pipeline.id, id })}
-					onAdd={(name, color) => addStage(pipeline.id, name, color)}
-				/>
-			{/each}
-		</div>
 	</div>
 </section>
