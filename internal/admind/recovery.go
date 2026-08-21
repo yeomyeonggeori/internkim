@@ -833,7 +833,6 @@ echo "db wiped, relay in import mode (membership off)"
 export MM_TOKEN=$(cat ` + blueclaw.BlueclawMattermostTokenPath + `)
 export DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
 export TEAM=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
-export AGENT_EMAIL=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/users/me | jq -r '.email // empty')
 export PUBLIC_HOST=$(systemctl show ` + relay + ` -p Environment | tr ' ' '\n' | sed -n 's/^RELAY_URL=//p' | head -1 | sed -E 's#^[a-z]+://##; s#/.*$##')
 if [ -z "$PUBLIC_HOST" ]; then echo "the relay names no public host, and an import keyed to a guess lands in a community nothing serves"; exit 1; fi
 export BUZZ_RELAY_PRIVATE_KEY=$(grep '^BUZZ_RELAY_PRIVATE_KEY=' /root/.internkim/secrets/buzz-relay-env | head -1 | sed 's/^BUZZ_RELAY_PRIVATE_KEY=//')
@@ -847,7 +846,7 @@ export DATABASE_URL="$DB_URL"
   --buzz-database-url "$DB_URL" \
   --buzz-admin ` + blueclaw.BuzzAdminBinaryPath + ` \
   --key-seed-path /root/.internkim/secrets/buzz-key-seed \
-  --agent-email "$AGENT_EMAIL" \
+  --identity-url ` + blueclaw.AdmindBaseURL + `/bridge/api/identity \
   --relay-url wss://$PUBLIC_HOST \
   --relay-http-url https://$PUBLIC_HOST \
   --community-host "$PUBLIC_HOST" \
