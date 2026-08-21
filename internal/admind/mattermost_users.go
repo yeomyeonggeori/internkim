@@ -1280,7 +1280,7 @@ func (service *Service) applyCircleEmailsToBlueclawPolicy(ctx context.Context, c
 	if !hasPolicyChange {
 		return nil
 	}
-	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
+	return service.deliverBlueclawPolicy(ctx, policyDocument)
 }
 
 func mattermostCircleSetsEqual(current []string, synced []string) bool {

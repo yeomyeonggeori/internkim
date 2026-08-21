@@ -1233,7 +1233,7 @@ func (service *Service) saveBlueclawCircle(responseWriter http.ResponseWriter, r
 		IsMattermostManaged: input.IsMattermostManaged,
 	})
 	policyDocument["circleSync"] = upsertBlueclawCircleSync(policyDocument["circleSync"], circleID, input.IsMattermostManaged)
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/policy/save", policyDocument, nil); errorValue != nil {
+	if errorValue := service.deliverBlueclawPolicy(request.Context(), policyDocument); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
@@ -1259,7 +1259,7 @@ func (service *Service) deleteBlueclawCircle(responseWriter http.ResponseWriter,
 	policyDocument["circles"] = removeBlueclawCircle(policyDocument["circles"], circleID)
 	policyDocument["circleSync"] = removeBlueclawCircleSync(policyDocument["circleSync"], circleID)
 	removeCircleFromBlueclawPeople(policyDocument["people"], circleID)
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/policy/save", policyDocument, nil); errorValue != nil {
+	if errorValue := service.deliverBlueclawPolicy(request.Context(), policyDocument); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
@@ -2190,7 +2190,7 @@ func (service *Service) claimBlueclawAdminPerson(ctx context.Context, email stri
 		return errorValue
 	}
 	policyDocument["people"] = claimedAdminPeople(policyDocument["people"], normalizedEmail)
-	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
+	return service.deliverBlueclawPolicy(ctx, policyDocument)
 }
 
 func claimedAdminPeople(value any, email string) []map[string]any {
