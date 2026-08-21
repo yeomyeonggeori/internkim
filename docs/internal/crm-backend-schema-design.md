@@ -40,14 +40,14 @@ currency_code text not null default 'KRW'
 ```json
 {
   "organization_types": [],
-  "pipelines": [],
-  "lost_reasons": []
+  "pipelines": []
 }
 ```
 
-Each pipeline owns its stages. The CRM definition screen edits this object.
-The application refuses to delete a value that an organization or opportunity
-still uses.
+Every pipeline moves through the same six stages the code fixes: `waiting`,
+`in_progress`, `review`, `done`, `on_hold`, `lost`. The definition screen
+edits these two lists, and the application refuses to delete a value that an
+organization or opportunity still uses.
 
 ## `organization`
 
@@ -123,7 +123,7 @@ base_currency_code text null
 importance text not null default 'medium'
 due_at timestamptz null
 due_time_zone text null
-lost_reason_id text null
+lost_reason text null
 description text null
 created_at timestamptz not null
 created_by uuid null
@@ -137,10 +137,10 @@ Money is stored in minor units. `amount_minor` and `currency_code` are either
 both present or both absent. The same rule applies to the realized base amount.
 Exchange-rate realization belongs to the currency workflow, not this schema.
 
-`pipeline_id`, `stage_id`, and `lost_reason_id` identify values in
-`company.crm_vocabulary`. `stage_position` keeps the stage order used when the
-record changed. Changing a pipeline does not implicitly rewrite the selected
-stage or lost reason.
+`pipeline_id` identifies a value in `company.crm_vocabulary`. `stage_id` is
+one of the six fixed stages, and `stage_position` keeps its order at the time
+the record changed. `lost_reason` is written text: moving a deal to `lost`
+requires one, and leaving `lost` clears it.
 
 `due_at` is the next action instant. `due_time_zone` preserves the zone used to
 interpret and display it, and the two fields are stored together.
