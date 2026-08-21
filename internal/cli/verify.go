@@ -899,7 +899,7 @@ curl --silent --show-error --fail http://127.0.0.1:18080/admin/_app/version.json
 echo "checking the paths the company web reaches through the relay"
 relay_requester="$(curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy | jq -r '[.people[] | select(.isAdmin != true) | .emails[0] // empty] | first // empty')"
 test -n "$relay_requester"
-for relay_path in /memory/api/graph /memory/api/schedules /files/api/roots /files/api/list /tasks/api/runs /tasks/api/run-detail; do
+for relay_path in /memory/api/graph /memory/api/schedules /files/api/roots /files/api/list /tasks/api/runs /tasks/api/run-detail /agent/api/buzz-claim /agent/api/buzz-relay-config; do
   relay_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -H "X-INTERNKIM-REQUESTER-EMAIL: $relay_requester" "http://127.0.0.1:18080$relay_path")"
   case "$relay_status" in
     403|404)
