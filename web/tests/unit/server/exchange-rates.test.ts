@@ -46,7 +46,10 @@ describe('frankfurterProvider().supportedCurrencies', () => {
 			fetch: createMockFetch(async () => {
 				fetchCallCount += 1;
 				if (fetchShouldFail) return new Response('service unavailable', { status: 503 });
-				return Response.json({ USD: 'United States Dollar', KRW: 'South Korean Won' });
+				return Response.json([
+					{ iso_code: 'USD', name: 'United States Dollar' },
+					{ iso_code: 'KRW', name: 'South Korean Won' }
+				]);
 			}),
 			now: () => currentTimeInMilliseconds
 		});
@@ -61,7 +64,7 @@ describe('frankfurterProvider().supportedCurrencies', () => {
 		} catch (error) {
 			if (!(error instanceof Error)) throw error;
 			expect(error.message).toContain('Frankfurter');
-			expect(error.message).toContain('/v1/currencies');
+			expect(error.message).toContain('/v2/currencies');
 			expect(error.message).toContain('503');
 		}
 		expect(fetchCallCount).toBe(1);
@@ -107,7 +110,7 @@ describe('frankfurterProvider().latestRate', () => {
 		const provider = frankfurterProvider({
 			fetch: createMockFetch(async (input) => {
 				requestedURL = String(input);
-				return Response.json({ amount: 1, base: 'USD', date: '2026-08-19', rates: { KRW: 1350.12 } });
+				return Response.json([{ date: '2026-08-19', base: 'USD', quote: 'KRW', rate: 1350.12 }]);
 			}),
 			now: () => epochInMilliseconds
 		});
@@ -115,22 +118,22 @@ describe('frankfurterProvider().latestRate', () => {
 		const rate = await provider.latestRate('USD', 'KRW');
 
 		expect(rate).toEqual({ base: 'USD', quote: 'KRW', rate: 1350.12, asOf: '2026-08-19' });
-		expect(requestedURL).toBe('https://api.frankfurter.dev/v1/latest?base=USD&symbols=KRW');
+		expect(requestedURL).toBe('https://api.frankfurter.dev/v2/rates?base=USD&quotes=KRW');
 	});
 
-	test('rejects a payload missing rates', async () => {
+	test('rejects a payload that is not the array of rate rows v2 returns', async () => {
 		const provider = frankfurterProvider({
 			fetch: createMockFetch(async () => Response.json({ amount: 1, base: 'USD', date: '2026-08-19' })),
 			now: () => epochInMilliseconds
 		});
 
-		await expect(provider.latestRate('USD', 'KRW')).rejects.toThrow('missing rates');
+		await expect(provider.latestRate('USD', 'KRW')).rejects.toThrow('expected a JSON array');
 	});
 
 	test('rejects a payload missing the requested quote', async () => {
 		const provider = frankfurterProvider({
 			fetch: createMockFetch(async () =>
-				Response.json({ amount: 1, base: 'USD', date: '2026-08-19', rates: { EUR: 0.92 } })
+				Response.json([{ date: '2026-08-19', base: 'USD', quote: 'EUR', rate: 0.92 }])
 			),
 			now: () => epochInMilliseconds
 		});
@@ -139,7 +142,7 @@ describe('frankfurterProvider().latestRate', () => {
 	});
 
 	test('rejects a non-finite rate', async () => {
-		const overflowingRateBody = '{"amount":1,"base":"USD","date":"2026-08-19","rates":{"KRW":1e400}}';
+		const overflowingRateBody = '[{"date":"2026-08-19","base":"USD","quote":"KRW","rate":1e400}]';
 		const provider = frankfurterProvider({
 			fetch: createMockFetch(async () => new Response(overflowingRateBody, { status: 200 })),
 			now: () => epochInMilliseconds
@@ -162,7 +165,7 @@ describe('frankfurterProvider().latestRate', () => {
 		} catch (error) {
 			if (!(error instanceof Error)) throw error;
 			expect(error.message).toContain('Frankfurter');
-			expect(error.message).toContain('/v1/latest');
+			expect(error.message).toContain('/v2/rates');
 			expect(error.message).toContain('network unreachable');
 		}
 	});
@@ -175,7 +178,7 @@ describe('frankfurterProvider().latestRate', () => {
 			fetch: createMockFetch(async () => {
 				fetchCallCount += 1;
 				if (fetchShouldFail) return new Response('service unavailable', { status: 503 });
-				return Response.json({ amount: 1, base: 'USD', date: '2026-08-19', rates: { KRW: 1350.12 } });
+				return Response.json([{ date: '2026-08-19', base: 'USD', quote: 'KRW', rate: 1350.12 }]);
 			}),
 			now: () => currentTimeInMilliseconds
 		});
