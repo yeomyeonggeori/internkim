@@ -35,6 +35,8 @@
 	import CRMRelationshipEditSheet from './crm-relationship-edit-sheet.svelte';
 	import CRMRelationshipTable from './crm-relationship-table.svelte';
 	import CRMReportDashboard from './crm-report-dashboard.svelte';
+	import CRMFilterPopover from './crm-filter-popover.svelte';
+	import FilterCombobox from '$lib/components/filter-combobox.svelte';
 	import { buildCRMKPICards } from './crm-kpi';
 	import { crmViewCurrency } from './crm-view-currency.svelte';
 	import CRMViewCurrencySelect from './crm-view-currency-select.svelte';
@@ -111,6 +113,31 @@
 	let isAdmin = $state(false);
 	let activityKinds = $derived(controller.activityKindOptions);
 	let organizationTypeFilters = $derived<CRMOrganizationTypeFilter[]>(['all', ...controller.organizationTypeOptions]);
+	let statusFilterOptions = $derived(
+		crmOrganizationStatusOptions
+			.filter((status) => status !== 'all')
+			.map((status) => ({ value: status, label: text.organizationStatuses[status as CRMOrganizationStatus] }))
+	);
+	let typeFilterOptions = $derived(
+		organizationTypeFilters
+			.filter((organizationType) => organizationType !== 'all')
+			.map((organizationType) => ({
+				value: organizationType,
+				label: crmDefinitionLabel(organizationTypeDefinitions, text.organizationTypes, organizationType)
+			}))
+	);
+	let pipelineFilterOptions = $derived(
+		controller.pipelines.map((pipeline) => ({ value: pipeline.pipeline, label: pipeline.label }))
+	);
+	let activityKindFilterOptions = $derived(
+		activityKinds.map((activityKind) => ({ value: activityKind, label: crmLabel(text.activityKinds, activityKind) }))
+	);
+	let relationshipFilterCount = $derived((selectedStatus === 'all' ? 0 : 1) + (selectedType === 'all' ? 0 : 1));
+
+	function resetRelationshipFilters(): void {
+		selectedStatus = 'all';
+		selectedType = 'all';
+	}
 
 	onMount(() => {
 		void controller.load(page.data.session?.email ?? '');
@@ -297,10 +324,14 @@
 			<UnderlineTabs.List class="overflow-x-clip">{#each tabItems as tab (tab.value)}<UnderlineTabs.Trigger value={tab.value}>{tab.label}</UnderlineTabs.Trigger>{/each}</UnderlineTabs.List>
 
 			<UnderlineTabs.Content value="relationships" class="grid min-w-0 gap-4 pb-24">
-				<div class="flex min-w-0 flex-col gap-3 rounded-md border bg-card p-3 lg:flex-row lg:items-center lg:justify-end">
-					<Select.Root type="single" value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)}><Select.Trigger class="w-full lg:w-44">{relationshipViews.find((view) => view.value === relationshipView)?.label}</Select.Trigger><Select.Content>{#each relationshipViews as view (view.value)}<Select.Item value={view.value} label={view.label}>{view.label}</Select.Item>{/each}</Select.Content></Select.Root>
-					<Select.Root type="single" value={selectedStatus} onValueChange={(value) => (selectedStatus = value as CRMOrganizationStatusFilter)}><Select.Trigger class="w-full lg:w-40">{selectedStatus === 'all' ? text.allStatuses : text.organizationStatuses[selectedStatus as CRMOrganizationStatus]}</Select.Trigger><Select.Content>{#each crmOrganizationStatusOptions as status (status)}<Select.Item value={status} label={status === 'all' ? text.allStatuses : text.organizationStatuses[status]}>{status === 'all' ? text.allStatuses : text.organizationStatuses[status]}</Select.Item>{/each}</Select.Content></Select.Root>
-					<Select.Root type="single" value={selectedType} onValueChange={(value) => (selectedType = value as CRMOrganizationTypeFilter)}><Select.Trigger class="w-full lg:w-40">{selectedType === 'all' ? text.allTypes : crmDefinitionLabel(organizationTypeDefinitions, text.organizationTypes, selectedType)}</Select.Trigger><Select.Content>{#each organizationTypeFilters as organizationType (organizationType)}<Select.Item value={organizationType} label={organizationType === 'all' ? text.allTypes : crmDefinitionLabel(organizationTypeDefinitions, text.organizationTypes, organizationType)}>{organizationType === 'all' ? text.allTypes : crmDefinitionLabel(organizationTypeDefinitions, text.organizationTypes, organizationType)}</Select.Item>{/each}</Select.Content></Select.Root>
+				<div class="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
+					<div class="flex min-w-0 flex-wrap items-center gap-2">
+						<CRMFilterPopover {text} activeCount={relationshipFilterCount} onReset={resetRelationshipFilters}>
+							<FilterCombobox bind:value={selectedStatus} options={statusFilterOptions} label={text.status} clearValue="all" class="w-full sm:w-[calc(50%-0.25rem)]" />
+							<FilterCombobox bind:value={selectedType} options={typeFilterOptions} label={text.type} clearValue="all" class="w-full sm:w-[calc(50%-0.25rem)]" />
+						</CRMFilterPopover>
+						<Select.Root type="single" value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)}><Select.Trigger size="sm" class="w-44">{relationshipViews.find((view) => view.value === relationshipView)?.label}</Select.Trigger><Select.Content>{#each relationshipViews as view (view.value)}<Select.Item value={view.value} label={view.label}>{view.label}</Select.Item>{/each}</Select.Content></Select.Root>
+					</div>
 					<Button type="button" size="sm" onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
 				</div>
 				<CRMRelationshipTable organizations={filteredOrganizations} contacts={controller.contacts} {organizationTypeDefinitions} {currencyCatalogue} {text} {openOrganization} />
@@ -316,8 +347,10 @@
 			<UnderlineTabs.Content value="pipeline" class="grid min-w-0 gap-4 pb-24">
 				<div class="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
 					<div class="flex flex-wrap items-center gap-3">
-						<Select.Root type="single" value={selectedPipeline} onValueChange={selectPipeline}><Select.Trigger class="w-44" aria-label={text.progressKind}>{selectedPipeline === 'all' ? text.allProgressKinds : controller.pipelines.find((pipeline) => pipeline.pipeline === selectedPipeline)?.label ?? selectedPipeline}</Select.Trigger><Select.Content><Select.Item value="all" label={text.allProgressKinds}>{text.allProgressKinds}</Select.Item>{#each controller.pipelines as pipeline (pipeline.pipeline)}<Select.Item value={pipeline.pipeline} label={pipeline.label}>{pipeline.label}</Select.Item>{/each}</Select.Content></Select.Root>
-							<Tabs.Root bind:value={pipelineView} aria-label={text.pipeline}><Tabs.List><Tabs.Trigger value="table">{text.tableView}</Tabs.Trigger><Tabs.Trigger value="board">{text.boardView}</Tabs.Trigger></Tabs.List></Tabs.Root>
+						<CRMFilterPopover {text} activeCount={selectedPipeline === 'all' ? 0 : 1} onReset={() => selectPipeline('all')}>
+							<FilterCombobox value={selectedPipeline} options={pipelineFilterOptions} label={text.progressKind} clearValue="all" onSelect={selectPipeline} class="w-full" />
+						</CRMFilterPopover>
+						<Tabs.Root bind:value={pipelineView} aria-label={text.pipeline}><Tabs.List><Tabs.Trigger value="table">{text.tableView}</Tabs.Trigger><Tabs.Trigger value="board">{text.boardView}</Tabs.Trigger></Tabs.List></Tabs.Root>
 					</div>
 					<Button type="button" size="sm" onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 				</div>
@@ -329,8 +362,10 @@
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="activities" class="grid min-w-0 gap-4 pb-24">
-				<div class="flex min-w-0 flex-col gap-3 rounded-md border bg-card p-3 sm:flex-row sm:items-center sm:justify-end">
-					<Select.Root type="single" value={activityView} onValueChange={(value) => (activityView = value as ActivityView)}><Select.Trigger class="w-full sm:w-44">{activityView === 'all' ? text.allActivityKinds : crmLabel(text.activityKinds, activityView)}</Select.Trigger><Select.Content><Select.Item value="all" label={text.allActivityKinds}>{text.allActivityKinds}</Select.Item>{#each activityKinds as activityKind (activityKind)}<Select.Item value={activityKind} label={crmLabel(text.activityKinds, activityKind)}>{crmLabel(text.activityKinds, activityKind)}</Select.Item>{/each}</Select.Content></Select.Root>
+				<div class="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
+					<CRMFilterPopover {text} activeCount={activityView === 'all' ? 0 : 1} onReset={() => (activityView = 'all')}>
+						<FilterCombobox bind:value={activityView} options={activityKindFilterOptions} label={text.activityKind} clearValue="all" class="w-full" />
+					</CRMFilterPopover>
 					<Button type="button" size="sm" onclick={() => openCreateSheet('activity')}><PlusIcon data-icon="inline-start" />{text.logActivity}</Button>
 				</div>
 				<CRMActivityTable activities={filteredActivities} organizations={controller.organizations} {text} onEdit={openActivityEdit} />
