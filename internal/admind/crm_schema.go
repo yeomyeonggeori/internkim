@@ -4,7 +4,41 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
+
+const crmOpportunityTableColumns = `
+		id TEXT PRIMARY KEY CHECK(trim(id) <> ''),
+		account_id TEXT,
+		business TEXT,
+		name TEXT NOT NULL CHECK(trim(name) <> ''),
+		pipeline TEXT NOT NULL,
+		stage TEXT NOT NULL,
+		stage_position REAL NOT NULL,
+		stage_changed_at TEXT NOT NULL CHECK(stage_changed_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
+		owner_person_id TEXT NOT NULL CHECK(trim(owner_person_id) <> ''),
+		owner_circle_id TEXT,
+		amount_minor INTEGER CHECK(amount_minor IS NULL OR amount_minor >= 0),
+		currency_code TEXT NOT NULL CHECK(currency_code IN ('KRW', 'USD', 'JPY', 'EUR')),
+		base_amount_minor INTEGER CHECK(base_amount_minor IS NULL OR base_amount_minor >= 0),
+		base_currency_code TEXT CHECK(base_currency_code IS NULL OR base_currency_code IN ('KRW', 'USD', 'JPY', 'EUR')),
+		importance TEXT NOT NULL CHECK(importance IN ('high', 'medium', 'low')),
+		due_at TEXT CHECK(due_at IS NULL OR due_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
+		due_time_zone TEXT,
+		lost_reason TEXT,
+		description TEXT,
+		created_at TEXT NOT NULL CHECK(created_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
+		created_by_person_id TEXT NOT NULL CHECK(trim(created_by_person_id) <> ''),
+		updated_at TEXT NOT NULL CHECK(updated_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
+		updated_by_person_id TEXT NOT NULL CHECK(trim(updated_by_person_id) <> ''),
+		archived_at TEXT CHECK(archived_at IS NULL OR archived_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
+		archived_by_person_id TEXT,
+		CHECK((due_at IS NULL) = (due_time_zone IS NULL)),
+		CHECK((base_amount_minor IS NULL) = (base_currency_code IS NULL)),
+		CHECK((archived_at IS NULL) = (archived_by_person_id IS NULL)),
+		FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE RESTRICT,
+		FOREIGN KEY (pipeline, stage) REFERENCES pipeline_stage(pipeline, stage) ON DELETE RESTRICT
+	`
 
 var crmSchemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS pipeline (
@@ -68,39 +102,7 @@ var crmSchemaStatements = []string{
 		CHECK((archived_at IS NULL) = (archived_by_person_id IS NULL)),
 		FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE RESTRICT
 	)`,
-	`CREATE TABLE IF NOT EXISTS opportunity (
-		id TEXT PRIMARY KEY CHECK(trim(id) <> ''),
-		account_id TEXT,
-		business TEXT,
-		name TEXT NOT NULL CHECK(trim(name) <> ''),
-		pipeline TEXT NOT NULL,
-		stage TEXT NOT NULL,
-		stage_position REAL NOT NULL,
-		stage_changed_at TEXT NOT NULL CHECK(stage_changed_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
-		owner_person_id TEXT NOT NULL CHECK(trim(owner_person_id) <> ''),
-		owner_circle_id TEXT,
-		amount_minor INTEGER CHECK(amount_minor IS NULL OR amount_minor >= 0),
-		currency_code TEXT NOT NULL CHECK(currency_code IN ('KRW', 'USD', 'JPY', 'EUR')),
-		base_amount_minor INTEGER CHECK(base_amount_minor IS NULL OR base_amount_minor >= 0),
-		base_currency_code TEXT CHECK(base_currency_code IS NULL OR base_currency_code IN ('KRW', 'USD', 'JPY', 'EUR')),
-		importance TEXT NOT NULL CHECK(importance IN ('high', 'medium', 'low')),
-		due_at TEXT CHECK(due_at IS NULL OR due_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
-		due_time_zone TEXT,
-		lost_reason TEXT,
-		description TEXT,
-		created_at TEXT NOT NULL CHECK(created_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
-		created_by_person_id TEXT NOT NULL CHECK(trim(created_by_person_id) <> ''),
-		updated_at TEXT NOT NULL CHECK(updated_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
-		updated_by_person_id TEXT NOT NULL CHECK(trim(updated_by_person_id) <> ''),
-		archived_at TEXT CHECK(archived_at IS NULL OR archived_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
-		archived_by_person_id TEXT,
-		CHECK((due_at IS NULL) = (due_time_zone IS NULL)),
-		CHECK((base_amount_minor IS NULL) = (base_currency_code IS NULL)),
-		CHECK((archived_at IS NULL) = (archived_by_person_id IS NULL)),
-		FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE RESTRICT,
-		FOREIGN KEY (pipeline, stage) REFERENCES pipeline_stage(pipeline, stage) ON DELETE RESTRICT,
-		FOREIGN KEY (lost_reason) REFERENCES lost_reason(reason) ON DELETE RESTRICT
-	)`,
+	`CREATE TABLE IF NOT EXISTS opportunity (` + crmOpportunityTableColumns + `)`,
 	`CREATE TABLE IF NOT EXISTS opportunity_contact (
 		opportunity_id TEXT NOT NULL,
 		contact_id TEXT NOT NULL,
@@ -233,6 +235,19 @@ var crmSchemaStatements = []string{
 			THEN RAISE(ABORT, 'opportunity contact account mismatch')
 		END;
 	END`,
+	`CREATE TRIGGER IF NOT EXISTS contact_validate_opportunities_after_account_update
+	BEFORE UPDATE OF account_id ON contact
+	WHEN EXISTS (
+		SELECT 1
+		FROM opportunity_contact oc
+		JOIN opportunity o ON o.id = oc.opportunity_id
+		WHERE oc.contact_id = OLD.id
+			AND o.account_id IS NOT NULL
+			AND o.account_id IS NOT NEW.account_id
+	)
+	BEGIN
+		SELECT RAISE(ABORT, 'opportunity contact account mismatch');
+	END`,
 	`CREATE TRIGGER IF NOT EXISTS opportunity_validate_contacts_after_insert
 	AFTER INSERT ON opportunity
 	BEGIN
@@ -290,11 +305,13 @@ var crmSchemaStatements = []string{
 			) THEN RAISE(ABORT, 'activity contact is not linked to opportunity')
 			END;
 		END`,
-	`CREATE TRIGGER IF NOT EXISTS activity_stage_change_immutable_update
-		BEFORE UPDATE ON activity
-		WHEN OLD.kind = 'stage_change'
+	`DROP TRIGGER IF EXISTS activity_stage_change_immutable_update`,
+	`DROP TRIGGER IF EXISTS activity_stage_change_reentry_update`,
+	`CREATE TRIGGER activity_stage_change_reentry_update
+		BEFORE UPDATE OF kind ON activity
+		WHEN NEW.kind = 'stage_change' AND OLD.kind != 'stage_change'
 		BEGIN
-			SELECT RAISE(ABORT, 'stage change activity is immutable');
+			SELECT RAISE(ABORT, 'stage change activity is system generated');
 		END`,
 	`CREATE TRIGGER IF NOT EXISTS activity_stage_change_immutable_delete
 		BEFORE DELETE ON activity
@@ -323,50 +340,55 @@ var crmPipelineStageSeeds = []struct {
 	position int
 	outcome  string
 }{
-	{pipeline: "sales", stage: "lead", position: 1, outcome: "open"},
-	{pipeline: "sales", stage: "qualified", position: 2, outcome: "open"},
-	{pipeline: "sales", stage: "proposal", position: 3, outcome: "open"},
-	{pipeline: "sales", stage: "negotiation", position: 4, outcome: "open"},
-	{pipeline: "sales", stage: "won", position: 5, outcome: "won"},
+	{pipeline: "sales", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "sales", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "sales", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "sales", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "sales", stage: "on_hold", position: 5, outcome: "on_hold"},
 	{pipeline: "sales", stage: "lost", position: 6, outcome: "lost"},
-	{pipeline: "sales", stage: "on_hold", position: 7, outcome: "on_hold"},
-	{pipeline: "sponsorship", stage: "lead", position: 1, outcome: "open"},
-	{pipeline: "sponsorship", stage: "qualified", position: 2, outcome: "open"},
-	{pipeline: "sponsorship", stage: "proposal", position: 3, outcome: "open"},
-	{pipeline: "sponsorship", stage: "negotiation", position: 4, outcome: "open"},
-	{pipeline: "sponsorship", stage: "won", position: 5, outcome: "won"},
+	{pipeline: "fundraising", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "fundraising", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "fundraising", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "fundraising", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "fundraising", stage: "on_hold", position: 5, outcome: "on_hold"},
+	{pipeline: "fundraising", stage: "lost", position: 6, outcome: "lost"},
+	{pipeline: "sponsorship", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "sponsorship", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "sponsorship", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "sponsorship", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "sponsorship", stage: "on_hold", position: 5, outcome: "on_hold"},
 	{pipeline: "sponsorship", stage: "lost", position: 6, outcome: "lost"},
-	{pipeline: "sponsorship", stage: "on_hold", position: 7, outcome: "on_hold"},
-	{pipeline: "partnership", stage: "lead", position: 1, outcome: "open"},
-	{pipeline: "partnership", stage: "qualified", position: 2, outcome: "open"},
-	{pipeline: "partnership", stage: "proposal", position: 3, outcome: "open"},
-	{pipeline: "partnership", stage: "negotiation", position: 4, outcome: "open"},
-	{pipeline: "partnership", stage: "won", position: 5, outcome: "won"},
+	{pipeline: "investment", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "investment", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "investment", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "investment", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "investment", stage: "on_hold", position: 5, outcome: "on_hold"},
+	{pipeline: "investment", stage: "lost", position: 6, outcome: "lost"},
+	{pipeline: "procurement", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "procurement", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "procurement", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "procurement", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "procurement", stage: "on_hold", position: 5, outcome: "on_hold"},
+	{pipeline: "procurement", stage: "lost", position: 6, outcome: "lost"},
+	{pipeline: "partnership", stage: "waiting", position: 1, outcome: "open"},
+	{pipeline: "partnership", stage: "in_progress", position: 2, outcome: "open"},
+	{pipeline: "partnership", stage: "review", position: 3, outcome: "open"},
+	{pipeline: "partnership", stage: "done", position: 4, outcome: "won"},
+	{pipeline: "partnership", stage: "on_hold", position: 5, outcome: "on_hold"},
 	{pipeline: "partnership", stage: "lost", position: 6, outcome: "lost"},
-	{pipeline: "partnership", stage: "on_hold", position: 7, outcome: "on_hold"},
-	{pipeline: "fundraising", stage: "contacted", position: 1, outcome: "open"},
-	{pipeline: "fundraising", stage: "pitched", position: 2, outcome: "open"},
-	{pipeline: "fundraising", stage: "due_diligence", position: 3, outcome: "open"},
-	{pipeline: "fundraising", stage: "committee", position: 4, outcome: "open"},
-	{pipeline: "fundraising", stage: "term_sheet", position: 5, outcome: "open"},
-	{pipeline: "fundraising", stage: "closed", position: 6, outcome: "won"},
-	{pipeline: "fundraising", stage: "lost", position: 7, outcome: "lost"},
-	{pipeline: "fundraising", stage: "on_hold", position: 8, outcome: "on_hold"},
-	{pipeline: "investment", stage: "sourcing", position: 1, outcome: "open"},
-	{pipeline: "investment", stage: "screening", position: 2, outcome: "open"},
-	{pipeline: "investment", stage: "partner_review", position: 3, outcome: "open"},
-	{pipeline: "investment", stage: "due_diligence", position: 4, outcome: "open"},
-	{pipeline: "investment", stage: "committee", position: 5, outcome: "open"},
-	{pipeline: "investment", stage: "term_sheet", position: 6, outcome: "open"},
-	{pipeline: "investment", stage: "closed", position: 7, outcome: "won"},
-	{pipeline: "investment", stage: "lost", position: 8, outcome: "lost"},
-	{pipeline: "investment", stage: "on_hold", position: 9, outcome: "on_hold"},
-	{pipeline: "procurement", stage: "rfx", position: 1, outcome: "open"},
-	{pipeline: "procurement", stage: "evaluation", position: 2, outcome: "open"},
-	{pipeline: "procurement", stage: "negotiation", position: 3, outcome: "open"},
-	{pipeline: "procurement", stage: "contract_award", position: 4, outcome: "won"},
-	{pipeline: "procurement", stage: "lost", position: 5, outcome: "lost"},
-	{pipeline: "procurement", stage: "on_hold", position: 6, outcome: "on_hold"},
+}
+
+var crmUniformPipelineStages = []struct {
+	stage    string
+	position int
+	outcome  string
+}{
+	{stage: "waiting", position: 1, outcome: "open"},
+	{stage: "in_progress", position: 2, outcome: "open"},
+	{stage: "review", position: 3, outcome: "open"},
+	{stage: "done", position: 4, outcome: "won"},
+	{stage: "on_hold", position: 5, outcome: "on_hold"},
+	{stage: "lost", position: 6, outcome: "lost"},
 }
 
 var crmLostReasonSeeds = []struct {
@@ -383,6 +405,9 @@ var crmLostReasonSeeds = []struct {
 }
 
 func ensureCRMSchema(ctx context.Context, database *sql.DB) error {
+	if errorValue := migrateCRMOpportunityAwayFromLostReasonForeignKey(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	transaction, errorValue := database.BeginTx(ctx, nil)
 	if errorValue != nil {
 		return fmt.Errorf("begin CRM schema transaction: %w", errorValue)
@@ -401,6 +426,10 @@ ON CONFLICT(pipeline) DO NOTHING`, seed.pipeline, seed.label, seed.direction); e
 			_ = transaction.Rollback()
 			return fmt.Errorf("seed CRM pipeline %s: %w", seed.pipeline, errorValue)
 		}
+	}
+	if errorValue := migrateCRMPipelineStagesToUniformSet(ctx, transaction); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
 	}
 	for _, seed := range crmPipelineStageSeeds {
 		if _, errorValue := transaction.ExecContext(ctx, `
@@ -424,4 +453,194 @@ ON CONFLICT(reason) DO NOTHING`, seed.reason, seed.label); errorValue != nil {
 		return fmt.Errorf("commit CRM schema: %w", errorValue)
 	}
 	return nil
+}
+
+const crmUniformPipelineStagePositionOffset = 1000
+
+func migrateCRMPipelineStagesToUniformSet(ctx context.Context, transaction *sql.Tx) error {
+	quotedStages := make([]string, len(crmUniformPipelineStages))
+	for index, stage := range crmUniformPipelineStages {
+		quotedStages[index] = "'" + stage.stage + "'"
+	}
+	uniformStageList := strings.Join(quotedStages, ", ")
+
+	var legacyStageCount int
+	if errorValue := transaction.QueryRowContext(ctx, `
+SELECT COUNT(*) FROM pipeline_stage
+WHERE stage NOT IN (`+uniformStageList+`)`).Scan(&legacyStageCount); errorValue != nil {
+		return fmt.Errorf("count legacy CRM pipeline stages: %w", errorValue)
+	}
+	if legacyStageCount == 0 {
+		return nil
+	}
+
+	pipelines, errorValue := crmDistinctPipelineIdentifiers(ctx, transaction)
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, pipeline := range pipelines {
+		for _, stage := range crmUniformPipelineStages {
+			if _, errorValue := transaction.ExecContext(ctx, `
+INSERT INTO pipeline_stage(pipeline, stage, position, outcome)
+VALUES(?, ?, ?, ?)
+ON CONFLICT(pipeline, stage) DO UPDATE SET position = excluded.position, outcome = excluded.outcome`,
+				pipeline, stage.stage, stage.position+crmUniformPipelineStagePositionOffset, stage.outcome); errorValue != nil {
+				return fmt.Errorf("seed CRM uniform pipeline stage %s/%s: %w", pipeline, stage.stage, errorValue)
+			}
+		}
+	}
+	if _, errorValue := transaction.ExecContext(ctx, `
+UPDATE opportunity
+SET stage = CASE (
+		SELECT outcome FROM pipeline_stage
+		WHERE pipeline_stage.pipeline = opportunity.pipeline AND pipeline_stage.stage = opportunity.stage
+	)
+		WHEN 'open' THEN 'in_progress'
+		WHEN 'won' THEN 'done'
+		WHEN 'lost' THEN 'lost'
+		WHEN 'on_hold' THEN 'on_hold'
+	END
+WHERE stage NOT IN (`+uniformStageList+`)`); errorValue != nil {
+		return fmt.Errorf("remap CRM opportunities off legacy pipeline stages: %w", errorValue)
+	}
+	if _, errorValue := transaction.ExecContext(ctx, `DELETE FROM pipeline_stage WHERE stage NOT IN (`+uniformStageList+`)`); errorValue != nil {
+		return fmt.Errorf("delete legacy CRM pipeline stages: %w", errorValue)
+	}
+	if _, errorValue := transaction.ExecContext(ctx, `
+UPDATE pipeline_stage
+SET position = position - ?
+WHERE position > ?`, crmUniformPipelineStagePositionOffset, crmUniformPipelineStagePositionOffset); errorValue != nil {
+		return fmt.Errorf("finalize CRM uniform pipeline stage positions: %w", errorValue)
+	}
+	return nil
+}
+
+func crmDistinctPipelineIdentifiers(ctx context.Context, transaction *sql.Tx) ([]string, error) {
+	rows, errorValue := transaction.QueryContext(ctx, `
+SELECT pipeline FROM pipeline
+UNION
+SELECT pipeline FROM pipeline_stage`)
+	if errorValue != nil {
+		return nil, fmt.Errorf("list CRM pipelines needing uniform stages: %w", errorValue)
+	}
+	defer rows.Close()
+	pipelines := []string{}
+	for rows.Next() {
+		var pipeline string
+		if errorValue := rows.Scan(&pipeline); errorValue != nil {
+			return nil, errorValue
+		}
+		pipelines = append(pipelines, pipeline)
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return nil, errorValue
+	}
+	return pipelines, nil
+}
+
+func crmOpportunityHasLostReasonForeignKey(ctx context.Context, connection *sql.Conn) (bool, error) {
+	var createStatement string
+	errorValue := connection.QueryRowContext(ctx,
+		"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'opportunity'").Scan(&createStatement)
+	if errorValue == sql.ErrNoRows {
+		return false, nil
+	}
+	if errorValue != nil {
+		return false, fmt.Errorf("read CRM opportunity table definition: %w", errorValue)
+	}
+	return strings.Contains(createStatement, "REFERENCES lost_reason(reason)"), nil
+}
+
+func rebuildCRMOpportunityKeepingLostReasonColumnFreeOfConstraint(ctx context.Context, connection *sql.Conn) error {
+	transaction, errorValue := connection.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return fmt.Errorf("begin CRM opportunity rebuild transaction: %w", errorValue)
+	}
+	dependentTriggers, errorValue := crmTriggerNamesReferencingOpportunity(ctx, transaction)
+	if errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	statements := make([]string, 0, len(dependentTriggers)+5)
+	for _, triggerName := range dependentTriggers {
+		statements = append(statements, "DROP TRIGGER "+triggerName)
+	}
+	statements = append(statements,
+		"DROP TABLE IF EXISTS opportunity_rebuild",
+		"CREATE TABLE opportunity_rebuild ("+crmOpportunityTableColumns+")",
+		"INSERT INTO opportunity_rebuild SELECT * FROM opportunity",
+		"DROP TABLE opportunity",
+		"ALTER TABLE opportunity_rebuild RENAME TO opportunity",
+	)
+	for _, statement := range statements {
+		if _, errorValue := transaction.ExecContext(ctx, statement); errorValue != nil {
+			_ = transaction.Rollback()
+			return fmt.Errorf("rebuild CRM opportunity table: %w", errorValue)
+		}
+	}
+	if errorValue := transaction.Commit(); errorValue != nil {
+		return fmt.Errorf("commit CRM opportunity rebuild: %w", errorValue)
+	}
+	return nil
+}
+
+func crmTriggerNamesReferencingOpportunity(ctx context.Context, transaction *sql.Tx) ([]string, error) {
+	rows, errorValue := transaction.QueryContext(ctx, `
+SELECT name FROM sqlite_master
+WHERE type = 'trigger' AND sql LIKE '%opportunity%'
+ORDER BY name`)
+	if errorValue != nil {
+		return nil, fmt.Errorf("list CRM triggers referencing opportunity: %w", errorValue)
+	}
+	defer rows.Close()
+	triggerNames := []string{}
+	for rows.Next() {
+		var triggerName string
+		if errorValue := rows.Scan(&triggerName); errorValue != nil {
+			return nil, errorValue
+		}
+		triggerNames = append(triggerNames, triggerName)
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return nil, errorValue
+	}
+	return triggerNames, nil
+}
+
+func assertCRMOpportunityRebuildLeftNoForeignKeyViolations(ctx context.Context, connection *sql.Conn) error {
+	rows, errorValue := connection.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if errorValue != nil {
+		return fmt.Errorf("run CRM foreign key check after opportunity rebuild: %w", errorValue)
+	}
+	defer rows.Close()
+	if rows.Next() {
+		return fmt.Errorf("CRM opportunity rebuild left foreign key violations")
+	}
+	return rows.Err()
+}
+
+func migrateCRMOpportunityAwayFromLostReasonForeignKey(ctx context.Context, database *sql.DB) error {
+	connection, errorValue := database.Conn(ctx)
+	if errorValue != nil {
+		return fmt.Errorf("acquire CRM opportunity rebuild connection: %w", errorValue)
+	}
+	defer connection.Close()
+	hasForeignKey, errorValue := crmOpportunityHasLostReasonForeignKey(ctx, connection)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !hasForeignKey {
+		return nil
+	}
+	if _, errorValue := connection.ExecContext(ctx, "PRAGMA foreign_keys=OFF"); errorValue != nil {
+		return fmt.Errorf("disable CRM foreign keys for opportunity rebuild: %w", errorValue)
+	}
+	rebuildError := rebuildCRMOpportunityKeepingLostReasonColumnFreeOfConstraint(ctx, connection)
+	if _, enableError := connection.ExecContext(ctx, "PRAGMA foreign_keys=ON"); enableError != nil {
+		return fmt.Errorf("re-enable CRM foreign keys after opportunity rebuild: %w", enableError)
+	}
+	if rebuildError != nil {
+		return rebuildError
+	}
+	return assertCRMOpportunityRebuildLeftNoForeignKeyViolations(ctx, connection)
 }

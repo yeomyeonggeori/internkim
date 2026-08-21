@@ -9,6 +9,10 @@ import (
 )
 
 func (service *Service) writeCRMOpportunity(ctx context.Context, opportunity crmOpportunity, contacts []crmOpportunityContact) (crmOpportunity, error) {
+	return service.writeCRMOpportunityWithTransition(ctx, opportunity, contacts, nil)
+}
+
+func (service *Service) writeCRMOpportunityWithTransition(ctx context.Context, opportunity crmOpportunity, contacts []crmOpportunityContact, transition *crmOpportunityStageTransition) (crmOpportunity, error) {
 	opportunity.ID = strings.TrimSpace(opportunity.ID)
 	if opportunity.ID == "" {
 		opportunity.ID = newCRMID("opportunity")
@@ -51,6 +55,15 @@ func (service *Service) writeCRMOpportunity(ctx context.Context, opportunity crm
 	if errorValue := validateCRMOpportunityContacts(contacts); errorValue != nil {
 		return crmOpportunity{}, errorValue
 	}
+	if transition != nil {
+		transitionValue := *transition
+		transitionValue.OpportunityID = opportunity.ID
+		normalizedTransition, errorValue := normalizeCRMOpportunityStageTransition(transitionValue)
+		if errorValue != nil {
+			return crmOpportunity{}, errorValue
+		}
+		transition = &normalizedTransition
+	}
 
 	database, errorValue := service.openCRMDatabase(ctx)
 	if errorValue != nil {
@@ -79,35 +92,50 @@ func (service *Service) writeCRMOpportunity(ctx context.Context, opportunity crm
 		return crmOpportunity{}, fmt.Errorf("CRM opportunity requires an account or contact")
 	}
 	var existingAccountID string
+	var existingOpportunity crmOpportunity
 	if existingCount > 0 {
-		var existingAccountValue sql.NullString
-		var existingPipeline string
-		var existingStage string
-		var existingStagePosition float64
-		var existingStageChangedAt string
-		if errorValue := transaction.QueryRowContext(ctx, `
-SELECT account_id, pipeline, stage, stage_position, stage_changed_at
-FROM opportunity
-WHERE id = ?`, opportunity.ID).Scan(&existingAccountValue, &existingPipeline, &existingStage, &existingStagePosition, &existingStageChangedAt); errorValue != nil {
+		existingOpportunity, errorValue = scanCRMOpportunity(transaction.QueryRowContext(ctx, crmOpportunitySelectSQL+" WHERE id = ?", opportunity.ID))
+		if errorValue != nil {
 			_ = transaction.Rollback()
 			return crmOpportunity{}, fmt.Errorf("read CRM opportunity stage %s: %w", opportunity.ID, errorValue)
 		}
-		existingAccountID = crmStringFromNull(existingAccountValue)
+		existingAccountID = existingOpportunity.AccountID
 		if (existingAccountID == "") != (opportunity.AccountID == "") {
 			_ = transaction.Rollback()
 			return crmOpportunity{}, newCRMConflict("CRM opportunity cannot change between account and contact-only customers")
 		}
-		if opportunity.Pipeline != existingPipeline || (opportunity.Stage != "" && opportunity.Stage != existingStage) {
+		if opportunity.Pipeline != existingOpportunity.Pipeline || (opportunity.Stage != "" && opportunity.Stage != existingOpportunity.Stage) {
 			_ = transaction.Rollback()
 			return crmOpportunity{}, newCRMConflict("CRM opportunity stage changes require transitionCRMOpportunityStage")
 		}
-		opportunity.Stage = existingStage
-		opportunity.StagePosition = existingStagePosition
-		opportunity.StageChangedAt = existingStageChangedAt
+		opportunity.Stage = existingOpportunity.Stage
+		opportunity.StagePosition = existingOpportunity.StagePosition
+		opportunity.StageChangedAt = existingOpportunity.StageChangedAt
 		if existingAccountID != opportunity.AccountID && contacts == nil {
 			_ = transaction.Rollback()
 			return crmOpportunity{}, newCRMConflict("CRM opportunity account changes require an explicit contact list")
 		}
+	}
+	if existingCount == 0 && transition != nil {
+		var targetOutcome string
+		if errorValue := transaction.QueryRowContext(ctx, "SELECT outcome FROM pipeline_stage WHERE pipeline = ? AND stage = ?", opportunity.Pipeline, transition.Stage).Scan(&targetOutcome); errorValue != nil {
+			_ = transaction.Rollback()
+			if errorValue == sql.ErrNoRows {
+				return crmOpportunity{}, newCRMConflict(fmt.Sprintf("CRM stage %s does not belong to pipeline %s", transition.Stage, opportunity.Pipeline))
+			}
+			return crmOpportunity{}, fmt.Errorf("read CRM target stage outcome: %w", errorValue)
+		}
+		guardedTransition, errorValue := requireCRMLostReasonOnlyForLostOutcome(*transition, targetOutcome)
+		if errorValue != nil {
+			_ = transaction.Rollback()
+			return crmOpportunity{}, errorValue
+		}
+		opportunity.Stage = guardedTransition.Stage
+		opportunity.StagePosition = guardedTransition.StagePosition
+		opportunity.StageChangedAt = guardedTransition.OccurredAt
+		opportunity.LostReason = guardedTransition.LostReason
+		opportunity.BaseAmountMinor = guardedTransition.BaseAmountMinor
+		opportunity.BaseCurrencyCode = guardedTransition.BaseCurrencyCode
 	}
 	if opportunity.Stage == "" {
 		if errorValue := transaction.QueryRowContext(ctx, `
@@ -149,6 +177,12 @@ WHERE pipeline = ? AND stage = ?`, opportunity.Pipeline, opportunity.Stage).Scan
 	}
 	if contacts != nil && !contactsWrittenBeforeOpportunity {
 		if errorValue := replaceCRMOpportunityContactsInTransaction(ctx, transaction, opportunity.ID, contacts); errorValue != nil {
+			_ = transaction.Rollback()
+			return crmOpportunity{}, errorValue
+		}
+	}
+	if existingCount > 0 && transition != nil {
+		if errorValue := applyCRMOpportunityStageTransitionInTransaction(ctx, transaction, opportunity, *transition); errorValue != nil {
 			_ = transaction.Rollback()
 			return crmOpportunity{}, errorValue
 		}
@@ -256,6 +290,39 @@ func (service *Service) listCRMOpportunities(ctx context.Context, includeArchive
 		return nil, fmt.Errorf("iterate CRM opportunities: %w", errorValue)
 	}
 	return opportunities, nil
+}
+
+func (service *Service) listCRMOpportunityContacts(ctx context.Context, includeArchived bool) (map[string][]crmOpportunityContact, error) {
+	database, errorValue := service.openCRMDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT opportunity_contact.opportunity_id, opportunity_contact.contact_id, opportunity_contact.is_primary
+FROM opportunity_contact
+JOIN opportunity ON opportunity.id = opportunity_contact.opportunity_id
+WHERE ? = 1 OR opportunity.archived_at IS NULL
+ORDER BY opportunity_contact.opportunity_id, opportunity_contact.is_primary DESC, opportunity_contact.contact_id`, crmBooleanInteger(includeArchived))
+	if errorValue != nil {
+		return nil, fmt.Errorf("list CRM opportunity contacts: %w", errorValue)
+	}
+	defer rows.Close()
+	contactsByOpportunityID := map[string][]crmOpportunityContact{}
+	for rows.Next() {
+		var opportunityID string
+		var contact crmOpportunityContact
+		var isPrimary int
+		if errorValue := rows.Scan(&opportunityID, &contact.ContactID, &isPrimary); errorValue != nil {
+			return nil, fmt.Errorf("scan CRM opportunity contact: %w", errorValue)
+		}
+		contact.IsPrimary = isPrimary == 1
+		contactsByOpportunityID[opportunityID] = append(contactsByOpportunityID[opportunityID], contact)
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return nil, fmt.Errorf("iterate CRM opportunity contacts: %w", errorValue)
+	}
+	return contactsByOpportunityID, nil
 }
 
 const crmOpportunitySelectSQL = `

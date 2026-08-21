@@ -16,12 +16,6 @@ func (service *Service) writeCRMActivity(ctx context.Context, activity crmActivi
 	if activity.Title == "" {
 		return crmActivity{}, fmt.Errorf("CRM activity title is required")
 	}
-	if activity.Kind == "stage_change" {
-		return crmActivity{}, fmt.Errorf("CRM stage change activities are system generated")
-	}
-	if !crmValueAllowed(activity.Kind, "note", "email", "meeting", "call", "task", "file", "event") {
-		return crmActivity{}, fmt.Errorf("invalid CRM activity kind %q", activity.Kind)
-	}
 	if activity.AccountID == "" && activity.ContactID == "" && activity.OpportunityID == "" {
 		return crmActivity{}, fmt.Errorf("CRM activity requires an account, contact, or opportunity")
 	}
@@ -38,6 +32,18 @@ func (service *Service) writeCRMActivity(ctx context.Context, activity crmActivi
 		return crmActivity{}, errorValue
 	}
 	defer database.Close()
+	var existingKind string
+	errorValue = database.QueryRowContext(ctx, "SELECT kind FROM activity WHERE id = ?", activity.ID).Scan(&existingKind)
+	if errorValue != nil && errorValue != sql.ErrNoRows {
+		return crmActivity{}, fmt.Errorf("read existing CRM activity %s: %w", activity.ID, errorValue)
+	}
+	if activity.Kind == "stage_change" {
+		if errorValue == sql.ErrNoRows || existingKind != "stage_change" {
+			return crmActivity{}, fmt.Errorf("CRM stage change activities are system generated")
+		}
+	} else if !crmValueAllowed(activity.Kind, "note", "email", "meeting", "call", "task", "file", "event") {
+		return crmActivity{}, fmt.Errorf("invalid CRM activity kind %q", activity.Kind)
+	}
 	transaction, errorValue := database.BeginTx(ctx, nil)
 	if errorValue != nil {
 		return crmActivity{}, errorValue

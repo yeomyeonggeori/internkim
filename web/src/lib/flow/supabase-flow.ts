@@ -1,5 +1,5 @@
 import { supabase } from '$lib/supabase';
-import { flowDefinitionsOf, vocabularyOf } from '$lib/flow/task-vocabulary';
+import { flowDefinitionsOf, taskVocabularyOfDefinitions, vocabularyOf } from '$lib/flow/task-vocabulary';
 import { heldTasks, holdTasks, mergeChangedTasks, newestStamp } from '$lib/flow/flow-task-cache';
 import {
 	centralFlowStatusOptions,
@@ -18,6 +18,7 @@ import {
 	type MemberTaskTally
 } from '$lib/flow/flow-scores';
 import type {
+	FlowDefinitions,
 	FlowMember,
 	FlowMemberScoreDetail,
 	FlowMetrics,
@@ -230,6 +231,18 @@ function nullableStringField(fields: Record<string, unknown>, field: string): st
 export async function saveSupabaseFlowTask(task: FlowTask): Promise<void> {
 	const saved = await supabase().rpc('save_flow_task', supabaseFlowTaskRPCArguments(task));
 	if (saved.error) throw new Error(saved.error.message);
+}
+
+export async function saveSupabaseTaskVocabulary(
+	definitions: FlowDefinitions,
+	messages: { failure: string; inUse: string }
+): Promise<void> {
+	const saved = await supabase().rpc('save_task_vocabulary', {
+		target_vocabulary: taskVocabularyOfDefinitions(definitions)
+	});
+	if (!saved.error) return;
+	if (saved.error.code === '2BP01') throw new Error(messages.inUse);
+	throw new Error(messages.failure);
 }
 
 export async function deleteSupabaseFlowTask(taskID: string): Promise<void> {

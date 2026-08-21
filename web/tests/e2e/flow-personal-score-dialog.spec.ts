@@ -16,7 +16,7 @@ test.describe('flow personal score dialog', () => {
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await page.goto('/flow/');
 
-		await page.getByRole('button', { name: '보고', exact: true }).click();
+		await page.getByRole('tab', { name: '보고', exact: true }).click();
 		await expect(page.getByRole('dialog')).toHaveCount(0);
 		await expect(page.getByRole('columnheader', { name: '가중 점수', exact: true })).toHaveCount(0);
 
@@ -50,7 +50,7 @@ test.describe('flow personal score dialog', () => {
 		});
 		await page.goto('/flow/');
 
-		await page.getByRole('button', { name: 'Report', exact: true }).click();
+		await page.getByRole('tab', { name: 'Report', exact: true }).click();
 		await page.getByRole('button', { name: 'My score details', exact: true }).click();
 
 		const dialog = page.getByRole('dialog');

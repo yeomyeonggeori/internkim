@@ -7,6 +7,7 @@ export const reservedFirstSegments = [
 	'auth',
 	'calendar',
 	'company',
+	'crm',
 	'files',
 	'flow',
 	'mail',
