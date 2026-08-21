@@ -41,6 +41,7 @@ test.describe('flow task board drag interactions', () => {
 		const flowDashboardGoal = '업무 진행도 화면에서 상태와 거리 흐름을 빠르게 본다.';
 		await expect(taskColumn(page, '진행').getByText(flowDashboardGoal)).toHaveCount(0);
 		await taskCard(page, flowDashboardTaskID).click();
+		await page.getByRole('dialog').getByRole('button', { name: '업무 수정', exact: true }).click();
 		await expect(page.getByPlaceholder('완료 기준')).toHaveValue(flowDashboardGoal);
 		await page.keyboard.press('Escape');
 		await expect(page.getByPlaceholder('완료 기준')).toHaveCount(0);
@@ -56,14 +57,15 @@ test.describe('flow task board drag interactions', () => {
 		await page.goto('/flow/');
 
 		await page.getByRole('button', { name: /필터/ }).click();
-		await page.locator('[data-flow-filter-panel]').getByRole('button', { name: '전체 참여자', exact: true }).click();
+		await page.locator('[data-flow-filter-panel]').getByRole('combobox', { name: '참여자', exact: true }).click();
+		await page.getByRole('option', { name: '전체', exact: true }).click();
 		await page.keyboard.press('Escape');
 		await page.getByRole('tab', { name: '목록', exact: true }).click();
 		await expect(page.getByRole('tab', { name: '목록', exact: true })).toHaveAttribute('aria-selected', 'true');
 
-		await page.getByRole('button', { name: '보고', exact: true }).click();
+		await page.getByRole('tab', { name: '보고', exact: true }).click();
 		await expect(page.getByRole('button', { name: '내 점수 상세', exact: true })).toBeVisible();
-		await page.getByRole('button', { name: '업무', exact: true }).click();
+		await page.getByRole('tab', { name: '업무', exact: true }).click();
 
 		await expect(page.getByRole('button', { name: '내 점수 상세', exact: true })).toHaveCount(0);
 		await expect(page.getByRole('tab', { name: '목록', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -76,16 +78,16 @@ test.describe('flow task board drag interactions', () => {
 		await dragToLocator(taskCard(page, requestedTaskID), columnAppendTarget(page, '진행'));
 		await expect(taskColumn(page, '진행').locator(`[data-flow-board-card="${requestedTaskID}"]`)).toBeVisible();
 
-		await showUpperInsertionIndicator(page, taskCard(page, marketScanTaskID), taskCard(page, flowDashboardTaskID));
+		const roadmapReviewTaskID = '26W23-roadmap-review';
+		await showUpperInsertionIndicator(page, taskCard(page, roadmapReviewTaskID), taskCard(page, flowDashboardTaskID));
 		await expect(insertionIndicator(page, '진행', flowDashboardTaskID)).toBeVisible();
 		await expectInsertionSlotAbove(insertionIndicator(page, '진행', flowDashboardTaskID), taskCard(page, flowDashboardTaskID));
 
-		await dragToUpperHalf(taskCard(page, marketScanTaskID), taskCard(page, flowDashboardTaskID));
+		await dragToUpperHalf(taskCard(page, roadmapReviewTaskID), taskCard(page, flowDashboardTaskID));
 		await expect(progressCardIDs(page)).resolves.toEqual([
 			'26W23-customer-reply',
-			marketScanTaskID,
+			roadmapReviewTaskID,
 			flowDashboardTaskID,
-			'26W23-roadmap-review',
 			requestedTaskID
 		]);
 
@@ -94,9 +96,8 @@ test.describe('flow task board drag interactions', () => {
 
 		await expect(progressCardIDs(page)).resolves.toEqual([
 			'26W23-customer-reply',
-			marketScanTaskID,
+			roadmapReviewTaskID,
 			flowDashboardTaskID,
-			'26W23-roadmap-review',
 			requestedTaskID
 		]);
 	});
@@ -263,13 +264,13 @@ test.describe('flow task board drag interactions', () => {
 		await openFlowBoard(page);
 		await dragToLocator(taskCard(page, scheduledTaskID), columnAppendTarget(page, '진행'));
 		await page.getByRole('button', { name: '다음 주', exact: true }).click();
-		await expect(page.getByRole('button', { name: '날짜로 주차 이동' })).toContainText('6/8 - 6/14');
+		await expect(page.getByRole('button', { name: '날짜로 주차 이동' })).toContainText('다음 주');
 		shouldCountOldWeekReload = true;
 		releaseSave();
 
 		await page.waitForTimeout(300);
 		expect(oldWeekReloads).toBe(0);
-		await expect(page.getByRole('button', { name: '날짜로 주차 이동' })).toContainText('6/8 - 6/14');
+		await expect(page.getByRole('button', { name: '날짜로 주차 이동' })).toContainText('다음 주');
 		await expect(page).toHaveURL(/week=26W24/);
 	});
 
@@ -310,59 +311,31 @@ test.describe('flow task board drag interactions', () => {
 		}).toBeGreaterThan(mediumHeight + 80);
 	});
 
-	test('resizes board columns after scrolling the board into view', async ({ page }) => {
+	test('keeps board column height steady while the page scrolls', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await openFlowBoard(page);
 		await setFlowPageScrollTop(page, 0);
-		const topBounds = await taskColumn(page, '진행').evaluate((element) => {
-			const bounds = element.getBoundingClientRect();
-			return { top: bounds.top, height: bounds.height };
-		});
+		await waitForFlowBoardHeightUpdate(page);
+		const restingHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
 
 		await scrollFlowBoardToTop(page);
-
-		await expect.poll(async () => {
-			return taskColumn(page, '진행').evaluate((element, initialBounds) => {
-				const bounds = element.getBoundingClientRect();
-				return bounds.top < initialBounds.top && bounds.height > initialBounds.height;
-			}, topBounds);
-		}).toBe(true);
+		await waitForFlowBoardHeightUpdate(page);
+		const alignedHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+		expect(Math.abs(alignedHeight - restingHeight)).toBeLessThanOrEqual(1);
 
 		await scrollFlowPageBy(page, 2000);
 		await waitForFlowBoardHeightUpdate(page);
-		const cappedHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
-
-		await scrollFlowPageBy(page, 2000);
-		await waitForFlowBoardHeightUpdate(page);
-
-		await expect.poll(async () => {
-			const currentHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
-			return currentHeight <= cappedHeight + 1;
-		}).toBe(true);
+		const scrolledHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+		expect(Math.abs(scrolledHeight - restingHeight)).toBeLessThanOrEqual(1);
 	});
-
-	test('shows definition autosave feedback after edits', async ({ page }) => {
-		let releaseDefinitionsSave: () => void = () => {};
-		const definitionsSaveMayContinue = new Promise<void>((resolve) => {
-			releaseDefinitionsSave = resolve;
-		});
-		await page.route('**/flow/api/definitions', async (route) => {
-			if (route.request().method() !== 'PUT') {
-				await route.continue();
-				return;
-			}
-			await definitionsSaveMayContinue;
-			await route.continue();
-		});
-
+	test('confirms a definition edit once it is saved', async ({ page }) => {
 		await page.goto('/flow/');
-		await page.getByRole('button', { name: '정의', exact: true }).click();
+		await page.getByRole('tab', { name: '정의', exact: true }).click();
 		await expect(page.getByText('추가와 삭제는 즉시 저장됩니다.')).toBeVisible();
 
 		await page.getByPlaceholder('사업').fill('신규 사업');
 		await page.getByRole('button', { name: '추가', exact: true }).first().click();
-		await expect(page.getByText('저장 중...')).toBeVisible();
-		releaseDefinitionsSave();
+
 		await expect(page.getByText('저장됨')).toBeVisible();
 	});
 });

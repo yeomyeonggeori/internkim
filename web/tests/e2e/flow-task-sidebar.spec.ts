@@ -2,7 +2,6 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	flowDashboardTaskID,
 	isUnknownRecord,
-	marketScanTaskID,
 	openFlowBoard,
 	requestedTaskID,
 	taskCard,
@@ -21,19 +20,19 @@ test.describe('flow task sidebar', () => {
 		await useMemberFlowSession(page, 'designer@example.com', '박예시');
 		await openFlowBoard(page);
 
-		await taskCard(page, marketScanTaskID).click();
+		await taskCard(page, requestedTaskID).click();
 		await expect(page.getByText('관리자 또는 참여자만 수정할 수 있습니다.')).toBeVisible();
 		await expect(page.getByRole('button', { name: '업무 저장', exact: true })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: '업무 삭제', exact: true })).toHaveCount(0);
 	});
 
-	test('shows no owner or requester for device work and preserves its seven-status contract', async ({ page }) => {
+	test('shows no owner but shows requester for device work and preserves its seven-status contract', async ({ page }) => {
 		await openFlowBoard(page);
 
 		await taskCard(page, flowDashboardTaskID).click();
 		const sidebar = page.getByRole('dialog');
 		await expect(sidebar.getByText('담당자', { exact: true })).toHaveCount(0);
-		await expect(sidebar.getByText('요청자', { exact: true })).toHaveCount(0);
+		await expect(sidebar.getByText('요청자', { exact: true })).toBeVisible();
 		await sidebar.getByRole('button', { name: '업무 수정', exact: true }).click();
 		await sidebar.getByRole('button', { name: '상태', exact: true }).click();
 		await expect(page.getByRole('listbox').getByRole('option')).toHaveText(requestedStatusLabels);
@@ -105,16 +104,16 @@ test.describe('flow task sidebar', () => {
 	});
 
 	test('lets a sole participant manage task assignment', async ({ page }) => {
-		await useMemberFlowSession(page, 'researcher@example.com', '최견본');
+		await useMemberFlowSession(page, 'planner@example.com', '정하준');
 		await openFlowBoard(page);
 
-		await taskCard(page, marketScanTaskID).click();
+		await taskCard(page, '26W23-roadmap-review').click();
 		const sidebar = page.getByRole('dialog');
 		await sidebar.getByRole('button', { name: '업무 수정', exact: true }).click();
 		const participantPicker = sidebar.getByRole('combobox', { name: '참여자', exact: true });
 		await expect(participantPicker).toBeEnabled();
 		await participantPicker.click();
-		const selfOption = page.getByRole('option').filter({ hasText: 'researcher@example.com' });
+		const selfOption = page.getByRole('option').filter({ hasText: 'planner@example.com' });
 		await expect(selfOption).toHaveAttribute('data-checked', 'true');
 		await selfOption.click();
 		await expect(selfOption).toHaveAttribute('data-checked', 'true');
