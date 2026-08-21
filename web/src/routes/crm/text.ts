@@ -220,9 +220,6 @@ export const crmText = {
 		kpiDueSoon: '오늘·임박',
 		kpiOverdue: '기한 초과',
 		kpiOtherProgressKinds: '기타',
-		kpiSales: '판매',
-		kpiInvestment: '투자',
-		kpiCollaboration: '후원·협력',
 		kpiCountSuffix: '건',
 		activityKinds: {
 			note: '메모',
@@ -503,9 +500,6 @@ export const crmText = {
 		kpiDueSoon: 'Today or due soon',
 		kpiOverdue: 'Overdue',
 		kpiOtherProgressKinds: 'Other',
-		kpiSales: 'Sales',
-		kpiInvestment: 'Investment',
-		kpiCollaboration: 'Sponsor or partner',
 		kpiCountSuffix: '',
 		activityKinds: {
 			note: 'Note',
