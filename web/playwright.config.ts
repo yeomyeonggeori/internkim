@@ -30,14 +30,17 @@ function createWebServer(serverBaseURL: string) {
 		url: serverBaseURL,
 		timeout: 120_000,
 		reuseExistingServer: false,
-		env: withoutCentralPlane()
+		env: centralPlaneEnvironment()
 	};
 }
 
-function withoutCentralPlane(): Record<string, string> {
+function centralPlaneEnvironment(): Record<string, string> {
+	if (process.env.PLAYWRIGHT_CENTRAL_PLANE !== '1') {
+		return { SUPABASE_URL: '', SUPABASE_PUBLISHABLE_KEY: '', SUPABASE_SECRET_KEY: '' };
+	}
 	return {
-		SUPABASE_URL: '',
-		SUPABASE_PUBLISHABLE_KEY: '',
-		SUPABASE_SECRET_KEY: ''
+		SUPABASE_URL: process.env.SUPABASE_URL ?? '',
+		SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY ?? '',
+		SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? ''
 	};
 }
