@@ -1,4 +1,5 @@
 import { loadConvertedAmount } from '$lib/currency/converted-amount';
+import { rateHintAnchorCurrency } from './crm-money';
 
 export type CRMViewAmount = {
 	value: number;
@@ -18,7 +19,6 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 	ratesBySource = $state<Record<string, number>>({});
 	isLoading = $state(false);
 	hasManualChoice = $state(false);
-	baseCurrency = $state<string>('');
 
 	private lastFailedFollowKey = '';
 
@@ -31,7 +31,6 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 
 	async follow(baseCurrency: string, sourceCurrencies: string[]): Promise<void> {
 		if (this.isLoading) return;
-		this.baseCurrency = baseCurrency;
 		const view = this.hasManualChoice ? this.selected : baseCurrency;
 		if (!view) return;
 		if (this.selected === view && this.hasRatesFor(sourceCurrencies)) return;
@@ -42,8 +41,8 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 	}
 
 	private hasRatesFor(sourceCurrencies: string[]): boolean {
-		return [...sourceCurrencies, this.baseCurrency].every(
-			(source) => source === '' || source === this.selected || this.ratesBySource[source] !== undefined
+		return [...sourceCurrencies, rateHintAnchorCurrency].every(
+			(source) => source === this.selected || this.ratesBySource[source] !== undefined
 		);
 	}
 
@@ -52,8 +51,8 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 		this.isLoading = true;
 		try {
 			const rates: Record<string, number> = {};
-			for (const source of new Set([...sourceCurrencies, this.baseCurrency])) {
-				if (source === '' || source === view) continue;
+			for (const source of new Set([...sourceCurrencies, rateHintAnchorCurrency])) {
+				if (source === view) continue;
 				const converted = await this.loadRate(ratePreviewAmountMinor, source, view);
 				if (!converted) return false;
 				rates[source] = converted.rate;
