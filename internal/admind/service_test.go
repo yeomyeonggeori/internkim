@@ -675,7 +675,9 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 	adminUIPath := t.TempDir()
 	writeFile(t, filepath.Join(adminUIPath, "index.html"), "admin ui")
 
+	deliveredPolicyPath := filepath.Join(t.TempDir(), "policy.json")
 	service := NewService(Configuration{
+		BlueclawPolicyDeliveryPath:  deliveredPolicyPath,
 		APIBaseURL:                  "https://api.example.test",
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
@@ -724,7 +726,7 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithSeedAdmin(), nil), nil
-		case isBlueclawAdminPolicySave(t, request, "lee@example.com"):
+		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "lee@example.com"):
 			blueclawInvited = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
@@ -830,7 +832,9 @@ func TestAdminSessionReturnsFirstAdminTemporaryPasswordOnce(t *testing.T) {
 
 	createdMattermostPassword := ""
 	hasUserRecord := false
+	deliveredPolicyPath := filepath.Join(t.TempDir(), "policy.json")
 	service := NewService(Configuration{
+		BlueclawPolicyDeliveryPath:  deliveredPolicyPath,
 		APIBaseURL:                  "https://api.example.test",
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
@@ -904,7 +908,7 @@ func TestAdminSessionReturnsFirstAdminTemporaryPasswordOnce(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithSeedAdmin(), nil), nil
-		case isBlueclawAdminPolicySave(t, request, "lee@example.com"):
+		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "lee@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -940,7 +944,9 @@ func TestAdminSessionResetsExistingFirstAdminMattermostPassword(t *testing.T) {
 	writeFile(t, adminPasswordPath, "admin-pass")
 
 	passwordReset := false
+	deliveredPolicyPath := filepath.Join(t.TempDir(), "policy.json")
 	service := NewService(Configuration{
+		BlueclawPolicyDeliveryPath:  deliveredPolicyPath,
 		APIBaseURL:                  "https://api.example.test",
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
@@ -996,7 +1002,7 @@ func TestAdminSessionResetsExistingFirstAdminMattermostPassword(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithSeedAdmin(), nil), nil
-		case isBlueclawAdminPolicySave(t, request, "lee@example.com"):
+		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "lee@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -1027,7 +1033,9 @@ func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing
 	writeFile(t, filepath.Join(stateDirectory, "first-admin-bootstrap.json"), `{"email":"lee@example.com","status":"claimed"}`)
 
 	passwordReset := false
+	deliveredPolicyPath := filepath.Join(t.TempDir(), "policy.json")
 	service := NewService(Configuration{
+		BlueclawPolicyDeliveryPath:  deliveredPolicyPath,
 		APIBaseURL:                  "https://api.example.test",
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
@@ -1081,7 +1089,7 @@ func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@example.com","role":"admin"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithClaimedMember(), nil), nil
-		case isBlueclawAdminPolicySave(t, request, "lee@example.com"):
+		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "lee@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -5425,13 +5433,17 @@ func isBlueclawPolicyGet(request *http.Request) bool {
 	return request.Method == http.MethodGet && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy"
 }
 
-func isBlueclawAdminPolicySave(t *testing.T, request *http.Request, expectedEmail string) bool {
+func isBlueclawAdminPolicyDelivered(t *testing.T, request *http.Request, policyPath string, expectedEmail string) bool {
 	t.Helper()
-	if request.Method != http.MethodPost || request.URL.String() != "http://127.0.0.1:8080/admin/api/policy/save" {
+	if !isBlueclawPolicyReload(request) {
 		return false
 	}
+	delivered, errorValue := os.ReadFile(policyPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	var policyDocument map[string]any
-	if errorValue := json.NewDecoder(request.Body).Decode(&policyDocument); errorValue != nil {
+	if errorValue := json.Unmarshal(delivered, &policyDocument); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	people, _ := policyDocument["people"].([]any)
