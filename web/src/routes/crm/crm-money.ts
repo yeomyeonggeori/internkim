@@ -52,7 +52,7 @@ export function formatViewMoney(
 	locale: Locale = 'ko'
 ): string {
 	const formatted = formatMoney(view.value, view.currency, catalogue, noValue, locale);
-	return view.isConverted ? `≈ ${formatted}` : formatted;
+	return formatted;
 }
 
 export function formatViewMoneyTotals(
@@ -62,14 +62,40 @@ export function formatViewMoneyTotals(
 	noValue = '-',
 	locale: Locale = 'ko'
 ): string {
-	if (view.selected === 'original') return formatMoneyTotals(totals, catalogue, noValue, locale);
+	if (view.selected === '') return formatMoneyTotals(totals, catalogue, noValue, locale);
 	const currencies = Object.keys(totals);
 	if (currencies.length === 0) return noValue;
-	const collapsedValue = currencies.reduce((sum, currency) => {
+	const viewAmounts = currencies.flatMap((currency) => {
 		const amount = totals[currency];
-		return amount === undefined ? sum : sum + view.viewAmount(amount, currency).value;
-	}, 0);
+		return amount === undefined ? [] : [view.viewAmount(amount, currency)];
+	});
+	if (viewAmounts.some((amount) => amount.currency !== view.selected)) {
+		return formatMoneyTotals(totals, catalogue, noValue, locale);
+	}
+	const collapsedValue = viewAmounts.reduce((sum, amount) => sum + amount.value, 0);
 	return formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, catalogue, noValue, locale);
+}
+
+export function formatViewRateHint(
+	viewCurrency: string,
+	ratesBySource: Record<string, number>,
+	catalogue: CurrencyCatalogue
+): string {
+	const pairs = Object.entries(ratesBySource);
+	const [firstPair] = pairs;
+	if (viewCurrency === '' || pairs.length !== 1 || firstPair === undefined) return '';
+	const [source, rate] = firstPair;
+	if (!(rate > 0)) return '';
+	if (rate >= 1) {
+		return `${formatRateSide(1, source, catalogue)} = ${formatRateSide(rate, viewCurrency, catalogue)}`;
+	}
+	return `${formatRateSide(1, viewCurrency, catalogue)} = ${formatRateSide(1 / rate, source, catalogue)}`;
+}
+
+function formatRateSide(value: number, currency: string, catalogue: CurrencyCatalogue): string {
+	const symbol = findCurrencyCatalogueEntry(catalogue, currency)?.symbol ?? currency;
+	const rounded = value >= 100 ? Math.round(value) : Number(value.toFixed(2));
+	return `${symbol}${rounded.toLocaleString()}`;
 }
 
 export function sumOpportunityMoney(
