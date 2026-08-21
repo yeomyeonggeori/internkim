@@ -55,6 +55,11 @@ build-mattermost-ephemeral-plugin:
 	rm -f build/mattermost-plugins/com.internkim.ephemeral-0.2.0.tar.gz
 	rm -rf build/mattermost-plugins/.package-com.internkim.ephemeral
 
+generate-protocol:
+	cd .dependency/blueclaw/protocol && bun install --frozen-lockfile
+	cd .dependency/blueclaw/protocol && bun run generate
+	cd .dependency/blueclaw/protocol && bun run generate --target ../../../pkg/capabilityprotocol/generated
+
 verify-generated-protocol:
 	cd .dependency/blueclaw/protocol && bun install --frozen-lockfile
 	cd .dependency/blueclaw/protocol && bun run generate:check

@@ -571,7 +571,6 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 	service := Service{}
 	toolNames := []string{
 		"message_send",
-		"message_update",
 		"message_delete",
 		"channel_update",
 		"task_delete",
