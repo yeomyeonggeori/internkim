@@ -98,9 +98,7 @@
 							{chosen}
 						{/if}
 					</Select.Trigger>
-					<Select.Content
-						class="max-h-72 [mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)]"
-					>
+					<Select.Content class="max-h-72">
 						{#each catalogue as option (option.code)}
 							<Select.Item value={option.code} label={currencyLabel(option)}>
 								{@render currencyRow(option)}

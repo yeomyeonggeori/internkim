@@ -47,7 +47,7 @@ function buildMoneySummary(
 	view?: CRMViewCurrencyReader
 ): { displayValue: string; moneyDetails?: CRMKPIMoneyDetail[] } {
 	const totals = sumOpportunityMoney(opportunities);
-	if (view && view.selected !== 'original') {
+	if (view && view.selected !== '') {
 		return { displayValue: formatViewMoneyTotals(totals, catalogue, view, text.noValue, locale) };
 	}
 	const moneyDetails = catalogue.reduce<CRMKPIMoneyDetail[]>((details, entry) => {
