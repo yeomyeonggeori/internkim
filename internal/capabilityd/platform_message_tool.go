@@ -24,6 +24,7 @@ type platformMessageDeliveryTarget struct {
 
 type platformMessageSearchInput struct {
 	Scope       string   `json:"scope"`
+	MessageIDs  []string `json:"messageIDs"`
 	ChannelID   string   `json:"channelID"`
 	ChannelName string   `json:"channelName"`
 	PersonHint  string   `json:"personHint"`
@@ -50,7 +51,8 @@ type platformMessageSendInput struct {
 
 type platformMessageUpdateInput struct {
 	MessageID string  `json:"messageID"`
-	Message   *string `json:"message"`
+	OldText   *string `json:"oldText"`
+	NewText   *string `json:"newText"`
 	IsPinned  *bool   `json:"isPinned"`
 }
 
@@ -75,6 +77,7 @@ type platformMessageContextResult struct {
 
 type platformMessageSearchCandidateResult struct {
 	MessageID       string `json:"messageID"`
+	Text            string `json:"text,omitempty"`
 	ChannelID       string `json:"channelID"`
 	RootMessageID   string `json:"rootMessageID,omitempty"`
 	UserID          string `json:"userID"`
@@ -131,6 +134,7 @@ func canonicalPlatformMessageSearchResult(result mattermostPostSearchResult, req
 			UserID:          candidate.UserID,
 			AuthoredBy:      canonicalPlatformMessageCandidateAuthor(candidate, requesterUserID),
 			CreatedAt:       candidate.CreateAt,
+			Text:            candidate.Text,
 			Preview:         candidate.Preview,
 			Deletable:       candidate.Deletable,
 			ProtectedReason: candidate.ProtectedReason,
@@ -225,6 +229,7 @@ func (service Service) invokePlatformMessageSearch(ctx context.Context, request 
 	}
 	mattermostInput := mattermostPostSearchInput{
 		Scope:       platformMessageSearchScope(input),
+		PostIDs:     input.MessageIDs,
 		ChannelID:   input.DeliveryTarget.ChannelID,
 		ChannelName: input.DeliveryTarget.ChannelName,
 		PersonHint:  input.DeliveryTarget.PersonHint,
@@ -390,14 +395,43 @@ func (service Service) invokePlatformMessageUpdate(ctx context.Context, request 
 	}
 	mattermostInput := mattermostPostUpdateInput{
 		PostID:   input.MessageID,
-		Message:  input.Message,
 		IsPinned: input.IsPinned,
+	}
+	if input.OldText != nil {
+		editedMessage, failureResponse, hasFailure := service.resolvePlatformMessageEdit(ctx, request.ToolName, input)
+		if hasFailure {
+			return failureResponse, nil
+		}
+		mattermostInput.Message = &editedMessage
 	}
 	return service.invokeMattermostPostUpdate(ctx, capabilities.ToolInvokeRequest{
 		ToolName: request.ToolName,
 		Input:    mustMarshalPlatformMessageInput(mattermostInput),
 		Context:  request.Context,
 	})
+}
+
+func (service Service) resolvePlatformMessageEdit(ctx context.Context, toolName string, input platformMessageUpdateInput) (string, capabilities.ToolInvokeResponse, bool) {
+	post, failure, hasFailure := service.mattermostToolPost(ctx, input.MessageID)
+	if hasFailure {
+		return "", mattermostToolErrorResponse(toolName, failure), true
+	}
+	if failure, isBlocked := service.validateMattermostPostEdit(ctx, post); isBlocked {
+		return "", mattermostToolDeniedResponse(toolName, failure), true
+	}
+	matchCount := strings.Count(post.Message, *input.OldText)
+	if matchCount != 1 {
+		return "", mattermostToolErrorResponse(toolName, platformMessageEditMatchFailure(matchCount, post.Message)), true
+	}
+	return strings.Replace(post.Message, *input.OldText, *input.NewText, 1), capabilities.ToolInvokeResponse{}, false
+}
+
+func platformMessageEditMatchFailure(matchCount int, currentMessage string) mattermostToolFailure {
+	reason := "oldText was not found in that message"
+	if matchCount > 1 {
+		reason = fmt.Sprintf("oldText appears %d times in that message; quote a longer span that occurs once", matchCount)
+	}
+	return mattermostToolStaticFailure("invalid_input", "message_edit_match", reason+". The message currently reads:\n"+currentMessage)
 }
 
 func (service Service) invokePlatformMessageDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -431,6 +465,7 @@ func decodePlatformMessageSearchInput(document json.RawMessage) (platformMessage
 	input.Scope = strings.TrimSpace(input.Scope)
 	input.AuthoredBy = strings.TrimSpace(input.AuthoredBy)
 	input.Queries = normalizePlatformMessageSearchQueries(input.Queries)
+	input.MessageIDs = uniqueTrimmedMattermostPostIDs(input.MessageIDs)
 	input.Cursor = strings.TrimSpace(input.Cursor)
 	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(platformMessageDeliveryTarget{
 		ChannelID:   input.ChannelID,
@@ -502,11 +537,14 @@ func decodePlatformMessageUpdateInput(document json.RawMessage) (platformMessage
 	if input.MessageID == "" {
 		return platformMessageUpdateInput{}, fmt.Errorf("messageID is required")
 	}
-	if input.Message == nil && input.IsPinned == nil {
-		return platformMessageUpdateInput{}, fmt.Errorf("message or isPinned is required")
+	if (input.OldText == nil) != (input.NewText == nil) {
+		return platformMessageUpdateInput{}, fmt.Errorf("oldText and newText must be given together")
 	}
-	if input.Message != nil && strings.TrimSpace(*input.Message) == "" {
-		return platformMessageUpdateInput{}, fmt.Errorf("message cannot be empty")
+	if input.OldText == nil && input.IsPinned == nil {
+		return platformMessageUpdateInput{}, fmt.Errorf("oldText with newText, or isPinned, is required")
+	}
+	if input.OldText != nil && strings.TrimSpace(*input.OldText) == "" {
+		return platformMessageUpdateInput{}, fmt.Errorf("oldText cannot be empty")
 	}
 	return input, nil
 }
