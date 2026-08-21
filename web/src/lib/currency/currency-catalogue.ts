@@ -1,21 +1,18 @@
 import { isSupabaseConfigured } from '$lib/supabase';
 
-export type CurrencyGrouping = 'myriad' | 'thousand';
-
 export type CurrencyCatalogueEntry = {
 	code: string;
 	name: string;
 	minorUnitDigits: number;
-	grouping: CurrencyGrouping;
 };
 
 export type CurrencyCatalogue = CurrencyCatalogueEntry[];
 
 export const interimCurrencyCatalogue: CurrencyCatalogue = [
-	{ code: 'KRW', name: 'Korean Won', minorUnitDigits: 0, grouping: 'myriad' },
-	{ code: 'USD', name: 'US Dollar', minorUnitDigits: 2, grouping: 'thousand' },
-	{ code: 'JPY', name: 'Japanese Yen', minorUnitDigits: 0, grouping: 'myriad' },
-	{ code: 'EUR', name: 'Euro', minorUnitDigits: 2, grouping: 'thousand' }
+	{ code: 'KRW', name: 'Korean Won', minorUnitDigits: 0 },
+	{ code: 'USD', name: 'US Dollar', minorUnitDigits: 2 },
+	{ code: 'JPY', name: 'Japanese Yen', minorUnitDigits: 0 },
+	{ code: 'EUR', name: 'Euro', minorUnitDigits: 2 }
 ];
 
 export function findCurrencyCatalogueEntry(

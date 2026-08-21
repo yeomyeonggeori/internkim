@@ -324,7 +324,7 @@
 			<UnderlineTabs.List class="overflow-x-clip">{#each tabItems as tab (tab.value)}<UnderlineTabs.Trigger value={tab.value}>{tab.label}</UnderlineTabs.Trigger>{/each}</UnderlineTabs.List>
 
 			<UnderlineTabs.Content value="relationships" class="grid min-w-0 gap-4 pb-24">
-				<div class="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
+				<div class="flex min-w-0 flex-wrap items-center justify-end gap-3 rounded-md border bg-card p-3">
 					<div class="flex min-w-0 flex-wrap items-center gap-2">
 						<CRMFilterPopover {text} activeCount={relationshipFilterCount} onReset={resetRelationshipFilters}>
 							<FilterCombobox bind:value={selectedStatus} options={statusFilterOptions} label={text.status} clearValue="all" class="w-full sm:w-[calc(50%-0.25rem)]" />

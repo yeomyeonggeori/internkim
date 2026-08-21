@@ -48,21 +48,21 @@ describe('CRM KPI money details', () => {
 		expect(pipelineHealth?.totalValue).toBe('4개 통화');
 		expect(pipelineHealth?.totalMoneyDetails).toEqual([
 			{ currency: 'KRW', displayValue: 'KRW 1,700만' },
-			{ currency: 'USD', displayValue: 'USD 20K' },
+			{ currency: 'USD', displayValue: 'USD 2만' },
 			{ currency: 'JPY', displayValue: 'JPY 320만' },
-			{ currency: 'EUR', displayValue: 'EUR 50K' }
+			{ currency: 'EUR', displayValue: 'EUR 5만' }
 		]);
 		expect(pipelineHealth?.segments[0]).toMatchObject({
 			label: '정상 진행',
 			displayValue: '2건',
 			moneyDetails: [
 				{ currency: 'KRW', displayValue: 'KRW 1,200만' },
-				{ currency: 'USD', displayValue: 'USD 20K' }
+				{ currency: 'USD', displayValue: 'USD 2만' }
 			]
 		});
 		expect(pipelineHealth?.segments[1]).toMatchObject({
 			label: '정체',
-			displayValue: 'EUR 50K'
+			displayValue: 'EUR 5만'
 		});
 		expect(pipelineHealth?.segments[1]?.moneyDetails).toBe(undefined);
 		expect(pipelineHealth?.segments[2]).toMatchObject({
@@ -103,7 +103,7 @@ describe('CRM KPI money details', () => {
 
 		const pipelineHealth = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], stages, crmText.ko, undefined, 'ko', view)[0];
 
-		expect(pipelineHealth?.totalValue).toBe('29K');
+		expect(pipelineHealth?.totalValue).toBe('2.9만');
 		expect(pipelineHealth?.totalMoneyDetails).toBe(undefined);
 	});
 });
