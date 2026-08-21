@@ -9,6 +9,16 @@ CRM data belongs to the central Supabase plane. The device SQLite CRM remains a
 compatible device path; it is not the source of truth for a signed-in company
 web app.
 
+The two paths accept different money. The central plane takes every currency
+the rate provider serves, around a hundred and sixty, because the provider
+blends eighty-four central banks. Its older endpoint carried only the thirty
+the ECB publishes, which is why a Taiwanese or Vietnamese deal was once
+impossible to price at all.
+
+The device still constrains `currency_code` to `KRW`, `USD`, `JPY`, and `EUR`,
+so a deal in pounds is refused there. Widening it means a table rebuild, the
+same one `migrateCRMOpportunityAwayFromLostReasonForeignKey` performs.
+
 ## Data ownership
 
 | Concern | Source of truth |
@@ -162,6 +172,21 @@ company and organization.
 
 Task fields remain authoritative for the activity title, note, business, type,
 status, schedule, participants, and calendar behavior. CRM does not copy them.
+
+## Writes
+
+Three functions own the writes that carry a rule the columns cannot state.
+Writing to the tables directly skips the rule, so the web app goes through
+these.
+
+| Function | What it guarantees |
+|---|---|
+| `save_crm_task` | An activity, its participants, and its calendar behavior land in one transaction, and the organization, opportunity, and contact it names belong together. |
+| `save_crm_vocabulary` | Only an admin edits the two definition lists, and a value an organization or opportunity still uses cannot disappear. |
+| `close_crm_opportunity` | Reaching a won or lost stage settles the deal against the company base currency. A foreign-currency deal without a converted amount is refused, and a lost deal without a written reason is refused with it. |
+
+The settled amount a close writes is never recomputed afterwards. Whichever
+screen asked for the move, the statement is the same one.
 
 ## Integrity and access
 
