@@ -568,6 +568,16 @@ and delete the duplicates.
   actually-running binary's revision after deploy (e.g. grep a string unique to
   the change in the deployed binary, or check the release ID's embedded git SHA
   against `git rev-parse HEAD`) rather than trusting a green exit code alone.
+- **`setup` installs what the CLI binary carries.** The scripts and systemd
+  units it writes (`internkim-users-sync`, its service and timer) are Go string
+  literals compiled into `./internkim`, so a binary built before the change
+  installs the old text and reports the step done. A green `setup` is evidence
+  the install ran, exactly as much as a green deploy exit is, and says nothing
+  about which revision landed. Run `make build` first, then check the installed
+  artifact for a string only the new version has. A users-sync fix went out
+  green and changed nothing on the device; the tell was the journal's failure
+  line still reading `curl: (22) The requested URL returned error: 500` where
+  the new script writes `users-sync: <label> answered 500`.
 - Never split a contract change across components. When op names, the kernel
   verb, descriptors, or the approval/reply protocol change, deploy `capabilityd`
   and `blueclawPayload` (and `admind`) in the same release — a half-deploy
