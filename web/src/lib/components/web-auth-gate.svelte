@@ -56,7 +56,7 @@
 		return `/auth/verify/start?return=${encodeURIComponent(returnPath)}`;
 	}
 
-	async function runLogin(work: () => Promise<string>) {
+	async function runLogin(work: () => Promise<string | null>) {
 		busy = true;
 		errorMessage = '';
 		try {
