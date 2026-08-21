@@ -466,37 +466,11 @@ func TestCRMHTTPDefinitionsListsBusinessesAndRequiresAuthorization(t *testing.T)
 	var emptyDocument struct {
 		Definitions struct {
 			Businesses []string `json:"businesses"`
-			Stages     []struct {
-				ID       string `json:"id"`
-				Outcome  string `json:"outcome"`
-				Position int    `json:"position"`
-			} `json:"stages"`
 		} `json:"definitions"`
 	}
 	decodeCRMHTTPTestResponse(t, emptyResponse, &emptyDocument)
 	if emptyDocument.Definitions.Businesses == nil || len(emptyDocument.Definitions.Businesses) != 0 {
 		t.Fatalf("businesses with no categories = %#v", emptyDocument.Definitions.Businesses)
-	}
-	expectedStages := []struct {
-		id       string
-		outcome  string
-		position int
-	}{
-		{id: "waiting", outcome: "open", position: 1},
-		{id: "in_progress", outcome: "open", position: 2},
-		{id: "review", outcome: "open", position: 3},
-		{id: "done", outcome: "won", position: 4},
-		{id: "on_hold", outcome: "on_hold", position: 5},
-		{id: "lost", outcome: "lost", position: 6},
-	}
-	if len(emptyDocument.Definitions.Stages) != len(expectedStages) {
-		t.Fatalf("stages = %#v, want %d entries", emptyDocument.Definitions.Stages, len(expectedStages))
-	}
-	for index, expected := range expectedStages {
-		actual := emptyDocument.Definitions.Stages[index]
-		if actual.ID != expected.id || actual.Outcome != expected.outcome || actual.Position != expected.position {
-			t.Fatalf("stage[%d] = %#v, want %#v", index, actual, expected)
-		}
 	}
 
 	definitions, errorValue := service.readFlowDefinitions(context.Background())

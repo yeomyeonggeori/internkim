@@ -37,7 +37,7 @@ describe('CRM localized errors', () => {
 	test('localizes the required lost reason', () => {
 		const error = new CRMOpportunityTransitionError('lost_reason_required');
 
-		expect(crmErrorMessage(error, crmText.ko)).toBe('손실 단계를 선택할 때는 손실 사유가 필요합니다.');
+		expect(crmErrorMessage(error, crmText.ko)).toBe('무산 단계를 선택할 때는 무산 사유가 필요합니다.');
 		expect(crmErrorMessage(error, crmText.en)).toBe('Select a lost reason before moving to a lost stage.');
 	});
 

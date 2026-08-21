@@ -60,7 +60,7 @@ describe('Supabase CRM mapper', () => {
 			importance: 'medium',
 			due_at: null,
 			due_time_zone: null,
-			lost_reason_id: null,
+			lost_reason: '일정 재조정이 어려워 무산',
 			description: null
 		};
 
@@ -87,16 +87,15 @@ describe('Supabase CRM mapper', () => {
 			task_participant: [{ member_id: audit.created_by }]
 		}], {
 			organization_types: [{ id: 'partner', name: '파트너' }],
-			pipelines: [{ id: 'partnership', name: '파트너십' }],
-			stages: [{ id: 'review', name: '검토', outcome: 'open' }],
-			lost_reasons: [{ id: 'schedule', name: '일정 불일치' }]
+			pipelines: [{ id: 'partnership', name: '파트너십' }]
 		});
 
 		expect(data.organizations[0]).toMatchObject({ id: organization.id, ownerPersonID: audit.updated_by });
 		expect(data.contacts[0]).toMatchObject({ organizationID: organization.id });
 		expect(data.opportunities[0]).toMatchObject({
 			organizationID: organization.id,
-			contacts: [{ contactID: contact.id }]
+			contacts: [{ contactID: contact.id }],
+			lostReason: '일정 재조정이 어려워 무산'
 		});
 		expect(data.activities[0]).toMatchObject({
 			organizationID: organization.id,
@@ -105,8 +104,6 @@ describe('Supabase CRM mapper', () => {
 			occurredAt: '2026-08-20T03:00:00.000Z'
 		});
 		expect(data.pipelines).toEqual([{ pipeline: 'partnership', label: '파트너십', direction: '', isActive: true }]);
-		expect(data.stages[0]).toMatchObject({ stage: 'review', label: '검토', position: 0 });
-		expect(data.lostReasons[0]).toEqual({ reason: 'schedule', label: '일정 불일치', isActive: true });
 	});
 
 	test('filters archived organizations, contacts and opportunities', () => {
@@ -114,7 +111,7 @@ describe('Supabase CRM mapper', () => {
 		const data = crmDataResponseOf(
 			[{ ...archived, id: 'organization', name: '보관 기관', status: 'active', types: [], tags: [], importance: 'medium', owner_id: null, address: null, description: null }],
 			[{ ...archived, id: 'contact', organization_id: null, name: '보관 연락처', email: null, phone: null, title: null, department: null, description: null }],
-			[{ ...archived, id: 'opportunity', organization_id: 'organization', contact_id: null, name: '보관 진행 건', business: null, pipeline_id: 'pipeline', stage_id: 'stage', stage_position: 0, stage_changed_at: audit.updated_at, owner_id: null, amount_minor: null, currency_code: null, base_amount_minor: null, base_currency_code: null, importance: 'medium', due_at: null, due_time_zone: null, lost_reason_id: null, description: null }],
+			[{ ...archived, id: 'opportunity', organization_id: 'organization', contact_id: null, name: '보관 진행 건', business: null, pipeline_id: 'pipeline', stage_id: 'stage', stage_position: 0, stage_changed_at: audit.updated_at, owner_id: null, amount_minor: null, currency_code: null, base_amount_minor: null, base_currency_code: null, importance: 'medium', due_at: null, due_time_zone: null, lost_reason: null, description: null }],
 			[],
 			{}
 		);
@@ -126,14 +123,10 @@ describe('Supabase CRM mapper', () => {
 	test('rejects malformed vocabulary entries without inventing definitions', () => {
 		expect(crmVocabularyOf({
 			organization_types: [{ id: 'partner' }],
-			pipelines: [{ id: 'sales', name: '판매' }],
-			stages: [{ id: 'won', name: '성사', outcome: 'unknown' }],
-			lost_reasons: 'invalid'
+			pipelines: [{ id: 'sales', name: '판매' }]
 		})).toEqual({
 			organization_types: [],
-			pipelines: [{ id: 'sales', name: '판매', direction: undefined }],
-			stages: [],
-			lost_reasons: []
+			pipelines: [{ id: 'sales', name: '판매', direction: undefined }]
 		});
 	});
 });

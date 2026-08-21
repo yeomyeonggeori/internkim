@@ -575,13 +575,12 @@ test.describe('CRM service UI', () => {
 		const sheet = page.getByRole('dialog', { name: '진행 건 수정' });
 		await expect(sheet).toBeVisible();
 		await expect(sheet.getByLabel('단계')).toContainText('무산');
-		await sheet.getByLabel('손실 사유').click();
-		await page.getByRole('option', { name: '예산 부족', exact: true }).click();
+		await sheet.getByLabel('무산 사유').fill('예산 부족');
 		await sheet.getByRole('button', { name: '저장', exact: true }).click();
 
 		expect(opportunities[0]).toMatchObject({
 			stage: 'lost',
-			lostReason: 'budget',
+			lostReason: '예산 부족',
 			baseAmountMinor: 1000,
 			baseCurrencyCode: 'KRW'
 		});
@@ -623,15 +622,14 @@ test.describe('CRM service UI', () => {
 		await sheet.getByLabel('이름 또는 제목').fill('손실 단계 생성 진행 건');
 		await sheet.getByLabel('단계').click();
 		await page.getByRole('option', { name: '무산', exact: true }).click();
-		await sheet.getByLabel('손실 사유').click();
-		await page.getByRole('option', { name: '예산 부족', exact: true }).click();
+		await sheet.getByLabel('무산 사유').fill('예산 부족');
 		await sheet.getByLabel('금액').fill('1000');
 		await sheet.getByRole('button', { name: '추가', exact: true }).click();
 
 		expect(opportunities[0]).toMatchObject({
 			name: '손실 단계 생성 진행 건',
 			stage: 'lost',
-			lostReason: 'budget',
+			lostReason: '예산 부족',
 			baseAmountMinor: 1000,
 			baseCurrencyCode: 'KRW',
 			stagePosition: 0
@@ -1043,15 +1041,7 @@ async function handleCRMRoute(route: Route, accounts: Account[], contacts: Conta
 		return fulfill(route, { activity: updated });
 	}
 	if (path === '/crm/api/pipelines' && method === 'GET') return fulfill(route, { pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }] });
-	if (path === '/crm/api/lost-reasons' && method === 'GET') return fulfill(route, { lostReasons: [{ reason: 'budget', label: '예산 부족', isActive: true }] });
-	if (path === '/crm/api/definitions' && method === 'GET') return fulfill(route, { definitions: { businesses: ['general'], stages: [
-		{ id: 'waiting', outcome: 'open', position: 1 },
-		{ id: 'in_progress', outcome: 'open', position: 2 },
-		{ id: 'review', outcome: 'open', position: 3 },
-		{ id: 'done', outcome: 'won', position: 4 },
-		{ id: 'on_hold', outcome: 'on_hold', position: 5 },
-		{ id: 'lost', outcome: 'lost', position: 6 }
-	] } });
+	if (path === '/crm/api/definitions' && method === 'GET') return fulfill(route, { definitions: { businesses: ['general'] } });
 	await route.fulfill({ status: 404, json: { error: { code: 'not_found', message: path } } });
 }
 

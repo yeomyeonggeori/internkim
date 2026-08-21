@@ -3,28 +3,22 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
-	import * as Select from '$lib/components/ui/select';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import type { CRMDefinition, CRMStageOutcome } from './crm-definitions';
-
-	type EditableDefinition = CRMDefinition & { outcome?: CRMStageOutcome };
-	type OutcomeOption = { value: CRMStageOutcome; label: string };
+	import type { CRMDefinition } from './crm-definitions';
 
 	type Props = {
 		title: string;
 		description: string;
-		items: EditableDefinition[];
+		items: CRMDefinition[];
 		isAdmin: boolean;
 		disabled: boolean;
 		addLabel: string;
 		removeLabel: string;
 		colorLabel: string;
-		outcomeOptions?: OutcomeOption[];
 		onNameInput: (id: string, name: string) => void;
 		onCommit: () => void;
 		onColorChange: (id: string, color: string) => void;
-		onOutcomeChange?: (id: string, outcome: CRMStageOutcome) => void;
 		onRemove: (id: string) => void;
 		onAdd: (name: string, color: string) => void;
 	};
@@ -38,11 +32,9 @@
 		addLabel,
 		removeLabel,
 		colorLabel,
-		outcomeOptions = [],
 		onNameInput,
 		onCommit,
 		onColorChange,
-		onOutcomeChange,
 		onRemove,
 		onAdd
 	}: Props = $props();
@@ -65,7 +57,7 @@
 	</Card.Header>
 	<Card.Content class="space-y-2">
 		{#each items as item (item.id)}
-			<div class={`grid items-center gap-2 ${outcomeOptions.length > 0 ? 'grid-cols-[auto_minmax(0,1fr)_8rem_auto]' : 'grid-cols-[auto_minmax(0,1fr)_auto]'}`}>
+			<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
 				{#if isAdmin && !disabled}
 					<ColorPicker
 						value={item.color ?? '#64748b'}
@@ -82,23 +74,6 @@
 					oninput={(event) => onNameInput(item.id, event.currentTarget.value)}
 					onblur={onCommit}
 				/>
-				{#if outcomeOptions.length > 0 && item.outcome}
-					<Select.Root
-						type="single"
-						value={item.outcome}
-						disabled={!isAdmin || disabled}
-						onValueChange={(value) => onOutcomeChange?.(item.id, value as CRMStageOutcome)}
-					>
-						<Select.Trigger class="w-full">
-							{outcomeOptions.find((option) => option.value === item.outcome)?.label ?? item.outcome}
-						</Select.Trigger>
-						<Select.Content>
-							{#each outcomeOptions as option (option.value)}
-								<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
-				{/if}
 				<Button
 					variant="ghost"
 					size="icon"

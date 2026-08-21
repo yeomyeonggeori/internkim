@@ -224,8 +224,7 @@ test('a settled amount survives a move between terminal stages', async ({ page }
 	const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
 	await editSheet.getByLabel('단계').click();
 	await page.getByRole('option', { name: '무산', exact: true }).click();
-	await editSheet.getByLabel('손실 사유').click();
-	await page.getByRole('option', { name: '예산 부족', exact: true }).click();
+	await editSheet.getByLabel('무산 사유').fill('예산 부족');
 	await editSheet.getByRole('button', { name: '저장', exact: true }).click();
 	await expect(editSheet).not.toBeVisible();
 

@@ -24,7 +24,7 @@ import {
 
 const organizationSelection = 'id, name, status, types, tags, importance, owner_id, address, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
 const contactSelection = 'id, organization_id, name, email, phone, title, department, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
-const opportunitySelection = 'id, organization_id, contact_id, name, business, pipeline_id, stage_id, stage_position, stage_changed_at, owner_id, amount_minor, currency_code, base_amount_minor, base_currency_code, importance, due_at, due_time_zone, lost_reason_id, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
+const opportunitySelection = 'id, organization_id, contact_id, name, business, pipeline_id, stage_id, stage_position, stage_changed_at, owner_id, amount_minor, currency_code, base_amount_minor, base_currency_code, importance, due_at, due_time_zone, lost_reason, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
 const taskSelection = 'id, organization_id, opportunity_id, contact_id, title, note, business, type, due_at, starts_at, ends_at, is_event, is_whole_day, notify_minutes_before, location, created_at, updated_at, requester_id, status, task_participant (member_id)';
 
 type CRMContext = { companyID: string; memberID: string };
@@ -116,7 +116,7 @@ export async function createSupabaseCRMOpportunity(payload: CRMOpportunityPayloa
 			stage_id: transition.stage,
 			stage_position: transition.stagePosition,
 			stage_changed_at: transition.occurredAt,
-			lost_reason_id: transition.lostReason || null,
+			lost_reason: transition.lostReason || null,
 			base_amount_minor: transition.baseAmountMinor,
 			base_currency_code: transition.baseCurrencyCode || null
 		})
@@ -131,7 +131,7 @@ export async function updateSupabaseCRMOpportunity(id: string, payload: CRMOppor
 		stage_id: payload.transition.stage,
 		stage_position: payload.transition.stagePosition,
 		stage_changed_at: payload.transition.occurredAt,
-		lost_reason_id: payload.transition.lostReason || null,
+		lost_reason: payload.transition.lostReason || null,
 		base_amount_minor: payload.transition.baseAmountMinor,
 		base_currency_code: payload.transition.baseCurrencyCode || null
 	} : {};

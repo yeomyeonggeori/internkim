@@ -156,12 +156,6 @@ type crmHTTPPipeline struct {
 	IsActive  bool   `json:"isActive"`
 }
 
-type crmHTTPLostReason struct {
-	Reason   string `json:"reason"`
-	Label    string `json:"label"`
-	IsActive bool   `json:"isActive"`
-}
-
 type crmHTTPErrorDocument struct {
 	Error crmHTTPError `json:"error"`
 }

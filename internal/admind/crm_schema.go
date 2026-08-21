@@ -7,6 +7,39 @@ import (
 	"strings"
 )
 
+const crmOpportunityTableColumns = `
+		id TEXT PRIMARY KEY CHECK(trim(id) <> ''),
+		account_id TEXT,
+		business TEXT,
+		name TEXT NOT NULL CHECK(trim(name) <> ''),
+		pipeline TEXT NOT NULL,
+		stage TEXT NOT NULL,
+		stage_position REAL NOT NULL,
+		stage_changed_at TEXT NOT NULL CHECK(stage_changed_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
+		owner_person_id TEXT NOT NULL CHECK(trim(owner_person_id) <> ''),
+		owner_circle_id TEXT,
+		amount_minor INTEGER CHECK(amount_minor IS NULL OR amount_minor >= 0),
+		currency_code TEXT NOT NULL CHECK(currency_code IN ('KRW', 'USD', 'JPY', 'EUR')),
+		base_amount_minor INTEGER CHECK(base_amount_minor IS NULL OR base_amount_minor >= 0),
+		base_currency_code TEXT CHECK(base_currency_code IS NULL OR base_currency_code IN ('KRW', 'USD', 'JPY', 'EUR')),
+		importance TEXT NOT NULL CHECK(importance IN ('high', 'medium', 'low')),
+		due_at TEXT CHECK(due_at IS NULL OR due_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
+		due_time_zone TEXT,
+		lost_reason TEXT,
+		description TEXT,
+		created_at TEXT NOT NULL CHECK(created_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
+		created_by_person_id TEXT NOT NULL CHECK(trim(created_by_person_id) <> ''),
+		updated_at TEXT NOT NULL CHECK(updated_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
+		updated_by_person_id TEXT NOT NULL CHECK(trim(updated_by_person_id) <> ''),
+		archived_at TEXT CHECK(archived_at IS NULL OR archived_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
+		archived_by_person_id TEXT,
+		CHECK((due_at IS NULL) = (due_time_zone IS NULL)),
+		CHECK((base_amount_minor IS NULL) = (base_currency_code IS NULL)),
+		CHECK((archived_at IS NULL) = (archived_by_person_id IS NULL)),
+		FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE RESTRICT,
+		FOREIGN KEY (pipeline, stage) REFERENCES pipeline_stage(pipeline, stage) ON DELETE RESTRICT
+	`
+
 var crmSchemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS pipeline (
 		pipeline TEXT PRIMARY KEY,
@@ -69,39 +102,7 @@ var crmSchemaStatements = []string{
 		CHECK((archived_at IS NULL) = (archived_by_person_id IS NULL)),
 		FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE RESTRICT
 	)`,
-	`CREATE TABLE IF NOT EXISTS opportunity (
-		id TEXT PRIMARY KEY CHECK(trim(id) <> ''),
-		account_id TEXT,
-		business TEXT,
-		name TEXT NOT NULL CHECK(trim(name) <> ''),
-		pipeline TEXT NOT NULL,
-		stage TEXT NOT NULL,
-		stage_position REAL NOT NULL,
-		stage_changed_at TEXT NOT NULL CHECK(stage_changed_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
-		owner_person_id TEXT NOT NULL CHECK(trim(owner_person_id) <> ''),
-		owner_circle_id TEXT,
-		amount_minor INTEGER CHECK(amount_minor IS NULL OR amount_minor >= 0),
-		currency_code TEXT NOT NULL CHECK(currency_code IN ('KRW', 'USD', 'JPY', 'EUR')),
-		base_amount_minor INTEGER CHECK(base_amount_minor IS NULL OR base_amount_minor >= 0),
-		base_currency_code TEXT CHECK(base_currency_code IS NULL OR base_currency_code IN ('KRW', 'USD', 'JPY', 'EUR')),
-		importance TEXT NOT NULL CHECK(importance IN ('high', 'medium', 'low')),
-		due_at TEXT CHECK(due_at IS NULL OR due_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
-		due_time_zone TEXT,
-		lost_reason TEXT,
-		description TEXT,
-		created_at TEXT NOT NULL CHECK(created_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
-		created_by_person_id TEXT NOT NULL CHECK(trim(created_by_person_id) <> ''),
-		updated_at TEXT NOT NULL CHECK(updated_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
-		updated_by_person_id TEXT NOT NULL CHECK(trim(updated_by_person_id) <> ''),
-		archived_at TEXT CHECK(archived_at IS NULL OR archived_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'),
-		archived_by_person_id TEXT,
-		CHECK((due_at IS NULL) = (due_time_zone IS NULL)),
-		CHECK((base_amount_minor IS NULL) = (base_currency_code IS NULL)),
-		CHECK((archived_at IS NULL) = (archived_by_person_id IS NULL)),
-		FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE RESTRICT,
-		FOREIGN KEY (pipeline, stage) REFERENCES pipeline_stage(pipeline, stage) ON DELETE RESTRICT,
-		FOREIGN KEY (lost_reason) REFERENCES lost_reason(reason) ON DELETE RESTRICT
-	)`,
+	`CREATE TABLE IF NOT EXISTS opportunity (` + crmOpportunityTableColumns + `)`,
 	`CREATE TABLE IF NOT EXISTS opportunity_contact (
 		opportunity_id TEXT NOT NULL,
 		contact_id TEXT NOT NULL,
@@ -404,6 +405,9 @@ var crmLostReasonSeeds = []struct {
 }
 
 func ensureCRMSchema(ctx context.Context, database *sql.DB) error {
+	if errorValue := migrateCRMOpportunityAwayFromLostReasonForeignKey(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	transaction, errorValue := database.BeginTx(ctx, nil)
 	if errorValue != nil {
 		return fmt.Errorf("begin CRM schema transaction: %w", errorValue)
@@ -532,4 +536,111 @@ SELECT pipeline FROM pipeline_stage`)
 		return nil, errorValue
 	}
 	return pipelines, nil
+}
+
+func crmOpportunityHasLostReasonForeignKey(ctx context.Context, connection *sql.Conn) (bool, error) {
+	var createStatement string
+	errorValue := connection.QueryRowContext(ctx,
+		"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'opportunity'").Scan(&createStatement)
+	if errorValue == sql.ErrNoRows {
+		return false, nil
+	}
+	if errorValue != nil {
+		return false, fmt.Errorf("read CRM opportunity table definition: %w", errorValue)
+	}
+	return strings.Contains(createStatement, "REFERENCES lost_reason(reason)"), nil
+}
+
+func rebuildCRMOpportunityKeepingLostReasonColumnFreeOfConstraint(ctx context.Context, connection *sql.Conn) error {
+	transaction, errorValue := connection.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return fmt.Errorf("begin CRM opportunity rebuild transaction: %w", errorValue)
+	}
+	dependentTriggers, errorValue := crmTriggerNamesReferencingOpportunity(ctx, transaction)
+	if errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	statements := make([]string, 0, len(dependentTriggers)+5)
+	for _, triggerName := range dependentTriggers {
+		statements = append(statements, "DROP TRIGGER "+triggerName)
+	}
+	statements = append(statements,
+		"DROP TABLE IF EXISTS opportunity_rebuild",
+		"CREATE TABLE opportunity_rebuild ("+crmOpportunityTableColumns+")",
+		"INSERT INTO opportunity_rebuild SELECT * FROM opportunity",
+		"DROP TABLE opportunity",
+		"ALTER TABLE opportunity_rebuild RENAME TO opportunity",
+	)
+	for _, statement := range statements {
+		if _, errorValue := transaction.ExecContext(ctx, statement); errorValue != nil {
+			_ = transaction.Rollback()
+			return fmt.Errorf("rebuild CRM opportunity table: %w", errorValue)
+		}
+	}
+	if errorValue := transaction.Commit(); errorValue != nil {
+		return fmt.Errorf("commit CRM opportunity rebuild: %w", errorValue)
+	}
+	return nil
+}
+
+func crmTriggerNamesReferencingOpportunity(ctx context.Context, transaction *sql.Tx) ([]string, error) {
+	rows, errorValue := transaction.QueryContext(ctx, `
+SELECT name FROM sqlite_master
+WHERE type = 'trigger' AND sql LIKE '%opportunity%'
+ORDER BY name`)
+	if errorValue != nil {
+		return nil, fmt.Errorf("list CRM triggers referencing opportunity: %w", errorValue)
+	}
+	defer rows.Close()
+	triggerNames := []string{}
+	for rows.Next() {
+		var triggerName string
+		if errorValue := rows.Scan(&triggerName); errorValue != nil {
+			return nil, errorValue
+		}
+		triggerNames = append(triggerNames, triggerName)
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return nil, errorValue
+	}
+	return triggerNames, nil
+}
+
+func assertCRMOpportunityRebuildLeftNoForeignKeyViolations(ctx context.Context, connection *sql.Conn) error {
+	rows, errorValue := connection.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if errorValue != nil {
+		return fmt.Errorf("run CRM foreign key check after opportunity rebuild: %w", errorValue)
+	}
+	defer rows.Close()
+	if rows.Next() {
+		return fmt.Errorf("CRM opportunity rebuild left foreign key violations")
+	}
+	return rows.Err()
+}
+
+func migrateCRMOpportunityAwayFromLostReasonForeignKey(ctx context.Context, database *sql.DB) error {
+	connection, errorValue := database.Conn(ctx)
+	if errorValue != nil {
+		return fmt.Errorf("acquire CRM opportunity rebuild connection: %w", errorValue)
+	}
+	defer connection.Close()
+	hasForeignKey, errorValue := crmOpportunityHasLostReasonForeignKey(ctx, connection)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !hasForeignKey {
+		return nil
+	}
+	if _, errorValue := connection.ExecContext(ctx, "PRAGMA foreign_keys=OFF"); errorValue != nil {
+		return fmt.Errorf("disable CRM foreign keys for opportunity rebuild: %w", errorValue)
+	}
+	rebuildError := rebuildCRMOpportunityKeepingLostReasonColumnFreeOfConstraint(ctx, connection)
+	if _, enableError := connection.ExecContext(ctx, "PRAGMA foreign_keys=ON"); enableError != nil {
+		return fmt.Errorf("re-enable CRM foreign keys after opportunity rebuild: %w", enableError)
+	}
+	if rebuildError != nil {
+		return rebuildError
+	}
+	return assertCRMOpportunityRebuildLeftNoForeignKeyViolations(ctx, connection)
 }
