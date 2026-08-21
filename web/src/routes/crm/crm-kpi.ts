@@ -1,8 +1,9 @@
-import type { CRMOrganization, CRMCurrency, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
+import type { CRMOrganization, CRMCurrency, CRMNextAction, CRMOpportunity, CRMPipeline, CRMPipelineStage } from './crm-types';
 import { currentCRMDate, shiftCRMDate } from './crm-date';
 import { formatMoney, formatMoneyTotals, formatViewMoneyTotals, sumOpportunityMoney } from './crm-money';
 import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 import type { Locale } from '$lib/i18n/locale.svelte';
+import { crmLabel } from './crm-labels';
 import { findOrganizationByID, getActionUrgency, getProgressKind } from './crm-view-model';
 import type { CRMText } from './text';
 import type { CRMViewCurrencyReader } from './crm-view-currency.svelte';
@@ -34,6 +35,9 @@ const movingColor = '#0f9f8f';
 const neutralColor = '#2495c9';
 const attentionColor = '#ef6351';
 const recentContactWindowDays = 30;
+const compositionPalette = [movingColor, neutralColor, attentionColor];
+const remainderColor = '#94a3b8';
+const namedCompositionSegments = compositionPalette.length;
 
 function countSegment(label: string, value: number, color: string, suffix: string): CRMKPISegment {
 	return { label, value, displayValue: `${value}${suffix}`, color };
@@ -117,8 +121,8 @@ function buildRelationshipHealth(organizations: CRMOrganization[], text: CRMText
 		id: 'relationship-health',
 		title: text.kpiRelationshipHealth,
 		description: text.kpiRelationshipHealthDescription,
-		totalValue: String(activeOrganizations.length),
-		totalLabel: text.kpiActiveRelationships,
+		totalValue: String(organizations.length),
+		totalLabel: text.kpiRelationships,
 		segments: [
 			countSegment(text.kpiRecentlyContacted, recentlyContacted.length, movingColor, text.kpiCountSuffix),
 			countSegment(text.kpiStable, stable.length, neutralColor, text.kpiCountSuffix),
@@ -147,14 +151,30 @@ function buildFollowUpHealth(nextActions: CRMNextAction[], text: CRMText): CRMKP
 	};
 }
 
-function buildPipelineComposition(organizations: CRMOrganization[], opportunities: CRMOpportunity[], stages: CRMPipelineStage[], text: CRMText): CRMKPICardData {
+function progressKindLabel(kind: string, pipelines: CRMPipeline[], text: CRMText): string {
+	return pipelines.find((pipeline) => pipeline.pipeline === kind)?.label ?? crmLabel(text.progressKinds, kind);
+}
+
+function buildPipelineComposition(
+	organizations: CRMOrganization[],
+	opportunities: CRMOpportunity[],
+	pipelines: CRMPipeline[],
+	stages: CRMPipelineStage[],
+	text: CRMText
+): CRMKPICardData {
 	const openOpportunities = opportunities.filter((opportunity) => opportunityOutcome(stages, opportunity) === 'open');
-	const sales = openOpportunities.filter((opportunity) => getProgressKind(opportunity, findOrganizationByID(organizations, opportunity.organizationID)) === 'sales');
-	const investment = openOpportunities.filter((opportunity) => getProgressKind(opportunity, findOrganizationByID(organizations, opportunity.organizationID)) === 'investment');
-	const collaboration = openOpportunities.filter((opportunity) => {
+	const countsByKind = new Map<string, number>();
+	for (const opportunity of openOpportunities) {
 		const kind = getProgressKind(opportunity, findOrganizationByID(organizations, opportunity.organizationID));
-		return ['sponsorship', 'partnership', 'procurement'].includes(kind);
-	});
+		countsByKind.set(kind, (countsByKind.get(kind) ?? 0) + 1);
+	}
+	const ranked = [...countsByKind.entries()].sort(([, left], [, right]) => right - left);
+	const named = ranked.slice(0, namedCompositionSegments);
+	const remainder = ranked.slice(namedCompositionSegments).reduce((sum, [, count]) => sum + count, 0);
+	const segments = named.map(([kind, count], index) =>
+		countSegment(progressKindLabel(kind, pipelines, text), count, compositionPalette[index] ?? remainderColor, text.kpiCountSuffix)
+	);
+	if (remainder > 0) segments.push(countSegment(text.kpiOtherProgressKinds, remainder, remainderColor, text.kpiCountSuffix));
 
 	return {
 		id: 'pipeline-composition',
@@ -162,11 +182,7 @@ function buildPipelineComposition(organizations: CRMOrganization[], opportunitie
 		description: text.kpiPipelineCompositionDescription,
 		totalValue: String(openOpportunities.length),
 		totalLabel: text.kpiOpenProgress,
-		segments: [
-			countSegment(text.kpiSales, sales.length, movingColor, text.kpiCountSuffix),
-			countSegment(text.kpiInvestment, investment.length, neutralColor, text.kpiCountSuffix),
-			countSegment(text.kpiCollaboration, collaboration.length, attentionColor, text.kpiCountSuffix)
-		]
+		segments
 	};
 }
 
@@ -175,6 +191,7 @@ export function buildCRMKPICards(
 	organizations: CRMOrganization[],
 	opportunities: CRMOpportunity[],
 	nextActions: CRMNextAction[],
+	pipelines: CRMPipeline[],
 	stages: CRMPipelineStage[],
 	text: CRMText,
 	today = currentCRMDate(),
@@ -185,6 +202,6 @@ export function buildCRMKPICards(
 		buildPipelineHealth(catalogue, opportunities, stages, text, locale, view),
 		buildRelationshipHealth(organizations, text, today),
 		buildFollowUpHealth(nextActions, text),
-		buildPipelineComposition(organizations, opportunities, stages, text)
+		buildPipelineComposition(organizations, opportunities, pipelines, stages, text)
 	];
 }
