@@ -27,37 +27,37 @@ describe('CRM money formatting', () => {
 	});
 
 	test('compacts myriad-grouped currencies by 만 and 억', () => {
-		expect(formatMoney(12000000, 'KRW', interimCurrencyCatalogue)).toBe('₩1,200만');
-		expect(formatMoney(12000000, 'JPY', interimCurrencyCatalogue)).toBe('¥1,200만');
-		expect(formatMoney(250000000, 'KRW', interimCurrencyCatalogue)).toBe('₩2.5억');
-		expect(formatMoney(8000, 'KRW', interimCurrencyCatalogue)).toBe('₩8,000');
+		expect(formatMoney(12000000, 'KRW', interimCurrencyCatalogue)).toBe('KRW 1,200만');
+		expect(formatMoney(12000000, 'JPY', interimCurrencyCatalogue)).toBe('JPY 1,200만');
+		expect(formatMoney(250000000, 'KRW', interimCurrencyCatalogue)).toBe('KRW 2.5억');
+		expect(formatMoney(8000, 'KRW', interimCurrencyCatalogue)).toBe('KRW 8,000');
 	});
 
 	test('compacts thousand-grouped currencies by K and M', () => {
-		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue)).toBe('$12M');
-		expect(formatMoney(12000000, 'EUR', interimCurrencyCatalogue)).toBe('€12M');
-		expect(formatMoney(12000, 'USD', interimCurrencyCatalogue)).toBe('$12K');
-		expect(formatMoney(2500, 'USD', interimCurrencyCatalogue)).toBe('$2.5K');
-		expect(formatMoney(750, 'USD', interimCurrencyCatalogue)).toBe('$750');
+		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue)).toBe('USD 12M');
+		expect(formatMoney(12000000, 'EUR', interimCurrencyCatalogue)).toBe('EUR 12M');
+		expect(formatMoney(12000, 'USD', interimCurrencyCatalogue)).toBe('USD 12K');
+		expect(formatMoney(2500, 'USD', interimCurrencyCatalogue)).toBe('USD 2.5K');
+		expect(formatMoney(750, 'USD', interimCurrencyCatalogue)).toBe('USD 750');
 	});
 
 	test('never emits Hangul for the en locale, even for myriad currencies', () => {
-		expect(formatMoney(12000000, 'KRW', interimCurrencyCatalogue, '-', 'en')).toBe('₩12M');
-		expect(formatMoney(250000000, 'KRW', interimCurrencyCatalogue, '-', 'en')).toBe('₩250M');
+		expect(formatMoney(12000000, 'KRW', interimCurrencyCatalogue, '-', 'en')).toBe('KRW 12M');
+		expect(formatMoney(250000000, 'KRW', interimCurrencyCatalogue, '-', 'en')).toBe('KRW 250M');
 	});
 
 	test('keeps a thousand-grouped currency the same across locales', () => {
-		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue, '-', 'ko')).toBe('$12M');
-		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue, '-', 'en')).toBe('$12M');
+		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue, '-', 'ko')).toBe('USD 12M');
+		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue, '-', 'en')).toBe('USD 12M');
 	});
 
 	test('renders a currency the catalogue does not know with plain separators and its code as the prefix', () => {
-		expect(formatMoney(12000000, 'XAG', interimCurrencyCatalogue)).toBe('XAG12,000,000');
+		expect(formatMoney(12000000, 'XAG', interimCurrencyCatalogue)).toBe('XAG 12,000,000');
 		expect(formatMoney(undefined, 'XAG', interimCurrencyCatalogue)).toBe('-');
 	});
 
 	test('keeps each currency in its own scale without applying exchange rates', () => {
-		expect(formatMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue)).toBe('₩1,200만 · $2.5K');
+		expect(formatMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue)).toBe('KRW 1,200만 · USD 2.5K');
 	});
 
 	test('groups opportunity totals by their selected currency', () => {
@@ -73,8 +73,8 @@ describe('CRM money formatting', () => {
 
 describe('view-currency-aware money formatting', () => {
 	test('formats converted and exact amounts alike', () => {
-		expect(formatViewMoney({ value: 18000000, currency: 'KRW', isConverted: false }, interimCurrencyCatalogue)).toBe('₩1,800만');
-		expect(formatViewMoney({ value: 13500, currency: 'USD', isConverted: true }, interimCurrencyCatalogue)).toBe('$13.5K');
+		expect(formatViewMoney({ value: 18000000, currency: 'KRW', isConverted: false }, interimCurrencyCatalogue)).toBe('KRW 1,800만');
+		expect(formatViewMoney({ value: 13500, currency: 'USD', isConverted: true }, interimCurrencyCatalogue)).toBe('USD 13.5K');
 	});
 
 	test('collapses every currency total into one converted estimate when a view currency is active', () => {
@@ -86,7 +86,7 @@ describe('view-currency-aware money formatting', () => {
 					: { value: value * 0.00075, currency: 'USD', isConverted: true }
 		};
 
-		expect(formatViewMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue, view)).toBe('$11.5K');
+		expect(formatViewMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue, view)).toBe('USD 11.5K');
 		expect(formatViewMoneyTotals({}, interimCurrencyCatalogue, view)).toBe('-');
 	});
 
@@ -119,12 +119,12 @@ describe('view-currency-aware money formatting', () => {
 
 describe('formatViewRateHint always reads one dollar in the chosen currency', () => {
 	test('names what a dollar buys, rounding whole units and keeping small rates precise', () => {
-		expect(formatViewRateHint('KRW', { USD: 1396.35 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,396');
-		expect(formatViewRateHint('EUR', { USD: 0.857 }, interimCurrencyCatalogue)).toBe('$1 = €0.86');
+		expect(formatViewRateHint('KRW', { USD: 1396.35 }, interimCurrencyCatalogue)).toBe('USD 1 = KRW 1,396');
+		expect(formatViewRateHint('EUR', { USD: 0.857 }, interimCurrencyCatalogue)).toBe('USD 1 = EUR 0.86');
 	});
 
 	test('ignores every source currency that is not the dollar', () => {
-		expect(formatViewRateHint('KRW', { USD: 1396.35, JPY: 9.19, EUR: 0.86 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,396');
+		expect(formatViewRateHint('KRW', { USD: 1396.35, JPY: 9.19, EUR: 0.86 }, interimCurrencyCatalogue)).toBe('USD 1 = KRW 1,396');
 	});
 
 	test('stays silent for the dollar itself, for no view, and before the rate loads', () => {
@@ -137,9 +137,9 @@ describe('formatViewRateHint always reads one dollar in the chosen currency', ()
 describe('minor and major amounts follow the catalogue', () => {
 	const catalogue: CurrencyCatalogue = [
 		...interimCurrencyCatalogue,
-		{ code: 'GBP', name: 'British Pound', symbol: '£', minorUnitDigits: 2, grouping: 'thousand' },
-		{ code: 'CLP', name: 'Chilean Peso', symbol: '$', minorUnitDigits: 0, grouping: 'thousand' },
-		{ code: 'BHD', name: 'Bahraini Dinar', symbol: 'BHD', minorUnitDigits: 3, grouping: 'thousand' }
+		{ code: 'GBP', name: 'British Pound', minorUnitDigits: 2, grouping: 'thousand' },
+		{ code: 'CLP', name: 'Chilean Peso', minorUnitDigits: 0, grouping: 'thousand' },
+		{ code: 'BHD', name: 'Bahraini Dinar', minorUnitDigits: 3, grouping: 'thousand' }
 	];
 
 	test('a currency with no minor unit keeps the amount as it was entered', () => {
