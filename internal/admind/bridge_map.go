@@ -28,6 +28,8 @@ func (service *Service) handleBridgeMap(responseWriter http.ResponseWriter, requ
 		service.handleBridgeMessageRecord(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/message":
 		service.handleBridgeMessageLookup(responseWriter, request)
+	case request.Method == http.MethodDelete && path == "/message":
+		service.handleBridgeMessageForget(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/channel":
 		service.handleBridgeChannelRecord(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/channel":
@@ -90,6 +92,30 @@ func (service *Service) handleBridgeMessageLookup(responseWriter http.ResponseWr
 		return
 	}
 	service.writeJSON(responseWriter, bridgeMessageLookupResponse{Found: found, Mapping: mapping})
+}
+
+// A mapping outlives its Buzz event whenever the relay's events are rebuilt: an
+// orphan repair deletes them, a re-import mints new ids for the same posts.
+// Nothing reconciles the two stores, so the row needs a way out.
+func (service *Service) handleBridgeMessageForget(responseWriter http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	platform := query.Get("platform")
+	externalID := query.Get("externalId")
+	if platform == "" || externalID == "" {
+		http.Error(responseWriter, "platform and externalId are required", http.StatusBadRequest)
+		return
+	}
+	database, errorValue := service.openBridgeMapDatabase(request.Context())
+	if errorValue != nil {
+		http.Error(responseWriter, "bridge_map_unavailable", http.StatusInternalServerError)
+		return
+	}
+	defer database.Close()
+	if errorValue := service.forgetBridgeMessage(request.Context(), database, platform, externalID); errorValue != nil {
+		http.Error(responseWriter, "bridge_map_write_failed", http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]bool{"forgotten": true})
 }
 
 func (service *Service) handleBridgeChannelRecord(responseWriter http.ResponseWriter, request *http.Request) {
