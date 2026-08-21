@@ -43,6 +43,13 @@
 	const { today, next90DaysEnd, quarterStart, quarterEnd } = buildCRMReportPeriodBounds();
 	let period = $state<ReportPeriod>('all');
 
+	const quarterLabel = $derived.by(() => {
+		const [year, month] = quarterStart.split('-').map(Number);
+		return text.reportPeriodQuarter
+			.replace('{year}', String(year))
+			.replace('{quarter}', String(Math.floor(((month ?? 1) - 1) / 3) + 1));
+	});
+
 	let periodOpportunities = $derived(
 		opportunities.filter((opportunity) => {
 			if (period === 'all') return true;
@@ -135,10 +142,10 @@
 		<div class="flex flex-col gap-2 sm:flex-row">
 			<Select.Root type="single" value={period} onValueChange={(value) => (period = value as ReportPeriod)}>
 				<Select.Trigger class="w-full sm:w-44" aria-label={text.reportPeriod}>
-					{period === 'quarter' ? text.reportPeriodQuarter : period === 'next_90_days' ? text.reportPeriodNext90Days : text.reportPeriodAll}
+					{period === 'quarter' ? quarterLabel : period === 'next_90_days' ? text.reportPeriodNext90Days : text.reportPeriodAll}
 				</Select.Trigger>
 				<Select.Content>
-					<Select.Item value="quarter" label={text.reportPeriodQuarter}>{text.reportPeriodQuarter}</Select.Item>
+					<Select.Item value="quarter" label={quarterLabel}>{quarterLabel}</Select.Item>
 					<Select.Item value="next_90_days" label={text.reportPeriodNext90Days}>{text.reportPeriodNext90Days}</Select.Item>
 					<Select.Item value="all" label={text.reportPeriodAll}>{text.reportPeriodAll}</Select.Item>
 				</Select.Content>
@@ -150,7 +157,7 @@
 		<CRMCurrencyComparisonChart expectedTotals={openValues} wonTotals={wonValues} {currencyCatalogue} {text} />
 		<Card.Root class="h-full min-w-0" data-crm-report-card="monthly">
 			<Card.Header><Card.Title class="text-base">{text.monthlyClosingForecast}</Card.Title><Card.Description>{text.monthlyClosingForecastDescription}</Card.Description></Card.Header>
-			<Card.Content class="grid gap-4">
+			<Card.Content class="max-h-[28rem] overflow-y-auto pb-8 [mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)] grid gap-4">
 				{#each monthlyRows as row (row.month)}
 					<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-3">
 						<span class="text-sm font-medium">{row.month.replace('-', '. ')}</span>
