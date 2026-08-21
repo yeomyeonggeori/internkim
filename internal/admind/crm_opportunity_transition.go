@@ -64,7 +64,12 @@ func applyCRMOpportunityStageTransitionInTransaction(ctx context.Context, transa
 	if opportunity.Stage == transition.Stage {
 		return newCRMConflict(fmt.Sprintf("CRM opportunity is already in stage %s", transition.Stage))
 	}
-	if errorValue := validateCRMOpportunityStageOutcomeTransition(ctx, transaction, opportunity, transition); errorValue != nil {
+	targetOutcome, errorValue := validateCRMOpportunityStageOutcomeTransition(ctx, transaction, opportunity, transition)
+	if errorValue != nil {
+		return errorValue
+	}
+	transition, errorValue = requireCRMLostReasonOnlyForLostOutcome(transition, targetOutcome)
+	if errorValue != nil {
 		return errorValue
 	}
 	if transition.StagePosition == 0 {
@@ -108,22 +113,33 @@ WHERE id = ?`, transition.Stage, transition.StagePosition, transition.OccurredAt
 	return nil
 }
 
-func validateCRMOpportunityStageOutcomeTransition(ctx context.Context, transaction *sql.Tx, opportunity crmOpportunity, transition crmOpportunityStageTransition) error {
+func validateCRMOpportunityStageOutcomeTransition(ctx context.Context, transaction *sql.Tx, opportunity crmOpportunity, transition crmOpportunityStageTransition) (string, error) {
 	var currentOutcome string
 	var targetOutcome string
 	if errorValue := transaction.QueryRowContext(ctx, "SELECT outcome FROM pipeline_stage WHERE pipeline = ? AND stage = ?", opportunity.Pipeline, opportunity.Stage).Scan(&currentOutcome); errorValue != nil {
-		return fmt.Errorf("read CRM current stage outcome: %w", errorValue)
+		return "", fmt.Errorf("read CRM current stage outcome: %w", errorValue)
 	}
 	if errorValue := transaction.QueryRowContext(ctx, "SELECT outcome FROM pipeline_stage WHERE pipeline = ? AND stage = ?", opportunity.Pipeline, transition.Stage).Scan(&targetOutcome); errorValue != nil {
 		if errorValue == sql.ErrNoRows {
-			return newCRMConflict(fmt.Sprintf("CRM stage %s does not belong to pipeline %s", transition.Stage, opportunity.Pipeline))
+			return "", newCRMConflict(fmt.Sprintf("CRM stage %s does not belong to pipeline %s", transition.Stage, opportunity.Pipeline))
 		}
-		return fmt.Errorf("read CRM target stage outcome: %w", errorValue)
+		return "", fmt.Errorf("read CRM target stage outcome: %w", errorValue)
 	}
 	if (currentOutcome == "won" || currentOutcome == "lost") && (targetOutcome == "open" || targetOutcome == "on_hold") {
-		return newCRMConflict("realized CRM opportunity cannot return to an unrealized stage")
+		return "", newCRMConflict("realized CRM opportunity cannot return to an unrealized stage")
 	}
-	return nil
+	return targetOutcome, nil
+}
+
+func requireCRMLostReasonOnlyForLostOutcome(transition crmOpportunityStageTransition, targetOutcome string) (crmOpportunityStageTransition, error) {
+	if targetOutcome != "lost" {
+		transition.LostReason = ""
+		return transition, nil
+	}
+	if transition.LostReason == "" {
+		return crmOpportunityStageTransition{}, newCRMConflict("CRM lost transition requires a reason")
+	}
+	return transition, nil
 }
 
 func (service *Service) setCRMOpportunityStagePosition(ctx context.Context, opportunityID string, position float64, beforeOpportunityID string, updatedAt string, actorPersonID string) error {

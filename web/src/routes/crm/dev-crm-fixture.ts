@@ -736,6 +736,7 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 		organizationID: 'organization-delta-impact',
 		name: '전략 투자 검토',
 		stage: 'lost',
+		lostReason: '이사회가 예산 우선순위를 다른 사업부로 옮기며 무산',
 		currency: 'KRW',
 		kind: 'investment',
 		ownerName: '김테스트15',

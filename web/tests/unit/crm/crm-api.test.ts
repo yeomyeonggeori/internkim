@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 describe('CRM API client', () => {
-	test('loads records and pipeline stages from the service endpoints', async () => {
+	test('loads records from the service endpoints', async () => {
 		const requestedPaths: string[] = [];
 		setFetch(async (input) => {
 			const path = String(input);
@@ -23,9 +23,8 @@ describe('CRM API client', () => {
 		expect(data.opportunities[0]?.dueTimeZone).toBe('Asia/Seoul');
 		expect(data.opportunities[0]?.organizationID).toBe('account-1');
 		expect(data.opportunities[0]?.contacts).toEqual([{ contactID: 'contact-1' }]);
-		expect(data.stages.map((stage) => stage.stage)).toEqual(['waiting', 'in_progress']);
-		expect(data.stages.map((stage) => stage.label)).toEqual(['waiting', 'in_progress']);
 		expect(requestedPaths).toContain('/crm/api/definitions');
+		expect(requestedPaths).not.toContain('/crm/api/lost-reasons');
 	});
 
 	test('offers a business from the device definitions even when no opportunity has used it', async () => {
@@ -76,7 +75,6 @@ function documentFor(path: string): object {
 	if (path.endsWith('/opportunities')) return { opportunities: [{ id: 'opportunity-1', accountID: 'account-1', name: '테스트 진행 건', pipeline: 'sales', stage: 'waiting', stagePosition: 1024, stageChangedAt: '2026-08-03T00:00:00Z', ownerPersonID: 'person-owner', amountMinor: 1000, currencyCode: 'KRW', importance: 'high', dueAt: '2026-08-10T03:00:00Z', dueTimeZone: 'Asia/Seoul', contacts: [{ contactID: 'contact-1' }], audit }] };
 	if (path.endsWith('/activities')) return { activities: [] };
 	if (path.endsWith('/pipelines')) return { pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }] };
-	if (path.endsWith('/lost-reasons')) return { lostReasons: [] };
-	if (path.endsWith('/definitions')) return { definitions: { businesses: ['제조업', '유통업'], stages: [{ id: 'in_progress', outcome: 'open', position: 2 }, { id: 'waiting', outcome: 'open', position: 1 }] } };
+	if (path.endsWith('/definitions')) return { definitions: { businesses: ['제조업', '유통업'] } };
 	throw new Error(`unexpected CRM test path: ${path}`);
 }

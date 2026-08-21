@@ -84,7 +84,6 @@ describe('CRM service mappers', () => {
 			baseAmountMinor: 4500,
 			baseCurrencyCode: 'USD'
 		};
-		data.stages = [{ stage: 'done', label: 'done', position: 1, outcome: 'won' }];
 		const opportunity = mapCRMViewData(data, [], interimCurrencyCatalogue, 'Asia/Seoul').opportunities[0];
 
 		expect(opportunity?.baseAmountMinor).toBe(4500);
@@ -167,9 +166,7 @@ function serviceData(): CRMDataResponse {
 		opportunities: [{ id: 'opportunity-1', organizationID: 'organization-1', name: '진행 건', pipeline: 'sales', stage: 'waiting', stagePosition: 1024, stageChangedAt: '2026-08-02T00:00:00Z', ownerPersonID: 'person-owner', amountMinor: 5000, currencyCode: 'KRW', importance: 'high', dueAt: '2026-08-10T03:00:00Z', dueTimeZone: 'Asia/Seoul', contacts: [{ contactID: 'contact-1' }], audit }],
 		activities: [{ id: 'activity-1', organizationID: 'organization-1', kind: 'meeting', title: '미팅', occurredAt: '2026-08-03T15:30:00Z', content: '논의', audit }],
 		pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }],
-		stages: [{ stage: 'waiting', label: 'waiting', position: 1, outcome: 'open' }],
-		lostReasons: [],
-		vocabulary: { organization_types: [{ id: 'customer', name: '고객사' }], pipelines: [], stages: [], lost_reasons: [] },
+		vocabulary: { organization_types: [{ id: 'customer', name: '고객사' }], pipelines: [] },
 		taskVocabulary: { businesses: [{ name: 'general' }], types: [{ name: 'meeting' }] }
 	};
 }

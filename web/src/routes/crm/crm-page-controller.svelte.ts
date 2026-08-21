@@ -37,13 +37,13 @@ import {
 	type CRMViewData
 } from './crm-mappers';
 import { crmOrganizations, crmActivities, crmContacts, crmNextActions, crmOpportunities } from './dev-crm-fixture';
+import { crmStages } from './crm-stages';
 import type {
 	CRMOrganization,
 	CRMActivity,
 	CRMActivityEditDraft,
 	CRMContact,
 	CRMCreateDraft,
-	CRMLostReason,
 	CRMNextAction,
 	CRMOpportunity,
 	CRMPipeline,
@@ -74,9 +74,7 @@ export class CRMPageController {
 	activities = $state<CRMActivity[]>([]);
 	nextActions = $state<CRMNextAction[]>([]);
 	pipelines = $state<CRMPipeline[]>([]);
-	stages = $state<CRMPipelineStage[]>([]);
-	lostReasons = $state<CRMLostReason[]>([]);
-	vocabulary = $state<CRMVocabulary>({ organization_types: [], pipelines: [], stages: [], lost_reasons: [] });
+	vocabulary = $state<CRMVocabulary>({ organization_types: [], pipelines: [] });
 	currencyCatalogue = $state<CurrencyCatalogue>(interimCurrencyCatalogue);
 	companyBaseCurrency = $state<string>(interimCompanyBaseCurrency);
 	taskVocabulary = $state<TaskVocabulary>({});
@@ -116,6 +114,10 @@ export class CRMPageController {
 
 	get organizationTypeOptions(): string[] {
 		return this.vocabulary.organization_types.map((entry) => entry.id);
+	}
+
+	get stages(): CRMPipelineStage[] {
+		return crmStages;
 	}
 
 	async load(currentEmail: string): Promise<void> {
@@ -354,8 +356,6 @@ export class CRMPageController {
 		this.activities = data.activities;
 		this.nextActions = data.nextActions;
 		this.pipelines = data.pipelines;
-		this.stages = data.stages;
-		this.lostReasons = data.lostReasons;
 		this.vocabulary = data.vocabulary;
 		this.taskVocabulary = data.taskVocabulary;
 	}
@@ -423,18 +423,13 @@ export class CRMPageController {
 		this.nextActions = structuredClone(crmNextActions);
 		const pipelineNames = [...new Set(this.opportunities.map((opportunity) => opportunity.kind ?? 'sales'))];
 		this.pipelines = pipelineNames.map((pipeline) => ({ pipeline, label: crmLabel(this.text.progressKinds, pipeline), direction: 'outbound', isActive: true }));
-		const stageIDs = [...new Set(this.opportunities.map((opportunity) => opportunity.stage))];
-		this.stages = stageIDs.map((stage, index) => ({ stage, label: stage, position: index + 1, outcome: fixtureOutcome(stage) }));
-		this.lostReasons = [];
 		this.vocabulary = {
 			organization_types: [],
 			pipelines: this.pipelines.map((pipeline) => ({
 				id: pipeline.pipeline,
 				name: pipeline.label,
 				direction: pipeline.direction
-			})),
-			stages: this.stages.map((stage) => ({ id: stage.stage, name: stage.stage, outcome: stage.outcome })),
-			lost_reasons: []
+			}))
 		};
 		this.taskVocabulary = {
 			businesses: [...new Set(this.opportunities.map((opportunity) => opportunity.business))].map((name) => ({ name })),
@@ -445,11 +440,4 @@ export class CRMPageController {
 
 function ownerHint(draft: CRMCreateDraft): string {
 	return draft.kind === 'progress' ? draft.ownerPersonID : '';
-}
-
-function fixtureOutcome(stage: string): CRMPipelineStage['outcome'] {
-	if (stage === 'done') return 'won';
-	if (stage === 'lost') return 'lost';
-	if (stage === 'on_hold') return 'on_hold';
-	return 'open';
 }

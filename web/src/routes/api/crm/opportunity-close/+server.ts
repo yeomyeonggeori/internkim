@@ -56,7 +56,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		target_stage_id: payload.stage,
 		target_stage_position: payload.stagePosition,
 		target_stage_changed_at: payload.occurredAt,
-		target_lost_reason_id: payload.lostReason || null,
+		target_lost_reason: payload.lostReason || null,
 		target_base_amount_minor: converted?.amountMinor ?? null,
 		target_base_currency_code: converted?.currencyCode ?? null
 	});

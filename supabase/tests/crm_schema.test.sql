@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(32);
+select plan(30);
 
 select has_table('public', 'organization', 'crm: organization table exists');
 select has_table('public', 'opportunity', 'crm: opportunity table exists');
@@ -80,7 +80,7 @@ insert into public.opportunity (
     '59400000-0000-0000-0000-000000000111',
     'Sample Opportunity A2',
     'sponsorship',
-    'proposal',
+    'in_progress',
     8500000,
     'KRW'
   );
@@ -92,7 +92,7 @@ set types = array['partner']
 where id = '59400000-0000-0000-0000-000000000101';
 
 update public.opportunity
-set lost_reason_id = 'budget'
+set lost_reason = 'budget'
 where id = '59400000-0000-0000-0000-000000000121';
 
 select lives_ok($block$do $$
@@ -109,13 +109,7 @@ begin
       {"id":"partnership","name":"Partnership"},
       {"id":"sponsorship","name":"Sponsorship"},
       {"id":"unused_pipeline","name":"Unused"}
-    ],
-    "stages":[
-      {"id":"review","name":"Review","outcome":"open"},
-      {"id":"proposal","name":"Proposal","outcome":"open"},
-      {"id":"unused_stage","name":"Unused","outcome":"open"}
-    ],
-    "lost_reasons":[{"id":"budget","name":"Budget"},{"id":"unused_reason","name":"Unused"}]
+    ]
   }'::jsonb);
   reset role;
 end $$;$block$, 'crm: an admin can save a valid CRM vocabulary');
@@ -133,12 +127,7 @@ begin
     "pipelines":[
       {"id":"partnership","name":"Partnership"},
       {"id":"sponsorship","name":"Sponsorship"}
-    ],
-    "stages":[
-      {"id":"review","name":"Review","outcome":"open"},
-      {"id":"proposal","name":"Proposal","outcome":"open"}
-    ],
-    "lost_reasons":[{"id":"budget","name":"Budget"}]
+    ]
   }'::jsonb);
   reset role;
 end $$;$block$, 'crm: an admin can delete CRM definitions with no usage history');
@@ -151,7 +140,7 @@ begin
     '{"sub":"59400000-0000-0000-0000-000000000002","role":"authenticated"}',
     true
   );
-  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[],"stages":[],"lost_reasons":[]}'::jsonb);
+  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[]}'::jsonb);
   reset role;
 end $$;$block$, '42501', null, 'crm: a non-admin cannot save CRM definitions');
 
@@ -163,7 +152,7 @@ begin
     '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
     true
   );
-  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[]}'::jsonb);
+  perform public.save_crm_vocabulary('{"organization_types":[]}'::jsonb);
   reset role;
 end $$;$block$, '22023', null, 'crm: malformed CRM definitions are rejected');
 
@@ -171,7 +160,7 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[{"id":"partnership","name":"Partnership"},{"id":"sponsorship","name":"Sponsorship"}],"stages":[{"id":"review","name":"Review","outcome":"open"},{"id":"proposal","name":"Proposal","outcome":"open"}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
+  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[{"id":"partnership","name":"Partnership"},{"id":"sponsorship","name":"Sponsorship"}]}'::jsonb);
   reset role;
 end $$;$block$, '2BP01', null, 'crm: a used organization type cannot be deleted');
 
@@ -179,25 +168,9 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"sponsorship","name":"Sponsorship"}],"stages":[{"id":"review","name":"Review","outcome":"open"},{"id":"proposal","name":"Proposal","outcome":"open"}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
+  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"sponsorship","name":"Sponsorship"}]}'::jsonb);
   reset role;
 end $$;$block$, '2BP01', null, 'crm: a used pipeline cannot be deleted');
-
-select throws_ok($block$do $$
-begin
-  set local role authenticated;
-  perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"partnership","name":"Partnership"},{"id":"sponsorship","name":"Sponsorship"}],"stages":[{"id":"proposal","name":"Proposal","outcome":"open"}],"lost_reasons":[{"id":"budget","name":"Budget"}]}'::jsonb);
-  reset role;
-end $$;$block$, '2BP01', null, 'crm: a used global stage cannot be deleted');
-
-select throws_ok($block$do $$
-begin
-  set local role authenticated;
-  perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"partnership","name":"Partnership"},{"id":"sponsorship","name":"Sponsorship"}],"stages":[{"id":"review","name":"Review","outcome":"open"},{"id":"proposal","name":"Proposal","outcome":"open"}],"lost_reasons":[]}'::jsonb);
-  reset role;
-end $$;$block$, '2BP01', null, 'crm: a used lost reason cannot be deleted');
 
 select lives_ok(
   $$insert into public.task (company_id, title) values ('59400000-0000-0000-0000-0000000000a0', 'General task')$$,
@@ -450,7 +423,7 @@ begin
   );
 
   update public.opportunity
-  set stage_id = 'proposal',
+  set stage_id = 'done',
       stage_changed_at = '2026-08-21 11:00:00+09'
   where id = '59400000-0000-0000-0000-000000000121';
 
@@ -462,7 +435,7 @@ begin
 
   update public.task set note = 'Edited history note' where id = history_task;
   assert (
-    select stage_id = 'proposal'
+    select stage_id = 'done'
     from public.opportunity
     where id = '59400000-0000-0000-0000-000000000121'
   ), 'editing the history task does not change the opportunity stage';

@@ -4,10 +4,8 @@ import type {
 	CRMActivityResponse,
 	CRMContactResponse,
 	CRMDataResponse,
-	CRMLostReasonResponse,
 	CRMOpportunityResponse,
 	CRMPipelineResponse,
-	CRMPipelineStageResponse,
 	CRMVocabulary
 } from './crm-api-types';
 import type {
@@ -70,7 +68,7 @@ export type OpportunityRow = CRMAuditRow & {
 	importance: string;
 	due_at: string | null;
 	due_time_zone: string | null;
-	lost_reason_id: string | null;
+	lost_reason: string | null;
 	description: string | null;
 };
 
@@ -112,8 +110,6 @@ export function crmDataResponseOf(
 		opportunities: opportunities.filter(active).map(opportunityOf),
 		activities: tasks.map(activityOf),
 		pipelines: pipelineResponses(vocabulary),
-		stages: stageResponses(vocabulary),
-		lostReasons: lostReasonResponses(vocabulary),
 		vocabulary,
 		taskVocabulary: vocabularyOf(taskVocabularyValue)
 	};
@@ -123,9 +119,7 @@ export function crmVocabularyOf(value: unknown): CRMVocabulary {
 	if (!isRecord(value)) return emptyVocabulary();
 	return {
 		organization_types: definitionArray(value.organization_types),
-		pipelines: pipelineArray(value.pipelines),
-		stages: stageArray(value.stages),
-		lost_reasons: definitionArray(value.lost_reasons)
+		pipelines: pipelineArray(value.pipelines)
 	};
 }
 
@@ -177,7 +171,7 @@ function opportunityOf(row: OpportunityRow): CRMOpportunityResponse {
 		importance: importanceOf(row.importance),
 		dueAt: row.due_at ?? undefined,
 		dueTimeZone: row.due_time_zone ?? undefined,
-		lostReason: row.lost_reason_id ?? undefined,
+		lostReason: row.lost_reason ?? undefined,
 		description: row.description ?? undefined,
 		contacts: row.contact_id ? [{ contactID: row.contact_id }] : [],
 		audit: auditOf(row)
@@ -232,19 +226,6 @@ function pipelineResponses(vocabulary: CRMVocabulary): CRMPipelineResponse[] {
 	}));
 }
 
-function stageResponses(vocabulary: CRMVocabulary): CRMPipelineStageResponse[] {
-	return vocabulary.stages.map((stage, position) => ({
-		stage: stage.id,
-		label: stage.name,
-		position,
-		outcome: stage.outcome
-	}));
-}
-
-function lostReasonResponses(vocabulary: CRMVocabulary): CRMLostReasonResponse[] {
-	return vocabulary.lost_reasons.map((reason) => ({ reason: reason.id, label: reason.name, isActive: true }));
-}
-
 function active(row: CRMAuditRow): boolean {
 	return row.archived_at === null;
 }
@@ -269,7 +250,7 @@ function optionalCurrencyOf(value: string | null): CRMCurrency | undefined {
 }
 
 function emptyVocabulary(): CRMVocabulary {
-	return { organization_types: [], pipelines: [], stages: [], lost_reasons: [] };
+	return { organization_types: [], pipelines: [] };
 }
 
 function definitionArray(value: unknown): Array<{ id: string; name: string; color?: string }> {
@@ -286,18 +267,6 @@ function pipelineArray(value: unknown): CRMVocabulary['pipelines'] {
 		if (!isRecord(item) || typeof item.id !== 'string' || typeof item.name !== 'string') return [];
 		return [{ id: item.id, name: item.name, direction: typeof item.direction === 'string' ? item.direction : undefined }];
 	});
-}
-
-function stageArray(value: unknown): CRMVocabulary['stages'] {
-	if (!Array.isArray(value)) return [];
-	return value.flatMap(stageOf);
-}
-
-function stageOf(value: unknown): CRMVocabulary['stages'] {
-	if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string') return [];
-	const outcome = value.outcome;
-	if (outcome !== 'open' && outcome !== 'won' && outcome !== 'lost' && outcome !== 'on_hold') return [];
-	return [{ id: value.id, name: value.name, outcome, color: typeof value.color === 'string' ? value.color : undefined }];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

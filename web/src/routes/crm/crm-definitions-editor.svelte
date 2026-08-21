@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		appendCRMDefinition,
-		appendCRMStage,
 		cloneCRMVocabulary,
 		removeCRMDefinition,
 		updateCRMDefinition,
@@ -9,7 +8,6 @@
 		type CRMDefinitionDeleteRequest,
 		type CRMDefinitionTarget,
 		type CRMDefinitionsText,
-		type CRMStageOutcome,
 		type CRMVocabulary
 	} from './crm-definitions';
 	import CRMDefinitionListCard from './crm-definition-list-card.svelte';
@@ -37,17 +35,10 @@
 		onDelete
 	}: Props = $props();
 
-	let draft = $state<CRMVocabulary>({ organization_types: [], pipelines: [], stages: [], lost_reasons: [] });
+	let draft = $state<CRMVocabulary>({ organization_types: [], pipelines: [] });
 	let localErrorMessage = $state('');
 	let isSubmitting = $state(false);
 	let disabled = $derived(isSaving || isSubmitting);
-
-	const outcomeOptions = $derived([
-		{ value: 'open' as const, label: text.open },
-		{ value: 'won' as const, label: text.won },
-		{ value: 'lost' as const, label: text.lost },
-		{ value: 'on_hold' as const, label: text.onHold }
-	]);
 
 	$effect(() => {
 		draft = cloneCRMVocabulary(vocabulary);
@@ -60,9 +51,7 @@
 	function hasBlankName(value: CRMVocabulary): boolean {
 		return [
 			...value.organization_types,
-			...value.pipelines,
-			...value.stages,
-			...value.lost_reasons
+			...value.pipelines
 		].some((definition) => !definition.name.trim());
 	}
 
@@ -93,10 +82,6 @@
 		void save(updateCRMDefinition(draft, target, { color }));
 	}
 
-	function outcomeChange(target: CRMDefinitionTarget, outcome: CRMStageOutcome): void {
-		void save(updateCRMDefinition(draft, target, { outcome }));
-	}
-
 	async function remove(target: CRMDefinitionTarget): Promise<void> {
 		if (!isAdmin || disabled) return;
 		const next = removeCRMDefinition(draft, target);
@@ -115,10 +100,6 @@
 
 	function add(collection: CRMDefinitionCollection, name: string, color: string): void {
 		void save(appendCRMDefinition(draft, collection, { id: createID(), name, color }));
-	}
-
-	function addStage(name: string, color: string): void {
-		void save(appendCRMStage(draft, { id: createID(), name, color, outcome: 'open' }));
 	}
 </script>
 
@@ -171,40 +152,6 @@
 			onColorChange={(id, color) => colorChange({ kind: 'pipeline', id }, color)}
 			onRemove={(id) => void remove({ kind: 'pipeline', id })}
 			onAdd={(name, color) => add('pipeline', name, color)}
-		/>
-
-		<CRMDefinitionListCard
-			title={text.stages}
-			description={text.stagesDescription}
-			items={draft.stages}
-			{isAdmin}
-			{disabled}
-			addLabel={text.add}
-			removeLabel={text.remove}
-			colorLabel={text.color}
-			{outcomeOptions}
-			onNameInput={(id, name) => nameInput({ kind: 'stage', id }, name)}
-			onCommit={() => void save(draft)}
-			onColorChange={(id, color) => colorChange({ kind: 'stage', id }, color)}
-			onOutcomeChange={(id, outcome) => outcomeChange({ kind: 'stage', id }, outcome)}
-			onRemove={(id) => void remove({ kind: 'stage', id })}
-			onAdd={(name, color) => addStage(name, color)}
-		/>
-
-		<CRMDefinitionListCard
-			title={text.lostReasons}
-			description={text.lostReasonsDescription}
-			items={draft.lost_reasons}
-			{isAdmin}
-			{disabled}
-			addLabel={text.add}
-			removeLabel={text.remove}
-			colorLabel={text.color}
-			onNameInput={(id, name) => nameInput({ kind: 'lost_reason', id }, name)}
-			onCommit={() => void save(draft)}
-			onColorChange={(id, color) => colorChange({ kind: 'lost_reason', id }, color)}
-			onRemove={(id) => void remove({ kind: 'lost_reason', id })}
-			onAdd={(name, color) => add('lost_reason', name, color)}
 		/>
 	</div>
 </section>
