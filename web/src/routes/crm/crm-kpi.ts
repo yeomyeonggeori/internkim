@@ -2,6 +2,7 @@ import type { CRMOrganization, CRMCurrency, CRMNextAction, CRMOpportunity, CRMPi
 import { currentCRMDate, shiftCRMDate } from './crm-date';
 import { formatMoney, formatMoneyTotals, sumOpportunityMoney } from './crm-money';
 import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
+import type { Locale } from '$lib/i18n/locale.svelte';
 import { findOrganizationByID, getActionUrgency, getProgressKind } from './crm-view-model';
 import type { CRMText } from './text';
 
@@ -40,7 +41,8 @@ function countSegment(label: string, value: number, color: string, suffix: strin
 function buildMoneySummary(
 	catalogue: CurrencyCatalogue,
 	opportunities: CRMOpportunity[],
-	text: CRMText
+	text: CRMText,
+	locale: Locale
 ): { displayValue: string; moneyDetails?: CRMKPIMoneyDetail[] } {
 	const totals = sumOpportunityMoney(opportunities);
 	const moneyDetails = catalogue.reduce<CRMKPIMoneyDetail[]>((details, entry) => {
@@ -48,18 +50,18 @@ function buildMoneySummary(
 		if (amount === undefined) return details;
 		return [
 			...details,
-			{ currency: entry.code, displayValue: formatMoney(amount, entry.code, catalogue, text.noValue) }
+			{ currency: entry.code, displayValue: formatMoney(amount, entry.code, catalogue, text.noValue, locale) }
 		];
 	}, []);
-	if (moneyDetails.length <= 1) return { displayValue: formatMoneyTotals(totals, catalogue, text.noValue) };
+	if (moneyDetails.length <= 1) return { displayValue: formatMoneyTotals(totals, catalogue, text.noValue, locale) };
 	return {
 		displayValue: text.currencyCount.replace('{count}', String(moneyDetails.length)),
 		moneyDetails
 	};
 }
 
-function amountSegment(catalogue: CurrencyCatalogue, label: string, opportunities: CRMOpportunity[], color: string, text: CRMText): CRMKPISegment {
-	const moneySummary = buildMoneySummary(catalogue, opportunities, text);
+function amountSegment(catalogue: CurrencyCatalogue, label: string, opportunities: CRMOpportunity[], color: string, text: CRMText, locale: Locale): CRMKPISegment {
+	const moneySummary = buildMoneySummary(catalogue, opportunities, text, locale);
 	return {
 		label,
 		value: opportunities.length,
@@ -77,12 +79,12 @@ function opportunityOutcome(stages: CRMPipelineStage[], opportunity: CRMOpportun
 	)?.outcome;
 }
 
-function buildPipelineHealth(catalogue: CurrencyCatalogue, opportunities: CRMOpportunity[], stages: CRMPipelineStage[], text: CRMText): CRMKPICardData {
+function buildPipelineHealth(catalogue: CurrencyCatalogue, opportunities: CRMOpportunity[], stages: CRMPipelineStage[], text: CRMText, locale: Locale): CRMKPICardData {
 	const openOpportunities = opportunities.filter((opportunity) => opportunityOutcome(stages, opportunity) === 'open');
 	const onHold = opportunities.filter((opportunity) => opportunityOutcome(stages, opportunity) === 'on_hold');
 	const stalled = openOpportunities.filter((opportunity) => opportunity.staleDays >= 14);
 	const moving = openOpportunities.filter((opportunity) => opportunity.staleDays < 14);
-	const totalMoneySummary = buildMoneySummary(catalogue, [...openOpportunities, ...onHold], text);
+	const totalMoneySummary = buildMoneySummary(catalogue, [...openOpportunities, ...onHold], text, locale);
 
 	return {
 		id: 'pipeline-health',
@@ -92,9 +94,9 @@ function buildPipelineHealth(catalogue: CurrencyCatalogue, opportunities: CRMOpp
 		totalLabel: text.kpiOpenValue,
 		totalMoneyDetails: totalMoneySummary.moneyDetails,
 		segments: [
-			amountSegment(catalogue, text.kpiMoving, moving, movingColor, text),
-			amountSegment(catalogue, text.kpiStalled, stalled, neutralColor, text),
-			amountSegment(catalogue, text.kpiOnHold, onHold, attentionColor, text)
+			amountSegment(catalogue, text.kpiMoving, moving, movingColor, text, locale),
+			amountSegment(catalogue, text.kpiStalled, stalled, neutralColor, text, locale),
+			amountSegment(catalogue, text.kpiOnHold, onHold, attentionColor, text, locale)
 		]
 	};
 }
@@ -172,10 +174,11 @@ export function buildCRMKPICards(
 	nextActions: CRMNextAction[],
 	stages: CRMPipelineStage[],
 	text: CRMText,
-	today = currentCRMDate()
+	today = currentCRMDate(),
+	locale: Locale = 'ko'
 ): CRMKPICardData[] {
 	return [
-		buildPipelineHealth(catalogue, opportunities, stages, text),
+		buildPipelineHealth(catalogue, opportunities, stages, text, locale),
 		buildRelationshipHealth(organizations, text, today),
 		buildFollowUpHealth(nextActions, text),
 		buildPipelineComposition(organizations, opportunities, stages, text)

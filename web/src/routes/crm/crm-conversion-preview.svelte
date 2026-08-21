@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { loadConvertedAmount, type ConvertedAmount } from '$lib/currency/converted-amount';
 	import { formatMoney } from './crm-money';
 	import { majorAmountOf, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
@@ -48,10 +49,10 @@
 
 {#if isSettled}
 	<p class="text-sm text-muted-foreground">
-		{formatMoney(majorAmountOf(settledAmountMinor ?? 0, settledCurrency, currencyCatalogue), settledCurrency, currencyCatalogue)} · {text.conversionSettled}
+		{formatMoney(majorAmountOf(settledAmountMinor ?? 0, settledCurrency, currencyCatalogue), settledCurrency, currencyCatalogue, '-', currentLocale.value)} · {text.conversionSettled}
 	</p>
 {:else if shouldEstimate && estimate}
 	<p class="text-sm text-muted-foreground">
-		≈ {formatMoney(majorAmountOf(estimate.amountMinor, estimate.currencyCode, currencyCatalogue), estimate.currencyCode, currencyCatalogue)} · {text.conversionEstimate.replace('{date}', estimate.asOf)}
+		≈ {formatMoney(majorAmountOf(estimate.amountMinor, estimate.currencyCode, currencyCatalogue), estimate.currencyCode, currencyCatalogue, '-', currentLocale.value)} · {text.conversionEstimate.replace('{date}', estimate.asOf)}
 	</p>
 {/if}

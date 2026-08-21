@@ -3,7 +3,6 @@
 		appendCRMDefinition,
 		appendCRMStage,
 		cloneCRMVocabulary,
-		defaultCRMDefinitionsText,
 		moveCRMDefinition,
 		removeCRMDefinition,
 		updateCRMDefinition,
@@ -21,7 +20,7 @@
 		isAdmin: boolean;
 		isSaving?: boolean;
 		errorMessage?: string;
-		text?: CRMDefinitionsText;
+		text: CRMDefinitionsText;
 		onSave: (vocabulary: CRMVocabulary) => Promise<void> | void;
 		onDelete: (
 			request: CRMDefinitionDeleteRequest,
@@ -34,7 +33,7 @@
 		isAdmin,
 		isSaving = false,
 		errorMessage = '',
-		text = defaultCRMDefinitionsText,
+		text,
 		onSave,
 		onDelete
 	}: Props = $props();

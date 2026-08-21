@@ -1,5 +1,6 @@
 import type { CRMCurrency, CRMMoneyTotals, CRMOpportunity } from './crm-types';
 import { findCurrencyCatalogueEntry, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
+import type { Locale } from '$lib/i18n/locale.svelte';
 
 export function formatAmountInput(value: string): string {
 	const digits = value.replace(/\D/g, '');
@@ -20,20 +21,26 @@ export function formatMoney(
 	value: number | undefined,
 	currency: CRMCurrency,
 	catalogue: CurrencyCatalogue,
-	noValue = '-'
+	noValue = '-',
+	locale: Locale = 'ko'
 ): string {
 	if (value === undefined) return noValue;
 	const entry = findCurrencyCatalogueEntry(catalogue, currency);
 	if (!entry) return `${currency}${value.toLocaleString()}`;
-	return entry.grouping === 'myriad'
+	return entry.grouping === 'myriad' && locale === 'ko'
 		? formatMyriadMoney(value, entry.symbol)
 		: formatThousandGroupedMoney(value, entry.symbol);
 }
 
-export function formatMoneyTotals(totals: CRMMoneyTotals, catalogue: CurrencyCatalogue, noValue = '-'): string {
+export function formatMoneyTotals(
+	totals: CRMMoneyTotals,
+	catalogue: CurrencyCatalogue,
+	noValue = '-',
+	locale: Locale = 'ko'
+): string {
 	const values = catalogue
 		.filter((entry) => totals[entry.code] !== undefined)
-		.map((entry) => formatMoney(totals[entry.code], entry.code, catalogue, noValue));
+		.map((entry) => formatMoney(totals[entry.code], entry.code, catalogue, noValue, locale));
 	return values.length === 0 ? noValue : values.join(' · ');
 }
 

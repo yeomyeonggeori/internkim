@@ -10,6 +10,7 @@
 		type CurrencyCatalogue,
 		type CurrencyCatalogueEntry
 	} from '$lib/currency/currency-catalogue';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { companySettingsText } from './text';
@@ -31,9 +32,22 @@
 		return entry.symbol === entry.code ? '' : entry.symbol;
 	}
 
+	const currencyDisplayNames = $derived(
+		new Intl.DisplayNames([currentLocale.value === 'ko' ? 'ko' : 'en'], { type: 'currency' })
+	);
+
+	function currencyNameOf(entry: CurrencyCatalogueEntry): string {
+		try {
+			return currencyDisplayNames.of(entry.code) ?? entry.name;
+		} catch {
+			return entry.name;
+		}
+	}
+
 	function currencyLabel(entry: CurrencyCatalogueEntry): string {
 		const symbol = distinctSymbolOf(entry);
-		return symbol ? `${symbol} ${entry.code} ${entry.name}` : `${entry.code} ${entry.name}`;
+		const name = currencyNameOf(entry);
+		return symbol ? `${symbol} ${entry.code} ${name}` : `${entry.code} ${name}`;
 	}
 
 	onMount(async () => {
@@ -64,7 +78,7 @@
 {#snippet currencyRow(entry: CurrencyCatalogueEntry)}
 	<span class="w-9 shrink-0 text-muted-foreground">{distinctSymbolOf(entry)}</span>
 	<span class="w-12 shrink-0 font-medium">{entry.code}</span>
-	<span class="truncate">{entry.name}</span>
+	<span class="truncate">{currencyNameOf(entry)}</span>
 {/snippet}
 
 <Card.Root>
