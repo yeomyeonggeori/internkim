@@ -326,11 +326,11 @@
 			<UnderlineTabs.Content value="relationships" class="grid min-w-0 gap-4 pb-24">
 				<div class="flex min-w-0 flex-wrap items-center justify-end gap-3 rounded-md border bg-card p-3">
 					<div class="flex min-w-0 flex-wrap items-center gap-2">
+						<Select.Root type="single" value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)}><Select.Trigger size="sm" class="w-44">{relationshipViews.find((view) => view.value === relationshipView)?.label}</Select.Trigger><Select.Content>{#each relationshipViews as view (view.value)}<Select.Item value={view.value} label={view.label}>{view.label}</Select.Item>{/each}</Select.Content></Select.Root>
 						<CRMFilterPopover {text} activeCount={relationshipFilterCount} onReset={resetRelationshipFilters}>
 							<FilterCombobox bind:value={selectedStatus} options={statusFilterOptions} label={text.status} clearValue="all" class="w-full sm:w-[calc(50%-0.25rem)]" />
 							<FilterCombobox bind:value={selectedType} options={typeFilterOptions} label={text.type} clearValue="all" class="w-full sm:w-[calc(50%-0.25rem)]" />
 						</CRMFilterPopover>
-						<Select.Root type="single" value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)}><Select.Trigger size="sm" class="w-44">{relationshipViews.find((view) => view.value === relationshipView)?.label}</Select.Trigger><Select.Content>{#each relationshipViews as view (view.value)}<Select.Item value={view.value} label={view.label}>{view.label}</Select.Item>{/each}</Select.Content></Select.Root>
 					</div>
 					<Button type="button" size="sm" onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
 				</div>
@@ -346,13 +346,13 @@
 
 			<UnderlineTabs.Content value="pipeline" class="grid min-w-0 gap-4 pb-24">
 				<div class="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
+					<Tabs.Root bind:value={pipelineView} aria-label={text.pipeline}><Tabs.List><Tabs.Trigger value="table">{text.tableView}</Tabs.Trigger><Tabs.Trigger value="board">{text.boardView}</Tabs.Trigger></Tabs.List></Tabs.Root>
 					<div class="flex flex-wrap items-center gap-3">
 						<CRMFilterPopover {text} activeCount={selectedPipeline === 'all' ? 0 : 1} onReset={() => selectPipeline('all')}>
 							<FilterCombobox value={selectedPipeline} options={pipelineFilterOptions} label={text.progressKind} clearValue="all" onSelect={selectPipeline} class="w-full" />
 						</CRMFilterPopover>
-						<Tabs.Root bind:value={pipelineView} aria-label={text.pipeline}><Tabs.List><Tabs.Trigger value="table">{text.tableView}</Tabs.Trigger><Tabs.Trigger value="board">{text.boardView}</Tabs.Trigger></Tabs.List></Tabs.Root>
+						<Button type="button" size="sm" onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 					</div>
-					<Button type="button" size="sm" onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 				</div>
 				{#if pipelineView === 'table'}
 					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={controller.stages} {text} onEdit={openOpportunityEdit} />
@@ -362,7 +362,7 @@
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="activities" class="grid min-w-0 gap-4 pb-24">
-				<div class="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
+				<div class="flex min-w-0 flex-wrap items-center justify-end gap-3 rounded-md border bg-card p-3">
 					<CRMFilterPopover {text} activeCount={activityView === 'all' ? 0 : 1} onReset={() => (activityView = 'all')}>
 						<FilterCombobox bind:value={activityView} options={activityKindFilterOptions} label={text.activityKind} clearValue="all" class="w-full" />
 					</CRMFilterPopover>
