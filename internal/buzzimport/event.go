@@ -79,11 +79,12 @@ func streamEventTags(message ImportedMessage) nostr.Tags {
 	if parentEventID == "" {
 		parentEventID = rootEventID
 	}
+	// The relay builds a thread from the pair: resolve_nip10_thread_meta drops an
+	// event that carries only a root marker and no reply marker, so a reply whose
+	// parent is the root still has to name it twice.
 	if rootEventID != "" {
 		tags = append(tags, nostr.Tag{"e", rootEventID, "", "root"})
-		if parentEventID != rootEventID {
-			tags = append(tags, nostr.Tag{"e", parentEventID, "", "reply"})
-		}
+		tags = append(tags, nostr.Tag{"e", parentEventID, "", "reply"})
 	}
 	for _, mentionPubkey := range message.MentionPubkeys {
 		mentionPubkey = strings.ToLower(strings.TrimSpace(mentionPubkey))
