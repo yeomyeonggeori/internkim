@@ -17,7 +17,9 @@ type buzzClaimResponse struct {
 // The gate is Cloudflare Access — an authentication layer, not a messaging
 // platform — so the Buzz identity stays independent of Mattermost or any client.
 func (service *Service) handleBuzzClaim(responseWriter http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
+	// Deriving a key changes nothing, and the relay bridge a company browser
+	// comes through asks with GET. The secret is in the answer, never the URL.
+	if request.Method != http.MethodPost && request.Method != http.MethodGet {
 		http.NotFound(responseWriter, request)
 		return
 	}

@@ -11,6 +11,7 @@
 	import type { Snippet } from 'svelte';
 	import { onMount } from 'svelte';
 	import { buzzPasskeyLogin, buzzPasswordLogin, mattermostPasswordLogin } from '$lib/buzz-key-login';
+	import { claimCentralBuzzSecret } from '$lib/buzz-identity-central-login';
 	import { createBuzzIdentityTransport, enrollKnownBuzzIdentity } from '$lib/buzz-identity-session';
 	import { isPasskeySupported as isBuzzPasskeySupported } from '$lib/buzz-passkey';
 	import { isPasskeySupported as isSupabasePasskeySupported } from '$lib/supabase-passkey';
@@ -67,18 +68,6 @@
 		}
 	}
 
-	async function runSupabaseLogin(work: () => Promise<void>) {
-		busy = true;
-		errorMessage = '';
-		try {
-			await work();
-			location.reload();
-		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : text.webSessionUnavailable;
-			busy = false;
-		}
-	}
-
 	function loginWithPassword() {
 		if (email.trim().length === 0) {
 			errorMessage = text.emailRequired;
@@ -86,7 +75,10 @@
 		}
 		const normalizedEmail = email.trim().toLowerCase();
 		if (servesCompanies) {
-			return runSupabaseLogin(() => signInWithSupabase(normalizedEmail, password));
+			return runLogin(async () => {
+				await signInWithSupabase(normalizedEmail, password);
+				return claimCentralBuzzSecret();
+			});
 		}
 		return runLogin(async () => {
 			try {
@@ -103,7 +95,12 @@
 	}
 
 	function loginWithPasskey() {
-		if (servesCompanies) return runSupabaseLogin(signInWithPasskey);
+		if (servesCompanies) {
+			return runLogin(async () => {
+				await signInWithPasskey();
+				return claimCentralBuzzSecret();
+			});
+		}
 		return runLogin(buzzPasskeyLogin);
 	}
 </script>
