@@ -252,7 +252,8 @@ const workspacePaths: Record<string, string> = {
 	'person.files.roots': '/files/api/roots',
 	'person.files.list': '/files/api/list',
 	'person.tasks.list': '/tasks/api/runs',
-	'person.tasks.detail': '/tasks/api/run-detail'
+	'person.tasks.detail': '/tasks/api/run-detail',
+	'person.buzz.claim': '/agent/api/buzz-claim'
 };
 
 async function askAdmind(
