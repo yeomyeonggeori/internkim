@@ -91,11 +91,8 @@ func buzzMigrateLaunchCommand() string {
 SEED=$(cat /root/.internkim/secrets/buzz-key-seed)
 DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
 TEAM=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
-DEVICE_HOST=$(sed -E 's#^[a-z]+://##; s#/.*$##' ` + blueclaw.DeviceURLFilePath + `)
-case "$DEVICE_HOST" in
-  *.*) PUBLIC_HOST=$(printf '%s' "$DEVICE_HOST" | sed -E 's/\./-relay./') ;;
-  *) PUBLIC_HOST="${DEVICE_HOST}-relay" ;;
-esac
+PUBLIC_HOST=$(systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | sed -n 's/^RELAY_URL=//p' | head -1 | sed -E 's#^[a-z]+://##; s#/.*$##')
+if [ -z "$PUBLIC_HOST" ]; then echo "MIGRATE_DONE_FAIL the relay names no public host, and an import keyed to a guess lands in a community nothing serves"; exit 1; fi
 rm -f ` + blueclaw.BuzzMigrateMarkerPath + `
 cat > /tmp/buzz-migrate-run.sh <<RUNEOF
 export DATABASE_URL="$DB_URL"
