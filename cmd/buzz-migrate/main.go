@@ -150,25 +150,25 @@ func main() {
 			defer running.Done()
 			defer func() { <-slots }()
 			buzzChannelID := deriveChannelID(keySeed, channel.ID)
+			posts, errorValue := client.Posts(ctx, channel.ID, *sinceMillis)
+			failOn(errorValue, "read posts for "+channel.Name)
 			if !incremental {
 				memberUserIDs, errorValue := client.ChannelMemberUserIDs(ctx, channel.ID)
 				failOn(errorValue, "read members for "+channel.Name)
+				// An import replays posts by people who have since left the room, and a
+				// closed room refuses a post from someone who is not in it.
+				everyAuthor := memberUserIDsWithPastAuthors(memberUserIDs, posts)
 				creatorSecret := creatorSecretFor(channel, memberUserIDs, authorsByID, authorSecrets, bootstrapSecret)
 				creator, errorValue := publishers.as(ctx, creatorSecret)
 				failOn(errorValue, "connect as the creator of "+channel.Name)
-				// An import replays posts by people who have since left the room,
-				// and syncChannelMembers can only add who is in it now, so a
-				// private channel would reject their history.
-				errorValue = creator.CreateChannel(ctx, creatorSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel), "open")
+				errorValue = creator.CreateChannel(ctx, creatorSecret, buzzChannelID, importedChannelName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel), importedChannelVisibility(channel))
 				if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
 					failOn(errorValue, "create channel "+channel.Name)
 				}
 				failOn(waitForChannelRow(ctx, buzzDatabase, communityID, buzzChannelID), "wait for channel "+channel.Name)
-				syncChannelMembers(ctx, creator, creatorSecret, buzzChannelID, memberUserIDs, authorPubkeys, readerPubkeyFor(channel, *viewerPubkey))
+				syncChannelMembers(ctx, creator, creatorSecret, buzzChannelID, everyAuthor, authorPubkeys, readerPubkeyFor(channel, *viewerPubkey))
 			}
 
-			posts, errorValue := client.Posts(ctx, channel.ID, *sinceMillis)
-			failOn(errorValue, "read posts for "+channel.Name)
 			imported, skipped := importChannelPosts(ctx, importDependencies{
 				injector: injector, uploader: uploader, client: client,
 				orphanRootTitle: *orphanRootTitle, bootstrapSecret: bootstrapSecret,
@@ -740,6 +740,43 @@ func relayChannelTypeOf(channel buzzimport.MattermostChannel) string {
 		return "dm"
 	}
 	return "stream"
+}
+
+// A conversation is named for whoever else is in it, which is a different name
+// for each person reading, so one stored name hands somebody their own.
+func importedChannelName(
+	channel buzzimport.MattermostChannel,
+	memberUserIDs []string,
+	authorsByID map[string]mattermostrest.MattermostAuthor,
+) string {
+	if buzzimport.IsConversationChannelType(channel.Type) {
+		return ""
+	}
+	return channelDisplayName(channel, memberUserIDs, authorsByID)
+}
+
+// A direct conversation the whole company can read is not a direct conversation.
+func importedChannelVisibility(channel buzzimport.MattermostChannel) string {
+	if buzzimport.IsConversationChannelType(channel.Type) {
+		return "private"
+	}
+	return "open"
+}
+
+func memberUserIDsWithPastAuthors(memberUserIDs []string, posts []buzzimport.MattermostPost) []string {
+	everyone := append([]string{}, memberUserIDs...)
+	known := map[string]bool{}
+	for _, userID := range memberUserIDs {
+		known[userID] = true
+	}
+	for _, post := range posts {
+		if post.UserID == "" || known[post.UserID] {
+			continue
+		}
+		known[post.UserID] = true
+		everyone = append(everyone, post.UserID)
+	}
+	return everyone
 }
 
 // Mattermost gives a direct conversation no display name and names it after the
