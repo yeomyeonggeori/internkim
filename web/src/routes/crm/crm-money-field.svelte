@@ -3,8 +3,9 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import { formatAmountInput } from './crm-money';
-	import { findCurrencyCatalogueEntry, type CurrencyCatalogue, type CurrencyCatalogueEntry } from '$lib/currency/currency-catalogue';
+	import { findCurrencyCatalogueEntry, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
+	import { currencyDisplayNamesFor, currencyNameOf } from '$lib/currency/currency-name';
 	import type { CRMCurrency } from './crm-types';
 
 	type Props = {
@@ -27,17 +28,7 @@
 		if (findCurrencyCatalogueEntry(currencyCatalogue, value)) currency = value;
 	}
 
-	const currencyDisplayNames = $derived(
-		new Intl.DisplayNames([currentLocale.value === 'ko' ? 'ko' : 'en'], { type: 'currency' })
-	);
-
-	function currencyNameOf(entry: CurrencyCatalogueEntry): string {
-		try {
-			return currencyDisplayNames.of(entry.code) ?? entry.name;
-		} catch {
-			return entry.name;
-		}
-	}
+	const currencyDisplayNames = $derived(currencyDisplayNamesFor(currentLocale.value));
 </script>
 
 <Field.Field>
@@ -47,9 +38,9 @@
 			<Select.Trigger id={`${id}-currency`} class="w-full" aria-label={currencyLabel}>{currency}</Select.Trigger>
 			<Select.Content class="max-h-72 min-w-56">
 				{#each currencyCatalogue as option (option.code)}
-					<Select.Item value={option.code} label={`${option.code} ${currencyNameOf(option)}`}>
+					<Select.Item value={option.code} label={`${option.code} ${currencyNameOf(option, currencyDisplayNames)}`}>
 						<span class="w-12 shrink-0 font-medium">{option.code}</span>
-						<span class="truncate text-muted-foreground">{currencyNameOf(option)}</span>
+						<span class="truncate text-muted-foreground">{currencyNameOf(option, currencyDisplayNames)}</span>
 					</Select.Item>
 				{/each}
 			</Select.Content>
