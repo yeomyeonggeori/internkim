@@ -3,8 +3,6 @@ package capabilityd
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,7 +44,6 @@ type calendarEventWriteInput struct {
 	AllowDuplicate    bool
 	IncludeRequester  *bool
 	ExpectedUpdatedAt string
-	GeneratedEventID  bool
 }
 
 type calendarEventAddInput struct {
@@ -151,7 +148,7 @@ func (service Service) invokeCalendarEventAdd(ctx context.Context, request capab
 	if isCalendarDuplicateCandidateResult(result) {
 		return calendarToolDuplicateCandidateResponse(request.ToolName, result), nil
 	}
-	normalizedResult, _, errorValue := normalizeCalendarEventResult(result, input.EventID)
+	normalizedResult, _, errorValue := normalizeCalendarEventResult(result, "")
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -268,7 +265,6 @@ func decodeCalendarEventWriteInput(document json.RawMessage) (calendarEventWrite
 		Color:            strings.TrimSpace(externalInput.Color),
 		People:           normalizeCalendarToolPeople([]string(externalInput.People)),
 		IncludeRequester: externalInput.IncludeRequester,
-		GeneratedEventID: true,
 	}
 	reminderLeadHours, errorValue := calendarToolReminderLeadHours(externalInput.ReminderLeadHours)
 	if errorValue != nil {
@@ -281,7 +277,6 @@ func decodeCalendarEventWriteInput(document json.RawMessage) (calendarEventWrite
 	if input.StartISO == "" || input.EndISO == "" {
 		return calendarEventWriteInput{}, fmt.Errorf("startISO and endISO are required")
 	}
-	input.EventID = stableCalendarToolEventID(input)
 	return input, nil
 }
 
@@ -462,7 +457,6 @@ func hasCalendarEventUpdatePatch(input calendarEventUpdateInput) bool {
 
 func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 	payload := map[string]any{
-		"eventID":           input.EventID,
 		"title":             input.Title,
 		"description":       input.Description,
 		"location":          input.Location,
@@ -482,21 +476,6 @@ func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 		payload["participants"] = input.Participants
 	}
 	return payload
-}
-
-func stableCalendarToolEventID(input calendarEventWriteInput) string {
-	document := strings.Join([]string{
-		input.Title,
-		input.Description,
-		input.Location,
-		input.StartISO,
-		input.EndISO,
-		input.TimeZone,
-		fmt.Sprintf("%t", input.IsAllDay),
-		strings.Join([]string(input.People), ","),
-	}, "\x00")
-	sum := sha256.Sum256([]byte(document))
-	return "tool-" + hex.EncodeToString(sum[:])[:32]
 }
 
 func calendarEventListPath(input calendarEventListInput) string {

@@ -28,9 +28,6 @@ func (service Service) prepareCalendarEventWriteInput(ctx context.Context, input
 	if len(input.Participants) > 0 {
 		input.People = calendarToolParticipantNames(input.Participants)
 	}
-	if input.GeneratedEventID {
-		input.EventID = stableCalendarToolEventID(input)
-	}
 	return input, platformDMFailure{}, false
 }
 

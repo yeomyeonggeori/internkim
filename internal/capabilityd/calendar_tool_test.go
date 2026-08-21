@@ -27,7 +27,7 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			return calendarToolEventResponse(payload["eventID"].(string), "Demo", "2026-05-08T01:00:00Z", "2026-05-08T02:00:00Z"), nil
+			return calendarToolEventResponse("admind-event-1", "Demo", "2026-05-08T01:00:00Z", "2026-05-08T02:00:00Z"), nil
 		})},
 	}
 
@@ -45,12 +45,12 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	if response.Status != "created" {
 		t.Fatalf("status = %q", response.Status)
 	}
-	assertCalendarMutationEffect(t, response, payload["eventID"].(string), "created")
+	assertCalendarMutationEffect(t, response, "admind-event-1", "created")
 	var result map[string]any
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if result["eventID"] != payload["eventID"] || result["id"] != nil {
+	if result["eventID"] != "admind-event-1" || result["id"] != nil {
 		t.Fatalf("canonical result = %#v", result)
 	}
 	if requesterEmail != "staff@example.com" {
@@ -59,8 +59,8 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	if payload["title"] != "Demo" || payload["location"] != "Office" {
 		t.Fatalf("payload = %#v", payload)
 	}
-	if payload["eventID"] == "" {
-		t.Fatalf("eventID was not generated: %#v", payload)
+	if _, hasEventID := payload["eventID"]; hasEventID {
+		t.Fatalf("admind assigns the identifier; the tool must not send one: %#v", payload)
 	}
 	people, _ := payload["people"].([]any)
 	if len(people) != 3 || people[0] != "Staff" || people[1] != "샘플" || people[2] != "수민" || payload["reminderLeadHours"] != float64(48) {
@@ -91,7 +91,7 @@ func TestCalendarEventAddResolvesPeopleHintsAndIncludesRequester(t *testing.T) {
 				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
-				return calendarToolEventResponse(payload["eventID"].(string), "경산 일정", "2026-05-08T05:00:00+09:00", "2026-05-08T06:00:00+09:00"), nil
+				return calendarToolEventResponse("admind-event-2", "경산 일정", "2026-05-08T05:00:00+09:00", "2026-05-08T06:00:00+09:00"), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -176,17 +176,6 @@ func TestCalendarToolShouldIncludeRequesterPolicy(t *testing.T) {
 				t.Fatalf("include requester = %v, want %v", actual, testCase.expected)
 			}
 		})
-	}
-}
-
-func TestCalendarEventAddGeneratesStableEventID(t *testing.T) {
-	first, firstError := decodeCalendarEventWriteInput([]byte(`{"title":"휴가","startISO":"2026-05-10T00:00:00Z","endISO":"2026-05-13T00:00:00Z","isAllDay":true}`))
-	second, secondError := decodeCalendarEventWriteInput([]byte(`{"title":"휴가","startISO":"2026-05-10T00:00:00Z","endISO":"2026-05-13T00:00:00Z","isAllDay":true}`))
-	if firstError != nil || secondError != nil {
-		t.Fatalf("decode errors: %v %v", firstError, secondError)
-	}
-	if first.EventID == "" || first.EventID != second.EventID {
-		t.Fatalf("event IDs = %q %q", first.EventID, second.EventID)
 	}
 }
 
@@ -368,7 +357,7 @@ func TestCalendarEventAddPreservesDuplicateControlWithoutSuccessEffect(t *testin
 			if !allowDuplicate {
 				return calendarToolJSONResponse(`{"status":"duplicate_candidate","candidates":[{"id":"event-existing","title":"Demo"}]}`), nil
 			}
-			return calendarToolEventResponse(payload["eventID"].(string), "Demo", "2026-05-08T10:00:00+09:00", "2026-05-08T11:00:00+09:00"), nil
+			return calendarToolEventResponse("admind-event-3", "Demo", "2026-05-08T10:00:00+09:00", "2026-05-08T11:00:00+09:00"), nil
 		})},
 	}
 	baseInput := `{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00"`
@@ -1088,5 +1077,39 @@ func TestCompleteCalendarListRangeDefaultsMissingEnd(t *testing.T) {
 	startISO, endISO = completeCalendarListRange("", "2026-07-23T00:00:00+09:00")
 	if startISO != "2026-07-22T00:00:00+09:00" || endISO != "2026-07-23T00:00:00+09:00" {
 		t.Fatalf("unexpected backfilled range: %s %s", startISO, endISO)
+	}
+}
+
+func TestCalendarEventAddAcceptsTheIdentifierAdmindAssigns(t *testing.T) {
+	const assignedEventID = "71b2ee247cfe2dbef19b6bfcd996e473"
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local", BlueclawBaseURL: "http://blueclaw.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/identity/resolve-recipient" {
+				return calendarToolJSONResponse(`{"status":"not_found"}`), nil
+			}
+			return calendarToolEventResponse(assignedEventID, "Demo", "2026-05-08T01:00:00Z", "2026-05-08T02:00:00Z"), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar_add",
+		Input:    []byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com", RequesterName: "Staff"},
+	})
+
+	if errorValue != nil {
+		t.Fatalf("a created event must not be reported as a failure: %v", errorValue)
+	}
+	if response.Status != "created" {
+		t.Fatalf("status = %q", response.Status)
+	}
+	assertCalendarMutationEffect(t, response, assignedEventID, "created")
+	var result map[string]any
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result["eventID"] != assignedEventID {
+		t.Fatalf("result must carry the identifier admind assigned, got %#v", result)
 	}
 }
