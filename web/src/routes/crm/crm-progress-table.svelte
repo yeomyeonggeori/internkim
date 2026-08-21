@@ -4,7 +4,9 @@
 	import * as Table from '$lib/components/ui/table';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import type { CRMOrganization, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
-	import { daysLabel, findOrganizationByID, findNextActionByID, formatMoney, getStageVariant, opportunityStageLabel } from './crm-view-model';
+	import { daysLabel, findOrganizationByID, findNextActionByID, getStageVariant, opportunityStageLabel } from './crm-view-model';
+	import { formatViewMoney } from './crm-money';
+	import { crmViewCurrency } from './crm-view-currency.svelte';
 	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
@@ -98,7 +100,7 @@
 						<Table.Cell class="hidden whitespace-normal md:table-cell">
 							<p class="truncate">{opportunity.ownerName}</p>
 						</Table.Cell>
-						<Table.Cell class="hidden font-medium sm:table-cell">{formatMoney(opportunity.expectedValue, opportunity.currency, currencyCatalogue, text.noValue, currentLocale.value)}</Table.Cell>
+						<Table.Cell class="hidden font-medium sm:table-cell">{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), currencyCatalogue, text.noValue, currentLocale.value)}</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal text-muted-foreground lg:table-cell">
 							<p class="truncate">{action?.title ?? text.none}</p>
 						</Table.Cell>

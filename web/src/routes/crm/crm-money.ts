@@ -1,6 +1,7 @@
 import type { CRMCurrency, CRMMoneyTotals, CRMOpportunity } from './crm-types';
 import { findCurrencyCatalogueEntry, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 import type { Locale } from '$lib/i18n/locale.svelte';
+import type { CRMViewAmount, CRMViewCurrencyReader } from './crm-view-currency.svelte';
 
 export function formatAmountInput(value: string): string {
 	const digits = value.replace(/\D/g, '');
@@ -42,6 +43,33 @@ export function formatMoneyTotals(
 		.filter((entry) => totals[entry.code] !== undefined)
 		.map((entry) => formatMoney(totals[entry.code], entry.code, catalogue, noValue, locale));
 	return values.length === 0 ? noValue : values.join(' · ');
+}
+
+export function formatViewMoney(
+	view: CRMViewAmount,
+	catalogue: CurrencyCatalogue,
+	noValue = '-',
+	locale: Locale = 'ko'
+): string {
+	const formatted = formatMoney(view.value, view.currency, catalogue, noValue, locale);
+	return view.isConverted ? `≈ ${formatted}` : formatted;
+}
+
+export function formatViewMoneyTotals(
+	totals: CRMMoneyTotals,
+	catalogue: CurrencyCatalogue,
+	view: CRMViewCurrencyReader,
+	noValue = '-',
+	locale: Locale = 'ko'
+): string {
+	if (view.selected === 'original') return formatMoneyTotals(totals, catalogue, noValue, locale);
+	const currencies = Object.keys(totals);
+	if (currencies.length === 0) return noValue;
+	const collapsedValue = currencies.reduce((sum, currency) => {
+		const amount = totals[currency];
+		return amount === undefined ? sum : sum + view.viewAmount(amount, currency).value;
+	}, 0);
+	return formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, catalogue, noValue, locale);
 }
 
 export function sumOpportunityMoney(

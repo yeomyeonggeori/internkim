@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { interimCurrencyCatalogue } from '../../../src/lib/currency/currency-catalogue';
 import { buildCRMKPICards } from '../../../src/routes/crm/crm-kpi';
 import type { CRMOrganization, CRMCurrency, CRMOpportunity, CRMOpportunityStage, CRMPipelineStage } from '../../../src/routes/crm/crm-types';
+import type { CRMViewCurrencyReader } from '../../../src/routes/crm/crm-view-currency.svelte';
 import { crmText } from '../../../src/routes/crm/text';
 
 function opportunity(
@@ -81,6 +82,29 @@ describe('CRM KPI money details', () => {
 
 		expect(relationshipHealth?.segments[0]?.value).toBe(2);
 		expect(relationshipHealth?.segments[1]?.value).toBe(1);
+	});
+
+	test('collapses multi-currency totals into a single estimate when a view currency is active', () => {
+		const opportunities = [
+			opportunity('moving-krw', 'KRW', 12000000, 'in_progress', 2),
+			opportunity('moving-usd', 'USD', 20000, 'review', 5)
+		];
+		const stages: CRMPipelineStage[] = [
+			{ stage: 'in_progress', label: 'in_progress', position: 1, outcome: 'open' },
+			{ stage: 'review', label: 'review', position: 2, outcome: 'open' }
+		];
+		const view: CRMViewCurrencyReader = {
+			selected: 'USD',
+			viewAmount: (value, currency) =>
+				currency === 'USD'
+					? { value, currency: 'USD', isConverted: true }
+					: { value: value * 0.00075, currency: 'USD', isConverted: true }
+		};
+
+		const pipelineHealth = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], stages, crmText.ko, undefined, 'ko', view)[0];
+
+		expect(pipelineHealth?.totalValue).toBe('≈ $29K');
+		expect(pipelineHealth?.totalMoneyDetails).toBe(undefined);
 	});
 });
 

@@ -6,7 +6,9 @@
 	import type { CRMDefinition } from './crm-api-types';
 	import { crmDefinitionLabel, crmLabel } from './crm-labels';
 	import type { CRMOrganization, CRMContact } from './crm-types';
-	import { findOrganizationContactLabel, formatMoneyTotals, getStatusVariant } from './crm-view-model';
+	import { findOrganizationContactLabel, getStatusVariant } from './crm-view-model';
+	import { formatViewMoneyTotals } from './crm-money';
+	import { crmViewCurrency } from './crm-view-currency.svelte';
 	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
@@ -81,7 +83,7 @@
 							<p class="truncate">{findOrganizationContactLabel(organization.id, contacts) || text.none}</p>
 						</Table.Cell>
 						<Table.Cell class="hidden font-medium lg:table-cell">
-							{formatMoneyTotals(organization.expectedValues, currencyCatalogue, text.noValue, currentLocale.value)}
+							{formatViewMoneyTotals(organization.expectedValues, currencyCatalogue, crmViewCurrency, text.noValue, currentLocale.value)}
 						</Table.Cell>
 						<Table.Cell class="hidden pr-6 font-medium lg:table-cell">
 							{organization.openOpportunityCount}
