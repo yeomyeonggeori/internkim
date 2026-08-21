@@ -214,7 +214,7 @@ test('closing a deal priced in another currency settles it in the base currency'
 
 	const settled = await settledNoteOf(page);
 	expect(settled).toContain('확정');
-	expect(settled).toContain('$');
+	expect(settled).toContain('USD ');
 });
 
 test('a settled amount survives a move between terminal stages', async ({ page }) => {
@@ -239,9 +239,9 @@ test('the view opens in the company base currency and a matching currency shows 
 
 	const viewCurrency = page.getByLabel('보기 통화');
 	await expect(viewCurrency).toHaveText(/USD/, { timeout: 20000 });
-	await expect(row.getByText(/^\$/)).toBeVisible({ timeout: 20000 });
+	await expect(row.getByText(/^USD /)).toBeVisible({ timeout: 20000 });
 
 	await viewCurrency.click();
 	await chooseCurrencyOption(page, 'KRW');
-	await expect(row.getByText(/^₩/)).toBeVisible({ timeout: 20000 });
+	await expect(row.getByText(/^KRW /)).toBeVisible({ timeout: 20000 });
 });

@@ -39,16 +39,8 @@
 			</Select.Content>
 		</Select.Root>
 		<div class="relative">
-			<span
-				class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground"
-				data-crm-currency-symbol={currency}
-				aria-hidden="true"
-			>
-				{findCurrencyCatalogueEntry(currencyCatalogue, currency)?.symbol}
-			</span>
 			<Input
 				{id}
-				class="pl-8"
 				type="text"
 				inputmode="numeric"
 				autocomplete="off"
