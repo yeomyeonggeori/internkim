@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
@@ -80,7 +81,7 @@
 							<p class="truncate">{findOrganizationContactLabel(organization.id, contacts) || text.none}</p>
 						</Table.Cell>
 						<Table.Cell class="hidden font-medium lg:table-cell">
-							{formatMoneyTotals(organization.expectedValues, currencyCatalogue, text.noValue)}
+							{formatMoneyTotals(organization.expectedValues, currencyCatalogue, text.noValue, currentLocale.value)}
 						</Table.Cell>
 						<Table.Cell class="hidden pr-6 font-medium lg:table-cell">
 							{organization.openOpportunityCount}

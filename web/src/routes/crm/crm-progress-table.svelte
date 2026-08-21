@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
@@ -97,7 +98,7 @@
 						<Table.Cell class="hidden whitespace-normal md:table-cell">
 							<p class="truncate">{opportunity.ownerName}</p>
 						</Table.Cell>
-						<Table.Cell class="hidden font-medium sm:table-cell">{formatMoney(opportunity.expectedValue, opportunity.currency, currencyCatalogue, text.noValue)}</Table.Cell>
+						<Table.Cell class="hidden font-medium sm:table-cell">{formatMoney(opportunity.expectedValue, opportunity.currency, currencyCatalogue, text.noValue, currentLocale.value)}</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal text-muted-foreground lg:table-cell">
 							<p class="truncate">{action?.title ?? text.none}</p>
 						</Table.Cell>

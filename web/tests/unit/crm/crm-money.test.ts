@@ -37,6 +37,16 @@ describe('CRM money formatting', () => {
 		expect(formatMoney(750, 'USD', interimCurrencyCatalogue)).toBe('$750');
 	});
 
+	test('never emits Hangul for the en locale, even for myriad currencies', () => {
+		expect(formatMoney(12000000, 'KRW', interimCurrencyCatalogue, '-', 'en')).toBe('₩12M');
+		expect(formatMoney(250000000, 'KRW', interimCurrencyCatalogue, '-', 'en')).toBe('₩250M');
+	});
+
+	test('keeps a thousand-grouped currency the same across locales', () => {
+		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue, '-', 'ko')).toBe('$12M');
+		expect(formatMoney(12000000, 'USD', interimCurrencyCatalogue, '-', 'en')).toBe('$12M');
+	});
+
 	test('renders a currency the catalogue does not know with plain separators and its code as the prefix', () => {
 		expect(formatMoney(12000000, 'XAG', interimCurrencyCatalogue)).toBe('XAG12,000,000');
 		expect(formatMoney(undefined, 'XAG', interimCurrencyCatalogue)).toBe('-');
