@@ -13,15 +13,21 @@ describe("a company browser claiming its Buzz key", () => {
 		expect(call.mock.calls.at(-1)?.[0]).toEqual({ capability: "person.buzz.claim" });
 	});
 
-	test("a refused claim is an error, not an empty identity", async () => {
-		call.mockResolvedValueOnce({ status: 401, body: {} });
+	test("a refused claim costs the Buzz app, not the sign-in", async () => {
+		call.mockResolvedValueOnce({ status: 404, body: {} });
 
-		expect(claimCentralBuzzSecret()).rejects.toThrow("401");
+		expect(await claimCentralBuzzSecret()).toBeNull();
 	});
 
-	test("an answer carrying no key is an error rather than a blank sign-in", async () => {
+	test("an answer carrying no key does not stop somebody signing in", async () => {
 		call.mockResolvedValueOnce({ status: 200, body: {} });
 
-		expect(claimCentralBuzzSecret()).rejects.toThrow("carried no key");
+		expect(await claimCentralBuzzSecret()).toBeNull();
+	});
+
+	test("a company with nothing to ask does not lock its people out", async () => {
+		call.mockRejectedValueOnce(new Error("the company app is unreachable"));
+
+		expect(await claimCentralBuzzSecret()).toBeNull();
 	});
 });
