@@ -5,16 +5,22 @@ import { callCompanyApp } from './host-bridge';
 // carry their name. A company browser has no seed, so it asks the machine that
 // holds one; minting a key here would give the same person a second identity
 // and an empty history.
-export async function claimCentralBuzzSecret(): Promise<string> {
-	const answer = await callCompanyApp({ capability: 'person.buzz.claim' });
-	if (answer.status !== 200) {
-		throw new Error(`buzz claim answered ${answer.status}`);
+// Signing in must not depend on this. A company that cannot answer the claim —
+// no machine reachable, an older relay that does not forward the capability —
+// still has a person who needs to get to their work; they lose the Buzz app
+// until it can, and nothing else.
+export async function claimCentralBuzzSecret(): Promise<string | null> {
+	try {
+		const answer = await callCompanyApp({ capability: 'person.buzz.claim' });
+		if (answer.status !== 200) {
+			console.warn('buzz claim answered', answer.status);
+			return null;
+		}
+		return secretHexOf(answer.body) ?? null;
+	} catch (error) {
+		console.warn('buzz claim did not answer', error);
+		return null;
 	}
-	const secretHex = secretHexOf(answer.body);
-	if (!secretHex) {
-		throw new Error('buzz claim carried no key');
-	}
-	return secretHex;
 }
 
 function secretHexOf(body: unknown): string | undefined {
