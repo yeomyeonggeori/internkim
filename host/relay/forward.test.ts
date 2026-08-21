@@ -4,6 +4,7 @@ import {
 	forwardToChatd,
 	isPersonCapability,
 	isRegistrationCapability,
+	isWorkspaceCapability,
 	mailOperationOf,
 	serveCallForMember,
 	type ConnectedAccount
@@ -504,4 +505,12 @@ describe('a member connects their own messenger account', () => {
 		expect(isRegistrationCapability('person.message.send')).toBe(false);
 		expect(isRegistrationCapability('person.identity')).toBe(false);
 	});
+});
+
+test('a buzz claim reaches the workspace rather than the messenger', () => {
+	expect(isWorkspaceCapability('person.buzz.claim')).toBe(true);
+});
+
+test('a message is still the messenger, not the workspace', () => {
+	expect(isWorkspaceCapability('person.message.send')).toBe(false);
 });
