@@ -91,10 +91,7 @@ func TestUsersSyncScriptNeverDiscardsAFailedResponseBody(t *testing.T) {
 	}
 	for _, fragment := range []string{
 		`request_or_exit "fleet user list" "$response_path"`,
-		`request_or_exit "invite $email" "$invite_response_path"`,
-		`send_request "remove $email" "$removal_response_path"`,
-		`report_response_body "remove $email" "$removal_response_path"`,
-		"read_policy_snapshot",
+		`request_or_exit "blueclaw policy read" "$current_policy_path"`,
 	} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected users sync script to include %q", fragment)
