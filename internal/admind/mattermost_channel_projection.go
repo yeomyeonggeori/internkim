@@ -212,13 +212,7 @@ func (service *Service) applyCalendarMattermostProjectionGeneration(ctx context.
 		return nil
 	}
 	if projection.IsDeleted {
-		if errorValue := service.tryDeleteCalendarMattermostLog(ctx, projection.Event); errorValue != nil {
-			return errorValue
-		}
-		if errorValue := service.updateCalendarEventMattermostPostID(ctx, projection.Event.ID, ""); errorValue != nil {
-			return errorValue
-		}
-		return nil
+		return service.notifyCalendarEventRemoved(ctx, projection.Event)
 	}
 	_, errorValue = service.trySyncCalendarMattermostLog(ctx, projection.Event)
 	if errorValue != nil {

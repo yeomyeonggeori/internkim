@@ -49,90 +49,53 @@ func (service *Service) trySyncCalendarMattermostLog(ctx context.Context, event 
 	if errorValue != nil {
 		return event, errorValue
 	}
-	botUserID, errorValue := service.mattermostTokenUserID(ctx, botToken)
-	if errorValue != nil {
-		return event, errorValue
-	}
-	teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
-	if errorValue != nil {
-		return event, errorValue
-	}
-	channelID, errorValue := service.ensureMattermostCalendarChannel(ctx, adminToken, teamRecord.ID)
-	if errorValue != nil {
-		return event, errorValue
-	}
-	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
-		return event, errorValue
-	}
 	mattermostUsers, errorValue := service.activeMattermostUsers(ctx, adminToken)
 	if errorValue != nil {
 		return event, errorValue
 	}
-	if strings.TrimSpace(event.MattermostPostID) == "" {
-		return service.createCalendarMattermostLog(ctx, botToken, channelID, event, mattermostUsers)
-	}
-	postRecord, found, errorValue := service.mattermostPostByID(ctx, adminToken, event.MattermostPostID)
-	if errorValue != nil && !isMattermostNotFound(errorValue) {
-		return event, errorValue
-	}
-	if !found {
-		event.MattermostPostID = ""
-		return event, service.updateCalendarEventMattermostPostID(ctx, event.ID, "")
-	}
-	if postRecord.UserID != "" && postRecord.UserID != botUserID {
-		if errorValue := service.deleteMattermostPost(ctx, adminToken, event.MattermostPostID); errorValue != nil {
-			return event, errorValue
-		}
-		event.MattermostPostID = ""
-		if errorValue := service.updateCalendarEventMattermostPostID(ctx, event.ID, ""); errorValue != nil {
-			return event, errorValue
-		}
-		return service.createCalendarMattermostLog(ctx, botToken, channelID, event, mattermostUsers)
-	}
-	body := map[string]any{
-		"message": service.calendarMattermostLogMessageWithUsers(event, mattermostUsers),
-		"props":   calendarMattermostLogProps(event),
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(event.MattermostPostID)+"/patch", botToken, body, nil); errorValue != nil {
-		return event, errorValue
-	}
-	return event, nil
+	recipients := calendarEventChangeRecipients(event, mattermostUsers)
+	message := service.changeNoticeWording(ctx, service.calendarNoticeFacts(event, "등록되거나 변경됨"), service.calendarMattermostLogMessage(event))
+	return event, service.deliverCalendarNotice(ctx, adminToken, botToken, event, recipients, message)
 }
 
-func (service *Service) createCalendarMattermostLog(ctx context.Context, token string, channelID string, event calendarEvent, mattermostUsers []mattermostUserRecord) (calendarEvent, error) {
-	body := map[string]any{
-		"channel_id": channelID,
-		"message":    service.calendarMattermostLogMessageWithUsers(event, mattermostUsers),
-		"props":      calendarMattermostLogProps(event),
-	}
-	var response struct {
-		ID string `json:"id"`
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, &response); errorValue != nil {
-		return event, errorValue
-	}
-	event.MattermostPostID = strings.TrimSpace(response.ID)
-	if event.MattermostPostID == "" {
-		return event, nil
-	}
-	return event, service.updateCalendarEventMattermostPostID(ctx, event.ID, event.MattermostPostID)
-}
-
-func (service *Service) deleteCalendarMattermostLog(ctx context.Context, event calendarEvent) {
-	if errorValue := service.tryDeleteCalendarMattermostLog(ctx, event); errorValue != nil {
-		log.Printf("calendar Mattermost log delete failed: %v", errorValue)
-	}
-}
-
-func (service *Service) tryDeleteCalendarMattermostLog(ctx context.Context, event calendarEvent) error {
-	if strings.TrimSpace(event.MattermostPostID) == "" || strings.TrimSpace(service.Configuration.MattermostAdminPasswordPath) == "" {
+func (service *Service) notifyCalendarEventRemoved(ctx context.Context, event calendarEvent) error {
+	if strings.TrimSpace(service.Configuration.MattermostAdminPasswordPath) == "" {
 		return nil
 	}
 	adminToken, errorValue := service.mattermostAdminToken(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
-	return service.deleteMattermostPost(ctx, adminToken, event.MattermostPostID)
+	botToken, errorValue := service.mattermostBotToken()
+	if errorValue != nil {
+		return errorValue
+	}
+	mattermostUsers, errorValue := service.activeMattermostUsers(ctx, adminToken)
+	if errorValue != nil {
+		return errorValue
+	}
+	recipients := calendarEventChangeRecipients(event, mattermostUsers)
+	message := service.changeNoticeWording(ctx, service.calendarNoticeFacts(event, "삭제됨"), service.calendarRemovedMessage(event))
+	return service.deliverCalendarNotice(ctx, adminToken, botToken, event, recipients, message)
+}
+
+func (service *Service) deliverCalendarNotice(ctx context.Context, adminToken string, botToken string, event calendarEvent, recipients []changeRecipient, message string) error {
+	noticeKey := changeNoticeKey(event.ID, message)
+	delivered, errorValue := service.sendChangeDirectMessages(ctx, adminToken, botToken, recipients, message, calendarMattermostLogProps(event), service.deliveredCalendarRecipients(ctx, event.ID, noticeKey))
+	service.recordDeliveredCalendarRecipients(ctx, event.ID, noticeKey, delivered)
+	return errorValue
+}
+
+func (service *Service) calendarRemovedMessage(event calendarEvent) string {
+	workspaceLocation, _ := service.workspaceTimeLocation()
+	return mattermostMarkdownTable(
+		[]string{"일시", "삭제된 일정", "장소"},
+		[][]string{{
+			calendarMattermostEventDateText(event, workspaceLocation),
+			event.Title,
+			event.Location,
+		}},
+	)
 }
 
 func (service *Service) calendarMattermostLogMessage(event calendarEvent) string {
@@ -614,27 +577,30 @@ func (service *Service) sendCalendarNotification(ctx context.Context, notificati
 	if errorValue != nil {
 		return errorValue
 	}
-	switch notification.TargetType {
-	case "dm":
-		channelID, errorValue := service.ensureMattermostBotDirectChannelID(ctx, adminToken, notification.TargetValue)
-		if errorValue != nil {
-			return errorValue
-		}
-		return service.postCalendarMattermostNotification(ctx, botToken, channelID, notification.TargetType, event)
-	default:
-		teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
-		if errorValue != nil {
-			return errorValue
-		}
-		channelID, errorValue := service.ensureMattermostPublicChannel(ctx, adminToken, teamRecord.ID, calendarAnnouncementsChannelName, announcementsChannelDisplayName(service.workspaceLanguage()))
-		if errorValue != nil {
-			return errorValue
-		}
-		if errorValue := service.ensureMattermostBotChannelMember(ctx, adminToken, channelID); errorValue != nil {
-			return errorValue
-		}
-		return service.postCalendarMattermostNotification(ctx, botToken, channelID, notification.TargetType, event)
+	recipientUserID, errorValue := service.calendarReminderRecipientUserID(ctx, adminToken, notification, event)
+	if errorValue != nil || recipientUserID == "" {
+		return errorValue
 	}
+	channelID, errorValue := service.ensureMattermostBotDirectChannelID(ctx, adminToken, recipientUserID)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.postCalendarMattermostNotification(ctx, botToken, channelID, notification.TargetType, event)
+}
+
+func (service *Service) calendarReminderRecipientUserID(ctx context.Context, adminToken string, notification calendarNotification, event calendarEvent) (string, error) {
+	if notification.TargetType == "dm" {
+		return strings.TrimSpace(notification.TargetValue), nil
+	}
+	mattermostUsers, errorValue := service.activeMattermostUsers(ctx, adminToken)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	author, found := calendarMattermostUserForPerson(calendarEventCausedByName(event), mattermostUsers)
+	if !found {
+		return "", nil
+	}
+	return author.ID, nil
 }
 
 func (service *Service) ensureMattermostBotDirectChannelID(ctx context.Context, token string, userID string) (string, error) {
@@ -741,4 +707,23 @@ func errorString(errorValue error) string {
 		return ""
 	}
 	return errorValue.Error()
+}
+
+func (service *Service) calendarNoticeFacts(event calendarEvent, change string) []string {
+	workspaceLocation, _ := service.workspaceTimeLocation()
+	return []string{
+		"변경: " + change,
+		"일정: " + strings.TrimSpace(event.Title),
+		"일시: " + calendarMattermostEventDateText(event, workspaceLocation),
+		"장소: " + strings.TrimSpace(event.Location),
+		"참석자: " + strings.Join(calendarNoticeParticipantNames(event), ", "),
+	}
+}
+
+func calendarNoticeParticipantNames(event calendarEvent) []string {
+	names := append([]string{}, event.People...)
+	for _, participant := range event.Participants {
+		names = append(names, participant.Name)
+	}
+	return nonEmptyLines(names)
 }
