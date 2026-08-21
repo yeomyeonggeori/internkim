@@ -194,8 +194,8 @@ func TestLocalRemoveUser(t *testing.T) {
 			deactivatedUser = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
-			return jsonResponse(http.StatusOK, `{"people":[],"circles":[]}`, nil), nil
-		case request.Method == http.MethodDelete && request.URL.String() == "http://blueclaw.local/admin/api/people?email=member%40example.com":
+			return jsonResponse(http.StatusOK, `{"people":[{"personID":"person-2","emails":["member@example.com"]}],"circles":[]}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/reload":
 			removedPerson = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
@@ -212,6 +212,10 @@ func TestLocalRemoveUser(t *testing.T) {
 	}
 	if !deactivatedUser || !removedPerson {
 		t.Fatalf("deactivated = %t, removed = %t; want true, true", deactivatedUser, removedPerson)
+	}
+	delivered := deliveredPolicyDocument(t, service)
+	if strings.Contains(delivered, "member@example.com") {
+		t.Fatalf("the delivered roster is what the agent reads, and the removed person is still on it: %s", delivered)
 	}
 }
 

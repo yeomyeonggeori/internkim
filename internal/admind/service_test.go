@@ -1550,6 +1550,7 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 	systemPostsDeleted := false
 	service := NewService(Configuration{
 		APIBaseURL:                  "https://api.example.test",
+		BlueclawPolicyDeliveryPath:  filepath.Join(t.TempDir(), "policy.json"),
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
@@ -1578,7 +1579,7 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"},{"email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
-			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"people":[{"personID":"user-1","emails":["member@example.com"]}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
@@ -1594,7 +1595,7 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users/member@example.com?fleet_id=dc719d8e" && request.Method == http.MethodDelete:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"}]}`, nil), nil
-		case isBlueclawRemoveRequest(t, request, "member@example.com"):
+		case isBlueclawPolicyReload(request):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -1615,6 +1616,13 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 	}
 	if !systemPostsDeleted {
 		t.Fatal("system posts were not deleted")
+	}
+	delivered, readError := os.ReadFile(service.Configuration.BlueclawPolicyDeliveryPath)
+	if readError != nil {
+		t.Fatalf("the host writes the roster before telling the agent to reload: %v", readError)
+	}
+	if strings.Contains(string(delivered), "member@example.com") {
+		t.Fatalf("the removed person is still on the delivered roster: %s", delivered)
 	}
 }
 
@@ -1657,8 +1665,6 @@ func TestAdminRemoveSkipsProtectedMattermostUserDeactivation(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"admin-id","email":"admin@example.com","username":"admin","roles":"system_admin system_user"}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users/admin@example.com?fleet_id=dc719d8e" && request.Method == http.MethodDelete:
 			pagesDeleteCalled = true
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case isBlueclawRemoveRequest(t, request, "admin@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -5408,18 +5414,11 @@ func assertBotDirectChannelShown(t *testing.T, request *http.Request, userID str
 func isBlueclawInviteRequest(t *testing.T, request *http.Request, expectedEmail string) bool {
 	t.Helper()
 	_ = expectedEmail
-	return request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload"
+	return isBlueclawPolicyReload(request)
 }
 
-func isBlueclawRemoveRequest(t *testing.T, request *http.Request, expectedEmail string) bool {
-	t.Helper()
-	if request.Method != http.MethodDelete || request.URL.Path != "/admin/api/people" {
-		return false
-	}
-	if request.URL.Query().Get("email") != expectedEmail {
-		t.Fatalf("Blueclaw remove email = %q", request.URL.Query().Get("email"))
-	}
-	return true
+func isBlueclawPolicyReload(request *http.Request) bool {
+	return request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload"
 }
 
 func isBlueclawPolicyGet(request *http.Request) bool {

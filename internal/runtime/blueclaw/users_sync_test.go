@@ -5,44 +5,29 @@ import (
 	"testing"
 )
 
-func TestUsersSyncScriptReadsCanonicalAdminEmailWithLegacyFallback(t *testing.T) {
-	script := InternKimUsersSyncScript()
-
-	for _, fragment := range []string{
-		"/root/.internkim/config/admin-email",
-		"/root/.internkim/admin-email",
-		`[ "$email" = "$admin_email" ] && continue`,
-	} {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected users sync script to include %q", fragment)
-		}
-	}
-}
-
-func TestUsersSyncScriptOnlyPersistsInvitablePolicyTargets(t *testing.T) {
+func TestUsersSyncScriptRecordsOnlyDirectoryRecordsThatNameAPerson(t *testing.T) {
 	script := InternKimUsersSyncScript()
 
 	for _, fragment := range []string{
 		`select((.userID // "") != "" and (.email // "") != "")`,
 		"else\n    empty\n  end",
-		`cut -f2 "$desired_records_path"`,
-		`done < "$desired_records_path"`,
+		`sort -u > "$desired_path"`,
 		`jusers="$(jq -R . "$desired_path" | jq -s .)"`,
 		`--argjson users "$jusers"`,
+		`install -m 600 "$next_state_path" "$STATE_PATH"`,
 	} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected users sync script to include %q", fragment)
 		}
 	}
 	if strings.Contains(script, `.users[]? | ["", .`) {
-		t.Fatal("legacy email-only users must not become policy or state targets")
+		t.Fatal("legacy email-only users must not become persisted state targets")
 	}
-	desiredRecordsIndex := strings.Index(script, `select((.userID // "") != "" and (.email // "") != "")`)
-	desiredEmailsIndex := strings.Index(script, `cut -f2 "$desired_records_path"`)
-	inviteIndex := strings.Index(script, `done < "$desired_records_path"`)
+	filterIndex := strings.Index(script, `select((.userID // "") != "" and (.email // "") != "")`)
+	desiredEmailsIndex := strings.Index(script, `sort -u > "$desired_path"`)
 	stateIndex := strings.Index(script, `--argjson users "$jusers"`)
-	if desiredRecordsIndex < 0 || desiredEmailsIndex < desiredRecordsIndex || inviteIndex < desiredEmailsIndex || stateIndex < inviteIndex {
-		t.Fatalf("expected one filtered target set to drive policy invitations and persisted state, got %s", script)
+	if filterIndex < 0 || desiredEmailsIndex < filterIndex || stateIndex < desiredEmailsIndex {
+		t.Fatalf("expected one filtered target set to drive persisted state, got %s", script)
 	}
 }
 
@@ -50,7 +35,6 @@ func TestUsersSyncScriptMaintainsWorkspaceDirectoriesWithoutHostPolicySync(t *te
 	script := InternKimUsersSyncScript()
 
 	for _, fragment := range []string{
-		`{personID:$personID,email:$email,circles:`,
 		"refresh_current_policy()",
 		`request_or_exit "blueclaw policy read" "$current_policy_path" "$BLUECLAW_URL/admin/api/policy"`,
 		"blueclaw-posix-helper sync",
@@ -71,17 +55,17 @@ func TestUsersSyncScriptMaintainsWorkspaceDirectoriesWithoutHostPolicySync(t *te
 	}
 }
 
-func TestUsersSyncScriptPreservesLocalTestUsers(t *testing.T) {
+func TestUsersSyncScriptLeavesRosterRemovalToTheHost(t *testing.T) {
 	script := InternKimUsersSyncScript()
 
 	for _, fragment := range []string{
-		"is_preserved_local_email()",
-		"*@internkim.test) return 0",
+		"is_preserved_local_email",
+		"admin_email",
 		"write_removable_policy_emails",
-		"if is_preserved_local_email \"$email\"; then",
+		"policy_removable_path",
 	} {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected users sync script to include %q", fragment)
+		if strings.Contains(script, fragment) {
+			t.Fatalf("removal safety rule %q belongs where the removal happens, which is admind, not this script", fragment)
 		}
 	}
 }
