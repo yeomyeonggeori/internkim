@@ -1,9 +1,10 @@
 <script lang="ts">
 	import * as Select from '$lib/components/ui/select';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
+	import { currencyDisplayNamesFor, currencyNameOf } from '$lib/currency/currency-name';
 	import { isSupabaseConfigured } from '$lib/supabase-session';
 	import { toast } from 'svelte-sonner';
-	import type { CurrencyCatalogue, CurrencyCatalogueEntry } from '$lib/currency/currency-catalogue';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import { crmViewCurrency } from './crm-view-currency.svelte';
 	import { formatViewRateHint } from './crm-money';
 	import type { CRMText } from './text';
@@ -17,17 +18,7 @@
 
 	let { text, currencyCatalogue, companyBaseCurrency, sourceCurrencies }: Props = $props();
 
-	const currencyDisplayNames = $derived(
-		new Intl.DisplayNames([currentLocale.value === 'ko' ? 'ko' : 'en'], { type: 'currency' })
-	);
-
-	function currencyNameOf(entry: CurrencyCatalogueEntry): string {
-		try {
-			return currencyDisplayNames.of(entry.code) ?? entry.name;
-		} catch {
-			return entry.name;
-		}
-	}
+	const currencyDisplayNames = $derived(currencyDisplayNamesFor(currentLocale.value));
 
 	const rateHint = $derived(
 		formatViewRateHint(crmViewCurrency.selected, crmViewCurrency.ratesBySource)
@@ -59,9 +50,9 @@
 		</Select.Trigger>
 		<Select.Content class="max-h-72">
 			{#each currencyCatalogue as option (option.code)}
-				<Select.Item value={option.code} label={`${option.code} ${currencyNameOf(option)}`}>
+				<Select.Item value={option.code} label={`${option.code} ${currencyNameOf(option, currencyDisplayNames)}`}>
 					<span class="w-12 shrink-0 font-medium">{option.code}</span>
-					<span class="truncate text-muted-foreground">{currencyNameOf(option)}</span>
+					<span class="truncate text-muted-foreground">{currencyNameOf(option, currencyDisplayNames)}</span>
 				</Select.Item>
 			{/each}
 		</Select.Content>
