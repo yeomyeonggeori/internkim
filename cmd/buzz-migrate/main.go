@@ -5,8 +5,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -161,12 +164,16 @@ func main() {
 				creatorSecret := creatorSecretFor(channel, memberUserIDs, authorsByID, authorSecrets, bootstrapSecret)
 				creator, errorValue := publishers.as(ctx, creatorSecret)
 				failOn(errorValue, "connect as the creator of "+channel.Name)
-				errorValue = creator.CreateChannel(ctx, creatorSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel), importedChannelVisibility(channel))
-				if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
-					failOn(errorValue, "create channel "+channel.Name)
+				if participants, isConversation := conversationParticipants(channel, everyAuthor, authorPubkeys, creatorSecret); isConversation {
+					buzzChannelID = openConversation(ctx, creator, buzzDatabase, communityID, creatorSecret, participants, channel.Name)
+				} else {
+					errorValue = creator.CreateChannel(ctx, creatorSecret, buzzChannelID, channelDisplayName(channel, memberUserIDs, authorsByID), channel.Purpose, relayChannelTypeOf(channel), importedChannelVisibility(channel))
+					if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
+						failOn(errorValue, "create channel "+channel.Name)
+					}
+					failOn(waitForChannelRow(ctx, buzzDatabase, communityID, buzzChannelID), "wait for channel "+channel.Name)
+					syncChannelMembers(ctx, creator, creatorSecret, buzzChannelID, everyAuthor, authorPubkeys, readerPubkeyFor(channel, *viewerPubkey))
 				}
-				failOn(waitForChannelRow(ctx, buzzDatabase, communityID, buzzChannelID), "wait for channel "+channel.Name)
-				syncChannelMembers(ctx, creator, creatorSecret, buzzChannelID, everyAuthor, authorPubkeys, readerPubkeyFor(channel, *viewerPubkey))
 			}
 
 			imported, skipped := importChannelPosts(ctx, importDependencies{
@@ -742,6 +749,50 @@ func relayChannelTypeOf(channel buzzimport.MattermostChannel) string {
 	return "stream"
 }
 
+// The relay opens a conversation for up to nine people. A Mattermost group with
+// more than that is imported as a channel, which names and closes it by hand.
+func conversationParticipants(
+	channel buzzimport.MattermostChannel,
+	everyAuthor []string,
+	authorPubkeys map[string]string,
+	creatorSecret string,
+) ([]string, bool) {
+	if !buzzimport.IsConversationChannelType(channel.Type) {
+		return nil, false
+	}
+	creatorPubkey, errorValue := nostr.GetPublicKey(creatorSecret)
+	failOn(errorValue, "derive the pubkey of whoever opens "+channel.Name)
+	counterparts := []string{}
+	for _, userID := range everyAuthor {
+		pubkey := authorPubkeys[userID]
+		if pubkey == "" || strings.EqualFold(pubkey, creatorPubkey) {
+			continue
+		}
+		counterparts = append(counterparts, pubkey)
+	}
+	if len(counterparts) == 0 || len(counterparts) > 8 {
+		return nil, false
+	}
+	return append([]string{creatorPubkey}, counterparts...), true
+}
+
+func openConversation(
+	ctx context.Context,
+	creator *relaypublish.Publisher,
+	database *sql.DB,
+	communityID string,
+	creatorSecret string,
+	participants []string,
+	channelName string,
+) string {
+	failOn(creator.OpenDirectMessage(ctx, creatorSecret, participants[1:]), "open the conversation "+channelName)
+	hash, errorValue := participantHash(participants)
+	failOn(errorValue, "hash the people in "+channelName)
+	channelID, errorValue := waitForDirectMessageChannel(ctx, database, communityID, hash)
+	failOn(errorValue, "wait for the conversation "+channelName)
+	return channelID
+}
+
 // A direct conversation the whole company can read is not a direct conversation.
 func importedChannelVisibility(channel buzzimport.MattermostChannel) string {
 	if buzzimport.IsConversationChannelType(channel.Type) {
@@ -864,6 +915,49 @@ func resolveCommunityID(database *sql.DB, communityHost string) string {
 
 func deriveChannelID(seed, mattermostChannelID string) string {
 	return buzzidentity.ChannelID(seed, mattermostChannelID)
+}
+
+// The relay indexes a conversation by the 32-byte pubkeys in it, sorted,
+// deduplicated and concatenated with no separator, then hashed. This has to
+// match byte for byte to find the room the relay just opened.
+func participantHash(pubkeyHexes []string) ([]byte, error) {
+	pubkeys := [][]byte{}
+	for _, pubkeyHex := range pubkeyHexes {
+		pubkey, errorValue := hex.DecodeString(strings.ToLower(strings.TrimSpace(pubkeyHex)))
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		pubkeys = append(pubkeys, pubkey)
+	}
+	sort.Slice(pubkeys, func(earlier, later int) bool { return bytes.Compare(pubkeys[earlier], pubkeys[later]) < 0 })
+	digest := sha256.New()
+	var previous []byte
+	for _, pubkey := range pubkeys {
+		if previous != nil && bytes.Equal(previous, pubkey) {
+			continue
+		}
+		digest.Write(pubkey)
+		previous = pubkey
+	}
+	return digest.Sum(nil), nil
+}
+
+func waitForDirectMessageChannel(ctx context.Context, database *sql.DB, communityID string, hash []byte) (string, error) {
+	for attempt := 0; attempt < 240; attempt++ {
+		var channelID string
+		errorValue := database.QueryRowContext(ctx,
+			`SELECT id::text FROM channels WHERE community_id = $1 AND participant_hash = $2`,
+			communityID, hash,
+		).Scan(&channelID)
+		if errorValue == nil {
+			return channelID, nil
+		}
+		if errorValue != sql.ErrNoRows {
+			return "", errorValue
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return "", fmt.Errorf("the relay never opened the conversation for %x", hash)
 }
 
 func waitForChannelRow(ctx context.Context, database *sql.DB, communityID, channelID string) error {
