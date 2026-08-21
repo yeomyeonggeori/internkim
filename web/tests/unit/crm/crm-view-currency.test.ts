@@ -50,7 +50,7 @@ describe('CRM view currency state', () => {
 
 		await view.follow('KRW', ['KRW']);
 		expect(view.selected).toBe('KRW');
-		expect(view.ratesBySource).toEqual({});
+		expect(view.ratesBySource).toEqual({ USD: 1350 });
 
 		await view.follow('KRW', ['KRW', 'USD']);
 		expect(view.selected).toBe('KRW');
@@ -82,7 +82,7 @@ describe('CRM view currency state', () => {
 		expect(calls.length).toBe(2);
 	});
 
-	test('prices the company base currency even when no deal is priced in it', async () => {
+	test('prices the dollar the rate hint reads even when no deal is priced in it', async () => {
 		const calls: Array<[string, string]> = [];
 		const view = new CRMViewCurrency(stubRateLoader({ KRW: 0.00075, USD: 1350 }, calls));
 
