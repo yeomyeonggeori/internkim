@@ -61,7 +61,7 @@
 </script>
 
 {#snippet currencyRow(entry: CurrencyCatalogueEntry)}
-	<span class="w-12 shrink-0 font-medium">{entry.code}</span>
+	<span class="w-9 shrink-0 font-medium">{entry.code}</span>
 	<span class="truncate text-muted-foreground">{currencyNameOf(entry, currencyDisplayNames)}</span>
 {/snippet}
 

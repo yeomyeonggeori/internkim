@@ -36,10 +36,10 @@
 	<div class="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
 		<Select.Root type="single" value={currency} onValueChange={updateCurrency} {disabled}>
 			<Select.Trigger id={`${id}-currency`} class="w-full" aria-label={currencyLabel}>{currency}</Select.Trigger>
-			<Select.Content class="max-h-72 min-w-56">
+			<Select.Content class="max-h-72 w-fit">
 				{#each currencyCatalogue as option (option.code)}
 					<Select.Item value={option.code} label={`${option.code} ${currencyNameOf(option, currencyDisplayNames)}`}>
-						<span class="w-12 shrink-0 font-medium">{option.code}</span>
+						<span class="w-9 shrink-0 font-medium">{option.code}</span>
 						<span class="truncate text-muted-foreground">{currencyNameOf(option, currencyDisplayNames)}</span>
 					</Select.Item>
 				{/each}
