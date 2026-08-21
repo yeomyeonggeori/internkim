@@ -62,60 +62,19 @@ STATE_PATH="/root/.internkim/state/users-sync.json"
 BLUECLAW_URL="http://127.0.0.1:8080"
 WORKSPACE_PATH="/root/.blueclaw/workspace"
 
-if [ -z "$FLEET_ID" ] || [ -z "$FLEET_SECRET" ]; then
-  echo "users-sync: missing fleet credentials" >&2
-  exit 1
-fi
-
 ` + internKimUsersSyncRequestHelpers() + `
 install -d -m 700 /root/.internkim/state
 response_path="$(mktemp)"
-desired_records_path="$(mktemp)"
 desired_path="$(mktemp)"
-previous_path="$(mktemp)"
-policy_all_path="$(mktemp)"
-policy_removable_path="$(mktemp)"
 current_policy_path="$(mktemp)"
-invite_response_path="$(mktemp)"
-removal_response_path="$(mktemp)"
-removal_source_path="$(mktemp)"
 next_state_path="$(mktemp)"
 cleanup() {
-  rm -f "$response_path" "$desired_records_path" "$desired_path" "$previous_path" "$policy_all_path" "$policy_removable_path" "$current_policy_path" "$invite_response_path" "$removal_response_path" "$removal_source_path" "$next_state_path"
+  rm -f "$response_path" "$desired_path" "$current_policy_path" "$next_state_path"
 }
 trap cleanup EXIT
 
-is_preserved_local_email() {
-  case "$1" in
-    *@internkim.test) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-write_removable_policy_emails() {
-  jq -r '.people[]? | select(.isAdmin != true) | .emails[]?' "$current_policy_path" 2>/dev/null |
-    awk 'NF {print tolower($0)}' |
-    while IFS= read -r email; do
-      if is_preserved_local_email "$email"; then
-        continue
-      fi
-      printf '%s\n' "$email"
-    done |
-    sort -u > "$policy_removable_path"
-}
-
 refresh_current_policy() {
   request_or_exit "blueclaw policy read" "$current_policy_path" "$BLUECLAW_URL/admin/api/policy"
-}
-
-read_policy_snapshot() {
-  if send_request "blueclaw policy snapshot" "$current_policy_path" "$BLUECLAW_URL/admin/api/policy"; then
-    case "$http_status_code" in
-      2??) return 0 ;;
-    esac
-    report_response_body "blueclaw policy snapshot" "$current_policy_path"
-  fi
-  : > "$current_policy_path"
 }
 
 sync_posix_policy() {
@@ -144,70 +103,29 @@ ensure_person_workspace_directories() {
   done
 }
 
+sync_posix_policy
+ensure_person_workspace_directories
+
+if [ -z "$FLEET_ID" ] || [ -z "$FLEET_SECRET" ]; then
+  echo "users-sync: missing fleet credentials" >&2
+  exit 1
+fi
+
 request_or_exit "fleet user list" "$response_path" \
   -H "X-INTERNKIM-FLEET-ID: $FLEET_ID" \
   -H "X-INTERNKIM-FLEET-SECRET: $FLEET_SECRET" \
   "$API_URL/api/users?fleet_id=$FLEET_ID"
 
 revision="$(jq -r '.revision // empty' "$response_path")"
-last_revision="$(jq -r '.revision // empty' "$STATE_PATH" 2>/dev/null || true)"
-admin_email="$(cat /root/.internkim/config/admin-email 2>/dev/null || cat /root/.internkim/admin-email 2>/dev/null || true)"
 jq -r '
   if (.records | type) == "array" then
     .records[]?
     | select((.userID // "") != "" and (.email // "") != "")
-    | [(.userID // ""), .email, (.name // ""), (.role // ""), ((.circles // []) | join(","))]
-    | @tsv
+    | .email
   else
     empty
   end
-' "$response_path" | sort -u > "$desired_records_path"
-cut -f2 "$desired_records_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
-jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$previous_path" || true
-read_policy_snapshot
-jq -r '.people[]?.emails[]?' "$current_policy_path" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_all_path" || true
-write_removable_policy_emails || true
-
-if [ -n "$revision" ] && [ "$revision" = "$last_revision" ]; then
-  missing_policy_count="$(comm -23 "$desired_path" "$policy_all_path" | wc -l | tr -d ' ')"
-  extra_policy_count="$(comm -23 "$policy_removable_path" "$desired_path" | wc -l | tr -d ' ')"
-  if [ "$missing_policy_count" = "0" ] && [ "$extra_policy_count" = "0" ]; then
-    sync_posix_policy
-    ensure_person_workspace_directories
-    echo "users-sync: unchanged"
-    exit 0
-  fi
-fi
-
-while IFS="$(printf '\t')" read -r person_id email display_name role circle_list; do
-  [ -n "$person_id" ] || continue
-  [ -n "$email" ] || continue
-  body="$(jq -cn --arg personID "$person_id" --arg email "$email" --arg displayName "$display_name" --arg role "$role" --arg circles "$circle_list" '{personID:$personID,email:$email,circles:((($circles | split(",") | map(select(. != ""))) + ["staff"]) | unique)} + (if $displayName == "" then {} else {displayName:$displayName} end) + (if $role == "admin" then {isAdmin:true} else {} end)')"
-  request_or_exit "invite $email" "$invite_response_path" -X POST \
-    -H "Content-Type: application/json" \
-    -d "$body" \
-    "$BLUECLAW_URL/admin/api/people/invite"
-done < "$desired_records_path"
-
-cat "$previous_path" "$policy_removable_path" | sort -u > "$removal_source_path"
-if [ -s "$removal_source_path" ]; then
-  while IFS= read -r email; do
-    [ -n "$email" ] || continue
-    [ "$email" = "$admin_email" ] && continue
-    if is_preserved_local_email "$email"; then
-      continue
-    fi
-    if ! grep -Fxq "$email" "$desired_path"; then
-      encoded_email="$(printf '%s' "$email" | jq -sRr @uri)"
-      send_request "remove $email" "$removal_response_path" -X DELETE \
-        "$BLUECLAW_URL/admin/api/people?email=$encoded_email" || exit 1
-      case "$http_status_code" in
-        200|404) ;;
-        *) report_response_body "remove $email" "$removal_response_path"; exit 1 ;;
-      esac
-    fi
-  done < "$removal_source_path"
-fi
+' "$response_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
 
 jusers="$(jq -R . "$desired_path" | jq -s .)"
 jq -cn \
@@ -215,9 +133,7 @@ jq -cn \
   --argjson users "$jusers" \
   '{revision:$revision, users:$users}' > "$next_state_path"
 install -m 600 "$next_state_path" "$STATE_PATH"
-sync_posix_policy
-ensure_person_workspace_directories
-echo "users-sync: applied $(wc -l < "$desired_path" | tr -d ' ') users"
+echo "users-sync: recorded $(wc -l < "$desired_path" | tr -d ' ') users"
 `
 }
 

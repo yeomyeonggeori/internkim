@@ -39,6 +39,36 @@ func (service *Service) upsertBlueclawPerson(ctx context.Context, userID string,
 	return service.deliverBlueclawPolicy(ctx, policyDocument)
 }
 
+func (service *Service) removeBlueclawPerson(ctx context.Context, email string) error {
+	normalizedEmail := normalizedRosterEmail(email)
+	if normalizedEmail == "" {
+		return nil
+	}
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return errorValue
+	}
+	people, _ := policyDocument["people"].([]any)
+	remaining := blueclawPeopleWithoutEmail(people, normalizedEmail)
+	if len(remaining) == len(people) {
+		return nil
+	}
+	policyDocument["people"] = remaining
+	return service.deliverBlueclawPolicy(ctx, policyDocument)
+}
+
+func blueclawPeopleWithoutEmail(people []any, email string) []any {
+	remaining := make([]any, 0, len(people))
+	for _, value := range people {
+		person, isPerson := value.(map[string]any)
+		if isPerson && blueclawPersonHasEmail(person, email) {
+			continue
+		}
+		remaining = append(remaining, value)
+	}
+	return remaining
+}
+
 func blueclawPersonWithEmail(people []any, email string) map[string]any {
 	for _, value := range people {
 		if person, isPerson := value.(map[string]any); isPerson && blueclawPersonHasEmail(person, email) {

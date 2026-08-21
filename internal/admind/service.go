@@ -409,6 +409,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startMattermostCircleSync(ctx)
 	service.startMattermostProjectionOutboxWorker(ctx)
 	service.startMattermostAttendanceStatusSync(ctx)
+	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarNotificationReconciliation(ctx)
 	service.startCalendarNotificationWorker(ctx)
 	service.startCalendarDeleteIntentWorker(ctx)
@@ -2295,15 +2296,6 @@ func (service *Service) syncMattermostCirclesBestEffort(ctx context.Context) err
 		return errorValue
 	}
 	return service.syncMattermostCircleMemberships(ctx, token)
-}
-
-func (service *Service) removeBlueclawPerson(ctx context.Context, email string) error {
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	if normalizedEmail == "" {
-		return nil
-	}
-	path := "/admin/api/people?email=" + url.QueryEscape(normalizedEmail)
-	return service.blueclawJSONRequest(ctx, http.MethodDelete, path, nil, nil)
 }
 
 func (service *Service) blueclawJSONRequest(ctx context.Context, method string, path string, body any, responseValue any) error {
