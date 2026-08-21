@@ -91,6 +91,7 @@ func buzzMigrateLaunchCommand() string {
 SEED=$(cat /root/.internkim/secrets/buzz-key-seed)
 DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
 TEAM=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
+AGENT_EMAIL=$(curl -fsS -H "Authorization: Bearer $MM_TOKEN" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/users/me | jq -r '.email // empty')
 PUBLIC_HOST=$(systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | sed -n 's/^RELAY_URL=//p' | head -1 | sed -E 's#^[a-z]+://##; s#/.*$##')
 if [ -z "$PUBLIC_HOST" ]; then echo "MIGRATE_DONE_FAIL the relay names no public host, and an import keyed to a guess lands in a community nothing serves"; exit 1; fi
 rm -f ` + blueclaw.BuzzMigrateMarkerPath + `
@@ -103,6 +104,7 @@ export DATABASE_URL="$DB_URL"
   --buzz-database-url "$DB_URL" \
   --buzz-admin ` + blueclaw.BuzzAdminBinaryPath + ` \
   --key-seed "$SEED" \
+  --agent-email "$AGENT_EMAIL" \
   --relay-url wss://$PUBLIC_HOST \
   --relay-http-url https://$PUBLIC_HOST \
   --community-host $PUBLIC_HOST \
