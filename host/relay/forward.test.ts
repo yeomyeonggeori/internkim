@@ -509,6 +509,7 @@ describe('a member connects their own messenger account', () => {
 
 test('a buzz claim reaches the workspace rather than the messenger', () => {
 	expect(isWorkspaceCapability('person.buzz.claim')).toBe(true);
+	expect(isWorkspaceCapability('person.buzz.relay')).toBe(true);
 });
 
 test('a message is still the messenger, not the workspace', () => {
