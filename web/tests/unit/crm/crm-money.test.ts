@@ -117,20 +117,25 @@ describe('view-currency-aware money formatting', () => {
 	});
 });
 
-describe('formatViewRateHint names the single active conversion', () => {
+describe('formatViewRateHint pairs the view with the company base currency', () => {
 	test('puts the 1 on the stronger currency whichever direction the rate runs', () => {
-		expect(formatViewRateHint('USD', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,389');
-		expect(formatViewRateHint('KRW', { USD: 1388.9 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,389');
+		expect(formatViewRateHint('USD', 'KRW', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,389');
+		expect(formatViewRateHint('KRW', 'USD', { USD: 1388.9 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,389');
 	});
 
 	test('keeps small rates readable with two decimals', () => {
-		expect(formatViewRateHint('KRW', { JPY: 9.194 }, interimCurrencyCatalogue)).toBe('¥1 = ₩9.19');
+		expect(formatViewRateHint('KRW', 'JPY', { JPY: 9.194 }, interimCurrencyCatalogue)).toBe('¥1 = ₩9.19');
 	});
 
-	test('stays silent without a view, without a conversion, or across several sources', () => {
-		expect(formatViewRateHint('', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('');
-		expect(formatViewRateHint('USD', {}, interimCurrencyCatalogue)).toBe('');
-		expect(formatViewRateHint('USD', { KRW: 0.00072, JPY: 0.0067 }, interimCurrencyCatalogue)).toBe('');
+	test('shows through many source currencies and ignores the ones that are not the base', () => {
+		expect(formatViewRateHint('USD', 'KRW', { KRW: 0.00072, JPY: 0.0067, EUR: 1.09 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,389');
+	});
+
+	test('stays silent without a view, a base, a distinct pair, or a loaded rate', () => {
+		expect(formatViewRateHint('', 'KRW', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('');
+		expect(formatViewRateHint('USD', '', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('');
+		expect(formatViewRateHint('KRW', 'KRW', {}, interimCurrencyCatalogue)).toBe('');
+		expect(formatViewRateHint('USD', 'KRW', {}, interimCurrencyCatalogue)).toBe('');
 	});
 });
 

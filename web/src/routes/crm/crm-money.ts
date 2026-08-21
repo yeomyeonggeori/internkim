@@ -78,18 +78,17 @@ export function formatViewMoneyTotals(
 
 export function formatViewRateHint(
 	viewCurrency: string,
+	baseCurrency: string,
 	ratesBySource: Record<string, number>,
 	catalogue: CurrencyCatalogue
 ): string {
-	const pairs = Object.entries(ratesBySource);
-	const [firstPair] = pairs;
-	if (viewCurrency === '' || pairs.length !== 1 || firstPair === undefined) return '';
-	const [source, rate] = firstPair;
-	if (!(rate > 0)) return '';
+	if (viewCurrency === '' || baseCurrency === '' || viewCurrency === baseCurrency) return '';
+	const rate = ratesBySource[baseCurrency];
+	if (rate === undefined || !(rate > 0)) return '';
 	if (rate >= 1) {
-		return `${formatRateSide(1, source, catalogue)} = ${formatRateSide(rate, viewCurrency, catalogue)}`;
+		return `${formatRateSide(1, baseCurrency, catalogue)} = ${formatRateSide(rate, viewCurrency, catalogue)}`;
 	}
-	return `${formatRateSide(1, viewCurrency, catalogue)} = ${formatRateSide(1 / rate, source, catalogue)}`;
+	return `${formatRateSide(1, viewCurrency, catalogue)} = ${formatRateSide(1 / rate, baseCurrency, catalogue)}`;
 }
 
 function formatRateSide(value: number, currency: string, catalogue: CurrencyCatalogue): string {
