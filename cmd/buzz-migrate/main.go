@@ -131,7 +131,7 @@ func main() {
 	}
 
 	totalImported := 0
-	totalSkipped := 0
+	totalSkipped := skipTally{}
 	postedEmails := newSharedNames()
 	customEmojiCache := newSharedStrings()
 	// Channels do not depend on each other; a reply resolves its root inside the
@@ -178,14 +178,14 @@ func main() {
 			}, buzzChannelID, posts, authorEmails, authorSecrets, postedEmails)
 			tally.Lock()
 			totalImported += imported
-			totalSkipped += skipped
+			totalSkipped.add(skipped)
 			tally.Unlock()
-			fmt.Printf("%-24s %-40s imported=%d skipped=%d\n", channel.Name, buzzChannelID, imported, skipped)
+			fmt.Printf("%-24s %-40s imported=%d %s\n", channel.Name, buzzChannelID, imported, skipped)
 		}(channel)
 	}
 	running.Wait()
 	injectAuthorProfiles(ctx, injector, uploader, client, authorSecrets, authorsByID, postedEmails)
-	fmt.Printf("done: %d channels, %d messages imported, %d skipped\n", len(channels), totalImported, totalSkipped)
+	fmt.Printf("done: %d channels, %d messages imported, %s\n", len(channels), totalImported, totalSkipped)
 }
 
 // Two facts outlive the channel that discovers them: which emoji has already
@@ -262,6 +262,29 @@ func fetchFileBytes(ctx context.Context, dependencies importDependencies, fileID
 	return nil, "", errorValue
 }
 
+// A post the import drops is a post the company cannot read afterwards, so the
+// count says which wall it hit. "511 skipped" against an empty channel reads the
+// same whether nobody could be signed for or every root was missing.
+type skipTally struct {
+	noAuthor    int
+	noRoot      int
+	unbuildable int
+	refused     int
+}
+
+func (tally *skipTally) add(other skipTally) {
+	tally.noAuthor += other.noAuthor
+	tally.noRoot += other.noRoot
+	tally.unbuildable += other.unbuildable
+	tally.refused += other.refused
+}
+
+func (tally skipTally) String() string {
+	return fmt.Sprintf("skipped=%d (noAuthor=%d noRoot=%d unbuildable=%d refused=%d)",
+		tally.noAuthor+tally.noRoot+tally.unbuildable+tally.refused,
+		tally.noAuthor, tally.noRoot, tally.unbuildable, tally.refused)
+}
+
 func importChannelPosts(
 	ctx context.Context,
 	dependencies importDependencies,
@@ -270,16 +293,16 @@ func importChannelPosts(
 	authorEmails map[string]string,
 	authorSecrets map[string]string,
 	postedEmails *sharedNames,
-) (int, int) {
+) (int, skipTally) {
 	injector := dependencies.injector
 	eventIDByPostID := map[string]string{}
 	imported := 0
-	skipped := 0
+	skipped := skipTally{}
 	for _, post := range posts {
 		authorEmail := authorEmails[post.UserID]
 		authorSecret := authorSecrets[authorEmail]
 		if authorSecret == "" {
-			skipped++
+			skipped.noAuthor++
 			continue
 		}
 		mediaTags := uploadPostAttachments(ctx, dependencies, authorSecret, post)
@@ -298,18 +321,18 @@ func importChannelPosts(
 			if isKnown {
 				message.RootEventID = rootEventID
 			} else {
-				skipped++
+				skipped.noRoot++
 				continue
 			}
 		}
 		event, errorValue := buzzimport.BuildStreamEvent(message)
 		if errorValue != nil {
-			skipped++
+			skipped.unbuildable++
 			continue
 		}
 		if errorValue := injector.InjectMessage(ctx, buzzChannelID, event); errorValue != nil {
 			log.Printf("inject failed for post %s: %v", post.ID, errorValue)
-			skipped++
+			skipped.refused++
 			continue
 		}
 		eventIDByPostID[post.ID] = event.ID
