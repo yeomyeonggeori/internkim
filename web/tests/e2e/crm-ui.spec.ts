@@ -101,6 +101,19 @@ test.describe('CRM service UI', () => {
 		});
 	});
 
+	test('sizes each donut total to fit instead of cutting it off', async ({ page }) => {
+		opportunities = [opportunity('opportunity-wide', '큰 금액 진행 건', 'in_progress', 1024)];
+		await openCRM(page);
+
+		const clipped = await page.locator('[data-crm-kpi-value]').evaluateAll((values) =>
+			values
+				.filter((value) => (value as HTMLElement).offsetParent !== null)
+				.filter((value) => ((value.firstElementChild ?? value) as HTMLElement).scrollWidth > value.clientWidth)
+				.map((value) => value.textContent?.trim() ?? '')
+		);
+		expect(clipped).toEqual([]);
+	});
+
 	test('left-aligns relationship columns and gives names more room than counts', async ({ page }) => {
 		await openCRM(page);
 		const headers = page.getByRole('columnheader');

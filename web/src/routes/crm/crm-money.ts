@@ -29,10 +29,10 @@ export function formatMoney(
 ): string {
 	if (value === undefined) return noValue;
 	const entry = findCurrencyCatalogueEntry(catalogue, currency);
-	if (!entry) return `${currency}${value.toLocaleString()}`;
+	if (!entry) return `${currency} ${value.toLocaleString()}`;
 	return entry.grouping === 'myriad' && locale === 'ko'
-		? formatMyriadMoney(value, entry.symbol)
-		: formatThousandGroupedMoney(value, entry.symbol);
+		? formatMyriadMoney(value, entry.code)
+		: formatThousandGroupedMoney(value, entry.code);
 }
 
 export function formatMoneyTotals(
@@ -86,13 +86,12 @@ export function formatViewRateHint(
 	if (viewCurrency === '' || viewCurrency === rateHintAnchorCurrency) return '';
 	const rate = ratesBySource[rateHintAnchorCurrency];
 	if (rate === undefined || !(rate > 0)) return '';
-	return `${formatRateSide(1, rateHintAnchorCurrency, catalogue)} = ${formatRateSide(rate, viewCurrency, catalogue)}`;
+	return `${formatRateSide(1, rateHintAnchorCurrency)} = ${formatRateSide(rate, viewCurrency)}`;
 }
 
-function formatRateSide(value: number, currency: string, catalogue: CurrencyCatalogue): string {
-	const symbol = findCurrencyCatalogueEntry(catalogue, currency)?.symbol ?? currency;
+function formatRateSide(value: number, currency: string): string {
 	const rounded = value >= 100 ? Math.round(value) : Number(value.toFixed(2));
-	return `${symbol}${rounded.toLocaleString()}`;
+	return `${currency} ${rounded.toLocaleString()}`;
 }
 
 export function sumOpportunityMoney(
@@ -105,25 +104,25 @@ export function sumOpportunityMoney(
 	}, {});
 }
 
-function formatMyriadMoney(value: number, currencySymbol: string): string {
+function formatMyriadMoney(value: number, currencyCode: string): string {
 	if (value >= 100000000) {
 		const hundredMillions = Number((value / 100000000).toFixed(1));
-		return `${currencySymbol}${hundredMillions.toLocaleString()}억`;
+		return `${currencyCode} ${hundredMillions.toLocaleString()}억`;
 	}
 	if (value >= 10000) {
-		return `${currencySymbol}${Math.round(value / 10000).toLocaleString()}만`;
+		return `${currencyCode} ${Math.round(value / 10000).toLocaleString()}만`;
 	}
-	return `${currencySymbol}${value.toLocaleString()}`;
+	return `${currencyCode} ${value.toLocaleString()}`;
 }
 
-function formatThousandGroupedMoney(value: number, currencySymbol: string): string {
+function formatThousandGroupedMoney(value: number, currencyCode: string): string {
 	if (value >= 1000000) {
 		const millions = Number((value / 1000000).toFixed(1));
-		return `${currencySymbol}${millions.toLocaleString()}M`;
+		return `${currencyCode} ${millions.toLocaleString()}M`;
 	}
 	if (value >= 1000) {
 		const thousands = Number((value / 1000).toFixed(1));
-		return `${currencySymbol}${thousands.toLocaleString()}K`;
+		return `${currencyCode} ${thousands.toLocaleString()}K`;
 	}
-	return `${currencySymbol}${value.toLocaleString()}`;
+	return `${currencyCode} ${value.toLocaleString()}`;
 }

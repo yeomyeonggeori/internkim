@@ -28,10 +28,6 @@
 	const hasChange = $derived(chosen !== '' && chosen !== saved);
 	const chosenEntry = $derived(catalogue.find((entry) => entry.code === chosen));
 
-	function distinctSymbolOf(entry: CurrencyCatalogueEntry): string {
-		return entry.symbol === entry.code ? '' : entry.symbol;
-	}
-
 	const currencyDisplayNames = $derived(
 		new Intl.DisplayNames([currentLocale.value === 'ko' ? 'ko' : 'en'], { type: 'currency' })
 	);
@@ -45,9 +41,7 @@
 	}
 
 	function currencyLabel(entry: CurrencyCatalogueEntry): string {
-		const symbol = distinctSymbolOf(entry);
-		const name = currencyNameOf(entry);
-		return symbol ? `${symbol} ${entry.code} ${name}` : `${entry.code} ${name}`;
+		return `${entry.code} ${currencyNameOf(entry)}`;
 	}
 
 	onMount(async () => {
@@ -76,9 +70,8 @@
 </script>
 
 {#snippet currencyRow(entry: CurrencyCatalogueEntry)}
-	<span class="w-9 shrink-0 text-muted-foreground">{distinctSymbolOf(entry)}</span>
 	<span class="w-12 shrink-0 font-medium">{entry.code}</span>
-	<span class="truncate">{currencyNameOf(entry)}</span>
+	<span class="truncate text-muted-foreground">{currencyNameOf(entry)}</span>
 {/snippet}
 
 <Card.Root>
