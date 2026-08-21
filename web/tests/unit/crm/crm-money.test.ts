@@ -9,10 +9,13 @@ import {
 	formatAmountInput,
 	formatMoney,
 	formatMoneyTotals,
+	formatViewMoney,
+	formatViewMoneyTotals,
 	parseAmountInput,
 	sumOpportunityMoney
 } from '../../../src/routes/crm/crm-money';
 import type { CRMOpportunity } from '../../../src/routes/crm/crm-types';
+import type { CRMViewCurrencyReader } from '../../../src/routes/crm/crm-view-currency.svelte';
 
 describe('CRM money formatting', () => {
 	test('formats and parses an integer amount with thousands separators', () => {
@@ -64,6 +67,38 @@ describe('CRM money formatting', () => {
 		];
 
 		expect(sumOpportunityMoney(opportunities)).toEqual({ KRW: 1500000, USD: 2500 });
+	});
+});
+
+describe('view-currency-aware money formatting', () => {
+	test('prefixes an estimate marker only when the amount was actually converted', () => {
+		expect(formatViewMoney({ value: 18000000, currency: 'KRW', isConverted: false }, interimCurrencyCatalogue)).toBe('₩1,800만');
+		expect(formatViewMoney({ value: 13500, currency: 'USD', isConverted: true }, interimCurrencyCatalogue)).toBe('≈ $13.5K');
+	});
+
+	test('collapses every currency total into one converted estimate when a view currency is active', () => {
+		const view: CRMViewCurrencyReader = {
+			selected: 'USD',
+			viewAmount: (value, currency) =>
+				currency === 'USD'
+					? { value, currency: 'USD', isConverted: true }
+					: { value: value * 0.00075, currency: 'USD', isConverted: true }
+		};
+
+		expect(formatViewMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue, view)).toBe('≈ $11.5K');
+		expect(formatViewMoneyTotals({}, interimCurrencyCatalogue, view)).toBe('-');
+	});
+
+	test('keeps today\'s per-currency breakdown byte-for-byte while the view stays original', () => {
+		const view: CRMViewCurrencyReader = {
+			selected: 'original',
+			viewAmount: (value, currency) => ({ value, currency, isConverted: false })
+		};
+		const totals = { KRW: 12000000, USD: 2500 };
+
+		expect(formatViewMoneyTotals(totals, interimCurrencyCatalogue, view, '-', 'ko')).toBe(
+			formatMoneyTotals(totals, interimCurrencyCatalogue, '-', 'ko')
+		);
 	});
 });
 

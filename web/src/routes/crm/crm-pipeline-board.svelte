@@ -5,7 +5,9 @@
 	import { CRMPipelineBoardDragController } from './crm-pipeline-board-drag-controller.svelte';
 	import { crmLabel } from './crm-labels';
 	import type { CRMPipelineBoardMoveRequest } from './crm-pipeline-board-drag';
-	import { findOrganizationByID, findNextActionByID, formatCRMDate, formatMoney, getProgressKind, opportunityStageLabel } from './crm-view-model';
+	import { findOrganizationByID, findNextActionByID, formatCRMDate, getProgressKind, opportunityStageLabel } from './crm-view-model';
+	import { formatViewMoney } from './crm-money';
+	import { crmViewCurrency } from './crm-view-currency.svelte';
 	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
@@ -116,7 +118,7 @@
 											{crmLabel(text.progressKinds, getProgressKind(opportunity, organization))}
 										</Badge>
 										<Badge variant="secondary" class="h-5 rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">
-											{formatMoney(opportunity.expectedValue, opportunity.currency, currencyCatalogue, text.noValue, currentLocale.value)}
+											{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), currencyCatalogue, text.noValue, currentLocale.value)}
 										</Badge>
 									</div>
 									<div class="text-xs leading-5 text-muted-foreground">
