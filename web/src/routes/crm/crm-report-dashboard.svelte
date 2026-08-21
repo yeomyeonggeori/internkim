@@ -63,15 +63,21 @@
 	let openValues = $derived(sumOpportunityMoney(openOpportunities));
 	let wonValues = $derived(sumOpportunityMoney(periodOpportunities.filter((opportunity) => opportunityOutcome(opportunity) === 'won')));
 	let monthlyRows = $derived.by(() => {
-		const months = [...new Set(periodOpportunities.map((opportunity) => opportunity.targetDate.slice(0, 7)))];
-		return months.sort().map((month) => {
-			const matching = periodOpportunities.filter((opportunity) => opportunity.targetDate.startsWith(month));
-			return {
-				month,
-				openValues: sumOpportunityMoney(matching.filter((opportunity) => opportunityOutcome(opportunity) === 'open')),
-				wonValues: sumOpportunityMoney(matching.filter((opportunity) => opportunityOutcome(opportunity) === 'won'))
-			};
-		});
+		const dated = periodOpportunities.filter((opportunity) => opportunity.targetDate !== '');
+		const undated = periodOpportunities.filter((opportunity) => opportunity.targetDate === '');
+		const months = [...new Set(dated.map((opportunity) => opportunity.targetDate.slice(0, 7)))].sort();
+		const buckets = months.map((month) => ({
+			month,
+			label: month.replace('-', '. '),
+			matching: dated.filter((opportunity) => opportunity.targetDate.slice(0, 7) === month)
+		}));
+		if (undated.length > 0) buckets.push({ month: 'undated', label: text.noTargetDate, matching: undated });
+		return buckets.map((bucket) => ({
+			month: bucket.month,
+			label: bucket.label,
+			openValues: sumOpportunityMoney(bucket.matching.filter((opportunity) => opportunityOutcome(opportunity) === 'open')),
+			wonValues: sumOpportunityMoney(bucket.matching.filter((opportunity) => opportunityOutcome(opportunity) === 'won'))
+		}));
 	});
 	let stageRows = $derived(
 		[...new Set(periodOpportunities.map((opportunity) => opportunity.stage))].map((stage) => {
@@ -160,7 +166,7 @@
 			<Card.Content class="max-h-[28rem] overflow-y-auto pb-8 [mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)] grid gap-4">
 				{#each monthlyRows as row (row.month)}
 					<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-3">
-						<span class="text-sm font-medium">{row.month.replace('-', '. ')}</span>
+						<span class="text-sm font-medium">{row.label}</span>
 						<div class="grid gap-2">
 							<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-xs"><span class="text-muted-foreground">{text.openValue}</span><span class="text-right font-medium">{formatViewMoneyTotals(row.openValues, currencyCatalogue, crmViewCurrency, text.noValue, currentLocale.value)}</span></div>
 							<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-xs"><span class="text-muted-foreground">{text.won}</span><span class="text-right font-medium">{formatViewMoneyTotals(row.wonValues, currencyCatalogue, crmViewCurrency, text.noValue, currentLocale.value)}</span></div>
