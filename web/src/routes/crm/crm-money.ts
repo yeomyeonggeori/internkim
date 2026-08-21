@@ -3,6 +3,8 @@ import { findCurrencyCatalogueEntry, type CurrencyCatalogue } from '$lib/currenc
 import type { Locale } from '$lib/i18n/locale.svelte';
 import type { CRMViewAmount, CRMViewCurrencyReader } from './crm-view-currency.svelte';
 
+export const rateHintAnchorCurrency = 'USD';
+
 export function formatAmountInput(value: string): string {
 	const digits = value.replace(/\D/g, '');
 	if (digits === '') return '';
@@ -78,17 +80,13 @@ export function formatViewMoneyTotals(
 
 export function formatViewRateHint(
 	viewCurrency: string,
-	baseCurrency: string,
 	ratesBySource: Record<string, number>,
 	catalogue: CurrencyCatalogue
 ): string {
-	if (viewCurrency === '' || baseCurrency === '' || viewCurrency === baseCurrency) return '';
-	const rate = ratesBySource[baseCurrency];
+	if (viewCurrency === '' || viewCurrency === rateHintAnchorCurrency) return '';
+	const rate = ratesBySource[rateHintAnchorCurrency];
 	if (rate === undefined || !(rate > 0)) return '';
-	if (rate >= 1) {
-		return `${formatRateSide(1, baseCurrency, catalogue)} = ${formatRateSide(rate, viewCurrency, catalogue)}`;
-	}
-	return `${formatRateSide(1, viewCurrency, catalogue)} = ${formatRateSide(1 / rate, baseCurrency, catalogue)}`;
+	return `${formatRateSide(1, rateHintAnchorCurrency, catalogue)} = ${formatRateSide(rate, viewCurrency, catalogue)}`;
 }
 
 function formatRateSide(value: number, currency: string, catalogue: CurrencyCatalogue): string {

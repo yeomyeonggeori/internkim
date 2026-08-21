@@ -117,25 +117,20 @@ describe('view-currency-aware money formatting', () => {
 	});
 });
 
-describe('formatViewRateHint pairs the view with the company base currency', () => {
-	test('puts the 1 on the stronger currency whichever direction the rate runs', () => {
-		expect(formatViewRateHint('USD', 'KRW', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,389');
-		expect(formatViewRateHint('KRW', 'USD', { USD: 1388.9 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,389');
+describe('formatViewRateHint always reads one dollar in the chosen currency', () => {
+	test('names what a dollar buys, rounding whole units and keeping small rates precise', () => {
+		expect(formatViewRateHint('KRW', { USD: 1396.35 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,396');
+		expect(formatViewRateHint('EUR', { USD: 0.857 }, interimCurrencyCatalogue)).toBe('$1 = €0.86');
 	});
 
-	test('keeps small rates readable with two decimals', () => {
-		expect(formatViewRateHint('KRW', 'JPY', { JPY: 9.194 }, interimCurrencyCatalogue)).toBe('¥1 = ₩9.19');
+	test('ignores every source currency that is not the dollar', () => {
+		expect(formatViewRateHint('KRW', { USD: 1396.35, JPY: 9.19, EUR: 0.86 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,396');
 	});
 
-	test('shows through many source currencies and ignores the ones that are not the base', () => {
-		expect(formatViewRateHint('USD', 'KRW', { KRW: 0.00072, JPY: 0.0067, EUR: 1.09 }, interimCurrencyCatalogue)).toBe('$1 = ₩1,389');
-	});
-
-	test('stays silent without a view, a base, a distinct pair, or a loaded rate', () => {
-		expect(formatViewRateHint('', 'KRW', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('');
-		expect(formatViewRateHint('USD', '', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('');
-		expect(formatViewRateHint('KRW', 'KRW', {}, interimCurrencyCatalogue)).toBe('');
-		expect(formatViewRateHint('USD', 'KRW', {}, interimCurrencyCatalogue)).toBe('');
+	test('stays silent for the dollar itself, for no view, and before the rate loads', () => {
+		expect(formatViewRateHint('USD', { KRW: 0.00072 }, interimCurrencyCatalogue)).toBe('');
+		expect(formatViewRateHint('', { USD: 1396.35 }, interimCurrencyCatalogue)).toBe('');
+		expect(formatViewRateHint('KRW', {}, interimCurrencyCatalogue)).toBe('');
 	});
 });
 
