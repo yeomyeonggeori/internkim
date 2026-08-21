@@ -6,7 +6,7 @@ export type ExchangeRateProvider = {
 };
 
 const providerName = 'Frankfurter';
-const frankfurterBaseURL = 'https://api.frankfurter.dev/v1';
+const frankfurterBaseURL = 'https://api.frankfurter.dev/v2';
 const cacheLifetimeInMilliseconds = 12 * 60 * 60 * 1000;
 const rateCacheLifetimeInMilliseconds = 60 * 60 * 1000;
 
@@ -61,18 +61,31 @@ function pairKeyOf(base: string, quote: string): string {
 	return `${base}:${quote}`;
 }
 
-type FrankfurterCurrenciesPayload = Record<string, string>;
+type FrankfurterCurrency = { code: string; name: string };
 
-function parsedCurrenciesPayload(payload: unknown, attemptedPath: string): FrankfurterCurrenciesPayload {
-	if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
-		throw new Error(`${providerName} returned a malformed currency list from ${attemptedPath}: expected a JSON object`);
+function parsedCurrenciesPayload(payload: unknown, attemptedPath: string): FrankfurterCurrency[] {
+	if (!Array.isArray(payload)) {
+		throw new Error(`${providerName} returned a malformed currency list from ${attemptedPath}: expected a JSON array`);
 	}
-	const record = payload as Record<string, unknown>;
-	const invalidEntry = Object.entries(record).find(([, name]) => typeof name !== 'string');
-	if (invalidEntry) {
-		throw new Error(`${providerName} returned a malformed currency list from ${attemptedPath}: ${invalidEntry[0]} has no name`);
-	}
-	return record as FrankfurterCurrenciesPayload;
+	return payload.map((entry, index) => {
+		if (typeof entry !== 'object' || entry === null) {
+			throw new Error(
+				`${providerName} returned a malformed currency list from ${attemptedPath}: entry ${index} is not an object`
+			);
+		}
+		const record = entry as Record<string, unknown>;
+		if (typeof record.iso_code !== 'string' || record.iso_code === '') {
+			throw new Error(
+				`${providerName} returned a malformed currency list from ${attemptedPath}: entry ${index} has no iso_code`
+			);
+		}
+		if (typeof record.name !== 'string' || record.name === '') {
+			throw new Error(
+				`${providerName} returned a malformed currency list from ${attemptedPath}: ${record.iso_code} has no name`
+			);
+		}
+		return { code: record.iso_code, name: record.name };
+	});
 }
 
 function parsedLatestPayload(
@@ -80,27 +93,25 @@ function parsedLatestPayload(
 	quote: string,
 	attemptedPath: string
 ): { base: string; date: string; rate: number } {
-	if (typeof payload !== 'object' || payload === null) {
-		throw new Error(`${providerName} returned a malformed rate response from ${attemptedPath}: expected a JSON object`);
+	if (!Array.isArray(payload)) {
+		throw new Error(`${providerName} returned a malformed rate response from ${attemptedPath}: expected a JSON array`);
 	}
-	const record = payload as Record<string, unknown>;
+	const quoted = payload.find(
+		(entry) => typeof entry === 'object' && entry !== null && (entry as Record<string, unknown>).quote === quote
+	);
+	if (!quoted) {
+		throw new Error(`${providerName} returned a malformed rate response from ${attemptedPath}: no rate for ${quote}`);
+	}
+	const record = quoted as Record<string, unknown>;
 	if (typeof record.base !== 'string' || typeof record.date !== 'string') {
 		throw new Error(`${providerName} returned a malformed rate response from ${attemptedPath}: missing base or date`);
 	}
-	if (typeof record.rates !== 'object' || record.rates === null || Array.isArray(record.rates)) {
-		throw new Error(`${providerName} returned a malformed rate response from ${attemptedPath}: missing rates`);
-	}
-	const rates = record.rates as Record<string, unknown>;
-	if (!(quote in rates)) {
-		throw new Error(`${providerName} returned a malformed rate response from ${attemptedPath}: no rate for ${quote}`);
-	}
-	const rate = rates[quote];
-	if (typeof rate !== 'number' || !Number.isFinite(rate)) {
+	if (typeof record.rate !== 'number' || !Number.isFinite(record.rate)) {
 		throw new Error(
 			`${providerName} returned a malformed rate response from ${attemptedPath}: rate for ${quote} is not a finite number`
 		);
 	}
-	return { base: record.base, date: record.date, rate };
+	return { base: record.base, date: record.date, rate: record.rate };
 }
 
 function pathOf(url: URL): string {
@@ -125,8 +136,8 @@ async function fetchJSON(fetchImplementation: typeof fetch, url: URL): Promise<u
 async function fetchedSupportedCurrencies(fetchImplementation: typeof fetch): Promise<SupportedCurrency[]> {
 	const currenciesURL = new URL(`${frankfurterBaseURL}/currencies`);
 	const payload = await fetchJSON(fetchImplementation, currenciesURL);
-	const currenciesByCode = parsedCurrenciesPayload(payload, pathOf(currenciesURL));
-	return Object.entries(currenciesByCode).map(([code, name]) => ({
+	const currencies = parsedCurrenciesPayload(payload, pathOf(currenciesURL));
+	return currencies.map(({ code, name }) => ({
 		code,
 		name,
 		minorUnitDigits: minorUnitDigitsOf(code)
@@ -165,9 +176,9 @@ async function fetchedLatestRate(
 ): Promise<ExchangeRate> {
 	if (base === quote) return { base, quote, rate: 1, asOf: todayInUTC(nowInMilliseconds) };
 
-	const latestURL = new URL(`${frankfurterBaseURL}/latest`);
+	const latestURL = new URL(`${frankfurterBaseURL}/rates`);
 	latestURL.searchParams.set('base', base);
-	latestURL.searchParams.set('symbols', quote);
+	latestURL.searchParams.set('quotes', quote);
 
 	const payload = await fetchJSON(fetchImplementation, latestURL);
 	const parsed = parsedLatestPayload(payload, quote, pathOf(latestURL));
