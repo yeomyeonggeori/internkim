@@ -163,6 +163,9 @@ func ensureCalendarChannelOutboxTable(ctx context.Context, database *sql.DB) err
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_channel_outbox", "lease_generation", "INTEGER NOT NULL DEFAULT 0"); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_channel_outbox", "delivered_recipients", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue = database.ExecContext(ctx, `
 UPDATE calendar_channel_outbox
 SET lease_owner = '', lease_generation = 0

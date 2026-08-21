@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-func TestCalendarNotificationPostsAnnouncementsForAllHands(t *testing.T) {
-	var createdChannel map[string]any
+func TestCalendarNotificationRemindsTheAuthorWhenNobodyIsNamed(t *testing.T) {
+	var directChannelMembers []string
 	var postedMessage string
 	postCount := 0
 	service := newCalendarMattermostTestService(t, func(request *http.Request) (*http.Response, error) {
@@ -24,29 +24,26 @@ func TestCalendarNotificationPostsAnnouncementsForAllHands(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users":
 			return jsonResponse(http.StatusOK, `[{"id":"user-1","username":"gamyeong","nickname":"샘플","email":"gamyeong@example.com"}]`, nil), nil
-		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/teams/name/internkim":
-			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
-		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/teams/team-1/channels/name/announcements":
-			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
-		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels":
-			if errorValue := json.NewDecoder(request.Body).Decode(&createdChannel); errorValue != nil {
+		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users/username/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels/direct":
+			if errorValue := json.NewDecoder(request.Body).Decode(&directChannelMembers); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			return jsonResponse(http.StatusCreated, `{"id":"announcements-channel"}`, nil), nil
-		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users/username/internkim":
-			assertMattermostBearerToken(t, request, "admin-token")
-			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
-		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels/announcements-channel/members":
-			assertMattermostBearerToken(t, request, "admin-token")
-			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+			return jsonResponse(http.StatusCreated, `{"id":"dm-channel"}`, nil), nil
+		case request.Method == http.MethodPut && strings.HasSuffix(request.URL.Path, "/preferences"):
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/posts":
 			assertMattermostBearerToken(t, request, "bot-token")
 			var payload map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			postCount++
-			postedMessage, _ = payload["message"].(string)
+			message, _ := payload["message"].(string)
+			if strings.Contains(message, "Calendar reminder") {
+				postCount++
+				postedMessage = message
+			}
 			return jsonResponse(http.StatusCreated, `{"id":"post-1"}`, nil), nil
 		default:
 			t.Fatalf("unexpected Mattermost request %s %s", request.Method, request.URL.String())
@@ -55,6 +52,7 @@ func TestCalendarNotificationPostsAnnouncementsForAllHands(t *testing.T) {
 	})
 
 	event := calendarTestEvent("all-hands", "Company offsite", "Travel prep")
+	event.CreatedByName = "샘플"
 	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -62,13 +60,13 @@ func TestCalendarNotificationPostsAnnouncementsForAllHands(t *testing.T) {
 	service.processDueCalendarNotifications(context.Background(), time.Now().UTC().Add(time.Second))
 	service.processDueCalendarNotifications(context.Background(), time.Now().UTC().Add(2*time.Second))
 
-	if createdChannel["name"] != calendarAnnouncementsChannelName || createdChannel["display_name"] != announcementsChannelDisplayName(workspaceLanguageKorean) {
-		t.Fatalf("created channel = %+v", createdChannel)
+	if strings.Join(directChannelMembers, "|") != "user-1|bot-1" {
+		t.Fatalf("reminder must reach the author by direct message, got %+v", directChannelMembers)
 	}
 	if postCount != 1 {
-		t.Fatalf("postCount = %d", postCount)
+		t.Fatalf("reminder count = %d", postCount)
 	}
-	if !strings.Contains(postedMessage, "[Company offsite](") || !strings.Contains(postedMessage, "event=all-hands") || !strings.Contains(postedMessage, "Travel prep") || strings.Contains(postedMessage, "일정 열기") {
+	if !strings.Contains(postedMessage, "[Company offsite](") || !strings.Contains(postedMessage, "Travel prep") {
 		t.Fatalf("posted message = %q", postedMessage)
 	}
 }
@@ -124,7 +122,7 @@ func TestCalendarNotificationPostsDirectMessageForPeopleLine(t *testing.T) {
 	}
 }
 
-func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
+func TestCalendarMattermostLogDirectMessagesEventPeople(t *testing.T) {
 	requests := calendarMattermostLogRequests{}
 	service := newCalendarMattermostTestService(t, func(request *http.Request) (*http.Response, error) {
 		return mattermostCalendarLogLifecycleResponse(t, request, &requests)
@@ -137,37 +135,35 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 	if errorValue != nil || !found {
 		t.Fatalf("expected reloaded event: found=%v error=%v", found, errorValue)
 	}
-	if reloadedEvent.MattermostPostID != "calendar-post-1" {
-		t.Fatalf("post id = %q", reloadedEvent.MattermostPostID)
+	if reloadedEvent.MattermostPostID != "" {
+		t.Fatalf("a direct message must not be tracked as a channel post, got %q", reloadedEvent.MattermostPostID)
 	}
-	if len(requests.createdMessages) != 1 || !strings.Contains(requests.createdMessages[0], "[Design review](") || !strings.Contains(requests.createdMessages[0], "event=logged") || !strings.Contains(requests.createdMessages[0], "참석자: @iam\n\n| 일시") || strings.Contains(requests.createdMessages[0], "대상:") || strings.Contains(requests.createdMessages[0], "일정 열기") {
+	if len(requests.createdMessages) != 1 || !strings.Contains(requests.createdMessages[0], "[Design review](") || !strings.Contains(requests.createdMessages[0], "event=logged") {
 		t.Fatalf("created messages = %+v", requests.createdMessages)
 	}
 	if len(requests.createTokens) != 1 || requests.createTokens[0] != "Bearer bot-token" {
 		t.Fatalf("create tokens = %+v", requests.createTokens)
 	}
+
 	reloadedEvent.Title = "Updated review"
 	if errorValue := service.writeCalendarEvent(context.Background(), reloadedEvent); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(requests.updatedMessages) != 1 || !strings.Contains(requests.updatedMessages[0], "[Updated review](") || !strings.Contains(requests.updatedMessages[0], "event=logged") || strings.Contains(requests.updatedMessages[0], "일정 열기") {
-		t.Fatalf("updated messages = %+v", requests.updatedMessages)
+	if len(requests.createdMessages) != 2 || !strings.Contains(requests.createdMessages[1], "[Updated review](") {
+		t.Fatalf("a change must arrive as a new notice: %+v", requests.createdMessages)
 	}
-	if len(requests.updateTokens) != 1 || requests.updateTokens[0] != "Bearer bot-token" {
-		t.Fatalf("update tokens = %+v", requests.updateTokens)
+	if len(requests.updatedMessages) != 0 {
+		t.Fatalf("a direct notice must not be edited in place, got %+v", requests.updatedMessages)
 	}
+
 	if errorValue := service.softDeleteCalendarEvent(context.Background(), reloadedEvent.ID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(requests.deletedPostIDs) != 1 || requests.deletedPostIDs[0] != "calendar-post-1" {
-		t.Fatalf("deleted posts = %+v", requests.deletedPostIDs)
+	if len(requests.createdMessages) != 3 || !strings.Contains(requests.createdMessages[2], "삭제된 일정") || !strings.Contains(requests.createdMessages[2], "Updated review") {
+		t.Fatalf("a removed event must be announced, got %+v", requests.createdMessages)
 	}
-	projection, found, errorValue := service.readCalendarEventProjectionByID(context.Background(), reloadedEvent.ID)
-	if errorValue != nil || !found {
-		t.Fatalf("expected deleted projection: found=%v error=%v", found, errorValue)
-	}
-	if !projection.IsDeleted || projection.Event.MattermostPostID != "" {
-		t.Fatalf("deleted projection = %+v", projection)
+	if len(requests.deletedPostIDs) != 0 {
+		t.Fatalf("nothing is deleted from a channel any more, got %+v", requests.deletedPostIDs)
 	}
 	eventIDs, errorValue := service.readCalendarEventIDsRequiringMattermostProjection(context.Background())
 	if errorValue != nil {
@@ -223,28 +219,14 @@ func TestCalendarMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
 			return mattermostCalendarLogLifecycleResponse(t, request, &calendarMattermostLogRequests{})
 		}
 	})
-	event := calendarTestEvent("logged", "Design review", "샘플\nBring agenda")
+	event := calendarTestEvent("logged", "Design review", "김표본\nBring agenda")
 	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
-	}
-	reloadedEvent, found, errorValue := service.readCalendarEventByID(context.Background(), event.ID)
-	if errorValue != nil || !found {
-		t.Fatalf("expected reloaded event: found=%v error=%v", found, errorValue)
-	}
-	if reloadedEvent.MattermostPostID != "" {
-		t.Fatalf("post id after failed projection = %q", reloadedEvent.MattermostPostID)
 	}
 	assertCalendarProjectionOutboxCount(t, service, 1)
 
 	service.drainCalendarMattermostProjectionOutbox(context.Background())
 
-	reloadedEvent, found, errorValue = service.readCalendarEventByID(context.Background(), event.ID)
-	if errorValue != nil || !found {
-		t.Fatalf("expected reloaded event: found=%v error=%v", found, errorValue)
-	}
-	if reloadedEvent.MattermostPostID != "calendar-post-1" {
-		t.Fatalf("post id after reconcile = %q", reloadedEvent.MattermostPostID)
-	}
 	if createAttempts != 2 {
 		t.Fatalf("create attempts = %d", createAttempts)
 	}

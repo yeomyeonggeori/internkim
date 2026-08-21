@@ -813,7 +813,6 @@ func (service *Service) ensureMattermostDefaultChannelIDs(ctx context.Context, t
 		}
 		channelIDs = append(channelIDs, channelID)
 	}
-	service.syncExistingMattermostManagedPosts(ctx)
 	return uniqueNonEmpty(channelIDs), errors.Join(channelErrors...)
 }
 
@@ -821,8 +820,6 @@ func (service *Service) mattermostDefaultChannelProvisions() []mattermostDefault
 	return []mattermostDefaultChannelProvision{
 		{Name: mattermostdefaults.TownSquareChannelName, Ensure: service.ensureMattermostTownSquareChannel},
 		{Name: mattermostdefaults.OffTopicChannelName, Ensure: service.ensureMattermostOffTopicChannel},
-		{Name: mattermostFlowChannelName, Ensure: service.ensureMattermostFlowChannel},
-		{Name: mattermostCalendarChannelName, Ensure: service.ensureMattermostCalendarChannel},
 		{Name: attendanceChannelName, Ensure: service.ensureMattermostAttendanceChannel},
 	}
 }

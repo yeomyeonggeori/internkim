@@ -19,40 +19,27 @@ func (service *Service) trySyncFlowMattermostNotification(ctx context.Context, t
 	if strings.TrimSpace(service.Configuration.MattermostAdminPasswordPath) == "" {
 		return task, nil
 	}
-	if !shouldNotifyFlowTask(task) && strings.TrimSpace(task.MattermostPostID) == "" {
+	if !shouldNotifyFlowTask(task) {
 		return task, nil
 	}
 	adminToken, errorValue := service.mattermostAdminToken(ctx)
 	if errorValue != nil {
 		return task, errorValue
 	}
-	if !shouldNotifyFlowTask(task) {
-		return service.deleteFlowMattermostNotification(ctx, adminToken, task)
-	}
 	botToken, errorValue := service.mattermostBotToken()
 	if errorValue != nil {
-		return task, errorValue
-	}
-	botUserID, errorValue := service.mattermostTokenUserID(ctx, botToken)
-	if errorValue != nil {
-		return task, errorValue
-	}
-	teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
-	if errorValue != nil {
-		return task, errorValue
-	}
-	channelID, errorValue := service.ensureMattermostFlowChannel(ctx, adminToken, teamRecord.ID)
-	if errorValue != nil {
-		return task, errorValue
-	}
-	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
 		return task, errorValue
 	}
 	mattermostUsers, errorValue := service.activeMattermostUsers(ctx, adminToken)
 	if errorValue != nil {
 		return task, errorValue
 	}
-	return service.upsertFlowMattermostNotification(ctx, adminToken, botToken, botUserID, channelID, task, mattermostUsers)
+	recipients := flowTaskChangeRecipients(task, "", mattermostUsers)
+	message := service.changeNoticeWording(ctx, flowNoticeFacts(task), service.flowMattermostNotificationMessage(task, mattermostUsers))
+	noticeKey := changeNoticeKey(task.ID, message)
+	delivered, errorValue := service.sendChangeDirectMessages(ctx, adminToken, botToken, recipients, message, flowMattermostNotificationProps(task), service.deliveredFlowRecipients(ctx, task.ID, noticeKey))
+	service.recordDeliveredFlowRecipients(ctx, task.ID, noticeKey, delivered)
+	return task, errorValue
 }
 
 func shouldNotifyFlowTask(task flowTask) bool {
@@ -71,88 +58,6 @@ func (service *Service) ensureMattermostBotCanPost(ctx context.Context, adminTok
 	}
 	schemeRoles := map[string]bool{"scheme_admin": true, "scheme_user": true}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/members/"+url.PathEscape(userID)+"/schemeRoles", adminToken, schemeRoles, nil)
-}
-
-func (service *Service) upsertFlowMattermostNotification(ctx context.Context, adminToken string, botToken string, botUserID string, channelID string, task flowTask, mattermostUsers []mattermostUserRecord) (flowTask, error) {
-	if strings.TrimSpace(task.MattermostPostID) == "" {
-		return service.createFlowMattermostNotification(ctx, botToken, channelID, task, mattermostUsers)
-	}
-	postRecord, found, errorValue := service.mattermostPostByID(ctx, adminToken, task.MattermostPostID)
-	if errorValue != nil {
-		return task, errorValue
-	}
-	if !found || strings.TrimSpace(postRecord.UserID) != botUserID {
-		return service.replaceOrRetireFlowMattermostNotification(ctx, adminToken, botToken, channelID, task, mattermostUsers)
-	}
-	body := map[string]any{
-		"message": service.flowMattermostNotificationMessage(task, mattermostUsers),
-		"props":   flowMattermostNotificationProps(task),
-	}
-	path := "/api/v4/posts/" + url.PathEscape(task.MattermostPostID) + "/patch"
-	if errorValue := service.mattermostRequest(ctx, http.MethodPut, path, botToken, body, nil); errorValue != nil {
-		if !isMattermostNotFound(errorValue) && !isMattermostForbidden(errorValue) {
-			return task, errorValue
-		}
-		return service.replaceOrRetireFlowMattermostNotification(ctx, adminToken, botToken, channelID, task, mattermostUsers)
-	}
-	return task, nil
-}
-
-func (service *Service) replaceOrRetireFlowMattermostNotification(ctx context.Context, adminToken string, botToken string, channelID string, task flowTask, mattermostUsers []mattermostUserRecord) (flowTask, error) {
-	task, errorValue := service.deleteFlowMattermostNotification(ctx, adminToken, task)
-	if errorValue != nil {
-		return task, errorValue
-	}
-	hasPendingProjection, errorValue := service.hasPendingFlowMattermostProjection(ctx, task.ID)
-	if errorValue != nil {
-		return task, errorValue
-	}
-	if !hasPendingProjection {
-		return task, nil
-	}
-	return service.createFlowMattermostNotification(ctx, botToken, channelID, task, mattermostUsers)
-}
-
-func (service *Service) mattermostPostByID(ctx context.Context, token string, postID string) (mattermostPostRecord, bool, error) {
-	var postRecord mattermostPostRecord
-	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/posts/"+url.PathEscape(postID), token, nil, &postRecord)
-	if errorValue == nil && postRecord.ID != "" {
-		return postRecord, true, nil
-	}
-	if errorValue != nil && !isMattermostNotFound(errorValue) {
-		return mattermostPostRecord{}, false, errorValue
-	}
-	return mattermostPostRecord{}, false, nil
-}
-
-func (service *Service) createFlowMattermostNotification(ctx context.Context, token string, channelID string, task flowTask, mattermostUsers []mattermostUserRecord) (flowTask, error) {
-	body := map[string]any{
-		"channel_id": channelID,
-		"message":    service.flowMattermostNotificationMessage(task, mattermostUsers),
-		"props":      flowMattermostNotificationProps(task),
-	}
-	var response struct {
-		ID string `json:"id"`
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, &response); errorValue != nil {
-		return task, errorValue
-	}
-	task.MattermostPostID = strings.TrimSpace(response.ID)
-	if task.MattermostPostID == "" {
-		return task, nil
-	}
-	return task, service.updateFlowTaskMattermostPostID(ctx, task.ID, task.MattermostPostID)
-}
-
-func (service *Service) deleteFlowMattermostNotification(ctx context.Context, token string, task flowTask) (flowTask, error) {
-	if strings.TrimSpace(task.MattermostPostID) == "" {
-		return task, nil
-	}
-	if errorValue := service.deleteMattermostPost(ctx, token, task.MattermostPostID); errorValue != nil {
-		return task, errorValue
-	}
-	task.MattermostPostID = ""
-	return task, service.updateFlowTaskMattermostPostID(ctx, task.ID, "")
 }
 
 func (service *Service) flowMattermostNotificationMessage(task flowTask, mattermostUsers []mattermostUserRecord) string {
@@ -241,4 +146,14 @@ func (service *Service) mattermostFlowBaseURL() string {
 		return fleetdomain.Subdomain(strings.ToLower(fleetID), service.fleetZone())
 	}
 	return ""
+}
+
+func flowNoticeFacts(task flowTask) []string {
+	return []string{
+		"업무: " + strings.TrimSpace(task.Content),
+		"상태: " + strings.TrimSpace(task.Status),
+		"담당자: " + strings.TrimSpace(task.OwnerName),
+		"참여자: " + strings.Join(task.ParticipantNames, ", "),
+		"기간: " + strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(task.StartDate+" ~ "+task.EndDate), "~")),
+	}
 }

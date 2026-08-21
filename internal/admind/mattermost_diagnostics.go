@@ -1,7 +1,9 @@
 package admind
 
 import (
+	"context"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -42,4 +44,16 @@ func (service *Service) writeMattermostPostDiagnostic(responseWriter http.Respon
 		CreateAt:  postRecord.CreateAt,
 		DeleteAt:  postRecord.DeleteAt,
 	})
+}
+
+func (service *Service) mattermostPostByID(ctx context.Context, token string, postID string) (mattermostPostRecord, bool, error) {
+	var postRecord mattermostPostRecord
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/posts/"+url.PathEscape(postID), token, nil, &postRecord)
+	if errorValue == nil && postRecord.ID != "" {
+		return postRecord, true, nil
+	}
+	if errorValue != nil && !isMattermostNotFound(errorValue) {
+		return mattermostPostRecord{}, false, errorValue
+	}
+	return mattermostPostRecord{}, false, nil
 }
