@@ -1006,13 +1006,17 @@ printf '== every open channel that is not a stream ==\n'
 q "SELECT id::text, channel_type, name FROM channels WHERE visibility='open' AND channel_type <> 'stream' ORDER BY name"
 printf '== members per open non-stream channel ==\n'
 q "SELECT c.id::text, c.name, count(m.*) FILTER (WHERE m.removed_at IS NULL) AS members, count(m.*) FILTER (WHERE m.removed_at IS NOT NULL) AS left_since FROM channels c LEFT JOIN channel_members m ON m.channel_id = c.id WHERE c.visibility='open' AND c.channel_type <> 'stream' GROUP BY 1,2 ORDER BY 3 DESC"
+printf '== channels per community ==\n'
+q "SELECT coalesce(community_id::text, '(none)') AS community, channel_type, count(*) FROM channels GROUP BY 1,2 ORDER BY 1,2"
+printf '== the communities a relay host maps to ==\n'
+q "SELECT id::text, name, host FROM communities ORDER BY name"
 `)
 }
 
-// A channel the importer wrote straight into the database has no kind:39000 or
-// kind:39002 event, so a nostr client has nothing to discover it by. chatd finds
-// those channels anyway because it queries membership directly, which is why the
-// web messenger shows what the app cannot.
+// A channel written straight into the database has no kind:39000 or kind:39002
+// event, so a nostr client has nothing to discover it by. chatd finds such a
+// channel anyway because it queries membership directly and tolerates missing
+// metadata, so only a nostr client notices.
 func buzzReconcileChannelsCommand() string {
 	return strings.TrimSpace(`
 set -e
