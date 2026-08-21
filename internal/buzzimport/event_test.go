@@ -68,7 +68,10 @@ func TestBuiltEventCarriesChannelAndThreadTags(t *testing.T) {
 	}
 }
 
-func TestBuiltEventOmitsAReplyMarkerEqualToItsRoot(t *testing.T) {
+// resolve_nip10_thread_meta returns no thread metadata for an event that carries
+// a root marker and no reply marker, so such a reply hangs off nothing: the
+// thread shows a count and opens empty.
+func TestAReplyToTheRootStillNamesItAsItsParent(t *testing.T) {
 	message := testMessage()
 	message.RootEventID = strings.Repeat("a", 64)
 	message.ParentEventID = strings.Repeat("a", 64)
@@ -77,10 +80,17 @@ func TestBuiltEventOmitsAReplyMarkerEqualToItsRoot(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("build event: %v", errorValue)
 	}
+	markers := map[string]string{}
 	for _, tag := range event.Tags {
-		if tag[0] == "e" && len(tag) > 3 && tag[3] == "reply" {
-			t.Fatal("a direct reply to the root must not repeat itself as a reply marker")
+		if tag[0] == "e" && len(tag) > 3 {
+			markers[tag[3]] = tag[1]
 		}
+	}
+	if markers["root"] != message.RootEventID {
+		t.Errorf("root marker = %q", markers["root"])
+	}
+	if markers["reply"] != message.ParentEventID {
+		t.Errorf("reply marker = %q; the relay reads the pair or nothing", markers["reply"])
 	}
 }
 
