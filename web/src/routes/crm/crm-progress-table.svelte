@@ -100,7 +100,7 @@
 						<Table.Cell class="hidden whitespace-normal md:table-cell">
 							<p class="truncate">{opportunity.ownerName}</p>
 						</Table.Cell>
-						<Table.Cell class="hidden font-medium sm:table-cell">{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), currencyCatalogue, text.noValue, currentLocale.value)}</Table.Cell>
+						<Table.Cell class="hidden font-medium sm:table-cell">{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), currencyCatalogue, text.noValue, currentLocale.value, crmViewCurrency.selected)}</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal text-muted-foreground lg:table-cell">
 							<p class="truncate">{action?.title ?? text.none}</p>
 						</Table.Cell>

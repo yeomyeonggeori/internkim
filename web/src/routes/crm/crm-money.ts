@@ -27,12 +27,33 @@ export function formatMoney(
 	noValue = '-',
 	locale: Locale = 'ko'
 ): string {
+	return formatAmount(value, currency, catalogue, noValue, locale, `${currency} `);
+}
+
+export function formatAmountAlone(
+	value: number | undefined,
+	currency: CRMCurrency,
+	catalogue: CurrencyCatalogue,
+	noValue = '-',
+	locale: Locale = 'ko'
+): string {
+	return formatAmount(value, currency, catalogue, noValue, locale, '');
+}
+
+function formatAmount(
+	value: number | undefined,
+	currency: CRMCurrency,
+	catalogue: CurrencyCatalogue,
+	noValue: string,
+	locale: Locale,
+	prefix: string
+): string {
 	if (value === undefined) return noValue;
 	const entry = findCurrencyCatalogueEntry(catalogue, currency);
-	if (!entry) return `${currency} ${value.toLocaleString()}`;
+	if (!entry) return `${prefix}${value.toLocaleString()}`;
 	return entry.grouping === 'myriad' && locale === 'ko'
-		? formatMyriadMoney(value, entry.code)
-		: formatThousandGroupedMoney(value, entry.code);
+		? formatMyriadMoney(value, prefix)
+		: formatThousandGroupedMoney(value, prefix);
 }
 
 export function formatMoneyTotals(
@@ -51,10 +72,12 @@ export function formatViewMoney(
 	view: CRMViewAmount,
 	catalogue: CurrencyCatalogue,
 	noValue = '-',
-	locale: Locale = 'ko'
+	locale: Locale = 'ko',
+	viewCurrency = ''
 ): string {
-	const formatted = formatMoney(view.value, view.currency, catalogue, noValue, locale);
-	return formatted;
+	return viewCurrency !== '' && view.currency === viewCurrency
+		? formatAmountAlone(view.value, view.currency, catalogue, noValue, locale)
+		: formatMoney(view.value, view.currency, catalogue, noValue, locale);
 }
 
 export function formatViewMoneyTotals(
@@ -75,7 +98,7 @@ export function formatViewMoneyTotals(
 		return formatMoneyTotals(totals, catalogue, noValue, locale);
 	}
 	const collapsedValue = viewAmounts.reduce((sum, amount) => sum + amount.value, 0);
-	return formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, catalogue, noValue, locale);
+	return formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, catalogue, noValue, locale, view.selected);
 }
 
 export function formatViewRateHint(
@@ -104,25 +127,25 @@ export function sumOpportunityMoney(
 	}, {});
 }
 
-function formatMyriadMoney(value: number, currencyCode: string): string {
+function formatMyriadMoney(value: number, prefix: string): string {
 	if (value >= 100000000) {
 		const hundredMillions = Number((value / 100000000).toFixed(1));
-		return `${currencyCode} ${hundredMillions.toLocaleString()}억`;
+		return `${prefix}${hundredMillions.toLocaleString()}억`;
 	}
 	if (value >= 10000) {
-		return `${currencyCode} ${Math.round(value / 10000).toLocaleString()}만`;
+		return `${prefix}${Math.round(value / 10000).toLocaleString()}만`;
 	}
-	return `${currencyCode} ${value.toLocaleString()}`;
+	return `${prefix}${value.toLocaleString()}`;
 }
 
-function formatThousandGroupedMoney(value: number, currencyCode: string): string {
+function formatThousandGroupedMoney(value: number, prefix: string): string {
 	if (value >= 1000000) {
 		const millions = Number((value / 1000000).toFixed(1));
-		return `${currencyCode} ${millions.toLocaleString()}M`;
+		return `${prefix}${millions.toLocaleString()}M`;
 	}
 	if (value >= 1000) {
 		const thousands = Number((value / 1000).toFixed(1));
-		return `${currencyCode} ${thousands.toLocaleString()}K`;
+		return `${prefix}${thousands.toLocaleString()}K`;
 	}
-	return `${currencyCode} ${value.toLocaleString()}`;
+	return `${prefix}${value.toLocaleString()}`;
 }

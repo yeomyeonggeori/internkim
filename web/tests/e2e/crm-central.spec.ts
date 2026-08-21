@@ -239,9 +239,13 @@ test('the view opens in the company base currency and a matching currency shows 
 
 	const viewCurrency = page.getByLabel('보기 통화');
 	await expect(viewCurrency).toHaveText(/USD/, { timeout: 20000 });
-	await expect(row.getByText(/^USD /)).toBeVisible({ timeout: 20000 });
+	const amount = row.getByRole('cell').nth(5);
+	await expect(amount).toHaveText(/^[\d,]/, { timeout: 20000 });
+	const inDollars = (await amount.innerText()).trim();
 
 	await viewCurrency.click();
 	await chooseCurrencyOption(page, 'KRW');
-	await expect(row.getByText(/^KRW /)).toBeVisible({ timeout: 20000 });
+	await expect(viewCurrency).toHaveText(/KRW/, { timeout: 20000 });
+	await expect(amount).not.toHaveText(inDollars, { timeout: 20000 });
+	await expect(amount).toHaveText(/만|억/, { timeout: 20000 });
 });
