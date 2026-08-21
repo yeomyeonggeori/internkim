@@ -51,7 +51,7 @@
 		<Select.Content class="max-h-72">
 			{#each currencyCatalogue as option (option.code)}
 				<Select.Item value={option.code} label={`${option.code} ${currencyNameOf(option, currencyDisplayNames)}`}>
-					<span class="w-12 shrink-0 font-medium">{option.code}</span>
+					<span class="w-9 shrink-0 font-medium">{option.code}</span>
 					<span class="truncate text-muted-foreground">{currencyNameOf(option, currencyDisplayNames)}</span>
 				</Select.Item>
 			{/each}
