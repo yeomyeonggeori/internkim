@@ -10,10 +10,13 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -48,7 +51,7 @@ func main() {
 	keySeedPath := flag.String("key-seed-path", "", "file holding the seed mixed into per-author key derivation")
 	communityHost := flag.String("community-host", "localhost:3000", "buzz community host to import into")
 	onlyChannels := flag.String("channels", "", "comma-separated Mattermost channel names to import; empty imports every public channel")
-	agentEmail := flag.String("agent-email", "", "messenger address of the agent, whose history is signed with the agent identity")
+	identityURL := flag.String("identity-url", "", "the bridge endpoint that owns a person's Buzz key")
 	orphanRootTitle := flag.String("orphan-root-title", "", "when set, replies whose Mattermost root was not imported are threaded under one synthesized root message carrying this title, per original root; otherwise such replies are skipped")
 	fileCacheDir := flag.String("file-cache-dir", "", "directory of {fileID}.{jpg|png} images used as a fallback when the Mattermost server no longer serves a file")
 	sinceMillis := flag.Int64("since", 0, "when >0, import only Mattermost posts created after this unix-millis timestamp (incremental sync; skips the wipe)")
@@ -89,17 +92,15 @@ func main() {
 	failOn(errorValue, "read users")
 	authorEmails, authorsByID := mattermostrest.UsersToChannelAuthorEmails(users)
 
-	// The agent is one identity across the import and everything after it, so its
-	// history is signed with the key chatd goes on to answer with rather than one
-	// derived from whatever address the old messenger gave its bot account.
-	agentEmailAddress := strings.ToLower(strings.TrimSpace(*agentEmail))
+	// A person's key belongs to the bridge: it versions the subject, keeps the
+	// agent apart from the address its bot account carries, and pins the result.
+	// None of that is derivable from the seed.
+	keyOwner := newIdentityOwner(*identityURL)
 	authorSecrets := map[string]string{}
 	authorPubkeys := map[string]string{}
 	for userID, author := range authorsByID {
-		secretHex := deriveSecret(keySeed, author.Email)
-		if agentEmailAddress != "" && strings.EqualFold(author.Email, agentEmailAddress) {
-			secretHex = deriveSecret(keySeed, buzzidentity.AgentSubject)
-		}
+		secretHex, errorValue := keyOwner.secretFor(ctx, author.Email)
+		failOn(errorValue, "ask for the Buzz key of "+author.Email)
 		authorSecrets[author.Email] = secretHex
 		pubkey, errorValue := nostr.GetPublicKey(secretHex)
 		failOn(errorValue, "derive pubkey for "+author.Email)
@@ -888,6 +889,46 @@ func readerPubkeyFor(channel buzzimport.MattermostChannel, viewerPubkey string) 
 		return viewerPubkey
 	}
 	return ""
+}
+
+type identityOwner struct {
+	endpoint string
+}
+
+func newIdentityOwner(endpoint string) identityOwner {
+	return identityOwner{endpoint: strings.TrimSpace(endpoint)}
+}
+
+func (owner identityOwner) secretFor(ctx context.Context, email string) (string, error) {
+	if owner.endpoint == "" {
+		return "", errors.New("no identity endpoint was given, and an import must not invent a key of its own")
+	}
+	response, errorValue := owner.ask(ctx, email)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("%s answered %d for %s", owner.endpoint, response.StatusCode, email)
+	}
+	var document struct {
+		SecretHex string `json:"secretHex"`
+	}
+	if errorValue := json.NewDecoder(response.Body).Decode(&document); errorValue != nil {
+		return "", errorValue
+	}
+	if document.SecretHex == "" {
+		return "", fmt.Errorf("%s named no key for %s", owner.endpoint, email)
+	}
+	return document.SecretHex, nil
+}
+
+func (owner identityOwner) ask(ctx context.Context, email string) (*http.Response, error) {
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, owner.endpoint+"?email="+url.QueryEscape(email), nil)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return http.DefaultClient.Do(request)
 }
 
 func deriveSecret(seed, email string) string {
