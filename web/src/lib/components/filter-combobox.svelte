@@ -24,6 +24,7 @@
 		searchPlaceholder,
 		clearValue = '',
 		canClearSelection = true,
+		searchable = true,
 		disabled = false,
 		id,
 		class: className,
@@ -39,6 +40,7 @@
 		searchPlaceholder?: string;
 		clearValue?: string;
 		canClearSelection?: boolean;
+		searchable?: boolean;
 		disabled?: boolean;
 		id?: string;
 		class?: string;
@@ -102,7 +104,9 @@
 	</Popover.Trigger>
 	<Popover.Content class={cn('w-[200px] p-0', contentClass)}>
 		<Command.Root>
-			<Command.Input placeholder={searchPlaceholder ?? text.search} />
+			{#if searchable}
+				<Command.Input placeholder={searchPlaceholder ?? text.search} />
+			{/if}
 			<Command.List>
 				<Command.Empty>{text.searchNoResults}</Command.Empty>
 				<Command.Group value="options">
