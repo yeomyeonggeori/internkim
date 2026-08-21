@@ -36,6 +36,8 @@
 	import CRMRelationshipTable from './crm-relationship-table.svelte';
 	import CRMReportDashboard from './crm-report-dashboard.svelte';
 	import { buildCRMKPICards } from './crm-kpi';
+	import { crmViewCurrency } from './crm-view-currency.svelte';
+	import CRMViewCurrencySelect from './crm-view-currency-select.svelte';
 	import type {
 		CRMOrganization,
 		CRMOrganizationStatus,
@@ -151,7 +153,8 @@
 	let selectedContact = $derived(selectedContactID ? controller.contacts.find((contact) => contact.id === selectedContactID) : undefined);
 	let selectedOpportunity = $derived(selectedOpportunityID ? controller.opportunities.find((opportunity) => opportunity.id === selectedOpportunityID) : undefined);
 	let selectedActivity = $derived(selectedActivityID ? controller.activities.find((activity) => activity.id === selectedActivityID) : undefined);
-	let kpiCards = $derived(buildCRMKPICards(currencyCatalogue, controller.organizations, controller.opportunities, controller.nextActions, controller.stages, text, undefined, currentLocale.value));
+	let opportunityCurrencies = $derived([...new Set(controller.opportunities.map((opportunity) => opportunity.currency))]);
+	let kpiCards = $derived(buildCRMKPICards(currencyCatalogue, controller.organizations, controller.opportunities, controller.nextActions, controller.stages, text, undefined, currentLocale.value, crmViewCurrency));
 
 	function openOrganization(organizationID: string): void {
 		selectedOrganizationID = organizationID;
@@ -266,11 +269,11 @@
 			<span class="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground text-background"><HandshakeIcon class="size-4" /></span>
 			<h1 class="text-xl font-semibold">{text.title}</h1>
 		</div>
-		<label class="relative order-last min-w-0 basis-full lg:order-none lg:ml-auto lg:max-w-md lg:flex-1">
+		<label class="relative order-last min-w-0 basis-full lg:order-none lg:ml-auto lg:max-w-xs lg:flex-1">
 			<SearchIcon class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 			<Input bind:value={searchQuery} class="h-8 pl-9" placeholder={text.searchPlaceholder} disabled={controller.isLoading} />
 		</label>
-		<div class="ml-auto flex shrink-0 items-center gap-2 lg:ml-0"><CRMQuickCreateMenu {text} onCreate={openCreateSheet} /></div>
+		<div class="ml-auto flex shrink-0 items-center gap-2 lg:ml-0"><CRMViewCurrencySelect {text} {currencyCatalogue} sourceCurrencies={opportunityCurrencies} /><CRMQuickCreateMenu {text} onCreate={openCreateSheet} /></div>
 	</header>
 
 	{#if feedbackMessage}
