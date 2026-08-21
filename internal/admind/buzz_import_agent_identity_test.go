@@ -7,18 +7,21 @@ import (
 	"testing"
 )
 
-// The agent is one identity across the import and everything after it. Without
-// --agent-email its history is signed with a key derived from the bot's
-// messenger address rather than the one chatd answers with, so the company reads
-// its own agent as a stranger.
-func TestEveryImportPathNamesTheAgent(t *testing.T) {
+// A person's Buzz key belongs to the bridge: it versions the subject, keeps the
+// agent apart from its bot address, and pins the result. An import left to
+// derive its own writes history signed by people nothing else can act as, and
+// puts members in rooms that the writers are then refused from.
+func TestEveryImportPathAsksWhoOwnsAPersonsKey(t *testing.T) {
 	callers := map[string]string{
 		"recovery.go":          buzzReimportCommand(),
 		"step_buzz_migrate.go": readImportStep(t),
 	}
 	for name, command := range callers {
-		if !strings.Contains(command, "--agent-email") {
-			t.Errorf("%s runs buzz-migrate without --agent-email, so the agent's history gets a key nothing else uses", name)
+		if !strings.Contains(command, "--identity-url") {
+			t.Errorf("%s runs buzz-migrate without --identity-url, so it derives keys of its own", name)
+		}
+		if strings.Contains(command, "--agent-email") {
+			t.Errorf("%s still names the agent by address; the bridge is what knows the agent's identity", name)
 		}
 	}
 }
