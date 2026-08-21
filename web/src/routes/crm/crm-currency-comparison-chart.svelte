@@ -23,7 +23,7 @@
 		<Card.Title class="text-base">{text.currencyValueComparison}</Card.Title>
 		<Card.Description>{text.currencyValueComparisonDescription}</Card.Description>
 	</Card.Header>
-	<Card.Content class="grid gap-5">
+	<Card.Content class="max-h-[28rem] overflow-y-auto pb-8 [mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)] grid gap-5">
 		{#each rows as row (row.currency)}
 			<div
 				class="grid min-w-0 gap-2"
