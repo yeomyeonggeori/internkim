@@ -131,11 +131,11 @@ function buildRelationshipHealth(organizations: CRMOrganization[], text: CRMText
 	};
 }
 
-function buildFollowUpHealth(nextActions: CRMNextAction[], text: CRMText): CRMKPICardData {
+function buildFollowUpHealth(nextActions: CRMNextAction[], text: CRMText, today: string): CRMKPICardData {
 	const openActions = nextActions.filter((action) => action.status !== 'done');
-	const overdue = openActions.filter((action) => getActionUrgency(action) === 'overdue');
-	const dueSoon = openActions.filter((action) => ['today', 'due_soon'].includes(getActionUrgency(action)));
-	const scheduled = openActions.filter((action) => getActionUrgency(action) === 'scheduled');
+	const overdue = openActions.filter((action) => getActionUrgency(action, today) === 'overdue');
+	const dueSoon = openActions.filter((action) => ['today', 'due_soon'].includes(getActionUrgency(action, today)));
+	const scheduled = openActions.filter((action) => getActionUrgency(action, today) === 'scheduled');
 
 	return {
 		id: 'follow-up-health',
@@ -201,7 +201,7 @@ export function buildCRMKPICards(
 	return [
 		buildPipelineHealth(catalogue, opportunities, stages, text, locale, view),
 		buildRelationshipHealth(organizations, text, today),
-		buildFollowUpHealth(nextActions, text),
+		buildFollowUpHealth(nextActions, text, today),
 		buildPipelineComposition(organizations, opportunities, pipelines, stages, text)
 	];
 }
