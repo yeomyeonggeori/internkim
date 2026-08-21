@@ -63,7 +63,7 @@ export function mapCRMViewData(
 		contacts: data.contacts.map((contact) => mapContact(contact)),
 		opportunities,
 		activities,
-		nextActions: [],
+		nextActions: nextActionsOf(activities, timeZone),
 		pipelines: data.pipelines.map((pipeline) => ({ ...pipeline })),
 		stages,
 		vocabulary: structuredClone(data.vocabulary),
@@ -341,6 +341,22 @@ function mapOpportunity(
 		lostReason: opportunity.lostReason,
 		contacts: (opportunity.contacts ?? []).map((contact) => ({ ...contact }))
 	};
+}
+
+const closedTaskStatuses = ['done', 'cancelled'];
+
+function nextActionsOf(activities: CRMActivity[], timeZone: string): CRMNextAction[] {
+	return activities
+		.filter((activity) => activity.organizationID !== '' && !closedTaskStatuses.includes(activity.taskStatus ?? ''))
+		.map((activity) => ({
+			id: activity.id,
+			organizationID: activity.organizationID,
+			opportunityID: activity.opportunityID,
+			title: activity.title,
+			ownerName: activity.taskOwnerName ?? '',
+			dueDate: utcToLocalDate(activity.occurredAt, timeZone),
+			status: (activity.taskStatus ?? 'todo') as CRMNextAction['status']
+		}));
 }
 
 function mapActivity(activity: CRMActivityResponse): CRMActivity {
