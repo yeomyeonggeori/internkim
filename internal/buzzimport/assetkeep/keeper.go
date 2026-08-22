@@ -87,8 +87,16 @@ func ExtensionOf(contentType string) string {
 	return extensions[strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))]
 }
 
+// The object's own address, not a signed one: whoever reads it signs for
+// themselves with their own session, so nothing that expires is written into an
+// event that cannot be edited afterwards. attachmentAddress in
+// host/relay/asset-store.ts decides the same address from the other side.
+func Address(projectURL, path string) string {
+	return fmt.Sprintf("%s/storage/v1/object/%s/%s", strings.TrimRight(projectURL, "/"), bucket, path)
+}
+
 func (keeper *Keeper) address(path string) string {
-	return fmt.Sprintf("%s/storage/v1/object/%s/%s", strings.TrimRight(keeper.ProjectURL, "/"), bucket, path)
+	return Address(keeper.ProjectURL, path)
 }
 
 func (keeper *Keeper) write(ctx context.Context, session hostSession, path string, content []byte, contentType string) error {

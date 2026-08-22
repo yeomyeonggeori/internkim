@@ -184,4 +184,10 @@ func TestAssetPathMatchesTheRelay(t *testing.T) {
 	if strings.Count(relay, "': '.") != len(extensions) {
 		t.Errorf("the relay knows %d extensions, this knows %d", strings.Count(relay, "': '."), len(extensions))
 	}
+	if !strings.Contains(relay, "export const assetBucket = '"+bucket+"'") {
+		t.Errorf("the relay keeps assets somewhere other than the %s bucket", bucket)
+	}
+	if !strings.Contains(relay, "return `${projectURL.replace(/\\/+$/, '')}/storage/v1/object/${assetBucket}/${path}`") {
+		t.Error("the relay no longer addresses an object as <project>/storage/v1/object/<bucket>/<path>")
+	}
 }
