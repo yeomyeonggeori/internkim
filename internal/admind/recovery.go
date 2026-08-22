@@ -843,7 +843,8 @@ export BUZZ_RELAY_PRIVATE_KEY=$(grep '^BUZZ_RELAY_PRIVATE_KEY=' /root/.internkim
 rm -f ` + marker + `
 cat > /tmp/buzz-reimport-run.sh <<'RUNEOF'
 export DATABASE_URL="$DB_URL"
-` + blueclaw.BuzzMigrateBinaryPath + ` \
+` + centralPlaneFlagsForBuzzMigrate() + `
+` + blueclaw.BuzzMigrateBinaryPath + ` $CENTRAL \
   --mattermost-url ` + blueclaw.BlueclawMattermostLocalURL + ` \
   --mattermost-token-path ` + blueclaw.BlueclawMattermostTokenPath + ` \
   --team "$TEAM" \
@@ -965,6 +966,25 @@ journalctl -u ` + blueclaw.ChatdServiceName + ` -n 10 --no-pager 2>&1 | tail -10
 // future skips the wipe and every message, which is the difference between the
 // channels carrying their company's name today and waiting for whoever runs the
 // next re-import.
+// buzz-migrate reads the company's picture out of its closed bucket and puts it
+// where the messenger's own store serves it. The four settings that reach the
+// central plane go together or not at all: keeperFrom dies on a partial set, and
+// a device whose company has not moved yet has none of them.
+func centralPlaneFlagsForBuzzMigrate() string {
+	return `
+CENTRAL=""
+if [ -r ` + blueclaw.RelayEnvironmentFilePath + ` ] && [ -r ` + blueclaw.RelayAgentKeyPath + ` ]; then
+  APP_URL=$(grep '^INTERNKIM_APP_URL=' ` + blueclaw.RelayEnvironmentFilePath + ` | head -1 | sed 's/^INTERNKIM_APP_URL=//')
+  SUPABASE_URL=$(grep '^SUPABASE_URL=' ` + blueclaw.RelayEnvironmentFilePath + ` | head -1 | sed 's/^SUPABASE_URL=//')
+  SUPABASE_KEY=$(grep '^SUPABASE_PUBLISHABLE_KEY=' ` + blueclaw.RelayEnvironmentFilePath + ` | head -1 | sed 's/^SUPABASE_PUBLISHABLE_KEY=//')
+  if [ -n "$APP_URL" ] && [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_KEY" ]; then
+    CENTRAL="--app-url $APP_URL --agent-key-path ` + blueclaw.RelayAgentKeyPath + ` --supabase-url $SUPABASE_URL --supabase-publishable-key $SUPABASE_KEY"
+  fi
+fi
+if [ -z "$CENTRAL" ]; then echo "no central plane on this device: the company keeps whatever picture it already had"; fi
+`
+}
+
 func buzzRefreshProfilesCommand() string {
 	return strings.TrimSpace(`
 set -e
@@ -974,7 +994,8 @@ TEAM=$(curl -fsS -H "Authorization: Bearer $(cat $MM_TOKEN_PATH)" ` + blueclaw.B
 PUBLIC_HOST=$(systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | sed -n 's/^RELAY_URL=//p' | head -1 | sed -E 's#^[a-z]+://##; s#/.*$##')
 if [ -z "$PUBLIC_HOST" ]; then echo "the relay names no public host, and a profile keyed to a guess lands in a community nothing serves"; exit 1; fi
 export DATABASE_URL="$DB_URL"
-` + blueclaw.BuzzMigrateBinaryPath + ` \
+` + centralPlaneFlagsForBuzzMigrate() + `
+` + blueclaw.BuzzMigrateBinaryPath + ` $CENTRAL \
   --mattermost-url ` + blueclaw.BlueclawMattermostLocalURL + ` \
   --mattermost-token-path $MM_TOKEN_PATH \
   --team "$TEAM" \
