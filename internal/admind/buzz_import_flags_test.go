@@ -18,8 +18,9 @@ var importerFlagDefinition = regexp.MustCompile(`flag\.(?:String|Int64|Bool)\("(
 func TestEveryFlagTheImportCallersPassIsDefined(t *testing.T) {
 	defined := definedImporterFlags(t)
 	for name, command := range map[string]string{
-		"recovery.go":          buzzReimportCommand(),
-		"step_buzz_migrate.go": readImportStep(t),
+		"recovery.go: re-import":        buzzReimportCommand(),
+		"recovery.go: refresh profiles": buzzRefreshProfilesCommand(),
+		"step_buzz_migrate.go":          readImportStep(t),
 	} {
 		for _, flagName := range passedImporterFlags(command) {
 			if !defined[flagName] {
