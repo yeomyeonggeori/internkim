@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -118,9 +120,14 @@ func (injector recordingProfileInjector) InjectProfile(_ context.Context, event 
 	return nil
 }
 
-func TestTheChannelMakerIsGivenAName(t *testing.T) {
+func TestTheChannelMakerIsGivenTheCompanysOwnName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
+		responseWriter.Write([]byte(`{"name":"여명거리","profileImage":"a/shared/face/company.png"}`))
+	}))
+	defer server.Close()
 	published := []string{}
-	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, strings.Repeat("1", 64), "여명거리")
+
+	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, newBridge(server.URL), strings.Repeat("1", 64))
 
 	if len(published) != 1 {
 		t.Fatalf("published %v", published)
@@ -128,13 +135,23 @@ func TestTheChannelMakerIsGivenAName(t *testing.T) {
 	if !strings.Contains(published[0], "여명거리") {
 		t.Errorf("profile = %q", published[0])
 	}
+	if !strings.Contains(published[0], "a/shared/face/company.png") {
+		t.Errorf("the company's picture did not come with its name: %q", published[0])
+	}
 }
 
-func TestACompanyWithNoNameIsNotGivenAMadeUpOne(t *testing.T) {
+// Naming the company after the messenger it happens to run is how a company gets
+// introduced by the product rather than by itself.
+func TestACompanyTheBridgeCannotNameIsNotNamedAnyway(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
+		responseWriter.Write([]byte(`{"name":"","profileImage":""}`))
+	}))
+	defer server.Close()
 	published := []string{}
-	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, strings.Repeat("1", 64), "   ")
+
+	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, newBridge(server.URL), strings.Repeat("1", 64))
 
 	if len(published) != 0 {
-		t.Errorf("published %v for a company that named itself nothing", published)
+		t.Errorf("published %v for a company the bridge could not name", published)
 	}
 }

@@ -86,7 +86,7 @@ func main() {
 	ctx := context.Background()
 	client := mattermostrest.Client{BaseURL: strings.TrimRight(*mattermostBaseURL, "/"), Token: mattermostToken}
 
-	teamID, companyName, errorValue := client.Team(ctx, *teamName)
+	teamID, errorValue := client.Team(ctx, *teamName)
 	failOn(errorValue, "resolve team")
 	users, errorValue := client.Users(ctx)
 	failOn(errorValue, "read users")
@@ -195,7 +195,7 @@ func main() {
 	}
 	running.Wait()
 	injectAuthorProfiles(ctx, injector, uploader, client, authorSecrets, authorsByID, postedEmails)
-	injectCompanyProfile(ctx, injector, bootstrapSecret, companyName)
+	injectCompanyProfile(ctx, injector, bridge, bootstrapSecret)
 	fmt.Printf("done: %d channels, %d messages imported, %s\n", len(channels), totalImported, totalSkipped)
 }
 
@@ -444,12 +444,13 @@ type profileInjector interface {
 // The key that owns the relay creates every imported channel and stands in each
 // of them forever, and it never writes a message — so nothing else would ever
 // give it a profile.
-func injectCompanyProfile(ctx context.Context, injector profileInjector, bootstrapSecret, companyName string) {
-	if strings.TrimSpace(companyName) == "" {
-		log.Printf("the team carries no name, so the identity that made the channels keeps showing its pubkey")
+func injectCompanyProfile(ctx context.Context, injector profileInjector, client bridgeClient, bootstrapSecret string) {
+	company, errorValue := client.company(ctx)
+	if errorValue != nil {
+		log.Printf("the identity that made the channels keeps showing its pubkey: %v", errorValue)
 		return
 	}
-	event, errorValue := buzzimport.BuildProfileEvent(bootstrapSecret, companyName, "")
+	event, errorValue := buzzimport.BuildProfileEvent(bootstrapSecret, company.Name, company.ProfileImage)
 	if errorValue != nil {
 		log.Printf("build the company profile failed: %v", errorValue)
 		return
@@ -962,6 +963,33 @@ func (client bridgeClient) secretFor(ctx context.Context, email string) (string,
 		return "", fmt.Errorf("the bridge named no key for %s", email)
 	}
 	return document.SecretHex, nil
+}
+
+type companyIdentity struct {
+	Name         string `json:"name"`
+	ProfileImage string `json:"profileImage"`
+}
+
+func (client bridgeClient) company(ctx context.Context) (companyIdentity, error) {
+	if client.baseURL == "" {
+		return companyIdentity{}, errors.New("no bridge was given, and an import must not name the company after something else")
+	}
+	response, errorValue := client.get(ctx, "/company")
+	if errorValue != nil {
+		return companyIdentity{}, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return companyIdentity{}, fmt.Errorf("the bridge answered %d for the company", response.StatusCode)
+	}
+	var company companyIdentity
+	if errorValue := json.NewDecoder(response.Body).Decode(&company); errorValue != nil {
+		return companyIdentity{}, errorValue
+	}
+	if strings.TrimSpace(company.Name) == "" {
+		return companyIdentity{}, errors.New("the bridge named no company")
+	}
+	return company, nil
 }
 
 func (client bridgeClient) recordChannel(ctx context.Context, buzzChannelID, externalChannelID string) error {
