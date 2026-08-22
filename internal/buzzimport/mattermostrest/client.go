@@ -299,17 +299,18 @@ func (client Client) UserImage(ctx context.Context, userID string) ([]byte, stri
 	return client.getBytes(ctx, "/api/v4/users/"+url.PathEscape(userID)+"/image")
 }
 
-func (client Client) Team(ctx context.Context, name string) (string, error) {
+func (client Client) Team(ctx context.Context, name string) (string, string, error) {
 	var team struct {
-		ID string `json:"id"`
+		ID          string `json:"id"`
+		DisplayName string `json:"display_name"`
 	}
 	if errorValue := client.get(ctx, "/api/v4/teams/name/"+url.PathEscape(name), &team); errorValue != nil {
-		return "", errorValue
+		return "", "", errorValue
 	}
 	if team.ID == "" {
-		return "", errors.New("team not found")
+		return "", "", errors.New("team not found")
 	}
-	return team.ID, nil
+	return team.ID, strings.TrimSpace(team.DisplayName), nil
 }
 
 // Post fetches a single post by id without the type/empty filters Posts applies,
