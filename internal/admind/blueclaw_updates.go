@@ -290,7 +290,7 @@ func (service *Service) runBlueclawUpdateJob(ctx context.Context, jobID string, 
 		service.updateJob(jobID, "failed", "verifying", errorValue.Error())
 		return
 	}
-	if service.isBlueclawPayloadAlreadyCurrent(artifactPath) {
+	if service.isBlueclawPayloadAlreadyCurrent(ctx, artifactPath) {
 		if errorValue := service.refreshBlueclawDeliveryShares(ctx, jobID); errorValue != nil {
 			_, _ = service.runCommand(ctx, "sh", "-lc", blueclawruntime.StartAfterPayloadSyncCommand())
 			service.updateJob(jobID, "failed", "workspace_sync", errorValue.Error())
@@ -399,7 +399,7 @@ func (service *Service) refreshBlueclawDeliveryForTarget(ctx context.Context, jo
 // fails to cross that boundary is invisible from the host until the guest
 // starts rejecting every capability endpoint and exiting.
 func (service *Service) verifyGuestProtocolIdentityStamp(ctx context.Context, target blueclawPayloadInstallTarget) error {
-	expected := blueclawruntime.CurrentCapabilityContract().AggregateProtocolHash
+	expected := service.capabilityContractForStamping(ctx).AggregateProtocolHash
 	if strings.TrimSpace(expected) == "" {
 		return nil
 	}
@@ -608,7 +608,7 @@ func isActiveBlueclawTaskStatus(status string) bool {
 	return false
 }
 
-func (service *Service) isBlueclawPayloadAlreadyCurrent(artifactPath string) bool {
+func (service *Service) isBlueclawPayloadAlreadyCurrent(ctx context.Context, artifactPath string) bool {
 	manifestDocument, errorValue := os.ReadFile(filepath.Join(artifactPath, "manifest.json"))
 	if errorValue != nil {
 		return false
@@ -625,7 +625,7 @@ func (service *Service) isBlueclawPayloadAlreadyCurrent(artifactPath string) boo
 		if matches, _ := service.blueclawWorkspaceManifestMatchesTarget(artifactPath, target); !matches {
 			return false
 		}
-		if !isBlueclawRuntimeConfigurationCurrentForTarget(target, blueclawruntime.CurrentCapabilityContract()) {
+		if !isBlueclawRuntimeConfigurationCurrentForTarget(target, service.capabilityContractForStamping(ctx)) {
 			return false
 		}
 	}

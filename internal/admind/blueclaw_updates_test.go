@@ -822,3 +822,28 @@ func TestNothingOnThePayloadPathReadsTheWorkspaceImage(t *testing.T) {
 		}
 	}
 }
+
+// The admind applying a release is always the one the previous release
+// installed, so its own compiled contract is a release behind. Judging the
+// guest stamp against it let a device whose capabilityd already served a new
+// aggregate hash report itself current, and the guest kept the pin it booted
+// with until its connector refused to start.
+func TestTheGuestStampIsVerifiedAgainstTheRunningCapabilityd(t *testing.T) {
+	const servedHash = "2222222222222222222222222222222222222222222222222222222222222222"
+	socketPath := serveCapabilityRegistryOnSocket(t, `{"protocolVersion":"0.4.0","aggregateProtocolHash":"`+servedHash+`","capabilities":[{"name":"task_write"}]}`)
+	service := &Service{Configuration: Configuration{CapabilitySocketPath: socketPath}}
+	service.RunCommand = func(_ context.Context, _ string, _ ...string) ([]byte, error) {
+		stampedWithThisBinarysContract := `{"capabilities":{"aggregateProtocolHash":"` +
+			blueclawruntime.CurrentCapabilityContract().AggregateProtocolHash + `"}}`
+		return []byte(stampedWithThisBinarysContract), nil
+	}
+
+	errorValue := service.verifyGuestProtocolIdentityStamp(context.Background(), canonicalBlueclawPayloadInstallTarget())
+
+	if errorValue == nil {
+		t.Fatal("a guest stamped with this admind's own contract must fail against the hash capabilityd serves")
+	}
+	if !strings.Contains(errorValue.Error(), servedHash) {
+		t.Fatalf("the failure must name the hash the device actually serves, got %v", errorValue)
+	}
+}
