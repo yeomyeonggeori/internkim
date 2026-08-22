@@ -1014,22 +1014,56 @@ func releaseComponentRevision(name string, repositoryRootPath string, gitRevisio
 	case "chatd":
 		return blueclawSubmoduleRevision(repositoryRootPath)
 	}
-	return revisionOfPaths(repositoryRootPath, componentSourcePaths[name], gitRevision)
+	paths := componentSourcePaths[name]
+	if len(paths) == 1 && strings.HasPrefix(paths[0], "cmd/") {
+		if dependencyPaths := goComponentSourcePaths(repositoryRootPath, paths[0]); len(dependencyPaths) > 0 {
+			paths = dependencyPaths
+		}
+	}
+	return revisionOfPaths(repositoryRootPath, paths, gitRevision)
 }
 
 // Where each component's source lives, so a commit that does not touch it does
 // not make it look changed. A component with no entry keeps the repository's
 // own revision, which is the conservative answer.
+//
+// Go binaries name only their main package. Listing their libraries by hand
+// made the revision a guess at what the binary compiles: admind and capabilityd
+// both embed the generated capability catalog, so regenerating the protocol
+// changed the contract they serve while leaving both revisions untouched, and
+// the release guard waved through a device whose halves disagreed.
 var componentSourcePaths = map[string][]string{
-	"internkim":          {"cmd/internkim", "internal/cli", "internal/deviceassets", "internal/releaseset"},
-	"admind":             {"cmd/internkim-admind", "internal/admind", "internal/runtime"},
-	"capabilityd":        {"cmd/internkim-capabilityd", "internal/capabilityd"},
-	"blueclawSupervisor": {"cmd/blueclaw-supervisor", "internal/runtime"},
+	"internkim":          {"cmd/internkim"},
+	"admind":             {"cmd/internkim-admind"},
+	"capabilityd":        {"cmd/internkim-capabilityd"},
+	"blueclawSupervisor": {"cmd/blueclaw-supervisor"},
 	"skills":             {"assets/skills"},
 	"fonts":              {"assets/fonts"},
 	"mattermostPlugins":  {"mattermost-plugin"},
 	"relay":              {"host/relay"},
-	"buzzMigrate":        {"cmd/buzz-migrate", "internal/buzzimport"},
+	"buzzMigrate":        {"cmd/buzz-migrate"},
+}
+
+const internkimModulePath = "gitlab.com/eastriver/internkim/"
+
+// Everything the main package compiles from this module, so a change anywhere
+// in its dependency graph moves its revision. Asking the toolchain keeps this
+// exact as the graph changes; a list kept by hand only stays right until the
+// next import.
+func goComponentSourcePaths(repositoryRootPath string, mainPackagePath string) []string {
+	listed := runCmd("go", "-C", repositoryRootPath, "list", "-deps", "./"+mainPackagePath)
+	paths := []string{}
+	for _, line := range strings.Split(listed, "\n") {
+		importPath := strings.TrimSpace(line)
+		if !strings.HasPrefix(importPath, internkimModulePath) {
+			continue
+		}
+		paths = append(paths, strings.TrimPrefix(importPath, internkimModulePath))
+	}
+	if len(paths) == 0 {
+		return nil
+	}
+	return paths
 }
 
 func revisionOfPaths(repositoryRootPath string, paths []string, fallback string) string {
