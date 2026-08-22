@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -183,6 +183,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		reimportContext, cancelReimport := context.WithTimeout(context.Background(), 300*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(reimportContext, "re-import Mattermost history into Buzz (wipe + bot-inclusive, loopback membership, self-healing)", "sh", "-lc", buzzReimportCommand()))
 		cancelReimport()
+	case "buzz-refresh-profiles":
+		profileContext, cancelProfiles := context.WithTimeout(context.Background(), 180*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(profileContext, "publish the names and faces without importing anything", "sh", "-lc", buzzRefreshProfilesCommand()))
+		cancelProfiles()
 	case "buzz-reimport-log":
 		logContext, cancelLog := context.WithTimeout(context.Background(), 60*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(logContext, "tail Buzz re-import logs", "sh", "-lc", buzzReimportLogCommand()))
@@ -953,6 +957,35 @@ echo "== chatd :18090 listening? =="
 ss -ltn 2>/dev/null | grep -q ':18090' && echo ':18090 LISTENING' || echo ':18090 NOT listening'
 echo "== chatd journal (last 10) =="
 journalctl -u ` + blueclaw.ChatdServiceName + ` -n 10 --no-pager 2>&1 | tail -10
+`)
+}
+
+// Names and faces are published at the end of an import whatever it carried, so
+// an import that reaches no post publishes them and nothing else. A since in the
+// future skips the wipe and every message, which is the difference between the
+// channels carrying their company's name today and waiting for whoever runs the
+// next re-import.
+func buzzRefreshProfilesCommand() string {
+	return strings.TrimSpace(`
+set -e
+MM_TOKEN_PATH=` + blueclaw.BlueclawMattermostTokenPath + `
+DB_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
+TEAM=$(curl -fsS -H "Authorization: Bearer $(cat $MM_TOKEN_PATH)" ` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/teams | jq -r '.[0].name')
+PUBLIC_HOST=$(systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | sed -n 's/^RELAY_URL=//p' | head -1 | sed -E 's#^[a-z]+://##; s#/.*$##')
+if [ -z "$PUBLIC_HOST" ]; then echo "the relay names no public host, and a profile keyed to a guess lands in a community nothing serves"; exit 1; fi
+export DATABASE_URL="$DB_URL"
+` + blueclaw.BuzzMigrateBinaryPath + ` \
+  --mattermost-url ` + blueclaw.BlueclawMattermostLocalURL + ` \
+  --mattermost-token-path $MM_TOKEN_PATH \
+  --team "$TEAM" \
+  --buzz-database-url "$DB_URL" \
+  --buzz-admin ` + blueclaw.BuzzAdminBinaryPath + ` \
+  --key-seed-path /root/.internkim/secrets/buzz-key-seed \
+  --bridge-url ` + blueclaw.AdmindBaseURL + `/bridge/api \
+  --relay-url wss://$PUBLIC_HOST \
+  --relay-http-url https://$PUBLIC_HOST \
+  --community-host "$PUBLIC_HOST" \
+  --since $(( $(date -u +%s) * 1000 + 60000 )) 2>&1 | tail -20
 `)
 }
 

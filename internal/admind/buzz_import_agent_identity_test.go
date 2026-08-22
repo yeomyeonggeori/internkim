@@ -13,8 +13,9 @@ import (
 // puts members in rooms that the writers are then refused from.
 func TestEveryImportPathAsksWhoOwnsAPersonsKey(t *testing.T) {
 	callers := map[string]string{
-		"recovery.go":          buzzReimportCommand(),
-		"step_buzz_migrate.go": readImportStep(t),
+		"recovery.go: re-import":        buzzReimportCommand(),
+		"recovery.go: refresh profiles": buzzRefreshProfilesCommand(),
+		"step_buzz_migrate.go":          readImportStep(t),
 	}
 	for name, command := range callers {
 		if !strings.Contains(command, "--bridge-url") {
