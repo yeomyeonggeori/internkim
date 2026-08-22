@@ -846,7 +846,7 @@ export DATABASE_URL="$DB_URL"
   --buzz-database-url "$DB_URL" \
   --buzz-admin ` + blueclaw.BuzzAdminBinaryPath + ` \
   --key-seed-path /root/.internkim/secrets/buzz-key-seed \
-  --identity-url ` + blueclaw.AdmindBaseURL + `/bridge/api/identity \
+  --bridge-url ` + blueclaw.AdmindBaseURL + `/bridge/api \
   --relay-url wss://$PUBLIC_HOST \
   --relay-http-url https://$PUBLIC_HOST \
   --community-host "$PUBLIC_HOST" \
