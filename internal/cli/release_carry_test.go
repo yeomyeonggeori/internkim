@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -78,4 +79,40 @@ func TestAComponentThisTreeCannotBuildIsCarriedRatherThanBlocking(t *testing.T) 
 	if carried["blueclawPayload"].Revision != "payload-7" {
 		t.Fatalf("the device must keep the payload it has, got %+v", carried["blueclawPayload"])
 	}
+}
+
+// admind and capabilityd both embed the generated capability catalog, so a
+// release that regenerates the protocol changes the contract they serve. While
+// their source paths were kept by hand the catalog was absent from both, their
+// revisions did not move, and the guard carried a device forward whose halves
+// pinned different protocol hashes.
+func TestAGoComponentCoversEverythingItCompiles(t *testing.T) {
+	for componentName, mainPackagePath := range map[string]string{
+		"admind":      "cmd/internkim-admind",
+		"capabilityd": "cmd/internkim-capabilityd",
+	} {
+		t.Run(componentName, func(t *testing.T) {
+			paths := goComponentSourcePaths(repositoryRootForTest(t), mainPackagePath)
+			if len(paths) == 0 {
+				t.Fatalf("expected %s to report the packages it compiles", componentName)
+			}
+			for _, required := range []string{"pkg/capabilityprotocol", "internal/capabilities"} {
+				if !slices.Contains(paths, required) {
+					t.Fatalf("expected %s source paths to cover %s, got %v", componentName, required, paths)
+				}
+			}
+			if entry := componentSourcePaths[componentName]; len(entry) != 1 || entry[0] != mainPackagePath {
+				t.Fatalf("expected %s to name only its main package so the revision is derived, got %v", componentName, entry)
+			}
+		})
+	}
+}
+
+func repositoryRootForTest(t *testing.T) string {
+	t.Helper()
+	root := strings.TrimSpace(runCmd("git", "rev-parse", "--show-toplevel"))
+	if root == "" {
+		t.Skip("release carry test needs a git checkout")
+	}
+	return root
 }
