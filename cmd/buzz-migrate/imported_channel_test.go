@@ -2,9 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"strings"
 	"testing"
+
+	nostr "github.com/nbd-wtf/go-nostr"
 
 	"gitlab.com/eastriver/internkim/internal/buzzimport"
 	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostrest"
@@ -102,5 +105,36 @@ func TestAGroupTooBigForTheRelayIsImportedAsAChannel(t *testing.T) {
 
 	if isConversation {
 		t.Error("a group of nine others was sent to a verb that takes eight")
+	}
+}
+
+// The key that creates every imported channel never writes a message, so nothing
+// else gives it a profile and a company sees a bare pubkey saying it made their
+// channels.
+type recordingProfileInjector struct{ published *[]string }
+
+func (injector recordingProfileInjector) InjectProfile(_ context.Context, event nostr.Event) error {
+	*injector.published = append(*injector.published, event.Content)
+	return nil
+}
+
+func TestTheChannelMakerIsGivenAName(t *testing.T) {
+	published := []string{}
+	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, strings.Repeat("1", 64), "여명거리")
+
+	if len(published) != 1 {
+		t.Fatalf("published %v", published)
+	}
+	if !strings.Contains(published[0], "여명거리") {
+		t.Errorf("profile = %q", published[0])
+	}
+}
+
+func TestACompanyWithNoNameIsNotGivenAMadeUpOne(t *testing.T) {
+	published := []string{}
+	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, strings.Repeat("1", 64), "   ")
+
+	if len(published) != 0 {
+		t.Errorf("published %v for a company that named itself nothing", published)
 	}
 }

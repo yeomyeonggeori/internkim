@@ -86,7 +86,7 @@ func main() {
 	ctx := context.Background()
 	client := mattermostrest.Client{BaseURL: strings.TrimRight(*mattermostBaseURL, "/"), Token: mattermostToken}
 
-	teamID, errorValue := client.Team(ctx, *teamName)
+	teamID, companyName, errorValue := client.Team(ctx, *teamName)
 	failOn(errorValue, "resolve team")
 	users, errorValue := client.Users(ctx)
 	failOn(errorValue, "read users")
@@ -195,6 +195,7 @@ func main() {
 	}
 	running.Wait()
 	injectAuthorProfiles(ctx, injector, uploader, client, authorSecrets, authorsByID, postedEmails)
+	injectCompanyProfile(ctx, injector, bootstrapSecret, companyName)
 	fmt.Printf("done: %d channels, %d messages imported, %s\n", len(channels), totalImported, totalSkipped)
 }
 
@@ -433,6 +434,28 @@ func injectAuthorProfiles(ctx context.Context, injector buzzimport.ChannelInject
 		if errorValue := injector.InjectProfile(ctx, event); errorValue != nil {
 			log.Printf("inject profile for %s failed: %v", author.Email, errorValue)
 		}
+	}
+}
+
+type profileInjector interface {
+	InjectProfile(ctx context.Context, event nostr.Event) error
+}
+
+// The key that owns the relay creates every imported channel and stands in each
+// of them forever, and it never writes a message — so nothing else would ever
+// give it a profile.
+func injectCompanyProfile(ctx context.Context, injector profileInjector, bootstrapSecret, companyName string) {
+	if strings.TrimSpace(companyName) == "" {
+		log.Printf("the team carries no name, so the identity that made the channels keeps showing its pubkey")
+		return
+	}
+	event, errorValue := buzzimport.BuildProfileEvent(bootstrapSecret, companyName, "")
+	if errorValue != nil {
+		log.Printf("build the company profile failed: %v", errorValue)
+		return
+	}
+	if errorValue := injector.InjectProfile(ctx, event); errorValue != nil {
+		log.Printf("inject the company profile failed: %v", errorValue)
 	}
 }
 
