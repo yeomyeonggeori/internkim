@@ -45,9 +45,8 @@ export const companySettingsText = {
 		companyPicture: '회사 사진',
 		companyPictureChoose: '사진 바꾸기',
 		companyPictureRemove: '사진 지우기',
-		companyPictureHint: (megabytes: string) =>
-			`눌러서 바꿉니다. 정사각형으로 잘립니다. PNG, JPG, GIF, WebP, HEIC · ${megabytes}MB까지.`,
-		companyPictureTooBig: (megabytes: string, size: string) => `${megabytes}MB까지 올릴 수 있습니다. 이 파일은 ${size}입니다.`,
+		companyPictureHintTemplate: '눌러서 바꿉니다. 정사각형으로 잘립니다. PNG, JPG, GIF, WebP, HEIC · {megabytes}MB까지.',
+		companyPictureTooBigTemplate: '{megabytes}MB까지 올릴 수 있습니다. 이 파일은 {size}입니다.',
 		companyPictureSaved: '회사 사진을 바꿨습니다.',
 		companyPictureRemoved: '회사 사진을 지웠습니다.',
 		companyPictureFailed: '회사 사진을 바꾸지 못했습니다.',
@@ -114,9 +113,8 @@ export const companySettingsText = {
 		companyPicture: 'Company picture',
 		companyPictureChoose: 'Change the picture',
 		companyPictureRemove: 'Remove the picture',
-		companyPictureHint: (megabytes: string) =>
-			`Click to change. Cropped to a square. PNG, JPG, GIF, WebP, HEIC · up to ${megabytes}MB.`,
-		companyPictureTooBig: (megabytes: string, size: string) => `Up to ${megabytes}MB; this file is ${size}.`,
+		companyPictureHintTemplate: 'Click to change. Cropped to a square. PNG, JPG, GIF, WebP, HEIC · up to {megabytes}MB.',
+		companyPictureTooBigTemplate: 'Up to {megabytes}MB; this file is {size}.',
 		companyPictureSaved: 'The company picture changed.',
 		companyPictureRemoved: 'The company picture is gone.',
 		companyPictureFailed: 'The company picture did not change.',

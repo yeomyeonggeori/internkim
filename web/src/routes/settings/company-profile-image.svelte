@@ -42,7 +42,11 @@
 		if (!chosen) return;
 		const tooBig = refusalOfCompanyPicture(chosen);
 		if (tooBig) {
-			toast.error(text.companyPictureTooBig(String(companyPictureMegabytes), tooBig));
+			toast.error(
+				text.companyPictureTooBigTemplate
+					.replace('{megabytes}', String(companyPictureMegabytes))
+					.replace('{size}', tooBig)
+			);
 			return;
 		}
 		isBusy = true;
@@ -106,7 +110,7 @@
 		{/if}
 		<div class="grid gap-0.5">
 			<p class="text-sm font-medium">{name}</p>
-			<p class="text-xs text-muted-foreground">{text.companyPictureHint(String(companyPictureMegabytes))}</p>
+			<p class="text-xs text-muted-foreground">{text.companyPictureHintTemplate.replace('{megabytes}', String(companyPictureMegabytes))}</p>
 		</div>
 	</Card.Content>
 </Card.Root>
