@@ -1,10 +1,13 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
+	import CompanyAvatar from '$lib/components/company-avatar.svelte';
 	import * as Card from '$lib/components/ui/card';
-	import { Label } from '$lib/components/ui/label';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import {
+		companyPictureFormats,
+		companyPictureMegabytes,
 		forgetCompanyProfileImage,
 		loadCompanyProfileImage,
+		refusalOfCompanyPicture,
 		saveCompanyProfileImage
 	} from '$lib/company/profile-image';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -13,93 +16,97 @@
 	import { companySettingsText } from './text';
 
 	const text = createPageText(companySettingsText);
-	const fieldID = $props.id();
+	const pressable =
+		'rounded-md ring-offset-background transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-50';
 
+	let name = $state('');
 	let readableURL = $state('');
-	let hasPicture = $state(false);
-	let isLoading = $state(true);
-	let isSaving = $state(false);
+	let isBusy = $state(true);
 	let chooser = $state<HTMLInputElement | null>(null);
 
 	onMount(async () => {
 		try {
 			const picture = await loadCompanyProfileImage();
+			name = picture.name;
 			readableURL = picture.readableURL;
-			hasPicture = picture.path !== '';
 		} catch (failure) {
 			toast.error(text.companyPictureLoadFailed, { description: (failure as Error).message });
 		} finally {
-			isLoading = false;
+			isBusy = false;
 		}
 	});
 
 	async function choose(event: Event) {
 		const chosen = (event.target as HTMLInputElement).files?.[0];
+		if (chooser) chooser.value = '';
 		if (!chosen) return;
-		isSaving = true;
+		const tooBig = refusalOfCompanyPicture(chosen);
+		if (tooBig) {
+			toast.error(text.companyPictureTooBig(String(companyPictureMegabytes), tooBig));
+			return;
+		}
+		isBusy = true;
 		try {
-			const picture = await saveCompanyProfileImage(chosen);
-			readableURL = picture.readableURL;
-			hasPicture = true;
+			readableURL = (await saveCompanyProfileImage(chosen)).readableURL;
 			toast.success(text.companyPictureSaved);
 		} catch (failure) {
 			toast.error(text.companyPictureFailed, { description: (failure as Error).message });
 		} finally {
-			isSaving = false;
-			if (chooser) chooser.value = '';
+			isBusy = false;
 		}
 	}
 
 	async function forget() {
-		isSaving = true;
+		isBusy = true;
 		try {
 			await forgetCompanyProfileImage();
 			readableURL = '';
-			hasPicture = false;
 			toast.success(text.companyPictureRemoved);
 		} catch (failure) {
 			toast.error(text.companyPictureFailed, { description: (failure as Error).message });
 		} finally {
-			isSaving = false;
+			isBusy = false;
 		}
 	}
 </script>
 
 <Card.Root>
-	<Card.Header>
-		<Card.Title>{text.companyPicture}</Card.Title>
-		<Card.Description>{text.companyPictureDescription}</Card.Description>
-	</Card.Header>
-	<Card.Content class="grid gap-4">
-		<div class="flex items-center gap-4">
-			{#if readableURL}
-				<img src={readableURL} alt={text.companyPicture} class="size-16 rounded-md object-cover" />
-			{:else}
-				<div class="grid size-16 place-items-center rounded-md bg-muted text-xs text-muted-foreground">
-					{isLoading ? '' : text.companyPictureNone}
-				</div>
-			{/if}
-			<div class="grid gap-2">
-				<Label for={fieldID} class="sr-only">{text.companyPicture}</Label>
-				<input
-					bind:this={chooser}
-					id={fieldID}
-					type="file"
-					accept="image/*"
-					class="hidden"
-					onchange={choose}
-				/>
-				<div class="flex gap-2">
-					<Button variant="outline" disabled={isLoading || isSaving} onclick={() => chooser?.click()}>
-						{text.companyPictureChoose}
-					</Button>
-					{#if hasPicture}
-						<Button variant="ghost" disabled={isSaving} onclick={forget}>
-							{text.companyPictureRemove}
-						</Button>
-					{/if}
-				</div>
-			</div>
+	<Card.Content class="flex items-center gap-4">
+		<input
+			bind:this={chooser}
+			type="file"
+			accept={companyPictureFormats.join(',')}
+			class="hidden"
+			onchange={choose}
+		/>
+		{#if readableURL}
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger
+					disabled={isBusy}
+					class={pressable}
+					aria-label={text.companyPicture}
+				>
+					<CompanyAvatar {name} image={readableURL} class="size-14" />
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content align="start">
+					<DropdownMenu.Item onSelect={() => chooser?.click()}>{text.companyPictureChoose}</DropdownMenu.Item>
+					<DropdownMenu.Item variant="destructive" onSelect={forget}>{text.companyPictureRemove}</DropdownMenu.Item>
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+		{:else}
+			<button
+				type="button"
+				disabled={isBusy}
+				onclick={() => chooser?.click()}
+				class={pressable}
+				aria-label={text.companyPicture}
+			>
+				<CompanyAvatar {name} class="size-14" />
+			</button>
+		{/if}
+		<div class="grid gap-0.5">
+			<p class="text-sm font-medium">{name}</p>
+			<p class="text-xs text-muted-foreground">{text.companyPictureHint(String(companyPictureMegabytes))}</p>
 		</div>
 	</Card.Content>
 </Card.Root>
