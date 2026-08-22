@@ -1,11 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, test } from 'bun:test';
 
-type Row = { id: string; profile_image: string | null };
+type Row = { id: string; name: string; profile_image: string | null };
 
 const uploaded: string[] = [];
 const removed: string[][] = [];
-let company: Row = { id: 'company-1', profile_image: null };
+let company: Row = { id: 'company-1', name: '여명거리', profile_image: null };
 let updateAnswer: { data: unknown[]; error: null } = { data: [{ id: 'company-1' }], error: null };
 
 const storage = {
@@ -32,7 +32,7 @@ const client = {
 	})
 } as unknown as SupabaseClient;
 
-const { saveCompanyProfileImage } = await import('../../src/lib/company/profile-image');
+const { refusalOfCompanyPicture, saveCompanyProfileImage } = await import('../../src/lib/company/profile-image');
 
 describe('a company sets its own picture', () => {
 	test('keeps it where the row will accept it: its own company, readable by everyone in it', async () => {
@@ -62,5 +62,18 @@ describe('a company sets its own picture', () => {
 		const picture = await saveCompanyProfileImage(new File(['x'], 'logo.png', { type: 'image/png' }), client);
 
 		expect(picture.readableURL).toBe(`https://signed/${picture.path}`);
+	});
+});
+
+// Stating the limit beside the control is what keeps most rejections from
+// happening; the one that does happen names the file's size rather than failing
+// with a shrug.
+describe('a picture the bucket should not be asked to take', () => {
+	test('is refused with its own size, and one that fits is not', () => {
+		const tooBig = new File([new Uint8Array(11 * 1024 * 1024)], 'huge.png', { type: 'image/png' });
+		const fits = new File([new Uint8Array(1024)], 'small.png', { type: 'image/png' });
+
+		expect(refusalOfCompanyPicture(tooBig)).toBe('11.0MB');
+		expect(refusalOfCompanyPicture(fits)).toBe('');
 	});
 });
