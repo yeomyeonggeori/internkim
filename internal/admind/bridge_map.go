@@ -40,6 +40,8 @@ func (service *Service) handleBridgeMap(responseWriter http.ResponseWriter, requ
 		service.handleBridgeBootstrap(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/identity":
 		service.handleBridgeIdentity(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/company":
+		service.handleBridgeCompany(responseWriter, request)
 	default:
 		http.NotFound(responseWriter, request)
 	}
@@ -116,6 +118,23 @@ func (service *Service) handleBridgeMessageForget(responseWriter http.ResponseWr
 		return
 	}
 	service.writeJSON(responseWriter, map[string]bool{"forgotten": true})
+}
+
+// What a company calls itself lives in the company's own record, not in whatever
+// the messenger names its team. An import reading the messenger introduces the
+// company by the product it happens to run.
+func (service *Service) handleBridgeCompany(responseWriter http.ResponseWriter, request *http.Request) {
+	client := service.centralPlane()
+	company, found, errorValue := client.Company(request.Context())
+	if errorValue != nil {
+		http.Error(responseWriter, "central_plane_unreachable", http.StatusBadGateway)
+		return
+	}
+	if !found {
+		http.Error(responseWriter, "this host belongs to no company", http.StatusNotFound)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]string{"name": company.Name, "profileImage": company.ProfileImage})
 }
 
 func (service *Service) handleBridgeChannelRecord(responseWriter http.ResponseWriter, request *http.Request) {
