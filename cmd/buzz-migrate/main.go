@@ -51,7 +51,7 @@ func main() {
 	keySeedPath := flag.String("key-seed-path", "", "file holding the seed mixed into per-author key derivation")
 	communityHost := flag.String("community-host", "localhost:3000", "buzz community host to import into")
 	onlyChannels := flag.String("channels", "", "comma-separated Mattermost channel names to import; empty imports every public channel")
-	identityURL := flag.String("identity-url", "", "the bridge endpoint that owns a person's Buzz key")
+	bridgeURL := flag.String("bridge-url", "", "the bridge that owns a person's Buzz key and keeps what each imported channel and message became")
 	orphanRootTitle := flag.String("orphan-root-title", "", "when set, replies whose Mattermost root was not imported are threaded under one synthesized root message carrying this title, per original root; otherwise such replies are skipped")
 	fileCacheDir := flag.String("file-cache-dir", "", "directory of {fileID}.{jpg|png} images used as a fallback when the Mattermost server no longer serves a file")
 	sinceMillis := flag.Int64("since", 0, "when >0, import only Mattermost posts created after this unix-millis timestamp (incremental sync; skips the wipe)")
@@ -95,11 +95,11 @@ func main() {
 	// A person's key belongs to the bridge: it versions the subject, keeps the
 	// agent apart from the address its bot account carries, and pins the result.
 	// None of that is derivable from the seed.
-	keyOwner := newIdentityOwner(*identityURL)
+	bridge := newBridge(*bridgeURL)
 	authorSecrets := map[string]string{}
 	authorPubkeys := map[string]string{}
 	for userID, author := range authorsByID {
-		secretHex, errorValue := keyOwner.secretFor(ctx, author.Email)
+		secretHex, errorValue := bridge.secretFor(ctx, author.Email)
 		failOn(errorValue, "ask for the Buzz key of "+author.Email)
 		authorSecrets[author.Email] = secretHex
 		pubkey, errorValue := nostr.GetPublicKey(secretHex)
@@ -175,10 +175,12 @@ func main() {
 					failOn(waitForChannelRow(ctx, buzzDatabase, communityID, buzzChannelID), "wait for channel "+channel.Name)
 					syncChannelMembers(ctx, creator, creatorSecret, buzzChannelID, everyAuthor, authorPubkeys, readerPubkeyFor(channel, *viewerPubkey))
 				}
+				failOn(bridge.recordChannel(ctx, buzzChannelID, channel.ID), "record what "+channel.Name+" became")
 			}
 
 			imported, skipped := importChannelPosts(ctx, importDependencies{
 				injector: injector, uploader: uploader, client: client,
+				bridge: bridge, externalChannelID: channel.ID,
 				orphanRootTitle: *orphanRootTitle, bootstrapSecret: bootstrapSecret,
 				fileCacheDir:     *fileCacheDir,
 				customEmojiCache: customEmojiCache,
@@ -243,14 +245,16 @@ func (shared *sharedNames) has(name string) bool {
 }
 
 type importDependencies struct {
-	injector         buzzimport.ChannelInjector
-	uploader         media.Uploader
-	client           mattermostrest.Client
-	orphanRootTitle  string
-	bootstrapSecret  string
-	fileCacheDir     string
-	customEmojiCache *sharedStrings
-	keeper           *assetkeep.Keeper
+	injector          buzzimport.ChannelInjector
+	uploader          media.Uploader
+	client            mattermostrest.Client
+	orphanRootTitle   string
+	bootstrapSecret   string
+	fileCacheDir      string
+	customEmojiCache  *sharedStrings
+	keeper            *assetkeep.Keeper
+	bridge            bridgeClient
+	externalChannelID string
 }
 
 func fetchFileBytes(ctx context.Context, dependencies importDependencies, fileID string) ([]byte, string, error) {
@@ -278,6 +282,7 @@ type skipTally struct {
 	noRoot      int
 	unbuildable int
 	refused     int
+	unrecorded  int
 }
 
 func (tally *skipTally) add(other skipTally) {
@@ -285,12 +290,13 @@ func (tally *skipTally) add(other skipTally) {
 	tally.noRoot += other.noRoot
 	tally.unbuildable += other.unbuildable
 	tally.refused += other.refused
+	tally.unrecorded += other.unrecorded
 }
 
 func (tally skipTally) String() string {
-	return fmt.Sprintf("skipped=%d (noAuthor=%d noRoot=%d unbuildable=%d refused=%d)",
-		tally.noAuthor+tally.noRoot+tally.unbuildable+tally.refused,
-		tally.noAuthor, tally.noRoot, tally.unbuildable, tally.refused)
+	return fmt.Sprintf("skipped=%d (noAuthor=%d noRoot=%d unbuildable=%d refused=%d unrecorded=%d)",
+		tally.noAuthor+tally.noRoot+tally.unbuildable+tally.refused+tally.unrecorded,
+		tally.noAuthor, tally.noRoot, tally.unbuildable, tally.refused, tally.unrecorded)
 }
 
 func importChannelPosts(
@@ -341,6 +347,11 @@ func importChannelPosts(
 		if errorValue := injector.InjectMessage(ctx, buzzChannelID, event); errorValue != nil {
 			log.Printf("inject failed for post %s: %v", post.ID, errorValue)
 			skipped.refused++
+			continue
+		}
+		if errorValue := dependencies.bridge.recordMessage(ctx, event.ID, post.ID, dependencies.externalChannelID); errorValue != nil {
+			log.Printf("record what post %s became failed: %v", post.ID, errorValue)
+			skipped.unrecorded++
 			continue
 		}
 		eventIDByPostID[post.ID] = event.ID
@@ -891,25 +902,32 @@ func readerPubkeyFor(channel buzzimport.MattermostChannel, viewerPubkey string) 
 	return ""
 }
 
-type identityOwner struct {
-	endpoint string
+// The bridge owns both halves of what an import produces: the key a person signs
+// with, and what each Mattermost channel and post became in Buzz. An import that
+// keeps neither leaves the mirror unable to carry anything back — a message in a
+// conversation it never recorded goes nowhere, and a reply to a post it never
+// recorded arrives as a new one.
+const mattermostPlatform = "mattermost"
+
+type bridgeClient struct {
+	baseURL string
 }
 
-func newIdentityOwner(endpoint string) identityOwner {
-	return identityOwner{endpoint: strings.TrimSpace(endpoint)}
+func newBridge(baseURL string) bridgeClient {
+	return bridgeClient{baseURL: strings.TrimSuffix(strings.TrimSpace(baseURL), "/")}
 }
 
-func (owner identityOwner) secretFor(ctx context.Context, email string) (string, error) {
-	if owner.endpoint == "" {
-		return "", errors.New("no identity endpoint was given, and an import must not invent a key of its own")
+func (client bridgeClient) secretFor(ctx context.Context, email string) (string, error) {
+	if client.baseURL == "" {
+		return "", errors.New("no bridge was given, and an import must not invent a key of its own")
 	}
-	response, errorValue := owner.ask(ctx, email)
+	response, errorValue := client.get(ctx, "/identity?email="+url.QueryEscape(email))
 	if errorValue != nil {
 		return "", errorValue
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%s answered %d for %s", owner.endpoint, response.StatusCode, email)
+		return "", fmt.Errorf("the bridge answered %d for %s", response.StatusCode, email)
 	}
 	var document struct {
 		SecretHex string `json:"secretHex"`
@@ -918,17 +936,55 @@ func (owner identityOwner) secretFor(ctx context.Context, email string) (string,
 		return "", errorValue
 	}
 	if document.SecretHex == "" {
-		return "", fmt.Errorf("%s named no key for %s", owner.endpoint, email)
+		return "", fmt.Errorf("the bridge named no key for %s", email)
 	}
 	return document.SecretHex, nil
 }
 
-func (owner identityOwner) ask(ctx context.Context, email string) (*http.Response, error) {
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, owner.endpoint+"?email="+url.QueryEscape(email), nil)
+func (client bridgeClient) recordChannel(ctx context.Context, buzzChannelID, externalChannelID string) error {
+	return client.post(ctx, "/channel", map[string]string{
+		"buzzChannelId":     buzzChannelID,
+		"platform":          mattermostPlatform,
+		"externalChannelId": externalChannelID,
+	})
+}
+
+func (client bridgeClient) recordMessage(ctx context.Context, buzzEventID, externalID, externalChannelID string) error {
+	return client.post(ctx, "/message", map[string]string{
+		"buzzEventId":       buzzEventID,
+		"platform":          mattermostPlatform,
+		"externalId":        externalID,
+		"externalChannelId": externalChannelID,
+	})
+}
+
+func (client bridgeClient) get(ctx context.Context, path string) (*http.Response, error) {
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, client.baseURL+path, nil)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	return http.DefaultClient.Do(request)
+}
+
+func (client bridgeClient) post(ctx context.Context, path string, body map[string]string) error {
+	document, errorValue := json.Marshal(body)
+	if errorValue != nil {
+		return errorValue
+	}
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, client.baseURL+path, bytes.NewReader(document))
+	if errorValue != nil {
+		return errorValue
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, errorValue := http.DefaultClient.Do(request)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("the bridge answered %d for %s", response.StatusCode, path)
+	}
+	return nil
 }
 
 func deriveSecret(seed, email string) string {

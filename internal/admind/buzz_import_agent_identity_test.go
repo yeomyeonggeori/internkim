@@ -17,8 +17,8 @@ func TestEveryImportPathAsksWhoOwnsAPersonsKey(t *testing.T) {
 		"step_buzz_migrate.go": readImportStep(t),
 	}
 	for name, command := range callers {
-		if !strings.Contains(command, "--identity-url") {
-			t.Errorf("%s runs buzz-migrate without --identity-url, so it derives keys of its own", name)
+		if !strings.Contains(command, "--bridge-url") {
+			t.Errorf("%s runs buzz-migrate without --bridge-url, so it derives keys of its own and records nothing it makes", name)
 		}
 		if strings.Contains(command, "--agent-email") {
 			t.Errorf("%s still names the agent by address; the bridge is what knows the agent's identity", name)
