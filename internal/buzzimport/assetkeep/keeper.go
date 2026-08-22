@@ -87,16 +87,38 @@ func ExtensionOf(contentType string) string {
 	return extensions[strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))]
 }
 
-// The object's own address, not a signed one: whoever reads it signs for
-// themselves with their own session, so nothing that expires is written into an
-// event that cannot be edited afterwards. attachmentAddress in
-// host/relay/asset-store.ts decides the same address from the other side.
-func Address(projectURL, path string) string {
-	return fmt.Sprintf("%s/storage/v1/object/%s/%s", strings.TrimRight(projectURL, "/"), bucket, path)
+func (keeper *Keeper) address(path string) string {
+	return fmt.Sprintf("%s/storage/v1/object/%s/%s", strings.TrimRight(keeper.ProjectURL, "/"), bucket, path)
 }
 
-func (keeper *Keeper) address(path string) string {
-	return Address(keeper.ProjectURL, path)
+// The bucket is closed, so reading one of its objects takes the same host
+// session writing one does. Anything the company keeps there and wants a Buzz
+// app to open has to come through here first and be put somewhere open.
+func (keeper *Keeper) Read(ctx context.Context, path string) ([]byte, string, error) {
+	session, errorValue := keeper.hostOfTheCompany(ctx)
+	if errorValue != nil {
+		return nil, "", errorValue
+	}
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, keeper.address(path), nil)
+	if errorValue != nil {
+		return nil, "", errorValue
+	}
+	request.Header.Set("Authorization", "Bearer "+session.AccessToken)
+	request.Header.Set("apikey", keeper.PublishableKey)
+
+	response, errorValue := keeper.httpClient().Do(request)
+	if errorValue != nil {
+		return nil, "", errorValue
+	}
+	defer response.Body.Close()
+	body, errorValue := io.ReadAll(response.Body)
+	if errorValue != nil {
+		return nil, "", errorValue
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, "", fmt.Errorf("the asset store would not give up %s: %d %s", path, response.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return body, response.Header.Get("Content-Type"), nil
 }
 
 func (keeper *Keeper) write(ctx context.Context, session hostSession, path string, content []byte, contentType string) error {

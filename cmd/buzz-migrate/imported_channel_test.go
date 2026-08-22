@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"image"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,7 +14,9 @@ import (
 	nostr "github.com/nbd-wtf/go-nostr"
 
 	"gitlab.com/eastriver/internkim/internal/buzzimport"
+	"gitlab.com/eastriver/internkim/internal/buzzimport/assetkeep"
 	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostrest"
+	"gitlab.com/eastriver/internkim/internal/buzzimport/media"
 )
 
 // A re-import put 295 direct conversations into the relay marked open, which is
@@ -120,14 +124,47 @@ func (injector recordingProfileInjector) InjectProfile(_ context.Context, event 
 	return nil
 }
 
+func onePixelPNG(t *testing.T) []byte {
+	t.Helper()
+	picture := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	var encoded bytes.Buffer
+	if errorValue := png.Encode(&encoded, picture); errorValue != nil {
+		t.Fatalf("encode: %v", errorValue)
+	}
+	return encoded.Bytes()
+}
+
+// The bucket the company keeps its picture in is closed, so an address into it
+// is a broken picture in every Buzz app. Only what the messenger's own store
+// carries can be opened by whoever reads the profile.
+func companyPictureStores(t *testing.T, picture []byte) (media.Uploader, *assetkeep.Keeper) {
+	t.Helper()
+	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if strings.HasSuffix(request.URL.Path, "/host-session") {
+			writer.Write([]byte(`{"companyID":"a","accessToken":"a-host-session","expiresAt":4102444800}`))
+			return
+		}
+		writer.Header().Set("Content-Type", "image/png")
+		writer.Write(picture)
+	}))
+	t.Cleanup(plane.Close)
+	store := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Write([]byte(`{"url":"https://relay.example/abc.png","type":"image/png"}`))
+	}))
+	t.Cleanup(store.Close)
+	return media.Uploader{HTTPBaseURL: store.URL},
+		&assetkeep.Keeper{AppURL: plane.URL, AgentKey: "an-agent-key", ProjectURL: plane.URL, PublishableKey: "a-publishable-key"}
+}
+
 func TestTheChannelMakerIsGivenTheCompanysOwnName(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
-		responseWriter.Write([]byte(`{"name":"여명거리","profileImage":"a/shared/face/company.png"}`))
+		responseWriter.Write([]byte(`{"name":"여명거리","profileImage":"a/shared/company/face.png"}`))
 	}))
 	defer server.Close()
+	uploader, keeper := companyPictureStores(t, onePixelPNG(t))
 	published := []string{}
 
-	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, newBridge(server.URL), strings.Repeat("1", 64), "https://project.supabase.co")
+	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, uploader, keeper, newBridge(server.URL), strings.Repeat("1", 64))
 
 	if len(published) != 1 {
 		t.Fatalf("published %v", published)
@@ -135,21 +172,23 @@ func TestTheChannelMakerIsGivenTheCompanysOwnName(t *testing.T) {
 	if !strings.Contains(published[0], "여명거리") {
 		t.Errorf("profile = %q", published[0])
 	}
-	if !strings.Contains(published[0], "https://project.supabase.co/storage/v1/object/asset/a/shared/face/company.png") {
-		t.Errorf("the picture is a path into a bucket, and a Buzz app opens an address: %q", published[0])
+	if !strings.Contains(published[0], "https://relay.example/abc.png") {
+		t.Errorf("the picture did not come from the store a Buzz app reads: %q", published[0])
+	}
+	if strings.Contains(published[0], "a/shared/company/face.png") {
+		t.Errorf("a path into the closed bucket went out as a picture: %q", published[0])
 	}
 }
 
-// A path is not an address, and a profile carrying one shows a broken picture
-// to everyone who reads it until the next import replaces it.
-func TestACompanyPictureWithNoProjectToAddressItIsLeftOut(t *testing.T) {
+func TestACompanyPictureThatCannotBeReadIsLeftOut(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
-		responseWriter.Write([]byte(`{"name":"여명거리","profileImage":"a/shared/face/company.png"}`))
+		responseWriter.Write([]byte(`{"name":"여명거리","profileImage":"a/shared/company/face.png"}`))
 	}))
 	defer server.Close()
+	uploader, _ := companyPictureStores(t, nil)
 	published := []string{}
 
-	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, newBridge(server.URL), strings.Repeat("1", 64), "")
+	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, uploader, nil, newBridge(server.URL), strings.Repeat("1", 64))
 
 	if len(published) != 1 {
 		t.Fatalf("published %v", published)
@@ -157,7 +196,7 @@ func TestACompanyPictureWithNoProjectToAddressItIsLeftOut(t *testing.T) {
 	if !strings.Contains(published[0], "여명거리") {
 		t.Errorf("the company is still named without a picture: %q", published[0])
 	}
-	if strings.Contains(published[0], "a/shared/face/company.png") {
+	if strings.Contains(published[0], "a/shared/company/face.png") {
 		t.Errorf("a bucket path went out as a picture: %q", published[0])
 	}
 }
@@ -169,9 +208,10 @@ func TestACompanyTheBridgeCannotNameIsNotNamedAnyway(t *testing.T) {
 		responseWriter.Write([]byte(`{"name":"","profileImage":""}`))
 	}))
 	defer server.Close()
+	uploader, keeper := companyPictureStores(t, onePixelPNG(t))
 	published := []string{}
 
-	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, newBridge(server.URL), strings.Repeat("1", 64), "https://project.supabase.co")
+	injectCompanyProfile(context.Background(), recordingProfileInjector{published: &published}, uploader, keeper, newBridge(server.URL), strings.Repeat("1", 64))
 
 	if len(published) != 0 {
 		t.Errorf("published %v for a company the bridge could not name", published)
