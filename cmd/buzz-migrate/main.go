@@ -195,7 +195,7 @@ func main() {
 	}
 	running.Wait()
 	injectAuthorProfiles(ctx, injector, uploader, client, authorSecrets, authorsByID, postedEmails)
-	injectCompanyProfile(ctx, injector, bridge, bootstrapSecret)
+	injectCompanyProfile(ctx, injector, bridge, bootstrapSecret, *supabaseURL)
 	fmt.Printf("done: %d channels, %d messages imported, %s\n", len(channels), totalImported, totalSkipped)
 }
 
@@ -444,13 +444,13 @@ type profileInjector interface {
 // The key that owns the relay creates every imported channel and stands in each
 // of them forever, and it never writes a message — so nothing else would ever
 // give it a profile.
-func injectCompanyProfile(ctx context.Context, injector profileInjector, client bridgeClient, bootstrapSecret string) {
+func injectCompanyProfile(ctx context.Context, injector profileInjector, client bridgeClient, bootstrapSecret, projectURL string) {
 	company, errorValue := client.company(ctx)
 	if errorValue != nil {
 		log.Printf("the identity that made the channels keeps showing its pubkey: %v", errorValue)
 		return
 	}
-	event, errorValue := buzzimport.BuildProfileEvent(bootstrapSecret, company.Name, company.ProfileImage)
+	event, errorValue := buzzimport.BuildProfileEvent(bootstrapSecret, company.Name, companyPictureAddress(company.ProfileImage, projectURL))
 	if errorValue != nil {
 		log.Printf("build the company profile failed: %v", errorValue)
 		return
@@ -458,6 +458,20 @@ func injectCompanyProfile(ctx context.Context, injector profileInjector, client 
 	if errorValue := injector.InjectProfile(ctx, event); errorValue != nil {
 		log.Printf("inject the company profile failed: %v", errorValue)
 	}
+}
+
+// The company keeps its picture as a path into its own bucket, which no Buzz
+// app can open. Without a project to address it against, the company goes in
+// named but unpictured rather than pointing at something that cannot be read.
+func companyPictureAddress(picturePath, projectURL string) string {
+	if strings.TrimSpace(picturePath) == "" {
+		return ""
+	}
+	if strings.TrimSpace(projectURL) == "" {
+		log.Printf("the company picture stays out of its profile: no --supabase-url to address %s against", picturePath)
+		return ""
+	}
+	return assetkeep.Address(projectURL, picturePath)
 }
 
 func uploadPostAttachments(ctx context.Context, dependencies importDependencies, authorSecret string, post buzzimport.MattermostPost) [][]string {
