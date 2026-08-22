@@ -76,7 +76,7 @@ func (service *Service) repairBuzzOrphanRoots(ctx context.Context, apply bool) (
 		BaseURL: strings.TrimRight(service.Configuration.MattermostBaseURL, "/"),
 		Token:   token,
 	}
-	teamID, _, errorValue := client.Team(ctx, service.Configuration.MattermostTeamName)
+	teamID, errorValue := client.Team(ctx, service.Configuration.MattermostTeamName)
 	if errorValue != nil {
 		return buzzRepairResponse{}, errorValue
 	}
