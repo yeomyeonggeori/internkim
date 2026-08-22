@@ -163,6 +163,52 @@ func TestOneSessionServesEveryFile(t *testing.T) {
 
 // The relay decides the same object names from TypeScript. Two hand-kept copies
 // of a path layout drift; this reads the other one.
+func TestReadGivesUpAnObjectWithTheHostsOwnSession(t *testing.T) {
+	var seen struct {
+		path          string
+		authorization string
+		apiKey        string
+	}
+	keeper, done := keeperAgainst(t, func(writer http.ResponseWriter, request *http.Request) {
+		seen.path = request.URL.Path
+		seen.authorization = request.Header.Get("Authorization")
+		seen.apiKey = request.Header.Get("apikey")
+		writer.Header().Set("Content-Type", "image/png")
+		writer.Write([]byte("the bytes"))
+	})
+	defer done()
+
+	content, mimeType, errorValue := keeper.Read(context.Background(), company+"/shared/company/face.png")
+	if errorValue != nil {
+		t.Fatalf("read: %v", errorValue)
+	}
+	if string(content) != "the bytes" || mimeType != "image/png" {
+		t.Errorf("read %q as %q", content, mimeType)
+	}
+	if seen.path != "/storage/v1/object/asset/"+company+"/shared/company/face.png" {
+		t.Errorf("read from %q", seen.path)
+	}
+	if seen.authorization != "Bearer a-host-session" || seen.apiKey != "a-publishable-key" {
+		t.Errorf("a closed bucket was asked without the session that opens it: %q %q", seen.authorization, seen.apiKey)
+	}
+}
+
+func TestReadSaysWhichObjectTheStoreWouldNotGiveUp(t *testing.T) {
+	keeper, done := keeperAgainst(t, func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNotFound)
+		writer.Write([]byte(`{"error":"not_found"}`))
+	})
+	defer done()
+
+	_, _, errorValue := keeper.Read(context.Background(), company+"/shared/company/gone.png")
+	if errorValue == nil {
+		t.Fatal("a missing object read as an empty picture")
+	}
+	if !strings.Contains(errorValue.Error(), "gone.png") || !strings.Contains(errorValue.Error(), "404") {
+		t.Errorf("error = %v", errorValue)
+	}
+}
+
 func TestAssetPathMatchesTheRelay(t *testing.T) {
 	source, errorValue := os.ReadFile("../../../host/relay/asset-store.ts")
 	if errorValue != nil {

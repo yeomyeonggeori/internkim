@@ -30,6 +30,36 @@ func TestEveryFlagTheImportCallersPassIsDefined(t *testing.T) {
 	}
 }
 
+// keeperFrom dies on a partial set - three of the four address nothing on their
+// own - so a caller that learned only some of them takes the importer down
+// before it reads a post.
+func TestTheCentralPlaneFlagsArePassedTogetherOrNotAtAll(t *testing.T) {
+	for name, command := range map[string]string{
+		"recovery.go: re-import":        buzzReimportCommand(),
+		"recovery.go: refresh profiles": buzzRefreshProfilesCommand(),
+	} {
+		if !strings.Contains(command, "$CENTRAL") {
+			t.Errorf("%s no longer reaches the central plane, so the company picture cannot be read", name)
+			continue
+		}
+		assignment := ""
+		for _, line := range strings.Split(command, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), `CENTRAL="--`) {
+				assignment = line
+			}
+		}
+		if assignment == "" {
+			t.Errorf("%s uses $CENTRAL without ever setting it to flags", name)
+			continue
+		}
+		for _, flagName := range []string{"--app-url", "--agent-key-path", "--supabase-url", "--supabase-publishable-key"} {
+			if !strings.Contains(assignment, flagName) {
+				t.Errorf("%s sets $CENTRAL without %s, and a partial set kills the importer", name, flagName)
+			}
+		}
+	}
+}
+
 func definedImporterFlags(t *testing.T) map[string]bool {
 	t.Helper()
 	document, errorValue := os.ReadFile(filepath.Join("..", "..", "cmd", "buzz-migrate", "main.go"))

@@ -195,7 +195,7 @@ func main() {
 	}
 	running.Wait()
 	injectAuthorProfiles(ctx, injector, uploader, client, authorSecrets, authorsByID, postedEmails)
-	injectCompanyProfile(ctx, injector, bridge, bootstrapSecret, *supabaseURL)
+	injectCompanyProfile(ctx, injector, uploader, keeper, bridge, bootstrapSecret)
 	fmt.Printf("done: %d channels, %d messages imported, %s\n", len(channels), totalImported, totalSkipped)
 }
 
@@ -444,13 +444,14 @@ type profileInjector interface {
 // The key that owns the relay creates every imported channel and stands in each
 // of them forever, and it never writes a message — so nothing else would ever
 // give it a profile.
-func injectCompanyProfile(ctx context.Context, injector profileInjector, client bridgeClient, bootstrapSecret, projectURL string) {
+func injectCompanyProfile(ctx context.Context, injector profileInjector, uploader media.Uploader, keeper *assetkeep.Keeper, client bridgeClient, bootstrapSecret string) {
 	company, errorValue := client.company(ctx)
 	if errorValue != nil {
 		log.Printf("the identity that made the channels keeps showing its pubkey: %v", errorValue)
 		return
 	}
-	event, errorValue := buzzimport.BuildProfileEvent(bootstrapSecret, company.Name, companyPictureAddress(company.ProfileImage, projectURL))
+	pictureURL := uploadCompanyPicture(ctx, uploader, keeper, bootstrapSecret, company.ProfileImage)
+	event, errorValue := buzzimport.BuildProfileEvent(bootstrapSecret, company.Name, pictureURL)
 	if errorValue != nil {
 		log.Printf("build the company profile failed: %v", errorValue)
 		return
@@ -460,18 +461,34 @@ func injectCompanyProfile(ctx context.Context, injector profileInjector, client 
 	}
 }
 
-// The company keeps its picture as a path into its own bucket, which no Buzz
-// app can open. Without a project to address it against, the company goes in
-// named but unpictured rather than pointing at something that cannot be read.
-func companyPictureAddress(picturePath, projectURL string) string {
+// The company keeps its picture in its own closed bucket, and a Buzz app has no
+// session to open one with. It goes where every other picture in an imported
+// profile goes - the messenger's own media store - or the company goes in named
+// and unpictured, never pointing at something only we can read.
+func uploadCompanyPicture(ctx context.Context, uploader media.Uploader, keeper *assetkeep.Keeper, bootstrapSecret, picturePath string) string {
 	if strings.TrimSpace(picturePath) == "" {
 		return ""
 	}
-	if strings.TrimSpace(projectURL) == "" {
-		log.Printf("the company picture stays out of its profile: no --supabase-url to address %s against", picturePath)
+	if keeper == nil {
+		log.Printf("the company picture stays out of its profile: no central plane to read %s from", picturePath)
 		return ""
 	}
-	return assetkeep.Address(projectURL, picturePath)
+	content, mimeType, errorValue := keeper.Read(ctx, picturePath)
+	if errorValue != nil {
+		log.Printf("read the company picture failed: %v", errorValue)
+		return ""
+	}
+	strippedContent, strippedMime, isImage := media.StripMetadata(content, mimeType)
+	if !isImage {
+		log.Printf("the company picture stays out of its profile: %s is not an image", picturePath)
+		return ""
+	}
+	blob, errorValue := uploader.Upload(ctx, bootstrapSecret, strippedContent, strippedMime)
+	if errorValue != nil {
+		log.Printf("upload the company picture failed: %v", errorValue)
+		return ""
+	}
+	return blob.URL
 }
 
 func uploadPostAttachments(ctx context.Context, dependencies importDependencies, authorSecret string, post buzzimport.MattermostPost) [][]string {
