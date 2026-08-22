@@ -2,14 +2,26 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { assetBucket } from '$lib/messenger/kept-attachment';
 import { isSupabaseConfigured, supabase } from '$lib/supabase';
 
-export type CompanyProfileImage = { companyID: string; path: string; readableURL: string };
+export type CompanyProfileImage = { companyID: string; name: string; path: string; readableURL: string };
 
-type CompanyProfileImageRow = { id: string; profile_image: string | null };
+// Stating the limit beside the control is what keeps a rejection from happening
+// at all, and a rejection that does happen says which file and how big.
+export const companyPictureFormats = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
+export const companyPictureMegabytes = 10;
+
+export function refusalOfCompanyPicture(file: File): string {
+	if (file.size > companyPictureMegabytes * 1024 * 1024) {
+		return `${(file.size / 1024 / 1024).toFixed(1)}MB`;
+	}
+	return '';
+}
+
+type CompanyProfileImageRow = { id: string; name: string; profile_image: string | null };
 
 async function readCompanyProfileImage(client: SupabaseClient): Promise<CompanyProfileImageRow> {
 	const company = await client
 		.from('company')
-		.select('id, profile_image')
+		.select('id, name, profile_image')
 		.limit(1)
 		.single<CompanyProfileImageRow>();
 	if (company.error) throw new Error(company.error.message);
@@ -26,10 +38,10 @@ async function readableURLOf(client: SupabaseClient, path: string): Promise<stri
 }
 
 export async function loadCompanyProfileImage(client: SupabaseClient = supabase()): Promise<CompanyProfileImage> {
-	if (!isSupabaseConfigured()) return { companyID: '', path: '', readableURL: '' };
+	if (!isSupabaseConfigured()) return { companyID: '', name: '', path: '', readableURL: '' };
 	const company = await readCompanyProfileImage(client);
 	const path = company.profile_image ?? '';
-	return { companyID: company.id, path, readableURL: await readableURLOf(client, path) };
+	return { companyID: company.id, name: company.name, path, readableURL: await readableURLOf(client, path) };
 }
 
 // The path says which company the picture belongs to and who may read it, and a
@@ -59,7 +71,7 @@ export async function saveCompanyProfileImage(
 		await client.storage.from(assetBucket).remove([path]);
 		throw new Error('only an administrator can change the company picture');
 	}
-	return { companyID: company.id, path, readableURL: await readableURLOf(client, path) };
+	return { companyID: company.id, name: company.name, path, readableURL: await readableURLOf(client, path) };
 }
 
 export async function forgetCompanyProfileImage(client: SupabaseClient = supabase()): Promise<void> {
