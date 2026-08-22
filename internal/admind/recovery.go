@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-profile-inspect", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -163,6 +163,8 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		cancelReconcile()
 	case "buzz-orphan-inspect":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "inspect imported orphan-thread roots", "sh", "-lc", buzzOrphanInspectCommand()))
+	case "buzz-profile-inspect":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "inspect the pictures published profiles point at", "sh", "-lc", buzzProfileInspectCommand()))
 	case "buzz-membership-recover":
 		membershipContext, cancelMembership := context.WithTimeout(context.Background(), 90*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(membershipContext, "recover buzz staff membership", "sh", "-lc", buzzMembershipRecoverCommand()))
@@ -970,6 +972,22 @@ journalctl -u ` + blueclaw.ChatdServiceName + ` -n 10 --no-pager 2>&1 | tail -10
 // where the messenger's own store serves it. The four settings that reach the
 // central plane go together or not at all: keeperFrom dies on a partial set, and
 // a device whose company has not moved yet has none of them.
+// A profile whose picture is a path into the closed asset bucket, or an address
+// only a company session opens, renders as nothing in every Buzz app and looks
+// exactly like a profile that was never republished. This tells the two apart.
+func buzzProfileInspectCommand() string {
+	return strings.TrimSpace(`
+set +e
+q() { su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"$1\"" 2>&1; }
+printf '== profiles ==\n'
+q "SELECT count(*) FROM events WHERE kind=0" | sed 's/^/published: /'
+q "SELECT count(*) FROM events WHERE kind=0 AND content LIKE '%storage/v1/object%'" | sed 's/^/pointing at the closed bucket: /'
+q "SELECT count(*) FROM events WHERE kind=0 AND content LIKE '%\"picture\"%'" | sed 's/^/carrying a picture: /'
+printf '== the three most recent ==\n'
+q "SELECT left(content, 300) FROM events WHERE kind=0 ORDER BY created_at DESC LIMIT 3"
+`)
+}
+
 func centralPlaneFlagsForBuzzMigrate() string {
 	return `
 CENTRAL=""
