@@ -17,15 +17,9 @@ import {
 } from '$lib/attendance/supabase-leave';
 import { isSupabaseConfigured } from '$lib/supabase';
 
-export class EmployeeLeaveAPIError extends Error {
-	constructor(
-		readonly code: EmployeeLeaveErrorCode | null,
-		readonly status: number
-	) {
-		super('Employee leave API request failed');
-		this.name = 'EmployeeLeaveAPIError';
-	}
-}
+import { EmployeeLeaveAPIError } from './employee-leave-api-error';
+
+export { EmployeeLeaveAPIError };
 
 export async function fetchEmployeeLeave(): Promise<EmployeeLeavePayload> {
 	if (isSupabaseConfigured()) return supabaseEmployeeLeave();
