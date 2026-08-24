@@ -17,10 +17,12 @@ import (
 )
 
 type buzzStrangerMembersReport struct {
-	Strangers   int      `json:"strangers"`
-	Memberships int      `json:"memberships"`
-	Removed     int      `json:"removed"`
-	Emails      []string `json:"emails"`
+	Strangers       int      `json:"strangers"`
+	Memberships     int      `json:"memberships"`
+	Removed         int      `json:"removed"`
+	Profiles        int      `json:"profiles"`
+	ProfilesRemoved int      `json:"profilesRemoved"`
+	Emails          []string `json:"emails"`
 }
 
 // The import made a Buzz identity for every Mattermost account it found, and a
@@ -74,19 +76,39 @@ func (service *Service) removeStrangerBuzzMembers(ctx context.Context, apply boo
 	).Scan(&report.Memberships); errorValue != nil {
 		return buzzStrangerMembersReport{}, errorValue
 	}
+	if errorValue := database.QueryRowContext(ctx,
+		"SELECT count(*) FROM events WHERE kind=0 AND pubkey = ANY("+asBytea+")",
+		pq.Array(strangers),
+	).Scan(&report.Profiles); errorValue != nil {
+		return buzzStrangerMembersReport{}, errorValue
+	}
 	if !apply {
 		return report, nil
 	}
-	result, errorValue := database.ExecContext(ctx,
-		"DELETE FROM channel_members WHERE pubkey = ANY("+asBytea+")",
-		pq.Array(strangers),
-	)
+
+	report.Removed, errorValue = rowsChangedBy(ctx, database,
+		"DELETE FROM channel_members WHERE pubkey = ANY("+asBytea+")", strangers)
 	if errorValue != nil {
 		return buzzStrangerMembersReport{}, errorValue
 	}
-	affected, _ := result.RowsAffected()
-	report.Removed = int(affected)
+	report.ProfilesRemoved, errorValue = rowsChangedBy(ctx, database,
+		"DELETE FROM events WHERE kind=0 AND pubkey = ANY("+asBytea+")", strangers)
+	if errorValue != nil {
+		return buzzStrangerMembersReport{}, errorValue
+	}
 	return report, nil
+}
+
+func rowsChangedBy(ctx context.Context, database *sql.DB, statement string, pubkeys []string) (int, error) {
+	result, errorValue := database.ExecContext(ctx, statement, pq.Array(pubkeys))
+	if errorValue != nil {
+		return 0, errorValue
+	}
+	affected, errorValue := result.RowsAffected()
+	if errorValue != nil {
+		return 0, errorValue
+	}
+	return int(affected), nil
 }
 
 func (service *Service) strangerBuzzPubkeys(ctx context.Context, seed string) ([]string, []string, error) {
