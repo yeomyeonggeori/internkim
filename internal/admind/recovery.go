@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-profile-inspect", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -165,6 +165,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "inspect imported orphan-thread roots", "sh", "-lc", buzzOrphanInspectCommand()))
 	case "buzz-profile-inspect":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "inspect the pictures published profiles point at", "sh", "-lc", buzzProfileInspectCommand()))
+	case "buzz-probe-profile-count":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the profiles left by deleted probe accounts", "sh", "-lc", buzzProbeProfilePurgeCommand(false)))
+	case "buzz-probe-profile-purge":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "delete the profiles left by deleted probe accounts", "sh", "-lc", buzzProbeProfilePurgeCommand(true)))
 	case "buzz-membership-recover":
 		membershipContext, cancelMembership := context.WithTimeout(context.Background(), 90*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(membershipContext, "recover buzz staff membership", "sh", "-lc", buzzMembershipRecoverCommand()))
@@ -975,6 +979,27 @@ journalctl -u ` + blueclaw.ChatdServiceName + ` -n 10 --no-pager 2>&1 | tail -10
 // A profile whose picture is a path into the closed asset bucket, or an address
 // only a company session opens, renders as nothing in every Buzz app and looks
 // exactly like a profile that was never republished. This tells the two apart.
+// A probe's profile is the only thing left of an account that no longer exists,
+// and nothing will ever replace it: kind 0 is replaceable per key, so a key
+// nobody writes as keeps its last profile forever. Counting first, deleting
+// second, because this is the company's own relay.
+func buzzProbeProfilePurgeCommand(apply bool) string {
+	probes := `WITH newest AS (SELECT DISTINCT ON (pubkey) pubkey, content FROM events WHERE kind=0 AND content LIKE '{%' ORDER BY pubkey, created_at DESC), probes AS (SELECT pubkey FROM newest WHERE content::json->>'display_name' LIKE 'probemm%')`
+	action := `SELECT count(*) FROM events WHERE kind=0 AND pubkey IN (SELECT pubkey FROM probes)`
+	outcome := "that would go"
+	if apply {
+		action = `WITH gone AS (DELETE FROM events WHERE kind=0 AND pubkey IN (SELECT pubkey FROM probes) RETURNING 1) SELECT count(*) FROM gone`
+		outcome = "deleted"
+	}
+	return strings.TrimSpace(`
+set +e
+q() { su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"$1\"" 2>&1; }
+q "` + probes + ` SELECT count(*) FROM probes" | sed 's/^/probe identities: /'
+q "` + probes + ` SELECT count(*) FROM events WHERE kind<>0 AND pubkey IN (SELECT pubkey FROM probes)" | sed 's/^/everything else they wrote, left alone: /'
+q "` + probes + ` ` + action + `" | sed 's/^/profile events ` + outcome + `: /'
+`)
+}
+
 func buzzProfileInspectCommand() string {
 	return strings.TrimSpace(`
 set +e
