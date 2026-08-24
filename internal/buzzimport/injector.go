@@ -40,6 +40,21 @@ func (injector ChannelInjector) InjectMessage(ctx context.Context, channelID str
 	return transaction.Commit()
 }
 
+// An edit is a channel event like a message, but it is not one: it names the
+// message it replaces and belongs to no thread of its own.
+func (injector ChannelInjector) InjectEdit(ctx context.Context, channelID string, event nostr.Event) error {
+	transaction, errorValue := injector.Database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer transaction.Rollback()
+
+	if _, errorValue := injector.insertEvent(ctx, transaction, channelID, event); errorValue != nil {
+		return errorValue
+	}
+	return transaction.Commit()
+}
+
 func (injector ChannelInjector) InjectProfile(ctx context.Context, event nostr.Event) error {
 	eventID, errorValue := hex.DecodeString(event.ID)
 	if errorValue != nil {
