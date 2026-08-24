@@ -13,9 +13,4 @@ declare global {
 	}
 }
 
-declare module 'svelte-qrcode' {
-	const QrCode: unknown;
-	export default QrCode;
-}
-
 export {};
