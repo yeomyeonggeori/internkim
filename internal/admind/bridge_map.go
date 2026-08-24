@@ -155,25 +155,51 @@ func (service *Service) handleBridgePeople(responseWriter http.ResponseWriter, r
 	service.writeJSON(responseWriter, map[string][]string{"emails": emails})
 }
 
+// The directory says who works here, and somebody invited on the web is in it
+// before this device has heard of them any other way. The policy is read beside
+// it because it carries whoever was here before the directory did.
 func (service *Service) companyPeopleEmails(ctx context.Context) ([]string, error) {
+	emails := []string{}
+	seen := map[string]bool{}
+	add := func(email string) {
+		normalized := strings.ToLower(strings.TrimSpace(email))
+		if normalized == "" || seen[normalized] {
+			return
+		}
+		seen[normalized] = true
+		emails = append(emails, normalized)
+	}
+
+	client := service.centralPlane()
+	if client != nil {
+		members, errorValue := client.Members(ctx)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		for _, member := range members {
+			add(member.Email)
+		}
+	}
+
+	policyEmails, errorValue := service.policyPeopleEmails(ctx)
+	if errorValue != nil && client == nil {
+		return nil, errorValue
+	}
+	for _, email := range policyEmails {
+		add(email)
+	}
+	add(service.mattermostBotBuzzEmail(ctx))
+	return emails, nil
+}
+
+func (service *Service) policyPeopleEmails(ctx context.Context) ([]string, error) {
 	var policyDocument memoryPolicyDocument
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
 		return nil, errorValue
 	}
 	emails := []string{}
-	seen := map[string]bool{}
 	for _, person := range policyDocument.People {
-		for _, email := range person.Emails {
-			normalized := strings.ToLower(strings.TrimSpace(email))
-			if normalized == "" || seen[normalized] {
-				continue
-			}
-			seen[normalized] = true
-			emails = append(emails, normalized)
-		}
-	}
-	if botEmail := service.mattermostBotBuzzEmail(ctx); botEmail != "" && !seen[botEmail] {
-		emails = append(emails, botEmail)
+		emails = append(emails, person.Emails...)
 	}
 	return emails, nil
 }
