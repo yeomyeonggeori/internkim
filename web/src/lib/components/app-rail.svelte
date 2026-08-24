@@ -3,7 +3,7 @@
 	import AppRailContent from '$lib/components/app-rail-content.svelte';
 	import AppRailFooter from '$lib/components/app-rail-footer.svelte';
 	import AppRailShell from '$lib/components/app-rail-shell.svelte';
-	import { attendanceClock } from '$lib/components/attendance-clock.svelte';
+	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
 	import { ConfirmDeleteDialog, confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
@@ -58,7 +58,7 @@
 	});
 
 	function handleKeydown(event: KeyboardEvent) {
-		attendanceClock.handleShortcut(event);
+		myAttendanceToday.handleShortcut(event);
 		if (!isPlainShortcut(event, 'Comma')) return;
 		event.preventDefault();
 		sidebar.toggle();
