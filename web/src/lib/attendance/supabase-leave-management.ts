@@ -48,7 +48,7 @@ const memberColumns = 'id, email, name, leave_days, timezone';
 // the used and pending columns beside it have to use the same one or the three
 // numbers stop adding up for anyone who set their own timezone.
 function timeZoneOf(member: MemberRow, source: LeaveManagementSource): string {
-	return member.timezone ?? source.company.timezone;
+	return member.timezone || source.company.timezone;
 }
 
 export async function supabaseLeaveManagement(employeeEmail = ''): Promise<LeaveManagementPayload> {
