@@ -54,8 +54,15 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 
 ## Working on this repository
 
-Nothing lands on `main` or `design/saas` by direct push. Branch, open a pull
-request, let the checks run, merge.
+Nothing lands on `main` or `design/saas` by direct push. Branch, run
+`tools/verify`, open a pull request, merge.
+
+`tools/verify` is the whole check. It reads what your diff touches and runs only
+those groups, at once: the blueclaw pointer, `go build/vet/test`, and `check`
+plus tests for `web`, `host/relay` and `workers/connection-gateway`, a Supabase
+reset and pgTAP for `supabase/`, and the document budgets. `--all` runs every
+group, `--only <names>` runs the ones you name. Nothing runs it for you after
+you push, so a push that skipped it is a push nobody checked.
 
 ### Branch names
 
@@ -94,8 +101,9 @@ a reverted or re-made branch does — a plain rebase calls the branch's copy
 "previously applied", drops it, and leaves the tree pointing at whatever `main`
 holds. It says so in one hint line and reports success, and the branch now
 carries a *backwards* pointer. There is no config for this: `git help --config`
-lists no `rebase.reapplyCherryPicks`, so it has to be typed. CI refuses a
-backwards pointer, which is the backstop, not the fix.
+lists no `rebase.reapplyCherryPicks`, so it has to be typed.
+`tools/verify-blueclaw-pointer` refuses a backwards pointer, which is the
+backstop, not the fix.
 
 ### Commit messages
 
@@ -144,7 +152,7 @@ committing.
   retyped, because a retyped one drifts silently.
 
 Standing documents carry word ceilings in `docs/internal/doc-budgets.json`,
-enforced by `tools/verify-doc-budgets` in CI. A red ceiling is fixed by moving
+enforced by `tools/verify-doc-budgets`. A red ceiling is fixed by moving
 what belongs elsewhere, then by condensing, and only then by raising the number
 with a reason in the pull request. A ceiling too low for what the document must
 say is a bug in the ceiling.
