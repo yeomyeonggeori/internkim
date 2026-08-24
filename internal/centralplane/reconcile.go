@@ -10,13 +10,6 @@ import (
 	"time"
 )
 
-type ReconciledEvent struct {
-	ExternalID string    `json:"externalID"`
-	Kind       string    `json:"kind"`
-	Location   string    `json:"location,omitempty"`
-	OccurredAt time.Time `json:"occurredAt"`
-}
-
 type ReconciledWorkCalendarDay struct {
 	Date        string `json:"date"`
 	WorkMode    string `json:"workMode"`
@@ -51,7 +44,6 @@ type ReconcileWindow struct {
 	WorkPolicy   *ReconciledWorkPolicy
 	From         time.Time
 	To           time.Time
-	Events       []ReconciledEvent
 	WorkCalendar []ReconciledWorkCalendarDay
 }
 
@@ -62,9 +54,6 @@ type ReconcileResult struct {
 }
 
 func (client *Client) ReconcileAttendance(ctx context.Context, window ReconcileWindow) (ReconcileResult, error) {
-	if window.Events == nil {
-		window.Events = []ReconciledEvent{}
-	}
 	if window.WorkCalendar == nil {
 		window.WorkCalendar = []ReconciledWorkCalendarDay{}
 	}
@@ -73,7 +62,6 @@ func (client *Client) ReconcileAttendance(ctx context.Context, window ReconcileW
 		"workMode":     window.WorkMode,
 		"from":         window.From.UTC().Format(time.RFC3339),
 		"to":           window.To.UTC().Format(time.RFC3339),
-		"events":       window.Events,
 		"workCalendar": window.WorkCalendar,
 	}
 	if window.WorkPolicy != nil {
