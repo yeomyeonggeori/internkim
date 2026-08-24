@@ -18,6 +18,7 @@ const menuShortcutCode = 'Period';
 // offers to clock a person out of a day they are not working.
 class MyAttendanceToday {
 	summary = $state<AttendanceSummary | null>(null);
+	loadFailure = $state<string>('');
 	isMenuOpen = $state(false);
 	isSubmitting = $state(false);
 
@@ -48,13 +49,17 @@ class MyAttendanceToday {
 		if (summary) this.summary = summary;
 	};
 
+	// A summary that will not load used to leave the menu with no clock in it and
+	// nothing said anywhere, which reads exactly like a feature that was removed.
 	load = async (): Promise<AttendanceSummary | null> => {
 		try {
 			this.summary = await fetchAttendanceSummary({
 				month: currentMonthInTimeZone(this.summary?.timeZone)
 			});
-		} catch {
+			this.loadFailure = '';
+		} catch (failure) {
 			this.summary = null;
+			this.loadFailure = failure instanceof Error ? failure.message : String(failure);
 		}
 		return this.summary;
 	};
