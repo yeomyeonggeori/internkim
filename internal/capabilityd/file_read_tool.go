@@ -24,6 +24,9 @@ var fileReadHelperDocument string
 
 const defaultFileReadMaximumOutputBytes = 200000
 const hardFileReadMaximumOutputBytes = 1000000
+const documentBackendLocal = "anydoc"
+const documentBackendOCR = "openrouter"
+const documentOCRRequiredErrorCode = "ocr_required"
 
 type documentReadInput struct {
 	Path           string `json:"path"`
@@ -51,8 +54,10 @@ type fileReadHelperRequest struct {
 }
 
 type fileReadHelperResponse struct {
-	Content  string   `json:"content"`
-	Warnings []string `json:"warnings,omitempty"`
+	Content   string   `json:"content"`
+	Warnings  []string `json:"warnings,omitempty"`
+	ErrorCode string   `json:"errorCode,omitempty"`
+	Message   string   `json:"message,omitempty"`
 }
 
 type documentReadResult struct {
@@ -101,11 +106,11 @@ func (service Service) invokeDocumentReadTool(ctx context.Context, request capab
 	}
 	helperResponse, backend, model, errorValue := service.convertDocument(ctx, hostPath, input.MaxPages)
 	if errorValue != nil {
-		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "document_read_failed", "markitdown_conversion", true), nil
+		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "document_read_failed", "document_conversion", true), nil
 	}
 	content := strings.TrimSpace(helperResponse.Content)
 	if content == "" {
-		return fileReadErrorResponse(request.ToolName, "converted file content was empty", "document_read_empty", "markitdown_conversion", false), nil
+		return fileReadErrorResponse(request.ToolName, "converted file content was empty", "document_read_empty", "document_conversion", false), nil
 	}
 	content, isTruncated := truncateTextByBytes(content, input.MaxOutputBytes)
 	warnings := helperResponse.Warnings
@@ -127,7 +132,7 @@ func (service Service) invokeDocumentReadTool(ctx context.Context, request capab
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	return capabilitySuccessResponseFrom(request.ToolName, "ok", resultDocument, capabilityResponseOrigin{
-		Provider:        "markitdown",
+		Provider:        documentBackendLocal,
 		SelectedBackend: selectedDocumentBackend(backend),
 		Content:         content,
 	})
@@ -337,50 +342,51 @@ func (service Service) runFileReadHelper(ctx context.Context, request fileReadHe
 }
 
 func (service Service) convertDocument(ctx context.Context, hostPath string, maxPages int) (fileReadHelperResponse, string, string, error) {
-	attempts := service.documentConversionAttempts(hostPath, maxPages)
-	failures := []string{}
-	for _, attempt := range attempts {
-		response, errorValue := service.runFileReadHelper(ctx, attempt.Request)
-		if errorValue == nil {
-			return response, attempt.Backend, attempt.Model, nil
-		}
-		failures = append(failures, attempt.Backend+": "+errorValue.Error())
-	}
-	fallbackResponse, errorValue := service.runFileReadHelper(ctx, fileReadHelperRequest{
+	localResponse, localError := service.runFileReadHelper(ctx, fileReadHelperRequest{
 		Path:     hostPath,
 		OCRMode:  "never",
 		MaxPages: maxPages,
 	})
+	if localError == nil && localResponse.ErrorCode == "" {
+		return localResponse, documentBackendLocal, "", nil
+	}
+	localFailure := documentBackendLocal + ": " + documentConversionFailure(localResponse, localError)
+	attempt, hasAttempt := service.documentOCRAttempt(hostPath, maxPages)
+	if localResponse.ErrorCode != documentOCRRequiredErrorCode || !hasAttempt {
+		return fileReadHelperResponse{}, "", "", errors.New(localFailure)
+	}
+	ocrResponse, ocrError := service.runFileReadHelper(ctx, attempt.Request)
+	if ocrError != nil || ocrResponse.ErrorCode != "" {
+		return fileReadHelperResponse{}, "", "", errors.New(localFailure + "; " + attempt.Backend + ": " + documentConversionFailure(ocrResponse, ocrError))
+	}
+	return ocrResponse, attempt.Backend, attempt.Model, nil
+}
+
+func documentConversionFailure(response fileReadHelperResponse, errorValue error) string {
 	if errorValue != nil {
-		return fileReadHelperResponse{}, "", "", errors.New(strings.Join(append(failures, "no_ocr: "+errorValue.Error()), "; "))
+		return errorValue.Error()
 	}
-	fallbackResponse.Warnings = append(fallbackResponse.Warnings, "OCR failed; returned non-OCR extraction. "+strings.Join(failures, "; "))
-	return fallbackResponse, "markitdown", "no_ocr", nil
+	return response.ErrorCode + ": " + response.Message
 }
 
-func (service Service) documentConversionAttempts(hostPath string, maxPages int) []documentConversionAttempt {
+func (service Service) documentOCRAttempt(hostPath string, maxPages int) (documentConversionAttempt, bool) {
 	configuration := service.Configuration.WithDefaults()
-	attempts := []documentConversionAttempt{}
 	apiKey := readSecretValue(configuration.OpenRouterKeyPath)
-	if documentConversionShouldTryOCR(hostPath) && !configuration.LocalOnly && strings.TrimSpace(apiKey) != "" && !isPlaceholderOpenRouterKey(apiKey) {
-		attempts = append(attempts, documentConversionAttempt{
-			Backend: "openrouter",
-			Model:   configuration.OpenRouterModel,
-			Request: fileReadHelperRequest{
-				Path:              hostPath,
-				OCRMode:           "always",
-				MaxPages:          maxPages,
-				OpenRouterAPIKey:  apiKey,
-				OpenRouterBaseURL: openRouterClientBaseURL(configuration.OpenRouterBaseURL),
-				OpenRouterModel:   configuration.OpenRouterModel,
-			},
-		})
+	if configuration.LocalOnly || strings.TrimSpace(apiKey) == "" || isPlaceholderOpenRouterKey(apiKey) {
+		return documentConversionAttempt{}, false
 	}
-	return attempts
-}
-
-func documentConversionShouldTryOCR(hostPath string) bool {
-	return strings.EqualFold(filepath.Ext(strings.TrimSpace(hostPath)), ".pdf")
+	return documentConversionAttempt{
+		Backend: documentBackendOCR,
+		Model:   configuration.OpenRouterModel,
+		Request: fileReadHelperRequest{
+			Path:              hostPath,
+			OCRMode:           "always",
+			MaxPages:          maxPages,
+			OpenRouterAPIKey:  apiKey,
+			OpenRouterBaseURL: openRouterClientBaseURL(configuration.OpenRouterBaseURL),
+			OpenRouterModel:   configuration.OpenRouterModel,
+		},
+	}, true
 }
 
 func writeFileReadHelper() (string, func(), error) {
@@ -409,7 +415,7 @@ func openRouterClientBaseURL(value string) string {
 }
 
 func selectedDocumentBackend(backend string) string {
-	if strings.TrimSpace(backend) == "local" {
+	if strings.TrimSpace(backend) == documentBackendLocal {
 		return capabilities.LLMBackendDevice
 	}
 	return capabilities.LLMBackendRemote
@@ -477,5 +483,5 @@ func fileReadErrorIdentity(toolName string) (string, string) {
 	if strings.TrimSpace(toolName) == "image_read" {
 		return "workspace", capabilities.LLMBackendDevice
 	}
-	return "markitdown", capabilities.LLMBackendRemote
+	return documentBackendLocal, capabilities.LLMBackendDevice
 }

@@ -2154,8 +2154,8 @@ func TestMattermostImportAttachmentsBuildsMarkdownFilePart(t *testing.T) {
 			if errorValue := json.Unmarshal(input, &helperRequest); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			if helperRequest.OCRMode != "always" || helperRequest.OpenRouterAPIKey != "sk-file" || helperRequest.OpenRouterBaseURL != "https://openrouter.test/api/v1" || helperRequest.OpenRouterModel != "openrouter/vision-model" {
-				t.Fatalf("expected OpenRouter OCR helper request, got %+v", helperRequest)
+			if helperRequest.OCRMode != "never" || helperRequest.OpenRouterAPIKey != "" {
+				t.Fatalf("expected local conversion helper request, got %+v", helperRequest)
 			}
 			return []byte(`{"content":"# Report\n\nConverted content"}`), nil
 		},
@@ -2178,10 +2178,10 @@ func TestMattermostImportAttachmentsBuildsMarkdownFilePart(t *testing.T) {
 	}
 }
 
-func TestMattermostImportAttachmentsConvertsHTMLThroughMarkItDown(t *testing.T) {
+func TestMattermostImportAttachmentsConvertsHTMLThroughTheDocumentHelper(t *testing.T) {
 	workspacePath := t.TempDir()
 	htmlDocument := "<!doctype html><html><head><style>@font-face{src:url(data:font/woff2;base64,AAAA)}</style></head><body><h1>Raw HTML Title</h1></body></html>"
-	markItDownCalled := false
+	wasHelperCalled := false
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/api/v4/files/file-1/info":
@@ -2206,7 +2206,7 @@ func TestMattermostImportAttachmentsConvertsHTMLThroughMarkItDown(t *testing.T) 
 		},
 		HTTPClient: httpClient,
 		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
-			markItDownCalled = true
+			wasHelperCalled = true
 			return json.Marshal(map[string]any{"content": "# Raw HTML Title", "truncated": false})
 		},
 	}
@@ -2219,8 +2219,8 @@ func TestMattermostImportAttachmentsConvertsHTMLThroughMarkItDown(t *testing.T) 
 	if errorValue != nil {
 		t.Fatalf("expected import to succeed: %v", errorValue)
 	}
-	if !markItDownCalled {
-		t.Fatal("HTML attachment preview must go through MarkItDown conversion, not raw text")
+	if !wasHelperCalled {
+		t.Fatal("HTML attachment preview must go through document conversion, not raw text")
 	}
 	if len(response.InputParts) != 1 || response.InputParts[0].File == nil {
 		t.Fatalf("expected file input part, got %+v", response.InputParts)

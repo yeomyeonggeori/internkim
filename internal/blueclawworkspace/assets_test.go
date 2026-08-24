@@ -497,7 +497,7 @@ func TestBuiltinSkillDependenciesArePreinstalledInRuntimeBase(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	requirements := string(requirementsDocument)
-	for _, packageName := range []string{"fpdf2", "openpyxl", "pypdf", "python-docx", "python-pptx"} {
+	for _, packageName := range []string{"firecrawl-anydoc", "fpdf2", "markdownify", "openpyxl", "pypdf", "pypdfium2", "python-docx", "python-pptx"} {
 		if !strings.Contains(requirements, packageName) {
 			t.Fatalf("builtin skill requirements must include %s", packageName)
 		}

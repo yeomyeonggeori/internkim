@@ -138,7 +138,7 @@ Companion의 approval grant는 task-scoped로 유지하고, `user_confirm`과 `u
 | `artifact` | 생성/업로드/분석된 파일의 기본 메타데이터 |
 | `artifact_version` | 수정 이력과 원본 경로 |
 | `artifact_share` | 공유 대상, 권한, 만료일 |
-| `artifact_extraction` | markitdown, OCR, VLM, PDF text 추출 결과 |
+| `artifact_extraction` | anydoc, OCR, VLM, PDF text 추출 결과 |
 | `artifact_relation` | task, meeting, staff, email, calendar event와의 연결 |
 
 
@@ -178,7 +178,7 @@ Companion의 approval grant는 task-scoped로 유지하고, `user_confirm`과 `u
 
 1. 파일 선택 또는 업로드
 2. MIME type, size, checksum 확인
-3. markitdown으로 텍스트 추출
+3. anydoc으로 텍스트 추출
 4. 이미지/PDF page는 OCR 또는 VLM caption 추출
 5. chunking과 요약
 6. Graphiti memory 저장
@@ -220,7 +220,7 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 | 출퇴근 기록 | `attendance_event`, quick clock-in/out command | task/attendance capability |
 | 업무 투두리스트 | task transition API, assignee request, status audit | Blueclaw task DB |
 | 파일 생성 및 공유 | artifact registry, Drive/platform share approval | native reply attachments |
-| 파일 인식/분석 | ingest pipeline, markitdown/OCR/VLM routing | artifact ingest pipeline |
+| 파일 인식/분석 | ingest pipeline, anydoc/OCR/VLM routing | artifact ingest pipeline |
 | 직원별/직급별 기억 분리 | memory scope router, staff/role identity map | Graphiti memory |
 | 이메일 정리 | provider-neutral search/classify, thread summary, label/archive plan | email provider bridge, optional Gmail |
 | 이메일 작성 | draft generator, context retrieval, tone presets | `.eml`/draft text first, optional Gmail |
@@ -266,7 +266,7 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 ### 4단계: 문서/파일 고도화
 
 - artifact ingest pipeline
-- markitdown, OCR, VLM provider routing
+- anydoc, OCR, VLM provider routing
 - 계약서 interview runner
 - HTML slide visual QA
 - Drive 같은 외부 publish/share 권한 audit
