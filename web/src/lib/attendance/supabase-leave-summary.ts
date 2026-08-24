@@ -2,6 +2,7 @@ import type {
 	EmployeeLeaveBalanceTrackingMode,
 	EmployeeLeaveSummary
 } from '../../routes/attendance/leave/employee-leave-types';
+import { leaveDaysInYear } from './leave-year-share';
 
 type SupabaseLeaveStatus = 'requested' | 'approved' | 'rejected';
 
@@ -10,6 +11,7 @@ export type SupabaseLeaveSummaryRow = {
 	status: SupabaseLeaveStatus;
 	isDeducted: boolean;
 	localStartDate: string;
+	localEndDate: string;
 };
 
 export type SupabaseLeaveBalance = {
@@ -26,8 +28,10 @@ export function summarizeSupabaseLeave(
 	let reservedMilliDays = 0;
 
 	for (const row of rows) {
-		if (!row.isDeducted || Number(row.localStartDate.slice(0, 4)) !== targetYear) continue;
-		const milliDays = Math.round(row.days * 1000);
+		if (!row.isDeducted) continue;
+		const days = leaveDaysInYear(row.days, row.localStartDate, row.localEndDate, targetYear);
+		if (days === 0) continue;
+		const milliDays = Math.round(days * 1000);
 		if (row.status === 'approved') usedMilliDays += milliDays;
 		if (row.status === 'requested') reservedMilliDays += milliDays;
 	}
@@ -37,8 +41,7 @@ export function summarizeSupabaseLeave(
 		summary: {
 			usedMilliDays,
 			reservedMilliDays,
-			availableMilliDays:
-				remainingDays === null ? 0 : Math.round(remainingDays * 1000) - reservedMilliDays
+			availableMilliDays: remainingDays === null ? 0 : Math.round(remainingDays * 1000)
 		}
 	};
 }

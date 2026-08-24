@@ -15,8 +15,10 @@ import { EmployeeLeaveAPIError } from '../../routes/attendance/leave/employee-le
 import {
 	companyDateOfTimestamp,
 	companyDateTimeISO,
+	leaveDisplayRange,
 	leavePreviewPeriod
 } from './supabase-leave-range';
+import { leaveDaysInYear } from './leave-year-share';
 import {
 	employeeLeaveRequestOfRow,
 	theOnlyLeaveType,
@@ -211,8 +213,9 @@ function employeeOf(
 	let reservedMilliDays = 0;
 	for (const leave of source.leaves) {
 		if (leave.member_id !== member.id || !leave.is_deducted) continue;
-		if (localYearOf(leave, source.company.timezone) !== source.targetYear) continue;
-		const milliDays = Math.round(leave.days * 1000);
+		const days = daysFallingInTargetYear(leave, source);
+		if (days === 0) continue;
+		const milliDays = Math.round(days * 1000);
 		if (leave.status === 'approved') usedMilliDays += milliDays;
 		if (leave.status === 'requested') reservedMilliDays += milliDays;
 	}
@@ -241,8 +244,19 @@ function employeeOf(
 	};
 }
 
-function localYearOf(leave: LeaveRow, timeZone: string): number {
-	return Number(companyDateOfTimestamp(leave.starts_at, timeZone).slice(0, 4));
+function daysFallingInTargetYear(leave: LeaveRow, source: LeaveManagementSource): number {
+	const range = leaveDisplayRange(
+		leave.starts_at,
+		leave.ends_at,
+		leave.days,
+		source.company.timezone
+	);
+	return leaveDaysInYear(
+		leave.days,
+		range.startDate,
+		range.endDate || range.startDate,
+		source.targetYear
+	);
 }
 
 function dayCount(startDate: string, endDate: string): number {
