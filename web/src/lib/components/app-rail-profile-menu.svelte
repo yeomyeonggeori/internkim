@@ -1,7 +1,7 @@
 <script lang="ts">
 	import AppRailAttendanceItem from '$lib/components/app-rail-attendance-item.svelte';
 	import BuzzConnectDialog from '$lib/components/buzz/buzz-connect-dialog.svelte';
-	import { attendanceClock } from '$lib/components/attendance-clock.svelte';
+	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import type { AppRailProfileMenuLabels } from '$lib/components/app-rail-types';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
@@ -32,7 +32,7 @@
 </script>
 
 <Sidebar.MenuItem>
-	<DropdownMenu.Root bind:open={attendanceClock.isMenuOpen}>
+	<DropdownMenu.Root bind:open={myAttendanceToday.isMenuOpen}>
 		<DropdownMenu.Trigger>
 			{#snippet child({ props: triggerProps })}
 				<Tooltip.Root>
