@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 
@@ -109,13 +110,35 @@ func (service *Service) mattermostFlowURL(weekCode string) string {
 	return baseURL + path
 }
 
+func (service *Service) linksGoToTheRecord() bool {
+	return strings.TrimSpace(service.Configuration.CentralPlaneAppURL) != ""
+}
+
+// An identifier belongs with the address it is sent to: the record keys a task
+// by its own, this device by the one it made, and a link carrying the other
+// one's opens nothing. A task the record has not taken yet has nothing to send,
+// and the link opens the week it is in.
+func (service *Service) linkedTaskID(taskID string) string {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" || !service.linksGoToTheRecord() {
+		return taskID
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	recordID, errorValue := service.readFlowCentralIdentityByTaskID(ctx, taskID)
+	if errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(recordID)
+}
+
 func (service *Service) mattermostFlowTaskURL(task flowTask) string {
 	query := url.Values{}
 	if weekCode := strings.TrimSpace(task.WeekCode); weekCode != "" {
 		query.Set("week", weekCode)
 	}
-	if taskID := strings.TrimSpace(task.ID); taskID != "" {
-		query.Set("task", taskID)
+	if linkedID := service.linkedTaskID(task.ID); linkedID != "" {
+		query.Set("task", linkedID)
 	}
 	path := "/flow/"
 	if encodedQuery := query.Encode(); encodedQuery != "" {
@@ -128,7 +151,13 @@ func (service *Service) mattermostFlowTaskURL(task flowTask) string {
 	return baseURL + path
 }
 
+// Everyone signs in at the company's own address and the record lives behind it,
+// so that is where a link points. A device address is what is left for a company
+// that has not moved.
 func (service *Service) flowLinkBaseURL() string {
+	if appURL := strings.TrimSpace(service.Configuration.CentralPlaneAppURL); appURL != "" {
+		return appURL
+	}
 	if flowPublicURL := strings.TrimSpace(service.Configuration.FlowPublicURL); flowPublicURL != "" {
 		return flowPublicURL
 	}

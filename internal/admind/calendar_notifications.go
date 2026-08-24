@@ -233,13 +233,35 @@ func (service *Service) mattermostCalendarURL(startISO string) string {
 	return baseURL + path
 }
 
+// The record keys an event through the task it was paired with, not by the
+// identifier this device made for it, and a link carrying the wrong one opens
+// nothing. An event the record has not taken has nothing to send, and the link
+// opens the day it is on.
+func (service *Service) linkedCalendarEventID(eventID string) string {
+	eventID = strings.TrimSpace(eventID)
+	if eventID == "" || !service.linksGoToTheRecord() {
+		return eventID
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	task, found, errorValue := service.readFlowTaskByCalendarEventID(ctx, eventID)
+	if errorValue != nil || !found {
+		return ""
+	}
+	recordID, errorValue := service.readFlowCentralIdentityByTaskID(ctx, task.ID)
+	if errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(recordID)
+}
+
 func (service *Service) mattermostCalendarEventURL(event calendarEvent) string {
 	query := url.Values{}
 	if startTime, errorValue := time.Parse(time.RFC3339, strings.TrimSpace(event.StartISO)); errorValue == nil {
 		query.Set("date", startTime.Format("2006-01-02"))
 	}
-	if eventID := strings.TrimSpace(event.ID); eventID != "" {
-		query.Set("event", eventID)
+	if linkedID := service.linkedCalendarEventID(event.ID); linkedID != "" {
+		query.Set("event", linkedID)
 	}
 	path := "/calendar/"
 	if encodedQuery := query.Encode(); encodedQuery != "" {
