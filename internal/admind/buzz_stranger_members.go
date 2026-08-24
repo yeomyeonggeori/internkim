@@ -16,6 +16,13 @@ import (
 	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostrest"
 )
 
+// The channel timeline reads "X added by 여명거리, along with ..." from the
+// notices the import published, and removing a membership does not unsay one.
+// kind 44100 is that notice; its p tags name who was added.
+const noticesNamingAStranger = `kind = 44100 AND EXISTS (
+	SELECT 1 FROM jsonb_array_elements(tags) tag
+	WHERE tag->>0 = 'p' AND tag->>1 = ANY($1))`
+
 type buzzStrangerMembersReport struct {
 	Strangers        int      `json:"strangers"`
 	Memberships      int      `json:"memberships"`
@@ -24,6 +31,8 @@ type buzzStrangerMembersReport struct {
 	ProfilesRemoved  int      `json:"profilesRemoved"`
 	Community        int      `json:"community"`
 	CommunityRemoved int      `json:"communityRemoved"`
+	Notices          int      `json:"notices"`
+	NoticesRemoved   int      `json:"noticesRemoved"`
 	Emails           []string `json:"emails"`
 }
 
@@ -92,6 +101,12 @@ func (service *Service) removeStrangerBuzzMembers(ctx context.Context, apply boo
 	).Scan(&report.Community); errorValue != nil {
 		return buzzStrangerMembersReport{}, errorValue
 	}
+	if errorValue := database.QueryRowContext(ctx,
+		"SELECT count(*) FROM events WHERE "+noticesNamingAStranger,
+		pq.Array(strangers),
+	).Scan(&report.Notices); errorValue != nil {
+		return buzzStrangerMembersReport{}, errorValue
+	}
 	if !apply {
 		return report, nil
 	}
@@ -108,6 +123,11 @@ func (service *Service) removeStrangerBuzzMembers(ctx context.Context, apply boo
 	}
 	report.CommunityRemoved, errorValue = rowsChangedBy(ctx, database,
 		"DELETE FROM relay_members WHERE pubkey = ANY($1) AND role <> 'owner'", strangers)
+	if errorValue != nil {
+		return buzzStrangerMembersReport{}, errorValue
+	}
+	report.NoticesRemoved, errorValue = rowsChangedBy(ctx, database,
+		"DELETE FROM events WHERE "+noticesNamingAStranger, strangers)
 	if errorValue != nil {
 		return buzzStrangerMembersReport{}, errorValue
 	}
