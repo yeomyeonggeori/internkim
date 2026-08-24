@@ -140,7 +140,7 @@
 	function handleShortcut(event: KeyboardEvent) {
 		if (searchValue !== '' || event.altKey || event.metaKey || event.ctrlKey) return;
 		if (event.key === clockOutShortcut) {
-			if (!attendanceClock.isClockedIn) return;
+			if (attendanceClock.nextKind === 'clock_in') return;
 			event.preventDefault();
 			runClockOut();
 			return;
@@ -162,7 +162,7 @@
 		{#if !searchValue.trim() || hasSuggestionResults}
 			<Command.Group forceMount heading={text.suggestions}>
 				{#if !searchValue.trim()}
-					{#if attendanceClock.isClockedIn}
+					{#if attendanceClock.nextKind === 'clock_out'}
 						<Command.Item value="suggested-clock-out" keywords={[attendanceLabels.clockOut]} onSelect={runClockOut}>
 							<LogOutIcon />
 							{attendanceLabels.clockOut}
@@ -262,7 +262,7 @@
 			<Command.Item
 				value="clock-out"
 				keywords={[attendanceLabels.clockOut]}
-				disabled={!attendanceClock.isClockedIn}
+				disabled={attendanceClock.nextKind === 'clock_in'}
 				onSelect={runClockOut}
 			>
 				<LogOutIcon />
