@@ -22,7 +22,7 @@
 {#snippet locationItems()}
 	<DropdownMenu.RadioGroup
 		value={myAttendanceToday.currentLocationID}
-		onValueChange={(locationID) => myAttendanceToday.clock('clock_in', locationID)}
+		onValueChange={(locationID) => void myAttendanceToday.clock('clock_in', locationID).catch(() => undefined)}
 	>
 		{#each myAttendanceToday.locations as location, index (location.id)}
 			<DropdownMenu.RadioItem
@@ -36,12 +36,20 @@
 	</DropdownMenu.RadioGroup>
 {/snippet}
 
+{#if myAttendanceToday.clockFailure}
+	<DropdownMenu.Item disabled>
+		{text.clockFailed}
+	</DropdownMenu.Item>
+	<DropdownMenu.Item class="text-muted-foreground text-xs" disabled>
+		{myAttendanceToday.clockFailure}
+	</DropdownMenu.Item>
+{/if}
 {#if myAttendanceToday.summary}
 	{#if myAttendanceToday.locations.length <= 1}
 		<DropdownMenu.Item
 			closeOnSelect={false}
 			disabled={myAttendanceToday.nextKind === 'clock_out' || myAttendanceToday.isSubmitting}
-			onclick={() => myAttendanceToday.clock('clock_in', myAttendanceToday.locations[0]?.id ?? '')}
+			onclick={() => void myAttendanceToday.clock('clock_in', myAttendanceToday.locations[0]?.id ?? '').catch(() => undefined)}
 		>
 			{text.clockIn}
 		</DropdownMenu.Item>
@@ -63,7 +71,7 @@
 		bind:ref={clockOutElement}
 		closeOnSelect={false}
 		disabled={myAttendanceToday.nextKind === 'clock_in' || myAttendanceToday.isSubmitting}
-		onclick={() => myAttendanceToday.clock('clock_out', '')}
+		onclick={() => void myAttendanceToday.clock('clock_out', '').catch(() => undefined)}
 	>
 		{text.clockOut}
 	</DropdownMenu.Item>

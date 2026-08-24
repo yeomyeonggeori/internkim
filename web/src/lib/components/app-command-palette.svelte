@@ -88,12 +88,22 @@
 
 	function runClockIn(locationID: string) {
 		open = false;
-		myAttendanceToday.clock('clock_in', locationID);
+		void myAttendanceToday.clock('clock_in', locationID).catch(() => undefined);
 	}
 
 	function runClockOut() {
 		open = false;
-		myAttendanceToday.clock('clock_out', '');
+		void myAttendanceToday.clock('clock_out', '').catch(() => undefined);
+	}
+
+	// The palette starts loading when it opens and does not wait, so a shortcut
+	// pressed straight away asks a summary that is not there yet. An unloaded
+	// summary reads as a day with no hours in it, which reads as not working,
+	// which used to end the keystroke in silence.
+	async function clockOutFromShortcut() {
+		if (!myAttendanceToday.summary) await myAttendanceToday.load();
+		if (myAttendanceToday.nextKind === 'clock_in') return;
+		runClockOut();
 	}
 
 	const canRegisterPasskey = isSupabaseConfigured() && isPasskeySupported();

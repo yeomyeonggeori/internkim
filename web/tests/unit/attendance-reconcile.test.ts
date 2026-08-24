@@ -227,17 +227,21 @@ describe('reconcileMember', () => {
 		expect(plan.remove).toEqual([]);
 	});
 
-	test('what the record kept after the device corrected it is removed', () => {
+	// A row the device does not have is either one it cancelled or one somebody
+	// made on the web, and the record cannot tell those apart - it holds no note
+	// of where a row came from. It used to guess "cancelled" and delete, which
+	// took every clock made on the web within fifteen minutes of being made.
+	test('what the device does not have is left alone, because the record cannot tell why', () => {
 		const plan = reconcileMember(
 			'member-1',
 			onTheDevice([{ occurredAt: '2026-08-07T03:56:00Z' }]),
 			inTheRecord([
 				{ id: 'kept', occurred_at: '2026-08-07T03:56:00Z' },
-				{ id: 'cancelled', occurred_at: '2026-08-05T08:29:00Z' }
+				{ id: 'made-somewhere-else', occurred_at: '2026-08-05T08:29:00Z' }
 			])
 		);
 
-		expect(plan.remove).toEqual(['cancelled']);
+		expect(plan.remove).toEqual([]);
 		expect(plan.add).toEqual([]);
 	});
 

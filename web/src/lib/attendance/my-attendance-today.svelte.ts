@@ -19,6 +19,7 @@ const menuShortcutCode = 'Period';
 class MyAttendanceToday {
 	summary = $state<AttendanceSummary | null>(null);
 	loadFailure = $state<string>('');
+	clockFailure = $state<string>('');
 	isMenuOpen = $state(false);
 	isSubmitting = $state(false);
 
@@ -64,12 +65,19 @@ class MyAttendanceToday {
 		return this.summary;
 	};
 
+	// A clock that fails quietly is a day with no hours in it, and the person who
+	// pressed the button is the last to find out. It throws for a caller that
+	// shows errors, and keeps the reason for the ones that have nowhere to put it.
 	clock = async (kind: AttendanceKind, locationID: string, confirmEarlyReturn = false) => {
 		if (this.isSubmitting) return;
 		this.isSubmitting = true;
+		this.clockFailure = '';
 		try {
 			await toggleAttendanceOnServer(kind, locationID, confirmEarlyReturn);
 			await this.load();
+		} catch (failure) {
+			this.clockFailure = failure instanceof Error ? failure.message : String(failure);
+			throw failure;
 		} finally {
 			this.isSubmitting = false;
 		}
