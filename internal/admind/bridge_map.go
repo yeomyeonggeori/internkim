@@ -42,6 +42,8 @@ func (service *Service) handleBridgeMap(responseWriter http.ResponseWriter, requ
 		service.handleBridgeIdentity(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/company":
 		service.handleBridgeCompany(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/people":
+		service.handleBridgePeople(responseWriter, request)
 	default:
 		http.NotFound(responseWriter, request)
 	}
@@ -135,6 +137,36 @@ func (service *Service) handleBridgeCompany(responseWriter http.ResponseWriter, 
 		return
 	}
 	service.writeJSON(responseWriter, map[string]string{"name": company.Name, "profileImage": company.ProfileImage})
+}
+
+// Who counts as a person of this company is the account directory's answer, not
+// "whoever appears in the history". A messenger keeps everyone who ever posted,
+// including accounts a probe made and deleted, and an import that reads the
+// history introduces those as colleagues. The agent is here too: it is not an
+// employee, but it is one of the company's own, and its email is what resolves
+// to the identity it talks as.
+func (service *Service) handleBridgePeople(responseWriter http.ResponseWriter, request *http.Request) {
+	var policyDocument memoryPolicyDocument
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		http.Error(responseWriter, "policy_unreachable", http.StatusBadGateway)
+		return
+	}
+	emails := []string{}
+	seen := map[string]bool{}
+	for _, person := range policyDocument.People {
+		for _, email := range person.Emails {
+			normalized := strings.ToLower(strings.TrimSpace(email))
+			if normalized == "" || seen[normalized] {
+				continue
+			}
+			seen[normalized] = true
+			emails = append(emails, normalized)
+		}
+	}
+	if botEmail := service.mattermostBotBuzzEmail(request.Context()); botEmail != "" && !seen[botEmail] {
+		emails = append(emails, botEmail)
+	}
+	service.writeJSON(responseWriter, map[string][]string{"emails": emails})
 }
 
 func (service *Service) handleBridgeChannelRecord(responseWriter http.ResponseWriter, request *http.Request) {
