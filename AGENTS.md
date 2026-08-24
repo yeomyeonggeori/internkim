@@ -486,9 +486,9 @@ and delete the duplicates.
   ever answer on `*.pages.dev`. A hostname cannot point at a preview.
 - `web/scripts/deploy-pages.ts` deploys a preview unless `--production` is
   passed. Keep that default.
-- Everyone signs in at one address, `space.<zone>`. Every other hostname on the
-  zone answers `308` to it, so a company hostname is a way in rather than a
-  place. The exception is any path under `/api/`, which is answered where it
+- Everyone signs in at one address, the zone itself. Every other hostname on the
+  zone, `space.<zone>` among them, answers `308` to it, so a company hostname is
+  a way in rather than a place. The exception is any path under `/api/`, which is answered where it
   landed because a cross-origin redirect drops the caller's bearer token.
 - The `internkim` Pages project serves all of them. Never deploy to it from a
   branch that does not contain `origin/main`; that replaces what every company
