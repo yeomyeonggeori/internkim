@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+"""Run the checks a change needs, before it is pushed.
+
+Every group here is one job GitHub Actions used to run. It ran them on push and
+told you minutes later; this runs the ones your diff can break and tells you
+now. Groups run at once and their output is held until they finish, so a slow
+one never hides a fast one's failure.
+"""
+
+import argparse
+import concurrent.futures
+import fnmatch
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+
+
+class Group:
+    def __init__(self, name, patterns, commands, working_directory="."):
+        self.name = name
+        self.patterns = patterns
+        self.commands = commands
+        self.working_directory = working_directory
+
+    def is_touched_by(self, changed_paths):
+        return any(
+            fnmatch.fnmatch(path, pattern)
+            for path in changed_paths
+            for pattern in self.patterns
+        )
+
+
+BUN_INSTALL = ["bun", "install", "--frozen-lockfile"]
+
+GROUPS = [
+    Group(
+        "blueclaw-pointer",
+        [".dependency/blueclaw"],
+        [["tools/verify-blueclaw-pointer"]],
+    ),
+    Group(
+        "go",
+        ["*.go", "go.mod", "go.sum"],
+        [["go", "build", "./..."], ["go", "vet", "./..."], ["go", "test", "./..."]],
+    ),
+    Group(
+        "web",
+        ["web/*"],
+        [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test", "tests/unit"]],
+        working_directory="web",
+    ),
+    Group(
+        "relay",
+        ["host/relay/*"],
+        [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],
+        working_directory="host/relay",
+    ),
+    Group(
+        "connection-gateway",
+        ["workers/connection-gateway/*"],
+        [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],
+        working_directory="workers/connection-gateway",
+    ),
+    Group(
+        "schema",
+        ["supabase/*"],
+        [["supabase", "db", "reset"], ["supabase", "test", "db"]],
+    ),
+    Group(
+        "doc-budgets",
+        ["*.md", "docs/*", "tools/verify-doc-budgets"],
+        [["tools/verify-doc-budgets"]],
+    ),
+]
+
+
+def changed_paths_against(base):
+    difference = subprocess.run(
+        ["git", "diff", "--name-only", f"{base}...HEAD"],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    uncommitted = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    paths = set(difference.stdout.split())
+    paths.update(line[3:] for line in uncommitted.stdout.splitlines() if line[3:])
+    return sorted(paths)
+
+
+def run_group(group):
+    started = time.monotonic()
+    for command in group.commands:
+        finished = subprocess.run(
+            command,
+            cwd=REPOSITORY_ROOT / group.working_directory,
+            capture_output=True,
+            text=True,
+        )
+        if finished.returncode != 0:
+            attempted = " ".join(command)
+            output = f"$ {attempted}\n{finished.stdout}{finished.stderr}"
+            return group.name, False, time.monotonic() - started, output
+    return group.name, True, time.monotonic() - started, ""
+
+
+def groups_to_run(arguments):
+    if arguments.only:
+        wanted = set(arguments.only.split(","))
+        named = [group for group in GROUPS if group.name in wanted]
+        unknown = wanted - {group.name for group in named}
+        if unknown:
+            raise SystemExit(f"no such group: {', '.join(sorted(unknown))}")
+        return named
+    if arguments.all:
+        return GROUPS
+    changed = changed_paths_against(arguments.base)
+    return [group for group in GROUPS if group.is_touched_by(changed)]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base", default="origin/main", help="what to compare against")
+    parser.add_argument("--all", action="store_true", help="run every group, not only the touched ones")
+    parser.add_argument("--only", help="comma-separated group names")
+    groups = groups_to_run(parser.parse_args())
+
+    if not groups:
+        print("nothing this change can break")
+        return 0
+
+    print(f"running {', '.join(group.name for group in groups)}")
+    failed = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(groups)) as pool:
+        for name, passed, seconds, output in pool.map(run_group, groups):
+            print(f"{'ok  ' if passed else 'FAIL'} {name} ({seconds:.0f}s)")
+            if not passed:
+                failed.append((name, output))
+
+    for name, output in failed:
+        print(f"\n=== {name} ===\n{output}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
