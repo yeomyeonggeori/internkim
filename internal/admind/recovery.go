@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -163,6 +163,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		cancelReconcile()
 	case "buzz-orphan-inspect":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "inspect imported orphan-thread roots", "sh", "-lc", buzzOrphanInspectCommand()))
+	case "buzz-stranger-members":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count members the directory does not name", "sh", "-lc", buzzStrangerMemberCommand(false)))
+	case "buzz-stranger-members-remove":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove members the directory does not name", "sh", "-lc", buzzStrangerMemberCommand(true)))
 	case "buzz-named-reaction-count":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count reactions published as a name", "sh", "-lc", buzzNamedReactionCountCommand()))
 	case "buzz-profile-inspect":
@@ -1005,6 +1009,17 @@ q "` + probes + ` ` + action + `" | sed 's/^/profile events ` + outcome + `: /'
 // A reaction whose content is a bare word is one the mirror published before it
 // learned to convert - the platform's name for the emoji instead of the emoji.
 // Already signed and published, so nothing rewrites it in place.
+func buzzStrangerMemberCommand(apply bool) string {
+	applyValue := "false"
+	if apply {
+		applyValue = "true"
+	}
+	return strings.TrimSpace(`
+body=$(curl -sS -X POST "` + blueclaw.AdmindBaseURL + `/agent/api/buzz-stranger-members?apply=` + applyValue + `")
+printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
+`)
+}
+
 func buzzNamedReactionCountCommand() string {
 	return strings.TrimSpace(`
 set +e
