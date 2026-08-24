@@ -119,6 +119,13 @@ func (client Client) PrivateChannels(ctx context.Context, teamID string) ([]rest
 	return client.pagedChannels(ctx, "/api/v4/teams/"+url.PathEscape(teamID)+"/channels/private")
 }
 
+// A channel list leaves out the archived ones, so an import reading it cannot
+// tell a channel that was never there from one somebody closed. This is the only
+// place the messenger says which is which.
+func (client Client) DeletedChannels(ctx context.Context, teamID string) ([]restChannel, error) {
+	return client.pagedChannels(ctx, "/api/v4/teams/"+url.PathEscape(teamID)+"/channels/deleted")
+}
+
 // Mattermost hangs direct and group conversations off each person rather than
 // off the team, so there is no single listing to read. A person who was never
 // on the team answers 404 rather than an empty list, and holds no conversation
