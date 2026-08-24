@@ -280,46 +280,10 @@ func runTestConfiguration(contextValue context.Context, configuration testComman
 	if errorValue != nil {
 		return errorValue
 	}
-	if configuration.Suite != "" {
-		return runTestSuite(contextValue, repositoryRootPath, configuration)
+	if configuration.Suite == "" {
+		return errors.New("name a suite: `internkim test cheap`, or `internkim test expensive --scenario <name>`")
 	}
-	executablePath, errorValue := currentExecutablePath()
-	if errorValue != nil {
-		return errorValue
-	}
-	service, errorValue := localfleet.NewService(localfleet.Options{
-		RepositoryRootPath:    repositoryRootPath,
-		ExecutablePath:        executablePath,
-		RunID:                 configuration.RunID,
-		GenerationSeed:        formatOptionalInt64(configuration.GenerationSeed),
-		GenerationTemperature: formatOptionalFloat64(configuration.GenerationTemperature),
-		MaximumModelTier:      configuration.MaximumModelTier,
-		ShouldUseRealModels:   configuration.ShouldUseRealModels,
-		IsEphemeral:           !configuration.ShouldReuseFleet,
-	})
-	if errorValue != nil {
-		return errorValue
-	}
-	logger := standardLocalFleetLogger{}
-	shouldCleanup := !configuration.ShouldKeepArtifacts && !configuration.ShouldReuseFleet
-	runError := service.Run(contextValue, logger, localfleet.JobRequest{
-		Action:        localfleet.ActionUp,
-		KeepArtifacts: true,
-		SkipWeb:       !configuration.ShouldExpectPublicURL,
-	})
-	if runError == nil {
-		runError = runTestPrompt(contextValue, service, repositoryRootPath, executablePath, configuration)
-	}
-	if shouldCleanup {
-		cleanupError := service.CleanupEphemeral(contextValue, logger)
-		if runError != nil && cleanupError != nil {
-			return fmt.Errorf("%w; cleanup failed: %v", runError, cleanupError)
-		}
-		if cleanupError != nil {
-			return cleanupError
-		}
-	}
-	return runError
+	return runTestSuite(contextValue, repositoryRootPath, configuration)
 }
 
 func runTestSuite(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration) error {
@@ -691,50 +655,6 @@ func safeTestScenarioName(name string) string {
 		}
 	}
 	return strings.Trim(builder.String(), "-")
-}
-
-func runTestPrompt(contextValue context.Context, service localfleet.Service, repositoryRootPath string, executablePath string, configuration testCommandConfiguration) error {
-	target, errorValue := resolveLocalFleetTestTarget(contextValue, service, repositoryRootPath, executablePath)
-	if errorValue != nil {
-		return errorValue
-	}
-	fmt.Println("Generation options: " + describeGenerationOptions(configuration))
-	fmt.Println("Mattermost prompt: " + configuration.Prompt)
-	timeoutSeconds := configuration.TimeoutSeconds
-	script := verifyMattermostPromptScript(configuration.Prompt, configuration.ShouldKeepArtifacts, timeoutSeconds, false, configuration.ShouldExpectPublicURL, configuration.ExpectedTools, nil, true, true, configuration.ShouldAutoConfirm)
-	observationContext, cancelObservation := scenarioObservationContext(contextValue, timeoutSeconds)
-	defer cancelObservation()
-	output, errorValue := target.sshClient.runResultWithContext(observationContext, script)
-	if errorValue != nil {
-		if strings.TrimSpace(output) != "" {
-			fmt.Print(redactDownloadedMattermostFiles(output))
-			if !strings.HasSuffix(output, "\n") {
-				fmt.Println()
-			}
-		}
-		writeTestResultJSONBestEffort(target, configuration, output)
-		return fmt.Errorf("remote Mattermost test failed: %w", errorValue)
-	}
-	verificationOutput, errorValue := parseMattermostVerificationOutput(output)
-	if errorValue != nil {
-		if strings.TrimSpace(output) != "" {
-			fmt.Print(redactDownloadedMattermostFiles(output))
-			if !strings.HasSuffix(output, "\n") {
-				fmt.Println()
-			}
-		}
-		return errorValue
-	}
-	downloadedFilePaths, errorValue := writeTestDownloadedMattermostFiles(output, configuration.OutputFilePath, configuration.DownloadDirectoryPath)
-	if errorValue != nil {
-		return errorValue
-	}
-	taskDetail, taskDetailError := fetchTestTaskDetailJSON(target, verificationOutput.TaskRunID)
-	if errorValue := writeTestResultJSON(configuration.ResultJSONPath, verificationOutput, downloadedFilePaths, taskDetail, taskDetailError); errorValue != nil {
-		return errorValue
-	}
-	printTestResult(verificationOutput, downloadedFilePaths)
-	return openDownloadedTestFiles(downloadedFilePaths, configuration.ShouldOpenFiles)
 }
 
 func fetchTestTaskDetailJSON(target verifyTarget, taskRunID string) (json.RawMessage, string) {
