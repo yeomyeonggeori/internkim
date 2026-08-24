@@ -537,6 +537,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/buzz-repair-orphans", service.handleBuzzRepairOrphans)
 	multiplexer.HandleFunc("/agent/api/buzz-stranger-members", service.handleBuzzStrangerMembers)
 	multiplexer.HandleFunc("/agent/api/buzz-rewrite-old-links", service.handleBuzzRewriteOldLinks)
+	multiplexer.HandleFunc("/agent/api/calendar-record-coverage", service.handleCalendarRecordCoverage)
 	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
@@ -2746,7 +2747,18 @@ func (configuration Configuration) withDefaults() Configuration {
 		configuration.CentralPlanePublishableKey = defaultConfiguration.CentralPlanePublishableKey
 	}
 	if configuration.CentralPlaneAppURL == "" {
-		configuration.CentralPlaneAppURL = configuration.APIBaseURL
+		// Everyone signs in at the zone itself. Falling back to the API address
+		// sent every link the agent writes through a hostname that only answers
+		// by redirecting to this one.
+		zone := ""
+		if configuration.APIBaseURL != "" {
+			zone = fleetdomain.Zone(configuration.APIBaseURL)
+		}
+		if zone != "" {
+			configuration.CentralPlaneAppURL = "https://" + zone
+		} else {
+			configuration.CentralPlaneAppURL = configuration.APIBaseURL
+		}
 	}
 	if configuration.ReleaseRegistryURL == "" {
 		configuration.ReleaseRegistryURL = fleetdomain.Subdomain("updates", fleetdomain.Zone(configuration.APIBaseURL))
