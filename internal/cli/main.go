@@ -846,17 +846,16 @@ func runDeployToBoard(scriptDir string, boardBinDir string, ssh *sshClient) {
 	fmt.Println("ok")
 
 	fmt.Print("Deploying skills... ")
-	skillsDir := blueclawworkspace.SkillsPath(scriptDir)
-	if _, err := os.Stat(skillsDir); err == nil {
+	skillDirectories, skillsError := blueclawworkspace.SkillDirectories(scriptDir)
+	if skillsError != nil {
+		fatal(skillsError.Error())
+	}
+	if len(skillDirectories) > 0 {
 		ssh.run("mkdir -p /root/.blueclaw/workspace/skills")
-		entries, _ := os.ReadDir(skillsDir)
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			remoteSkillDir := "/root/.blueclaw/workspace/skills/" + entry.Name()
+		for _, skillDirectory := range skillDirectories {
+			remoteSkillDir := "/root/.blueclaw/workspace/skills/" + skillDirectory.Name
 			ssh.run("rm -rf " + remoteSkillDir + " && mkdir -p " + remoteSkillDir)
-			ssh.scpDir(filepath.Join(skillsDir, entry.Name()), remoteSkillDir)
+			ssh.scpDir(skillDirectory.Path, remoteSkillDir)
 		}
 		ssh.run("chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills")
 	}

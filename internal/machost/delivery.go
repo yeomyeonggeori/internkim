@@ -16,7 +16,7 @@ const (
 
 type DeliverySources struct {
 	PayloadRuntimePath       string
-	SkillsPath               string
+	SkillPaths               []string
 	RuntimeConfigurationJSON string
 	PolicyJSON               string
 }
@@ -28,8 +28,10 @@ func WriteDeliveryDirectory(layout Layout, sources DeliverySources) error {
 	if errorValue := copyDeliveryTree(sources.PayloadRuntimePath, layout.DeliveryRuntimePath()); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := copyDeliveryTree(sources.SkillsPath, layout.DeliverySkillsPath()); errorValue != nil {
-		return errorValue
+	for _, skillPath := range sources.SkillPaths {
+		if errorValue := copyDeliveryTree(skillPath, layout.DeliverySkillsPath()); errorValue != nil {
+			return errorValue
+		}
 	}
 	if errorValue := os.MkdirAll(layout.DeliveryConfigurationPath(), deliveryDirectoryMode); errorValue != nil {
 		return errorValue

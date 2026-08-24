@@ -1406,8 +1406,14 @@ func (state *setupFlowState) stageSkillsSD(context *setup.Context) error {
 	if info, errorValue := os.Stat(toolsDirectoryPath); errorValue != nil || !info.IsDir() {
 		return fmt.Errorf("tools directory missing: %s", toolsDirectoryPath)
 	}
-	if errorValue := copyDirectoryToStage(skillsDirectoryPath, filepath.Join(context.SD.RootPath(), "skills")); errorValue != nil {
+	skillDirectories, errorValue := blueclawworkspace.SkillDirectories(state.scriptDir)
+	if errorValue != nil {
 		return errorValue
+	}
+	for _, skillDirectory := range skillDirectories {
+		if errorValue := copyDirectoryToStage(skillDirectory.Path, filepath.Join(context.SD.RootPath(), "skills", skillDirectory.Name)); errorValue != nil {
+			return errorValue
+		}
 	}
 	if errorValue := copyDirectoryToStage(toolsDirectoryPath, filepath.Join(context.SD.RootPath(), "tools")); errorValue != nil {
 		return errorValue
@@ -1420,8 +1426,7 @@ func (state *setupFlowState) stageSkillsSD(context *setup.Context) error {
 }
 
 func (state *setupFlowState) skillsManifest() string {
-	skillsDirectoryPath := blueclawworkspace.SkillsPath(state.scriptDir)
-	digest, errorValue := directoryDigest(skillsDirectoryPath)
+	digest, errorValue := skillRootsDigest(state.scriptDir)
 	if errorValue != nil {
 		return ""
 	}
@@ -1449,6 +1454,25 @@ func fileSHA256(filePath string) (string, error) {
 func sha256String(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return fmt.Sprintf("%x", sum)
+}
+
+func skillRootsDigest(scriptDir string) (string, error) {
+	digests := []string{}
+	for _, rootPath := range blueclawworkspace.SkillRootPaths(scriptDir) {
+		if info, statError := os.Stat(rootPath); statError != nil || !info.IsDir() {
+			continue
+		}
+		digest, errorValue := directoryDigest(rootPath)
+		if errorValue != nil {
+			return "", errorValue
+		}
+		digests = append(digests, digest)
+	}
+	if len(digests) == 0 {
+		return "", errors.New("no skill root is present")
+	}
+	combined := sha256.Sum256([]byte(strings.Join(digests, "\n")))
+	return hex.EncodeToString(combined[:]), nil
 }
 
 func directoryDigest(directoryPath string) (string, error) {
@@ -2752,9 +2776,12 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 		return err
 	}
 
-	localSkillsPath := blueclawworkspace.SkillsPath(state.scriptDir)
-	if info, err := os.Stat(localSkillsPath); err == nil && info.IsDir() {
-		if err := copyDirectoryContents(localSkillsPath, filepath.Join(context.SD.RootPath(), "skills")); err != nil {
+	stagedSkillDirectories, skillsError := blueclawworkspace.SkillDirectories(state.scriptDir)
+	if skillsError != nil {
+		return skillsError
+	}
+	for _, skillDirectory := range stagedSkillDirectories {
+		if err := copyDirectoryContents(skillDirectory.Path, filepath.Join(context.SD.RootPath(), "skills", skillDirectory.Name)); err != nil {
 			return err
 		}
 	}

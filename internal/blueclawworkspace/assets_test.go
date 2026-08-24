@@ -52,6 +52,7 @@ func bundledSkillDocumentPaths(t *testing.T, repositoryRootPath string) []string
 	t.Helper()
 	patterns := []string{
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "*", "SKILL.md"),
+		filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "*", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", ".agents", "skills", "*", "SKILL.md"),
 	}
 	documentPaths := []string{}
@@ -100,11 +101,26 @@ func TestCapabilityToolAssetExistsAndIsExecutable(t *testing.T) {
 	}
 }
 
+func skillDirectoryPath(t *testing.T, repositoryRootPath string, skillName string) string {
+	t.Helper()
+	skillDirectories, errorValue := SkillDirectories(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, skillDirectory := range skillDirectories {
+		if skillDirectory.Name == skillName {
+			return skillDirectory.Path
+		}
+	}
+	t.Fatalf("no skill root provides %q", skillName)
+	return ""
+}
+
 func TestArtifactSkillsDoNotUseBlueclawInternalTemporaryPath(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	skillNames := []string{"document", "spreadsheet", "presentation", "pdf"}
 	for _, skillName := range skillNames {
-		path := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", skillName, "SKILL.md")
+		path := filepath.Join(skillDirectoryPath(t, repositoryRootPath, skillName), "SKILL.md")
 		document, errorValue := os.ReadFile(path)
 		if errorValue != nil {
 			t.Fatal(errorValue)
@@ -123,8 +139,8 @@ func TestUserFacingWorkspaceDocsDoNotExposeRuntimeInternalPaths(t *testing.T) {
 	documentPaths := []string{
 		AgentsPath(repositoryRootPath),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "document", "SKILL.md"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "spreadsheet", "SKILL.md"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "SKILL.md"),
+		filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "spreadsheet", "SKILL.md"),
+		filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "skill-management", "SKILL.md"),
 	}
 	for _, documentPath := range documentPaths {
@@ -195,9 +211,9 @@ func TestModelFacingWorkspaceDocsDoNotExposeConcretePrivatePaths(t *testing.T) {
 		AgentsPath(repositoryRootPath),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "website", "SKILL.md"),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "document", "SKILL.md"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "spreadsheet", "SKILL.md"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "SKILL.md"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pdf", "SKILL.md"),
+		filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "spreadsheet", "SKILL.md"),
+		filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "SKILL.md"),
+		filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "pdf", "SKILL.md"),
 	}
 	for _, documentPath := range documentPaths {
 		document, errorValue := os.ReadFile(documentPath)
@@ -373,7 +389,7 @@ func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.
 	repositoryRootPath := filepath.Join("..", "..")
 	createScriptNames := map[string]string{"document": "create_docx.py", "spreadsheet": "create_xlsx.py"}
 	for skillName, createScriptName := range createScriptNames {
-		skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", skillName)
+		skillPath := skillDirectoryPath(t, repositoryRootPath, skillName)
 		runtimePath := filepath.Join(skillPath, "scripts", "skill_runtime.py")
 		if _, errorValue := os.Stat(runtimePath); errorValue != nil {
 			t.Fatalf("%s skill must bundle scripts/skill_runtime.py: %v", skillName, errorValue)
@@ -432,7 +448,7 @@ func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.
 func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	for _, skillName := range []string{"document", "spreadsheet", "pdf", "website"} {
-		skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", skillName, "SKILL.md")
+		skillPath := filepath.Join(skillDirectoryPath(t, repositoryRootPath, skillName), "SKILL.md")
 		document, errorValue := os.ReadFile(skillPath)
 		if errorValue != nil {
 			t.Fatal(errorValue)
@@ -453,7 +469,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 		}
 	}
 
-	xlsxCreateScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "spreadsheet", "scripts", "create_xlsx.py"))
+	xlsxCreateScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "spreadsheet", "scripts", "create_xlsx.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -465,8 +481,8 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 
 	for _, validationScriptPath := range []string{
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "document", "scripts", "validate_docx.py"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "spreadsheet", "scripts", "validate_xlsx.py"),
-		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pdf", "scripts", "validate_pdf.py"),
+		filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "spreadsheet", "scripts", "validate_xlsx.py"),
+		filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "pdf", "scripts", "validate_pdf.py"),
 	} {
 		document, errorValue := os.ReadFile(validationScriptPath)
 		if errorValue != nil {
@@ -477,7 +493,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 		}
 	}
 
-	xlsxValidationScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "spreadsheet", "scripts", "validate_xlsx.py"))
+	xlsxValidationScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "spreadsheet", "scripts", "validate_xlsx.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -487,7 +503,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 		}
 	}
 
-	pdfSkillDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pdf", "SKILL.md"))
+	pdfSkillDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "pdf", "SKILL.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -497,7 +513,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 		}
 	}
 	for _, fileName := range []string{"skill_runtime.py", "requirements.txt", "validate_pdf.py"} {
-		if _, errorValue := os.Stat(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pdf", "scripts", fileName)); errorValue != nil {
+		if _, errorValue := os.Stat(filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "pdf", "scripts", fileName)); errorValue != nil {
 			t.Fatalf("pdf skill must bundle scripts/%s: %v", fileName, errorValue)
 		}
 	}
@@ -554,13 +570,13 @@ func TestBuiltinSkillDependenciesArePreinstalledInRuntimeBase(t *testing.T) {
 
 func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "calculator", "SKILL.md"))
+	skillDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "calculator", "SKILL.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	skillContent := string(skillDocument)
-	if !strings.Contains(skillContent, "tool-references: terminal_run") {
-		t.Fatal("calculator skill must use the canonical terminal_run tool reference")
+	if !strings.Contains(skillContent, `kim.intern.tool-references: "terminal_run"`) {
+		t.Fatal("calculator skill must declare its terminal_run reference in the Agent Skills metadata map")
 	}
 	if !strings.Contains(skillContent, "<skill>/scripts/calc.py") {
 		t.Fatal("calculator skill must run the bundled evaluator script")
@@ -569,7 +585,7 @@ func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 		t.Fatal("calculator skill must not reference the removed math.calculate built-in")
 	}
 
-	evaluatorScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "calculator", "scripts", "calc.py"))
+	evaluatorScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "calculator", "scripts", "calc.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -582,7 +598,7 @@ func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 
 func TestPresentationBundlesPackageManifest(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
+	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	packageDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "assets", "package.json"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -598,7 +614,7 @@ func TestPresentationBundlesPackageManifest(t *testing.T) {
 
 func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	documentPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "SKILL.md")
+	documentPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "SKILL.md")
 	document, errorValue := os.ReadFile(documentPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -631,7 +647,7 @@ func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 
 func TestPresentationExporterNormalizesSlideViewer(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	scriptPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "scripts", "html_export.py")
+	scriptPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "scripts", "html_export.py")
 	testProgram := `
 import runpy
 import sys
@@ -667,7 +683,7 @@ assert "<section>Keep me</section>" in stripped
 
 func TestPresentationRestoresControllerFreeSource(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	scriptPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "scripts", "restore_source.py")
+	scriptPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "scripts", "restore_source.py")
 	temporaryPath := t.TempDir()
 	deliveredPath := filepath.Join(temporaryPath, "delivered.html")
 	sourcePath := filepath.Join(temporaryPath, "artifacts", "deck", "slides.html")
@@ -692,7 +708,7 @@ func TestPresentationRestoresControllerFreeSource(t *testing.T) {
 
 func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
+	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	fontPath := filepath.Join(skillPath, "assets", "fonts", "paperlogy")
 	for _, fileName := range []string{
 		"Paperlogy-4Regular.woff2",
@@ -743,7 +759,7 @@ func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 
 func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
+	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	document, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -825,7 +841,7 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 
 func TestPresentationVisualStylesDefineQualityGate(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	documentPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "assets", "visual-styles.md")
+	documentPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "assets", "visual-styles.md")
 	document, errorValue := os.ReadFile(documentPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -854,7 +870,7 @@ func TestPresentationVisualStylesDefineQualityGate(t *testing.T) {
 
 func TestPresentationCompositionSeedsKeepCreativeStructure(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	documentPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation", "assets", "composition-seeds.md")
+	documentPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "assets", "composition-seeds.md")
 	document, errorValue := os.ReadFile(documentPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -892,7 +908,7 @@ func TestPresentationCompositionSeedsKeepCreativeStructure(t *testing.T) {
 
 func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
+	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	skillDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -952,7 +968,7 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 
 func TestPresentationBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
+	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	htmlExportScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "html_export.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1037,7 +1053,7 @@ func TestPresentationBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 
 func TestPresentationValidatePPTXScriptReportsDesignWarnings(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "presentation")
+	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	validateScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "validate_pptx.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1047,5 +1063,41 @@ func TestPresentationValidatePPTXScriptReportsDesignWarnings(t *testing.T) {
 		if !strings.Contains(validateContent, expectedText) {
 			t.Fatalf("presentation validate_pptx.py must report design warning %q", expectedText)
 		}
+	}
+}
+
+func TestSkillDirectoriesMergeTheRepositoryAndPluginRoots(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	skillDirectories, errorValue := SkillDirectories(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	rootByName := map[string]string{}
+	for _, skillDirectory := range skillDirectories {
+		rootByName[skillDirectory.Name] = filepath.Dir(skillDirectory.Path)
+	}
+	pluginSkillsPath := PluginSkillsPath(repositoryRootPath)
+	for _, skillName := range []string{"pdf", "presentation", "spreadsheet", "calculator", "weather"} {
+		if rootByName[skillName] != pluginSkillsPath {
+			t.Fatalf("%s must come from the plugin, got %q", skillName, rootByName[skillName])
+		}
+	}
+	repositorySkillsPath := SkillsPath(repositoryRootPath)
+	for _, skillName := range []string{"paperwork", "website", "mattermost"} {
+		if rootByName[skillName] != repositorySkillsPath {
+			t.Fatalf("%s must stay in this repository, got %q", skillName, rootByName[skillName])
+		}
+	}
+}
+
+func TestSkillDirectoriesRejectTheSameSkillFromTwoRoots(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	for _, rootPath := range SkillRootPaths(repositoryRootPath) {
+		if errorValue := os.MkdirAll(filepath.Join(rootPath, "twice"), 0o755); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	if _, errorValue := SkillDirectories(repositoryRootPath); errorValue == nil {
+		t.Fatal("a skill provided by two roots must be reported, not silently resolved")
 	}
 }
