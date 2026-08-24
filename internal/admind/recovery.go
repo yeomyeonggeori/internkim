@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "calendar-record-coverage", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "calendar-record-coverage", "calendar-carry-into-the-record", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -168,7 +168,11 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 	case "buzz-stranger-members-remove":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove members the directory does not name", "sh", "-lc", buzzStrangerMemberCommand(true)))
 	case "calendar-record-coverage":
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the calendar events the record holds", "sh", "-lc", calendarRecordCoverageCommand()))
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the calendar events the record holds", "sh", "-lc", calendarRecordCoverageCommand(false)))
+	case "calendar-carry-into-the-record":
+		carryContext, cancelCarry := context.WithTimeout(context.Background(), 600*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(carryContext, "carry the calendar events the record never took", "sh", "-lc", calendarRecordCoverageCommand(true)))
+		cancelCarry()
 	case "buzz-rewrite-old-links":
 		rewriteContext, cancelRewrite := context.WithTimeout(context.Background(), 600*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(rewriteContext, "rewrite the links in messages already sent", "sh", "-lc", buzzRewriteOldLinksCommand(true)))
@@ -1033,9 +1037,13 @@ printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 // Every link the agent sent before it learned the company's address names a
 // device host, and the identifier beside it is one only this device knows. A
 // rewrite has to resolve each one, so the count comes first.
-func calendarRecordCoverageCommand() string {
+func calendarRecordCoverageCommand(pair bool) string {
+	pairValue := "false"
+	if pair {
+		pairValue = "true"
+	}
 	return strings.TrimSpace(`
-body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/calendar-record-coverage")
+body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/calendar-record-coverage?pair=` + pairValue + `")
 printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 `)
 }
