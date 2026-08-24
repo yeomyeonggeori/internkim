@@ -1,7 +1,8 @@
 import { isPlainShortcut } from '$lib/keyboard-shortcut';
+import { fetchAttendanceSummary, toggleAttendanceOnServer } from '../../routes/attendance/attendance-api';
 import type { AttendanceSummary } from '../../routes/attendance/attendance-context.svelte';
 import { computeDayEvents } from '../../routes/attendance/shared/attendance-aggregation';
-import { todayDateInTimeZone } from '../../routes/attendance/shared/attendance-date';
+import { currentMonthInTimeZone, todayDateInTimeZone } from '../../routes/attendance/shared/attendance-date';
 
 export type AttendanceClockKind = 'clock_in' | 'clock_out';
 
@@ -26,10 +27,16 @@ class AttendanceClock {
 	isClockedIn = $derived(this.activeSegment !== undefined);
 	currentLocationID = $derived(this.activeSegment?.locationID ?? '');
 
+	// A device answers /attendance/api/*; a company on the central plane reads the
+	// tables itself, and attendance-api is where that fork lives.
 	load = async (): Promise<AttendanceSummary | null> => {
-		const response = await fetch('/attendance/api/summary', { credentials: 'include', cache: 'no-store' });
-		if (!response.ok) return null;
-		this.summary = (await response.json()) as AttendanceSummary;
+		try {
+			this.summary = await fetchAttendanceSummary({
+				month: currentMonthInTimeZone(this.summary?.timeZone)
+			});
+		} catch {
+			this.summary = null;
+		}
 		return this.summary;
 	};
 
@@ -37,13 +44,7 @@ class AttendanceClock {
 		if (this.isSubmitting) return;
 		this.isSubmitting = true;
 		try {
-			const response = await fetch('/attendance/api/clock', {
-				method: 'POST',
-				credentials: 'include',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ kind, locationID })
-			});
-			if (!response.ok) return;
+			await toggleAttendanceOnServer(kind, locationID);
 			await this.load();
 		} finally {
 			this.isSubmitting = false;
