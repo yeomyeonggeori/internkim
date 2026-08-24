@@ -72,7 +72,8 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 			days: row.days,
 			status: row.status,
 			isDeducted: row.is_deducted,
-			localStartDate: request.startDate
+			localStartDate: request.startDate,
+			localEndDate: request.endDate || request.startDate
 		})),
 		targetYear,
 		remainingDays
