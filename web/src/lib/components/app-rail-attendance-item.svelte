@@ -67,4 +67,11 @@
 	>
 		{text.clockOut}
 	</DropdownMenu.Item>
+{:else if myAttendanceToday.loadFailure}
+	<DropdownMenu.Item disabled>
+		{text.clockUnavailable}
+	</DropdownMenu.Item>
+	<DropdownMenu.Item class="text-muted-foreground text-xs" disabled>
+		{myAttendanceToday.loadFailure}
+	</DropdownMenu.Item>
 {/if}
