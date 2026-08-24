@@ -25,6 +25,38 @@ func (member Member) IsActive() bool {
 	return strings.EqualFold(strings.TrimSpace(member.Status), "active")
 }
 
+// Members asks the directory who works here. Asking address by address cannot
+// find somebody nobody has mentioned yet, which is every person invited since
+// the caller last looked.
+func (client *Client) Members(ctx context.Context) ([]Member, error) {
+	if client == nil || !client.settings.Configured() {
+		return nil, fmt.Errorf("central plane is not configured")
+	}
+	requestURL := strings.TrimSuffix(client.settings.AppURL, "/") + "/api/agent/member"
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+
+	response, errorValue := client.httpClient.Do(request)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 300 {
+		return nil, fmt.Errorf("central plane refused the directory: %s", response.Status)
+	}
+
+	var answer struct {
+		Members []Member `json:"members"`
+	}
+	if errorValue := json.NewDecoder(response.Body).Decode(&answer); errorValue != nil {
+		return nil, errorValue
+	}
+	return answer.Members, nil
+}
+
 // MemberByEmail asks the directory about one address. A directory that cannot be reached
 // returns an error and never an absent member, because a caller that cannot tell those
 // apart will refuse a colleague over a timeout.
