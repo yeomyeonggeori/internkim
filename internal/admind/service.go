@@ -386,7 +386,7 @@ func NewService(configuration Configuration) *Service {
 func (service *Service) Run(ctx context.Context) error {
 	go service.reconcileBlueclawRuntimeConfiguration(ctx)
 	go service.centralPlane()
-	go service.keepAttendanceReconciled(ctx)
+	go service.keepWorkPolicyPublished(ctx)
 	go service.keepFlowTasksDrained(ctx)
 	go service.keepFlowTasksMirrored(ctx)
 	service.reconcileSiteSourcesToStaffCircle()
