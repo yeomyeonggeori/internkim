@@ -12,7 +12,7 @@
 	import LogInIcon from '@lucide/svelte/icons/log-in';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import LoaderIcon from '@lucide/svelte/icons/loader-circle';
-	import { attendanceClock } from '$lib/components/attendance-clock.svelte';
+	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import { getAttendanceState } from './attendance-context.svelte';
 	import { type AttendanceWorkSegment } from './shared/attendance-aggregation';
 	import { timeInTimeZone } from './shared/attendance-date';
@@ -32,9 +32,9 @@
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
 
-	const todayDay = $derived(attendanceClock.day);
-	const status = $derived(attendanceClock.status);
-	const activeLeave = $derived(attendanceClock.activeLeave);
+	const todayDay = $derived(myAttendanceToday.day);
+	const status = $derived(myAttendanceToday.status);
+	const activeLeave = $derived(myAttendanceToday.activeLeave);
 	const activeLeaveName = $derived(
 		activeLeave
 			? localizedLeaveTypeName(
@@ -57,13 +57,13 @@
 		todayDay.activeSegment?.locationName ?? todayDay.activeSegment?.locationID ?? text.location
 	);
 
-	const nextKind = $derived(attendanceClock.nextKind);
+	const nextKind = $derived(myAttendanceToday.nextKind);
 	const actionLabel = $derived(nextKind === 'clock_in' ? text.clockIn : text.clockOut);
 
 	let selectedLocationID = $state<string>('');
 	$effect(() => {
-		if (!selectedLocationID && attendanceClock.defaultLocation) {
-			selectedLocationID = attendanceClock.defaultLocation.id;
+		if (!selectedLocationID && myAttendanceToday.defaultLocation) {
+			selectedLocationID = myAttendanceToday.defaultLocation.id;
 		}
 	});
 
@@ -75,7 +75,7 @@
 		isToggling = true;
 		errorMessage = '';
 		try {
-			await attendanceClock.clock(
+			await myAttendanceToday.clock(
 				nextKind,
 				nextKind === 'clock_in' ? selectedLocationID : '',
 				confirmEarlyReturn
@@ -88,7 +88,7 @@
 		}
 	}
 
-	const locations = $derived(attendanceClock.locations);
+	const locations = $derived(myAttendanceToday.locations);
 	const todaySegmentBars = $derived(buildSegmentBars(todayDay.segments));
 	const todayProgressSegments = $derived<AttendanceProgressSegment[]>(
 		todaySegmentBars.map((segment) => ({
@@ -100,7 +100,7 @@
 	const showLocationPicker = $derived(nextKind === 'clock_in' && locations.length > 1);
 
 	function buildSegmentBars(segments: AttendanceWorkSegment[]): SegmentBar[] {
-		const currentTime = timeInTimeZone(attendanceClock.summary?.timeZone);
+		const currentTime = timeInTimeZone(myAttendanceToday.summary?.timeZone);
 		return segments.map((segment) => {
 			return {
 				id: segment.id,

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { attendanceClock } from '$lib/components/attendance-clock.svelte';
+	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../../routes/attendance/text';
@@ -12,23 +12,23 @@
 	focusPrimaryAction();
 
 	async function focusPrimaryAction() {
-		await attendanceClock.load();
+		await myAttendanceToday.load();
 		await tick();
-		const element = attendanceClock.nextKind === 'clock_out' ? clockOutElement : locationElements[0];
+		const element = myAttendanceToday.nextKind === 'clock_out' ? clockOutElement : locationElements[0];
 		element?.focus();
 	}
 </script>
 
 {#snippet locationItems()}
 	<DropdownMenu.RadioGroup
-		value={attendanceClock.currentLocationID}
-		onValueChange={(locationID) => attendanceClock.clock('clock_in', locationID)}
+		value={myAttendanceToday.currentLocationID}
+		onValueChange={(locationID) => myAttendanceToday.clock('clock_in', locationID)}
 	>
-		{#each attendanceClock.locations as location, index (location.id)}
+		{#each myAttendanceToday.locations as location, index (location.id)}
 			<DropdownMenu.RadioItem
 				bind:ref={() => locationElements[index] ?? null, (element) => (locationElements[index] = element)}
 				value={location.id}
-				disabled={attendanceClock.isSubmitting}
+				disabled={myAttendanceToday.isSubmitting}
 			>
 				{location.name}
 			</DropdownMenu.RadioItem>
@@ -36,16 +36,16 @@
 	</DropdownMenu.RadioGroup>
 {/snippet}
 
-{#if attendanceClock.summary}
-	{#if attendanceClock.locations.length <= 1}
+{#if myAttendanceToday.summary}
+	{#if myAttendanceToday.locations.length <= 1}
 		<DropdownMenu.Item
 			closeOnSelect={false}
-			disabled={attendanceClock.nextKind === 'clock_out' || attendanceClock.isSubmitting}
-			onclick={() => attendanceClock.clock('clock_in', attendanceClock.locations[0]?.id ?? '')}
+			disabled={myAttendanceToday.nextKind === 'clock_out' || myAttendanceToday.isSubmitting}
+			onclick={() => myAttendanceToday.clock('clock_in', myAttendanceToday.locations[0]?.id ?? '')}
 		>
 			{text.clockIn}
 		</DropdownMenu.Item>
-	{:else if attendanceClock.nextKind === 'clock_out'}
+	{:else if myAttendanceToday.nextKind === 'clock_out'}
 		<DropdownMenu.Sub>
 			<DropdownMenu.SubTrigger>
 				{text.clockIn}
@@ -62,8 +62,8 @@
 	<DropdownMenu.Item
 		bind:ref={clockOutElement}
 		closeOnSelect={false}
-		disabled={attendanceClock.nextKind === 'clock_in' || attendanceClock.isSubmitting}
-		onclick={() => attendanceClock.clock('clock_out', '')}
+		disabled={myAttendanceToday.nextKind === 'clock_in' || myAttendanceToday.isSubmitting}
+		onclick={() => myAttendanceToday.clock('clock_out', '')}
 	>
 		{text.clockOut}
 	</DropdownMenu.Item>
