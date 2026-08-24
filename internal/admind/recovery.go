@@ -985,7 +985,7 @@ q "SELECT count(*) FROM events WHERE kind=0" | sed 's/^/profile events, all vers
 q "SELECT count(*) FROM (SELECT DISTINCT ON (pubkey) content FROM events WHERE kind=0 ORDER BY pubkey, created_at DESC) newest WHERE content LIKE '%storage/v1/object%'" | sed 's/^/pointing at the closed bucket: /'
 q "SELECT count(*) FROM (SELECT DISTINCT ON (pubkey) content FROM events WHERE kind=0 ORDER BY pubkey, created_at DESC) newest WHERE content LIKE '%\"picture\"%'" | sed 's/^/carrying a picture: /'
 printf '== who they are ==\n'
-q "SELECT left(pubkey, 8) || '  ' || coalesce(content::json->>'display_name', content::json->>'name', '(unnamed)') FROM (SELECT DISTINCT ON (pubkey) pubkey, content FROM events WHERE kind=0 ORDER BY pubkey, created_at DESC) newest WHERE content LIKE '{%' ORDER BY 1"
+q "SELECT left(encode(pubkey, 'hex'), 8) || '  ' || coalesce(content::json->>'display_name', content::json->>'name', '(unnamed)') FROM (SELECT DISTINCT ON (pubkey) pubkey, content FROM events WHERE kind=0 ORDER BY pubkey, created_at DESC) newest WHERE content LIKE '{%' ORDER BY 1"
 `)
 }
 
