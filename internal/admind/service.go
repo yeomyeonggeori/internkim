@@ -508,6 +508,19 @@ func (service *Service) startMattermostProvisionerSync(ctx context.Context) {
 	}()
 }
 
+// Everyone signs in at the zone itself, and the API address answers only by
+// sending them there. A device that does not know its own address claims none.
+func companyAddressFrom(apiBaseURL string) string {
+	if apiBaseURL == "" {
+		return ""
+	}
+	zone := fleetdomain.Zone(apiBaseURL)
+	if zone == "" {
+		return apiBaseURL
+	}
+	return "https://" + zone
+}
+
 func (service *Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("/admin", service.serveAdminPage)
@@ -2747,18 +2760,7 @@ func (configuration Configuration) withDefaults() Configuration {
 		configuration.CentralPlanePublishableKey = defaultConfiguration.CentralPlanePublishableKey
 	}
 	if configuration.CentralPlaneAppURL == "" {
-		// Everyone signs in at the zone itself. Falling back to the API address
-		// sent every link the agent writes through a hostname that only answers
-		// by redirecting to this one.
-		zone := ""
-		if configuration.APIBaseURL != "" {
-			zone = fleetdomain.Zone(configuration.APIBaseURL)
-		}
-		if zone != "" {
-			configuration.CentralPlaneAppURL = "https://" + zone
-		} else {
-			configuration.CentralPlaneAppURL = configuration.APIBaseURL
-		}
+		configuration.CentralPlaneAppURL = companyAddressFrom(configuration.APIBaseURL)
 	}
 	if configuration.ReleaseRegistryURL == "" {
 		configuration.ReleaseRegistryURL = fleetdomain.Subdomain("updates", fleetdomain.Zone(configuration.APIBaseURL))
