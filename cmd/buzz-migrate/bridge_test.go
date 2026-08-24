@@ -101,3 +101,44 @@ func TestARefusedRecordIsNotSilent(t *testing.T) {
 		t.Error("a post nobody recorded was reported as recorded")
 	}
 }
+
+// The messenger keeps everyone who ever posted; the directory keeps the people
+// who work here. Reading the first as the second is how thirty-two probe
+// accounts became colleagues in a company of eight.
+func TestOnlyTheDirectorysPeopleAreOurs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/people" {
+			t.Errorf("asked %s", request.URL.Path)
+		}
+		responseWriter.Write([]byte(`{"emails":["이샘플@example.com","Bot@Example.com"]}`))
+	}))
+	defer server.Close()
+
+	companyPeople, errorValue := newBridge(server.URL).people(context.Background())
+	if errorValue != nil {
+		t.Fatalf("people: %v", errorValue)
+	}
+	if !companyPeople["이샘플@example.com"] || !companyPeople["bot@example.com"] {
+		t.Errorf("the directory's people were not all taken: %v", companyPeople)
+	}
+	if companyPeople["probemm1780337241@internkim.test"] {
+		t.Error("someone the directory never named is one of ours")
+	}
+}
+
+func TestADirectoryThatNamesNobodyIsNotAnAnswer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
+		responseWriter.Write([]byte(`{"emails":[]}`))
+	}))
+	defer server.Close()
+
+	if _, errorValue := newBridge(server.URL).people(context.Background()); errorValue == nil {
+		t.Error("an empty directory read as a company with no people, and every profile would go out unpublished")
+	}
+}
+
+func TestAnImportWithNoBridgeDoesNotDecideWhoWorksHere(t *testing.T) {
+	if _, errorValue := newBridge("  ").people(context.Background()); errorValue == nil {
+		t.Error("an import with nobody to ask named the people itself")
+	}
+}

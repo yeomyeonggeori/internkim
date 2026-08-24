@@ -136,7 +136,6 @@ func main() {
 
 	totalImported := 0
 	totalSkipped := skipTally{}
-	postedEmails := newSharedNames()
 	customEmojiCache := newSharedStrings()
 	// Channels do not depend on each other; a reply resolves its root inside the
 	// channel it was written in. Most of a channel's time is spent waiting on
@@ -185,7 +184,7 @@ func main() {
 				fileCacheDir:     *fileCacheDir,
 				customEmojiCache: customEmojiCache,
 				keeper:           keeper,
-			}, buzzChannelID, posts, authorEmails, authorSecrets, postedEmails)
+			}, buzzChannelID, posts, authorEmails, authorSecrets)
 			tally.Lock()
 			totalImported += imported
 			totalSkipped.add(skipped)
@@ -194,7 +193,11 @@ func main() {
 		}(channel)
 	}
 	running.Wait()
-	injectAuthorProfiles(ctx, injector, uploader, client, authorSecrets, authorsByID, postedEmails)
+	if companyPeople, errorValue := bridge.people(ctx); errorValue != nil {
+		log.Printf("nobody is given a profile: the directory did not answer (%v)", errorValue)
+	} else {
+		injectAuthorProfiles(ctx, injector, uploader, client, authorSecrets, authorsByID, companyPeople)
+	}
 	injectCompanyProfile(ctx, injector, uploader, keeper, bridge, bootstrapSecret)
 	fmt.Printf("done: %d channels, %d messages imported, %s\n", len(channels), totalImported, totalSkipped)
 }
@@ -222,27 +225,6 @@ func (shared *sharedStrings) put(name string, value string) {
 	shared.guard.Lock()
 	defer shared.guard.Unlock()
 	shared.byName[name] = value
-}
-
-type sharedNames struct {
-	guard sync.Mutex
-	named map[string]bool
-}
-
-func newSharedNames() *sharedNames {
-	return &sharedNames{named: map[string]bool{}}
-}
-
-func (shared *sharedNames) add(name string) {
-	shared.guard.Lock()
-	defer shared.guard.Unlock()
-	shared.named[name] = true
-}
-
-func (shared *sharedNames) has(name string) bool {
-	shared.guard.Lock()
-	defer shared.guard.Unlock()
-	return shared.named[name]
 }
 
 type importDependencies struct {
@@ -307,7 +289,6 @@ func importChannelPosts(
 	posts []buzzimport.MattermostPost,
 	authorEmails map[string]string,
 	authorSecrets map[string]string,
-	postedEmails *sharedNames,
 ) (int, skipTally) {
 	injector := dependencies.injector
 	eventIDByPostID := map[string]string{}
@@ -356,7 +337,6 @@ func importChannelPosts(
 			continue
 		}
 		eventIDByPostID[post.ID] = event.ID
-		postedEmails.add(authorEmail)
 		imported++
 		if post.HasReactions {
 			importPostReactions(ctx, dependencies, buzzChannelID, event.ID, post.ID, authorEmails, authorSecrets)
@@ -418,10 +398,10 @@ func (dependencies importDependencies) customEmojiURL(ctx context.Context, autho
 	return url
 }
 
-func injectAuthorProfiles(ctx context.Context, injector buzzimport.ChannelInjector, uploader media.Uploader, client mattermostrest.Client, authorSecrets map[string]string, authorsByID map[string]mattermostrest.MattermostAuthor, postedEmails *sharedNames) {
+func injectAuthorProfiles(ctx context.Context, injector buzzimport.ChannelInjector, uploader media.Uploader, client mattermostrest.Client, authorSecrets map[string]string, authorsByID map[string]mattermostrest.MattermostAuthor, companyPeople map[string]bool) {
 	seen := map[string]bool{}
 	for userID, author := range authorsByID {
-		if seen[author.Email] || !postedEmails.has(author.Email) {
+		if seen[author.Email] || !companyPeople[strings.ToLower(strings.TrimSpace(author.Email))] {
 			continue
 		}
 		seen[author.Email] = true
@@ -1021,6 +1001,37 @@ func (client bridgeClient) company(ctx context.Context) (companyIdentity, error)
 		return companyIdentity{}, errors.New("the bridge named no company")
 	}
 	return company, nil
+}
+
+// The messenger keeps everyone who ever posted, including accounts a probe made
+// and deleted. Asking the directory who the company's people are is the
+// difference between a colleague list and an archaeology of the message table.
+func (client bridgeClient) people(ctx context.Context) (map[string]bool, error) {
+	if client.baseURL == "" {
+		return nil, errors.New("no bridge was given, and an import must not decide for itself who works here")
+	}
+	response, errorValue := client.get(ctx, "/people")
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("the bridge answered %d for the company's people", response.StatusCode)
+	}
+	var answer struct {
+		Emails []string `json:"emails"`
+	}
+	if errorValue := json.NewDecoder(response.Body).Decode(&answer); errorValue != nil {
+		return nil, errorValue
+	}
+	known := map[string]bool{}
+	for _, email := range answer.Emails {
+		known[strings.ToLower(strings.TrimSpace(email))] = true
+	}
+	if len(known) == 0 {
+		return nil, errors.New("the directory named nobody")
+	}
+	return known, nil
 }
 
 func (client bridgeClient) recordChannel(ctx context.Context, buzzChannelID, externalChannelID string) error {
