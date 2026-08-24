@@ -296,7 +296,7 @@ func (service Service) mattermostMarkdownPreview(ctx context.Context, attachment
 	}
 	content, isTruncated := truncateTextByBytes(strings.TrimSpace(helperResponse.Content), maximumInputMarkdownPreviewBytes)
 	if content == "" {
-		return "", "empty", "markitdown returned no content"
+		return "", "empty", "document conversion returned no content"
 	}
 	if isTruncated {
 		return content, "truncated", "markdown preview was truncated"
