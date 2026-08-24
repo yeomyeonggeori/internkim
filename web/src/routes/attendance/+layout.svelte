@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { attendanceClock } from '$lib/components/attendance-clock.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount, untrack } from 'svelte';
@@ -101,6 +102,10 @@
 		attendance.selectedMonth;
 		attendance.chartMode;
 		attendance.persistFilters();
+	});
+
+	$effect(() => {
+		attendanceClock.adopt(attendance.currentMonthSummary);
 	});
 
 	$effect(() => {

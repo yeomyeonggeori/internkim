@@ -4,7 +4,6 @@ import {
 	type CreateAttendanceAbsenceRequest,
 	deleteAttendanceAbsence,
 	fetchAttendanceSummary,
-	toggleAttendanceOnServer,
 	updateAttendanceEvent,
 	updateAttendanceEvents,
 	type UpdateAttendanceEventRequest
@@ -299,15 +298,6 @@ export class AttendanceState {
 		} catch {
 			this.currentMonthSummary = null;
 		}
-	}
-
-	async toggleAttendance(
-		kind?: AttendanceKind,
-		locationID?: string,
-		confirmEarlyReturn = false
-	) {
-		await toggleAttendanceOnServer(kind, locationID, confirmEarlyReturn);
-		await this.load();
 	}
 
 	async createAbsence(request: CreateAttendanceAbsenceRequest) {
