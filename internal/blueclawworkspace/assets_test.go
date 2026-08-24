@@ -562,7 +562,7 @@ func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 	if !strings.Contains(skillContent, "tool-references: terminal_run") {
 		t.Fatal("calculator skill must use the canonical terminal_run tool reference")
 	}
-	if !strings.Contains(skillContent, "/workspace/skills/calculator/scripts/calc.py") {
+	if !strings.Contains(skillContent, "<skill>/scripts/calc.py") {
 		t.Fatal("calculator skill must run the bundled evaluator script")
 	}
 	if strings.Contains(skillContent, "math.calculate") {
@@ -803,7 +803,7 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"PRESENTATION_PPTX_MODE=native",
 		"With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence",
 		"FORMATS=pptx",
-		`"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh"`,
+		`"command": "FORMATS=pptx <skill>/scripts/build.sh"`,
 		"`file_write` tool directly",
 		"Do not use `capability.invoke`, shell heredocs, or echo",
 		"must not delay the primary source file",
@@ -903,7 +903,7 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 			t.Fatalf("presentation must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{`"command": "/workspace/skills/presentation/scripts/build.sh"`, `"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh"`, "/workspace/skills/presentation/scripts/build.sh", `"workingDirectoryPath": "artifacts/<deck-slug>"`, "file_deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
+	for _, expectedText := range []string{`"command": "<skill>/scripts/build.sh"`, `"command": "FORMATS=pptx <skill>/scripts/build.sh"`, "`<skill>` is this skill's own directory", `"workingDirectoryPath": "artifacts/<deck-slug>"`, "file_deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
 		if !strings.Contains(skillContent, expectedText) {
 			t.Fatalf("presentation must document %q", expectedText)
 		}

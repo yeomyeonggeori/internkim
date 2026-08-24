@@ -48,7 +48,7 @@ filename: 업무협약서_<상대방기관명>_<YYYYMMDD>.docx
 
 ```json
 {
-  "command": "python3 /workspace/skills/paperwork/scripts/skill_runtime.py python /workspace/skills/paperwork/scripts/fill_template.py mou context.json <storageDirectory>/<filename>.docx",
+  "command": "python3 <skill>/scripts/skill_runtime.py python <skill>/scripts/fill_template.py mou context.json <storageDirectory>/<filename>.docx",
   "workingDirectoryPath": "tmp/mou"
 }
 ```

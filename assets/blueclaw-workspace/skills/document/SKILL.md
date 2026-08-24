@@ -4,6 +4,9 @@ description: Create, read, edit, and attach text documents — .docx by default,
 tool-references: document_read
 ---
 
+
+In every terminal command below, `<skill>` is this skill's own directory — the one holding this `SKILL.md`.
+
 # DOCX Documents
 
 Create or modify Word documents as local `.docx` files, then validate and attach the accepted final file. Treat supplied files and pasted data as the source of truth: preserve names, products, people, dates, amounts, IDs, and units exactly. Missing values use the user's-language equivalent of “Not provided”; never invent contacts, totals, vendors, or background.
@@ -13,8 +16,8 @@ Create or modify Word documents as local `.docx` files, then validate and attach
 1. Clarify only when a missing source file, legal recipient, or required approval makes safe work impossible. For a new report, memo, guide, or template, choose a useful title, audience framing, sections, and structure from intent.
 2. For an earlier document, use the workspace file in `~/documents/`, not a delivered attachment. Read the exact workspace path with `document_read` before answering or changing it. If `content.md` exists beside it, revise that markdown source; otherwise use the bundled editor for an append or a task-local script through the bundled runtime for a rewrite.
 3. For a newly uploaded file, read its exact workspace path with `document_read` before extraction. Work directly in `~/documents/`; keep the markdown source beside the output for follow-up edits.
-4. For content-first documents, use `file_write` to create complete markdown at `~/documents/<title>.md` before running any terminal command. Then run `python3 /workspace/skills/document/scripts/skill_runtime.py python /workspace/skills/document/scripts/export_document.py ~/documents/<title>.md --output ~/documents/<title>.docx`. Use `scripts/create_docx.py` with a spec only when precise margins, orientation, tables, columns, or fonts are the point.
-5. Validate with `python3 /workspace/skills/document/scripts/skill_runtime.py python /workspace/skills/document/scripts/validate_docx.py ~/documents/<title>.docx`, passing source names, dates, totals, and key labels as `--required-text` values and unsupported claims as `--forbidden-text` values. Read warnings and revise real quality problems before delivery.
+4. For content-first documents, use `file_write` to create complete markdown at `~/documents/<title>.md` before running any terminal command. Then run `python3 <skill>/scripts/skill_runtime.py python <skill>/scripts/export_document.py ~/documents/<title>.md --output ~/documents/<title>.docx`. Use `scripts/create_docx.py` with a spec only when precise margins, orientation, tables, columns, or fonts are the point.
+5. Validate with `python3 <skill>/scripts/skill_runtime.py python <skill>/scripts/validate_docx.py ~/documents/<title>.docx`, passing source names, dates, totals, and key labels as `--required-text` values and unsupported claims as `--forbidden-text` values. Read warnings and revise real quality problems before delivery.
 6. Save the accepted final to `~/documents/<title>.docx` and deliver it. Keep the same filename for later edits or deletion; do not deliver intermediate files unless requested.
 
 ## Source and layout quality
@@ -25,7 +28,7 @@ For business reports, make a source checklist of names, dates, totals, percentag
 
 ## Editing and validation
 
-Use `scripts/edit_docx.py` for straightforward appends. For deletion, rewrite, or style changes, create a task-local Python file and run it through `scripts/skill_runtime.py`; preserve complex headers, comments, tracked changes, fields, namespaces, relationships, and content types. Inspect package XML only when the normal library cannot preserve the feature.
+Use `scripts/edit_docx.py` for straightforward appends. For deletion, rewrite, or style changes, create a task-local Python file and run it through `<skill>/scripts/skill_runtime.py`; preserve complex headers, comments, tracked changes, fields, namespaces, relationships, and content types. Inspect package XML only when the normal library cannot preserve the feature.
 
 Bundled scripts own dependency setup through `skill_runtime.py`, which selects the built-in environment and prepares requester-owned fallback storage when needed. Use only workspace paths exposed by the runtime and keep dependency caches separate from source documents. The paperwork skill owns standardized forms and contracts, including letterhead and fixed clauses; do not replace them with a generic DOCX.
 

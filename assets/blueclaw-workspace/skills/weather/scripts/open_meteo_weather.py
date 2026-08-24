@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import pathlib
+from pathlib import Path
 import tempfile
 import urllib.error
 import urllib.parse
@@ -13,7 +14,7 @@ import urllib.request
 import zoneinfo
 
 
-DEFAULT_CACHE_DIRECTORY = "/workspace/shared/cache/weather/open-meteo-v1"
+DEFAULT_CACHE_RELATIVE_PATH = "weather/open-meteo-v1"
 DEFAULT_GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 DEFAULT_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 GEOCODING_CACHE_SECONDS = 30 * 24 * 60 * 60
@@ -111,12 +112,23 @@ def main():
     print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
 
 
+def default_cache_directory():
+    configured = os.environ.get("WEATHER_CACHE_DIR", "").strip()
+    if configured != "":
+        return configured
+    for environment_name in ("BLUECLAW_DEPENDENCY_CACHE", "XDG_CACHE_HOME", "TMPDIR"):
+        root = os.environ.get(environment_name, "").strip()
+        if root != "":
+            return str(Path(root) / DEFAULT_CACHE_RELATIVE_PATH)
+    return str(Path(tempfile.gettempdir()) / DEFAULT_CACHE_RELATIVE_PATH)
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Fetch Open-Meteo weather with shared caching.")
     parser.add_argument("--location", default="")
     parser.add_argument("--date", default="today")
     parser.add_argument("--language", default="ko")
-    parser.add_argument("--cache-directory", default=os.environ.get("WEATHER_CACHE_DIR", DEFAULT_CACHE_DIRECTORY))
+    parser.add_argument("--cache-directory", default=default_cache_directory())
     parser.add_argument("--geocoding-url", default=os.environ.get("OPEN_METEO_GEOCODING_URL", DEFAULT_GEOCODING_URL))
     parser.add_argument("--forecast-url", default=os.environ.get("OPEN_METEO_FORECAST_URL", DEFAULT_FORECAST_URL))
     return parser.parse_args()
@@ -460,10 +472,9 @@ def read_json_cache(path):
 
 
 def make_shared_cache_directory(directory_path):
-    # This tree lives under /workspace/shared/cache, which is setgid to
-    # bc_shared: every requester runs as a different unprivileged UID, so a
-    # directory this call creates must stay group-writable for the next
-    # requester regardless of the default umask.
+    # A shared cache tree can be setgid to a group every requester belongs to
+    # while each requester runs as a different unprivileged UID, so a directory
+    # this call creates must stay group-writable regardless of the default umask.
     previous_umask = os.umask(0o002)
     try:
         directory_path.mkdir(parents=True, exist_ok=True)

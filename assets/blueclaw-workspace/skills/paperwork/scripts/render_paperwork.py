@@ -44,7 +44,7 @@ ALLOWED_TOP_LEVEL_KEYS = {
     "meta", "items", "sections", "notes", "signature", "footer", "fontPath",
 }
 CONTENT_KEYS = {"recipient", "meta", "items", "sections", "notes", "signature"}
-SPEC_HINT = "read the document type's spec at /workspace/skills/paperwork/references/<ko|en>/<type>.md and copy its Document JSON skeleton exactly"
+SPEC_HINT = "read the document type's spec at this skill's references/<ko|en>/<type>.md and copy its Document JSON skeleton exactly"
 
 
 def load_document(document_path):
@@ -127,7 +127,15 @@ def is_embeddable_font(font_path):
 
 
 def candidate_font_paths():
-    return [Path(candidate) for candidate in FONT_CANDIDATE_PATHS_PDF]
+    return dependency_cache_font_paths() + [Path(candidate) for candidate in FONT_CANDIDATE_PATHS_PDF]
+
+
+def dependency_cache_font_paths():
+    dependency_cache = os.environ.get("BLUECLAW_DEPENDENCY_CACHE", "").strip()
+    if dependency_cache == "":
+        return []
+    fonts_directory = Path(dependency_cache) / "fonts"
+    return [fonts_directory / "NanumGothic.ttf", fonts_directory / "NotoSansKR-Regular.ttf"]
 
 
 def render_document(document):

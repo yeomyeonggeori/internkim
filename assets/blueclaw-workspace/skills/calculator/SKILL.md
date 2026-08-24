@@ -4,6 +4,9 @@ description: Calculate explicit arithmetic expressions exactly when the user ask
 tool-references: terminal_run
 ---
 
+
+In every terminal command below, `<skill>` is this skill's own directory — the one holding this `SKILL.md`.
+
 # Calculator
 
 Use the bundled deterministic evaluator for precise results, large numbers, and multi-step arithmetic. Do not compute non-trivial arithmetic by hand.
@@ -17,8 +20,8 @@ For simple greetings or non-numeric explanations, answer directly without this s
 
 ```json
 {
-  "command": "python3 /workspace/skills/calculator/scripts/calc.py \"(2+3)*4\"",
-  "workingDirectoryPath": "/workspace"
+  "command": "python3 <skill>/scripts/calc.py \"(2+3)*4\"",
+  "workingDirectoryPath": "<skill>"
 }
 ```
 

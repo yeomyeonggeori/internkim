@@ -274,10 +274,16 @@ def is_embeddable_font(font_path):
     return "OS/2" in font and "cmap" in font
 
 
+def dependency_cache_font_paths():
+    dependency_cache = os.environ.get("BLUECLAW_DEPENDENCY_CACHE", "").strip()
+    if dependency_cache == "":
+        return []
+    fonts_directory = Path(dependency_cache) / "fonts"
+    return [fonts_directory / "NanumGothic.ttf", fonts_directory / "NotoSansKR-Regular.ttf"]
+
+
 def candidate_font_paths():
-    return [
-        Path("/workspace/shared/cache/dependencies/fonts/NanumGothic.ttf"),
-        Path("/workspace/shared/cache/dependencies/fonts/NotoSansKR-Regular.ttf"),
+    return dependency_cache_font_paths() + [
         Path("/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
         Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
         Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),

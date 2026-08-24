@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import re
 from pathlib import Path
 
@@ -128,8 +129,6 @@ def render_markdown(document, markdown_text, point_class):
 
 
 PDF_FONT_CANDIDATES = [
-    Path("/workspace/shared/cache/dependencies/fonts/NanumGothic.ttf"),
-    Path("/workspace/shared/cache/dependencies/fonts/NotoSansKR-Regular.ttf"),
     Path("/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
     Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
 ]
@@ -147,10 +146,18 @@ def is_embeddable_font(font_path):
     return "OS/2" in font and "cmap" in font
 
 
+def dependency_cache_font_paths():
+    dependency_cache = os.environ.get("BLUECLAW_DEPENDENCY_CACHE", "").strip()
+    if dependency_cache == "":
+        return []
+    fonts_directory = Path(dependency_cache) / "fonts"
+    return [fonts_directory / "NanumGothic.ttf", fonts_directory / "NotoSansKR-Regular.ttf"]
+
+
 def resolve_pdf_font(font_path_argument):
     if font_path_argument:
         return Path(font_path_argument)
-    for candidate in PDF_FONT_CANDIDATES:
+    for candidate in dependency_cache_font_paths() + PDF_FONT_CANDIDATES:
         if candidate.exists() and is_embeddable_font(candidate):
             return candidate
     return None

@@ -3,6 +3,9 @@ name: weather
 description: Look up current and date-specific weather through Open-Meteo with shared caching. Use for weather, forecast, temperature, rain, umbrella, wind, 날씨, 기온, 비 와, 우산, 바람, 오늘 날씨, 내일 날씨, or a specific-date weather request.
 ---
 
+
+In every terminal command below, `<skill>` is this skill's own directory — the one holding this `SKILL.md`.
+
 # Weather
 
 Use the bundled Open-Meteo script to retrieve weather. The script resolves the location, fetches current and daily forecast data, and reuses shared cache entries across users.
@@ -19,8 +22,8 @@ Use this command shape:
 
 ```json
 {
-  "command": "python3 /workspace/skills/weather/scripts/open_meteo_weather.py --location \"<location>\" --date \"<YYYY-MM-DD|today|tomorrow>\" --language \"<ko|en>\"",
-  "workingDirectoryPath": "/workspace"
+  "command": "python3 <skill>/scripts/open_meteo_weather.py --location \"<location>\" --date \"<YYYY-MM-DD|today|tomorrow>\" --language \"<ko|en>\"",
+  "workingDirectoryPath": "<skill>"
 }
 ```
 

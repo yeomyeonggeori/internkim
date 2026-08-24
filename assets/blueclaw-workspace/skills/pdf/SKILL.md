@@ -3,6 +3,9 @@ name: pdf
 description: Work with existing PDF files (read, extract, merge, split, edit with pypdf) and build layout-critical PDFs with fpdf2 when precise visual placement is the point. For content-first reports, memos, and documents — including PDF deliverables — use the document skill, which authors markdown and exports docx or pdf. Do not use for standardized company letterhead forms (견적서, 청구서, 발주서, 품의서, 증명서, quotation, invoice, purchase order, certificate) — the paperwork skill owns those layouts.
 ---
 
+
+In every terminal command below, `<skill>` is this skill's own directory — the one holding this `SKILL.md`.
+
 # PDF
 
 Read, extract, merge, split, lightly edit, or create layout-critical PDFs in `~/documents`, then validate and deliver only accepted final files. For content-first reports and memos, use the document skill; for standardized letterhead forms and contracts, use paperwork.
@@ -10,7 +13,7 @@ Read, extract, merge, split, lightly edit, or create layout-critical PDFs in `~/
 ## Workflow
 
 1. For an earlier PDF, use the workspace file in `~/documents/`, not a delivered attachment. A simple append uses `scripts/edit_pdf.py`; preview a newly uploaded file before extraction.
-2. For a short source-backed PDF, use `scripts/create_pdf.py`; use a spec or task-local Python only when tables or precise placement require it. Run all generation and validation through `/workspace/skills/pdf/scripts/skill_runtime.py`; bundled scripts own dependency setup.
+2. For a short source-backed PDF, use `scripts/create_pdf.py`; use a spec or task-local Python only when tables or precise placement require it. Run all generation and validation through `<skill>/scripts/skill_runtime.py`; bundled scripts own dependency setup.
 3. Save the final PDF to `~/documents/<title>.pdf` and deliver it. Preserve the same name for follow-up edits and do not deliver intermediate files.
 
 ## Source truth and validation

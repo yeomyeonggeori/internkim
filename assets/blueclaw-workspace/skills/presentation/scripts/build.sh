@@ -84,16 +84,16 @@ if requested_slide_count is not None and actual_slide_count != requested_slide_c
     )
 PY
 
-SKILL_ASSET_DIRECTORY="${SKILL_ASSET_DIRECTORY:-/workspace/skills/presentation/assets}"
+SKILL_ASSET_DIRECTORY="${SKILL_ASSET_DIRECTORY:-${SCRIPT_DIRECTORY}/../assets}"
 if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ] && [ -f "${SCRIPT_DIRECTORY}/package.json" ]; then
   SKILL_ASSET_DIRECTORY="$SCRIPT_DIRECTORY"
 fi
 if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ] && [ -f "${SCRIPT_DIRECTORY}/../assets/package.json" ]; then
   SKILL_ASSET_DIRECTORY="${SCRIPT_DIRECTORY}/../assets"
 fi
-RENDER_REVIEW_SCRIPT="${RENDER_REVIEW_SCRIPT:-/workspace/skills/presentation/scripts/render_review.py}"
-HTML_EXPORT_SCRIPT="${HTML_EXPORT_SCRIPT:-/workspace/skills/presentation/scripts/html_export.py}"
-HTML_RENDER_SCRIPT="${HTML_RENDER_SCRIPT:-/workspace/skills/presentation/scripts/html_render.mjs}"
+RENDER_REVIEW_SCRIPT="${RENDER_REVIEW_SCRIPT:-${SCRIPT_DIRECTORY}/render_review.py}"
+HTML_EXPORT_SCRIPT="${HTML_EXPORT_SCRIPT:-${SCRIPT_DIRECTORY}/html_export.py}"
+HTML_RENDER_SCRIPT="${HTML_RENDER_SCRIPT:-${SCRIPT_DIRECTORY}/html_render.mjs}"
 if [ ! -f "$RENDER_REVIEW_SCRIPT" ] && [ -f "${SCRIPT_DIRECTORY}/../scripts/render_review.py" ]; then
   RENDER_REVIEW_SCRIPT="${SCRIPT_DIRECTORY}/../scripts/render_review.py"
 fi

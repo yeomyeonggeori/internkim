@@ -3,6 +3,9 @@ name: presentation
 description: Generate HTML-first presentation slides and attach requested HTML, PDF, or PPTX files. Also validates existing .pptx files. Use for decks, presentations, pitch decks, research summaries, stakeholder reports, PowerPoint, Google Slides, Keynote, 발표자료, 파워포인트, 피피티.
 ---
 
+
+In every terminal command below, `<skill>` is this skill's own directory — the one holding this `SKILL.md`.
+
 # Presentation
 
 Create a useful, visually strong deck and attach accepted output. HTML-first means `slides.html` is the source of truth, `DESIGN.md` the design brief, and HTML is the layout surface and default deliverable; PPTX is image-backed by default. Keep supplied facts exact and do not invent current dates, people, values, or claims.
@@ -16,13 +19,13 @@ Create a useful, visually strong deck and attach accepted output. HTML-first mea
 5. Build from the persistent artifact workspace with the bundled script. The command shape is:
 
    ```json
-   {"command": "/workspace/skills/presentation/scripts/build.sh", "workingDirectoryPath": "artifacts/<deck-slug>"}
+   {"command": "<skill>/scripts/build.sh", "workingDirectoryPath": "artifacts/<deck-slug>"}
    ```
 
    For a final PPTX conversion use:
 
    ```json
-   {"command": "FORMATS=pptx /workspace/skills/presentation/scripts/build.sh", "workingDirectoryPath": "artifacts/<deck-slug>"}
+   {"command": "FORMATS=pptx <skill>/scripts/build.sh", "workingDirectoryPath": "artifacts/<deck-slug>"}
    ```
 
    With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence. Use `FORMATS=pptx` only for the final conversion, then use `file_deliver` for `artifacts/<deck-slug>/build/<deck-slug>.html` or `artifacts/<deck-slug>/build/<deck-slug>.pptx`. Do not call `terminal_run` with an `arguments` array alone.
