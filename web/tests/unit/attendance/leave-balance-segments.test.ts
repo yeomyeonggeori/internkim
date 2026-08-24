@@ -47,6 +47,19 @@ describe('leaveBalanceSegments', () => {
 		expect(rounded(widthTotal(segments))).toBe(rounded(100));
 	});
 
+	test('draws no negative width when more leave was approved than granted', () => {
+		const segments = leaveBalanceSegments({
+			usedMilliDays: 20000,
+			reservedMilliDays: 0,
+			availableMilliDays: -5000
+		});
+
+		expect(segments.usedPercent).toBe(100);
+		expect(segments.reservedPercent).toBe(0);
+		expect(segments.availablePercent).toBe(0);
+		for (const width of Object.values(segments)) expect(width >= 0).toBe(true);
+	});
+
 	test('draws nothing without a grant to draw against', () => {
 		expect(leaveBalanceSegments(undefined)).toEqual({
 			usedPercent: 0,
