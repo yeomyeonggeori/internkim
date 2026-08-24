@@ -114,6 +114,9 @@ func (service *Service) serveCalendarPage(responseWriter http.ResponseWriter, re
 	if service.serveCalendarStaticFile(responseWriter, request) {
 		return
 	}
+	if service.forwardOldLink(responseWriter, request, "event", service.linkedCalendarEventID) {
+		return
+	}
 	service.serveCalendarIndex(responseWriter, request)
 }
 

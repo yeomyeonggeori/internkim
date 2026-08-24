@@ -15,6 +15,9 @@ func (service *Service) serveFlowPage(responseWriter http.ResponseWriter, reques
 	if service.serveFlowStaticFile(responseWriter, request) {
 		return
 	}
+	if service.forwardOldLink(responseWriter, request, "task", service.linkedTaskID) {
+		return
+	}
 	service.serveFlowIndex(responseWriter, request)
 }
 
