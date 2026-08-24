@@ -863,3 +863,19 @@ func TestSavedRemoteSSHHostnamePrefersAnExplicitHost(t *testing.T) {
 		t.Fatalf("expected the explicit host, got %q", hostname)
 	}
 }
+
+func TestDeviceSSHControlFlagsSeparateElevationFromTargeting(t *testing.T) {
+	arguments := []string{"--host", "192.168.0.8", "--sudo"}
+	if !hasControlFlag(arguments, "--sudo") {
+		t.Fatal("--sudo must be recognized as a control flag")
+	}
+	remaining := withoutControlFlag(arguments, "--sudo")
+	for _, argument := range remaining {
+		if argument == "--sudo" {
+			t.Fatal("--sudo must not reach the target resolver, which rejects flags it does not define")
+		}
+	}
+	if len(remaining) != 2 || remaining[0] != "--host" || remaining[1] != "192.168.0.8" {
+		t.Fatalf("targeting flags must survive, got %v", remaining)
+	}
+}
