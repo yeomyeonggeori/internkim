@@ -18,8 +18,10 @@ export type LeaveBalanceSegments = {
 export function leaveBalanceSegments(
 	summary: EmployeeLeaveSummary | undefined
 ): LeaveBalanceSegments {
-	const used = summary?.usedMilliDays ?? 0;
-	const available = summary?.availableMilliDays ?? 0;
+	const used = Math.max(summary?.usedMilliDays ?? 0, 0);
+	// Nothing stops a company approving past its own grant, so remaining arrives
+	// negative sometimes. A bar cannot be shorter than empty.
+	const available = Math.max(summary?.availableMilliDays ?? 0, 0);
 	const total = used + available;
 	if (total <= 0) return { usedPercent: 0, reservedPercent: 0, availablePercent: 0 };
 

@@ -147,8 +147,8 @@ export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> 
 	if (leave.error) throw new Error(leave.error.message);
 
 	const emails = await emailsByMemberID();
-	const timeZone = await companyTimeZone();
-	const pending = leave.data.map((row) => approvalOf(row, emails, timeZone));
+	const timeZones = await timeZonesByMemberID();
+	const pending = leave.data.map((row) => approvalOf(row, emails, timeZones));
 	return { pendingCount: pending.length, pending, recentChanges: [] };
 }
 
@@ -163,7 +163,7 @@ export async function decideSupabaseLeave(
 		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
 		.single<LeaveRow>();
 	if (decided.error) throw new Error(decided.error.message);
-	return approvalOf(decided.data, await emailsByMemberID(), await companyTimeZone());
+	return approvalOf(decided.data, await emailsByMemberID(), await timeZonesByMemberID());
 }
 
 export function employeeLeaveRequestOfRow(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
@@ -190,8 +190,12 @@ export function employeeLeaveRequestOfRow(row: LeaveRow, timeZone: string): Empl
 function approvalOf(
 	row: LeaveRow,
 	emails: Map<string, string>,
-	timeZone: string
+	timeZones: Map<string, string>
 ): LeaveApprovalRequest {
+	// A leave's dates read in the timezone of whoever took it, on every screen
+	// that shows it. Rendering a colleague's leave on the company's day would
+	// put the same request on two different dates in two places.
+	const timeZone = timeZones.get(row.member_id) ?? '';
 	return {
 		id: row.id,
 		employeeEmail: emails.get(row.member_id) ?? '',
@@ -269,6 +273,16 @@ async function memberLeaveRemaining(memberID: string, targetYear: number): Promi
 		throw new Error(`member_leave_remaining returned an invalid balance: ${String(remaining.data)}`);
 	}
 	return days;
+}
+
+async function timeZonesByMemberID(): Promise<Map<string, string>> {
+	const companyZone = await companyTimeZone();
+	const members = await supabase()
+		.from('member')
+		.select('id, timezone')
+		.returns<{ id: string; timezone: string | null }[]>();
+	if (members.error) throw new Error(members.error.message);
+	return new Map(members.data.map((member) => [member.id, member.timezone || companyZone]));
 }
 
 async function emailsByMemberID(): Promise<Map<string, string>> {
