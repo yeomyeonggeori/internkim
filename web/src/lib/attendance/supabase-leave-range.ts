@@ -146,7 +146,7 @@ function addWorkMinutes(startTime: string, workMinutes: number): string {
 	return `${twoDigits(Math.floor(totalMinutes / 60))}:${twoDigits(totalMinutes % 60)}`;
 }
 
-function companyDateTimeISO(date: string, time: string, timeZone: string): string {
+export function companyDateTimeISO(date: string, time: string, timeZone: string): string {
 	if (!isISODate(date) || !isClockTime(time)) throw new Error('Leave range contains an invalid date or time');
 	const [year, month, day] = date.split('-').map(Number);
 	const [hour, minute] = time.split(':').map(Number);
