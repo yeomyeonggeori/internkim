@@ -89,6 +89,11 @@ func (service *Service) rewriteOldLinksInBuzz(ctx context.Context, apply bool) (
 	}
 	defer database.Close()
 
+	var communityID string
+	if errorValue := database.QueryRowContext(ctx, `SELECT id FROM communities LIMIT 1`).Scan(&communityID); errorValue != nil {
+		return oldLinkRewriteReport{}, errorValue
+	}
+
 	carried, errorValue := messagesNamingTheDevice(ctx, database, deviceHost)
 	if errorValue != nil {
 		return oldLinkRewriteReport{}, errorValue
@@ -100,7 +105,7 @@ func (service *Service) rewriteOldLinksInBuzz(ctx context.Context, apply bool) (
 	}
 
 	report := oldLinkRewriteReport{Messages: len(carried)}
-	injector := buzzimport.ChannelInjector{Database: database}
+	injector := buzzimport.ChannelInjector{Database: database, CommunityID: communityID}
 	for _, one := range carried {
 		secret, isOurs := secrets[one.pubkey]
 		if !isOurs {
