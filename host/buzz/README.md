@@ -32,7 +32,7 @@ that anyone outside the machine can reach must override at least
 ## Reaching it from outside
 
 Nothing outside the machine reaches this stack, and for most companies nothing
-has to. People sign in at `space.<zone>`, the same address for every company, and
+has to. People sign in at `<zone>`, the same address for every company, and
 the messenger they see is answered by a relay that talks outbound only. No
 hostname to buy, no port to open, no certificate to renew.
 

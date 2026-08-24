@@ -100,7 +100,7 @@ SUPABASE_URL  SUPABASE_PUBLISHABLE_KEY  INTERNKIM_APP_URL  AGENT_API_KEY_PATH
 MESSENGER_PLATFORM
 ```
 
-`INTERNKIM_APP_URL` is where everyone signs in, `https://space.<zone>` unless
+`INTERNKIM_APP_URL` is where everyone signs in, `https://<zone>` unless
 the company serves the app itself; the agent key is what decides which company
 the relay acts for. `MESSENGER_PLATFORM` names which messenger the company runs,
 and without it the relay refuses to start. Only the last three are per-company. Give it the agent key as a **path**, not a

@@ -206,7 +206,7 @@ changes is that no new device gets one.
 Step 4 is the one with a decision inside it, and it is not a code decision: it
 asks whether anyone still opens a device in a browser. Both surfaces are live
 today. `zd2df6qt6jmc.intern.kim/flow/`, `/calendar/`, `/attendance/` and
-`/tasks/` all answer 200 from the device, and `space.intern.kim` answers the
+`/tasks/` all answer 200 from the device, and `intern.kim` answers the
 same screens from the central plane, so the question is which one people
 actually use.
 
