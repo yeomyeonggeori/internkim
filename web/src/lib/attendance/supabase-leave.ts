@@ -24,6 +24,11 @@ import { summarizeSupabaseLeave } from './supabase-leave-summary';
 
 type LeaveStatus = 'requested' | 'approved' | 'rejected';
 
+type MemberDirectory = {
+	emailOf: (memberID: string) => string;
+	timeZoneOf: (memberID: string) => string;
+};
+
 export type LeaveRow = {
 	id: string;
 	member_id: string;
@@ -146,9 +151,8 @@ export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> 
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
 
-	const emails = await emailsByMemberID();
-	const timeZoneOf = await memberTimeZoneLookup();
-	const pending = leave.data.map((row) => approvalOf(row, emails, timeZoneOf));
+	const directory = await memberDirectory();
+	const pending = leave.data.map((row) => approvalOf(row, directory));
 	return { pendingCount: pending.length, pending, recentChanges: [] };
 }
 
@@ -163,7 +167,7 @@ export async function decideSupabaseLeave(
 		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
 		.single<LeaveRow>();
 	if (decided.error) throw new Error(decided.error.message);
-	return approvalOf(decided.data, await emailsByMemberID(), await memberTimeZoneLookup());
+	return approvalOf(decided.data, await memberDirectory());
 }
 
 export function employeeLeaveRequestOfRow(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
@@ -187,18 +191,11 @@ export function employeeLeaveRequestOfRow(row: LeaveRow, timeZone: string): Empl
 	};
 }
 
-function approvalOf(
-	row: LeaveRow,
-	emails: Map<string, string>,
-	timeZoneOf: (memberID: string) => string
-): LeaveApprovalRequest {
-	// A leave's dates read in the timezone of whoever took it, on every screen
-	// that shows it. Rendering a colleague's leave on the company's day would
-	// put the same request on two different dates in two places.
-	const timeZone = timeZoneOf(row.member_id);
+function approvalOf(row: LeaveRow, directory: MemberDirectory): LeaveApprovalRequest {
+	const timeZone = directory.timeZoneOf(row.member_id);
 	return {
 		id: row.id,
-		employeeEmail: emails.get(row.member_id) ?? '',
+		employeeEmail: directory.emailOf(row.member_id),
 		leaveTypeID: theOnlyLeaveType.id,
 		leaveTypeName: theOnlyLeaveType.name,
 		balanceMode: 'none',
@@ -275,25 +272,19 @@ async function memberLeaveRemaining(memberID: string, targetYear: number): Promi
 	return days;
 }
 
-// Every lookup answers with a timezone Intl accepts. An empty one reaches
-// Intl.DateTimeFormat and throws, which would take a whole screen down over a
-// member row that happens to be missing.
-async function memberTimeZoneLookup(): Promise<(memberID: string) => string> {
+async function memberDirectory(): Promise<MemberDirectory> {
 	const companyZone = await companyTimeZone();
 	const members = await supabase()
 		.from('member')
-		.select('id, timezone')
-		.returns<{ id: string; timezone: string | null }[]>();
+		.select('id, email, timezone')
+		.returns<{ id: string; email: string | null; timezone: string | null }[]>();
 	if (members.error) throw new Error(members.error.message);
-	const zones = new Map(members.data.map((member) => [member.id, member.timezone || companyZone]));
-	return (memberID) => zones.get(memberID) || companyZone;
-}
-
-async function emailsByMemberID(): Promise<Map<string, string>> {
-	const members = await supabase()
-		.from('member')
-		.select('id, email')
-		.returns<{ id: string; email: string | null }[]>();
-	if (members.error) throw new Error(members.error.message);
-	return new Map(members.data.map((member) => [member.id, member.email ?? '']));
+	const emails = new Map(members.data.map((member) => [member.id, member.email ?? '']));
+	const timeZones = new Map(
+		members.data.map((member) => [member.id, member.timezone || companyZone])
+	);
+	return {
+		emailOf: (memberID) => emails.get(memberID) ?? '',
+		timeZoneOf: (memberID) => timeZones.get(memberID) || companyZone
+	};
 }

@@ -7,22 +7,12 @@ function dayCountBetween(firstDate: string, lastDate: string): number {
 	return Math.round((last - first) / dayInMilliseconds) + 1;
 }
 
-/**
- * The share of a leave's deducted days that falls inside one calendar year.
- *
- * A leave spanning new year belongs to both years, in proportion to how many of
- * its days land in each. A leave inside one year keeps all of its days there.
- * The central plane deducts every day of the range, weekends included, so
- * counting days is the whole calculation.
- */
 export function leaveDaysInYear(
 	totalDays: number,
 	localStartDate: string,
 	localEndDate: string,
 	targetYear: number
 ): number {
-	// The SQL twin clamps the last day up to the first, so a row whose end lands
-	// before its start still spends one day rather than none.
 	const lastDate = localEndDate < localStartDate ? localStartDate : localEndDate;
 	const span = dayCountBetween(localStartDate, lastDate);
 	if (span === 0) return 0;

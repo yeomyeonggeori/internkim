@@ -22,7 +22,6 @@ function reachesTheDevicePath(source: string): boolean {
 }
 
 describe('every module that reaches the attendance API', () => {
-	// Every module now carries both arms. A new one-armed module fails this.
 	test('also knows a device from the central plane', () => {
 		const oneArmed = everySourceFile(sourceRoot)
 			.map((path) => ({ path, source: readFileSync(path, 'utf8') }))

@@ -17,7 +17,6 @@ insert into public.member (id, company_id, email, user_id, status) values
     'active'
   );
 
--- 2026-12-30 through 2027-01-02, four full days: two in each year.
 insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
   (
     '45000000-0000-0000-0000-0000000000e1',

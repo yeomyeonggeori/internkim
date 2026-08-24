@@ -16,11 +16,12 @@ import {
 	companyDateOfTimestamp,
 	companyDateTimeISO,
 	leaveDisplayRange,
-	leavePreviewPeriod
+	leaveTimestampRange
 } from './supabase-leave-range';
 import { leaveDaysInYear } from './leave-year-share';
 import {
 	employeeLeaveRequestOfRow,
+	supabaseLeavePreview,
 	theOnlyLeaveType,
 	type LeaveRow
 } from './supabase-leave';
@@ -44,9 +45,6 @@ type LeaveManagementSource = {
 const leaveColumns = 'id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note';
 const memberColumns = 'id, email, name, leave_days, timezone';
 
-// member_leave_remaining splits a leave on the member's own day boundary, so
-// the used and pending columns beside it have to use the same one or the three
-// numbers stop adding up for anyone who set their own timezone.
 function timeZoneOf(member: MemberRow, source: LeaveManagementSource): string {
 	return member.timezone || source.company.timezone;
 }
@@ -107,11 +105,8 @@ export async function createSupabaseManagedPastLeave(input: LeaveManagementPastL
 		partialPeriod: input.partialPeriod || undefined,
 		startTime: input.startTime || undefined
 	};
-	const period = leavePreviewPeriod(request);
-	const days =
-		input.unit === 'fullDay'
-			? dayCount(request.startDate, request.endDate ?? request.startDate)
-			: period.deductionMilliDays / 1000;
+	const preview = await supabaseLeavePreview(request);
+	const range = leaveTimestampRange(request, member.timezone || company.timezone);
 
 	const recorded = await supabase()
 		.from('leave')
@@ -120,14 +115,10 @@ export async function createSupabaseManagedPastLeave(input: LeaveManagementPastL
 			kind: theOnlyLeaveType.id,
 			is_paid: true,
 			is_deducted: true,
-			days,
+			days: preview.totalDeductionMilliDays / 1000,
 			status: 'approved',
-			starts_at: companyDateTimeISO(request.startDate, period.startTime, company.timezone),
-			ends_at: companyDateTimeISO(
-				request.endDate ?? request.startDate,
-				period.endTime,
-				company.timezone
-			),
+			starts_at: range.startsAt,
+			ends_at: range.endsAt,
 			note: input.reason
 		})
 		.select('id')
@@ -152,20 +143,21 @@ export async function correctSupabaseManagedLeaveTime(
 	input: LeaveManagementTimeCorrection
 ): Promise<void> {
 	const company = await readCompany();
+	const member = await readMemberByEmail(input.employeeEmail);
+	const timeZone = member.timezone || company.timezone;
 	const existing = await supabase()
 		.from('leave')
 		.select(leaveColumns)
 		.eq('id', requestID)
 		.single<LeaveRow>();
 	if (existing.error) throw new EmployeeLeaveAPIError('requestNotFound', 404);
-	const localDate = companyDateOfTimestamp(existing.data.starts_at, company.timezone);
+	const localDate = companyDateOfTimestamp(existing.data.starts_at, timeZone);
 
 	const corrected = await supabase()
 		.from('leave')
 		.update({
-			starts_at: companyDateTimeISO(localDate, input.startTime, company.timezone),
-			ends_at: companyDateTimeISO(localDate, input.endTime, company.timezone),
-			note: input.reason
+			starts_at: companyDateTimeISO(localDate, input.startTime, timeZone),
+			ends_at: companyDateTimeISO(localDate, input.endTime, timeZone)
 		})
 		.eq('id', requestID)
 		.select('id')
@@ -270,13 +262,4 @@ function daysFallingInTargetYear(
 		range.endDate || range.startDate,
 		source.targetYear
 	);
-}
-
-function dayCount(startDate: string, endDate: string): number {
-	const start = Date.parse(`${startDate}T00:00:00Z`);
-	const end = Date.parse(`${endDate}T00:00:00Z`);
-	if (Number.isNaN(start) || Number.isNaN(end) || end < start) {
-		throw new EmployeeLeaveAPIError('invalidInput', 400);
-	}
-	return Math.round((end - start) / 86_400_000) + 1;
 }
