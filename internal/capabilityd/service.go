@@ -258,7 +258,7 @@ func DefaultConfiguration() Configuration {
 		APIURLPath:                     "/root/.internkim/env/api-url",
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		BlueclawWorkspacePath:          "/root/.blueclaw/workspace",
-		FileReadPythonPath:             "/opt/blueclaw/builtin-skills-venv/bin/python",
+		FileReadPythonPath:             "/opt/internkim/document-venv/bin/python",
 	}
 }
 

@@ -13,13 +13,18 @@ func TestAllAssetsHaveRequiredFields(testInstance *testing.T) {
 		if asset.DevicePath == "" {
 			testInstance.Errorf("asset %q has empty DevicePath", asset.Name)
 		}
-		if asset.SourcePath == nil {
-			testInstance.Errorf("asset %q has nil SourcePath", asset.Name)
+		if asset.SourcePaths == nil {
+			testInstance.Errorf("asset %q has nil SourcePaths", asset.Name)
 			continue
 		}
-		resolvedSourcePath := asset.SourcePath("/repo")
-		if !strings.HasPrefix(resolvedSourcePath, "/repo") {
-			testInstance.Errorf("asset %q SourcePath(\"/repo\") = %q, want prefix /repo", asset.Name, resolvedSourcePath)
+		resolvedSourcePaths := asset.SourcePaths("/repo")
+		if len(resolvedSourcePaths) == 0 {
+			testInstance.Errorf("asset %q resolved to no source path", asset.Name)
+		}
+		for _, resolvedSourcePath := range resolvedSourcePaths {
+			if !strings.HasPrefix(resolvedSourcePath, "/repo") {
+				testInstance.Errorf("asset %q SourcePaths(\"/repo\") = %q, want prefix /repo", asset.Name, resolvedSourcePath)
+			}
 		}
 	}
 }
