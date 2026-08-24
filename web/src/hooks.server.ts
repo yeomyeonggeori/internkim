@@ -2,7 +2,7 @@ import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { redirect, type Handle } from '@sveltejs/kit';
 import { sendsHomeToFlow } from '$lib/server/home-redirect';
-import { movesToTheOneAddress, spaceHostnameOf } from '$lib/server/company-host-redirect';
+import { movesToTheOneAddress, theOneAddressOf } from '$lib/server/company-host-redirect';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	if (event.request.method === 'OPTIONS') {
@@ -24,7 +24,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	const zone = env.CLOUDFLARE_DOMAIN ?? '';
 	if (!building && movesToTheOneAddress({ hostname: event.url.hostname, zone, pathname: event.url.pathname })) {
-		redirect(308, `https://${spaceHostnameOf(zone)}${event.url.pathname}${event.url.search}`);
+		redirect(308, `https://${theOneAddressOf(zone)}${event.url.pathname}${event.url.search}`);
 	}
 
 	if (sendsHomeToFlow({ isBuilding: building, ...centralPlane, pathname: event.url.pathname })) {

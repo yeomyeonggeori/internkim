@@ -14,7 +14,7 @@ which side the write goes to first.
 
 | Where a task or event is made | Where it lands | What the other side knows |
 |---|---|---|
-| `space.intern.kim` | Supabase `public.task` | nothing |
+| `intern.kim` | Supabase `public.task` | nothing |
 | the device, or the agent | admind SQLite, `calendar_events` | nothing |
 
 Two importers close the gap by hand, `web/scripts/import-flow-state.ts` and
