@@ -988,7 +988,7 @@ func buzzProbeProfilePurgeCommand(apply bool) string {
 	action := `SELECT count(*) FROM events WHERE kind=0 AND pubkey IN (SELECT pubkey FROM probes)`
 	outcome := "that would go"
 	if apply {
-		action = `WITH gone AS (DELETE FROM events WHERE kind=0 AND pubkey IN (SELECT pubkey FROM probes) RETURNING 1) SELECT count(*) FROM gone`
+		action = `, gone AS (DELETE FROM events WHERE kind=0 AND pubkey IN (SELECT pubkey FROM probes) RETURNING 1) SELECT count(*) FROM gone`
 		outcome = "deleted"
 	}
 	return strings.TrimSpace(`
