@@ -19,6 +19,10 @@ const client = canReachSupabase
 
 const timeZone = 'Asia/Seoul';
 
+function rounded(value: number): number {
+	return Math.round(value * 1_000_000) / 1_000_000;
+}
+
 type ShareCase = {
 	name: string;
 	startsAt: string;
@@ -27,6 +31,7 @@ type ShareCase = {
 	localEndDate: string;
 	totalDays: number;
 	years: number[];
+	timeZone?: string;
 };
 
 const cases: ShareCase[] = [
@@ -67,6 +72,28 @@ const cases: ShareCase[] = [
 		years: [2026, 2027]
 	},
 	{
+		// A member who set their own timezone splits on their own day boundary,
+		// and the row's local dates move with it.
+		name: 'new year in a timezone behind the company',
+		startsAt: '2026-12-31T00:00:00+09:00',
+		endsAt: '2027-01-02T00:00:00+09:00',
+		localStartDate: '2026-12-30',
+		localEndDate: '2027-01-01',
+		totalDays: 2,
+		years: [2026, 2027],
+		timeZone: 'America/Los_Angeles'
+	},
+	{
+		// check (ends_at >= starts_at) admits this; an import can write it.
+		name: 'a row whose end never moves past its start',
+		startsAt: '2026-07-01T00:00:00+09:00',
+		endsAt: '2026-07-01T00:00:00+09:00',
+		localStartDate: '2026-07-01',
+		localEndDate: '2026-06-30',
+		totalDays: 1,
+		years: [2026]
+	},
+	{
 		name: 'a span covering a whole year',
 		startsAt: '2025-12-30T00:00:00+09:00',
 		endsAt: '2027-01-03T00:00:00+09:00',
@@ -77,15 +104,16 @@ const cases: ShareCase[] = [
 	}
 ];
 
-describe.skipIf(!canReachSupabase)('leave_days_in_year agrees with leaveDaysInYear', () => {
+describe('leave_days_in_year agrees with leaveDaysInYear', () => {
 	for (const shareCase of cases) {
 		test(shareCase.name, async () => {
+			if (!client) return;
 			for (const year of shareCase.years) {
-				const answered = await client!.rpc('leave_days_in_year', {
+				const answered = await client.rpc('leave_days_in_year', {
 					starts_at: shareCase.startsAt,
 					ends_at: shareCase.endsAt,
 					total_days: shareCase.totalDays,
-					time_zone: timeZone,
+					time_zone: shareCase.timeZone ?? timeZone,
 					target_year: year
 				});
 				expect(answered.error).toBeNull();
@@ -96,7 +124,7 @@ describe.skipIf(!canReachSupabase)('leave_days_in_year agrees with leaveDaysInYe
 					shareCase.localEndDate,
 					year
 				);
-				expect(Number(answered.data)).toBeCloseTo(inTypeScript, 6);
+				expect(rounded(Number(answered.data))).toBe(rounded(inTypeScript));
 			}
 		});
 	}

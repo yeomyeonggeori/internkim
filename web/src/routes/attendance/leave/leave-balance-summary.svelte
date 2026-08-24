@@ -4,24 +4,16 @@
 	import { attendanceText } from '../text';
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
 	import { milliDaysValue } from './leave-history-model';
+	import { leaveBalanceSegments } from './leave-balance-segments';
 
 	const text = createPageText(attendanceText);
 	const employeeLeave = getEmployeeLeaveState();
 	const summary = $derived(employeeLeave.payload?.summary);
 	const isUnlimited = $derived(employeeLeave.payload?.balanceTrackingMode === 'unlimited');
+	const segments = $derived(leaveBalanceSegments(summary));
 	const totalMilliDays = $derived(
-		(summary?.usedMilliDays ?? 0) +
-			(summary?.reservedMilliDays ?? 0) +
-			(summary?.availableMilliDays ?? 0)
+		(summary?.usedMilliDays ?? 0) + (summary?.availableMilliDays ?? 0)
 	);
-	const usedPercent = $derived(segmentPercent(summary?.usedMilliDays ?? 0, totalMilliDays));
-	const reservedPercent = $derived(segmentPercent(summary?.reservedMilliDays ?? 0, totalMilliDays));
-	const availablePercent = $derived(segmentPercent(summary?.availableMilliDays ?? 0, totalMilliDays));
-
-	function segmentPercent(value: number, total: number): number {
-		if (total <= 0) return 0;
-		return Math.max(0, (value / total) * 100);
-	}
 
 	function days(value: number | undefined): string {
 		return `${milliDaysValue(value ?? 0)}${text.leave.dayUnit}`;
@@ -68,9 +60,9 @@
 				data-testid="leave-balance-segmented-bar"
 			>
 				{#if totalMilliDays > 0}
-					<span class="h-full bg-primary" style:width={`${usedPercent}%`}></span>
-					<span class="h-full bg-primary/40" style:width={`${reservedPercent}%`}></span>
-					<span class="h-full bg-muted-foreground/15" style:width={`${availablePercent}%`}></span>
+					<span class="h-full bg-primary" style:width={`${segments.usedPercent}%`}></span>
+					<span class="h-full bg-primary/40" style:width={`${segments.reservedPercent}%`}></span>
+					<span class="h-full bg-muted-foreground/15" style:width={`${segments.availablePercent}%`}></span>
 				{/if}
 			</div>
 		{/if}

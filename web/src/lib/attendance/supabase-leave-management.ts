@@ -26,7 +26,13 @@ import {
 } from './supabase-leave';
 
 type CompanyRow = { timezone: string; leave_days: number | null };
-type MemberRow = { id: string; email: string | null; name: string | null; leave_days: number | null };
+type MemberRow = {
+	id: string;
+	email: string | null;
+	name: string | null;
+	leave_days: number | null;
+	timezone: string | null;
+};
 
 type LeaveManagementSource = {
 	company: CompanyRow;
@@ -36,6 +42,14 @@ type LeaveManagementSource = {
 };
 
 const leaveColumns = 'id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note';
+const memberColumns = 'id, email, name, leave_days, timezone';
+
+// member_leave_remaining splits a leave on the member's own day boundary, so
+// the used and pending columns beside it have to use the same one or the three
+// numbers stop adding up for anyone who set their own timezone.
+function timeZoneOf(member: MemberRow, source: LeaveManagementSource): string {
+	return member.timezone ?? source.company.timezone;
+}
 
 export async function supabaseLeaveManagement(employeeEmail = ''): Promise<LeaveManagementPayload> {
 	const source = await readLeaveManagementSource();
@@ -61,7 +75,7 @@ export async function supabaseLeaveManagement(employeeEmail = ''): Promise<Leave
 			requests: source.leaves
 				.filter((leave) => leave.member_id === selected.id)
 				.sort((left, right) => right.starts_at.localeCompare(left.starts_at))
-				.map((leave) => employeeLeaveRequestOfRow(leave, source.company.timezone)),
+				.map((leave) => employeeLeaveRequestOfRow(leave, timeZoneOf(selected, source))),
 			ledgerEntries: []
 		}
 	};
@@ -164,7 +178,7 @@ async function readLeaveManagementSource(): Promise<LeaveManagementSource> {
 	const company = await readCompany();
 	const members = await supabase()
 		.from('member')
-		.select('id, email, name, leave_days')
+		.select(memberColumns)
 		.order('email')
 		.returns<MemberRow[]>();
 	if (members.error) throw new Error(members.error.message);
@@ -189,7 +203,7 @@ async function readCompany(): Promise<CompanyRow> {
 async function readMemberByEmail(email: string): Promise<MemberRow> {
 	const member = await supabase()
 		.from('member')
-		.select('id, email, name, leave_days')
+		.select(memberColumns)
 		.eq('email', email)
 		.single<MemberRow>();
 	if (member.error) throw new EmployeeLeaveAPIError('requestNotFound', 404);
@@ -213,7 +227,7 @@ function employeeOf(
 	let reservedMilliDays = 0;
 	for (const leave of source.leaves) {
 		if (leave.member_id !== member.id || !leave.is_deducted) continue;
-		const days = daysFallingInTargetYear(leave, source);
+		const days = daysFallingInTargetYear(leave, source, timeZoneOf(member, source));
 		if (days === 0) continue;
 		const milliDays = Math.round(days * 1000);
 		if (leave.status === 'approved') usedMilliDays += milliDays;
@@ -244,13 +258,12 @@ function employeeOf(
 	};
 }
 
-function daysFallingInTargetYear(leave: LeaveRow, source: LeaveManagementSource): number {
-	const range = leaveDisplayRange(
-		leave.starts_at,
-		leave.ends_at,
-		leave.days,
-		source.company.timezone
-	);
+function daysFallingInTargetYear(
+	leave: LeaveRow,
+	source: LeaveManagementSource,
+	timeZone: string
+): number {
+	const range = leaveDisplayRange(leave.starts_at, leave.ends_at, leave.days, timeZone);
 	return leaveDaysInYear(
 		leave.days,
 		range.startDate,
