@@ -17,12 +17,14 @@ import (
 )
 
 type buzzStrangerMembersReport struct {
-	Strangers       int      `json:"strangers"`
-	Memberships     int      `json:"memberships"`
-	Removed         int      `json:"removed"`
-	Profiles        int      `json:"profiles"`
-	ProfilesRemoved int      `json:"profilesRemoved"`
-	Emails          []string `json:"emails"`
+	Strangers        int      `json:"strangers"`
+	Memberships      int      `json:"memberships"`
+	Removed          int      `json:"removed"`
+	Profiles         int      `json:"profiles"`
+	ProfilesRemoved  int      `json:"profilesRemoved"`
+	Community        int      `json:"community"`
+	CommunityRemoved int      `json:"communityRemoved"`
+	Emails           []string `json:"emails"`
 }
 
 // The import made a Buzz identity for every Mattermost account it found, and a
@@ -82,6 +84,14 @@ func (service *Service) removeStrangerBuzzMembers(ctx context.Context, apply boo
 	).Scan(&report.Profiles); errorValue != nil {
 		return buzzStrangerMembersReport{}, errorValue
 	}
+	// relay_members keys by the hex text, not the bytes, and it is what a client
+	// reads to offer someone in a mention.
+	if errorValue := database.QueryRowContext(ctx,
+		"SELECT count(*) FROM relay_members WHERE pubkey = ANY($1)",
+		pq.Array(strangers),
+	).Scan(&report.Community); errorValue != nil {
+		return buzzStrangerMembersReport{}, errorValue
+	}
 	if !apply {
 		return report, nil
 	}
@@ -93,6 +103,11 @@ func (service *Service) removeStrangerBuzzMembers(ctx context.Context, apply boo
 	}
 	report.ProfilesRemoved, errorValue = rowsChangedBy(ctx, database,
 		"DELETE FROM events WHERE kind=0 AND pubkey = ANY("+asBytea+")", strangers)
+	if errorValue != nil {
+		return buzzStrangerMembersReport{}, errorValue
+	}
+	report.CommunityRemoved, errorValue = rowsChangedBy(ctx, database,
+		"DELETE FROM relay_members WHERE pubkey = ANY($1) AND role <> 'owner'", strangers)
 	if errorValue != nil {
 		return buzzStrangerMembersReport{}, errorValue
 	}
