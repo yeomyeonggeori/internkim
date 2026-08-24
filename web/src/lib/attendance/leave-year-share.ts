@@ -21,11 +21,14 @@ export function leaveDaysInYear(
 	localEndDate: string,
 	targetYear: number
 ): number {
-	const span = dayCountBetween(localStartDate, localEndDate);
+	// The SQL twin clamps the last day up to the first, so a row whose end lands
+	// before its start still spends one day rather than none.
+	const lastDate = localEndDate < localStartDate ? localStartDate : localEndDate;
+	const span = dayCountBetween(localStartDate, lastDate);
 	if (span === 0) return 0;
 
 	const startYear = Number(localStartDate.slice(0, 4));
-	const endYear = Number(localEndDate.slice(0, 4));
+	const endYear = Number(lastDate.slice(0, 4));
 	if (startYear === endYear) return startYear === targetYear ? totalDays : 0;
 	if (targetYear < startYear || targetYear > endYear) return 0;
 
@@ -33,7 +36,7 @@ export function leaveDaysInYear(
 	const lastOfTarget = `${targetYear}-12-31`;
 	const inYear = dayCountBetween(
 		localStartDate > firstOfTarget ? localStartDate : firstOfTarget,
-		localEndDate < lastOfTarget ? localEndDate : lastOfTarget
+		lastDate < lastOfTarget ? lastDate : lastOfTarget
 	);
 	return (totalDays * inYear) / span;
 }

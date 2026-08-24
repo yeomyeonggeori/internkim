@@ -7,7 +7,7 @@ create function public.leave_days_in_year(
 )
 returns numeric
 language sql
-immutable
+stable
 set search_path = public
 as $$
   with bounds as (
