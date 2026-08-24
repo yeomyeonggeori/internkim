@@ -47,17 +47,17 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 	if response.IsError || response.Content != "# Report\n\nBody" {
 		t.Fatalf("unexpected response: %+v", response)
 	}
-	if response.Provider != "markitdown" || response.SelectedBackend != capabilities.LLMBackendRemote || response.ToolName != "document_read" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.Effects == nil || len(response.Effects) != 0 {
+	if response.Provider != "anydoc" || response.SelectedBackend != capabilities.LLMBackendDevice || response.ToolName != "document_read" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.Effects == nil || len(response.Effects) != 0 {
 		t.Fatalf("unexpected response identity: %+v", response)
 	}
-	if helperRequest.Path != sourcePath || helperRequest.OpenRouterAPIKey != "sk-file" || helperRequest.OpenRouterBaseURL != "https://openrouter.test/api/v1" || helperRequest.OpenRouterModel != "openrouter/vision-model" {
+	if helperRequest.Path != sourcePath || helperRequest.OCRMode != "never" || helperRequest.OpenRouterAPIKey != "" {
 		t.Fatalf("unexpected helper request: %+v", helperRequest)
 	}
 	var result documentReadResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if result.Path != "/workspace/docs/report.pdf" || result.Format != "markdown" || result.Backend != "openrouter" || len(result.Warnings) != 1 {
+	if result.Path != "/workspace/docs/report.pdf" || result.Format != "markdown" || result.Backend != "anydoc" || len(result.Warnings) != 1 {
 		t.Fatalf("unexpected result: %+v", result)
 	}
 	if result.Status != "ok" || result.Truncated {
@@ -217,23 +217,29 @@ func TestFileReadHelperIgnoresStderrNoise(t *testing.T) {
 	}
 }
 
-func TestDocumentReadUsesNoOCRFallbackWhenOCRAttemptFails(t *testing.T) {
+func TestDocumentReadFallsBackToOCRWhenLocalExtractionNeedsIt(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeFileReadTestFile(t, filepath.Join(workspacePath, "scan.pdf"), "pdf")
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-file")
-	callCount := 0
+	helperRequests := []fileReadHelperRequest{}
 	service := Service{
 		Configuration: Configuration{
 			OpenRouterKeyPath:     secretPath,
+			OpenRouterBaseURL:     "https://openrouter.test/api/v1/chat/completions",
+			OpenRouterModel:       "openrouter/vision-model",
 			BlueclawWorkspacePath: workspacePath,
 			FileReadPythonPath:    "/test/python",
 		}.WithDefaults(),
 		RunCommand: func(ctx context.Context, executable string, arguments []string, input []byte) ([]byte, error) {
-			callCount++
-			if callCount == 1 {
-				return []byte("ocr failed"), errors.New("exit status 1")
+			var helperRequest fileReadHelperRequest
+			if errorValue := json.Unmarshal(input, &helperRequest); errorValue != nil {
+				t.Fatal(errorValue)
 			}
-			return []byte(`{"content":"fallback text"}`), nil
+			helperRequests = append(helperRequests, helperRequest)
+			if helperRequest.OCRMode == "never" {
+				return []byte(`{"content":"","errorCode":"ocr_required","message":"PDF has no extractable text"}`), nil
+			}
+			return []byte(`{"content":"scanned text"}`), nil
 		},
 	}
 
@@ -241,7 +247,42 @@ func TestDocumentReadUsesNoOCRFallbackWhenOCRAttemptFails(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected document_read: %v", errorValue)
 	}
-	if response.IsError || response.Content != "fallback text" || callCount != 2 {
+	if response.IsError || response.Content != "scanned text" || len(helperRequests) != 2 {
+		t.Fatalf("unexpected response: %+v", response)
+	}
+	if helperRequests[1].OpenRouterAPIKey != "sk-file" || helperRequests[1].OpenRouterBaseURL != "https://openrouter.test/api/v1" || helperRequests[1].OpenRouterModel != "openrouter/vision-model" {
+		t.Fatalf("unexpected OCR helper request: %+v", helperRequests[1])
+	}
+	var result documentReadResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.Backend != "openrouter" || result.Model != "openrouter/vision-model" {
+		t.Fatalf("unexpected OCR result identity: %+v", result)
+	}
+}
+
+func TestDocumentReadReportsLocalFailureWhenOCRIsUnavailable(t *testing.T) {
+	workspacePath := t.TempDir()
+	writeFileReadTestFile(t, filepath.Join(workspacePath, "scan.pdf"), "pdf")
+	callCount := 0
+	service := Service{
+		Configuration: Configuration{
+			OpenRouterKeyPath:     filepath.Join(t.TempDir(), "missing"),
+			BlueclawWorkspacePath: workspacePath,
+			FileReadPythonPath:    "/test/python",
+		}.WithDefaults(),
+		RunCommand: func(ctx context.Context, executable string, arguments []string, input []byte) ([]byte, error) {
+			callCount++
+			return []byte(`{"content":"","errorCode":"ocr_required","message":"PDF has no extractable text"}`), nil
+		},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/scan.pdf"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected structured error response: %v", errorValue)
+	}
+	if !response.IsError || callCount != 1 || !strings.Contains(response.Message, "ocr_required") {
 		t.Fatalf("unexpected response: %+v", response)
 	}
 }
@@ -286,7 +327,7 @@ func TestDocumentReadHelperFailureReturnsStructuredFacts(t *testing.T) {
 			FileReadPythonPath:    "/test/python",
 		}.WithDefaults(),
 		RunCommand: func(ctx context.Context, executable string, arguments []string, input []byte) ([]byte, error) {
-			return []byte("markitdown failed"), errors.New("exit status 1")
+			return []byte("conversion failed"), errors.New("exit status 1")
 		},
 	}
 
@@ -294,7 +335,7 @@ func TestDocumentReadHelperFailureReturnsStructuredFacts(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected structured error response: %v", errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "document_read_failed" || response.FailureStage != "markitdown_conversion" || !strings.Contains(response.Message, "markitdown failed") {
+	if !response.IsError || response.ErrorCode != "document_read_failed" || response.FailureStage != "document_conversion" || !strings.Contains(response.Message, "conversion failed") {
 		t.Fatalf("unexpected response: %+v", response)
 	}
 }
