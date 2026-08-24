@@ -1097,6 +1097,10 @@ set +e
 q() { su - postgres -c "psql -X -d buzz -c \"$1\"" 2>&1; }
 printf '== channels by type and visibility ==\n'
 q "SELECT channel_type, visibility, count(*) FROM channels GROUP BY 1,2 ORDER BY 3 DESC"
+printf '== closed, and what closed them ==\n'
+q "SELECT name, deleted_at IS NOT NULL AS gone_from_listings, archived_at IS NOT NULL AS archived FROM channels WHERE deleted_at IS NOT NULL OR archived_at IS NOT NULL ORDER BY name"
+printf '== how many a client still lists ==\n'
+q "SELECT count(*) FROM channels WHERE deleted_at IS NULL"
 printf '== every open channel that is not a stream ==\n'
 q "SELECT id::text, channel_type, name FROM channels WHERE visibility='open' AND channel_type <> 'stream' ORDER BY name"
 printf '== members per open non-stream channel ==\n'
