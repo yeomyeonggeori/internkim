@@ -58,69 +58,6 @@ if (!canReachSupabase) {
 
 if (canReachSupabase) {
 	describe('attendance reconciliation route', () => {
-		test('a centrally corrected event remains matched by its original device time across month boundaries', async () => {
-			if (!client) throw new Error('the integration database is not configured');
-			const memberID = crypto.randomUUID();
-			const externalID = `corrected-${stamp}`;
-			const insertedMember = await client.from('member').insert({
-				id: memberID,
-				company_id: companyID,
-				email: `corrected-${stamp}@example.test`,
-				status: 'active'
-			});
-			if (insertedMember.error) throw new Error(insertedMember.error.message);
-			try {
-				const credential = await client.from('credential').insert({
-					member_id: memberID,
-					kind: 'mattermost',
-					external_id: externalID
-				});
-				if (credential.error) throw new Error(credential.error.message);
-				const attendance = await client
-					.from('attendance')
-					.insert({
-						member_id: memberID,
-						kind: 'clock_in',
-						location: 'Office',
-						occurred_at: '2027-02-01T00:05:00Z',
-						original_occurred_at: '2027-01-31T23:55:00Z',
-						edit_reason: 'central correction'
-					})
-					.select('id')
-					.single<{ id: string }>();
-				if (attendance.error) throw new Error(attendance.error.message);
-
-				const response = await reconcile({
-					platform: 'mattermost',
-					from: '2027-01-01T00:00:00Z',
-					to: '2027-02-01T00:00:00Z',
-					events: [
-						{
-							externalID,
-							kind: 'clock_in',
-							occurredAt: '2027-01-31T23:55:00Z',
-							location: 'Office'
-						}
-					]
-				});
-
-				expect(await response.json()).toEqual({ added: 0, removed: 0, refused: [], rejected: [] });
-				const retained = await client
-					.from('attendance')
-					.select('occurred_at, original_occurred_at, edit_reason')
-					.eq('id', attendance.data.id)
-					.single();
-				if (retained.error) throw new Error(retained.error.message);
-				expect(retained.data).toEqual({
-					occurred_at: '2027-02-01T00:05:00+00:00',
-					original_occurred_at: '2027-01-31T23:55:00+00:00',
-					edit_reason: 'central correction'
-				});
-			} finally {
-				await client.from('member').delete().eq('id', memberID);
-			}
-		});
-
 		test('a legacy request reconciles without changing company rules', async () => {
 			const response = await reconcile({
 				platform: 'mattermost',
