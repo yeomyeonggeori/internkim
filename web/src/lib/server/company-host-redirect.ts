@@ -8,8 +8,8 @@ function bareHost(value: string): string {
 	return value.trim().toLowerCase();
 }
 
-export function spaceHostnameOf(zone: string): string {
-	return `space.${bareHost(zone)}`;
+export function theOneAddressOf(zone: string): string {
+	return bareHost(zone);
 }
 
 // fetch drops Authorization across origins, and every attached hostname is the
@@ -23,7 +23,6 @@ export function movesToTheOneAddress(question: CompanyHostQuestion): boolean {
 	const zone = bareHost(question.zone);
 	if (!hostname || !zone) return false;
 	if (carriesACallerCredential(question.pathname)) return false;
-	if (hostname === zone) return false;
-	if (hostname === spaceHostnameOf(zone)) return false;
+	if (hostname === theOneAddressOf(zone)) return false;
 	return hostname.endsWith(`.${zone}`);
 }
