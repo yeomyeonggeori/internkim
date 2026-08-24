@@ -14,7 +14,7 @@
 	async function focusPrimaryAction() {
 		await attendanceClock.load();
 		await tick();
-		const element = attendanceClock.isClockedIn ? clockOutElement : locationElements[0];
+		const element = attendanceClock.nextKind === 'clock_out' ? clockOutElement : locationElements[0];
 		element?.focus();
 	}
 </script>
@@ -40,12 +40,12 @@
 	{#if attendanceClock.locations.length <= 1}
 		<DropdownMenu.Item
 			closeOnSelect={false}
-			disabled={attendanceClock.isClockedIn || attendanceClock.isSubmitting}
+			disabled={attendanceClock.nextKind === 'clock_out' || attendanceClock.isSubmitting}
 			onclick={() => attendanceClock.clock('clock_in', attendanceClock.locations[0]?.id ?? '')}
 		>
 			{text.clockIn}
 		</DropdownMenu.Item>
-	{:else if attendanceClock.isClockedIn}
+	{:else if attendanceClock.nextKind === 'clock_out'}
 		<DropdownMenu.Sub>
 			<DropdownMenu.SubTrigger>
 				{text.clockIn}
@@ -62,7 +62,7 @@
 	<DropdownMenu.Item
 		bind:ref={clockOutElement}
 		closeOnSelect={false}
-		disabled={!attendanceClock.isClockedIn || attendanceClock.isSubmitting}
+		disabled={attendanceClock.nextKind === 'clock_in' || attendanceClock.isSubmitting}
 		onclick={() => attendanceClock.clock('clock_out', '')}
 	>
 		{text.clockOut}
