@@ -6,6 +6,7 @@
 	import type { EmployeeLeaveRequest } from '../leave/employee-leave-types';
 	import { attendanceText } from '../text';
 	import { getLeaveManagementState } from './leave-management-state.svelte';
+	import { isSupabaseConfigured } from '$lib/supabase';
 
 	type Props = {
 		request: EmployeeLeaveRequest;
@@ -15,6 +16,7 @@
 
 	const text = createPageText(attendanceText);
 	const management = getLeaveManagementState();
+	const keepsACorrectionReason = !isSupabaseConfigured();
 	let isOpen = $state(false);
 	let startTime = $state('');
 	let endTime = $state('');
@@ -29,7 +31,8 @@
 	}
 
 	async function submit(): Promise<void> {
-		if (!startTime || !endTime || !reason.trim()) return;
+		if (!startTime || !endTime) return;
+		if (keepsACorrectionReason && !reason.trim()) return;
 		await management.correctTime(request.id, {
 			startTime,
 			endTime,
@@ -62,10 +65,12 @@
 					<Input type="time" bind:value={endTime} />
 				</label>
 			</div>
-			<label class="grid gap-1.5 text-sm font-medium">
-				{text.management.reason}
-				<Input bind:value={reason} placeholder={text.management.correctTimeReasonPlaceholder} />
-			</label>
+			{#if keepsACorrectionReason}
+				<label class="grid gap-1.5 text-sm font-medium">
+					{text.management.reason}
+					<Input bind:value={reason} placeholder={text.management.correctTimeReasonPlaceholder} />
+				</label>
+			{/if}
 		</div>
 		<Dialog.Footer>
 			<Dialog.Close>
