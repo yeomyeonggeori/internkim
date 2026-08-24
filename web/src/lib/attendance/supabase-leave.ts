@@ -147,8 +147,8 @@ export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> 
 	if (leave.error) throw new Error(leave.error.message);
 
 	const emails = await emailsByMemberID();
-	const timeZones = await timeZonesByMemberID();
-	const pending = leave.data.map((row) => approvalOf(row, emails, timeZones));
+	const timeZoneOf = await memberTimeZoneLookup();
+	const pending = leave.data.map((row) => approvalOf(row, emails, timeZoneOf));
 	return { pendingCount: pending.length, pending, recentChanges: [] };
 }
 
@@ -163,7 +163,7 @@ export async function decideSupabaseLeave(
 		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
 		.single<LeaveRow>();
 	if (decided.error) throw new Error(decided.error.message);
-	return approvalOf(decided.data, await emailsByMemberID(), await timeZonesByMemberID());
+	return approvalOf(decided.data, await emailsByMemberID(), await memberTimeZoneLookup());
 }
 
 export function employeeLeaveRequestOfRow(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
@@ -190,12 +190,12 @@ export function employeeLeaveRequestOfRow(row: LeaveRow, timeZone: string): Empl
 function approvalOf(
 	row: LeaveRow,
 	emails: Map<string, string>,
-	timeZones: Map<string, string>
+	timeZoneOf: (memberID: string) => string
 ): LeaveApprovalRequest {
 	// A leave's dates read in the timezone of whoever took it, on every screen
 	// that shows it. Rendering a colleague's leave on the company's day would
 	// put the same request on two different dates in two places.
-	const timeZone = timeZones.get(row.member_id) ?? '';
+	const timeZone = timeZoneOf(row.member_id);
 	return {
 		id: row.id,
 		employeeEmail: emails.get(row.member_id) ?? '',
@@ -233,7 +233,7 @@ export async function memberTimeZone(memberID: string): Promise<string> {
 		.eq('id', memberID)
 		.single<{ timezone: string | null }>();
 	if (member.error) throw new Error(member.error.message);
-	return member.data.timezone ?? (await companyTimeZone());
+	return member.data.timezone || (await companyTimeZone());
 }
 
 export async function companyTimeZone(): Promise<string> {
@@ -275,14 +275,18 @@ async function memberLeaveRemaining(memberID: string, targetYear: number): Promi
 	return days;
 }
 
-async function timeZonesByMemberID(): Promise<Map<string, string>> {
+// Every lookup answers with a timezone Intl accepts. An empty one reaches
+// Intl.DateTimeFormat and throws, which would take a whole screen down over a
+// member row that happens to be missing.
+async function memberTimeZoneLookup(): Promise<(memberID: string) => string> {
 	const companyZone = await companyTimeZone();
 	const members = await supabase()
 		.from('member')
 		.select('id, timezone')
 		.returns<{ id: string; timezone: string | null }[]>();
 	if (members.error) throw new Error(members.error.message);
-	return new Map(members.data.map((member) => [member.id, member.timezone || companyZone]));
+	const zones = new Map(members.data.map((member) => [member.id, member.timezone || companyZone]));
+	return (memberID) => zones.get(memberID) || companyZone;
 }
 
 async function emailsByMemberID(): Promise<Map<string, string>> {
