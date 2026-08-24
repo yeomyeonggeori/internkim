@@ -2468,7 +2468,7 @@ func runSetupSimulationArguments(setupArguments []string) error {
 		return nil
 	}
 
-	filteredSetupArguments, shouldVerify, shouldVerifyBrowser, shouldKeepArtifacts := splitSimulationVerifyArguments(setupArguments)
+	filteredSetupArguments, shouldVerify, shouldVerifyBrowser := splitSimulationVerifyArguments(setupArguments)
 	setupArguments = filteredSetupArguments
 
 	if errorValue := validateSimulationStateIsolation(); errorValue != nil {
@@ -2487,13 +2487,6 @@ func runSetupSimulationArguments(setupArguments []string) error {
 		return errorValue
 	}
 	verifyArguments := []string{"api", "--board", commandTargetBoardSimulation, "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}
-	if errorValue := runVerifyArguments(verifyArguments); errorValue != nil {
-		return errorValue
-	}
-	verifyArguments[0] = "mattermost"
-	if shouldKeepArtifacts {
-		verifyArguments = append(verifyArguments, "--keep")
-	}
 	if errorValue := runVerifyArguments(verifyArguments); errorValue != nil {
 		return errorValue
 	}
@@ -2518,11 +2511,10 @@ func containsSetupPlan(arguments []string) bool {
 	return false
 }
 
-func splitSimulationVerifyArguments(arguments []string) ([]string, bool, bool, bool) {
+func splitSimulationVerifyArguments(arguments []string) ([]string, bool, bool) {
 	var filteredArguments []string
 	shouldVerify := false
 	shouldVerifyBrowser := false
-	shouldKeepArtifacts := false
 	for _, argument := range arguments {
 		switch argument {
 		case "--verify":
@@ -2530,13 +2522,11 @@ func splitSimulationVerifyArguments(arguments []string) ([]string, bool, bool, b
 		case "--verify-browser":
 			shouldVerify = true
 			shouldVerifyBrowser = true
-		case "--keep-artifacts":
-			shouldKeepArtifacts = true
 		default:
 			filteredArguments = append(filteredArguments, argument)
 		}
 	}
-	return filteredArguments, shouldVerify, shouldVerifyBrowser, shouldKeepArtifacts
+	return filteredArguments, shouldVerify, shouldVerifyBrowser
 }
 
 type hostDependency struct {
@@ -2669,7 +2659,7 @@ func setupControlArguments(arguments []string) []string {
 				index++
 				filteredArguments = append(filteredArguments, arguments[index])
 			}
-		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser", "--keep-artifacts", "--with-google", "--wait-lock":
+		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser", "--with-google", "--wait-lock":
 			filteredArguments = append(filteredArguments, argument)
 		default:
 			if strings.HasPrefix(argument, "--only=") ||

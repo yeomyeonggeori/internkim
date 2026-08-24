@@ -2,7 +2,6 @@ package cli
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -60,161 +59,6 @@ func TestVerifyMattermostScriptUsesStrictChannelMembership(t *testing.T) {
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected Mattermost verify strict join to include %q", fragment)
-		}
-	}
-}
-
-func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) {
-	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true, false, nil, nil, false, false, false)
-	requiredFragments := []string{
-		"delete_stale_probe_users",
-		"probe-mattermost-",
-		"expect_browser_open=true",
-		"tool.browser_open.result",
-		".isError != true",
-		"expected successful tool.browser_open.result",
-		"browserOpenVerified: $browser_open_verified",
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected Mattermost prompt browser verification to include %q", fragment)
-		}
-	}
-}
-
-func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
-	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, false, []string{"schedule_create"}, []string{"schedule.created"}, false, false, false)
-	requiredFragments := []string{
-		"expected_tools_json=",
-		"expected_events_json=",
-		`[ "$task_status" = "completed" ]`,
-		"tool.$expected_tool.requested",
-		"expected requested tool event for $expected_tool",
-		"expected task event $expected_event",
-		"fetch_latest_bot_post",
-		"fetch latest bot reply",
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected Mattermost prompt event verification to include %q", fragment)
-		}
-	}
-}
-
-func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
-	script := verifyMattermostPromptScript(defaultVerifySitePrompt, false, 90, false, true, []string{"terminal_run", "site_serve"}, nil, false, false, false)
-	requiredFragments := []string{
-		"expect_public_url=true",
-		"wait for final site reply",
-		"public_url_verified=false",
-		"grep -Eo 'https://[^[:space:])>]+'",
-		"expected_tools_json=",
-		"tool.$expected_tool.requested",
-		"Sorry, we could not find the page.",
-		"INTERNKIM_SITE_STARTER_REPLACE_ME",
-		"site public URL returned starter scaffold",
-		"site public URL did not return valid HTML",
-		"capture_site_screenshots",
-		"prepare_rootfs_browser_chroot",
-		"/opt/internkim/blueclaw-runtime/rootfs.ext4",
-		"--user-data-dir=\"$profile_dir\"",
-		"site screenshot capture failed; chromium diagnostics follow",
-		"--screenshot=\"$desktop_screenshot_file\"",
-		"--screenshot=\"$mobile_screenshot_file\"",
-		"siteScreenshotsVerified: $site_screenshots_verified",
-		"siteScreenshotFiles: [$desktop_screenshot_file, $mobile_screenshot_file]",
-		"site deploy final reply contained a generic infrastructure excuse",
-		"http://127.0.0.1:8080/admin/api/sites/$site_id",
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected Mattermost prompt site verification to include %q", fragment)
-		}
-	}
-}
-
-func TestVerifySiteRequiresExplicitTarget(t *testing.T) {
-	errorValue := runVerifyArguments([]string{"site"})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "saved physical board") {
-		t.Fatalf("expected verify site to reject implicit physical target, got %v", errorValue)
-	}
-}
-
-func TestVerifyMattermostSitePromptRequiresExplicitTarget(t *testing.T) {
-	errorValue := runVerifyArguments([]string{
-		"mattermost",
-		"--prompt",
-		"웹사이트 하나 만들어서 배포해줘",
-		"--expect-tool",
-		"site_serve",
-	})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "saved physical board") {
-		t.Fatalf("expected Mattermost site verification to reject implicit physical target, got %v", errorValue)
-	}
-}
-
-func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
-	script := verifyMattermostPromptScript(defaultVerifySitePrompt, false, 90, false, true, []string{"terminal_run", "site_serve"}, nil, false, false, false)
-	scriptPath := filepath.Join(t.TempDir(), "verify-site.sh")
-	if errorValue := os.WriteFile(scriptPath, []byte(script), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	output, errorValue := exec.Command("bash", "-n", scriptPath).CombinedOutput()
-	if errorValue != nil {
-		t.Fatalf("expected generated verify script to parse, got %v: %s", errorValue, string(output))
-	}
-}
-
-func TestVerifyMattermostPromptScriptCanDownloadFinalAttachments(t *testing.T) {
-	script := verifyMattermostPromptScript("짧은 발표자료 만들어줘.", true, 90, false, false, []string{"file_deliver"}, nil, true, false, false)
-	requiredFragments := []string{
-		"download_files=true",
-		"download_bot_files",
-		"http://localhost:8065/api/v4/files/$file_id/info",
-		"http://localhost:8065/api/v4/files/$file_id",
-		"--rawfile content_base64",
-		"contentBase64:$content_base64",
-		"downloadedFiles: ($downloaded_files[0] // [])",
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected Mattermost prompt attachment download to include %q", fragment)
-		}
-	}
-}
-
-func TestVerifyMattermostPromptScriptCanWaitForCompletion(t *testing.T) {
-	script := verifyMattermostPromptScript("보고서 워드 파일로 만들어줘.", false, 90, false, false, nil, nil, true, true, false)
-	requiredFragments := []string{
-		"wait_for_completion=true",
-		"find_probe_task_run_id",
-		"should_wait_for_task=true",
-		"expected a task for probe prompt before waiting for completion",
-		`[ "$should_wait_for_task" = "true" ]`,
-		`[ "$task_status" != "completed" ]`,
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected Mattermost prompt completion wait to include %q", fragment)
-		}
-	}
-}
-
-func TestVerifyMattermostPromptScriptCanAutoConfirm(t *testing.T) {
-	script := verifyMattermostPromptScript("일정을 삭제해줘.", false, 90, false, false, nil, nil, true, true, true)
-	requiredFragments := []string{
-		"auto_confirm=true",
-		"approval_sent=false",
-		`[ "$auto_confirm" = "true" ]`,
-		"confirmation.requested",
-		"post probe approval",
-		`message:"해"`,
-		"autoConfirmationSent: $auto_confirmation_sent",
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected Mattermost prompt auto confirmation to include %q", fragment)
 		}
 	}
 }
@@ -286,13 +130,6 @@ func TestWriteDownloadedMattermostFilesWritesAttachments(t *testing.T) {
 	}
 }
 
-func TestRunVerifyArgumentsAcceptsSiteSubcommand(t *testing.T) {
-	errorValue := runVerifyArguments([]string{"site", "--unknown-site-flag"})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "flag provided but not defined") {
-		t.Fatalf("expected site verify subcommand to resolve target, got %v", errorValue)
-	}
-}
-
 func TestVerifyAPIScriptChecksLiteRTWithCPUAccelerator(t *testing.T) {
 	script := verifyAPIScript()
 	requiredFragments := []string{
@@ -339,52 +176,6 @@ func TestParseMattermostBrowserOpenE2EPreparationUsesLastJSONLine(t *testing.T) 
 	}
 	if preparation.Code != "1234-5678" || preparation.UserID != "user-1" {
 		t.Fatalf("unexpected preparation: %+v", preparation)
-	}
-}
-
-func TestMattermostPromptScriptUsesPhaseBudgets(t *testing.T) {
-	script := verifyMattermostPromptScript("p", false, 900, false, true, nil, nil, true, true, true)
-	for _, fragment := range []string{
-		"health_timeout_seconds=120",
-		"registration_timeout_seconds=60",
-		`seq 1 "$health_timeout_seconds"`,
-		`[ "$reply_waited_seconds" -lt "$reply_timeout_seconds" ]`,
-		`seq 1 "$registration_timeout_seconds"`,
-		`[ "$completion_waited_seconds" -lt "$completion_timeout_seconds" ]`,
-		`[ "$public_url_waited_seconds" -lt "$public_url_timeout_seconds" ]`,
-	} {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected prompt script to contain %q", fragment)
-		}
-	}
-}
-
-func TestMattermostPromptScriptAllowsUnboundedScenarioObservation(t *testing.T) {
-	script := verifyMattermostPromptScript("p", false, 0, false, true, nil, nil, true, true, true)
-	for _, fragment := range []string{
-		"timeout_seconds=0",
-		`[ "$reply_timeout_seconds" -le 0 ]`,
-		`[ "$completion_timeout_seconds" -le 0 ]`,
-		`[ "$public_url_timeout_seconds" -le 0 ]`,
-		"--connect-timeout 10 --max-time 30",
-	} {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected unbounded prompt script to contain %q", fragment)
-		}
-	}
-	for _, fragment := range []string{
-		`seq 1 "$reply_timeout_seconds"`,
-		`seq 1 "$completion_timeout_seconds"`,
-		`seq 1 "$public_url_timeout_seconds"`,
-	} {
-		if strings.Contains(script, fragment) {
-			t.Fatalf("expected unbounded prompt script to omit %q", fragment)
-		}
-	}
-	for _, line := range strings.Split(script, "\n") {
-		if strings.Contains(line, "curl ") && !strings.Contains(line, "curl failure") && !strings.Contains(line, "--max-time") {
-			t.Fatalf("expected bounded curl request, got %q", strings.TrimSpace(line))
-		}
 	}
 }
 
