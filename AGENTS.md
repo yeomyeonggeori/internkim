@@ -319,7 +319,7 @@ and delete the duplicates.
   `./internkim lab vm-ssh --config <cfg>` and `./internkim lab vm-ip --config <cfg>`.
   Do not `container stop`/`container delete` the active fleet container. Confirm the
   fleet with `container ls` (`internkim-e2e-<runID>` present); if it is gone it was
-  destroyed, and a fresh one comes up via `./internkim test --keep "<msg>"`.
+  destroyed, and a fresh one comes up via `./internkim test cheap --keep`.
 - Do not redeploy agent, Blueclaw, runtime, skill, or terminal-execution changes
   until the relevant Local Fleet run produces the intended result. If Local Fleet verification
   fails, fix the behavior or explicitly report the unresolved failure instead of
