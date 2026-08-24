@@ -74,7 +74,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-orphan-inspect", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -163,6 +163,8 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		cancelReconcile()
 	case "buzz-orphan-inspect":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "inspect imported orphan-thread roots", "sh", "-lc", buzzOrphanInspectCommand()))
+	case "buzz-named-reaction-count":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count reactions published as a name", "sh", "-lc", buzzNamedReactionCountCommand()))
 	case "buzz-profile-inspect":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "inspect the pictures published profiles point at", "sh", "-lc", buzzProfileInspectCommand()))
 	case "buzz-probe-profile-count":
@@ -997,6 +999,21 @@ q() { su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -
 q "` + probes + ` SELECT count(*) FROM probes" | sed 's/^/probe identities: /'
 q "` + probes + ` SELECT count(*) FROM events WHERE kind<>0 AND pubkey IN (SELECT pubkey FROM probes)" | sed 's/^/everything else they wrote, left alone: /'
 q "` + probes + ` ` + action + `" | sed 's/^/profile events ` + outcome + `: /'
+`)
+}
+
+// A reaction whose content is a bare word is one the mirror published before it
+// learned to convert - the platform's name for the emoji instead of the emoji.
+// Already signed and published, so nothing rewrites it in place.
+func buzzNamedReactionCountCommand() string {
+	return strings.TrimSpace(`
+set +e
+q() { su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"$1\"" 2>&1; }
+named="content ~ '^[a-z0-9_+-]{2,}$'"
+q "SELECT count(*) FROM events WHERE kind=7" | sed 's/^/reactions: /'
+q "SELECT count(*) FROM events WHERE kind=7 AND $named" | sed 's/^/carrying a name instead of a character: /'
+printf '== which names ==\n'
+q "SELECT content, count(*) FROM events WHERE kind=7 AND $named GROUP BY 1 ORDER BY 2 DESC LIMIT 20"
 `)
 }
 
