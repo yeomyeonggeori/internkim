@@ -401,8 +401,9 @@ func (dependencies importDependencies) customEmojiURL(ctx context.Context, autho
 
 // A channel a company closed is gone from the messenger's list, and an import
 // reading that list cannot tell it from one that never existed - so the copy
-// made when it was open stays open forever. The relay has carried archived_at
-// since its first migration; nobody was filling it.
+// made when it was open stays open forever. deleted_at is what takes a channel
+// out of the relay's own listing; archived_at is next to it in the table and
+// only ever reaches the TTL housekeeping, so setting that one closes nothing.
 func closeChannelsTheMessengerArchived(ctx context.Context, client mattermostrest.Client, bridge bridgeClient, database *sql.DB, teamID string) {
 	archived, errorValue := client.DeletedChannels(ctx, teamID)
 	if errorValue != nil {
@@ -426,7 +427,7 @@ func closeOneChannel(ctx context.Context, bridge bridgeClient, database *sql.DB,
 	}
 	result, errorValue := database.ExecContext(
 		ctx,
-		"UPDATE channels SET archived_at = NOW() WHERE id = $1 AND archived_at IS NULL",
+		"UPDATE channels SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
 		buzzChannelID,
 	)
 	if errorValue != nil {
