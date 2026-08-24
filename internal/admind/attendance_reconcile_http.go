@@ -21,10 +21,10 @@ func (service *Service) backfillAttendanceCentrally(responseWriter http.Response
 		return
 	}
 
-	months := monthsToReconcile(time.Now().UTC(), backfillMonths(request.URL.Query().Get("months")))
+	months := monthsToPublish(time.Now().UTC(), backfillMonths(request.URL.Query().Get("months")))
 	answer := attendanceBackfillResponse{Months: months, Failures: []string{}}
 	for _, month := range months {
-		if errorValue := service.reconcileAttendanceMonth(request.Context(), month); errorValue != nil {
+		if errorValue := service.publishWorkPolicyForMonth(request.Context(), month); errorValue != nil {
 			answer.Failures = append(answer.Failures, month+": "+errorValue.Error())
 		}
 	}
