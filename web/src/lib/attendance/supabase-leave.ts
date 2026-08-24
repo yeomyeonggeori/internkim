@@ -62,7 +62,7 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 		.order('starts_at', { ascending: false })
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
-	const timeZone = await companyTimeZone();
+	const timeZone = await memberTimeZone(memberID);
 	const mappedLeave = leave.data.map((row) => ({ row, request: employeeLeaveRequestOfRow(row, timeZone) }));
 	const requests = mappedLeave.map(({ request }) => request);
 	const targetYear = await memberCurrentYear(memberID);
@@ -222,7 +222,17 @@ function shiftedDay(date: string, days: number): string {
 	return moved.toISOString().slice(0, 10);
 }
 
-async function companyTimeZone(): Promise<string> {
+export async function memberTimeZone(memberID: string): Promise<string> {
+	const member = await supabase()
+		.from('member')
+		.select('timezone')
+		.eq('id', memberID)
+		.single<{ timezone: string | null }>();
+	if (member.error) throw new Error(member.error.message);
+	return member.data.timezone ?? (await companyTimeZone());
+}
+
+export async function companyTimeZone(): Promise<string> {
 	const company = await supabase().from('company').select('timezone').limit(1).single<{ timezone: string }>();
 	if (company.error) throw new Error(company.error.message);
 	return company.data.timezone;
