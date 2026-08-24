@@ -16,7 +16,7 @@ const menuShortcutCode = 'Period';
 // the attendance page all read it here, because a second copy of this drifts:
 // leave outranks an open segment, and a reader that only looks at the segment
 // offers to clock a person out of a day they are not working.
-class AttendanceClock {
+class MyAttendanceToday {
 	summary = $state<AttendanceSummary | null>(null);
 	isMenuOpen = $state(false);
 	isSubmitting = $state(false);
@@ -77,4 +77,4 @@ class AttendanceClock {
 	};
 }
 
-export const attendanceClock = new AttendanceClock();
+export const myAttendanceToday = new MyAttendanceToday();

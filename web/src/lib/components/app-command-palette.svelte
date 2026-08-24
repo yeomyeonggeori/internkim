@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { appNavigation } from '$lib/components/app-navigation.svelte';
-	import { attendanceClock } from '$lib/components/attendance-clock.svelte';
+	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import { calendarEventSearch } from '$lib/components/calendar-event-search.svelte';
 	import CalendarEventListCard from '../../routes/calendar/embed/calendar-event-list-card.svelte';
 	import type { CalendarSearchResult } from '../../routes/calendar/embed/calendar-search';
@@ -61,7 +61,7 @@
 
 	$effect(() => {
 		if (!open) return;
-		attendanceClock.load();
+		myAttendanceToday.load();
 		calendarEventSearch.load();
 		flowTaskSearch.load();
 	});
@@ -88,12 +88,12 @@
 
 	function runClockIn(locationID: string) {
 		open = false;
-		attendanceClock.clock('clock_in', locationID);
+		myAttendanceToday.clock('clock_in', locationID);
 	}
 
 	function runClockOut() {
 		open = false;
-		attendanceClock.clock('clock_out', '');
+		myAttendanceToday.clock('clock_out', '');
 	}
 
 	const canRegisterPasskey = isSupabaseConfigured() && isPasskeySupported();
@@ -133,19 +133,19 @@
 	}
 
 	function locationShortcut(locationID: string) {
-		const index = attendanceClock.locations.findIndex((location) => location.id === locationID);
+		const index = myAttendanceToday.locations.findIndex((location) => location.id === locationID);
 		return locationShortcuts[index] ?? '';
 	}
 
 	function handleShortcut(event: KeyboardEvent) {
 		if (searchValue !== '' || event.altKey || event.metaKey || event.ctrlKey) return;
 		if (event.key === clockOutShortcut) {
-			if (attendanceClock.nextKind === 'clock_in') return;
+			if (myAttendanceToday.nextKind === 'clock_in') return;
 			event.preventDefault();
 			runClockOut();
 			return;
 		}
-		const location = attendanceClock.locations[locationShortcuts.indexOf(event.key)];
+		const location = myAttendanceToday.locations[locationShortcuts.indexOf(event.key)];
 		if (!location) return;
 		event.preventDefault();
 		runClockIn(location.id);
@@ -162,14 +162,14 @@
 		{#if !searchValue.trim() || hasSuggestionResults}
 			<Command.Group forceMount heading={text.suggestions}>
 				{#if !searchValue.trim()}
-					{#if attendanceClock.nextKind === 'clock_out'}
+					{#if myAttendanceToday.nextKind === 'clock_out'}
 						<Command.Item value="suggested-clock-out" keywords={[attendanceLabels.clockOut]} onSelect={runClockOut}>
 							<LogOutIcon />
 							{attendanceLabels.clockOut}
 							<Command.Shortcut>{clockOutShortcut}</Command.Shortcut>
 						</Command.Item>
-					{:else if attendanceClock.defaultLocation}
-						{@const defaultLocation = attendanceClock.defaultLocation}
+					{:else if myAttendanceToday.defaultLocation}
+						{@const defaultLocation = myAttendanceToday.defaultLocation}
 						<Command.Item
 							value="suggested-clock-in"
 							keywords={[attendanceLabels.clockIn, defaultLocation.name]}
@@ -248,7 +248,7 @@
 		<Command.Separator />
 
 		<Command.Group heading={text.attendance}>
-			{#each attendanceClock.locations as location (location.id)}
+			{#each myAttendanceToday.locations as location (location.id)}
 				<Command.Item
 					value="clock-in-{location.id}"
 					keywords={[attendanceLabels.clockIn, location.name]}
@@ -262,7 +262,7 @@
 			<Command.Item
 				value="clock-out"
 				keywords={[attendanceLabels.clockOut]}
-				disabled={attendanceClock.nextKind === 'clock_in'}
+				disabled={myAttendanceToday.nextKind === 'clock_in'}
 				onSelect={runClockOut}
 			>
 				<LogOutIcon />
