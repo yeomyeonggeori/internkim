@@ -249,7 +249,7 @@ def resolve_font(specification):
     if configured_font:
         return font_name, Path(configured_font)
     for candidate in candidate_font_paths():
-        if candidate.exists():
+        if candidate.exists() and is_embeddable_font(candidate):
             return font_name, candidate
     return "Helvetica", None
 
@@ -260,6 +260,18 @@ def validate_font_availability(specification, font_path):
     text = json.dumps(specification, ensure_ascii=False)
     if contains_non_latin_text(text):
         raise ValueError("non-Latin PDF text requires fontPath or an installed Korean-capable font")
+
+
+def is_embeddable_font(font_path):
+    try:
+        from fontTools.ttLib import TTFont
+    except ImportError:
+        return True
+    try:
+        font = TTFont(str(font_path), fontNumber=0, lazy=True)
+    except Exception:
+        return False
+    return "OS/2" in font and "cmap" in font
 
 
 def candidate_font_paths():

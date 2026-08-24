@@ -109,9 +109,21 @@ def resolve_font(document):
     if configured_path:
         return Path(configured_path)
     for candidate in candidate_font_paths():
-        if candidate.exists():
+        if candidate.exists() and is_embeddable_font(candidate):
             return candidate
     raise ValueError("no Korean-capable font found; pass fontPath in the document JSON")
+
+
+def is_embeddable_font(font_path):
+    try:
+        from fontTools.ttLib import TTFont
+    except ImportError:
+        return True
+    try:
+        font = TTFont(str(font_path), fontNumber=0, lazy=True)
+    except Exception:
+        return False
+    return "OS/2" in font and "cmap" in font
 
 
 def candidate_font_paths():

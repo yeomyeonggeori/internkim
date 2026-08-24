@@ -1,6 +1,7 @@
 package blueclawworkspace
 
 import (
+	"crypto/sha256"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -337,6 +338,37 @@ func TestVendoredSiteScaffoldIncludesBuildManifest(t *testing.T) {
 	}
 }
 
+func TestBundledSkillRuntimeScriptsStayIdentical(t *testing.T) {
+	skillsRootPath := filepath.Join("..", "..", "assets", "blueclaw-workspace", "skills")
+	entries, errorValue := os.ReadDir(skillsRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	digestBySkill := map[string][32]byte{}
+	for _, entry := range entries {
+		runtimePath := filepath.Join(skillsRootPath, entry.Name(), "scripts", "skill_runtime.py")
+		runtimeScript, readError := os.ReadFile(runtimePath)
+		if readError != nil {
+			continue
+		}
+		digestBySkill[entry.Name()] = sha256.Sum256(runtimeScript)
+	}
+	if len(digestBySkill) < 2 {
+		t.Fatalf("expected several skills to bundle skill_runtime.py, found %d", len(digestBySkill))
+	}
+	var referenceSkill string
+	for skillName := range digestBySkill {
+		if referenceSkill == "" || skillName < referenceSkill {
+			referenceSkill = skillName
+		}
+	}
+	for skillName, digest := range digestBySkill {
+		if digest != digestBySkill[referenceSkill] {
+			t.Fatalf("%s/scripts/skill_runtime.py drifted from %s/scripts/skill_runtime.py; bundled copies are one contract and must stay byte-identical", skillName, referenceSkill)
+		}
+	}
+}
+
 func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	createScriptNames := map[string]string{"document": "create_docx.py", "spreadsheet": "create_xlsx.py"}
@@ -380,8 +412,13 @@ func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.
 		if !strings.Contains(string(runtimeScript), "requirements.txt") {
 			t.Fatalf("%s runtime script must install from requirements.txt", skillName)
 		}
-		if !strings.Contains(string(runtimeScript), "/opt/blueclaw/builtin-skills-venv/bin/python") {
-			t.Fatalf("%s runtime script must prefer the built-in skills Python environment", skillName)
+		if !strings.Contains(string(runtimeScript), "BLUECLAW_BUILTIN_SKILLS_PYTHON") {
+			t.Fatalf("%s runtime script must prefer the host-advertised skills Python environment", skillName)
+		}
+		for _, hostPath := range []string{"/opt/blueclaw", "/workspace"} {
+			if strings.Contains(string(runtimeScript), hostPath) {
+				t.Fatalf("%s runtime script must not hardcode the host path %q; a bundled skill runs wherever it is installed", skillName, hostPath)
+			}
 		}
 		if !strings.Contains(string(runtimeScript), `"uv",`) {
 			t.Fatalf("%s runtime script must use uv for Python dependency setup", skillName)

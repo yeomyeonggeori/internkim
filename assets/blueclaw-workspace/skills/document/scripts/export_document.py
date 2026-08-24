@@ -135,11 +135,23 @@ PDF_FONT_CANDIDATES = [
 ]
 
 
+def is_embeddable_font(font_path):
+    try:
+        from fontTools.ttLib import TTFont
+    except ImportError:
+        return True
+    try:
+        font = TTFont(str(font_path), fontNumber=0, lazy=True)
+    except Exception:
+        return False
+    return "OS/2" in font and "cmap" in font
+
+
 def resolve_pdf_font(font_path_argument):
     if font_path_argument:
         return Path(font_path_argument)
     for candidate in PDF_FONT_CANDIDATES:
-        if candidate.exists():
+        if candidate.exists() and is_embeddable_font(candidate):
             return candidate
     return None
 

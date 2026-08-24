@@ -10,7 +10,6 @@ import sys
 BOOTSTRAP_READY_ENVIRONMENT_PREFIX = "INTERNKIM_SKILL_BOOTSTRAP_READY"
 BOOTSTRAP_DISABLE_ENVIRONMENT_PREFIX = "INTERNKIM_SKILL_BOOTSTRAP_DISABLE"
 BUILTIN_SKILLS_PYTHON_ENVIRONMENT = "BLUECLAW_BUILTIN_SKILLS_PYTHON"
-DEFAULT_BUILTIN_SKILLS_PYTHON = "/opt/blueclaw/builtin-skills-venv/bin/python"
 
 
 def ensure_requirements(skill_name):
@@ -22,10 +21,13 @@ def ensure_requirements(skill_name):
     if os.environ.get(bootstrap_ready_environment_variable(skill_name)) == "1":
         return True
 
-    builtin_python_path = builtin_skills_python_path(requirements_path)
-    if builtin_python_path is not None:
-        reexecute_python(builtin_python_path, skill_name)
+    prepared_python = prepared_python_path(requirements_path)
+    if prepared_python is not None:
+        reexecute_python(prepared_python, skill_name)
         return False
+
+    if python_satisfies_requirements(Path(sys.executable), requirements_path):
+        return True
 
     environment_path = dependency_environment_path(skill_name)
     python_path = environment_path / "bin" / "python"
@@ -43,11 +45,11 @@ def ensure_requirements(skill_name):
     return False
 
 
-def builtin_skills_python_path(requirements_path):
-    configured_python_path = os.environ.get(BUILTIN_SKILLS_PYTHON_ENVIRONMENT)
-    if configured_python_path is None and not is_builtin_skill_runtime():
+def prepared_python_path(requirements_path):
+    configured_python_path = os.environ.get(BUILTIN_SKILLS_PYTHON_ENVIRONMENT, "").strip()
+    if configured_python_path == "":
         return None
-    python_path = Path(configured_python_path or DEFAULT_BUILTIN_SKILLS_PYTHON)
+    python_path = Path(configured_python_path)
     if not python_path.exists():
         return None
     if not python_satisfies_requirements(python_path, requirements_path):
@@ -55,10 +57,6 @@ def builtin_skills_python_path(requirements_path):
     if is_current_python(python_path):
         return None
     return python_path
-
-
-def is_builtin_skill_runtime():
-    return Path(__file__).resolve().as_posix().startswith("/workspace/skills/")
 
 
 def python_satisfies_requirements(python_path, requirements_path):
@@ -163,9 +161,9 @@ def uv_cache_path(environment):
     configured_cache = environment.get("UV_CACHE_DIR")
     if configured_cache is not None and configured_cache.strip() != "":
         return Path(configured_cache)
-    workspace_cache = Path("/workspace/shared/cache/dependencies/uv")
-    if workspace_cache.parent.exists():
-        return workspace_cache
+    dependency_cache = environment.get("BLUECLAW_DEPENDENCY_CACHE")
+    if dependency_cache is not None and dependency_cache.strip() != "":
+        return Path(dependency_cache) / "uv"
     root = environment.get("BLUECLAW_REQUESTER_TMP")
     if root is None or root.strip() == "":
         root = environment.get("TMPDIR", "/tmp")
