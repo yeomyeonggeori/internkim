@@ -12,9 +12,10 @@
 	import LogInIcon from '@lucide/svelte/icons/log-in';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import LoaderIcon from '@lucide/svelte/icons/loader-circle';
-	import { getAttendanceState, type AttendanceKind } from './attendance-context.svelte';
-	import { computeDayEvents, statusForDay, type AttendanceWorkSegment } from './shared/attendance-aggregation';
-	import { timeInTimeZone, todayDateInTimeZone } from './shared/attendance-date';
+	import { attendanceClock } from '$lib/components/attendance-clock.svelte';
+	import { getAttendanceState } from './attendance-context.svelte';
+	import { type AttendanceWorkSegment } from './shared/attendance-aggregation';
+	import { timeInTimeZone } from './shared/attendance-date';
 	import { formatHoursMinutes } from './shared/attendance-format';
 	import AttendanceProgressBar, { type AttendanceProgressSegment } from './shared/attendance-progress-bar.svelte';
 	import { dayWidthPercent } from './shared/day-timeline';
@@ -31,22 +32,9 @@
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
 
-	const today = $derived(todayDateInTimeZone(attendance.currentMonthSummary?.timeZone));
-
-	const myEvents = $derived(
-		(attendance.currentMonthSummary?.events ?? []).filter(
-			(event) => event.email === attendance.currentMonthSummary?.currentUserEmail
-		)
-	);
-	const myAbsences = $derived(
-		(attendance.currentMonthSummary?.absences ?? []).filter(
-			(absence) => absence.email === attendance.currentMonthSummary?.currentUserEmail
-		)
-	);
-
-	const todayDay = $derived(computeDayEvents(today, myEvents, { currentDate: today }));
-	const status = $derived(statusForDay(today, myEvents, myAbsences, today));
-	const activeLeave = $derived(attendance.currentMonthSummary?.activeLeave);
+	const todayDay = $derived(attendanceClock.day);
+	const status = $derived(attendanceClock.status);
+	const activeLeave = $derived(attendanceClock.activeLeave);
 	const activeLeaveName = $derived(
 		activeLeave
 			? localizedLeaveTypeName(
@@ -69,17 +57,13 @@
 		todayDay.activeSegment?.locationName ?? todayDay.activeSegment?.locationID ?? text.location
 	);
 
-	const nextKind = $derived<AttendanceKind>(
-		activeLeave ? 'clock_in' : status === 'working' ? 'clock_out' : 'clock_in'
-	);
+	const nextKind = $derived(attendanceClock.nextKind);
 	const actionLabel = $derived(nextKind === 'clock_in' ? text.clockIn : text.clockOut);
 
 	let selectedLocationID = $state<string>('');
 	$effect(() => {
-		const locations = attendance.currentMonthSummary?.locations ?? [];
-		if (!selectedLocationID) {
-			const def = locations.find((l) => l.isDefault) ?? locations[0];
-			if (def) selectedLocationID = def.id;
+		if (!selectedLocationID && attendanceClock.defaultLocation) {
+			selectedLocationID = attendanceClock.defaultLocation.id;
 		}
 	});
 
@@ -91,11 +75,12 @@
 		isToggling = true;
 		errorMessage = '';
 		try {
-			await attendance.toggleAttendance(
+			await attendanceClock.clock(
 				nextKind,
-				nextKind === 'clock_in' ? selectedLocationID || undefined : undefined,
+				nextKind === 'clock_in' ? selectedLocationID : '',
 				confirmEarlyReturn
 			);
+			await attendance.load();
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.processingFailed;
 		} finally {
@@ -103,7 +88,7 @@
 		}
 	}
 
-	const locations = $derived(attendance.currentMonthSummary?.locations ?? []);
+	const locations = $derived(attendanceClock.locations);
 	const todaySegmentBars = $derived(buildSegmentBars(todayDay.segments));
 	const todayProgressSegments = $derived<AttendanceProgressSegment[]>(
 		todaySegmentBars.map((segment) => ({
@@ -115,7 +100,7 @@
 	const showLocationPicker = $derived(nextKind === 'clock_in' && locations.length > 1);
 
 	function buildSegmentBars(segments: AttendanceWorkSegment[]): SegmentBar[] {
-		const currentTime = timeInTimeZone(attendance.currentMonthSummary?.timeZone);
+		const currentTime = timeInTimeZone(attendanceClock.summary?.timeZone);
 		return segments.map((segment) => {
 			return {
 				id: segment.id,
