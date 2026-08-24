@@ -1,8 +1,11 @@
+beautifulsoup4
+firecrawl-anydoc
 fpdf2
-markitdown[docx,pdf,pptx,xlsx]
-markitdown-ocr
+markdownify
 openai
 openpyxl
+pillow
 pypdf
+pypdfium2
 python-docx
 python-pptx
