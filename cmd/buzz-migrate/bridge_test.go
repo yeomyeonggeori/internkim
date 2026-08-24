@@ -142,3 +142,39 @@ func TestAnImportWithNoBridgeDoesNotDecideWhoWorksHere(t *testing.T) {
 		t.Error("an import with nobody to ask named the people itself")
 	}
 }
+
+// A channel the company closed is gone from the messenger's list, so the copy
+// made while it was open stays open unless something goes looking for it.
+func TestAChannelResolvesToItsBuzzCounterpart(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/channel/resolve" {
+			t.Errorf("asked %s", request.URL.Path)
+		}
+		var payload map[string]string
+		json.NewDecoder(request.Body).Decode(&payload)
+		if payload["externalChannelId"] != "mm-channel" || payload["platform"] != mattermostPlatform {
+			t.Errorf("resolved %v", payload)
+		}
+		responseWriter.Write([]byte(`{"buzzChannelId":"11111111-1111-1111-1111-111111111111"}`))
+	}))
+	defer server.Close()
+
+	buzzChannelID, errorValue := newBridge(server.URL).resolveChannel(context.Background(), "mm-channel")
+	if errorValue != nil {
+		t.Fatalf("resolve: %v", errorValue)
+	}
+	if buzzChannelID != "11111111-1111-1111-1111-111111111111" {
+		t.Errorf("resolved to %q", buzzChannelID)
+	}
+}
+
+func TestAChannelTheBridgeCannotResolveIsNotClosedByGuess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
+		responseWriter.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	if _, errorValue := newBridge(server.URL).resolveChannel(context.Background(), "mm-channel"); errorValue == nil {
+		t.Error("a refused resolve read as a channel id, and something else would have been closed")
+	}
+}
