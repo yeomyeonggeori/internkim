@@ -198,6 +198,7 @@ func main() {
 	} else {
 		injectAuthorProfiles(ctx, injector, uploader, client, authorSecrets, authorsByID, companyPeople)
 	}
+	closeChannelsTheMessengerArchived(ctx, client, bridge, buzzDatabase, teamID)
 	injectCompanyProfile(ctx, injector, uploader, keeper, bridge, bootstrapSecret)
 	fmt.Printf("done: %d channels, %d messages imported, %s\n", len(channels), totalImported, totalSkipped)
 }
@@ -396,6 +397,44 @@ func (dependencies importDependencies) customEmojiURL(ctx context.Context, autho
 	}
 	dependencies.customEmojiCache.put(emojiName, url)
 	return url
+}
+
+// A channel a company closed is gone from the messenger's list, and an import
+// reading that list cannot tell it from one that never existed - so the copy
+// made when it was open stays open forever. The relay has carried archived_at
+// since its first migration; nobody was filling it.
+func closeChannelsTheMessengerArchived(ctx context.Context, client mattermostrest.Client, bridge bridgeClient, database *sql.DB, teamID string) {
+	archived, errorValue := client.DeletedChannels(ctx, teamID)
+	if errorValue != nil {
+		log.Printf("the messenger did not say which channels it archived: %v", errorValue)
+		return
+	}
+	closed := 0
+	for _, channel := range mattermostrest.ChannelsToImport(archived) {
+		if closeOneChannel(ctx, bridge, database, channel.ID, channel.Name) {
+			closed++
+		}
+	}
+	fmt.Printf("archived in the messenger: %d, newly closed in buzz: %d\n", len(archived), closed)
+}
+
+func closeOneChannel(ctx context.Context, bridge bridgeClient, database *sql.DB, externalChannelID, name string) bool {
+	buzzChannelID, errorValue := bridge.resolveChannel(ctx, externalChannelID)
+	if errorValue != nil {
+		log.Printf("archived channel %s has no buzz counterpart: %v", name, errorValue)
+		return false
+	}
+	result, errorValue := database.ExecContext(
+		ctx,
+		"UPDATE channels SET archived_at = NOW() WHERE id = $1 AND archived_at IS NULL",
+		buzzChannelID,
+	)
+	if errorValue != nil {
+		log.Printf("close %s in buzz failed: %v", name, errorValue)
+		return false
+	}
+	affected, errorValue := result.RowsAffected()
+	return errorValue == nil && affected > 0
 }
 
 func injectAuthorProfiles(ctx context.Context, injector buzzimport.ChannelInjector, uploader media.Uploader, client mattermostrest.Client, authorSecrets map[string]string, authorsByID map[string]mattermostrest.MattermostAuthor, companyPeople map[string]bool) {
@@ -1034,6 +1073,24 @@ func (client bridgeClient) people(ctx context.Context) (map[string]bool, error) 
 	return known, nil
 }
 
+func (client bridgeClient) resolveChannel(ctx context.Context, externalChannelID string) (string, error) {
+	response, errorValue := client.postForResponse(ctx, "/channel/resolve", map[string]string{
+		"platform":          mattermostPlatform,
+		"externalChannelId": externalChannelID,
+	})
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer response.Body.Close()
+	var answer struct {
+		BuzzChannelID string `json:"buzzChannelId"`
+	}
+	if errorValue := json.NewDecoder(response.Body).Decode(&answer); errorValue != nil {
+		return "", errorValue
+	}
+	return answer.BuzzChannelID, nil
+}
+
 func (client bridgeClient) recordChannel(ctx context.Context, buzzChannelID, externalChannelID string) error {
 	return client.post(ctx, "/channel", map[string]string{
 		"buzzChannelId":     buzzChannelID,
@@ -1060,24 +1117,33 @@ func (client bridgeClient) get(ctx context.Context, path string) (*http.Response
 }
 
 func (client bridgeClient) post(ctx context.Context, path string, body map[string]string) error {
-	document, errorValue := json.Marshal(body)
+	response, errorValue := client.postForResponse(ctx, path, body)
 	if errorValue != nil {
 		return errorValue
 	}
+	response.Body.Close()
+	return nil
+}
+
+func (client bridgeClient) postForResponse(ctx context.Context, path string, body map[string]string) (*http.Response, error) {
+	document, errorValue := json.Marshal(body)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, client.baseURL+path, bytes.NewReader(document))
 	if errorValue != nil {
-		return errorValue
+		return nil, errorValue
 	}
 	request.Header.Set("Content-Type", "application/json")
 	response, errorValue := http.DefaultClient.Do(request)
 	if errorValue != nil {
-		return errorValue
+		return nil, errorValue
 	}
-	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("the bridge answered %d for %s", response.StatusCode, path)
+		response.Body.Close()
+		return nil, fmt.Errorf("the bridge answered %d for %s", response.StatusCode, path)
 	}
-	return nil
+	return response, nil
 }
 
 func deriveSecret(seed, email string) string {
