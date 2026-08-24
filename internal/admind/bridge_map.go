@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -146,10 +147,18 @@ func (service *Service) handleBridgeCompany(responseWriter http.ResponseWriter, 
 // employee, but it is one of the company's own, and its email is what resolves
 // to the identity it talks as.
 func (service *Service) handleBridgePeople(responseWriter http.ResponseWriter, request *http.Request) {
-	var policyDocument memoryPolicyDocument
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+	emails, errorValue := service.companyPeopleEmails(request.Context())
+	if errorValue != nil {
 		http.Error(responseWriter, "policy_unreachable", http.StatusBadGateway)
 		return
+	}
+	service.writeJSON(responseWriter, map[string][]string{"emails": emails})
+}
+
+func (service *Service) companyPeopleEmails(ctx context.Context) ([]string, error) {
+	var policyDocument memoryPolicyDocument
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return nil, errorValue
 	}
 	emails := []string{}
 	seen := map[string]bool{}
@@ -163,10 +172,10 @@ func (service *Service) handleBridgePeople(responseWriter http.ResponseWriter, r
 			emails = append(emails, normalized)
 		}
 	}
-	if botEmail := service.mattermostBotBuzzEmail(request.Context()); botEmail != "" && !seen[botEmail] {
+	if botEmail := service.mattermostBotBuzzEmail(ctx); botEmail != "" && !seen[botEmail] {
 		emails = append(emails, botEmail)
 	}
-	service.writeJSON(responseWriter, map[string][]string{"emails": emails})
+	return emails, nil
 }
 
 func (service *Service) handleBridgeChannelRecord(responseWriter http.ResponseWriter, request *http.Request) {
