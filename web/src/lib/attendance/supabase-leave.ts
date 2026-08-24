@@ -19,11 +19,12 @@ import {
 	leavePreviewPeriod,
 	leaveTimestampRange
 } from './supabase-leave-range';
+import { EmployeeLeaveAPIError } from '../../routes/attendance/leave/employee-leave-api-error';
 import { summarizeSupabaseLeave } from './supabase-leave-summary';
 
 type LeaveStatus = 'requested' | 'approved' | 'rejected';
 
-type LeaveRow = {
+export type LeaveRow = {
 	id: string;
 	member_id: string;
 	kind: string;
@@ -42,7 +43,7 @@ const statusWords: Record<LeaveStatus, EmployeeLeaveStatus> = {
 	rejected: 'rejected'
 };
 
-const theOnlyLeaveType: EmployeeLeaveType = {
+export const theOnlyLeaveType: EmployeeLeaveType = {
 	id: 'leave',
 	name: '휴가',
 	balanceMode: 'none',
@@ -62,7 +63,7 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
 	const timeZone = await companyTimeZone();
-	const mappedLeave = leave.data.map((row) => ({ row, request: requestOf(row, timeZone) }));
+	const mappedLeave = leave.data.map((row) => ({ row, request: employeeLeaveRequestOfRow(row, timeZone) }));
 	const requests = mappedLeave.map(({ request }) => request);
 	const targetYear = await memberCurrentYear(memberID);
 	const remainingDays = await memberLeaveRemaining(memberID, targetYear);
@@ -125,8 +126,14 @@ export async function createSupabaseLeaveRequest(request: EmployeeLeaveSubmissio
 }
 
 export async function cancelSupabaseLeaveRequest(requestID: string): Promise<void> {
-	const { error } = await supabase().from('leave').delete().eq('id', requestID);
-	if (error) throw new Error(error.message);
+	const withdrawn = await supabase()
+		.from('leave')
+		.delete()
+		.eq('id', requestID)
+		.select('id')
+		.returns<{ id: string }[]>();
+	if (withdrawn.error) throw new Error(withdrawn.error.message);
+	if (withdrawn.data.length === 0) throw new EmployeeLeaveAPIError('invalidStatus', 409);
 }
 
 export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> {
@@ -158,7 +165,7 @@ export async function decideSupabaseLeave(
 	return approvalOf(decided.data, await emailsByMemberID(), await companyTimeZone());
 }
 
-function requestOf(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
+export function employeeLeaveRequestOfRow(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
 	const status = statusWords[row.status];
 	const range = leaveDisplayRange(row.starts_at, row.ends_at, row.days, timeZone);
 	return {
