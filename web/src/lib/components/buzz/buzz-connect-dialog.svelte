@@ -10,9 +10,7 @@
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { npubEncode, nsecEncode } from 'nostr-tools/nip19';
-	import QrCode from 'svelte-qrcode';
 	import EyeIcon from '@lucide/svelte/icons/eye';
-	import SmartphoneIcon from '@lucide/svelte/icons/smartphone';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 
 	let { open = $bindable(false) }: { open?: boolean } = $props();
@@ -27,7 +25,6 @@
 			nsec: '내 키 (nsec)',
 			reveal: '키 보기',
 			warning: '이 키는 계정 전체에 대한 접근 권한입니다. 누구에게도 공유하지 마세요.',
-			scanHint: '모바일 Buzz 앱에서 이 QR을 스캔해 키를 가져올 수 있습니다.',
 			loading: '신원을 불러오는 중입니다…',
 			locked: '이 회사의 신원을 불러오지 못했습니다. 회사 컴퓨터가 응답하지 않는 동안에는 앱을 연결할 수 없습니다.'
 		},
@@ -40,7 +37,6 @@
 			nsec: 'Your key (nsec)',
 			reveal: 'Reveal key',
 			warning: 'This key grants full access to your account. Never share it with anyone.',
-			scanHint: 'Scan this QR in a mobile Buzz app to import your key.',
 			loading: 'Fetching your identity…',
 			locked: 'Your identity could not be fetched. The Buzz app cannot be connected while the company machine is unreachable.'
 		}
@@ -156,13 +152,6 @@
 							<TriangleAlertIcon class="mt-0.5 size-3.5 shrink-0" />
 							<span>{text.warning}</span>
 						</p>
-						<div class="mt-2 flex flex-col items-center gap-2 rounded-lg border bg-muted/30 p-4">
-							<QrCode value={nsec} size="160" />
-							<p class="text-muted-foreground flex items-center gap-1.5 text-center text-xs">
-								<SmartphoneIcon class="size-3.5 shrink-0" />
-								{text.scanHint}
-							</p>
-						</div>
 					{/if}
 				</div>
 			</div>
