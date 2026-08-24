@@ -43,9 +43,12 @@ export function reconcileMember(
 			occurred_at: event.occurredAt,
 			location: locationFor(event)
 		}));
-	const remove = inRecord.filter((row) => !wanted.has(keyOf(row.kind, identityMomentOf(row)))).map((row) => row.id);
 
-	return { add, remove };
+	// Nothing is removed for not being on the device. A device knows only the
+	// clocks that went through it, so every clock made on the web was deleted
+	// within fifteen minutes of being made - the person saw it recorded, and by
+	// the time they looked again their day had no end in it.
+	return { add, remove: [] };
 }
 
 export function attendanceIdentityWindowFilter(from: string, to: string): string {
