@@ -115,6 +115,7 @@ type Configuration struct {
 	CloudflareAccessAUDs           string
 	TrustProxyForwardedEmail       bool
 	TaskRunNotifyEnabled           bool
+	AttendanceNotifyEnabled        bool
 }
 
 type Service struct {
@@ -303,6 +304,7 @@ func DefaultConfiguration() Configuration {
 	return Configuration{
 		ListenAddress:                  "127.0.0.1:18080",
 		TaskRunNotifyEnabled:           true,
+		AttendanceNotifyEnabled:        true,
 		MattermostBaseURL:              "http://127.0.0.1:8065",
 		MattermostTeamName:             "internkim",
 		BotUsername:                    "internkim",
