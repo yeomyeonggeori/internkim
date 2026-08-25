@@ -20,6 +20,7 @@ import (
 
 type recoveryRequest struct {
 	Action    string `json:"action"`
+	Target    string `json:"target,omitempty"`
 	DeviceID  string `json:"deviceID"`
 	Nonce     string `json:"nonce"`
 	Timestamp string `json:"timestamp"`
@@ -67,12 +68,13 @@ func runRecoverArguments(arguments []string) error {
 
 func runRecoverSSH(arguments []string) error {
 	flagSet := flag.NewFlagSet("recover ssh", flag.ContinueOnError)
-	action := flagSet.String("action", "restart-cloudflared-node-ssh", "Recovery action: status, snapshot, restart-ssh, restart-cloudflared-node-ssh, journal-tail, unlock-mattermost-admin, reboot, stop-tenant-pilots, remove-tenant-pilots, limit-blueclaw, restart-blueclaw, blueclaw-boot-diagnose, blueclaw-journal, blueclaw-workspace-repair, flow-event-task-repair, flow-date-repair, flow-central-backfill, flow-compare-central, flow-central-held, blueclaw-postgres-salvage, blueclaw-postgres-inspect, blueclaw-postgres-restore-previous, repair-buzz-relay, buzz-relay-journal, enable-buzz-mirror, buzz-mirror-status, calendar-record-coverage, calendar-carry-into-the-record, organization-directory-coverage, organization-seed-the-directory, buzz-device-link-count, buzz-rewrite-old-links, buzz-rewrite-old-links-dryrun, buzz-named-reaction-count, buzz-orphan-inspect, buzz-stranger-members, buzz-stranger-members-remove, buzz-profile-inspect, buzz-probe-profile-count, buzz-probe-profile-purge, buzz-reconcile-channels, buzz-channel-visibility, buzz-channel-visibility-repair, buzz-close-channels-their-room-closed, buzz-channel-members-their-room-lacks, buzz-remove-members-their-room-lacks, buzz-rooms-nobody-is-in, buzz-retire-rooms-nobody-is-in, buzz-snapshot, buzz-membership-recover, buzz-restore, buzz-repair-dryrun, buzz-repair-apply, buzz-reimport, buzz-refresh-profiles, buzz-reimport-log, buzz-read-test, buzz-chatd-repair, mattermost-unlock-users, postgres-repair, release-setup-lock")
+	action := flagSet.String("action", "restart-cloudflared-node-ssh", "Recovery action: status, snapshot, restart-ssh, restart-cloudflared-node-ssh, journal-tail, unlock-mattermost-admin, reboot, stop-tenant-pilots, remove-tenant-pilots, limit-blueclaw, restart-blueclaw, blueclaw-boot-diagnose, blueclaw-journal, blueclaw-workspace-repair, flow-event-task-repair, flow-date-repair, flow-central-backfill, flow-compare-central, flow-central-held, blueclaw-postgres-salvage, blueclaw-postgres-inspect, blueclaw-postgres-restore-previous, repair-buzz-relay, buzz-relay-journal, enable-buzz-mirror, buzz-mirror-status, calendar-record-coverage, calendar-carry-into-the-record, organization-directory-coverage, organization-seed-the-directory, buzz-device-link-count, buzz-rewrite-old-links, buzz-rewrite-old-links-dryrun, buzz-named-reaction-count, buzz-orphan-inspect, buzz-stranger-members, buzz-stranger-members-remove, buzz-profile-inspect, buzz-probe-profile-count, buzz-probe-profile-purge, buzz-reconcile-channels, buzz-channel-visibility, buzz-channel-visibility-repair, buzz-close-channels-their-room-closed, buzz-channel-members-their-room-lacks, buzz-remove-members-their-room-lacks, buzz-rooms-nobody-is-in, buzz-retire-rooms-nobody-is-in, buzz-retire-room, buzz-snapshot, buzz-membership-recover, buzz-restore, buzz-repair-dryrun, buzz-repair-apply, buzz-reimport, buzz-refresh-profiles, buzz-reimport-log, buzz-read-test, buzz-chatd-repair, mattermost-unlock-users, postgres-repair, release-setup-lock")
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
 	node := flagSet.String("node", "", "Fleet node target")
 	board := flagSet.String("board", "", "Board target")
+	actionTarget := flagSet.String("target", "", "What the action acts on, for the actions that name one")
 	diagnose := flagSet.Bool("diagnose", false, "Also check the local admind route when SSH is available")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
@@ -83,15 +85,15 @@ func runRecoverSSH(arguments []string) error {
 	}
 	target := resolveCommandTarget(verifyTargetArguments(*host, *user, *password, *node, true, *board, false))
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
-	return runSSHRecoveryForTarget(newMsg("ko"), loadConfig(), filepath.Join(repositoryRootPath, "bin", "sshpass"), target, *action, *diagnose)
+	return runSSHRecoveryForTarget(newMsg("ko"), loadConfig(), filepath.Join(repositoryRootPath, "bin", "sshpass"), target, *action, *actionTarget, *diagnose)
 }
 
-func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, target commandTarget, action string, diagnose bool) error {
+func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, target commandTarget, action string, actionTarget string, diagnose bool) error {
 	action = strings.TrimSpace(action)
 	if !isAllowedCLIRecoveryAction(action) {
 		return fmt.Errorf("unsupported recovery action: %s", action)
 	}
-	response, errorValue := performSSHRecoveryRequest(target, action)
+	response, errorValue := performSSHRecoveryRequest(target, action, actionTarget)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -117,7 +119,7 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 	if diagnose {
 		printSSHRecoveryLocalDiagnostics(configuration, sshpassBin, target)
 	}
-	if action == "status" || action == "snapshot" || action == "journal-tail" || action == "flow-central-held" || action == "limit-blueclaw" || action == "restart-blueclaw" || action == "blueclaw-boot-diagnose" || action == "blueclaw-journal" || action == "buzz-mirror-status" || action == "calendar-record-coverage" || action == "calendar-carry-into-the-record" || action == "organization-directory-coverage" || action == "organization-seed-the-directory" || action == "buzz-device-link-count" || action == "buzz-rewrite-old-links" || action == "buzz-rewrite-old-links-dryrun" || action == "buzz-named-reaction-count" || action == "buzz-stranger-members" || action == "buzz-stranger-members-remove" || action == "buzz-orphan-inspect" || action == "buzz-profile-inspect" || action == "buzz-probe-profile-count" || action == "buzz-probe-profile-purge" || action == "buzz-reconcile-channels" || action == "buzz-channel-visibility" || action == "buzz-channel-visibility-repair" || action == "buzz-close-channels-their-room-closed" || action == "buzz-channel-members-their-room-lacks" || action == "buzz-remove-members-their-room-lacks" || action == "buzz-rooms-nobody-is-in" || action == "buzz-retire-rooms-nobody-is-in" || action == "buzz-snapshot" || action == "buzz-membership-recover" || action == "buzz-restore" || action == "buzz-repair-dryrun" || action == "buzz-repair-apply" || action == "buzz-reimport" || action == "buzz-refresh-profiles" || action == "buzz-reimport-log" || action == "buzz-read-test" || action == "buzz-chatd-repair" || action == "mattermost-unlock-users" || action == "postgres-repair" || action == "release-setup-lock" {
+	if action == "status" || action == "snapshot" || action == "journal-tail" || action == "flow-central-held" || action == "limit-blueclaw" || action == "restart-blueclaw" || action == "blueclaw-boot-diagnose" || action == "blueclaw-journal" || action == "buzz-mirror-status" || action == "calendar-record-coverage" || action == "calendar-carry-into-the-record" || action == "organization-directory-coverage" || action == "organization-seed-the-directory" || action == "buzz-device-link-count" || action == "buzz-rewrite-old-links" || action == "buzz-rewrite-old-links-dryrun" || action == "buzz-named-reaction-count" || action == "buzz-stranger-members" || action == "buzz-stranger-members-remove" || action == "buzz-orphan-inspect" || action == "buzz-profile-inspect" || action == "buzz-probe-profile-count" || action == "buzz-probe-profile-purge" || action == "buzz-reconcile-channels" || action == "buzz-channel-visibility" || action == "buzz-channel-visibility-repair" || action == "buzz-close-channels-their-room-closed" || action == "buzz-channel-members-their-room-lacks" || action == "buzz-remove-members-their-room-lacks" || action == "buzz-rooms-nobody-is-in" || action == "buzz-retire-rooms-nobody-is-in" || action == "buzz-retire-room" || action == "buzz-snapshot" || action == "buzz-membership-recover" || action == "buzz-restore" || action == "buzz-repair-dryrun" || action == "buzz-repair-apply" || action == "buzz-reimport" || action == "buzz-refresh-profiles" || action == "buzz-reimport-log" || action == "buzz-read-test" || action == "buzz-chatd-repair" || action == "mattermost-unlock-users" || action == "postgres-repair" || action == "release-setup-lock" {
 		return nil
 	}
 	if action == "reboot" {
@@ -150,14 +152,14 @@ func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, t
 
 func isAllowedCLIRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
 	}
 }
 
-func performSSHRecoveryRequest(target commandTarget, action string) (recoveryResponse, error) {
+func performSSHRecoveryRequest(target commandTarget, action string, actionTarget string) (recoveryResponse, error) {
 	var response recoveryResponse
 	deviceURL := strings.TrimSpace(target.deviceURL)
 	if deviceURL == "" {
@@ -172,7 +174,7 @@ func performSSHRecoveryRequest(target commandTarget, action string) (recoveryRes
 	if errorValue != nil {
 		return response, errorValue
 	}
-	payload := signedRecoveryRequestPayload(fleetSecret, action, fleetID)
+	payload := signedRecoveryRequestPayload(fleetSecret, action, actionTarget, fleetID)
 	document, errorValue := json.Marshal(payload)
 	if errorValue != nil {
 		return response, errorValue
@@ -216,15 +218,16 @@ func recoveryHTTPStatusError(target commandTarget, response *http.Response, body
 	}
 }
 
-func signedRecoveryRequestPayload(secret string, action string, deviceID string) recoveryRequest {
+func signedRecoveryRequestPayload(secret string, action string, target string, deviceID string) recoveryRequest {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 	nonce := randomRecoveryNonce()
 	return recoveryRequest{
 		Action:    action,
+		Target:    target,
 		DeviceID:  deviceID,
 		Nonce:     nonce,
 		Timestamp: timestamp,
-		Signature: signCLIRecoveryPayload(secret, action, deviceID, nonce, timestamp),
+		Signature: signCLIRecoveryPayload(secret, action, target, deviceID, nonce, timestamp),
 	}
 }
 
@@ -236,8 +239,12 @@ func randomRecoveryNonce() string {
 	return hex.EncodeToString(document)
 }
 
-func signCLIRecoveryPayload(secret string, action string, deviceID string, nonce string, timestamp string) string {
+func signCLIRecoveryPayload(secret string, action string, target string, deviceID string, nonce string, timestamp string) string {
+	fields := []string{action, deviceID, nonce, timestamp}
+	if strings.TrimSpace(target) != "" {
+		fields = append(fields, strings.TrimSpace(target))
+	}
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(strings.Join([]string{action, deviceID, nonce, timestamp}, "\n")))
+	mac.Write([]byte(strings.Join(fields, "\n")))
 	return hex.EncodeToString(mac.Sum(nil))
 }

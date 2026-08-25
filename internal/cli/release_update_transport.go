@@ -77,7 +77,7 @@ func signedReleaseApplyDocument(target commandTarget, releaseID string, channel 
 		return nil, errors.New("fleet identity is not configured in local device state")
 	}
 	return json.Marshal(signedReleaseUpdateApplyRequest{
-		recoveryRequest:  signedRecoveryRequestPayload(fleetSecret, releaseUpdateSignedAction, fleetID),
+		recoveryRequest:  signedRecoveryRequestPayload(fleetSecret, releaseUpdateSignedAction, "", fleetID),
 		releaseSelection: releaseSelection{ReleaseID: releaseID, Channel: channel},
 	})
 }
