@@ -256,6 +256,10 @@ func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, r
 	if startTime.IsZero() && endTime.IsZero() && query.Get("window") == "upcoming" {
 		startTime, endTime = service.upcomingCalendarWindow(time.Now())
 	}
+	if centralEvents, answered := service.centralCalendarEvents(request, startTime, endTime); answered {
+		service.writeJSON(responseWriter, calendarEventsResponse{Events: centralEvents})
+		return
+	}
 	var events []calendarEvent
 	if hasExplicitRange {
 		events, errorValue = service.readCalendarEventWindow(request.Context(), startTime, endTime)
