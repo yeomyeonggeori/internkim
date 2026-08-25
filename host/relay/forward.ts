@@ -7,6 +7,9 @@ export type Call = {
 export type Answer = { callID: string; status: number; body: unknown };
 
 const personPrefix = 'person.';
+// Somebody is invited on the company and given a Linux user here, so this
+// device has to hear about it rather than wait for its own timer to come round.
+export const directoryChangedCapability = 'directory.changed';
 const sendCapability = 'person.message.send';
 const readCapability = 'person.message.attachment';
 const refusedStatus = 415;
@@ -71,6 +74,7 @@ export type Dispatch = {
 		requesterEmail: string
 	) => Promise<{ status: number; body: unknown }>;
 	emailOfMember: (memberID: string) => Promise<string | null>;
+	tellAdmindTheDirectoryChanged: () => Promise<{ status: number; body: unknown }>;
 	askChatd: (
 		capability: string,
 		body: Record<string, unknown>,
@@ -115,6 +119,10 @@ async function serveForMember(
 	body: Record<string, unknown>,
 	replyTo: string
 ): Promise<Served> {
+	if (capability === directoryChangedCapability) {
+		return { ...(await dispatch.tellAdmindTheDirectoryChanged()), replyTo };
+	}
+
 	if (!isPersonCapability(capability)) {
 		return { status: 200, body: await dispatch.serveAsset(capability, body), replyTo };
 	}
