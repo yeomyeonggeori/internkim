@@ -1,6 +1,6 @@
 {
   "name": "presentation-lifecycle",
-  "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/presentation"],
+  "skillNames": ["presentation"],
   "allowedTools": ["conversation_history", "memory_search", "terminal_run", "file_read", "file_write", "file_edit", "file_delete", "file_deliver"],
   "initialToolNames": ["file_write", "terminal_run", "file_deliver"],
   "steps": [

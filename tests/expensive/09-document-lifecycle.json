@@ -2,9 +2,7 @@
  "name": "document-lifecycle",
  "requiresModelProvenance": true,
  "expectedLLMProvider": "openrouter",
- "skillDirectoryPaths": [
-  "../../assets/blueclaw-workspace/skills/document"
- ],
+ "skillNames": ["document"],
  "allowedTools": [
   "conversation_history",
   "memory_search",

@@ -2,9 +2,7 @@
  "name": "message-lifecycle",
  "requiresModelProvenance": true,
  "expectedLLMProvider": "openrouter",
- "skillDirectoryPaths": [
-  "../../assets/blueclaw-workspace/skills/mattermost"
- ],
+ "skillNames": ["mattermost"],
  "allowedTools": [
   "conversation_history",
   "memory_search",
