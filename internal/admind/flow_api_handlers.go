@@ -13,6 +13,11 @@ import (
 
 func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *http.Request) {
 	request.Header.Del(flowResolvedActorHeader)
+	request = request.WithContext(withFlowActor(request.Context(), service.flowActorEmail(request)))
+	// The board is read from the company, so a write that only reached the queue
+	// would be invisible until the queue was next drained. The queue still holds
+	// it when the link is down, which is what it is for.
+
 	path := strings.TrimPrefix(request.URL.Path, "/flow/api")
 	switch {
 	case request.Method == http.MethodGet && path == "/summary":
@@ -182,7 +187,8 @@ func (service *Service) createFlowTask(responseWriter http.ResponseWriter, reque
 		return
 	}
 	task = service.applyFlowMattermostProjection(request.Context(), task)
-	service.writeJSON(responseWriter, task)
+	service.drainFlowTasksToCentralPlane(request.Context())
+	service.writeJSON(responseWriter, service.flowTaskAnsweredWithCompanyIdentity(request.Context(), task))
 }
 
 func defaultFlowTaskBusiness(definitions flowDefinitions) string {
@@ -229,6 +235,9 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, "task not found", http.StatusNotFound)
 		return
 	}
+	// The caller names the task by the company's identifier, and the row that
+	// answered to it is filed under the device's own.
+	task.ID = existingTask.ID
 	if !service.canUpdateFlowTask(request, existingTask) {
 		http.Error(responseWriter, "task owner, participant, or admin access required", http.StatusForbidden)
 		return
@@ -258,7 +267,8 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 		}
 	}
 	task = service.applyFlowMattermostProjection(request.Context(), task)
-	service.writeJSON(responseWriter, task)
+	service.drainFlowTasksToCentralPlane(request.Context())
+	service.writeJSON(responseWriter, service.flowTaskAnsweredWithCompanyIdentity(request.Context(), task))
 }
 
 func (service *Service) moveFlowTaskOnBoard(responseWriter http.ResponseWriter, request *http.Request) {
@@ -280,7 +290,8 @@ func (service *Service) moveFlowTaskOnBoard(responseWriter http.ResponseWriter, 
 		return
 	}
 	task = service.applyFlowMattermostProjection(request.Context(), task)
-	service.writeJSON(responseWriter, task)
+	service.drainFlowTasksToCentralPlane(request.Context())
+	service.writeJSON(responseWriter, service.flowTaskAnsweredWithCompanyIdentity(request.Context(), task))
 }
 
 func writeFlowTaskBoardMoveError(responseWriter http.ResponseWriter, errorValue error) {
@@ -315,11 +326,12 @@ func (service *Service) deleteFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, "task owner or admin access required", http.StatusForbidden)
 		return
 	}
-	if errorValue := service.deleteFlowTaskByID(request.Context(), taskID); errorValue != nil {
+	if errorValue := service.deleteFlowTaskByID(request.Context(), task.ID); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	service.deletePairedCalendarEventForFlowTask(request.Context(), task)
+	service.drainFlowTasksToCentralPlane(request.Context())
 	service.writeJSON(responseWriter, map[string]any{
 		"status": "deleted",
 		"task":   task,

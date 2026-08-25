@@ -5,6 +5,8 @@ import "strings"
 // The device's words for a status and the central plane's. The canonical list is
 // host/relay/flow-task-as-task.ts, which the relay uses for the same crossing;
 // TestTheStatusWordsMatchTheRelay reads it and fails when the two drift.
+// The company app names these too, and TestTheStatusWordsAgreeWithTheCompanyApp
+// reads its list rather than trusting this one to have kept up.
 var centralStatusOfDeviceStatus = map[string]string{
 	"요청":   "requested",
 	"예정":   "todo",
@@ -22,17 +24,8 @@ func centralFlowStatus(deviceStatus string) string {
 	return "todo"
 }
 
-// The central plane keeps one note where the device keeps a goal and a reason for
-// asking, so they are joined the way the relay joins them.
 func centralFlowNote(task flowTask) string {
-	lines := []string{}
-	if goal := strings.TrimSpace(task.Goal); goal != "" {
-		lines = append(lines, "목표: "+goal)
-	}
-	if reason := strings.TrimSpace(task.RequestReason); reason != "" {
-		lines = append(lines, reason)
-	}
-	return strings.Join(lines, "\n")
+	return ""
 }
 
 func flowMemberIdentifier(record adminUserMutation) string {

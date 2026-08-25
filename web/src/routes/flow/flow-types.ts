@@ -35,7 +35,6 @@ export type FlowTask = {
 	business: string;
 	type: string;
 	content: string;
-	goal: string;
 	size: string;
 	status: string;
 	statusRank: number;
@@ -43,9 +42,6 @@ export type FlowTask = {
 	endDate?: string;
 	createdAt?: string;
 	weekCode: string;
-	flag: number;
-	requestReason?: string;
-	decisionReason?: string;
 	isEvent?: boolean;
 };
 

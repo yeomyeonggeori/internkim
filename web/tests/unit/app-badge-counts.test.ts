@@ -32,12 +32,10 @@ function flowTask(id: string, status: string, ownerID: string, participantIDs: s
 		business: '',
 		type: '',
 		content: id,
-		goal: '',
 		size: '',
 		status,
 		statusRank: 0,
-		weekCode: '2026-W31',
-		flag: 0
+		weekCode: '2026-W31'
 	};
 }
 

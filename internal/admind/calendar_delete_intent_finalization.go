@@ -65,6 +65,9 @@ func (service *Service) finalizeCalendarDeleteIntent(ctx context.Context, operat
 		return errorValue
 	}
 	if !found || isDeleted {
+		if errorValue := service.removeCompanyCalendarEvent(ctx, intent.RequesterEmail, intent.EventID); errorValue != nil {
+			return errorValue
+		}
 		if errorValue := resolveCalendarDeleteIntent(ctx, transaction, intent.OperationID, calendarDeleteIntentStatusExecuted, now); errorValue != nil {
 			return errorValue
 		}
@@ -115,7 +118,8 @@ func (service *Service) listPendingCalendarDeleteIntents(ctx context.Context) ([
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
 SELECT operation_id, event_id, client_id, sequence, expected_updated_at, requested_at, execute_at,
-	status, resolved_at, resolution_sequence, next_attempt_at, attempt_count, last_error
+	status, resolved_at, resolution_sequence, next_attempt_at, attempt_count, last_error,
+	requester_email
 FROM calendar_delete_intents
 WHERE status = ?`, calendarDeleteIntentStatusPending)
 	if errorValue != nil {
@@ -139,6 +143,7 @@ WHERE status = ?`, calendarDeleteIntentStatusPending)
 			&intent.NextAttemptAt,
 			&intent.AttemptCount,
 			&intent.LastError,
+			&intent.RequesterEmail,
 		); errorValue != nil {
 			return nil, errorValue
 		}

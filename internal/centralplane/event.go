@@ -53,7 +53,28 @@ func (client *Client) EventsBetween(ctx context.Context, platform string, extern
 	if strings.TrimSpace(startISO) != "" {
 		query.Set("ends_at", "gte."+startISO)
 	}
+	return client.eventsMatching(ctx, session, query)
+}
 
+// A write answers with what the company now holds rather than with what the
+// caller sent, so the reply carries the version the next write has to match.
+func (client *Client) EventByID(ctx context.Context, platform string, externalID string, eventID string) (Event, bool, error) {
+	session, errorValue := client.sessionFor(ctx, platform, externalID)
+	if errorValue != nil {
+		return Event{}, false, errorValue
+	}
+	query := url.Values{}
+	query.Set("select", eventSelection)
+	query.Set("is_event", "eq.true")
+	query.Set("id", "eq."+eventID)
+	events, errorValue := client.eventsMatching(ctx, session, query)
+	if errorValue != nil || len(events) == 0 {
+		return Event{}, false, errorValue
+	}
+	return events[0], true, nil
+}
+
+func (client *Client) eventsMatching(ctx context.Context, session memberSession, query url.Values) ([]Event, error) {
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet,
 		strings.TrimSuffix(client.settings.ProjectURL, "/")+"/rest/v1/task?"+query.Encode(), nil)
 	if errorValue != nil {
@@ -176,6 +197,7 @@ func (client *Client) DeleteEvent(ctx context.Context, platform string, external
 		return errorValue
 	}
 	client.signAsMember(request, session)
+	askForWhatWasRemoved(request)
 	response, errorValue := client.httpClient.Do(request)
 	if errorValue != nil {
 		return errorValue
@@ -184,7 +206,7 @@ func (client *Client) DeleteEvent(ctx context.Context, platform string, external
 	if response.StatusCode >= 300 {
 		return fmt.Errorf("central plane refused to remove the event: %s", response.Status)
 	}
-	return nil
+	return confirmSomethingWasRemoved(response, "event "+centralID)
 }
 
 // The column holds an object the company app can name, so a device that knows

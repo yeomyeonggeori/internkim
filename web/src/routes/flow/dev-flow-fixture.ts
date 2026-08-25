@@ -144,17 +144,13 @@ function attendancePreviewTask(id: string, content: string, date: string, status
 		business: '김인턴',
 		type: '검증',
 		content,
-		goal: '근태 날짜 상세 화면을 빠르게 검증한다.',
 		size: 'S',
 		status: '완료',
 		statusRank,
 		startDate: date,
 		endDate: date,
 		createdAt: `${date}T09:00:00+09:00`,
-		weekCode: '',
-		flag: 0,
-		requestReason: '',
-		decisionReason: ''
+		weekCode: ''
 	};
 }
 
@@ -168,16 +164,12 @@ function popupOverflowTask(id: string, content: string, statusRank: number): Flo
 		business: '김인턴',
 		type: '검증',
 		content,
-		goal: '출결 월간 현황 팝업에서 완료 업무 overflow 상태를 확인한다.',
 		size: 'S',
 		status: '완료',
 		statusRank,
 		startDate: devPopupOverflowDate,
 		endDate: devPopupOverflowDate,
 		createdAt: `${devPopupOverflowDate}T09:00:00Z`,
-		weekCode: '26W25',
-		flag: 0,
-		requestReason: '',
-		decisionReason: ''
+		weekCode: '26W25'
 	};
 }

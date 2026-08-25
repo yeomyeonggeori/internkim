@@ -48,6 +48,16 @@ func readFlowCentralIdentity(ctx context.Context, querier sqlContextQuerier, tas
 	return centralTaskID, errorValue
 }
 
+func readFlowTaskIDCarrying(ctx context.Context, querier sqlContextQuerier, centralTaskID string) (string, error) {
+	taskID := ""
+	errorValue := querier.QueryRowContext(ctx,
+		"SELECT task_id FROM flow_central_identity WHERE central_task_id = ?", centralTaskID).Scan(&taskID)
+	if errorValue == sql.ErrNoRows {
+		return "", nil
+	}
+	return taskID, errorValue
+}
+
 func forgetFlowCentralIdentity(ctx context.Context, executor sqlContextExecutor, taskID string) error {
 	_, errorValue := executor.ExecContext(ctx, "DELETE FROM flow_central_identity WHERE task_id = ?", taskID)
 	return errorValue

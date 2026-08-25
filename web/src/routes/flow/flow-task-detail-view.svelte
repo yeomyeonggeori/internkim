@@ -28,13 +28,6 @@
 		<p class="mt-1 text-base font-medium leading-6">{task.content}</p>
 	</div>
 
-	{#if task.goal}
-		<div>
-			<p class="text-xs text-muted-foreground">{text.goal}</p>
-			<p class="mt-1 text-sm leading-6">{task.goal}</p>
-		</div>
-	{/if}
-
 	<div class="grid gap-4 sm:grid-cols-2">
 		{#if hasFlowTaskRequestProvenance(task)}
 			<div>
@@ -72,10 +65,4 @@
 		{/if}
 	</div>
 
-	{#if task.requestReason}
-		<div>
-			<p class="text-xs text-muted-foreground">{text.requestReason}</p>
-			<p class="mt-1 text-sm leading-6">{task.requestReason}</p>
-		</div>
-	{/if}
 </div>

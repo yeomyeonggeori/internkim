@@ -16,14 +16,12 @@ function taskWith(fields: Partial<FlowTask> = {}): FlowTask {
 		business: '여명거리',
 		type: '기능',
 		content: '마켓컬리 CMO 미팅',
-		goal: '',
 		size: 'XS',
 		status: '예정',
 		statusRank: 0,
 		startDate: '2026-08-20',
 		endDate: '2026-08-20',
 		weekCode: '26W34',
-		flag: 0,
 		...fields
 	};
 }

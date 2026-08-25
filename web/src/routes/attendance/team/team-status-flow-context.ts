@@ -54,7 +54,7 @@ function normalizeToken(value: string): string {
 function completedTaskDetail(task: FlowTask): TeamStatusCompletedTaskDetail {
 	return {
 		id: task.id,
-		title: task.content || task.goal || '-',
+		title: task.content || '-',
 		ownerName: task.ownerName,
 		collaboratorNames: collaboratorNames(task),
 		task

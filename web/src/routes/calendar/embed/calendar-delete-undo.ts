@@ -1,6 +1,7 @@
 import { toast } from 'svelte-sonner';
 
-export const calendarDeleteUndoTimeoutMs = 5000;
+import { calendarDeleteUndoTimeoutMs } from './calendar-delete-window';
+export { calendarDeleteUndoTimeoutMs };
 const calendarDeleteUndoToastID = 'calendar-delete-undo';
 
 type CalendarDeleteUndoToastOptions = {

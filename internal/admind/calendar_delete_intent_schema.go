@@ -20,10 +20,14 @@ CREATE TABLE IF NOT EXISTS calendar_delete_intents (
 	resolution_sequence INTEGER NOT NULL DEFAULT 0,
 	next_attempt_at TEXT NOT NULL,
 	attempt_count INTEGER NOT NULL DEFAULT 0,
-	last_error TEXT NOT NULL DEFAULT ''
+	last_error TEXT NOT NULL DEFAULT '',
+	requester_email TEXT NOT NULL DEFAULT ''
 )`); errorValue != nil {
 		return errorValue
 	}
+	// A device that already holds intents gets the column that says on whose
+	// behalf the company is asked to delete.
+	database.ExecContext(ctx, `ALTER TABLE calendar_delete_intents ADD COLUMN requester_email TEXT NOT NULL DEFAULT ''`)
 	if _, errorValue := database.ExecContext(ctx, `
 CREATE INDEX IF NOT EXISTS calendar_delete_intents_pending_at_idx
 ON calendar_delete_intents(status, execute_at, next_attempt_at)`); errorValue != nil {
