@@ -32,3 +32,15 @@ func TestAPrivateRoomMirrorCarriesTheRoomsOwnName(t *testing.T) {
 		t.Fatalf("visibility = %q; a private room must not become a channel anyone can walk into", shape.Visibility)
 	}
 }
+
+func TestAPrivateRoomThatIsNoCirclesIsLeftAlone(t *testing.T) {
+	shape := describeMattermostChannel(mattermostChannelRecord{
+		Name:        "smart-shop-onboarding",
+		DisplayName: "스마트상점 온보딩",
+		Type:        "P",
+	}, "channel-2")
+
+	if circleIDOfRoom(shape.RoomName) != "" {
+		t.Fatal("a private room that is no circle's has no circle to judge its members by")
+	}
+}
