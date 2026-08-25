@@ -89,6 +89,7 @@ func main() {
 	flag.StringVar(&configuration.CloudflareAccessAUDs, "cloudflare-access-aud", configuration.CloudflareAccessAUDs, "comma-separated Cloudflare Access application AUD tags the web session accepts")
 	flag.BoolVar(&configuration.TrustProxyForwardedEmail, "trust-proxy-forwarded-email", configuration.TrustProxyForwardedEmail, "trust the X-Forwarded-Email/X-Auth-Request-Email header from a fronting identity proxy (oauth2-proxy, Authelia); enable only when such a proxy is the sole ingress")
 	flag.BoolVar(&configuration.TaskRunNotifyEnabled, "task-run-notify", configuration.TaskRunNotifyEnabled, "push a notification to the central plane when a task run needs approval, completes, or fails")
+	flag.BoolVar(&configuration.AttendanceNotifyEnabled, "attendance-notify", configuration.AttendanceNotifyEnabled, "push a notification when somebody clocks in or out, and when a leave request reaches the administrators")
 	flag.Parse()
 
 	if configuration.BuzzDatabaseURL == "" && *buzzDatabaseURLPath != "" {
