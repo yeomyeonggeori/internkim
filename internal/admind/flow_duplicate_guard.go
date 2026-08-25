@@ -132,7 +132,6 @@ func flowTaskDuplicateLine(task flowTask) string {
 		"size=" + task.Size,
 		"status=" + task.Status,
 		"content=" + task.Content,
-		"goal=" + task.Goal,
 	}, " | ")
 }
 

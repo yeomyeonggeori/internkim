@@ -37,15 +37,6 @@ func TestTheStatusWordsMatchTheRelay(t *testing.T) {
 		}
 	}
 }
-
-func TestAGoalAndAReasonBecomeOneNote(t *testing.T) {
-	note := centralFlowNote(flowTask{Goal: "출시", RequestReason: "고객 요청"})
-
-	if note != "목표: 출시\n고객 요청" {
-		t.Fatalf("note = %q", note)
-	}
-}
-
 func TestATaskWithNeitherHasNoNote(t *testing.T) {
 	if note := centralFlowNote(flowTask{}); note != "" {
 		t.Fatalf("an empty note is stored as nothing, not as blank lines: %q", note)

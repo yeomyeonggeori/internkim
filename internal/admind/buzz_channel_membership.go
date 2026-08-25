@@ -93,7 +93,7 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 		log.Printf("buzz staff membership: relay connect failed: %v", errorValue)
 		return
 	}
-	defer publisher.Close()
+	defer func() { publisher.Close() }()
 	for _, pubkey := range staffPubkeys {
 		service.grantRelayMembership(ctx, pubkey)
 	}
@@ -105,7 +105,22 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 				return
 			default:
 			}
-			if errorValue := publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey); errorValue != nil {
+			errorValue := publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey)
+			// The relay drops a connection that only publishes, so one that has
+			// been dropped is opened again rather than every remaining grant
+			// failing against it.
+			if errorValue != nil && strings.Contains(errorValue.Error(), "connection closed") {
+				publisher.Close()
+				reopened, reconnectError := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), bootstrapSecret)
+				if reconnectError != nil {
+					log.Printf("buzz staff membership: relay would not take the connection back: %v", reconnectError)
+					log.Printf("buzz staff membership: granted %d, failed %d", granted, failed+1)
+					return
+				}
+				publisher = reopened
+				errorValue = publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey)
+			}
+			if errorValue != nil {
 				if failed == 0 {
 					log.Printf("buzz staff membership: first AddMember error: %v", errorValue)
 				}

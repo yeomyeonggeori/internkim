@@ -219,7 +219,6 @@ func flowSummaryInvalidationTask(id string, weekCode string, startDate string, e
 		Business:         "개발",
 		Type:             "회의",
 		Content:          id,
-		Goal:             "cache invalidation",
 		Size:             "XS",
 		Status:           status,
 		StatusRank:       statusRank,
@@ -254,8 +253,8 @@ func insertLegacyMalformedFlowTask(t *testing.T, service *Service, taskID string
 	defer database.Close()
 	_, errorValue = database.ExecContext(context.Background(), `
 	INSERT INTO flow_tasks (
-		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		taskID,
 		"not-a-week",
 		"owner",
@@ -265,15 +264,11 @@ func insertLegacyMalformedFlowTask(t *testing.T, service *Service, taskID string
 		"개발",
 		"회의",
 		taskID,
-		"legacy malformed row",
 		"XS",
 		flowStatusInProgress,
 		1024,
 		"July",
 		"2026-13-01",
-		0,
-		"",
-		"",
 		mattermostPostID,
 		"2026-07-01T00:00:00Z",
 		"2026-07-01T00:00:00Z",

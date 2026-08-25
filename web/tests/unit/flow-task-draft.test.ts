@@ -89,12 +89,10 @@ function task(fields: Partial<FlowTask> = {}): FlowTask {
 		business: '',
 		type: '',
 		content: '업무',
-		goal: '',
 		size: 'M',
 		status: '예정',
 		statusRank: 0,
 		weekCode: '26W23',
-		flag: 0,
 		...fields
 	};
 }

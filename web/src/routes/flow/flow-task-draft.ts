@@ -19,13 +19,11 @@ export function createFlowTaskDraft(owner: FlowMember, definitions: FlowDefiniti
 		business: definitions.categories[0] ?? '',
 		type: definitions.types[0] ?? '',
 		content: '',
-		goal: '',
-		size: 'M',
+			size: 'M',
 		status: '예정',
 		statusRank: 0,
 		weekCode,
-		flag: 0
-	};
+		};
 }
 
 export function cloneFlowTask(task: FlowTask): FlowTask {

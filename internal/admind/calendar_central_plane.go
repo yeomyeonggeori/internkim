@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -82,13 +83,17 @@ func (service *Service) centralCalendarWriter(request *http.Request) (*centralpl
 	return client, requesterEmail, true
 }
 
-func (service *Service) saveCentralCalendarEvent(request *http.Request, event calendarEvent, expectedUpdatedAt string) (calendarEvent, bool, error) {
+// centralID is the company's own id for an event it already holds, and empty for
+// one it does not. The device mints its own id before it knows whether the
+// company will keep the event, and sending that as the company's id asks it to
+// change a row nobody has.
+func (service *Service) saveCentralCalendarEvent(request *http.Request, event calendarEvent, centralID string, expectedUpdatedAt string) (calendarEvent, bool, error) {
 	client, requesterEmail, canWrite := service.centralCalendarWriter(request)
 	if !canWrite {
 		return calendarEvent{}, false, nil
 	}
 	savedID, errorValue := client.SaveEvent(request.Context(), "email", requesterEmail, centralplane.Event{
-		CentralID:         event.ID,
+		CentralID:         centralID,
 		Title:             event.Title,
 		Note:              event.Description,
 		Location:          event.Location,
@@ -108,6 +113,9 @@ func (service *Service) saveCentralCalendarEvent(request *http.Request, event ca
 	saved.ID = savedID
 	saved.UID = savedID
 	saved.TimeZone = service.workspaceTimeZone().name
+	if stored, found, readError := client.EventByID(request.Context(), "email", requesterEmail, savedID); readError == nil && found {
+		saved.UpdatedAt = stored.UpdatedAt
+	}
 	return saved, true, nil
 }
 
@@ -141,4 +149,26 @@ func writeCalendarCentralError(responseWriter http.ResponseWriter, request *http
 	}
 	writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
 	return true
+}
+
+// The company holds the calendar, so an intent to delete is checked and later
+// carried out there, on behalf of whoever asked for it.
+func (service *Service) companyHoldsCalendarEvent(ctx context.Context, requesterEmail string, eventID string) (centralplane.Event, bool) {
+	client := service.centralPlane()
+	if client == nil || strings.TrimSpace(requesterEmail) == "" {
+		return centralplane.Event{}, false
+	}
+	event, found, errorValue := client.EventByID(ctx, "email", requesterEmail, eventID)
+	if errorValue != nil || !found {
+		return centralplane.Event{}, false
+	}
+	return event, true
+}
+
+func (service *Service) removeCompanyCalendarEvent(ctx context.Context, requesterEmail string, eventID string) error {
+	client := service.centralPlane()
+	if client == nil || strings.TrimSpace(requesterEmail) == "" {
+		return nil
+	}
+	return client.DeleteEvent(ctx, "email", requesterEmail, eventID)
 }

@@ -91,7 +91,6 @@ func (service *Service) pairedFlowTaskForCalendarEvent(request *http.Request, ev
 		Business:        defaultFlowTaskBusiness(definitions),
 		Type:            defaultFlowTaskType(definitions),
 		Content:         strings.TrimSpace(event.Title),
-		Goal:            strings.TrimSpace(event.Description),
 		Size:            flowSizeForDurationHours(definitions, calendarEventDurationHours(event)),
 		Status:          calendarPairedTaskStatus(event, now),
 		StartDate:       startDate,
@@ -195,7 +194,7 @@ func (service *Service) deletePairedCalendarEventForFlowTask(ctx context.Context
 func (service *Service) createPairedCalendarEventForFlowTask(request *http.Request, task flowTask, payload flowTaskWriteRequest) string {
 	eventRequest := calendarEventWriteRequest{
 		Title:       task.Content,
-		Description: task.Goal,
+		Description: "",
 		Location:    strings.TrimSpace(payload.EventLocation),
 		StartISO:    strings.TrimSpace(payload.EventStartISO),
 		EndISO:      strings.TrimSpace(payload.EventEndISO),

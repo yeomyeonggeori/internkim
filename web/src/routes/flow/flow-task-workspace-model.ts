@@ -138,7 +138,6 @@ function matchesBusinessFilter(task: FlowTask, businessFilter: string): boolean 
 function taskSearchText(task: FlowTask): string {
 	return [
 		task.content,
-		task.goal,
 		task.ownerName,
 		task.business,
 		task.type,

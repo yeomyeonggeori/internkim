@@ -147,8 +147,8 @@ func writeFlowTaskRowInTransaction(ctx context.Context, transaction *sql.Tx, tas
 	}
 	_, errorValue = transaction.ExecContext(ctx, `
 INSERT INTO flow_tasks (
-		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	week_code = excluded.week_code,
 	owner_id = excluded.owner_id,
@@ -158,15 +158,11 @@ ON CONFLICT(id) DO UPDATE SET
 	business = excluded.business,
 	type = excluded.type,
 	content = excluded.content,
-	goal = excluded.goal,
 	size = excluded.size,
 	status = excluded.status,
 	status_rank = excluded.status_rank,
 	start_date = excluded.start_date,
 	end_date = excluded.end_date,
-	flag = excluded.flag,
-	request_reason = excluded.request_reason,
-	decision_reason = excluded.decision_reason,
 	mattermost_post_id = excluded.mattermost_post_id,
 	calendar_event_id = excluded.calendar_event_id,
 	updated_at = excluded.updated_at`,
@@ -179,15 +175,11 @@ ON CONFLICT(id) DO UPDATE SET
 		task.Business,
 		task.Type,
 		task.Content,
-		task.Goal,
 		task.Size,
 		task.Status,
 		task.StatusRank,
 		task.StartDate,
 		task.EndDate,
-		task.Flag,
-		task.RequestReason,
-		task.DecisionReason,
 		task.MattermostPostID,
 		task.CalendarEventID,
 		createdAt,

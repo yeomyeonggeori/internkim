@@ -102,12 +102,10 @@ function flowTask(overrides: Partial<FlowTask>): FlowTask {
 		business: '김인턴',
 		type: '기능',
 		content: '업무',
-		goal: '완료 기준',
 		size: 'M',
 		status: '예정',
 		statusRank: 0,
 		weekCode: '2026-08-10',
-		flag: 0,
 		...overrides
 	};
 }

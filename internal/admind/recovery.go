@@ -782,7 +782,7 @@ cat > /etc/systemd/system/chatd.service.d/mirror.conf <<EOF
 Environment=CHATD_MATTERMOST_BASE_URL=$MM
 Environment=CHATD_MATTERMOST_BOT_TOKEN=$BOT
 Environment=CHATD_MATTERMOST_ADMIN_TOKEN=$ADMIN_PAT
-Environment=CHATD_BLUECLAW_INGRESS_URL=http://127.0.0.1:8080
+Environment=CHATD_BLUECLAW_INGRESS_URL=http://127.0.0.1:8080/connectors/mattermost/events
 EOF
 systemctl daemon-reload
 systemctl restart chatd

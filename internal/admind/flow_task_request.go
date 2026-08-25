@@ -91,7 +91,6 @@ func (service *Service) flowTaskAndPayloadFromRequest(request *http.Request, mem
 		Business:           category,
 		Type:               taskType,
 		Content:            content,
-		Goal:               strings.TrimSpace(payload.Goal),
 		Size:               size,
 		Status:             status,
 		StatusRank:         statusRank,
@@ -99,8 +98,5 @@ func (service *Service) flowTaskAndPayloadFromRequest(request *http.Request, mem
 		StartDate:          dates.StartDate,
 		EndDate:            dates.EndDate,
 		WeekCode:           dates.WeekCode,
-		Flag:               payload.Flag,
-		RequestReason:      strings.TrimSpace(payload.RequestReason),
-		DecisionReason:     strings.TrimSpace(payload.DecisionReason),
 	}, payload, nil
 }

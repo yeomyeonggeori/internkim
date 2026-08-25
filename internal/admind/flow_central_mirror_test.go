@@ -44,25 +44,6 @@ func TestATaskTheDeviceHasNeverWrittenTakesWhateverTheBoardSays(t *testing.T) {
 		t.Fatal("there is nothing here to compare against, so the board's copy is the only one")
 	}
 }
-
-func TestAGoalAndAReasonComeApartTheWayTheyWereJoined(t *testing.T) {
-	note := centralFlowNote(flowTask{Goal: "출시", RequestReason: "고객 요청"})
-
-	goal, reason := flowGoalAndReasonOf(note)
-
-	if goal != "출시" || reason != "고객 요청" {
-		t.Fatalf("goal = %q reason = %q", goal, reason)
-	}
-}
-
-func TestANoteThatWasOnlyAReasonStaysOne(t *testing.T) {
-	goal, reason := flowGoalAndReasonOf("고객 요청")
-
-	if goal != "" || reason != "고객 요청" {
-		t.Fatalf("goal = %q reason = %q", goal, reason)
-	}
-}
-
 func TestABoardTaskBecomesADeviceTaskWithSomebodyOwningIt(t *testing.T) {
 	people := map[string]adminUserMutation{
 		stableFlowID("lee@example.test"): {Email: "lee@example.test", Name: "이샘플"},

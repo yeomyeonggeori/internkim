@@ -206,12 +206,10 @@ function createFlowTaskFallback(state: DevFlowMockState): FlowTask {
 		business: state.flowState.definitions.categories[0] ?? '',
 		type: state.flowState.definitions.types[0] ?? '',
 		content: '',
-		goal: '',
 		size: firstSize?.name ?? '',
 		status: state.flowState.statusOptions[0] ?? '요청',
 		statusRank: statusRankStep,
 		weekCode: state.flowState.currentWeek?.code ?? '',
-		flag: 0,
 		createdAt: new Date().toISOString()
 	};
 }
@@ -227,7 +225,6 @@ function flowTaskFromRecord(parsed: Record<string, unknown>, fallback: FlowTask)
 		business: stringFromValue(parsed.business, fallback.business),
 		type: stringFromValue(parsed.type, fallback.type),
 		content: stringFromValue(parsed.content, fallback.content),
-		goal: stringFromValue(parsed.goal, fallback.goal),
 		size: stringFromValue(parsed.size, fallback.size),
 		status: stringFromValue(parsed.status, fallback.status),
 		statusRank: numberFromValue(parsed.statusRank, fallback.statusRank),
@@ -235,10 +232,7 @@ function flowTaskFromRecord(parsed: Record<string, unknown>, fallback: FlowTask)
 		startDate: optionalStringFromValue(parsed.startDate, fallback.startDate),
 		endDate: optionalStringFromValue(parsed.endDate, fallback.endDate),
 		createdAt: optionalStringFromValue(parsed.createdAt, fallback.createdAt),
-		weekCode: stringFromValue(parsed.weekCode, fallback.weekCode),
-		flag: numberFromValue(parsed.flag, fallback.flag),
-		requestReason: optionalStringFromValue(parsed.requestReason, fallback.requestReason),
-		decisionReason: optionalStringFromValue(parsed.decisionReason, fallback.decisionReason)
+		weekCode: stringFromValue(parsed.weekCode, fallback.weekCode)
 	};
 }
 

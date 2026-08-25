@@ -309,7 +309,7 @@ func TestFlowTaskAddPropagatesTypedFields(t *testing.T) {
 
 	_, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
-		Input:    []byte(`{"title":" 고객지원 분기 결산 누락 항목 확인 ","goal":" 누락 항목 확인 ","size":" s ","status":"예정","startDate":" 2026-07-15 ","endDate":" 2026-07-17 ","participantPersonHints":["@internkim"]}`),
+		Input:    []byte(`{"title":" 고객지원 분기 결산 누락 항목 확인 ","size":" s ","status":"예정","startDate":" 2026-07-15 ","endDate":" 2026-07-17 ","participantPersonHints":["@internkim"]}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
@@ -323,7 +323,7 @@ func TestFlowTaskAddPropagatesTypedFields(t *testing.T) {
 	if payload["endDate"] != "2026-07-17" {
 		t.Fatalf("endDate = %#v", payload["endDate"])
 	}
-	if payload["goal"] != "누락 항목 확인" || payload["size"] != "S" || payload["status"] != "예정" || payload["startDate"] != "2026-07-15" {
+	if payload["size"] != "S" || payload["status"] != "예정" || payload["startDate"] != "2026-07-15" {
 		t.Fatalf("payload = %#v", payload)
 	}
 	for _, fieldName := range []string{"prompt", "title", "targetPersonHint", "participantPersonHints", "requesterEmail", "source", "weekCode", "allowDuplicate", "duplicatePolicy"} {
@@ -346,11 +346,11 @@ func TestDecodeFlowTaskAddInputRejectsLegacyPromptAndContent(t *testing.T) {
 }
 
 func TestDecodeFlowTaskAddInputTrimsCanonicalFields(t *testing.T) {
-	input, errorValue := decodeFlowTaskAddInput([]byte(`{"title":" 정확한 제목 ","goal":" 목표 ","size":" m ","status":" 진행 ","startDate":" 2026-07-15 ","endDate":" 2026-07-17 ","targetPersonHint":" @lee ","participantPersonHints":[" @kim ","@kim"," "]}`))
+	input, errorValue := decodeFlowTaskAddInput([]byte(`{"title":" 정확한 제목 ","size":" m ","status":" 진행 ","startDate":" 2026-07-15 ","endDate":" 2026-07-17 ","targetPersonHint":" @lee ","participantPersonHints":[" @kim ","@kim"," "]}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if input.Title != "정확한 제목" || input.Goal != "목표" || input.Size != "M" || input.Status != "진행" || input.StartDate != "2026-07-15" || input.EndDate != "2026-07-17" || input.TargetPersonHint != "@lee" || len(input.ParticipantPersonHints) != 1 || input.ParticipantPersonHints[0] != "@kim" {
+	if input.Title != "정확한 제목" || input.Size != "M" || input.Status != "진행" || input.StartDate != "2026-07-15" || input.EndDate != "2026-07-17" || input.TargetPersonHint != "@lee" || len(input.ParticipantPersonHints) != 1 || input.ParticipantPersonHints[0] != "@kim" {
 		t.Fatalf("input = %+v", input)
 	}
 }
@@ -709,7 +709,7 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
-				return flowToolJSONResponse(`{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"진행","weekCode":"26W24"},{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
+				return flowToolJSONResponse(`{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"진행","weekCode":"26W24"},{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
@@ -741,7 +741,7 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 	if postCalled {
 		t.Fatal("update must not call quick create")
 	}
-	if updatedPayload["content"] != "15분 회의" || updatedPayload["status"] != "진행" || updatedPayload["goal"] != "정리" {
+	if updatedPayload["content"] != "15분 회의" || updatedPayload["status"] != "진행" {
 		t.Fatalf("updated payload = %+v", updatedPayload)
 	}
 	if response.Outcome != capabilities.ToolOutcomeSucceeded || len(response.Effects) != 1 || response.Effects[0].ID != "task-1" || response.Effects[0].Effect != "updated" {
