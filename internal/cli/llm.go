@@ -19,9 +19,9 @@ func runLLM() {
 	accelerator := flagSet.String("accelerator", "", "Device accelerator: gpu or cpu")
 	target := registerTargetFlags(flagSet)
 	flagArguments, positionalArguments := splitFlagsAndPositionals(os.Args[2:], map[string]bool{
-		"remote":         true,
+		"remote":     true,
 		"remote-ssh": true,
-		"sim":            true,
+		"sim":        true,
 	}, map[string]bool{
 		"mode":        true,
 		"model":       true,
