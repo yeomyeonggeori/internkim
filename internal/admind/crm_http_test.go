@@ -513,10 +513,10 @@ func newCRMHTTPTestService(t *testing.T) *Service {
 		AdminEmailPath: writeTestFile(t, "admin@example.com"),
 	})
 	profiles := []organizationProfile{
-		{MemberID: "person-owner", Email: "owner@example.com", GroupID: "team-sales", EmploymentStatus: "active"},
-		{MemberID: "person-teammate", Email: "teammate@example.com", GroupID: "team-sales", EmploymentStatus: "active"},
-		{MemberID: "person-other", Email: "other@example.com", GroupID: "team-other", EmploymentStatus: "active"},
-		{MemberID: "person-admin", Email: "admin@example.com", GroupID: "team-admin", EmploymentStatus: "active"},
+		{MemberID: "person-owner", Email: "owner@example.com", GroupID: "team-sales"},
+		{MemberID: "person-teammate", Email: "teammate@example.com", GroupID: "team-sales"},
+		{MemberID: "person-other", Email: "other@example.com", GroupID: "team-other"},
+		{MemberID: "person-admin", Email: "admin@example.com", GroupID: "team-admin"},
 	}
 	if errorValue := service.writeOrganizationProfiles(t.Context(), profiles); errorValue != nil {
 		t.Fatal(errorValue)

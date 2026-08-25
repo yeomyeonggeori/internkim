@@ -13,15 +13,11 @@ const organizationProfilesColumnsSQL = `(
 	user_id TEXT NOT NULL,
 	email TEXT NOT NULL,
 	job_title TEXT NOT NULL,
-	position_level INTEGER NOT NULL CHECK(position_level >= 0),
 	group_id TEXT NOT NULL,
 	phone_number TEXT NOT NULL,
 	hire_date TEXT NOT NULL,
 	supervisor_id TEXT NOT NULL,
-	project_ids TEXT NOT NULL,
-	team_role TEXT NOT NULL,
-	employment_status TEXT NOT NULL CHECK(employment_status IN ('active', 'leave', 'resigned')),
-	is_organization_visible INTEGER NOT NULL CHECK(is_organization_visible IN (0, 1)),
+	status TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 )`
 
@@ -114,10 +110,13 @@ func hasOrganizationProfileConstraints(schema string) bool {
 	return strings.Contains(normalizedSchema, "group_idtextnotnull") &&
 		strings.Contains(normalizedSchema, "phone_numbertextnotnull") &&
 		strings.Contains(normalizedSchema, "hire_datetextnotnull") &&
+		strings.Contains(normalizedSchema, "statustextnotnull") &&
 		!strings.Contains(normalizedSchema, "group_idstextnotnull") &&
-		strings.Contains(normalizedSchema, "check(position_level>=0)") &&
-		strings.Contains(normalizedSchema, "check(employment_statusin('active','leave','resigned'))") &&
-		strings.Contains(normalizedSchema, "check(is_organization_visiblein(0,1))")
+		!strings.Contains(normalizedSchema, "position_level") &&
+		!strings.Contains(normalizedSchema, "project_ids") &&
+		!strings.Contains(normalizedSchema, "team_role") &&
+		!strings.Contains(normalizedSchema, "employment_status") &&
+		!strings.Contains(normalizedSchema, "is_organization_visible")
 }
 
 func migrateOrganizationProfilesSchema(ctx context.Context, database *sql.DB) error {
@@ -163,15 +162,11 @@ INSERT INTO organization_profiles(
 	user_id,
 	email,
 	job_title,
-	position_level,
 	group_id,
 	phone_number,
 	hire_date,
 	supervisor_id,
-	project_ids,
-	team_role,
-	employment_status,
-	is_organization_visible,
+	status,
 	updated_at
 )
 SELECT
@@ -179,28 +174,26 @@ SELECT
 	trim(COALESCE(user_id, '')),
 	lower(trim(COALESCE(email, ''))),
 	trim(COALESCE(job_title, '')),
-	CASE
-		WHEN COALESCE(position_level, 0) < 0 THEN 0
-		ELSE COALESCE(position_level, 0)
-	END,
 	%s,
 	%s,
 	%s,
 	trim(COALESCE(supervisor_id, '')),
-	COALESCE(project_ids, '[]'),
-	trim(COALESCE(team_role, '')),
-	CASE
-		WHEN lower(trim(COALESCE(employment_status, ''))) IN ('active', 'leave', 'resigned') THEN lower(trim(employment_status))
-		ELSE 'active'
-	END,
-	CASE
-		WHEN COALESCE(is_organization_visible, 1) = 0 THEN 0
-		ELSE 1
-	END,
+	%s,
 	trim(COALESCE(updated_at, ''))
 FROM organization_profiles_legacy
-WHERE trim(COALESCE(profile_key, '')) != ''`, legacyOrganizationGroupIDExpression(legacySchema), legacyOrganizationColumnExpression(legacySchema, "phone_number"), legacyOrganizationColumnExpression(legacySchema, "hire_date")))
+WHERE trim(COALESCE(profile_key, '')) != ''`, legacyOrganizationGroupIDExpression(legacySchema), legacyOrganizationColumnExpression(legacySchema, "phone_number"), legacyOrganizationColumnExpression(legacySchema, "hire_date"), legacyOrganizationStatusExpression(legacySchema)))
 	return errorValue
+}
+
+func legacyOrganizationStatusExpression(legacySchema string) string {
+	normalizedSchema := strings.ToLower(legacySchema)
+	if strings.Contains(normalizedSchema, "status") && !strings.Contains(normalizedSchema, "employment_status") {
+		return "trim(COALESCE(status, ''))"
+	}
+	if !strings.Contains(normalizedSchema, "employment_status") {
+		return "'active'"
+	}
+	return `CASE WHEN lower(trim(COALESCE(employment_status, ''))) = 'resigned' THEN 'departed' ELSE 'active' END`
 }
 
 func legacyOrganizationColumnExpression(legacySchema string, columnName string) string {

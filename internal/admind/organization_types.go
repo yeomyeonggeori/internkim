@@ -1,24 +1,20 @@
 package admind
 
 const (
-	organizationEmploymentStatusActive   = "active"
-	organizationEmploymentStatusLeave    = "leave"
-	organizationEmploymentStatusResigned = "resigned"
+	memberStatusActive    = "active"
+	memberStatusDeparted  = "departed"
+	memberStatusWithdrawn = "withdrawn"
 )
 
 type organizationProfile struct {
-	MemberID              string   `json:"memberID,omitempty"`
-	Email                 string   `json:"email,omitempty"`
-	JobTitle              string   `json:"jobTitle,omitempty"`
-	PositionLevel         int      `json:"positionLevel,omitempty"`
-	GroupID               string   `json:"groupID,omitempty"`
-	PhoneNumber           string   `json:"phoneNumber,omitempty"`
-	HireDate              string   `json:"hireDate,omitempty"`
-	SupervisorID          string   `json:"supervisorID,omitempty"`
-	ProjectIDs            []string `json:"projectIDs,omitempty"`
-	TeamRole              string   `json:"teamRole,omitempty"`
-	EmploymentStatus      string   `json:"employmentStatus,omitempty"`
-	IsOrganizationVisible bool     `json:"isOrganizationVisible"`
+	MemberID     string `json:"memberID,omitempty"`
+	Email        string `json:"email,omitempty"`
+	JobTitle     string `json:"jobTitle,omitempty"`
+	GroupID      string `json:"groupID,omitempty"`
+	PhoneNumber  string `json:"phoneNumber,omitempty"`
+	HireDate     string `json:"hireDate,omitempty"`
+	SupervisorID string `json:"supervisorID,omitempty"`
+	Status       string `json:"status,omitempty"`
 }
 
 type orgGroupRecord struct {
