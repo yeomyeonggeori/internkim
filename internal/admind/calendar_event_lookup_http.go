@@ -38,6 +38,10 @@ func (service *Service) deleteCalendarEventFromAPIPath(responseWriter http.Respo
 }
 
 func (service *Service) getCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
+	if companyEvent, held := service.centralCalendarEventByID(request, eventID); held {
+		service.answerWithCalendarEvent(responseWriter, request, companyEvent)
+		return
+	}
 	event, found, errorValue := service.readCalendarEventByID(request.Context(), strings.TrimSpace(eventID))
 	if errorValue != nil {
 		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
@@ -47,6 +51,10 @@ func (service *Service) getCalendarEvent(responseWriter http.ResponseWriter, req
 		http.NotFound(responseWriter, request)
 		return
 	}
+	service.answerWithCalendarEvent(responseWriter, request, event)
+}
+
+func (service *Service) answerWithCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, event calendarEvent) {
 	event = service.calendarEventWithParticipantImages(request, event)
 	service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), event))
 }

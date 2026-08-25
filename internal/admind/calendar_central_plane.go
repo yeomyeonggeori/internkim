@@ -33,6 +33,23 @@ func (service *Service) centralCalendarEvents(request *http.Request, startTime t
 	return calendarEventsOfCompanyEvents(events, service.workspaceTimeZone().name), true
 }
 
+// The company holds the calendar, so reading one event by its identifier asks
+// the company first. Only an event the company does not hold is read from this
+// device, which is what keeps an update or a delete from failing to find an
+// event the same API had just listed.
+func (service *Service) centralCalendarEventByID(request *http.Request, eventID string) (calendarEvent, bool) {
+	requesterEmail := strings.ToLower(strings.TrimSpace(request.Header.Get("CF-Access-Authenticated-User-Email")))
+	companyEvent, held := service.companyHoldsCalendarEvent(request.Context(), requesterEmail, strings.TrimSpace(eventID))
+	if !held {
+		return calendarEvent{}, false
+	}
+	events := calendarEventsOfCompanyEvents([]centralplane.Event{companyEvent}, service.workspaceTimeZone().name)
+	if len(events) != 1 {
+		return calendarEvent{}, false
+	}
+	return events[0], true
+}
+
 func calendarWindowBound(moment time.Time) string {
 	if moment.IsZero() {
 		return ""
