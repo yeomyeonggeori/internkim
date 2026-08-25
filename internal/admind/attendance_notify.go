@@ -12,9 +12,6 @@ import (
 
 const attendanceNotifyTimeout = 20 * time.Second
 
-// Clocking in is a fact the company reads together, so everyone is told and
-// each person decides for themselves whether to hear it. The one who clocked
-// is left out: they were there when it happened.
 func (service *Service) alsoTellTheCompanyAboutAttendance(event attendanceEvent) {
 	if !service.Configuration.AttendanceNotifyEnabled {
 		return
@@ -27,20 +24,22 @@ func (service *Service) alsoTellTheCompanyAboutAttendance(event attendanceEvent)
 	if client == nil {
 		return
 	}
-	go service.tell(client, centralplane.Notification{
-		Platform:    "mattermost",
-		ExternalIDs: service.everyoneExcept(context.Background(), event.MattermostUserID),
-		Category:    "attendance",
-		Title:       title,
-		Body:        attendanceNotifyBody(event),
-		OpenPath:    "/attendance/",
-		Tag:         "attendance-" + event.ID,
-	})
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), attendanceNotifyTimeout)
+		defer cancel()
+		service.tell(ctx, client, centralplane.Notification{
+			Platform:    "mattermost",
+			ExternalIDs: service.everyoneExcept(ctx, event.MattermostUserID),
+			Category:    "attendance",
+			Title:       title,
+			Body:        attendanceNotifyBody(event),
+			OpenPath:    "/attendance/",
+			Tag:         "attendance-" + event.ID,
+		})
+	}()
 }
 
-// A request waits on whoever gets to it first, so every administrator is told
-// rather than one picked by the runtime.
-func (service *Service) alsoTellTheAdministratorsAboutLeave(record attendanceLeaveRequestRecord, employeeName string) {
+func (service *Service) alsoTellTheAdministratorsAboutLeave(record attendanceLeaveRequestRecord) {
 	if !service.Configuration.AttendanceNotifyEnabled {
 		return
 	}
@@ -48,23 +47,25 @@ func (service *Service) alsoTellTheAdministratorsAboutLeave(record attendanceLea
 	if client == nil {
 		return
 	}
-	go service.tell(client, centralplane.Notification{
-		Platform:    "mattermost",
-		ExternalIDs: service.administrators(context.Background()),
-		Category:    "leave",
-		Title:       "휴가 신청: " + firstNonEmpty(employeeName, record.EmployeeEmail),
-		Body:        leaveNotifyBody(record),
-		OpenPath:    "/attendance/",
-		Tag:         "leave-" + record.ID,
-	})
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), attendanceNotifyTimeout)
+		defer cancel()
+		service.tell(ctx, client, centralplane.Notification{
+			Platform:    "mattermost",
+			ExternalIDs: service.administrators(ctx),
+			Category:    "leave",
+			Title:       "휴가 신청: " + firstNonEmpty(service.attendanceLeaveEmployeeName(ctx, record.EmployeeEmail), record.EmployeeEmail),
+			Body:        leaveNotifyBody(record),
+			OpenPath:    "/attendance/",
+			Tag:         "leave-" + record.ID,
+		})
+	}()
 }
 
-func (service *Service) tell(client *centralplane.Client, notification centralplane.Notification) {
+func (service *Service) tell(ctx context.Context, client *centralplane.Client, notification centralplane.Notification) {
 	if len(notification.ExternalIDs) == 0 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), attendanceNotifyTimeout)
-	defer cancel()
 	result, errorValue := client.Notify(ctx, notification)
 	if errorValue != nil {
 		log.Printf("attendance notify: %s was not sent: %v", notification.Tag, errorValue)
@@ -117,7 +118,6 @@ func attendanceNotifyTitle(event attendanceEvent) (string, bool) {
 	}
 }
 
-// Where somebody clocked in is the part a reader cannot guess, so it leads.
 func attendanceNotifyBody(event attendanceEvent) string {
 	at := strings.TrimSpace(event.LocalTime)
 	where := strings.TrimSpace(event.LocationName)
@@ -135,8 +135,6 @@ func leaveNotifyBody(record attendanceLeaveRequestRecord) string {
 	return firstNonEmpty(strings.TrimSpace(record.LeaveTypeName)+" "+when, when)
 }
 
-// The address book knows a member by name; the leave record only knows the
-// address they applied with.
 func (service *Service) attendanceLeaveEmployeeName(ctx context.Context, email string) string {
 	wanted := strings.ToLower(strings.TrimSpace(email))
 	if wanted == "" {

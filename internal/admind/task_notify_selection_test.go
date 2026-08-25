@@ -17,8 +17,6 @@ func TestTaskNotifyCategoryCoversEveryStatus(t *testing.T) {
 		}
 	}
 
-	// A run the person is not waiting on, or one they ended themselves, is not
-	// worth a phone buzzing.
 	for _, status := range []string{"planned", "running", "waiting_user_input", "blocked", "interrupted", "cancelled", ""} {
 		if category, notifiable := taskNotifyCategory(status); notifiable {
 			t.Fatalf("%s should be silent, got %q", status, category)
@@ -63,7 +61,6 @@ func TestTaskNotifyContentRelaysWhatWasRecorded(t *testing.T) {
 	}
 }
 
-// The approval wording is an enrichment, so losing it must not lose the notice.
 func TestTaskNotifyContentFallsBackToThePrompt(t *testing.T) {
 	approval := taskNotifyContent(taskNotifyRun{
 		TaskRunID: "run-1",

@@ -107,8 +107,6 @@ describe('a conversation a member has muted', () => {
 		expect(delivery.reached).toBe(1);
 	});
 
-	// A task or an approval belongs to no conversation, so muting a channel
-	// must not quieten them.
 	test('leaves a notification that names no conversation alone', async () => {
 		const client = clientWhere({
 			settings: { task: true },

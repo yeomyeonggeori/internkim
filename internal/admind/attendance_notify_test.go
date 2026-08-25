@@ -13,7 +13,6 @@ func TestOnlyClockingIsWorthTellingTheCompany(t *testing.T) {
 		}
 	}
 
-	// A correction or a leave day is not somebody arriving.
 	for _, kind := range []string{"leave", "correction", ""} {
 		if title, told := attendanceNotifyTitle(attendanceEvent{Kind: kind}); told {
 			t.Fatalf("%q should be silent, got %q", kind, title)
@@ -49,7 +48,6 @@ func TestALeaveRequestSaysWhichDaysItCovers(t *testing.T) {
 	if body != "연차 2026-09-01 ~ 2026-09-03" {
 		t.Fatalf("body = %q", body)
 	}
-	// One day is one date, not a range that starts and ends together.
 	body = leaveNotifyBody(attendanceLeaveRequestRecord{LeaveTypeName: "연차", StartDate: "2026-09-01", EndDate: "2026-09-01"})
 	if body != "연차 2026-09-01" {
 		t.Fatalf("body = %q", body)
@@ -71,7 +69,6 @@ func TestWhoIsToldIsDecidedByTheDirectory(t *testing.T) {
 		t.Fatalf("a request waits on whoever gets to it first, so every administrator is told: %+v", administrators)
 	}
 
-	// The one who clocked was there when it happened.
 	everyoneElse := attendanceNotifyRecipients(directory, func(record adminUserMutation) bool {
 		return record.MattermostUserID != "mm-staff"
 	})

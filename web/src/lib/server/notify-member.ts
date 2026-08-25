@@ -45,8 +45,6 @@ async function wantsToBeTold(
 	return readNotificationSettings(data?.notification_settings).categories[category];
 }
 
-// A muted conversation is a row; silence is the exception, so a member who has
-// muted nothing costs one lookup that finds nothing.
 async function hasMuted(client: SupabaseClient, memberID: string, conversationID: string): Promise<boolean> {
 	if (!conversationID) return false;
 	const { data, error } = await client

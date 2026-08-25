@@ -38,8 +38,6 @@ func newTaskNotifyCycleService(t *testing.T, blueclawURL string, stateDirectory 
 	})
 }
 
-// The plane is unreachable in a test, so this proves the shape of the cycle:
-// what it adopts, what it revisits, and what it leaves alone.
 func TestACycleAdoptsOnceAndThenWatchesForChange(t *testing.T) {
 	server, _ := blueclawServingRuns(t, []taskNotifyRun{
 		{TaskRunID: "run-1", Status: "running", RequesterPersonID: "person-1", Prompt: "정리해줘"},
@@ -66,8 +64,6 @@ func TestACycleAdoptsOnceAndThenWatchesForChange(t *testing.T) {
 	}
 }
 
-// An unresolvable requester still moves the mark, or the same run is retried
-// every minute forever.
 func TestARunNobodyAnswersForIsMarkedAndLeftAlone(t *testing.T) {
 	server, _ := blueclawServingRuns(t, []taskNotifyRun{
 		{TaskRunID: "orphan", Status: "completed", RequesterPersonID: "nobody"},
@@ -90,8 +86,6 @@ func TestARunNobodyAnswersForIsMarkedAndLeftAlone(t *testing.T) {
 	}
 }
 
-// A status the poller has already acted on is not looked at again, which is
-// what keeps an approval that sits for hours from buzzing every minute.
 func TestAnUnchangedStatusIsNotRevisited(t *testing.T) {
 	server, _ := blueclawServingRuns(t, []taskNotifyRun{
 		{TaskRunID: "waiting", Status: "waiting_approval", RequesterPersonID: "person-1"},
@@ -103,7 +97,6 @@ func TestAnUnchangedStatusIsNotRevisited(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	// nil client would panic if the run were treated as changed.
 	service.notifyChangedTaskRuns(ctx, nil, runs, map[string]string{"waiting": "waiting_approval"}, runs[0].UpdatedAt)
 }
 

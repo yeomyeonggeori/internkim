@@ -15,7 +15,6 @@ describe('what a member is told about', () => {
 		expect(settings.categories.attendance).toBe(true);
 		expect(settings.categories.leave).toBe(true);
 		expect(settings.categories.calendar).toBe(true);
-		// Mail arrives all day whether or not it is worth a phone.
 		expect(settings.categories.mail).toBe(false);
 	});
 
