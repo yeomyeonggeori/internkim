@@ -14,6 +14,7 @@
 // tests/unit/messenger/emoji-glyphs-current.test.ts fails when what is
 // committed no longer matches what this writes.
 
+import { fileURLToPath } from 'node:url';
 import table from 'emoji-datasource/emoji.json';
 
 type DatasourceEmoji = {
@@ -57,7 +58,7 @@ export function emojiGlyphsSource(): string {
 }
 
 if (import.meta.main) {
-	const path = new URL('../src/lib/messenger/emoji-glyphs.generated.ts', import.meta.url).pathname;
+	const path = fileURLToPath(new URL('../src/lib/messenger/emoji-glyphs.generated.ts', import.meta.url));
 	await Bun.write(path, emojiGlyphsSource());
 	console.log(`${emojiGlyphsByName().size} names written to ${path}`);
 }
