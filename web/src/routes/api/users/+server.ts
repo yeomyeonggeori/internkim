@@ -1,7 +1,13 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isNodeRequest, normalizeFleetID } from '$lib/device-auth';
-import { adminEmails, kv, userEmails } from '$lib/kv';
+import { kv } from '$lib/kv';
+import { environmentOfPlatform, fleetDirectory } from '$lib/server/agent-request';
+import {
+	fleetUserRecords,
+	saveFleetUserRecord,
+	type FleetDirectory
+} from '$lib/server/fleet-user-directory';
 import type { Device, FleetUserRecord, UserRole } from '$lib/types';
 
 const corsHeaders = {
@@ -38,7 +44,11 @@ function callerEmail(request: Request): string {
 	return normalizeEmail(request.headers.get('Cf-Access-Authenticated-User-Email') ?? '');
 }
 
-function isAdminRequest(request: Request, device: Device, adminUsers: string[], adminToken: string, registerSecret: string): boolean {
+export function adminEmailsOf(records: FleetUserRecord[]): string[] {
+	return records.filter((record) => record.role === 'admin').map((record) => record.email);
+}
+
+export function isAdminRequest(request: Request, device: Device, adminUsers: string[], adminToken: string, registerSecret: string): boolean {
 	if (adminToken && adminToken === registerSecret) return true;
 	const authorizedAdmins = adminUsers.length > 0 ? adminUsers : [normalizeEmail(device.admin_email)];
 	return authorizedAdmins.includes(callerEmail(request));
@@ -49,69 +59,48 @@ function normalizeRole(role: unknown): UserRole {
 	return role === 'admin' ? 'admin' : 'member';
 }
 
-function normalizeISODate(value: unknown): string {
-	if (typeof value !== 'string') return '';
+function refuseInvalidHireDate(value: unknown): void {
+	if (typeof value !== 'string') return;
 	const date = value.trim();
-	if (!date) return '';
+	if (!date) return;
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw error(400, 'hireDate must be YYYY-MM-DD');
 	const parsed = new Date(`${date}T00:00:00.000Z`);
 	if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) throw error(400, 'hireDate must be a valid date');
-	return date;
 }
 
-function normalizeNote(value: unknown): string {
-	return typeof value === 'string' ? value.trim() : '';
+export async function usersResponse(records: FleetUserRecord[]) {
+	return {
+		users: records.map((record) => record.email),
+		records,
+		revision: await usersRevision(records)
+	};
 }
 
-function mergeRecord(records: FleetUserRecord[], nextRecord: FleetUserRecord): FleetUserRecord[] {
-	const existingRecord = records.find((record) => record.email === nextRecord.email);
-	const filtered = records.filter((record) => record.email !== nextRecord.email);
-	return [
-		...filtered,
-		{
-			...existingRecord,
-			...nextRecord,
-			handle: nextRecord.handle || existingRecord?.handle || '',
-			name: nextRecord.name ?? existingRecord?.name,
-			hireDate: nextRecord.hireDate ?? existingRecord?.hireDate,
-			note: nextRecord.note ?? existingRecord?.note,
-			mattermostUserID: nextRecord.mattermostUserID ?? existingRecord?.mattermostUserID,
-			mattermostUsername: nextRecord.mattermostUsername ?? existingRecord?.mattermostUsername,
-			status: nextRecord.status ?? existingRecord?.status,
-			isIncomplete: !(nextRecord.name ?? existingRecord?.name)
-		}
-	].sort((first, second) => first.email.localeCompare(second.email));
-}
-
-function duplicateHandle(records: FleetUserRecord[]): string {
-	const seenHandles = new Set<string>();
-	for (const record of records) {
-		const handle = normalizeHandle(record.handle);
-		if (!handle) continue;
-		if (seenHandles.has(handle)) return handle;
-		seenHandles.add(handle);
-	}
-	return '';
-}
-
-async function usersResponse(records: FleetUserRecord[]) {
-	return { users: userEmails(records), records, revision: await usersRevision(records) };
+export async function askedDirectory(
+	platform: App.Platform | undefined,
+	fleetID: string
+): Promise<{ device: Device; directory: FleetDirectory }> {
+	const store = platform?.env?.KV;
+	if (!store) throw error(500, 'the fleet register is not available');
+	const device = await kv.getDevice(store, fleetID);
+	if (!device) throw error(404, 'Fleet not found');
+	const directory = await fleetDirectory(
+		environmentOfPlatform(platform?.env),
+		fleetID
+	);
+	if (!directory) throw error(404, 'this fleet belongs to no company yet');
+	return { device, directory };
 }
 
 export const GET: RequestHandler = async ({ request, url, platform }) => {
-	const env = platform?.env;
-	if (!env?.KV) throw error(500, 'KV not available');
-
 	const fleetID = normalizeFleetID(url.searchParams.get('fleet_id') ?? '');
 	if (!fleetID) throw error(400, 'fleet_id required');
 
-	const device = await kv.getDevice(env.KV, fleetID);
-	if (!device) throw error(404, 'Fleet not found');
-
-	const records = await kv.getUserRecords(env.KV, fleetID);
-	const admin_token = url.searchParams.get('admin_token') ?? '';
+	const { device, directory } = await askedDirectory(platform, fleetID);
+	const records = await fleetUserRecords(directory);
+	const adminToken = url.searchParams.get('admin_token') ?? '';
 	const isAuthorizedNode = await isNodeRequest(request, device, fleetID);
-	if (!isAuthorizedNode && !isAdminRequest(request, device, adminEmails(records), admin_token, env.INTERNKIM_REGISTER_SECRET)) {
+	if (!isAuthorizedNode && !isAdminRequest(request, device, adminEmailsOf(records), adminToken, platform?.env?.INTERNKIM_REGISTER_SECRET ?? '')) {
 		throw error(403, 'Admin only');
 	}
 
@@ -119,9 +108,6 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 };
 
 export const POST: RequestHandler = async ({ request, platform }) => {
-	const env = platform?.env;
-	if (!env?.KV) throw error(500, 'KV not available');
-
 	const { fleet_id, handle, name, email, hireDate, note, role, admin_token, mattermostUserID, mattermostUsername, status } = (await request.json()) as {
 		fleet_id?: string;
 		handle?: string;
@@ -137,13 +123,12 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	};
 	const fleetID = normalizeFleetID(fleet_id ?? '');
 	if (!fleetID || !email) throw error(400, 'fleet_id and email required');
+	refuseInvalidHireDate(hireDate);
 
-	const device = await kv.getDevice(env.KV, fleetID);
-	if (!device) throw error(404, 'Fleet not found');
-
-	const records = await kv.getUserRecords(env.KV, fleetID);
+	const { device, directory } = await askedDirectory(platform, fleetID);
+	const records = await fleetUserRecords(directory);
 	const isAuthorizedNode = await isNodeRequest(request, device, fleetID);
-	if (!isAuthorizedNode && !isAdminRequest(request, device, adminEmails(records), admin_token, env.INTERNKIM_REGISTER_SECRET)) {
+	if (!isAuthorizedNode && !isAdminRequest(request, device, adminEmailsOf(records), admin_token, platform?.env?.INTERNKIM_REGISTER_SECRET ?? '')) {
 		throw error(403, 'Admin only');
 	}
 
@@ -152,27 +137,22 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const existingRecord = records.find((record) => record.email === normalizedEmail);
 	const normalizedHandle = normalizeHandle(handle ?? existingRecord?.handle ?? '');
 	const normalizedName = typeof name === 'string' ? name.trim() : existingRecord?.name;
-	const normalizedHireDate = hireDate === undefined ? (existingRecord?.hireDate ?? '') : normalizeISODate(hireDate);
-	const normalizedNote = note === undefined ? existingRecord?.note : normalizeNote(note);
 	if (!existingRecord && (!normalizedHandle || !normalizedName)) throw error(400, 'handle, name, and email required');
 	if (normalizedHandle && !isValidHandle(normalizedHandle)) throw error(400, 'handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores');
-	if (!isAuthorizedNode && existingRecord?.role === 'admin' && normalizedRole !== 'admin' && adminEmails(records).length <= 1) {
+	if (!isAuthorizedNode && existingRecord?.role === 'admin' && normalizedRole !== 'admin' && adminEmailsOf(records).length <= 1) {
 		throw error(400, 'Cannot demote the last admin user');
 	}
-	const nextRecords = mergeRecord(records, {
+
+	const nextRecords = await saveFleetUserRecord(directory, {
 		handle: normalizedHandle,
 		...(normalizedName ? { name: normalizedName } : {}),
 		email: normalizedEmail,
-		hireDate: normalizedHireDate,
-		note: normalizedNote ?? '',
+		note: note === undefined ? existingRecord?.note : (note ?? '').trim(),
 		role: normalizedRole,
 		mattermostUserID,
 		mattermostUsername,
 		status
 	});
-	const duplicatedHandle = duplicateHandle(nextRecords);
-	if (duplicatedHandle) throw error(400, `Duplicate handle: ${duplicatedHandle}`);
-	await kv.putUserRecords(env.KV, fleetID, nextRecords);
 
 	return json(await usersResponse(nextRecords), { headers: corsHeaders });
 };

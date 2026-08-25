@@ -2,6 +2,8 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { normalizeFleetID } from '$lib/device-auth';
 import { kv } from '$lib/kv';
+import { environmentOfPlatform, fleetDirectory } from '$lib/server/agent-request';
+import { fleetUserRecords } from '$lib/server/fleet-user-directory';
 
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const env = platform?.env;
@@ -12,8 +14,12 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const fleetID = normalizeFleetID(fleet_id ?? '');
 	if (!fleetID) throw error(400, 'fleet_id required');
 
-	const users = await kv.getUsers(env.KV, fleetID);
-	if (users[0] !== callerEmail) throw error(403, 'Admin only');
+	const directory = await fleetDirectory(environmentOfPlatform(env), fleetID);
+	if (!directory) throw error(404, 'this fleet belongs to no company yet');
+	const admins = (await fleetUserRecords(directory))
+		.filter((record) => record.role === 'admin')
+		.map((record) => record.email);
+	if (!admins.includes(callerEmail.trim().toLowerCase())) throw error(403, 'Admin only');
 
 	const KV = env.KV;
 
