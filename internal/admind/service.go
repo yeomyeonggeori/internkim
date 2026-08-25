@@ -114,6 +114,7 @@ type Configuration struct {
 	CloudflareAccessTeamDomain     string
 	CloudflareAccessAUDs           string
 	TrustProxyForwardedEmail       bool
+	TaskRunNotifyEnabled           bool
 }
 
 type Service struct {
@@ -301,6 +302,7 @@ const firstAdminClaimTimeout = 90 * time.Second
 func DefaultConfiguration() Configuration {
 	return Configuration{
 		ListenAddress:                  "127.0.0.1:18080",
+		TaskRunNotifyEnabled:           true,
 		MattermostBaseURL:              "http://127.0.0.1:8065",
 		MattermostTeamName:             "internkim",
 		BotUsername:                    "internkim",
@@ -391,6 +393,9 @@ func (service *Service) Run(ctx context.Context) error {
 	go service.keepUsersSyncInstalled(ctx)
 	go service.keepWorkPolicyPublished(ctx)
 	go service.keepOrganizationProfilesReadBack(ctx)
+	if service.Configuration.TaskRunNotifyEnabled {
+		go service.keepTaskRunsNotified(ctx)
+	}
 	service.reconcileSiteSourcesToStaffCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
