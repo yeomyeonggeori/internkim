@@ -1,6 +1,6 @@
 {
   "name": "addressing-response",
-  "skillDirectoryPaths": [],
+  "skillNames": [],
   "allowedTools": ["conversation_history", "memory_search"],
   "capabilityToolNames": [],
   "initialToolNames": [],

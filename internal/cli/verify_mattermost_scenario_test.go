@@ -345,7 +345,7 @@ func TestMattermostScenarioRequiresDirectExposureEvidence(t *testing.T) {
 		Name:                "exposure",
 		AllowedTools:        []string{"task_add"},
 		InitialToolNames:    []string{"task_add"},
-		SkillDirectoryPaths: []string{"skills/internkim-flow"},
+		SkillNames: []string{"internkim-flow"},
 		Steps:               []mattermostScenarioStep{{Prompt: "work", ExpectedToolCalls: []string{"task_add"}}},
 	}
 	result := mattermostScenarioResult{ScenarioName: scenario.Name, Steps: []mattermostScenarioStepResult{{

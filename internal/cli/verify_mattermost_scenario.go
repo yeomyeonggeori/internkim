@@ -20,7 +20,7 @@ type mattermostScenario struct {
 	Name                      string                             `json:"name"`
 	RequiresModelProvenance   bool                               `json:"requiresModelProvenance"`
 	ExpectedLLMProvider       string                             `json:"expectedLLMProvider"`
-	SkillDirectoryPaths       []string                           `json:"skillDirectoryPaths"`
+	SkillNames                []string                           `json:"skillNames"`
 	AllowedTools              []string                           `json:"allowedTools"`
 	CapabilityToolNames       []string                           `json:"capabilityToolNames"`
 	CapabilityToolDescriptors []mattermostScenarioToolDescriptor `json:"capabilityToolDescriptors"`
@@ -451,7 +451,7 @@ func validateMattermostScenarioAttachmentText(stepIndex int, expected mattermost
 }
 
 func scenarioHasExposureExpectations(scenario mattermostScenario) bool {
-	return len(scenario.AllowedTools) > 0 || len(scenario.InitialToolNames) > 0 || len(scenario.SkillDirectoryPaths) > 0
+	return len(scenario.AllowedTools) > 0 || len(scenario.InitialToolNames) > 0 || len(scenario.SkillNames) > 0
 }
 
 func validateMattermostScenarioExposure(stepIndex int, scenario mattermostScenario, expected mattermostScenarioStep, events []mattermostScenarioTaskEvent) error {
@@ -531,9 +531,9 @@ func validateMattermostScenarioInitialTools(stepIndex int, scenario mattermostSc
 }
 
 func validateMattermostScenarioSelectedSkills(stepIndex int, scenario mattermostScenario, instruction mattermostScenarioInstructionEvidence) error {
-	for _, skillPath := range scenario.SkillDirectoryPaths {
-		skillName := path.Base(path.Clean(skillPath))
-		if skillName == "." || skillName == "/" || skillName == "" {
+	for _, skillName := range scenario.SkillNames {
+		skillName = strings.TrimSpace(skillName)
+		if skillName == "" {
 			continue
 		}
 		if _, isSelected := instruction.SelectedSkillToolReferences[skillName]; !isSelected {
