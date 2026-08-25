@@ -17,13 +17,13 @@ func newIdentityVaultService(t *testing.T) *Service {
 func TestBuzzIdentitySecretRoundTrips(t *testing.T) {
 	service := newIdentityVaultService(t)
 	secretHex := strings.Repeat("a1", 32)
-	if errorValue := service.storeBuzzIdentitySecret("Lee@Example.com", secretHex); errorValue != nil {
+	if errorValue := service.storeBuzzIdentitySecret("Member1@Example.com", secretHex); errorValue != nil {
 		t.Fatalf("store identity secret: %v", errorValue)
 	}
-	if !service.hasBuzzIdentitySecret("lee@example.com") {
+	if !service.hasBuzzIdentitySecret("member1@example.com") {
 		t.Fatal("expected stored secret to be reported as present")
 	}
-	stored, errorValue := service.readBuzzIdentitySecret("lee@example.com")
+	stored, errorValue := service.readBuzzIdentitySecret("member1@example.com")
 	if errorValue != nil {
 		t.Fatalf("read identity secret: %v", errorValue)
 	}
@@ -35,21 +35,21 @@ func TestBuzzIdentitySecretRoundTrips(t *testing.T) {
 func TestBuzzIdentitySecretIsNotStoredInPlaintext(t *testing.T) {
 	service := newIdentityVaultService(t)
 	secretHex := strings.Repeat("b2", 32)
-	if errorValue := service.storeBuzzIdentitySecret("lee@example.com", secretHex); errorValue != nil {
+	if errorValue := service.storeBuzzIdentitySecret("member1@example.com", secretHex); errorValue != nil {
 		t.Fatalf("store identity secret: %v", errorValue)
 	}
 	encryptionKey, errorValue := loadOrCreateSecretEncryptionKey(service.buzzIdentityVaultKeyPath())
 	if errorValue != nil {
 		t.Fatalf("load vault key: %v", errorValue)
 	}
-	sealed, errorValue := os.ReadFile(service.buzzIdentitySecretPath(encryptionKey, "lee@example.com"))
+	sealed, errorValue := os.ReadFile(service.buzzIdentitySecretPath(encryptionKey, "member1@example.com"))
 	if errorValue != nil {
 		t.Fatalf("read sealed file: %v", errorValue)
 	}
 	if strings.Contains(string(sealed), secretHex) {
 		t.Fatal("sealed file must not contain the plaintext secret")
 	}
-	fileInfo, errorValue := os.Stat(service.buzzIdentitySecretPath(encryptionKey, "lee@example.com"))
+	fileInfo, errorValue := os.Stat(service.buzzIdentitySecretPath(encryptionKey, "member1@example.com"))
 	if errorValue != nil {
 		t.Fatalf("stat sealed file: %v", errorValue)
 	}
@@ -64,11 +64,11 @@ func TestBuzzIdentitySecretPathIsNotGuessableFromTheEmailAlone(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("load vault key: %v", errorValue)
 	}
-	fileName := filepath.Base(service.buzzIdentitySecretPath(encryptionKey, "lee@example.com"))
+	fileName := filepath.Base(service.buzzIdentitySecretPath(encryptionKey, "member1@example.com"))
 	if strings.Contains(fileName, "lee") || strings.Contains(fileName, "dawn") {
 		t.Fatalf("vault file name must not embed the email, got %q", fileName)
 	}
-	unkeyedDigest := sha256.Sum256([]byte("lee@example.com"))
+	unkeyedDigest := sha256.Sum256([]byte("member1@example.com"))
 	if strings.Contains(fileName, hex.EncodeToString(unkeyedDigest[:])) {
 		t.Fatal("vault file name must not be a plain digest of the email, which anyone can precompute")
 	}
@@ -77,7 +77,7 @@ func TestBuzzIdentitySecretPathIsNotGuessableFromTheEmailAlone(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("load other vault key: %v", errorValue)
 	}
-	otherFileName := filepath.Base(otherService.buzzIdentitySecretPath(otherKey, "lee@example.com"))
+	otherFileName := filepath.Base(otherService.buzzIdentitySecretPath(otherKey, "member1@example.com"))
 	if fileName == otherFileName {
 		t.Fatal("vault file names must differ between devices with different keys")
 	}
@@ -86,14 +86,14 @@ func TestBuzzIdentitySecretPathIsNotGuessableFromTheEmailAlone(t *testing.T) {
 func TestBuzzIdentitySecretRejectsAFileMovedToAnotherPerson(t *testing.T) {
 	service := newIdentityVaultService(t)
 	secretHex := strings.Repeat("e5", 32)
-	if errorValue := service.storeBuzzIdentitySecret("lee@example.com", secretHex); errorValue != nil {
+	if errorValue := service.storeBuzzIdentitySecret("member1@example.com", secretHex); errorValue != nil {
 		t.Fatalf("store identity secret: %v", errorValue)
 	}
 	encryptionKey, errorValue := loadOrCreateSecretEncryptionKey(service.buzzIdentityVaultKeyPath())
 	if errorValue != nil {
 		t.Fatalf("load vault key: %v", errorValue)
 	}
-	sealed, errorValue := os.ReadFile(service.buzzIdentitySecretPath(encryptionKey, "lee@example.com"))
+	sealed, errorValue := os.ReadFile(service.buzzIdentitySecretPath(encryptionKey, "member1@example.com"))
 	if errorValue != nil {
 		t.Fatalf("read sealed file: %v", errorValue)
 	}
@@ -108,7 +108,7 @@ func TestBuzzIdentitySecretRejectsAFileMovedToAnotherPerson(t *testing.T) {
 
 func TestBuzzIdentitySecretRejectsMalformedInput(t *testing.T) {
 	service := newIdentityVaultService(t)
-	if errorValue := service.storeBuzzIdentitySecret("lee@example.com", "not-hex"); errorValue == nil {
+	if errorValue := service.storeBuzzIdentitySecret("member1@example.com", "not-hex"); errorValue == nil {
 		t.Fatal("expected malformed secret to be rejected")
 	}
 	if errorValue := service.storeBuzzIdentitySecret("", strings.Repeat("c3", 32)); errorValue == nil {
@@ -126,16 +126,16 @@ func TestBuzzIdentitySecretMissingIsDistinguishable(t *testing.T) {
 func TestBuzzIdentitySecretDeletes(t *testing.T) {
 	service := newIdentityVaultService(t)
 	secretHex := strings.Repeat("d4", 32)
-	if errorValue := service.storeBuzzIdentitySecret("lee@example.com", secretHex); errorValue != nil {
+	if errorValue := service.storeBuzzIdentitySecret("member1@example.com", secretHex); errorValue != nil {
 		t.Fatalf("store identity secret: %v", errorValue)
 	}
-	if errorValue := service.deleteBuzzIdentitySecret("lee@example.com"); errorValue != nil {
+	if errorValue := service.deleteBuzzIdentitySecret("member1@example.com"); errorValue != nil {
 		t.Fatalf("delete identity secret: %v", errorValue)
 	}
-	if service.hasBuzzIdentitySecret("lee@example.com") {
+	if service.hasBuzzIdentitySecret("member1@example.com") {
 		t.Fatal("expected secret to be gone")
 	}
-	if errorValue := service.deleteBuzzIdentitySecret("lee@example.com"); errorValue != nil {
+	if errorValue := service.deleteBuzzIdentitySecret("member1@example.com"); errorValue != nil {
 		t.Fatalf("deleting a missing secret should be a no-op, got %v", errorValue)
 	}
 }

@@ -133,7 +133,7 @@ describe('dev attendance mock plugin', () => {
 		);
 		const events = summary.events
 			.filter(
-				(event) => event.email === 'lee@example.com' && event.localDate === '2026-07-17'
+				(event) => event.email === 'member1@example.com' && event.localDate === '2026-07-17'
 			)
 			.map((event) => ({ kind: event.kind, localTime: event.localTime }));
 
@@ -255,7 +255,7 @@ describe('dev attendance mock plugin', () => {
 		expect(parkLeaveDates).toEqual(['2026-05-06', '2026-05-07', '2026-05-08']);
 		expect(kangOtherDates).toEqual(['2026-05-22']);
 		expect(absences.some((absence) => absence.email === 'jung@example.com' && absence.kind === 'other' && absence.date === '2026-05-18')).toBe(true);
-		expect(absences.some((absence) => absence.email === 'lee@example.com' && absence.kind === 'leave' && absence.date === '2026-05-27')).toBe(true);
+		expect(absences.some((absence) => absence.email === 'member1@example.com' && absence.kind === 'leave' && absence.date === '2026-05-27')).toBe(true);
 	});
 
 	test('includes overlapping June absence fixture records', async () => {
@@ -274,7 +274,7 @@ describe('dev attendance mock plugin', () => {
 			.map((absence) => `${absence.email}:${absence.kind}`)
 			.sort();
 		const leeOtherDates = absences
-			.filter((absence) => absence.email === 'lee@example.com' && absence.kind === 'other' && absence.rangeID === 'absence-june-lee-other')
+			.filter((absence) => absence.email === 'member1@example.com' && absence.kind === 'other' && absence.rangeID === 'absence-june-lee-other')
 			.map((absence) => absence.date);
 
 		expect(overlappingAbsences).toEqual([

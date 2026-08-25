@@ -37,7 +37,7 @@ func TestMattermostSourceReadsARealWorkspace(t *testing.T) {
 	for _, user := range users {
 		emails[strings.ToLower(user.Email)] = true
 	}
-	if !emails["lee@example.com"] || !emails["kwak@example.com"] {
+	if !emails["member1@example.com"] || !emails["kwak@example.com"] {
 		t.Fatalf("expected the seeded addresses, got %v", emails)
 	}
 

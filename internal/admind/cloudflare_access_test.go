@@ -57,11 +57,11 @@ func TestCloudflareAccessVerifierAcceptsValidToken(t *testing.T) {
 	token := signTestAccessToken(t, key, "kid-1", map[string]any{
 		"iss":   "https://team.cloudflareaccess.com",
 		"aud":   []string{"aud-1"},
-		"email": "Lee@Example.com",
+		"email": "Member1@Example.com",
 		"exp":   time.Now().Add(time.Hour).Unix(),
 	})
 	request := requestWithAccessToken(token)
-	if email := verifier.verifiedEmail(context.Background(), request); email != "lee@example.com" {
+	if email := verifier.verifiedEmail(context.Background(), request); email != "member1@example.com" {
 		t.Fatalf("expected verified lowercased email, got %q", email)
 	}
 }
@@ -72,7 +72,7 @@ func TestCloudflareAccessVerifierRejectsWrongAudience(t *testing.T) {
 	token := signTestAccessToken(t, key, "kid-1", map[string]any{
 		"iss":   "https://team.cloudflareaccess.com",
 		"aud":   []string{"someone-elses-app"},
-		"email": "lee@example.com",
+		"email": "member1@example.com",
 		"exp":   time.Now().Add(time.Hour).Unix(),
 	})
 	if email := verifier.verifiedEmail(context.Background(), requestWithAccessToken(token)); email != "" {
@@ -86,7 +86,7 @@ func TestCloudflareAccessVerifierRejectsExpiredToken(t *testing.T) {
 	token := signTestAccessToken(t, key, "kid-1", map[string]any{
 		"iss":   "https://team.cloudflareaccess.com",
 		"aud":   []string{"aud-1"},
-		"email": "lee@example.com",
+		"email": "member1@example.com",
 		"exp":   time.Now().Add(-time.Hour).Unix(),
 	})
 	if email := verifier.verifiedEmail(context.Background(), requestWithAccessToken(token)); email != "" {
@@ -115,7 +115,7 @@ func TestCloudflareAccessVerifierRejectsWrongIssuer(t *testing.T) {
 	token := signTestAccessToken(t, key, "kid-1", map[string]any{
 		"iss":   "https://evil.cloudflareaccess.com",
 		"aud":   []string{"aud-1"},
-		"email": "lee@example.com",
+		"email": "member1@example.com",
 		"exp":   time.Now().Add(time.Hour).Unix(),
 	})
 	if email := verifier.verifiedEmail(context.Background(), requestWithAccessToken(token)); email != "" {

@@ -45,7 +45,7 @@ function flowState(tasks: FlowTask[]): FlowState {
 			{
 				id: 'member-1',
 				name: '이영희',
-				email: 'lee@example.com',
+				email: 'member1@example.com',
 				role: 'member',
 				mattermostStatus: 'online',
 				activeTaskCount: 0,
@@ -74,7 +74,7 @@ function flowState(tasks: FlowTask[]): FlowState {
 		},
 		definitions: { categories: [], types: [], sizes: [] },
 		statusOptions: [],
-		currentUserEmail: 'lee@example.com',
+		currentUserEmail: 'member1@example.com',
 		currentUserName: '이영희',
 		isAdmin: false,
 		source: 'test'
@@ -86,16 +86,16 @@ describe('sidebar badge counts', () => {
 
 	test('counts only the unfinished events the viewer participates in', () => {
 		const events = [
-			calendarEvent('mine', ['lee@example.com', 'kim@example.com']),
+			calendarEvent('mine', ['member1@example.com', 'kim@example.com']),
 			calendarEvent('theirs', ['kim@example.com']),
-			calendarEvent('mine-upper', ['LEE@example.com']),
-			calendarEvent('mine-finished', ['lee@example.com'], '2026-07-30T01:00:00+09:00')
+			calendarEvent('mine-upper', ['MEMBER1@example.com']),
+			calendarEvent('mine-finished', ['member1@example.com'], '2026-07-30T01:00:00+09:00')
 		];
-		expect(participatingEventCount(events, 'lee@example.com', now)).toBe(2);
+		expect(participatingEventCount(events, 'member1@example.com', now)).toBe(2);
 	});
 
 	test('counts nothing without a viewer email', () => {
-		expect(participatingEventCount([calendarEvent('mine', ['lee@example.com'])], '  ', now)).toBe(0);
+		expect(participatingEventCount([calendarEvent('mine', ['member1@example.com'])], '  ', now)).toBe(0);
 	});
 
 	test('counts requested tasks that name the viewer', () => {

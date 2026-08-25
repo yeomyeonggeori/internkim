@@ -306,7 +306,7 @@ func TestRepairFutureAttendanceEventsMovesEventToPreviousDay(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	location, _ := time.LoadLocation("Asia/Seoul")
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "lee", Email: "lee@example.com", Nickname: "이샘플"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member1", Email: "member1@example.com", Nickname: "이샘플"}
 	futureTime := time.Date(2026, 6, 10, 23, 30, 0, 0, location)
 	event := service.createAttendanceEvent(userRecord, attendanceKindClockIn, futureTime.UTC(), "team-1", "attendance-channel", "entry-post", "result-post", service.attendanceLocationByID("office"))
 	if errorValue := service.insertAttendanceEvent(context.Background(), database, event); errorValue != nil {
@@ -321,7 +321,7 @@ func TestRepairFutureAttendanceEventsMovesEventToPreviousDay(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	events, errorValue := service.readAttendanceEvents(context.Background(), "2026-06", "lee@example.com")
+	events, errorValue := service.readAttendanceEvents(context.Background(), "2026-06", "member1@example.com")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

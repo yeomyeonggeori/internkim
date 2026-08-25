@@ -31,7 +31,7 @@ func TestBuzzClientVaultMissingIsNotAnError(t *testing.T) {
 }
 
 func TestBuzzClientVaultSubjectSafety(t *testing.T) {
-	safe := []string{"user-0123456789abcdef", "lee@example.com", "person_1-2.3"}
+	safe := []string{"user-0123456789abcdef", "member1@example.com", "person_1-2.3"}
 	for _, subject := range safe {
 		if !isSafeVaultSubject(subject) {
 			t.Fatalf("expected %q to be safe", subject)

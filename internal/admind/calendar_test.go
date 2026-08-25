@@ -428,7 +428,7 @@ func mattermostCalendarLogLifecycleResponse(t *testing.T, request *http.Request,
 	case request.Method == http.MethodPost && request.URL.Path == "/api/v4/users/login":
 		return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users":
-		return jsonResponse(http.StatusOK, `[{"id":"user-1","username":"iam","nickname":"김여명","email":"iam@example.com"}]`, nil), nil
+		return jsonResponse(http.StatusOK, `[{"id":"user-1","username":"member2","nickname":"김여명","email":"member2@example.com"}]`, nil), nil
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users/me":
 		return jsonResponse(http.StatusOK, `{"id":"bot-1"}`, nil), nil
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/teams/name/internkim":
