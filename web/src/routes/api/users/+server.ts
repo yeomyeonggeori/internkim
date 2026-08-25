@@ -2,13 +2,15 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isNodeRequest, normalizeFleetID } from '$lib/device-auth';
 import { kv } from '$lib/kv';
-import { environmentOfPlatform, fleetDirectory } from '$lib/server/agent-request';
+import { fleetUserRecords, saveFleetUserRecord } from '$lib/server/fleet-user-directory';
 import {
-	fleetUserRecords,
-	saveFleetUserRecord,
-	type FleetDirectory
-} from '$lib/server/fleet-user-directory';
-import type { Device, FleetUserRecord, UserRole } from '$lib/types';
+	adminEmailsOf,
+	askedDirectory,
+	isAdminRequest,
+	normalizeEmail,
+	usersResponse
+} from '$lib/server/fleet-user-request';
+import type { FleetUserRecord, UserRole } from '$lib/types';
 
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
@@ -20,38 +22,12 @@ export const OPTIONS: RequestHandler = async () => {
 	return new Response(null, { headers: corsHeaders });
 };
 
-function normalizeEmail(email: string): string {
-	return email.trim().toLowerCase();
-}
-
 function normalizeHandle(handle: string): string {
 	return handle.trim().toLowerCase();
 }
 
 function isValidHandle(handle: string): boolean {
 	return /^[a-z][a-z0-9._-]{2,21}$/.test(handle);
-}
-
-async function usersRevision(records: FleetUserRecord[]): Promise<string> {
-	const encodedUsers = new TextEncoder().encode(JSON.stringify(records));
-	const digest = await crypto.subtle.digest('SHA-256', encodedUsers);
-	return Array.from(new Uint8Array(digest))
-		.map((byte) => byte.toString(16).padStart(2, '0'))
-		.join('');
-}
-
-function callerEmail(request: Request): string {
-	return normalizeEmail(request.headers.get('Cf-Access-Authenticated-User-Email') ?? '');
-}
-
-export function adminEmailsOf(records: FleetUserRecord[]): string[] {
-	return records.filter((record) => record.role === 'admin').map((record) => record.email);
-}
-
-export function isAdminRequest(request: Request, device: Device, adminUsers: string[], adminToken: string, registerSecret: string): boolean {
-	if (adminToken && adminToken === registerSecret) return true;
-	const authorizedAdmins = adminUsers.length > 0 ? adminUsers : [normalizeEmail(device.admin_email)];
-	return authorizedAdmins.includes(callerEmail(request));
 }
 
 function normalizeRole(role: unknown): UserRole {
@@ -66,30 +42,6 @@ function refuseInvalidHireDate(value: unknown): void {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw error(400, 'hireDate must be YYYY-MM-DD');
 	const parsed = new Date(`${date}T00:00:00.000Z`);
 	if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) throw error(400, 'hireDate must be a valid date');
-}
-
-export async function usersResponse(records: FleetUserRecord[]) {
-	return {
-		users: records.map((record) => record.email),
-		records,
-		revision: await usersRevision(records)
-	};
-}
-
-export async function askedDirectory(
-	platform: App.Platform | undefined,
-	fleetID: string
-): Promise<{ device: Device; directory: FleetDirectory }> {
-	const store = platform?.env?.KV;
-	if (!store) throw error(500, 'the fleet register is not available');
-	const device = await kv.getDevice(store, fleetID);
-	if (!device) throw error(404, 'Fleet not found');
-	const directory = await fleetDirectory(
-		environmentOfPlatform(platform?.env),
-		fleetID
-	);
-	if (!directory) throw error(404, 'this fleet belongs to no company yet');
-	return { device, directory };
 }
 
 export const GET: RequestHandler = async ({ request, url, platform }) => {
