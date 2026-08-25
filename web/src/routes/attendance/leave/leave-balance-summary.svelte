@@ -5,14 +5,16 @@
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
 	import { milliDaysValue } from './leave-history-model';
 	import { leaveBalanceSegments } from './leave-balance-segments';
+	import { isSupabaseConfigured } from '$lib/supabase';
 
 	const text = createPageText(attendanceText);
 	const employeeLeave = getEmployeeLeaveState();
 	const summary = $derived(employeeLeave.payload?.summary);
 	const isUnlimited = $derived(employeeLeave.payload?.balanceTrackingMode === 'unlimited');
-	const segments = $derived(leaveBalanceSegments(summary));
-	const totalMilliDays = $derived(
-		(summary?.usedMilliDays ?? 0) + (summary?.availableMilliDays ?? 0)
+	const pendingIsInsideRemaining = isSupabaseConfigured();
+	const segments = $derived(leaveBalanceSegments(summary, pendingIsInsideRemaining));
+	const hasABarToDraw = $derived(
+		segments.usedPercent + segments.reservedPercent + segments.availablePercent > 0
 	);
 
 	function days(value: number | undefined): string {
@@ -59,7 +61,7 @@
 					.replace('{available}', days(summary?.availableMilliDays))}
 				data-testid="leave-balance-segmented-bar"
 			>
-				{#if totalMilliDays > 0}
+				{#if hasABarToDraw}
 					<span class="h-full bg-primary" style:width={`${segments.usedPercent}%`}></span>
 					<span class="h-full bg-primary/40" style:width={`${segments.reservedPercent}%`}></span>
 					<span class="h-full bg-muted-foreground/15" style:width={`${segments.availablePercent}%`}></span>
