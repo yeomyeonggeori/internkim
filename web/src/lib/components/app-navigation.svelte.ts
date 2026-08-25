@@ -7,7 +7,6 @@ import { appShellText } from '$lib/i18n/app-shell-text';
 import { createPageText } from '$lib/i18n/page-text.svelte';
 import { isSupabaseConfigured, signOutOfSupabase, supabaseMember } from '$lib/supabase-session';
 import { companyPathOf, routePathOf } from '$lib/company-path';
-import { isMessengerConnected } from '$lib/messenger/messenger-directory';
 import type { UserRole } from '$lib/types';
 import type { WebAuthSession } from '$lib/web-auth-session';
 import ActivityIcon from '@lucide/svelte/icons/activity';
@@ -41,7 +40,6 @@ class AppNavigation {
 	userMemberID = $state('');
 	adminRole = $state<UserRole>('member');
 	canViewTasks = $state(false);
-	hasMessenger = $state(false);
 	companySlug = $state('');
 
 	currentPath = $derived(routePathOf(page.url.pathname));
@@ -49,7 +47,7 @@ class AppNavigation {
 	displayUserName = $derived(this.userName || text.workspace);
 
 	apps = $derived<AppRailItem[]>([
-		...(this.hasMessenger ? [{ href: this.link('/messenger/'), label: text.messenger, icon: MessagesSquareIcon }] : []),
+		{ href: this.link('/messenger/'), label: text.messenger, icon: MessagesSquareIcon },
 		{ href: this.link('/flow/'), label: text.flow, icon: ListChecksIcon, badgeCount: appBadgeCounts.requestedTasks },
 		{ href: this.link('/memory/'), label: text.memory, icon: BrainIcon },
 		{ href: this.link('/calendar/'), label: text.calendar, icon: CalendarDaysIcon, badgeCount: appBadgeCounts.participatingEvents },
@@ -90,11 +88,9 @@ class AppNavigation {
 			this.userMemberID = member.memberID;
 			this.adminRole = member.role;
 			this.companySlug = member.companySlug;
-			this.hasMessenger = await isMessengerConnected();
 			return;
 		}
 		void appBadgeCounts.load(session.email);
-		await this.loadDeviceMessenger();
 		try {
 			const response = await adminApiFetch('/admin/api/session');
 			if (!response.ok) {
@@ -145,21 +141,6 @@ class AppNavigation {
 		this.userMemberID = '';
 		this.adminRole = 'member';
 		this.canViewTasks = false;
-		this.hasMessenger = false;
-	}
-
-	private async loadDeviceMessenger() {
-		try {
-			const response = await fetch('/agent/api/buzz-relay-config', { credentials: 'include' });
-			if (!response.ok) {
-				this.hasMessenger = false;
-				return;
-			}
-			const document = (await response.json()) as { relayURL?: string };
-			this.hasMessenger = Boolean(document.relayURL?.trim());
-		} catch {
-			this.hasMessenger = false;
-		}
 	}
 
 }
