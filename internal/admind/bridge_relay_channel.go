@@ -19,6 +19,7 @@ var errBridgeChannelKindUnknown = errors.New("bridge channel kind is only known 
 
 type bridgeRelayChannelShape struct {
 	Name        string
+	RoomName    string
 	Purpose     string
 	ChannelType string
 	Visibility  string
@@ -134,6 +135,7 @@ func describeMattermostChannel(channelRecord mattermostChannelRecord, externalCh
 	}
 	return bridgeRelayChannelShape{
 		Name:        mattermostChannelMirrorName(channelRecord, externalChannelID),
+		RoomName:    strings.TrimSpace(channelRecord.Name),
 		Purpose:     strings.TrimSpace(channelRecord.Purpose),
 		ChannelType: channelType,
 		Visibility:  visibility,
