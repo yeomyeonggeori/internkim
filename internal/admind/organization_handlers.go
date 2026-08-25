@@ -47,6 +47,10 @@ func (service *Service) handleOrganizationProfileUpdate(responseWriter http.Resp
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	if errorValue := service.writeOrganizationProfilesToTheDirectory(request.Context(), profiles); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
 	service.writeFullLocalUsersResponse(responseWriter, request)
 }
 
