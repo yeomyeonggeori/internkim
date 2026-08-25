@@ -280,6 +280,13 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
+	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, ""); answered {
+		if writeCalendarCentralError(responseWriter, request, event.ID, saveError) {
+			return
+		}
+		service.writeJSON(responseWriter, saved)
+		return
+	}
 	if !payload.AllowDuplicate {
 		if candidates, errorValue := service.findDuplicateCalendarCandidates(request.Context(), event); errorValue == nil && len(candidates) > 0 {
 			responseWriter.WriteHeader(http.StatusOK)
@@ -354,6 +361,13 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		return
 	}
 	event.RawICS = regeneratedRawICS
+	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, expectedUpdatedAt); answered {
+		if writeCalendarCentralError(responseWriter, request, eventID, saveError) {
+			return
+		}
+		service.writeJSON(responseWriter, saved)
+		return
+	}
 	if errorValue := service.writeCalendarEventIfCurrentVersionWithOrigin(request.Context(), event, expectedUpdatedAt, mutationOrigin); errorValue != nil {
 		if writeCalendarEventVersionConflictError(responseWriter, errorValue) {
 			return
@@ -378,6 +392,13 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 }
 
 func (service *Service) deleteCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
+	if answered, removeError := service.removeCentralCalendarEvent(request, eventID); answered {
+		if writeCalendarCentralError(responseWriter, request, eventID, removeError) {
+			return
+		}
+		responseWriter.WriteHeader(http.StatusNoContent)
+		return
+	}
 	var payload calendarEventDeleteRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil && !errors.Is(errorValue, io.EOF) {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)

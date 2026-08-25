@@ -555,7 +555,7 @@ select ok(
 select ok(
   has_function_privilege(
     'authenticated',
-    to_regprocedure('public.save_calendar_event(uuid,text,text,jsonb,timestamptz,timestamptz,boolean,text,uuid[])'),
+    to_regprocedure('public.save_calendar_event(uuid,text,text,jsonb,timestamptz,timestamptz,boolean,text,uuid[],timestamptz)'),
     'EXECUTE'
   ),
   'RPC grants: authenticated users can call save_calendar_event'
@@ -564,7 +564,7 @@ select ok(
 select ok(
   not has_function_privilege(
     'anon',
-    to_regprocedure('public.save_calendar_event(uuid,text,text,jsonb,timestamptz,timestamptz,boolean,text,uuid[])'),
+    to_regprocedure('public.save_calendar_event(uuid,text,text,jsonb,timestamptz,timestamptz,boolean,text,uuid[],timestamptz)'),
     'EXECUTE'
   ),
   'RPC grants: anonymous users cannot call save_calendar_event'
@@ -573,7 +573,7 @@ select ok(
 select ok(
   not has_function_privilege(
     'service_role',
-    to_regprocedure('public.save_calendar_event(uuid,text,text,jsonb,timestamptz,timestamptz,boolean,text,uuid[])'),
+    to_regprocedure('public.save_calendar_event(uuid,text,text,jsonb,timestamptz,timestamptz,boolean,text,uuid[],timestamptz)'),
     'EXECUTE'
   ),
   'RPC grants: service role uses direct trusted writes instead of save_calendar_event'
