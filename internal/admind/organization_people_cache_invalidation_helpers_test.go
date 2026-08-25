@@ -23,7 +23,7 @@ func assertOrganizationCacheFound(t *testing.T, service *Service, key organizati
 
 func preloadOrganizationIdentityCache(t *testing.T, service *Service, userID string, email string) {
 	t.Helper()
-	for _, key := range organizationPersonCacheKeys(organizationPersonIdentity{UserID: userID, Email: email}) {
+	for _, key := range organizationPersonCacheKeys(organizationPersonIdentity{MemberID: userID, Email: email}) {
 		if _, errorValue := service.writeOrganizationPeopleCachePayloadIfCurrent(context.Background(), key, 0, "", []byte(`{}`)); errorValue != nil {
 			t.Fatal(errorValue)
 		}
@@ -32,7 +32,7 @@ func preloadOrganizationIdentityCache(t *testing.T, service *Service, userID str
 
 func assertOrganizationIdentityMutationActive(t *testing.T, service *Service, userID string, email string) {
 	t.Helper()
-	keys := organizationPersonCacheKeys(organizationPersonIdentity{UserID: userID, Email: email})
+	keys := organizationPersonCacheKeys(organizationPersonIdentity{MemberID: userID, Email: email})
 	snapshots, errorValue := service.readOrganizationPeopleCacheSnapshots(context.Background(), keys)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -47,7 +47,7 @@ func assertOrganizationIdentityMutationActive(t *testing.T, service *Service, us
 
 func assertOrganizationIdentityCacheFound(t *testing.T, service *Service, userID string, email string, expected bool) {
 	t.Helper()
-	for _, key := range organizationPersonCacheKeys(organizationPersonIdentity{UserID: userID, Email: email}) {
+	for _, key := range organizationPersonCacheKeys(organizationPersonIdentity{MemberID: userID, Email: email}) {
 		assertOrganizationCacheFound(t, service, key, expected)
 	}
 }

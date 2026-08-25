@@ -33,7 +33,7 @@ func TestAClockInReachesThePlaneAsTheMemberWhoClicked(t *testing.T) {
 	defer plane.Close()
 
 	service, _ := newAttendanceActionTestService(t)
-	forgetCentralPlaneForTest()
+	forgetCentralPlaneForTest(service)
 	service.Configuration.CentralPlaneAppURL = plane.URL
 	service.Configuration.CentralPlaneProjectURL = plane.URL
 	service.Configuration.CentralPlanePublishableKey = "publishable"

@@ -4,7 +4,7 @@ import { controlPlane } from '../src/lib/server/control-plane';
 
 type DeviceGroup = { id: string; name: string; parentID?: string };
 type DeviceRecord = {
-	userID: string;
+	memberID: string;
 	name?: string;
 	email: string;
 	hireDate?: string;
@@ -45,7 +45,7 @@ const memberByEmail = new Map((members ?? []).map((member) => [member.email ?? '
 const memberByDeviceUser = new Map(
 	records
 		.filter((record) => memberByEmail.has(record.email))
-		.map((record) => [record.userID, memberByEmail.get(record.email)!])
+		.map((record) => [record.memberID, memberByEmail.get(record.email)!])
 );
 
 const { data: teams, error: teamError } = await client.from('team').select('id, name').eq('company_id', companyID);

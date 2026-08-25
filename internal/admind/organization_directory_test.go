@@ -52,7 +52,7 @@ func TestOrganizationDirectoryListsVisibleProfilesForStaff(t *testing.T) {
 	}
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{
 		{
-			UserID:                "user-ada",
+			MemberID:              "user-ada",
 			Email:                 "ada@example.com",
 			JobTitle:              "Engineering Lead",
 			GroupID:               "engineering",
@@ -61,7 +61,7 @@ func TestOrganizationDirectoryListsVisibleProfilesForStaff(t *testing.T) {
 			IsOrganizationVisible: true,
 		},
 		{
-			UserID:                "user-grace",
+			MemberID:              "user-grace",
 			Email:                 "grace@example.com",
 			JobTitle:              "Backend Engineer",
 			GroupID:               "engineering",
@@ -71,13 +71,13 @@ func TestOrganizationDirectoryListsVisibleProfilesForStaff(t *testing.T) {
 			IsOrganizationVisible: true,
 		},
 		{
-			UserID:                "user-hidden",
+			MemberID:              "user-hidden",
 			Email:                 "hidden@example.com",
 			EmploymentStatus:      organizationEmploymentStatusActive,
 			IsOrganizationVisible: false,
 		},
 		{
-			UserID:                "user-resigned",
+			MemberID:              "user-resigned",
 			Email:                 "resigned@example.com",
 			EmploymentStatus:      organizationEmploymentStatusResigned,
 			IsOrganizationVisible: true,
@@ -129,7 +129,7 @@ func TestOrganizationDirectoryListsVisibleProfilesForStaff(t *testing.T) {
 	if len(response.Records) != 2 {
 		t.Fatalf("records = %#v; want visible active user records", response.Records)
 	}
-	if response.Records[0].UserID != "user-ada" || response.Records[1].UserID != "user-grace" {
+	if response.Records[0].MemberID != "user-ada" || response.Records[1].MemberID != "user-grace" {
 		t.Fatalf("record order = %#v; want ada then grace", response.Records)
 	}
 	if len(response.AvailableGroups) != 1 || response.AvailableGroups[0].ID != "engineering" {
@@ -149,7 +149,7 @@ func assertOrganizationDirectoryContract(t *testing.T, responseBody []byte) {
 		t.Fatal(errorValue)
 	}
 	allowedRecordKeys := map[string]bool{
-		"userID": true, "handle": true, "name": true, "email": true, "image": true,
+		"memberID": true, "handle": true, "name": true, "email": true, "image": true,
 		"hireDate": true, "jobTitle": true, "groupID": true,
 		"groupIDs": true, "supervisorID": true,
 	}

@@ -79,9 +79,9 @@
 	}
 
 	function responsibility(record: UserRecord): { isCompanyWide: boolean; label: string; class: string } | undefined {
-		if (record.userID === section.companyResponsibleUserID)
+		if (record.memberID === section.companyResponsibleUserID)
 			return { isCompanyWide: true, label: text.companyRepresentative, class: 'bg-blue-500 text-white dark:bg-blue-600' };
-		if (record.userID === section.responsibleUserID)
+		if (record.memberID === section.responsibleUserID)
 			return { isCompanyWide: false, label: text.responsible, class: 'bg-emerald-500 text-white dark:bg-emerald-600' };
 		return undefined;
 	}
@@ -133,13 +133,13 @@
 		style={`padding-left: ${depth * 16 + 36}px`}
 		data-testid={`organization-members-${section.id || 'root'}`}
 	>
-		{#each section.records as record (record.userID)}
+		{#each section.records as record (record.memberID)}
 			{@const leadership = responsibility(record)}
 			<Item.Root
 				variant="outline"
 				class={[
 					'bg-card hover:bg-accent/40 relative flex-col items-center gap-2 px-4 pt-7 pb-2 text-center',
-					selectedUserID === record.userID && 'shadow-lg'
+					selectedUserID === record.memberID && 'shadow-lg'
 				]}
 			>
 				<div class="absolute top-2 left-2 z-10 grid justify-items-start gap-1">
@@ -171,9 +171,9 @@
 					type="button"
 					class="grid w-full justify-items-center gap-2"
 					onclick={() => selectRecord(record)}
-					data-testid={`organization-person-node-${record.userID}`}
+					data-testid={`organization-person-node-${record.memberID}`}
 				>
-					<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-20" />
+					<PersonAvatar name={record.name} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-20" />
 					<span class="grid w-full gap-0.5 text-center">
 						<span class="truncate text-sm leading-snug font-medium">{personLabel(record)}</span>
 						<span class="text-muted-foreground truncate text-xs leading-normal">{record.jobTitle || text.noTitle}</span>

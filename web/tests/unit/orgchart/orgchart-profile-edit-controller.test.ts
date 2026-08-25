@@ -13,7 +13,7 @@ import {
 
 function userRecord(overrides: Partial<UserRecord>): UserRecord {
 	return {
-		userID: '',
+		memberID: '',
 		handle: '',
 		name: '',
 		email: '',
@@ -25,7 +25,7 @@ describe('organization profile edit controller', () => {
 	test('preserves the organization membership while normalizing directory records', () => {
 		const [record] = normalizedOrganizationRecords([
 			userRecord({
-				userID: 'ceo',
+				memberID: 'ceo',
 				groupID: 'leadership'
 			})
 		]) ?? [];
@@ -35,7 +35,7 @@ describe('organization profile edit controller', () => {
 
 	test('tracks a copied editing draft against original profile snapshots', () => {
 		const record = userRecord({
-			userID: 'dabin',
+			memberID: 'dabin',
 			email: 'dabin@example.com',
 			jobTitle: '프론트엔드 개발자',
 			groupID: 'product'
@@ -48,7 +48,7 @@ describe('organization profile edit controller', () => {
 		expect(record.jobTitle).toBe('프론트엔드 개발자');
 		expect(hasUnsavedOrganizationProfileEdits(editingRecords, originalProfiles)).toBe(true);
 		expect(organizationProfileSavePayload(editingRecords.dabin)).toEqual({
-			userID: 'dabin',
+			memberID: 'dabin',
 			email: 'dabin@example.com',
 			jobTitle: '제품 개발자',
 			groupID: 'product',
@@ -60,8 +60,8 @@ describe('organization profile edit controller', () => {
 
 	test('removes editing and saving entries by user id', () => {
 		const editingRecords = {
-			dabin: userRecord({ userID: 'dabin' }),
-			junho: userRecord({ userID: 'junho' })
+			dabin: userRecord({ memberID: 'dabin' }),
+			junho: userRecord({ memberID: 'junho' })
 		};
 		const savingRecords = markOrganizationProfileSaving({}, 'dabin');
 

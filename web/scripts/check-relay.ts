@@ -51,9 +51,9 @@ function aMessengerNobodyRuns(port: number) {
 				]);
 			}
 			if (path.endsWith('/tokens')) {
-				const userID = path.split('/')[4];
-				minted.push(userID);
-				return Response.json({ token: `personal-${userID}` });
+				const memberID = path.split('/')[4];
+				minted.push(memberID);
+				return Response.json({ token: `personal-${memberID}` });
 			}
 			return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
 		}

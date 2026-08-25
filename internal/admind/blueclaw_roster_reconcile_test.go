@@ -31,8 +31,8 @@ func rosterPolicyEmails(policyDocument map[string]any) []string {
 func TestRosterReconcileAdoptsDirectoryRecords(t *testing.T) {
 	policyDocument := rosterPolicyWithEmails("member@example.com")
 	records := []adminUserMutation{
-		{UserID: "user-1", Email: "member@example.com", Name: "Member", Role: "member"},
-		{UserID: "user-2", Email: "Newcomer@Example.com", Name: "Newcomer", Role: "admin"},
+		{MemberID: "user-1", Email: "member@example.com", Name: "Member", Role: "member"},
+		{MemberID: "user-2", Email: "Newcomer@Example.com", Name: "Newcomer", Role: "admin"},
 	}
 
 	reconcileRosterPeople(policyDocument, records, nil)
@@ -53,7 +53,7 @@ func TestRosterReconcileAdoptsDirectoryRecords(t *testing.T) {
 
 func TestRosterReconcileDropsPeopleTheDirectoryNoLongerKnows(t *testing.T) {
 	policyDocument := rosterPolicyWithEmails("member@example.com", "departed@example.com")
-	records := []adminUserMutation{{UserID: "user-1", Email: "member@example.com", Role: "member"}}
+	records := []adminUserMutation{{MemberID: "user-1", Email: "member@example.com", Role: "member"}}
 
 	reconcileRosterPeople(policyDocument, records, nil)
 
@@ -68,7 +68,7 @@ func TestRosterReconcileDropsPeopleTheDirectoryNoLongerKnows(t *testing.T) {
 
 func TestRosterReconcileKeepsTheAdminEmailAndLocalTestPeople(t *testing.T) {
 	policyDocument := rosterPolicyWithEmails("owner@example.com", "probe@internkim.test", "departed@example.com")
-	records := []adminUserMutation{{UserID: "user-1", Email: "member@example.com", Role: "member"}}
+	records := []adminUserMutation{{MemberID: "user-1", Email: "member@example.com", Role: "member"}}
 
 	reconcileRosterPeople(policyDocument, records, []string{"owner@example.com"})
 
@@ -113,7 +113,7 @@ func TestReconcileBlueclawRosterDeliversTheRosterFromTheHost(t *testing.T) {
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
-			return jsonResponse(http.StatusOK, `{"revision":"7","records":[{"userID":"user-1","email":"member@example.com","name":"Member","role":"member"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"revision":"7","records":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member"}]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, `{"people":[{"personID":"person-old","emails":["departed@example.com"]},{"personID":"person-owner","emails":["owner@example.com"]}]}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/reload":
@@ -164,7 +164,7 @@ func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
-			return jsonResponse(http.StatusOK, `{"revision":"7","records":[{"userID":"user-1","email":"member@example.com","name":"Member","role":"member"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"revision":"7","records":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member"}]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, settledPolicy, nil), nil
 		default:

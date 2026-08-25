@@ -41,7 +41,7 @@
 			jobTitle: record.jobTitle ?? '',
 			email: record.email,
 			image: record.image ?? '',
-			seed: record.userID
+			seed: record.memberID
 		}))
 	]);
 	const organizationOptions = $derived([
@@ -235,8 +235,8 @@
 					isSaving={controller.isSavingSelectedProfile}
 					hasInvalidSupervisor={controller.hasInvalidSelectedSupervisor}
 					onEdit={() => controller.selectedRecord && controller.editRecord(controller.selectedRecord)}
-					onSave={() => controller.selectedRecord && controller.saveProfile(controller.selectedRecord.userID)}
-					onCancel={() => controller.selectedRecord && controller.cancelProfileEdit(controller.selectedRecord.userID)}
+					onSave={() => controller.selectedRecord && controller.saveProfile(controller.selectedRecord.memberID)}
+					onCancel={() => controller.selectedRecord && controller.cancelProfileEdit(controller.selectedRecord.memberID)}
 				/>
 			</Sheet.Content>
 		</Sheet.Root>

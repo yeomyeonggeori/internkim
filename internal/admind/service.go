@@ -64,6 +64,7 @@ type Configuration struct {
 	AttendanceDatabasePath         string
 	CentralPlaneAppURL             string
 	CentralPlaneAgentKeyPath       string
+	CentralPlaneAppURLPath         string
 	CentralPlaneProjectURL         string
 	CentralPlanePublishableKey     string
 	BridgeMapDatabasePath          string
@@ -122,6 +123,8 @@ type Service struct {
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
 	mutex                              sync.Mutex
+	centralPlaneOnce                   sync.Once
+	centralPlaneClient                 *centralplane.Client
 	mattermostAdminSessionMutex        sync.Mutex
 	mattermostAdminSession             mattermostAdminSession
 	jobs                               map[string]*Job
@@ -329,6 +332,7 @@ func DefaultConfiguration() Configuration {
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
 		APIURLPath:                     "/root/.internkim/env/api-url",
 		CentralPlaneAgentKeyPath:       "/root/.internkim/secrets/central-plane-agent-key",
+		CentralPlaneAppURLPath:         "/root/.internkim/env/central-plane-app-url",
 		CentralPlaneProjectURL:         centralplane.DefaultProjectURL,
 		CentralPlanePublishableKey:     centralplane.DefaultPublishableKey,
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
@@ -1156,30 +1160,10 @@ func userIDFromAdminUsersResponse(responseBody []byte, email string) string {
 	}
 	for _, record := range responseDocument.Records {
 		if strings.EqualFold(record.Email, email) {
-			return strings.TrimSpace(record.UserID)
+			return strings.TrimSpace(record.MemberID)
 		}
 	}
 	return ""
-}
-
-func (service *Service) userIDForAdminUserMutation(ctx context.Context, fleetID string, fleetSecret string, payload adminUserMutation) (string, error) {
-	if userID := strings.TrimSpace(payload.UserID); userID != "" {
-		return userID, nil
-	}
-	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	for _, record := range records {
-		if strings.EqualFold(record.Email, payload.Email) && strings.TrimSpace(record.UserID) != "" {
-			return strings.TrimSpace(record.UserID), nil
-		}
-	}
-	return newInternKimUserID(), nil
-}
-
-func newInternKimUserID() string {
-	return "user-" + randomHex(16)
 }
 
 const (
@@ -2749,6 +2733,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.APIBaseURL == "" {
 		configuration.APIBaseURL = strings.TrimSpace(readTrimmedFile(configuration.APIURLPath))
+	}
+	if configuration.CentralPlaneAppURLPath == "" {
+		configuration.CentralPlaneAppURLPath = defaultConfiguration.CentralPlaneAppURLPath
 	}
 	if configuration.CentralPlaneAgentKeyPath == "" {
 		configuration.CentralPlaneAgentKeyPath = defaultConfiguration.CentralPlaneAgentKeyPath

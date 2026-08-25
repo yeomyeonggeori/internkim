@@ -513,19 +513,19 @@ func newCRMHTTPTestService(t *testing.T) *Service {
 		AdminEmailPath: writeTestFile(t, "admin@example.com"),
 	})
 	profiles := []organizationProfile{
-		{UserID: "person-owner", Email: "owner@example.com", GroupID: "team-sales", EmploymentStatus: "active"},
-		{UserID: "person-teammate", Email: "teammate@example.com", GroupID: "team-sales", EmploymentStatus: "active"},
-		{UserID: "person-other", Email: "other@example.com", GroupID: "team-other", EmploymentStatus: "active"},
-		{UserID: "person-admin", Email: "admin@example.com", GroupID: "team-admin", EmploymentStatus: "active"},
+		{MemberID: "person-owner", Email: "owner@example.com", GroupID: "team-sales", EmploymentStatus: "active"},
+		{MemberID: "person-teammate", Email: "teammate@example.com", GroupID: "team-sales", EmploymentStatus: "active"},
+		{MemberID: "person-other", Email: "other@example.com", GroupID: "team-other", EmploymentStatus: "active"},
+		{MemberID: "person-admin", Email: "admin@example.com", GroupID: "team-admin", EmploymentStatus: "active"},
 	}
 	if errorValue := service.writeOrganizationProfiles(t.Context(), profiles); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	service.storePolicyUserRecords([]adminUserMutation{
-		{UserID: "person-owner", Email: "owner@example.com", Circles: []string{"staff", "team-sales"}, Status: "active"},
-		{UserID: "person-teammate", Email: "teammate@example.com", Circles: []string{"staff", "team-sales"}, Status: "active"},
-		{UserID: "person-other", Email: "other@example.com", Circles: []string{"staff", "team-other"}, Status: "active"},
-		{UserID: "person-admin", Email: "admin@example.com", Circles: []string{"staff", "team-admin"}, Status: "active"},
+		{MemberID: "person-owner", Email: "owner@example.com", Circles: []string{"staff", "team-sales"}, Status: "active"},
+		{MemberID: "person-teammate", Email: "teammate@example.com", Circles: []string{"staff", "team-sales"}, Status: "active"},
+		{MemberID: "person-other", Email: "other@example.com", Circles: []string{"staff", "team-other"}, Status: "active"},
+		{MemberID: "person-admin", Email: "admin@example.com", Circles: []string{"staff", "team-admin"}, Status: "active"},
 	})
 	return service
 }

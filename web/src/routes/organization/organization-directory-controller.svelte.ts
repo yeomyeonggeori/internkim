@@ -55,10 +55,10 @@ export class OrganizationDirectoryController {
 	organizationEdit = new OrganizationOrganizationEditController();
 
 	options = $derived(organizationFilterOptions(this.records, this.groups));
-	selectedRecord = $derived(this.records.find((record) => record.userID === this.selectedUserID));
-	selectedEditingRecord = $derived(this.selectedRecord ? this.editingRecordsByUserID[this.selectedRecord.userID] : undefined);
-	selectedRecordIsEditing = $derived(Boolean(this.selectedRecord && this.editingUserID === this.selectedRecord.userID && this.selectedEditingRecord));
-	isSavingSelectedProfile = $derived(this.selectedRecord ? this.isSavingProfile(this.selectedRecord.userID) : false);
+	selectedRecord = $derived(this.records.find((record) => record.memberID === this.selectedUserID));
+	selectedEditingRecord = $derived(this.selectedRecord ? this.editingRecordsByUserID[this.selectedRecord.memberID] : undefined);
+	selectedRecordIsEditing = $derived(Boolean(this.selectedRecord && this.editingUserID === this.selectedRecord.memberID && this.selectedEditingRecord));
+	isSavingSelectedProfile = $derived(this.selectedRecord ? this.isSavingProfile(this.selectedRecord.memberID) : false);
 	hasInvalidSelectedSupervisor = $derived(this.selectedEditingRecord ? this.hasInvalidSupervisor(this.selectedEditingRecord) : false);
 
 	private adminBaseURL: string;
@@ -145,7 +145,7 @@ export class OrganizationDirectoryController {
 		try {
 			const saved = await saveOwnOrganizationProfile(profile);
 			this.records = this.records.map((candidate) =>
-				candidate.userID === record.userID ? { ...candidate, ...saved } : candidate
+				candidate.memberID === record.memberID ? { ...candidate, ...saved } : candidate
 			);
 			this.errorMessage = '';
 		} catch (error) {
@@ -169,13 +169,13 @@ export class OrganizationDirectoryController {
 
 	selectRecord(record: UserRecord): void {
 		if (this.organizationEdit.isEditing) return;
-		if (this.editingUserID && this.editingUserID !== record.userID && this.hasUnsavedProfileEdits()) {
+		if (this.editingUserID && this.editingUserID !== record.memberID && this.hasUnsavedProfileEdits()) {
 			this.errorMessage = this.adminPageText.organization.unsavedChanges;
 			return;
 		}
-		if (this.editingUserID && this.editingUserID !== record.userID) this.cancelProfileEdit(this.editingUserID);
+		if (this.editingUserID && this.editingUserID !== record.memberID) this.cancelProfileEdit(this.editingUserID);
 		this.errorMessage = '';
-		this.selectedUserID = record.userID;
+		this.selectedUserID = record.memberID;
 	}
 
 	clearSelection(): void {
@@ -190,34 +190,34 @@ export class OrganizationDirectoryController {
 	editRecord(record: UserRecord): void {
 		if (!this.canManage) return;
 		this.errorMessage = '';
-		this.selectedUserID = record.userID;
-		this.editingUserID = record.userID;
+		this.selectedUserID = record.memberID;
+		this.editingUserID = record.memberID;
 		this.editingRecordsByUserID = beginOrganizationProfileEdit(this.editingRecordsByUserID, record);
 	}
 
-	cancelProfileEdit(userID: string): void {
+	cancelProfileEdit(memberID: string): void {
 		this.errorMessage = '';
-		this.removeEditingRecord(userID);
-		if (this.editingUserID === userID) this.editingUserID = '';
+		this.removeEditingRecord(memberID);
+		if (this.editingUserID === memberID) this.editingUserID = '';
 	}
 
-	async saveProfile(userID: string): Promise<void> {
-		const record = this.editingRecordsByUserID[userID];
-		if (!record || !this.canManage || this.isSavingProfile(userID) || this.hasInvalidSupervisor(record)) return;
+	async saveProfile(memberID: string): Promise<void> {
+		const record = this.editingRecordsByUserID[memberID];
+		if (!record || !this.canManage || this.isSavingProfile(memberID) || this.hasInvalidSupervisor(record)) return;
 		if (!this.isChanged(record)) {
-			this.cancelProfileEdit(userID);
+			this.cancelProfileEdit(memberID);
 			return;
 		}
-		this.savingProfileUserIDs = markOrganizationProfileSaving(this.savingProfileUserIDs, userID);
+		this.savingProfileUserIDs = markOrganizationProfileSaving(this.savingProfileUserIDs, memberID);
 		this.errorMessage = '';
 		try {
 			this.applyUsersResponse(await saveOrgProfiles(this.adminBaseURL, [organizationProfileSavePayload(record)], this.adminPageText.messages.userSaveError));
-			this.removeEditingRecord(userID);
+			this.removeEditingRecord(memberID);
 			this.editingUserID = '';
 		} catch (error) {
 			this.errorMessage = apiErrorMessage(error, this.adminPageText.messages.userSaveError);
 		} finally {
-			this.savingProfileUserIDs = clearOrganizationProfileSaving(this.savingProfileUserIDs, userID);
+			this.savingProfileUserIDs = clearOrganizationProfileSaving(this.savingProfileUserIDs, memberID);
 		}
 	}
 
@@ -286,8 +286,8 @@ export class OrganizationDirectoryController {
 		return isOrganizationProfileChanged(record, this.originalProfiles);
 	}
 
-	private isSavingProfile(userID: string): boolean {
-		return isOrganizationProfileSaving(this.savingProfileUserIDs, userID);
+	private isSavingProfile(memberID: string): boolean {
+		return isOrganizationProfileSaving(this.savingProfileUserIDs, memberID);
 	}
 
 	private hasInvalidSupervisor(record: UserRecord): boolean {
@@ -298,8 +298,8 @@ export class OrganizationDirectoryController {
 		return hasUnsavedOrganizationProfileEdits(this.editingRecordsByUserID, this.originalProfiles);
 	}
 
-	private removeEditingRecord(userID: string): void {
-		this.editingRecordsByUserID = removeOrganizationProfileEdit(this.editingRecordsByUserID, userID);
+	private removeEditingRecord(memberID: string): void {
+		this.editingRecordsByUserID = removeOrganizationProfileEdit(this.editingRecordsByUserID, memberID);
 	}
 
 	private async addGroup(name: string, parentID: string): Promise<string> {

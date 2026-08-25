@@ -6,12 +6,12 @@ export function copyUserRecord(record: UserRecord): UserRecord {
 
 export function reconcileEditingRecords(editingRecords: Record<string, UserRecord>, responseRecords: UserRecord[], availableGroups: OrgGroup[]): Record<string, UserRecord> {
 	const availableGroupIDs = new Set(availableGroups.map((group) => group.id));
-	const responseRecordsByUserID = new Map(responseRecords.map((record) => [record.userID, record]));
+	const responseRecordsByUserID = new Map(responseRecords.map((record) => [record.memberID, record]));
 	return Object.fromEntries(
-		Object.entries(editingRecords).map(([userID, editingRecord]) => {
-			const responseRecord = responseRecordsByUserID.get(userID);
-			if (!responseRecord) return [userID, editingRecord];
-			return [userID, reconcileEditingRecordGroup(editingRecord, responseRecord, availableGroupIDs)];
+		Object.entries(editingRecords).map(([memberID, editingRecord]) => {
+			const responseRecord = responseRecordsByUserID.get(memberID);
+			if (!responseRecord) return [memberID, editingRecord];
+			return [memberID, reconcileEditingRecordGroup(editingRecord, responseRecord, availableGroupIDs)];
 		})
 	);
 }

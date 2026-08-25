@@ -51,15 +51,15 @@ func changedOrganizationUserIdentities(previous []adminUserMutation, current []a
 	for key, previousRecord := range previousByKey {
 		currentRecord, found := currentByKey[key]
 		if !found || !reflect.DeepEqual(previousRecord, currentRecord) {
-			identities = append(identities, organizationPersonIdentity{UserID: previousRecord.UserID, Email: previousRecord.Email})
+			identities = append(identities, organizationPersonIdentity{MemberID: previousRecord.MemberID, Email: previousRecord.Email})
 			if found {
-				identities = append(identities, organizationPersonIdentity{UserID: currentRecord.UserID, Email: currentRecord.Email})
+				identities = append(identities, organizationPersonIdentity{MemberID: currentRecord.MemberID, Email: currentRecord.Email})
 			}
 		}
 	}
 	for key, currentRecord := range currentByKey {
 		if _, found := previousByKey[key]; !found {
-			identities = append(identities, organizationPersonIdentity{UserID: currentRecord.UserID, Email: currentRecord.Email})
+			identities = append(identities, organizationPersonIdentity{MemberID: currentRecord.MemberID, Email: currentRecord.Email})
 		}
 	}
 	return identities
@@ -68,7 +68,7 @@ func changedOrganizationUserIdentities(previous []adminUserMutation, current []a
 func organizationUsersByIdentityKey(records []adminUserMutation) map[string]adminUserMutation {
 	result := make(map[string]adminUserMutation, len(records))
 	for _, record := range records {
-		if key, found := organizationPersonCacheKey(record.UserID, record.Email); found {
+		if key, found := organizationPersonCacheKey(record.MemberID, record.Email); found {
 			result[key.Key] = record
 		}
 	}
@@ -86,7 +86,7 @@ func organizationUserMutationCacheKeys(identities []organizationPersonIdentity) 
 func invalidateOrganizationProfiles(ctx context.Context, transaction *sql.Tx, profiles []organizationProfile) error {
 	keys := make([]organizationPeopleCacheKey, 0, len(profiles)*2)
 	for _, profile := range profiles {
-		keys = append(keys, organizationPersonCacheKeys(organizationPersonIdentity{UserID: profile.UserID, Email: profile.Email})...)
+		keys = append(keys, organizationPersonCacheKeys(organizationPersonIdentity{MemberID: profile.MemberID, Email: profile.Email})...)
 	}
 	return invalidateOrganizationPeopleCacheKeys(ctx, transaction, keys, false)
 }
@@ -157,7 +157,7 @@ func organizationProfileIdentitiesForGroups(ctx context.Context, transaction *sq
 	for rows.Next() {
 		var identity organizationPersonIdentity
 		var groupID string
-		if errorValue := rows.Scan(&identity.UserID, &identity.Email, &groupID); errorValue != nil {
+		if errorValue := rows.Scan(&identity.MemberID, &identity.Email, &groupID); errorValue != nil {
 			return nil, fmt.Errorf("scan organization profile for cache invalidation: %w", errorValue)
 		}
 		if _, found := changedGroupIDs[groupID]; found {

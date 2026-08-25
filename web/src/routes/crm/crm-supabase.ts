@@ -207,12 +207,12 @@ async function crmContext(): Promise<CRMContext> {
 	const client = supabase();
 	const session = await client.auth.getSession();
 	if (session.error) throwResultError(session.error);
-	const userID = session.data.session?.user.id;
-	if (!userID) throw new CRMApiError('sign in first', 401, 'unauthenticated');
+	const accountID = session.data.session?.user.id;
+	if (!accountID) throw new CRMApiError('sign in first', 401, 'unauthenticated');
 	const member = await client
 		.from('member')
 		.select('id, company_id')
-		.eq('user_id', userID)
+		.eq('user_id', accountID)
 		.single<{ id: string; company_id: string }>();
 	throwResultError(member.error);
 	const row = requiredData(member.data, 'member');

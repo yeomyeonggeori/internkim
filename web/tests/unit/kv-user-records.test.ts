@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { kv } from '../../src/lib/kv';
-import type { UserRecord } from '../../src/lib/types';
+import type { FleetUserRecord } from '../../src/lib/types';
 
 function createMemoryKV(): { namespace: KVNamespace; values: Map<string, string> } {
 	const values = new Map<string, string>();
@@ -23,8 +23,7 @@ function createMemoryKV(): { namespace: KVNamespace; values: Map<string, string>
 describe('user record normalization', () => {
 	test('preserves trimmed admin notes in fleet user records', async () => {
 		const { namespace, values } = createMemoryKV();
-		const record: UserRecord = {
-			userID: 'user-1',
+		const record: FleetUserRecord = {
 			handle: 'chanhee',
 			name: '최견본',
 			email: 'chanhee@example.com',
@@ -34,7 +33,7 @@ describe('user record normalization', () => {
 
 		await kv.putUserRecords(namespace, 'fleet-1', [record]);
 
-		const storedRecords = JSON.parse(values.get('fleet-users:fleet-1') ?? '[]') as UserRecord[];
+		const storedRecords = JSON.parse(values.get('fleet-users:fleet-1') ?? '[]') as FleetUserRecord[];
 		expect(storedRecords[0]?.note).toBe('HR compensation follow-up');
 		const loadedRecords = await kv.getUserRecords(namespace, 'fleet-1');
 		expect(loadedRecords).toMatchObject([

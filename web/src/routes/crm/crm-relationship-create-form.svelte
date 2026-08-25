@@ -62,7 +62,7 @@
 	}: Props = $props();
 	const organizationStatuses: CRMOrganizationStatus[] = ['prospect', 'active', 'paused'];
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
-	let selectedOwner = $derived(people.find((person) => person.userID === ownerPersonID));
+	let selectedOwner = $derived(people.find((person) => person.memberID === ownerPersonID));
 	let selectedTeam = $derived(groups.find((group) => group.id === selectedOwner?.groupID)?.name ?? '');
 
 	function setOrganizationType(organizationType: CRMOrganizationType, checked: boolean): void {

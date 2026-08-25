@@ -8,12 +8,12 @@ import {
 	organizationOrganizationTreeIndex
 } from '../../../src/routes/organization/organization-tree-model';
 
-function record(userID: string, groupID = '', fields: Partial<UserRecord> = {}): UserRecord {
+function record(memberID: string, groupID = '', fields: Partial<UserRecord> = {}): UserRecord {
 	return {
-		userID,
-		handle: userID,
-		name: userID,
-		email: `${userID}@example.com`,
+		memberID,
+		handle: memberID,
+		name: memberID,
+		email: `${memberID}@example.com`,
 		groupID,
 		...fields
 	};
@@ -32,7 +32,7 @@ describe('organization organization tree model', () => {
 		const tree = organizationOrganizationTree(groups, records, '전체 조직');
 
 		expect(tree.root.memberCount).toBe(5);
-		expect(tree.root.directRecords.map((item) => item.userID)).toEqual(['ceo']);
+		expect(tree.root.directRecords.map((item) => item.memberID)).toEqual(['ceo']);
 		expect(tree.nodes.map((node) => [node.id, node.depth, node.memberCount])).toEqual([
 			['product', 0, 3],
 			['engineering', 1, 1],
@@ -53,8 +53,8 @@ describe('organization organization tree model', () => {
 		const tree = organizationOrganizationTree(groups, records, '전체 조직');
 		const engineering = tree.nodes.find((node) => node.id === 'engineering');
 
-		expect(engineering?.directRecords.map((item) => item.userID)).toEqual(['leader', 'member', 'manager', 'report']);
-		expect(tree.root.aggregateRecords.map((item) => item.userID)).toEqual(['leader', 'member', 'manager', 'report']);
+		expect(engineering?.directRecords.map((item) => item.memberID)).toEqual(['leader', 'member', 'manager', 'report']);
+		expect(tree.root.aggregateRecords.map((item) => item.memberID)).toEqual(['leader', 'member', 'manager', 'report']);
 	});
 
 	test('orders a parent organization aggregate across child organizations by reporting hierarchy', () => {
@@ -70,7 +70,7 @@ describe('organization organization tree model', () => {
 		const tree = organizationOrganizationTree(groups, records, '전체 조직');
 		const product = tree.nodes.find((node) => node.id === 'product');
 
-		expect(product?.aggregateRecords.map((item) => item.userID)).toEqual(['manager', 'report']);
+		expect(product?.aggregateRecords.map((item) => item.memberID)).toEqual(['manager', 'report']);
 	});
 
 	test('moves an organization to a new parent while preserving its subtree', () => {

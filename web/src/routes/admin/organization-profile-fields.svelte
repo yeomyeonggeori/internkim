@@ -42,7 +42,7 @@
 	}
 
 	function supervisorLabel() {
-		const supervisor = userRecords.find((candidate) => candidate.userID === record.supervisorID);
+		const supervisor = userRecords.find((candidate) => candidate.memberID === record.supervisorID);
 		return supervisor ? personLabel(supervisor) : text.organization.none;
 	}
 
@@ -101,8 +101,8 @@
 			</Select.Trigger>
 			<Select.Content>
 				<Select.Item value={noSelectionValue} label={text.organization.none}>{text.organization.none}</Select.Item>
-				{#each supervisorOptions() as option (option.userID)}
-					<Select.Item value={option.userID} label={personLabel(option)}>{personLabel(option)}</Select.Item>
+				{#each supervisorOptions() as option (option.memberID)}
+					<Select.Item value={option.memberID} label={personLabel(option)}>{personLabel(option)}</Select.Item>
 				{/each}
 			</Select.Content>
 		</Select.Root>

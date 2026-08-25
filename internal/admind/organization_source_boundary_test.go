@@ -4,7 +4,7 @@ import "testing"
 
 func TestFleetAccountUpsertPayloadCarriesNoOrganizationFields(t *testing.T) {
 	payload := fleetAccountUpsertPayload(adminUserMutation{
-		UserID:      "user-member",
+		MemberID:    "user-member",
 		Email:       "member@example.com",
 		HireDate:    "2026-01-02",
 		JobTitle:    "Product Manager",

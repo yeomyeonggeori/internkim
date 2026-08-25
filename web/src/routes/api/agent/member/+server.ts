@@ -44,3 +44,47 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 		}
 	});
 };
+
+export const POST: RequestHandler = async ({ request, platform }) => {
+	const { client, companyID } = await callingAgent(request, environmentOf(platform));
+
+	const asked = (await request.json().catch(() => ({}))) as { email?: unknown; name?: unknown };
+	const email = typeof asked.email === 'string' ? asked.email.trim().toLowerCase() : '';
+	if (!email) error(400, 'email required');
+	const name = typeof asked.name === 'string' ? asked.name.trim() : '';
+
+	const existing = await client
+		.from('member')
+		.select('id, email, is_admin, status, company_id')
+		.eq('email', email)
+		.maybeSingle();
+	if (existing.error) return json({ error: existing.error.message }, { status: 502 });
+	if (existing.data && existing.data.company_id !== companyID) error(409, 'that address belongs to another company');
+	if (existing.data) {
+		if (name) await client.from('member').update({ name }).eq('id', existing.data.id);
+		return json({
+			member: {
+				memberID: existing.data.id,
+				email,
+				role: existing.data.is_admin ? 'admin' : 'member',
+				status: existing.data.status
+			}
+		});
+	}
+
+	const created = await client
+		.from('member')
+		.insert({ company_id: companyID, email, ...(name ? { name } : {}) })
+		.select('id, is_admin, status')
+		.single();
+	if (created.error) return json({ error: created.error.message }, { status: 502 });
+
+	return json({
+		member: {
+			memberID: created.data.id,
+			email,
+			role: created.data.is_admin ? 'admin' : 'member',
+			status: created.data.status
+		}
+	});
+};

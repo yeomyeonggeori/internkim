@@ -22,7 +22,7 @@ func TestMemoryAPIUsesMattermostSessionUserGraph(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
 		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/memory/graph" && request.Method == http.MethodGet {
 			if request.URL.Query().Get("readerPersonID") != "user:person-1" {
@@ -66,7 +66,7 @@ func TestMemoryAPIUsesMattermostSessionUserSchedules(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
 		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/task-schedules" && request.Method == http.MethodGet {
 			if request.URL.Query().Get("creatorPersonID") != "user:person-1" {
@@ -163,7 +163,7 @@ func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
 		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/task-schedules/cancel" && request.Method == http.MethodPost {
 			var payload struct {
@@ -210,7 +210,7 @@ func TestMemoryAPIDeleteScheduleInjectsResolvedPersonID(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
 		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/task-schedules/delete" && request.Method == http.MethodPost {
 			var payload struct {
@@ -257,7 +257,7 @@ func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
 		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/task-schedules/update" && request.Method == http.MethodPost {
 			var payload struct {
@@ -307,7 +307,7 @@ func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/memory/pinned/update" && request.Method == http.MethodPost {
 			var payload struct {
@@ -354,7 +354,7 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
 		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/task-schedules" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `private backend detail`, nil), nil
@@ -395,7 +395,7 @@ func TestMemoryAPIGraphHidesUpstreamFailureDetails(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
 		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/memory/graph" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `Traceback /workspace/.blueclaw/private.py`, nil), nil

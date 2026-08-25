@@ -2,7 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isNodeRequest, normalizeFleetID } from '$lib/device-auth';
 import { adminEmails, kv, userEmails } from '$lib/kv';
-import type { Device, UserRecord } from '$lib/types';
+import type { Device, FleetUserRecord } from '$lib/types';
 
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
@@ -18,7 +18,7 @@ function normalizeEmail(email: string): string {
 	return email.trim().toLowerCase();
 }
 
-async function usersRevision(records: UserRecord[]): Promise<string> {
+async function usersRevision(records: FleetUserRecord[]): Promise<string> {
 	const encodedUsers = new TextEncoder().encode(JSON.stringify(records));
 	const digest = await crypto.subtle.digest('SHA-256', encodedUsers);
 	return Array.from(new Uint8Array(digest))

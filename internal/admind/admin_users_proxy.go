@@ -38,12 +38,12 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		}
 		removedUser = userRecord
 		if removedUser != nil {
-			identity, errorValue := service.resolveLocalOrganizationRemovalIdentity(request.Context(), removedUser.Email, removedUser.UserID)
+			identity, errorValue := service.resolveLocalOrganizationRemovalIdentity(request.Context(), removedUser.Email, removedUser.MemberID)
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 				return
 			}
-			organizationMutationIdentities = organizationProxyMutationIdentities(removedUser.UserID, identity)
+			organizationMutationIdentities = organizationProxyMutationIdentities(removedUser.MemberID, identity)
 			organizationMutation, errorValue = service.startOrganizationUserMutation(request.Context(), organizationMutationIdentities)
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -88,18 +88,13 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		}
 		hasExplicitCircleMutation = explicitCircleMutation
 		payload.HireDate = strings.TrimSpace(payload.HireDate)
-		userID, errorValue := service.userIDForAdminUserMutation(request.Context(), fleetID, fleetSecret, payload)
+		claimedMemberID := payload.MemberID
+		payload, identity, errorValue := service.resolveLocalOrganizationMutationIdentity(request.Context(), payload)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
 		}
-		payload.UserID = userID
-		_, identity, errorValue := service.resolveLocalOrganizationMutationIdentity(request.Context(), payload)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-			return
-		}
-		upsertedBlueclawUserID = identity.UserID
+		upsertedBlueclawUserID = identity.MemberID
 		upsertedEmail = payload.Email
 		upsertedName = payload.Name
 		upsertedHireDate = payload.HireDate
@@ -118,7 +113,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			}
 		}
 		payload.Circles = normalizeAdminUserCircles(payload.Circles, payload.Role)
-		upsertedUserID = strings.TrimSpace(payload.UserID)
+		upsertedUserID = strings.TrimSpace(payload.MemberID)
 		upsertedRole = payload.Role
 		upsertedCircles = append([]string{}, payload.Circles...)
 		isLastAdminDemotion, errorValue := service.isLastAdminDemotion(request.Context(), fleetID, fleetSecret, payload.Email, payload.Role)
@@ -130,7 +125,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			http.Error(responseWriter, "cannot demote the last admin user", http.StatusBadRequest)
 			return
 		}
-		organizationMutationIdentities = organizationProxyMutationIdentities(payload.UserID, identity)
+		organizationMutationIdentities = organizationProxyMutationIdentities(claimedMemberID, identity)
 		organizationMutation, errorValue = service.startOrganizationUserMutation(request.Context(), organizationMutationIdentities)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -275,7 +270,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 
 func fleetAccountUpsertPayload(payload adminUserMutation, fleetID string) map[string]any {
 	return map[string]any{
-		"userID":             payload.UserID,
 		"handle":             payload.Handle,
 		"name":               payload.Name,
 		"note":               payload.Note,

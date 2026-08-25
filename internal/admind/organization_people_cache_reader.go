@@ -23,7 +23,7 @@ func (service *Service) applyOrganizationPeople(ctx context.Context, usersRespon
 	usersResponse.AvailableGroups = groups
 	keys := make([]organizationPeopleCacheKey, 0, len(usersResponse.Records))
 	for _, record := range usersResponse.Records {
-		if key, found := organizationPersonCacheKey(record.UserID, record.Email); found {
+		if key, found := organizationPersonCacheKey(record.MemberID, record.Email); found {
 			keys = append(keys, key)
 		}
 	}
@@ -46,7 +46,7 @@ func (service *Service) applyOrganizationPeople(ctx context.Context, usersRespon
 	writes := make([]organizationPeopleCacheWrite, 0, len(usersResponse.Records))
 	for index := range usersResponse.Records {
 		record := usersResponse.Records[index]
-		key, hasKey := organizationPersonCacheKey(record.UserID, record.Email)
+		key, hasKey := organizationPersonCacheKey(record.MemberID, record.Email)
 		if hasKey && cachePolicy.CanUsePersonCache {
 			if cachedPerson, found := cachedPeopleByKey[key]; found {
 				usersResponse.Records[index] = applyOrganizationCachedUserRecord(record, cachedPerson.Record)
@@ -93,7 +93,7 @@ func cachedOrganizationPeopleForRecords(records []adminUserMutation, snapshots m
 	cachedPeopleByKey := make(map[organizationPeopleCacheKey]organizationCachedPerson, len(records))
 	needsProfiles := false
 	for _, record := range records {
-		key, found := organizationPersonCacheKey(record.UserID, record.Email)
+		key, found := organizationPersonCacheKey(record.MemberID, record.Email)
 		if !found {
 			needsProfiles = true
 			continue
@@ -112,8 +112,8 @@ func indexCachedOrganizationProfile(profile *organizationProfile, profilesByUser
 	if profile == nil {
 		return
 	}
-	if profile.UserID != "" {
-		profilesByUserID[profile.UserID] = *profile
+	if profile.MemberID != "" {
+		profilesByUserID[profile.MemberID] = *profile
 	}
 	if profile.Email != "" {
 		profilesByEmail[profile.Email] = *profile

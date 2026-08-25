@@ -77,7 +77,7 @@
 	function directSupervisorLabel(person: UserRecord): string {
 		const supervisorID = person.supervisorID?.trim() ?? '';
 		if (!supervisorID) return text.noSupervisor;
-		const supervisor = userRecords.find((candidate) => candidate.userID === supervisorID);
+		const supervisor = userRecords.find((candidate) => candidate.memberID === supervisorID);
 		if (!supervisor) return text.noSupervisor;
 		return `${personLabel(supervisor)} · ${personTitle(supervisor)}`;
 	}
@@ -87,7 +87,7 @@
 	<div class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto]" data-testid="organization-person-detail-panel">
 		<Item.Root class="px-6 py-5">
 			<Item.Media>
-				<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-14" />
+				<PersonAvatar name={record.name} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-14" />
 			</Item.Media>
 			<Item.Content>
 				<Item.Title class="w-full truncate text-lg">{personLabel(record)}</Item.Title>
@@ -97,11 +97,11 @@
 
 		<div class="min-h-0 overflow-y-auto overscroll-contain px-6 py-5">
 			{#if !canEdit && canEditOwnProfile && ownProfileDraft}
-				<div class="grid gap-4" data-testid={`organization-own-profile-${record.userID}`}>
+				<div class="grid gap-4" data-testid={`organization-own-profile-${record.memberID}`}>
 					<div class="grid gap-2">
-						<Label for={`organization-own-phone-${record.userID}`} class="text-xs">{text.phoneNumber}</Label>
+						<Label for={`organization-own-phone-${record.memberID}`} class="text-xs">{text.phoneNumber}</Label>
 						<Input
-							id={`organization-own-phone-${record.userID}`}
+							id={`organization-own-phone-${record.memberID}`}
 							bind:value={ownProfileDraft.phoneNumber}
 							autocomplete="tel"
 							inputmode="tel"
@@ -109,9 +109,9 @@
 						/>
 					</div>
 					<div class="grid gap-2">
-						<Label for={`organization-own-hire-date-${record.userID}`} class="text-xs">{text.hireDate}</Label>
+						<Label for={`organization-own-hire-date-${record.memberID}`} class="text-xs">{text.hireDate}</Label>
 						<Input
-							id={`organization-own-hire-date-${record.userID}`}
+							id={`organization-own-hire-date-${record.memberID}`}
 							type="date"
 							bind:value={ownProfileDraft.hireDate}
 							disabled={isSavingOwnProfile}
@@ -119,7 +119,7 @@
 					</div>
 				</div>
 			{:else if isEditing && localEditingRecord && adminText}
-				<div class="grid gap-4" data-testid={`organization-profile-${localEditingRecord.userID}`}>
+				<div class="grid gap-4" data-testid={`organization-profile-${localEditingRecord.memberID}`}>
 					<Item.Root variant="muted" size="sm">
 						<Item.Media variant="icon"><MailIcon /></Item.Media>
 						<Item.Content>

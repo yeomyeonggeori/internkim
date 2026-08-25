@@ -15,7 +15,7 @@ func TestLocalListUsersMergesOrganizationMetadata(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		UserID:                "user-member",
+		MemberID:              "user-member",
 		Email:                 "member@example.com",
 		JobTitle:              "Product Manager",
 		PositionLevel:         2,
@@ -124,10 +124,10 @@ func TestLocalUsersResponseBodyFallsBackWhenOrganizationMetadataFails(t *testing
 	})}
 
 	responseBody, errorValue := service.localUsersResponseBody(context.Background(), pagesUsersResponse{Records: []adminUserMutation{{
-		UserID: "user-member",
-		Email:  "member@example.com",
-		Name:   "Member User",
-		Role:   "member",
+		MemberID: "user-member",
+		Email:    "member@example.com",
+		Name:     "Member User",
+		Role:     "member",
 	}}})
 
 	if errorValue != nil {
