@@ -17,9 +17,13 @@ export async function notifyMember(
 	category: NotificationCategory,
 	notification: Notification,
 	vapid: VapidKeys,
-	nowInSeconds: number
+	nowInSeconds: number,
+	conversationID = ''
 ): Promise<Delivery> {
 	if (!(await wantsToBeTold(client, memberID, category))) {
+		return { reached: 0, pruned: 0, silent: true };
+	}
+	if (await hasMuted(client, memberID, conversationID)) {
 		return { reached: 0, pruned: 0, silent: true };
 	}
 
@@ -39,4 +43,18 @@ async function wantsToBeTold(
 		.maybeSingle<{ notification_settings: unknown }>();
 	if (error) throw new Error(error.message);
 	return readNotificationSettings(data?.notification_settings)[category];
+}
+
+// A muted conversation is a row; silence is the exception, so a member who has
+// muted nothing costs one lookup that finds nothing.
+async function hasMuted(client: SupabaseClient, memberID: string, conversationID: string): Promise<boolean> {
+	if (!conversationID) return false;
+	const { data, error } = await client
+		.from('muted_conversation')
+		.select('conversation_id')
+		.eq('member_id', memberID)
+		.eq('conversation_id', conversationID)
+		.maybeSingle<{ conversation_id: string }>();
+	if (error) throw new Error(error.message);
+	return data !== null;
 }

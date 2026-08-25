@@ -162,6 +162,7 @@ async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
 		platform: messengerPlatform,
 		externalIDs: arrived.recipientExternalIDs,
 		category: 'message',
+		conversationID: arrived.conversationID,
 		...tellingOf(arrived, await authorNameOf(arrived))
 	});
 	return spoken.told ?? 0;

@@ -30,6 +30,9 @@ export const channelText = {
 		closeChannelList: '채널 목록 닫기',
 		directMessagesTitle: '개인 메시지',
 		messenger: '메신저',
+		muteConversation: '이 대화 알림 끄기',
+		unmuteConversation: '이 대화 알림 켜기',
+		muteFailed: '알림 설정을 바꾸지 못했습니다.',
 		newDirectMessage: '새 개인 메시지',
 		noPeople: '대화할 사람이 없습니다',
 		openInPlatform: '{platform}에서 열기'
@@ -65,6 +68,9 @@ export const channelText = {
 		closeChannelList: 'Close channel list',
 		directMessagesTitle: 'Direct Messages',
 		messenger: 'Messenger',
+		muteConversation: 'Mute this conversation',
+		unmuteConversation: 'Unmute this conversation',
+		muteFailed: 'That notification setting did not change.',
 		newDirectMessage: 'New direct message',
 		noPeople: 'No one to message',
 		openInPlatform: 'Open in {platform}'
