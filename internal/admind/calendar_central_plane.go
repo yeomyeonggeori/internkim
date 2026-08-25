@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -81,22 +82,26 @@ func (service *Service) centralCalendarWriter(request *http.Request) (*centralpl
 	return client, requesterEmail, true
 }
 
-func (service *Service) saveCentralCalendarEvent(request *http.Request, event calendarEvent) (calendarEvent, bool, error) {
+func (service *Service) saveCentralCalendarEvent(request *http.Request, event calendarEvent, expectedUpdatedAt string) (calendarEvent, bool, error) {
 	client, requesterEmail, canWrite := service.centralCalendarWriter(request)
 	if !canWrite {
 		return calendarEvent{}, false, nil
 	}
 	savedID, errorValue := client.SaveEvent(request.Context(), "email", requesterEmail, centralplane.Event{
-		CentralID:        event.ID,
-		Title:            event.Title,
-		Note:             event.Description,
-		Location:         event.Location,
-		StartsAt:         event.StartISO,
-		EndsAt:           event.EndISO,
-		IsWholeDay:       event.IsAllDay,
-		ParticipantMails: calendarParticipantEmails(event),
+		CentralID:         event.ID,
+		Title:             event.Title,
+		Note:              event.Description,
+		Location:          event.Location,
+		StartsAt:          event.StartISO,
+		EndsAt:            event.EndISO,
+		IsWholeDay:        event.IsAllDay,
+		ParticipantMails:  calendarParticipantEmails(event),
+		ExpectedUpdatedAt: expectedUpdatedAt,
 	})
 	if errorValue != nil {
+		if errors.Is(errorValue, centralplane.ErrEventVersionGone) {
+			return calendarEvent{}, true, errCalendarEventVersionConflict
+		}
 		return calendarEvent{}, true, errorValue
 	}
 	saved := event
@@ -125,4 +130,15 @@ func calendarParticipantEmails(event calendarEvent) []string {
 		return emails
 	}
 	return event.People
+}
+
+func writeCalendarCentralError(responseWriter http.ResponseWriter, request *http.Request, eventID string, errorValue error) bool {
+	if errorValue == nil {
+		return false
+	}
+	if writeCalendarEventVersionConflictError(responseWriter, errorValue) {
+		return true
+	}
+	writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
+	return true
 }

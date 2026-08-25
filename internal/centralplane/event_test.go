@@ -128,3 +128,46 @@ func TestAnEventWithNoPlaceWritesNoPlace(t *testing.T) {
 		t.Fatal("an empty place is no place, not an object with an empty name")
 	}
 }
+
+func TestAWriteCarriesTheVersionItRead(t *testing.T) {
+	var arguments map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/api/agent/session" {
+			writeJSON(writer, map[string]any{"memberID": "member-1", "accessToken": "token-1", "expiresAt": 4102444800})
+			return
+		}
+		if strings.HasPrefix(request.URL.Path, "/rest/v1/rpc/") {
+			_ = json.NewDecoder(request.Body).Decode(&arguments)
+			writeJSON(writer, "task-9")
+			return
+		}
+		writeJSON(writer, []any{})
+	}))
+	defer server.Close()
+	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
+
+	if _, errorValue := client.SaveEvent(context.Background(), "email", "iam@dawn.kim", Event{
+		CentralID:         "task-9",
+		Title:             "포틀랜드 출장",
+		StartsAt:          "2026-08-24T00:00:00Z",
+		EndsAt:            "2026-08-28T00:00:00Z",
+		ExpectedUpdatedAt: "2026-08-24T10:00:00Z",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if arguments["target_expected_updated_at"] != "2026-08-24T10:00:00Z" {
+		t.Fatalf("the company refuses a write whose version is gone, so it has to be told, got %v", arguments["target_expected_updated_at"])
+	}
+
+	arguments = nil
+	if _, errorValue := client.SaveEvent(context.Background(), "email", "iam@dawn.kim", Event{
+		Title:    "새 일정",
+		StartsAt: "2026-08-24T00:00:00Z",
+		EndsAt:   "2026-08-28T00:00:00Z",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if arguments["target_expected_updated_at"] != nil {
+		t.Fatalf("a new event replaces no version, got %v", arguments["target_expected_updated_at"])
+	}
+}
