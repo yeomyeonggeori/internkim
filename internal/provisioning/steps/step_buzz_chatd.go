@@ -2,6 +2,7 @@ package setup
 
 import (
 	"errors"
+	"strings"
 	"fmt"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
@@ -17,8 +18,12 @@ var StepBuzzChatd = Step{
 		if context.Backend != BackendSSH {
 			return true
 		}
+		// A chatd that answers is not a chatd that is configured the way this
+		// release wants it. Whatever is installed keeps running until it says
+		// where it binds, or a change to that address never reaches the device.
 		return trimmedRun(context, "systemctl is-active "+blueclaw.ChatdServiceName) == "active" &&
-			trimmedRun(context, blueclaw.ChatdHealthCheckCommand()) == "ok"
+			trimmedRun(context, blueclaw.ChatdHealthCheckCommand()) == "ok" &&
+			strings.Contains(trimmedRun(context, "cat "+blueclaw.ChatdServicePath), "CHATD_LISTEN_HOSTNAME="+blueclaw.ChatdListenHostname)
 	},
 	Run: func(context *Context) error {
 		if context.Backend != BackendSSH {
