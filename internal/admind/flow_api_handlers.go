@@ -14,6 +14,12 @@ import (
 func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *http.Request) {
 	request.Header.Del(flowResolvedActorHeader)
 	request = request.WithContext(withFlowActor(request.Context(), service.flowActorEmail(request)))
+	// The board is read from the company, so a write that only reached the queue
+	// would be invisible until the queue was next drained. The queue still holds
+	// it when the link is down, which is what it is for.
+	if request.Method != http.MethodGet {
+		defer service.drainFlowTasksToCentralPlane(request.Context())
+	}
 	path := strings.TrimPrefix(request.URL.Path, "/flow/api")
 	switch {
 	case request.Method == http.MethodGet && path == "/summary":
