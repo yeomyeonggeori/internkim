@@ -19,11 +19,17 @@ import {
 	leavePreviewPeriod,
 	leaveTimestampRange
 } from './supabase-leave-range';
+import { EmployeeLeaveAPIError } from '../../routes/attendance/leave/employee-leave-api-error';
 import { summarizeSupabaseLeave } from './supabase-leave-summary';
 
 type LeaveStatus = 'requested' | 'approved' | 'rejected';
 
-type LeaveRow = {
+type MemberDirectory = {
+	emailOf: (memberID: string) => string;
+	timeZoneOf: (memberID: string) => string;
+};
+
+export type LeaveRow = {
 	id: string;
 	member_id: string;
 	kind: string;
@@ -42,7 +48,7 @@ const statusWords: Record<LeaveStatus, EmployeeLeaveStatus> = {
 	rejected: 'rejected'
 };
 
-const theOnlyLeaveType: EmployeeLeaveType = {
+export const theOnlyLeaveType: EmployeeLeaveType = {
 	id: 'leave',
 	name: '휴가',
 	balanceMode: 'none',
@@ -61,8 +67,8 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 		.order('starts_at', { ascending: false })
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
-	const timeZone = await companyTimeZone();
-	const mappedLeave = leave.data.map((row) => ({ row, request: requestOf(row, timeZone) }));
+	const timeZone = await memberTimeZone(memberID);
+	const mappedLeave = leave.data.map((row) => ({ row, request: employeeLeaveRequestOfRow(row, timeZone) }));
 	const requests = mappedLeave.map(({ request }) => request);
 	const targetYear = await memberCurrentYear(memberID);
 	const remainingDays = await memberLeaveRemaining(memberID, targetYear);
@@ -71,7 +77,8 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 			days: row.days,
 			status: row.status,
 			isDeducted: row.is_deducted,
-			localStartDate: request.startDate
+			localStartDate: request.startDate,
+			localEndDate: request.endDate || request.startDate
 		})),
 		targetYear,
 		remainingDays
@@ -125,8 +132,14 @@ export async function createSupabaseLeaveRequest(request: EmployeeLeaveSubmissio
 }
 
 export async function cancelSupabaseLeaveRequest(requestID: string): Promise<void> {
-	const { error } = await supabase().from('leave').delete().eq('id', requestID);
-	if (error) throw new Error(error.message);
+	const withdrawn = await supabase()
+		.from('leave')
+		.delete()
+		.eq('id', requestID)
+		.select('id')
+		.returns<{ id: string }[]>();
+	if (withdrawn.error) throw new Error(withdrawn.error.message);
+	if (withdrawn.data.length === 0) throw new EmployeeLeaveAPIError('invalidStatus', 409);
 }
 
 export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> {
@@ -138,9 +151,8 @@ export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> 
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
 
-	const emails = await emailsByMemberID();
-	const timeZone = await companyTimeZone();
-	const pending = leave.data.map((row) => approvalOf(row, emails, timeZone));
+	const directory = await memberDirectory();
+	const pending = leave.data.map((row) => approvalOf(row, directory));
 	return { pendingCount: pending.length, pending, recentChanges: [] };
 }
 
@@ -155,10 +167,10 @@ export async function decideSupabaseLeave(
 		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
 		.single<LeaveRow>();
 	if (decided.error) throw new Error(decided.error.message);
-	return approvalOf(decided.data, await emailsByMemberID(), await companyTimeZone());
+	return approvalOf(decided.data, await memberDirectory());
 }
 
-function requestOf(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
+export function employeeLeaveRequestOfRow(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
 	const status = statusWords[row.status];
 	const range = leaveDisplayRange(row.starts_at, row.ends_at, row.days, timeZone);
 	return {
@@ -179,14 +191,11 @@ function requestOf(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
 	};
 }
 
-function approvalOf(
-	row: LeaveRow,
-	emails: Map<string, string>,
-	timeZone: string
-): LeaveApprovalRequest {
+function approvalOf(row: LeaveRow, directory: MemberDirectory): LeaveApprovalRequest {
+	const timeZone = directory.timeZoneOf(row.member_id);
 	return {
 		id: row.id,
-		employeeEmail: emails.get(row.member_id) ?? '',
+		employeeEmail: directory.emailOf(row.member_id),
 		leaveTypeID: theOnlyLeaveType.id,
 		leaveTypeName: theOnlyLeaveType.name,
 		balanceMode: 'none',
@@ -212,6 +221,16 @@ function shiftedDay(date: string, days: number): string {
 	const moved = new Date(`${date}T00:00:00Z`);
 	moved.setUTCDate(moved.getUTCDate() + days);
 	return moved.toISOString().slice(0, 10);
+}
+
+async function memberTimeZone(memberID: string): Promise<string> {
+	const member = await supabase()
+		.from('member')
+		.select('timezone')
+		.eq('id', memberID)
+		.single<{ timezone: string | null }>();
+	if (member.error) throw new Error(member.error.message);
+	return member.data.timezone || (await companyTimeZone());
 }
 
 async function companyTimeZone(): Promise<string> {
@@ -253,11 +272,19 @@ async function memberLeaveRemaining(memberID: string, targetYear: number): Promi
 	return days;
 }
 
-async function emailsByMemberID(): Promise<Map<string, string>> {
+async function memberDirectory(): Promise<MemberDirectory> {
+	const companyZone = await companyTimeZone();
 	const members = await supabase()
 		.from('member')
-		.select('id, email')
-		.returns<{ id: string; email: string | null }[]>();
+		.select('id, email, timezone')
+		.returns<{ id: string; email: string | null; timezone: string | null }[]>();
 	if (members.error) throw new Error(members.error.message);
-	return new Map(members.data.map((member) => [member.id, member.email ?? '']));
+	const emails = new Map(members.data.map((member) => [member.id, member.email ?? '']));
+	const timeZones = new Map(
+		members.data.map((member) => [member.id, member.timezone || companyZone])
+	);
+	return {
+		emailOf: (memberID) => emails.get(memberID) ?? '',
+		timeZoneOf: (memberID) => timeZones.get(memberID) || companyZone
+	};
 }
