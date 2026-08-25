@@ -19,6 +19,7 @@
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import OrganizationOrganizationTree from './organization-tree.svelte';
 	import OrganizationPeopleLayer from './organization-people-layer.svelte';
+	import OrganizationDiscardEditsDialog from './organization-discard-edits-dialog.svelte';
 	import OrganizationPersonDetailPanel from './organization-person-detail-panel.svelte';
 	import { organizationDirectoryText } from './text';
 
@@ -54,7 +55,7 @@
 	let isInviteOpen = $state(false);
 
 	$effect(() => {
-		isDetailSheetOpen = Boolean(controller.selectedRecord);
+		isDetailSheetOpen = Boolean(controller.selectedRecord) && !controller.isConfirmingDiscard;
 	});
 
 	$effect(() => {
@@ -73,7 +74,6 @@
 	function handleDetailSheetOpenChange(nextOpen: boolean): void {
 		if (nextOpen) return;
 		controller.clearSelection();
-		isDetailSheetOpen = Boolean(controller.selectedRecord);
 	}
 
 	function selectOrganization(organizationID: string): void {
@@ -249,6 +249,13 @@
 </main>
 
 <OrganizationInviteDialog bind:isOpen={isInviteOpen} onInvited={() => controller.load()} />
+
+<OrganizationDiscardEditsDialog
+	isOpen={controller.isConfirmingDiscard}
+	{text}
+	onKeepEditing={() => controller.keepEditingSelectedProfile()}
+	onDiscard={() => controller.discardSelectedProfileEdits()}
+/>
 
 <OrganizationAddOrganizationDialog
 	bind:isOpen={controller.isAddingGroup}
