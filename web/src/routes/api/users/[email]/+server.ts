@@ -1,8 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isNodeRequest, normalizeFleetID } from '$lib/device-auth';
-import { adminEmails, kv, userEmails } from '$lib/kv';
-import type { Device, FleetUserRecord } from '$lib/types';
+import { fleetUserRecords, withdrawFleetUser } from '$lib/server/fleet-user-directory';
+import { adminEmailsOf, askedDirectory, isAdminRequest, usersResponse } from '../+server';
 
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
@@ -14,52 +14,23 @@ export const OPTIONS: RequestHandler = async () => {
 	return new Response(null, { headers: corsHeaders });
 };
 
-function normalizeEmail(email: string): string {
-	return email.trim().toLowerCase();
-}
-
-async function usersRevision(records: FleetUserRecord[]): Promise<string> {
-	const encodedUsers = new TextEncoder().encode(JSON.stringify(records));
-	const digest = await crypto.subtle.digest('SHA-256', encodedUsers);
-	return Array.from(new Uint8Array(digest))
-		.map((byte) => byte.toString(16).padStart(2, '0'))
-		.join('');
-}
-
-function callerEmail(request: Request): string {
-	return normalizeEmail(request.headers.get('Cf-Access-Authenticated-User-Email') ?? '');
-}
-
-function isAdminRequest(request: Request, device: Device, adminUsers: string[], adminToken: string, registerSecret: string): boolean {
-	if (adminToken && adminToken === registerSecret) return true;
-	const authorizedAdmins = adminUsers.length > 0 ? adminUsers : [normalizeEmail(device.admin_email)];
-	return authorizedAdmins.includes(callerEmail(request));
-}
-
 export const DELETE: RequestHandler = async ({ params, request, url, platform }) => {
-	const env = platform?.env;
-	if (!env?.KV) throw error(500, 'KV not available');
-
 	const fleetID = normalizeFleetID(url.searchParams.get('fleet_id') ?? '');
-	const admin_token = url.searchParams.get('admin_token') ?? '';
-	const email = normalizeEmail(decodeURIComponent(params.email));
+	const adminToken = url.searchParams.get('admin_token') ?? '';
+	const email = decodeURIComponent(params.email).trim().toLowerCase();
 	if (!fleetID || !email) throw error(400, 'fleet_id and email required');
 
-	const device = await kv.getDevice(env.KV, fleetID);
-	if (!device) throw error(404, 'Fleet not found');
-
-	const records = await kv.getUserRecords(env.KV, fleetID);
+	const { device, directory } = await askedDirectory(platform, fleetID);
+	const records = await fleetUserRecords(directory);
 	const isAuthorizedNode = await isNodeRequest(request, device, fleetID);
-	if (!isAuthorizedNode && !isAdminRequest(request, device, adminEmails(records), admin_token, env.INTERNKIM_REGISTER_SECRET)) {
+	if (!isAuthorizedNode && !isAdminRequest(request, device, adminEmailsOf(records), adminToken, platform?.env?.INTERNKIM_REGISTER_SECRET ?? '')) {
 		throw error(403, 'Admin only');
 	}
 	const record = records.find((item) => item.email === email);
-	if (!isAuthorizedNode && record?.role === 'admin' && adminEmails(records).length <= 1) {
+	if (!isAuthorizedNode && record?.role === 'admin' && adminEmailsOf(records).length <= 1) {
 		throw error(400, 'Cannot remove the last admin user');
 	}
 
-	const filtered = records.filter((item) => item.email !== email);
-	await kv.putUserRecords(env.KV, fleetID, filtered);
-
-	return json({ users: userEmails(filtered), records: filtered, revision: await usersRevision(filtered) }, { headers: corsHeaders });
+	const remaining = await withdrawFleetUser(directory, email);
+	return json(await usersResponse(remaining), { headers: corsHeaders });
 };
