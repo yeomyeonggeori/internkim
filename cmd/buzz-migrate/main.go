@@ -882,10 +882,10 @@ func openConversation(
 
 // A direct conversation the whole company can read is not a direct conversation.
 func importedChannelVisibility(channel buzzimport.MattermostChannel) string {
-	if buzzimport.IsConversationChannelType(channel.Type) {
-		return "private"
+	if channel.Type == buzzimport.OpenChannelType {
+		return "open"
 	}
-	return "open"
+	return "private"
 }
 
 func memberUserIDsWithPastAuthors(memberUserIDs []string, posts []buzzimport.MattermostPost) []string {
