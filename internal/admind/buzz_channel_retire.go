@@ -31,7 +31,11 @@ func (service *Service) handleBuzzChannelRetire(responseWriter http.ResponseWrit
 		http.Error(responseWriter, "staff access required", http.StatusForbidden)
 		return
 	}
-	report, errorValue := service.retireRoomsNobodyIsIn(request.Context(), request.URL.Query().Get("retire") == "true")
+	report, errorValue := service.retireRooms(
+		request.Context(),
+		strings.TrimSpace(request.URL.Query().Get("room")),
+		request.URL.Query().Get("retire") == "true",
+	)
 	if errorValue != nil {
 		log.Printf("buzz channel retire failed: %v", errorValue)
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -41,7 +45,7 @@ func (service *Service) handleBuzzChannelRetire(responseWriter http.ResponseWrit
 	_ = json.NewEncoder(responseWriter).Encode(report)
 }
 
-func (service *Service) retireRoomsNobodyIsIn(ctx context.Context, shouldRetire bool) (buzzRetireReport, error) {
+func (service *Service) retireRooms(ctx context.Context, namedRoom string, shouldRetire bool) (buzzRetireReport, error) {
 	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
 	if databaseURL == "" {
 		return buzzRetireReport{}, errors.New("buzz database url must be configured")
@@ -58,11 +62,11 @@ func (service *Service) retireRoomsNobodyIsIn(ctx context.Context, shouldRetire 
 
 	report := buzzRetireReport{Bridged: len(mappings), Rooms: []buzzRetiredRoom{}}
 	for _, mapping := range mappings {
-		room, isEmpty, errorValue := service.describeEmptyRoom(ctx, relay, mapping)
+		room, isRetirable, errorValue := service.describeRetirableRoom(ctx, relay, mapping, namedRoom)
 		if errorValue != nil {
 			return report, errorValue
 		}
-		if !isEmpty {
+		if !isRetirable {
 			continue
 		}
 		report.Empty++
@@ -79,14 +83,21 @@ func (service *Service) retireRoomsNobodyIsIn(ctx context.Context, shouldRetire 
 	return report, nil
 }
 
-func (service *Service) describeEmptyRoom(
+func (service *Service) describeRetirableRoom(
 	ctx context.Context,
 	relay *sql.DB,
 	mapping bridgeChannelMapping,
+	namedRoom string,
 ) (buzzRetiredRoom, bool, error) {
 	shape, errorValue := service.describeBridgeRelayChannel(ctx, "mattermost", mapping.ExternalChannelID)
 	if errorValue != nil {
 		return buzzRetiredRoom{}, false, errorValue
+	}
+	if namedRoom != "" {
+		if !strings.EqualFold(shape.RoomName, namedRoom) && !strings.EqualFold(shape.Name, namedRoom) {
+			return buzzRetiredRoom{}, false, nil
+		}
+		return service.describeRoomForRetirement(ctx, relay, mapping, shape)
 	}
 	if shape.Visibility == "open" || shape.ChannelType == "dm" || circleIDOfRoom(shape.RoomName) != "" {
 		return buzzRetiredRoom{}, false, nil
@@ -95,6 +106,15 @@ func (service *Service) describeEmptyRoom(
 	if errorValue != nil || roomMembers > 0 {
 		return buzzRetiredRoom{}, false, errorValue
 	}
+	return service.describeRoomForRetirement(ctx, relay, mapping, shape)
+}
+
+func (service *Service) describeRoomForRetirement(
+	ctx context.Context,
+	relay *sql.DB,
+	mapping bridgeChannelMapping,
+	shape bridgeRelayChannelShape,
+) (buzzRetiredRoom, bool, error) {
 	held, errorValue := buzzChannelMemberPubkeys(ctx, relay, mapping.BuzzChannelID)
 	if errorValue != nil {
 		return buzzRetiredRoom{}, false, errorValue

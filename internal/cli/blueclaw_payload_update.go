@@ -139,7 +139,7 @@ func (state *setupFlowState) createBlueclawPayloadUpload(version string, size in
 		return response, errorValue
 	}
 	requestPayload := blueclawUpdateUploadCreateRequest{
-		recoveryRequest: signedRecoveryRequestPayload(fleetSecret, blueclawUpdateUploadAction, fleetID),
+		recoveryRequest: signedRecoveryRequestPayload(fleetSecret, blueclawUpdateUploadAction, "", fleetID),
 		Version:         version,
 		Filename:        "blueclaw-payload.tar.gz",
 		Size:            size,

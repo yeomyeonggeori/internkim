@@ -1214,7 +1214,7 @@ func (state *setupFlowState) verifyAdmindDeployment(context *setup.Context) erro
 	if _, errorValue := performSSHRecoveryRequest(commandTarget{
 		stateDir:  state.stateDir,
 		deviceURL: context.PublicURL,
-	}, "status"); errorValue != nil {
+	}, "status", ""); errorValue != nil {
 		return fmt.Errorf("admind recovery route check failed: %w", errorValue)
 	}
 	fmt.Printf("  %s\n", state.messenger.t("admind public/recovery 검증 완료", "admind public/recovery verification complete"))
