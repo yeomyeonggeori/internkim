@@ -56,7 +56,7 @@ func TestACalendarEventCarriesItsPeopleAsAddresses(t *testing.T) {
 			"is_whole_day": true,
 			"updated_at":   "2026-08-24T10:00:00+00:00",
 			"task_participant": []map[string]any{
-				{"member": map[string]any{"email": "iam@dawn.kim"}},
+				{"member": map[string]any{"email": "kimyesi@example.com"}},
 			},
 		}})
 	}))
@@ -74,7 +74,7 @@ func TestACalendarEventCarriesItsPeopleAsAddresses(t *testing.T) {
 	if event.Title != "포틀랜드 출장" || event.Location != "Portland" || !event.IsWholeDay {
 		t.Fatalf("event = %+v", event)
 	}
-	if len(event.ParticipantMails) != 1 || event.ParticipantMails[0] != "iam@dawn.kim" {
+	if len(event.ParticipantMails) != 1 || event.ParticipantMails[0] != "kimyesi@example.com" {
 		t.Fatalf("a device turns addresses into its own identifiers, got %+v", event.ParticipantMails)
 	}
 }
@@ -98,7 +98,7 @@ func TestSavingAnEventNamesTheProcedureTheCompanyGuards(t *testing.T) {
 	defer server.Close()
 	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
 
-	savedID, errorValue := client.SaveEvent(context.Background(), "email", "iam@dawn.kim", Event{
+	savedID, errorValue := client.SaveEvent(context.Background(), "email", "kimyesi@example.com", Event{
 		Title:      "포틀랜드 출장",
 		Location:   "Portland",
 		StartsAt:   "2026-08-24T00:00:00Z",
@@ -146,7 +146,7 @@ func TestAWriteCarriesTheVersionItRead(t *testing.T) {
 	defer server.Close()
 	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
 
-	if _, errorValue := client.SaveEvent(context.Background(), "email", "iam@dawn.kim", Event{
+	if _, errorValue := client.SaveEvent(context.Background(), "email", "kimyesi@example.com", Event{
 		CentralID:         "task-9",
 		Title:             "포틀랜드 출장",
 		StartsAt:          "2026-08-24T00:00:00Z",
@@ -160,7 +160,7 @@ func TestAWriteCarriesTheVersionItRead(t *testing.T) {
 	}
 
 	arguments = nil
-	if _, errorValue := client.SaveEvent(context.Background(), "email", "iam@dawn.kim", Event{
+	if _, errorValue := client.SaveEvent(context.Background(), "email", "kimyesi@example.com", Event{
 		Title:    "새 일정",
 		StartsAt: "2026-08-24T00:00:00Z",
 		EndsAt:   "2026-08-28T00:00:00Z",

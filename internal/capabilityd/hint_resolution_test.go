@@ -157,8 +157,8 @@ func TestAnEventIDOneCharacterOffIsNeverProposed(t *testing.T) {
 
 func TestAMistypedNameIsProposedRatherThanGuessed(t *testing.T) {
 	members := []flowMemberForTool{
-		{ID: "person-1", Name: "김표본", Email: "iam@dawn.kim", MattermostUsername: "pyobon"},
-		{ID: "person-2", Name: "박민준", Email: "minjun@dawn.kim", MattermostUsername: "minjun"},
+		{ID: "person-1", Name: "김예시", Email: "kimyesi@example.com", MattermostUsername: "kimyesi"},
+		{ID: "person-2", Name: "박예시", Email: "parkyesi@example.com", MattermostUsername: "parkyesi"},
 	}
 
 	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "김여영", members)
@@ -168,26 +168,26 @@ func TestAMistypedNameIsProposedRatherThanGuessed(t *testing.T) {
 	if resolution.Failure.ErrorCode != "flow_owner_approximate" {
 		t.Fatalf("a name a character off is a typo, got %q", resolution.Failure.ErrorCode)
 	}
-	if len(resolution.Failure.Candidates) != 1 || resolution.Failure.Candidates[0].Name != "김표본" {
+	if len(resolution.Failure.Candidates) != 1 || resolution.Failure.Candidates[0].Name != "김예시" {
 		t.Fatalf("only the near name belongs in the question, got %+v", resolution.Failure.Candidates)
 	}
 }
 
 func TestAMistypedEmailDomainIsProposedAndAWrongLocalPartIsNot(t *testing.T) {
 	members := []flowMemberForTool{
-		{ID: "person-1", Name: "김표본", Email: "iam@dawn.kim"},
-		{ID: "person-2", Name: "박민준", Email: "minjun@dawn.kim"},
+		{ID: "person-1", Name: "김예시", Email: "kimyesi@example.com"},
+		{ID: "person-2", Name: "박예시", Email: "parkyesi@example.com"},
 	}
 
 	domainSlip := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "iam@dawn.kin", members)
 	if domainSlip.Failure == nil || domainSlip.Failure.ErrorCode != "flow_owner_approximate" {
 		t.Fatalf("a domain everyone shares is a slip, got %+v", domainSlip.Failure)
 	}
-	if len(domainSlip.Failure.Candidates) != 1 || domainSlip.Failure.Candidates[0].Email != "iam@dawn.kim" {
+	if len(domainSlip.Failure.Candidates) != 1 || domainSlip.Failure.Candidates[0].Email != "kimyesi@example.com" {
 		t.Fatalf("the local part says whose address it is, got %+v", domainSlip.Failure.Candidates)
 	}
 
-	otherPerson := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "minjun@dawn.kim", members)
+	otherPerson := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "parkyesi@example.com", members)
 	if otherPerson.Failure != nil || otherPerson.OwnerID != "person-2" {
 		t.Fatalf("an address that exists is that person, got %+v", otherPerson)
 	}
@@ -195,8 +195,8 @@ func TestAMistypedEmailDomainIsProposedAndAWrongLocalPartIsNot(t *testing.T) {
 
 func TestAnExactNameOutranksEveryApproximation(t *testing.T) {
 	members := []flowMemberForTool{
-		{ID: "person-1", Name: "이샘플", Email: "sample@dawn.kim"},
-		{ID: "person-2", Name: "이샘풀", Email: "pool@dawn.kim"},
+		{ID: "person-1", Name: "이샘플", Email: "sample@example.com"},
+		{ID: "person-2", Name: "이샘풀", Email: "pool@example.com"},
 	}
 
 	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "이샘플", members)
