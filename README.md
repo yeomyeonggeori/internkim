@@ -298,10 +298,12 @@ that way.
 cd web
 bun install
 bun run build
-bun run scripts/deploy-pages.ts --production
+bun run scripts/deploy-pages.ts --project internkim --output .svelte-kit/cloudflare --production
 ```
 
-`deploy-pages.ts` deploys a preview unless `--production` is passed. Custom
+`deploy-pages.ts` names no project of its own, so the one that serves every
+company cannot be replaced by a command that forgot to say which. It deploys a
+preview unless `--production` is passed. Custom
 domains always serve the production deployment, so a hostname can never point at
 a preview, and each company hostname is attached explicitly through
 `scripts/pages-domains.ts`.
