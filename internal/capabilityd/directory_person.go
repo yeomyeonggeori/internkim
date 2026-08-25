@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -29,6 +30,13 @@ func (service Service) handleDirectoryPerson(responseWriter http.ResponseWriter,
 		return
 	}
 	known, errorValue := service.askAdmindAboutPerson(request.Context(), payload)
+	// Somebody is refused on this answer, and the hop between the agent and the
+	// company left no record of which way it went.
+	if errorValue != nil {
+		log.Printf("directory lookup for %s on %s never reached admind: %v", payload.Email, payload.Platform, errorValue)
+	} else {
+		log.Printf("directory lookup for %s on %s: known=%t", payload.Email, payload.Platform, known)
+	}
 	service.writeResponse(responseWriter, directoryPersonResponse{Known: known}, errorValue)
 }
 
