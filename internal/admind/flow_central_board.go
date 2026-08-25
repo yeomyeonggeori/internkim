@@ -65,15 +65,15 @@ func flowTasksOfBoardTasks(tasks []centralplane.BoardTask, members []flowMember)
 
 func flowTaskOfBoardTask(task centralplane.BoardTask, memberByEmail map[string]flowMember) flowTask {
 	converted := flowTask{
-		ID:           task.CentralID,
-		Business:     task.Business,
-		Type:         task.Type,
-		Content:      task.Title,
-		Size:         task.Size,
-		Status:       deviceFlowStatus(task.Status),
-		StartDate:    flowDayOfInstant(task.StartsAt),
-		EndDate:      flowDayOfInstant(firstFilled(task.EndsAt, task.DueAt)),
-		CreatedAt:    task.CreatedAt,
+		ID:        task.CentralID,
+		Business:  task.Business,
+		Type:      task.Type,
+		Content:   task.Title,
+		Size:      task.Size,
+		Status:    deviceFlowStatus(task.Status),
+		StartDate: flowDayOfInstant(task.StartsAt),
+		EndDate:   flowDayOfInstant(firstFilled(task.EndsAt, task.DueAt)),
+		CreatedAt: task.CreatedAt,
 	}
 	for _, email := range task.ParticipantMails {
 		member, found := memberByEmail[strings.ToLower(strings.TrimSpace(email))]
