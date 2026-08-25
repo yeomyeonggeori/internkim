@@ -3,9 +3,16 @@ import type { Locale } from '../../lib/i18n/locale.svelte';
 import { fetchWebSessionEmail } from '$lib/web-session';
 import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
 import { supabase } from '$lib/supabase';
-import { apiErrorMessage, fetchAdminSession, saveOrgGroups, saveOrgProfiles } from '../admin/admin-api';
+import { apiErrorMessage, fetchAdminSession } from '../admin/admin-api';
 import { adminSessionRole, canManageOrganization } from '../admin/admin-role-policy';
-import { fetchOrganizationDirectory, organizationApiErrorMessage, saveOwnOrganizationProfile, type OwnOrganizationProfile } from './organization-api';
+import {
+	fetchOrganizationDirectory,
+	organizationApiErrorMessage,
+	saveOrganizationGroups,
+	saveOrganizationProfiles,
+	saveOwnOrganizationProfile,
+	type OwnOrganizationProfile
+} from './organization-api';
 import { lastSeenDirectory, rememberDirectory } from './organization-last-seen';
 import { filterOrganizationRecords, organizationFilterOptions, unassignedGroupID } from './organization-directory-model';
 import { organizationGroupSavePlan } from './organization-group-controller';
@@ -46,6 +53,7 @@ export class OrganizationDirectoryController {
 	canManage = $state(false);
 	sessionEmail = $state('');
 	isSavingOwnProfile = $state(false);
+	isConfirmingDiscard = $state(false);
 	errorMessage = $state('');
 	newGroupName = $state('');
 	newGroupParentID = $state('');
@@ -159,20 +167,12 @@ export class OrganizationDirectoryController {
 		if (this.organizationEdit.isEditing) return;
 		const nextGroupID = value === allValue || value === undefined ? '' : value;
 		if (nextGroupID === this.groupID) return;
-		if (this.hasUnsavedProfileEdits()) {
-			this.errorMessage = this.adminPageText.organization.unsavedChanges;
-			return;
-		}
 		this.groupID = nextGroupID;
 		this.clearSelection();
 	}
 
 	selectRecord(record: UserRecord): void {
 		if (this.organizationEdit.isEditing) return;
-		if (this.editingUserID && this.editingUserID !== record.memberID && this.hasUnsavedProfileEdits()) {
-			this.errorMessage = this.adminPageText.organization.unsavedChanges;
-			return;
-		}
 		if (this.editingUserID && this.editingUserID !== record.memberID) this.cancelProfileEdit(this.editingUserID);
 		this.errorMessage = '';
 		this.selectedUserID = record.memberID;
@@ -180,10 +180,20 @@ export class OrganizationDirectoryController {
 
 	clearSelection(): void {
 		if (this.selectedUserID && this.editingUserID === this.selectedUserID && this.hasUnsavedProfileEdits()) {
-			this.errorMessage = this.adminPageText.organization.unsavedChanges;
+			this.isConfirmingDiscard = true;
 			return;
 		}
 		if (this.selectedUserID && this.editingUserID === this.selectedUserID) this.cancelProfileEdit(this.selectedUserID);
+		this.selectedUserID = '';
+	}
+
+	keepEditingSelectedProfile(): void {
+		this.isConfirmingDiscard = false;
+	}
+
+	discardSelectedProfileEdits(): void {
+		this.isConfirmingDiscard = false;
+		if (this.selectedUserID) this.cancelProfileEdit(this.selectedUserID);
 		this.selectedUserID = '';
 	}
 
@@ -211,7 +221,7 @@ export class OrganizationDirectoryController {
 		this.savingProfileUserIDs = markOrganizationProfileSaving(this.savingProfileUserIDs, memberID);
 		this.errorMessage = '';
 		try {
-			this.applyUsersResponse(await saveOrgProfiles(this.adminBaseURL, [organizationProfileSavePayload(record)], this.adminPageText.messages.userSaveError));
+			this.applyUsersResponse(await saveOrganizationProfiles(this.adminBaseURL, [organizationProfileSavePayload(record)], this.adminPageText.messages.userSaveError));
 			this.removeEditingRecord(memberID);
 			this.editingUserID = '';
 		} catch (error) {
@@ -313,7 +323,7 @@ export class OrganizationDirectoryController {
 		this.isSavingGroups = true;
 		this.errorMessage = '';
 		try {
-			this.applyUsersResponse(await saveOrgGroups(this.adminBaseURL, nextGroups, this.adminPageText.messages.userSaveError), nextGroups);
+			this.applyUsersResponse(await saveOrganizationGroups(this.adminBaseURL, nextGroups, this.adminPageText.messages.userSaveError), nextGroups);
 			return true;
 		} catch (error) {
 			this.errorMessage = apiErrorMessage(error, this.adminPageText.messages.userSaveError);

@@ -57,6 +57,28 @@ function groupOf(team: TeamRow): OrgGroup {
 	return { id: team.id, name: team.name, parentID: team.parent_team_id ?? undefined };
 }
 
+export type MemberProfileUpdate = {
+	memberID: string;
+	jobTitle: string;
+	groupID: string;
+	hireDate: string;
+	phoneNumber: string;
+	supervisorID: string;
+};
+
+export async function saveSupabaseMemberProfiles(profiles: MemberProfileUpdate[]): Promise<UsersResponse> {
+	const saved = await supabase().rpc('save_member_profiles', { profiles });
+	if (saved.error) throw new Error(saved.error.message);
+	return supabaseOrganizationDirectory();
+}
+
+export async function saveSupabaseTeams(groups: OrgGroup[]): Promise<UsersResponse> {
+	const teams = groups.map((group) => ({ id: group.id, name: group.name, parentID: group.parentID ?? '' }));
+	const saved = await supabase().rpc('save_teams', { teams });
+	if (saved.error) throw new Error(saved.error.message);
+	return supabaseOrganizationDirectory();
+}
+
 export type SavedMemberProfile = { phoneNumber: string; hireDate: string };
 
 function savedMemberProfileOf(value: unknown): SavedMemberProfile {

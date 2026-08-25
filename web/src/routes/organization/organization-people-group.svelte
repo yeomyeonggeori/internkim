@@ -141,6 +141,7 @@
 					'bg-card hover:bg-accent/40 relative flex-col items-center gap-2 px-4 pt-7 pb-2 text-center',
 					selectedUserID === record.memberID && 'shadow-lg'
 				]}
+				data-testid={`organization-person-card-${record.memberID}`}
 			>
 				<div class="absolute top-2 left-2 z-10 grid justify-items-start gap-1">
 					{#if leadership}

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { applySavedProfiles, cloneUsersResponse, mockAdminOrganization, openCardEditor, openOrganizationEditor, openOrganizationForm, selectCardOption } from './admin-organization-helpers';
+import { applySavedProfiles, cardEditorButton, cloneUsersResponse, mockAdminOrganization, openCardEditor, openOrganizationEditor, openOrganizationForm, selectCardOption } from './admin-organization-helpers';
 import { initialUsersResponse, type OrgProfileUpdate } from './admin-organization-fixtures';
 
 test.describe('admin org chart groups', () => {
@@ -34,9 +34,7 @@ test.describe('admin org chart groups', () => {
 		});
 
 		await openOrganizationEditor(page);
-		const graceCard = await openCardEditor(page, 'user-grace');
 
-		await graceCard.getByLabel('직책', { exact: true }).fill('Product Designer');
 		await openOrganizationForm(page);
 		await page.getByLabel('새 조직').fill('Platform');
 		await page.getByRole('button', { name: '추가', exact: true }).click();
@@ -44,11 +42,14 @@ test.describe('admin org chart groups', () => {
 		await expect.poll(() => savedGroups).toEqual([
 			expect.arrayContaining([expect.objectContaining({ name: 'Platform' })])
 		]);
-		await expect(graceCard.getByLabel('직책', { exact: true })).toHaveValue('Product Designer');
-		await expect(page.getByTestId('organization-grid')).toContainText('Platform');
+		await expect(page.getByTestId('organization-sidebar')).toContainText('Platform');
+
+		const graceCard = await openCardEditor(page, 'user-grace');
+		await graceCard.getByLabel('직책', { exact: true }).fill('Product Designer');
 		await expect(graceCard.getByLabel('소속 조직')).toContainText('Engineering');
 		await selectCardOption(page, graceCard, '소속 조직', 'Platform');
 		await expect(graceCard.getByLabel('소속 조직')).toContainText('Platform');
+		await expect(graceCard.getByLabel('직책', { exact: true })).toHaveValue('Product Designer');
 	});
 
 	test('reuses an existing organization when the new organization name already exists', async ({ page }) => {
@@ -75,7 +76,7 @@ test.describe('admin org chart groups', () => {
 		await page.getByRole('button', { name: '추가', exact: true }).click();
 		const graceCard = await openCardEditor(page, 'user-grace');
 		await selectCardOption(page, graceCard, '소속 조직', 'Engineering');
-		await graceCard.getByRole('button', { name: '저장' }).click();
+		await cardEditorButton(page, '저장').click();
 
 		await expect.poll(() => savedGroups).toEqual([]);
 		await expect.poll(() => savedProfiles).toEqual([

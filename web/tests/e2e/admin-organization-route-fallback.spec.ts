@@ -10,11 +10,11 @@ test.describe('admin org chart route fallback', () => {
 		});
 
 		for (const section of ['device', 'network']) {
-			await page.goto(`/admin/?fleet_id=demo&section=${section}`);
+			await page.goto(`/?fleet_id=demo&section=${section}`);
 
-			await expect(page.getByRole('button', { name: '기기' })).toHaveCount(0);
-			await expect(page.getByRole('button', { name: '네트워크' })).toHaveCount(0);
-			await expect(page.getByRole('heading', { name: '허용된 사용자' })).toBeVisible();
+			await expect(page.getByRole('tab', { name: '기기' })).toHaveCount(0);
+			await expect(page.getByRole('tab', { name: '네트워크' })).toHaveCount(0);
+			await expect(page.getByRole('tab', { name: '사용자' })).toHaveAttribute('aria-selected', 'true');
 			await expect(page.getByText('WiFi')).toHaveCount(0);
 		}
 	});

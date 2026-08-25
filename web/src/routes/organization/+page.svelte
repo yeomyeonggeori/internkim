@@ -19,6 +19,7 @@
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import OrganizationOrganizationTree from './organization-tree.svelte';
 	import OrganizationPeopleLayer from './organization-people-layer.svelte';
+	import OrganizationDiscardEditsDialog from './organization-discard-edits-dialog.svelte';
 	import OrganizationPersonDetailPanel from './organization-person-detail-panel.svelte';
 	import { organizationDirectoryText } from './text';
 
@@ -49,9 +50,13 @@
 		...controller.options.groups.map((group) => ({ value: group.id, label: group.name })),
 		...(controller.options.hasUnassigned ? [{ value: unassignedGroupID, label: text.unassignedTeam }] : [])
 	]);
-	const isDetailSheetOpen = $derived(Boolean(controller.selectedRecord));
+	let isDetailSheetOpen = $state(false);
 	let isOrganizationSheetOpen = $state(false);
 	let isInviteOpen = $state(false);
+
+	$effect(() => {
+		isDetailSheetOpen = Boolean(controller.selectedRecord) && !controller.isConfirmingDiscard;
+	});
 
 	$effect(() => {
 		breadcrumbMeta.value = controller.groupID ? controller.selectedOrganizationName : '';
@@ -209,7 +214,7 @@
 	</Sheet.Root>
 
 	{#if controller.selectedRecord}
-		<Sheet.Root open={isDetailSheetOpen} onOpenChange={handleDetailSheetOpenChange}>
+		<Sheet.Root bind:open={isDetailSheetOpen} onOpenChange={handleDetailSheetOpenChange}>
 			<Sheet.Content
 				side="right"
 				class="grid w-[min(26rem,92vw)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
@@ -244,6 +249,13 @@
 </main>
 
 <OrganizationInviteDialog bind:isOpen={isInviteOpen} onInvited={() => controller.load()} />
+
+<OrganizationDiscardEditsDialog
+	isOpen={controller.isConfirmingDiscard}
+	{text}
+	onKeepEditing={() => controller.keepEditingSelectedProfile()}
+	onDiscard={() => controller.discardSelectedProfileEdits()}
+/>
 
 <OrganizationAddOrganizationDialog
 	bind:isOpen={controller.isAddingGroup}
