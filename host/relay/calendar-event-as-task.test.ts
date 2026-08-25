@@ -12,19 +12,19 @@ import {
 const people: DevicePerson[] = [
 	{
 		userID: '22168a62-6d47-47a8-8da6-1663547a76b9',
-		name: '김표본',
-		handle: 'iam',
-		email: 'iam@dawn.kim',
+		name: '김예시',
+		handle: 'kimyesi',
+		email: 'kimyesi@example.com',
 		image: '/calendar/api/participants/9b2a1effd496/image'
 	},
 	{
 		userID: '71657dd3-7c7d-4cfe-8d50-2abfe1bc46d2',
-		name: '이모형',
-		handle: 'mohyeong',
-		email: 'mohyeong@example.com',
+		name: '최견본',
+		handle: 'gyeonbon',
+		email: 'gyeonbon@example.com',
 		image: '/calendar/api/participants/abea48c06299/image'
 	},
-	{ userID: 'a1000000-0000-0000-0000-000000000001', name: '이가명', handle: 'lee', email: 'lee@dawn.kim' }
+	{ userID: 'a1000000-0000-0000-0000-000000000001', name: '이샘플', handle: 'leesample', email: 'leesample@example.com' }
 ];
 
 const directory = emailByPersonIDOf(people);
@@ -42,38 +42,38 @@ function eventWith(fields: Partial<DeviceCalendarEvent> = {}): DeviceCalendarEve
 
 describe('the person a participant names', () => {
 	test('reads both shapes of an id, because the calendar uses the shorter one', () => {
-		expect(directory.get('22168a62-6d47-47a8-8da6-1663547a76b9')).toBe('iam@dawn.kim');
-		expect(directory.get('9b2a1effd496')).toBe('iam@dawn.kim');
+		expect(directory.get('22168a62-6d47-47a8-8da6-1663547a76b9')).toBe('kimyesi@example.com');
+		expect(directory.get('9b2a1effd496')).toBe('kimyesi@example.com');
 	});
 
 	test('lets the id decide, whatever name was written beside it', () => {
 		const match = matchParticipant({ personID: '9b2a1effd496', name: '누가 적었든' }, people, directory);
-		expect(match).toEqual({ email: 'iam@dawn.kim', by: 'personID' });
+		expect(match).toEqual({ email: 'kimyesi@example.com', by: 'personID' });
 	});
 
 	test('refuses an id nobody holds rather than falling back to the name', () => {
-		expect(matchParticipant({ personID: 'ffffffffffff', name: '김표본' }, people, directory)).toBeUndefined();
+		expect(matchParticipant({ personID: 'ffffffffffff', name: '김예시' }, people, directory)).toBeUndefined();
 	});
 
 	test('matches a full name or a handle outright', () => {
-		expect(matchParticipant({ name: '이모형' }, people, directory)?.by).toBe('nameOrHandle');
-		expect(matchParticipant({ name: 'iam' }, people, directory)?.email).toBe('iam@dawn.kim');
+		expect(matchParticipant({ name: '최견본' }, people, directory)?.by).toBe('nameOrHandle');
+		expect(matchParticipant({ name: 'kimyesi' }, people, directory)?.email).toBe('kimyesi@example.com');
 	});
 
 	test('matches a given name only when one person bears it', () => {
 		expect(matchParticipant({ name: '모형' }, people, directory)).toEqual({
-			email: 'mohyeong@example.com',
+			email: 'gyeonbon@example.com',
 			by: 'givenName'
 		});
 		const twoBearIt: DevicePerson[] = [
-			{ name: '김표본', email: 'one@example.com' },
-			{ name: '이여명', email: 'two@example.com' }
+			{ name: '김예시', email: 'one@example.com' },
+			{ name: '이예시', email: 'two@example.com' }
 		];
-		expect(matchParticipant({ name: '여명' }, twoBearIt, emailByPersonIDOf(twoBearIt))).toBeUndefined();
+		expect(matchParticipant({ name: '예시' }, twoBearIt, emailByPersonIDOf(twoBearIt))).toBeUndefined();
 	});
 
 	test('is nobody when the box holds something that is not a person', () => {
-		for (const written of ['사유: 개인 휴가', '참조: 표본 님', '나', '']) {
+		for (const written of ['사유: 개인 휴가', '참조: 예시 님', '나', '']) {
 			expect(matchParticipant({ name: written }, people, directory)).toBeUndefined();
 		}
 	});

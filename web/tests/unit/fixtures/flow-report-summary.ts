@@ -94,7 +94,7 @@ export const flowReportFixtureMetrics: FlowReportFixtureMetrics = {
 		검증: 3
 	},
 	memberDistances: {
-		김표본: 5,
+		김예시: 5,
 		박예시: 2,
 		최견본: 0,
 		정의: 0,
@@ -103,23 +103,23 @@ export const flowReportFixtureMetrics: FlowReportFixtureMetrics = {
 	memberScores: {
 		'member-kim': 144,
 		'member-park': 135,
-		'member-lee': 0,
+		'member-leesample': 0,
 		'member-jeong': 0,
 		'member-jang': 0
 	},
 	memberScoreDetails: {
 		'member-kim': { weeklyScore: 115, monthlyScore: 173, currentScore: 144 },
 		'member-park': { weeklyScore: 155, monthlyScore: 115, currentScore: 135 },
-		'member-lee': { weeklyScore: 0, monthlyScore: 0, currentScore: 0 },
+		'member-leesample': { weeklyScore: 0, monthlyScore: 0, currentScore: 0 },
 		'member-jeong': { weeklyScore: 0, monthlyScore: 0, currentScore: 0 },
 		'member-jang': { weeklyScore: 0, monthlyScore: 0, currentScore: 0 }
 	}
 };
 
 export const flowReportFixtureMembers: FlowReportFixtureMember[] = [
-	{ id: 'member-kim', name: '김표본' },
+	{ id: 'member-kim', name: '김예시' },
 	{ id: 'member-park', name: '박예시' },
-	{ id: 'member-lee', name: '최견본' },
+	{ id: 'member-leesample', name: '최견본' },
 	{ id: 'member-jeong', name: '정의' },
 	{ id: 'member-jang', name: '장가칭' }
 ];
@@ -136,8 +136,8 @@ export const flowReportFixtureDefinitions: FlowReportFixtureDefinitions = {
 };
 
 export const flowReportFixtureTasks: FlowReportFixtureTask[] = [
-	{ participantNames: ['김표본'], business: '여명거리', type: '구현', size: 'L', status: '완료', startDate: '2026-06-01', endDate: '2026-06-01' },
-	{ participantNames: ['김표본', '박예시'], business: '여명거리', type: '검증', size: 'M', status: '진행', startDate: '2026-06-02' },
+	{ participantNames: ['김예시'], business: '여명거리', type: '구현', size: 'L', status: '완료', startDate: '2026-06-01', endDate: '2026-06-01' },
+	{ participantNames: ['김예시', '박예시'], business: '여명거리', type: '검증', size: 'M', status: '진행', startDate: '2026-06-02' },
 	{ participantNames: ['박예시'], business: '김인턴', type: '회의', size: 'S', status: '완료', startDate: '2026-06-03', endDate: '2026-06-03' },
 	{ participantNames: ['최견본'], business: '김인턴', type: '문서', size: 'XL', status: '일시정지', startDate: '2026-06-04' }
 ];

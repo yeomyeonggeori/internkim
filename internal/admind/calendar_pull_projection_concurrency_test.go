@@ -25,7 +25,7 @@ func TestCalendarPullProjectionDoesNotBlockTargetSwitchOrLocalWrite(t *testing.T
 	ctx := context.Background()
 	account := seedAccountWithDiscovery(t, service)
 	event := newLocalTestCalendarEvent("pull-projection-lock", "Before Pull")
-	event.CreatedByName = "김표본"
+	event.CreatedByName = "김예시"
 	event.RemoteSource = remoteCalendarProviderGoogle
 	event.RemoteHref = "/calendars/me/pull-projection-lock.ics"
 	event.RemoteETag = `"etag-before"`
@@ -118,7 +118,7 @@ func TestCalendarLocalProjectionDoesNotHoldStoreMutex(t *testing.T) {
 	ctx := context.Background()
 	account := seedAccountWithDiscovery(t, service)
 	event := newLocalTestCalendarEvent("local-projection-lock", "Before Local Projection")
-	event.CreatedByName = "김표본"
+	event.CreatedByName = "김예시"
 	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
 		t.Fatal(errorValue)
 	}

@@ -166,7 +166,7 @@ func TestReconcileCalendarNotificationsReleasesStoreLockDuringTargetResolution(t
 		return jsonResponse(http.StatusOK, `[]`, nil), nil
 	})}
 	event := calendarTestEvent("notification-unlocked-target-resolution", "Unlocked", "")
-	event.Description = "iam"
+	event.Description = "kimyesi"
 	event.StartISO = time.Now().UTC().Add(4 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
 	event.EndISO = time.Now().UTC().Add(5 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
 	event.ReminderLeadHours = 1

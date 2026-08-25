@@ -8,7 +8,7 @@ function member(id: string, name: string, joined_at: string | null) {
 describe('membersInReadingOrder', () => {
 	test('the reader comes first, however late they joined', () => {
 		const ordered = membersInReadingOrder(
-			[member('a', '김표본', '2024-01-01'), member('b', '이샘플', '2026-06-01')],
+			[member('a', '김예시', '2024-01-01'), member('b', '이샘플', '2026-06-01')],
 			'b'
 		);
 		expect(ordered.map((entry) => entry.id)).toEqual(['b', 'a']);
@@ -16,7 +16,7 @@ describe('membersInReadingOrder', () => {
 
 	test('everyone else reads by who joined earliest', () => {
 		const ordered = membersInReadingOrder(
-			[member('a', '박예시', '2026-03-01'), member('b', '김표본', '2024-01-01'), member('c', '곽예문', '2025-05-05')],
+			[member('a', '박예시', '2026-03-01'), member('b', '김예시', '2024-01-01'), member('c', '곽예문', '2025-05-05')],
 			undefined
 		);
 		expect(ordered.map((entry) => entry.id)).toEqual(['b', 'c', 'a']);
@@ -50,7 +50,7 @@ describe('membersInReadingOrder', () => {
 	});
 
 	test('it leaves the list it was given alone', () => {
-		const original = [member('a', '박예시', '2026-03-01'), member('b', '김표본', '2024-01-01')];
+		const original = [member('a', '박예시', '2026-03-01'), member('b', '김예시', '2024-01-01')];
 		membersInReadingOrder(original, undefined);
 		expect(original.map((entry) => entry.id)).toEqual(['a', 'b']);
 	});

@@ -1179,7 +1179,7 @@ func mattermostToolTestPolicy() mattermostToolPolicyDocument {
 }
 
 func TestPlatformMessageUpdateReplacesOnlyTheQuotedSpan(t *testing.T) {
-	const currentMessage = "회의록\n5번: 신시험·습작·대본·주모사\n6번: 이가명"
+	const currentMessage = "회의록\n5번: 박예시·습작·대본·주모사\n6번: 이샘플"
 	patchedMessage := ""
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
 		if isDirectoryPeopleRequest(request) {
@@ -1218,13 +1218,13 @@ func TestPlatformMessageUpdateReplacesOnlyTheQuotedSpan(t *testing.T) {
 	if response.Outcome != capabilities.ToolOutcomeSucceeded {
 		t.Fatalf("expected the edit to apply, got %+v", response)
 	}
-	if patchedMessage != "회의록\n5번: 신시험·가칭·대본·주모사\n6번: 이가명" {
+	if patchedMessage != "회의록\n5번: 박예시·가칭·대본·주모사\n6번: 이샘플" {
 		t.Fatalf("expected only the quoted span to change, got %q", patchedMessage)
 	}
 }
 
 func TestPlatformMessageUpdateFailsClosedAndReturnsCurrentMessage(t *testing.T) {
-	const currentMessage = "회의록\n5번: 신시험·습작·대본\n6번: 습작"
+	const currentMessage = "회의록\n5번: 박예시·습작·대본\n6번: 습작"
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
 		if isDirectoryPeopleRequest(request) {
 			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
@@ -1245,7 +1245,7 @@ func TestPlatformMessageUpdateFailsClosedAndReturnsCurrentMessage(t *testing.T) 
 		}
 	})
 
-	for name, oldText := range map[string]string{"missing": "박견양", "ambiguous": "습작"} {
+	for name, oldText := range map[string]string{"missing": "최견본", "ambiguous": "습작"} {
 		t.Run(name, func(t *testing.T) {
 			response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 				ToolName: "message_update",
@@ -1266,7 +1266,7 @@ func TestPlatformMessageUpdateFailsClosedAndReturnsCurrentMessage(t *testing.T) 
 }
 
 func TestPlatformMessageSearchByIDReturnsFullTextWithinScope(t *testing.T) {
-	const fullMessage = "회의록\n1번 …\n2번 …\n3번 …\n4번 …\n5번: 신시험·습작·대본·주모사"
+	const fullMessage = "회의록\n1번 …\n2번 …\n3번 …\n4번 …\n5번: 박예시·습작·대본·주모사"
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
 		if isDirectoryPeopleRequest(request) {
 			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil

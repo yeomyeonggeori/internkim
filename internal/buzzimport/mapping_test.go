@@ -49,13 +49,13 @@ func basePlan(posts []MattermostPost) ChannelImportPlan {
 	return ChannelImportPlan{
 		BuzzChannelID: "4b24ca45-2860-42f4-bdca-4380f803d2aa",
 		Posts:         posts,
-		AuthorEmails:  map[string]string{"u-lee": "member1@example.com", "u-kwak": "kwak@example.com"},
+		AuthorEmails:  map[string]string{"u-leesample": "member1@example.com", "u-kwak": "kwak@example.com"},
 	}
 }
 
 func TestPlanKeepsOrderAndResolvesRepliesToTheirRoot(t *testing.T) {
 	plan := basePlan([]MattermostPost{
-		postAt("p1", "u-lee", "", "회고 시작합니다", 10),
+		postAt("p1", "u-leesample", "", "회고 시작합니다", 10),
 		postAt("p2", "u-kwak", "p1", "네 정리해둔 것 붙일게요", 12),
 	})
 	messages, skipped, errorValue := PlanChannelImport(plan, newStubResolver())
@@ -82,7 +82,7 @@ func TestPlanKeepsOrderAndResolvesRepliesToTheirRoot(t *testing.T) {
 
 func TestPlanSkipsAuthorsWithoutABuzzIdentityAndReportsThem(t *testing.T) {
 	plan := basePlan([]MattermostPost{
-		postAt("p1", "u-lee", "", "남는 메시지", 10),
+		postAt("p1", "u-leesample", "", "남는 메시지", 10),
 		postAt("p2", "u-stranger", "", "신원 없는 작성자", 11),
 	})
 	plan.AuthorEmails["u-stranger"] = "stranger@example.com"
@@ -100,7 +100,7 @@ func TestPlanSkipsAuthorsWithoutABuzzIdentityAndReportsThem(t *testing.T) {
 }
 
 func TestPlanSkipsARepliyWhoseRootWasNotImported(t *testing.T) {
-	plan := basePlan([]MattermostPost{postAt("p2", "u-lee", "missing-root", "고아 답글", 12)})
+	plan := basePlan([]MattermostPost{postAt("p2", "u-leesample", "missing-root", "고아 답글", 12)})
 
 	messages, skipped, errorValue := PlanChannelImport(plan, newStubResolver())
 	if errorValue != nil {
@@ -115,7 +115,7 @@ func TestPlanSkipsARepliyWhoseRootWasNotImported(t *testing.T) {
 }
 
 func TestPlanCarriesMentionsItCanResolve(t *testing.T) {
-	plan := basePlan([]MattermostPost{postAt("p1", "u-lee", "", "@kwak 확인 부탁드립니다 @nobody", 10)})
+	plan := basePlan([]MattermostPost{postAt("p1", "u-leesample", "", "@kwak 확인 부탁드립니다 @nobody", 10)})
 
 	messages, _, errorValue := PlanChannelImport(plan, newStubResolver())
 	if errorValue != nil {

@@ -187,18 +187,18 @@ function normalizeUserRecord(parsed: Record<string, unknown>, existingRecord: Us
 function createDevUserRecords(): UserRecord[] {
 	return [
 		{
-			memberID: 'dev-user-mohyeong',
-			handle: 'mohyeong',
+			memberID: 'dev-user-gyeonbon',
+			handle: 'gyeonbon',
 			name: '최견본',
-			email: 'mohyeong@example.com',
+			email: 'gyeonbon@example.com',
 			hireDate: '2026-05-01',
 			note: 'HR 보상 기준 확인 필요. C-level 권한과 대표 권한 유지.',
 			role: 'admin',
 			circles: ['staff', 'admin', 'c-level', 'representative', 'hr-compensation'],
 			jobTitle: 'Representative',
 			groupID: 'c-level',
-			mattermostUserID: 'dev-mm-mohyeong',
-			mattermostUsername: 'mohyeong',
+			mattermostUserID: 'dev-mm-gyeonbon',
+			mattermostUsername: 'gyeonbon',
 			status: 'active'
 		}
 	];

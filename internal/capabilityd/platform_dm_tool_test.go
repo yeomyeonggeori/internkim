@@ -35,7 +35,7 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 			case "http://admind.local/admin/api/directory/people":
 				return platformDMTestJSONResponse(platformDMTestDirectoryDocument()), nil
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
-				return platformDMTestJSONResponse(platformDMResolvedGamyeongResponse()), nil
+				return platformDMTestJSONResponse(platformDMResolvedSampleResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim","is_bot":true}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
@@ -108,7 +108,7 @@ func TestPlatformDMSendImmediateSelfRequiresDescriptorApproval(t *testing.T) {
 
 func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, platformDMResolvedGamyeongResponse())
+	service := platformDMTestService(t, tokenPath, platformDMResolvedSampleResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_send",
@@ -159,7 +159,7 @@ func TestResolvePlatformDMRecipientUsesBlueclawResolvedRecipient(t *testing.T) {
 			t.Fatal(errorValue)
 		}
 		responseWriter.Header().Set("Content-Type", "application/json")
-		_, _ = responseWriter.Write([]byte(platformDMResolvedGamyeongResponse()))
+		_, _ = responseWriter.Write([]byte(platformDMResolvedSampleResponse()))
 	}))
 	defer server.Close()
 
@@ -245,7 +245,7 @@ func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 }
 
 func TestPlatformDMSendMissingMattermostTokenDoesNotSend(t *testing.T) {
-	service := platformDMTestService(t, "/missing/token", platformDMResolvedGamyeongResponse())
+	service := platformDMTestService(t, "/missing/token", platformDMResolvedSampleResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_send",
@@ -280,7 +280,7 @@ func TestPlatformDMSendPostFailureIsNotSafeToRetry(t *testing.T) {
 			case "http://admind.local/admin/api/directory/people":
 				return platformDMTestJSONResponse(platformDMTestDirectoryDocument()), nil
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
-				return platformDMTestJSONResponse(platformDMResolvedGamyeongResponse()), nil
+				return platformDMTestJSONResponse(platformDMResolvedSampleResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim","is_bot":true}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
@@ -324,7 +324,7 @@ func TestPlatformDMSendDirectChannelFailureUsesSpecificStage(t *testing.T) {
 			case "http://admind.local/admin/api/directory/people":
 				return platformDMTestJSONResponse(platformDMTestDirectoryDocument()), nil
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
-				return platformDMTestJSONResponse(platformDMResolvedGamyeongResponse()), nil
+				return platformDMTestJSONResponse(platformDMResolvedSampleResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim","is_bot":true}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
@@ -473,7 +473,7 @@ func platformDMTestDirectoryPeople() []directoryPerson {
 	return []directoryPerson{{MemberID: "person-gamyeong", Email: "gamyeong@example.com", Name: "이샘플"}}
 }
 
-func platformDMResolvedGamyeongResponse() string {
+func platformDMResolvedSampleResponse() string {
 	return `{"status":"resolved","recipient":{"personID":"person-gamyeong","displayName":"이샘플","emails":["gamyeong@example.com"],"externalUserID":"user-gamyeong","username":"gamyeong"}}`
 }
 
@@ -510,7 +510,7 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 				}
 				switch body.Hint {
 				case "sample@example.com":
-					return platformDMTestJSONResponse(platformDMResolvedGamyeongResponse()), nil
+					return platformDMTestJSONResponse(platformDMResolvedSampleResponse()), nil
 				case "jungkook@example.com":
 					return platformDMTestJSONResponse(`{"status":"resolved","recipient":{"personID":"person-jungkook","displayName":"전정국","emails":["jk@example.com"],"externalUserID":"user-jungkook","username":"jk"}}`), nil
 				default:

@@ -25,7 +25,7 @@ func newTwoRecipientFlowService(t *testing.T, failSecondRecipientOnce *bool, pos
 		case strings.HasPrefix(request.URL.Path, "/api/v4/users/username/"):
 			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200":
-			return jsonResponse(http.StatusOK, `[{"id":"user-owner","username":"owner","nickname":"김민수","email":"owner@example.com"},{"id":"user-mate","username":"mate","nickname":"박견양","email":"mate@example.com"}]`, nil), nil
+			return jsonResponse(http.StatusOK, `[{"id":"user-owner","username":"owner","nickname":"김민수","email":"owner@example.com"},{"id":"user-mate","username":"mate","nickname":"박예시","email":"mate@example.com"}]`, nil), nil
 		case request.URL.Path == "/api/v4/channels/direct" && request.Method == http.MethodPost:
 			recipientID := mattermostDirectChannelOtherUserID(t, request, "bot-1")
 			return jsonResponse(http.StatusCreated, `{"id":"direct-`+recipientID+`"}`, nil), nil
@@ -54,7 +54,7 @@ func TestFlowNoticeRetryDoesNotRepeatDeliveredRecipients(t *testing.T) {
 	postedChannels := []string{}
 	service := newTwoRecipientFlowService(t, &failSecondRecipientOnce, &postedChannels)
 	task := flowNotificationTestTask("요청")
-	task.ParticipantNames = []string{"김민수", "박견양"}
+	task.ParticipantNames = []string{"김민수", "박예시"}
 	if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
 		t.Fatal(errorValue)
 	}

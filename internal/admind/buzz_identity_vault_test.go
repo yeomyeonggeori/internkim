@@ -65,7 +65,7 @@ func TestBuzzIdentitySecretPathIsNotGuessableFromTheEmailAlone(t *testing.T) {
 		t.Fatalf("load vault key: %v", errorValue)
 	}
 	fileName := filepath.Base(service.buzzIdentitySecretPath(encryptionKey, "member1@example.com"))
-	if strings.Contains(fileName, "lee") || strings.Contains(fileName, "dawn") {
+	if strings.Contains(fileName, "leesample") || strings.Contains(fileName, "dawn") {
 		t.Fatalf("vault file name must not embed the email, got %q", fileName)
 	}
 	unkeyedDigest := sha256.Sum256([]byte("member1@example.com"))
