@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 )
 
 type directoryPersonRequest struct {
@@ -19,11 +18,6 @@ type directoryPersonRequest struct {
 type directoryPersonResponse struct {
 	Known bool `json:"known"`
 }
-
-// directoryLookupBudget bounds the wait an inbound message inherits from this lookup.
-// Somebody is waiting on the answer, so a slow directory gives up rather than holding
-// the turn that asked.
-const directoryLookupBudget = 5 * time.Second
 
 // The agent asks this when it cannot match an account to anyone it carries. The company
 // directory is the host's to read, and admind is where a person is projected onto the
@@ -46,9 +40,10 @@ func (service Service) askAdmindAboutPerson(ctx context.Context, payload directo
 	if errorValue != nil {
 		return false, errorValue
 	}
-	requestContext, cancel := context.WithTimeout(ctx, directoryLookupBudget)
-	defer cancel()
-	request, errorValue := http.NewRequestWithContext(requestContext, http.MethodPost,
+	// The lookup keeps the deadline the caller already carries. A budget of its own
+	// only ever expired before the company answered, and giving up was reported to
+	// the person as not being on file.
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost,
 		strings.TrimRight(service.Configuration.AdmindBaseURL, "/")+"/admin/api/directory/person",
 		bytes.NewReader(body))
 	if errorValue != nil {
