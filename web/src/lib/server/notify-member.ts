@@ -42,7 +42,7 @@ async function wantsToBeTold(
 		.eq('id', memberID)
 		.maybeSingle<{ notification_settings: unknown }>();
 	if (error) throw new Error(error.message);
-	return readNotificationSettings(data?.notification_settings)[category];
+	return readNotificationSettings(data?.notification_settings).categories[category];
 }
 
 // A muted conversation is a row; silence is the exception, so a member who has

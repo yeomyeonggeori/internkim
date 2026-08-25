@@ -1,5 +1,5 @@
 import { supabase } from '$lib/supabase';
-import { readNotificationSettings, type NotificationSettings } from './categories';
+import { readNotificationSettings, writeNotificationSettings, type NotificationSettings } from './categories';
 
 export async function myNotificationSettings(): Promise<NotificationSettings> {
 	const { data } = await supabase().auth.getSession();
@@ -16,6 +16,6 @@ export async function myNotificationSettings(): Promise<NotificationSettings> {
 }
 
 export async function chooseNotificationSettings(chosen: NotificationSettings): Promise<void> {
-	const { error } = await supabase().rpc('notification_settings_set', { chosen });
+	const { error } = await supabase().rpc('notification_settings_set', { chosen: writeNotificationSettings(chosen) });
 	if (error) throw new Error(error.message);
 }
