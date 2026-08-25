@@ -78,6 +78,38 @@ test.describe('app rail', () => {
 		await expect(bottomNavigation.getByRole('button', { name: '더보기', exact: true })).toBeVisible();
 	});
 
+	test('reaches the messenger from the first tab of the bottom navigation', async ({ page }) => {
+		await page.setViewportSize({ width: 444, height: 866 });
+		await page.goto('/memory/');
+
+		const firstTab = mobileBottomNavigation(page).getByRole('link').first();
+		await expect(firstTab).toHaveAttribute('aria-label', '메신저');
+		await expect(firstTab).toHaveAttribute('href', '/messenger/');
+	});
+
+	test('keeps mail in the more sheet instead of the bottom navigation', async ({ page }) => {
+		await page.setViewportSize({ width: 444, height: 866 });
+		await page.goto('/memory/');
+
+		const bottomNavigation = mobileBottomNavigation(page);
+		await expect(bottomNavigation.getByRole('link', { name: '메일' })).toHaveCount(0);
+
+		await openUntilVisible(
+			bottomNavigation.getByRole('button', { name: '더보기', exact: true }),
+			page.getByRole('dialog').getByRole('link', { name: '메일' })
+		);
+	});
+
+	test('opens the channel list from the messenger header on a narrow screen', async ({ page }) => {
+		await page.setViewportSize({ width: 444, height: 866 });
+		await page.goto('/messenger/');
+
+		const openChannelList = page.getByRole('button', { name: '채널 목록 열기' });
+		await expect(openChannelList).toBeVisible();
+
+		await openUntilVisible(openChannelList, page.getByRole('dialog', { name: '채널' }));
+	});
+
 	test('treats mobile bottom navigation as a subtle overlay instead of a reserved well', async ({ page }) => {
 		await page.setViewportSize({ width: 444, height: 866 });
 		await page.goto('/memory/');
@@ -154,6 +186,13 @@ test.describe('app rail', () => {
 		await expect.poll(async () => page.evaluate(() => document.cookie.includes('sidebar:state='))).toBe(false);
 	});
 });
+
+async function openUntilVisible(trigger: Locator, revealed: Locator): Promise<void> {
+	await expect(async () => {
+		await trigger.click();
+		await expect(revealed).toBeVisible({ timeout: 1_000 });
+	}).toPass({ timeout: 15_000 });
+}
 
 async function railMetrics(page: Page): Promise<RailMetrics> {
 	return page.evaluate((selectors) => {
