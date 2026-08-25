@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -64,7 +65,7 @@ func (service *Service) handleSSHRecovery(responseWriter http.ResponseWriter, re
 		http.Error(responseWriter, errorValue.Error(), http.StatusForbidden)
 		return
 	}
-	response := service.runSSHRecovery(request.Context(), payload.Action)
+	response := service.runSSHRecovery(request.Context(), payload.Action, payload.Target)
 	service.writeJSON(responseWriter, response)
 }
 
@@ -74,14 +75,14 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
 	}
 }
 
-func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRecoveryResponse {
+func (service *Service) runSSHRecovery(ctx context.Context, action string, actionTarget string) sshRecoveryResponse {
 	response := sshRecoveryResponse{
 		Status:     "ok",
 		Action:     action,
@@ -155,6 +156,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		cancelMirror()
 	case "buzz-mirror-status":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read Buzz<->Mattermost mirror status", "sh", "-lc", buzzMirrorStatusCommand()))
+	case "buzz-retire-room":
+		namedContext, cancelNamed := context.WithTimeout(context.Background(), 600*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(namedContext, "retire the room this action names and its buzz mirror", "sh", "-lc", buzzRetireNamedRoomCommand(actionTarget)))
+		cancelNamed()
 	case "buzz-rooms-nobody-is-in":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the private rooms nobody is in", "sh", "-lc", buzzChannelRetireCommand(false)))
 	case "buzz-retire-rooms-nobody-is-in":
@@ -1209,6 +1214,13 @@ ls -la /root/.internkim/backups/ | tail -6
 // so the community can read them (#705). channel_members soft-deletes with
 // removed_at, and the people who have left are exactly who a repair cannot put
 // back, so they are counted apart.
+func buzzRetireNamedRoomCommand(room string) string {
+	return strings.TrimSpace(`
+body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/buzz-channel-retire?retire=true&room=` + url.QueryEscape(strings.TrimSpace(room)) + `")
+printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
+`)
+}
+
 func buzzChannelRetireCommand(shouldRetire bool) string {
 	retireValue := "false"
 	if shouldRetire {

@@ -27,7 +27,7 @@ func TestPerformSSHRecoveryRequestSignsPublicAdminRequest(t *testing.T) {
 		if payload.Action != "restart-cloudflared-node-ssh" || payload.DeviceID != "fleet-1" {
 			t.Fatalf("unexpected payload %+v", payload)
 		}
-		expectedSignature := signCLIRecoveryPayload("secret-1", payload.Action, payload.DeviceID, payload.Nonce, payload.Timestamp)
+		expectedSignature := signCLIRecoveryPayload("secret-1", payload.Action, "", payload.DeviceID, payload.Nonce, payload.Timestamp)
 		if payload.Signature != expectedSignature {
 			t.Fatalf("signature = %q, expected %q", payload.Signature, expectedSignature)
 		}
@@ -41,7 +41,7 @@ func TestPerformSSHRecoveryRequestSignsPublicAdminRequest(t *testing.T) {
 	response, errorValue := performSSHRecoveryRequest(commandTarget{
 		stateDir:  stateDirectory,
 		deviceURL: "https://device.example",
-	}, "restart-cloudflared-node-ssh")
+	}, "restart-cloudflared-node-ssh", "")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -54,7 +54,7 @@ func TestPerformSSHRecoveryRequestRequiresFleetIdentity(t *testing.T) {
 	_, errorValue := performSSHRecoveryRequest(commandTarget{
 		stateDir:  t.TempDir(),
 		deviceURL: "https://device.example",
-	}, "status")
+	}, "status", "")
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "fleet identity") {
 		t.Fatalf("expected fleet identity error, got %v", errorValue)
 	}
@@ -89,7 +89,7 @@ func TestPerformSSHRecoveryRequestExplainsRedirectAsMissingEndpoint(t *testing.T
 	_, errorValue := performSSHRecoveryRequest(commandTarget{
 		stateDir:  stateDirectory,
 		deviceURL: "https://device.example",
-	}, "status")
+	}, "status", "")
 	for _, expectedText := range []string{"recovery endpoint redirected", "location=\"/admin/\"", "health=HTTP 200"} {
 		if errorValue == nil || !strings.Contains(errorValue.Error(), expectedText) {
 			t.Fatalf("expected redirect explanation to contain %q, got %v", expectedText, errorValue)

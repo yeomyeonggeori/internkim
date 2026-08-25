@@ -13,6 +13,7 @@ import (
 
 type fleetSignedRequest struct {
 	Action    string `json:"action"`
+	Target    string `json:"target,omitempty"`
 	DeviceID  string `json:"deviceID"`
 	Nonce     string `json:"nonce"`
 	Timestamp string `json:"timestamp"`
@@ -27,6 +28,7 @@ func (service *Service) validateFleetSignedRequest(payload fleetSignedRequest, i
 	payload.Nonce = strings.TrimSpace(payload.Nonce)
 	payload.Timestamp = strings.TrimSpace(payload.Timestamp)
 	payload.Signature = strings.TrimSpace(payload.Signature)
+	payload.Target = strings.TrimSpace(payload.Target)
 	if !isAllowedAction(payload.Action) {
 		return fmt.Errorf("unsupported signed action")
 	}
@@ -47,7 +49,7 @@ func (service *Service) validateFleetSignedRequest(payload fleetSignedRequest, i
 	if secret == "" {
 		return fmt.Errorf("fleet secret is not configured")
 	}
-	expectedSignature := signFleetPayload(secret, payload.Action, payload.DeviceID, payload.Nonce, payload.Timestamp)
+	expectedSignature := signFleetPayload(secret, payload.Action, payload.Target, payload.DeviceID, payload.Nonce, payload.Timestamp)
 	if !hmac.Equal([]byte(expectedSignature), []byte(payload.Signature)) {
 		return fmt.Errorf("invalid signed request signature")
 	}
@@ -77,8 +79,12 @@ func (service *Service) claimFleetSignedNonce(nonce string) error {
 	return nil
 }
 
-func signFleetPayload(secret string, action string, deviceID string, nonce string, timestamp string) string {
+func signFleetPayload(secret string, action string, target string, deviceID string, nonce string, timestamp string) string {
+	fields := []string{action, deviceID, nonce, timestamp}
+	if strings.TrimSpace(target) != "" {
+		fields = append(fields, strings.TrimSpace(target))
+	}
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(strings.Join([]string{action, deviceID, nonce, timestamp}, "\n")))
+	mac.Write([]byte(strings.Join(fields, "\n")))
 	return hex.EncodeToString(mac.Sum(nil))
 }

@@ -1030,7 +1030,7 @@ func runStatusArguments(arguments []string) error {
 	target := resolveCommandTarget(arguments)
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
 	if hasCommandArgument(arguments, "--recover-ssh") {
-		return runSSHRecoveryForTarget(m, configuration, sshpassBin, target, "restart-cloudflared-node-ssh", false)
+		return runSSHRecoveryForTarget(m, configuration, sshpassBin, target, "restart-cloudflared-node-ssh", "", false)
 	}
 	if hasCommandArgument(arguments, "--all-nodes") {
 		targets := allFleetCommandTargets(target)

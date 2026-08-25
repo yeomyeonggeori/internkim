@@ -31,7 +31,7 @@ func TestSignedReleaseApplyDocumentNamesTheReleaseAndChannel(t *testing.T) {
 	if payload.ReleaseID != "release-1" || payload.Channel != "direct" {
 		t.Fatalf("a deploy names the release it just published, got %+v", payload.releaseSelection)
 	}
-	expectedSignature := signCLIRecoveryPayload("secret-1", payload.Action, payload.DeviceID, payload.Nonce, payload.Timestamp)
+	expectedSignature := signCLIRecoveryPayload("secret-1", payload.Action, "", payload.DeviceID, payload.Nonce, payload.Timestamp)
 	if payload.Signature != expectedSignature {
 		t.Fatalf("signature = %q, expected %q", payload.Signature, expectedSignature)
 	}
