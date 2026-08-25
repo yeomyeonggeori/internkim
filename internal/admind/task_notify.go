@@ -20,10 +20,6 @@ const (
 	taskNotifyConfirmName = "confirmation.requested"
 )
 
-// blueclaw has no way to call out when a run changes, so the device reads the
-// same task list its dashboard reads and notices the transitions itself. The
-// alternative would teach blueclaw a central-plane address it has no business
-// knowing.
 func (service *Service) keepTaskRunsNotified(ctx context.Context) {
 	for {
 		select {
@@ -68,9 +64,6 @@ func (service *Service) notifyTaskRunsOnce(ctx context.Context) {
 	}
 }
 
-// The first cycle adopts whatever the ledger already holds. Without this a
-// device that has been running for months would announce every finished task
-// at once the moment this shipped.
 func (service *Service) adoptTaskRunsWithoutNotifying(ctx context.Context, runs []taskNotifyRun, now time.Time) {
 	adopted := map[string]string{}
 	for _, run := range runs {
@@ -125,8 +118,6 @@ func (service *Service) notifyChangedTaskRuns(
 	}
 }
 
-// A mark is written only once the plane has answered, so a send that failed is
-// retried on the next tick rather than lost.
 func (service *Service) markTaskRun(ctx context.Context, run taskNotifyRun, now time.Time) {
 	if errorValue := service.writeTaskNotifyMarks(ctx, map[string]string{run.TaskRunID: run.Status}, now); errorValue != nil {
 		log.Printf("task notify: run %s was not marked: %v", run.TaskRunID, errorValue)
@@ -144,8 +135,6 @@ func (service *Service) taskRunsToConsider(ctx context.Context) ([]taskNotifyRun
 	return runs, nil
 }
 
-// The approval wording the agent wrote for this person. It is an enrichment:
-// when the detail call fails the notification still goes, carrying the prompt.
 func (service *Service) taskNotifyConfirmationMessage(ctx context.Context, run taskNotifyRun) string {
 	if run.Status != "waiting_approval" {
 		return ""

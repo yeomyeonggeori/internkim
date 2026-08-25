@@ -54,7 +54,6 @@ func TestMarksSurviveARestart(t *testing.T) {
 	first := newTaskNotifyTestService(t, stateDirectory)
 	first.adoptTaskRunsWithoutNotifying(ctx, []taskNotifyRun{{TaskRunID: "run-1", Status: "running"}}, now)
 
-	// The same state directory, as a restarted process would find it.
 	second := newTaskNotifyTestService(t, stateDirectory)
 	seeded, errorValue := second.taskNotifyBaselineSeeded(ctx)
 	if errorValue != nil {

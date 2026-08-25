@@ -86,8 +86,6 @@
 		await keep({ ...settings, categories: { ...settings.categories, [category]: wanted } });
 	}
 
-	// The digest goes out at an hour the member picks, because a company whose
-	// day starts at ten does not want a summary at eight.
 	async function chooseCalendarAt(said: string) {
 		const at = readTimeOfDay(said);
 		if (!at || at === settings.calendarAt) return;

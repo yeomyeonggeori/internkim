@@ -26,7 +26,6 @@ func TestADigestHoldsOnlyTheDaysThisPersonIsOn(t *testing.T) {
 	if len(entries) != 2 {
 		t.Fatalf("entries = %+v", entries)
 	}
-	// Earliest first, so a glance reads as the day runs.
 	if entries[0].Title != "내가 만든 것" || entries[0].At != "10:00" {
 		t.Fatalf("first = %+v", entries[0])
 	}

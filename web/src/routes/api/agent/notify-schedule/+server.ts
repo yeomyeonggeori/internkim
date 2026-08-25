@@ -5,9 +5,6 @@ import type { RequestHandler } from './$types';
 
 type MemberRow = { messenger: Record<string, string> | null; notification_settings: unknown };
 
-// A device knows what is on somebody's calendar; the plane knows the hour they
-// asked to hear about it. This is the plane answering "whose hour is it now",
-// so the device does not have to hold a copy of everyone's settings.
 export const GET: RequestHandler = async ({ request, url, platform }) => {
 	const environment = environmentOf(platform);
 	const { client, companyID } = await callingAgent(request, environment);

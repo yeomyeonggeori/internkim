@@ -19,8 +19,6 @@ func TestOnlyUnreadMailAboveTheMarkIsNews(t *testing.T) {
 	}
 }
 
-// The mark passes everything the look saw, so a message opened on a laptop is
-// never announced to the phone afterwards.
 func TestTheMarkMovesPastWhatWasSeenReadOrNot(t *testing.T) {
 	messages := []mail.MessageResponse{
 		{UID: 12, IsRead: true},
