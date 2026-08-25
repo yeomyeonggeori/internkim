@@ -28,7 +28,7 @@ func TestOrganizationProfileHandlerPersistsMetadata(t *testing.T) {
 			return nil, nil
 		}
 	})}
-	requestBody := strings.NewReader(`{"profiles":[{"memberID":"user-member","email":"member@example.com","jobTitle":"Designer","groupID":"design","positionLevel":3,"projectIDs":["brand"],"employmentStatus":"resigned","isOrganizationVisible":false}]}`)
+	requestBody := strings.NewReader(`{"profiles":[{"memberID":"user-member","email":"member@example.com","jobTitle":"Designer","groupID":"design","positionLevel":3,"projectIDs":["brand"],"status":"departed","isOrganizationVisible":false}]}`)
 	responseRecorder := httptest.NewRecorder()
 
 	service.localUpdateOrgProfiles(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/org-profiles", requestBody))
@@ -44,27 +44,16 @@ func TestOrganizationProfileHandlerPersistsMetadata(t *testing.T) {
 	if profile.JobTitle != "Designer" || profile.GroupID != "design" {
 		t.Fatalf("profile = %#v", profile)
 	}
-	if profile.PositionLevel != 0 || len(profile.ProjectIDs) != 0 || profile.TeamRole != "" {
-		t.Fatalf("unsupported profile fields = %#v; want ignored", profile)
-	}
-	if profile.EmploymentStatus != organizationEmploymentStatusActive || !profile.IsOrganizationVisible {
-		t.Fatalf("profile defaults = %#v; want active visible defaults", profile)
-	}
 }
 
 func TestOrganizationProfileHandlerPreservesOmittedMetadata(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{{
-		MemberID:              "user-member",
-		Email:                 "member@example.com",
-		JobTitle:              "Product Manager",
-		PositionLevel:         2,
-		GroupID:               "product",
-		SupervisorID:          "user-admin",
-		ProjectIDs:            []string{"new-business"},
-		TeamRole:              "제품 일정 관리",
-		EmploymentStatus:      organizationEmploymentStatusLeave,
-		IsOrganizationVisible: false,
+		MemberID:     "user-member",
+		Email:        "member@example.com",
+		JobTitle:     "Product Manager",
+		GroupID:      "product",
+		SupervisorID: "user-admin",
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -101,26 +90,16 @@ func TestOrganizationProfileHandlerPreservesOmittedMetadata(t *testing.T) {
 	if profile.JobTitle != "Lead PM" || profile.SupervisorID != "user-ceo" {
 		t.Fatalf("profile editable fields = %#v", profile)
 	}
-	if profile.PositionLevel != 2 || profile.EmploymentStatus != organizationEmploymentStatusLeave || profile.IsOrganizationVisible {
-		t.Fatalf("profile preserved scalar fields = %#v", profile)
-	}
-	if strings.Join(profile.ProjectIDs, ",") != "new-business" {
-		t.Fatalf("project ids = %#v; want new-business", profile.ProjectIDs)
-	}
-	if profile.TeamRole != "제품 일정 관리" {
-		t.Fatalf("team role = %q; want preserved team role", profile.TeamRole)
-	}
 }
 
 func TestOrganizationProfileHandlerRejectsSelfSupervisor(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	service.HTTPClient = organizationProfileValidationTestHTTPClient(t)
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{{
-		MemberID:              "user-member",
-		Email:                 "member@example.com",
-		SupervisorID:          "user-admin",
-		EmploymentStatus:      organizationEmploymentStatusActive,
-		IsOrganizationVisible: true,
+		MemberID:     "user-member",
+		Email:        "member@example.com",
+		SupervisorID: "user-admin",
+		Status:       memberStatusActive,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -166,18 +145,16 @@ func TestOrganizationProfileHandlerRejectsSupervisorCycleWithExistingProfiles(t 
 	service.HTTPClient = organizationProfileValidationTestHTTPClient(t)
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{
 		{
-			MemberID:              "user-a",
-			Email:                 "a@example.com",
-			SupervisorID:          "",
-			EmploymentStatus:      organizationEmploymentStatusActive,
-			IsOrganizationVisible: true,
+			MemberID:     "user-a",
+			Email:        "a@example.com",
+			SupervisorID: "",
+			Status:       memberStatusActive,
 		},
 		{
-			MemberID:              "user-b",
-			Email:                 "b@example.com",
-			SupervisorID:          "user-a",
-			EmploymentStatus:      organizationEmploymentStatusActive,
-			IsOrganizationVisible: true,
+			MemberID:     "user-b",
+			Email:        "b@example.com",
+			SupervisorID: "user-a",
+			Status:       memberStatusActive,
 		},
 	}); errorValue != nil {
 		t.Fatal(errorValue)

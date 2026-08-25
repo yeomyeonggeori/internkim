@@ -56,7 +56,7 @@ func organizationProfileWithHireDate(profiles []organizationProfile, userID stri
 	profilesByUserID, profilesByEmail := organizationProfileIndexes(profiles)
 	profile, found := organizationProfileForUser(adminUserMutation{MemberID: userID, Email: email}, profilesByUserID, profilesByEmail)
 	if !found {
-		profile = organizationProfile{EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true}
+		profile = organizationProfile{Status: memberStatusActive}
 	}
 	profile.MemberID = firstNonEmpty(userID, profile.MemberID)
 	profile.Email = firstNonEmpty(strings.ToLower(strings.TrimSpace(email)), profile.Email)

@@ -54,39 +54,32 @@ func TestOrganizationReadBackTakesTheDirectorysProfile(t *testing.T) {
 	}
 }
 
-func TestOrganizationReadBackNeverClearsWhatTheDirectoryHasNotLearnedYet(t *testing.T) {
-	held := organizationProfile{
-		MemberID: "member-one", Email: "member@example.com",
-		JobTitle: "Designer", PhoneNumber: "+821012345678", HireDate: "2026-01-02",
-		SupervisorID: "member-lead", GroupID: "design",
+func TestOrganizationReadBackHoldsOffUntilTheDirectoryIsSeeded(t *testing.T) {
+	described := []organizationProfile{{MemberID: "member-one", Email: "member@example.com", JobTitle: "Designer"}}
+	blank := []centralplane.Member{{MemberID: "member-one", Email: "member@example.com"}}
+
+	if !isDirectorySeedNeeded(blank, described) {
+		t.Fatal("a directory that describes nobody must not be taken as an instruction to empty the device")
 	}
-	blank := centralplane.Member{MemberID: "member-one", Email: "member@example.com"}
-
-	taken := organizationProfileTakenFrom(held, blank, map[string]string{}, map[string]string{})
-
-	if directoryOwnedFieldsDiffer(held, taken) {
-		t.Fatalf("profile = %#v; a directory that holds nothing yet must not empty the device", taken)
+	if isDirectorySeedNeeded(blank, nil) {
+		t.Fatal("a device that describes nobody either has nothing to lose")
+	}
+	filled := []centralplane.Member{{MemberID: "member-one", Email: "member@example.com", JobTitle: "Designer"}}
+	if isDirectorySeedNeeded(filled, described) {
+		t.Fatal("a directory that describes somebody is the source and needs no seed")
 	}
 }
 
 func TestOrganizationReadBackLeavesWhatTheDirectoryDoesNotOwn(t *testing.T) {
 	held := organizationProfile{
 		MemberID: "member-one", Email: "member@example.com",
-		JobTitle: "Designer", PositionLevel: 3, TeamRole: "lead",
-		ProjectIDs: []string{"brand"}, EmploymentStatus: organizationEmploymentStatusResigned,
-	}
+		JobTitle: "Designer"}
 	member := centralplane.Member{MemberID: "member-one", Email: "member@example.com", JobTitle: "Product Manager"}
 
 	taken := organizationProfileTakenFrom(held, member, map[string]string{}, map[string]string{})
 
 	if taken.JobTitle != "Product Manager" {
 		t.Fatalf("job title = %q; the directory owns it", taken.JobTitle)
-	}
-	if taken.PositionLevel != 3 || taken.TeamRole != "lead" || taken.EmploymentStatus != organizationEmploymentStatusResigned {
-		t.Fatalf("profile = %#v; the directory has no column for these and must not clear them", taken)
-	}
-	if len(taken.ProjectIDs) != 1 || taken.ProjectIDs[0] != "brand" {
-		t.Fatalf("projects = %#v", taken.ProjectIDs)
 	}
 }
 

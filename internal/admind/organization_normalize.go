@@ -12,29 +12,24 @@ func normalizeOrganizationProfile(profile organizationProfile) organizationProfi
 	profile.GroupID = strings.TrimSpace(profile.GroupID)
 	profile.HireDate = strings.TrimSpace(profile.HireDate)
 	profile.SupervisorID = strings.TrimSpace(profile.SupervisorID)
-	profile.ProjectIDs = normalizeOrganizationStringList(profile.ProjectIDs)
-	profile.TeamRole = strings.TrimSpace(profile.TeamRole)
-	profile.EmploymentStatus = normalizeOrganizationEmploymentStatus(profile.EmploymentStatus)
-	if profile.PositionLevel < 0 {
-		profile.PositionLevel = 0
-	}
+	profile.Status = normalizeMemberStatus(profile.Status)
 	return profile
 }
 
-func normalizeOrganizationEmploymentStatus(status string) string {
+func normalizeMemberStatus(status string) string {
 	normalizedStatus := strings.ToLower(strings.TrimSpace(status))
-	if isValidOrganizationEmploymentStatus(normalizedStatus) {
-		return normalizedStatus
+	if normalizedStatus == "" {
+		return memberStatusActive
 	}
-	return organizationEmploymentStatusActive
+	return normalizedStatus
 }
 
-func isValidOrganizationEmploymentStatus(status string) bool {
-	switch strings.ToLower(strings.TrimSpace(status)) {
-	case organizationEmploymentStatusActive, organizationEmploymentStatusLeave, organizationEmploymentStatusResigned:
-		return true
-	default:
+func isMemberStillHere(status string) bool {
+	switch normalizeMemberStatus(status) {
+	case memberStatusDeparted, memberStatusWithdrawn:
 		return false
+	default:
+		return true
 	}
 }
 
