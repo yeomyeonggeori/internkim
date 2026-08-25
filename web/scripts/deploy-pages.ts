@@ -2,6 +2,7 @@
 //   bun run web/scripts/deploy-pages.ts --whoami
 
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { mainCommitOfLiveBuild, refusalToReplaceProduction, stampOfMainCommit } from './production-guard';
 import { requiredSetting } from './repository-setting';
 
@@ -82,7 +83,7 @@ runWrangler([
 
 function runWrangler(wranglerArguments: string[]): never {
 	const run = Bun.spawnSync(['bunx', ...wranglerArguments], {
-		cwd: new URL('..', import.meta.url).pathname,
+		cwd: fileURLToPath(new URL('..', import.meta.url)),
 		env: { ...process.env, CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: accountID },
 		stdout: 'pipe',
 		stderr: 'pipe'

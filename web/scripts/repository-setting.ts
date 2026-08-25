@@ -4,8 +4,9 @@
 // reader to set something they already set.
 
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-const repositorySettingsPath = new URL('../../.env', import.meta.url).pathname;
+const repositorySettingsPath = fileURLToPath(new URL('../../.env', import.meta.url));
 
 function settingsAtRepositoryRoot(): Record<string, string> {
 	let written = '';
