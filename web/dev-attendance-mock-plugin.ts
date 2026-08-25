@@ -3,6 +3,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
 	AttendanceAbsence,
 	AttendanceAbsenceKind,
+	AttendanceEvent,
+	AttendanceKind,
 	AttendanceSummary
 } from './src/routes/attendance/attendance-context.svelte';
 import { isWeekday, todayDateInTimeZone } from './src/routes/attendance/shared/attendance-date';
@@ -46,7 +48,9 @@ type DevAttendanceMockState = {
 	createdAbsences: AttendanceAbsence[];
 	canceledAbsenceIDs: Set<string>;
 	eventOverrides: Record<string, DevAttendanceEventOverride[]>;
+	clockedEvents: AttendanceEvent[];
 	nextAbsenceID: number;
+	nextClockID: number;
 	leave: DevEmployeeLeaveMockState;
 	leaveApproval: DevLeaveApprovalMockState;
 	leaveManagement: DevLeaveManagementMockState;
@@ -72,6 +76,11 @@ type AbsencePayload = {
 	startDate: string;
 	endDate: string;
 	reason: string;
+};
+
+type ClockPayload = {
+	kind: AttendanceKind;
+	locationID: string;
 };
 
 type EventOverridePayload = {
@@ -124,7 +133,9 @@ export function createDevAttendanceMockState(userEmail: string): DevAttendanceMo
 		createdAbsences: [],
 		canceledAbsenceIDs: new Set(),
 		eventOverrides: {},
+		clockedEvents: [],
 		nextAbsenceID: 1,
+		nextClockID: 1,
 		leave,
 		leaveApproval: createDevLeaveApprovalMockState(leave),
 		leaveManagement: createDevLeaveManagementMockState(leave),
@@ -215,8 +226,12 @@ export async function createDevAttendanceMockResponse(
 	if (request.method === 'GET' && request.pathname === '/attendance/api/summary') {
 		const month = request.searchParams.get('month') || currentMonth();
 		const summary = buildAttendanceSummaryFixture(month);
-		const events = summary.events.map((event) =>
-			projectEventOverrides(event, state.eventOverrides[event.id] ?? [], summary.locations)
+		const events = withClockedEvents(
+			state,
+			summary.events.map((event) =>
+				projectEventOverrides(event, state.eventOverrides[event.id] ?? [], summary.locations)
+			),
+			month
 		);
 		return {
 			status: 200,
@@ -229,6 +244,20 @@ export async function createDevAttendanceMockResponse(
 				)
 			}
 		};
+	}
+	if (request.method === 'POST' && request.pathname === '/attendance/api/clock') {
+		const payload = clockPayloadFromBody(request.body);
+		const summary = buildAttendanceSummaryFixture(currentMonth());
+		const location =
+			summary.locations.find((candidate) => candidate.id === payload.locationID) ??
+			summary.locations.find((candidate) => candidate.isDefault) ??
+			summary.locations[0];
+		state.clockedEvents = [
+			...state.clockedEvents,
+			buildClockedEvent(state, summary, payload.kind, location)
+		];
+		state.nextClockID += 1;
+		return { status: 200, body: { recorded: true } };
 	}
 	if (request.method === 'PATCH' && request.pathname.startsWith('/attendance/api/events/')) {
 		const eventID = decodeURIComponent(request.pathname.replace('/attendance/api/events/', ''));
@@ -359,6 +388,77 @@ function absencePayloadFromBody(body: string | undefined): AbsencePayload {
 	const endDate = dateFromValue(parsed.endDate) || startDate;
 	const reason = typeof parsed.reason === 'string' ? parsed.reason.trim() : '';
 	return { kind, startDate, endDate, reason };
+}
+
+function withClockedEvents(
+	state: DevAttendanceMockState,
+	fixtureEvents: AttendanceEvent[],
+	month: string
+): AttendanceEvent[] {
+	const clockedEvents = state.clockedEvents.filter((event) => event.localDate.startsWith(month));
+	if (clockedEvents.length === 0) return fixtureEvents;
+	const latestByDate = new Map<string, string>();
+	for (const event of clockedEvents) {
+		const latest = latestByDate.get(event.localDate) ?? '';
+		if (event.localTime > latest) latestByDate.set(event.localDate, event.localTime);
+	}
+	const survivingFixtureEvents = fixtureEvents.filter((event) => {
+		if (event.email !== state.userEmail) return true;
+		const latest = latestByDate.get(event.localDate);
+		return latest === undefined || event.localTime <= latest;
+	});
+	return [...survivingFixtureEvents, ...clockedEvents];
+}
+
+function zoneOffset(instant: Date, timeZone: string): string {
+	const formatted = new Intl.DateTimeFormat('en-GB', { timeZone, timeZoneName: 'longOffset' })
+		.formatToParts(instant)
+		.find((part) => part.type === 'timeZoneName')?.value;
+	const offset = (formatted ?? '').replace('GMT', '');
+	return offset === '' ? '+00:00' : offset;
+}
+
+function clockPayloadFromBody(body: string | undefined): ClockPayload {
+	const parsed = parseJSONRecord(body);
+	return {
+		kind: parsed.kind === 'clock_out' ? 'clock_out' : 'clock_in',
+		locationID: typeof parsed.locationID === 'string' ? parsed.locationID.trim() : ''
+	};
+}
+
+function buildClockedEvent(
+	state: DevAttendanceMockState,
+	summary: AttendanceSummary,
+	kind: AttendanceKind,
+	location: AttendanceSummary['locations'][number] | undefined
+): AttendanceEvent {
+	const now = new Date();
+	const localClock = now.toLocaleTimeString('en-GB', {
+		timeZone: summary.timeZone,
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit'
+	});
+	const localTime = localClock.slice(0, 5);
+	const localDate = todayDateInTimeZone(summary.timeZone);
+	const member = summary.members.find((candidate) => candidate.email === state.userEmail);
+	return {
+		id: `dev-clock-${state.nextClockID}`,
+		mattermostUserID: member?.mattermostUsername ?? state.userEmail,
+		mattermostUsername: member?.mattermostUsername ?? state.userEmail,
+		email: state.userEmail,
+		displayName: member?.displayName ?? state.userEmail,
+		kind,
+		occurredAt: `${localDate}T${localClock}${zoneOffset(now, summary.timeZone)}`,
+		localDate,
+		localTime,
+		timeZoneAtEvent: summary.timeZone,
+		source: 'dev_mock',
+		resultPostID: `dev-clock-post-${state.nextClockID}`,
+		...(kind === 'clock_in' && location
+			? { locationID: location.id, locationName: location.name }
+			: {})
+	};
 }
 
 function eventOverridePayloadFromBody(body: string | undefined): EventOverridePayload {

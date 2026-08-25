@@ -105,7 +105,7 @@
 	});
 
 	$effect(() => {
-		myAttendanceToday.adopt(attendance.currentMonthSummary);
+		myAttendanceToday.adoptSummary(attendance.currentMonthSummary);
 	});
 
 	$effect(() => {

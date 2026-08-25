@@ -3,6 +3,7 @@
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import ChannelSheet from '$lib/components/channel/channel-sheet.svelte';
+	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
@@ -40,6 +41,7 @@
 	onMount(() => {
 		initializeLocale();
 		preloadWorkTimeChartPlot();
+		void myAttendanceToday.load();
 		const revalidateSession = () => {
 			if (document.visibilityState !== 'visible') return;
 			void invalidate(webAuthSessionDependency);
