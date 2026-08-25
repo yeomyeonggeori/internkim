@@ -37,8 +37,8 @@ func (service *Service) adoptAccountHireDates(ctx context.Context) {
 		if strings.TrimSpace(record.HireDate) == "" {
 			continue
 		}
-		profile, changed := organizationProfileWithHireDate(profiles, record.UserID, record.Email, record.HireDate)
-		if changed && profileHireDateIsEmpty(profiles, record.UserID, record.Email) {
+		profile, changed := organizationProfileWithHireDate(profiles, record.MemberID, record.Email, record.HireDate)
+		if changed && profileHireDateIsEmpty(profiles, record.MemberID, record.Email) {
 			adopted = append(adopted, profile)
 		}
 	}
@@ -54,11 +54,11 @@ func (service *Service) adoptAccountHireDates(ctx context.Context) {
 
 func organizationProfileWithHireDate(profiles []organizationProfile, userID string, email string, hireDate string) (organizationProfile, bool) {
 	profilesByUserID, profilesByEmail := organizationProfileIndexes(profiles)
-	profile, found := organizationProfileForUser(adminUserMutation{UserID: userID, Email: email}, profilesByUserID, profilesByEmail)
+	profile, found := organizationProfileForUser(adminUserMutation{MemberID: userID, Email: email}, profilesByUserID, profilesByEmail)
 	if !found {
 		profile = organizationProfile{EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true}
 	}
-	profile.UserID = firstNonEmpty(userID, profile.UserID)
+	profile.MemberID = firstNonEmpty(userID, profile.MemberID)
 	profile.Email = firstNonEmpty(strings.ToLower(strings.TrimSpace(email)), profile.Email)
 	normalizedHireDate := strings.TrimSpace(hireDate)
 	if profile.HireDate == normalizedHireDate {
@@ -70,6 +70,6 @@ func organizationProfileWithHireDate(profiles []organizationProfile, userID stri
 
 func profileHireDateIsEmpty(profiles []organizationProfile, userID string, email string) bool {
 	profilesByUserID, profilesByEmail := organizationProfileIndexes(profiles)
-	profile, found := organizationProfileForUser(adminUserMutation{UserID: userID, Email: email}, profilesByUserID, profilesByEmail)
+	profile, found := organizationProfileForUser(adminUserMutation{MemberID: userID, Email: email}, profilesByUserID, profilesByEmail)
 	return !found || strings.TrimSpace(profile.HireDate) == ""
 }

@@ -71,7 +71,7 @@ test('ephemeral interactive button renders live', async ({ page, request }) => {
 
 	const teamID = await apiJson(request, `/api/v4/teams/name/${teamName}`, 'id');
 	const channelID = await apiJson(request, `/api/v4/teams/${teamID}/channels/name/${channelName}`, 'id');
-	const userID = await apiJson(request, `/api/v4/users/username/${targetUsername}`, 'id');
+	const memberID = await apiJson(request, `/api/v4/users/username/${targetUsername}`, 'id');
 	const botUserID = await apiJson(request, '/api/v4/users/me', 'id');
 	const webappUserID = await page.evaluate(() => {
 		const store = (window as MattermostWindow).store;
@@ -80,14 +80,14 @@ test('ephemeral interactive button renders live', async ({ page, request }) => {
 		const username = state?.entities?.users?.profiles?.[currentUserID]?.username ?? 'NONE';
 		return `${currentUserID}:${username}`;
 	}).catch((error) => `EVAL_ERR:${error}`);
-	console.log(`TARGET_USERID=${userID} WEBAPP_USER=${webappUserID}`);
+	console.log(`TARGET_USERID=${memberID} WEBAPP_USER=${webappUserID}`);
 
-	const plainResult = await postEphemeral(request, botToken, userID, botUserID, channelID, 'MANUAL_PLAIN_EPHEMERAL', undefined);
+	const plainResult = await postEphemeral(request, botToken, memberID, botUserID, channelID, 'MANUAL_PLAIN_EPHEMERAL', undefined);
 	const buttonsAttachment = [{ text: '주간보고서 업무를 삭제할까요?', actions: [
 		{ id: 'c', name: '확인', type: 'button', style: 'primary', integration: { url: 'http://127.0.0.1:18080/_internkim/mattermost/actions', context: { action: 'ask_confirm', token: 'diagnostic' } } },
 		{ id: 'x', name: '취소', type: 'button', style: 'danger', integration: { url: 'http://127.0.0.1:18080/_internkim/mattermost/actions', context: { action: 'ask.cancel', token: 'diagnostic' } } },
 	] }];
-	const buttonResult = await postEphemeral(request, botToken, userID, botUserID, channelID, 'MANUAL_BUTTON_EPHEMERAL', buttonsAttachment);
+	const buttonResult = await postEphemeral(request, botToken, memberID, botUserID, channelID, 'MANUAL_BUTTON_EPHEMERAL', buttonsAttachment);
 	console.log(`POST_STATUS plain=${plainResult} buttons=${buttonResult}`);
 
 	let plainDelivered = false;
@@ -115,7 +115,7 @@ test('ephemeral interactive button renders live', async ({ page, request }) => {
 async function postEphemeral(
 	request: APIRequestContext,
 	token: string,
-	userID: string,
+	memberID: string,
 	botUserID: string,
 	channelID: string,
 	message: string,
@@ -125,7 +125,7 @@ async function postEphemeral(
 	if (attachments) post.props = { attachments };
 	const response = await request.post(mattermostPath('/api/v4/posts/ephemeral'), {
 		headers: { Authorization: `Bearer ${token}` },
-		data: { user_id: userID, post },
+		data: { user_id: memberID, post },
 	});
 	return response.status();
 }

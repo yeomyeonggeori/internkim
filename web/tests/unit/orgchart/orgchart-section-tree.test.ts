@@ -6,7 +6,7 @@ function section(id: string, depth: number, records: OrganizationOrganizationSec
 	return { id, name: id, depth, records, memberCount: records.length };
 }
 
-const person = { userID: 'user-1', handle: 'one', email: 'one@example.com' };
+const person = { memberID: 'user-1', handle: 'one', email: 'one@example.com' };
 
 describe('organization section tree', () => {
 	test('nests sections under the closest shallower section', () => {

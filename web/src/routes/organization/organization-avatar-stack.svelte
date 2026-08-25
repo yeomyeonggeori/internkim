@@ -8,8 +8,8 @@
 </script>
 
 <div class="flex shrink-0 items-center -space-x-2" aria-label={`${records.length}${memberCountUnit}`} data-testid="organization-avatar-stack">
-	{#each visibleRecords as record (record.userID)}
-		<PersonAvatar name={record.name} email={record.email} seed={record.userID} image={record.image ?? ''} class="size-7 border-2 border-background" />
+	{#each visibleRecords as record (record.memberID)}
+		<PersonAvatar name={record.name} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-7 border-2 border-background" />
 	{/each}
 	{#if remainingCount > 0}
 		<span class="border-background bg-muted text-muted-foreground relative z-10 grid size-7 place-items-center rounded-full border-2 text-[10px] font-semibold">+{remainingCount}</span>

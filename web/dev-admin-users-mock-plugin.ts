@@ -168,7 +168,7 @@ function normalizeUserRecord(parsed: Record<string, unknown>, existingRecord: Us
 	const role = roleField(parsed, existingRecord?.role ?? defaultRole);
 	const circles = stringArrayField(parsed, 'circles', existingRecord?.circles ?? ['staff']);
 	return {
-		userID: stringField(parsed, 'userID') || existingRecord?.userID || `dev-user-${Date.now()}`,
+		memberID: stringField(parsed, 'memberID') || existingRecord?.memberID || `dev-user-${Date.now()}`,
 		handle: stringField(parsed, 'handle').toLowerCase(),
 		name: stringField(parsed, 'name'),
 		email: stringField(parsed, 'email').toLowerCase(),
@@ -187,7 +187,7 @@ function normalizeUserRecord(parsed: Record<string, unknown>, existingRecord: Us
 function createDevUserRecords(): UserRecord[] {
 	return [
 		{
-			userID: 'dev-user-chanhee',
+			memberID: 'dev-user-chanhee',
 			handle: 'chanhee',
 			name: '최견본',
 			email: 'chanhee@example.com',

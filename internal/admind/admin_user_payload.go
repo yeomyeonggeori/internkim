@@ -8,7 +8,7 @@ import (
 )
 
 type adminUserMutation struct {
-	UserID                 string   `json:"userID,omitempty"`
+	MemberID               string   `json:"memberID,omitempty"`
 	Handle                 string   `json:"handle,omitempty"`
 	Name                   string   `json:"name,omitempty"`
 	Email                  string   `json:"email"`

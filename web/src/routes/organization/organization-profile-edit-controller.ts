@@ -19,7 +19,7 @@ export function normalizedOrganizationRecords(records: UserRecord[] | undefined)
 }
 
 export function organizationProfileSnapshots(records: UserRecord[]): Record<string, OrgProfileSnapshot> {
-	return Object.fromEntries(records.map((record) => [record.userID, orgProfileSnapshot(record)]));
+	return Object.fromEntries(records.map((record) => [record.memberID, orgProfileSnapshot(record)]));
 }
 
 export function reconcileOrganizationProfileEdits(editingRecordsByUserID: Record<string, UserRecord>, records: UserRecord[], groups: OrgGroup[]): Record<string, UserRecord> {
@@ -27,35 +27,35 @@ export function reconcileOrganizationProfileEdits(editingRecordsByUserID: Record
 }
 
 export function beginOrganizationProfileEdit(editingRecordsByUserID: Record<string, UserRecord>, record: UserRecord): Record<string, UserRecord> {
-	if (editingRecordsByUserID[record.userID]) return editingRecordsByUserID;
+	if (editingRecordsByUserID[record.memberID]) return editingRecordsByUserID;
 	return {
 		...editingRecordsByUserID,
-		[record.userID]: copyUserRecord(record)
+		[record.memberID]: copyUserRecord(record)
 	};
 }
 
-export function removeOrganizationProfileEdit(editingRecordsByUserID: Record<string, UserRecord>, userID: string): Record<string, UserRecord> {
-	return Object.fromEntries(Object.entries(editingRecordsByUserID).filter(([candidateUserID]) => candidateUserID !== userID));
+export function removeOrganizationProfileEdit(editingRecordsByUserID: Record<string, UserRecord>, memberID: string): Record<string, UserRecord> {
+	return Object.fromEntries(Object.entries(editingRecordsByUserID).filter(([candidateUserID]) => candidateUserID !== memberID));
 }
 
 export function isOrganizationProfileChanged(record: UserRecord, originalProfiles: Record<string, OrgProfileSnapshot>): boolean {
-	return isOrgProfileChanged(record, originalProfiles[record.userID]);
+	return isOrgProfileChanged(record, originalProfiles[record.memberID]);
 }
 
 export function hasUnsavedOrganizationProfileEdits(editingRecordsByUserID: Record<string, UserRecord>, originalProfiles: Record<string, OrgProfileSnapshot>): boolean {
 	return Object.values(editingRecordsByUserID).some((record) => isOrganizationProfileChanged(record, originalProfiles));
 }
 
-export function isOrganizationProfileSaving(savingProfileUserIDs: OrganizationProfileSavingState, userID: string): boolean {
-	return savingProfileUserIDs[userID] === true;
+export function isOrganizationProfileSaving(savingProfileUserIDs: OrganizationProfileSavingState, memberID: string): boolean {
+	return savingProfileUserIDs[memberID] === true;
 }
 
-export function markOrganizationProfileSaving(savingProfileUserIDs: OrganizationProfileSavingState, userID: string): OrganizationProfileSavingState {
-	return { ...savingProfileUserIDs, [userID]: true };
+export function markOrganizationProfileSaving(savingProfileUserIDs: OrganizationProfileSavingState, memberID: string): OrganizationProfileSavingState {
+	return { ...savingProfileUserIDs, [memberID]: true };
 }
 
-export function clearOrganizationProfileSaving(savingProfileUserIDs: OrganizationProfileSavingState, userID: string): OrganizationProfileSavingState {
-	return Object.fromEntries(Object.entries(savingProfileUserIDs).filter(([candidateUserID]) => candidateUserID !== userID));
+export function clearOrganizationProfileSaving(savingProfileUserIDs: OrganizationProfileSavingState, memberID: string): OrganizationProfileSavingState {
+	return Object.fromEntries(Object.entries(savingProfileUserIDs).filter(([candidateUserID]) => candidateUserID !== memberID));
 }
 
 export function hasInvalidOrganizationSupervisor(records: UserRecord[], record: UserRecord): boolean {

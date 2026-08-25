@@ -63,7 +63,7 @@ func calendarEventWindowBenchmarkTransport(testContext testing.TB) roundTripFunc
 	return roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1":
-			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"userID":"user-staff","email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"userID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-staff","email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.Path == "/admin/api/policy":
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":

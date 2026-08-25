@@ -69,7 +69,7 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 		return
 	}
 	mutation.completeAfterSourceMutation(request.Context())
-	service.persistOrganizationHireDate(request.Context(), payload.UserID, payload.Email, payload.HireDate)
+	service.persistOrganizationHireDate(request.Context(), payload.MemberID, payload.Email, payload.HireDate)
 	service.triggerUsersSync(request.Context())
 	response := pagesUsersResponse{Records: []adminUserMutation{payload}}
 	responseBody, errorValue := service.localUsersResponseBody(request.Context(), response)
@@ -85,7 +85,7 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 }
 
 func (service *Service) applyLocalUserMutation(ctx context.Context, payload adminUserMutation, hasExplicitCircleMutation bool) (adminUserMutation, mattermostProvisionResult, error) {
-	if strings.TrimSpace(payload.UserID) == "" {
+	if strings.TrimSpace(payload.MemberID) == "" {
 		return payload, mattermostProvisionResult{}, errors.New("resolved userID required for local user mutation")
 	}
 	payload.Circles = normalizeAdminUserCircles(payload.Circles, payload.Role)
@@ -344,9 +344,9 @@ func (service *Service) applyLocalMattermostTeamRole(ctx context.Context, userID
 
 func (service *Service) localSaveBlueclawPerson(ctx context.Context, payload adminUserMutation, hasExplicitCircleMutation bool) error {
 	if hasExplicitCircleMutation {
-		return service.upsertBlueclawPerson(ctx, payload.UserID, payload.Email, payload.Name, payload.Role, payload.Circles, &payload.Note)
+		return service.upsertBlueclawPerson(ctx, payload.MemberID, payload.Email, payload.Name, payload.Role, payload.Circles, &payload.Note)
 	}
-	return service.inviteBlueclawPerson(ctx, payload.UserID, payload.Email, payload.Name)
+	return service.inviteBlueclawPerson(ctx, payload.MemberID, payload.Email, payload.Name)
 }
 
 func (service *Service) writeLocalUsersResponse(responseWriter http.ResponseWriter, request *http.Request, response pagesUsersResponse) {

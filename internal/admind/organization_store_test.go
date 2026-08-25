@@ -10,7 +10,7 @@ func TestOrganizationStorePersistsProfilesAndGroups(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	profile := organizationProfile{
-		UserID:                "user-member",
+		MemberID:              "user-member",
 		Email:                 "member@example.com",
 		JobTitle:              "Product Manager",
 		PositionLevel:         2,
@@ -222,7 +222,7 @@ func TestOrganizationProfileRequestClearsPrimaryGroupWithoutKeepingOldGroupID(t 
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		UserID:                "user-member",
+		MemberID:              "user-member",
 		Email:                 "member@example.com",
 		JobTitle:              "Product Manager",
 		PositionLevel:         2,
@@ -237,9 +237,9 @@ func TestOrganizationProfileRequestClearsPrimaryGroupWithoutKeepingOldGroupID(t 
 	}
 	emptyGroup := ""
 	profiles, errorValue := service.organizationProfilesFromRequest(ctx, []organizationProfileRequest{{
-		UserID:  "user-member",
-		Email:   "member@example.com",
-		GroupID: &emptyGroup,
+		MemberID: "user-member",
+		Email:    "member@example.com",
+		GroupID:  &emptyGroup,
 	}})
 	if errorValue != nil {
 		t.Fatal(errorValue)

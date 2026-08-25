@@ -36,8 +36,8 @@ func organizationProfileIndexes(profiles []organizationProfile) (map[string]orga
 	profilesByUserID := map[string]organizationProfile{}
 	profilesByEmail := map[string]organizationProfile{}
 	for _, profile := range profiles {
-		if profile.UserID != "" {
-			profilesByUserID[profile.UserID] = profile
+		if profile.MemberID != "" {
+			profilesByUserID[profile.MemberID] = profile
 		}
 		if profile.Email != "" {
 			profilesByEmail[profile.Email] = profile
@@ -47,7 +47,7 @@ func organizationProfileIndexes(profiles []organizationProfile) (map[string]orga
 }
 
 func organizationProfileForUser(record adminUserMutation, profilesByUserID map[string]organizationProfile, profilesByEmail map[string]organizationProfile) (organizationProfile, bool) {
-	userID := strings.TrimSpace(record.UserID)
+	userID := strings.TrimSpace(record.MemberID)
 	if userID != "" {
 		if profile, found := profilesByUserID[userID]; found {
 			return profile, true
@@ -63,7 +63,7 @@ func organizationProfileForUser(record adminUserMutation, profilesByUserID map[s
 }
 
 func applyOrganizationProfile(record *adminUserMutation, profile organizationProfile) {
-	record.UserID = firstNonEmpty(record.UserID, profile.UserID)
+	record.MemberID = firstNonEmpty(record.MemberID, profile.MemberID)
 	record.JobTitle = profile.JobTitle
 	record.GroupID = profile.GroupID
 	record.PhoneNumber = profile.PhoneNumber

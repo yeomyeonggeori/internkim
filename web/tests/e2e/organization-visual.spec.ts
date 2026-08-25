@@ -10,7 +10,7 @@ const visualUsersResponse: UsersResponse = {
 	],
 	records: [
 		{
-			userID: 'user-kim-first',
+			memberID: 'user-kim-first',
 			handle: 'kim-first',
 			name: '김첫째',
 			email: 'kim-first@example.com',
@@ -20,7 +20,7 @@ const visualUsersResponse: UsersResponse = {
 			groupID: 'leadership'
 		},
 		{
-			userID: 'user-lee-second',
+			memberID: 'user-lee-second',
 			handle: 'lee-second',
 			name: '이둘째',
 			email: 'lee-second@example.com',
@@ -30,7 +30,7 @@ const visualUsersResponse: UsersResponse = {
 			groupID: 'leadership'
 		},
 		{
-			userID: 'user-pptx',
+			memberID: 'user-pptx',
 			handle: 'pptx',
 			name: 'PPTX Tester',
 			email: 'pptx@example.com',
@@ -40,7 +40,7 @@ const visualUsersResponse: UsersResponse = {
 			groupID: 'skill'
 		},
 		{
-			userID: 'user-park-staff',
+			memberID: 'user-park-staff',
 			handle: 'park-staff',
 			name: '박둘직원',
 			email: 'park-staff@example.com',
@@ -51,7 +51,7 @@ const visualUsersResponse: UsersResponse = {
 			supervisorID: 'user-kim-first'
 		},
 		{
-			userID: 'user-new-staff',
+			memberID: 'user-new-staff',
 			handle: 'new-staff',
 			name: '새직원',
 			email: 'new-staff@example.com',
@@ -62,7 +62,7 @@ const visualUsersResponse: UsersResponse = {
 			supervisorID: 'user-lee-second'
 		},
 		{
-			userID: 'user-extra-staff',
+			memberID: 'user-extra-staff',
 			handle: 'extra-staff',
 			name: '이추가',
 			email: 'extra-staff@example.com',

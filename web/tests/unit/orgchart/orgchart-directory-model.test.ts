@@ -8,7 +8,7 @@ import {
 
 function userRecord(overrides: Partial<UserRecord>): UserRecord {
 	return {
-		userID: '',
+		memberID: '',
 		handle: '',
 		name: '',
 		email: '',
@@ -20,14 +20,14 @@ describe('organization directory model', () => {
 	test('filters by search and organization', () => {
 		const records = [
 			userRecord({
-				userID: 'ada',
+				memberID: 'ada',
 				name: 'Ada Kim',
 				email: 'ada@example.com',
 				jobTitle: 'Engineering Lead',
 				groupID: 'engineering'
 			}),
 			userRecord({
-				userID: 'grace',
+				memberID: 'grace',
 				name: 'Grace Lee',
 				email: 'grace@example.com',
 				jobTitle: 'Operations Manager',
@@ -40,7 +40,7 @@ describe('organization directory model', () => {
 			groupID: 'engineering'
 		};
 
-		expect(filterOrganizationRecords(records, filters).map((record) => record.userID)).toEqual(['ada']);
+		expect(filterOrganizationRecords(records, filters).map((record) => record.memberID)).toEqual(['ada']);
 	});
 
 	test('returns only organizations and assignment state connected to people', () => {
@@ -50,9 +50,9 @@ describe('organization directory model', () => {
 			{ id: 'empty', name: '미배정' }
 		];
 		const records = [
-			userRecord({ userID: 'ada', groupID: 'engineering' }),
-			userRecord({ userID: 'unassigned' }),
-			userRecord({ userID: 'operations', groupID: 'operations' })
+			userRecord({ memberID: 'ada', groupID: 'engineering' }),
+			userRecord({ memberID: 'unassigned' }),
+			userRecord({ memberID: 'operations', groupID: 'operations' })
 		];
 
 		const options = organizationFilterOptions(records, groups);
@@ -65,12 +65,12 @@ describe('organization directory model', () => {
 		const groups: OrgGroup[] = [{ id: 'engineering', name: '엔지니어링' }];
 		const records = [
 			userRecord({
-				userID: 'ada',
+				memberID: 'ada',
 				groupID: ' engineering '
 			})
 		];
 
-		expect(filterOrganizationRecords(records, { query: '', groupID: 'engineering' }).map((record) => record.userID)).toEqual(['ada']);
+		expect(filterOrganizationRecords(records, { query: '', groupID: 'engineering' }).map((record) => record.memberID)).toEqual(['ada']);
 		expect(filterOrganizationRecords(records, { query: '', groupID: '__unassigned__' })).toEqual([]);
 		expect(organizationFilterOptions(records, groups)).toEqual({ groups, hasUnassigned: false });
 	});

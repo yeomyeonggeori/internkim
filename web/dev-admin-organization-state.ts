@@ -130,12 +130,12 @@ function profilesFromBody(body: string | undefined): OrgProfileUpdate[] {
 	return profiles.flatMap((profile) => {
 		const record = recordFromUnknown(profile);
 		if (!record) return [];
-		const userID = stringFromUnknown(record.userID).trim();
+		const memberID = stringFromUnknown(record.memberID).trim();
 		const email = stringFromUnknown(record.email).trim();
-		if (!userID && !email) return [];
+		if (!memberID && !email) return [];
 		return [
 			{
-				userID,
+				memberID,
 				email,
 				jobTitle: stringFromUnknown(record.jobTitle),
 				groupID: optionalStringFromUnknown(record.groupID),
@@ -148,7 +148,7 @@ function profilesFromBody(body: string | undefined): OrgProfileUpdate[] {
 
 function applyOrgProfileUpdates(users: UserRecord[], profiles: OrgProfileUpdate[]): UserRecord[] {
 	return users.map((user) => {
-		const profile = profiles.find((candidate) => candidate.userID === user.userID || candidate.email === user.email);
+		const profile = profiles.find((candidate) => candidate.memberID === user.memberID || candidate.email === user.email);
 		if (!profile) return user;
 		return {
 			...user,

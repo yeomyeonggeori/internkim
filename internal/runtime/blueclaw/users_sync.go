@@ -3,18 +3,20 @@ package blueclaw
 import "fmt"
 
 const (
-	InternKimUsersSyncScriptPath   = "/usr/local/bin/internkim-users-sync"
-	InternKimUsersSyncServicePath  = "/etc/systemd/system/internkim-users-sync.service"
-	InternKimUsersSyncTimerPath    = "/etc/systemd/system/internkim-users-sync.timer"
-	InternKimUsersSyncStatePath    = "/root/.internkim/state/users-sync.json"
-	InternKimAPIURLPath            = "/root/.internkim/env/api-url"
-	InternKimFleetIDPath           = "/root/.internkim/env/fleet-id"
-	InternKimNodeIDPath            = "/root/.internkim/env/node-id"
-	InternKimFleetRolePath         = "/root/.internkim/env/fleet-role"
-	InternKimFleetActiveCountPath  = "/root/.internkim/env/fleet-active-count"
-	InternKimFleetPendingCountPath = "/root/.internkim/env/fleet-pending-count"
-	InternKimFleetQuorumSizePath   = "/root/.internkim/env/fleet-quorum-size"
-	InternKimFleetSecretPath       = "/root/.internkim/secrets/fleet-secret"
+	InternKimUsersSyncScriptPath      = "/usr/local/bin/internkim-users-sync"
+	InternKimUsersSyncServicePath     = "/etc/systemd/system/internkim-users-sync.service"
+	InternKimUsersSyncTimerPath       = "/etc/systemd/system/internkim-users-sync.timer"
+	InternKimUsersSyncStatePath       = "/root/.internkim/state/users-sync.json"
+	InternKimAPIURLPath               = "/root/.internkim/env/api-url"
+	InternKimCentralPlaneAppURLPath   = "/root/.internkim/env/central-plane-app-url"
+	InternKimCentralPlaneAgentKeyPath = "/root/.internkim/secrets/central-plane-agent-key"
+	InternKimFleetIDPath              = "/root/.internkim/env/fleet-id"
+	InternKimNodeIDPath               = "/root/.internkim/env/node-id"
+	InternKimFleetRolePath            = "/root/.internkim/env/fleet-role"
+	InternKimFleetActiveCountPath     = "/root/.internkim/env/fleet-active-count"
+	InternKimFleetPendingCountPath    = "/root/.internkim/env/fleet-pending-count"
+	InternKimFleetQuorumSizePath      = "/root/.internkim/env/fleet-quorum-size"
+	InternKimFleetSecretPath          = "/root/.internkim/secrets/fleet-secret"
 )
 
 func internKimUsersSyncRequestHelpers() string {
@@ -55,9 +57,8 @@ func InternKimUsersSyncScript() string {
 	return `#!/bin/sh
 set -eu
 
-API_URL="$(cat /root/.internkim/env/api-url 2>/dev/null || true)"
-FLEET_ID="$(cat /root/.internkim/env/fleet-id 2>/dev/null || true)"
-FLEET_SECRET="$(cat /root/.internkim/secrets/fleet-secret 2>/dev/null || true)"
+APP_URL="$(cat /root/.internkim/env/central-plane-app-url 2>/dev/null || true)"
+AGENT_KEY="$(cat /root/.internkim/secrets/central-plane-agent-key 2>/dev/null || true)"
 STATE_PATH="/root/.internkim/state/users-sync.json"
 BLUECLAW_URL="http://127.0.0.1:8080"
 WORKSPACE_PATH="/root/.blueclaw/workspace"
@@ -106,26 +107,25 @@ ensure_person_workspace_directories() {
 sync_posix_policy
 ensure_person_workspace_directories
 
-if [ -z "$FLEET_ID" ] || [ -z "$FLEET_SECRET" ]; then
-  echo "users-sync: missing fleet credentials" >&2
+if [ -z "$APP_URL" ] || [ -z "$AGENT_KEY" ]; then
+  echo "users-sync: this device has no company directory yet" >&2
   exit 1
 fi
 
-request_or_exit "fleet user list" "$response_path" \
-  -H "X-INTERNKIM-FLEET-ID: $FLEET_ID" \
-  -H "X-INTERNKIM-FLEET-SECRET: $FLEET_SECRET" \
-  "$API_URL/api/users?fleet_id=$FLEET_ID"
+request_or_exit "company directory" "$response_path" \
+  -H "Authorization: Bearer $AGENT_KEY" \
+  "$APP_URL/api/agent/member"
 
-revision="$(jq -r '.revision // empty' "$response_path")"
 jq -r '
-  if (.records | type) == "array" then
-    .records[]?
-    | select((.userID // "") != "" and (.email // "") != "")
+  if (.members | type) == "array" then
+    .members[]?
+    | select((.email // "") != "" and (.status // "") != "withdrawn")
     | .email
   else
     empty
   end
 ' "$response_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
+revision="$(sha256sum "$desired_path" | cut -d" " -f1)"
 
 jusers="$(jq -R . "$desired_path" | jq -s .)"
 jq -cn \

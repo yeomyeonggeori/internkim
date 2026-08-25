@@ -1,6 +1,10 @@
 import type { adminText } from './text';
 
-export type UserRole = 'admin' | 'operationsAdmin' | 'member';
+import type { OrgGroup, UserRecord } from '$lib/organization/types';
+import type { UserRole } from '$lib/types';
+
+export type { OrgGroup, UserRecord } from '$lib/organization/types';
+export type { UserRole } from '$lib/types';
 export type WorkspaceLanguage = 'ko' | 'en';
 export type AdminSection =
 	| 'device'
@@ -26,36 +30,10 @@ export type BuzzInviteRecord = {
 };
 export type AdminPageText = typeof adminText.ko;
 
-export type UserRecord = {
-	userID: string;
-	handle: string;
-	name?: string;
-	email: string;
-	image?: string;
-	hireDate?: string;
-	note?: string;
-	role: UserRole;
-	circles?: string[];
-	jobTitle?: string;
-	groupID?: string;
-	phoneNumber?: string;
-	supervisorID?: string;
-	mattermostUserID?: string;
-	mattermostUsername?: string;
-	status?: string;
-	isIncomplete?: boolean;
-};
-
 export type CircleRecord = {
 	circleID: string;
 	displayName: string;
 	isMattermostManaged?: boolean;
-};
-
-export type OrgGroup = {
-	id: string;
-	name: string;
-	parentID?: string;
 };
 
 export type UsersResponse = {

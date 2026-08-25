@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-func TestUsersSyncScriptRecordsOnlyDirectoryRecordsThatNameAPerson(t *testing.T) {
+func TestUsersSyncScriptRecordsOnlyDirectoryMembersThatNameAPerson(t *testing.T) {
 	script := InternKimUsersSyncScript()
 
 	for _, fragment := range []string{
-		`select((.userID // "") != "" and (.email // "") != "")`,
+		`select((.email // "") != "" and (.status // "") != "withdrawn")`,
 		"else\n    empty\n  end",
 		`sort -u > "$desired_path"`,
 		`jusers="$(jq -R . "$desired_path" | jq -s .)"`,
@@ -23,7 +23,7 @@ func TestUsersSyncScriptRecordsOnlyDirectoryRecordsThatNameAPerson(t *testing.T)
 	if strings.Contains(script, `.users[]? | ["", .`) {
 		t.Fatal("legacy email-only users must not become persisted state targets")
 	}
-	filterIndex := strings.Index(script, `select((.userID // "") != "" and (.email // "") != "")`)
+	filterIndex := strings.Index(script, `select((.email // "") != "" and (.status // "") != "withdrawn")`)
 	desiredEmailsIndex := strings.Index(script, `sort -u > "$desired_path"`)
 	stateIndex := strings.Index(script, `--argjson users "$jusers"`)
 	if filterIndex < 0 || desiredEmailsIndex < filterIndex || stateIndex < desiredEmailsIndex {
@@ -77,11 +77,11 @@ func TestUsersSyncScriptMaintainsThePosixBoundaryBeforeReachingTheNetwork(t *tes
 	if posixIndex < 0 {
 		t.Fatal("expected the POSIX sync and the workspace directories to run together as the script's first work")
 	}
-	credentialGuardIndex := strings.Index(script, `echo "users-sync: missing fleet credentials"`)
+	credentialGuardIndex := strings.Index(script, `echo "users-sync: this device has no company directory yet"`)
 	if credentialGuardIndex < posixIndex {
-		t.Fatal("a device without fleet credentials still has a POSIX boundary to maintain; the guard belongs after that work")
+		t.Fatal("a device without a company directory still has a POSIX boundary to maintain; the guard belongs after that work")
 	}
-	fetchIndex := strings.Index(script, `request_or_exit "fleet user list"`)
+	fetchIndex := strings.Index(script, `request_or_exit "company directory"`)
 	if fetchIndex < 0 {
 		t.Fatal("expected the script to record the directory answer the roster reconcile is checked against")
 	}

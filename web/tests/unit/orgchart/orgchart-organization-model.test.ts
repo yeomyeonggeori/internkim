@@ -2,12 +2,12 @@ import { describe, expect, test } from 'bun:test';
 import type { OrgGroup, UserRecord } from '../../../src/lib/organization/types';
 import { organizationOrganizationSections } from '../../../src/routes/organization/organization-model';
 
-function record(userID: string, groupID = ''): UserRecord {
+function record(memberID: string, groupID = ''): UserRecord {
 	return {
-		userID,
-		handle: userID,
-		name: userID,
-		email: `${userID}@example.com`,
+		memberID,
+		handle: memberID,
+		name: memberID,
+		email: `${memberID}@example.com`,
 		groupID
 	};
 }
@@ -24,7 +24,7 @@ describe('organization organization model', () => {
 
 		const sections = organizationOrganizationSections(records, groups, '전체 조직');
 
-		expect(sections.map((section) => [section.id, section.depth, section.memberCount, section.records.map((item) => item.userID)])).toEqual([
+		expect(sections.map((section) => [section.id, section.depth, section.memberCount, section.records.map((item) => item.memberID)])).toEqual([
 			['', 0, 5, ['ceo']],
 			['sales', 1, 1, ['sales']],
 			['product', 1, 3, ['product-lead']],
@@ -46,7 +46,7 @@ describe('organization organization model', () => {
 			record('otok-member', 'otok'),
 			{ ...record('ceo', 'management'), jobTitle: 'CEO' }
 		];
-		const visibleRecords = allRecords.filter((item) => item.userID !== 'ceo');
+		const visibleRecords = allRecords.filter((item) => item.memberID !== 'ceo');
 
 		const sections = organizationOrganizationSections(visibleRecords, groups, '전체 조직', '', allRecords);
 
@@ -59,7 +59,7 @@ describe('organization organization model', () => {
 		const sections = organizationOrganizationSections(records, [{ id: 'product', name: '제품' }], '전체 조직');
 
 		expect(sections.map((section) => section.id)).toEqual(['', 'product']);
-		expect(sections[0]?.records.map((item) => item.userID)).toEqual(['unknown']);
+		expect(sections[0]?.records.map((item) => item.memberID)).toEqual(['unknown']);
 	});
 
 	test('shows only the selected organization subtree with rebased depth', () => {
@@ -84,7 +84,7 @@ describe('organization organization model', () => {
 
 		const sections = organizationOrganizationSections([allRecords[1]], groups, '전체 조직', '', allRecords);
 
-		expect(sections.map((section) => [section.id, section.memberCount, section.records.map((item) => item.userID)])).toEqual([
+		expect(sections.map((section) => [section.id, section.memberCount, section.records.map((item) => item.memberID)])).toEqual([
 			['', 2, []],
 			['product', 2, ['engineer']]
 		]);
@@ -97,7 +97,7 @@ describe('organization organization model', () => {
 		const sections = organizationOrganizationSections([leader, employee], [{ id: 'product', name: '제품팀' }], '전체 조직');
 		const productSection = sections.find((section) => section.id === 'product');
 
-		expect(productSection?.records.map((item) => item.userID)).toEqual(['leader', 'employee']);
+		expect(productSection?.records.map((item) => item.memberID)).toEqual(['leader', 'employee']);
 		expect(productSection?.responsibleUserID).toBe('leader');
 	});
 

@@ -11,7 +11,7 @@ func TestOrganizationPeopleCacheReusesPersonEntry(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		UserID:                "user-1",
+		MemberID:              "user-1",
 		Email:                 "one@example.com",
 		JobTitle:              "Designer",
 		EmploymentStatus:      organizationEmploymentStatusActive,
@@ -19,7 +19,7 @@ func TestOrganizationPeopleCacheReusesPersonEntry(t *testing.T) {
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	users := pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Email: "one@example.com", Role: "member"}}}
+	users := pagesUsersResponse{Records: []adminUserMutation{{MemberID: "user-1", Email: "one@example.com", Role: "member"}}}
 	first, errorValue := service.applyCachedOrganizationPeople(ctx, users)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -54,13 +54,13 @@ func TestOrganizationPeopleCacheRebuildsCorruptPersonPayload(t *testing.T) {
 	if !written {
 		t.Fatal("expected corrupt fixture write")
 	}
-	users := pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Email: "one@example.com", Role: "member"}}}
+	users := pagesUsersResponse{Records: []adminUserMutation{{MemberID: "user-1", Email: "one@example.com", Role: "member"}}}
 
 	response, errorValue := service.applyCachedOrganizationPeople(ctx, users)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(response.response.Records) != 1 || response.response.Records[0].UserID != "user-1" {
+	if len(response.response.Records) != 1 || response.response.Records[0].MemberID != "user-1" {
 		t.Fatalf("response = %#v", response.response)
 	}
 }
@@ -76,7 +76,7 @@ func TestOrganizationPeopleCacheRejectsSemanticCorruption(t *testing.T) {
 		loadCount := 0
 		response, _, errorValue := service.readCachedOrganizationUserList(ctx, func(context.Context) (pagesUsersResponse, error) {
 			loadCount++
-			return pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Email: "one@example.com", Name: "Fresh"}}}, nil
+			return pagesUsersResponse{Records: []adminUserMutation{{MemberID: "user-1", Email: "one@example.com", Name: "Fresh"}}}, nil
 		})
 		if errorValue != nil {
 			t.Fatal(errorValue)
@@ -93,7 +93,7 @@ func TestOrganizationPeopleCacheRejectsSemanticCorruption(t *testing.T) {
 	}{
 		{name: "empty person", key: organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "user-1"}, payloadJSON: `{}`},
 		{name: "missing identity", key: organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "user-1"}, payloadJSON: `{"record":{"name":"Corrupt"}}`},
-		{name: "mismatched user ID", key: organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "user-1"}, payloadJSON: `{"record":{"userID":"user-2","email":"two@example.com","name":"Corrupt"}}`},
+		{name: "mismatched user ID", key: organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "user-1"}, payloadJSON: `{"record":{"memberID":"user-2","email":"two@example.com","name":"Corrupt"}}`},
 		{name: "mismatched email", key: organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "email:one@example.com"}, payloadJSON: `{"record":{"email":"two@example.com","name":"Corrupt"}}`},
 	}
 	for _, testCase := range personCases {
@@ -107,7 +107,7 @@ func TestOrganizationPeopleCacheRejectsSemanticCorruption(t *testing.T) {
 			if strings.HasPrefix(testCase.key.Key, "email:") {
 				userID = ""
 			}
-			users := pagesUsersResponse{Records: []adminUserMutation{{UserID: userID, Email: "one@example.com", Name: "Fresh"}}}
+			users := pagesUsersResponse{Records: []adminUserMutation{{MemberID: userID, Email: "one@example.com", Name: "Fresh"}}}
 			response, errorValue := service.applyCachedOrganizationPeople(ctx, users)
 			if errorValue != nil {
 				t.Fatal(errorValue)
@@ -129,15 +129,15 @@ func TestOrganizationPeopleCacheRejectsSemanticCorruption(t *testing.T) {
 		name        string
 		profileJSON string
 	}{
-		{name: "mismatched profile identity", profileJSON: `{"userID":"user-2","email":"two@example.com","jobTitle":"Corrupt","employmentStatus":"active","isOrganizationVisible":true}`},
-		{name: "invalid profile employment status", profileJSON: `{"userID":"user-1","email":"one@example.com","jobTitle":"Corrupt","employmentStatus":"unknown","isOrganizationVisible":true}`},
+		{name: "mismatched profile identity", profileJSON: `{"memberID":"user-2","email":"two@example.com","jobTitle":"Corrupt","employmentStatus":"active","isOrganizationVisible":true}`},
+		{name: "invalid profile employment status", profileJSON: `{"memberID":"user-1","email":"one@example.com","jobTitle":"Corrupt","employmentStatus":"unknown","isOrganizationVisible":true}`},
 	}
 	for _, testCase := range profileCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			service := newLocalUsersTestService(t)
 			ctx := context.Background()
 			if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-				UserID:                "user-1",
+				MemberID:              "user-1",
 				Email:                 "one@example.com",
 				JobTitle:              "Authoritative",
 				EmploymentStatus:      organizationEmploymentStatusActive,
@@ -146,7 +146,7 @@ func TestOrganizationPeopleCacheRejectsSemanticCorruption(t *testing.T) {
 				t.Fatal(errorValue)
 			}
 			key := organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "user-1"}
-			payloadJSON := `{"record":{"userID":"user-1","email":"one@example.com","name":"Cached"},"profile":` + testCase.profileJSON + `}`
+			payloadJSON := `{"record":{"memberID":"user-1","email":"one@example.com","name":"Cached"},"profile":` + testCase.profileJSON + `}`
 			snapshotsBeforeWrite, errorValue := service.readOrganizationPeopleCacheSnapshots(ctx, []organizationPeopleCacheKey{key})
 			if errorValue != nil {
 				t.Fatal(errorValue)
@@ -155,7 +155,7 @@ func TestOrganizationPeopleCacheRejectsSemanticCorruption(t *testing.T) {
 				t.Fatalf("write corrupt person cache: written = %t error = %v", written, errorValue)
 			}
 
-			users := pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Email: "one@example.com", Name: "Fresh"}}}
+			users := pagesUsersResponse{Records: []adminUserMutation{{MemberID: "user-1", Email: "one@example.com", Name: "Fresh"}}}
 			response, errorValue := service.applyCachedOrganizationPeople(ctx, users)
 			if errorValue != nil {
 				t.Fatal(errorValue)
@@ -172,7 +172,7 @@ func TestOrganizationPeopleCacheRejectsSemanticCorruption(t *testing.T) {
 			if errorValue := json.Unmarshal(snapshots[key].PayloadJSON, &rebuiltPerson); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			if rebuiltPerson.Profile == nil || rebuiltPerson.Profile.UserID != "user-1" || rebuiltPerson.Profile.Email != "one@example.com" || rebuiltPerson.Profile.JobTitle != "Authoritative" || rebuiltPerson.Profile.EmploymentStatus != organizationEmploymentStatusActive {
+			if rebuiltPerson.Profile == nil || rebuiltPerson.Profile.MemberID != "user-1" || rebuiltPerson.Profile.Email != "one@example.com" || rebuiltPerson.Profile.JobTitle != "Authoritative" || rebuiltPerson.Profile.EmploymentStatus != organizationEmploymentStatusActive {
 				t.Fatalf("rebuilt person = %#v", rebuiltPerson)
 			}
 		})
@@ -183,11 +183,11 @@ func TestOrganizationPeopleCacheAcceptsUserIDOnlyPersonPayload(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	key := organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "user-1"}
-	payloadJSON := []byte(`{"record":{"userID":"user-1","name":"Cached"}}`)
+	payloadJSON := []byte(`{"record":{"memberID":"user-1","name":"Cached"}}`)
 	if written, errorValue := service.writeOrganizationPeopleCachePayloadIfCurrent(ctx, key, 0, "", payloadJSON); errorValue != nil || !written {
 		t.Fatalf("write person cache: written = %t error = %v", written, errorValue)
 	}
-	users := pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Name: "Fresh"}}}
+	users := pagesUsersResponse{Records: []adminUserMutation{{MemberID: "user-1", Name: "Fresh"}}}
 	response, errorValue := service.applyCachedOrganizationPeople(ctx, users)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -201,7 +201,7 @@ func TestOrganizationPeopleCacheHasNoTTL(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		UserID:                "user-1",
+		MemberID:              "user-1",
 		Email:                 "one@example.com",
 		JobTitle:              "Designer",
 		EmploymentStatus:      organizationEmploymentStatusActive,
@@ -209,7 +209,7 @@ func TestOrganizationPeopleCacheHasNoTTL(t *testing.T) {
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	users := pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Email: "one@example.com"}}}
+	users := pagesUsersResponse{Records: []adminUserMutation{{MemberID: "user-1", Email: "one@example.com"}}}
 	if _, errorValue := service.applyCachedOrganizationPeople(ctx, users); errorValue != nil {
 		t.Fatal(errorValue)
 	}

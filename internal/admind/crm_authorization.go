@@ -33,7 +33,7 @@ func (service *Service) resolveCRMActor(request *http.Request) (crmActor, error)
 		if !strings.EqualFold(strings.TrimSpace(user.Email), strings.TrimSpace(email)) {
 			continue
 		}
-		personID = strings.TrimSpace(user.UserID)
+		personID = strings.TrimSpace(user.MemberID)
 		for _, circleID := range user.Circles {
 			circleID = strings.TrimSpace(circleID)
 			if circleID != "" {
@@ -71,7 +71,7 @@ func (service *Service) validateCRMAssignment(request *http.Request, actor crmAc
 	ownerCircleIDs := map[string]struct{}{}
 	ownerFound := false
 	for _, user := range service.organizationChartUserRecords(request) {
-		if strings.TrimSpace(user.UserID) != ownerPersonID {
+		if strings.TrimSpace(user.MemberID) != ownerPersonID {
 			continue
 		}
 		ownerFound = true

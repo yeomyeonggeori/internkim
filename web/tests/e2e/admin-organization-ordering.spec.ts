@@ -15,7 +15,7 @@ test.describe('admin org chart ordering', () => {
 				groupID: 'engineering'
 			},
 			{
-				userID: 'user-zara',
+				memberID: 'user-zara',
 				handle: 'zara',
 				name: 'Zara Lead',
 				email: 'zara@example.com',
@@ -65,19 +65,19 @@ test.describe('admin org chart ordering', () => {
 		usersResponse.records = [
 			{
 				...usersResponse.records[0],
-				userID: 'user-ada',
+				memberID: 'user-ada',
 				name: 'Ada Kim',
 				supervisorID: ''
 			},
 			{
 				...usersResponse.records[1],
-				userID: 'user-grace',
+				memberID: 'user-grace',
 				name: 'Grace Lee',
 				supervisorID: 'user-ada',
 				groupID: 'engineering'
 			},
 			{
-				userID: 'user-linus',
+				memberID: 'user-linus',
 				handle: 'linus',
 				name: 'Linus Park',
 				email: 'linus@example.com',
@@ -88,7 +88,7 @@ test.describe('admin org chart ordering', () => {
 				groupID: 'engineering'
 			},
 			{
-				userID: 'user-dan',
+				memberID: 'user-dan',
 				handle: 'dan',
 				name: 'Dan Root',
 				email: 'dan@example.com',

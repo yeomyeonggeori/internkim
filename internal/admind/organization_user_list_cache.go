@@ -106,7 +106,7 @@ func hasUniqueOrganizationCachedUserIdentities(records []organizationCachedUserR
 		if !isValidOrganizationCachedUserRecord(record) {
 			return false
 		}
-		userID := strings.TrimSpace(record.UserID)
+		userID := strings.TrimSpace(record.MemberID)
 		if userID != "" {
 			if seenUserIDs[userID] {
 				return false

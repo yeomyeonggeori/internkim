@@ -30,7 +30,7 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 	})
 	if errorValue := service.writeOrganizationProfiles(t.Context(), []organizationProfile{{
-		UserID:   "user-1",
+		MemberID: "user-1",
 		Email:    "staff@example.com",
 		HireDate: "2099-01-01",
 	}}); errorValue != nil {
@@ -136,6 +136,8 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 			segments := strings.Split(strings.Trim(request.URL.Path, "/"), "/")
 			year := segments[len(segments)-2]
 			return calendarHolidayTestResponse(request, workspaceDefaultCountryCode, year), nil
+		case request.URL.Hostname() == "127.0.0.1" && request.URL.Port() != "8080":
+			return http.DefaultTransport.RoundTrip(request)
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil

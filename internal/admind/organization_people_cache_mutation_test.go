@@ -98,7 +98,7 @@ func TestOrganizationUserMutationCleanupFailurePreservesSuccessLocal(t *testing.
 
 		actualService := newLocalUsersTestService(t)
 		actualService.HTTPClient = newOrganizationCleanupFailureLocalUpsertClient(t)
-		identity := organizationPersonIdentity{UserID: "user-new", Email: "new@example.com"}
+		identity := organizationPersonIdentity{MemberID: "user-new", Email: "new@example.com"}
 		preloadOrganizationUserMutationCache(t, actualService, identity)
 		failOrganizationUserMutationCompletion(t, actualService)
 		actualResponse := performOrganizationCleanupFailureLocalUpsert(t, actualService, false)
@@ -137,7 +137,7 @@ func TestOrganizationUserMutationCleanupFailurePreservesSuccessLocal(t *testing.
 func TestOrganizationUserMutationCleanupFailureDeferredRetryClearsCacheState(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
-	identity := organizationPersonIdentity{UserID: "user-new", Email: "new@example.com"}
+	identity := organizationPersonIdentity{MemberID: "user-new", Email: "new@example.com"}
 	preloadOrganizationUserMutationCache(t, service, identity)
 	mutation, errorValue := service.startOrganizationUserMutation(ctx, []organizationPersonIdentity{identity})
 	if errorValue != nil {
@@ -267,7 +267,7 @@ func assertOrganizationCleanupFailureUserResponse(t *testing.T, expectedResponse
 		t.Fatal(errorValue)
 	}
 	expectedRecord := adminUserMutation{
-		UserID:             "user-new",
+		MemberID:           "user-new",
 		Handle:             "new-user",
 		Name:               "New User",
 		Email:              "new@example.com",

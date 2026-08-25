@@ -98,7 +98,7 @@ export function organizationPayloadFromDraft(
 		types: draft.types,
 		tags: draft.tags,
 		importance: draft.importance,
-		ownerPersonID: owner.userID,
+		ownerPersonID: owner.memberID,
 		ownerCircleID: owner.groupID ?? '',
 		address: draft.address,
 		description: draft.description
@@ -130,7 +130,7 @@ export function contactPayloadFromDraft(
 		phone: draft.phone,
 		title: draft.title,
 		department: '',
-		ownerPersonID: owner.userID,
+		ownerPersonID: owner.memberID,
 		ownerCircleID: owner.groupID ?? '',
 		description: draft.note
 	};
@@ -165,7 +165,7 @@ export function opportunityPayloadFromDraft(
 		business: draft.business,
 		name: draft.name,
 		pipeline: draft.progressKind,
-		ownerPersonID: owner.userID,
+		ownerPersonID: owner.memberID,
 		ownerCircleID: owner.groupID ?? '',
 		amountMinor: majorToMinor(draft.amount, draft.currency, catalogue),
 		currencyCode: draft.amount === undefined ? '' : draft.currency,
@@ -223,7 +223,7 @@ export function resolveOwner(people: UserRecord[], hint: string, currentEmail: s
 	const normalizedHint = hint.trim().toLowerCase();
 	const current = people.find((person) => person.email.toLowerCase() === currentEmail.toLowerCase());
 	if (!normalizedHint && current) return current;
-	const candidates = people.filter((person) => [person.userID, person.name ?? '', person.email]
+	const candidates = people.filter((person) => [person.memberID, person.name ?? '', person.email]
 		.some((value) => value.trim().toLowerCase() === normalizedHint));
 	if (candidates.length === 1) return candidates[0];
 	throw new CRMOwnerResolutionError(candidates.length === 0 ? 'owner_not_found' : 'owner_ambiguous');
@@ -267,7 +267,7 @@ function mapOrganization(
 	timeZone: string,
 	groups: OrgGroup[]
 ): CRMOrganization {
-	const owner = people.find((person) => person.userID === organization.ownerPersonID);
+	const owner = people.find((person) => person.memberID === organization.ownerPersonID);
 	const organizationOpportunities = opportunities.filter((opportunity) => opportunity.organizationID === organization.id);
 	const openOpportunities = organizationOpportunities.filter((opportunity) => stageOutcome(stages, opportunity) === 'open');
 	const activityDates = activities
@@ -317,7 +317,7 @@ function mapOpportunity(
 	people: UserRecord[],
 	catalogue: CurrencyCatalogue
 ): CRMOpportunity {
-	const owner = people.find((person) => person.userID === opportunity.ownerPersonID);
+	const owner = people.find((person) => person.memberID === opportunity.ownerPersonID);
 	const timeZone = opportunity.dueTimeZone || 'UTC';
 	return {
 		id: opportunity.id,

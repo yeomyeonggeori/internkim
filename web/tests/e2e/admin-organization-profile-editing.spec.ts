@@ -69,7 +69,7 @@ test.describe('admin org chart profile editing', () => {
 
 		await expect.poll(() => savedProfiles).toEqual([
 			expect.objectContaining({
-				userID: 'user-grace',
+				memberID: 'user-grace',
 				email: 'grace@example.com',
 				jobTitle: 'Product Designer',
 				groupID: 'engineering',
@@ -83,18 +83,18 @@ test.describe('admin org chart profile editing', () => {
 		usersResponse.records = [
 			{
 				...usersResponse.records[0],
-				userID: 'user-ada',
+				memberID: 'user-ada',
 				name: 'Ada Kim',
 				supervisorID: ''
 			},
 			{
 				...usersResponse.records[1],
-				userID: 'user-grace',
+				memberID: 'user-grace',
 				name: 'Grace Lee',
 				supervisorID: 'user-ada'
 			},
 			{
-				userID: 'user-linus',
+				memberID: 'user-linus',
 				handle: 'linus',
 				name: 'Linus Park',
 				email: 'linus@example.com',
@@ -105,7 +105,7 @@ test.describe('admin org chart profile editing', () => {
 				groupID: 'engineering'
 			},
 			{
-				userID: 'user-dan',
+				memberID: 'user-dan',
 				handle: 'dan',
 				name: 'Dan Root',
 				email: 'dan@example.com',
@@ -155,7 +155,7 @@ test.describe('admin org chart profile editing', () => {
 		const savedProfiles: OrgProfileUpdate[] = [];
 		const usersResponse = cloneUsersResponse(initialUsersResponse);
 		usersResponse.records = usersResponse.records.map((record) =>
-			record.userID === 'user-grace'
+			record.memberID === 'user-grace'
 				? { ...record, groupID: 'operations' }
 				: record
 		);

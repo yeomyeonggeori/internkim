@@ -49,11 +49,11 @@
 	let nextActionDate = $state('');
 	let isSaving = $state(false);
 	let errorMessage = $state('');
-	let selectedOwner = $derived(people.find((person) => person.userID === ownerPersonID));
+	let selectedOwner = $derived(people.find((person) => person.memberID === ownerPersonID));
 	let selectedTeam = $derived(groups.find((group) => group.id === selectedOwner?.groupID)?.name ?? '');
 
 	function resetForm(selectedOrganization: CRMOrganization): void {
-		const owner = people.find((person) => person.userID === selectedOrganization.ownerPersonID);
+		const owner = people.find((person) => person.memberID === selectedOrganization.ownerPersonID);
 		const ownerTeam = groups.find((group) => group.id === owner?.groupID)?.name;
 		name = selectedOrganization.name;
 		types = [...selectedOrganization.types];
