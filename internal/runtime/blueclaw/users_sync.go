@@ -156,8 +156,10 @@ Description=Intern Kim users sync timer
 
 [Timer]
 OnBootSec=45s
-OnUnitActiveSec=2m
-AccuracySec=30s
+# The company tells this device when its directory changes, so this is what
+# catches a change that was never announced rather than how changes arrive.
+OnUnitActiveSec=1h
+AccuracySec=1m
 Unit=internkim-users-sync.service
 
 [Install]
