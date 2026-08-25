@@ -75,10 +75,10 @@ func taskNotifyExcerpt(text string, longest int) string {
 func taskNotifyExternalIDByPersonID(records []adminUserMutation) map[string]string {
 	externalIDByPersonID := map[string]string{}
 	for _, record := range records {
-		if record.UserID == "" || record.MattermostUserID == "" {
+		if record.MemberID == "" || record.MattermostUserID == "" {
 			continue
 		}
-		externalIDByPersonID[record.UserID] = record.MattermostUserID
+		externalIDByPersonID[record.MemberID] = record.MattermostUserID
 	}
 	return externalIDByPersonID
 }

@@ -88,9 +88,9 @@ func TestTaskNotifyExcerptCountsRunesAndFlattensLines(t *testing.T) {
 
 func TestTaskNotifyExternalIDByPersonIDSkipsWhatCannotBeReached(t *testing.T) {
 	byPersonID := taskNotifyExternalIDByPersonID([]adminUserMutation{
-		{UserID: "person-1", MattermostUserID: "mm-1"},
-		{UserID: "person-2", MattermostUserID: ""},
-		{UserID: "", MattermostUserID: "mm-3"},
+		{MemberID: "person-1", MattermostUserID: "mm-1"},
+		{MemberID: "person-2", MattermostUserID: ""},
+		{MemberID: "", MattermostUserID: "mm-3"},
 	})
 	if len(byPersonID) != 1 || byPersonID["person-1"] != "mm-1" {
 		t.Fatalf("byPersonID = %+v", byPersonID)
