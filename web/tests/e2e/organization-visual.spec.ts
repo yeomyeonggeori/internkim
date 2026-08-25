@@ -91,7 +91,6 @@ test.describe('employee organization visual layout geometry', () => {
 
 		const sidebar = page.getByTestId('organization-sidebar');
 		await expect(sidebar).toBeVisible();
-		await expect(sidebar.getByText('조직', { exact: true })).toBeVisible();
 		await expect(sidebar.getByTestId('organization-root')).toContainText('전체');
 		await expect(sidebar.getByTestId('organization-row-leadership')).toBeVisible();
 		await expect(sidebar.getByTestId('organization-row-shared')).toBeVisible();
@@ -104,22 +103,25 @@ test.describe('employee organization visual layout geometry', () => {
 		expect(sidebarBox.width).toBeLessThanOrEqual(280);
 	});
 
-	test('renders organization members as full-width list rows', async ({ page }) => {
+	test('renders organization members as an even card grid', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 1000 });
 		await mockVisualOrganizationDirectory(page);
 
 		await page.goto('/organization/');
 
 		const sharedTeam = page.getByTestId('organization-section-shared');
-		const sharedLeaderBox = await visibleElementBox(sharedTeam.getByTestId('organization-person-node-user-park-staff'), 'shared leader');
-		const newStaffBox = await visibleElementBox(sharedTeam.getByTestId('organization-person-node-user-new-staff'), 'new staff');
+		const sharedLeaderBox = await visibleElementBox(sharedTeam.getByTestId('organization-person-card-user-park-staff'), 'shared leader');
+		const newStaffBox = await visibleElementBox(sharedTeam.getByTestId('organization-person-card-user-new-staff'), 'new staff');
+		const extraStaffBox = await visibleElementBox(sharedTeam.getByTestId('organization-person-card-user-extra-staff'), 'extra staff');
 		const memberList = sharedTeam.getByTestId('organization-members-shared');
 
 		await expect(memberList).toBeVisible();
 		await expect(sharedTeam).toContainText('공유팀');
-		expect(newStaffBox.y).toBeGreaterThan(sharedLeaderBox.y + sharedLeaderBox.height);
-		expect(Math.abs(newStaffBox.x - sharedLeaderBox.x)).toBeLessThanOrEqual(2);
+		expect(newStaffBox.x).toBeGreaterThan(sharedLeaderBox.x + sharedLeaderBox.width - 1);
+		expect(Math.abs(newStaffBox.y - sharedLeaderBox.y)).toBeLessThanOrEqual(2);
 		expect(Math.abs(newStaffBox.width - sharedLeaderBox.width)).toBeLessThanOrEqual(2);
+		expect(Math.abs(extraStaffBox.width - sharedLeaderBox.width)).toBeLessThanOrEqual(2);
+		expect(Math.abs(extraStaffBox.height - sharedLeaderBox.height)).toBeLessThanOrEqual(2);
 	});
 });
 
