@@ -929,48 +929,13 @@ func TestFlowTaskUpdateAmbiguousTitleReturnsCandidates(t *testing.T) {
 	}
 }
 
-func TestFlowTaskUpdateUnresolvedHintReturnsCandidatesWithoutWrite(t *testing.T) {
+func TestFlowTaskUpdateAHintNothingComesCloseToWritesNothingAndNamesNothing(t *testing.T) {
 	putCalled := false
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
-				return flowToolJSONResponse(`{"members":[],"tasks":[{"id":"task-1","content":"회의","status":"진행"}]}`), nil
-			case request.Method == http.MethodPut:
+			if request.Method == http.MethodPut {
 				putCalled = true
-				return flowToolJSONResponse(`{"id":"missing-task","status":"완료"}`), nil
-			default:
-				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-				return nil, nil
-			}
-		})},
-	}
-
-	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "task_update",
-		Input:    []byte(`{"taskHint":"missing-task","status":"완료"}`),
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !response.IsError || response.ErrorCode != "flow_task_hint_unresolved" || !response.SafeRetry {
-		t.Fatalf("response = %+v", response)
-	}
-	if !strings.Contains(string(response.Result), "task-1") {
-		t.Fatalf("expected the requester's current tasks as candidates, got result = %s", response.Result)
-	}
-	if putCalled {
-		t.Fatal("unresolved taskHint must not write")
-	}
-}
-
-func TestFlowTaskUpdateHintResolutionIsCaseSensitiveAfterTrim(t *testing.T) {
-	service := Service{
-		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.Method != http.MethodGet {
-				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
 			}
 			return flowToolJSONResponse(`{"members":[],"tasks":[{"id":"task-1","content":"IR Deck","status":"진행"}]}`), nil
 		})},
@@ -978,13 +943,42 @@ func TestFlowTaskUpdateHintResolutionIsCaseSensitiveAfterTrim(t *testing.T) {
 
 	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_update",
-		Input:    []byte(`{"taskHint":"ir deck","status":"완료"}`),
+		Input:    []byte(`{"taskHint":"zzzz","status":"완료"}`),
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "flow_task_hint_unresolved" {
-		t.Fatalf("expected case-mismatched title to stay unresolved, got response = %+v", response)
+	if !response.IsError || response.ErrorCode != "flow_task_hint_unresolved" || !response.SafeRetry {
+		t.Fatalf("response = %+v", response)
+	}
+	if strings.Contains(string(response.Result), "task-1") {
+		t.Fatalf("a task nothing was asked about is not a candidate, got result = %s", response.Result)
+	}
+	if putCalled {
+		t.Fatal("unresolved taskHint must not write")
+	}
+}
+
+func TestFlowTaskUpdateResolvesATitleWhoseCaseDiffers(t *testing.T) {
+	putCalled := false
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method == http.MethodPut {
+				putCalled = true
+			}
+			return flowToolJSONResponse(`{"members":[],"tasks":[{"id":"task-1","content":"IR Deck","status":"진행"}]}`), nil
+		})},
+	}
+
+	if _, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task_update",
+		Input:    []byte(`{"taskHint":"ir deck","status":"완료"}`),
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !putCalled {
+		t.Fatal("a title is the same title in another case, so the update had to reach the write")
 	}
 }
 
@@ -1119,20 +1113,20 @@ func TestFlowTaskDeleteAmbiguousTitleReturnsCandidatesWithoutDeleting(t *testing
 	}
 }
 
-func TestFlowTaskDeleteNoMatchReturnsCandidatesWithoutDeleting(t *testing.T) {
+func TestFlowTaskDeleteAHintNothingComesCloseToDeletesNothingAndNamesNothing(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			if request.Method != http.MethodGet {
 				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
 			}
-			return flowToolJSONResponse(`{"tasks":[{"id":"task-1","content":"회의"}]}`), nil
+			return flowToolJSONResponse(`{"members":[],"tasks":[{"id":"task-1","content":"IR Deck","status":"진행"}]}`), nil
 		})},
 	}
 
 	response, errorValue := service.invokeFlowTaskDelete(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_delete",
-		Input:    []byte(`{"taskHint":"missing-task"}`),
+		Input:    []byte(`{"taskHint":"zzzz"}`),
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1140,8 +1134,8 @@ func TestFlowTaskDeleteNoMatchReturnsCandidatesWithoutDeleting(t *testing.T) {
 	if !response.IsError || response.ErrorCode != "flow_task_hint_unresolved" || !response.SafeRetry {
 		t.Fatalf("response = %+v", response)
 	}
-	if !strings.Contains(string(response.Result), "task-1") {
-		t.Fatalf("expected the requester's current tasks as candidates, got result = %s", response.Result)
+	if strings.Contains(string(response.Result), "task-1") {
+		t.Fatalf("a task nothing was asked about is not a candidate, got result = %s", response.Result)
 	}
 }
 

@@ -626,15 +626,15 @@ func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 		"work only in `artifacts/<deck-slug>/`",
 		"`slides.html` as the canonical controller-free source",
 		"restore_source.py",
-		"targeted `file_edit`",
-		"never reconstruct an existing deck with whole-file `file_write`",
+		"edit it in place with targeted changes",
+		"never rewrite an existing deck whole",
 		"same slug",
 	} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("presentation revision workflow must document %q", expectedText)
 		}
 	}
-	if strings.Contains(content, "rewrite the file with `file_write` instead of retrying") {
+	if strings.Contains(content, "rewrite the file whole instead of retrying") {
 		t.Fatal("presentation revision workflow must not replace an existing deck after a missed edit")
 	}
 	if strings.Contains(content, "verified wholesale replacement") {
@@ -787,7 +787,7 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"worked example",
 		"rendered image evidence",
 		"revise `slides.html`",
-		"`files` array",
+		"Attach every accepted output",
 		"Preserve the design-source marker, requested slide count, source-fact ledger intent",
 		"Do not spend delivery budget creating or attaching internal review-decision files",
 		"not a delivery blocker",
@@ -809,7 +809,7 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"composition-seeds.md",
 		"visual-styles.md",
 		"webfonts.md",
-		"Do not call `terminal_run` with an `arguments` array alone",
+		"Run the script as one shell command line from that working directory",
 		"required-visible-text.txt",
 		"one source fact or must-appear phrase per line",
 		"not a token filter",
@@ -820,8 +820,8 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 		"With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence",
 		"FORMATS=pptx",
 		`"command": "FORMATS=pptx <skill>/scripts/build.sh"`,
-		"`file_write` tool directly",
-		"Do not use `capability.invoke`, shell heredocs, or echo",
+		"write the complete `slides.html` as a file in one step",
+		"do not assemble it through shell heredocs or echo",
 		"must not delay the primary source file",
 		"A dark theme is not a visual system",
 		"Scene",
@@ -919,7 +919,7 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 			t.Fatalf("presentation must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{`"command": "<skill>/scripts/build.sh"`, `"command": "FORMATS=pptx <skill>/scripts/build.sh"`, "`<skill>` is this skill's own directory", `"workingDirectoryPath": "artifacts/<deck-slug>"`, "file_deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
+	for _, expectedText := range []string{`"command": "<skill>/scripts/build.sh"`, `"command": "FORMATS=pptx <skill>/scripts/build.sh"`, "`<skill>` is this skill's own directory", `"workingDirectoryPath": "artifacts/<deck-slug>"`, "then deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
 		if !strings.Contains(skillContent, expectedText) {
 			t.Fatalf("presentation must document %q", expectedText)
 		}

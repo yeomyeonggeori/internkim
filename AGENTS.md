@@ -200,8 +200,8 @@ and delete the duplicates.
   - Keyword/regex/path filters that decide meaning, intent, or security.
     Deterministic string checks are allowed only for machine identifiers:
     exact IDs, exact handles, exact paths, wire-format grammar, and unique
-    deterministic hint resolution. Fuzzy or substring identity is never
-    allowed.
+    deterministic hint resolution. Fuzzy identity is never decided in code;
+    it may only be proposed to the user, as the resolver ladder below does.
 - When you are tempted to parse or filter model text with string matching,
   use one of these two sanctioned shapes instead — never a regex over prose:
   1. Structured output: give the model a strict closed typed schema
@@ -209,10 +209,22 @@ and delete the duplicates.
      fields. The model decides; the schema only shapes the answer.
   2. Resolver layer (the `personHint`/`fileHint`/`taskHint` pattern): the
      model supplies a natural reference it actually knows (a current title,
-     a name, a path it saw), and the runtime resolves it deterministically
-     to the canonical identity — exact ID match, else exact unique
-     field match, no fuzzy matching. Ambiguity or no match fails closed
-     with a candidates list returned to the model for one informed retry.
+     a name, a path it saw), and the runtime climbs one ladder, in
+     `internal/capabilityd/hint_resolution.go`:
+
+     1. an exact identifier or an exact name resolves, always;
+     2. a name only one candidate contains resolves;
+     3. a name several contain is ambiguous — ask the user which;
+     4. nothing matching is approximated — ask the user whether they meant
+        one of the nearest, offering "none of these" as a choice.
+
+     Rungs 3 and 4 never resolve anything. They fail closed and say to ask,
+     so a fuzzy score only ever orders a question, never settles an identity.
+     Nearness is measured the way that kind of value is actually got wrong:
+     a name, an email local part, or a handle by a character or two, an email
+     domain by itself (everyone in a company shares one), a free-form title
+     by how much of it is shared. An **identifier is never approximated** —
+     an ID one character off was invented rather than mistyped.
      Describe the hint field precisely (e.g. "the exact CURRENT title,
      never a new or intended title") — weak models fill vague hint fields
      with the wrong referent.
