@@ -12,8 +12,8 @@ import {
 
 describe('mail settings state', () => {
 	test('creates sheet email state from saved addresses', () => {
-		expect(mailSettingsEmailStateFromEmail('gyeonbon@gmail.com')).toEqual({
-			emailLocalPart: 'gyeonbon',
+		expect(mailSettingsEmailStateFromEmail('sample@gmail.com')).toEqual({
+			emailLocalPart: 'sample',
 			emailProviderID: 'gmail',
 			customEmailDomain: '',
 			isAdvancedSettingsOpen: false
@@ -29,13 +29,13 @@ describe('mail settings state', () => {
 	test('fills Gmail server settings from the selected domain', () => {
 		const accountDraft = createMailAccountDraft(emptyMailAccount);
 
-		expect(mailAddressSettingsUpdate(accountDraft, 'gyeonbon', 'gmail', '', false)).toMatchObject({
-			email: 'gyeonbon@gmail.com',
-			fromAddress: 'gyeonbon@gmail.com',
+		expect(mailAddressSettingsUpdate(accountDraft, 'sample', 'gmail', '', false)).toMatchObject({
+			email: 'sample@gmail.com',
+			fromAddress: 'sample@gmail.com',
 			imapHost: 'imap.gmail.com',
 			smtpHost: 'smtp.gmail.com',
-			imapUsername: 'gyeonbon@gmail.com',
-			smtpUsername: 'gyeonbon@gmail.com',
+			imapUsername: 'sample@gmail.com',
+			smtpUsername: 'sample@gmail.com',
 			sentMailbox: ''
 		});
 	});
@@ -43,43 +43,43 @@ describe('mail settings state', () => {
 	test('fills Daum server settings with the login ID only', () => {
 		const accountDraft = createMailAccountDraft(emptyMailAccount);
 
-		expect(mailAddressSettingsUpdate(accountDraft, 'mohyeong234', 'daum', '', false)).toMatchObject({
-			email: 'mohyeong234@example.org',
-			fromAddress: 'mohyeong234@example.org',
+		expect(mailAddressSettingsUpdate(accountDraft, 'sample', 'daum', '', false)).toMatchObject({
+			email: 'sample@daum.net',
+			fromAddress: 'sample@daum.net',
 			imapHost: 'imap.daum.net',
 			imapPort: 993,
 			imapSecurity: 'tls',
 			smtpHost: 'smtp.daum.net',
 			smtpPort: 465,
 			smtpSecurity: 'tls',
-			imapUsername: 'mohyeong234',
-			smtpUsername: 'mohyeong234'
+			imapUsername: 'sample',
+			smtpUsername: 'sample'
 		});
 	});
 
 	test('fills Hanmail server settings with the login ID only', () => {
 		const accountDraft = createMailAccountDraft(emptyMailAccount);
 
-		expect(mailAddressSettingsUpdate(accountDraft, 'mohyeong234', 'hanmail', '', false)).toMatchObject({
-			email: 'mohyeong234@example.net',
-			fromAddress: 'mohyeong234@example.net',
+		expect(mailAddressSettingsUpdate(accountDraft, 'sample', 'hanmail', '', false)).toMatchObject({
+			email: 'sample@hanmail.net',
+			fromAddress: 'sample@hanmail.net',
 			imapHost: 'imap.daum.net',
 			smtpHost: 'smtp.daum.net',
-			imapUsername: 'mohyeong234',
-			smtpUsername: 'mohyeong234'
+			imapUsername: 'sample',
+			smtpUsername: 'sample'
 		});
 	});
 
 	test('detects Daum and Hanmail presets by the email domain when server settings match', () => {
 		const daumDraft = createMailAccountDraft({
 			...emptyMailAccount,
-			email: 'mohyeong234@example.org',
+			email: 'sample@daum.net',
 			imapHost: 'imap.daum.net',
 			smtpHost: 'smtp.daum.net'
 		});
 		const hanmailDraft = createMailAccountDraft({
 			...emptyMailAccount,
-			email: 'mohyeong234@example.net',
+			email: 'sample@hanmail.net',
 			imapHost: 'imap.daum.net',
 			smtpHost: 'smtp.daum.net'
 		});
