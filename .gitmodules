@@ -2,3 +2,7 @@
 	path = .dependency/blueclaw
 	url = https://github.com/Dawn-kim-official/blueclaw.git
 	branch = main
+[submodule ".dependency/internkim-plugin"]
+	path = .dependency/internkim-plugin
+	url = https://github.com/yeomyeonggeori/internkim-plugin.git
+	branch = main

@@ -383,7 +383,8 @@ func runDeviceSSH() {
 	scriptDir, _ := os.Getwd()
 	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
 	arguments := commandControlArguments(os.Args[2:])
-	target := resolveCommandTarget(arguments)
+	shouldElevate := hasControlFlag(arguments, "--sudo")
+	target := resolveCommandTarget(withoutControlFlag(arguments, "--sudo"))
 	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
 	if errorValue != nil {
 		fatal(errorValue.Error())
@@ -396,9 +397,36 @@ func runDeviceSSH() {
 	} else {
 		fmt.Printf("Backend: local ssh\n")
 	}
-	if errorValue := connection.runInteractiveSSH(commandRemoteArguments(os.Args[2:])); errorValue != nil {
+	remoteArguments := commandRemoteArguments(os.Args[2:])
+	if shouldElevate {
+		if len(remoteArguments) == 0 {
+			fatal("--sudo needs a command after --")
+		}
+		remoteArguments = []string{connection.privilegedCommand(strings.Join(remoteArguments, " "))}
+	}
+	if errorValue := connection.runInteractiveSSH(remoteArguments); errorValue != nil {
 		fatal(errorValue.Error())
 	}
+}
+
+func withoutControlFlag(arguments []string, name string) []string {
+	remaining := make([]string, 0, len(arguments))
+	for _, argument := range arguments {
+		if argument == name {
+			continue
+		}
+		remaining = append(remaining, argument)
+	}
+	return remaining
+}
+
+func hasControlFlag(arguments []string, name string) bool {
+	for _, argument := range arguments {
+		if argument == name {
+			return true
+		}
+	}
+	return false
 }
 
 func resolveDeviceSSHConnection(configuration config, sshpassBin string, target commandTarget) (*sshClient, bool, error) {
@@ -846,17 +874,16 @@ func runDeployToBoard(scriptDir string, boardBinDir string, ssh *sshClient) {
 	fmt.Println("ok")
 
 	fmt.Print("Deploying skills... ")
-	skillsDir := blueclawworkspace.SkillsPath(scriptDir)
-	if _, err := os.Stat(skillsDir); err == nil {
+	skillDirectories, skillsError := blueclawworkspace.SkillDirectories(scriptDir)
+	if skillsError != nil {
+		fatal(skillsError.Error())
+	}
+	if len(skillDirectories) > 0 {
 		ssh.run("mkdir -p /root/.blueclaw/workspace/skills")
-		entries, _ := os.ReadDir(skillsDir)
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			remoteSkillDir := "/root/.blueclaw/workspace/skills/" + entry.Name()
+		for _, skillDirectory := range skillDirectories {
+			remoteSkillDir := "/root/.blueclaw/workspace/skills/" + skillDirectory.Name
 			ssh.run("rm -rf " + remoteSkillDir + " && mkdir -p " + remoteSkillDir)
-			ssh.scpDir(filepath.Join(skillsDir, entry.Name()), remoteSkillDir)
+			ssh.scpDir(skillDirectory.Path, remoteSkillDir)
 		}
 		ssh.run("chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills")
 	}

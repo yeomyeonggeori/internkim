@@ -1141,6 +1141,18 @@ if ! command -v uv >/dev/null 2>&1; then
   curl -LsSf https://astral.sh/uv/0.11.11/install.sh -o /tmp/internkim-uv-install.sh
   UV_UNMANAGED_INSTALL=/usr/local/bin sh /tmp/internkim-uv-install.sh
 fi
+document_requirements=/opt/internkim/document-conversion/requirements.txt
+if [ -f "$document_requirements" ]; then
+  if [ ! -x /opt/internkim/document-venv/bin/python ]; then
+    uv venv --clear /opt/internkim/document-venv >/dev/null
+  fi
+  uv pip install --quiet --python /opt/internkim/document-venv/bin/python -r "$document_requirements"
+  if ! /opt/internkim/document-venv/bin/python -c 'import anydoc, bs4, markdownify, pypdf, pypdfium2' >/dev/null 2>&1; then
+    echo "host-document-venv-incomplete"; exit 1
+  fi
+else
+  echo "host-document-requirements-missing"; exit 1
+fi
 for managed_executable in bun bunx marp uv; do
   managed_path="/usr/local/bin/$managed_executable"
   test -x "$managed_path"
@@ -1371,22 +1383,36 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 }
 
 func (state *setupFlowState) installDeviceAssetSSH(asset deviceassets.Asset) error {
-	sourceDirectoryPath := asset.SourcePath(state.scriptDir)
-	if asset.DeviceKind == deviceassets.DeviceKindHost {
-		info, errorValue := os.Stat(sourceDirectoryPath)
-		if errorValue != nil || !info.IsDir() {
+	sourceDirectoryPaths := []string{}
+	for _, sourceDirectoryPath := range asset.SourcePaths(state.scriptDir) {
+		if info, errorValue := os.Stat(sourceDirectoryPath); errorValue == nil && info.IsDir() {
+			sourceDirectoryPaths = append(sourceDirectoryPaths, sourceDirectoryPath)
+		}
+	}
+	if len(sourceDirectoryPaths) == 0 {
+		if asset.DeviceKind == deviceassets.DeviceKindHost {
 			return nil
 		}
+		return fmt.Errorf("device asset %q has no source directory", asset.Name)
+	}
+	if asset.DeviceKind == deviceassets.DeviceKindHost {
 		stagingPath := asset.DevicePath + ".new"
 		state.sshClient.run("rm -rf " + quoteShellValue(stagingPath) + " && mkdir -p " + quoteShellValue(stagingPath))
-		if errorValue := state.sshClient.scpDir(sourceDirectoryPath, stagingPath); errorValue != nil {
-			return errorValue
+		for _, sourceDirectoryPath := range sourceDirectoryPaths {
+			if errorValue := state.sshClient.scpDir(sourceDirectoryPath, stagingPath); errorValue != nil {
+				return errorValue
+			}
 		}
 		state.sshClient.run("rm -rf " + quoteShellValue(asset.DevicePath) + " && mv " + quoteShellValue(stagingPath) + " " + quoteShellValue(asset.DevicePath))
 		return nil
 	}
 	state.sshClient.run("rm -rf " + quoteShellValue(asset.DevicePath) + " && mkdir -p " + quoteShellValue(asset.DevicePath))
-	return state.sshClient.scpDir(sourceDirectoryPath, asset.DevicePath)
+	for _, sourceDirectoryPath := range sourceDirectoryPaths {
+		if errorValue := state.sshClient.scpDir(sourceDirectoryPath, asset.DevicePath); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
 }
 
 func (state *setupFlowState) installSkillPythonDependenciesSSH() error {
@@ -1406,8 +1432,14 @@ func (state *setupFlowState) stageSkillsSD(context *setup.Context) error {
 	if info, errorValue := os.Stat(toolsDirectoryPath); errorValue != nil || !info.IsDir() {
 		return fmt.Errorf("tools directory missing: %s", toolsDirectoryPath)
 	}
-	if errorValue := copyDirectoryToStage(skillsDirectoryPath, filepath.Join(context.SD.RootPath(), "skills")); errorValue != nil {
+	skillDirectories, errorValue := blueclawworkspace.SkillDirectories(state.scriptDir)
+	if errorValue != nil {
 		return errorValue
+	}
+	for _, skillDirectory := range skillDirectories {
+		if errorValue := copyDirectoryToStage(skillDirectory.Path, filepath.Join(context.SD.RootPath(), "skills", skillDirectory.Name)); errorValue != nil {
+			return errorValue
+		}
 	}
 	if errorValue := copyDirectoryToStage(toolsDirectoryPath, filepath.Join(context.SD.RootPath(), "tools")); errorValue != nil {
 		return errorValue
@@ -1420,8 +1452,7 @@ func (state *setupFlowState) stageSkillsSD(context *setup.Context) error {
 }
 
 func (state *setupFlowState) skillsManifest() string {
-	skillsDirectoryPath := blueclawworkspace.SkillsPath(state.scriptDir)
-	digest, errorValue := directoryDigest(skillsDirectoryPath)
+	digest, errorValue := skillRootsDigest(state.scriptDir)
 	if errorValue != nil {
 		return ""
 	}
@@ -1449,6 +1480,25 @@ func fileSHA256(filePath string) (string, error) {
 func sha256String(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return fmt.Sprintf("%x", sum)
+}
+
+func skillRootsDigest(scriptDir string) (string, error) {
+	digests := []string{}
+	for _, rootPath := range blueclawworkspace.SkillRootPaths(scriptDir) {
+		if info, statError := os.Stat(rootPath); statError != nil || !info.IsDir() {
+			continue
+		}
+		digest, errorValue := directoryDigest(rootPath)
+		if errorValue != nil {
+			return "", errorValue
+		}
+		digests = append(digests, digest)
+	}
+	if len(digests) == 0 {
+		return "", errors.New("no skill root is present")
+	}
+	combined := sha256.Sum256([]byte(strings.Join(digests, "\n")))
+	return hex.EncodeToString(combined[:]), nil
 }
 
 func directoryDigest(directoryPath string) (string, error) {
@@ -2752,9 +2802,12 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 		return err
 	}
 
-	localSkillsPath := blueclawworkspace.SkillsPath(state.scriptDir)
-	if info, err := os.Stat(localSkillsPath); err == nil && info.IsDir() {
-		if err := copyDirectoryContents(localSkillsPath, filepath.Join(context.SD.RootPath(), "skills")); err != nil {
+	stagedSkillDirectories, skillsError := blueclawworkspace.SkillDirectories(state.scriptDir)
+	if skillsError != nil {
+		return skillsError
+	}
+	for _, skillDirectory := range stagedSkillDirectories {
+		if err := copyDirectoryContents(skillDirectory.Path, filepath.Join(context.SD.RootPath(), "skills", skillDirectory.Name)); err != nil {
 			return err
 		}
 	}

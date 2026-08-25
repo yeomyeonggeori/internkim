@@ -15,34 +15,42 @@ const (
 )
 
 type Asset struct {
-	Name       string
-	SourcePath func(repositoryRoot string) string
-	DevicePath string
-	DeviceKind DeviceKind
+	Name        string
+	SourcePaths func(repositoryRoot string) []string
+	DevicePath  string
+	DeviceKind  DeviceKind
 }
 
 func All() []Asset {
 	return []Asset{
 		{
-			Name:       "skills",
-			SourcePath: blueclawworkspace.SkillsPath,
-			DevicePath: filepath.Join(blueclaw.BlueclawWorkspacePath, "skills"),
-			DeviceKind: DeviceKindWorkspace,
+			Name:        "skills",
+			SourcePaths: blueclawworkspace.SkillRootPaths,
+			DevicePath:  filepath.Join(blueclaw.BlueclawWorkspacePath, "skills"),
+			DeviceKind:  DeviceKindWorkspace,
 		},
 		{
-			Name:       "tools",
-			SourcePath: blueclawworkspace.ToolsPath,
-			DevicePath: filepath.Join(blueclaw.BlueclawWorkspacePath, "tools"),
-			DeviceKind: DeviceKindWorkspace,
+			Name:        "tools",
+			SourcePaths: singleSourcePath(blueclawworkspace.ToolsPath),
+			DevicePath:  filepath.Join(blueclaw.BlueclawWorkspacePath, "tools"),
+			DeviceKind:  DeviceKindWorkspace,
 		},
 		{
-			Name:       "fonts",
-			SourcePath: fontsSourcePath,
-			DevicePath: "/opt/internkim/fonts",
-			DeviceKind: DeviceKindHost,
+			Name:        "fonts",
+			SourcePaths: singleSourcePath(fontsSourcePath),
+			DevicePath:  "/opt/internkim/fonts",
+			DeviceKind:  DeviceKindHost,
+		},
+		{
+			Name:        "document-conversion",
+			SourcePaths: singleSourcePath(documentConversionSourcePath),
+			DevicePath:  DocumentConversionDevicePath,
+			DeviceKind:  DeviceKindHost,
 		},
 	}
 }
+
+const DocumentConversionDevicePath = "/opt/internkim/document-conversion"
 
 func Find(name string) (Asset, bool) {
 	for _, asset := range All() {
@@ -53,6 +61,16 @@ func Find(name string) (Asset, bool) {
 	return Asset{}, false
 }
 
+func singleSourcePath(sourcePath func(repositoryRoot string) string) func(repositoryRoot string) []string {
+	return func(repositoryRoot string) []string {
+		return []string{sourcePath(repositoryRoot)}
+	}
+}
+
 func fontsSourcePath(repositoryRoot string) string {
 	return filepath.Join(repositoryRoot, "assets", "fonts", "files")
+}
+
+func documentConversionSourcePath(repositoryRoot string) string {
+	return filepath.Join(repositoryRoot, "assets", "document-conversion")
 }

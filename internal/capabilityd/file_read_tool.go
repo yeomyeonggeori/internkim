@@ -24,6 +24,9 @@ var fileReadHelperDocument string
 
 const defaultFileReadMaximumOutputBytes = 200000
 const hardFileReadMaximumOutputBytes = 1000000
+
+var legacyDocumentConversionPythonPaths = []string{"/opt/blueclaw/builtin-skills-venv/bin/python"}
+
 const documentBackendLocal = "anydoc"
 const documentBackendOCR = "openrouter"
 const documentOCRRequiredErrorCode = "ocr_required"
@@ -45,6 +48,7 @@ type imageReadInput struct {
 }
 
 type fileReadHelperRequest struct {
+	PythonPath        string `json:"-"`
 	Path              string `json:"path"`
 	OCRMode           string `json:"ocrMode"`
 	MaxPages          int    `json:"maxPages,omitempty"`
@@ -314,7 +318,7 @@ func (service Service) runFileReadHelper(ctx context.Context, request fileReadHe
 		return fileReadHelperResponse{}, errorValue
 	}
 	defer cleanup()
-	pythonPath := service.Configuration.WithDefaults().FileReadPythonPath
+	pythonPath := request.PythonPath
 	var output []byte
 	if service.RunCommand != nil {
 		output, errorValue = service.RunCommand(ctx, pythonPath, []string{helperPath}, requestDocument)
@@ -341,8 +345,35 @@ func (service Service) runFileReadHelper(ctx context.Context, request fileReadHe
 	return response, nil
 }
 
+func (service Service) documentConversionPythonPaths() []string {
+	configuration := service.Configuration.WithDefaults()
+	candidates := []string{configuration.FileReadPythonPath}
+	for _, fallbackPath := range legacyDocumentConversionPythonPaths {
+		if fallbackPath != configuration.FileReadPythonPath {
+			candidates = append(candidates, fallbackPath)
+		}
+	}
+	return candidates
+}
+
+func (service Service) runFileReadHelperOnAnyPython(ctx context.Context, request fileReadHelperRequest) (fileReadHelperResponse, error) {
+	failures := []string{}
+	for _, pythonPath := range service.documentConversionPythonPaths() {
+		request.PythonPath = pythonPath
+		response, errorValue := service.runFileReadHelper(ctx, request)
+		if errorValue == nil {
+			return response, nil
+		}
+		failures = append(failures, pythonPath+": "+errorValue.Error())
+		if service.RunCommand != nil {
+			break
+		}
+	}
+	return fileReadHelperResponse{}, errors.New("no document conversion environment worked; " + strings.Join(failures, "; "))
+}
+
 func (service Service) convertDocument(ctx context.Context, hostPath string, maxPages int) (fileReadHelperResponse, string, string, error) {
-	localResponse, localError := service.runFileReadHelper(ctx, fileReadHelperRequest{
+	localResponse, localError := service.runFileReadHelperOnAnyPython(ctx, fileReadHelperRequest{
 		Path:     hostPath,
 		OCRMode:  "never",
 		MaxPages: maxPages,
@@ -355,7 +386,7 @@ func (service Service) convertDocument(ctx context.Context, hostPath string, max
 	if localResponse.ErrorCode != documentOCRRequiredErrorCode || !hasAttempt {
 		return fileReadHelperResponse{}, "", "", errors.New(localFailure)
 	}
-	ocrResponse, ocrError := service.runFileReadHelper(ctx, attempt.Request)
+	ocrResponse, ocrError := service.runFileReadHelperOnAnyPython(ctx, attempt.Request)
 	if ocrError != nil || ocrResponse.ErrorCode != "" {
 		return fileReadHelperResponse{}, "", "", errors.New(localFailure + "; " + attempt.Backend + ": " + documentConversionFailure(ocrResponse, ocrError))
 	}

@@ -588,6 +588,10 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 uv tool install --upgrade litert-lm >/dev/null
 ln -sf /root/.local/bin/litert-lm /usr/local/bin/litert-lm
+if [ -f /opt/internkim/document-conversion/requirements.txt ]; then
+  uv venv --clear /opt/internkim/document-venv >/dev/null
+  uv pip install --quiet --python /opt/internkim/document-venv/bin/python -r /opt/internkim/document-conversion/requirements.txt >/dev/null
+fi
 if [ -f /opt/internkim/graphiti_memoryd/requirements.txt ]; then
   uv venv --clear /opt/internkim/graphiti-venv >/dev/null
   uv pip install --python /opt/internkim/graphiti-venv/bin/python -r /opt/internkim/graphiti_memoryd/requirements.txt >/dev/null
