@@ -49,6 +49,7 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 				asked.push({ capability, body: { ...body, requesterEmail } });
 				return { status: 200, body: { served: capability } };
 			},
+			tellAdmindTheDirectoryChanged: async () => ({ status: 202, body: null }),
 			emailOfMember: async (memberID: string) =>
 				memberID === 'member-1' ? 'sample@example.test' : null,
 			messengerCredentialOf: async () => ({ kind: 'buzz-token', secret: 'a-held-secret' }),
