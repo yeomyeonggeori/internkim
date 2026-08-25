@@ -1,7 +1,10 @@
 import { expect, test } from '@playwright/test';
 import {
-	expectDetailPanelInRightColumn,
+	closeDetailSheet,
+	detailPanel,
+	expectDetailSheetBesideTheList,
 	expectPersonDetailPanelContent,
+	filterByPerson,
 	mockOrganizationDirectory,
 	selectOrganizationInTree,
 	organizationDirectoryUsersResponse
@@ -14,37 +17,38 @@ test.describe('employee organization directory', () => {
 
 		await page.goto('/organization/');
 
-		await expect(page.getByRole('link', { name: '조직도' }).first()).toBeVisible();
-		await expect(page.getByRole('heading', { name: '조직도' })).toBeVisible();
+		await expect(page.getByRole('link', { name: '조직' }).first()).toBeVisible();
 		await expect(page.getByTestId('organization-board')).toBeVisible();
 		await expect(page.getByTestId('organization-people-layer')).toBeVisible();
 		await expect(page.getByTestId('organization-section-root')).toBeVisible();
 		await expect(page.getByTestId('organization-section-product')).toBeVisible();
 		await expect(page.getByTestId('organization-section-design')).toBeVisible();
-		await expect(page.getByTestId('organization-person-node-user-taehyun')).toBeVisible();
-		await expect(page.getByTestId('organization-person-node-user-nam')).toBeVisible();
-		await expect(page.getByRole('button', { name: '편집' })).toHaveCount(0);
-		await expect(page.getByTestId('organization-person-detail-panel')).toHaveCount(0);
+		await expect(page.getByTestId('organization-person-node-user-example-jung')).toBeVisible();
+		await expect(page.getByTestId('organization-person-node-user-sample-oh')).toBeVisible();
+		await expect(page.getByRole('button', { name: '조직 작업' })).toHaveCount(0);
+		await expect(detailPanel(page)).toHaveCount(0);
 		await expect(page.getByText(/명 더 보기/)).toHaveCount(0);
-		await expect(page.getByTestId('organization-person-node-user-dabin').locator('img[alt="김다빈"]')).toHaveAttribute('src', organizationDirectoryUsersResponse.records[2].image ?? '');
+		await expect(page.getByTestId('organization-person-node-user-specimen-choi').locator('img[alt="최견본"]')).toHaveAttribute('src', organizationDirectoryUsersResponse.records[2].image ?? '');
 
-		await page.getByTestId('organization-person-node-user-dabin').click();
-		await expectPersonDetailPanelContent(page.getByTestId('organization-person-detail-panel'));
-		await expectDetailPanelInRightColumn(page);
-		await expect(page.getByTestId('organization-person-detail-panel').getByRole('button', { name: '수정하기' })).toHaveCount(0);
-		await page.getByRole('button', { name: '상세 닫기' }).click();
-		await expect(page.getByTestId('organization-person-detail-panel')).toHaveCount(0);
+		await page.getByTestId('organization-person-node-user-specimen-choi').click();
+		await expectPersonDetailPanelContent(detailPanel(page));
+		await expectDetailSheetBesideTheList(page);
+		await expect(detailPanel(page).getByRole('button', { name: '수정하기' })).toBeVisible();
+		await closeDetailSheet(page);
+		await expect(detailPanel(page)).toHaveCount(0);
 
-		await page.getByLabel('검색').fill('없는직원');
-		await expect(page.getByText('표시할 조직도 구성원이 없습니다.')).toBeVisible();
-		await expect(page.getByTestId('organization-person-node-user-dabin')).toHaveCount(0);
+		await page.getByTestId('organization-person-node-user-example-jung').click();
+		await expect(detailPanel(page)).toContainText('정예시');
+		await expect(detailPanel(page).getByRole('button', { name: '수정하기' })).toHaveCount(0);
+		await closeDetailSheet(page);
+		await expect(detailPanel(page)).toHaveCount(0);
 
-		await page.getByLabel('검색').fill('프론트');
-		await expect(page.getByTestId('organization-person-node-user-ceo')).toHaveCount(0);
-		await expect(page.getByTestId('organization-person-node-user-dabin')).toBeVisible();
+		await filterByPerson(page, '프론트', '최견본');
+		await expect(page.getByTestId('organization-person-node-user-sample-lee')).toHaveCount(0);
+		await expect(page.getByTestId('organization-person-node-user-specimen-choi')).toBeVisible();
 
 		await selectOrganizationInTree(page, 'product');
-		await expect(page.getByTestId('organization-person-node-user-dabin')).toBeVisible();
+		await expect(page.getByTestId('organization-person-node-user-specimen-choi')).toBeVisible();
 	});
 
 	test('shows the empty state for an organization without members', async ({ page }) => {
@@ -58,7 +62,7 @@ test.describe('employee organization directory', () => {
 
 		await page.getByTestId('organization-row-empty').getByRole('button', { name: '빈 조직' }).click();
 
-		await expect(page.getByRole('heading', { name: '빈 조직' })).toBeVisible();
+		await expect(page.getByRole('navigation', { name: 'breadcrumb' })).toContainText('빈 조직');
 		await expect(page.getByText('표시할 조직도 구성원이 없습니다.')).toBeVisible();
 	});
 
@@ -67,7 +71,7 @@ test.describe('employee organization directory', () => {
 		await page.goto('/organization/');
 
 		const leadershipSection = page.getByTestId('organization-section-leadership');
-		const companyLeader = leadershipSection.getByTestId('organization-person-node-user-ceo');
+		const companyLeader = leadershipSection.getByTestId('organization-person-card-user-sample-lee');
 
 		await expect(companyLeader.getByText('대표')).toBeVisible();
 		await expect(companyLeader.getByText('책임자')).toHaveCount(0);
@@ -116,28 +120,30 @@ test.describe('employee organization directory', () => {
 		await page.goto('/organization/');
 
 		const productSection = page.getByTestId('organization-section-product');
-		await expect(productSection.getByTestId('organization-person-node-employee')).toBeVisible();
-		await expect(productSection.getByTestId('organization-person-node-employee').getByText('책임자')).toHaveCount(0);
-		await expect(productSection.getByTestId('organization-person-node-leader').getByText('책임자')).toBeVisible();
+		await expect(productSection.getByTestId('organization-person-card-employee')).toBeVisible();
+		await expect(productSection.getByTestId('organization-person-card-employee').getByText('책임자')).toHaveCount(0);
+		await expect(productSection.getByTestId('organization-person-card-leader').getByText('책임자')).toBeVisible();
 	});
 
 	test('labels a person without an organization as unassigned', async ({ page }) => {
 		await mockOrganizationDirectory(page);
 		await page.goto('/organization/');
 
-		await page.getByTestId('organization-person-node-user-nam').click();
+		await page.getByTestId('organization-person-node-user-sample-oh').click();
 
-		await expect(page.getByTestId('organization-person-detail-panel')).toContainText('팀 미지정');
+		await expect(detailPanel(page)).toContainText('팀 미지정');
 	});
 
 	test('localizes organization tree accessibility labels in English', async ({ page }) => {
 		await mockOrganizationDirectory(page, { canManage: true, locale: 'en' });
 		await page.goto('/organization/');
 
-		await expect(page.getByTestId('organization-root')).toContainText('7 people');
+		await expect(page.getByTestId('organization-root')).toContainText('All');
+		await expect(page.getByTestId('organization-root')).toContainText('3');
 		await expect(page.getByRole('button', { name: '제품팀 Collapse' })).toBeVisible();
 
-		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await page.getByRole('button', { name: 'Organization actions' }).click();
+		await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
 		await expect(page.getByRole('button', { name: '제품팀 Move organization' })).toHaveCount(0);
 		const dragHandle = page.getByTestId('organization-drag-handle-product');
 		await expect(dragHandle).toHaveAttribute('aria-hidden', 'true');

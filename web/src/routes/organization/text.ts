@@ -50,6 +50,10 @@ export const organizationDirectoryText = {
 		notProvided: '미입력',
 		personDetail: '직원 상세',
 		closeDetail: '상세 닫기',
+		discardEditsTitle: '저장하지 않은 변경사항이 있습니다',
+		discardEditsDescription: '지금 닫으면 수정한 내용이 사라집니다.',
+		keepEditing: '계속 수정',
+		discardEdits: '닫기',
 		basicInformation: '기본 정보',
 		email: '이메일'
 	},
@@ -104,6 +108,10 @@ export const organizationDirectoryText = {
 		notProvided: 'Not provided',
 		personDetail: 'Person detail',
 		closeDetail: 'Close detail',
+		discardEditsTitle: 'This profile has unsaved changes',
+		discardEditsDescription: 'Closing now throws away what you edited.',
+		keepEditing: 'Keep editing',
+		discardEdits: 'Close',
 		basicInformation: 'Basic information',
 		email: 'Email'
 	}

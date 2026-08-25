@@ -1,6 +1,11 @@
-import { AdminApiError, apiErrorMessage } from '../admin/admin-api';
-import type { UsersResponse } from '../../lib/organization/types';
-import { saveOwnSupabaseProfile, supabaseOrganizationDirectory } from '$lib/organization/supabase-directory';
+import { AdminApiError, apiErrorMessage, saveOrgGroups, saveOrgProfiles, type OrgProfileUpdate } from '../admin/admin-api';
+import type { OrgGroup, UsersResponse } from '../../lib/organization/types';
+import {
+	saveOwnSupabaseProfile,
+	saveSupabaseMemberProfiles,
+	saveSupabaseTeams,
+	supabaseOrganizationDirectory
+} from '$lib/organization/supabase-directory';
 import { isSupabaseConfigured } from '$lib/supabase';
 
 export async function fetchOrganizationDirectory(fallbackMessage: string): Promise<UsersResponse> {
@@ -8,6 +13,33 @@ export async function fetchOrganizationDirectory(fallbackMessage: string): Promi
 	const response = await fetch('/organization/api/people', { credentials: 'include' });
 	if (!response.ok) throw new AdminApiError(await responseErrorMessage(response, fallbackMessage), response.status);
 	return (await response.json()) as UsersResponse;
+}
+
+export async function saveOrganizationProfiles(
+	adminBaseURL: string,
+	profiles: OrgProfileUpdate[],
+	fallbackMessage: string
+): Promise<UsersResponse> {
+	if (!isSupabaseConfigured()) return saveOrgProfiles(adminBaseURL, profiles, fallbackMessage);
+	return saveSupabaseMemberProfiles(
+		profiles.map((profile) => ({
+			memberID: profile.memberID,
+			jobTitle: profile.jobTitle,
+			groupID: profile.groupID ?? '',
+			hireDate: profile.hireDate ?? '',
+			phoneNumber: profile.phoneNumber ?? '',
+			supervisorID: profile.supervisorID ?? ''
+		}))
+	);
+}
+
+export async function saveOrganizationGroups(
+	adminBaseURL: string,
+	groups: OrgGroup[],
+	fallbackMessage: string
+): Promise<UsersResponse> {
+	if (!isSupabaseConfigured()) return saveOrgGroups(adminBaseURL, groups, fallbackMessage);
+	return saveSupabaseTeams(groups);
 }
 
 export function organizationApiErrorMessage(error: unknown, fallbackMessage: string): string {

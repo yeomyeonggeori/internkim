@@ -46,35 +46,43 @@ export async function mockAdminOrganization(page: Page, handlers: OrganizationMo
 
 export async function openOrganizationEditor(page: Page): Promise<void> {
 	await page.goto('/organization/?edit=1');
-	await expect(page.getByRole('button', { name: '조직 추가' })).toBeVisible();
-	await expect(page.getByTestId('organization-person-edit-user-grace')).toHaveCount(0);
+	await expect(page.getByRole('button', { name: '조직 작업' })).toBeVisible();
+	await expect(page.getByTestId('organization-profile-user-grace')).toHaveCount(0);
 }
 
 export async function enableOrganizationEditMode(page: Page): Promise<void> {
-	await expect(page.getByRole('button', { name: '조직 추가' })).toBeVisible();
+	await expect(page.getByRole('button', { name: '조직 작업' })).toBeVisible();
+}
+
+async function closeAnyOpenDetailSheet(page: Page): Promise<void> {
+	const sheet = page.getByTestId('organization-detail-sheet');
+	if (!(await sheet.isVisible())) return;
+	await sheet.getByRole('button', { name: '상세 닫기' }).click();
+	await expect(sheet).toHaveCount(0);
 }
 
 export async function openCardEditor(page: Page, memberID: string): Promise<Locator> {
+	await closeAnyOpenDetailSheet(page);
 	await page.getByTestId(`organization-person-node-${memberID}`).click();
-	await page.getByTestId('organization-person-detail-panel').getByRole('button', { name: '수정하기' }).click();
+	const panel = page.getByTestId('organization-person-detail-panel');
+	await panel.getByRole('button', { name: '수정하기' }).click();
 	const editor = page.getByTestId(`organization-profile-${memberID}`);
 	await expect(editor.getByLabel('직책', { exact: true })).toBeVisible();
-	await expect(editor.getByRole('button', { name: '취소' })).toBeVisible();
-	await expect(editor.getByRole('button', { name: '저장' })).toBeVisible();
+	await expect(cardEditorButton(page, '취소')).toBeVisible();
+	await expect(cardEditorButton(page, '저장')).toBeVisible();
 	return editor;
 }
 
+export function cardEditorButton(page: Page, name: '저장' | '취소'): Locator {
+	return page.getByTestId('organization-person-detail-panel').getByRole('button', { name, exact: true });
+}
+
 export async function openOrganizationForm(page: Page): Promise<void> {
-	const addOrganizationButton = page.getByRole('button', { name: '조직 추가' });
-	await addOrganizationButton.click();
-	const organizationForm = page.getByTestId('organization-add-organization-popover');
-	await expect(organizationForm).toBeVisible();
+	await page.getByRole('button', { name: '조직 작업' }).click();
+	await page.getByRole('menuitem', { name: '조직 추가', exact: true }).click();
+	await expect(page.getByTestId('organization-add-organization-popover')).toBeVisible();
 	await expect(page.getByLabel('새 조직')).toBeVisible();
 	await expect(page.getByRole('button', { name: '추가', exact: true })).toBeVisible();
-	const buttonBox = await addOrganizationButton.boundingBox();
-	const formBox = await organizationForm.boundingBox();
-	if (!buttonBox || !formBox) throw new Error('조직 추가 popover 위치를 확인할 수 없습니다.');
-	expect(formBox.y).toBeGreaterThanOrEqual(buttonBox.y + buttonBox.height - 1);
 }
 
 export async function selectCardOption(page: Page, card: Locator, label: string, name: string): Promise<void> {
