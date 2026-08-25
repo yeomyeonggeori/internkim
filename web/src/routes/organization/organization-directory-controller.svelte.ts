@@ -53,6 +53,7 @@ export class OrganizationDirectoryController {
 	canManage = $state(false);
 	sessionEmail = $state('');
 	isSavingOwnProfile = $state(false);
+	isConfirmingDiscard = $state(false);
 	errorMessage = $state('');
 	newGroupName = $state('');
 	newGroupParentID = $state('');
@@ -166,20 +167,12 @@ export class OrganizationDirectoryController {
 		if (this.organizationEdit.isEditing) return;
 		const nextGroupID = value === allValue || value === undefined ? '' : value;
 		if (nextGroupID === this.groupID) return;
-		if (this.hasUnsavedProfileEdits()) {
-			this.errorMessage = this.adminPageText.organization.unsavedChanges;
-			return;
-		}
 		this.groupID = nextGroupID;
 		this.clearSelection();
 	}
 
 	selectRecord(record: UserRecord): void {
 		if (this.organizationEdit.isEditing) return;
-		if (this.editingUserID && this.editingUserID !== record.memberID && this.hasUnsavedProfileEdits()) {
-			this.errorMessage = this.adminPageText.organization.unsavedChanges;
-			return;
-		}
 		if (this.editingUserID && this.editingUserID !== record.memberID) this.cancelProfileEdit(this.editingUserID);
 		this.errorMessage = '';
 		this.selectedUserID = record.memberID;
@@ -187,10 +180,20 @@ export class OrganizationDirectoryController {
 
 	clearSelection(): void {
 		if (this.selectedUserID && this.editingUserID === this.selectedUserID && this.hasUnsavedProfileEdits()) {
-			this.errorMessage = this.adminPageText.organization.unsavedChanges;
+			this.isConfirmingDiscard = true;
 			return;
 		}
 		if (this.selectedUserID && this.editingUserID === this.selectedUserID) this.cancelProfileEdit(this.selectedUserID);
+		this.selectedUserID = '';
+	}
+
+	keepEditingSelectedProfile(): void {
+		this.isConfirmingDiscard = false;
+	}
+
+	discardSelectedProfileEdits(): void {
+		this.isConfirmingDiscard = false;
+		if (this.selectedUserID) this.cancelProfileEdit(this.selectedUserID);
 		this.selectedUserID = '';
 	}
 

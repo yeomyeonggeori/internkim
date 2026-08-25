@@ -86,7 +86,7 @@ test('an administrator moves a colleague into a newly added organization', async
 	).toBeVisible();
 });
 
-test('an unsaved edit keeps the detail panel reachable instead of locking the board', async ({ page }) => {
+test('closing an unsaved edit asks before it throws the edit away', async ({ page }) => {
 	await signIn(page);
 	const panel = await openPerson(page, ownMemberID);
 
@@ -94,12 +94,13 @@ test('an unsaved edit keeps the detail panel reachable instead of locking the bo
 	await panel.getByLabel('직책', { exact: true }).fill('저장하지 않은 직책');
 	await page.getByRole('dialog', { name: '직원 상세' }).getByRole('button', { name: '상세 닫기' }).click();
 
-	await expect(page.getByText('저장하지 않은 조직도 변경사항이 있습니다.')).toBeVisible();
+	const dialog = page.getByTestId('organization-discard-edits-dialog');
+	await expect(dialog).toBeVisible();
+	await dialog.getByRole('button', { name: '계속 수정', exact: true }).click();
 	await expect(panel).toBeVisible();
 	await expect(panel.getByLabel('직책', { exact: true })).toHaveValue('저장하지 않은 직책');
 
-	await panel.getByRole('button', { name: '취소', exact: true }).click();
 	await page.getByRole('dialog', { name: '직원 상세' }).getByRole('button', { name: '상세 닫기' }).click();
+	await page.getByTestId('organization-discard-edits-dialog').getByRole('button', { name: '닫기', exact: true }).click();
 	await expect(detailPanel(page)).toHaveCount(0);
-	await expect(page.getByText('저장하지 않은 조직도 변경사항이 있습니다.')).toHaveCount(0);
 });

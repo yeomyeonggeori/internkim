@@ -150,7 +150,7 @@ test.describe('employee organization directory editing', () => {
 		await expect(page.getByTestId('organization-profile-user-specimen-choi').getByLabel('직책', { exact: true })).toBeVisible();
 	});
 
-	test('keeps an unsaved edit draft when closing the detail panel', async ({ page }) => {
+	test('asks before it throws away an unsaved edit, and keeps it when told to', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 800 });
 		await mockOrganizationDirectory(page, { canManage: true });
 
@@ -162,12 +162,31 @@ test.describe('employee organization directory editing', () => {
 		await panel.getByLabel('직책', { exact: true }).fill('닫기 전 직책');
 		await closeDetailSheet(page);
 
-		await expect(page.getByText('저장하지 않은 조직도 변경사항이 있습니다.')).toBeVisible();
+		const dialog = page.getByTestId('organization-discard-edits-dialog');
+		await expect(dialog).toBeVisible();
+		await dialog.getByRole('button', { name: '계속 수정', exact: true }).click();
+		await expect(dialog).toHaveCount(0);
 		await expect(panel).toBeVisible();
 		await expect(panel.getByLabel('직책', { exact: true })).toHaveValue('닫기 전 직책');
+	});
 
-		await panel.getByRole('button', { name: '취소', exact: true }).click();
+	test('throws away an unsaved edit when told to close anyway', async ({ page }) => {
+		await page.setViewportSize({ width: 1440, height: 800 });
+		await mockOrganizationDirectory(page, { canManage: true });
+
+		await page.goto('/organization/');
+		await page.getByTestId('organization-person-node-user-specimen-choi').click();
+
+		const panel = detailPanel(page);
+		await panel.getByRole('button', { name: '수정하기' }).click();
+		await panel.getByLabel('직책', { exact: true }).fill('버릴 직책');
 		await closeDetailSheet(page);
+
+		await page.getByTestId('organization-discard-edits-dialog').getByRole('button', { name: '닫기', exact: true }).click();
 		await expect(detailPanel(page)).toHaveCount(0);
+
+		await page.getByTestId('organization-person-node-user-specimen-choi').click();
+		await panel.getByRole('button', { name: '수정하기' }).click();
+		await expect(panel.getByLabel('직책', { exact: true })).toHaveValue('프론트엔드 개발자');
 	});
 });
