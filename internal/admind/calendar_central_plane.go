@@ -66,3 +66,63 @@ func calendarParticipantsOfEmails(emails []string) []calendarParticipant {
 	}
 	return calendarParticipantsFromIdentities(identities)
 }
+
+// The company holds the calendar, so a write goes there as the person who asked
+// and the answer comes back from what the company saved.
+func (service *Service) centralCalendarWriter(request *http.Request) (*centralplane.Client, string, bool) {
+	requesterEmail := strings.ToLower(strings.TrimSpace(request.Header.Get("CF-Access-Authenticated-User-Email")))
+	if requesterEmail == "" {
+		return nil, "", false
+	}
+	client := service.centralPlane()
+	if client == nil {
+		return nil, "", false
+	}
+	return client, requesterEmail, true
+}
+
+func (service *Service) saveCentralCalendarEvent(request *http.Request, event calendarEvent) (calendarEvent, bool, error) {
+	client, requesterEmail, canWrite := service.centralCalendarWriter(request)
+	if !canWrite {
+		return calendarEvent{}, false, nil
+	}
+	savedID, errorValue := client.SaveEvent(request.Context(), "email", requesterEmail, centralplane.Event{
+		CentralID:        event.ID,
+		Title:            event.Title,
+		Note:             event.Description,
+		Location:         event.Location,
+		StartsAt:         event.StartISO,
+		EndsAt:           event.EndISO,
+		IsWholeDay:       event.IsAllDay,
+		ParticipantMails: calendarParticipantEmails(event),
+	})
+	if errorValue != nil {
+		return calendarEvent{}, true, errorValue
+	}
+	saved := event
+	saved.ID = savedID
+	saved.UID = savedID
+	saved.TimeZone = service.workspaceTimeZone().name
+	return saved, true, nil
+}
+
+func (service *Service) removeCentralCalendarEvent(request *http.Request, eventID string) (bool, error) {
+	client, requesterEmail, canWrite := service.centralCalendarWriter(request)
+	if !canWrite {
+		return false, nil
+	}
+	return true, client.DeleteEvent(request.Context(), "email", requesterEmail, eventID)
+}
+
+func calendarParticipantEmails(event calendarEvent) []string {
+	emails := make([]string, 0, len(event.Participants))
+	for _, participant := range event.Participants {
+		if email := strings.TrimSpace(participant.Email); email != "" {
+			emails = append(emails, email)
+		}
+	}
+	if len(emails) > 0 {
+		return emails
+	}
+	return event.People
+}
