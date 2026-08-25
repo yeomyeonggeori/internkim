@@ -123,7 +123,6 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	};
 
 	await kv.putDevice(env.KV, fleetID, device);
-	await kv.putUserRecords(env.KV, fleetID, []);
 
 	return json({
 		fleet_id: fleetID,
@@ -172,7 +171,6 @@ async function handleRegistrationDelete(request: Request, platform: App.Platform
 	await ensureSameFleet(device, fleetSecret);
 
 	await kv.deleteDevice(env.KV, fleetID);
-	await kv.deleteUserRecords(env.KV, fleetID);
 
 	return json({ deleted: true, fleet_id: fleetID });
 }
@@ -190,7 +188,6 @@ async function migrateRegisteredFleet(
 		throw error(409, 'New fleet ID already registered');
 	}
 
-	const records = await kv.getUserRecords(env.KV, oldFleetID);
 	const resolvedAdminEmail = adminEmail || ownedDevice.admin_email || '';
 	const nodeID = resolveFleetNodeID(ownedDevice.fleet, requestedNodeID, nodeKey);
 	const fleet = registerFleetNode(renameFleet(ownedDevice.fleet, newFleetID), newFleetID, nodeID, nodeKey, new Date());
@@ -202,9 +199,7 @@ async function migrateRegisteredFleet(
 	};
 
 	await kv.putDevice(env.KV, newFleetID, device);
-	await kv.putUserRecords(env.KV, newFleetID, records);
 	await kv.deleteDevice(env.KV, oldFleetID);
-	await kv.deleteUserRecords(env.KV, oldFleetID);
 
 	return json({
 		fleet_id: newFleetID,
