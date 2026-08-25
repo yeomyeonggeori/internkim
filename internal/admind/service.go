@@ -117,6 +117,7 @@ type Configuration struct {
 	TaskRunNotifyEnabled           bool
 	AttendanceNotifyEnabled        bool
 	CalendarDigestEnabled          bool
+	MailNotifyEnabled              bool
 }
 
 type Service struct {
@@ -307,6 +308,7 @@ func DefaultConfiguration() Configuration {
 		TaskRunNotifyEnabled:           true,
 		AttendanceNotifyEnabled:        true,
 		CalendarDigestEnabled:          true,
+		MailNotifyEnabled:              true,
 		MattermostBaseURL:              "http://127.0.0.1:8065",
 		MattermostTeamName:             "internkim",
 		BotUsername:                    "internkim",
@@ -402,6 +404,9 @@ func (service *Service) Run(ctx context.Context) error {
 	}
 	if service.Configuration.CalendarDigestEnabled {
 		go service.keepTheDayAnnounced(ctx)
+	}
+	if service.Configuration.MailNotifyEnabled {
+		go service.keepMailAnnounced(ctx)
 	}
 	service.reconcileSiteSourcesToStaffCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
