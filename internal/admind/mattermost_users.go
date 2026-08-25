@@ -50,6 +50,7 @@ type mattermostChannelRecord struct {
 	DisplayName string `json:"display_name"`
 	Purpose     string `json:"purpose"`
 	Type        string `json:"type"`
+	DeleteAt    int64  `json:"delete_at"`
 }
 
 type mattermostChannelMemberRecord struct {
