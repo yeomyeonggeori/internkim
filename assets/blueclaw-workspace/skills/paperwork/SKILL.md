@@ -4,13 +4,16 @@ description: Create standardized company business documents on letterhead. Use f
 tool-references: file_read company_info_get ask_input company_info_set company_document_register file_write terminal_run file_deliver company_document_update company_document_list company_document_search
 ---
 
+
+In every terminal command below, `<skill>` is this skill's own directory — the one holding this `SKILL.md`.
+
 # Company Paperwork
 
 Create standardized business documents with the bundled letterhead renderer and the matching spec. Do not substitute the pdf skill's `create_pdf.py`, ad-hoc DOCX blocks, or hand-written scripts: letterhead, approval boxes, item tables, seals, and fixed wording belong to this skill.
 
 ## Catalog and references
 
-Read the requested language's spec first at `/workspace/skills/paperwork/references/<ko|en>/<slug>.md`; the spec is the source of truth for required content, fixed wording, output format, and the content JSON. Supported slugs are `quote`, `transaction-statement`, `invoice`, `purchase-order`, `approval-request`, `expense-approval`, `meeting-minutes`, `weekly-report`, `business-trip-report`, `employment-certificate`, `career-certificate`, `leave-request`, `power-of-attorney`, `offer-letter`, `employment-contract`, `nda`, `mou`, and `service-agreement`.
+Read the requested language's spec first at `references/<ko|en>/<slug>.md`; the spec is the source of truth for required content, fixed wording, output format, and the content JSON. Supported slugs are `quote`, `transaction-statement`, `invoice`, `purchase-order`, `approval-request`, `expense-approval`, `meeting-minutes`, `weekly-report`, `business-trip-report`, `employment-certificate`, `career-certificate`, `leave-request`, `power-of-attorney`, `offer-letter`, `employment-contract`, `nda`, `mou`, and `service-agreement`.
 
 ## Workflow
 

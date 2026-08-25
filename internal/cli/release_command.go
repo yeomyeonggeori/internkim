@@ -421,12 +421,32 @@ func releaseChannelHistoryKey(channel string) string {
 	return "channels/" + strings.Trim(strings.TrimSpace(channel), "/") + "-history.json"
 }
 
-func deviceAssetSourcePath(assetName string, repositoryRootPath string) string {
+func deviceAssetSourcePaths(assetName string, repositoryRootPath string) []string {
 	asset, found := deviceassets.Find(assetName)
 	if !found {
 		panic("deviceassets: unknown asset " + assetName)
 	}
-	return asset.SourcePath(repositoryRootPath)
+	return asset.SourcePaths(repositoryRootPath)
+}
+
+func buildDeviceAssetRelease(assetName string) func(string, string) error {
+	return func(repositoryRootPath string, destinationPath string) error {
+		if errorValue := os.RemoveAll(destinationPath); errorValue != nil {
+			return errorValue
+		}
+		if errorValue := os.MkdirAll(destinationPath, 0o755); errorValue != nil {
+			return errorValue
+		}
+		for _, sourcePath := range deviceAssetSourcePaths(assetName, repositoryRootPath) {
+			if info, statError := os.Stat(sourcePath); statError != nil || !info.IsDir() {
+				continue
+			}
+			if errorValue := copyDirectoryContents(sourcePath, destinationPath); errorValue != nil {
+				return errorValue
+			}
+		}
+		return nil
+	}
 }
 
 func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string, selectedComponentNames map[string]bool) ([]releaseBlob, error) {
@@ -889,8 +909,8 @@ func releaseBlobInputs(repositoryRootPath string, temporaryDirectoryPath string)
 		{name: "web", restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(repositoryRootPath, "build", "board-ui")},
 		{name: "blueclawPayload", restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath)},
 		{name: "blueclawSupervisor", restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BlueclawSupervisorName), builder: buildBlueclawSupervisorReleaseBinary},
-		{name: "skills", restartGroup: "blueclaw", healthCheck: "skills", sourcePath: deviceAssetSourcePath("skills", repositoryRootPath)},
-		{name: "fonts", restartGroup: "admind", healthCheck: "web", sourcePath: deviceAssetSourcePath("fonts", repositoryRootPath)},
+		{name: "skills", restartGroup: "blueclaw", healthCheck: "skills", sourcePath: filepath.Join(temporaryDirectoryPath, "skills"), builder: buildDeviceAssetRelease("skills")},
+		{name: "fonts", restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(temporaryDirectoryPath, "fonts"), builder: buildDeviceAssetRelease("fonts")},
 		{name: "mattermostPlugins", restartGroup: "admind", healthCheck: "mattermostPlugins", sourcePath: filepath.Join(repositoryRootPath, "build", "mattermost-plugins")},
 		{name: "chatd", restartGroup: "chatd", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.ChatdName), builder: buildChatdReleaseBinary},
 		{name: "relay", restartGroup: "relay", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.RelayName), builder: buildRelayReleaseBinary},
