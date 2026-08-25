@@ -15,16 +15,12 @@ func TestLocalListUsersMergesOrganizationMetadata(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		MemberID:              "user-member",
-		Email:                 "member@example.com",
-		JobTitle:              "Product Manager",
-		PositionLevel:         2,
-		GroupID:               "product",
-		SupervisorID:          "user-admin",
-		ProjectIDs:            []string{"new-business"},
-		TeamRole:              "제품 일정 관리",
-		EmploymentStatus:      organizationEmploymentStatusActive,
-		IsOrganizationVisible: true,
+		MemberID:     "user-member",
+		Email:        "member@example.com",
+		JobTitle:     "Product Manager",
+		GroupID:      "product",
+		SupervisorID: "user-admin",
+		Status:       memberStatusActive,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -68,9 +64,6 @@ func TestLocalListUsersMergesOrganizationMetadata(t *testing.T) {
 	member := response.Records[1]
 	if member.JobTitle != "Product Manager" || member.GroupID != "product" || member.SupervisorID != "user-admin" {
 		t.Fatalf("member org fields = %#v", member)
-	}
-	if member.PositionLevel != 0 || len(member.ProjectIDs) != 0 || member.TeamRole != "" || member.EmploymentStatus != "" || member.IsOrganizationVisible {
-		t.Fatalf("unsupported response fields = %#v; want omitted metadata", member)
 	}
 }
 

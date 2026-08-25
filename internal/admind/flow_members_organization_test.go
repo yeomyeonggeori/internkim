@@ -11,22 +11,19 @@ func TestFlowMembersOnlyIncludeOrganizationChartPeople(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{
 		{
-			MemberID:              "user-1",
-			Email:                 "ada@example.com",
-			EmploymentStatus:      organizationEmploymentStatusActive,
-			IsOrganizationVisible: true,
+			MemberID: "user-1",
+			Email:    "ada@example.com",
+			Status:   memberStatusActive,
 		},
 		{
-			MemberID:              "user-3",
-			Email:                 "hidden@example.com",
-			EmploymentStatus:      organizationEmploymentStatusActive,
-			IsOrganizationVisible: false,
+			MemberID: "user-3",
+			Email:    "hidden@example.com",
+			Status:   memberStatusDeparted,
 		},
 		{
-			MemberID:              "user-4",
-			Email:                 "resigned@example.com",
-			EmploymentStatus:      organizationEmploymentStatusResigned,
-			IsOrganizationVisible: true,
+			MemberID: "user-4",
+			Email:    "resigned@example.com",
+			Status:   memberStatusDeparted,
 		},
 	}); errorValue != nil {
 		t.Fatal(errorValue)

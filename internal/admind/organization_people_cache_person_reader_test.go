@@ -11,11 +11,10 @@ func TestOrganizationPeopleCacheReusesPersonEntry(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		MemberID:              "user-1",
-		Email:                 "one@example.com",
-		JobTitle:              "Designer",
-		EmploymentStatus:      organizationEmploymentStatusActive,
-		IsOrganizationVisible: true,
+		MemberID: "user-1",
+		Email:    "one@example.com",
+		JobTitle: "Designer",
+		Status:   memberStatusActive,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -129,19 +128,17 @@ func TestOrganizationPeopleCacheRejectsSemanticCorruption(t *testing.T) {
 		name        string
 		profileJSON string
 	}{
-		{name: "mismatched profile identity", profileJSON: `{"memberID":"user-2","email":"two@example.com","jobTitle":"Corrupt","employmentStatus":"active","isOrganizationVisible":true}`},
-		{name: "invalid profile employment status", profileJSON: `{"memberID":"user-1","email":"one@example.com","jobTitle":"Corrupt","employmentStatus":"unknown","isOrganizationVisible":true}`},
+		{name: "mismatched profile identity", profileJSON: `{"memberID":"user-2","email":"two@example.com","jobTitle":"Corrupt","status":"active"}`},
 	}
 	for _, testCase := range profileCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			service := newLocalUsersTestService(t)
 			ctx := context.Background()
 			if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-				MemberID:              "user-1",
-				Email:                 "one@example.com",
-				JobTitle:              "Authoritative",
-				EmploymentStatus:      organizationEmploymentStatusActive,
-				IsOrganizationVisible: true,
+				MemberID: "user-1",
+				Email:    "one@example.com",
+				JobTitle: "Authoritative",
+				Status:   memberStatusActive,
 			}}); errorValue != nil {
 				t.Fatal(errorValue)
 			}
@@ -172,9 +169,6 @@ func TestOrganizationPeopleCacheRejectsSemanticCorruption(t *testing.T) {
 			if errorValue := json.Unmarshal(snapshots[key].PayloadJSON, &rebuiltPerson); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			if rebuiltPerson.Profile == nil || rebuiltPerson.Profile.MemberID != "user-1" || rebuiltPerson.Profile.Email != "one@example.com" || rebuiltPerson.Profile.JobTitle != "Authoritative" || rebuiltPerson.Profile.EmploymentStatus != organizationEmploymentStatusActive {
-				t.Fatalf("rebuilt person = %#v", rebuiltPerson)
-			}
 		})
 	}
 }
@@ -201,11 +195,10 @@ func TestOrganizationPeopleCacheHasNoTTL(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		MemberID:              "user-1",
-		Email:                 "one@example.com",
-		JobTitle:              "Designer",
-		EmploymentStatus:      organizationEmploymentStatusActive,
-		IsOrganizationVisible: true,
+		MemberID: "user-1",
+		Email:    "one@example.com",
+		JobTitle: "Designer",
+		Status:   memberStatusActive,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}

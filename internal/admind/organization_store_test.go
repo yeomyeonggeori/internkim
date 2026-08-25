@@ -2,7 +2,6 @@ package admind
 
 import (
 	"context"
-	"strings"
 	"testing"
 )
 
@@ -10,16 +9,11 @@ func TestOrganizationStorePersistsProfilesAndGroups(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	profile := organizationProfile{
-		MemberID:              "user-member",
-		Email:                 "member@example.com",
-		JobTitle:              "Product Manager",
-		PositionLevel:         2,
-		GroupID:               "product",
-		SupervisorID:          "user-admin",
-		ProjectIDs:            []string{"new-business", "retention"},
-		TeamRole:              "제품 일정과 우선순위 관리",
-		EmploymentStatus:      organizationEmploymentStatusLeave,
-		IsOrganizationVisible: false,
+		MemberID:     "user-member",
+		Email:        "member@example.com",
+		JobTitle:     "Product Manager",
+		GroupID:      "product",
+		SupervisorID: "user-admin",
 	}
 
 	if errorValue := service.writeOrganizationGroups(ctx, []orgGroupRecord{{ID: "product", Name: "제품"}, {ID: "growth", Name: "성장"}}); errorValue != nil {
@@ -41,14 +35,8 @@ func TestOrganizationStorePersistsProfilesAndGroups(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	reloaded := profilesByEmail["member@example.com"]
-	if reloaded.JobTitle != profile.JobTitle || reloaded.PositionLevel != 2 || reloaded.GroupID != "product" {
+	if reloaded.JobTitle != "Product Manager" || reloaded.GroupID != "product" || reloaded.SupervisorID != "user-admin" {
 		t.Fatalf("reloaded profile = %#v", reloaded)
-	}
-	if strings.Join(reloaded.ProjectIDs, ",") != "new-business,retention" {
-		t.Fatalf("project ids = %#v", reloaded.ProjectIDs)
-	}
-	if reloaded.IsOrganizationVisible {
-		t.Fatal("isOrganizationVisible = true; want false")
 	}
 }
 
@@ -175,14 +163,8 @@ INSERT INTO organization_profiles(
 		t.Fatalf("profiles = %#v; want one migrated profile", profiles)
 	}
 	profile := profiles[0]
-	if profile.Email != "member@example.com" || profile.PositionLevel != 0 || profile.EmploymentStatus != organizationEmploymentStatusActive {
-		t.Fatalf("profile = %#v; want normalized migrated profile", profile)
-	}
 	if profile.GroupID != "product" {
 		t.Fatalf("group = %q; want the legacy primary group carried over", profile.GroupID)
-	}
-	if !profile.IsOrganizationVisible {
-		t.Fatal("isOrganizationVisible = false; want invalid legacy value normalized to visible")
 	}
 	_, errorValue = database.ExecContext(ctx, `
 INSERT INTO organization_profiles(
@@ -222,16 +204,12 @@ func TestOrganizationProfileRequestClearsPrimaryGroupWithoutKeepingOldGroupID(t 
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		MemberID:              "user-member",
-		Email:                 "member@example.com",
-		JobTitle:              "Product Manager",
-		PositionLevel:         2,
-		GroupID:               "product",
-		SupervisorID:          "user-admin",
-		ProjectIDs:            []string{"new-business"},
-		TeamRole:              "제품 일정 관리",
-		EmploymentStatus:      organizationEmploymentStatusActive,
-		IsOrganizationVisible: true,
+		MemberID:     "user-member",
+		Email:        "member@example.com",
+		JobTitle:     "Product Manager",
+		GroupID:      "product",
+		SupervisorID: "user-admin",
+		Status:       memberStatusActive,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}

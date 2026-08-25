@@ -150,10 +150,7 @@ func validateOrganizationSupervisorChain(userID string, supervisorIDByUserID map
 func organizationProfileForRequest(requestProfile organizationProfileRequest, profilesByUserID map[string]organizationProfile, profilesByEmail map[string]organizationProfile) organizationProfile {
 	profile, found := organizationProfileForUser(adminUserMutation{MemberID: requestProfile.MemberID, Email: requestProfile.Email}, profilesByUserID, profilesByEmail)
 	if !found {
-		profile = organizationProfile{
-			EmploymentStatus:      organizationEmploymentStatusActive,
-			IsOrganizationVisible: true,
-		}
+		profile = organizationProfile{Status: memberStatusActive}
 	}
 	if strings.TrimSpace(requestProfile.MemberID) != "" {
 		profile.MemberID = requestProfile.MemberID
