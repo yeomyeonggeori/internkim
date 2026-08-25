@@ -49,9 +49,13 @@
 		...controller.options.groups.map((group) => ({ value: group.id, label: group.name })),
 		...(controller.options.hasUnassigned ? [{ value: unassignedGroupID, label: text.unassignedTeam }] : [])
 	]);
-	const isDetailSheetOpen = $derived(Boolean(controller.selectedRecord));
+	let isDetailSheetOpen = $state(false);
 	let isOrganizationSheetOpen = $state(false);
 	let isInviteOpen = $state(false);
+
+	$effect(() => {
+		isDetailSheetOpen = Boolean(controller.selectedRecord);
+	});
 
 	$effect(() => {
 		breadcrumbMeta.value = controller.groupID ? controller.selectedOrganizationName : '';
@@ -69,6 +73,7 @@
 	function handleDetailSheetOpenChange(nextOpen: boolean): void {
 		if (nextOpen) return;
 		controller.clearSelection();
+		isDetailSheetOpen = Boolean(controller.selectedRecord);
 	}
 
 	function selectOrganization(organizationID: string): void {
@@ -209,7 +214,7 @@
 	</Sheet.Root>
 
 	{#if controller.selectedRecord}
-		<Sheet.Root open={isDetailSheetOpen} onOpenChange={handleDetailSheetOpenChange}>
+		<Sheet.Root bind:open={isDetailSheetOpen} onOpenChange={handleDetailSheetOpenChange}>
 			<Sheet.Content
 				side="right"
 				class="grid w-[min(26rem,92vw)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
