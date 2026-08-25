@@ -76,13 +76,19 @@ func (service *Service) organizationGroupsCoveringTheDirectory(
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	heldIDs := map[string]bool{}
 	groupIDByName := map[string]string{}
+	for _, group := range groups {
+		heldIDs[strings.TrimSpace(group.ID)] = true
+		groupIDByName[strings.ToLower(strings.TrimSpace(group.Name))] = strings.TrimSpace(group.ID)
+	}
+	groups = groupsRenamedByTheDirectory(groups, members)
 	for _, group := range groups {
 		groupIDByName[strings.ToLower(strings.TrimSpace(group.Name))] = strings.TrimSpace(group.ID)
 	}
-	missing := groupsTheDirectoryNamesAndTheDeviceLacks(members, groupIDByName)
+	missing := groupsTheDirectoryNamesAndTheDeviceLacks(members, groupIDByName, heldIDs)
 	if len(missing) == 0 {
-		return groupIDByName, nil
+		return groupIDByName, service.writeOrganizationGroups(ctx, groups)
 	}
 	if errorValue := service.writeOrganizationGroups(ctx, append(groups, missing...)); errorValue != nil {
 		return nil, errorValue
@@ -97,23 +103,41 @@ func (service *Service) organizationGroupsCoveringTheDirectory(
 func groupsTheDirectoryNamesAndTheDeviceLacks(
 	members []centralplane.Member,
 	groupIDByName map[string]string,
+	heldIDs map[string]bool,
 ) []orgGroupRecord {
 	missing := []orgGroupRecord{}
 	seen := map[string]bool{}
 	for _, member := range members {
 		name := strings.TrimSpace(member.TeamName)
 		key := strings.ToLower(name)
-		if name == "" || seen[key] || groupIDByName[key] != "" {
-			continue
-		}
 		teamID := strings.TrimSpace(member.TeamID)
-		if teamID == "" {
+		if name == "" || teamID == "" || seen[key] || groupIDByName[key] != "" || heldIDs[teamID] {
 			continue
 		}
 		seen[key] = true
 		missing = append(missing, orgGroupRecord{ID: teamID, Name: name})
 	}
 	return missing
+}
+
+func groupsRenamedByTheDirectory(groups []orgGroupRecord, members []centralplane.Member) []orgGroupRecord {
+	nameByTeamID := map[string]string{}
+	for _, member := range members {
+		teamID := strings.TrimSpace(member.TeamID)
+		if teamID != "" {
+			nameByTeamID[teamID] = strings.TrimSpace(member.TeamName)
+		}
+	}
+	renamed := make([]orgGroupRecord, 0, len(groups))
+	for _, group := range groups {
+		name := nameByTeamID[strings.TrimSpace(group.ID)]
+		if name == "" || name == strings.TrimSpace(group.Name) {
+			renamed = append(renamed, group)
+			continue
+		}
+		renamed = append(renamed, orgGroupRecord{ID: group.ID, Name: name, ParentID: group.ParentID})
+	}
+	return renamed
 }
 
 func (service *Service) organizationProfilesTakenFromTheDirectory(

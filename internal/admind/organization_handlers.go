@@ -78,6 +78,10 @@ func (service *Service) handleOrganizationGroupsUpdate(responseWriter http.Respo
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	if errorValue := service.settleOrganizationGroupsWithTheDirectory(request.Context(), groupsRequest.Groups); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
 	service.writeFullLocalUsersResponse(responseWriter, request)
 }
 
