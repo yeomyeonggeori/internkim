@@ -1,4 +1,7 @@
+import { toast } from 'svelte-sonner';
 import { isPlainShortcut } from '$lib/keyboard-shortcut';
+import { createPageText } from '$lib/i18n/page-text.svelte';
+import { attendanceText } from '../../routes/attendance/text';
 import { fetchAttendanceSummary, toggleAttendanceOnServer } from '../../routes/attendance/attendance-api';
 import type {
 	AttendanceKind,
@@ -11,6 +14,7 @@ import {
 } from '../../routes/attendance/shared/attendance-date';
 
 const menuShortcutCode = 'Period';
+const text = createPageText(attendanceText);
 
 // The one answer to "am I working right now". The rail, the command palette and
 // the attendance page all read it here, because a second copy of this drifts:
@@ -75,12 +79,23 @@ class MyAttendanceToday {
 		try {
 			await toggleAttendanceOnServer(kind, locationID, confirmEarlyReturn);
 			await this.load();
+			toast.success(this.recordedClockMessage(kind));
 		} catch (failure) {
 			this.clockFailure = failure instanceof Error ? failure.message : String(failure);
+			toast.error(text.clockFailed, { description: this.clockFailure });
 			throw failure;
 		} finally {
 			this.isSubmitting = false;
 		}
+	};
+
+	private recordedClockMessage = (kind: AttendanceKind): string => {
+		if (kind === 'clock_out') return text.clockedOut;
+		const locationName = this.locations.find(
+			(location) => location.id === this.currentLocationID
+		)?.name;
+		if (!locationName) return text.clockedIn;
+		return text.clockedInAtTemplate.replace('{location}', locationName);
 	};
 
 	handleShortcut = (event: KeyboardEvent) => {
