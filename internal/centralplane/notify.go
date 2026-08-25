@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -67,4 +68,33 @@ func (client *Client) Notify(ctx context.Context, notification Notification) (No
 		return NotifyResult{}, errorValue
 	}
 	return result, nil
+}
+
+// Which people asked to hear about their day at this hour. The setting is the
+// plane's, so the device asks rather than keeping a copy that would drift.
+func (client *Client) NotifyScheduleAt(ctx context.Context, platform string, at string) ([]string, error) {
+	address := strings.TrimSuffix(client.settings.AppURL, "/") +
+		"/api/agent/notify-schedule?platform=" + url.QueryEscape(platform) + "&at=" + url.QueryEscape(at)
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+
+	response, errorValue := client.httpClient.Do(request)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 300 {
+		return nil, fmt.Errorf("central plane refused to say whose hour it is: %s", response.Status)
+	}
+
+	var answered struct {
+		ExternalIDs []string `json:"externalIDs"`
+	}
+	if errorValue := json.NewDecoder(response.Body).Decode(&answered); errorValue != nil {
+		return nil, errorValue
+	}
+	return answered.ExternalIDs, nil
 }
