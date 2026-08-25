@@ -45,13 +45,17 @@ func (service Service) resolveCalendarEventHintTarget(ctx context.Context, reque
 	return event, failure, nil
 }
 
-func (event calendarEventForTool) hintID() string { return event.EventID }
+func (event calendarEventForTool) hintIdentifiers() []string { return []string{event.EventID} }
 
 func (event calendarEventForTool) hintTitle() string { return event.Title }
 
+func (event calendarEventForTool) hintNearness(hint string) float64 {
+	return titleNearness(hint, event.Title)
+}
+
 func resolveCalendarEventHint(eventHint string, requesterEmail string, events []calendarEventForTool) (calendarEventForTool, *calendarEventHintFailure) {
 	resolution := resolveHint(eventHint, events, calendarEventParticipation(requesterEmail))
-	if resolution.IsResolved {
+	if resolution.Outcome == hintResolved {
 		return resolution.Match, nil
 	}
 	failure := calendarEventHintUnresolvedFailure(resolution)
@@ -77,7 +81,7 @@ func calendarEventHintUnresolvedFailure(resolution hintResolution[calendarEventF
 	return calendarEventHintFailure{
 		ErrorCode:    "calendar_event_hint_unresolved",
 		FailureStage: "target_resolution",
-		Message:      unresolvedHintMessage("calendar event", "eventHint", "eventID", resolution.IsAmbiguous),
+		Message:      unresolvedHintMessage("calendar event", "eventHint", "calendar_list", resolution.Outcome),
 		Candidates:   calendarEventHintCandidates(resolution.Candidates),
 		Retryable:    true,
 		SafeRetry:    true,
