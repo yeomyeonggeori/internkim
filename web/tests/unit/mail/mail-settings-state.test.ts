@@ -12,8 +12,8 @@ import {
 
 describe('mail settings state', () => {
 	test('creates sheet email state from saved addresses', () => {
-		expect(mailSettingsEmailStateFromEmail('chanhee@gmail.com')).toEqual({
-			emailLocalPart: 'chanhee',
+		expect(mailSettingsEmailStateFromEmail('gyeonbon@gmail.com')).toEqual({
+			emailLocalPart: 'gyeonbon',
 			emailProviderID: 'gmail',
 			customEmailDomain: '',
 			isAdvancedSettingsOpen: false
@@ -29,13 +29,13 @@ describe('mail settings state', () => {
 	test('fills Gmail server settings from the selected domain', () => {
 		const accountDraft = createMailAccountDraft(emptyMailAccount);
 
-		expect(mailAddressSettingsUpdate(accountDraft, 'chanhee', 'gmail', '', false)).toMatchObject({
-			email: 'chanhee@gmail.com',
-			fromAddress: 'chanhee@gmail.com',
+		expect(mailAddressSettingsUpdate(accountDraft, 'gyeonbon', 'gmail', '', false)).toMatchObject({
+			email: 'gyeonbon@gmail.com',
+			fromAddress: 'gyeonbon@gmail.com',
 			imapHost: 'imap.gmail.com',
 			smtpHost: 'smtp.gmail.com',
-			imapUsername: 'chanhee@gmail.com',
-			smtpUsername: 'chanhee@gmail.com',
+			imapUsername: 'gyeonbon@gmail.com',
+			smtpUsername: 'gyeonbon@gmail.com',
 			sentMailbox: ''
 		});
 	});

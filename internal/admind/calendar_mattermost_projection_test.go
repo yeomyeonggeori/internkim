@@ -127,7 +127,7 @@ func TestCalendarMattermostLogDirectMessagesEventPeople(t *testing.T) {
 	service := newCalendarMattermostTestService(t, func(request *http.Request) (*http.Response, error) {
 		return mattermostCalendarLogLifecycleResponse(t, request, &requests)
 	})
-	event := calendarTestEvent("logged", "Design review", "김여명\nBring agenda")
+	event := calendarTestEvent("logged", "Design review", "김예시\nBring agenda")
 	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -195,8 +195,8 @@ func TestCalendarMattermostLogMentionsCircleIDPeople(t *testing.T) {
 
 func TestCalendarMattermostLogMentionsKoreanPeople(t *testing.T) {
 	service := newCalendarTestService(t)
-	mattermostUsers := []mattermostUserRecord{{ID: "user-iam", Username: "member2", Nickname: "김여명", Email: "member2@example.com"}}
-	message := service.calendarMattermostLogMessageWithUsers(calendarTestEvent("targeted", "Staff sync", "김여명\nBring agenda"), mattermostUsers)
+	mattermostUsers := []mattermostUserRecord{{ID: "user-kimyesi", Username: "member2", Nickname: "김예시", Email: "member2@example.com"}}
+	message := service.calendarMattermostLogMessageWithUsers(calendarTestEvent("targeted", "Staff sync", "김예시\nBring agenda"), mattermostUsers)
 	if !strings.Contains(message, "참석자: @member2\n\n| 일시") {
 		t.Fatalf("message = %q", message)
 	}
@@ -219,7 +219,7 @@ func TestCalendarMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
 			return mattermostCalendarLogLifecycleResponse(t, request, &calendarMattermostLogRequests{})
 		}
 	})
-	event := calendarTestEvent("logged", "Design review", "김여명\nBring agenda")
+	event := calendarTestEvent("logged", "Design review", "김예시\nBring agenda")
 	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}

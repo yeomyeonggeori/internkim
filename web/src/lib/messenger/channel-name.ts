@@ -4,7 +4,7 @@ import type { MessengerChannel, MessengerPerson } from './messenger-api';
 
 // A direct conversation is called after the person on the other side, and the
 // company's own record is what that person is called here: the messenger holds
-// a name in whatever order it was typed into it, so 김여명 arrives as 여명 김.
+// a name in whatever order it was typed into it, so 김예시 arrives as 예시 김.
 // The messenger's name is the fallback, for somebody the record does not know.
 //
 // A conversation is never called after the person reading it, however few
