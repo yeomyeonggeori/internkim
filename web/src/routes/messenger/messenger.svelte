@@ -1,11 +1,13 @@
 <script lang="ts">
 	import Channel from '$lib/components/channel/channel.svelte';
+	import MessengerChannelList from './messenger-channel-list.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
-	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import PlusIcon from '@lucide/svelte/icons/plus';
+	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import HashIcon from '@lucide/svelte/icons/hash';
-	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
+	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import {
@@ -43,11 +45,27 @@
 	let conversations = $state<ChannelSummary[]>([]);
 	let activeID = $state<string | undefined>(undefined);
 	let isNewDirectMessageOpen = $state(false);
+	let isChannelSheetOpen = $state(false);
 	let people = $state<Person[]>([]);
 	let hasSyncedMattermost = false;
 	let userChannelOrder = $state<string[]>([]);
-	let draggedChannelID = $state<string | null>(null);
-	let dragOverChannelID = $state<string | null>(null);
+
+	const isMobile = new IsMobile();
+
+	$effect(() => {
+		if (isMobile.current) return;
+		isChannelSheetOpen = false;
+	});
+
+	function selectChannelFromSheet(channelID: string) {
+		isChannelSheetOpen = false;
+		selectChannel(channelID);
+	}
+
+	function openNewDirectMessageFromSheet() {
+		isChannelSheetOpen = false;
+		openNewDirectMessage();
+	}
 
 	const conversationsCacheKey = 'messenger-conversations';
 
@@ -114,16 +132,14 @@
 	);
 	const directMessages = $derived(conversations.filter((conversation) => conversation.kind === 'dm'));
 
-	function handleChannelDrop(targetID: string) {
-		if (!draggedChannelID) return;
+	function reorderChannels(draggedChannelID: string, targetChannelID: string) {
 		const reordered = moveChannel(
 			groupChannels.map((channel) => channel.id),
 			draggedChannelID,
-			targetID
+			targetChannelID
 		);
 		userChannelOrder = reordered;
 		saveChannelOrder(reordered);
-		draggedChannelID = null;
 	}
 	const activeConversation = $derived(
 		conversations.find((conversation) => conversation.id === activeID)
@@ -171,119 +187,70 @@
 </svelte:head>
 
 
-<div class="flex min-h-0 w-full flex-1">
-	<div class="flex min-h-0 w-full flex-row overflow-hidden">
-		<Sidebar.Provider class="h-full min-h-0 w-auto" style="--sidebar-width: 16rem;">
-			<Sidebar.Root collapsible="none" class="border-r">
-				<Sidebar.Content class="pt-2">
-					<Sidebar.Group>
-						<Sidebar.GroupLabel>{text.channelListTitle}</Sidebar.GroupLabel>
-						<Sidebar.GroupContent>
-							<Sidebar.Menu>
-								{#each groupChannels as channel (channel.id)}
-									<Sidebar.MenuItem
-										draggable="true"
-										class={dragOverChannelID === channel.id
-											? 'border-primary rounded-md border'
-											: 'rounded-md border border-transparent'}
-										ondragstart={() => (draggedChannelID = channel.id)}
-										ondragend={() => ((draggedChannelID = null), (dragOverChannelID = null))}
-										ondragover={(event: DragEvent) => {
-											if (!draggedChannelID || draggedChannelID === channel.id) return;
-											event.preventDefault();
-											dragOverChannelID = channel.id;
-										}}
-										ondragleave={() => {
-											if (dragOverChannelID === channel.id) dragOverChannelID = null;
-										}}
-										ondrop={(event: DragEvent) => {
-											event.preventDefault();
-											dragOverChannelID = null;
-											handleChannelDrop(channel.id);
-										}}
-									>
-										<Sidebar.MenuButton
-											isActive={activeID === channel.id}
-											onclick={() => selectChannel(channel.id)}
-										>
-											<HashIcon />
-											<span>{channel.name}</span>
-										</Sidebar.MenuButton>
-									</Sidebar.MenuItem>
-								{/each}
-							</Sidebar.Menu>
-						</Sidebar.GroupContent>
-					</Sidebar.Group>
-					<Sidebar.Group>
-						<Sidebar.GroupLabel>{text.directMessagesTitle}</Sidebar.GroupLabel>
-						<Sidebar.GroupAction aria-label={text.newDirectMessage} onclick={openNewDirectMessage}>
-							<PlusIcon />
-						</Sidebar.GroupAction>
-						<Sidebar.GroupContent>
-							<Sidebar.Menu>
-								{#each directMessages as conversation (conversation.id)}
-									<Sidebar.MenuItem>
-										<Sidebar.MenuButton
-											isActive={activeID === conversation.id}
-											onclick={() => selectChannel(conversation.id)}
-										>
-											<PersonAvatar
-												name={conversation.name}
-												seed={conversation.id}
-												image={conversation.avatarURL ?? ''}
-												class="size-4"
-											/>
-											<span>{conversation.name}</span>
-										</Sidebar.MenuButton>
-									</Sidebar.MenuItem>
-								{/each}
-							</Sidebar.Menu>
-						</Sidebar.GroupContent>
-					</Sidebar.Group>
-				</Sidebar.Content>
-				{#if openOnPlatform}
-					<Sidebar.Footer>
-						<Sidebar.Menu>
-							<Sidebar.MenuItem>
-								<Sidebar.MenuButton>
-									{#snippet child({ props })}
-										<a
-											{...props}
-											href={openOnPlatform.url}
-											target="_blank"
-											rel="noreferrer noopener"
-										>
-											<ExternalLinkIcon />
-											<span>{openOnPlatform.label}</span>
-										</a>
-									{/snippet}
-								</Sidebar.MenuButton>
-							</Sidebar.MenuItem>
-						</Sidebar.Menu>
-					</Sidebar.Footer>
-				{/if}
-			</Sidebar.Root>
-		</Sidebar.Provider>
-		<div class="flex min-h-0 min-w-0 flex-1 flex-col">
-			<header class="flex h-14 shrink-0 items-center gap-2 border-b px-6">
-				{#if activeConversation?.kind === 'dm'}
-					<PersonAvatar
-						name={activeConversation.name}
-						seed={activeConversation.id}
-						image={activeConversation.avatarURL ?? ''}
-						class="size-6"
-					/>
-				{:else if activeConversation}
-					<HashIcon class="text-muted-foreground size-5 shrink-0" />
-				{/if}
-				<span class="font-semibold">{activeConversation?.name ?? text.messenger}</span>
-			</header>
-			{#key activeID}
-				<Channel channelId={activeID} />
-			{/key}
+<Sheet.Root bind:open={isChannelSheetOpen}>
+	<Sheet.Content side="left" class="gap-0 p-0" closeLabel={text.closeChannelList}>
+		<Sheet.Header class="sr-only">
+			<Sheet.Title>{text.channelListTitle}</Sheet.Title>
+			<Sheet.Description>{text.channelListDescription}</Sheet.Description>
+		</Sheet.Header>
+		<MessengerChannelList
+			{activeID}
+			{directMessages}
+			{groupChannels}
+			openNewDirectMessage={openNewDirectMessageFromSheet}
+			{openOnPlatform}
+			{reorderChannels}
+			selectChannel={selectChannelFromSheet}
+			sidebarWidth="100%"
+		/>
+	</Sheet.Content>
+
+	<div class="flex min-h-0 w-full flex-1">
+		<div class="flex min-h-0 w-full flex-row overflow-hidden">
+			<MessengerChannelList
+				class="border-r max-sm:hidden"
+				{activeID}
+				{directMessages}
+				{groupChannels}
+				{openNewDirectMessage}
+				{openOnPlatform}
+				{reorderChannels}
+				{selectChannel}
+			/>
+			<div class="flex min-h-0 min-w-0 flex-1 flex-col">
+				<header class="flex h-14 shrink-0 items-center gap-2 border-b px-6">
+					<Sheet.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="ghost"
+								size="icon-sm"
+								class="-ml-2 shrink-0 sm:hidden"
+								aria-label={text.openChannelList}
+							>
+								<PanelLeftIcon />
+							</Button>
+						{/snippet}
+					</Sheet.Trigger>
+					{#if activeConversation?.kind === 'dm'}
+						<PersonAvatar
+							name={activeConversation.name}
+							seed={activeConversation.id}
+							image={activeConversation.avatarURL ?? ''}
+							class="size-6"
+						/>
+					{:else if activeConversation}
+						<HashIcon class="text-muted-foreground size-5 shrink-0" />
+					{/if}
+					<span class="font-semibold">{activeConversation?.name ?? text.messenger}</span>
+				</header>
+				{#key activeID}
+					<Channel channelId={activeID} />
+				{/key}
+			</div>
 		</div>
 	</div>
-</div>
+</Sheet.Root>
 
 <Dialog.Root bind:open={isNewDirectMessageOpen}>
 	<Dialog.Content class="sm:max-w-sm">
