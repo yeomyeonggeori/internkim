@@ -1,6 +1,6 @@
 {
   "name": "other-person-task-capture",
-  "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/internkim-flow"],
+  "skillNames": ["internkim-flow"],
   "allowedTools": ["conversation_history", "memory_search", "task_add", "task_list", "task_update"],
   "capabilityToolNames": ["task_add", "task_list", "task_update"],
   "initialToolNames": ["task_add"],

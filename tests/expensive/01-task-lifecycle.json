@@ -2,9 +2,7 @@
   "name": "task-lifecycle",
   "requiresModelProvenance": true,
   "expectedLLMProvider": "openrouter",
-  "skillDirectoryPaths": [
-    "../../assets/blueclaw-workspace/skills/internkim-flow"
-  ],
+  "skillNames": ["internkim-flow"],
   "allowedTools": [
     "conversation_history",
     "memory_search",
