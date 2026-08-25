@@ -19,10 +19,11 @@ type buzzRetireReport struct {
 }
 
 type buzzRetiredRoom struct {
-	Room     string `json:"room"`
-	Channel  string `json:"channel"`
-	Members  int    `json:"buzzMembers"`
-	Messages int    `json:"buzzMessages"`
+	Room       string `json:"room"`
+	Channel    string `json:"channel"`
+	Members    int    `json:"buzzMembers"`
+	Messages   int    `json:"buzzMessages"`
+	IsArchived bool   `json:"roomAlreadyArchived"`
 }
 
 func (service *Service) handleBuzzChannelRetire(responseWriter http.ResponseWriter, request *http.Request) {
@@ -69,7 +70,7 @@ func (service *Service) retireRoomsNobodyIsIn(ctx context.Context, shouldRetire 
 		if !shouldRetire {
 			continue
 		}
-		if errorValue := service.retireRoomAndItsMirror(ctx, relay, mapping); errorValue != nil {
+		if errorValue := service.retireRoomAndItsMirror(ctx, relay, mapping, room.IsArchived); errorValue != nil {
 			return report, errorValue
 		}
 		report.Retired++
@@ -103,10 +104,11 @@ func (service *Service) describeEmptyRoom(
 		return buzzRetiredRoom{}, false, errorValue
 	}
 	return buzzRetiredRoom{
-		Room:     shape.RoomName,
-		Channel:  shape.Name,
-		Members:  len(held),
-		Messages: messages,
+		Room:       shape.RoomName,
+		Channel:    shape.Name,
+		Members:    len(held),
+		Messages:   messages,
+		IsArchived: shape.IsArchived,
 	}, true, nil
 }
 
@@ -123,16 +125,23 @@ func (service *Service) mattermostRoomMemberCount(ctx context.Context, externalC
 	return len(members), errorValue
 }
 
-func (service *Service) retireRoomAndItsMirror(ctx context.Context, relay *sql.DB, mapping bridgeChannelMapping) error {
-	token, errorValue := service.mattermostAdminToken(ctx)
-	if errorValue != nil {
-		return errorValue
+func (service *Service) retireRoomAndItsMirror(
+	ctx context.Context,
+	relay *sql.DB,
+	mapping bridgeChannelMapping,
+	isAlreadyArchived bool,
+) error {
+	if !isAlreadyArchived {
+		token, errorValue := service.mattermostAdminToken(ctx)
+		if errorValue != nil {
+			return errorValue
+		}
+		path := "/api/v4/channels/" + url.PathEscape(mapping.ExternalChannelID)
+		if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, token, nil, nil); errorValue != nil {
+			return errorValue
+		}
 	}
-	path := "/api/v4/channels/" + url.PathEscape(mapping.ExternalChannelID)
-	if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, token, nil, nil); errorValue != nil {
-		return errorValue
-	}
-	_, errorValue = relay.ExecContext(ctx,
+	_, errorValue := relay.ExecContext(ctx,
 		"UPDATE channels SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL", mapping.BuzzChannelID)
 	return errorValue
 }
