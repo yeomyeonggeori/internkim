@@ -1044,13 +1044,17 @@ func setFlowRequesterEmailHeader(request *http.Request, requesterEmail string) {
 	request.Header.Set(flowRequesterEmailHeader, normalizedEmail)
 }
 
-func (task flowTaskForTool) hintID() string { return task.ID }
+func (task flowTaskForTool) hintIdentifiers() []string { return []string{task.ID} }
 
 func (task flowTaskForTool) hintTitle() string { return task.Content }
 
+func (task flowTaskForTool) hintNearness(hint string) float64 {
+	return titleNearness(hint, task.Content)
+}
+
 func resolveFlowTaskHint(taskHint string, requesterOwnerID string, tasks []flowTaskForTool) (flowTaskForTool, *flowTaskUpdateFailure) {
 	resolution := resolveHint(taskHint, tasks, flowTaskOwnership(requesterOwnerID))
-	if resolution.IsResolved {
+	if resolution.Outcome == hintResolved {
 		return resolution.Match, nil
 	}
 	failure := flowTaskHintUnresolvedFailure(resolution)
@@ -1069,7 +1073,7 @@ func flowTaskHintUnresolvedFailure(resolution hintResolution[flowTaskForTool]) f
 	return flowTaskUpdateFailure{
 		ErrorCode:    "flow_task_hint_unresolved",
 		FailureStage: "target_resolution",
-		Message:      unresolvedHintMessage("task", "taskHint", "taskID", resolution.IsAmbiguous),
+		Message:      unresolvedHintMessage("task", "taskHint", "task_list", resolution.Outcome),
 		Candidates:   flowTaskHintCandidates(resolution.Candidates),
 		Retryable:    true,
 		SafeRetry:    true,
