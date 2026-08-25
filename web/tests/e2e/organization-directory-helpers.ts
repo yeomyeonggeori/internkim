@@ -16,80 +16,80 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 	],
 	records: [
 		{
-			memberID: 'user-ceo',
-			handle: 'ceo',
-			name: '김도형',
-			email: 'ceo@example.com',
+			memberID: 'user-sample-lee',
+			handle: 'sample-lee',
+			name: '이샘플',
+			email: 'sample-lee@example.com',
 			hireDate: '2026-01-03',
 			role: 'member',
 			jobTitle: '  FoUn-Der  ',
 			groupID: 'leadership'
 		},
 		{
-			memberID: 'user-junho',
-			handle: 'junho',
-			name: '이정훈',
-			email: 'junho@example.com',
+			memberID: 'user-example-park',
+			handle: 'example-park',
+			name: '박예시',
+			email: 'example-park@example.com',
 			hireDate: '2026-02-10',
 			role: 'member',
 			jobTitle: '제품팀 리드',
 			groupID: 'product',
-			supervisorID: 'user-ceo'
+			supervisorID: 'user-sample-lee'
 		},
 		{
-			memberID: 'user-dabin',
-			handle: 'dabin',
-			name: '김다빈',
-			email: 'dabin@example.com',
+			memberID: 'user-specimen-choi',
+			handle: 'specimen-choi',
+			name: '최견본',
+			email: 'specimen-choi@example.com',
 			image: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=',
 			hireDate: '2026-03-11',
 			role: 'member',
 			jobTitle: '프론트엔드 개발자',
 			groupID: 'product',
-			supervisorID: 'user-junho'
+			supervisorID: 'user-example-park'
 		},
 		{
-			memberID: 'user-minjae',
-			handle: 'minjae',
-			name: '강민재',
-			email: 'minjae@example.com',
+			memberID: 'user-sample-kim',
+			handle: 'sample-kim',
+			name: '김샘플',
+			email: 'sample-kim@example.com',
 			hireDate: '2026-03-13',
 			role: 'member',
 			jobTitle: '백엔드 개발자',
 			groupID: 'product',
-			supervisorID: 'user-junho'
+			supervisorID: 'user-example-park'
 		},
 		{
-			memberID: 'user-taehyun',
-			handle: 'taehyun',
-			name: '신태현',
-			email: 'taehyun@example.com',
+			memberID: 'user-example-jung',
+			handle: 'example-jung',
+			name: '정예시',
+			email: 'example-jung@example.com',
 			hireDate: '2026-03-20',
 			role: 'member',
 			jobTitle: 'QA 엔지니어',
 			groupID: 'product',
-			supervisorID: 'user-dabin'
+			supervisorID: 'user-specimen-choi'
 		},
 		{
-			memberID: 'user-jieun',
-			handle: 'jieun',
-			name: '박지은',
-			email: 'jieun@example.com',
+			memberID: 'user-specimen-han',
+			handle: 'specimen-han',
+			name: '한견본',
+			email: 'specimen-han@example.com',
 			hireDate: '2026-02-12',
 			role: 'member',
 			jobTitle: '디자인 리드',
 			groupID: 'design',
-			supervisorID: 'user-ceo'
+			supervisorID: 'user-sample-lee'
 		},
 		{
-			memberID: 'user-nam',
-			handle: 'nam',
-			name: '남지훈',
-			email: 'nam@example.com',
+			memberID: 'user-sample-oh',
+			handle: 'sample-oh',
+			name: '오샘플',
+			email: 'sample-oh@example.com',
 			hireDate: '2026-04-01',
 			role: 'member',
 			jobTitle: '사업 개발',
-			supervisorID: 'user-ceo'
+			supervisorID: 'user-sample-lee'
 		}
 	]
 };
@@ -99,7 +99,7 @@ export async function mockOrganizationDirectory(page: Page, options: MockOrganiz
 		await route.fulfill({ json: { locale: options.locale ?? 'ko' } });
 	});
 	await page.route('**/auth/session**', async (route) => {
-		await route.fulfill({ json: { authenticated: true, email: 'dabin@example.com' } });
+		await route.fulfill({ json: { authenticated: true, email: 'specimen-choi@example.com' } });
 	});
 	await page.route('**/admin/api/session', async (route) => {
 		if (options.canManage) {
@@ -113,32 +113,60 @@ export async function mockOrganizationDirectory(page: Page, options: MockOrganiz
 	});
 }
 
-export async function expectPersonDetailPanelContent(detailPanel: Locator): Promise<void> {
-	await expect(detailPanel).toBeVisible();
-	await expect(detailPanel).toContainText('직원 상세');
-	await expect(detailPanel).toContainText('김다빈');
-	await expect(detailPanel).toContainText('프론트엔드 개발자');
-	await expect(detailPanel).toContainText('dabin@example.com');
-	await expect(detailPanel).toContainText('제품팀');
-	await expect(detailPanel).toContainText('직속 상관');
-	await expect(detailPanel).toContainText('이정훈 · 제품팀 리드');
-	await expect(detailPanel).toContainText('2026-03-11');
-	await expect(detailPanel.locator('[aria-hidden="true"] svg').first()).toBeVisible();
+export function detailSheet(page: Page): Locator {
+	return page.getByTestId('organization-detail-sheet');
 }
 
-export async function expectDetailPanelInRightColumn(page: Page): Promise<void> {
+export function detailPanel(page: Page): Locator {
+	return page.getByTestId('organization-person-detail-panel');
+}
+
+export function closeDetailSheet(page: Page): Promise<void> {
+	return detailSheet(page).getByRole('button', { name: '상세 닫기' }).click();
+}
+
+export async function chooseInOrganizationMenu(page: Page, itemName: string): Promise<void> {
+	await page.getByRole('button', { name: '조직 작업' }).click();
+	await page.getByRole('menuitem', { name: itemName, exact: true }).click();
+}
+
+export async function filterByPerson(page: Page, searchTerm: string, personName: string): Promise<void> {
+	await page.getByRole('combobox', { name: '직원 선택' }).click();
+	await page.getByPlaceholder('이름 또는 직책 검색').fill(searchTerm);
+	await page.getByRole('option', { name: new RegExp(personName) }).first().click();
+}
+
+export async function filterByOrganization(page: Page, organizationName: string): Promise<void> {
+	await page.getByRole('combobox', { name: '조직 선택' }).click();
+	await page.getByRole('option', { name: organizationName, exact: true }).click();
+}
+
+export async function expectPersonDetailPanelContent(panel: Locator): Promise<void> {
+	await expect(panel).toBeVisible();
+	await expect(panel).toContainText('최견본');
+	await expect(panel).toContainText('프론트엔드 개발자');
+	await expect(panel).toContainText('specimen-choi@example.com');
+	await expect(panel).toContainText('제품팀');
+	await expect(panel).toContainText('직속 상관');
+	await expect(panel).toContainText('박예시 · 제품팀 리드');
+	await expect(panel).toContainText('2026-03-11');
+	await expect(panel.locator('[aria-hidden="true"] svg').first()).toBeVisible();
+}
+
+export async function expectDetailSheetBesideTheList(page: Page): Promise<void> {
 	const listBox = await page.getByTestId('organization-list-scroll').boundingBox();
-	const detailColumnBox = await page.getByTestId('organization-detail-column').boundingBox();
-	const detailPanelBox = await page.getByTestId('organization-person-detail-panel').boundingBox();
-	if (!listBox || !detailColumnBox || !detailPanelBox) throw new Error('Organization detail layout box unavailable');
-	expect(detailPanelBox.y).toBeGreaterThanOrEqual(detailColumnBox.y);
-	expect(detailPanelBox.y + detailPanelBox.height).toBeLessThanOrEqual(detailColumnBox.y + detailColumnBox.height + 1);
-	expect(detailPanelBox.x).toBeGreaterThan(listBox.x + listBox.width);
+	const sheetBox = await detailSheet(page).boundingBox();
+	const panelBox = await detailPanel(page).boundingBox();
+	if (!listBox || !sheetBox || !panelBox) throw new Error('Organization detail layout box unavailable');
+	expect(sheetBox.x).toBeGreaterThan(listBox.x);
+	expect(panelBox.x).toBeGreaterThanOrEqual(sheetBox.x - 3);
+	expect(panelBox.y).toBeGreaterThanOrEqual(sheetBox.y - 3);
+	expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(sheetBox.y + sheetBox.height + 3);
 }
 
-export async function expectDetailPanelStableWhileListScrolls(page: Page): Promise<void> {
-	const detailPanel = page.getByTestId('organization-person-detail-panel');
-	const beforeBox = await detailPanel.boundingBox();
+export async function expectDetailSheetStableWhileListScrolls(page: Page): Promise<void> {
+	const panel = detailPanel(page);
+	const beforeBox = await panel.boundingBox();
 	if (!beforeBox) throw new Error('Organization detail panel box unavailable before scroll');
 
 	const scrollState = await page.getByTestId('organization-list-scroll').evaluate((element) => {
@@ -152,16 +180,30 @@ export async function expectDetailPanelStableWhileListScrolls(page: Page): Promi
 	expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
 	expect(scrollState.scrollTop).toBeGreaterThan(0);
 
-	const afterBox = await detailPanel.boundingBox();
+	const afterBox = await panel.boundingBox();
 	if (!afterBox) throw new Error('Organization detail panel box unavailable after scroll');
 	expect(Math.abs(afterBox.y - beforeBox.y)).toBeLessThanOrEqual(1);
 }
 
-export async function expectMobileDetailSheetLayout(page: Page): Promise<void> {
-	const layout = await page.getByTestId('organization-mobile-detail-sheet').evaluate((element) => {
+type DetailSheetLayout = {
+	top: number;
+	bottom: number;
+	left: number;
+	right: number;
+	height: number;
+	width: number;
+	position: string;
+	overflowY: string;
+	viewportHeight: number;
+	viewportWidth: number;
+};
+
+function measureDetailSheet(page: Page): Promise<DetailSheetLayout> {
+	return detailSheet(page).evaluate((element) => {
 		const rect = element.getBoundingClientRect();
 		const style = getComputedStyle(element);
 		return {
+			top: rect.top,
 			bottom: window.innerHeight - rect.bottom,
 			left: rect.left,
 			right: rect.right,
@@ -173,42 +215,47 @@ export async function expectMobileDetailSheetLayout(page: Page): Promise<void> {
 			viewportWidth: window.innerWidth
 		};
 	});
-	const detailPanelLayout = await page.getByTestId('organization-mobile-detail-sheet').getByTestId('organization-person-detail-panel').evaluate((element) => {
-		const style = getComputedStyle(element);
-		return {
-			overflowY: style.overflowY
-		};
-	});
-
-	expect(layout.position).toBe('fixed');
-	expect(layout.overflowY).toBe('hidden');
-	expect(detailPanelLayout.overflowY).toBe('auto');
-	expect(Math.abs(layout.bottom)).toBeLessThanOrEqual(2);
-	expect(layout.left).toBeGreaterThanOrEqual(0);
-	expect(layout.right).toBeLessThanOrEqual(layout.viewportWidth);
-	expect(layout.width).toBeLessThanOrEqual(layout.viewportWidth);
-	expect(layout.height).toBeLessThanOrEqual(layout.viewportHeight * 0.85 + 2);
 }
 
-export async function expectMobileHeaderControlsInTitleRow(page: Page): Promise<void> {
-	const titleBox = await page.getByRole('heading', { name: '조직도' }).boundingBox();
-	const organizationsBox = await page.getByRole('button', { name: '조직 목록' }).boundingBox();
-	const addOrganizationBox = await page.getByRole('button', { name: '조직 추가' }).boundingBox();
-	const searchBox = await page.getByLabel('검색').boundingBox();
-	if (!titleBox || !organizationsBox || !addOrganizationBox || !searchBox) throw new Error('Mobile organization header layout box unavailable');
-	expect(Math.abs(organizationsBox.y - titleBox.y)).toBeLessThanOrEqual(12);
-	expect(Math.abs(addOrganizationBox.y - titleBox.y)).toBeLessThanOrEqual(12);
-	expect(organizationsBox.x).toBeGreaterThan(titleBox.x + titleBox.width);
-	expect(addOrganizationBox.x).toBeGreaterThan(organizationsBox.x + organizationsBox.width);
-	expect(searchBox.y).toBeGreaterThan(titleBox.y + titleBox.height);
+async function waitForDetailSheetSlideInToSettle(page: Page): Promise<void> {
+	await expect
+		.poll(async () => {
+			const settling = await measureDetailSheet(page);
+			return settling.right - settling.viewportWidth;
+		})
+		.toBeLessThanOrEqual(1);
+}
+
+export async function expectDetailSheetFitsTheViewport(page: Page): Promise<void> {
+	await waitForDetailSheetSlideInToSettle(page);
+
+	const layout = await measureDetailSheet(page);
+	expect(layout.position).toBe('fixed');
+	expect(layout.overflowY).toBe('hidden');
+	expect(Math.abs(layout.top)).toBeLessThanOrEqual(2);
+	expect(Math.abs(layout.bottom)).toBeLessThanOrEqual(2);
+	expect(layout.left).toBeGreaterThanOrEqual(0);
+	expect(layout.width).toBeLessThanOrEqual(layout.viewportWidth);
+	expect(layout.height).toBeLessThanOrEqual(layout.viewportHeight + 1);
+}
+
+export async function expectMobileHeaderControlsShareOneRow(page: Page): Promise<void> {
+	const organizationsBox = await page.getByRole('button', { name: '목차' }).boundingBox();
+	const organizationFilterBox = await page.getByRole('combobox', { name: '조직 선택' }).boundingBox();
+	const personFilterBox = await page.getByRole('combobox', { name: '직원 선택' }).boundingBox();
+	if (!organizationsBox || !organizationFilterBox || !personFilterBox) throw new Error('Mobile organization header layout box unavailable');
+	expect(Math.abs(organizationFilterBox.y - organizationsBox.y)).toBeLessThanOrEqual(12);
+	expect(Math.abs(personFilterBox.y - organizationsBox.y)).toBeLessThanOrEqual(12);
+	expect(organizationFilterBox.x).toBeGreaterThan(organizationsBox.x);
+	expect(personFilterBox.x).toBeGreaterThan(organizationFilterBox.x);
 }
 
 export async function selectOrganizationInTree(page: Page, groupID: string): Promise<void> {
 	await page.getByTestId(`organization-row-${groupID}`).getByRole('button').first().click();
 }
 
-export async function expectMobileDetailPanelScrollsToBottom(detailPanel: Locator): Promise<void> {
-	const scrollState = await detailPanel.evaluate((element) => {
+export async function expectDetailPanelScrollsToItsFooter(panel: Locator): Promise<void> {
+	const scrollState = await panel.locator('div.overflow-y-auto').first().evaluate((element) => {
 		element.scrollTop = element.scrollHeight;
 		const style = getComputedStyle(element);
 		return {
@@ -222,10 +269,10 @@ export async function expectMobileDetailPanelScrollsToBottom(detailPanel: Locato
 	expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
 	expect(scrollState.scrollTop).toBeGreaterThan(0);
 
-	const saveButton = detailPanel.getByRole('button', { name: '저장' });
+	const saveButton = panel.getByRole('button', { name: '저장', exact: true });
 	await expect(saveButton).toBeVisible();
-	const panelBox = await detailPanel.boundingBox();
+	const panelBox = await panel.boundingBox();
 	const saveButtonBox = await saveButton.boundingBox();
-	if (!panelBox || !saveButtonBox) throw new Error('Mobile edit sheet button box unavailable');
+	if (!panelBox || !saveButtonBox) throw new Error('Detail panel footer button box unavailable');
 	expect(saveButtonBox.y + saveButtonBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height + 1);
 }

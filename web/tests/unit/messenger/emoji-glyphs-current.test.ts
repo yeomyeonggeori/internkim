@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test';
+import { fileURLToPath } from 'node:url';
 import { emojiGlyphsByName, emojiGlyphsSource } from '../../../scripts/build-emoji-glyphs';
 
 test('the committed glyph table is what the generator writes today', async () => {
 	const committed = await Bun.file(
-		new URL('../../../src/lib/messenger/emoji-glyphs.generated.ts', import.meta.url).pathname
+		fileURLToPath(new URL('../../../src/lib/messenger/emoji-glyphs.generated.ts', import.meta.url))
 	).text();
 	expect(committed).toBe(emojiGlyphsSource());
 });
