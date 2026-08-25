@@ -77,12 +77,6 @@ function displayNameOf(member: MemberRow): string {
 	return member.name || (member.email ?? '').split('@')[0];
 }
 
-export async function isMessengerConnected(): Promise<boolean> {
-	const { count, error } = await supabase().from('contact').select('id', { count: 'exact', head: true });
-	if (error) return false;
-	return (count ?? 0) > 0;
-}
-
 export async function haveIConnectedMyMessenger(): Promise<boolean> {
 	const client = supabase();
 	const { data } = await client.auth.getSession();
