@@ -16,10 +16,16 @@ import (
 // their messenger account presents, which the caller already holds, and reading it from
 // the directory would tie this lookup to a column the account record does not need.
 type Member struct {
-	MemberID string `json:"memberID"`
-	Email    string `json:"email"`
-	Role     string `json:"role"`
-	Status   string `json:"status"`
+	MemberID        string `json:"memberID"`
+	Email           string `json:"email"`
+	Role            string `json:"role"`
+	Status          string `json:"status"`
+	JobTitle        string `json:"jobTitle"`
+	PhoneNumber     string `json:"phoneNumber"`
+	HireDate        string `json:"hireDate"`
+	TeamID          string `json:"teamID"`
+	TeamName        string `json:"teamName"`
+	SupervisorEmail string `json:"supervisorEmail"`
 }
 
 func (member Member) IsActive() bool {

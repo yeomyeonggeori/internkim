@@ -11,40 +11,56 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 	// know about somebody it has never heard of - which is every person invited
 	// since it last looked.
 	const email = (url.searchParams.get('email') ?? '').trim().toLowerCase();
-	if (!email) {
-		const everyone = await client
-			.from('member')
-			.select('id, email, is_admin, status')
-			.eq('company_id', companyID);
-		if (everyone.error) return json({ error: everyone.error.message }, { status: 502 });
-		return json({
-			members: (everyone.data ?? []).map((member) => ({
-				memberID: member.id,
-				email: member.email,
-				role: member.is_admin ? 'admin' : 'member',
-				status: member.status
-			}))
-		});
-	}
-
-	const { data, error: queryError } = await client
+	const everyone = await client
 		.from('member')
-		.select('id, email, is_admin, status')
+		.select(memberColumns)
 		.eq('company_id', companyID)
-		.eq('email', email)
-		.maybeSingle();
-	if (queryError) return json({ error: queryError.message }, { status: 502 });
-	if (!data) return json({ member: null });
+		.returns<MemberRow[]>();
+	if (everyone.error) return json({ error: everyone.error.message }, { status: 502 });
 
-	return json({
-		member: {
-			memberID: data.id,
-			email,
-			role: data.is_admin ? 'admin' : 'member',
-			status: data.status
-		}
-	});
+	const rows = everyone.data ?? [];
+	const teams = await client
+		.from('team')
+		.select('id, name')
+		.eq('company_id', companyID)
+		.returns<{ id: string; name: string }[]>();
+	if (teams.error) return json({ error: teams.error.message }, { status: 502 });
+
+	const named = namedMembers(rows, teams.data ?? []);
+	if (!email) return json({ members: named });
+	return json({ member: named.find((member) => member.email === email) ?? null });
 };
+
+const memberColumns = 'id, email, is_admin, status, job_title, phone_number, joined_at, team_id, supervisor_id';
+
+type MemberRow = {
+	id: string;
+	email: string | null;
+	is_admin: boolean;
+	status: string;
+	job_title: string | null;
+	phone_number: string | null;
+	joined_at: string | null;
+	team_id: string | null;
+	supervisor_id: string | null;
+};
+
+function namedMembers(rows: MemberRow[], teams: { id: string; name: string }[]) {
+	const emailByMemberID = new Map(rows.map((row) => [row.id, (row.email ?? '').toLowerCase()]));
+	const nameByTeamID = new Map(teams.map((team) => [team.id, team.name]));
+	return rows.map((row) => ({
+		memberID: row.id,
+		email: (row.email ?? '').toLowerCase(),
+		role: row.is_admin ? 'admin' : 'member',
+		status: row.status,
+		jobTitle: row.job_title ?? '',
+		phoneNumber: row.phone_number ?? '',
+		hireDate: row.joined_at ? String(row.joined_at).slice(0, 10) : '',
+		teamID: row.team_id ?? '',
+		teamName: row.team_id ? (nameByTeamID.get(row.team_id) ?? '') : '',
+		supervisorEmail: row.supervisor_id ? (emailByMemberID.get(row.supervisor_id) ?? '') : ''
+	}));
+}
 
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const { client, companyID } = await callingAgent(request, environmentOf(platform));
