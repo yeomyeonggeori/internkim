@@ -92,6 +92,7 @@ const dispatch = {
 		return held.account ?? null;
 	},
 	askAdmind,
+	tellAdmindTheDirectoryChanged,
 	emailOfMember: async (memberID: string) => {
 		const member = await client
 			.from('member')
@@ -256,6 +257,11 @@ const workspacePaths: Record<string, string> = {
 	'person.buzz.claim': '/agent/api/buzz-claim',
 	'person.buzz.relay': '/agent/api/buzz-relay-config'
 };
+
+async function tellAdmindTheDirectoryChanged(): Promise<{ status: number; body: unknown }> {
+	const response = await fetch(`${admindBaseURL}/admin/api/directory/changed`, { method: 'POST' });
+	return { status: response.status, body: await answerBodyOf(response) };
+}
 
 async function askAdmind(
 	capability: string,
