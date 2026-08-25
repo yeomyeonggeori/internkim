@@ -223,7 +223,7 @@ function shiftedDay(date: string, days: number): string {
 	return moved.toISOString().slice(0, 10);
 }
 
-export async function memberTimeZone(memberID: string): Promise<string> {
+async function memberTimeZone(memberID: string): Promise<string> {
 	const member = await supabase()
 		.from('member')
 		.select('timezone')
@@ -233,7 +233,7 @@ export async function memberTimeZone(memberID: string): Promise<string> {
 	return member.data.timezone || (await companyTimeZone());
 }
 
-export async function companyTimeZone(): Promise<string> {
+async function companyTimeZone(): Promise<string> {
 	const company = await supabase().from('company').select('timezone').limit(1).single<{ timezone: string }>();
 	if (company.error) throw new Error(company.error.message);
 	return company.data.timezone;
