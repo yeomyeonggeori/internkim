@@ -1,4 +1,11 @@
 import type { CalendarParticipant, CalendarParticipantInput } from './calendar-participants';
+import {
+	deleteSupabaseCalendarEvent,
+	saveSupabaseCalendarEvent,
+	supabaseCalendarEvents
+} from '$lib/calendar/supabase-calendar';
+import { isSupabaseConfigured } from '$lib/supabase';
+import { calendarDeleteUndoTimeoutMs } from './calendar-delete-window';
 import type { Locale } from '$lib/i18n/locale.svelte';
 
 export type CalendarEvent = {
@@ -83,6 +90,7 @@ export async function fetchCalendarEvents(
 	errorFallback: string,
 	locale: Locale = 'ko'
 ): Promise<CalendarEvent[]> {
+	if (isSupabaseConfigured()) return supabaseCalendarEvents(startDate, endDate, locale);
 	const query = new URLSearchParams({
 		startISO: startDate.toISOString(),
 		endISO: endDate.toISOString(),
@@ -100,6 +108,7 @@ export async function writeCalendarEvent(
 	payload: CalendarEventPayload,
 	errorFallback: string
 ): Promise<CalendarEvent> {
+	if (isSupabaseConfigured()) return saveSupabaseCalendarEvent(payload);
 	const response = await fetch(path, {
 		method,
 		credentials: 'include',
@@ -115,6 +124,7 @@ export async function deletePersistedCalendarEvent(
 	expectedUpdatedAt: string | undefined,
 	errorFallback: string
 ): Promise<void> {
+	if (isSupabaseConfigured()) return deleteSupabaseCalendarEvent(eventID);
 	const response = await fetch(`/calendar/api/events/${encodeURIComponent(eventID)}`, {
 		method: 'DELETE',
 		credentials: 'include',
@@ -132,6 +142,7 @@ export async function createCalendarEventDeleteIntent(
 	expectedUpdatedAt: string,
 	errorFallback: string
 ): Promise<CalendarDeleteIntent> {
+	if (isSupabaseConfigured()) return browserHeldDeleteIntent(operationID);
 	const response = await fetch(calendarDeleteIntentPath(eventID, operationID), {
 		method: 'PUT',
 		credentials: 'include',
@@ -150,6 +161,7 @@ export async function cancelCalendarEventDeleteIntent(
 	sequence: number,
 	errorFallback: string
 ): Promise<void> {
+	if (isSupabaseConfigured()) return;
 	const response = await fetch(calendarDeleteIntentPath(eventID, operationID), {
 		method: 'DELETE',
 		credentials: 'include',
@@ -158,6 +170,19 @@ export async function cancelCalendarEventDeleteIntent(
 		keepalive: true
 	});
 	if (!response.ok) throw await calendarPersistenceErrorFromResponse(response, errorFallback);
+}
+
+export function browserHoldsDeleteIntent(): boolean {
+	return isSupabaseConfigured();
+}
+
+// A company is reached from browsers this device cannot see, so the wait before
+// a delete becomes real is held here rather than queued on the device.
+function browserHeldDeleteIntent(operationID: string): CalendarDeleteIntent {
+	return {
+		operationID,
+		executeAt: new Date(Date.now() + calendarDeleteUndoTimeoutMs).toISOString()
+	};
 }
 
 export async function responseErrorMessage(response: Response, fallback: string): Promise<string> {
