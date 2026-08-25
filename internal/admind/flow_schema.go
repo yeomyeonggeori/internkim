@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS flow_tasks (
 	if errorValue != nil {
 		return errorValue
 	}
+	// A table written before these were dropped still refuses a row that leaves
+	// them out, so a device that already holds one lets them go.
+	for _, column := range []string{"goal", "flag", "request_reason", "decision_reason"} {
+		database.ExecContext(ctx, `ALTER TABLE flow_tasks DROP COLUMN `+column)
+	}
 	_, errorValue = database.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS flow_definitions (
 	kind TEXT NOT NULL,

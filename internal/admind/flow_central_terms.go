@@ -5,6 +5,8 @@ import "strings"
 // The device's words for a status and the central plane's. The canonical list is
 // host/relay/flow-task-as-task.ts, which the relay uses for the same crossing;
 // TestTheStatusWordsMatchTheRelay reads it and fails when the two drift.
+// The company app names these too, and TestTheStatusWordsAgreeWithTheCompanyApp
+// reads its list rather than trusting this one to have kept up.
 var centralStatusOfDeviceStatus = map[string]string{
 	"요청":   "requested",
 	"예정":   "todo",

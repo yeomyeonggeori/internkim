@@ -70,7 +70,7 @@ func flowTaskOfBoardTask(task centralplane.BoardTask, memberByEmail map[string]f
 		Type:         task.Type,
 		Content:      task.Title,
 		Size:         task.Size,
-		Status:       task.Status,
+		Status:       deviceFlowStatus(task.Status),
 		StartDate:    flowDayOfInstant(task.StartsAt),
 		EndDate:      flowDayOfInstant(firstFilled(task.EndsAt, task.DueAt)),
 		CreatedAt:    task.CreatedAt,
