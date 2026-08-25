@@ -488,11 +488,11 @@ INSERT INTO attendance_events (
 	defer flowDatabase.Close()
 	_, errorValue = flowDatabase.ExecContext(t.Context(), `
 INSERT INTO flow_tasks (
-	id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size,
-	status, status_rank, start_date, end_date, flag, request_reason, decision_reason, created_at, updated_at
+	id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size,
+	status, status_rank, start_date, end_date, created_at, updated_at
 ) VALUES
-('task-1', '2026-W29', 'member@example.com', '김철수', '[]', '[]', 'secret', 'secret', '온보딩 흐름 정리', '', 'S', '진행', 1, '2026-07-13', '', 0, '', '', '2026-07-13T00:00:00Z', '2026-07-13T10:00:00Z'),
-('task-2', '2026-W29', 'second@example.com', '이영희', '[]', '[]', 'secret', 'secret', '고객 대시보드 개선', '', 'S', '완료', 2, '2026-07-12', '2026-07-14', 0, '', '', '2026-07-12T00:00:00Z', '2026-07-14T10:00:00Z')`)
+('task-1', '2026-W29', 'member@example.com', '김철수', '[]', '[]', 'secret', 'secret', '온보딩 흐름 정리', 'S', '진행', 1, '2026-07-13', '', '2026-07-13T00:00:00Z', '2026-07-13T10:00:00Z'),
+('task-2', '2026-W29', 'second@example.com', '이영희', '[]', '[]', 'secret', 'secret', '고객 대시보드 개선', 'S', '완료', 2, '2026-07-12', '2026-07-14', '2026-07-12T00:00:00Z', '2026-07-14T10:00:00Z')`)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

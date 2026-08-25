@@ -12,13 +12,16 @@ type flowTaskQueryer interface {
 }
 
 func (service *Service) readFlowTasks(ctx context.Context, weekCode string, members []flowMember) ([]flowTask, error) {
+	if tasks, answered := service.companyBoardTasks(ctx, members); answered {
+		return flowTasksInWeek(tasks, weekCode), nil
+	}
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 WHERE week_code = ?
 ORDER BY status = '요청' DESC, owner_name, updated_at DESC`, weekCode)
@@ -38,13 +41,16 @@ ORDER BY status = '요청' DESC, owner_name, updated_at DESC`, weekCode)
 }
 
 func (service *Service) readAllFlowTasks(ctx context.Context, members []flowMember) ([]flowTask, error) {
+	if tasks, answered := service.companyBoardTasks(ctx, members); answered {
+		return tasks, nil
+	}
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 ORDER BY status = '요청' DESC, week_code DESC, owner_name, updated_at DESC`)
 	if errorValue != nil {
@@ -63,13 +69,16 @@ ORDER BY status = '요청' DESC, week_code DESC, owner_name, updated_at DESC`)
 }
 
 func (service *Service) readFlowTasksBetweenDates(ctx context.Context, startDate string, endDate string, members []flowMember) ([]flowTask, error) {
+	if tasks, answered := service.companyBoardTasks(ctx, members); answered {
+		return flowTasksBetweenDays(tasks, startDate, endDate), nil
+	}
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 WHERE (start_date >= ? AND start_date <= ?) OR (end_date >= ? AND end_date <= ?)
 ORDER BY start_date, owner_name, updated_at DESC`, startDate, endDate, startDate, endDate)
@@ -88,13 +97,23 @@ ORDER BY start_date, owner_name, updated_at DESC`, startDate, endDate, startDate
 	return alignFlowTasksWithMembers(tasks, members), rows.Err()
 }
 
+// A caller names a task by the identifier it was answered with, which is the
+// company's. The device still files its own copy under an identifier of its
+// own, so the company's is turned back into it before the row is looked up.
 func (service *Service) readFlowTaskByID(ctx context.Context, taskID string) (flowTask, bool, error) {
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {
 		return flowTask{}, false, errorValue
 	}
 	defer database.Close()
-	return readFlowTaskByIDWithQueryer(ctx, database, taskID)
+	if task, found, errorValue := readFlowTaskByIDWithQueryer(ctx, database, taskID); found || errorValue != nil {
+		return task, found, errorValue
+	}
+	deviceTaskID, errorValue := readFlowTaskIDCarrying(ctx, database, taskID)
+	if errorValue != nil || deviceTaskID == "" {
+		return flowTask{}, false, errorValue
+	}
+	return readFlowTaskByIDWithQueryer(ctx, database, deviceTaskID)
 }
 
 func (service *Service) readFlowTaskByCalendarEventID(ctx context.Context, eventID string) (flowTask, bool, error) {
@@ -108,7 +127,7 @@ func (service *Service) readFlowTaskByCalendarEventID(ctx context.Context, event
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 WHERE calendar_event_id = ?`, trimmedEventID)
 	if errorValue != nil {
@@ -131,7 +150,7 @@ func readFlowTaskByIDInTransaction(ctx context.Context, transaction *sql.Tx, tas
 
 func readFlowTaskByIDWithQueryer(ctx context.Context, queryer flowTaskQueryer, taskID string) (flowTask, bool, error) {
 	rows, errorValue := queryer.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 WHERE id = ?`, taskID)
 	if errorValue != nil {
@@ -155,7 +174,7 @@ func (service *Service) readFlowTasksWithMattermostPosts(ctx context.Context) ([
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-	SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
+	SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 	FROM flow_tasks
 	WHERE mattermost_post_id != '' OR id IN (SELECT task_id FROM flow_channel_outbox)
 	ORDER BY updated_at DESC`)
@@ -239,7 +258,7 @@ WHERE mattermost_post_id != '' AND mattermost_post_created_at != '' AND mattermo
 
 func readAllFlowTasksInTransaction(ctx context.Context, transaction *sql.Tx) ([]flowTask, error) {
 	rows, errorValue := transaction.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks`)
 	if errorValue != nil {
 		return nil, errorValue

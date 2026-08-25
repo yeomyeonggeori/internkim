@@ -103,14 +103,12 @@ function flowTask(overrides: Partial<FlowTask>): FlowTask {
 		business: '여명거리',
 		type: '기능',
 		content: '업무',
-		goal: '완료',
 		size: 'D2',
 		status: '완료',
 		statusRank: 0,
 		startDate: '2026-06-01',
 		endDate: '2026-06-03',
 		weekCode: '26W23',
-		flag: 0,
 		...overrides
 	};
 }

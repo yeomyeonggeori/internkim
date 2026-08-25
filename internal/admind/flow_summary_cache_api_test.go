@@ -106,7 +106,6 @@ func TestFlowSummaryAPIRefreshesCachedResponseAfterSourceMutations(t *testing.T)
 		Business:         "Development",
 		Type:             "Implementation",
 		Content:          "Before mutation",
-		Goal:             "Verify cache invalidation",
 		Size:             "S",
 		Status:           flowStatusCompleted,
 		StatusRank:       1024,

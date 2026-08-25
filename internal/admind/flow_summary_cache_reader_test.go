@@ -108,7 +108,6 @@ func TestFlowSummaryCacheFallsBackWhenCacheStorageFails(t *testing.T) {
 		Business:         "Development",
 		Type:             "Implementation",
 		Content:          "Build from source",
-		Goal:             "Keep summaries available",
 		Size:             "S",
 		Status:           flowStatusInProgress,
 		StatusRank:       1024,

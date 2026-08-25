@@ -42,17 +42,13 @@ function taskFromSpec(spec: DevFlowTaskSpec, week: FlowWeek): FlowTask {
 		business: spec.business,
 		type: spec.type,
 		content: spec.content,
-		goal: spec.goal,
 		size: spec.size,
 		status: spec.status,
 		statusRank: 0,
 		startDate: addDays(week.startISO, spec.startOffset),
 		endDate: spec.endOffset > 0 ? addDays(week.startISO, spec.endOffset) : '',
 		createdAt: `${addDays(week.startISO, spec.startOffset)}T09:00:00Z`,
-		weekCode: week.code,
-		flag: isFlowStatusStopped(spec.status) || isFlowStatusPaused(spec.status) ? 1 : 0,
-		requestReason: spec.requestReason ?? '',
-		decisionReason: ''
+		weekCode: week.code
 	};
 }
 

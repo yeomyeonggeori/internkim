@@ -31,7 +31,7 @@ func TestTheReportLeadsWithTheFieldThatDiffersMost(t *testing.T) {
 }
 
 func TestAFieldTheCentralPlaneDoesNotCarryIsNotADifference(t *testing.T) {
-	deviceTask := flowTask{Content: "업무", Status: "진행", StatusRank: 1024, MattermostPostID: "post-1", Flag: 1}
+	deviceTask := flowTask{Content: "업무", Status: "진행", StatusRank: 1024, MattermostPostID: "post-1"}
 	centralTask := flowTask{Content: "업무", Status: "진행"}
 
 	if differences := flowTaskDifferences(deviceTask, centralTask); len(differences) != 0 {

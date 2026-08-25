@@ -40,7 +40,6 @@ func deviceFlowTaskOf(changed centralplane.ChangedTask, existing flowTask, found
 	task.StartDate = dates.StartDate
 	task.EndDate = dates.EndDate
 	task.WeekCode = dates.WeekCode
-	task.Goal, task.RequestReason = flowGoalAndReasonOf(changed.Note)
 	task.ParticipantIDs, task.ParticipantNames = flowPeopleOf(changed.ParticipantMails, people)
 	if len(task.ParticipantIDs) > 0 && strings.TrimSpace(task.OwnerID) == "" {
 		task.OwnerID = task.ParticipantIDs[0]
@@ -62,20 +61,6 @@ func flowDayOf(moment string) string {
 }
 
 // centralFlowNote joins them with the goal first, so they come apart the same way.
-func flowGoalAndReasonOf(note string) (string, string) {
-	lines := strings.SplitN(strings.TrimSpace(note), "\n", 2)
-	goal := ""
-	reason := ""
-	if strings.HasPrefix(lines[0], "목표: ") {
-		goal = strings.TrimPrefix(lines[0], "목표: ")
-		if len(lines) > 1 {
-			reason = lines[1]
-		}
-		return goal, reason
-	}
-	return "", strings.TrimSpace(note)
-}
-
 func flowPeopleOf(addresses []string, people map[string]adminUserMutation) ([]string, []string) {
 	identifiers := []string{}
 	names := []string{}

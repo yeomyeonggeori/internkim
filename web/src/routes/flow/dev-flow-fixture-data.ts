@@ -9,12 +9,10 @@ export type DevFlowTaskSpec = {
 	business: string;
 	type: string;
 	content: string;
-	goal: string;
 	size: string;
 	status: string;
 	startOffset: number;
 	endOffset: number;
-	requestReason?: string;
 };
 
 export const devFlowTypes = ['운동', '마케팅', '데이터 분석', '운영', '기획', '미팅', '회의', '문서', '보안', '연동', '변경', '설계', 'UI', '기능 추가', '리팩터링', '버그 수정', '기능', '개선', '검증', '디자인', '기타'];
@@ -35,27 +33,27 @@ export const devFlowMembers: FlowMember[] = [
 ];
 
 export const devFlowTaskSpecs: DevFlowTaskSpec[] = [
-	taskSpec('flow-dashboard', 'kim-intern', ['kim-intern', 'engineer'], '여명거리', '기능', 'Flow 주간 리포트 카드 정리', '업무 진행도 화면에서 상태와 거리 흐름을 빠르게 본다.', 'L', '진행', 0, 0, '', { requesterID: 'kim-intern' }),
-	taskSpec('calendar-sync', 'engineer', ['engineer'], '여명거리', '개선', '캘린더 원격 동기화 재시도 점검', '반복 동기화 실패를 줄인다.', 'M', '완료', 1, 2, '', { parentTaskID: 'flow-dashboard' }),
-	taskSpec('attendance-policy', 'operator', ['operator', 'kim-intern'], '김인턴', '기획', '근태 위치 정책 초안 작성', '오피스 출퇴근 판정 기준을 명확히 한다.', 'M', '요청', 2, 0, '운영팀 검토 후 진행', { parentTaskID: 'flow-dashboard' }),
-	taskSpec('mail-triage', 'kim-intern', ['kim-intern'], '김인턴', '문서', '메일 분류 규칙 정리', '반복 문의를 빠르게 triage한다.', 'S', '예정', 3, 0, '', { parentTaskID: 'flow-dashboard' }),
-	taskSpec('design-pass', 'designer', ['designer'], '여명거리', '디자인', 'Flow 모바일 간격 점검', '모바일에서 카드와 표가 안정적으로 보이게 한다.', 'S', '완료', 4, 4, '', { parentTaskID: 'flow-dashboard' }),
-	taskSpec('mattermost-smoke', 'operator', ['operator', 'engineer'], '김인턴', '검증', 'Mattermost smoke 시나리오 재정리', '실서버 배포 전 수동 확인 범위를 줄인다.', 'M', '일시정지', 2, 0, '실서버 계정 준비 대기', { parentTaskID: 'flow-dashboard' }),
-	taskSpec('memory-graph', 'engineer', ['engineer', 'kim-intern'], '여명거리', '기능', 'Memory 그래프 빈 상태 처리', 'Blueclaw 연결 전에도 화면이 깨지지 않게 한다.', 'L', '중단', 5, 0, 'Blueclaw API 계약 변경 대기', { parentTaskID: 'flow-dashboard' }),
-	taskSpec('launch-brief', 'designer', ['designer', 'operator'], '김인턴', '문서', '내부 데모 브리프 작성', '팀이 데모 흐름을 같은 순서로 볼 수 있게 한다.', 'XS', '완료', 1, 3),
-	taskSpec('roadmap-review', 'planner', ['planner'], '여명거리', '기획', '다음 스프린트 로드맵 정리', '우선순위와 진행 순서를 정리한다.', 'M', '진행', 1, 0),
-	taskSpec('campaign-copy', 'marketer', ['marketer'], '김인턴', '마케팅', '온보딩 캠페인 문구 작성', '신규 사용자가 첫 업무를 빠르게 등록하게 한다.', 'S', '완료', 2, 4),
-	taskSpec('regression-check', 'qa', ['qa'], '여명거리', '검증', 'Flow 회귀 테스트 체크리스트 실행', '보고 탭 주요 흐름을 배포 전에 확인한다.', 'M', '완료', 3, 5),
-	taskSpec('customer-reply', 'support', ['support'], '김인턴', '운영', '고객 문의 답변 정리', '반복 문의 답변을 표준화한다.', 'S', '진행', 2, 0, '', { parentTaskID: 'flow-dashboard' }),
-	taskSpec('release-note', 'writer', ['writer', 'kim-intern'], '여명거리', '문서', '릴리즈 노트 초안 작성', '팀 변경 사항을 읽기 쉽게 정리한다.', 'S', '완료', 4, 5),
-	taskSpec('market-scan', 'researcher', ['researcher'], '김인턴', '기타', '경쟁 서비스 화면 조사', '업무 대시보드 비교 기준을 수집한다.', 'M', '기각', 0, 0, '', { parentTaskID: 'flow-dashboard' })
+	taskSpec('flow-dashboard', 'kim-intern', ['kim-intern', 'engineer'], '여명거리', '기능', 'Flow 주간 리포트 카드 정리', 'L', '진행', 0, 0, { requesterID: 'kim-intern' }),
+	taskSpec('calendar-sync', 'engineer', ['engineer'], '여명거리', '개선', '캘린더 원격 동기화 재시도 점검', 'M', '완료', 1, 2, { parentTaskID: 'flow-dashboard' }),
+	taskSpec('attendance-policy', 'operator', ['operator', 'kim-intern'], '김인턴', '기획', '근태 위치 정책 초안 작성', 'M', '요청', 2, 0, { parentTaskID: 'flow-dashboard' }),
+	taskSpec('mail-triage', 'kim-intern', ['kim-intern'], '김인턴', '문서', '메일 분류 규칙 정리', 'S', '예정', 3, 0, { parentTaskID: 'flow-dashboard' }),
+	taskSpec('design-pass', 'designer', ['designer'], '여명거리', '디자인', 'Flow 모바일 간격 점검', 'S', '완료', 4, 4, { parentTaskID: 'flow-dashboard' }),
+	taskSpec('mattermost-smoke', 'operator', ['operator', 'engineer'], '김인턴', '검증', 'Mattermost smoke 시나리오 재정리', 'M', '일시정지', 2, 0, { parentTaskID: 'flow-dashboard' }),
+	taskSpec('memory-graph', 'engineer', ['engineer', 'kim-intern'], '여명거리', '기능', 'Memory 그래프 빈 상태 처리', 'L', '중단', 5, 0, { parentTaskID: 'flow-dashboard' }),
+	taskSpec('launch-brief', 'designer', ['designer', 'operator'], '김인턴', '문서', '내부 데모 브리프 작성', 'XS', '완료', 1, 3),
+	taskSpec('roadmap-review', 'planner', ['planner'], '여명거리', '기획', '다음 스프린트 로드맵 정리', 'M', '진행', 1, 0),
+	taskSpec('campaign-copy', 'marketer', ['marketer'], '김인턴', '마케팅', '온보딩 캠페인 문구 작성', 'S', '완료', 2, 4),
+	taskSpec('regression-check', 'qa', ['qa'], '여명거리', '검증', 'Flow 회귀 테스트 체크리스트 실행', 'M', '완료', 3, 5),
+	taskSpec('customer-reply', 'support', ['support'], '김인턴', '운영', '고객 문의 답변 정리', 'S', '진행', 2, 0, { parentTaskID: 'flow-dashboard' }),
+	taskSpec('release-note', 'writer', ['writer', 'kim-intern'], '여명거리', '문서', '릴리즈 노트 초안 작성', 'S', '완료', 4, 5),
+	taskSpec('market-scan', 'researcher', ['researcher'], '김인턴', '기타', '경쟁 서비스 화면 조사', 'M', '기각', 0, 0, { parentTaskID: 'flow-dashboard' })
 ];
 
 export const devFlowFutureTaskSpecs: DevFlowTaskSpec[] = [
-	taskSpec('partner-demo', 'planner', ['planner', 'marketer'], '여명거리', '미팅', '파트너 데모 리허설', '외부 데모 전 흐름과 메시지를 맞춘다.', 'S', '완료', 0, 1),
-	taskSpec('qa-followup', 'qa', ['qa', 'engineer'], '김인턴', '검증', 'Flow 보고 그래프 재확인', '주차 이동과 거리 그래프 반영을 확인한다.', 'M', '진행', 2, 0),
-	taskSpec('release-review', 'writer', ['writer'], '여명거리', '문서', '릴리즈 문구 검수', '변경 내용을 팀이 같은 표현으로 안내한다.', 'M', '완료', 4, 4),
-	taskSpec('support-cleanup', 'support', ['support', 'operator'], '김인턴', '운영', '운영 문의 정리', '반복 문의와 답변 기준을 정리한다.', 'S', '완료', 5, 5)
+	taskSpec('partner-demo', 'planner', ['planner', 'marketer'], '여명거리', '미팅', '파트너 데모 리허설', 'S', '완료', 0, 1),
+	taskSpec('qa-followup', 'qa', ['qa', 'engineer'], '김인턴', '검증', 'Flow 보고 그래프 재확인', 'M', '진행', 2, 0),
+	taskSpec('release-review', 'writer', ['writer'], '여명거리', '문서', '릴리즈 문구 검수', 'M', '완료', 4, 4),
+	taskSpec('support-cleanup', 'support', ['support', 'operator'], '김인턴', '운영', '운영 문의 정리', 'S', '완료', 5, 5)
 ];
 
 function member(id: string, name: string, email: string, role: string, hireDate: string): FlowMember {
@@ -69,13 +67,11 @@ function taskSpec(
 	business: string,
 	type: string,
 	content: string,
-	goal: string,
 	size: string,
 	status: string,
 	startOffset: number,
 	endOffset: number,
-	requestReason = '',
 	relationships: Pick<DevFlowTaskSpec, 'parentTaskID' | 'requesterID'> = {}
 ): DevFlowTaskSpec {
-	return { id, ownerID, participantIDs, business, type, content, goal, size, status, startOffset, endOffset, requestReason, ...relationships };
+	return { id, ownerID, participantIDs, business, type, content, size, status, startOffset, endOffset, ...relationships };
 }

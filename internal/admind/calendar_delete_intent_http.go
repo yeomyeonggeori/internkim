@@ -57,6 +57,7 @@ func (service *Service) createCalendarDeleteIntentRequest(responseWriter http.Re
 		ClientID:          payload.ClientID,
 		Sequence:          payload.Sequence,
 		ExpectedUpdatedAt: expectedUpdatedAt,
+		RequesterEmail:    strings.ToLower(strings.TrimSpace(request.Header.Get("CF-Access-Authenticated-User-Email"))),
 	}, time.Now().UTC())
 	if errorValue != nil {
 		writeCalendarDeleteIntentError(responseWriter, request, eventID, operationID, errorValue)

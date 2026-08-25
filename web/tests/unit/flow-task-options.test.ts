@@ -51,12 +51,10 @@ function task(fields: Partial<FlowTask>): FlowTask {
 		business: '',
 		type: '',
 		content: '',
-		goal: '',
 		size: '',
 		status: '예정',
 		statusRank: 0,
 		weekCode: '',
-		flag: 0,
 		...fields
 	};
 }

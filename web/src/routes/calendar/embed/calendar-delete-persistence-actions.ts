@@ -6,6 +6,7 @@ import {
 } from './calendar-delete-undo';
 import {
 	CalendarPersistenceError,
+	browserHoldsDeleteIntent,
 	calendarEventVersionConflictErrorCode,
 	isCalendarPersistenceErrorCode
 } from './calendar-event-persistence';
@@ -163,9 +164,23 @@ export function createCalendarDeletePersistenceActions(
 		return true;
 	}
 
-	function flushPendingDelete(): Promise<void> {
+	async function flushPendingDelete(): Promise<void> {
+		const deleteAction = pendingDelete;
 		finalizePendingDelete(true);
-		return Promise.resolve();
+		if (!deleteAction || !browserHoldsDeleteIntent()) return;
+		try {
+			await options.persistedEvents.deleteEvent(
+				deleteAction.event.id,
+				deleteExpectedUpdatedAt(deleteAction.event)
+			);
+			options.persistenceOrder.clearPersistedUpdatedAt(deleteAction.event.id);
+		} catch {
+			options.context.invalidatePendingEventLoad();
+			if (!hasLocalEvent(deleteAction.event.id)) {
+				options.context.restoreCalendarEvent(deleteAction.event);
+			}
+			options.refreshEventCountAfterRender();
+		}
 	}
 
 	function finalizePendingDelete(shouldDismissToast: boolean): void {
