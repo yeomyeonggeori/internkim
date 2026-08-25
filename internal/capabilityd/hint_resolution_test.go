@@ -54,18 +54,18 @@ func TestAHintInsideSeveralTitlesOffersOnlyThoseTitles(t *testing.T) {
 	}
 }
 
-func TestAHintThatMatchesNothingSaysNothingMatched(t *testing.T) {
+func TestAHintThatMatchesNothingSaysNothingMatchedAndNamesNothing(t *testing.T) {
 	tasks := []flowTaskForTool{{ID: "task-1", Content: "휴가"}}
 
-	_, failure := resolveFlowTaskHint("상하이 acme 미팅", "", tasks)
+	_, failure := resolveFlowTaskHint("zzzz", "", tasks)
 	if failure == nil {
 		t.Fatal("expected a hint naming nothing to fail")
 	}
 	if !strings.Contains(failure.Message, "no task matched") {
 		t.Fatalf("the agent has to learn the target is absent, got %q", failure.Message)
 	}
-	if len(failure.Candidates) != 1 {
-		t.Fatalf("candidates must still show what exists, got %+v", failure.Candidates)
+	if len(failure.Candidates) != 0 {
+		t.Fatalf("a task nothing was asked about is not a candidate, got %+v", failure.Candidates)
 	}
 }
 
@@ -121,5 +121,85 @@ func TestIdenticalTitlesDoNotFallThroughToASearchOfEveryTitle(t *testing.T) {
 	}
 	if len(failure.Candidates) != 2 {
 		t.Fatalf("an ambiguous exact match offers the exact matches, not every title containing it, got %+v", failure.Candidates)
+	}
+}
+
+func TestATitleRememberedInPiecesIsProposedRatherThanGuessed(t *testing.T) {
+	events := []calendarEventForTool{
+		{EventID: "event-1", Title: "포틀랜드 출장 준비"},
+		{EventID: "event-2", Title: "휴가"},
+	}
+
+	_, failure := resolveCalendarEventHint("포틀랜드 미팅", "", events)
+	if failure == nil {
+		t.Fatal("a title nothing contains must not resolve on its own")
+	}
+	if len(failure.Candidates) != 1 || failure.Candidates[0].EventID != "event-1" {
+		t.Fatalf("the closest title has to be the one proposed, got %+v", failure.Candidates)
+	}
+	if !strings.Contains(failure.Message, "ask the user") || !strings.Contains(failure.Message, "none of them") {
+		t.Fatalf("an approximation is the user's to confirm, got %q", failure.Message)
+	}
+}
+
+func TestAnEventIDOneCharacterOffIsNeverProposed(t *testing.T) {
+	events := []calendarEventForTool{{EventID: "dbc8fd43324b5771000a6639142d8dd6", Title: "휴가"}}
+
+	_, failure := resolveCalendarEventHint("dbc8fd43324b5771000a6639142d8dd7", "", events)
+	if failure == nil {
+		t.Fatal("an identifier that is not an identifier must not resolve")
+	}
+	if len(failure.Candidates) != 0 {
+		t.Fatalf("an identifier a character off was invented, not mistyped, got %+v", failure.Candidates)
+	}
+}
+
+func TestAMistypedNameIsProposedRatherThanGuessed(t *testing.T) {
+	members := []flowMemberForTool{
+		{ID: "person-1", Name: "김표본", Email: "iam@dawn.kim", MattermostUsername: "pyobon"},
+		{ID: "person-2", Name: "박민준", Email: "minjun@dawn.kim", MattermostUsername: "minjun"},
+	}
+
+	resolution := resolveFlowOwnerHint("김여영", members)
+	if resolution.Failure == nil {
+		t.Fatal("a name nobody has must not resolve on its own")
+	}
+	if resolution.Failure.ErrorCode != "flow_owner_approximate" {
+		t.Fatalf("a name a character off is a typo, got %q", resolution.Failure.ErrorCode)
+	}
+	if len(resolution.Failure.Candidates) != 1 || resolution.Failure.Candidates[0].Name != "김표본" {
+		t.Fatalf("only the near name belongs in the question, got %+v", resolution.Failure.Candidates)
+	}
+}
+
+func TestAMistypedEmailDomainIsProposedAndAWrongLocalPartIsNot(t *testing.T) {
+	members := []flowMemberForTool{
+		{ID: "person-1", Name: "김표본", Email: "iam@dawn.kim"},
+		{ID: "person-2", Name: "박민준", Email: "minjun@dawn.kim"},
+	}
+
+	domainSlip := resolveFlowOwnerHint("iam@dawn.kin", members)
+	if domainSlip.Failure == nil || domainSlip.Failure.ErrorCode != "flow_owner_approximate" {
+		t.Fatalf("a domain everyone shares is a slip, got %+v", domainSlip.Failure)
+	}
+	if len(domainSlip.Failure.Candidates) != 1 || domainSlip.Failure.Candidates[0].Email != "iam@dawn.kim" {
+		t.Fatalf("the local part says whose address it is, got %+v", domainSlip.Failure.Candidates)
+	}
+
+	otherPerson := resolveFlowOwnerHint("minjun@dawn.kim", members)
+	if otherPerson.Failure != nil || otherPerson.OwnerID != "person-2" {
+		t.Fatalf("an address that exists is that person, got %+v", otherPerson)
+	}
+}
+
+func TestAnExactNameOutranksEveryApproximation(t *testing.T) {
+	members := []flowMemberForTool{
+		{ID: "person-1", Name: "이샘플", Email: "sample@dawn.kim"},
+		{ID: "person-2", Name: "이샘풀", Email: "pool@dawn.kim"},
+	}
+
+	resolution := resolveFlowOwnerHint("이샘플", members)
+	if resolution.Failure != nil || resolution.OwnerID != "person-1" {
+		t.Fatalf("an exact name is taken as given, got %+v", resolution)
 	}
 }

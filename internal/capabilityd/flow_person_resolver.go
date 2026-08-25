@@ -22,14 +22,17 @@ func resolveFlowOwner(input flowTaskAddInput, requesterEmail string, members []f
 }
 
 func resolveFlowOwnerHint(personHint string, members []flowMemberForTool) flowOwnerResolution {
-	matches := matchingFlowMembers(personHint, members)
-	if len(matches) == 1 {
-		return flowOwnerResolution{OwnerID: matches[0].ID}
+	resolution := resolveHint(personHint, members, nil)
+	switch resolution.Outcome {
+	case hintResolved:
+		return flowOwnerResolution{OwnerID: resolution.Match.ID}
+	case hintAmbiguous:
+		return ambiguousFlowOwnerResolution(resolution.Candidates)
+	case hintApproximate:
+		return approximateFlowOwnerResolution(resolution.Candidates)
+	default:
+		return missingFlowOwnerResolution(members)
 	}
-	if len(matches) > 1 {
-		return ambiguousFlowOwnerResolution(matches)
-	}
-	return missingFlowOwnerResolution(members)
 }
 
 func resolveFlowTaskUpdateParticipants(input flowTaskUpdateInput, task flowTaskForTool, members []flowMemberForTool) (*[]string, *flowTaskAddFailure) {
@@ -81,16 +84,61 @@ func uniqueFlowParticipantIDs(participantIDs []string) []string {
 	return uniqueIDs
 }
 
+// A directory is short and complete, so naming everyone in it is an answer.
+// A calendar is neither, which is why the ladder itself hands back nothing.
 func missingFlowOwnerResolution(members []flowMemberForTool) flowOwnerResolution {
 	return flowOwnerResolution{Failure: &flowTaskAddFailure{
 		ErrorCode:     "flow_owner_not_found",
 		FailureStage:  "target_resolution",
-		Message:       "task owner was not found; retry with one candidate's exact name, email, or @handle, or ask the user",
+		Message:       "nobody matched that name and nobody came close; retry with one candidate's exact name, email, or @handle, or ask the user",
 		Candidates:    flowTaskAddCandidates(members),
 		RecoveryHints: retryWithAnExactNameHint(),
 		Retryable:     true,
 		SafeRetry:     true,
 	}}
+}
+
+// A name a couple of characters off is a typo rather than somebody else, and
+// which person was meant is the user's to say, not this runtime's and not the
+// model's.
+func approximateFlowOwnerResolution(matches []flowMemberForTool) flowOwnerResolution {
+	return flowOwnerResolution{Failure: &flowTaskAddFailure{
+		ErrorCode:     "flow_owner_approximate",
+		FailureStage:  "target_resolution",
+		Message:       "nobody matched that name exactly, and these are the closest; ask the user with ask_input whether they meant one of them, offering none of them as a choice too. Do not choose one yourself",
+		Candidates:    flowTaskAddCandidates(matches),
+		RecoveryHints: askTheUserToChooseHint(),
+		Retryable:     true,
+		SafeRetry:     true,
+	}}
+}
+
+func (member flowMemberForTool) hintIdentifiers() []string {
+	identifiers := []string{member.ID, member.Email}
+	if handle := strings.TrimSpace(member.MattermostUsername); handle != "" {
+		identifiers = append(identifiers, "@"+strings.TrimPrefix(handle, "@"))
+	}
+	return identifiers
+}
+
+func (member flowMemberForTool) hintTitle() string { return member.Name }
+
+// A person is named, addressed, or mentioned, and each of those is mistyped in
+// its own way: a name or a handle by a character or two, an address by the
+// domain everyone in the company shares.
+func (member flowMemberForTool) hintNearness(hint string) float64 {
+	nearness := typoNearness(normalizedHintValue(hint), normalizedHintValue(member.Name))
+	if addressNearness := emailNearness(normalizedHintValue(hint), normalizedHintValue(member.Email)); addressNearness > nearness {
+		nearness = addressNearness
+	}
+	handleNearness := typoNearness(
+		strings.TrimPrefix(normalizedHintValue(hint), "@"),
+		strings.TrimPrefix(normalizedHintValue(member.MattermostUsername), "@"),
+	)
+	if handleNearness > nearness {
+		nearness = handleNearness
+	}
+	return nearness
 }
 
 func retryWithAnExactNameHint() []capabilities.RecoveryHint {
@@ -119,72 +167,6 @@ func askTheUserToChooseHint() []capabilities.RecoveryHint {
 		ToolNames: []string{"ask_input"},
 		Reason:    "only the user can say which person they meant",
 	}}
-}
-
-func matchingFlowMembers(value string, members []flowMemberForTool) []flowMemberForTool {
-	normalizedValue := strings.ToLower(strings.TrimSpace(value))
-	if normalizedValue == "" {
-		return nil
-	}
-	exactMatches := uniqueFlowMembers(exactFlowMemberMatches(normalizedValue, members))
-	if len(exactMatches) > 0 {
-		return exactMatches
-	}
-	return uniqueFlowMembers(nameContainingFlowMemberMatches(normalizedValue, members))
-}
-
-func nameContainingFlowMemberMatches(normalizedValue string, members []flowMemberForTool) []flowMemberForTool {
-	matches := make([]flowMemberForTool, 0, len(members))
-	for _, member := range members {
-		memberName := normalizedFlowMemberValue(member.Name)
-		if memberName != "" && strings.Contains(memberName, normalizedValue) {
-			matches = append(matches, member)
-		}
-	}
-	return matches
-}
-
-func exactFlowMemberMatches(normalizedValue string, members []flowMemberForTool) []flowMemberForTool {
-	matches := make([]flowMemberForTool, 0, len(members))
-	for _, member := range members {
-		if isExactFlowMemberMatch(normalizedValue, member) {
-			matches = append(matches, member)
-		}
-	}
-	return matches
-}
-
-func isExactFlowMemberMatch(normalizedValue string, member flowMemberForTool) bool {
-	return normalizedFlowMemberValue(member.ID) == normalizedValue ||
-		normalizedFlowMemberValue(member.Email) == normalizedValue ||
-		normalizedFlowMemberValue(member.Name) == normalizedValue ||
-		isExactFlowMemberHandleMatch(normalizedValue, member.MattermostUsername)
-}
-
-func isExactFlowMemberHandleMatch(normalizedValue string, mattermostUsername string) bool {
-	if !strings.HasPrefix(normalizedValue, "@") {
-		return false
-	}
-	normalizedHandle := strings.TrimPrefix(normalizedFlowMemberValue(mattermostUsername), "@")
-	return normalizedHandle != "" && normalizedHandle == strings.TrimPrefix(normalizedValue, "@")
-}
-
-func normalizedFlowMemberValue(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
-}
-
-func uniqueFlowMembers(members []flowMemberForTool) []flowMemberForTool {
-	seen := map[string]bool{}
-	uniqueMembers := make([]flowMemberForTool, 0, len(members))
-	for _, member := range members {
-		key := strings.TrimSpace(member.ID)
-		if key == "" || seen[key] {
-			continue
-		}
-		seen[key] = true
-		uniqueMembers = append(uniqueMembers, member)
-	}
-	return uniqueMembers
 }
 
 func flowTaskAddCandidates(members []flowMemberForTool) []flowTaskAddCandidate {

@@ -741,7 +741,7 @@ func TestCalendarEventUpdateAmbiguousTitleReturnsCandidatesWithoutWrite(t *testi
 	}
 }
 
-func TestCalendarEventUpdateUnresolvedHintReturnsCandidatesWithoutWrite(t *testing.T) {
+func TestCalendarEventUpdateAHintNothingComesCloseToWritesNothingAndNamesNothing(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -754,7 +754,7 @@ func TestCalendarEventUpdateUnresolvedHintReturnsCandidatesWithoutWrite(t *testi
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "calendar_update",
-		Input:    []byte(`{"eventHint":"missing-event","title":"IR 미팅 완료"}`),
+		Input:    []byte(`{"eventHint":"zzzz","title":"IR 미팅 완료"}`),
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -762,19 +762,28 @@ func TestCalendarEventUpdateUnresolvedHintReturnsCandidatesWithoutWrite(t *testi
 	if !response.IsError || response.ErrorCode != "calendar_event_hint_unresolved" || !response.SafeRetry {
 		t.Fatalf("response = %+v", response)
 	}
-	if !strings.Contains(string(response.Result), "event-1") {
-		t.Fatalf("expected the requester's current events as candidates, got result = %s", response.Result)
+	if strings.Contains(string(response.Result), "event-1") {
+		t.Fatalf("an event nothing was asked about is not a candidate, got result = %s", response.Result)
+	}
+	if !strings.Contains(response.Message, "nothing came close") {
+		t.Fatalf("the agent has to learn the target is absent, got %q", response.Message)
 	}
 }
 
-func TestCalendarEventUpdateHintResolutionIsCaseSensitiveAfterTrim(t *testing.T) {
+func TestCalendarEventUpdateResolvesATitleWhoseCaseDiffers(t *testing.T) {
+	requestCount := 0
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.Method != http.MethodGet {
-				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
+			requestCount++
+			switch requestCount {
+			case 1:
+				return calendarToolEventsResponse(calendarToolEventDocument("event-1", "IR Meeting", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
+			case 2:
+				return calendarToolEventResponse("event-1", "IR Meeting", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
+			default:
+				return calendarToolEventResponse("event-1", "IR Meeting Done", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00"), nil
 			}
-			return calendarToolEventsResponse(calendarToolEventDocument("event-1", "IR Meeting", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
 		})},
 	}
 
@@ -785,8 +794,8 @@ func TestCalendarEventUpdateHintResolutionIsCaseSensitiveAfterTrim(t *testing.T)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "calendar_event_hint_unresolved" {
-		t.Fatalf("expected case-mismatched title to stay unresolved, got response = %+v", response)
+	if response.IsError {
+		t.Fatalf("a title is the same title in another case, got response = %+v", response)
 	}
 }
 
@@ -883,7 +892,7 @@ func TestCalendarEventDeleteAmbiguousTitleReturnsCandidatesWithoutDeleting(t *te
 	}
 }
 
-func TestCalendarEventDeleteNoMatchReturnsCandidatesWithoutDeleting(t *testing.T) {
+func TestCalendarEventDeleteAHintNothingComesCloseToDeletesNothingAndNamesNothing(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -896,7 +905,7 @@ func TestCalendarEventDeleteNoMatchReturnsCandidatesWithoutDeleting(t *testing.T
 
 	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "calendar_delete",
-		Input:    []byte(`{"eventHint":"missing-event"}`),
+		Input:    []byte(`{"eventHint":"zzzz"}`),
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -904,8 +913,8 @@ func TestCalendarEventDeleteNoMatchReturnsCandidatesWithoutDeleting(t *testing.T
 	if !response.IsError || response.ErrorCode != "calendar_event_hint_unresolved" || !response.SafeRetry {
 		t.Fatalf("response = %+v", response)
 	}
-	if !strings.Contains(string(response.Result), "event-1") {
-		t.Fatalf("expected the requester's current events as candidates, got result = %s", response.Result)
+	if strings.Contains(string(response.Result), "event-1") {
+		t.Fatalf("an event nothing was asked about is not a candidate, got result = %s", response.Result)
 	}
 }
 
