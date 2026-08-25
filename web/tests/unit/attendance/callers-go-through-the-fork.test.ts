@@ -22,9 +22,6 @@ function reachesTheDevicePath(source: string): boolean {
 }
 
 describe('every module that reaches the attendance API', () => {
-	// Leave management has never been ported and answers 404 on a company, so it
-	// is named here rather than skipped: a new one-armed module fails this, and
-	// so does porting this one, which is how the list only ever gets shorter.
 	test('also knows a device from the central plane', () => {
 		const oneArmed = everySourceFile(sourceRoot)
 			.map((path) => ({ path, source: readFileSync(path, 'utf8') }))
@@ -32,7 +29,7 @@ describe('every module that reaches the attendance API', () => {
 			.filter(({ source }) => !source.includes('isSupabaseConfigured'))
 			.map(({ path }) => path.slice(path.indexOf('src')));
 
-		expect(oneArmed).toEqual(['src/routes/attendance/management/leave-management-api.ts']);
+		expect(oneArmed).toEqual([]);
 	});
 
 	test('is a search that finds the modules it is meant to check', () => {

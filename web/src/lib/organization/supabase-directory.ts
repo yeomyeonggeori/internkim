@@ -55,20 +55,27 @@ function groupOf(team: TeamRow): OrgGroup {
 	return { id: team.id, name: team.name, parentID: team.parent_team_id ?? undefined };
 }
 
-export async function saveOwnSupabaseProfile(phoneNumber: string, hireDate: string) {
-	const { data } = await supabase().auth.getSession();
-	const accountID = data.session?.user.id;
-	if (!accountID) throw new Error('sign in first');
+export type SavedMemberProfile = { phoneNumber: string; hireDate: string };
 
-	const saved = await supabase()
-		.from('member')
-		.update({ phone_number: phoneNumber || null, joined_at: hireDate || null })
-		.eq('user_id', accountID)
-		.select('phone_number, joined_at')
-		.single();
-	if (saved.error) throw new Error(saved.error.message);
+function savedMemberProfileOf(value: unknown): SavedMemberProfile {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		throw new Error('save_own_member_profile answered with no member profile');
+	}
+	const fields = value as Record<string, unknown>;
 	return {
-		phoneNumber: saved.data.phone_number ?? '',
-		hireDate: saved.data.joined_at ? String(saved.data.joined_at).slice(0, 10) : '',
+		phoneNumber: typeof fields.phoneNumber === 'string' ? fields.phoneNumber : '',
+		hireDate: typeof fields.hireDate === 'string' ? fields.hireDate : '',
 	};
+}
+
+export async function saveOwnSupabaseProfile(
+	phoneNumber: string,
+	hireDate: string,
+): Promise<SavedMemberProfile> {
+	const saved = await supabase().rpc('save_own_member_profile', {
+		new_phone_number: phoneNumber || null,
+		new_hire_date: hireDate || null,
+	});
+	if (saved.error) throw new Error(saved.error.message);
+	return savedMemberProfileOf(saved.data);
 }
