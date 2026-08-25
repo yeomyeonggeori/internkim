@@ -49,7 +49,15 @@ GROUPS = [
     Group(
         "web",
         ["web/*"],
-        [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test", "tests/unit"]],
+        [
+            BUN_INSTALL,
+            ["bun", "run", "check"],
+            ["bun", "test", "tests/unit"],
+            # Only the Cloudflare build reads what a route exports, and a route that
+            # exports a helper is refused there and nowhere else. build:board uses the
+            # static adapter, which never looks.
+            ["bun", "run", "build"],
+        ],
         working_directory="web",
     ),
     Group(
