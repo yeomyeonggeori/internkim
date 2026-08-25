@@ -18,9 +18,6 @@ const (
 	mailNotifyLongest  = 80
 )
 
-// Mail has no arrival this device can be told about: the mailbox is somebody
-// else's server and it is read when somebody asks. So it is polled, and the
-// mark is what keeps a poll from announcing an inbox that was already read.
 func (service *Service) keepMailAnnounced(ctx context.Context) {
 	for {
 		select {
@@ -71,7 +68,6 @@ func (service *Service) announceMailFor(ctx context.Context, client *centralplan
 		return
 	}
 	newest := mailNotifyNewestUID(answered.Messages)
-	// A first look adopts the inbox rather than announcing everything in it.
 	if !marked {
 		if errorValue := service.writeMailNotifyMark(ctx, actorEmail, newest); errorValue != nil {
 			log.Printf("mail notify: the first mark for %s was not kept: %v", actorEmail, errorValue)
@@ -109,8 +105,6 @@ func mailNotifyNotification(arrived []mail.MessageResponse, externalID string) c
 	}
 }
 
-// Unread only: a message somebody already opened on their laptop is not news
-// to the phone in their pocket.
 func mailNotifyArrivedSince(messages []mail.MessageResponse, seenUpTo uint32) []mail.MessageResponse {
 	arrived := make([]mail.MessageResponse, 0, len(messages))
 	for _, message := range messages {
@@ -122,8 +116,6 @@ func mailNotifyArrivedSince(messages []mail.MessageResponse, seenUpTo uint32) []
 	return arrived
 }
 
-// The mark moves past everything this look saw, read or not, so a message
-// opened elsewhere is never announced later.
 func mailNotifyNewestUID(messages []mail.MessageResponse) uint32 {
 	newest := uint32(0)
 	for _, message := range messages {

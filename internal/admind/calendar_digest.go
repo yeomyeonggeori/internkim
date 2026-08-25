@@ -15,14 +15,13 @@ const (
 	calendarDigestPlatform = "mattermost"
 )
 
-// The hour belongs to the member, so this wakes every minute and asks the
-// plane whose hour it is rather than holding a copy of everyone's settings.
 func (service *Service) keepTheDayAnnounced(ctx context.Context) {
 	for {
+		now := time.Now()
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(calendarDigestInterval):
+		case <-time.After(time.Until(now.Truncate(calendarDigestInterval).Add(calendarDigestInterval))):
 		}
 		service.announceTheDayOnce(ctx, time.Now())
 	}
@@ -84,8 +83,6 @@ func (service *Service) announceTheDayTo(
 	}
 }
 
-// A digest covers the local day, so the window is midnight to midnight where
-// the company is rather than where the clock happens to be.
 func (service *Service) calendarEventsOn(ctx context.Context, local time.Time, location *time.Location) ([]calendarEvent, error) {
 	dayStart := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
 	return service.readCalendarEvents(ctx, dayStart, dayStart.AddDate(0, 0, 1))

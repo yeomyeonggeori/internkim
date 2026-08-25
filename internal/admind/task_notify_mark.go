@@ -8,9 +8,6 @@ import (
 
 const taskNotifyBaselineName = "task-notify"
 
-// What this device last told the plane about a run. A restart reads it rather
-// than notifying again for a transition it already sent, and the baseline row
-// records that the first cycle has adopted whatever was already there.
 func ensureTaskNotifySchema(ctx context.Context, database *sql.DB) error {
 	_, errorValue := database.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS task_notify_mark (
@@ -106,7 +103,6 @@ ON CONFLICT (name) DO NOTHING`, taskNotifyBaselineName, at.UTC().Format(time.RFC
 	return errorValue
 }
 
-// A run the ledger has pruned leaves a mark nothing will ever read again.
 func (service *Service) forgetStaleTaskNotifyMarks(ctx context.Context, before time.Time) error {
 	database, errorValue := service.openTaskNotifyDatabase(ctx)
 	if errorValue != nil {

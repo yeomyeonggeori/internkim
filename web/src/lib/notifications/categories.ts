@@ -15,8 +15,6 @@ export type NotificationSettings = {
 	calendarAt: string;
 };
 
-// Mail is the one that arrives all day whether or not it is worth a phone, so
-// it is the one a member turns on rather than off.
 const notifiesByDefault: Record<NotificationCategory, boolean> = {
 	message: true,
 	task: true,
@@ -41,8 +39,6 @@ export function readNotificationSettings(stored: unknown): NotificationSettings 
 	return settings;
 }
 
-// The stored shape stays flat, so a category is its own key and nothing has to
-// migrate the rows written before the settings grew a time.
 export function writeNotificationSettings(settings: NotificationSettings): Record<string, boolean | string> {
 	const stored: Record<string, boolean | string> = { calendarAt: settings.calendarAt };
 	for (const category of notificationCategories) {

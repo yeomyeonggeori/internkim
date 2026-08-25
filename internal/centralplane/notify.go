@@ -10,9 +10,6 @@ import (
 	"strings"
 )
 
-// The plane holds the push subscriptions and the per-member category
-// preferences, so a device says who to reach and what happened and lets the
-// plane decide whether anything is sent.
 type Notification struct {
 	Platform    string
 	ExternalIDs []string
@@ -23,8 +20,6 @@ type Notification struct {
 	Tag         string
 }
 
-// Told counts the members whose settings allowed the category through; reached
-// counts the devices a push service accepted. Both can be zero on a success.
 type NotifyResult struct {
 	Told      int `json:"told"`
 	Reached   int `json:"reached"`
@@ -70,8 +65,6 @@ func (client *Client) Notify(ctx context.Context, notification Notification) (No
 	return result, nil
 }
 
-// Which people asked to hear about their day at this hour. The setting is the
-// plane's, so the device asks rather than keeping a copy that would drift.
 func (client *Client) NotifyScheduleAt(ctx context.Context, platform string, at string) ([]string, error) {
 	address := strings.TrimSuffix(client.settings.AppURL, "/") +
 		"/api/agent/notify-schedule?platform=" + url.QueryEscape(platform) + "&at=" + url.QueryEscape(at)

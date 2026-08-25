@@ -15,7 +15,6 @@ insert into public.member (id, company_id, email, user_id, status) values
   ('51000000-0000-0000-0000-0000000000b2', '51000000-0000-0000-0000-0000000000a0',
    'mute-two@example.test', '51000000-0000-0000-0000-000000000002', 'active');
 
--- A company that has muted nothing hears everything.
 select is(
   (select count(*)::int from public.muted_conversation),
   0,
@@ -37,7 +36,6 @@ select is(
   'muting twice is muting once'
 );
 
--- One member's silence is not another's.
 do $$
 begin
   set local role authenticated;

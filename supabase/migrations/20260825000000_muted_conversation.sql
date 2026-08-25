@@ -1,7 +1,3 @@
--- A member who is in every channel is told about every channel. Muting is per
--- conversation and per member, and it is a row only when muted: the default is
--- that a conversation notifies, so an empty table is a company that hears
--- everything.
 create table public.muted_conversation (
   member_id uuid not null references public.member on delete cascade,
   conversation_id text not null,

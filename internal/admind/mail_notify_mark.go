@@ -5,8 +5,6 @@ import (
 	"database/sql"
 )
 
-// The newest message this device has already told somebody about. Without it a
-// poller announces the whole inbox every time it wakes.
 func ensureMailNotifyMarkTable(ctx context.Context, database *sql.DB) error {
 	_, errorValue := database.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS mail_notify_mark (
