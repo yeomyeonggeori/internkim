@@ -3,9 +3,16 @@ import type { Locale } from '../../lib/i18n/locale.svelte';
 import { fetchWebSessionEmail } from '$lib/web-session';
 import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
 import { supabase } from '$lib/supabase';
-import { apiErrorMessage, fetchAdminSession, saveOrgGroups, saveOrgProfiles } from '../admin/admin-api';
+import { apiErrorMessage, fetchAdminSession } from '../admin/admin-api';
 import { adminSessionRole, canManageOrganization } from '../admin/admin-role-policy';
-import { fetchOrganizationDirectory, organizationApiErrorMessage, saveOwnOrganizationProfile, type OwnOrganizationProfile } from './organization-api';
+import {
+	fetchOrganizationDirectory,
+	organizationApiErrorMessage,
+	saveOrganizationGroups,
+	saveOrganizationProfiles,
+	saveOwnOrganizationProfile,
+	type OwnOrganizationProfile
+} from './organization-api';
 import { lastSeenDirectory, rememberDirectory } from './organization-last-seen';
 import { filterOrganizationRecords, organizationFilterOptions, unassignedGroupID } from './organization-directory-model';
 import { organizationGroupSavePlan } from './organization-group-controller';
@@ -211,7 +218,7 @@ export class OrganizationDirectoryController {
 		this.savingProfileUserIDs = markOrganizationProfileSaving(this.savingProfileUserIDs, memberID);
 		this.errorMessage = '';
 		try {
-			this.applyUsersResponse(await saveOrgProfiles(this.adminBaseURL, [organizationProfileSavePayload(record)], this.adminPageText.messages.userSaveError));
+			this.applyUsersResponse(await saveOrganizationProfiles(this.adminBaseURL, [organizationProfileSavePayload(record)], this.adminPageText.messages.userSaveError));
 			this.removeEditingRecord(memberID);
 			this.editingUserID = '';
 		} catch (error) {
@@ -313,7 +320,7 @@ export class OrganizationDirectoryController {
 		this.isSavingGroups = true;
 		this.errorMessage = '';
 		try {
-			this.applyUsersResponse(await saveOrgGroups(this.adminBaseURL, nextGroups, this.adminPageText.messages.userSaveError), nextGroups);
+			this.applyUsersResponse(await saveOrganizationGroups(this.adminBaseURL, nextGroups, this.adminPageText.messages.userSaveError), nextGroups);
 			return true;
 		} catch (error) {
 			this.errorMessage = apiErrorMessage(error, this.adminPageText.messages.userSaveError);
