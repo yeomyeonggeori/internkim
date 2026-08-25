@@ -17,6 +17,7 @@
 	import HandshakeIcon from '@lucide/svelte/icons/handshake';
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 	import MailIcon from '@lucide/svelte/icons/mail';
+	import MessagesSquareIcon from '@lucide/svelte/icons/messages-square';
 	import NetworkIcon from '@lucide/svelte/icons/network';
 	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import type { WebAuthSession } from '$lib/web-auth-session';
@@ -27,13 +28,14 @@
 	const sidebar = useSidebar();
 
 	const mobilePrimaryItems = $derived<AppMobileNavigationItem[]>([
-		{ href: appNavigation.link('/mail/'), label: text.mail, icon: MailIcon },
+		{ href: appNavigation.link('/messenger/'), label: text.messenger, icon: MessagesSquareIcon },
 		{ href: appNavigation.link('/attendance/'), label: text.attendance, icon: ClipboardCheckIcon },
 		{ href: appNavigation.link('/flow/'), label: text.flow, icon: ListChecksIcon },
 		{ href: appNavigation.link('/calendar/'), label: text.calendar, icon: CalendarDaysIcon }
 	]);
 
 	const mobileMoreItems = $derived<AppMobileNavigationItem[]>([
+		{ href: appNavigation.link('/mail/'), label: text.mail, icon: MailIcon },
 		{ href: appNavigation.link('/memory/'), label: text.memory, icon: NetworkIcon },
 		{ href: appNavigation.link('/crm/'), label: text.crm, icon: HandshakeIcon },
 		{ href: appNavigation.link('/organization/'), label: text.organization, icon: UsersRoundIcon },
