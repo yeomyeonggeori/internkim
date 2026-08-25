@@ -54,10 +54,10 @@ export async function enableOrganizationEditMode(page: Page): Promise<void> {
 	await expect(page.getByRole('button', { name: '조직 추가' })).toBeVisible();
 }
 
-export async function openCardEditor(page: Page, userID: string): Promise<Locator> {
-	await page.getByTestId(`organization-person-node-${userID}`).click();
+export async function openCardEditor(page: Page, memberID: string): Promise<Locator> {
+	await page.getByTestId(`organization-person-node-${memberID}`).click();
 	await page.getByTestId('organization-person-detail-panel').getByRole('button', { name: '수정하기' }).click();
-	const editor = page.getByTestId(`organization-profile-${userID}`);
+	const editor = page.getByTestId(`organization-profile-${memberID}`);
 	await expect(editor.getByLabel('직책', { exact: true })).toBeVisible();
 	await expect(editor.getByRole('button', { name: '취소' })).toBeVisible();
 	await expect(editor.getByRole('button', { name: '저장' })).toBeVisible();
@@ -96,9 +96,9 @@ function profileTestIDToPersonNodeTestID(testID: string): string {
 }
 
 export function applySavedProfiles(response: UsersResponse, profiles: OrgProfileUpdate[]): UsersResponse {
-	const profilesByUserID = new Map(profiles.map((profile) => [profile.userID, profile]));
+	const profilesByUserID = new Map(profiles.map((profile) => [profile.memberID, profile]));
 	return {
 		...response,
-		records: response.records.map((record) => ({ ...record, ...profilesByUserID.get(record.userID) }))
+		records: response.records.map((record) => ({ ...record, ...profilesByUserID.get(record.memberID) }))
 	};
 }

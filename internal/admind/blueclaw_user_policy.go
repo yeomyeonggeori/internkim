@@ -36,7 +36,7 @@ func (service *Service) withBlueclawCircles(ctx context.Context, responseBody []
 		email := strings.ToLower(strings.TrimSpace(usersResponse.Records[index].Email))
 		usersResponse.Records[index].Circles = normalizeAdminUserCircles(circlesByEmail[email], usersResponse.Records[index].Role)
 		profile := profilesByEmail[email]
-		usersResponse.Records[index].UserID = firstNonEmpty(profile.PersonID, usersResponse.Records[index].UserID)
+		usersResponse.Records[index].MemberID = firstNonEmpty(profile.PersonID, usersResponse.Records[index].MemberID)
 		if profile.Note != "" {
 			usersResponse.Records[index].Note = profile.Note
 		}

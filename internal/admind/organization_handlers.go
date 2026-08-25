@@ -21,7 +21,7 @@ func (errorValue organizationProfileInvalidRequestError) Is(target error) bool {
 }
 
 type organizationProfileRequest struct {
-	UserID       string  `json:"userID"`
+	MemberID     string  `json:"memberID"`
 	Email        string  `json:"email"`
 	JobTitle     *string `json:"jobTitle"`
 	GroupID      *string `json:"groupID"`
@@ -105,10 +105,10 @@ func validateOrganizationSupervisorGraph(existingProfiles []organizationProfile,
 	supervisorIDByUserID := map[string]string{}
 	setSupervisor := func(profile organizationProfile) {
 		normalizedProfile := normalizeOrganizationProfile(profile)
-		if normalizedProfile.UserID == "" {
+		if normalizedProfile.MemberID == "" {
 			return
 		}
-		supervisorIDByUserID[normalizedProfile.UserID] = normalizedProfile.SupervisorID
+		supervisorIDByUserID[normalizedProfile.MemberID] = normalizedProfile.SupervisorID
 	}
 	for _, profile := range existingProfiles {
 		setSupervisor(profile)
@@ -144,15 +144,15 @@ func validateOrganizationSupervisorChain(userID string, supervisorIDByUserID map
 }
 
 func organizationProfileForRequest(requestProfile organizationProfileRequest, profilesByUserID map[string]organizationProfile, profilesByEmail map[string]organizationProfile) organizationProfile {
-	profile, found := organizationProfileForUser(adminUserMutation{UserID: requestProfile.UserID, Email: requestProfile.Email}, profilesByUserID, profilesByEmail)
+	profile, found := organizationProfileForUser(adminUserMutation{MemberID: requestProfile.MemberID, Email: requestProfile.Email}, profilesByUserID, profilesByEmail)
 	if !found {
 		profile = organizationProfile{
 			EmploymentStatus:      organizationEmploymentStatusActive,
 			IsOrganizationVisible: true,
 		}
 	}
-	if strings.TrimSpace(requestProfile.UserID) != "" {
-		profile.UserID = requestProfile.UserID
+	if strings.TrimSpace(requestProfile.MemberID) != "" {
+		profile.MemberID = requestProfile.MemberID
 	}
 	if strings.TrimSpace(requestProfile.Email) != "" {
 		profile.Email = requestProfile.Email

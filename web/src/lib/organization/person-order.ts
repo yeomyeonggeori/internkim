@@ -5,12 +5,12 @@ export type OrganizationSortablePerson = {
 };
 
 export type OrganizationHierarchyPerson = OrganizationSortablePerson & {
-	userID: string;
+	memberID: string;
 	supervisorID?: string;
 };
 
 export function orderOrganizationPeopleByHierarchy<T extends OrganizationHierarchyPerson>(people: T[]): T[] {
-	const personByUserID = new Map(people.map((person) => [person.userID, person]));
+	const personByUserID = new Map(people.map((person) => [person.memberID, person]));
 	const directReportsBySupervisorID = new Map<string, T[]>();
 	const roots: T[] = [];
 
@@ -27,10 +27,10 @@ export function orderOrganizationPeopleByHierarchy<T extends OrganizationHierarc
 	const orderedPeople: T[] = [];
 	const visitedUserIDs = new Set<string>();
 	const appendPersonAndDirectReports = (person: T): void => {
-		if (visitedUserIDs.has(person.userID)) return;
-		visitedUserIDs.add(person.userID);
+		if (visitedUserIDs.has(person.memberID)) return;
+		visitedUserIDs.add(person.memberID);
 		orderedPeople.push(person);
-		const directReports = [...(directReportsBySupervisorID.get(person.userID) ?? [])].sort(compareOrganizationPeople);
+		const directReports = [...(directReportsBySupervisorID.get(person.memberID) ?? [])].sort(compareOrganizationPeople);
 		for (const directReport of directReports) appendPersonAndDirectReports(directReport);
 	};
 

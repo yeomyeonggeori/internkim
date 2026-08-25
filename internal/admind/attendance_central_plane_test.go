@@ -9,7 +9,7 @@ import (
 
 func TestClockingInSurvivesAPlaneThatIsNotThere(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	forgetCentralPlaneForTest()
+	forgetCentralPlaneForTest(service)
 	service.Configuration.CentralPlaneAppURL = "http://127.0.0.1:1"
 	service.Configuration.CentralPlaneProjectURL = "http://127.0.0.1:1"
 	service.Configuration.CentralPlanePublishableKey = "publishable"
@@ -48,13 +48,13 @@ func TestClockingInSurvivesAPlaneThatIsNotThere(t *testing.T) {
 
 func TestNothingIsSentWhenNoPlaneIsConfigured(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	forgetCentralPlaneForTest()
+	forgetCentralPlaneForTest(service)
 	if service.centralPlane() != nil {
 		t.Fatal("without settings there is nowhere to send anything")
 	}
 }
 
-func forgetCentralPlaneForTest() {
-	centralPlaneOnce = sync.Once{}
-	centralPlaneClient = nil
+func forgetCentralPlaneForTest(service *Service) {
+	service.centralPlaneOnce = sync.Once{}
+	service.centralPlaneClient = nil
 }

@@ -47,7 +47,7 @@ func (service *Service) resolveUserActorFromUserRecords(ctx context.Context, ema
 
 func userActorFromAdminUserRecord(record adminUserMutation) userActor {
 	return userActor{
-		UserID: strings.TrimSpace(record.UserID),
+		UserID: strings.TrimSpace(record.MemberID),
 		Email:  strings.ToLower(strings.TrimSpace(record.Email)),
 		Name:   strings.TrimSpace(record.Name),
 		Role:   normalizeAdminUserRole(record.Role),

@@ -14,6 +14,7 @@ import (
 )
 
 func (service *Service) centralPlaneAgentKey() string {
+	service.publishCentralPlaneAppURL()
 	if stored := readTrimmedFile(service.Configuration.CentralPlaneAgentKeyPath); stored != "" {
 		return stored
 	}
@@ -75,6 +76,27 @@ func (service *Service) askCentralPlaneForAgentKey() (string, error) {
 		return "", fmt.Errorf("the central plane issued an empty key")
 	}
 	return strings.TrimSpace(issued.APIKey), nil
+}
+
+func (service *Service) publishCentralPlaneAppURL() {
+	appURL := strings.TrimRight(strings.TrimSpace(service.Configuration.CentralPlaneAppURL), "/")
+	if appURL == "" {
+		return
+	}
+	path := service.Configuration.CentralPlaneAppURLPath
+	if strings.TrimSpace(path) == "" {
+		return
+	}
+	if readTrimmedFile(path) == appURL {
+		return
+	}
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
+		log.Printf("the company address could not be written for the users sync: %v", errorValue)
+		return
+	}
+	if errorValue := os.WriteFile(path, []byte(appURL+"\n"), 0o644); errorValue != nil {
+		log.Printf("the company address could not be written for the users sync: %v", errorValue)
+	}
 }
 
 func writeAgentKeyFile(path string, key string) error {

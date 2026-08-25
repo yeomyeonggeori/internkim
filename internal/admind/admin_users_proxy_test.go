@@ -19,7 +19,7 @@ func TestAdminUserProxyGetMergesOrganizationMetadata(t *testing.T) {
 		}
 		switch {
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
 		case isBlueclawPolicyGet(request):
@@ -30,7 +30,7 @@ func TestAdminUserProxyGetMergesOrganizationMetadata(t *testing.T) {
 		}
 	})
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{{
-		UserID:                "user-member",
+		MemberID:              "user-member",
 		Email:                 "member@example.com",
 		JobTitle:              "Design Lead",
 		GroupID:               "design",
@@ -81,7 +81,7 @@ func TestAdminUsersCachePreservesIncludePolicyScope(t *testing.T) {
 				}
 				switch {
 				case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-					return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
+					return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
 				case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 					return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
 				case isBlueclawPolicyGet(request):
@@ -142,7 +142,7 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 		}
 		switch {
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"oldhandle","name":"Old Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"oldhandle"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","handle":"oldhandle","name":"Old Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"oldhandle"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
@@ -170,7 +170,7 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 			if errorValue := json.NewDecoder(request.Body).Decode(&pagesPayload); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"newhandle","name":"New Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"newhandle"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","handle":"newhandle","name":"New Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"newhandle"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, `{"people":[{"personID":"user-member","emails":["member@example.com"],"circles":["staff"]}]}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload":
@@ -181,7 +181,7 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 		}
 	})
 
-	request := httptest.NewRequest(http.MethodPost, "/admin/api/users", strings.NewReader(`{"userID":"user-member","handle":"newhandle","name":"New Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"oldhandle","note":"Needs HR compensation follow-up"}`))
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/users", strings.NewReader(`{"memberID":"user-member","handle":"newhandle","name":"New Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"oldhandle","note":"Needs HR compensation follow-up"}`))
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
 	response := httptest.NewRecorder()
 	service.router().ServeHTTP(response, request)
@@ -194,7 +194,10 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 	if mattermostPatch["username"] != "newhandle" || mattermostPatch["first_name"] != "New" || mattermostPatch["last_name"] != "Name" || mattermostPatch["nickname"] != "New" {
 		t.Fatalf("mattermost patch = %#v", mattermostPatch)
 	}
-	if pagesPayload["userID"] != "user-member" || pagesPayload["handle"] != "newhandle" || pagesPayload["name"] != "New Name" {
+	if _, carriesAPersonID := pagesPayload["memberID"]; carriesAPersonID {
+		t.Fatalf("the fleet account list is not where a person's identity lives: %#v", pagesPayload)
+	}
+	if pagesPayload["handle"] != "newhandle" || pagesPayload["name"] != "New Name" {
 		t.Fatalf("pages payload = %#v", pagesPayload)
 	}
 	if pagesPayload["note"] != "Needs HR compensation follow-up" {
@@ -211,13 +214,13 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 		}
 		switch {
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member"}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, `{"people":[{"personID":"user-member","displayName":"Member User","emails":["member@example.com"],"circles":["staff"],"isAdmin":false,"note":"Existing note"}],"channels":[],"circleSync":{"mattermostPrivateChannels":[{"circleID":"staff","channelName":"circle-staff"}]},"retention":{"rawEventDays":60}}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload":
@@ -237,7 +240,7 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 		}
 	})
 
-	requestBody := `{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member","circles":["staff"],"note":"Needs HR compensation follow-up"}`
+	requestBody := `{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member","circles":["staff"],"note":"Needs HR compensation follow-up"}`
 	request := httptest.NewRequest(http.MethodPost, "/admin/api/users", strings.NewReader(requestBody))
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
 	response := httptest.NewRecorder()
@@ -251,7 +254,7 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 }
 
 func TestOrganizationUserMutationCleanupFailurePreservesSuccessProxy(t *testing.T) {
-	sourceResponseBody := `{"records":[{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}],"source":"pages"}`
+	sourceResponseBody := `{"records":[{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}],"source":"pages"}`
 	var service *Service
 	service = newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
 		if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
@@ -259,7 +262,7 @@ func TestOrganizationUserMutationCleanupFailurePreservesSuccessProxy(t *testing.
 		}
 		switch {
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","email":"member@example.com","role":"member","mattermostUserID":"user-1"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","email":"member@example.com","role":"member","mattermostUserID":"user-1"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch" && request.Method == http.MethodPut:
@@ -277,7 +280,7 @@ func TestOrganizationUserMutationCleanupFailurePreservesSuccessProxy(t *testing.
 	})
 	failOrganizationUserMutationCompletion(t, service)
 
-	requestBody := strings.NewReader(`{"userID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}`)
+	requestBody := strings.NewReader(`{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}`)
 	responseRecorder := httptest.NewRecorder()
 	service.proxyUsers(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users", requestBody))
 
@@ -310,12 +313,16 @@ func newAdminUsersProxyTestService(t *testing.T, transport roundTripFunc) *Servi
 		AdminUIPath:                 t.TempDir(),
 	})
 	service.HTTPClient = &http.Client{Transport: transport}
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	return service
 }
 
 func adminUsersProxyCommonMattermostResponse(t *testing.T, request *http.Request) (*http.Response, bool) {
 	t.Helper()
 	switch {
+	case isCompanyDirectoryRequest(request):
+		response, _ := companyDirectoryResponse(t, request)
+		return response, true
 	case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 		return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), true
 	case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":

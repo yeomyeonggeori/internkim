@@ -4,34 +4,29 @@ import (
 	"context"
 	"log"
 	"strings"
-	"sync"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
-var (
-	centralPlaneOnce   sync.Once
-	centralPlaneClient *centralplane.Client
-)
-
 func (service *Service) centralPlane() *centralplane.Client {
-	centralPlaneOnce.Do(func() {
+	service.centralPlaneOnce.Do(func() {
 		agentKey := service.centralPlaneAgentKey()
 		settings := centralplane.Settings{
 			AppURL:         service.Configuration.CentralPlaneAppURL,
 			AgentAPIKey:    agentKey,
 			ProjectURL:     service.Configuration.CentralPlaneProjectURL,
 			PublishableKey: service.Configuration.CentralPlanePublishableKey,
+			HTTPClient:     service.HTTPClient,
 		}
 		if !settings.Configured() {
 			log.Printf("attendance stays on this device: the central plane is not configured")
 			return
 		}
-		centralPlaneClient = centralplane.New(settings)
+		service.centralPlaneClient = centralplane.New(settings)
 		log.Printf("attendance also goes to the central plane at %s", settings.ProjectURL)
 	})
-	return centralPlaneClient
+	return service.centralPlaneClient
 }
 
 func (service *Service) alsoRecordAttendanceCentrally(event attendanceEvent) {

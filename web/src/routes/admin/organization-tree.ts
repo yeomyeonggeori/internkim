@@ -8,7 +8,7 @@ export type OrgNode = {
 
 export function orgForest(userRecords: UserRecord[]): OrgNode[] {
 	const reportsBySupervisor = new Map<string, UserRecord[]>();
-	const knownID = new Set(userRecords.map((record) => record.userID));
+	const knownID = new Set(userRecords.map((record) => record.memberID));
 	for (const record of userRecords) {
 		const supervisorID = record.supervisorID?.trim() ?? '';
 		const key = supervisorID && knownID.has(supervisorID) ? supervisorID : '';
@@ -17,32 +17,32 @@ export function orgForest(userRecords: UserRecord[]): OrgNode[] {
 	}
 	const placed = new Set<string>();
 	const buildNode = (record: UserRecord): OrgNode => {
-		placed.add(record.userID);
-		const reports = (reportsBySupervisor.get(record.userID) ?? [])
-			.filter((report) => !placed.has(report.userID))
+		placed.add(record.memberID);
+		const reports = (reportsBySupervisor.get(record.memberID) ?? [])
+			.filter((report) => !placed.has(report.memberID))
 			.sort(byHireDate)
 			.map(buildNode);
 		return { record, reports };
 	};
 	const roots = (reportsBySupervisor.get('') ?? []).sort(byHireDate).map(buildNode);
-	for (const record of userRecords.filter((candidate) => !placed.has(candidate.userID)).sort(byHireDate)) {
-		if (!placed.has(record.userID)) roots.push(buildNode(record));
+	for (const record of userRecords.filter((candidate) => !placed.has(candidate.memberID)).sort(byHireDate)) {
+		if (!placed.has(record.memberID)) roots.push(buildNode(record));
 	}
 	return roots;
 }
 
 export function supervisorCandidatesForRecord(userRecords: UserRecord[], record: UserRecord): UserRecord[] {
-	const blockedUserIDs = new Set([record.userID, ...descendantUserIDs(userRecords, record.userID)]);
-	return userRecords.filter((candidate) => !blockedUserIDs.has(candidate.userID)).sort(byHireDate);
+	const blockedUserIDs = new Set([record.memberID, ...descendantUserIDs(userRecords, record.memberID)]);
+	return userRecords.filter((candidate) => !blockedUserIDs.has(candidate.memberID)).sort(byHireDate);
 }
 
 export function isSupervisorCandidateForRecord(userRecords: UserRecord[], record: UserRecord): boolean {
 	const supervisorID = record.supervisorID?.trim() ?? '';
 	if (!supervisorID) return true;
-	return supervisorCandidatesForRecord(userRecords, record).some((candidate) => candidate.userID === supervisorID);
+	return supervisorCandidatesForRecord(userRecords, record).some((candidate) => candidate.memberID === supervisorID);
 }
 
-function descendantUserIDs(userRecords: UserRecord[], userID: string): string[] {
+function descendantUserIDs(userRecords: UserRecord[], memberID: string): string[] {
 	const reportsBySupervisor = new Map<string, UserRecord[]>();
 	for (const record of userRecords) {
 		const supervisorID = record.supervisorID?.trim() ?? '';
@@ -53,12 +53,12 @@ function descendantUserIDs(userRecords: UserRecord[], userID: string): string[] 
 	const descendants: string[] = [];
 	const visit = (supervisorID: string) => {
 		for (const report of reportsBySupervisor.get(supervisorID) ?? []) {
-			if (descendants.includes(report.userID)) continue;
-			descendants.push(report.userID);
-			visit(report.userID);
+			if (descendants.includes(report.memberID)) continue;
+			descendants.push(report.memberID);
+			visit(report.memberID);
 		}
 	};
-	visit(userID);
+	visit(memberID);
 	return descendants;
 }
 

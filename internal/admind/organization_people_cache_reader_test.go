@@ -11,14 +11,14 @@ import (
 func TestOrganizationPeopleCacheRebuildsLegacyUnsafePayloads(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
-	legacyRecordJSON := `{"userID":"user-1","email":"one@example.com","name":"Legacy","role":"admin","circles":["staff","admin"],"note":"legacy note","mattermostUserID":"mattermost-1","mattermostUsername":"legacy"}`
+	legacyRecordJSON := `{"memberID":"user-1","email":"one@example.com","name":"Legacy","role":"admin","circles":["staff","admin"],"note":"legacy note","mattermostUserID":"mattermost-1","mattermostUsername":"legacy"}`
 	seedLegacyOrganizationPeopleCacheEntry(t, service, organizationPeopleCacheKey{Kind: organizationPeopleCacheList, Key: organizationPeopleCacheSingletonKey}, `{"records":[`+legacyRecordJSON+`]}`)
 	seedLegacyOrganizationPeopleCacheEntry(t, service, organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "user-1"}, `{"record":`+legacyRecordJSON+`}`)
 	loadCount := 0
 	users, cachePolicy, errorValue := service.readCachedOrganizationUserList(ctx, func(context.Context) (pagesUsersResponse, error) {
 		loadCount++
 		return pagesUsersResponse{Records: []adminUserMutation{{
-			UserID:             "user-1",
+			MemberID:           "user-1",
 			Email:              "one@example.com",
 			Name:               "Fresh",
 			Role:               "member",
@@ -63,7 +63,7 @@ func TestOrganizationPeopleCacheListMissAndHitReturnSameSafeProjection(t *testin
 		loadCount++
 		return pagesUsersResponse{
 			Records: []adminUserMutation{{
-				UserID:                 "user-1",
+				MemberID:               "user-1",
 				Handle:                 "user-one",
 				Name:                   "User One",
 				Email:                  "one@example.com",
@@ -119,7 +119,7 @@ func TestOrganizationPeopleCacheExcludesForbiddenFields(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	record := adminUserMutation{
-		UserID:                 "user-1",
+		MemberID:               "user-1",
 		Handle:                 "user-one",
 		Name:                   "User One",
 		Email:                  "one@example.com",

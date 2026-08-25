@@ -35,7 +35,7 @@ async function mockAdminPage(page: Page, role: MockAdminRole, options: MockAdmin
 			json: {
 				records: [
 					{
-						userID: 'admin-user',
+						memberID: 'admin-user',
 						handle: 'adminuser',
 						name: 'Admin User',
 						email: 'admin@example.com',

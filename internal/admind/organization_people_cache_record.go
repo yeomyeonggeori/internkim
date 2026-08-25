@@ -1,7 +1,7 @@
 package admind
 
 type organizationCachedUserRecord struct {
-	UserID                string   `json:"userID,omitempty"`
+	MemberID              string   `json:"memberID,omitempty"`
 	Handle                string   `json:"handle,omitempty"`
 	Name                  string   `json:"name,omitempty"`
 	Email                 string   `json:"email"`
@@ -20,7 +20,7 @@ type organizationCachedUserRecord struct {
 
 func newOrganizationCachedUserRecord(record adminUserMutation) organizationCachedUserRecord {
 	return organizationCachedUserRecord{
-		UserID:                record.UserID,
+		MemberID:              record.MemberID,
 		Handle:                record.Handle,
 		Name:                  record.Name,
 		Email:                 record.Email,
@@ -39,7 +39,7 @@ func newOrganizationCachedUserRecord(record adminUserMutation) organizationCache
 }
 
 func applyOrganizationCachedUserRecord(record adminUserMutation, cachedRecord organizationCachedUserRecord) adminUserMutation {
-	record.UserID = cachedRecord.UserID
+	record.MemberID = cachedRecord.MemberID
 	record.Handle = cachedRecord.Handle
 	record.Name = cachedRecord.Name
 	record.Email = cachedRecord.Email

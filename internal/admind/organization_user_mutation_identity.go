@@ -9,37 +9,28 @@ func (service *Service) resolveLocalOrganizationMutationIdentity(
 	ctx context.Context,
 	payload adminUserMutation,
 ) (adminUserMutation, organizationPersonIdentity, error) {
-	userID, errorValue := service.localBlueclawPersonIDByEmail(ctx, payload.Email)
+	memberID, errorValue := service.personIDForMutation(ctx, payload.Email, payload.Name)
 	if errorValue != nil {
 		return payload, organizationPersonIdentity{}, errorValue
 	}
-	if userID == "" {
-		userID = strings.TrimSpace(payload.UserID)
-	}
-	if userID == "" {
-		userID = newInternKimUserID()
-	}
-	payload.UserID = userID
-	return payload, organizationPersonIdentity{UserID: userID, Email: payload.Email}, nil
+	payload.MemberID = memberID
+	return payload, organizationPersonIdentity{MemberID: memberID, Email: payload.Email}, nil
 }
 
-func (service *Service) resolveLocalOrganizationRemovalIdentity(ctx context.Context, email string, fallbackUserID string) (organizationPersonIdentity, error) {
+func (service *Service) resolveLocalOrganizationRemovalIdentity(ctx context.Context, email string, fallbackMemberID string) (organizationPersonIdentity, error) {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	userID, errorValue := service.localBlueclawPersonIDByEmail(ctx, normalizedEmail)
+	memberID, errorValue := service.memberIDOrLocalPersonID(ctx, normalizedEmail)
 	if errorValue != nil {
-		return organizationPersonIdentity{}, errorValue
+		memberID = strings.TrimSpace(fallbackMemberID)
 	}
-	if userID == "" {
-		userID = strings.TrimSpace(fallbackUserID)
-	}
-	return organizationPersonIdentity{UserID: userID, Email: normalizedEmail}, nil
+	return organizationPersonIdentity{MemberID: memberID, Email: normalizedEmail}, nil
 }
 
-func organizationProxyMutationIdentities(sourceUserID string, canonicalIdentity organizationPersonIdentity) []organizationPersonIdentity {
+func organizationProxyMutationIdentities(sourceMemberID string, canonicalIdentity organizationPersonIdentity) []organizationPersonIdentity {
 	identities := []organizationPersonIdentity{canonicalIdentity}
-	normalizedSourceUserID := strings.TrimSpace(sourceUserID)
-	if normalizedSourceUserID == "" || normalizedSourceUserID == strings.TrimSpace(canonicalIdentity.UserID) {
+	normalizedSourceMemberID := strings.TrimSpace(sourceMemberID)
+	if normalizedSourceMemberID == "" || normalizedSourceMemberID == strings.TrimSpace(canonicalIdentity.MemberID) {
 		return identities
 	}
-	return append(identities, organizationPersonIdentity{UserID: normalizedSourceUserID, Email: canonicalIdentity.Email})
+	return append(identities, organizationPersonIdentity{MemberID: normalizedSourceMemberID, Email: canonicalIdentity.Email})
 }

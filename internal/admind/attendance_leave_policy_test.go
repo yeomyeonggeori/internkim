@@ -178,7 +178,7 @@ func TestLeavePolicyAdminAPIRoundtrip(t *testing.T) {
 func TestLeavePolicyAdminAPIImmediatelyAdjustsCurrentGrant(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	if errorValue := service.writeOrganizationProfiles(t.Context(), []organizationProfile{{
-		UserID:   "user-1",
+		MemberID: "user-1",
 		Email:    "staff@example.com",
 		HireDate: "2026-01-01",
 	}}); errorValue != nil {

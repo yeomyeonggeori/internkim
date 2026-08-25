@@ -153,7 +153,7 @@ func TestOrganizationPeopleCacheStoreRejectsStaleConditionalWrite(t *testing.T) 
 		t.Fatal(errorValue)
 	}
 
-	written, errorValue := service.writeOrganizationPeopleCachePayloadIfCurrent(ctx, key, snapshots[key].Revision, "", []byte(`{"userID":"user-1"}`))
+	written, errorValue := service.writeOrganizationPeopleCachePayloadIfCurrent(ctx, key, snapshots[key].Revision, "", []byte(`{"memberID":"user-1"}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -180,7 +180,7 @@ func TestOrganizationPeopleCacheStoreWritesAfterMutationCompletes(t *testing.T) 
 		t.Fatal(errorValue)
 	}
 
-	written, errorValue := service.writeOrganizationPeopleCachePayloadIfCurrent(ctx, key, snapshots[key].Revision, "source-1", []byte(`{"userID":"user-1"}`))
+	written, errorValue := service.writeOrganizationPeopleCachePayloadIfCurrent(ctx, key, snapshots[key].Revision, "source-1", []byte(`{"memberID":"user-1"}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -191,7 +191,7 @@ func TestOrganizationPeopleCacheStoreWritesAfterMutationCompletes(t *testing.T) 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !reloaded[key].Found || string(reloaded[key].PayloadJSON) != `{"userID":"user-1"}` {
+	if !reloaded[key].Found || string(reloaded[key].PayloadJSON) != `{"memberID":"user-1"}` {
 		t.Fatalf("snapshot = %#v", reloaded[key])
 	}
 }
@@ -216,7 +216,7 @@ func TestOrganizationPeopleCacheStoreKeepsOverlappingMutationDirty(t *testing.T)
 	if !snapshots[key].IsDirty {
 		t.Fatal("expected overlapping mutation to remain dirty")
 	}
-	written, errorValue := service.writeOrganizationPeopleCachePayloadIfCurrent(ctx, key, snapshots[key].Revision, "", []byte(`{"userID":"user-1"}`))
+	written, errorValue := service.writeOrganizationPeopleCachePayloadIfCurrent(ctx, key, snapshots[key].Revision, "", []byte(`{"memberID":"user-1"}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -265,10 +265,10 @@ func TestOrganizationPeopleCacheBatchWriteKeepsPerKeyGuards(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	writes := []organizationPeopleCacheWrite{
-		{Key: currentKey, Revision: 0, PayloadJSON: []byte(`{"record":{"userID":"current"}}`)},
-		{Key: staleKey, Revision: 0, PayloadJSON: []byte(`{"record":{"userID":"stale"}}`)},
-		{Key: dirtyKey, Revision: 0, PayloadJSON: []byte(`{"record":{"userID":"dirty"}}`)},
-		{Key: activeKey, Revision: 0, PayloadJSON: []byte(`{"record":{"userID":"active"}}`)},
+		{Key: currentKey, Revision: 0, PayloadJSON: []byte(`{"record":{"memberID":"current"}}`)},
+		{Key: staleKey, Revision: 0, PayloadJSON: []byte(`{"record":{"memberID":"stale"}}`)},
+		{Key: dirtyKey, Revision: 0, PayloadJSON: []byte(`{"record":{"memberID":"dirty"}}`)},
+		{Key: activeKey, Revision: 0, PayloadJSON: []byte(`{"record":{"memberID":"active"}}`)},
 	}
 	writtenByKey, errorValue := service.writeOrganizationPeopleCachePayloadsIfCurrent(ctx, writes)
 	if errorValue != nil {
@@ -306,8 +306,8 @@ func TestOrganizationPeopleCacheWritesMissesInSingleTransaction(t *testing.T) {
 	users := pagesUsersResponse{Records: make([]adminUserMutation, 0, 50)}
 	for index := range 50 {
 		users.Records = append(users.Records, adminUserMutation{
-			UserID: fmt.Sprintf("user-%02d", index),
-			Email:  fmt.Sprintf("user-%02d@example.com", index),
+			MemberID: fmt.Sprintf("user-%02d", index),
+			Email:    fmt.Sprintf("user-%02d@example.com", index),
 		})
 	}
 	if _, errorValue := service.applyCachedOrganizationPeople(ctx, users); errorValue == nil {

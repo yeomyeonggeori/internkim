@@ -39,7 +39,7 @@ WHERE profile_key != ?
 	)`,
 			profileKey,
 			normalizedProfile.Email,
-			normalizedProfile.UserID,
+			normalizedProfile.MemberID,
 		); errorValue != nil {
 			_ = transaction.Rollback()
 			return errorValue
@@ -76,7 +76,7 @@ ON CONFLICT(profile_key) DO UPDATE SET
 	is_organization_visible = excluded.is_organization_visible,
 	updated_at = excluded.updated_at`,
 			profileKey,
-			normalizedProfile.UserID,
+			normalizedProfile.MemberID,
 			normalizedProfile.Email,
 			normalizedProfile.JobTitle,
 			normalizedProfile.PositionLevel,
@@ -123,8 +123,8 @@ func (service *Service) readOrganizationProfilesByUserID(ctx context.Context) (m
 	}
 	profilesByUserID := map[string]organizationProfile{}
 	for _, profile := range profiles {
-		if profile.UserID != "" {
-			profilesByUserID[profile.UserID] = profile
+		if profile.MemberID != "" {
+			profilesByUserID[profile.MemberID] = profile
 		}
 	}
 	return profilesByUserID, nil
@@ -150,7 +150,7 @@ ORDER BY position_level, email`)
 		var projectIDs string
 		var isOrganizationVisible int
 		if errorValue := rows.Scan(
-			&profile.UserID,
+			&profile.MemberID,
 			&profile.Email,
 			&profile.JobTitle,
 			&profile.PositionLevel,

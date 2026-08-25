@@ -14,8 +14,8 @@ func TestOrganizationUserMutationDoesNotPersistUnknownPersonStates(t *testing.T)
 		for userIndex := 0; userIndex < localUsersBatchMaximumUsers; userIndex++ {
 			suffix := strconv.Itoa(batchIndex*localUsersBatchMaximumUsers + userIndex)
 			identities = append(identities, organizationPersonIdentity{
-				UserID: "new-user-" + suffix,
-				Email:  "new-user-" + suffix + "@example.com",
+				MemberID: "new-user-" + suffix,
+				Email:    "new-user-" + suffix + "@example.com",
 			})
 		}
 		mutation, errorValue := service.startOrganizationUserMutation(ctx, identities)
@@ -42,7 +42,7 @@ func TestOrganizationPeopleCacheRejectsWriteFromPreviousListRevision(t *testing.
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	personKey := organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "new-user"}
-	identity := organizationPersonIdentity{UserID: personKey.Key, Email: "new@example.com"}
+	identity := organizationPersonIdentity{MemberID: personKey.Key, Email: "new@example.com"}
 	mutation, errorValue := service.startOrganizationUserMutation(ctx, []organizationPersonIdentity{identity})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -55,7 +55,7 @@ func TestOrganizationPeopleCacheRejectsWriteFromPreviousListRevision(t *testing.
 		Revision:                0,
 		HasExpectedListRevision: true,
 		ExpectedListRevision:    0,
-		PayloadJSON:             []byte(`{"record":{"userID":"new-user","email":"new@example.com"}}`),
+		PayloadJSON:             []byte(`{"record":{"memberID":"new-user","email":"new@example.com"}}`),
 	}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -80,21 +80,21 @@ func TestOrganizationPeopleCacheRejectsWriteFromPreviousListRevision(t *testing.
 func TestOrganizationPeopleCacheBypassesUnknownPersonWhileListMutationActive(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
-	identity := organizationPersonIdentity{UserID: "new-user", Email: "new@example.com"}
+	identity := organizationPersonIdentity{MemberID: "new-user", Email: "new@example.com"}
 	mutation, errorValue := service.startOrganizationUserMutation(ctx, []organizationPersonIdentity{identity})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	defer mutation.completeAfterRequest(ctx)
 	_, errorValue = service.applyCachedOrganizationPeople(ctx, pagesUsersResponse{Records: []adminUserMutation{{
-		UserID: identity.UserID,
-		Email:  identity.Email,
-		Name:   "New User",
+		MemberID: identity.MemberID,
+		Email:    identity.Email,
+		Name:     "New User",
 	}}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	personKey, found := organizationPersonCacheKey(identity.UserID, identity.Email)
+	personKey, found := organizationPersonCacheKey(identity.MemberID, identity.Email)
 	if !found {
 		t.Fatal("person cache key not found")
 	}

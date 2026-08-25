@@ -37,7 +37,7 @@ func TestOrganizationStoreRewritesDuplicateGroupReferences(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		UserID:                "user-member",
+		MemberID:              "user-member",
 		Email:                 "member@example.com",
 		GroupID:               "engineering-duplicate",
 		EmploymentStatus:      organizationEmploymentStatusActive,

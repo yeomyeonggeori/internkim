@@ -82,7 +82,7 @@ test.describe('employee organization directory', () => {
 				],
 				records: [
 					{
-						userID: 'company-leader',
+						memberID: 'company-leader',
 						handle: 'company-leader',
 						name: '회사 리더',
 						email: 'company-leader@example.com',
@@ -91,7 +91,7 @@ test.describe('employee organization directory', () => {
 						groupID: 'leadership'
 					},
 					{
-						userID: 'employee',
+						memberID: 'employee',
 						handle: 'employee',
 						name: '일반 직원',
 						email: 'employee@example.com',
@@ -101,7 +101,7 @@ test.describe('employee organization directory', () => {
 						supervisorID: 'leader'
 					},
 					{
-						userID: 'leader',
+						memberID: 'leader',
 						handle: 'leader',
 						name: '조직 리더',
 						email: 'leader@example.com',

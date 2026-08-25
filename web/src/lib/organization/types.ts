@@ -1,14 +1,23 @@
+import type { UserRole } from '$lib/types';
+
 export type UserRecord = {
-	userID: string;
+	memberID: string;
 	handle: string;
 	name?: string;
 	email: string;
 	image?: string;
 	hireDate?: string;
+	note?: string;
+	role?: UserRole;
+	circles?: string[];
 	jobTitle?: string;
 	groupID?: string;
 	phoneNumber?: string;
 	supervisorID?: string;
+	mattermostUserID?: string;
+	mattermostUsername?: string;
+	status?: string;
+	isIncomplete?: boolean;
 };
 
 export type OrgGroup = {

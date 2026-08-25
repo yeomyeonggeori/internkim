@@ -10,6 +10,7 @@ type MemberRow = {
 	joined_at: string | null;
 	team_id: string | null;
 	supervisor_id: string | null;
+	is_admin: boolean;
 };
 
 type TeamRow = { id: string; name: string; parent_team_id: string | null };
@@ -17,7 +18,7 @@ type TeamRow = { id: string; name: string; parent_team_id: string | null };
 export async function supabaseOrganizationDirectory(): Promise<UsersResponse> {
 	const members = await supabase()
 		.from('member')
-		.select('id, name, email, job_title, phone_number, joined_at, team_id, supervisor_id')
+		.select('id, name, email, job_title, phone_number, joined_at, team_id, supervisor_id, is_admin')
 		.neq('status', 'withdrawn')
 		.returns<MemberRow[]>();
 	if (members.error) throw new Error(members.error.message);
@@ -39,10 +40,11 @@ function recordOf(member: MemberRow): UserRecord {
 	const email = member.email ?? '';
 	const handle = email.split('@')[0];
 	return {
-		userID: member.id,
+		memberID: member.id,
 		email,
 		handle,
 		name: member.name || handle,
+		role: member.is_admin ? 'admin' : 'member',
 		jobTitle: member.job_title ?? undefined,
 		phoneNumber: member.phone_number ?? undefined,
 		hireDate: member.joined_at ? member.joined_at.slice(0, 10) : undefined,

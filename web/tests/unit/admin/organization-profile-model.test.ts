@@ -9,7 +9,7 @@ import {
 
 function userRecord(overrides: Partial<UserRecord> = {}): UserRecord {
 	return {
-		userID: 'user-1',
+		memberID: 'user-1',
 		handle: 'user',
 		name: 'User',
 		email: 'user@example.com',
@@ -70,7 +70,7 @@ describe('organization profile model', () => {
 		);
 
 		expect(update).toEqual({
-			userID: 'user-1',
+			memberID: 'user-1',
 			email: 'user@example.com',
 			jobTitle: 'Lead',
 			groupID: 'leadership',

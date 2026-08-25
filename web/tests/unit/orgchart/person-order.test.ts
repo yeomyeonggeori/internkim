@@ -4,14 +4,14 @@ import { compareOrganizationPeople, orderOrganizationPeopleByHierarchy } from '.
 describe('organization person ordering', () => {
 	test('orders by hire date before name and puts missing dates after dated people', () => {
 		const people = [
-			{ userID: 'missing-zara', name: 'Zara' },
-			{ userID: 'newer-aaron', name: 'Aaron', hireDate: '2026-04-01' },
-			{ userID: 'older-min', name: 'Min', hireDate: '2026-02-01' },
-			{ userID: 'missing-ada', name: 'Ada' },
-			{ userID: 'newer-bora', name: 'Bora', hireDate: '2026-04-01' }
+			{ memberID: 'missing-zara', name: 'Zara' },
+			{ memberID: 'newer-aaron', name: 'Aaron', hireDate: '2026-04-01' },
+			{ memberID: 'older-min', name: 'Min', hireDate: '2026-02-01' },
+			{ memberID: 'missing-ada', name: 'Ada' },
+			{ memberID: 'newer-bora', name: 'Bora', hireDate: '2026-04-01' }
 		];
 
-		expect([...people].sort(compareOrganizationPeople).map((person) => person.userID)).toEqual([
+		expect([...people].sort(compareOrganizationPeople).map((person) => person.memberID)).toEqual([
 			'older-min',
 			'newer-aaron',
 			'newer-bora',
@@ -22,13 +22,13 @@ describe('organization person ordering', () => {
 
 	test('orders Korean names before English names on the same hire date', () => {
 		const people = [
-			{ userID: 'pptx', name: 'PPTX Tester', hireDate: '2026-04-01' },
-			{ userID: 'dongha', name: '이샘플', hireDate: '2026-04-01' },
-			{ userID: 'yeomyeong', name: '김여명', hireDate: '2026-04-01' },
-			{ userID: 'aaron', name: 'Aaron', hireDate: '2026-04-01' }
+			{ memberID: 'pptx', name: 'PPTX Tester', hireDate: '2026-04-01' },
+			{ memberID: 'dongha', name: '이샘플', hireDate: '2026-04-01' },
+			{ memberID: 'yeomyeong', name: '김여명', hireDate: '2026-04-01' },
+			{ memberID: 'aaron', name: 'Aaron', hireDate: '2026-04-01' }
 		];
 
-		expect([...people].sort(compareOrganizationPeople).map((person) => person.userID)).toEqual([
+		expect([...people].sort(compareOrganizationPeople).map((person) => person.memberID)).toEqual([
 			'yeomyeong',
 			'dongha',
 			'aaron',
@@ -38,13 +38,13 @@ describe('organization person ordering', () => {
 
 	test('orders Korean names before English names when hire dates are missing', () => {
 		const people = [
-			{ userID: 'pptx', name: 'PPTX Tester' },
-			{ userID: 'dongha', name: '이샘플' },
-			{ userID: 'yeomyeong', name: '김여명' },
-			{ userID: 'aaron', name: 'Aaron' }
+			{ memberID: 'pptx', name: 'PPTX Tester' },
+			{ memberID: 'dongha', name: '이샘플' },
+			{ memberID: 'yeomyeong', name: '김여명' },
+			{ memberID: 'aaron', name: 'Aaron' }
 		];
 
-		expect([...people].sort(compareOrganizationPeople).map((person) => person.userID)).toEqual([
+		expect([...people].sort(compareOrganizationPeople).map((person) => person.memberID)).toEqual([
 			'yeomyeong',
 			'dongha',
 			'aaron',
@@ -54,39 +54,39 @@ describe('organization person ordering', () => {
 
 	test('places each supervisor before recursively ordered direct reports', () => {
 		const people = [
-			{ userID: 'junior', name: 'Junior', hireDate: '2026-03-01', supervisorID: 'manager' },
-			{ userID: 'manager', name: 'Manager', hireDate: '2026-04-01', supervisorID: 'leader' },
-			{ userID: 'leader', name: 'Leader', hireDate: '2026-05-01' },
-			{ userID: 'peer', name: 'Peer', hireDate: '2026-01-01', supervisorID: 'leader' },
-			{ userID: 'senior', name: 'Senior', hireDate: '2026-02-01', supervisorID: 'manager' }
+			{ memberID: 'junior', name: 'Junior', hireDate: '2026-03-01', supervisorID: 'manager' },
+			{ memberID: 'manager', name: 'Manager', hireDate: '2026-04-01', supervisorID: 'leader' },
+			{ memberID: 'leader', name: 'Leader', hireDate: '2026-05-01' },
+			{ memberID: 'peer', name: 'Peer', hireDate: '2026-01-01', supervisorID: 'leader' },
+			{ memberID: 'senior', name: 'Senior', hireDate: '2026-02-01', supervisorID: 'manager' }
 		];
 
-		expect(orderOrganizationPeopleByHierarchy(people).map((person) => person.userID)).toEqual([
+		expect(orderOrganizationPeopleByHierarchy(people).map((person) => person.memberID)).toEqual([
 			'leader',
 			'peer',
 			'manager',
 			'senior',
 			'junior'
 		]);
-		expect(people.map((person) => person.userID)).toEqual(['junior', 'manager', 'leader', 'peer', 'senior']);
+		expect(people.map((person) => person.memberID)).toEqual(['junior', 'manager', 'leader', 'peer', 'senior']);
 	});
 
 	test('treats employees with out-of-group supervisors as roots', () => {
 		const people = [
-			{ userID: 'internal-root', name: 'Internal Root', hireDate: '2026-02-01' },
-			{ userID: 'external-root', name: 'External Root', hireDate: '2026-01-01', supervisorID: 'outside-group' }
+			{ memberID: 'internal-root', name: 'Internal Root', hireDate: '2026-02-01' },
+			{ memberID: 'external-root', name: 'External Root', hireDate: '2026-01-01', supervisorID: 'outside-group' }
 		];
 
-		expect(orderOrganizationPeopleByHierarchy(people).map((person) => person.userID)).toEqual(['external-root', 'internal-root']);
+		expect(orderOrganizationPeopleByHierarchy(people).map((person) => person.memberID)).toEqual(['external-root', 'internal-root']);
 	});
 
 	test('keeps cyclic records exactly once', () => {
 		const people = [
-			{ userID: 'cycle-b', name: 'Cycle B', hireDate: '2026-04-01', supervisorID: 'cycle-a' },
-			{ userID: 'root', name: 'Root', hireDate: '2026-02-01' },
-			{ userID: 'cycle-a', name: 'Cycle A', hireDate: '2026-03-01', supervisorID: 'cycle-b' }
+			{ memberID: 'cycle-b', name: 'Cycle B', hireDate: '2026-04-01', supervisorID: 'cycle-a' },
+			{ memberID: 'root', name: 'Root', hireDate: '2026-02-01' },
+			{ memberID: 'cycle-a', name: 'Cycle A', hireDate: '2026-03-01', supervisorID: 'cycle-b' }
 		];
 
-		expect(orderOrganizationPeopleByHierarchy(people).map((person) => person.userID)).toEqual(['root', 'cycle-a', 'cycle-b']);
+		expect(orderOrganizationPeopleByHierarchy(people).map((person) => person.memberID)).toEqual(['root', 'cycle-a', 'cycle-b']);
 	});
 });

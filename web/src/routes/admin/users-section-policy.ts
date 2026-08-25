@@ -21,8 +21,13 @@ export function userRoleOptions(text: AdminPageText, canGrantAdminRole: boolean)
 	return allUserRoleOptions(text).filter((option) => canGrantAdminRole || option.value !== 'admin');
 }
 
-export function userRoleLabel(text: AdminPageText, role: UserRole): string {
-	return allUserRoleOptions(text).find((option) => option.value === role)?.label ?? role;
+export function userRole(record: UserRecord): UserRole {
+	return record.role ?? 'member';
+}
+
+export function userRoleLabel(text: AdminPageText, role: UserRole | undefined): string {
+	const named = role ?? 'member';
+	return allUserRoleOptions(text).find((option) => option.value === named)?.label ?? named;
 }
 
 export function canManageUserRecord(canGrantAdminRole: boolean, record: UserRecord): boolean {
@@ -60,7 +65,7 @@ export function sortUserRecordsByHireDate(records: UserRecord[]): UserRecord[] {
 	});
 }
 
-export function normalizeUserCircles(circles: string[] | undefined, role: UserRole): string[] {
+export function normalizeUserCircles(circles: string[] | undefined, role: UserRole | undefined): string[] {
 	const result = new Set(['staff', ...(circles ?? []).map((circle) => circle.trim().toLowerCase()).filter(Boolean)]);
 	if (role === 'admin') result.add('admin');
 	return [...result];

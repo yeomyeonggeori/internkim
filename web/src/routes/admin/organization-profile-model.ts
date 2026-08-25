@@ -39,7 +39,7 @@ export function isOrgProfileChanged(record: UserRecord, original: OrgProfileSnap
 export function orgProfileUpdate(record: UserRecord): OrgProfileUpdate {
 	const snapshot = orgProfileSnapshot(record);
 	return {
-		userID: record.userID,
+		memberID: record.memberID,
 		email: record.email,
 		jobTitle: snapshot.jobTitle,
 		groupID: snapshot.groupID,

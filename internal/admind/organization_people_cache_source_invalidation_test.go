@@ -16,7 +16,7 @@ func TestOrganizationPeopleCacheInvalidatesChangedUserFromSourceRevision(t *test
 	}
 	name := "Old Name"
 	loader := func(context.Context) (pagesUsersResponse, error) {
-		return pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Email: "one@example.com", Name: name, Role: "member"}}}, nil
+		return pagesUsersResponse{Records: []adminUserMutation{{MemberID: "user-1", Email: "one@example.com", Name: name, Role: "member"}}}, nil
 	}
 	users, cachePolicy, errorValue := service.readCachedOrganizationUserList(ctx, loader)
 	if errorValue != nil {
@@ -44,8 +44,8 @@ func TestOrganizationPeopleCacheInvalidatesAddedAndRemovedUsersFromSourceRevisio
 		t.Fatal(errorValue)
 	}
 	currentRecords := []adminUserMutation{
-		{UserID: "user-removed", Email: "removed@example.com", Role: "member"},
-		{UserID: "user-retained", Email: "retained@example.com", Role: "member"},
+		{MemberID: "user-removed", Email: "removed@example.com", Role: "member"},
+		{MemberID: "user-retained", Email: "retained@example.com", Role: "member"},
 	}
 	loader := func(context.Context) (pagesUsersResponse, error) {
 		return pagesUsersResponse{Records: currentRecords}, nil
@@ -58,8 +58,8 @@ func TestOrganizationPeopleCacheInvalidatesAddedAndRemovedUsersFromSourceRevisio
 		t.Fatal(errorValue)
 	}
 	currentRecords = []adminUserMutation{
-		{UserID: "user-retained", Email: "retained@example.com", Role: "member"},
-		{UserID: "user-added", Email: "added@example.com", Role: "member"},
+		{MemberID: "user-retained", Email: "retained@example.com", Role: "member"},
+		{MemberID: "user-added", Email: "added@example.com", Role: "member"},
 	}
 	if errorValue := os.WriteFile(statePath, []byte(`{"revision":"2"}`), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
@@ -77,14 +77,14 @@ func TestOrganizationPeopleCacheInvalidatesOnlyUpdatedProfile(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	users := pagesUsersResponse{Records: []adminUserMutation{
-		{UserID: "user-1", Email: "one@example.com", Role: "member"},
-		{UserID: "user-2", Email: "two@example.com", Role: "member"},
+		{MemberID: "user-1", Email: "one@example.com", Role: "member"},
+		{MemberID: "user-2", Email: "two@example.com", Role: "member"},
 	}}
 	if _, errorValue := service.applyCachedOrganizationPeople(ctx, users); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		UserID:                "user-1",
+		MemberID:              "user-1",
 		Email:                 "one@example.com",
 		JobTitle:              "Engineer",
 		EmploymentStatus:      organizationEmploymentStatusActive,
@@ -104,14 +104,14 @@ func TestOrganizationPeopleCacheInvalidatesChangedGroupAndAffectedProfile(t *tes
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{
-		{UserID: "user-1", Email: "one@example.com", GroupID: "design", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
-		{UserID: "user-2", Email: "two@example.com", GroupID: "engineering", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
+		{MemberID: "user-1", Email: "one@example.com", GroupID: "design", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
+		{MemberID: "user-2", Email: "two@example.com", GroupID: "engineering", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	users := pagesUsersResponse{Records: []adminUserMutation{
-		{UserID: "user-1", Email: "one@example.com", Role: "member"},
-		{UserID: "user-2", Email: "two@example.com", Role: "member"},
+		{MemberID: "user-1", Email: "one@example.com", Role: "member"},
+		{MemberID: "user-2", Email: "two@example.com", Role: "member"},
 	}}
 	if _, errorValue := service.applyCachedOrganizationPeople(ctx, users); errorValue != nil {
 		t.Fatal(errorValue)
@@ -136,14 +136,14 @@ func TestOrganizationPeopleCacheInvalidatesMergedDeletedGroupsAndRewrittenProfil
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{
-		{UserID: "user-1", Email: "one@example.com", GroupID: "engineering-duplicate", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
-		{UserID: "user-2", Email: "two@example.com", GroupID: "operations", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
+		{MemberID: "user-1", Email: "one@example.com", GroupID: "engineering-duplicate", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
+		{MemberID: "user-2", Email: "two@example.com", GroupID: "operations", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	users := pagesUsersResponse{Records: []adminUserMutation{
-		{UserID: "user-1", Email: "one@example.com", Role: "member"},
-		{UserID: "user-2", Email: "two@example.com", Role: "member"},
+		{MemberID: "user-1", Email: "one@example.com", Role: "member"},
+		{MemberID: "user-2", Email: "two@example.com", Role: "member"},
 	}}
 	if _, errorValue := service.applyCachedOrganizationPeople(ctx, users); errorValue != nil {
 		t.Fatal(errorValue)

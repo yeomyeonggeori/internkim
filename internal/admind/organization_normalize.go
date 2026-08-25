@@ -6,7 +6,7 @@ import (
 )
 
 func normalizeOrganizationProfile(profile organizationProfile) organizationProfile {
-	profile.UserID = strings.TrimSpace(profile.UserID)
+	profile.MemberID = strings.TrimSpace(profile.MemberID)
 	profile.Email = strings.ToLower(strings.TrimSpace(profile.Email))
 	profile.JobTitle = strings.TrimSpace(profile.JobTitle)
 	profile.GroupID = strings.TrimSpace(profile.GroupID)
@@ -39,8 +39,8 @@ func isValidOrganizationEmploymentStatus(status string) bool {
 }
 
 func organizationProfileKey(profile organizationProfile) string {
-	if profile.UserID != "" {
-		return "user:" + profile.UserID
+	if profile.MemberID != "" {
+		return "user:" + profile.MemberID
 	}
 	if profile.Email != "" {
 		return "email:" + profile.Email
