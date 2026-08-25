@@ -8,7 +8,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/lib/pq"
@@ -96,7 +95,11 @@ func (service *Service) uninvitedInOneChannel(
 	if shape.Visibility == "open" || shape.ChannelType == "dm" {
 		return buzzChannelUninvitedRoom{}, nil
 	}
-	emails, errorValue := service.emailsThatBelongIn(ctx, shape, mapping.ExternalChannelID)
+	circleID := circleIDOfRoom(shape.RoomName)
+	if circleID == "" {
+		return buzzChannelUninvitedRoom{}, nil
+	}
+	emails, errorValue := service.emailsInCircle(ctx, circleID)
 	if errorValue != nil {
 		return buzzChannelUninvitedRoom{}, errorValue
 	}
@@ -143,17 +146,6 @@ func (service *Service) pubkeysOf(ctx context.Context, emails []string, seed str
 	return belong, nil
 }
 
-func (service *Service) emailsThatBelongIn(
-	ctx context.Context,
-	shape bridgeRelayChannelShape,
-	externalChannelID string,
-) ([]string, error) {
-	if circleID := circleIDOfRoom(shape.RoomName); circleID != "" {
-		return service.emailsInCircle(ctx, circleID)
-	}
-	return service.roomMemberEmails(ctx, externalChannelID)
-}
-
 func (service *Service) emailsInCircle(ctx context.Context, circleID string) ([]string, error) {
 	var policyDocument map[string]any
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
@@ -166,31 +158,6 @@ func (service *Service) emailsInCircle(ctx context.Context, circleID string) ([]
 				emails = append(emails, email)
 				break
 			}
-		}
-	}
-	return emails, nil
-}
-
-func (service *Service) roomMemberEmails(ctx context.Context, externalChannelID string) ([]string, error) {
-	token, errorValue := service.mattermostAdminToken(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	var members []struct {
-		UserID string `json:"user_id"`
-	}
-	path := "/api/v4/channels/" + url.PathEscape(externalChannelID) + "/members?per_page=200"
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &members); errorValue != nil {
-		return nil, errorValue
-	}
-	emails := []string{}
-	for _, member := range members {
-		var user mattermostUserRecord
-		if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+url.PathEscape(member.UserID), token, nil, &user); errorValue != nil {
-			return nil, errorValue
-		}
-		if email := strings.ToLower(strings.TrimSpace(user.Email)); email != "" {
-			emails = append(emails, email)
 		}
 	}
 	return emails, nil
