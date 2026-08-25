@@ -2,10 +2,12 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
+	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import {
 		notificationCategories,
 		readNotificationSettings,
+		readTimeOfDay,
 		type NotificationCategory,
 		type NotificationSettings
 	} from '$lib/notifications/categories';
@@ -37,7 +39,10 @@
 		message: text.notifyMessage,
 		task: text.notifyTask,
 		approval: text.notifyApproval,
-		attendance: text.notifyAttendance
+		attendance: text.notifyAttendance,
+		leave: text.notifyLeave,
+		calendar: text.notifyCalendar,
+		mail: text.notifyMail
 	});
 
 	async function load() {
@@ -78,10 +83,22 @@
 	}
 
 	async function choose(category: NotificationCategory, wanted: boolean) {
+		await keep({ ...settings, categories: { ...settings.categories, [category]: wanted } });
+	}
+
+	// The digest goes out at an hour the member picks, because a company whose
+	// day starts at ten does not want a summary at eight.
+	async function chooseCalendarAt(said: string) {
+		const at = readTimeOfDay(said);
+		if (!at || at === settings.calendarAt) return;
+		await keep({ ...settings, calendarAt: at });
+	}
+
+	async function keep(wanted: NotificationSettings) {
 		const previous = settings;
-		settings = { ...settings, [category]: wanted };
+		settings = wanted;
 		try {
-			await chooseNotificationSettings(settings);
+			await chooseNotificationSettings(wanted);
 		} catch {
 			settings = previous;
 			toast.error(text.notifyFailed);
@@ -117,12 +134,24 @@
 				{#each notificationCategories as category (category)}
 					<div class="flex items-center justify-between gap-4">
 						<Label for="{fieldID}-{category}" class="text-sm font-normal">{categoryLabels[category]}</Label>
-						<Switch
-							id="{fieldID}-{category}"
-							checked={settings[category]}
-							disabled={reach !== 'on'}
-							onCheckedChange={(wanted) => choose(category, wanted)}
-						/>
+						<div class="flex items-center gap-2">
+							{#if category === 'calendar'}
+								<Input
+									type="time"
+									class="h-8 w-28"
+									value={settings.calendarAt}
+									disabled={reach !== 'on' || !settings.categories.calendar}
+									aria-label={text.notifyCalendarAt}
+									onchange={(event) => chooseCalendarAt(event.currentTarget.value)}
+								/>
+							{/if}
+							<Switch
+								id="{fieldID}-{category}"
+								checked={settings.categories[category]}
+								disabled={reach !== 'on'}
+								onCheckedChange={(wanted) => choose(category, wanted)}
+							/>
+						</div>
 					</div>
 				{/each}
 			</div>
