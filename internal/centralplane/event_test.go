@@ -171,3 +171,40 @@ func TestAWriteCarriesTheVersionItRead(t *testing.T) {
 		t.Fatalf("a new event replaces no version, got %v", arguments["target_expected_updated_at"])
 	}
 }
+
+func TestANewEventNamesNoTaskAndAKnownOneNamesItsOwn(t *testing.T) {
+	var arguments map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/api/agent/session" {
+			writeJSON(writer, map[string]any{"memberID": "member-1", "accessToken": "token-1", "expiresAt": 4102444800})
+			return
+		}
+		if strings.HasPrefix(request.URL.Path, "/rest/v1/rpc/") {
+			_ = json.NewDecoder(request.Body).Decode(&arguments)
+			writeJSON(writer, "task-9")
+			return
+		}
+		writeJSON(writer, []any{})
+	}))
+	defer server.Close()
+	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
+
+	if _, errorValue := client.SaveEvent(context.Background(), "email", "iam@dawn.kim", Event{
+		Title: "새 일정", StartsAt: "2026-09-30T01:00:00Z", EndsAt: "2026-09-30T02:00:00Z",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if arguments["target_task_id"] != nil {
+		t.Fatalf("an event the company does not hold names no task of theirs, got %v", arguments["target_task_id"])
+	}
+
+	if _, errorValue := client.SaveEvent(context.Background(), "email", "iam@dawn.kim", Event{
+		CentralID: "b5f0832c-5193-4f1c-88fd-9213f257229f", Title: "고친 일정",
+		StartsAt: "2026-09-30T01:00:00Z", EndsAt: "2026-09-30T02:00:00Z",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if arguments["target_task_id"] != "b5f0832c-5193-4f1c-88fd-9213f257229f" {
+		t.Fatalf("an event the company holds names it, got %v", arguments["target_task_id"])
+	}
+}

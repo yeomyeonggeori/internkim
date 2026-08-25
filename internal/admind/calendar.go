@@ -280,7 +280,7 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, ""); answered {
+	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, "", ""); answered {
 		if writeCalendarCentralError(responseWriter, request, event.ID, saveError) {
 			return
 		}
@@ -317,6 +317,23 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 }
 
 func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
+	// The body is a stream and both routes need it, so it is read once here.
+	event, payload, errorValue := service.decodeCalendarEventWriteRequest(request, eventID)
+	if errorValue != nil {
+		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
+		return
+	}
+
+	// The company holds the event, so the device has no row to read first, and the
+	// version the writer claims is whatever they sent rather than one read here.
+	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, eventID, strings.TrimSpace(payload.ExpectedUpdatedAt)); answered {
+		if writeCalendarCentralError(responseWriter, request, eventID, saveError) {
+			return
+		}
+		service.writeJSON(responseWriter, saved)
+		return
+	}
+
 	existingEvent, found, errorValue := service.readCalendarEventByID(request.Context(), eventID)
 	if errorValue != nil {
 		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
@@ -326,11 +343,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		http.NotFound(responseWriter, request)
 		return
 	}
-	event, payload, errorValue := service.decodeCalendarEventWriteRequest(request, existingEvent.ID)
-	if errorValue != nil {
-		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
-		return
-	}
+	event.ID = existingEvent.ID
 	expectedUpdatedAt, errorValue := normalizeExpectedCalendarEventUpdatedAtOrCurrent(payload.ExpectedUpdatedAt, existingEvent.UpdatedAt)
 	if errorValue != nil {
 		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
@@ -361,13 +374,6 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		return
 	}
 	event.RawICS = regeneratedRawICS
-	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, expectedUpdatedAt); answered {
-		if writeCalendarCentralError(responseWriter, request, eventID, saveError) {
-			return
-		}
-		service.writeJSON(responseWriter, saved)
-		return
-	}
 	if errorValue := service.writeCalendarEventIfCurrentVersionWithOrigin(request.Context(), event, expectedUpdatedAt, mutationOrigin); errorValue != nil {
 		if writeCalendarEventVersionConflictError(responseWriter, errorValue) {
 			return
