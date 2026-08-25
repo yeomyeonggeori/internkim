@@ -51,8 +51,15 @@ describe('the person a participant names', () => {
 		expect(match).toEqual({ email: 'iam@dawn.kim', by: 'personID' });
 	});
 
-	test('refuses an id nobody holds rather than falling back to the name', () => {
-		expect(matchParticipant({ personID: 'ffffffffffff', name: '김여명' }, people, directory)).toBeUndefined();
+	test('an id nobody holds falls through to the name, which only a member bears', () => {
+		expect(matchParticipant({ personID: 'ffffffffffff', name: '김여명' }, people, directory)).toEqual({
+			email: 'iam@dawn.kim',
+			by: 'nameOrHandle'
+		});
+	});
+
+	test('an id nobody holds beside a name nobody bears still matches nobody', () => {
+		expect(matchParticipant({ personID: 'ffffffffffff', name: '남의 회사 사람' }, people, directory)).toBeUndefined();
 	});
 
 	test('matches a full name or a handle outright', () => {
@@ -118,5 +125,41 @@ describe('the task an event becomes', () => {
 	test('spots a range the record would refuse', () => {
 		expect(timeRunsBackwards(eventWith())).toBe(false);
 		expect(timeRunsBackwards(eventWith({ endISO: '2026-08-20T09:00:00Z' }))).toBe(true);
+	});
+});
+
+describe('a participant is matched by whichever identity resolves', () => {
+	const people: DevicePerson[] = [
+		{ name: '박세은', handle: 'seeun', email: 'seeun@dawn.kim' },
+		{ name: '김여명', handle: 'iam', email: 'iam@dawn.kim' }
+	];
+	const emailByPersonID = emailByPersonIDOf(people);
+
+	test('a personID nothing holds does not veto the name written beside it', () => {
+		const match = matchParticipant(
+			{ personID: 'f84346c5-fe32-4a48-a934-5835cdffafba', name: '박세은' },
+			people,
+			emailByPersonID
+		);
+		expect(match?.email).toBe('seeun@dawn.kim');
+	});
+
+	test('an address the company holds is taken before any name', () => {
+		const match = matchParticipant(
+			{ personID: 'gone', name: '이름이 다르게 적힘', email: 'Seeun@Dawn.kim' },
+			people,
+			emailByPersonID
+		);
+		expect(match).toEqual({ email: 'seeun@dawn.kim', by: 'email' });
+	});
+
+	test('an address nobody holds is not adopted', () => {
+		const match = matchParticipant({ email: 'stranger@example.com' }, people, emailByPersonID);
+		expect(match).toBeUndefined();
+	});
+
+	test('a given name only one member bears still resolves', () => {
+		const match = matchParticipant({ name: '여명' }, people, emailByPersonID);
+		expect(match).toEqual({ email: 'iam@dawn.kim', by: 'givenName' });
 	});
 });

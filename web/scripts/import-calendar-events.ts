@@ -83,7 +83,6 @@ const claimedIDs = new Set<string>();
 let adopted = 0;
 let updated = 0;
 let inserted = 0;
-const skippedTitles: string[] = [];
 const unresolvedParticipants = new Set<string>();
 const matchedByGivenName = new Set<string>();
 const creatorsMatchingNobody = new Set<string>();
@@ -114,10 +113,8 @@ for (const event of events) {
 	const requesterID = memberByEmail.get(createdByEmail);
 	if (createdByEmail && !requesterID) creatorsMatchingNobody.add(createdByEmail);
 
-	if (!requesterID && attendeeIDs.size === 0 && writtenParticipants.length > 0) {
-		skippedTitles.push(title);
-		continue;
-	}
+	// An event nobody is written on is one everybody attends, so it carries no
+	// participant rows rather than being left behind.
 
 	const asTask = eventAsTask(event);
 	const fields = {
@@ -130,7 +127,6 @@ for (const event of events) {
 		note: asTask.note,
 		location: asTask.location,
 		notify_minutes_before: asTask.notifyMinutesBefore,
-		requester_id: requesterID ?? null,
 		calendar: asTask.calendar
 	};
 
@@ -149,9 +145,16 @@ for (const event of events) {
 		continue;
 	}
 
+	// The record refuses a requester that is changed or cleared, and an event whose
+	// creator is nobody here would clear one, so an update leaves whoever is on it
+	// alone and only a new row carries the creator we could name.
 	const written = known
 		? await client.from('task').update(fields).eq('id', known).select('id').single()
-		: await client.from('task').insert(fields).select('id').single();
+		: await client
+				.from('task')
+				.insert({ ...fields, requester_id: requesterID ?? null })
+				.select('id')
+				.single();
 	if (written.error) throw new Error(`${title}: ${written.error.message}`);
 	known ? (updated += 1) : (inserted += 1);
 	rememberWhatIsHere(written.data.id, fields, attendeeIDs);
@@ -163,9 +166,8 @@ for (const event of events) {
 	if (participantError) throw new Error(`${title} participants: ${participantError.message}`);
 }
 
-console.log(`${shouldApply ? 'wrote' : 'would write'}: ${updated} updated, ${inserted} inserted, ${skippedTitles.length} skipped`);
+console.log(`${shouldApply ? 'wrote' : 'would write'}: ${updated} updated, ${inserted} inserted`);
 if (adopted) console.log(`adopted ${adopted} events that an earlier import left without a mirror`);
-if (skippedTitles.length) console.log(`skipped, nobody in this company asked for them or is on them: ${skippedTitles.join(', ')}`);
 if (matchedByGivenName.size) console.log(`matched by a given name only one member bears: ${[...matchedByGivenName].join(', ')}`);
 if (unresolvedParticipants.size) console.log(`written on an event but not a member, left off: ${[...unresolvedParticipants].join(', ')}`);
 if (creatorsMatchingNobody.size) console.log(`created by an address no member holds, kept without a requester: ${[...creatorsMatchingNobody].join(', ')}`);

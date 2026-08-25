@@ -2,7 +2,7 @@
 // mirrors every later change write the same task, so they read an event here
 // rather than each keeping its own copy of the answer.
 
-export type DeviceCalendarParticipant = { personID?: string; name?: string };
+export type DeviceCalendarParticipant = { personID?: string; name?: string; email?: string };
 
 export type DeviceCalendarEvent = {
 	id: string;
@@ -45,7 +45,7 @@ export type EventAsTask = {
 	calendar: EventCalendar;
 };
 
-export type ParticipantMatch = { email: string; by: 'personID' | 'nameOrHandle' | 'givenName' };
+export type ParticipantMatch = { email: string; by: 'personID' | 'email' | 'nameOrHandle' | 'givenName' };
 
 const deviceSource = 'internkim-device';
 
@@ -77,7 +77,12 @@ export function matchParticipant(
 	const personID = (participant.personID ?? '').trim();
 	if (personID) {
 		const email = emailByPersonID.get(personID);
-		return email ? { email, by: 'personID' } : undefined;
+		if (email) return { email, by: 'personID' };
+	}
+
+	const address = participant.email?.trim().toLowerCase() ?? '';
+	if (address && people.some((person) => (person.email ?? '').toLowerCase() === address)) {
+		return { email: address, by: 'email' };
 	}
 
 	const name = participant.name?.trim() ?? '';
