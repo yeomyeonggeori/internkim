@@ -152,7 +152,11 @@ const (
 	ChatdBinaryPath                       = "/usr/local/bin/chatd"
 	ChatdEnvironmentFilePath              = "/root/.internkim/secrets/chatd-env"
 	ChatdListenPort                       = "18090"
-	ChatdEndpoint                         = "http://127.0.0.1:18090"
+	// The agent runs in the guest and reaches this machine on the outbound tap,
+	// so chatd answers there. The address is this machine's own interface, which
+	// the network beyond it cannot route to.
+	ChatdListenHostname = "172.31.0.1"
+	ChatdEndpoint       = "http://172.31.0.1:18090"
 	ChatdBotUserName                      = "internkim"
 	RelayName                             = "internkim-relay"
 	RelayServiceName                      = "internkim-relay"
