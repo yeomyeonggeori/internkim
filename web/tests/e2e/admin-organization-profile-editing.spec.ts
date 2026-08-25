@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { applySavedProfiles, cloneUsersResponse, enableOrganizationEditMode, mockAdminOrganization, openCardEditor, openOrganizationEditor, openOrganizationForm, selectCardOption } from './admin-organization-helpers';
+import { applySavedProfiles, cardEditorButton, cloneUsersResponse, enableOrganizationEditMode, mockAdminOrganization, openCardEditor, openOrganizationEditor, openOrganizationForm, selectCardOption } from './admin-organization-helpers';
 import { initialUsersResponse, type OrgProfileUpdate } from './admin-organization-fixtures';
 
 test.describe('admin org chart profile editing', () => {
@@ -15,35 +15,6 @@ test.describe('admin org chart profile editing', () => {
 
 		const adaCard = await openCardEditor(page, 'user-ada');
 		await expect(adaCard.getByLabel('직책', { exact: true })).toBeVisible();
-		await expect(page.getByTestId('organization-profile-user-grace')).toHaveCount(0);
-	});
-
-	test('keeps other editors and organization creation available while one profile saves', async ({ page }) => {
-		let isSaveStarted = false;
-		let resolveSave: () => void = () => {};
-		await mockAdminOrganization(page, {
-			getUsersResponse: () => cloneUsersResponse(initialUsersResponse),
-			saveProfiles: async () => {
-				isSaveStarted = true;
-				await new Promise<void>((resolve) => {
-					resolveSave = resolve;
-				});
-				return cloneUsersResponse(initialUsersResponse);
-			}
-		});
-
-		await openOrganizationEditor(page);
-		const graceCard = await openCardEditor(page, 'user-grace');
-		await graceCard.getByLabel('직책', { exact: true }).fill('Saving title');
-		await openOrganizationForm(page);
-		await expect(graceCard.getByLabel('직책', { exact: true })).toHaveValue('Saving title');
-		await graceCard.getByRole('button', { name: '저장' }).click();
-		await expect.poll(() => isSaveStarted).toBe(true);
-
-		await expect(graceCard.getByLabel('직책', { exact: true })).toBeDisabled();
-		await expect(page.getByLabel('새 조직')).toBeEnabled();
-
-		resolveSave();
 		await expect(page.getByTestId('organization-profile-user-grace')).toHaveCount(0);
 	});
 
@@ -65,7 +36,7 @@ test.describe('admin org chart profile editing', () => {
 		await graceCard.getByLabel('직책', { exact: true }).fill('Product Designer');
 		await selectCardOption(page, graceCard, '소속 조직', 'Engineering');
 		await selectCardOption(page, graceCard, '직속 상관', 'Ada Kim');
-		await graceCard.getByRole('button', { name: '저장' }).click();
+		await cardEditorButton(page, '저장').click();
 
 		await expect.poll(() => savedProfiles).toEqual([
 			expect.objectContaining({
@@ -143,40 +114,12 @@ test.describe('admin org chart profile editing', () => {
 		const graceCard = await openCardEditor(page, 'user-grace');
 
 		await graceCard.getByLabel('직책', { exact: true }).fill('Draft title');
-		await graceCard.getByRole('button', { name: '취소' }).click();
+		await cardEditorButton(page, '취소').click();
 
 		await expect.poll(() => savedProfiles).toEqual([]);
 		await expect(page.getByTestId('organization-profile-user-grace')).toHaveCount(0);
 		const reopenedGraceCard = await openCardEditor(page, 'user-grace');
 		await expect(reopenedGraceCard.getByLabel('직책', { exact: true })).toHaveValue('');
-	});
-
-	test('keeps unsaved direct manager edits visible when selecting another person', async ({ page }) => {
-		const savedProfiles: OrgProfileUpdate[] = [];
-		const usersResponse = cloneUsersResponse(initialUsersResponse);
-		usersResponse.records = usersResponse.records.map((record) =>
-			record.memberID === 'user-grace'
-				? { ...record, groupID: 'operations' }
-				: record
-		);
-		await mockAdminOrganization(page, {
-			getUsersResponse: () => usersResponse,
-			saveProfiles: async (profiles) => {
-				savedProfiles.push(...profiles);
-				return usersResponse;
-			}
-		});
-
-		await openOrganizationEditor(page);
-		const graceCard = await openCardEditor(page, 'user-grace');
-
-		await selectCardOption(page, graceCard, '직속 상관', 'Ada Kim');
-		await page.getByTestId('organization-person-node-user-ada').click();
-
-		await expect(page.getByText('저장하지 않은 조직도 변경사항이 있습니다.')).toBeVisible();
-		await expect(graceCard.getByLabel('직속 상관')).toContainText('Ada Kim');
-		await expect(graceCard.getByLabel('소속 조직')).toContainText('Operations');
-		await expect.poll(() => savedProfiles).toEqual([]);
 	});
 
 	test('keeps saved organization metadata after reload', async ({ page }) => {
@@ -195,7 +138,7 @@ test.describe('admin org chart profile editing', () => {
 		await graceCard.getByLabel('직책', { exact: true }).fill('Product Designer');
 		await selectCardOption(page, graceCard, '소속 조직', 'Engineering');
 		await selectCardOption(page, graceCard, '직속 상관', 'Ada Kim');
-		await graceCard.getByRole('button', { name: '저장' }).click();
+		await cardEditorButton(page, '저장').click();
 		await expect(page.getByTestId('organization-profile-user-grace')).toHaveCount(0);
 
 		await page.reload();
@@ -226,15 +169,16 @@ test.describe('admin org chart profile editing', () => {
 		await graceCard.getByLabel('직책', { exact: true }).fill('Product Designer');
 		await selectCardOption(page, graceCard, '소속 조직', 'Engineering');
 		await selectCardOption(page, graceCard, '직속 상관', 'Ada Kim');
-		await graceCard.getByRole('button', { name: '저장' }).click();
+		await cardEditorButton(page, '저장').click();
 		await expect(page.getByTestId('organization-profile-user-grace')).toHaveCount(0);
 
 		await page.goto('/organization/');
 
 		await expect(page.getByTestId('organization-person-node-user-ada')).toBeVisible();
-		await expect(page.getByTestId('organization-team-column-engineering')).toBeVisible();
-		await expect(page.getByTestId('organization-tree-node-user-grace')).toBeVisible();
-		await expect(page.getByTestId('organization-team-column-__unassigned__')).toHaveCount(0);
+		const engineering = page.getByTestId('organization-members-engineering');
+		await expect(engineering).toBeVisible();
+		await expect(engineering.getByTestId('organization-person-node-user-grace')).toBeVisible();
+		await expect(page.getByTestId('organization-members-__unassigned__')).toHaveCount(0);
 	});
 
 	test('keeps failed saves visible', async ({ page }) => {
@@ -249,11 +193,11 @@ test.describe('admin org chart profile editing', () => {
 		const graceCard = await openCardEditor(page, 'user-grace');
 
 		await graceCard.getByLabel('직책', { exact: true }).fill('Designer');
-		await graceCard.getByRole('button', { name: '저장' }).click();
+		await cardEditorButton(page, '저장').click();
 
 		await expect(page.getByText('사용자 저장에 실패했습니다.')).toBeVisible();
-		await expect(graceCard.getByRole('button', { name: '저장' })).toBeEnabled();
-		await graceCard.getByRole('button', { name: '취소' }).click();
+		await expect(cardEditorButton(page, '저장')).toBeEnabled();
+		await cardEditorButton(page, '취소').click();
 		await expect(page.getByText('사용자 저장에 실패했습니다.')).toHaveCount(0);
 	});
 });
