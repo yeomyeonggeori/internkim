@@ -328,7 +328,7 @@ export const crmOrganizations: CRMOrganization[] = [
 
 export const crmContacts: CRMContact[] = [
 	{
-		id: 'contact-hanyang-lee',
+		id: 'contact-hanyang-leesample',
 		organizationID: 'organization-hanyang-startup',
 		name: '김테스트17',
 		title: '프로그램 매니저',

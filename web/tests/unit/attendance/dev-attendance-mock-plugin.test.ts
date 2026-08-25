@@ -129,7 +129,7 @@ describe('dev attendance mock plugin', () => {
 			new Date('2026-07-29T10:00:00+09:00')
 		);
 		const partialLeave = summary.absences.find(
-			(absence) => absence.id === 'absence-lee-partial-leave'
+			(absence) => absence.id === 'absence-leesample-partial-leave'
 		);
 		const events = summary.events
 			.filter(
@@ -274,7 +274,7 @@ describe('dev attendance mock plugin', () => {
 			.map((absence) => `${absence.email}:${absence.kind}`)
 			.sort();
 		const leeOtherDates = absences
-			.filter((absence) => absence.email === 'member1@example.com' && absence.kind === 'other' && absence.rangeID === 'absence-june-lee-other')
+			.filter((absence) => absence.email === 'member1@example.com' && absence.kind === 'other' && absence.rangeID === 'absence-june-leesample-other')
 			.map((absence) => absence.date);
 
 		expect(overlappingAbsences).toEqual([

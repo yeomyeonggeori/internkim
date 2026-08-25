@@ -2534,7 +2534,7 @@ func TestFlowMattermostNotificationDirectMessagesTaskPeople(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	task = service.syncFlowMattermostNotification(context.Background(), task)
-	if len(requests.directChannelUser) != 1 || requests.directChannelUser[0] != "user-iam" {
+	if len(requests.directChannelUser) != 1 || requests.directChannelUser[0] != "user-kimyesi" {
 		t.Fatalf("direct channel recipients = %+v", requests.directChannelUser)
 	}
 	if len(requests.createdMessages) != 1 || !strings.Contains(requests.createdMessages[0], "| 요청 | [10분 회의](") || !strings.Contains(requests.createdMessages[0], "task=task-1") {
@@ -2590,7 +2590,7 @@ func TestFlowMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `[{"id":"user-iam","username":"member2","nickname":"김민수","email":"member2@example.com"}]`, nil), nil
+			return jsonResponse(http.StatusOK, `[{"id":"user-kimyesi","username":"member2","nickname":"김민수","email":"member2@example.com"}]`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/direct" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{"id":"direct-channel-1"}`, nil), nil
 		case strings.HasSuffix(request.URL.Path, "/preferences") && request.Method == http.MethodPut:
@@ -2658,11 +2658,11 @@ func TestFlowTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
 	members := []flowMember{
 		{ID: "me", Name: "me", Email: "me@example.com"},
-		{ID: "lee", Name: "lee", Email: "member1@example.com"},
+		{ID: "leesample", Name: "leesample", Email: "member1@example.com"},
 	}
 	payload := flowTaskWriteRequest{
-		OwnerID:        "lee",
-		ParticipantIDs: []string{"lee"},
+		OwnerID:        "leesample",
+		ParticipantIDs: []string{"leesample"},
 		Type:           "회의",
 		Content:        "10분 회의",
 		Size:           "XS",
@@ -2730,7 +2730,7 @@ func newFlowNotificationTestService(t *testing.T) (*Service, *flowNotificationRe
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200" && request.Method == http.MethodGet:
 			assertMattermostBearerToken(t, request, "admin-token")
-			return jsonResponse(http.StatusOK, `[{"id":"user-iam","username":"member2","first_name":"","last_name":"","nickname":"김민수","email":"member2@example.com"}]`, nil), nil
+			return jsonResponse(http.StatusOK, `[{"id":"user-kimyesi","username":"member2","first_name":"","last_name":"","nickname":"김민수","email":"member2@example.com"}]`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/direct" && request.Method == http.MethodPost:
 			assertMattermostBearerToken(t, request, "admin-token")
 			requests.directChannelUser = append(requests.directChannelUser, mattermostDirectChannelOtherUserID(t, request, "bot-1"))
@@ -2777,7 +2777,7 @@ func mattermostExistingFlowSetupResponse(t *testing.T, request *http.Request) *h
 	case request.URL.String() == "http://mattermost.local/api/v4/posts/flow-entry" && request.Method == http.MethodDelete:
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=100":
-		return jsonResponse(http.StatusOK, `{"order":["system-add"],"posts":{"system-add":{"id":"system-add","type":"system_add_to_channel","message":"lee added to the channel by admin."}}}`, nil)
+		return jsonResponse(http.StatusOK, `{"order":["system-add"],"posts":{"system-add":{"id":"system-add","type":"system_add_to_channel","message":"leesample added to the channel by admin."}}}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/posts/system-add" && request.Method == http.MethodDelete:
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
@@ -5068,7 +5068,7 @@ func blueclawPolicyWithSeedAdmin() string {
 }
 
 func blueclawPolicyWithClaimedMember() string {
-	return `{"people":[{"personID":"00000000-0000-0000-0000-000000000001","displayName":"Intern Kim Admin","emails":["eastriver0720@gmail.com"],"securityLevelName":"admin","securityLevelRank":100,"grantedClasses":["internal","executive"],"isAdmin":true},{"personID":"member-1","displayName":"lee","emails":["member1@example.com"],"securityLevelName":"member","securityLevelRank":10,"grantedClasses":["internal"],"isAdmin":false}],"channels":[],"retention":{"rawEventDays":60}}`
+	return `{"people":[{"personID":"00000000-0000-0000-0000-000000000001","displayName":"Intern Kim Admin","emails":["eastriver0720@gmail.com"],"securityLevelName":"admin","securityLevelRank":100,"grantedClasses":["internal","executive"],"isAdmin":true},{"personID":"member-1","displayName":"leesample","emails":["member1@example.com"],"securityLevelName":"member","securityLevelRank":10,"grantedClasses":["internal"],"isAdmin":false}],"channels":[],"retention":{"rawEventDays":60}}`
 }
 
 func writeTestFile(t *testing.T, document string) string {

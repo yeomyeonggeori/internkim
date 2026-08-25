@@ -8,7 +8,7 @@ was an employee being told they had never been invited.
 An admin asked the agent in the messenger to record a meeting. The reply:
 
 > This Intern Kim has not invited your account yet. Ask the administrator for
-> access. Your account presents lee@dawn.kim, and no person here is registered
+> access. Your account presents leesample@example.com, and no person here is registered
 > with that address.
 
 The person is an active admin with a claimed account. The device answered HTTP

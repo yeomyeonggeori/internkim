@@ -23,18 +23,18 @@ describe('team status table model', () => {
 				attendanceEvent('park-out', 'park@example.com', '박지민', '2026-06-16', 'clock_out', '10:00', 'lab-a', 'Lab A'),
 			],
 			[
-				attendanceAbsence('lee-1', 'member1@example.com', 'other', '2026-06-17', {
+				attendanceAbsence('leesample-1', 'member1@example.com', 'other', '2026-06-17', {
 					reason: 'client visit',
 					createdBy: 'admin@example.com',
 				}),
-				attendanceAbsence('lee-2', 'member1@example.com', 'other', '2026-06-18'),
-				attendanceAbsence('lee-3', 'member1@example.com', 'other', '2026-06-19'),
+				attendanceAbsence('leesample-2', 'member1@example.com', 'other', '2026-06-18'),
+				attendanceAbsence('leesample-3', 'member1@example.com', 'other', '2026-06-19'),
 			]
 		);
 
 		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-17', summary, '15:00');
 		const kim = rows.find((row) => row.email === 'kim@example.com');
-		const lee = rows.find((row) => row.email === 'member1@example.com');
+		const leesample = rows.find((row) => row.email === 'member1@example.com');
 		const park = rows.find((row) => row.email === 'park@example.com');
 
 		expect(kim?.days.length).toBe(30);
@@ -87,7 +87,7 @@ describe('team status table model', () => {
 				},
 			],
 		});
-		expect(lee?.days.find((day) => day.date === '2026-06-17')).toMatchObject({
+		expect(leesample?.days.find((day) => day.date === '2026-06-17')).toMatchObject({
 			label: '기타',
 			tone: 'absence',
 			absenceTone: 'other',
@@ -98,12 +98,12 @@ describe('team status table model', () => {
 				createdBy: 'admin@example.com',
 			},
 		});
-		expect(lee?.days.find((day) => day.date === '2026-06-18')).toMatchObject({
+		expect(leesample?.days.find((day) => day.date === '2026-06-18')).toMatchObject({
 			label: '기타',
 			tone: 'absence',
 			absenceTone: 'other',
 		});
-		expect(lee?.days.find((day) => day.date === '2026-06-19')).toMatchObject({
+		expect(leesample?.days.find((day) => day.date === '2026-06-19')).toMatchObject({
 			label: '기타',
 			tone: 'absence',
 			absenceTone: 'other',
@@ -149,14 +149,14 @@ describe('team status table model', () => {
 				attendanceEvent('park-name', 'park@example.com', '박지민', '2026-06-30', 'clock_in', '09:00'),
 			],
 			[
-				attendanceAbsence('lee-1', 'member1@example.com', 'other', '2026-06-01'),
+				attendanceAbsence('leesample-1', 'member1@example.com', 'other', '2026-06-01'),
 				attendanceAbsence('choi-1', 'choi@example.com', 'leave', '2026-06-30'),
 			]
 		);
 
 		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-20');
 		const kim = rows.find((row) => row.email === 'kim@example.com');
-		const lee = rows.find((row) => row.email === 'member1@example.com');
+		const leesample = rows.find((row) => row.email === 'member1@example.com');
 		const choi = rows.find((row) => row.email === 'choi@example.com');
 
 		expect(rows.map((row) => row.email)).toEqual([
@@ -172,7 +172,7 @@ describe('team status table model', () => {
 			label: '09시간 00분',
 			tone: 'finished',
 		});
-		expect(lee?.days.find((day) => day.date === '2026-06-01')).toMatchObject({
+		expect(leesample?.days.find((day) => day.date === '2026-06-01')).toMatchObject({
 			label: '기타',
 			tone: 'absence',
 		});
@@ -237,13 +237,13 @@ describe('team status table model', () => {
 	test('keeps a partial leave segment between completed work segments', () => {
 		const summary = attendanceSummary(
 			[
-				attendanceEvent('lee-morning-in', 'member1@example.com', '이서희', '2026-06-17', 'clock_in', '09:00', 'lab-a', 'Lab A'),
-				attendanceEvent('lee-morning-out', 'member1@example.com', '이서희', '2026-06-17', 'clock_out', '12:00', 'lab-a', 'Lab A'),
-				attendanceEvent('lee-afternoon-in', 'member1@example.com', '이서희', '2026-06-17', 'clock_in', '15:00', 'lab-a', 'Lab A'),
-				attendanceEvent('lee-afternoon-out', 'member1@example.com', '이서희', '2026-06-17', 'clock_out', '18:00', 'lab-a', 'Lab A'),
+				attendanceEvent('leesample-morning-in', 'member1@example.com', '이서희', '2026-06-17', 'clock_in', '09:00', 'lab-a', 'Lab A'),
+				attendanceEvent('leesample-morning-out', 'member1@example.com', '이서희', '2026-06-17', 'clock_out', '12:00', 'lab-a', 'Lab A'),
+				attendanceEvent('leesample-afternoon-in', 'member1@example.com', '이서희', '2026-06-17', 'clock_in', '15:00', 'lab-a', 'Lab A'),
+				attendanceEvent('leesample-afternoon-out', 'member1@example.com', '이서희', '2026-06-17', 'clock_out', '18:00', 'lab-a', 'Lab A'),
 			],
 			[
-				attendanceAbsence('lee-quarter-leave', 'member1@example.com', 'leave', '2026-06-17', {
+				attendanceAbsence('leesample-quarter-leave', 'member1@example.com', 'leave', '2026-06-17', {
 					startTime: '13:00',
 					endTime: '15:00',
 				}),

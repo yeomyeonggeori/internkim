@@ -692,7 +692,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 	}
 
 	t.Run("directMessage resolving to the requester is pre-approved", func(t *testing.T) {
-		service := platformDMResolverTestService(t, platformDMResolvedDonghaResponse())
+		service := platformDMResolverTestService(t, platformDMResolvedSampleResponse())
 		request := capabilities.ToolInvokeRequest{
 			ToolName: "message_send",
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
@@ -706,7 +706,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 	})
 
 	t.Run("directMessage resolving to a different person still requires approval", func(t *testing.T) {
-		service := platformDMResolverTestService(t, platformDMResolvedDonghaResponse())
+		service := platformDMResolverTestService(t, platformDMResolvedSampleResponse())
 		request := capabilities.ToolInvokeRequest{
 			ToolName: "message_send",
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
@@ -721,7 +721,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 	})
 
 	t.Run("directMessage broadcast with personHints still requires approval", func(t *testing.T) {
-		service := platformDMResolverTestService(t, platformDMResolvedDonghaResponse())
+		service := platformDMResolverTestService(t, platformDMResolvedSampleResponse())
 		request := capabilities.ToolInvokeRequest{
 			ToolName: "message_send",
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플","personHints":["샘플"]}`),
@@ -753,7 +753,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 	})
 
 	t.Run("scheduled run never qualifies for the self direct-message pre-approval", func(t *testing.T) {
-		service := platformDMResolverTestService(t, platformDMResolvedDonghaResponse())
+		service := platformDMResolverTestService(t, platformDMResolvedSampleResponse())
 		request := capabilities.ToolInvokeRequest{
 			ToolName: "message_send",
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),

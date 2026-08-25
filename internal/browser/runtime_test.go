@@ -448,7 +448,7 @@ func TestAgentBrowserRuntimeObserveParsesSafeSnapshotShape(t *testing.T) {
 		"title":"Example",
 		"snapshotText":"- link \"More\" [ref=e2]",
 		"nodes":[{"ref":"e1"}],
-		"profilePath":"/Users/lee/Library/Application Support/internkim/BrowserProfile",
+		"profilePath":"/Users/leesample/Library/Application Support/internkim/BrowserProfile",
 		"hasMore":true
 	}`)}
 	runtime := AgentBrowserRuntime{
@@ -474,7 +474,7 @@ func TestAgentBrowserRuntimeObserveParsesSafeSnapshotShape(t *testing.T) {
 func TestAgentBrowserRuntimeObserveAvoidsRawJSONLeak(t *testing.T) {
 	runner := &fakeCommandRunner{output: []byte(`{
 		"title":"Example",
-		"profilePath":"/Users/lee/Library/Application Support/internkim/BrowserProfile",
+		"profilePath":"/Users/leesample/Library/Application Support/internkim/BrowserProfile",
 		"cdpWebSocketURL":"ws://127.0.0.1:9222/devtools/browser",
 		"nodes":[{"ref":"e1","name":"Visible button"}]
 	}`)}

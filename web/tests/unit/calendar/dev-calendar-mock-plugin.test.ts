@@ -96,7 +96,7 @@ describe('dev calendar mock plugin', () => {
 		});
 
 		expect(response?.body.events?.[0]?.participants?.[0]).toEqual({
-			personID: 'lee',
+			personID: 'leesample',
 			name: '이영희',
 			email: 'member1@example.com'
 		});

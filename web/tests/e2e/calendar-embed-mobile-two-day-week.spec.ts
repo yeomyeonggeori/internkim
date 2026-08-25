@@ -334,7 +334,7 @@ test.describe('embedded calendar mobile two-day week view', () => {
 			},
 			{
 				personID: 'person-yeomyeong',
-				name: '김여명',
+				name: '김예시',
 				email: 'yeomyeong@example.com'
 			}
 		]);

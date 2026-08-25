@@ -61,7 +61,7 @@ describe('users section policy', () => {
 	});
 
 	test('validates handles and sorts users by hire date', () => {
-		expect(isValidHandle(' chanhee ')).toBe(true);
+		expect(isValidHandle(' gyeonbon ')).toBe(true);
 		expect(isValidHandle('1chanhee')).toBe(false);
 		expect(userAdminCount([adminRecord, memberRecord])).toBe(1);
 		expect(sortUserRecordsByHireDate([memberRecord, adminRecord]).map((record) => record.email)).toEqual(['admin@example.com', 'member@example.com']);
