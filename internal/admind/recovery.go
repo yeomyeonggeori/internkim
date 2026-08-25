@@ -787,6 +787,7 @@ ADMIN_PAT=$(curl -s -X POST $MM/api/v4/users/$ADMIN_ID/tokens -H "Authorization:
 [ -n "$ADMIN_PAT" ] && [ "$ADMIN_PAT" != null ] || { echo "admin PAT creation failed"; exit 1; }
 BOT=$(cat /root/.internkim/secrets/mattermost-bot-token 2>/dev/null)
 [ -n "$BOT" ] || { echo "bot token missing"; exit 1; }
+CHATD_LISTEN_HOSTNAME_VALUE="` + blueclaw.ChatdListenHostname + `"
 mkdir -p /etc/systemd/system/chatd.service.d
 cat > /etc/systemd/system/chatd.service.d/mirror.conf <<EOF
 [Service]
@@ -794,6 +795,7 @@ Environment=CHATD_MATTERMOST_BASE_URL=$MM
 Environment=CHATD_MATTERMOST_BOT_TOKEN=$BOT
 Environment=CHATD_MATTERMOST_ADMIN_TOKEN=$ADMIN_PAT
 Environment=CHATD_BLUECLAW_INGRESS_URL=http://127.0.0.1:8080/connectors/mattermost/events
+Environment=CHATD_LISTEN_HOSTNAME=${CHATD_LISTEN_HOSTNAME_VALUE}
 EOF
 systemctl daemon-reload
 systemctl restart chatd
