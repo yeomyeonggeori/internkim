@@ -42,6 +42,15 @@
 	const locationShortcuts = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 	let searchValue = $state('');
 
+	const clockInEntries = $derived(
+		myAttendanceToday.locations.map((location, index) => ({
+			location,
+			shortcut: locationShortcuts[index] ?? '',
+			keywords: [attendanceLabels.clockIn, location.name]
+		}))
+	);
+	const clockOutKeywords = $derived([attendanceLabels.clockOut]);
+
 	const calendarResults = $derived(calendarEventSearch.search(searchValue));
 	const taskResults = $derived(flowTaskSearch.search(searchValue));
 	const currentSearchScope = $derived(searchScopeFromPath(appNavigation.currentPath));
@@ -61,7 +70,6 @@
 
 	$effect(() => {
 		if (!open) return;
-		myAttendanceToday.load();
 		calendarEventSearch.load();
 		flowTaskSearch.load();
 	});
@@ -142,11 +150,6 @@
 		if (!appNavigation.currentPath.startsWith('/calendar')) await goto('/calendar');
 	}
 
-	function locationShortcut(locationID: string) {
-		const index = myAttendanceToday.locations.findIndex((location) => location.id === locationID);
-		return locationShortcuts[index] ?? '';
-	}
-
 	function handleShortcut(event: KeyboardEvent) {
 		if (searchValue !== '' || event.altKey || event.metaKey || event.ctrlKey) return;
 		if (event.key === clockOutShortcut) {
@@ -173,22 +176,23 @@
 			<Command.Group forceMount heading={text.suggestions}>
 				{#if !searchValue.trim()}
 					{#if myAttendanceToday.nextKind === 'clock_out'}
-						<Command.Item value="suggested-clock-out" keywords={[attendanceLabels.clockOut]} onSelect={runClockOut}>
+						<Command.Item value="suggested-clock-out" keywords={clockOutKeywords} onSelect={runClockOut}>
 							<LogOutIcon />
 							{attendanceLabels.clockOut}
 							<Command.Shortcut>{clockOutShortcut}</Command.Shortcut>
 						</Command.Item>
-					{:else if myAttendanceToday.defaultLocation}
-						{@const defaultLocation = myAttendanceToday.defaultLocation}
-						<Command.Item
-							value="suggested-clock-in"
-							keywords={[attendanceLabels.clockIn, defaultLocation.name]}
-							onSelect={() => runClockIn(defaultLocation.id)}
-						>
-							<CircleIcon style="color: {defaultLocation.color}" />
-							{attendanceLabels.clockIn} · {defaultLocation.name}
-							<Command.Shortcut>{locationShortcut(defaultLocation.id)}</Command.Shortcut>
-						</Command.Item>
+					{:else}
+						{#each clockInEntries as entry (entry.location.id)}
+							<Command.Item
+								value="suggested-clock-in-{entry.location.id}"
+								keywords={entry.keywords}
+								onSelect={() => runClockIn(entry.location.id)}
+							>
+								<CircleIcon style="color: {entry.location.color}" />
+								{attendanceLabels.clockIn} · {entry.location.name}
+								<Command.Shortcut>{entry.shortcut}</Command.Shortcut>
+							</Command.Item>
+						{/each}
 					{/if}
 				{:else if currentSearchScope === 'mail'}
 					{@render mailResultItems()}
@@ -258,20 +262,20 @@
 		<Command.Separator />
 
 		<Command.Group heading={text.attendance}>
-			{#each myAttendanceToday.locations as location (location.id)}
+			{#each clockInEntries as entry (entry.location.id)}
 				<Command.Item
-					value="clock-in-{location.id}"
-					keywords={[attendanceLabels.clockIn, location.name]}
-					onSelect={() => runClockIn(location.id)}
+					value="clock-in-{entry.location.id}"
+					keywords={entry.keywords}
+					onSelect={() => runClockIn(entry.location.id)}
 				>
-					<CircleIcon style="color: {location.color}" />
-					{attendanceLabels.clockIn} · {location.name}
-					<Command.Shortcut>{locationShortcut(location.id)}</Command.Shortcut>
+					<CircleIcon style="color: {entry.location.color}" />
+					{attendanceLabels.clockIn} · {entry.location.name}
+					<Command.Shortcut>{entry.shortcut}</Command.Shortcut>
 				</Command.Item>
 			{/each}
 			<Command.Item
 				value="clock-out"
-				keywords={[attendanceLabels.clockOut]}
+				keywords={clockOutKeywords}
 				disabled={myAttendanceToday.nextKind === 'clock_in'}
 				onSelect={runClockOut}
 			>
