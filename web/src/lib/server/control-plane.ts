@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { membersOfCompanyByExternalID } from './member-credential';
+import { memberOfCompanyByEmail, membersOfCompanyByExternalID } from './member-credential';
 
 export type ControlPlaneCredentials = {
 	projectURL: string;
@@ -376,8 +376,10 @@ export async function sessionForPlatformIdentity(
 	const agent = await agentOfKey(client, apiKey);
 	if (!agent) throw new Error('that key belongs to no agent');
 
-	const membersByExternalID = await membersOfCompanyByExternalID(client, agent.companyID, kind);
-	const memberID = membersByExternalID.get(externalID);
+	const memberID =
+		kind === 'email'
+			? await memberOfCompanyByEmail(client, agent.companyID, externalID)
+			: (await membersOfCompanyByExternalID(client, agent.companyID, kind)).get(externalID);
 	if (!memberID) throw new Error(`no member here has ${kind} identity ${externalID}`);
 
 	return sessionForMember(credentials, memberID);
