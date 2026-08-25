@@ -17,14 +17,18 @@ type centralPlaneStub struct {
 	savedArguments  map[string]any
 	savedAs         string
 	deleted         []string
+	removedRows     []map[string]any
 }
 
+// A delete answers with the rows it removed, so a stub that removes nothing has
+// to say so rather than answering empty by accident.
 func newCentralPlaneStub(t *testing.T) *centralPlaneStub {
 	t.Helper()
 	stub := &centralPlaneStub{
 		membersByEmail:  map[string]string{},
 		tasksByDeviceID: map[string]string{},
 		patched:         map[string]string{},
+		removedRows:     []map[string]any{{"id": "removed"}},
 	}
 	stub.server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if mirrorStubRoutes(stub, writer, request) {
@@ -52,7 +56,7 @@ func newCentralPlaneStub(t *testing.T) *centralPlaneStub {
 			writeJSON(writer, "central-task-1")
 		case request.Method == http.MethodDelete && request.URL.Path == "/rest/v1/task":
 			stub.deleted = append(stub.deleted, request.URL.Query().Get("id"))
-			writer.WriteHeader(http.StatusNoContent)
+			writeJSON(writer, stub.removedRows)
 		default:
 			http.Error(writer, "unexpected "+request.Method+" "+request.URL.Path, http.StatusTeapot)
 		}
@@ -177,6 +181,19 @@ func TestRemovingATaskNamesItToTheCentralPlane(t *testing.T) {
 
 	if len(stub.deleted) != 1 || !strings.Contains(stub.deleted[0], "central-task-1") {
 		t.Fatalf("deleted = %+v", stub.deleted)
+	}
+}
+
+// Row level security narrows a delete rather than refusing it, so a caller who
+// may not remove the row is answered as though the row went.
+func TestATaskNobodyWasAllowedToRemoveIsNotReportedAsRemoved(t *testing.T) {
+	stub := newCentralPlaneStub(t)
+	stub.removedRows = []map[string]any{}
+
+	errorValue := stub.client().DeleteTask(context.Background(), "mattermost", "owner-account", "central-task-1")
+
+	if errorValue == nil {
+		t.Fatal("the company removed nothing and said so, and that was taken for success")
 	}
 }
 

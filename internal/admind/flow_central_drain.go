@@ -141,12 +141,21 @@ func (service *Service) carryFlowTaskRemoval(ctx context.Context, client *centra
 	if errorValue != nil {
 		return errorValue
 	}
-	if centralID == "" {
-		return nil
-	}
 	remover, errorValue := service.administratorWhoRemoves(ctx)
 	if errorValue != nil {
 		return errorValue
+	}
+	if centralID == "" {
+		// The device forgot which row it wrote, and the company remembers which
+		// device task each of its rows came from, so it is asked rather than the
+		// removal being reported as carried.
+		centralID, errorValue = client.TaskCarrying(ctx, "mattermost", remover, taskID)
+		if errorValue != nil {
+			return errorValue
+		}
+	}
+	if centralID == "" {
+		return fmt.Errorf("the company holds no task carried from %q, so its removal cannot be carried", taskID)
 	}
 	if errorValue := client.DeleteTask(ctx, "mattermost", remover, centralID); errorValue != nil {
 		return errorValue

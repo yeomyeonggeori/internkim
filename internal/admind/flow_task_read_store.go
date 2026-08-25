@@ -97,13 +97,23 @@ ORDER BY start_date, owner_name, updated_at DESC`, startDate, endDate, startDate
 	return alignFlowTasksWithMembers(tasks, members), rows.Err()
 }
 
+// A caller names a task by the identifier it was answered with, which is the
+// company's. The device still files its own copy under an identifier of its
+// own, so the company's is turned back into it before the row is looked up.
 func (service *Service) readFlowTaskByID(ctx context.Context, taskID string) (flowTask, bool, error) {
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {
 		return flowTask{}, false, errorValue
 	}
 	defer database.Close()
-	return readFlowTaskByIDWithQueryer(ctx, database, taskID)
+	if task, found, errorValue := readFlowTaskByIDWithQueryer(ctx, database, taskID); found || errorValue != nil {
+		return task, found, errorValue
+	}
+	deviceTaskID, errorValue := readFlowTaskIDCarrying(ctx, database, taskID)
+	if errorValue != nil || deviceTaskID == "" {
+		return flowTask{}, false, errorValue
+	}
+	return readFlowTaskByIDWithQueryer(ctx, database, deviceTaskID)
 }
 
 func (service *Service) readFlowTaskByCalendarEventID(ctx context.Context, eventID string) (flowTask, bool, error) {

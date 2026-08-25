@@ -197,6 +197,7 @@ func (client *Client) DeleteEvent(ctx context.Context, platform string, external
 		return errorValue
 	}
 	client.signAsMember(request, session)
+	askForWhatWasRemoved(request)
 	response, errorValue := client.httpClient.Do(request)
 	if errorValue != nil {
 		return errorValue
@@ -205,7 +206,7 @@ func (client *Client) DeleteEvent(ctx context.Context, platform string, external
 	if response.StatusCode >= 300 {
 		return fmt.Errorf("central plane refused to remove the event: %s", response.Status)
 	}
-	return nil
+	return confirmSomethingWasRemoved(response, "event "+centralID)
 }
 
 // The column holds an object the company app can name, so a device that knows

@@ -152,3 +152,22 @@ func dayFallsWithin(day string, startDate string, endDate string) bool {
 	}
 	return day >= startDate && day <= endDate
 }
+
+// A write is answered with the identifier every later read will show, which is
+// the company's once it holds the task.
+func (service *Service) flowTaskAnsweredWithCompanyIdentity(ctx context.Context, task flowTask) flowTask {
+	if service.centralPlane() == nil || strings.TrimSpace(task.ID) == "" {
+		return task
+	}
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return task
+	}
+	defer database.Close()
+	centralTaskID, errorValue := readFlowCentralIdentity(ctx, database, task.ID)
+	if errorValue != nil || strings.TrimSpace(centralTaskID) == "" {
+		return task
+	}
+	task.ID = centralTaskID
+	return task
+}
