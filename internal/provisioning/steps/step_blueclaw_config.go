@@ -111,8 +111,27 @@ func generatedBlueclawRuntimeConfiguration(context *Context) (string, error) {
 	if errorValue != nil {
 		return "", errorValue
 	}
-	options.AdminTaskLinkBaseURL = loadDeviceURL(context)
+	options.AdminTaskLinkBaseURL = firstNonEmptyURL(companyAppURL(context), loadDeviceURL(context))
 	return blueclaw.BlueclawRuntimeConfigDocumentWithOptions(options)
+}
+
+// A task link is opened by a person, and people sign in at the company's own
+// address. This machine answers the same path, so the link worked; it just sent
+// whoever received it to a machine rather than to the company.
+func companyAppURL(context *Context) string {
+	if context.Backend != BackendSSH {
+		return ""
+	}
+	return trimmedRun(context, "cat "+blueclaw.InternKimCentralPlaneAppURLPath+" 2>/dev/null")
+}
+
+func firstNonEmptyURL(candidates ...string) string {
+	for _, candidate := range candidates {
+		if trimmed := strings.TrimRight(strings.TrimSpace(candidate), "/"); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func loadDeviceURL(context *Context) string {
