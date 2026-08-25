@@ -392,6 +392,7 @@ func (service *Service) Run(ctx context.Context) error {
 	go service.centralPlane()
 	go service.keepUsersSyncInstalled(ctx)
 	go service.keepWorkPolicyPublished(ctx)
+	go service.keepOrganizationProfilesReadBack(ctx)
 	go service.keepFlowTasksDrained(ctx)
 	go service.keepFlowTasksMirrored(ctx)
 	service.reconcileSiteSourcesToStaffCircle()
