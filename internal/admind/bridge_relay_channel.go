@@ -23,6 +23,7 @@ type bridgeRelayChannelShape struct {
 	Purpose     string
 	ChannelType string
 	Visibility  string
+	IsArchived  bool
 }
 
 func (service *Service) ensureBridgeRelayChannel(ctx context.Context, buzzChannelID string, platform string, externalChannelID string) error {
@@ -136,6 +137,7 @@ func describeMattermostChannel(channelRecord mattermostChannelRecord, externalCh
 	return bridgeRelayChannelShape{
 		Name:        mattermostChannelMirrorName(channelRecord, externalChannelID),
 		RoomName:    strings.TrimSpace(channelRecord.Name),
+		IsArchived:  channelRecord.DeleteAt != 0,
 		Purpose:     strings.TrimSpace(channelRecord.Purpose),
 		ChannelType: channelType,
 		Visibility:  visibility,
