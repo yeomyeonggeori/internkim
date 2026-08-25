@@ -262,13 +262,11 @@ function flowTask(
 		business: '',
 		type: '',
 		content: `${id} 업무`,
-		goal: '',
 		size: 'M',
 		status,
 		statusRank: 0,
 		startDate: '2026-06-15',
 		endDate,
-		weekCode: '2026-W25',
-		flag: 0
+		weekCode: '2026-W25'
 	};
 }

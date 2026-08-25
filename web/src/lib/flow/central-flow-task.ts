@@ -81,14 +81,12 @@ export function centralFlowTaskFromRow(
 		business: row.business ?? '',
 		type: row.type ?? '',
 		content: row.title,
-		goal: row.note ?? '',
 		size: row.size ?? '',
 		status: centralStatusWord(row.status),
 		statusRank: 0,
 		startDate: dayOf(row.starts_at),
 		endDate,
 		weekCode: endDate ? weekCodeOfDay(endDate) : '',
-		flag: 0,
 		isEvent: row.is_event
 	};
 }
@@ -98,10 +96,10 @@ export function centralFlowTaskWriteFields(
 	operation: 'insert' | 'update'
 ): Record<string, unknown> {
 	return {
-		title: task.content || task.goal || '(제목 없음)',
+		title: task.content || '(제목 없음)',
 		...(operation === 'insert' ? { parent_task_id: task.parentTaskID ?? null } : {}),
 		status: centralStatusFromWord(task.status),
-		note: task.goal || null,
+		note: null,
 		business: task.business || null,
 		type: task.type || null,
 		size: task.size || null,

@@ -20,13 +20,11 @@ function completedTask(memberIDs: string[], endDate: string, size: string): Flow
 		business: '',
 		type: '',
 		content: '완료된 업무',
-		goal: '',
 		size,
 		status: '완료',
 		statusRank: 0,
 		endDate,
-		weekCode: '',
-		flag: 0
+		weekCode: ''
 	};
 }
 

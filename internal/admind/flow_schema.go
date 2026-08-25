@@ -23,14 +23,10 @@ CREATE TABLE IF NOT EXISTS flow_tasks (
 	business TEXT NOT NULL,
 	type TEXT NOT NULL,
 	content TEXT NOT NULL,
-	goal TEXT NOT NULL,
 	size TEXT NOT NULL,
 	status TEXT NOT NULL,
 	start_date TEXT NOT NULL,
 	end_date TEXT NOT NULL,
-	flag INTEGER NOT NULL,
-	request_reason TEXT NOT NULL,
-	decision_reason TEXT NOT NULL,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 )`)

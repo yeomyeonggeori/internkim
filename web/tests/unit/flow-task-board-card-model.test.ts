@@ -11,8 +11,7 @@ describe('flow task board card model', () => {
 			business: '여명거리',
 			type: '기능',
 			startDate: '2026-06-01',
-			endDate: '2026-06-03',
-			flag: 2
+			endDate: '2026-06-03'
 		}));
 
 		expect(display).toEqual({
@@ -66,12 +65,10 @@ function flowTask(overrides: Partial<FlowTask>): FlowTask {
 		business: '여명거리',
 		type: '기능',
 		content: '업무',
-		goal: '완료',
 		size: 'M',
 		status: '예정',
 		statusRank: 0,
 		weekCode: '26W23',
-		flag: 0,
 		...overrides
 	};
 }

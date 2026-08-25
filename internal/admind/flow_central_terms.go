@@ -22,17 +22,8 @@ func centralFlowStatus(deviceStatus string) string {
 	return "todo"
 }
 
-// The central plane keeps one note where the device keeps a goal and a reason for
-// asking, so they are joined the way the relay joins them.
 func centralFlowNote(task flowTask) string {
-	lines := []string{}
-	if goal := strings.TrimSpace(task.Goal); goal != "" {
-		lines = append(lines, "목표: "+goal)
-	}
-	if reason := strings.TrimSpace(task.RequestReason); reason != "" {
-		lines = append(lines, reason)
-	}
-	return strings.Join(lines, "\n")
+	return ""
 }
 
 func flowMemberIdentifier(record adminUserMutation) string {

@@ -2778,9 +2778,6 @@ func TestFlowTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 	if task.Status != "요청" {
 		t.Fatalf("status = %q", task.Status)
 	}
-	if task.RequestReason == "" {
-		t.Fatalf("request reason was empty")
-	}
 }
 
 type flowNotificationRequests struct {
@@ -2912,11 +2909,9 @@ func flowNotificationTestTask(status string) flowTask {
 		ParticipantNames: []string{"김민수"},
 		Type:             "회의",
 		Content:          "10분 회의",
-		Goal:             "정리",
 		Size:             "XS",
 		Status:           status,
 		WeekCode:         "26W18",
-		RequestReason:    "검토 요청",
 	}
 }
 
@@ -2930,7 +2925,6 @@ func flowReportTestTask(id string, weekCode string, participantIDs []string, par
 		Business:         "개발",
 		Type:             "회의",
 		Content:          id,
-		Goal:             "거리 리포트 검증",
 		Size:             size,
 		Status:           status,
 		StartDate:        startDate,
@@ -2965,6 +2959,9 @@ func newFlowAuthorizationTestService(t *testing.T) *Service {
 		}
 		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+		}
+		if request.URL.Path == "/api/agent/key" {
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil

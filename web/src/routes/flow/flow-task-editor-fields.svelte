@@ -44,10 +44,6 @@
 	{text.content}
 	<Input bind:value={taskDraft.content} placeholder={text.contentPlaceholder} disabled={!canEditTask} />
 </label>
-<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-	{text.goal}
-	<Input bind:value={taskDraft.goal} placeholder={text.goalPlaceholder} disabled={!canEditTask} />
-</label>
 <div class="grid gap-3 md:grid-cols-2">
 	{#if hasFlowTaskRequestProvenance(taskDraft)}
 		<div class="grid gap-1 text-xs font-medium text-muted-foreground">
@@ -125,15 +121,3 @@
 		<Input type="date" bind:value={taskDraft.endDate} disabled={!canEditTask} />
 	</label>
 </div>
-{#if isFlowStatusRequested(taskDraft.status)}
-	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-		{text.requestReason}
-		<Input bind:value={taskDraft.requestReason} disabled={!canEditTask} />
-	</label>
-{/if}
-{#if isFlowStatusRejected(taskDraft.status) || isFlowStatusStopped(taskDraft.status)}
-	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-		{text.reason}
-		<Input bind:value={taskDraft.decisionReason} disabled={!canEditTask} />
-	</label>
-{/if}

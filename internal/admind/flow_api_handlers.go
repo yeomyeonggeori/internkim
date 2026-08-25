@@ -13,6 +13,7 @@ import (
 
 func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *http.Request) {
 	request.Header.Del(flowResolvedActorHeader)
+	request = request.WithContext(withFlowActor(request.Context(), service.flowActorEmail(request)))
 	path := strings.TrimPrefix(request.URL.Path, "/flow/api")
 	switch {
 	case request.Method == http.MethodGet && path == "/summary":

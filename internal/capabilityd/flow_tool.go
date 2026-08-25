@@ -18,7 +18,6 @@ import (
 
 type flowTaskAddInput struct {
 	Title                  string   `json:"title"`
-	Goal                   string   `json:"goal"`
 	Size                   string   `json:"size"`
 	Status                 string   `json:"status"`
 	StartDate              string   `json:"startDate"`
@@ -31,7 +30,6 @@ type flowTaskCreatePayload struct {
 	OwnerID        string   `json:"ownerID"`
 	ParticipantIDs []string `json:"participantIDs"`
 	Content        string   `json:"content"`
-	Goal           string   `json:"goal,omitempty"`
 	Size           string   `json:"size,omitempty"`
 	Status         string   `json:"status,omitempty"`
 	StartDate      string   `json:"startDate,omitempty"`
@@ -58,7 +56,6 @@ const (
 type flowTaskUpdateInput struct {
 	TaskHint               string    `json:"taskHint"`
 	Title                  *string   `json:"title"`
-	Goal                   *string   `json:"goal"`
 	Status                 *string   `json:"status"`
 	Size                   *string   `json:"size"`
 	Category               *string   `json:"category"`
@@ -101,7 +98,6 @@ type flowTaskForTool struct {
 	Business                 string                      `json:"business"`
 	Type                     string                      `json:"type"`
 	Content                  string                      `json:"content"`
-	Goal                     string                      `json:"goal"`
 	Size                     string                      `json:"size"`
 	Status                   string                      `json:"status"`
 	StartDate                string                      `json:"startDate"`
@@ -173,7 +169,6 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		OwnerID:        ownerResolution.OwnerID,
 		ParticipantIDs: participantIDs,
 		Content:        input.Title,
-		Goal:           input.Goal,
 		Size:           input.Size,
 		Status:         input.Status,
 		StartDate:      input.StartDate,
@@ -316,7 +311,6 @@ func flowTaskUpdateResultMatchesInput(result json.RawMessage, input flowTaskUpda
 	}
 	return identifierSetPatchMatches(participantIDs, task.ParticipantIDs) &&
 		stringPatchMatches(input.Title, task.Content) &&
-		stringPatchMatches(input.Goal, task.Goal) &&
 		stringPatchMatches(input.Status, task.Status) &&
 		stringPatchMatches(input.Size, task.Size) &&
 		stringPatchMatches(input.Category, task.Business) &&
@@ -458,7 +452,6 @@ func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) 
 		return flowTaskAddInput{}, errorValue
 	}
 	input.Title = strings.TrimSpace(input.Title)
-	input.Goal = strings.TrimSpace(input.Goal)
 	input.Size = strings.ToUpper(strings.TrimSpace(input.Size))
 	input.Status = strings.TrimSpace(input.Status)
 	input.StartDate = strings.TrimSpace(input.StartDate)
@@ -522,7 +515,6 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 	}
 	input.TaskHint = strings.TrimSpace(input.TaskHint)
 	trimStringPointer(&input.Title)
-	trimStringPointer(&input.Goal)
 	trimStringPointer(&input.Status)
 	trimStringPointer(&input.Size)
 	trimStringPointer(&input.Category)
@@ -718,7 +710,6 @@ func (service Service) putFlowTask(ctx context.Context, task flowTaskForTool, re
 		"category":       task.Business,
 		"type":           task.Type,
 		"content":        task.Content,
-		"goal":           task.Goal,
 		"size":           task.Size,
 		"status":         task.Status,
 		"startDate":      task.StartDate,
@@ -1005,7 +996,7 @@ func flowTaskMatchesQuery(task flowTaskForTool, query string) bool {
 	if normalizedQuery == "" {
 		return true
 	}
-	values := []string{task.Content, task.Goal, task.Business, task.Type, task.OwnerName, task.Status}
+	values := []string{task.Content, task.Business, task.Type, task.OwnerName, task.Status}
 	for _, value := range values {
 		if strings.Contains(normalizeFlowTaskSearchText(value), normalizedQuery) {
 			return true
@@ -1121,9 +1112,6 @@ func applyFlowTaskUpdateInput(task flowTaskForTool, input flowTaskUpdateInput, p
 	if input.Title != nil {
 		task.Content = *input.Title
 	}
-	if input.Goal != nil {
-		task.Goal = *input.Goal
-	}
 	if input.Status != nil {
 		task.Status = *input.Status
 	}
@@ -1147,7 +1135,6 @@ func applyFlowTaskUpdateInput(task flowTaskForTool, input flowTaskUpdateInput, p
 
 func hasFlowTaskUpdatePatch(input flowTaskUpdateInput) bool {
 	return input.Title != nil ||
-		input.Goal != nil ||
 		input.Status != nil ||
 		input.Size != nil ||
 		input.Category != nil ||

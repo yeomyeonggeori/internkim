@@ -7,7 +7,7 @@ import (
 )
 
 const flowTasksMadeFromCalendarEvents = `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, status_rank, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, calendar_event_id, created_at
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 WHERE id IN (SELECT uid FROM calendar_events)`
 
