@@ -8,7 +8,10 @@ import sys
 import tempfile
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
-RENDER_REVIEW_SCRIPT = REPOSITORY_ROOT / "assets/blueclaw-workspace/skills/presentation/scripts/render_review.py"
+sys.path.insert(0, str(REPOSITORY_ROOT / "tools"))
+from skill_paths import find_skill_directory
+
+RENDER_REVIEW_SCRIPT = find_skill_directory(REPOSITORY_ROOT, "presentation") / "scripts" / "render_review.py"
 
 TEMPLATED_DECK = """<!DOCTYPE html>
 <html lang="ko">
