@@ -63,7 +63,7 @@ func TestMattermostChannelImportsIntoBuzz(t *testing.T) {
 	}
 
 	resolver := stubResolver{
-		secretsByEmail:    map[string]string{"lee@example.com": leeSecret, "kwak@example.com": kwakSecret},
+		secretsByEmail:    map[string]string{"member1@example.com": leeSecret, "kwak@example.com": kwakSecret},
 		pubkeysByUsername: map[string]string{},
 	}
 	messages, skipped, errorValue := PlanChannelImport(ChannelImportPlan{

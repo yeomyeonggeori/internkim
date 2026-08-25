@@ -27,7 +27,7 @@ func (resolver stubResolver) PubkeyForUsername(username string) (string, bool) {
 func newStubResolver() stubResolver {
 	return stubResolver{
 		secretsByEmail: map[string]string{
-			"lee@example.com":  testAuthorSecret,
+			"member1@example.com":  testAuthorSecret,
 			"kwak@example.com": "2278851e7a6068811817d7d1a9f3bb126279e84ad078e832908f785cd39c5aa8",
 		},
 		pubkeysByUsername: map[string]string{"kwak": strings.Repeat("c", 64)},
@@ -49,7 +49,7 @@ func basePlan(posts []MattermostPost) ChannelImportPlan {
 	return ChannelImportPlan{
 		BuzzChannelID: "4b24ca45-2860-42f4-bdca-4380f803d2aa",
 		Posts:         posts,
-		AuthorEmails:  map[string]string{"u-lee": "lee@example.com", "u-kwak": "kwak@example.com"},
+		AuthorEmails:  map[string]string{"u-lee": "member1@example.com", "u-kwak": "kwak@example.com"},
 	}
 }
 

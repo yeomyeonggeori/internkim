@@ -11,9 +11,9 @@ import (
 )
 
 func TestParseMattermostPasswordHashes(t *testing.T) {
-	output := "lee@example.com|$2a$10$abcdef\n|$2a$10$orphan\nnohash@x.com|plain\ngood@x.com|$pbkdf2$f=SHA256,w=600000,l=32$c2FsdA$aGFzaA\n"
+	output := "member1@example.com|$2a$10$abcdef\n|$2a$10$orphan\nnohash@x.com|plain\ngood@x.com|$pbkdf2$f=SHA256,w=600000,l=32$c2FsdA$aGFzaA\n"
 	hashes := parseMattermostPasswordHashes(output)
-	if hashes["lee@example.com"] != "$2a$10$abcdef" {
+	if hashes["member1@example.com"] != "$2a$10$abcdef" {
 		t.Errorf("missing bcrypt row: %v", hashes)
 	}
 	if _, present := hashes["nohash@x.com"]; present {
@@ -45,14 +45,14 @@ func TestVerifyLocalMattermostPassword(t *testing.T) {
 	}
 	service := &Service{}
 	service.Configuration.StateDirectory = t.TempDir()
-	blob := []byte(`{"lee@example.com":"` + string(hash) + `"}`)
+	blob := []byte(`{"member1@example.com":"` + string(hash) + `"}`)
 	if errorValue := writeFileAtomically(filepath.Join(service.Configuration.StateDirectory, mattermostPasswordHashFileName), blob, 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !service.verifyLocalMattermostPassword("Lee@Example.com", "hunter2") {
+	if !service.verifyLocalMattermostPassword("Member1@Example.com", "hunter2") {
 		t.Error("correct password should verify (case-insensitive email)")
 	}
-	if service.verifyLocalMattermostPassword("lee@example.com", "wrong") {
+	if service.verifyLocalMattermostPassword("member1@example.com", "wrong") {
 		t.Error("wrong password must not verify")
 	}
 	if service.verifyLocalMattermostPassword("unknown@x.com", "hunter2") {

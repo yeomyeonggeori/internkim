@@ -9,7 +9,7 @@ func TestMattermostSessionCacheFreshAndStaleWindows(t *testing.T) {
 	cache := newMattermostSessionCache()
 	key := mattermostSessionCacheKey("MMAUTHTOKEN=abc")
 	base := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
-	cache.store(key, mattermostUserRecord{Email: "lee@example.com"}, base)
+	cache.store(key, mattermostUserRecord{Email: "member1@example.com"}, base)
 
 	if _, found := cache.lookup(key, base.Add(30*time.Second), mattermostSessionFreshTTL); !found {
 		t.Fatal("entry within fresh TTL should be served")
@@ -18,7 +18,7 @@ func TestMattermostSessionCacheFreshAndStaleWindows(t *testing.T) {
 		t.Fatal("entry past fresh TTL must not be served as fresh")
 	}
 	record, found := cache.lookup(key, base.Add(2*time.Minute), mattermostSessionStaleTTL)
-	if !found || record.Email != "lee@example.com" {
+	if !found || record.Email != "member1@example.com" {
 		t.Fatal("entry within stale TTL should survive a mattermost outage")
 	}
 	if _, found := cache.lookup(key, base.Add(11*time.Minute), mattermostSessionStaleTTL); found {

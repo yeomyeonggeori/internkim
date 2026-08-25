@@ -195,9 +195,9 @@ func TestCalendarMattermostLogMentionsCircleIDPeople(t *testing.T) {
 
 func TestCalendarMattermostLogMentionsKoreanPeople(t *testing.T) {
 	service := newCalendarTestService(t)
-	mattermostUsers := []mattermostUserRecord{{ID: "user-iam", Username: "iam", Nickname: "김표본", Email: "iam@example.com"}}
+	mattermostUsers := []mattermostUserRecord{{ID: "user-iam", Username: "member2", Nickname: "김표본", Email: "member2@example.com"}}
 	message := service.calendarMattermostLogMessageWithUsers(calendarTestEvent("targeted", "Staff sync", "김표본\nBring agenda"), mattermostUsers)
-	if !strings.Contains(message, "참석자: @iam\n\n| 일시") {
+	if !strings.Contains(message, "참석자: @member2\n\n| 일시") {
 		t.Fatalf("message = %q", message)
 	}
 	if strings.Contains(message, "대상:") {
