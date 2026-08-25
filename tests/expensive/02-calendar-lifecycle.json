@@ -2,9 +2,7 @@
   "name": "calendar-lifecycle",
   "requiresModelProvenance": true,
   "expectedLLMProvider": "openrouter",
-  "skillDirectoryPaths": [
-    "../../assets/blueclaw-workspace/skills/calendar"
-  ],
+  "skillNames": ["calendar"],
   "allowedTools": [
     "conversation_history",
     "memory_search",

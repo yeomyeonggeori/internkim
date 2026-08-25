@@ -1,6 +1,6 @@
 {
   "name": "other-person-calendar-capture",
-  "skillDirectoryPaths": ["../../assets/blueclaw-workspace/skills/calendar"],
+  "skillNames": ["calendar"],
   "allowedTools": ["conversation_history", "memory_search", "calendar_add", "calendar_list", "calendar_update"],
   "capabilityToolNames": ["calendar_add", "calendar_list", "calendar_update"],
   "initialToolNames": ["calendar_add", "calendar_list", "calendar_update"],

@@ -2,9 +2,7 @@
  "name": "website-lifecycle",
  "requiresModelProvenance": true,
  "expectedLLMProvider": "openrouter",
- "skillDirectoryPaths": [
-  "../../assets/blueclaw-workspace/skills/website"
- ],
+ "skillNames": ["website"],
  "allowedTools": [
   "conversation_history",
   "memory_search",
