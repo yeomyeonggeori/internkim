@@ -51,6 +51,8 @@
 		}
 	}
 
+	onMount(load);
+
 	async function switchReach() {
 		isSwitching = true;
 		try {
