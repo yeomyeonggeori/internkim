@@ -2,7 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isNodeRequest, normalizeFleetID } from '$lib/device-auth';
 import { fleetUserRecords, withdrawFleetUser } from '$lib/server/fleet-user-directory';
-import { adminEmailsOf, askedDirectory, isAdminRequest, usersResponse } from '../+server';
+import { adminEmailsOf, askedDirectory, isAdminRequest, usersResponse } from '$lib/server/fleet-user-request';
 
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
