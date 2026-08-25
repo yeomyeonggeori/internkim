@@ -90,6 +90,24 @@ async function rememberMessengerAccount(
 	if (error) throw new Error(error.message);
 }
 
+// A member is reached by the messenger handle a platform knows them by, or by
+// the address the company itself holds, which is the one identity every member
+// has whether or not they have been given a messenger account yet.
+export async function memberOfCompanyByEmail(
+	client: SupabaseClient,
+	companyID: string,
+	email: string,
+): Promise<string | null> {
+	const { data, error } = await client
+		.from('member')
+		.select('id')
+		.eq('company_id', companyID)
+		.ilike('email', email.trim())
+		.maybeSingle<{ id: string }>();
+	if (error) throw new Error(error.message);
+	return data?.id ?? null;
+}
+
 export async function membersOfCompanyByExternalID(
 	client: SupabaseClient,
 	companyID: string,
