@@ -44,3 +44,15 @@ func TestAPrivateRoomThatIsNoCirclesIsLeftAlone(t *testing.T) {
 		t.Fatal("a private room that is no circle's has no circle to judge its members by")
 	}
 }
+
+func TestAnArchivedRoomIsSeenAsArchived(t *testing.T) {
+	shape := describeMattermostChannel(mattermostChannelRecord{
+		Name:     "autoke-qa",
+		Type:     "P",
+		DeleteAt: 1756000000000,
+	}, "channel-3")
+
+	if !shape.IsArchived {
+		t.Fatal("archiving an already archived room fails, so the room's own state has to be read first")
+	}
+}
