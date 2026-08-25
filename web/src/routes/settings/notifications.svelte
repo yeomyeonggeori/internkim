@@ -16,7 +16,9 @@
 		stopBeingReached,
 		type Reachability
 	} from '$lib/notifications/subscribe';
+	import { sendTestNotification } from '$lib/notifications/self-test';
 	import BellIcon from '@lucide/svelte/icons/bell';
+	import SendIcon from '@lucide/svelte/icons/send';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { companySettingsText } from './text';
@@ -29,6 +31,7 @@
 	let settings = $state<NotificationSettings>(readNotificationSettings({}));
 	let isLoading = $state(true);
 	let isSwitching = $state(false);
+	let isTesting = $state(false);
 
 	const categoryLabels: Record<NotificationCategory, string> = $derived({
 		message: text.notifyMessage,
@@ -59,6 +62,19 @@
 		}
 	}
 
+	async function sendTest() {
+		isTesting = true;
+		try {
+			const { reached } = await sendTestNotification(text.notifyTestTitle, text.notifyTestBody);
+			if (reached === 0) toast.error(text.notifyTestNoDevice);
+			else toast.success(text.notifyTestSent);
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : text.notifyTestFailed);
+		} finally {
+			isTesting = false;
+		}
+	}
+
 	async function choose(category: NotificationCategory, wanted: boolean) {
 		const previous = settings;
 		settings = { ...settings, [category]: wanted };
@@ -86,6 +102,12 @@
 				<BellIcon class="size-4" />
 				{reach === 'on' ? text.notifyStop : text.notifyStart}
 			</Button>
+			{#if reach === 'on'}
+				<Button variant="outline" class="w-full gap-2" onclick={sendTest} disabled={isTesting}>
+					<SendIcon class="size-4" />
+					{text.notifyTest}
+				</Button>
+			{/if}
 			{#if reach === 'blocked'}
 				<p class="text-sm text-muted-foreground">{text.notifyBlocked}</p>
 			{/if}
