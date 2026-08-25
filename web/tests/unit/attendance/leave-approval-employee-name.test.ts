@@ -3,14 +3,14 @@ import type { AttendanceMember } from '../../../src/routes/attendance/attendance
 import { leaveApprovalEmployeeName } from '../../../src/routes/attendance/approval/leave-approval-employee-name';
 
 const members: AttendanceMember[] = [
-	{ email: 'lee@example.com', displayName: '이샘플', mattermostUsername: 'lee' },
+	{ email: 'member1@example.com', displayName: '이샘플', mattermostUsername: 'lee' },
 	{ email: 'Park@example.com', displayName: '박예시', mattermostUsername: 'park' },
 	{ email: 'choi@example.com', displayName: '', mattermostUsername: 'choi' }
 ];
 
 describe('leaveApprovalEmployeeName', () => {
 	test('resolves the display name for a known address', () => {
-		expect(leaveApprovalEmployeeName(members, 'lee@example.com')).toBe('이샘플');
+		expect(leaveApprovalEmployeeName(members, 'member1@example.com')).toBe('이샘플');
 	});
 
 	test('matches the address regardless of case', () => {

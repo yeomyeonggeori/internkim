@@ -113,7 +113,7 @@ func TestMattermostPostMaintenanceRepairsMessageRootAndTimestamps(t *testing.T) 
 func TestMattermostPostMaintenanceRequiresClaimedAdminForRemoteRequests(t *testing.T) {
 	service := NewService(Configuration{
 		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
-		ClaimedAdminEmailPath: writeTestFile(t, "lee@example.com"),
+		ClaimedAdminEmailPath: writeTestFile(t, "member1@example.com"),
 	})
 	request := httptest.NewRequest(http.MethodPost, "/admin/api/maintenance/mattermost-posts/post-1/repair", strings.NewReader(`{"message":"new"}`))
 	request.RemoteAddr = "203.0.113.10:12345"
@@ -560,7 +560,7 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/admin/api/health", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "lee@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member1@example.com")
 	response := httptest.NewRecorder()
 	service.router().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
@@ -606,16 +606,16 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@example.com","role":"admin"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member1@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertFirstAdminPasswordPolicyPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/email/lee@example.com":
+		case request.URL.String() == "http://mattermost.local/api/v4/users/email/member1@example.com":
 			return jsonResponse(http.StatusNotFound, `{"message":"not found"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusCreated, `{"id":"user-1","email":"lee@example.com","username":"lee"}`, nil), nil
+			return jsonResponse(http.StatusCreated, `{"id":"user-1","email":"member1@example.com","username":"member1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
 			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members":
@@ -637,7 +637,7 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithSeedAdmin(), nil), nil
-		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "lee@example.com"):
+		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "member1@example.com"):
 			blueclawInvited = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
@@ -648,13 +648,13 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/admin/", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "lee@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member1@example.com")
 	response := httptest.NewRecorder()
 	service.router().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("admin page status = %d body = %s", response.Code, response.Body.String())
 	}
-	if strings.TrimSpace(readTrimmedFile(claimedAdminEmailPath)) != "lee@example.com" {
+	if strings.TrimSpace(readTrimmedFile(claimedAdminEmailPath)) != "member1@example.com" {
 		t.Fatalf("claimed admin = %q", readTrimmedFile(claimedAdminEmailPath))
 	}
 	if !blueclawInvited {
@@ -712,14 +712,14 @@ func TestAdminSessionReportsFirstAdminBootstrapFailure(t *testing.T) {
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@example.com","role":"admin"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member1@example.com","role":"admin"}]}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
 	})}
 
-	responseDocument := requestAdminSession(t, service, "lee@example.com")
+	responseDocument := requestAdminSession(t, service, "member1@example.com")
 	if responseDocument["bootstrapStatus"] != firstAdminBootstrapFailed {
 		t.Fatalf("bootstrap status = %#v", responseDocument)
 	}
@@ -761,7 +761,7 @@ func TestAdminSessionReturnsFirstAdminTemporaryPasswordOnce(t *testing.T) {
 		switch {
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			if hasUserRecord {
-				return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@example.com","role":"admin"}]}`, nil), nil
+				return jsonResponse(http.StatusOK, `{"records":[{"email":"member1@example.com","role":"admin"}]}`, nil), nil
 			}
 			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
@@ -769,28 +769,28 @@ func TestAdminSessionReturnsFirstAdminTemporaryPasswordOnce(t *testing.T) {
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			if payload.Email != "lee@example.com" || payload.Role != "admin" {
+			if payload.Email != "member1@example.com" || payload.Role != "admin" {
 				t.Fatalf("unexpected user role payload: %+v", payload)
 			}
 			hasUserRecord = true
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@example.com","role":"admin"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member1@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertFirstAdminPasswordPolicyPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/email/lee@example.com":
+		case request.URL.String() == "http://mattermost.local/api/v4/users/email/member1@example.com":
 			return jsonResponse(http.StatusNotFound, `{"message":"not found"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users" && request.Method == http.MethodPost:
 			var payload map[string]string
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			if payload["email"] != "lee@example.com" || payload["password"] == "" {
+			if payload["email"] != "member1@example.com" || payload["password"] == "" {
 				t.Fatalf("unexpected Mattermost create payload: %#v", payload)
 			}
 			createdMattermostPassword = payload["password"]
-			return jsonResponse(http.StatusCreated, `{"id":"user-1","email":"lee@example.com","username":"lee"}`, nil), nil
+			return jsonResponse(http.StatusCreated, `{"id":"user-1","email":"member1@example.com","username":"member1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
 			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members":
@@ -819,7 +819,7 @@ func TestAdminSessionReturnsFirstAdminTemporaryPasswordOnce(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithSeedAdmin(), nil), nil
-		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "lee@example.com"):
+		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "member1@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -827,18 +827,18 @@ func TestAdminSessionReturnsFirstAdminTemporaryPasswordOnce(t *testing.T) {
 		}
 	})}
 
-	firstResponse := requestAdminSession(t, service, "lee@example.com")
+	firstResponse := requestAdminSession(t, service, "member1@example.com")
 	if createdMattermostPassword != firstAdminMattermostPassword {
 		t.Fatalf("first admin Mattermost password = %q", createdMattermostPassword)
 	}
 	if firstResponse["temporaryPassword"] != firstAdminMattermostPassword {
 		t.Fatalf("temporary password not returned: response=%#v created=%q", firstResponse, createdMattermostPassword)
 	}
-	if firstResponse["temporaryPasswordEmail"] != "lee@example.com" {
+	if firstResponse["temporaryPasswordEmail"] != "member1@example.com" {
 		t.Fatalf("temporary password email = %#v", firstResponse["temporaryPasswordEmail"])
 	}
 
-	secondResponse := requestAdminSession(t, service, "lee@example.com")
+	secondResponse := requestAdminSession(t, service, "member1@example.com")
 	if _, exists := secondResponse["temporaryPassword"]; exists {
 		t.Fatalf("temporary password returned twice: %#v", secondResponse)
 	}
@@ -874,14 +874,14 @@ func TestAdminSessionResetsExistingFirstAdminMattermostPassword(t *testing.T) {
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@example.com","role":"admin"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member1@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertFirstAdminPasswordPolicyPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/email/lee@example.com":
-			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"lee@example.com","username":"lee"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/email/member1@example.com":
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member1@example.com","username":"member1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/password" && request.Method == http.MethodPut:
 			var payload map[string]string
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -913,7 +913,7 @@ func TestAdminSessionResetsExistingFirstAdminMattermostPassword(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithSeedAdmin(), nil), nil
-		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "lee@example.com"):
+		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "member1@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -921,7 +921,7 @@ func TestAdminSessionResetsExistingFirstAdminMattermostPassword(t *testing.T) {
 		}
 	})}
 
-	response := requestAdminSession(t, service, "lee@example.com")
+	response := requestAdminSession(t, service, "member1@example.com")
 	if !passwordReset {
 		t.Fatal("Mattermost password was not reset")
 	}
@@ -939,9 +939,9 @@ func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing
 	stateDirectory := t.TempDir()
 	writeFile(t, fleetIDPath, "dc719d8e")
 	writeFile(t, fleetSecretPath, "secret-value")
-	writeFile(t, claimedAdminEmailPath, "lee@example.com")
+	writeFile(t, claimedAdminEmailPath, "member1@example.com")
 	writeFile(t, adminPasswordPath, "admin-pass")
-	writeFile(t, filepath.Join(stateDirectory, "first-admin-bootstrap.json"), `{"email":"lee@example.com","status":"claimed"}`)
+	writeFile(t, filepath.Join(stateDirectory, "first-admin-bootstrap.json"), `{"email":"member1@example.com","status":"claimed"}`)
 
 	passwordReset := false
 	deliveredPolicyPath := filepath.Join(t.TempDir(), "policy.json")
@@ -965,8 +965,8 @@ func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertFirstAdminPasswordPolicyPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/email/lee@example.com":
-			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"lee@example.com","username":"lee"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/email/member1@example.com":
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member1@example.com","username":"member1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/password" && request.Method == http.MethodPut:
 			var payload map[string]string
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -997,10 +997,10 @@ func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing
 			assertBotDirectChannelShown(t, request, "user-1", "bot-1")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@example.com","role":"admin"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member1@example.com","role":"admin"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithClaimedMember(), nil), nil
-		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "lee@example.com"):
+		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "member1@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -1008,7 +1008,7 @@ func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing
 		}
 	})}
 
-	response := requestAdminSession(t, service, "lee@example.com")
+	response := requestAdminSession(t, service, "member1@example.com")
 	if !passwordReset {
 		t.Fatal("Mattermost password was not repaired")
 	}
@@ -2590,7 +2590,7 @@ func TestFlowMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `[{"id":"user-iam","username":"iam","nickname":"김민수","email":"iam@example.com"}]`, nil), nil
+			return jsonResponse(http.StatusOK, `[{"id":"user-iam","username":"member2","nickname":"김민수","email":"member2@example.com"}]`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/direct" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{"id":"direct-channel-1"}`, nil), nil
 		case strings.HasSuffix(request.URL.Path, "/preferences") && request.Method == http.MethodPut:
@@ -2658,7 +2658,7 @@ func TestFlowTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
 	members := []flowMember{
 		{ID: "me", Name: "me", Email: "me@example.com"},
-		{ID: "lee", Name: "lee", Email: "lee@example.com"},
+		{ID: "lee", Name: "lee", Email: "member1@example.com"},
 	}
 	payload := flowTaskWriteRequest{
 		OwnerID:        "lee",
@@ -2730,7 +2730,7 @@ func newFlowNotificationTestService(t *testing.T) (*Service, *flowNotificationRe
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200" && request.Method == http.MethodGet:
 			assertMattermostBearerToken(t, request, "admin-token")
-			return jsonResponse(http.StatusOK, `[{"id":"user-iam","username":"iam","first_name":"","last_name":"","nickname":"김민수","email":"iam@example.com"}]`, nil), nil
+			return jsonResponse(http.StatusOK, `[{"id":"user-iam","username":"member2","first_name":"","last_name":"","nickname":"김민수","email":"member2@example.com"}]`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/direct" && request.Method == http.MethodPost:
 			assertMattermostBearerToken(t, request, "admin-token")
 			requests.directChannelUser = append(requests.directChannelUser, mattermostDirectChannelOtherUserID(t, request, "bot-1"))
@@ -5068,7 +5068,7 @@ func blueclawPolicyWithSeedAdmin() string {
 }
 
 func blueclawPolicyWithClaimedMember() string {
-	return `{"people":[{"personID":"00000000-0000-0000-0000-000000000001","displayName":"Intern Kim Admin","emails":["eastriver0720@gmail.com"],"securityLevelName":"admin","securityLevelRank":100,"grantedClasses":["internal","executive"],"isAdmin":true},{"personID":"member-1","displayName":"lee","emails":["lee@example.com"],"securityLevelName":"member","securityLevelRank":10,"grantedClasses":["internal"],"isAdmin":false}],"channels":[],"retention":{"rawEventDays":60}}`
+	return `{"people":[{"personID":"00000000-0000-0000-0000-000000000001","displayName":"Intern Kim Admin","emails":["eastriver0720@gmail.com"],"securityLevelName":"admin","securityLevelRank":100,"grantedClasses":["internal","executive"],"isAdmin":true},{"personID":"member-1","displayName":"lee","emails":["member1@example.com"],"securityLevelName":"member","securityLevelRank":10,"grantedClasses":["internal"],"isAdmin":false}],"channels":[],"retention":{"rawEventDays":60}}`
 }
 
 func writeTestFile(t *testing.T, document string) string {

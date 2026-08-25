@@ -1022,8 +1022,8 @@ su - postgres -c "psql -X -qAt -c \"SELECT datname FROM pg_database WHERE datist
   [ "$has_users" = "t" ] || continue
   printf "== %s: locked users (failedattempts>0) before ==\n" "$database"
   su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"SELECT email || ' failed=' || failedattempts || ' del=' || deleteat || ' auth=' || COALESCE(NULLIF(authservice,''),'password') FROM users WHERE failedattempts > 0 AND deleteat = 0 ORDER BY failedattempts DESC\"" 2>/dev/null
-  printf "== lee@example.com account state ==\n"
-  su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"SELECT email || ' failed=' || failedattempts || ' del=' || deleteat || ' auth=' || COALESCE(NULLIF(authservice,''),'password') FROM users WHERE lower(email)='lee@example.com'\"" 2>/dev/null
+  printf "== member1@example.com account state ==\n"
+  su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"SELECT email || ' failed=' || failedattempts || ' del=' || deleteat || ' auth=' || COALESCE(NULLIF(authservice,''),'password') FROM users WHERE lower(email)='member1@example.com'\"" 2>/dev/null
   updated=$(su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"UPDATE users SET failedattempts = 0 WHERE deleteat = 0 AND failedattempts > 0 RETURNING email\"" 2>/dev/null | wc -l)
   printf "== %s: reset failedattempts for %s user(s) ==\n" "$database" "$updated"
 done

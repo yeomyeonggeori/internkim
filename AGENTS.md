@@ -475,7 +475,7 @@ and delete the duplicates.
   applied migration; add the next one.
 - Local loop, in this order: `supabase db reset` (schema plus fixtures),
   `supabase test db` (pgTAP), `cd web && bun run dev`. The reset alone gives a
-  company you can sign into — `lee@example.com` / `seed-password`.
+  company you can sign into — `member1@example.com` / `seed-password`.
 - `supabase/seed.dev.sql` is the only place local fixtures live, wired through
   `[db.seed]` in `config.toml`. Do not write a second seeding script; a reset
   wipes anything the file does not carry.

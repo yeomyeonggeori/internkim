@@ -114,7 +114,7 @@ func TestBuzzStorePersistsLinksForAcpd(t *testing.T) {
 
 	store := service.buzzStore()
 	store.mutex.Lock()
-	store.state.Links[strings.Repeat("c", 64)] = "lee@example.com"
+	store.state.Links[strings.Repeat("c", 64)] = "member1@example.com"
 	store.save()
 	store.mutex.Unlock()
 	service.writeBuzzAccountLinksFile()
@@ -127,7 +127,7 @@ func TestBuzzStorePersistsLinksForAcpd(t *testing.T) {
 	if errorValue := json.Unmarshal(document, &links); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if links[strings.Repeat("c", 64)] != "lee@example.com" {
+	if links[strings.Repeat("c", 64)] != "member1@example.com" {
 		t.Fatalf("expected persisted link, got %+v", links)
 	}
 }

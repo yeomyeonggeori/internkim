@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { calendarParticipantsWithViewerFirst } from '../../../src/routes/calendar/embed/calendar-participants';
 
 const participants = [
-	{ personID: 'lee', name: '이영희', email: 'lee@example.com' },
+	{ personID: 'lee', name: '이영희', email: 'member1@example.com' },
 	{ personID: 'kim', name: '김철수', email: 'kim@example.com' },
 	{ personID: 'park', name: '박지민', email: 'park@example.com' }
 ];
