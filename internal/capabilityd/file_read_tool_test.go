@@ -208,7 +208,7 @@ func TestFileReadHelperIgnoresStderrNoise(t *testing.T) {
 		}.WithDefaults(),
 	}
 
-	response, errorValue := service.runFileReadHelper(context.Background(), fileReadHelperRequest{Path: filepath.Join(workspacePath, "document.html")})
+	response, errorValue := service.runFileReadHelper(context.Background(), fileReadHelperRequest{PythonPath: pythonPath, Path: filepath.Join(workspacePath, "document.html")})
 	if errorValue != nil {
 		t.Fatalf("expected stderr noise to be ignored: %v", errorValue)
 	}

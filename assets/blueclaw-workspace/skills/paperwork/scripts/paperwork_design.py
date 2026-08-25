@@ -6,8 +6,6 @@ COLOR_HEADER_FILL = (0xF3, 0xF4, 0xF6)
 
 FONT_KOREAN_DOCX = "맑은 고딕"
 FONT_CANDIDATE_PATHS_PDF = [
-    "/workspace/shared/cache/dependencies/fonts/NanumGothic.ttf",
-    "/workspace/shared/cache/dependencies/fonts/NotoSansKR-Regular.ttf",
     "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
