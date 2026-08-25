@@ -345,6 +345,13 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"slack": map[string]any{
 				"baseURL": BlueclawSlackAPIBaseURL,
 			},
+			// The agent runs in the guest, where the loopback it would otherwise
+			// fall back to is its own, so chatd is named at the address the guest
+			// reaches this machine on.
+			"chatd": map[string]any{
+				"endpoint":         "http://" + outboundGuestGateway + ":" + ChatdListenPort,
+				"enabledPlatforms": []string{"buzz"},
+			},
 		},
 		"agentProfiles": blueclawAgentProfiles(options.AllowAdminTaskDiagnostic),
 		"mcpServers":    []map[string]any{},
