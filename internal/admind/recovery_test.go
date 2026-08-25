@@ -244,7 +244,7 @@ func signedRecoveryRequest(t *testing.T, service *Service, action string, nonce 
 			DeviceID:  deviceID,
 			Nonce:     nonce,
 			Timestamp: timestamp,
-			Signature: signFleetPayload(secret, action, deviceID, nonce, timestamp),
+			Signature: signFleetPayload(secret, action, "", deviceID, nonce, timestamp),
 		},
 	}
 	document, errorValue := json.Marshal(payload)
