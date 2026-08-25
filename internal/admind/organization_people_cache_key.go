@@ -5,8 +5,8 @@ import "strings"
 const organizationPersonEmailCacheKeyPrefix = "email:"
 
 type organizationPersonIdentity struct {
-	UserID string
-	Email  string
+	MemberID string
+	Email    string
 }
 
 func organizationPersonCacheKey(userID string, email string) (organizationPeopleCacheKey, bool) {
@@ -23,7 +23,7 @@ func organizationPersonCacheKey(userID string, email string) (organizationPeople
 
 func organizationPersonCacheKeys(identity organizationPersonIdentity) []organizationPeopleCacheKey {
 	keys := []organizationPeopleCacheKey{}
-	if userIDKey, found := organizationPersonCacheKey(identity.UserID, ""); found {
+	if userIDKey, found := organizationPersonCacheKey(identity.MemberID, ""); found {
 		keys = append(keys, userIDKey)
 	}
 	if emailKey, found := organizationPersonCacheKey("", identity.Email); found {

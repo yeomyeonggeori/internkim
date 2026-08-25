@@ -69,14 +69,14 @@ function sectionFromNode(
 
 function organizationCompanyResponsibleUserID(records: UserRecord[]): string | undefined {
 	const candidates = records.filter((record) => !(record.supervisorID?.trim() ?? ''));
-	return candidates.length === 1 ? candidates[0].userID : undefined;
+	return candidates.length === 1 ? candidates[0].memberID : undefined;
 }
 
 function organizationResponsibleUserID(records: UserRecord[]): string | undefined {
-	const userIDs = new Set(records.map((record) => record.userID));
+	const memberIDs = new Set(records.map((record) => record.memberID));
 	const candidates = records.filter((record) => {
 		const supervisorID = record.supervisorID?.trim() ?? '';
-		return !supervisorID || !userIDs.has(supervisorID);
+		return !supervisorID || !memberIDs.has(supervisorID);
 	});
-	return candidates.length === 1 ? candidates[0].userID : undefined;
+	return candidates.length === 1 ? candidates[0].memberID : undefined;
 }

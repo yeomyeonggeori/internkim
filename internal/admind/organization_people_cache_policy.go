@@ -93,8 +93,8 @@ func validCachedOrganizationProfile(profile *organizationProfile, record organiz
 }
 
 func doesOrganizationCachedProfileMatchRecord(profile organizationProfile, record organizationCachedUserRecord) bool {
-	userID := strings.TrimSpace(record.UserID)
-	if userID != "" && profile.UserID == userID {
+	userID := strings.TrimSpace(record.MemberID)
+	if userID != "" && profile.MemberID == userID {
 		return true
 	}
 	email := strings.ToLower(strings.TrimSpace(record.Email))
@@ -102,14 +102,14 @@ func doesOrganizationCachedProfileMatchRecord(profile organizationProfile, recor
 }
 
 func isValidOrganizationCachedUserRecord(record organizationCachedUserRecord) bool {
-	return strings.TrimSpace(record.UserID) != "" || strings.TrimSpace(record.Email) != ""
+	return strings.TrimSpace(record.MemberID) != "" || strings.TrimSpace(record.Email) != ""
 }
 
 func doesOrganizationCachedUserRecordMatchKey(record organizationCachedUserRecord, expectedKey organizationPeopleCacheKey) bool {
 	if !isValidOrganizationCachedUserRecord(record) {
 		return false
 	}
-	key, found := organizationPersonCacheKey(record.UserID, record.Email)
+	key, found := organizationPersonCacheKey(record.MemberID, record.Email)
 	return found && key == expectedKey
 }
 

@@ -7,7 +7,7 @@ const (
 )
 
 type organizationProfile struct {
-	UserID                string   `json:"userID,omitempty"`
+	MemberID              string   `json:"memberID,omitempty"`
 	Email                 string   `json:"email,omitempty"`
 	JobTitle              string   `json:"jobTitle,omitempty"`
 	PositionLevel         int      `json:"positionLevel,omitempty"`

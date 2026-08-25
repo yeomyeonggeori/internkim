@@ -11,7 +11,7 @@ test.describe('admin org chart groups', () => {
 			{ id: 'engineering-duplicate', name: 'Engineering Duplicate' }
 		];
 		usersResponse.records = usersResponse.records.map((record) =>
-			record.userID === 'user-grace'
+			record.memberID === 'user-grace'
 				? { ...record, groupID: 'engineering-duplicate' }
 				: record
 		);
@@ -23,8 +23,8 @@ test.describe('admin org chart groups', () => {
 				usersResponse = {
 					...usersResponse,
 					records: usersResponse.records.map((record) => {
-						if (record.userID === 'user-ada' && platformGroup) return { ...record, groupID: platformGroup.id };
-						if (record.userID === 'user-grace') return { ...record, groupID: 'engineering' };
+						if (record.memberID === 'user-ada' && platformGroup) return { ...record, groupID: platformGroup.id };
+						if (record.memberID === 'user-grace') return { ...record, groupID: 'engineering' };
 						return record;
 					}),
 					availableGroups: groups.filter((group) => group.id !== 'engineering-duplicate')
@@ -80,7 +80,7 @@ test.describe('admin org chart groups', () => {
 		await expect.poll(() => savedGroups).toEqual([]);
 		await expect.poll(() => savedProfiles).toEqual([
 			expect.objectContaining({
-				userID: 'user-grace',
+				memberID: 'user-grace',
 				groupID: 'engineering'
 			})
 		]);

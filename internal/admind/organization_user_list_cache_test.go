@@ -12,11 +12,11 @@ func TestOrganizationPeopleCacheRejectsDuplicateListIdentities(t *testing.T) {
 	}{
 		{
 			name:        "duplicate user ID",
-			payloadJSON: `{"records":[{"userID":"user-1","email":"one@example.com"},{"userID":"user-1","email":"two@example.com"}]}`,
+			payloadJSON: `{"records":[{"memberID":"user-1","email":"one@example.com"},{"memberID":"user-1","email":"two@example.com"}]}`,
 		},
 		{
 			name:        "normalized duplicate email",
-			payloadJSON: `{"records":[{"userID":"user-1","email":" One@Example.com "},{"userID":"user-2","email":"one@example.com"}]}`,
+			payloadJSON: `{"records":[{"memberID":"user-1","email":" One@Example.com "},{"memberID":"user-2","email":"one@example.com"}]}`,
 		},
 	}
 
@@ -33,7 +33,7 @@ func TestOrganizationPeopleCacheRejectsDuplicateListIdentities(t *testing.T) {
 			loadCount := 0
 			response, _, errorValue := service.readCachedOrganizationUserList(ctx, func(context.Context) (pagesUsersResponse, error) {
 				loadCount++
-				return pagesUsersResponse{Records: []adminUserMutation{{UserID: "user-1", Email: "one@example.com", Name: "Fresh"}}}, nil
+				return pagesUsersResponse{Records: []adminUserMutation{{MemberID: "user-1", Email: "one@example.com", Name: "Fresh"}}}, nil
 			})
 			if errorValue != nil {
 				t.Fatal(errorValue)

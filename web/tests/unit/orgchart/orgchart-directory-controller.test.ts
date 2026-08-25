@@ -17,7 +17,7 @@ const { OrganizationDirectoryController } = await import('../../../src/routes/or
 
 function userRecord(overrides: Partial<UserRecord>): UserRecord {
 	return {
-		userID: '',
+		memberID: '',
 		handle: '',
 		name: '',
 		email: '',
@@ -34,9 +34,9 @@ describe('organization directory controller', () => {
 			{ id: 'sales', name: '세일즈' }
 		];
 		controller.records = [
-			userRecord({ userID: 'lead', groupID: 'product' }),
-			userRecord({ userID: 'engineer', groupID: 'engineering' }),
-			userRecord({ userID: 'sales', groupID: 'sales' })
+			userRecord({ memberID: 'lead', groupID: 'product' }),
+			userRecord({ memberID: 'engineer', groupID: 'engineering' }),
+			userRecord({ memberID: 'sales', groupID: 'sales' })
 		];
 
 		expect(controller.organizationSections.map((section) => section.id)).toEqual(['', 'sales', 'product', 'engineering']);
@@ -51,14 +51,14 @@ describe('organization directory controller', () => {
 		const controller = new OrganizationDirectoryController('/admin/api', organizationDirectoryText.ko, adminText.ko);
 		controller.groups = [{ id: 'product', name: '프로덕트 본부' }];
 		controller.records = [
-			userRecord({ userID: 'assigned', groupID: 'product' }),
-			userRecord({ userID: 'unassigned' })
+			userRecord({ memberID: 'assigned', groupID: 'product' }),
+			userRecord({ memberID: 'unassigned' })
 		];
 		controller.groupID = unassignedGroupID;
 
 		expect(controller.selectedOrganizationName).toBe('팀 미지정');
 		expect(controller.organizationSections.length).toBe(1);
 		expect(controller.organizationSections[0]).toMatchObject({ name: '팀 미지정', memberCount: 1 });
-		expect(controller.organizationSections.flatMap((section) => section.records).map((record) => record.userID)).toEqual(['unassigned']);
+		expect(controller.organizationSections.flatMap((section) => section.records).map((record) => record.memberID)).toEqual(['unassigned']);
 	});
 });

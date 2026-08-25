@@ -71,7 +71,7 @@
 	let stageOutcome = $derived(sortedStages.find((candidate) => candidate.stage === stage)?.outcome ?? 'open');
 	let existingStageOutcome = $derived(sortedStages.find((candidate) => candidate.stage === opportunity?.stage)?.outcome ?? 'open');
 	let isRealized = $derived(existingStageOutcome === 'won' || existingStageOutcome === 'lost');
-	let selectedOwner = $derived(people.find((person) => person.userID === ownerPersonID));
+	let selectedOwner = $derived(people.find((person) => person.memberID === ownerPersonID));
 
 	function resetForm(selectedOpportunity: CRMOpportunity): void {
 		organizationID = selectedOpportunity.organizationID;

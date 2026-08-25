@@ -21,6 +21,7 @@ type Settings struct {
 	AgentAPIKey    string
 	ProjectURL     string
 	PublishableKey string
+	HTTPClient     *http.Client
 }
 
 func (settings Settings) Configured() bool {
@@ -45,9 +46,13 @@ type memberSession struct {
 }
 
 func New(settings Settings) *Client {
+	httpClient := settings.HTTPClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 15 * time.Second}
+	}
 	return &Client{
 		settings:   settings,
-		httpClient: &http.Client{Timeout: 15 * time.Second},
+		httpClient: httpClient,
 		sessions:   map[string]memberSession{},
 	}
 }

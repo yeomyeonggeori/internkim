@@ -99,7 +99,7 @@ export class CRMPageController {
 	}
 
 	get currentOwnerPersonID(): string {
-		return this.people.find((person) => person.email.toLowerCase() === this.currentEmail.toLowerCase())?.userID ?? '';
+		return this.people.find((person) => person.email.toLowerCase() === this.currentEmail.toLowerCase())?.memberID ?? '';
 	}
 
 	get businessOptions(): string[] {
@@ -190,7 +190,7 @@ export class CRMPageController {
 			const owner = resolveOwner(this.people, organization.ownerPersonID ?? organization.ownerName, this.currentEmail);
 			const nextOrganization = {
 				...organization,
-				ownerPersonID: owner.userID,
+				ownerPersonID: owner.memberID,
 				ownerCircleID: owner.groupID
 			};
 			return updateCRMOrganization(organization.id, organizationPayload(nextOrganization));
@@ -414,7 +414,7 @@ export class CRMPageController {
 	}
 
 	private loadFixture(currentEmail: string): void {
-		this.people = [{ userID: 'fixture-user', handle: 'fixture', name: crmOrganizations[0]?.ownerName ?? 'Fixture User', email: currentEmail || 'fixture@example.com' }];
+		this.people = [{ memberID: 'fixture-user', handle: 'fixture', name: crmOrganizations[0]?.ownerName ?? 'Fixture User', email: currentEmail || 'fixture@example.com' }];
 		this.groups = [];
 		this.organizations = structuredClone(crmOrganizations);
 		this.contacts = structuredClone(crmContacts);

@@ -474,7 +474,7 @@ export type NewUserRequest = {
 	role: UserRole;
 };
 
-export type UserSaveRequest = Pick<UserRecord, 'userID' | 'handle' | 'email' | 'mattermostUserID' | 'mattermostUsername' | 'status'> & {
+export type UserSaveRequest = Pick<UserRecord, 'memberID' | 'handle' | 'email' | 'mattermostUserID' | 'mattermostUsername' | 'status'> & {
 	name: string;
 	hireDate: string;
 	note: string;
@@ -483,7 +483,7 @@ export type UserSaveRequest = Pick<UserRecord, 'userID' | 'handle' | 'email' | '
 };
 
 export type OrgProfileUpdate = {
-	userID: string;
+	memberID: string;
 	email: string;
 	jobTitle: string;
 	groupID?: string;

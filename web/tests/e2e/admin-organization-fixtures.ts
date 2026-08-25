@@ -1,5 +1,5 @@
 export type UserRecord = {
-	userID: string;
+	memberID: string;
 	handle: string;
 	name: string;
 	email: string;
@@ -17,7 +17,7 @@ export type UsersResponse = {
 };
 
 export type OrgProfileUpdate = {
-	userID: string;
+	memberID: string;
 	email: string;
 	jobTitle: string;
 	groupID?: string;
@@ -31,7 +31,7 @@ export const initialUsersResponse: UsersResponse = {
 	],
 	records: [
 		{
-			userID: 'user-ada',
+			memberID: 'user-ada',
 			handle: 'ada',
 			name: 'Ada Kim',
 			email: 'ada@example.com',
@@ -41,7 +41,7 @@ export const initialUsersResponse: UsersResponse = {
 			groupID: 'engineering'
 		},
 		{
-			userID: 'user-grace',
+			memberID: 'user-grace',
 			handle: 'grace',
 			name: 'Grace Lee',
 			email: 'grace@example.com',

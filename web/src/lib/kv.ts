@@ -1,5 +1,5 @@
 import { normalizeFleet } from './fleet';
-import type { Device, Invite, UserRecord, UserRole } from './types';
+import type { Device, Invite, FleetUserRecord, UserRole } from './types';
 
 export type KVStore = {
 	get<T = unknown>(key: string, type: 'json'): Promise<T | null>;
@@ -37,10 +37,6 @@ function calculateStableStringHash(value: string): string {
 	return (hashValue >>> 0).toString(16).padStart(8, '0');
 }
 
-function stableUserID(email: string): string {
-	return `user_${calculateStableStringHash(email)}`;
-}
-
 function normalizeRole(role: unknown): UserRole {
 	if (role === 'operationsAdmin') return 'operationsAdmin';
 	return role === 'admin' ? 'admin' : 'member';
@@ -59,12 +55,11 @@ function normalizeNote(value: unknown): string {
 	return typeof value === 'string' ? value.trim() : '';
 }
 
-function normalizeUserRecord(value: unknown): UserRecord | null {
+function normalizeUserRecord(value: unknown): FleetUserRecord | null {
 	if (typeof value === 'string') {
 		const email = normalizeEmail(value);
 		return email
 			? {
-					userID: stableUserID(email),
 					handle: normalizeHandleFromEmail(email),
 					email,
 					role: 'member',
@@ -73,7 +68,7 @@ function normalizeUserRecord(value: unknown): UserRecord | null {
 			: null;
 	}
 	if (!value || typeof value !== 'object') return null;
-	const record = value as Partial<UserRecord>;
+	const record = value as Partial<FleetUserRecord>;
 	const email = normalizeEmail(record.email ?? '');
 	if (!email) return null;
 	const handle = normalizeHandle(record.handle ?? record.mattermostUsername ?? normalizeHandleFromEmail(email));
@@ -81,7 +76,6 @@ function normalizeUserRecord(value: unknown): UserRecord | null {
 	const hireDate = normalizeISODate(record.hireDate);
 	const note = normalizeNote(record.note);
 	return {
-		userID: typeof record.userID === 'string' && record.userID.trim() ? record.userID.trim() : stableUserID(email),
 		handle: handle || normalizeHandleFromEmail(email),
 		...(name ? { name } : {}),
 		email,
@@ -95,14 +89,13 @@ function normalizeUserRecord(value: unknown): UserRecord | null {
 	};
 }
 
-function ensureAdmin(records: UserRecord[], fallbackAdminEmail?: string): UserRecord[] {
+function ensureAdmin(records: FleetUserRecord[], fallbackAdminEmail?: string): FleetUserRecord[] {
 	const normalizedFallback = normalizeEmail(fallbackAdminEmail ?? '');
 	const normalizedRecords = records.filter((record) => record.email);
 	if (normalizedRecords.some((record) => record.role === 'admin')) return normalizedRecords;
 	return normalizedFallback
 		? [
 				{
-					userID: stableUserID(normalizedFallback),
 					handle: normalizeHandleFromEmail(normalizedFallback),
 					email: normalizedFallback,
 					role: 'admin',
@@ -113,10 +106,10 @@ function ensureAdmin(records: UserRecord[], fallbackAdminEmail?: string): UserRe
 		: normalizedRecords;
 }
 
-function normalizeUserRecords(records: UserRecord[]): UserRecord[] {
+function normalizeUserRecords(records: FleetUserRecord[]): FleetUserRecord[] {
 	return records
 		.map((record) => normalizeUserRecord(record))
-		.filter((record): record is UserRecord => record !== null);
+		.filter((record): record is FleetUserRecord => record !== null);
 }
 
 function normalizeDevice(value: unknown, fleetID: string): Device | null {
@@ -140,11 +133,11 @@ function fleetUsersKey(fleetID: string): string {
 	return `fleet-users:${fleetID}`;
 }
 
-export function userEmails(records: UserRecord[]): string[] {
+export function userEmails(records: FleetUserRecord[]): string[] {
 	return records.map((record) => record.email);
 }
 
-export function adminEmails(records: UserRecord[]): string[] {
+export function adminEmails(records: FleetUserRecord[]): string[] {
 	return records.filter((record) => record.role === 'admin').map((record) => record.email);
 }
 
@@ -165,10 +158,10 @@ export const kv = {
 		return userEmails(await this.getUserRecords(kv, fleetID));
 	},
 
-	async getUserRecords(kv: KVStore, fleetID: string, fallbackAdminEmail?: string): Promise<UserRecord[]> {
+	async getUserRecords(kv: KVStore, fleetID: string, fallbackAdminEmail?: string): Promise<FleetUserRecord[]> {
 		const users = await kv.get(fleetUsersKey(fleetID), 'json');
 		const values = Array.isArray(users) ? users : [];
-		return ensureAdmin(values.map(normalizeUserRecord).filter((record): record is UserRecord => record !== null), fallbackAdminEmail);
+		return ensureAdmin(values.map(normalizeUserRecord).filter((record): record is FleetUserRecord => record !== null), fallbackAdminEmail);
 	},
 
 	async putUsers(kv: KVStore, fleetID: string, emails: string[]): Promise<void> {
@@ -176,7 +169,6 @@ export const kv = {
 			emails.map((email) => {
 				const normalizedEmail = normalizeEmail(email);
 				return {
-					userID: stableUserID(normalizedEmail),
 					handle: normalizeHandleFromEmail(normalizedEmail),
 					email: normalizedEmail,
 					role: 'member',
@@ -187,7 +179,7 @@ export const kv = {
 		await this.putUserRecords(kv, fleetID, records);
 	},
 
-	async putUserRecords(kv: KVStore, fleetID: string, records: UserRecord[]): Promise<void> {
+	async putUserRecords(kv: KVStore, fleetID: string, records: FleetUserRecord[]): Promise<void> {
 		await kv.put(fleetUsersKey(fleetID), JSON.stringify(normalizeUserRecords(records)));
 	},
 

@@ -15,7 +15,7 @@ import {
 } from '../../../src/routes/admin/users-section-policy';
 
 const adminRecord: UserRecord = {
-	userID: 'admin-user',
+	memberID: 'admin-user',
 	handle: 'admin',
 	name: 'Admin User',
 	email: 'admin@example.com',
@@ -25,7 +25,7 @@ const adminRecord: UserRecord = {
 };
 
 const memberRecord: UserRecord = {
-	userID: 'member-user',
+	memberID: 'member-user',
 	handle: 'member',
 	name: 'Member User',
 	email: 'member@example.com',

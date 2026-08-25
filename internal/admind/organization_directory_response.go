@@ -6,7 +6,7 @@ type organizationDirectoryResponse struct {
 }
 
 type organizationDirectoryRecord struct {
-	UserID       string `json:"userID,omitempty"`
+	MemberID     string `json:"memberID,omitempty"`
 	Handle       string `json:"handle,omitempty"`
 	Name         string `json:"name,omitempty"`
 	Email        string `json:"email"`
@@ -31,7 +31,7 @@ func newOrganizationDirectoryResponse(response pagesUsersResponse) organizationD
 
 func newOrganizationDirectoryRecord(record adminUserMutation) organizationDirectoryRecord {
 	return organizationDirectoryRecord{
-		UserID:       record.UserID,
+		MemberID:     record.MemberID,
 		Handle:       record.Handle,
 		Name:         record.Name,
 		Email:        record.Email,

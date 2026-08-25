@@ -16,7 +16,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 	],
 	records: [
 		{
-			userID: 'user-ceo',
+			memberID: 'user-ceo',
 			handle: 'ceo',
 			name: '김도형',
 			email: 'ceo@example.com',
@@ -26,7 +26,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			groupID: 'leadership'
 		},
 		{
-			userID: 'user-junho',
+			memberID: 'user-junho',
 			handle: 'junho',
 			name: '이정훈',
 			email: 'junho@example.com',
@@ -37,7 +37,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			supervisorID: 'user-ceo'
 		},
 		{
-			userID: 'user-dabin',
+			memberID: 'user-dabin',
 			handle: 'dabin',
 			name: '김다빈',
 			email: 'dabin@example.com',
@@ -49,7 +49,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			supervisorID: 'user-junho'
 		},
 		{
-			userID: 'user-minjae',
+			memberID: 'user-minjae',
 			handle: 'minjae',
 			name: '강민재',
 			email: 'minjae@example.com',
@@ -60,7 +60,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			supervisorID: 'user-junho'
 		},
 		{
-			userID: 'user-taehyun',
+			memberID: 'user-taehyun',
 			handle: 'taehyun',
 			name: '신태현',
 			email: 'taehyun@example.com',
@@ -71,7 +71,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			supervisorID: 'user-dabin'
 		},
 		{
-			userID: 'user-jieun',
+			memberID: 'user-jieun',
 			handle: 'jieun',
 			name: '박지은',
 			email: 'jieun@example.com',
@@ -82,7 +82,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			supervisorID: 'user-ceo'
 		},
 		{
-			userID: 'user-nam',
+			memberID: 'user-nam',
 			handle: 'nam',
 			name: '남지훈',
 			email: 'nam@example.com',

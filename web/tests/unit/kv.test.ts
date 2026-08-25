@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { kv } from '../../src/lib/kv';
 import type { KVStore } from '../../src/lib/kv';
-import type { UserRecord } from '../../src/lib/types';
+import type { FleetUserRecord } from '../../src/lib/types';
 
 class MemoryKV implements KVStore {
 	private readonly values = new Map<string, string>();
@@ -24,9 +24,8 @@ class MemoryKV implements KVStore {
 	}
 }
 
-function userRecord(role: UserRecord['role']): UserRecord {
+function userRecord(role: FleetUserRecord['role']): FleetUserRecord {
 	return {
-		userID: `user-${role}`,
 		handle: role.toLowerCase(),
 		email: `${role.toLowerCase()}@example.com`,
 		role

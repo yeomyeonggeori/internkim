@@ -1,6 +1,7 @@
 package centralplane
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -94,4 +95,45 @@ func (client *Client) MemberByEmail(ctx context.Context, email string) (Member, 
 		return Member{}, false, nil
 	}
 	return *answer.Member, true, nil
+}
+
+func (client *Client) EnsureMember(ctx context.Context, email string, name string) (Member, error) {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	if normalizedEmail == "" {
+		return Member{}, fmt.Errorf("a person needs an email address")
+	}
+	if client == nil || !client.settings.Configured() {
+		return Member{}, fmt.Errorf("central plane is not configured")
+	}
+	body, errorValue := json.Marshal(map[string]string{"email": normalizedEmail, "name": strings.TrimSpace(name)})
+	if errorValue != nil {
+		return Member{}, errorValue
+	}
+	requestURL := strings.TrimSuffix(client.settings.AppURL, "/") + "/api/agent/member"
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(body))
+	if errorValue != nil {
+		return Member{}, errorValue
+	}
+	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Content-Type", "application/json")
+
+	response, errorValue := client.httpClient.Do(request)
+	if errorValue != nil {
+		return Member{}, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 300 {
+		return Member{}, fmt.Errorf("the central plane refused to seat %s: %s", normalizedEmail, response.Status)
+	}
+
+	var answer struct {
+		Member *Member `json:"member"`
+	}
+	if errorValue := json.NewDecoder(response.Body).Decode(&answer); errorValue != nil {
+		return Member{}, errorValue
+	}
+	if answer.Member == nil || strings.TrimSpace(answer.Member.MemberID) == "" {
+		return Member{}, fmt.Errorf("the central plane seated %s without a member id", normalizedEmail)
+	}
+	return *answer.Member, nil
 }

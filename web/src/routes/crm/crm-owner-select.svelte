@@ -19,7 +19,7 @@
 
 	let { value = $bindable(''), people, groups, text, id, disabled = false }: Props = $props();
 	let options = $derived<OwnerOption[]>(people.map((person) => ({
-		value: person.userID,
+		value: person.memberID,
 		label: person.name || person.email,
 		keywords: [person.email, person.handle, groupName(person.groupID)],
 		email: person.email,

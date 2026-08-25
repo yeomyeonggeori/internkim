@@ -103,8 +103,11 @@ func TestOrganizationPeopleCacheInvalidatesCanonicalBatchUsers(t *testing.T) {
 	preloadOrganizationIdentityCache(t, service, canonicalUserID, existingEmail)
 	activePersonKeys := []string{}
 	listMutationActive := false
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case isCompanyDirectoryRequest(request):
+			return companyDirectoryResponse(t, request)
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyWithPerson(canonicalUserID, existingEmail), nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
@@ -154,7 +157,7 @@ func TestOrganizationPeopleCacheInvalidatesCanonicalBatchUsers(t *testing.T) {
 	assertOrganizationPersonCacheFound(t, service, canonicalUserID, false)
 }
 
-func TestOrganizationPeopleCacheInvalidatesSourceAndCanonicalProxyUser(t *testing.T) {
+func TestOrganizationPeopleCacheInvalidatesTheProxyUsersOwnIdentity(t *testing.T) {
 	for _, testCase := range []struct {
 		name            string
 		circlesDocument string
@@ -165,20 +168,21 @@ func TestOrganizationPeopleCacheInvalidatesSourceAndCanonicalProxyUser(t *testin
 		t.Run(testCase.name, func(t *testing.T) {
 			service := newOrganizationProxyMutationTestService(t)
 			canonicalUserID := "blueclaw-existing"
-			remoteUserID := "remote-existing"
 			email := "existing@example.com"
 			preloadOrganizationIdentityCache(t, service, canonicalUserID, email)
-			preloadOrganizationIdentityCache(t, service, remoteUserID, email)
-			pagesUserID := ""
+			pagesPayloadCarriesAPersonID := false
 			blueclawPersonID := ""
 			policySaved := false
+			seatPeopleInACompanyDirectoryForTest(t, service)
 			service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 				if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
 					return response, nil
 				}
 				switch {
+				case isCompanyDirectoryRequest(request):
+					return companyDirectoryResponse(t, request)
 				case request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
-					return jsonResponse(http.StatusOK, `{"records":[{"userID":"`+remoteUserID+`","email":"existing@example.com","role":"admin"}]}`, nil), nil
+					return jsonResponse(http.StatusOK, `{"records":[{"email":"existing@example.com","role":"admin"}]}`, nil), nil
 				case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 					return jsonResponse(http.StatusOK, rosterAsBlueclawWouldRead(t, service, localUsersPolicyWithPersonAndCircleSync(canonicalUserID, email)), nil), nil
 				case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/user-1":
@@ -190,11 +194,10 @@ func TestOrganizationPeopleCacheInvalidatesSourceAndCanonicalProxyUser(t *testin
 					if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 						t.Fatal(errorValue)
 					}
-					pagesUserID = payload.UserID
-					return jsonResponse(http.StatusOK, `{"records":[{"userID":"`+remoteUserID+`","email":"existing@example.com","role":"admin"}]}`, nil), nil
+					pagesPayloadCarriesAPersonID = strings.TrimSpace(payload.MemberID) != ""
+					return jsonResponse(http.StatusOK, `{"records":[{"email":"existing@example.com","role":"admin"}]}`, nil), nil
 				case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/reload":
 					assertOrganizationIdentityMutationActive(t, service, canonicalUserID, email)
-					assertOrganizationIdentityMutationActive(t, service, remoteUserID, email)
 					blueclawPersonID = deliveredPersonIDForEmail(t, service, email)
 					if blueclawPersonID != canonicalUserID {
 						t.Fatalf("the delivered roster names %q for %s; want %q", blueclawPersonID, email, canonicalUserID)
@@ -222,14 +225,13 @@ func TestOrganizationPeopleCacheInvalidatesSourceAndCanonicalProxyUser(t *testin
 			if responseRecorder.Code != http.StatusOK {
 				t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
 			}
-			if pagesUserID != remoteUserID {
-				t.Fatalf("Pages userID = %q; want %q", pagesUserID, remoteUserID)
+			if pagesPayloadCarriesAPersonID {
+				t.Fatal("the fleet account list is not where a person's identity lives")
 			}
 			if policySaved && blueclawPersonID != canonicalUserID {
 				t.Fatalf("the delivered roster names %q for %s; want %q", blueclawPersonID, email, canonicalUserID)
 			}
 			assertOrganizationIdentityCacheFound(t, service, canonicalUserID, email, false)
-			assertOrganizationIdentityCacheFound(t, service, remoteUserID, email, false)
 		})
 	}
 }
@@ -254,8 +256,8 @@ func TestOrganizationPeopleCacheInvalidatesSourceAndCanonicalProxyDeletedUser(t 
 			return jsonResponse(http.StatusOK, `{}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
 			return jsonResponse(http.StatusOK, `{"records":[
-				{"userID":"admin-source","email":"admin@example.com","role":"admin"},
-				{"userID":"`+remoteUserID+`","email":"deleted@example.com","role":"member","mattermostUserID":"`+mattermostUserID+`"}
+				{"memberID":"admin-source","email":"admin@example.com","role":"admin"},
+				{"memberID":"`+remoteUserID+`","email":"deleted@example.com","role":"member","mattermostUserID":"`+mattermostUserID+`"}
 			]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyWithPerson(canonicalUserID, email), nil), nil

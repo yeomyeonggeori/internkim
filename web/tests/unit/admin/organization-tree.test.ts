@@ -7,7 +7,7 @@ import {
 
 function userRecord(overrides: Partial<UserRecord>): UserRecord {
 	return {
-		userID: '',
+		memberID: '',
 		handle: '',
 		name: '',
 		email: '',
@@ -20,27 +20,27 @@ function userRecord(overrides: Partial<UserRecord>): UserRecord {
 describe('organization tree', () => {
 	test('excludes the record and descendants from supervisor candidates', () => {
 		const founder = userRecord({
-			userID: 'founder',
+			memberID: 'founder',
 			name: 'Founder',
 			email: 'founder@example.com',
 			hireDate: '2026-01-01'
 		});
 		const manager = userRecord({
-			userID: 'manager',
+			memberID: 'manager',
 			name: 'Manager',
 			email: 'manager@example.com',
 			hireDate: '2026-02-01',
 			supervisorID: 'founder'
 		});
 		const report = userRecord({
-			userID: 'report',
+			memberID: 'report',
 			name: 'Report',
 			email: 'report@example.com',
 			hireDate: '2026-03-01',
 			supervisorID: 'manager'
 		});
 		const otherRoot = userRecord({
-			userID: 'other-root',
+			memberID: 'other-root',
 			name: 'Other Root',
 			email: 'other-root@example.com',
 			hireDate: '2026-01-15'
@@ -48,25 +48,25 @@ describe('organization tree', () => {
 
 		const candidates = supervisorCandidatesForRecord([founder, manager, report, otherRoot], manager);
 
-		expect(candidates.map((candidate) => candidate.userID)).toEqual(['founder', 'other-root']);
+		expect(candidates.map((candidate) => candidate.memberID)).toEqual(['founder', 'other-root']);
 	});
 
 	test('detects invalid supervisor selections', () => {
 		const founder = userRecord({
-			userID: 'founder',
+			memberID: 'founder',
 			name: 'Founder',
 			email: 'founder@example.com',
 			hireDate: '2026-01-01'
 		});
 		const manager = userRecord({
-			userID: 'manager',
+			memberID: 'manager',
 			name: 'Manager',
 			email: 'manager@example.com',
 			hireDate: '2026-02-01',
 			supervisorID: 'founder'
 		});
 		const report = userRecord({
-			userID: 'report',
+			memberID: 'report',
 			name: 'Report',
 			email: 'report@example.com',
 			hireDate: '2026-03-01',

@@ -91,7 +91,7 @@ func adoptRosterRecords(policyDocument map[string]any, records []adminUserMutati
 		email := normalizedRosterEmail(record.Email)
 		person := blueclawPersonWithEmail(people, email)
 		if person == nil {
-			person = map[string]any{"personID": strings.TrimSpace(record.UserID), "emails": []any{email}}
+			person = map[string]any{"personID": strings.TrimSpace(record.MemberID), "emails": []any{email}}
 			people = append(people, person)
 		}
 		applyBlueclawPersonAttributes(person, record.Name, record.Role, record.Circles, nil)
@@ -138,7 +138,7 @@ func isRosterPersonRetained(value any, directoryEmails map[string]bool, retained
 }
 
 func isAdoptableRosterRecord(record adminUserMutation) bool {
-	return strings.TrimSpace(record.UserID) != "" && normalizedRosterEmail(record.Email) != ""
+	return strings.TrimSpace(record.MemberID) != "" && normalizedRosterEmail(record.Email) != ""
 }
 
 func rosterDirectoryEmails(records []adminUserMutation) map[string]bool {

@@ -77,8 +77,8 @@ test.describe('CRM service UI', () => {
 		await installSessionRoutes(page);
 		await page.route('**/organization/api/people', (route) => route.fulfill({ json: {
 			records: [
-				{ userID: 'person-crm', handle: 'crm', name: 'CRM 담당자', email: 'crm@example.com', groupID: 'team-sales' },
-				{ userID: 'person-ops', handle: 'ops', name: '운영 담당자', email: 'ops@example.com', groupID: 'team-ops' }
+				{ memberID: 'person-crm', handle: 'crm', name: 'CRM 담당자', email: 'crm@example.com', groupID: 'team-sales' },
+				{ memberID: 'person-ops', handle: 'ops', name: '운영 담당자', email: 'ops@example.com', groupID: 'team-ops' }
 			],
 			availableGroups: [{ id: 'team-sales', name: '영업팀' }, { id: 'team-ops', name: '운영팀' }]
 		} }));

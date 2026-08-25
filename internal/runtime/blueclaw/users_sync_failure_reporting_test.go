@@ -50,7 +50,7 @@ func TestUsersSyncRequestHelpersKeepASuccessfulResponseBodyOnDisk(t *testing.T) 
 	defer server.Close()
 
 	responsePath := filepath.Join(t.TempDir(), "response")
-	output, runError := runUsersSyncRequestHelpers(t, "\nrequest_or_exit \"fleet user list\" \"$1\" \"$2\"\n", responsePath, server.URL)
+	output, runError := runUsersSyncRequestHelpers(t, "\nrequest_or_exit \"company directory\" \"$1\" \"$2\"\n", responsePath, server.URL)
 
 	if runError != nil {
 		t.Fatalf("expected a successful request to continue, got %v with output %q", runError, output)
@@ -90,7 +90,7 @@ func TestUsersSyncScriptNeverDiscardsAFailedResponseBody(t *testing.T) {
 		t.Fatal("curl --fail turns the server's explanation into a bare exit code; route requests through request_or_exit instead")
 	}
 	for _, fragment := range []string{
-		`request_or_exit "fleet user list" "$response_path"`,
+		`request_or_exit "company directory" "$response_path"`,
 		`request_or_exit "blueclaw policy read" "$current_policy_path"`,
 	} {
 		if !strings.Contains(script, fragment) {

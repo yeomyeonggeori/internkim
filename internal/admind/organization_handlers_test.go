@@ -28,7 +28,7 @@ func TestOrganizationProfileHandlerPersistsMetadata(t *testing.T) {
 			return nil, nil
 		}
 	})}
-	requestBody := strings.NewReader(`{"profiles":[{"userID":"user-member","email":"member@example.com","jobTitle":"Designer","groupID":"design","positionLevel":3,"projectIDs":["brand"],"employmentStatus":"resigned","isOrganizationVisible":false}]}`)
+	requestBody := strings.NewReader(`{"profiles":[{"memberID":"user-member","email":"member@example.com","jobTitle":"Designer","groupID":"design","positionLevel":3,"projectIDs":["brand"],"employmentStatus":"resigned","isOrganizationVisible":false}]}`)
 	responseRecorder := httptest.NewRecorder()
 
 	service.localUpdateOrgProfiles(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/org-profiles", requestBody))
@@ -55,7 +55,7 @@ func TestOrganizationProfileHandlerPersistsMetadata(t *testing.T) {
 func TestOrganizationProfileHandlerPreservesOmittedMetadata(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{{
-		UserID:                "user-member",
+		MemberID:              "user-member",
 		Email:                 "member@example.com",
 		JobTitle:              "Product Manager",
 		PositionLevel:         2,
@@ -85,7 +85,7 @@ func TestOrganizationProfileHandlerPreservesOmittedMetadata(t *testing.T) {
 			return nil, nil
 		}
 	})}
-	requestBody := strings.NewReader(`{"profiles":[{"userID":"user-member","email":"member@example.com","jobTitle":"Lead PM","groupID":"product","supervisorID":"user-ceo"}]}`)
+	requestBody := strings.NewReader(`{"profiles":[{"memberID":"user-member","email":"member@example.com","jobTitle":"Lead PM","groupID":"product","supervisorID":"user-ceo"}]}`)
 	responseRecorder := httptest.NewRecorder()
 
 	service.localUpdateOrgProfiles(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/org-profiles", requestBody))
@@ -116,7 +116,7 @@ func TestOrganizationProfileHandlerRejectsSelfSupervisor(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	service.HTTPClient = organizationProfileValidationTestHTTPClient(t)
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{{
-		UserID:                "user-member",
+		MemberID:              "user-member",
 		Email:                 "member@example.com",
 		SupervisorID:          "user-admin",
 		EmploymentStatus:      organizationEmploymentStatusActive,
@@ -124,7 +124,7 @@ func TestOrganizationProfileHandlerRejectsSelfSupervisor(t *testing.T) {
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	requestBody := strings.NewReader(`{"profiles":[{"userID":"user-member","email":"member@example.com","supervisorID":"user-member"}]}`)
+	requestBody := strings.NewReader(`{"profiles":[{"memberID":"user-member","email":"member@example.com","supervisorID":"user-member"}]}`)
 	responseRecorder := httptest.NewRecorder()
 
 	service.localUpdateOrgProfiles(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/org-profiles", requestBody))
@@ -144,7 +144,7 @@ func TestOrganizationProfileHandlerRejectsSelfSupervisor(t *testing.T) {
 func TestOrganizationProfileHandlerRejectsSupervisorCycleInRequestBatch(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	service.HTTPClient = organizationProfileValidationTestHTTPClient(t)
-	requestBody := strings.NewReader(`{"profiles":[{"userID":"user-a","email":"a@example.com","supervisorID":"user-b"},{"userID":"user-b","email":"b@example.com","supervisorID":"user-a"}]}`)
+	requestBody := strings.NewReader(`{"profiles":[{"memberID":"user-a","email":"a@example.com","supervisorID":"user-b"},{"memberID":"user-b","email":"b@example.com","supervisorID":"user-a"}]}`)
 	responseRecorder := httptest.NewRecorder()
 
 	service.localUpdateOrgProfiles(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/org-profiles", requestBody))
@@ -166,14 +166,14 @@ func TestOrganizationProfileHandlerRejectsSupervisorCycleWithExistingProfiles(t 
 	service.HTTPClient = organizationProfileValidationTestHTTPClient(t)
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{
 		{
-			UserID:                "user-a",
+			MemberID:              "user-a",
 			Email:                 "a@example.com",
 			SupervisorID:          "",
 			EmploymentStatus:      organizationEmploymentStatusActive,
 			IsOrganizationVisible: true,
 		},
 		{
-			UserID:                "user-b",
+			MemberID:              "user-b",
 			Email:                 "b@example.com",
 			SupervisorID:          "user-a",
 			EmploymentStatus:      organizationEmploymentStatusActive,
@@ -182,7 +182,7 @@ func TestOrganizationProfileHandlerRejectsSupervisorCycleWithExistingProfiles(t 
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	requestBody := strings.NewReader(`{"profiles":[{"userID":"user-a","email":"a@example.com","supervisorID":"user-b"}]}`)
+	requestBody := strings.NewReader(`{"profiles":[{"memberID":"user-a","email":"a@example.com","supervisorID":"user-b"}]}`)
 	responseRecorder := httptest.NewRecorder()
 
 	service.localUpdateOrgProfiles(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/org-profiles", requestBody))

@@ -2,7 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isNodeRequest, normalizeFleetID } from '$lib/device-auth';
 import { adminEmails, kv, userEmails } from '$lib/kv';
-import type { Device, UserRecord, UserRole } from '$lib/types';
+import type { Device, FleetUserRecord, UserRole } from '$lib/types';
 
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
@@ -26,15 +26,7 @@ function isValidHandle(handle: string): boolean {
 	return /^[a-z][a-z0-9._-]{2,21}$/.test(handle);
 }
 
-function newUserID(): string {
-	return crypto.randomUUID();
-}
-
-function normalizedUserID(userID: string | undefined): string {
-	return userID?.trim() || newUserID();
-}
-
-async function usersRevision(records: UserRecord[]): Promise<string> {
+async function usersRevision(records: FleetUserRecord[]): Promise<string> {
 	const encodedUsers = new TextEncoder().encode(JSON.stringify(records));
 	const digest = await crypto.subtle.digest('SHA-256', encodedUsers);
 	return Array.from(new Uint8Array(digest))
@@ -71,7 +63,7 @@ function normalizeNote(value: unknown): string {
 	return typeof value === 'string' ? value.trim() : '';
 }
 
-function mergeRecord(records: UserRecord[], nextRecord: UserRecord): UserRecord[] {
+function mergeRecord(records: FleetUserRecord[], nextRecord: FleetUserRecord): FleetUserRecord[] {
 	const existingRecord = records.find((record) => record.email === nextRecord.email);
 	const filtered = records.filter((record) => record.email !== nextRecord.email);
 	return [
@@ -79,7 +71,6 @@ function mergeRecord(records: UserRecord[], nextRecord: UserRecord): UserRecord[
 		{
 			...existingRecord,
 			...nextRecord,
-			userID: existingRecord?.userID ?? nextRecord.userID,
 			handle: nextRecord.handle || existingRecord?.handle || '',
 			name: nextRecord.name ?? existingRecord?.name,
 			hireDate: nextRecord.hireDate ?? existingRecord?.hireDate,
@@ -92,7 +83,7 @@ function mergeRecord(records: UserRecord[], nextRecord: UserRecord): UserRecord[
 	].sort((first, second) => first.email.localeCompare(second.email));
 }
 
-function duplicateHandle(records: UserRecord[]): string {
+function duplicateHandle(records: FleetUserRecord[]): string {
 	const seenHandles = new Set<string>();
 	for (const record of records) {
 		const handle = normalizeHandle(record.handle);
@@ -103,7 +94,7 @@ function duplicateHandle(records: UserRecord[]): string {
 	return '';
 }
 
-async function usersResponse(records: UserRecord[]) {
+async function usersResponse(records: FleetUserRecord[]) {
 	return { users: userEmails(records), records, revision: await usersRevision(records) };
 }
 
@@ -131,9 +122,8 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const env = platform?.env;
 	if (!env?.KV) throw error(500, 'KV not available');
 
-	const { fleet_id, userID, handle, name, email, hireDate, note, role, admin_token, mattermostUserID, mattermostUsername, status } = (await request.json()) as {
+	const { fleet_id, handle, name, email, hireDate, note, role, admin_token, mattermostUserID, mattermostUsername, status } = (await request.json()) as {
 		fleet_id?: string;
-		userID?: string;
 		handle?: string;
 		name?: string;
 		email: string;
@@ -170,7 +160,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		throw error(400, 'Cannot demote the last admin user');
 	}
 	const nextRecords = mergeRecord(records, {
-		userID: existingRecord?.userID ?? normalizedUserID(userID),
 		handle: normalizedHandle,
 		...(normalizedName ? { name: normalizedName } : {}),
 		email: normalizedEmail,

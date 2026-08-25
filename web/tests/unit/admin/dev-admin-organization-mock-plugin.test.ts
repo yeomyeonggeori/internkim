@@ -48,11 +48,11 @@ describe('dev admin organization mock plugin', () => {
 
 		expect(response?.status).toBe(200);
 		const body = response?.body as UsersResponse;
-		const userIDs = body.records?.map((record) => record.userID);
-		expect(userIDs?.length).toBe(20);
-		expect(userIDs?.includes('dev-user-ceo')).toBe(true);
-		expect(userIDs?.includes('dev-user-dabin')).toBe(true);
-		expect(userIDs?.includes('dev-user-nam')).toBe(true);
+		const memberIDs = body.records?.map((record) => record.memberID);
+		expect(memberIDs?.length).toBe(20);
+		expect(memberIDs?.includes('dev-user-ceo')).toBe(true);
+		expect(memberIDs?.includes('dev-user-dabin')).toBe(true);
+		expect(memberIDs?.includes('dev-user-nam')).toBe(true);
 		expect(body.availableGroups?.map((group) => group.id)).toEqual([
 			'group-operations',
 			'group-product',
@@ -114,7 +114,7 @@ describe('dev admin organization mock plugin', () => {
 			body: JSON.stringify({
 				profiles: [
 					{
-						userID: 'dev-user-dabin',
+						memberID: 'dev-user-dabin',
 						email: 'dabin@example.com',
 						jobTitle: 'Operations Lead',
 						groupID: 'group-operations',
@@ -126,7 +126,7 @@ describe('dev admin organization mock plugin', () => {
 
 		expect(response?.status).toBe(200);
 		const body = response?.body as UsersResponse;
-		const updatedUser = body.records?.find((record) => record.userID === 'dev-user-dabin');
+		const updatedUser = body.records?.find((record) => record.memberID === 'dev-user-dabin');
 		expect(updatedUser).toMatchObject({
 			jobTitle: 'Operations Lead',
 			groupID: 'group-operations',

@@ -70,7 +70,7 @@ describe('CRM service mappers', () => {
 	});
 
 	test('preserves empty and multiple relationship types in create payloads', () => {
-		const owner = { userID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' };
+		const owner = { memberID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' };
 		const draft = {
 			kind: 'relationship' as const,
 			name: '관계처',
@@ -90,7 +90,7 @@ describe('CRM service mappers', () => {
 	test('derives display names and organization metrics from service records', () => {
 		const view = mapCRMViewData(
 			serviceData(),
-			[{ userID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }],
+			[{ memberID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }],
 			interimCurrencyCatalogue,
 			'Asia/Seoul'
 		);
@@ -138,7 +138,7 @@ describe('CRM service mappers', () => {
 	});
 
 	test('stores the selected internal owner team on opportunity creation', () => {
-		const owner = { userID: 'person-ops', handle: 'ops', name: '운영 담당자', email: 'ops@example.com', groupID: 'team-ops' };
+		const owner = { memberID: 'person-ops', handle: 'ops', name: '운영 담당자', email: 'ops@example.com', groupID: 'team-ops' };
 		const payload = opportunityPayloadFromDraft({
 			kind: 'progress',
 			organizationID: 'organization-1',
@@ -160,7 +160,7 @@ describe('CRM service mappers', () => {
 	});
 
 	test('rejects a non-empty owner hint that does not match the directory', () => {
-		const people = [{ userID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }];
+		const people = [{ memberID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }];
 
 		try {
 			resolveOwner(people, 'unknown@example.com', 'owner@example.com');
@@ -172,7 +172,7 @@ describe('CRM service mappers', () => {
 	});
 
 	test('derives activity dates in the selected display time zone', () => {
-		const people = [{ userID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }];
+		const people = [{ memberID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }];
 
 		expect(mapCRMViewData(serviceData(), people, interimCurrencyCatalogue, 'Asia/Seoul').organizations[0]?.lastContactDate).toBe('2026-08-04');
 		expect(mapCRMViewData(serviceData(), people, interimCurrencyCatalogue, 'America/New_York').organizations[0]?.lastContactDate).toBe('2026-08-03');

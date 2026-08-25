@@ -32,6 +32,7 @@
 		isValidHandle,
 		normalizeHandle,
 		normalizeUserCircles,
+		userRole,
 		userRoleOptions
 	} from './users-section-policy';
 	import type { AdminPageText, AdminSession, CircleRecord, UserRecord, UserRole, UsersResponse } from './admin-types';
@@ -99,7 +100,7 @@
 			}));
 		} else {
 			userRecords = (response.users ?? []).map((email, index) => ({
-				userID: `legacy-${index}`,
+				memberID: `legacy-${index}`,
 				handle: email.split('@')[0]?.toLowerCase() ?? '',
 				email,
 				hireDate: '',
@@ -195,7 +196,7 @@
 		}
 	}
 
-	async function saveUserRecord(record: UserRecord, role: UserRole = record.role): Promise<boolean> {
+	async function saveUserRecord(record: UserRecord, role: UserRole = userRole(record)): Promise<boolean> {
 		if (!fleetID || !adminBaseURL) return false;
 
 		isSavingUser = true;
@@ -204,7 +205,7 @@
 			applyUsersResponse(await saveUser(
 				adminBaseURL,
 				{
-					userID: record.userID,
+					memberID: record.memberID,
 					handle: normalizeHandle(record.handle),
 					name: record.name?.trim() ?? '',
 					hireDate: record.hireDate ?? '',

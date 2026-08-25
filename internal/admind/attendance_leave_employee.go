@@ -20,7 +20,7 @@ func (service *Service) attendanceLeaveEmployeeForRequest(
 		if normalizeAttendanceLeaveEmail(record.Email) != normalizedEmail {
 			continue
 		}
-		employee.UserID = strings.TrimSpace(record.UserID)
+		employee.UserID = strings.TrimSpace(record.MemberID)
 		employee.HireDate = strings.TrimSpace(record.HireDate)
 		return employee
 	}
@@ -41,7 +41,7 @@ func (service *Service) attendanceLeaveEmployeeWithHireDateForRequest(
 	}
 	profilesByUserID, profilesByEmail := organizationProfileIndexes(profiles)
 	profile, found := organizationProfileForUser(
-		adminUserMutation{UserID: employee.UserID, Email: employee.Email},
+		adminUserMutation{MemberID: employee.UserID, Email: employee.Email},
 		profilesByUserID,
 		profilesByEmail,
 	)

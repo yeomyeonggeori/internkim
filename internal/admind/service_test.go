@@ -1237,8 +1237,11 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
 	})
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case isCompanyDirectoryRequest(request):
+			return companyDirectoryResponse(t, request)
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
@@ -1473,8 +1476,11 @@ func TestAdminInvitePreservesCurrentAdminRole(t *testing.T) {
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
 	})
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case isCompanyDirectoryRequest(request):
+			return companyDirectoryResponse(t, request)
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
@@ -1582,8 +1588,11 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 		systemPostsDeleted = true
 		return nil, nil
 	}
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case isCompanyDirectoryRequest(request):
+			return companyDirectoryResponse(t, request)
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"},{"email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
@@ -1655,8 +1664,11 @@ func TestAdminRemoveSkipsProtectedMattermostUserDeactivation(t *testing.T) {
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
 	})
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case isCompanyDirectoryRequest(request):
+			return companyDirectoryResponse(t, request)
 		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"owner@example.com","role":"admin"},{"email":"admin@example.com","role":"admin","mattermostUserID":"admin-id","mattermostUsername":"admin"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
@@ -2943,7 +2955,7 @@ func newFlowAuthorizationTestService(t *testing.T) *Service {
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"userID":"user-staff","email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"userID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-staff","email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token") {
 			return jsonResponse(http.StatusOK, `{"id":"staff-mm","email":"staff@example.com","username":"staff"}`, nil), nil
