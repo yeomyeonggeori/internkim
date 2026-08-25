@@ -30,13 +30,12 @@ func TestAdminUserProxyGetMergesOrganizationMetadata(t *testing.T) {
 		}
 	})
 	if errorValue := service.writeOrganizationProfiles(context.Background(), []organizationProfile{{
-		MemberID:              "user-member",
-		Email:                 "member@example.com",
-		JobTitle:              "Design Lead",
-		GroupID:               "design",
-		SupervisorID:          "user-admin",
-		EmploymentStatus:      organizationEmploymentStatusActive,
-		IsOrganizationVisible: true,
+		MemberID:     "user-member",
+		Email:        "member@example.com",
+		JobTitle:     "Design Lead",
+		GroupID:      "design",
+		SupervisorID: "user-admin",
+		Status:       memberStatusActive,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}

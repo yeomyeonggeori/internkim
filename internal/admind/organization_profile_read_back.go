@@ -39,6 +39,15 @@ func (service *Service) readOrganizationProfilesBackFromTheDirectory(ctx context
 		log.Printf("the company directory did not answer the organization read back: %v", errorValue)
 		return
 	}
+	profiles, errorValue := service.readOrganizationProfiles(ctx)
+	if errorValue != nil {
+		log.Printf("the organization read back did not read what this device holds: %v", errorValue)
+		return
+	}
+	if isDirectorySeedNeeded(members, profiles) {
+		log.Printf("the organization read back is holding off: the company directory describes nobody yet and this device describes %d people; seed it with `internkim recover ssh -action organization-seed-the-directory`", len(profiles))
+		return
+	}
 	groupIDByName, errorValue := service.organizationGroupsCoveringTheDirectory(ctx, members)
 	if errorValue != nil {
 		log.Printf("the organization read back did not settle the groups: %v", errorValue)
@@ -56,10 +65,7 @@ func (service *Service) readOrganizationProfilesBackFromTheDirectory(ctx context
 		log.Printf("the organization read back did not write: %v", errorValue)
 		return
 	}
-	log.Printf("organization profiles settled with the company directory: %d", len(changed))
-	if errorValue := service.writeOrganizationProfilesToTheDirectory(ctx, changed); errorValue != nil {
-		log.Printf("the organization read back did not teach the directory: %v", errorValue)
-	}
+	log.Printf("organization profiles taken from the company directory: %d", len(changed))
 }
 
 func (service *Service) organizationGroupsCoveringTheDirectory(
@@ -137,7 +143,7 @@ func (service *Service) organizationProfilesTakenFromTheDirectory(
 		}
 		held := heldByEmail[email]
 		taken := organizationProfileTakenFrom(held, member, memberIDByEmail, groupIDByName)
-		if directoryOwnedFieldsDiffer(held, taken) {
+		if taken != held {
 			changed = append(changed, taken)
 		}
 	}
@@ -155,20 +161,11 @@ func organizationProfileTakenFrom(
 	if taken.MemberID == "" {
 		taken.MemberID = strings.TrimSpace(member.MemberID)
 	}
-	taken.JobTitle = firstNonEmpty(strings.TrimSpace(member.JobTitle), held.JobTitle)
-	taken.PhoneNumber = firstNonEmpty(strings.TrimSpace(member.PhoneNumber), held.PhoneNumber)
-	taken.HireDate = firstNonEmpty(strings.TrimSpace(member.HireDate), held.HireDate)
-	taken.SupervisorID = firstNonEmpty(memberIDByEmail[strings.ToLower(strings.TrimSpace(member.SupervisorEmail))], held.SupervisorID)
-	taken.GroupID = firstNonEmpty(groupIDByName[strings.ToLower(strings.TrimSpace(member.TeamName))], held.GroupID)
+	taken.JobTitle = strings.TrimSpace(member.JobTitle)
+	taken.PhoneNumber = strings.TrimSpace(member.PhoneNumber)
+	taken.HireDate = strings.TrimSpace(member.HireDate)
+	taken.Status = strings.TrimSpace(member.Status)
+	taken.SupervisorID = memberIDByEmail[strings.ToLower(strings.TrimSpace(member.SupervisorEmail))]
+	taken.GroupID = groupIDByName[strings.ToLower(strings.TrimSpace(member.TeamName))]
 	return normalizeOrganizationProfile(taken)
-}
-
-func directoryOwnedFieldsDiffer(held organizationProfile, taken organizationProfile) bool {
-	return held.MemberID != taken.MemberID ||
-		held.Email != taken.Email ||
-		held.JobTitle != taken.JobTitle ||
-		held.PhoneNumber != taken.PhoneNumber ||
-		held.HireDate != taken.HireDate ||
-		held.SupervisorID != taken.SupervisorID ||
-		held.GroupID != taken.GroupID
 }

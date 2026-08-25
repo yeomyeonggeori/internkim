@@ -82,9 +82,6 @@ func validCachedOrganizationProfile(profile *organizationProfile, record organiz
 	if profile == nil {
 		return nil, true
 	}
-	if !isValidOrganizationEmploymentStatus(profile.EmploymentStatus) {
-		return nil, false
-	}
 	normalizedProfile := normalizeOrganizationProfile(*profile)
 	if !doesOrganizationCachedProfileMatchRecord(normalizedProfile, record) {
 		return nil, false

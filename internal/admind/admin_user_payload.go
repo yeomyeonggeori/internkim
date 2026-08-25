@@ -18,14 +18,9 @@ type adminUserMutation struct {
 	Role                   string   `json:"role"`
 	Circles                []string `json:"circles,omitempty"`
 	JobTitle               string   `json:"jobTitle,omitempty"`
-	PositionLevel          int      `json:"positionLevel,omitempty"`
 	GroupID                string   `json:"groupID,omitempty"`
 	PhoneNumber            string   `json:"phoneNumber,omitempty"`
 	SupervisorID           string   `json:"supervisorID,omitempty"`
-	ProjectIDs             []string `json:"projectIDs,omitempty"`
-	TeamRole               string   `json:"teamRole,omitempty"`
-	EmploymentStatus       string   `json:"employmentStatus,omitempty"`
-	IsOrganizationVisible  bool     `json:"isOrganizationVisible,omitempty"`
 	MattermostUserID       string   `json:"mattermostUserID,omitempty"`
 	MattermostUsername     string   `json:"mattermostUsername,omitempty"`
 	Status                 string   `json:"status,omitempty"`

@@ -25,11 +25,6 @@ func (service *Service) writeOrganizationProfiles(ctx context.Context, profiles 
 		if profileKey == "" {
 			continue
 		}
-		projectIDs, errorValue := encodeOrganizationStringList(normalizedProfile.ProjectIDs)
-		if errorValue != nil {
-			_ = transaction.Rollback()
-			return errorValue
-		}
 		if _, errorValue := transaction.ExecContext(ctx, `
 DELETE FROM organization_profiles
 WHERE profile_key != ?
@@ -50,44 +45,32 @@ INSERT INTO organization_profiles(
 	user_id,
 	email,
 	job_title,
-	position_level,
 	group_id,
 	phone_number,
 	hire_date,
 	supervisor_id,
-	project_ids,
-	team_role,
-	employment_status,
-	is_organization_visible,
+	status,
 	updated_at
-) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(profile_key) DO UPDATE SET
 	user_id = excluded.user_id,
 	email = excluded.email,
 	job_title = excluded.job_title,
-	position_level = excluded.position_level,
 	group_id = excluded.group_id,
 	phone_number = excluded.phone_number,
 	hire_date = excluded.hire_date,
 	supervisor_id = excluded.supervisor_id,
-	project_ids = excluded.project_ids,
-	team_role = excluded.team_role,
-	employment_status = excluded.employment_status,
-	is_organization_visible = excluded.is_organization_visible,
+	status = excluded.status,
 	updated_at = excluded.updated_at`,
 			profileKey,
 			normalizedProfile.MemberID,
 			normalizedProfile.Email,
 			normalizedProfile.JobTitle,
-			normalizedProfile.PositionLevel,
 			normalizedProfile.GroupID,
 			normalizedProfile.PhoneNumber,
 			normalizedProfile.HireDate,
 			normalizedProfile.SupervisorID,
-			projectIDs,
-			normalizedProfile.TeamRole,
-			normalizedProfile.EmploymentStatus,
-			boolToSQLiteInt(normalizedProfile.IsOrganizationVisible),
+			normalizedProfile.Status,
 			time.Now().UTC().Format(time.RFC3339),
 		); errorValue != nil {
 			_ = transaction.Rollback()
@@ -137,9 +120,9 @@ func (service *Service) readOrganizationProfiles(ctx context.Context) ([]organiz
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT user_id, email, job_title, position_level, group_id, phone_number, hire_date, supervisor_id, project_ids, team_role, employment_status, is_organization_visible
+SELECT user_id, email, job_title, group_id, phone_number, hire_date, supervisor_id, status
 FROM organization_profiles
-ORDER BY position_level, email`)
+ORDER BY email`)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -147,26 +130,18 @@ ORDER BY position_level, email`)
 	profiles := []organizationProfile{}
 	for rows.Next() {
 		var profile organizationProfile
-		var projectIDs string
-		var isOrganizationVisible int
 		if errorValue := rows.Scan(
 			&profile.MemberID,
 			&profile.Email,
 			&profile.JobTitle,
-			&profile.PositionLevel,
 			&profile.GroupID,
 			&profile.PhoneNumber,
 			&profile.HireDate,
 			&profile.SupervisorID,
-			&projectIDs,
-			&profile.TeamRole,
-			&profile.EmploymentStatus,
-			&isOrganizationVisible,
+			&profile.Status,
 		); errorValue != nil {
 			return nil, errorValue
 		}
-		profile.ProjectIDs = decodeOrganizationStringList(projectIDs)
-		profile.IsOrganizationVisible = isOrganizationVisible == 1
 		profiles = append(profiles, normalizeOrganizationProfile(profile))
 	}
 	return profiles, rows.Err()

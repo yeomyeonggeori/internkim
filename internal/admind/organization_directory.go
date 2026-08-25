@@ -113,7 +113,7 @@ func isVisibleOrganizationRecord(record adminUserMutation, profilesByUserID map[
 	if !found {
 		return true
 	}
-	return profile.IsOrganizationVisible && profile.EmploymentStatus != organizationEmploymentStatusResigned
+	return isMemberStillHere(profile.Status)
 }
 
 func (service *Service) updateOwnOrganizationProfile(responseWriter http.ResponseWriter, request *http.Request) {
@@ -145,10 +145,6 @@ func (service *Service) updateOwnOrganizationProfile(responseWriter http.Respons
 	profile.Email = actorEmail
 	profile.PhoneNumber = phoneNumber
 	profile.HireDate = strings.TrimSpace(payload.HireDate)
-	if profile.EmploymentStatus == "" {
-		profile.EmploymentStatus = organizationEmploymentStatusActive
-		profile.IsOrganizationVisible = true
-	}
 	if errorValue := service.writeOrganizationProfiles(request.Context(), []organizationProfile{profile}); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return

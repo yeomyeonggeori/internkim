@@ -2,9 +2,12 @@ package admind
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+var errNoCompanyDirectory = errors.New("this host has no company directory configured")
 
 func (service *Service) memberIDByEmail(ctx context.Context, email string) (string, error) {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
@@ -13,7 +16,7 @@ func (service *Service) memberIDByEmail(ctx context.Context, email string) (stri
 	}
 	client := service.centralPlane()
 	if client == nil {
-		return "", fmt.Errorf("this host has no company directory configured")
+		return "", errNoCompanyDirectory
 	}
 	member, isKnown, errorValue := client.MemberByEmail(ctx, normalizedEmail)
 	if errorValue != nil {
@@ -52,7 +55,7 @@ func (service *Service) personIDForMutation(ctx context.Context, email string, n
 func (service *Service) seatedMemberIDByEmail(ctx context.Context, email string, name string) (string, error) {
 	client := service.centralPlane()
 	if client == nil {
-		return "", fmt.Errorf("this host has no company directory configured")
+		return "", errNoCompanyDirectory
 	}
 	member, errorValue := client.EnsureMember(ctx, email, name)
 	if errorValue != nil {

@@ -84,11 +84,10 @@ func TestOrganizationPeopleCacheInvalidatesOnlyUpdatedProfile(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{{
-		MemberID:              "user-1",
-		Email:                 "one@example.com",
-		JobTitle:              "Engineer",
-		EmploymentStatus:      organizationEmploymentStatusActive,
-		IsOrganizationVisible: true,
+		MemberID: "user-1",
+		Email:    "one@example.com",
+		JobTitle: "Engineer",
+		Status:   memberStatusActive,
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -104,8 +103,8 @@ func TestOrganizationPeopleCacheInvalidatesChangedGroupAndAffectedProfile(t *tes
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{
-		{MemberID: "user-1", Email: "one@example.com", GroupID: "design", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
-		{MemberID: "user-2", Email: "two@example.com", GroupID: "engineering", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
+		{MemberID: "user-1", Email: "one@example.com", GroupID: "design", Status: memberStatusActive},
+		{MemberID: "user-2", Email: "two@example.com", GroupID: "engineering", Status: memberStatusActive},
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -136,8 +135,8 @@ func TestOrganizationPeopleCacheInvalidatesMergedDeletedGroupsAndRewrittenProfil
 		t.Fatal(errorValue)
 	}
 	if errorValue := service.writeOrganizationProfiles(ctx, []organizationProfile{
-		{MemberID: "user-1", Email: "one@example.com", GroupID: "engineering-duplicate", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
-		{MemberID: "user-2", Email: "two@example.com", GroupID: "operations", EmploymentStatus: organizationEmploymentStatusActive, IsOrganizationVisible: true},
+		{MemberID: "user-1", Email: "one@example.com", GroupID: "engineering-duplicate", Status: memberStatusActive},
+		{MemberID: "user-2", Email: "two@example.com", GroupID: "operations", Status: memberStatusActive},
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
