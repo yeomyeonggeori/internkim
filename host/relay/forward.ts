@@ -53,14 +53,15 @@ export async function forwardToChatd(
 	body: Record<string, unknown>,
 	largestBytes: number
 ): Promise<{ status: number; body: unknown }> {
-	const response = await fetch(
-		`${chatdBaseURL}/v1/platform/${encodeURIComponent(platform)}/${encodeURIComponent(capability)}`,
-		{
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ ...body, largestBytes })
-		}
-	);
+	const url = `${chatdBaseURL}/v1/platform/${encodeURIComponent(platform)}/${encodeURIComponent(capability)}`;
+	const response = await fetch(url, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ ...body, largestBytes })
+	}).catch((unreachable) => {
+		const reason = unreachable instanceof Error ? unreachable.message : String(unreachable);
+		throw new Error(`${chatdBaseURL} did not answer: ${reason}`);
+	});
 	return { status: response.status, body: await response.json().catch(() => null) };
 }
 

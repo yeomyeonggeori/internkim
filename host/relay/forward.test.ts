@@ -452,6 +452,24 @@ describe('forwardToChatd', () => {
 	test('a caller cannot raise the limit past what this transport carries', async () => {
 		expect((await bodySentFor({ largestBytes: 99_000_000 })).largestBytes).toBe(674_000);
 	});
+
+	test('names the address it could not reach, because fetch never says which one it tried', async () => {
+		globalThis.fetch = (async () => {
+			throw new Error('Unable to connect. Is the computer able to access the url?');
+		}) as unknown as typeof fetch;
+
+		const refusal = await forwardToChatd(
+			'http://127.0.0.1:18090',
+			'buzz',
+			'person.messages.list',
+			{},
+			674_000
+		).catch((failure: unknown) => failure);
+
+		expect(refusal).toBeInstanceOf(Error);
+		expect((refusal as Error).message).toContain('http://127.0.0.1:18090');
+		expect((refusal as Error).message).toContain('Unable to connect');
+	});
 });
 
 
