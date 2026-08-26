@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/fleetdomain"
-
-	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 func (service *Service) syncFlowMattermostNotification(ctx context.Context, task flowTask) flowTask {
@@ -93,7 +91,7 @@ func flowMattermostNotificationProps(task flowTask) map[string]any {
 }
 
 func (service *Service) mattermostFlowLink(weekCode string) string {
-	label := mattermostdefaults.PublicChannelLinkLabel(mattermostFlowChannelName, service.workspaceLanguage())
+	label := service.workspaceText().FlowOpen
 	return "[" + label + "](" + service.mattermostFlowURL(weekCode) + ")"
 }
 

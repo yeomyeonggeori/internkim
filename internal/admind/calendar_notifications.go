@@ -9,8 +9,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 type calendarNotificationTarget struct {
@@ -217,7 +215,7 @@ func calendarMattermostNoteText(description string) string {
 }
 
 func (service *Service) mattermostCalendarLink(startISO string) string {
-	label := mattermostdefaults.PublicChannelLinkLabel(mattermostCalendarChannelName, service.workspaceLanguage())
+	label := service.workspaceText().CalendarOpen
 	return "[" + label + "](" + service.mattermostCalendarURL(startISO) + ")"
 }
 

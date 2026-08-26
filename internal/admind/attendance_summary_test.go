@@ -296,40 +296,6 @@ func TestAttendanceStatusIgnoresFutureEvents(t *testing.T) {
 	}
 }
 
-func TestAttendanceClockInIgnoresFutureClockInState(t *testing.T) {
-	service, posts := newAttendanceActionTestService(t)
-	database, errorValue := service.openAttendanceDatabase(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	now := time.Now().UTC()
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
-	futureEvent := service.createAttendanceEvent(userRecord, attendanceKindClockIn, now.Add(12*time.Hour), "team-1", "attendance-channel", "entry-post", "future-post", service.attendanceLocationByID("office"))
-	location, _ := service.workspaceTimeLocation()
-	futureEvent.LocalDate = now.In(location).Format("2006-01-02")
-	if errorValue := service.insertAttendanceEvent(context.Background(), database, futureEvent); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := database.Close(); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	payload := mattermostInteractivePayload{
-		UserID:    "user-1",
-		PostID:    "entry-post",
-		ChannelID: "attendance-channel",
-		TeamID:    "team-1",
-		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken(), LocationID: "office"},
-	}
-
-	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	if len(*posts) != 1 || (*posts)[0].Message != "출근(사무실)" {
-		t.Fatalf("posts = %+v", *posts)
-	}
-}
-
 func TestRepairFutureAttendanceEventsMovesEventToPreviousDay(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{Language: workspaceLanguageKorean, TimeZone: "Asia/Seoul"}); errorValue != nil {
