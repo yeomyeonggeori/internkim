@@ -1,12 +1,13 @@
 # Buzz↔Mattermost 양방향 미러 활성화 레시피
 
-> 상태: 메커니즘·레시피 100% 확정, 미실행(2026-07-31 인시던트 세션 말미, 컨텍스트 소진으로 다음 세션 이월).
+> 상태: **실행됨.** 기기가 `[mirror] buzz -> platforms`를 기록하고 chatd가 어댑터 둘을
+> 물고 있습니다(`recover ssh --action buzz-mirror-status`). 이 레시피는 그것을 켠 방법의
+> 기록이고, 매터모스트 은퇴와 함께 미러를 끄면 같이 은퇴합니다.
 > 목표(사용자): MM/Buzz/웹 어디서 쓰든 서로 다 싱크(양방향).
 > 관련: [[project_buzz_relay_public_host_cutover]], project_buzz_mirror_live_wiring.
 
-## 배경 / 왜 지금 미완인가
-- 오늘 릴레이 공개호스트 컷오버 인시던트 + admind DB통합 세션충돌 복구로 컨텍스트 소진.
-- 미러 프레임워크는 chatd에 이미 존재(`.dependency/blueclaw/chatd/src/mirror/`: wire.ts, orchestrator.ts, mattermost-puppet.ts, buzz-publisher.ts, echo-suppressor.ts). 현재 배포된 chatd는 **buzz-only**라 미러 미wire.
+## 배경
+- 미러 프레임워크는 chatd에 이미 존재(`.dependency/blueclaw/chatd/src/mirror/`: wire.ts, orchestrator.ts, mattermost-puppet.ts, buzz-publisher.ts, echo-suppressor.ts). 기기의 chatd가 그것을 물고 돕니다.
 - SSH(cloudflared interactive) 경로가 젯슨 WiFi에서 배너 타임아웃으로 불안정 → chatd 배포는 **admind HTTP 복구액션 우회** 권장(setup 대신). admind OTA/HTTP는 안정적.
 
 ## 메커니즘 (확정)
@@ -15,9 +16,9 @@
 - `mattermost-puppet.ts`: **admin 토큰으로 각 유저의 PAT를 `POST /api/v4/users/{userId}/tokens`로 발급·캐시**해서 그 유저로 포스팅(진짜 per-user 퍼펫팅). 링크된 이메일 없는 author는 드롭. → **MM `ServiceSettings.EnableUserAccessTokens=true` 필요**.
 - `chatd/src/configuration.ts`: MM 켜면 `CHATD_MATTERMOST_BOT_TOKEN` 필수(`requireValue`→없으면 throw), `CHATD_BLUECLAW_INGRESS_URL` 필수(없으면 throw). **빈 값 주입 시 chatd 크래시=메신저 다운** → 반드시 값 검증 후 주입.
 
-## 레시피 (새 세션에서 실행)
+## 레시피 (적용된 것)
 
-### 0. 선행 — 디바이스별 미지값 확보(현재 미상, 먼저 조사)
+### 0. 선행 — 디바이스별 값
 - MM admin 로그인 자격: admin 이메일/유저명 + 비번 파일 경로. (admind config: `MattermostAdminPasswordPath`, `ClaimedAdminEmailPath`/`AdminEmailPath` 확인. MM 유저명은 보통 `admin`.)
 - 봇 토큰: `/root/.internkim/secrets/mattermost-bot-token` (=`BlueclawMattermostTokenPath`).
 - 값들: MM base=`http://127.0.0.1:8065`, blueclaw ingress=`http://127.0.0.1:8080`.
