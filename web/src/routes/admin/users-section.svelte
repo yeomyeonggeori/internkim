@@ -299,7 +299,7 @@
 				<div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
 					<Field.Field>
 						<Field.Label for="invite-handle">{text.users.handle}</Field.Label>
-						<Input id="invite-handle" bind:value={newHandle} placeholder="mohyeong" autocomplete="off" />
+						<Input id="invite-handle" bind:value={newHandle} placeholder="gyeonbon" autocomplete="off" />
 					</Field.Field>
 					<Field.Field>
 						<Field.Label for="invite-name">{text.users.realName}</Field.Label>

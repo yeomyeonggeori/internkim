@@ -16,7 +16,7 @@ func TestCalendarEventParticipantsFallbackToLegacyPeopleLine(t *testing.T) {
 		ID:                "legacy-participants",
 		UID:               "legacy-participants@internkim",
 		Title:             "Legacy participant sync",
-		Description:       "이샘플, 김표본\nBring agenda",
+		Description:       "이샘플, 김예시\nBring agenda",
 		StartISO:          startTime.Format(time.RFC3339),
 		EndISO:            endTime.Format(time.RFC3339),
 		TimeZone:          "UTC",
@@ -35,7 +35,7 @@ func TestCalendarEventParticipantsFallbackToLegacyPeopleLine(t *testing.T) {
 	if !found {
 		t.Fatal("event not found after write")
 	}
-	if strings.Join(calendarParticipantNames(stored.Participants), "|") != "이샘플|김표본" {
+	if strings.Join(calendarParticipantNames(stored.Participants), "|") != "이샘플|김예시" {
 		t.Fatalf("participants = %+v", stored.Participants)
 	}
 }
@@ -67,7 +67,7 @@ func TestCalendarRelatedParticipantsIncludeCreatorWithoutMutatingParticipants(t 
 		Participants: []calendarParticipant{
 			{PersonID: "person-gamyeong", Name: "이샘플", Email: "gamyeong@example.com"},
 		},
-		CreatedByName:  "김표본",
+		CreatedByName:  "김예시",
 		CreatedByEmail: "pyobon@example.com",
 	}
 
@@ -76,7 +76,7 @@ func TestCalendarRelatedParticipantsIncludeCreatorWithoutMutatingParticipants(t 
 	if len(relatedParticipants) != 2 {
 		t.Fatalf("related participants = %+v", relatedParticipants)
 	}
-	if relatedParticipants[0].Name != "이샘플" || relatedParticipants[1].Name != "김표본" {
+	if relatedParticipants[0].Name != "이샘플" || relatedParticipants[1].Name != "김예시" {
 		t.Fatalf("related participants order = %+v", relatedParticipants)
 	}
 	if len(event.Participants) != 1 || event.Participants[0].Name != "이샘플" {
@@ -87,15 +87,15 @@ func TestCalendarRelatedParticipantsIncludeCreatorWithoutMutatingParticipants(t 
 func TestCalendarRelatedParticipantsDeduplicateCreator(t *testing.T) {
 	event := calendarEvent{
 		Participants: []calendarParticipant{
-			{PersonID: "person-pyobon", Name: "김표본", Email: "pyobon@example.com"},
+			{PersonID: "person-pyobon", Name: "김예시", Email: "pyobon@example.com"},
 		},
-		CreatedByName:  "김표본",
+		CreatedByName:  "김예시",
 		CreatedByEmail: "pyobon@example.com",
 	}
 
 	relatedParticipants := calendarEventRelatedParticipants(event)
 
-	if len(relatedParticipants) != 1 || relatedParticipants[0].Name != "김표본" {
+	if len(relatedParticipants) != 1 || relatedParticipants[0].Name != "김예시" {
 		t.Fatalf("related participants = %+v", relatedParticipants)
 	}
 }
@@ -105,12 +105,12 @@ func TestCalendarNotificationTargetsIncludeCreator(t *testing.T) {
 		Participants: []calendarParticipant{
 			{PersonID: "person-gamyeong", Name: "이샘플", Email: "gamyeong@example.com"},
 		},
-		CreatedByName:  "김표본",
+		CreatedByName:  "김예시",
 		CreatedByEmail: "pyobon@example.com",
 	}
 	users := []mattermostUserRecord{
 		{ID: "user-1", Username: "gamyeong", Nickname: "이샘플", Email: "gamyeong@example.com"},
-		{ID: "user-2", Username: "pyobon", Nickname: "김표본", Email: "pyobon@example.com"},
+		{ID: "user-2", Username: "pyobon", Nickname: "김예시", Email: "pyobon@example.com"},
 	}
 
 	targets, resolved := calendarNotificationTargetsForUsers(event, users)
@@ -125,7 +125,7 @@ func TestCalendarNotificationTargetsIgnoreUnmatchedCreator(t *testing.T) {
 		Participants: []calendarParticipant{
 			{PersonID: "person-gamyeong", Name: "이샘플", Email: "gamyeong@example.com"},
 		},
-		CreatedByName:  "김표본",
+		CreatedByName:  "김예시",
 		CreatedByEmail: "pyobon@example.com",
 	}
 	users := []mattermostUserRecord{

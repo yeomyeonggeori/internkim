@@ -24,10 +24,10 @@ describe('flow task workspace model', () => {
 
 	test('defaults participant filtering to the signed-in member', () => {
 		const summary = flowSummary({
-			currentUserEmail: 'lee@example.com',
+			currentUserEmail: 'member1@example.com',
 			members: [
 				flowMember({ id: 'designer', email: 'kim@example.com' }),
-				flowMember({ id: 'engineer', email: 'lee@example.com' })
+				flowMember({ id: 'engineer', email: 'member1@example.com' })
 			]
 		});
 
@@ -90,10 +90,10 @@ describe('flow task workspace model', () => {
 
 	test('grants the sole participant task and assignment authority', () => {
 		const summary = flowSummary({
-			currentUserEmail: 'lee@example.com',
+			currentUserEmail: 'member1@example.com',
 			isAdmin: false,
 			members: [
-				flowMember({ id: 'participant', email: 'lee@example.com' }),
+				flowMember({ id: 'participant', email: 'member1@example.com' }),
 				flowMember({ id: 'viewer', email: 'viewer@example.com' })
 			]
 		});
@@ -107,11 +107,11 @@ describe('flow task workspace model', () => {
 
 	test('lets every participant update shared tasks without order-based authority', () => {
 		const summary = flowSummary({
-			currentUserEmail: 'lee@example.com',
+			currentUserEmail: 'member1@example.com',
 			isAdmin: false,
 			members: [
 				flowMember({ id: 'owner', email: 'owner@example.com' }),
-				flowMember({ id: 'participant', email: 'lee@example.com' })
+				flowMember({ id: 'participant', email: 'member1@example.com' })
 			]
 		});
 		const task = flowTask({
@@ -131,9 +131,9 @@ describe('flow task workspace model', () => {
 
 	test('does not grant task authority without participation', () => {
 		const summary = flowSummary({
-			currentUserEmail: 'lee@example.com',
+			currentUserEmail: 'member1@example.com',
 			isAdmin: false,
-			members: [flowMember({ id: 'viewer', email: 'lee@example.com' })]
+			members: [flowMember({ id: 'viewer', email: 'member1@example.com' })]
 		});
 		const task = flowTask({ ownerID: '', participantIDs: [], participantNames: [] });
 
@@ -228,7 +228,7 @@ function flowMember(overrides: Partial<FlowMember>): FlowMember {
 	return {
 		id: 'member-1',
 		name: '최견본',
-		email: 'lee@example.com',
+		email: 'member1@example.com',
 		role: 'member',
 		mattermostStatus: '',
 		activeTaskCount: 0,

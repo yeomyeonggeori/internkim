@@ -148,7 +148,7 @@ function appendPartialLeaveScenario(
 	if (month !== '2026-07' || endDay < sampleDay) return startIDSeed;
 	const date = `${month}-${pad(sampleDay)}`;
 	const person =
-		devAttendancePeople.find((candidate) => candidate.email === 'lee@example.com') ??
+		devAttendancePeople.find((candidate) => candidate.email === 'member1@example.com') ??
 		devAttendancePeople[0];
 	removePersonDateEvents(events, person.email, date);
 	return appendMultiLocationEvents(events, startIDSeed, person, date, [

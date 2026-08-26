@@ -50,7 +50,7 @@ func TestCompanyInfoPartialUpdateAndLanguageFallback(t *testing.T) {
 	decodeCompanyResponse(t, performCompanyRequest(t, service.updateCompanyInfo, http.MethodPut, "/admin/api/company-info", map[string]any{
 		"language":       "ko",
 		"name":           "주식회사 여명거리",
-		"representative": "김표본",
+		"representative": "김예시",
 		"address":        "서울특별시 강남구",
 		"bankAccount":    "신한은행 110-123",
 		"phone":          "02-1234-5678",

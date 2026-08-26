@@ -9,12 +9,13 @@ describe('readArriving', () => {
 			title: '이샘플',
 			body: '오늘 회의 30분 미뤄도 될까요',
 			openPath: '/flow/?taskID=7',
-			tag: 'message:41'
+			tag: 'message:41',
+			icon: ''
 		});
 	});
 
 	test('a push carrying nothing still shows something, because the browser demands one', () => {
-		expect(readArriving(null)).toEqual({ title: 'internkim', body: '', openPath: '/flow/', tag: 'internkim' });
+		expect(readArriving(null)).toEqual({ title: 'internkim', body: '', openPath: '/flow/', tag: 'internkim', icon: '' });
 		expect(readArriving('a message').title).toBe('internkim');
 		expect(readArriving({}).openPath).toBe('/flow/');
 	});
@@ -30,7 +31,8 @@ describe('readArriving', () => {
 			title: 'internkim',
 			body: '',
 			openPath: '/flow/',
-			tag: 'internkim'
+			tag: 'internkim',
+			icon: ''
 		});
 	});
 });

@@ -255,7 +255,7 @@ test.describe('attendance team status', () => {
 		await expect(hoverCard.getByText('일일 최고')).toBeVisible();
 		await expect(hoverCard.getByText('일일 최저')).toBeVisible();
 
-		await page.getByTestId('team-status-person-header-lee@example.com').hover();
+		await page.getByTestId('team-status-person-header-member1@example.com').hover();
 		await expect(page.locator('[data-slot="hover-card-content"]')).toHaveCount(1);
 	});
 

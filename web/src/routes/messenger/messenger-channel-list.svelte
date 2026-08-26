@@ -7,6 +7,7 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { cn } from '$lib/utils';
+	import ConversationMenu from '$lib/components/channel/conversation-menu.svelte';
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
 
 	let {
@@ -14,6 +15,8 @@
 		class: className = '',
 		directMessages,
 		groupChannels,
+		muted,
+		switchMuted,
 		openNewDirectMessage,
 		openOnPlatform,
 		reorderChannels,
@@ -24,6 +27,8 @@
 		class?: string;
 		directMessages: ChannelSummary[];
 		groupChannels: ChannelSummary[];
+		muted: Set<string>;
+		switchMuted: (conversationID: string) => void;
 		openNewDirectMessage: () => void;
 		openOnPlatform: { url: string; label: string } | null;
 		reorderChannels: (draggedChannelID: string, targetChannelID: string) => void;
@@ -79,6 +84,13 @@
 									<HashIcon />
 									<span>{channel.name}</span>
 								</Sidebar.MenuButton>
+								<ConversationMenu
+									isMuted={muted.has(channel.id)}
+									muteLabel={text.muteConversation}
+									unmuteLabel={text.unmuteConversation}
+									menuLabel={text.conversationMenu}
+									onSwitchMuted={() => switchMuted(channel.id)}
+								/>
 							</Sidebar.MenuItem>
 						{/each}
 					</Sidebar.Menu>
@@ -105,6 +117,13 @@
 									/>
 									<span>{conversation.name}</span>
 								</Sidebar.MenuButton>
+								<ConversationMenu
+									isMuted={muted.has(conversation.id)}
+									muteLabel={text.muteConversation}
+									unmuteLabel={text.unmuteConversation}
+									menuLabel={text.conversationMenu}
+									onSwitchMuted={() => switchMuted(conversation.id)}
+								/>
 							</Sidebar.MenuItem>
 						{/each}
 					</Sidebar.Menu>

@@ -1,7 +1,7 @@
 import type { Locale } from './i18n/locale.svelte';
 
 // A person's name is recorded one way and read another. The record holds it
-// given name first, separated by spaces — 표본 김, John Michael Smith — because
+// given name first, separated by spaces — 예시 김, John Michael Smith — because
 // that is the one order every messenger, directory and mail header agrees on.
 // Korean writes the family name first and joins it to the given name, so that
 // is a rendering, not a second name to keep.

@@ -22,7 +22,7 @@ func TestCalendarEventParticipantsRoundTrip(t *testing.T) {
 		Color:       "#2563eb",
 		Participants: []calendarParticipant{
 			{PersonID: "person-gamyeong", Name: "이샘플", Email: "gamyeong@example.com"},
-			{PersonID: "person-pyobon", Name: "김표본", Email: "pyobon@example.com"},
+			{PersonID: "person-pyobon", Name: "김예시", Email: "pyobon@example.com"},
 		},
 		ReminderLeadHours: 24,
 		CreatedByEmail:    "admin@example.com",

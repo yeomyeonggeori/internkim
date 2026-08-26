@@ -100,6 +100,7 @@ func (service *Service) createAttendanceLeaveRequest(
 			record.Attachments[index].ID,
 		)
 	}
+	service.alsoTellTheAdministratorsAboutLeave(record)
 	return record, nil
 }
 

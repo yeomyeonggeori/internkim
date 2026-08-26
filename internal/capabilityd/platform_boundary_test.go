@@ -568,7 +568,7 @@ func TestMattermostWebSocketPayloadPreservesMentionMetadata(t *testing.T) {
 		t.Fatalf("expected bot mention metadata, got %+v", event.Context.Addressing)
 	}
 
-	_, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "town-square", "", "@iam 아직 상태 업데이트는 툴로 추가 안 했었어요."), "bot-1", "internkim")
+	_, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "town-square", "", "@kimyesi 아직 상태 업데이트는 툴로 추가 안 했었어요."), "bot-1", "internkim")
 	if errorValue != nil {
 		t.Fatalf("expected fallback mention payload normalization to succeed: %v", errorValue)
 	}
@@ -589,12 +589,12 @@ func TestMattermostWebSocketPayloadPreservesMentionMetadata(t *testing.T) {
 }
 
 func TestMattermostAddressingDetectsOtherAndMixedMentions(t *testing.T) {
-	otherAddressing := mattermostAddressingFromMessage("@lee 확인 부탁해요", "internkim")
+	otherAddressing := mattermostAddressingFromMessage("@leesample 확인 부탁해요", "internkim")
 	if otherAddressing.BotMentioned || !otherAddressing.OtherPersonMentioned {
 		t.Fatalf("expected other person mention, got %+v", otherAddressing)
 	}
 
-	mixedAddressing := mattermostAddressingFromMessage("@lee @channel @internkim 부탁", "internkim")
+	mixedAddressing := mattermostAddressingFromMessage("@leesample @channel @internkim 부탁", "internkim")
 	if !mixedAddressing.BotMentioned || !mixedAddressing.OtherPersonMentioned {
 		t.Fatalf("expected mixed mention metadata, got %+v", mixedAddressing)
 	}
@@ -621,7 +621,7 @@ func TestMattermostEnrichPreservesChannelAndAddressingMetadata(t *testing.T) {
 		case "/api/v4/users/user-1":
 			return testJSONResponse(http.StatusOK, map[string]string{
 				"id":       "user-1",
-				"username": "lee",
+				"username": "leesample",
 			}), nil
 		default:
 			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
@@ -683,7 +683,7 @@ func TestMattermostContextUsesSingleNameForHistorySpeakers(t *testing.T) {
 		case "/api/v4/users/user-1":
 			return testJSONResponse(http.StatusOK, map[string]string{
 				"id":         "user-1",
-				"username":   "lee",
+				"username":   "leesample",
 				"first_name": "서연",
 				"last_name":  "이",
 				"nickname":   "이서연",
@@ -727,7 +727,7 @@ func TestMattermostContextPreservesHistoryAttachments(t *testing.T) {
 		case "/api/v4/users/user-1":
 			return testJSONResponse(http.StatusOK, map[string]string{
 				"id":       "user-1",
-				"username": "lee",
+				"username": "leesample",
 			}), nil
 		default:
 			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
@@ -766,7 +766,7 @@ func TestMattermostContextAnnotatesReadableMentions(t *testing.T) {
 					"post-1": {
 						ID:       "post-1",
 						UserID:   "user-1",
-						Message:  "@lee 시간 확인해주세요.",
+						Message:  "@leesample 시간 확인해주세요.",
 						CreateAt: 1000,
 						Metadata: struct {
 							Mentions []string `json:"mentions"`
@@ -779,12 +779,12 @@ func TestMattermostContextAnnotatesReadableMentions(t *testing.T) {
 			return testJSONResponse(http.StatusOK, map[string]string{
 				"id":       "user-1",
 				"username": "kim",
-				"nickname": "김표본",
+				"nickname": "김예시",
 			}), nil
 		case "/api/v4/users/user-2":
 			return testJSONResponse(http.StatusOK, map[string]string{
 				"id":       "user-2",
-				"username": "lee",
+				"username": "leesample",
 				"nickname": "이샘플",
 			}), nil
 		default:
@@ -802,7 +802,7 @@ func TestMattermostContextAnnotatesReadableMentions(t *testing.T) {
 	if len(contextValue.Messages) != 1 {
 		t.Fatalf("expected one history message, got %+v", contextValue.Messages)
 	}
-	if contextValue.Messages[0].Text != "@lee(이샘플) 시간 확인해주세요." {
+	if contextValue.Messages[0].Text != "@leesample(이샘플) 시간 확인해주세요." {
 		t.Fatalf("expected readable mention annotation, got %q", contextValue.Messages[0].Text)
 	}
 }
@@ -824,7 +824,7 @@ func TestMattermostContextKeepsHistoryCursorForDirectRoot(t *testing.T) {
 		case "/api/v4/users/user-1":
 			return testJSONResponse(http.StatusOK, map[string]string{
 				"id":       "user-1",
-				"username": "lee",
+				"username": "leesample",
 			}), nil
 		default:
 			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)

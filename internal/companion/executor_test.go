@@ -599,7 +599,7 @@ func TestBrowserHandoffReusesActiveHandoffWithoutReopeningBrowser(t *testing.T) 
 
 	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-2", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
 		ToolName: "browser_handoff",
-		Input:    json.RawMessage(`{"url":"https://example.com/projectselector2/iam-admin/serviceaccounts?supportedpurview=project","message":"로그인 후 완료를 눌러주세요."}`),
+		Input:    json.RawMessage(`{"url":"https://example.com/projectselector2/kimyesi-admin/serviceaccounts?supportedpurview=project","message":"로그인 후 완료를 눌러주세요."}`),
 	})
 	if errorValue != nil {
 		t.Fatalf("expected active handoff reuse: %v", errorValue)
