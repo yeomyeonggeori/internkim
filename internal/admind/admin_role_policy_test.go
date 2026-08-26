@@ -26,10 +26,8 @@ func TestAdminSessionReportsOperationsAdminRoleDespiteOrganizationCache(t *testi
 		StateDirectory:        t.TempDir(),
 		AdminUIPath:           t.TempDir(),
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"operator@example.com","role":"operationsAdmin"}]}`, nil), nil
-		}
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"operator@example.com","role":"operationsAdmin"}]}`, func(request *http.Request) (*http.Response, error) {
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
@@ -64,10 +62,8 @@ func TestAdminSessionPreservesClaimedAdminRole(t *testing.T) {
 		StateDirectory:        t.TempDir(),
 		AdminUIPath:           t.TempDir(),
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
-			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
-		}
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[]}`, func(request *http.Request) (*http.Response, error) {
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
@@ -267,10 +263,8 @@ func newOperationsAdminAuthorizationTestService(t *testing.T) *Service {
 		StateDirectory:           filepath.Join(rootPath, "state"),
 		AdminUIPath:              t.TempDir(),
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
-			return jsonResponse(http.StatusOK, `{"users":["operator@example.com","admin@example.com"],"records":[{"email":"operator@example.com","role":"operationsAdmin"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
-		}
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"users":["operator@example.com","admin@example.com"],"records":[{"email":"operator@example.com","role":"operationsAdmin"},{"email":"admin@example.com","role":"admin"}]}`, func(request *http.Request) (*http.Response, error) {
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}

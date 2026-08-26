@@ -52,10 +52,8 @@ func TestCalendarEventsWithParticipantImagesRestoresCurrentMemberImage(t *testin
 	service.Configuration.APIBaseURL = "http://internkim.local"
 	service.Configuration.FleetIDPath = writeTestFile(t, "fleet-1")
 	service.Configuration.FleetSecretPath = writeTestFile(t, "fleet-secret")
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodGet && request.URL.String() == "http://internkim.local/api/users?fleet_id=fleet-1" {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"dongha@example.com","name":"이샘플","handle":"dongha","role":"member"}]}`, nil), nil
-		}
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"dongha@example.com","name":"이샘플","handle":"dongha","role":"member"}]}`, func(request *http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 	})}
 	request := httptest.NewRequest(http.MethodGet, "/calendar/api/events", nil)
@@ -76,10 +74,8 @@ func TestCalendarNoopUpdateKeepsParticipantImage(t *testing.T) {
 	service.Configuration.APIBaseURL = "http://internkim.local"
 	service.Configuration.FleetIDPath = writeTestFile(t, "fleet-1")
 	service.Configuration.FleetSecretPath = writeTestFile(t, "fleet-secret")
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodGet && request.URL.String() == "http://internkim.local/api/users?fleet_id=fleet-1" {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"dongha@example.com","name":"이샘플","handle":"dongha","role":"member"}]}`, nil), nil
-		}
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"dongha@example.com","name":"이샘플","handle":"dongha","role":"member"}]}`, func(request *http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 	})}
 	startTime := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)

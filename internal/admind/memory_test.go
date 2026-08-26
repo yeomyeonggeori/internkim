@@ -17,12 +17,10 @@ func TestMemoryAPIUsesMattermostSessionUserGraph(t *testing.T) {
 		FleetSecretPath:   writeTestFile(t, "secret-1"),
 		MattermostBaseURL: "http://mattermost.local",
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/memory/graph" && request.Method == http.MethodGet {
 			if request.URL.Query().Get("readerPersonID") != "user:person-1" {
@@ -61,12 +59,10 @@ func TestMemoryAPIUsesMattermostSessionUserSchedules(t *testing.T) {
 		FleetSecretPath:   writeTestFile(t, "secret-1"),
 		MattermostBaseURL: "http://mattermost.local",
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/schedule" && request.Method == http.MethodGet {
 			if request.URL.Query().Get("creatorPersonID") != "user:person-1" {
@@ -158,12 +154,10 @@ func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 		FleetSecretPath:   writeTestFile(t, "secret-1"),
 		MattermostBaseURL: "http://mattermost.local",
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/schedule/cancel" && request.Method == http.MethodPost {
 			var payload struct {
@@ -205,12 +199,10 @@ func TestMemoryAPIDeleteScheduleInjectsResolvedPersonID(t *testing.T) {
 		FleetSecretPath:   writeTestFile(t, "secret-1"),
 		MattermostBaseURL: "http://mattermost.local",
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/schedule/delete" && request.Method == http.MethodPost {
 			var payload struct {
@@ -252,12 +244,10 @@ func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 		FleetSecretPath:   writeTestFile(t, "secret-1"),
 		MattermostBaseURL: "http://mattermost.local",
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/schedule/update" && request.Method == http.MethodPost {
 			var payload struct {
@@ -305,10 +295,8 @@ func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
 		FleetSecretPath:   writeTestFile(t, "secret-1"),
 		MattermostBaseURL: "http://mattermost.local",
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
-		}
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, func(request *http.Request) (*http.Response, error) {
 		if request.URL.Path == "/admin/api/memory/pinned/update" && request.Method == http.MethodPost {
 			var payload struct {
 				ReaderPersonID string `json:"readerPersonID"`
@@ -349,12 +337,10 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 		FleetSecretPath:   writeTestFile(t, "secret-1"),
 		MattermostBaseURL: "http://mattermost.local",
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/schedule" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `private backend detail`, nil), nil
@@ -390,12 +376,10 @@ func TestMemoryAPIGraphHidesUpstreamFailureDetails(t *testing.T) {
 		FleetSecretPath:   writeTestFile(t, "secret-1"),
 		MattermostBaseURL: "http://mattermost.local",
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/memory/graph" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `Traceback /workspace/.blueclaw/private.py`, nil), nil
