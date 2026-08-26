@@ -1565,7 +1565,7 @@ if [ -z "$RELAY_URL" ]; then echo "the relay names no public host, and buzz-admi
 q() { su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"$1\"" 2>&1; }
 printf '== discovery events before ==\n'
 q "SELECT kind, count(*) FROM events WHERE kind IN (39000,39001,39002) GROUP BY kind ORDER BY kind"
-q "DELETE FROM events WHERE kind IN (39000,39001,39002)" | sed 's/^/deleted: /'
+q "DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'stream')" | sed 's/^/deleted: /'
 ` + blueclaw.BuzzAdminBinaryPath + ` reconcile-channels
 printf '== discovery events after ==\n'
 q "SELECT kind, count(*) FROM events WHERE kind IN (39000,39001,39002) GROUP BY kind ORDER BY kind"
