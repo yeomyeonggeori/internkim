@@ -5,6 +5,7 @@ import { membersOfCompanyByExternalID } from '$lib/server/member-credential';
 import { notificationCategories, type NotificationCategory } from '$lib/notifications/categories';
 import { notifyMember, type Delivery, type Notification } from '$lib/server/notify-member';
 import { pictureURLOfMember } from '$lib/server/member-picture-url';
+import { rememberConversationMembers } from '$lib/server/conversation-members';
 import type { VapidKeys } from '$lib/server/web-push-vapid';
 import type { RequestHandler } from './$types';
 
@@ -30,14 +31,17 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const memberOf = await membersOfCompanyByExternalID(client, companyID, askedPlatform(asked.platform));
 
 	const sender = typeof asked.senderExternalID === 'string' ? memberOf.get(asked.senderExternalID) : undefined;
+	const recipientMemberIDs = recipients.map((externalID) => memberOf.get(externalID)).filter((id): id is string => Boolean(id));
+	const conversationID = typeof asked.conversationID === 'string' ? asked.conversationID : '';
 	const delivered = await tellEach(
 		client,
-		recipients.map((externalID) => memberOf.get(externalID)).filter((id): id is string => Boolean(id)),
+		recipientMemberIDs,
 		askedCategory(asked.category),
 		{ ...askedNotification(asked), icon: await pictureURLOfMember(client, sender ?? '') },
 		vapid,
-		typeof asked.conversationID === 'string' ? asked.conversationID : ''
+		conversationID
 	);
+	await rememberConversationMembers(client, conversationID, [...recipientMemberIDs, sender ?? '']);
 
 	return json({ ...delivered, addressed: recipients.length });
 };
