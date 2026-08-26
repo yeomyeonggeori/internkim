@@ -40,7 +40,6 @@ function planeHolding(rows: Rows) {
 				return {
 					select: (columns: string) => {
 						const administratorsOnly = { value: false };
-						// notifyMember reads one member's settings; the announcer reads one row.
 						if (columns.includes('notification_settings')) {
 							return {
 								eq: () => ({ maybeSingle: async () => ({ data: { notification_settings: {} }, error: null }) })
@@ -108,8 +107,6 @@ describe('announcing a leave request', () => {
 
 		await announceLeaveRequest(client, client, 'me', vapid, 1_700_000_000);
 
-		// The requester is an administrator here and still hears nothing about
-		// their own request.
 		expect(told).toEqual(['admin-1']);
 	});
 

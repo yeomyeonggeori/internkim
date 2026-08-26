@@ -134,7 +134,7 @@ export async function recordSupabaseAttendance(kind?: AttendanceKind, locationID
 		location: recorded === 'clock_in' ? (locationID || null) : null
 	});
 	if (error) throw new Error(error.message);
-	await announceToTheCompany('clock');
+	void announceToTheCompany('clock');
 }
 
 export async function correctSupabaseAttendanceEvents(

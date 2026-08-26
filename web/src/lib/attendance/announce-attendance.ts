@@ -8,5 +8,5 @@ export async function announceToTheCompany(what: 'clock' | 'leave'): Promise<voi
 		method: 'POST',
 		headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
 		body: JSON.stringify({ what })
-	});
+	}).catch(() => undefined);
 }
