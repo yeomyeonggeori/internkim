@@ -2,8 +2,9 @@ import { supabase } from '$lib/supabase';
 
 export async function mutedConversations(): Promise<Set<string>> {
 	const { data, error } = await supabase()
-		.from('muted_conversation')
+		.from('notification')
 		.select('conversation_id')
+		.eq('is_muted', true)
 		.returns<{ conversation_id: string }[]>();
 	if (error) throw new Error(error.message);
 	return new Set((data ?? []).map((row) => row.conversation_id));

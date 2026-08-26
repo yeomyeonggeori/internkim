@@ -19,7 +19,12 @@ async function reachableKeys() {
 	};
 }
 
-function clientWhere(options: { settings: unknown; mutedConversations: string[]; deviceKeys: unknown }) {
+function clientWhere(options: {
+	settings: unknown;
+	mutedConversations: string[];
+	unmutedConversations?: string[];
+	deviceKeys: unknown;
+}) {
 	const client = {
 		from(table: string) {
 			if (table === 'member') {
@@ -29,13 +34,17 @@ function clientWhere(options: { settings: unknown; mutedConversations: string[];
 					})
 				};
 			}
-			if (table === 'muted_conversation') {
+			if (table === 'notification') {
 				return {
 					select: () => ({
 						eq: () => ({
 							eq: (_column: string, conversationID: string) => ({
 								maybeSingle: async () => ({
-									data: options.mutedConversations.includes(conversationID) ? { conversation_id: conversationID } : null,
+									data: options.mutedConversations.includes(conversationID)
+										? { is_muted: true }
+										: (options.unmutedConversations ?? []).includes(conversationID)
+											? { is_muted: false }
+											: null,
 									error: null
 								})
 							})
@@ -116,6 +125,21 @@ describe('a conversation a member has muted', () => {
 		answerWith(201);
 
 		const delivery = await notifyMember(client, 'member-1', 'task', notification, vapid, 1_700_000_000);
+
+		expect(delivery.silent).toBe(false);
+		expect(delivery.reached).toBe(1);
+	});
+
+	test('is heard again once unmuted, though the row that recorded the mute remains', async () => {
+		const client = clientWhere({
+			settings: { message: true },
+			mutedConversations: [],
+			unmutedConversations: ['channel-a'],
+			deviceKeys: await reachableKeys()
+		});
+		answerWith(201);
+
+		const delivery = await notifyMember(client, 'member-1', 'message', notification, vapid, 1_700_000_000, 'channel-a');
 
 		expect(delivery.silent).toBe(false);
 		expect(delivery.reached).toBe(1);

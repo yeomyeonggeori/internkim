@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(6);
+select plan(7);
 
 insert into auth.users (id, email) values
   ('51000000-0000-0000-0000-000000000001', 'mute-one@example.test'),
@@ -16,9 +16,9 @@ insert into public.member (id, company_id, email, user_id, status) values
    'mute-two@example.test', '51000000-0000-0000-0000-000000000002', 'active');
 
 select is(
-  (select count(*)::int from public.muted_conversation),
+  (select count(*)::int from public.notification),
   0,
-  'silence is the exception, so the table starts empty'
+  'nobody has said anything yet, so the table starts empty'
 );
 
 do $$
@@ -31,7 +31,7 @@ end $$;
 reset role;
 
 select is(
-  (select count(*)::int from public.muted_conversation where member_id = '51000000-0000-0000-0000-0000000000b1'),
+  (select count(*)::int from public.notification where member_id = '51000000-0000-0000-0000-0000000000b1' and is_muted),
   1,
   'muting twice is muting once'
 );
@@ -45,7 +45,7 @@ end $$;
 reset role;
 
 select is(
-  (select count(*)::int from public.muted_conversation where conversation_id = 'channel-a'),
+  (select count(*)::int from public.notification where conversation_id = 'channel-a' and is_muted),
   2,
   'each member mutes for themselves'
 );
@@ -56,7 +56,7 @@ declare
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"51000000-0000-0000-0000-000000000001"}', true);
-  select count(*)::int into visible from public.muted_conversation;
+  select count(*)::int into visible from public.notification;
   assert visible = 1, 'a member reads only their own mutes, saw ' || visible;
 end $$;
 reset role;
@@ -72,14 +72,20 @@ end $$;
 reset role;
 
 select is(
-  (select count(*)::int from public.muted_conversation where member_id = '51000000-0000-0000-0000-0000000000b1'),
-  0,
-  'unmuting takes the row away'
+  (select count(*)::int from public.notification where member_id = '51000000-0000-0000-0000-0000000000b1'),
+  1,
+  'unmuting keeps the row, so the change is on record'
 );
 
 select is(
-  (select count(*)::int from public.muted_conversation where member_id = '51000000-0000-0000-0000-0000000000b2'),
-  1,
+  (select is_muted from public.notification where member_id = '51000000-0000-0000-0000-0000000000b1'),
+  false,
+  'unmuting turns the flag off'
+);
+
+select is(
+  (select is_muted from public.notification where member_id = '51000000-0000-0000-0000-0000000000b2'),
+  true,
   'unmuting is not contagious'
 );
 
