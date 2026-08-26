@@ -4,7 +4,7 @@ select plan(11);
 
 select has_function(
   'public',
-  'close_crm_opportunity',
+  'crm_opportunity_close',
   array['uuid', 'text', 'integer', 'timestamp with time zone', 'text', 'bigint', 'text'],
   'currency: closing an opportunity goes through an authenticated function'
 );
@@ -41,7 +41,7 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59600000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.close_crm_opportunity('59600000-0000-0000-0000-000000000201', 'done', 1024, now(), null, null, null);
+  perform public.crm_opportunity_close('59600000-0000-0000-0000-000000000201', 'done', 1024, now(), null, null, null);
   reset role;
 end $$;$block$, 'currency: a home-currency deal closes without a converted amount');
 
@@ -55,7 +55,7 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59600000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.close_crm_opportunity('59600000-0000-0000-0000-000000000202', 'done', 1024, now(), null, null, null);
+  perform public.crm_opportunity_close('59600000-0000-0000-0000-000000000202', 'done', 1024, now(), null, null, null);
   reset role;
 end $$;$block$, '22023', null, 'currency: a foreign-currency deal cannot close without a converted amount');
 
@@ -63,7 +63,7 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59600000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.close_crm_opportunity('59600000-0000-0000-0000-000000000202', 'done', 1024, now(), null, 1620144, 'USD');
+  perform public.crm_opportunity_close('59600000-0000-0000-0000-000000000202', 'done', 1024, now(), null, 1620144, 'USD');
   reset role;
 end $$;$block$, '22023', null, 'currency: the converted amount must use the company base currency');
 
@@ -71,8 +71,8 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59600000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.close_crm_opportunity('59600000-0000-0000-0000-000000000202', 'done', 1024, now(), null, 1620144, 'KRW');
-  perform public.close_crm_opportunity('59600000-0000-0000-0000-000000000202', 'done', 1024, now(), null, 9999999, 'KRW');
+  perform public.crm_opportunity_close('59600000-0000-0000-0000-000000000202', 'done', 1024, now(), null, 1620144, 'KRW');
+  perform public.crm_opportunity_close('59600000-0000-0000-0000-000000000202', 'done', 1024, now(), null, 9999999, 'KRW');
   reset role;
 end $$;$block$, 'currency: closing twice keeps the first converted amount');
 
@@ -86,7 +86,7 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59600000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.close_crm_opportunity('59600000-0000-0000-0000-000000000201', 'review', 1024, now(), null, null, null);
+  perform public.crm_opportunity_close('59600000-0000-0000-0000-000000000201', 'review', 1024, now(), null, null, null);
   assert (select base_amount_minor from public.opportunity where id = '59600000-0000-0000-0000-000000000201') is null,
     'reopening clears the settled amount';
   reset role;
@@ -96,7 +96,7 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59600000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.close_crm_opportunity('59600000-0000-0000-0000-000000000203', 'lost', 1024, now(), '', null, null);
+  perform public.crm_opportunity_close('59600000-0000-0000-0000-000000000203', 'lost', 1024, now(), '', null, null);
   reset role;
 end $$;$block$, '22023', null, 'currency: losing a deal without a written reason is rejected');
 
@@ -104,7 +104,7 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59600000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.close_crm_opportunity('59600000-0000-0000-0000-000000000203', 'lost', 1024, now(), 'Budget did not fit', null, null);
+  perform public.crm_opportunity_close('59600000-0000-0000-0000-000000000203', 'lost', 1024, now(), 'Budget did not fit', null, null);
   reset role;
 end $$;$block$, 'currency: losing a deal with a written reason succeeds');
 

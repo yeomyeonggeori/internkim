@@ -111,7 +111,7 @@ func TestSavingAnEventNamesTheProcedureTheCompanyGuards(t *testing.T) {
 	if savedID != "task-9" {
 		t.Fatalf("savedID = %q", savedID)
 	}
-	if procedure != "save_calendar_event" {
+	if procedure != "task_save" {
 		t.Fatalf("the company guards its calendar behind that procedure, got %q", procedure)
 	}
 	if arguments["target_task_id"] != nil {

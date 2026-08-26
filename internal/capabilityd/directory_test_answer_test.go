@@ -35,6 +35,7 @@ func directoryPeopleTestResponse(document string) *http.Response {
 var directoryPeopleTestDocument = defaultDirectoryPeopleTestDocument
 
 const defaultDirectoryPeopleTestDocument = `{"people":[
+	{"memberID":"staff","email":"staff@example.com","name":"Staff"},
 	{"memberID":"person-sample","email":"sample@example.com","name":"이샘플","messenger":{"mattermost":"dongha"}},
 	{"memberID":"person-one","email":"one@example.com","name":"Lee One"},
 	{"memberID":"person-jungkook","email":"jungkook@example.com","name":"정국"},

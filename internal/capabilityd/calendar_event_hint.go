@@ -81,7 +81,7 @@ func calendarEventHintUnresolvedFailure(resolution hintResolution[calendarEventF
 	return calendarEventHintFailure{
 		ErrorCode:    "calendar_event_hint_unresolved",
 		FailureStage: "target_resolution",
-		Message:      unresolvedHintMessage("calendar event", "eventHint", "calendar_list", resolution.Outcome),
+		Message:      unresolvedHintMessage("calendar event", "eventHint", "event_list", resolution.Outcome),
 		Candidates:   calendarEventHintCandidates(resolution.Candidates),
 		Retryable:    true,
 		SafeRetry:    true,
@@ -91,7 +91,7 @@ func calendarEventHintUnresolvedFailure(resolution hintResolution[calendarEventF
 func calendarEventHintCandidates(events []calendarEventForTool) []calendarEventHintCandidate {
 	candidates := make([]calendarEventHintCandidate, 0, len(events))
 	for _, event := range events {
-		candidates = append(candidates, calendarEventHintCandidate{EventID: event.EventID, Title: event.Title, StartsAt: event.StartISO})
+		candidates = append(candidates, calendarEventHintCandidate{EventID: event.EventID, Title: event.Title, StartsAt: event.StartsAt})
 	}
 	return candidates
 }

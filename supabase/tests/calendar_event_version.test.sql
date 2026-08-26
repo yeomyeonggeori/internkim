@@ -36,17 +36,18 @@ begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"47000000-0000-0000-0000-000000000001"}', true);
   select updated_at into version from public.task where id = '47000000-0000-0000-0000-000000000101';
-  perform public.save_calendar_event(
-    '47000000-0000-0000-0000-000000000101',
-    'Portland trip, confirmed',
-    null,
-    null,
-    '2026-08-24T00:00:00Z',
-    '2026-08-28T00:00:00Z',
-    true,
-    'M',
-    array['47000000-0000-0000-0000-0000000000a1'::uuid],
-    version
+  perform public.task_save(
+    target_task_id => '47000000-0000-0000-0000-000000000101',
+    target_title => 'Portland trip, confirmed',
+    target_note => null,
+    target_location => null,
+    target_starts_at => '2026-08-24T00:00:00Z',
+    target_ends_at => '2026-08-28T00:00:00Z',
+    target_is_whole_day => true,
+    target_size => 'M',
+    target_participant_ids => array['47000000-0000-0000-0000-0000000000a1'::uuid],
+    target_expected_updated_at => version,
+    target_is_event => true
   );
   reset role;
 end $$;$block$, 'calendar save: the version that was read is the version that is written');
@@ -61,20 +62,21 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"47000000-0000-0000-0000-000000000001"}', true);
-  perform public.save_calendar_event(
-    '47000000-0000-0000-0000-000000000101',
-    'Portland trip, overwritten',
-    null,
-    null,
-    '2026-08-24T00:00:00Z',
-    '2026-08-28T00:00:00Z',
-    true,
-    'M',
-    array['47000000-0000-0000-0000-0000000000a1'::uuid],
-    '2020-01-01T00:00:00Z'
+  perform public.task_save(
+    target_task_id => '47000000-0000-0000-0000-000000000101',
+    target_title => 'Portland trip, overwritten',
+    target_note => null,
+    target_location => null,
+    target_starts_at => '2026-08-24T00:00:00Z',
+    target_ends_at => '2026-08-28T00:00:00Z',
+    target_is_whole_day => true,
+    target_size => 'M',
+    target_participant_ids => array['47000000-0000-0000-0000-0000000000a1'::uuid],
+    target_expected_updated_at => '2020-01-01T00:00:00Z',
+    target_is_event => true
   );
   reset role;
-end $$;$block$, '40001', 'calendar event changed since it was read',
+end $$;$block$, '40001', 'task changed since it was read',
   'calendar save: a write that names a version that is gone is refused');
 
 select * from finish();

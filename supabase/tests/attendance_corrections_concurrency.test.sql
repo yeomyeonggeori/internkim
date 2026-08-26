@@ -17,7 +17,7 @@ begin
 		where rolname = 'attendance_correction_dblink_login'
 	) then
 		revoke usage on schema public from attendance_correction_dblink_login;
-		revoke execute on function public.correct_attendance_events(jsonb, text)
+		revoke execute on function public.attendance_correct(jsonb, text)
 			from attendance_correction_dblink_login;
 		drop role attendance_correction_dblink_login;
 	end if;
@@ -41,7 +41,7 @@ end;
 $$;
 
 grant usage on schema public to attendance_correction_dblink_login;
-grant execute on function public.correct_attendance_events(jsonb, text)
+grant execute on function public.attendance_correct(jsonb, text)
 	to attendance_correction_dblink_login;
 
 insert into auth.users (id, email) values
@@ -127,7 +127,7 @@ begin
 		begin;
 		do $correct$
 		begin
-			perform public.correct_attendance_events(
+			perform public.attendance_correct(
 				'[{"event_id":"45000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"09:50","location":"Office"}]'::jsonb,
 				'첫 번째 수정'
 			);
@@ -148,7 +148,7 @@ from extensions.dblink(
 do $$
 begin
 	perform extensions.dblink_send_query('attendance_correction_challenger', $challenger$
-		select public.correct_attendance_events(
+		select public.attendance_correct(
 			'[{"event_id":"45000000-0000-0000-0000-000000000102","local_date":"2026-08-10","local_time":"09:20","location":"Office"}]'::jsonb,
 			'두 번째 수정'
 		);
@@ -221,6 +221,6 @@ where id = '45000000-0000-0000-0000-0000000000a0';
 delete from auth.users
 where id = '45000000-0000-0000-0000-000000000001';
 revoke usage on schema public from attendance_correction_dblink_login;
-revoke execute on function public.correct_attendance_events(jsonb, text)
+revoke execute on function public.attendance_correct(jsonb, text)
 	from attendance_correction_dblink_login;
 drop role attendance_correction_dblink_login;

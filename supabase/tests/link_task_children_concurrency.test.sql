@@ -19,9 +19,9 @@ begin
 		where rolname = 'task_child_dblink_login'
 	) then
 		revoke usage on schema public from task_child_dblink_login;
-		revoke execute on function public.link_task_children(uuid, uuid[])
+		revoke execute on function public.task_children_link(uuid, uuid[])
 			from task_child_dblink_login;
-		revoke execute on function public.set_task_parent(uuid, uuid)
+		revoke execute on function public.task_parent_set(uuid, uuid)
 			from task_child_dblink_login;
 		drop role task_child_dblink_login;
 	end if;
@@ -45,9 +45,9 @@ end;
 $$;
 
 grant usage on schema public to task_child_dblink_login;
-grant execute on function public.link_task_children(uuid, uuid[])
+grant execute on function public.task_children_link(uuid, uuid[])
 	to task_child_dblink_login;
-grant execute on function public.set_task_parent(uuid, uuid)
+grant execute on function public.task_parent_set(uuid, uuid)
 	to task_child_dblink_login;
 
 insert into auth.users (id, email) values
@@ -118,7 +118,7 @@ begin
 		begin;
 		do $link$
 		begin
-			perform public.set_task_parent(
+			perform public.task_parent_set(
 				'44000000-0000-0000-0000-000000000103',
 				'44000000-0000-0000-0000-000000000101'
 			);
@@ -139,7 +139,7 @@ from extensions.dblink(
 do $$
 begin
 	perform extensions.dblink_send_query('task_child_challenger', $challenger$
-		select public.link_task_children(
+		select public.task_children_link(
 			'44000000-0000-0000-0000-000000000102',
 			array['44000000-0000-0000-0000-000000000103'::uuid]
 		);
@@ -211,8 +211,8 @@ where id = '44000000-0000-0000-0000-0000000000a0';
 delete from auth.users
 where id = '44000000-0000-0000-0000-000000000001';
 revoke usage on schema public from task_child_dblink_login;
-revoke execute on function public.link_task_children(uuid, uuid[])
+revoke execute on function public.task_children_link(uuid, uuid[])
 	from task_child_dblink_login;
-revoke execute on function public.set_task_parent(uuid, uuid)
+revoke execute on function public.task_parent_set(uuid, uuid)
 	from task_child_dblink_login;
 drop role task_child_dblink_login;

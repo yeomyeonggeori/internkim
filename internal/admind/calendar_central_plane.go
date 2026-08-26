@@ -61,18 +61,19 @@ func calendarEventsOfCompanyEvents(events []centralplane.Event, timeZoneName str
 	converted := make([]calendarEvent, 0, len(events))
 	for _, event := range events {
 		converted = append(converted, calendarEvent{
-			ID:           event.CentralID,
-			UID:          event.CentralID,
-			Title:        event.Title,
-			Description:  event.Note,
-			Location:     event.Location,
-			StartISO:     event.StartsAt,
-			EndISO:       event.EndsAt,
-			TimeZone:     timeZoneName,
-			IsAllDay:     event.IsWholeDay,
-			UpdatedAt:    event.UpdatedAt,
-			People:       event.ParticipantMails,
-			Participants: calendarParticipantsOfEmails(event.ParticipantMails),
+			ID:                event.CentralID,
+			UID:               event.CentralID,
+			Title:             event.Title,
+			Description:       event.Note,
+			Location:          event.Location,
+			StartISO:          event.StartsAt,
+			EndISO:            event.EndsAt,
+			TimeZone:          timeZoneName,
+			IsAllDay:          event.IsWholeDay,
+			ReminderLeadHours: event.NotifyMinutesBefore / 60,
+			UpdatedAt:         event.UpdatedAt,
+			People:            event.ParticipantMails,
+			Participants:      calendarParticipantsOfEmails(event.ParticipantMails),
 		})
 	}
 	return converted
@@ -104,21 +105,23 @@ func (service *Service) centralCalendarWriter(request *http.Request) (*centralpl
 // one it does not. The device mints its own id before it knows whether the
 // company will keep the event, and sending that as the company's id asks it to
 // change a row nobody has.
-func (service *Service) saveCentralCalendarEvent(request *http.Request, event calendarEvent, centralID string, expectedUpdatedAt string) (calendarEvent, bool, error) {
+func (service *Service) saveCentralCalendarEvent(request *http.Request, event calendarEvent, centralID string, expectedUpdatedAt string, isRequestedOfSomebodyElse bool) (calendarEvent, bool, error) {
 	client, requesterEmail, canWrite := service.centralCalendarWriter(request)
 	if !canWrite {
 		return calendarEvent{}, false, nil
 	}
 	savedID, errorValue := client.SaveEvent(request.Context(), "email", requesterEmail, centralplane.Event{
-		CentralID:         centralID,
-		Title:             event.Title,
-		Note:              event.Description,
-		Location:          event.Location,
-		StartsAt:          event.StartISO,
-		EndsAt:            event.EndISO,
-		IsWholeDay:        event.IsAllDay,
-		ParticipantMails:  calendarParticipantEmails(event),
-		ExpectedUpdatedAt: expectedUpdatedAt,
+		CentralID:           centralID,
+		Title:               event.Title,
+		Note:                event.Description,
+		Location:            event.Location,
+		StartsAt:            event.StartISO,
+		EndsAt:              event.EndISO,
+		IsWholeDay:          event.IsAllDay,
+		NotifyMinutesBefore: event.ReminderLeadHours * 60,
+		Status:              requestedStatusWhenAskedOfSomebodyElse(isRequestedOfSomebodyElse),
+		ParticipantMails:    calendarParticipantEmails(event),
+		ExpectedUpdatedAt:   expectedUpdatedAt,
 	})
 	if errorValue != nil {
 		if errors.Is(errorValue, centralplane.ErrEventVersionGone) {
@@ -188,4 +191,14 @@ func (service *Service) removeCompanyCalendarEvent(ctx context.Context, requeste
 		return nil
 	}
 	return client.DeleteEvent(ctx, "email", requesterEmail, eventID)
+}
+
+// A task the company holds stands at requested until the person asked answers,
+// and the company reads who asked from that. An event somebody files for
+// themselves says nothing about a requester and keeps the default.
+func requestedStatusWhenAskedOfSomebodyElse(isRequestedOfSomebodyElse bool) string {
+	if isRequestedOfSomebodyElse {
+		return "requested"
+	}
+	return ""
 }

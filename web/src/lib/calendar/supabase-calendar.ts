@@ -51,10 +51,7 @@ async function taskCalendarEvents(
 }
 
 export async function saveSupabaseCalendarEvent(payload: CalendarEventPayload): Promise<CalendarEvent> {
-	const saved = await supabase().rpc(
-		'save_calendar_event',
-		supabaseCalendarEventRPCArguments(payload)
-	);
+	const saved = await supabase().rpc('task_save', supabaseCalendarEventRPCArguments(payload));
 	if (saved.error) throw new Error(saved.error.message);
 	if (typeof saved.data !== 'string') throw new Error('calendar event save returned no event ID');
 	return readEvent(saved.data);
@@ -68,6 +65,7 @@ export type SupabaseCalendarEventRPCArguments = {
 	target_starts_at: string;
 	target_ends_at: string;
 	target_is_whole_day: boolean;
+	target_is_event: true;
 	target_size: string;
 	target_participant_ids: string[];
 };
@@ -83,6 +81,7 @@ export function supabaseCalendarEventRPCArguments(
 		target_starts_at: payload.startISO,
 		target_ends_at: payload.endISO,
 		target_is_whole_day: payload.isAllDay,
+		target_is_event: true,
 		target_size: sizeOfEvent(payload.startISO, payload.endISO, payload.isAllDay),
 		target_participant_ids: payload.participants.map((participant) => participant.personID)
 	};

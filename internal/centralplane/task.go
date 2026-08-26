@@ -69,7 +69,7 @@ func (client *Client) MemberOf(ctx context.Context, email string) (string, error
 	return answer.Member.MemberID, nil
 }
 
-// SaveTask writes the task as the person it belongs to. save_flow_task is granted
+// SaveTask writes the task as the person it belongs to. task_save is granted
 // to authenticated alone and resolves authority from the caller, so the device
 // holds a member's token for the length of the call and never the service key.
 func (client *Client) SaveTask(ctx context.Context, task Task) (string, error) {
@@ -94,11 +94,10 @@ func (client *Client) SaveTask(ctx context.Context, task Task) (string, error) {
 		"target_starts_at":       nullableString(task.StartsAt),
 		"target_ends_at":         nullableString(task.EndsAt),
 		"target_write_dates":     task.WritesDates,
-		"target_requester_id":    nil,
 		"target_participant_ids": participants,
 	}
 	var savedID string
-	if errorValue := client.callAsMember(ctx, session, "save_flow_task", arguments, &savedID); errorValue != nil {
+	if errorValue := client.callAsMember(ctx, session, "task_save", arguments, &savedID); errorValue != nil {
 		return "", errorValue
 	}
 	return savedID, nil
@@ -150,7 +149,7 @@ func confirmSomethingWasRemoved(response *http.Response, subject string) error {
 	return nil
 }
 
-// The actor is a participant of their own task, and save_flow_task refuses anyone
+// The actor is a participant of their own task, and task_save refuses anyone
 // who is not a member here, so an address nobody is registered under is left out
 // rather than failing the write.
 func (client *Client) membersOf(ctx context.Context, actorMemberID string, emails []string) ([]string, error) {

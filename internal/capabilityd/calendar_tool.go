@@ -29,57 +29,57 @@ func (errorValue *calendarToolRequestError) Error() string {
 }
 
 type calendarEventWriteInput struct {
-	EventID           string
-	Title             string
-	Description       string
-	Location          string
-	StartISO          string
-	EndISO            string
-	TimeZone          string
-	IsAllDay          bool
-	Color             string
-	People            calendarToolPeopleInput
-	Participants      []calendarToolParticipant
-	ReminderLeadHours int
-	AllowDuplicate    bool
-	IncludeRequester  *bool
-	ExpectedUpdatedAt string
+	EventID                   string
+	Title                     string
+	Note                      string
+	Location                  string
+	StartsAt                  string
+	EndsAt                    string
+	IsWholeDay                bool
+	EveryoneAttends           bool
+	People                    calendarToolPeopleInput
+	Participants              []calendarToolParticipant
+	IsRequestedOfSomebodyElse bool
+	NotifyMinutesBefore       int
+	AllowDuplicate            bool
+	IncludeRequester          *bool
+	ExpectedUpdatedAt         string
 }
 
+// An event is a task the company marked as one, so it is written with the task's
+// own field names.
 type calendarEventAddInput struct {
-	Title             string                  `json:"title"`
-	Description       string                  `json:"description"`
-	Location          string                  `json:"location"`
-	StartISO          string                  `json:"startISO"`
-	EndISO            string                  `json:"endISO"`
-	TimeZone          string                  `json:"timeZone"`
-	IsAllDay          bool                    `json:"isAllDay"`
-	Color             string                  `json:"color"`
-	People            calendarToolPeopleInput `json:"people"`
-	ReminderLeadHours *int                    `json:"reminderLeadHours"`
-	IncludeRequester  *bool                   `json:"includeRequester"`
+	Title                  string                  `json:"title"`
+	Note                   string                  `json:"note"`
+	Location               string                  `json:"location"`
+	StartsAt               string                  `json:"startsAt"`
+	EndsAt                 string                  `json:"endsAt"`
+	IsWholeDay             bool                    `json:"isWholeDay"`
+	ParticipantPersonHints calendarToolPeopleInput `json:"participantPersonHints"`
+	EveryoneAttends        bool                    `json:"everyoneAttends"`
+	NotifyMinutesBefore    *int                    `json:"notifyMinutesBefore"`
 }
 
 type calendarEventListInput struct {
-	StartISO string   `json:"startISO"`
-	EndISO   string   `json:"endISO"`
+	StartsAt string   `json:"startsAt"`
+	EndsAt   string   `json:"endsAt"`
+	WeekFrom *int     `json:"weekFrom"`
+	WeekTo   *int     `json:"weekTo"`
 	Query    string   `json:"query"`
 	Limit    *float64 `json:"limit"`
 }
 
 type calendarEventUpdateInput struct {
-	EventHint         string                   `json:"eventHint"`
-	Title             *string                  `json:"title"`
-	Description       *string                  `json:"description"`
-	Location          *string                  `json:"location"`
-	StartISO          *string                  `json:"startISO"`
-	EndISO            *string                  `json:"endISO"`
-	TimeZone          *string                  `json:"timeZone"`
-	IsAllDay          *bool                    `json:"isAllDay"`
-	Color             *string                  `json:"color"`
-	People            *calendarToolPeopleInput `json:"people"`
-	ReminderLeadHours *int                     `json:"reminderLeadHours"`
-	IncludeRequester  *bool                    `json:"includeRequester"`
+	EventHint              string                   `json:"eventHint"`
+	Title                  *string                  `json:"title"`
+	Note                   *string                  `json:"note"`
+	Location               *string                  `json:"location"`
+	StartsAt               *string                  `json:"startsAt"`
+	EndsAt                 *string                  `json:"endsAt"`
+	IsWholeDay             *bool                    `json:"isWholeDay"`
+	ParticipantPersonHints *calendarToolPeopleInput `json:"participantPersonHints"`
+	EveryoneAttends        *bool                    `json:"everyoneAttends"`
+	NotifyMinutesBefore    *int                     `json:"notifyMinutesBefore"`
 }
 
 type calendarEventDeleteInput struct {
@@ -99,30 +99,29 @@ type calendarEventsForTool struct {
 }
 
 type calendarEventForTool struct {
-	EventID           string                    `json:"eventID"`
-	Title             string                    `json:"title"`
-	Description       string                    `json:"description"`
-	Location          string                    `json:"location"`
-	StartISO          string                    `json:"startISO"`
-	EndISO            string                    `json:"endISO"`
-	TimeZone          string                    `json:"timeZone"`
-	IsAllDay          bool                      `json:"isAllDay"`
-	Color             string                    `json:"color"`
-	People            calendarToolPeopleInput   `json:"people"`
-	Participants      []calendarToolParticipant `json:"participants"`
-	ReminderLeadHours int                       `json:"reminderLeadHours"`
-	UpdatedAt         string                    `json:"updatedAt"`
+	EventID             string                    `json:"eventID"`
+	Title               string                    `json:"title"`
+	Note                string                    `json:"note"`
+	Location            string                    `json:"location"`
+	StartsAt            string                    `json:"startsAt"`
+	EndsAt              string                    `json:"endsAt"`
+	IsWholeDay          bool                      `json:"isWholeDay"`
+	People              calendarToolPeopleInput   `json:"-"`
+	TimeZone            string                    `json:"-"`
+	Participants        []calendarToolParticipant `json:"participants"`
+	NotifyMinutesBefore int                       `json:"notifyMinutesBefore,omitempty"`
+	UpdatedAt           string                    `json:"updatedAt"`
 }
 
 func (service Service) invokeCalendarTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch strings.TrimSpace(request.ToolName) {
-	case "calendar_add":
+	case "event_add":
 		return service.invokeCalendarEventAdd(ctx, request)
-	case "calendar_list":
+	case "event_list":
 		return service.invokeCalendarEventList(ctx, request)
-	case "calendar_update":
+	case "event_update":
 		return service.invokeCalendarEventUpdate(ctx, request)
-	case "calendar_delete":
+	case "event_delete":
 		return service.invokeCalendarEventDelete(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("calendar tool is not configured: %s", request.ToolName)
@@ -255,27 +254,26 @@ func decodeCalendarEventWriteInput(document json.RawMessage) (calendarEventWrite
 		return calendarEventWriteInput{}, errorValue
 	}
 	input := calendarEventWriteInput{
-		Title:            strings.TrimSpace(externalInput.Title),
-		Description:      strings.TrimSpace(externalInput.Description),
-		Location:         strings.TrimSpace(externalInput.Location),
-		StartISO:         strings.TrimSpace(externalInput.StartISO),
-		EndISO:           strings.TrimSpace(externalInput.EndISO),
-		TimeZone:         strings.TrimSpace(externalInput.TimeZone),
-		IsAllDay:         externalInput.IsAllDay,
-		Color:            strings.TrimSpace(externalInput.Color),
-		People:           normalizeCalendarToolPeople([]string(externalInput.People)),
-		IncludeRequester: externalInput.IncludeRequester,
+		Title:           strings.TrimSpace(externalInput.Title),
+		Note:            strings.TrimSpace(externalInput.Note),
+		Location:        strings.TrimSpace(externalInput.Location),
+		StartsAt:        strings.TrimSpace(externalInput.StartsAt),
+		EndsAt:          strings.TrimSpace(externalInput.EndsAt),
+		IsWholeDay:      externalInput.IsWholeDay,
+		EveryoneAttends: externalInput.EveryoneAttends,
+		People:          normalizeCalendarToolPeople([]string(externalInput.ParticipantPersonHints)),
 	}
-	reminderLeadHours, errorValue := calendarToolReminderLeadHours(externalInput.ReminderLeadHours)
-	if errorValue != nil {
-		return calendarEventWriteInput{}, errorValue
+	if externalInput.NotifyMinutesBefore != nil {
+		if *externalInput.NotifyMinutesBefore <= 0 {
+			return calendarEventWriteInput{}, fmt.Errorf("notifyMinutesBefore must be a positive number of minutes")
+		}
+		input.NotifyMinutesBefore = *externalInput.NotifyMinutesBefore
 	}
-	input.ReminderLeadHours = reminderLeadHours
 	if input.Title == "" {
 		return calendarEventWriteInput{}, fmt.Errorf("title is required")
 	}
-	if input.StartISO == "" || input.EndISO == "" {
-		return calendarEventWriteInput{}, fmt.Errorf("startISO and endISO are required")
+	if input.StartsAt == "" || input.EndsAt == "" {
+		return calendarEventWriteInput{}, fmt.Errorf("startsAt and endsAt are required")
 	}
 	return input, nil
 }
@@ -362,14 +360,43 @@ func decodeCalendarEventListInput(document json.RawMessage) (calendarEventListIn
 	if errorValue := decodeStrictCalendarToolInput(document, &input); errorValue != nil {
 		return calendarEventListInput{}, errorValue
 	}
-	input.StartISO = strings.TrimSpace(input.StartISO)
-	input.EndISO = strings.TrimSpace(input.EndISO)
+	input.StartsAt = strings.TrimSpace(input.StartsAt)
+	input.EndsAt = strings.TrimSpace(input.EndsAt)
 	input.Query = strings.TrimSpace(input.Query)
 	if input.Limit != nil && (*input.Limit <= 0 || math.Trunc(*input.Limit) != *input.Limit) {
 		return calendarEventListInput{}, fmt.Errorf("limit must be a positive whole number")
 	}
-	input.StartISO, input.EndISO = completeCalendarListRange(input.StartISO, input.EndISO)
+	if input.WeekFrom != nil || input.WeekTo != nil {
+		input.StartsAt, input.EndsAt = calendarWeekWindow(input.WeekFrom, input.WeekTo, time.Now())
+	}
+	input.StartsAt, input.EndsAt = completeCalendarListRange(input.StartsAt, input.EndsAt)
 	return input, nil
+}
+
+// A week said as an offset is the same window the task board answers, so asking
+// for last week means the same seven days whichever of the two is asked.
+func calendarWeekWindow(weekFrom *int, weekTo *int, now time.Time) (string, string) {
+	firstOffset := 0
+	if weekFrom != nil {
+		firstOffset = *weekFrom
+	}
+	lastOffset := firstOffset
+	if weekTo != nil {
+		lastOffset = *weekTo
+	}
+	if lastOffset < firstOffset {
+		firstOffset, lastOffset = lastOffset, firstOffset
+	}
+	monday := startOfWeekFor(now)
+	start := monday.AddDate(0, 0, 7*firstOffset)
+	end := monday.AddDate(0, 0, 7*(lastOffset+1))
+	return start.Format(time.RFC3339), end.Format(time.RFC3339)
+}
+
+func startOfWeekFor(now time.Time) time.Time {
+	daysSinceMonday := (int(now.Weekday()) + 6) % 7
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	return midnight.AddDate(0, 0, -daysSinceMonday)
 }
 
 func completeCalendarListRange(startISO string, endISO string) (string, string) {
@@ -388,7 +415,7 @@ func completeCalendarListRange(startISO string, endISO string) (string, string) 
 
 func decodeCalendarEventUpdateInput(document json.RawMessage) (calendarEventUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return calendarEventUpdateInput{}, fmt.Errorf("calendar_update input is required")
+		return calendarEventUpdateInput{}, fmt.Errorf("event_update input is required")
 	}
 	var input calendarEventUpdateInput
 	if errorValue := decodeStrictCalendarToolInput(document, &input); errorValue != nil {
@@ -396,20 +423,18 @@ func decodeCalendarEventUpdateInput(document json.RawMessage) (calendarEventUpda
 	}
 	input.EventHint = strings.TrimSpace(input.EventHint)
 	trimStringPointer(&input.Title)
-	trimStringPointer(&input.Description)
+	trimStringPointer(&input.Note)
 	trimStringPointer(&input.Location)
-	trimStringPointer(&input.StartISO)
-	trimStringPointer(&input.EndISO)
-	trimStringPointer(&input.TimeZone)
-	trimStringPointer(&input.Color)
-	if _, errorValue := calendarToolReminderLeadHours(input.ReminderLeadHours); errorValue != nil {
-		return calendarEventUpdateInput{}, errorValue
+	trimStringPointer(&input.StartsAt)
+	trimStringPointer(&input.EndsAt)
+	if input.NotifyMinutesBefore != nil && *input.NotifyMinutesBefore <= 0 {
+		return calendarEventUpdateInput{}, fmt.Errorf("notifyMinutesBefore must be a positive number of minutes")
 	}
 	if input.EventHint == "" {
 		return calendarEventUpdateInput{}, fmt.Errorf("eventHint is required")
 	}
 	if !hasCalendarEventUpdatePatch(input) {
-		return calendarEventUpdateInput{}, fmt.Errorf("calendar_update requires at least one mutable field")
+		return calendarEventUpdateInput{}, fmt.Errorf("event_update requires at least one mutable field")
 	}
 	return input, nil
 }
@@ -443,31 +468,28 @@ func decodeStrictCalendarToolInput(document json.RawMessage, value any) error {
 
 func hasCalendarEventUpdatePatch(input calendarEventUpdateInput) bool {
 	return input.Title != nil ||
-		input.Description != nil ||
+		input.Note != nil ||
 		input.Location != nil ||
-		input.StartISO != nil ||
-		input.EndISO != nil ||
-		input.TimeZone != nil ||
-		input.IsAllDay != nil ||
-		input.Color != nil ||
-		input.People != nil ||
-		input.ReminderLeadHours != nil ||
-		input.IncludeRequester != nil
+		input.StartsAt != nil ||
+		input.EndsAt != nil ||
+		input.IsWholeDay != nil ||
+		input.ParticipantPersonHints != nil ||
+		input.EveryoneAttends != nil ||
+		input.NotifyMinutesBefore != nil
 }
 
 func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 	payload := map[string]any{
-		"title":             input.Title,
-		"description":       input.Description,
-		"location":          input.Location,
-		"startISO":          input.StartISO,
-		"endISO":            input.EndISO,
-		"timeZone":          input.TimeZone,
-		"isAllDay":          input.IsAllDay,
-		"color":             input.Color,
-		"people":            []string(input.People),
-		"reminderLeadHours": input.ReminderLeadHours,
-		"allowDuplicate":    input.AllowDuplicate,
+		"title":                     input.Title,
+		"description":               input.Note,
+		"location":                  input.Location,
+		"startISO":                  input.StartsAt,
+		"endISO":                    input.EndsAt,
+		"isAllDay":                  input.IsWholeDay,
+		"people":                    []string(input.People),
+		"notifyMinutesBefore":       input.NotifyMinutesBefore,
+		"isRequestedOfSomebodyElse": input.IsRequestedOfSomebodyElse,
+		"allowDuplicate":            input.AllowDuplicate,
 	}
 	if input.ExpectedUpdatedAt != "" {
 		payload["expectedUpdatedAt"] = input.ExpectedUpdatedAt
@@ -479,12 +501,12 @@ func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 }
 
 func calendarEventListPath(input calendarEventListInput) string {
-	if input.StartISO == "" && input.EndISO == "" {
+	if input.StartsAt == "" && input.EndsAt == "" {
 		return "/calendar/api/events?window=upcoming"
 	}
 	query := url.Values{}
-	query.Set("startISO", input.StartISO)
-	query.Set("endISO", input.EndISO)
+	query.Set("startISO", input.StartsAt)
+	query.Set("endISO", input.EndsAt)
 	return "/calendar/api/events?" + query.Encode()
 }
 
@@ -568,6 +590,40 @@ func setCalendarRequesterEmailHeader(request *http.Request, requesterEmail strin
 	request.Header.Set("CF-Access-Authenticated-User-Email", normalizedEmail)
 }
 
+// The device calendar keeps its own spelling of an event. Reading it here is
+// serialization: what the model is handed is the row's own vocabulary.
+type storedCalendarEvent struct {
+	EventID           string                    `json:"eventID"`
+	Title             string                    `json:"title"`
+	Description       string                    `json:"description"`
+	Location          string                    `json:"location"`
+	StartISO          string                    `json:"startISO"`
+	EndISO            string                    `json:"endISO"`
+	TimeZone          string                    `json:"timeZone"`
+	IsAllDay          bool                      `json:"isAllDay"`
+	People            calendarToolPeopleInput   `json:"people"`
+	Participants      []calendarToolParticipant `json:"participants"`
+	ReminderLeadHours int                       `json:"reminderLeadHours"`
+	UpdatedAt         string                    `json:"updatedAt"`
+}
+
+func (stored storedCalendarEvent) eventForTool() calendarEventForTool {
+	return calendarEventForTool{
+		EventID:             stored.EventID,
+		Title:               stored.Title,
+		Note:                stored.Description,
+		Location:            stored.Location,
+		StartsAt:            stored.StartISO,
+		EndsAt:              stored.EndISO,
+		IsWholeDay:          stored.IsAllDay,
+		People:              stored.People,
+		TimeZone:            stored.TimeZone,
+		Participants:        stored.Participants,
+		NotifyMinutesBefore: stored.ReminderLeadHours * 60,
+		UpdatedAt:           stored.UpdatedAt,
+	}
+}
+
 func normalizeCalendarEventResult(result json.RawMessage, expectedEventID string) (json.RawMessage, calendarEventForTool, error) {
 	var document map[string]json.RawMessage
 	if errorValue := json.Unmarshal(result, &document); errorValue != nil {
@@ -591,10 +647,11 @@ func normalizeCalendarEventResult(result json.RawMessage, expectedEventID string
 	if errorValue != nil {
 		return nil, calendarEventForTool{}, errorValue
 	}
-	var event calendarEventForTool
-	if errorValue := json.Unmarshal(normalizedResult, &event); errorValue != nil {
+	var stored storedCalendarEvent
+	if errorValue := json.Unmarshal(normalizedResult, &stored); errorValue != nil {
 		return nil, calendarEventForTool{}, errorValue
 	}
+	event := stored.eventForTool()
 	event.People = normalizeCalendarToolPeople(event.People)
 	event.Participants = normalizeCalendarToolParticipants(event.Participants)
 	event = localizeCalendarEventTimes(event)
@@ -610,8 +667,8 @@ func localizeCalendarEventTimes(event calendarEventForTool) calendarEventForTool
 	if errorValue != nil {
 		return event
 	}
-	event.StartISO = localizeCalendarISOTime(event.StartISO, location)
-	event.EndISO = localizeCalendarISOTime(event.EndISO, location)
+	event.StartsAt = localizeCalendarISOTime(event.StartsAt, location)
+	event.EndsAt = localizeCalendarISOTime(event.EndsAt, location)
 	return event
 }
 
@@ -670,7 +727,7 @@ func calendarEventMatchesQuery(event calendarEventForTool, query string) bool {
 	if normalizedQuery == "" {
 		return true
 	}
-	searchText := strings.ToLower(strings.Join([]string{event.Title, event.Description, event.Location}, "\n"))
+	searchText := strings.ToLower(strings.Join([]string{event.Title, event.Note, event.Location}, "\n"))
 	return strings.Contains(searchText, normalizedQuery)
 }
 

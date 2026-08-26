@@ -20,9 +20,8 @@ type flowTaskAddInput struct {
 	Title                  string   `json:"title"`
 	Size                   string   `json:"size"`
 	Status                 string   `json:"status"`
-	StartDate              string   `json:"startDate"`
-	EndDate                string   `json:"endDate"`
-	TargetPersonHint       string   `json:"targetPersonHint"`
+	StartsAt               string   `json:"startsAt"`
+	EndsAt                 string   `json:"endsAt"`
 	ParticipantPersonHints []string `json:"participantPersonHints"`
 }
 
@@ -37,13 +36,13 @@ type flowTaskCreatePayload struct {
 }
 
 type flowTaskListInput struct {
-	Query            string            `json:"query"`
-	TargetPersonHint string            `json:"targetPersonHint"`
-	Scope            flowTaskListScope `json:"scope"`
-	WeekFrom         int               `json:"weekFrom"`
-	WeekTo           int               `json:"weekTo"`
-	Status           string            `json:"status"`
-	Limit            int               `json:"limit"`
+	Query                 string            `json:"query"`
+	ParticipantPersonHint string            `json:"participantPersonHint"`
+	Scope                 flowTaskListScope `json:"scope"`
+	WeekFrom              int               `json:"weekFrom"`
+	WeekTo                int               `json:"weekTo"`
+	Status                string            `json:"status"`
+	Limit                 int               `json:"limit"`
 }
 
 type flowTaskListScope string
@@ -58,10 +57,10 @@ type flowTaskUpdateInput struct {
 	Title                  *string   `json:"title"`
 	Status                 *string   `json:"status"`
 	Size                   *string   `json:"size"`
-	Category               *string   `json:"category"`
+	Business               *string   `json:"business"`
 	Type                   *string   `json:"type"`
-	StartDate              *string   `json:"startDate"`
-	EndDate                *string   `json:"endDate"`
+	StartsAt               *string   `json:"startsAt"`
+	EndsAt                 *string   `json:"endsAt"`
 	ParticipantPersonHints *[]string `json:"participantPersonHints"`
 }
 
@@ -141,7 +140,7 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	members := summary.Members
-	ownerResolution := service.resolveFlowOwner(ctx, input, request.Context.RequesterEmail, members)
+	ownerResolution := service.resolveFlowOwner(ctx, input.ParticipantPersonHints, request.Context.RequesterEmail, members)
 	if ownerResolution.Failure != nil {
 		return flowFailureResponse(request.ToolName, *ownerResolution.Failure), nil
 	}
@@ -171,8 +170,8 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		Content:        input.Title,
 		Size:           input.Size,
 		Status:         input.Status,
-		StartDate:      input.StartDate,
-		EndDate:        input.EndDate,
+		StartDate:      input.StartsAt,
+		EndDate:        input.EndsAt,
 	}
 	result, errorValue := service.postFlowTask(ctx, payload, request.Context.RequesterEmail)
 	if errorValue != nil {
@@ -313,10 +312,10 @@ func flowTaskUpdateResultMatchesInput(result json.RawMessage, input flowTaskUpda
 		stringPatchMatches(input.Title, task.Content) &&
 		stringPatchMatches(input.Status, task.Status) &&
 		stringPatchMatches(input.Size, task.Size) &&
-		stringPatchMatches(input.Category, task.Business) &&
+		stringPatchMatches(input.Business, task.Business) &&
 		stringPatchMatches(input.Type, task.Type) &&
-		stringPatchMatches(input.StartDate, task.StartDate) &&
-		stringPatchMatches(input.EndDate, task.EndDate)
+		stringPatchMatches(input.StartsAt, task.StartDate) &&
+		stringPatchMatches(input.EndsAt, task.EndDate)
 }
 
 func stringPatchMatches(expected *string, actual string) bool {
@@ -454,9 +453,8 @@ func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) 
 	input.Title = strings.TrimSpace(input.Title)
 	input.Size = strings.ToUpper(strings.TrimSpace(input.Size))
 	input.Status = strings.TrimSpace(input.Status)
-	input.StartDate = strings.TrimSpace(input.StartDate)
-	input.EndDate = strings.TrimSpace(input.EndDate)
-	input.TargetPersonHint = strings.TrimSpace(input.TargetPersonHint)
+	input.StartsAt = strings.TrimSpace(input.StartsAt)
+	input.EndsAt = strings.TrimSpace(input.EndsAt)
 	input.ParticipantPersonHints = uniqueTrimmedStringValues(input.ParticipantPersonHints)
 	if input.Title == "" {
 		return flowTaskAddInput{}, fmt.Errorf("title is required")
@@ -491,7 +489,7 @@ func decodeFlowTaskListInput(document json.RawMessage) (flowTaskListInput, error
 		}
 	}
 	input.Query = strings.TrimSpace(input.Query)
-	input.TargetPersonHint = strings.TrimSpace(input.TargetPersonHint)
+	input.ParticipantPersonHint = strings.TrimSpace(input.ParticipantPersonHint)
 	input.Status = strings.TrimSpace(input.Status)
 	if input.Scope == "" {
 		input.Scope = flowTaskListScopeSelf
@@ -517,10 +515,10 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 	trimStringPointer(&input.Title)
 	trimStringPointer(&input.Status)
 	trimStringPointer(&input.Size)
-	trimStringPointer(&input.Category)
+	trimStringPointer(&input.Business)
 	trimStringPointer(&input.Type)
-	trimStringPointer(&input.StartDate)
-	trimStringPointer(&input.EndDate)
+	trimStringPointer(&input.StartsAt)
+	trimStringPointer(&input.EndsAt)
 	if input.ParticipantPersonHints != nil {
 		participantPersonHints := uniqueTrimmedStringValues(*input.ParticipantPersonHints)
 		input.ParticipantPersonHints = &participantPersonHints
@@ -800,10 +798,10 @@ type flowTaskFilter struct {
 }
 
 func (service Service) resolveFlowTaskListOwner(ctx context.Context, input flowTaskListInput, requesterEmail string, members []flowMemberForTool) (string, *flowTaskAddFailure) {
-	if input.Scope == flowTaskListScopeAll && strings.TrimSpace(input.TargetPersonHint) == "" {
+	if input.Scope == flowTaskListScopeAll && strings.TrimSpace(input.ParticipantPersonHint) == "" {
 		return "", nil
 	}
-	resolution := service.resolveFlowOwner(ctx, flowTaskAddInput{TargetPersonHint: input.TargetPersonHint}, requesterEmail, members)
+	resolution := service.resolveFlowOwner(ctx, []string{input.ParticipantPersonHint}, requesterEmail, members)
 	if resolution.Failure != nil {
 		return "", resolution.Failure
 	}
@@ -1118,17 +1116,17 @@ func applyFlowTaskUpdateInput(task flowTaskForTool, input flowTaskUpdateInput, p
 	if input.Size != nil {
 		task.Size = *input.Size
 	}
-	if input.Category != nil {
-		task.Business = *input.Category
+	if input.Business != nil {
+		task.Business = *input.Business
 	}
 	if input.Type != nil {
 		task.Type = *input.Type
 	}
-	if input.StartDate != nil {
-		task.StartDate = *input.StartDate
+	if input.StartsAt != nil {
+		task.StartDate = *input.StartsAt
 	}
-	if input.EndDate != nil {
-		task.EndDate = *input.EndDate
+	if input.EndsAt != nil {
+		task.EndDate = *input.EndsAt
 	}
 	return task
 }
@@ -1137,9 +1135,9 @@ func hasFlowTaskUpdatePatch(input flowTaskUpdateInput) bool {
 	return input.Title != nil ||
 		input.Status != nil ||
 		input.Size != nil ||
-		input.Category != nil ||
+		input.Business != nil ||
 		input.Type != nil ||
-		input.StartDate != nil ||
-		input.EndDate != nil ||
+		input.StartsAt != nil ||
+		input.EndsAt != nil ||
 		input.ParticipantPersonHints != nil
 }

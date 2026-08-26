@@ -281,7 +281,7 @@ func TestOpenRouterBackendAcceptsProviderReturnedToolName(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"calendar_add","arguments":"{\"title\":\"휴가\",\"startISO\":\"2026-05-09T09:00:00+09:00\",\"endISO\":\"2026-05-09T18:00:00+09:00\"}"}}]}}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"event_add","arguments":"{\"title\":\"휴가\",\"startISO\":\"2026-05-09T09:00:00+09:00\",\"endISO\":\"2026-05-09T18:00:00+09:00\"}"}}]}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -298,7 +298,7 @@ func TestOpenRouterBackendAcceptsProviderReturnedToolName(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected provider-returned tool name to resolve: %v", errorValue)
 	}
-	if !strings.Contains(response.Content, `"toolName":"calendar_add"`) {
+	if !strings.Contains(response.Content, `"toolName":"event_add"`) {
 		t.Fatalf("expected calendar tool action, got %s", response.Content)
 	}
 }
@@ -706,13 +706,13 @@ func TestNativeActionToolsPreserveFlattenedToolInputOptionalityForProviderCompat
 		t.Fatal("expected action schema")
 	}
 
-	calendarAddTool := toolSet.ToolByName[nativeActionFunctionName("continue", "calendar_add")]
+	calendarAddTool := toolSet.ToolByName[nativeActionFunctionName("continue", "event_add")]
 	var parameters map[string]any
 	if errorValue := json.Unmarshal(calendarAddTool.Parameters, &parameters); errorValue != nil {
 		t.Fatalf("expected calendar parameters: %v", errorValue)
 	}
 	properties, _ := parameters["properties"].(map[string]any)
-	for _, fieldName := range []string{"title", "startISO", "endISO"} {
+	for _, fieldName := range []string{"title", "startsAt", "endsAt"} {
 		if _, isFound := properties[fieldName]; !isFound {
 			t.Fatalf("expected property %q in calendar schema: %+v", fieldName, parameters)
 		}
@@ -721,12 +721,12 @@ func TestNativeActionToolsPreserveFlattenedToolInputOptionalityForProviderCompat
 		t.Fatalf("expected flattened calendar schema to omit toolInput: %+v", parameters)
 	}
 	required := parameters["required"].([]any)
-	for _, fieldName := range []string{"title", "startISO", "endISO"} {
+	for _, fieldName := range []string{"title", "startsAt", "endsAt"} {
 		if requiredContains(required, fieldName) {
 			t.Fatalf("expected optional flattened toolInput field %s to be removed from required, got %+v", fieldName, parameters)
 		}
 	}
-	assertNativeRequiredFieldsHaveProperties(t, "calendar_add", parameters)
+	assertNativeRequiredFieldsHaveProperties(t, "event_add", parameters)
 }
 
 func TestNativeActionToolsProjectEveryDefaultCapabilitySchema(t *testing.T) {

@@ -16,6 +16,6 @@ export async function myNotificationSettings(): Promise<NotificationSettings> {
 }
 
 export async function chooseNotificationSettings(chosen: NotificationSettings): Promise<void> {
-	const { error } = await supabase().rpc('set_my_notification_settings', { chosen });
+	const { error } = await supabase().rpc('notification_settings_set', { chosen });
 	if (error) throw new Error(error.message);
 }

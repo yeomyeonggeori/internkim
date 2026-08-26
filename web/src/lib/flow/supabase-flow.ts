@@ -190,7 +190,7 @@ export type SupabaseFlowTaskRPCArguments = {
 	target_starts_at: string | null;
 	target_ends_at: string | null;
 	target_write_dates: boolean;
-	target_requester_id: string | null;
+	target_is_event: boolean;
 	target_participant_ids: string[];
 	target_parent_task_id: string | null;
 };
@@ -209,7 +209,7 @@ export function supabaseFlowTaskRPCArguments(task: FlowTask): SupabaseFlowTaskRP
 		target_starts_at: nullableStringField(fields, 'starts_at'),
 		target_ends_at: nullableStringField(fields, 'ends_at'),
 		target_write_dates: !task.isEvent,
-		target_requester_id: operation === 'insert' ? nullableStringField(fields, 'requester_id') : null,
+		target_is_event: task.isEvent === true,
 		target_participant_ids: task.participantIDs,
 		target_parent_task_id: operation === 'insert' ? nullableStringField(fields, 'parent_task_id') : null
 	};
@@ -229,7 +229,7 @@ function nullableStringField(fields: Record<string, unknown>, field: string): st
 }
 
 export async function saveSupabaseFlowTask(task: FlowTask): Promise<void> {
-	const saved = await supabase().rpc('save_flow_task', supabaseFlowTaskRPCArguments(task));
+	const saved = await supabase().rpc('task_save', supabaseFlowTaskRPCArguments(task));
 	if (saved.error) throw new Error(saved.error.message);
 }
 
@@ -237,7 +237,7 @@ export async function saveSupabaseTaskVocabulary(
 	definitions: FlowDefinitions,
 	messages: { failure: string; inUse: string }
 ): Promise<void> {
-	const saved = await supabase().rpc('save_task_vocabulary', {
+	const saved = await supabase().rpc('task_vocabulary_save', {
 		target_vocabulary: taskVocabularyOfDefinitions(definitions)
 	});
 	if (!saved.error) return;
