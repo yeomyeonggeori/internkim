@@ -22,6 +22,7 @@ type Member struct {
 	Name            string            `json:"name"`
 	Messenger       map[string]string `json:"messenger"`
 	Role            string            `json:"role"`
+	Circles         []string          `json:"circles"`
 	Status          string            `json:"status"`
 	JobTitle        string            `json:"jobTitle"`
 	PhoneNumber     string            `json:"phoneNumber"`

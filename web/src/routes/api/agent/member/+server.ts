@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RequestHandler } from './$types';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
+import { circleNamesByMemberID } from '$lib/server/fleet-user-directory';
 
 export const GET: RequestHandler = async ({ request, url, platform }) => {
 	const { client, companyID } = await callingAgent(request, environmentOf(platform));
@@ -26,7 +27,15 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 		.returns<{ id: string; name: string }[]>();
 	if (teams.error) return json({ error: teams.error.message }, { status: 502 });
 
-	const named = namedMembers(rows, teams.data ?? []);
+	const circles = await client
+		.from('circle')
+		.select('name, circle_member(member_id)')
+		.eq('company_id', companyID)
+		.order('name')
+		.returns<{ name: string; circle_member: { member_id: string }[] | null }[]>();
+	if (circles.error) return json({ error: circles.error.message }, { status: 502 });
+
+	const named = namedMembers(rows, teams.data ?? [], circleNamesByMemberID(circles.data ?? []));
 	if (!email) return json({ members: named });
 	return json({ member: named.find((member) => member.email === email) ?? null });
 };
@@ -48,7 +57,11 @@ type MemberRow = {
 	supervisor_id: string | null;
 };
 
-function namedMembers(rows: MemberRow[], teams: { id: string; name: string }[]) {
+function namedMembers(
+	rows: MemberRow[],
+	teams: { id: string; name: string }[],
+	circlesByMemberID: Map<string, string[]>
+) {
 	const emailByMemberID = new Map(rows.map((row) => [row.id, (row.email ?? '').toLowerCase()]));
 	const nameByTeamID = new Map(teams.map((team) => [team.id, team.name]));
 	return rows.map((row) => ({
@@ -57,6 +70,7 @@ function namedMembers(rows: MemberRow[], teams: { id: string; name: string }[]) 
 		name: row.name ?? '',
 		messenger: row.messenger ?? {},
 		role: row.is_admin ? 'admin' : 'member',
+		circles: circlesByMemberID.get(row.id) ?? [],
 		status: row.status,
 		jobTitle: row.job_title ?? '',
 		phoneNumber: row.phone_number ?? '',
