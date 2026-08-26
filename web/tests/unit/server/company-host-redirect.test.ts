@@ -19,10 +19,8 @@ describe('the one address every company signs in at', () => {
 		expect(asks(theOneAddressOf(zone))).toBe(false);
 	});
 
-	test('moves the addresses people used before, so old links still arrive', () => {
-		for (const before of ['space.intern.kim', 'app.intern.kim', 'api.intern.kim']) {
-			expect(asks(before)).toBe(true);
-		}
+	test('moves a page request on the api host, which is not a place to read', () => {
+		expect(asks('api.intern.kim')).toBe(true);
 	});
 
 	test('leaves a preview deployment alone', () => {
@@ -51,9 +49,7 @@ describe('the one address every company signs in at', () => {
 describe('a caller that carries its own credential', () => {
 	test('is answered where it landed, because a redirect would drop its bearer token', () => {
 		expect(asks('samplecompany.intern.kim', '/api/agent/connection')).toBe(false);
-		for (const before of ['space.intern.kim', 'app.intern.kim', 'api.intern.kim']) {
-			expect(asks(before, '/api/agent/host-session')).toBe(false);
-		}
+		expect(asks('api.intern.kim', '/api/agent/host-session')).toBe(false);
 	});
 
 	test('still moves a page request on the same host', () => {
