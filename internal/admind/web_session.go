@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	webHomePath               = "/attendance/"
 	webLogoutMarkerCookieName = "internkim_logged_out"
 	webLogoutMarkerDuration   = 365 * 24 * time.Hour
 	webSessionCookieName      = "internkim_session"
@@ -381,8 +382,6 @@ func loginReturnPathForRequest(request *http.Request) string {
 	}
 	return returnPathForRequest(request)
 }
-
-const webHomePath = "/attendance/"
 
 func logoutRedirectURLForRequest(request *http.Request) string {
 	if returnPath := safeWebReturnPath(request.URL.Query().Get("return")); returnPath != "" {

@@ -1,3 +1,5 @@
+import { homePath } from '$lib/home-path';
+
 export type Arriving = {
 	title: string;
 	body: string;
@@ -9,7 +11,7 @@ export type Arriving = {
 const somethingHappened: Arriving = {
 	title: 'internkim',
 	body: '',
-	openPath: '/flow/',
+	openPath: homePath,
 	tag: 'internkim',
 	icon: ''
 };
