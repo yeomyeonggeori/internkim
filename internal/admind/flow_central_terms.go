@@ -31,3 +31,22 @@ func centralFlowNote(task flowTask) string {
 func flowMemberIdentifier(record adminUserMutation) string {
 	return stableFlowID(strings.ToLower(strings.TrimSpace(record.Email)))
 }
+
+// One word each way, so the reverse is the inverse and there is no second map to
+// keep in step by hand.
+var deviceStatusOfCentralStatus = invertStatusWords()
+
+func invertStatusWords() map[string]string {
+	inverted := map[string]string{}
+	for deviceStatus, centralStatus := range centralStatusOfDeviceStatus {
+		inverted[centralStatus] = deviceStatus
+	}
+	return inverted
+}
+
+func deviceFlowStatus(centralStatus string) string {
+	if deviceStatus, known := deviceStatusOfCentralStatus[strings.TrimSpace(centralStatus)]; known {
+		return deviceStatus
+	}
+	return "예정"
+}

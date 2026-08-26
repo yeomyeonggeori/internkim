@@ -1,6 +1,12 @@
 # Which side is the record, while both still hold one
 
-Status: **Agreed / for implementation** · Owner: TBD · Last updated: 2026-08-12
+Status: **Done** · Owner: TBD · Last updated: 2026-08-26
+
+The board moved. A task write goes to the company and the answer is what the
+company saved; the device keeps a copy only where no company is configured.
+The sync machinery this document designed is gone, and §6 below records what
+replaced it. The rest is kept for the reasoning, which the next table to move
+will want.
 
 [`calendar-retirement-design.md`](./calendar-retirement-design.md) says the
 device's calendar tables get dropped once nothing reads them. The same goes for
@@ -99,17 +105,16 @@ a second writer appears.
 
 ## 6. What exists
 
-Both directions run on the device, a minute apart, and stop at the same gate
-attendance uses: a device with no central plane configured keeps what it
-recorded and sends nothing.
+There is one direction. A write reaches the company and returns what it saved,
+and the same gate attendance uses still holds: a device with no central plane
+configured keeps what it recorded and sends nothing.
 
 | Piece | Where |
 |---|---|
-| the queue a device write enters | `internal/admind/flow_central_outbox.go` |
-| the drain that empties it | `internal/admind/flow_central_drain.go` |
+| the write, and the answer it returns | `internal/admind/flow_task_central_plane.go` |
+| the board, read as the member asking | `internal/admind/flow_central_board.go` |
 | what the central plane called a task | `internal/admind/flow_central_identity.go` |
-| the mirror that carries the board back | `internal/admind/flow_central_mirror.go` |
-| how far the mirror has read | `internal/admind/flow_central_mirror_mark.go` |
+| the words each side uses for a status | `internal/admind/flow_central_terms.go` |
 | the calls, as the member they are for | `internal/centralplane/task.go` |
 
 Three rules the implementation had to keep, beyond §4's:
@@ -165,12 +170,13 @@ Three of those — `company_share_activity.go`, `flow_channel_expiry.go` and
 going through the read store. They have to join it before the seam can move, or
 the seam is not one.
 
-The sync machinery itself (`flow_central_drain.go`, `flow_central_mirror.go`,
-the outbox, the identity table and the mirror mark) retires with the copy.
+The sync machinery is gone: the outbox, the drain, the mirror, the mirror mark,
+and the five recovery actions that repaired and compared the two copies. The
+identity table stays, because a link built against a device task ID still has to
+find the company record it names.
 
-The order that follows: fold the three stragglers into the read store, give the
-read store a central-plane implementation behind an explicit switch, run both
-and compare, then turn the switch and stop the mirror. The tables go last.
+What is left of the order: fold the three stragglers into the read store, then
+drop the device tables.
 
 ## 8. What the two copies actually say
 

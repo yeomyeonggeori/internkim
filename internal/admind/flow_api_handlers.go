@@ -197,7 +197,6 @@ func (service *Service) createFlowTask(responseWriter http.ResponseWriter, reque
 		return
 	}
 	task = service.applyFlowMattermostProjection(request.Context(), task)
-	service.drainFlowTasksToCentralPlane(request.Context())
 	service.writeJSON(responseWriter, service.flowTaskAnsweredWithCompanyIdentity(request.Context(), task))
 }
 
@@ -285,7 +284,6 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 		}
 	}
 	task = service.applyFlowMattermostProjection(request.Context(), task)
-	service.drainFlowTasksToCentralPlane(request.Context())
 	service.writeJSON(responseWriter, service.flowTaskAnsweredWithCompanyIdentity(request.Context(), task))
 }
 
@@ -308,7 +306,6 @@ func (service *Service) moveFlowTaskOnBoard(responseWriter http.ResponseWriter, 
 		return
 	}
 	task = service.applyFlowMattermostProjection(request.Context(), task)
-	service.drainFlowTasksToCentralPlane(request.Context())
 	service.writeJSON(responseWriter, service.flowTaskAnsweredWithCompanyIdentity(request.Context(), task))
 }
 
@@ -357,7 +354,6 @@ func (service *Service) deleteFlowTask(responseWriter http.ResponseWriter, reque
 		return
 	}
 	service.deletePairedCalendarEventForFlowTask(request.Context(), task)
-	service.drainFlowTasksToCentralPlane(request.Context())
 	service.writeJSON(responseWriter, map[string]any{
 		"status": "deleted",
 		"task":   task,
