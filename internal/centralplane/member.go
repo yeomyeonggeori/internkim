@@ -12,20 +12,23 @@ import (
 
 // Member is one entry of the company's account directory, which is the only place a
 // person is added or removed. A host reads these to answer with and never authors them.
-// A member carries no display name here on purpose: what a person is called is what
-// their messenger account presents, which the caller already holds, and reading it from
-// the directory would tie this lookup to a column the account record does not need.
+// A member carries what the company knows about who this is: the identifier it
+// issued, the address, what they are called, and the messenger accounts that are
+// theirs. Anything that has to turn a name into a person reads it from here, so
+// that a name means one person rather than one per list that kept its own copy.
 type Member struct {
-	MemberID        string `json:"memberID"`
-	Email           string `json:"email"`
-	Role            string `json:"role"`
-	Status          string `json:"status"`
-	JobTitle        string `json:"jobTitle"`
-	PhoneNumber     string `json:"phoneNumber"`
-	HireDate        string `json:"hireDate"`
-	TeamID          string `json:"teamID"`
-	TeamName        string `json:"teamName"`
-	SupervisorEmail string `json:"supervisorEmail"`
+	MemberID        string            `json:"memberID"`
+	Email           string            `json:"email"`
+	Name            string            `json:"name"`
+	Messenger       map[string]string `json:"messenger"`
+	Role            string            `json:"role"`
+	Status          string            `json:"status"`
+	JobTitle        string            `json:"jobTitle"`
+	PhoneNumber     string            `json:"phoneNumber"`
+	HireDate        string            `json:"hireDate"`
+	TeamID          string            `json:"teamID"`
+	TeamName        string            `json:"teamName"`
+	SupervisorEmail string            `json:"supervisorEmail"`
 }
 
 func (member Member) IsActive() bool {

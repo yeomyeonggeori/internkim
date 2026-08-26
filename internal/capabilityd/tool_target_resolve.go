@@ -82,7 +82,7 @@ func (service Service) resolveFlowTaskDeleteTarget(ctx context.Context, request 
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	task, hintFailure := resolveFlowTaskHint(input.TaskHint, requesterFlowOwnerID(request.Context.RequesterEmail, summary.Members), summary.Tasks)
+	task, hintFailure := resolveFlowTaskHint(input.TaskHint, service.requesterFlowOwnerID(ctx, request.Context.RequesterEmail, summary.Members), summary.Tasks)
 	if hintFailure != nil {
 		return flowFailureResponse(request.ToolName, *hintFailure), nil
 	}

@@ -31,11 +31,14 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 	return json({ member: named.find((member) => member.email === email) ?? null });
 };
 
-const memberColumns = 'id, email, is_admin, status, job_title, phone_number, joined_at, team_id, supervisor_id';
+const memberColumns =
+	'id, email, name, messenger, is_admin, status, job_title, phone_number, joined_at, team_id, supervisor_id';
 
 type MemberRow = {
 	id: string;
 	email: string | null;
+	name: string | null;
+	messenger: Record<string, string> | null;
 	is_admin: boolean;
 	status: string;
 	job_title: string | null;
@@ -51,6 +54,8 @@ function namedMembers(rows: MemberRow[], teams: { id: string; name: string }[]) 
 	return rows.map((row) => ({
 		memberID: row.id,
 		email: (row.email ?? '').toLowerCase(),
+		name: row.name ?? '',
+		messenger: row.messenger ?? {},
 		role: row.is_admin ? 'admin' : 'member',
 		status: row.status,
 		jobTitle: row.job_title ?? '',

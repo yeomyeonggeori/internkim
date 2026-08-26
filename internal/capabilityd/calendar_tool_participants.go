@@ -80,25 +80,43 @@ func calendarRequesterHints(toolContext capabilities.ToolInvokeContext) []string
 	})
 }
 
+// An attendee nobody can place must not become an attendee anyway: a name the
+// company does not carry once went onto the event as written, the company kept
+// no participant under it, and the person who filed the event was left as its
+// only attendee.
 func (service Service) calendarParticipantForPersonHint(ctx context.Context, personHint string) (calendarToolParticipant, platformDMFailure, bool) {
 	trimmedHint := strings.TrimSpace(personHint)
 	if trimmedHint == "" {
 		return calendarToolParticipant{}, platformDMFailure{}, false
 	}
-	resolution, errorValue := service.fetchPlatformDMRecipientResolution(ctx, trimmedHint)
+	resolution, errorValue := service.resolveDirectoryPersonHint(ctx, trimmedHint)
 	if errorValue != nil {
-		return calendarToolParticipant{Name: trimmedHint}, platformDMFailure{}, false
+		return calendarToolParticipant{}, platformDMUnavailableFailure(errorValue), true
 	}
-	switch resolution.Status {
-	case "resolved", "unlinked":
-		return calendarToolParticipantFromRecipient(platformDMRecipientFromResolution(resolution.Recipient), trimmedHint), platformDMFailure{}, false
-	case "ambiguous":
-		return calendarToolParticipant{}, calendarPersonAmbiguousFailure(trimmedHint, platformDMRecipientsFromResolution(resolution.Candidates)), true
-	case "not_found":
-		return calendarToolParticipant{Name: trimmedHint}, platformDMFailure{}, false
+	switch resolution.Outcome {
+	case hintResolved:
+		return calendarToolParticipantFromDirectoryPerson(resolution.Match, trimmedHint), platformDMFailure{}, false
+	case hintAmbiguous, hintApproximate:
+		return calendarToolParticipant{}, calendarPersonAmbiguousFailure(trimmedHint, resolution.Candidates), true
 	default:
-		return calendarToolParticipant{Name: trimmedHint}, platformDMFailure{}, false
+		return calendarToolParticipant{}, calendarPersonNotFoundFailure(trimmedHint), true
 	}
+}
+
+func calendarToolParticipantFromDirectoryPerson(person directoryPerson, fallbackName string) calendarToolParticipant {
+	return calendarToolParticipant{
+		PersonID: strings.TrimSpace(person.MemberID),
+		Name:     firstNonEmpty(strings.TrimSpace(person.Name), strings.TrimSpace(fallbackName), strings.TrimSpace(person.Email)),
+		Email:    strings.TrimSpace(person.Email),
+	}
+}
+
+func calendarPersonNotFoundFailure(personHint string) platformDMFailure {
+	message := fmt.Sprintf("calendar attendee %q is not someone the company directory carries", personHint)
+	failure := platformDMStaticFailure("recipient_not_found", "recipient_resolve", message)
+	failure.Retryable = true
+	failure.SafeRetry = true
+	return failure
 }
 
 func calendarToolParticipantFromRecipient(recipient platformDMRecipient, fallbackName string) calendarToolParticipant {
@@ -127,10 +145,10 @@ func calendarToolParticipantNames(participants []calendarToolParticipant) []stri
 	return normalizeCalendarToolPeople(names)
 }
 
-func calendarPersonAmbiguousFailure(personHint string, candidates []platformDMRecipient) platformDMFailure {
-	message := fmt.Sprintf("calendar attendee %q is ambiguous: %s", personHint, platformDMRecipientList(candidates))
+func calendarPersonAmbiguousFailure(personHint string, candidates []directoryPerson) platformDMFailure {
+	message := fmt.Sprintf("calendar attendee %q is ambiguous: %s", personHint, strings.Join(directoryPersonNames(candidates), ", "))
 	failure := platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", message)
-	failure.Candidates = candidates
+	failure.Candidates = platformDMRecipientsFromDirectoryPeople(candidates)
 	failure.Retryable = true
 	failure.SafeRetry = true
 	return failure
