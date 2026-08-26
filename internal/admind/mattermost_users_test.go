@@ -194,7 +194,7 @@ func TestMattermostCircleChannelDefinitionsFromPolicy(t *testing.T) {
 	circleChannels := mattermostCircleChannelDefinitionsFromPolicy(map[string]any{
 		"circleSync": map[string]any{
 			"mattermostPrivateChannels": []any{
-				map[string]any{"circleID": "HR-Compensation", "channelName": "Circle-HR-Compensation"},
+				map[string]any{"circleID": "HR", "channelName": "Circle-HR"},
 			},
 		},
 	})
@@ -202,7 +202,7 @@ func TestMattermostCircleChannelDefinitionsFromPolicy(t *testing.T) {
 	if len(circleChannels) != 1 {
 		t.Fatalf("expected one circle channel, got %+v", circleChannels)
 	}
-	if circleChannels[0].CircleID != "hr-compensation" || circleChannels[0].ChannelName != "circle-hr-compensation" {
+	if circleChannels[0].CircleID != "hr" || circleChannels[0].ChannelName != "circle-hr" {
 		t.Fatalf("expected normalized circle channel, got %+v", circleChannels)
 	}
 }

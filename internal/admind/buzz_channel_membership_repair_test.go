@@ -8,7 +8,7 @@ func TestACircleRoomNamesTheCircleThatDecidesWhoBelongs(t *testing.T) {
 		want     string
 	}{
 		{roomName: "circle-c-level", want: "c-level"},
-		{roomName: "circle-hr-compensation", want: "hr-compensation"},
+		{roomName: "circle-hr", want: "hr"},
 		{roomName: "town-square", want: ""},
 		{roomName: "", want: ""},
 	} {

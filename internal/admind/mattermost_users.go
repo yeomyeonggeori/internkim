@@ -1316,7 +1316,7 @@ func defaultMattermostCircleChannelDefinitions() []mattermostCircleChannelDefini
 		{CircleID: "c-level", ChannelName: "circle-c-level"},
 		{CircleID: "representative", ChannelName: "circle-representative"},
 		{CircleID: "admin", ChannelName: "circle-admin"},
-		{CircleID: "hr-compensation", ChannelName: "circle-hr-compensation"},
+		{CircleID: "hr", ChannelName: "circle-hr"},
 	}
 }
 

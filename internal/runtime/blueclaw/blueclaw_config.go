@@ -86,7 +86,7 @@ var defaultCircleDefinitions = []defaultCircleDefinition{
 	{CircleID: "c-level", DisplayName: "C-level", MattermostChannelName: "circle-c-level"},
 	{CircleID: "representative", DisplayName: "Representative", MattermostChannelName: "circle-representative"},
 	{CircleID: "admin", DisplayName: "Admin", MattermostChannelName: "circle-admin"},
-	{CircleID: "hr-compensation", DisplayName: "HR Compensation", MattermostChannelName: "circle-hr-compensation"},
+	{CircleID: "hr", DisplayName: "HR", MattermostChannelName: "circle-hr"},
 }
 
 func blueclawAgentProfiles(allowAdminTaskDiagnostic bool) []map[string]any {

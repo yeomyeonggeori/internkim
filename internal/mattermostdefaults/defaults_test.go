@@ -15,10 +15,10 @@ func TestPublicChannelsForLanguageLocalizesManagedChannelCopy(t *testing.T) {
 
 func TestCircleChannelDisplayNameRemovesCirclePrefix(t *testing.T) {
 	tests := map[string]string{
-		"circle-c-level":         "C-level",
-		"circle-representative":  "Representative",
-		"circle-admin":           "Admin",
-		"circle-hr-compensation": "HR Compensation",
+		"circle-c-level":        "C-level",
+		"circle-representative": "Representative",
+		"circle-admin":          "Admin",
+		"circle-hr":             "HR",
 	}
 
 	for channelName, expectedDisplayName := range tests {
