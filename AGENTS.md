@@ -607,6 +607,17 @@ and delete the duplicates.
   and `blueclawPayload` (and `admind`) in the same release — a half-deploy
   (e.g. neutral `capabilityd` against a legacy `blueclaw`) makes the agent call
   names the other side does not know and the task stalls.
+- **The guest's config files do not ride in a release.** `policy.json` and
+  `runtime.json` are written by the provisioning path (`step_blueclaw_config.go`,
+  `setup_flow.go`), and nothing else writes them. Changing the source a guest
+  config is generated from — `defaultCircleDefinitions`, the capability
+  descriptors — and deploying the component that holds that source reports
+  `completed/completed` while the guest keeps the file it already has. Renaming a
+  circle in `defaultCircleDefinitions` and deploying `admind` left the guest
+  policy still naming the old circle, and the deploy said it succeeded.
+  `./internkim setup --only blueclaw-config` is the lever that rewrites both;
+  run it after any change to what a guest config is generated from, including
+  the `aggregateProtocolHash` restamp a descriptor change needs.
 - **A running process holds the configuration it started with.** Shipping the
   component that writes a config and the component that removes what the config
   names is not enough: whatever was already running keeps the old file until it

@@ -1,37 +1,31 @@
 package admind
 
 import (
+	"context"
 	"encoding/json"
-	"io"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
 func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *http.Request) {
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID == "" || fleetSecret == "" {
-		http.Error(responseWriter, "device auth is not configured", http.StatusServiceUnavailable)
-		return
-	}
 	targetPath := strings.TrimPrefix(request.URL.Path, "/admin/api/users")
-	targetURL := strings.TrimRight(service.Configuration.APIBaseURL, "/") + "/api/users" + targetPath
-	if request.Method == http.MethodGet || request.Method == http.MethodDelete {
-		targetURL += "?fleet_id=" + url.QueryEscape(fleetID)
-	}
 	if request.Method == http.MethodPost || request.Method == http.MethodDelete {
 		if errorValue := service.ensureMattermostProvisionerAccount(request.Context()); errorValue != nil {
 			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
 		}
 	}
 	var removedUser *adminUserMutation
+	var accountWrite *centralplane.MemberWrite
 	var upsertedEmail string
 	var organizationMutationIdentities []organizationPersonIdentity
 	var organizationMutation *organizationUserMutation
 	if request.Method == http.MethodDelete {
-		userRecord, errorValue := service.lookupRemovableUser(request.Context(), fleetID, fleetSecret, targetPath)
+		userRecord, errorValue := service.lookupRemovableUser(request.Context(), targetPath)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
@@ -100,7 +94,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		upsertedHireDate = payload.HireDate
 		upsertedNote = payload.Note
 		if payload.Role != "admin" && strings.EqualFold(payload.Email, service.authenticatedCallerEmail(request)) {
-			records, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret)
+			records, errorValue := service.companyUserRecords(request.Context())
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 				return
@@ -116,7 +110,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		upsertedUserID = strings.TrimSpace(payload.MemberID)
 		upsertedRole = payload.Role
 		upsertedCircles = append([]string{}, payload.Circles...)
-		isLastAdminDemotion, errorValue := service.isLastAdminDemotion(request.Context(), fleetID, fleetSecret, payload.Email, payload.Role)
+		isLastAdminDemotion, errorValue := service.isLastAdminDemotion(request.Context(), payload.Email, payload.Role)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
@@ -144,41 +138,22 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		upsertedMattermostUserID = payload.MattermostUserID
 		temporaryPassword = provisionResult.TemporaryPassword
 		temporaryPasswordEmail = payload.Email
-		proxyPayload := fleetAccountUpsertPayload(payload, fleetID)
-		document, errorValue := json.Marshal(proxyPayload)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-			return
+		accountWrite = &centralplane.MemberWrite{
+			Email:     payload.Email,
+			Name:      payload.Name,
+			Role:      payload.Role,
+			Note:      payload.Note,
+			Messenger: messengerAccountsOfPayload(payload),
 		}
-		body = io.NopCloser(strings.NewReader(string(document)))
 	}
-	proxyRequest, errorValue := http.NewRequestWithContext(request.Context(), request.Method, targetURL, body)
+	_ = body
+	responseBody, statusCode, errorValue := service.answerAdminUsers(request.Context(), request.Method, targetPath, accountWrite)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	proxyRequest.Header.Set("Content-Type", "application/json")
-	proxyRequest.Header.Set("X-INTERNKIM-FLEET-ID", fleetID)
-	proxyRequest.Header.Set("X-INTERNKIM-FLEET-SECRET", fleetSecret)
-	client := service.HTTPClient
-	if client == nil {
-		client = http.DefaultClient
-	}
-	response, errorValue := client.Do(proxyRequest)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	defer response.Body.Close()
-	if contentType := response.Header.Get("Content-Type"); contentType != "" {
-		responseWriter.Header().Set("Content-Type", contentType)
-	}
-	responseBody, errorValue := io.ReadAll(response.Body)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	if response.StatusCode >= 200 && response.StatusCode < 300 {
+	responseWriter.Header().Set("Content-Type", "application/json")
+	if statusCode >= 200 && statusCode < 300 {
 		if request.Method == http.MethodPost {
 			upsertedUserID = firstNonEmpty(upsertedUserID, userIDFromAdminUsersResponse(responseBody, upsertedEmail))
 		}
@@ -233,7 +208,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			}
 		}
 	}
-	if request.Method == http.MethodGet && response.StatusCode >= 200 && response.StatusCode < 300 {
+	if request.Method == http.MethodGet && statusCode >= 200 && statusCode < 300 {
 		if shouldIncludeBlueclawPolicy(request) {
 			if enhancedBody, errorValue := service.withBlueclawCircles(request.Context(), responseBody); errorValue == nil {
 				responseBody = enhancedBody
@@ -261,23 +236,52 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			}
 		}
 	}
-	if response.StatusCode >= 200 && response.StatusCode < 300 {
+	if statusCode >= 200 && statusCode < 300 {
 		responseBody = usersResponseBodyWithProfileImages(responseBody)
 	}
-	responseWriter.WriteHeader(response.StatusCode)
+	responseWriter.WriteHeader(statusCode)
 	_, _ = responseWriter.Write(responseBody)
 }
 
-func fleetAccountUpsertPayload(payload adminUserMutation, fleetID string) map[string]any {
-	return map[string]any{
-		"handle":             payload.Handle,
-		"name":               payload.Name,
-		"note":               payload.Note,
-		"fleet_id":           fleetID,
-		"email":              payload.Email,
-		"role":               payload.Role,
-		"mattermostUserID":   payload.MattermostUserID,
-		"mattermostUsername": payload.MattermostUsername,
-		"status":             payload.Status,
+func (service *Service) answerAdminUsers(ctx context.Context, method string, targetPath string, write *centralplane.MemberWrite) ([]byte, int, error) {
+	switch method {
+	case http.MethodPost:
+		if write == nil {
+			return nil, 0, fmt.Errorf("a user write needs a payload")
+		}
+		if errorValue := service.saveCompanyUserRecord(ctx, *write); errorValue != nil {
+			return nil, 0, errorValue
+		}
+	case http.MethodDelete:
+		email := strings.TrimPrefix(targetPath, "/")
+		if decodedEmail, errorValue := url.PathUnescape(email); errorValue == nil {
+			email = decodedEmail
+		}
+		if errorValue := service.withdrawCompanyUser(ctx, email); errorValue != nil {
+			return nil, 0, errorValue
+		}
+	case http.MethodGet:
+	default:
+		return nil, http.StatusMethodNotAllowed, nil
 	}
+	records, errorValue := service.companyUserRecords(ctx)
+	if errorValue != nil {
+		return nil, 0, errorValue
+	}
+	document, errorValue := json.Marshal(pagesUsersResponse{Records: records})
+	if errorValue != nil {
+		return nil, 0, errorValue
+	}
+	return document, http.StatusOK, nil
+}
+
+func messengerAccountsOfPayload(payload adminUserMutation) map[string]string {
+	accounts := map[string]string{}
+	if account := strings.TrimSpace(payload.MattermostUserID); account != "" {
+		accounts["mattermost"] = account
+	}
+	if account := strings.TrimSpace(payload.MattermostUsername); account != "" {
+		accounts["mattermostUsername"] = account
+	}
+	return accounts
 }

@@ -195,15 +195,6 @@ func (service *Service) allStaffEmails(ctx context.Context) []string {
 	for _, record := range service.blueclawPolicyUserRecords(ctx) {
 		add(record.Email)
 	}
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID != "" && fleetSecret != "" {
-		if records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret); errorValue == nil {
-			for _, record := range records {
-				add(record.Email)
-			}
-		}
-	}
 	for _, email := range service.usersSyncCacheEmails() {
 		add(email)
 	}

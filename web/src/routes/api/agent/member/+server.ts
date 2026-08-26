@@ -41,12 +41,13 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 };
 
 const memberColumns =
-	'id, email, name, messenger, is_admin, status, job_title, phone_number, joined_at, team_id, supervisor_id';
+	'id, email, name, note, messenger, is_admin, status, job_title, phone_number, joined_at, team_id, supervisor_id';
 
 type MemberRow = {
 	id: string;
 	email: string | null;
 	name: string | null;
+	note: string | null;
 	messenger: Record<string, string> | null;
 	is_admin: boolean;
 	status: string;
@@ -68,6 +69,7 @@ function namedMembers(
 		memberID: row.id,
 		email: (row.email ?? '').toLowerCase(),
 		name: row.name ?? '',
+		note: row.note ?? '',
 		messenger: row.messenger ?? {},
 		role: row.is_admin ? 'admin' : 'member',
 		circles: circlesByMemberID.get(row.id) ?? [],
@@ -84,45 +86,93 @@ function namedMembers(
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const { client, companyID } = await callingAgent(request, environmentOf(platform));
 
-	const asked = (await request.json().catch(() => ({}))) as { email?: unknown; name?: unknown };
+	const asked = (await request.json().catch(() => ({}))) as {
+		email?: unknown;
+		name?: unknown;
+		role?: unknown;
+		note?: unknown;
+		messenger?: unknown;
+	};
 	const email = typeof asked.email === 'string' ? asked.email.trim().toLowerCase() : '';
 	if (!email) error(400, 'email required');
 	const name = typeof asked.name === 'string' ? asked.name.trim() : '';
+	const note = typeof asked.note === 'string' ? asked.note.trim() : '';
+	const role = askedRole(asked.role);
+	const messenger = askedMessenger(asked.messenger);
 
 	const existing = await client
 		.from('member')
-		.select('id, email, is_admin, status, company_id')
+		.select('id, email, name, note, messenger, is_admin, status, company_id')
 		.eq('email', email)
 		.maybeSingle();
 	if (existing.error) return json({ error: existing.error.message }, { status: 502 });
 	if (existing.data && existing.data.company_id !== companyID) error(409, 'that address belongs to another company');
-	if (existing.data) {
-		if (name) await client.from('member').update({ name }).eq('id', existing.data.id);
-		return json({
-			member: {
-				memberID: existing.data.id,
-				email,
-				role: existing.data.is_admin ? 'admin' : 'member',
-				status: existing.data.status
-			}
-		});
-	}
 
-	const created = await client
-		.from('member')
-		.insert({ company_id: companyID, email, ...(name ? { name } : {}) })
-		.select('id, is_admin, status')
-		.single();
-	if (created.error) return json({ error: created.error.message }, { status: 502 });
+	// A field nobody named keeps what it held. A caller that knows only the role
+	// must not blank the name, and one that knows only the name must not demote.
+	const held = existing.data;
+	const row = {
+		company_id: companyID,
+		email,
+		name: name || held?.name || null,
+		note: note || held?.note || null,
+		is_admin: role === null ? (held?.is_admin ?? false) : role === 'admin',
+		messenger: { ...(held?.messenger ?? {}), ...messenger }
+	};
+
+	const saved = held
+		? await client.from('member').update(row).eq('id', held.id).select('id, is_admin, status').single()
+		: await client.from('member').insert(row).select('id, is_admin, status').single();
+	if (saved.error) return json({ error: saved.error.message }, { status: 502 });
 
 	return json({
 		member: {
-			memberID: created.data.id,
+			memberID: saved.data.id,
 			email,
-			role: created.data.is_admin ? 'admin' : 'member',
-			status: created.data.status
+			role: saved.data.is_admin ? 'admin' : 'member',
+			status: saved.data.status
 		}
 	});
+};
+
+function askedRole(value: unknown): 'admin' | 'member' | null {
+	if (typeof value !== 'string') return null;
+	const asked = value.trim().toLowerCase();
+	if (asked === 'admin') return 'admin';
+	if (asked === 'member' || asked === 'operationsadmin') return 'member';
+	return null;
+}
+
+function askedMessenger(value: unknown): Record<string, string> {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+	const accounts: Record<string, string> = {};
+	for (const [platform, account] of Object.entries(value as Record<string, unknown>)) {
+		if (typeof account === 'string' && account.trim() !== '') accounts[platform] = account.trim();
+	}
+	return accounts;
+}
+
+// Somebody who has left keeps their row, because the work they did still names
+// them. Only the status changes, so a task or a message written by them still
+// resolves to a person.
+export const DELETE: RequestHandler = async ({ request, url, platform }) => {
+	const { client, companyID } = await callingAgent(request, environmentOf(platform));
+
+	const email = (url.searchParams.get('email') ?? '').trim().toLowerCase();
+	if (!email) error(400, 'email required');
+
+	const held = await client
+		.from('member')
+		.select('id, company_id')
+		.eq('company_id', companyID)
+		.eq('email', email)
+		.maybeSingle();
+	if (held.error) return json({ error: held.error.message }, { status: 502 });
+	if (!held.data) error(404, 'nobody here goes by that address');
+
+	const withdrawn = await client.from('member').update({ status: 'withdrawn' }).eq('id', held.data.id);
+	if (withdrawn.error) return json({ error: withdrawn.error.message }, { status: 502 });
+	return json({ member: { memberID: held.data.id, email, status: 'withdrawn' } });
 };
 
 type ProfileUpdate = {

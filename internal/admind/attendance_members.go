@@ -25,13 +25,7 @@ func (service *Service) attendanceMembersForSummary(request *http.Request, actor
 }
 
 func (service *Service) attendanceUserRecordsForMembers(request *http.Request) ([]adminUserMutation, bool) {
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID != "" && fleetSecret != "" {
-		records, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret)
-		if errorValue != nil {
-			return nil, false
-		}
+	if records, errorValue := service.companyUserRecords(request.Context()); errorValue == nil {
 		return records, true
 	}
 	response, errorValue := service.buildLocalUsersResponse(request.Context())

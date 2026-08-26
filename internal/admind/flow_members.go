@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -20,13 +21,11 @@ func (service *Service) organizationChartUserRecords(request *http.Request) []ad
 }
 
 func (service *Service) accountDirectoryUserRecords(request *http.Request) []adminUserMutation {
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
 	var records []adminUserMutation
-	if fleetID != "" && fleetSecret != "" {
-		if fetched, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret); errorValue == nil {
-			records = fetched
-		}
+	if fetched, errorValue := service.companyUserRecords(request.Context()); errorValue == nil {
+		records = fetched
+	} else {
+		log.Printf("account directory: the company did not answer, falling back to policy: %v", errorValue)
 	}
 	return mergeUserRecordsByEmail(records, service.blueclawPolicyUserRecords(request.Context()))
 }

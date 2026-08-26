@@ -29,6 +29,7 @@ type Member struct {
 	HireDate        string            `json:"hireDate"`
 	TeamID          string            `json:"teamID"`
 	TeamName        string            `json:"teamName"`
+	Note            string            `json:"note"`
 	SupervisorEmail string            `json:"supervisorEmail"`
 }
 
@@ -146,4 +147,84 @@ func (client *Client) EnsureMember(ctx context.Context, email string, name strin
 		return Member{}, fmt.Errorf("the central plane seated %s without a member id", normalizedEmail)
 	}
 	return *answer.Member, nil
+}
+
+// SaveMember writes the account concerns of one person. A field left empty keeps
+// what the directory already holds, so a caller that knows only the role does not
+// blank the name on its way past.
+type MemberWrite struct {
+	Email     string            `json:"email"`
+	Name      string            `json:"name,omitempty"`
+	Role      string            `json:"role,omitempty"`
+	Note      string            `json:"note,omitempty"`
+	Messenger map[string]string `json:"messenger,omitempty"`
+}
+
+func (client *Client) SaveMember(ctx context.Context, write MemberWrite) (Member, error) {
+	write.Email = strings.ToLower(strings.TrimSpace(write.Email))
+	if write.Email == "" {
+		return Member{}, fmt.Errorf("a person needs an email address")
+	}
+	if client == nil || !client.settings.Configured() {
+		return Member{}, fmt.Errorf("central plane is not configured")
+	}
+	body, errorValue := json.Marshal(write)
+	if errorValue != nil {
+		return Member{}, errorValue
+	}
+	requestURL := strings.TrimSuffix(client.settings.AppURL, "/") + "/api/agent/member"
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(body))
+	if errorValue != nil {
+		return Member{}, errorValue
+	}
+	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Content-Type", "application/json")
+
+	response, errorValue := client.httpClient.Do(request)
+	if errorValue != nil {
+		return Member{}, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 300 {
+		return Member{}, fmt.Errorf("the central plane refused to save %s: %s", write.Email, response.Status)
+	}
+
+	var answer struct {
+		Member *Member `json:"member"`
+	}
+	if errorValue := json.NewDecoder(response.Body).Decode(&answer); errorValue != nil {
+		return Member{}, errorValue
+	}
+	if answer.Member == nil {
+		return Member{}, fmt.Errorf("the central plane saved %s without answering who that is", write.Email)
+	}
+	return *answer.Member, nil
+}
+
+// WithdrawMember marks somebody as having left. The row stays, because the work
+// they did still names them.
+func (client *Client) WithdrawMember(ctx context.Context, email string) error {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	if normalizedEmail == "" {
+		return fmt.Errorf("a person needs an email address")
+	}
+	if client == nil || !client.settings.Configured() {
+		return fmt.Errorf("central plane is not configured")
+	}
+	requestURL := strings.TrimSuffix(client.settings.AppURL, "/") + "/api/agent/member?email=" + url.QueryEscape(normalizedEmail)
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodDelete, requestURL, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+
+	response, errorValue := client.httpClient.Do(request)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 300 {
+		return fmt.Errorf("the central plane refused to withdraw %s: %s", normalizedEmail, response.Status)
+	}
+	return nil
 }
