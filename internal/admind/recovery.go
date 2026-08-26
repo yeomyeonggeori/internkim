@@ -1191,7 +1191,7 @@ func buzzRoomMessagesCommand() string {
 set -e
 q() { su - postgres -c "psql -X -d buzz -c \"$1\""; }
 printf '== what each room holds ==\n'
-q "SELECT c.name AS room, count(e.*) AS messages, count(e.*) FILTER (WHERE e.deleted_at IS NOT NULL) AS gone, count(e.*) FILTER (WHERE e.not_before > now()) AS held_back, max(e.created_at) AS newest FROM channels c LEFT JOIN events e ON e.channel_id = c.id AND e.kind = 9 WHERE c.channel_type = 'stream' AND c.deleted_at IS NULL GROUP BY c.id, c.name ORDER BY 2 DESC"
+q "SELECT c.name AS room, count(e.*) AS messages, count(e.*) FILTER (WHERE e.deleted_at IS NOT NULL) AS gone, count(e.*) FILTER (WHERE e.not_before > extract(epoch from now())) AS held_back, count(e.*) FILTER (WHERE e.delivered_at IS NULL) AS undelivered, max(e.created_at) AS newest FROM channels c LEFT JOIN events e ON e.channel_id = c.id AND e.kind = 9 WHERE c.channel_type = 'stream' AND c.deleted_at IS NULL GROUP BY c.id, c.name ORDER BY 2 DESC"
 printf '== messages with no room ==\n'
 q "SELECT count(*) FROM events WHERE kind = 9 AND channel_id IS NULL"
 printf '== the newest handful anywhere ==\n'
