@@ -201,10 +201,12 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		response.Results = append(response.Results, service.runNamedRoomCommand(restoreContext, "give every direct message back the names it showed", restoreCommand, restoreError))
 		cancelRestore()
 	case "buzz-link-edits":
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the edits the link rewrite injected", "sh", "-lc", buzzLinkEditsCommand(false)))
+		countCommand, countError := buzzLinkEditsCommand(deviceHostOf(service.Configuration.DeviceURLPath), false)
+		response.Results = append(response.Results, service.runNamedRoomCommand(ctx, "count the edits this device made over a message naming it", countCommand, countError))
 	case "buzz-remove-link-edits":
 		editContext, cancelEdits := context.WithTimeout(context.Background(), 300*time.Second)
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(editContext, "take back the edits the link rewrite injected", "sh", "-lc", buzzLinkEditsCommand(true)))
+		removeCommand, removeError := buzzLinkEditsCommand(deviceHostOf(service.Configuration.DeviceURLPath), true)
+		response.Results = append(response.Results, service.runNamedRoomCommand(editContext, "take back the edits this device made", removeCommand, removeError))
 		cancelEdits()
 	case "buzz-republish-rooms":
 		republishContext, cancelRepublish := context.WithTimeout(context.Background(), 300*time.Second)
@@ -1572,24 +1574,32 @@ q "SELECT count(*) FROM events WHERE kind = 39000 AND tags::text LIKE '%p%' AND 
 `), nil
 }
 
-func buzzLinkEditsCommand(shouldRemove bool) string {
+func buzzLinkEditsCommand(deviceHost string, shouldRemove bool) (string, error) {
+	host := strings.TrimSpace(deviceHost)
+	if host == "" {
+		return "", errors.New("this device names no host, so its own edits cannot be told from anybody else's")
+	}
+	if strings.ContainsAny(host, "'\"$`\n ") {
+		return "", fmt.Errorf("a host carrying a quote or a space is refused rather than run: %q", host)
+	}
+	ours := `kind = 40003 AND EXISTS (SELECT 1 FROM events original, jsonb_array_elements(edit.tags::jsonb) tag WHERE tag->>0 = 'e' AND encode(original.id, 'hex') = tag->>1 AND original.kind = 9 AND original.content LIKE '%` + host + `%')`
 	removal := `printf 'run buzz-remove-link-edits to take them back\n'`
 	if shouldRemove {
-		removal = `q "DELETE FROM events WHERE kind = 40003 AND created_at >= extract(epoch from now() - interval '12 hours')"`
+		removal = `q "DELETE FROM events edit WHERE ` + ours + `"`
 	}
 	return strings.TrimSpace(`
 set -e
 q() { su - postgres -c "psql -X -qAt -v ON_ERROR_STOP=1 -d buzz -c \"$1\""; }
-printf '== edits this device injected in the last 12 hours ==\n'
-q "SELECT count(*) FROM events WHERE kind = 40003 AND created_at >= extract(epoch from now() - interval '12 hours')"
-printf '== edits older than that ==\n'
-q "SELECT count(*) FROM events WHERE kind = 40003 AND created_at < extract(epoch from now() - interval '12 hours')"
+printf '== edits this device made over a message naming it ==\n'
+q "SELECT count(*) FROM events edit WHERE ` + ours + `"
+printf '== every edit in the messenger ==\n'
+q "SELECT count(*) FROM events WHERE kind = 40003"
 printf '== messages that still hold their own words ==\n'
 q "SELECT count(*) FROM events WHERE kind = 9"
 ` + removal + `
 printf '== edits now ==\n'
 q "SELECT count(*) FROM events WHERE kind = 40003"
-`)
+`), nil
 }
 
 func buzzRepublishRoomsCommand() string {
