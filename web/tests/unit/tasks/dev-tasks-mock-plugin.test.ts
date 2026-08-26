@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createDevTasksMockResponse, createDevTasksMockState } from '../../../dev-tasks-mock-plugin';
-import type { ServiceLogsResponse, TaskDetail, TaskRunsResponse } from '../../../src/routes/tasks/tasks-api';
+import type { ServiceLogsResponse, TaskDetail, TaskRunsResponse } from '../../../src/routes/runs/runs-api';
 
 describe('dev tasks mock plugin', () => {
 	test('returns task runs with limit and offset pagination', async () => {

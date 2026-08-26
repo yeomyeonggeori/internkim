@@ -9,9 +9,9 @@ import (
 	"strings"
 )
 
-func (service *Service) serveTasksPage(responseWriter http.ResponseWriter, request *http.Request) {
-	if request.URL.Path == "/tasks" {
-		http.Redirect(responseWriter, request, "/tasks/", http.StatusFound)
+func (service *Service) serveTaskRunsPage(responseWriter http.ResponseWriter, request *http.Request) {
+	if request.URL.Path == "/runs" {
+		http.Redirect(responseWriter, request, "/runs/", http.StatusFound)
 		return
 	}
 	if service.serveTasksStaticFile(responseWriter, request) {
@@ -21,11 +21,11 @@ func (service *Service) serveTasksPage(responseWriter http.ResponseWriter, reque
 }
 
 func (service *Service) serveTasksStaticFile(responseWriter http.ResponseWriter, request *http.Request) bool {
-	relativePath := strings.TrimPrefix(request.URL.Path, "/tasks/")
+	relativePath := strings.TrimPrefix(request.URL.Path, "/runs/")
 	if relativePath == "" {
 		return false
 	}
-	filePath := filepath.Join(service.Configuration.AdminUIPath, "tasks", relativePath)
+	filePath := filepath.Join(service.Configuration.AdminUIPath, "runs", relativePath)
 	fileInformation, errorValue := os.Stat(filePath)
 	if errorValue != nil || fileInformation.IsDir() {
 		return false
@@ -35,15 +35,15 @@ func (service *Service) serveTasksStaticFile(responseWriter http.ResponseWriter,
 }
 
 func (service *Service) serveTasksIndex(responseWriter http.ResponseWriter, request *http.Request) {
-	tasksIndexPath := filepath.Join(service.Configuration.AdminUIPath, "tasks", "index.html")
-	if fileInformation, errorValue := os.Stat(tasksIndexPath); errorValue == nil && !fileInformation.IsDir() {
-		http.ServeFile(responseWriter, request, tasksIndexPath)
+	runsIndexPath := filepath.Join(service.Configuration.AdminUIPath, "runs", "index.html")
+	if fileInformation, errorValue := os.Stat(runsIndexPath); errorValue == nil && !fileInformation.IsDir() {
+		http.ServeFile(responseWriter, request, runsIndexPath)
 		return
 	}
 	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
 }
 
-func (service *Service) handleTasks(responseWriter http.ResponseWriter, request *http.Request) {
+func (service *Service) handleTaskRuns(responseWriter http.ResponseWriter, request *http.Request) {
 	viewerEmail := service.webTaskRunActorEmail(request)
 	if viewerEmail == "" {
 		if service.webActorEmail(request) != "" {
@@ -55,12 +55,12 @@ func (service *Service) handleTasks(responseWriter http.ResponseWriter, request 
 	}
 	isViewerAdmin := service.canManageTaskRuns(request.Context(), viewerEmail)
 	switch request.URL.Path {
-	case "/tasks/api/runs":
+	case "/runs/api":
 		service.proxyScopedTaskList(responseWriter, request, viewerEmail, isViewerAdmin)
-	case "/tasks/api/run-detail":
+	case "/runs/api/detail":
 		service.proxyScopedTaskDetail(responseWriter, request, viewerEmail, isViewerAdmin)
 	default:
-		if request.Method == http.MethodDelete && strings.HasPrefix(request.URL.Path, "/tasks/api/runs/") {
+		if request.Method == http.MethodDelete && strings.HasPrefix(request.URL.Path, "/runs/api/") {
 			service.proxyScopedTaskDelete(responseWriter, request, viewerEmail, isViewerAdmin)
 			return
 		}
@@ -117,7 +117,7 @@ func (service *Service) proxyScopedTaskDetail(responseWriter http.ResponseWriter
 	query.Set("viewerEmail", viewerEmail)
 	query.Set("viewerIsAdmin", strconv.FormatBool(isViewerAdmin))
 	var detail map[string]any
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/task/detail?"+query.Encode(), nil, &detail); errorValue != nil {
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/run/detail?"+query.Encode(), nil, &detail); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
@@ -125,7 +125,7 @@ func (service *Service) proxyScopedTaskDetail(responseWriter http.ResponseWriter
 }
 
 func (service *Service) proxyScopedTaskDelete(responseWriter http.ResponseWriter, request *http.Request, viewerEmail string, isViewerAdmin bool) {
-	taskRunID := strings.TrimSpace(strings.TrimPrefix(request.URL.Path, "/tasks/api/runs/"))
+	taskRunID := strings.TrimSpace(strings.TrimPrefix(request.URL.Path, "/runs/api/"))
 	if taskRunID == "" {
 		http.Error(responseWriter, "taskRunID is required", http.StatusBadRequest)
 		return
@@ -136,7 +136,7 @@ func (service *Service) proxyScopedTaskDelete(responseWriter http.ResponseWriter
 		"viewerIsAdmin": isViewerAdmin,
 	}
 	var deleteResponse any
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/task/delete", blueclawRequest, &deleteResponse); errorValue != nil {
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/run/delete", blueclawRequest, &deleteResponse); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}

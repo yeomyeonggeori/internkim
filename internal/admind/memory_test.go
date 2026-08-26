@@ -68,7 +68,7 @@ func TestMemoryAPIUsesMattermostSessionUserSchedules(t *testing.T) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
-		if request.URL.Path == "/admin/api/task-schedules" && request.Method == http.MethodGet {
+		if request.URL.Path == "/admin/api/schedule" && request.Method == http.MethodGet {
 			if request.URL.Query().Get("creatorPersonID") != "user:person-1" {
 				t.Fatalf("creatorPersonID = %q", request.URL.Query().Get("creatorPersonID"))
 			}
@@ -165,7 +165,7 @@ func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
-		if request.URL.Path == "/admin/api/task-schedules/cancel" && request.Method == http.MethodPost {
+		if request.URL.Path == "/admin/api/schedule/cancel" && request.Method == http.MethodPost {
 			var payload struct {
 				TaskScheduleID  string `json:"taskScheduleID"`
 				CreatorPersonID string `json:"creatorPersonID"`
@@ -212,7 +212,7 @@ func TestMemoryAPIDeleteScheduleInjectsResolvedPersonID(t *testing.T) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
-		if request.URL.Path == "/admin/api/task-schedules/delete" && request.Method == http.MethodPost {
+		if request.URL.Path == "/admin/api/schedule/delete" && request.Method == http.MethodPost {
 			var payload struct {
 				TaskScheduleID  string `json:"taskScheduleID"`
 				CreatorPersonID string `json:"creatorPersonID"`
@@ -259,7 +259,7 @@ func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
-		if request.URL.Path == "/admin/api/task-schedules/update" && request.Method == http.MethodPost {
+		if request.URL.Path == "/admin/api/schedule/update" && request.Method == http.MethodPost {
 			var payload struct {
 				TaskScheduleID  string `json:"taskScheduleID"`
 				CreatorPersonID string `json:"creatorPersonID"`
@@ -356,7 +356,7 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
-		if request.URL.Path == "/admin/api/task-schedules" && request.Method == http.MethodGet {
+		if request.URL.Path == "/admin/api/schedule" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `private backend detail`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())

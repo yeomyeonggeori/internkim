@@ -9,7 +9,7 @@ import {
 	type DevMockRequest,
 	type DevMockResponse
 } from './dev-admin-mock';
-import type { DailyCostScope, DailyCostSummary, TaskDetail, TaskEvent, TaskRunSummary } from './src/routes/tasks/tasks-api';
+import type { DailyCostScope, DailyCostSummary, TaskDetail, TaskEvent, TaskRunSummary } from './src/routes/runs/runs-api';
 
 type DevTasksMockPluginOptions = {
 	isEnabled: boolean;

@@ -2270,7 +2270,7 @@ func TestTasksPageRefreshServesApplicationShell(t *testing.T) {
 		AdminUIPath:       adminUIPath,
 		MattermostBaseURL: "http://mattermost.local",
 	})
-	request := httptest.NewRequest(http.MethodGet, "/tasks/run-1", nil)
+	request := httptest.NewRequest(http.MethodGet, "/runs/run-1", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	response := httptest.NewRecorder()
 
@@ -2283,14 +2283,14 @@ func TestTasksPageRefreshServesApplicationShell(t *testing.T) {
 
 func TestTasksPageRedirectsBarePath(t *testing.T) {
 	service := NewService(Configuration{AdminUIPath: t.TempDir()})
-	request := httptest.NewRequest(http.MethodGet, "/tasks", nil)
+	request := httptest.NewRequest(http.MethodGet, "/runs", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
 
-	if response.Code != http.StatusFound || response.Header().Get("Location") != "/tasks/" {
-		t.Fatalf("tasks redirect status = %d location = %q", response.Code, response.Header().Get("Location"))
+	if response.Code != http.StatusFound || response.Header().Get("Location") != "/runs/" {
+		t.Fatalf("runs redirect status = %d location = %q", response.Code, response.Header().Get("Location"))
 	}
 }
 
@@ -3678,7 +3678,7 @@ func TestMattermostStopCommandCallsBlueclawTaskCancel(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1":
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"Alice@Example.com","username":"alice","nickname":"Alice"}`, nil), nil
-		case request.URL.String() == "http://blueclaw.local/admin/api/task/cancel":
+		case request.URL.String() == "http://blueclaw.local/admin/api/run/cancel":
 			blueclawStopCalled = true
 			var payload map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
