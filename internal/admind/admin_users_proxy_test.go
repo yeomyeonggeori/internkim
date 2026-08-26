@@ -18,14 +18,12 @@ func TestAdminUserProxyGetMergesOrganizationMetadata(t *testing.T) {
 			return response, nil
 		}
 		switch {
-		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
 		default:
-			if response, handled := companyPlumbingAnswerForTest(request); handled {
+			if response, handled := companyAnswerForTest(t, request, `{"records":[{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`); handled {
 				return response, nil
 			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -89,7 +87,7 @@ func TestAdminUsersCachePreservesIncludePolicyScope(t *testing.T) {
 				case isBlueclawPolicyGet(request):
 					return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
 				default:
-					if response, handled := companyPlumbingAnswerForTest(request); handled {
+					if response, handled := companyAnswerForTest(t, request, `{"records":[{"memberID":"user-member","handle":"oldhandle","name":"Old Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"oldhandle"},{"email":"admin@example.com","role":"admin"}]}`); handled {
 						return response, nil
 					}
 					t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -146,8 +144,6 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 			return response, nil
 		}
 		switch {
-		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","handle":"oldhandle","name":"Old Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"oldhandle"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
@@ -181,7 +177,7 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
-			if response, handled := companyPlumbingAnswerForTest(request); handled {
+			if response, handled := companyAnswerForTest(t, request, `{"records":[{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"},{"email":"admin@example.com","role":"admin"}]}`); handled {
 				return response, nil
 			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -221,8 +217,6 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 			return response, nil
 		}
 		switch {
-		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch" && request.Method == http.MethodPut:
@@ -243,7 +237,7 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/members" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		default:
-			if response, handled := companyPlumbingAnswerForTest(request); handled {
+			if response, handled := companyAnswerForTest(t, request, `{"records":[{"memberID":"user-member","email":"member@example.com","role":"member","mattermostUserID":"user-1"},{"email":"admin@example.com","role":"admin"}]}`); handled {
 				return response, nil
 			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -272,8 +266,6 @@ func TestOrganizationUserMutationCleanupFailurePreservesSuccessProxy(t *testing.
 			return response, nil
 		}
 		switch {
-		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","email":"member@example.com","role":"member","mattermostUserID":"user-1"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch" && request.Method == http.MethodPut:
@@ -285,7 +277,7 @@ func TestOrganizationUserMutationCleanupFailurePreservesSuccessProxy(t *testing.
 		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
-			if response, handled := companyPlumbingAnswerForTest(request); handled {
+			if response, handled := companyAnswerForTest(t, request, ``); handled {
 				return response, nil
 			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())

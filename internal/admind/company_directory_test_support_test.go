@@ -152,6 +152,14 @@ func memberIDForTest(email string) string {
 
 // A stub that never seated anybody still has to answer the company's plumbing,
 // or a call it does not care about reads as an unexpected request.
+func companyAnswerForTest(t testing.TB, request *http.Request, registerBody string) (*http.Response, bool) {
+	t.Helper()
+	if strings.HasSuffix(request.URL.Path, "/api/agent/member") {
+		return companyDirectoryAnswerForTest(t, request, registerBody), true
+	}
+	return companyPlumbingAnswerForTest(request)
+}
+
 func companyPlumbingAnswerForTest(request *http.Request) (*http.Response, bool) {
 	switch {
 	case strings.HasSuffix(request.URL.Path, "/api/agent/key"):
