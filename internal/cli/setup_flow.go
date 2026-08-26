@@ -3,6 +3,7 @@ package cli
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -876,7 +877,10 @@ func (state *setupFlowState) verifyAdminUIDeployment(boardUIPath string) error {
 	if errorValue != nil {
 		return fmt.Errorf("read deployed admin UI version: %s: %w", strings.TrimSpace(output), errorValue)
 	}
-	remoteVersion := strings.TrimSpace(output)
+	remoteVersion, errorValue := adminUIVersionOf([]byte(output))
+	if errorValue != nil {
+		return fmt.Errorf("deployed admin UI: %w", errorValue)
+	}
 	if remoteVersion != localVersion {
 		return fmt.Errorf("admin UI deploy verification failed: remote version %s does not match local version %s", remoteVersion, localVersion)
 	}
@@ -888,7 +892,21 @@ func readAdminUIVersion(boardUIPath string) (string, error) {
 	if errorValue != nil {
 		return "", fmt.Errorf("read local admin UI version: %w", errorValue)
 	}
-	return strings.TrimSpace(string(document)), nil
+	return adminUIVersionOf(document)
+}
+
+func adminUIVersionOf(document []byte) (string, error) {
+	var stamp struct {
+		Version string `json:"version"`
+	}
+	if errorValue := json.Unmarshal(document, &stamp); errorValue != nil {
+		return "", fmt.Errorf("read admin UI version: %w", errorValue)
+	}
+	version := strings.TrimSpace(stamp.Version)
+	if version == "" {
+		return "", errors.New("the admin UI version stamp names no version")
+	}
+	return version, nil
 }
 
 func copyDirectoryToStage(sourceDirectory string, targetDirectory string) error {
