@@ -9,9 +9,9 @@ describe('flow board participant scope', () => {
 	test('reads the filter as self, other, or everyone', () => {
 		expect(flowBoardParticipantScope([], 'kim')).toBe('everyone');
 		expect(flowBoardParticipantScope(['kim'], 'kim')).toBe('self');
-		expect(flowBoardParticipantScope(['kim', 'lee'], 'kim')).toBe('self');
-		expect(flowBoardParticipantScope(['lee'], 'kim')).toBe('other');
-		expect(flowBoardParticipantScope(['lee'], undefined)).toBe('other');
+		expect(flowBoardParticipantScope(['kim', 'leesample'], 'kim')).toBe('self');
+		expect(flowBoardParticipantScope(['leesample'], 'kim')).toBe('other');
+		expect(flowBoardParticipantScope(['leesample'], undefined)).toBe('other');
 	});
 
 	test('allows adding only requests while another person is filtered', () => {

@@ -54,6 +54,7 @@ func (service *Service) insertAttendanceEvent(ctx context.Context, database *sql
 		return errorValue
 	}
 	service.alsoRecordAttendanceCentrally(event)
+	service.alsoTellTheCompanyAboutAttendance(event)
 	return nil
 }
 

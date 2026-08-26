@@ -9,9 +9,9 @@ function canonicalKeyForTest(person: MessengerPerson, people: MessengerDirectory
 }
 
 const directory: MessengerDirectory = {
-	nameOfMember: new Map([['member-1', '여명 김']]),
+	nameOfMember: new Map([['member-1', '예시 김']]),
 	nameOfExternal: new Map([
-		['external-1', '여명 김'],
+		['external-1', '예시 김'],
 		['bot-1', 'Intern Kim']
 	]),
 	memberOfExternal: new Map([['external-1', 'member-1']]),
@@ -32,8 +32,8 @@ function conversationWith(externalIDs: string[], name: string): MessengerChannel
 
 describe('channelName', () => {
 	test('calls a direct conversation what the company calls that person', () => {
-		const conversation = conversationWith(['external-1', 'mine'], '여명 김');
-		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko', '김인턴')).toBe('김여명');
+		const conversation = conversationWith(['external-1', 'mine'], '예시 김');
+		expect(channelName(conversation, directory, 'external:mine', canonicalKeyForTest, 'ko', '김인턴')).toBe('김예시');
 	});
 
 	test('falls back to the messenger for somebody the record does not know', () => {

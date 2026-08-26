@@ -19,7 +19,7 @@ func TestACompanyEventBecomesACalendarEvent(t *testing.T) {
 		EndsAt:           "2026-08-28T00:00:00+00:00",
 		IsWholeDay:       true,
 		UpdatedAt:        "2026-08-24T10:00:00+00:00",
-		ParticipantMails: []string{"iam@dawn.kim"},
+		ParticipantMails: []string{"kimyesi@example.com"},
 	}}, "Asia/Seoul")
 
 	if len(events) != 1 {
@@ -32,7 +32,7 @@ func TestACompanyEventBecomesACalendarEvent(t *testing.T) {
 	if !event.IsAllDay || event.TimeZone != "Asia/Seoul" {
 		t.Fatalf("event = %+v", event)
 	}
-	if len(event.Participants) != 1 || event.Participants[0].Email != "iam@dawn.kim" {
+	if len(event.Participants) != 1 || event.Participants[0].Email != "kimyesi@example.com" {
 		t.Fatalf("the people on a company event come back as its participants, got %+v", event.Participants)
 	}
 }

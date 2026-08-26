@@ -1,14 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { readNotificationSettings, type NotificationCategory } from '$lib/notifications/categories';
-import { sendWebPush, type PushTarget } from './web-push';
+import { pushToMemberDevices, type Notification } from './push-to-member-devices';
 import type { VapidKeys } from './web-push-vapid';
 
-export type Notification = {
-	title: string;
-	body: string;
-	openPath: string;
-	tag: string;
-};
+export type { Notification };
 
 export type Delivery = {
 	reached: number;
@@ -16,31 +11,23 @@ export type Delivery = {
 	silent: boolean;
 };
 
-type DeviceRow = { kind: string; address: string; keys: unknown };
-
 export async function notifyMember(
 	client: SupabaseClient,
 	memberID: string,
 	category: NotificationCategory,
 	notification: Notification,
 	vapid: VapidKeys,
-	nowInSeconds: number
+	nowInSeconds: number,
+	conversationID = ''
 ): Promise<Delivery> {
 	if (!(await wantsToBeTold(client, memberID, category))) {
 		return { reached: 0, pruned: 0, silent: true };
 	}
-
-	const devices = await webPushDevices(client, memberID);
-	let reached = 0;
-	let pruned = 0;
-	for (const device of devices) {
-		const outcome = await sendWebPush(device, notification, vapid, nowInSeconds);
-		if (outcome === 'delivered') reached += 1;
-		if (outcome === 'gone') {
-			await forget(client, device.address);
-			pruned += 1;
-		}
+	if (await hasMuted(client, memberID, conversationID)) {
+		return { reached: 0, pruned: 0, silent: true };
 	}
+
+	const { reached, pruned } = await pushToMemberDevices(client, memberID, notification, vapid, nowInSeconds);
 	return { reached, pruned, silent: false };
 }
 
@@ -55,28 +42,17 @@ async function wantsToBeTold(
 		.eq('id', memberID)
 		.maybeSingle<{ notification_settings: unknown }>();
 	if (error) throw new Error(error.message);
-	return readNotificationSettings(data?.notification_settings)[category];
+	return readNotificationSettings(data?.notification_settings).categories[category];
 }
 
-async function webPushDevices(client: SupabaseClient, memberID: string): Promise<PushTarget[]> {
+async function hasMuted(client: SupabaseClient, memberID: string, conversationID: string): Promise<boolean> {
+	if (!conversationID) return false;
 	const { data, error } = await client
-		.from('push_device')
-		.select('kind, address, keys')
+		.from('muted_conversation')
+		.select('conversation_id')
 		.eq('member_id', memberID)
-		.eq('kind', 'web-push')
-		.returns<DeviceRow[]>();
+		.eq('conversation_id', conversationID)
+		.maybeSingle<{ conversation_id: string }>();
 	if (error) throw new Error(error.message);
-	return (data ?? []).map(asTarget).filter((target): target is PushTarget => target !== null);
-}
-
-function asTarget(row: DeviceRow): PushTarget | null {
-	if (typeof row.keys !== 'object' || row.keys === null) return null;
-	const { p256dh, auth } = row.keys as { p256dh?: unknown; auth?: unknown };
-	if (typeof p256dh !== 'string' || typeof auth !== 'string') return null;
-	return { address: row.address, keys: { p256dh, auth } };
-}
-
-async function forget(client: SupabaseClient, address: string): Promise<void> {
-	const { error } = await client.from('push_device').delete().eq('address', address);
-	if (error) throw new Error(error.message);
+	return data !== null;
 }

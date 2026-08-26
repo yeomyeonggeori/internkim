@@ -288,7 +288,7 @@ function flowMember(overrides: Partial<FlowMember>): FlowMember {
 	return {
 		id: 'member-1',
 		name: '최견본',
-		email: 'lee@example.com',
+		email: 'member1@example.com',
 		role: 'member',
 		mattermostStatus: '',
 		activeTaskCount: 0,

@@ -86,7 +86,7 @@ describe('dev calendar mock plugin', () => {
 	});
 
 	test('uses the configured development user as the calendar participant', async () => {
-		const response = await createDevCalendarMockResponse(createDevCalendarMockState('lee@example.com'), {
+		const response = await createDevCalendarMockResponse(createDevCalendarMockState('member1@example.com'), {
 			method: 'GET',
 			pathname: '/calendar/api/events',
 			searchParams: new URLSearchParams({
@@ -96,9 +96,9 @@ describe('dev calendar mock plugin', () => {
 		});
 
 		expect(response?.body.events?.[0]?.participants?.[0]).toEqual({
-			personID: 'lee',
+			personID: 'leesample',
 			name: '이영희',
-			email: 'lee@example.com'
+			email: 'member1@example.com'
 		});
 	});
 

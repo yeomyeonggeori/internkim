@@ -3,19 +3,19 @@ package admind
 import "testing"
 
 func TestVersionedSubjectKeepsVersionOneAsBareEmail(t *testing.T) {
-	if got := versionedSubject("Lee@Example.com", 1); got != "lee@example.com" {
+	if got := versionedSubject("Member1@Example.com", 1); got != "member1@example.com" {
 		t.Fatalf("version 1 must be the bare normalized email, got %q", got)
 	}
-	if got := versionedSubject("lee@example.com", 0); got != "lee@example.com" {
+	if got := versionedSubject("member1@example.com", 0); got != "member1@example.com" {
 		t.Fatalf("version 0 must also be the bare email, got %q", got)
 	}
 }
 
 func TestVersionedSubjectSuffixesLaterVersions(t *testing.T) {
-	if got := versionedSubject("lee@example.com", 2); got != "lee@example.com|v2" {
+	if got := versionedSubject("member1@example.com", 2); got != "member1@example.com|v2" {
 		t.Fatalf("expected v2 suffix, got %q", got)
 	}
-	if versionedSubject("lee@example.com", 2) == versionedSubject("lee@example.com", 3) {
+	if versionedSubject("member1@example.com", 2) == versionedSubject("member1@example.com", 3) {
 		t.Fatal("different versions must produce different subjects")
 	}
 }

@@ -24,7 +24,7 @@ describe('organization person ordering', () => {
 		const people = [
 			{ memberID: 'pptx', name: 'PPTX Tester', hireDate: '2026-04-01' },
 			{ memberID: 'dongha', name: '이샘플', hireDate: '2026-04-01' },
-			{ memberID: 'yeomyeong', name: '김여명', hireDate: '2026-04-01' },
+			{ memberID: 'yeomyeong', name: '김예시', hireDate: '2026-04-01' },
 			{ memberID: 'aaron', name: 'Aaron', hireDate: '2026-04-01' }
 		];
 
@@ -40,7 +40,7 @@ describe('organization person ordering', () => {
 		const people = [
 			{ memberID: 'pptx', name: 'PPTX Tester' },
 			{ memberID: 'dongha', name: '이샘플' },
-			{ memberID: 'yeomyeong', name: '김여명' },
+			{ memberID: 'yeomyeong', name: '김예시' },
 			{ memberID: 'aaron', name: 'Aaron' }
 		];
 

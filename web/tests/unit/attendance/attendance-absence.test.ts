@@ -21,7 +21,7 @@ const absences: AttendanceAbsence[] = [
 	},
 	{
 		id: 'absence-2',
-		email: 'lee@example.com',
+		email: 'member1@example.com',
 		kind: 'other',
 		labelKey: 'other',
 		date: '2026-06-10',
@@ -58,7 +58,7 @@ describe('attendance absence helpers', () => {
 		const people = computePeopleToday('2026-06-10', [], undefined, '2026-06-10', absences);
 
 		expect(people.find((person) => person.email === 'kim@example.com')?.status).toBe('absence');
-		expect(people.find((person) => person.email === 'lee@example.com')?.status).toBe('absence');
+		expect(people.find((person) => person.email === 'member1@example.com')?.status).toBe('absence');
 	});
 
 	test('does not add people to today from absences on another date', () => {

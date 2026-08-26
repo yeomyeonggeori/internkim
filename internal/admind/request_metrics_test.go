@@ -48,7 +48,7 @@ func TestProxyScopedTaskListForwardsPaginationQuery(t *testing.T) {
 		if request.Method != http.MethodGet {
 			t.Fatalf("method = %s", request.Method)
 		}
-		expectedURL := "/admin/api/task?dailyCostTaskRunLimit=500&includeCost=true&includeTotal=true&limit=15&offset=15&viewerEmail=staff%40example.com&viewerIsAdmin=false"
+		expectedURL := "/admin/api/run?dailyCostTaskRunLimit=500&includeCost=true&includeTotal=true&limit=15&offset=15&viewerEmail=staff%40example.com&viewerIsAdmin=false"
 		if request.URL.String() != expectedURL {
 			t.Fatalf("blueclaw task URL = %s", request.URL.String())
 		}
