@@ -25,8 +25,8 @@ do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"51000000-0000-0000-0000-000000000001"}', true);
-  perform public.mute_conversation('channel-a');
-  perform public.mute_conversation('channel-a');
+  perform public.conversation_mute('channel-a');
+  perform public.conversation_mute('channel-a');
 end $$;
 reset role;
 
@@ -40,7 +40,7 @@ do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"51000000-0000-0000-0000-000000000002"}', true);
-  perform public.mute_conversation('channel-a');
+  perform public.conversation_mute('channel-a');
 end $$;
 reset role;
 
@@ -67,7 +67,7 @@ do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"51000000-0000-0000-0000-000000000001"}', true);
-  perform public.unmute_conversation('channel-a');
+  perform public.conversation_unmute('channel-a');
 end $$;
 reset role;
 

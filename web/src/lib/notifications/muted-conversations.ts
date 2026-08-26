@@ -10,11 +10,11 @@ export async function mutedConversations(): Promise<Set<string>> {
 }
 
 export async function muteConversation(conversationID: string): Promise<void> {
-	const { error } = await supabase().rpc('mute_conversation', { conversation: conversationID });
+	const { error } = await supabase().rpc('conversation_mute', { conversation: conversationID });
 	if (error) throw new Error(error.message);
 }
 
 export async function unmuteConversation(conversationID: string): Promise<void> {
-	const { error } = await supabase().rpc('unmute_conversation', { conversation: conversationID });
+	const { error } = await supabase().rpc('conversation_unmute', { conversation: conversationID });
 	if (error) throw new Error(error.message);
 }
