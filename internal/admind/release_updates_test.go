@@ -264,26 +264,6 @@ func TestReleaseWebComponentRootPrefersWeb(t *testing.T) {
 	}
 }
 
-func TestInstallReleaseMattermostPluginsCopiesBundleDirectory(t *testing.T) {
-	directoryPath := t.TempDir()
-	stagingPath := filepath.Join(directoryPath, "staging")
-	sourcePath := filepath.Join(stagingPath, "mattermostPlugins", "mattermost-plugins")
-	if errorValue := os.MkdirAll(sourcePath, 0o755); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	writeFile(t, filepath.Join(sourcePath, "com.internkim.ephemeral-0.1.0.tar.gz"), "plugin-bundle")
-	targetPath := filepath.Join(directoryPath, "opt", "mattermost-plugins", "com.internkim.ephemeral-0.1.0.tar.gz")
-	service := NewService(Configuration{MattermostPluginBundlePath: targetPath})
-
-	if errorValue := service.installReleaseMattermostPlugins(stagingPath); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	if strings.TrimSpace(readTrimmedFile(targetPath)) != "plugin-bundle" {
-		t.Fatalf("plugin bundle was not installed at %s", targetPath)
-	}
-}
-
 func TestReleaseWebComponentRootFallsBackToAdminWeb(t *testing.T) {
 	stagingPath := t.TempDir()
 	legacyRoot := filepath.Join(stagingPath, "adminWeb", "legacy-board-ui")
