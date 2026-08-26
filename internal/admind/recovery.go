@@ -76,7 +76,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-link-edits", "buzz-remove-link-edits", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-messages", "buzz-deletion-markers", "buzz-remove-deletion-markers", "buzz-room-visibility", "restart-buzz-relay", "buzz-relay-service-journal", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-link-edits", "buzz-remove-link-edits", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-messages", "buzz-deletion-markers", "buzz-window-probe", "buzz-remove-deletion-markers", "buzz-room-visibility", "restart-buzz-relay", "buzz-relay-service-journal", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -297,6 +297,9 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 	case "buzz-retire-room-by-name":
 		retireCommand, retireError := buzzRetireRoomByNameCommand(actionTarget)
 		response.Results = append(response.Results, service.runNamedRoomCommand(ctx, "retire the room this action names, bridged or not", retireCommand, retireError))
+	case "buzz-window-probe":
+		probeCommand, probeError := buzzChannelWindowProbeCommand(actionTarget)
+		response.Results = append(response.Results, service.runNamedRoomCommand(ctx, "ask the relay exactly what the app asks", probeCommand, probeError))
 	case "buzz-deletion-markers":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the deletion markers standing over messages nobody deleted", "sh", "-lc", buzzDeletionMarkerCommand(false)))
 	case "buzz-remove-deletion-markers":
@@ -1217,6 +1220,27 @@ func buzzRetireRoomByNameCommand(name string) (string, error) {
 	}
 	return strings.TrimSpace(buzzRoomChangePreamble() + `printf '== retired ==\n'
 q "WITH changed AS (UPDATE channels SET deleted_at = now() WHERE channel_type = 'stream' AND deleted_at IS NULL AND name = ` + quotedName + ` RETURNING id, name), forgotten AS (DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM changed)) SELECT id::text, name FROM changed"` + buzzRoomChangeRepublish()), nil
+}
+
+func buzzChannelWindowProbeCommand(target string) (string, error) {
+	pubkey, channelID, isPair := strings.Cut(strings.TrimSpace(target), "::")
+	if !isPair {
+		return "", errors.New("this action names the reader and the room as pubkey::channelID")
+	}
+	if strings.ContainsAny(pubkey+channelID, "'\"$`\n ") {
+		return "", fmt.Errorf("a pubkey or a room id carrying a quote or a space is refused: %q", target)
+	}
+	return strings.TrimSpace(`
+set -e
+HOST=$(su - postgres -c "psql -X -qAt -d buzz -c \"SELECT host FROM communities LIMIT 1\"")
+printf 'asking %s for room ` + channelID + ` as ` + pubkey + `\n' "$HOST"
+BODY='{"filters":[{"#h":["` + channelID + `"],"kinds":[9,40002,40008,40099,43001,43002,43003,43004,43005,43006,48100],"limit":50,"top_level":true,"include_summaries":true,"include_aux":true}]}'
+ANSWER=$(curl -sS -X POST "http://` + blueclaw.BuzzRelayBindAddress + `/query" -H "Host: $HOST" -H "Content-Type: application/json" -H "X-Pubkey: ` + pubkey + `" -d "$BODY")
+printf '== what the relay answered ==\n'
+printf '%s' "$ANSWER" | head -c 400
+printf '\n== how many events, by kind ==\n'
+printf '%s' "$ANSWER" | jq -r 'if type == "array" then (group_by(.kind) | map("\(.[0].kind): \(length)") | .[]) else "not an array: \(.)" end' 2>&1 | head -20
+`), nil
 }
 
 func buzzDeletionMarkerCommand(shouldRemove bool) string {
