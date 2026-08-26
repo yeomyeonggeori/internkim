@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 )
@@ -25,6 +26,48 @@ type circleRoomReport struct {
 	Added   int                 `json:"added"`
 	Removed int                 `json:"removed"`
 	Rooms   []circleRoomOutcome `json:"rooms"`
+}
+
+const (
+	circleRoomSyncInterval = 2 * time.Minute
+	circleRoomSyncTimeout  = 10 * time.Minute
+)
+
+// The relay lets any member of a private room invite anybody, so a circle room
+// can gain someone the circle does not hold and nothing refuses it. Removing
+// them on a tick is not the same as refusing the invite, and it is what this
+// device can do.
+func (service *Service) startCircleRoomMembershipSync(ctx context.Context) {
+	if !service.canWriteToBuzzRelay() {
+		return
+	}
+	log.Printf("circle rooms are kept to their circles every %s", circleRoomSyncInterval)
+	go func() {
+		ticker := time.NewTicker(circleRoomSyncInterval)
+		defer ticker.Stop()
+		for {
+			service.keepCircleRoomsToTheirCircles(ctx)
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+}
+
+func (service *Service) keepCircleRoomsToTheirCircles(ctx context.Context) {
+	syncContext, cancel := context.WithTimeout(ctx, circleRoomSyncTimeout)
+	defer cancel()
+	report, errorValue := service.reconcileCircleRoomMembership(syncContext, true)
+	if errorValue != nil {
+		log.Printf("circle rooms could not be kept to their circles: %v", errorValue)
+		return
+	}
+	if report.Added == 0 && report.Removed == 0 {
+		return
+	}
+	log.Printf("circle rooms: added %d, removed %d across %d rooms", report.Added, report.Removed, len(report.Rooms))
 }
 
 func (service *Service) handleCircleRoomMembership(responseWriter http.ResponseWriter, request *http.Request) {
