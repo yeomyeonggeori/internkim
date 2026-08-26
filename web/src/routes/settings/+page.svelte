@@ -3,6 +3,7 @@
 	import CompanyProfileImage from './company-profile-image.svelte';
 	import CompanyConnections from './company-connections.svelte';
 	import SignInPasskeys from './sign-in-passkeys.svelte';
+	import PersonalAPIKeys from './personal-api-keys.svelte';
 	import Notifications from './notifications.svelte';
 	import MyMessengerAccount from './my-messenger-account.svelte';
 	import { companySettingsText } from './text';
@@ -32,6 +33,7 @@
 			<p class="text-sm text-muted-foreground">{text.signInDescription}</p>
 		</header>
 		<SignInPasskeys />
+		<PersonalAPIKeys />
 		<Notifications />
 		<MyMessengerAccount />
 		{#if !isLoading && isAdmin}
