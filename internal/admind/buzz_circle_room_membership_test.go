@@ -86,3 +86,21 @@ func TestTheStaffSyncSkipsWhoIsAlreadyIn(t *testing.T) {
 		t.Fatal("skipping who is already in means reading who is in first")
 	}
 }
+
+func TestARoomKeepsOnlyItsLatestJoiningNotices(t *testing.T) {
+	source, errorValue := os.ReadFile("buzz_circle_room_membership.go")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	body := string(source)
+
+	if !strings.Contains(body, "PARTITION BY channel_id ORDER BY created_at DESC") {
+		t.Fatal("the newest notices a room keeps are counted per room, or one busy room decides for every other")
+	}
+	if !strings.Contains(body, "keepJoiningNoticesFromEatingTheWindow(syncContext)") {
+		t.Fatal("pruning belongs on the same tick that writes memberships, because that is what makes them")
+	}
+	if joiningNoticesARoomKeeps >= 50 {
+		t.Fatalf("a timeline shows fifty rows, so keeping %d leaves nothing for what people wrote", joiningNoticesARoomKeeps)
+	}
+}
