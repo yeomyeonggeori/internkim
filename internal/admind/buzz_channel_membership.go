@@ -124,13 +124,36 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 	for _, pubkey := range staffPubkeys {
 		service.grantRelayMembership(ctx, pubkey)
 	}
-	granted, failed := 0, 0
+	relay, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
+	if errorValue != nil {
+		log.Printf("buzz staff membership: %v", errorValue)
+		return
+	}
+	defer relay.Close()
+
+	granted, failed, alreadyIn := 0, 0, 0
 	for _, channelID := range channelIDs {
+		held, errorValue := buzzChannelMemberPubkeys(ctx, relay, channelID)
+		if errorValue != nil {
+			log.Printf("buzz staff membership: reading who is in %s failed: %v", channelID, errorValue)
+			return
+		}
+		isHeld := map[string]bool{}
+		for _, pubkey := range held {
+			isHeld[pubkey] = true
+		}
 		for _, pubkey := range staffPubkeys {
 			select {
 			case <-ctx.Done():
 				return
 			default:
+			}
+			// The relay announces a joining in the channel for every add it is
+			// asked to make, including one that changes nothing, and those
+			// announcements share the fifty rows a timeline shows.
+			if isHeld[pubkey] {
+				alreadyIn++
+				continue
 			}
 			errorValue := publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey)
 			// The relay drops a connection that only publishes, so one that has
@@ -158,7 +181,7 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 			time.Sleep(60 * time.Millisecond)
 		}
 	}
-	log.Printf("buzz staff membership: granted %d, failed %d", granted, failed)
+	log.Printf("buzz staff membership: granted %d, failed %d, already in %d", granted, failed, alreadyIn)
 }
 
 func (service *Service) bootstrapBuzzPubkey() (string, error) {
