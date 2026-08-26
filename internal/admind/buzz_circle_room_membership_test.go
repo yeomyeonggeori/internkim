@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -53,5 +54,20 @@ func TestTheStaffSyncOnlyEverFillsRoomsTheWholeCompanyCanRead(t *testing.T) {
 		if !strings.Contains(query, condition) {
 			t.Fatalf("a room the whole company is added to must be %s: %s", condition, query)
 		}
+	}
+}
+
+func TestEveryRoomChangeInGoTellsTheClientsToo(t *testing.T) {
+	source, errorValue := os.ReadFile("buzz_circle_room_membership.go")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	body := string(source)
+
+	if !strings.Contains(body, "tellClientsWhoIsInTheRoom") {
+		t.Fatal("a room this device changes must have its discovery events written again, or every client keeps the members it last read")
+	}
+	if !strings.Contains(body, "DELETE FROM events WHERE kind IN (39000,39001,39002)") {
+		t.Fatal("reconcile-channels writes an event only where none exists, so the room's own must go first")
 	}
 }
