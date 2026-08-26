@@ -12,7 +12,7 @@ func TestAnAttendeeTheCompanyCarriesGoesOntoTheEventAsThemselves(t *testing.T) {
 		{MemberID: "member-lee", Email: "member1@example.com", Name: "이샘플"},
 	})
 
-	participant, failure, hasFailure := service.calendarParticipantForPersonHint(context.Background(), "여명", "ko")
+	participant, failure, hasFailure := service.calendarParticipantForPersonHint(context.Background(), "예시", "ko")
 
 	if hasFailure {
 		t.Fatalf("half a colleague's name is how people refer to each other, failure=%+v", failure)
