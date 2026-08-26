@@ -12,6 +12,7 @@
 		type FoundedCompany
 	} from '$lib/company/found-company';
 	import { isSupabaseConfigured } from '$lib/supabase';
+	import { signOutOfSupabase } from '$lib/supabase-session';
 	import { onMount } from 'svelte';
 
 	const fieldID = $props.id();
@@ -25,6 +26,15 @@
 	let isFounding = $state(false);
 	let errorMessage = $state('');
 	let founded = $state<FoundedCompany | null>(null);
+	let isSigningOut = $state(false);
+
+	const signedInAs = $derived(page.data.session?.email ?? '');
+
+	async function signOut() {
+		isSigningOut = true;
+		await signOutOfSupabase();
+		location.replace('/flow/');
+	}
 
 	const invitedAddresses = $derived(
 		invited
@@ -115,7 +125,9 @@
 		<Card.Root class="w-full max-w-lg">
 			<Card.Header>
 				<Card.Title class="text-2xl">회사 만들기</Card.Title>
-				<Card.Description>초대받지 않은 계정이라 새 회사를 시작합니다.</Card.Description>
+				<Card.Description>
+					{signedInAs ? `${signedInAs} 계정은 아직 어느 회사에도 속해 있지 않습니다.` : '초대받지 않은 계정이라 새 회사를 시작합니다.'}
+				</Card.Description>
 			</Card.Header>
 			<Card.Content>
 				<form class="grid gap-4" onsubmit={create}>
@@ -151,6 +163,13 @@
 					<Button type="submit" disabled={isFounding || !name.trim() || !isAddressUsable}>만들기</Button>
 				</form>
 			</Card.Content>
+			{#if isSupabaseConfigured()}
+				<Card.Footer class="justify-center">
+					<Button variant="link" class="text-muted-foreground" onclick={signOut} disabled={isSigningOut}>
+						다른 계정으로 로그인
+					</Button>
+				</Card.Footer>
+			{/if}
 		</Card.Root>
 	{/if}
 </main>
