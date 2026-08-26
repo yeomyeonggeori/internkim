@@ -101,19 +101,20 @@ func TestReconcileBlueclawRosterDeliversTheRosterFromTheHost(t *testing.T) {
 	deviceDirectory := t.TempDir()
 	deliveredPolicyPath := filepath.Join(deviceDirectory, "policy.json")
 	service := NewService(Configuration{
-		APIBaseURL:                 "https://api.example.test",
+		CentralPlaneAppURL:         "https://company.example.test",
+		CentralPlaneProjectURL:     "https://project.example.test",
+		CentralPlanePublishableKey: "publishable",
+		CentralPlaneAgentKeyPath:   writeTestFile(t, "agent-key"),
 		BlueclawBaseURL:            "http://blueclaw.local",
 		BlueclawPolicyDeliveryPath: deliveredPolicyPath,
 		AdminEmailPath:             writeTestFile(t, "owner@example.com"),
-		FleetIDPath:                writeTestFile(t, "dc719d8e"),
-		FleetSecretPath:            writeTestFile(t, "secret-value"),
 		StateDirectory:             t.TempDir(),
 	})
 	policyReloaded := false
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
-			return jsonResponse(http.StatusOK, `{"revision":"7","records":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member"}]}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/member":
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member","status":"active","circles":["c-level"]}]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, `{"people":[{"personID":"person-old","emails":["departed@example.com"]},{"personID":"person-owner","emails":["owner@example.com"]}]}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/reload":
@@ -147,24 +148,30 @@ func TestReconcileBlueclawRosterDeliversTheRosterFromTheHost(t *testing.T) {
 	if slices.Contains(emails, "departed@example.com") {
 		t.Fatalf("expected the departed person off the delivered roster, got %v", emails)
 	}
+	people, _ := deliveredPolicy["people"].([]any)
+	circles := policyStringList(blueclawPersonWithEmail(people, "member@example.com")["circles"])
+	if !slices.Contains(circles, "c-level") {
+		t.Fatalf("a circle the company keeps must reach the delivered roster, got %v", circles)
+	}
 }
 
 func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 	deliveredPolicyPath := filepath.Join(t.TempDir(), "policy.json")
 	service := NewService(Configuration{
-		APIBaseURL:                 "https://api.example.test",
+		CentralPlaneAppURL:         "https://company.example.test",
+		CentralPlaneProjectURL:     "https://project.example.test",
+		CentralPlanePublishableKey: "publishable",
+		CentralPlaneAgentKeyPath:   writeTestFile(t, "agent-key"),
 		BlueclawBaseURL:            "http://blueclaw.local",
 		BlueclawPolicyDeliveryPath: deliveredPolicyPath,
 		AdminEmailPath:             writeTestFile(t, "owner@example.com"),
-		FleetIDPath:                writeTestFile(t, "dc719d8e"),
-		FleetSecretPath:            writeTestFile(t, "secret-value"),
 		StateDirectory:             t.TempDir(),
 	})
-	settledPolicy := `{"people":[{"circles":["staff"],"displayName":"Member","emails":["member@example.com"],"grantedClasses":["internal"],"isAdmin":false,"personID":"user-1","securityLevelName":"member","securityLevelRank":10}]}`
+	settledPolicy := `{"people":[{"circles":["staff","c-level"],"displayName":"Member","emails":["member@example.com"],"grantedClasses":["internal"],"isAdmin":false,"personID":"user-1","securityLevelName":"member","securityLevelRank":10}]}`
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
-			return jsonResponse(http.StatusOK, `{"revision":"7","records":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member"}]}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/member":
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member","status":"active","circles":["c-level"]}]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, settledPolicy, nil), nil
 		default:
