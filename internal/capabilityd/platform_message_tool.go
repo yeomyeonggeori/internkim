@@ -290,7 +290,7 @@ func (service Service) invokePlatformMessageDirectSend(ctx context.Context, requ
 
 func (service Service) resolvePlatformDirectSendRecipient(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string) (string, platformDMFailure, bool) {
 	if personHint != "" {
-		recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint)
+		recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint, request.Context.ResponseLanguage)
 		if hasFailure {
 			return "", failure, true
 		}
@@ -361,7 +361,7 @@ func canonicalPlatformMessageBroadcastResult(results []platformMessageBroadcastR
 }
 
 func (service Service) broadcastDirectMessageToHint(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string, message string) platformMessageBroadcastResult {
-	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint)
+	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint, request.Context.ResponseLanguage)
 	if hasFailure {
 		return platformMessageBroadcastResult{PersonHint: personHint, Status: "failed", ErrorCode: failure.ErrorCode, Message: failure.Message}
 	}

@@ -69,8 +69,8 @@ func isPlatformDMSelfRecipient(toolContext capabilities.ToolInvokeContext, recip
 // this platform asked which account is theirs. Deciding who somebody is from the
 // accounts this agent happens to have seen makes a colleague who has not written
 // to it yet into a stranger.
-func (service Service) resolvePlatformDMRecipient(ctx context.Context, personHint string) (platformDMRecipient, platformDMFailure, bool) {
-	named, directoryFailure, hasDirectoryFailure := service.namedDirectoryPerson(ctx, personHint)
+func (service Service) resolvePlatformDMRecipient(ctx context.Context, personHint string, responseLanguage string) (platformDMRecipient, platformDMFailure, bool) {
+	named, directoryFailure, hasDirectoryFailure := service.namedDirectoryPerson(ctx, personHint, responseLanguage)
 	if hasDirectoryFailure {
 		return platformDMRecipient{}, directoryFailure, true
 	}

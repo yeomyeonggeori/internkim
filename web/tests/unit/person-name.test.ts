@@ -1,28 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { personName } from '$lib/person-name';
+import type { Locale } from '$lib/i18n/locale.svelte';
+import sharedCases from '$lib/person-name-cases.json';
 
 describe('personName', () => {
-	test('writes a Korean name family first for a Korean reader', () => {
-		expect(personName('여명 김', 'ko')).toBe('김여명');
-		expect(personName('세은 박', 'ko')).toBe('박세은');
-	});
-
-	test('leaves the recorded order for an English reader', () => {
-		expect(personName('여명 김', 'en')).toBe('여명 김');
-		expect(personName('John Michael Smith', 'en')).toBe('John Michael Smith');
-	});
-
-	test('does not rewrite a Latin name for a Korean reader', () => {
-		expect(personName('John Michael Smith', 'ko')).toBe('John Michael Smith');
-	});
-
-	test('carries a middle name into the Korean order', () => {
-		expect(personName('예시 가운데 박', 'ko')).toBe('박예시가운데');
-	});
-
-	test('leaves a name of one part alone', () => {
-		expect(personName('김인턴', 'ko')).toBe('김인턴');
-		expect(personName('admin', 'ko')).toBe('admin');
-		expect(personName('  ', 'ko')).toBe('');
+	test('reads every recorded name as the shared cases say', () => {
+		expect(sharedCases.cases.length > 0).toBe(true);
+		for (const sharedCase of sharedCases.cases) {
+			expect(personName(sharedCase.recorded, sharedCase.locale as Locale)).toBe(sharedCase.rendered);
+		}
 	});
 });
