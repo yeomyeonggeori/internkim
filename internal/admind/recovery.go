@@ -76,7 +76,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-link-edits", "buzz-remove-link-edits", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-visibility", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-link-edits", "buzz-remove-link-edits", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-messages", "buzz-room-visibility", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -291,6 +291,8 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 	case "buzz-retire-room-by-name":
 		retireCommand, retireError := buzzRetireRoomByNameCommand(actionTarget)
 		response.Results = append(response.Results, service.runNamedRoomCommand(ctx, "retire the room this action names, bridged or not", retireCommand, retireError))
+	case "buzz-room-messages":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "say what each room holds", "sh", "-lc", buzzRoomMessagesCommand()))
 	case "buzz-room-roster":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read who each room holds", "sh", "-lc", buzzRoomRosterCommand()))
 	case "policy-circle-roster":
@@ -1182,6 +1184,19 @@ func buzzRetireRoomByNameCommand(name string) (string, error) {
 	}
 	return strings.TrimSpace(buzzRoomChangePreamble() + `printf '== retired ==\n'
 q "WITH changed AS (UPDATE channels SET deleted_at = now() WHERE channel_type = 'stream' AND deleted_at IS NULL AND name = ` + quotedName + ` RETURNING id, name), forgotten AS (DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM changed)) SELECT id::text, name FROM changed"` + buzzRoomChangeRepublish()), nil
+}
+
+func buzzRoomMessagesCommand() string {
+	return strings.TrimSpace(`
+set -e
+q() { su - postgres -c "psql -X -d buzz -c \"$1\""; }
+printf '== what each room holds ==\n'
+q "SELECT c.name AS room, count(e.*) AS messages, count(e.*) FILTER (WHERE e.deleted_at IS NOT NULL) AS gone, count(e.*) FILTER (WHERE e.not_before > now()) AS held_back, max(e.created_at) AS newest FROM channels c LEFT JOIN events e ON e.channel_id = c.id AND e.kind = 9 WHERE c.channel_type = 'stream' AND c.deleted_at IS NULL GROUP BY c.id, c.name ORDER BY 2 DESC"
+printf '== messages with no room ==\n'
+q "SELECT count(*) FROM events WHERE kind = 9 AND channel_id IS NULL"
+printf '== the newest handful anywhere ==\n'
+q "SELECT kind, created_at, left(encode(id, 'hex'), 8) AS event, deleted_at IS NOT NULL AS gone FROM events WHERE kind = 9 ORDER BY created_at DESC LIMIT 5"
+`)
 }
 
 func buzzRoomRosterCommand() string {
