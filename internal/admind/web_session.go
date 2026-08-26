@@ -386,7 +386,7 @@ func logoutRedirectURLForRequest(request *http.Request) string {
 	if returnPath := safeWebReturnPath(request.URL.Query().Get("return")); returnPath != "" {
 		return returnPath
 	}
-	return "/flow/"
+	return "/attendance/"
 }
 
 func returnPathForRequest(request *http.Request) string {
@@ -397,7 +397,7 @@ func returnPathForRequest(request *http.Request) string {
 	if safePath := safeWebReturnPath(path); safePath != "" {
 		return safePath
 	}
-	return "/flow/"
+	return "/attendance/"
 }
 
 func safeWebReturnPath(value string) string {

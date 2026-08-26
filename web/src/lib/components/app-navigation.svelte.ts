@@ -116,10 +116,10 @@ class AppNavigation {
 	logOut = async () => {
 		if (isSupabaseConfigured()) {
 			await signOutOfSupabase();
-			location.replace('/flow/');
+			location.replace('/attendance/');
 			return;
 		}
-		let redirectURL = '/flow/';
+		let redirectURL = '/attendance/';
 		try {
 			const response = await fetch(`/auth/logout?return=${encodeURIComponent(this.currentPath)}`, {
 				method: 'POST',
