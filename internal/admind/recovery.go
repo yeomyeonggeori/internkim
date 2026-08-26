@@ -1056,8 +1056,8 @@ journalctl -u ` + chatd + ` -n 20 --no-pager 2>&1 | tail -20
 func buzzReadTestCommand() string {
 	return strings.TrimSpace(`
 set +e
-ADMIN_TOKEN=$(cat /root/.internkim/secrets/mattermost-bot-token 2>/dev/null)
-EMAIL=$(curl -fsS -H "Authorization: Bearer $ADMIN_TOKEN" "` + blueclaw.BlueclawMattermostLocalURL + `/api/v4/users?per_page=60&active=true" 2>/dev/null | jq -r '[.[] | select(.is_bot|not) | .email] | .[0]')
+EMAIL=$(jq -r '[.people[]?.emails[]?] | map(select(. != null and . != "")) | .[0] // empty' ` + blueclaw.BlueclawPolicyConfigPath + ` 2>/dev/null)
+[ -n "$EMAIL" ] || { echo "the policy names nobody to read as"; exit 1; }
 echo "test user email: $EMAIL"
 echo "== /agent/api/channels (what the web lists) =="
 curl -fsS -H "X-Forwarded-Email: $EMAIL" "http://127.0.0.1:18080/agent/api/channels" 2>&1 | jq '{count: (.conversations|length), names: [.conversations[]?.name][0:8]}' 2>/dev/null || curl -sS -H "X-Forwarded-Email: $EMAIL" "http://127.0.0.1:18080/agent/api/channels" 2>&1 | head -c 400
