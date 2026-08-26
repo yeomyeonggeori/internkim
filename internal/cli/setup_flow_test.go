@@ -218,13 +218,13 @@ func TestCreateAdminUIArchiveIncludesBoardFiles(t *testing.T) {
 	}
 }
 
-func TestReadAdminUIVersionTrimsWhitespace(t *testing.T) {
+func TestTheVersionInAStampIsTrimmed(t *testing.T) {
 	boardUIPath := t.TempDir()
 	versionDirectory := filepath.Join(boardUIPath, "_app")
 	if errorValue := os.MkdirAll(versionDirectory, 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := os.WriteFile(filepath.Join(versionDirectory, "version.json"), []byte(" version-1 \n"), 0o644); errorValue != nil {
+	if errorValue := os.WriteFile(filepath.Join(versionDirectory, "version.json"), []byte("{\"version\": \" version-1 \"}\n"), 0o644); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
