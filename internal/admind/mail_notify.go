@@ -53,7 +53,7 @@ func (service *Service) announceMailFor(ctx context.Context, client *centralplan
 	if errorValue != nil || !found {
 		return
 	}
-	answered, errorValue := mail.StandardBackend{}.ListMessages(ctx, account, mail.MessageListRequest{
+	answered, errorValue := service.mailBackend.ListMessages(ctx, account, mail.MessageListRequest{
 		Mailbox: account.DefaultMailbox,
 		Limit:   mailNotifyBatch,
 	})
@@ -79,10 +79,13 @@ func (service *Service) announceMailFor(ctx context.Context, client *centralplan
 	if len(arrived) == 0 {
 		return
 	}
-	if _, errorValue := client.Notify(ctx, mailNotifyNotification(arrived, externalID)); errorValue != nil {
+	result, errorValue := client.Notify(ctx, mailNotifyNotification(arrived, externalID))
+	if errorValue != nil {
 		log.Printf("mail notify: %s was not told: %v", actorEmail, errorValue)
 		return
 	}
+	log.Printf("mail notify: %s has %d newer than %d; told=%d reached=%d",
+		actorEmail, len(arrived), seenUpTo, result.Told, result.Reached)
 	if errorValue := service.writeMailNotifyMark(ctx, actorEmail, newest); errorValue != nil {
 		log.Printf("mail notify: the mark for %s did not move: %v", actorEmail, errorValue)
 	}
