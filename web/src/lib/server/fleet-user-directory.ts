@@ -15,6 +15,31 @@ type MemberRow = {
 
 const memberColumns = 'id, email, name, note, is_admin, status, messenger';
 
+type CircleRow = { name: string; circle_member: { member_id: string }[] | null };
+
+export function circleNamesByMemberID(circles: CircleRow[]): Map<string, string[]> {
+	const namesByMemberID = new Map<string, string[]>();
+	for (const circle of circles) {
+		for (const membership of circle.circle_member ?? []) {
+			const held = namesByMemberID.get(membership.member_id) ?? [];
+			held.push(circle.name);
+			namesByMemberID.set(membership.member_id, held);
+		}
+	}
+	return namesByMemberID;
+}
+
+async function circlesOfTheCompany(directory: FleetDirectory): Promise<Map<string, string[]>> {
+	const circles = await directory.client
+		.from('circle')
+		.select('name, circle_member(member_id)')
+		.eq('company_id', directory.companyID)
+		.order('name')
+		.returns<CircleRow[]>();
+	if (circles.error) throw new Error(circles.error.message);
+	return circleNamesByMemberID(circles.data ?? []);
+}
+
 export async function fleetUserRecords(directory: FleetDirectory): Promise<FleetUserRecord[]> {
 	const members = await directory.client
 		.from('member')
@@ -24,7 +49,10 @@ export async function fleetUserRecords(directory: FleetDirectory): Promise<Fleet
 		.order('email')
 		.returns<MemberRow[]>();
 	if (members.error) throw new Error(members.error.message);
-	return (members.data ?? []).filter((member) => member.email).map(recordOf);
+	const circles = await circlesOfTheCompany(directory);
+	return (members.data ?? [])
+		.filter((member) => member.email)
+		.map((member) => recordOf(member, circles.get(member.id) ?? []));
 }
 
 export async function saveFleetUserRecord(
@@ -70,7 +98,7 @@ async function memberByEmail(directory: FleetDirectory, email: string): Promise<
 	return held.data;
 }
 
-function recordOf(member: MemberRow): FleetUserRecord {
+function recordOf(member: MemberRow, circles: string[]): FleetUserRecord {
 	const email = (member.email ?? '').toLowerCase();
 	const messenger = member.messenger ?? {};
 	const name = member.name?.trim() ?? '';
@@ -82,6 +110,7 @@ function recordOf(member: MemberRow): FleetUserRecord {
 		role: (member.is_admin ? 'admin' : 'member') as UserRole,
 		...(messenger.mattermost ? { mattermostUserID: messenger.mattermost } : {}),
 		...(messenger.mattermostUsername ? { mattermostUsername: messenger.mattermostUsername } : {}),
+		...(circles.length > 0 ? { circles } : {}),
 		status: member.status,
 		isIncomplete: !name
 	};
