@@ -1525,20 +1525,21 @@ func buzzRestoreDirectMessageDiscoveryCommand(snapshotName string) (string, erro
 	}
 	return strings.TrimSpace(`
 set -e
+set -o pipefail
 SNAPSHOT=/root/.internkim/backups/` + name + `
 test -r "$SNAPSHOT" || { echo "no snapshot at $SNAPSHOT"; exit 1; }
-CARRIED=/tmp/buzz-dm-discovery.csv
+READABLE=/tmp/buzz-discovery-snapshot.sql
+CARRIED=/tmp/buzz-dm-discovery.dump
 rm -f "$CARRIED"
-q() { su - postgres -c "psql -X -qAt -d buzz -c \"$1\"" 2>&1; }
+install -m 0644 "$SNAPSHOT" "$READABLE"
+q() { su - postgres -c "psql -X -qAt -v ON_ERROR_STOP=1 -d buzz -c \"$1\""; }
 printf '== direct message discovery events now ==\n'
 q "SELECT count(*) FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')"
-READABLE=/tmp/buzz-discovery-snapshot.sql
-install -m 0644 "$SNAPSHOT" "$READABLE"
 su - postgres -c "dropdb --if-exists buzz_discovery_restore" 2>&1 | grep -v 'does not exist, skipping' || true
 su - postgres -c "createdb buzz_discovery_restore"
-su - postgres -c "psql -X -q -v ON_ERROR_STOP=0 -d buzz_discovery_restore -f $READABLE" 2>&1 | tail -3
+su - postgres -c "psql -X -q -d buzz_discovery_restore -f $READABLE" 2>&1 | tail -3
 rm -f "$READABLE"
-su - postgres -c "psql -X -qAt -d buzz_discovery_restore -c \"COPY (SELECT e.* FROM events e JOIN channels c ON c.id = e.channel_id WHERE e.kind IN (39000,39001,39002) AND c.channel_type = 'dm') TO '$CARRIED' CSV\""
+su - postgres -c "psql -X -qAt -v ON_ERROR_STOP=1 -d buzz_discovery_restore -c \"COPY (SELECT e.* FROM events e JOIN channels c ON c.id = e.channel_id WHERE e.kind IN (39000,39001,39002) AND c.channel_type = 'dm') TO '$CARRIED'\""
 CARRIED_ROWS=$(wc -l < "$CARRIED" | tr -d ' ')
 printf 'events the snapshot carries: %s\n' "$CARRIED_ROWS"
 if [ "$CARRIED_ROWS" -lt 1 ]; then
@@ -1546,14 +1547,16 @@ if [ "$CARRIED_ROWS" -lt 1 ]; then
   echo "the snapshot carries no direct message discovery; nothing replaced"
   exit 1
 fi
-q "DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')" | sed 's/^/dropped: /'
-su - postgres -c "psql -X -qAt -d buzz -c \"COPY events FROM '$CARRIED' CSV\"" | sed 's/^/restored: /'
+q "DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')"
+su - postgres -c "psql -X -qAt -v ON_ERROR_STOP=1 -d buzz -c \"COPY events FROM '$CARRIED'\""
 su - postgres -c "dropdb --if-exists buzz_discovery_restore"
 rm -f "$CARRIED"
 printf '== direct message discovery events after ==\n'
-q "SELECT count(*) FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')"
+RESTORED=$(q "SELECT count(*) FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')")
+printf '%s\n' "$RESTORED"
+[ "$RESTORED" = "$CARRIED_ROWS" ] || { echo "the snapshot carried $CARRIED_ROWS and the messenger now holds $RESTORED"; exit 1; }
 printf '== how many carry a participant tag ==\n'
-q "SELECT count(*) FROM events WHERE kind = 39000 AND tags::text LIKE '%\"p\"%' AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')"
+q "SELECT count(*) FROM events WHERE kind = 39000 AND tags::text LIKE '%p%' AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')"
 `), nil
 }
 
