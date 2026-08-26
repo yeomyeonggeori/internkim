@@ -1,6 +1,7 @@
 import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { redirect, type Handle } from '@sveltejs/kit';
+import { homePath } from '$lib/home-path';
 import { sendsHomeToTheApp } from '$lib/server/home-redirect';
 import { movesToTheOneAddress, theOneAddressOf } from '$lib/server/company-host-redirect';
 
@@ -28,7 +29,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	if (sendsHomeToTheApp({ isBuilding: building, ...centralPlane, pathname: event.url.pathname })) {
-		redirect(307, '/attendance/');
+		redirect(307, homePath);
 	}
 
 	const response = await resolve(event, {
