@@ -165,7 +165,7 @@ func TestWebsiteLifecycleResolvesCanonicalSiteIdentityForEveryMutation(t *testin
 			forbidsPublish = true
 		}
 	}
-	if !forbidsPublish || !containsMattermostScenarioString(draftStep.ExpectedToolCalls, "terminal_run") {
+	if !forbidsPublish || !containsMattermostScenarioString(draftStep.ExpectedToolCalls, "shell") {
 		t.Fatalf("step 1 must draft through the scaffold script without publishing: %#v", draftStep)
 	}
 
@@ -189,7 +189,7 @@ func TestWebsiteLifecycleResolvesCanonicalSiteIdentityForEveryMutation(t *testin
 	if unserveStep.ApprovalAction != mattermostScenarioApprovalApprove ||
 		!containsMattermostScenarioString(unserveStep.ExpectedEvents, "confirmation.requested") ||
 		!containsMattermostScenarioString(unserveStep.ExpectedEvents, "approval.executed") ||
-		!containsMattermostScenarioString(unserveStep.ExpectedToolCalls, "terminal_run") ||
+		!containsMattermostScenarioString(unserveStep.ExpectedToolCalls, "shell") ||
 		len(unserveStep.ForbiddenWorkspaceFiles) == 0 {
 		t.Fatalf("step 5 must unserve with approval and remove workspace files explicitly: %#v", unserveStep)
 	}

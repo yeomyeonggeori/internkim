@@ -527,7 +527,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 			t.Fatalf("website skill must include %q", expectedText)
 		}
 	}
-	expectedToolReferences := "tool-references: terminal_run file_read file_write file_edit browser_open browser_snapshot browser_screenshot browser_click artifact_review site_serve site_list site_unserve"
+	expectedToolReferences := "tool-references: shell file_read file_write file_edit browser_open browser_snapshot browser_screenshot browser_click artifact_review site_serve site_list site_unserve"
 	if !strings.Contains(string(siteSkillDocument), expectedToolReferences) {
 		t.Fatalf("website skill must use the canonical tool references")
 	}
@@ -575,8 +575,8 @@ func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	skillContent := string(skillDocument)
-	if !strings.Contains(skillContent, `kim.intern.tool-references: "terminal_run"`) {
-		t.Fatal("calculator skill must declare its terminal_run reference in the Agent Skills metadata map")
+	if !strings.Contains(skillContent, `kim.intern.tool-references: "shell"`) {
+		t.Fatal("calculator skill must declare its shell reference in the Agent Skills metadata map")
 	}
 	if !strings.Contains(skillContent, "<skill>/scripts/calc.py") {
 		t.Fatal("calculator skill must run the bundled evaluator script")
