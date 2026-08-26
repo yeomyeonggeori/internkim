@@ -75,16 +75,9 @@ func (service *Service) handleMattermostInteractiveAction(responseWriter http.Re
 
 func (service *Service) mattermostInteractiveActionHandlers() map[string]mattermostInteractiveActionHandler {
 	return map[string]mattermostInteractiveActionHandler{
-		attendanceClockInAction: func(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload) {
-			service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockIn)
-		},
-		attendanceClockOutAction: func(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload) {
-			service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockOut)
-		},
-		attendanceToggleAction: service.handleAttendanceToggleAction,
-		"ask_confirm":          service.handleAskInteractiveAction,
-		"ask.cancel":           service.handleAskInteractiveAction,
-		"ask_choice":           service.handleAskInteractiveAction,
+		"ask_confirm": service.handleAskInteractiveAction,
+		"ask.cancel":  service.handleAskInteractiveAction,
+		"ask_choice":  service.handleAskInteractiveAction,
 	}
 }
 

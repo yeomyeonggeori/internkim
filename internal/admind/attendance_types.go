@@ -2,16 +2,13 @@ package admind
 
 import (
 	"time"
-
-	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 const (
 	attendanceKindClockIn                        = "clock_in"
 	attendanceKindClockOut                       = "clock_out"
 	attendanceSourceMattermostButton             = "mattermost_button"
-	attendanceChannelName                        = mattermostdefaults.AttendanceChannelName
-	attendanceChannelDisplayName                 = mattermostdefaults.AttendanceChannelDisplayName
+	attendanceChannelName                        = "attendance"
 	attendanceClockInAction                      = "attendanceClockIn"
 	attendanceClockOutAction                     = "attendanceClockOut"
 	attendanceToggleAction                       = "attendance.toggle"

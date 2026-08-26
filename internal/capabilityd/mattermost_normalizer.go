@@ -3,8 +3,6 @@ package capabilityd
 import (
 	"encoding/json"
 	"strings"
-
-	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 type mattermostPost struct {
@@ -73,10 +71,6 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 	if strings.TrimSpace(post.Type) != "" || strings.TrimSpace(post.UserID) == strings.TrimSpace(botUserID) {
 		return platformInboundEvent{}, false, nil
 	}
-	if strings.TrimSpace(channelName) == mattermostdefaults.AttendanceChannelName {
-		return platformInboundEvent{}, false, nil
-	}
-
 	isDirect := strings.EqualFold(strings.TrimSpace(channelType), "D")
 	if !isDirect && mattermostMentionsExcludeBot(post.Message, addressing) {
 		return platformInboundEvent{}, false, nil

@@ -273,20 +273,3 @@ INSERT OR IGNORE INTO attendance_leave_request_events (
 	}
 	return transaction.Commit()
 }
-
-func attendanceClockRequestWantsEarlyReturn(body attendanceClockRequest) bool {
-	return body.Kind == attendanceKindClockIn && body.ConfirmEarlyReturn
-}
-
-func (service *Service) completeAttendanceLeaveClock(
-	ctx context.Context,
-	activeLeave *attendanceActiveLeaveView,
-	employeeEmail string,
-	body attendanceClockRequest,
-	now time.Time,
-) error {
-	if activeLeave == nil || !attendanceClockRequestWantsEarlyReturn(body) {
-		return nil
-	}
-	return service.recordAttendanceLeaveEarlyReturn(ctx, *activeLeave, employeeEmail, now)
-}

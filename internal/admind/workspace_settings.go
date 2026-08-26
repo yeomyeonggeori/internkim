@@ -283,11 +283,6 @@ func (service *Service) updateMattermostChannelDisplayName(ctx context.Context, 
 	return service.cleanupMattermostManagedChannelSystemPosts(ctx, token, channelID)
 }
 
-func flowChannelDisplayName(language string) string {
-	channel, _ := mattermostdefaults.PublicChannelForLanguage(mattermostFlowChannelName, language)
-	return channel.DisplayName
-}
-
 func announcementsChannelDisplayName(language string) string {
 	if strings.EqualFold(strings.TrimSpace(language), workspaceLanguageEnglish) {
 		return "Announcements"
