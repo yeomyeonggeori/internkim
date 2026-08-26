@@ -4,6 +4,7 @@ import { callingAgent, environmentOf, type Environment } from '$lib/server/agent
 import { membersOfCompanyByExternalID } from '$lib/server/member-credential';
 import { notificationCategories, type NotificationCategory } from '$lib/notifications/categories';
 import { notifyMember, type Delivery, type Notification } from '$lib/server/notify-member';
+import { pictureURLOfMember } from '$lib/server/member-picture-url';
 import type { VapidKeys } from '$lib/server/web-push-vapid';
 import type { RequestHandler } from './$types';
 
@@ -16,6 +17,7 @@ type NotifyRequest = {
 	openPath?: unknown;
 	tag?: unknown;
 	conversationID?: unknown;
+	senderExternalID?: unknown;
 };
 
 export const POST: RequestHandler = async ({ request, platform }) => {
@@ -27,11 +29,12 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const recipients = askedExternalIDs(asked.externalIDs);
 	const memberOf = await membersOfCompanyByExternalID(client, companyID, askedPlatform(asked.platform));
 
+	const sender = typeof asked.senderExternalID === 'string' ? memberOf.get(asked.senderExternalID) : undefined;
 	const delivered = await tellEach(
 		client,
 		recipients.map((externalID) => memberOf.get(externalID)).filter((id): id is string => Boolean(id)),
 		askedCategory(asked.category),
-		askedNotification(asked),
+		{ ...askedNotification(asked), icon: await pictureURLOfMember(client, sender ?? '') },
 		vapid,
 		typeof asked.conversationID === 'string' ? asked.conversationID : ''
 	);

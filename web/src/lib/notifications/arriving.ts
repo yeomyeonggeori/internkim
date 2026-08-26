@@ -3,13 +3,15 @@ export type Arriving = {
 	body: string;
 	openPath: string;
 	tag: string;
+	icon: string;
 };
 
 const somethingHappened: Arriving = {
 	title: 'internkim',
 	body: '',
 	openPath: '/flow/',
-	tag: 'internkim'
+	tag: 'internkim',
+	icon: ''
 };
 
 export function readArriving(pushed: unknown): Arriving {
@@ -20,8 +22,14 @@ export function readArriving(pushed: unknown): Arriving {
 		title: text(held.title) || somethingHappened.title,
 		body: text(held.body),
 		openPath: ownPath(held.openPath) || somethingHappened.openPath,
-		tag: text(held.tag) || somethingHappened.tag
+		tag: text(held.tag) || somethingHappened.tag,
+		icon: secureURL(held.icon)
 	};
+}
+
+function secureURL(offered: unknown): string {
+	if (typeof offered !== 'string') return '';
+	return offered.startsWith('https://') ? offered : '';
 }
 
 function text(offered: unknown): string {

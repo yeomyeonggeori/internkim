@@ -7,6 +7,7 @@ export type Notification = {
 	body: string;
 	openPath: string;
 	tag: string;
+	icon?: string;
 };
 
 export type Reached = {
