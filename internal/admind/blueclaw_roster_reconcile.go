@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
 const (
@@ -40,16 +42,32 @@ func (service *Service) reconcileBlueclawRosterWithTimeout(ctx context.Context) 
 }
 
 func (service *Service) reconcileBlueclawRoster(ctx context.Context) error {
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID == "" || fleetSecret == "" {
+	client := service.centralPlane()
+	if client == nil {
 		return nil
 	}
-	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
+	members, errorValue := client.Members(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
-	return service.deliverRosterReconciledWith(ctx, records)
+	return service.deliverRosterReconciledWith(ctx, rosterRecordsOfMembers(members))
+}
+
+func rosterRecordsOfMembers(members []centralplane.Member) []adminUserMutation {
+	records := make([]adminUserMutation, 0, len(members))
+	for _, member := range members {
+		if !member.IsActive() {
+			continue
+		}
+		records = append(records, adminUserMutation{
+			MemberID: strings.TrimSpace(member.MemberID),
+			Email:    strings.ToLower(strings.TrimSpace(member.Email)),
+			Name:     strings.TrimSpace(member.Name),
+			Role:     strings.TrimSpace(member.Role),
+			Circles:  member.Circles,
+		})
+	}
+	return records
 }
 
 func (service *Service) deliverRosterReconciledWith(ctx context.Context, records []adminUserMutation) error {
