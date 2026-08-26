@@ -28,6 +28,9 @@ func mergeCalendarEventUpdateInput(update calendarEventUpdateInput, current cale
 		input.People = *update.ParticipantPersonHints
 		input.Participants = nil
 	}
+	if update.EveryoneAttends != nil {
+		input.EveryoneAttends = *update.EveryoneAttends
+	}
 	if update.NotifyMinutesBefore != nil {
 		input.NotifyMinutesBefore = *update.NotifyMinutesBefore
 	}

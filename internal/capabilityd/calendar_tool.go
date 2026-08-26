@@ -29,19 +29,21 @@ func (errorValue *calendarToolRequestError) Error() string {
 }
 
 type calendarEventWriteInput struct {
-	EventID             string
-	Title               string
-	Note                string
-	Location            string
-	StartsAt            string
-	EndsAt              string
-	IsWholeDay          bool
-	People              calendarToolPeopleInput
-	Participants        []calendarToolParticipant
-	NotifyMinutesBefore int
-	AllowDuplicate      bool
-	IncludeRequester    *bool
-	ExpectedUpdatedAt   string
+	EventID                   string
+	Title                     string
+	Note                      string
+	Location                  string
+	StartsAt                  string
+	EndsAt                    string
+	IsWholeDay                bool
+	EveryoneAttends           bool
+	People                    calendarToolPeopleInput
+	Participants              []calendarToolParticipant
+	IsRequestedOfSomebodyElse bool
+	NotifyMinutesBefore       int
+	AllowDuplicate            bool
+	IncludeRequester          *bool
+	ExpectedUpdatedAt         string
 }
 
 // An event is a task the company marked as one, so it is written with the task's
@@ -54,6 +56,7 @@ type calendarEventAddInput struct {
 	EndsAt                 string                  `json:"endsAt"`
 	IsWholeDay             bool                    `json:"isWholeDay"`
 	ParticipantPersonHints calendarToolPeopleInput `json:"participantPersonHints"`
+	EveryoneAttends        bool                    `json:"everyoneAttends"`
 	NotifyMinutesBefore    *int                    `json:"notifyMinutesBefore"`
 }
 
@@ -75,6 +78,7 @@ type calendarEventUpdateInput struct {
 	EndsAt                 *string                  `json:"endsAt"`
 	IsWholeDay             *bool                    `json:"isWholeDay"`
 	ParticipantPersonHints *calendarToolPeopleInput `json:"participantPersonHints"`
+	EveryoneAttends        *bool                    `json:"everyoneAttends"`
 	NotifyMinutesBefore    *int                     `json:"notifyMinutesBefore"`
 }
 
@@ -250,13 +254,14 @@ func decodeCalendarEventWriteInput(document json.RawMessage) (calendarEventWrite
 		return calendarEventWriteInput{}, errorValue
 	}
 	input := calendarEventWriteInput{
-		Title:      strings.TrimSpace(externalInput.Title),
-		Note:       strings.TrimSpace(externalInput.Note),
-		Location:   strings.TrimSpace(externalInput.Location),
-		StartsAt:   strings.TrimSpace(externalInput.StartsAt),
-		EndsAt:     strings.TrimSpace(externalInput.EndsAt),
-		IsWholeDay: externalInput.IsWholeDay,
-		People:     normalizeCalendarToolPeople([]string(externalInput.ParticipantPersonHints)),
+		Title:           strings.TrimSpace(externalInput.Title),
+		Note:            strings.TrimSpace(externalInput.Note),
+		Location:        strings.TrimSpace(externalInput.Location),
+		StartsAt:        strings.TrimSpace(externalInput.StartsAt),
+		EndsAt:          strings.TrimSpace(externalInput.EndsAt),
+		IsWholeDay:      externalInput.IsWholeDay,
+		EveryoneAttends: externalInput.EveryoneAttends,
+		People:          normalizeCalendarToolPeople([]string(externalInput.ParticipantPersonHints)),
 	}
 	if externalInput.NotifyMinutesBefore != nil {
 		if *externalInput.NotifyMinutesBefore <= 0 {
@@ -469,20 +474,22 @@ func hasCalendarEventUpdatePatch(input calendarEventUpdateInput) bool {
 		input.EndsAt != nil ||
 		input.IsWholeDay != nil ||
 		input.ParticipantPersonHints != nil ||
+		input.EveryoneAttends != nil ||
 		input.NotifyMinutesBefore != nil
 }
 
 func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 	payload := map[string]any{
-		"title":               input.Title,
-		"description":         input.Note,
-		"location":            input.Location,
-		"startISO":            input.StartsAt,
-		"endISO":              input.EndsAt,
-		"isAllDay":            input.IsWholeDay,
-		"people":              []string(input.People),
-		"notifyMinutesBefore": input.NotifyMinutesBefore,
-		"allowDuplicate":      input.AllowDuplicate,
+		"title":                     input.Title,
+		"description":               input.Note,
+		"location":                  input.Location,
+		"startISO":                  input.StartsAt,
+		"endISO":                    input.EndsAt,
+		"isAllDay":                  input.IsWholeDay,
+		"people":                    []string(input.People),
+		"notifyMinutesBefore":       input.NotifyMinutesBefore,
+		"isRequestedOfSomebodyElse": input.IsRequestedOfSomebodyElse,
+		"allowDuplicate":            input.AllowDuplicate,
 	}
 	if input.ExpectedUpdatedAt != "" {
 		payload["expectedUpdatedAt"] = input.ExpectedUpdatedAt

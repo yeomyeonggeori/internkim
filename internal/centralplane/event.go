@@ -23,6 +23,7 @@ type Event struct {
 	IsWholeDay bool
 	// Minutes before the start that attendees are notified. Zero is no reminder.
 	NotifyMinutesBefore int
+	Status              string
 	UpdatedAt           string
 	ParticipantMails    []string
 	// ExpectedUpdatedAt is the version the writer read. The company refuses a
@@ -35,7 +36,7 @@ type Event struct {
 // gone, and PostgREST carries that code through in the body it answers with.
 const serializationFailureCode = "40001"
 
-const eventSelection = "id,title,note,location,starts_at,ends_at,is_whole_day,notify_minutes_before,updated_at,task_participant(member(email))"
+const eventSelection = "id,title,note,location,starts_at,ends_at,is_whole_day,notify_minutes_before,status,updated_at,task_participant(member(email))"
 
 // EventsBetween answers the company's events that overlap the window, earliest
 // first. An event that started before it and has not ended overlaps it, so the
@@ -49,6 +50,9 @@ func (client *Client) EventsBetween(ctx context.Context, platform string, extern
 	query.Set("select", eventSelection)
 	query.Set("order", "starts_at.asc")
 	query.Set("is_event", "eq.true")
+	// An event somebody has been asked to attend is still on the calendar; one
+	// that was turned down is not.
+	query.Set("status", "neq.rejected")
 	if strings.TrimSpace(endISO) != "" {
 		query.Set("starts_at", "lt."+endISO)
 	}
@@ -102,6 +106,7 @@ func (client *Client) eventsMatching(ctx context.Context, session memberSession,
 		EndsAt              string `json:"ends_at"`
 		IsWholeDay          bool   `json:"is_whole_day"`
 		NotifyMinutesBefore *int   `json:"notify_minutes_before"`
+		Status              string `json:"status"`
 		UpdatedAt           string `json:"updated_at"`
 		Participants        []struct {
 			Member struct {
@@ -124,6 +129,7 @@ func (client *Client) eventsMatching(ctx context.Context, session memberSession,
 			EndsAt:              row.EndsAt,
 			IsWholeDay:          row.IsWholeDay,
 			NotifyMinutesBefore: minutesOf(row.NotifyMinutesBefore),
+			Status:              row.Status,
 			UpdatedAt:           row.UpdatedAt,
 		}
 		for _, participant := range row.Participants {
@@ -177,6 +183,7 @@ func (client *Client) SaveEvent(ctx context.Context, platform string, externalID
 		"target_participant_ids":       participants,
 		"target_expected_updated_at":   nullableString(event.ExpectedUpdatedAt),
 		"target_notify_minutes_before": nullableMinutes(event.NotifyMinutesBefore),
+		"target_status":                nullableString(event.Status),
 	}
 	var savedID string
 	if errorValue := client.callAsMember(ctx, session, "save_calendar_event", arguments, &savedID); errorValue != nil {

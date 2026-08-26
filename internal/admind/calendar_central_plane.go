@@ -105,7 +105,7 @@ func (service *Service) centralCalendarWriter(request *http.Request) (*centralpl
 // one it does not. The device mints its own id before it knows whether the
 // company will keep the event, and sending that as the company's id asks it to
 // change a row nobody has.
-func (service *Service) saveCentralCalendarEvent(request *http.Request, event calendarEvent, centralID string, expectedUpdatedAt string) (calendarEvent, bool, error) {
+func (service *Service) saveCentralCalendarEvent(request *http.Request, event calendarEvent, centralID string, expectedUpdatedAt string, isRequestedOfSomebodyElse bool) (calendarEvent, bool, error) {
 	client, requesterEmail, canWrite := service.centralCalendarWriter(request)
 	if !canWrite {
 		return calendarEvent{}, false, nil
@@ -119,6 +119,7 @@ func (service *Service) saveCentralCalendarEvent(request *http.Request, event ca
 		EndsAt:              event.EndISO,
 		IsWholeDay:          event.IsAllDay,
 		NotifyMinutesBefore: event.ReminderLeadHours * 60,
+		Status:              requestedStatusWhenAskedOfSomebodyElse(isRequestedOfSomebodyElse),
 		ParticipantMails:    calendarParticipantEmails(event),
 		ExpectedUpdatedAt:   expectedUpdatedAt,
 	})
@@ -190,4 +191,14 @@ func (service *Service) removeCompanyCalendarEvent(ctx context.Context, requeste
 		return nil
 	}
 	return client.DeleteEvent(ctx, "email", requesterEmail, eventID)
+}
+
+// A task the company holds stands at requested until the person asked answers,
+// and the company reads who asked from that. An event somebody files for
+// themselves says nothing about a requester and keeps the default.
+func requestedStatusWhenAskedOfSomebodyElse(isRequestedOfSomebodyElse bool) string {
+	if isRequestedOfSomebodyElse {
+		return "requested"
+	}
+	return ""
 }

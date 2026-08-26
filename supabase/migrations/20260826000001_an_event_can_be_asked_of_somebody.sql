@@ -1,8 +1,10 @@
--- An event carried a reminder the caller set and the company never heard about,
--- so a person was told their reminder was set and no reminder existed. The write
--- now carries it, which is what the column was already there for.
+-- An event somebody files for a colleague is a request of them, and the company
+-- already stamps who asked from the status: lock_task_requester fills
+-- requester_id when a row stands at requested. The write could not say so,
+-- because it took no status at all, so an event asked of somebody recorded
+-- nobody asking. A write that says nothing keeps what the row has.
 drop function if exists public.save_calendar_event(
-  uuid, text, text, jsonb, timestamptz, timestamptz, boolean, text, uuid[], timestamptz
+  uuid, text, text, jsonb, timestamptz, timestamptz, boolean, text, uuid[], timestamptz, integer
 );
 
 create function public.save_calendar_event(
@@ -16,7 +18,8 @@ create function public.save_calendar_event(
   target_size text,
   target_participant_ids uuid[],
   target_expected_updated_at timestamptz default null,
-  target_notify_minutes_before integer default null
+  target_notify_minutes_before integer default null,
+  target_status public.task_status default null
 )
 returns uuid
 language plpgsql
@@ -76,7 +79,8 @@ begin
       is_event,
       is_whole_day,
       size,
-      notify_minutes_before
+      notify_minutes_before,
+      status
     ) values (
       actor_company,
       target_title,
@@ -87,7 +91,8 @@ begin
       true,
       target_is_whole_day,
       target_size,
-      target_notify_minutes_before
+      target_notify_minutes_before,
+      coalesce(target_status, 'todo')
     )
     returning id into saved_task;
   else
@@ -126,7 +131,8 @@ begin
         ends_at = target_ends_at,
         is_whole_day = target_is_whole_day,
         size = target_size,
-        notify_minutes_before = target_notify_minutes_before
+        notify_minutes_before = target_notify_minutes_before,
+        status = coalesce(target_status, task.status)
     where id = target_task_id;
 
     saved_task := target_task_id;
@@ -144,8 +150,8 @@ end;
 $$;
 
 revoke execute on function public.save_calendar_event(
-  uuid, text, text, jsonb, timestamptz, timestamptz, boolean, text, uuid[], timestamptz, integer
+  uuid, text, text, jsonb, timestamptz, timestamptz, boolean, text, uuid[], timestamptz, integer, public.task_status
 ) from public, anon, service_role;
 grant execute on function public.save_calendar_event(
-  uuid, text, text, jsonb, timestamptz, timestamptz, boolean, text, uuid[], timestamptz, integer
+  uuid, text, text, jsonb, timestamptz, timestamptz, boolean, text, uuid[], timestamptz, integer, public.task_status
 ) to authenticated;

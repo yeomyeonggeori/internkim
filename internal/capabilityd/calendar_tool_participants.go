@@ -13,7 +13,7 @@ import (
 // everybody named is nobody in particular: an event the whole company is invited
 // to carries no attendee list to narrow it by.
 func (service Service) prepareCalendarEventWriteInput(ctx context.Context, input calendarEventWriteInput, toolContext capabilities.ToolInvokeContext, mayAddTheRequesterAlone bool) (calendarEventWriteInput, platformDMFailure, bool) {
-	if calendarToolPeopleIncludesAll(input.People) {
+	if input.EveryoneAttends {
 		input.People = nil
 		input.Participants = nil
 		return input, platformDMFailure{}, false
@@ -36,7 +36,32 @@ func (service Service) prepareCalendarEventWriteInput(ctx context.Context, input
 	if len(input.Participants) > 0 {
 		input.People = calendarToolParticipantNames(input.Participants)
 	}
+	input.IsRequestedOfSomebodyElse = isRequestedOfSomebodyElse(service.calendarRequesterParticipant(ctx, toolContext), input.Participants)
 	return input, platformDMFailure{}, false
+}
+
+// Somebody asked somebody else to be somewhere, and the record says so by
+// standing at requested until they answer. An event the person asking attends,
+// or one the whole company is invited to, was nobody's request of anybody. The
+// company stamps who asked from the status, so this is the only decision.
+func isRequestedOfSomebodyElse(requester calendarToolParticipant, participants []calendarToolParticipant) bool {
+	if len(participants) == 0 {
+		return false
+	}
+	requesterEmail := strings.ToLower(strings.TrimSpace(requester.Email))
+	requesterPersonID := strings.TrimSpace(requester.PersonID)
+	if requesterEmail == "" && requesterPersonID == "" {
+		return false
+	}
+	for _, participant := range participants {
+		if requesterEmail != "" && strings.ToLower(strings.TrimSpace(participant.Email)) == requesterEmail {
+			return false
+		}
+		if requesterPersonID != "" && strings.TrimSpace(participant.PersonID) == requesterPersonID {
+			return false
+		}
+	}
+	return true
 }
 
 func calendarToolShouldIncludeRequester(input calendarEventWriteInput, mayAddTheRequesterAlone bool) bool {
@@ -48,33 +73,22 @@ func calendarToolShouldIncludeRequester(input calendarEventWriteInput, mayAddThe
 	return mayAddTheRequesterAlone && len(input.People) == 0 && len(input.Participants) == 0
 }
 
-func calendarToolPeopleIncludesAll(people []string) bool {
-	for _, person := range people {
-		normalizedPerson := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(person, "@")))
-		if normalizedPerson == "all" || normalizedPerson == "전체" {
-			return true
-		}
-	}
-	return false
-}
-
+// The person asking is looked up in the same directory as everybody else, so
+// they carry the company's own identifier rather than whatever this messenger
+// calls them.
 func (service Service) calendarRequesterParticipant(ctx context.Context, toolContext capabilities.ToolInvokeContext) calendarToolParticipant {
 	for _, hint := range calendarRequesterHints(toolContext) {
-		resolution, errorValue := service.fetchPlatformDMRecipientResolution(ctx, hint)
+		resolution, errorValue := service.resolveDirectoryPersonHint(ctx, hint)
 		if errorValue != nil {
 			continue
 		}
-		switch resolution.Status {
-		case "resolved", "unlinked":
-			participant := calendarToolParticipantFromRecipient(platformDMRecipientFromResolution(resolution.Recipient), hint)
-			if strings.TrimSpace(participant.Name) != "" {
-				return participant
-			}
+		if resolution.Outcome == hintResolved {
+			return calendarToolParticipantFromDirectoryPerson(resolution.Match, hint, toolContext.ResponseLanguage)
 		}
 	}
 	return calendarToolParticipant{
 		PersonID: strings.TrimSpace(toolContext.RequesterPersonID),
-		Name:     firstNonEmpty(strings.TrimSpace(toolContext.RequesterName), strings.TrimSpace(toolContext.RequesterEmail), strings.TrimSpace(toolContext.RequesterPersonID)),
+		Name:     firstNonEmpty(personname.Render(toolContext.RequesterName, toolContext.ResponseLanguage), strings.TrimSpace(toolContext.RequesterEmail), strings.TrimSpace(toolContext.RequesterPersonID)),
 		Email:    strings.ToLower(strings.TrimSpace(toolContext.RequesterEmail)),
 	}
 }

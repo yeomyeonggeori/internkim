@@ -48,23 +48,43 @@ func TestNamingNobodyMeansThePersonAsking(t *testing.T) {
 	}
 }
 
+// Whether an event is open to everyone is the model's to say before it calls.
+// Reading it out of the attendee list meant a colleague actually called 전체
+// could never be invited to anything.
 func TestEverybodyIsNobodyInParticular(t *testing.T) {
 	service := serviceWithDirectoryPeople(t, []directoryPerson{
 		{MemberID: "member-lee", Email: "lee@dawn.kim", Name: "동하 이"},
 	})
 
-	for _, everyone := range []string{"전체", "all", "@all"} {
-		prepared, _, hasFailure := service.prepareCalendarEventWriteInput(
-			context.Background(),
-			calendarEventWriteInput{Title: "전사 워크숍", People: []string{everyone}},
-			capabilities.ToolInvokeContext{RequesterEmail: "lee@dawn.kim", RequesterName: "동하 이", ResponseLanguage: "ko"},
-			true,
-		)
-		if hasFailure {
-			t.Fatalf("%q is not a person to look up", everyone)
-		}
-		if len(prepared.Participants) != 0 || len(prepared.People) != 0 {
-			t.Fatalf("%q left an attendee list: people=%+v participants=%+v", everyone, prepared.People, prepared.Participants)
-		}
+	prepared, _, hasFailure := service.prepareCalendarEventWriteInput(
+		context.Background(),
+		calendarEventWriteInput{Title: "전사 워크숍", EveryoneAttends: true},
+		capabilities.ToolInvokeContext{RequesterEmail: "lee@dawn.kim", RequesterName: "동하 이", ResponseLanguage: "ko"},
+		true,
+	)
+	if hasFailure {
+		t.Fatal("an event open to everyone names nobody to look up")
+	}
+	if len(prepared.Participants) != 0 || len(prepared.People) != 0 {
+		t.Fatalf("an all-hands event left an attendee list: people=%+v participants=%+v", prepared.People, prepared.Participants)
+	}
+}
+
+func TestAColleagueCalledEveryoneIsStillAColleague(t *testing.T) {
+	service := serviceWithDirectoryPeople(t, []directoryPerson{
+		{MemberID: "member-jeonche", Email: "jeonche@dawn.kim", Name: "전체 김"},
+	})
+
+	prepared, _, hasFailure := service.prepareCalendarEventWriteInput(
+		context.Background(),
+		calendarEventWriteInput{Title: "면담", People: calendarToolPeopleInput{"전체"}},
+		capabilities.ToolInvokeContext{RequesterEmail: "lee@dawn.kim", ResponseLanguage: "ko"},
+		true,
+	)
+	if hasFailure {
+		t.Fatal("a name is a name even when it reads like a word the runtime used to watch for")
+	}
+	if len(prepared.Participants) != 1 || prepared.Participants[0].Email != "jeonche@dawn.kim" {
+		t.Fatalf("participants = %+v", prepared.Participants)
 	}
 }
