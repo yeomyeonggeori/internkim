@@ -60,7 +60,7 @@ describe('a question asked of the route, not the address', () => {
 	});
 
 	test('sends a task back to its own list, company and all', () => {
-		expect(taskListPathOf('/tasks/abc')).toBe('/tasks');
-		expect(taskListPathOf('/samplecompany/tasks/abc')).toBe('/samplecompany/tasks');
+		expect(taskListPathOf('/runs/abc')).toBe('/runs');
+		expect(taskListPathOf('/samplecompany/runs/abc')).toBe('/samplecompany/runs');
 	});
 });

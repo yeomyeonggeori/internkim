@@ -16,9 +16,9 @@ export const reservedFirstSegments = [
 	'openapi',
 	'ops',
 	'organization',
+	'runs',
 	'settings',
-	'start',
-	'tasks'
+	'start'
 ];
 
 const reserved = new Set(reservedFirstSegments);
