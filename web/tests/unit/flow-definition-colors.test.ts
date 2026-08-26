@@ -5,7 +5,7 @@ import type { FlowDefinitions } from '../../src/routes/flow/flow-types';
 describe('flow definition colors', () => {
 	test('prefers the color saved in the definitions', () => {
 		const definitions = flowDefinitions({
-			categories: ['여명거리', '김인턴'],
+			categories: ['샘플거리', '김인턴'],
 			categoryColors: { 김인턴: '#DC2626' },
 			types: ['기능'],
 			typeColors: { 기능: '#0891b2' }
@@ -16,9 +16,9 @@ describe('flow definition colors', () => {
 	});
 
 	test('falls back to the definitions order palette when no color is saved', () => {
-		const definitions = flowDefinitions({ categories: ['여명거리', '김인턴'], types: ['기획', '기능'] });
+		const definitions = flowDefinitions({ categories: ['샘플거리', '김인턴'], types: ['기획', '기능'] });
 
-		expect(flowBusinessColor('여명거리', definitions)).toBe(flowDefinitionPaletteColor(0));
+		expect(flowBusinessColor('샘플거리', definitions)).toBe(flowDefinitionPaletteColor(0));
 		expect(flowTaskTypeColor('기능', definitions)).toBe(flowDefinitionPaletteColor(1));
 	});
 

@@ -112,7 +112,7 @@ describe('createDevFlowSummary', () => {
 				}
 			],
 			{
-				categories: ['여명거리'],
+				categories: ['샘플거리'],
 				types: ['기능'],
 				sizes: [
 					sizeDefinition('D1', 1),
@@ -142,7 +142,7 @@ function scoreTask(id: string, size: string, endDate: string) {
 		ownerName: '김철수',
 		participantIDs: ['member-a'],
 		participantNames: ['김철수'],
-		business: '여명거리',
+		business: '샘플거리',
 		type: '기능',
 		content: id,
 		goal: '',

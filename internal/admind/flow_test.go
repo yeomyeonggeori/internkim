@@ -105,7 +105,7 @@ func TestBuildFlowMetricsCountsCompletedDistanceAndKeepsLegacyScoreAliases(t *te
 	metrics := buildFlowMetrics([]flowTask{
 		{
 			ParticipantNames: []string{"김철수", "이영희"},
-			Business:         "여명거리",
+			Business:         "샘플거리",
 			Type:             "기능",
 			Size:             "M",
 			Status:           "완료",
@@ -113,7 +113,7 @@ func TestBuildFlowMetricsCountsCompletedDistanceAndKeepsLegacyScoreAliases(t *te
 		},
 		{
 			ParticipantNames: []string{"김철수"},
-			Business:         "여명거리",
+			Business:         "샘플거리",
 			Type:             "개선",
 			Size:             "M",
 			Status:           "완료",

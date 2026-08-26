@@ -39,8 +39,8 @@ describe('flow task workspace model', () => {
 	test('filters tasks by multiple participants and empty business', () => {
 		const tasks = [
 			flowTask({ id: 'task-1', participantIDs: ['engineer'], business: '' }),
-			flowTask({ id: 'task-2', participantIDs: ['designer'], business: '여명거리' }),
-			flowTask({ id: 'task-3', participantIDs: ['engineer', 'designer'], business: '여명거리' })
+			flowTask({ id: 'task-2', participantIDs: ['designer'], business: '샘플거리' }),
+			flowTask({ id: 'task-3', participantIDs: ['engineer', 'designer'], business: '샘플거리' })
 		];
 
 		expect(filterFlowTasks(tasks, {
@@ -61,11 +61,11 @@ describe('flow task workspace model', () => {
 
 	test('labels empty business as 기타 without changing the persisted value', () => {
 		expect(flowBusinessLabel('', '기타')).toBe('기타');
-		expect(flowBusinessLabel('여명거리', '기타')).toBe('여명거리');
-		expect(buildBusinessFilterOptions(['여명거리'], '전체', '기타')).toEqual([
+		expect(flowBusinessLabel('샘플거리', '기타')).toBe('샘플거리');
+		expect(buildBusinessFilterOptions(['샘플거리'], '전체', '기타')).toEqual([
 			{ value: 'all', label: '전체' },
 			{ value: EMPTY_FLOW_BUSINESS_VALUE, label: '기타' },
-			{ value: '여명거리', label: '여명거리' }
+			{ value: '샘플거리', label: '샘플거리' }
 		]);
 	});
 
