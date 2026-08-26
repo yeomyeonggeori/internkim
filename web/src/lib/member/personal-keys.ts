@@ -1,12 +1,5 @@
 import { supabase } from '$lib/supabase';
 
-export type PersonalKey = {
-	keyID: string;
-	name: string;
-	createdAt: string;
-	lastSeenAt: string | null;
-};
-
 async function signedInHeaders(): Promise<Record<string, string>> {
 	const { data } = await supabase().auth.getSession();
 	const accessToken = data.session?.access_token;
@@ -19,28 +12,28 @@ async function answerOf(response: Response): Promise<unknown> {
 	return response.json();
 }
 
-export async function listPersonalKeys(): Promise<PersonalKey[]> {
+export async function personalKeyNames(): Promise<string[]> {
 	const answer = (await answerOf(
 		await fetch('/api/member/key', { headers: await signedInHeaders() })
-	)) as { keys?: PersonalKey[] };
-	return answer.keys ?? [];
+	)) as { names?: string[] };
+	return answer.names ?? [];
 }
 
-// The key comes back once. It is kept as a hash, so nothing can read it out
-// again for whoever loses it.
-export async function issuePersonalKey(name: string): Promise<{ key: PersonalKey; apiKey: string }> {
-	return (await answerOf(
+// The key comes back once, and making another by the same name replaces it.
+export async function issuePersonalKey(name: string): Promise<string> {
+	const answer = (await answerOf(
 		await fetch('/api/member/key', {
 			method: 'POST',
 			headers: await signedInHeaders(),
 			body: JSON.stringify({ name })
 		})
-	)) as { key: PersonalKey; apiKey: string };
+	)) as { apiKey: string };
+	return answer.apiKey;
 }
 
-export async function revokePersonalKey(keyID: string): Promise<void> {
+export async function forgetPersonalKey(name: string): Promise<void> {
 	await answerOf(
-		await fetch(`/api/member/key?keyID=${encodeURIComponent(keyID)}`, {
+		await fetch(`/api/member/key?name=${encodeURIComponent(name)}`, {
 			method: 'DELETE',
 			headers: await signedInHeaders()
 		})
