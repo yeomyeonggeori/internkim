@@ -9,9 +9,6 @@ import (
 
 const attendanceSourceApprovedLeave = "approved_leave"
 
-var errAttendanceLeaveEarlyReturnConfirmationRequired = errors.New(
-	"early return confirmation is required",
-)
 var errAttendanceLeaveClockOutAlreadyApplied = errors.New(
 	"work already ended when the approved leave started",
 )
@@ -279,34 +276,6 @@ INSERT OR IGNORE INTO attendance_leave_request_events (
 
 func attendanceClockRequestWantsEarlyReturn(body attendanceClockRequest) bool {
 	return body.Kind == attendanceKindClockIn && body.ConfirmEarlyReturn
-}
-
-func attendanceClockRequestDuringLeaveError(
-	body attendanceClockRequest,
-) error {
-	if body.Kind == attendanceKindClockOut {
-		return errAttendanceLeaveClockOutAlreadyApplied
-	}
-	if body.Kind == attendanceKindClockIn && !attendanceClockRequestWantsEarlyReturn(body) {
-		return errAttendanceLeaveEarlyReturnConfirmationRequired
-	}
-	return nil
-}
-
-func (service *Service) prepareAttendanceLeaveClock(
-	ctx context.Context,
-	employeeEmail string,
-	body attendanceClockRequest,
-	now time.Time,
-) (*attendanceActiveLeaveView, error) {
-	activeLeave, errorValue := service.reconcileApprovedLeaveClockOut(ctx, employeeEmail, now)
-	if errorValue != nil || activeLeave == nil {
-		return activeLeave, errorValue
-	}
-	if errorValue := attendanceClockRequestDuringLeaveError(body); errorValue != nil {
-		return nil, errorValue
-	}
-	return activeLeave, nil
 }
 
 func (service *Service) completeAttendanceLeaveClock(
