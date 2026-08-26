@@ -34,7 +34,7 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '41000000-0000-0000-0000-000000000001', true);
 
-	perform public.save_teams($teams$[
+	perform public.team_save($teams$[
 		{"id": "41000000-0000-0000-0000-0000000000a1", "name": "개발팀"},
 		{"id": "41000000-0000-0000-0000-0000000000a2", "name": "플랫폼", "parentID": "41000000-0000-0000-0000-0000000000a1"}
 	]$teams$::jsonb);
@@ -55,7 +55,7 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '41000000-0000-0000-0000-000000000001', true);
 
-	perform public.save_member_profiles($profiles$[
+	perform public.member_profiles_save($profiles$[
 		{
 			"memberID": "41000000-0000-0000-0000-000000000012",
 			"jobTitle": "  프론트엔드 개발자  ",
@@ -75,7 +75,7 @@ begin
 		from public.member where id = '41000000-0000-0000-0000-000000000012'
 	), 'an administrator saves every organization attribute of a colleague';
 
-	perform public.save_member_profiles($cleared$[
+	perform public.member_profiles_save($cleared$[
 		{
 			"memberID": "41000000-0000-0000-0000-000000000012",
 			"jobTitle": "",
@@ -102,7 +102,7 @@ begin
 	perform set_config('request.jwt.claim.sub', '41000000-0000-0000-0000-000000000002', true);
 
 	begin
-		perform public.save_member_profiles($profiles$[
+		perform public.member_profiles_save($profiles$[
 			{"memberID": "41000000-0000-0000-0000-000000000013", "jobTitle": "대표"}
 		]$profiles$::jsonb);
 	exception when raise_exception then
@@ -111,7 +111,7 @@ begin
 	assert profile_save_blocked, 'a member who is not an administrator cannot edit a colleague';
 
 	begin
-		perform public.save_teams($teams$[
+		perform public.team_save($teams$[
 			{"id": "41000000-0000-0000-0000-0000000000a1", "name": "개발팀"}
 		]$teams$::jsonb);
 	exception when raise_exception then
@@ -129,7 +129,7 @@ begin
 	perform set_config('request.jwt.claim.sub', '42000000-0000-0000-0000-000000000001', true);
 
 	begin
-		perform public.save_member_profiles($profiles$[
+		perform public.member_profiles_save($profiles$[
 			{"memberID": "41000000-0000-0000-0000-000000000013", "jobTitle": "대표"}
 		]$profiles$::jsonb);
 	exception when raise_exception then
@@ -138,7 +138,7 @@ begin
 	assert foreign_member_blocked, 'an administrator cannot edit a member of another company';
 
 	begin
-		perform public.save_teams($teams$[
+		perform public.team_save($teams$[
 			{"id": "41000000-0000-0000-0000-0000000000a1", "name": "빼앗은 조직"}
 		]$teams$::jsonb);
 	exception when raise_exception then
@@ -160,7 +160,7 @@ begin
 	) = '개발팀', 'a write refused from another company left the organization untouched';
 
 	begin
-		perform public.save_member_profiles($profiles$[
+		perform public.member_profiles_save($profiles$[
 			{
 				"memberID": "41000000-0000-0000-0000-000000000011",
 				"supervisorID": "41000000-0000-0000-0000-000000000013"
@@ -176,7 +176,7 @@ begin
 	assert supervisor_loop_blocked, 'a supervisor chain that loops back is refused';
 
 	begin
-		perform public.save_teams($teams$[
+		perform public.team_save($teams$[
 			{"id": "41000000-0000-0000-0000-0000000000a1", "name": "개발팀", "parentID": "41000000-0000-0000-0000-0000000000a2"},
 			{"id": "41000000-0000-0000-0000-0000000000a2", "name": "플랫폼", "parentID": "41000000-0000-0000-0000-0000000000a1"}
 		]$teams$::jsonb);
@@ -191,11 +191,11 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '41000000-0000-0000-0000-000000000001', true);
 
-	perform public.save_member_profiles($profiles$[
+	perform public.member_profiles_save($profiles$[
 		{"memberID": "41000000-0000-0000-0000-000000000013", "groupID": "41000000-0000-0000-0000-0000000000a2"}
 	]$profiles$::jsonb);
 
-	perform public.save_teams($teams$[
+	perform public.team_save($teams$[
 		{"id": "41000000-0000-0000-0000-0000000000a1", "name": "개발팀"}
 	]$teams$::jsonb);
 

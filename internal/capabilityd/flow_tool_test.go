@@ -19,7 +19,7 @@ func TestResolveFlowOwnerUsesRequesterWhenTargetPersonHintIsEmpty(t *testing.T) 
 		{ID: "lee", Name: "lee", Email: "lee@example.com"},
 		{ID: "iam", Name: "iam", Email: "iam@example.com"},
 	}
-	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), flowTaskAddInput{Title: "10분 회의"}, "iam@example.com", members)
+	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), nil, "iam@example.com", members)
 	if resolution.OwnerID != "iam" {
 		t.Fatalf("ownerID = %q failure=%+v", resolution.OwnerID, resolution.Failure)
 	}
@@ -30,7 +30,7 @@ func TestResolveFlowOwnerMatchesMattermostHandle(t *testing.T) {
 		{ID: "lee", Name: "Lee Dongha", Email: "lee@example.com", MattermostUsername: "lee"},
 		{ID: "kim", Name: "Kim Dongha", Email: "kim@example.com", MattermostUsername: "kim"},
 	}
-	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), flowTaskAddInput{TargetPersonHint: "@kim"}, "", members)
+	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), []string{"@kim"}, "", members)
 	if resolution.OwnerID != "kim" {
 		t.Fatalf("ownerID = %q failure=%+v", resolution.OwnerID, resolution.Failure)
 	}
@@ -50,7 +50,7 @@ func TestResolveFlowOwnerMatchesTargetPersonHint(t *testing.T) {
 		{name: "member id", value: "lee-1"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), flowTaskAddInput{Title: "업무 요청", TargetPersonHint: testCase.value}, "", members)
+			resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), []string{testCase.value}, "", members)
 			if resolution.OwnerID != "lee-1" {
 				t.Fatalf("ownerID = %q failure=%+v", resolution.OwnerID, resolution.Failure)
 			}
@@ -62,7 +62,7 @@ func TestResolveFlowOwnerFallsBackToRequesterEmail(t *testing.T) {
 	members := []flowMemberForTool{
 		{ID: "staff", Name: "Staff", Email: "staff@example.com", MattermostUsername: "staff"},
 	}
-	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), flowTaskAddInput{Title: "10분 회의"}, "staff@example.com", members)
+	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), nil, "staff@example.com", members)
 	if resolution.OwnerID != "staff" {
 		t.Fatalf("ownerID = %q failure=%+v", resolution.OwnerID, resolution.Failure)
 	}
@@ -73,7 +73,7 @@ func TestResolveFlowOwnerReturnsAmbiguousCandidates(t *testing.T) {
 		{ID: "lee", Name: "샘플", Email: "lee@example.com", MattermostUsername: "lee"},
 		{ID: "kim", Name: "샘플", Email: "kim@example.com", MattermostUsername: "kim"},
 	}
-	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), flowTaskAddInput{TargetPersonHint: "샘플"}, "", members)
+	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), []string{"샘플"}, "", members)
 	if resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_ambiguous" {
 		t.Fatalf("failure = %+v", resolution.Failure)
 	}
@@ -84,7 +84,7 @@ func TestResolveFlowOwnerReturnsAmbiguousCandidates(t *testing.T) {
 
 func TestResolveFlowOwnerReturnsNotFound(t *testing.T) {
 	members := []flowMemberForTool{{ID: "lee", Name: "이샘플", Email: "lee@example.com"}}
-	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), flowTaskAddInput{TargetPersonHint: "Expensive"}, "lee@example.com", members)
+	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), []string{"Expensive"}, "lee@example.com", members)
 
 	if resolution.OwnerID != "" || resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_not_found" {
 		t.Fatalf("resolution = %+v", resolution)
@@ -99,7 +99,7 @@ func sampleFlowMembers() []flowMemberForTool {
 }
 
 func TestResolveFlowOwnerAcceptsUniqueNameFragment(t *testing.T) {
-	resolution := serviceWithDirectoryOf(t, sampleFlowMembers()).resolveFlowOwner(context.Background(), flowTaskAddInput{TargetPersonHint: "견본"}, "", sampleFlowMembers())
+	resolution := serviceWithDirectoryOf(t, sampleFlowMembers()).resolveFlowOwner(context.Background(), []string{"견본"}, "", sampleFlowMembers())
 
 	if resolution.OwnerID != "person-specimen" {
 		t.Fatalf("resolution = %+v", resolution)
@@ -111,7 +111,7 @@ func TestResolveFlowOwnerOffersCandidatesForAmbiguousNameFragment(t *testing.T) 
 		{ID: "person-example", Name: "박예시", Email: "example@example.com", MattermostUsername: "exampleuser"},
 		{ID: "person-other-example", Name: "이예시", Email: "other@example.com", MattermostUsername: "otheruser"},
 	}
-	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), flowTaskAddInput{TargetPersonHint: "예시"}, "", members)
+	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwner(context.Background(), []string{"예시"}, "", members)
 
 	if resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_ambiguous" || len(resolution.Failure.Candidates) != 2 {
 		t.Fatalf("resolution = %+v", resolution)
@@ -119,7 +119,7 @@ func TestResolveFlowOwnerOffersCandidatesForAmbiguousNameFragment(t *testing.T) 
 }
 
 func TestResolveFlowOwnerRejectsHintContainingTheName(t *testing.T) {
-	resolution := serviceWithDirectoryOf(t, sampleFlowMembers()).resolveFlowOwner(context.Background(), flowTaskAddInput{TargetPersonHint: "최견본이랑 방금 운동함"}, "", sampleFlowMembers())
+	resolution := serviceWithDirectoryOf(t, sampleFlowMembers()).resolveFlowOwner(context.Background(), []string{"최견본이랑 방금 운동함"}, "", sampleFlowMembers())
 
 	if resolution.OwnerID != "" || resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_not_found" {
 		t.Fatalf("resolution = %+v", resolution)
@@ -128,7 +128,7 @@ func TestResolveFlowOwnerRejectsHintContainingTheName(t *testing.T) {
 
 func TestResolveFlowOwnerKeepsHandleAndEmailExact(t *testing.T) {
 	for _, personHint := range []string{"specimenuser", "specimen", "@specimen", "specimen@exam", "example.com"} {
-		resolution := serviceWithDirectoryOf(t, sampleFlowMembers()).resolveFlowOwner(context.Background(), flowTaskAddInput{TargetPersonHint: personHint}, "", sampleFlowMembers())
+		resolution := serviceWithDirectoryOf(t, sampleFlowMembers()).resolveFlowOwner(context.Background(), []string{personHint}, "", sampleFlowMembers())
 		if resolution.OwnerID != "" || resolution.Failure == nil {
 			t.Fatalf("personHint %q resolved to %+v", personHint, resolution)
 		}
@@ -136,7 +136,7 @@ func TestResolveFlowOwnerKeepsHandleAndEmailExact(t *testing.T) {
 }
 
 func TestResolveFlowOwnerNotFoundListsTheRoster(t *testing.T) {
-	resolution := serviceWithDirectoryOf(t, sampleFlowMembers()).resolveFlowOwner(context.Background(), flowTaskAddInput{TargetPersonHint: "박예시"}, "", sampleFlowMembers())
+	resolution := serviceWithDirectoryOf(t, sampleFlowMembers()).resolveFlowOwner(context.Background(), []string{"박예시"}, "", sampleFlowMembers())
 
 	if resolution.Failure == nil || resolution.Failure.ErrorCode != "flow_owner_not_found" {
 		t.Fatalf("resolution = %+v", resolution)
@@ -318,7 +318,7 @@ func TestFlowTaskAddPropagatesTypedFields(t *testing.T) {
 
 	_, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
-		Input:    []byte(`{"title":" 고객지원 분기 결산 누락 항목 확인 ","size":" s ","status":"예정","startDate":" 2026-07-15 ","endDate":" 2026-07-17 ","participantPersonHints":["@internkim"]}`),
+		Input:    []byte(`{"title":" 고객지원 분기 결산 누락 항목 확인 ","size":" s ","status":"예정","startsAt":" 2026-07-15 ","endsAt":" 2026-07-17 ","participantPersonHints":["@internkim"]}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
@@ -341,7 +341,8 @@ func TestFlowTaskAddPropagatesTypedFields(t *testing.T) {
 		}
 	}
 	participantIDs, ok := payload["participantIDs"].([]any)
-	if !ok || len(participantIDs) != 2 || participantIDs[0] != "staff" || participantIDs[1] != "kim" {
+	// Naming a colleague makes the task theirs; the person filing it is not added.
+	if !ok || len(participantIDs) != 1 || participantIDs[0] != "kim" {
 		t.Fatalf("participantIDs = %#v", payload["participantIDs"])
 	}
 }
@@ -355,11 +356,11 @@ func TestDecodeFlowTaskAddInputRejectsLegacyPromptAndContent(t *testing.T) {
 }
 
 func TestDecodeFlowTaskAddInputTrimsCanonicalFields(t *testing.T) {
-	input, errorValue := decodeFlowTaskAddInput([]byte(`{"title":" 정확한 제목 ","size":" m ","status":" 진행 ","startDate":" 2026-07-15 ","endDate":" 2026-07-17 ","targetPersonHint":" @lee ","participantPersonHints":[" @kim ","@kim"," "]}`))
+	input, errorValue := decodeFlowTaskAddInput([]byte(`{"title":" 정확한 제목 ","size":" m ","status":" 진행 ","startsAt":" 2026-07-15 ","endsAt":" 2026-07-17 ","participantPersonHints":[" @kim ","@kim"," "]}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if input.Title != "정확한 제목" || input.Size != "M" || input.Status != "진행" || input.StartDate != "2026-07-15" || input.EndDate != "2026-07-17" || input.TargetPersonHint != "@lee" || len(input.ParticipantPersonHints) != 1 || input.ParticipantPersonHints[0] != "@kim" {
+	if input.Title != "정확한 제목" || input.Size != "M" || input.Status != "진행" || input.StartsAt != "2026-07-15" || input.EndsAt != "2026-07-17" || len(input.ParticipantPersonHints) != 1 || input.ParticipantPersonHints[0] != "@kim" {
 		t.Fatalf("input = %+v", input)
 	}
 }
@@ -406,7 +407,7 @@ func TestFlowTaskAddReturnsAmbiguousOwnerError(t *testing.T) {
 
 	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
-		Input:    []byte(`{"title":"업무 요청","targetPersonHint":"샘플"}`),
+		Input:    []byte(`{"title":"업무 요청","participantPersonHints":["샘플"]}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
@@ -463,7 +464,8 @@ func TestFlowTaskAddReturnsParticipantResolutionErrorBeforeCreate(t *testing.T) 
 	if !response.IsError || response.ErrorCode != "interaction_required" || postCalled {
 		t.Fatalf("response=%+v postCalled=%t", response, postCalled)
 	}
-	if !strings.Contains(string(response.Result), "flow_participant_ambiguous") {
+	// The first person named owns the task, so an ambiguous name fails as an owner.
+	if !strings.Contains(string(response.Result), "flow_owner_ambiguous") {
 		t.Fatalf("result should keep the domain code: %s", string(response.Result))
 	}
 	if !strings.Contains(string(response.Result), `"toolNames":["ask_input"]`) {
@@ -1347,7 +1349,7 @@ func TestFlowTaskListAllScopeListsEveryone(t *testing.T) {
 }
 
 func TestDecodeFlowTaskListInputRejectsTaskAddFields(t *testing.T) {
-	_, errorValue := decodeFlowTaskListInput([]byte(`{"prompt":"업무 추가","title":"분기 결산","endDate":"2026-07-17"}`))
+	_, errorValue := decodeFlowTaskListInput([]byte(`{"prompt":"업무 추가","title":"분기 결산","endsAt":"2026-07-17"}`))
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "unknown field") {
 		t.Fatalf("expected task_add fields to fail task_list validation, got %v", errorValue)
 	}
@@ -1357,7 +1359,7 @@ func TestFlowTaskListOwnNameNarrowsToRequester(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_list",
-		Input:    []byte(`{"targetPersonHint":"김테스트","weekFrom":-1000}`),
+		Input:    []byte(`{"participantPersonHint":"김테스트","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
 	if errorValue != nil {
@@ -1395,7 +1397,7 @@ func TestFlowTaskListTargetPersonHintReturnsThatPerson(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_list",
-		Input:    []byte(`{"targetPersonHint":"이샘플","weekFrom":-1000}`),
+		Input:    []byte(`{"participantPersonHint":"이샘플","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
 	if errorValue != nil {
@@ -1414,7 +1416,7 @@ func TestFlowTaskListUnknownPersonDoesNotListEveryone(t *testing.T) {
 	service := flowTaskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_list",
-		Input:    []byte(`{"targetPersonHint":"Expensive","weekFrom":-1000}`),
+		Input:    []byte(`{"participantPersonHint":"Expensive","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
 	if errorValue != nil {
@@ -1443,7 +1445,7 @@ func TestFlowTaskListTargetPersonHintIncludesParticipantTasks(t *testing.T) {
 	}
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_list",
-		Input:    []byte(`{"targetPersonHint":"이샘플","weekFrom":-1000}`),
+		Input:    []byte(`{"participantPersonHint":"이샘플","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "owner@example.com"},
 	})
 	if errorValue != nil {
@@ -1475,7 +1477,7 @@ func TestFlowTaskListTreatsAvailablePlannedAndPausedAsCurrentWeek(t *testing.T) 
 	}
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_list",
-		Input:    []byte(`{"targetPersonHint":"이샘플"}`),
+		Input:    []byte(`{"participantPersonHint":"이샘플"}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
 	})
 	if errorValue != nil {
@@ -1511,7 +1513,7 @@ func TestFlowTaskListClassifiesFinishedInactiveTasksByDates(t *testing.T) {
 	}
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_list",
-		Input:    []byte(`{"targetPersonHint":"이샘플"}`),
+		Input:    []byte(`{"participantPersonHint":"이샘플"}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
 	})
 	if errorValue != nil {

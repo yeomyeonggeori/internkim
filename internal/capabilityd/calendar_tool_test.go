@@ -35,8 +35,8 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_add",
-		Input:    []byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","location":"Office","people":["샘플","수민"],"reminderLeadHours":48}`),
+		ToolName: "event_add",
+		Input:    []byte(`{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00","location":"Office","participantPersonHints":["샘플","수민"],"notifyMinutesBefore":2880}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "Staff@Example.com",
 			RequesterName:  "Staff",
@@ -67,22 +67,23 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	}
 	// An attendee goes onto the event as the person the company carries, so a
 	// half-written name arrives as their name and their address rather than as
-	// what the model typed.
+	// what the model typed. Naming two colleagues makes it their event, not the
+	// event of the person who filed it.
 	people, _ := payload["people"].([]any)
-	if len(people) != 3 || people[0] != "Staff" || people[1] != "이샘플" || people[2] != "김수민" || payload["reminderLeadHours"] != float64(48) {
+	if len(people) != 2 || people[0] != "이샘플" || people[1] != "김수민" || payload["notifyMinutesBefore"] != float64(2880) {
 		t.Fatalf("calendar metadata payload = %#v", payload)
 	}
 	participants, _ := payload["participants"].([]any)
-	if len(participants) != 3 {
+	if len(participants) != 2 {
 		t.Fatalf("participants = %#v", participants)
 	}
-	attendee, _ := participants[1].(map[string]any)
+	attendee, _ := participants[0].(map[string]any)
 	if attendee["email"] != "sample@example.com" || attendee["personID"] != "person-sample" {
 		t.Fatalf("attendee = %#v", attendee)
 	}
 }
 
-func TestCalendarEventAddResolvesPeopleHintsAndIncludesRequester(t *testing.T) {
+func TestCalendarEventAddResolvesPeopleHintsToTheNamedPeople(t *testing.T) {
 	var payload map[string]any
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local", BlueclawBaseURL: "http://blueclaw.local"},
@@ -117,8 +118,8 @@ func TestCalendarEventAddResolvesPeopleHintsAndIncludesRequester(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_add",
-		Input:    []byte(`{"title":"경산 일정","startISO":"2026-05-08T05:00:00+09:00","endISO":"2026-05-08T06:00:00+09:00","people":["테스트"]}`),
+		ToolName: "event_add",
+		Input:    []byte(`{"title":"경산 일정","startsAt":"2026-05-08T05:00:00+09:00","endsAt":"2026-05-08T06:00:00+09:00","participantPersonHints":["테스트"]}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:    "staff@example.com",
 			RequesterName:     "김여명",
@@ -133,15 +134,14 @@ func TestCalendarEventAddResolvesPeopleHintsAndIncludesRequester(t *testing.T) {
 	}
 	people, _ := payload["people"].([]any)
 	participants, _ := payload["participants"].([]any)
-	if len(people) != 2 || people[0] != "김여명" || people[1] != "테스트" {
+	if len(people) != 1 || people[0] != "테스트" {
 		t.Fatalf("people = %#v payload=%#v", people, payload)
 	}
-	if len(participants) != 2 {
+	if len(participants) != 1 {
 		t.Fatalf("participants = %#v payload=%#v", participants, payload)
 	}
-	firstParticipant, _ := participants[0].(map[string]any)
-	secondParticipant, _ := participants[1].(map[string]any)
-	if firstParticipant["personID"] != "person-staff" || secondParticipant["personID"] != "person-test" {
+	attendee, _ := participants[0].(map[string]any)
+	if attendee["personID"] != "person-test" {
 		t.Fatalf("participants = %#v", participants)
 	}
 }
@@ -152,43 +152,43 @@ func TestCalendarToolShouldIncludeRequesterPolicy(t *testing.T) {
 	testCases := []struct {
 		name                    string
 		input                   calendarEventWriteInput
-		includeRequesterDefault bool
+		mayAddTheRequesterAlone bool
 		expected                bool
 	}{
 		{
-			name:                    "calendar add default includes requester",
-			input:                   calendarEventWriteInput{People: calendarToolPeopleInput{"테스트"}},
-			includeRequesterDefault: true,
+			name:                    "naming nobody means the person asking",
+			input:                   calendarEventWriteInput{},
+			mayAddTheRequesterAlone: true,
 			expected:                true,
 		},
 		{
-			name:                    "calendar update default excludes requester",
+			name:                    "naming somebody else leaves the person asking out",
 			input:                   calendarEventWriteInput{People: calendarToolPeopleInput{"테스트"}},
-			includeRequesterDefault: false,
+			mayAddTheRequesterAlone: true,
+			expected:                false,
+		},
+		{
+			name:                    "an update never adds the person asking",
+			input:                   calendarEventWriteInput{},
+			mayAddTheRequesterAlone: false,
 			expected:                false,
 		},
 		{
 			name:                    "explicit false excludes requester",
-			input:                   calendarEventWriteInput{People: calendarToolPeopleInput{"테스트"}, IncludeRequester: &excludeRequester},
-			includeRequesterDefault: true,
+			input:                   calendarEventWriteInput{IncludeRequester: &excludeRequester},
+			mayAddTheRequesterAlone: true,
 			expected:                false,
 		},
 		{
 			name:                    "explicit true includes requester",
 			input:                   calendarEventWriteInput{People: calendarToolPeopleInput{"테스트"}, IncludeRequester: &includeRequester},
-			includeRequesterDefault: false,
+			mayAddTheRequesterAlone: false,
 			expected:                true,
-		},
-		{
-			name:                    "all hands excludes requester",
-			input:                   calendarEventWriteInput{People: calendarToolPeopleInput{"전체"}},
-			includeRequesterDefault: true,
-			expected:                false,
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			actual := calendarToolShouldIncludeRequester(testCase.input, testCase.includeRequesterDefault)
+			actual := calendarToolShouldIncludeRequester(testCase.input, testCase.mayAddTheRequesterAlone)
 			if actual != testCase.expected {
 				t.Fatalf("include requester = %v, want %v", actual, testCase.expected)
 			}
@@ -204,21 +204,21 @@ func TestCalendarInputsRejectUnknownTrailingAndLegacyAliases(t *testing.T) {
 		{
 			name: "add unknown internal field",
 			decode: func() error {
-				_, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","participants":[]}`))
+				_, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00","participants":[]}`))
 				return errorValue
 			},
 		},
 		{
 			name: "add comma-delimited people",
 			decode: func() error {
-				_, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","people":"Alice,Bob"}`))
+				_, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00","participantPersonHints":"Alice,Bob"}`))
 				return errorValue
 			},
 		},
 		{
 			name: "add hidden duplicate override",
 			decode: func() error {
-				_, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","allowDuplicate":true}`))
+				_, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00","allowDuplicate":true}`))
 				return errorValue
 			},
 		},
@@ -267,14 +267,18 @@ func TestCalendarListRequiresPositiveWholeNumberLimit(t *testing.T) {
 func TestCalendarUpdateRequiresPatchAndAllowedReminder(t *testing.T) {
 	for _, document := range []string{
 		`{"eventHint":"event-1"}`,
-		`{"eventHint":"event-1","reminderLeadHours":0}`,
-		`{"eventHint":"event-1","reminderLeadHours":5}`,
+		`{"eventHint":"event-1","notifyMinutesBefore":0}`,
+		`{"eventHint":"event-1","notifyMinutesBefore":-30}`,
 	} {
 		if _, errorValue := decodeCalendarEventUpdateInput([]byte(document)); errorValue == nil {
 			t.Fatalf("expected update validation error for %s", document)
 		}
 	}
-	if _, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","reminderLeadHours":5}`)); errorValue == nil {
+	// The company keeps a reminder in minutes, so any number of them is a reminder.
+	if _, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00","notifyMinutesBefore":300}`)); errorValue != nil {
+		t.Fatalf("five hours before is a reminder: %v", errorValue)
+	}
+	if _, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00","notifyMinutesBefore":0}`)); errorValue == nil {
 		t.Fatal("expected add reminder validation error")
 	}
 }
@@ -299,8 +303,8 @@ func TestCalendarEventListFiltersQueryAndLimit(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_list",
-		Input:    []byte(`{"startISO":"2026-05-08T00:00:00Z","endISO":"2026-05-09T00:00:00Z","query":"design","limit":1}`),
+		ToolName: "event_list",
+		Input:    []byte(`{"startsAt":"2026-05-08T00:00:00Z","endsAt":"2026-05-09T00:00:00Z","query":"design","limit":1}`),
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -360,7 +364,7 @@ func TestCalendarEventListRejectsEventWithoutIdentity(t *testing.T) {
 		})},
 	}
 	if _, errorValue := service.invokeCalendarEventList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_list",
+		ToolName: "event_list",
 		Input:    []byte(`{}`),
 	}); errorValue == nil {
 		t.Fatal("expected list result identity error")
@@ -386,9 +390,9 @@ func TestCalendarEventAddPreservesDuplicateControlWithoutSuccessEffect(t *testin
 			return calendarToolEventResponse("admind-event-3", "Demo", "2026-05-08T10:00:00+09:00", "2026-05-08T11:00:00+09:00"), nil
 		})},
 	}
-	baseInput := `{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00"`
+	baseInput := `{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00"`
 	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_add",
+		ToolName: "event_add",
 		Input:    []byte(baseInput + `}`),
 	})
 	if errorValue != nil {
@@ -402,7 +406,7 @@ func TestCalendarEventAddPreservesDuplicateControlWithoutSuccessEffect(t *testin
 	}
 
 	response, errorValue = service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_add",
+		ToolName: "event_add",
 		Input:    []byte(baseInput + `}`),
 		Context: capabilities.ToolInvokeContext{
 			ConflictResolution: capabilities.ToolConflictResolutionAllowDuplicate,
@@ -432,7 +436,7 @@ func TestCalendarEventListDefaultsToUpcomingWindow(t *testing.T) {
 	}
 
 	if _, errorValue := service.invokeCalendarEventList(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_list",
+		ToolName: "event_list",
 		Input:    []byte(`{}`),
 	}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -448,8 +452,8 @@ func TestCalendarMutationInputsRequireEventHint(t *testing.T) {
 			name: "update query",
 			invoke: func(service Service) error {
 				_, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-					ToolName: "calendar_update",
-					Input:    []byte(`{"query":"비용 테스트 일정","startISO":"2026-07-16T14:00:00+09:00"}`),
+					ToolName: "event_update",
+					Input:    []byte(`{"query":"비용 테스트 일정","startsAt":"2026-07-16T14:00:00+09:00"}`),
 				})
 				return errorValue
 			},
@@ -458,7 +462,7 @@ func TestCalendarMutationInputsRequireEventHint(t *testing.T) {
 			name: "update title without hint",
 			invoke: func(service Service) error {
 				_, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-					ToolName: "calendar_update",
+					ToolName: "event_update",
 					Input:    []byte(`{"title":"비용 테스트 일정"}`),
 				})
 				return errorValue
@@ -468,7 +472,7 @@ func TestCalendarMutationInputsRequireEventHint(t *testing.T) {
 			name: "delete query",
 			invoke: func(service Service) error {
 				_, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-					ToolName: "calendar_delete",
+					ToolName: "event_delete",
 					Input:    []byte(`{"query":"비용 테스트 일정"}`),
 				})
 				return errorValue
@@ -527,11 +531,11 @@ func TestCalendarEventUpdatePreservesOmittedFields(t *testing.T) {
 				if payload["title"] != "Changed title" || payload["description"] != "Original description" || payload["location"] != "Original location" {
 					t.Fatalf("text fields = %#v", payload)
 				}
-				if payload["startISO"] != "2026-07-16T14:00:00+09:00" || payload["endISO"] != "2026-07-16T15:00:00+09:00" || payload["timeZone"] != "Asia/Seoul" {
+				if payload["startISO"] != "2026-07-16T14:00:00+09:00" || payload["endISO"] != "2026-07-16T15:00:00+09:00" {
 					t.Fatalf("time fields = %#v", payload)
 				}
-				if payload["color"] != "blueberry" || payload["reminderLeadHours"] != float64(6) {
-					t.Fatalf("presentation fields = %#v", payload)
+				if payload["notifyMinutesBefore"] != float64(360) {
+					t.Fatalf("reminder = %#v", payload)
 				}
 				participants, found := payload["participants"].([]any)
 				if !found || len(participants) != 1 {
@@ -549,7 +553,7 @@ func TestCalendarEventUpdatePreservesOmittedFields(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_update",
+		ToolName: "event_update",
 		Input:    []byte(`{"eventHint":"event-1","title":"Changed title"}`),
 	})
 
@@ -564,41 +568,37 @@ func TestCalendarEventUpdatePreservesOmittedFields(t *testing.T) {
 
 func TestCalendarEventUpdateAppliesExplicitEmptyAndFalseFields(t *testing.T) {
 	current := calendarEventForTool{
-		EventID:           "event-1",
-		Title:             "Original title",
-		Description:       "Original description",
-		Location:          "Original location",
-		StartISO:          "2026-07-16T14:00:00+09:00",
-		EndISO:            "2026-07-16T15:00:00+09:00",
-		TimeZone:          "Asia/Seoul",
-		IsAllDay:          true,
-		Participants:      []calendarToolParticipant{{PersonID: "person-alice", Name: "Alice"}},
-		ReminderLeadHours: 6,
+		EventID:             "event-1",
+		Title:               "Original title",
+		Note:                "Original note",
+		Location:            "Original location",
+		StartsAt:            "2026-07-16T14:00:00+09:00",
+		EndsAt:              "2026-07-16T15:00:00+09:00",
+		TimeZone:            "Asia/Seoul",
+		IsWholeDay:          true,
+		Participants:        []calendarToolParticipant{{PersonID: "person-alice", Name: "Alice"}},
+		NotifyMinutesBefore: 360,
 	}
 	update, errorValue := decodeCalendarEventUpdateInput([]byte(`{
 		"eventHint":"event-1",
-		"description":"",
+		"note":"",
 		"location":"",
-		"isAllDay":false,
-		"people":[],
-		"reminderLeadHours":1,
-		"includeRequester":false
+		"isWholeDay":false,
+		"participantPersonHints":[],
+		"notifyMinutesBefore":60
 	}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	input := mergeCalendarEventUpdateInput(update, current)
-	if input.Description != "" || input.Location != "" || input.IsAllDay {
+	if input.Note != "" || input.Location != "" || input.IsWholeDay {
 		t.Fatalf("explicit empty and false fields were not applied: %+v", input)
 	}
 	if len(input.People) != 0 || len(input.Participants) != 0 {
 		t.Fatalf("explicit empty participants were not applied: %+v", input.Participants)
 	}
-	if input.ReminderLeadHours != 1 {
-		t.Fatalf("explicit reminder = %d, expected 1", input.ReminderLeadHours)
-	}
-	if input.IncludeRequester == nil || *input.IncludeRequester {
-		t.Fatalf("explicit includeRequester = %#v, expected false", input.IncludeRequester)
+	if input.NotifyMinutesBefore != 60 {
+		t.Fatalf("explicit reminder = %d, expected 60", input.NotifyMinutesBefore)
 	}
 }
 
@@ -626,8 +626,8 @@ func TestCalendarEventUpdateReturnsVersionConflict(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_update",
-		Input:    []byte(`{"eventHint":"event-1","title":"Conflicted event","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`),
+		ToolName: "event_update",
+		Input:    []byte(`{"eventHint":"event-1","title":"Conflicted event","startsAt":"2026-07-16T14:00:00+09:00","endsAt":"2026-07-16T15:00:00+09:00"}`),
 	})
 
 	assertCalendarToolVersionConflict(t, response, errorValue)
@@ -666,8 +666,8 @@ func TestCalendarEventUpdateRejectsInvalidDirectLookupContract(t *testing.T) {
 			}
 
 			response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-				ToolName: "calendar_update",
-				Input:    []byte(`{"eventHint":"event-1","title":"Changed","startISO":"2026-07-16T14:00:00+09:00","endISO":"2026-07-16T15:00:00+09:00"}`),
+				ToolName: "event_update",
+				Input:    []byte(`{"eventHint":"event-1","title":"Changed","startsAt":"2026-07-16T14:00:00+09:00","endsAt":"2026-07-16T15:00:00+09:00"}`),
 			})
 
 			if test.status == http.StatusNotFound {
@@ -711,7 +711,7 @@ func TestCalendarEventUpdateResolvesByExactEventIDAcrossAllEvents(t *testing.T) 
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_update",
+		ToolName: "event_update",
 		Input:    []byte(`{"eventHint":"event-1","title":"IR 미팅 완료"}`),
 	})
 	if errorValue != nil {
@@ -747,7 +747,7 @@ func TestCalendarEventUpdateResolvesByExactUniqueTitle(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_update",
+		ToolName: "event_update",
 		Input:    []byte(`{"eventHint":"IR 미팅","title":"IR 미팅 완료"}`),
 	})
 	if errorValue != nil {
@@ -777,7 +777,7 @@ func TestCalendarEventUpdateAmbiguousTitleReturnsCandidatesWithoutWrite(t *testi
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_update",
+		ToolName: "event_update",
 		Input:    []byte(`{"eventHint":"IR 미팅","title":"IR 미팅 완료"}`),
 	})
 	if errorValue != nil {
@@ -806,7 +806,7 @@ func TestCalendarEventUpdateAHintNothingComesCloseToWritesNothingAndNamesNothing
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_update",
+		ToolName: "event_update",
 		Input:    []byte(`{"eventHint":"zzzz","title":"IR 미팅 완료"}`),
 	})
 	if errorValue != nil {
@@ -844,7 +844,7 @@ func TestCalendarEventUpdateResolvesATitleWhoseCaseDiffers(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_update",
+		ToolName: "event_update",
 		Input:    []byte(`{"eventHint":"ir meeting","title":"IR Meeting Done"}`),
 	})
 	if errorValue != nil {
@@ -879,7 +879,7 @@ func TestCalendarEventUpdateHintResolutionTrimsWhitespaceBeforeMatching(t *testi
 	}
 
 	response, errorValue := service.invokeCalendarEventUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_update",
+		ToolName: "event_update",
 		Input:    []byte(`{"eventHint":" IR 미팅 ","title":"IR 미팅 완료"}`),
 	})
 	if errorValue != nil {
@@ -914,7 +914,7 @@ func TestCalendarEventDeleteResolvesByExactUniqueTitle(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_delete",
+		ToolName: "event_delete",
 		Input:    []byte(`{"eventHint":"고객지원 분기 결산 검토"}`),
 	})
 	if errorValue != nil {
@@ -943,7 +943,7 @@ func TestCalendarEventDeleteAmbiguousTitleReturnsCandidatesWithoutDeleting(t *te
 	}
 
 	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_delete",
+		ToolName: "event_delete",
 		Input:    []byte(`{"eventHint":"IR 미팅"}`),
 	})
 	if errorValue != nil {
@@ -972,7 +972,7 @@ func TestCalendarEventDeleteAHintNothingComesCloseToDeletesNothingAndNamesNothin
 	}
 
 	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_delete",
+		ToolName: "event_delete",
 		Input:    []byte(`{"eventHint":"zzzz"}`),
 	})
 	if errorValue != nil {
@@ -1041,7 +1041,7 @@ func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "calendar_delete", strings.NewReader(`{"input":{"eventHint":"event-1"},"context":{"requesterPersonID":"person-1","requesterEmail":"Staff@Example.com","isScheduledRun":true}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "event_delete", strings.NewReader(`{"input":{"eventHint":"event-1"},"context":{"requesterPersonID":"person-1","requesterEmail":"Staff@Example.com","isScheduledRun":true}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1078,7 +1078,7 @@ func TestCalendarEventDeleteReturnsVersionConflict(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventDelete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_delete",
+		ToolName: "event_delete",
 		Input:    []byte(`{"eventHint":"event-1"}`),
 	})
 
@@ -1179,8 +1179,8 @@ func TestCalendarEventAddAcceptsTheIdentifierAdmindAssigns(t *testing.T) {
 	}
 
 	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "calendar_add",
-		Input:    []byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00"}`),
+		ToolName: "event_add",
+		Input:    []byte(`{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00"}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com", RequesterName: "Staff"},
 	})
 

@@ -155,16 +155,16 @@ func TestMattermostScenarioCleanupDeletesCreatedDomainResourcesFromToolResults(t
 				Body: `{"tool":"task_add","output":{"data":{"id":"task-1"},"content":"{\"id\":\"ignored-task\"}"}}`,
 			},
 			{
-				Name: "tool.calendar_add.result",
-				Body: `{"tool":"calendar_add","output":{"content":"{\"eventID\":\"event-1\"}"}}`,
+				Name: "tool.event_add.result",
+				Body: `{"tool":"event_add","output":{"content":"{\"eventID\":\"event-1\"}"}}`,
 			},
 			{
 				Name: "tool.task_add.result",
 				Body: `{"tool":"task_add","output":{"data":{"id":"task-2"}}}`,
 			},
 			{
-				Name: "tool.calendar_add.result",
-				Body: `{"tool":"calendar_add","output":{"data":{"eventID":"event-2"}}}`,
+				Name: "tool.event_add.result",
+				Body: `{"tool":"event_add","output":{"data":{"eventID":"event-2"}}}`,
 			},
 		}},
 		{TaskEvents: []mattermostScenarioTaskEvent{
@@ -286,7 +286,7 @@ func TestMattermostScenarioCleanupRequiresEmailForCreatedDomainResources(t *test
 func TestMattermostScenarioCreatedResourcesIgnoreMalformedAndFailedResults(t *testing.T) {
 	result := mattermostScenarioResult{Steps: []mattermostScenarioStepResult{{TaskEvents: []mattermostScenarioTaskEvent{
 		{Name: "tool.task_add.result", Body: `not-json`},
-		{Name: "tool.calendar_add.result", Body: `{"tool":"calendar_add","output":{"data":{"errorCode":"operation_failed"}}}`},
+		{Name: "tool.event_add.result", Body: `{"tool":"event_add","output":{"data":{"errorCode":"operation_failed"}}}`},
 		{Name: "tool.task_add.requested", Body: `{"tool":"task_add","output":{"data":{"id":"task-1"}}}`},
 	}}}}
 

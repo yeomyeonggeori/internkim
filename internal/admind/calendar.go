@@ -75,10 +75,16 @@ type calendarEventWriteRequest struct {
 	People            calendarPeopleInput           `json:"people"`
 	Participants      []calendarParticipantIdentity `json:"participants"`
 	ReminderLeadHours int                           `json:"reminderLeadHours"`
-	AllowDuplicate    bool                          `json:"allowDuplicate"`
-	ExpectedUpdatedAt string                        `json:"expectedUpdatedAt"`
-	MutationClientID  *string                       `json:"mutationClientID"`
-	MutationSequence  *int64                        `json:"mutationSequence"`
+	// The company keeps a reminder in minutes, which is what a caller that speaks
+	// the row's own vocabulary sends.
+	NotifyMinutesBefore int `json:"notifyMinutesBefore"`
+	// Somebody asked somebody else to be somewhere. The company stamps who asked
+	// from the status, so this is what it is told.
+	IsRequestedOfSomebodyElse bool    `json:"isRequestedOfSomebodyElse"`
+	AllowDuplicate            bool    `json:"allowDuplicate"`
+	ExpectedUpdatedAt         string  `json:"expectedUpdatedAt"`
+	MutationClientID          *string `json:"mutationClientID"`
+	MutationSequence          *int64  `json:"mutationSequence"`
 }
 
 type calendarEventDeleteRequest struct {
@@ -280,7 +286,7 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, "", ""); answered {
+	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, "", "", payload.IsRequestedOfSomebodyElse); answered {
 		if writeCalendarCentralError(responseWriter, request, event.ID, saveError) {
 			return
 		}
@@ -326,7 +332,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 
 	// The company holds the event, so the device has no row to read first, and the
 	// version the writer claims is whatever they sent rather than one read here.
-	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, eventID, strings.TrimSpace(payload.ExpectedUpdatedAt)); answered {
+	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, eventID, strings.TrimSpace(payload.ExpectedUpdatedAt), payload.IsRequestedOfSomebodyElse); answered {
 		if writeCalendarCentralError(responseWriter, request, eventID, saveError) {
 			return
 		}
@@ -622,6 +628,11 @@ func (service *Service) decodeCalendarEventWriteRequest(request *http.Request, e
 	var payload calendarEventWriteRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		return calendarEvent{}, calendarEventWriteRequest{}, errorValue
+	}
+	// A caller that speaks the company's vocabulary sends minutes; this device
+	// still keeps whole hours.
+	if payload.NotifyMinutesBefore > 0 && payload.ReminderLeadHours == 0 {
+		payload.ReminderLeadHours = payload.NotifyMinutesBefore / 60
 	}
 	event, errorValue := service.normalizeCalendarEventWriteRequest(request, payload, eventID)
 	return event, payload, errorValue

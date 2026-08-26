@@ -132,7 +132,7 @@ select ok(
 select ok(
 	has_function_privilege(
 		'authenticated',
-		to_regprocedure('public.correct_attendance_events(jsonb,text)'),
+		to_regprocedure('public.attendance_correct(jsonb,text)'),
 		'EXECUTE'
 	),
 	'authenticated users can call the attendance correction RPC'
@@ -141,12 +141,12 @@ select ok(
 select ok(
 	not has_function_privilege(
 		'anon',
-		to_regprocedure('public.correct_attendance_events(jsonb,text)'),
+		to_regprocedure('public.attendance_correct(jsonb,text)'),
 		'EXECUTE'
 	)
 		and not has_function_privilege(
 			'service_role',
-			to_regprocedure('public.correct_attendance_events(jsonb,text)'),
+			to_regprocedure('public.attendance_correct(jsonb,text)'),
 			'EXECUTE'
 		),
 	'attendance correction RPC execution is limited to authenticated users'
@@ -200,7 +200,7 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
 
-	perform public.correct_attendance_events(
+	perform public.attendance_correct(
 		'[{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"09:30","location":"Branch"}]'::jsonb,
 		'출근 시간 정정'
 	);
@@ -213,7 +213,7 @@ begin
 		where id = '31000000-0000-0000-0000-000000000101'
 	), 'the owner correction must preserve the first time and store the new values';
 
-	perform public.correct_attendance_events(
+	perform public.attendance_correct(
 		'[{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"09:45","location":"Office"}]'::jsonb,
 		'재확인 후 수정'
 	);
@@ -233,7 +233,7 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
 	begin
-		perform public.correct_attendance_events(
+		perform public.attendance_correct(
 			'[{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"07:30","location":"Office"}]'::jsonb,
 			'이벤트 순서 변경'
 		);
@@ -277,7 +277,7 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
 	begin
-		perform public.correct_attendance_events(
+		perform public.attendance_correct(
 			'[{"event_id":"31000000-0000-0000-0000-000000000103","local_date":"2026-08-10","local_time":"08:30","location":"Branch"}]'::jsonb,
 			'수정 가능 시간 초과'
 		);
@@ -291,7 +291,7 @@ select lives_ok($block$do $$
 begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000002', true);
-	perform public.correct_attendance_events(
+	perform public.attendance_correct(
 		'[{"event_id":"31000000-0000-0000-0000-000000000102","local_date":"2026-08-10","local_time":"09:25","location":"Branch"}]'::jsonb,
 		'관리자 확인'
 	);
@@ -309,7 +309,7 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
 	begin
-		perform public.correct_attendance_events(
+		perform public.attendance_correct(
 			'[{"event_id":"31000000-0000-0000-0000-000000000102","local_date":"2026-08-10","local_time":"09:40","location":"Office"}]'::jsonb,
 			'권한 없는 수정'
 		);
@@ -326,7 +326,7 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000002', true);
 	begin
-		perform public.correct_attendance_events(
+		perform public.attendance_correct(
 			'[{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"10:00","location":"Office"},{"event_id":"32000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"10:00","location":"Other Office"}]'::jsonb,
 			'일괄 수정'
 		);
@@ -348,7 +348,7 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
 	begin
-		perform public.correct_attendance_events(
+		perform public.attendance_correct(
 			'[{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"10:00","location":"Office"}]'::jsonb,
 			'   '
 		);
@@ -365,7 +365,7 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
 	begin
-		perform public.correct_attendance_events(
+		perform public.attendance_correct(
 			'[{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"10:00","location":"Unknown"}]'::jsonb,
 			'장소 수정'
 		);
@@ -382,7 +382,7 @@ begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
 	begin
-		perform public.correct_attendance_events(
+		perform public.attendance_correct(
 			'[{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2999-01-01","local_time":"09:00","location":"Office"}]'::jsonb,
 			'시간 수정'
 		);
@@ -412,7 +412,7 @@ select lives_ok($block$do $$
 begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000002', true);
-	perform public.correct_attendance_events(
+	perform public.attendance_correct(
 		'[{"event_id":"31000000-0000-0000-0000-000000000103","local_date":"2026-08-10","local_time":"08:15","location":"Office"},{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"10:00","location":"Office"}]'::jsonb,
 		'순서 유지 일괄 수정'
 	);

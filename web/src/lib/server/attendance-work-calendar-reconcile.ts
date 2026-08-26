@@ -80,7 +80,7 @@ export async function saveAttendanceReconciliationSettings(
 	workPolicy: CurrentAttendanceWorkPolicy | undefined,
 	workCalendar: AttendanceWorkCalendarDay[] | undefined
 ): Promise<void> {
-	const { error: failed } = await client.rpc('save_attendance_reconciliation_settings', {
+	const { error: failed } = await client.rpc('attendance_reconciliation_save', {
 		target_company: companyID,
 		attendance_work_policy: workPolicy ?? null,
 		attendance_calendar: workCalendar ?? null

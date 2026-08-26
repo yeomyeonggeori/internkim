@@ -162,7 +162,7 @@ func testMattermostReplyEvent(identifier string, replyKind string, postID string
 }
 
 func TestMattermostScenarioApprovalFollowupValidatesOnlyEventsCreatedAfterSnapshot(t *testing.T) {
-	oldEvent := mattermostScenarioTaskEvent{TaskEventID: "old", Name: "tool.calendar_delete.requested"}
+	oldEvent := mattermostScenarioTaskEvent{TaskEventID: "old", Name: "tool.event_delete.requested"}
 	newEvent := mattermostScenarioTaskEvent{TaskEventID: "new", Name: "approval.granted"}
 	detailCalls := 0
 	admin := &fakeMattermostScenarioAdminAPI{
@@ -186,7 +186,7 @@ func TestMattermostScenarioApprovalFollowupValidatesOnlyEventsCreatedAfterSnapsh
 			return []mattermostProbePost{{ID: "bot-post", RootID: "user-post", UserID: "bot", Message: "수정했습니다.", CreatedAt: 2}}
 		},
 	}
-	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{Prompt: "삭제해줘", ExpectedEvents: []string{"approval.granted"}, ExpectedToolCallCounts: map[string]int{"calendar_delete": 0}, ExpectedTaskStatus: "completed"}}}
+	scenario := mattermostScenario{Steps: []mattermostScenarioStep{{Prompt: "삭제해줘", ExpectedEvents: []string{"approval.granted"}, ExpectedToolCallCounts: map[string]int{"event_delete": 0}, ExpectedTaskStatus: "completed"}}}
 	session := newTestMattermostScenarioSession(scenario, mattermost, admin)
 
 	if errorValue := session.runStep(context.Background(), 0); errorValue != nil {

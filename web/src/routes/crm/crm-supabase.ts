@@ -186,20 +186,20 @@ export async function positionSupabaseCRMOpportunity(id: string, payload: CRMPos
 
 export async function createSupabaseCRMActivity(payload: CRMActivityPayload): Promise<CRMActivityResponse> {
 	const context = await crmContext();
-	const saved = await supabase().rpc('save_crm_task', crmTaskArguments(null, payload, context));
+	const saved = await supabase().rpc('crm_task_save', crmTaskArguments(null, payload, context));
 	throwResultError(saved.error);
 	return activityFrom(await taskByID(requiredData(saved.data as string | null, 'task id')));
 }
 
 export async function updateSupabaseCRMActivity(id: string, payload: CRMActivityPayload): Promise<CRMActivityResponse> {
 	const context = await crmContext();
-	const saved = await supabase().rpc('save_crm_task', crmTaskArguments(id, payload, context));
+	const saved = await supabase().rpc('crm_task_save', crmTaskArguments(id, payload, context));
 	throwResultError(saved.error);
 	return activityFrom(await taskByID(requiredData(saved.data as string | null, 'task id')));
 }
 
 export async function saveSupabaseCRMVocabulary(vocabulary: CRMVocabulary): Promise<void> {
-	const result = await supabase().rpc('save_crm_vocabulary', { target_vocabulary: vocabulary });
+	const result = await supabase().rpc('crm_vocabulary_save', { target_vocabulary: vocabulary });
 	throwResultError(result.error);
 }
 

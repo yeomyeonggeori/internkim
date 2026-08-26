@@ -108,7 +108,7 @@ func TestOpenRouterLiveSingleCalendarActionSchemaFromEnv(t *testing.T) {
 		Messages: []Message{{Role: "user", Content: "Add vacation to the calendar."}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:               "bluecollar_agent_turn_action",
-			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.CalendarDescriptors(), "calendar_add")}),
+			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.CalendarDescriptors(), "event_add")}),
 			IsStrictlyEnforced: true,
 		},
 	}
