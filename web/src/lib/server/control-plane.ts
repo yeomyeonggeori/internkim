@@ -228,7 +228,7 @@ export async function linkCredential(
 ): Promise<void> {
 	const { error } = await client
 		.from('credential')
-		.upsert({ member_id: memberID, kind, external_id: externalID }, { onConflict: 'member_id,kind' });
+		.upsert({ member_id: memberID, kind, name: '', external_id: externalID }, { onConflict: 'member_id,kind,name' });
 	if (error) throw new Error(`credential ${kind}: ${error.message}`);
 }
 
@@ -294,83 +294,72 @@ export async function issueAgentKey(
 	return { agentID: data.id, companyID, apiKey };
 }
 
-// A key that names a member speaks for that member. It reaches exactly what they
-// reach signed in, because it is turned into their own session and row level
-// security decides the rest.
-export type MemberKey = { keyID: string; name: string; createdAt: string; lastSeenAt: string | null };
+// A person's key lives where a person's other credentials live, told from the
+// next one by what they call it. What is kept is the key's hash, so nothing -
+// not this app, not an administrator - can read the key back to whoever lost
+// it; they make another by that name and it replaces the one before.
+const personalKeyKind = 'api_key';
 
-export async function issueMemberKey(
+export async function issuePersonalKey(
 	client: SupabaseClient,
-	companyID: string,
 	memberID: string,
 	name: string,
-): Promise<{ key: MemberKey; apiKey: string }> {
+): Promise<string> {
 	const apiKey = [...crypto.getRandomValues(new Uint8Array(32))]
 		.map((byte) => byte.toString(16).padStart(2, '0'))
 		.join('');
-	const { data, error } = await client
-		.from('agent')
-		.insert({ company_id: companyID, member_id: memberID, name, api_key_hash: await hashOf(apiKey) })
-		.select('id, name, created_at, last_seen_at')
-		.single();
+	const { error } = await client
+		.from('credential')
+		.upsert(
+			{ member_id: memberID, kind: personalKeyKind, name, external_id: await hashOf(apiKey) },
+			{ onConflict: 'member_id,kind,name' },
+		);
 	if (error) throw new Error(`personal key ${name}: ${error.message}`);
-	return {
-		key: { keyID: data.id, name: data.name, createdAt: data.created_at, lastSeenAt: data.last_seen_at },
-		apiKey,
-	};
+	return apiKey;
 }
 
-export async function memberKeys(client: SupabaseClient, memberID: string): Promise<MemberKey[]> {
+export async function personalKeyNames(client: SupabaseClient, memberID: string): Promise<string[]> {
 	const { data, error } = await client
-		.from('agent')
-		.select('id, name, created_at, last_seen_at')
+		.from('credential')
+		.select('name')
 		.eq('member_id', memberID)
-		.is('revoked_at', null)
-		.order('created_at', { ascending: false });
+		.eq('kind', personalKeyKind)
+		.order('name');
 	if (error) throw new Error(`personal keys: ${error.message}`);
-	return (data ?? []).map((row) => ({
-		keyID: row.id,
-		name: row.name,
-		createdAt: row.created_at,
-		lastSeenAt: row.last_seen_at,
-	}));
+	return (data ?? []).map((row) => row.name as string);
 }
 
-// A key is revoked rather than deleted, so a key that was used stays accountable
-// for what it did.
-export async function revokeMemberKey(
+export async function forgetPersonalKey(
 	client: SupabaseClient,
 	memberID: string,
-	keyID: string,
+	name: string,
 ): Promise<boolean> {
 	const { data, error } = await client
-		.from('agent')
-		.update({ revoked_at: new Date().toISOString() })
-		.eq('id', keyID)
+		.from('credential')
+		.delete()
 		.eq('member_id', memberID)
-		.is('revoked_at', null)
-		.select('id');
-	if (error) throw new Error(`revoke personal key: ${error.message}`);
+		.eq('kind', personalKeyKind)
+		.eq('name', name)
+		.select('name');
+	if (error) throw new Error(`personal key ${name}: ${error.message}`);
 	return (data ?? []).length > 0;
 }
 
-// The caller of a personal key is the member it names, so this issues that
+// The caller of a personal key is the member it belongs to, so this issues that
 // member's own session and never the company's.
-export async function sessionForMemberKey(
+export async function sessionForPersonalKey(
 	credentials: ControlPlaneCredentials,
 	apiKey: string,
 ): Promise<MemberSession> {
 	const client = controlPlane(credentials);
 	const { data, error } = await client
-		.from('agent')
-		.select('id, member_id, revoked_at')
-		.eq('api_key_hash', await hashOf(apiKey))
+		.from('credential')
+		.select('member_id')
+		.eq('kind', personalKeyKind)
+		.eq('external_id', await hashOf(apiKey))
 		.maybeSingle();
 	if (error) throw new Error(`personal key: ${error.message}`);
-	if (!data || data.revoked_at) throw new Error('that key belongs to nobody');
-	if (!data.member_id) throw new Error('that key is a device key, which speaks for no person');
-
-	await client.from('agent').update({ last_seen_at: new Date().toISOString() }).eq('id', data.id);
+	if (!data) throw new Error('that key belongs to nobody');
 	return sessionForMember(credentials, data.member_id);
 }
 
