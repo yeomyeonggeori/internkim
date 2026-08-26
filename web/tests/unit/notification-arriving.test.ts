@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { homePath } from '../../src/lib/home-path';
 import { readArriving } from '../../src/lib/notifications/arriving';
 
 describe('readArriving', () => {
@@ -15,22 +16,22 @@ describe('readArriving', () => {
 	});
 
 	test('a push carrying nothing still shows something, because the browser demands one', () => {
-		expect(readArriving(null)).toEqual({ title: 'internkim', body: '', openPath: '/flow/', tag: 'internkim', icon: '' });
+		expect(readArriving(null)).toEqual({ title: 'internkim', body: '', openPath: homePath, tag: 'internkim', icon: '' });
 		expect(readArriving('a message').title).toBe('internkim');
-		expect(readArriving({}).openPath).toBe('/flow/');
+		expect(readArriving({}).openPath).toBe(homePath);
 	});
 
 	test('a notification cannot send someone to another host', () => {
-		expect(readArriving({ openPath: 'https://example.test/steal' }).openPath).toBe('/flow/');
-		expect(readArriving({ openPath: '//example.test/steal' }).openPath).toBe('/flow/');
-		expect(readArriving({ openPath: 'javascript:alert(1)' }).openPath).toBe('/flow/');
+		expect(readArriving({ openPath: 'https://example.test/steal' }).openPath).toBe(homePath);
+		expect(readArriving({ openPath: '//example.test/steal' }).openPath).toBe(homePath);
+		expect(readArriving({ openPath: 'javascript:alert(1)' }).openPath).toBe(homePath);
 	});
 
 	test('a field of the wrong type is treated as absent', () => {
 		expect(readArriving({ title: 7, body: {}, tag: [] })).toEqual({
 			title: 'internkim',
 			body: '',
-			openPath: '/flow/',
+			openPath: homePath,
 			tag: 'internkim',
 			icon: ''
 		});
