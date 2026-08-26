@@ -19,6 +19,7 @@ import {
 	leaveTimestampRange
 } from './supabase-leave-range';
 import { leaveDaysInYear } from './leave-year-share';
+import { leaveCountsAsUsage } from './supabase-leave-summary';
 import {
 	employeeLeaveRequestOfRow,
 	supabaseLeavePreview,
@@ -218,7 +219,8 @@ function employeeOf(
 	let usedMilliDays = 0;
 	let reservedMilliDays = 0;
 	for (const leave of source.leaves) {
-		if (leave.member_id !== member.id || !leave.is_deducted) continue;
+		if (leave.member_id !== member.id) continue;
+		if (!leaveCountsAsUsage(trackingMode, leave.is_deducted)) continue;
 		const days = daysFallingInTargetYear(leave, source, timeZoneOf(member, source));
 		if (days === 0) continue;
 		const milliDays = Math.round(days * 1000);
