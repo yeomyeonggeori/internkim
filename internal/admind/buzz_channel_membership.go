@@ -169,9 +169,17 @@ func (service *Service) bootstrapBuzzPubkey() (string, error) {
 	return buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
 }
 
-// A circle room holds its circle, not everyone. reconcileCircleRoomMembership
-// is what fills those, and a staff sync that also filled them would put the
-// whole company in every one of them between its runs.
+const staffRoomQuery = `
+SELECT id FROM channels
+WHERE channel_type = 'stream'
+  AND deleted_at IS NULL
+  AND visibility = 'open'
+  AND created_by = decode($1, 'hex')
+  AND name <> ALL($2::text[])`
+
+// The whole company belongs in the rooms the whole company can already read.
+// A private room is somebody's decision about who is in it, and a circle room
+// is its circle's, so neither is a room to add everyone to.
 func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]string, error) {
 	bootstrapPubkey, errorValue := service.bootstrapBuzzPubkey()
 	if errorValue != nil {
@@ -186,12 +194,7 @@ func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]strin
 		return nil, errorValue
 	}
 	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
-SELECT id FROM channels
-WHERE channel_type = 'stream'
-  AND deleted_at IS NULL
-  AND created_by = decode($1, 'hex')
-  AND name <> ALL($2::text[])`, bootstrapPubkey, pq.Array(circleRoomNames))
+	rows, errorValue := database.QueryContext(ctx, staffRoomQuery, bootstrapPubkey, pq.Array(circleRoomNames))
 	if errorValue != nil {
 		return nil, errorValue
 	}

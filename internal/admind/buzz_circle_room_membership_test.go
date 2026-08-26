@@ -2,6 +2,7 @@ package admind
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -42,5 +43,15 @@ func TestACircleNobodyCarriesHoldsNobody(t *testing.T) {
 
 	if len(belong) != 0 {
 		t.Fatalf("an empty circle names nobody rather than everybody, got %v", belong)
+	}
+}
+
+func TestTheStaffSyncOnlyEverFillsRoomsTheWholeCompanyCanRead(t *testing.T) {
+	query := staffRoomQuery
+
+	for _, condition := range []string{"visibility = 'open'", "deleted_at IS NULL", "created_by = decode($1, 'hex')"} {
+		if !strings.Contains(query, condition) {
+			t.Fatalf("a room the whole company is added to must be %s: %s", condition, query)
+		}
 	}
 }
