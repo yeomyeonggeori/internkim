@@ -1234,7 +1234,7 @@ func buzzChannelWindowProbeCommand(target string) (string, error) {
 set -e
 HOST=$(su - postgres -c "psql -X -qAt -d buzz -c \"SELECT host FROM communities LIMIT 1\"")
 printf 'asking %s for room ` + channelID + ` as ` + pubkey + `\n' "$HOST"
-BODY='{"filters":[{"#h":["` + channelID + `"],"kinds":[9,40002,40008,40099,43001,43002,43003,43004,43005,43006,48100],"limit":50,"top_level":true,"include_summaries":true,"include_aux":true}]}'
+BODY='[{"#h":["` + channelID + `"],"kinds":[9,40002,40008,40099,43001,43002,43003,43004,43005,43006,48100],"limit":50,"top_level":true,"include_summaries":true,"include_aux":true}]'
 ANSWER=$(curl -sS -X POST "http://` + blueclaw.BuzzRelayBindAddress + `/query" -H "Host: $HOST" -H "Content-Type: application/json" -H "X-Pubkey: ` + pubkey + `" -d "$BODY")
 printf '== what the relay answered ==\n'
 printf '%s' "$ANSWER" | head -c 400
