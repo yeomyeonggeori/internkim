@@ -10,11 +10,16 @@ const cacheName = `internkim-${version}`;
 const shipped = new Set([...build, ...files]);
 
 worker.addEventListener('install', (event) => {
-	event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll([...shipped])));
+	event.waitUntil(
+		caches
+			.open(cacheName)
+			.then((cache) => cache.addAll([...shipped]))
+			.then(() => worker.skipWaiting())
+	);
 });
 
 worker.addEventListener('activate', (event) => {
-	event.waitUntil(forgetOlderVersions());
+	event.waitUntil(forgetOlderVersions().then(() => worker.clients.claim()));
 });
 
 async function forgetOlderVersions(): Promise<void> {
@@ -33,7 +38,7 @@ worker.addEventListener('push', (event) => {
 		worker.registration.showNotification(arriving.title, {
 			body: arriving.body,
 			tag: arriving.tag,
-			icon: '/icon-192.png',
+			icon: arriving.icon || '/icon-192.png',
 			data: { openPath: arriving.openPath }
 		})
 	);
