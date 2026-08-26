@@ -71,3 +71,18 @@ func TestEveryRoomChangeInGoTellsTheClientsToo(t *testing.T) {
 		t.Fatal("reconcile-channels writes an event only where none exists, so the room's own must go first")
 	}
 }
+
+func TestTheStaffSyncSkipsWhoIsAlreadyIn(t *testing.T) {
+	source, errorValue := os.ReadFile("buzz_channel_membership.go")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	body := string(source)
+
+	if !strings.Contains(body, "if isHeld[pubkey] {") {
+		t.Fatal("the relay announces a joining for every add it is asked to make, so an add that changes nothing still costs a row of every timeline")
+	}
+	if !strings.Contains(body, "buzzChannelMemberPubkeys(ctx, relay, channelID)") {
+		t.Fatal("skipping who is already in means reading who is in first")
+	}
+}
