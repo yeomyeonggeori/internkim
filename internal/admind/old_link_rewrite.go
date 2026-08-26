@@ -6,11 +6,12 @@ import (
 	"strings"
 )
 
-// A link written before the company had an address names a device host and
-// carries an identifier only that device knows. Both have to change together:
-// the address alone points the reader at a record that has never heard of the
-// identifier beside it.
-var oldLinkPattern = regexp.MustCompile(`https?://[^\s)"'<>]+/(calendar|flow)/\?[^\s)"'<>]*`)
+// A link written before the company had an address names a device host. Where
+// it also carries an identifier only that device knows, both have to change
+// together: the address alone points the reader at a record that has never
+// heard of the identifier beside it. Everything on the device answers at the
+// same path on the company, so a link with no identifier moves by its host.
+var oldLinkPattern = regexp.MustCompile(`https?://[^\s)"'<>]+`)
 
 type linkTranslation struct {
 	appURL           string
