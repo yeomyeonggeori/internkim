@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"gitlab.com/eastriver/internkim/internal/personname"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
@@ -20,7 +21,7 @@ func (service Service) invokePersonList(ctx context.Context, request capabilitie
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	people := peopleForTool(summary.Members)
+	people := peopleForTool(summary.Members, request.Context.ResponseLanguage)
 	result, errorValue := json.Marshal(map[string]any{"count": len(people), "people": people})
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -28,12 +29,12 @@ func (service Service) invokePersonList(ctx context.Context, request capabilitie
 	return capabilitySuccessResponse(request.ToolName, "ok", result)
 }
 
-func peopleForTool(members []flowMemberForTool) []personForTool {
+func peopleForTool(members []flowMemberForTool, responseLanguage string) []personForTool {
 	people := make([]personForTool, 0, len(members))
 	for _, member := range members {
 		people = append(people, personForTool{
 			PersonID:           member.ID,
-			Name:               member.Name,
+			Name:               personname.Render(member.Name, responseLanguage),
 			Email:              member.Email,
 			MattermostUsername: member.MattermostUsername,
 			Mention:            flowTaskAddMention(member),

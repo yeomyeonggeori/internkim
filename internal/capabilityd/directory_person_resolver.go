@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/personname"
 )
 
 type directoryPerson struct {
@@ -71,20 +73,20 @@ func (service Service) directoryPeople(ctx context.Context) ([]directoryPerson, 
 	return document.People, nil
 }
 
-func directoryPersonNames(people []directoryPerson) []string {
+func directoryPersonNames(people []directoryPerson, responseLanguage string) []string {
 	names := make([]string, 0, len(people))
 	for _, person := range people {
-		names = append(names, firstNonEmpty(person.Name, person.Email))
+		names = append(names, firstNonEmpty(personname.Render(person.Name, responseLanguage), person.Email))
 	}
 	return names
 }
 
-func platformDMRecipientsFromDirectoryPeople(people []directoryPerson) []platformDMRecipient {
+func platformDMRecipientsFromDirectoryPeople(people []directoryPerson, responseLanguage string) []platformDMRecipient {
 	recipients := make([]platformDMRecipient, 0, len(people))
 	for _, person := range people {
 		recipients = append(recipients, platformDMRecipient{
 			PersonID:    strings.TrimSpace(person.MemberID),
-			DisplayName: strings.TrimSpace(person.Name),
+			DisplayName: personname.Render(person.Name, responseLanguage),
 			Emails:      normalizedPlatformDMEmails([]string{person.Email}),
 		})
 	}
@@ -93,7 +95,7 @@ func platformDMRecipientsFromDirectoryPeople(people []directoryPerson) []platfor
 
 // A hint the company cannot place is not a recipient. Answering with the closest
 // account this agent already knows would send somebody else's message.
-func (service Service) namedDirectoryPerson(ctx context.Context, personHint string) (directoryPerson, platformDMFailure, bool) {
+func (service Service) namedDirectoryPerson(ctx context.Context, personHint string, responseLanguage string) (directoryPerson, platformDMFailure, bool) {
 	resolution, errorValue := service.resolveDirectoryPersonHint(ctx, personHint)
 	if errorValue != nil {
 		return directoryPerson{}, platformDMUnavailableFailure(errorValue), true
@@ -102,9 +104,9 @@ func (service Service) namedDirectoryPerson(ctx context.Context, personHint stri
 	case hintResolved:
 		return resolution.Match, platformDMFailure{}, false
 	case hintAmbiguous, hintApproximate:
-		message := fmt.Sprintf("recipient %q is ambiguous: %s", personHint, strings.Join(directoryPersonNames(resolution.Candidates), ", "))
+		message := fmt.Sprintf("recipient %q is ambiguous: %s", personHint, strings.Join(directoryPersonNames(resolution.Candidates, responseLanguage), ", "))
 		failure := platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", message)
-		failure.Candidates = platformDMRecipientsFromDirectoryPeople(resolution.Candidates)
+		failure.Candidates = platformDMRecipientsFromDirectoryPeople(resolution.Candidates, responseLanguage)
 		return directoryPerson{}, failure, true
 	default:
 		return directoryPerson{}, platformDMRecipientNotFoundFailure(personHint), true

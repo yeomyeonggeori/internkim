@@ -164,7 +164,7 @@ func TestResolvePlatformDMRecipientUsesBlueclawResolvedRecipient(t *testing.T) {
 	defer server.Close()
 
 	service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL, AdmindBaseURL: server.URL}}
-	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "샘플")
+	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "샘플", "ko")
 	if hasFailure {
 		t.Fatalf("expected resolved recipient, failure=%+v", failure)
 	}
@@ -184,7 +184,7 @@ func TestResolvePlatformDMRecipientUsesBlueclawResolvedRecipient(t *testing.T) {
 func TestResolvePlatformDMRecipientReturnsAmbiguousCandidates(t *testing.T) {
 	service := platformDMResolverTestService(t, `{"status":"ambiguous","candidates":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"],"externalUserID":"user-one"},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"],"externalUserID":"user-two"}]}`)
 
-	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "lee")
+	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "lee", "ko")
 	if !hasFailure {
 		t.Fatal("expected ambiguous failure")
 	}
@@ -201,7 +201,7 @@ func TestResolvePlatformDMRecipientReturnsAmbiguousCandidates(t *testing.T) {
 func TestResolvePlatformDMRecipientReturnsNotFound(t *testing.T) {
 	service := platformDMResolverTestService(t, `{"status":"not_found","approvedPeople":["이샘플"]}`)
 
-	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "없는사람")
+	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "없는사람", "ko")
 	if !hasFailure {
 		t.Fatal("expected not found failure")
 	}
@@ -215,7 +215,7 @@ func TestResolvePlatformDMRecipientReturnsRetryableFailureWhenBlueclawUnreachabl
 	server.Close()
 	service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
 
-	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "샘플")
+	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "샘플", "ko")
 	if !hasFailure {
 		t.Fatal("expected unavailable failure")
 	}

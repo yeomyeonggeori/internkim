@@ -12,7 +12,7 @@ func TestAnAttendeeTheCompanyCarriesGoesOntoTheEventAsThemselves(t *testing.T) {
 		{MemberID: "member-lee", Email: "lee@dawn.kim", Name: "이동하"},
 	})
 
-	participant, failure, hasFailure := service.calendarParticipantForPersonHint(context.Background(), "여명")
+	participant, failure, hasFailure := service.calendarParticipantForPersonHint(context.Background(), "여명", "ko")
 
 	if hasFailure {
 		t.Fatalf("half a colleague's name is how people refer to each other, failure=%+v", failure)
@@ -27,7 +27,7 @@ func TestAnAttendeeNobodyCanPlaceIsNotWrittenOntoTheEvent(t *testing.T) {
 		{MemberID: "member-lee", Email: "lee@dawn.kim", Name: "이동하"},
 	})
 
-	participant, failure, hasFailure := service.calendarParticipantForPersonHint(context.Background(), "모나 개발자")
+	participant, failure, hasFailure := service.calendarParticipantForPersonHint(context.Background(), "모나 개발자", "ko")
 
 	if !hasFailure {
 		t.Fatalf("a name carrying no address reaches the company as nobody, and the event keeps whoever filed it: %+v", participant)
