@@ -127,6 +127,10 @@ func (service Service) uploadMattermostAttachments(ctx context.Context, channelI
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	return service.uploadMattermostFiles(ctx, channelID, files)
+}
+
+func (service Service) uploadMattermostFiles(ctx context.Context, channelID string, files []platformFile) ([]string, error) {
 	fileIDs := []string{}
 	for _, file := range files {
 		fileID, errorValue := service.uploadMattermostFile(ctx, channelID, file)
@@ -136,6 +140,40 @@ func (service Service) uploadMattermostAttachments(ctx context.Context, channelI
 		fileIDs = append(fileIDs, fileID)
 	}
 	return fileIDs, nil
+}
+
+func (service Service) resolveWorkspaceAttachmentFiles(paths []string) ([]platformFile, error) {
+	files := []platformFile{}
+	for _, path := range paths {
+		file, errorValue := service.resolveWorkspaceAttachmentFile(path)
+		if errorValue != nil {
+			return nil, errors.New(path + ": " + errorValue.Error())
+		}
+		files = append(files, file)
+	}
+	return files, nil
+}
+
+func (service Service) resolveWorkspaceAttachmentFile(path string) (platformFile, error) {
+	hostPath, agentPath, errorValue := service.resolveFileReadPath(path)
+	if errorValue != nil {
+		return platformFile{}, errorValue
+	}
+	information, errorValue := os.Stat(hostPath)
+	if errorValue != nil {
+		return platformFile{}, errors.New("attachment file is unavailable")
+	}
+	filename := safeDeviceBrowserFilename(filepath.Base(agentPath))
+	if filename == "" {
+		return platformFile{}, errors.New("attachment filename is required")
+	}
+	return platformFile{
+		DevicePath:  hostPath,
+		Filename:    filename,
+		ContentType: detectWorkspaceFileContentType(hostPath),
+		SizeBytes:   information.Size(),
+		Title:       strings.TrimSuffix(filename, filepath.Ext(filename)),
+	}, nil
 }
 
 func (service Service) uploadMattermostFile(ctx context.Context, channelID string, file platformFile) (string, error) {
