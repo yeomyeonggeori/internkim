@@ -568,6 +568,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/buzz-channel-membership-repair", service.handleBuzzChannelMembershipRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-retire", service.handleBuzzChannelRetire)
 	multiplexer.HandleFunc("/agent/api/circle-membership-reconcile", service.handleCircleMembershipReconcile)
+	multiplexer.HandleFunc("/agent/api/circle-room-membership", service.handleCircleRoomMembership)
 	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)

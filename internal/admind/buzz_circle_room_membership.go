@@ -1,0 +1,209 @@
+package admind
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"log"
+	"net/http"
+	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/buzzidentity"
+)
+
+type circleRoomOutcome struct {
+	Room     string   `json:"room"`
+	CircleID string   `json:"circleID"`
+	Belong   int      `json:"belong"`
+	Added    []string `json:"added"`
+	Removed  []string `json:"removed"`
+}
+
+type circleRoomReport struct {
+	Applied bool                `json:"applied"`
+	Added   int                 `json:"added"`
+	Removed int                 `json:"removed"`
+	Rooms   []circleRoomOutcome `json:"rooms"`
+}
+
+func (service *Service) handleCircleRoomMembership(responseWriter http.ResponseWriter, request *http.Request) {
+	if !service.authorizeInternalOrWebStaffRequest(request) {
+		http.Error(responseWriter, "staff access required", http.StatusForbidden)
+		return
+	}
+	report, errorValue := service.reconcileCircleRoomMembership(request.Context(), request.URL.Query().Get("apply") == "true")
+	if errorValue != nil {
+		log.Printf("circle room membership failed: %v", errorValue)
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	responseWriter.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(responseWriter).Encode(report)
+}
+
+type declaredCircle struct {
+	CircleID    string
+	DisplayName string
+}
+
+func declaredCirclesOfPolicy(policyDocument map[string]any) []declaredCircle {
+	values, _ := policyDocument["circles"].([]any)
+	circles := make([]declaredCircle, 0, len(values))
+	for _, value := range values {
+		circle, isCircle := value.(map[string]any)
+		if !isCircle {
+			continue
+		}
+		circleID := strings.TrimSpace(mattermostPolicyString(circle["circleID"]))
+		displayName := strings.TrimSpace(mattermostPolicyString(circle["displayName"]))
+		if circleID == "" || displayName == "" {
+			continue
+		}
+		circles = append(circles, declaredCircle{CircleID: circleID, DisplayName: displayName})
+	}
+	return circles
+}
+
+func (service *Service) reconcileCircleRoomMembership(ctx context.Context, shouldApply bool) (circleRoomReport, error) {
+	seed := service.buzzKeySeed()
+	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
+	if seed == "" || databaseURL == "" {
+		return circleRoomReport{}, errors.New("this device names no buzz key seed or database")
+	}
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return circleRoomReport{}, errorValue
+	}
+	circlesByEmail := blueclawCirclesByEmail(policyDocument)
+
+	relay, errorValue := sql.Open("postgres", databaseURL)
+	if errorValue != nil {
+		return circleRoomReport{}, errorValue
+	}
+	defer relay.Close()
+
+	report := circleRoomReport{Applied: shouldApply, Rooms: []circleRoomOutcome{}}
+	for _, circle := range declaredCirclesOfPolicy(policyDocument) {
+		outcome, errorValue := service.reconcileOneCircleRoom(ctx, relay, seed, circle, circlesByEmail, shouldApply)
+		if errorValue != nil {
+			return report, errorValue
+		}
+		if outcome == nil {
+			continue
+		}
+		report.Added += len(outcome.Added)
+		report.Removed += len(outcome.Removed)
+		report.Rooms = append(report.Rooms, *outcome)
+	}
+	return report, nil
+}
+
+func (service *Service) reconcileOneCircleRoom(
+	ctx context.Context,
+	relay *sql.DB,
+	seed string,
+	circle declaredCircle,
+	circlesByEmail map[string][]string,
+	shouldApply bool,
+) (*circleRoomOutcome, error) {
+	channelID, errorValue := service.circleRoomWeOpened(ctx, relay, circle.DisplayName)
+	if errorValue != nil || channelID == "" {
+		return nil, errorValue
+	}
+	belong, errorValue := service.pubkeysOf(ctx, emailsCarrying(circlesByEmail, circle.CircleID), seed)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	held, errorValue := buzzChannelMemberPubkeys(ctx, relay, channelID)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	outcome := circleRoomOutcome{Room: circle.DisplayName, CircleID: circle.CircleID, Belong: len(belong), Added: []string{}, Removed: []string{}}
+	isHeld := map[string]bool{}
+	for _, pubkey := range held {
+		isHeld[pubkey] = true
+		if !belong[pubkey] {
+			outcome.Removed = append(outcome.Removed, pubkey)
+		}
+	}
+	for pubkey := range belong {
+		if !isHeld[pubkey] {
+			outcome.Added = append(outcome.Added, pubkey)
+		}
+	}
+	if !shouldApply {
+		return &outcome, nil
+	}
+	if len(outcome.Removed) > 0 {
+		if _, errorValue := removeBuzzChannelMembers(ctx, relay, channelID, outcome.Removed); errorValue != nil {
+			return nil, errorValue
+		}
+		log.Printf("circle room %s: removed %d the circle does not hold", circle.DisplayName, len(outcome.Removed))
+	}
+	if len(outcome.Added) > 0 {
+		if errorValue := service.addToCircleRoom(ctx, seed, channelID, outcome.Added); errorValue != nil {
+			return nil, errorValue
+		}
+	}
+	return &outcome, nil
+}
+
+func (service *Service) addToCircleRoom(ctx context.Context, seed string, channelID string, pubkeys []string) error {
+	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
+	publisher, errorValue := service.connectToTheRelayOnceItAnswers(ctx, bootstrapSecret)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer publisher.Close()
+	for _, pubkey := range pubkeys {
+		if errorValue := publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func emailsCarrying(circlesByEmail map[string][]string, circleID string) []string {
+	emails := []string{}
+	for email, circles := range circlesByEmail {
+		for _, held := range circles {
+			if strings.EqualFold(strings.TrimSpace(held), circleID) {
+				emails = append(emails, email)
+				break
+			}
+		}
+	}
+	return emails
+}
+
+func (service *Service) circleRoomWeOpened(ctx context.Context, relay *sql.DB, roomName string) (string, error) {
+	bootstrapPubkey, errorValue := service.bootstrapBuzzPubkey()
+	if errorValue != nil {
+		return "", errorValue
+	}
+	var channelID string
+	errorValue = relay.QueryRowContext(ctx, `
+SELECT id::text FROM channels
+WHERE channel_type = 'stream'
+  AND deleted_at IS NULL
+  AND name = $1
+  AND created_by = decode($2, 'hex')`, roomName, bootstrapPubkey).Scan(&channelID)
+	if errorValue == sql.ErrNoRows {
+		return "", nil
+	}
+	return channelID, errorValue
+}
+
+func (service *Service) circleRoomNames(ctx context.Context) ([]string, error) {
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return nil, errorValue
+	}
+	circles := declaredCirclesOfPolicy(policyDocument)
+	names := make([]string, 0, len(circles))
+	for _, circle := range circles {
+		names = append(names, circle.DisplayName)
+	}
+	return names, nil
+}

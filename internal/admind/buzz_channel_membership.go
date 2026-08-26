@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 	"gitlab.com/eastriver/internkim/internal/buzzimport/relaypublish"
 )
@@ -168,8 +169,15 @@ func (service *Service) bootstrapBuzzPubkey() (string, error) {
 	return buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
 }
 
+// A circle room holds its circle, not everyone. reconcileCircleRoomMembership
+// is what fills those, and a staff sync that also filled them would put the
+// whole company in every one of them between its runs.
 func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]string, error) {
 	bootstrapPubkey, errorValue := service.bootstrapBuzzPubkey()
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	circleRoomNames, errorValue := service.circleRoomNames(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -182,7 +190,8 @@ func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]strin
 SELECT id FROM channels
 WHERE channel_type = 'stream'
   AND deleted_at IS NULL
-  AND created_by = decode($1, 'hex')`, bootstrapPubkey)
+  AND created_by = decode($1, 'hex')
+  AND name <> ALL($2::text[])`, bootstrapPubkey, pq.Array(circleRoomNames))
 	if errorValue != nil {
 		return nil, errorValue
 	}
