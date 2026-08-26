@@ -76,7 +76,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-visibility", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-visibility", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -195,6 +195,11 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		cancelClose()
 	case "buzz-channel-visibility":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count what the community can read", "sh", "-lc", buzzChannelVisibilityCommand()))
+	case "buzz-restore-dm-discovery":
+		restoreContext, cancelRestore := context.WithTimeout(context.Background(), 900*time.Second)
+		restoreCommand, restoreError := buzzRestoreDirectMessageDiscoveryCommand(actionTarget)
+		response.Results = append(response.Results, service.runNamedRoomCommand(restoreContext, "give every direct message back the names it showed", restoreCommand, restoreError))
+		cancelRestore()
 	case "buzz-republish-rooms":
 		republishContext, cancelRepublish := context.WithTimeout(context.Background(), 300*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(republishContext, "tell every client what each room is called and how open it is", "sh", "-lc", buzzRepublishRoomsCommand()))
@@ -1505,6 +1510,50 @@ q "SELECT community_id::text, count(*) AS messages FROM events WHERE kind = 9 GR
 // event, so a nostr client has nothing to discover it by. chatd finds such a
 // channel anyway because it queries membership directly and tolerates missing
 // metadata, so only a nostr client notices.
+// buzz-admin's reconcile-channels writes a channel's discovery event from its
+// row alone. The relay's own emitter adds a p tag per participant for a dm,
+// "so clients can resolve display names without a separate kind:39002 fetch",
+// and reconcile-channels does not. A dm whose event it wrote therefore shows
+// in every client as DM with no name and no picture.
+func buzzRestoreDirectMessageDiscoveryCommand(snapshotName string) (string, error) {
+	name := strings.TrimSpace(snapshotName)
+	if name == "" {
+		return "", errors.New("this action names the snapshot to read the events back from")
+	}
+	if strings.ContainsAny(name, "/\\'\"$`\n ") {
+		return "", fmt.Errorf("a snapshot is named by its file name alone, got %q", name)
+	}
+	return strings.TrimSpace(`
+set -e
+SNAPSHOT=/root/.internkim/backups/` + name + `
+test -r "$SNAPSHOT" || { echo "no snapshot at $SNAPSHOT"; exit 1; }
+CARRIED=/tmp/buzz-dm-discovery.csv
+rm -f "$CARRIED"
+q() { su - postgres -c "psql -X -qAt -d buzz -c \"$1\"" 2>&1; }
+printf '== direct message discovery events now ==\n'
+q "SELECT count(*) FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')"
+su - postgres -c "dropdb --if-exists buzz_discovery_restore"
+su - postgres -c "createdb buzz_discovery_restore"
+su - postgres -c "psql -X -q -d buzz_discovery_restore -f $SNAPSHOT" >/dev/null 2>&1
+su - postgres -c "psql -X -qAt -d buzz_discovery_restore -c \"COPY (SELECT e.* FROM events e JOIN channels c ON c.id = e.channel_id WHERE e.kind IN (39000,39001,39002) AND c.channel_type = 'dm') TO '$CARRIED' CSV\""
+CARRIED_ROWS=$(wc -l < "$CARRIED" | tr -d ' ')
+printf 'events the snapshot carries: %s\n' "$CARRIED_ROWS"
+if [ "$CARRIED_ROWS" -lt 1 ]; then
+  su - postgres -c "dropdb --if-exists buzz_discovery_restore"
+  echo "the snapshot carries no direct message discovery; nothing replaced"
+  exit 1
+fi
+q "DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')" | sed 's/^/dropped: /'
+su - postgres -c "psql -X -qAt -d buzz -c \"COPY events FROM '$CARRIED' CSV\"" | sed 's/^/restored: /'
+su - postgres -c "dropdb --if-exists buzz_discovery_restore"
+rm -f "$CARRIED"
+printf '== direct message discovery events after ==\n'
+q "SELECT count(*) FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')"
+printf '== how many carry a participant tag ==\n'
+q "SELECT count(*) FROM events WHERE kind = 39000 AND tags::text LIKE '%\"p\"%' AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')"
+`), nil
+}
+
 func buzzRepublishRoomsCommand() string {
 	return strings.TrimSpace(`
 set -e
