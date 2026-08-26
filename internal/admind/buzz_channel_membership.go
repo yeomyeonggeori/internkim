@@ -42,6 +42,30 @@ func (service *Service) grantRelayMembership(ctx context.Context, pubkey string)
 	}
 }
 
+const (
+	relayConnectAttempts   = 10
+	relayConnectRetryDelay = 3 * time.Second
+)
+
+func (service *Service) connectToTheRelayOnceItAnswers(ctx context.Context, actorSecretHex string) (*relaypublish.Publisher, error) {
+	var refusal error
+	for attempt := 0; attempt < relayConnectAttempts; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(relayConnectRetryDelay):
+			}
+		}
+		publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), actorSecretHex)
+		if errorValue == nil {
+			return publisher, nil
+		}
+		refusal = errorValue
+	}
+	return nil, refusal
+}
+
 func (service *Service) ensureUserChannelMembership(ctx context.Context, email string) {
 	seed := service.buzzKeySeed()
 	if seed == "" || strings.TrimSpace(service.Configuration.BuzzRelayURL) == "" {
@@ -61,8 +85,9 @@ func (service *Service) ensureUserChannelMembership(ctx context.Context, email s
 		return
 	}
 	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
-	publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), bootstrapSecret)
+	publisher, errorValue := service.connectToTheRelayOnceItAnswers(ctx, bootstrapSecret)
 	if errorValue != nil {
+		log.Printf("buzz membership for %s: relay connect failed: %v", email, errorValue)
 		return
 	}
 	defer publisher.Close()
@@ -88,7 +113,7 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 		return
 	}
 	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
-	publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), bootstrapSecret)
+	publisher, errorValue := service.connectToTheRelayOnceItAnswers(ctx, bootstrapSecret)
 	if errorValue != nil {
 		log.Printf("buzz staff membership: relay connect failed: %v", errorValue)
 		return
@@ -111,7 +136,7 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 			// failing against it.
 			if errorValue != nil && strings.Contains(errorValue.Error(), "connection closed") {
 				publisher.Close()
-				reopened, reconnectError := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), bootstrapSecret)
+				reopened, reconnectError := service.connectToTheRelayOnceItAnswers(ctx, bootstrapSecret)
 				if reconnectError != nil {
 					log.Printf("buzz staff membership: relay would not take the connection back: %v", reconnectError)
 					log.Printf("buzz staff membership: granted %d, failed %d", granted, failed+1)
