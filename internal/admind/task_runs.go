@@ -95,7 +95,7 @@ func (service *Service) proxyScopedTaskList(responseWriter http.ResponseWriter, 
 	query.Set("viewerEmail", viewerEmail)
 	query.Set("viewerIsAdmin", strconv.FormatBool(isViewerAdmin))
 	var taskRunResponse any
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/task?"+query.Encode(), nil, &taskRunResponse); errorValue != nil {
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/run?"+query.Encode(), nil, &taskRunResponse); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
