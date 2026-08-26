@@ -17,6 +17,9 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local", BlueclawBaseURL: "http://blueclaw.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			if request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/identity/resolve-recipient" {
 				return calendarToolJSONResponse(`{"status":"not_found"}`), nil
 			}
@@ -62,9 +65,20 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	if _, hasEventID := payload["eventID"]; hasEventID {
 		t.Fatalf("admind assigns the identifier; the tool must not send one: %#v", payload)
 	}
+	// An attendee goes onto the event as the person the company carries, so a
+	// half-written name arrives as their name and their address rather than as
+	// what the model typed.
 	people, _ := payload["people"].([]any)
-	if len(people) != 3 || people[0] != "Staff" || people[1] != "샘플" || people[2] != "수민" || payload["reminderLeadHours"] != float64(48) {
+	if len(people) != 3 || people[0] != "Staff" || people[1] != "이샘플" || people[2] != "김수민" || payload["reminderLeadHours"] != float64(48) {
 		t.Fatalf("calendar metadata payload = %#v", payload)
+	}
+	participants, _ := payload["participants"].([]any)
+	if len(participants) != 3 {
+		t.Fatalf("participants = %#v", participants)
+	}
+	attendee, _ := participants[1].(map[string]any)
+	if attendee["email"] != "sample@example.com" || attendee["personID"] != "person-sample" {
+		t.Fatalf("attendee = %#v", attendee)
 	}
 }
 
@@ -73,6 +87,9 @@ func TestCalendarEventAddResolvesPeopleHintsAndIncludesRequester(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local", BlueclawBaseURL: "http://blueclaw.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			switch {
 			case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				var requestBody map[string]string
@@ -116,7 +133,7 @@ func TestCalendarEventAddResolvesPeopleHintsAndIncludesRequester(t *testing.T) {
 	}
 	people, _ := payload["people"].([]any)
 	participants, _ := payload["participants"].([]any)
-	if len(people) != 2 || people[0] != "김표본" || people[1] != "김테스트" {
+	if len(people) != 2 || people[0] != "김표본" || people[1] != "테스트" {
 		t.Fatalf("people = %#v payload=%#v", people, payload)
 	}
 	if len(participants) != 2 {
@@ -124,7 +141,7 @@ func TestCalendarEventAddResolvesPeopleHintsAndIncludesRequester(t *testing.T) {
 	}
 	firstParticipant, _ := participants[0].(map[string]any)
 	secondParticipant, _ := participants[1].(map[string]any)
-	if firstParticipant["personID"] != "person-staff" || secondParticipant["personID"] != "person-rain" {
+	if firstParticipant["personID"] != "person-staff" || secondParticipant["personID"] != "person-test" {
 		t.Fatalf("participants = %#v", participants)
 	}
 }
@@ -266,6 +283,9 @@ func TestCalendarEventListFiltersQueryAndLimit(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			expectedURL := "http://admind.local/calendar/api/events?endISO=2026-05-09T00%3A00%3A00Z&startISO=2026-05-08T00%3A00%3A00Z"
 			if request.Method != http.MethodGet || request.URL.String() != expectedURL {
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -333,6 +353,9 @@ func TestCalendarEventListRejectsEventWithoutIdentity(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			return calendarToolEventsResponse(event), nil
 		})},
 	}
@@ -349,6 +372,9 @@ func TestCalendarEventAddPreservesDuplicateControlWithoutSuccessEffect(t *testin
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			var payload map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatal(errorValue)
@@ -395,6 +421,9 @@ func TestCalendarEventListDefaultsToUpcomingWindow(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			if request.URL.String() != "http://admind.local/calendar/api/events?window=upcoming" {
 				t.Fatalf("unexpected request %s", request.URL.String())
 			}
@@ -449,6 +478,9 @@ func TestCalendarMutationInputsRequireEventHint(t *testing.T) {
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			service := Service{HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if isDirectoryPeopleRequest(request) {
+					return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+				}
 				t.Fatalf("mutation input reached HTTP boundary: %s", request.URL.String())
 				return nil, nil
 			})}}
@@ -464,6 +496,9 @@ func TestCalendarEventUpdatePreservesOmittedFields(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			requestCount++
 			switch requestCount {
 			case 1:
@@ -572,6 +607,9 @@ func TestCalendarEventUpdateReturnsVersionConflict(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			requestCount++
 			switch requestCount {
 			case 1:
@@ -616,6 +654,9 @@ func TestCalendarEventUpdateRejectsInvalidDirectLookupContract(t *testing.T) {
 			service := Service{
 				Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 				HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					if isDirectoryPeopleRequest(request) {
+						return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+					}
 					requestCount++
 					if requestCount == 1 {
 						return calendarToolEventsResponse(calendarToolEventDocument("event-1", "Original title", "2026-07-16T14:00:00+09:00", "2026-07-16T15:00:00+09:00")), nil
@@ -648,6 +689,9 @@ func TestCalendarEventUpdateResolvesByExactEventIDAcrossAllEvents(t *testing.T) 
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			requestCount++
 			switch requestCount {
 			case 1:
@@ -684,6 +728,9 @@ func TestCalendarEventUpdateResolvesByExactUniqueTitle(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			requestCount++
 			switch requestCount {
 			case 1:
@@ -716,6 +763,9 @@ func TestCalendarEventUpdateAmbiguousTitleReturnsCandidatesWithoutWrite(t *testi
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			if request.Method != http.MethodGet {
 				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
 			}
@@ -745,6 +795,9 @@ func TestCalendarEventUpdateAHintNothingComesCloseToWritesNothingAndNamesNothing
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			if request.Method != http.MethodGet {
 				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
 			}
@@ -775,6 +828,9 @@ func TestCalendarEventUpdateResolvesATitleWhoseCaseDiffers(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			requestCount++
 			switch requestCount {
 			case 1:
@@ -804,6 +860,9 @@ func TestCalendarEventUpdateHintResolutionTrimsWhitespaceBeforeMatching(t *testi
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			requestCount++
 			switch requestCount {
 			case 1:
@@ -836,6 +895,9 @@ func TestCalendarEventDeleteResolvesByExactUniqueTitle(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			requestCount++
 			switch requestCount {
 			case 1:
@@ -867,6 +929,9 @@ func TestCalendarEventDeleteAmbiguousTitleReturnsCandidatesWithoutDeleting(t *te
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			if request.Method != http.MethodGet {
 				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
 			}
@@ -896,6 +961,9 @@ func TestCalendarEventDeleteAHintNothingComesCloseToDeletesNothingAndNamesNothin
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			if request.Method != http.MethodGet {
 				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
 			}
@@ -941,6 +1009,9 @@ func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			requestCount++
 			switch requestCount {
 			case 1:
@@ -988,6 +1059,9 @@ func TestCalendarEventDeleteReturnsVersionConflict(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			requestCount++
 			switch requestCount {
 			case 1:
@@ -1094,6 +1168,9 @@ func TestCalendarEventAddAcceptsTheIdentifierAdmindAssigns(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local", BlueclawBaseURL: "http://blueclaw.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			if request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/identity/resolve-recipient" {
 				return calendarToolJSONResponse(`{"status":"not_found"}`), nil
 			}

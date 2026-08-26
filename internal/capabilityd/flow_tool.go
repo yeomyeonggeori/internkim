@@ -141,7 +141,7 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	members := summary.Members
-	ownerResolution := resolveFlowOwner(input, request.Context.RequesterEmail, members)
+	ownerResolution := service.resolveFlowOwner(ctx, input, request.Context.RequesterEmail, members)
 	if ownerResolution.Failure != nil {
 		return flowFailureResponse(request.ToolName, *ownerResolution.Failure), nil
 	}
@@ -161,7 +161,7 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		}
 		return capabilitySuccessResponse(request.ToolName, flowTaskResponseStatus(result), result)
 	}
-	participantIDs, participantFailure := resolveFlowParticipantIDs(input.ParticipantPersonHints, ownerResolution.OwnerID, members)
+	participantIDs, participantFailure := service.resolveFlowParticipantIDs(ctx, input.ParticipantPersonHints, ownerResolution.OwnerID, members)
 	if participantFailure != nil {
 		return flowFailureResponse(request.ToolName, *participantFailure), nil
 	}
@@ -203,7 +203,7 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 			summary.Members = members
 		}
 	}
-	task, failure := resolveFlowTaskHint(input.TaskHint, requesterFlowOwnerID(request.Context.RequesterEmail, summary.Members), summary.Tasks)
+	task, failure := resolveFlowTaskHint(input.TaskHint, service.requesterFlowOwnerID(ctx, request.Context.RequesterEmail, summary.Members), summary.Tasks)
 	if failure != nil {
 		return flowFailureResponse(request.ToolName, *failure), nil
 	}
@@ -211,7 +211,7 @@ func (service Service) invokeFlowTaskUpdate(ctx context.Context, request capabil
 	if labelFailure != nil {
 		return flowFailureResponse(request.ToolName, *labelFailure), nil
 	}
-	participantIDs, participantFailure := resolveFlowTaskUpdateParticipants(input, task, summary.Members)
+	participantIDs, participantFailure := service.resolveFlowTaskUpdateParticipants(ctx, input, task, summary.Members)
 	if participantFailure != nil {
 		return flowFailureResponse(request.ToolName, *participantFailure), nil
 	}
@@ -245,7 +245,7 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 			summary.Members = members
 		}
 	}
-	ownerID, failure := resolveFlowTaskListOwner(input, request.Context.RequesterEmail, summary.Members)
+	ownerID, failure := service.resolveFlowTaskListOwner(ctx, input, request.Context.RequesterEmail, summary.Members)
 	if failure != nil {
 		return flowTaskErrorResponse(request.ToolName, *failure), nil
 	}
@@ -278,7 +278,7 @@ func (service Service) invokeFlowTaskDelete(ctx context.Context, request capabil
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	task, failure := resolveFlowTaskHint(input.TaskHint, requesterFlowOwnerID(request.Context.RequesterEmail, summary.Members), summary.Tasks)
+	task, failure := resolveFlowTaskHint(input.TaskHint, service.requesterFlowOwnerID(ctx, request.Context.RequesterEmail, summary.Members), summary.Tasks)
 	if failure != nil {
 		return flowFailureResponse(request.ToolName, *failure), nil
 	}
@@ -799,11 +799,11 @@ type flowTaskFilter struct {
 	Limit           int
 }
 
-func resolveFlowTaskListOwner(input flowTaskListInput, requesterEmail string, members []flowMemberForTool) (string, *flowTaskAddFailure) {
+func (service Service) resolveFlowTaskListOwner(ctx context.Context, input flowTaskListInput, requesterEmail string, members []flowMemberForTool) (string, *flowTaskAddFailure) {
 	if input.Scope == flowTaskListScopeAll && strings.TrimSpace(input.TargetPersonHint) == "" {
 		return "", nil
 	}
-	resolution := resolveFlowOwner(flowTaskAddInput{TargetPersonHint: input.TargetPersonHint}, requesterEmail, members)
+	resolution := service.resolveFlowOwner(ctx, flowTaskAddInput{TargetPersonHint: input.TargetPersonHint}, requesterEmail, members)
 	if resolution.Failure != nil {
 		return "", resolution.Failure
 	}

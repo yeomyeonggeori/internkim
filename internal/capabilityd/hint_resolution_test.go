@@ -1,6 +1,7 @@
 package capabilityd
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -160,7 +161,7 @@ func TestAMistypedNameIsProposedRatherThanGuessed(t *testing.T) {
 		{ID: "person-2", Name: "박민준", Email: "minjun@dawn.kim", MattermostUsername: "minjun"},
 	}
 
-	resolution := resolveFlowOwnerHint("김여영", members)
+	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "김여영", members)
 	if resolution.Failure == nil {
 		t.Fatal("a name nobody has must not resolve on its own")
 	}
@@ -178,7 +179,7 @@ func TestAMistypedEmailDomainIsProposedAndAWrongLocalPartIsNot(t *testing.T) {
 		{ID: "person-2", Name: "박민준", Email: "minjun@dawn.kim"},
 	}
 
-	domainSlip := resolveFlowOwnerHint("iam@dawn.kin", members)
+	domainSlip := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "iam@dawn.kin", members)
 	if domainSlip.Failure == nil || domainSlip.Failure.ErrorCode != "flow_owner_approximate" {
 		t.Fatalf("a domain everyone shares is a slip, got %+v", domainSlip.Failure)
 	}
@@ -186,7 +187,7 @@ func TestAMistypedEmailDomainIsProposedAndAWrongLocalPartIsNot(t *testing.T) {
 		t.Fatalf("the local part says whose address it is, got %+v", domainSlip.Failure.Candidates)
 	}
 
-	otherPerson := resolveFlowOwnerHint("minjun@dawn.kim", members)
+	otherPerson := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "minjun@dawn.kim", members)
 	if otherPerson.Failure != nil || otherPerson.OwnerID != "person-2" {
 		t.Fatalf("an address that exists is that person, got %+v", otherPerson)
 	}
@@ -198,7 +199,7 @@ func TestAnExactNameOutranksEveryApproximation(t *testing.T) {
 		{ID: "person-2", Name: "이샘풀", Email: "pool@dawn.kim"},
 	}
 
-	resolution := resolveFlowOwnerHint("이샘플", members)
+	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "이샘플", members)
 	if resolution.Failure != nil || resolution.OwnerID != "person-1" {
 		t.Fatalf("an exact name is taken as given, got %+v", resolution)
 	}
