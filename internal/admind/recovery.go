@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -75,7 +76,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-visibility", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -252,6 +253,17 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		cancelLog()
 	case "admind-journal":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read what admind said about the roster it delivers", "sh", "-lc", admindJournalCommand()))
+	case "buzz-room-visibility":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read how open each room is", "sh", "-lc", buzzRoomVisibilityCommand()))
+	case "buzz-close-rooms-except":
+		closeCommand, closeError := buzzCloseRoomsExceptCommand(strings.Split(actionTarget, ","))
+		response.Results = append(response.Results, service.runNamedRoomCommand(ctx, "close every room but the ones this action names", closeCommand, closeError))
+	case "buzz-rename-room":
+		renameCommand, renameError := buzzRenameRoomCommand(actionTarget)
+		response.Results = append(response.Results, service.runNamedRoomCommand(ctx, "rename the room this action names", renameCommand, renameError))
+	case "buzz-retire-room-by-name":
+		retireCommand, retireError := buzzRetireRoomByNameCommand(actionTarget)
+		response.Results = append(response.Results, service.runNamedRoomCommand(ctx, "retire the room this action names, bridged or not", retireCommand, retireError))
 	case "buzz-room-roster":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read who each room holds", "sh", "-lc", buzzRoomRosterCommand()))
 	case "policy-circle-roster":
@@ -1056,6 +1068,83 @@ journalctl -u internkim-admind -n 200 --no-pager 2>&1 | grep -iE 'roster|circle|
 `)
 }
 
+func sqlQuotedRoomName(name string) (string, error) {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "", errors.New("this action names the room")
+	}
+	if strings.ContainsAny(trimmed, "\"\\$`\n") {
+		return "", fmt.Errorf("a room name carrying a quote, a backslash, a dollar or a backtick is refused rather than mangled: %q", trimmed)
+	}
+	return "'" + strings.ReplaceAll(trimmed, "'", "''") + "'", nil
+}
+
+func buzzRoomVisibilityCommand() string {
+	return strings.TrimSpace(`
+set +e
+q() { su - postgres -c "psql -X -d buzz -c \"$1\"" 2>&1; }
+printf '== every room, how open it is, and how many are in it ==\n'
+q "SELECT c.name AS room, c.visibility, count(m.*) FILTER (WHERE m.removed_at IS NULL) AS members, c.deleted_at IS NOT NULL AS retired FROM channels c LEFT JOIN channel_members m ON m.channel_id = c.id WHERE c.channel_type = 'stream' GROUP BY c.id, c.name, c.visibility, c.deleted_at ORDER BY 4, 2, 1"
+`)
+}
+
+func buzzCloseRoomsExceptCommand(openRooms []string) (string, error) {
+	quoted := make([]string, 0, len(openRooms))
+	for _, room := range openRooms {
+		literal, errorValue := sqlQuotedRoomName(room)
+		if errorValue != nil {
+			return "", errorValue
+		}
+		quoted = append(quoted, literal)
+	}
+	if len(quoted) == 0 {
+		return "", errors.New("this action names the rooms that stay open")
+	}
+	stayOpen := strings.Join(quoted, ", ")
+	return strings.TrimSpace(`
+set +e
+q() { su - postgres -c "psql -X -d buzz -c \"$1\"" 2>&1; }
+printf '== rooms that stay open ==\n'
+q "SELECT name FROM channels WHERE channel_type = 'stream' AND deleted_at IS NULL AND name IN (` + stayOpen + `) ORDER BY 1"
+printf '== rooms closed by this action ==\n'
+q "UPDATE channels SET visibility = 'private' WHERE channel_type = 'stream' AND deleted_at IS NULL AND visibility <> 'private' AND name NOT IN (` + stayOpen + `) RETURNING name"
+`), nil
+}
+
+func buzzRenameRoomCommand(target string) (string, error) {
+	oldName, newName, isPair := strings.Cut(target, "::")
+	if !isPair {
+		return "", errors.New("this action names the room as old::new")
+	}
+	quotedOldName, errorValue := sqlQuotedRoomName(oldName)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	quotedNewName, errorValue := sqlQuotedRoomName(newName)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return strings.TrimSpace(`
+set +e
+q() { su - postgres -c "psql -X -d buzz -c \"$1\"" 2>&1; }
+printf '== renamed ==\n'
+q "UPDATE channels SET name = ` + quotedNewName + ` WHERE channel_type = 'stream' AND deleted_at IS NULL AND name = ` + quotedOldName + ` RETURNING id::text, name"
+`), nil
+}
+
+func buzzRetireRoomByNameCommand(name string) (string, error) {
+	quotedName, errorValue := sqlQuotedRoomName(name)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return strings.TrimSpace(`
+set +e
+q() { su - postgres -c "psql -X -d buzz -c \"$1\"" 2>&1; }
+printf '== retired ==\n'
+q "UPDATE channels SET deleted_at = now() WHERE channel_type = 'stream' AND deleted_at IS NULL AND name = ` + quotedName + ` RETURNING id::text, name"
+`), nil
+}
+
 func buzzRoomRosterCommand() string {
 	return strings.TrimSpace(`
 set +e
@@ -1445,6 +1534,13 @@ func (service *Service) sshRecoveryServiceStates(ctx context.Context) map[string
 		"mm-db-data":           service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "timeout 6 su - postgres -c \"psql -X -qAt -d mattermost -c \\\"SELECT 'users='||count(*) FROM users\\\"; psql -X -qAt -d mattermost -c \\\"SELECT 'posts='||count(*) FROM posts\\\"\" 2>&1 | tr '\\n' ' '"),
 		"mm-env-ds":            service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "{ systemctl show mattermost.service -p Environment -p EnvironmentFiles 2>/dev/null | tr ' ' '\\n' | grep -iE 'DATASOURCE|EnvironmentFiles'; for f in $(systemctl show mattermost.service -p EnvironmentFiles 2>/dev/null | sed 's/EnvironmentFiles=//' | tr ' ' '\\n' | sed 's/^-//'); do grep -h DATASOURCE \"$f\" 2>/dev/null; done; } | grep -iE 'test|datasource|Environment' | sed -E 's#://[^:]+:[^@]+@#://U:P@#' | head -3 | tr '\\n' '  '"),
 	}
+}
+
+func (service *Service) runNamedRoomCommand(ctx context.Context, label string, command string, errorValue error) sshRecoveryCommandResult {
+	if errorValue != nil {
+		return sshRecoveryCommandResult{Name: label, Status: "error", Output: errorValue.Error()}
+	}
+	return service.runSSHRecoveryCommand(ctx, label, "sh", "-lc", command)
 }
 
 func (service *Service) runSSHRecoveryCommand(ctx context.Context, label string, name string, arguments ...string) sshRecoveryCommandResult {
