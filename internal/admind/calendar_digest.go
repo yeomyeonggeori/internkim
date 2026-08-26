@@ -64,7 +64,8 @@ func (service *Service) announceTheDayTo(
 	emailByExternalID := calendarDigestEmails(service.attendanceNotifyDirectory(ctx))
 	day := local.Format("2006-01-02")
 	for _, externalID := range externalIDs {
-		entries := calendarDigestFor(events, emailByExternalID[externalID], location)
+		email := emailByExternalID[externalID]
+		entries := calendarDigestFor(service.dayFor(ctx, client, email, local, location, events), email, location)
 		if len(entries) == 0 {
 			continue
 		}
@@ -84,8 +85,37 @@ func (service *Service) announceTheDayTo(
 }
 
 func (service *Service) calendarEventsOn(ctx context.Context, local time.Time, location *time.Location) ([]calendarEvent, error) {
+	start, end := calendarDigestDay(local, location)
+	return service.readCalendarEvents(ctx, start, end)
+}
+
+func calendarDigestDay(local time.Time, location *time.Location) (time.Time, time.Time) {
 	dayStart := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
-	return service.readCalendarEvents(ctx, dayStart, dayStart.AddDate(0, 0, 1))
+	return dayStart, dayStart.AddDate(0, 0, 1)
+}
+
+func (service *Service) dayFor(
+	ctx context.Context,
+	client *centralplane.Client,
+	email string,
+	local time.Time,
+	location *time.Location,
+	onThisDevice []calendarEvent,
+) []calendarEvent {
+	if email == "" {
+		return onThisDevice
+	}
+	start, end := calendarDigestDay(local, location)
+	events, errorValue := client.EventsBetween(ctx, "email", email,
+		start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339))
+	if errorValue != nil {
+		log.Printf("calendar digest: the company did not answer for %s, reading this device: %v", email, errorValue)
+		return onThisDevice
+	}
+	if len(events) == 0 {
+		return onThisDevice
+	}
+	return calendarEventsOfCompanyEvents(events, service.workspaceTimeZone().name)
 }
 
 func calendarDigestEmails(records []adminUserMutation) map[string]string {

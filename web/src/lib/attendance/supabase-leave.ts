@@ -1,3 +1,4 @@
+import { announceToTheCompany } from './announce-attendance';
 import { supabase } from '$lib/supabase';
 import type {
 	EmployeeLeavePayload,
@@ -129,6 +130,7 @@ export async function createSupabaseLeaveRequest(request: EmployeeLeaveSubmissio
 		note: request.reason
 	});
 	if (error) throw new Error(error.message);
+	await announceToTheCompany('leave');
 }
 
 export async function cancelSupabaseLeaveRequest(requestID: string): Promise<void> {
