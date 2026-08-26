@@ -116,3 +116,27 @@ func repositoryRootForTest(t *testing.T) string {
 	}
 	return root
 }
+
+func TestTheRefusalNamesWhatActuallyDiffers(t *testing.T) {
+	rebuilt := map[string]releaseset.Component{"relay": {Name: "relay", Revision: "tree-2"}}
+	published := map[string]releaseset.Component{
+		"relay":           {Name: "relay", Revision: "tree-1"},
+		"blueclawPayload": {Name: "blueclawPayload", Revision: "f0314bc59d3f52bfde76b9573c6b733e388e674a"},
+	}
+
+	_, errorValue := carriedComponents(t, rebuilt, published, func(name string) string {
+		return map[string]string{
+			"relay":           "tree-2",
+			"blueclawPayload": "f0314bc59d3f52bfde76b9573c6b733e388e674a-dirty-86259ee24ab1",
+		}[name]
+	})
+	if errorValue == nil {
+		t.Fatal("a payload built dirty from the device's own commit was accepted")
+	}
+	if strings.Contains(errorValue.Error(), "keep f0314bc59d3f, this tree builds f0314bc59d3f") {
+		t.Fatalf("the refusal printed one revision twice, so it reads as a bug in the guard: %v", errorValue)
+	}
+	if !strings.Contains(errorValue.Error(), "-dirty-") {
+		t.Fatalf("the refusal must show what the twelve-character form hides: %v", errorValue)
+	}
+}
