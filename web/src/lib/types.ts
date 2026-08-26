@@ -36,6 +36,7 @@ export interface FleetUserRecord {
 	hireDate?: string;
 	note?: string;
 	role: UserRole;
+	circles?: string[];
 	mattermostUserID?: string;
 	mattermostUsername?: string;
 	status?: string;
