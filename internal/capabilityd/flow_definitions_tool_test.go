@@ -13,7 +13,7 @@ import (
 
 const flowDefinitionsStateBody = `{
 	"definitions": {
-		"categories": ["김인턴", "여명거리", "기본소득"],
+		"categories": ["김인턴", "샘플거리", "기본소득"],
 		"categoryColors": {"김인턴": "#db3333", "기본소득": "#475569"},
 		"types": ["기능", "수정"],
 		"typeColors": {"기능": "#216fe4"},
@@ -78,7 +78,7 @@ func TestFlowTaskUpdateReturnsRegisteredLabelsForAnUnknownOne(t *testing.T) {
 	if !response.IsError || capturedPayload != "" {
 		t.Fatalf("response=%+v payload=%s", response, capturedPayload)
 	}
-	for _, expected := range []string{"flow_label_not_registered", `"field":"business"`, "김인턴", "여명거리", "기본소득"} {
+	for _, expected := range []string{"flow_label_not_registered", `"field":"business"`, "김인턴", "샘플거리", "기본소득"} {
 		if !strings.Contains(string(response.Result), expected) {
 			t.Fatalf("result missing %s: %s", expected, string(response.Result))
 		}
@@ -87,12 +87,12 @@ func TestFlowTaskUpdateReturnsRegisteredLabelsForAnUnknownOne(t *testing.T) {
 
 func TestFlowTaskUpdateResolvesAUniquePartialLabel(t *testing.T) {
 	capturedPayload := ""
-	response := updateFlowTaskLabel(t, flowLabelService(t, &capturedPayload), `{"taskHint":"운동","business":"여명"}`)
+	response := updateFlowTaskLabel(t, flowLabelService(t, &capturedPayload), `{"taskHint":"운동","business":"샘플"}`)
 
 	if response.IsError {
 		t.Fatalf("response = %+v", response)
 	}
-	if !strings.Contains(capturedPayload, `"category":"여명거리"`) {
+	if !strings.Contains(capturedPayload, `"category":"샘플거리"`) {
 		t.Fatalf("payload = %s", capturedPayload)
 	}
 }

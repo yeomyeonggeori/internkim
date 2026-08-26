@@ -24,14 +24,14 @@ describe('calendar page navigation', () => {
 		const eventDate = new Date(2026, 5, 4, 18, 0);
 		navigation.navigateToSearchResult({
 			id: 'event-1',
-			title: '디플랫코리아 기획안 전달',
+			title: '견본코리아 기획안 전달',
 			startDate: eventDate,
 			endDate: new Date(2026, 5, 4, 19, 0),
 			isAllDay: false,
 			color: '#3b82f6',
 			participants: [],
 			dateLabel: '2026.06.04 THU',
-			highlightParts: [{ text: '디플랫코리아 기획안 전달', isMatch: false }]
+			highlightParts: [{ text: '견본코리아 기획안 전달', isMatch: false }]
 		});
 
 		expect(visibleDates).toEqual([eventDate]);

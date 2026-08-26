@@ -158,7 +158,7 @@ func companyPictureStores(t *testing.T, picture []byte) (media.Uploader, *assetk
 
 func TestTheChannelMakerIsGivenTheCompanysOwnName(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
-		responseWriter.Write([]byte(`{"name":"여명거리","profileImage":"a/shared/company/face.png"}`))
+		responseWriter.Write([]byte(`{"name":"샘플거리","profileImage":"a/shared/company/face.png"}`))
 	}))
 	defer server.Close()
 	uploader, keeper := companyPictureStores(t, onePixelPNG(t))
@@ -169,7 +169,7 @@ func TestTheChannelMakerIsGivenTheCompanysOwnName(t *testing.T) {
 	if len(published) != 1 {
 		t.Fatalf("published %v", published)
 	}
-	if !strings.Contains(published[0], "여명거리") {
+	if !strings.Contains(published[0], "샘플거리") {
 		t.Errorf("profile = %q", published[0])
 	}
 	if !strings.Contains(published[0], "https://relay.example/abc.png") {
@@ -182,7 +182,7 @@ func TestTheChannelMakerIsGivenTheCompanysOwnName(t *testing.T) {
 
 func TestACompanyPictureThatCannotBeReadIsLeftOut(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
-		responseWriter.Write([]byte(`{"name":"여명거리","profileImage":"a/shared/company/face.png"}`))
+		responseWriter.Write([]byte(`{"name":"샘플거리","profileImage":"a/shared/company/face.png"}`))
 	}))
 	defer server.Close()
 	uploader, _ := companyPictureStores(t, nil)
@@ -193,7 +193,7 @@ func TestACompanyPictureThatCannotBeReadIsLeftOut(t *testing.T) {
 	if len(published) != 1 {
 		t.Fatalf("published %v", published)
 	}
-	if !strings.Contains(published[0], "여명거리") {
+	if !strings.Contains(published[0], "샘플거리") {
 		t.Errorf("the company is still named without a picture: %q", published[0])
 	}
 	if strings.Contains(published[0], "a/shared/company/face.png") {

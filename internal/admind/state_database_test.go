@@ -13,7 +13,7 @@ func TestStateDatabaseAdoptsLegacyDatabasesOnce(t *testing.T) {
 	legacyFlowPath := filepath.Join(stateDirectory, "flow.sqlite")
 	legacyCalendarPath := filepath.Join(stateDirectory, "calendar.sqlite")
 	seedLegacyStateDatabase(t, legacyFlowPath, "CREATE TABLE flow_definitions (kind TEXT NOT NULL, value TEXT NOT NULL, position INTEGER NOT NULL, color TEXT NOT NULL DEFAULT '', PRIMARY KEY(kind, value))",
-		"INSERT INTO flow_definitions(kind, value, position, color) VALUES ('category', '여명거리', 0, '#db2777')")
+		"INSERT INTO flow_definitions(kind, value, position, color) VALUES ('category', '샘플거리', 0, '#db2777')")
 	seedLegacyStateDatabase(t, legacyCalendarPath, "CREATE TABLE calendar_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
 		"INSERT INTO calendar_settings(key, value) VALUES ('ics_token', 'legacy-token')")
 
@@ -26,10 +26,10 @@ func TestStateDatabaseAdoptsLegacyDatabasesOnce(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(definitions.Categories) != 1 || definitions.Categories[0] != "여명거리" {
+	if len(definitions.Categories) != 1 || definitions.Categories[0] != "샘플거리" {
 		t.Fatalf("categories = %#v", definitions.Categories)
 	}
-	if definitions.CategoryColors["여명거리"] != "#db2777" {
+	if definitions.CategoryColors["샘플거리"] != "#db2777" {
 		t.Fatalf("categoryColors = %#v", definitions.CategoryColors)
 	}
 

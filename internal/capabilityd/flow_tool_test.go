@@ -483,13 +483,13 @@ func TestFlowTaskListFiltersTasksByQueryIgnoringSpaces(t *testing.T) {
 			if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/flow/api/state" {
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			}
-			return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"currentWeek":{"code":"26W23"},"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","content":"디플랫코리아 기획안 전달","status":"예정","weekCode":"26W23"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","content":"사무실 미팅","status":"예정","weekCode":"26W23"}]}`)), nil
+			return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"currentWeek":{"code":"26W23"},"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","content":"견본코리아 기획안 전달","status":"예정","weekCode":"26W23"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","content":"사무실 미팅","status":"예정","weekCode":"26W23"}]}`)), nil
 		})},
 	}
 
 	response, errorValue := service.invokeFlowTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_list",
-		Input:    []byte(`{"query":"디플랫 코리아","weekFrom":-1000}`),
+		Input:    []byte(`{"query":"견본 코리아","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
 	})
 	if errorValue != nil {
@@ -888,7 +888,7 @@ func TestFlowTaskUpdateResolvesByExactTaskIDAcrossAllTasks(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
-				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"staff","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"staff","ownerName":"이샘플","participantIDs":["staff"],"business":"여명거리","type":"문서","content":"IR 덱","status":"진행","weekCode":"26W28"}]}`)), nil
+				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"staff","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"staff","ownerName":"이샘플","participantIDs":["staff"],"business":"샘플거리","type":"문서","content":"IR 덱","status":"진행","weekCode":"26W28"}]}`)), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/deck-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)

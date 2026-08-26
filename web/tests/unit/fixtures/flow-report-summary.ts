@@ -84,7 +84,7 @@ export const flowReportFixtureMetrics: FlowReportFixtureMetrics = {
 		중단: 1
 	},
 	businessCounts: {
-		여명거리: 7,
+		샘플거리: 7,
 		김인턴: 7
 	},
 	typeCounts: {
@@ -125,7 +125,7 @@ export const flowReportFixtureMembers: FlowReportFixtureMember[] = [
 ];
 
 export const flowReportFixtureDefinitions: FlowReportFixtureDefinitions = {
-	categories: ['여명거리', '김인턴'],
+	categories: ['샘플거리', '김인턴'],
 	types: ['구현', '회의', '검증', '문서'],
 	sizes: [
 		{ name: 'S', distanceKm: 2 },
@@ -136,8 +136,8 @@ export const flowReportFixtureDefinitions: FlowReportFixtureDefinitions = {
 };
 
 export const flowReportFixtureTasks: FlowReportFixtureTask[] = [
-	{ participantNames: ['김예시'], business: '여명거리', type: '구현', size: 'L', status: '완료', startDate: '2026-06-01', endDate: '2026-06-01' },
-	{ participantNames: ['김예시', '박예시'], business: '여명거리', type: '검증', size: 'M', status: '진행', startDate: '2026-06-02' },
+	{ participantNames: ['김예시'], business: '샘플거리', type: '구현', size: 'L', status: '완료', startDate: '2026-06-01', endDate: '2026-06-01' },
+	{ participantNames: ['김예시', '박예시'], business: '샘플거리', type: '검증', size: 'M', status: '진행', startDate: '2026-06-02' },
 	{ participantNames: ['박예시'], business: '김인턴', type: '회의', size: 'S', status: '완료', startDate: '2026-06-03', endDate: '2026-06-03' },
 	{ participantNames: ['최견본'], business: '김인턴', type: '문서', size: 'XL', status: '일시정지', startDate: '2026-06-04' }
 ];
