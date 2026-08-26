@@ -130,7 +130,7 @@ export async function createSupabaseLeaveRequest(request: EmployeeLeaveSubmissio
 		note: request.reason
 	});
 	if (error) throw new Error(error.message);
-	await announceToTheCompany('leave');
+	void announceToTheCompany('leave');
 }
 
 export async function cancelSupabaseLeaveRequest(requestID: string): Promise<void> {
