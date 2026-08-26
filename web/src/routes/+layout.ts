@@ -11,20 +11,20 @@ const isBoard = import.meta.env.VITE_BUILD_TARGET === 'board';
 export const prerender = isBoard;
 export const ssr = !isBoard;
 
-export const load: LayoutLoad<{ session: WebAuthSession | null }> = async ({ fetch, depends }) => {
+export const load: LayoutLoad<{ session: WebAuthSession | null }> = async ({ fetch, depends, url }) => {
 	depends(webAuthSessionDependency);
 	if (typeof window === 'undefined' || isEmbeddedFrame()) return { session: null };
-	const returnPath = window.location.pathname + window.location.search;
+	const returnPath = url.pathname + url.search;
 	if (isSupabaseConfigured()) {
 		const session = await supabaseWebAuthSession(returnPath);
 		const settlingIn = returnPath.startsWith('/start') || returnPath.startsWith('/auth/');
 		if (session.authenticated && !settlingIn && !(await belongsToACompany())) {
 			redirect(307, '/start');
 		}
-		if (session.authenticated && wantsCompanyPrefix(window.location.pathname)) {
+		if (session.authenticated && wantsCompanyPrefix(url.pathname)) {
 			const { companySlug } = await supabaseMember();
 			if (companySlug) {
-				redirect(307, companyPathOf(companySlug, window.location.pathname) + window.location.search);
+				redirect(307, companyPathOf(companySlug, url.pathname) + url.search);
 			}
 		}
 		return { session };
