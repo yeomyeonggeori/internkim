@@ -76,7 +76,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-visibility", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-link-edits", "buzz-remove-link-edits", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-visibility", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -200,6 +200,12 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		restoreCommand, restoreError := buzzRestoreDirectMessageDiscoveryCommand(actionTarget)
 		response.Results = append(response.Results, service.runNamedRoomCommand(restoreContext, "give every direct message back the names it showed", restoreCommand, restoreError))
 		cancelRestore()
+	case "buzz-link-edits":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the edits the link rewrite injected", "sh", "-lc", buzzLinkEditsCommand(false)))
+	case "buzz-remove-link-edits":
+		editContext, cancelEdits := context.WithTimeout(context.Background(), 300*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(editContext, "take back the edits the link rewrite injected", "sh", "-lc", buzzLinkEditsCommand(true)))
+		cancelEdits()
 	case "buzz-republish-rooms":
 		republishContext, cancelRepublish := context.WithTimeout(context.Background(), 300*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(republishContext, "tell every client what each room is called and how open it is", "sh", "-lc", buzzRepublishRoomsCommand()))
@@ -1564,6 +1570,26 @@ printf '%s\n' "$RESTORED"
 printf '== how many carry a participant tag ==\n'
 q "SELECT count(*) FROM events WHERE kind = 39000 AND tags::text LIKE '%p%' AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')"
 `), nil
+}
+
+func buzzLinkEditsCommand(shouldRemove bool) string {
+	removal := `printf 'run buzz-remove-link-edits to take them back\n'`
+	if shouldRemove {
+		removal = `q "DELETE FROM events WHERE kind = 40003 AND created_at >= extract(epoch from now() - interval '12 hours')"`
+	}
+	return strings.TrimSpace(`
+set -e
+q() { su - postgres -c "psql -X -qAt -v ON_ERROR_STOP=1 -d buzz -c \"$1\""; }
+printf '== edits this device injected in the last 12 hours ==\n'
+q "SELECT count(*) FROM events WHERE kind = 40003 AND created_at >= extract(epoch from now() - interval '12 hours')"
+printf '== edits older than that ==\n'
+q "SELECT count(*) FROM events WHERE kind = 40003 AND created_at < extract(epoch from now() - interval '12 hours')"
+printf '== messages that still hold their own words ==\n'
+q "SELECT count(*) FROM events WHERE kind = 9"
+` + removal + `
+printf '== edits now ==\n'
+q "SELECT count(*) FROM events WHERE kind = 40003"
+`)
 }
 
 func buzzRepublishRoomsCommand() string {
