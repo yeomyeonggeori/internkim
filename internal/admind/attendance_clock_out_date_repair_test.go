@@ -86,17 +86,19 @@ func TestRepairAttendanceClockOutDatesCorrectsLegacyRowsAndPreservesOverrides(t 
 }
 
 func legacyAttendanceClockOutEvent(service *Service, eventID string, userID string, email string, location *time.Location) attendanceEvent {
-	event := service.createAttendanceEvent(
-		mattermostUserRecord{ID: userID, Username: userID, Email: email, Nickname: userID},
-		attendanceKindClockOut,
-		time.Date(2026, 6, 2, 2, 0, 0, 0, location).UTC(),
-		"team-1",
-		"attendance-channel",
-		"action-post-"+userID,
-		"result-post-"+userID,
-		attendanceLocation{},
-	)
-	event.ID = eventID
-	event.LocalDate = "2026-06-01"
-	return event
+	occurredAt := time.Date(2026, 6, 2, 2, 0, 0, 0, location).UTC()
+	workspaceLocation, timeZoneName := service.workspaceTimeLocation()
+	return attendanceEvent{
+		ID:                 eventID,
+		MattermostUserID:   userID,
+		MattermostUsername: userID,
+		Email:              email,
+		DisplayName:        userID,
+		Kind:               attendanceKindClockOut,
+		OccurredAt:         occurredAt.Format(time.RFC3339Nano),
+		LocalDate:          "2026-06-01",
+		LocalTime:          occurredAt.In(workspaceLocation).Format("15:04:05"),
+		TimeZoneAtEvent:    timeZoneName,
+		Source:             attendanceSourceMattermostButton,
+	}
 }

@@ -8,15 +8,9 @@ func TestPublicChannelsForLanguageLocalizesManagedChannelCopy(t *testing.T) {
 
 	assertPublicChannel(t, koreanChannels[0], TownSquareChannelName, "광장", "", "")
 	assertPublicChannel(t, koreanChannels[1], OffTopicChannelName, "잡담", "", "")
-	assertPublicChannel(t, koreanChannels[2], FlowChannelName, "업무", "[업무 열기](/flow/)", "")
-	assertPublicChannel(t, koreanChannels[3], CalendarChannelName, "일정", "[일정 열기](/calendar/)", "")
-	assertPublicChannel(t, koreanChannels[4], AttendanceChannelName, "근태", "[근태 열기](/attendance/)", "")
 
 	assertPublicChannel(t, englishChannels[0], TownSquareChannelName, "Town Square", "", "")
 	assertPublicChannel(t, englishChannels[1], OffTopicChannelName, "Off-Topic", "", "")
-	assertPublicChannel(t, englishChannels[2], FlowChannelName, "Flow", "[Open Flow](/flow/)", "")
-	assertPublicChannel(t, englishChannels[3], CalendarChannelName, "Calendar", "[Open Calendar](/calendar/)", "")
-	assertPublicChannel(t, englishChannels[4], AttendanceChannelName, "Attendance", "[Open Attendance](/attendance/)", "")
 }
 
 func TestCircleChannelDisplayNameRemovesCirclePrefix(t *testing.T) {

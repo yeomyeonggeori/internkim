@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"errors"
-	"net/http"
 	"reflect"
 	"testing"
 	"time"
@@ -110,10 +109,9 @@ func TestCancelAttendanceEventInvalidatesEventCaches(t *testing.T) {
 	defer database.Close()
 	revision := primeAttendanceSummaryCacheForTest(t, service, attendanceSummaryCacheKindEvents, "2026-07")
 
-	if errorValue := service.cancelAttendanceEventWithReason(
+	if errorValue := service.cancelAttendanceEventRecord(
 		ctx,
 		database,
-		"user-token",
 		event,
 		time.Date(2026, 7, 13, 9, 1, 0, 0, time.UTC),
 		attendanceCancelReason,
@@ -122,75 +120,6 @@ func TestCancelAttendanceEventInvalidatesEventCaches(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	assertAttendanceSummaryCacheInvalidatedForTest(t, service, attendanceSummaryCacheKindEvents, "2026-07", revision)
-}
-
-func TestCancelAttendanceEventCommitsMutationWhenMattermostNotificationFails(t *testing.T) {
-	service, _ := newAttendanceActionTestService(t)
-	notificationError := errors.New("forced Mattermost cancel notification failure")
-	notificationAttempts := 0
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method != http.MethodPost || request.URL.String() != "http://mattermost.local/api/v4/posts" {
-			t.Fatalf("Mattermost request = %s %s, want POST /api/v4/posts", request.Method, request.URL.String())
-		}
-		if authorization := request.Header.Get("Authorization"); authorization != "Bearer user-token" {
-			t.Fatalf("Mattermost authorization = %q, want %q", authorization, "Bearer user-token")
-		}
-		notificationAttempts++
-		return nil, notificationError
-	})}
-	ctx := context.Background()
-	database, event := insertAttendanceCacheTestEvent(t, service, "2026-07-13T09:00:00Z")
-	defer database.Close()
-	month := "2026-07"
-	revision := primeAttendanceSummaryCacheForTest(t, service, attendanceSummaryCacheKindEvents, month)
-	canceledAt := time.Date(2026, 7, 13, 9, 1, 0, 0, time.UTC)
-
-	errorValue := service.cancelAttendanceEventWithReason(
-		ctx,
-		database,
-		"user-token",
-		event,
-		canceledAt,
-		attendanceCancelReason,
-		"",
-	)
-	if !errors.Is(errorValue, notificationError) {
-		t.Fatalf("cancel attendance event error = %v, want %v", errorValue, notificationError)
-	}
-	if notificationAttempts != 1 {
-		t.Fatalf("Mattermost notification attempts = %d, want 1", notificationAttempts)
-	}
-	var storedCanceledAt string
-	if errorValue := database.QueryRow("SELECT canceled_at FROM attendance_events WHERE id = ?", event.ID).Scan(&storedCanceledAt); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if storedCanceledAt != canceledAt.Format(time.RFC3339) {
-		t.Fatalf("canceled at = %q, want %q", storedCanceledAt, canceledAt.Format(time.RFC3339))
-	}
-	assertAttendanceSummaryCacheInvalidatedForTest(t, service, attendanceSummaryCacheKindEvents, month, revision)
-
-	errorValue = service.cancelAttendanceEventWithReason(
-		ctx,
-		database,
-		"user-token",
-		event,
-		canceledAt,
-		attendanceCancelReason,
-		"",
-	)
-	if !errors.Is(errorValue, notificationError) {
-		t.Fatalf("repeated cancel attendance event error = %v, want %v", errorValue, notificationError)
-	}
-	if notificationAttempts != 2 {
-		t.Fatalf("Mattermost notification attempts = %d, want 2", notificationAttempts)
-	}
-	if errorValue := database.QueryRow("SELECT canceled_at FROM attendance_events WHERE id = ?", event.ID).Scan(&storedCanceledAt); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if storedCanceledAt != canceledAt.Format(time.RFC3339) {
-		t.Fatalf("canceled at after repeated call = %q, want %q", storedCanceledAt, canceledAt.Format(time.RFC3339))
-	}
-	assertAttendanceSummaryCacheInvalidatedForTest(t, service, attendanceSummaryCacheKindEvents, month, revision+1)
 }
 
 func TestCancelAttendanceEventDoesNotPostWhenCacheInvalidationFails(t *testing.T) {
@@ -208,10 +137,9 @@ END`); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	if errorValue := service.cancelAttendanceEventWithReason(
+	if errorValue := service.cancelAttendanceEventRecord(
 		ctx,
 		database,
-		"user-token",
 		event,
 		time.Date(2026, 7, 13, 9, 1, 0, 0, time.UTC),
 		attendanceCancelReason,
@@ -251,10 +179,9 @@ func TestCancelAttendanceEventDoesNotPostWhenEventDoesNotExist(t *testing.T) {
 		attendanceLocation{},
 	)
 
-	errorValue = service.cancelAttendanceEventWithReason(
+	errorValue = service.cancelAttendanceEventRecord(
 		ctx,
 		database,
-		"user-token",
 		event,
 		time.Date(2026, 7, 13, 9, 1, 0, 0, time.UTC),
 		attendanceCancelReason,

@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+var errAttendanceDuplicateIgnored = errors.New("attendance duplicate ignored")
+
 func (service *Service) withAttendanceEventMutation(
 	ctx context.Context,
 	database *sql.DB,

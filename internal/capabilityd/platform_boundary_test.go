@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 const testFutureMattermostPostCreateAt = int64(4102444800000)
@@ -586,38 +585,6 @@ func TestMattermostWebSocketPayloadPreservesMentionMetadata(t *testing.T) {
 	}
 	if !event.Context.Addressing.BotMentioned || event.Context.Addressing.OtherPersonMentioned {
 		t.Fatalf("expected fallback bot mention metadata, got %+v", event.Context.Addressing)
-	}
-}
-
-func TestMattermostAttendanceChannelPostsAreNotForwarded(t *testing.T) {
-	buildAttendancePost := func(message string, rootID string) []byte {
-		postDocument, _ := json.Marshal(mattermostPost{
-			ID:        "post-1",
-			UserID:    "user-1",
-			ChannelID: "attendance-channel",
-			Message:   message,
-			RootID:    rootID,
-		})
-		envelope := map[string]any{
-			"event": "posted",
-			"data": map[string]any{
-				"channel_type": "O",
-				"channel_name": mattermostdefaults.AttendanceChannelName,
-				"post":         string(postDocument),
-			},
-		}
-		document, _ := json.Marshal(envelope)
-		return document
-	}
-
-	for _, message := range []string{"출근", "출금", "@internkim 확인해줘"} {
-		_, hasEvent, errorValue := normalizeMattermostWebSocketPayload(buildAttendancePost(message, "result-post-1"), "bot-1", "internkim")
-		if errorValue != nil {
-			t.Fatalf("expected attendance payload normalization to succeed: %v", errorValue)
-		}
-		if hasEvent {
-			t.Fatalf("expected attendance channel reply %q to be ignored", message)
-		}
 	}
 }
 

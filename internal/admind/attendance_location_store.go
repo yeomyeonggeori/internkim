@@ -93,3 +93,11 @@ func defaultAttendanceLocations() []attendanceLocation {
 		IsDefault: true,
 	}}
 }
+
+func (service *Service) attendanceDisplayLocationName(location attendanceLocation) string {
+	locationName := strings.TrimSpace(location.Name)
+	if service.adminLocale() == "en" && location.ID == "office" && locationName == "사무실" {
+		return "Office"
+	}
+	return locationName
+}
