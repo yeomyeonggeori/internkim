@@ -13,6 +13,7 @@ import (
 )
 
 const platformMessageBroadcastRecipientLimit = 50
+const platformMessageAttachmentLimit = 5
 
 type platformMessageDeliveryTarget struct {
 	Type        string   `json:"type"`
@@ -44,6 +45,7 @@ type platformMessageSendInput struct {
 	PersonHint  string   `json:"personHint"`
 	PersonHints []string `json:"personHints"`
 	Pin         bool     `json:"pin"`
+	Attachments []string `json:"attachments"`
 	Reason      string   `json:"reason"`
 
 	DeliveryTarget platformMessageDeliveryTarget `json:"-"`
@@ -251,19 +253,31 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
 	if input.DeliveryTarget.Type == "directMessage" {
-		if len(input.DeliveryTarget.PersonHints) > 0 {
-			return service.invokePlatformMessageDirectBroadcast(ctx, request, input)
+		attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(input.Attachments)
+		if hasFailure {
+			return mattermostToolErrorResponse(request.ToolName, failure), nil
 		}
-		return service.invokePlatformMessageDirectSend(ctx, request, input)
+		if len(input.DeliveryTarget.PersonHints) > 0 {
+			return service.invokePlatformMessageDirectBroadcast(ctx, request, input, attachmentFiles)
+		}
+		return service.invokePlatformMessageDirectSend(ctx, request, input, attachmentFiles)
 	}
 	if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 		return response, nil
+	}
+	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(input.Attachments)
+	if hasFailure {
+		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
 	channelID, rootID, failure, hasFailure := service.resolvePlatformMessageSendTarget(ctx, request.Context, input.DeliveryTarget)
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
-	result, failure, hasFailure := service.createPlatformMessagePost(ctx, channelID, rootID, input.Message, input.Pin, request.IdempotencyKey)
+	fileIDs, errorValue := service.uploadMattermostFiles(ctx, channelID, attachmentFiles)
+	if errorValue != nil {
+		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("attachment_upload", "mattermost_unavailable", errorValue)), nil
+	}
+	result, failure, hasFailure := service.createPlatformMessagePost(ctx, channelID, rootID, input.Message, input.Pin, request.IdempotencyKey, fileIDs)
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
@@ -273,12 +287,20 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 	})
 }
 
-func (service Service) invokePlatformMessageDirectSend(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
+func (service Service) resolvePlatformMessageAttachments(paths []string) ([]platformFile, mattermostToolFailure, bool) {
+	attachmentFiles, errorValue := service.resolveWorkspaceAttachmentFiles(paths)
+	if errorValue != nil {
+		return nil, mattermostToolStaticFailure("attachment_unavailable", "attachment_resolve", errorValue.Error()), true
+	}
+	return attachmentFiles, mattermostToolFailure{}, false
+}
+
+func (service Service) invokePlatformMessageDirectSend(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput, attachments []platformFile) (capabilities.ToolInvokeResponse, error) {
 	recipientMattermostUserID, failure, hasFailure := service.resolvePlatformDirectSendRecipient(ctx, request, input.DeliveryTarget.PersonHint)
 	if hasFailure {
 		return platformDMErrorResponse(request.ToolName, failure), nil
 	}
-	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipientMattermostUserID, input.Message, request.IdempotencyKey)
+	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipientMattermostUserID, input.Message, request.IdempotencyKey, attachments)
 	if hasFailure {
 		return platformDMErrorResponse(request.ToolName, failure), nil
 	}
@@ -314,10 +336,10 @@ type platformMessageBroadcastResult struct {
 	Message            string `json:"message,omitempty"`
 }
 
-func (service Service) invokePlatformMessageDirectBroadcast(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
+func (service Service) invokePlatformMessageDirectBroadcast(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput, attachments []platformFile) (capabilities.ToolInvokeResponse, error) {
 	results := make([]platformMessageBroadcastResult, 0, len(input.DeliveryTarget.PersonHints))
 	for _, personHint := range input.DeliveryTarget.PersonHints {
-		results = append(results, service.broadcastDirectMessageToHint(ctx, request, personHint, input.Message))
+		results = append(results, service.broadcastDirectMessageToHint(ctx, request, personHint, input.Message, attachments))
 	}
 	messageIDs, failures := canonicalPlatformMessageBroadcastResult(results)
 	rollup := map[string]any{
@@ -360,13 +382,13 @@ func canonicalPlatformMessageBroadcastResult(results []platformMessageBroadcastR
 	return messageIDs, failures
 }
 
-func (service Service) broadcastDirectMessageToHint(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string, message string) platformMessageBroadcastResult {
+func (service Service) broadcastDirectMessageToHint(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string, message string, attachments []platformFile) platformMessageBroadcastResult {
 	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint, request.Context.ResponseLanguage)
 	if hasFailure {
 		return platformMessageBroadcastResult{PersonHint: personHint, Status: "failed", ErrorCode: failure.ErrorCode, Message: failure.Message}
 	}
 	idempotencyKey := platformMessageBroadcastIdempotencyKey(request.IdempotencyKey, recipient.MattermostUserID)
-	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, message, idempotencyKey)
+	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, message, idempotencyKey, attachments)
 	if hasFailure {
 		return platformMessageBroadcastResult{PersonHint: personHint, PersonID: recipient.PersonID, DisplayName: recipient.DisplayName, Status: "failed", ErrorCode: failure.ErrorCode, Message: failure.Message}
 	}
@@ -509,6 +531,7 @@ func decodePlatformMessageSendInput(document json.RawMessage) (platformMessageSe
 	}
 	input.Message = strings.TrimSpace(input.Message)
 	input.Reason = strings.TrimSpace(input.Reason)
+	input.Attachments = uniqueTrimmedPlatformMessageHints(input.Attachments)
 	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(platformMessageDeliveryTarget{
 		Type:        input.TargetType,
 		PersonHint:  input.PersonHint,
@@ -518,6 +541,9 @@ func decodePlatformMessageSendInput(document json.RawMessage) (platformMessageSe
 	})
 	if input.Message == "" {
 		return platformMessageSendInput{}, fmt.Errorf("message is required")
+	}
+	if len(input.Attachments) > platformMessageAttachmentLimit {
+		return platformMessageSendInput{}, fmt.Errorf("attachments accepts at most %d workspace paths per call", platformMessageAttachmentLimit)
 	}
 	if errorValue := validatePlatformMessageDeliveryTarget(input.DeliveryTarget); errorValue != nil {
 		return platformMessageSendInput{}, errorValue
@@ -690,8 +716,8 @@ func (service Service) resolvePlatformMessageSendTarget(ctx context.Context, too
 		if hasFailure {
 			return "", "", failure, true
 		}
-		if !service.requesterMayAccessChannel(ctx, toolContext, channel.ID) {
-			return "", "", channelAccessDeniedFailure(firstNonEmpty(channel.DisplayName, channel.Name, channel.ID)), true
+		if failure, hasFailure := service.authorizeAndJoinPlatformMessageChannel(ctx, toolContext, channel); hasFailure {
+			return "", "", failure, true
 		}
 		return channel.ID, "", mattermostToolFailure{}, false
 	default:
@@ -700,7 +726,34 @@ func (service Service) resolvePlatformMessageSendTarget(ctx context.Context, too
 	}
 }
 
-func (service Service) createPlatformMessagePost(ctx context.Context, channelID string, rootID string, message string, pin bool, idempotencyKey string) (string, mattermostToolFailure, bool) {
+func (service Service) authorizeAndJoinPlatformMessageChannel(ctx context.Context, toolContext capabilities.ToolInvokeContext, channel mattermostToolChannel) (mattermostToolFailure, bool) {
+	isMember, errorValue := service.requesterMayAccessChannel(ctx, toolContext, channel.ID)
+	if errorValue != nil {
+		if !isHTTPStatusForbidden(errorValue) {
+			return mattermostToolFailureForError("membership_lookup", "mattermost_unavailable", errorValue), true
+		}
+		if failure, hasFailure := service.joinPlatformMessageChannel(ctx, channel.ID); hasFailure {
+			return failure, true
+		}
+		isMember, errorValue = service.requesterMayAccessChannel(ctx, toolContext, channel.ID)
+		if errorValue != nil {
+			return mattermostToolFailureForError("membership_lookup", "mattermost_unavailable", errorValue), true
+		}
+	}
+	if !isMember {
+		return channelAccessDeniedFailure(firstNonEmpty(channel.DisplayName, channel.Name, channel.ID)), true
+	}
+	return service.joinPlatformMessageChannel(ctx, channel.ID)
+}
+
+func (service Service) joinPlatformMessageChannel(ctx context.Context, channelID string) (mattermostToolFailure, bool) {
+	if errorValue := service.ensureMattermostBotChannelMembership(ctx, channelID); errorValue != nil {
+		return mattermostToolFailureForError("channel_join", "bot_channel_join_failed", errorValue), true
+	}
+	return mattermostToolFailure{}, false
+}
+
+func (service Service) createPlatformMessagePost(ctx context.Context, channelID string, rootID string, message string, pin bool, idempotencyKey string, fileIDs []string) (string, mattermostToolFailure, bool) {
 	var postResponse struct {
 		ID string `json:"id"`
 	}
@@ -708,6 +761,9 @@ func (service Service) createPlatformMessagePost(ctx context.Context, channelID 
 		"channel_id": strings.TrimSpace(channelID),
 		"message":    strings.TrimSpace(message),
 		"props":      map[string]any{"internkim_platform_message_post": true},
+	}
+	if len(fileIDs) > 0 {
+		body["file_ids"] = fileIDs
 	}
 	if strings.TrimSpace(rootID) != "" {
 		body["root_id"] = strings.TrimSpace(rootID)

@@ -461,6 +461,13 @@ func (service Service) resolveMattermostToolChannel(ctx context.Context, channel
 		return mattermostToolChannel{}, mattermostToolFailureForError("channel_lookup", "mattermost_unavailable", errorValue), true
 	}
 	matches := matchingMattermostToolChannels(channelName, channels)
+	if len(matches) == 0 {
+		searchedChannels, errorValue := service.searchMattermostTeamChannels(ctx, channelName)
+		if errorValue != nil {
+			return mattermostToolChannel{}, mattermostToolFailureForError("channel_lookup", "mattermost_unavailable", errorValue), true
+		}
+		matches = matchingMattermostToolChannels(channelName, searchedChannels)
+	}
 	switch len(matches) {
 	case 0:
 		return mattermostToolChannel{}, mattermostToolStaticFailure("channel_not_found", "channel_lookup", "mattermost channel was not found"), true
@@ -469,6 +476,33 @@ func (service Service) resolveMattermostToolChannel(ctx context.Context, channel
 	default:
 		return mattermostToolChannel{}, mattermostToolStaticFailure("channel_ambiguous", "channel_lookup", "mattermost channel name is ambiguous"), true
 	}
+}
+
+func (service Service) searchMattermostTeamChannels(ctx context.Context, term string) ([]mattermostToolChannel, error) {
+	var teams []struct {
+		ID string `json:"id"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me/teams", nil, &teams); errorValue != nil {
+		return nil, errorValue
+	}
+	channels := []mattermostToolChannel{}
+	seenChannelIDs := map[string]bool{}
+	for _, team := range teams {
+		var teamChannels []mattermostToolChannel
+		body := map[string]string{"term": strings.TrimSpace(term)}
+		path := "/api/v4/teams/" + url.PathEscape(team.ID) + "/channels/search"
+		if errorValue := service.mattermostRequest(ctx, http.MethodPost, path, body, &teamChannels); errorValue != nil {
+			return nil, errorValue
+		}
+		for _, channel := range teamChannels {
+			if seenChannelIDs[channel.ID] {
+				continue
+			}
+			seenChannelIDs[channel.ID] = true
+			channels = append(channels, channel)
+		}
+	}
+	return channels, nil
 }
 
 func (service Service) joinedMattermostToolChannels(ctx context.Context) ([]mattermostToolChannel, error) {
@@ -690,7 +724,11 @@ func (service Service) resolveMattermostChannelSearchHandle(ctx context.Context,
 	if hasFailure {
 		return platformHandle{}, nil, failure, true
 	}
-	if !service.requesterMayAccessChannel(ctx, toolContext, channel.ID) {
+	isMember, errorValue := service.requesterMayAccessChannel(ctx, toolContext, channel.ID)
+	if errorValue != nil {
+		return platformHandle{}, nil, mattermostToolFailureForError("membership_lookup", "mattermost_unavailable", errorValue), true
+	}
+	if !isMember {
 		return platformHandle{}, nil, channelAccessDeniedFailure(firstNonEmpty(channel.DisplayName, channel.Name, channel.ID)), true
 	}
 	handle := platformHandle{Platform: "mattermost", ConversationID: namespacedConversationID(channel.Type, channel.ID), ChannelID: channel.ID, ChannelType: channel.Type}
@@ -702,19 +740,39 @@ func (service Service) requesterMayReadDirectMessagesWith(toolContext capabiliti
 	return isPlatformDMSelfRecipient(toolContext, recipient)
 }
 
-func (service Service) requesterMayAccessChannel(ctx context.Context, toolContext capabilities.ToolInvokeContext, channelID string) bool {
+func (service Service) requesterMayAccessChannel(ctx context.Context, toolContext capabilities.ToolInvokeContext, channelID string) (bool, error) {
 	requesterUserID := strings.TrimSpace(toolContext.RequesterPlatformUserID)
 	if requesterUserID == "" {
-		return false
+		return false, nil
 	}
 	var membership struct {
 		ChannelID string `json:"channel_id"`
 	}
 	path := "/api/v4/channels/" + url.PathEscape(strings.TrimSpace(channelID)) + "/members/" + url.PathEscape(requesterUserID)
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &membership); errorValue == nil && strings.TrimSpace(membership.ChannelID) != "" {
-		return true
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &membership); errorValue != nil {
+		if isHTTPStatusNotFound(errorValue) {
+			return false, nil
+		}
+		return false, errorValue
 	}
-	return false
+	return strings.TrimSpace(membership.ChannelID) != "", nil
+}
+
+func (service Service) ensureMattermostBotChannelMembership(ctx context.Context, channelID string) error {
+	botUser, errorValue := service.resolveMattermostBotUser(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	var membership struct {
+		ChannelID string `json:"channel_id"`
+	}
+	memberPath := "/api/v4/channels/" + url.PathEscape(strings.TrimSpace(channelID)) + "/members/" + url.PathEscape(botUser.ID)
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, memberPath, nil, &membership); errorValue == nil && strings.TrimSpace(membership.ChannelID) != "" {
+		return nil
+	}
+	body := map[string]string{"user_id": botUser.ID}
+	joinPath := "/api/v4/channels/" + url.PathEscape(strings.TrimSpace(channelID)) + "/members"
+	return service.mattermostRequest(ctx, http.MethodPost, joinPath, body, nil)
 }
 
 func channelAccessDeniedFailure(channelLabel string) mattermostToolFailure {
