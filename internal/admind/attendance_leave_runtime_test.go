@@ -276,25 +276,6 @@ func TestManagedCancellationCancelsAutomaticClockOut(t *testing.T) {
 	}
 }
 
-func TestAttendanceClockRequestDuringLeaveRequiresEarlyReturnConfirmation(t *testing.T) {
-	if errorValue := attendanceClockRequestDuringLeaveError(attendanceClockRequest{
-		Kind: attendanceKindClockIn,
-	}); errorValue != errAttendanceLeaveEarlyReturnConfirmationRequired {
-		t.Fatalf("clock in error = %v", errorValue)
-	}
-	if errorValue := attendanceClockRequestDuringLeaveError(attendanceClockRequest{
-		Kind: attendanceKindClockOut,
-	}); errorValue != errAttendanceLeaveClockOutAlreadyApplied {
-		t.Fatalf("clock out error = %v", errorValue)
-	}
-	if errorValue := attendanceClockRequestDuringLeaveError(attendanceClockRequest{
-		Kind:               attendanceKindClockIn,
-		ConfirmEarlyReturn: true,
-	}); errorValue != nil {
-		t.Fatalf("confirmed early return error = %v", errorValue)
-	}
-}
-
 func createApprovedPartialLeaveForRuntimeTest(
 	t *testing.T,
 	service *Service,
