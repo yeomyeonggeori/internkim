@@ -911,7 +911,6 @@ func releaseBlobInputs(repositoryRootPath string, temporaryDirectoryPath string)
 		{name: "blueclawSupervisor", restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BlueclawSupervisorName), builder: buildBlueclawSupervisorReleaseBinary},
 		{name: "skills", restartGroup: "blueclaw", healthCheck: "skills", sourcePath: filepath.Join(temporaryDirectoryPath, "skills"), builder: buildDeviceAssetRelease("skills")},
 		{name: "fonts", restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(temporaryDirectoryPath, "fonts"), builder: buildDeviceAssetRelease("fonts")},
-		{name: "mattermostPlugins", restartGroup: "admind", healthCheck: "mattermostPlugins", sourcePath: filepath.Join(repositoryRootPath, "build", "mattermost-plugins")},
 		{name: "chatd", restartGroup: "chatd", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.ChatdName), builder: buildChatdReleaseBinary},
 		{name: "relay", restartGroup: "relay", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.RelayName), builder: buildRelayReleaseBinary},
 		{name: "buzzMigrate", restartGroup: "", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BuzzMigrateName), builder: buildReleaseBinary("./cmd/buzz-migrate")},
@@ -1066,7 +1065,6 @@ var componentSourcePaths = map[string][]string{
 	"blueclawSupervisor": {"cmd/blueclaw-supervisor"},
 	"skills":             {"assets/skills"},
 	"fonts":              {"assets/fonts"},
-	"mattermostPlugins":  {"mattermost-plugin"},
 	"relay":              {"host/relay"},
 	"buzzMigrate":        {"cmd/buzz-migrate"},
 }

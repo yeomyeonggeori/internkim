@@ -1015,9 +1015,6 @@ chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads`)
 	if err := state.installBlueclawMigrationsSSH(); err != nil {
 		return err
 	}
-	if err := state.installMattermostEphemeralPluginSSH(); err != nil {
-		return err
-	}
 	if err := state.installGraphitiMemorydSSH(); err != nil {
 		return err
 	}
@@ -1043,20 +1040,6 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 		state.sshClient.run("mkdir -p /root/.internkim/state && printf '%s' " + quoteShellValue(version) + " > /root/.internkim/state/binaries-version")
 	}
 
-	return nil
-}
-
-func (state *setupFlowState) installMattermostEphemeralPluginSSH() error {
-	localPath := filepath.Join(state.scriptDir, "build", "mattermost-plugins", "com.internkim.ephemeral-0.2.1.tar.gz")
-	if _, errorValue := os.Stat(localPath); errorValue != nil {
-		return nil
-	}
-	remotePath := "/opt/internkim/mattermost-plugins/com.internkim.ephemeral-0.2.1.tar.gz"
-	state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Dir(remotePath)))
-	if errorValue := state.sshClient.scp(localPath, remotePath); errorValue != nil {
-		return errorValue
-	}
-	fmt.Printf("  mattermost-ephemeral-plugin %s\n", state.messenger.t("설치 완료", "installed"))
 	return nil
 }
 

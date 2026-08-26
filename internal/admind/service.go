@@ -79,7 +79,6 @@ type Configuration struct {
 	ReleaseDownloadTokenPath       string
 	ReleaseSigningKeyPath          string
 	MattermostBotTokenPath         string
-	MattermostPluginBundlePath     string
 	MattermostConfigFilePath       string
 	AdminEmailPath                 string
 	ClaimedAdminEmailPath          string
@@ -326,7 +325,6 @@ func DefaultConfiguration() Configuration {
 		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
 		ReleaseSigningKeyPath:          "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
-		MattermostPluginBundlePath:     "/opt/internkim/mattermost-plugins/com.internkim.ephemeral-0.2.1.tar.gz",
 		MattermostConfigFilePath:       "/opt/mattermost/config/config.json",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
@@ -504,7 +502,6 @@ func (service *Service) startMattermostProvisionerSync(ctx context.Context) {
 		return
 	}
 	go func() {
-		service.ensureMattermostEphemeralPluginWithRetry(ctx)
 		syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		if errorValue := service.ensureMattermostProvisionerDefaults(syncContext); errorValue != nil {
@@ -819,8 +816,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeServiceLogs(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/mattermost-post":
 		service.writeMattermostPostDiagnostic(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/diagnostics/sync-mattermost-plugins":
-		service.writeMattermostPluginSyncDiagnostic(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/locale":
 		service.writeAdminLocale(responseWriter)
 	case request.Method == http.MethodPut && path == "/locale":
