@@ -116,7 +116,6 @@ type Configuration struct {
 	TrustProxyForwardedEmail       bool
 	TaskRunNotifyEnabled           bool
 	AttendanceNotifyEnabled        bool
-	CalendarDigestEnabled          bool
 	MailNotifyEnabled              bool
 }
 
@@ -307,7 +306,6 @@ func DefaultConfiguration() Configuration {
 		ListenAddress:                  "127.0.0.1:18080",
 		TaskRunNotifyEnabled:           true,
 		AttendanceNotifyEnabled:        true,
-		CalendarDigestEnabled:          true,
 		MailNotifyEnabled:              true,
 		MattermostBaseURL:              "http://127.0.0.1:8065",
 		MattermostTeamName:             "internkim",
@@ -401,9 +399,6 @@ func (service *Service) Run(ctx context.Context) error {
 	go service.keepOrganizationProfilesReadBack(ctx)
 	if service.Configuration.TaskRunNotifyEnabled {
 		go service.keepTaskRunsNotified(ctx)
-	}
-	if service.Configuration.CalendarDigestEnabled {
-		go service.keepTheDayAnnounced(ctx)
 	}
 	if service.Configuration.MailNotifyEnabled {
 		go service.keepMailAnnounced(ctx)
