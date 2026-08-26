@@ -192,7 +192,7 @@ function eventOf(row: AttendanceRow, member: MemberRow | undefined, timeZone: st
 
 function absencesOf(row: LeaveRow, member: MemberRow | undefined, timeZone: string): AttendanceAbsence[] {
 	const startDate = dateIn(new Date(row.starts_at), timeZone);
-	const endDate = dateIn(new Date(row.ends_at), timeZone);
+	const endDate = lastLeaveDate(startDate, row.ends_at, timeZone);
 	const email = member?.email ?? '';
 	const days: AttendanceAbsence[] = [];
 	for (let date = startDate; date <= endDate; date = nextDate(date)) {
@@ -256,6 +256,12 @@ function timeIn(instant: Date, timeZone: string): string {
 		minute: '2-digit',
 		hour12: false
 	}).format(instant);
+}
+
+function lastLeaveDate(startDate: string, endsAt: string, timeZone: string): string {
+	const lastCoveredInstant = new Date(new Date(endsAt).getTime() - 1);
+	const lastDate = dateIn(lastCoveredInstant, timeZone);
+	return lastDate < startDate ? startDate : lastDate;
 }
 
 function nextDate(date: string): string {
