@@ -15,8 +15,8 @@ const (
 	taskNotifyBatch       = 200
 	taskNotifyMarkLife    = 30 * 24 * time.Hour
 	taskNotifyPlatform    = "mattermost"
-	taskNotifyListPath    = "/admin/api/task?viewerIsAdmin=true&limit=200"
-	taskNotifyDetailPath  = "/admin/api/task/detail?viewerIsAdmin=true&taskRunID="
+	taskNotifyListPath    = "/admin/api/run?viewerIsAdmin=true&limit=200"
+	taskNotifyDetailPath  = "/admin/api/run/detail?viewerIsAdmin=true&taskRunID="
 	taskNotifyConfirmName = "confirmation.requested"
 )
 
