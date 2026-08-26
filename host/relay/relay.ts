@@ -210,6 +210,17 @@ Bun.serve({
 });
 console.log(`arrivals accepted on 127.0.0.1:${arrivalsPort}`);
 
+void sayWhereChatdWasLookedFor();
+
+async function sayWhereChatdWasLookedFor(): Promise<void> {
+	const answered = await fetch(chatdBaseURL)
+		.then(() => true)
+		.catch(() => false);
+	console.log(
+		answered ? `chatd answered at ${chatdBaseURL}` : `chatd did not answer at ${chatdBaseURL}`
+	);
+}
+
 async function askTheRecord<Value>(method: string, path: string, body?: unknown): Promise<Value> {
 	const response = await fetch(`${appURL}${path}`, {
 		method,
