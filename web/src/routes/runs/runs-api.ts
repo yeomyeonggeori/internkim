@@ -72,7 +72,7 @@ export function taskRunsAPIPath(request: TaskRunsRequest = {}): string {
 	if (request.includeCost) query.set('includeCost', 'true');
 	if (request.status) query.set('status', request.status);
 	const queryString = query.toString();
-	return queryString ? `/tasks/api/runs?${queryString}` : '/tasks/api/runs';
+	return queryString ? `/runs/api?${queryString}` : '/runs/api';
 }
 
 export async function fetchTaskRuns(request: TaskRunsRequest = {}): Promise<TaskRunsResponse> {
@@ -87,7 +87,7 @@ export async function fetchTaskRuns(request: TaskRunsRequest = {}): Promise<Task
 }
 
 export async function deleteTaskRun(taskRunID: string): Promise<void> {
-	const response = await adminApiFetch(`/tasks/api/runs/${encodeURIComponent(taskRunID)}`, {
+	const response = await adminApiFetch(`/runs/api/${encodeURIComponent(taskRunID)}`, {
 		method: 'DELETE'
 	});
 	if (!response.ok) {
@@ -351,13 +351,13 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
 
 async function askTheDeviceForDetail(taskRunID: string): Promise<unknown> {
 	const query = new URLSearchParams({ taskRunID });
-	const response = await adminApiFetch(`/tasks/api/run-detail?${query.toString()}`);
+	const response = await adminApiFetch(`/runs/api/run-detail?${query.toString()}`);
 	if (!response.ok) throw new Error(`Task detail request returned ${response.status}`);
 	return response.json();
 }
 
 async function askTheCompanyAppForDetail(taskRunID: string): Promise<unknown> {
-	const answer = await callCompanyApp({ capability: 'person.tasks.detail', body: { taskRunID } });
+	const answer = await callCompanyApp({ capability: 'person.runs.detail', body: { taskRunID } });
 	if (answer.status >= 400) throw new Error(`Task detail request returned ${answer.status}`);
 	return answer.body;
 }
@@ -371,7 +371,7 @@ async function askTheCompanyApp(request: TaskRunsRequest): Promise<unknown> {
 	if (request.includeCost) body.includeCost = true;
 	if (request.status) body.status = request.status;
 
-	const answer = await callCompanyApp({ capability: 'person.tasks.list', body });
+	const answer = await callCompanyApp({ capability: 'person.runs.list', body });
 	if (answer.status >= 400) throw new Error(`Task list request returned ${answer.status}`);
 	return answer.body;
 }

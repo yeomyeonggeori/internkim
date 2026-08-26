@@ -100,7 +100,7 @@ func (service *Service) proxyBlueclawConnectorEvents(responseWriter http.Respons
 }
 
 func (service *Service) proxyBlueclawTaskList(responseWriter http.ResponseWriter, request *http.Request) {
-	path := "/admin/api/task"
+	path := "/admin/api/run"
 	if strings.TrimSpace(request.URL.RawQuery) != "" {
 		path += "?" + request.URL.RawQuery
 	}
@@ -119,7 +119,7 @@ func (service *Service) proxyBlueclawTaskDetail(responseWriter http.ResponseWrit
 		return
 	}
 	var detail map[string]any
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/task/detail?taskRunID="+url.QueryEscape(taskRunID), nil, &detail); errorValue != nil {
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/run/detail?taskRunID="+url.QueryEscape(taskRunID), nil, &detail); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
@@ -220,7 +220,7 @@ func isAdminStaticPath(path string) bool {
 			strings.HasPrefix(path, "/calendar/") && !strings.HasPrefix(path, "/calendar/api/") && !strings.HasPrefix(path, "/calendar/dav/") ||
 			strings.HasPrefix(path, "/mail/") && !strings.HasPrefix(path, "/mail/api/") ||
 			strings.HasPrefix(path, "/attendance/") && !strings.HasPrefix(path, "/attendance/api/") ||
-			strings.HasPrefix(path, "/tasks/") && !strings.HasPrefix(path, "/tasks/api/") ||
+			strings.HasPrefix(path, "/runs/") && !strings.HasPrefix(path, "/runs/api/") ||
 			strings.HasPrefix(path, "/company/") && !strings.HasPrefix(path, "/company/api/")
 	}
 }
@@ -232,7 +232,7 @@ func isInternKimAPIPath(path string) bool {
 		strings.HasPrefix(path, "/calendar/api/") ||
 		strings.HasPrefix(path, "/mail/api/") ||
 		strings.HasPrefix(path, "/attendance/api/") ||
-		strings.HasPrefix(path, "/tasks/api/") ||
+		strings.HasPrefix(path, "/runs/api/") ||
 		strings.HasPrefix(path, "/company/api/") ||
 		strings.HasPrefix(path, "/_internkim/companion/") ||
 		strings.HasPrefix(path, "/_internkim/runtime/")

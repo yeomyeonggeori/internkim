@@ -1,4 +1,4 @@
-import type { TaskRunsResponse, TaskRunSummary } from '../../src/routes/tasks/tasks-api';
+import type { TaskRunsResponse, TaskRunSummary } from '../../src/routes/runs/runs-api';
 
 const taskRunFixtureCount = 60;
 const taskRunFixturePageSize = 15;

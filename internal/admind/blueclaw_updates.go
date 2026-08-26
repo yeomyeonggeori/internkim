@@ -581,7 +581,7 @@ func (service *Service) fetchActiveBlueclawTaskCount(ctx context.Context) (int, 
 }
 
 func (service *Service) fetchBlueclawTaskRunsByStatus(ctx context.Context, status string) ([]blueclawTaskRunListItem, error) {
-	path := "/admin/api/task?status=" + url.QueryEscape(status)
+	path := "/admin/api/run?status=" + url.QueryEscape(status)
 	taskRuns := []blueclawTaskRunListItem{}
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, path, nil, &taskRuns); errorValue != nil {
 		return nil, errorValue

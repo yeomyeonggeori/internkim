@@ -590,9 +590,9 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/files", service.serveFilesPage)
 	multiplexer.HandleFunc("/files/api/", service.handleFiles)
 	multiplexer.HandleFunc("/files/", service.serveFilesPage)
-	multiplexer.HandleFunc("/tasks", service.serveTasksPage)
-	multiplexer.HandleFunc("/tasks/api/", service.handleTasks)
-	multiplexer.HandleFunc("/tasks/", service.serveTasksPage)
+	multiplexer.HandleFunc("/runs", service.serveTaskRunsPage)
+	multiplexer.HandleFunc("/runs/api/", service.handleTaskRuns)
+	multiplexer.HandleFunc("/runs/", service.serveTaskRunsPage)
 	multiplexer.HandleFunc("/company", service.serveCompanySharePage)
 	multiplexer.HandleFunc("/company/api/", service.handleCompanyShare)
 	multiplexer.HandleFunc("/company/", service.serveCompanySharePage)
@@ -640,7 +640,7 @@ func isInternKimCORSPath(path string) bool {
 		path == "/mail" ||
 		path == "/attendance" ||
 		path == "/files" ||
-		path == "/tasks" ||
+		path == "/runs" ||
 		path == "/logo.svg" ||
 		path == "/.well-known/caldav" ||
 		strings.HasPrefix(path, "/api/v1/") ||
@@ -651,7 +651,7 @@ func isInternKimCORSPath(path string) bool {
 		strings.HasPrefix(path, "/mail/") ||
 		strings.HasPrefix(path, "/attendance/") ||
 		strings.HasPrefix(path, "/files/") ||
-		strings.HasPrefix(path, "/tasks/") ||
+		strings.HasPrefix(path, "/runs/") ||
 		strings.HasPrefix(path, "/_app/") ||
 		strings.HasPrefix(path, "/_internkim/")
 }

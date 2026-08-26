@@ -78,7 +78,7 @@ func (service *Service) writeUserMemorySchedules(responseWriter http.ResponseWri
 	}
 
 	var schedules map[string]any
-	path := "/admin/api/task-schedules?" + memorySchedulesQuery(request.URL.Query(), personID)
+	path := "/admin/api/schedule?" + memorySchedulesQuery(request.URL.Query(), personID)
 	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &schedules); errorValue != nil {
 		log.Printf("memory schedules upstream failed: %v", errorValue)
 		http.Error(responseWriter, "memory schedules unavailable", http.StatusBadGateway)
@@ -102,7 +102,7 @@ func (service *Service) cancelUserMemorySchedule(responseWriter http.ResponseWri
 		TaskScheduleID:  cancelRequest.TaskScheduleID,
 		CreatorPersonID: personID,
 	}
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/task-schedules/cancel", blueclawRequest, nil); errorValue != nil {
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/schedule/cancel", blueclawRequest, nil); errorValue != nil {
 		log.Printf("memory schedule cancel upstream failed: %v", errorValue)
 		http.Error(responseWriter, "memory schedule cancel unavailable", http.StatusBadGateway)
 		return
@@ -125,7 +125,7 @@ func (service *Service) deleteUserMemorySchedule(responseWriter http.ResponseWri
 		TaskScheduleID:  deleteRequest.TaskScheduleID,
 		CreatorPersonID: personID,
 	}
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/task-schedules/delete", blueclawRequest, nil); errorValue != nil {
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/schedule/delete", blueclawRequest, nil); errorValue != nil {
 		log.Printf("memory schedule delete upstream failed: %v", errorValue)
 		http.Error(responseWriter, "memory schedule delete unavailable", http.StatusBadGateway)
 		return
@@ -157,7 +157,7 @@ func (service *Service) updateUserMemorySchedule(responseWriter http.ResponseWri
 		MaxRunCount:     updateRequest.MaxRunCount,
 		RepeatPolicy:    updateRequest.RepeatPolicy,
 	}
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/task-schedules/update", blueclawRequest, nil); errorValue != nil {
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/schedule/update", blueclawRequest, nil); errorValue != nil {
 		log.Printf("memory schedule update upstream failed: %v", errorValue)
 		http.Error(responseWriter, "memory schedule update unavailable", http.StatusBadGateway)
 		return
