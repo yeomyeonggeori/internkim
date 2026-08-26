@@ -9,34 +9,34 @@ import (
 
 func TestNamingSomebodyElseDoesNotAddThePersonAsking(t *testing.T) {
 	service := serviceWithDirectoryPeople(t, []directoryPerson{
-		{MemberID: "member-dawn", Email: "iam@dawn.kim", Name: "표본 김"},
-		{MemberID: "member-lee", Email: "lee@dawn.kim", Name: "가명 이"},
+		{MemberID: "member-dawn", Email: "iam@example.com", Name: "예시 김"},
+		{MemberID: "member-lee", Email: "lee@example.com", Name: "샘플 이"},
 	})
 
 	prepared, _, hasFailure := service.prepareCalendarEventWriteInput(
 		context.Background(),
-		calendarEventWriteInput{Title: "모나 개발자 미팅", People: []string{"여명"}},
-		capabilities.ToolInvokeContext{RequesterEmail: "lee@dawn.kim", RequesterName: "가명 이", ResponseLanguage: "ko"},
+		calendarEventWriteInput{Title: "모나 개발자 미팅", People: []string{"예시"}},
+		capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com", RequesterName: "샘플 이", ResponseLanguage: "ko"},
 		true,
 	)
 
 	if hasFailure {
 		t.Fatal("the company carries this person")
 	}
-	if len(prepared.Participants) != 1 || prepared.Participants[0].Email != "iam@dawn.kim" {
+	if len(prepared.Participants) != 1 || prepared.Participants[0].Email != "iam@example.com" {
 		t.Fatalf("participants = %+v", prepared.Participants)
 	}
 }
 
 func TestNamingNobodyMeansThePersonAsking(t *testing.T) {
 	service := serviceWithDirectoryPeople(t, []directoryPerson{
-		{MemberID: "member-lee", Email: "lee@dawn.kim", Name: "가명 이"},
+		{MemberID: "member-lee", Email: "lee@example.com", Name: "샘플 이"},
 	})
 
 	prepared, _, hasFailure := service.prepareCalendarEventWriteInput(
 		context.Background(),
 		calendarEventWriteInput{Title: "치과"},
-		capabilities.ToolInvokeContext{RequesterEmail: "lee@dawn.kim", RequesterName: "가명 이", ResponseLanguage: "ko"},
+		capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com", RequesterName: "샘플 이", ResponseLanguage: "ko"},
 		true,
 	)
 
@@ -53,13 +53,13 @@ func TestNamingNobodyMeansThePersonAsking(t *testing.T) {
 // could never be invited to anything.
 func TestEverybodyIsNobodyInParticular(t *testing.T) {
 	service := serviceWithDirectoryPeople(t, []directoryPerson{
-		{MemberID: "member-lee", Email: "lee@dawn.kim", Name: "가명 이"},
+		{MemberID: "member-lee", Email: "lee@example.com", Name: "샘플 이"},
 	})
 
 	prepared, _, hasFailure := service.prepareCalendarEventWriteInput(
 		context.Background(),
 		calendarEventWriteInput{Title: "전사 워크숍", EveryoneAttends: true},
-		capabilities.ToolInvokeContext{RequesterEmail: "lee@dawn.kim", RequesterName: "가명 이", ResponseLanguage: "ko"},
+		capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com", RequesterName: "샘플 이", ResponseLanguage: "ko"},
 		true,
 	)
 	if hasFailure {
@@ -72,19 +72,19 @@ func TestEverybodyIsNobodyInParticular(t *testing.T) {
 
 func TestAColleagueCalledEveryoneIsStillAColleague(t *testing.T) {
 	service := serviceWithDirectoryPeople(t, []directoryPerson{
-		{MemberID: "member-jeonche", Email: "jeonche@dawn.kim", Name: "전체 김"},
+		{MemberID: "member-jeonche", Email: "jeonche@example.com", Name: "전체 김"},
 	})
 
 	prepared, _, hasFailure := service.prepareCalendarEventWriteInput(
 		context.Background(),
 		calendarEventWriteInput{Title: "면담", People: calendarToolPeopleInput{"전체"}},
-		capabilities.ToolInvokeContext{RequesterEmail: "lee@dawn.kim", ResponseLanguage: "ko"},
+		capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com", ResponseLanguage: "ko"},
 		true,
 	)
 	if hasFailure {
 		t.Fatal("a name is a name even when it reads like a word the runtime used to watch for")
 	}
-	if len(prepared.Participants) != 1 || prepared.Participants[0].Email != "jeonche@dawn.kim" {
+	if len(prepared.Participants) != 1 || prepared.Participants[0].Email != "jeonche@example.com" {
 		t.Fatalf("participants = %+v", prepared.Participants)
 	}
 }
