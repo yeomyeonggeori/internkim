@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
-import { memberMessengerCredential } from '$lib/server/member-credential';
+import { keepMemberCredential, memberMessengerCredential } from '$lib/server/member-credential';
 import type { RequestHandler } from './$types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -17,6 +17,33 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 	}
 
 	return json({ credential: await memberMessengerCredential(client, memberID) });
+};
+
+// A key the machine derived is one the record has to hold, or the next thing to
+// ask for it - the web messenger, which never sees a seed - is handed whatever
+// credential the person had before.
+export const POST: RequestHandler = async ({ request, platform }) => {
+	const { client, companyID } = await callingAgent(request, environmentOf(platform));
+
+	const asked = (await request.json().catch(() => ({}))) as {
+		memberID?: unknown;
+		kind?: unknown;
+		externalID?: unknown;
+		secret?: unknown;
+	};
+	const memberID = typeof asked.memberID === 'string' ? asked.memberID.trim() : '';
+	const kind = typeof asked.kind === 'string' ? asked.kind.trim() : '';
+	const externalID = typeof asked.externalID === 'string' ? asked.externalID.trim() : '';
+	const secret = typeof asked.secret === 'string' ? asked.secret : '';
+	if (!memberID) error(400, 'which member');
+	if (!kind) error(400, 'a credential has a kind');
+	if (!secret) error(400, 'a credential has a secret');
+	if (!(await belongsToCompany(client, memberID, companyID))) {
+		error(403, 'that member belongs to another company');
+	}
+
+	await keepMemberCredential(client, memberID, { kind, externalID, secret });
+	return json({ kept: { memberID, kind } });
 };
 
 async function belongsToCompany(
