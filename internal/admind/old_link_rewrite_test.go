@@ -64,3 +64,38 @@ func TestAMessageWithNoLinkIsUnchanged(t *testing.T) {
 		t.Errorf("rewrote to %q", rewritten)
 	}
 }
+
+func TestALinkWithNoIdentifierMovesByItsHost(t *testing.T) {
+	translation := linkTranslation{
+		appURL:           "https://example.test",
+		deviceHost:       "device.example.test",
+		recordCalendarID: func(string) string { return "" },
+		recordTaskID:     func(string) string { return "" },
+	}
+
+	for given, wanted := range map[string]string{
+		"https://device.example.test/attendance/": "https://example.test/attendance/",
+		"https://device.example.test/flow/":       "https://example.test/flow/",
+		"https://device.example.test/memory/":     "https://example.test/memory/",
+		"https://device.example.test/":            "https://example.test/",
+	} {
+		if rewritten := translation.rewrite(given); rewritten != wanted {
+			t.Fatalf("expected %q, got %q", wanted, rewritten)
+		}
+	}
+}
+
+func TestALinkToAnotherHostStillMovesNowhere(t *testing.T) {
+	translation := linkTranslation{
+		appURL:           "https://example.test",
+		deviceHost:       "device.example.test",
+		recordCalendarID: func(string) string { return "" },
+		recordTaskID:     func(string) string { return "" },
+	}
+
+	for _, elsewhere := range []string{"https://news.example.com/flow/?task=1", "http://localhost:5173/attendance/"} {
+		if rewritten := translation.rewrite(elsewhere); rewritten != elsewhere {
+			t.Fatalf("expected %q to be left alone, got %q", elsewhere, rewritten)
+		}
+	}
+}
