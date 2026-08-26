@@ -126,7 +126,7 @@ test.describe('app rail', () => {
 
 	test('keeps task pagination controls reachable above the mobile overlay', async ({ page }) => {
 		await page.setViewportSize({ width: 444, height: 866 });
-		await page.route('**/tasks/api/runs**', async (route) => {
+		await page.route('**/runs/api**', async (route) => {
 			await route.fulfill({ json: createTaskRunsFixture() });
 		});
 		await page.goto('/tasks/');
