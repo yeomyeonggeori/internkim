@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -189,7 +190,26 @@ func (service *Service) reconcileOneCircleRoom(
 			return nil, errorValue
 		}
 	}
+	if errorValue := service.tellClientsWhoIsInTheRoom(ctx, relay, channelID); errorValue != nil {
+		return nil, errorValue
+	}
 	return &outcome, nil
+}
+
+// A client reads a room's members from its kind 39002 discovery event, not from
+// channel_members, so a membership this device writes is invisible until the
+// event is written again. reconcile-channels writes one only where none exists,
+// which is what makes dropping this room's first.
+func (service *Service) tellClientsWhoIsInTheRoom(ctx context.Context, relay *sql.DB, channelID string) error {
+	if _, errorValue := relay.ExecContext(ctx,
+		"DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id = $1", channelID); errorValue != nil {
+		return errorValue
+	}
+	output, errorValue := service.runCommand(ctx, "sh", "-lc", buzzRoomChangeRepublish())
+	if errorValue != nil {
+		return fmt.Errorf("the room changed and no client was told: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	return nil
 }
 
 func (service *Service) addToCircleRoom(ctx context.Context, seed string, channelID string, pubkeys []string) error {
