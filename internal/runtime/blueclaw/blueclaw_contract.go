@@ -155,17 +155,17 @@ const (
 	// The agent runs in the guest and reaches this machine on the outbound tap,
 	// so chatd answers there. The address is this machine's own interface, which
 	// the network beyond it cannot route to.
-	ChatdListenHostname = "172.31.0.1"
-	ChatdEndpoint       = "http://172.31.0.1:18090"
-	ChatdBotUserName                      = "internkim"
-	RelayName                             = "internkim-relay"
-	RelayServiceName                      = "internkim-relay"
-	RelayServicePath                      = "/etc/systemd/system/internkim-relay.service"
-	RelayBinaryPath                       = "/usr/local/bin/internkim-relay"
-	RelayEnvironmentFilePath              = "/etc/internkim/relay.env"
-	RelayAgentKeyPath                     = "/etc/internkim/agent-key"
-	RelayUserName                         = "internkim"
-	BuzzPremigrateSnapshotPath            = "/root/.internkim/state/buzz-premigrate.sql"
+	ChatdListenHostname        = "172.31.0.1"
+	ChatdEndpoint              = "http://172.31.0.1:18090"
+	ChatdBotUserName           = "internkim"
+	RelayName                  = "internkim-relay"
+	RelayServiceName           = "internkim-relay"
+	RelayServicePath           = "/etc/systemd/system/internkim-relay.service"
+	RelayBinaryPath            = "/usr/local/bin/internkim-relay"
+	RelayEnvironmentFilePath   = "/etc/internkim/relay.env"
+	RelayAgentKeyPath          = "/etc/internkim/agent-key"
+	RelayUserName              = "internkim"
+	BuzzPremigrateSnapshotPath = "/root/.internkim/state/buzz-premigrate.sql"
 )
 
 func BlueclawHealthCheckURL() string {
