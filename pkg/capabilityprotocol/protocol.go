@@ -189,20 +189,24 @@ type SiteSourceBundle struct {
 }
 
 type ToolInvokeContext struct {
-	RequesterPersonID       string                 `json:"requesterPersonID,omitempty"`
-	RequesterEmail          string                 `json:"requesterEmail,omitempty"`
-	RequesterName           string                 `json:"requesterName,omitempty"`
-	RequesterPlatformUserID string                 `json:"requesterPlatformUserID,omitempty"`
-	TaskSource              string                 `json:"taskSource,omitempty"`
-	IsScheduledRun          bool                   `json:"isScheduledRun,omitempty"`
-	IsApprovalContinuation  bool                   `json:"isApprovalContinuation,omitempty"`
-	ConversationID          string                 `json:"conversationID,omitempty"`
-	ConversationType        string                 `json:"conversationType,omitempty"`
-	ChannelID               string                 `json:"channelID,omitempty"`
-	ChannelName             string                 `json:"channelName,omitempty"`
-	ReplyTargetID           string                 `json:"replyTargetID,omitempty"`
-	Platform                string                 `json:"platform,omitempty"`
-	ConflictResolution      ToolConflictResolution `json:"conflictResolution,omitempty"`
+	RequesterPersonID       string `json:"requesterPersonID,omitempty"`
+	RequesterEmail          string `json:"requesterEmail,omitempty"`
+	RequesterName           string `json:"requesterName,omitempty"`
+	RequesterPlatformUserID string `json:"requesterPlatformUserID,omitempty"`
+	TaskSource              string `json:"taskSource,omitempty"`
+	IsScheduledRun          bool   `json:"isScheduledRun,omitempty"`
+	IsApprovalContinuation  bool   `json:"isApprovalContinuation,omitempty"`
+	ConversationID          string `json:"conversationID,omitempty"`
+	ConversationType        string `json:"conversationType,omitempty"`
+	ChannelID               string `json:"channelID,omitempty"`
+	ChannelName             string `json:"channelName,omitempty"`
+	ReplyTargetID           string `json:"replyTargetID,omitempty"`
+	Platform                string `json:"platform,omitempty"`
+	// The language the answer is written in. A person's name is recorded given
+	// name first and read family name first in Korean, so a tool that hands a
+	// name back has to know which of the two the reader is owed.
+	ResponseLanguage   string                 `json:"responseLanguage,omitempty"`
+	ConflictResolution ToolConflictResolution `json:"conflictResolution,omitempty"`
 }
 
 type ActorContext struct {

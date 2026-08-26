@@ -408,7 +408,7 @@ func (service Service) isPreApprovedSelfDirectMessageSend(ctx context.Context, r
 	if personHint == "" || len(deliveryTarget.PersonHints) > 0 {
 		return false
 	}
-	recipient, _, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint)
+	recipient, _, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint, request.Context.ResponseLanguage)
 	if hasFailure {
 		return false
 	}

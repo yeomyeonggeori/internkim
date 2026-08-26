@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/personname"
 )
 
 func (service Service) prepareCalendarEventWriteInput(ctx context.Context, input calendarEventWriteInput, toolContext capabilities.ToolInvokeContext, includeRequesterDefault bool) (calendarEventWriteInput, platformDMFailure, bool) {
@@ -18,7 +19,7 @@ func (service Service) prepareCalendarEventWriteInput(ctx context.Context, input
 		}
 	}
 	for _, personHint := range input.People {
-		participant, failure, hasFailure := service.calendarParticipantForPersonHint(ctx, personHint)
+		participant, failure, hasFailure := service.calendarParticipantForPersonHint(ctx, personHint, toolContext.ResponseLanguage)
 		if hasFailure {
 			return calendarEventWriteInput{}, failure, true
 		}
@@ -84,7 +85,7 @@ func calendarRequesterHints(toolContext capabilities.ToolInvokeContext) []string
 // company does not carry once went onto the event as written, the company kept
 // no participant under it, and the person who filed the event was left as its
 // only attendee.
-func (service Service) calendarParticipantForPersonHint(ctx context.Context, personHint string) (calendarToolParticipant, platformDMFailure, bool) {
+func (service Service) calendarParticipantForPersonHint(ctx context.Context, personHint string, responseLanguage string) (calendarToolParticipant, platformDMFailure, bool) {
 	trimmedHint := strings.TrimSpace(personHint)
 	if trimmedHint == "" {
 		return calendarToolParticipant{}, platformDMFailure{}, false
@@ -95,18 +96,18 @@ func (service Service) calendarParticipantForPersonHint(ctx context.Context, per
 	}
 	switch resolution.Outcome {
 	case hintResolved:
-		return calendarToolParticipantFromDirectoryPerson(resolution.Match, trimmedHint), platformDMFailure{}, false
+		return calendarToolParticipantFromDirectoryPerson(resolution.Match, trimmedHint, responseLanguage), platformDMFailure{}, false
 	case hintAmbiguous, hintApproximate:
-		return calendarToolParticipant{}, calendarPersonAmbiguousFailure(trimmedHint, resolution.Candidates), true
+		return calendarToolParticipant{}, calendarPersonAmbiguousFailure(trimmedHint, resolution.Candidates, responseLanguage), true
 	default:
 		return calendarToolParticipant{}, calendarPersonNotFoundFailure(trimmedHint), true
 	}
 }
 
-func calendarToolParticipantFromDirectoryPerson(person directoryPerson, fallbackName string) calendarToolParticipant {
+func calendarToolParticipantFromDirectoryPerson(person directoryPerson, fallbackName string, responseLanguage string) calendarToolParticipant {
 	return calendarToolParticipant{
 		PersonID: strings.TrimSpace(person.MemberID),
-		Name:     firstNonEmpty(strings.TrimSpace(person.Name), strings.TrimSpace(fallbackName), strings.TrimSpace(person.Email)),
+		Name:     firstNonEmpty(personname.Render(person.Name, responseLanguage), strings.TrimSpace(fallbackName), strings.TrimSpace(person.Email)),
 		Email:    strings.TrimSpace(person.Email),
 	}
 }
@@ -145,10 +146,10 @@ func calendarToolParticipantNames(participants []calendarToolParticipant) []stri
 	return normalizeCalendarToolPeople(names)
 }
 
-func calendarPersonAmbiguousFailure(personHint string, candidates []directoryPerson) platformDMFailure {
-	message := fmt.Sprintf("calendar attendee %q is ambiguous: %s", personHint, strings.Join(directoryPersonNames(candidates), ", "))
+func calendarPersonAmbiguousFailure(personHint string, candidates []directoryPerson, responseLanguage string) platformDMFailure {
+	message := fmt.Sprintf("calendar attendee %q is ambiguous: %s", personHint, strings.Join(directoryPersonNames(candidates, responseLanguage), ", "))
 	failure := platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", message)
-	failure.Candidates = platformDMRecipientsFromDirectoryPeople(candidates)
+	failure.Candidates = platformDMRecipientsFromDirectoryPeople(candidates, responseLanguage)
 	failure.Retryable = true
 	failure.SafeRetry = true
 	return failure
