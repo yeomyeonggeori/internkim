@@ -179,14 +179,14 @@ func (client *Client) SaveEvent(ctx context.Context, platform string, externalID
 		"target_starts_at":             event.StartsAt,
 		"target_ends_at":               event.EndsAt,
 		"target_is_whole_day":          event.IsWholeDay,
-		"target_size":                  "M",
 		"target_participant_ids":       participants,
 		"target_expected_updated_at":   nullableString(event.ExpectedUpdatedAt),
 		"target_notify_minutes_before": nullableMinutes(event.NotifyMinutesBefore),
 		"target_status":                nullableString(event.Status),
+		"target_is_event":              true,
 	}
 	var savedID string
-	if errorValue := client.callAsMember(ctx, session, "save_calendar_event", arguments, &savedID); errorValue != nil {
+	if errorValue := client.callAsMember(ctx, session, "task_save", arguments, &savedID); errorValue != nil {
 		if strings.Contains(errorValue.Error(), serializationFailureCode) {
 			return "", ErrEventVersionGone
 		}

@@ -164,7 +164,7 @@ func (service *Service) carryFlowTaskRemoval(ctx context.Context, client *centra
 }
 
 // The people a task names are device identifiers; the central plane knows
-// addresses. Anyone the org chart does not carry is left out, and save_flow_task
+// addresses. Anyone the org chart does not carry is left out, and task_save
 // decides whether the rest may be there.
 func participantAddresses(task flowTask, people map[string]adminUserMutation) []string {
 	addresses := []string{}

@@ -50,7 +50,7 @@ func newCentralPlaneStub(t *testing.T) *centralPlaneStub {
 				return
 			}
 			writeJSON(writer, map[string]any{"member": map[string]string{"memberID": memberID}})
-		case request.URL.Path == "/rest/v1/rpc/save_flow_task":
+		case request.URL.Path == "/rest/v1/rpc/task_save":
 			_ = json.NewDecoder(request.Body).Decode(&stub.savedArguments)
 			stub.savedAs = request.Header.Get("Authorization")
 			writeJSON(writer, "central-task-1")
@@ -98,7 +98,7 @@ func TestATaskIsWrittenAsThePersonItBelongsTo(t *testing.T) {
 		t.Fatalf("the central plane's own identifier has to come back, got %q", savedID)
 	}
 	if stub.savedAs != "Bearer token-for-owner-account" {
-		t.Fatalf("save_flow_task is granted to authenticated alone, so it must be called as the member: %q", stub.savedAs)
+		t.Fatalf("task_save is granted to authenticated alone, so it must be called as the member: %q", stub.savedAs)
 	}
 }
 

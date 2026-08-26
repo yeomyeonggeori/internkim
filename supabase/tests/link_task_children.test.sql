@@ -127,20 +127,20 @@ select is(
 );
 
 select throws_ok(
-	$$select public.save_flow_task(
-		null,
-		'Atomic child',
-		'todo',
-		null,
-		null,
-		null,
-		null,
-		null,
-		null,
-		true,
-		null,
-		array['43000000-0000-0000-0000-0000000000a1'::uuid],
-		'43000000-0000-0000-0000-000000000106'
+	$$select public.task_save(
+	  target_task_id => null,
+	  target_title => 'Atomic child',
+	  target_status => 'todo',
+	  target_note => null,
+	  target_business => null,
+	  target_type => null,
+	  target_size => null,
+	  target_starts_at => null,
+	  target_ends_at => null,
+	  target_write_dates => true,
+	  target_participant_ids => array['43000000-0000-0000-0000-0000000000a1'::uuid],
+	  target_parent_task_id => '43000000-0000-0000-0000-000000000106',
+	  target_is_event => false
 	)$$,
 	'42501',
 	'only a parent task participant or company admin can use that parent',

@@ -32,19 +32,20 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"48000000-0000-0000-0000-000000000001"}', true);
-  perform public.save_calendar_event(
-    null,
-    'Mona developer meeting',
-    null,
-    null,
-    '2026-08-26T02:00:00Z',
-    '2026-08-26T03:00:00Z',
-    false,
-    'M',
-    array['48000000-0000-0000-0000-0000000000a2'::uuid],
-    null,
-    null,
-    'requested'
+  perform public.task_save(
+    target_task_id => null,
+    target_title => 'Mona developer meeting',
+    target_note => null,
+    target_location => null,
+    target_starts_at => '2026-08-26T02:00:00Z',
+    target_ends_at => '2026-08-26T03:00:00Z',
+    target_is_whole_day => false,
+    target_size => 'M',
+    target_participant_ids => array['48000000-0000-0000-0000-0000000000a2'::uuid],
+    target_expected_updated_at => null,
+    target_notify_minutes_before => null,
+    target_status => 'requested',
+    target_is_event => true
   );
   reset role;
 end $$;$block$, 'an event asked of a colleague is saved');
@@ -60,19 +61,20 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"48000000-0000-0000-0000-000000000001"}', true);
-  perform public.save_calendar_event(
-    null,
-    'Dentist',
-    null,
-    null,
-    '2026-08-27T02:00:00Z',
-    '2026-08-27T03:00:00Z',
-    false,
-    'M',
-    array['48000000-0000-0000-0000-0000000000a1'::uuid],
-    null,
-    45,
-    null
+  perform public.task_save(
+    target_task_id => null,
+    target_title => 'Dentist',
+    target_note => null,
+    target_location => null,
+    target_starts_at => '2026-08-27T02:00:00Z',
+    target_ends_at => '2026-08-27T03:00:00Z',
+    target_is_whole_day => false,
+    target_size => 'M',
+    target_participant_ids => array['48000000-0000-0000-0000-0000000000a1'::uuid],
+    target_expected_updated_at => null,
+    target_notify_minutes_before => 45,
+    target_status => null,
+    target_is_event => true
   );
   reset role;
 end $$;$block$, 'an event somebody files for themselves is saved');

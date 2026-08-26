@@ -31,6 +31,7 @@ describe('central calendar event writes', () => {
 			target_starts_at: '2026-08-20T10:00:00.000Z',
 			target_ends_at: '2026-08-20T11:00:00.000Z',
 			target_is_whole_day: false,
+			target_is_event: true,
 			target_size: 'XS',
 			target_participant_ids: ['member-1', 'member-2']
 		});

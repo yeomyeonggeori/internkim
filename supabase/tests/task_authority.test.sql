@@ -213,22 +213,22 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001"}', true);
-  perform public.save_flow_task(
-    '46000000-0000-0000-0000-000000000101',
-    'A assigned C',
-    'done',
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    true,
-    null,
-    array[
+  perform public.task_save(
+    target_task_id => '46000000-0000-0000-0000-000000000101',
+    target_title => 'A assigned C',
+    target_status => 'done',
+    target_note => null,
+    target_business => null,
+    target_type => null,
+    target_size => null,
+    target_starts_at => null,
+    target_ends_at => null,
+    target_write_dates => true,
+    target_participant_ids => array[
       '46000000-0000-0000-0000-0000000000a1'::uuid,
       '46000000-0000-0000-0000-0000000000a3'::uuid
-    ]
+    ],
+    target_is_event => false
   );
   reset role;
 end $$;$block$, 'participant assignment: a sole participant can replace the set atomically');
@@ -251,19 +251,19 @@ select throws_ok(
   begin
     set local role authenticated;
     perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001"}', true);
-    perform public.save_flow_task(
-      '46000000-0000-0000-0000-000000000102',
-      'Shared assignment forgery',
-      'todo',
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      true,
-      null,
-      array['46000000-0000-0000-0000-0000000000a1'::uuid]
+    perform public.task_save(
+      target_task_id => '46000000-0000-0000-0000-000000000102',
+      target_title => 'Shared assignment forgery',
+      target_status => 'todo',
+      target_note => null,
+      target_business => null,
+      target_type => null,
+      target_size => null,
+      target_starts_at => null,
+      target_ends_at => null,
+      target_write_dates => true,
+      target_participant_ids => array['46000000-0000-0000-0000-0000000000a1'::uuid],
+      target_is_event => false
     );
   end $$;$block$,
   '42501',
@@ -276,19 +276,19 @@ select throws_ok(
   begin
     set local role authenticated;
     perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001"}', true);
-    perform public.save_flow_task(
-      '46000000-0000-0000-0000-000000000105',
-      'Sole participant replaced self',
-      'done',
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      true,
-      null,
-      array['46000000-0000-0000-0000-0000000000a2'::uuid]
+    perform public.task_save(
+      target_task_id => '46000000-0000-0000-0000-000000000105',
+      target_title => 'Sole participant replaced self',
+      target_status => 'done',
+      target_note => null,
+      target_business => null,
+      target_type => null,
+      target_size => null,
+      target_starts_at => null,
+      target_ends_at => null,
+      target_write_dates => true,
+      target_participant_ids => array['46000000-0000-0000-0000-0000000000a2'::uuid],
+      target_is_event => false
     );
   end $$;$block$,
   '42501',
@@ -300,22 +300,22 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001"}', true);
-  perform public.save_flow_task(
-    '46000000-0000-0000-0000-000000000102',
-    'Shared content update',
-    'paused',
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    true,
-    null,
-    array[
+  perform public.task_save(
+    target_task_id => '46000000-0000-0000-0000-000000000102',
+    target_title => 'Shared content update',
+    target_status => 'paused',
+    target_note => null,
+    target_business => null,
+    target_type => null,
+    target_size => null,
+    target_starts_at => null,
+    target_ends_at => null,
+    target_write_dates => true,
+    target_participant_ids => array[
       '46000000-0000-0000-0000-0000000000a1'::uuid,
       '46000000-0000-0000-0000-0000000000a3'::uuid
-    ]
+    ],
+    target_is_event => false
   );
   reset role;
 end $$;$block$, 'task update: a shared participant can save without changing assignment');
@@ -330,16 +330,17 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001"}', true);
-  perform public.save_calendar_event(
-    '46000000-0000-0000-0000-000000000108',
-    'Calendar RPC update',
-    'Updated through the calendar',
-    '{"name":"Room 2"}'::jsonb,
-    '2026-08-20T12:00:00Z',
-    '2026-08-20T13:00:00Z',
-    false,
-    'XS',
-    array['46000000-0000-0000-0000-0000000000a1'::uuid]
+  perform public.task_save(
+    target_task_id => '46000000-0000-0000-0000-000000000108',
+    target_title => 'Calendar RPC update',
+    target_note => 'Updated through the calendar',
+    target_location => '{"name":"Room 2"}'::jsonb,
+    target_starts_at => '2026-08-20T12:00:00Z',
+    target_ends_at => '2026-08-20T13:00:00Z',
+    target_is_whole_day => false,
+    target_size => 'XS',
+    target_participant_ids => array['46000000-0000-0000-0000-0000000000a1'::uuid],
+    target_is_event => true
   );
   reset role;
 end $$;$block$, 'calendar save: a participant uses the same atomic authority boundary');
@@ -354,23 +355,28 @@ select is(
   'calendar save: event fields persist without changing its model'
 );
 
-select lives_ok($block$do $$
+-- An event used to be writable by any member of the company, while a task on the
+-- board took a participant, and one table cannot hold two rules. The board's is
+-- the one that survives, widened by the member who asked for the work.
+select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000002"}', true);
-  perform public.save_calendar_event(
-    '46000000-0000-0000-0000-000000000108',
-    'Colleague calendar update',
-    'Same-company calendar collaboration',
-    null,
-    '2026-08-20T14:00:00Z',
-    '2026-08-20T15:00:00Z',
-    false,
-    'XS',
-    array['46000000-0000-0000-0000-0000000000a2'::uuid]
+  perform public.task_save(
+    target_task_id => '46000000-0000-0000-0000-000000000108',
+    target_title => 'Colleague calendar update',
+    target_note => 'Same-company calendar collaboration',
+    target_location => null,
+    target_starts_at => '2026-08-20T14:00:00Z',
+    target_ends_at => '2026-08-20T15:00:00Z',
+    target_is_whole_day => false,
+    target_size => 'XS',
+    target_participant_ids => array['46000000-0000-0000-0000-0000000000a2'::uuid],
+    target_is_event => true
   );
   reset role;
-end $$;$block$, 'calendar save: a same-company colleague can update and replace participants');
+end $$;$block$, '42501', 'only a participant, the member who asked, or a company admin can update a task',
+  'calendar save: a colleague who is neither on the event nor asked for it cannot rewrite it');
 
 select is(
   (
@@ -378,8 +384,8 @@ select is(
     from public.task
     where id = '46000000-0000-0000-0000-000000000108'
   ),
-  'Colleague calendar update',
-  'calendar save: the colleague event update persists'
+  'Calendar RPC update',
+  'calendar save: the event the colleague could not rewrite is unchanged'
 );
 
 select is(
@@ -388,8 +394,8 @@ select is(
     from public.task_participant
     where task_id = '46000000-0000-0000-0000-000000000108'
   ),
-  '46000000-0000-0000-0000-0000000000a2'::uuid,
-  'calendar save: the colleague participant replacement persists'
+  '46000000-0000-0000-0000-0000000000a1'::uuid,
+  'calendar save: its participants are unchanged too'
 );
 
 select lives_ok($block$do $$
@@ -426,19 +432,19 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-00000000000f"}', true);
-  perform public.save_flow_task(
-    '46000000-0000-0000-0000-000000000106',
-    'Admin reassigned task',
-    'done',
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    true,
-    null,
-    array['46000000-0000-0000-0000-0000000000a2'::uuid]
+  perform public.task_save(
+    target_task_id => '46000000-0000-0000-0000-000000000106',
+    target_title => 'Admin reassigned task',
+    target_status => 'done',
+    target_note => null,
+    target_business => null,
+    target_type => null,
+    target_size => null,
+    target_starts_at => null,
+    target_ends_at => null,
+    target_write_dates => true,
+    target_participant_ids => array['46000000-0000-0000-0000-0000000000a2'::uuid],
+    target_is_event => false
   );
   reset role;
 end $$;$block$, 'participant assignment: an admin can replace any company task set');
@@ -528,55 +534,55 @@ select is(
 select ok(
   has_function_privilege(
     'authenticated',
-    to_regprocedure('public.save_flow_task(uuid,text,public.task_status,text,text,text,text,timestamptz,timestamptz,boolean,uuid,uuid[])'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
     'EXECUTE'
   ),
-  'RPC grants: authenticated users can call save_flow_task'
+  'RPC grants: authenticated users can call task_save'
 );
 
 select ok(
   not has_function_privilege(
     'anon',
-    to_regprocedure('public.save_flow_task(uuid,text,public.task_status,text,text,text,text,timestamptz,timestamptz,boolean,uuid,uuid[])'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
     'EXECUTE'
   ),
-  'RPC grants: anonymous users cannot call save_flow_task'
+  'RPC grants: anonymous users cannot call task_save'
 );
 
 select ok(
   not has_function_privilege(
     'service_role',
-    to_regprocedure('public.save_flow_task(uuid,text,public.task_status,text,text,text,text,timestamptz,timestamptz,boolean,uuid,uuid[])'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
     'EXECUTE'
   ),
-  'RPC grants: service role uses direct trusted writes instead of save_flow_task'
+  'RPC grants: service role uses direct trusted writes instead of task_save'
 );
 
 select ok(
   has_function_privilege(
     'authenticated',
-    to_regprocedure('public.save_calendar_event(uuid,text,text,jsonb,timestamptz,timestamptz,boolean,text,uuid[],timestamptz,integer,public.task_status)'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
     'EXECUTE'
   ),
-  'RPC grants: authenticated users can call save_calendar_event'
+  'RPC grants: authenticated users can call task_save'
 );
 
 select ok(
   not has_function_privilege(
     'anon',
-    to_regprocedure('public.save_calendar_event(uuid,text,text,jsonb,timestamptz,timestamptz,boolean,text,uuid[],timestamptz,integer,public.task_status)'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
     'EXECUTE'
   ),
-  'RPC grants: anonymous users cannot call save_calendar_event'
+  'RPC grants: anonymous users cannot call task_save'
 );
 
 select ok(
   not has_function_privilege(
     'service_role',
-    to_regprocedure('public.save_calendar_event(uuid,text,text,jsonb,timestamptz,timestamptz,boolean,text,uuid[],timestamptz,integer,public.task_status)'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
     'EXECUTE'
   ),
-  'RPC grants: service role uses direct trusted writes instead of save_calendar_event'
+  'RPC grants: service role uses direct trusted writes instead of task_save'
 );
 
 select * from finish();
