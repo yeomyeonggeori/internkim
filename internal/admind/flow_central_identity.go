@@ -62,3 +62,12 @@ func forgetFlowCentralIdentity(ctx context.Context, executor sqlContextExecutor,
 	_, errorValue := executor.ExecContext(ctx, "DELETE FROM flow_central_identity WHERE task_id = ?", taskID)
 	return errorValue
 }
+
+func (service *Service) readFlowCentralIdentityByTaskID(ctx context.Context, taskID string) (string, error) {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer database.Close()
+	return readFlowCentralIdentity(ctx, database, taskID)
+}
