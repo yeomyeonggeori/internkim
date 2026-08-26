@@ -194,7 +194,7 @@ function createDevUserRecords(): UserRecord[] {
 			hireDate: '2026-05-01',
 			note: 'HR 보상 기준 확인 필요. C-level 권한과 대표 권한 유지.',
 			role: 'admin',
-			circles: ['staff', 'admin', 'c-level', 'representative', 'hr-compensation'],
+			circles: ['staff', 'admin', 'c-level', 'representative', 'hr'],
 			jobTitle: 'Representative',
 			groupID: 'c-level',
 			mattermostUserID: 'dev-mm-chanhee',
@@ -209,7 +209,7 @@ function createDevCircles(): CircleRecord[] {
 		{ circleID: 'staff', displayName: 'Staff' },
 		{ circleID: 'c-level', displayName: 'C-level', isMattermostManaged: true },
 		{ circleID: 'representative', displayName: 'Representative', isMattermostManaged: true },
-		{ circleID: 'hr-compensation', displayName: 'HR Compensation', isMattermostManaged: true }
+		{ circleID: 'hr', displayName: 'HR', isMattermostManaged: true }
 	];
 }
 

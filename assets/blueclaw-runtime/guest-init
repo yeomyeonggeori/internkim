@@ -55,7 +55,7 @@ prepare_blueclaw_workspace() {
     /workspace/circles/c-level \
     /workspace/circles/representative \
     /workspace/circles/admin \
-    /workspace/circles/hr-compensation \
+    /workspace/circles/hr \
     /workspace/private/people \
     /workspace/shared/public \
     /workspace/shared/cache/dependencies \

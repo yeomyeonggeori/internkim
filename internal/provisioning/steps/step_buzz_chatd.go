@@ -2,8 +2,8 @@ package setup
 
 import (
 	"errors"
-	"strings"
 	"fmt"
+	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
