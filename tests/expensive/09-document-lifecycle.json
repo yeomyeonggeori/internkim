@@ -6,7 +6,7 @@
  "allowedTools": [
   "conversation_history",
   "memory_search",
-  "terminal_run",
+  "shell",
   "document_read",
   "file_preview",
   "file_read",
@@ -17,7 +17,7 @@
   "document_read"
  ],
  "initialToolNames": [
-  "terminal_run",
+  "shell",
   "document_read",
   "file_deliver"
  ],
@@ -25,7 +25,7 @@
   {
    "prompt": "운영팀과 재무팀이 함께 볼 수 있도록 '분기 결산 운영 검토'라는 제목의 짧은 DOCX 문서를 작성해서 보내줘. 검토 목적과 다음 단계를 간단히 적고, 현재 상태는 초안, 담당은 운영팀이라고 표시해줘.",
    "expectedToolCalls": [
-    "terminal_run",
+    "shell",
     "file_deliver"
    ],
    "expectedAttachments": [
@@ -43,7 +43,7 @@
    ],
    "expectedEventCounts": [
     {
-     "name": "tool.terminal_run.requested",
+     "name": "tool.shell.requested",
      "bodyFragment": "분기 결산 운영 검토",
      "count": 1,
      "advisory": true
@@ -96,7 +96,7 @@
   {
    "prompt": "방금 만든 DOCX의 상태를 '검토 완료'로 바꾸고 담당을 '재무팀'으로 수정해서 같은 문서로 다시 전달해줘.",
    "expectedToolCalls": [
-    "terminal_run",
+    "shell",
     "file_deliver"
    ],
    "expectedAttachments": [
@@ -114,13 +114,13 @@
    ],
    "expectedEventCounts": [
     {
-     "name": "tool.terminal_run.requested",
+     "name": "tool.shell.requested",
      "bodyFragment": "검토 완료",
      "count": 1,
      "advisory": true
     },
     {
-     "name": "tool.terminal_run.requested",
+     "name": "tool.shell.requested",
      "bodyFragment": "재무팀",
      "count": 1,
      "advisory": true

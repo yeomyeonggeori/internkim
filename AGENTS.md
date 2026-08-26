@@ -306,7 +306,7 @@ and delete the duplicates.
 - After local simulation passes, verify executable and Linux permission behavior
   with `./internkim dev fleet run --without-mattermost --scenario <name>`.
 - Treat Local Fleet VM verification as the required pre-deploy Linux/runtime gate for
-  agent execution that touches `terminal_run`, `bun`, `uv`, Python dependency wrappers,
+  agent execution that touches `shell`, `bun`, `uv`, Python dependency wrappers,
   POSIX users/groups, or workspace permissions.
 - The disposable local fleet is an Apple Container VM (`internkim-e2e-<runID>`) with
   its config at `.local/local-fleet/runs/<runID>/config.json`; Blueclaw runs as a
@@ -765,7 +765,7 @@ and delete the duplicates.
   remaining Go-side access pre-check is a migration leftover slated for
   removal, not a pattern to extend.
 - Agreed direction for file tools: route them through the shell as the
-  requester (the same helper-exec primitive as terminal_run) so tilde,
+  requester (the same helper-exec primitive as shell) so tilde,
   globs, and relative paths carry native POSIX semantics and the Go path
   resolver, the access pre-checks, and every virtual path vocabulary
   disappear together. Mechanical argument quoting is serialization, not a

@@ -129,7 +129,7 @@ that requester.
 
 - A person becomes a stable `bc_person_<shortID>` Linux user.
 - A circle becomes a `bc_circle_<circleID>` group.
-- `terminal_run`, terminal sessions, file reads and writes, `file.promote`,
+- `shell`, terminal sessions, file reads and writes, `file.promote`,
   `file.attach`, user-authored skills and tools, dependency install scripts and
   package lifecycle scripts all run with the requester's unprivileged UID, GID
   and supplementary groups.
@@ -160,7 +160,7 @@ Durable output is promoted explicitly.
 
 ```mermaid
 flowchart LR
-  Draft["file_write tmp/<slug>/source"] --> Build["terminal_run cwd=tmp/<slug>"]
+  Draft["file_write tmp/<slug>/source"] --> Build["shell cwd=tmp/<slug>"]
   Build --> Output["tmp/<slug>/build/*"]
   Output --> Promote["file.promote to artifacts/<slug>/"]
   Promote --> Attach["file.attach the promoted artifact"]

@@ -29,7 +29,7 @@ lab runner의 `--llm-provider capability --live-llm --strict-assertions` 조합�
 | `tool_permission_hides_skill` | — | 허용 툴 없는 스킬 억제 + 거짓 거절 없음 |
 | `gws_disabled` | — | 비허용 GWS 툴 차단과 거부 설명 |
 | `schedule_create_acceptance` | — | scheduled-task 스킬로 interval `schedule_create` |
-| `site_artifact_acceptance` | — | `file_write` 콘텐츠 작성 → `site_serve` 배포, URL 회신 (`terminal_run` 0회) |
+| `site_artifact_acceptance` | — | `file_write` 콘텐츠 작성 → `site_serve` 배포, URL 회신 (`shell` 0회) |
 | `ask_choice_reply_acceptance` | — | 선택지 있는 `ask_input` 발행과 다음 턴 선택 해석 |
 | `attachment_material_read` | — | 컨텍스트 첨부를 `image_read`로 읽기 |
 | `attachment_html_preview_recovery` | — | 현재 메시지 HTML 첨부 `file_preview` |
@@ -52,8 +52,8 @@ lab runner의 `--llm-provider capability --live-llm --strict-assertions` 조합�
 | `skill_lifecycle_acceptance` | — | `skill_add` 등록 후 `skill_remove` 삭제 |
 | `capability_question_acceptance` | — | 빈 쿼리 `skill_search`로 능력 질문 답변 |
 | `task_history_question_acceptance` | — | `conversation_history`로 선행 작업 질문 답변 |
-| `site_edit_redeploy_acceptance` | — | 사이트 배포 후 같은 사이트 수정→재배포 (`terminal_run` 0회) |
-| `site_custom_structure_acceptance` | — | 커스텀 레이아웃 `file_write`+`terminal_run` 빌드 후 `site_serve` 재배포 |
+| `site_edit_redeploy_acceptance` | — | 사이트 배포 후 같은 사이트 수정→재배포 (`shell` 0회) |
+| `site_custom_structure_acceptance` | — | 커스텀 레이아웃 `file_write`+`shell` 빌드 후 `site_serve` 재배포 |
 | `site_lifecycle_acceptance` | — | structured `requiredEvidence` 기반 웹사이트 생성→배포→수정→재배포→삭제 승인→삭제 |
 | `memory_explicit_tool_acceptance` | — | `memory_remember` 저장과 `memory_search` 회상 명시 단언 |
 | `failure_explanation_acceptance` | — | 실패 태스크 사유를 `conversation_history`로 설명 |

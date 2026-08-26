@@ -1,12 +1,12 @@
 {
   "name": "presentation-lifecycle",
   "skillNames": ["presentation"],
-  "allowedTools": ["conversation_history", "memory_search", "terminal_run", "file_read", "file_write", "file_edit", "file_delete", "file_deliver"],
-  "initialToolNames": ["file_write", "terminal_run", "file_deliver"],
+  "allowedTools": ["conversation_history", "memory_search", "shell", "file_read", "file_write", "file_edit", "file_delete", "file_deliver"],
+  "initialToolNames": ["file_write", "shell", "file_deliver"],
   "steps": [
     {
       "prompt": "'비용 테스트 발표자료'라는 제목의 3장짜리 HTML 발표자료를 만들어서 전달해줘. 내용은 목표, 진행 방식, 완료 조건이야.",
-      "expectedToolCalls": ["file_write", "terminal_run", "file_deliver"],
+      "expectedToolCalls": ["file_write", "shell", "file_deliver"],
       "expectedAttachments": [".html"],
       "expectedWorkspaceFiles": [
         {
@@ -33,7 +33,7 @@
     },
     {
       "prompt": "내 발표자료 파일 중 방금 만든 '비용 테스트 발표자료'를 찾아서 경로와 형식을 알려줘.",
-      "expectedToolCalls": ["terminal_run"],
+      "expectedToolCalls": ["shell"],
       "expectedReplyFragments": ["slides.html", "HTML"],
       "expectedTaskStatus": "completed"
     },
