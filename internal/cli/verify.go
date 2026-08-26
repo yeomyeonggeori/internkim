@@ -740,7 +740,7 @@ curl --silent --show-error --fail http://127.0.0.1:18080/admin/_app/version.json
 echo "checking the paths the company web reaches through the relay"
 relay_requester="$(curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy | jq -r '[.people[] | select(.isAdmin != true) | .emails[0] // empty] | first // empty')"
 test -n "$relay_requester"
-for relay_path in /memory/api/graph /memory/api/schedules /files/api/roots /files/api/list /tasks/api/runs /tasks/api/run-detail /agent/api/buzz-claim /agent/api/buzz-relay-config; do
+for relay_path in /memory/api/graph /memory/api/schedules /files/api/roots /files/api/list /runs/api /runs/api/detail /agent/api/buzz-claim /agent/api/buzz-relay-config; do
   relay_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -H "X-INTERNKIM-REQUESTER-EMAIL: $relay_requester" "http://127.0.0.1:18080$relay_path")"
   case "$relay_status" in
     403|404)
@@ -1073,7 +1073,7 @@ post_message() {
 }
 
 task_count() {
-  blueclaw_request "task count" GET http://127.0.0.1:8080/admin/api/task | jq 'length'
+  blueclaw_request "task count" GET http://127.0.0.1:8080/admin/api/run | jq 'length'
 }
 
 wait_for_task_count() {
@@ -1513,7 +1513,7 @@ request_post_create_at="$(printf '%%s' "$request_post" | jq -r '.create_at')"
 test -n "$request_post_id"
 
 find_task_id() {
-  blueclaw_request "find direct-message task" GET http://127.0.0.1:8080/admin/api/task |
+  blueclaw_request "find direct-message task" GET http://127.0.0.1:8080/admin/api/run |
     jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty'
 }
 
@@ -1523,7 +1523,7 @@ task_run_id=""
 for _ in $(seq 1 "$timeout_seconds"); do
   task_run_id="$(find_task_id)"
   if [ -n "$task_run_id" ]; then
-    blueclaw_request "direct-message task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+    blueclaw_request "direct-message task detail" GET "http://127.0.0.1:8080/admin/api/run/detail?taskRunID=$task_run_id" > "$task_detail_file"
     if [ -z "$approval_post_id" ] && jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "confirmation.requested")' "$task_detail_file" >/dev/null; then
       approval_post="$(api_request "post direct-message approval" POST http://localhost:8065/api/v4/posts "$requester_token" \
         "$(jq -cn --arg channel_id "$request_channel_id" --arg root_id "$request_post_id" '{channel_id:$channel_id,root_id:$root_id,message:"해"}')")"
@@ -1541,7 +1541,7 @@ if [ -z "$task_run_id" ]; then
   echo "direct-message E2E did not create a task" >&2
   exit 1
 fi
-blueclaw_request "final direct-message task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+blueclaw_request "final direct-message task detail" GET "http://127.0.0.1:8080/admin/api/run/detail?taskRunID=$task_run_id" > "$task_detail_file"
 task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
 if [ "$task_status" != "completed" ]; then
   echo "direct-message E2E task did not complete: $task_status ($task_run_id)" >&2
@@ -1713,7 +1713,7 @@ wait_for_blueclaw_health() {
 }
 
 find_task_id() {
-  blueclaw_request "list message delete E2E tasks" GET http://127.0.0.1:8080/admin/api/task |
+  blueclaw_request "list message delete E2E tasks" GET http://127.0.0.1:8080/admin/api/run |
     jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty'
 }
 
@@ -1855,7 +1855,7 @@ task_run_id=""
 for _ in $(seq 1 "$timeout_seconds"); do
   task_run_id="$(find_task_id)"
   if [ -n "$task_run_id" ]; then
-    blueclaw_request "delete E2E task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+    blueclaw_request "delete E2E task detail" GET "http://127.0.0.1:8080/admin/api/run/detail?taskRunID=$task_run_id" > "$task_detail_file"
     if [ "$approval_sent" = "false" ] && jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "confirmation.requested")' "$task_detail_file" >/dev/null; then
       approval_body="$(jq -cn --arg channel_id "$channel_id" --arg root_id "$prompt_post_id" '{channel_id:$channel_id,root_id:$root_id,message:"해"}')"
       api_request "post delete approval" POST http://localhost:8065/api/v4/posts "$user_token" "$approval_body" >/dev/null
@@ -1879,7 +1879,7 @@ if [ -z "$task_run_id" ]; then
   exit 1
 fi
 
-blueclaw_request "final delete E2E task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+blueclaw_request "final delete E2E task detail" GET "http://127.0.0.1:8080/admin/api/run/detail?taskRunID=$task_run_id" > "$task_detail_file"
 task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
 if [ "$task_status" != "completed" ]; then
   echo "message delete E2E task did not complete: $task_status ($task_run_id)" >&2
@@ -2060,7 +2060,7 @@ wait_for_blueclaw_health() {
 
 task_id_for_prompt() {
   local prompt="$1"
-  blueclaw_request "list tasks for attachment probe" GET http://127.0.0.1:8080/admin/api/task |
+  blueclaw_request "list tasks for attachment probe" GET http://127.0.0.1:8080/admin/api/run |
     jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty'
 }
 
@@ -2073,7 +2073,7 @@ wait_for_task_attachment_read() {
   for _ in $(seq 1 "$timeout_seconds"); do
     task_id="$(task_id_for_prompt "$prompt")"
     if [ -n "$task_id" ]; then
-      blueclaw_request "$label task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_id" > "$task_detail_file"
+      blueclaw_request "$label task detail" GET "http://127.0.0.1:8080/admin/api/run/detail?taskRunID=$task_id" > "$task_detail_file"
       if jq -e --arg title "$unique_title" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name == "tool.file_preview.result" or .name == "tool.file_read.result" or .name == "tool.document_read.result") and ((.body // "") | tostring | contains($title)))' "$task_detail_file" >/dev/null; then
         if jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.terminal_run.requested")' "$task_detail_file" >/dev/null; then
           echo "$label task used terminal_run instead of attachment read tools" >&2
@@ -2579,14 +2579,14 @@ fi
 
 bot_post_file="$(mktemp)"
 api_request "fetch probe browser reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
-task_run_id="$(blueclaw_request "find probe browser task" GET http://127.0.0.1:8080/admin/api/task |
+task_run_id="$(blueclaw_request "find probe browser task" GET http://127.0.0.1:8080/admin/api/run |
   jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty')"
 if [ -z "$task_run_id" ]; then
   echo "expected task for probe browser prompt" >&2
   exit 1
 fi
 task_detail_file="$(mktemp)"
-blueclaw_request "probe browser task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+blueclaw_request "probe browser task detail" GET "http://127.0.0.1:8080/admin/api/run/detail?taskRunID=$task_run_id" > "$task_detail_file"
 if ! jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.browser_open.result" and (((.body // "{}") | fromjson? // {}) | .isError != true))' "$task_detail_file" >/dev/null; then
   echo "expected successful tool.browser_open.result for probe browser task $task_run_id" >&2
   jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true

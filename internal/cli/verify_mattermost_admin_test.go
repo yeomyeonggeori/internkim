@@ -76,9 +76,9 @@ func TestMattermostScenarioCleanupRediscoversAndDeletesConversationResources(t *
 	siteListCount := 0
 	remote := &fakeMattermostScenarioRemote{runValue: func(script string) (string, error) {
 		switch {
-		case strings.Contains(script, "/admin/api/task/cancel"):
+		case strings.Contains(script, "/admin/api/run/cancel"):
 			return `{}`, nil
-		case strings.Contains(script, "/admin/api/task/delete"):
+		case strings.Contains(script, "/admin/api/run/delete"):
 			return `{}`, nil
 		case strings.Contains(script, "/admin/api/sites/site-matching"):
 			return `{}`, nil
@@ -90,7 +90,7 @@ func TestMattermostScenarioCleanupRediscoversAndDeletesConversationResources(t *
 			return `{"sites":[{"siteID":"site-other","conversationID":"other"}]}`, nil
 		case strings.Contains(script, "/admin/api/people"):
 			return `{}`, nil
-		case strings.Contains(script, "/admin/api/task"):
+		case strings.Contains(script, "/admin/api/run"):
 			taskListCount++
 			if taskListCount == 1 {
 				return `[{"taskRunID":"task-1","originConversationID":"thread:channel:root"},{"taskRunID":"task-other","originConversationID":"other"},{"taskRunID":"task-2","originConversationID":"thread:channel:root"}]`, nil
@@ -111,7 +111,7 @@ func TestMattermostScenarioCleanupRediscoversAndDeletesConversationResources(t *
 		t.Fatal(errorValue)
 	}
 	joinedScripts := strings.Join(remote.scripts, "\n")
-	if strings.Count(joinedScripts, "/admin/api/task/delete") != 2 || taskListCount != 2 {
+	if strings.Count(joinedScripts, "/admin/api/run/delete") != 2 || taskListCount != 2 {
 		t.Fatalf("unexpected task cleanup scripts:\n%s", joinedScripts)
 	}
 	if !scriptContainsJSONDocument(joinedScripts, map[string]any{
@@ -299,9 +299,9 @@ func TestMattermostScenarioCreatedResourcesIgnoreMalformedAndFailedResults(t *te
 func TestMattermostScenarioCleanupAggregatesFailuresAndVerifiesRemainingResources(t *testing.T) {
 	remote := &fakeMattermostScenarioRemote{runValue: func(script string) (string, error) {
 		switch {
-		case strings.Contains(script, "/admin/api/task/cancel"):
+		case strings.Contains(script, "/admin/api/run/cancel"):
 			return "", errors.New("cancel failed")
-		case strings.Contains(script, "/admin/api/task/delete"):
+		case strings.Contains(script, "/admin/api/run/delete"):
 			return "", errors.New("task delete failed")
 		case strings.Contains(script, "/admin/api/sites/site-1"):
 			return "", errors.New("site delete failed")
@@ -309,7 +309,7 @@ func TestMattermostScenarioCleanupAggregatesFailuresAndVerifiesRemainingResource
 			return `{"sites":[{"siteID":"site-1","conversationID":"thread:channel:root","ownerIdentity":{"personID":"person-1"}}]}`, nil
 		case strings.Contains(script, "/admin/api/people"):
 			return "", errors.New("person delete failed")
-		case strings.Contains(script, "/admin/api/task"):
+		case strings.Contains(script, "/admin/api/run"):
 			return `[{"taskRunID":"task-1","originConversationID":"thread:channel:root"}]`, nil
 		default:
 			return `{}`, nil
@@ -370,7 +370,7 @@ func TestMattermostScenarioCleanupWithoutConversationOnlyDeletesPerson(t *testin
 		t.Fatal(errorValue)
 	}
 	joinedScripts := strings.Join(remote.scripts, "\n")
-	if strings.Contains(joinedScripts, "/admin/api/task") || strings.Contains(joinedScripts, "/admin/api/sites") {
+	if strings.Contains(joinedScripts, "/admin/api/run") || strings.Contains(joinedScripts, "/admin/api/sites") {
 		t.Fatalf("cleanup without a conversation touched conversation resources:\n%s", joinedScripts)
 	}
 	if !strings.Contains(joinedScripts, "/admin/api/people?email=probe%40example.com") {

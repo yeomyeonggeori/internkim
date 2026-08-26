@@ -110,7 +110,7 @@ func (service *Service) handleMattermostStopCommand(responseWriter http.Response
 		"originConversationIDs": mattermostSlashCommandConversationIDs(request),
 		"reason":                "mattermost slash command /" + command,
 	}
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/task/cancel", body, &stopResponse); errorValue != nil {
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/run/cancel", body, &stopResponse); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}

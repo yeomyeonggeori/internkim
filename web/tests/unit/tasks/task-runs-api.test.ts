@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { taskRunsAPIPath } from '../../../src/routes/tasks/tasks-api';
+import { taskRunsAPIPath } from '../../../src/routes/runs/runs-api';
 
 describe('taskRunsAPIPath', () => {
 	test('requests task runs with status, limit, offset, and total count pagination', () => {

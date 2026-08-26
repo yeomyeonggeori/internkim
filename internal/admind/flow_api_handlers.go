@@ -181,6 +181,16 @@ func (service *Service) createFlowTask(responseWriter http.ResponseWriter, reque
 	if payload.IsCalendarEvent {
 		task.CalendarEventID = service.createPairedCalendarEventForFlowTask(request, task, payload)
 	}
+	// The company holds the board, so the task is written there and the answer is
+	// what the company saved. A device that has no company writes its own store.
+	if saved, answered, saveError := service.saveCentralFlowTask(request, task, service.flowPeopleByID(request.Context())); answered {
+		if saveError != nil {
+			http.Error(responseWriter, saveError.Error(), http.StatusBadGateway)
+			return
+		}
+		service.writeJSON(responseWriter, saved)
+		return
+	}
 	task, errorValue = service.writeFlowTaskAtStatusEnd(request.Context(), task)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -251,6 +261,14 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 	}
 	task.MattermostPostID = existingTask.MattermostPostID
 	task.CreatedAt = existingTask.CreatedAt
+	if saved, answered, saveError := service.saveCentralFlowTask(request, task, service.flowPeopleByID(request.Context())); answered {
+		if saveError != nil {
+			http.Error(responseWriter, saveError.Error(), http.StatusBadGateway)
+			return
+		}
+		service.writeJSON(responseWriter, saved)
+		return
+	}
 	if task.Status != existingTask.Status {
 		task, errorValue = service.writeFlowTaskAtStatusEnd(request.Context(), task)
 		if errorValue != nil {
@@ -324,6 +342,14 @@ func (service *Service) deleteFlowTask(responseWriter http.ResponseWriter, reque
 	}
 	if !service.canDeleteFlowTask(request, task) {
 		http.Error(responseWriter, "task owner or admin access required", http.StatusForbidden)
+		return
+	}
+	if answered, removeError := service.removeCentralFlowTask(request, taskID); answered {
+		if removeError != nil {
+			http.Error(responseWriter, removeError.Error(), http.StatusBadGateway)
+			return
+		}
+		responseWriter.WriteHeader(http.StatusNoContent)
 		return
 	}
 	if errorValue := service.deleteFlowTaskByID(request.Context(), task.ID); errorValue != nil {

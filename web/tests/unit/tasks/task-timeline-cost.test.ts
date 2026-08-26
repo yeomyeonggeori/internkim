@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { formatCostUSD, summarizeTimeline, taskDetailShareText, taskEventShareText, type TaskDetail, type TaskEvent } from '../../../src/routes/tasks/tasks-api';
+import { formatCostUSD, summarizeTimeline, taskDetailShareText, taskEventShareText, type TaskDetail, type TaskEvent } from '../../../src/routes/runs/runs-api';
 
 function llmCallEvent(body: Record<string, unknown>): TaskEvent {
 	return { name: 'llm.call', body: JSON.stringify(body) };

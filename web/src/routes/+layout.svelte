@@ -61,7 +61,7 @@
 	function currentApp(routePath: string) {
 		if (routePath.startsWith('/auth/claim')) return text.claimTitle;
 		if (routePath.startsWith('/settings')) return text.settings;
-		if (routePath.startsWith('/tasks')) return text.tasks;
+		if (routePath.startsWith('/runs')) return text.tasks;
 		if (routePath.startsWith('/memory')) return text.memory;
 		if (routePath.startsWith('/calendar')) return text.calendar;
 		if (routePath.startsWith('/mail')) return text.mail;

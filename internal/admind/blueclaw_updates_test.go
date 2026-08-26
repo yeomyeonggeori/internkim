@@ -159,7 +159,7 @@ func TestBlueclawPayloadInstallTargetsIncludeCanonicalAndTenants(t *testing.T) {
 func TestDrainBlueclawTasksBeforeStopCompletesWhenActiveTasksReachZero(t *testing.T) {
 	runningRequestCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/admin/api/task" {
+		if request.URL.Path != "/admin/api/run" {
 			http.NotFound(responseWriter, request)
 			return
 		}

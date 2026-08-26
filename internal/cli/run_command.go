@@ -48,7 +48,7 @@ type commandTaskDetail struct {
 	TaskEvents []commandTaskEvent `json:"taskEvents"`
 }
 
-var taskCommandOutput io.Writer = os.Stdout
+var runCommandOutput io.Writer = os.Stdout
 
 func runTaskArguments(arguments []string) error {
 	if hasCommandArgument(arguments, "--help") || hasCommandArgument(arguments, "-h") {
@@ -98,7 +98,7 @@ func validateTaskArguments(command string, arguments []string) error {
 
 func taskLogsUsageError(arguments []string) error {
 	if firstTaskPositional(arguments) == "" && !hasCommandArgument(arguments, "--last-failed") {
-		return errors.New("usage: internkim task logs <taskRunID> | --last-failed")
+		return errors.New("usage: internkim run logs <taskRunID> | --last-failed")
 	}
 	return nil
 }
@@ -130,7 +130,7 @@ func showTaskLogsWithClient(arguments []string, client adminAPIClient) error {
 		return errorValue
 	}
 	if hasCommandArgument(arguments, "--json") {
-		fmt.Fprintln(taskCommandOutput, string(rawResponse))
+		fmt.Fprintln(runCommandOutput, string(rawResponse))
 		return nil
 	}
 	printTaskDetail(detail, hasCommandArgument(arguments, "--full"))
@@ -264,12 +264,12 @@ func firstTaskPositional(arguments []string) string {
 
 func printTaskRunTable(taskRuns []commandTaskRun) {
 	if len(taskRuns) == 0 {
-		fmt.Fprintln(taskCommandOutput, "No task runs.")
+		fmt.Fprintln(runCommandOutput, "No task runs.")
 		return
 	}
-	fmt.Fprintf(taskCommandOutput, "%-38s %-18s %-20s %s\n", "TASK RUN ID", "STATUS", "UPDATED", "SUMMARY")
+	fmt.Fprintf(runCommandOutput, "%-38s %-18s %-20s %s\n", "TASK RUN ID", "STATUS", "UPDATED", "SUMMARY")
 	for _, taskRun := range taskRuns {
-		fmt.Fprintf(taskCommandOutput, "%-38s %-18s %-20s %s\n", taskRun.TaskRunID, taskRun.Status, formatTaskTime(taskRun.UpdatedAt), taskRunSummary(taskRun))
+		fmt.Fprintf(runCommandOutput, "%-38s %-18s %-20s %s\n", taskRun.TaskRunID, taskRun.Status, formatTaskTime(taskRun.UpdatedAt), taskRunSummary(taskRun))
 	}
 }
 
@@ -302,17 +302,17 @@ func printTaskField(label string, value string) {
 	if strings.TrimSpace(value) == "" {
 		return
 	}
-	fmt.Fprintf(taskCommandOutput, "%-10s %s\n", label, value)
+	fmt.Fprintf(runCommandOutput, "%-10s %s\n", label, value)
 }
 
 func printTaskSteps(taskSteps []commandTaskStep) {
 	if len(taskSteps) == 0 {
 		return
 	}
-	fmt.Fprintln(taskCommandOutput)
-	fmt.Fprintln(taskCommandOutput, "Steps:")
+	fmt.Fprintln(runCommandOutput)
+	fmt.Fprintln(runCommandOutput, "Steps:")
 	for _, taskStep := range taskSteps {
-		fmt.Fprintf(taskCommandOutput, "  [%s] %s\n", taskStep.Status, truncateTaskText(taskStep.Instruction, 100))
+		fmt.Fprintf(runCommandOutput, "  [%s] %s\n", taskStep.Status, truncateTaskText(taskStep.Instruction, 100))
 	}
 }
 
@@ -324,10 +324,10 @@ func printTaskEvents(taskEvents []commandTaskEvent, showFullBodies bool) {
 	sort.Slice(sortedTaskEvents, func(leftIndex int, rightIndex int) bool {
 		return sortedTaskEvents[leftIndex].CreatedAt.Before(sortedTaskEvents[rightIndex].CreatedAt)
 	})
-	fmt.Fprintln(taskCommandOutput)
-	fmt.Fprintln(taskCommandOutput, "Events:")
+	fmt.Fprintln(runCommandOutput)
+	fmt.Fprintln(runCommandOutput, "Events:")
 	for _, taskEvent := range sortedTaskEvents {
-		fmt.Fprintf(taskCommandOutput, "%s  %-28s %s\n", formatTaskTime(taskEvent.CreatedAt), taskEvent.Name, taskEventBody(taskEvent, showFullBodies))
+		fmt.Fprintf(runCommandOutput, "%s  %-28s %s\n", formatTaskTime(taskEvent.CreatedAt), taskEvent.Name, taskEventBody(taskEvent, showFullBodies))
 	}
 }
 
@@ -359,22 +359,22 @@ func printTaskJSON(value any) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	fmt.Fprintln(taskCommandOutput, string(document))
+	fmt.Fprintln(runCommandOutput, string(document))
 	return nil
 }
 
 func printTaskUsage() {
-	fmt.Fprintln(taskCommandOutput, "Usage: internkim task [list|logs] [options]")
-	fmt.Fprintln(taskCommandOutput, "Examples:")
-	fmt.Fprintln(taskCommandOutput, "  internkim task list")
-	fmt.Fprintln(taskCommandOutput, "  internkim task list --failed --limit 10")
-	fmt.Fprintln(taskCommandOutput, "  internkim task logs <taskRunID>")
-	fmt.Fprintln(taskCommandOutput, "  internkim task logs --last-failed")
-	fmt.Fprintln(taskCommandOutput, "Options:")
-	fmt.Fprintln(taskCommandOutput, "  --failed       Show only failed task runs")
-	fmt.Fprintln(taskCommandOutput, "  --status <s>   Filter list by status")
-	fmt.Fprintln(taskCommandOutput, "  --limit <n>    Maximum list rows (default 20)")
-	fmt.Fprintln(taskCommandOutput, "  --last-failed  Show logs for the most recent failed task run")
-	fmt.Fprintln(taskCommandOutput, "  --full         Print full event bodies")
-	fmt.Fprintln(taskCommandOutput, "  --json         Print raw JSON")
+	fmt.Fprintln(runCommandOutput, "Usage: internkim run [list|logs] [options]")
+	fmt.Fprintln(runCommandOutput, "Examples:")
+	fmt.Fprintln(runCommandOutput, "  internkim run list")
+	fmt.Fprintln(runCommandOutput, "  internkim run list --failed --limit 10")
+	fmt.Fprintln(runCommandOutput, "  internkim run logs <taskRunID>")
+	fmt.Fprintln(runCommandOutput, "  internkim run logs --last-failed")
+	fmt.Fprintln(runCommandOutput, "Options:")
+	fmt.Fprintln(runCommandOutput, "  --failed       Show only failed task runs")
+	fmt.Fprintln(runCommandOutput, "  --status <s>   Filter list by status")
+	fmt.Fprintln(runCommandOutput, "  --limit <n>    Maximum list rows (default 20)")
+	fmt.Fprintln(runCommandOutput, "  --last-failed  Show logs for the most recent failed task run")
+	fmt.Fprintln(runCommandOutput, "  --full         Print full event bodies")
+	fmt.Fprintln(runCommandOutput, "  --json         Print raw JSON")
 }

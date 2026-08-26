@@ -662,7 +662,7 @@ func fetchTestTaskDetailJSON(target verifyTarget, taskRunID string) (json.RawMes
 	if trimmedTaskRunID == "" {
 		return nil, "no taskRunID was returned by the Mattermost verification"
 	}
-	command := "curl -s --max-time 20 'http://127.0.0.1:8080/admin/api/task/detail?taskRunID=" + trimmedTaskRunID + "'"
+	command := "curl -s --max-time 20 'http://127.0.0.1:8080/admin/api/run/detail?taskRunID=" + trimmedTaskRunID + "'"
 	output, errorValue := target.sshClient.runResultWithTimeout(command, 30*time.Second)
 	if errorValue != nil {
 		return nil, "fetch task detail over SSH: " + errorValue.Error()
