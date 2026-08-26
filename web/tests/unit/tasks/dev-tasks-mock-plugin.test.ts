@@ -7,7 +7,7 @@ describe('dev tasks mock plugin', () => {
 		const state = createDevTasksMockState('admin@example.com');
 		const response = await createDevTasksMockResponse(state, {
 			method: 'GET',
-			pathname: '/tasks/api/runs',
+			pathname: '/runs/api',
 			searchParams: new URLSearchParams('limit=15&offset=15&includeTotal=true&includeCost=true&dailyCostTaskRunLimit=10')
 		});
 
@@ -55,7 +55,7 @@ describe('dev tasks mock plugin', () => {
 		const state = createDevTasksMockState('admin@example.com');
 		const response = await createDevTasksMockResponse(state, {
 			method: 'GET',
-			pathname: '/tasks/api/run-detail',
+			pathname: '/runs/api/run-detail',
 			searchParams: new URLSearchParams('taskRunID=dev-task-run-001')
 		});
 
@@ -70,12 +70,12 @@ describe('dev tasks mock plugin', () => {
 		const state = createDevTasksMockState('admin@example.com');
 		const deleteResponse = await createDevTasksMockResponse(state, {
 			method: 'DELETE',
-			pathname: '/tasks/api/runs/dev-task-run-001',
+			pathname: '/runs/api/dev-task-run-001',
 			searchParams: new URLSearchParams()
 		});
 		const listResponse = await createDevTasksMockResponse(state, {
 			method: 'GET',
-			pathname: '/tasks/api/runs',
+			pathname: '/runs/api',
 			searchParams: new URLSearchParams('limit=15&offset=0&includeTotal=true')
 		});
 

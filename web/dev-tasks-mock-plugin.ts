@@ -69,13 +69,13 @@ export function createDevTasksMockResponse(
 	state: DevTasksMockState,
 	request: DevMockRequest
 ): DevMockResponse | undefined {
-	if (request.method === 'GET' && request.pathname === '/tasks/api/runs') {
+	if (request.method === 'GET' && request.pathname === '/runs/api') {
 		return { status: 200, body: paginatedTaskRuns(state.taskRuns, request.searchParams) };
 	}
-	if (request.method === 'GET' && request.pathname === '/tasks/api/run-detail') {
+	if (request.method === 'GET' && request.pathname === '/runs/api/run-detail') {
 		return taskDetailResponse(state, request.searchParams);
 	}
-	if (request.method === 'DELETE' && request.pathname.startsWith('/tasks/api/runs/')) {
+	if (request.method === 'DELETE' && request.pathname.startsWith('/runs/api/')) {
 		return deleteTaskRunResponse(state, request.pathname);
 	}
 	if (request.method === 'GET' && request.pathname === '/admin/api/diagnostics/tasks') {
@@ -88,9 +88,9 @@ export function createDevTasksMockResponse(
 }
 
 function shouldHandleDevTasksMockRequest(method: string, pathname: string): boolean {
-	if (method === 'GET' && pathname === '/tasks/api/runs') return true;
-	if (method === 'GET' && pathname === '/tasks/api/run-detail') return true;
-	if (method === 'DELETE' && pathname.startsWith('/tasks/api/runs/')) return true;
+	if (method === 'GET' && pathname === '/runs/api') return true;
+	if (method === 'GET' && pathname === '/runs/api/run-detail') return true;
+	if (method === 'DELETE' && pathname.startsWith('/runs/api/')) return true;
 	if (method === 'GET' && pathname === '/admin/api/diagnostics/tasks') return true;
 	if (method === 'GET' && pathname === '/admin/api/diagnostics/service-logs') return true;
 	return shouldHandleDevAdminMockRequest(method, pathname);
@@ -123,7 +123,7 @@ function taskDetailResponse(state: DevTasksMockState, searchParams: URLSearchPar
 }
 
 function deleteTaskRunResponse(state: DevTasksMockState, pathname: string): DevMockResponse {
-	const taskRunID = decodeURIComponent(pathname.slice('/tasks/api/runs/'.length));
+	const taskRunID = decodeURIComponent(pathname.slice('/runs/api/'.length));
 	const taskRun = state.taskRuns.find((candidate) => candidate.taskRunID === taskRunID);
 	if (!taskRun) return { status: 404, body: { error: 'task_run_not_found' } };
 	if (!deletableTaskRunStatuses.has(taskRun.status)) {
