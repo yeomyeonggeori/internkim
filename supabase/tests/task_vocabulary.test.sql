@@ -4,7 +4,7 @@ select plan(9);
 
 select has_function(
   'public',
-  'save_task_vocabulary',
+  'task_vocabulary_save',
   array['jsonb'],
   'vocabulary: task definitions use an authenticated admin function'
 );
@@ -57,7 +57,7 @@ begin
     '{"sub":"59500000-0000-0000-0000-000000000002","role":"authenticated"}',
     true
   );
-  perform public.save_task_vocabulary('{"businesses":[],"types":[]}'::jsonb);
+  perform public.task_vocabulary_save('{"businesses":[],"types":[]}'::jsonb);
   reset role;
 end $$;$block$, '42501', null, 'vocabulary: a non-admin cannot save task definitions');
 
@@ -69,7 +69,7 @@ begin
     '{"sub":"59500000-0000-0000-0000-000000000001","role":"authenticated"}',
     true
   );
-  perform public.save_task_vocabulary('{"businesses":[]}'::jsonb);
+  perform public.task_vocabulary_save('{"businesses":[]}'::jsonb);
   reset role;
 end $$;$block$, '22023', null, 'vocabulary: malformed task definitions are rejected');
 
@@ -81,7 +81,7 @@ begin
     '{"sub":"59500000-0000-0000-0000-000000000001","role":"authenticated"}',
     true
   );
-  perform public.save_task_vocabulary('{"businesses":[{"name":"Business One"},{"name":"Business One"},{"name":"Business Two"}],"types":[{"name":"Type One"}]}'::jsonb);
+  perform public.task_vocabulary_save('{"businesses":[{"name":"Business One"},{"name":"Business One"},{"name":"Business Two"}],"types":[{"name":"Type One"}]}'::jsonb);
   reset role;
 end $$;$block$, '22023', null, 'vocabulary: duplicate business names are rejected');
 
@@ -93,7 +93,7 @@ begin
     '{"sub":"59500000-0000-0000-0000-000000000001","role":"authenticated"}',
     true
   );
-  perform public.save_task_vocabulary('{"businesses":[{"name":"Business Two"}],"types":[{"name":"Type One"}]}'::jsonb);
+  perform public.task_vocabulary_save('{"businesses":[{"name":"Business Two"}],"types":[{"name":"Type One"}]}'::jsonb);
   reset role;
 end $$;$block$, '2BP01', null, 'vocabulary: a business used by a task cannot be deleted');
 
@@ -105,7 +105,7 @@ begin
     '{"sub":"59500000-0000-0000-0000-000000000001","role":"authenticated"}',
     true
   );
-  perform public.save_task_vocabulary('{"businesses":[{"name":"Business One"}],"types":[{"name":"Type One"}]}'::jsonb);
+  perform public.task_vocabulary_save('{"businesses":[{"name":"Business One"}],"types":[{"name":"Type One"}]}'::jsonb);
   reset role;
 end $$;$block$, '2BP01', null, 'vocabulary: a business used by an opportunity cannot be deleted');
 
@@ -117,7 +117,7 @@ begin
     '{"sub":"59500000-0000-0000-0000-000000000001","role":"authenticated"}',
     true
   );
-  perform public.save_task_vocabulary('{"businesses":[{"name":"Business One"},{"name":"Business Two"}],"types":[]}'::jsonb);
+  perform public.task_vocabulary_save('{"businesses":[{"name":"Business One"},{"name":"Business Two"}],"types":[]}'::jsonb);
   reset role;
 end $$;$block$, '2BP01', null, 'vocabulary: a type used by a task cannot be deleted');
 
@@ -129,7 +129,7 @@ begin
     '{"sub":"59500000-0000-0000-0000-000000000001","role":"authenticated"}',
     true
   );
-  perform public.save_task_vocabulary('{"businesses":[{"name":"Business One","color":"#2563eb"},{"name":"Business Two"},{"name":"Business New"}],"types":[{"name":"Type One"}]}'::jsonb);
+  perform public.task_vocabulary_save('{"businesses":[{"name":"Business One","color":"#2563eb"},{"name":"Business Two"},{"name":"Business New"}],"types":[{"name":"Type One"}]}'::jsonb);
   reset role;
 end $$;$block$, 'vocabulary: unused definitions can be dropped and new ones added');
 

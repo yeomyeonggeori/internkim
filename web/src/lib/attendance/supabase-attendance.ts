@@ -140,7 +140,7 @@ export async function correctSupabaseAttendanceEvents(
 	reason: string
 ): Promise<void> {
 	if (corrections.length === 0) return;
-	const { error } = await supabase().rpc('correct_attendance_events', {
+	const { error } = await supabase().rpc('attendance_correct', {
 		corrections: corrections.map((correction) => ({
 			event_id: correction.eventID,
 			local_date: correction.localDate,

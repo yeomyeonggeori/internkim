@@ -47,7 +47,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '43000000-0000-0000-0000-000000000001', true);
 
 select lives_ok(
-  $$select public.link_task_children(
+  $$select public.task_children_link(
     '43000000-0000-0000-0000-000000000101',
     array[
       '43000000-0000-0000-0000-000000000102'::uuid,
@@ -72,7 +72,7 @@ select is(
 );
 
 select throws_ok(
-  $$select public.link_task_children(
+  $$select public.task_children_link(
     '43000000-0000-0000-0000-000000000101',
     array[
       '43000000-0000-0000-0000-000000000105'::uuid,
@@ -96,7 +96,7 @@ select is(
 );
 
 select throws_ok(
-	$$select public.set_task_parent(
+	$$select public.task_parent_set(
 		'43000000-0000-0000-0000-000000000105',
 		'43000000-0000-0000-0000-000000000106'
 	)$$,
@@ -106,7 +106,7 @@ select throws_ok(
 );
 
 select throws_ok(
-	$$select public.link_task_children(
+	$$select public.task_children_link(
 		'43000000-0000-0000-0000-000000000101',
 		array['43000000-0000-0000-0000-000000000107'::uuid]
 	)$$,

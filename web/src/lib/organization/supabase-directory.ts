@@ -67,14 +67,14 @@ export type MemberProfileUpdate = {
 };
 
 export async function saveSupabaseMemberProfiles(profiles: MemberProfileUpdate[]): Promise<UsersResponse> {
-	const saved = await supabase().rpc('save_member_profiles', { profiles });
+	const saved = await supabase().rpc('member_profiles_save', { profiles });
 	if (saved.error) throw new Error(saved.error.message);
 	return supabaseOrganizationDirectory();
 }
 
 export async function saveSupabaseTeams(groups: OrgGroup[]): Promise<UsersResponse> {
 	const teams = groups.map((group) => ({ id: group.id, name: group.name, parentID: group.parentID ?? '' }));
-	const saved = await supabase().rpc('save_teams', { teams });
+	const saved = await supabase().rpc('team_save', { teams });
 	if (saved.error) throw new Error(saved.error.message);
 	return supabaseOrganizationDirectory();
 }
@@ -83,7 +83,7 @@ export type SavedMemberProfile = { phoneNumber: string; hireDate: string };
 
 function savedMemberProfileOf(value: unknown): SavedMemberProfile {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		throw new Error('save_own_member_profile answered with no member profile');
+		throw new Error('member_profile_save_own answered with no member profile');
 	}
 	const fields = value as Record<string, unknown>;
 	return {
@@ -96,7 +96,7 @@ export async function saveOwnSupabaseProfile(
 	phoneNumber: string,
 	hireDate: string,
 ): Promise<SavedMemberProfile> {
-	const saved = await supabase().rpc('save_own_member_profile', {
+	const saved = await supabase().rpc('member_profile_save_own', {
 		new_phone_number: phoneNumber || null,
 		new_hire_date: hireDate || null,
 	});

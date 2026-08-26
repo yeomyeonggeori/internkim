@@ -79,7 +79,7 @@ begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000001"}', true);
 
-  select public.set_member_leave_days('44000000-0000-0000-0000-0000000000a2', 18) into granted;
+  select public.member_leave_days_set('44000000-0000-0000-0000-0000000000a2', 18) into granted;
   assert granted = 18, 'an administrator grants leave days to a colleague';
 
   assert public.member_leave_remaining('44000000-0000-0000-0000-0000000000a2', 2026) = 17,
@@ -98,7 +98,7 @@ begin
   perform set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000002"}', true);
 
   begin
-    perform public.set_member_leave_days('44000000-0000-0000-0000-0000000000a2', 99);
+    perform public.member_leave_days_set('44000000-0000-0000-0000-0000000000a2', 99);
   exception when raise_exception then
     own_grant_blocked := true;
   end;
@@ -121,7 +121,7 @@ begin
   perform set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000004"}', true);
 
   begin
-    perform public.set_member_leave_days('44000000-0000-0000-0000-0000000000a2', 40);
+    perform public.member_leave_days_set('44000000-0000-0000-0000-0000000000a2', 40);
   exception when raise_exception then
     reach_blocked := true;
   end;
@@ -139,7 +139,7 @@ begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000002"}', true);
 
-  select public.save_own_member_profile('010-0000-0000', '2026-01-02') into saved;
+  select public.member_profile_save_own('010-0000-0000', '2026-01-02') into saved;
   assert saved->>'phoneNumber' = '010-0000-0000', 'a member keeps its own contact details';
   assert saved->>'hireDate' = '2026-01-02', 'a member keeps its own hire date';
 

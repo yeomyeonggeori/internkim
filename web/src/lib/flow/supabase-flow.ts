@@ -237,7 +237,7 @@ export async function saveSupabaseTaskVocabulary(
 	definitions: FlowDefinitions,
 	messages: { failure: string; inUse: string }
 ): Promise<void> {
-	const saved = await supabase().rpc('save_task_vocabulary', {
+	const saved = await supabase().rpc('task_vocabulary_save', {
 		target_vocabulary: taskVocabularyOfDefinitions(definitions)
 	});
 	if (!saved.error) return;

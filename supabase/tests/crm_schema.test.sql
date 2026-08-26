@@ -18,13 +18,13 @@ select hasnt_column(
 );
 select has_function(
   'public',
-  'save_crm_task',
+  'crm_task_save',
   array['uuid', 'text', 'task_status', 'text', 'text', 'text', 'timestamp with time zone', 'timestamp with time zone', 'timestamp with time zone', 'boolean', 'boolean', 'integer', 'jsonb', 'uuid', 'uuid[]', 'uuid', 'uuid', 'uuid'],
   'crm: CRM task writes use an authenticated transactional function'
 );
 select has_function(
   'public',
-  'save_crm_vocabulary',
+  'crm_vocabulary_save',
   array['jsonb'],
   'crm: CRM definitions use an authenticated admin function'
 );
@@ -103,7 +103,7 @@ begin
     '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
     true
   );
-  perform public.save_crm_vocabulary('{
+  perform public.crm_vocabulary_save('{
     "organization_types":[{"id":"partner","name":"Partner"},{"id":"unused_type","name":"Unused"}],
     "pipelines":[
       {"id":"partnership","name":"Partnership"},
@@ -122,7 +122,7 @@ begin
     '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
     true
   );
-  perform public.save_crm_vocabulary('{
+  perform public.crm_vocabulary_save('{
     "organization_types":[{"id":"partner","name":"Partner"}],
     "pipelines":[
       {"id":"partnership","name":"Partnership"},
@@ -140,7 +140,7 @@ begin
     '{"sub":"59400000-0000-0000-0000-000000000002","role":"authenticated"}',
     true
   );
-  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[]}'::jsonb);
+  perform public.crm_vocabulary_save('{"organization_types":[],"pipelines":[]}'::jsonb);
   reset role;
 end $$;$block$, '42501', null, 'crm: a non-admin cannot save CRM definitions');
 
@@ -152,7 +152,7 @@ begin
     '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
     true
   );
-  perform public.save_crm_vocabulary('{"organization_types":[]}'::jsonb);
+  perform public.crm_vocabulary_save('{"organization_types":[]}'::jsonb);
   reset role;
 end $$;$block$, '22023', null, 'crm: malformed CRM definitions are rejected');
 
@@ -160,7 +160,7 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.save_crm_vocabulary('{"organization_types":[],"pipelines":[{"id":"partnership","name":"Partnership"},{"id":"sponsorship","name":"Sponsorship"}]}'::jsonb);
+  perform public.crm_vocabulary_save('{"organization_types":[],"pipelines":[{"id":"partnership","name":"Partnership"},{"id":"sponsorship","name":"Sponsorship"}]}'::jsonb);
   reset role;
 end $$;$block$, '2BP01', null, 'crm: a used organization type cannot be deleted');
 
@@ -168,7 +168,7 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.save_crm_vocabulary('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"sponsorship","name":"Sponsorship"}]}'::jsonb);
+  perform public.crm_vocabulary_save('{"organization_types":[{"id":"partner","name":"Partner"}],"pipelines":[{"id":"sponsorship","name":"Sponsorship"}]}'::jsonb);
   reset role;
 end $$;$block$, '2BP01', null, 'crm: a used pipeline cannot be deleted');
 
@@ -341,7 +341,7 @@ begin
     true
   );
 
-  saved_task := public.save_crm_task(
+  saved_task := public.crm_task_save(
     null,
     'CRM calendar task',
     'todo',
@@ -388,7 +388,7 @@ begin
     '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
     true
   );
-  perform public.save_crm_task(
+  perform public.crm_task_save(
     null,
     'Manual stage change',
     'todo',

@@ -170,7 +170,7 @@ begin
   end if;
 
   if target_task_id is null and target_parent_task_id is not null then
-    perform public.set_task_parent(saved_task, target_parent_task_id);
+    perform public.task_parent_set(saved_task, target_parent_task_id);
   end if;
 
   return saved_task;
