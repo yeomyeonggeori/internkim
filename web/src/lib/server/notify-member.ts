@@ -48,11 +48,11 @@ async function wantsToBeTold(
 async function hasMuted(client: SupabaseClient, memberID: string, conversationID: string): Promise<boolean> {
 	if (!conversationID) return false;
 	const { data, error } = await client
-		.from('muted_conversation')
-		.select('conversation_id')
+		.from('notification')
+		.select('is_muted')
 		.eq('member_id', memberID)
 		.eq('conversation_id', conversationID)
-		.maybeSingle<{ conversation_id: string }>();
+		.maybeSingle<{ is_muted: boolean }>();
 	if (error) throw new Error(error.message);
-	return data !== null;
+	return data?.is_muted === true;
 }
