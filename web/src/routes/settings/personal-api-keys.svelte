@@ -5,12 +5,7 @@
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import {
-		issuePersonalKey,
-		listPersonalKeys,
-		revokePersonalKey,
-		type PersonalKey
-	} from '$lib/member/personal-keys';
+	import { forgetPersonalKey, issuePersonalKey, personalKeyNames } from '$lib/member/personal-keys';
 	import KeyIcon from '@lucide/svelte/icons/key-round';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -18,25 +13,16 @@
 
 	const text = createPageText(companySettingsText);
 
-	let keys = $state<PersonalKey[]>([]);
+	let names = $state<string[]>([]);
 	let isLoading = $state(true);
 	let keyName = $state('');
-	let isIssuing = $state(false);
-	let revokingID = $state('');
+	let isWorking = $state(false);
+	let forgettingName = $state('');
 	let issuedKey = $state('');
-
-	function withDate(template: string, moment: string): string {
-		return template.replace('{date}', new Date(moment).toLocaleDateString());
-	}
-
-	function usageOf(key: PersonalKey): string {
-		if (!key.lastSeenAt) return text.personalKeyNeverSeen;
-		return withDate(text.personalKeyLastSeen, key.lastSeenAt);
-	}
 
 	async function load() {
 		try {
-			keys = await listPersonalKeys();
+			names = await personalKeyNames();
 		} catch {
 			toast.error(text.personalKeysLoadFailed);
 		} finally {
@@ -50,30 +36,29 @@
 			toast.error(text.personalKeyNeedsName);
 			return;
 		}
-		isIssuing = true;
+		isWorking = true;
 		try {
-			const issued = await issuePersonalKey(name);
-			issuedKey = issued.apiKey;
+			issuedKey = await issuePersonalKey(name);
 			keyName = '';
 			toast.success(text.personalKeyIssued);
 			await load();
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.personalKeyFailed);
 		} finally {
-			isIssuing = false;
+			isWorking = false;
 		}
 	}
 
-	async function revoke(key: PersonalKey) {
-		revokingID = key.keyID;
+	async function forget(name: string) {
+		forgettingName = name;
 		try {
-			await revokePersonalKey(key.keyID);
+			await forgetPersonalKey(name);
 			toast.success(text.personalKeyRevoked);
 			await load();
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.personalKeyFailed);
 		} finally {
-			revokingID = '';
+			forgettingName = '';
 		}
 	}
 
@@ -113,28 +98,23 @@
 						if (event.key === 'Enter') issue();
 					}}
 				/>
-				<Button onclick={issue} disabled={isIssuing}>{text.issuePersonalKey}</Button>
+				<Button onclick={issue} disabled={isWorking}>{text.issuePersonalKey}</Button>
 			</div>
 		</Field.Field>
 
 		{#if !isLoading}
-			{#if keys.length === 0}
+			{#if names.length === 0}
 				<p class="text-sm text-muted-foreground">{text.noPersonalKeys}</p>
 			{:else}
 				<ul class="grid gap-2">
-					{#each keys as key (key.keyID)}
+					{#each names as name (name)}
 						<li class="flex items-center justify-between gap-4 rounded-md border px-4 py-3">
-							<div class="grid gap-0.5">
-								<span class="text-sm font-medium">{key.name}</span>
-								<span class="text-xs text-muted-foreground">
-									{withDate(text.addedOn, key.createdAt)} · {usageOf(key)}
-								</span>
-							</div>
+							<span class="text-sm font-medium">{name}</span>
 							<Button
 								variant="ghost"
 								size="sm"
-								onclick={() => revoke(key)}
-								disabled={revokingID === key.keyID}
+								onclick={() => forget(name)}
+								disabled={forgettingName === name}
 							>
 								{text.revokePersonalKey}
 							</Button>
