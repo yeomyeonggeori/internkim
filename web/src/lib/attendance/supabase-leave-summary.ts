@@ -19,16 +19,25 @@ export type SupabaseLeaveBalance = {
 	summary: EmployeeLeaveSummary;
 };
 
+export function leaveCountsAsUsage(
+	trackingMode: EmployeeLeaveBalanceTrackingMode,
+	isDeducted: boolean
+): boolean {
+	return trackingMode === 'unlimited' || isDeducted;
+}
+
 export function summarizeSupabaseLeave(
 	rows: readonly SupabaseLeaveSummaryRow[],
 	targetYear: number,
 	remainingDays: number | null
 ): SupabaseLeaveBalance {
+	const trackingMode: EmployeeLeaveBalanceTrackingMode =
+		remainingDays === null ? 'unlimited' : 'managed';
 	let usedMilliDays = 0;
 	let reservedMilliDays = 0;
 
 	for (const row of rows) {
-		if (!row.isDeducted) continue;
+		if (!leaveCountsAsUsage(trackingMode, row.isDeducted)) continue;
 		const days = leaveDaysInYear(row.days, row.localStartDate, row.localEndDate, targetYear);
 		if (days === 0) continue;
 		const milliDays = Math.round(days * 1000);
@@ -37,7 +46,7 @@ export function summarizeSupabaseLeave(
 	}
 
 	return {
-		trackingMode: remainingDays === null ? 'unlimited' : 'managed',
+		trackingMode,
 		summary: {
 			usedMilliDays,
 			reservedMilliDays,
