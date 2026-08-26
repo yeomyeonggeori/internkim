@@ -76,7 +76,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-visibility", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-visibility", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -155,6 +155,12 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		stopContext, cancelStop := context.WithTimeout(context.Background(), 90*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(stopContext, "stop Mattermost and leave it stopped", "sh", "-lc", mattermostStopCommand()))
 		cancelStop()
+	case "circle-room-read":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read who each circle room holds and who its circle holds", "sh", "-lc", circleRoomMembershipCommand(false)))
+	case "circle-room-reconcile":
+		circleRoomContext, cancelCircleRoom := context.WithTimeout(context.Background(), 600*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(circleRoomContext, "make each circle room hold exactly its circle", "sh", "-lc", circleRoomMembershipCommand(true)))
+		cancelCircleRoom()
 	case "circle-membership-read":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read the circles this person carries", "sh", "-lc", circleMembershipReconcileCommand(actionTarget, false)))
 	case "circle-membership-reconcile":
@@ -1399,6 +1405,17 @@ ls -la /root/.internkim/backups/ | tail -6
 // so the community can read them (#705). channel_members soft-deletes with
 // removed_at, and the people who have left are exactly who a repair cannot put
 // back, so they are counted apart.
+func circleRoomMembershipCommand(shouldApply bool) string {
+	applyValue := "false"
+	if shouldApply {
+		applyValue = "true"
+	}
+	return strings.TrimSpace(`
+body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/circle-room-membership?apply=` + applyValue + `")
+printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
+`)
+}
+
 func circleMembershipReconcileCommand(email string, shouldApply bool) string {
 	applyValue := "false"
 	if shouldApply {
