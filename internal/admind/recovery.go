@@ -1540,7 +1540,12 @@ LOADED=/tmp/buzz-discovery-load.log
 su - postgres -c "psql -X -q -d buzz_discovery_restore -f $READABLE" > "$LOADED" 2>&1
 tail -3 "$LOADED"
 rm -f "$READABLE" "$LOADED"
-su - postgres -c "psql -X -qAt -v ON_ERROR_STOP=1 -d buzz_discovery_restore -c \"COPY (SELECT e.* FROM events e JOIN channels c ON c.id = e.channel_id WHERE e.kind IN (39000,39001,39002) AND c.channel_type = 'dm') TO '$CARRIED'\""
+COLUMNS=$(su - postgres -c "psql -X -qAt -d buzz -c \"SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'events'\"")
+CARRIED_COLUMNS=$(su - postgres -c "psql -X -qAt -d buzz_discovery_restore -c \"SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'events'\"")
+printf 'the messenger holds: %s\n' "$COLUMNS"
+printf 'the snapshot holds:  %s\n' "$CARRIED_COLUMNS"
+QUALIFIED=$(printf '%s' "$COLUMNS" | sed 's/\([^,][^,]*\)/e.\1/g')
+su - postgres -c "psql -X -qAt -v ON_ERROR_STOP=1 -d buzz_discovery_restore -c \"COPY (SELECT $QUALIFIED FROM events e JOIN channels c ON c.id = e.channel_id WHERE e.kind IN (39000,39001,39002) AND c.channel_type = 'dm') TO '$CARRIED'\""
 CARRIED_ROWS=$(wc -l < "$CARRIED" | tr -d ' ')
 printf 'events the snapshot carries: %s\n' "$CARRIED_ROWS"
 if [ "$CARRIED_ROWS" -lt 1 ]; then
@@ -1549,7 +1554,7 @@ if [ "$CARRIED_ROWS" -lt 1 ]; then
   exit 1
 fi
 q "DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')"
-su - postgres -c "psql -X -qAt -v ON_ERROR_STOP=1 -d buzz -c \"COPY events FROM '$CARRIED'\""
+su - postgres -c "psql -X -qAt -v ON_ERROR_STOP=1 -d buzz -c \"COPY events ($COLUMNS) FROM '$CARRIED'\""
 su - postgres -c "dropdb --if-exists buzz_discovery_restore"
 rm -f "$CARRIED"
 printf '== direct message discovery events after ==\n'
