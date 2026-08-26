@@ -22,7 +22,7 @@ export const devFlowBaselineWeekStartISO = '2026-06-01';
 export const devFlowMembers: FlowMember[] = [
 	member('kim-intern', '김철수', 'kim@example.com', 'admin', '2026-03-02'),
 	member('designer', '이영희', 'designer@example.com', 'member', '2026-03-09'),
-	member('engineer', '박민준', 'engineer@example.com', 'member', '2026-03-16'),
+	member('engineer', '박예시', 'engineer@example.com', 'member', '2026-03-16'),
 	member('operator', '최서연', 'operator@example.com', 'member', '2026-03-23'),
 	member('planner', '정하준', 'planner@example.com', 'member', '2026-03-30'),
 	member('marketer', '한지민', 'marketer@example.com', 'member', '2026-04-06'),
