@@ -433,6 +433,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startBuzzMemberLinker(ctx)
 	service.startBuzzAccountLinkSync(ctx)
 	service.startStaffChannelMembershipSync(ctx)
+	service.startCircleRoomMembershipSync(ctx)
 	service.startMattermostPasswordHashSync(ctx)
 	service.ensureBuzzRelayTerminator()
 	service.ensureMattermostConfig(ctx)
