@@ -57,9 +57,44 @@ func (service *Service) startCircleRoomMembershipSync(ctx context.Context) {
 	}()
 }
 
+// A timeline shows fifty rows and a joining announcement takes one of them, so
+// a room that gained members faster than it gained messages shows nobody's
+// words. The relay writes an announcement for every add it is asked to make
+// and has no opinion about how many a room should keep.
+const joiningNoticesARoomKeeps = 10
+
+func (service *Service) keepJoiningNoticesFromEatingTheWindow(ctx context.Context) {
+	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
+	if databaseURL == "" {
+		return
+	}
+	relay, errorValue := sql.Open("postgres", databaseURL)
+	if errorValue != nil {
+		log.Printf("joining notices could not be counted: %v", errorValue)
+		return
+	}
+	defer relay.Close()
+
+	result, errorValue := relay.ExecContext(ctx, `
+DELETE FROM events WHERE kind = 40099 AND id IN (
+  SELECT id FROM (
+    SELECT id, row_number() OVER (PARTITION BY channel_id ORDER BY created_at DESC, id ASC) AS place
+    FROM events WHERE kind = 40099
+  ) ranked WHERE place > $1
+)`, joiningNoticesARoomKeeps)
+	if errorValue != nil {
+		log.Printf("joining notices could not be pruned: %v", errorValue)
+		return
+	}
+	if removed, _ := result.RowsAffected(); removed > 0 {
+		log.Printf("joining notices beyond the newest %d in a room: %d taken back", joiningNoticesARoomKeeps, removed)
+	}
+}
+
 func (service *Service) keepCircleRoomsToTheirCircles(ctx context.Context) {
 	syncContext, cancel := context.WithTimeout(ctx, circleRoomSyncTimeout)
 	defer cancel()
+	service.keepJoiningNoticesFromEatingTheWindow(syncContext)
 	report, errorValue := service.reconcileCircleRoomMembership(syncContext, true)
 	if errorValue != nil {
 		log.Printf("circle rooms could not be kept to their circles: %v", errorValue)
