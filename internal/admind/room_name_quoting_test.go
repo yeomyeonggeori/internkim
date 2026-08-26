@@ -78,3 +78,23 @@ func TestEveryRoomChangeTellsTheClients(t *testing.T) {
 		}
 	}
 }
+
+func TestASnapshotIsNamedByItsFileNameAlone(t *testing.T) {
+	for _, name := range []string{"../../etc/passwd", "buzz.sql; rm -rf /", "a b.sql", ""} {
+		if _, errorValue := buzzRestoreDirectMessageDiscoveryCommand(name); errorValue == nil {
+			t.Fatalf("expected %q to be refused rather than run", name)
+		}
+	}
+}
+
+func TestRestoringDirectMessagesReadsTheSnapshotBeforeItDropsAnything(t *testing.T) {
+	command, errorValue := buzzRestoreDirectMessageDiscoveryCommand("buzz-20260826T094526Z.sql")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	carried := strings.Index(command, "CARRIED_ROWS")
+	dropped := strings.Index(command, "DELETE FROM events")
+	if carried < 0 || dropped < 0 || carried > dropped {
+		t.Fatalf("the snapshot must be read and counted before anything is dropped: %s", command)
+	}
+}
