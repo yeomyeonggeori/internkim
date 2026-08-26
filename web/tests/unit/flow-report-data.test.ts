@@ -97,7 +97,7 @@ describe('buildFlowReportSections', () => {
 		expect(sections.businessDistance.unit).toBe('km');
 		expect(sections.businessDistance.total).toBe(7);
 		expect(sections.businessDistance.items.map((item) => [item.label, item.value])).toEqual([
-			['여명거리', 5],
+			['샘플거리', 5],
 			['김인턴', 2]
 		]);
 		expect(sections.businessDistance.items[0]).toMatchObject({ tone: 'business', percent: 71 });
@@ -175,7 +175,7 @@ describe('buildFlowReportSections', () => {
 				stoppedTasks: 0,
 				totalDistance: 3,
 				statusCounts: { 완료: 2 },
-				businessCounts: { 여명거리: 2 },
+				businessCounts: { 샘플거리: 2 },
 				typeCounts: { 구현: 2 },
 				memberDistances: { 김예시: 3 }
 			},
@@ -192,7 +192,7 @@ describe('buildFlowReportSections', () => {
 				tasks: [
 					{
 						participantNames: ['김예시'],
-						business: '여명거리',
+						business: '샘플거리',
 						type: '구현',
 						size: 'M',
 						status: '완료',
@@ -201,7 +201,7 @@ describe('buildFlowReportSections', () => {
 					},
 					{
 						participantNames: ['김예시'],
-						business: '여명거리',
+						business: '샘플거리',
 						type: '구현',
 						size: 'M',
 						status: '완료',
@@ -288,7 +288,7 @@ describe('buildFlowReportSections', () => {
 
 		expect(sections.weeklyStatus.rows.map((row) => row.label)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
 		expect(sections.weeklyStatus.items[0].label).toBe('구현');
-		expect(sections.businessDistance.items.map((item) => item.label)).toEqual(['여명거리', '김인턴', 'Unassigned']);
+		expect(sections.businessDistance.items.map((item) => item.label)).toEqual(['샘플거리', '김인턴', 'Unassigned']);
 		expect(sections.memberDistance.rows[0].summary).toBe('Weekly 115 pts · Monthly 173 pts');
 		expect(sections.memberDistance.teamAverageLabel).toBe('Team average');
 		expect(sections.memberDistance.memberScrollHint).toBe('{count} members total · scroll inside list');

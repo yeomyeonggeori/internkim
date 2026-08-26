@@ -16,8 +16,8 @@ func TestFlowDefinitionColorsPersist(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	definitions.Categories = []string{"여명거리", "김인턴"}
-	definitions.CategoryColors = map[string]string{"여명거리": "#db2777"}
+	definitions.Categories = []string{"샘플거리", "김인턴"}
+	definitions.CategoryColors = map[string]string{"샘플거리": "#db2777"}
 	definitions.Types = []string{"기능"}
 	definitions.TypeColors = map[string]string{"기능": "#0891b2"}
 	definitions.Sizes = []flowSizeDefinition{sizeDefinition("T", 21, 64, "개발", "기타", "비고")}
@@ -28,7 +28,7 @@ func TestFlowDefinitionColorsPersist(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if reloaded.CategoryColors["여명거리"] != "#db2777" {
+	if reloaded.CategoryColors["샘플거리"] != "#db2777" {
 		t.Fatalf("categoryColors = %#v", reloaded.CategoryColors)
 	}
 	if _, hasColor := reloaded.CategoryColors["김인턴"]; hasColor {
@@ -42,8 +42,8 @@ func TestFlowDefinitionColorsPersist(t *testing.T) {
 func TestFlowDefinitionsAPIKeepsColors(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodPut, "/flow/api/definitions", strings.NewReader(`{
-		"categories": ["여명거리"],
-		"categoryColors": {"여명거리": "#DB2777"},
+		"categories": ["샘플거리"],
+		"categoryColors": {"샘플거리": "#DB2777"},
 		"types": ["기능"],
 		"typeColors": {"기능": "#0891b2", "없는종류": "not-a-color"},
 		"sizes": [{"name": "M", "distanceKm": 3, "maxHours": 8}]
@@ -59,7 +59,7 @@ func TestFlowDefinitionsAPIKeepsColors(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if stored.CategoryColors["여명거리"] != "#db2777" {
+	if stored.CategoryColors["샘플거리"] != "#db2777" {
 		t.Fatalf("categoryColors = %#v", stored.CategoryColors)
 	}
 	if stored.TypeColors["기능"] != "#0891b2" {
