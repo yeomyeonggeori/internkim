@@ -83,7 +83,7 @@ func TestRosterReconcileKeepsTheAdminEmailAndLocalTestPeople(t *testing.T) {
 	}
 }
 
-func TestRosterReconcileKeepsAdminsAndRemovesNobodyOnAnEmptyDirectory(t *testing.T) {
+func TestADirectoryThatAnsweredNothingRemovesNobody(t *testing.T) {
 	policyDocument := map[string]any{"people": []any{
 		map[string]any{"personID": "person-1", "emails": []any{"boss@example.com"}, "isAdmin": true},
 		map[string]any{"personID": "person-2", "emails": []any{"member@example.com"}},
@@ -93,7 +93,7 @@ func TestRosterReconcileKeepsAdminsAndRemovesNobodyOnAnEmptyDirectory(t *testing
 
 	emails := rosterPolicyEmails(policyDocument)
 	if len(emails) != 2 {
-		t.Fatalf("expected an empty directory answer to remove nobody, got %v", emails)
+		t.Fatalf("a directory that answered nothing is a directory nobody heard from, got %v", emails)
 	}
 }
 
@@ -219,5 +219,36 @@ func TestADirectoryRecordReadsTheCirclesFieldTheCompanySends(t *testing.T) {
 	}
 	if !slices.Equal(record.Circles, []string{"staff", "c-level"}) {
 		t.Fatalf("the field name the company sends must be the one this reads, got %v", record.Circles)
+	}
+}
+
+func TestAnAdminTheDirectoryNoLongerNamesGoes(t *testing.T) {
+	policyDocument := map[string]any{"people": []any{
+		map[string]any{"personID": "person-1", "emails": []any{"boss@example.com"}, "isAdmin": true},
+		map[string]any{"personID": "sample", "emails": []any{"admin@example.test"}, "isAdmin": true},
+	}}
+	records := []adminUserMutation{{MemberID: "user-1", Email: "boss@example.com", Role: "admin"}}
+
+	reconcileRosterPeople(policyDocument, records, nil)
+
+	emails := rosterPolicyEmails(policyDocument)
+	if slices.Contains(emails, "admin@example.test") {
+		t.Fatalf("an admin the company no longer names must not outlive it, got %v", emails)
+	}
+	if !slices.Contains(emails, "boss@example.com") {
+		t.Fatalf("an admin the company still names stays, got %v", emails)
+	}
+}
+
+func TestTheSeedAdminStaysEvenWhenTheDirectoryDoesNotNameThem(t *testing.T) {
+	policyDocument := map[string]any{"people": []any{
+		map[string]any{"personID": "seed", "emails": []any{"seed@example.com"}, "isAdmin": true},
+	}}
+	records := []adminUserMutation{{MemberID: "user-1", Email: "member@example.com", Role: "member"}}
+
+	reconcileRosterPeople(policyDocument, records, []string{"seed@example.com"})
+
+	if !slices.Contains(rosterPolicyEmails(policyDocument), "seed@example.com") {
+		t.Fatal("the address this device lets an admin in by must survive a directory that forgot them")
 	}
 }
