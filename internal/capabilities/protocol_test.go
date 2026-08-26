@@ -371,15 +371,16 @@ func TestPlatformMessageDescriptorsMatchMessageInputs(t *testing.T) {
 	expectedEffects := map[string]struct {
 		effect      string
 		resultField string
+		version     string
 	}{
-		"message_send":   {effect: "sent", resultField: "messageIDs"},
-		"message_update": {effect: "updated", resultField: "messageID"},
-		"message_delete": {effect: "deleted", resultField: "messageIDs"},
+		"message_send":   {effect: "sent", resultField: "messageIDs", version: "3"},
+		"message_update": {effect: "updated", resultField: "messageID", version: "2"},
+		"message_delete": {effect: "deleted", resultField: "messageIDs", version: "2"},
 	}
 	for toolName, expected := range expectedEffects {
 		descriptor := descriptorForTool(t, descriptors, toolName)
-		if descriptor.Version != "2" || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible {
-			t.Fatalf("%s must use its visible generated v2 descriptor: %+v", toolName, descriptor)
+		if descriptor.Version != expected.version || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible {
+			t.Fatalf("%s must use its visible generated v%s descriptor: %+v", toolName, expected.version, descriptor)
 		}
 		if len(descriptor.ResultContract.Effects) != 1 {
 			t.Fatalf("%s effects = %+v", toolName, descriptor.ResultContract.Effects)

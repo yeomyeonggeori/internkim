@@ -1248,6 +1248,31 @@ func (service Service) slackRequest(ctx context.Context, method string, path str
 	return service.authenticatedJSONRequest(ctx, method, strings.TrimRight("https://slack.com/api", "/")+path, token, body, responseValue)
 }
 
+type httpStatusError struct {
+	StatusCode int
+	Body       string
+}
+
+func (errorValue *httpStatusError) Error() string {
+	return fmt.Sprintf("http status %d: %s", errorValue.StatusCode, errorValue.Body)
+}
+
+func isHTTPStatusNotFound(errorValue error) bool {
+	var statusError *httpStatusError
+	if !errors.As(errorValue, &statusError) {
+		return false
+	}
+	return statusError.StatusCode == http.StatusNotFound
+}
+
+func isHTTPStatusForbidden(errorValue error) bool {
+	var statusError *httpStatusError
+	if !errors.As(errorValue, &statusError) {
+		return false
+	}
+	return statusError.StatusCode == http.StatusForbidden
+}
+
 func (service Service) authenticatedJSONRequest(ctx context.Context, method string, requestURL string, token string, body any, responseValue any) error {
 	var reader io.Reader
 	if body != nil {
@@ -1272,7 +1297,7 @@ func (service Service) authenticatedJSONRequest(ctx context.Context, method stri
 	defer response.Body.Close()
 	responseDocument, _ := io.ReadAll(response.Body)
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("http status %d: %s", response.StatusCode, strings.TrimSpace(string(responseDocument)))
+		return &httpStatusError{StatusCode: response.StatusCode, Body: strings.TrimSpace(string(responseDocument))}
 	}
 	if responseValue == nil {
 		return nil

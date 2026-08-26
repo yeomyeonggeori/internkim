@@ -210,7 +210,7 @@ func mattermostPendingPostID(botUserID string, idempotencyKey string) string {
 	return trimmedBotUserID + ":" + trimmedKey
 }
 
-func (service Service) sendMattermostDirectMessageWithDispatch(ctx context.Context, userID string, message string, idempotencyKey string) (string, platformDMFailure, bool) {
+func (service Service) sendMattermostDirectMessageWithDispatch(ctx context.Context, userID string, message string, idempotencyKey string, attachments []platformFile) (string, platformDMFailure, bool) {
 	botUser, errorValue := service.resolveMattermostBotUser(ctx)
 	if errorValue != nil {
 		return "", platformDMFailureForError("mattermost_lookup", "mattermost_unavailable", errorValue, true), true
@@ -226,10 +226,17 @@ func (service Service) sendMattermostDirectMessageWithDispatch(ctx context.Conte
 	if errorValue != nil {
 		return "", platformDMFailureForError("direct_channel_create", "direct_channel_create_failed", errorValue, true), true
 	}
+	fileIDs, errorValue := service.uploadMattermostFiles(ctx, channelID, attachments)
+	if errorValue != nil {
+		return "", platformDMFailureForError("attachment_upload", "mattermost_unavailable", errorValue, true), true
+	}
 	var response struct {
 		ID string `json:"id"`
 	}
-	body := map[string]string{"channel_id": channelID, "message": message}
+	body := map[string]any{"channel_id": channelID, "message": message}
+	if len(fileIDs) > 0 {
+		body["file_ids"] = fileIDs
+	}
 	if pendingPostID := mattermostPendingPostID(botUser.ID, idempotencyKey); pendingPostID != "" {
 		body["pending_post_id"] = pendingPostID
 	}

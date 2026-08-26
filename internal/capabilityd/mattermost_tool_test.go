@@ -196,6 +196,10 @@ func TestMattermostChannelPostPinsCreatedPost(t *testing.T) {
 		case "http://mattermost.test/api/v4/posts/post-1/pin":
 			pinnedPost = true
 			return testJSONResponse(http.StatusOK, map[string]string{"status": "ok"}), nil
+		case "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
+		case "http://mattermost.test/api/v4/channels/channel-1/members/bot-1":
+			return testJSONResponse(http.StatusOK, map[string]string{"channel_id": "channel-1", "user_id": "bot-1"}), nil
 		case "http://mattermost.test/api/v4/channels/channel-1/members/staff-1":
 			return testJSONResponse(http.StatusOK, map[string]string{"channel_id": "channel-1", "user_id": "staff-1"}), nil
 		default:
