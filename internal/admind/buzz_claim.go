@@ -1,8 +1,11 @@
 package admind
 
 import (
+	"context"
 	"errors"
+	"log"
 	"net/http"
+	"strings"
 )
 
 type buzzClaimResponse struct {
@@ -45,5 +48,70 @@ func (service *Service) handleBuzzClaim(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, "buzz_claim_failed", http.StatusInternalServerError)
 		return
 	}
+	service.rememberBuzzCredential(request.Context(), actorEmail, secretHex, publicHex)
 	service.writeJSON(responseWriter, buzzClaimResponse{SecretHex: secretHex, PublicHex: publicHex})
+}
+
+// The machine derives this key from a seed nobody else holds, so the record has
+// to be told. Otherwise the web messenger, which never sees a seed, keeps being
+// handed whatever credential this person had before the messenger changed.
+//
+// Handing the key back is what the caller asked for; recording it is not, so a
+// company that will not take it does not turn this into a failure.
+func (service *Service) rememberBuzzCredential(ctx context.Context, actorEmail string, secretHex string, publicHex string) {
+	client := service.centralPlane()
+	if client == nil {
+		return
+	}
+	member, found, errorValue := client.MemberByEmail(ctx, actorEmail)
+	if errorValue != nil || !found {
+		log.Printf("the buzz key for %s was not recorded: the company does not name that address", actorEmail)
+		return
+	}
+	if errorValue := client.KeepMessengerCredential(ctx, member.MemberID, buzzCredentialKind, publicHex, secretHex); errorValue != nil {
+		log.Printf("the buzz key for %s was not recorded: %v", actorEmail, errorValue)
+		return
+	}
+	log.Printf("the buzz key for %s is now the credential the record holds", actorEmail)
+}
+
+// chatd asks for this kind by name (chatd/src/personal/buzz.ts).
+const buzzCredentialKind = "buzz-secret"
+
+// The people the record already names get their key without anybody pressing a
+// button, because the messenger they use every day is the thing that is broken.
+func (service *Service) recordBuzzCredentials(ctx context.Context) (kept int, skipped int, failed int) {
+	client := service.centralPlane()
+	if client == nil {
+		return 0, 0, 0
+	}
+	members, errorValue := client.Members(ctx)
+	if errorValue != nil {
+		log.Printf("buzz credentials: the company did not answer who works here: %v", errorValue)
+		return 0, 0, 1
+	}
+	for _, member := range members {
+		email := strings.ToLower(strings.TrimSpace(member.Email))
+		if email == "" || !member.IsActive() {
+			skipped++
+			continue
+		}
+		secretHex, errorValue := service.personBuzzSecret(ctx, email)
+		if errorValue != nil {
+			failed++
+			continue
+		}
+		publicHex, errorValue := buzzPublicKey(secretHex)
+		if errorValue != nil {
+			failed++
+			continue
+		}
+		if errorValue := client.KeepMessengerCredential(ctx, member.MemberID, buzzCredentialKind, publicHex, secretHex); errorValue != nil {
+			log.Printf("buzz credentials: %s was not recorded: %v", email, errorValue)
+			failed++
+			continue
+		}
+		kept++
+	}
+	return kept, skipped, failed
 }

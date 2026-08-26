@@ -39,8 +39,9 @@ export async function keepMemberCredential(
 			kind: credential.kind,
 			external_id: credential.externalID,
 			vault_secret_id: vaultSecretID,
+			name: '',
 		},
-		{ onConflict: 'member_id,kind' },
+		{ onConflict: 'member_id,kind,name' },
 	);
 	if (error) throw new Error(error.message);
 }

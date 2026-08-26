@@ -76,7 +76,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-link-edits", "buzz-remove-link-edits", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-messages", "buzz-deletion-markers", "buzz-window-probe", "buzz-joining-notices", "buzz-forget-joining-notices", "buzz-remove-deletion-markers", "buzz-room-visibility", "restart-buzz-relay", "buzz-relay-service-journal", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-link-edits", "buzz-remove-link-edits", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-messages", "buzz-deletion-markers", "buzz-window-probe", "buzz-joining-notices", "buzz-forget-joining-notices", "buzz-remove-deletion-markers", "buzz-room-visibility", "restart-buzz-relay", "messenger-relay", "record-buzz-credentials", "buzz-relay-service-journal", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -280,6 +280,15 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		cancelLog()
 	case "admind-journal":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read what admind said about the roster it delivers", "sh", "-lc", admindJournalCommand()))
+	case "messenger-relay":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read the relay the web messenger speaks through", "sh", "-lc", messengerRelayCommand()))
+	case "record-buzz-credentials":
+		kept, skipped, failed := service.recordBuzzCredentials(ctx)
+		response.Results = append(response.Results, sshRecoveryCommandResult{
+			Name:   "give every person the buzz key the record was missing",
+			Output: fmt.Sprintf("kept %d, skipped %d, failed %d", kept, skipped, failed),
+			Status: "ok",
+		})
 	case "buzz-relay-service-journal":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read what the relay itself said", "sh", "-lc", buzzRelayServiceJournalCommand()))
 	case "restart-buzz-relay":
@@ -1165,6 +1174,22 @@ journalctl -u ` + blueclaw.BuzzRelayServiceName + ` -n 25 --no-pager 2>&1 | tail
 `)
 }
 
+// A browser reaches this device over a websocket this relay opens outward to the
+// gateway. A browser that finds nothing there is told the company app is not
+// running, which is true and says nothing about why.
+func messengerRelayCommand() string {
+	return strings.TrimSpace(`
+set +e
+printf '== is it running ==\n'
+systemctl is-active ` + blueclaw.RelayServiceName + `
+systemctl show ` + blueclaw.RelayServiceName + ` -p ExecMainStartTimestamp -p NRestarts -p Result 2>&1
+printf '\n== what it said about the gateway and the people asking ==\n'
+journalctl -u ` + blueclaw.RelayServiceName + ` --since '6 hours ago' --no-pager 2>&1 | grep -iE 'gateway|company app|answered [45][0-9][0-9]|credential|platform|refus|error' | tail -25
+printf '\n== lately ==\n'
+journalctl -u ` + blueclaw.RelayServiceName + ` -n 25 --no-pager 2>&1 | tail -25
+`)
+}
+
 func buzzRelayRestartCommand() string {
 	return strings.TrimSpace(`
 set -e
@@ -1815,20 +1840,23 @@ func (service *Service) sshRecoveryServiceStates(ctx context.Context) map[string
 		"buzz-relay":           service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", blueclaw.BuzzRelayServiceName),
 		"buzz-relay-stunnel":   service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "buzz-relay-stunnel"),
 		"chatd":                service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "chatd"),
-		"relay-tls-443":        service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "ss -ltn 2>/dev/null | grep -q ':443' && echo listening || echo down"),
-		"mattermost-8065":      service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "curl -fsS --max-time 3 http://127.0.0.1:8065/api/v4/system/ping >/dev/null 2>&1 && echo up || echo down"),
-		"mattermost-how":       service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "u=$(systemctl list-unit-files --no-legend 2>/dev/null | awk '{print $1}' | grep -i mattermost | head -1); c=$(timeout 4 docker ps -a --format '{{.Names}}={{.Status}}' 2>/dev/null | grep -i mattermost | head -1); echo \"unit=${u:-none} ct=${c:-none}\""),
-		"mattermost-state":     service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "u=$(systemctl list-unit-files --no-legend 2>/dev/null | awk '{print $1}' | grep -i mattermost | head -1); [ -n \"$u\" ] && systemctl is-active \"$u\" 2>&1 || echo no-unit"),
-		"mattermost-why":       service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "L=$(ls -t /opt/mattermost/logs/mattermost.log 2>/dev/null | head -1); { tail -40 \"$L\" 2>/dev/null; timeout 6 journalctl -u mattermost.service -n 30 --no-pager 2>/dev/null | grep -v 'systemd\\['; } | grep -iE 'error|fatal|critical|panic|unable|refused|migrat|corrupt|no space|permission denied|too many|listen' | tail -1 | cut -c1-240"),
-		"disk-root":            service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "df -h / | awk 'NR==2{print $5\" used, \"$4\" free\"}'"),
-		"postgres-dbs":         service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "timeout 6 su - postgres -c \"psql -X -qAt -c 'SELECT datname FROM pg_database WHERE datistemplate=false'\" 2>&1 | tr '\\n' ' '"),
-		"pg-clusters":          service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "pg_lsclusters --no-header 2>/dev/null | awk '{print $1\"/\"$2\":\"$4}' | tr '\\n' ' '"),
-		"mm-config-db":         service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "grep -oE '\\\"DataSource\\\": *\\\"[^\\\"]*\\\"' /opt/mattermost/config/config.json 2>/dev/null | head -1 | sed -E 's#://[^:]+:[^@]+@#://USER:PASS@#'"),
-		"mm-pat-enabled":       service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "grep -o '\\\"EnableUserAccessTokens\\\": *[a-z]*' /opt/mattermost/config/config.json 2>/dev/null | grep -oE 'true|false' | head -1"),
-		"buzz-minio":           service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "buzz-minio"),
-		"minio-ready":          service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "timeout 5 curl -fsS http://127.0.0.1:9000/minio/health/ready >/dev/null 2>&1 && echo ok || echo down"),
-		"mm-db-data":           service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "timeout 6 su - postgres -c \"psql -X -qAt -d mattermost -c \\\"SELECT 'users='||count(*) FROM users\\\"; psql -X -qAt -d mattermost -c \\\"SELECT 'posts='||count(*) FROM posts\\\"\" 2>&1 | tr '\\n' ' '"),
-		"mm-env-ds":            service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "{ systemctl show mattermost.service -p Environment -p EnvironmentFiles 2>/dev/null | tr ' ' '\\n' | grep -iE 'DATASOURCE|EnvironmentFiles'; for f in $(systemctl show mattermost.service -p EnvironmentFiles 2>/dev/null | sed 's/EnvironmentFiles=//' | tr ' ' '\\n' | sed 's/^-//'); do grep -h DATASOURCE \"$f\" 2>/dev/null; done; } | grep -iE 'test|datasource|Environment' | sed -E 's#://[^:]+:[^@]+@#://U:P@#' | head -3 | tr '\\n' '  '"),
+		// The web messenger reaches this device through this service and no
+		// other. Nothing watched it, so a stop looked like nothing at all.
+		"internkim-relay":  service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", blueclaw.RelayServiceName),
+		"relay-tls-443":    service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "ss -ltn 2>/dev/null | grep -q ':443' && echo listening || echo down"),
+		"mattermost-8065":  service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "curl -fsS --max-time 3 http://127.0.0.1:8065/api/v4/system/ping >/dev/null 2>&1 && echo up || echo down"),
+		"mattermost-how":   service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "u=$(systemctl list-unit-files --no-legend 2>/dev/null | awk '{print $1}' | grep -i mattermost | head -1); c=$(timeout 4 docker ps -a --format '{{.Names}}={{.Status}}' 2>/dev/null | grep -i mattermost | head -1); echo \"unit=${u:-none} ct=${c:-none}\""),
+		"mattermost-state": service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "u=$(systemctl list-unit-files --no-legend 2>/dev/null | awk '{print $1}' | grep -i mattermost | head -1); [ -n \"$u\" ] && systemctl is-active \"$u\" 2>&1 || echo no-unit"),
+		"mattermost-why":   service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "L=$(ls -t /opt/mattermost/logs/mattermost.log 2>/dev/null | head -1); { tail -40 \"$L\" 2>/dev/null; timeout 6 journalctl -u mattermost.service -n 30 --no-pager 2>/dev/null | grep -v 'systemd\\['; } | grep -iE 'error|fatal|critical|panic|unable|refused|migrat|corrupt|no space|permission denied|too many|listen' | tail -1 | cut -c1-240"),
+		"disk-root":        service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "df -h / | awk 'NR==2{print $5\" used, \"$4\" free\"}'"),
+		"postgres-dbs":     service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "timeout 6 su - postgres -c \"psql -X -qAt -c 'SELECT datname FROM pg_database WHERE datistemplate=false'\" 2>&1 | tr '\\n' ' '"),
+		"pg-clusters":      service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "pg_lsclusters --no-header 2>/dev/null | awk '{print $1\"/\"$2\":\"$4}' | tr '\\n' ' '"),
+		"mm-config-db":     service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "grep -oE '\\\"DataSource\\\": *\\\"[^\\\"]*\\\"' /opt/mattermost/config/config.json 2>/dev/null | head -1 | sed -E 's#://[^:]+:[^@]+@#://USER:PASS@#'"),
+		"mm-pat-enabled":   service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "grep -o '\\\"EnableUserAccessTokens\\\": *[a-z]*' /opt/mattermost/config/config.json 2>/dev/null | grep -oE 'true|false' | head -1"),
+		"buzz-minio":       service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "buzz-minio"),
+		"minio-ready":      service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "timeout 5 curl -fsS http://127.0.0.1:9000/minio/health/ready >/dev/null 2>&1 && echo ok || echo down"),
+		"mm-db-data":       service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "timeout 6 su - postgres -c \"psql -X -qAt -d mattermost -c \\\"SELECT 'users='||count(*) FROM users\\\"; psql -X -qAt -d mattermost -c \\\"SELECT 'posts='||count(*) FROM posts\\\"\" 2>&1 | tr '\\n' ' '"),
+		"mm-env-ds":        service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "{ systemctl show mattermost.service -p Environment -p EnvironmentFiles 2>/dev/null | tr ' ' '\\n' | grep -iE 'DATASOURCE|EnvironmentFiles'; for f in $(systemctl show mattermost.service -p EnvironmentFiles 2>/dev/null | sed 's/EnvironmentFiles=//' | tr ' ' '\\n' | sed 's/^-//'); do grep -h DATASOURCE \"$f\" 2>/dev/null; done; } | grep -iE 'test|datasource|Environment' | sed -E 's#://[^:]+:[^@]+@#://U:P@#' | head -3 | tr '\\n' '  '"),
 	}
 }
 
