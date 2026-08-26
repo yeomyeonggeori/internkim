@@ -181,3 +181,36 @@ func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 		t.Fatalf("expected a settled roster to stay undelivered, got %v", statError)
 	}
 }
+
+func TestRosterReconcileCarriesTheCirclesTheCompanyKeeps(t *testing.T) {
+	policyDocument := rosterPolicyWithEmails("member@example.com")
+	records := []adminUserMutation{
+		{MemberID: "user-1", Email: "member@example.com", Name: "Member", Role: "member", Circles: []string{"staff", "c-level"}},
+	}
+
+	reconcileRosterPeople(policyDocument, records, nil)
+
+	delivered, errorValue := json.Marshal(policyDocument)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var served map[string]any
+	if errorValue := json.Unmarshal(delivered, &served); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	people, _ := served["people"].([]any)
+	circles := policyStringList(blueclawPersonWithEmail(people, "member@example.com")["circles"])
+	if !slices.Contains(circles, "c-level") {
+		t.Fatalf("a circle the company keeps must reach the roster, got %v", circles)
+	}
+}
+
+func TestADirectoryRecordReadsTheCirclesFieldTheCompanySends(t *testing.T) {
+	var record adminUserMutation
+	if errorValue := json.Unmarshal([]byte(`{"email":"member@example.com","role":"member","circles":["staff","c-level"]}`), &record); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !slices.Equal(record.Circles, []string{"staff", "c-level"}) {
+		t.Fatalf("the field name the company sends must be the one this reads, got %v", record.Circles)
+	}
+}
