@@ -283,11 +283,15 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 	case "messenger-relay":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read the relay the web messenger speaks through", "sh", "-lc", messengerRelayCommand()))
 	case "record-buzz-credentials":
-		kept, skipped, failed := service.recordBuzzCredentials(ctx)
+		recording := service.recordBuzzCredentials(ctx)
+		status := "ok"
+		if len(recording.Refusals) > 0 {
+			status = "failed"
+		}
 		response.Results = append(response.Results, sshRecoveryCommandResult{
 			Name:   "give every person the buzz key the record was missing",
-			Output: fmt.Sprintf("kept %d, skipped %d, failed %d", kept, skipped, failed),
-			Status: "ok",
+			Output: recording.String(),
+			Status: status,
 		})
 	case "buzz-relay-service-journal":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read what the relay itself said", "sh", "-lc", buzzRelayServiceJournalCommand()))

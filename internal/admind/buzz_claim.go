@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -80,38 +81,57 @@ const buzzCredentialKind = "buzz-secret"
 
 // The people the record already names get their key without anybody pressing a
 // button, because the messenger they use every day is the thing that is broken.
-func (service *Service) recordBuzzCredentials(ctx context.Context) (kept int, skipped int, failed int) {
+func (service *Service) recordBuzzCredentials(ctx context.Context) buzzCredentialRecording {
 	client := service.centralPlane()
 	if client == nil {
-		return 0, 0, 0
+		return buzzCredentialRecording{Refusals: []string{"this host has no company directory configured"}}
 	}
 	members, errorValue := client.Members(ctx)
 	if errorValue != nil {
-		log.Printf("buzz credentials: the company did not answer who works here: %v", errorValue)
-		return 0, 0, 1
+		return buzzCredentialRecording{Refusals: []string{fmt.Sprintf("the company did not say who works here: %v", errorValue)}}
 	}
+	recording := buzzCredentialRecording{}
 	for _, member := range members {
 		email := strings.ToLower(strings.TrimSpace(member.Email))
 		if email == "" || !member.IsActive() {
-			skipped++
+			recording.Skipped++
 			continue
 		}
 		secretHex, errorValue := service.personBuzzSecret(ctx, email)
 		if errorValue != nil {
-			failed++
+			recording.refuse(email, "the key could not be derived", errorValue)
 			continue
 		}
 		publicHex, errorValue := buzzPublicKey(secretHex)
 		if errorValue != nil {
-			failed++
+			recording.refuse(email, "the derived key has no public half", errorValue)
 			continue
 		}
 		if errorValue := client.KeepMessengerCredential(ctx, member.MemberID, buzzCredentialKind, publicHex, secretHex); errorValue != nil {
-			log.Printf("buzz credentials: %s was not recorded: %v", email, errorValue)
-			failed++
+			recording.refuse(email, "the company would not keep it", errorValue)
 			continue
 		}
-		kept++
+		recording.Kept++
 	}
-	return kept, skipped, failed
+	return recording
+}
+
+// A count that cannot say why is the thing this whole day was about. Every
+// refusal carries the address it was for and what refused it.
+type buzzCredentialRecording struct {
+	Kept     int
+	Skipped  int
+	Refusals []string
+}
+
+func (recording *buzzCredentialRecording) refuse(email string, because string, errorValue error) {
+	recording.Refusals = append(recording.Refusals, fmt.Sprintf("%s: %s: %v", email, because, errorValue))
+}
+
+func (recording buzzCredentialRecording) String() string {
+	summary := fmt.Sprintf("kept %d, skipped %d, refused %d", recording.Kept, recording.Skipped, len(recording.Refusals))
+	if len(recording.Refusals) == 0 {
+		return summary
+	}
+	return summary + "\n" + strings.Join(recording.Refusals, "\n")
 }
