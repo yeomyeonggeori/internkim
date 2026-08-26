@@ -1072,6 +1072,30 @@ journalctl -u internkim-admind -n 200 --no-pager 2>&1 | grep -iE 'roster|circle|
 `)
 }
 
+func buzzRoomChangePreamble() string {
+	return `set +e
+q() { su - postgres -c "psql -X -d buzz -c \"$1\"" 2>&1; }
+`
+}
+
+// A client lists rooms from their kind 39000 discovery events, not from the
+// channels table, and reconcile-channels writes an event only where none
+// exists. A row changed without dropping its event leaves every client showing
+// the room as it was, through a reload and through a restart.
+func buzzRoomChangeRepublish() string {
+	return `
+export BUZZ_RELAY_PRIVATE_KEY=$(grep '^BUZZ_RELAY_PRIVATE_KEY=' ` + blueclaw.BuzzRelayKeyEnvironmentFilePath + ` | head -1 | sed 's/^BUZZ_RELAY_PRIVATE_KEY=//')
+export DATABASE_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
+export RELAY_URL=$(systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | sed -n 's/^RELAY_URL=//p' | head -1)
+if [ -z "$BUZZ_RELAY_PRIVATE_KEY" ] || [ -z "$RELAY_URL" ]; then
+  echo "the rows changed but no client was told: this device names no relay key or public host"
+  exit 1
+fi
+printf '== told the clients ==\n'
+` + blueclaw.BuzzAdminBinaryPath + ` reconcile-channels
+`
+}
+
 func sqlQuotedRoomName(name string) (string, error) {
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
@@ -1105,14 +1129,10 @@ func buzzCloseRoomsExceptCommand(openRooms []string) (string, error) {
 		return "", errors.New("this action names the rooms that stay open")
 	}
 	stayOpen := strings.Join(quoted, ", ")
-	return strings.TrimSpace(`
-set +e
-q() { su - postgres -c "psql -X -d buzz -c \"$1\"" 2>&1; }
-printf '== rooms that stay open ==\n'
+	return strings.TrimSpace(buzzRoomChangePreamble() + `printf '== rooms that stay open ==\n'
 q "SELECT name FROM channels WHERE channel_type = 'stream' AND deleted_at IS NULL AND name IN (` + stayOpen + `) ORDER BY 1"
 printf '== rooms closed by this action ==\n'
-q "UPDATE channels SET visibility = 'private' WHERE channel_type = 'stream' AND deleted_at IS NULL AND visibility <> 'private' AND name NOT IN (` + stayOpen + `) RETURNING name"
-`), nil
+q "WITH changed AS (UPDATE channels SET visibility = 'private' WHERE channel_type = 'stream' AND deleted_at IS NULL AND visibility <> 'private' AND name NOT IN (` + stayOpen + `) RETURNING id, name), forgotten AS (DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM changed)) SELECT name FROM changed ORDER BY 1"` + buzzRoomChangeRepublish()), nil
 }
 
 func buzzRenameRoomCommand(target string) (string, error) {
@@ -1128,12 +1148,8 @@ func buzzRenameRoomCommand(target string) (string, error) {
 	if errorValue != nil {
 		return "", errorValue
 	}
-	return strings.TrimSpace(`
-set +e
-q() { su - postgres -c "psql -X -d buzz -c \"$1\"" 2>&1; }
-printf '== renamed ==\n'
-q "UPDATE channels SET name = ` + quotedNewName + ` WHERE channel_type = 'stream' AND deleted_at IS NULL AND name = ` + quotedOldName + ` RETURNING id::text, name"
-`), nil
+	return strings.TrimSpace(buzzRoomChangePreamble() + `printf '== renamed ==\n'
+q "WITH changed AS (UPDATE channels SET name = ` + quotedNewName + ` WHERE channel_type = 'stream' AND deleted_at IS NULL AND name = ` + quotedOldName + ` RETURNING id, name), forgotten AS (DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM changed)) SELECT id::text, name FROM changed"` + buzzRoomChangeRepublish()), nil
 }
 
 func buzzRetireRoomByNameCommand(name string) (string, error) {
@@ -1141,12 +1157,8 @@ func buzzRetireRoomByNameCommand(name string) (string, error) {
 	if errorValue != nil {
 		return "", errorValue
 	}
-	return strings.TrimSpace(`
-set +e
-q() { su - postgres -c "psql -X -d buzz -c \"$1\"" 2>&1; }
-printf '== retired ==\n'
-q "UPDATE channels SET deleted_at = now() WHERE channel_type = 'stream' AND deleted_at IS NULL AND name = ` + quotedName + ` RETURNING id::text, name"
-`), nil
+	return strings.TrimSpace(buzzRoomChangePreamble() + `printf '== retired ==\n'
+q "WITH changed AS (UPDATE channels SET deleted_at = now() WHERE channel_type = 'stream' AND deleted_at IS NULL AND name = ` + quotedName + ` RETURNING id, name), forgotten AS (DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM changed)) SELECT id::text, name FROM changed"` + buzzRoomChangeRepublish()), nil
 }
 
 func buzzRoomRosterCommand() string {

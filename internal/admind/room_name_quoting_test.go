@@ -54,3 +54,27 @@ func TestRenamingARoomNeedsBothNames(t *testing.T) {
 		t.Fatalf("expected the rename to name both, got %s", command)
 	}
 }
+
+func TestEveryRoomChangeTellsTheClients(t *testing.T) {
+	closeCommand, errorValue := buzzCloseRoomsExceptCommand([]string{"광장"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	renameCommand, errorValue := buzzRenameRoomCommand("old::new")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	retireCommand, errorValue := buzzRetireRoomByNameCommand("old")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	for name, command := range map[string]string{"close": closeCommand, "rename": renameCommand, "retire": retireCommand} {
+		if !strings.Contains(command, "DELETE FROM events WHERE kind IN (39000,39001,39002)") {
+			t.Fatalf("%s changed rows without dropping the events a client reads: %s", name, command)
+		}
+		if !strings.Contains(command, "reconcile-channels") {
+			t.Fatalf("%s dropped the events without writing them again: %s", name, command)
+		}
+	}
+}
