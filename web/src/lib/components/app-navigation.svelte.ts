@@ -7,6 +7,7 @@ import { appShellText } from '$lib/i18n/app-shell-text';
 import { createPageText } from '$lib/i18n/page-text.svelte';
 import { isSupabaseConfigured, signOutOfSupabase, supabaseMember } from '$lib/supabase-session';
 import { companyPathOf, routePathOf } from '$lib/company-path';
+import { homePath } from '$lib/home-path';
 import type { UserRole } from '$lib/types';
 import type { WebAuthSession } from '$lib/web-auth-session';
 import ActivityIcon from '@lucide/svelte/icons/activity';
@@ -116,10 +117,10 @@ class AppNavigation {
 	logOut = async () => {
 		if (isSupabaseConfigured()) {
 			await signOutOfSupabase();
-			location.replace('/attendance/');
+			location.replace(homePath);
 			return;
 		}
-		let redirectURL = '/attendance/';
+		let redirectURL = homePath;
 		try {
 			const response = await fetch(`/auth/logout?return=${encodeURIComponent(this.currentPath)}`, {
 				method: 'POST',
