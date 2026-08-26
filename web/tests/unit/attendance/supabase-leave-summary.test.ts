@@ -136,4 +136,34 @@ describe('summarizeSupabaseLeave', () => {
 			}
 		});
 	});
+
+	test('counts leave that deducts nothing when there is no allowance to deduct from', () => {
+		const rows = [
+			{
+				days: 2,
+				status: 'approved',
+				isDeducted: false,
+				localStartDate: '2026-08-04',
+				localEndDate: '2026-08-05'
+			},
+			{
+				days: 1,
+				status: 'requested',
+				isDeducted: false,
+				localStartDate: '2026-09-01',
+				localEndDate: '2026-09-01'
+			}
+		] as const;
+
+		expect(summarizeSupabaseLeave(rows, 2026, null).summary).toEqual({
+			usedMilliDays: 2000,
+			reservedMilliDays: 1000,
+			availableMilliDays: 0
+		});
+		expect(summarizeSupabaseLeave(rows, 2026, 8).summary).toEqual({
+			usedMilliDays: 0,
+			reservedMilliDays: 0,
+			availableMilliDays: 8000
+		});
+	});
 });
