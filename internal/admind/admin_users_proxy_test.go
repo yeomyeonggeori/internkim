@@ -326,9 +326,6 @@ func newAdminUsersProxyTestService(t *testing.T, transport roundTripFunc) *Servi
 func adminUsersProxyCommonMattermostResponse(t *testing.T, request *http.Request) (*http.Response, bool) {
 	t.Helper()
 	switch {
-	case isCompanyDirectoryRequest(request):
-		response, _ := companyDirectoryResponse(t, request)
-		return response, true
 	case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 		return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), true
 	case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":

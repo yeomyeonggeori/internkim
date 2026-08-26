@@ -124,6 +124,17 @@ func askedEmailForTest(t testing.TB, request *http.Request) string {
 	return strings.ToLower(strings.TrimSpace(asked.Email))
 }
 
+// A stub that seats a roster answers the listing from it. One that seats none
+// still answers, because a company with nobody in it is a different answer from
+// a company that cannot be reached.
+func companyDirectoryRosterResponse(t testing.TB, request *http.Request, registerBody string) (*http.Response, error) {
+	t.Helper()
+	if request.Method == http.MethodGet {
+		return companyDirectoryAnswerForTest(t, request, registerBody), nil
+	}
+	return companyDirectoryResponse(t, request)
+}
+
 func companyDirectoryResponse(t testing.TB, request *http.Request) (*http.Response, error) {
 	t.Helper()
 	email := strings.ToLower(strings.TrimSpace(request.URL.Query().Get("email")))
