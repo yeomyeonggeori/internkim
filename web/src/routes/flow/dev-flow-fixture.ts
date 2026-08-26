@@ -100,7 +100,7 @@ export function createDevFlowState(currentUserEmail = 'kim@example.com', locale:
 }
 
 function createDevFlowDefinitions(locale: 'ko' | 'en' = 'ko'): FlowDefinitions {
-	return { categories: ['여명거리', '김인턴'], types: devFlowTypes, sizes: taskSizes(locale === 'en' ? 'en' : 'ko') };
+	return { categories: ['샘플거리', '김인턴'], types: devFlowTypes, sizes: taskSizes(locale === 'en' ? 'en' : 'ko') };
 }
 
 function createGlobalFixtureTasks(currentWeek: FlowWeek): FlowTask[] {
