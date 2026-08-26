@@ -98,3 +98,11 @@ func TestRestoringDirectMessagesReadsTheSnapshotBeforeItDropsAnything(t *testing
 		t.Fatalf("the snapshot must be read and counted before anything is dropped: %s", command)
 	}
 }
+
+func TestARepublishLeavesDirectMessagesAlone(t *testing.T) {
+	command := buzzRepublishRoomsCommand()
+
+	if !strings.Contains(command, "DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'stream')") {
+		t.Fatalf("a republish that drops a direct message's discovery drops the names it showed: %s", command)
+	}
+}
