@@ -8,9 +8,9 @@ AGENT_BROWSER_VERSION ?= 0.26.0
 COMPANION_BETA_DIST ?= dist/companion
 COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
-.PHONY: build build-maild build-relay build-companion build-companion-shell package-companion-beta build-mattermost-ephemeral-plugin verify-generated-protocol check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast deps-graphiti setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-api verify-browser verify-graphiti-local
+.PHONY: build build-maild build-relay build-companion build-companion-shell package-companion-beta verify-generated-protocol check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast deps-graphiti setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-api verify-browser verify-graphiti-local
 
-build: verify-generated-protocol build-mattermost-ephemeral-plugin
+build: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-llm-gateway ./cmd/internkim-llm-gateway
 
@@ -39,22 +39,6 @@ package-companion-beta: build-companion
 	@if [ -n "$$APPLE_SIGNING_IDENTITY" ]; then codesign --force --sign "$$APPLE_SIGNING_IDENTITY" "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"; else echo "unsigned beta artifact: $(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"; fi
 	@if [ -n "$$APPLE_ID" ] && [ -n "$$APPLE_TEAM_ID" ] && [ -n "$$APPLE_APP_SPECIFIC_PASSWORD" ]; then xcrun notarytool submit "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)" --apple-id "$$APPLE_ID" --team-id "$$APPLE_TEAM_ID" --password "$$APPLE_APP_SPECIFIC_PASSWORD" --wait; fi
 
-build-mattermost-ephemeral-plugin:
-	cd mattermost-plugin/internkim-ephemeral && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) GOOS=linux GOARCH=amd64 go build -o dist/plugin-linux-amd64 ./
-	cd mattermost-plugin/internkim-ephemeral && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) GOOS=linux GOARCH=arm64 go build -o dist/plugin-linux-arm64 ./
-	rm -rf build/mattermost-plugins/.package-com.internkim.ephemeral
-	mkdir -p build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/server/dist
-	cp mattermost-plugin/internkim-ephemeral/plugin.json build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/plugin.json
-	cp mattermost-plugin/internkim-ephemeral/dist/plugin-linux-amd64 build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/server/dist/plugin-linux-amd64
-	cp mattermost-plugin/internkim-ephemeral/dist/plugin-linux-arm64 build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/server/dist/plugin-linux-arm64
-	mkdir -p build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/webapp/dist
-	cp mattermost-plugin/internkim-ephemeral/webapp/main.js build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/webapp/dist/main.js
-	mkdir -p build/mattermost-plugins
-	COPYFILE_DISABLE=1 tar --no-xattrs -czf build/mattermost-plugins/com.internkim.ephemeral-0.2.1.tar.gz -C build/mattermost-plugins/.package-com.internkim.ephemeral com.internkim.ephemeral
-	rm -f build/mattermost-plugins/com.internkim.ephemeral-0.1.0.tar.gz
-	rm -f build/mattermost-plugins/com.internkim.ephemeral-0.2.0.tar.gz
-	rm -rf build/mattermost-plugins/.package-com.internkim.ephemeral
-
 generate-protocol:
 	cd .dependency/blueclaw/protocol && bun install --frozen-lockfile
 	cd .dependency/blueclaw/protocol && bun run generate
@@ -70,7 +54,6 @@ check: build build-companion
 	cd companion && bun run test
 	cd web && bun run check
 	cd web && bun run test:unit
-	cd mattermost-plugin/internkim-ephemeral && bun test webapp
 	cd .dependency/blueclaw/protocol && bun run build
 	cd .dependency/blueclaw/protocol && bun test
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test ./...

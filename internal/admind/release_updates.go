@@ -369,9 +369,6 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 	if errorValue := service.installReleaseFonts(stagingPath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.installReleaseMattermostPlugins(stagingPath); errorValue != nil {
-		return errorValue
-	}
 	if errorValue := service.installReleaseBlueclawPayload(ctx, jobID, stagingPath); errorValue != nil {
 		return errorValue
 	}
@@ -790,24 +787,6 @@ func (service *Service) syncReleaseSkillsWorkspace(ctx context.Context) error {
 		return fmt.Errorf("deliver blueclaw skills: restart %s: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	return nil
-}
-
-func (service *Service) installReleaseMattermostPlugins(stagingPath string) error {
-	componentRoot, errorValue := releaseComponentRoot(filepath.Join(stagingPath, "mattermostPlugins"))
-	if errorValue != nil {
-		if errors.Is(errorValue, os.ErrNotExist) {
-			return nil
-		}
-		return errorValue
-	}
-	targetPath := filepath.Dir(service.Configuration.MattermostPluginBundlePath)
-	temporaryPath := targetPath + ".new"
-	_ = os.RemoveAll(temporaryPath)
-	if errorValue := copyReleaseDirectory(componentRoot, temporaryPath, 0o755); errorValue != nil {
-		return errorValue
-	}
-	_ = os.RemoveAll(targetPath)
-	return os.Rename(temporaryPath, targetPath)
 }
 
 func (service *Service) installReleaseBlueclawPayload(ctx context.Context, jobID string, stagingPath string) error {

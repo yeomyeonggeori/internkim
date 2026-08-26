@@ -27,7 +27,6 @@
 		"test:e2e:crm:fixture": "VITE_MOCK_CRM=1 PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:5192} bunx playwright test tests/e2e/crm-dev-fixture.spec.ts --workers=1",
 		"test:e2e:crm:central": "./scripts/e2e-crm-central.sh",
 		"verify:flow": "bun run check && bun run test:unit && bun run build:board && bun run test:e2e:flow",
-		"test:e2e:mattermost": "bunx playwright test tests/e2e/mattermost.spec.ts",
 		"test:e2e:mattermost-expensive": "bunx playwright test tests/e2e/mattermost-expensive-artifacts.spec.ts",
 		"test:e2e:public": "bunx playwright test tests/e2e/public-url.spec.ts",
 		"gen": "wrangler types"

@@ -347,24 +347,15 @@ func confirmMattermostBrowserOpenE2ELocalBrowser(agentBrowserPath string) error 
 
 func runVerifyBrowser(arguments []string) error {
 	flagSet := flag.NewFlagSet("verify browser", flag.ContinueOnError)
-	localMode := flagSet.Bool("local", false, "Run local Mattermost browser smoke test")
-	publicMode := flagSet.Bool("public", false, "Run public URL browser smoke test")
+	publicMode := flagSet.Bool("public", true, "Run public URL browser smoke test")
 	target := registerTargetFlags(flagSet)
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
-	}
-	if !*localMode && !*publicMode {
-		*localMode = true
 	}
 
 	verifyTarget, errorValue := target.resolveVerifyTarget()
 	if errorValue != nil {
 		return errorValue
-	}
-	if *localMode {
-		if errorValue := runLocalBrowserVerification(verifyTarget); errorValue != nil {
-			return errorValue
-		}
 	}
 	if *publicMode {
 		if errorValue := runPublicBrowserVerification(verifyTarget); errorValue != nil {
@@ -673,51 +664,6 @@ func mattermostPromptScriptSSHTimeout(timeoutSeconds int, expectPublicURL bool) 
 	return time.Duration(total+180) * time.Second
 }
 
-func runLocalBrowserVerification(target verifyTarget) error {
-	port, errorValue := reserveMattermostSiteURLPort()
-	if errorValue != nil {
-		return errorValue
-	}
-
-	tunnelCommand := buildMattermostTunnelCommand(target, port)
-	tunnelCommand.Stdout = os.Stdout
-	tunnelCommand.Stderr = os.Stderr
-	if errorValue := tunnelCommand.Start(); errorValue != nil {
-		return errorValue
-	}
-	defer func() {
-		_ = tunnelCommand.Process.Kill()
-		_, _ = tunnelCommand.Process.Wait()
-	}()
-	time.Sleep(1500 * time.Millisecond)
-
-	adminEmail := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/config/admin-email 2>/dev/null || cat /root/.internkim/admin-email 2>/dev/null || sudo -n cat /root/.internkim/config/admin-email 2>/dev/null || sudo -n cat /root/.internkim/admin-email 2>/dev/null"))
-	if adminEmail == "" {
-		adminEmail = "admin"
-	}
-	adminPassword := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/secrets/mm-admin-pass 2>/dev/null || sudo -n cat /root/.internkim/secrets/mm-admin-pass 2>/dev/null"))
-	mattermostURLHost := "127.0.0.1"
-	if port == mattermostSiteURLPort {
-		mattermostURLHost = "localhost"
-	}
-	return runPlaywright("tests/e2e/mattermost.spec.ts", map[string]string{
-		"INTERNKIM_MATTERMOST_URL": fmt.Sprintf("http://%s:%d", mattermostURLHost, port),
-		"INTERNKIM_ADMIN_EMAIL":    adminEmail,
-		"INTERNKIM_ADMIN_PASSWORD": adminPassword,
-	})
-}
-
-const mattermostSiteURLPort = 8065
-
-func reserveMattermostSiteURLPort() (int, error) {
-	listener, errorValue := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", mattermostSiteURLPort))
-	if errorValue != nil {
-		return reserveLocalPort()
-	}
-	listener.Close()
-	return mattermostSiteURLPort, nil
-}
-
 func runPublicBrowserVerification(target verifyTarget) error {
 	publicURL := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/env/mattermost-url 2>/dev/null"))
 	if publicURL == "" {
@@ -746,21 +692,6 @@ func reserveLocalPort() (int, error) {
 		return 0, errors.New("failed to reserve local tcp port")
 	}
 	return address.Port, nil
-}
-
-func buildMattermostTunnelCommand(target verifyTarget, port int) *exec.Cmd {
-	sshArguments := []string{
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "UserKnownHostsFile=/dev/null",
-		"-o", "ExitOnForwardFailure=yes",
-		"-N",
-		"-L", fmt.Sprintf("%d:127.0.0.1:%s", port, mattermostTunnelTargetPort()),
-		fmt.Sprintf("%s@%s", target.user, target.host),
-	}
-	if target.password != "" {
-		return exec.Command(target.sshpassBin, append([]string{"-p", target.password, "ssh"}, sshArguments...)...)
-	}
-	return exec.Command("ssh", sshArguments...)
 }
 
 func runPlaywright(specPath string, environmentVariables map[string]string) error {
