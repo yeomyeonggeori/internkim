@@ -54,8 +54,10 @@ func blueclawServingRunsAndPolicy(t *testing.T, runsByCall ...[]taskNotifyRun) *
 		switch {
 		case request.URL.Path == "/admin/api/policy":
 			writer.Write([]byte(`{"people":[]}`))
-		case request.URL.Path == "/admin/api/task/detail":
+		case request.URL.Path == "/admin/api/run/detail":
 			writer.Write([]byte(`{"taskEvents":[{"name":"confirmation.requested","userFacingMessage":"메일을 보내도 될까요?"}]}`))
+		case request.URL.Path != "/admin/api/run":
+			http.NotFound(writer, request)
 		default:
 			runs := runsByCall[len(runsByCall)-1]
 			if call < len(runsByCall) {
