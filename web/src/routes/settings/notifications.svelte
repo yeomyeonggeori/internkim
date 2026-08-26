@@ -5,13 +5,14 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import {
-		notificationCategories,
 		readNotificationSettings,
 		readTimeOfDay,
 		type NotificationCategory,
 		type NotificationSettings
 	} from '$lib/notifications/categories';
+	import { categoriesChoosableBy } from '$lib/notifications/choosable-categories';
 	import { chooseNotificationSettings, myNotificationSettings } from '$lib/notifications/settings';
+	import { supabaseMemberRole } from '$lib/supabase-session';
 	import {
 		reachability,
 		startBeingReached,
@@ -30,6 +31,7 @@
 	const fieldID = $props.id();
 
 	let reach = $state<Reachability>('off');
+	let isAdmin = $state(false);
 	let settings = $state<NotificationSettings>(readNotificationSettings({}));
 	let isLoading = $state(true);
 	let isSwitching = $state(false);
@@ -49,6 +51,7 @@
 		try {
 			reach = await reachability();
 			settings = await myNotificationSettings();
+			isAdmin = (await supabaseMemberRole()) === 'admin';
 		} catch {
 			toast.error(text.notifyLoadFailed);
 		} finally {
@@ -129,7 +132,7 @@
 				<p class="text-sm text-muted-foreground">{text.notifyBlocked}</p>
 			{/if}
 			<div class="grid gap-3" class:opacity-50={reach !== 'on'}>
-				{#each notificationCategories as category (category)}
+				{#each categoriesChoosableBy(isAdmin) as category (category)}
 					<div class="flex items-center justify-between gap-4">
 						<Label for="{fieldID}-{category}" class="text-sm font-normal">{categoryLabels[category]}</Label>
 						<div class="flex items-center gap-2">
