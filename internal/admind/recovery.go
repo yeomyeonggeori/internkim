@@ -75,7 +75,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "flow-event-task-repair", "flow-date-repair", "flow-central-backfill", "flow-compare-central", "flow-central-held", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -156,6 +156,14 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		cancelMirror()
 	case "buzz-mirror-status":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read Buzz<->Mattermost mirror status", "sh", "-lc", buzzMirrorStatusCommand()))
+	case "retire-mattermost-mirror":
+		retireMirrorContext, cancelRetireMirror := context.WithTimeout(context.Background(), 90*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(retireMirrorContext, "leave chatd holding Buzz alone", "sh", "-lc", mattermostMirrorRetireCommand()))
+		cancelRetireMirror()
+	case "stop-mattermost":
+		stopContext, cancelStop := context.WithTimeout(context.Background(), 90*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(stopContext, "stop Mattermost and leave it stopped", "sh", "-lc", mattermostStopCommand()))
+		cancelStop()
 	case "circle-membership-read":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read the circles this person carries", "sh", "-lc", circleMembershipReconcileCommand(actionTarget, false)))
 	case "circle-membership-reconcile":
@@ -809,6 +817,46 @@ if [ "$(systemctl is-active chatd)" != active ]; then
 fi
 echo "mirror enabled; chatd active"
 journalctl -u chatd -n 20 --no-pager 2>&1 | grep -iE "mirror|mattermost|connect|error|ready|listen" | tail -10
+`)
+}
+
+func mattermostMirrorRetireCommand() string {
+	return strings.TrimSpace(`
+set +e
+DROPIN=/etc/systemd/system/chatd.service.d/mirror.conf
+KEPT=/etc/systemd/system/chatd.service.d/mirror.conf.retired
+test -f "$DROPIN" && cp "$DROPIN" "$KEPT"
+mkdir -p /etc/systemd/system/chatd.service.d
+cat > "$DROPIN" <<EOF
+[Service]
+Environment=CHATD_LISTEN_HOSTNAME=` + blueclaw.ChatdListenHostname + `
+EOF
+systemctl daemon-reload
+systemctl restart chatd
+sleep 5
+if [ "$(systemctl is-active chatd)" != active ]; then
+  test -f "$KEPT" && cp "$KEPT" "$DROPIN"
+  systemctl daemon-reload
+  systemctl restart chatd
+  echo "ROLLED BACK: chatd failed without the mattermost mirror; the mirror is back"
+  exit 1
+fi
+echo "mattermost mirror retired; chatd active"
+journalctl -u chatd -n 30 --no-pager 2>&1 | grep -iE "adapters|mirror|mattermost|listen|ready|error" | tail -10
+`)
+}
+
+func mattermostStopCommand() string {
+	return strings.TrimSpace(`
+set +e
+systemctl disable --now mattermost
+sleep 3
+echo "== mattermost =="
+systemctl show mattermost -p ActiveState,UnitFileState 2>&1
+echo "== does anything still answer on 8065? =="
+curl -fsS --max-time 3 http://127.0.0.1:8065/api/v4/system/ping >/dev/null 2>&1 && echo "8065 still answers" || echo "8065 is silent"
+echo "== chatd =="
+systemctl show chatd -p ActiveState,NRestarts 2>&1
 `)
 }
 
