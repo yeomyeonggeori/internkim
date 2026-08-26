@@ -1,6 +1,8 @@
 <script lang="ts">
 	import Channel from '$lib/components/channel/channel.svelte';
 	import MessengerChannelList from './messenger-channel-list.svelte';
+	import { muteConversation, mutedConversations, unmuteConversation } from '$lib/notifications/muted-conversations';
+	import { toast } from 'svelte-sonner';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
@@ -47,6 +49,7 @@
 	let isNewDirectMessageOpen = $state(false);
 	let isChannelSheetOpen = $state(false);
 	let people = $state<Person[]>([]);
+	let muted = $state<Set<string>>(new Set());
 	let hasSyncedMattermost = false;
 	let userChannelOrder = $state<string[]>([]);
 
@@ -164,8 +167,29 @@
 		};
 	});
 
+	async function switchMuted(conversationID: string) {
+		const wasMuted = muted.has(conversationID);
+		const next = new Set(muted);
+		if (wasMuted) next.delete(conversationID);
+		else next.add(conversationID);
+		muted = next;
+		try {
+			if (wasMuted) await unmuteConversation(conversationID);
+			else await muteConversation(conversationID);
+		} catch (error) {
+			const restored = new Set(muted);
+			if (wasMuted) restored.add(conversationID);
+			else restored.delete(conversationID);
+			muted = restored;
+			toast.error(error instanceof Error ? error.message : text.muteFailed);
+		}
+	}
+
 	onMount(async () => {
 		userChannelOrder = loadChannelOrder();
+		mutedConversations()
+			.then((held) => (muted = held))
+			.catch(() => undefined);
 		const cached = loadCachedConversations();
 		if (cached.length > 0) {
 			conversations = cached;
@@ -197,6 +221,8 @@
 			{activeID}
 			{directMessages}
 			{groupChannels}
+			{muted}
+			{switchMuted}
 			openNewDirectMessage={openNewDirectMessageFromSheet}
 			{openOnPlatform}
 			{reorderChannels}
@@ -212,6 +238,8 @@
 				{activeID}
 				{directMessages}
 				{groupChannels}
+				{muted}
+				{switchMuted}
 				{openNewDirectMessage}
 				{openOnPlatform}
 				{reorderChannels}

@@ -16,7 +16,7 @@ async function signIn(page: Page): Promise<void> {
 		.then(() => true)
 		.catch(() => false);
 	if (needsSignIn) {
-		await email.fill('lee@example.com');
+		await email.fill('member1@example.com');
 		await page.getByRole('textbox', { name: '비밀번호' }).fill('seed-password');
 		await page.getByRole('button', { name: '로그인', exact: true }).click();
 	}

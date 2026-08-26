@@ -87,7 +87,7 @@ central_plane_signs_someone_in() {
   curl --silent --fail --output /dev/null \
     --header "apikey: $PUBLISHABLE_KEY" \
     --header 'Content-Type: application/json' \
-    --data '{"email":"lee@example.com","password":"seed-password"}' \
+    --data '{"email":"member1@example.com","password":"seed-password"}' \
     "$API_URL/auth/v1/token?grant_type=password"
 }
 
