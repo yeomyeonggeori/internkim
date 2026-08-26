@@ -189,7 +189,7 @@ func TestANewEventNamesNoTaskAndAKnownOneNamesItsOwn(t *testing.T) {
 	defer server.Close()
 	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
 
-	if _, errorValue := client.SaveEvent(context.Background(), "email", "iam@dawn.kim", Event{
+	if _, errorValue := client.SaveEvent(context.Background(), "email", "kimyesi@example.com", Event{
 		Title: "새 일정", StartsAt: "2026-09-30T01:00:00Z", EndsAt: "2026-09-30T02:00:00Z",
 	}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -198,7 +198,7 @@ func TestANewEventNamesNoTaskAndAKnownOneNamesItsOwn(t *testing.T) {
 		t.Fatalf("an event the company does not hold names no task of theirs, got %v", arguments["target_task_id"])
 	}
 
-	if _, errorValue := client.SaveEvent(context.Background(), "email", "iam@dawn.kim", Event{
+	if _, errorValue := client.SaveEvent(context.Background(), "email", "kimyesi@example.com", Event{
 		CentralID: "b5f0832c-5193-4f1c-88fd-9213f257229f", Title: "고친 일정",
 		StartsAt: "2026-09-30T01:00:00Z", EndsAt: "2026-09-30T02:00:00Z",
 	}); errorValue != nil {

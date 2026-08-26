@@ -157,11 +157,11 @@ func TestAnEventIDOneCharacterOffIsNeverProposed(t *testing.T) {
 
 func TestAMistypedNameIsProposedRatherThanGuessed(t *testing.T) {
 	members := []flowMemberForTool{
-		{ID: "person-1", Name: "김예시", Email: "kimyesi@example.com", MattermostUsername: "kimyesi"},
-		{ID: "person-2", Name: "박예시", Email: "parkyesi@example.com", MattermostUsername: "parkyesi"},
+		{ID: "person-1", Name: "김예시", Email: "kimyesi@example.com", MattermostUsername: "pyobon"},
+		{ID: "person-2", Name: "박예시", Email: "parkyesi@example.com", MattermostUsername: "minjun"},
 	}
 
-	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "김여영", members)
+	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "김여시", members)
 	if resolution.Failure == nil {
 		t.Fatal("a name nobody has must not resolve on its own")
 	}
@@ -179,7 +179,7 @@ func TestAMistypedEmailDomainIsProposedAndAWrongLocalPartIsNot(t *testing.T) {
 		{ID: "person-2", Name: "박예시", Email: "parkyesi@example.com"},
 	}
 
-	domainSlip := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "iam@dawn.kin", members)
+	domainSlip := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "kimyesi@example.con", members)
 	if domainSlip.Failure == nil || domainSlip.Failure.ErrorCode != "flow_owner_approximate" {
 		t.Fatalf("a domain everyone shares is a slip, got %+v", domainSlip.Failure)
 	}
