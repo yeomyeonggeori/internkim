@@ -33,7 +33,7 @@
 	async function signOut() {
 		isSigningOut = true;
 		await signOutOfSupabase();
-		location.replace('/flow/');
+		location.replace('/attendance/');
 	}
 
 	const invitedAddresses = $derived(
@@ -89,7 +89,7 @@
 
 	onMount(async () => {
 		if (!isSupabaseConfigured()) return;
-		if (await belongsToACompany()) await goto('/flow/');
+		if (await belongsToACompany()) await goto('/attendance/');
 	});
 </script>
 
@@ -118,7 +118,7 @@
 				{/if}
 			</Card.Content>
 			<Card.Footer>
-				<Button onclick={() => goto('/flow/')}>시작하기</Button>
+				<Button onclick={() => goto('/attendance/')}>시작하기</Button>
 			</Card.Footer>
 		</Card.Root>
 	{:else}

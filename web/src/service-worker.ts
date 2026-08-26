@@ -10,7 +10,7 @@ import { keepPendingDestination } from '$lib/notifications/pending-destination';
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const cacheName = `internkim-${version}`;
 const shipped = new Set([...build, ...files]);
-const whereTheAppStarts = '/flow/';
+const whereTheAppStarts = '/attendance/';
 
 worker.addEventListener('install', (event) => {
 	event.waitUntil(
