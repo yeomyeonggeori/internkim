@@ -84,7 +84,8 @@ describe('connecting a member to their own messenger account', () => {
 			company_id: null,
 			kind: 'mattermost',
 			external_id: 'U-one',
-			vault_secret_id: 'vault-secret-1'
+			vault_secret_id: 'vault-secret-1',
+			name: ''
 		});
 	});
 });
