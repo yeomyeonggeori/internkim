@@ -68,8 +68,8 @@ func CircleChannelDisplayName(channelName string) string {
 		return strings.TrimSpace(channelName)
 	case "c-level":
 		return "C-level"
-	case "hr-compensation":
-		return "HR Compensation"
+	case "hr":
+		return "HR"
 	default:
 		return titleWords(strings.ReplaceAll(value, "-", " "))
 	}

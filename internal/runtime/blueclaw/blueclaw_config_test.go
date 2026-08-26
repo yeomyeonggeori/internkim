@@ -625,14 +625,14 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 		t.Fatalf("expected admin person staff/admin circles, got %+v", adminCircles)
 	}
 	circles := policyDocument["circles"].([]any)
-	for _, expectedCircle := range []string{"staff", "c-level", "representative", "admin", "hr-compensation"} {
+	for _, expectedCircle := range []string{"staff", "c-level", "representative", "admin", "hr"} {
 		if !containsPolicyCircle(circles, expectedCircle) {
 			t.Fatalf("expected circle %q, got %+v", expectedCircle, circles)
 		}
 	}
 	circleSync := policyDocument["circleSync"].(map[string]any)
 	mattermostPrivateChannels := circleSync["mattermostPrivateChannels"].([]any)
-	for _, expectedChannel := range []string{"circle-c-level", "circle-representative", "circle-admin", "circle-hr-compensation"} {
+	for _, expectedChannel := range []string{"circle-c-level", "circle-representative", "circle-admin", "circle-hr"} {
 		if !containsPolicyMattermostChannel(mattermostPrivateChannels, expectedChannel) {
 			t.Fatalf("expected Mattermost circle channel %q, got %+v", expectedChannel, mattermostPrivateChannels)
 		}
@@ -641,7 +641,7 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "file:circle:c-level", "c-level") {
 		t.Fatalf("expected c-level file resource rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "file:circle:hr-compensation", "hr-compensation") {
+	if !containsPolicyResource(resourceAccess, "file:circle:hr", "hr") {
 		t.Fatalf("expected HR compensation file resource rule, got %+v", resourceAccess)
 	}
 	if !containsPolicyResource(resourceAccess, "api:flow.summary", "staff") {

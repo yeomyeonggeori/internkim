@@ -23,7 +23,7 @@ describe('the circles a company keeps', () => {
 	test('reads a circle nobody is in', () => {
 		const held = circleNamesByMemberID([
 			{ name: 'representative', circle_member: [] },
-			{ name: 'hr-compensation', circle_member: null }
+			{ name: 'hr', circle_member: null }
 		]);
 
 		expect(held.size).toBe(0);
