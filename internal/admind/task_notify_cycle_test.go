@@ -13,8 +13,12 @@ func blueclawServingRuns(t *testing.T, runsByCall ...[]taskNotifyRun) (*httptest
 	t.Helper()
 	call := 0
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path == "/admin/api/task/detail" {
+		if request.URL.Path == "/admin/api/run/detail" {
 			writer.Write([]byte(`{"taskEvents":[]}`))
+			return
+		}
+		if request.URL.Path != "/admin/api/run" {
+			http.NotFound(writer, request)
 			return
 		}
 		runs := runsByCall[len(runsByCall)-1]
