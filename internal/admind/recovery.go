@@ -1525,7 +1525,6 @@ func buzzRestoreDirectMessageDiscoveryCommand(snapshotName string) (string, erro
 	}
 	return strings.TrimSpace(`
 set -e
-set -o pipefail
 SNAPSHOT=/root/.internkim/backups/` + name + `
 test -r "$SNAPSHOT" || { echo "no snapshot at $SNAPSHOT"; exit 1; }
 READABLE=/tmp/buzz-discovery-snapshot.sql
@@ -1537,8 +1536,10 @@ printf '== direct message discovery events now ==\n'
 q "SELECT count(*) FROM events WHERE kind IN (39000,39001,39002) AND channel_id IN (SELECT id FROM channels WHERE channel_type = 'dm')"
 su - postgres -c "dropdb --if-exists buzz_discovery_restore" 2>&1 | grep -v 'does not exist, skipping' || true
 su - postgres -c "createdb buzz_discovery_restore"
-su - postgres -c "psql -X -q -d buzz_discovery_restore -f $READABLE" 2>&1 | tail -3
-rm -f "$READABLE"
+LOADED=/tmp/buzz-discovery-load.log
+su - postgres -c "psql -X -q -d buzz_discovery_restore -f $READABLE" > "$LOADED" 2>&1
+tail -3 "$LOADED"
+rm -f "$READABLE" "$LOADED"
 su - postgres -c "psql -X -qAt -v ON_ERROR_STOP=1 -d buzz_discovery_restore -c \"COPY (SELECT e.* FROM events e JOIN channels c ON c.id = e.channel_id WHERE e.kind IN (39000,39001,39002) AND c.channel_type = 'dm') TO '$CARRIED'\""
 CARRIED_ROWS=$(wc -l < "$CARRIED" | tr -d ' ')
 printf 'events the snapshot carries: %s\n' "$CARRIED_ROWS"
