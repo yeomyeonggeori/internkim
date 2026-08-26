@@ -854,3 +854,8 @@ page interaction, page state, screenshots, or when search/fetch fails.
 Run `agent-browser --help` for syntax. Core flow: `agent-browser open <url>`,
 `agent-browser snapshot -i`, interact with refs such as `@e1`, then snapshot
 again.
+
+## Code style
+
+Naming, function shape, error handling, and the TypeScript rules live in
+[docs/internal/code-style.md](docs/internal/code-style.md).
