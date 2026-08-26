@@ -342,11 +342,11 @@ func TestMattermostScenarioAcceptsInCeilingModelSubstitution(t *testing.T) {
 
 func TestMattermostScenarioRequiresDirectExposureEvidence(t *testing.T) {
 	scenario := mattermostScenario{
-		Name:                "exposure",
-		AllowedTools:        []string{"task_add"},
-		InitialToolNames:    []string{"task_add"},
-		SkillNames: []string{"internkim-flow"},
-		Steps:               []mattermostScenarioStep{{Prompt: "work", ExpectedToolCalls: []string{"task_add"}}},
+		Name:             "exposure",
+		AllowedTools:     []string{"task_add"},
+		InitialToolNames: []string{"task_add"},
+		SkillNames:       []string{"internkim-flow"},
+		Steps:            []mattermostScenarioStep{{Prompt: "work", ExpectedToolCalls: []string{"task_add"}}},
 	}
 	result := mattermostScenarioResult{ScenarioName: scenario.Name, Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
