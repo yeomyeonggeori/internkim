@@ -664,7 +664,7 @@ func TestSendMattermostDirectMessageSetsPendingPostID(t *testing.T) {
 		}
 	})}, Configuration: Configuration{MattermostBaseURL: "http://mattermost.test", MattermostTokenPath: writePlatformTestFile(t, "bot-token")}}
 
-	dispatchID, _, hasFailure := service.sendMattermostDirectMessageWithDispatch(context.Background(), "user-9", "안녕", "key-xyz")
+	dispatchID, _, hasFailure := service.sendMattermostDirectMessageWithDispatch(context.Background(), "user-9", "안녕", "key-xyz", nil)
 	if hasFailure {
 		t.Fatal("unexpected send failure")
 	}
