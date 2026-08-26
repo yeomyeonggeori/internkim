@@ -140,9 +140,6 @@ func isRosterPersonRetained(value any, directoryEmails map[string]bool, retained
 	if !isPerson {
 		return true
 	}
-	if isAdmin, _ := person["isAdmin"].(bool); isAdmin {
-		return true
-	}
 	emails := rosterPersonEmails(person)
 	if len(emails) == 0 {
 		return true
