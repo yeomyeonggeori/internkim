@@ -204,21 +204,9 @@ export async function updateAttendanceTeamViewVisibility(visible: boolean): Prom
 
 export async function toggleAttendanceOnServer(
 	kind?: AttendanceKind,
-	locationID?: string,
-	confirmEarlyReturn = false
+	locationID?: string
 ): Promise<void> {
-	if (isSupabaseConfigured()) return recordSupabaseAttendance(kind, locationID);
-	const response = await fetch('/attendance/api/clock', {
-		method: 'POST',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			kind: kind ?? '',
-			locationID: locationID ?? '',
-			confirmEarlyReturn
-		})
-	});
-	if (!response.ok) throw new Error(await response.text());
+	return recordSupabaseAttendance(kind, locationID);
 }
 
 function attendanceSummaryPath(request: AttendanceSummaryRequest): string {
