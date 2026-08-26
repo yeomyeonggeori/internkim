@@ -199,14 +199,9 @@ func newAttendanceRoleAuthorizationTestService(t *testing.T) *Service {
 		),
 		AdminUIPath: t.TempDir(),
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
-			return jsonResponse(
-				http.StatusOK,
-				`{"users":["member@example.com","operator@example.com","admin@example.com"],"records":[{"email":"member@example.com","role":"member"},{"email":"operator@example.com","role":"operationsAdmin"},{"email":"admin@example.com","role":"admin"}]}`,
-				nil,
-			), nil
-		}
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	const registerBody = `{"users":["member@example.com","operator@example.com","admin@example.com"],"records":[{"email":"member@example.com","role":"member"},{"email":"operator@example.com","role":"operationsAdmin"},{"email":"admin@example.com","role":"admin"}]}`
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, registerBody, func(request *http.Request) (*http.Response, error) {
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
