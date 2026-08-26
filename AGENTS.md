@@ -471,7 +471,7 @@ and delete the duplicates.
   `-` is the live state and `+` is what you are sending; read it before trusting
   a green exit.
 - The company web app runs on Supabase, not on a device. `supabase/migrations`
-  is the schema of record and `docs/core-schema.md` explains it. Never edit an
+  is the schema of record and `docs/internal/core-schema.md` explains it. Never edit an
   applied migration; add the next one.
 - Local loop, in this order: `supabase db reset` (schema plus fixtures),
   `supabase test db` (pgTAP), `cd web && bun run dev`. The reset alone gives a
