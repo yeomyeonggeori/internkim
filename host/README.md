@@ -169,9 +169,9 @@ job** (`docs/internal/saas-design.md` §7.1).
 ```
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<the project's publishable key>
-INTERNKIM_APP_URL=https://<company>.intern.kim
+INTERNKIM_APP_URL=https://intern.kim
 CHATD_BOT_USER_NAME=<the bot's display name>
-MESSENGER_PLATFORM=mattermost        # or buzz
+MESSENGER_PLATFORM=buzz              # or mattermost
 DATABASE_URL=postgres://…            # the host's own Postgres
 ```
 
