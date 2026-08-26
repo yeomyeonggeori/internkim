@@ -14,6 +14,9 @@ import (
 
 func TestMattermostChannelUpdateRequiresAdminAfterApproval(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
 		}
@@ -41,6 +44,9 @@ func TestMattermostChannelUpdateAdminPatchesAndInvites(t *testing.T) {
 	var patchedChannel bool
 	var invitedUser bool
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -119,6 +125,9 @@ func TestMattermostChannelUpdateAdminPatchesAndInvites(t *testing.T) {
 
 func TestMattermostChannelUpdateProtectsManagedHeadersAndDefaultNames(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -164,6 +173,9 @@ func TestMattermostChannelUpdateProtectsManagedHeadersAndDefaultNames(t *testing
 func TestMattermostChannelPostPinsCreatedPost(t *testing.T) {
 	var pinnedPost bool
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -215,6 +227,9 @@ func TestMattermostChannelPostPinsCreatedPost(t *testing.T) {
 
 func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -266,6 +281,9 @@ func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 
 func TestPlatformMessageSearchMatchesAnyQuery(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -326,6 +344,9 @@ func TestPlatformMessageSearchPaginatesCandidates(t *testing.T) {
 		posts.Posts[postID] = mattermostToolPost{ID: postID, UserID: "bot-1", ChannelID: "channel-1", Message: "삭제대상", CreateAt: int64(index)}
 	}
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -390,6 +411,9 @@ func TestPlatformMessageSearchScansUntilLimitMatches(t *testing.T) {
 		secondPage.Posts[postID] = mattermostToolPost{ID: postID, UserID: "bot-1", ChannelID: "channel-1", Message: "삭제대상", CreateAt: int64(100 + index)}
 	}
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -436,6 +460,9 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	var botPostDeleted bool
 	var userPostPinned bool
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch {
 		case request.URL.String() == "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -543,6 +570,9 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 func TestMattermostPostDeleteDeletesMultiplePostsAndReportsFailures(t *testing.T) {
 	deletedPostIDs := []string{}
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch {
 		case request.URL.String() == "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -592,6 +622,9 @@ func TestPlatformMessageDeleteRejectsTooManyExactIDs(t *testing.T) {
 		messageIDs = append(messageIDs, fmt.Sprintf("post-%02d", index))
 	}
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
 		}
@@ -617,6 +650,9 @@ func TestPlatformMessageDeleteRejectsTooManyExactIDs(t *testing.T) {
 
 func TestPlatformMessageDeleteRejectsCriteriaWithoutExactIDs(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
 		}
@@ -651,6 +687,9 @@ func TestPlatformMessageDeleteRejectsCriteriaWithoutExactIDs(t *testing.T) {
 
 func TestPlatformMessageDeleteRejectsCriteriaWithExactIDs(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
 		}
@@ -679,6 +718,9 @@ func TestPlatformMessageDeleteRejectsCriteriaWithExactIDs(t *testing.T) {
 
 func TestPlatformMessageSearchSkipsDeletedPosts(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -727,6 +769,9 @@ func TestPlatformMessageSearchSkipsDeletedPosts(t *testing.T) {
 
 func TestPlatformMessageSearchCurrentChannelIgnoresForeignChannelOverride(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -775,6 +820,9 @@ func TestPlatformMessageSearchCurrentChannelIgnoresForeignChannelOverride(t *tes
 
 func TestPlatformMessageDeleteRejectsCriteriaWithoutMessageIDs(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
 		}
@@ -808,6 +856,9 @@ func TestPlatformMessageDeleteRejectsCriteriaWithoutMessageIDs(t *testing.T) {
 
 func TestMattermostPostDeleteFailsWhenNothingWasDeleted(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -843,6 +894,9 @@ func TestMattermostContextInspectReturnsCurrentMattermostContext(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
 		}
@@ -885,6 +939,9 @@ func TestMattermostPostSearchUsesCurrentThreadScope(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -932,6 +989,9 @@ func TestMattermostPostSearchUsesCurrentThreadScope(t *testing.T) {
 
 func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -991,6 +1051,9 @@ func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 
 func TestMattermostPostSearchDirectMessageDeniedForNonParticipant(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -1035,6 +1098,9 @@ func TestMattermostPostSearchDirectMessageDeniedForNonParticipant(t *testing.T) 
 
 func TestMattermostPostSearchDirectMessageDeniedForAdmin(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -1116,6 +1182,9 @@ func TestPlatformMessageUpdateReplacesOnlyTheQuotedSpan(t *testing.T) {
 	const currentMessage = "회의록\n5번: 신우경·성민·세현·주정빈\n6번: 이동하"
 	patchedMessage := ""
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch {
 		case request.URL.String() == "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -1157,6 +1226,9 @@ func TestPlatformMessageUpdateReplacesOnlyTheQuotedSpan(t *testing.T) {
 func TestPlatformMessageUpdateFailsClosedAndReturnsCurrentMessage(t *testing.T) {
 	const currentMessage = "회의록\n5번: 신우경·성민·세현\n6번: 성민"
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch {
 		case request.URL.String() == "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
@@ -1196,6 +1268,9 @@ func TestPlatformMessageUpdateFailsClosedAndReturnsCurrentMessage(t *testing.T) 
 func TestPlatformMessageSearchByIDReturnsFullTextWithinScope(t *testing.T) {
 	const fullMessage = "회의록\n1번 …\n2번 …\n3번 …\n4번 …\n5번: 신우경·성민·세현·주정빈"
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch {
 		case request.URL.String() == "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
