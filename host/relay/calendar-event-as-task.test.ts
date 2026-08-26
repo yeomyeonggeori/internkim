@@ -33,7 +33,7 @@ function eventWith(fields: Partial<DeviceCalendarEvent> = {}): DeviceCalendarEve
 	return {
 		id: 'event-1',
 		uid: 'event-1@internkim',
-		title: '마켓컬리 CMO 미팅',
+		title: '샘플 상사 CMO 미팅',
 		startISO: '2026-08-20T10:00:00Z',
 		endISO: '2026-08-20T11:00:00Z',
 		...fields
@@ -61,7 +61,7 @@ describe('the person a participant names', () => {
 	});
 
 	test('matches a given name only when one person bears it', () => {
-		expect(matchParticipant({ name: '모형' }, people, directory)).toEqual({
+		expect(matchParticipant({ name: '견본' }, people, directory)).toEqual({
 			email: 'gyeonbon@example.com',
 			by: 'givenName'
 		});
