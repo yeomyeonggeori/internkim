@@ -118,7 +118,7 @@ func (admin mattermostScenarioAdmin) invitePerson(contextValue context.Context, 
 
 func (admin mattermostScenarioAdmin) listTasks(contextValue context.Context, conversationID string) ([]mattermostScenarioTaskSummary, error) {
 	var tasks []mattermostScenarioTaskSummary
-	if errorValue := admin.requestJSON(contextValue, "GET", "/admin/api/task", nil, &tasks); errorValue != nil {
+	if errorValue := admin.requestJSON(contextValue, "GET", "/admin/api/run", nil, &tasks); errorValue != nil {
 		return nil, errorValue
 	}
 	filteredTasks := make([]mattermostScenarioTaskSummary, 0, len(tasks))
@@ -135,7 +135,7 @@ func (admin mattermostScenarioAdmin) listTasks(contextValue context.Context, con
 
 func (admin mattermostScenarioAdmin) taskDetail(contextValue context.Context, taskRunID string) (mattermostScenarioTaskDetail, error) {
 	var detail mattermostScenarioTaskDetail
-	endpoint := "/admin/api/task/detail?taskRunID=" + url.QueryEscape(taskRunID)
+	endpoint := "/admin/api/run/detail?taskRunID=" + url.QueryEscape(taskRunID)
 	if errorValue := admin.requestJSON(contextValue, "GET", endpoint, nil, &detail); errorValue != nil {
 		return mattermostScenarioTaskDetail{}, errorValue
 	}
@@ -410,12 +410,12 @@ func (admin mattermostScenarioAdmin) deleteConversationTasks(contextValue contex
 	}
 	cleanupErrors := []error{}
 	cancelBody := map[string]any{"taskRunIDs": taskRunIDs, "reason": "expensive Mattermost scenario cleanup"}
-	if errorValue := admin.requestJSON(contextValue, "POST", "/admin/api/task/cancel", cancelBody, nil); errorValue != nil {
+	if errorValue := admin.requestJSON(contextValue, "POST", "/admin/api/run/cancel", cancelBody, nil); errorValue != nil {
 		cleanupErrors = append(cleanupErrors, fmt.Errorf("cancel Mattermost scenario tasks: %w", errorValue))
 	}
 	for _, taskRunID := range taskRunIDs {
 		deleteBody := map[string]any{"taskRunID": taskRunID, "viewerIsAdmin": true}
-		if errorValue := admin.requestJSON(contextValue, "POST", "/admin/api/task/delete", deleteBody, nil); errorValue != nil {
+		if errorValue := admin.requestJSON(contextValue, "POST", "/admin/api/run/delete", deleteBody, nil); errorValue != nil {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("delete Mattermost scenario task %s: %w", taskRunID, errorValue))
 		}
 	}

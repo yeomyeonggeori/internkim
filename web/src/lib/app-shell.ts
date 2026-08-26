@@ -11,7 +11,7 @@ const appShellSections = [
 	'/attendance/',
 	'/organization/',
 	'/files/',
-	'/tasks/',
+	'/runs/',
 	'/assistant/'
 ];
 
@@ -38,7 +38,7 @@ export function isEmbeddedCalendar(pathname: string): boolean {
 }
 
 export function taskListPathOf(pathname: string): string {
-	return companyPathOf(companySlugOf(pathname), '/tasks');
+	return companyPathOf(companySlugOf(pathname), '/runs');
 }
 
 export function appSectionPathOf(pathname: string): string {

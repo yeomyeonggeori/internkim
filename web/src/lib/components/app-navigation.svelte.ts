@@ -61,7 +61,7 @@ class AppNavigation {
 	workspace = $derived<AppRailItem[]>([
 		...(this.canViewTasks
 			? [
-					{ href: this.link('/tasks/'), label: text.tasks, icon: ActivityIcon }
+					{ href: this.link('/runs/'), label: text.tasks, icon: ActivityIcon }
 				]
 			: []),
 		{ href: this.link('/settings/'), label: text.settings, icon: CogIcon }

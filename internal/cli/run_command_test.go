@@ -34,11 +34,11 @@ func (client *fakeTaskAdminAPIClient) request(method string, path string, reques
 
 func withCapturedTaskCommandOutput(t *testing.T) *bytes.Buffer {
 	t.Helper()
-	previousOutput := taskCommandOutput
+	previousOutput := runCommandOutput
 	buffer := &bytes.Buffer{}
-	taskCommandOutput = buffer
+	runCommandOutput = buffer
 	t.Cleanup(func() {
-		taskCommandOutput = previousOutput
+		runCommandOutput = previousOutput
 	})
 	return buffer
 }

@@ -263,8 +263,8 @@ const workspacePaths: Record<string, string> = {
 	'person.memory.schedules': '/memory/api/schedules',
 	'person.files.roots': '/files/api/roots',
 	'person.files.list': '/files/api/list',
-	'person.tasks.list': '/tasks/api/runs',
-	'person.tasks.detail': '/tasks/api/run-detail',
+	'person.runs.list': '/runs/api',
+	'person.runs.detail': '/runs/api/detail',
 	'person.buzz.claim': '/agent/api/buzz-claim',
 	'person.buzz.relay': '/agent/api/buzz-relay-config'
 };

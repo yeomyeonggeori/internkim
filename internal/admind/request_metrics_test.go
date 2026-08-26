@@ -12,7 +12,7 @@ func TestProxyBlueclawTaskListPreservesTotalCountResponse(t *testing.T) {
 		if request.Method != http.MethodGet {
 			t.Fatalf("method = %s", request.Method)
 		}
-		if request.URL.String() != "/admin/api/task?limit=15&offset=15&includeTotal=true" {
+		if request.URL.String() != "/admin/api/run?limit=15&offset=15&includeTotal=true" {
 			t.Fatalf("blueclaw task URL = %s", request.URL.String())
 		}
 		responseWriter.Header().Set("Content-Type", "application/json")
@@ -59,7 +59,7 @@ func TestProxyScopedTaskListForwardsPaginationQuery(t *testing.T) {
 	t.Cleanup(blueclawServer.Close)
 
 	service := NewService(Configuration{BlueclawBaseURL: blueclawServer.URL})
-	request := httptest.NewRequest(http.MethodGet, "/tasks/api/runs?limit=15&offset=15&includeTotal=true&includeCost=true&dailyCostTaskRunLimit=500", nil)
+	request := httptest.NewRequest(http.MethodGet, "/runs/api?limit=15&offset=15&includeTotal=true&includeCost=true&dailyCostTaskRunLimit=500", nil)
 	responseRecorder := httptest.NewRecorder()
 
 	service.proxyScopedTaskList(responseRecorder, request, "staff@example.com", false)
@@ -81,7 +81,7 @@ func TestProxyScopedTaskDeleteForwardsViewerContext(t *testing.T) {
 		if request.Method != http.MethodPost {
 			t.Fatalf("method = %s", request.Method)
 		}
-		if request.URL.String() != "/admin/api/task/delete" {
+		if request.URL.String() != "/admin/api/run/delete" {
 			t.Fatalf("blueclaw task delete URL = %s", request.URL.String())
 		}
 		var body map[string]any
@@ -98,7 +98,7 @@ func TestProxyScopedTaskDeleteForwardsViewerContext(t *testing.T) {
 	t.Cleanup(blueclawServer.Close)
 
 	service := NewService(Configuration{BlueclawBaseURL: blueclawServer.URL})
-	request := httptest.NewRequest(http.MethodDelete, "/tasks/api/runs/task-1", nil)
+	request := httptest.NewRequest(http.MethodDelete, "/runs/api/task-1", nil)
 	responseRecorder := httptest.NewRecorder()
 
 	service.proxyScopedTaskDelete(responseRecorder, request, "staff@example.com", true)

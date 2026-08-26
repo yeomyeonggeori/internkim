@@ -16,7 +16,7 @@ const refusedStatus = 415;
 const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
-const workspacePrefixes = ['person.memory.', 'person.files.', 'person.tasks.', 'person.buzz.'];
+const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.'];
 
 export function mailOperationOf(capability: string): string | null {
 	if (!capability.startsWith(mailPrefix)) return null;

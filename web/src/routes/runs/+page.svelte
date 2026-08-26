@@ -16,8 +16,8 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
-	import { deleteTaskRun, fetchTaskRuns, formatCostUSD, type DailyCostScope, type DailyCostSummary, type TaskRunSummary } from './tasks-api';
-	import { taskStatusBadgeVariant, taskStatusIcon, taskStatusLabel, formatTaskTimestamp } from './tasks-view';
+	import { deleteTaskRun, fetchTaskRuns, formatCostUSD, type DailyCostScope, type DailyCostSummary, type TaskRunSummary } from './runs-api';
+	import { taskStatusBadgeVariant, taskStatusIcon, taskStatusLabel, formatTaskTimestamp } from './runs-view';
 	import { tasksText } from './text';
 
 	const text = createPageText(tasksText);
@@ -163,7 +163,7 @@
 	}
 
 	function taskRunDetailPath(taskRunID: string): string {
-		const basePath = '/tasks';
+		const basePath = '/runs';
 		return `${basePath}/${encodeURIComponent(taskRunID)}`;
 	}
 

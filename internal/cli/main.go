@@ -241,8 +241,8 @@ func Main() {
 			runInvite()
 		case "users":
 			runUsers()
-		case "task":
-			runTask()
+		case "run":
+			runTaskRun()
 		case "reset":
 			runReset()
 		case "recover":
@@ -1004,7 +1004,7 @@ func runUsers() {
 	}
 }
 
-func runTask() {
+func runTaskRun() {
 	if errorValue := runTaskArguments(os.Args[2:]); errorValue != nil {
 		fatal(errorValue.Error())
 	}

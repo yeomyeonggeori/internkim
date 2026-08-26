@@ -8,7 +8,7 @@ import MinusIcon from '@lucide/svelte/icons/minus';
 import XIcon from '@lucide/svelte/icons/x';
 import type { BadgeVariant } from '$lib/components/ui/badge';
 import type { TasksText } from './text';
-import type { EventLane } from './tasks-api';
+import type { EventLane } from './runs-api';
 
 export function shortTaskRunID(taskRunID: string): string {
 	return taskRunID.length > 6 ? taskRunID.slice(0, 6) : taskRunID;

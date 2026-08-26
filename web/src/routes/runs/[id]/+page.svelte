@@ -32,7 +32,7 @@
 		type TaskDetail,
 		type TaskEvent,
 		type TimelineSummary
-	} from '../tasks-api';
+	} from '../runs-api';
 	import {
 		eventLaneClass,
 		formatLatency,
@@ -40,7 +40,7 @@
 		taskStatusBadgeVariant,
 		taskStatusIcon,
 		taskStatusLabel
-	} from '../tasks-view';
+	} from '../runs-view';
 	import { tasksText } from '../text';
 
 	const text = createPageText(tasksText);
