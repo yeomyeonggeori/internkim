@@ -5,6 +5,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as InputOTP from '$lib/components/ui/input-otp';
 	import { Field, FieldDescription, FieldGroup, FieldLabel } from '$lib/components/ui/field';
+	import { homePath } from '$lib/home-path';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
@@ -74,7 +75,7 @@
 				step = 'passkey';
 				return;
 			}
-			await goto('/flow/');
+			await goto(homePath);
 		});
 
 	const proveTheAddress = () =>
@@ -90,7 +91,7 @@
 				step = 'passkey';
 				return;
 			}
-			await goto('/flow/');
+			await goto(homePath);
 		});
 
 	const keepThePasskey = () =>
@@ -101,7 +102,7 @@
 				if (refusalOf(error) === 'cancelled') return;
 				throw new Error(text.claimPasskeyFailed);
 			}
-			await goto('/flow/');
+			await goto(homePath);
 		});
 
 	onMount(async () => {
@@ -199,7 +200,7 @@
 						<FingerprintIcon class="size-4" />
 						{text.registerPasskey}
 					</Button>
-					<Button variant="ghost" class="w-full" onclick={() => goto('/flow/')} disabled={busy}>{text.claimSkipPasskey}</Button>
+					<Button variant="ghost" class="w-full" onclick={() => goto(homePath)} disabled={busy}>{text.claimSkipPasskey}</Button>
 				</FieldGroup>
 			{/if}
 		</Card.Content>
