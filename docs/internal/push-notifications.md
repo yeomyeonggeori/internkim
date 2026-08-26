@@ -26,6 +26,11 @@ category switch in their settings, and whether they have muted that
 conversation. A member with no device subscribed is never reached at all, which
 is the state everyone starts in.
 
+The first message a conversation carries gives everyone in it a row in
+`notification`, unmuted. Muting flips that row and unmuting flips it back, so
+the table says who has ever been in a conversation and what each of them
+chose, and a conversation nobody has spoken in has no rows to read.
+
 ## Keys the deployment needs
 
 Web push is signed, so the Pages project carries a VAPID pair. Changing it
