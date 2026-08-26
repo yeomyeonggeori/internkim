@@ -15,7 +15,7 @@ create policy muted_conversation_kept_by_owner on public.muted_conversation
 grant select, insert, delete on public.muted_conversation to authenticated;
 grant all on public.muted_conversation to service_role;
 
-create function public.mute_conversation(conversation text)
+create function public.conversation_mute(conversation text)
 returns void
 language sql
 security definer
@@ -26,7 +26,7 @@ as $$
   on conflict (member_id, conversation_id) do nothing;
 $$;
 
-create function public.unmute_conversation(conversation text)
+create function public.conversation_unmute(conversation text)
 returns void
 language sql
 security definer
