@@ -20,10 +20,10 @@ const visualUsersResponse: UsersResponse = {
 			groupID: 'leadership'
 		},
 		{
-			memberID: 'user-lee-second',
-			handle: 'lee-second',
+			memberID: 'user-leesample-second',
+			handle: 'leesample-second',
 			name: '이둘째',
-			email: 'lee-second@example.com',
+			email: 'leesample-second@example.com',
 			hireDate: '2026-01-01',
 			role: 'member',
 			jobTitle: 'CTO',
@@ -59,7 +59,7 @@ const visualUsersResponse: UsersResponse = {
 			role: 'member',
 			jobTitle: '엔지니어',
 			groupID: 'shared',
-			supervisorID: 'user-lee-second'
+			supervisorID: 'user-leesample-second'
 		},
 		{
 			memberID: 'user-extra-staff',
@@ -70,7 +70,7 @@ const visualUsersResponse: UsersResponse = {
 			role: 'member',
 			jobTitle: '엔지니어',
 			groupID: 'shared',
-			supervisorID: 'user-lee-second'
+			supervisorID: 'user-leesample-second'
 		}
 	]
 };

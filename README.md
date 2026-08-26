@@ -269,7 +269,7 @@ supabase test db       # pgTAP
 cd web && bun run dev
 ```
 
-The reset alone gives a company to sign into, as `lee@example.com` with
+The reset alone gives a company to sign into, as `member1@example.com` with
 `seed-password`. Fixtures live only in `supabase/seed.dev.sql`, wired through
 `[db.seed]` in `config.toml`; a reset wipes anything that file does not carry.
 

@@ -5,8 +5,8 @@ import { flowTaskAsTask, peopleOnFlowTask, titleOfFlowTask, type DeviceFlowTask 
 const seoul = 'Asia/Seoul';
 
 const people: DevicePerson[] = [
-	{ userID: 'a1000000-0000-0000-0000-000000000001', name: '신우경', handle: 'rain', email: 'rain@dawn.kim', image: '/calendar/api/participants/8820b5025006/image' },
-	{ userID: 'a1000000-0000-0000-0000-000000000002', name: '김여명', handle: 'iam', email: 'iam@dawn.kim', image: '/calendar/api/participants/9b2a1effd496/image' }
+	{ userID: 'a1000000-0000-0000-0000-000000000001', name: '박예시', handle: 'parkyesi', email: 'parkyesi@example.com', image: '/calendar/api/participants/8820b5025006/image' },
+	{ userID: 'a1000000-0000-0000-0000-000000000002', name: '김예시', handle: 'kimyesi', email: 'kimyesi@example.com', image: '/calendar/api/participants/9b2a1effd496/image' }
 ];
 const directory = emailByPersonIDOf(people);
 
@@ -19,26 +19,26 @@ describe('who is on a flow task', () => {
 		const written = peopleOnFlowTask(
 			taskWith({
 				ownerID: '8820b5025006',
-				ownerName: '신우경',
+				ownerName: '박예시',
 				participantIDs: ['9b2a1effd496'],
-				participantNames: ['김여명']
+				participantNames: ['김예시']
 			})
 		);
 		expect(written).toEqual([
-			{ personID: '8820b5025006', name: '신우경' },
-			{ personID: '9b2a1effd496', name: '김여명' }
+			{ personID: '8820b5025006', name: '박예시' },
+			{ personID: '9b2a1effd496', name: '김예시' }
 		]);
 	});
 
 	test('keeps a name that has no id beside it, so an older row still resolves', () => {
-		const written = peopleOnFlowTask(taskWith({ participantIDs: [], participantNames: ['김여명'] }));
-		expect(written).toEqual([{ name: '김여명' }]);
-		expect(matchParticipant(written[0], people, directory)?.email).toBe('iam@dawn.kim');
+		const written = peopleOnFlowTask(taskWith({ participantIDs: [], participantNames: ['김예시'] }));
+		expect(written).toEqual([{ name: '김예시' }]);
+		expect(matchParticipant(written[0], people, directory)?.email).toBe('kimyesi@example.com');
 	});
 
 	test('reads the same ids the calendar does', () => {
-		const written = peopleOnFlowTask(taskWith({ ownerID: '8820b5025006', ownerName: '신우경' }));
-		expect(matchParticipant(written[0], people, directory)).toEqual({ email: 'rain@dawn.kim', by: 'personID' });
+		const written = peopleOnFlowTask(taskWith({ ownerID: '8820b5025006', ownerName: '박예시' }));
+		expect(matchParticipant(written[0], people, directory)).toEqual({ email: 'parkyesi@example.com', by: 'personID' });
 	});
 });
 

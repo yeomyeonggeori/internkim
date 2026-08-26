@@ -4,17 +4,25 @@
 import { build, files, version } from '$service-worker';
 import { isShippedFile } from '$lib/offline-shell';
 import { readArriving } from '$lib/notifications/arriving';
+import { openedNotificationMessage } from '$lib/notifications/opened-notification';
+import { keepPendingDestination } from '$lib/notifications/pending-destination';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const cacheName = `internkim-${version}`;
 const shipped = new Set([...build, ...files]);
+const whereTheAppStarts = '/flow/';
 
 worker.addEventListener('install', (event) => {
-	event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll([...shipped])));
+	event.waitUntil(
+		caches
+			.open(cacheName)
+			.then((cache) => cache.addAll([...shipped]))
+			.then(() => worker.skipWaiting())
+	);
 });
 
 worker.addEventListener('activate', (event) => {
-	event.waitUntil(forgetOlderVersions());
+	event.waitUntil(forgetOlderVersions().then(() => worker.clients.claim()));
 });
 
 async function forgetOlderVersions(): Promise<void> {
@@ -33,7 +41,7 @@ worker.addEventListener('push', (event) => {
 		worker.registration.showNotification(arriving.title, {
 			body: arriving.body,
 			tag: arriving.tag,
-			icon: '/icon-192.png',
+			icon: arriving.icon || '/icon-192.png',
 			data: { openPath: arriving.openPath }
 		})
 	);
@@ -50,19 +58,20 @@ function readPushedJSON(pushed: PushMessageData | null): unknown {
 
 worker.addEventListener('notificationclick', (event) => {
 	event.notification.close();
-	const openPath = (event.notification.data as { openPath?: string } | null)?.openPath ?? '/flow/';
+	const openPath = (event.notification.data as { openPath?: string } | null)?.openPath ?? whereTheAppStarts;
 	event.waitUntil(openTheApp(openPath));
 });
 
 async function openTheApp(openPath: string): Promise<void> {
+	await keepPendingDestination(openPath);
 	const open = await worker.clients.matchAll({ type: 'window', includeUncontrolled: true });
 	const here = open.find((client) => new URL(client.url).origin === location.origin);
 	if (here) {
 		await here.focus();
-		await here.navigate(openPath).catch(() => undefined);
+		here.postMessage({ type: openedNotificationMessage, openPath });
 		return;
 	}
-	await worker.clients.openWindow(openPath);
+	await worker.clients.openWindow(whereTheAppStarts);
 }
 
 async function shippedFile(request: Request): Promise<Response> {

@@ -1179,7 +1179,7 @@ func mattermostToolTestPolicy() mattermostToolPolicyDocument {
 }
 
 func TestPlatformMessageUpdateReplacesOnlyTheQuotedSpan(t *testing.T) {
-	const currentMessage = "회의록\n5번: 신우경·성민·세현·주정빈\n6번: 이동하"
+	const currentMessage = "회의록\n5번: 박예시·성민·세현·주정빈\n6번: 이샘플"
 	patchedMessage := ""
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
 		if isDirectoryPeopleRequest(request) {
@@ -1218,13 +1218,13 @@ func TestPlatformMessageUpdateReplacesOnlyTheQuotedSpan(t *testing.T) {
 	if response.Outcome != capabilities.ToolOutcomeSucceeded {
 		t.Fatalf("expected the edit to apply, got %+v", response)
 	}
-	if patchedMessage != "회의록\n5번: 신우경·석민·세현·주정빈\n6번: 이동하" {
+	if patchedMessage != "회의록\n5번: 박예시·석민·세현·주정빈\n6번: 이샘플" {
 		t.Fatalf("expected only the quoted span to change, got %q", patchedMessage)
 	}
 }
 
 func TestPlatformMessageUpdateFailsClosedAndReturnsCurrentMessage(t *testing.T) {
-	const currentMessage = "회의록\n5번: 신우경·성민·세현\n6번: 성민"
+	const currentMessage = "회의록\n5번: 박예시·성민·세현\n6번: 성민"
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
 		if isDirectoryPeopleRequest(request) {
 			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
@@ -1245,7 +1245,7 @@ func TestPlatformMessageUpdateFailsClosedAndReturnsCurrentMessage(t *testing.T) 
 		}
 	})
 
-	for name, oldText := range map[string]string{"missing": "박세은", "ambiguous": "성민"} {
+	for name, oldText := range map[string]string{"missing": "최견본", "ambiguous": "성민"} {
 		t.Run(name, func(t *testing.T) {
 			response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 				ToolName: "message_update",
@@ -1266,7 +1266,7 @@ func TestPlatformMessageUpdateFailsClosedAndReturnsCurrentMessage(t *testing.T) 
 }
 
 func TestPlatformMessageSearchByIDReturnsFullTextWithinScope(t *testing.T) {
-	const fullMessage = "회의록\n1번 …\n2번 …\n3번 …\n4번 …\n5번: 신우경·성민·세현·주정빈"
+	const fullMessage = "회의록\n1번 …\n2번 …\n3번 …\n4번 …\n5번: 박예시·성민·세현·주정빈"
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
 		if isDirectoryPeopleRequest(request) {
 			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { invalidate } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import ChannelSheet from '$lib/components/channel/channel-sheet.svelte';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
@@ -27,6 +27,7 @@
 	import { isEmbeddedFrame } from '$lib/embedded';
 	import { isAppShortcutMessage } from '$lib/app-shortcut-message';
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
+	import { goWhereNotificationsPoint } from '$lib/notifications/opened-notification';
 	import { webAuthSessionDependency } from '$lib/web-auth-session';
 	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -48,7 +49,9 @@
 		};
 		window.addEventListener('focus', revalidateSession);
 		document.addEventListener('visibilitychange', revalidateSession);
+		const stopFollowingNotifications = goWhereNotificationsPoint((path) => void goto(path));
 		return () => {
+			stopFollowingNotifications();
 			window.removeEventListener('focus', revalidateSession);
 			document.removeEventListener('visibilitychange', revalidateSession);
 		};

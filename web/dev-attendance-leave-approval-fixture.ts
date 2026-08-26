@@ -4,7 +4,7 @@ export function buildTeamLeaveApprovalRequests(): LeaveApprovalRequest[] {
 	return [
 		{
 			id: 'team-leave-request-multi-day',
-			employeeEmail: 'lee@example.com',
+			employeeEmail: 'member1@example.com',
 			leaveTypeID: 'annual',
 			leaveTypeName: '연차',
 			balanceMode: 'annual',

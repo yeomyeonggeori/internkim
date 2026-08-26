@@ -25,9 +25,9 @@ select
   '{"provider":"email","providers":["email"]}', '{}',
   '', '', '', '', '', '', '', ''
 from (values
-  ('000000dd-0000-0000-0000-000000000001'::uuid, 'lee@example.com'),
-  ('000000dd-0000-0000-0000-000000000002'::uuid, 'iam@example.com'),
-  ('000000dd-0000-0000-0000-000000000003'::uuid, 'seeun@example.com')
+  ('000000dd-0000-0000-0000-000000000001'::uuid, 'member1@example.com'),
+  ('000000dd-0000-0000-0000-000000000002'::uuid, 'member2@example.com'),
+  ('000000dd-0000-0000-0000-000000000003'::uuid, 'member3@example.com')
 ) as person(account_id, email)
 on conflict (id) do nothing;
 
@@ -39,7 +39,7 @@ select
   jsonb_build_object('sub', account.id::text, 'email', account.email, 'email_verified', true),
   'email', now(), now(), now()
 from auth.users account
-where account.email in ('lee@example.com', 'iam@example.com', 'seeun@example.com')
+where account.email in ('member1@example.com', 'member2@example.com', 'member3@example.com')
 on conflict (provider, provider_id) do nothing;
 
 insert into public.company (
@@ -63,13 +63,13 @@ on conflict (id) do nothing;
 insert into public.member (
   id, company_id, email, user_id, name, job_title, team_id, status, is_admin, joined_at
 ) values
-  ('000000ee-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', 'lee@example.com',
+  ('000000ee-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', 'member1@example.com',
    '000000dd-0000-0000-0000-000000000001', '이샘플', 'CTO', '000000bb-0000-0000-0000-000000000001',
    'active', true, '2024-03-01T00:00:00+09'),
-  ('000000ee-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', 'iam@example.com',
+  ('000000ee-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', 'member2@example.com',
    '000000dd-0000-0000-0000-000000000002', '김예시', 'CEO', null,
    'active', true, '2024-01-02T00:00:00+09'),
-  ('000000ee-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', 'seeun@example.com',
+  ('000000ee-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', 'member3@example.com',
    '000000dd-0000-0000-0000-000000000003', '박예시', '연구원', '000000bb-0000-0000-0000-000000000002',
    'active', false, '2026-02-17T00:00:00+09')
 on conflict (id) do nothing;

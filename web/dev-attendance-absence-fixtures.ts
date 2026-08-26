@@ -34,14 +34,14 @@ export function buildAttendanceAbsenceFixtures(options: BuildAttendanceAbsenceFi
 	});
 	if (month === '2026-07') {
 		appendAbsence({
-			id: 'absence-lee-partial-leave',
-			email: 'lee@example.com',
+			id: 'absence-leesample-partial-leave',
+			email: 'member1@example.com',
 			kind: 'leave',
 			date: '2026-07-17',
 			startTime: '13:00',
 			endTime: '15:00',
 			reason: 'private appointment',
-			createdBy: 'lee@example.com'
+			createdBy: 'member1@example.com'
 		});
 	}
 	defaultAbsenceRanges().forEach(appendAbsenceRange);
@@ -104,7 +104,7 @@ function defaultAbsenceRanges(): AbsenceFixtureRange[] {
 		{ id: 'absence-park-vacation', email: 'park@example.com', kind: 'leave', startDay: 6, endDay: 8, reason: 'summer break' },
 		{ id: 'absence-jung-other', email: 'jung@example.com', kind: 'other', startDay: 18 },
 		{ id: 'absence-kang-other', email: 'kang@example.com', kind: 'other', startDay: 22, endDay: 23, reason: 'personal schedule' },
-		{ id: 'absence-lee-short-leave', email: 'lee@example.com', kind: 'leave', startDay: 27, reason: 'family event' },
+		{ id: 'absence-leesample-short-leave', email: 'member1@example.com', kind: 'leave', startDay: 27, reason: 'family event' },
 	];
 }
 
@@ -113,7 +113,7 @@ function juneAbsenceRanges(): AbsenceFixtureRange[] {
 		{ id: 'absence-june-kim-leave', email: 'kim@example.com', kind: 'leave', startDay: 9, endDay: 11, reason: 'sample overlap leave' },
 		{ id: 'absence-june-choi-other', email: 'choi@example.com', kind: 'other', startDay: 10, reason: 'sample personal schedule' },
 		{ id: 'absence-june-choi-leave', email: 'choi@example.com', kind: 'leave', startDay: 24, endDay: 26, reason: 'sample visible range' },
-		{ id: 'absence-june-lee-other', email: 'lee@example.com', kind: 'other', startDay: 24, endDay: 26, reason: 'sample overflow range' },
+		{ id: 'absence-june-leesample-other', email: 'member1@example.com', kind: 'other', startDay: 24, endDay: 26, reason: 'sample overflow range' },
 	];
 }
 

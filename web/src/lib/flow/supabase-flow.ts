@@ -1,4 +1,5 @@
 import { supabase } from '$lib/supabase';
+import { announceTaskMoved } from '$lib/flow/announce-task';
 import { flowDefinitionsOf, taskVocabularyOfDefinitions, vocabularyOf } from '$lib/flow/task-vocabulary';
 import { heldTasks, holdTasks, mergeChangedTasks, newestStamp } from '$lib/flow/flow-task-cache';
 import {
@@ -263,6 +264,7 @@ export async function moveSupabaseFlowTask(taskID: string, status: string): Prom
 		.select('id')
 		.single<{ id: string }>();
 	if (error) throw new Error(error.message);
+	void announceTaskMoved(taskID);
 }
 
 function displayName(member: MemberRow): string {

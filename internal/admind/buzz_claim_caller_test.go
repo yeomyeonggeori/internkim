@@ -19,7 +19,7 @@ func buzzClaimTestService(t *testing.T) *Service {
 func TestTheRelayCanClaimForThePersonItNames(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:18080/agent/api/buzz-claim", nil)
 	request.RemoteAddr = "127.0.0.1:54321"
-	request.Header.Set(flowRequesterEmailHeader, "lee@example.test")
+	request.Header.Set(flowRequesterEmailHeader, "leesample@example.test")
 	recorder := httptest.NewRecorder()
 
 	buzzClaimTestService(t).handleBuzzClaim(recorder, request)

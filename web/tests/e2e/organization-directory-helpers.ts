@@ -19,7 +19,7 @@ export const organizationDirectoryUsersResponse: UsersResponse = {
 			memberID: 'user-sample-lee',
 			handle: 'sample-lee',
 			name: '이샘플',
-			email: 'sample-lee@example.com',
+			email: 'sample-member1@example.com',
 			hireDate: '2026-01-03',
 			role: 'member',
 			jobTitle: '  FoUn-Der  ',

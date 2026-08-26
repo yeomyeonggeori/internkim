@@ -37,7 +37,7 @@ test('maps calendar participants through event meta and payload', () => {
 		color: '#2563eb',
 		participants: [
 			{ personID: 'person-dongha', name: '이샘플', email: 'dongha@example.com', image: '/calendar/api/participants/person-dongha/image' },
-			{ personID: 'person-yeomyeong', name: '김여명', email: 'yeomyeong@example.com' }
+			{ personID: 'person-yeomyeong', name: '김예시', email: 'yeomyeong@example.com' }
 		],
 		createdByEmail: 'admin@example.com',
 		createdByName: 'Admin',
@@ -46,14 +46,14 @@ test('maps calendar participants through event meta and payload', () => {
 
 	expect(event.meta?.participants).toEqual([
 		{ personID: 'person-dongha', name: '이샘플', email: 'dongha@example.com', image: '/calendar/api/participants/person-dongha/image' },
-		{ personID: 'person-yeomyeong', name: '김여명', email: 'yeomyeong@example.com' }
+		{ personID: 'person-yeomyeong', name: '김예시', email: 'yeomyeong@example.com' }
 	]);
 
 	const payload = calendarEventPayloadFromDayFlowEvent(event, '#2563eb', 'Asia/Seoul');
 
 	expect(payload.participants).toEqual([
 		{ personID: 'person-dongha', name: '이샘플', email: 'dongha@example.com' },
-		{ personID: 'person-yeomyeong', name: '김여명', email: 'yeomyeong@example.com' }
+		{ personID: 'person-yeomyeong', name: '김예시', email: 'yeomyeong@example.com' }
 	]);
 });
 

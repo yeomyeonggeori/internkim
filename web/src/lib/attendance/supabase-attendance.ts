@@ -1,3 +1,4 @@
+import { announceToTheCompany } from './announce-attendance';
 import { supabase } from '$lib/supabase';
 import { colourOf, type NamedColour } from '$lib/flow/task-vocabulary';
 import { membersInReadingOrder } from '$lib/member-order';
@@ -133,6 +134,7 @@ export async function recordSupabaseAttendance(kind?: AttendanceKind, locationID
 		location: recorded === 'clock_in' ? (locationID || null) : null
 	});
 	if (error) throw new Error(error.message);
+	void announceToTheCompany('clock');
 }
 
 export async function correctSupabaseAttendanceEvents(

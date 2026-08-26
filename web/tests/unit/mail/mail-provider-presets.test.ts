@@ -22,18 +22,18 @@ describe('mail provider presets', () => {
 			providerID: 'gmail',
 			customDomain: ''
 		});
-		expect(mailAddressDraftFromEmail('chanhee')).toEqual({
-			localPart: 'chanhee',
+		expect(mailAddressDraftFromEmail('sample')).toEqual({
+			localPart: 'sample',
 			providerID: 'gmail',
 			customDomain: ''
 		});
-		expect(mailAddressDraftFromEmail(' chanhee@gmail.com ')).toEqual({
-			localPart: 'chanhee',
+		expect(mailAddressDraftFromEmail(' sample@gmail.com ')).toEqual({
+			localPart: 'sample',
 			providerID: 'gmail',
 			customDomain: ''
 		});
-		expect(mailAddressDraftFromEmail('chanee234@hanmail.net')).toEqual({
-			localPart: 'chanee234',
+		expect(mailAddressDraftFromEmail('sample@hanmail.net')).toEqual({
+			localPart: 'sample',
 			providerID: 'hanmail',
 			customDomain: ''
 		});
@@ -45,9 +45,9 @@ describe('mail provider presets', () => {
 	});
 
 	test('composes normalized mail addresses', () => {
-		expect(composeMailAddress(' chanhee ', ' Gmail.COM ')).toBe('chanhee@gmail.com');
+		expect(composeMailAddress(' sample ', ' Gmail.COM ')).toBe('sample@gmail.com');
 		expect(composeMailAddress('', 'gmail.com')).toBe('');
-		expect(composeMailAddress('chanhee', '')).toBe('');
+		expect(composeMailAddress('sample', '')).toBe('');
 	});
 
 	test('returns automatic server settings for supported providers', () => {
