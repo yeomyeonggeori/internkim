@@ -13,7 +13,7 @@ function taskWith(fields: Partial<FlowTask> = {}): FlowTask {
 		ownerName: '',
 		participantIDs: [],
 		participantNames: [],
-		business: '여명거리',
+		business: '샘플거리',
 		type: '기능',
 		content: '마켓컬리 CMO 미팅',
 		size: 'XS',
@@ -63,7 +63,7 @@ describe('what the board writes back', () => {
 			target_title: '마켓컬리 CMO 미팅',
 			target_status: 'todo',
 			target_note: null,
-			target_business: '여명거리',
+			target_business: '샘플거리',
 			target_type: '기능',
 			target_size: 'XS',
 			target_starts_at: '2026-08-20T00:00:00.000Z',
@@ -101,7 +101,7 @@ describe('what the board writes back', () => {
 	test('still writes everything an event and a task share', () => {
 		const fields = savedFlowTaskFields(taskWith({ isEvent: true, content: '팀 회의' }));
 		expect(fields.title).toBe('팀 회의');
-		expect(fields.business).toBe('여명거리');
+		expect(fields.business).toBe('샘플거리');
 		expect(fields.size).toBe('XS');
 	});
 

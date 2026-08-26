@@ -49,7 +49,7 @@ func TestCompanyInfoPartialUpdateAndLanguageFallback(t *testing.T) {
 	var koView companyInfoView
 	decodeCompanyResponse(t, performCompanyRequest(t, service.updateCompanyInfo, http.MethodPut, "/admin/api/company-info", map[string]any{
 		"language":       "ko",
-		"name":           "주식회사 여명거리",
+		"name":           "주식회사 샘플거리",
 		"representative": "김예시",
 		"address":        "서울특별시 강남구",
 		"bankAccount":    "신한은행 110-123",
@@ -74,13 +74,13 @@ func TestCompanyInfoPartialUpdateAndLanguageFallback(t *testing.T) {
 		"language": "ko",
 		"address":  "부산광역시 해운대구",
 	}), &partialView)
-	if partialView.Name != "주식회사 여명거리" || partialView.Address != "부산광역시 해운대구" {
+	if partialView.Name != "주식회사 샘플거리" || partialView.Address != "부산광역시 해운대구" {
 		t.Fatalf("partial update broke other fields: name=%q address=%q", partialView.Name, partialView.Address)
 	}
 
 	var enView companyInfoView
 	decodeCompanyResponse(t, performCompanyRequest(t, service.writeCompanyInfo, http.MethodGet, "/admin/api/company-info?language=en", nil), &enView)
-	if enView.Name != "주식회사 여명거리" {
+	if enView.Name != "주식회사 샘플거리" {
 		t.Fatalf("en fallback name = %q", enView.Name)
 	}
 	missing := strings.Join(enView.MissingFields, ",")

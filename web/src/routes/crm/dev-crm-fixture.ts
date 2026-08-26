@@ -1,6 +1,6 @@
 import type { CRMOrganization, CRMActivity, CRMContact, CRMIntakeDraft, CRMNextAction, CRMOpportunity, CRMOpportunityStage, CRMReportSummary } from './crm-types';
 
-const defaultCRMBusiness = '여명거리';
+const defaultCRMBusiness = '샘플거리';
 
 export const crmOrganizations: CRMOrganization[] = [
 	{
