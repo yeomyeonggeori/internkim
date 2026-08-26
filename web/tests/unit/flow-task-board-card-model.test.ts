@@ -8,7 +8,7 @@ describe('flow task board card model', () => {
 			ownerName: '이샘플',
 			participantIDs: ['member-1', 'member-2', 'member-3'],
 			participantNames: ['이샘플', '박예시', '최견본'],
-			business: '여명거리',
+			business: '샘플거리',
 			type: '기능',
 			startDate: '2026-06-01',
 			endDate: '2026-06-03'
@@ -17,7 +17,7 @@ describe('flow task board card model', () => {
 		expect(display).toEqual({
 			participantNames: ['이샘플', '박예시', '최견본'],
 			participantIDs: ['member-1', 'member-2', 'member-3'],
-			businessLabel: '여명거리',
+			businessLabel: '샘플거리',
 			metadataLabels: ['기능']
 		});
 	});
@@ -62,7 +62,7 @@ function flowTask(overrides: Partial<FlowTask>): FlowTask {
 		ownerName: '김철수',
 		participantIDs: ['member-1'],
 		participantNames: ['김철수'],
-		business: '여명거리',
+		business: '샘플거리',
 		type: '기능',
 		content: '업무',
 		size: 'M',

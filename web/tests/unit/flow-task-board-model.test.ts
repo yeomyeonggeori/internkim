@@ -132,7 +132,7 @@ function flowTask(overrides: Partial<FlowTask>): FlowTask {
 		ownerName: '김철수',
 		participantIDs: ['member-1'],
 		participantNames: ['김철수'],
-		business: '여명거리',
+		business: '샘플거리',
 		type: '기능',
 		content: '업무',
 		size: 'M',

@@ -5,7 +5,7 @@ type Row = { id: string; name: string; profile_image: string | null };
 
 const uploaded: string[] = [];
 const removed: string[][] = [];
-let company: Row = { id: 'company-1', name: '여명거리', profile_image: null };
+let company: Row = { id: 'company-1', name: '샘플거리', profile_image: null };
 let updateAnswer: { data: unknown[]; error: null } = { data: [{ id: 'company-1' }], error: null };
 
 const storage = {
