@@ -99,7 +99,7 @@ func TestCalendarEventAddResolvesPeopleHintsToTheNamedPeople(t *testing.T) {
 				}
 				switch requestBody["hint"] {
 				case "staff@example.com":
-					return calendarToolJSONResponse(`{"status":"resolved","recipient":{"personID":"person-staff","displayName":"김여명","emails":["staff@example.com"],"externalUserID":"user-staff","username":"yeomyeong"}}`), nil
+					return calendarToolJSONResponse(`{"status":"resolved","recipient":{"personID":"person-staff","displayName":"김예시","emails":["staff@example.com"],"externalUserID":"user-staff","username":"kimyesi"}}`), nil
 				case "테스트":
 					return calendarToolJSONResponse(`{"status":"resolved","recipient":{"personID":"person-rain","displayName":"김테스트","emails":["rain@example.com"],"externalUserID":"user-rain","username":"rain"}}`), nil
 				default:
@@ -122,7 +122,7 @@ func TestCalendarEventAddResolvesPeopleHintsToTheNamedPeople(t *testing.T) {
 		Input:    []byte(`{"title":"경산 일정","startsAt":"2026-05-08T05:00:00+09:00","endsAt":"2026-05-08T06:00:00+09:00","participantPersonHints":["테스트"]}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:    "staff@example.com",
-			RequesterName:     "김여명",
+			RequesterName:     "김예시",
 			RequesterPersonID: "person-staff",
 		},
 	})
