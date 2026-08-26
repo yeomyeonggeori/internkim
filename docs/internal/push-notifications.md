@@ -69,11 +69,17 @@ answer.
 
 ## What the platforms do differently
 
-| | iOS | Android | Desktop Chrome |
+| | Safari, any Apple device | Android Chrome | Desktop Chrome |
 |---|---|---|---|
-| Needs installing first | yes, to the home screen | no | no |
+| Needs installing first | on iOS, to the home screen | no | no |
 | Custom notification icon | ignored, the app icon is used | shown | shown |
 | Its own entry in system settings | yes | when installed as a WebAPK | no, it is Chrome's |
+| What the notification is labelled | the installed name | the installed name | Chrome, then the origin |
+
+The icon a notification carries is honoured by Blink and dropped by WebKit, so
+the same push shows a sender's face in Chrome and the application's own icon in
+Safari on the same machine. Apple's implementation has no way to set one, which
+is why the sender's name leads the body text.
 
 An Android device that only shows notifications when the app is opened has put
 Chrome to sleep; the push arrived and waited. Battery optimisation for Chrome
