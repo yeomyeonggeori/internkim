@@ -313,7 +313,7 @@ func (service Service) invokeMattermostChannelUpdate(ctx context.Context, reques
 			return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("channel_update", "mattermost_unavailable", errorValue)), nil
 		}
 	}
-	invitedUsers, failure, hasFailure := service.inviteMattermostChannelUsers(ctx, channel.ID, mattermostToolInviteeHints(input))
+	invitedUsers, failure, hasFailure := service.inviteMattermostChannelUsers(ctx, channel.ID, mattermostToolInviteeHints(input), request.Context.ResponseLanguage)
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
@@ -667,7 +667,7 @@ func (service Service) resolveMattermostDirectMessageSearchHandle(ctx context.Co
 	if strings.TrimSpace(input.PersonHint) == "" && isMattermostDirectConversation(toolContext) {
 		return service.resolveCurrentMattermostChannelHandle(toolContext, input)
 	}
-	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, input.PersonHint)
+	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, input.PersonHint, toolContext.ResponseLanguage)
 	if hasFailure {
 		return platformHandle{}, nil, failureFromPlatformDMFailure(failure), true
 	}
@@ -1100,13 +1100,13 @@ func isProtectedMattermostToolPost(post mattermostToolPost) bool {
 	return false
 }
 
-func (service Service) inviteMattermostChannelUsers(ctx context.Context, channelID string, inviteeHints []string) ([]map[string]string, mattermostToolFailure, bool) {
+func (service Service) inviteMattermostChannelUsers(ctx context.Context, channelID string, inviteeHints []string, responseLanguage string) ([]map[string]string, mattermostToolFailure, bool) {
 	if len(inviteeHints) == 0 {
 		return []map[string]string{}, mattermostToolFailure{}, false
 	}
 	recipients := []platformDMRecipient{}
 	for _, inviteeHint := range inviteeHints {
-		recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, inviteeHint)
+		recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, inviteeHint, responseLanguage)
 		if hasFailure {
 			return nil, failureFromPlatformDMFailure(failure), true
 		}

@@ -1,0 +1,15 @@
+{
+	"comment": "How a recorded name reads. Two languages implement personName, so both read these cases and drift in either one fails.",
+	"cases": [
+		{ "recorded": "표본 김", "locale": "ko", "rendered": "김표본" },
+		{ "recorded": "견양 박", "locale": "ko", "rendered": "박견양" },
+		{ "recorded": "표본 김", "locale": "en", "rendered": "표본 김" },
+		{ "recorded": "John Michael Smith", "locale": "en", "rendered": "John Michael Smith" },
+		{ "recorded": "John Michael Smith", "locale": "ko", "rendered": "John Michael Smith" },
+		{ "recorded": "예시 가운데 박", "locale": "ko", "rendered": "박예시가운데" },
+		{ "recorded": "김인턴", "locale": "ko", "rendered": "김인턴" },
+		{ "recorded": "admin", "locale": "ko", "rendered": "admin" },
+		{ "recorded": "  ", "locale": "ko", "rendered": "" },
+		{ "recorded": " 표본  김 ", "locale": "ko", "rendered": "김표본" }
+	]
+}
