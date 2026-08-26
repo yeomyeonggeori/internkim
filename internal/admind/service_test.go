@@ -553,6 +553,9 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 			roleWrites = append(roleWrites, payload)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -641,6 +644,9 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 			blueclawInvited = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -714,6 +720,9 @@ func TestAdminSessionReportsFirstAdminBootstrapFailure(t *testing.T) {
 		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member1@example.com","role":"admin"}]}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -822,6 +831,9 @@ func TestAdminSessionReturnsFirstAdminTemporaryPasswordOnce(t *testing.T) {
 		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "member1@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -916,6 +928,9 @@ func TestAdminSessionResetsExistingFirstAdminMattermostPassword(t *testing.T) {
 		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "member1@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -1003,6 +1018,9 @@ func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing
 		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "member1@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -1107,6 +1125,9 @@ func TestAdminUsersGetEnsuresBotDirectChannelsForInvitedUsers(t *testing.T) {
 			assertBotDirectChannelShown(t, request, "user-1", "bot-1")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -1233,6 +1254,9 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 			blueclawInvited = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -1336,6 +1360,9 @@ func TestAdminUserPasswordResetDeletesDMHistoryBeforeReturningPassword(t *testin
 			passwordReset = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -1445,6 +1472,9 @@ func TestAdminInvitePreservesCurrentAdminRole(t *testing.T) {
 		case isBlueclawInviteRequest(t, request, "admin@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -1526,6 +1556,9 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 		case isBlueclawPolicyReload(request):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -1598,6 +1631,9 @@ func TestAdminRemoveSkipsProtectedMattermostUserDeactivation(t *testing.T) {
 			pagesDeleteCalled = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -2604,6 +2640,9 @@ func TestFlowMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
 		case isMattermostFlowSetupRequest(request):
 			return mattermostExistingFlowSetupResponse(t, request), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -2755,6 +2794,9 @@ func newFlowNotificationTestService(t *testing.T) (*Service, *flowNotificationRe
 			requests.deletedPostIDs = append(requests.deletedPostIDs, "flow-post-1")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -2866,6 +2908,9 @@ func newFlowAuthorizationTestService(t *testing.T) *Service {
 		}
 		if request.URL.Path == "/api/agent/key" {
 			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
@@ -3617,6 +3662,9 @@ func TestMattermostConnectCommandCreatesEphemeralOwnerPairing(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1":
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"Alice@Example.com","username":"alice","nickname":"Alice"}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -3687,6 +3735,9 @@ func TestMattermostStopCommandCallsBlueclawTaskCancel(t *testing.T) {
 			}
 			return jsonResponse(http.StatusOK, `{"cancelledTaskRunCount":1,"scheduleTouched":false}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -3758,6 +3809,9 @@ func TestMattermostConnectCommandProvisioningCreatesCommandToken(t *testing.T) {
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if isMattermostConnectCommandSetupRequest(request) {
 			return mattermostConnectCommandSetupResponse(t, request), nil
+		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
@@ -3890,6 +3944,9 @@ func TestMattermostConnectCommandProvisioningRecreatesCommandWithoutToken(t *tes
 			trigger := assertMattermostConnectCommandPayload(t, request)
 			return jsonResponse(http.StatusCreated, `{"id":"`+trigger+`-command","token":"new-`+trigger+`-token","team_id":"team-1","trigger":"`+trigger+`"}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -5341,6 +5398,9 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 		case isMattermostConnectCommandSetupRequest(request):
 			return mattermostConnectCommandSetupResponse(t, request), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

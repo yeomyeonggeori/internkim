@@ -28,6 +28,9 @@ func TestMemoryAPIUsesMattermostSessionUserGraph(t *testing.T) {
 			}
 			return jsonResponse(http.StatusOK, `{"nodes":[],"edges":[],"facts":[],"episodes":[],"namespaces":[]}`, nil), nil
 		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
@@ -81,6 +84,9 @@ func TestMemoryAPIUsesMattermostSessionUserSchedules(t *testing.T) {
 				t.Fatalf("pageSize = %q", request.URL.Query().Get("pageSize"))
 			}
 			return jsonResponse(http.StatusOK, `{"schedules":[{"taskScheduleID":"schedule-1","creatorPersonID":"user:person-1","executionMode":"agent","kind":"cron","cronExpression":"0 9 * * *","nextRunAt":"2026-06-09T00:00:00Z","createdAt":"2026-06-08T00:00:00Z","updatedAt":"2026-06-08T00:00:00Z","deliveryChannelID":"channel-1","promptPreview":"팀 일정 알려주기"}],"count":1,"totalCount":1,"page":3,"pageSize":25}`, nil), nil
+		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
@@ -175,6 +181,9 @@ func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 			}
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
@@ -219,6 +228,9 @@ func TestMemoryAPIDeleteScheduleInjectsResolvedPersonID(t *testing.T) {
 				t.Fatalf("creatorPersonID = %q", payload.CreatorPersonID)
 			}
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
@@ -271,6 +283,9 @@ func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 			}
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
@@ -313,6 +328,9 @@ func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
 			}
 			return jsonResponse(http.StatusOK, `{"updated":true}`, nil), nil
 		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
@@ -344,6 +362,9 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 		}
 		if request.URL.Path == "/admin/api/schedule" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `private backend detail`, nil), nil
+		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
@@ -384,6 +405,9 @@ func TestMemoryAPIGraphHidesUpstreamFailureDetails(t *testing.T) {
 		if request.URL.Path == "/admin/api/memory/graph" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `Traceback /workspace/.blueclaw/private.py`, nil), nil
 		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
@@ -418,6 +442,9 @@ func TestMemoryAPIGraphHidesIdentityFailureDetails(t *testing.T) {
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `internal identity path /root/internkim/private.go`, nil), nil
+		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil

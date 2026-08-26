@@ -28,6 +28,9 @@ func TestAdminSessionReportsOperationsAdminRoleDespiteOrganizationCache(t *testi
 	})
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"email":"operator@example.com","role":"operationsAdmin"}]}`, func(request *http.Request) (*http.Response, error) {
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
@@ -64,6 +67,9 @@ func TestAdminSessionPreservesClaimedAdminRole(t *testing.T) {
 	})
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[]}`, func(request *http.Request) (*http.Response, error) {
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
@@ -265,6 +271,9 @@ func newOperationsAdminAuthorizationTestService(t *testing.T) *Service {
 	})
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"users":["operator@example.com","admin@example.com"],"records":[{"email":"operator@example.com","role":"operationsAdmin"},{"email":"admin@example.com","role":"admin"}]}`, func(request *http.Request) (*http.Response, error) {
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}

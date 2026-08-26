@@ -36,6 +36,9 @@ func TestOrganizationGroupUpdateReachesTheCompanyDirectory(t *testing.T) {
 		if isCompanyDirectoryRequest(request) {
 			return companyDirectoryResponse(t, request)
 		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}

@@ -56,6 +56,9 @@ func TestFlowMembersOnlyIncludeOrganizationChartPeople(t *testing.T) {
 				"circles":[{"circleID":"staff","displayName":"Staff"}]
 			}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

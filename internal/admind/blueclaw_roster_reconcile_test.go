@@ -121,6 +121,9 @@ func TestReconcileBlueclawRosterDeliversTheRosterFromTheHost(t *testing.T) {
 			policyReloaded = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -175,6 +178,9 @@ func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, settledPolicy, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

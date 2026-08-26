@@ -11,7 +11,7 @@ import (
 
 const companyDirectoryURLForTest = "https://app.example.test"
 
-func seatPeopleInACompanyDirectoryForTest(t *testing.T, service *Service) {
+func seatPeopleInACompanyDirectoryForTest(t testing.TB, service *Service) {
 	t.Helper()
 	service.centralPlaneOnce = sync.Once{}
 	service.centralPlaneClient = nil
@@ -29,7 +29,7 @@ func isCompanyDirectoryRequest(request *http.Request) bool {
 // The account directory moved from the fleet register to the company. A stub
 // that already says who works here in the register's shape can answer the
 // company's question from the same words, so a test states its people once.
-func withCompanyDirectoryForTest(t *testing.T, registerBody string, inner roundTripFunc) roundTripFunc {
+func withCompanyDirectoryForTest(t testing.TB, registerBody string, inner roundTripFunc) roundTripFunc {
 	t.Helper()
 	return func(request *http.Request) (*http.Response, error) {
 		switch {
@@ -47,7 +47,7 @@ func withCompanyDirectoryForTest(t *testing.T, registerBody string, inner roundT
 	}
 }
 
-func companyDirectoryAnswerForTest(t *testing.T, request *http.Request, registerBody string) *http.Response {
+func companyDirectoryAnswerForTest(t testing.TB, request *http.Request, registerBody string) *http.Response {
 	t.Helper()
 	if request.Method != http.MethodGet {
 		return jsonResponse(http.StatusOK, `{"member":`+memberJSONForTest(askedEmailForTest(t, request))+`}`, nil)
@@ -73,7 +73,7 @@ func companyDirectoryAnswerForTest(t *testing.T, request *http.Request, register
 	return jsonResponse(http.StatusOK, `{"member":null}`, nil)
 }
 
-func companyMembersOfRegisterBodyForTest(t *testing.T, registerBody string) []map[string]any {
+func companyMembersOfRegisterBodyForTest(t testing.TB, registerBody string) []map[string]any {
 	t.Helper()
 	members := []map[string]any{}
 	if strings.TrimSpace(registerBody) == "" {
@@ -110,7 +110,7 @@ func companyDirectoryMessengerForTest(record adminUserMutation) map[string]strin
 	return accounts
 }
 
-func askedEmailForTest(t *testing.T, request *http.Request) string {
+func askedEmailForTest(t testing.TB, request *http.Request) string {
 	t.Helper()
 	if request.Body == nil {
 		return strings.ToLower(strings.TrimSpace(request.URL.Query().Get("email")))
@@ -124,7 +124,7 @@ func askedEmailForTest(t *testing.T, request *http.Request) string {
 	return strings.ToLower(strings.TrimSpace(asked.Email))
 }
 
-func companyDirectoryResponse(t *testing.T, request *http.Request) (*http.Response, error) {
+func companyDirectoryResponse(t testing.TB, request *http.Request) (*http.Response, error) {
 	t.Helper()
 	email := strings.ToLower(strings.TrimSpace(request.URL.Query().Get("email")))
 	if request.Method == http.MethodPost {
@@ -148,4 +148,18 @@ func memberJSONForTest(email string) string {
 
 func memberIDForTest(email string) string {
 	return "member-" + strings.ReplaceAll(strings.Split(email, "@")[0], ".", "-")
+}
+
+// A stub that never seated anybody still has to answer the company's plumbing,
+// or a call it does not care about reads as an unexpected request.
+func companyPlumbingAnswerForTest(request *http.Request) (*http.Response, bool) {
+	switch {
+	case strings.HasSuffix(request.URL.Path, "/api/agent/key"):
+		return jsonResponse(http.StatusOK, `{"key":"test-agent-key"}`, nil), true
+	case strings.HasSuffix(request.URL.Path, "/api/agent/session"):
+		return jsonResponse(http.StatusNotFound, `{"error":"no session for that identity"}`, nil), true
+	case strings.HasSuffix(request.URL.Path, "/api/agent/member"):
+		return jsonResponse(http.StatusOK, `{"members":[]}`, nil), true
+	}
+	return nil, false
 }

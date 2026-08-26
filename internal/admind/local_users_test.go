@@ -57,6 +57,9 @@ func TestLocalListUsers(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -199,6 +202,9 @@ func TestLocalRemoveUser(t *testing.T) {
 			removedPerson = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -234,6 +240,9 @@ func TestLocalRemoveUserLastAdmin(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members":
 			return jsonResponse(http.StatusOK, `[{"user_id":"user-1","roles":"team_user team_admin"}]`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

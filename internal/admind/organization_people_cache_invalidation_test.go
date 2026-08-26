@@ -26,6 +26,9 @@ func TestOrganizationPeopleCacheInvalidatesCanonicalLocalUser(t *testing.T) {
 			checkedCanonicalMutation = true
 			return nil, errors.New("stop after canonical mutation check")
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -78,6 +81,9 @@ func TestOrganizationPeopleCacheInvalidatesCanonicalDeletedUser(t *testing.T) {
 			checkedCanonicalMutation = true
 			return nil, errors.New("stop after canonical deletion check")
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -121,6 +127,9 @@ func TestOrganizationPeopleCacheInvalidatesCanonicalBatchUsers(t *testing.T) {
 			listMutationActive = listSnapshot.IsDirty && listSnapshot.ActiveMutations == 1
 			return nil, errors.New("stop after batch mutation check")
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -213,6 +222,9 @@ func TestOrganizationPeopleCacheInvalidatesTheProxyUsersOwnIdentity(t *testing.T
 				case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/members":
 					return jsonResponse(http.StatusCreated, `{}`, nil), nil
 				default:
+					if response, handled := companyPlumbingAnswerForTest(request); handled {
+						return response, nil
+					}
 					t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 					return nil, nil
 				}
@@ -269,6 +281,9 @@ func TestOrganizationPeopleCacheInvalidatesSourceAndCanonicalProxyDeletedUser(t 
 			checkedMutationIdentities = true
 			return nil, errors.New("stop after proxy deletion check")
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

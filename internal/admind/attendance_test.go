@@ -139,6 +139,9 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 		case request.URL.Hostname() == "127.0.0.1" && request.URL.Port() != "8080":
 			return http.DefaultTransport.RoundTrip(request)
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

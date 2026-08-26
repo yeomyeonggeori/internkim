@@ -28,6 +28,9 @@ func configureCalendarTestUsers(t *testing.T, service *Service, recordsJSON stri
 		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
 			return jsonResponse(http.StatusOK, `{"records":`+recordsJSON+`}`, nil), nil
 		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}

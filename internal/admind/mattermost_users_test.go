@@ -64,6 +64,9 @@ func TestAllowedMattermostUsersFallsBackToActiveUsersWhenDeviceAuthIsAbsent(t *t
 	service := NewService(Configuration{MattermostBaseURL: "http://mattermost.local", FleetIDPath: t.TempDir() + "/missing-fleet-id", FleetSecretPath: t.TempDir() + "/missing-fleet-secret"})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() != "http://mattermost.local/api/v4/users?per_page=200" {
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		}
 		return jsonResponse(http.StatusOK, `[
@@ -119,6 +122,9 @@ func TestDefaultChannelMembershipsRunWithoutDeviceAuth(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=100":
 			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

@@ -46,6 +46,9 @@ func TestOrganizationProfileUpdateReachesTheCompanyDirectory(t *testing.T) {
 		if isCompanyDirectoryRequest(request) {
 			return companyDirectoryResponse(t, request)
 		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
@@ -73,6 +76,9 @@ func TestOrganizationProfileUpdateStaysLocalWithoutADirectory(t *testing.T) {
 		}
 		if isCompanyDirectoryRequest(request) {
 			t.Fatal("a device with no company directory must not call one")
+		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil

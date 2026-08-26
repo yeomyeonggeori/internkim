@@ -76,7 +76,7 @@ func TestAClockInReachesThePlaneAsTheMemberWhoClicked(t *testing.T) {
 	}
 }
 
-func writeAgentKeyForTest(t *testing.T, key string) string {
+func writeAgentKeyForTest(t testing.TB, key string) string {
 	t.Helper()
 	path := t.TempDir() + "/agent-key"
 	if errorValue := os.WriteFile(path, []byte(key), 0o600); errorValue != nil {

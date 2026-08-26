@@ -175,6 +175,9 @@ func TestAttendanceSummaryIncludesRegisteredMembersWithoutEvents(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy":
 			return jsonResponse(http.StatusOK, `{"people":[{"displayName":"김철수","emails":["kim@example.com"]}],"channels":[]}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -220,6 +223,9 @@ func TestAttendanceSummaryUsesFleetMembersWhenDeviceAuthConfigured(t *testing.T)
 			}
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"fleet@example.com","name":"Fleet User","mattermostUsername":"fleet","status":"active"}]}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -259,6 +265,9 @@ func TestAttendanceSummaryLeavesMembersEmptyWhenLocalUsersLookupFails(t *testing
 		case request.Method == http.MethodGet && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy":
 			return jsonResponse(http.StatusOK, `{"people":[{"displayName":"김철수","emails":["kim@example.com"]}],"channels":[]}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

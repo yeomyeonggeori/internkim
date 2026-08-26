@@ -202,6 +202,9 @@ func newAttendanceRoleAuthorizationTestService(t *testing.T) *Service {
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	const registerBody = `{"users":["member@example.com","operator@example.com","admin@example.com"],"records":[{"email":"member@example.com","role":"member"},{"email":"operator@example.com","role":"operationsAdmin"},{"email":"admin@example.com","role":"admin"}]}`
 	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, registerBody, func(request *http.Request) (*http.Response, error) {
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}

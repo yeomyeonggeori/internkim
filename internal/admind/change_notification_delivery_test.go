@@ -42,6 +42,9 @@ func newTwoRecipientFlowService(t *testing.T, failSecondRecipientOnce *bool, pos
 		case isMattermostFlowSetupRequest(request):
 			return mattermostExistingFlowSetupResponse(t, request), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

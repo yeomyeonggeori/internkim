@@ -21,6 +21,9 @@ func TestOrganizationReadBackTakesTheDirectorysProfile(t *testing.T) {
 				{"memberID":"member-one","email":"member@example.com","role":"member","status":"active","jobTitle":"Designer","phoneNumber":"+821012345678","hireDate":"2026-01-02","teamID":"team-product","teamName":"Product","supervisorEmail":"lead@example.com"}
 			]}`, nil), nil
 		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}

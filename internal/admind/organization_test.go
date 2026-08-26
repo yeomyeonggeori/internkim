@@ -43,6 +43,9 @@ func TestLocalListUsersMergesOrganizationMetadata(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -85,6 +88,9 @@ func TestLocalListUsersUsesEmptyOrganizationGroupsOverBlueclawGroups(t *testing.
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyDocumentWithOrgGroups(), nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -111,6 +117,9 @@ func TestLocalUsersResponseBodyFallsBackWhenOrganizationMetadataFails(t *testing
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy" {
 			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
+		}
+		if response, handled := companyPlumbingAnswerForTest(request); handled {
+			return response, nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
@@ -150,6 +159,9 @@ func TestLocalListUsersStartsWithoutLegacyBlueclawGroups(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyDocumentWithOrgGroups(), nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

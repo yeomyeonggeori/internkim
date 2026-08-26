@@ -17,6 +17,9 @@ func TestEnsureMattermostChannelMembershipConfirmsExistingMembershipAfterBadRequ
 		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/channels/channel-1/members/user-1":
 			return jsonResponse(http.StatusOK, `{"user_id":"user-1"}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -39,6 +42,9 @@ func TestEnsureMattermostChannelMembershipReturnsBadRequestWhenMembershipIsMissi
 		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/channels/channel-1/members/user-1":
 			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

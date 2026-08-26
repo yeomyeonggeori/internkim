@@ -25,6 +25,9 @@ func TestAdminUserProxyGetMergesOrganizationMetadata(t *testing.T) {
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -86,6 +89,9 @@ func TestAdminUsersCachePreservesIncludePolicyScope(t *testing.T) {
 				case isBlueclawPolicyGet(request):
 					return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
 				default:
+					if response, handled := companyPlumbingAnswerForTest(request); handled {
+						return response, nil
+					}
 					t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 					return nil, nil
 				}
@@ -175,6 +181,9 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -234,6 +243,9 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/members" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
@@ -273,6 +285,9 @@ func TestOrganizationUserMutationCleanupFailurePreservesSuccessProxy(t *testing.
 		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}

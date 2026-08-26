@@ -246,6 +246,9 @@ func newOrganizationCleanupFailureLocalDeleteClient(t *testing.T) *http.Client {
 		case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/reload":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
+			if response, handled := companyPlumbingAnswerForTest(request); handled {
+				return response, nil
+			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
