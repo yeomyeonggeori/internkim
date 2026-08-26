@@ -270,3 +270,11 @@ func (service *Service) circleRoomNames(ctx context.Context) ([]string, error) {
 	}
 	return names, nil
 }
+
+func (service *Service) bootstrapPubkeyOrEmpty() string {
+	pubkey, errorValue := service.bootstrapBuzzPubkey()
+	if errorValue != nil {
+		return ""
+	}
+	return pubkey
+}
