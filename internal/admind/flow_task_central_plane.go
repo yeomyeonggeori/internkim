@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -63,4 +64,33 @@ func centralTaskIdentityOf(task flowTask) string {
 		return identity
 	}
 	return ""
+}
+
+// A session is issued for a messenger account, which the account directory
+// carries and the organization chart drops. Only the request's context is read.
+func (service *Service) flowPeopleByID(ctx context.Context) map[string]adminUserMutation {
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost", nil)
+	if errorValue != nil {
+		return map[string]adminUserMutation{}
+	}
+	people := map[string]adminUserMutation{}
+	for _, record := range service.accountDirectoryUserRecords(request) {
+		people[flowMemberIdentifier(record)] = record
+	}
+	return people
+}
+
+// The people a task names are device identifiers; the central plane knows
+// addresses. Anyone the org chart does not carry is left out, and task_save
+// decides whether the rest may be there.
+func participantAddresses(task flowTask, people map[string]adminUserMutation) []string {
+	addresses := []string{}
+	for _, participantID := range task.ParticipantIDs {
+		person, known := people[participantID]
+		if !known || strings.TrimSpace(person.Email) == "" {
+			continue
+		}
+		addresses = append(addresses, person.Email)
+	}
+	return addresses
 }

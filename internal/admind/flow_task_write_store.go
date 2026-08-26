@@ -128,7 +128,7 @@ func writeFlowTaskInTransaction(ctx context.Context, transaction *sql.Tx, task f
 	if errorValue := enqueueFlowChannelProjection(ctx, transaction, task.ID); errorValue != nil {
 		return errorValue
 	}
-	return enqueueFlowCentralWrite(ctx, transaction, task.ID)
+	return nil
 }
 
 func writeFlowTaskRowInTransaction(ctx context.Context, transaction *sql.Tx, task flowTask) error {
@@ -257,10 +257,6 @@ func (service *Service) deleteFlowTaskByID(ctx context.Context, taskID string) e
 		return errorValue
 	}
 	if _, errorValue = transaction.ExecContext(ctx, "DELETE FROM flow_channel_outbox WHERE task_id = ?", taskID); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if errorValue := enqueueFlowCentralDelete(ctx, transaction, taskID); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
 	}
