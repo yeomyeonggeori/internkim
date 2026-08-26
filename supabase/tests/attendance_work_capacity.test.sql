@@ -40,7 +40,7 @@ select hasnt_column(
 );
 
 select lives_ok(
-	$$select public.save_attendance_calendar(
+	$$select public.attendance_calendar_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		'[{"date":"2027-01-01","workMode":"fixed","workingDate":false}]'::jsonb
 	)$$,
@@ -60,7 +60,7 @@ select is(
 );
 
 select lives_ok(
-	$$select public.save_attendance_calendar(
+	$$select public.attendance_calendar_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		'[{"date":"2027-02-02","workMode":"autonomous","workingDate":true},{"date":"2027-02-01","workMode":"fixed","workingDate":false},{"date":"2027-02-01","workMode":"flexible","workingDate":true}]'::jsonb
 	)$$,
@@ -74,7 +74,7 @@ select is(
 );
 
 select lives_ok(
-	$$select public.save_attendance_work_policy(
+	$$select public.attendance_policy_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		'{"workMode":"fixed","workingWeekdays":[1,2,3,4,5],"dailyTargetMinutes":480,"weeklyTargetMinutes":2400,"referenceStartTime":"09:00","fixedStartTime":"09:00","fixedEndTime":"18:00","coreTimeEnabled":false,"coreStartTime":"","coreEndTime":"","breakPeriods":[{"startTime":"12:00","endTime":"13:00"}],"nightStartTime":"22:00","nightEndTime":"06:00"}'::jsonb
 	)$$,
@@ -88,7 +88,7 @@ select is(
 );
 
 select throws_ok(
-	$$select public.save_attendance_work_policy(
+	$$select public.attendance_policy_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		'[]'::jsonb
 	)$$,
@@ -98,7 +98,7 @@ select throws_ok(
 );
 
 select throws_ok(
-	$$select public.save_attendance_work_policy(
+	$$select public.attendance_policy_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		'{"workMode":"fixed"}'::jsonb
 	)$$,
@@ -108,7 +108,7 @@ select throws_ok(
 );
 
 select throws_ok(
-	$$select public.save_attendance_work_policy(
+	$$select public.attendance_policy_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		'{"workMode":"fixed","workingWeekdays":[1,2,3,4,5],"dailyTargetMinutes":480,"weeklyTargetMinutes":2400,"referenceStartTime":"09:00","fixedStartTime":"09:00","fixedEndTime":"18:00","coreTimeEnabled":false,"coreStartTime":"","coreEndTime":"","breakPeriods":[],"nightStartTime":"99:99","nightEndTime":"06:00"}'::jsonb
 	)$$,
@@ -118,7 +118,7 @@ select throws_ok(
 );
 
 select throws_ok(
-	$$select public.save_attendance_work_policy(
+	$$select public.attendance_policy_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		(select rules -> 'attendanceWorkPolicy' || '{"workingWeekdays":[0]}'::jsonb
 		 from public.company where id = '10000000-0000-0000-0000-000000000000')
@@ -129,7 +129,7 @@ select throws_ok(
 );
 
 select throws_ok(
-	$$select public.save_attendance_work_policy(
+	$$select public.attendance_policy_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		(select rules -> 'attendanceWorkPolicy' || '{"dailyTargetMinutes":480.5}'::jsonb
 		 from public.company where id = '10000000-0000-0000-0000-000000000000')
@@ -140,7 +140,7 @@ select throws_ok(
 );
 
 select throws_ok(
-	$$select public.save_attendance_work_policy(
+	$$select public.attendance_policy_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		(select rules -> 'attendanceWorkPolicy' || '{"dailyTargetMinutes":-1,"weeklyTargetMinutes":-5}'::jsonb
 		 from public.company where id = '10000000-0000-0000-0000-000000000000')
@@ -151,7 +151,7 @@ select throws_ok(
 );
 
 select throws_ok(
-	$$select public.save_attendance_work_policy(
+	$$select public.attendance_policy_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		(select rules -> 'attendanceWorkPolicy' || '{"weeklyTargetMinutes":2300}'::jsonb
 		 from public.company where id = '10000000-0000-0000-0000-000000000000')
@@ -162,7 +162,7 @@ select throws_ok(
 );
 
 select throws_ok(
-	$$select public.save_attendance_work_policy(
+	$$select public.attendance_policy_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		(select rules -> 'attendanceWorkPolicy' ||
 		 '{"breakPeriods":[{"startTime":"12:00","endTime":"13:00"},{"startTime":"12:30","endTime":"13:30"}]}'::jsonb
@@ -174,7 +174,7 @@ select throws_ok(
 );
 
 select throws_ok(
-	$$select public.save_attendance_work_policy(
+	$$select public.attendance_policy_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		(select rules -> 'attendanceWorkPolicy' ||
 		 '{"coreTimeEnabled":true,"coreStartTime":"11:00","coreEndTime":"16:00"}'::jsonb
@@ -186,7 +186,7 @@ select throws_ok(
 );
 
 select throws_ok(
-	$$select public.save_attendance_reconciliation_settings(
+	$$select public.attendance_reconciliation_save(
 		'10000000-0000-0000-0000-000000000000'::uuid,
 		(select rules -> 'attendanceWorkPolicy' || '{"nightStartTime":"21:00"}'::jsonb
 		 from public.company where id = '10000000-0000-0000-0000-000000000000'),

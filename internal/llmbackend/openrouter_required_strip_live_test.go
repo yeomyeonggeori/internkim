@@ -61,13 +61,13 @@ func experimentVariants() []experimentVariant {
 
 func experimentScenarios(t *testing.T) []experimentScenario {
 	t.Helper()
-	calendarAddDescriptor := findLiveDescriptor(t, capabilities.CalendarDescriptors(), "calendar_add")
+	calendarAddDescriptor := findLiveDescriptor(t, capabilities.CalendarDescriptors(), "event_add")
 	taskAddDescriptor := findLiveDescriptor(t, capabilities.FlowDescriptors(), "task_add")
 	return []experimentScenario{
 		{
 			Name:                  "calendar-full",
 			Prompt:                "내일 오후 3시부터 4시까지 팀 회의 일정 잡아줘. 오늘은 2026-07-02 수요일, 시간대 Asia/Seoul.",
-			ExpectedTool:          "calendar_add",
+			ExpectedTool:          "event_add",
 			PrimaryDescriptor:     calendarAddDescriptor,
 			RequiredFieldsToCheck: experimentDescriptorRequiredFields(t, calendarAddDescriptor),
 		},
@@ -81,7 +81,7 @@ func experimentScenarios(t *testing.T) []experimentScenario {
 		{
 			Name:                  "underspecified",
 			Prompt:                "회의 잡아줘.",
-			ExpectedTool:          "calendar_add",
+			ExpectedTool:          "event_add",
 			PrimaryDescriptor:     calendarAddDescriptor,
 			RequiredFieldsToCheck: experimentDescriptorRequiredFields(t, calendarAddDescriptor),
 			IsUnderspecified:      true,

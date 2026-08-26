@@ -187,7 +187,7 @@ func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	calendarContent := string(calendarDocument)
-	for _, expectedText := range []string{"task_add", "task_update", "calendar_list", "`eventHint`", "Decide by the user's intent", "deadline-driven deliverable", "Do not mark calendar events with `[완료]`"} {
+	for _, expectedText := range []string{"task_add", "task_update", "event_list", "`eventHint`", "Decide by the user's intent", "deadline-driven deliverable", "Do not mark calendar events with `[완료]`"} {
 		if !strings.Contains(calendarContent, expectedText) {
 			t.Fatalf("calendar skill must document mixed calendar/work routing %q", expectedText)
 		}
@@ -198,7 +198,7 @@ func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	workContent := string(workDocument)
-	for _, expectedText := range []string{"task_list", "task_update", "calendar_add", "Decide by intent", "do not call the product `Flow`"} {
+	for _, expectedText := range []string{"task_list", "task_update", "event_add", "Decide by intent", "do not call the product `Flow`"} {
 		if !strings.Contains(workContent, expectedText) {
 			t.Fatalf("work skill must document localized semantic routing %q", expectedText)
 		}

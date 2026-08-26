@@ -574,7 +574,7 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 		"message_delete",
 		"channel_update",
 		"task_delete",
-		"calendar_delete",
+		"event_delete",
 		"mail_connection_start",
 		"mail_message_send",
 		"site_unserve",

@@ -23,7 +23,7 @@ type capabilityToolTargetRoute struct {
 }
 
 var capabilityToolTargetRoutes = []capabilityToolTargetRoute{
-	{ToolName: "calendar_delete", Resolver: Service.resolveCalendarEventDeleteTarget},
+	{ToolName: "event_delete", Resolver: Service.resolveCalendarEventDeleteTarget},
 	{ToolName: "task_delete", Resolver: Service.resolveFlowTaskDeleteTarget},
 }
 
@@ -69,7 +69,7 @@ func (service Service) resolveCalendarEventDeleteTarget(ctx context.Context, req
 		InputField: "eventHint",
 		ID:         event.EventID,
 		Title:      event.Title,
-		StartsAt:   event.StartISO,
+		StartsAt:   event.StartsAt,
 	}), nil
 }
 

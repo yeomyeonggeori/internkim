@@ -14,15 +14,18 @@ import (
 // it lives in the same table and comes back with the people on it as addresses,
 // which is what a device can turn into its own identifiers.
 type Event struct {
-	CentralID        string
-	Title            string
-	Note             string
-	Location         string
-	StartsAt         string
-	EndsAt           string
-	IsWholeDay       bool
-	UpdatedAt        string
-	ParticipantMails []string
+	CentralID  string
+	Title      string
+	Note       string
+	Location   string
+	StartsAt   string
+	EndsAt     string
+	IsWholeDay bool
+	// Minutes before the start that attendees are notified. Zero is no reminder.
+	NotifyMinutesBefore int
+	Status              string
+	UpdatedAt           string
+	ParticipantMails    []string
 	// ExpectedUpdatedAt is the version the writer read. The company refuses a
 	// write whose version is already gone, so two people holding the same event
 	// open no longer both win.
@@ -33,7 +36,7 @@ type Event struct {
 // gone, and PostgREST carries that code through in the body it answers with.
 const serializationFailureCode = "40001"
 
-const eventSelection = "id,title,note,location,starts_at,ends_at,is_whole_day,updated_at,task_participant(member(email))"
+const eventSelection = "id,title,note,location,starts_at,ends_at,is_whole_day,notify_minutes_before,status,updated_at,task_participant(member(email))"
 
 // EventsBetween answers the company's events that overlap the window, earliest
 // first. An event that started before it and has not ended overlaps it, so the
@@ -47,6 +50,9 @@ func (client *Client) EventsBetween(ctx context.Context, platform string, extern
 	query.Set("select", eventSelection)
 	query.Set("order", "starts_at.asc")
 	query.Set("is_event", "eq.true")
+	// An event somebody has been asked to attend is still on the calendar; one
+	// that was turned down is not.
+	query.Set("status", "neq.rejected")
 	if strings.TrimSpace(endISO) != "" {
 		query.Set("starts_at", "lt."+endISO)
 	}
@@ -92,15 +98,17 @@ func (client *Client) eventsMatching(ctx context.Context, session memberSession,
 	}
 
 	var rows []struct {
-		ID           string `json:"id"`
-		Title        string `json:"title"`
-		Note         string `json:"note"`
-		Location     any    `json:"location"`
-		StartsAt     string `json:"starts_at"`
-		EndsAt       string `json:"ends_at"`
-		IsWholeDay   bool   `json:"is_whole_day"`
-		UpdatedAt    string `json:"updated_at"`
-		Participants []struct {
+		ID                  string `json:"id"`
+		Title               string `json:"title"`
+		Note                string `json:"note"`
+		Location            any    `json:"location"`
+		StartsAt            string `json:"starts_at"`
+		EndsAt              string `json:"ends_at"`
+		IsWholeDay          bool   `json:"is_whole_day"`
+		NotifyMinutesBefore *int   `json:"notify_minutes_before"`
+		Status              string `json:"status"`
+		UpdatedAt           string `json:"updated_at"`
+		Participants        []struct {
 			Member struct {
 				Email string `json:"email"`
 			} `json:"member"`
@@ -113,14 +121,16 @@ func (client *Client) eventsMatching(ctx context.Context, session memberSession,
 	events := make([]Event, 0, len(rows))
 	for _, row := range rows {
 		event := Event{
-			CentralID:  row.ID,
-			Title:      row.Title,
-			Note:       row.Note,
-			Location:   locationName(row.Location),
-			StartsAt:   row.StartsAt,
-			EndsAt:     row.EndsAt,
-			IsWholeDay: row.IsWholeDay,
-			UpdatedAt:  row.UpdatedAt,
+			CentralID:           row.ID,
+			Title:               row.Title,
+			Note:                row.Note,
+			Location:            locationName(row.Location),
+			StartsAt:            row.StartsAt,
+			EndsAt:              row.EndsAt,
+			IsWholeDay:          row.IsWholeDay,
+			NotifyMinutesBefore: minutesOf(row.NotifyMinutesBefore),
+			Status:              row.Status,
+			UpdatedAt:           row.UpdatedAt,
 		}
 		for _, participant := range row.Participants {
 			if email := strings.TrimSpace(participant.Member.Email); email != "" {
@@ -162,19 +172,21 @@ func (client *Client) SaveEvent(ctx context.Context, platform string, externalID
 		return "", errorValue
 	}
 	arguments := map[string]any{
-		"target_task_id":             nullableString(event.CentralID),
-		"target_title":               event.Title,
-		"target_note":                nullableString(event.Note),
-		"target_location":            nullableLocation(event.Location),
-		"target_starts_at":           event.StartsAt,
-		"target_ends_at":             event.EndsAt,
-		"target_is_whole_day":        event.IsWholeDay,
-		"target_size":                "M",
-		"target_participant_ids":     participants,
-		"target_expected_updated_at": nullableString(event.ExpectedUpdatedAt),
+		"target_task_id":               nullableString(event.CentralID),
+		"target_title":                 event.Title,
+		"target_note":                  nullableString(event.Note),
+		"target_location":              nullableLocation(event.Location),
+		"target_starts_at":             event.StartsAt,
+		"target_ends_at":               event.EndsAt,
+		"target_is_whole_day":          event.IsWholeDay,
+		"target_participant_ids":       participants,
+		"target_expected_updated_at":   nullableString(event.ExpectedUpdatedAt),
+		"target_notify_minutes_before": nullableMinutes(event.NotifyMinutesBefore),
+		"target_status":                nullableString(event.Status),
+		"target_is_event":              true,
 	}
 	var savedID string
-	if errorValue := client.callAsMember(ctx, session, "save_calendar_event", arguments, &savedID); errorValue != nil {
+	if errorValue := client.callAsMember(ctx, session, "task_save", arguments, &savedID); errorValue != nil {
 		if strings.Contains(errorValue.Error(), serializationFailureCode) {
 			return "", ErrEventVersionGone
 		}
@@ -217,4 +229,18 @@ func nullableLocation(location string) any {
 		return nil
 	}
 	return map[string]any{"name": trimmed}
+}
+
+func nullableMinutes(minutes int) any {
+	if minutes <= 0 {
+		return nil
+	}
+	return minutes
+}
+
+func minutesOf(minutes *int) int {
+	if minutes == nil {
+		return 0
+	}
+	return *minutes
 }

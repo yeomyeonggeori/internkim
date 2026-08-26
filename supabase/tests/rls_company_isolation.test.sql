@@ -1055,7 +1055,7 @@ begin
 
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
-  perform public.claim_push_device('web-push', laptop, '{"auth": "k"}'::jsonb);
+  perform public.push_device_claim('web-push', laptop, '{"auth": "k"}'::jsonb);
   reset role;
 
   select count(*) into rows_for_laptop from public.push_device where address = laptop;
@@ -1078,7 +1078,7 @@ begin
 
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
-  perform public.release_push_device('web-push', phone);
+  perform public.push_device_release('web-push', phone);
   reset role;
 
   select count(*) into surviving from public.push_device where address = phone;
@@ -1096,7 +1096,7 @@ declare
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
-  perform public.set_my_notification_settings('{"message": false}'::jsonb);
+  perform public.notification_settings_set('{"message": false}'::jsonb);
   reset role;
 
   select notification_settings into chosen from public.member where id = mine;

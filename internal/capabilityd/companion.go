@@ -65,10 +65,10 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "message_update", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_delete", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "channel_update", Handler: Service.invokeMattermostTool},
-	{ToolName: "calendar_add", Handler: Service.invokeCalendarTool},
-	{ToolName: "calendar_list", Handler: Service.invokeCalendarTool},
-	{ToolName: "calendar_update", Handler: Service.invokeCalendarTool},
-	{ToolName: "calendar_delete", Handler: Service.invokeCalendarTool},
+	{ToolName: "event_add", Handler: Service.invokeCalendarTool},
+	{ToolName: "event_list", Handler: Service.invokeCalendarTool},
+	{ToolName: "event_update", Handler: Service.invokeCalendarTool},
+	{ToolName: "event_delete", Handler: Service.invokeCalendarTool},
 	{ToolName: "mail_message_list", Handler: Service.invokeMailTool},
 	{ToolName: "mail_message_search", Handler: Service.invokeMailTool},
 	{ToolName: "mail_message_read", Handler: Service.invokeMailTool},
@@ -96,7 +96,7 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "google_sheets_create", Handler: Service.invokeGoogleWorkspaceTool},
 	{ToolName: "google_gmail_send", Handler: Service.invokeGoogleWorkspaceTool},
 	{ToolName: "google_calendar_event", Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google_calendar_list", Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google_event_list", Handler: Service.invokeGoogleWorkspaceTool},
 	{ToolName: "google_drive_import_pptx", Handler: Service.invokeGoogleWorkspaceTool},
 }
 

@@ -51,7 +51,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
 	const converted = await convertedAmountOf(opportunity.data, company.data.currency_code);
 
-	const settled = await client.rpc('close_crm_opportunity', {
+	const settled = await client.rpc('crm_opportunity_close', {
 		target_opportunity_id: payload.opportunityID,
 		target_stage_id: payload.stage,
 		target_stage_position: payload.stagePosition,

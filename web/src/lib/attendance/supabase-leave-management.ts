@@ -88,7 +88,7 @@ export async function adjustSupabaseManagedLeave(input: LeaveManagementAdjustmen
 	const next = granted + input.amountMilliDays / 1000;
 	if (next < 0) throw new EmployeeLeaveAPIError('insufficientBalance', 409);
 
-	const saved = await supabase().rpc('set_member_leave_days', {
+	const saved = await supabase().rpc('member_leave_days_set', {
 		target_member: member.id,
 		granted_days: next
 	});

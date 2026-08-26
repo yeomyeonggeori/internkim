@@ -747,7 +747,7 @@ func validateMattermostScenarioEvents(stepIndex int, expected mattermostScenario
 }
 
 func validateMattermostScenarioCalendarMutationIDs(stepIndex int, expected mattermostScenarioStep, events []mattermostScenarioTaskEvent) error {
-	if !containsMattermostScenarioString(expected.ExpectedToolCalls, "calendar_list") {
+	if !containsMattermostScenarioString(expected.ExpectedToolCalls, "event_list") {
 		return nil
 	}
 	for eventIndex, event := range events {
@@ -760,14 +760,14 @@ func validateMattermostScenarioCalendarMutationIDs(stepIndex int, expected matte
 			return fmt.Errorf("Mattermost scenario step %d %s request has no eventHint", stepIndex, toolName)
 		}
 		if !listedMattermostScenarioCalendarEventHints(events[:eventIndex])[eventHint] {
-			return fmt.Errorf("Mattermost scenario step %d %s used eventHint %q before calendar_list returned it", stepIndex, toolName, eventHint)
+			return fmt.Errorf("Mattermost scenario step %d %s used eventHint %q before event_list returned it", stepIndex, toolName, eventHint)
 		}
 	}
 	return nil
 }
 
 func mattermostScenarioCalendarMutationName(eventName string) (string, bool) {
-	for _, toolName := range []string{"calendar_update", "calendar_delete"} {
+	for _, toolName := range []string{"event_update", "event_delete"} {
 		if eventName == "tool."+toolName+".requested" {
 			return toolName, true
 		}
@@ -798,7 +798,7 @@ func listedMattermostScenarioCalendarEventHints(events []mattermostScenarioTaskE
 }
 
 func mattermostScenarioCalendarListEventHints(event mattermostScenarioTaskEvent) []string {
-	if event.Name != "tool.calendar_list.result" {
+	if event.Name != "tool.event_list.result" {
 		return nil
 	}
 	var result struct {

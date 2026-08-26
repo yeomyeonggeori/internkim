@@ -11,7 +11,7 @@ Use the typed work capability operations for work items; descriptors define fiel
 ## Routing and workflow
 
 - Decide by intent, not by the noun used. Deliverables, deadlines, todos, requests, handoffs, and completion targets are work. Meetings, appointments, attendance blocks, locations, and time blocks are calendar events.
-- A deadline-driven deliverable uses `task_add` and, when a due time belongs on the calendar, `calendar_add` too. Completion uses `task_update`, not `calendar_update`.
+- A deadline-driven deliverable uses `task_add` and, when a due time belongs on the calendar, `event_add` too. Completion uses `task_update`, not `event_update`.
 - Add work directly only to the requester's own list. Work for another person is a `요청`; use `targetPersonHint` only when the person is explicit. Include the requester as a participant only when joint work is implied.
 - Title the work, not the sentence that asked for it: a short noun phrase, with no participant names and no conversational wording. Who took part belongs in the person fields. Add goal, size, status, start date, or end date only when supported. Select size by the established XS–XXL scale: XS is a tiny change, S small, M day-sized, L multi-day, XL complex, and XXL a milestone that must be split.
 - `task_update` and `task_delete` take a single `taskHint`: the exact task ID or the exact task title from a task_list result, resolved server-side to the canonical task. Use `task_list` first when neither is known precisely; if the hint does not uniquely resolve, the runtime fails with a candidates list — retry with the exact ID or title from it instead of guessing.

@@ -40,7 +40,7 @@ export async function startBeingReached(): Promise<Reachability> {
 			applicationServerKey: decodeBase64URL(vapidPublicKey())
 		}));
 
-	const { error } = await supabase().rpc('claim_push_device', {
+	const { error } = await supabase().rpc('push_device_claim', {
 		device_kind: webPush,
 		device_address: subscription.endpoint,
 		device_keys: {
@@ -57,7 +57,7 @@ export async function stopBeingReached(): Promise<Reachability> {
 	const subscription = await heldSubscription();
 	if (!subscription) return 'off';
 
-	const { error } = await supabase().rpc('release_push_device', {
+	const { error } = await supabase().rpc('push_device_release', {
 		device_kind: webPush,
 		device_address: subscription.endpoint
 	});

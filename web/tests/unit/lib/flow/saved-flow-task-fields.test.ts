@@ -69,15 +69,17 @@ describe('what the board writes back', () => {
 			target_starts_at: '2026-08-20T00:00:00.000Z',
 			target_ends_at: '2026-08-20T00:00:00.000Z',
 			target_write_dates: true,
-			target_requester_id: null,
+			target_is_event: false,
 			target_participant_ids: ['member-1', 'member-2'],
 			target_parent_task_id: null
 		});
 
+		// Who asked is the company's to stamp: it reads the status and fills
+		// requester_id itself, so the caller never sends one.
 		expect(
 			supabaseFlowTaskRPCArguments(taskWith({ id: '', status: '요청', requesterID: 'requester-1' }))
-				.target_requester_id
-		).toBe('requester-1');
+				.target_status
+		).toBe('requested');
 		expect(
 			supabaseFlowTaskRPCArguments(taskWith({ id: '', parentTaskID: 'parent-task' }))
 				.target_parent_task_id
