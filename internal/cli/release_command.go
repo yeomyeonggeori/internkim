@@ -972,6 +972,14 @@ func carryTheRestOfTheDevice(repositoryRootPath string, channel string, componen
 	})
 }
 
+func describeComponentDrift(name string, carried string, expected string) string {
+	carriedText, expectedText := shortRevision(carried), shortRevision(expected)
+	if carriedText == expectedText {
+		carriedText, expectedText = carried, expected
+	}
+	return fmt.Sprintf("%s (the device would keep %s, this tree builds %s)", name, carriedText, expectedText)
+}
+
 func carryComponentsForward(
 	rebuilt map[string]releaseset.Component,
 	published map[string]releaseset.Component,
@@ -991,8 +999,7 @@ func carryComponentsForward(
 			continue
 		}
 		if carried.Revision != expected {
-			stale = append(stale, fmt.Sprintf("%s (the device would keep %s, this tree builds %s)",
-				name, shortRevision(carried.Revision), shortRevision(expected)))
+			stale = append(stale, describeComponentDrift(name, carried.Revision, expected))
 			continue
 		}
 		rebuilt[name] = carried
