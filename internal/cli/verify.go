@@ -1904,7 +1904,7 @@ for old_tool in platform.dm.inspect platform.dm.send mattermost_post_delete matt
   fi
 done
 
-for forbidden_tool in file_read file_preview terminal_run; do
+for forbidden_tool in file_read file_preview shell; do
   if jq -e --arg forbidden_tool "$forbidden_tool" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name // "") | contains("tool." + $forbidden_tool + ".requested"))' "$task_detail_file" >/dev/null; then
     echo "message delete E2E leaked into unrelated tool: $forbidden_tool" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
@@ -2075,8 +2075,8 @@ wait_for_task_attachment_read() {
     if [ -n "$task_id" ]; then
       blueclaw_request "$label task detail" GET "http://127.0.0.1:8080/admin/api/run/detail?taskRunID=$task_id" > "$task_detail_file"
       if jq -e --arg title "$unique_title" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name == "tool.file_preview.result" or .name == "tool.file_read.result" or .name == "tool.document_read.result") and ((.body // "") | tostring | contains($title)))' "$task_detail_file" >/dev/null; then
-        if jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.terminal_run.requested")' "$task_detail_file" >/dev/null; then
-          echo "$label task used terminal_run instead of attachment read tools" >&2
+        if jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.shell.requested")' "$task_detail_file" >/dev/null; then
+          echo "$label task used shell instead of attachment read tools" >&2
           jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
           return 1
         fi

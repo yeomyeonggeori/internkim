@@ -67,7 +67,7 @@ Google Workspace는 편리한 publishing target이지만 기본 실행 경로가
 | `task.create`, `task.transition` | Blueclaw DB | 업무 투두 상태 관리 |
 | `attendance.clock` | Blueclaw DB | 출퇴근 기록 |
 | `artifact.ingest` | device, Companion | 파일 인식과 분석 |
-| `terminal_run` `mode=session_start` | device admin profile | 인터랙티브 터미널 |
+| `shell` `mode=session_start` | device admin profile | 인터랙티브 터미널 |
 | `image_generate` | remote or local model | 이미지 생성 |
 
 Blueclaw skill은 shell 명령 문자열을 직접 기억하기보다 이 capability 이름을 기준으로 요청해야 한다. `capabilityd`가 실제 provider를 선택하고, provider는 portable file generator, CalDAV, Apps Script, `gws-bot`, Companion, DB, remote model 중 하나가 된다.

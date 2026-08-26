@@ -1,7 +1,7 @@
 ---
 name: paperwork
 description: Create standardized company business documents on letterhead. Use for 견적서, 거래명세서, 청구서, 발주서, 품의서, 지출결의서, 회의록, 주간업무보고, 출장보고서, 오퍼레터, 근로계약서, 재직증명서, 경력증명서, 휴가신청서, 비밀유지계약서, NDA, 업무협약서, MOU, 용역계약서, 위임장, 서식, 공문, ERP 서류, quotation, invoice, purchase order, offer letter, employment contract, certificate requests. Do not use for free-form reports, memos, essays, or slide decks — use the docx or presentation skill for those.
-tool-references: file_read company_info_get ask_input company_info_set company_document_register file_write terminal_run file_deliver company_document_update company_document_list company_document_search
+tool-references: file_read company_info_get ask_input company_info_set company_document_register file_write shell file_deliver company_document_update company_document_list company_document_search
 ---
 
 
@@ -18,10 +18,10 @@ Read the requested language's spec first at `references/<ko|en>/<slug>.md`; the 
 ## Workflow
 
 1. Identify type and language, then read the matching spec even when a similar document exists in conversation.
-2. Call `company_info_get` for the language. If required `missingFields` or legal attributes are absent, ask once for all missing values with `ask_input`, save them through `company_info_set`, and copy optional logo or stamp images with one `terminal_run`.
+2. Call `company_info_get` for the language. If required `missingFields` or legal attributes are absent, ask once for all missing values with `ask_input`, save them through `company_info_set`, and copy optional logo or stamp images with one `shell`.
 3. Compare the spec's required fields with the request. Ask only for missing critical names, counterpart, dates, amounts, or terms; never invent them. Treat requester-provided facts as the source of truth and use the user's-language equivalent of “미기재” only for optional fields.
 4. Register with `company_document_register` before rendering, using the catalog slug and a concise summary. Put the returned document number in the content JSON.
-5. Write the spec-shaped content JSON, run the bundled renderer or template filler with `terminal_run`, then deliver the generated PDF or DOCX with `file_deliver`. The typed descriptors and spec define payload fields; do not reproduce their schema in this guide.
+5. Write the spec-shaped content JSON, run the bundled renderer or template filler with `shell`, then deliver the generated PDF or DOCX with `file_deliver`. The typed descriptors and spec define payload fields; do not reproduce their schema in this guide.
 6. Validate output and layout, especially table-heavy PDFs and contract density, then call `company_document_update` with the actual delivered path. If the registered storage directory is not writable, use the requester documents area and record that path.
 
 ## Renderer choices
