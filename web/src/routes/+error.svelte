@@ -5,6 +5,7 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import HouseIcon from '@lucide/svelte/icons/house';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
+	import { homePath } from '$lib/home-path';
 
 	const isKorean = $derived(currentLocale.value === 'ko');
 	const detail = $derived(`${page.status}${page.error?.message ? ` · ${page.error.message}` : ''}`);
@@ -30,7 +31,7 @@
 				<RefreshCwIcon />
 				{isKorean ? '다시 시도' : 'Retry'}
 			</Button>
-			<Button variant="outline" href="/flow/">
+			<Button variant="outline" href={homePath}>
 				<HouseIcon />
 				{isKorean ? '홈으로' : 'Home'}
 			</Button>
