@@ -114,7 +114,7 @@ export function centralStatusFromWord(status: string): CentralTaskStatus {
 	return centralStatus;
 }
 
-function centralStatusWord(status: string): string {
+export function centralStatusWord(status: string): string {
 	const word = centralStatusWordByStatus.get(status);
 	if (!word) throw new Error(`unsupported central task status: ${status}`);
 	return word;
