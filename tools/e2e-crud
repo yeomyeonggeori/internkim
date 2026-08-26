@@ -217,7 +217,7 @@ run_remote_approval_case() { # name prompt op timeout
 	case "$phase" in
 		terminal)
 			jq -cn --arg reason "deleted without approval question" --arg expectedOp "$op" \
-				'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0,recoveredErrorCount:0}' ;;
+				'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],shellCount:0,recoveredErrorCount:0}' ;;
 		approval_pending)
 			approval_png="$EVID/$name-approval.png"; rm -f "$approval_png"
 			screenshot "$name-approval" "$approval_png" 1 || rm -f "$approval_png"
@@ -225,7 +225,7 @@ run_remote_approval_case() { # name prompt op timeout
 			remote_command run-case-finish "$CH" "$TOK" "$task_run_id" "$root_post_id" "$root_post_created_at" "$op" "$timeout" ;;
 		*)
 			jq -cn --arg reason "no approval prompt observed before timeout" --arg expectedOp "$op" \
-				'{taskRunID:"",status:"not_started",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0,recoveredErrorCount:0}' ;;
+				'{taskRunID:"",status:"not_started",reason:$reason,steps:0,expectedOp:$expectedOp,expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],shellCount:0,recoveredErrorCount:0}' ;;
 	esac
 }
 
@@ -266,7 +266,7 @@ result_json_or_error() { # raw-result
 	fi
 	clipped_result="$(printf "%s" "$raw_result" | LC_ALL=C cut -c 1-400)"
 	jq -cn --arg reason "run-case returned non-JSON: $clipped_result" \
-		'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:"",expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],terminalRunCount:0,recoveredErrorCount:0}'
+		'{taskRunID:"",status:"error",reason:$reason,steps:0,expectedOp:"",expectedOpObserved:false,opOk:false,publicURL:"",botPostID:"",botMessage:"",fileIDs:[],downloadedFiles:[],shellCount:0,recoveredErrorCount:0}'
 }
 
 score_for() { # passed steps recovered_error_count -> score
