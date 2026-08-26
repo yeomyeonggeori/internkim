@@ -13,7 +13,7 @@ import (
 )
 
 const platformMessageBroadcastRecipientLimit = 50
-const platformMessageAttachmentLimit = 10
+const platformMessageAttachmentLimit = 5
 
 type platformMessageDeliveryTarget struct {
 	Type        string   `json:"type"`
@@ -716,21 +716,41 @@ func (service Service) resolvePlatformMessageSendTarget(ctx context.Context, too
 		if hasFailure {
 			return "", "", failure, true
 		}
-		if errorValue := service.ensureMattermostBotChannelMembership(ctx, channel.ID); errorValue != nil {
-			return "", "", mattermostToolFailureForError("channel_join", "bot_channel_join_failed", errorValue), true
-		}
-		isMember, errorValue := service.requesterMayAccessChannel(ctx, toolContext, channel.ID)
-		if errorValue != nil {
-			return "", "", mattermostToolFailureForError("membership_lookup", "mattermost_unavailable", errorValue), true
-		}
-		if !isMember {
-			return "", "", channelAccessDeniedFailure(firstNonEmpty(channel.DisplayName, channel.Name, channel.ID)), true
+		if failure, hasFailure := service.authorizeAndJoinPlatformMessageChannel(ctx, toolContext, channel); hasFailure {
+			return "", "", failure, true
 		}
 		return channel.ID, "", mattermostToolFailure{}, false
 	default:
 		failure := mattermostToolStaticFailure("invalid_target", "input_decode", "delivery target cannot be used for channel posting")
 		return "", "", failure, true
 	}
+}
+
+func (service Service) authorizeAndJoinPlatformMessageChannel(ctx context.Context, toolContext capabilities.ToolInvokeContext, channel mattermostToolChannel) (mattermostToolFailure, bool) {
+	isMember, errorValue := service.requesterMayAccessChannel(ctx, toolContext, channel.ID)
+	if errorValue != nil {
+		if !isHTTPStatusForbidden(errorValue) {
+			return mattermostToolFailureForError("membership_lookup", "mattermost_unavailable", errorValue), true
+		}
+		if failure, hasFailure := service.joinPlatformMessageChannel(ctx, channel.ID); hasFailure {
+			return failure, true
+		}
+		isMember, errorValue = service.requesterMayAccessChannel(ctx, toolContext, channel.ID)
+		if errorValue != nil {
+			return mattermostToolFailureForError("membership_lookup", "mattermost_unavailable", errorValue), true
+		}
+	}
+	if !isMember {
+		return channelAccessDeniedFailure(firstNonEmpty(channel.DisplayName, channel.Name, channel.ID)), true
+	}
+	return service.joinPlatformMessageChannel(ctx, channel.ID)
+}
+
+func (service Service) joinPlatformMessageChannel(ctx context.Context, channelID string) (mattermostToolFailure, bool) {
+	if errorValue := service.ensureMattermostBotChannelMembership(ctx, channelID); errorValue != nil {
+		return mattermostToolFailureForError("channel_join", "bot_channel_join_failed", errorValue), true
+	}
+	return mattermostToolFailure{}, false
 }
 
 func (service Service) createPlatformMessagePost(ctx context.Context, channelID string, rootID string, message string, pin bool, idempotencyKey string, fileIDs []string) (string, mattermostToolFailure, bool) {

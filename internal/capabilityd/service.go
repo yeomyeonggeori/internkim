@@ -1265,6 +1265,14 @@ func isHTTPStatusNotFound(errorValue error) bool {
 	return statusError.StatusCode == http.StatusNotFound
 }
 
+func isHTTPStatusForbidden(errorValue error) bool {
+	var statusError *httpStatusError
+	if !errors.As(errorValue, &statusError) {
+		return false
+	}
+	return statusError.StatusCode == http.StatusForbidden
+}
+
 func (service Service) authenticatedJSONRequest(ctx context.Context, method string, requestURL string, token string, body any, responseValue any) error {
 	var reader io.Reader
 	if body != nil {

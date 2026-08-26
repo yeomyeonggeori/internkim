@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -15,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 )
+
+const workspaceAttachmentMaximumBytes = 25 * 1024 * 1024
 
 type platformFileSpec struct {
 	DevicePath    string `json:"devicePath"`
@@ -162,6 +165,9 @@ func (service Service) resolveWorkspaceAttachmentFile(path string) (platformFile
 	information, errorValue := os.Stat(hostPath)
 	if errorValue != nil {
 		return platformFile{}, errors.New("attachment file is unavailable")
+	}
+	if information.Size() > workspaceAttachmentMaximumBytes {
+		return platformFile{}, fmt.Errorf("attachment is larger than the %dMB upload limit", workspaceAttachmentMaximumBytes/(1024*1024))
 	}
 	filename := safeDeviceBrowserFilename(filepath.Base(agentPath))
 	if filename == "" {

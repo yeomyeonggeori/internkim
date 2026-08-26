@@ -64,6 +64,9 @@ func TestPlatformMessageSendUploadsWorkspaceAttachmentToUnjoinedChannel(t *testi
 			botJoinedChannel = true
 			return testJSONResponse(http.StatusCreated, map[string]string{"channel_id": "channel-9", "user_id": "bot-1"}), nil
 		case "http://mattermost.test/api/v4/channels/channel-9/members/staff-1":
+			if !botJoinedChannel {
+				return testJSONResponse(http.StatusForbidden, map[string]string{"message": "permissions to the channel"}), nil
+			}
 			return testJSONResponse(http.StatusOK, map[string]string{"channel_id": "channel-9", "user_id": "staff-1"}), nil
 		case "http://mattermost.test/api/v4/files":
 			uploadedFile = true
@@ -150,6 +153,54 @@ func TestPlatformMessageSendMembershipLookupErrorIsNotAccessDenial(t *testing.T)
 	}
 	if response.ErrorCode != "mattermost_unavailable" {
 		t.Fatalf("expected lookup error to surface as mattermost_unavailable, got %+v", response)
+	}
+}
+
+func TestPlatformMessageSendDoesNotJoinChannelForNonMemberRequester(t *testing.T) {
+	var botJoinAttempted bool
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
+		switch request.URL.String() {
+		case "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case "http://mattermost.test/api/v4/channels/channel-1":
+			return testJSONResponse(http.StatusOK, mattermostToolChannel{ID: "channel-1", Name: "random"}), nil
+		case "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
+		case "http://mattermost.test/api/v4/channels/channel-1/members/staff-1":
+			return testJSONResponse(http.StatusNotFound, map[string]string{"message": "no channel member"}), nil
+		case "http://mattermost.test/api/v4/channels/channel-1/members":
+			botJoinAttempted = true
+			return testJSONResponse(http.StatusCreated, map[string]string{"channel_id": "channel-1", "user_id": "bot-1"}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_send",
+		Input: mustJSON(t, map[string]any{
+			"targetType": "channel",
+			"channelID":  "channel-1",
+			"message":    "hello",
+		}),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail:          "staff@example.com",
+			RequesterPlatformUserID: "staff-1",
+			IsApprovalContinuation:  true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.ErrorCode != "channel_access_not_authorized" {
+		t.Fatalf("expected access denial, got %+v", response)
+	}
+	if botJoinAttempted {
+		t.Fatal("expected no bot channel join for a non-member requester")
 	}
 }
 
