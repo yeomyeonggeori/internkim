@@ -1217,6 +1217,10 @@ func buzzRoomMessagesCommand() string {
 	return strings.TrimSpace(`
 set -e
 q() { su - postgres -c "psql -X -d buzz -c \"$1\""; }
+printf '== what the timeline query would show ==\n'
+q "SELECT c.name AS room, c.visibility, c.deleted_at IS NOT NULL AS room_gone, count(e.*) FILTER (WHERE e.deleted_at IS NULL) AS live, count(e.*) FILTER (WHERE e.deleted_at IS NULL AND (tm.depth IS NULL OR tm.depth = 0 OR (tm.depth = 1 AND tm.broadcast))) AS in_window FROM channels c LEFT JOIN events e ON e.community_id = c.community_id AND e.channel_id = c.id AND e.kind = 9 LEFT JOIN thread_metadata tm ON tm.community_id = e.community_id AND tm.event_id = e.id AND tm.event_created_at = e.created_at WHERE c.channel_type = 'stream' AND c.deleted_at IS NULL GROUP BY 1,2,3 ORDER BY 4 DESC"
+printf '== depths the thread table holds ==\n'
+q "SELECT depth, broadcast, count(*) FROM thread_metadata GROUP BY 1,2 ORDER BY 1"
 printf '== what each room holds ==\n'
 q "SELECT c.name AS room, count(e.*) AS messages, count(e.*) FILTER (WHERE e.deleted_at IS NOT NULL) AS gone, count(e.*) FILTER (WHERE e.not_before > extract(epoch from now())) AS held_back, count(e.*) FILTER (WHERE e.delivered_at IS NULL) AS undelivered, max(e.created_at) AS newest FROM channels c LEFT JOIN events e ON e.channel_id = c.id AND e.kind = 9 WHERE c.channel_type = 'stream' AND c.deleted_at IS NULL GROUP BY c.id, c.name ORDER BY 2 DESC"
 printf '== messages with no room ==\n'
