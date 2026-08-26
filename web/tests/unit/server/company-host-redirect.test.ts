@@ -19,16 +19,10 @@ describe('the one address every company signs in at', () => {
 		expect(asks(theOneAddressOf(zone))).toBe(false);
 	});
 
-	test('moves the address companies used before, so old links still arrive', () => {
-		expect(asks('app.intern.kim')).toBe(true);
-	});
-
-	test('moves the api host too, because it served the same pages under a second name', () => {
-		expect(asks('api.intern.kim')).toBe(true);
-	});
-
-	test('moves the address companies signed in at before, so old links still arrive', () => {
-		expect(asks('space.intern.kim')).toBe(true);
+	test('moves the addresses people used before, so old links still arrive', () => {
+		for (const before of ['space.intern.kim', 'app.intern.kim', 'api.intern.kim']) {
+			expect(asks(before)).toBe(true);
+		}
 	});
 
 	test('leaves a preview deployment alone', () => {
@@ -57,9 +51,9 @@ describe('the one address every company signs in at', () => {
 describe('a caller that carries its own credential', () => {
 	test('is answered where it landed, because a redirect would drop its bearer token', () => {
 		expect(asks('samplecompany.intern.kim', '/api/agent/connection')).toBe(false);
-		expect(asks('app.intern.kim', '/api/agent/host-session')).toBe(false);
-		expect(asks('api.intern.kim', '/api/agent/host-session')).toBe(false);
-		expect(asks('space.intern.kim', '/api/agent/host-session')).toBe(false);
+		for (const before of ['space.intern.kim', 'app.intern.kim', 'api.intern.kim']) {
+			expect(asks(before, '/api/agent/host-session')).toBe(false);
+		}
 	});
 
 	test('still moves a page request on the same host', () => {
