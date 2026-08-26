@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"os"
 	"os/exec"
@@ -80,7 +81,7 @@ func (service *Service) ensureUserChannelMembership(ctx context.Context, email s
 		return
 	}
 	service.grantRelayMembership(ctx, pubkey)
-	channelIDs, errorValue := service.buzzStreamChannelIDs(ctx)
+	channelIDs, errorValue := service.buzzStreamChannelsWeOpened(ctx)
 	if errorValue != nil || len(channelIDs) == 0 {
 		return
 	}
@@ -102,7 +103,7 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 	if seed == "" {
 		return
 	}
-	channelIDs, errorValue := service.buzzStreamChannelIDs(ctx)
+	channelIDs, errorValue := service.buzzStreamChannelsWeOpened(ctx)
 	if errorValue != nil {
 		log.Printf("buzz staff membership: channel query failed: %v", errorValue)
 		return
@@ -159,13 +160,29 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 	log.Printf("buzz staff membership: granted %d, failed %d", granted, failed)
 }
 
-func (service *Service) buzzStreamChannelIDs(ctx context.Context) ([]string, error) {
+func (service *Service) bootstrapBuzzPubkey() (string, error) {
+	seed := service.buzzKeySeed()
+	if seed == "" {
+		return "", errors.New("this device holds no buzz key seed")
+	}
+	return buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
+}
+
+func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]string, error) {
+	bootstrapPubkey, errorValue := service.bootstrapBuzzPubkey()
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	database, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, "SELECT id FROM channels WHERE channel_type = 'stream'")
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id FROM channels
+WHERE channel_type = 'stream'
+  AND deleted_at IS NULL
+  AND created_by = decode($1, 'hex')`, bootstrapPubkey)
 	if errorValue != nil {
 		return nil, errorValue
 	}
