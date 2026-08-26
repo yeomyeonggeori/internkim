@@ -414,7 +414,6 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startMattermostProvisionerSync(ctx)
 	service.startMattermostCircleSync(ctx)
 	service.startMattermostProjectionOutboxWorker(ctx)
-	service.startMattermostAttendanceStatusSync(ctx)
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarNotificationReconciliation(ctx)
 	service.startCalendarNotificationWorker(ctx)
@@ -615,7 +614,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/settings/", service.serveBoardSection("settings"))
 	multiplexer.HandleFunc("/assistant", service.serveBoardSection("assistant"))
 	multiplexer.HandleFunc("/assistant/", service.serveBoardSection("assistant"))
-	multiplexer.Handle("/", service.managedChannelWriteGuard(service.attendancePostDeleteSync(service.mattermostProxy())))
+	multiplexer.Handle("/", service.mattermostProxy())
 	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(service.withSiteGateway(multiplexer))))
 }
 
@@ -672,128 +671,6 @@ func (service *Service) mattermostProxy() http.Handler {
 		proxy.Transport = service.HTTPClient.Transport
 	}
 	return proxy
-}
-
-func (service *Service) managedChannelWriteGuard(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		payload, command, isAttendanceCommand, errorValue := service.mattermostAttendancePostCreateCommand(request)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-			return
-		}
-		if isAttendanceCommand {
-			responseBody, isCreated := serveMattermostPostCreate(next, responseWriter, request)
-			if isCreated {
-				if errorValue := service.syncMattermostAttendancePostCommand(request.Context(), request, payload, command, responseBody); errorValue != nil {
-					log.Printf("Mattermost Attendance post command sync failed: channelID=%q rootID=%q kind=%q timeUpdate=%v: %v", strings.TrimSpace(payload.ChannelID), strings.TrimSpace(payload.RootID), strings.TrimSpace(command.Kind), command.IsTimeUpdate, errorValue)
-				}
-			}
-			return
-		}
-		if service.isMattermostFlowOrCalendarPostCreateRequest(request) {
-			http.Error(responseWriter, "managed channel is read-only", http.StatusBadRequest)
-			return
-		}
-		if !service.isMattermostManagedPostCreateRequest(request) {
-			next.ServeHTTP(responseWriter, request)
-			return
-		}
-		responseBody, isCreated := serveMattermostPostCreate(next, responseWriter, request)
-		if !isCreated {
-			return
-		}
-		if errorValue := service.deleteCreatedMattermostPost(request.Context(), responseBody); errorValue != nil {
-			log.Printf("Mattermost managed channel post cleanup failed: %v", errorValue)
-		}
-	})
-}
-
-func serveMattermostPostCreate(next http.Handler, responseWriter http.ResponseWriter, request *http.Request) ([]byte, bool) {
-	recorder := &bodyRecordingResponseWriter{ResponseWriter: responseWriter, statusCode: http.StatusOK}
-	next.ServeHTTP(recorder, request)
-	isCreated := recorder.statusCode >= http.StatusOK && recorder.statusCode < http.StatusMultipleChoices
-	return recorder.body.Bytes(), isCreated
-}
-
-func (service *Service) deleteCreatedMattermostPost(ctx context.Context, responseBody []byte) error {
-	adminToken, errorValue := service.mattermostAdminToken(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	return service.deleteMattermostPost(ctx, adminToken, mattermostCreatedPostID(responseBody))
-}
-
-func (service *Service) isMattermostFlowOrCalendarPostCreateRequest(request *http.Request) bool {
-	return service.isMattermostPostCreateRequestForChannels(request, []string{
-		readTrimmedFile(service.mattermostFlowChannelIDPath()),
-		readTrimmedFile(service.mattermostCalendarChannelIDPath()),
-	})
-}
-
-func (service *Service) isMattermostManagedPostCreateRequest(request *http.Request) bool {
-	return service.isMattermostPostCreateRequestForChannels(request, []string{
-		readTrimmedFile(service.mattermostFlowChannelIDPath()),
-		readTrimmedFile(service.mattermostCalendarChannelIDPath()),
-		readTrimmedFile(service.mattermostAttendanceChannelIDPath()),
-	})
-}
-
-func (service *Service) isMattermostPostCreateRequestForChannels(request *http.Request, channelIDs []string) bool {
-	if request.Method != http.MethodPost || request.URL.Path != "/api/v4/posts" {
-		return false
-	}
-	allowedChannelIDs := map[string]bool{}
-	for _, channelID := range channelIDs {
-		if trimmedChannelID := strings.TrimSpace(channelID); trimmedChannelID != "" {
-			allowedChannelIDs[trimmedChannelID] = true
-		}
-	}
-	if len(allowedChannelIDs) == 0 {
-		return false
-	}
-	document, errorValue := io.ReadAll(request.Body)
-	if errorValue != nil {
-		return false
-	}
-	request.Body = io.NopCloser(bytes.NewReader(document))
-	var payload struct {
-		ChannelID string `json:"channel_id"`
-	}
-	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
-		return false
-	}
-	return allowedChannelIDs[strings.TrimSpace(payload.ChannelID)]
-}
-
-func (service *Service) attendancePostDeleteSync(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		postID, ok := mattermostDeletedPostID(request)
-		if !ok {
-			next.ServeHTTP(responseWriter, request)
-			return
-		}
-		if service.isMattermostAttendanceEntryPostID(postID) {
-			http.Error(responseWriter, "attendance entry post is protected", http.StatusForbidden)
-			return
-		}
-		recorder := &statusRecordingResponseWriter{ResponseWriter: responseWriter, statusCode: http.StatusOK}
-		next.ServeHTTP(recorder, request)
-		if recorder.statusCode >= http.StatusOK && recorder.statusCode < http.StatusMultipleChoices {
-			if errorValue := service.deleteAttendanceEventByResultPostID(request.Context(), postID); errorValue != nil {
-				log.Printf("Mattermost Attendance event delete sync failed: %v", errorValue)
-			}
-		}
-	})
-}
-
-type statusRecordingResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (responseWriter *statusRecordingResponseWriter) WriteHeader(statusCode int) {
-	responseWriter.statusCode = statusCode
-	responseWriter.ResponseWriter.WriteHeader(statusCode)
 }
 
 type bodyRecordingResponseWriter struct {

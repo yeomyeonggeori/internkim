@@ -15,15 +15,6 @@ const (
 
 	OffTopicChannelName        = "off-topic"
 	OffTopicChannelDisplayName = "잡담"
-
-	FlowChannelName        = "flow"
-	FlowChannelDisplayName = "업무"
-
-	CalendarChannelName        = "calendar"
-	CalendarChannelDisplayName = "일정"
-
-	AttendanceChannelName        = "attendance"
-	AttendanceChannelDisplayName = "근태"
 )
 
 type PublicChannel struct {
@@ -57,9 +48,6 @@ func PublicChannelsForLanguage(language string) []PublicChannel {
 	return []PublicChannel{
 		{Name: TownSquareChannelName, DisplayName: labels.TownSquareDisplayName},
 		{Name: OffTopicChannelName, DisplayName: labels.OffTopicDisplayName},
-		{Name: FlowChannelName, DisplayName: labels.FlowDisplayName, Header: PublicChannelLink(FlowChannelName, language, "/flow/")},
-		{Name: CalendarChannelName, DisplayName: labels.CalendarDisplayName, Header: PublicChannelLink(CalendarChannelName, language, "/calendar/")},
-		{Name: AttendanceChannelName, DisplayName: labels.AttendanceDisplayName, Header: PublicChannelLink(AttendanceChannelName, language, "/attendance/")},
 	}
 }
 
@@ -71,24 +59,6 @@ func PublicChannelForLanguage(channelName string, language string) (PublicChanne
 		}
 	}
 	return PublicChannel{}, false
-}
-
-func PublicChannelLink(channelName string, language string, targetURL string) string {
-	return "[" + PublicChannelLinkLabel(channelName, language) + "](" + strings.TrimSpace(targetURL) + ")"
-}
-
-func PublicChannelLinkLabel(channelName string, language string) string {
-	labels := publicChannelLabelsForLanguage(language)
-	switch strings.TrimSpace(channelName) {
-	case FlowChannelName:
-		return labels.FlowLinkLabel
-	case CalendarChannelName:
-		return labels.CalendarLinkLabel
-	case AttendanceChannelName:
-		return labels.AttendanceLinkLabel
-	default:
-		return strings.TrimSpace(channelName)
-	}
 }
 
 func CircleChannelDisplayName(channelName string) string {
@@ -108,12 +78,6 @@ func CircleChannelDisplayName(channelName string) string {
 type publicChannelLabels struct {
 	TownSquareDisplayName string
 	OffTopicDisplayName   string
-	FlowDisplayName       string
-	FlowLinkLabel         string
-	CalendarDisplayName   string
-	CalendarLinkLabel     string
-	AttendanceDisplayName string
-	AttendanceLinkLabel   string
 }
 
 func publicChannelLabelsForLanguage(language string) publicChannelLabels {
@@ -121,23 +85,11 @@ func publicChannelLabelsForLanguage(language string) publicChannelLabels {
 		return publicChannelLabels{
 			TownSquareDisplayName: "Town Square",
 			OffTopicDisplayName:   "Off-Topic",
-			FlowDisplayName:       "Flow",
-			FlowLinkLabel:         "Open Flow",
-			CalendarDisplayName:   "Calendar",
-			CalendarLinkLabel:     "Open Calendar",
-			AttendanceDisplayName: "Attendance",
-			AttendanceLinkLabel:   "Open Attendance",
 		}
 	}
 	return publicChannelLabels{
 		TownSquareDisplayName: TownSquareChannelDisplayName,
 		OffTopicDisplayName:   OffTopicChannelDisplayName,
-		FlowDisplayName:       FlowChannelDisplayName,
-		FlowLinkLabel:         "업무 열기",
-		CalendarDisplayName:   CalendarChannelDisplayName,
-		CalendarLinkLabel:     "일정 열기",
-		AttendanceDisplayName: AttendanceChannelDisplayName,
-		AttendanceLinkLabel:   "근태 열기",
 	}
 }
 

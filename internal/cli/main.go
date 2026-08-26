@@ -2194,9 +2194,6 @@ func setupMattermostDefaultChannels(mmAPI mattermostSetupAPI, adminToken string,
 		if channelID != "" {
 			fmt.Printf("  channel: %s (%s)\n", channel.Name, channelID)
 		}
-		if channel.Name == mattermostdefaults.FlowChannelName {
-			deleteMattermostSetupFlowEntryPost(mmAPI, adminToken, channelID, botUserID)
-		}
 	}
 }
 

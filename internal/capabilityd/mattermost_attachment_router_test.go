@@ -30,27 +30,6 @@ func TestClassifyMattermostUploadChannelOffTopic(t *testing.T) {
 	}
 }
 
-func TestClassifyMattermostUploadChannelFlowExcluded(t *testing.T) {
-	_, ok := classifyMattermostUploadChannel("O", mattermostdefaults.FlowChannelName)
-	if ok {
-		t.Fatal("expected flow channel to be excluded")
-	}
-}
-
-func TestClassifyMattermostUploadChannelCalendarExcluded(t *testing.T) {
-	_, ok := classifyMattermostUploadChannel("O", mattermostdefaults.CalendarChannelName)
-	if ok {
-		t.Fatal("expected calendar channel to be excluded")
-	}
-}
-
-func TestClassifyMattermostUploadChannelAttendanceExcluded(t *testing.T) {
-	_, ok := classifyMattermostUploadChannel("O", mattermostdefaults.AttendanceChannelName)
-	if ok {
-		t.Fatal("expected attendance channel to be excluded")
-	}
-}
-
 func TestClassifyMattermostUploadChannelOtherPublicIsCircleCandidate(t *testing.T) {
 	kind, ok := classifyMattermostUploadChannel("O", "some-other-channel")
 	if !ok || kind != "circle-candidate" {

@@ -37,6 +37,5 @@ func (service *Service) updateAttendanceLocations(responseWriter http.ResponseWr
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	service.syncMattermostAttendanceChannelAfterLocationUpdate(request)
 	service.writeJSON(responseWriter, attendanceLocationsResponse{Locations: locations})
 }

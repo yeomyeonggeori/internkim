@@ -167,10 +167,6 @@ func classifyMattermostUploadChannel(channelType string, channelName string) (st
 	}
 	normalizedName := strings.ToLower(strings.TrimSpace(channelName))
 	switch normalizedName {
-	case mattermostdefaults.FlowChannelName,
-		mattermostdefaults.CalendarChannelName,
-		mattermostdefaults.AttendanceChannelName:
-		return "", false
 	case mattermostdefaults.TownSquareChannelName,
 		mattermostdefaults.OffTopicChannelName:
 		return "public", true
