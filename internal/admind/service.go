@@ -861,6 +861,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.handleDirectoryPerson(responseWriter, request)
 		return
 	}
+	if request.Method == http.MethodGet && path == "/directory/people" {
+		service.handleDirectoryPeople(responseWriter, request)
+		return
+	}
 	if request.Method == http.MethodPost && path == "/directory/changed" {
 		service.handleDirectoryChanged(responseWriter, request)
 		return

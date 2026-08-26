@@ -22,12 +22,18 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{
 			BlueclawBaseURL:     "http://blueclaw.local",
+			AdmindBaseURL:       "http://admind.local",
 			MattermostBaseURL:   "http://mattermost.local",
 			MattermostTokenPath: tokenPath,
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			requestPaths = append(requestPaths, request.URL.String())
 			switch request.URL.String() {
+			case "http://admind.local/admin/api/directory/people":
+				return platformDMTestJSONResponse(platformDMTestDirectoryDocument()), nil
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				return platformDMTestJSONResponse(platformDMResolvedDonghaResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
@@ -141,6 +147,11 @@ func TestPlatformDMSendMatchesMattermostNickname(t *testing.T) {
 func TestResolvePlatformDMRecipientUsesBlueclawResolvedRecipient(t *testing.T) {
 	var requestBody map[string]string
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if isDirectoryPeopleRequest(request) {
+			responseWriter.Header().Set("Content-Type", "application/json")
+			_, _ = responseWriter.Write([]byte(directoryPeopleTestDocument))
+			return
+		}
 		if request.Method != http.MethodPost || request.URL.Path != "/admin/api/identity/resolve-recipient" {
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 		}
@@ -152,12 +163,14 @@ func TestResolvePlatformDMRecipientUsesBlueclawResolvedRecipient(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
+	service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL, AdmindBaseURL: server.URL}}
 	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "샘플")
 	if hasFailure {
 		t.Fatalf("expected resolved recipient, failure=%+v", failure)
 	}
-	if requestBody["platform"] != "mattermost" || requestBody["hint"] != "샘플" {
+	// The company settles who was meant, so this platform is asked about an
+	// address rather than about a half-written name.
+	if requestBody["platform"] != "mattermost" || requestBody["hint"] != "sample@example.com" {
 		t.Fatalf("unexpected resolve request body: %+v", requestBody)
 	}
 	if recipient.PersonID != "person-dongha" || recipient.MattermostUserID != "user-dongha" || recipient.MattermostUsername != "dongha" || recipient.Mention != "@dongha" {
@@ -178,8 +191,10 @@ func TestResolvePlatformDMRecipientReturnsAmbiguousCandidates(t *testing.T) {
 	if failure.ErrorCode != "recipient_ambiguous" || len(failure.Candidates) != 2 {
 		t.Fatalf("unexpected ambiguous failure: %+v", failure)
 	}
-	if failure.Candidates[0].MattermostUserID != "user-one" || failure.Candidates[1].MattermostUserID != "user-two" {
-		t.Fatalf("expected external user ids in candidates: %+v", failure.Candidates)
+	// Candidates are people, not accounts: which one was meant is settled before
+	// any platform is asked which account is theirs.
+	if failure.Candidates[0].Emails[0] != "one@example.com" || failure.Candidates[1].Emails[0] != "two@example.com" {
+		t.Fatalf("expected the company's candidates: %+v", failure.Candidates)
 	}
 }
 
@@ -253,11 +268,17 @@ func TestPlatformDMSendPostFailureIsNotSafeToRetry(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{
 			BlueclawBaseURL:     "http://blueclaw.local",
+			AdmindBaseURL:       "http://admind.local",
 			MattermostBaseURL:   "http://mattermost.local",
 			MattermostTokenPath: tokenPath,
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			switch request.URL.String() {
+			case "http://admind.local/admin/api/directory/people":
+				return platformDMTestJSONResponse(platformDMTestDirectoryDocument()), nil
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				return platformDMTestJSONResponse(platformDMResolvedDonghaResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
@@ -291,11 +312,17 @@ func TestPlatformDMSendDirectChannelFailureUsesSpecificStage(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{
 			BlueclawBaseURL:     "http://blueclaw.local",
+			AdmindBaseURL:       "http://admind.local",
 			MattermostBaseURL:   "http://mattermost.local",
 			MattermostTokenPath: tokenPath,
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			switch request.URL.String() {
+			case "http://admind.local/admin/api/directory/people":
+				return platformDMTestJSONResponse(platformDMTestDirectoryDocument()), nil
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				return platformDMTestJSONResponse(platformDMResolvedDonghaResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
@@ -328,10 +355,14 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 	service := Service{
 		Configuration: Configuration{
 			BlueclawBaseURL:     "http://blueclaw.local",
+			AdmindBaseURL:       "http://admind.local",
 			MattermostBaseURL:   "http://mattermost.local",
 			MattermostTokenPath: tokenPath,
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			requestPaths = append(requestPaths, request.URL.String())
 			switch request.URL.String() {
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
@@ -362,7 +393,7 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 	if strings.Contains(strings.Join(requestPaths, "\n"), "/api/v4/channels/direct") {
 		t.Fatalf("ambiguous send created a direct channel: %+v", requestPaths)
 	}
-	assertPlatformDMRequestCount(t, requestPaths, "http://blueclaw.local/admin/api/identity/resolve-recipient", 1)
+	assertPlatformDMRequestCount(t, requestPaths, "http://blueclaw.local/admin/api/identity/resolve-recipient", 0)
 	var failure platformDMFailure
 	if errorValue := json.Unmarshal(response.Result, &failure); errorValue != nil {
 		t.Fatal(errorValue)
@@ -370,8 +401,8 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 	if len(failure.Candidates) != 2 {
 		t.Fatalf("expected two candidates, got %+v", failure)
 	}
-	if failure.Candidates[0].MattermostUserID == "" || failure.Candidates[1].MattermostUserID == "" {
-		t.Fatalf("expected Mattermost candidate ids, got %+v", failure.Candidates)
+	if failure.Candidates[0].PersonID == "" || failure.Candidates[1].PersonID == "" {
+		t.Fatalf("expected the company's candidates, got %+v", failure.Candidates)
 	}
 }
 
@@ -380,10 +411,14 @@ func platformDMTestService(t *testing.T, tokenPath string, resolutionDocument st
 	return Service{
 		Configuration: Configuration{
 			BlueclawBaseURL:     "http://blueclaw.local",
+			AdmindBaseURL:       "http://admind.local",
 			MattermostBaseURL:   "http://mattermost.local",
 			MattermostTokenPath: tokenPath,
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			switch request.URL.String() {
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				return platformDMTestJSONResponse(resolutionDocument), nil
@@ -403,15 +438,39 @@ func platformDMTestService(t *testing.T, tokenPath string, resolutionDocument st
 
 func platformDMResolverTestService(t *testing.T, resolutionDocument string) Service {
 	t.Helper()
+	return platformDMResolverTestServiceForPeople(t, resolutionDocument, platformDMTestDirectoryPeople())
+}
+
+// A recipient is named by the company and then looked up on this platform, so a
+// test of the second step has to answer the first.
+func platformDMResolverTestServiceForPeople(t *testing.T, resolutionDocument string, people []directoryPerson) Service {
+	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if isDirectoryPeopleRequest(request) {
+			responseWriter.Header().Set("Content-Type", "application/json")
+			_, _ = responseWriter.Write([]byte(directoryPeopleTestDocument))
+			return
+		}
+		responseWriter.Header().Set("Content-Type", "application/json")
+		if request.Method == http.MethodGet && request.URL.Path == "/admin/api/directory/people" {
+			_ = json.NewEncoder(responseWriter).Encode(map[string]any{"people": people})
+			return
+		}
 		if request.Method != http.MethodPost || request.URL.Path != "/admin/api/identity/resolve-recipient" {
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 		}
-		responseWriter.Header().Set("Content-Type", "application/json")
 		_, _ = responseWriter.Write([]byte(resolutionDocument))
 	}))
 	t.Cleanup(server.Close)
-	return Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
+	return Service{Configuration: Configuration{BlueclawBaseURL: server.URL, AdmindBaseURL: server.URL}}
+}
+
+func platformDMTestDirectoryDocument() string {
+	return `{"people":[{"memberID":"person-dongha","email":"dongha@example.com","name":"이샘플"}]}`
+}
+
+func platformDMTestDirectoryPeople() []directoryPerson {
+	return []directoryPerson{{MemberID: "person-dongha", Email: "dongha@example.com", Name: "이샘플"}}
 }
 
 func platformDMResolvedDonghaResponse() string {
@@ -433,10 +492,14 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{
 			BlueclawBaseURL:     "http://blueclaw.local",
+			AdmindBaseURL:       "http://admind.local",
 			MattermostBaseURL:   "http://mattermost.local",
 			MattermostTokenPath: tokenPath,
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			switch request.URL.String() {
 			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				var body struct {
@@ -446,9 +509,9 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 					t.Fatal(errorValue)
 				}
 				switch body.Hint {
-				case "샘플":
+				case "sample@example.com":
 					return platformDMTestJSONResponse(platformDMResolvedDonghaResponse()), nil
-				case "정국":
+				case "jungkook@example.com":
 					return platformDMTestJSONResponse(`{"status":"resolved","recipient":{"personID":"person-jungkook","displayName":"전정국","emails":["jk@example.com"],"externalUserID":"user-jungkook","username":"jk"}}`), nil
 				default:
 					return platformDMTestJSONResponse(`{"status":"not_found","approvedPeople":["이샘플"]}`), nil
@@ -580,6 +643,9 @@ func TestMattermostPendingPostIDComposition(t *testing.T) {
 func TestSendMattermostDirectMessageSetsPendingPostID(t *testing.T) {
 	var sentPendingPostID string
 	service := Service{HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isDirectoryPeopleRequest(request) {
+			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+		}
 		switch {
 		case strings.HasSuffix(request.URL.Path, "/api/v4/users/me"):
 			return jsonResponse(map[string]any{"id": "bot-1", "username": "internkim", "is_bot": true}), nil
