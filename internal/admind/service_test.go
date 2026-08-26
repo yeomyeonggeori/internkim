@@ -2853,10 +2853,8 @@ func newFlowAuthorizationTestService(t *testing.T) *Service {
 		FlowDatabasePath:      filepath.Join(t.TempDir(), "flow.sqlite"),
 		MattermostBaseURL:     "http://mattermost.local",
 	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-staff","email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
-		}
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.HTTPClient = &http.Client{Transport: withCompanyDirectoryForTest(t, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-staff","email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token") {
 			return jsonResponse(http.StatusOK, `{"id":"staff-mm","email":"staff@example.com","username":"staff"}`, nil), nil
 		}

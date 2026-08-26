@@ -35,6 +35,11 @@ func withCompanyDirectoryForTest(t *testing.T, registerBody string, inner roundT
 		switch {
 		case strings.HasSuffix(request.URL.Path, "/api/agent/key"):
 			return jsonResponse(http.StatusOK, `{"key":"test-agent-key"}`, nil), nil
+		case strings.HasSuffix(request.URL.Path, "/api/agent/session"):
+			// A session is issued for a messenger account. A test that never
+			// seats one is asking on behalf of somebody the company does not
+			// know, which is a refusal rather than a broken company.
+			return jsonResponse(http.StatusNotFound, `{"error":"no session for that identity"}`, nil), nil
 		case strings.HasSuffix(request.URL.Path, "/api/agent/member"):
 			return companyDirectoryAnswerForTest(t, request, registerBody), nil
 		}

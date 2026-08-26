@@ -2,6 +2,8 @@ package admind
 
 import (
 	"context"
+	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -35,6 +37,13 @@ func (service *Service) saveCentralFlowTask(request *http.Request, task flowTask
 		WritesDates:      strings.TrimSpace(task.StartDate) != "" || strings.TrimSpace(task.EndDate) != "",
 		ParticipantMails: participantAddresses(task, people),
 	})
+	if errors.Is(errorValue, centralplane.ErrIdentityNotHeld) {
+		// The company does not hold this person's board, so the device keeps it.
+		// The read path already answers from the device for the same person, and
+		// a board somebody can read but not write to is worse than a local one.
+		log.Printf("the board stays on this device for %s: %v", requesterEmail, errorValue)
+		return flowTask{}, false, nil
+	}
 	if errorValue != nil {
 		return flowTask{}, true, errorValue
 	}
@@ -52,7 +61,12 @@ func (service *Service) removeCentralFlowTask(request *http.Request, taskID stri
 	if client == nil {
 		return false, nil
 	}
-	return true, client.DeleteTask(request.Context(), "email", requesterEmail, taskID)
+	errorValue := client.DeleteTask(request.Context(), "email", requesterEmail, taskID)
+	if errors.Is(errorValue, centralplane.ErrIdentityNotHeld) {
+		log.Printf("the board stays on this device for %s: %v", requesterEmail, errorValue)
+		return false, nil
+	}
+	return true, errorValue
 }
 
 // A task the company already holds carries the identifier the company gave it;

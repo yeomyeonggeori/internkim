@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -104,6 +105,11 @@ func (client *Client) RecordAttendance(ctx context.Context, record AttendanceRec
 	return nil
 }
 
+// A company that will not seat an identity is not a company that is broken. It
+// is saying this person is not one of ours, and the caller belongs on the
+// device rather than at a bad gateway.
+var ErrIdentityNotHeld = errors.New("the central plane holds no session for that identity")
+
 func (client *Client) sessionFor(ctx context.Context, platform string, externalID string) (memberSession, error) {
 	key := platform + "|" + externalID
 	client.mutex.Lock()
@@ -131,7 +137,7 @@ func (client *Client) sessionFor(ctx context.Context, platform string, externalI
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 300 {
-		return memberSession{}, fmt.Errorf("central plane refused %s identity %s: %s", platform, externalID, response.Status)
+		return memberSession{}, fmt.Errorf("%w: %s identity %s: %s", ErrIdentityNotHeld, platform, externalID, response.Status)
 	}
 
 	var answer struct {
