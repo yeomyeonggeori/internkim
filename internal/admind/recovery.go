@@ -1540,8 +1540,8 @@ LOADED=/tmp/buzz-discovery-load.log
 su - postgres -c "psql -X -q -d buzz_discovery_restore -f $READABLE" > "$LOADED" 2>&1
 tail -3 "$LOADED"
 rm -f "$READABLE" "$LOADED"
-COLUMNS=$(su - postgres -c "psql -X -qAt -d buzz -c \"SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'events'\"")
-CARRIED_COLUMNS=$(su - postgres -c "psql -X -qAt -d buzz_discovery_restore -c \"SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'events'\"")
+COLUMNS=$(su - postgres -c "psql -X -qAt -d buzz -c \"SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'events' AND is_generated = 'NEVER'\"")
+CARRIED_COLUMNS=$(su - postgres -c "psql -X -qAt -d buzz_discovery_restore -c \"SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'events' AND is_generated = 'NEVER'\"")
 printf 'the messenger holds: %s\n' "$COLUMNS"
 printf 'the snapshot holds:  %s\n' "$CARRIED_COLUMNS"
 QUALIFIED=$(printf '%s' "$COLUMNS" | sed 's/\([^,][^,]*\)/e.\1/g')
