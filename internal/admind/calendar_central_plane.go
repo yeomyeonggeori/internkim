@@ -61,18 +61,19 @@ func calendarEventsOfCompanyEvents(events []centralplane.Event, timeZoneName str
 	converted := make([]calendarEvent, 0, len(events))
 	for _, event := range events {
 		converted = append(converted, calendarEvent{
-			ID:           event.CentralID,
-			UID:          event.CentralID,
-			Title:        event.Title,
-			Description:  event.Note,
-			Location:     event.Location,
-			StartISO:     event.StartsAt,
-			EndISO:       event.EndsAt,
-			TimeZone:     timeZoneName,
-			IsAllDay:     event.IsWholeDay,
-			UpdatedAt:    event.UpdatedAt,
-			People:       event.ParticipantMails,
-			Participants: calendarParticipantsOfEmails(event.ParticipantMails),
+			ID:                event.CentralID,
+			UID:               event.CentralID,
+			Title:             event.Title,
+			Description:       event.Note,
+			Location:          event.Location,
+			StartISO:          event.StartsAt,
+			EndISO:            event.EndsAt,
+			TimeZone:          timeZoneName,
+			IsAllDay:          event.IsWholeDay,
+			ReminderLeadHours: event.NotifyMinutesBefore / 60,
+			UpdatedAt:         event.UpdatedAt,
+			People:            event.ParticipantMails,
+			Participants:      calendarParticipantsOfEmails(event.ParticipantMails),
 		})
 	}
 	return converted
@@ -110,15 +111,16 @@ func (service *Service) saveCentralCalendarEvent(request *http.Request, event ca
 		return calendarEvent{}, false, nil
 	}
 	savedID, errorValue := client.SaveEvent(request.Context(), "email", requesterEmail, centralplane.Event{
-		CentralID:         centralID,
-		Title:             event.Title,
-		Note:              event.Description,
-		Location:          event.Location,
-		StartsAt:          event.StartISO,
-		EndsAt:            event.EndISO,
-		IsWholeDay:        event.IsAllDay,
-		ParticipantMails:  calendarParticipantEmails(event),
-		ExpectedUpdatedAt: expectedUpdatedAt,
+		CentralID:           centralID,
+		Title:               event.Title,
+		Note:                event.Description,
+		Location:            event.Location,
+		StartsAt:            event.StartISO,
+		EndsAt:              event.EndISO,
+		IsWholeDay:          event.IsAllDay,
+		NotifyMinutesBefore: event.ReminderLeadHours * 60,
+		ParticipantMails:    calendarParticipantEmails(event),
+		ExpectedUpdatedAt:   expectedUpdatedAt,
 	})
 	if errorValue != nil {
 		if errors.Is(errorValue, centralplane.ErrEventVersionGone) {

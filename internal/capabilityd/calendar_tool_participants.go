@@ -9,10 +9,17 @@ import (
 	"gitlab.com/eastriver/internkim/internal/personname"
 )
 
-func (service Service) prepareCalendarEventWriteInput(ctx context.Context, input calendarEventWriteInput, toolContext capabilities.ToolInvokeContext, includeRequesterDefault bool) (calendarEventWriteInput, platformDMFailure, bool) {
+// Who attends is whoever was named. Nobody named is the person asking, and
+// everybody named is nobody in particular: an event the whole company is invited
+// to carries no attendee list to narrow it by.
+func (service Service) prepareCalendarEventWriteInput(ctx context.Context, input calendarEventWriteInput, toolContext capabilities.ToolInvokeContext, mayAddTheRequesterAlone bool) (calendarEventWriteInput, platformDMFailure, bool) {
+	if calendarToolPeopleIncludesAll(input.People) {
+		input.People = nil
+		input.Participants = nil
+		return input, platformDMFailure{}, false
+	}
 	participants := append([]calendarToolParticipant{}, input.Participants...)
-	includeRequester := calendarToolShouldIncludeRequester(input, includeRequesterDefault)
-	if includeRequester {
+	if calendarToolShouldIncludeRequester(input, mayAddTheRequesterAlone) {
 		participant := service.calendarRequesterParticipant(ctx, toolContext)
 		if strings.TrimSpace(participant.Name) != "" || strings.TrimSpace(participant.Email) != "" || strings.TrimSpace(participant.PersonID) != "" {
 			participants = append(participants, participant)
@@ -32,14 +39,13 @@ func (service Service) prepareCalendarEventWriteInput(ctx context.Context, input
 	return input, platformDMFailure{}, false
 }
 
-func calendarToolShouldIncludeRequester(input calendarEventWriteInput, includeRequesterDefault bool) bool {
-	if calendarToolPeopleIncludesAll(input.People) {
-		return false
-	}
+func calendarToolShouldIncludeRequester(input calendarEventWriteInput, mayAddTheRequesterAlone bool) bool {
 	if input.IncludeRequester != nil {
 		return *input.IncludeRequester
 	}
-	return includeRequesterDefault
+	// Naming somebody says whose event it is. Adding the person who asked as well
+	// puts them in a meeting they said was not theirs.
+	return mayAddTheRequesterAlone && len(input.People) == 0 && len(input.Participants) == 0
 }
 
 func calendarToolPeopleIncludesAll(people []string) bool {

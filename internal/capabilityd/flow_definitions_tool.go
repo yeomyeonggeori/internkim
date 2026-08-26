@@ -19,12 +19,12 @@ type flowSizeDefinitionForTool struct {
 }
 
 func resolveFlowTaskLabels(input flowTaskUpdateInput, definitions flowDefinitionsForTool) (flowTaskUpdateInput, *flowTaskLabelFailure) {
-	if input.Category != nil {
-		resolvedCategory, failure := resolveFlowLabel(*input.Category, "category", definitions.Categories)
+	if input.Business != nil {
+		resolvedCategory, failure := resolveFlowLabel(*input.Business, "business", definitions.Categories)
 		if failure != nil {
 			return flowTaskUpdateInput{}, failure
 		}
-		input.Category = &resolvedCategory
+		input.Business = &resolvedCategory
 	}
 	if input.Type != nil {
 		resolvedType, failure := resolveFlowLabel(*input.Type, "type", definitions.Types)

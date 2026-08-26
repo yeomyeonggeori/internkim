@@ -50,10 +50,10 @@ func TestToolInvokeRequestRoundTrip(t *testing.T) {
 
 func TestLegacyToolNameReplacementsCoverNeutralTaxonomy(t *testing.T) {
 	expectedReplacements := map[string]string{
-		"calendar.event.add":        "calendar_add",
-		"calendar.event.delete":     "calendar_delete",
-		"calendar.event.list":       "calendar_list",
-		"calendar.event.update":     "calendar_update",
+		"calendar.event.add":        "event_add",
+		"calendar.event.delete":     "event_delete",
+		"calendar.event.list":       "event_list",
+		"calendar.event.update":     "event_update",
 		"flow.task.add":             "task_add",
 		"flow.task.delete":          "task_delete",
 		"flow.task.list":            "task_list",
@@ -64,6 +64,10 @@ func TestLegacyToolNameReplacementsCoverNeutralTaxonomy(t *testing.T) {
 		"platform.message.search":   "message_search",
 		"platform.message.send":     "message_send",
 		"platform.message.update":   "message_update",
+		"calendar_add":              "event_add",
+		"calendar_delete":           "event_delete",
+		"calendar_list":             "event_list",
+		"calendar_update":           "event_update",
 		"site.app.create":           "site_serve",
 		"site.app.delete":           "site_unserve",
 		"site.app.preview":          "site_serve",
@@ -136,17 +140,17 @@ func TestCalendarConnectionStartIsNotAdvertised(t *testing.T) {
 }
 
 func TestCalendarUpdateDescriptorUsesCanonicalPartialPatchContract(t *testing.T) {
-	descriptor := descriptorForTool(t, CalendarDescriptors(), "calendar_update")
-	schema := descriptorSchema(t, CalendarDescriptors(), "calendar_update")
+	descriptor := descriptorForTool(t, CalendarDescriptors(), "event_update")
+	schema := descriptorSchema(t, CalendarDescriptors(), "event_update")
 
 	if descriptor.Version != "3" {
-		t.Fatalf("calendar_update version = %q", descriptor.Version)
+		t.Fatalf("event_update version = %q", descriptor.Version)
 	}
-	assertSchemaHasProperties(t, schema, "eventHint", "title", "description", "location", "startISO", "endISO", "timeZone", "isAllDay", "color", "people", "includeRequester", "reminderLeadHours")
+	assertSchemaHasProperties(t, schema, "eventHint", "title", "note", "location", "startsAt", "endsAt", "isWholeDay", "participantPersonHints", "notifyMinutesBefore")
 	assertSchemaOmitsProperties(t, schema, "query", "eventID")
 	assertSchemaRequires(t, schema, "eventHint")
 	if schema.MinProperties != 2 {
-		t.Fatalf("calendar_update minProperties = %d", schema.MinProperties)
+		t.Fatalf("event_update minProperties = %d", schema.MinProperties)
 	}
 	for _, fieldName := range []string{"title", "description", "location", "startISO", "endISO"} {
 		if stringSliceContains(schema.Required, fieldName) {
@@ -156,13 +160,13 @@ func TestCalendarUpdateDescriptorUsesCanonicalPartialPatchContract(t *testing.T)
 }
 
 func TestCalendarDescriptorIncludesEventDeleteInput(t *testing.T) {
-	schema := descriptorSchema(t, CalendarDescriptors(), "calendar_delete")
+	schema := descriptorSchema(t, CalendarDescriptors(), "event_delete")
 
 	assertSchemaHasProperties(t, schema, "eventHint")
 	assertSchemaOmitsProperties(t, schema, "query", "eventID")
 	assertSchemaRequires(t, schema, "eventHint")
-	if descriptorForTool(t, CalendarDescriptors(), "calendar_delete").Version != "2" {
-		t.Fatal("calendar_delete descriptor must use the canonical-result v2 contract")
+	if descriptorForTool(t, CalendarDescriptors(), "event_delete").Version != "2" {
+		t.Fatal("event_delete descriptor must use the canonical-result v2 contract")
 	}
 }
 
@@ -218,7 +222,7 @@ func TestWebDescriptorsUseCanonicalSearchAndHideFetch(t *testing.T) {
 func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task_add")
 
-	assertSchemaHasProperties(t, schema, "title", "goal", "size", "status", "startDate", "endDate", "targetPersonHint", "participantPersonHints")
+	assertSchemaHasProperties(t, schema, "title", "size", "status", "startsAt", "endsAt", "participantPersonHints")
 	assertSchemaRequires(t, schema, "title")
 	if stringSliceContains(schema.Required, "goal") || stringSliceContains(schema.Required, "endDate") {
 		t.Fatalf("expected goal and endDate to be optional in %+v", schema.Required)
@@ -234,14 +238,14 @@ func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task_list")
 
-	assertSchemaHasProperties(t, schema, "query", "targetPersonHint", "scope", "weekFrom", "weekTo", "status", "limit")
+	assertSchemaHasProperties(t, schema, "query", "participantPersonHint", "scope", "weekFrom", "weekTo", "status", "limit")
 	assertSchemaOmitsProperties(t, schema, "weekCode", "title", "description", "assignee", "dueDate")
 }
 
 func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task_update")
 
-	assertSchemaHasProperties(t, schema, "taskHint", "title", "goal", "status", "size", "category", "type", "startDate", "endDate", "participantPersonHints")
+	assertSchemaHasProperties(t, schema, "taskHint", "title", "status", "size", "business", "type", "startsAt", "endsAt", "participantPersonHints")
 	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "ownerPersonHint", "requestReason", "decisionReason", "weekCode", "prompt", "allowDuplicate", "content", "taskID")
 	assertSchemaRequires(t, schema, "taskHint")
 	if schema.MinProperties != 2 {
@@ -303,9 +307,9 @@ func TestFlowDescriptorsDeclareCanonicalTaskResults(t *testing.T) {
 
 func TestCalendarDescriptorsDeclareCanonicalResults(t *testing.T) {
 	expectedEffects := map[string]string{
-		"calendar_add":    "created",
-		"calendar_update": "updated",
-		"calendar_delete": "deleted",
+		"event_add":    "created",
+		"event_update": "updated",
+		"event_delete": "deleted",
 	}
 	for toolName, expectedEffect := range expectedEffects {
 		descriptor := descriptorForTool(t, CalendarDescriptors(), toolName)
@@ -330,9 +334,9 @@ func TestCalendarDescriptorsDeclareCanonicalResults(t *testing.T) {
 			t.Fatalf("%s effects = %+v", toolName, descriptor.ResultContract.Effects)
 		}
 	}
-	listDescriptor := descriptorForTool(t, CalendarDescriptors(), "calendar_list")
+	listDescriptor := descriptorForTool(t, CalendarDescriptors(), "event_list")
 	if listDescriptor.ResultContract == nil || len(listDescriptor.ResultContract.Effects) != 0 {
-		t.Fatalf("calendar_list result contract = %+v", listDescriptor.ResultContract)
+		t.Fatalf("event_list result contract = %+v", listDescriptor.ResultContract)
 	}
 }
 
@@ -628,13 +632,13 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, PlatformMessageDescriptors(), "message_send", true)
 	assertDescriptorApproval(t, PlatformMessageDescriptors(), "message_delete", true)
 	assertDescriptorApproval(t, MattermostDescriptors(), "channel_update", true)
-	assertDescriptorApproval(t, CalendarDescriptors(), "calendar_add", false)
+	assertDescriptorApproval(t, CalendarDescriptors(), "event_add", false)
 	assertDescriptorApproval(t, MailDescriptors(), "mail_connection_start", true)
 	assertDescriptorApproval(t, MailDescriptors(), "mail_message_send", true)
 	assertDescriptorApproval(t, MailDescriptors(), "mail_message_search", false)
 	assertDescriptorApproval(t, WebDescriptors(), "web_search", false)
 	assertDescriptorApproval(t, WebDescriptors(), "web_fetch", false)
-	assertDescriptorApproval(t, CalendarDescriptors(), "calendar_delete", true)
+	assertDescriptorApproval(t, CalendarDescriptors(), "event_delete", true)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site_serve", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site_list", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site_unserve", true)
@@ -645,7 +649,7 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
 	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "message_send", "success", "send_message", "message")
 	assertDescriptorCompletionEvidence(t, MailDescriptors(), "mail_message_send", "success", "send_email", "email")
-	assertDescriptorCompletionEvidence(t, CalendarDescriptors(), "calendar_add", "success", "write_calendar", "calendar")
+	assertDescriptorCompletionEvidence(t, CalendarDescriptors(), "event_add", "success", "write_calendar", "calendar")
 	assertDescriptorCompletionEvidence(t, SiteAppDescriptors(), "site_serve", "success", "serve_site", "site")
 	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google_gmail_send", "success", "send_email", "email")
 	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google_calendar_event", "success", "write_calendar", "calendar")
@@ -761,7 +765,7 @@ func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {
 	sheetsSchema := descriptorSchema(t, descriptors, "google_sheets_create")
 	gmailSchema := descriptorSchema(t, descriptors, "google_gmail_send")
 	eventSchema := descriptorSchema(t, descriptors, "google_calendar_event")
-	listSchema := descriptorSchema(t, descriptors, "google_calendar_list")
+	listSchema := descriptorSchema(t, descriptors, "google_event_list")
 
 	assertSchemaHasProperties(t, docsSchema, "title", "body")
 	assertSchemaOmitsProperties(t, docsSchema, "content")

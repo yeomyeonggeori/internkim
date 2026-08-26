@@ -2,16 +2,14 @@ package capabilityd
 
 func mergeCalendarEventUpdateInput(update calendarEventUpdateInput, current calendarEventForTool) calendarEventWriteInput {
 	input := calendarEventWriteInput{
-		EventID:           current.EventID,
-		Title:             current.Title,
-		Description:       current.Description,
-		Location:          current.Location,
-		StartISO:          current.StartISO,
-		EndISO:            current.EndISO,
-		TimeZone:          current.TimeZone,
-		IsAllDay:          current.IsAllDay,
-		Color:             current.Color,
-		ReminderLeadHours: current.ReminderLeadHours,
+		EventID:             current.EventID,
+		Title:               current.Title,
+		Note:                current.Note,
+		Location:            current.Location,
+		StartsAt:            current.StartsAt,
+		EndsAt:              current.EndsAt,
+		IsWholeDay:          current.IsWholeDay,
+		NotifyMinutesBefore: current.NotifyMinutesBefore,
 	}
 	if len(current.Participants) > 0 {
 		input.Participants = current.Participants
@@ -19,24 +17,19 @@ func mergeCalendarEventUpdateInput(update calendarEventUpdateInput, current cale
 		input.People = current.People
 	}
 	applyCalendarEventTextPatch(update.Title, &input.Title)
-	applyCalendarEventTextPatch(update.Description, &input.Description)
+	applyCalendarEventTextPatch(update.Note, &input.Note)
 	applyCalendarEventTextPatch(update.Location, &input.Location)
-	applyCalendarEventTextPatch(update.StartISO, &input.StartISO)
-	applyCalendarEventTextPatch(update.EndISO, &input.EndISO)
-	applyCalendarEventTextPatch(update.TimeZone, &input.TimeZone)
-	applyCalendarEventTextPatch(update.Color, &input.Color)
-	if update.IsAllDay != nil {
-		input.IsAllDay = *update.IsAllDay
+	applyCalendarEventTextPatch(update.StartsAt, &input.StartsAt)
+	applyCalendarEventTextPatch(update.EndsAt, &input.EndsAt)
+	if update.IsWholeDay != nil {
+		input.IsWholeDay = *update.IsWholeDay
 	}
-	if update.People != nil {
-		input.People = *update.People
+	if update.ParticipantPersonHints != nil {
+		input.People = *update.ParticipantPersonHints
 		input.Participants = nil
 	}
-	if update.ReminderLeadHours != nil {
-		input.ReminderLeadHours = *update.ReminderLeadHours
-	}
-	if update.IncludeRequester != nil {
-		input.IncludeRequester = update.IncludeRequester
+	if update.NotifyMinutesBefore != nil {
+		input.NotifyMinutesBefore = *update.NotifyMinutesBefore
 	}
 	return input
 }

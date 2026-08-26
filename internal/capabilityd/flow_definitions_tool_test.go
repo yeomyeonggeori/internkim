@@ -29,6 +29,9 @@ func flowLabelService(t *testing.T, capturedPayload *string) Service {
 	return Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
 				return flowToolJSONResponse(flowDefinitionsStateBody), nil
@@ -58,7 +61,7 @@ func updateFlowTaskLabel(t *testing.T, service Service, input string) capabiliti
 
 func TestFlowTaskUpdateAcceptsARegisteredLabel(t *testing.T) {
 	capturedPayload := ""
-	response := updateFlowTaskLabel(t, flowLabelService(t, &capturedPayload), `{"taskHint":"운동","category":"김인턴","type":"기능"}`)
+	response := updateFlowTaskLabel(t, flowLabelService(t, &capturedPayload), `{"taskHint":"운동","business":"김인턴","type":"기능"}`)
 
 	if response.IsError {
 		t.Fatalf("response = %+v", response)
@@ -70,12 +73,12 @@ func TestFlowTaskUpdateAcceptsARegisteredLabel(t *testing.T) {
 
 func TestFlowTaskUpdateReturnsRegisteredLabelsForAnUnknownOne(t *testing.T) {
 	capturedPayload := ""
-	response := updateFlowTaskLabel(t, flowLabelService(t, &capturedPayload), `{"taskHint":"운동","category":"없는사업"}`)
+	response := updateFlowTaskLabel(t, flowLabelService(t, &capturedPayload), `{"taskHint":"운동","business":"없는사업"}`)
 
 	if !response.IsError || capturedPayload != "" {
 		t.Fatalf("response=%+v payload=%s", response, capturedPayload)
 	}
-	for _, expected := range []string{"flow_label_not_registered", `"field":"category"`, "김인턴", "여명거리", "기본소득"} {
+	for _, expected := range []string{"flow_label_not_registered", `"field":"business"`, "김인턴", "여명거리", "기본소득"} {
 		if !strings.Contains(string(response.Result), expected) {
 			t.Fatalf("result missing %s: %s", expected, string(response.Result))
 		}
@@ -84,7 +87,7 @@ func TestFlowTaskUpdateReturnsRegisteredLabelsForAnUnknownOne(t *testing.T) {
 
 func TestFlowTaskUpdateResolvesAUniquePartialLabel(t *testing.T) {
 	capturedPayload := ""
-	response := updateFlowTaskLabel(t, flowLabelService(t, &capturedPayload), `{"taskHint":"운동","category":"여명"}`)
+	response := updateFlowTaskLabel(t, flowLabelService(t, &capturedPayload), `{"taskHint":"운동","business":"여명"}`)
 
 	if response.IsError {
 		t.Fatalf("response = %+v", response)
@@ -108,7 +111,7 @@ func TestFlowTaskUpdateLeavesLabelsAloneWhenTheWorkspaceRegistersNone(t *testing
 			}
 		})},
 	}
-	response := updateFlowTaskLabel(t, service, `{"taskHint":"운동","category":"신규사업"}`)
+	response := updateFlowTaskLabel(t, service, `{"taskHint":"운동","business":"신규사업"}`)
 
 	if response.IsError {
 		t.Fatalf("response = %+v", response)

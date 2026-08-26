@@ -425,10 +425,10 @@ func TestResolveMattermostScenarioExpectedValuesUsesStrictFutureDatesInAsiaSeoul
 }
 
 func TestMattermostScenarioCalendarMutationUsesListedEventHint(t *testing.T) {
-	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"calendar_list", "calendar_update"}}
+	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"event_list", "event_update"}}
 	events := []mattermostScenarioTaskEvent{
-		{Name: "tool.calendar_list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1","title":"IR 미팅"}]}}}`},
-		{Name: "tool.calendar_update.requested", Body: `{"input":{"eventHint":"event-1"}}`},
+		{Name: "tool.event_list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1","title":"IR 미팅"}]}}}`},
+		{Name: "tool.event_update.requested", Body: `{"input":{"eventHint":"event-1"}}`},
 	}
 
 	if errorValue := validateMattermostScenarioCalendarMutationIDs(0, expected, events); errorValue != nil {
@@ -447,10 +447,10 @@ func TestMattermostScenarioCalendarMutationUsesListedEventHint(t *testing.T) {
 }
 
 func TestMattermostScenarioCalendarMutationRequiresListBeforeMutation(t *testing.T) {
-	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"calendar_list", "calendar_delete"}}
+	expected := mattermostScenarioStep{ExpectedToolCalls: []string{"event_list", "event_delete"}}
 	events := []mattermostScenarioTaskEvent{
-		{Name: "tool.calendar_delete.requested", Body: `{"input":{"eventHint":"event-1"}}`},
-		{Name: "tool.calendar_list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1"}]}}}`},
+		{Name: "tool.event_delete.requested", Body: `{"input":{"eventHint":"event-1"}}`},
+		{Name: "tool.event_list.result", Body: `{"output":{"data":{"events":[{"eventID":"event-1"}]}}}`},
 	}
 
 	if errorValue := validateMattermostScenarioCalendarMutationIDs(0, expected, events); errorValue == nil {

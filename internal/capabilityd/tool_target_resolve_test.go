@@ -51,7 +51,7 @@ func flowApprovalTargetService(t *testing.T, methods *[]string) Service {
 
 var approvalTargetFixtures = []approvalTargetFixture{
 	{
-		toolName:      "calendar_delete",
+		toolName:      "event_delete",
 		inputField:    "eventHint",
 		titleHint:     "상하이 edatec 미팅",
 		absentHint:    "NVIDIA·젯슨 공급 미팅",
@@ -244,7 +244,7 @@ func TestTheTargetResolutionRouteAnswersOnItsOwnPath(t *testing.T) {
 	methods := []string{}
 	service := calendarApprovalTargetService(t, &methods)
 	requestBody := `{"input":{"eventHint":"상하이 edatec 미팅"},"context":{"requesterEmail":"staff@example.com"}}`
-	request := httptest.NewRequest(http.MethodPost, "/v1/tools/calendar_delete/target.resolve", strings.NewReader(requestBody))
+	request := httptest.NewRequest(http.MethodPost, "/v1/tools/event_delete/target.resolve", strings.NewReader(requestBody))
 	responseRecorder := httptest.NewRecorder()
 
 	service.router().ServeHTTP(responseRecorder, request)

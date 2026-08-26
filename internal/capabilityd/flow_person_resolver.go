@@ -14,8 +14,13 @@ type flowOwnerResolution struct {
 	Failure *flowTaskAddFailure
 }
 
-func (service Service) resolveFlowOwner(ctx context.Context, input flowTaskAddInput, requesterEmail string, members []flowMemberForTool) flowOwnerResolution {
-	personHint := strings.TrimSpace(input.TargetPersonHint)
+// A task belongs to whoever was named. Naming nobody makes it the requester's,
+// which is the same rule an event follows.
+func (service Service) resolveFlowOwner(ctx context.Context, personHints []string, requesterEmail string, members []flowMemberForTool) flowOwnerResolution {
+	personHint := ""
+	if len(personHints) > 0 {
+		personHint = strings.TrimSpace(personHints[0])
+	}
 	if personHint == "" {
 		personHint = requesterEmail
 	}

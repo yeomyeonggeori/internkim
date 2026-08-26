@@ -288,7 +288,7 @@ func collectMattermostScenarioCreatedResourceIDs(result mattermostScenarioResult
 			case toolName == "task_add" && !seenTaskIDs[resourceID]:
 				seenTaskIDs[resourceID] = true
 				resourceIDs.TaskIDs = append(resourceIDs.TaskIDs, resourceID)
-			case toolName == "calendar_add" && !seenCalendarEventIDs[resourceID]:
+			case toolName == "event_add" && !seenCalendarEventIDs[resourceID]:
 				seenCalendarEventIDs[resourceID] = true
 				resourceIDs.CalendarEventIDs = append(resourceIDs.CalendarEventIDs, resourceID)
 			}
@@ -318,7 +318,7 @@ func mattermostScenarioCreatedResourceFromEvent(event mattermostScenarioTaskEven
 	identifierKeys := []string{"id"}
 	if result.Tool == "task_add" {
 		identifierKeys = []string{"taskID", "id"}
-	} else if result.Tool == "calendar_add" {
+	} else if result.Tool == "event_add" {
 		identifierKeys = []string{"eventID", "id"}
 	} else {
 		return "", ""
@@ -337,8 +337,8 @@ func mattermostScenarioCreatedResourceToolName(eventName string) (string, bool) 
 	switch eventName {
 	case "tool.task_add.result":
 		return "task_add", true
-	case "tool.calendar_add.result":
-		return "calendar_add", true
+	case "tool.event_add.result":
+		return "event_add", true
 	default:
 		return "", false
 	}

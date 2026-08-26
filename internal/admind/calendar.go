@@ -75,10 +75,13 @@ type calendarEventWriteRequest struct {
 	People            calendarPeopleInput           `json:"people"`
 	Participants      []calendarParticipantIdentity `json:"participants"`
 	ReminderLeadHours int                           `json:"reminderLeadHours"`
-	AllowDuplicate    bool                          `json:"allowDuplicate"`
-	ExpectedUpdatedAt string                        `json:"expectedUpdatedAt"`
-	MutationClientID  *string                       `json:"mutationClientID"`
-	MutationSequence  *int64                        `json:"mutationSequence"`
+	// The company keeps a reminder in minutes, which is what a caller that speaks
+	// the row's own vocabulary sends.
+	NotifyMinutesBefore int     `json:"notifyMinutesBefore"`
+	AllowDuplicate      bool    `json:"allowDuplicate"`
+	ExpectedUpdatedAt   string  `json:"expectedUpdatedAt"`
+	MutationClientID    *string `json:"mutationClientID"`
+	MutationSequence    *int64  `json:"mutationSequence"`
 }
 
 type calendarEventDeleteRequest struct {
@@ -622,6 +625,11 @@ func (service *Service) decodeCalendarEventWriteRequest(request *http.Request, e
 	var payload calendarEventWriteRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		return calendarEvent{}, calendarEventWriteRequest{}, errorValue
+	}
+	// A caller that speaks the company's vocabulary sends minutes; this device
+	// still keeps whole hours.
+	if payload.NotifyMinutesBefore > 0 && payload.ReminderLeadHours == 0 {
+		payload.ReminderLeadHours = payload.NotifyMinutesBefore / 60
 	}
 	event, errorValue := service.normalizeCalendarEventWriteRequest(request, payload, eventID)
 	return event, payload, errorValue
