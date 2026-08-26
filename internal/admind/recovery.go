@@ -76,7 +76,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-link-edits", "buzz-remove-link-edits", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-messages", "buzz-room-visibility", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
+	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-link-edits", "buzz-remove-link-edits", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-messages", "buzz-room-visibility", "restart-buzz-relay", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
 		return true
 	default:
 		return false
@@ -280,6 +280,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		cancelLog()
 	case "admind-journal":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read what admind said about the roster it delivers", "sh", "-lc", admindJournalCommand()))
+	case "restart-buzz-relay":
+		relayContext, cancelRelay := context.WithTimeout(context.Background(), 180*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(relayContext, "restart the relay so it forgets who could read what", "sh", "-lc", buzzRelayRestartCommand()))
+		cancelRelay()
 	case "buzz-room-visibility":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read how open each room is", "sh", "-lc", buzzRoomVisibilityCommand()))
 	case "buzz-close-rooms-except":
@@ -1132,12 +1136,23 @@ func sqlQuotedRoomName(name string) (string, error) {
 	return "'" + strings.ReplaceAll(trimmed, "'", "''") + "'", nil
 }
 
+func buzzRelayRestartCommand() string {
+	return strings.TrimSpace(`
+set -e
+systemctl restart ` + blueclaw.BuzzRelayServiceName + `
+for attempt in $(seq 1 40); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
+systemctl restart ` + blueclaw.ChatdServiceName + `
+systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p ActiveState,SubState,ExecMainStartTimestamp
+systemctl show ` + blueclaw.ChatdServiceName + ` -p ActiveState,SubState
+`)
+}
+
 func buzzRoomVisibilityCommand() string {
 	return strings.TrimSpace(`
 set +e
 q() { su - postgres -c "psql -X -d buzz -c \"$1\"" 2>&1; }
 printf '== every room, how open it is, and how many are in it ==\n'
-q "SELECT c.name AS room, c.visibility, count(m.*) FILTER (WHERE m.removed_at IS NULL) AS members, c.deleted_at IS NOT NULL AS retired FROM channels c LEFT JOIN channel_members m ON m.channel_id = c.id WHERE c.channel_type = 'stream' GROUP BY c.id, c.name, c.visibility, c.deleted_at ORDER BY 4, 2, 1"
+q "SELECT c.id::text AS id, c.name AS room, c.visibility, count(m.*) FILTER (WHERE m.removed_at IS NULL) AS members, c.deleted_at IS NOT NULL AS retired FROM channels c LEFT JOIN channel_members m ON m.channel_id = c.id WHERE c.channel_type = 'stream' GROUP BY c.id, c.name, c.visibility, c.deleted_at ORDER BY 5, 3, 2"
 `)
 }
 
