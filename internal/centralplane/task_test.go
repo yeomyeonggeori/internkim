@@ -102,7 +102,9 @@ func TestATaskIsWrittenAsThePersonItBelongsTo(t *testing.T) {
 	}
 }
 
-func TestTheOwnerIsAParticipantOfTheirOwnTask(t *testing.T) {
+// Somebody who takes themselves off a task was put back by the same write that
+// took them off, and the answer said it had worked.
+func TestTheAttendeeListIsTheOneThatWasAskedFor(t *testing.T) {
 	stub := newCentralPlaneStub(t)
 	stub.membersByEmail["colleague@example.test"] = "member-colleague"
 
@@ -116,8 +118,27 @@ func TestTheOwnerIsAParticipantOfTheirOwnTask(t *testing.T) {
 	}
 
 	participants := stub.savedArguments["target_participant_ids"].([]any)
-	if len(participants) != 2 || participants[0] != "member-for-owner-account" {
-		t.Fatalf("the owner leads the participants, got %+v", participants)
+	if len(participants) != 1 || participants[0] != "member-colleague" {
+		t.Fatalf("the participants are the ones that were named, got %+v", participants)
+	}
+}
+
+// A task with no participant and no requester is one only an admin could edit
+// afterwards, so a write that names nobody at all still seats whoever made it.
+func TestATaskThatNamesNobodySeatsWhoeverWroteIt(t *testing.T) {
+	stub := newCentralPlaneStub(t)
+
+	if _, errorValue := stub.client().SaveTask(context.Background(), Task{
+		ActorPlatform:   "mattermost",
+		ActorExternalID: "owner-account",
+		Title:           "Write the report",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	participants := stub.savedArguments["target_participant_ids"].([]any)
+	if len(participants) != 1 || participants[0] != "member-for-owner-account" {
+		t.Fatalf("a task nobody was named for belongs to whoever wrote it, got %+v", participants)
 	}
 }
 
@@ -134,8 +155,8 @@ func TestSomebodyTheCompanyDoesNotKnowIsLeftOutRatherThanFailingTheWrite(t *test
 	}
 
 	participants := stub.savedArguments["target_participant_ids"].([]any)
-	if len(participants) != 1 {
-		t.Fatalf("only the owner is a member here, got %+v", participants)
+	if len(participants) != 0 {
+		t.Fatalf("a name the company does not know is left out, not replaced, got %+v", participants)
 	}
 }
 

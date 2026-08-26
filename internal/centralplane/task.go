@@ -152,9 +152,20 @@ func confirmSomethingWasRemoved(response *http.Response, subject string) error {
 // The actor is a participant of their own task, and task_save refuses anyone
 // who is not a member here, so an address nobody is registered under is left out
 // rather than failing the write.
+// The attendee list is the one that was asked for. Seating the writer in every
+// list meant somebody who took themselves off an event was put back by the same
+// write that took them off, and the answer said it had worked.
+//
+// A write that names nobody at all still seats the writer, because a task with
+// no participant and no requester is one only an admin could edit afterwards.
+// Naming somebody the company does not know is not naming nobody: that list was
+// asked for, and it stays as short as it resolved.
 func (client *Client) membersOf(ctx context.Context, actorMemberID string, emails []string) ([]string, error) {
-	members := []string{actorMemberID}
-	seen := map[string]bool{actorMemberID: true}
+	if len(emails) == 0 && strings.TrimSpace(actorMemberID) != "" {
+		return []string{actorMemberID}, nil
+	}
+	members := []string{}
+	seen := map[string]bool{}
 	for _, email := range emails {
 		memberID, errorValue := client.MemberOf(ctx, email)
 		if errorValue != nil {
