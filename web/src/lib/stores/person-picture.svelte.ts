@@ -1,6 +1,6 @@
 import { isSupabaseConfigured } from '$lib/supabase';
 import { fetchProfilePicture } from '$lib/messenger/messenger-api';
-import { externalIDFor, fetchMessengerDirectory, type MessengerDirectory } from '$lib/messenger/messenger-directory';
+import { accountsHeldBy, fetchMessengerDirectory, type MessengerDirectory } from '$lib/messenger/messenger-directory';
 
 export type PersonIdentity = { memberID?: string; email?: string };
 
@@ -10,8 +10,16 @@ class PersonPictureStore {
 	private directory: Promise<MessengerDirectory | null> | null = null;
 	private asked = new Set<string>();
 
+	// Somebody who was on one messenger and is now on another holds an account on
+	// each, and only the one the company runs today has a picture to give. Which
+	// that is belongs to the host, so it is not guessed here: every account the
+	// person holds is asked after, and the one that answers is their picture.
 	pictureOf(person: PersonIdentity): string {
-		return this.pictureOfExternal(this.externalIDOf(person));
+		for (const externalID of this.accountsOf(person)) {
+			const drawn = this.pictureOfExternal(externalID);
+			if (drawn) return drawn;
+		}
+		return '';
 	}
 
 	pictureOfExternal(externalID: string): string {
@@ -20,7 +28,7 @@ class PersonPictureStore {
 
 	async remember(people: PersonIdentity[]): Promise<void> {
 		await this.knownPeople();
-		await this.rememberExternals(people.map((person) => this.externalIDOf(person)));
+		await this.rememberExternals(people.flatMap((person) => this.accountsOf(person)));
 	}
 
 	async rememberExternals(externalIDs: string[]): Promise<void> {
@@ -39,8 +47,8 @@ class PersonPictureStore {
 		this.dataURLOfExternal = next;
 	}
 
-	private externalIDOf(person: PersonIdentity): string {
-		return this.resolved ? externalIDFor(person, this.resolved) : '';
+	private accountsOf(person: PersonIdentity): string[] {
+		return this.resolved ? accountsHeldBy(person, this.resolved) : [];
 	}
 
 	private knownPeople(): Promise<MessengerDirectory | null> {
