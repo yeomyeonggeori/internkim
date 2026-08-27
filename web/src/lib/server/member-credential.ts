@@ -161,3 +161,46 @@ async function storeSecret(
 
 // A company runs one messenger, so a member holds one credential for it, and
 // which kind that is belongs to the messenger rather than to the caller.
+
+// The messenger account on the member is a projection of the credential the
+// person was issued. Any row the projection misses or contradicts is set from
+// the credential, so an account issued before the projection existed still
+// resolves.
+export async function reconcileMessengerAccounts(
+	client: SupabaseClient,
+	companyID: string,
+	platform: string,
+	kind: string,
+): Promise<string[]> {
+	const members = await client
+		.from('member')
+		.select('id, email, messenger')
+		.eq('company_id', companyID)
+		.returns<{ id: string; email: string | null; messenger: Record<string, string> | null }[]>();
+	if (members.error) throw new Error(members.error.message);
+
+	const credentials = await client
+		.from('credential')
+		.select('member_id, external_id')
+		.eq('kind', kind)
+		.returns<{ member_id: string; external_id: string | null }[]>();
+	if (credentials.error) throw new Error(credentials.error.message);
+	const issuedByMember = new Map(
+		credentials.data
+			.filter((credential) => credential.external_id)
+			.map((credential) => [credential.member_id, credential.external_id as string]),
+	);
+
+	const healed: string[] = [];
+	for (const member of members.data) {
+		const issued = issuedByMember.get(member.id);
+		if (!issued || member.messenger?.[platform] === issued) continue;
+		const { error } = await client
+			.from('member')
+			.update({ messenger: { ...(member.messenger ?? {}), [platform]: issued } })
+			.eq('id', member.id);
+		if (error) throw new Error(error.message);
+		healed.push(member.email ?? member.id);
+	}
+	return healed;
+}
