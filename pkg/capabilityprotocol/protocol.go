@@ -179,6 +179,18 @@ type ToolInvokeRequest struct {
 
 type ToolInvokeTransport struct {
 	SiteSourceBundle *SiteSourceBundle `json:"siteSourceBundle,omitempty"`
+	WorkspaceFile    *WorkspaceFile    `json:"workspaceFile,omitempty"`
+	WorkspaceFiles   []WorkspaceFile   `json:"workspaceFiles,omitempty"`
+}
+
+// A person's file reaches a capability as its content. The capability daemon
+// runs beside the workspace with no identity to become, so a file is read where
+// the requester's own identity exists and travels from there.
+type WorkspaceFile struct {
+	WorkspacePath string `json:"workspacePath"`
+	Filename      string `json:"filename,omitempty"`
+	ContentBase64 string `json:"contentBase64"`
+	SHA256        string `json:"sha256,omitempty"`
 }
 
 type SiteSourceBundle struct {

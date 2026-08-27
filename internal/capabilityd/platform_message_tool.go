@@ -259,7 +259,7 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 		return service.invokeChatdPlatformMessageSend(ctx, request, input)
 	}
 	if input.DeliveryTarget.Type == "directMessage" {
-		attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(input.Attachments)
+		attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
 		if hasFailure {
 			return mattermostToolErrorResponse(request.ToolName, failure), nil
 		}
@@ -271,7 +271,7 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 	if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 		return response, nil
 	}
-	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(input.Attachments)
+	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
@@ -293,10 +293,29 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 	})
 }
 
-func (service Service) resolvePlatformMessageAttachments(paths []string) ([]platformFile, mattermostToolFailure, bool) {
-	attachmentFiles, errorValue := service.resolveWorkspaceAttachmentFiles(paths)
-	if errorValue != nil {
-		return nil, mattermostToolStaticFailure("attachment_unavailable", "attachment_resolve", errorValue.Error()), true
+// The files were read by the person sending them, where their identity exists,
+// and arrive as content. A message that names a file nobody carried is refused
+// rather than served by opening the workspace as root.
+func (service Service) resolvePlatformMessageAttachments(request capabilities.ToolInvokeRequest, paths []string) ([]platformFile, mattermostToolFailure, bool) {
+	if len(paths) == 0 {
+		return nil, mattermostToolFailure{}, false
+	}
+	carriedFiles := request.Transport.WorkspaceFiles
+	if len(carriedFiles) != len(paths) {
+		return nil, mattermostToolStaticFailure("attachment_not_carried", "attachment_resolve",
+			"these files were named but not carried; the caller reads them as the person who asked and sends their content"), true
+	}
+	attachmentFiles := []platformFile{}
+	for _, carried := range carriedFiles {
+		attachmentFile, errorValue := service.materializeInlinePlatformFile(service.Configuration.WithDefaults(), platformFileSpec{
+			DevicePath:    carried.WorkspacePath,
+			Filename:      carried.Filename,
+			ContentBase64: carried.ContentBase64,
+		})
+		if errorValue != nil {
+			return nil, mattermostToolStaticFailure("attachment_unavailable", "attachment_resolve", carried.WorkspacePath+": "+errorValue.Error()), true
+		}
+		attachmentFiles = append(attachmentFiles, attachmentFile)
 	}
 	return attachmentFiles, mattermostToolFailure{}, false
 }
@@ -466,9 +485,6 @@ func platformMessageEditMatchFailure(matchCount int, currentMessage string) matt
 }
 
 func (service Service) invokePlatformMessageDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if service.chatdServesPlatform(request.Context.Platform) {
-		return mattermostToolErrorResponse(request.ToolName, service.chatdUnroutedToolFailure(request.ToolName, request.Context.Platform)), nil
-	}
 	input, errorValue := decodePlatformMessageDeleteInput(request.Input)
 	if errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
@@ -476,6 +492,9 @@ func (service Service) invokePlatformMessageDelete(ctx context.Context, request 
 	if len(input.MessageIDs) == 0 {
 		failure := mattermostToolStaticFailure("invalid_input", "input_decode", "messageIDs is required; use message_search first to find message IDs")
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
+	}
+	if service.chatdServesPlatform(request.Context.Platform) {
+		return service.invokeChatdPlatformMessageDelete(ctx, request, input.MessageIDs)
 	}
 	if len(input.MessageIDs) > mattermostPostSearchPageLimit {
 		failure := mattermostToolStaticFailure("too_many_message_ids", "input_decode", "message_delete accepts at most 25 messageIDs per call; delete one search page at a time")

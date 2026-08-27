@@ -2,6 +2,7 @@ package capabilityd
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -96,6 +97,13 @@ func TestPlatformMessageSendUploadsWorkspaceAttachmentToUnjoinedChannel(t *testi
 			"message":     "번역본입니다",
 			"attachments": []string{agentPath},
 		}),
+		Transport: capabilities.ToolInvokeTransport{
+			WorkspaceFiles: []capabilities.WorkspaceFile{{
+				WorkspacePath: agentPath,
+				Filename:      filepath.Base(agentPath),
+				ContentBase64: base64.StdEncoding.EncodeToString([]byte("a picture")),
+			}},
+		},
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:          "staff@example.com",
 			RequesterPlatformUserID: "staff-1",
@@ -204,7 +212,11 @@ func TestPlatformMessageSendDoesNotJoinChannelForNonMemberRequester(t *testing.T
 	}
 }
 
-func TestPlatformMessageSendRejectsUnavailableAttachmentPath(t *testing.T) {
+// A file is read by the person sending it, where their identity exists, and
+// arrives here as content. Naming one is not enough: this daemon runs as root
+// beside the workspace and opening it on somebody's behalf is the thing being
+// taken away, so a named-but-uncarried file is refused.
+func TestPlatformMessageSendRefusesAFileNobodyCarried(t *testing.T) {
 	service := platformMessageAttachmentTestService(t, t.TempDir(), func(request *http.Request) (*http.Response, error) {
 		if isDirectoryPeopleRequest(request) {
 			return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
@@ -233,7 +245,7 @@ func TestPlatformMessageSendRejectsUnavailableAttachmentPath(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.ErrorCode != "attachment_unavailable" {
-		t.Fatalf("expected attachment_unavailable, got %+v", response)
+	if response.ErrorCode != "attachment_not_carried" {
+		t.Fatalf("expected attachment_not_carried, got %+v", response)
 	}
 }
