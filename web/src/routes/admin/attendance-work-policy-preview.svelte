@@ -27,7 +27,7 @@
 	);
 </script>
 
-<Card.Root class="h-fit lg:sticky lg:top-5">
+<Card.Root class="h-fit @5xl:sticky @5xl:top-5">
 	<Card.Header>
 		<Card.Title>{text.workSettings.preview}</Card.Title>
 		<Card.Description>{text.workSettings.previewDescription}</Card.Description>
