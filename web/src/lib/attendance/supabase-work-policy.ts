@@ -4,6 +4,7 @@ import {
 	type CurrentAttendanceWorkPolicy
 } from './current-work-policy';
 import { isAttendanceWorkMode, type AttendanceWorkMode } from '$lib/attendance/work-mode';
+import { defaultWorkPolicy } from './work-policy-defaults';
 import type {
 	ProjectedWorkCalendarDay,
 	WorkCalendarProjection,
@@ -74,21 +75,13 @@ function legacyCurrentPolicy(
 	workMode: AttendanceWorkMode,
 	minimumDailyMinutes: number | null
 ): CurrentAttendanceWorkPolicy {
-	const dailyTargetMinutes = minimumDailyMinutes ?? 8 * 60;
+	const fallback = defaultWorkPolicy();
+	const dailyTargetMinutes = minimumDailyMinutes ?? fallback.dailyTargetMinutes;
 	return {
+		...fallback,
 		workMode,
-		workingWeekdays: [1, 2, 3, 4, 5],
 		dailyTargetMinutes,
-		weeklyTargetMinutes: dailyTargetMinutes * 5,
-		referenceStartTime: '09:00',
-		fixedStartTime: '',
-		fixedEndTime: '',
-		coreTimeEnabled: true,
-		coreStartTime: '11:00',
-		coreEndTime: '16:00',
-		breakPeriods: [{ startTime: '12:00', endTime: '13:00' }],
-		nightStartTime: '22:00',
-		nightEndTime: '06:00'
+		weeklyTargetMinutes: dailyTargetMinutes * fallback.workingWeekdays.length
 	};
 }
 

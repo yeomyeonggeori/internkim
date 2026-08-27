@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
-	import { apiErrorMessage, fetchAttendanceWorkPolicy, updateAttendanceWorkPolicy } from './admin-api';
+	import { apiErrorMessage } from './admin-api';
+	import { fetchAttendanceWorkPolicy, updateAttendanceWorkPolicy } from './attendance-settings-api';
+	import { settingsSource } from './settings-source';
 	import type {
 		AdminPageText,
 		AttendanceWorkPolicy,
@@ -24,7 +26,7 @@
 	let { adminBaseURL, text }: Props = $props();
 	let policy = $state<AttendanceWorkPolicy | null>(null);
 	let draft = $state<AttendanceWorkPolicyRevision | null>(null);
-	let loadedAdminBaseURL = $state('');
+	let loadedSource = $state('');
 	let message = $state('');
 	let isLoading = $state(false);
 	let isSaving = $state(false);
@@ -32,8 +34,9 @@
 	let holidayDates = $state<string[]>([]);
 
 	$effect(() => {
-		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
-		loadedAdminBaseURL = adminBaseURL;
+		const source = settingsSource(adminBaseURL);
+		if (!source || loadedSource === source) return;
+		loadedSource = source;
 		void loadPolicy();
 	});
 
