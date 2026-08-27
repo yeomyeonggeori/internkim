@@ -1,0 +1,72 @@
+---
+title: What lives where
+description: If that computer burned down tonight, what has to still be true tomorrow.
+---
+
+One question decides it. If that computer burned down tonight, what has to
+still be true tomorrow?
+
+Whatever answers yes belongs in the record. Whatever is a fact about the
+machine belongs on the host.
+
+## The record
+
+Thirteen tables, and each is something a company would still need after
+replacing every computer it owns. The schema is `supabase/migrations`, one
+migration per change, explained in `docs/internal/core-schema.md`.
+
+| | |
+|---|---|
+| `company` · `member` · `team` | who this is and who works here |
+| `credential` | a member's identity or secret on an external system |
+| `contact` | the messenger address book: who an external ID is, member or not |
+| `agent` | the key a host proves itself with |
+| `attendance` · `leave` | when people worked and when they were away |
+| `task` · `task_participant` | work and calendar events, with participants |
+| `circle` · `circle_member` | named groups made by hand, for sharing |
+| `push_device` | somewhere a member can be reached with a notification |
+
+Calendar events are tasks with a span and `is_event`, which is why there is
+no separate table for them. There is no table for a message, which is why no
+conversation can reach the record.
+
+## The agent's store
+
+Twenty-nine tables on the host's own Postgres, defined in
+`.dependency/blueclaw/migrations/`.
+
+| | |
+|---|---|
+| Conversation | `raw_event`, `conversation`, `attachment`, `content_segment`, `connector_outbox` |
+| Execution | `task_run`, `task_attempt`, `task_step`, `task_event`, `task_schedule`, `task_session`, `task_artifact`, `task_wait_token` |
+| Memory | `memory_record`, `memory_source`, `graphiti_episode`, `graphiti_namespace` |
+| Policy and identity | `person`, `person_circle`, `person_email`, `circle`, `platform_account`, `policy_channel_rule`, `policy_revision`, `resource_access_rule` |
+| Operations | `admin_audit_log`, `backup_lock`, and the platform link tables |
+
+None of it is a company record. It is the agent's working state: what was
+said, what it did, what it remembers, and what it is allowed to touch.
+`task_event` is the ledger the rest of the system trusts — every tool call,
+its full input, and every routing decision land there, which is what makes a
+failed run diagnosable after the fact.
+
+## Files
+
+The workspace lives on the host, under the permissions described in
+[Boundaries](/docs/boundaries). Private space per person, shared space per
+circle, and a service-owned area the agent's own machinery uses.
+
+Backing the host up is the company's job. Losing it loses the agent's memory,
+its history and the files, and loses none of the company's records. That
+asymmetry is deliberate: keeping the agent's memory central would mean holding
+a company's internal knowledge on our side, the thing this design avoids for
+messages and mail.
+
+## Where the line is still moving
+
+**Customer relationship records** belong with the other company records, and
+the record has no table for them yet. A schema design exists at
+`docs/internal/crm-backend-schema-design.md`.
+
+**Workspace file browsing and agent-published sites** assume a reachable
+`admind`, which the outbound-only host does not run. Their central answers are
+open questions in `docs/internal/saas-design.md` §11.

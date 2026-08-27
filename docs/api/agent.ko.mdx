@@ -1,0 +1,109 @@
+---
+title: 에이전트에게 맡기기
+description: 메시지 하나로 일 전체를 맡깁니다.
+---
+
+김인턴에게 일 전체를 맡길 수도 있습니다. 메시지 하나를 보내면 어떤 도구가
+필요한지는 에이전트가 정합니다. 메시지는 메신저 메시지와 같은 커넥터 런타임으로
+들어가고, 토큰 주인의 신원으로 실행되며, 같은 태스크 원장에 남습니다. 두
+엔드포인트 모두 2등급 이상이 필요합니다. [범위](/ko/docs/api#scopes)를
+보세요.
+
+## 메시지 보내기 [#sending-a-message]
+
+```bash
+curl https://<host>/api/v1/agent/messages \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{"message":"지난달 업무를 문서로 정리해 줘"}'
+```
+
+```json
+{
+  "conversationID": "dm:api:<personID>:<random>",
+  "messageID": "api_...",
+  "result": { "handled": true, "platform": "api", "duplicate": false, "ignored": false }
+}
+```
+
+`message`는 필수입니다. `result`는 메시지 자체에 대한 커넥터 런타임의
+판정입니다. 처리됐는지, 무시됐는지(`reason`과 함께), `duplicate`인지를
+말합니다. 같은 `messageID`를 두 번 보내면 중복으로 제거되므로, 이 엔드포인트의
+재시도 키는 `messageID`입니다. 답은 나중에 옵니다. 이 응답은 메시지가
+접수됐다는 뜻일 뿐입니다.
+
+## 대화 [#conversations]
+
+`conversationID`를 생략하면 새 대화가 열리고 생성된 ID가 돌아옵니다. 이어서
+말하려면 다음 메시지에 같은 `conversationID`를 넣습니다. 에이전트에게 이것은
+회사 메신저의 DM 같은 일대일 스레드입니다.
+
+## 답 읽기 [#reading-replies]
+
+```bash
+curl "https://<host>/api/v1/agent/replies?conversationID=dm:api:..." \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN"
+```
+
+```json
+{
+  "conversationID": "dm:api:...",
+  "replies": [
+    {
+      "conversationID": "dm:api:...",
+      "replyTargetID": "dm:api:...",
+      "reply": {
+        "message": "정리한 내용입니다...",
+        "taskRunID": "...",
+        "replyKind": "completion"
+      }
+    }
+  ]
+}
+```
+
+푸시 채널은 없으므로 이 엔드포인트를 폴링합니다. 목록이 비어 있다는 것은
+에이전트가 아직 일하고 있다는 뜻이고, 일은 이 HTTP 요청이 끝난 뒤에도
+이어집니다. 답에는 `attachments`(에이전트가 만든 파일)와 `interaction`(질문,
+아래 참조)이 실려 올 수 있습니다.
+
+<Callout title="답 저장소는 메모리입니다">
+답은 런타임의 메모리에 보관됩니다. 대화당 마지막 50개, 최근 2,000개 대화까지,
+재시작하면 사라집니다. 답은 오는 대로 읽고, 오래 남는 기록으로는 이 버퍼가 아닌
+태스크 원장을 믿으세요.
+</Callout>
+
+## 승인 [#approval]
+
+승인이 필요한 일에 다다르면, 실행은 메신저에서처럼 멈춰 서서 묻습니다. 그
+질문은 `interaction` 필드에 문구와, 선택형이라면 선택지를 담은 답으로
+도착합니다. 같은 대화에 다음 메시지를 보내는 것으로 답합니다.
+
+```bash
+curl https://<host>/api/v1/agent/messages \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{"conversationID":"dm:api:...","message":"승인, 진행해"}'
+```
+
+승인하는 답은 실행을 잇고, 거절하는 답은 끝냅니다.
+[도구 직접 호출](/ko/docs/api/tools#invoking)에서는 토큰의 범위가 승인을
+대신하므로 멈추는 지점이 없다는 것과 대비됩니다.
+
+## 같은 원장 [#the-same-ledger]
+
+`api`는 `mattermost`, `slack`, `signal`과 나란한 커넥터 플랫폼입니다. 여기서
+시작된 태스크는 Admin의 태스크 목록에 이벤트 원장 전체와 함께 나타나고, 토큰의
+주인이 모든 곳에서 요청자입니다. 권한에서도, 태스크 기록에서도, 에이전트가 그
+사람을 대신해 읽을 수 있는 범위에서도 그렇습니다.
+
+## 구현 위치 [#where-it-is-implemented]
+
+| 관심사 | 위치 |
+|---|---|
+| 두 엔드포인트, 범위 확인, 대화·메시지 ID 기본값 | `internal/admind/agent_drive.go`의 `handleAgentMessage`, `handleAgentReplies` |
+| 런타임으로의 전달 | `internal/admind/service.go`의 `blueclawJSONRequest`, 목적지는 `POST /connectors/api/events`와 `GET /agent/api/replies` |
+| 런타임 쪽 라우트 배선 | `.dependency/blueclaw/internal/httpserver/router.go` |
+| `api` 커넥터 어댑터 | `.dependency/blueclaw/internal/connectors/api/api_adapter.go`; 신원은 보낸 사람의 이메일에서 해석됩니다 |
+| 답 버퍼 | `.dependency/blueclaw/internal/connectors/api/reply_store.go` |
+| 대화 속 승인 대기 응답 처리 | `.dependency/blueclaw/internal/connectors/runtime.go`의 `HandleInboundEvent` |

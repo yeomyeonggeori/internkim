@@ -1,0 +1,111 @@
+---
+title: Files and the terminal
+description: The workspace tools, the POSIX identity they run as, and how finished work leaves the workspace.
+---
+
+Ask for a spreadsheet cleaned up, a deck built, a script run, and the work
+happens in your workspace: a directory on the host that belongs to your own
+Linux user. The tools here are built into the agent host (blueclaw), and every
+one of them executes as you, so what the agent can touch is exactly what you
+could touch at a shell.
+
+## The tools [#tools]
+
+| Tool | What it does |
+|---|---|
+| `file_read` | reads a text file or line range |
+| `file_write` | creates or overwrites one text file |
+| `file_edit` | applies exact text replacements as one atomic edit |
+| `file_preview` | previews an attached or workspace file from the conversation |
+| `file_delete` | removes one file, after your approval |
+| `file_deliver` | attaches finished workspace files to the reply |
+| `image_read` | reads an image for the model to look at |
+| `terminal_run` | runs one command in the workspace |
+
+Registered in `.dependency/blueclaw/internal/agentruntime/file_tools.go` and
+`terminal_tools.go`; the names live in
+`.dependency/bluecollar/toolcontract/kernel_tools.go`. The file tools are not
+a separate code path: each builds a shell command and runs it through the same
+requester primitive as `terminal_run`
+(`internal/agentruntime/requester_shell.go`), starting in your own `$HOME`, so
+tilde expansion, globs, and relative paths behave as they do at a shell.
+
+## Who a command runs as [#identity]
+
+Every person in the policy projects to a real Linux user and every circle to a
+real group (`.dependency/blueclaw/internal/security/posix_identity.go`):
+
+| Policy object | Linux object |
+|---|---|
+| person | `bc_person_<shortID>` user, with a primary group of the same name |
+| circle | `bc_circle_<circleID>` group |
+| everyone | `bc_shared` supplementary group |
+| service internals | `blueclaw` user |
+
+The daemon never touches a requester file itself. Workspace I/O and process
+execution go through `blueclaw-posix-helper`, a setuid bridge that authorizes
+only a real UID of `root` or `blueclaw`, then drops to the requester's UID,
+GID, and supplementary groups before executing. After that drop the process
+cannot regain privilege.
+
+There is no allowlist of commands and no path filter anywhere. What the
+guardrail (`internal/security/command_guardrail_service.go`) enforces is
+structural:
+
+- refuses to execute at all when the daemon is effectively root
+- resolves the working directory against the workspace root
+- replaces the environment with a fixed allowlist of variable names and a
+  canonical `PATH`
+- caps the timeout and output size
+- requires bubblewrap when `terminal.mode` is `sandbox`
+
+Ownership and mode bits make the access decision, which is why a
+system-modifying command simply fails for an unprivileged actor. The
+[boundaries](/docs/boundaries) page has the design argument.
+
+## The workspace layout [#layout]
+
+| Path | Who may touch it | Holds |
+|---|---|---|
+| `home/<path>` | you | durable personal files |
+| `private/people/<personID>/tmp/<task>` | you | drafts and build intermediates |
+| `private/people/<personID>/artifacts/<slug>` | you | finished personal output |
+| `circles/<circleID>` | the circle's group | deliberate team sharing |
+| `shared/public` | everyone; safe for outsiders | externally shareable content |
+| `shared/cache/dependencies` | everyone | package caches only |
+| `skills` | read and execute | bundled skill source |
+| `.blueclaw` | the service only | database, logs, internal state |
+
+## How finished work leaves [#delivery]
+
+```
+file_write   tmp/<slug>/…          draft and build inputs
+terminal_run cwd=tmp/<slug>        build, render, verify
+             artifacts/<slug>/…    the finished output moves here
+file_deliver                       attached to the reply you receive
+```
+
+`tmp/` is ephemeral and `artifacts/` is durable; the artifact manifest
+(`internal/agentruntime/artifact_manifest.go`) tracks what a task produced by
+those paths. Work for the team goes to a circle directory, and only content
+safe to show outsiders goes to `shared/public`.
+
+## Skills [#skills]
+
+A skill is a bundled instruction set the agent loads when a task matches it:
+building a deck, filing paperwork, shaping a site. The model finds them with
+`skill_search` and receives only the selected `SKILL.md` body; the scripts,
+references, and assets bundled next to it load when the work needs them.
+Skills live under `/workspace/skills`, their scripts run as the requester like
+any other command, and each `SKILL.md` is budgeted (the repository gate is
+15 KB and 300 lines) because an oversized skill is a prompt-runtime bug.
+
+## When a human has to be there [#presence]
+
+Login, MFA, file picking, and confirmation happen on the user's own computer
+through the companion. `file_pick` uploads the chosen file through a signed
+broker and reports only a temporary device path with an expiry; the local path
+never leaves the user's machine. Alongside the file and terminal tools the
+model also holds run-control tools (`plan_update`, `conversation_history`,
+`request_tools`, the `ask_*` prompts), which shape the run and touch nothing
+outside it.

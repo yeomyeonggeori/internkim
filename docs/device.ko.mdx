@@ -1,0 +1,103 @@
+---
+title: 디바이스 경로
+description: 중앙 평면 이전의 회사별 어플라이언스. 지금도 출하되고 지금도 동작합니다.
+---
+
+중앙 평면 이전에는 회사마다 어플라이언스 한 대가 있었습니다. 모든 것을 실은
+Jetson Orin Nano Super이고, 같은 네트워크의 사람들이 닿았습니다. 그 경로는
+지금도 출하되고 계속 동작해야 하며, 이 페이지가 그 지도입니다. 제품의 오래된
+반쪽이고, 방향은 이 문서의 나머지가 설명하는 호스트와 중앙 평면입니다.
+
+## 그 컴퓨터 위에서 도는 것 [#what-runs-on-the-box]
+
+```
+같은 네트워크의 운영자 ── Jetson Orin Nano Super
+                           ├── Mattermost :8065
+                           ├── internkim-admind (127.0.0.1:18080)
+                           ├── internkim-capabilityd
+                           ├── graphiti-memoryd :7791
+                           ├── llama-server (생성과 임베딩)
+                           └── Firecracker blueclaw 게스트 :8080
+```
+
+| 구성 요소 | 하는 일 | 코드 |
+|---|---|---|
+| `internkim-admind` | 디바이스 관리 API: 관리 UI 리버스 프록시, 컴패니언 브로커, 백업과 복원, OTA 적용 | `cmd/internkim-admind/`, `internal/admind/` |
+| `internkim-capabilityd` | OpenRouter 키, 로컬 모델, 메신저·컴패니언 자격증명을 쥐고 능력 API만 노출; 선택적 Slack·Signal 사이드카를 굴림 | `internal/capabilityd/` |
+| blueclaw 게스트 | `blueclaw-supervisor` 아래 Firecracker VM에 격리된 에이전트, `/workspace/.blueclaw/config/*.json`을 읽음 | `.dependency/blueclaw/` |
+| `graphiti-memoryd` | 기억 사이드카: 에피소드 수집과 하이브리드 그래프 검색 | — |
+| 로컬 모델 | 상주 `llama-server`: 생성은 MTP 드래프팅을 붙인 gemma-4-E2B QAT, 임베딩은 CPU 위 BGE-M3 Q8 | — |
+| Mattermost | 그 컴퓨터에 셀프호스팅된 메신저 | — |
+
+생성의 기본 경로는 원격 프로바이더입니다. 로컬 모델은 그 경로가 닿지 않거나
+너무 비쌀 때 회사를 계속 돌게 하는 폴백입니다.
+
+## 디스크에서 무엇이 어디 사는지 [#where-things-live-on-disk]
+
+자격증명은 `/root/.internkim/` 아래에, 프로세스마다 자기 것만 읽도록 나뉘어
+있습니다.
+
+| 경로 | 읽는 프로세스 |
+|---|---|
+| `/root/.internkim/secrets/openrouter-api-key` | `internkim-capabilityd` |
+| `/root/.internkim/models/*` | `internkim-capabilityd`, 모델 래퍼 |
+| `/root/.internkim/secrets/google-sa.json` | Google Workspace 헬퍼들 |
+| `/root/.internkim/state/companion-jobs.json` | `internkim-admind` |
+
+에이전트 쪽은 `/root/.blueclaw/`입니다. `config/runtime.json`과
+`config/policy.json`이 런타임 계약이고, `workspace/`가 게스트에
+`/workspace`로 마운트됩니다. 워크스페이스의 권한 모델은
+[경계](/ko/docs/boundaries)에 있습니다.
+
+## 컴패니언 [#the-companion]
+
+`internkim-companion`은 사용자 자신의 컴퓨터에서 돌며 사람이 필요한 일을
+맡습니다. 브라우저 작업 중의 로그인, MFA, 파일 고르기, 행동 승인. 페어링은
+Mattermost의 `/connect`에서 시작하고, 그 사용자 자신의 신원에 묶인 10분짜리
+일회용 코드를 받습니다. 페어링된 컴패니언은 인바운드 포트를 열지 않습니다.
+admind 브로커를 롱폴링하고, 작업은
+`/root/.internkim/state/companion-jobs.json` 덕분에 admind 재시작을 견딥니다.
+
+`file_pick`은 로컬 경로를 사용자의 기계에 남깁니다. 고른 파일은 서명된
+브로커를 통해 올라가고, 에이전트에게는 TTL이 붙은 디바이스 로컬 경로만
+보입니다. 브라우저 능력은 컴패니언에서 화면 있는 브라우저로 돌고,
+capabilityd는 그 사람의 컴패니언이 온라인일 때만 그리로 라우팅합니다.
+
+## 디바이스에 배포하기 [#deploying-to-a-device]
+
+일상 배포는 Admin HTTPS 위의 OTA 릴리스 엔진으로 갑니다. SSH는 최초 설치와
+복구를 위해 남아 있습니다.
+
+```bash
+make build
+./internkim deploy --components admind,capabilityd
+```
+
+무엇보다 먼저 알아 두면 좋은 규칙들.
+
+- **Jetson의 에이전트 컴포넌트는 `blueclawPayload`**이고,
+  `.dependency/blueclaw-payload/`의 사전 빌드 산출물을 실어 나릅니다.
+  에이전트 변경에는 먼저 `make prepare-blueclaw-payload`가 필요하고, 산출물의
+  리비전이 서브모듈 HEAD와 다르면 배포가 소리 내어 실패합니다.
+- **디바이스가 한 번도 설치한 적 없는 컴포넌트는 배포가 두 번 필요합니다.**
+  릴리스를 적용하는 것은 이미 돌고 있는 `admind`라서, `admind`를 먼저
+  배포하고 그다음 그 컴포넌트를 배포합니다.
+- **돌고 있는 프로세스는 시작할 때의 설정을 쥐고 있습니다.** 설정을 쓰는
+  쪽만 배포하고 읽는 쪽을 빼면, 읽는 쪽은 재시작 전까지 옛 파일을 봅니다.
+  같은 릴리스에 함께 실으세요.
+- **`systemctl is-active`는 "일하고 있음"이 아닙니다.** 에이전트가 읽는 것을
+  건드린 배포 뒤에는 배포보다 새로운 태스크 실행이 있는지 확인하세요.
+- `./internkim release publish`는 여러 디바이스가 `./internkim update`로
+  당겨 갈 안정 채널을 R2에 발행합니다.
+
+디바이스 배포 전의 관문은 일회용 로컬 플릿입니다. macOS 위의 ARM 리눅스
+VM에서 현재 체크아웃을 실제 서비스 경계에 대고 돌리는
+`./internkim dev fleet run`입니다. 배포 뒤에는 `./internkim status`,
+`./internkim verify mattermost`, `./internkim verify api`.
+
+## 디바이스에 닿기 [#reaching-a-device]
+
+제품은 들어오는 길을 열지 않습니다. `admind`는 루프백에서만 듣고 에이전트의
+연결은 바깥을 향합니다. 같은 네트워크의 운영자에게는 아무것도 필요 없고, 다른
+곳에서는 자신의 `~/.ssh/config`에 넣는 `ProxyCommand`가 준비의 전부입니다.
+[호스트](/ko/docs/architecture#why-the-host-has-no-inbound-port)와 똑같습니다.

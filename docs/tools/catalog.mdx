@@ -1,0 +1,106 @@
+---
+title: Tool catalog
+description: Every capability tool, by namespace, generated from the canonical catalog.
+---
+
+The tables below are rendered at build time from the catalog the agent itself
+reads (`pkg/capabilityprotocol/generated/capability-tools.json`, protocol
+<ToolProtocolVersion />), so they cannot drift from what is deployed. The
+descriptions are the exact English sentences the model receives.
+
+Tools whose effect column is `destructive`, plus `message_send` and
+`channel_update`, pause for [approval](/docs/tools/index#approval) before
+running.
+
+## Tasks [#task]
+
+<ToolCatalog namespace="task" />
+
+Backed by admind's Flow API (`internal/capabilityd/flow_tool.go`). Updates and
+deletes take a `taskHint`: the exact task ID or exact current title from a
+`task_list` result. Dates are `yyyy-mm-dd`; the agent resolves "next Friday"
+before calling.
+
+## People [#person]
+
+<ToolCatalog namespace="person" />
+
+Implemented in `internal/capabilityd/person_list_tool.go` over the same Flow
+membership data. The agent calls it whenever a message names someone partially,
+so every later hint carries an exact name, @handle, or email.
+
+## Calendar [#calendar]
+
+<ToolCatalog namespace="calendar" />
+
+Implemented in `internal/capabilityd/calendar_tool.go`, also over admind's
+Flow API; a calendar event is a task with a time span. Times are ISO
+timestamps with a time zone, and `eventHint` follows the same resolution rule
+as `taskHint`.
+
+## Messages [#message]
+
+<ToolCatalog namespace="message" />
+
+Implemented in `internal/capabilityd/platform_message_tool.go` and
+`mattermost_tool.go`. `message_search` has two modes: keyword `queries`
+return IDs with a preview around the match, and `messageIDs` returns those
+messages complete. `message_update` edits one exact span of the agent's own
+earlier message: `oldText` must occur exactly once, and the rest of the
+message stays untouched. `message_send` targets a direct message, a named
+channel, or the current conversation; only the current-conversation targets
+skip approval.
+
+## Channels [#channel]
+
+<ToolCatalog namespace="channel" />
+
+Implemented in `internal/capabilityd/mattermost_tool.go`. Display name,
+header, and membership changes all go through this one gated tool.
+
+## Web [#web]
+
+<ToolCatalog namespace="web" />
+
+Implemented in `internal/capabilityd/web_tool.go` through OpenRouter's web
+search. Domain allowlists, language, and location narrow the query.
+
+## Sites [#site]
+
+<ToolCatalog namespace="site" />
+
+Implemented in `internal/capabilityd/site_tool.go` over admind. The agent
+builds a site as ordinary files in the workspace, then serves that directory:
+`preview` returns a temporary review URL, `publish` takes the public one. The
+slug is derived from the title on first serve and owned by the server.
+`site_unserve` frees the slug and deletes the server-side record; the source
+files in the workspace stay.
+
+## Documents and images [#document]
+
+<ToolCatalog namespace="document" />
+<ToolCatalog namespace="image" />
+
+Implemented in `internal/capabilityd/file_read_tool.go` (with
+`file_read_helper.py` doing format extraction). These read a workspace path
+and return Markdown or a base64 attachment, which is how a PDF someone
+uploaded becomes something the model can quote.
+
+## Browser [#browser]
+
+<ToolCatalog namespace="browser" />
+
+Implemented in `internal/capabilityd/browser_tool.go`. Calls route to the
+companion on the user's own computer when it is connected, with the device
+browser as the other provider. `browser_open` requires the user present, and
+responses carry no cookies, profile paths, or local screenshot paths;
+`browser_screenshot` uploads to a temporary workspace-visible path instead.
+Login, MFA, and captcha steps are handed to the human.
+
+## Artifacts [#artifact]
+
+<ToolCatalog namespace="artifact" />
+
+Implemented in `internal/capabilityd/artifact_review_tool.go`. This is the
+agent's own quality loop: it renders what it built, screenshots it, and asks
+for typed visual issues against the stated intent before delivering.
