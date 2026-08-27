@@ -1,5 +1,5 @@
 import catalog from '../../../../pkg/capabilityprotocol/generated/capability-tools.json';
-import type { Locale } from '$lib/i18n/locale.svelte';
+import type { Locale } from '$lib/i18n/locale';
 
 export type ApiDocumentationLanguage = Locale;
 
@@ -194,6 +194,7 @@ function createTokenPath(copy: ApiCopy) {
 	return {
 		post: {
 			tags: [copy.tags.token],
+			operationId: 'createToken',
 			summary: copy.endpoints.createToken.summary,
 			description: copy.endpoints.createToken.description,
 			security: [],
@@ -211,6 +212,7 @@ function agentMessagePath(copy: ApiCopy) {
 	return {
 		post: {
 			tags: [copy.tags.agent],
+			operationId: 'sendAgentMessage',
 			summary: copy.endpoints.sendMessage.summary,
 			description: copy.endpoints.sendMessage.description,
 			requestBody: jsonBody('AgentMessageRequest'),
@@ -229,6 +231,7 @@ function agentRepliesPath(copy: ApiCopy) {
 	return {
 		get: {
 			tags: [copy.tags.agent],
+			operationId: 'readAgentReplies',
 			summary: copy.endpoints.readReplies.summary,
 			description: copy.endpoints.readReplies.description,
 			parameters: [
@@ -254,6 +257,7 @@ function listToolsPath(copy: ApiCopy) {
 	return {
 		get: {
 			tags: [copy.tags.tools],
+			operationId: 'listTools',
 			summary: copy.endpoints.listTools.summary,
 			description: copy.endpoints.listTools.description,
 			responses: {
@@ -275,6 +279,7 @@ function toolByNamePath(copy: ApiCopy) {
 	return {
 		get: {
 			tags: [copy.tags.tools],
+			operationId: 'readTool',
 			summary: copy.endpoints.readTool.summary,
 			description: copy.endpoints.readTool.description,
 			parameters: [nameParameter],
@@ -291,6 +296,7 @@ function invokeToolPath(copy: ApiCopy) {
 	return {
 		post: {
 			tags: [copy.tags.tools],
+			operationId: 'invokeTool',
 			summary: copy.endpoints.invokeTool.summary,
 			description: copy.endpoints.invokeTool.description,
 			parameters: [{ name: 'name', in: 'path', required: true, schema: { type: 'string' } }],
