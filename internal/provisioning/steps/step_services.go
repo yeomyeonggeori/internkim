@@ -29,6 +29,7 @@ var StepServices = Step{
 		return trimmedRun(context, blueclaw.RetiredLLMDServiceIsGoneCommand()) != "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
+			strings.Contains(trimmedRun(context, "cat "+blueclaw.CapabilitydServicePath), "--chatd-endpoint ") &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 			localLLMServiceUnitsAreReady(context) &&
