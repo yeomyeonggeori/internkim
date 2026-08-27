@@ -25,6 +25,7 @@ function conversationWith(externalIDs: string[], name: string): MessengerChannel
 		platform: 'mattermost',
 		name,
 		isDirect: true,
+		isPrivate: true,
 		position: 0,
 		participants: externalIDs.map((externalID) => ({ externalID }))
 	};
