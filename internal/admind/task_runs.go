@@ -55,7 +55,7 @@ func (service *Service) handleTaskRuns(responseWriter http.ResponseWriter, reque
 	}
 	isViewerAdmin := service.canManageTaskRuns(request.Context(), viewerEmail)
 	switch request.URL.Path {
-	case "/runs/api":
+	case "/runs/api", "/runs/api/":
 		service.proxyScopedTaskList(responseWriter, request, viewerEmail, isViewerAdmin)
 	case "/runs/api/detail":
 		service.proxyScopedTaskDetail(responseWriter, request, viewerEmail, isViewerAdmin)
