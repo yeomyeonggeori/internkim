@@ -25,7 +25,7 @@ var StepBuzzChatd = Step{
 		return trimmedRun(context, "systemctl is-active "+blueclaw.ChatdServiceName) == "active" &&
 			trimmedRun(context, blueclaw.ChatdHealthCheckCommand()) == "ok" &&
 			strings.Contains(installedUnit, "CHATD_LISTEN_HOSTNAME="+blueclaw.ChatdListenHostname) &&
-			strings.Contains(installedUnit, "CHATD_WORKSPACE_ROOT="+blueclaw.BlueclawWorkspacePath)
+			!strings.Contains(installedUnit, "CHATD_WORKSPACE_ROOT=")
 	},
 	Run: func(context *Context) error {
 		if context.Backend != BackendSSH {

@@ -97,13 +97,13 @@ func printBlueclawHistoryResetPlan(keepMattermostPosts bool) {
 	fmt.Println("  - legacy memory records/sources")
 	fmt.Println("  - Graphiti episode/namespace mirror rows")
 	fmt.Println("  - Graphiti Kuzu files under /root/.blueclaw/workspace/.blueclaw/graphiti/kuzu*")
-	fmt.Println("  - Firecracker workspace Postgres/Kuzu runtime state when /var/lib/blueclaw/workspace.ext4 exists")
+	fmt.Println("  - guest workspace Postgres/Kuzu runtime state when /var/lib/blueclaw/workspace.ext4 exists")
 	if keepMattermostPosts {
 		fmt.Println("This will keep Mattermost visible posts.")
 		return
 	}
 	fmt.Println("This will also delete visible Mattermost posts while keeping Mattermost users, teams, channels, and secrets.")
-	fmt.Println("This will keep host policy and secrets. Firecracker runtime mirrors are rebuilt from policy on restart.")
+	fmt.Println("This will keep host policy and secrets. Guest runtime mirrors are rebuilt from policy on restart.")
 }
 
 func blueclawHistoryResetScript(keepMattermostPosts bool) string {
@@ -135,7 +135,7 @@ SQL
 fi
 
 if [ -s /var/lib/blueclaw/workspace.ext4 ]; then
-  echo "resetting Firecracker workspace runtime database"
+  echo "resetting guest workspace runtime database"
   mount_path="$(mktemp -d /mnt/internkim-blueclaw-reset.XXXXXX)"
   cleanup_workspace_mount() {
     if mountpoint -q "$mount_path"; then

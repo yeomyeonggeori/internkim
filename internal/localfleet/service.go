@@ -186,6 +186,8 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 		return service.runPlans(contextValue, logger, service.mattermostAskEphemeralScenarioPlans())
 	case "mattermost-docx-attachment":
 		return service.runPlans(contextValue, logger, service.mattermostDocxAttachmentScenarioPlans(keepArtifacts))
+	case "buzz-attachment":
+		return service.runPlans(contextValue, logger, service.buzzAttachmentScenarioPlans())
 	case "restart-policy-survival":
 		return service.runPlans(contextValue, logger, service.restartPolicySurvivalScenarioPlans())
 	case "workspace-persistence":

@@ -3,7 +3,6 @@ package capabilityd
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -12,7 +11,6 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -45,7 +43,6 @@ type mattermostFileMetadata struct {
 
 type mattermostAttachmentImportTarget struct {
 	AgentDirectoryPath string
-	HostDirectoryPath  string
 }
 
 type mattermostAttachmentDownload struct {
@@ -74,9 +71,6 @@ func (service Service) mattermostImportAttachments(ctx context.Context, payload 
 	if errorValue != nil {
 		return mattermostAttachmentImportResponse{}, errorValue
 	}
-	if errorValue := os.MkdirAll(target.HostDirectoryPath, 0o755); errorValue != nil {
-		return mattermostAttachmentImportResponse{}, errorValue
-	}
 	importedAttachments := service.importMattermostAttachments(ctx, target, request.MessageID, attachments)
 	return mattermostAttachmentImportResponse{
 		InputAttachments: importedAttachments,
@@ -96,19 +90,7 @@ func (service Service) resolveMattermostAttachmentImportTarget(agentDirectoryPat
 	if errorValue != nil {
 		return mattermostAttachmentImportTarget{}, errorValue
 	}
-	workspacePath := service.Configuration.WithDefaults().BlueclawWorkspacePath
-	hostDirectoryPath := filepath.Join(workspacePath, strings.TrimPrefix(agentDirectoryPath, "/workspace/"))
-	if agentDirectoryPath == "/workspace" {
-		hostDirectoryPath = workspacePath
-	}
-	hostDirectoryPath, errorValue = cleanHostWorkspacePath(workspacePath, hostDirectoryPath)
-	if errorValue != nil {
-		return mattermostAttachmentImportTarget{}, errorValue
-	}
-	return mattermostAttachmentImportTarget{
-		AgentDirectoryPath: agentDirectoryPath,
-		HostDirectoryPath:  hostDirectoryPath,
-	}, nil
+	return mattermostAttachmentImportTarget{AgentDirectoryPath: agentDirectoryPath}, nil
 }
 
 func cleanMattermostImportAgentDirectoryPath(path string) (string, error) {
@@ -151,47 +133,19 @@ func (service Service) importMattermostAttachment(ctx context.Context, target ma
 	if errorValue != nil {
 		return unavailableMattermostAttachment(withMattermostAttachmentMetadata(attachment, metadata, fallbackMessageID), fallbackMessageID, "download_failed", errorValue.Error())
 	}
-	return service.writeMattermostImportedAttachment(target, usedFilenames, fallbackMessageID, attachment, metadata, download)
+	return carriedMattermostImportedAttachment(target, usedFilenames, fallbackMessageID, attachment, metadata, download)
 }
 
-func (service Service) writeMattermostImportedAttachment(target mattermostAttachmentImportTarget, usedFilenames map[string]bool, fallbackMessageID string, attachment platformInputAttachment, metadata mattermostFileMetadata, download mattermostAttachmentDownload) platformInputAttachment {
+// capabilityd runs beside the workspace image rather than inside it, so a file
+// it writes lands where the agent's /workspace never looks. The bytes travel
+// back with the path they belong at, and blueclaw writes them there as the
+// person the message was sent to.
+func carriedMattermostImportedAttachment(target mattermostAttachmentImportTarget, usedFilenames map[string]bool, fallbackMessageID string, attachment platformInputAttachment, metadata mattermostFileMetadata, download mattermostAttachmentDownload) platformInputAttachment {
 	importedAttachment := withMattermostAttachmentMetadata(attachment, metadata, fallbackMessageID)
-	if existingFilename, isFound := existingAttachmentByContent(target.HostDirectoryPath, download.Content); isFound {
-		usedFilenames[existingFilename] = true
-		return withMattermostImportedAttachmentPath(target, importedAttachment, download.ContentType, int64(len(download.Content)), existingFilename)
-	}
-	filename := uniqueMattermostImportFilename(target.HostDirectoryPath, usedFilenames, mattermostImportFilename(attachment, metadata))
-	hostPath := filepath.Join(target.HostDirectoryPath, filename)
-	if errorValue := os.WriteFile(hostPath, download.Content, 0o644); errorValue != nil {
-		return unavailableMattermostAttachment(importedAttachment, fallbackMessageID, "write_failed", errorValue.Error())
-	}
-	return withMattermostImportedAttachmentPath(target, importedAttachment, download.ContentType, int64(len(download.Content)), filename)
-}
-
-func existingAttachmentByContent(hostDirectoryPath string, content []byte) (string, bool) {
-	contentHash := sha256.Sum256(content)
-	contentSize := int64(len(content))
-	entries, errorValue := os.ReadDir(hostDirectoryPath)
-	if errorValue != nil {
-		return "", false
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		information, errorValue := entry.Info()
-		if errorValue != nil || information.Size() != contentSize {
-			continue
-		}
-		existingContent, errorValue := os.ReadFile(filepath.Join(hostDirectoryPath, entry.Name()))
-		if errorValue != nil {
-			continue
-		}
-		if sha256.Sum256(existingContent) == contentHash {
-			return entry.Name(), true
-		}
-	}
-	return "", false
+	filename := uniqueMattermostImportFilename(usedFilenames, mattermostImportFilename(attachment, metadata))
+	importedAttachment = withMattermostImportedAttachmentPath(target, importedAttachment, download.ContentType, int64(len(download.Content)), filename)
+	importedAttachment.ContentBase64 = base64.StdEncoding.EncodeToString(download.Content)
+	return importedAttachment
 }
 
 func withMattermostImportedAttachmentPath(target mattermostAttachmentImportTarget, attachment platformInputAttachment, contentType string, sizeBytes int64, filename string) platformInputAttachment {
@@ -234,40 +188,29 @@ func (service Service) mattermostInputPart(ctx context.Context, attachment platf
 		filePart.ConversionMessage = strings.TrimSpace(firstNonEmpty(attachment.Message, attachment.ErrorCode))
 		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
 	}
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(attachment.ContentType)), "image/") {
-		return service.mattermostImageInputPart(attachment, filePart, source)
+	content, errorValue := base64.StdEncoding.DecodeString(attachment.ContentBase64)
+	if errorValue != nil {
+		filePart.ConversionStatus = "failed"
+		filePart.ConversionMessage = errorValue.Error()
+		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
 	}
-	markdownPreview, conversionStatus, conversionMessage := service.mattermostMarkdownPreview(ctx, attachment)
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(attachment.ContentType)), "image/") {
+		return mattermostImageInputPart(content, attachment, filePart, source)
+	}
+	markdownPreview, conversionStatus, conversionMessage := service.mattermostMarkdownPreview(ctx, content, attachment)
 	filePart.MarkdownPreview = markdownPreview
 	filePart.ConversionStatus = conversionStatus
 	filePart.ConversionMessage = conversionMessage
 	return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
 }
 
-func (service Service) mattermostImageInputPart(attachment platformInputAttachment, filePart platformFilePart, source platformPartSource) platformPart {
-	hostPath, _, errorValue := service.resolveFileReadPath(attachment.Path)
-	if errorValue != nil {
-		filePart.ConversionStatus = "failed"
-		filePart.ConversionMessage = errorValue.Error()
-		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
-	}
-	information, errorValue := os.Stat(hostPath)
-	if errorValue != nil {
-		filePart.ConversionStatus = "failed"
-		filePart.ConversionMessage = errorValue.Error()
-		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
-	}
-	if information.Size() > maximumInputImagePartBytes {
+func mattermostImageInputPart(content []byte, attachment platformInputAttachment, filePart platformFilePart, source platformPartSource) platformPart {
+	if len(content) > maximumInputImagePartBytes {
 		filePart.ConversionStatus = "image_too_large"
 		filePart.ConversionMessage = "image is larger than the model input limit"
 		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
 	}
-	document, errorValue := os.ReadFile(hostPath)
-	if errorValue != nil {
-		filePart.ConversionStatus = "failed"
-		filePart.ConversionMessage = errorValue.Error()
-		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
-	}
+	document := content
 	return platformPart{
 		Type: "image",
 		Image: &platformImagePart{
@@ -282,35 +225,33 @@ func (service Service) mattermostImageInputPart(attachment platformInputAttachme
 	}
 }
 
-func (service Service) mattermostMarkdownPreview(ctx context.Context, attachment platformInputAttachment) (string, string, string) {
-	hostPath, _, errorValue := service.resolveFileReadPath(attachment.Path)
-	if errorValue != nil {
-		return "", "failed", errorValue.Error()
-	}
-	if preview, status, message, isRawText := mattermostRawTextPreview(hostPath, attachment.ContentType, attachment.SizeBytes); isRawText {
+func (service Service) mattermostMarkdownPreview(ctx context.Context, content []byte, attachment platformInputAttachment) (string, string, string) {
+	if preview, status, message, isRawText := mattermostRawTextPreview(content, attachment.Path, attachment.ContentType, attachment.SizeBytes); isRawText {
 		return preview, status, message
 	}
-	helperResponse, _, _, errorValue := service.convertDocument(ctx, hostPath, 20)
+	carried := carriedWorkspaceFile{AgentPath: attachment.Path, Filename: attachment.Filename, Content: content}
+	filePath, releaseFile, errorValue := carried.writeWhileReading()
 	if errorValue != nil {
 		return "", "failed", errorValue.Error()
 	}
-	content, isTruncated := truncateTextByBytes(strings.TrimSpace(helperResponse.Content), maximumInputMarkdownPreviewBytes)
-	if content == "" {
+	defer releaseFile()
+	helperResponse, _, _, errorValue := service.convertDocument(ctx, filePath, 20)
+	if errorValue != nil {
+		return "", "failed", errorValue.Error()
+	}
+	preview, isTruncated := truncateTextByBytes(strings.TrimSpace(helperResponse.Content), maximumInputMarkdownPreviewBytes)
+	if preview == "" {
 		return "", "empty", "document conversion returned no content"
 	}
 	if isTruncated {
-		return content, "truncated", "markdown preview was truncated"
+		return preview, "truncated", "markdown preview was truncated"
 	}
-	return content, "converted", ""
+	return preview, "converted", ""
 }
 
-func mattermostRawTextPreview(hostPath string, contentType string, sizeBytes int64) (string, string, string, bool) {
-	if !mattermostAttachmentLooksLikeRawText(hostPath, contentType) {
+func mattermostRawTextPreview(document []byte, filePath string, contentType string, sizeBytes int64) (string, string, string, bool) {
+	if !mattermostAttachmentLooksLikeRawText(filePath, contentType) {
 		return "", "", "", false
-	}
-	document, errorValue := os.ReadFile(hostPath)
-	if errorValue != nil {
-		return "", "failed", errorValue.Error(), true
 	}
 	if !utf8.Valid(document) || bytes.IndexByte(document, 0) >= 0 {
 		return "", "", "", false
@@ -391,7 +332,7 @@ func mattermostImportFilename(attachment platformInputAttachment, metadata matte
 	return "mattermost-file"
 }
 
-func uniqueMattermostImportFilename(hostDirectoryPath string, usedFilenames map[string]bool, filename string) string {
+func uniqueMattermostImportFilename(usedFilenames map[string]bool, filename string) string {
 	filename = safeDeviceBrowserFilename(filename)
 	if filename == "" {
 		filename = "mattermost-file"
@@ -404,9 +345,6 @@ func uniqueMattermostImportFilename(hostDirectoryPath string, usedFilenames map[
 			candidate = stem + "-" + fmt.Sprintf("%d", index) + extension
 		}
 		if usedFilenames[candidate] {
-			continue
-		}
-		if _, errorValue := os.Stat(filepath.Join(hostDirectoryPath, candidate)); errorValue == nil {
 			continue
 		}
 		usedFilenames[candidate] = true

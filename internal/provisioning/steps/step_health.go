@@ -30,7 +30,7 @@ var StepHealth = Step{
 		checkMattermostHealth(context, &failedChecks)
 		checkService(context, blueclaw.CapabilitydServiceName, &failedChecks)
 		checkService(context, blueclaw.AdmindServiceName, &failedChecks)
-		checkBlueclawFirecrackerRuntime(context, &failedChecks)
+		checkBlueclawGuestRuntime(context, &failedChecks)
 		checkBlueclaw(context, &failedChecks)
 		checkSecretIsolation(context, &failedChecks)
 		checkAdminHealth(context, &failedChecks)
@@ -468,7 +468,7 @@ func checkBlueclaw(context *Context, failedChecks *[]string) {
 	fmt.Println("  blueclaw: failed")
 }
 
-func checkBlueclawFirecrackerRuntime(context *Context, failedChecks *[]string) {
+func checkBlueclawGuestRuntime(context *Context, failedChecks *[]string) {
 	check := strings.TrimSpace(context.SSH.Run(`python3 - <<'PY'
 from pathlib import Path
 

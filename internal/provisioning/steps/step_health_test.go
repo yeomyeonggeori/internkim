@@ -10,7 +10,7 @@ func TestBlueclawFirecrackerHealthSkipsRootfsMountCheckWhenServiceIsActive(t *te
 	context := &Context{SSH: connection}
 	failedChecks := []string{}
 
-	checkBlueclawFirecrackerRuntime(context, &failedChecks)
+	checkBlueclawGuestRuntime(context, &failedChecks)
 
 	if len(failedChecks) != 0 {
 		t.Fatalf("expected active service health to skip rootfs mount check, got failed checks %+v", failedChecks)
@@ -25,7 +25,7 @@ func TestBlueclawFirecrackerHealthRunsRootfsMountCheckWhenServiceIsInactive(t *t
 	context := &Context{SSH: connection}
 	failedChecks := []string{}
 
-	checkBlueclawFirecrackerRuntime(context, &failedChecks)
+	checkBlueclawGuestRuntime(context, &failedChecks)
 
 	if len(failedChecks) != 1 || failedChecks[0] != "blueclaw-firecracker-runtime" {
 		t.Fatalf("expected inactive service health to fail rootfs drift, got failed checks %+v", failedChecks)

@@ -588,3 +588,28 @@ func buildTestConfiguration() Configuration {
 		},
 	})
 }
+
+// The shared builder container outlives the checkout it was created for. One
+// left pointing at a directory that has since been deleted cannot start, and
+// the container runtime reports an invalid state rather than the stale mount.
+func TestABuilderSharingADifferentWorkspaceIsNotReused(t *testing.T) {
+	entry := containerListEntry{Configuration: containerListEntryConfiguration{
+		ID:     "internkim-lab",
+		Mounts: []containerListEntryMount{{Destination: "/mnt/shared/workspace", Source: "/gone/scratchpad/deploy-main/"}},
+	}}
+
+	if entry.sharesWorkspaceAt("/repo") {
+		t.Fatal("expected a builder mounted elsewhere to be recreated")
+	}
+	if !entry.sharesWorkspaceAt("/gone/scratchpad/deploy-main") {
+		t.Fatal("expected a trailing slash to make no difference")
+	}
+}
+
+func TestABuilderTheListReportsNoMountsForIsLeftAlone(t *testing.T) {
+	entry := containerListEntry{Configuration: containerListEntryConfiguration{ID: "internkim-lab"}}
+
+	if !entry.sharesWorkspaceAt("/repo") {
+		t.Fatal("expected no evidence to mean no recreation")
+	}
+}
