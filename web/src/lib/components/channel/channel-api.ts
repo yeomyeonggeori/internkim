@@ -118,6 +118,7 @@ export type ChannelSummary = {
 	id: string;
 	name: string;
 	kind: 'dm' | 'group';
+	isPrivate?: boolean;
 	avatarURL?: string;
 	platform?: string;
 	webURL?: string;
