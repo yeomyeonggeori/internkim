@@ -84,6 +84,8 @@ type Configuration struct {
 	FleetIDPath                    string
 	BlueclawWorkspacePath          string
 	FileReadPythonPath             string
+	ChatdEndpoint                  string
+	ChatdPlatform                  string
 }
 
 type Service struct {

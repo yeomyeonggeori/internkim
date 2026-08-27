@@ -225,6 +225,9 @@ func (service Service) authorizePlatformMessageTool(ctx context.Context, request
 }
 
 func (service Service) invokePlatformMessageSearch(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if service.chatdServesPlatform(request.Context.Platform) {
+		return mattermostToolErrorResponse(request.ToolName, service.chatdUnroutedToolFailure(request.ToolName, request.Context.Platform)), nil
+	}
 	input, errorValue := decodePlatformMessageSearchInput(request.Input)
 	if errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
@@ -251,6 +254,9 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 	input, errorValue := decodePlatformMessageSendInput(request.Input)
 	if errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
+	}
+	if service.chatdServesPlatform(request.Context.Platform) {
+		return service.invokeChatdPlatformMessageSend(ctx, request, input)
 	}
 	if input.DeliveryTarget.Type == "directMessage" {
 		attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(input.Attachments)
@@ -411,6 +417,9 @@ func platformMessageBroadcastIdempotencyKey(baseKey string, recipientUserID stri
 }
 
 func (service Service) invokePlatformMessageUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if service.chatdServesPlatform(request.Context.Platform) {
+		return mattermostToolErrorResponse(request.ToolName, service.chatdUnroutedToolFailure(request.ToolName, request.Context.Platform)), nil
+	}
 	input, errorValue := decodePlatformMessageUpdateInput(request.Input)
 	if errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
@@ -457,6 +466,9 @@ func platformMessageEditMatchFailure(matchCount int, currentMessage string) matt
 }
 
 func (service Service) invokePlatformMessageDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if service.chatdServesPlatform(request.Context.Platform) {
+		return mattermostToolErrorResponse(request.ToolName, service.chatdUnroutedToolFailure(request.ToolName, request.Context.Platform)), nil
+	}
 	input, errorValue := decodePlatformMessageDeleteInput(request.Input)
 	if errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
