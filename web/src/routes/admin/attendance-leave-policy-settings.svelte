@@ -209,7 +209,7 @@
 	}
 </script>
 
-<div data-testid="attendance-leave-policy-settings" class="space-y-5">
+<div data-testid="attendance-leave-policy-settings" class="@container/leave space-y-5">
 	{#if policy}
 		<AttendanceLeaveBalanceTracking
 			mode={balanceTrackingMode}
@@ -223,7 +223,7 @@
 	{/if}
 
 	<div
-		class="grid gap-5 lg:h-[clamp(36rem,calc(100dvh-26rem),52rem)] lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)] lg:items-stretch"
+		class="grid gap-5 lg:h-[clamp(36rem,calc(100dvh-26rem),52rem)] @2xl/leave:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)] lg:items-stretch"
 	>
 		<AttendanceLeavePolicyList
 			{policy}
