@@ -4,7 +4,8 @@ import { createDevAttendanceWorkPolicyMockState } from '../../dev-attendance-wor
 import type {
 	AttendanceLeavePolicy,
 	CompanyHoliday,
-	CompanyHolidayInput
+	CompanyHolidayInput,
+	LeaveType
 } from '../../src/routes/admin/admin-types';
 import { mockBuzzDisabled } from './buzz-test-routes';
 
@@ -20,12 +21,33 @@ function isAttendanceLeavePolicy(value: unknown): value is AttendanceLeavePolicy
 	);
 }
 
+function companyAddedLeaveTypes(names: string[]): LeaveType[] {
+	return names.map((name, index) => ({
+		id: `custom-${index + 1}`,
+		systemKind: '',
+		name,
+		paid: true,
+		balanceMode: 'none',
+		grantCadence: 'none',
+		grantAmountMilliDays: 0,
+		expiryMode: 'none',
+		carryoverEnabled: false,
+		allowedUnits: ['fullDay'],
+		includeInSummary: false,
+		isActive: true,
+		isSystem: false,
+		sortOrder: 4 + index
+	}));
+}
+
 async function mockAdminLeavePolicyPage(
 	page: Page,
 	role: MockAdminRole,
-	locale: 'ko' | 'en' = 'ko'
+	locale: 'ko' | 'en' = 'ko',
+	extraLeaveTypes: LeaveType[] = []
 ) {
 	let policy = createDefaultAttendanceLeavePolicy();
+	policy = { ...policy, leaveTypes: [...policy.leaveTypes, ...extraLeaveTypes] };
 	const workPolicyState = createDevAttendanceWorkPolicyMockState();
 	let companyHolidays: CompanyHoliday[] = [];
 
@@ -153,7 +175,12 @@ test.describe('admin leave policy settings', () => {
 	});
 
 	test('edits annual policy and manages a custom leave type', async ({ page }) => {
-		await mockAdminLeavePolicyPage(page, 'admin');
+		await mockAdminLeavePolicyPage(
+			page,
+			'admin',
+			'ko',
+			companyAddedLeaveTypes(['포상휴가', '육아휴직', '경조휴가', '공가', '보상휴가', '리프레시휴가'])
+		);
 		await page.goto('/settings/?fleet_id=demo&section=leaveSettings');
 
 		const leavePolicySettings = page.getByTestId('attendance-leave-policy-settings');

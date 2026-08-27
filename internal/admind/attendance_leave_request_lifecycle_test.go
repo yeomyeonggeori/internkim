@@ -224,12 +224,21 @@ func TestAttendanceLeaveRequestAnnualBalanceModeUsesAnnualAccount(t *testing.T) 
 func TestAttendanceLeaveDashboardSummarizesOnlyIncludedBalanceAccounts(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	policy := defaultAttendanceLeavePolicy()
-	for index := range policy.LeaveTypes {
-		if policy.LeaveTypes[index].ID == "bereavement" {
-			policy.LeaveTypes[index].BalanceMode = "separate"
-			policy.LeaveTypes[index].IncludeInSummary = false
-		}
-	}
+	policy.LeaveTypes = append(
+		policy.LeaveTypes,
+		attendanceLeaveType{
+			ID: "reward", SystemKind: "reward", Name: "포상휴가", Paid: true,
+			BalanceMode: "separate", GrantCadence: "none", ExpiryMode: "none",
+			AllowedUnits: []string{"fullDay"}, IncludeInSummary: true,
+			IsActive: true, IsSystem: true, SortOrder: len(policy.LeaveTypes),
+		},
+		attendanceLeaveType{
+			ID: "bereavement", SystemKind: "bereavement", Name: "경조휴가", Paid: true,
+			BalanceMode: "separate", GrantCadence: "none", ExpiryMode: "none",
+			AllowedUnits: []string{"fullDay"}, IncludeInSummary: false,
+			IsActive: true, IsSystem: true, SortOrder: len(policy.LeaveTypes) + 1,
+		},
+	)
 	if errorValue := service.writeAttendanceLeavePolicy(t.Context(), policy); errorValue != nil {
 		t.Fatal(errorValue)
 	}
