@@ -1,10 +1,11 @@
+import { apiErrorMessage } from './admin-api';
 import {
-	apiErrorMessage,
 	createCompanyHoliday,
 	deleteCompanyHoliday,
 	fetchCompanyHolidays,
 	updateCompanyHoliday
-} from './admin-api';
+} from './company-holidays-api';
+import { settingsSource } from './settings-source';
 import type { AdminPageText, CompanyHoliday, CompanyHolidayInput } from './admin-types';
 
 export type CompanyHolidayDraft = CompanyHolidayInput & {
@@ -35,13 +36,14 @@ export class CompanyHolidaySettingsState {
 
 	private adminBaseURL = '';
 	private text: AdminPageText['companyHolidays'] | null = null;
-	private loadedAdminBaseURL = '';
+	private loadedSource = '';
 
 	sync(adminBaseURL: string, text: AdminPageText['companyHolidays']): void {
 		this.adminBaseURL = adminBaseURL;
 		this.text = text;
-		if (!adminBaseURL || this.loadedAdminBaseURL === adminBaseURL) return;
-		this.loadedAdminBaseURL = adminBaseURL;
+		const source = settingsSource(adminBaseURL);
+		if (!source || this.loadedSource === source) return;
+		this.loadedSource = source;
 		void this.load();
 	}
 
