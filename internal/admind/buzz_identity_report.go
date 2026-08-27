@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -164,26 +163,11 @@ func readBuzzIdentityLedgerRows(ctx context.Context, database *sql.DB) (buzzIden
 		membershipByPubkey: map[string]int{},
 		messagesByPubkey:   map[string]int{},
 	}
-	profileRows, errorValue := database.QueryContext(ctx,
-		"SELECT DISTINCT ON (pubkey) encode(pubkey,'hex'), content FROM events WHERE kind = 0 ORDER BY pubkey, created_at DESC")
+	profiles, errorValue := latestProfilesByPubkey(ctx, database)
 	if errorValue != nil {
 		return ledger, errorValue
 	}
-	defer profileRows.Close()
-	for profileRows.Next() {
-		var pubkey, content string
-		if errorValue := profileRows.Scan(&pubkey, &content); errorValue != nil {
-			return ledger, errorValue
-		}
-		var profile buzzProfileContent
-		if errorValue := json.Unmarshal([]byte(content), &profile); errorValue != nil {
-			continue
-		}
-		ledger.profileByPubkey[pubkey] = profile
-	}
-	if errorValue := profileRows.Err(); errorValue != nil {
-		return ledger, errorValue
-	}
+	ledger.profileByPubkey = profiles
 
 	if errorValue := countsByPubkey(ctx, database,
 		"SELECT encode(pubkey,'hex'), count(*) FROM channel_members WHERE removed_at IS NULL GROUP BY 1",
