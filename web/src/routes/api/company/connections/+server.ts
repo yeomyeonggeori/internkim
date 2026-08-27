@@ -28,7 +28,7 @@ function planeOf(platform: App.Platform | undefined): Plane {
 }
 
 async function adminOf(request: Request, plane: Plane) {
-	const accessToken = await memberAccessTokenOf(request, plane);
+	const { accessToken } = await memberAccessTokenOf(request, plane);
 	const caller = await adminCallerOf(asMember(plane, accessToken));
 	if (!caller) error(403, 'only an admin keeps these');
 	return caller;

@@ -158,10 +158,7 @@ func (service *Service) memoryActorEmail(request *http.Request) string {
 	if actorEmail := service.webStaffActorEmail(request); actorEmail != "" {
 		return actorEmail
 	}
-	if !isLocalRequest(request) {
-		return ""
-	}
-	return strings.ToLower(strings.TrimSpace(request.Header.Get(flowRequesterEmailHeader)))
+	return assertedRequesterEmail(request)
 }
 
 func memoryGraphQuery(request *http.Request, personID string) string {

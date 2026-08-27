@@ -17,7 +17,7 @@ export async function moveSelectedMailMessage(controller: MailPageControllerStat
 		return;
 	}
 	try {
-		await moveMailMessage(controller.mailActorEmail(), movedMessage, targetMailbox, controller.mailErrors(text.errors.moveMessage));
+		await moveMailMessage(movedMessage, targetMailbox, controller.mailErrors(text.errors.moveMessage));
 	} catch (error) {
 		controller.errorMessage = error instanceof Error ? error.message : text.errors.moveMessage;
 		return;
@@ -41,7 +41,7 @@ export async function markMailMessageRead(controller: MailPageControllerState, t
 	if (message.isRead) return;
 	const messageKey = mailPageMessageKey(message);
 	try {
-		await updateMailMessageFlags(controller.mailActorEmail(), message, true, controller.mailErrors(text.errors.updateMessage));
+		await updateMailMessageFlags(message, true, controller.mailErrors(text.errors.updateMessage));
 	} catch (error) {
 		controller.errorMessage = error instanceof Error ? error.message : text.errors.updateMessage;
 		return;

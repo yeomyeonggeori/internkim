@@ -20,7 +20,7 @@ type MailMessagePageLoadOptions = {
 export async function loadPageMailboxes(controller: MailPageControllerState, text: MailPageText) {
 	controller.isLoadingMailboxes = true;
 	try {
-		controller.mailboxes = await fetchMailboxes(controller.mailActorEmail(), controller.mailErrors(text.errors.loadMailboxes));
+		controller.mailboxes = await fetchMailboxes(controller.mailErrors(text.errors.loadMailboxes));
 	} finally {
 		controller.isLoadingMailboxes = false;
 	}
@@ -49,7 +49,7 @@ export async function loadMessagesPage(controller: MailPageControllerState, text
 	if (cursor) query.set('cursor', cursor);
 	controller.errorMessage = '';
 	try {
-		const result = await fetchMailMessages(actorEmail, query, controller.mailErrors(text.errors.loadMessages));
+		const result = await fetchMailMessages(query, controller.mailErrors(text.errors.loadMessages));
 		if (!isCurrentMessageListRequest(controller, requestID, actorEmail, mailbox, searchText, pageIndex)) return;
 		const page = createMailMessagePageCacheEntry({
 			actorEmail,

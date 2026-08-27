@@ -23,30 +23,21 @@ import (
 const publicAPITokenStoreFilename = "api-tokens.json"
 
 const (
-	publicAPIScopeRead          = "read"
-	publicAPIScopeWrite         = "write"
-	publicAPIScopeExternalWrite = "external_write"
-	publicAPIScopeExternalSend  = "external_send"
-	publicAPIScopePublish       = "publish"
-	publicAPIScopeConnect       = "connect"
-	publicAPIScopeDestructive   = "destructive"
-	publicAPIScopeCompanion     = "companion"
-	publicAPIScopeAgentRun      = "agent.run"
-	publicAPIScopeAdmin         = "admin"
+	publicAPIPermissionRead   = "read"
+	publicAPIPermissionWrite  = "write"
+	publicAPIPermissionDelete = "delete"
 )
 
-func knownPublicAPIScopes() []string {
+const (
+	publicAPIActorSourceToken             = "public_api_token"
+	publicAPIActorSourceAssertedRequester = "public_api_requester"
+)
+
+func knownPublicAPIPermissions() []string {
 	return []string{
-		publicAPIScopeRead,
-		publicAPIScopeWrite,
-		publicAPIScopeExternalWrite,
-		publicAPIScopeExternalSend,
-		publicAPIScopePublish,
-		publicAPIScopeConnect,
-		publicAPIScopeDestructive,
-		publicAPIScopeCompanion,
-		publicAPIScopeAgentRun,
-		publicAPIScopeAdmin,
+		publicAPIPermissionRead,
+		publicAPIPermissionWrite,
+		publicAPIPermissionDelete,
 	}
 }
 
@@ -92,7 +83,7 @@ func (service *Service) handlePublicAPI(responseWriter http.ResponseWriter, requ
 		service.createPublicAPIToken(responseWriter, request)
 		return
 	}
-	actor, ok := service.authenticatePublicAPIToolRequest(responseWriter, request)
+	actor, ok := service.authenticatePublicAPIRequest(responseWriter, request)
 	if !ok {
 		return
 	}
@@ -133,7 +124,7 @@ func (service *Service) createPublicAPIToken(responseWriter http.ResponseWriter,
 	}
 	service.writeJSON(responseWriter, publicAPITokenCreateResponse{
 		Token:  token,
-		Actor:  publicAPIActorContext(record, service.isFlowAdminEmail(request.Context(), actorEmail)),
+		Actor:  publicAPIActorContext(record, service.isFlowAdminEmail(request.Context(), actorEmail), publicAPIActorSourceToken),
 		Record: publicAPITokenSummary{ID: record.ID, Label: record.Label, Email: record.Email, Scopes: record.Scopes, CreatedAt: record.CreatedAt},
 	})
 }
@@ -157,12 +148,41 @@ func (service *Service) issuePublicAPIToken(ctx context.Context, actorEmail stri
 		Name:      actor.Name,
 		PersonID:  actor.UserID,
 		TokenHash: publicAPITokenHash(token),
-		Scopes:    normalizePublicAPITokenScopes(payload.Scopes),
+		Scopes:    normalizePublicAPIPermissions(payload.Scopes),
 		CreatedAt: now,
 	}
 	records := service.readPublicAPITokenRecords()
 	records = append(records, record)
 	return token, record, service.writePublicAPITokenRecords(ctx, records)
+}
+
+func (service *Service) authenticatePublicAPIRequest(responseWriter http.ResponseWriter, request *http.Request) (publicToolGatewayActor, bool) {
+	if requesterEmail := assertedRequesterEmail(request); requesterEmail != "" {
+		return service.assertedPublicAPIActor(responseWriter, request, requesterEmail)
+	}
+	return service.authenticatePublicAPIToolRequest(responseWriter, request)
+}
+
+func (service *Service) assertedPublicAPIActor(responseWriter http.ResponseWriter, request *http.Request, requesterEmail string) (publicToolGatewayActor, bool) {
+	actor, found, errorValue := service.resolveUserActorByEmail(request.Context(), requesterEmail)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return publicToolGatewayActor{}, false
+	}
+	if !found || strings.TrimSpace(actor.UserID) == "" {
+		http.Error(responseWriter, "asserted requester is not active staff", http.StatusForbidden)
+		return publicToolGatewayActor{}, false
+	}
+	record := publicAPITokenRecord{
+		Email:    actor.Email,
+		Name:     actor.Name,
+		PersonID: actor.UserID,
+		Scopes:   []string{assertedRequesterPermission(request)},
+	}
+	return publicToolGatewayActor{
+		Record: record,
+		Actor:  publicAPIActorContext(record, actor.isAdmin(), publicAPIActorSourceAssertedRequester),
+	}, true
 }
 
 func (service *Service) authenticatePublicAPIToolRequest(responseWriter http.ResponseWriter, request *http.Request) (publicToolGatewayActor, bool) {
@@ -187,7 +207,10 @@ func (service *Service) authenticatePublicAPIToolRequest(responseWriter http.Res
 	}
 	record.PersonID = actor.UserID
 	record.Name = actor.Name
-	return publicToolGatewayActor{Record: record, Actor: publicAPIActorContext(record, actor.isAdmin())}, true
+	return publicToolGatewayActor{
+		Record: record,
+		Actor:  publicAPIActorContext(record, actor.isAdmin(), publicAPIActorSourceToken),
+	}, true
 }
 
 func (service *Service) writePublicTools(responseWriter http.ResponseWriter, request *http.Request, actor publicToolGatewayActor) {
@@ -339,7 +362,7 @@ func publicToolInvokeContext(actor capabilities.ActorContext, descriptor capabil
 		RequesterName:          actor.DisplayName,
 		TaskSource:             "public_api",
 		Platform:               "public_api",
-		IsApprovalContinuation: publicToolScopeForDescriptor(descriptor) != "",
+		IsApprovalContinuation: publicToolPermissionForDescriptor(descriptor) != "",
 	}
 }
 
@@ -382,70 +405,70 @@ func (service *Service) publicToolDescriptor(ctx context.Context, toolName strin
 }
 
 func publicToolAllowedForActor(descriptor capabilities.Descriptor, actor publicToolGatewayActor) bool {
-	requiredScope := publicToolScopeForDescriptor(descriptor)
-	return actorScopeRank(actor) >= publicAPIScopeRank(requiredScope)
+	requiredPermission := publicToolPermissionForDescriptor(descriptor)
+	return actorPermissionRank(actor) >= publicAPIPermissionRank(requiredPermission)
 }
 
-func actorScopeRank(actor publicToolGatewayActor) int {
+func actorPermissionRank(actor publicToolGatewayActor) int {
 	highestRank := 0
-	for _, scope := range actor.Actor.Scopes {
-		if rank := publicAPIScopeRank(scope); rank > highestRank {
+	for _, permission := range actor.Actor.Scopes {
+		if rank := publicAPIPermissionRank(permission); rank > highestRank {
 			highestRank = rank
 		}
 	}
 	return highestRank
 }
 
-func publicAPIScopeRank(scope string) int {
-	switch scope {
-	case "", publicAPIScopeRead:
-		return 1
-	case publicAPIScopeDestructive, publicAPIScopeAdmin:
+func publicAPIPermissionRank(permission string) int {
+	switch permission {
+	case publicAPIPermissionDelete:
 		return 3
-	default:
+	case publicAPIPermissionWrite:
 		return 2
+	default:
+		return 1
 	}
 }
 
-func publicToolScopeForDescriptor(descriptor capabilities.Descriptor) string {
+func publicToolPermissionForDescriptor(descriptor capabilities.Descriptor) string {
 	switch descriptor.SideEffectClass {
 	case "read":
 		return ""
 	case "destructive":
-		return publicAPIScopeDestructive
+		return publicAPIPermissionDelete
 	case "workspace_write", "workspace_calendar", "workspace_task",
 		"external_write", "external_send", "external_publish", "site_publish",
 		"connect", "browser", "browser_write", "handoff", "local_file", "approval":
-		return publicAPIScopeWrite
+		return publicAPIPermissionWrite
 	default:
-		return publicAPIScopeDestructive
+		return publicAPIPermissionDelete
 	}
 }
 
-func publicAPIActorContext(record publicAPITokenRecord, isAdmin bool) capabilities.ActorContext {
+func publicAPIActorContext(record publicAPITokenRecord, isAdmin bool, source string) capabilities.ActorContext {
 	return capabilities.ActorContext{
 		PersonID:    strings.TrimSpace(record.PersonID),
 		Email:       strings.ToLower(strings.TrimSpace(record.Email)),
 		DisplayName: strings.TrimSpace(record.Name),
-		Source:      "public_api_token",
-		Scopes:      normalizePublicAPITokenScopes(record.Scopes),
+		Source:      source,
+		Scopes:      normalizePublicAPIPermissions(record.Scopes),
 		IsAdmin:     isAdmin,
 	}
 }
 
-func normalizePublicAPITokenScopes(scopes []string) []string {
-	known := knownPublicAPIScopes()
+func normalizePublicAPIPermissions(permissions []string) []string {
+	known := knownPublicAPIPermissions()
 	seen := map[string]bool{}
-	normalizedScopes := make([]string, 0, len(scopes)+1)
-	for _, scope := range append([]string{publicAPIScopeRead}, scopes...) {
-		normalizedScope := strings.ToLower(strings.TrimSpace(scope))
-		if normalizedScope == "" || seen[normalizedScope] || !slices.Contains(known, normalizedScope) {
+	normalizedPermissions := make([]string, 0, len(permissions)+1)
+	for _, permission := range append([]string{publicAPIPermissionRead}, permissions...) {
+		normalizedPermission := strings.ToLower(strings.TrimSpace(permission))
+		if normalizedPermission == "" || seen[normalizedPermission] || !slices.Contains(known, normalizedPermission) {
 			continue
 		}
-		seen[normalizedScope] = true
-		normalizedScopes = append(normalizedScopes, normalizedScope)
+		seen[normalizedPermission] = true
+		normalizedPermissions = append(normalizedPermissions, normalizedPermission)
 	}
-	return normalizedScopes
+	return normalizedPermissions
 }
 
 func publicAPIBearerToken(request *http.Request) string {

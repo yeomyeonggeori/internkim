@@ -37,7 +37,7 @@ export async function sendMailComposeDraft(controller: MailPageControllerState, 
 	controller.isSending = true;
 	controller.composeMessage = '';
 	try {
-		await sendMailMessage(controller.mailActorEmail(), composeDraftPayload(controller.composeDraft), controller.mailErrors(text.errors.sendMessage));
+		await sendMailMessage(composeDraftPayload(controller.composeDraft), controller.mailErrors(text.errors.sendMessage));
 		controller.isComposeOpen = false;
 		await controller.loadMail();
 	} catch (error) {

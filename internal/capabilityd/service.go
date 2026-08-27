@@ -50,6 +50,7 @@ type Configuration struct {
 	SignalAccountPath              string
 	BlueclawBaseURL                string
 	AdmindBaseURL                  string
+	AdmindSocketPath               string
 	OpenRouterBaseURL              string
 	OpenRouterModel                string
 	ForceOpenRouterModel           bool
@@ -231,6 +232,7 @@ func DefaultConfiguration() Configuration {
 		SignalAccountPath:              "/root/.internkim/config/signal-account",
 		BlueclawBaseURL:                "http://127.0.0.1:8080",
 		AdmindBaseURL:                  "http://127.0.0.1:18080",
+		AdmindSocketPath:               blueclaw.AdmindSocketPath,
 		OpenRouterBaseURL:              "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterModel:                blueclaw.BlueclawDefaultModelName,
 		OpenRouterGatewaySecretHeader:  "X-INTERNKIM-GATEWAY-SECRET",
@@ -1937,6 +1939,9 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.AdmindBaseURL == "" {
 		configuration.AdmindBaseURL = defaultConfiguration.AdmindBaseURL
+	}
+	if configuration.AdmindSocketPath == "" {
+		configuration.AdmindSocketPath = defaultConfiguration.AdmindSocketPath
 	}
 	if configuration.OpenRouterBaseURL == "" {
 		configuration.OpenRouterBaseURL = defaultConfiguration.OpenRouterBaseURL

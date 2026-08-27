@@ -48,9 +48,9 @@ func TestPublicToolGatewayOverridesActorFromBearerToken(t *testing.T) {
 	}
 }
 
-func TestPublicToolGatewayRequiresExplicitWriteScope(t *testing.T) {
+func TestPublicToolGatewayRequiresExplicitWritePermission(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
-	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyScopeCapabilityHandler(t))
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
 	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -66,9 +66,9 @@ func TestPublicToolGatewayRequiresExplicitWriteScope(t *testing.T) {
 	}
 }
 
-func TestPublicToolGatewayDeniesConnectWithoutWriteScope(t *testing.T) {
+func TestPublicToolGatewayDeniesConnectWithoutWritePermission(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
-	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyScopeCapabilityHandler(t))
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
 	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -84,18 +84,18 @@ func TestPublicToolGatewayDeniesConnectWithoutWriteScope(t *testing.T) {
 	}
 }
 
-func TestPublicToolGatewayAllowsConnectScope(t *testing.T) {
+func TestPublicToolGatewayAllowsConnectWithWritePermission(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
 		if request.ToolName != "mail_connection_start" {
 			t.Fatalf("tool name = %q", request.ToolName)
 		}
 		if !request.Context.IsApprovalContinuation {
-			t.Fatal("connect tool should be treated as approved continuation for public token scope")
+			t.Fatal("connect tool should be treated as approved continuation for a public token")
 		}
 		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "connection_required", Result: json.RawMessage(`{"authorizationURL":"https://example.com/oauth"}`)}
 	})
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"connect"}})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -110,9 +110,9 @@ func TestPublicToolGatewayAllowsConnectScope(t *testing.T) {
 	}
 }
 
-func TestPublicToolGatewayRequiresExplicitDestructiveScope(t *testing.T) {
+func TestPublicToolGatewayRequiresExplicitDeletePermission(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
-	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyScopeCapabilityHandler(t))
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
 	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -128,18 +128,18 @@ func TestPublicToolGatewayRequiresExplicitDestructiveScope(t *testing.T) {
 	}
 }
 
-func TestPublicToolGatewayAllowsDestructiveScope(t *testing.T) {
+func TestPublicToolGatewayAllowsDeletePermission(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
 		if request.ToolName != "task_delete" {
 			t.Fatalf("tool name = %q", request.ToolName)
 		}
 		if !request.Context.IsApprovalContinuation {
-			t.Fatal("delete tool should be treated as approved continuation for public token scope")
+			t.Fatal("delete tool should be treated as approved continuation for a public token")
 		}
 		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "deleted", Result: json.RawMessage(`{"status":"deleted"}`)}
 	})
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"destructive"}})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"delete"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -154,12 +154,10 @@ func TestPublicToolGatewayAllowsDestructiveScope(t *testing.T) {
 	}
 }
 
-func TestPublicToolGatewayLegacyScopeStillGrantsWriteTier(t *testing.T) {
+func TestPublicToolGatewayRetiredPermissionNameReachesNothingButReads(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
-	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
-		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "ok", Result: json.RawMessage(`{"ok":true}`)}
-	})
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"external_send"}})
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"external_send", "destructive", "admin"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -169,15 +167,15 @@ func TestPublicToolGatewayLegacyScopeStillGrantsWriteTier(t *testing.T) {
 
 	service.handlePublicAPI(response, request)
 
-	if response.Code != http.StatusOK {
+	if response.Code != http.StatusForbidden {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
 }
 
 func TestPublicToolGatewayDoesNotListCalendarConnectionStart(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
-	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyScopeCapabilityHandler(t))
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"read", "write", "connect"}})
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"read", "write", "delete"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -276,31 +274,101 @@ func TestFlowCreateDefaultsBusinessAndUpdatePreservesOmittedBusiness(t *testing.
 	}
 }
 
-func denyScopeCapabilityHandler(t *testing.T) func(capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
+func TestPublicAPIRunsAsTheRequesterTheSocketAsserts(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
+		if request.Actor.Email != "staff@example.com" || request.Actor.PersonID != "user-staff" {
+			t.Fatalf("actor = %#v", request.Actor)
+		}
+		if request.Actor.Source != publicAPIActorSourceAssertedRequester {
+			t.Fatalf("actor source = %q", request.Actor.Source)
+		}
+		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "deleted", Result: json.RawMessage(`{"status":"deleted"}`)}
+	})
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task_delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
+	request.Header.Set(requesterEmailHeader, "staff@example.com")
+	request.Header.Set(requesterPermissionHeader, publicAPIPermissionDelete)
+	response := httptest.NewRecorder()
+
+	service.handlePublicAPI(response, arrivingOnTheRequesterSocket(request))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestPublicAPIHoldsAnAssertedRequesterToItsPermission(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task_delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
+	request.Header.Set(requesterEmailHeader, "staff@example.com")
+	request.Header.Set(requesterPermissionHeader, publicAPIPermissionWrite)
+	response := httptest.NewRecorder()
+
+	service.handlePublicAPI(response, arrivingOnTheRequesterSocket(request))
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestPublicAPIIgnoresAnAssertedRequesterOnTheTCPListener(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task_delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
+	request.RemoteAddr = "127.0.0.1:12345"
+	request.Header.Set(requesterEmailHeader, "staff@example.com")
+	request.Header.Set(requesterPermissionHeader, publicAPIPermissionDelete)
+	response := httptest.NewRecorder()
+
+	service.handlePublicAPI(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestPublicAPIPermissionsAreALadder(t *testing.T) {
+	cases := map[string]int{
+		"":                        1,
+		publicAPIPermissionRead:   1,
+		publicAPIPermissionWrite:  2,
+		publicAPIPermissionDelete: 3,
+		"destructive":             1,
+		"admin":                   1,
+	}
+	for permission, expectedRank := range cases {
+		if rank := publicAPIPermissionRank(permission); rank != expectedRank {
+			t.Fatalf("%q ranks %d, want %d", permission, rank, expectedRank)
+		}
+	}
+}
+
+func denyPermissionCapabilityHandler(t *testing.T) func(capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
 	return func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
-		t.Fatalf("scope-denied request must not reach capability invoke: %s", request.ToolName)
+		t.Fatalf("permission-denied request must not reach capability invoke: %s", request.ToolName)
 		return capabilities.ToolInvokeResponse{}
 	}
 }
 
-func TestPublicToolScopeForDescriptorClosedByDefault(t *testing.T) {
+func TestPublicToolPermissionForDescriptorClosedByDefault(t *testing.T) {
 	cases := map[string]string{
 		"read":             "",
-		"workspace_write":  publicAPIScopeWrite,
-		"workspace_task":   publicAPIScopeWrite,
-		"external_write":   publicAPIScopeWrite,
-		"external_send":    publicAPIScopeWrite,
-		"external_publish": publicAPIScopeWrite,
-		"site_publish":     publicAPIScopeWrite,
-		"connect":          publicAPIScopeWrite,
-		"browser_write":    publicAPIScopeWrite,
-		"destructive":      publicAPIScopeDestructive,
-		"mystery_class":    publicAPIScopeDestructive,
+		"workspace_write":  publicAPIPermissionWrite,
+		"workspace_task":   publicAPIPermissionWrite,
+		"external_write":   publicAPIPermissionWrite,
+		"external_send":    publicAPIPermissionWrite,
+		"external_publish": publicAPIPermissionWrite,
+		"site_publish":     publicAPIPermissionWrite,
+		"connect":          publicAPIPermissionWrite,
+		"browser_write":    publicAPIPermissionWrite,
+		"destructive":      publicAPIPermissionDelete,
+		"mystery_class":    publicAPIPermissionDelete,
 	}
-	for sideEffectClass, expectedScope := range cases {
-		scope := publicToolScopeForDescriptor(capabilities.Descriptor{SideEffectClass: sideEffectClass})
-		if scope != expectedScope {
-			t.Fatalf("%s: scope = %q, want %q", sideEffectClass, scope, expectedScope)
+	for sideEffectClass, expectedPermission := range cases {
+		permission := publicToolPermissionForDescriptor(capabilities.Descriptor{SideEffectClass: sideEffectClass})
+		if permission != expectedPermission {
+			t.Fatalf("%s: permission = %q, want %q", sideEffectClass, permission, expectedPermission)
 		}
 	}
 }

@@ -4,7 +4,7 @@ description: 토큰은 사람의 것이고, 모든 호출은 그 사람으로 �
 ---
 
 김인턴이 회사 안에서 쓰는 도구는 전부 회사 밖에서도 HTTP로 부를 수 있습니다.
-주소는 `https://intern.kim/api/v1` 하나이고, 모든 회사가 이 주소를 씁니다. 어느
+주소는 `https://api.intern.kim/v1` 하나이고, 모든 회사가 이 주소를 씁니다. 어느
 회사의 누구인지는 토큰이 말합니다. 토큰은 사람에게 속하고, 모든 호출은 그
 사람으로 실행됩니다. 그래서 토큰이 주인보다 많은 일을 할 수 있는 경우는 없습니다.
 
@@ -24,7 +24,7 @@ description: 토큰은 사람의 것이고, 모든 호출은 그 사람으로 �
 세션 쿠키로 직접 요청합니다.
 
 ```bash
-curl -X POST https://intern.kim/api/v1/tokens \
+curl -X POST https://api.intern.kim/v1/tokens \
   --cookie "$SESSION" \
   --header 'Content-Type: application/json' \
   --data '{"label":"리포팅 스크립트","scopes":["write"]}'
@@ -60,7 +60,7 @@ curl -X POST https://intern.kim/api/v1/tokens \
 나머지 모든 엔드포인트는 bearer 헤더로 토큰을 받습니다.
 
 ```bash
-curl https://intern.kim/api/v1/tools \
+curl https://api.intern.kim/v1/tools \
   --header "Authorization: Bearer $INTERNKIM_TOKEN"
 ```
 
