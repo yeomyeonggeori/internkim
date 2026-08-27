@@ -6,7 +6,7 @@ description: List the tools, call one, and read what actually changed.
 ## Listing tools [#listing-tools]
 
 ```bash
-curl https://<host>/api/v1/tools \
+curl https://intern.kim/api/v1/tools \
   --header "Authorization: Bearer $INTERNKIM_TOKEN"
 ```
 
@@ -18,7 +18,7 @@ on the [tool catalog](/docs/tools/catalog) page.
 ## Reading a descriptor [#reading-a-descriptor]
 
 ```bash
-curl https://<host>/api/v1/tools/task_add \
+curl https://intern.kim/api/v1/tools/task_add \
   --header "Authorization: Bearer $INTERNKIM_TOKEN"
 ```
 
@@ -37,7 +37,7 @@ descriptor fields worth reading before a call:
 ## Invoking [#invoking]
 
 ```bash
-curl https://<host>/api/v1/tools/task_add/invoke \
+curl https://intern.kim/api/v1/tools/task_add/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"title":"draft the quarterly report","size":"M"}}'
@@ -116,12 +116,12 @@ Person references work the same way: `participantPersonHints` takes names,
 With a `write` token from [Getting a token](/docs/api#getting-a-token):
 
 ```bash
-curl https://<host>/api/v1/tools/task_add/invoke \
+curl https://intern.kim/api/v1/tools/task_add/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"title":"draft the quarterly report","size":"M"}}'
 
-curl https://<host>/api/v1/tools/task_update/invoke \
+curl https://intern.kim/api/v1/tools/task_update/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"taskHint":"draft the quarterly report","status":"in_progress"}}'
@@ -132,7 +132,7 @@ The first response's `effects` carries
 same task with `"effect":"updated"`. Deleting it takes a `destructive` token:
 
 ```bash
-curl https://<host>/api/v1/tools/task_delete/invoke \
+curl https://intern.kim/api/v1/tools/task_delete/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"taskHint":"draft the quarterly report"}}'
