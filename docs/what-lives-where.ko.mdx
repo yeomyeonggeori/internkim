@@ -1,0 +1,70 @@
+---
+title: 무엇이 어디 사는지
+description: 그 컴퓨터가 오늘 밤 불타 없어져도, 내일 여전히 참이어야 하는 것은 무엇인가.
+---
+
+질문 하나가 정합니다. 그 컴퓨터가 오늘 밤 불타 없어져도, 내일 여전히 참이어야
+하는 것은 무엇인가?
+
+예라고 답하는 것은 기록에 속합니다. 그 기계에 대한 사실인 것은 호스트에
+속합니다.
+
+## 기록 [#the-record]
+
+테이블 열세 개이고, 하나하나가 회사의 모든 컴퓨터를 바꾼 뒤에도 여전히 필요할
+것들입니다. 스키마는 `supabase/migrations`이고, 변경 하나에 마이그레이션
+하나이며, `docs/internal/core-schema.md`가 설명합니다.
+
+| | |
+|---|---|
+| `company` · `member` · `team` | 이 회사가 누구이고 누가 일하는지 |
+| `credential` | 멤버가 외부 시스템에 가진 신원이나 비밀 |
+| `contact` | 메신저 주소록: 외부 ID가 누구인지, 멤버든 아니든 |
+| `agent` | 호스트가 자신을 증명하는 키 |
+| `attendance` · `leave` | 언제 일했고 언제 자리를 비웠는지 |
+| `task` · `task_participant` | 업무와 캘린더 이벤트, 참여자와 함께 |
+| `circle` · `circle_member` | 공유를 위해 손으로 만든 이름 있는 그룹 |
+| `push_device` | 멤버에게 알림이 닿을 수 있는 곳 |
+
+캘린더 이벤트는 기간과 `is_event`를 가진 task라서 별도 테이블이 없습니다.
+메시지 테이블이 없어서 어떤 대화도 기록에 닿을 수 없습니다.
+
+## 에이전트의 저장소 [#the-agents-store]
+
+호스트 자신의 Postgres에 테이블 스물아홉 개.
+`.dependency/blueclaw/migrations/`가 정의합니다.
+
+| | |
+|---|---|
+| 대화 | `raw_event`, `conversation`, `attachment`, `content_segment`, `connector_outbox` |
+| 실행 | `task_run`, `task_attempt`, `task_step`, `task_event`, `task_schedule`, `task_session`, `task_artifact`, `task_wait_token` |
+| 기억 | `memory_record`, `memory_source`, `graphiti_episode`, `graphiti_namespace` |
+| 폴리시와 신원 | `person`, `person_circle`, `person_email`, `circle`, `platform_account`, `policy_channel_rule`, `policy_revision`, `resource_access_rule` |
+| 운영 | `admin_audit_log`, `backup_lock`, 그리고 플랫폼 링크 테이블들 |
+
+어느 것도 회사의 기록이 아닙니다. 에이전트의 작업 상태입니다. 무엇이
+말해졌고, 무엇을 했고, 무엇을 기억하고, 무엇을 만져도 되는지. `task_event`는
+시스템의 나머지가 신뢰하는 원장으로, 모든 도구 호출과 그 입력 전문, 모든
+라우팅 결정이 여기 남습니다. 실패한 실행을 사후에 진단할 수 있는 근거가
+이것입니다.
+
+## 파일 [#files]
+
+워크스페이스는 호스트에 살고, [경계](/ko/docs/boundaries)가 설명하는 권한
+아래 있습니다. 사람마다의 개인 공간, 서클마다의 공유 공간, 에이전트 자신의
+장치가 쓰는 서비스 소유 영역입니다.
+
+호스트를 백업하는 것은 회사의 일입니다. 호스트를 잃으면 에이전트의 기억과
+이력과 파일을 잃지만, 회사의 기록은 하나도 잃지 않습니다. 이 비대칭은
+의도된 것입니다. 에이전트의 기억을 중앙에 두면 회사의 내부 지식을 우리 쪽에
+쥐게 되는데, 그것이 바로 메시지와 메일에서 이 설계가 피하는 일입니다.
+
+## 선이 아직 움직이는 곳 [#where-the-line-is-still-moving]
+
+**고객 관계 기록**은 다른 회사 기록들과 함께 있어야 하는데, 기록에는 아직
+테이블이 없습니다. 스키마 설계는 `docs/internal/crm-backend-schema-design.md`에
+있습니다.
+
+**워크스페이스 파일 탐색과 에이전트가 발행한 사이트**는 닿을 수 있는
+`admind`를 전제하는데, 아웃바운드 전용 호스트는 그것을 돌리지 않습니다. 중앙
+쪽의 답은 `docs/internal/saas-design.md` §11의 미결 질문입니다.

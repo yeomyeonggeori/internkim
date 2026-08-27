@@ -1,0 +1,152 @@
+---
+title: 도구 호출
+description: 목록을 읽고, 하나를 부르고, 무엇이 바뀌었는지 확인합니다.
+---
+
+## 도구 목록 [#listing-tools]
+
+```bash
+curl https://<host>/api/v1/tools \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN"
+```
+
+응답은 `{"tools": [...]}`이고, 토큰 등급으로 부를 수 있는 모든 도구의
+디스크립터 전문이 담깁니다. 이 목록은 살아 있습니다. 컴패니언 도구는 컴패니언이
+연결된 동안 나타나고 함께 사라집니다. 기본 카탈로그는
+[도구 카탈로그](/ko/docs/tools/catalog)에 정리돼 있습니다.
+
+## 디스크립터 읽기 [#reading-a-descriptor]
+
+```bash
+curl https://<host>/api/v1/tools/task_add \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN"
+```
+
+토큰이 부를 수 없는 도구는 여기서 `404`로 답합니다. 없는 것처럼 보입니다.
+호출 전에 읽어 둘 디스크립터 필드는 다음과 같습니다.
+
+| 필드 | 말해 주는 것 |
+|---|---|
+| `inputSchema` | `input`이 만족해야 하는 JSON Schema |
+| `outputSchema` | 성공 시 `result`의 모양 |
+| `sideEffectClass` | 호출에 필요한 범위 등급 |
+| `idempotency` | 이 도구에서 `idempotencyKey`가 의미가 있는지 |
+| `resultContract.effects` | 성공한 호출이 약속하는 `effects` 항목 |
+| `availability` | 지금 실행 가능한지, 아니라면 왜인지 |
+
+## 호출 [#invoking]
+
+```bash
+curl https://<host>/api/v1/tools/task_add/invoke \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{"input":{"title":"분기 보고서 초안","size":"M"}}'
+```
+
+본문에는 `input`을, 지원하는 도구라면 `idempotencyKey`를 담습니다. `actor`나
+`context`에 무엇을 보내든 요청이 게이트웨이를 떠나기 전에 토큰의 것으로
+덮어써집니다. `TestPublicToolGatewayOverridesActorFromBearerToken` 테스트가 이
+동작을 고정하고 있습니다.
+
+<Callout title="승인 대기가 없습니다" type="warn">
+메신저 대화에서 에이전트는 삭제나 발송 전에 멈춰 서서 묻습니다. 게이트웨이는
+read가 아닌 모든 호출에 이미 승인된 연속 실행 표시를 붙이므로, 같은 도구가
+여기서는 즉시 실행됩니다. 토큰의 범위가 곧 동의입니다. `destructive` 토큰은
+묻지 않고 지웁니다.
+</Callout>
+
+## 응답 [#the-response]
+
+```json
+{
+  "provider": "internkim",
+  "selectedBackend": "device",
+  "toolName": "task_add",
+  "outcome": "succeeded",
+  "status": "created",
+  "effects": [
+    { "objectType": "task", "effect": "created", "id": "..." }
+  ],
+  "result": { "taskID": "...", "title": "분기 보고서 초안" }
+}
+```
+
+| 필드 | 뜻 |
+|---|---|
+| `provider`, `selectedBackend` | 어디서 실행됐는지: `device`, `companion`, `remote` |
+| `outcome` | `succeeded`, `failed`, `denied` 중 하나 |
+| `status` | 도구가 정의한 상태 문자열 |
+| `effects` | 실제로 바뀐 것의 기록 |
+| `result` | 도구의 출력. `outputSchema`를 따릅니다 |
+| `isError`, `message`, `errorCode`, `failureStage` | 실패의 상세 |
+| `retryable`, `safeRetry` | 재시도가 말이 되는지, 그리고 안전한지 |
+
+## effects [#effects]
+
+`effects`는 실제로 바뀐 것의 기록이고, 런타임이 도구의 result contract에서
+만들어 적습니다. 각 항목은 `objectType`과 `effect`(`created`, `updated`,
+`deleted`, ...)를 밝히고, `id`, `path`, `url` 중 하나로 대상을 특정합니다.
+항목에 따라 `visibility`, `durability`, `filename`, `contentType`, `summary`가
+붙습니다.
+
+확인은 `result`가 아니라 `effects`로 합니다. `effects`가 비어 있으면 아무것도
+바뀌지 않은 것입니다. 결과 본문에 무슨 말이 적혀 있든 그렇습니다.
+
+## 멱등성 [#idempotency]
+
+`idempotencyKey`는 디스크립터의 `idempotency.supported`가 `true`인 도구에서만
+효력이 있습니다. 기본 카탈로그에서는 `message_send`가 그렇고, 나머지 도구에서
+이 키는 전달만 될 뿐 아무것도 바꾸지 않습니다. 에이전트 메시지에서는
+[`messageID`가 중복 제거를 맡습니다](/ko/docs/api/agent#sending-a-message).
+
+## 힌트로 대상 고르기 [#choosing-a-target-with-a-hint]
+
+수정·삭제 도구에는 별도의 ID 파라미터가 없습니다. `task_update`와
+`task_delete`는 `taskHint`를 받습니다. 정확한 task ID이거나, `task_list` 결과에
+보이는 그대로의 정확한 현재 제목입니다. 바꾸려는 새 제목이 아닙니다. 서버는
+힌트를 결정론적으로 해석하고, 정확히 하나로 좁혀지지 않으면 호출을 실패시키며
+재시도에 쓸 후보 목록을 돌려줍니다. 짐작하지 않습니다.
+
+사람 참조도 같은 방식입니다. `participantPersonHints`는 이름, `@handle`,
+이메일을 받습니다.
+
+## 처음부터 끝까지 [#end-to-end]
+
+[토큰 발급](/ko/docs/api#getting-a-token)에서 받은 `write` 토큰으로:
+
+```bash
+curl https://<host>/api/v1/tools/task_add/invoke \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{"input":{"title":"분기 보고서 초안","size":"M"}}'
+
+curl https://<host>/api/v1/tools/task_update/invoke \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{"input":{"taskHint":"분기 보고서 초안","status":"in_progress"}}'
+```
+
+첫 응답의 `effects`에는 `{"objectType":"task","effect":"created","id":...}`가,
+두 번째에는 같은 task가 `"effect":"updated"`로 담깁니다. 지우려면
+`destructive` 토큰이 필요합니다.
+
+```bash
+curl https://<host>/api/v1/tools/task_delete/invoke \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{"input":{"taskHint":"분기 보고서 초안"}}'
+```
+
+`write`뿐인 토큰이라면 이 호출은 `capabilityd`에 닿기 전에
+`403 tool is not available for this token`으로 끝납니다.
+
+## 구현 위치 [#where-it-is-implemented]
+
+| 관심사 | 위치 |
+|---|---|
+| 목록·조회·호출 핸들러 | `internal/admind/public_tool_gateway.go`의 `writePublicTools`, `writePublicTool`, `invokePublicTool` |
+| `capabilityd`에서 디스크립터 가져오기 | unix 소켓 너머의 `fetchCapabilityRegistry`; 기기와 컴패니언 디스크립터는 `exposableCapabilityDescriptors`에서 합쳐집니다 |
+| actor 덮어쓰기 | `invokePublicTool`이 본문을 디코드한 뒤 `Actor`, `Context`, `PrivacyClass`, `RequiresUserPresence`를 다시 채웁니다 |
+| 승인-연속 플래그 | `publicToolInvokeContext`, `publicToolScopeForDescriptor`가 기준입니다 |
+| 요청·응답 타입 | `pkg/capabilityprotocol/protocol.go`의 `ToolInvokeRequest`, `ToolInvokeResponse`, `ResourceEffect` |
+| 입력·출력 스키마 | `pkg/capabilityprotocol/generated/capability-tools.json` |

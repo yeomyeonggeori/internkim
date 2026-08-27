@@ -1,0 +1,112 @@
+---
+title: What Intern Kim is
+description: A coworker your company runs itself, reachable from the web app and from your own messenger.
+---
+
+Intern Kim is a coworker your company runs itself. It does what an assistant
+does: records attendance, keeps the calendar, drafts and files things, runs
+what needs running. Every piece of that work happens under the identity of the
+person who asked for it, so what it leaves behind carries a name.
+
+It is split across two machines, and which one holds a thing is decided by a
+single question: **if that computer burned down tonight, what has to still be
+true tomorrow?**
+
+## Two ways to reach it
+
+**The web app is the default, and everything is in it.** Attendance, leave, the
+calendar, work, the org chart, settings, and a messenger screen where people
+talk to Intern Kim and to each other. Someone who only ever opens the web app
+is missing nothing.
+
+**A messenger app works too**, wherever that messenger is reachable from. The
+chat is your company's own messenger, a Mattermost or a Buzz relay the company
+already runs, so its ordinary apps sign in and work as usual. A messenger kept
+inside the office is reachable inside the office; the web app's chat screen is
+how the same conversation follows someone onto a train. See [where the
+messenger server runs](/docs/architecture#where-the-messenger-server-runs).
+
+Both reach one conversation. The web app's messenger screen is a view onto the
+company's messenger rather than a separate inbox, so a message written in
+either place arrives in the other, and the agent hears it the same way
+regardless of which one sent it.
+
+## The records
+
+A Supabase project. Postgres holds the company's records, row level security
+decides who may read a row, and Supabase Auth signs people in with a password,
+a passkey or a Google account. The schema is the directory of migrations at
+`supabase/migrations`, thirteen tables today, listed in
+[What lives where](/docs/what-lives-where).
+
+Alongside it, three more things we run:
+
+- a static web app people sign into (`web/`)
+- a handful of server routes holding the one key that can bypass row level
+  security (`web/src/routes/api/agent/`) — they issue what a member cannot
+  issue alone: a session for an agent, a session for a host
+- a small Cloudflare Worker (`workers/connection-gateway/`) that passes calls
+  between a browser and the company's computer, since neither can connect to
+  the other directly
+
+This documentation names those separately, because they behave differently
+even though they deploy together. See the [glossary](/docs/glossary).
+
+The Supabase project can be a hosted one or your own. The schema is a
+directory of migrations, the app is a static build, and which project the app
+talks to is configuration read at runtime. Self-hosted Supabase ships the same
+Postgres, the same row level security, and the vault extension the schema
+uses.
+
+## The host
+
+One computer that stays on. A Linux server, a Mac that does not sleep, a box
+in a cupboard. It runs the agent, the connector to your messenger, the daemons
+around them, and a Postgres of its own holding conversations, what the agent
+did, and what it remembers. [Running the host](/docs/running-the-host) lists
+the processes and what each needs.
+
+Nothing on it listens. Every connection it makes goes outward, so there is no
+tunnel to keep alive, no port to forward, and no hostname pointing at a
+machine in your office.
+
+## The software
+
+The agent itself is two repositories.
+[blueclaw](https://github.com/Dawn-kim-official/blueclaw) is the agent host:
+it runs tools as the person who asked, and owns approval and the task ledger.
+[bluecollar](https://github.com/Dawn-kim-official/bluecollar) is the agent
+loop that runs inside it. This repository, `internkim`, is the layer that puts
+those two on a machine and operates them: the relay, the surrounding daemons,
+the operator CLI (`cmd/internkim/`), the web app (`web/`) and the schema
+(`supabase/migrations`). blueclaw is vendored at `.dependency/blueclaw/`.
+
+## What stays yours
+
+**The messenger.** Intern Kim attaches to the Mattermost or Buzz relay you
+already run. No conversation reaches the records, because the schema has no
+table for one.
+
+**The model.** The agent talks to whichever provider you configure, or to a
+model running on your own box.
+
+**The computer.** Replaceable at any time. Everything a company would still
+need after replacing every machine it owns lives in the records.
+
+## The device path
+
+Before the central plane there was one appliance per company: a Jetson Orin
+Nano with Mattermost, a Firecracker guest and an update engine on board. That
+path still ships and still works, and [The device path](/docs/device)
+describes it. Pages here describe the current shape unless they say otherwise.
+
+## Where to go next
+
+| | |
+|---|---|
+| [Architecture](/docs/architecture) | what talks to what, and where each process lives in the tree |
+| [Boundaries](/docs/boundaries) | the two things that decide who may do what |
+| [What lives where](/docs/what-lives-where) | which data is central and which is on the box |
+| [Running the host](/docs/running-the-host) | the boot order and the settings of the always-on computer |
+| [The device path](/docs/device) | the per-company appliance that predates the central plane |
+| [Glossary](/docs/glossary) | the words this documentation uses precisely |

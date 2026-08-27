@@ -1,0 +1,106 @@
+---
+title: 도구 카탈로그
+description: 정본 카탈로그에서 생성되는, 네임스페이스별 능력 도구 전체 목록.
+---
+
+아래 표는 에이전트가 실제로 읽는 카탈로그
+(`pkg/capabilityprotocol/generated/capability-tools.json`, 프로토콜
+<ToolProtocolVersion />)에서 빌드 시점에 생성되므로 배포된 것과 어긋날 수
+없습니다. 설명이 영어인 것은 모델이 받는 문장 그대로이기 때문입니다.
+
+영향 열이 `destructive`인 도구와 `message_send`, `channel_update`는 실행
+전에 [승인](/ko/docs/tools/index#approval)을 기다립니다.
+
+## 업무 [#task]
+
+<ToolCatalog namespace="task" language="ko" />
+
+admind의 Flow API가 뒤를 받칩니다(`internal/capabilityd/flow_tool.go`).
+수정과 삭제는 `taskHint`를 받습니다: `task_list` 결과에 있는 정확한 업무 ID
+또는 정확한 현재 제목. 날짜는 `yyyy-mm-dd`이고 "다음 주 금요일" 같은 표현은
+에이전트가 호출 전에 풉니다.
+
+## 사람 [#person]
+
+<ToolCatalog namespace="person" language="ko" />
+
+같은 Flow 구성원 데이터 위에 구현되어 있습니다
+(`internal/capabilityd/person_list_tool.go`). 메시지가 사람을 조각으로
+부를 때마다 에이전트가 이것을 불러, 이후의 모든 힌트가 정확한 이름,
+@핸들, 이메일을 담게 합니다.
+
+## 캘린더 [#calendar]
+
+<ToolCatalog namespace="calendar" language="ko" />
+
+역시 admind의 Flow API 위에 구현되어 있습니다
+(`internal/capabilityd/calendar_tool.go`). 캘린더 일정은 시간 구간이 있는
+업무입니다. 시각은 시간대가 붙은 ISO 타임스탬프이고, `eventHint`는
+`taskHint`와 같은 해석 규칙을 따릅니다.
+
+## 메시지 [#message]
+
+<ToolCatalog namespace="message" language="ko" />
+
+`internal/capabilityd/platform_message_tool.go`와 `mattermost_tool.go`에
+구현되어 있습니다. `message_search`에는 두 모드가 있습니다. 키워드
+`queries`는 매치 주변 미리보기와 함께 ID를 돌려주고, `messageIDs`는 그
+메시지들을 전문으로 돌려줍니다. `message_update`는 에이전트 자신이 보낸
+메시지에서 정확한 한 구간만 고칩니다: `oldText`는 정확히 한 번 나타나야
+하고 나머지는 그대로 남습니다. `message_send`는 DM, 이름 있는 채널, 현재
+대화를 겨냥하며, 현재 대화 대상만 승인을 건너뜁니다.
+
+## 채널 [#channel]
+
+<ToolCatalog namespace="channel" language="ko" />
+
+`internal/capabilityd/mattermost_tool.go`에 구현되어 있습니다. 표시 이름,
+헤더, 멤버십 변경이 전부 이 게이트된 도구 하나로 갑니다.
+
+## 웹 [#web]
+
+<ToolCatalog namespace="web" language="ko" />
+
+OpenRouter의 웹 검색을 통해 구현되어 있습니다
+(`internal/capabilityd/web_tool.go`). 도메인 허용 목록, 언어, 위치로
+질의를 좁힙니다.
+
+## 사이트 [#site]
+
+<ToolCatalog namespace="site" language="ko" />
+
+admind 위에 구현되어 있습니다(`internal/capabilityd/site_tool.go`).
+에이전트는 사이트를 워크스페이스의 보통 파일로 만든 뒤 그 디렉터리를
+서빙합니다. `preview`는 임시 검토 URL을 돌려주고 `publish`는 공개 URL을
+잡습니다. 슬러그는 첫 서빙에서 제목으로부터 파생되어 서버가 소유합니다.
+`site_unserve`는 슬러그를 풀고 서버 쪽 레코드를 지우며, 워크스페이스의
+소스 파일은 남습니다.
+
+## 문서와 이미지 [#document]
+
+<ToolCatalog namespace="document" language="ko" />
+<ToolCatalog namespace="image" language="ko" />
+
+`internal/capabilityd/file_read_tool.go`에 구현되어 있고 포맷 추출은
+`file_read_helper.py`가 합니다. 워크스페이스 경로를 읽어 Markdown이나
+base64 첨부로 돌려주며, 누가 올린 PDF가 모델이 인용할 수 있는 것이 되는
+경로입니다.
+
+## 브라우저 [#browser]
+
+<ToolCatalog namespace="browser" language="ko" />
+
+`internal/capabilityd/browser_tool.go`에 구현되어 있습니다. 컴패니언이
+연결되어 있으면 사용자 자기 컴퓨터로 라우팅되고, 다른 제공자는 장비
+브라우저입니다. `browser_open`은 사람이 자리에 있어야 하고, 응답에는
+쿠키도, 프로필 경로도, 로컬 스크린샷 경로도 담기지 않습니다.
+`browser_screenshot`은 임시 워크스페이스 가시 경로로 올립니다. 로그인,
+MFA, 캡차 단계는 사람에게 넘어갑니다.
+
+## 아티팩트 [#artifact]
+
+<ToolCatalog namespace="artifact" language="ko" />
+
+`internal/capabilityd/artifact_review_tool.go`에 구현되어 있습니다.
+에이전트 자신의 품질 루프입니다: 만든 것을 렌더링해 스크린샷을 찍고,
+전달 전에 선언한 의도에 비추어 타입 있는 시각 이슈를 요청합니다.
