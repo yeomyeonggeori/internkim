@@ -2,6 +2,7 @@ import { addMember, adminCallerOf, asMember, controlPlane, inviteMember } from '
 import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { memberAccessTokenOf } from '$lib/server/member-request';
 
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
@@ -10,9 +11,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
 	if (!projectURL || !publishableKey || !serviceRoleKey) error(500, 'the central plane is not configured');
 
-	const authorization = request.headers.get('authorization') ?? '';
-	const accessToken = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
-	if (!accessToken) error(401, 'sign in first');
+	const accessToken = await memberAccessTokenOf(request, { projectURL, serviceRoleKey });
 
 	const caller = await adminCallerOf(asMember({ projectURL, publishableKey }, accessToken));
 	if (!caller) error(403, 'only an admin invites people');

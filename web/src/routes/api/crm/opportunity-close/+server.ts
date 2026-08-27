@@ -4,6 +4,7 @@ import { convertedAmount, type ConvertedAmount } from '$lib/server/converted-amo
 import { frankfurterProvider, type ExchangeRateProvider } from '$lib/server/exchange-rates';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { memberAccessTokenOf } from '$lib/server/member-request';
 
 type CloseRequest = {
 	opportunityID: string;
@@ -26,11 +27,10 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
 	const projectURL = environment.SUPABASE_URL ?? '';
 	const publishableKey = environment.SUPABASE_PUBLISHABLE_KEY ?? '';
-	if (!projectURL || !publishableKey) error(500, 'the central plane is not configured');
+	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
+	if (!projectURL || !publishableKey || !serviceRoleKey) error(500, 'the central plane is not configured');
 
-	const authorization = request.headers.get('authorization') ?? '';
-	const accessToken = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
-	if (!accessToken) error(401, 'sign in first');
+	const accessToken = await memberAccessTokenOf(request, { projectURL, serviceRoleKey });
 
 	const payload = closeRequestOf(await request.json().catch(() => null));
 	const client = asMember({ projectURL, publishableKey }, accessToken);
