@@ -22,6 +22,17 @@ worktree.
 A document that tracked code or `AGENTS.md` links to cannot be private, or the
 link dangles for whoever clones. Check with a grep before moving one down.
 
+The site that publishes `docs/` is `docs/web/`, a React Router build of
+Fumadocs that reads the directory above it. It publishes a named list of
+sections rather than everything it finds: `docs.files` in
+`docs/web/app/lib/source.ts` names the root pages, `tools` and `api`, and a new
+public section is added there and in the matching list in
+`react-router.config.ts`. Nothing under `internal/` or `private/` is
+reachable, whatever its extension.
+
+English is the default language and lives at `/docs/...`. Korean lives at
+`/ko/docs/...`, in sibling files named `<page>.ko.mdx`.
+
 A new document starts in `docs/internal/`. Moving it up is a `git mv` and a
 read: check that it says what a stranger needs, that it names no customer and
 no person, and that the prose rules in `AGENTS.md` hold.

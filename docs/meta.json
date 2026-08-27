@@ -1,0 +1,16 @@
+{
+  "pages": [
+    "index",
+    "---What it is---",
+    "introduction",
+    "architecture",
+    "what-lives-where",
+    "boundaries",
+    "running-the-host",
+    "device",
+    "glossary",
+    "---Reference---",
+    "tools",
+    "api"
+  ]
+}
