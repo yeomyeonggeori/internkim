@@ -33,6 +33,10 @@ WantedBy=multi-user.target
 // bind mounts ProtectSystem= introduces put source and destination on different
 // devices, so confinement and Firecracker cannot both hold. Cloud Hypervisor opens
 // the same paths where they already are.
+//
+// The instance directory is the supervisor's to fill, but ProtectSystem=strict
+// refuses to start a unit whose ReadWritePaths names a directory that is not
+// there yet, so systemd is asked to make it.
 func blueclawFilesystemConfinement() string {
 	if BlueclawVirtualMachineMonitor != CloudHypervisorMonitorName {
 		return ""
@@ -41,6 +45,7 @@ func blueclawFilesystemConfinement() string {
 ProtectSystem=strict
 ProtectHome=false
 PrivateTmp=true
+StateDirectory=` + filepath.Base(BlueclawRuntimeInstanceDirectoryPath) + `
 ReadWritePaths=` + strings.Join(blueclawWritablePaths(), " ") + `
 `
 }
@@ -133,6 +138,9 @@ WantedBy=multi-user.target
 `, AdmindBinaryPath, BuzzRelayLocalURL, BuzzRelayDatabaseEnvironmentFilePath, BuzzAdminBinaryPath, "/root/.internkim/secrets/buzz-key-seed", BuzzRelayKeyEnvironmentFilePath, BuzzAccountLinksPath, ChatdEndpoint)
 }
 
+// The relay verifies a NIP-42 auth event against the url it believes it answers
+// at, so naming a scheme it does not serve locks every client out. Without a
+// public host it terminates no TLS, and loopback is ws.
 func BuzzRelayServiceUnit(relayPublicURL string) string {
 	relayURL := relayPublicURL
 	if relayURL == "" {
