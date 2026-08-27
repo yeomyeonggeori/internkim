@@ -1,3 +1,5 @@
+import { extensionOf } from './asset-store';
+
 export type Call = {
 	callID?: string;
 	capability?: string;
@@ -18,11 +20,15 @@ const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
 const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.'];
 export const apiRequestCapability = 'person.api.request';
+export const apiFileCapability = 'person.api.file';
+export const workspaceRootsCapability = 'person.files.roots';
 export const defaultAdmindSocketPath = '/run/internkim/admind.sock';
 const requesterEmailHeader = 'X-INTERNKIM-REQUESTER-EMAIL';
 const requesterPermissionHeader = 'X-INTERNKIM-REQUESTER-PERMISSION';
 // Bun's fetch refuses a body on OPTIONS as well as on GET and HEAD.
 const methodsThatCarryNoBody = new Set(['GET', 'HEAD', 'OPTIONS']);
+const admindHost = 'http://internkim';
+const workspaceUploadPath = '/files/api/upload';
 
 export function mailOperationOf(capability: string): string | null {
 	if (!capability.startsWith(mailPrefix)) return null;
@@ -73,28 +79,55 @@ function queryOf(given: unknown): string {
 }
 
 export function admindAPIURL(request: PublicAPIRequest): string {
-	return `http://internkim/api/v1${request.path}${request.query}`;
+	return `${admindHost}/api/v1${request.path}${request.query}`;
 }
 
-export async function forwardToAdmindAPI(
+export function workspaceUploadURL(directoryPath: string): string {
+	return `${admindHost}${workspaceUploadPath}?path=${encodeURIComponent(directoryPath)}`;
+}
+
+export type AdmindCall = {
+	method: string;
+	url: string;
+	requester: string;
+	permission?: string;
+	contentType?: string;
+	body?: FormData | string;
+};
+
+export async function forwardToAdmind(
 	socketPath: string,
-	request: PublicAPIRequest
+	call: AdmindCall
 ): Promise<{ status: number; body: unknown }> {
-	const carriesPayload = !methodsThatCarryNoBody.has(request.method) && request.payload !== undefined;
-	const response = await fetch(admindAPIURL(request), {
+	const response = await fetch(call.url, {
 		unix: socketPath,
-		method: request.method,
+		method: call.method,
 		headers: {
-			[requesterEmailHeader]: request.requester,
-			[requesterPermissionHeader]: request.permission,
-			...(carriesPayload ? { 'Content-Type': 'application/json' } : {})
+			[requesterEmailHeader]: call.requester,
+			...(call.permission ? { [requesterPermissionHeader]: call.permission } : {}),
+			...(call.contentType ? { 'Content-Type': call.contentType } : {})
 		},
-		body: carriesPayload ? JSON.stringify(request.payload) : undefined
+		body: call.body
 	}).catch((unreachable) => {
 		const reason = unreachable instanceof Error ? unreachable.message : String(unreachable);
 		throw new Error(`admind did not answer on ${socketPath}: ${reason}`);
 	});
 	return { status: response.status, body: await answerBodyOf(response) };
+}
+
+export function forwardToAdmindAPI(
+	socketPath: string,
+	request: PublicAPIRequest
+): Promise<{ status: number; body: unknown }> {
+	const carriesPayload = !methodsThatCarryNoBody.has(request.method) && request.payload !== undefined;
+	return forwardToAdmind(socketPath, {
+		method: request.method,
+		url: admindAPIURL(request),
+		requester: request.requester,
+		permission: request.permission,
+		contentType: carriesPayload ? 'application/json' : '',
+		body: carriesPayload ? JSON.stringify(request.payload) : undefined
+	});
 }
 
 export async function answerBodyOf(response: Response): Promise<unknown> {
@@ -130,11 +163,6 @@ export type Served = { status: number; body: unknown; replyTo: string | null };
 
 export type Dispatch = {
 	serveAsset: (capability: string, body: Record<string, unknown>) => Promise<unknown>;
-	askAdmind: (
-		capability: string,
-		body: Record<string, unknown>,
-		requesterEmail: string
-	) => Promise<{ status: number; body: unknown }>;
 	askAdmindAPI: (request: PublicAPIRequest) => Promise<{ status: number; body: unknown }>;
 	emailOfMember: (memberID: string) => Promise<string | null>;
 	tellAdmindTheDirectoryChanged: () => Promise<{ status: number; body: unknown }>;
@@ -145,6 +173,8 @@ export type Dispatch = {
 	) => Promise<{ status: number; body: unknown }>;
 	keepAttachment: (contentBase64: string, contentType: string) => Promise<KeptAttachment>;
 	keptAlready: (digest: string, contentType: string) => Promise<KeptAttachment | null>;
+	keptFileBytes: (kept: KeptFileReference) => Promise<Uint8Array<ArrayBuffer>>;
+	askAdmindAsRequester: (call: AdmindCall) => Promise<{ status: number; body: unknown }>;
 	largestFileBytes: number;
 	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	mailAccountOf: (memberID: string) => Promise<Record<string, unknown> | null>;
@@ -159,6 +189,14 @@ export type ActorCredential = { kind: string; secret: string };
 export type SentAttachment = { filename: string; contentType: string; contentBase64: string };
 
 export type KeptAttachment = { address: string; sizeBytes: number; digest: string };
+
+export type KeptFileReference = {
+	requester: string;
+	permission: string;
+	digest: string;
+	contentType: string;
+	filename: string;
+};
 
 type ReadFile = { filename: string; contentType: string; contentBase64: string };
 
@@ -358,6 +396,96 @@ export async function servePublicAPIRequest(
 	return dispatch.askAdmindAPI(request);
 }
 
+const apiInboxDirectory = 'inbox/api';
+const refusedLeafNames = new Set(['', '.', '..', '.blueclaw']);
+
+export function publicAPIFileOf(body: Record<string, unknown>): KeptFileReference | null {
+	const requester = oneHeaderLine(body.requester);
+	const permission = oneHeaderLine(body.permission);
+	const digest = typeof body.digest === 'string' ? body.digest.trim().toLowerCase() : '';
+	if (!requester || !permission || !/^[0-9a-f]{64}$/.test(digest)) return null;
+	const contentType = typeof body.contentType === 'string' ? body.contentType.trim() : '';
+	const filename = typeof body.filename === 'string' ? body.filename : '';
+	return {
+		requester,
+		permission,
+		digest,
+		contentType: contentType || 'application/octet-stream',
+		filename
+	};
+}
+
+export function leafNameOf(offered: string, fallback: string): string {
+	const named = offered.trim().replaceAll('\\', '/').split('/').pop()?.trim() ?? '';
+	return refusedLeafNames.has(named) ? fallback : named;
+}
+
+export async function servePublicAPIFile(
+	dispatch: Dispatch,
+	body: Record<string, unknown>
+): Promise<{ status: number; body: unknown }> {
+	const kept = publicAPIFileOf(body);
+	if (!kept) return { status: 400, body: { error: 'that is not a file the plane kept' } };
+
+	const home = await personalHomeOf(dispatch, kept);
+	if (!home) return { status: 409, body: { error: 'this address has no home in the workspace' } };
+
+	const directoryPath = `${home}/${apiInboxDirectory}`;
+	const bytes = await dispatch.keptFileBytes(kept);
+	const filename = leafNameOf(kept.filename, kept.digest + extensionOf(kept.contentType));
+	const uploaded = await dispatch.askAdmindAsRequester({
+		method: 'POST',
+		url: workspaceUploadURL(directoryPath),
+		requester: kept.requester,
+		permission: kept.permission,
+		body: onePartUpload(filename, kept.contentType, bytes)
+	});
+	if (uploaded.status !== 200) return uploaded;
+
+	const written = writtenNameOf(uploaded.body);
+	if (!written) {
+		return { status: 502, body: { error: 'the workspace took the call and wrote no file' } };
+	}
+	return {
+		status: 200,
+		body: {
+			file: {
+				path: `${directoryPath}/${written}`,
+				sizeBytes: bytes.byteLength,
+				digest: kept.digest,
+				contentType: kept.contentType
+			}
+		}
+	};
+}
+
+function onePartUpload(filename: string, contentType: string, bytes: Uint8Array<ArrayBuffer>): FormData {
+	const upload = new FormData();
+	upload.append('file', new Blob([bytes], { type: contentType }), filename);
+	return upload;
+}
+
+function writtenNameOf(body: unknown): string {
+	const uploaded = (body as { uploaded?: unknown } | null)?.uploaded;
+	if (!Array.isArray(uploaded)) return '';
+	const written = uploaded[0];
+	return typeof written === 'string' ? written : '';
+}
+
+async function personalHomeOf(dispatch: Dispatch, kept: KeptFileReference): Promise<string | null> {
+	const call = workspaceCallOf(workspaceRootsCapability, {}, kept.requester);
+	if (!call) return null;
+	const answer = await dispatch.askAdmindAsRequester({ ...call, permission: kept.permission });
+	if (answer.status !== 200) return null;
+	const roots = (answer.body as { roots?: unknown } | null)?.roots;
+	if (!Array.isArray(roots)) return null;
+	const home = roots.find((root) => (root as { kind?: unknown }).kind === 'personal') as
+		| { agentPath?: unknown }
+		| undefined;
+	const agentPath = typeof home?.agentPath === 'string' ? home.agentPath.replace(/\/+$/, '') : '';
+	return agentPath.startsWith('/workspace/') ? agentPath : null;
+}
+
 async function serveWorkspace(
 	dispatch: Dispatch,
 	capability: string,
@@ -368,5 +496,34 @@ async function serveWorkspace(
 	if (!requesterEmail) {
 		return { status: 409, body: { error: 'this member has no address the workspace knows' } };
 	}
-	return dispatch.askAdmind(capability, body, requesterEmail);
+	const call = workspaceCallOf(capability, body, requesterEmail);
+	if (!call) return { status: 404, body: { error: `the app has nothing called ${capability}` } };
+	return dispatch.askAdmindAsRequester(call);
+}
+
+export const workspaceCapabilityPaths: Record<string, string> = {
+	'person.memory.graph': '/memory/api/graph',
+	'person.memory.schedules': '/memory/api/schedules',
+	[workspaceRootsCapability]: '/files/api/roots',
+	'person.files.list': '/files/api/list',
+	'person.runs.list': '/runs/api',
+	'person.runs.detail': '/runs/api/detail',
+	'person.buzz.claim': '/agent/api/buzz-claim',
+	'person.buzz.relay': '/agent/api/buzz-relay-config'
+};
+
+export function workspaceCallOf(
+	capability: string,
+	body: Record<string, unknown>,
+	requester: string
+): AdmindCall | null {
+	const path = workspaceCapabilityPaths[capability];
+	if (!path) return null;
+	const query = new URLSearchParams();
+	for (const [name, value] of Object.entries(body)) {
+		if (name === 'actor' || value === undefined || value === null) continue;
+		query.set(name, String(value));
+	}
+	const asked = query.toString() ? `${path}?${query}` : path;
+	return { method: 'GET', url: `${admindHost}${asked}`, requester };
 }

@@ -8,15 +8,21 @@ import (
 	"testing"
 )
 
-var relayWorkspacePathPattern = regexp.MustCompile(`'person\.[a-z.]+':\s*'([^']+)'`)
+var relayWorkspaceTablePattern = regexp.MustCompile(`(?s)workspaceCapabilityPaths: Record<string, string> = \{(.*?)\n\};`)
+
+var relayWorkspacePathPattern = regexp.MustCompile(`:\s*'(/[^']+)'`)
 
 func relayWorkspacePaths(t *testing.T) []string {
 	t.Helper()
-	source, errorValue := os.ReadFile(filepath.Join("..", "..", "host", "relay", "relay.ts"))
+	source, errorValue := os.ReadFile(filepath.Join("..", "..", "host", "relay", "forward.ts"))
 	if errorValue != nil {
 		t.Fatalf("read the relay source: %v", errorValue)
 	}
-	matches := relayWorkspacePathPattern.FindAllStringSubmatch(string(source), -1)
+	table := relayWorkspaceTablePattern.FindStringSubmatch(string(source))
+	if table == nil {
+		t.Fatal("the relay names no workspace capability table, so this guard is reading the wrong source")
+	}
+	matches := relayWorkspacePathPattern.FindAllStringSubmatch(table[1], -1)
 	paths := make([]string, 0, len(matches))
 	for _, match := range matches {
 		paths = append(paths, match[1])

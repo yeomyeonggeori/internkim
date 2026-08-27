@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import worker, { type CompanyAnswer, type CompanyCall, type WorkerEnvironment } from './index';
+import { largestFileAnAttachmentCanBe } from './files';
 
 type Row = { permission: string; member: { email: string; company_id: string } };
 
 let recordAnswers: Row[] = [];
 
+let storeStatuses: number[] = [];
+let storePuts: string[] = [];
+
 Object.assign(globalThis, {
-	fetch: async () => ({ ok: true, status: 200, json: async () => recordAnswers })
+	fetch: async (url: string) => {
+		if (String(url).includes('/storage/v1/object/')) {
+			storePuts.push(String(url));
+			const status = storeStatuses.shift() ?? 200;
+			return { ok: status < 400, status, json: async () => null };
+		}
+		return { ok: true, status: 200, json: async () => recordAnswers };
+	}
 });
 
 function keyHeldBy(permission: string, email = 'someone@example.com', companyID = 'c1'): void {
@@ -36,6 +47,8 @@ function call(path: string, key: string | null, options: RequestInit = {}): Prom
 
 beforeEach(() => {
 	carried = [];
+	storeStatuses = [];
+	storePuts = [];
 	companyAnswer = { requestID: '', status: 200, body: { ok: true } };
 });
 
@@ -191,6 +204,121 @@ describe('a path this worker does not serve', () => {
 		keyHeldBy('delete');
 		const response = await call('/api/agent/host-session', 'ik_wrong-path');
 		expect(response.status).toBe(404);
+		expect(carried).toHaveLength(0);
+	});
+});
+
+describe('putting a file where a message can attach it', () => {
+	const bytes = 'a file worth sending';
+
+	function put(key: string, options: RequestInit & { query?: string } = {}): Promise<Response> {
+		const { query, ...request } = options;
+		return call(`/v1/files${query ?? ''}`, key, {
+			method: 'POST',
+			headers: { 'Content-Type': 'image/png' },
+			body: bytes,
+			...request
+		});
+	}
+
+	test('is refused for a key that may only read, and keeps nothing', async () => {
+		keyHeldBy('read');
+
+		const response = await put('ik_reader');
+
+		expect(response.status).toBe(403);
+		expect(storePuts).toHaveLength(0);
+		expect(carried).toHaveLength(0);
+	});
+
+	test('is refused at the length the caller claims, naming the ceiling', async () => {
+		keyHeldBy('write');
+
+		const response = await put('ik_writer', {
+			headers: { 'Content-Type': 'image/png', 'Content-Length': String(largestFileAnAttachmentCanBe + 1) }
+		});
+
+		expect(response.status).toBe(413);
+		expect((await response.json() as { error: string }).error).toContain(
+			String(largestFileAnAttachmentCanBe)
+		);
+		expect(storePuts).toHaveLength(0);
+		expect(carried).toHaveLength(0);
+	});
+
+	test('is refused when the body itself is over the ceiling, whatever the header said', async () => {
+		keyHeldBy('write');
+
+		const response = await put('ik_writer', {
+			body: new Uint8Array(largestFileAnAttachmentCanBe + 1)
+		});
+
+		expect(response.status).toBe(413);
+		expect(storePuts).toHaveLength(0);
+		expect(carried).toHaveLength(0);
+	});
+
+	test('is refused when the call carried no file at all', async () => {
+		keyHeldBy('write');
+
+		const response = await put('ik_writer', { body: '' });
+
+		expect(response.status).toBe(400);
+		expect(storePuts).toHaveLength(0);
+	});
+
+	test('keeps the bytes, then asks the company to materialise them, carrying no bytes', async () => {
+		keyHeldBy('write');
+		companyAnswer = {
+			requestID: '',
+			status: 200,
+			body: { file: { path: '/workspace/private/people/person-1/inbox/api/mascot.png', sizeBytes: 20 } }
+		};
+
+		const response = await put('ik_writer', { query: '?filename=mascot.png' });
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual(companyAnswer.body);
+		expect(storePuts).toHaveLength(1);
+		expect(storePuts[0]).toStartWith(
+			'https://plane.supabase.co/storage/v1/object/asset/c1/shared/attachment/'
+		);
+		expect(storePuts[0]).toEndWith('.png');
+
+		expect(carried).toHaveLength(1);
+		expect(carried[0]?.companyID).toBe('c1');
+		expect(carried[0]?.call.capability).toBe('person.api.file');
+		const body = carried[0]?.call.body as Record<string, unknown>;
+		expect(body.requester).toBe('someone@example.com');
+		expect(body.permission).toBe('write');
+		expect(body.contentType).toBe('image/png');
+		expect(body.filename).toBe('mascot.png');
+		expect(String(body.digest)).toMatch(/^[0-9a-f]{64}$/);
+		expect(JSON.stringify(carried[0])).not.toContain(bytes);
+	});
+
+	test('lands on one address when the same bytes are sent twice', async () => {
+		keyHeldBy('write');
+		storeStatuses = [200, 409];
+
+		await put('ik_writer');
+		await put('ik_writer');
+
+		expect(storePuts).toHaveLength(2);
+		expect(storePuts[0]).toBe(storePuts[1]);
+		expect(carried).toHaveLength(2);
+		expect((carried[0]?.call.body as { digest: string }).digest).toBe(
+			(carried[1]?.call.body as { digest: string }).digest
+		);
+	});
+
+	test('answers 502 when the asset store refuses, and asks the company nothing', async () => {
+		keyHeldBy('write');
+		storeStatuses = [503];
+
+		const response = await put('ik_writer');
+
+		expect(response.status).toBe(502);
 		expect(carried).toHaveLength(0);
 	});
 });
