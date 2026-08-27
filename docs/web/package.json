@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@react-router/node": "^8.3.0",
+    "@scalar/api-client-react": "^2.0.42",
     "cnfast": "^0.1.0",
     "fumadocs-core": "latest",
     "fumadocs-mdx": "latest",
