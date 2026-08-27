@@ -51,6 +51,14 @@ function topLevelArguments(call: string): string[] {
 	return found;
 }
 
+function goSystemKinds(): Record<string, string> {
+	const body = /func\s+attendanceSystemLeaveTypeKinds\(\)[^{]*\{\s*return map\[string\]string\{(.*?)\n\t\}/s.exec(goSource);
+	if (!body) throw new Error('attendanceSystemLeaveTypeKinds is not readable');
+	const kinds: Record<string, string> = {};
+	for (const entry of body[1].matchAll(/"([^"]+)":\s*"([^"]+)"/g)) kinds[entry[1]] = entry[2];
+	return kinds;
+}
+
 function goConstant(name: string): number {
 	const declaration = new RegExp(`const\\s+${name}\\s*=\\s*(-?\\d+)`).exec(goSource);
 	if (!declaration) throw new Error(`${name} is not declared in the Go defaults`);
@@ -128,10 +136,23 @@ describe('the central plane answers the device catalogue of leave types', () => 
 		);
 	});
 
-	test('a system kind is the one the device gives that id', () => {
-		for (const leaveType of goLeaveTypes()) {
-			expect(systemLeaveTypeKind(leaveType.id)).toBe(leaveType.systemKind);
+	test('every id the device has ever issued keeps the kind it was issued with', () => {
+		const fromGo = goSystemKinds();
+		expect(Object.keys(fromGo).length).not.toBe(0);
+		for (const [id, systemKind] of Object.entries(fromGo)) {
+			expect(systemLeaveTypeKind(id)).toBe(systemKind);
 		}
 		expect(systemLeaveTypeKind('custom-whatever')).toBeUndefined();
+	});
+
+	test('validation accepts more ids than a new company is seeded with', () => {
+		const fromGo = goSystemKinds();
+		for (const leaveType of goLeaveTypes()) {
+			expect(fromGo[leaveType.id]).toBe(leaveType.systemKind);
+		}
+		const seededIDs = goLeaveTypes().map((leaveType) => leaveType.id);
+		const retired = Object.keys(fromGo).filter((id) => !seededIDs.includes(id));
+		expect(retired).toContain('bereavement');
+		expect(systemLeaveTypeKind('bereavement')).toBe('bereavement');
 	});
 });

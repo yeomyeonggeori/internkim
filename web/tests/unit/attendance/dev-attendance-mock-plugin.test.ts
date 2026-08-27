@@ -70,12 +70,16 @@ describe('dev attendance mock plugin', () => {
 			leaveTypes: Array<Record<string, unknown>>;
 			[key: string]: unknown;
 		};
-		expect(initialPolicy.leaveTypes.length).toBe(16);
-		expect(initialPolicy.leaveTypes[9]).toMatchObject({ id: 'reward', name: '포상휴가' });
-		expect(initialPolicy.leaveTypes[13]).toMatchObject({
-			id: 'parental-leave',
-			name: '육아휴직'
-		});
+		expect(initialPolicy.leaveTypes.length).toBe(4);
+		expect(initialPolicy.leaveTypes.map((leaveType) => leaveType.id)).toEqual([
+			'annual',
+			'sick',
+			'maternity',
+			'unpaid'
+		]);
+		expect(
+			initialPolicy.leaveTypes.find((leaveType) => leaveType.id === 'maternity')
+		).toMatchObject({ name: '출산·육아휴가', paid: true });
 		const updateResponse = await createDevAttendanceMockResponse(state, {
 			method: 'PUT',
 			pathname: '/admin/api/attendance-leave-policy',
@@ -85,12 +89,12 @@ describe('dev attendance mock plugin', () => {
 				leaveTypes: [
 					...initialPolicy.leaveTypes,
 					{
-						...initialPolicy.leaveTypes[15],
+						...initialPolicy.leaveTypes[initialPolicy.leaveTypes.length - 1],
 						id: '',
 						systemKind: '',
 						name: '회사 특별 휴가',
 						isSystem: false,
-						sortOrder: 16
+						sortOrder: initialPolicy.leaveTypes.length
 					}
 				]
 			})
@@ -105,8 +109,8 @@ describe('dev attendance mock plugin', () => {
 		const updatedPolicy = updateResponse?.body as {
 			leaveTypes: Array<Record<string, unknown>>;
 		};
-		expect(updatedPolicy.leaveTypes.length).toBe(17);
-		expect(updatedPolicy.leaveTypes[16]).toMatchObject({
+		expect(updatedPolicy.leaveTypes.length).toBe(5);
+		expect(updatedPolicy.leaveTypes[4]).toMatchObject({
 			id: 'custom-1',
 			name: '회사 특별 휴가',
 			isSystem: false
