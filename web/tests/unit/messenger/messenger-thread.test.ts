@@ -27,7 +27,7 @@ function directoryOf(): MessengerDirectory {
 }
 
 function channelOf(fields: Partial<MessengerChannel>): MessengerChannel {
-	return { id: 'c1', platform: 'mattermost', name: '이름없음', isDirect: false, position: 0, participants: [], ...fields };
+	return { id: 'c1', platform: 'mattermost', name: '이름없음', isDirect: false, isPrivate: false, position: 0, participants: [], ...fields };
 }
 
 describe('threadsOf', () => {

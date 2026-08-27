@@ -3,6 +3,7 @@
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import HashIcon from '@lucide/svelte/icons/hash';
+	import LockIcon from '@lucide/svelte/icons/lock';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -81,7 +82,7 @@
 									isActive={activeID === channel.id}
 									onclick={() => selectChannel(channel.id)}
 								>
-									<HashIcon />
+									{#if channel.isPrivate}<LockIcon />{:else}<HashIcon />{/if}
 									<span>{channel.name}</span>
 								</Sidebar.MenuButton>
 								<ConversationMenu

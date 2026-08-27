@@ -23,6 +23,7 @@ type ChannelSummary = {
 	id: string;
 	name: string;
 	kind: 'dm' | 'group';
+	isPrivate: boolean;
 	avatarURL?: string;
 	platform?: string;
 	webURL?: string;
@@ -103,6 +104,7 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 			id: channel.id,
 			name: channelName(channel, people, mine, canonicalKey, currentLocale.value, channelText[currentLocale.value].title),
 			kind: channel.isDirect ? ('dm' as const) : ('group' as const),
+			isPrivate: channel.isPrivate,
 			avatarURL: channel.isDirect ? avatarOfDirect(channel, people, mine) : undefined,
 			platform: channel.platform,
 			webURL: channel.webURL

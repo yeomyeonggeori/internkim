@@ -10,6 +10,7 @@ export type MessengerChannel = {
 	platform: string;
 	name: string;
 	isDirect: boolean;
+	isPrivate: boolean;
 	position: number;
 	participants: MessengerPerson[];
 	isWithTheAgent?: boolean;
@@ -64,6 +65,7 @@ type PersonalConversation = {
 	id: string;
 	name: string;
 	kind: 'dm' | 'group';
+	isPrivate?: boolean;
 	avatarURL?: string;
 	participantExternalIDs?: string[];
 	isWithTheAgent?: boolean;
@@ -110,6 +112,7 @@ export function asChannel(conversation: PersonalConversation, position: number):
 		platform: 'mattermost',
 		name: conversation.name,
 		isDirect: conversation.kind === 'dm',
+		isPrivate: conversation.isPrivate ?? false,
 		position,
 		isWithTheAgent: conversation.isWithTheAgent,
 		participants: (conversation.participantExternalIDs ?? []).map((externalID) => ({ externalID })),
