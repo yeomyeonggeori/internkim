@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +13,7 @@ import (
 
 func TestLeavePolicyDefaults(t *testing.T) {
 	policy := defaultAttendanceLeavePolicy()
-	if policy.Version != attendanceLeavePolicyVersion || len(policy.LeaveTypes) != 16 {
+	if policy.Version != attendanceLeavePolicyVersion || len(policy.LeaveTypes) != 4 {
 		t.Fatalf("defaults = %+v", policy)
 	}
 	annual := policy.LeaveTypes[0]
@@ -23,14 +24,45 @@ func TestLeavePolicyDefaults(t *testing.T) {
 		!annual.IncludeInSummary {
 		t.Fatalf("annual default = %+v", annual)
 	}
-	if policy.LeaveTypes[9].Name != "포상휴가" ||
-		policy.LeaveTypes[9].BalanceMode != "separate" ||
-		!policy.LeaveTypes[9].IncludeInSummary ||
-		policy.LeaveTypes[13].Name != "육아휴직" {
-		t.Fatalf("expanded defaults = %+v", policy.LeaveTypes)
+	expected := []struct {
+		id    string
+		name  string
+		paid  bool
+		units []string
+	}{
+		{"annual", "연차", true, attendanceDefaultPartialLeaveUnits()},
+		{"sick", "병가", true, attendanceDefaultPartialLeaveUnits()},
+		{"maternity", "출산·육아휴가", true, attendanceDefaultFullDayLeaveUnits()},
+		{"unpaid", "무급휴가", false, attendanceDefaultPartialLeaveUnits()},
+	}
+	for index, want := range expected {
+		leaveType := policy.LeaveTypes[index]
+		if leaveType.ID != want.id ||
+			leaveType.Name != want.name ||
+			leaveType.Paid != want.paid ||
+			leaveType.SortOrder != index ||
+			!slices.Equal(leaveType.AllowedUnits, want.units) {
+			t.Fatalf("default %d = %+v, want %+v", index, leaveType, want)
+		}
 	}
 	if errorValue := validateAttendanceLeavePolicy(&policy, nil); errorValue != nil {
 		t.Fatalf("validate defaults: %v", errorValue)
+	}
+}
+
+func TestLeavePolicyKeepsSystemTypesThatLeftTheDefaults(t *testing.T) {
+	policy := defaultAttendanceLeavePolicy()
+	policy.LeaveTypes = append(policy.LeaveTypes, attendanceLeaveType{
+		ID: "bereavement", SystemKind: "bereavement", Name: "경조휴가",
+		BalanceMode: "none", GrantCadence: "none", ExpiryMode: "none",
+		AllowedUnits: []string{"fullDay"}, IsActive: true, IsSystem: true, SortOrder: 4,
+	})
+	if errorValue := validateAttendanceLeavePolicy(&policy, nil); errorValue != nil {
+		t.Fatalf("a stored system type that is no longer a default: %v", errorValue)
+	}
+	policy.LeaveTypes[4].ID = "invented"
+	if validateAttendanceLeavePolicy(&policy, nil) == nil {
+		t.Fatal("a type nobody ever shipped may not claim a system identity")
 	}
 }
 
@@ -61,21 +93,21 @@ func TestLeavePolicyMigratesV1DefaultsOnce(t *testing.T) {
 				BalanceMode: "separate", GrantCadence: "none", ExpiryMode: "none",
 				AllowedUnits: []string{"fullDay"}, IsActive: true, IsSystem: true, SortOrder: 2,
 			},
-			current.LeaveTypes[14],
-			current.LeaveTypes[15],
+			current.LeaveTypes[2],
+			current.LeaveTypes[3],
 		},
 	}
 
 	normalizeLegacyAttendanceLeavePolicy(&policy)
-	if policy.Version != attendanceLeavePolicyVersion || len(policy.LeaveTypes) != 16 {
+	if policy.Version != attendanceLeavePolicyVersion || len(policy.LeaveTypes) != 5 {
 		t.Fatalf("migrated policy = %+v", policy)
 	}
-	if !policy.LeaveTypes[2].IncludeInSummary || policy.LeaveTypes[2].BalanceMode != "separate" {
-		t.Fatalf("existing balance behavior was not preserved = %+v", policy.LeaveTypes[2])
+	if !policy.LeaveTypes[4].IncludeInSummary || policy.LeaveTypes[4].BalanceMode != "separate" {
+		t.Fatalf("existing balance behavior was not preserved = %+v", policy.LeaveTypes[4])
 	}
-	policy.LeaveTypes = policy.LeaveTypes[:15]
+	policy.LeaveTypes = policy.LeaveTypes[:4]
 	normalizeLegacyAttendanceLeavePolicy(&policy)
-	if len(policy.LeaveTypes) != 15 {
+	if len(policy.LeaveTypes) != 4 {
 		t.Fatalf("removed type was restored = %+v", policy.LeaveTypes)
 	}
 }
@@ -150,14 +182,14 @@ func TestLeavePolicyValidationAllowsDeletedTypes(t *testing.T) {
 func TestLeavePolicyAdminAPIRoundtrip(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	policy := requestAttendanceLeavePolicy(t, service, http.MethodGet, "", "admin@example.com", http.StatusOK)
-	if len(policy.LeaveTypes) != 16 {
+	if len(policy.LeaveTypes) != 4 {
 		t.Fatalf("default leave types = %d", len(policy.LeaveTypes))
 	}
 
 	policy.LeaveTypes = append(policy.LeaveTypes, attendanceLeaveType{
 		Name: "회사 특별 휴가", BalanceMode: "separate", GrantCadence: "none",
 		ExpiryMode: "none", AllowedUnits: []string{"fullDay"}, IncludeInSummary: true,
-		IsActive: true, SortOrder: 16,
+		IsActive: true, SortOrder: 4,
 	})
 	encodedPolicy, errorValue := json.Marshal(policy)
 	if errorValue != nil {
@@ -398,13 +430,39 @@ func TestLeavePolicyAdminAPIRejectsUnknownFieldsAndDeletesUnusedType(t *testing.
 		t.Fatal(errorValue)
 	}
 	updated := requestAttendanceLeavePolicy(t, service, http.MethodPut, string(encodedPolicy), "admin@example.com", http.StatusOK)
-	if len(updated.LeaveTypes) != 15 {
+	if len(updated.LeaveTypes) != 3 {
 		t.Fatalf("unused leave type was not deleted = %+v", updated.LeaveTypes)
 	}
 }
 
+func separateBalanceAttendanceLeaveTypeForTest() attendanceLeaveType {
+	return attendanceLeaveType{
+		ID: "reward", SystemKind: "reward", Name: "포상휴가", Paid: true,
+		BalanceMode: "separate", GrantCadence: "none", ExpiryMode: "none",
+		AllowedUnits: []string{"fullDay"}, IncludeInSummary: true,
+		IsActive: true, IsSystem: true,
+	}
+}
+
+func addAttendanceLeaveTypeForTest(
+	t *testing.T,
+	service *Service,
+	leaveType attendanceLeaveType,
+) attendanceLeavePolicy {
+	t.Helper()
+	policy := requestAttendanceLeavePolicy(t, service, http.MethodGet, "", "admin@example.com", http.StatusOK)
+	leaveType.SortOrder = len(policy.LeaveTypes)
+	policy.LeaveTypes = append(policy.LeaveTypes, leaveType)
+	encodedPolicy, errorValue := json.Marshal(policy)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return requestAttendanceLeavePolicy(t, service, http.MethodPut, string(encodedPolicy), "admin@example.com", http.StatusOK)
+}
+
 func TestLeavePolicyAdminAPIArchivesUsedRemovedType(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
+	addAttendanceLeaveTypeForTest(t, service, separateBalanceAttendanceLeaveTypeForTest())
 	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
 	if _, errorValue := service.recordUntrackedAttendanceLeaveUse(t.Context(), attendanceLeaveOperation{
 		OperationKey: "used-reward-leave",
@@ -417,7 +475,9 @@ func TestLeavePolicyAdminAPIArchivesUsedRemovedType(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	policy := requestAttendanceLeavePolicy(t, service, http.MethodGet, "", "admin@example.com", http.StatusOK)
-	policy.LeaveTypes = append(policy.LeaveTypes[:9], policy.LeaveTypes[10:]...)
+	policy.LeaveTypes = slices.DeleteFunc(policy.LeaveTypes, func(leaveType attendanceLeaveType) bool {
+		return leaveType.ID == "reward"
+	})
 	encodedPolicy, errorValue := json.Marshal(policy)
 	if errorValue != nil {
 		t.Fatal(errorValue)

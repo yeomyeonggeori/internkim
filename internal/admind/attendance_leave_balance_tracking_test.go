@@ -539,6 +539,7 @@ func TestAttendanceLeaveManagedModeReconcilesOnlyCurrentFiscalYearUsage(t *testi
 
 func TestAttendanceLeaveBalanceTrackingSerializesModeChangeWithRequest(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
+	addAttendanceLeaveTypeForTest(t, service, separateBalanceAttendanceLeaveTypeForTest())
 	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
@@ -630,6 +631,7 @@ func TestAttendanceLeaveBalanceTrackingSerializesModeChangeWithRequest(t *testin
 
 func TestAttendanceLeaveBalanceTrackingSerializesModeChangeWithApproval(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
+	addAttendanceLeaveTypeForTest(t, service, separateBalanceAttendanceLeaveTypeForTest())
 	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
