@@ -103,7 +103,7 @@ WantedBy=multi-user.target
 }
 
 func capabilitydStartCommand(localInferenceMode string) string {
-	command := fmt.Sprintf("%s --mattermost-url %s --mattermost-token %s", CapabilitydBinaryPath, BlueclawMattermostLocalURL, BlueclawMattermostTokenPath)
+	command := fmt.Sprintf("%s --mattermost-url %s --mattermost-token %s --chatd-endpoint %s --chatd-platform buzz", CapabilitydBinaryPath, BlueclawMattermostLocalURL, BlueclawMattermostTokenPath, ChatdEndpoint)
 	if modelName := strings.TrimSpace(os.Getenv(BlueclawTestModelEnvironment)); modelName != "" {
 		command += " --openrouter-model " + modelName
 	}
@@ -194,6 +194,7 @@ Environment=NODE_TLS_REJECT_UNAUTHORIZED=0
 Environment=CHATD_BUZZ_ACCOUNT_LINKS_PATH=%s
 Environment=CHATD_LISTEN_HOSTNAME=`+ChatdListenHostname+`
 Environment=CHATD_LISTEN_PORT=%s
+Environment=CHATD_WORKSPACE_ROOT=`+BlueclawWorkspacePath+`
 Environment=CHATD_ADMIND_BASE_URL=%s
 ExecStart=%s
 Restart=on-failure
