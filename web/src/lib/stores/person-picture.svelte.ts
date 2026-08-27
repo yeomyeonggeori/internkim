@@ -36,15 +36,22 @@ class PersonPictureStore {
 		if (wanted.length === 0) return;
 		wanted.forEach((externalID) => this.asked.add(externalID));
 
-		const drawn = await Promise.all(
-			wanted.map(async (externalID) => {
-				const picture = await fetchProfilePicture(externalID).catch(() => null);
-				return [externalID, picture?.dataURL ?? ''] as const;
-			})
-		);
+		const answers = await Promise.all(wanted.map((externalID) => this.askAfter(externalID)));
 		const next = new Map(this.dataURLOfExternal);
-		for (const [externalID, dataURL] of drawn) next.set(externalID, dataURL);
+		for (const answer of answers) {
+			if (answer.failed) this.asked.delete(answer.externalID);
+			else next.set(answer.externalID, answer.dataURL);
+		}
 		this.dataURLOfExternal = next;
+	}
+
+	private async askAfter(externalID: string): Promise<{ externalID: string; dataURL: string; failed: boolean }> {
+		try {
+			const picture = await fetchProfilePicture(externalID);
+			return { externalID, dataURL: picture?.dataURL ?? '', failed: false };
+		} catch {
+			return { externalID, dataURL: '', failed: true };
+		}
 	}
 
 	private accountsOf(person: PersonIdentity): string[] {
