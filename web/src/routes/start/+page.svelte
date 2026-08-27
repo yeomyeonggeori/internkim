@@ -11,6 +11,7 @@
 		foundCompany,
 		type FoundedCompany
 	} from '$lib/company/found-company';
+	import { homePath } from '$lib/home-path';
 	import { isSupabaseConfigured } from '$lib/supabase';
 	import { signOutOfSupabase } from '$lib/supabase-session';
 	import { onMount } from 'svelte';
@@ -33,7 +34,7 @@
 	async function signOut() {
 		isSigningOut = true;
 		await signOutOfSupabase();
-		location.replace('/flow/');
+		location.replace(homePath);
 	}
 
 	const invitedAddresses = $derived(
@@ -89,7 +90,7 @@
 
 	onMount(async () => {
 		if (!isSupabaseConfigured()) return;
-		if (await belongsToACompany()) await goto('/flow/');
+		if (await belongsToACompany()) await goto(homePath);
 	});
 </script>
 
@@ -118,7 +119,7 @@
 				{/if}
 			</Card.Content>
 			<Card.Footer>
-				<Button onclick={() => goto('/flow/')}>시작하기</Button>
+				<Button onclick={() => goto(homePath)}>시작하기</Button>
 			</Card.Footer>
 		</Card.Root>
 	{:else}
