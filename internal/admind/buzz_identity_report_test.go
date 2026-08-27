@@ -47,11 +47,11 @@ func TestBuzzIdentityReportLaysOldAndCurrentKeysSideBySide(t *testing.T) {
 		t.Fatalf("assemble: %v", errorValue)
 	}
 
-	if len(report.People) != 1 || len(report.People[0].Identities) != 2 {
-		t.Fatalf("expected one person with two identities: %+v", report.People)
+	if len(report.People) != 3 || len(report.People[2].Identities) != 2 {
+		t.Fatalf("expected bootstrap, agent, and one person with two identities: %+v", report.People)
 	}
-	old := report.People[0].Identities[0]
-	current := report.People[0].Identities[1]
+	old := report.People[2].Identities[0]
+	current := report.People[2].Identities[1]
 	if old.IsCurrent || !current.IsCurrent {
 		t.Fatalf("version 2 must be the current identity: %+v %+v", old, current)
 	}
