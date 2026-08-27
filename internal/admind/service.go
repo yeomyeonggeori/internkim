@@ -433,6 +433,9 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startSiteRuntimeJanitor(ctx)
 	service.startScheduledBackups(ctx)
 	service.startBuzzMemberLinker(ctx)
+	go func() {
+		log.Printf("buzz credentials at startup: %s", service.recordBuzzCredentials(ctx))
+	}()
 	service.startBuzzAccountLinkSync(ctx)
 	service.startStaffChannelMembershipSync(ctx)
 	service.startCircleRoomMembershipSync(ctx)

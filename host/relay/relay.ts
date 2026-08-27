@@ -137,11 +137,36 @@ let credentialKindAsked: Promise<string> | undefined;
 async function messengerCredentialKind(): Promise<string> {
 	const asking = credentialKindAsked ?? askWhichCredentialTheMessengerNeeds();
 	credentialKindAsked = asking;
-	asking.catch(() => {
+	asking.then((kind) => void healMessengerProjection(kind)).catch(() => {
 		if (credentialKindAsked === asking) credentialKindAsked = undefined;
 	});
 	return asking;
 }
+
+// The account on the member row is a projection of the issued credential, and a
+// credential issued before the projection existed leaves the row behind. The
+// record heals the projection whenever this relay learns which credential its
+// messenger issues: at boot when the messenger is up, or at first use after.
+let isProjectionHealed = false;
+
+async function healMessengerProjection(kind: string): Promise<void> {
+	if (isProjectionHealed) return;
+	isProjectionHealed = true;
+	try {
+		const healed = await askTheRecord<{ reconciled?: string[] }>('POST', '/api/agent/messenger-accounts-reconcile', {
+			platform: messengerPlatform,
+			kind
+		});
+		if (healed.reconciled?.length) {
+			console.log(`messenger accounts reconciled for ${healed.reconciled.length} member(s)`);
+		}
+	} catch (thrown) {
+		isProjectionHealed = false;
+		console.log(`messenger account reconcile failed: ${String(thrown)}`);
+	}
+}
+
+void messengerCredentialKind().catch(() => {});
 
 async function askWhichCredentialTheMessengerNeeds(): Promise<string> {
 	const answer = await dispatch.askChatd('person.credential.requirement', {});
@@ -303,6 +328,10 @@ const workspacePaths: Record<string, string> = {
 
 async function tellAdmindTheDirectoryChanged(): Promise<{ status: number; body: unknown }> {
 	const response = await fetch(`${admindBaseURL}/admin/api/directory/changed`, { method: 'POST' });
+	// The machine records a credential for whoever was just invited before it
+	// answers, so the projection on the member rows is healed right behind it.
+	isProjectionHealed = false;
+	void messengerCredentialKind().catch(() => {});
 	return { status: response.status, body: await answerBodyOf(response) };
 }
 
