@@ -1,0 +1,70 @@
+---
+title: Boundaries
+description: Two things decide what may happen, and each is complete in its own territory.
+---
+
+Two things decide what may happen, and each is complete in its own territory.
+
+| | Guards | Keyed on | Enforced by |
+|---|---|---|---|
+| Row level security | company records | `member` | the database |
+| POSIX permissions | files and execution | a user per person | the operating system |
+
+Neither imitates the other, and no third layer sits above them deciding
+access in application code.
+
+## Records
+
+Every read and write against the record happens as a member. The app does it
+with the session of whoever signed in; the agent does it with a session the
+control plane issued for the person it is acting for. The one key that could
+bypass this lives on the server side of the control plane, and what it issues
+is a session.
+
+So **the agent has no privileged view.** Acting for someone, it sees what
+that person sees. Acting for an administrator, it sees what an administrator
+sees.
+
+## Files and execution
+
+On the host, each person is a real operating-system user and each circle a
+real group: a person becomes a stable `bc_person_<shortID>` user, a circle
+becomes a `bc_circle_<circleID>` group. The agent runs a person's work as
+that user, so the workspace, the terminal, and any program it starts are
+bounded by ordinary file permissions.
+
+The mechanism has one narrow waist. The blueclaw service runs as the
+`blueclaw` user and never touches a requester's file itself; every workspace
+read, write and process execution goes down through
+`WorkspaceActor → blueclaw-posix-helper`. The helper is a `root:root 4755`
+setuid bridge, and being able to execute it is not authorization: it checks
+that its real UID is `root` or `blueclaw`, then drops to the requester's UID,
+GID and supplementary groups before doing anything. On a device it sits
+inside the Firecracker guest's rootfs.
+
+| Workspace path | Permission model | Holds |
+|---|---|---|
+| `/workspace/private/people/<personID>` | requester only, `2770` | personal space: `tmp/` drafts, `artifacts/` output |
+| `/workspace/circles/<circleID>` | circle group, `2770` | deliberate team sharing |
+| `/workspace/shared/public` | shared policy | content safe to show outsiders |
+| `/workspace/shared/cache/dependencies` | shared cache group | package caches only |
+| `/workspace/skills` | read and execute | built-in skill source |
+| `/workspace/.blueclaw` | service-owned | database, logs, internal state |
+
+There is no list of allowed commands and no path-string filter. A command
+that would modify the system fails because the user running it may not,
+which is the same reason it would fail for that person at a shell.
+
+## The one place they meet
+
+A person is a `member` in the record and a user on the host. One mapping
+joins those two facts, and it is the only bridge between the two boundaries.
+Identity resolution is exact: an identifier matches or it does not.
+
+## What this rules out
+
+- Deciding access by matching path strings. Ownership and mode bits decide.
+- Deciding meaning by matching words. Structured answers and exact
+  identifier resolution do that instead.
+- A second permission model in application code that the database and the
+  operating system know nothing about.
