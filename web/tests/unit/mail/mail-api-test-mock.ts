@@ -1,7 +1,7 @@
 import { mock } from 'bun:test';
 
 import { emptyMailAccount } from '../../../src/routes/mail/mail-account-draft';
-import type { MailAccount, Mailbox, MailMessage } from '../../../src/routes/mail/mail-types';
+import type { MailAccount, MailAccountWritePayload, Mailbox, MailMessage } from '../../../src/routes/mail/mail-types';
 
 export type MailMessageListResult = {
 	messages: MailMessage[];
@@ -33,7 +33,7 @@ export let fetchMailMessageCallCount: number;
 export let saveMailAccountCallCount: number;
 export let moveMailMessageCallCount: number;
 export let updateMailMessageFlagsCallCount: number;
-export let savedMailAccountActorEmail: string;
+export let savedMailAccountEmail: string;
 
 const defaultBootstrapResult: MailBootstrapResult = {
 	account: emptyMailAccount,
@@ -58,9 +58,9 @@ const fetchMailMessageMock = mock(() => {
 	fetchMailMessageCallCount += 1;
 	return mailMessageDetailResponses.shift() ?? Promise.resolve({});
 });
-const saveMailAccountMock = mock((actorEmail: string) => {
+const saveMailAccountMock = mock((payload: MailAccountWritePayload) => {
 	saveMailAccountCallCount += 1;
-	savedMailAccountActorEmail = actorEmail;
+	savedMailAccountEmail = payload.email;
 	return saveMailAccountResponses.shift() ?? Promise.resolve(emptyMailAccount);
 });
 const sendMailMessageMock = mock(() => sendMailMessageResponses.shift() ?? Promise.resolve());
@@ -104,7 +104,7 @@ export function resetMailApiTestMockState() {
 	fetchMailMessageCallCount = 0;
 	saveMailAccountCallCount = 0;
 	moveMailMessageCallCount = 0;
-	savedMailAccountActorEmail = '';
+	savedMailAccountEmail = '';
 	mock.clearAllMocks();
 }
 

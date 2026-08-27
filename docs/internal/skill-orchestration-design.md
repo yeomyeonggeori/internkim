@@ -2,7 +2,7 @@
 
 ## 목적
 
-Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skill 설계 기준이다. 새 기능마다 구현 skill을 추가하지 않고, 먼저 인증 없는 portable artifact를 만들며, Google Workspace는 필요할 때 가져가거나 공유하는 optional target으로 둔다. 새 skill은 필요한 경우에만 여러 기존 skill과 capability를 조합하는 얇은 orchestration layer로 둔다.
+internkim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skill 설계 기준이다. 새 기능마다 구현 skill을 추가하지 않고, 먼저 인증 없는 portable artifact를 만들며, Google Workspace는 필요할 때 가져가거나 공유하는 optional target으로 둔다. 새 skill은 필요한 경우에만 여러 기존 skill과 capability를 조합하는 얇은 orchestration layer로 둔다.
 
 ## 설계 원칙
 

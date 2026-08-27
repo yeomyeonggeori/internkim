@@ -1,14 +1,23 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import {
+	admindAPIURL,
 	answerBodyOf,
+	apiRequestCapability,
+	forwardToAdmindAPI,
 	forwardToChatd,
 	isPersonCapability,
 	isRegistrationCapability,
 	isWorkspaceCapability,
 	mailOperationOf,
+	publicAPIRequestOf,
 	serveCallForMember,
-	type ConnectedAccount
+	servePublicAPIRequest,
+	type ConnectedAccount,
+	type PublicAPIRequest
 } from './forward';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 function dispatchThatKnows(externalIDs: Record<string, string>) {
 	const asked: { capability: string; body: Record<string, unknown> }[] = [];
@@ -48,6 +57,10 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			askAdmind: async (capability: string, body: Record<string, unknown>, requesterEmail: string) => {
 				asked.push({ capability, body: { ...body, requesterEmail } });
 				return { status: 200, body: { served: capability } };
+			},
+			askAdmindAPI: async (request: PublicAPIRequest) => {
+				asked.push({ capability: apiRequestCapability, body: { ...request } });
+				return { status: 200, body: { served: request.path } };
 			},
 			tellAdmindTheDirectoryChanged: async () => ({ status: 202, body: null }),
 			emailOfMember: async (memberID: string) =>
@@ -538,4 +551,195 @@ test('a buzz claim reaches the workspace rather than the messenger', () => {
 
 test('a message is still the messenger, not the workspace', () => {
 	expect(isWorkspaceCapability('person.message.send')).toBe(false);
+});
+
+type ArrivedRequest = {
+	method: string;
+	path: string;
+	search: string;
+	headers: Record<string, string>;
+	body: string;
+};
+
+function admindListeningOn(socketPath: string, arrived: ArrivedRequest[]) {
+	return Bun.serve({
+		unix: socketPath,
+		fetch: async (request) => {
+			const asked = new URL(request.url);
+			const headers: Record<string, string> = {};
+			request.headers.forEach((value, name) => {
+				headers[name] = value;
+			});
+			arrived.push({
+				method: request.method,
+				path: asked.pathname,
+				search: asked.search,
+				headers,
+				body: await request.text()
+			});
+			return Response.json({ invoked: true });
+		}
+	});
+}
+
+describe('a public API call the plane resolved', () => {
+	const arrived: ArrivedRequest[] = [];
+	let socketPath = '';
+	let admind: ReturnType<typeof admindListeningOn> | null = null;
+
+	function dispatchReachingTheSocket() {
+		const { dispatch } = dispatchThatKnows({});
+		return {
+			...dispatch,
+			askAdmindAPI: (request: PublicAPIRequest) => forwardToAdmindAPI(socketPath, request)
+		};
+	}
+
+	const invoke = {
+		method: 'POST',
+		path: '/tools/message_send/invoke',
+		query: '',
+		permission: 'write',
+		requester: 'sample@example.test',
+		payload: { conversationID: 'channel-1', body: 'hello' }
+	};
+
+	beforeEach(() => {
+		arrived.length = 0;
+		socketPath = join(tmpdir(), `relay-api-${crypto.randomUUID().slice(0, 8)}.sock`);
+		admind = admindListeningOn(socketPath, arrived);
+	});
+
+	afterEach(() => {
+		admind?.stop(true);
+		admind = null;
+		rmSync(socketPath, { force: true });
+	});
+
+	test('is handed to admind over the socket under the name the plane resolved', async () => {
+		const served = await servePublicAPIRequest(dispatchReachingTheSocket(), invoke);
+
+		expect(served.status).toBe(200);
+		expect(served.body).toEqual({ invoked: true });
+		expect(arrived).toHaveLength(1);
+		expect(arrived[0]?.method).toBe('POST');
+		expect(arrived[0]?.path).toBe('/api/v1/tools/message_send/invoke');
+		expect(arrived[0]?.headers['x-internkim-requester-email']).toBe('sample@example.test');
+		expect(arrived[0]?.headers['x-internkim-requester-permission']).toBe('write');
+		expect(JSON.parse(arrived[0]?.body ?? 'null')).toEqual(invoke.payload);
+	});
+
+	test('carries no header the caller wrote into the body', async () => {
+		const smuggled = {
+			...invoke,
+			headers: { 'X-INTERNKIM-REQUESTER-EMAIL': 'chief@example.test' },
+			'X-INTERNKIM-REQUESTER-EMAIL': 'chief@example.test',
+			'x-internkim-requester-permission': 'admin',
+			Authorization: 'Bearer somebody-elses-key'
+		};
+
+		const served = await servePublicAPIRequest(dispatchReachingTheSocket(), smuggled);
+
+		expect(served.status).toBe(200);
+		const headers = arrived[0]?.headers ?? {};
+		expect(headers['x-internkim-requester-email']).toBe('sample@example.test');
+		expect(headers['x-internkim-requester-permission']).toBe('write');
+		expect(headers.authorization).toBeUndefined();
+		expect(Object.keys(headers).filter((name) => name.startsWith('x-internkim'))).toHaveLength(2);
+	});
+
+	test('a requester carrying a second header line is refused rather than sent', async () => {
+		const served = await servePublicAPIRequest(dispatchReachingTheSocket(), {
+			...invoke,
+			requester: 'sample@example.test\r\nX-Internkim-Requester-Permission: admin'
+		});
+
+		expect(served.status).toBe(400);
+		expect(arrived).toEqual([]);
+	});
+
+	test('a body that resolves nobody is refused rather than asked anonymously', async () => {
+		const served = await servePublicAPIRequest(dispatchReachingTheSocket(), { ...invoke, requester: '' });
+
+		expect(served.status).toBe(400);
+		expect(arrived).toEqual([]);
+	});
+
+	test('a read is asked for at the path and query the caller used', async () => {
+		await servePublicAPIRequest(dispatchReachingTheSocket(), {
+			...invoke,
+			method: 'GET',
+			path: '/tasks',
+			query: '?limit=20&state=open',
+			payload: undefined
+		});
+
+		expect(arrived[0]?.method).toBe('GET');
+		expect(arrived[0]?.path).toBe('/api/v1/tasks');
+		expect(arrived[0]?.search).toBe('?limit=20&state=open');
+		expect(arrived[0]?.body).toBe('');
+	});
+
+	test('a read carries no body, whatever payload came with it', async () => {
+		await servePublicAPIRequest(dispatchReachingTheSocket(), {
+			...invoke,
+			method: 'get',
+			path: '/tasks',
+			payload: { limit: 20 }
+		});
+
+		expect(arrived[0]?.method).toBe('GET');
+		expect(arrived[0]?.body).toBe('');
+	});
+});
+
+describe('publicAPIRequestOf', () => {
+	const invoke = {
+		method: 'POST',
+		path: '/tools/message_send/invoke',
+		query: '',
+		permission: 'write',
+		requester: 'sample@example.test',
+		payload: {}
+	};
+
+	test('reads the six fields the contract names and nothing else', () => {
+		expect(publicAPIRequestOf({ ...invoke, headers: { Authorization: 'Bearer somebody-elses-key' } })).toEqual({
+			method: 'POST',
+			path: '/tools/message_send/invoke',
+			query: '',
+			permission: 'write',
+			requester: 'sample@example.test',
+			payload: {}
+		});
+	});
+
+	test('a path that is not a path is nothing to ask for', () => {
+		expect(publicAPIRequestOf({ ...invoke, path: 'tools/message_send/invoke' })).toBeNull();
+		expect(publicAPIRequestOf({ ...invoke, path: '' })).toBeNull();
+		expect(publicAPIRequestOf({ ...invoke, method: '' })).toBeNull();
+		expect(publicAPIRequestOf({ ...invoke, permission: '' })).toBeNull();
+	});
+
+	test('a query is asked for with its question mark either way', () => {
+		expect(publicAPIRequestOf({ ...invoke, query: 'limit=20' })?.query).toBe('?limit=20');
+		expect(publicAPIRequestOf({ ...invoke, query: '?limit=20' })?.query).toBe('?limit=20');
+		expect(publicAPIRequestOf({ ...invoke, query: '' })?.query).toBe('');
+	});
+});
+
+describe('admindAPIURL', () => {
+	const read: PublicAPIRequest = {
+		method: 'GET',
+		path: '/tasks',
+		query: '?limit=20',
+		permission: 'read',
+		requester: 'sample@example.test',
+		payload: undefined
+	};
+
+	test('the public API is asked for under /api/v1 on the socket', () => {
+		expect(admindAPIURL(read)).toBe('http://internkim/api/v1/tasks?limit=20');
+		expect(admindAPIURL({ ...read, query: '' })).toBe('http://internkim/api/v1/tasks');
+	});
 });

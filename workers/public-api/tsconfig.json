@@ -1,0 +1,16 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "Preserve",
+		"moduleResolution": "bundler",
+		"lib": ["ESNext"],
+		"types": ["bun", "@cloudflare/workers-types"],
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"allowImportingTsExtensions": true,
+		"resolveJsonModule": true,
+		"verbatimModuleSyntax": true
+	},
+	"include": ["src/*.ts"]
+}

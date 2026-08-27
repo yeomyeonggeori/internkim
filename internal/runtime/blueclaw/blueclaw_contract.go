@@ -62,6 +62,7 @@ const (
 	BlueclawRuntimeLogLevel               = "debug"
 	BlueclawSessionDirectory              = "/root/.blueclaw/workspace/sessions"
 	CapabilitySocketPath                  = "/run/internkim/capability.sock"
+	AdmindSocketPath                      = "/run/internkim/admind.sock"
 	CapabilityVSockHostCID                = 2
 	CapabilityVSockPort                   = 7000
 	BlueclawMattermostURLPath             = "/root/.internkim/env/mattermost-url"

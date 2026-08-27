@@ -71,9 +71,9 @@ describe('the document is usable as OpenAPI', () => {
 
 	test('every company calls one address, and a self-hosted zone replaces it', () => {
 		expect(english.servers).toHaveLength(1);
-		expect(english.servers[0].url).toBe('https://intern.kim/api/v1');
+		expect(english.servers[0].url).toBe('https://api.intern.kim/v1');
 		expect(createOpenApiDocument('en', 'example.test').servers[0].url).toBe(
-			'https://example.test/api/v1'
+			'https://api.example.test/v1'
 		);
 	});
 });

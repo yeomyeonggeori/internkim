@@ -109,8 +109,6 @@ type flowTaskForTool struct {
 	CreatedAt                string                      `json:"createdAt,omitempty"`
 }
 
-const flowRequesterEmailHeader = "X-INTERNKIM-REQUESTER-EMAIL"
-
 var flowTaskDeleteNotFoundError = errors.New("flow task delete target not found")
 
 func (service Service) invokeFlowTaskTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -625,13 +623,11 @@ func (service Service) fetchFlowAllTasks(ctx context.Context, requesterEmail str
 }
 
 func (service Service) getFlow(ctx context.Context, path string, requesterEmail string) ([]byte, error) {
-	requestURL := strings.TrimRight(service.Configuration.AdmindBaseURL, "/") + path
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, admindRequesterURL(path), nil)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	setFlowRequesterEmailHeader(httpRequest, requesterEmail)
-	httpResponse, errorValue := service.httpClient().Do(httpRequest)
+	httpResponse, errorValue := service.askAdmindAsTheRequester(httpRequest, requesterEmail)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -680,13 +676,12 @@ func (service Service) postFlowTask(ctx context.Context, payload flowTaskCreateP
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(service.Configuration.AdmindBaseURL, "/")+"/flow/api/tasks", bytes.NewReader(document))
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, admindRequesterURL("/flow/api/tasks"), bytes.NewReader(document))
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
-	setFlowRequesterEmailHeader(httpRequest, requesterEmail)
-	httpResponse, errorValue := service.httpClient().Do(httpRequest)
+	httpResponse, errorValue := service.askAdmindAsTheRequester(httpRequest, requesterEmail)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -721,13 +716,12 @@ func (service Service) putFlowTask(ctx context.Context, task flowTaskForTool, re
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPut, strings.TrimRight(service.Configuration.AdmindBaseURL, "/")+"/flow/api/tasks/"+url.PathEscape(task.ID), bytes.NewReader(document))
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPut, admindRequesterURL("/flow/api/tasks/"+url.PathEscape(task.ID)), bytes.NewReader(document))
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
-	setFlowRequesterEmailHeader(httpRequest, requesterEmail)
-	httpResponse, errorValue := service.httpClient().Do(httpRequest)
+	httpResponse, errorValue := service.askAdmindAsTheRequester(httpRequest, requesterEmail)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -752,12 +746,11 @@ func (statusError flowAPIStatusError) Error() string {
 }
 
 func (service Service) deleteFlowTask(ctx context.Context, taskID string, requesterEmail string) (json.RawMessage, error) {
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodDelete, strings.TrimRight(service.Configuration.AdmindBaseURL, "/")+"/flow/api/tasks/"+url.PathEscape(taskID), nil)
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodDelete, admindRequesterURL("/flow/api/tasks/"+url.PathEscape(taskID)), nil)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	setFlowRequesterEmailHeader(httpRequest, requesterEmail)
-	httpResponse, errorValue := service.httpClient().Do(httpRequest)
+	httpResponse, errorValue := service.askAdmindAsTheRequester(httpRequest, requesterEmail)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -1023,14 +1016,6 @@ func flowTaskErrorResponse(toolName string, failure flowTaskAddFailure) capabili
 		Retryable:       failure.Retryable,
 		SafeRetry:       failure.SafeRetry,
 	}
-}
-
-func setFlowRequesterEmailHeader(request *http.Request, requesterEmail string) {
-	normalizedEmail := strings.ToLower(strings.TrimSpace(requesterEmail))
-	if normalizedEmail == "" {
-		return
-	}
-	request.Header.Set(flowRequesterEmailHeader, normalizedEmail)
 }
 
 func (task flowTaskForTool) hintIdentifiers() []string { return []string{task.ID} }

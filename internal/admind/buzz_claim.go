@@ -27,7 +27,7 @@ func (service *Service) handleBuzzClaim(responseWriter http.ResponseWriter, requ
 		http.NotFound(responseWriter, request)
 		return
 	}
-	actorEmail := service.actorEmailAllowingLoopback(request)
+	actorEmail := service.actorEmailAllowingAssertedRequester(request)
 	if actorEmail == "" {
 		actorEmail = service.authenticatedCallerEmail(request)
 	}

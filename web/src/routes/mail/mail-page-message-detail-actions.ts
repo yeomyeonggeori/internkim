@@ -28,7 +28,7 @@ export async function loadMessageDetail(controller: MailPageControllerState, tex
 	controller.isLoadingMessage = true;
 	controller.errorMessage = '';
 	try {
-		const detail = await fetchMailMessage(actorEmail, message, controller.mailErrors(text.errors.loadMessage));
+		const detail = await fetchMailMessage(message, controller.mailErrors(text.errors.loadMessage));
 		if (!isCurrentMessageDetailRequest(controller, requestID, actorEmail, messageKey)) return;
 		controller.selectedMessage = { ...message, ...detail };
 		controller.messageDetailCache.set(messageKey, controller.selectedMessage);

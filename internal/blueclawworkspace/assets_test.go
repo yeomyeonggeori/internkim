@@ -575,8 +575,8 @@ func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	skillContent := string(skillDocument)
-	if !strings.Contains(skillContent, `kim.intern.tool-references: "shell"`) {
-		t.Fatal("calculator skill must declare its shell reference in the Agent Skills metadata map")
+	if !strings.Contains(skillContent, `kim.intern.tool-references: "terminal_run"`) {
+		t.Fatal("calculator skill must declare its terminal_run reference in the Agent Skills metadata map")
 	}
 	if !strings.Contains(skillContent, "<skill>/scripts/calc.py") {
 		t.Fatal("calculator skill must run the bundled evaluator script")

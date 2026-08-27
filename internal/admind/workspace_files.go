@@ -101,7 +101,7 @@ func (service *Service) handleFiles(responseWriter http.ResponseWriter, request 
 }
 
 func (service *Service) resolveWorkspaceAccess(request *http.Request) (workspaceAccess, bool, error) {
-	actorEmail := service.actorEmailAllowingLoopback(request)
+	actorEmail := service.actorEmailAllowingAssertedRequester(request)
 	if actorEmail == "" {
 		return workspaceAccess{}, false, nil
 	}
