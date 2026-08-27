@@ -1,0 +1,111 @@
+---
+title: Driving the agent
+description: Send a message and let the agent choose the tools.
+---
+
+You can also hand Intern Kim a whole task: send a message and let it decide
+which tools the work needs. The message enters through the same
+connector runtime as a messenger message, runs under the token owner's
+identity, and lands in the same task ledger. Both endpoints require rank 2 or
+above; see [scopes](/docs/api#scopes).
+
+## Sending a message [#sending-a-message]
+
+```bash
+curl https://<host>/api/v1/agent/messages \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{"message":"summarize last month'\''s tasks into a document"}'
+```
+
+```json
+{
+  "conversationID": "dm:api:<personID>:<random>",
+  "messageID": "api_...",
+  "result": { "handled": true, "platform": "api", "duplicate": false, "ignored": false }
+}
+```
+
+`message` is required. `result` is the connector runtime's verdict on the
+message itself: whether it was handled, ignored (with a `reason`), or a
+`duplicate`. Sending the same `messageID` twice is deduplicated, which makes
+`messageID` the retry key for this endpoint. The reply arrives later; this
+response only says the message was accepted.
+
+## Conversations [#conversations]
+
+Omitting `conversationID` opens a new conversation and returns its generated
+ID. To continue, send the next message with the same `conversationID`. To the
+agent this is a direct message thread, like a DM on the company messenger.
+
+## Reading replies [#reading-replies]
+
+```bash
+curl "https://<host>/api/v1/agent/replies?conversationID=dm:api:..." \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN"
+```
+
+```json
+{
+  "conversationID": "dm:api:...",
+  "replies": [
+    {
+      "conversationID": "dm:api:...",
+      "replyTargetID": "dm:api:...",
+      "reply": {
+        "message": "Here is the summary...",
+        "taskRunID": "...",
+        "replyKind": "completion"
+      }
+    }
+  ]
+}
+```
+
+Poll this endpoint; there is no push channel. An empty list means the agent is
+still working, and work continues after this HTTP request ends. A reply can
+also carry `attachments` (files the agent produced) and an `interaction` (a
+question, see below).
+
+<Callout title="The reply store is memory">
+Replies are kept in the runtime's memory: the last 50 per conversation,
+across the 2,000 most recent conversations, cleared on restart. Read replies
+as they arrive; treat the task ledger, not this buffer, as the durable record.
+</Callout>
+
+## Approval [#approval]
+
+When the run reaches an action that needs approval, it stops and asks, exactly
+as it would in a messenger. The question arrives as a reply whose
+`interaction` field carries the wording and, for choices, the options. Answer
+by sending the next message in the same conversation:
+
+```bash
+curl https://<host>/api/v1/agent/messages \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{"conversationID":"dm:api:...","message":"approved, go ahead"}'
+```
+
+An approving answer continues the run; a refusing one ends it. This differs
+from [direct tool invocation](/docs/api/tools#invoking), where the token's
+scope stands in for approval and nothing pauses.
+
+## The same ledger [#the-same-ledger]
+
+`api` is a connector platform alongside `mattermost`, `slack`, and `signal`.
+A task started here shows up in the Admin task list with its full event
+ledger, and the person the token belongs to is the requester everywhere:
+in permissions, in the task record, and in what the agent may read on their
+behalf.
+
+## Where it is implemented [#where-it-is-implemented]
+
+| Concern | Where |
+|---|---|
+| Both endpoints, the scope check, conversation and message ID defaults | `handleAgentMessage`, `handleAgentReplies` in `internal/admind/agent_drive.go` |
+| Forwarding to the runtime | `blueclawJSONRequest` in `internal/admind/service.go`, to `POST /connectors/api/events` and `GET /agent/api/replies` |
+| Route wiring in the runtime | `.dependency/blueclaw/internal/httpserver/router.go` |
+| The `api` connector adapter | `.dependency/blueclaw/internal/connectors/api/api_adapter.go`; identity is resolved from the sender email |
+| The reply buffer | `.dependency/blueclaw/internal/connectors/api/reply_store.go` |
+| Pending-approval answers in a conversation | `HandleInboundEvent` in `.dependency/blueclaw/internal/connectors/runtime.go` |

@@ -1,0 +1,107 @@
+---
+title: The device path
+description: The per-company appliance that predates the central plane, still shipped and still working.
+---
+
+Before the central plane there was one appliance per company: a Jetson Orin
+Nano Super with everything on board, reached by people on the same network.
+That path still ships and must keep working, and this page is its map. It is
+the older half of the product; the direction is the host and central plane
+the rest of this documentation describes.
+
+## What runs on the box
+
+```
+operator on the same network ── Jetson Orin Nano Super
+                                 ├── Mattermost :8065
+                                 ├── internkim-admind (127.0.0.1:18080)
+                                 ├── internkim-capabilityd
+                                 ├── graphiti-memoryd :7791
+                                 ├── llama-server (generation and embedding)
+                                 └── Firecracker blueclaw guest :8080
+```
+
+| Component | Job | Code |
+|---|---|---|
+| `internkim-admind` | the device admin API: admin UI reverse proxy, companion broker, backup and restore, OTA apply | `cmd/internkim-admind/`, `internal/admind/` |
+| `internkim-capabilityd` | holds the OpenRouter key, the local model, messenger and companion credentials; exposes only a capability API; runs the optional Slack and Signal sidecars | `internal/capabilityd/` |
+| the blueclaw guest | the agent, isolated in a Firecracker VM under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json` | `.dependency/blueclaw/` |
+| `graphiti-memoryd` | the memory sidecar: episode ingestion and hybrid graph search | — |
+| the local model | a resident `llama-server`: gemma-4-E2B QAT with MTP drafting for generation, BGE-M3 Q8 on CPU for embedding | — |
+| Mattermost | the messenger, self-hosted on the box | — |
+
+The remote provider is the default path for generation; the local model is
+the fallback that keeps the company running when that path is unavailable or
+too expensive.
+
+## Where things live on disk
+
+Credentials sit under `/root/.internkim/`, split so each process reads only
+its own.
+
+| Path | Read by |
+|---|---|
+| `/root/.internkim/secrets/openrouter-api-key` | `internkim-capabilityd` |
+| `/root/.internkim/models/*` | `internkim-capabilityd`, the model wrapper |
+| `/root/.internkim/secrets/google-sa.json` | the Google Workspace helpers |
+| `/root/.internkim/state/companion-jobs.json` | `internkim-admind` |
+
+The agent's side is `/root/.blueclaw/`: `config/runtime.json` and
+`config/policy.json` are the runtime contract, and `workspace/` is mounted
+into the guest as `/workspace`. The workspace's permission model is in
+[Boundaries](/docs/boundaries).
+
+## The companion
+
+`internkim-companion` runs on a user's own computer and provides what needs a
+person: signing in during a browser task, MFA, picking a file, approving an
+action. Pairing starts from `/connect` in Mattermost, which hands out a
+ten-minute one-time code bound to that user's own identity. A paired
+companion opens no inbound port; it long-polls the admind broker, and its
+jobs survive an admind restart through
+`/root/.internkim/state/companion-jobs.json`.
+
+`file_pick` keeps local paths on the user's machine: the chosen file is
+uploaded through the signed broker and the agent sees only a device-local
+path with a TTL. Browser capabilities run headed on the companion, and
+capabilityd routes to them only while that person's companion is online.
+
+## Deploying to a device
+
+Everyday deployment goes through the OTA release engine over Admin HTTPS;
+SSH stays for first installation and repair.
+
+```bash
+make build
+./internkim deploy --components admind,capabilityd
+```
+
+The rules that repay knowing before anything else:
+
+- **The Jetson agent component is `blueclawPayload`**, and it ships the
+  pre-built artifact at `.dependency/blueclaw-payload/`. Any agent change
+  needs `make prepare-blueclaw-payload` first; the deploy fails loudly when
+  the artifact's revision does not match the submodule's HEAD.
+- **A component the device has never installed takes two deploys**, because
+  the release is applied by the `admind` already running: deploy `admind`,
+  then the component.
+- **A running process holds the configuration it started with.** Shipping
+  the writer of a config without the reader leaves the reader on the old
+  file until it restarts; ship them in the same release.
+- **`systemctl is-active` is not "doing its job".** After a deploy that
+  touches what the agent reads, check for a task run newer than the deploy.
+- `./internkim release publish` pushes a stable channel to R2 for several
+  devices to pull with `./internkim update`.
+
+The gate before any device deployment is the disposable local fleet, an ARM
+Linux VM on macOS running the current checkout against real service
+boundaries: `./internkim dev fleet run`. After deploying:
+`./internkim status`, `./internkim verify mattermost`, `./internkim verify
+api`.
+
+## Reaching a device
+
+The product opens no way in: `admind` listens on loopback and the agent's
+connections are outbound. An operator on the same network needs nothing; from
+elsewhere, a `ProxyCommand` in your own `~/.ssh/config` is the whole
+arrangement, exactly as for [the host](/docs/architecture#why-the-host-has-no-inbound-port).
