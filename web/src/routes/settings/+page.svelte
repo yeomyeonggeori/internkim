@@ -31,7 +31,7 @@
 </svelte:head>
 
 <main class="h-full min-h-0 w-full flex-1 overflow-y-auto bg-background text-foreground">
-	<div class="mx-auto grid max-w-5xl gap-6 px-4 py-6 sm:px-6">
+	<div class="mx-auto grid max-w-3xl gap-6 px-4 py-6 sm:px-6">
 		<header class="grid gap-1">
 			<h1 class="text-xl font-semibold">{text.signIn}</h1>
 			<p class="text-sm text-muted-foreground">{text.signInDescription}</p>
