@@ -4,6 +4,7 @@ import { connectMessengerAccount } from '$lib/server/member-credential';
 import type { RequestHandler } from './$types';
 
 type ConnectRequest = {
+	platform?: unknown;
 	kind?: unknown;
 	memberID?: unknown;
 	externalID?: unknown;
@@ -22,6 +23,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
 	await connectMessengerAccount(client, companyID, {
 		memberID: required(body.memberID, 'memberID'),
+		platform: required(body.platform, 'platform'),
 		kind: required(body.kind, 'kind'),
 		externalID: required(body.externalID, 'externalID'),
 		name: typeof body.name === 'string' ? body.name : '',
