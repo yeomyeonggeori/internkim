@@ -11,11 +11,12 @@
 		createLeaveType,
 		leaveTypeIsValid
 	} from './attendance-leave-policy-model';
+	import { apiErrorMessage } from './admin-api';
 	import {
-		apiErrorMessage,
 		fetchAttendanceLeavePolicy,
 		updateAttendanceLeavePolicy
-	} from './admin-api';
+	} from './attendance-settings-api';
+	import { settingsSource } from './settings-source';
 	import type {
 		AdminPageText,
 		AttendanceLeavePolicy,
@@ -31,7 +32,7 @@
 	let { adminBaseURL, text }: LeavePolicySettingsProps = $props();
 	let policy = $state<AttendanceLeavePolicy | null>(null);
 	let draft = $state<LeaveType | null>(null);
-	let loadedAdminBaseURL = $state('');
+	let loadedSource = $state('');
 	let message = $state('');
 	let isLoading = $state(false);
 	let isSaving = $state(false);
@@ -42,8 +43,9 @@
 	let balanceTrackingMode = $state<LeaveBalanceTrackingMode>('managed');
 
 	$effect(() => {
-		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
-		loadedAdminBaseURL = adminBaseURL;
+		const source = settingsSource(adminBaseURL);
+		if (!source || loadedSource === source) return;
+		loadedSource = source;
 		void loadPolicy();
 	});
 
@@ -240,6 +242,7 @@
 				{draft}
 				{text}
 				{isSaving}
+				tracksSeparateBalances={settingsSource(adminBaseURL) !== 'company'}
 				{validationAttempted}
 				hasChanges={draftHasChanges()}
 				onChange={(nextDraft) => (draft = nextDraft)}
