@@ -51,17 +51,17 @@ declare
   bogus_company_timezone_blocked boolean := false;
   bogus_member_timezone_blocked boolean := false;
 begin
-  assert public.member_timezone('000000aa-0000-0000-0000-000000000001') = 'Asia/Seoul',
+  assert internal.member_timezone('000000aa-0000-0000-0000-000000000001') = 'Asia/Seoul',
     'a member without a timezone follows their company';
 
   update public.member set timezone = 'Europe/Berlin'
     where id = '000000aa-0000-0000-0000-000000000001';
-  assert public.member_timezone('000000aa-0000-0000-0000-000000000001') = 'Europe/Berlin',
+  assert internal.member_timezone('000000aa-0000-0000-0000-000000000001') = 'Europe/Berlin',
     'a member timezone overrides the company one';
 
   update public.member set timezone = null
     where id = '000000aa-0000-0000-0000-000000000001';
-  assert public.member_timezone('000000aa-0000-0000-0000-000000000001') = 'Asia/Seoul',
+  assert internal.member_timezone('000000aa-0000-0000-0000-000000000001') = 'Asia/Seoul',
     'clearing a member timezone falls back to the company again';
 
   begin
@@ -88,11 +88,11 @@ declare
   seoul_member uuid := '000000aa-0000-0000-0000-000000000001';
   new_york_member uuid := '000000bb-0000-0000-0000-000000000001';
 begin
-  assert public.member_today(seoul_member)
+  assert internal.member_today(seoul_member)
        = (now() at time zone 'Asia/Seoul')::date,
     'a member day is read in their own timezone';
 
-  assert public.member_today(seoul_member) - public.member_today(new_york_member) between 0 and 1,
+  assert internal.member_today(seoul_member) - internal.member_today(new_york_member) between 0 and 1,
     'members in distant timezones can be on different calendar days';
 
   raise notice 'today: each member has their own calendar day';
@@ -112,26 +112,26 @@ declare
   colleague uuid := '000000aa-0000-0000-0000-000000000002';
   malformed_schedule_blocked boolean := false;
 begin
-  assert public.member_work_hours(employee) is null
-     and public.member_minimum_daily_minutes(employee) is null,
+  assert internal.member_work_hours(employee) is null
+     and internal.member_minimum_daily_minutes(employee) is null,
     'with nothing set anywhere, working time is unconstrained';
 
   update public.company
     set work_hours = weekday_schedule, minimum_daily_minutes = 240
     where id = '00000000-0000-0000-0000-0000000000a0';
 
-  assert public.member_work_hours(employee) = weekday_schedule,
+  assert internal.member_work_hours(employee) = weekday_schedule,
     'a member without their own hours follows the company';
-  assert public.member_minimum_daily_minutes(employee) = 240,
+  assert internal.member_minimum_daily_minutes(employee) = 240,
     'a member without their own minimum follows the company';
 
   update public.member
     set work_hours = '[[null,null,null,null,null,null,null]]', minimum_daily_minutes = 120
     where id = colleague;
 
-  assert public.member_work_hours(colleague) = '[[null,null,null,null,null,null,null]]',
+  assert internal.member_work_hours(colleague) = '[[null,null,null,null,null,null,null]]',
     'a member on their own schedule overrides the company one';
-  assert public.member_minimum_daily_minutes(colleague) = 120,
+  assert internal.member_minimum_daily_minutes(colleague) = 120,
     'a member minimum overrides the company one';
 
   begin
@@ -157,24 +157,24 @@ declare
 begin
   update public.member set work_hours = fortnight where id = employee;
 
-  assert public.member_work_hours_on(employee, first_saturday)
-      is distinct from public.member_work_hours_on(employee, next_saturday),
+  assert internal.member_work_hours_on(employee, first_saturday)
+      is distinct from internal.member_work_hours_on(employee, next_saturday),
     'in a two-week cycle, consecutive Saturdays differ';
 
-  assert public.member_work_hours_on(employee, first_saturday)
-      is not distinct from public.member_work_hours_on(employee, fortnight_later),
+  assert internal.member_work_hours_on(employee, first_saturday)
+      is not distinct from internal.member_work_hours_on(employee, fortnight_later),
     'the cycle repeats after its own length';
 
-  assert public.member_work_hours_on(employee, monday) = 'null'::jsonb,
+  assert internal.member_work_hours_on(employee, monday) = 'null'::jsonb,
     'a day the schedule leaves empty is a day off';
 
   update public.member set work_hours = null where id = employee;
-  assert public.member_work_hours_on(employee, monday) is not null,
+  assert internal.member_work_hours_on(employee, monday) is not null,
     'clearing a member schedule falls back to the company cycle';
 
   update public.company set work_hours = null
     where id = '00000000-0000-0000-0000-0000000000a0';
-  assert public.member_work_hours_on(employee, monday) is null,
+  assert internal.member_work_hours_on(employee, monday) is null,
     'with no schedule anywhere there is nothing to look up';
 
   raise notice 'working hours: a multi-week cycle resolves per day';
@@ -187,11 +187,11 @@ declare
   shouted_slug_blocked boolean := false;
   invented_country_blocked boolean := false;
 begin
-  assert public.member_locale(employee) = 'ko',
+  assert internal.member_locale(employee) = 'ko',
     'a member without their own locale answers in the company one';
 
   update public.member set locale = 'en' where id = employee;
-  assert public.member_locale(employee) = 'en',
+  assert internal.member_locale(employee) = 'en',
     'a member locale overrides the company one';
 
   begin
@@ -742,44 +742,44 @@ declare
   veteran uuid := '000000aa-0000-0000-0000-000000000001';
   newcomer uuid := '000000aa-0000-0000-0000-000000000003';
 begin
-  assert public.member_leave_remaining(veteran, 2026) is null,
+  assert internal.member_leave_remaining(veteran, 2026) is null,
     'with no entitlement set, there is nothing to count against';
 
   update public.company set leave_days = 15
     where id = '00000000-0000-0000-0000-0000000000a0';
   update public.member set leave_days = 20 where id = veteran;
 
-  assert public.member_leave_days(newcomer) = 15,
+  assert internal.member_leave_days(newcomer) = 15,
     'a member without their own entitlement follows the company';
-  assert public.member_leave_days(veteran) = 20,
+  assert internal.member_leave_days(veteran) = 20,
     'a single member entitlement can be raised';
 
   update public.leave set status = 'requested' where member_id = veteran;
-  assert public.member_leave_remaining(veteran, 2026) = 20,
+  assert internal.member_leave_remaining(veteran, 2026) = 20,
     'a leave that is still only requested has not been consumed';
 
   update public.leave set status = 'approved' where member_id = veteran;
-  assert public.member_leave_remaining(veteran, 2026) = 17,
+  assert internal.member_leave_remaining(veteran, 2026) = 17,
     'an approved leave is deducted';
 
   insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at)
     values (veteran, '반차', true, 0.5, 'approved', '2026-08-13 09:00+09', '2026-08-13 13:00+09');
-  assert public.member_leave_remaining(veteran, 2026) = 16.5,
+  assert internal.member_leave_remaining(veteran, 2026) = 16.5,
     'a half day consumes half a day';
 
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
     values (veteran, '경조사', true, false, 3, 'approved', '2026-08-17 00:00+09', '2026-08-19 23:59+09');
-  assert public.member_leave_remaining(veteran, 2026) = 16.5,
+  assert internal.member_leave_remaining(veteran, 2026) = 16.5,
     'leave granted outside the entitlement does not consume it';
 
-  assert public.member_leave_remaining(veteran, 2025) = 20,
+  assert internal.member_leave_remaining(veteran, 2025) = 20,
     'last year is counted separately';
 
   insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at)
     values (veteran, '연차', true, 1, 'approved', '2027-01-01 09:00+09', '2027-01-01 18:00+09');
-  assert public.member_leave_remaining(veteran, 2026) = 16.5,
+  assert internal.member_leave_remaining(veteran, 2026) = 16.5,
     'a new year leave in Seoul must not be charged to the year that is still running in UTC';
-  assert public.member_leave_remaining(veteran, 2027) = 19,
+  assert internal.member_leave_remaining(veteran, 2027) = 19,
     'it belongs to the year the member is actually living in';
 
   raise notice 'annual leave: entitlement is a per member result, only deducting leave consumes it';
