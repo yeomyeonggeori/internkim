@@ -20,6 +20,7 @@ type Message struct {
 type ChatMessage struct {
 	Role       string         `json:"role"`
 	Content    string         `json:"content,omitempty"`
+	Parts      []MessagePart  `json:"parts,omitempty"`
 	ToolCallID string         `json:"toolCallId,omitempty"`
 	ToolCalls  []ChatToolCall `json:"toolCalls,omitempty"`
 }
