@@ -364,4 +364,126 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		expect(status.days[2]?.leaveMinutes).toBe(480);
 		expect(status.leaveMinutes).toBe(1440);
 	});
+	test('reports no overtime on a day whose whole target is covered by leave', () => {
+		const fullDayLeave = {
+			member_id: member.id,
+			days: 1,
+			starts_at: '2026-07-30T00:00:00Z',
+			ends_at: '2026-07-31T00:00:00Z',
+			status: 'approved'
+		};
+		const policy = policyFrom(
+			[
+				{ date: '2026-07-29', workMode: 'fixed', workingDate: true },
+				{ date: '2026-07-30', workMode: 'fixed', workingDate: true }
+			],
+			'fixed'
+		);
+		const leaveDay = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-07-30'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-07-30T00:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-07-30T01:20:00Z' }
+			],
+			leave: [fullDayLeave],
+			policy,
+			now: new Date('2026-07-31T00:00:00Z')
+		});
+
+		expect(leaveDay.days[0]?.targetMinutes).toBe(0);
+		expect(leaveDay.days[0]?.leaveMinutes).toBe(480);
+		expect(leaveDay.days[0]?.actualMinutes).toBe(80);
+		expect(leaveDay.days[0]?.overtimeMinutes).toBe(0);
+		expect(leaveDay.days[0]?.differenceMinutes).toBe(0);
+		expect(leaveDay.actualMinutes).toBe(80);
+		expect(leaveDay.overtimeMinutes).toBe(0);
+
+		const period = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-07-29', '2026-07-30'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-07-29T00:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-07-29T09:00:00Z' },
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-07-30T00:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-07-30T01:20:00Z' }
+			],
+			leave: [fullDayLeave],
+			policy,
+			now: new Date('2026-07-31T00:00:00Z')
+		});
+
+		expect(period.targetMinutes).toBe(480);
+		expect(period.actualMinutes).toBe(560);
+		expect(period.overtimeMinutes).toBe(0);
+		expect(period.differenceMinutes).toBe(0);
+		expect(period.fulfilledMinutes).toBe(480);
+	});
+
+	test('keeps overtime on a day a half-day leave only partly covers', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-07-30'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-07-30T00:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-07-30T08:00:00Z' }
+			],
+			leave: [
+				{
+					member_id: member.id,
+					days: 0.5,
+					starts_at: '2026-07-30T00:00:00Z',
+					ends_at: '2026-07-30T04:00:00Z',
+					status: 'approved'
+				}
+			],
+			policy: policyFrom([{ date: '2026-07-30', workMode: 'fixed', workingDate: true }], 'fixed'),
+			now: new Date('2026-07-31T00:00:00Z')
+		});
+
+		expect(status.days[0]?.targetMinutes).toBe(240);
+		expect(status.days[0]?.actualMinutes).toBe(420);
+		expect(status.days[0]?.overtimeMinutes).toBe(180);
+		expect(status.overtimeMinutes).toBe(180);
+	});
+
+	test('keeps period overtime when a fully leave-covered week also has weekend work', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: [
+				'2026-07-27',
+				'2026-07-28',
+				'2026-07-29',
+				'2026-07-30',
+				'2026-07-31',
+				'2026-08-01'
+			],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-08-01T00:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-01T03:00:00Z' }
+			],
+			leave: [
+				{
+					member_id: member.id,
+					days: 5,
+					starts_at: '2026-07-26T15:00:00Z',
+					ends_at: '2026-07-31T15:00:00Z',
+					status: 'approved'
+				}
+			],
+			policy: policyFrom(null, 'fixed'),
+			now: new Date('2026-08-02T00:00:00Z')
+		});
+
+		expect(status.targetMinutes).toBe(0);
+		expect(status.leaveMinutes).toBe(2400);
+		expect(status.actualMinutes).toBe(180);
+		expect(status.overtimeMinutes).toBe(180);
+		expect(status.days.at(-1)?.leaveMinutes).toBe(0);
+		expect(status.days.at(-1)?.overtimeMinutes).toBe(180);
+	});
 });
