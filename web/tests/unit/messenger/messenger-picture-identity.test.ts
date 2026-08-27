@@ -6,7 +6,7 @@ function directoryOf(): MessengerDirectory {
 		nameOfMember: new Map([['m1', '이샘플']]),
 		nameOfExternal: new Map([['U1', '이샘플']]),
 		memberOfExternal: new Map([['U1', 'm1']]),
-		externalOfMember: new Map([['m1', 'U1']]),
+		externalsOfMember: new Map([['m1', ['U1']]]),
 		memberOfEmail: new Map([['sample@example.com', 'm1']])
 	};
 }
