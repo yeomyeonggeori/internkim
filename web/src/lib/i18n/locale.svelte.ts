@@ -1,7 +1,9 @@
 import { browser } from '$app/environment';
 import { adminApiFetch } from '$lib/admin-api';
 
-export type Locale = 'ko' | 'en';
+import type { Locale } from './locale';
+
+export type { Locale };
 
 const localeStorageKey = 'internkim.locale';
 
