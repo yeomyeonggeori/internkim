@@ -17,7 +17,13 @@ import {
 	type MessengerPerson,
 	type MessengerPost
 } from './messenger-api';
-import { fetchMessengerDirectory, personKey, personLabel, type MessengerDirectory } from './messenger-directory';
+import {
+	externalIDsOfMember,
+	fetchMessengerDirectory,
+	personKey,
+	personLabel,
+	type MessengerDirectory
+} from './messenger-directory';
 
 type ChannelSummary = {
 	id: string;
@@ -64,11 +70,16 @@ type Conversation = {
 const platform = 'mattermost';
 const pageSize = 50;
 
+// key is the one name this app knows the reader by; names is every name they
+// answer to, because a conversation carries whichever one the messenger it came
+// from uses.
+type Viewer = { key: string; names: Set<string> };
+
 let directory: MessengerDirectory | null = null;
 
 function externalIDOf(person: MessengerPerson, people: MessengerDirectory): string {
 	if (person.externalID) return person.externalID;
-	return person.memberID ? (people.externalOfMember.get(person.memberID) ?? '') : '';
+	return person.memberID ? (externalIDsOfMember(people, person.memberID)[0] ?? '') : '';
 }
 
 async function knownPeople(): Promise<MessengerDirectory> {
@@ -76,14 +87,29 @@ async function knownPeople(): Promise<MessengerDirectory> {
 	return directory;
 }
 
-async function myPersonKey(): Promise<string> {
+async function whoIsReading(people: MessengerDirectory): Promise<Viewer> {
 	const { memberID } = await supabaseMember();
-	return memberID ? personKey({ memberID }) : '';
+	if (!memberID) return { key: '', names: new Set() };
+	const key = personKey({ memberID });
+	const messengerAccounts = externalIDsOfMember(people, memberID).map((externalID) => personKey({ externalID }));
+	return { key, names: new Set([key, ...messengerAccounts]) };
+}
+
+function isViewer(person: MessengerPerson, people: MessengerDirectory, viewer: Viewer): boolean {
+	return viewer.names.has(canonicalKey(person, people)) || viewer.names.has(personKey(person));
 }
 
 function canonicalKey(person: MessengerPerson, people: MessengerDirectory): string {
 	const memberID = person.memberID ?? (person.externalID ? people.memberOfExternal.get(person.externalID) : undefined);
 	return memberID ? personKey({ memberID }) : personKey(person);
+}
+
+// The screen tells the reader's own messages apart by comparing this id against
+// currentUserID, so one of theirs carries the id this app knows them by whatever
+// the messenger called its author.
+function senderOf(person: MessengerPerson, people: MessengerDirectory, viewer: Viewer): Participant {
+	const sender = participantOf(person, people);
+	return isViewer(person, people, viewer) ? { ...sender, id: viewer.key } : sender;
 }
 
 function participantOf(person: MessengerPerson, people: MessengerDirectory): Participant {
@@ -96,34 +122,41 @@ function participantOf(person: MessengerPerson, people: MessengerDirectory): Par
 
 
 export async function bridgeConversations(): Promise<ChannelSummary[]> {
-	const [channels, people, mine] = await Promise.all([fetchChannels(), knownPeople(), myPersonKey()]);
+	const [channels, people] = await Promise.all([fetchChannels(), knownPeople()]);
+	const viewer = await whoIsReading(people);
 	await personPicture.rememberExternals(channels.flatMap((channel) => channel.participants.map((person) => externalIDOf(person, people))));
 	return [...channels]
 		.sort((left, right) => left.position - right.position)
 		.map((channel) => ({
 			id: channel.id,
-			name: channelName(channel, people, mine, canonicalKey, currentLocale.value, channelText[currentLocale.value].title),
+			name: channelName(
+				channel,
+				people,
+				(person) => isViewer(person, people, viewer),
+				currentLocale.value,
+				channelText[currentLocale.value].title
+			),
 			kind: channel.isDirect ? ('dm' as const) : ('group' as const),
 			isPrivate: channel.isPrivate,
-			avatarURL: channel.isDirect ? avatarOfDirect(channel, people, mine) : undefined,
+			avatarURL: channel.isDirect ? avatarOfDirect(channel, people, viewer) : undefined,
 			platform: channel.platform,
 			webURL: channel.webURL
 		}));
 }
 
-function avatarOfDirect(channel: MessengerChannel, people: MessengerDirectory, mine: string): string | undefined {
-	const other = channel.participants.find((person) => canonicalKey(person, people) !== mine);
+function avatarOfDirect(channel: MessengerChannel, people: MessengerDirectory, viewer: Viewer): string | undefined {
+	const other = channel.participants.find((person) => !isViewer(person, people, viewer));
 	return other ? personPicture.pictureOfExternal(externalIDOf(other, people)) || undefined : undefined;
 }
 
 export async function bridgePeople(): Promise<Person[]> {
 	const people = await knownPeople();
-	await personPicture.rememberExternals([...people.externalOfMember.values()]);
+	await personPicture.rememberExternals([...people.externalsOfMember.values()].flat());
 	return [...people.nameOfMember]
 		.map(([memberID, name]) => ({
 			id: memberID,
 			name,
-			avatarURL: personPicture.pictureOfExternal(people.externalOfMember.get(memberID) ?? '') || undefined
+			avatarURL: personPicture.pictureOfExternal(externalIDsOfMember(people, memberID)[0] ?? '') || undefined
 		}))
 		.filter((person) => person.name)
 		.sort((left, right) => left.name.localeCompare(right.name));
@@ -131,15 +164,16 @@ export async function bridgePeople(): Promise<Person[]> {
 
 export async function bridgeDirectMessage(personID: string): Promise<string> {
 	const people = await knownPeople();
-	const externalID = people.externalOfMember.get(personID) ?? personID;
+	const externalID = externalIDsOfMember(people, personID)[0] ?? personID;
 	const channel = await openDirectChannel([externalID]);
 	return channel.id;
 }
 
 export async function bridgeConversation(channelID?: string, before?: string): Promise<Conversation> {
-	const [people, mine] = await Promise.all([knownPeople(), myPersonKey()]);
+	const people = await knownPeople();
+	const viewer = await whoIsReading(people);
 	if (!channelID) {
-		return { conversationID: '', currentUserID: mine, messages: [], hasMoreBefore: false, historyCursor: '' };
+		return { conversationID: '', currentUserID: viewer.key, messages: [], hasMoreBefore: false, historyCursor: '' };
 	}
 	const posts = await fetchPosts(channelID, before);
 	await customEmoji.load();
@@ -148,25 +182,25 @@ export async function bridgeConversation(channelID?: string, before?: string): P
 	await attachmentSource.wants(posts.flatMap((post) => post.attachments));
 	return {
 		conversationID: channelID,
-		currentUserID: mine,
-		messages: posts.map((post) => messageOf(post, people, mine)),
+		currentUserID: viewer.key,
+		messages: posts.map((post) => messageOf(post, people, viewer)),
 		hasMoreBefore: posts.length >= pageSize,
 		historyCursor: posts[0]?.id ?? ''
 	};
 }
 
-function messageOf(post: MessengerPost, people: MessengerDirectory, mine: string): Message {
+function messageOf(post: MessengerPost, people: MessengerDirectory, viewer: Viewer): Message {
 	return {
 		id: post.id,
 		threadRootId: post.parentID,
-		sender: participantOf(post.author, people),
+		sender: senderOf(post.author, people, viewer),
 		text: emojifyText(post.body),
 		sentAt: post.postedAt,
 		reactions: post.reactions.map((reaction) => ({
 			emoji: glyphOfEmojiName(reaction.emoji) ?? reaction.emoji,
 			count: reaction.people.length,
 			imageURL: reaction.imageURL ?? customEmoji.nameToURL.get(reaction.emoji),
-			reactedByMe: reaction.people.some((person) => canonicalKey(person, people) === mine),
+			reactedByMe: reaction.people.some((person) => isViewer(person, people, viewer)),
 			people: reaction.people.map((person) => participantOf(person, people))
 		})),
 		attachments: post.attachments.map((attachment) => ({

@@ -20,7 +20,7 @@ function directoryOf(): MessengerDirectory {
 	return {
 		nameOfMember: new Map([['m1', '이샘플']]),
 		nameOfExternal: new Map([['U9', '김철수']]),
-		externalOfMember: new Map(),
+		externalsOfMember: new Map(),
 		memberOfExternal: new Map([['U7', 'm1']]),
 		memberOfEmail: new Map()
 	};
