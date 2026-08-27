@@ -341,7 +341,7 @@ func openAIChatMessages(messages []ChatMessage) []openAIMessage {
 	for _, message := range messages {
 		result = append(result, openAIMessage{
 			Role:       message.Role,
-			Content:    message.Content,
+			Content:    openAIContent(message.Content, message.Parts),
 			ToolCallID: message.ToolCallID,
 			ToolCalls:  openAIToolCalls(message.ToolCalls),
 		})
@@ -350,17 +350,24 @@ func openAIChatMessages(messages []ChatMessage) []openAIMessage {
 }
 
 func openAIMessageContent(message Message) any {
-	if len(message.Parts) == 0 {
-		return message.Content
+	return openAIContent(message.Content, message.Parts)
+}
+
+// A message carries an image as a part beside its text, and both the structured
+// and the tool-calling request reach a provider through here, so both say it the
+// same way.
+func openAIContent(content string, messageParts []MessagePart) any {
+	if len(messageParts) == 0 {
+		return content
 	}
 	parts := []map[string]any{}
-	if strings.TrimSpace(message.Content) != "" {
+	if strings.TrimSpace(content) != "" {
 		parts = append(parts, map[string]any{
 			"type": "text",
-			"text": message.Content,
+			"text": content,
 		})
 	}
-	for _, part := range message.Parts {
+	for _, part := range messageParts {
 		switch strings.TrimSpace(part.Type) {
 		case "text":
 			if strings.TrimSpace(part.Text) != "" {
@@ -381,7 +388,7 @@ func openAIMessageContent(message Message) any {
 		}
 	}
 	if len(parts) == 0 {
-		return message.Content
+		return content
 	}
 	return parts
 }
