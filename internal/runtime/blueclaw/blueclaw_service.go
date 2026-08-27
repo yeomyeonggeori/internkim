@@ -194,7 +194,6 @@ Environment=NODE_TLS_REJECT_UNAUTHORIZED=0
 Environment=CHATD_BUZZ_ACCOUNT_LINKS_PATH=%s
 Environment=CHATD_LISTEN_HOSTNAME=`+ChatdListenHostname+`
 Environment=CHATD_LISTEN_PORT=%s
-Environment=CHATD_WORKSPACE_ROOT=`+BlueclawWorkspacePath+`
 Environment=CHATD_ADMIND_BASE_URL=%s
 ExecStart=%s
 Restart=on-failure
