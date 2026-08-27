@@ -6,8 +6,9 @@ import {
 	forgetPersonalKey,
 	isPersonalKey,
 	issuePersonalKey,
-	personalKeyNames,
+	personalKeys,
 } from '$lib/server/control-plane';
+import { fullPublicAPIPermission, publicAPIPermissionOf } from '$lib/public-api-permission';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
@@ -44,7 +45,7 @@ function keyStore(platform: App.Platform | undefined) {
 
 export const GET: RequestHandler = async ({ request, platform }) => {
 	const memberID = await memberOf(request, platform);
-	return json({ names: await personalKeyNames(keyStore(platform), memberID) });
+	return json({ keys: await personalKeys(keyStore(platform), memberID) });
 };
 
 // The key is answered once. Only its hash is kept, so nothing can read it back
@@ -52,12 +53,19 @@ export const GET: RequestHandler = async ({ request, platform }) => {
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const memberID = await memberOf(request, platform);
 
-	const asked = (await request.json().catch(() => ({}))) as { name?: unknown };
+	const asked = (await request.json().catch(() => ({}))) as { name?: unknown; permission?: unknown };
 	const name = typeof asked.name === 'string' ? asked.name.trim() : '';
 	if (!name) error(400, 'a key needs a name');
 	if (name.length > 64) error(400, 'that name is too long for a key');
 
-	return json({ name, apiKey: await issuePersonalKey(keyStore(platform), memberID, name) });
+	const permission = asked.permission === undefined ? fullPublicAPIPermission : publicAPIPermissionOf(asked.permission);
+	if (!permission) error(400, 'a key reads, writes or deletes');
+
+	return json({
+		name,
+		permission,
+		apiKey: await issuePersonalKey(keyStore(platform), memberID, name, permission),
+	});
 };
 
 export const DELETE: RequestHandler = async ({ request, url, platform }) => {

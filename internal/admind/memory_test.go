@@ -330,11 +330,10 @@ func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
 	})}
 
 	request := httptest.NewRequest(http.MethodPost, "/memory/api/pinned/update", strings.NewReader(`{"readerPersonID":"spoofed-person","content":"# Memory\n- New memory."}`))
-	request.RemoteAddr = "127.0.0.1:44999"
-	request.Header.Set(flowRequesterEmailHeader, "member@example.com")
+	request.Header.Set(requesterEmailHeader, "member@example.com")
 	response := httptest.NewRecorder()
 
-	service.router().ServeHTTP(response, request)
+	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("memory pinned update status = %d body = %s", response.Code, response.Body.String())
@@ -440,11 +439,10 @@ func TestMemoryAPIGraphHidesIdentityFailureDetails(t *testing.T) {
 	})}
 
 	request := httptest.NewRequest(http.MethodGet, "/memory/api/graph", nil)
-	request.RemoteAddr = "127.0.0.1:44999"
-	request.Header.Set(flowRequesterEmailHeader, "member@example.com")
+	request.Header.Set(requesterEmailHeader, "member@example.com")
 	response := httptest.NewRecorder()
 
-	service.router().ServeHTTP(response, request)
+	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
 
 	if response.Code != http.StatusBadGateway {
 		t.Fatalf("memory graph identity status = %d body = %s", response.Code, response.Body.String())

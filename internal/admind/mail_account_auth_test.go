@@ -22,14 +22,14 @@ func TestMailAccountRequiresAuthenticatedActor(t *testing.T) {
 	}
 }
 
-func TestMailAccountUsesRequesterHeaderForLocalRequests(t *testing.T) {
+func TestMailAccountUsesRequesterHeaderOnTheRequesterSocket(t *testing.T) {
 	service := newMailTestService(t)
 
 	request := httptest.NewRequest(http.MethodGet, "/mail/api/account", nil)
 	request.RemoteAddr = "127.0.0.1:12345"
-	request.Header.Set(flowRequesterEmailHeader, "staff@example.com")
+	request.Header.Set(requesterEmailHeader, "staff@example.com")
 	response := httptest.NewRecorder()
-	service.handleMail(response, request)
+	service.handleMail(response, arrivingOnTheRequesterSocket(request))
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
@@ -43,12 +43,12 @@ func TestMailAccountUsesRequesterHeaderForLocalRequests(t *testing.T) {
 	}
 }
 
-func TestMailAccountIgnoresRequesterHeaderForRemoteRequests(t *testing.T) {
+func TestMailAccountIgnoresRequesterHeaderOnTheTCPListener(t *testing.T) {
 	service := newMailTestService(t)
 
 	request := httptest.NewRequest(http.MethodGet, "/mail/api/account", nil)
-	request.RemoteAddr = "203.0.113.10:12345"
-	request.Header.Set(flowRequesterEmailHeader, "staff@example.com")
+	request.RemoteAddr = "127.0.0.1:12345"
+	request.Header.Set(requesterEmailHeader, "staff@example.com")
 	response := httptest.NewRecorder()
 	service.handleMail(response, request)
 
