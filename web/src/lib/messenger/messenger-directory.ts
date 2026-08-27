@@ -66,9 +66,19 @@ export function externalIDsOfMember(directory: MessengerDirectory, memberID: str
 	return directory.externalsOfMember.get(memberID) ?? [];
 }
 
-export function externalIDFor(person: { memberID?: string; email?: string }, directory: MessengerDirectory): string {
+// Every account a person holds, for a caller that would rather ask after all of
+// them than decide which messenger the company is on. Nothing here knows that;
+// the host does.
+export function accountsHeldBy(
+	person: { memberID?: string; email?: string },
+	directory: MessengerDirectory
+): string[] {
 	const memberID = person.memberID || directory.memberOfEmail.get((person.email ?? '').trim().toLowerCase());
-	return memberID ? (externalIDsOfMember(directory, memberID)[0] ?? '') : '';
+	return memberID ? externalIDsOfMember(directory, memberID) : [];
+}
+
+export function externalIDFor(person: { memberID?: string; email?: string }, directory: MessengerDirectory): string {
+	return accountsHeldBy(person, directory)[0] ?? '';
 }
 
 export function personKey(person: MessengerPerson): string {

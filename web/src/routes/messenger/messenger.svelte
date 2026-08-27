@@ -295,6 +295,7 @@
 					<PersonAvatar
 						name={person.name}
 						seed={person.id}
+						memberID={person.id}
 						image={person.avatarURL ?? ''}
 						class="size-8"
 					/>
