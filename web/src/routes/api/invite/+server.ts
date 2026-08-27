@@ -15,7 +15,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (!fleetID) throw error(400, 'fleet_id required');
 
 	const directory = await fleetDirectory(environmentOfPlatform(env), fleetID);
-	if (!directory) throw error(404, 'this fleet belongs to no company yet');
 	const admins = (await fleetUserRecords(directory))
 		.filter((record) => record.role === 'admin')
 		.map((record) => record.email);
