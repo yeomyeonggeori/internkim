@@ -12,8 +12,7 @@ import type { MessengerChannel, MessengerPerson } from './messenger-api';
 export function channelName(
 	channel: MessengerChannel,
 	people: MessengerDirectory,
-	mine: string,
-	canonicalKey: (person: MessengerPerson, people: MessengerDirectory) => string,
+	isViewer: (person: MessengerPerson) => boolean,
 	locale: Locale,
 	agentName: string
 ): string {
@@ -23,7 +22,7 @@ export function channelName(
 	// while the product is 김인턴 to a Korean reader and internkim to an English
 	// one. chatd says which conversation is its own; the name comes from here.
 	if (channel.isWithTheAgent) return agentName;
-	const others = channel.participants.filter((person) => canonicalKey(person, people) !== mine);
+	const others = channel.participants.filter((person) => !isViewer(person));
 	const asRecorded = others.map((person) => personLabel(person, people, locale)).filter(Boolean).join(', ');
 	return asRecorded || channel.name;
 }
