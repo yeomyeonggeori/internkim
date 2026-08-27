@@ -144,6 +144,17 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 		}));
 }
 
+// Somebody the company moved between messengers holds an account on each, and
+// only the one the company runs today has a picture. Which that is belongs to
+// the host, so the account that answered is the one drawn.
+function pictureOfMember(people: MessengerDirectory, memberID: string): string {
+	for (const externalID of externalIDsOfMember(people, memberID)) {
+		const drawn = personPicture.pictureOfExternal(externalID);
+		if (drawn) return drawn;
+	}
+	return '';
+}
+
 // The other side of a direct conversation is drawn by their picture wherever
 // the record can place them, and by the account the conversation named them by
 // where it cannot.
@@ -151,7 +162,7 @@ function avatarOfDirect(channel: MessengerChannel, people: MessengerDirectory, v
 	const other = channel.participants.find((person) => !isViewer(person, people, viewer));
 	if (!other) return undefined;
 	const memberID = other.memberID ?? (other.externalID ? people.memberOfExternal.get(other.externalID) : undefined);
-	const drawn = memberID ? personPicture.pictureOf({ memberID }) : '';
+	const drawn = memberID ? pictureOfMember(people, memberID) : '';
 	return drawn || personPicture.pictureOfExternal(externalIDOf(other, people)) || undefined;
 }
 
@@ -162,7 +173,7 @@ export async function bridgePeople(): Promise<Person[]> {
 		.map(([memberID, name]) => ({
 			id: memberID,
 			name,
-			avatarURL: personPicture.pictureOf({ memberID }) || undefined
+			avatarURL: pictureOfMember(people, memberID) || undefined
 		}))
 		.filter((person) => person.name)
 		.sort((left, right) => left.name.localeCompare(right.name));
