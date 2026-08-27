@@ -1,0 +1,13 @@
+{
+	"$schema": "../../web/node_modules/wrangler/config-schema.json",
+	"name": "internkim-public-api",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-04-04",
+	"routes": [
+		{ "pattern": "api.intern.kim/v1", "zone_name": "intern.kim" },
+		{ "pattern": "api.intern.kim/v1/*", "zone_name": "intern.kim" }
+	],
+	"services": [
+		{ "binding": "COMPANY_CALLS", "service": "internkim-connection-gateway", "entrypoint": "CompanyCalls" }
+	]
+}

@@ -1,14 +1,23 @@
+import { WorkerEntrypoint } from 'cloudflare:workers';
 import { JSONWebKeyCache, TokenRefused, resolveMember, verifyToken } from './identity';
 import {
 	CallLedger,
+	WaitingCalls,
+	callInFlightAnswer,
+	callTimedOutStatus,
 	decideCall,
+	oneShotAnswerOf,
 	parseClientCall,
+	parseOneShotCall,
 	parseServerMessage,
+	tooManyWaitingCallsAnswer,
+	type OneShotAnswer,
+	type OneShotCall,
 	type RoutedCall,
 	type ServerAnswer
 } from './routing';
 
-type WorkerEnvironment = {
+export type WorkerEnvironment = {
 	COMPANY_CONNECTIONS: DurableObjectNamespace;
 	SUPABASE_URL: string;
 	SUPABASE_PUBLISHABLE_KEY: string;
@@ -139,18 +148,34 @@ function jsonResponse(document: unknown, status: number): Response {
 	});
 }
 
+// A Cloudflare WorkerEntrypoint is reachable only through a service binding.
+export class CompanyCalls extends WorkerEntrypoint<WorkerEnvironment> {
+	async callCompany(companyID: string, call: OneShotCall): Promise<OneShotAnswer> {
+		const answered = await connectionFor(this.env, companyID).fetch(
+			new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/call`, {
+				method: 'POST',
+				body: JSON.stringify(call)
+			})
+		);
+		if (!answered.ok) throw new TypeError('a company call names a requestID and a capability');
+		return (await answered.json()) as OneShotAnswer;
+	}
+}
+
 export class CompanyConnectionObject {
 	private serverSocket: WebSocket | null = null;
 	private serverSeenAt = 0;
 	private readonly clientSockets = new Map<string, Set<WebSocket>>();
 	private readonly ledger = new CallLedger();
 	private readonly askedBy = new Map<string, string>();
+	private readonly waitingCalls = new WaitingCalls();
 
 	constructor(private readonly state: DurableObjectState) {}
 
 	async fetch(request: Request): Promise<Response> {
 		const url = new URL(request.url);
 		if (url.pathname.endsWith('/server-key')) return this.keepServerKey(request);
+		if (url.pathname.endsWith('/call')) return this.takeOneShotCall(request);
 		if (request.headers.get('Upgrade') !== 'websocket') {
 			return jsonResponse({ error: 'this endpoint speaks websocket' }, 426);
 		}
@@ -165,6 +190,22 @@ export class CompanyConnectionObject {
 		}
 		await this.state.storage.put('serverKey', serverKey);
 		return jsonResponse({ status: 'ok' }, 200);
+	}
+
+	private async takeOneShotCall(request: Request): Promise<Response> {
+		const call = parseOneShotCall(await readJSONBody(request));
+		if (!call) return jsonResponse({ error: 'a request identifier and a capability are required' }, 400);
+
+		const decision = decideCall(call, undefined, this.ledger, this.serverSocket !== null);
+		if (decision.action === 'answer') return answerResponse(decision.answer);
+		if (decision.action === 'ignore') return answerResponse(callInFlightAnswer(call.requestID));
+		if (this.waitingCalls.isFull) return answerResponse(tooManyWaitingCallsAnswer(call.requestID));
+
+		const waited = this.waitingCalls.waitFor(call.requestID);
+		this.forward(decision.routed);
+		const answer = await waited;
+		if (answer.status === callTimedOutStatus) this.ledger.forgetPending(call.requestID);
+		return answerResponse(answer);
 	}
 
 	private async acceptServer(request: Request): Promise<Response> {
@@ -212,9 +253,9 @@ export class CompanyConnectionObject {
 		this.forward(decision.routed, memberID);
 	}
 
-	private forward(routed: RoutedCall, memberID: string): void {
+	private forward(routed: RoutedCall, memberID?: string): void {
 		this.ledger.markPending(routed.requestID);
-		this.askedBy.set(routed.requestID, memberID);
+		if (memberID) this.askedBy.set(routed.requestID, memberID);
 		try {
 			this.serverSocket?.send(JSON.stringify(routed));
 		} catch {
@@ -236,6 +277,7 @@ export class CompanyConnectionObject {
 
 	private answer(answer: ServerAnswer): void {
 		this.ledger.recordAnswer(answer);
+		if (this.waitingCalls.settle(answer)) return;
 		const memberID = this.askedBy.get(answer.requestID);
 		this.askedBy.delete(answer.requestID);
 		if (!memberID) return;
@@ -287,6 +329,18 @@ export class CompanyConnectionObject {
 function newSocketPair(): { client: WebSocket; server: WebSocket } {
 	const pair = new WebSocketPair();
 	return { client: pair[0], server: pair[1] };
+}
+
+async function readJSONBody(request: Request): Promise<unknown> {
+	try {
+		return await request.json();
+	} catch {
+		return null;
+	}
+}
+
+function answerResponse(answer: ServerAnswer): Response {
+	return jsonResponse(oneShotAnswerOf(answer), 200);
 }
 
 function readJSON(data: unknown): unknown {

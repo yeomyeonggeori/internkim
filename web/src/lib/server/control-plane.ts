@@ -1,4 +1,9 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import {
+	fullPublicAPIPermission,
+	publicAPIPermissionOf,
+	type PublicAPIPermission,
+} from '$lib/public-api-permission';
 import { memberOfCompanyByEmail, membersOfCompanyByExternalID } from './member-credential';
 
 export type ControlPlaneCredentials = {
@@ -302,6 +307,21 @@ const personalKeyKind = 'api_key';
 
 const personalKeyPrefix = 'ik_';
 
+function storedKeyPermission(stored: unknown): PublicAPIPermission {
+	const permission = publicAPIPermissionOf(stored);
+	if (!permission) throw new Error(`personal key: ${String(stored)} is no rung of the ladder`);
+	return permission;
+}
+
+export type PersonalKey = {
+	name: string;
+	permission: PublicAPIPermission;
+};
+
+export type PersonalKeySession = MemberSession & {
+	permission: PublicAPIPermission;
+};
+
 export function isPersonalKey(presented: string): boolean {
 	return presented.startsWith(personalKeyPrefix);
 }
@@ -310,6 +330,7 @@ export async function issuePersonalKey(
 	client: SupabaseClient,
 	memberID: string,
 	name: string,
+	permission: PublicAPIPermission = fullPublicAPIPermission,
 ): Promise<string> {
 	const apiKey =
 		personalKeyPrefix +
@@ -319,22 +340,31 @@ export async function issuePersonalKey(
 	const { error } = await client
 		.from('credential')
 		.upsert(
-			{ member_id: memberID, kind: personalKeyKind, name, external_id: await hashOf(apiKey) },
+			{
+				member_id: memberID,
+				kind: personalKeyKind,
+				name,
+				external_id: await hashOf(apiKey),
+				permission,
+			},
 			{ onConflict: 'member_id,kind,name' },
 		);
 	if (error) throw new Error(`personal key ${name}: ${error.message}`);
 	return apiKey;
 }
 
-export async function personalKeyNames(client: SupabaseClient, memberID: string): Promise<string[]> {
+export async function personalKeys(client: SupabaseClient, memberID: string): Promise<PersonalKey[]> {
 	const { data, error } = await client
 		.from('credential')
-		.select('name')
+		.select('name, permission')
 		.eq('member_id', memberID)
 		.eq('kind', personalKeyKind)
 		.order('name');
 	if (error) throw new Error(`personal keys: ${error.message}`);
-	return (data ?? []).map((row) => row.name as string);
+	return (data ?? []).map((row) => ({
+		name: row.name as string,
+		permission: storedKeyPermission(row.permission),
+	}));
 }
 
 export async function forgetPersonalKey(
@@ -354,21 +384,23 @@ export async function forgetPersonalKey(
 }
 
 // The caller of a personal key is the member it belongs to, so this issues that
-// member's own session and never the company's.
+// member's own session and never the company's. The row that names the member
+// names the rung too, so nobody downstream asks for it a second time.
 export async function sessionForPersonalKey(
 	credentials: ControlPlaneCredentials,
 	apiKey: string,
-): Promise<MemberSession | null> {
+): Promise<PersonalKeySession | null> {
 	const client = controlPlane(credentials);
 	const { data, error } = await client
 		.from('credential')
-		.select('member_id')
+		.select('member_id, permission')
 		.eq('kind', personalKeyKind)
 		.eq('external_id', await hashOf(apiKey))
 		.maybeSingle();
 	if (error) throw new Error(`personal key: ${error.message}`);
 	if (!data) return null;
-	return sessionForMember(credentials, data.member_id);
+	const session = await sessionForMember(credentials, data.member_id);
+	return { ...session, permission: storedKeyPermission(data.permission) };
 }
 
 const fleetCredentialKind = 'fleet';

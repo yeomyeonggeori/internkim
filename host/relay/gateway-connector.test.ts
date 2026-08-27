@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { parseRoutedCall, serveRoutedCall } from './gateway-connector';
-import type { Dispatch } from './forward';
+import type { Dispatch, PublicAPIRequest } from './forward';
 
 const ceiling = 3_000_000;
 const call = {
@@ -78,3 +78,60 @@ describe('an answer too big for the socket', () => {
 		expect(String((result.body as { error: string }).error)).toContain('500');
 	});
 })
+
+describe('a call from the public API', () => {
+	const apiCall = {
+		kind: 'call' as const,
+		requestID: 'r2',
+		capability: 'person.api.request',
+		body: {
+			method: 'POST',
+			path: '/tools/message_send/invoke',
+			query: '',
+			permission: 'write',
+			requester: 'sample@example.test',
+			payload: { conversationID: 'channel-1' }
+		}
+	};
+
+	test('names no member on the envelope, and is taken all the same', () => {
+		expect(parseRoutedCall(apiCall)).toEqual({ ...apiCall, memberID: null });
+	});
+
+	test('a member named as nothing at all is still refused', () => {
+		expect(parseRoutedCall({ ...apiCall, memberID: '' })).toBeNull();
+		expect(parseRoutedCall({ ...apiCall, memberID: 7 })).toBeNull();
+	});
+
+	test('is served under the requester the body names', async () => {
+		const asked: { requester?: string; permission?: string; path?: string } = {};
+		const dispatch = {
+			...dispatchAnswering(null),
+			askAdmindAPI: async (request: PublicAPIRequest) => {
+				asked.requester = request.requester;
+				asked.permission = request.permission;
+				asked.path = request.path;
+				return { status: 200, body: { invoked: true } };
+			}
+		};
+
+		const result = await serveRoutedCall({ ...apiCall, memberID: null }, dispatch, ceiling);
+
+		expect(result).toEqual({ kind: 'result', requestID: 'r2', status: 200, body: { invoked: true } });
+		expect(asked).toEqual({
+			requester: 'sample@example.test',
+			permission: 'write',
+			path: '/tools/message_send/invoke'
+		});
+	});
+
+	test('anything else arriving for no member is told so rather than served as nobody', async () => {
+		const result = await serveRoutedCall(
+			{ ...call, memberID: null },
+			dispatchAnswering({ channels: [] }),
+			ceiling
+		);
+
+		expect(result.status).toBe(400);
+	});
+});

@@ -22,8 +22,8 @@ type agentInboundEvent struct {
 }
 
 func (service *Service) handleAgentMessage(responseWriter http.ResponseWriter, request *http.Request, actor publicToolGatewayActor) {
-	if actorScopeRank(actor) < publicAPIScopeRank(publicAPIScopeWrite) {
-		http.Error(responseWriter, "write scope required", http.StatusForbidden)
+	if actorPermissionRank(actor) < publicAPIPermissionRank(publicAPIPermissionWrite) {
+		http.Error(responseWriter, "write permission required", http.StatusForbidden)
 		return
 	}
 	var payload agentMessageRequest
@@ -60,8 +60,8 @@ func (service *Service) handleAgentMessage(responseWriter http.ResponseWriter, r
 }
 
 func (service *Service) handleAgentReplies(responseWriter http.ResponseWriter, request *http.Request, actor publicToolGatewayActor) {
-	if actorScopeRank(actor) < publicAPIScopeRank(publicAPIScopeWrite) {
-		http.Error(responseWriter, "write scope required", http.StatusForbidden)
+	if actorPermissionRank(actor) < publicAPIPermissionRank(publicAPIPermissionWrite) {
+		http.Error(responseWriter, "write permission required", http.StatusForbidden)
 		return
 	}
 	conversationID := strings.TrimSpace(request.URL.Query().Get("conversationID"))

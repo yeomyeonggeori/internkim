@@ -8,7 +8,7 @@ import {
 	resetMailApiTestMockState,
 	saveMailAccountCallCount,
 	saveMailAccountResponses,
-	savedMailAccountActorEmail
+	savedMailAccountEmail
 } from './mail-api-test-mock';
 
 let loadMailCallCount: number;
@@ -30,7 +30,7 @@ describe('mail page account actions', () => {
 		await saveMailAccountDraft(controller, mailText.ko);
 
 		expect(saveMailAccountCallCount).toBe(1);
-		expect(savedMailAccountActorEmail).toBe('new@example.com');
+		expect(savedMailAccountEmail).toBe('new@example.com');
 		expect(resetMessageListCallCount).toBe(1);
 		expect(controller.messages).toEqual([]);
 		expect(controller.messageListCache.size).toBe(0);

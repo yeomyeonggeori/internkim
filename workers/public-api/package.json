@@ -1,0 +1,13 @@
+{
+	"name": "internkim-public-api",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"check": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^4.20260101.0",
+		"@types/bun": "latest",
+		"typescript": "^5"
+	}
+}

@@ -33,9 +33,9 @@ func flowLabelService(t *testing.T, capturedPayload *string) Service {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(flowDefinitionsStateBody), nil
-			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
+			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/flow/api/tasks/task-1":
 				*capturedPayload = readFlowRequestBody(t, request)
 				return flowToolJSONResponse(echoedFlowTaskResponse(t, *capturedPayload)), nil
 			default:

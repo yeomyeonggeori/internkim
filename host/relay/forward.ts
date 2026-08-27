@@ -17,6 +17,12 @@ const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
 const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.'];
+export const apiRequestCapability = 'person.api.request';
+export const defaultAdmindSocketPath = '/run/internkim/admind.sock';
+const requesterEmailHeader = 'X-INTERNKIM-REQUESTER-EMAIL';
+const requesterPermissionHeader = 'X-INTERNKIM-REQUESTER-PERMISSION';
+// Bun's fetch refuses a body on OPTIONS as well as on GET and HEAD.
+const methodsThatCarryNoBody = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export function mailOperationOf(capability: string): string | null {
 	if (!capability.startsWith(mailPrefix)) return null;
@@ -34,6 +40,61 @@ export function isRegistrationCapability(capability: string): boolean {
 
 export function isWorkspaceCapability(capability: string): boolean {
 	return workspacePrefixes.some((prefix) => capability.startsWith(prefix));
+}
+
+export type PublicAPIRequest = {
+	method: string;
+	path: string;
+	query: string;
+	permission: string;
+	requester: string;
+	payload: unknown;
+};
+
+export function publicAPIRequestOf(body: Record<string, unknown>): PublicAPIRequest | null {
+	const method = typeof body.method === 'string' ? body.method.trim().toUpperCase() : '';
+	const path = typeof body.path === 'string' ? body.path : '';
+	const requester = oneHeaderLine(body.requester);
+	const permission = oneHeaderLine(body.permission);
+	if (!method || !requester || !permission) return null;
+	if (!path.startsWith('/')) return null;
+	return { method, path, query: queryOf(body.query), permission, requester, payload: body.payload };
+}
+
+function oneHeaderLine(given: unknown): string {
+	if (typeof given !== 'string') return '';
+	const written = given.trim();
+	return written.includes('\r') || written.includes('\n') || written.includes('\0') ? '' : written;
+}
+
+function queryOf(given: unknown): string {
+	if (typeof given !== 'string' || given === '') return '';
+	return given.startsWith('?') ? given : `?${given}`;
+}
+
+export function admindAPIURL(request: PublicAPIRequest): string {
+	return `http://internkim/api/v1${request.path}${request.query}`;
+}
+
+export async function forwardToAdmindAPI(
+	socketPath: string,
+	request: PublicAPIRequest
+): Promise<{ status: number; body: unknown }> {
+	const carriesPayload = !methodsThatCarryNoBody.has(request.method) && request.payload !== undefined;
+	const response = await fetch(admindAPIURL(request), {
+		unix: socketPath,
+		method: request.method,
+		headers: {
+			[requesterEmailHeader]: request.requester,
+			[requesterPermissionHeader]: request.permission,
+			...(carriesPayload ? { 'Content-Type': 'application/json' } : {})
+		},
+		body: carriesPayload ? JSON.stringify(request.payload) : undefined
+	}).catch((unreachable) => {
+		const reason = unreachable instanceof Error ? unreachable.message : String(unreachable);
+		throw new Error(`admind did not answer on ${socketPath}: ${reason}`);
+	});
+	return { status: response.status, body: await answerBodyOf(response) };
 }
 
 export async function answerBodyOf(response: Response): Promise<unknown> {
@@ -74,6 +135,7 @@ export type Dispatch = {
 		body: Record<string, unknown>,
 		requesterEmail: string
 	) => Promise<{ status: number; body: unknown }>;
+	askAdmindAPI: (request: PublicAPIRequest) => Promise<{ status: number; body: unknown }>;
 	emailOfMember: (memberID: string) => Promise<string | null>;
 	tellAdmindTheDirectoryChanged: () => Promise<{ status: number; body: unknown }>;
 	askChatd: (
@@ -283,6 +345,17 @@ async function serveMail(
 		return { status: 409, body: { error: 'this member has connected no mail account' } };
 	}
 	return dispatch.askMaild(operation, { ...body, account });
+}
+
+export async function servePublicAPIRequest(
+	dispatch: Dispatch,
+	body: Record<string, unknown>
+): Promise<{ status: number; body: unknown }> {
+	const request = publicAPIRequestOf(body);
+	if (!request) {
+		return { status: 400, body: { error: 'that is not a public API request the plane resolved' } };
+	}
+	return dispatch.askAdmindAPI(request);
 }
 
 async function serveWorkspace(

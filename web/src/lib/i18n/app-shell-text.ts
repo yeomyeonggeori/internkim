@@ -92,12 +92,12 @@ export const appShellText = {
 			scopes: {
 				read: '읽기',
 				write: '쓰기',
-				destructive: '삭제'
+				delete: '삭제'
 			},
 			scopeDescriptions: {
 				read: '업무, 일정, 메일, 메시지를 조회합니다.',
 				write: '업무·일정 생성/수정, DM·메일·메시지 전송, 김인턴에게 DM까지 허용합니다.',
-				destructive: '쓰기 권한에 더해 삭제 같은 되돌리기 어려운 작업까지 허용합니다.'
+				delete: '쓰기 권한에 더해 삭제 같은 되돌리기 어려운 작업까지 허용합니다.'
 			}
 		}
 	},
@@ -194,12 +194,12 @@ export const appShellText = {
 			scopes: {
 				read: 'Read',
 				write: 'Write',
-				destructive: 'Delete'
+				delete: 'Delete'
 			},
 			scopeDescriptions: {
 				read: 'Read tasks, events, mail, and messages.',
 				write: 'Create/update tasks and events, send DMs, mail, and messages, and message internkim.',
-				destructive: 'Everything in Write plus irreversible operations such as delete.'
+				delete: 'Everything in Write plus irreversible operations such as delete.'
 			}
 		}
 	}

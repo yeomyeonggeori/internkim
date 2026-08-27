@@ -202,11 +202,11 @@ func TestFlowTaskAddPropagatesRequesterEmail(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
-				summaryRequesterEmail = request.Header.Get(flowRequesterEmailHeader)
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
+				summaryRequesterEmail = request.Header.Get(admindRequesterEmailHeader)
 				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}]}`)), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
-				taskRequesterEmail = request.Header.Get(flowRequesterEmailHeader)
+			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/flow/api/tasks":
+				taskRequesterEmail = request.Header.Get(admindRequesterEmailHeader)
 				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
@@ -302,9 +302,9 @@ func TestFlowTaskAddPropagatesTypedFields(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"},{"id":"kim","name":"김인턴","email":"kim@example.com","mattermostUsername":"internkim"}]}`)), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/flow/api/tasks":
 				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
@@ -393,9 +393,9 @@ func TestFlowTaskAddReturnsAmbiguousOwnerError(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"lee","name":"샘플","email":"lee@example.com","mattermostUsername":"lee"},{"id":"kim","name":"샘플","email":"kim@example.com","mattermostUsername":"kim"}]}`)), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/flow/api/tasks":
 				postCalled = true
 				return flowToolJSONResponse(`{"id":"task-1"}`), nil
 			default:
@@ -441,9 +441,9 @@ func TestFlowTaskAddReturnsParticipantResolutionErrorBeforeCreate(t *testing.T) 
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"},{"id":"lee","name":"샘플","email":"lee@example.com"},{"id":"kim","name":"샘플","email":"kim@example.com"}]}`)), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/flow/api/tasks":
 				postCalled = true
 				return flowToolJSONResponse(`{"id":"task-1"}`), nil
 			default:
@@ -480,7 +480,7 @@ func TestFlowTaskListFiltersTasksByQueryIgnoringSpaces(t *testing.T) {
 			if isDirectoryPeopleRequest(request) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
-			if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/flow/api/state" {
+			if request.Method != http.MethodGet || request.URL.String() != "http://internkim/flow/api/state" {
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			}
 			return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"currentWeek":{"code":"26W23"},"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","content":"견본코리아 기획안 전달","status":"예정","weekCode":"26W23"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","content":"사무실 미팅","status":"예정","weekCode":"26W23"}]}`)), nil
@@ -511,9 +511,9 @@ func TestFlowTaskAddAddsParticipantPresentations(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"rain","name":"김테스트","email":"rain@example.com","mattermostUsername":"rain"}]}`)), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/flow/api/tasks":
 				return flowToolJSONResponse(`{"id":"task-1","participantIDs":["rain"],"participantNames":["김테스트"],"content":"경산 일정","status":"진행"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -582,9 +582,9 @@ func TestFlowTaskAddDeduplicatesSameTitleSameOwnerWithinWindow(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"고객지원 분기 결산 누락 항목 확인","status":"예정","createdAt":%q}]}`, recentCreatedAt)), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/flow/api/tasks":
 				postCalled = true
 				return flowToolJSONResponse(`{"id":"task-new"}`), nil
 			default:
@@ -631,9 +631,9 @@ func TestFlowTaskAddCreatesNewTaskForDifferentTitle(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"다른 업무","status":"예정","createdAt":%q}]}`, recentCreatedAt)), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/flow/api/tasks":
 				return flowToolJSONResponse(`{"id":"task-new"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -670,9 +670,9 @@ func TestFlowTaskAddCreatesNewTaskForDifferentOwner(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"kim","ownerName":"Kim","content":"고객지원 분기 결산 누락 항목 확인","status":"예정","createdAt":%q}]}`, recentCreatedAt)), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/flow/api/tasks":
 				return flowToolJSONResponse(`{"id":"task-new"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -709,9 +709,9 @@ func TestFlowTaskAddCreatesNewTaskAfterDuplicateWindowExpires(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"고객지원 분기 결산 누락 항목 확인","status":"예정","createdAt":%q}]}`, staleCreatedAt)), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/flow/api/tasks":
 				return flowToolJSONResponse(`{"id":"task-new"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -749,14 +749,14 @@ func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"진행","weekCode":"26W24"},{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","size":"XS","status":"진행","weekCode":"26W24"}]}`)), nil
-			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
+			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/flow/api/tasks/task-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
 				return flowToolJSONResponse(`{"id":"task-1","content":"15분 회의","status":"진행"}`), nil
-			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks":
+			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/flow/api/tasks":
 				postCalled = true
 				return flowToolJSONResponse(`{"id":"new-task"}`), nil
 			default:
@@ -887,9 +887,9 @@ func TestFlowTaskUpdateResolvesByExactTaskIDAcrossAllTasks(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"staff","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"staff","ownerName":"이샘플","participantIDs":["staff"],"business":"샘플거리","type":"문서","content":"IR 덱","status":"진행","weekCode":"26W28"}]}`)), nil
-			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/deck-1":
+			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/flow/api/tasks/deck-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
@@ -926,9 +926,9 @@ func TestFlowTaskUpdateResolvesByExactUniqueTitle(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"staff","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"staff","ownerName":"이샘플","participantIDs":["staff"],"content":"IR 덱","status":"진행","weekCode":"26W28"}]}`)), nil
-			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/deck-1":
+			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/flow/api/tasks/deck-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
@@ -1053,9 +1053,9 @@ func TestFlowTaskUpdateHintResolutionTrimsWhitespaceBeforeMatching(t *testing.T)
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[],"tasks":[{"id":"task-1","content":"IR 덱","status":"진행"}]}`)), nil
-			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
+			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/flow/api/tasks/task-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
@@ -1091,10 +1091,10 @@ func TestFlowTaskDeleteUsesSharedDeleteAPI(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(`{"tasks":[{"id":"task-1","content":"고객지원 분기 결산 검토 완료"}]}`), nil
-			case request.Method == http.MethodDelete && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
-				deletedRequesterEmail = request.Header.Get(flowRequesterEmailHeader)
+			case request.Method == http.MethodDelete && request.URL.String() == "http://internkim/flow/api/tasks/task-1":
+				deletedRequesterEmail = request.Header.Get(admindRequesterEmailHeader)
 				return flowToolJSONResponse(`{"status":"deleted","task":{"id":"task-1"}}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -1135,9 +1135,9 @@ func TestFlowTaskDeleteResolvesByExactUniqueTitle(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(`{"tasks":[{"id":"task-1","content":"고객지원 분기 결산 검토 완료"}]}`), nil
-			case request.Method == http.MethodDelete && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
+			case request.Method == http.MethodDelete && request.URL.String() == "http://internkim/flow/api/tasks/task-1":
 				return flowToolJSONResponse(`{"status":"deleted","task":{"id":"task-1"}}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -1302,7 +1302,7 @@ func flowTaskListTwoOwnerStateService(t *testing.T) Service {
 			if isDirectoryPeopleRequest(request) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
-			if request.URL.String() != "http://admind.local/flow/api/state" {
+			if request.URL.String() != "http://internkim/flow/api/state" {
 				t.Fatalf("expected all-tasks state endpoint, got %s", request.URL.String())
 			}
 			return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"currentWeek":{"code":"26W25"},"members":[{"id":"rain","name":"김테스트","email":"rain@example.com"},{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"rain-future","ownerID":"rain","ownerName":"김테스트","content":"김테스트 예정 업무","status":"예정","weekCode":"26W30"},{"id":"rain-done","ownerID":"rain","ownerName":"김테스트","content":"김테스트 완료 업무","status":"완료","weekCode":"26W25"},{"id":"lee-task","ownerID":"lee","ownerName":"이샘플","content":"이샘플 업무","status":"예정","weekCode":"26W25"}]}`)), nil
@@ -1437,7 +1437,7 @@ func TestFlowTaskListTargetPersonHintIncludesParticipantTasks(t *testing.T) {
 			if isDirectoryPeopleRequest(request) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
-			if request.URL.String() != "http://admind.local/flow/api/state" {
+			if request.URL.String() != "http://internkim/flow/api/state" {
 				t.Fatalf("expected all-tasks state endpoint, got %s", request.URL.String())
 			}
 			return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"currentWeek":{"code":"26W25"},"members":[{"id":"owner","name":"오너","email":"owner@example.com"},{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"owner-task","ownerID":"owner","ownerName":"오너","participantIDs":["owner","lee"],"participantNames":["오너","이샘플"],"content":"이샘플 참여 업무","status":"진행","weekCode":"26W25"},{"id":"other-task","ownerID":"owner","ownerName":"오너","participantIDs":["owner"],"participantNames":["오너"],"content":"오너 단독 업무","status":"진행","weekCode":"26W25"}]}`)), nil
@@ -1469,7 +1469,7 @@ func TestFlowTaskListTreatsAvailablePlannedAndPausedAsCurrentWeek(t *testing.T) 
 			if isDirectoryPeopleRequest(request) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
-			if request.URL.String() != "http://admind.local/flow/api/state" {
+			if request.URL.String() != "http://internkim/flow/api/state" {
 				t.Fatalf("expected all-tasks state endpoint, got %s", request.URL.String())
 			}
 			return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, stateBody)), nil
@@ -1505,7 +1505,7 @@ func TestFlowTaskListClassifiesFinishedInactiveTasksByDates(t *testing.T) {
 			if isDirectoryPeopleRequest(request) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
-			if request.URL.String() != "http://admind.local/flow/api/state" {
+			if request.URL.String() != "http://internkim/flow/api/state" {
 				t.Fatalf("expected all-tasks state endpoint, got %s", request.URL.String())
 			}
 			return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, stateBody)), nil
@@ -1649,7 +1649,7 @@ func TestPersonListReturnsTheRosterHintsResolveAgainst(t *testing.T) {
 			if isDirectoryPeopleRequest(request) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
-			if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/flow/api/state" {
+			if request.Method != http.MethodGet || request.URL.String() != "http://internkim/flow/api/state" {
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			}
 			return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"person-sample","name":"이샘플","email":"sample@example.com","mattermostUsername":"sampleuser"}]}`)), nil
@@ -1683,9 +1683,9 @@ func flowTaskParticipantService(t *testing.T, capturedPayload *string) Service {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			switch {
-			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/state":
+			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
 				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"},{"id":"shin","name":"신견본","email":"shin@example.com"}],"tasks":[{"id":"task-1","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"content":"운동","status":"완료"}]}`)), nil
-			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
+			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/flow/api/tasks/task-1":
 				body, _ := io.ReadAll(request.Body)
 				*capturedPayload = string(body)
 				var payload struct {

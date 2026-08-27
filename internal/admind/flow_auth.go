@@ -37,10 +37,7 @@ func (service *Service) flowActorEmail(request *http.Request) string {
 		request.Header.Set(flowResolvedActorHeader, actorEmail)
 		return actorEmail
 	}
-	if !isLocalRequest(request) {
-		return ""
-	}
-	actorEmail := strings.ToLower(strings.TrimSpace(request.Header.Get(flowRequesterEmailHeader)))
+	actorEmail := assertedRequesterEmail(request)
 	if actorEmail != "" {
 		request.Header.Set(flowResolvedActorHeader, actorEmail)
 	}
@@ -56,7 +53,7 @@ func (service *Service) webStaffActorEmail(request *http.Request) string {
 }
 
 func (service *Service) webTaskRunActorEmail(request *http.Request) string {
-	actorEmail := service.actorEmailAllowingLoopback(request)
+	actorEmail := service.actorEmailAllowingAssertedRequester(request)
 	if !service.canViewTaskRuns(request.Context(), actorEmail) {
 		return ""
 	}
