@@ -15,21 +15,30 @@ func defaultAttendanceLeavePolicy() attendanceLeavePolicy {
 func defaultAttendanceLeaveTypes() []attendanceLeaveType {
 	return []attendanceLeaveType{
 		defaultAttendanceLeaveType("annual", "annual", "연차", true, "annual", "annual", attendanceDefaultAnnualGrantMilliDays, "fiscalYearEnd", attendanceDefaultPartialLeaveUnits(), true, 0),
-		defaultAttendanceLeaveType("sick", "sick", "병가", false, "none", "none", 0, "none", attendanceDefaultPartialLeaveUnits(), false, 1),
-		defaultAttendanceLeaveType("bereavement", "bereavement", "경조휴가", true, "none", "none", 0, "none", attendanceDefaultFullDayLeaveUnits(), false, 2),
-		defaultAttendanceLeaveType("public", "public", "공가", true, "none", "none", 0, "none", attendanceDefaultFullDayLeaveUnits(), false, 3),
-		defaultAttendanceLeaveType("maternity", "maternity", "출산휴가", true, "none", "none", 0, "none", attendanceDefaultFullDayLeaveUnits(), false, 4),
-		defaultAttendanceLeaveType("spouse-maternity", "spouseMaternity", "배우자 출산휴가", true, "none", "none", 0, "none", attendanceDefaultFullDayLeaveUnits(), false, 5),
-		defaultAttendanceLeaveType("miscarriage-stillbirth", "miscarriageStillbirth", "유산·사산휴가", true, "none", "none", 0, "none", attendanceDefaultFullDayLeaveUnits(), false, 6),
-		defaultAttendanceLeaveType("fertility-treatment", "fertilityTreatment", "난임치료휴가", true, "none", "none", 0, "none", attendanceDefaultPartialLeaveUnits(), false, 7),
-		defaultAttendanceLeaveType("family-care", "familyCare", "가족돌봄휴가", false, "none", "none", 0, "none", attendanceDefaultPartialLeaveUnits(), false, 8),
-		defaultAttendanceLeaveType("reward", "reward", "포상휴가", true, "separate", "none", 0, "none", attendanceDefaultFullDayLeaveUnits(), true, 9),
-		defaultAttendanceLeaveType("compensatory", "compensatory", "보상휴가", true, "separate", "none", 0, "none", attendanceDefaultPartialLeaveUnits(), true, 10),
-		defaultAttendanceLeaveType("long-service", "longService", "장기근속휴가", true, "separate", "none", 0, "none", attendanceDefaultFullDayLeaveUnits(), true, 11),
-		defaultAttendanceLeaveType("refresh", "refresh", "리프레시휴가", true, "separate", "none", 0, "none", attendanceDefaultFullDayLeaveUnits(), true, 12),
-		defaultAttendanceLeaveType("parental-leave", "parentalLeave", "육아휴직", false, "none", "none", 0, "none", attendanceDefaultFullDayLeaveUnits(), false, 13),
-		defaultAttendanceLeaveType("unpaid", "unpaid", "무급휴가", false, "none", "none", 0, "none", attendanceDefaultPartialLeaveUnits(), false, 14),
-		defaultAttendanceLeaveType("other", "other", "기타 휴가", false, "none", "none", 0, "none", attendanceDefaultFullDayLeaveUnits(), false, 15),
+		defaultAttendanceLeaveType("sick", "sick", "병가", true, "none", "none", 0, "none", attendanceDefaultPartialLeaveUnits(), false, 1),
+		defaultAttendanceLeaveType("maternity", "maternity", "출산·육아휴가", true, "none", "none", 0, "none", attendanceDefaultFullDayLeaveUnits(), false, 2),
+		defaultAttendanceLeaveType("unpaid", "unpaid", "무급휴가", false, "none", "none", 0, "none", attendanceDefaultPartialLeaveUnits(), false, 3),
+	}
+}
+
+func attendanceSystemLeaveTypeKinds() map[string]string {
+	return map[string]string{
+		"annual":                 "annual",
+		"sick":                   "sick",
+		"unpaid":                 "unpaid",
+		"bereavement":            "bereavement",
+		"public":                 "public",
+		"maternity":              "maternity",
+		"spouse-maternity":       "spouseMaternity",
+		"miscarriage-stillbirth": "miscarriageStillbirth",
+		"fertility-treatment":    "fertilityTreatment",
+		"family-care":            "familyCare",
+		"reward":                 "reward",
+		"compensatory":           "compensatory",
+		"long-service":           "longService",
+		"refresh":                "refresh",
+		"parental-leave":         "parentalLeave",
+		"other":                  "other",
 	}
 }
 

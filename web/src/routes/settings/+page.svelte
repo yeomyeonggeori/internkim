@@ -6,12 +6,16 @@
 	import PersonalAPIKeys from './personal-api-keys.svelte';
 	import Notifications from './notifications.svelte';
 	import MyMessengerAccount from './my-messenger-account.svelte';
+	import AttendanceWorkSettingsSection from '../admin/attendance-work-settings-section.svelte';
+	import AttendanceLeavePolicySettings from '../admin/attendance-leave-policy-settings.svelte';
+	import { adminText } from '../admin/text';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
 	import { onMount } from 'svelte';
 
 	const text = createPageText(companySettingsText);
+	const attendanceSettingsText = createPageText(adminText);
 	let isAdmin = $state(false);
 	let isLoading = $state(isSupabaseConfigured());
 
@@ -43,6 +47,12 @@
 			</header>
 			<CompanyProfileImage />
 			<CompanyBaseCurrency />
+			<header class="grid gap-1 pt-2">
+				<h2 class="text-xl font-semibold">{text.attendance}</h2>
+				<p class="text-sm text-muted-foreground">{text.attendanceDescription}</p>
+			</header>
+			<AttendanceWorkSettingsSection adminBaseURL="" text={attendanceSettingsText} />
+			<AttendanceLeavePolicySettings adminBaseURL="" text={attendanceSettingsText} />
 			<header class="grid gap-1 pt-2">
 				<h2 class="text-xl font-semibold">{text.connections}</h2>
 				<p class="text-sm text-muted-foreground">{text.connectionsDescription}</p>

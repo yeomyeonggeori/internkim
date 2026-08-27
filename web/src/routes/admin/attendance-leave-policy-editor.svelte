@@ -33,6 +33,7 @@
 		draft: LeaveType;
 		text: AdminPageText;
 		isSaving: boolean;
+		tracksSeparateBalances: boolean;
 		validationAttempted: boolean;
 		hasChanges: boolean;
 		onChange: (draft: LeaveType) => void;
@@ -45,6 +46,7 @@
 		draft,
 		text,
 		isSaving,
+		tracksSeparateBalances,
 		validationAttempted,
 		hasChanges,
 		onChange,
@@ -124,6 +126,10 @@
 		if (value === 'annual') return text.attendanceSettings.balanceModeAnnual;
 		if (value === 'separate') return text.attendanceSettings.balanceModeSeparate;
 		return text.attendanceSettings.balanceModeNone;
+	}
+
+	function unavailableBalanceModeLabel(value: LeaveBalanceMode): string {
+		return `${balanceModeLabel(value)} · ${text.attendanceSettings.balanceModeUnavailable}`;
 	}
 
 	function grantCadenceLabel(value: LeaveGrantCadence): string {
@@ -206,12 +212,18 @@
 					disabled={isSaving}
 				>
 					<Select.Trigger id="leave-balance-mode">
-						{balanceModeLabel(draft.balanceMode)}
+						{draft.balanceMode === 'separate' && !tracksSeparateBalances
+							? unavailableBalanceModeLabel('separate')
+							: balanceModeLabel(draft.balanceMode)}
 					</Select.Trigger>
 					<Select.Content>
 						<Select.Group>
 							<Select.Item value="annual">{text.attendanceSettings.balanceModeAnnual}</Select.Item>
-							<Select.Item value="separate">{text.attendanceSettings.balanceModeSeparate}</Select.Item>
+							<Select.Item value="separate" disabled={!tracksSeparateBalances}>
+								{tracksSeparateBalances
+									? text.attendanceSettings.balanceModeSeparate
+									: unavailableBalanceModeLabel('separate')}
+							</Select.Item>
 							<Select.Item value="none">{text.attendanceSettings.balanceModeNone}</Select.Item>
 						</Select.Group>
 					</Select.Content>
