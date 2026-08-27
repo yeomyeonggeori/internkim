@@ -2,16 +2,26 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { readLinkPreview, type LinkPreview } from './link-preview';
-import { assetBucket, attachmentAddress, attachmentAlreadyKept, keepMessageAttachment } from './asset-store';
+import {
+	assetBucket,
+	attachmentAddress,
+	attachmentAlreadyKept,
+	attachmentKind,
+	keepMessageAttachment,
+	sharedAssetPath
+} from './asset-store';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
 import {
 	answerBodyOf,
 	defaultAdmindSocketPath,
+	forwardToAdmind,
 	forwardToAdmindAPI,
 	forwardToChatd,
+	type AdmindCall,
 	type ConnectedAccount,
 	type KeptAttachment,
+	type KeptFileReference,
 	type PublicAPIRequest
 } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
@@ -84,6 +94,7 @@ const dispatch = {
 		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body, largestBytes ?? largestPictureBytes),
 	keepAttachment,
 	keptAlready,
+	keptFileBytes,
 	largestFileBytes,
 	askMaild: async (operation: string, body: Record<string, unknown>) => {
 		const response = await fetch(`${maildBaseURL}/v1/mail/${encodeURIComponent(operation)}`, {
@@ -100,8 +111,8 @@ const dispatch = {
 		);
 		return held.account ?? null;
 	},
-	askAdmind,
 	askAdmindAPI: (request: PublicAPIRequest) => forwardToAdmindAPI(admindSocketPath, request),
+	askAdmindAsRequester: (call: AdmindCall) => forwardToAdmind(admindSocketPath, call),
 	tellAdmindTheDirectoryChanged,
 	emailOfMember: async (memberID: string) => {
 		const member = await client
@@ -176,6 +187,15 @@ async function keepAttachment(contentBase64: string, contentType: string): Promi
 		sizeBytes: bytes.byteLength,
 		digest: kept.digest
 	};
+}
+
+async function keptFileBytes(kept: KeptFileReference): Promise<Uint8Array<ArrayBuffer>> {
+	const objectPath = sharedAssetPath(companyID, attachmentKind, kept.digest, kept.contentType);
+	const held = await client.storage.from(assetBucket).download(objectPath);
+	if (held.error || !held.data) {
+		throw new Error(`the asset store holds nothing at ${objectPath}: ${held.error?.message ?? 'no file'}`);
+	}
+	return new Uint8Array(await held.data.arrayBuffer());
 }
 
 const linkPreviews = new Map<string, LinkPreview | null>();
@@ -290,38 +310,7 @@ async function keepGoing(what: string, work: () => Promise<void>): Promise<void>
 	}
 }
 
-const workspacePaths: Record<string, string> = {
-	'person.memory.graph': '/memory/api/graph',
-	'person.memory.schedules': '/memory/api/schedules',
-	'person.files.roots': '/files/api/roots',
-	'person.files.list': '/files/api/list',
-	'person.runs.list': '/runs/api',
-	'person.runs.detail': '/runs/api/detail',
-	'person.buzz.claim': '/agent/api/buzz-claim',
-	'person.buzz.relay': '/agent/api/buzz-relay-config'
-};
-
 async function tellAdmindTheDirectoryChanged(): Promise<{ status: number; body: unknown }> {
 	const response = await fetch(`${admindBaseURL}/admin/api/directory/changed`, { method: 'POST' });
-	return { status: response.status, body: await answerBodyOf(response) };
-}
-
-async function askAdmind(
-	capability: string,
-	body: Record<string, unknown>,
-	requesterEmail: string
-): Promise<{ status: number; body: unknown }> {
-	const path = workspacePaths[capability];
-	if (!path) return { status: 404, body: { error: `the app has nothing called ${capability}` } };
-
-	const query = new URLSearchParams();
-	for (const [name, value] of Object.entries(body)) {
-		if (name === 'actor' || value === undefined || value === null) continue;
-		query.set(name, String(value));
-	}
-	const asked = query.toString() ? `${path}?${query}` : path;
-	const response = await fetch(`${admindBaseURL}${asked}`, {
-		headers: { 'X-INTERNKIM-REQUESTER-EMAIL': requesterEmail }
-	});
 	return { status: response.status, body: await answerBodyOf(response) };
 }

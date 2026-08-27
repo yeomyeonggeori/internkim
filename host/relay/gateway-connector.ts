@@ -1,4 +1,11 @@
-import { apiRequestCapability, serveCallForMember, servePublicAPIRequest, type Dispatch } from './forward';
+import {
+	apiFileCapability,
+	apiRequestCapability,
+	serveCallForMember,
+	servePublicAPIFile,
+	servePublicAPIRequest,
+	type Dispatch
+} from './forward';
 import { oversizeNotice } from './answer-size';
 
 export type RoutedCall = {
@@ -58,6 +65,7 @@ async function servedCall(
 	dispatch: Dispatch
 ): Promise<{ status: number; body: unknown }> {
 	if (call.capability === apiRequestCapability) return servePublicAPIRequest(dispatch, call.body);
+	if (call.capability === apiFileCapability) return servePublicAPIFile(dispatch, call.body);
 	if (!call.memberID) {
 		return { status: 400, body: { error: `${call.capability} is asked for by a member, and none was named` } };
 	}
