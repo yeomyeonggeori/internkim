@@ -30,7 +30,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
 	if (!projectURL || !publishableKey || !serviceRoleKey) error(500, 'the central plane is not configured');
 
-	const accessToken = await memberAccessTokenOf(request, { projectURL, serviceRoleKey });
+	const { accessToken } = await memberAccessTokenOf(request, { projectURL, serviceRoleKey });
 
 	const payload = closeRequestOf(await request.json().catch(() => null));
 	const client = asMember({ projectURL, publishableKey }, accessToken);

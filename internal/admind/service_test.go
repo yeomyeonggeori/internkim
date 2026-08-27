@@ -2511,10 +2511,9 @@ func TestFlowAPILocalCapabilityRequiresRequesterActor(t *testing.T) {
 	}
 
 	request = httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
-	request.RemoteAddr = "127.0.0.1:12345"
-	request.Header.Set(flowRequesterEmailHeader, "staff@example.com")
+	request.Header.Set(requesterEmailHeader, "staff@example.com")
 	response = httptest.NewRecorder()
-	service.router().ServeHTTP(response, request)
+	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
 	if response.Code != http.StatusOK {
 		t.Fatalf("local requester state status = %d body = %s", response.Code, response.Body.String())
 	}

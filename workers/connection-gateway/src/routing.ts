@@ -15,6 +15,18 @@ export type ServerAnswer = {
 	body: unknown;
 };
 
+export type OneShotCall = {
+	requestID: string;
+	capability: string;
+	body?: Record<string, unknown>;
+};
+
+export type OneShotAnswer = {
+	requestID: string;
+	status: number;
+	body: unknown;
+};
+
 export type ServerDelivery = {
 	kind: 'deliver';
 	event: unknown;
@@ -24,12 +36,18 @@ export type ServerDelivery = {
 export type RoutedCall = {
 	kind: 'call';
 	requestID: string;
-	memberID: string;
+	memberID?: string;
 	capability: string;
 	body: Record<string, unknown>;
 };
 
 export const serverOfflineStatus = 503;
+export const callInFlightStatus = 409;
+export const tooManyWaitingCallsStatus = 429;
+export const callTimedOutStatus = 504;
+
+export const oneShotCallBoundMilliseconds = 30_000;
+export const waitingCallsPerCompany = 32;
 
 export function parseClientCall(payload: unknown): ClientCall | null {
 	if (typeof payload !== 'object' || payload === null) return null;
@@ -66,8 +84,67 @@ export function serverOfflineAnswer(requestID: string): ServerAnswer {
 	return { kind: 'result', requestID, status: serverOfflineStatus, body: { error: 'server_offline' } };
 }
 
-export function routedCallOf(call: ClientCall, memberID: string): RoutedCall {
+export function callInFlightAnswer(requestID: string): ServerAnswer {
+	return { kind: 'result', requestID, status: callInFlightStatus, body: { error: 'call_in_flight' } };
+}
+
+export function tooManyWaitingCallsAnswer(requestID: string): ServerAnswer {
+	return { kind: 'result', requestID, status: tooManyWaitingCallsStatus, body: { error: 'too_many_waiting_calls' } };
+}
+
+export function callTimedOutAnswer(requestID: string): ServerAnswer {
+	return { kind: 'result', requestID, status: callTimedOutStatus, body: { error: 'call_timed_out' } };
+}
+
+export function oneShotAnswerOf(answer: ServerAnswer): OneShotAnswer {
+	return { requestID: answer.requestID, status: answer.status, body: answer.body };
+}
+
+export function parseOneShotCall(payload: unknown): ClientCall | null {
+	if (typeof payload !== 'object' || payload === null) return null;
+	return parseClientCall({ ...(payload as Record<string, unknown>), kind: 'call' });
+}
+
+export function routedCallOf(call: ClientCall, memberID?: string): RoutedCall {
 	return { kind: 'call', requestID: call.requestID, memberID, capability: call.capability, body: call.body };
+}
+
+export class WaitingCalls {
+	private readonly waiting = new Map<string, (answer: ServerAnswer) => void>();
+
+	constructor(
+		private readonly limit = waitingCallsPerCompany,
+		private readonly boundMilliseconds = oneShotCallBoundMilliseconds
+	) {}
+
+	get isFull(): boolean {
+		return this.waiting.size >= this.limit;
+	}
+
+	get waitingCount(): number {
+		return this.waiting.size;
+	}
+
+	waitFor(requestID: string): Promise<ServerAnswer> {
+		return new Promise((settle) => {
+			const bound = setTimeout(() => {
+				this.waiting.delete(requestID);
+				settle(callTimedOutAnswer(requestID));
+			}, this.boundMilliseconds);
+			this.waiting.set(requestID, (answer) => {
+				clearTimeout(bound);
+				this.waiting.delete(requestID);
+				settle(answer);
+			});
+		});
+	}
+
+	settle(answer: ServerAnswer): boolean {
+		const waiter = this.waiting.get(answer.requestID);
+		if (!waiter) return false;
+		waiter(answer);
+		return true;
+	}
 }
 
 // A reconnecting client resends the call it never saw answered, and the same
@@ -117,7 +194,7 @@ export type CallDecision =
 
 export function decideCall(
 	call: ClientCall,
-	memberID: string,
+	memberID: string | undefined,
 	ledger: CallLedger,
 	isServerConnected: boolean
 ): CallDecision {

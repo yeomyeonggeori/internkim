@@ -1,5 +1,4 @@
 import { fetchMailMessages } from '../../routes/mail/mail-api';
-import { resolveMailActorEmail } from '../../routes/mail/mail-request-actor';
 import type { MailMessage } from '../../routes/mail/mail-types';
 
 const searchResultLimit = 5;
@@ -36,7 +35,7 @@ class MailMessageSearch {
 		const requestID = this.#requestID;
 		const parameters = new URLSearchParams({ mailbox: 'INBOX', limit: String(searchResultLimit), query });
 		try {
-			const result = await fetchMailMessages(resolveMailActorEmail('', ''), parameters, { fallback: '', serviceUnavailable: '' });
+			const result = await fetchMailMessages(parameters, { fallback: '', serviceUnavailable: '' });
 			if (requestID !== this.#requestID) return;
 			this.results = result.messages ?? [];
 		} catch {

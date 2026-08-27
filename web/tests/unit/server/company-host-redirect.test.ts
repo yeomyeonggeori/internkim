@@ -50,6 +50,7 @@ describe('a caller that carries its own credential', () => {
 	test('is answered where it landed, because a redirect would drop its bearer token', () => {
 		expect(asks('samplecompany.intern.kim', '/api/agent/connection')).toBe(false);
 		expect(asks('api.intern.kim', '/api/agent/host-session')).toBe(false);
+		expect(asks('api.intern.kim', '/v1/tools/message_send/invoke')).toBe(false);
 	});
 
 	test('still moves a page request on the same host', () => {

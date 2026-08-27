@@ -3,8 +3,8 @@ title: API overview
 description: A token belongs to a person, and every call runs as that person.
 ---
 
-Every tool Intern Kim uses inside a company is callable from outside it, over
-HTTP, at `https://intern.kim/api/v1`. Every company calls that one address; the
+Every tool internkim uses inside a company is callable from outside it, over
+HTTP, at `https://api.intern.kim/v1`. Every company calls that one address; the
 token is what says which company, and which person inside it. A token belongs to
 a person and every call runs as that person, so a token can never do more than
 its owner can.
@@ -25,7 +25,7 @@ Tokens are issued from a signed-in staff web session, either through the token
 section on the Admin page or with the session cookie directly:
 
 ```bash
-curl -X POST https://intern.kim/api/v1/tokens \
+curl -X POST https://api.intern.kim/v1/tokens \
   --cookie "$SESSION" \
   --header 'Content-Type: application/json' \
   --data '{"label":"reporting script","scopes":["write"]}'
@@ -61,7 +61,7 @@ session belongs to; there is no way to issue a token for someone else.
 Every other endpoint takes the token as a bearer header:
 
 ```bash
-curl https://intern.kim/api/v1/tools \
+curl https://api.intern.kim/v1/tools \
   --header "Authorization: Bearer $INTERNKIM_TOKEN"
 ```
 

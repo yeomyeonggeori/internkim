@@ -19,6 +19,7 @@ import (
 const (
 	relaySettingsEnvironmentName = "INTERNKIM_RELAY_ENV"
 	relayAgentKeyEnvironmentName = "INTERNKIM_RELAY_AGENT_KEY"
+	admindSocketSettingName      = "ADMIND_SOCKET_PATH"
 )
 
 var StepRelay = Step{
@@ -36,7 +37,7 @@ var StepRelay = Step{
 		if errorValue != nil {
 			return false
 		}
-		if deviceFileDigest(context, blueclaw.RelayEnvironmentFilePath) != asPlacedDigest(string(settings)) {
+		if deviceFileDigest(context, blueclaw.RelayEnvironmentFilePath) != asPlacedDigest(relaySettingsNamingTheAdmindSocket(string(settings))) {
 			return false
 		}
 		return trimmedRun(context, "systemctl is-active "+blueclaw.RelayServiceName) == "active"
@@ -57,7 +58,8 @@ var StepRelay = Step{
 		if errorValue != nil {
 			return fmt.Errorf("read the relay settings at %s: %w", settingsPath, errorValue)
 		}
-		context.SSH.Run(placeForTheRelay(blueclaw.RelayEnvironmentFilePath, string(settings)))
+		context.SSH.Run(makeTheDirectoryTheAdmindSocketLivesIn())
+		context.SSH.Run(placeForTheRelay(blueclaw.RelayEnvironmentFilePath, relaySettingsNamingTheAdmindSocket(string(settings))))
 
 		if agentKeyPath := namedFile(relayAgentKeyEnvironmentName); agentKeyPath != "" {
 			agentKey, errorValue := os.ReadFile(agentKeyPath)
@@ -74,6 +76,26 @@ var StepRelay = Step{
 	RunSD: func(context *Context) error {
 		return nil
 	},
+}
+
+func relaySettingsNamingTheAdmindSocket(settings string) string {
+	if settingsAlreadyName(settings, admindSocketSettingName) {
+		return settings
+	}
+	return asPlaced(settings) + admindSocketSettingName + "=" + blueclaw.AdmindSocketPath
+}
+
+func settingsAlreadyName(settings string, settingName string) bool {
+	for _, line := range strings.Split(settings, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), settingName+"=") {
+			return true
+		}
+	}
+	return false
+}
+
+func makeTheDirectoryTheAdmindSocketLivesIn() string {
+	return "install -d -m 755 -o root -g root " + filepath.Dir(blueclaw.AdmindSocketPath)
 }
 
 func namedFile(environmentName string) string {

@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fullPublicAPIPermission, type PublicAPIPermission } from '$lib/public-api-permission';
 import {
 	asMember,
 	controlPlane,
@@ -14,20 +15,26 @@ export type CallingMember = {
 	record: SupabaseClient;
 	memberID: string;
 	email: string;
+	permission: PublicAPIPermission;
+};
+
+export type MemberCall = {
+	accessToken: string;
+	permission: PublicAPIPermission;
 };
 
 export async function memberAccessTokenOf(
 	request: Request,
 	credentials: ControlPlaneCredentials,
-): Promise<string> {
+): Promise<MemberCall> {
 	const authorization = request.headers.get('authorization') ?? '';
 	const presented = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
 	if (!presented) error(401, 'sign in first');
-	if (!isPersonalKey(presented)) return presented;
+	if (!isPersonalKey(presented)) return { accessToken: presented, permission: fullPublicAPIPermission };
 
 	const session = await sessionForPersonalKey(credentials, presented);
 	if (!session) error(401, 'that key belongs to nobody');
-	return session.accessToken;
+	return { accessToken: session.accessToken, permission: session.permission };
 }
 
 export async function callingMember(request: Request, environment: Environment): Promise<CallingMember> {
@@ -38,7 +45,7 @@ export async function callingMember(request: Request, environment: Environment):
 		error(500, 'the control plane is not configured');
 	}
 
-	const accessToken = await memberAccessTokenOf(request, { projectURL, serviceRoleKey });
+	const { accessToken, permission } = await memberAccessTokenOf(request, { projectURL, serviceRoleKey });
 
 	const caller = asMember({ projectURL, publishableKey }, accessToken);
 	const { data: account } = await caller.auth.getUser();
@@ -56,6 +63,7 @@ export async function callingMember(request: Request, environment: Environment):
 		caller,
 		record: controlPlane({ projectURL, serviceRoleKey }),
 		memberID: member.data.id,
-		email: member.data.email ?? account.user.email ?? ''
+		email: member.data.email ?? account.user.email ?? '',
+		permission
 	};
 }

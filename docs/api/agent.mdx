@@ -3,7 +3,7 @@ title: Driving the agent
 description: Send a message and let the agent choose the tools.
 ---
 
-You can also hand Intern Kim a whole task: send a message and let it decide
+You can also hand internkim a whole task: send a message and let it decide
 which tools the work needs. The message enters through the same
 connector runtime as a messenger message, runs under the token owner's
 identity, and lands in the same task ledger. Both endpoints require rank 2 or
@@ -12,7 +12,7 @@ above; see [scopes](/docs/api#scopes).
 ## Sending a message [#sending-a-message]
 
 ```bash
-curl https://intern.kim/api/v1/agent/messages \
+curl https://api.intern.kim/v1/agent/messages \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"message":"summarize last month'\''s tasks into a document"}'
@@ -41,7 +41,7 @@ agent this is a direct message thread, like a DM on the company messenger.
 ## Reading replies [#reading-replies]
 
 ```bash
-curl "https://intern.kim/api/v1/agent/replies?conversationID=dm:api:..." \
+curl "https://api.intern.kim/v1/agent/replies?conversationID=dm:api:..." \
   --header "Authorization: Bearer $INTERNKIM_TOKEN"
 ```
 
@@ -81,7 +81,7 @@ as it would in a messenger. The question arrives as a reply whose
 by sending the next message in the same conversation:
 
 ```bash
-curl https://intern.kim/api/v1/agent/messages \
+curl https://api.intern.kim/v1/agent/messages \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"conversationID":"dm:api:...","message":"approved, go ahead"}'

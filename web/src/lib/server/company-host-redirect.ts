@@ -15,7 +15,7 @@ export function theOneAddressOf(zone: string): string {
 // fetch drops Authorization across origins, and every attached hostname is the
 // same deployment, so these are answered where they land.
 function carriesACallerCredential(pathname: string): boolean {
-	return pathname.startsWith('/api/');
+	return pathname.startsWith('/api/') || pathname.startsWith('/v1/');
 }
 
 export function movesToTheOneAddress(question: CompanyHostQuestion): boolean {
