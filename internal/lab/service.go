@@ -15,6 +15,8 @@ import (
 
 var errorUnsupportedHostMode = errors.New("unsupported host mode")
 
+const sharedWorkspaceDestinationPath = "/mnt/shared/workspace"
+
 type containerListEntry struct {
 	Configuration containerListEntryConfiguration `json:"configuration"`
 	Status        containerListEntryStatus        `json:"status"`
@@ -22,7 +24,13 @@ type containerListEntry struct {
 }
 
 type containerListEntryConfiguration struct {
-	ID string `json:"id"`
+	ID     string                    `json:"id"`
+	Mounts []containerListEntryMount `json:"mounts"`
+}
+
+type containerListEntryMount struct {
+	Destination string `json:"destination"`
+	Source      string `json:"source"`
 }
 
 type containerListEntryStatus struct {
@@ -153,12 +161,21 @@ func (service Service) findContainerListEntry(ctx context.Context) (*containerLi
 func (service Service) EnsureVirtualMachineImage(ctx context.Context) error {
 	fmt.Println("checking container")
 
-	hasVirtualMachine, errorValue := service.VirtualMachineExists(ctx)
+	containerEntry, errorValue := service.findContainerListEntry(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
-	if hasVirtualMachine {
-		return nil
+	if containerEntry != nil {
+		if containerEntry.sharesWorkspaceAt(service.sharedWorkspacePath()) {
+			return nil
+		}
+		// The shared builder outlives the checkout it was created for. One made
+		// from a directory that has since been deleted cannot start at all, and
+		// the failure names an invalid state rather than the stale mount.
+		fmt.Printf("recreating container %q: it shares a different workspace\n", service.configuration.VirtualMachine.Container.Name)
+		if errorValue := service.commandRunner.Run(ctx, service.buildContainerRemoveCommand()); errorValue != nil {
+			return fmt.Errorf("remove container %q: %w", service.configuration.VirtualMachine.Container.Name, errorValue)
+		}
 	}
 
 	fmt.Printf("creating container %q\n", service.configuration.VirtualMachine.Container.Name)
@@ -167,6 +184,29 @@ func (service Service) EnsureVirtualMachineImage(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// A container the list reports without mounts predates this check; it is left
+// alone rather than recreated on no evidence.
+func (entry *containerListEntry) sharesWorkspaceAt(workspacePath string) bool {
+	if len(entry.Configuration.Mounts) == 0 {
+		return true
+	}
+	for _, mount := range entry.Configuration.Mounts {
+		if mount.Destination != sharedWorkspaceDestinationPath {
+			continue
+		}
+		return strings.TrimRight(mount.Source, "/") == strings.TrimRight(workspacePath, "/")
+	}
+	return true
+}
+
+func (service Service) buildContainerRemoveCommand() ExecutableCommand {
+	return ExecutableCommand{
+		ExecutableName:       service.configuration.VirtualMachine.Container.BinaryPath,
+		Arguments:            []string{"rm", "--force", service.configuration.VirtualMachine.Container.Name},
+		WorkingDirectoryPath: service.repositoryRootPath,
+	}
 }
 
 func (service Service) VirtualMachineUp(ctx context.Context) error {
@@ -597,7 +637,7 @@ func (service Service) buildImageBuildCommand(isCapabilityOptionSupported bool) 
 		"--kernel",
 		service.configuration.VirtualMachine.Container.KernelImagePath,
 		"--volume",
-		service.sharedWorkspacePath()+":/mnt/shared/workspace",
+		service.sharedWorkspacePath()+":"+sharedWorkspaceDestinationPath,
 		service.configuration.VirtualMachine.Container.Image,
 		"sh",
 		"-c",

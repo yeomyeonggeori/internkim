@@ -1589,7 +1589,7 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 				state.LastSuccessfulForwardAt = time.Now().UTC()
 				state.LastForwardError = ""
 			})
-			post, metadata, hasPost, errorValue := mattermostWebSocketPost(payload)
+			post, _, hasPost, errorValue := mattermostWebSocketPost(payload)
 			if errorValue != nil || !hasPost || strings.TrimSpace(post.ChannelID) == "" || post.CreateAt <= 0 {
 				return
 			}
@@ -1598,7 +1598,6 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 				pollState.LastSeenByChannel[post.ChannelID] = post.CreateAt
 			}
 			lastSeenMutex.Unlock()
-			go service.routeUploadedMattermostAttachments(context.Background(), post, metadata.ChannelType, metadata.ChannelName, botUser.ID)
 		},
 		AfterForwardError: func(errorValue error) {
 			service.healthState().Update(func(state *platformHealthState) {

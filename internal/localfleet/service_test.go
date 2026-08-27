@@ -182,7 +182,7 @@ func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	if !strings.Contains(joinedPlans, "--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web") {
+	if !strings.Contains(joinedPlans, "--skip wifi,local-llm,google,slack,web") {
 		t.Fatalf("expected test up plan to skip web:\n%s", joinedPlans)
 	}
 	if !strings.Contains(joinedPlans, "INTERNKIM_BLUECLAW_USE_LOCAL=1") {
@@ -218,7 +218,7 @@ func TestReusableUpPlanEnsuresRuntimeBaseBeforeForcedSetup(t *testing.T) {
 		t.Fatalf("expected runtime base ensure to honor its satisfied check:\n%s", runtimeBasePlan)
 	}
 	forcedSetupPlan := strings.Join(plans[forcedSetupPlanIndex].Arguments, " ")
-	if !strings.Contains(forcedSetupPlan, "--skip wifi,local-llm,cloudflare-access,tunnel,google,slack,web,blueclaw-runtime-base") {
+	if !strings.Contains(forcedSetupPlan, "--skip wifi,local-llm,google,slack,web,blueclaw-runtime-base") {
 		t.Fatalf("expected forced reusable setup to skip the ensured runtime base:\n%s", forcedSetupPlan)
 	}
 }
@@ -558,4 +558,22 @@ func planArgumentIndex(plans []CommandPlan, expectedText string) int {
 		}
 	}
 	return -1
+}
+
+// Every other local fleet scenario drives Mattermost, which is not the
+// messenger a company's messages travel over any more.
+func TestBuzzAttachmentScenarioRunsTheBuzzScript(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	joinedPlans := joinedPlanArguments(service.buzzAttachmentScenarioPlans())
+
+	if !strings.Contains(joinedPlans, "lab/scripts/scenario-buzz-attachment.sh") {
+		t.Fatalf("expected the buzz scenario script in plans:\n%s", joinedPlans)
+	}
+	if strings.Contains(joinedPlans, "verify mattermost") {
+		t.Fatalf("expected the buzz scenario to reach nothing through mattermost:\n%s", joinedPlans)
+	}
 }

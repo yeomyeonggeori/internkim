@@ -12,7 +12,7 @@ var StepBlueclawRuntimeBase = Step{
 	Name: "blueclaw-runtime-base",
 	Deps: []string{"binaries"},
 	Title: func(context *Context) string {
-		return context.T("Blueclaw Firecracker 베이스 런타임 준비 중...", "Preparing Blueclaw Firecracker base runtime...")
+		return context.T("Blueclaw 게스트 베이스 런타임 준비 중...", "Preparing Blueclaw guest base runtime...")
 	},
 	IsSatisfied: func(context *Context) bool {
 		if context.Backend != BackendSSH {
