@@ -7,7 +7,7 @@ export type MessengerDirectory = {
 	nameOfMember: Map<string, string>;
 	nameOfExternal: Map<string, string>;
 	memberOfExternal: Map<string, string>;
-	externalOfMember: Map<string, string>;
+	externalsOfMember: Map<string, string[]>;
 	memberOfEmail: Map<string, string>;
 };
 
@@ -45,16 +45,30 @@ export async function fetchMessengerDirectory(): Promise<MessengerDirectory> {
 			)
 		),
 		memberOfExternal: new Map(accounts),
-		externalOfMember: new Map(accounts.map(([externalID, memberID]) => [memberID, externalID])),
+		externalsOfMember: externalsByMember(accounts),
 		memberOfEmail: new Map(
 			members.data.filter((member) => member.email).map((member) => [(member.email as string).toLowerCase(), member.id])
 		)
 	};
 }
 
+// A member can hold an account on more than one messenger, and a conversation
+// names them by whichever one it came from, so every account they hold is kept.
+function externalsByMember(accounts: readonly (readonly [string, string])[]): Map<string, string[]> {
+	const externals = new Map<string, string[]>();
+	for (const [externalID, memberID] of accounts) {
+		externals.set(memberID, [...(externals.get(memberID) ?? []), externalID]);
+	}
+	return externals;
+}
+
+export function externalIDsOfMember(directory: MessengerDirectory, memberID: string): string[] {
+	return directory.externalsOfMember.get(memberID) ?? [];
+}
+
 export function externalIDFor(person: { memberID?: string; email?: string }, directory: MessengerDirectory): string {
 	const memberID = person.memberID || directory.memberOfEmail.get((person.email ?? '').trim().toLowerCase());
-	return memberID ? (directory.externalOfMember.get(memberID) ?? '') : '';
+	return memberID ? (externalIDsOfMember(directory, memberID)[0] ?? '') : '';
 }
 
 export function personKey(person: MessengerPerson): string {

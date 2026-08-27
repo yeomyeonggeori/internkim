@@ -9,7 +9,7 @@ function directoryOf(): MessengerDirectory {
 			['U999', '김철수'],
 			['UBOT', '다른 에이전트']
 		]),
-		externalOfMember: new Map(),
+		externalsOfMember: new Map(),
 		memberOfExternal: new Map([['U777', 'm1']]),
 		memberOfEmail: new Map()
 	};
