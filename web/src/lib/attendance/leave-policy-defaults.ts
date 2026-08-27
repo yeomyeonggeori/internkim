@@ -28,29 +28,32 @@ type SystemLeaveType = {
 
 const systemLeaveTypes: SystemLeaveType[] = [
 	{ id: 'annual', systemKind: 'annual', name: '연차', paid: true, balanceMode: 'annual', grantCadence: 'annual', grantAmountMilliDays: defaultAnnualGrantMilliDays, expiryMode: 'fiscalYearEnd', allowedUnits: partialUnits, includeInSummary: true },
-	{ id: 'sick', systemKind: 'sick', name: '병가', paid: false, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: partialUnits, includeInSummary: false },
-	{ id: 'bereavement', systemKind: 'bereavement', name: '경조휴가', paid: true, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: false },
-	{ id: 'public', systemKind: 'public', name: '공가', paid: true, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: false },
-	{ id: 'maternity', systemKind: 'maternity', name: '출산휴가', paid: true, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: false },
-	{ id: 'spouse-maternity', systemKind: 'spouseMaternity', name: '배우자 출산휴가', paid: true, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: false },
-	{ id: 'miscarriage-stillbirth', systemKind: 'miscarriageStillbirth', name: '유산·사산휴가', paid: true, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: false },
-	{ id: 'fertility-treatment', systemKind: 'fertilityTreatment', name: '난임치료휴가', paid: true, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: partialUnits, includeInSummary: false },
-	{ id: 'family-care', systemKind: 'familyCare', name: '가족돌봄휴가', paid: false, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: partialUnits, includeInSummary: false },
-	{ id: 'reward', systemKind: 'reward', name: '포상휴가', paid: true, balanceMode: 'separate', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: true },
-	{ id: 'compensatory', systemKind: 'compensatory', name: '보상휴가', paid: true, balanceMode: 'separate', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: partialUnits, includeInSummary: true },
-	{ id: 'long-service', systemKind: 'longService', name: '장기근속휴가', paid: true, balanceMode: 'separate', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: true },
-	{ id: 'refresh', systemKind: 'refresh', name: '리프레시휴가', paid: true, balanceMode: 'separate', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: true },
-	{ id: 'parental-leave', systemKind: 'parentalLeave', name: '육아휴직', paid: false, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: false },
-	{ id: 'unpaid', systemKind: 'unpaid', name: '무급휴가', paid: false, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: partialUnits, includeInSummary: false },
-	{ id: 'other', systemKind: 'other', name: '기타 휴가', paid: false, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: false }
+	{ id: 'sick', systemKind: 'sick', name: '병가', paid: true, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: partialUnits, includeInSummary: false },
+	{ id: 'maternity', systemKind: 'maternity', name: '출산·육아휴가', paid: true, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: false },
+	{ id: 'unpaid', systemKind: 'unpaid', name: '무급휴가', paid: false, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: partialUnits, includeInSummary: false }
 ];
 
-export const systemLeaveTypeIDs: ReadonlySet<string> = new Set(
-	systemLeaveTypes.map((leaveType) => leaveType.id)
-);
+const knownSystemLeaveTypeKinds: Record<string, string> = {
+	annual: 'annual',
+	sick: 'sick',
+	unpaid: 'unpaid',
+	bereavement: 'bereavement',
+	public: 'public',
+	maternity: 'maternity',
+	'spouse-maternity': 'spouseMaternity',
+	'miscarriage-stillbirth': 'miscarriageStillbirth',
+	'fertility-treatment': 'fertilityTreatment',
+	'family-care': 'familyCare',
+	reward: 'reward',
+	compensatory: 'compensatory',
+	'long-service': 'longService',
+	refresh: 'refresh',
+	'parental-leave': 'parentalLeave',
+	other: 'other'
+};
 
 export function systemLeaveTypeKind(leaveTypeID: string): string | undefined {
-	return systemLeaveTypes.find((leaveType) => leaveType.id === leaveTypeID)?.systemKind;
+	return knownSystemLeaveTypeKinds[leaveTypeID];
 }
 
 export function defaultLeaveTypes(): LeaveType[] {
