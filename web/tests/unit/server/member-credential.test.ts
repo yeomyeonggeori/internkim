@@ -148,3 +148,68 @@ describe('reading the credential a messenger will accept', () => {
 		expect(await memberCredential(client, 'member-1', 'mattermost-token')).toBeNull();
 	});
 });
+
+import { reconcileMessengerAccounts } from '../../../src/lib/server/member-credential';
+
+function aRecordWithMembersAndCredentials(
+	members: { id: string; email: string | null; messenger: Record<string, string> | null }[],
+	credentials: { member_id: string; external_id: string | null }[]
+) {
+	const written: Written[] = [];
+	const client = {
+		from(table: string) {
+			return {
+				select: () => ({
+					eq: () => ({
+						returns: () =>
+							Promise.resolve(
+								table === 'member' ? { data: members, error: null } : { data: credentials, error: null }
+							)
+					})
+				}),
+				update: (row: Record<string, unknown>) => ({
+					eq: (_column: string, id: string) => {
+						written.push({ table, row: { ...row, id } });
+						return Promise.resolve({ error: null });
+					}
+				})
+			};
+		}
+	} as unknown as SupabaseClient;
+	return { client, written };
+}
+
+describe('reconciling the messenger projection from the credential', () => {
+	test('a member the projection missed is set from their credential', async () => {
+		const { client, written } = aRecordWithMembersAndCredentials(
+			[
+				{ id: 'member-1', email: 'sample@example.com', messenger: { mattermost: 'U-old' } },
+				{ id: 'member-2', email: 'match@example.com', messenger: { buzz: 'key-2' } },
+				{ id: 'member-3', email: 'nobody@example.com', messenger: null }
+			],
+			[
+				{ member_id: 'member-1', external_id: 'key-1' },
+				{ member_id: 'member-2', external_id: 'key-2' }
+			]
+		);
+
+		const healed = await reconcileMessengerAccounts(client, 'company-1', 'buzz', 'buzz-secret');
+
+		expect(healed).toEqual(['sample@example.com']);
+		expect(written).toEqual([
+			{ table: 'member', row: { messenger: { mattermost: 'U-old', buzz: 'key-1' }, id: 'member-1' } }
+		]);
+	});
+
+	test('a projection contradicting the credential is corrected, not kept', async () => {
+		const { client, written } = aRecordWithMembersAndCredentials(
+			[{ id: 'member-1', email: 'sample@example.com', messenger: { buzz: 'stale-key' } }],
+			[{ member_id: 'member-1', external_id: 'fresh-key' }]
+		);
+
+		const healed = await reconcileMessengerAccounts(client, 'company-1', 'buzz', 'buzz-secret');
+
+		expect(healed).toEqual(['sample@example.com']);
+		expect(written[0]?.row).toEqual({ messenger: { buzz: 'fresh-key' }, id: 'member-1' });
+	});
+});
