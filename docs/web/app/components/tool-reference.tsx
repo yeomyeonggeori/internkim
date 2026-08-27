@@ -106,7 +106,7 @@ export function ToolReference({ name, language }: { name: string; language: Refe
 
       <h2 id="over-http">{word.endpoint}</h2>
       <p>
-        <a href={`${language === 'ko' ? '/ko' : ''}/docs/api/reference/tools/invoke_${tool.name}`}>
+        <a href={`${language === 'ko' ? '/ko' : ''}/docs/api/reference/${tool.namespace}/${tool.name}`}>
           <code>{`POST /tools/${tool.name}/invoke`}</code>
         </a>
       </p>

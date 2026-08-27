@@ -12,7 +12,7 @@ description: 메시지 하나로 일 전체를 맡깁니다.
 ## 메시지 보내기 [#sending-a-message]
 
 ```bash
-curl https://<host>/api/v1/agent/messages \
+curl https://intern.kim/api/v1/agent/messages \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"message":"지난달 업무를 문서로 정리해 줘"}'
@@ -41,7 +41,7 @@ curl https://<host>/api/v1/agent/messages \
 ## 답 읽기 [#reading-replies]
 
 ```bash
-curl "https://<host>/api/v1/agent/replies?conversationID=dm:api:..." \
+curl "https://intern.kim/api/v1/agent/replies?conversationID=dm:api:..." \
   --header "Authorization: Bearer $INTERNKIM_TOKEN"
 ```
 
@@ -80,7 +80,7 @@ curl "https://<host>/api/v1/agent/replies?conversationID=dm:api:..." \
 도착합니다. 같은 대화에 다음 메시지를 보내는 것으로 답합니다.
 
 ```bash
-curl https://<host>/api/v1/agent/messages \
+curl https://intern.kim/api/v1/agent/messages \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"conversationID":"dm:api:...","message":"승인, 진행해"}'

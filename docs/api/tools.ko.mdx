@@ -6,7 +6,7 @@ description: 목록을 읽고, 하나를 부르고, 무엇이 바뀌었는지 �
 ## 도구 목록 [#listing-tools]
 
 ```bash
-curl https://<host>/api/v1/tools \
+curl https://intern.kim/api/v1/tools \
   --header "Authorization: Bearer $INTERNKIM_TOKEN"
 ```
 
@@ -18,7 +18,7 @@ curl https://<host>/api/v1/tools \
 ## 디스크립터 읽기 [#reading-a-descriptor]
 
 ```bash
-curl https://<host>/api/v1/tools/task_add \
+curl https://intern.kim/api/v1/tools/task_add \
   --header "Authorization: Bearer $INTERNKIM_TOKEN"
 ```
 
@@ -37,7 +37,7 @@ curl https://<host>/api/v1/tools/task_add \
 ## 호출 [#invoking]
 
 ```bash
-curl https://<host>/api/v1/tools/task_add/invoke \
+curl https://intern.kim/api/v1/tools/task_add/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"title":"분기 보고서 초안","size":"M"}}'
@@ -115,12 +115,12 @@ read가 아닌 모든 호출에 이미 승인된 연속 실행 표시를 붙이�
 [토큰 발급](/ko/docs/api#getting-a-token)에서 받은 `write` 토큰으로:
 
 ```bash
-curl https://<host>/api/v1/tools/task_add/invoke \
+curl https://intern.kim/api/v1/tools/task_add/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"title":"분기 보고서 초안","size":"M"}}'
 
-curl https://<host>/api/v1/tools/task_update/invoke \
+curl https://intern.kim/api/v1/tools/task_update/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"taskHint":"분기 보고서 초안","status":"in_progress"}}'
@@ -131,7 +131,7 @@ curl https://<host>/api/v1/tools/task_update/invoke \
 `destructive` 토큰이 필요합니다.
 
 ```bash
-curl https://<host>/api/v1/tools/task_delete/invoke \
+curl https://intern.kim/api/v1/tools/task_delete/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"taskHint":"분기 보고서 초안"}}'

@@ -69,8 +69,11 @@ describe('the document is usable as OpenAPI', () => {
 		expect(createToken.post.security).toEqual([]);
 	});
 
-	test('the server carries the host as a variable, so a reader can point it anywhere', () => {
-		expect(english.servers[0].url).toBe('https://{host}/api/v1');
-		expect(english.servers[0].variables.host.default).toMatch(/^[a-z0-9.-]+\.[a-z]+$/);
+	test('every company calls one address, and a self-hosted zone replaces it', () => {
+		expect(english.servers).toHaveLength(1);
+		expect(english.servers[0].url).toBe('https://intern.kim/api/v1');
+		expect(createOpenApiDocument('en', 'example.test').servers[0].url).toBe(
+			'https://example.test/api/v1'
+		);
 	});
 });
