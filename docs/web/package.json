@@ -10,6 +10,7 @@
     "deploy": "bun run build && bun run ../../web/scripts/deploy-pages.ts --project internkim-docs --output build/client",
     "generate:tools": "bun run scripts/generate-tool-catalog.ts",
     "prebuild": "bun run generate:tools",
+    "postbuild": "cp build/client/__spa-fallback.html build/client/404.html",
     "predev": "bun run generate:tools"
   },
   "dependencies": {
