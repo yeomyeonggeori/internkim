@@ -40,9 +40,7 @@ export async function askedDirectory(
 	if (!store) throw error(500, 'the fleet register is not available');
 	const device = await kv.getDevice(store, fleetID);
 	if (!device) throw error(404, 'Fleet not found');
-	const directory = await fleetDirectory(environmentOfPlatform(platform?.env), fleetID);
-	if (!directory) throw error(404, 'this fleet belongs to no company yet');
-	return { device, directory };
+	return { device, directory: await fleetDirectory(environmentOfPlatform(platform?.env), fleetID) };
 }
 
 function callerEmail(request: Request): string {
