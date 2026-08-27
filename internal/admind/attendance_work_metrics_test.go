@@ -221,7 +221,7 @@ func TestAttendanceWorkMetricsAutonomousHasNoBaseline(t *testing.T) {
 	}
 }
 
-func TestAttendanceWorkMetricsAppliesCurrentAutonomousPolicyToEveryDate(t *testing.T) {
+func TestAttendanceWorkMetricsJudgesEachDateByTheRevisionInForceThen(t *testing.T) {
 	location, errorValue := time.LoadLocation("Asia/Seoul")
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -267,15 +267,79 @@ func TestAttendanceWorkMetricsAppliesCurrentAutonomousPolicyToEveryDate(t *testi
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if status.HasBaseline ||
-		status.TargetMinutes != 0 ||
+	if len(status.Days) != 2 ||
+		status.Days[0].WorkMode != attendanceWorkModeFixed ||
+		status.Days[1].WorkMode != attendanceWorkModeAutonomous {
+		t.Fatalf("each date must carry the mode in force on it: %+v", status.Days)
+	}
+	if !status.Days[0].HasBaseline ||
+		status.Days[0].TargetMinutes != 480 ||
+		status.Days[0].ActualMinutes != 240 {
+		t.Fatalf("the day before the change must keep the fixed baseline: %+v", status.Days[0])
+	}
+	if status.Days[1].HasBaseline || status.Days[1].TargetMinutes != 0 {
+		t.Fatalf("the day after the change must be autonomous: %+v", status.Days[1])
+	}
+	if !status.HasBaseline ||
+		status.TargetMinutes != 480 ||
 		status.ActualMinutes != 720 ||
 		status.LeaveMinutes != 0 ||
-		status.FulfilledMinutes != 720 ||
-		status.DifferenceMinutes != 0 ||
-		status.RemainingMinutes != 0 ||
+		status.FulfilledMinutes != 240 ||
+		status.DifferenceMinutes != -240 ||
+		status.RemainingMinutes != 240 ||
 		status.OvertimeMinutes != 0 {
 		t.Fatalf("status = %+v", status)
+	}
+}
+
+func TestAttendanceWorkMetricsDeductTheBreakThatAppliedOnEachDate(t *testing.T) {
+	location, errorValue := time.LoadLocation("Asia/Seoul")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	shortBreak := defaultAttendanceWorkPolicyRevision()
+	shortBreak.WorkMode = attendanceWorkModeFixed
+	shortBreak.FixedStartTime = "09:00"
+	shortBreak.FixedEndTime = "18:00"
+	shortBreak.CoreTimeEnabled = false
+	shortBreak.CoreStartTime = ""
+	shortBreak.CoreEndTime = ""
+	longBreak := shortBreak
+	longBreak.EffectiveDate = "2026-08-03"
+	longBreak.BreakPeriods = []attendanceWorkScheduleBreakPeriod{{StartTime: "12:00", EndTime: "14:00"}}
+	longBreak.DailyTargetMinutes = 420
+	longBreak.WeeklyTargetMinutes = 2100
+	policy := defaultAttendanceWorkPolicy()
+	policy.Revisions = []attendanceWorkPolicyRevision{shortBreak, longBreak}
+
+	status, errorValue := calculateAttendanceWorkStatus(
+		"kim@example.com",
+		"이샘플",
+		"2026-07-31",
+		"2026-08-03",
+		[]attendanceEvent{
+			workMetricEvent("before-in", attendanceKindClockIn, "2026-07-31T00:00:00Z"),
+			workMetricEvent("before-out", attendanceKindClockOut, "2026-07-31T09:00:00Z"),
+			workMetricEvent("after-in", attendanceKindClockIn, "2026-08-03T00:00:00Z"),
+			workMetricEvent("after-out", attendanceKindClockOut, "2026-08-03T09:00:00Z"),
+		},
+		[]attendanceApprovedLeaveOccurrence{},
+		policy,
+		map[string]struct{}{},
+		location,
+		time.Date(2026, time.August, 4, 0, 0, 0, 0, location),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(status.Days) != 4 {
+		t.Fatalf("days = %+v", status.Days)
+	}
+	if status.Days[0].Date != "2026-07-31" || status.Days[0].ActualMinutes != 480 {
+		t.Fatalf("the day before the change keeps the one-hour break: %+v", status.Days[0])
+	}
+	if status.Days[3].Date != "2026-08-03" || status.Days[3].ActualMinutes != 420 {
+		t.Fatalf("the day the change takes effect deducts the two-hour break: %+v", status.Days[3])
 	}
 }
 

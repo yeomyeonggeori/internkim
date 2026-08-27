@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestAttendanceWorkCalendarProjectionUsesHolidaysAndCurrentWorkMode(t *testing.T) {
+func TestAttendanceWorkCalendarProjectionUsesHolidaysAndTheWorkModeOfEachDate(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	if _, errorValue := service.createCalendarCompanyHoliday(
 		t.Context(),
@@ -41,9 +41,9 @@ func TestAttendanceWorkCalendarProjectionUsesHolidaysAndCurrentWorkMode(t *testi
 	}
 
 	want := []attendanceWorkCalendarDay{
-		{Date: "2027-01-01", WorkMode: attendanceWorkModeFixed, WorkingDate: false, Holiday: true},
-		{Date: "2027-01-02", WorkMode: attendanceWorkModeFixed, WorkingDate: false, Holiday: false},
-		{Date: "2027-01-03", WorkMode: attendanceWorkModeFixed, WorkingDate: false, Holiday: false},
+		{Date: "2027-01-01", WorkMode: attendanceWorkModeFlexible, WorkingDate: false, Holiday: true},
+		{Date: "2027-01-02", WorkMode: attendanceWorkModeFlexible, WorkingDate: false, Holiday: false},
+		{Date: "2027-01-03", WorkMode: attendanceWorkModeFlexible, WorkingDate: false, Holiday: false},
 		{Date: "2027-01-04", WorkMode: attendanceWorkModeFixed, WorkingDate: true, Holiday: false},
 		{Date: "2027-01-05", WorkMode: attendanceWorkModeFixed, WorkingDate: false, Holiday: true},
 	}
