@@ -604,6 +604,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/files/api/", service.handleFiles)
 	multiplexer.HandleFunc("/files/", service.serveFilesPage)
 	multiplexer.HandleFunc("/runs", service.serveTaskRunsPage)
+	multiplexer.HandleFunc("/runs/api", service.handleTaskRuns)
 	multiplexer.HandleFunc("/runs/api/", service.handleTaskRuns)
 	multiplexer.HandleFunc("/runs/", service.serveTaskRunsPage)
 	multiplexer.HandleFunc("/company", service.serveCompanySharePage)
