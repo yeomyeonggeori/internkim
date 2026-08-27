@@ -21,9 +21,11 @@ var StepBuzzChatd = Step{
 		// A chatd that answers is not a chatd that is configured the way this
 		// release wants it. Whatever is installed keeps running until it says
 		// where it binds, or a change to that address never reaches the device.
+		installedUnit := trimmedRun(context, "cat "+blueclaw.ChatdServicePath)
 		return trimmedRun(context, "systemctl is-active "+blueclaw.ChatdServiceName) == "active" &&
 			trimmedRun(context, blueclaw.ChatdHealthCheckCommand()) == "ok" &&
-			strings.Contains(trimmedRun(context, "cat "+blueclaw.ChatdServicePath), "CHATD_LISTEN_HOSTNAME="+blueclaw.ChatdListenHostname)
+			strings.Contains(installedUnit, "CHATD_LISTEN_HOSTNAME="+blueclaw.ChatdListenHostname) &&
+			strings.Contains(installedUnit, "CHATD_WORKSPACE_ROOT="+blueclaw.BlueclawWorkspacePath)
 	},
 	Run: func(context *Context) error {
 		if context.Backend != BackendSSH {
