@@ -20,7 +20,7 @@ type EndpointCopy = { summary: string; description: string };
 type ApiCopy = {
 	title: string;
 	description: string;
-	hostVariable: string;
+	serverDescription: string;
 	tags: Record<'token' | 'agent' | 'tools' | 'capabilities', string>;
 	endpoints: Record<
 		| 'createToken'
@@ -45,7 +45,7 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			'`POST /tokens`으로 토큰을 만들고, 이후 모든 요청에 `Authorization: Bearer <token>`을 담습니다.',
 			'토큰 발급만은 관리 화면에 로그인한 세션으로 합니다.'
 		].join('\n'),
-		hostVariable: '기기 또는 회사 호스트 이름',
+		serverDescription: '모든 회사가 이 한 주소를 씁니다. 어느 회사인지는 토큰이 말합니다.',
 		tags: {
 			token: '토큰',
 			agent: '에이전트에게 맡기기',
@@ -96,7 +96,7 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			'Create a token with `POST /tokens`, then send `Authorization: Bearer <token>` on every request.',
 			'Creating the token itself uses a signed-in staff session.'
 		].join('\n'),
-		hostVariable: 'the device or company hostname',
+		serverDescription: 'Every company calls this one address; the token says which company it is.',
 		tags: {
 			token: 'Tokens',
 			agent: 'Asking the agent',
@@ -142,6 +142,8 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 		}
 	}
 };
+
+const defaultZone = 'intern.kim';
 
 const tokenScopes = [
 	'read',
@@ -325,7 +327,7 @@ function namedToolPath(tool: CatalogTool, copy: ApiCopy) {
 	return {
 		post: {
 			tags: [`${copy.tags.capabilities}: ${tool.namespace}`],
-			operationId: `invoke_${tool.name}`,
+			operationId: tool.name,
 			summary: tool.name,
 			description: describeTool(tool),
 			requestBody: {
@@ -474,7 +476,7 @@ function createComponents(copy: ApiCopy) {
 	};
 }
 
-export function createOpenApiDocument(language: ApiDocumentationLanguage) {
+export function createOpenApiDocument(language: ApiDocumentationLanguage, zone = defaultZone) {
 	const copy = localizedCopy[language];
 	return {
 		openapi: '3.1.0',
@@ -483,12 +485,7 @@ export function createOpenApiDocument(language: ApiDocumentationLanguage) {
 			version: protocolVersion(),
 			description: copy.description
 		},
-		servers: [
-			{
-				url: 'https://{host}/api/v1',
-				variables: { host: { default: 'device.example.test', description: copy.hostVariable } }
-			}
-		],
+		servers: [{ url: `https://${zone}/api/v1`, description: copy.serverDescription }],
 		security: [{ memberToken: [] }],
 		paths: createPaths(copy),
 		components: createComponents(copy)
