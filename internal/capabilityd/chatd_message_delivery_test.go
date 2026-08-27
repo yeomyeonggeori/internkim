@@ -2,6 +2,7 @@ package capabilityd
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -64,7 +65,9 @@ func TestChatdMessageSendPostsCurrentChannelThroughChatd(testContext *testing.T)
 	}
 }
 
-func TestChatdMessageSendCarriesWorkspaceAttachmentsAsDevicePaths(testContext *testing.T) {
+// The file is read by the person sending it and arrives as content; chatd is
+// handed a copy on disk beside this daemon, never a reach into the workspace.
+func TestChatdMessageSendCarriesAFileSomebodyElseRead(testContext *testing.T) {
 	workspaceDirectory := testContext.TempDir()
 	attachmentPath := filepath.Join(workspaceDirectory, "지도.png")
 	if errorValue := os.WriteFile(attachmentPath, []byte("png"), 0o600); errorValue != nil {
@@ -86,7 +89,14 @@ func TestChatdMessageSendCarriesWorkspaceAttachmentsAsDevicePaths(testContext *t
 	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_send",
 		Input:    json.RawMessage(`{"targetType":"channel","channelName":"잡담","message":"번역본입니다","attachments":["/workspace/지도.png"]}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+		Transport: capabilities.ToolInvokeTransport{
+			WorkspaceFiles: []capabilities.WorkspaceFile{{
+				WorkspacePath: "/workspace/지도.png",
+				Filename:      "지도.png",
+				ContentBase64: base64.StdEncoding.EncodeToString([]byte("png")),
+			}},
+		},
+		Context: capabilities.ToolInvokeContext{Platform: "buzz"},
 	})
 	if errorValue != nil {
 		testContext.Fatalf("send failed: %v", errorValue)
@@ -97,7 +107,7 @@ func TestChatdMessageSendCarriesWorkspaceAttachmentsAsDevicePaths(testContext *t
 	if receivedRequest.ChannelName != "잡담" {
 		testContext.Fatalf("chatd received %+v", receivedRequest)
 	}
-	if len(receivedRequest.Attachments) != 1 || receivedRequest.Attachments[0].DevicePath != attachmentPath {
+	if len(receivedRequest.Attachments) != 1 || filepath.Base(receivedRequest.Attachments[0].DevicePath) != "지도.png" {
 		testContext.Fatalf("attachments carried %+v", receivedRequest.Attachments)
 	}
 }
@@ -107,7 +117,6 @@ func TestChatdPlatformKeepsMattermostToolsHonestlyUnrouted(testContext *testing.
 	for toolName, invoke := range map[string]func(context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error){
 		"message_search": service.invokePlatformMessageSearch,
 		"message_update": service.invokePlatformMessageUpdate,
-		"message_delete": service.invokePlatformMessageDelete,
 	} {
 		response, errorValue := invoke(context.Background(), capabilities.ToolInvokeRequest{
 			ToolName: toolName,
@@ -141,5 +150,34 @@ func TestChatdMessageSendRefusesDirectMessagesLoudly(testContext *testing.T) {
 	}
 	if !strings.Contains(response.Content, "currentChannel") {
 		testContext.Fatalf("refusal should point at a working target, answered %q", response.Content)
+	}
+}
+
+// chatd has been able to delete a message as the person who wrote it since the
+// messenger screen learned to. Only the route from here was missing, and the
+// agent was told deletion did not exist on this platform.
+func TestChatdPlatformDeletesAMessageThroughChatd(testContext *testing.T) {
+	askedPath := ""
+	service := Service{
+		Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			askedPath = request.URL.Path
+			return testJSONResponse(http.StatusOK, map[string]any{}), nil
+		})},
+	}
+
+	response, errorValue := service.invokePlatformMessageDelete(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_delete",
+		Input:    json.RawMessage(`{"messageIDs":["message-1"]}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1:message-0"},
+	})
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded {
+		testContext.Fatalf("expected the deletion to be carried out, got %+v", response)
+	}
+	if !strings.Contains(askedPath, "message_delete") {
+		testContext.Fatalf("expected chatd to be asked to delete, it was asked %q", askedPath)
 	}
 }

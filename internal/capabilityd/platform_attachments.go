@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -143,43 +142,6 @@ func (service Service) uploadMattermostFiles(ctx context.Context, channelID stri
 		fileIDs = append(fileIDs, fileID)
 	}
 	return fileIDs, nil
-}
-
-func (service Service) resolveWorkspaceAttachmentFiles(paths []string) ([]platformFile, error) {
-	files := []platformFile{}
-	for _, path := range paths {
-		file, errorValue := service.resolveWorkspaceAttachmentFile(path)
-		if errorValue != nil {
-			return nil, errors.New(path + ": " + errorValue.Error())
-		}
-		files = append(files, file)
-	}
-	return files, nil
-}
-
-func (service Service) resolveWorkspaceAttachmentFile(path string) (platformFile, error) {
-	hostPath, agentPath, errorValue := service.resolveFileReadPath(path)
-	if errorValue != nil {
-		return platformFile{}, errorValue
-	}
-	information, errorValue := os.Stat(hostPath)
-	if errorValue != nil {
-		return platformFile{}, errors.New("attachment file is unavailable")
-	}
-	if information.Size() > workspaceAttachmentMaximumBytes {
-		return platformFile{}, fmt.Errorf("attachment is larger than the %dMB upload limit", workspaceAttachmentMaximumBytes/(1024*1024))
-	}
-	filename := safeDeviceBrowserFilename(filepath.Base(agentPath))
-	if filename == "" {
-		return platformFile{}, errors.New("attachment filename is required")
-	}
-	return platformFile{
-		DevicePath:  hostPath,
-		Filename:    filename,
-		ContentType: detectWorkspaceFileContentType(hostPath),
-		SizeBytes:   information.Size(),
-		Title:       strings.TrimSuffix(filename, filepath.Ext(filename)),
-	}, nil
 }
 
 func (service Service) uploadMattermostFile(ctx context.Context, channelID string, file platformFile) (string, error) {

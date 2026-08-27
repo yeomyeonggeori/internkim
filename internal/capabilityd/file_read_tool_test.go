@@ -40,7 +40,7 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/docs/report.pdf"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(carryingTheFile(t, workspacePath, `{"input":{"path":"/workspace/docs/report.pdf"}}`)))
 	if errorValue != nil {
 		t.Fatalf("expected document_read: %v", errorValue)
 	}
@@ -50,7 +50,7 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 	if response.Provider != "anydoc" || response.SelectedBackend != capabilities.LLMBackendDevice || response.ToolName != "document_read" || response.Outcome != capabilities.ToolOutcomeSucceeded || response.Effects == nil || len(response.Effects) != 0 {
 		t.Fatalf("unexpected response identity: %+v", response)
 	}
-	if helperRequest.Path != sourcePath || helperRequest.OCRMode != "never" || helperRequest.OpenRouterAPIKey != "" {
+	if filepath.Base(helperRequest.Path) != filepath.Base(sourcePath) || helperRequest.OCRMode != "never" || helperRequest.OpenRouterAPIKey != "" {
 		t.Fatalf("unexpected helper request: %+v", helperRequest)
 	}
 	var result documentReadResult
@@ -65,7 +65,7 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 	}
 
 	helperOutput = []byte(`{"content":"# Report\n\nBody"}`)
-	response, errorValue = service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/docs/report.pdf"}}`))
+	response, errorValue = service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(carryingTheFile(t, workspacePath, `{"input":{"path":"/workspace/docs/report.pdf"}}`)))
 	if errorValue != nil {
 		t.Fatalf("expected document_read without warnings: %v", errorValue)
 	}
@@ -106,7 +106,13 @@ func TestDocumentReadRejectsUnsupportedInputFields(t *testing.T) {
 	}
 }
 
-func TestDocumentReadRejectsUnsafeWorkspacePaths(t *testing.T) {
+// This daemon runs as root beside the workspace and never opens it. Naming a
+// file — anybody's, however sensitive — gets nothing, because reading happens
+// where the person's own identity exists and only their content arrives here.
+// Blocking these names by matching the strings is what this replaces: a filter
+// that refuses what somebody may in fact read, and cannot be trusted for what
+// they may not.
+func TestDocumentReadOpensNothingItWasMerelyToldAbout(t *testing.T) {
 	workspacePath := t.TempDir()
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-file")
 	wasCalled := false
@@ -130,8 +136,8 @@ func TestDocumentReadRejectsUnsafeWorkspacePaths(t *testing.T) {
 		if errorValue != nil {
 			t.Fatalf("expected structured error response: %v", errorValue)
 		}
-		if !response.IsError || response.FailureStage != "path_validation" || wasCalled {
-			t.Fatalf("expected path validation failure, response=%+v called=%v", response, wasCalled)
+		if !response.IsError || response.ErrorCode != "file_not_carried" || wasCalled {
+			t.Fatalf("expected the file to be refused for not being carried, response=%+v called=%v", response, wasCalled)
 		}
 	}
 }
@@ -151,7 +157,7 @@ func TestDocumentReadFallsBackToNoOCRWithoutOpenRouterKey(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/notes.txt"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(carryingTheFile(t, workspacePath, `{"input":{"path":"/workspace/notes.txt"}}`)))
 	if errorValue != nil {
 		t.Fatalf("expected document_read without OCR: %v", errorValue)
 	}
@@ -182,14 +188,14 @@ func TestDocumentReadUsesNoOCRForHTMLWithOpenRouterKey(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/index.html"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(carryingTheFile(t, workspacePath, `{"input":{"path":"/workspace/index.html"}}`)))
 	if errorValue != nil {
 		t.Fatalf("expected document_read: %v", errorValue)
 	}
 	if response.IsError || response.Content != "# HTML Title" {
 		t.Fatalf("unexpected response: %+v", response)
 	}
-	if helperRequest.Path != sourcePath || helperRequest.OCRMode != "never" || helperRequest.OpenRouterAPIKey != "" {
+	if filepath.Base(helperRequest.Path) != filepath.Base(sourcePath) || helperRequest.OCRMode != "never" || helperRequest.OpenRouterAPIKey != "" {
 		t.Fatalf("expected HTML to use no-OCR conversion, got %+v", helperRequest)
 	}
 }
@@ -243,7 +249,7 @@ func TestDocumentReadFallsBackToOCRWhenLocalExtractionNeedsIt(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/scan.pdf"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(carryingTheFile(t, workspacePath, `{"input":{"path":"/workspace/scan.pdf"}}`)))
 	if errorValue != nil {
 		t.Fatalf("expected document_read: %v", errorValue)
 	}
@@ -278,7 +284,7 @@ func TestDocumentReadReportsLocalFailureWhenOCRIsUnavailable(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/scan.pdf"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(carryingTheFile(t, workspacePath, `{"input":{"path":"/workspace/scan.pdf"}}`)))
 	if errorValue != nil {
 		t.Fatalf("expected structured error response: %v", errorValue)
 	}
@@ -303,7 +309,7 @@ func TestDocumentReadTruncatesLargeOutput(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/large.txt","maxOutputBytes":1200}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(carryingTheFile(t, workspacePath, `{"input":{"path":"/workspace/large.txt","maxOutputBytes":1200}}`)))
 	if errorValue != nil {
 		t.Fatalf("expected document_read: %v", errorValue)
 	}
@@ -331,7 +337,7 @@ func TestDocumentReadHelperFailureReturnsStructuredFacts(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(`{"input":{"path":"/workspace/broken.pdf"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document_read", strings.NewReader(carryingTheFile(t, workspacePath, `{"input":{"path":"/workspace/broken.pdf"}}`)))
 	if errorValue != nil {
 		t.Fatalf("expected structured error response: %v", errorValue)
 	}
@@ -349,7 +355,7 @@ func TestImageReadReturnsImageAttachment(t *testing.T) {
 		BlueclawWorkspacePath: workspacePath,
 	}.WithDefaults()}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "image_read", strings.NewReader(`{"input":{"path":"/workspace/uploads/screen.png"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "image_read", strings.NewReader(carryingTheFile(t, workspacePath, `{"input":{"path":"/workspace/uploads/screen.png"}}`)))
 	if errorValue != nil {
 		t.Fatalf("expected image_read: %v", errorValue)
 	}
@@ -393,4 +399,33 @@ func writeFileReadTestFile(t *testing.T, path string, content string) {
 	if errorValue := os.WriteFile(path, []byte(content), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+}
+
+// The caller reads a person's file where their identity exists and sends its
+// content; this daemon is handed the file, never a place to find one. A test
+// stands in for that caller.
+func carryingTheFile(t *testing.T, workspacePath string, body string) string {
+	t.Helper()
+	document := map[string]any{}
+	if errorValue := json.Unmarshal([]byte(body), &document); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	input, _ := document["input"].(map[string]any)
+	agentPath, _ := input["path"].(string)
+	content, errorValue := os.ReadFile(filepath.Join(workspacePath, strings.TrimPrefix(agentPath, "/workspace/")))
+	if errorValue != nil {
+		content = nil
+	}
+	document["transport"] = map[string]any{
+		"workspaceFile": map[string]any{
+			"workspacePath": agentPath,
+			"filename":      filepath.Base(agentPath),
+			"contentBase64": base64.StdEncoding.EncodeToString(content),
+		},
+	}
+	carried, errorValue := json.Marshal(document)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return string(carried)
 }

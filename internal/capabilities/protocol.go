@@ -48,6 +48,7 @@ type ToolInvokeRequest = capabilityprotocol.ToolInvokeRequest
 type ToolInvokeContext = capabilityprotocol.ToolInvokeContext
 type ToolInvokeTransport = capabilityprotocol.ToolInvokeTransport
 type SiteSourceBundle = capabilityprotocol.SiteSourceBundle
+type WorkspaceFile = capabilityprotocol.WorkspaceFile
 type ActorContext = capabilityprotocol.ActorContext
 type ToolInvokeResponse = capabilityprotocol.ToolInvokeResponse
 type ResourceScope = capabilityprotocol.ResourceScope
