@@ -109,6 +109,13 @@ field.
 carrying `X-INTERNKIM-REQUESTER-EMAIL` and `X-INTERNKIM-REQUESTER-PERMISSION`.
 The relay is the only writer of both. It never forwards a header it received.
 
+Every call that names a person goes that way, not only the public API. The
+member capabilities (`person.memory.*`, `person.files.*`, `person.runs.*`,
+`person.buzz.*`) are asked for on the same socket, carrying the email alone: a
+member arrives through the gateway with no key, so there is no permission to
+assert, and the paths they reach read none. What is left on `127.0.0.1:18080`
+is the one call that names nobody, `/admin/api/directory/changed`.
+
 **admind.** Listens on the unix socket as well as `127.0.0.1:18080`, and honours
 the two headers only on the socket. On TCP they are ignored, exactly as if
 absent, so a caller that finds the port gets whatever an anonymous caller gets.
@@ -150,6 +157,47 @@ collapsed into. `publicToolScopeForDescriptor` keeps doing its job and answers
 with one of the three names. No per-tool permission table exists, because the
 side-effect class on the descriptor already says which of the three a tool
 needs.
+
+## Files
+
+`message_send` takes `attachments` as workspace paths, and no tool in the
+catalog puts bytes into a workspace. So a caller can send back a file the
+company already holds and cannot send one of their own.
+
+Bytes must not travel in the call envelope. The relay answers at most
+`largestMessageTheProPlanCarries`, three megabytes, and base64 leaves about
+2.25 of raw file inside it. Reading an attachment already avoids the envelope:
+`keptForReading` answers with an address in the company's asset bucket rather
+than the file. Writing is that move mirrored.
+
+`POST /v1/files` takes the body and the content type, puts it in the company's
+asset bucket under the digest the bucket already addresses by, then makes one
+ordinary call to the machine to materialise it into the workspace, and answers
+the workspace path. That path is what `attachments` wants, so the caller learns
+one concept and the message call is unchanged.
+
+The bytes reach Supabase from the worker and never enter a capability call. The
+call that follows carries a reference, so the three-megabyte ceiling never
+applies to a file, and the company machine pulls from the bucket it already
+holds a client for.
+
+The materialising call is a capability like any other, which keeps the relay
+deciding nothing: it downloads what it was named and posts it to admind's own
+`/files/api/upload` over the same socket, under the same two requester headers,
+then answers the directory it asked for joined with the name admind reports
+back. The relay could not write the workspace itself: its unit runs as
+`internkim` with `ProtectSystem=strict` and `ProtectHome=true`, a private home
+belongs to that person's POSIX user, and on a device the workspace lives inside
+the Blueclaw guest image. The directory is the requester's own personal root
+from `/files/api/roots` with `inbox/api` under it, so the caller still names no
+destination, and the filename it offered is reduced to its leaf. The worker
+decides nothing about tools either; it uploads and asks.
+
+A `message_send` naming those paths is the same move reversed. capabilityd runs
+beside the guest with no identity to become, so it refuses a message whose files
+nobody carried; admind reads each named path through Blueclaw as the person whose
+key made the call and hands the content over in `transport.workspaceFiles`, which
+is what the agent's own path does too.
 
 ## Asking the agent
 

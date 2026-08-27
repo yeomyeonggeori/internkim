@@ -1,10 +1,21 @@
 import { baseCatalogAnswer, liveParameter, toolReachableBy } from './catalog';
 import {
+	contentTypeOffered,
+	filenameOffered,
+	filesPath,
+	keepFileInTheBucket,
+	materialiseCapability,
+	mayWriteAFile,
+	oversizeRefusal,
+	sizeTheHeaderClaims
+} from './files';
+import {
 	PersonalKeyCache,
 	RecordRefused,
 	callerOfPersonalKey,
 	type Caller,
-	type CallerPermission
+	type CallerPermission,
+	type ControlPlaneCredentials
 } from './personal-key';
 
 export type CompanyCall = {
@@ -57,11 +68,51 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	if (!caller) return jsonResponse({ error: 'this key belongs to nobody' }, 401);
 
 	const path = url.pathname.slice(apiPrefix.length) || '/';
+	if (request.method === 'POST' && path === filesPath) {
+		return keepThenMaterialise(request, environment, caller, url);
+	}
 	if (request.method === 'GET' && !asksForTheLiveSet(url)) {
 		const answered = discoveryAnswer(path, caller.permission);
 		if (answered) return answered;
 	}
 	return carryToTheCompany(request, environment, caller, path, url);
+}
+
+async function keepThenMaterialise(
+	request: Request,
+	environment: WorkerEnvironment,
+	caller: Caller,
+	url: URL
+): Promise<Response> {
+	if (!mayWriteAFile(caller.permission)) {
+		return jsonResponse({ error: 'this key may only read, and putting a file somewhere is a write' }, 403);
+	}
+	const claimed = sizeTheHeaderClaims(request);
+	const claimedRefusal = claimed === null ? null : oversizeRefusal(claimed);
+	if (claimedRefusal) return jsonResponse({ error: claimedRefusal }, 413);
+
+	const bytes = new Uint8Array(await request.arrayBuffer());
+	if (bytes.byteLength === 0) return jsonResponse({ error: 'this call carried no file' }, 400);
+	const refusal = oversizeRefusal(bytes.byteLength);
+	if (refusal) return jsonResponse({ error: refusal }, 413);
+
+	const kept = await keepFileInTheBucket(
+		credentialsOf(environment),
+		caller.companyID,
+		bytes,
+		contentTypeOffered(request)
+	);
+	return answerOfCompanyCall(environment, caller.companyID, {
+		requestID: crypto.randomUUID(),
+		capability: materialiseCapability,
+		body: {
+			requester: caller.email,
+			permission: caller.permission,
+			digest: kept.digest,
+			contentType: kept.contentType,
+			filename: filenameOffered(url)
+		}
+	});
 }
 
 function discoveryAnswer(path: string, permission: CallerPermission): Response | null {
@@ -84,7 +135,7 @@ async function carryToTheCompany(
 	const payload = await payloadOf(request);
 	if (!payload) return jsonResponse({ error: 'this call carried a body that is not a json object' }, 400);
 
-	const answer = await environment.COMPANY_CALLS.callCompany(caller.companyID, {
+	return answerOfCompanyCall(environment, caller.companyID, {
 		requestID: crypto.randomUUID(),
 		capability: personAPICapability,
 		body: {
@@ -96,7 +147,14 @@ async function carryToTheCompany(
 			payload
 		}
 	});
+}
 
+async function answerOfCompanyCall(
+	environment: WorkerEnvironment,
+	companyID: string,
+	call: CompanyCall
+): Promise<Response> {
+	const answer = await environment.COMPANY_CALLS.callCompany(companyID, call);
 	const status = httpStatusOf(answer.status);
 	if (!status) {
 		return jsonResponse({ error: `the company answered ${String(answer.status)}, which is not a status` }, 502);
@@ -133,14 +191,15 @@ function queryTheCompanySees(url: URL): string {
 	return parameters.toString();
 }
 
+function credentialsOf(environment: WorkerEnvironment): ControlPlaneCredentials {
+	return { projectURL: environment.SUPABASE_URL, serviceRoleKey: environment.SUPABASE_SECRET_KEY };
+}
+
 let sharedKeyCache: PersonalKeyCache | undefined;
 
 function keyCacheFor(environment: WorkerEnvironment): PersonalKeyCache {
 	sharedKeyCache ??= new PersonalKeyCache((presented) =>
-		callerOfPersonalKey(
-			{ projectURL: environment.SUPABASE_URL, serviceRoleKey: environment.SUPABASE_SECRET_KEY },
-			presented
-		)
+		callerOfPersonalKey(credentialsOf(environment), presented)
 	);
 	return sharedKeyCache;
 }
