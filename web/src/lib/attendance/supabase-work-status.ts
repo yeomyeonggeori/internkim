@@ -147,7 +147,9 @@ export function calculateSupabaseEmployeeWorkStatus(
 	const actualSeconds = total((day) => day.actualSeconds);
 	const leaveMinutes = total((day) => (day.hasBaseline ? day.leaveMinutes : 0));
 	const baselineActualMinutes = total((day) =>
-		day.hasBaseline ? day.actualMinutes + day.provisionalMinutes : 0
+		day.hasBaseline && !leaveCoversBaseline(day.hasBaseline, day.targetMinutes, day.leaveMinutes)
+			? day.actualMinutes + day.provisionalMinutes
+			: 0
 	);
 	const periodTarget = total((day) => (day.hasBaseline ? day.targetMinutes : 0));
 	const fulfilledMinutes = Math.min(periodTarget, baselineActualMinutes);
@@ -225,9 +227,12 @@ function dayStatusOf(
 	const fulfilledMinutes = hasBaseline
 		? Math.min(dayTargetMinutes, creditedMinutes)
 		: creditedMinutes;
-	const differenceMinutes = hasBaseline ? creditedMinutes - dayTargetMinutes : 0;
+	const baselineWaivedByLeave = leaveCoversBaseline(hasBaseline, dayTargetMinutes, leaveMinutes);
+	const differenceMinutes =
+		hasBaseline && !baselineWaivedByLeave ? creditedMinutes - dayTargetMinutes : 0;
 	const remainingMinutes = hasBaseline ? Math.max(0, dayTargetMinutes - fulfilledMinutes) : 0;
-	const overtimeMinutes = hasBaseline ? Math.max(0, creditedMinutes - dayTargetMinutes) : 0;
+	const overtimeMinutes =
+		hasBaseline && !baselineWaivedByLeave ? Math.max(0, creditedMinutes - dayTargetMinutes) : 0;
 	const hasLeaveWorkOverlap = isOnLeave && workedMinutes + provisionalMinutes > 0;
 	const needsReview = worked.hasIncompleteWorkRecord || hasLeaveWorkOverlap;
 
@@ -258,6 +263,14 @@ function dayStatusOf(
 		workSegments: segments,
 		leaveSegments: []
 	};
+}
+
+function leaveCoversBaseline(
+	hasBaseline: boolean,
+	targetMinutes: number,
+	leaveMinutes: number
+): boolean {
+	return hasBaseline && leaveMinutes > 0 && targetMinutes === 0;
 }
 
 function leaveRowAppliesToDay(row: SupabaseWorkStatusLeave, day: string, timeZone: string): boolean {

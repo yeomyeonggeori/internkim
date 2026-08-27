@@ -52,7 +52,7 @@ func TestAttendanceWorkMetricsSubtractBreaksAndReduceTargetByApprovedLeave(t *te
 	}
 }
 
-func TestAttendanceWorkMetricsCapLeaveAndDeriveOvertimeFromActualWork(t *testing.T) {
+func TestAttendanceWorkMetricsCapLeaveToDailyTarget(t *testing.T) {
 	location, errorValue := time.LoadLocation("Asia/Seoul")
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -88,7 +88,7 @@ func TestAttendanceWorkMetricsCapLeaveAndDeriveOvertimeFromActualWork(t *testing
 		status.TargetMinutes != 0 ||
 		status.LeaveMinutes != 480 ||
 		status.FulfilledMinutes != 0 ||
-		status.OvertimeMinutes != 600 ||
+		status.OvertimeMinutes != 0 ||
 		status.RemainingMinutes != 0 {
 		t.Fatalf("status = %+v", status)
 	}
@@ -641,5 +641,141 @@ func workMetricEvent(id string, kind string, occurredAt string) attendanceEvent 
 		DisplayName: "이샘플",
 		Kind:        kind,
 		OccurredAt:  occurredAt,
+	}
+}
+
+func TestAttendanceWorkMetricsTreatLeaveCoveredDayAsLeaveNotOvertime(t *testing.T) {
+	location, errorValue := time.LoadLocation("Asia/Seoul")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	leaves := []attendanceApprovedLeaveOccurrence{{
+		Email:              "kim@example.com",
+		Date:               "2026-07-30",
+		DeductionMilliDays: 1000,
+		Paid:               true,
+		StartTime:          "09:00",
+		EndTime:            "18:00",
+	}}
+
+	restDay, errorValue := calculateAttendanceWorkStatus(
+		"kim@example.com",
+		"이샘플",
+		"2026-07-30",
+		"2026-07-30",
+		nil,
+		leaves,
+		defaultAttendanceWorkPolicy(),
+		map[string]struct{}{},
+		location,
+		time.Date(2026, time.July, 31, 0, 0, 0, 0, location),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if restDay.Days[0].TargetMinutes != 0 ||
+		restDay.Days[0].LeaveMinutes != 480 ||
+		restDay.Days[0].OvertimeMinutes != 0 ||
+		restDay.Days[0].Status != "leaveCovered" ||
+		restDay.Status != "leaveCovered" {
+		t.Fatalf("rest day = %+v", restDay)
+	}
+
+	workedDay, errorValue := calculateAttendanceWorkStatus(
+		"kim@example.com",
+		"이샘플",
+		"2026-07-30",
+		"2026-07-30",
+		[]attendanceEvent{
+			workMetricEvent("in", attendanceKindClockIn, "2026-07-30T00:00:00Z"),
+			workMetricEvent("out", attendanceKindClockOut, "2026-07-30T01:20:00Z"),
+		},
+		leaves,
+		defaultAttendanceWorkPolicy(),
+		map[string]struct{}{},
+		location,
+		time.Date(2026, time.July, 31, 0, 0, 0, 0, location),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if workedDay.Days[0].ActualMinutes != 80 ||
+		workedDay.Days[0].OvertimeMinutes != 0 ||
+		workedDay.Days[0].DifferenceMinutes != 0 ||
+		workedDay.ActualMinutes != 80 ||
+		workedDay.OvertimeMinutes != 0 {
+		t.Fatalf("worked leave day = %+v", workedDay)
+	}
+
+	period, errorValue := calculateAttendanceWorkStatus(
+		"kim@example.com",
+		"이샘플",
+		"2026-07-29",
+		"2026-07-30",
+		[]attendanceEvent{
+			workMetricEvent("in-1", attendanceKindClockIn, "2026-07-29T00:00:00Z"),
+			workMetricEvent("out-1", attendanceKindClockOut, "2026-07-29T09:00:00Z"),
+			workMetricEvent("in-2", attendanceKindClockIn, "2026-07-30T00:00:00Z"),
+			workMetricEvent("out-2", attendanceKindClockOut, "2026-07-30T01:20:00Z"),
+		},
+		leaves,
+		defaultAttendanceWorkPolicy(),
+		map[string]struct{}{},
+		location,
+		time.Date(2026, time.July, 31, 0, 0, 0, 0, location),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if period.TargetMinutes != 480 ||
+		period.ActualMinutes != 560 ||
+		period.OvertimeMinutes != 0 ||
+		period.DifferenceMinutes != 0 ||
+		period.FulfilledMinutes != 480 {
+		t.Fatalf("period = %+v", period)
+	}
+}
+
+func TestAttendanceWorkMetricsKeepPeriodOvertimeWhenLeaveWeekHasNonWorkingDayWork(t *testing.T) {
+	location, errorValue := time.LoadLocation("Asia/Seoul")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	leaves := []attendanceApprovedLeaveOccurrence{}
+	for _, date := range []string{"2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31"} {
+		leaves = append(leaves, attendanceApprovedLeaveOccurrence{
+			Email:              "kim@example.com",
+			Date:               date,
+			DeductionMilliDays: 1000,
+			Paid:               true,
+			StartTime:          "09:00",
+			EndTime:            "18:00",
+		})
+	}
+
+	status, errorValue := calculateAttendanceWorkStatus(
+		"kim@example.com",
+		"이샘플",
+		"2026-07-27",
+		"2026-08-01",
+		[]attendanceEvent{
+			workMetricEvent("in", attendanceKindClockIn, "2026-08-01T00:00:00Z"),
+			workMetricEvent("out", attendanceKindClockOut, "2026-08-01T03:00:00Z"),
+		},
+		leaves,
+		defaultAttendanceWorkPolicy(),
+		map[string]struct{}{},
+		location,
+		time.Date(2026, time.August, 2, 0, 0, 0, 0, location),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if status.TargetMinutes != 0 ||
+		status.LeaveMinutes != 2400 ||
+		status.ActualMinutes != 180 ||
+		status.OvertimeMinutes != 180 ||
+		status.Status != "overtime" {
+		t.Fatalf("status = %+v", status)
 	}
 }
