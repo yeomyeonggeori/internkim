@@ -1196,7 +1196,7 @@ func (state *setupFlowState) verifyAdmindDeployment(context *setup.Context) erro
 	if !strings.Contains(localHealth, `"status":"ok"`) || !strings.Contains(localHealth, `"recoveryAvailable":true`) {
 		return fmt.Errorf("admind local health response missing recovery status: %s", strings.TrimSpace(localHealth))
 	}
-	if strings.TrimSpace(context.PublicURL) == "" || setupContextSkipsStep(context, "tunnel") {
+	if strings.TrimSpace(context.PublicURL) == "" {
 		fmt.Printf("  %s\n", state.messenger.t("admind local 검증 완료", "admind local verification complete"))
 		return nil
 	}

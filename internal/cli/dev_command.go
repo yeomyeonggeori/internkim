@@ -178,7 +178,7 @@ func runDevFleetReprovision(arguments []string) error {
 	command := exec.Command(executablePath, "setup", "--board", "lab", "--ssh", "--host", vmInternetProtocolAddress,
 		"--user", "admin", "--password", "admin",
 		"--admin-email", "local-fleet-admin@internkim.test",
-		"--wait-lock", "--force", "--skip", "wifi,local-llm,cloudflare-access,tunnel,google,slack,mattermost,web,blueclaw-runtime-base")
+		"--wait-lock", "--force", "--skip", "wifi,local-llm,google,slack,mattermost,web,blueclaw-runtime-base")
 	command.Env = devFleetReprovisionEnvironment(os.Environ(), goModuleCachePath(), *modelTierArgument)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
