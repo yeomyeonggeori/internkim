@@ -6,19 +6,23 @@ description: List the tools, call one, and read what actually changed.
 ## Listing tools [#listing-tools]
 
 ```bash
-curl https://intern.kim/api/v1/tools \
+curl https://api.intern.kim/v1/tools \
   --header "Authorization: Bearer $INTERNKIM_TOKEN"
 ```
 
 The response is `{"tools": [...]}`, holding the full descriptor of every tool
-the token's rank can call. The list is live: companion tools appear while a
-companion is connected and disappear with it. The base catalog is documented
-on the [tool catalog](/docs/tools/catalog) page.
+the key's permission can call, and a `catalog` field saying which list you got.
+The base catalog is answered without asking the company machine, so it is the
+fast one and it is the same for everyone; it is also documented on the
+[tool catalog](/docs/tools/catalog) page. Whether a tool can run right now is
+known only on the machine, and tools that come and go with a companion are not
+in the base list at all. Ask for those with `?live=true`, which costs the round
+trip. `X-INTERNKIM-CATALOG` says `base` on either discovery answer.
 
 ## Reading a descriptor [#reading-a-descriptor]
 
 ```bash
-curl https://intern.kim/api/v1/tools/task_add \
+curl https://api.intern.kim/v1/tools/task_add \
   --header "Authorization: Bearer $INTERNKIM_TOKEN"
 ```
 
@@ -37,7 +41,7 @@ descriptor fields worth reading before a call:
 ## Invoking [#invoking]
 
 ```bash
-curl https://intern.kim/api/v1/tools/task_add/invoke \
+curl https://api.intern.kim/v1/tools/task_add/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"title":"draft the quarterly report","size":"M"}}'
@@ -116,12 +120,12 @@ Person references work the same way: `participantPersonHints` takes names,
 With a `write` token from [Getting a token](/docs/api#getting-a-token):
 
 ```bash
-curl https://intern.kim/api/v1/tools/task_add/invoke \
+curl https://api.intern.kim/v1/tools/task_add/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"title":"draft the quarterly report","size":"M"}}'
 
-curl https://intern.kim/api/v1/tools/task_update/invoke \
+curl https://api.intern.kim/v1/tools/task_update/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"taskHint":"draft the quarterly report","status":"in_progress"}}'
@@ -132,7 +136,7 @@ The first response's `effects` carries
 same task with `"effect":"updated"`. Deleting it takes a `destructive` token:
 
 ```bash
-curl https://intern.kim/api/v1/tools/task_delete/invoke \
+curl https://api.intern.kim/v1/tools/task_delete/invoke \
   --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{"input":{"taskHint":"draft the quarterly report"}}'

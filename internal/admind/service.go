@@ -43,6 +43,7 @@ var GitRevision = "unknown"
 
 type Configuration struct {
 	ListenAddress                  string
+	ListenSocketPath               string
 	MattermostBaseURL              string
 	ChatdEndpoint                  string
 	ChatdPlatform                  string
@@ -304,6 +305,7 @@ const firstAdminClaimTimeout = 90 * time.Second
 func DefaultConfiguration() Configuration {
 	return Configuration{
 		ListenAddress:                  "127.0.0.1:18080",
+		ListenSocketPath:               blueclawruntime.AdmindSocketPath,
 		TaskRunNotifyEnabled:           true,
 		AttendanceNotifyEnabled:        true,
 		MailNotifyEnabled:              true,
@@ -438,21 +440,43 @@ func (service *Service) Run(ctx context.Context) error {
 	service.ensureBuzzRelayTerminator()
 	service.ensureMattermostConfig(ctx)
 	service.warnWhenFontAssetsMissing()
+	handler := service.router()
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
-		Handler: service.router(),
+		Handler: handler,
 	}
+	socketServer := &http.Server{Handler: markRequestsAsAssertedByTheListener(handler)}
+	service.startRequesterSocketListener(socketServer)
 	go func() {
 		<-ctx.Done()
 		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownContext)
+		_ = socketServer.Shutdown(shutdownContext)
 	}()
 	errorValue := server.ListenAndServe()
 	if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
 		return errorValue
 	}
 	return nil
+}
+
+func (service *Service) startRequesterSocketListener(socketServer *http.Server) {
+	socketPath := strings.TrimSpace(service.Configuration.ListenSocketPath)
+	if socketPath == "" {
+		log.Printf("admind has no requester socket path, so callers that assert a requester have no way in")
+		return
+	}
+	listener, errorValue := listenOnRequesterSocket(socketPath)
+	if errorValue != nil {
+		log.Printf("admind could not open its requester socket at %s: %v", socketPath, errorValue)
+		return
+	}
+	go func() {
+		if serveError := socketServer.Serve(listener); serveError != nil && !errors.Is(serveError, http.ErrServerClosed) {
+			log.Printf("admind requester socket at %s stopped: %v", socketPath, serveError)
+		}
+	}()
 }
 
 func (service *Service) startMattermostCircleSync(ctx context.Context) {
@@ -2534,6 +2558,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	defaultConfiguration := DefaultConfiguration()
 	if configuration.ListenAddress == "" {
 		configuration.ListenAddress = defaultConfiguration.ListenAddress
+	}
+	if configuration.ListenSocketPath == "" {
+		configuration.ListenSocketPath = defaultConfiguration.ListenSocketPath
 	}
 	if configuration.MattermostBaseURL == "" {
 		configuration.MattermostBaseURL = defaultConfiguration.MattermostBaseURL

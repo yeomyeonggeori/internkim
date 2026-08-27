@@ -11,7 +11,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
 	if (!projectURL || !publishableKey || !serviceRoleKey) error(500, 'the central plane is not configured');
 
-	const accessToken = await memberAccessTokenOf(request, { projectURL, serviceRoleKey });
+	const { accessToken } = await memberAccessTokenOf(request, { projectURL, serviceRoleKey });
 
 	const caller = await adminCallerOf(asMember({ projectURL, publishableKey }, accessToken));
 	if (!caller) error(403, 'only an admin invites people');

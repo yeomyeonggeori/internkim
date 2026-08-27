@@ -61,7 +61,8 @@ export function connectToGateway(settings: {
 		if (!call) return;
 		const answer = await serveRoutedCall(call, settings.dispatch, settings.byteCeiling);
 		if (answer.status >= 400) {
-			report(`${call.capability} for member ${call.memberID} answered ${answer.status}: ${reasonOf(answer.body)}`);
+			const asked = call.memberID ? `member ${call.memberID}` : 'the plane';
+			report(`${call.capability} for ${asked} answered ${answer.status}: ${reasonOf(answer.body)}`);
 		}
 		send(answer);
 	};

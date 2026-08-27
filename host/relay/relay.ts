@@ -5,7 +5,15 @@ import { readLinkPreview, type LinkPreview } from './link-preview';
 import { assetBucket, attachmentAddress, attachmentAlreadyKept, keepMessageAttachment } from './asset-store';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
-import { answerBodyOf, forwardToChatd, type ConnectedAccount, type KeptAttachment } from './forward';
+import {
+	answerBodyOf,
+	defaultAdmindSocketPath,
+	forwardToAdmindAPI,
+	forwardToChatd,
+	type ConnectedAccount,
+	type KeptAttachment,
+	type PublicAPIRequest
+} from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import { connectToGateway } from './gateway-socket';
 
@@ -17,6 +25,7 @@ const chatdBaseURL = process.env.CHATD_BASE_URL ?? 'http://127.0.0.1:18090';
 const arrivalsPort = positiveNumberSetting('ARRIVALS_PORT', process.env.ARRIVALS_PORT, 18091);
 const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
 const admindBaseURL = process.env.ADMIND_BASE_URL ?? 'http://127.0.0.1:18080';
+const admindSocketPath = process.env.ADMIND_SOCKET_PATH ?? defaultAdmindSocketPath;
 const appURL = required('INTERNKIM_APP_URL');
 const messengerPlatform = required('MESSENGER_PLATFORM');
 const answerByteCeiling = positiveNumberSetting(
@@ -92,6 +101,7 @@ const dispatch = {
 		return held.account ?? null;
 	},
 	askAdmind,
+	askAdmindAPI: (request: PublicAPIRequest) => forwardToAdmindAPI(admindSocketPath, request),
 	tellAdmindTheDirectoryChanged,
 	emailOfMember: async (memberID: string) => {
 		const member = await client

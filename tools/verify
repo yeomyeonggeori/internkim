@@ -73,6 +73,12 @@ GROUPS = [
         working_directory="workers/connection-gateway",
     ),
     Group(
+        "public-api",
+        ["workers/public-api/*", "pkg/capabilityprotocol/generated/*"],
+        [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],
+        working_directory="workers/public-api",
+    ),
+    Group(
         "schema",
         ["supabase/*"],
         [["supabase", "db", "reset"], ["supabase", "test", "db"]],

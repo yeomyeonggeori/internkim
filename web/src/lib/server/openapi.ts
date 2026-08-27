@@ -1,5 +1,6 @@
 import catalog from '../../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import type { Locale } from '$lib/i18n/locale';
+import { publicAPIPermissions } from '$lib/public-api-permission';
 
 export type ApiDocumentationLanguage = Locale;
 
@@ -88,9 +89,9 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 		}
 	},
 	en: {
-		title: 'Intern Kim API',
+		title: 'internkim API',
 		description: [
-			'The tools Intern Kim uses inside a company, callable from outside it. A token belongs to a',
+			'The tools internkim uses inside a company, callable from outside it. A token belongs to a',
 			'person, and every call runs as that person, so a token can never do more than its owner can.',
 			'',
 			'Create a token with `POST /tokens`, then send `Authorization: Bearer <token>` on every request.',
@@ -145,18 +146,9 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 
 const defaultZone = 'intern.kim';
 
-const tokenScopes = [
-	'read',
-	'write',
-	'external_write',
-	'external_send',
-	'publish',
-	'connect',
-	'destructive',
-	'companion',
-	'agent.run',
-	'admin'
-];
+export function apiBaseURL(zone = defaultZone): string {
+	return `https://api.${zone}/v1`;
+}
 
 export function baseTools(): CatalogTool[] {
 	return [...(catalog.tools as CatalogTool[])].sort((left, right) =>
@@ -382,7 +374,7 @@ function createComponents(copy: ApiCopy) {
 				type: 'object',
 				properties: {
 					label: { type: 'string' },
-					scopes: { type: 'array', items: { type: 'string', enum: tokenScopes } }
+					scopes: { type: 'array', items: { type: 'string', enum: [...publicAPIPermissions] } }
 				}
 			},
 			TokenResponse: {
@@ -485,7 +477,7 @@ export function createOpenApiDocument(language: ApiDocumentationLanguage, zone =
 			version: protocolVersion(),
 			description: copy.description
 		},
-		servers: [{ url: `https://${zone}/api/v1`, description: copy.serverDescription }],
+		servers: [{ url: apiBaseURL(zone), description: copy.serverDescription }],
 		security: [{ memberToken: [] }],
 		paths: createPaths(copy),
 		components: createComponents(copy)

@@ -1,4 +1,10 @@
 import { supabase } from '$lib/supabase';
+import type { PublicAPIPermission } from '$lib/public-api-permission';
+
+export type PersonalKey = {
+	name: string;
+	permission: PublicAPIPermission;
+};
 
 async function signedInHeaders(): Promise<Record<string, string>> {
 	const { data } = await supabase().auth.getSession();
@@ -12,20 +18,19 @@ async function answerOf(response: Response): Promise<unknown> {
 	return response.json();
 }
 
-export async function personalKeyNames(): Promise<string[]> {
+export async function personalKeys(): Promise<PersonalKey[]> {
 	const answer = (await answerOf(
 		await fetch('/api/member/key', { headers: await signedInHeaders() })
-	)) as { names?: string[] };
-	return answer.names ?? [];
+	)) as { keys?: PersonalKey[] };
+	return answer.keys ?? [];
 }
 
-// The key comes back once, and making another by the same name replaces it.
-export async function issuePersonalKey(name: string): Promise<string> {
+export async function issuePersonalKey(name: string, permission: PublicAPIPermission): Promise<string> {
 	const answer = (await answerOf(
 		await fetch('/api/member/key', {
 			method: 'POST',
 			headers: await signedInHeaders(),
-			body: JSON.stringify({ name })
+			body: JSON.stringify({ name, permission })
 		})
 	)) as { apiKey: string };
 	return answer.apiKey;

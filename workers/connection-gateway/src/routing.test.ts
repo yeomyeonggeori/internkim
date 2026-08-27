@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	CallLedger,
+	WaitingCalls,
 	decideCall,
 	parseClientCall,
+	parseOneShotCall,
 	parseServerMessage,
 	serverOfflineStatus
 } from './routing';
@@ -95,5 +97,59 @@ describe('CallLedger', () => {
 		}
 		expect(ledger.answerFor('r1')).toBeUndefined();
 		expect(ledger.answerFor('r3')).toBeDefined();
+	});
+});
+
+describe('parseOneShotCall', () => {
+	test('takes the body the api worker posts, which names no kind', () => {
+		expect(parseOneShotCall({ requestID: 'r1', capability: 'person.api.request', body: { path: '/tools' } })).toEqual({
+			kind: 'call',
+			requestID: 'r1',
+			capability: 'person.api.request',
+			body: { path: '/tools' }
+		});
+	});
+
+	test('refuses a body naming no request or no capability', () => {
+		expect(parseOneShotCall({ capability: 'person.api.request' })).toBeNull();
+		expect(parseOneShotCall({ requestID: 'r1' })).toBeNull();
+		expect(parseOneShotCall(null)).toBeNull();
+	});
+});
+
+describe('WaitingCalls', () => {
+	test('a waiting call is settled by the answer naming it', async () => {
+		const calls = new WaitingCalls(2, 1_000);
+		const answered = calls.waitFor('r1');
+		expect(calls.waitingCount).toBe(1);
+		expect(calls.settle({ kind: 'result', requestID: 'r1', status: 200, body: { ok: true } })).toBe(true);
+		expect(await answered).toEqual({ kind: 'result', requestID: 'r1', status: 200, body: { ok: true } });
+		expect(calls.waitingCount).toBe(0);
+	});
+
+	test('an answer nobody waits for settles nothing', () => {
+		const calls = new WaitingCalls(2, 1_000);
+		expect(calls.settle({ kind: 'result', requestID: 'r1', status: 200, body: null })).toBe(false);
+	});
+
+	test('a call outliving its bound answers 504 and stops waiting', async () => {
+		const calls = new WaitingCalls(2, 1);
+		expect(await calls.waitFor('r1')).toEqual({
+			kind: 'result',
+			requestID: 'r1',
+			status: 504,
+			body: { error: 'call_timed_out' }
+		});
+		expect(calls.waitingCount).toBe(0);
+	});
+
+	test('fills at its limit and empties as calls are answered', async () => {
+		const calls = new WaitingCalls(2, 1_000);
+		const first = calls.waitFor('r1');
+		calls.waitFor('r2');
+		expect(calls.isFull).toBe(true);
+		calls.settle({ kind: 'result', requestID: 'r1', status: 200, body: null });
+		await first;
+		expect(calls.isFull).toBe(false);
 	});
 });

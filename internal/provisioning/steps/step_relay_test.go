@@ -61,6 +61,35 @@ func TestTheAgentKeyIsPlacedWhereOnlyTheRelayCanReadIt(t *testing.T) {
 	}
 }
 
+func TestTheRelayIsToldWhereAdmindHonoursARequester(t *testing.T) {
+	settings := relaySettingsNamingTheAdmindSocket("MESSENGER_PLATFORM=mattermost\n")
+
+	if !strings.Contains(settings, admindSocketSettingName+"="+blueclaw.AdmindSocketPath) {
+		t.Fatalf("the relay would fall back to its own spelling of the socket path:\n%s", settings)
+	}
+	if !strings.Contains(placeForTheRelay(blueclaw.RelayEnvironmentFilePath, settings), admindSocketSettingName) {
+		t.Fatal("the socket path never reached the placed settings")
+	}
+}
+
+func TestAnOperatorsOwnSocketPathIsLeftAlone(t *testing.T) {
+	settings := relaySettingsNamingTheAdmindSocket("ADMIND_SOCKET_PATH=/srv/internkim/admind.sock\n")
+
+	if strings.Contains(settings, blueclaw.AdmindSocketPath) {
+		t.Fatalf("configuration lost to the default:\n%s", settings)
+	}
+}
+
+func TestTheSocketDirectoryIsMadeBeforeAdmindNeedsIt(t *testing.T) {
+	command := makeTheDirectoryTheAdmindSocketLivesIn()
+
+	for _, expected := range []string{"-m 755", "-o root -g root", filepath.Dir(blueclaw.AdmindSocketPath)} {
+		if !strings.Contains(command, expected) {
+			t.Errorf("the socket directory command is missing %q:\n%s", expected, command)
+		}
+	}
+}
+
 type relaySettingsConnection struct{ deviceDigest string }
 
 func (connection relaySettingsConnection) Run(command string) string {
@@ -85,12 +114,12 @@ func TestChangedSettingsReachARunningRelay(t *testing.T) {
 	}
 	t.Setenv(relaySettingsEnvironmentName, settingsPath)
 
-	stale := &Context{Backend: BackendSSH, SSH: relaySettingsConnection{deviceDigest: asPlacedDigest("MESSENGER_PLATFORM=buzz\n")}}
+	stale := &Context{Backend: BackendSSH, SSH: relaySettingsConnection{deviceDigest: asPlacedDigest(relaySettingsNamingTheAdmindSocket("MESSENGER_PLATFORM=buzz\n"))}}
 	if StepRelay.IsSatisfied(stale) {
 		t.Fatal("a relay running on settings the operator just replaced was called done")
 	}
 
-	current := &Context{Backend: BackendSSH, SSH: relaySettingsConnection{deviceDigest: asPlacedDigest(settings)}}
+	current := &Context{Backend: BackendSSH, SSH: relaySettingsConnection{deviceDigest: asPlacedDigest(relaySettingsNamingTheAdmindSocket(settings))}}
 	if !StepRelay.IsSatisfied(current) {
 		t.Fatal("a relay already running on these settings would be restarted for nothing")
 	}

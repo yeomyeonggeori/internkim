@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 type mattermostScenarioRemote interface {
@@ -265,12 +267,12 @@ func (admin mattermostScenarioAdmin) deleteCreatedResources(contextValue context
 	}
 	cleanupErrors := []error{}
 	for _, taskID := range resourceIDs.TaskIDs {
-		if errorValue := admin.deleteCreatedResource(contextValue, "/flow/api/tasks/"+url.PathEscape(taskID), "X-INTERNKIM-REQUESTER-EMAIL", normalizedEmail); errorValue != nil {
+		if errorValue := admin.deleteCreatedResourceAsRequester(contextValue, "/flow/api/tasks/"+url.PathEscape(taskID), normalizedEmail); errorValue != nil {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("delete Mattermost scenario task %s: %w", taskID, errorValue))
 		}
 	}
 	for _, eventID := range resourceIDs.CalendarEventIDs {
-		if errorValue := admin.deleteCreatedResource(contextValue, "/calendar/api/events/"+url.PathEscape(eventID), "CF-Access-Authenticated-User-Email", normalizedEmail); errorValue != nil {
+		if errorValue := admin.deleteCreatedResourceOverThePort(contextValue, "/calendar/api/events/"+url.PathEscape(eventID), "CF-Access-Authenticated-User-Email", normalizedEmail); errorValue != nil {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("delete Mattermost scenario calendar event %s: %w", eventID, errorValue))
 		}
 	}
@@ -358,13 +360,28 @@ func mattermostScenarioCreatedResourceID(document json.RawMessage, identifierKey
 	return ""
 }
 
-func (admin mattermostScenarioAdmin) deleteCreatedResource(contextValue context.Context, endpoint string, headerName string, email string) error {
-	arguments := []string{
-		"curl", "--silent", "--show-error", "-X", "DELETE",
-		"-H", headerName + ": " + email,
+func (admin mattermostScenarioAdmin) deleteCreatedResourceAsRequester(contextValue context.Context, endpoint string, email string) error {
+	return admin.deleteCreatedResource(
+		contextValue,
+		[]string{"--unix-socket", blueclaw.AdmindSocketPath},
+		"http://internkim"+endpoint,
+		"X-INTERNKIM-REQUESTER-EMAIL",
+		email,
+	)
+}
+
+func (admin mattermostScenarioAdmin) deleteCreatedResourceOverThePort(contextValue context.Context, endpoint string, headerName string, email string) error {
+	return admin.deleteCreatedResource(contextValue, nil, "http://127.0.0.1:18080"+endpoint, headerName, email)
+}
+
+func (admin mattermostScenarioAdmin) deleteCreatedResource(contextValue context.Context, reachArguments []string, resourceURL string, headerName string, email string) error {
+	arguments := []string{"curl", "--silent", "--show-error", "-X", "DELETE"}
+	arguments = append(arguments, reachArguments...)
+	arguments = append(arguments,
+		"-H", headerName+": "+email,
 		"--output", "/dev/null", "--write-out", "%{http_code}",
-	}
-	output, errorValue := admin.remote.run(contextValue, shellJoin(arguments)+" "+quoteShellValue("http://127.0.0.1:18080"+endpoint))
+	)
+	output, errorValue := admin.remote.run(contextValue, shellJoin(arguments)+" "+quoteShellValue(resourceURL))
 	if errorValue != nil {
 		return errorValue
 	}

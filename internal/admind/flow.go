@@ -11,6 +11,5 @@ const (
 	flowResourceTask       = "api:flow.task"
 	flowResourceDefinition = "api:flow.definition"
 
-	flowRequesterEmailHeader = "X-INTERNKIM-REQUESTER-EMAIL"
-	flowResolvedActorHeader  = "X-INTERNKIM-RESOLVED-ACTOR-EMAIL"
+	flowResolvedActorHeader = "X-INTERNKIM-RESOLVED-ACTOR-EMAIL"
 )
