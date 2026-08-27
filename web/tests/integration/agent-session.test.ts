@@ -51,7 +51,8 @@ beforeAll(async () => {
 	await withAccount(speakerID);
 	await connectMessengerAccount(client, ourCompanyID, {
 		memberID: speakerID,
-		kind: 'buzz',
+		platform: 'buzz',
+		kind: 'buzz-secret',
 		externalID: `speaker-${stamp}`,
 		name: 'Speaker',
 		secret: `speaker-secret-${stamp}`,
@@ -67,7 +68,8 @@ beforeAll(async () => {
 	await withAccount(outsiderID);
 	await connectMessengerAccount(client, theirCompanyID, {
 		memberID: outsiderID,
-		kind: 'buzz',
+		platform: 'buzz',
+		kind: 'buzz-secret',
 		externalID: `outsider-${stamp}`,
 		name: 'Outsider',
 		secret: `outsider-secret-${stamp}`,

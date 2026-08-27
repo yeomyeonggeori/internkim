@@ -14,8 +14,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/admind"
 )
 
 type recoveryRequest struct {
@@ -68,7 +71,7 @@ func runRecoverArguments(arguments []string) error {
 
 func runRecoverSSH(arguments []string) error {
 	flagSet := flag.NewFlagSet("recover ssh", flag.ContinueOnError)
-	action := flagSet.String("action", "restart-cloudflared-node-ssh", "Recovery action: status, snapshot, restart-ssh, restart-cloudflared-node-ssh, journal-tail, unlock-mattermost-admin, reboot, stop-tenant-pilots, remove-tenant-pilots, limit-blueclaw, restart-blueclaw, blueclaw-boot-diagnose, blueclaw-journal, blueclaw-workspace-repair, blueclaw-postgres-salvage, blueclaw-postgres-inspect, blueclaw-postgres-restore-previous, repair-buzz-relay, buzz-relay-journal, enable-buzz-mirror, buzz-mirror-status, retire-mattermost-mirror, stop-mattermost, calendar-record-coverage, calendar-carry-into-the-record, organization-directory-coverage, organization-seed-the-directory, buzz-device-link-count, buzz-rewrite-old-links, buzz-rewrite-old-links-dryrun, buzz-named-reaction-count, buzz-orphan-inspect, buzz-stranger-members, buzz-stranger-members-remove, buzz-profile-inspect, buzz-probe-profile-count, buzz-probe-profile-purge, buzz-reconcile-channels, buzz-republish-rooms, buzz-link-edits, buzz-remove-link-edits, buzz-restore-dm-discovery, buzz-channel-visibility, buzz-channel-visibility-repair, buzz-close-channels-their-room-closed, buzz-channel-members-their-room-lacks, buzz-remove-members-their-room-lacks, buzz-rooms-nobody-is-in, buzz-retire-rooms-nobody-is-in, buzz-retire-room, circle-membership-read, circle-membership-reconcile, circle-room-read, circle-room-reconcile, buzz-whose-key, buzz-snapshot, buzz-membership-recover, buzz-restore, buzz-repair-dryrun, buzz-repair-apply, buzz-reimport, buzz-refresh-profiles, buzz-reimport-log, buzz-read-test, policy-circle-roster, buzz-room-roster, buzz-room-messages, buzz-deletion-markers, buzz-window-probe, buzz-joining-notices, buzz-forget-joining-notices, buzz-remove-deletion-markers, buzz-room-visibility, restart-buzz-relay, messenger-relay, record-buzz-credentials, buzz-relay-service-journal, buzz-close-rooms-except, buzz-rename-room, buzz-retire-room-by-name, admind-journal, buzz-chatd-repair, mattermost-unlock-users, postgres-repair, release-setup-lock")
+	action := flagSet.String("action", "restart-cloudflared-node-ssh", "Recovery action, one of: "+strings.Join(admind.SSHRecoveryActions, ", "))
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
@@ -151,12 +154,7 @@ func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, t
 }
 
 func isAllowedCLIRecoveryAction(action string) bool {
-	switch action {
-	case "status", "snapshot", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-link-edits", "buzz-remove-link-edits", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-messages", "buzz-deletion-markers", "buzz-window-probe", "buzz-joining-notices", "buzz-forget-joining-notices", "buzz-remove-deletion-markers", "buzz-room-visibility", "restart-buzz-relay", "messenger-relay", "record-buzz-credentials", "buzz-relay-service-journal", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
-		return true
-	default:
-		return false
-	}
+	return slices.Contains(admind.SSHRecoveryActions, action)
 }
 
 func performSSHRecoveryRequest(target commandTarget, action string, actionTarget string) (recoveryResponse, error) {

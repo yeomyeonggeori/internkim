@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
-import { keepMemberCredential, memberMessengerCredential } from '$lib/server/member-credential';
+import { keepMemberCredential, memberCredential } from '$lib/server/member-credential';
 import type { RequestHandler } from './$types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -11,12 +11,14 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 	const { client, companyID } = await callingAgent(request, environmentOf(platform));
 
 	const memberID = url.searchParams.get('memberID') ?? '';
+	const kind = url.searchParams.get('kind')?.trim() ?? '';
 	if (!memberID) error(400, 'which member');
+	if (!kind) error(400, 'which credential kind the messenger accepts');
 	if (!(await belongsToCompany(client, memberID, companyID))) {
 		error(403, 'that member belongs to another company');
 	}
 
-	return json({ credential: await memberMessengerCredential(client, memberID) });
+	return json({ credential: await memberCredential(client, memberID, kind) });
 };
 
 // A key the machine derived is one the record has to hold, or the next thing to

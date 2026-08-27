@@ -49,7 +49,8 @@ beforeAll(async () => {
 	}
 	await connectMessengerAccount(client, companyID, {
 		memberID: speakerID,
-		kind: 'buzz',
+		platform: 'buzz',
+		kind: 'buzz-secret',
 		externalID: `pubkey-${slug}`,
 		name: 'Speaker',
 		secret: `speaker-secret-${slug}`,
