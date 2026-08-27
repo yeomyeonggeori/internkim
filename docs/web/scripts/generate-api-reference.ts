@@ -2,7 +2,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { generateFiles } from 'fumadocs-openapi';
 import { createOpenAPI, type OpenAPIOptions } from 'fumadocs-openapi/server';
-import { createOpenApiDocument, type ApiDocumentationLanguage } from '../../../web/src/lib/server/openapi';
+import { baseTools, createOpenApiDocument, type ApiDocumentationLanguage } from '../../../web/src/lib/server/openapi';
 
 type OperationItem = { path: string; method: string };
 type PathsOfDocument = Record<string, Record<string, { operationId?: string } | undefined> | undefined>;
@@ -11,9 +11,12 @@ const languages: readonly ApiDocumentationLanguage[] = ['en', 'ko'];
 const referenceDirectory = fileURLToPath(new URL('../../api/reference', import.meta.url));
 const generatedDirectory = fileURLToPath(new URL('../app/generated', import.meta.url));
 
-function sectionOf(item: OperationItem): string {
-  const [, section] = item.path.split('/');
-  return section ?? 'other';
+const namespaceByTool = new Map(baseTools().map((tool) => [tool.name, tool.namespace]));
+
+function groupOf(item: OperationItem): string {
+  const [, resource, toolName] = item.path.split('/');
+  if (resource !== 'tools') return resource ?? 'other';
+  return namespaceByTool.get(toolName ?? '') ?? 'discovery';
 }
 
 function operationIdsOf(document: unknown): Map<string, string> {
@@ -41,10 +44,10 @@ async function generatePages(language: ApiDocumentationLanguage, document: unkno
     input: serverFor(language, document),
     output: referenceDirectory,
     per: 'operation',
-    groupBy: (entry) => ('path' in entry.item ? sectionOf(entry.item as OperationItem) : 'other'),
+    groupBy: (entry) => ('path' in entry.item ? groupOf(entry.item as OperationItem) : 'other'),
     name: (output) => {
       const item = output.item as OperationItem;
-      const identifier = identifiers.get(`${item.method} ${item.path}`) ?? `${sectionOf(item)}-${item.method}`;
+      const identifier = identifiers.get(`${item.method} ${item.path}`) ?? `${groupOf(item)}-${item.method}`;
       return language === 'ko' ? `${identifier}.ko` : identifier;
     },
   });
