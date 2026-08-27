@@ -481,35 +481,58 @@ journalctl -u %s -n 180 --no-pager 2>/dev/null || true
 	))
 }
 
+const blueclawGuestLogRoot = "/var/log/blueclaw-supervisor"
+
+// The agent runs inside the guest, and the host unit is its supervisor. Asking
+// the host journal for the agent's own words answers with the supervisor's,
+// which is how a warning the agent wrote about a failed attachment import was
+// unreadable while somebody was being asked to attach the file again.
 func blueclawJournalCommand() string {
 	return strings.TrimSpace(fmt.Sprintf(`
 set +e
-printf '== %s journal (12h, last 500) ==\n'
-journalctl -u %s --since '12 hours ago' --no-pager -o short-iso 2>/dev/null | tail -n 500
+printf '== %s journal (12h, last 200) ==\n'
+journalctl -u %s --since '12 hours ago' --no-pager -o short-iso 2>/dev/null | tail -n 200
 printf '\n== kernel oom (12h) ==\n'
 journalctl -k --since '12 hours ago' --no-pager 2>/dev/null | grep -i -E 'oom|out of memory|killed process' | tail -n 40
 printf '\n== %s unit state ==\n'
 systemctl status %s --no-pager -l 2>/dev/null | head -25
+%s
 `,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
+		blueclawGuestLogScript(),
 	))
 }
 
+func blueclawGuestLogScript() string {
+	return strings.TrimSpace(fmt.Sprintf(`
+runningGuestLog=$(ls -dt %s/*/ 2>/dev/null | head -1)
+printf '\n== the agent itself, from %%s ==\n' "$runningGuestLog"
+if [ -z "$runningGuestLog" ]; then
+  printf '(no guest log directory; the guest has not run on this host)\n'
+else
+  printf '\n-- stdout (last 400 lines) --\n'
+  tail -n 400 "$runningGuestLog/stdout.log" 2>/dev/null || printf '(missing)\n'
+  printf '\n-- stderr (last 200 lines) --\n'
+  tail -n 200 "$runningGuestLog/stderr.log" 2>/dev/null || printf '(missing)\n'
+fi
+`, blueclawGuestLogRoot))
+}
+
 func blueclawBootDiagnoseCommand() string {
-	return strings.TrimSpace(`
+	return strings.TrimSpace("guestLogRoot=" + blueclawGuestLogRoot + "\n" + `
 set +e
 printf '== firecracker processes ==\n'
 ps -eo pid,stat,etimes,comm | grep -E 'blueclaw|firecracker|jailer' || true
 printf '\n== newest guest log directories ==\n'
-newestLogDirectories=$(find /var/log/blueclaw-supervisor -maxdepth 1 -mindepth 1 -type d -newermt '-3 minutes' 2>/dev/null | head -4)
+newestLogDirectories=$(find "$guestLogRoot" -maxdepth 1 -mindepth 1 -type d -newermt '-3 minutes' 2>/dev/null | head -4)
 if [ -z "$newestLogDirectories" ]; then
-  newestLogDirectories=$(find /var/log/blueclaw-supervisor -maxdepth 1 -mindepth 1 -type d -newermt '-2 hours' 2>/dev/null | head -4)
+  newestLogDirectories=$(find "$guestLogRoot" -maxdepth 1 -mindepth 1 -type d -newermt '-2 hours' 2>/dev/null | head -4)
 fi
 printf '%s\n' "$newestLogDirectories"
-printf 'total run directories: %s\n' "$(find /var/log/blueclaw-supervisor -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)"
+printf 'total run directories: %s\n' "$(find "$guestLogRoot" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)"
 for logDirectory in $(printf '%s\n' "$newestLogDirectories" | head -2); do
   printf '\n== %s stderr.log ==\n' "$logDirectory"
   tail -c 4000 "$logDirectory/stderr.log" 2>/dev/null || printf '(missing)\n'
