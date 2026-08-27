@@ -1,0 +1,129 @@
+---
+title: Glossary
+description: The words this documentation uses precisely, and where each thing lives in the tree.
+---
+
+These words are used precisely throughout this documentation. Several of them
+name things that are easy to confuse, so each entry says what the thing is
+and where its code lives.
+
+## The central plane
+
+Everything we run: the Supabase project, the app, the control plane and the
+connection gateway. The word answers "whose side is it on". When a sentence
+needs to say which of the four did something, use the four names below.
+
+## The record
+
+The Postgres database holding company data, defined by `supabase/migrations`.
+Row level security is its access boundary, so every read and write happens as
+some member.
+
+Say "the record" rather than "the database": the host has a database too, and
+it holds something else entirely.
+
+## The control plane
+
+The server routes under `web/src/routes/api/agent/` holding the key that
+bypasses row level security. It authenticates a company's agent key and hands
+back sessions: a member session for the person the agent is acting for, a
+host session for the company's computer.
+
+## The app
+
+The static SvelteKit page a person signs into, built from `web/` and served
+by Cloudflare Pages. It holds no secret, reads the record as whoever is
+signed in, and reaches the host through the connection gateway for what it
+cannot read directly: the chat screen, mail, and the agent's runs, memory and
+files.
+
+## The connection gateway
+
+The Cloudflare Worker at `workers/connection-gateway/` that passes calls
+between browsers and the host. One Durable Object per company holds the
+browser sockets and the host's one standing connection, and routes calls one
+way and answers the other. Neither end ever connects to the other directly.
+
+## The chat screen
+
+The part of the app that shows the company's messenger. It is a view onto
+that messenger, so what appears in it appears in the messenger's own apps
+too.
+
+## A messenger app
+
+Mattermost's app, a Buzz client: the ordinary software a person opens to read
+the chat. The second way to reach Intern Kim, from anywhere the messenger
+server itself is reachable.
+
+Distinct from that server, which is the company's own and may sit in a
+vendor's cloud, on the company network, or on the host computer.
+
+## The host
+
+The company's always-on computer, and everything running on it. One company,
+one host. `host/entrypoint.sh` is its boot order.
+
+## The relay
+
+The process that answers the app: `internkim-relay`, built from
+`host/relay/`. It holds the standing connection to the gateway, serves each
+call as the member the gateway named, and reports messenger arrivals as
+notifications. One company, one relay process.
+
+Two cautions about the name. Older pages called this process "the bridge".
+And **the Buzz relay is a different thing**: a messenger server the company
+runs, brought up by `host/buzz/`. When both appear in one sentence, say
+"the relay" for ours and "the Buzz relay" for the messenger.
+
+## The connector
+
+`chatd`, at `.dependency/blueclaw/chatd/`. It attaches to the company's
+messenger through a platform adapter (Mattermost or Buzz), signs in as the
+bot, and turns arriving messages into work for the agent. Pointed the
+opposite way from the relay: the relay serves the browser, the connector
+serves the agent.
+
+## The agent
+
+blueclaw, the agent host, with the bluecollar loop running inside it.
+blueclaw runs tools as the person who asked and owns approval and the task
+ledger; it is vendored at `.dependency/blueclaw/` and answers on
+`127.0.0.1:8080`.
+
+## capabilityd
+
+`internkim-capabilityd`, the typed capability boundary. It holds provider
+credentials and exposes only a capability API on
+`/run/internkim/capability.sock`, so the agent never sees a provider token, a
+browser binary or a model path. Code in `internal/capabilityd/`.
+
+## The companion
+
+`internkim-companion`, a trusted runtime on a user's own computer for what
+needs a person: confirmation, input, file picking, browser handoff. It pairs
+with the company and long-polls a broker; its capabilities exist only while
+it is online. Code in `cmd/internkim-companion/` and `internal/companion/`.
+
+## The agent's store
+
+The Postgres database on the host, defined by
+`.dependency/blueclaw/migrations/`. Conversations, task runs, memory, and
+policy. Never company records.
+
+## The device path
+
+The per-company appliance model that predates the central plane: a Jetson
+with Mattermost, admind, a Firecracker guest and an update engine on board.
+Still shipped and still working; described in
+[The device path](/docs/device).
+
+## Two words that mean two things
+
+| Word | In the record | On the host |
+|---|---|---|
+| `task` | a piece of work or a calendar event | nothing; agent runs are `task_run` |
+| `person` | nothing; people are `member` | a read-only projection of policy |
+
+When either word could be ambiguous, this documentation says "a task in the
+record" or "an agent run".

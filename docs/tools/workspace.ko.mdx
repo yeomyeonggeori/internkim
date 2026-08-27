@@ -1,0 +1,108 @@
+---
+title: 파일과 터미널
+description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완성물이 워크스페이스를 떠나는 길.
+---
+
+스프레드시트 정리, 덱 제작, 스크립트 실행을 부탁하면 그 일은 요청자의
+워크스페이스에서 일어납니다. 호스트 위에서 요청자 본인의 리눅스 사용자가
+소유한 디렉터리입니다. 여기의 도구들은 에이전트 호스트(blueclaw)에 내장되어
+있고 전부 요청자로서 실행되므로, 에이전트가 닿을 수 있는 것은 요청자가 셸에서
+닿을 수 있는 것과 정확히 같습니다.
+
+## 도구들 [#tools]
+
+| 도구 | 하는 일 |
+|---|---|
+| `file_read` | 텍스트 파일이나 줄 범위를 읽음 |
+| `file_write` | 텍스트 파일 하나를 만들거나 덮어씀 |
+| `file_edit` | 정확한 텍스트 치환들을 원자적 편집 하나로 적용 |
+| `file_preview` | 대화에 첨부됐거나 워크스페이스에 있는 파일을 미리 봄 |
+| `file_delete` | 승인 후 파일 하나를 지움 |
+| `file_deliver` | 완성된 워크스페이스 파일을 답장에 첨부 |
+| `image_read` | 모델이 볼 이미지를 읽음 |
+| `terminal_run` | 워크스페이스에서 명령 하나를 실행 |
+
+`.dependency/blueclaw/internal/agentruntime/file_tools.go`와
+`terminal_tools.go`에 등록되고, 이름은
+`.dependency/bluecollar/toolcontract/kernel_tools.go`에 있습니다. 파일
+도구는 별도 코드 경로가 아닙니다. 각자 셸 명령을 만들어 `terminal_run`과
+같은 요청자 프리미티브를 타고(`internal/agentruntime/requester_shell.go`),
+요청자 본인의 `$HOME`에서 시작하므로 틸드 확장, 글롭, 상대 경로가 셸에서와
+똑같이 동작합니다.
+
+## 명령은 누구로 실행되나 [#identity]
+
+정책의 모든 사람은 실제 리눅스 사용자로, 모든 서클은 실제 그룹으로
+투영됩니다(`.dependency/blueclaw/internal/security/posix_identity.go`):
+
+| 정책 객체 | 리눅스 객체 |
+|---|---|
+| 사람 | `bc_person_<shortID>` 사용자, 같은 이름의 기본 그룹 |
+| 서클 | `bc_circle_<circleID>` 그룹 |
+| 전원 | `bc_shared` 보조 그룹 |
+| 서비스 내부 | `blueclaw` 사용자 |
+
+데몬은 요청자의 파일을 직접 만지지 않습니다. 워크스페이스 입출력과 프로세스
+실행은 `blueclaw-posix-helper`를 거칩니다. 실제 UID가 `root`나 `blueclaw`일
+때만 허가하는 setuid 브리지로, 요청자의 UID, GID, 보조 그룹으로 내려간 뒤
+실행하며, 내려간 다음에는 권한을 되찾을 수 없습니다.
+
+허용 명령 목록도 경로 필터도 어디에도 없습니다. 가드레일
+(`internal/security/command_guardrail_service.go`)이 강제하는 것은 구조적인
+것뿐입니다.
+
+- 데몬이 사실상 root면 실행 자체를 거부
+- 작업 디렉터리를 워크스페이스 루트 기준으로 해석
+- 환경을 이름 고정 목록으로 갈아 끼우고 정규 `PATH`를 강제
+- 타임아웃과 출력 크기에 상한
+- `terminal.mode`가 `sandbox`면 bubblewrap을 요구
+
+접근 결정은 소유권과 모드 비트가 내립니다. 시스템을 고치는 명령이
+비특권 행위자에게 그냥 실패하는 이유입니다. 설계 논거는
+[경계](/ko/docs/boundaries)에 있습니다.
+
+## 워크스페이스 구조 [#layout]
+
+| 경로 | 만질 수 있는 사람 | 담는 것 |
+|---|---|---|
+| `home/<path>` | 본인 | 영속하는 개인 파일 |
+| `private/people/<personID>/tmp/<task>` | 본인 | 초안과 빌드 중간물 |
+| `private/people/<personID>/artifacts/<slug>` | 본인 | 완성된 개인 결과물 |
+| `circles/<circleID>` | 그 서클의 그룹 | 의도적인 팀 공유 |
+| `shared/public` | 전원; 외부인에게 보여도 안전 | 외부 공유 가능한 콘텐츠 |
+| `shared/cache/dependencies` | 전원 | 패키지 캐시 전용 |
+| `skills` | 읽기와 실행 | 번들 스킬 소스 |
+| `.blueclaw` | 서비스만 | 데이터베이스, 로그, 내부 상태 |
+
+## 완성물이 떠나는 길 [#delivery]
+
+```
+file_write   tmp/<slug>/…          초안과 빌드 입력
+terminal_run cwd=tmp/<slug>        빌드, 렌더링, 검증
+             artifacts/<slug>/…    완성물이 여기로 옮겨짐
+file_deliver                       받는 답장에 첨부됨
+```
+
+`tmp/`는 휘발성이고 `artifacts/`가 영속입니다. 아티팩트 매니페스트
+(`internal/agentruntime/artifact_manifest.go`)가 이 경로들로 태스크가 만든
+것을 추적합니다. 팀을 위한 작업은 서클 디렉터리로 가고, 외부인에게 보여도
+안전한 것만 `shared/public`으로 갑니다.
+
+## 스킬 [#skills]
+
+스킬은 태스크가 맞아떨어질 때 에이전트가 로드하는 번들 지침입니다. 덱
+만들기, 서류 작성, 사이트 다듬기. 모델은 `skill_search`로 스킬을 찾고
+선택된 `SKILL.md` 본문만 받으며, 옆에 번들된 스크립트, 레퍼런스, 애셋은
+작업이 필요로 할 때 로드됩니다. 스킬은 `/workspace/skills` 아래에 살고,
+스킬의 스크립트도 다른 명령처럼 요청자로 실행되며, 각 `SKILL.md`에는
+예산이 있습니다(저장소 게이트는 15 KB, 300줄). 비대한 스킬은 프롬프트
+런타임 버그이기 때문입니다.
+
+## 사람이 있어야 할 때 [#presence]
+
+로그인, MFA, 파일 선택, 확인은 컴패니언을 통해 사용자 자기 컴퓨터에서
+일어납니다. `file_pick`은 고른 파일을 서명된 브로커로 올리고 만료 시간이
+붙은 임시 장비 경로만 보고합니다. 로컬 경로는 사용자 컴퓨터를 떠나지
+않습니다. 파일·터미널 도구 옆에서 모델은 실행 제어 도구(`plan_update`,
+`conversation_history`, `request_tools`, `ask_*` 프롬프트)도 쥐는데, 이들은
+실행 자체를 조형할 뿐 바깥의 무엇도 건드리지 않습니다.

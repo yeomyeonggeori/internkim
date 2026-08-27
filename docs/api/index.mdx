@@ -1,0 +1,136 @@
+---
+title: API overview
+description: A token belongs to a person, and every call runs as that person.
+---
+
+Every tool Intern Kim uses inside a company is callable from outside it, over
+HTTP, at the same host that serves the company's web app. A token belongs to a
+person, and every call runs as that person, so a token can never do more than
+its owner can.
+
+One process terminates every `/api/v1` request: `admind`. It authenticates the
+token, checks the scope, and forwards the work — tool calls to `capabilityd`
+over a unix socket, agent messages to the Blueclaw runtime over local HTTP.
+Nothing under `/api/v1` executes a tool itself.
+
+<Cards>
+  <Card title="Invoking tools" href="/docs/api/tools" description="List the tools, call one, read what actually changed" />
+  <Card title="Driving the agent" href="/docs/api/agent" description="Send a message and let the agent choose the tools" />
+</Cards>
+
+## Getting a token [#getting-a-token]
+
+Tokens are issued from a signed-in staff web session, either through the token
+section on the Admin page or with the session cookie directly:
+
+```bash
+curl -X POST https://<host>/api/v1/tokens \
+  --cookie "$SESSION" \
+  --header 'Content-Type: application/json' \
+  --data '{"label":"reporting script","scopes":["write"]}'
+```
+
+```json
+{
+  "token": "ik_...",
+  "actor": {
+    "personID": "...",
+    "email": "sample@example.com",
+    "displayName": "이샘플",
+    "source": "public_api_token",
+    "scopes": ["read", "write"]
+  },
+  "record": {
+    "id": "tok_...",
+    "label": "reporting script",
+    "email": "sample@example.com",
+    "scopes": ["read", "write"],
+    "createdAt": "2026-08-27T00:00:00Z"
+  }
+}
+```
+
+`token` is returned exactly once. The server keeps only a SHA-256 hash of it,
+in `api-tokens.json` under admind's state directory
+(`/root/.internkim/state/admin` by default). The owner is whoever the signed-in
+session belongs to; there is no way to issue a token for someone else.
+
+## Authentication [#authentication]
+
+Every other endpoint takes the token as a bearer header:
+
+```bash
+curl https://<host>/api/v1/tools \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN"
+```
+
+The owner is re-resolved on every request. When the owner stops being active
+staff, every call with their token answers `403` from that moment on; nothing
+needs to be cleaned up first.
+
+## Scopes [#scopes]
+
+`read` is always added to a token's scopes, whether requested or not. Requested
+scopes are lowercased, deduplicated, and anything unknown is silently dropped.
+
+Authorization compares ranks, not scope names. A token's rank is the highest
+rank among its scopes; a tool's required rank comes from its
+`sideEffectClass`.
+
+| Rank | Scopes | Opens |
+|---|---|---|
+| 1 | `read` | tools whose `sideEffectClass` is `read` |
+| 2 | `write`, `external_write`, `external_send`, `publish`, `connect`, `companion`, `agent.run` | workspace writes, external edits and sends, publishing, connections, browser actions, and the [agent endpoints](/docs/api/agent) |
+| 3 | `destructive`, `admin` | everything, including deletes |
+
+Three consequences worth knowing:
+
+- Any rank-2 scope opens every rank-2 tool. A token issued with only
+  `connect` can call `message_send`.
+- `admin` grants nothing beyond what `destructive` grants.
+- A descriptor with a `sideEffectClass` the gateway does not recognize
+  requires rank 3. Unknown classes fail closed.
+
+## Errors [#errors]
+
+Success bodies are JSON. Error bodies are plain text.
+
+| Status | Body | When |
+|---|---|---|
+| `400` | decode error, `message is required`, `conversationID is required` | the body is not valid JSON, or a required field is missing |
+| `401` | `bearer token required` | no `Authorization: Bearer` header |
+| `401` | `invalid bearer token` | the token is unknown or revoked |
+| `403` | `staff web session required` | `POST /api/v1/tokens` without a signed-in staff session |
+| `403` | `token owner is not active staff` | the owner left or was deactivated |
+| `403` | `tool is not available for this token` | the token's rank is below what the tool requires |
+| `403` | `write scope required` | an agent endpoint with a rank-1 token |
+| `404` | | unknown path, unknown tool, or a tool the token cannot see |
+| `500` | | the token record could not be written |
+| `502` | | `capabilityd` or the agent runtime failed; the body carries the upstream error |
+
+## Revoking a token [#revoking-a-token]
+
+Every lookup skips records whose `revokedAt` is set, so revocation takes
+effect on the next request. No endpoint sets it yet: to revoke a token today,
+set `revokedAt` on its record in `api-tokens.json` and save the file.
+
+## The served reference [#the-served-reference]
+
+`/api-docs` on the same host serves an interactive reference, in Korean or
+English, rendered from an OpenAPI document at `/openapi/<language>.json`. The
+twenty-six base tools in that document are read from the same catalog the
+agent runs on.
+
+## Where it is implemented [#where-it-is-implemented]
+
+| Concern | Where |
+|---|---|
+| Routing for everything under `/api/v1` | `handlePublicAPI` in `internal/admind/public_tool_gateway.go`, mounted in `internal/admind/service.go` |
+| Token issue, `ik_` format, SHA-256 hashing, store | `issuePublicAPIToken`, `publicAPITokenHash` in the same file; store path from `publicAPITokenStorePath` |
+| Scope normalisation and ranks | `normalizePublicAPITokenScopes`, `publicAPIScopeRank`, `publicToolScopeForDescriptor`, `publicToolAllowedForActor` |
+| Forwarding tool calls to `capabilityd` | `invokeCapabilityTool`, over the unix socket named by `CapabilitySocketPath` |
+| Agent endpoints | `internal/admind/agent_drive.go`, forwarding to Blueclaw through `blueclawJSONRequest` |
+| Wire types | `pkg/capabilityprotocol/protocol.go` |
+| Tool catalog | `pkg/capabilityprotocol/generated/capability-tools.json` |
+| The contract, stated as tests | `internal/admind/public_tool_gateway_test.go` |
+| OpenAPI document and `/api-docs` shell | `web/src/lib/server/openapi.ts`, `web/src/routes/openapi/[language].json/`, `web/src/routes/api-docs/` |
