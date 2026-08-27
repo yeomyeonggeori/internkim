@@ -7,6 +7,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { forgetPersonalKey, issuePersonalKey, personalKeyNames } from '$lib/member/personal-keys';
 	import KeyIcon from '@lucide/svelte/icons/key-round';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { companySettingsText } from './text';
@@ -19,6 +20,8 @@
 	let isWorking = $state(false);
 	let forgettingName = $state('');
 	let issuedKey = $state('');
+
+	const callExample = $derived(`${page.url.origin}/api/member/me`);
 
 	async function load() {
 		try {
@@ -83,6 +86,10 @@
 					</code>
 					<CopyButton text={issuedKey} />
 				</div>
+				<p class="text-sm text-muted-foreground">{text.personalKeyHowToUse}</p>
+				<code class="overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-xs">
+					curl {callExample} --header "Authorization: Bearer {issuedKey}"
+				</code>
 			</div>
 		{/if}
 
