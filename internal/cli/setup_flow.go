@@ -182,6 +182,7 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		GetGasWebhookURL:            state.provisionGasWebhook,
 		BinariesVersion:             state.binariesVersion,
 		InstallBinariesSSH:          state.installBinariesSSH,
+		InstallLocalLLMRuntimeSSH:   state.installLocalLLMRuntimeSSH,
 		InstallBuzzRelayBinariesSSH: state.installBuzzRelayBinariesSSH,
 		InstallAdmindSSH:            state.installAdmindSSH,
 		InstallCapabilitydSSH:       state.installCapabilitydSSH,
@@ -971,12 +972,6 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 		return err
 	}
 
-	if shouldInstallLocalLLMSSH(context) {
-		if err := state.installLocalLLMSSH(); err != nil {
-			return err
-		}
-	}
-
 	if err := state.ensureAgentBrowserRuntimeSSH(); err != nil {
 		return err
 	}
@@ -1316,10 +1311,6 @@ func (state *setupFlowState) installGoServiceUnitSSH(servicePath string, service
 		return
 	}
 	state.sshClient.run(fmt.Sprintf("cat > %s <<'SERVICEEOF'\n%s\nSERVICEEOF\nsystemctl daemon-reload", quoteShellValue(servicePath), serviceDocument))
-}
-
-func shouldInstallLocalLLMSSH(context *setup.Context) bool {
-	return context.BoardType != setup.BoardSimulation && context.PlannedSteps["local-llm"]
 }
 
 func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
@@ -1977,6 +1968,14 @@ func (state *setupFlowState) installAgentBrowserSkillSSH() error {
 	}
 	state.sshClient.run(agentBrowserSkillInstallScript("/tmp/internkim-agent-browser-skill-fallback.md", fallbackContent))
 	return nil
+}
+
+func localLLMIsPlanned(context *setup.Context) bool {
+	return context.BoardType != setup.BoardSimulation && context.PlannedSteps["local-llm"]
+}
+
+func (state *setupFlowState) installLocalLLMRuntimeSSH(_ *setup.Context) error {
+	return state.installLocalLLMSSH()
 }
 
 func (state *setupFlowState) installLocalLLMSSH() error {
@@ -2797,7 +2796,7 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 
 	if err := context.SD.WriteFile(
 		"internkim-firstboot.sh",
-		[]byte(generateFirstbootScript(state.deviceURL, state.adminEmail, shouldInstallLocalLLMSSH(context))),
+		[]byte(generateFirstbootScript(state.deviceURL, state.adminEmail, localLLMIsPlanned(context))),
 		0o755,
 	); err != nil {
 		return err

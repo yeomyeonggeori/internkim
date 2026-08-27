@@ -39,6 +39,13 @@ var StepLocalLLM = Step{
 	},
 }
 
+func installLocalLLMRuntime(context *Context) error {
+	if context.BoardType == BoardSimulation || context.Callbacks.InstallLocalLLMRuntimeSSH == nil {
+		return nil
+	}
+	return context.Callbacks.InstallLocalLLMRuntimeSSH(context)
+}
+
 func localLLMIsSatisfied(context *Context) bool {
 	if context.BoardType == BoardSimulation {
 		return true
@@ -76,6 +83,9 @@ func sshLocalLLMIsSatisfied(context *Context) bool {
 }
 
 func runLocalLLMLiteRTStep(context *Context) error {
+	if errorValue := installLocalLLMRuntime(context); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := stageLocalLLMModelSSH(context); errorValue != nil {
 		return errorValue
 	}
@@ -103,6 +113,9 @@ chmod 600 %s`,
 }
 
 func runLlamaCppStep(context *Context) error {
+	if errorValue := installLocalLLMRuntime(context); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := stageLocalLLMModelSSH(context); errorValue != nil {
 		return errorValue
 	}

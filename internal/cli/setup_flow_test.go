@@ -637,33 +637,33 @@ func TestLocalLLMBuildEnvironmentPassesPasswordOutsideArguments(t *testing.T) {
 	}
 }
 
-func TestSimulationBinariesSkipLocalLLMInstall(t *testing.T) {
+func TestSimulationHasNoLocalLLMPlanned(t *testing.T) {
 	context := &setup.Context{BoardType: setup.BoardSimulation}
 
-	if shouldInstallLocalLLMSSH(context) {
-		t.Fatal("expected simulation binaries to skip local LLM install")
+	if localLLMIsPlanned(context) {
+		t.Fatal("expected simulation to plan no local LLM")
 	}
 }
 
-func TestJetsonBinariesSkipLocalLLMWhenLocalLLMStepIsNotPlanned(t *testing.T) {
+func TestLocalLLMIsNotPlannedWhenItsStepIsNot(t *testing.T) {
 	context := &setup.Context{
 		BoardType:    setup.BoardJetsonOrinNano,
 		PlannedSteps: map[string]bool{"binaries": true},
 	}
 
-	if shouldInstallLocalLLMSSH(context) {
-		t.Fatal("expected Jetson binaries to skip local LLM when local-llm is not planned")
+	if localLLMIsPlanned(context) {
+		t.Fatal("expected no local LLM when the local-llm step is not planned")
 	}
 }
 
-func TestJetsonBinariesInstallLocalLLMWhenLocalLLMStepIsPlanned(t *testing.T) {
+func TestLocalLLMIsPlannedWhenItsStepIs(t *testing.T) {
 	context := &setup.Context{
 		BoardType:    setup.BoardJetsonOrinNano,
 		PlannedSteps: map[string]bool{"local-llm": true},
 	}
 
-	if !shouldInstallLocalLLMSSH(context) {
-		t.Fatal("expected Jetson binaries to install local LLM when local-llm is planned")
+	if !localLLMIsPlanned(context) {
+		t.Fatal("expected local LLM when the local-llm step is planned")
 	}
 }
 
