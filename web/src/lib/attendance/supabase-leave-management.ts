@@ -2,7 +2,6 @@ import { supabase } from '$lib/supabase';
 import type {
 	EmployeeLeaveBalanceTrackingMode,
 	EmployeeLeavePreviewRequest,
-	EmployeeLeaveType
 } from '../../routes/attendance/leave/employee-leave-types';
 import type {
 	LeaveManagementAdjustment,
@@ -18,14 +17,15 @@ import {
 	leaveDisplayRange,
 	leaveTimestampRange
 } from './supabase-leave-range';
+import { annualLeaveTypeID } from './leave-policy-defaults';
 import { leaveDaysInYear } from './leave-year-share';
 import { leaveCountsAsUsage } from './supabase-leave-summary';
 import {
 	employeeLeaveRequestOfRow,
 	supabaseLeavePreview,
-	theOnlyLeaveType,
 	type LeaveRow
 } from './supabase-leave';
+import { supabaseLeaveTypeDirectory, type LeaveTypeDirectory } from './supabase-leave-types';
 
 type CompanyRow = { timezone: string; leave_days: number | null };
 type MemberRow = {
@@ -41,6 +41,7 @@ type LeaveManagementSource = {
 	members: MemberRow[];
 	leaves: LeaveRow[];
 	targetYear: number;
+	leaveTypes: LeaveTypeDirectory;
 };
 
 const leaveColumns = 'id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note';
@@ -54,14 +55,9 @@ export async function supabaseLeaveManagement(employeeEmail = ''): Promise<Leave
 	const source = await readLeaveManagementSource();
 	const trackingMode = trackingModeOf(source);
 	const employees = source.members.map((member) => employeeOf(member, source, trackingMode));
-	const leaveType: EmployeeLeaveType = {
-		...theOnlyLeaveType,
-		balanceMode: trackingMode === 'managed' ? 'annual' : 'none',
-		includeInSummary: true
-	};
 	const payload: LeaveManagementPayload = {
 		balanceTrackingMode: trackingMode,
-		leaveTypes: [leaveType],
+		leaveTypes: source.leaveTypes.offered,
 		employees
 	};
 
@@ -74,7 +70,9 @@ export async function supabaseLeaveManagement(employeeEmail = ''): Promise<Leave
 			requests: source.leaves
 				.filter((leave) => leave.member_id === selected.id)
 				.sort((left, right) => right.starts_at.localeCompare(left.starts_at))
-				.map((leave) => employeeLeaveRequestOfRow(leave, timeZoneOf(selected, source))),
+				.map((leave) =>
+					employeeLeaveRequestOfRow(leave, timeZoneOf(selected, source), source.leaveTypes.nameOf)
+				),
 			ledgerEntries: []
 		}
 	};
@@ -96,10 +94,11 @@ export async function adjustSupabaseManagedLeave(input: LeaveManagementAdjustmen
 }
 
 export async function createSupabaseManagedPastLeave(input: LeaveManagementPastLeave): Promise<void> {
+	const directory = await supabaseLeaveTypeDirectory();
 	const company = await readCompany();
 	const member = await readMemberByEmail(input.employeeEmail);
 	const request: EmployeeLeavePreviewRequest = {
-		leaveTypeID: theOnlyLeaveType.id,
+		leaveTypeID: input.leaveTypeID,
 		unit: input.unit,
 		startDate: input.startDate,
 		endDate: input.endDate || input.startDate,
@@ -113,9 +112,9 @@ export async function createSupabaseManagedPastLeave(input: LeaveManagementPastL
 		.from('leave')
 		.insert({
 			member_id: member.id,
-			kind: theOnlyLeaveType.id,
-			is_paid: true,
-			is_deducted: true,
+			kind: input.leaveTypeID,
+			is_paid: directory.isPaid(input.leaveTypeID),
+			is_deducted: directory.deductsAnnualBalance(input.leaveTypeID),
 			days: preview.totalDeductionMilliDays / 1000,
 			status: 'approved',
 			starts_at: range.startsAt,
@@ -180,7 +179,13 @@ async function readLeaveManagementSource(): Promise<LeaveManagementSource> {
 	const targetYear = Number(
 		companyDateOfTimestamp(new Date().toISOString(), company.timezone).slice(0, 4)
 	);
-	return { company, members: members.data, leaves: leaves.data, targetYear };
+	return {
+		company,
+		members: members.data,
+		leaves: leaves.data,
+		targetYear,
+		leaveTypes: await supabaseLeaveTypeDirectory()
+	};
 }
 
 async function readCompany(): Promise<CompanyRow> {
@@ -239,8 +244,8 @@ function employeeOf(
 		expiringMilliDays: 0,
 		balances: [
 			{
-				leaveTypeID: theOnlyLeaveType.id,
-				leaveTypeName: theOnlyLeaveType.name,
+				leaveTypeID: annualLeaveTypeID,
+				leaveTypeName: source.leaveTypes.nameOf(annualLeaveTypeID),
 				grantedMilliDays,
 				availableMilliDays,
 				reservedMilliDays,

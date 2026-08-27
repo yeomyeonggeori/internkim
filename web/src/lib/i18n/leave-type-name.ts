@@ -5,7 +5,7 @@ const defaultLeaveTypeNames = {
 	sick: { ko: '병가', en: 'Sick leave' },
 	bereavement: { ko: '경조휴가', en: 'Bereavement leave' },
 	public: { ko: '공가', en: 'Official leave' },
-	maternity: { ko: '출산휴가', en: 'Maternity leave' },
+	maternity: { ko: '출산·육아휴가', en: 'Maternity and childcare leave' },
 	'spouse-maternity': { ko: '배우자 출산휴가', en: 'Spouse maternity leave' },
 	'miscarriage-stillbirth': { ko: '유산·사산휴가', en: 'Miscarriage and stillbirth leave' },
 	'fertility-treatment': { ko: '난임치료휴가', en: 'Fertility treatment leave' },

@@ -11,11 +11,12 @@
 		createLeaveType,
 		leaveTypeIsValid
 	} from './attendance-leave-policy-model';
+	import { apiErrorMessage } from './admin-api';
 	import {
-		apiErrorMessage,
 		fetchAttendanceLeavePolicy,
 		updateAttendanceLeavePolicy
-	} from './admin-api';
+	} from './attendance-settings-api';
+	import { settingsSource } from './settings-source';
 	import type {
 		AdminPageText,
 		AttendanceLeavePolicy,
@@ -31,7 +32,7 @@
 	let { adminBaseURL, text }: LeavePolicySettingsProps = $props();
 	let policy = $state<AttendanceLeavePolicy | null>(null);
 	let draft = $state<LeaveType | null>(null);
-	let loadedAdminBaseURL = $state('');
+	let loadedSource = $state('');
 	let message = $state('');
 	let isLoading = $state(false);
 	let isSaving = $state(false);
@@ -42,8 +43,9 @@
 	let balanceTrackingMode = $state<LeaveBalanceTrackingMode>('managed');
 
 	$effect(() => {
-		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
-		loadedAdminBaseURL = adminBaseURL;
+		const source = settingsSource(adminBaseURL);
+		if (!source || loadedSource === source) return;
+		loadedSource = source;
 		void loadPolicy();
 	});
 
@@ -207,7 +209,7 @@
 	}
 </script>
 
-<div data-testid="attendance-leave-policy-settings" class="space-y-5">
+<div data-testid="attendance-leave-policy-settings" class="@container/leave space-y-5">
 	{#if policy}
 		<AttendanceLeaveBalanceTracking
 			mode={balanceTrackingMode}
@@ -221,7 +223,7 @@
 	{/if}
 
 	<div
-		class="grid gap-5 lg:h-[clamp(36rem,calc(100dvh-26rem),52rem)] lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)] lg:items-stretch"
+		class="grid gap-5 lg:h-[clamp(36rem,calc(100dvh-26rem),52rem)] @2xl/leave:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)] lg:items-stretch"
 	>
 		<AttendanceLeavePolicyList
 			{policy}
@@ -240,6 +242,7 @@
 				{draft}
 				{text}
 				{isSaving}
+				tracksSeparateBalances={settingsSource(adminBaseURL) !== 'company'}
 				{validationAttempted}
 				hasChanges={draftHasChanges()}
 				onChange={(nextDraft) => (draft = nextDraft)}

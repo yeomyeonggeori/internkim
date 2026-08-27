@@ -67,57 +67,15 @@ export function createDefaultAttendanceLeavePolicy(): AttendanceLeavePolicy {
 				sortOrder: 0
 			}),
 			systemLeaveType('sick', '병가', {
+				paid: true,
 				allowedUnits: partialLeaveUnits,
 				sortOrder: 1
 			}),
-			systemLeaveType('bereavement', '경조휴가', { paid: true, sortOrder: 2 }),
-			systemLeaveType('public', '공가', { paid: true, sortOrder: 3 }),
-			systemLeaveType('maternity', '출산휴가', { paid: true, sortOrder: 4 }),
-			systemLeaveType('spouse-maternity', '배우자 출산휴가', { paid: true, sortOrder: 5 }),
-			systemLeaveType('miscarriage-stillbirth', '유산·사산휴가', {
-				paid: true,
-				sortOrder: 6
-			}),
-			systemLeaveType('fertility-treatment', '난임치료휴가', {
-				paid: true,
-				allowedUnits: partialLeaveUnits,
-				sortOrder: 7
-			}),
-			systemLeaveType('family-care', '가족돌봄휴가', {
-				allowedUnits: partialLeaveUnits,
-				sortOrder: 8
-			}),
-			systemLeaveType('reward', '포상휴가', {
-				paid: true,
-				balanceMode: 'separate',
-				includeInSummary: true,
-				sortOrder: 9
-			}),
-			systemLeaveType('compensatory', '보상휴가', {
-				paid: true,
-				balanceMode: 'separate',
-				allowedUnits: partialLeaveUnits,
-				includeInSummary: true,
-				sortOrder: 10
-			}),
-			systemLeaveType('long-service', '장기근속휴가', {
-				paid: true,
-				balanceMode: 'separate',
-				includeInSummary: true,
-				sortOrder: 11
-			}),
-			systemLeaveType('refresh', '리프레시휴가', {
-				paid: true,
-				balanceMode: 'separate',
-				includeInSummary: true,
-				sortOrder: 12
-			}),
-			systemLeaveType('parental-leave', '육아휴직', { sortOrder: 13 }),
+			systemLeaveType('maternity', '출산·육아휴가', { paid: true, sortOrder: 2 }),
 			systemLeaveType('unpaid', '무급휴가', {
 				allowedUnits: partialLeaveUnits,
-				sortOrder: 14
-			}),
-			systemLeaveType('other', '기타 휴가', { sortOrder: 15 })
+				sortOrder: 3
+			})
 		],
 		updatedAt: ''
 	};

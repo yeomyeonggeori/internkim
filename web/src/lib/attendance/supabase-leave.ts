@@ -7,7 +7,6 @@ import type {
 	EmployeeLeaveRequest,
 	EmployeeLeaveStatus,
 	EmployeeLeaveSubmission,
-	EmployeeLeaveType,
 	EmployeeLeaveUnit
 } from '../../routes/attendance/leave/employee-leave-types';
 import type {
@@ -22,6 +21,11 @@ import {
 } from './supabase-leave-range';
 import { EmployeeLeaveAPIError } from '../../routes/attendance/leave/employee-leave-api-error';
 import { summarizeSupabaseLeave } from './supabase-leave-summary';
+import {
+	supabaseLeaveTypeDirectory,
+	withAnnualBalance,
+	type LeaveTypeDirectory
+} from './supabase-leave-types';
 
 type LeaveStatus = 'requested' | 'approved' | 'rejected';
 
@@ -49,17 +53,8 @@ const statusWords: Record<LeaveStatus, EmployeeLeaveStatus> = {
 	rejected: 'rejected'
 };
 
-export const theOnlyLeaveType: EmployeeLeaveType = {
-	id: 'leave',
-	name: '휴가',
-	balanceMode: 'none',
-	allowedUnits: ['fullDay', 'halfDay', 'quarterDay'],
-	includeInSummary: false,
-	isActive: true,
-	requiresHireDate: false
-};
-
 export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
+	const directory = await supabaseLeaveTypeDirectory();
 	const memberID = await myMemberID();
 	const leave = await supabase()
 		.from('leave')
@@ -69,7 +64,10 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
 	const timeZone = await memberTimeZone(memberID);
-	const mappedLeave = leave.data.map((row) => ({ row, request: employeeLeaveRequestOfRow(row, timeZone) }));
+	const mappedLeave = leave.data.map((row) => ({
+		row,
+		request: employeeLeaveRequestOfRow(row, timeZone, directory.nameOf)
+	}));
 	const requests = mappedLeave.map(({ request }) => request);
 	const targetYear = await memberCurrentYear(memberID);
 	const remainingDays = await memberLeaveRemaining(memberID, targetYear);
@@ -84,16 +82,9 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 		targetYear,
 		remainingDays
 	);
-	const leaveType: EmployeeLeaveType = {
-		...theOnlyLeaveType,
-		balanceMode: balance.trackingMode === 'managed' ? 'annual' : 'none',
-		includeInSummary: true,
-		balance: balance.summary
-	};
-
 	return {
 		balanceTrackingMode: balance.trackingMode,
-		leaveTypes: [leaveType],
+		leaveTypes: withAnnualBalance(directory.offered, directory, balance.summary),
 		summary: balance.summary,
 		requests,
 		ledgerEntries: [],
@@ -117,12 +108,14 @@ export async function supabaseLeavePreview(request: EmployeeLeavePreviewRequest)
 }
 
 export async function createSupabaseLeaveRequest(request: EmployeeLeaveSubmission): Promise<void> {
+	const directory = await supabaseLeaveTypeDirectory();
 	const preview = await supabaseLeavePreview(request);
 	const range = leaveTimestampRange(request, await companyTimeZone());
 	const { error } = await supabase().from('leave').insert({
 		member_id: await myMemberID(),
-		kind: theOnlyLeaveType.id,
-		is_paid: true,
+		kind: request.leaveTypeID,
+		is_paid: directory.isPaid(request.leaveTypeID),
+		is_deducted: directory.deductsAnnualBalance(request.leaveTypeID),
 		days: preview.totalDeductionMilliDays / 1000,
 		status: 'requested',
 		starts_at: range.startsAt,
@@ -145,6 +138,7 @@ export async function cancelSupabaseLeaveRequest(requestID: string): Promise<voi
 }
 
 export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> {
+	const directory = await supabaseLeaveTypeDirectory();
 	const leave = await supabase()
 		.from('leave')
 		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
@@ -153,8 +147,8 @@ export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> 
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
 
-	const directory = await memberDirectory();
-	const pending = leave.data.map((row) => approvalOf(row, directory));
+	const members = await memberDirectory();
+	const pending = leave.data.map((row) => approvalOf(row, members, directory));
 	return { pendingCount: pending.length, pending, recentChanges: [] };
 }
 
@@ -169,16 +163,20 @@ export async function decideSupabaseLeave(
 		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
 		.single<LeaveRow>();
 	if (decided.error) throw new Error(decided.error.message);
-	return approvalOf(decided.data, await memberDirectory());
+	return approvalOf(decided.data, await memberDirectory(), await supabaseLeaveTypeDirectory());
 }
 
-export function employeeLeaveRequestOfRow(row: LeaveRow, timeZone: string): EmployeeLeaveRequest {
+export function employeeLeaveRequestOfRow(
+	row: LeaveRow,
+	timeZone: string,
+	nameOf: (leaveTypeID: string) => string
+): EmployeeLeaveRequest {
 	const status = statusWords[row.status];
 	const range = leaveDisplayRange(row.starts_at, row.ends_at, row.days, timeZone);
 	return {
 		id: row.id,
-		leaveTypeID: theOnlyLeaveType.id,
-		leaveTypeName: theOnlyLeaveType.name,
+		leaveTypeID: row.kind,
+		leaveTypeName: nameOf(row.kind),
 		status,
 		unit: unitOf(row.days),
 		...range,
@@ -193,14 +191,18 @@ export function employeeLeaveRequestOfRow(row: LeaveRow, timeZone: string): Empl
 	};
 }
 
-function approvalOf(row: LeaveRow, directory: MemberDirectory): LeaveApprovalRequest {
-	const timeZone = directory.timeZoneOf(row.member_id);
+function approvalOf(
+	row: LeaveRow,
+	members: MemberDirectory,
+	directory: LeaveTypeDirectory
+): LeaveApprovalRequest {
+	const timeZone = members.timeZoneOf(row.member_id);
 	return {
 		id: row.id,
-		employeeEmail: directory.emailOf(row.member_id),
-		leaveTypeID: theOnlyLeaveType.id,
-		leaveTypeName: theOnlyLeaveType.name,
-		balanceMode: 'none',
+		employeeEmail: members.emailOf(row.member_id),
+		leaveTypeID: row.kind,
+		leaveTypeName: directory.nameOf(row.kind),
+		balanceMode: directory.ownsAnnualBalance(row.kind) ? 'annual' : 'none',
 		status: statusWords[row.status],
 		unit: unitOf(row.days),
 		...leaveDisplayRange(row.starts_at, row.ends_at, row.days, timeZone),

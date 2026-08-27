@@ -65,7 +65,7 @@ func validateAttendanceLeavePolicy(policy *attendanceLeavePolicy, _ *attendanceL
 			return fmt.Errorf("invalid policy update time")
 		}
 	}
-	systems := defaultAttendanceLeavePolicy().LeaveTypes
+	systemKinds := attendanceSystemLeaveTypeKinds()
 	byID := map[string]attendanceLeaveType{}
 	byName := map[string]bool{}
 	hasSharedAnnualBalance := false
@@ -131,22 +131,12 @@ func validateAttendanceLeavePolicy(policy *attendanceLeavePolicy, _ *attendanceL
 			}
 			seenUnits[unit] = true
 		}
-		isKnownSystem := false
-		for _, system := range systems {
-			if leaveType.ID == system.ID {
-				isKnownSystem = true
-				break
-			}
-		}
+		systemKind, isKnownSystem := systemKinds[leaveType.ID]
 		if !isKnownSystem && (leaveType.IsSystem || leaveType.SystemKind != "") {
 			return fmt.Errorf("custom leave type identity is immutable")
 		}
-		if leaveType.IsSystem {
-			for _, system := range systems {
-				if system.ID == leaveType.ID && (leaveType.SystemKind != system.SystemKind || !leaveType.IsSystem) {
-					return fmt.Errorf("system identity cannot change")
-				}
-			}
+		if leaveType.IsSystem && leaveType.SystemKind != systemKind {
+			return fmt.Errorf("system identity cannot change")
 		}
 	}
 	if hasSharedAnnualBalance {

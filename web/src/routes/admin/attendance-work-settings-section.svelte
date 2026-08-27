@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
-	import { apiErrorMessage, fetchAttendanceWorkPolicy, updateAttendanceWorkPolicy } from './admin-api';
+	import { apiErrorMessage } from './admin-api';
+	import { fetchAttendanceWorkPolicy, updateAttendanceWorkPolicy } from './attendance-settings-api';
+	import { settingsSource } from './settings-source';
 	import type {
 		AdminPageText,
 		AttendanceWorkPolicy,
@@ -24,7 +26,7 @@
 	let { adminBaseURL, text }: Props = $props();
 	let policy = $state<AttendanceWorkPolicy | null>(null);
 	let draft = $state<AttendanceWorkPolicyRevision | null>(null);
-	let loadedAdminBaseURL = $state('');
+	let loadedSource = $state('');
 	let message = $state('');
 	let isLoading = $state(false);
 	let isSaving = $state(false);
@@ -32,8 +34,9 @@
 	let holidayDates = $state<string[]>([]);
 
 	$effect(() => {
-		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
-		loadedAdminBaseURL = adminBaseURL;
+		const source = settingsSource(adminBaseURL);
+		if (!source || loadedSource === source) return;
+		loadedSource = source;
 		void loadPolicy();
 	});
 
@@ -106,7 +109,7 @@
 	}
 </script>
 
-<div class="space-y-5" data-testid="attendance-work-settings">
+<div class="@container space-y-5" data-testid="attendance-work-settings">
 	<div class="flex flex-wrap items-start justify-between gap-4">
 		<div>
 			<h2 class="text-lg font-semibold">{text.workSettings.title}</h2>
@@ -120,7 +123,7 @@
 	{#if isLoading && !draft}
 		<p class="text-sm text-muted-foreground">{text.workSettings.loading}</p>
 	{:else if draft}
-		<div class="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+		<div class="grid min-w-0 gap-5 @5xl:grid-cols-[minmax(0,1fr)_20rem]">
 			<div class="space-y-5">
 				<Card.Root>
 					<Card.Header>
