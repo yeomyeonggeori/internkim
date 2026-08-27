@@ -1,7 +1,7 @@
 {
 	"name": "internkim",
 	"short_name": "internkim",
-	"start_url": "/flow/",
+	"start_url": "/attendance/",
 	"scope": "/",
 	"display": "standalone",
 	"orientation": "portrait-primary",
