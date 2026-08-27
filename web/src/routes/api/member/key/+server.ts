@@ -4,6 +4,7 @@ import {
 	claimMemberFor,
 	controlPlane,
 	forgetPersonalKey,
+	isPersonalKey,
 	issuePersonalKey,
 	personalKeyNames,
 } from '$lib/server/control-plane';
@@ -25,6 +26,7 @@ async function memberOf(request: Request, platform: App.Platform | undefined): P
 	const authorization = request.headers.get('authorization') ?? '';
 	const accessToken = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
 	if (!accessToken) error(401, 'sign in first');
+	if (isPersonalKey(accessToken)) error(403, 'keys are made and revoked signed in, not with a key');
 
 	const { data: account } = await asMember({ projectURL, publishableKey }, accessToken).auth.getUser();
 	const email = account.user?.email?.trim().toLowerCase();

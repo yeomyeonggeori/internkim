@@ -300,14 +300,22 @@ export async function issueAgentKey(
 // it; they make another by that name and it replaces the one before.
 const personalKeyKind = 'api_key';
 
+const personalKeyPrefix = 'ik_';
+
+export function isPersonalKey(presented: string): boolean {
+	return presented.startsWith(personalKeyPrefix);
+}
+
 export async function issuePersonalKey(
 	client: SupabaseClient,
 	memberID: string,
 	name: string,
 ): Promise<string> {
-	const apiKey = [...crypto.getRandomValues(new Uint8Array(32))]
-		.map((byte) => byte.toString(16).padStart(2, '0'))
-		.join('');
+	const apiKey =
+		personalKeyPrefix +
+		[...crypto.getRandomValues(new Uint8Array(32))]
+			.map((byte) => byte.toString(16).padStart(2, '0'))
+			.join('');
 	const { error } = await client
 		.from('credential')
 		.upsert(
@@ -350,7 +358,7 @@ export async function forgetPersonalKey(
 export async function sessionForPersonalKey(
 	credentials: ControlPlaneCredentials,
 	apiKey: string,
-): Promise<MemberSession> {
+): Promise<MemberSession | null> {
 	const client = controlPlane(credentials);
 	const { data, error } = await client
 		.from('credential')
@@ -359,7 +367,7 @@ export async function sessionForPersonalKey(
 		.eq('external_id', await hashOf(apiKey))
 		.maybeSingle();
 	if (error) throw new Error(`personal key: ${error.message}`);
-	if (!data) throw new Error('that key belongs to nobody');
+	if (!data) return null;
 	return sessionForMember(credentials, data.member_id);
 }
 
