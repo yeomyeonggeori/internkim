@@ -251,6 +251,13 @@ func (service Service) mattermostDocxAttachmentScenarioPlans(keepArtifacts bool)
 	return append(service.upPlans(false), service.shellPlan("verify docx attachment", service.verifyCommand(verificationKind)))
 }
 
+// Buzz is what a company's messages actually travel over; every other scenario
+// here drives Mattermost. The fleet already provisions the relay and chatd, so
+// this one only needed a scenario to use them.
+func (service Service) buzzAttachmentScenarioPlans() []CommandPlan {
+	return append(service.upPlans(true), service.blueclawLabScenarioScriptPlan("buzz-attachment"))
+}
+
 func (service Service) restartPolicySurvivalScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("restart-policy-survival"))
 }

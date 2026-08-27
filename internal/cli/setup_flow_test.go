@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/deviceassets"
 	"testing"
 	"time"
 
@@ -877,5 +879,21 @@ func TestDeviceSSHControlFlagsSeparateElevationFromTargeting(t *testing.T) {
 	}
 	if len(remaining) != 2 || remaining[0] != "--host" || remaining[1] != "192.168.0.8" {
 		t.Fatalf("targeting flags must survive, got %v", remaining)
+	}
+}
+
+// The managed host executables are built against a requirements file that
+// arrives as a host device asset. While that asset shipped with the skills,
+// four steps later, a device set up from scratch died here every time.
+func TestManagedHostExecutablesNeedAHostAssetTheBinariesStepInstalls(t *testing.T) {
+	script := managedHostExecutablesScript()
+	requirementsPath := deviceassets.DocumentConversionDevicePath + "/requirements.txt"
+
+	if !strings.Contains(script, requirementsPath) {
+		t.Fatalf("expected the script to read %q, got:\n%s", requirementsPath, script)
+	}
+	asset, isFound := deviceassets.Find("document-conversion")
+	if !isFound || asset.DeviceKind != deviceassets.DeviceKindHost {
+		t.Fatalf("expected document-conversion to be a host asset, got %+v", asset)
 	}
 }

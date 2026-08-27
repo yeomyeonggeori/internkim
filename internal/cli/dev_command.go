@@ -141,7 +141,7 @@ type devFleetRunConfiguration struct {
 }
 
 // Reprovision the running local fleet VM in place from the current working tree.
-// The Firecracker guest runs from a baked rootfs, so Blueclaw, skill, prompt, and
+// The guest runs from a baked rootfs, so Blueclaw, skill, prompt, and
 // runtime changes only reach it through a reprovision; copying files onto the host
 // and restarting the service does not update the guest. GO_MOD_CACHE must point at
 // the real module cache or the payload build fails on the empty isolated cache.

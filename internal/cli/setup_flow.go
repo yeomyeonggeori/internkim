@@ -976,6 +976,10 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 		return err
 	}
 
+	if err := state.installHostDeviceAssetsSSH(); err != nil {
+		return err
+	}
+
 	if err := state.ensureManagedHostExecutablesSSH(); err != nil {
 		return err
 	}
@@ -1188,6 +1192,14 @@ func (state *setupFlowState) installAdmindSSH(context *setup.Context) error {
 	return state.verifyAdmindDeployment(context)
 }
 
+// Registration still hands out a hostname and a tunnel token, but the step that
+// installed the tunnel was removed in #483, so on anything provisioned since
+// then that hostname resolves to nothing and the check below fails on a device
+// that is perfectly healthy. A device that runs the tunnel is still held to it.
+func (state *setupFlowState) deviceServesItsPublicURL() bool {
+	return strings.TrimSpace(state.sshClient.run("systemctl is-active cloudflared 2>/dev/null")) == "active"
+}
+
 func (state *setupFlowState) verifyAdmindDeployment(context *setup.Context) error {
 	localHealth, errorValue := state.sshClient.runResult("curl -fsS --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:18080/admin/api/health")
 	if errorValue != nil {
@@ -1196,7 +1208,7 @@ func (state *setupFlowState) verifyAdmindDeployment(context *setup.Context) erro
 	if !strings.Contains(localHealth, `"status":"ok"`) || !strings.Contains(localHealth, `"recoveryAvailable":true`) {
 		return fmt.Errorf("admind local health response missing recovery status: %s", strings.TrimSpace(localHealth))
 	}
-	if strings.TrimSpace(context.PublicURL) == "" {
+	if strings.TrimSpace(context.PublicURL) == "" || !state.deviceServesItsPublicURL() {
 		fmt.Printf("  %s\n", state.messenger.t("admind local 검증 완료", "admind local verification complete"))
 		return nil
 	}
@@ -1331,6 +1343,9 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 		return errorValue
 	}
 	for _, asset := range deviceassets.All() {
+		if asset.DeviceKind != deviceassets.DeviceKindWorkspace {
+			continue
+		}
 		if errorValue := state.installDeviceAssetSSH(asset); errorValue != nil {
 			return errorValue
 		}
@@ -1370,6 +1385,22 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 	output, errorValue := state.sshClient.runResult(permissionsCommand)
 	if errorValue != nil {
 		return fmt.Errorf("set skills workspace ownership and permissions: %s: %w", strings.TrimSpace(output), errorValue)
+	}
+	return nil
+}
+
+// The managed host executables are installed against a python requirements file
+// and a font directory that arrive as device assets. They used to arrive with
+// the skills, which run four steps later, so a device that had never been set
+// up failed here every time: "host-document-requirements-missing".
+func (state *setupFlowState) installHostDeviceAssetsSSH() error {
+	for _, asset := range deviceassets.All() {
+		if asset.DeviceKind != deviceassets.DeviceKindHost {
+			continue
+		}
+		if errorValue := state.installDeviceAssetSSH(asset); errorValue != nil {
+			return errorValue
+		}
 	}
 	return nil
 }
@@ -1544,9 +1575,9 @@ func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) e
 	manifestDocument := state.blueclawRuntimeManifest()
 	manifest, errorValue := blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath)
 	if errorValue != nil {
-		return fmt.Errorf("blueclaw Firecracker base runtime artifact invalid: %w; run `make prepare-blueclaw-runtime-base` before setup", errorValue)
+		return fmt.Errorf("blueclaw guest base runtime artifact invalid: %w; run `make prepare-blueclaw-runtime-base` before setup", errorValue)
 	}
-	fmt.Print("  blueclaw Firecracker base runtime... ")
+	fmt.Print("  blueclaw guest base runtime... ")
 	remoteManifestDocument := state.sshClient.run("cat " + blueclaw.BlueclawRuntimeManifestPath + " 2>/dev/null || true")
 	installPlan := buildBlueclawRuntimeInstallPlan(
 		manifest,
@@ -1564,7 +1595,7 @@ func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) e
 	if blueclawRuntimeInstallPlanInstallsRootFilesystem(installPlan) {
 		if errorValue := blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest); errorValue != nil {
 			fmt.Println("failed")
-			return fmt.Errorf("blueclaw Firecracker base runtime artifact invalid: %w", errorValue)
+			return fmt.Errorf("blueclaw guest base runtime artifact invalid: %w", errorValue)
 		}
 	}
 	printBlueclawRuntimeInstallPlan(installPlan)
@@ -1640,7 +1671,7 @@ mkdir -p /var/log/blueclaw-supervisor
 `)
 	if errorValue != nil {
 		fmt.Println("failed")
-		return fmt.Errorf("verify blueclaw Firecracker runtime: %s: %w", strings.TrimSpace(output), errorValue)
+		return fmt.Errorf("verify blueclaw guest runtime: %s: %w", strings.TrimSpace(output), errorValue)
 	}
 	if blueclawWasActive {
 		if _, startError := state.sshClient.runResult("systemctl start blueclaw"); startError != nil {
@@ -1874,10 +1905,10 @@ func (state *setupFlowState) ensureBlueclawRuntimeBaseArtifact() (string, error)
 		}
 	}
 	if makeError := state.runMakeTarget("prepare-blueclaw-runtime-base"); makeError != nil {
-		return "", fmt.Errorf("blueclaw Firecracker base runtime artifact invalid: %w; automatic preparation failed: %w", errorValue, makeError)
+		return "", fmt.Errorf("blueclaw guest base runtime artifact invalid: %w; automatic preparation failed: %w", errorValue, makeError)
 	}
 	if _, errorValue = blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath); errorValue != nil {
-		return "", fmt.Errorf("blueclaw Firecracker base runtime artifact invalid after automatic preparation: %w", errorValue)
+		return "", fmt.Errorf("blueclaw guest base runtime artifact invalid after automatic preparation: %w", errorValue)
 	}
 	return artifactDirectoryPath, nil
 }

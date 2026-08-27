@@ -559,3 +559,21 @@ func planArgumentIndex(plans []CommandPlan, expectedText string) int {
 	}
 	return -1
 }
+
+// Every other local fleet scenario drives Mattermost, which is not the
+// messenger a company's messages travel over any more.
+func TestBuzzAttachmentScenarioRunsTheBuzzScript(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	joinedPlans := joinedPlanArguments(service.buzzAttachmentScenarioPlans())
+
+	if !strings.Contains(joinedPlans, "lab/scripts/scenario-buzz-attachment.sh") {
+		t.Fatalf("expected the buzz scenario script in plans:\n%s", joinedPlans)
+	}
+	if strings.Contains(joinedPlans, "verify mattermost") {
+		t.Fatalf("expected the buzz scenario to reach nothing through mattermost:\n%s", joinedPlans)
+	}
+}
