@@ -26,7 +26,7 @@ export type CompanyCallsBinding = {
 export type WorkerEnvironment = {
 	COMPANY_CALLS: CompanyCallsBinding;
 	SUPABASE_URL: string;
-	SUPABASE_SERVICE_ROLE_KEY: string;
+	SUPABASE_SECRET_KEY: string;
 };
 
 const apiPrefix = '/v1';
@@ -138,7 +138,7 @@ let sharedKeyCache: PersonalKeyCache | undefined;
 function keyCacheFor(environment: WorkerEnvironment): PersonalKeyCache {
 	sharedKeyCache ??= new PersonalKeyCache((presented) =>
 		callerOfPersonalKey(
-			{ projectURL: environment.SUPABASE_URL, serviceRoleKey: environment.SUPABASE_SERVICE_ROLE_KEY },
+			{ projectURL: environment.SUPABASE_URL, serviceRoleKey: environment.SUPABASE_SECRET_KEY },
 			presented
 		)
 	);
