@@ -90,7 +90,7 @@ export type Dispatch = {
 	messengerCredentialOf: (memberID: string) => Promise<ActorCredential | null>;
 };
 
-export type ConnectedAccount = { externalID: string; name: string; secret: string };
+export type ConnectedAccount = { kind: string; externalID: string; name: string; secret: string };
 
 export type ActorCredential = { kind: string; secret: string };
 
@@ -258,13 +258,18 @@ async function serveRegistration(
 
 function issuedAccountOf(body: unknown): ConnectedAccount | null {
 	const issued = body as
-		| { credential?: { secret?: unknown }; identity?: { externalID?: unknown; name?: unknown } }
+		| {
+				credential?: { kind?: unknown; secret?: unknown };
+				identity?: { externalID?: unknown; name?: unknown };
+		  }
 		| null;
+	const kind = issued?.credential?.kind;
 	const secret = issued?.credential?.secret;
 	const externalID = issued?.identity?.externalID;
+	if (typeof kind !== 'string' || kind === '') return null;
 	if (typeof secret !== 'string' || typeof externalID !== 'string') return null;
 	const name = issued?.identity?.name;
-	return { externalID, name: typeof name === 'string' ? name : '', secret };
+	return { kind, externalID, name: typeof name === 'string' ? name : '', secret };
 }
 
 async function serveMail(

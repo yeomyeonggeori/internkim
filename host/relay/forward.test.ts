@@ -500,7 +500,12 @@ describe('a member connects their own messenger account', () => {
 		expect(connected).toEqual([
 			{
 				memberID: 'member-1',
-				account: { externalID: 'U-new', name: '이샘플', secret: 'a-durable-token' }
+				account: {
+					kind: 'mattermost-token',
+					externalID: 'U-new',
+					name: '이샘플',
+					secret: 'a-durable-token'
+				}
 			}
 		]);
 	});

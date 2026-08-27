@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -74,13 +75,98 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 	return service.validateFleetSignedRequest(payload.fleetSignedRequest, isAllowedSSHRecoveryAction)
 }
 
+// SSHRecoveryActions names every recovery action the device will run.
+var SSHRecoveryActions = []string{
+	"status",
+	"snapshot",
+	"restart-ssh",
+	"restart-cloudflared-node-ssh",
+	"journal-tail",
+	"unlock-mattermost-admin",
+	"reboot",
+	"stop-tenant-pilots",
+	"remove-tenant-pilots",
+	"limit-blueclaw",
+	"restart-blueclaw",
+	"blueclaw-boot-diagnose",
+	"blueclaw-journal",
+	"blueclaw-workspace-repair",
+	"blueclaw-postgres-salvage",
+	"blueclaw-postgres-inspect",
+	"blueclaw-postgres-restore-previous",
+	"repair-buzz-relay",
+	"buzz-relay-journal",
+	"enable-buzz-mirror",
+	"buzz-mirror-status",
+	"retire-mattermost-mirror",
+	"stop-mattermost",
+	"calendar-record-coverage",
+	"calendar-carry-into-the-record",
+	"organization-directory-coverage",
+	"organization-seed-the-directory",
+	"buzz-device-link-count",
+	"buzz-rewrite-old-links",
+	"buzz-rewrite-old-links-dryrun",
+	"buzz-named-reaction-count",
+	"buzz-orphan-inspect",
+	"buzz-stranger-members",
+	"buzz-stranger-members-remove",
+	"buzz-profile-inspect",
+	"buzz-probe-profile-count",
+	"buzz-probe-profile-purge",
+	"buzz-reconcile-channels",
+	"buzz-republish-rooms",
+	"buzz-link-edits",
+	"buzz-remove-link-edits",
+	"buzz-restore-dm-discovery",
+	"buzz-channel-visibility",
+	"buzz-channel-visibility-repair",
+	"buzz-close-channels-their-room-closed",
+	"buzz-channel-members-their-room-lacks",
+	"buzz-remove-members-their-room-lacks",
+	"buzz-rooms-nobody-is-in",
+	"buzz-retire-rooms-nobody-is-in",
+	"buzz-retire-room",
+	"circle-membership-read",
+	"circle-membership-reconcile",
+	"circle-room-read",
+	"circle-room-reconcile",
+	"buzz-whose-key",
+	"buzz-snapshot",
+	"buzz-membership-recover",
+	"buzz-restore",
+	"buzz-repair-dryrun",
+	"buzz-repair-apply",
+	"buzz-reimport",
+	"buzz-refresh-profiles",
+	"buzz-reimport-log",
+	"buzz-read-test",
+	"policy-circle-roster",
+	"buzz-room-roster",
+	"buzz-room-messages",
+	"buzz-deletion-markers",
+	"buzz-window-probe",
+	"buzz-channel-list-probe",
+	"buzz-joining-notices",
+	"buzz-forget-joining-notices",
+	"buzz-remove-deletion-markers",
+	"buzz-room-visibility",
+	"restart-buzz-relay",
+	"messenger-relay",
+	"record-buzz-credentials",
+	"buzz-relay-service-journal",
+	"buzz-close-rooms-except",
+	"buzz-rename-room",
+	"buzz-retire-room-by-name",
+	"admind-journal",
+	"buzz-chatd-repair",
+	"mattermost-unlock-users",
+	"postgres-repair",
+	"release-setup-lock",
+}
+
 func isAllowedSSHRecoveryAction(action string) bool {
-	switch action {
-	case "status", "snapshot", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots", "limit-blueclaw", "restart-blueclaw", "blueclaw-boot-diagnose", "blueclaw-journal", "blueclaw-workspace-repair", "blueclaw-postgres-salvage", "blueclaw-postgres-inspect", "blueclaw-postgres-restore-previous", "repair-buzz-relay", "buzz-relay-journal", "enable-buzz-mirror", "buzz-mirror-status", "retire-mattermost-mirror", "stop-mattermost", "calendar-record-coverage", "calendar-carry-into-the-record", "organization-directory-coverage", "organization-seed-the-directory", "buzz-device-link-count", "buzz-rewrite-old-links", "buzz-rewrite-old-links-dryrun", "buzz-named-reaction-count", "buzz-orphan-inspect", "buzz-stranger-members", "buzz-stranger-members-remove", "buzz-profile-inspect", "buzz-probe-profile-count", "buzz-probe-profile-purge", "buzz-reconcile-channels", "buzz-republish-rooms", "buzz-link-edits", "buzz-remove-link-edits", "buzz-restore-dm-discovery", "buzz-channel-visibility", "buzz-channel-visibility-repair", "buzz-close-channels-their-room-closed", "buzz-channel-members-their-room-lacks", "buzz-remove-members-their-room-lacks", "buzz-rooms-nobody-is-in", "buzz-retire-rooms-nobody-is-in", "buzz-retire-room", "circle-membership-read", "circle-membership-reconcile", "circle-room-read", "circle-room-reconcile", "buzz-whose-key", "buzz-snapshot", "buzz-membership-recover", "buzz-restore", "buzz-repair-dryrun", "buzz-repair-apply", "buzz-reimport", "buzz-refresh-profiles", "buzz-reimport-log", "buzz-read-test", "policy-circle-roster", "buzz-room-roster", "buzz-room-messages", "buzz-deletion-markers", "buzz-window-probe", "buzz-joining-notices", "buzz-forget-joining-notices", "buzz-remove-deletion-markers", "buzz-room-visibility", "restart-buzz-relay", "messenger-relay", "record-buzz-credentials", "buzz-relay-service-journal", "buzz-close-rooms-except", "buzz-rename-room", "buzz-retire-room-by-name", "admind-journal", "buzz-chatd-repair", "mattermost-unlock-users", "postgres-repair", "release-setup-lock":
-		return true
-	default:
-		return false
-	}
+	return slices.Contains(SSHRecoveryActions, action)
 }
 
 func (service *Service) runSSHRecovery(ctx context.Context, action string, actionTarget string) sshRecoveryResponse {
@@ -321,6 +407,9 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 	case "buzz-window-probe":
 		probeCommand, probeError := buzzChannelWindowProbeCommand(actionTarget)
 		response.Results = append(response.Results, service.runNamedRoomCommand(ctx, "ask the relay exactly what the app asks", probeCommand, probeError))
+	case "buzz-channel-list-probe":
+		listCommand, listError := buzzChannelListProbeCommand(actionTarget)
+		response.Results = append(response.Results, service.runNamedRoomCommand(ctx, "ask the relay for the sidebar the way the client asks", listCommand, listError))
 	case "buzz-deletion-markers":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the deletion markers standing over messages nobody deleted", "sh", "-lc", buzzDeletionMarkerCommand(false)))
 	case "buzz-remove-deletion-markers":
@@ -1305,6 +1394,30 @@ printf '== what the relay answered ==\n'
 printf '%s' "$ANSWER" | head -c 400
 printf '\n== how many events, by kind ==\n'
 printf '%s' "$ANSWER" | jq -r 'if type == "array" then (group_by(.kind) | map("\(.[0].kind): \(length)") | .[]) else "not an array: \(.)" end' 2>&1 | head -20
+`), nil
+}
+
+func buzzChannelListProbeCommand(pubkey string) (string, error) {
+	reader := strings.TrimSpace(pubkey)
+	if reader == "" {
+		return "", errors.New("this action names the reader whose sidebar is in question, as a pubkey")
+	}
+	if strings.ContainsAny(reader, "'\"$`\n ") {
+		return "", fmt.Errorf("a pubkey carrying a quote or a space is refused: %q", reader)
+	}
+	return strings.TrimSpace(`
+set -e
+HOST=$(su - postgres -c "psql -X -qAt -d buzz -c \"SELECT host FROM communities LIMIT 1\"")
+ask() { curl -sS -X POST "http://` + blueclaw.BuzzRelayBindAddress + `/query" -H "Host: $HOST" -H "Content-Type: application/json" -H "X-Pubkey: ` + reader + `" -d "$1"; }
+printf 'asking %s as ` + reader + `\n' "$HOST"
+printf '== rooms this reader is a member of (39002) ==\n'
+ask '[{"kinds":[39002],"#p":["` + reader + `"]}]' | jq -r 'if type == "array" then (map(.tags[] | select(.[0] == "d") | .[1]) | unique | .[]) else "not an array: \(.)" end' 2>&1 | head -40
+printf '== every room the relay still advertises to this reader (39000) ==\n'
+ask '[{"kinds":[39000]}]' | jq -r 'if type == "array" then (map([(.tags[] | select(.[0] == "name") | .[1]) // "(unnamed)"] | .[0]) | sort | .[]) else "not an array: \(.)" end' 2>&1 | head -60
+printf '== rooms the table says are retired ==\n'
+su - postgres -c "psql -X -qAt -d buzz -c \"SELECT name FROM channels WHERE deleted_at IS NOT NULL ORDER BY name\""
+printf '== rooms the table says are live ==\n'
+su - postgres -c "psql -X -d buzz -c \"SELECT name, visibility FROM channels WHERE deleted_at IS NULL AND channel_type = 'stream' ORDER BY name\""
 `), nil
 }
 
