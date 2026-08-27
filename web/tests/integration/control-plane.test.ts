@@ -89,7 +89,8 @@ if (canReachSupabase)
 		const memberID = await addMember(client!, companyID, colleagueEmail);
 		await connectMessengerAccount(client!, companyID, {
 			memberID,
-			kind: 'buzz',
+			platform: 'buzz',
+			kind: 'buzz-secret',
 			externalID: `pubkey-${slug}`,
 			name: 'Colleague',
 			secret: `colleague-secret-${slug}`,
