@@ -21,6 +21,7 @@ type buzzIdentityKeyReport struct {
 	HasProfile  bool   `json:"hasProfile"`
 	ProfileName string `json:"profileName,omitempty"`
 	HasPicture  bool   `json:"hasPicture"`
+	PictureURL  string `json:"pictureURL,omitempty"`
 	Memberships int    `json:"memberships"`
 	Messages    int    `json:"messages"`
 }
@@ -253,6 +254,28 @@ func assembleBuzzIdentityReport(
 	rows buzzIdentityLedgerRows,
 ) (buzzIdentityReport, error) {
 	report := buzzIdentityReport{People: []buzzIdentityPersonReport{}, Channels: []buzzIdentityChannelReport{}}
+	for _, subject := range []string{buzzidentity.BootstrapSubject, buzzidentity.AgentSubject} {
+		pubkey, errorValue := nostr.GetPublicKey(buzzidentity.Secret(seed, subject))
+		if errorValue != nil {
+			return report, errorValue
+		}
+		profile, hasProfile := rows.profileByPubkey[pubkey]
+		report.People = append(report.People, buzzIdentityPersonReport{
+			Email:   subject,
+			Version: 1,
+			Identities: []buzzIdentityKeyReport{{
+				Version:     1,
+				Pubkey:      pubkey,
+				IsCurrent:   true,
+				HasProfile:  hasProfile,
+				ProfileName: firstNonEmpty(profile.Display, profile.Name),
+				HasPicture:  profile.Picture != "",
+				PictureURL:  profile.Picture,
+				Memberships: rows.membershipByPubkey[pubkey],
+				Messages:    rows.messagesByPubkey[pubkey],
+			}},
+		})
+	}
 	for _, email := range emails {
 		current := versionOf(email)
 		person := buzzIdentityPersonReport{Email: email, Version: current}
@@ -269,6 +292,7 @@ func assembleBuzzIdentityReport(
 				HasProfile:  hasProfile,
 				ProfileName: firstNonEmpty(profile.Display, profile.Name),
 				HasPicture:  profile.Picture != "",
+				PictureURL:  profile.Picture,
 				Memberships: rows.membershipByPubkey[pubkey],
 				Messages:    rows.messagesByPubkey[pubkey],
 			})
