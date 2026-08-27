@@ -26,7 +26,7 @@ const environment: WorkerEnvironment = {
 		}
 	},
 	SUPABASE_URL: 'https://plane.supabase.co',
-	SUPABASE_SERVICE_ROLE_KEY: 'service-role'
+	SUPABASE_SECRET_KEY: 'service-role'
 };
 
 function call(path: string, key: string | null, options: RequestInit = {}): Promise<Response> {
